@@ -40,17 +40,17 @@ runLocateSymbolAt(ClangdServer &Server, PathRef File, Position Pos);
 llvm::Expected<std::vector<DocumentHighlight>>
 runFindDocumentHighlights(ClangdServer &Server, PathRef File, Position Pos);
 
-llvm::Expected<FileEdits> runRename(ClangdServer &Server, PathRef File,
-                                    Position Pos, StringRef NewName,
-                                    const clangd::RenameOptions &RenameOpts);
+llvm::Expected<RenameResult> runRename(ClangdServer &Server, PathRef File,
+                                       Position Pos, StringRef NewName,
+                                       const clangd::RenameOptions &RenameOpts);
 
-std::string runDumpAST(ClangdServer &Server, PathRef File);
+llvm::Expected<RenameResult>
+runPrepareRename(ClangdServer &Server, PathRef File, Position Pos,
+                 llvm::Optional<std::string> NewName,
+                 const clangd::RenameOptions &RenameOpts);
 
-llvm::Expected<std::vector<SymbolInformation>>
-runWorkspaceSymbols(ClangdServer &Server, StringRef Query, int Limit);
-
-Expected<std::vector<DocumentSymbol>> runDocumentSymbols(ClangdServer &Server,
-                                                         PathRef File);
+llvm::Expected<tooling::Replacements>
+runFormatFile(ClangdServer &Server, PathRef File, llvm::Optional<Range>);
 
 SymbolSlab runFuzzyFind(const SymbolIndex &Index, StringRef Query);
 SymbolSlab runFuzzyFind(const SymbolIndex &Index, const FuzzyFindRequest &Req);
@@ -62,6 +62,9 @@ runSemanticRanges(ClangdServer &Server, PathRef File,
 
 llvm::Expected<llvm::Optional<clangd::Path>>
 runSwitchHeaderSource(ClangdServer &Server, PathRef File);
+
+llvm::Error runCustomAction(ClangdServer &Server, PathRef File,
+                            llvm::function_ref<void(InputsAndAST)>);
 
 } // namespace clangd
 } // namespace clang

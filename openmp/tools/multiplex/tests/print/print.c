@@ -5,6 +5,10 @@
 // RUN: PRINT_TOOL_LIBRARIES=%t.second.tool.so \
 // RUN: %libomp-run | %sort-threads | FileCheck %s
 
+// For GCC we don't get an event for master,
+// see runtime/test/ompt/sycnchronization/master.c
+// UNSUPPORTED: gcc
+
 #if defined(FIRST_TOOL)
 #include "first-tool.h"
 #elif defined(SECOND_TOOL)
@@ -54,14 +58,14 @@ int main() {
 // CHECK-SAME: parent_task_frame.exit=(nil),
 // CHECK-SAME: parent_task_frame.reenter={{0x[0-f]+}},
 // CHECK-SAME: parallel_id=[[_FIRST_PARALLEL_ID:[0-9]+]],
-// CHECK-SAME: requested_team_size=2, codeptr_ra={{0x[0-f]+}}, invoker=2
+// CHECK-SAME: requested_team_size=2, codeptr_ra={{0x[0-f]+}}, invoker
 
 // CHECK: {{^}}[[_1ST_MSTR_TID]]: _first_tool: ompt_event_implicit_task_begin:
 // CHECK-SAME: parallel_id=[[_FIRST_PARALLEL_ID]],
 // CHECK-SAME: task_id=[[_FIRST_MASTER_IMPLICIT_TASK_ID:[0-9]+]], team_size=2,
 // CHECK-SAME: thread_num=0
 
-// CHECK: {{^}}[[_1ST_MSTR_TID]]: _first_tool: ompt_event_master_begin:
+// CHECK: {{^}}[[_1ST_MSTR_TID]]: _first_tool: ompt_event_masked_begin:
 // CHECK-SAME: parallel_id=[[_FIRST_PARALLEL_ID]],
 // CHECK-SAME: task_id=[[_FIRST_MASTER_IMPLICIT_TASK_ID]],
 // CHECK-SAME: codeptr_ra={{0x[0-f]+}}
@@ -74,7 +78,7 @@ int main() {
 // CHECK-SAME: codeptr_ra={{0x[0-f]+}}, task_type=ompt_task_explicit=4,
 // CHECK-SAME: has_dependences=no
 
-// CHECK: {{^}}[[_1ST_MSTR_TID]]: _first_tool: ompt_event_master_end:
+// CHECK: {{^}}[[_1ST_MSTR_TID]]: _first_tool: ompt_event_masked_end:
 // CHECK-SAME: parallel_id=[[_FIRST_PARALLEL_ID]],
 // CHECK-SAME: task_id=[[_FIRST_MASTER_IMPLICIT_TASK_ID]],
 // CHECK-SAME: codeptr_ra={{0x[0-f]+}}
@@ -134,7 +138,7 @@ int main() {
 
 // CHECK: {{^}}[[_1ST_MSTR_TID]]: _first_tool: ompt_event_parallel_end:
 // CHECK-SAME: parallel_id=[[_FIRST_PARALLEL_ID]],
-// CHECK-SAME: task_id=[[_FIRST_INITIAL_TASK_ID]], invoker=2,
+// CHECK-SAME: task_id=[[_FIRST_INITIAL_TASK_ID]], invoker
 // CHECK-SAME: codeptr_ra={{0x[0-f]+}}
 
 // CHECK: {{^}}[[_1ST_MSTR_TID]]: _first_tool: ompt_event_thread_end:
@@ -152,14 +156,14 @@ int main() {
 // CHECK-SAME: parent_task_frame.exit=(nil),
 // CHECK-SAME: parent_task_frame.reenter={{0x[0-f]+}},
 // CHECK-SAME: parallel_id=[[SECOND_PARALLEL_ID:[0-9]+]],
-// CHECK-SAME: requested_team_size=2, codeptr_ra={{0x[0-f]+}}, invoker=2
+// CHECK-SAME: requested_team_size=2, codeptr_ra={{0x[0-f]+}}, invoker
 
 // CHECK: {{^}}[[_2ND_MSTR_TID]]: second_tool: ompt_event_implicit_task_begin:
 // CHECK-SAME: parallel_id=[[SECOND_PARALLEL_ID]],
 // CHECK-SAME: task_id=[[SECOND_MASTER_IMPLICIT_TASK_ID:[0-9]+]], team_size=2,
 // CHECK-SAME: thread_num=0
 
-// CHECK: {{^}}[[_2ND_MSTR_TID]]: second_tool: ompt_event_master_begin:
+// CHECK: {{^}}[[_2ND_MSTR_TID]]: second_tool: ompt_event_masked_begin:
 // CHECK-SAME: parallel_id=[[SECOND_PARALLEL_ID]],
 // CHECK-SAME: task_id=[[SECOND_MASTER_IMPLICIT_TASK_ID]],
 // CHECK-SAME: codeptr_ra={{0x[0-f]+}}
@@ -172,7 +176,7 @@ int main() {
 // CHECK-SAME: codeptr_ra={{0x[0-f]+}}, task_type=ompt_task_explicit=4,
 // CHECK-SAME: has_dependences=no
 
-// CHECK: {{^}}[[_2ND_MSTR_TID]]: second_tool: ompt_event_master_end:
+// CHECK: {{^}}[[_2ND_MSTR_TID]]: second_tool: ompt_event_masked_end:
 // CHECK-SAME: parallel_id=[[SECOND_PARALLEL_ID]],
 // CHECK-SAME: task_id=[[SECOND_MASTER_IMPLICIT_TASK_ID]],
 // CHECK-SAME: codeptr_ra={{0x[0-f]+}}
@@ -232,7 +236,7 @@ int main() {
 
 // CHECK: {{^}}[[_2ND_MSTR_TID]]: second_tool: ompt_event_parallel_end:
 // CHECK-SAME: parallel_id=[[SECOND_PARALLEL_ID]],
-// CHECK-SAME: task_id=[[SECOND_INITIAL_TASK_ID]], invoker=2,
+// CHECK-SAME: task_id=[[SECOND_INITIAL_TASK_ID]], invoker
 // CHECK-SAME: codeptr_ra={{0x[0-f]+}}
 
 // CHECK: {{^}}[[_2ND_MSTR_TID]]: second_tool: ompt_event_thread_end:

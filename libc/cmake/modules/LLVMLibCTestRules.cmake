@@ -111,14 +111,6 @@ function(add_libc_unittest target_name)
     set(msg "Skipping unittest ${fq_target_name} as it has missing deps: "
             "${skipped_entrypoints_list}.")
     message(STATUS ${msg})
-    add_custom_target(${fq_target_name})
-
-    # A post build custom command is used to avoid running the command always.
-    add_custom_command(
-      TARGET ${fq_target_name}
-      POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E echo ${msg}
-    )
     return()
   endif()
 
@@ -135,9 +127,13 @@ function(add_libc_unittest target_name)
       ${LIBC_BUILD_DIR}
       ${LIBC_BUILD_DIR}/include
   )
+  target_compile_options(
+    ${fq_target_name}
+    PRIVATE ${LIBC_COMPILE_OPTIONS_DEFAULT}
+  )
   if(LIBC_UNITTEST_COMPILE_OPTIONS)
     target_compile_options(
-      ${target_name}
+      ${fq_target_name}
       PRIVATE ${LIBC_UNITTEST_COMPILE_OPTIONS}
     )
   endif()
@@ -169,8 +165,13 @@ endfunction(add_libc_unittest)
 
 function(add_libc_testsuite suite_name)
   add_custom_target(${suite_name})
-  add_dependencies(check-libc ${suite_name})
+  add_dependencies(check-llvmlibc ${suite_name})
 endfunction(add_libc_testsuite)
+
+function(add_libc_exhaustive_testsuite suite_name)
+  add_custom_target(${suite_name})
+  add_dependencies(exhaustive-check-libc ${suite_name})
+endfunction(add_libc_exhaustive_testsuite)
 
 # Rule to add a fuzzer test.
 # Usage

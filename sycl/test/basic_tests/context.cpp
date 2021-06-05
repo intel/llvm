@@ -1,15 +1,9 @@
-// RUN: %clangxx %s -o %t.out -lsycl -I %sycl_include
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %RUN_ON_HOST %t.out
 
-//==--------------- context.cpp - SYCL context test ------------------------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
+// This test performs basic check of the SYCL context class.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <iostream>
 
 using namespace cl::sycl;
@@ -67,5 +61,32 @@ int main() {
     assert(hash == hash_class<context>()(WillContextCopy));
     assert(Context == WillContextCopy);
     assert(Context.is_host() == WillContextCopy.is_host());
+  }
+  {
+    auto AsyncHandler = [](const sycl::exception_list &EL) {};
+    sycl::context Context1(sycl::property_list{});
+    sycl::context Context2(AsyncHandler, sycl::property_list{});
+    sycl::context Context3(deviceA, sycl::property_list{});
+    sycl::context Context4(deviceA, AsyncHandler, sycl::property_list{});
+    sycl::context Context5(deviceA.get_platform(), sycl::property_list{});
+    sycl::context Context6(deviceA.get_platform(), AsyncHandler,
+                           sycl::property_list{});
+    sycl::context Context7(std::vector<sycl::device>{deviceA},
+                           sycl::property_list{});
+    sycl::context Context8(
+        std::vector<sycl::device>{deviceA}, AsyncHandler,
+        sycl::property_list{
+            sycl::property::context::cuda::use_primary_context{}});
+
+    if (!Context8.has_property<
+            sycl::property::context::cuda::use_primary_context>()) {
+      std::cerr << "Line " << __LINE__ << ": Property was not found"
+                << std::endl;
+      return 1;
+    }
+
+    sycl::property::context::cuda::use_primary_context Prop =
+        Context8
+            .get_property<sycl::property::context::cuda::use_primary_context>();
   }
 }

@@ -10,8 +10,8 @@
 #define LLDB_UTILITY_DATABUFFER_H
 #if defined(__cplusplus)
 
-#include <stdint.h>
-#include <string.h>
+#include <cstdint>
+#include <cstring>
 
 #include "lldb/lldb-types.h"
 
@@ -77,6 +77,20 @@ public:
   llvm::MutableArrayRef<uint8_t> GetData() {
     return llvm::MutableArrayRef<uint8_t>(GetBytes(), GetByteSize());
   }
+};
+
+class DataBufferUnowned : public DataBuffer {
+public:
+  DataBufferUnowned(uint8_t *bytes, lldb::offset_t size)
+      : m_bytes(bytes), m_size(size) {}
+
+  uint8_t *GetBytes() override { return m_bytes; }
+  const uint8_t *GetBytes() const override { return m_bytes; }
+  lldb::offset_t GetByteSize() const override { return m_size; }
+
+private:
+  uint8_t *m_bytes;
+  lldb::offset_t m_size;
 };
 
 } // namespace lldb_private

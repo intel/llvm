@@ -19,7 +19,6 @@
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/WindowsError.h"
 #include <fcntl.h>
-#include <io.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -352,13 +351,13 @@ std::error_code is_local(const Twine &path, bool &result) {
 static std::error_code realPathFromHandle(HANDLE H,
                                           SmallVectorImpl<wchar_t> &Buffer) {
   DWORD CountChars = ::GetFinalPathNameByHandleW(
-      H, Buffer.begin(), Buffer.capacity() - 1, FILE_NAME_NORMALIZED);
-  if (CountChars > Buffer.capacity()) {
+      H, Buffer.begin(), Buffer.capacity(), FILE_NAME_NORMALIZED);
+  if (CountChars && CountChars >= Buffer.capacity()) {
     // The buffer wasn't big enough, try again.  In this case the return value
     // *does* indicate the size of the null terminator.
     Buffer.reserve(CountChars);
     CountChars = ::GetFinalPathNameByHandleW(
-        H, Buffer.data(), Buffer.capacity() - 1, FILE_NAME_NORMALIZED);
+        H, Buffer.begin(), Buffer.capacity(), FILE_NAME_NORMALIZED);
   }
   if (CountChars == 0)
     return mapWindowsError(GetLastError());
@@ -403,8 +402,36 @@ std::error_code is_local(int FD, bool &Result) {
 }
 
 static std::error_code setDeleteDisposition(HANDLE Handle, bool Delete) {
+  // Clear the FILE_DISPOSITION_INFO flag first, before checking if it's a
+  // network file. On Windows 7 the function realPathFromHandle() below fails
+  // if the FILE_DISPOSITION_INFO flag was already set to 'DeleteFile = true' by
+  // a prior call.
   FILE_DISPOSITION_INFO Disposition;
-  Disposition.DeleteFile = Delete;
+  Disposition.DeleteFile = false;
+  if (!SetFileInformationByHandle(Handle, FileDispositionInfo, &Disposition,
+                                  sizeof(Disposition)))
+    return mapWindowsError(::GetLastError());
+  if (!Delete)
+    return std::error_code();
+
+  // Check if the file is on a network (non-local) drive. If so, don't
+  // continue when DeleteFile is true, since it prevents opening the file for
+  // writes. Note -- this will leak temporary files on disk, but only when the
+  // target file is on a network drive.
+  SmallVector<wchar_t, 128> FinalPath;
+  if (std::error_code EC = realPathFromHandle(Handle, FinalPath))
+    return EC;
+
+  bool IsLocal;
+  if (std::error_code EC = is_local_internal(FinalPath, IsLocal))
+    return EC;
+
+  if (!IsLocal)
+    return std::error_code();
+
+  // The file is on a local drive, we can safely set FILE_DISPOSITION_INFO's
+  // flag.
+  Disposition.DeleteFile = true;
   if (!SetFileInformationByHandle(Handle, FileDispositionInfo, &Disposition,
                                   sizeof(Disposition)))
     return mapWindowsError(::GetLastError());
@@ -555,6 +582,11 @@ std::error_code rename(const Twine &From, const Twine &To) {
                       NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (FromHandle)
       break;
+
+    // We don't want to loop if the file doesn't exist.
+    auto EC = mapWindowsError(GetLastError());
+    if (EC == errc::no_such_file_or_directory)
+      return EC;
   }
   if (!FromHandle)
     return mapWindowsError(GetLastError());
@@ -589,6 +621,9 @@ std::error_code access(const Twine &Path, AccessMode Mode) {
   }
 
   if (Mode == AccessMode::Write && (Attributes & FILE_ATTRIBUTE_READONLY))
+    return errc::permission_denied;
+
+  if (Mode == AccessMode::Execute && (Attributes & FILE_ATTRIBUTE_DIRECTORY))
     return errc::permission_denied;
 
   return std::error_code();
@@ -868,10 +903,10 @@ std::error_code mapped_file_region::init(sys::fs::file_t OrigFileHandle,
 mapped_file_region::mapped_file_region(sys::fs::file_t fd, mapmode mode,
                                        size_t length, uint64_t offset,
                                        std::error_code &ec)
-    : Size(length), Mapping() {
+    : Size(length) {
   ec = init(fd, offset, mode);
   if (ec)
-    Mapping = 0;
+    copyFrom(mapped_file_region());
 }
 
 static bool hasFlushBufferKernelBug() {
@@ -890,7 +925,7 @@ static bool isEXE(StringRef Magic) {
   return false;
 }
 
-mapped_file_region::~mapped_file_region() {
+void mapped_file_region::unmapImpl() {
   if (Mapping) {
 
     bool Exe = isEXE(StringRef((char *)Mapping, Size));
@@ -910,21 +945,6 @@ mapped_file_region::~mapped_file_region() {
 
     ::CloseHandle(FileHandle);
   }
-}
-
-size_t mapped_file_region::size() const {
-  assert(Mapping && "Mapping failed but used anyway!");
-  return Size;
-}
-
-char *mapped_file_region::data() const {
-  assert(Mapping && "Mapping failed but used anyway!");
-  return reinterpret_cast<char*>(Mapping);
-}
-
-const char *mapped_file_region::const_data() const {
-  assert(Mapping && "Mapping failed but used anyway!");
-  return reinterpret_cast<const char*>(Mapping);
 }
 
 int mapped_file_region::alignment() {
@@ -952,9 +972,9 @@ std::error_code detail::directory_iterator_construct(detail::DirIterState &IT,
     return EC;
 
   // Convert path to the format that Windows is happy with.
-  if (PathUTF16.size() > 0 &&
-      !is_separator(PathUTF16[Path.size() - 1]) &&
-      PathUTF16[Path.size() - 1] != L':') {
+  size_t PathUTF16Len = PathUTF16.size();
+  if (PathUTF16Len > 0 && !is_separator(PathUTF16[PathUTF16Len - 1]) &&
+      PathUTF16[PathUTF16Len - 1] != L':') {
     PathUTF16.push_back(L'\\');
     PathUTF16.push_back(L'*');
   } else {
@@ -1048,8 +1068,10 @@ static std::error_code nativeFileToFd(Expected<HANDLE> H, int &ResultFD,
   if (Flags & OF_Append)
     CrtOpenFlags |= _O_APPEND;
 
-  if (Flags & OF_Text)
+  if (Flags & OF_CRLF) {
+    assert(Flags & OF_Text && "Flags set OF_CRLF without OF_Text");
     CrtOpenFlags |= _O_TEXT;
+  }
 
   ResultFD = -1;
   if (!H)
@@ -1255,6 +1277,43 @@ Expected<size_t> readNativeFileSlice(file_t FileHandle,
   return readNativeFileImpl(FileHandle, Buf, &Overlapped);
 }
 
+std::error_code tryLockFile(int FD, std::chrono::milliseconds Timeout) {
+  DWORD Flags = LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY;
+  OVERLAPPED OV = {};
+  file_t File = convertFDToNativeFile(FD);
+  auto Start = std::chrono::steady_clock::now();
+  auto End = Start + Timeout;
+  do {
+    if (::LockFileEx(File, Flags, 0, MAXDWORD, MAXDWORD, &OV))
+      return std::error_code();
+    DWORD Error = ::GetLastError();
+    if (Error == ERROR_LOCK_VIOLATION) {
+      ::Sleep(1);
+      continue;
+    }
+    return mapWindowsError(Error);
+  } while (std::chrono::steady_clock::now() < End);
+  return mapWindowsError(ERROR_LOCK_VIOLATION);
+}
+
+std::error_code lockFile(int FD) {
+  DWORD Flags = LOCKFILE_EXCLUSIVE_LOCK;
+  OVERLAPPED OV = {};
+  file_t File = convertFDToNativeFile(FD);
+  if (::LockFileEx(File, Flags, 0, MAXDWORD, MAXDWORD, &OV))
+    return std::error_code();
+  DWORD Error = ::GetLastError();
+  return mapWindowsError(Error);
+}
+
+std::error_code unlockFile(int FD) {
+  OVERLAPPED OV = {};
+  file_t File = convertFDToNativeFile(FD);
+  if (::UnlockFileEx(File, 0, MAXDWORD, MAXDWORD, &OV))
+    return std::error_code();
+  return mapWindowsError(::GetLastError());
+}
+
 std::error_code closeFile(file_t &F) {
   file_t TmpF = F;
   F = kInvalidFile;
@@ -1365,6 +1424,12 @@ static bool getKnownFolderPath(KNOWNFOLDERID folderId,
 
 bool home_directory(SmallVectorImpl<char> &result) {
   return getKnownFolderPath(FOLDERID_Profile, result);
+}
+
+bool user_config_directory(SmallVectorImpl<char> &result) {
+  // Either local or roaming appdata may be suitable in some cases, depending
+  // on the data. Local is more conservative, Roaming may not always be correct.
+  return getKnownFolderPath(FOLDERID_LocalAppData, result);
 }
 
 bool cache_directory(SmallVectorImpl<char> &result) {

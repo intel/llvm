@@ -68,7 +68,7 @@ int32_t jcvt(double v) {
 __typeof__(__builtin_arm_rsr("1:2:3:4:5")) rsr(void);
 
 uint32_t rsr() {
-  // CHECK: [[V0:[%A-Za-z0-9.]+]] = call i64 @llvm.read_register.i64(metadata ![[M0:[0-9]]])
+  // CHECK: [[V0:[%A-Za-z0-9.]+]] = call i64 @llvm.read_volatile_register.i64(metadata ![[M0:[0-9]]])
   // CHECK-NEXT: trunc i64 [[V0]] to i32
   return __builtin_arm_rsr("1:2:3:4:5");
 }
@@ -76,12 +76,12 @@ uint32_t rsr() {
 __typeof__(__builtin_arm_rsr64("1:2:3:4:5")) rsr64(void);
 
 uint64_t rsr64(void) {
-  // CHECK: call i64 @llvm.read_register.i64(metadata ![[M0:[0-9]]])
+  // CHECK: call i64 @llvm.read_volatile_register.i64(metadata ![[M0:[0-9]]])
   return __builtin_arm_rsr64("1:2:3:4:5");
 }
 
 void *rsrp() {
-  // CHECK: [[V0:[%A-Za-z0-9.]+]] = call i64 @llvm.read_register.i64(metadata ![[M0:[0-9]]])
+  // CHECK: [[V0:[%A-Za-z0-9.]+]] = call i64 @llvm.read_volatile_register.i64(metadata ![[M0:[0-9]]])
   // CHECK-NEXT: inttoptr i64 [[V0]] to i8*
   return __builtin_arm_rsrp("1:2:3:4:5");
 }
@@ -122,6 +122,32 @@ unsigned int clsl(unsigned long v) {
 unsigned int clsll(uint64_t v) {
   // CHECK: call i32 @llvm.aarch64.cls64(i64 %v)
   return __builtin_arm_cls64(v);
+}
+
+// CHECK-LABEL: @rndr(
+// CHECK-NEXT:  entry:
+// CHECK-NEXT:    [[TMP0:%.*]] = call { i64, i1 } @llvm.aarch64.rndr()
+// CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { i64, i1 } [[TMP0]], 0
+// CHECK-NEXT:    [[TMP2:%.*]] = extractvalue { i64, i1 } [[TMP0]], 1
+// CHECK-NEXT:    store i64 [[TMP1]], i64* [[__ADDR:%.*]], align 8
+// CHECK-NEXT:    [[TMP3:%.*]] = zext i1 [[TMP2]] to i32
+// CHECK-NEXT:    ret i32 [[TMP3]]
+//
+int rndr(uint64_t *__addr) {
+  return __builtin_arm_rndr(__addr);
+}
+
+// CHECK-LABEL: @rndrrs(
+// CHECK-NEXT:  entry:
+// CHECK-NEXT:    [[TMP0:%.*]] = call { i64, i1 } @llvm.aarch64.rndrrs()
+// CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { i64, i1 } [[TMP0]], 0
+// CHECK-NEXT:    [[TMP2:%.*]] = extractvalue { i64, i1 } [[TMP0]], 1
+// CHECK-NEXT:    store i64 [[TMP1]], i64* [[__ADDR:%.*]], align 8
+// CHECK-NEXT:    [[TMP3:%.*]] = zext i1 [[TMP2]] to i32
+// CHECK-NEXT:    ret i32 [[TMP3]]
+//
+int rndrrs(uint64_t *__addr) {
+  return __builtin_arm_rndrrs(__addr);
 }
 
 // CHECK: ![[M0]] = !{!"1:2:3:4:5"}

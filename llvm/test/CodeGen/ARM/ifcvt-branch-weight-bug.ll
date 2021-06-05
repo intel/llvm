@@ -1,4 +1,4 @@
-; RUN: llc < %s -mtriple=armv4t--linux-androideabi -print-machineinstrs=if-converter -o /dev/null 2>&1 | FileCheck %s
+; RUN: llc < %s -mtriple=armv4t--linux-androideabi -stop-after=if-converter | FileCheck %s
 ; Fix a bug triggered in IfConverterTriangle when CvtBB has multiple
 ; predecessors.
 ; PR18752
@@ -22,7 +22,7 @@ entry:
 ; for.body -> for.cond.backedge (100%)
 ;          -> cond.false.i (0%)
 ; CHECK: bb.1.for.body:
-; CHECK: successors: %bb.2(0x80000000), %bb.4(0x00000001)
+; CHECK: successors: %bb.2(0x80000000), %bb.4(0x00000000)
 for.body:
   br i1 undef, label %for.cond.backedge, label %lor.lhs.false.i, !prof !1
 

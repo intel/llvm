@@ -8,6 +8,10 @@
 
 // UNSUPPORTED: no-exceptions
 
+// 1b00fc5d8133 made it in the dylib in macOS 10.11
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.10
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.9
+
 #include <cassert>
 
 struct A
@@ -164,11 +168,13 @@ void test5()
     }
 }
 
-int main()
+int main(int, char**)
 {
     test1();
     test2();
     test3();
     test4();
     test5();
+
+    return 0;
 }

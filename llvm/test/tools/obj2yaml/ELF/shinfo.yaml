@@ -5,14 +5,13 @@
 
 # CHECK:      - Name:            .test
 # CHECK-NEXT:   Type:            SHT_PROGBITS
-# CHECK-NEXT:   Info:            0x000000000000002A
+# CHECK-NEXT:   Info:            0x2A
 
 --- !ELF
 FileHeader:
-  Class:           ELFCLASS64
-  Data:            ELFDATA2LSB
-  Type:            ET_REL
-  Machine:         EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name:            .test
     Type:            SHT_PROGBITS

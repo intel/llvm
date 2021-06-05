@@ -1,8 +1,8 @@
 ; Test for the conservative assembly handling mode used by KMSAN.
 ; RUN: opt < %s -msan-kernel=1 -msan-check-access-address=0                    \
 ; RUN: -msan-handle-asm-conservative=0 -S -passes=msan 2>&1 | FileCheck        \
-; RUN: "-check-prefixes=CHECK,CHECK-NONCONS" %s
-; RUN: opt < %s -msan -msan-kernel=1 -msan-check-access-address=0 -msan-handle-asm-conservative=0 -S | FileCheck -check-prefixes=CHECK,CHECK-NONCONS %s
+; RUN: "-check-prefix=CHECK" %s
+; RUN: opt < %s -msan -msan-kernel=1 -msan-check-access-address=0 -msan-handle-asm-conservative=0 -S | FileCheck -check-prefixes=CHECK %s
 ; RUN: opt < %s -msan-kernel=1 -msan-check-access-address=0                    \
 ; RUN: -msan-handle-asm-conservative=1 -S -passes=msan 2>&1 | FileCheck        \
 ; RUN: "-check-prefixes=CHECK,CHECK-CONS" %s
@@ -92,8 +92,7 @@ if.else:                                          ; preds = %entry
 ; CHECK: [[MSPROP:%.*]] = trunc i8 [[MSLD]] to i1
 
 ; Is the shadow poisoned?
-; CHECK: [[MSCMP:%.*]] = icmp ne i1 [[MSPROP]], false
-; CHECK: br i1 [[MSCMP]], label %[[IFTRUE:.*]], label {{.*}}
+; CHECK: br i1 [[MSPROP]], label %[[IFTRUE:.*]], label {{.*}}
 
 ; If yes, raise a warning.
 ; CHECK: [[IFTRUE]]:

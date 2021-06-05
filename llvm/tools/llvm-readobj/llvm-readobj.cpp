@@ -19,20 +19,23 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm-readobj.h"
-#include "Error.h"
 #include "ObjDumper.h"
 #include "WindowsResourceDumper.h"
 #include "llvm/DebugInfo/CodeView/GlobalTypeTableBuilder.h"
 #include "llvm/DebugInfo/CodeView/MergingTypeTableBuilder.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/COFFImportFile.h"
+#include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/MachOUniversal.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Object/Wasm.h"
 #include "llvm/Object/WindowsResource.h"
+#include "llvm/Object/XCOFFObjectFile.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/InitLLVM.h"
@@ -63,13 +66,13 @@ namespace opts {
       DependentLibraries("dependent-libraries",
                          cl::desc("Display the dependent libraries section"));
 
-  // --headers -e
+  // --headers, -e
   cl::opt<bool>
       Headers("headers",
           cl::desc("Equivalent to setting: --file-headers, --program-headers, "
                    "--section-headers"));
   cl::alias HeadersShort("e", cl::desc("Alias for --headers"),
-     cl::aliasopt(Headers));
+                         cl::aliasopt(Headers), cl::NotHidden);
 
   // --wide, -W
   cl::opt<bool>
@@ -128,11 +131,17 @@ namespace opts {
 
   // --notes, -n
   cl::opt<bool> Notes("notes", cl::desc("Display the ELF notes in the file"));
-  cl::alias NotesShort("n", cl::desc("Alias for --notes"), cl::aliasopt(Notes));
+  cl::alias NotesShort("n", cl::desc("Alias for --notes"), cl::aliasopt(Notes),
+                       cl::NotHidden);
 
   // --dyn-relocations
   cl::opt<bool> DynRelocs("dyn-relocations",
     cl::desc("Display the dynamic relocation entries in the file"));
+
+  // --section-details
+  // Also -t in llvm-readelf mode.
+  cl::opt<bool> SectionDetails("section-details",
+                               cl::desc("Display the section details"));
 
   // --symbols
   // Also -s in llvm-readelf mode, or -t in llvm-readobj mode.
@@ -158,9 +167,8 @@ namespace opts {
   // --unwind, -u
   cl::opt<bool> UnwindInfo("unwind",
     cl::desc("Display unwind information"));
-  cl::alias UnwindInfoShort("u",
-    cl::desc("Alias for --unwind"),
-    cl::aliasopt(UnwindInfo));
+  cl::alias UnwindInfoShort("u", cl::desc("Alias for --unwind"),
+                            cl::aliasopt(UnwindInfo), cl::NotHidden);
 
   // --dynamic-table, --dynamic, -d
   cl::opt<bool> DynamicTable("dynamic-table",
@@ -183,16 +191,21 @@ namespace opts {
                           cl::aliasopt(ProgramHeaders));
 
   // --string-dump, -p
-  cl::list<std::string> StringDump("string-dump", cl::desc("<number|name>"),
-                                   cl::ZeroOrMore);
+  cl::list<std::string> StringDump(
+      "string-dump", cl::value_desc("number|name"),
+      cl::desc("Display the specified section(s) as a list of strings"),
+      cl::ZeroOrMore);
   cl::alias StringDumpShort("p", cl::desc("Alias for --string-dump"),
-                            cl::aliasopt(StringDump), cl::Prefix);
+                            cl::aliasopt(StringDump), cl::Prefix,
+                            cl::NotHidden);
 
   // --hex-dump, -x
-  cl::list<std::string> HexDump("hex-dump", cl::desc("<number|name>"),
-                                cl::ZeroOrMore);
+  cl::list<std::string>
+      HexDump("hex-dump", cl::value_desc("number|name"),
+              cl::desc("Display the specified section(s) as hexadecimal bytes"),
+              cl::ZeroOrMore);
   cl::alias HexDumpShort("x", cl::desc("Alias for --hex-dump"),
-                         cl::aliasopt(HexDump), cl::Prefix);
+                         cl::aliasopt(HexDump), cl::Prefix, cl::NotHidden);
 
   // --demangle, -C
   cl::opt<bool> Demangle("demangle",
@@ -265,6 +278,10 @@ namespace opts {
   COFFDebugDirectory("coff-debug-directory",
                      cl::desc("Display the PE/COFF debug directory"));
 
+  // --coff-tls-directory
+  cl::opt<bool> COFFTLSDirectory("coff-tls-directory",
+                                 cl::desc("Display the PE/COFF TLS directory"));
+
   // --coff-resources
   cl::opt<bool> COFFResources("coff-resources",
                               cl::desc("Display the PE/COFF .rsrc section"));
@@ -324,7 +341,7 @@ namespace opts {
       VersionInfo("version-info",
                   cl::desc("Display ELF version sections (if present)"));
   cl::alias VersionInfoShort("V", cl::desc("Alias for -version-info"),
-                             cl::aliasopt(VersionInfo));
+                             cl::aliasopt(VersionInfo), cl::NotHidden);
 
   // --elf-section-groups, --section-groups, -g
   cl::opt<bool> SectionGroups("elf-section-groups",
@@ -333,14 +350,14 @@ namespace opts {
                                cl::desc("Alias for -elf-sections-groups"),
                                cl::aliasopt(SectionGroups));
   cl::alias SectionGroupsShort("g", cl::desc("Alias for -elf-sections-groups"),
-                               cl::aliasopt(SectionGroups));
+                               cl::aliasopt(SectionGroups), cl::NotHidden);
 
   // --elf-hash-histogram, --histogram, -I
   cl::opt<bool> HashHistogram(
       "elf-hash-histogram",
       cl::desc("Display bucket list histogram for hash sections"));
   cl::alias HashHistogramShort("I", cl::desc("Alias for -elf-hash-histogram"),
-                               cl::aliasopt(HashHistogram));
+                               cl::aliasopt(HashHistogram), cl::NotHidden);
   cl::alias HistogramAlias("histogram",
                            cl::desc("Alias for --elf-hash-histogram"),
                            cl::aliasopt(HashHistogram));
@@ -350,6 +367,10 @@ namespace opts {
                           cl::desc("Display callgraph profile section"));
   cl::alias ELFCGProfile("elf-cg-profile", cl::desc("Alias for --cg-profile"),
                          cl::aliasopt(CGProfile));
+
+  // --bb-addr-map
+  cl::opt<bool> BBAddrMap("bb-addr-map",
+                          cl::desc("Display the BB address map section"));
 
   // -addrsig
   cl::opt<bool> Addrsig("addrsig",
@@ -420,55 +441,73 @@ struct ReadObjTypeTableBuilder {
 static ReadObjTypeTableBuilder CVTypes;
 
 /// Creates an format-specific object file dumper.
-static std::error_code createDumper(const ObjectFile *Obj,
-                                    ScopedPrinter &Writer,
-                                    std::unique_ptr<ObjDumper> &Result) {
-  if (!Obj)
-    return readobj_error::unsupported_file_format;
+static Expected<std::unique_ptr<ObjDumper>>
+createDumper(const ObjectFile &Obj, ScopedPrinter &Writer) {
+  if (const COFFObjectFile *COFFObj = dyn_cast<COFFObjectFile>(&Obj))
+    return createCOFFDumper(*COFFObj, Writer);
 
-  if (Obj->isCOFF())
-    return createCOFFDumper(Obj, Writer, Result);
-  if (Obj->isELF())
-    return createELFDumper(Obj, Writer, Result);
-  if (Obj->isMachO())
-    return createMachODumper(Obj, Writer, Result);
-  if (Obj->isWasm())
-    return createWasmDumper(Obj, Writer, Result);
-  if (Obj->isXCOFF())
-    return createXCOFFDumper(Obj, Writer, Result);
+  if (const ELFObjectFileBase *ELFObj = dyn_cast<ELFObjectFileBase>(&Obj))
+    return createELFDumper(*ELFObj, Writer);
 
-  return readobj_error::unsupported_obj_file_format;
+  if (const MachOObjectFile *MachOObj = dyn_cast<MachOObjectFile>(&Obj))
+    return createMachODumper(*MachOObj, Writer);
+
+  if (const WasmObjectFile *WasmObj = dyn_cast<WasmObjectFile>(&Obj))
+    return createWasmDumper(*WasmObj, Writer);
+
+  if (const XCOFFObjectFile *XObj = dyn_cast<XCOFFObjectFile>(&Obj))
+    return createXCOFFDumper(*XObj, Writer);
+
+  return createStringError(errc::invalid_argument,
+                           "unsupported object file format");
 }
 
 /// Dumps the specified object file.
-static void dumpObject(const ObjectFile *Obj, ScopedPrinter &Writer,
+static void dumpObject(ObjectFile &Obj, ScopedPrinter &Writer,
                        const Archive *A = nullptr) {
   std::string FileStr =
-          A ? Twine(A->getFileName() + "(" + Obj->getFileName() + ")").str()
-            : Obj->getFileName().str();
+      A ? Twine(A->getFileName() + "(" + Obj.getFileName() + ")").str()
+        : Obj.getFileName().str();
 
-  std::unique_ptr<ObjDumper> Dumper;
-  if (std::error_code EC = createDumper(Obj, Writer, Dumper))
-    reportError(errorCodeToError(EC), FileStr);
+  std::string ContentErrString;
+  if (Error ContentErr = Obj.initContent())
+    ContentErrString = "unable to continue dumping, the file is corrupt: " +
+                       toString(std::move(ContentErr));
+
+  ObjDumper *Dumper;
+  Expected<std::unique_ptr<ObjDumper>> DumperOrErr = createDumper(Obj, Writer);
+  if (!DumperOrErr)
+    reportError(DumperOrErr.takeError(), FileStr);
+  Dumper = (*DumperOrErr).get();
 
   if (opts::Output == opts::LLVM || opts::InputFilenames.size() > 1 || A) {
     Writer.startLine() << "\n";
     Writer.printString("File", FileStr);
   }
   if (opts::Output == opts::LLVM) {
-    Writer.printString("Format", Obj->getFileFormatName());
-    Writer.printString("Arch", Triple::getArchTypeName(
-                                   (llvm::Triple::ArchType)Obj->getArch()));
+    Writer.printString("Format", Obj.getFileFormatName());
+    Writer.printString("Arch", Triple::getArchTypeName(Obj.getArch()));
     Writer.printString(
         "AddressSize",
-        std::string(formatv("{0}bit", 8 * Obj->getBytesInAddress())));
+        std::string(formatv("{0}bit", 8 * Obj.getBytesInAddress())));
     Dumper->printLoadName();
   }
 
   if (opts::FileHeaders)
     Dumper->printFileHeaders();
-  if (opts::SectionHeaders)
-    Dumper->printSectionHeaders();
+
+  // This is only used for ELF currently. In some cases, when an object is
+  // corrupt (e.g. truncated), we can't dump anything except the file header.
+  if (!ContentErrString.empty())
+    reportError(createError(ContentErrString), FileStr);
+
+  if (opts::SectionDetails || opts::SectionHeaders) {
+    if (opts::Output == opts::GNU && opts::SectionDetails)
+      Dumper->printSectionDetails();
+    else
+      Dumper->printSectionHeaders();
+  }
+
   if (opts::HashSymbols)
     Dumper->printHashSymbols();
   if (opts::ProgramHeaders || opts::SectionMapping == cl::BOU_TRUE)
@@ -492,10 +531,10 @@ static void dumpObject(const ObjectFile *Obj, ScopedPrinter &Writer,
   if (opts::HashTable)
     Dumper->printHashTable();
   if (opts::GnuHashTable)
-    Dumper->printGnuHashTable(Obj);
+    Dumper->printGnuHashTable();
   if (opts::VersionInfo)
     Dumper->printVersionInfo();
-  if (Obj->isELF()) {
+  if (Obj.isELF()) {
     if (opts::DependentLibraries)
       Dumper->printDependentLibs();
     if (opts::ELFLinkerOptions)
@@ -508,12 +547,14 @@ static void dumpObject(const ObjectFile *Obj, ScopedPrinter &Writer,
       Dumper->printHashHistograms();
     if (opts::CGProfile)
       Dumper->printCGProfile();
+    if (opts::BBAddrMap)
+      Dumper->printBBAddrMaps();
     if (opts::Addrsig)
       Dumper->printAddrsig();
     if (opts::Notes)
       Dumper->printNotes();
   }
-  if (Obj->isCOFF()) {
+  if (Obj.isCOFF()) {
     if (opts::COFFImports)
       Dumper->printCOFFImports();
     if (opts::COFFExports)
@@ -524,6 +565,8 @@ static void dumpObject(const ObjectFile *Obj, ScopedPrinter &Writer,
       Dumper->printCOFFBaseReloc();
     if (opts::COFFDebugDirectory)
       Dumper->printCOFFDebugDirectory();
+    if (opts::COFFTLSDirectory)
+      Dumper->printCOFFTLSDirectory();
     if (opts::COFFResources)
       Dumper->printCOFFResources();
     if (opts::COFFLoadConfig)
@@ -539,7 +582,7 @@ static void dumpObject(const ObjectFile *Obj, ScopedPrinter &Writer,
                                  CVTypes.GlobalIDTable, CVTypes.GlobalTypeTable,
                                  opts::CodeViewEnableGHash);
   }
-  if (Obj->isMachO()) {
+  if (Obj.isMachO()) {
     if (opts::MachODataInCode)
       Dumper->printMachODataInCode();
     if (opts::MachOIndirectSymbols)
@@ -569,13 +612,17 @@ static void dumpArchive(const Archive *Arc, ScopedPrinter &Writer) {
         reportError(std::move(E), Arc->getFileName());
       continue;
     }
-    if (ObjectFile *Obj = dyn_cast<ObjectFile>(&*ChildOrErr.get()))
-      dumpObject(Obj, Writer, Arc);
-    else if (COFFImportFile *Imp = dyn_cast<COFFImportFile>(&*ChildOrErr.get()))
+
+    Binary *Bin = ChildOrErr->get();
+    if (ObjectFile *Obj = dyn_cast<ObjectFile>(Bin))
+      dumpObject(*Obj, Writer, Arc);
+    else if (COFFImportFile *Imp = dyn_cast<COFFImportFile>(Bin))
       dumpCOFFImportFile(Imp, Writer);
     else
-      reportError(errorCodeToError(readobj_error::unrecognized_file_format),
-                  Arc->getFileName());
+      reportWarning(createStringError(errc::invalid_argument,
+                                      Bin->getFileName() +
+                                          " has an unsupported file type"),
+                    Arc->getFileName());
   }
   if (Err)
     reportError(std::move(Err), Arc->getFileName());
@@ -587,7 +634,7 @@ static void dumpMachOUniversalBinary(const MachOUniversalBinary *UBinary,
   for (const MachOUniversalBinary::ObjectForArch &Obj : UBinary->objects()) {
     Expected<std::unique_ptr<MachOObjectFile>> ObjOrErr = Obj.getAsObjectFile();
     if (ObjOrErr)
-      dumpObject(&*ObjOrErr.get(), Writer);
+      dumpObject(*ObjOrErr.get(), Writer);
     else if (auto E = isNotObjectErrorInvalidFileType(ObjOrErr.takeError()))
       reportError(ObjOrErr.takeError(), UBinary->getFileName());
     else if (Expected<std::unique_ptr<Archive>> AOrErr = Obj.getAsArchive())
@@ -606,28 +653,43 @@ static void dumpWindowsResourceFile(WindowsResource *WinRes,
 
 /// Opens \a File and dumps it.
 static void dumpInput(StringRef File, ScopedPrinter &Writer) {
-  // Attempt to open the binary.
-  Expected<OwningBinary<Binary>> BinaryOrErr = createBinary(File);
+  ErrorOr<std::unique_ptr<MemoryBuffer>> FileOrErr =
+      MemoryBuffer::getFileOrSTDIN(File, /*IsText=*/false,
+                                   /*RequiresNullTerminator=*/false);
+  if (std::error_code EC = FileOrErr.getError())
+    return reportError(errorCodeToError(EC), File);
+
+  std::unique_ptr<MemoryBuffer> &Buffer = FileOrErr.get();
+  file_magic Type = identify_magic(Buffer->getBuffer());
+  if (Type == file_magic::bitcode) {
+    reportWarning(createStringError(errc::invalid_argument,
+                                    "bitcode files are not supported"),
+                  File);
+    return;
+  }
+
+  Expected<std::unique_ptr<Binary>> BinaryOrErr = createBinary(
+      Buffer->getMemBufferRef(), /*Context=*/nullptr, /*InitContent=*/false);
   if (!BinaryOrErr)
     reportError(BinaryOrErr.takeError(), File);
-  Binary &Binary = *BinaryOrErr.get().getBinary();
 
-  if (Archive *Arc = dyn_cast<Archive>(&Binary))
+  std::unique_ptr<Binary> Bin = std::move(*BinaryOrErr);
+  if (Archive *Arc = dyn_cast<Archive>(Bin.get()))
     dumpArchive(Arc, Writer);
   else if (MachOUniversalBinary *UBinary =
-               dyn_cast<MachOUniversalBinary>(&Binary))
+               dyn_cast<MachOUniversalBinary>(Bin.get()))
     dumpMachOUniversalBinary(UBinary, Writer);
-  else if (ObjectFile *Obj = dyn_cast<ObjectFile>(&Binary))
-    dumpObject(Obj, Writer);
-  else if (COFFImportFile *Import = dyn_cast<COFFImportFile>(&Binary))
+  else if (ObjectFile *Obj = dyn_cast<ObjectFile>(Bin.get()))
+    dumpObject(*Obj, Writer);
+  else if (COFFImportFile *Import = dyn_cast<COFFImportFile>(Bin.get()))
     dumpCOFFImportFile(Import, Writer);
-  else if (WindowsResource *WinRes = dyn_cast<WindowsResource>(&Binary))
+  else if (WindowsResource *WinRes = dyn_cast<WindowsResource>(Bin.get()))
     dumpWindowsResourceFile(WinRes, Writer);
   else
-    reportError(errorCodeToError(readobj_error::unrecognized_file_format),
-                File);
+    llvm_unreachable("unrecognized file type");
 
-  CVTypes.Binaries.push_back(std::move(*BinaryOrErr));
+  CVTypes.Binaries.push_back(
+      OwningBinary<Binary>(std::move(Bin), std::move(Buffer)));
 }
 
 /// Registers aliases that should only be allowed by readobj.
@@ -638,8 +700,7 @@ static void registerReadobjAliases() {
                                  cl::aliasopt(opts::SectionHeaders),
                                  cl::NotHidden);
 
-  // Only register -t in llvm-readobj, as readelf reserves it for
-  // --section-details (not implemented yet).
+  // llvm-readelf reserves it for --section-details.
   static cl::alias SymbolsShort("t", cl::desc("Alias for --symbols"),
                                 cl::aliasopt(opts::Symbols), cl::NotHidden);
 
@@ -664,6 +725,11 @@ static void registerReadelfAliases() {
   static cl::alias SymbolsShort("s", cl::desc("Alias for --symbols"),
                                 cl::aliasopt(opts::Symbols), cl::NotHidden,
                                 cl::Grouping);
+
+  // -t is here because for readobj it is an alias for --symbols.
+  static cl::alias SectionDetailsShort(
+      "t", cl::desc("Alias for --section-details"),
+      cl::aliasopt(opts::SectionDetails), cl::NotHidden);
 
   // Allow all single letter flags to be grouped together.
   for (auto &OptEntry : cl::getRegisteredOptions()) {
@@ -690,6 +756,11 @@ int main(int argc, const char *argv[]) {
 
   cl::ParseCommandLineOptions(argc, argv, "LLVM Object Reader\n");
 
+  // Default to print error if no filename is specified.
+  if (opts::InputFilenames.empty()) {
+    error("no input files specified");
+  }
+
   if (opts::All) {
     opts::FileHeaders = true;
     opts::ProgramHeaders = true;
@@ -713,10 +784,6 @@ int main(int argc, const char *argv[]) {
     opts::ProgramHeaders = true;
     opts::SectionHeaders = true;
   }
-
-  // Default to stdin if no filename is specified.
-  if (opts::InputFilenames.empty())
-    opts::InputFilenames.push_back("-");
 
   ScopedPrinter Writer(fouts());
   for (const std::string &I : opts::InputFilenames)

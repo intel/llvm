@@ -17,7 +17,26 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+template <int Dimensions> class group;
+namespace ONEAPI {
+struct sub_group;
+} // namespace ONEAPI
 namespace detail {
+
+template <typename T> struct is_group : std::false_type {};
+
+template <int Dimensions>
+struct is_group<group<Dimensions>> : std::true_type {};
+
+template <typename T> struct is_sub_group : std::false_type {};
+
+template <> struct is_sub_group<ONEAPI::sub_group> : std::true_type {};
+
+template <typename T>
+struct is_generic_group
+    : std::integral_constant<bool,
+                             is_group<T>::value || is_sub_group<T>::value> {};
+
 namespace half_impl {
 class half;
 }
@@ -26,6 +45,10 @@ using half = detail::half_impl::half;
 
 // Forward declaration
 template <typename ElementType, access::address_space Space> class multi_ptr;
+
+template <class T>
+__SYCL_INLINE_CONSTEXPR bool is_group_v =
+    detail::is_group<T>::value || detail::is_sub_group<T>::value;
 
 namespace detail {
 template <typename T, typename R> struct copy_cv_qualifiers;
@@ -203,6 +226,19 @@ template <typename T>
 struct is_vector_arithmetic
     : bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
 
+// is_bool
+template <typename T>
+struct is_scalar_bool
+    : bool_constant<std::is_same<remove_cv_t<T>, bool>::value> {};
+
+template <typename T>
+struct is_vector_bool
+    : bool_constant<is_vec<T>::value &&
+                    is_scalar_bool<vector_element_t<T>>::value> {};
+
+template <typename T>
+struct is_bool : bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
+
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};
 
@@ -301,6 +337,7 @@ using const_if_const_AS =
 template <access::address_space AS, class DataT>
 using const_if_const_AS = DataT;
 #endif
+
 
 } // namespace detail
 } // namespace sycl

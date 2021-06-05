@@ -608,7 +608,7 @@ public:
     llvm::raw_fd_ostream OutStream(FD, true);
     OutStream << Content;
     OutStream.close();
-    auto File = Context.Files.getFile(Path);
+    auto File = Context.Files.getOptionalFileRef(Path);
     assert(File);
 
     StringRef Found =
@@ -1294,6 +1294,18 @@ TEST_F(AtomicChangeTest, InsertAfterWithInvalidLocation) {
       std::move(Err), replacement_error::wrong_file_path,
       Replacement(Context.Sources, DefaultLoc, 0, "a"),
       Replacement(Context.Sources, SourceLocation(), 0, "b")));
+}
+
+TEST_F(AtomicChangeTest, Metadata) {
+  AtomicChange Change(Context.Sources, DefaultLoc, 17);
+  const llvm::Any &Metadata = Change.getMetadata();
+  ASSERT_TRUE(llvm::any_isa<int>(Metadata));
+  EXPECT_EQ(llvm::any_cast<int>(Metadata), 17);
+}
+
+TEST_F(AtomicChangeTest, NoMetadata) {
+  AtomicChange Change(Context.Sources, DefaultLoc);
+  EXPECT_FALSE(Change.getMetadata().hasValue());
 }
 
 class ApplyAtomicChangesTest : public ::testing::Test {

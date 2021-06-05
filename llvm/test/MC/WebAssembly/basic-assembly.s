@@ -1,6 +1,6 @@
-# RUN: llvm-mc -triple=wasm32-unknown-unknown -mattr=+atomics,+unimplemented-simd128,+nontrapping-fptoint,+exception-handling < %s | FileCheck %s
+# RUN: llvm-mc -triple=wasm32-unknown-unknown -mattr=+reference-types,atomics,+simd128,+nontrapping-fptoint,+exception-handling < %s | FileCheck %s
 # Check that it converts to .o without errors, but don't check any output:
-# RUN: llvm-mc -triple=wasm32-unknown-unknown -filetype=obj -mattr=+atomics,+unimplemented-simd128,+nontrapping-fptoint,+exception-handling -o %t.o < %s
+# RUN: llvm-mc -triple=wasm32-unknown-unknown -filetype=obj -mattr=+reference-types,+atomics,+simd128,+nontrapping-fptoint,+exception-handling -o %t.o < %s
 
 
 empty_func:
@@ -8,6 +8,8 @@ empty_func:
     end_function
 
 test0:
+# local labels can appear between label and its .functype.
+.Ltest0begin:
     # Test all types:
     .functype   test0 (i32, i64) -> (i32)
     .eventtype  __cpp_exception i32
@@ -81,24 +83,18 @@ test0:
     # TODO: enable once instruction has been added.
     #i32x4.trunc_sat_f32x4_s
     i32.trunc_f32_s
-    try         exnref
+    try
     i32.atomic.load 0
-    atomic.notify 0
+    memory.atomic.notify 0
 .LBB0_3:
-    catch
+    catch       __cpp_exception
     local.set   0
-    block       i32
-    local.get   0
-    br_on_exn   0, __cpp_exception
-    rethrow
-.LBB0_4:
-    end_block
     end_try
     i32.const   .L.str
     i32.load8_u .L.str+2
     i32.load16_u .L.str:p2align=0
     throw 0
-.LBB0_5:
+.LBB0_4:
     #i32.trunc_sat_f32_s
     global.get  __stack_pointer
     end_function
@@ -121,11 +117,19 @@ test0:
     .ident      "clang version 9.0.0 (trunk 364502) (llvm/trunk 364571)"
     .globaltype __stack_pointer, i32
 
+.tabletype empty_eref_table, externref
+empty_eref_table:
+
+.tabletype empty_fref_table, funcref
+empty_fref_table:
+
+
 # CHECK:           .text
 # CHECK-LABEL: empty_func:
 # CHECK-NEXT:      .functype	empty_func () -> ()
 # CHECK-NEXT:      end_function
 # CHECK-LABEL: test0:
+# CHECK-NEXT:  .Ltest0begin:
 # CHECK-NEXT:      .functype   test0 (i32, i64) -> (i32)
 # CHECK-NEXT:      .eventtype  __cpp_exception i32
 # CHECK-NEXT:      .local      f32, f64
@@ -152,7 +156,7 @@ test0:
 # CHECK-NEXT:      i64.const   1234
 # CHECK-NEXT:      call        something2
 # CHECK-NEXT:      i32.const   0
-# CHECK-NEXT:      call_indirect (i32, f64) -> ()
+# CHECK-NEXT:      call_indirect __indirect_function_table, (i32, f64) -> ()
 # CHECK-NEXT:      i32.const   1
 # CHECK-NEXT:      i32.add
 # CHECK-NEXT:      local.tee   0
@@ -192,24 +196,18 @@ test0:
 # CHECK-NEXT:      end_if
 # CHECK-NEXT:      f32x4.add
 # CHECK-NEXT:      i32.trunc_f32_s
-# CHECK-NEXT:      try         exnref
+# CHECK-NEXT:      try
 # CHECK-NEXT:      i32.atomic.load 0
-# CHECK-NEXT:      atomic.notify 0
+# CHECK-NEXT:      memory.atomic.notify 0
 # CHECK-NEXT:  .LBB0_3:
-# CHECK-NEXT:      catch
+# CHECK-NEXT:      catch       __cpp_exception
 # CHECK-NEXT:      local.set   0
-# CHECK-NEXT:      block       i32
-# CHECK-NEXT:      local.get   0
-# CHECK-NEXT:      br_on_exn   0, __cpp_exception
-# CHECK-NEXT:      rethrow
-# CHECK-NEXT:  .LBB0_4:
-# CHECK-NEXT:      end_block
 # CHECK-NEXT:      end_try
 # CHECK-NEXT:      i32.const   .L.str
 # CHECK-NEXT:      i32.load8_u .L.str+2
 # CHECK-NEXT:      i32.load16_u .L.str:p2align=0
 # CHECK-NEXT:      throw       0
-# CHECK-NEXT:  .LBB0_5:
+# CHECK-NEXT:  .LBB0_4:
 # CHECK-NEXT:      global.get  __stack_pointer
 # CHECK-NEXT:      end_function
 
@@ -228,3 +226,9 @@ test0:
 # CHECK-NEXT:      .int32      test0
 
 # CHECK:           .globaltype __stack_pointer, i32
+
+# CHECK:           .tabletype empty_eref_table, externref
+# CHECK-NEXT: empty_eref_table:
+
+# CHECK:           .tabletype empty_fref_table, funcref
+# CHECK-NEXT: empty_fref_table:

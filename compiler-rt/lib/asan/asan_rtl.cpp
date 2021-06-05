@@ -45,7 +45,8 @@ static void AsanDie() {
     // Don't die twice - run a busy loop.
     while (1) { }
   }
-  if (common_flags()->print_module_map >= 1) PrintModuleMap();
+  if (common_flags()->print_module_map >= 1)
+    DumpProcessMap();
   if (flags()->sleep_before_dying) {
     Report("Sleeping for %d second(s)\n", flags()->sleep_before_dying);
     SleepForSeconds(flags()->sleep_before_dying);
@@ -61,19 +62,9 @@ static void AsanDie() {
   }
 }
 
-static void AsanCheckFailed(const char *file, int line, const char *cond,
-                            u64 v1, u64 v2) {
-  Report("AddressSanitizer CHECK failed: %s:%d \"%s\" (0x%zx, 0x%zx)\n", file,
-         line, cond, (uptr)v1, (uptr)v2);
-
-  // Print a stack trace the first time we come here. Otherwise, we probably
-  // failed a CHECK during symbolization.
-  static atomic_uint32_t num_calls;
-  if (atomic_fetch_add(&num_calls, 1, memory_order_relaxed) == 0) {
-    PRINT_CURRENT_STACK_CHECK();
-  }
-
-  Die();
+static void CheckUnwind() {
+  GET_STACK_TRACE(kStackTraceMax, common_flags()->fast_unwind_on_check);
+  stack.Print();
 }
 
 // -------------------------- Globals --------------------- {{{1
@@ -319,7 +310,7 @@ static void InitializeHighMemEnd() {
   kHighMemEnd = GetMaxUserVirtualAddress();
   // Increase kHighMemEnd to make sure it's properly
   // aligned together with kHighMemBeg:
-  kHighMemEnd |= SHADOW_GRANULARITY * GetMmapGranularity() - 1;
+  kHighMemEnd |= (GetMmapGranularity() << SHADOW_SCALE) - 1;
 #endif  // !ASAN_FIXED_MAPPING
   CHECK_EQ((kHighMemBeg % GetMmapGranularity()), 0);
 #endif  // !SANITIZER_MYRIAD2
@@ -431,7 +422,7 @@ static void AsanInitInternal() {
 
   // Install tool-specific callbacks in sanitizer_common.
   AddDieCallback(AsanDie);
-  SetCheckFailedCallback(AsanCheckFailed);
+  SetCheckUnwindCallback(CheckUnwind);
   SetPrintfAndReportCallback(AppendToErrorMessageBuffer);
 
   __sanitizer_set_report_path(common_flags()->log_path);
@@ -567,7 +558,7 @@ void UnpoisonStack(uptr bottom, uptr top, const char *type) {
         type, top, bottom, top - bottom, top - bottom);
     return;
   }
-  PoisonShadow(bottom, top - bottom, 0);
+  PoisonShadow(bottom, RoundUpTo(top - bottom, SHADOW_GRANULARITY), 0);
 }
 
 static void UnpoisonDefaultStack() {

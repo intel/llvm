@@ -3,11 +3,12 @@
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %S/Inputs/thinlto_cspgo_bar_use.ll -o %t2.bc
 ; RUN: llvm-profdata merge %S/Inputs/thinlto_cs.proftext -o %t3.profdata
-; RUN: llvm-lto2 run -lto-cspgo-profile-file=%t3.profdata -save-temps -o %t %t1.bc %t2.bc \
+; RUN: llvm-lto2 run -lto-cspgo-profile-file=%t3.profdata -pgo-instrument-entry=false -save-temps -o %t %t1.bc %t2.bc \
 ; RUN:   -r=%t1.bc,foo,pl \
 ; RUN:   -r=%t1.bc,bar,l \
 ; RUN:   -r=%t1.bc,main,plx \
 ; RUN:   -r=%t2.bc,bar,pl \
+; RUN:   -r=%t2.bc,clobber,pl \
 ; RUN:   -r=%t2.bc,odd,pl \
 ; RUN:   -r=%t2.bc,even,pl
 ; RUN: llvm-dis %t.1.4.opt.bc -o - | FileCheck %s --check-prefix=CSUSE

@@ -1,4 +1,4 @@
-! RUN: %S/test_folding.sh %s %t %f18
+! RUN: %S/test_folding.sh %s %t %flang_fc1
 
 ! Test intrinsic operation folding
 
@@ -29,6 +29,9 @@ module m
   logical, parameter :: test_neqv2 = .false..NEQV..true.
   logical, parameter :: test_neqv3 = .NOT.(.false..NEQV..false.)
   logical, parameter :: test_neqv4 = .NOT.(.true..NEQV..true.)
+
+  logical, parameter :: test_logical1 = logical(logical(.true., 2))
+  logical, parameter :: test_logical2 = .NOT.logical(logical(.false., 2))
 
 ! Check integer intrinsic operator folding
 
@@ -62,6 +65,14 @@ module m
 
   logical, parameter :: test_ne_i1 =.NOT.(2.NE.2)
   logical, parameter :: test_ne_i2 = -2.NE.2
+
+! Check conversions
+  logical, parameter :: test_cmplx1 = cmplx((1._4, -1._4)).EQ.((1._4, -1._4))
+  logical, parameter :: test_cmplx2 = cmplx((1._4, -1._4), 8).EQ.((1._8, -1._8))
+  logical, parameter :: test_cmplx3 = cmplx(1._4, -1._4).EQ.((1._4, -1._4))
+  logical, parameter :: test_cmplx4 = cmplx(1._4, -1._4, 8).EQ.((1._8, -1._8))
+  logical, parameter :: test_cmplx5 = cmplx(1._4).EQ.((1._4, 0._4))
+  logical, parameter :: test_cmplx6 = cmplx(1._4, kind=8).EQ.((1._8, 0._8))
 
 ! Check integer intrinsic operation folding
   logical, parameter :: test_unaryminus_i = (-(-1)).EQ.1

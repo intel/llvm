@@ -15,7 +15,6 @@ class ReproducerAttachTestCase(TestBase):
     mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
-    @skipIfFreeBSD
     @skipIfNetBSD
     @skipIfWindows
     @skipIfRemote
@@ -37,7 +36,6 @@ class ReproducerAttachTestCase(TestBase):
                 pass
 
         self.build(dictionary={'EXE': exe})
-        self.addTearDownHook(self.cleanupSubprocesses)
 
         inferior = self.spawnSubprocess(self.getBuildArtifact(exe), [token])
         pid = inferior.pid

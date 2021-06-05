@@ -17,7 +17,6 @@
 #include <CL/sycl/detail/type_traits.hpp>
 
 #include <memory>
-#include <numeric> // std::bit_cast
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -43,30 +42,6 @@ inline void memcpy(void *Dst, const void *Src, size_t Size) {
   }
 }
 
-template <typename To, typename From>
-constexpr To bit_cast(const From &from) noexcept {
-  static_assert(sizeof(To) == sizeof(From),
-                "Sizes of To and From must be equal");
-  static_assert(std::is_trivially_copyable<From>::value,
-                "From must be trivially copyable");
-  static_assert(std::is_trivially_copyable<To>::value,
-                "To must be trivially copyable");
-#if __cpp_lib_bit_cast
-  return std::bit_cast<To>(from);
-#else // __cpp_lib_bit_cast
-
-#if __has_builtin(__builtin_bit_cast)
-  return __builtin_bit_cast(To, from);
-#else  // __has_builtin(__builtin_bit_cast)
-  static_assert(std::is_trivially_default_constructible<To>::value,
-                "To must be trivially default constructible");
-  To to;
-  sycl::detail::memcpy(&to, &from, sizeof(To));
-  return to;
-#endif // __has_builtin(__builtin_bit_cast)
-
-#endif // __cpp_lib_bit_cast
-}
 
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
@@ -76,6 +51,18 @@ getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
                 std::shared_ptr<cl::sycl::detail::context_impl> Context);
 
 __SYCL_EXPORT void waitEvents(std::vector<cl::sycl::event> DepEvents);
+
+template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
+
+// Function to get of store id, item, nd_item, group for the host implementation
+// Pass nullptr to get stored object. Pass valid address to store object
+template <typename T> T get_or_store(const T *obj) {
+  static thread_local auto stored = *obj;
+  if (obj != nullptr) {
+    stored = *obj;
+  }
+  return stored;
+}
 
 class Builder {
 public:
@@ -196,9 +183,8 @@ public:
   }
 
   template <int Dims>
-  static auto getNDItem()
-      -> decltype(getElement(static_cast<nd_item<Dims> *>(nullptr))) {
-    return getElement(static_cast<nd_item<Dims> *>(nullptr));
+  static auto getNDItem() -> decltype(getElement(declptr<nd_item<Dims>>())) {
+    return getElement(declptr<nd_item<Dims>>());
   }
 
 #endif // __SYCL_DEVICE_ONLY__
@@ -255,5 +241,6 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
 }
 
 } // namespace detail
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

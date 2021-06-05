@@ -1,9 +1,14 @@
-add_gen_header(
+add_header_library(
   common
-  DEF_FILE common.h.def
-  PARAMS
-    platform_defs=../../config/${LIBC_TARGET_OS}/platfrom_defs.h.inc
-  GEN_HDR common.h
-  DATA_FILES
-    ../../config/${LIBC_TARGET_OS}/platfrom_defs.h.inc
+  HDRS
+    common.h
+    endian.h
+    sanitizer.h
 )
+
+add_header_library(
+  integer_operations
+  HDRS
+    integer_operations.h
+)
+

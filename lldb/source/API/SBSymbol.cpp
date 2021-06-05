@@ -132,10 +132,10 @@ SBInstructionList SBSymbol::GetInstructions(SBTarget target,
       ModuleSP module_sp = symbol_addr.GetModule();
       if (module_sp) {
         AddressRange symbol_range(symbol_addr, m_opaque_ptr->GetByteSize());
-        const bool prefer_file_cache = false;
+        const bool force_live_memory = true;
         sb_instructions.SetDisassembler(Disassembler::DisassembleRange(
             module_sp->GetArchitecture(), nullptr, flavor_string, *target_sp,
-            symbol_range, prefer_file_cache));
+            symbol_range, force_live_memory));
       }
     }
   }
@@ -151,7 +151,7 @@ SBAddress SBSymbol::GetStartAddress() {
 
   SBAddress addr;
   if (m_opaque_ptr && m_opaque_ptr->ValueIsAddress()) {
-    addr.SetAddress(&m_opaque_ptr->GetAddressRef());
+    addr.SetAddress(m_opaque_ptr->GetAddressRef());
   }
   return LLDB_RECORD_RESULT(addr);
 }
@@ -163,7 +163,7 @@ SBAddress SBSymbol::GetEndAddress() {
   if (m_opaque_ptr && m_opaque_ptr->ValueIsAddress()) {
     lldb::addr_t range_size = m_opaque_ptr->GetByteSize();
     if (range_size > 0) {
-      addr.SetAddress(&m_opaque_ptr->GetAddressRef());
+      addr.SetAddress(m_opaque_ptr->GetAddressRef());
       addr->Slide(m_opaque_ptr->GetByteSize());
     }
   }

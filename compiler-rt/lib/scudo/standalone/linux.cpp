@@ -10,6 +10,7 @@
 
 #if SCUDO_LINUX
 
+#include "atomic_helpers.h"
 #include "common.h"
 #include "linux.h"
 #include "mutex.h"
@@ -35,10 +36,6 @@
 #define ANDROID_PR_SET_VMA_ANON_NAME 0
 #endif
 
-#ifdef ANDROID_EXPERIMENTAL_MTE
-#include <bionic/mte_kernel.h>
-#endif
-
 namespace scudo {
 
 uptr getPageSize() { return static_cast<uptr>(sysconf(_SC_PAGESIZE)); }
@@ -54,11 +51,14 @@ void *map(void *Addr, uptr Size, UNUSED const char *Name, uptr Flags,
     MmapProt = PROT_NONE;
   } else {
     MmapProt = PROT_READ | PROT_WRITE;
-#if defined(__aarch64__) && defined(ANDROID_EXPERIMENTAL_MTE)
-    if (Flags & MAP_MEMTAG)
-      MmapProt |= PROT_MTE;
-#endif
   }
+#if defined(__aarch64__)
+#ifndef PROT_MTE
+#define PROT_MTE 0x20
+#endif
+  if (Flags & MAP_MEMTAG)
+    MmapProt |= PROT_MTE;
+#endif
   if (Addr) {
     // Currently no scenario for a noaccess mapping with a fixed address.
     DCHECK_EQ(Flags & MAP_NOACCESS, 0);
@@ -67,11 +67,11 @@ void *map(void *Addr, uptr Size, UNUSED const char *Name, uptr Flags,
   void *P = mmap(Addr, Size, MmapProt, MmapFlags, -1, 0);
   if (P == MAP_FAILED) {
     if (!(Flags & MAP_ALLOWNOMEM) || errno != ENOMEM)
-      dieOnMapUnmapError(errno == ENOMEM);
+      dieOnMapUnmapError(errno == ENOMEM ? Size : 0);
     return nullptr;
   }
 #if SCUDO_ANDROID
-  if (!(Flags & MAP_NOACCESS))
+  if (Name)
     prctl(ANDROID_PR_SET_VMA, ANDROID_PR_SET_VMA_ANON_NAME, P, Size, Name);
 #endif
   return P;
@@ -83,9 +83,48 @@ void unmap(void *Addr, uptr Size, UNUSED uptr Flags,
     dieOnMapUnmapError();
 }
 
+void setMemoryPermission(uptr Addr, uptr Size, uptr Flags,
+                         UNUSED MapPlatformData *Data) {
+  int Prot = (Flags & MAP_NOACCESS) ? PROT_NONE : (PROT_READ | PROT_WRITE);
+  if (mprotect(reinterpret_cast<void *>(Addr), Size, Prot) != 0)
+    dieOnMapUnmapError();
+}
+
+static bool madviseNeedsMemset() {
+  const uptr Size = getPageSizeCached();
+  char *P = reinterpret_cast<char *>(mmap(0, Size, PROT_READ | PROT_WRITE,
+                                          MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+  if (!P)
+    dieOnMapUnmapError(errno == ENOMEM ? Size : 0);
+  *P = 1;
+  while (madvise(P, Size, MADV_DONTNEED) == -1 && errno == EAGAIN) {
+  }
+  const bool R = (*P != 0);
+  if (munmap(P, Size) != 0)
+    dieOnMapUnmapError();
+  return R;
+}
+
+static bool madviseNeedsMemsetCached() {
+  static atomic_u8 Cache;
+  enum State : u8 { Unknown = 0, Yes = 1, No = 2 };
+  State NeedsMemset = static_cast<State>(atomic_load_relaxed(&Cache));
+  if (NeedsMemset == Unknown) {
+    NeedsMemset = madviseNeedsMemset() ? Yes : No;
+    atomic_store_relaxed(&Cache, NeedsMemset);
+  }
+  return NeedsMemset == Yes;
+}
+
 void releasePagesToOS(uptr BaseAddress, uptr Offset, uptr Size,
                       UNUSED MapPlatformData *Data) {
   void *Addr = reinterpret_cast<void *>(BaseAddress + Offset);
+  if (madviseNeedsMemsetCached()) {
+    // Workaround for QEMU-user ignoring MADV_DONTNEED.
+    // https://github.com/qemu/qemu/blob/b1cffefa1b163bce9aebc3416f562c1d3886eeaa/linux-user/syscall.c#L11941
+    // https://bugs.launchpad.net/qemu/+bug/1926521
+    memset(Addr, 0, Size);
+  }
   while (madvise(Addr, Size, MADV_DONTNEED) == -1 && errno == EAGAIN) {
   }
 }
@@ -198,7 +237,7 @@ void outputRaw(const char *Buffer) {
     }
     async_safe_write_log(AndroidLogInfo, "scudo", Buffer);
   } else {
-    write(2, Buffer, strlen(Buffer));
+    (void)write(2, Buffer, strlen(Buffer));
   }
 }
 

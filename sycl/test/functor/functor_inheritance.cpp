@@ -1,8 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -o %t.out %s
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 #include <CL/sycl.hpp>
 #include <cassert>
@@ -36,7 +33,7 @@ struct Derived : public Base, public SecondBase {
       int _A, int _B, int _C, int _D, int _E,
       cl::sycl::accessor<int, 1, sycl_read_write, sycl_global_buffer> &_Acc)
       : A(_A), Acc(_Acc), /*Out(_Out),*/ Base(_B, _C, _D), SecondBase(_E) {}
-  void operator()() {
+  void operator()() const {
     Acc[0] = this->A + this->B + this->InnerObj.C + this->InnerObj.D + this->E;
   }
 

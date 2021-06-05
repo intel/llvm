@@ -3,7 +3,7 @@
 ; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+sse4.2 | FileCheck %s --check-prefix=SSE --check-prefix=SSE42
 ; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx | FileCheck %s --check-prefix=AVX --check-prefix=AVX1
 ; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx2 | FileCheck %s --check-prefix=AVX --check-prefix=AVX2
-; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx512f | FileCheck %s --check-prefix=AVX --check-prefix=AVX512 --check-prefix=AVX512F
+; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx512f | FileCheck %s --check-prefix=AVX --check-prefix=AVX512
 
 ; Widened shuffle broadcast loads
 
@@ -260,13 +260,13 @@ entry:
 define <16 x i8> @load_splat_16i8_16i8_0101010101010101(<16 x i8>* %ptr) nounwind uwtable readnone ssp {
 ; SSE-LABEL: load_splat_16i8_16i8_0101010101010101:
 ; SSE:       # %bb.0: # %entry
-; SSE-NEXT:    pshuflw {{.*#+}} xmm0 = mem[0,0,2,3,4,5,6,7]
+; SSE-NEXT:    pshuflw {{.*#+}} xmm0 = mem[0,0,0,0,4,5,6,7]
 ; SSE-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,0,0,0]
 ; SSE-NEXT:    retq
 ;
 ; AVX1-LABEL: load_splat_16i8_16i8_0101010101010101:
 ; AVX1:       # %bb.0: # %entry
-; AVX1-NEXT:    vpshuflw {{.*#+}} xmm0 = mem[0,0,2,3,4,5,6,7]
+; AVX1-NEXT:    vpshuflw {{.*#+}} xmm0 = mem[0,0,0,0,4,5,6,7]
 ; AVX1-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[0,0,0,0]
 ; AVX1-NEXT:    retq
 ;
@@ -340,14 +340,14 @@ entry:
 define <32 x i8> @load_splat_32i8_16i8_01010101010101010101010101010101(<16 x i8>* %ptr) nounwind uwtable readnone ssp {
 ; SSE-LABEL: load_splat_32i8_16i8_01010101010101010101010101010101:
 ; SSE:       # %bb.0: # %entry
-; SSE-NEXT:    pshuflw {{.*#+}} xmm0 = mem[0,0,2,3,4,5,6,7]
+; SSE-NEXT:    pshuflw {{.*#+}} xmm0 = mem[0,0,0,0,4,5,6,7]
 ; SSE-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,0,0,0]
 ; SSE-NEXT:    movdqa %xmm0, %xmm1
 ; SSE-NEXT:    retq
 ;
 ; AVX1-LABEL: load_splat_32i8_16i8_01010101010101010101010101010101:
 ; AVX1:       # %bb.0: # %entry
-; AVX1-NEXT:    vpshuflw {{.*#+}} xmm0 = mem[0,0,2,3,4,5,6,7]
+; AVX1-NEXT:    vpshuflw {{.*#+}} xmm0 = mem[0,0,0,0,4,5,6,7]
 ; AVX1-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[0,0,0,0]
 ; AVX1-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm0
 ; AVX1-NEXT:    retq
@@ -404,14 +404,14 @@ entry:
 define <32 x i8> @load_splat_32i8_32i8_01010101010101010101010101010101(<32 x i8>* %ptr) nounwind uwtable readnone ssp {
 ; SSE-LABEL: load_splat_32i8_32i8_01010101010101010101010101010101:
 ; SSE:       # %bb.0: # %entry
-; SSE-NEXT:    pshuflw {{.*#+}} xmm0 = mem[0,0,2,3,4,5,6,7]
+; SSE-NEXT:    pshuflw {{.*#+}} xmm0 = mem[0,0,0,0,4,5,6,7]
 ; SSE-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,0,0,0]
 ; SSE-NEXT:    movdqa %xmm0, %xmm1
 ; SSE-NEXT:    retq
 ;
 ; AVX1-LABEL: load_splat_32i8_32i8_01010101010101010101010101010101:
 ; AVX1:       # %bb.0: # %entry
-; AVX1-NEXT:    vpshuflw {{.*#+}} xmm0 = mem[0,0,2,3,4,5,6,7]
+; AVX1-NEXT:    vpshuflw {{.*#+}} xmm0 = mem[0,0,0,0,4,5,6,7]
 ; AVX1-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[0,0,0,0]
 ; AVX1-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm0
 ; AVX1-NEXT:    retq

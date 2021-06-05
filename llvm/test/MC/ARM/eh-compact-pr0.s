@@ -1,9 +1,9 @@
 @ RUN: llvm-mc %s -triple=armv7-unknown-linux-gnueabi -filetype=obj -o - \
-@ RUN:   | llvm-readobj -S --sd --sr > %t
+@ RUN:   | llvm-readobj -S --sd --sr - > %t
 @ RUN: FileCheck %s < %t
 @ RUN: FileCheck --check-prefixes=RELOC,RELOC-NOAND %s < %t
 @ RUN: llvm-mc %s -triple=armv7-unknown-linux-androideabi -filetype=obj -o - \
-@ RUN:   | llvm-readobj -S --sd --sr | FileCheck --check-prefix=RELOC %s
+@ RUN:   | llvm-readobj -S --sd --sr - | FileCheck --check-prefix=RELOC %s
 
 @ Check the compact pr0 model
 
@@ -70,8 +70,8 @@ func2:
 @ RELOC:        Section {
 @ RELOC:          Name: .rel.ARM.exidx.TEST1
 @ RELOC:          Relocations [
-@ RELOC-NOAND-NEXT: 0x0 R_ARM_NONE __aeabi_unwind_cpp_pr0 0x0
-@ RELOC-NEXT:       0x0 R_ARM_PREL31 .TEST1 0x0
+@ RELOC-NOAND-NEXT: 0x0 R_ARM_NONE __aeabi_unwind_cpp_pr0
+@ RELOC-NEXT:       0x0 R_ARM_PREL31 .TEST1
 @ RELOC-NEXT:     ]
 
 @-------------------------------------------------------------------------------
@@ -105,6 +105,6 @@ func2:
 @ RELOC:        Section {
 @ RELOC:          Name: .rel.ARM.exidx.TEST2
 @ RELOC:          Relocations [
-@ RELOC-NOAND-NEXT: 0x0 R_ARM_NONE __aeabi_unwind_cpp_pr0 0x0
-@ RELOC-NEXT:       0x0 R_ARM_PREL31 .TEST2 0x0
+@ RELOC-NOAND-NEXT: 0x0 R_ARM_NONE __aeabi_unwind_cpp_pr0
+@ RELOC-NEXT:       0x0 R_ARM_PREL31 .TEST2
 @ RELOC-NEXT:     ]

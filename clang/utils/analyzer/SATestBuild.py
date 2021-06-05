@@ -43,7 +43,7 @@ For testing additional checkers, use the SA_ADDITIONAL_CHECKERS environment
 variable. It should contain a comma separated list.
 """
 import CmpRuns
-import SATestUtils
+import SATestUtils as utils
 from ProjectMap import DownloadType, ProjectInfo
 
 import glob
@@ -63,7 +63,7 @@ from queue import Queue
 # and this is we can shush that false positive
 from plistlib import InvalidFileException  # type:ignore
 from subprocess import CalledProcessError, check_call
-from typing import Dict, IO, List, NamedTuple, Optional, TYPE_CHECKING
+from typing import Dict, IO, List, NamedTuple, Optional, TYPE_CHECKING, Tuple
 
 
 ###############################################################################
@@ -87,10 +87,18 @@ class StreamToLogger:
         return 0
 
 
-Logger = logging.getLogger("main")
 LOCAL = threading.local()
-LOCAL.stdout = StreamToLogger(Logger, logging.INFO)
-LOCAL.stderr = StreamToLogger(Logger, logging.ERROR)
+
+
+def init_logger(name: str):
+    # TODO: use debug levels for VERBOSE messages
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    LOCAL.stdout = StreamToLogger(logger, logging.INFO)
+    LOCAL.stderr = StreamToLogger(logger, logging.ERROR)
+
+
+init_logger("main")
 
 
 def stderr(message: str):
@@ -102,7 +110,6 @@ def stdout(message: str):
 
 
 logging.basicConfig(
-    level=logging.DEBUG,
     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s')
 
 
@@ -115,7 +122,7 @@ logging.basicConfig(
 if 'CC' in os.environ:
     cc_candidate: Optional[str] = os.environ['CC']
 else:
-    cc_candidate = SATestUtils.which("clang", os.environ['PATH'])
+    cc_candidate = utils.which("clang", os.environ['PATH'])
 if not cc_candidate:
     stderr("Error: cannot find 'clang' in PATH")
     sys.exit(1)
@@ -194,9 +201,9 @@ def run_cleanup_script(directory: str, build_log_file: IO):
     cwd = os.path.join(directory, PATCHED_SOURCE_DIR_NAME)
     script_path = os.path.join(directory, CLEANUP_SCRIPT)
 
-    SATestUtils.run_script(script_path, build_log_file, cwd,
-                           out=LOCAL.stdout, err=LOCAL.stderr,
-                           verbose=VERBOSE)
+    utils.run_script(script_path, build_log_file, cwd,
+                     out=LOCAL.stdout, err=LOCAL.stderr,
+                     verbose=VERBOSE)
 
 
 class TestInfo(NamedTuple):
@@ -298,12 +305,13 @@ class ProjectTester:
     """
     A component aggregating testing for one project.
     """
-    def __init__(self, test_info: TestInfo):
+    def __init__(self, test_info: TestInfo, silent: bool = False):
         self.project = test_info.project
         self.override_compiler = test_info.override_compiler
         self.extra_analyzer_config = test_info.extra_analyzer_config
         self.is_reference_build = test_info.is_reference_build
         self.strictness = test_info.strictness
+        self.silent = silent
 
     def test(self) -> bool:
         """
@@ -312,20 +320,19 @@ class ProjectTester:
         to the :param strictness: criteria.
         """
         if not self.project.enabled:
-            stdout(f" \n\n--- Skipping disabled project {self.project.name}\n")
+            self.out(
+                f" \n\n--- Skipping disabled project {self.project.name}\n")
             return True
 
-        stdout(f" \n\n--- Building project {self.project.name}\n")
+        self.out(f" \n\n--- Building project {self.project.name}\n")
 
         start_time = time.time()
 
         project_dir = self.get_project_dir()
-        if VERBOSE >= 1:
-            stdout(f"  Build directory: {project_dir}.\n")
+        self.vout(f"  Build directory: {project_dir}.\n")
 
         # Set the build results directory.
         output_dir = self.get_output_dir()
-        output_dir = os.path.join(project_dir, output_dir)
 
         self.build(project_dir, output_dir)
         check_build(output_dir)
@@ -336,8 +343,8 @@ class ProjectTester:
         else:
             passed = run_cmp_results(project_dir, self.strictness)
 
-        stdout(f"Completed tests for project {self.project.name} "
-               f"(time: {time.time() - start_time:.2f}).\n")
+        self.out(f"Completed tests for project {self.project.name} "
+                 f"(time: {time.time() - start_time:.2f}).\n")
 
         return passed
 
@@ -346,24 +353,23 @@ class ProjectTester:
 
     def get_output_dir(self) -> str:
         if self.is_reference_build:
-            return REF_PREFIX + OUTPUT_DIR_NAME
+            dirname = REF_PREFIX + OUTPUT_DIR_NAME
         else:
-            return OUTPUT_DIR_NAME
+            dirname = OUTPUT_DIR_NAME
 
-    def build(self, directory: str, output_dir: str):
-        time_start = time.time()
+        return os.path.join(self.get_project_dir(), dirname)
 
+    def build(self, directory: str, output_dir: str) -> Tuple[float, int]:
         build_log_path = get_build_log_path(output_dir)
 
-        stdout(f"Log file: {build_log_path}\n")
-        stdout(f"Output directory: {output_dir}\n")
+        self.out(f"Log file: {build_log_path}\n")
+        self.out(f"Output directory: {output_dir}\n")
 
         remove_log_file(output_dir)
 
         # Clean up scan build results.
         if os.path.exists(output_dir):
-            if VERBOSE >= 1:
-                stdout(f"  Removing old results: {output_dir}\n")
+            self.vout(f"  Removing old results: {output_dir}\n")
 
             shutil.rmtree(output_dir)
 
@@ -375,19 +381,25 @@ class ProjectTester:
             if self.project.mode == 1:
                 self._download_and_patch(directory, build_log_file)
                 run_cleanup_script(directory, build_log_file)
-                self.scan_build(directory, output_dir, build_log_file)
+                build_time, memory = self.scan_build(directory, output_dir,
+                                                     build_log_file)
             else:
-                self.analyze_preprocessed(directory, output_dir)
+                build_time, memory = self.analyze_preprocessed(directory,
+                                                               output_dir)
 
             if self.is_reference_build:
                 run_cleanup_script(directory, build_log_file)
                 normalize_reference_results(directory, output_dir,
                                             self.project.mode)
 
-        stdout(f"Build complete (time: {time.time() - time_start:.2f}). "
-               f"See the log for more details: {build_log_path}\n")
+        self.out(f"Build complete (time: {utils.time_to_str(build_time)}, "
+                 f"peak memory: {utils.memory_to_str(memory)}). "
+                 f"See the log for more details: {build_log_path}\n")
 
-    def scan_build(self, directory: str, output_dir: str, build_log_file: IO):
+        return build_time, memory
+
+    def scan_build(self, directory: str, output_dir: str,
+                   build_log_file: IO) -> Tuple[float, int]:
         """
         Build the project with scan-build by reading in the commands and
         prefixing them with the scan-build options.
@@ -416,6 +428,10 @@ class ProjectTester:
             options += "--override-compiler "
 
         extra_env: Dict[str, str] = {}
+
+        execution_time = 0.0
+        peak_memory = 0
+
         try:
             command_file = open(build_script_path, "r")
             command_prefix = "scan-build " + options + " "
@@ -448,14 +464,17 @@ class ProjectTester:
 
                 command_to_run = command_prefix + command
 
-                if VERBOSE >= 1:
-                    stdout(f"  Executing: {command_to_run}\n")
+                self.vout(f"  Executing: {command_to_run}\n")
 
-                check_call(command_to_run, cwd=cwd,
-                           stderr=build_log_file,
-                           stdout=build_log_file,
-                           env=dict(os.environ, **extra_env),
-                           shell=True)
+                time, mem = utils.check_and_measure_call(
+                    command_to_run, cwd=cwd,
+                    stderr=build_log_file,
+                    stdout=build_log_file,
+                    env=dict(os.environ, **extra_env),
+                    shell=True)
+
+                execution_time += time
+                peak_memory = max(peak_memory, mem)
 
         except CalledProcessError:
             stderr("Error: scan-build failed. Its output was: \n")
@@ -463,7 +482,10 @@ class ProjectTester:
             shutil.copyfileobj(build_log_file, LOCAL.stderr)
             sys.exit(1)
 
-    def analyze_preprocessed(self, directory: str, output_dir: str):
+        return execution_time, peak_memory
+
+    def analyze_preprocessed(self, directory: str,
+                             output_dir: str) -> Tuple[float, int]:
         """
         Run analysis on a set of preprocessed files.
         """
@@ -487,14 +509,17 @@ class ProjectTester:
         fail_path = os.path.join(plist_path, "failures")
         os.makedirs(fail_path)
 
+        execution_time = 0.0
+        peak_memory = 0
+
         for full_file_name in glob.glob(directory + "/*"):
             file_name = os.path.basename(full_file_name)
             failed = False
 
             # Only run the analyzes on supported files.
-            if SATestUtils.has_no_extension(file_name):
+            if utils.has_no_extension(file_name):
                 continue
-            if not SATestUtils.is_valid_single_input_file(file_name):
+            if not utils.is_valid_single_input_file(file_name):
                 stderr(f"Error: Invalid single input file {full_file_name}.\n")
                 raise Exception()
 
@@ -506,11 +531,14 @@ class ProjectTester:
             log_path = os.path.join(fail_path, file_name + ".stderr.txt")
             with open(log_path, "w+") as log_file:
                 try:
-                    if VERBOSE >= 1:
-                        stdout(f"  Executing: {command}\n")
+                    self.vout(f"  Executing: {command}\n")
 
-                    check_call(command, cwd=directory, stderr=log_file,
-                               stdout=log_file, shell=True)
+                    time, mem = utils.check_and_measure_call(
+                        command, cwd=directory, stderr=log_file,
+                        stdout=log_file, shell=True)
+
+                    execution_time += time
+                    peak_memory = max(peak_memory, mem)
 
                 except CalledProcessError as e:
                     stderr(f"Error: Analyzes of {full_file_name} failed. "
@@ -521,6 +549,8 @@ class ProjectTester:
                 # If command did not fail, erase the log file.
                 if not failed:
                     os.remove(log_file.name)
+
+        return execution_time, peak_memory
 
     def generate_config(self) -> str:
         out = "serialize-stats=true,stable-report-filename=true"
@@ -570,8 +600,10 @@ class ProjectTester:
                 f"for the '{self.project.name}' project")
 
     def _download_from_git(self, directory: str, build_log_file: IO):
+        repo = self.project.origin
         cached_source = os.path.join(directory, CACHED_SOURCE_DIR_NAME)
-        check_call(f"git clone --recursive {self.project.origin} {cached_source}",
+
+        check_call(f"git clone --recursive {repo} {cached_source}",
                    cwd=directory, stderr=build_log_file,
                    stdout=build_log_file, shell=True)
         check_call(f"git checkout --quiet {self.project.commit}",
@@ -579,7 +611,7 @@ class ProjectTester:
                    stdout=build_log_file, shell=True)
 
     def _unpack_zip(self, directory: str, build_log_file: IO):
-        zip_files = list(glob.glob(os.path.join(directory, "/*.zip")))
+        zip_files = list(glob.glob(directory + "/*.zip"))
 
         if len(zip_files) == 0:
             raise ValueError(
@@ -598,20 +630,19 @@ class ProjectTester:
     @staticmethod
     def _run_download_script(directory: str, build_log_file: IO):
         script_path = os.path.join(directory, DOWNLOAD_SCRIPT)
-        SATestUtils.run_script(script_path, build_log_file, directory,
-                               out=LOCAL.stdout, err=LOCAL.stderr,
-                               verbose=VERBOSE)
+        utils.run_script(script_path, build_log_file, directory,
+                         out=LOCAL.stdout, err=LOCAL.stderr,
+                         verbose=VERBOSE)
 
-    @staticmethod
-    def _apply_patch(directory: str, build_log_file: IO):
+    def _apply_patch(self, directory: str, build_log_file: IO):
         patchfile_path = os.path.join(directory, PATCHFILE_NAME)
         patched_source = os.path.join(directory, PATCHED_SOURCE_DIR_NAME)
 
         if not os.path.exists(patchfile_path):
-            stdout("  No local patches.\n")
+            self.out("  No local patches.\n")
             return
 
-        stdout("  Applying patch.\n")
+        self.out("  Applying patch.\n")
         try:
             check_call(f"patch -p1 < '{patchfile_path}'",
                        cwd=patched_source,
@@ -623,6 +654,14 @@ class ProjectTester:
             stderr(f"Error: Patch failed. "
                    f"See {build_log_file.name} for details.\n")
             sys.exit(1)
+
+    def out(self, what: str):
+        if not self.silent:
+            stdout(what)
+
+    def vout(self, what: str):
+        if VERBOSE >= 1:
+            self.out(what)
 
 
 class TestProjectThread(threading.Thread):
@@ -646,10 +685,7 @@ class TestProjectThread(threading.Thread):
         while not self.tasks_queue.empty():
             try:
                 test_info = self.tasks_queue.get()
-
-                Logger = logging.getLogger(test_info.project.name)
-                LOCAL.stdout = StreamToLogger(Logger, logging.INFO)
-                LOCAL.stderr = StreamToLogger(Logger, logging.ERROR)
+                init_logger(test_info.project.name)
 
                 tester = ProjectTester(test_info)
                 if not tester.test():

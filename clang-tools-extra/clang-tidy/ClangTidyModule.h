@@ -13,9 +13,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include <functional>
-#include <map>
 #include <memory>
-#include <string>
 
 namespace clang {
 namespace tidy {
@@ -69,7 +67,7 @@ public:
   std::vector<std::unique_ptr<ClangTidyCheck>>
   createChecks(ClangTidyContext *Context);
 
-  typedef std::map<std::string, CheckFactory> FactoryMap;
+  typedef llvm::StringMap<CheckFactory> FactoryMap;
   FactoryMap::const_iterator begin() const { return Factories.begin(); }
   FactoryMap::const_iterator end() const { return Factories.end(); }
   bool empty() const { return Factories.empty(); }

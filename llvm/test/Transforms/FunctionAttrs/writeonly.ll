@@ -1,4 +1,4 @@
-; RUN: opt < %s -functionattrs         -S | FileCheck %s
+; RUN: opt < %s -function-attrs         -S | FileCheck %s
 ; RUN: opt < %s -passes=function-attrs -S | FileCheck %s
 
 ; CHECK: define void @nouses-argworn-funrn(i32* nocapture readnone %.aaa) #0 {
@@ -25,6 +25,6 @@ nouses-argworn-funwo_entry:
   ret void
 }
 
-; CHECK: attributes #0 = { {{.*}} readnone }
-; CHECK: attributes #1 = { {{.*}} readonly }
-; CHECK: attributes #2 = { {{.*}} writeonly }
+; CHECK: attributes #0 = { {{.*}} readnone {{.*}} }
+; CHECK: attributes #1 = { {{.*}} readonly {{.*}} }
+; CHECK: attributes #2 = { {{.*}} writeonly {{.*}} }

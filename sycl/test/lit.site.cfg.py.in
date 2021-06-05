@@ -17,10 +17,13 @@ config.cuda_toolkit_include = "@CUDA_TOOLKIT_INCLUDE@"
 config.sycl_tools_src_dir = "@SYCL_TOOLS_SRC_DIR@"
 config.llvm_build_lib_dir = "@LLVM_BUILD_LIBRARY_DIRS@"
 config.llvm_build_bin_dir = "@LLVM_BUILD_BINARY_DIRS@"
+config.sycl_clang_extra_flags = "@SYCL_CLANG_EXTRA_FLAGS@"
 
 config.llvm_enable_projects = "@LLVM_ENABLE_PROJECTS@"
 
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
+config.sycl_use_libcxx = '@SYCL_USE_LIBCXX@'
+config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)

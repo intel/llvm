@@ -13,7 +13,6 @@
 #ifndef LLVM_LIB_TARGET_POWERPC_MCTARGETDESC_PPCMCASMINFO_H
 #define LLVM_LIB_TARGET_POWERPC_MCTARGETDESC_PPCMCASMINFO_H
 
-#include "llvm/MC/MCAsmInfoDarwin.h"
 #include "llvm/MC/MCAsmInfoELF.h"
 #include "llvm/MC/MCAsmInfoXCOFF.h"
 
@@ -28,7 +27,7 @@ public:
 };
 
 class PPCXCOFFMCAsmInfo : public MCAsmInfoXCOFF {
-  virtual void anchor();
+  void anchor() override;
 
 public:
   explicit PPCXCOFFMCAsmInfo(bool is64Bit, const Triple &);

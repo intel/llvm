@@ -9,7 +9,7 @@
 #include "mlir/Dialect/Quant/QuantizeUtils.h"
 #include "mlir/Dialect/Quant/UniformSupport.h"
 #include "mlir/IR/Attributes.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 
 using namespace mlir;
 using namespace mlir::quant;
@@ -137,7 +137,7 @@ Attribute mlir::quant::quantizeAttr(Attribute realValue,
                  quantizedElementType.dyn_cast<UniformQuantizedPerAxisType>()) {
     UniformQuantizedPerAxisValueConverter converter(uniformQuantizedPerAxis);
     auto converted = converter.convert(realValue);
-    // TODO(fengliuai): why we need this outConvertedType? remove it?
+    // TODO: why we need this outConvertedType? remove it?
     if (converted) {
       outConvertedType = converted.getType();
     }

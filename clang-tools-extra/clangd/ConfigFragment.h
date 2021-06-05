@@ -32,6 +32,7 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_CONFIGFRAGMENT_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_CONFIGFRAGMENT_H
 
+#include "ConfigProvider.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Error.h"
@@ -50,19 +51,14 @@ template <typename T> struct Located {
       : Range(Range), Value(std::move(Value)) {}
 
   llvm::SMRange Range;
-  T &operator->() { return Value; }
-  const T &operator->() const { return Value; }
+  T *operator->() { return &Value; }
+  const T *operator->() const { return &Value; }
   T &operator*() { return Value; }
   const T &operator*() const { return Value; }
 
 private:
   T Value;
 };
-
-/// Used to report problems in parsing or interpreting a config.
-/// Errors reflect structurally invalid config that should be user-visible.
-/// Warnings reflect e.g. unknown properties that are recoverable.
-using DiagnosticCallback = llvm::function_ref<void(const llvm::SMDiagnostic &)>;
 
 /// A chunk of configuration obtained from a config file, LSP, or elsewhere.
 struct Fragment {
@@ -72,6 +68,17 @@ struct Fragment {
   static std::vector<Fragment> parseYAML(llvm::StringRef YAML,
                                          llvm::StringRef BufferName,
                                          DiagnosticCallback);
+
+  /// Analyzes and consumes this fragment, possibly yielding more diagnostics.
+  /// This always produces a usable result (errors are recovered).
+  ///
+  /// Typically, providers will compile a Fragment once when it's first loaded,
+  /// caching the result for reuse.
+  /// Like a compiled program, this is good for performance and also encourages
+  /// errors to be reported early and only once.
+  ///
+  /// The returned function is a cheap-copyable wrapper of refcounted internals.
+  CompiledFragment compile(DiagnosticCallback) &&;
 
   /// These fields are not part of the user-specified configuration, but
   /// instead are populated by the parser to describe the configuration source.
@@ -84,31 +91,167 @@ struct Fragment {
     /// The start of the original source for this fragment.
     /// Only valid if SourceManager is set.
     llvm::SMLoc Location;
+    /// Absolute path to directory the fragment is associated with. Relative
+    /// paths mentioned in the fragment are resolved against this.
+    std::string Directory;
+    /// Whether this fragment is allowed to make critical security/privacy
+    /// decisions.
+    bool Trusted = false;
   };
   SourceInfo Source;
 
-  /// Conditions restrict when a Fragment applies.
+  /// Conditions in the If block restrict when a Fragment applies.
   ///
   /// Each separate condition must match (combined with AND).
   /// When one condition has multiple values, any may match (combined with OR).
+  /// e.g. `PathMatch: [foo/.*, bar/.*]` matches files in either directory.
   ///
   /// Conditions based on a file's path use the following form:
   /// - if the fragment came from a project directory, the path is relative
   /// - if the fragment is global (e.g. user config), the path is absolute
   /// - paths always use forward-slashes (UNIX-style)
   /// If no file is being processed, these conditions will not match.
-  struct ConditionBlock {
+  struct IfBlock {
     /// The file being processed must fully match a regular expression.
     std::vector<Located<std::string>> PathMatch;
+    /// The file being processed must *not* fully match a regular expression.
+    std::vector<Located<std::string>> PathExclude;
+
     /// An unrecognized key was found while parsing the condition.
     /// The condition will evaluate to false.
     bool HasUnrecognizedCondition = false;
   };
-  ConditionBlock Condition;
+  IfBlock If;
 
+  /// Conditions in the CompileFlags block affect how a file is parsed.
+  ///
+  /// clangd emulates how clang would interpret a file.
+  /// By default, it behaves roughly like `clang $FILENAME`, but real projects
+  /// usually require setting the include path (with the `-I` flag), defining
+  /// preprocessor symbols, configuring warnings etc.
+  /// Often, a compilation database specifies these compile commands. clangd
+  /// searches for compile_commands.json in parents of the source file.
+  ///
+  /// This section modifies how the compile command is constructed.
   struct CompileFlagsBlock {
+    /// List of flags to append to the compile command.
     std::vector<Located<std::string>> Add;
-  } CompileFlags;
+    /// List of flags to remove from the compile command.
+    ///
+    /// - If the value is a recognized clang flag (like "-I") then it will be
+    ///   removed along with any arguments. Synonyms like --include-dir= will
+    ///   also be removed.
+    /// - Otherwise, if the value ends in * (like "-DFOO=*") then any argument
+    ///   with the prefix will be removed.
+    /// - Otherwise any argument exactly matching the value is removed.
+    ///
+    /// In all cases, -Xclang is also removed where needed.
+    ///
+    /// Example:
+    ///   Command: clang++ --include-directory=/usr/include -DFOO=42 foo.cc
+    ///   Remove: [-I, -DFOO=*]
+    ///   Result: clang++ foo.cc
+    ///
+    /// Flags added by the same CompileFlags entry will not be removed.
+    std::vector<Located<std::string>> Remove;
+
+    /// Directory to search for compilation database (compile_comands.json etc).
+    /// Valid values are:
+    /// - A single path to a directory (absolute, or relative to the fragment)
+    /// - Ancestors: search all parent directories (the default)
+    /// - None: do not use a compilation database, just default flags.
+    llvm::Optional<Located<std::string>> CompilationDatabase;
+  };
+  CompileFlagsBlock CompileFlags;
+
+  /// Controls how clangd understands code outside the current file.
+  /// clangd's indexes provide information about symbols that isn't available
+  /// to clang's parser, such as incoming references.
+  struct IndexBlock {
+    /// Whether files are built in the background to produce a project index.
+    /// This is checked for translation units only, not headers they include.
+    /// Legal values are "Build" or "Skip".
+    llvm::Optional<Located<std::string>> Background;
+    /// An external index uses data source outside of clangd itself. This is
+    /// usually prepared using clangd-indexer.
+    /// Exactly one source (File/Server) should be configured.
+    struct ExternalBlock {
+      /// Whether the block is explicitly set to `None`. Can be used to clear
+      /// any external index specified before.
+      Located<bool> IsNone = false;
+      /// Path to an index file generated by clangd-indexer. Relative paths may
+      /// be used, if config fragment is associated with a directory.
+      llvm::Optional<Located<std::string>> File;
+      /// Address and port number for a clangd-index-server. e.g.
+      /// `123.1.1.1:13337`.
+      llvm::Optional<Located<std::string>> Server;
+      /// Source root governed by this index. Default is the directory
+      /// associated with the config fragment. Absolute in case of user config
+      /// and relative otherwise. Should always use forward-slashes.
+      llvm::Optional<Located<std::string>> MountPoint;
+    };
+    llvm::Optional<Located<ExternalBlock>> External;
+  };
+  IndexBlock Index;
+
+  /// Controls behavior of diagnostics (errors and warnings).
+  struct DiagnosticsBlock {
+    /// Diagnostic codes that should be suppressed.
+    ///
+    /// Valid values are:
+    /// - *, to disable all diagnostics
+    /// - diagnostic codes exposed by clangd (e.g unknown_type, -Wunused-result)
+    /// - clang internal diagnostic codes (e.g. err_unknown_type)
+    /// - warning categories (e.g. unused-result)
+    /// - clang-tidy check names (e.g. bugprone-narrowing-conversions)
+    ///
+    /// This is a simple filter. Diagnostics can be controlled in other ways
+    /// (e.g. by disabling a clang-tidy check, or the -Wunused compile flag).
+    /// This often has other advantages, such as skipping some analysis.
+    std::vector<Located<std::string>> Suppress;
+
+    /// Controls how clang-tidy will run over the code base.
+    ///
+    /// The settings are merged with any settings found in .clang-tidy
+    /// configiration files with these ones taking precedence.
+    struct ClangTidyBlock {
+      std::vector<Located<std::string>> Add;
+      /// List of checks to disable.
+      /// Takes precedence over Add. To enable all llvm checks except include
+      /// order:
+      ///   Add: llvm-*
+      ///   Remove: llvm-include-onder
+      std::vector<Located<std::string>> Remove;
+
+      /// A Key-Value pair list of options to pass to clang-tidy checks
+      /// These take precedence over options specified in clang-tidy
+      /// configuration files. Example:
+      ///   CheckOptions:
+      ///     readability-braces-around-statements.ShortStatementLines: 2
+      std::vector<std::pair<Located<std::string>, Located<std::string>>>
+          CheckOptions;
+    };
+    ClangTidyBlock ClangTidy;
+  };
+  DiagnosticsBlock Diagnostics;
+
+  // Describes the style of the codebase, beyond formatting.
+  struct StyleBlock {
+    // Namespaces that should always be fully qualified, meaning no "using"
+    // declarations, always spell out the whole name (with or without leading
+    // ::). All nested namespaces are affected as well.
+    // Affects availability of the AddUsing tweak.
+    std::vector<Located<std::string>> FullyQualifiedNamespaces;
+  };
+  StyleBlock Style;
+
+  /// Describes code completion preferences.
+  struct CompletionBlock {
+    /// Whether code completion should include suggestions from scopes that are
+    /// not visible. The required scope prefix will be inserted.
+    llvm::Optional<Located<bool>> AllScopes;
+  };
+  CompletionBlock Completion;
 };
 
 } // namespace config

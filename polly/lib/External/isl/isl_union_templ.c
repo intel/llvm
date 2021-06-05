@@ -124,6 +124,15 @@ __isl_give UNION *FN(UNION,copy)(__isl_keep UNION *u)
 	return u;
 }
 
+/* Do the tuples of "space" correspond to those of the domain of "part"?
+ * That is, is the domain space of "part" equal to "space", ignoring parameters?
+ */
+static isl_bool FN(PART,has_domain_space_tuples)(__isl_keep PART *part,
+	__isl_keep isl_space *space)
+{
+	return isl_space_has_domain_tuples(space, FN(PART,peek_space)(part));
+}
+
 /* Extract the element of "u" living in "space" (ignoring parameters).
  *
  * Return the ZERO element if "u" does not contain any element
@@ -133,8 +142,6 @@ __isl_give PART *FN(FN(UNION,extract),BASE)(__isl_keep UNION *u,
 	__isl_take isl_space *space)
 {
 	struct isl_hash_table_entry *entry;
-
-	space = isl_space_replace_params(space, FN(UNION,peek_space)(u));
 
 	entry = FN(UNION,find_part_entry)(u, space, 0);
 	if (!entry)
@@ -252,13 +259,15 @@ static __isl_give UNION *FN(UNION,alloc_same_size)(__isl_keep UNION *u)
  * If "space" is not NULL, then a new union is created in this space.
  * If "filter" is not NULL, then only the base expressions that satisfy "filter"
  * are taken into account.
- * "fn" is applied to each entry in the input.
+ * "filter_user" is passed as the second argument to "filter".
+ * If "fn" it not NULL, then it is applied to each entry in the input.
  * "fn_user" is passed as the second argument to "fn".
  */
 S(UNION,transform_control) {
 	int inplace;
 	isl_space *space;
-	isl_bool (*filter)(__isl_keep PART *part);
+	isl_bool (*filter)(__isl_keep PART *part, void *user);
+	void *filter_user;
 	__isl_give PART *(*fn)(__isl_take PART *part, void *user);
 	void *fn_user;
 };
@@ -279,22 +288,24 @@ S(UNION,transform_data)
 static isl_stat FN(UNION,transform_entry)(void **entry, void *user)
 {
 	S(UNION,transform_data) *data = (S(UNION,transform_data) *)user;
+	S(UNION,transform_control) *control = data->control;
 	PART *part = *entry;
 
-	if (data->control->filter) {
+	if (control->filter) {
 		isl_bool handle;
 
-		handle = data->control->filter(part);
+		handle = control->filter(part, control->filter_user);
 		if (handle < 0)
 			return isl_stat_error;
 		if (!handle)
 			return isl_stat_ok;
 	}
 
-	if (!data->control->inplace)
+	if (!control->inplace)
 		part = FN(PART,copy)(part);
-	part = data->control->fn(part, data->control->fn_user);
-	if (data->control->inplace)
+	if (control->fn)
+		part = control->fn(part, control->fn_user);
+	if (control->inplace)
 		*entry = part;
 	else
 		data->res = FN(FN(UNION,add),BASE)(data->res, part);
@@ -723,24 +734,15 @@ S(UNION,match_domain_data) {
 	S(UNION,match_domain_control) *control;
 };
 
-static isl_bool FN(UNION,set_has_space)(const void *entry, const void *val)
-{
-	isl_set *set = (isl_set *)entry;
-	isl_space *space = (isl_space *)val;
-
-	return isl_space_is_equal(set->dim, space);
-}
-
 /* Find the set in data->uset that lives in the same space as the domain
- * of "part", apply data->fn to *entry and this set (if any), and add
- * the result to data->res.
+ * of "part" (ignoring parameters), apply data->fn to *entry and this set
+ * (if any), and add the result to data->res.
  */
 static isl_stat FN(UNION,match_domain_entry)(__isl_take PART *part, void *user)
 {
 	S(UNION,match_domain_data) *data = user;
-	uint32_t hash;
 	struct isl_hash_table_entry *entry2;
-	isl_space *space, *uset_space;
+	isl_space *space;
 
 	if (data->control->filter) {
 		isl_bool pass = data->control->filter(part);
@@ -750,14 +752,10 @@ static isl_stat FN(UNION,match_domain_entry)(__isl_take PART *part, void *user)
 		}
 	}
 
-	uset_space = isl_union_set_peek_space(data->uset);
 	space = FN(PART,get_domain_space)(part);
 	if (data->control->match_space)
 		space = data->control->match_space(space);
-	space = isl_space_replace_params(space, uset_space);
-	hash = isl_space_get_hash(space);
-	entry2 = isl_hash_table_find(data->uset->dim->ctx, &data->uset->table,
-				     hash, &FN(UNION,set_has_space), space, 0);
+	entry2 = isl_union_set_find_entry(data->uset, space, 0);
 	isl_space_free(space);
 	if (!entry2 || entry2 == isl_hash_table_entry_none) {
 		FN(PART,free)(part);
@@ -804,7 +802,7 @@ error:
  * If "uset" is a parameters domain, then intersect the parameter
  * domain of "u" with this set.
  */
-__isl_give UNION *FN(UNION,intersect_domain)(__isl_take UNION *u,
+__isl_give UNION *FN(UNION,intersect_domain_union_set)(__isl_take UNION *u,
 	__isl_take isl_union_set *uset)
 {
 	S(UNION,match_domain_control) control = {
@@ -815,6 +813,44 @@ __isl_give UNION *FN(UNION,intersect_domain)(__isl_take UNION *u,
 		return FN(UNION,intersect_params)(u,
 						isl_set_from_union_set(uset));
 	return FN(UNION,match_domain_op)(u, uset, &control);
+}
+
+/* This is an alternative name for the function above.
+ */
+__isl_give UNION *FN(UNION,intersect_domain)(__isl_take UNION *u,
+	__isl_take isl_union_set *uset)
+{
+	return FN(UNION,intersect_domain_union_set)(u, uset);
+}
+
+/* Return true if this part should be kept.
+ *
+ * In particular, it should be kept if its domain space
+ * corresponds to "space".
+ */
+static isl_bool FN(UNION,select_entry)(__isl_keep PART *part, void *user)
+{
+	isl_space *space = user;
+
+	return FN(PW,has_domain_space_tuples)(part, space);
+}
+
+/* Remove any not element in "space" from the domain of "u".
+ *
+ * In particular, select any part of the function defined
+ * on this domain space.
+ */
+__isl_give UNION *FN(UNION,intersect_domain_space)(__isl_take UNION *u,
+	__isl_take isl_space *space)
+{
+	S(UNION,transform_control) control = {
+		.filter = &FN(UNION,select_entry),
+		.filter_user = space,
+	};
+
+	u = FN(UNION,transform)(u, &control);
+	isl_space_free(space);
+	return u;
 }
 
 /* Is the domain of "pw" a wrapped relation?
@@ -872,7 +908,7 @@ static __isl_give PART *FN(UNION,subtract_domain_entry)(__isl_take PART *part,
 
 /* Subtract "uset" from the domain of "u".
  */
-__isl_give UNION *FN(UNION,subtract_domain)(__isl_take UNION *u,
+__isl_give UNION *FN(UNION,subtract_domain_union_set)(__isl_take UNION *u,
 	__isl_take isl_union_set *uset)
 {
 	S(UNION,transform_control) control = {
@@ -882,6 +918,44 @@ __isl_give UNION *FN(UNION,subtract_domain)(__isl_take UNION *u,
 
 	u = FN(UNION,transform)(u, &control);
 	isl_union_set_free(uset);
+	return u;
+}
+
+/* This is an alternative name for the function above.
+ */
+__isl_give UNION *FN(UNION,subtract_domain)(__isl_take UNION *u,
+	__isl_take isl_union_set *uset)
+{
+	return FN(UNION,subtract_domain_union_set)(u, uset);
+}
+
+/* Return true if this part should be kept.
+ *
+ * In particular, it should be kept if its domain space
+ * does not correspond to "space".
+ */
+static isl_bool FN(UNION,filter_out_entry)(__isl_keep PART *part, void *user)
+{
+	isl_space *space = user;
+
+	return isl_bool_not(FN(PW,has_domain_space_tuples)(part, space));
+}
+
+/* Remove any element in "space" from the domain of "u".
+ *
+ * In particular, filter out any part of the function defined
+ * on this domain space.
+ */
+__isl_give UNION *FN(UNION,subtract_domain_space)(__isl_take UNION *u,
+	__isl_take isl_space *space)
+{
+	S(UNION,transform_control) control = {
+		.filter = &FN(UNION,filter_out_entry),
+		.filter_user = space,
+	};
+
+	u = FN(UNION,transform)(u, &control);
+	isl_space_free(space);
 	return u;
 }
 
@@ -1062,38 +1136,75 @@ error:
 	return NULL;
 }
 
-S(UNION,plain_is_equal_data)
-{
-	UNION *u2;
-	isl_bool is_equal;
+/* Internal data structure for isl_union_*_every_*.
+ *
+ * "test" is the user-specified callback function.
+ * "user" is the user-specified callback function argument.
+ *
+ * "res" is the final result, initialized to isl_bool_true.
+ */
+S(UNION,every_data) {
+	isl_bool (*test)(__isl_keep PW *pw, void *user);
+	void *user;
+
+	isl_bool res;
 };
 
-static isl_stat FN(UNION,plain_is_equal_entry)(void **entry, void *user)
+/* Call data->test on the piecewise expression at *entry,
+ * updating the result in data->res.
+ * Abort if this result is no longer isl_bool_true.
+ */
+static isl_stat FN(UNION,every_entry)(void **entry, void *user)
 {
-	S(UNION,plain_is_equal_data) *data = user;
-	struct isl_hash_table_entry *entry2;
+	S(UNION,every_data) *data = user;
 	PW *pw = *entry;
 
-	entry2 = FN(UNION,find_part_entry)(data->u2, pw->dim, 0);
-	if (!entry2 || entry2 == isl_hash_table_entry_none) {
-		if (!entry2)
-			data->is_equal = isl_bool_error;
-		else
-			data->is_equal = isl_bool_false;
-		return isl_stat_error;
-	}
-
-	data->is_equal = FN(PW,plain_is_equal)(pw, entry2->data);
-	if (data->is_equal < 0 || !data->is_equal)
+	data->res = data->test(pw, data->user);
+	if (data->res < 0 || !data->res)
 		return isl_stat_error;
 
 	return isl_stat_ok;
 }
 
+/* Does "test" succeed on every piecewise expression in "u"?
+ */
+isl_bool FN(FN(UNION,every),BASE)(__isl_keep UNION *u,
+	isl_bool (*test)(__isl_keep PW *pw, void *user), void *user)
+{
+	S(UNION,every_data) data = { test, user };
+
+	data.res = isl_bool_true;
+	if (FN(UNION,foreach_inplace)(u, &FN(UNION,every_entry), &data) < 0 &&
+	    data.res == isl_bool_true)
+		return isl_bool_error;
+
+	return data.res;
+}
+
+S(UNION,plain_is_equal_data)
+{
+	UNION *u2;
+};
+
+static isl_bool FN(UNION,plain_is_equal_el)(__isl_keep PW *pw, void *user)
+{
+	S(UNION,plain_is_equal_data) *data = user;
+	struct isl_hash_table_entry *entry;
+
+	entry = FN(UNION,find_part_entry)(data->u2, pw->dim, 0);
+	if (!entry)
+		return isl_bool_error;
+	if (entry == isl_hash_table_entry_none)
+		return isl_bool_false;
+
+	return FN(PW,plain_is_equal)(pw, entry->data);
+}
+
 isl_bool FN(UNION,plain_is_equal)(__isl_keep UNION *u1, __isl_keep UNION *u2)
 {
-	S(UNION,plain_is_equal_data) data = { NULL, isl_bool_true };
+	S(UNION,plain_is_equal_data) data;
 	isl_size n1, n2;
+	isl_bool is_equal;
 
 	if (!u1 || !u2)
 		return isl_bool_error;
@@ -1116,52 +1227,36 @@ isl_bool FN(UNION,plain_is_equal)(__isl_keep UNION *u1, __isl_keep UNION *u2)
 		goto error;
 
 	data.u2 = u2;
-	if (FN(UNION,foreach_inplace)(u1,
-			       &FN(UNION,plain_is_equal_entry), &data) < 0 &&
-	    data.is_equal)
-		goto error;
+	is_equal = FN(FN(UNION,every),BASE)(u1,
+					  &FN(UNION,plain_is_equal_el), &data);
 
 	FN(UNION,free)(u1);
 	FN(UNION,free)(u2);
 
-	return data.is_equal;
+	return is_equal;
 error:
 	FN(UNION,free)(u1);
 	FN(UNION,free)(u2);
 	return isl_bool_error;
 }
 
-/* Check whether the element that "entry" points to involves any NaNs and
- * store the result in *nan.
- * Abort as soon as one such element has been found.
+/* An isl_union_*_every_* callback that checks whether "pw"
+ * does not involve any NaNs.
  */
-static isl_stat FN(UNION,involves_nan_entry)(void **entry, void *user)
+static isl_bool FN(UNION,no_nan_el)(__isl_keep PW *pw, void *user)
 {
-	isl_bool *nan = user;
-	PW *pw = *entry;
-
-	*nan = FN(PW,involves_nan)(pw);
-	if (*nan < 0 || !nan)
-		return isl_stat_error;
-
-	return isl_stat_ok;
+	return isl_bool_not(FN(PW,involves_nan)(pw));
 }
 
 /* Does "u" involve any NaNs?
  */
 isl_bool FN(UNION,involves_nan)(__isl_keep UNION *u)
 {
-	isl_bool nan = isl_bool_false;
+	isl_bool no_nan;
 
-	if (!u)
-		return isl_bool_error;
+	no_nan = FN(FN(UNION,every),BASE)(u, &FN(UNION,no_nan_el), NULL);
 
-	if (FN(UNION,foreach_inplace)(u,
-				    &FN(UNION,involves_nan_entry), &nan) < 0 &&
-	    !nan)
-		return isl_bool_error;
-
-	return nan;
+	return isl_bool_not(no_nan);
 }
 
 /* Internal data structure for isl_union_*_drop_dims.

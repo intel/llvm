@@ -1,8 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=2 %ACC_RUN_PLACEHOLDER %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization -I %sycl_source_dir %s -o %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 //==------------------- ReleaseResourcesTests.cpp --------------------------==//
 //
@@ -48,12 +45,3 @@ int main() {
 
   return Failed;
 }
-
-// CHECK:---> piContextCreate
-// CHECK:---> piQueueCreate
-// CHECK:---> piProgramCreate
-// CHECK:---> piKernelCreate
-// CHECK:---> piQueueRelease
-// CHECK:---> piContextRelease
-// CHECK:---> piKernelRelease
-// CHECK:---> piProgramRelease

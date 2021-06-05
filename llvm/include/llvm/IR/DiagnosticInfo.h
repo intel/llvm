@@ -21,6 +21,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/Support/CBindingWrapping.h"
+#include "llvm/Support/TypeSize.h"
 #include "llvm/Support/YAMLTraits.h"
 #include <algorithm>
 #include <cstdint>
@@ -34,6 +35,7 @@ namespace llvm {
 class DiagnosticPrinter;
 class Function;
 class Instruction;
+class InstructionCost;
 class LLVMContext;
 class Module;
 class SMDiagnostic;
@@ -75,8 +77,8 @@ enum DiagnosticKind {
   DK_LastMachineRemark = DK_MachineOptimizationRemarkAnalysis,
   DK_MIRParser,
   DK_PGOProfile,
-  DK_MisExpect,
   DK_Unsupported,
+  DK_SrcMgr,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
 };
@@ -213,7 +215,7 @@ public:
 };
 
 class DiagnosticInfoStackSize : public DiagnosticInfoResourceLimit {
-  virtual void anchor() override;
+  void anchor() override;
 public:
   DiagnosticInfoStackSize(const Function &Fn, uint64_t StackSize,
                           DiagnosticSeverity Severity = DS_Warning,
@@ -364,7 +366,7 @@ public:
 
 /// Common features for diagnostics with an associated location.
 class DiagnosticInfoWithLocationBase : public DiagnosticInfo {
-  virtual void anchor() override;
+  void anchor() override;
 public:
   /// \p Fn is the function where the diagnostic is being emitted. \p Loc is
   /// the location information to use in the diagnostic.
@@ -380,7 +382,7 @@ public:
   /// Return a string with the location information for this diagnostic
   /// in the format "file:line:col". If location information is not available,
   /// it returns "<unknown>:0:0".
-  const std::string getLocationStr() const;
+  std::string getLocationStr() const;
 
   /// Return location information for this diagnostic in three parts:
   /// the relative source file path, line number and column.
@@ -434,8 +436,10 @@ public:
     Argument(StringRef Key, unsigned N);
     Argument(StringRef Key, unsigned long N);
     Argument(StringRef Key, unsigned long long N);
+    Argument(StringRef Key, ElementCount EC);
     Argument(StringRef Key, bool B) : Key(Key), Val(B ? "true" : "false") {}
     Argument(StringRef Key, DebugLoc dl);
+    Argument(StringRef Key, InstructionCost C);
   };
 
   /// \p PassName is the name of the pass emitting this diagnostic. \p
@@ -611,7 +615,7 @@ operator<<(RemarkT &R,
 /// Common features for diagnostics dealing with optimization remarks
 /// that are used by IR passes.
 class DiagnosticInfoIROptimization : public DiagnosticInfoOptimizationBase {
-  virtual void anchor() override;
+  void anchor() override;
 public:
   /// \p PassName is the name of the pass emitting this diagnostic. \p
   /// RemarkName is a textual identifier for the remark (single-word,
@@ -739,6 +743,11 @@ public:
   OptimizationRemarkMissed(const char *PassName, StringRef RemarkName,
                            const Instruction *Inst);
 
+  /// Same as above but \p F is used to derive code region and debug
+  /// location.
+  OptimizationRemarkMissed(const char *PassName, StringRef RemarkName,
+                           const Function *F);
+
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_OptimizationRemarkMissed;
   }
@@ -791,6 +800,11 @@ public:
   OptimizationRemarkAnalysis(const char *PassName, StringRef RemarkName,
                              const Instruction *Inst);
 
+  /// Same as above but \p F is used to derive code region and debug
+  /// location.
+  OptimizationRemarkAnalysis(const char *PassName, StringRef RemarkName,
+                             const Function *F);
+
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_OptimizationRemarkAnalysis;
   }
@@ -832,7 +846,7 @@ private:
 /// Diagnostic information for optimization analysis remarks related to
 /// floating-point non-commutativity.
 class OptimizationRemarkAnalysisFPCommute : public OptimizationRemarkAnalysis {
-  virtual void anchor();
+  void anchor() override;
 public:
   /// \p PassName is the name of the pass emitting this diagnostic. If this name
   /// matches the regular expression given in -Rpass-analysis=, then the
@@ -874,7 +888,7 @@ private:
 /// Diagnostic information for optimization analysis remarks related to
 /// pointer aliasing.
 class OptimizationRemarkAnalysisAliasing : public OptimizationRemarkAnalysis {
-  virtual void anchor();
+  void anchor() override;
 public:
   /// \p PassName is the name of the pass emitting this diagnostic. If this name
   /// matches the regular expression given in -Rpass-analysis=, then the
@@ -913,6 +927,7 @@ private:
 };
 
 /// Diagnostic information for machine IR parser.
+// FIXME: Remove this, use DiagnosticInfoSrcMgr instead.
 class DiagnosticInfoMIRParser : public DiagnosticInfo {
   const SMDiagnostic &Diagnostic;
 
@@ -1012,23 +1027,47 @@ public:
   void print(DiagnosticPrinter &DP) const override;
 };
 
-/// Diagnostic information for MisExpect analysis.
-class DiagnosticInfoMisExpect : public DiagnosticInfoWithLocationBase {
-public:
-    DiagnosticInfoMisExpect(const Instruction *Inst, Twine &Msg);
+static DiagnosticSeverity getDiagnosticSeverity(SourceMgr::DiagKind DK) {
+  switch (DK) {
+  case llvm::SourceMgr::DK_Error:
+    return DS_Error;
+    break;
+  case llvm::SourceMgr::DK_Warning:
+    return DS_Warning;
+    break;
+  case llvm::SourceMgr::DK_Note:
+    return DS_Note;
+    break;
+  case llvm::SourceMgr::DK_Remark:
+    return DS_Remark;
+    break;
+  }
+  llvm_unreachable("unknown SourceMgr::DiagKind");
+}
 
-  /// \see DiagnosticInfo::print.
+/// Diagnostic information for SMDiagnostic reporting.
+class DiagnosticInfoSrcMgr : public DiagnosticInfo {
+  const SMDiagnostic &Diagnostic;
+
+  // For inlineasm !srcloc translation.
+  bool InlineAsmDiag;
+  unsigned LocCookie;
+
+public:
+  DiagnosticInfoSrcMgr(const SMDiagnostic &Diagnostic,
+                       bool InlineAsmDiag = true, unsigned LocCookie = 0)
+      : DiagnosticInfo(DK_SrcMgr, getDiagnosticSeverity(Diagnostic.getKind())),
+        Diagnostic(Diagnostic), InlineAsmDiag(InlineAsmDiag),
+        LocCookie(LocCookie) {}
+
+  bool isInlineAsmDiag() const { return InlineAsmDiag; }
+  const SMDiagnostic &getSMDiag() const { return Diagnostic; }
+  unsigned getLocCookie() const { return LocCookie; }
   void print(DiagnosticPrinter &DP) const override;
 
   static bool classof(const DiagnosticInfo *DI) {
-    return DI->getKind() == DK_MisExpect;
+    return DI->getKind() == DK_SrcMgr;
   }
-
-  const Twine &getMsg() const { return Msg; }
-
-private:
-  /// Message to report.
-  const Twine &Msg;
 };
 
 } // end namespace llvm

@@ -45,7 +45,7 @@
 ;      w = u.e;
 ;      foo(w);
 ; }
-define void @TestUnionLD1(fp128 %s, i64 %n) #0 {
+define dso_local void @TestUnionLD1(fp128 %s, i64 %n) #0 {
 ; SSE-LABEL: TestUnionLD1:
 ; SSE:       # %bb.0: # %entry
 ; SSE-NEXT:    movaps %xmm0, -{{[0-9]+}}(%rsp)
@@ -139,12 +139,12 @@ define fp128 @TestI128_1(fp128 %x) #0 {
 ; SSE-NEXT:    movq %rcx, (%rsp)
 ; SSE-NEXT:    movaps (%rsp), %xmm0
 ; SSE-NEXT:    movaps {{.*}}(%rip), %xmm1
-; SSE-NEXT:    callq __lttf2
+; SSE-NEXT:    callq __lttf2@PLT
 ; SSE-NEXT:    xorl %ecx, %ecx
 ; SSE-NEXT:    testl %eax, %eax
 ; SSE-NEXT:    sets %cl
 ; SSE-NEXT:    shlq $4, %rcx
-; SSE-NEXT:    movaps {{\.LCPI.*}}(%rcx), %xmm0
+; SSE-NEXT:    movaps {{\.LCPI[0-9]+_[0-9]+}}(%rcx), %xmm0
 ; SSE-NEXT:    addq $40, %rsp
 ; SSE-NEXT:    retq
 ;
@@ -159,12 +159,12 @@ define fp128 @TestI128_1(fp128 %x) #0 {
 ; AVX-NEXT:    movq %rcx, (%rsp)
 ; AVX-NEXT:    vmovaps (%rsp), %xmm0
 ; AVX-NEXT:    vmovaps {{.*}}(%rip), %xmm1
-; AVX-NEXT:    callq __lttf2
+; AVX-NEXT:    callq __lttf2@PLT
 ; AVX-NEXT:    xorl %ecx, %ecx
 ; AVX-NEXT:    testl %eax, %eax
 ; AVX-NEXT:    sets %cl
 ; AVX-NEXT:    shlq $4, %rcx
-; AVX-NEXT:    vmovaps {{\.LCPI.*}}(%rcx), %xmm0
+; AVX-NEXT:    vmovaps {{\.LCPI[0-9]+_[0-9]+}}(%rcx), %xmm0
 ; AVX-NEXT:    addq $40, %rsp
 ; AVX-NEXT:    retq
 entry:
@@ -237,7 +237,7 @@ define fp128 @TestI128_3(fp128 %x, i32* nocapture readnone %ex) #0 {
 ; SSE-NEXT:    jmp .LBB4_3
 ; SSE-NEXT:  .LBB4_2: # %if.then
 ; SSE-NEXT:    movaps {{.*}}(%rip), %xmm1
-; SSE-NEXT:    callq __multf3
+; SSE-NEXT:    callq __multf3@PLT
 ; SSE-NEXT:    movaps %xmm0, {{[0-9]+}}(%rsp)
 ; SSE-NEXT:    movq {{[0-9]+}}(%rsp), %rcx
 ; SSE-NEXT:    movabsq $-9223090561878065153, %rdx # imm = 0x8000FFFFFFFFFFFF
@@ -264,7 +264,7 @@ define fp128 @TestI128_3(fp128 %x, i32* nocapture readnone %ex) #0 {
 ; AVX-NEXT:    jmp .LBB4_3
 ; AVX-NEXT:  .LBB4_2: # %if.then
 ; AVX-NEXT:    vmovaps {{.*}}(%rip), %xmm1
-; AVX-NEXT:    callq __multf3
+; AVX-NEXT:    callq __multf3@PLT
 ; AVX-NEXT:    vmovaps %xmm0, {{[0-9]+}}(%rsp)
 ; AVX-NEXT:    movq {{[0-9]+}}(%rsp), %rcx
 ; AVX-NEXT:    movabsq $-9223090561878065153, %rdx # imm = 0x8000FFFFFFFFFFFF
@@ -315,7 +315,7 @@ define fp128 @TestI128_4(fp128 %x) #0 {
 ; SSE-NEXT:    movq %rax, -{{[0-9]+}}(%rsp)
 ; SSE-NEXT:    movq $0, -{{[0-9]+}}(%rsp)
 ; SSE-NEXT:    movaps -{{[0-9]+}}(%rsp), %xmm0
-; SSE-NEXT:    jmp __addtf3 # TAILCALL
+; SSE-NEXT:    jmp __addtf3@PLT # TAILCALL
 ;
 ; AVX-LABEL: TestI128_4:
 ; AVX:       # %bb.0: # %entry
@@ -325,7 +325,7 @@ define fp128 @TestI128_4(fp128 %x) #0 {
 ; AVX-NEXT:    movq %rax, -{{[0-9]+}}(%rsp)
 ; AVX-NEXT:    movq $0, -{{[0-9]+}}(%rsp)
 ; AVX-NEXT:    vmovaps -{{[0-9]+}}(%rsp), %xmm0
-; AVX-NEXT:    jmp __addtf3 # TAILCALL
+; AVX-NEXT:    jmp __addtf3@PLT # TAILCALL
 entry:
   %0 = bitcast fp128 %x to i128
   %bf.clear = and i128 %0, -18446744073709551616
@@ -334,15 +334,15 @@ entry:
   ret fp128 %add
 }
 
-@v128 = common global i128 0, align 16
-@v128_2 = common global i128 0, align 16
+@v128 = common dso_local global i128 0, align 16
+@v128_2 = common dso_local global i128 0, align 16
 
 ; C code:
 ; unsigned __int128 v128, v128_2;
 ; void TestShift128_2() {
 ;   v128 = ((v128 << 96) | v128_2);
 ; }
-define void @TestShift128_2() #2 {
+define dso_local void @TestShift128_2() #2 {
 ; CHECK-LABEL: TestShift128_2:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movq {{.*}}(%rip), %rax
@@ -370,7 +370,7 @@ define fp128 @acosl(fp128 %x) #0 {
 ; SSE-NEXT:    movq %rax, -{{[0-9]+}}(%rsp)
 ; SSE-NEXT:    movq $0, -{{[0-9]+}}(%rsp)
 ; SSE-NEXT:    movaps -{{[0-9]+}}(%rsp), %xmm0
-; SSE-NEXT:    jmp __addtf3 # TAILCALL
+; SSE-NEXT:    jmp __addtf3@PLT # TAILCALL
 ;
 ; AVX-LABEL: acosl:
 ; AVX:       # %bb.0: # %entry
@@ -380,7 +380,7 @@ define fp128 @acosl(fp128 %x) #0 {
 ; AVX-NEXT:    movq %rax, -{{[0-9]+}}(%rsp)
 ; AVX-NEXT:    movq $0, -{{[0-9]+}}(%rsp)
 ; AVX-NEXT:    vmovaps -{{[0-9]+}}(%rsp), %xmm0
-; AVX-NEXT:    jmp __addtf3 # TAILCALL
+; AVX-NEXT:    jmp __addtf3@PLT # TAILCALL
 entry:
   %0 = bitcast fp128 %x to i128
   %bf.clear = and i128 %0, -18446744073709551616
@@ -417,7 +417,7 @@ entry:
   ret fp128 %cond
 }
 
-declare void @foo(fp128) #1
+declare dso_local void @foo(fp128) #1
 
 ; Test logical operations on fp128 values.
 define fp128 @TestFABS_LD(fp128 %x) #0 {
@@ -440,7 +440,7 @@ declare fp128 @fabsl(fp128) #1
 declare fp128 @copysignl(fp128, fp128) #1
 
 ; Test more complicated logical operations generated from copysignl.
-define void @TestCopySign({ fp128, fp128 }* noalias nocapture sret %agg.result, { fp128, fp128 }* byval nocapture readonly align 16 %z) #0 {
+define dso_local void @TestCopySign({ fp128, fp128 }* noalias nocapture sret({ fp128, fp128 }) %agg.result, { fp128, fp128 }* byval({ fp128, fp128 }) nocapture readonly align 16 %z) #0 {
 ; SSE-LABEL: TestCopySign:
 ; SSE:       # %bb.0: # %entry
 ; SSE-NEXT:    pushq %rbp
@@ -451,11 +451,11 @@ define void @TestCopySign({ fp128, fp128 }* noalias nocapture sret %agg.result, 
 ; SSE-NEXT:    movaps {{[0-9]+}}(%rsp), %xmm1
 ; SSE-NEXT:    movaps %xmm1, {{[-0-9]+}}(%r{{[sb]}}p) # 16-byte Spill
 ; SSE-NEXT:    movaps %xmm0, (%rsp) # 16-byte Spill
-; SSE-NEXT:    callq __gttf2
+; SSE-NEXT:    callq __gttf2@PLT
 ; SSE-NEXT:    movl %eax, %ebp
 ; SSE-NEXT:    movaps {{[-0-9]+}}(%r{{[sb]}}p), %xmm0 # 16-byte Reload
 ; SSE-NEXT:    movaps %xmm0, %xmm1
-; SSE-NEXT:    callq __subtf3
+; SSE-NEXT:    callq __subtf3@PLT
 ; SSE-NEXT:    testl %ebp, %ebp
 ; SSE-NEXT:    jle .LBB10_1
 ; SSE-NEXT:  # %bb.2: # %if.then
@@ -488,11 +488,11 @@ define void @TestCopySign({ fp128, fp128 }* noalias nocapture sret %agg.result, 
 ; AVX-NEXT:    vmovaps {{[0-9]+}}(%rsp), %xmm1
 ; AVX-NEXT:    vmovaps %xmm1, {{[-0-9]+}}(%r{{[sb]}}p) # 16-byte Spill
 ; AVX-NEXT:    vmovaps %xmm0, (%rsp) # 16-byte Spill
-; AVX-NEXT:    callq __gttf2
+; AVX-NEXT:    callq __gttf2@PLT
 ; AVX-NEXT:    movl %eax, %ebp
 ; AVX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %xmm0 # 16-byte Reload
 ; AVX-NEXT:    vmovaps %xmm0, %xmm1
-; AVX-NEXT:    callq __subtf3
+; AVX-NEXT:    callq __subtf3@PLT
 ; AVX-NEXT:    testl %ebp, %ebp
 ; AVX-NEXT:    jle .LBB10_1
 ; AVX-NEXT:  # %bb.2: # %if.then

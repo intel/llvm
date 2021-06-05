@@ -26,7 +26,12 @@ namespace clang {
 namespace tidy {
 namespace modernize {
 
-enum LoopFixerKind { LFK_Array, LFK_Iterator, LFK_PseudoArray };
+enum LoopFixerKind {
+  LFK_Array,
+  LFK_Iterator,
+  LFK_ReverseIterator,
+  LFK_PseudoArray
+};
 
 /// A map used to walk the AST in reverse: maps child Stmt to parent Stmt.
 typedef llvm::DenseMap<const clang::Stmt *, const clang::Stmt *> StmtParentMap;
@@ -346,7 +351,7 @@ private:
   bool TraverseLambdaCapture(LambdaExpr *LE, const LambdaCapture *C,
                              Expr *Init);
   bool TraverseMemberExpr(MemberExpr *Member);
-  bool TraverseUnaryDeref(UnaryOperator *Uop);
+  bool TraverseUnaryOperator(UnaryOperator *Uop);
   bool VisitDeclRefExpr(DeclRefExpr *E);
   bool VisitDeclStmt(DeclStmt *S);
   bool TraverseStmt(Stmt *S);

@@ -21,10 +21,9 @@
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .dynsym
     Type: SHT_DYNSYM
@@ -49,14 +48,12 @@ Sections:
     Type: SHT_GNU_versym
     Entries: [ ]
     ShOffset: 0x000000007
-  - Name: .gnu.version_r
-    Type: SHT_GNU_verneed
-    Info: 0x0000000000000001
+  - Name:     .gnu.version_r
+    Type:     SHT_GNU_verneed
     ShOffset: 0x000000008
     Dependencies:
   - Name: .gnu.version_d
     Type: SHT_GNU_verdef
-    Info: 0x0000000000000001
     ShOffset: 0x000000009
     Entries:
   - Name: .regular
@@ -83,10 +80,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
@@ -94,10 +90,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS

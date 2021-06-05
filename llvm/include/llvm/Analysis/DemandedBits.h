@@ -18,8 +18,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_ANALYSIS_DEMANDED_BITS_H
-#define LLVM_ANALYSIS_DEMANDED_BITS_H
+#ifndef LLVM_ANALYSIS_DEMANDEDBITS_H
+#define LLVM_ANALYSIS_DEMANDEDBITS_H
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/DenseMap.h"
@@ -60,6 +60,20 @@ public:
   bool isUseDead(Use *U);
 
   void print(raw_ostream &OS);
+
+  /// Compute alive bits of one addition operand from alive output and known
+  /// operand bits
+  static APInt determineLiveOperandBitsAdd(unsigned OperandNo,
+                                           const APInt &AOut,
+                                           const KnownBits &LHS,
+                                           const KnownBits &RHS);
+
+  /// Compute alive bits of one subtraction operand from alive output and known
+  /// operand bits
+  static APInt determineLiveOperandBitsSub(unsigned OperandNo,
+                                           const APInt &AOut,
+                                           const KnownBits &LHS,
+                                           const KnownBits &RHS);
 
 private:
   void performAnalysis();
@@ -132,4 +146,4 @@ FunctionPass *createDemandedBitsWrapperPass();
 
 } // end namespace llvm
 
-#endif // LLVM_ANALYSIS_DEMANDED_BITS_H
+#endif // LLVM_ANALYSIS_DEMANDEDBITS_H

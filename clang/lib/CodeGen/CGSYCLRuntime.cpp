@@ -14,6 +14,8 @@
 #include "CodeGenFunction.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
+#include "clang/Basic/SourceLocation.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/IR/Instructions.h"
 #include <assert.h>
 
@@ -64,24 +66,30 @@ bool CGSYCLRuntime::actOnFunctionStart(const FunctionDecl &FD,
   if (FD.hasAttr<SYCLSimdAttr>())
     F.setMetadata("sycl_explicit_simd", llvm::MDNode::get(F.getContext(), {}));
 
+  // Set the function attribute expected by the vector backend compiler.
+  if (const auto *A = FD.getAttr<SYCLIntelESimdVectorizeAttr>())
+    if (const auto *DeclExpr = cast<ConstantExpr>(A->getValue())) {
+      SmallString<2> Str;
+      DeclExpr->getResultAsAPSInt().toString(Str);
+      F.addFnAttr("CMGenxSIMT", Str);
+    }
+
   SYCLScopeAttr *Scope = FD.getAttr<SYCLScopeAttr>();
   if (!Scope)
     return false;
   switch (Scope->getLevel()) {
   case SYCLScopeAttr::Level::WorkGroup:
     F.setMetadata(WG_SCOPE_MD_ID, llvm::MDNode::get(F.getContext(), {}));
-    break;
+    return true;
   case SYCLScopeAttr::Level::WorkItem:
     F.setMetadata(WI_SCOPE_MD_ID, llvm::MDNode::get(F.getContext(), {}));
     if (isPFWI(FD))
       // also emit specific marker for parallel_for_work_item, as it needs to
       // be handled specially in the SYCL lowering pass
       F.setMetadata(PFWI_MD_ID, llvm::MDNode::get(F.getContext(), {}));
-    break;
-  default:
-    llvm_unreachable("unknown sycl scope");
+    return true;
   }
-  return true;
+  llvm_unreachable("unknown sycl scope");
 }
 
 void CGSYCLRuntime::emitWorkGroupLocalVarDecl(CodeGenFunction &CGF,

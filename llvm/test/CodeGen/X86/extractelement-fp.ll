@@ -231,7 +231,7 @@ define double @fdiv_v4f64(<4 x double> %x, <4 x double> %y) nounwind {
 define float @frem_v4f32(<4 x float> %x, <4 x float> %y) nounwind {
 ; X64-LABEL: frem_v4f32:
 ; X64:       # %bb.0:
-; X64-NEXT:    jmp fmodf # TAILCALL
+; X64-NEXT:    jmp fmodf@PLT # TAILCALL
 ;
 ; X86-LABEL: frem_v4f32:
 ; X86:       # %bb.0:
@@ -252,7 +252,7 @@ define double @frem_v4f64(<4 x double> %x, <4 x double> %y) nounwind {
 ; X64-NEXT:    # kill: def $xmm0 killed $xmm0 killed $ymm0
 ; X64-NEXT:    # kill: def $xmm1 killed $xmm1 killed $ymm1
 ; X64-NEXT:    vzeroupper
-; X64-NEXT:    jmp fmod # TAILCALL
+; X64-NEXT:    jmp fmod@PLT # TAILCALL
 ;
 ; X86-LABEL: frem_v4f64:
 ; X86:       # %bb.0:
@@ -328,7 +328,7 @@ define <3 x double> @extvselectsetcc_crash(<2 x double> %x) {
 ;
 ; X86-LABEL: extvselectsetcc_crash:
 ; X86:       # %bb.0:
-; X86-NEXT:    vcmpeqpd {{\.LCPI.*}}, %xmm0, %xmm1
+; X86-NEXT:    vcmpeqpd {{\.LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm1
 ; X86-NEXT:    vmovsd {{.*#+}} xmm2 = mem[0],zero
 ; X86-NEXT:    vandpd %xmm2, %xmm1, %xmm1
 ; X86-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
@@ -443,7 +443,7 @@ define double @fsqrt_v4f64(<4 x double> %x) nounwind {
 define float @fsin_v4f32(<4 x float> %x) nounwind {
 ; X64-LABEL: fsin_v4f32:
 ; X64:       # %bb.0:
-; X64-NEXT:    jmp sinf # TAILCALL
+; X64-NEXT:    jmp sinf@PLT # TAILCALL
 ;
 ; X86-LABEL: fsin_v4f32:
 ; X86:       # %bb.0:
@@ -462,7 +462,7 @@ define double @fsin_v4f64(<4 x double> %x) nounwind {
 ; X64:       # %bb.0:
 ; X64-NEXT:    # kill: def $xmm0 killed $xmm0 killed $ymm0
 ; X64-NEXT:    vzeroupper
-; X64-NEXT:    jmp sin # TAILCALL
+; X64-NEXT:    jmp sin@PLT # TAILCALL
 ;
 ; X86-LABEL: fsin_v4f64:
 ; X86:       # %bb.0:
@@ -556,7 +556,7 @@ define double @fabs_v4f64(<4 x double> %x) nounwind {
 ; X86-NEXT:    movl %esp, %ebp
 ; X86-NEXT:    andl $-8, %esp
 ; X86-NEXT:    subl $8, %esp
-; X86-NEXT:    vandps {{\.LCPI.*}}, %xmm0, %xmm0
+; X86-NEXT:    vandps {{\.LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm0
 ; X86-NEXT:    vmovlps %xmm0, (%esp)
 ; X86-NEXT:    fldl (%esp)
 ; X86-NEXT:    movl %ebp, %esp
@@ -830,8 +830,8 @@ define double @copysign_v4f64(<4 x double> %x, <4 x double> %y) nounwind {
 ; X86-NEXT:    movl %esp, %ebp
 ; X86-NEXT:    andl $-8, %esp
 ; X86-NEXT:    subl $8, %esp
-; X86-NEXT:    vandps {{\.LCPI.*}}, %xmm1, %xmm1
-; X86-NEXT:    vandps {{\.LCPI.*}}, %xmm0, %xmm0
+; X86-NEXT:    vandps {{\.LCPI[0-9]+_[0-9]+}}, %xmm1, %xmm1
+; X86-NEXT:    vandps {{\.LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm0
 ; X86-NEXT:    vorps %xmm1, %xmm0, %xmm0
 ; X86-NEXT:    vmovlps %xmm0, (%esp)
 ; X86-NEXT:    fldl (%esp)
@@ -1111,7 +1111,7 @@ define double @round_v4f64(<4 x double> %x) nounwind {
 ; X86-NEXT:    movl %esp, %ebp
 ; X86-NEXT:    andl $-8, %esp
 ; X86-NEXT:    subl $8, %esp
-; X86-NEXT:    vandpd {{\.LCPI.*}}, %xmm0, %xmm1
+; X86-NEXT:    vandpd {{\.LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm1
 ; X86-NEXT:    vmovddup {{.*#+}} xmm2 = [4.9999999999999994E-1,4.9999999999999994E-1]
 ; X86-NEXT:    # xmm2 = mem[0,0]
 ; X86-NEXT:    vorpd %xmm1, %xmm2, %xmm1

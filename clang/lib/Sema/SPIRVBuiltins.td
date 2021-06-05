@@ -35,10 +35,10 @@ class AddressSpace<string _AS> {
 // the one it will be lowered to.
 // This file assumes it will get lowered to generic or private.
 def DefaultAS    : AddressSpace<"clang::LangAS::Default">;
-def PrivateAS    : AddressSpace<"clang::LangAS::opencl_private">;
-def GlobalAS     : AddressSpace<"clang::LangAS::opencl_global">;
+def PrivateAS    : AddressSpace<"clang::LangAS::sycl_private">;
+def GlobalAS     : AddressSpace<"clang::LangAS::sycl_global">;
 def ConstantAS   : AddressSpace<"clang::LangAS::opencl_constant">;
-def LocalAS      : AddressSpace<"clang::LangAS::opencl_local">;
+def LocalAS      : AddressSpace<"clang::LangAS::sycl_local">;
 def GenericAS    : AddressSpace<"clang::LangAS::opencl_generic">;
 
 // TODO: Manage capabilities. Unused for now.
@@ -52,14 +52,24 @@ class FunctionExtension<string _Ext> : AbstractExtension<_Ext>;
 // FunctionExtension definitions.
 def FuncExtNone                          : FunctionExtension<"">;
 
+// Extension associated to a type.  This enables implicit conditionalization of
+// builtin function overloads containing a type that depends on an extension.
+// During overload resolution, when a builtin function overload contains a type
+// with a TypeExtension, those overloads are skipped when the extension is
+// disabled.
+class TypeExtension<string _Ext> : AbstractExtension<_Ext>;
+
+// TypeExtension definitions.
+def NoTypeExt   : TypeExtension<"">;
+
 // Qualified Type.  These map to ASTContext::QualType.
 // TODO: Create a QualTypeFromASTContext.
 //       To fully make sense here, this class should represent
 //       the QualType only. How the QualType is accessed should be separated.
-class QualType<string _Name, bit _IsAbstract=0, bit _IsSigned=0> {
+class QualType<string _TypeExpr, bit _IsAbstract=0, bit _IsSigned=0> {
   // Name of the field or function in a clang::ASTContext
   // E.g. Name="IntTy" for the int type, and "getIntPtrType()" for an intptr_t
-  string Name = _Name;
+  string TypeExpr = _TypeExpr;
   // Some QualTypes in this file represent an abstract type for which there is
   // no corresponding AST QualType, e.g. a GenType or an `image2d_t` type
   // without access qualifiers.
@@ -90,11 +100,11 @@ class IntList<string _Name, list<int> _List> {
 // Basic data types (int, float, image2d_t, ...).
 // Its child classes can represent concrete types (e.g. VectorType) or
 // abstract types (e.g. GenType).
-class Type<string _Name, QualType _QTName> {
+class Type<string _Name, QualType _QTExpr> {
   // Name of the Type.
   string Name = _Name;
   // QualType associated with this type.
-  QualType QTName = _QTName;
+  QualType QTExpr = _QTExpr;
   // Size of the vector (if applicable).
   int VecWidth = 1;
   // Size of the element in bits.
@@ -115,6 +125,8 @@ class Type<string _Name, QualType _QTName> {
   string AccessQualifier = "";
   // Address space.
   string AddrSpace = DefaultAS.Name;
+  // Extension that needs to be enabled to expose a builtin that uses this type.
+  TypeExtension Extension = NoTypeExt;
 }
 
 class FundamentalType<string _Name, QualType _QTName, int _Size> : Type<_Name, _QTName> {
@@ -142,7 +154,7 @@ class FPType<string _Name, QualType _QTName, int _Size> : FundamentalType<_Name,
   let IsFloat = 1;
 }
 
-class CompoundType<Type _Ty> : Type<_Ty.Name, _Ty.QTName> {
+class CompoundType<Type _Ty> : Type<_Ty.Name, _Ty.QTExpr> {
   // Inherited fields
   let VecWidth = _Ty.VecWidth;
   let ElementSize = _Ty.ElementSize;
@@ -154,12 +166,13 @@ class CompoundType<Type _Ty> : Type<_Ty.Name, _Ty.QTName> {
   let IsVolatile = _Ty.IsVolatile;
   let AccessQualifier = _Ty.AccessQualifier;
   let AddrSpace = _Ty.AddrSpace;
+  let Extension = _Ty.Extension;
 
   Type ElementType = _Ty;
 }
 
 // Vector types (e.g. int2, int3, int16, float8, ...).
-class VectorType<Type _Ty, int _VecWidth> : Type<_Ty.Name, _Ty.QTName> {
+class VectorType<Type _Ty, int _VecWidth> : Type<_Ty.Name, _Ty.QTExpr> {
   let VecWidth = _VecWidth;
   let AccessQualifier = "";
   // Inherited fields
@@ -172,6 +185,7 @@ class VectorType<Type _Ty, int _VecWidth> : Type<_Ty.Name, _Ty.QTName> {
   let IsVolatile = _Ty.IsVolatile;
   let AccessQualifier = _Ty.AccessQualifier;
   let AddrSpace = _Ty.AddrSpace;
+  let Extension = _Ty.Extension;
 }
 
 // Pointer types (e.g. int*, float*, ...).
@@ -180,23 +194,26 @@ class PointerType<Type _Ty, AddressSpace _AS = DefaultAS> :
   // Inherited fields
   let IsPointer = 1;
   let AddrSpace = _AS.Name;
+  let Extension = _Ty.Extension;
 }
 
 // Const types (e.g. const int).
 class ConstType<Type _Ty> : CompoundType<_Ty> {
   // Inherited fields
   let IsConst = 1;
+  let Extension = _Ty.Extension;
 }
 
 // Volatile types (e.g. volatile int).
 class VolatileType<Type _Ty> : CompoundType<_Ty> {
   // Inherited fields
   let IsVolatile = 1;
+  let Extension = _Ty.Extension;
 }
 
 // Image types (e.g. image2d).
 class ImageType<Type _Ty, string _AccessQualifier> :
-    Type<_Ty.Name, QualType<_Ty.QTName.Name#_AccessQualifier#"Ty", 0>> {
+    Type<_Ty.Name, QualType<_Ty.QTExpr.TypeExpr # _AccessQualifier # "Ty", 0>> {
   let VecWidth = 0;
   let AccessQualifier = _AccessQualifier;
   // Inherited fields
@@ -208,6 +225,7 @@ class ImageType<Type _Ty, string _AccessQualifier> :
   let IsConst = _Ty.IsConst;
   let IsVolatile = _Ty.IsVolatile;
   let AddrSpace = _Ty.AddrSpace;
+  let Extension = _Ty.Extension;
 }
 
 // List of Types.
@@ -302,26 +320,26 @@ class ConstOCLSPVBuiltin<string _Name, list<Type> _Signature> :
 //===----------------------------------------------------------------------===//
 
 // OpenCL v1.0/1.2/2.0 s6.1.1: Built-in Scalar Data Types.
-def Bool      : IntType<"bool",   QualType<"BoolTy">, 1>;
-def TrueChar  : IntType<"_char",      QualType<"CharTy", 0, 1>, 8>;
-def Char      : IntType<"char",      QualType<"SignedCharTy", 0, 1>, 8>;
-def SChar     : IntType<"schar",     QualType<"SignedCharTy", 0, 1>, 8>;
-def UChar     : UIntType<"uchar",     QualType<"UnsignedCharTy">, 8>;
-def Short     : IntType<"short",     QualType<"ShortTy", 0, 1>, 16>;
-def UShort    : UIntType<"ushort",    QualType<"UnsignedShortTy">, 16>;
-def Int       : IntType<"int",       QualType<"IntTy", 0, 1>, 32>;
-def UInt      : UIntType<"uint",      QualType<"UnsignedIntTy">, 32>;
-def Long      : IntType<"long",      QualType<"getIntTypeForBitwidth(64, true)", 0, 1>, 64>;
-def ULong     : UIntType<"ulong",     QualType<"getIntTypeForBitwidth(64, false)">, 64>;
-def Float     : FPType<"float",     QualType<"FloatTy">, 32>;
-def Double    : FPType<"double",    QualType<"DoubleTy">, 64>;
+def Bool      : IntType<"bool",   QualType<"Context.BoolTy">, 1>;
+def TrueChar  : IntType<"_char",      QualType<"Context.CharTy", 0, 1>, 8>;
+def Char      : IntType<"char",      QualType<"Context.SignedCharTy", 0, 1>, 8>;
+def SChar     : IntType<"schar",     QualType<"Context.SignedCharTy", 0, 1>, 8>;
+def UChar     : UIntType<"uchar",     QualType<"Context.UnsignedCharTy">, 8>;
+def Short     : IntType<"short",     QualType<"Context.ShortTy", 0, 1>, 16>;
+def UShort    : UIntType<"ushort",    QualType<"Context.UnsignedShortTy">, 16>;
+def Int       : IntType<"int",       QualType<"Context.IntTy", 0, 1>, 32>;
+def UInt      : UIntType<"uint",      QualType<"Context.UnsignedIntTy">, 32>;
+def Long      : IntType<"long",      QualType<"Context.getIntTypeForBitwidth(64, true)", 0, 1>, 64>;
+def ULong     : UIntType<"ulong",     QualType<"Context.getIntTypeForBitwidth(64, false)">, 64>;
+def Float     : FPType<"float",     QualType<"Context.FloatTy">, 32>;
+def Double    : FPType<"double",    QualType<"Context.DoubleTy">, 64>;
 def Half      : FPType<"half",      QualTypeFromFunction<"GetFloat16Type">, 16>;
-def Void      : Type<"void",      QualType<"VoidTy">>;
+def Void      : Type<"void",      QualType<"Context.VoidTy">>;
 // FIXME: ensure this is portable...
-def Size      : Type<"size_t",    QualType<"getSizeType()">>;
+def Size      : Type<"size_t",    QualType<"Context.getSizeType()">>;
 
-def Sampler               : Type<"sampler_t", QualType<"OCLSamplerTy">>;
-def Event                 : Type<"event_t", QualType<"OCLEventTy">>;
+def Sampler               : Type<"sampler_t", QualType<"Context.OCLSamplerTy">>;
+def Event                 : Type<"event_t", QualType<"Context.OCLEventTy">>;
 
 //===----------------------------------------------------------------------===//
 //                 Definitions of gentype variants
@@ -917,11 +935,13 @@ foreach name = ["GroupBroadcast"] in {
   }
 }
 
-foreach name = ["GroupIAdd"] in {
+foreach name = ["GroupIAdd", "GroupNonUniformIMul", "GroupNonUniformBitwiseOr",
+                "GroupNonUniformBitwiseXor", "GroupNonUniformBitwiseAnd"] in {
   def : SPVBuiltin<name, [AIGenTypeN, UInt, UInt, AIGenTypeN], Attr.Convergent>;
 }
 
-foreach name = ["GroupFAdd", "GroupFMin", "GroupFMax"] in {
+foreach name = ["GroupFAdd", "GroupFMin", "GroupFMax",
+                "GroupNonUniformFMul"] in {
   def : SPVBuiltin<name, [FGenTypeN, UInt, UInt, FGenTypeN], Attr.Convergent>;
 }
 

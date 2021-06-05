@@ -35,7 +35,6 @@ struct isl_iterator
       : List(&List), Position(std::max(List.size(), 0)) {}
   isl_iterator(const ListT &List, int Position)
       : List(&List), Position(Position) {}
-  isl_iterator &operator=(const isl_iterator &R) = default;
 
   bool operator==(const isl_iterator &O) const {
     return List == O.List && Position == O.Position;
@@ -161,7 +160,7 @@ isl::set singleton(isl::union_set USet, isl::space ExpectedSpace);
 /// The implementation currently returns the maximum number of dimensions it
 /// encounters, if different, and 0 if none is encountered. However, most other
 /// code will most likely fail if one of these happen.
-unsigned getNumScatterDims(const isl::union_map &Schedule);
+isl_size getNumScatterDims(const isl::union_map &Schedule);
 
 /// Return the scatter space of a @p Schedule.
 ///
@@ -477,6 +476,9 @@ isl::map intersectRange(isl::map Map, isl::union_set Range);
 ///
 /// @param The map with the parameter conditions removed.
 isl::map subtractParams(isl::map Map, isl::set Params);
+
+/// Subtract the parameter space @p Params from @p Set.
+isl::set subtractParams(isl::set Set, isl::set Params);
 
 /// If @p PwAff maps to a constant, return said constant. If @p Max/@p Min, it
 /// can also be a piecewise constant and it would return the minimum/maximum

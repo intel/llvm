@@ -20,8 +20,10 @@
 #include <CL/sycl/detail/pi.h>
 
 #include <cassert>
+#include <cstdint>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Forward declarations
@@ -55,14 +57,14 @@ enum TraceLevel {
 // Return true if we want to trace PI related activities.
 bool trace(TraceLevel level);
 
-#ifdef SYCL_RT_OS_WINDOWS
-#define OPENCL_PLUGIN_NAME "pi_opencl.dll"
-#define LEVEL0_PLUGIN_NAME "pi_level0.dll"
-#define CUDA_PLUGIN_NAME "pi_cuda.dll"
+#ifdef __SYCL_RT_OS_WINDOWS
+#define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
+#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
+#define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #else
-#define OPENCL_PLUGIN_NAME "libpi_opencl.so"
-#define LEVEL0_PLUGIN_NAME "libpi_level0.so"
-#define CUDA_PLUGIN_NAME "libpi_cuda.so"
+#define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
+#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
+#define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.so"
 #endif
 
 // Report error and no return (keeps compiler happy about no return statements).
@@ -83,7 +85,7 @@ void handleUnknownParamName(const char *functionName, T parameter) {
 // This macro is used to report invalid enumerators being passed to PI API
 // GetInfo functions. It will print the name of the function that invoked it
 // and the value of the unknown enumerator.
-#define PI_HANDLE_UNKNOWN_PARAM_NAME(parameter)                                \
+#define __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(parameter)                         \
   { cl::sycl::detail::pi::handleUnknownParamName(__func__, parameter); }
 
 using PiPlugin = ::pi_plugin;
@@ -120,6 +122,13 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const cl::sycl::context &constext,
 // Function to load the shared library
 // Implementation is OS dependent.
 void *loadOsLibrary(const std::string &Library);
+
+// Function to unload the shared library
+// Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
+int unloadOsLibrary(void *Library);
+
+// OS agnostic function to unload the shared library
+int unloadPlugin(void *Library);
 
 // Function to get Address of a symbol defined in the shared
 // library, implementation is OS dependent.
@@ -167,35 +176,21 @@ uint64_t emitFunctionBeginTrace(const char *FName);
 /// \param FName The name of the PI API call
 void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName);
 
-// Helper utilities for PI Tracing
-// The run-time tracing of PI calls.
-// Print functions used by Trace class.
-template <typename T> inline void print(T val) {
-  std::cout << "<unknown> : " << val << std::endl;
-}
+// A wrapper for passing around byte array properties
+class ByteArray {
+public:
+  using ConstIterator = const std::uint8_t *;
 
-template <> inline void print<>(PiPlatform val) {
-  std::cout << "pi_platform : " << val << std::endl;
-}
+  ByteArray(const std::uint8_t *Ptr, std::size_t Size) : Ptr{Ptr}, Size{Size} {}
+  const std::uint8_t &operator[](std::size_t Idx) const { return Ptr[Idx]; }
+  std::size_t size() const { return Size; }
+  ConstIterator begin() const { return Ptr; }
+  ConstIterator end() const { return Ptr + Size; }
 
-template <> inline void print<>(PiResult val) {
-  std::cout << "pi_result : ";
-  if (val == PI_SUCCESS)
-    std::cout << "PI_SUCCESS" << std::endl;
-  else
-    std::cout << val << std::endl;
-}
-
-// cout does not resolve a nullptr.
-template <> inline void print<>(std::nullptr_t val) { print<void *>(val); }
-
-inline void printArgs(void) {}
-template <typename Arg0, typename... Args>
-void printArgs(Arg0 arg0, Args... args) {
-  std::cout << "       ";
-  print(arg0);
-  pi::printArgs(std::forward<Args>(args)...);
-}
+private:
+  const std::uint8_t *Ptr;
+  const std::size_t Size;
+};
 
 // C++ wrapper over the _pi_device_binary_property_struct structure.
 class DeviceBinaryProperty {
@@ -204,6 +199,7 @@ public:
       : Prop(Prop) {}
 
   pi_uint32 asUint32() const;
+  ByteArray asByteArray() const;
   const char *asCString() const;
 
 protected:
@@ -250,6 +246,7 @@ public:
     ConstIterator begin() const { return ConstIterator(Begin); }
     ConstIterator end() const { return ConstIterator(End); }
     friend class DeviceBinaryImage;
+    bool isAvailable() const { return !(Begin == nullptr); }
 
   private:
     PropertyRange() : Begin(nullptr), End(nullptr) {}
@@ -293,11 +290,46 @@ public:
     return Format;
   }
 
-  /// Gets the iterator range over specialization constants in this this binary
-  /// image. For each property pointed to by an iterator within the range, the
-  /// name of the property is the specializaion constant symbolic ID and the
-  /// value is 32-bit unsigned integer ID.
+  /// Returns a single property from SYCL_MISC_PROP category.
+  pi_device_binary_property getProperty(const char *PropName) const;
+
+  /// Gets the iterator range over specialization constants in this binary
+  /// image. For each property pointed to by an iterator within the
+  /// range, the name of the property is the specialization constant symbolic ID
+  /// and the value is a list of 3-element tuples of 32-bit unsigned integers,
+  /// describing the specialization constant.
+  /// This is done in order to unify representation of both scalar and composite
+  /// specialization constants: composite specialization constant is represented
+  /// by its leaf elements, so for scalars the list contains only a single
+  /// tuple, while for composite there might be more of them.
+  /// Each tuple consists of ID of scalar specialization constant, its location
+  /// within a composite (offset in bytes from the beginning or 0 if it is not
+  /// an element of a composite specialization constant) and its size.
+  /// For example, for the following structure:
+  /// struct A { int a; float b; };
+  /// struct POD { A a[2]; int b; };
+  /// List of tuples will look like:
+  /// { ID0, 0, 4 },  // .a[0].a
+  /// { ID1, 4, 4 },  // .a[0].b
+  /// { ID2, 8, 4 },  // .a[1].a
+  /// { ID3, 12, 4 }, // .a[1].b
+  /// { ID4, 16, 4 }, // .b
+  /// And for an interger specialization constant, the list of tuples will look
+  /// like:
+  /// { ID5, 0, 4 }
   const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
+  const PropertyRange getSpecConstantsDefaultValues() const {
+    // We can't have this variable as a class member, since it would break
+    // the ABI backwards compatibility.
+    DeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
+    SpecConstDefaultValuesMap.init(
+        Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
+    return SpecConstDefaultValuesMap;
+  }
+  const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
+  const PropertyRange &getKernelParamOptInfo() const {
+    return KernelParamOptInfo;
+  }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -307,6 +339,8 @@ protected:
   pi_device_binary Bin;
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
   DeviceBinaryImage::PropertyRange SpecConstIDMap;
+  DeviceBinaryImage::PropertyRange DeviceLibReqMask;
+  DeviceBinaryImage::PropertyRange KernelParamOptInfo;
 };
 
 /// Tries to determine the device binary image foramat. Returns

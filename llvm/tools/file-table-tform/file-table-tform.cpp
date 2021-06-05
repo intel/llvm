@@ -51,6 +51,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/WithColor.h"
@@ -235,7 +236,7 @@ struct TformCmd {
 
 #define CHECK_AND_EXIT(E)                                                      \
   {                                                                            \
-    Error LocE = std::move(E);                                                 \
+    Error LocE = E;                                                            \
     if (LocE) {                                                                \
       logAllUnhandledErrors(std::move(LocE), WithColor::error(errs()));        \
       return 1;                                                                \
@@ -292,7 +293,7 @@ int main(int argc, char **argv) {
     TformCmd::UPtrTy &Cmd = P.second;
     // this will advance cur iterator as far as needed
     Error E = Cmd->consumeInput(CurInput, EndInput);
-    CHECK_AND_EXIT(E);
+    CHECK_AND_EXIT(std::move(E));
   }
   // commands are constructed, command line is correct - read input and execute
   // transformations on it
@@ -305,7 +306,7 @@ int main(int argc, char **argv) {
   for (auto &P : Cmds) {
     TformCmd::UPtrTy &Cmd = P.second;
     Error Res = Cmd->execute(*Table->get());
-    CHECK_AND_EXIT(Res);
+    CHECK_AND_EXIT(std::move(Res));
   }
   // Finally, write the result
   std::error_code EC;

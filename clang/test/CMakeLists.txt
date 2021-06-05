@@ -9,23 +9,14 @@ endif ()
 
 string(REPLACE ${CMAKE_CFG_INTDIR} ${LLVM_BUILD_MODE} CLANG_TOOLS_DIR ${LLVM_RUNTIME_OUTPUT_INTDIR})
 
-if(CLANG_BUILT_STANDALONE)
-  # Set HAVE_LIBZ according to recorded LLVM_ENABLE_ZLIB value. This
-  # value is forced to 0 if zlib was not found, so it is fine to use it
-  # instead of HAVE_LIBZ (not recorded).
-  if(LLVM_ENABLE_ZLIB)
-    set(HAVE_LIBZ 1)
-  endif()
-endif()
-
 llvm_canonicalize_cmake_booleans(
   CLANG_BUILD_EXAMPLES
   CLANG_ENABLE_ARCMT
   CLANG_ENABLE_STATIC_ANALYZER
   CLANG_SPAWN_CC1
   ENABLE_BACKTRACES
-  ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER
-  HAVE_LIBZ
+  LLVM_ENABLE_NEW_PASS_MANAGER
+  LLVM_ENABLE_ZLIB
   LLVM_ENABLE_PER_TARGET_RUNTIME_DIR
   LLVM_ENABLE_PLUGINS
   LLVM_ENABLE_THREADS)
@@ -67,15 +58,19 @@ if(CLANG_TEST_USE_VG)
 endif ()
 
 list(APPEND CLANG_TEST_DEPS
+  apinotes-test
   c-index-test
   clang
   clang-resource-headers
   clang-format
   clang-tblgen
   clang-offload-bundler
+  clang-offload-deps
+  clang-offload-extract
   clang-import-test
   clang-rename
   clang-refactor
+  clang-repl
   clang-diff
   clang-scan-deps
   diagtool
@@ -100,6 +95,7 @@ if (CLANG_BUILD_EXAMPLES)
   list(APPEND CLANG_TEST_DEPS
     Attribute
     AnnotateFunctions
+    CallSuperAttr
     clang-interpreter
     PrintFunctionNames
     )
@@ -128,10 +124,15 @@ if( NOT CLANG_BUILT_STANDALONE )
     llvm-objcopy
     llvm-objdump
     llvm-profdata
+    llvm-rc
     llvm-readelf
     llvm-readobj
+    llvm-strip
     llvm-symbolizer
+    llvm-windres
     opt
+    split-file
+    yaml2obj
     )
 
   if(TARGET llvm-lto)

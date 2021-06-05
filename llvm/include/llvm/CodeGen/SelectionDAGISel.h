@@ -149,6 +149,7 @@ public:
     OPC_CheckFoldableChainNode,
 
     OPC_EmitInteger,
+    OPC_EmitStringInteger,
     OPC_EmitRegister,
     OPC_EmitRegister2,
     OPC_EmitConvertToTarget,
@@ -322,8 +323,6 @@ private:
   void DoInstructionSelection();
   SDNode *MorphNode(SDNode *Node, unsigned TargetOpc, SDVTList VTList,
                     ArrayRef<SDValue> Ops, unsigned EmitNodeInfo);
-
-  SDNode *MutateStrictFPToFP(SDNode *Node, unsigned NewOpc);
 
   /// Prepares the landing pad to take incoming values or do other EH
   /// personality specific tasks. Returns true if the block should be

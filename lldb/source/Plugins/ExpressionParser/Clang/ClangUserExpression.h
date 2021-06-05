@@ -168,11 +168,22 @@ public:
   lldb::ExpressionVariableSP
   GetResultAfterDematerialization(ExecutionContextScope *exe_scope) override;
 
-  bool DidImportCxxModules() const { return m_imported_cpp_modules; }
+  /// Returns true iff this expression is using any imported C++ modules.
+  bool DidImportCxxModules() const { return !m_imported_cpp_modules.empty(); }
 
 private:
   /// Populate m_in_cplusplus_method and m_in_objectivec_method based on the
   /// environment.
+
+  /// Contains the actual parsing implementation.
+  /// The parameter have the same meaning as in ClangUserExpression::Parse.
+  /// \see ClangUserExpression::Parse
+  bool TryParse(DiagnosticManager &diagnostic_manager,
+                ExecutionContextScope *exe_scope, ExecutionContext &exe_ctx,
+                lldb_private::ExecutionPolicy execution_policy, bool keep_result_in_memory,
+                bool generate_debug_info);
+
+  void SetupCppModuleImports(ExecutionContext &exe_ctx);
 
   void ScanContext(ExecutionContext &exe_ctx,
                    lldb_private::Status &err) override;
@@ -219,6 +230,8 @@ private:
   ResultDelegate m_result_delegate;
   ClangPersistentVariables *m_clang_state;
   std::unique_ptr<ClangExpressionSourceCode> m_source_code;
+  /// The parser instance we used to parse the expression.
+  std::unique_ptr<ClangExpressionParser> m_parser;
   /// File name used for the expression.
   std::string m_filename;
 
@@ -226,8 +239,9 @@ private:
   /// See the comment to `UserExpression::Evaluate` for details.
   ValueObject *m_ctx_obj;
 
-  /// True iff this expression explicitly imported C++ modules.
-  bool m_imported_cpp_modules = false;
+  /// A list of module names that should be imported when parsing.
+  /// \see CppModuleConfiguration::GetImportedModules
+  std::vector<std::string> m_imported_cpp_modules;
 
   /// True if the expression parser should enforce the presence of a valid class
   /// pointer in order to generate the expression as a method.
@@ -240,7 +254,7 @@ private:
   bool m_in_objectivec_method = false;
   /// True if the expression is compiled as a static (or class) method
   /// (currently true if it was parsed when exe_ctx was in an Objective-C class
-  /// method).
+  /// method or static C++ member function).
   bool m_in_static_method = false;
   /// True if "this" or "self" must be looked up and passed in.  False if the
   /// expression doesn't really use them and they can be NULL.

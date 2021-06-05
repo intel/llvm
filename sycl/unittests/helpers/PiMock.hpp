@@ -47,10 +47,10 @@ namespace RT = detail::pi;
 ///        function table entry
 #define _PI_API(api)                                                           \
   template <detail::PiApiKind PiApiOffset>                                     \
-  void setFuncPtr(RT::PiPlugin *MPlugin, decltype(&::api) FuncPtr);            \
+  inline void setFuncPtr(RT::PiPlugin *MPlugin, decltype(&::api) FuncPtr);     \
   template <>                                                                  \
-  void setFuncPtr<detail::PiApiKind::api>(RT::PiPlugin * MPlugin,              \
-                                          decltype(&::api) FuncPtr) {          \
+  inline void setFuncPtr<detail::PiApiKind::api>(RT::PiPlugin * MPlugin,       \
+                                                 decltype(&::api) FuncPtr) {   \
     MPlugin->PiFunctionTable.api = FuncPtr;                                    \
   }
 #include <CL/sycl/detail/pi.def>
@@ -121,7 +121,8 @@ public:
     // Copy the PiPlugin, thus untying our to-be mock platform from other
     // platforms within the context. Reset our platform to use the new plugin.
     auto NewPluginPtr = std::make_shared<detail::plugin>(
-        OriginalPiPlugin.getPiPlugin(), OriginalPiPlugin.getBackend());
+        OriginalPiPlugin.getPiPlugin(), OriginalPiPlugin.getBackend(),
+        OriginalPiPlugin.getLibraryHandle());
     ImplPtr->setPlugin(NewPluginPtr);
     // Extract the new PiPlugin instance by a non-const pointer,
     // explicitly allowing modification

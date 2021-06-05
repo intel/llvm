@@ -36,13 +36,12 @@ public:
   /// Parse a comma-separated list of elements up until the specified end token.
   ParseResult
   parseCommaSeparatedListUntil(Token::Kind rightToken,
-                               const std::function<ParseResult()> &parseElement,
+                               function_ref<ParseResult()> parseElement,
                                bool allowEmptyList = true);
 
   /// Parse a comma separated list of elements that must have at least one entry
   /// in it.
-  ParseResult
-  parseCommaSeparatedList(const std::function<ParseResult()> &parseElement);
+  ParseResult parseCommaSeparatedList(function_ref<ParseResult()> parseElement);
 
   ParseResult parsePrettyDialectSymbolName(StringRef &prettyName);
 
@@ -128,6 +127,15 @@ public:
   /// output a diagnostic and return failure.
   ParseResult parseToken(Token::Kind expectedToken, const Twine &message);
 
+  /// Parse an optional integer value from the stream.
+  OptionalParseResult parseOptionalInteger(APInt &result);
+
+  /// Parse a floating point value from an integer literal token.
+  ParseResult parseFloatFromIntegerLiteral(Optional<APFloat> &result,
+                                           const Token &tok, bool isNegative,
+                                           const llvm::fltSemantics &semantics,
+                                           size_t typeSizeInBits);
+
   //===--------------------------------------------------------------------===//
   // Type Parsing
   //===--------------------------------------------------------------------===//
@@ -184,6 +192,27 @@ public:
   /// Parse an arbitrary attribute with an optional type.
   Attribute parseAttribute(Type type = {});
 
+  /// Parse an optional attribute with the provided type.
+  OptionalParseResult parseOptionalAttribute(Attribute &attribute,
+                                             Type type = {});
+  OptionalParseResult parseOptionalAttribute(ArrayAttr &attribute, Type type);
+  OptionalParseResult parseOptionalAttribute(StringAttr &attribute, Type type);
+
+  /// Parse an optional attribute that is demarcated by a specific token.
+  template <typename AttributeT>
+  OptionalParseResult parseOptionalAttributeWithToken(Token::Kind kind,
+                                                      AttributeT &attr,
+                                                      Type type = {}) {
+    if (getToken().isNot(kind))
+      return llvm::None;
+
+    if (Attribute parsedAttr = parseAttribute(type)) {
+      attr = parsedAttr.cast<AttributeT>();
+      return success();
+    }
+    return failure();
+  }
+
   /// Parse an attribute dictionary.
   ParseResult parseAttributeDict(NamedAttrList &attributes);
 
@@ -211,9 +240,6 @@ public:
   // Location Parsing
   //===--------------------------------------------------------------------===//
 
-  /// Parse an inline location.
-  ParseResult parseLocation(LocationAttr &loc);
-
   /// Parse a raw location instance.
   ParseResult parseLocationInstance(LocationAttr &loc);
 
@@ -225,23 +251,6 @@ public:
 
   /// Parse a name or FileLineCol location instance.
   ParseResult parseNameOrFileLineColLocation(LocationAttr &loc);
-
-  /// Parse an optional trailing location.
-  ///
-  ///   trailing-location     ::= (`loc` `(` location `)`)?
-  ///
-  ParseResult parseOptionalTrailingLocation(Location &loc) {
-    // If there is a 'loc' we parse a trailing location.
-    if (!getToken().is(Token::kw_loc))
-      return success();
-
-    // Parse the location.
-    LocationAttr directLoc;
-    if (parseLocation(directLoc))
-      return failure();
-    loc = directLoc;
-    return success();
-  }
 
   //===--------------------------------------------------------------------===//
   // Affine Parsing
@@ -259,7 +268,12 @@ public:
                          function_ref<ParseResult(bool)> parseElement,
                          OpAsmParser::Delimiter delimiter);
 
-private:
+  /// Parse an AffineExpr where dim and symbol identifiers are SSA ids.
+  ParseResult
+  parseAffineExprOfSSAIds(AffineExpr &expr,
+                          function_ref<ParseResult(bool)> parseElement);
+
+protected:
   /// The Parser is subclassed and reinstantiated.  Do not add additional
   /// non-trivial state here, add it to the ParserState class.
   ParserState &state;

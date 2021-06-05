@@ -24,22 +24,21 @@
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
   - Name: .bar
     Type: SHT_PROGBITS
-SectionHeaderTable:
-  Sections:
-    - Name: [[INCLUDED]]
-    - Name: .strtab
-    - Name: .shstrtab
-  Excluded:
-    - Name: [[EXCLUDED]]
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: [[INCLUDED]]
+      - Name: .strtab
+      - Name: .shstrtab
+    Excluded:
+      - Name: [[EXCLUDED]]
 
 ## Check we report an error when a section is in both the "Sections" and "Excluded" lists at the same time.
 ## Also check that we report an error if a section is missing from the lists.
@@ -64,17 +63,17 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
-SectionHeaderTable:
-  Sections:
-    - Name: .strtab
-    - Name: .shstrtab
-  Excluded:
-    - Name: .strtab
-    - Name: .strtab
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
+Sections:
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .strtab
+      - Name: .shstrtab
+    Excluded:
+      - Name: .strtab
+      - Name: .strtab
 
 ## Check that we are able to exclude all sections, except the implicit
 ## null section, with the use of the "Excluded" key.
@@ -90,15 +89,15 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
-SectionHeaderTable:
-  Sections: []
-  Excluded:
-    - Name: .strtab
-    - Name: .shstrtab
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
+Sections:
+  - Type: SectionHeaderTable
+    Sections: []
+    Excluded:
+      - Name: .strtab
+      - Name: .shstrtab
 
 ## Case B: the "Sections" key is not present.
 # RUN: yaml2obj %s --docnum=4 -o %t4
@@ -106,14 +105,14 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
-SectionHeaderTable:
-  Excluded:
-    - Name: .strtab
-    - Name: .shstrtab
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
+Sections:
+  - Type: SectionHeaderTable
+    Excluded:
+      - Name: .strtab
+      - Name: .shstrtab
 
 ## Check how we handle cases when a section is excluded, but its section index is needed.
 ## The general rule is: when a section is explicitly linked with another section, which is
@@ -129,23 +128,22 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
     Link: .bar
   - Name: .bar
     Type: SHT_PROGBITS
-SectionHeaderTable:
-  Sections:
-    - Name: .foo
-    - Name: .strtab
-    - Name: .shstrtab
-  Excluded:
-    - Name: .bar
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .foo
+      - Name: .strtab
+      - Name: .shstrtab
+    Excluded:
+      - Name: .bar
 
 ## Case B.1: check we report an error when a symbol table section has a Link field which
 ##           points to an excluded section.
@@ -156,23 +154,22 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:  [[NAME]]
     Type:  [[TYPE]]
     Link:  .foo
   - Name:  .foo
     Type:  SHT_PROGBITS
-SectionHeaderTable:
-  Sections:
-    - Name: [[NAME]]
-    - Name: .strtab
-    - Name: .shstrtab
-  Excluded:
-    - Name: .foo
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: [[NAME]]
+      - Name: .strtab
+      - Name: .shstrtab
+    Excluded:
+      - Name: .foo
 
 ## Case B.2: check we do not link .dynsym with .dynstr implicitly when the latter is excluded.
 # RUN: yaml2obj %s --docnum=7 -o %t5
@@ -183,22 +180,21 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:  .dynsym
     Type:  SHT_DYNSYM
   - Name:  .dynstr
     Type:  SHT_PROGBITS
-SectionHeaderTable:
-  Sections:
-    - Name: .dynsym
-    - Name: .strtab
-    - Name: .shstrtab
-  Excluded:
-    - Name: .dynstr
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .dynsym
+      - Name: .strtab
+      - Name: .shstrtab
+    Excluded:
+      - Name: .dynstr
 
 ## Case B.3: check we do not link .symtab with .strtab implicitly when the latter is excluded.
 # RUN: yaml2obj %s --docnum=8 -o %t6
@@ -209,21 +205,20 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:  .symtab
     Type:  SHT_SYMTAB
   - Name:  .strtab
     Type:  SHT_PROGBITS
-SectionHeaderTable:
-  Sections:
-    - Name: .symtab
-    - Name: .shstrtab
-  Excluded:
-    - Name: .strtab
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .symtab
+      - Name: .shstrtab
+    Excluded:
+      - Name: .strtab
 
 ## Case C: check we report an error when a debug section has a Link field which
 ##         points to an excluded section.
@@ -232,20 +227,19 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name:  .debug_unknown
     Type:  SHT_PROGBITS
     Link:  .strtab
-SectionHeaderTable:
-  Sections:
-    - Name: .debug_unknown
-    - Name: .shstrtab
-  Excluded:
-    - Name: .strtab
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .debug_unknown
+      - Name: .shstrtab
+    Excluded:
+      - Name: .strtab
 
 ## Case D.1: check we report an error when a relocatable section has an Info field which
 ##           points to an excluded section.
@@ -254,21 +248,20 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name: .rela
     Type: SHT_RELA
     Info: .strtab
     Relocations: []
-SectionHeaderTable:
-  Sections:
-    - Name: .rela
-    - Name: .shstrtab
-  Excluded:
-    - Name: .strtab
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .rela
+      - Name: .shstrtab
+    Excluded:
+      - Name: .strtab
 
 ## Case D.2: check we report an error when the SHT_REL[A] section is linked
 ##           with an excluded section explicitly.
@@ -277,10 +270,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name: .rela
     Type: SHT_RELA
@@ -288,13 +280,13 @@ Sections:
     Relocations: []
   - Name: .symtab
     Type: SHT_PROGBITS
-SectionHeaderTable:
-  Sections:
-    - Name: .rela
-    - Name: .strtab
-    - Name: .shstrtab
-  Excluded:
-    - Name: .symtab
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .rela
+      - Name: .strtab
+      - Name: .shstrtab
+    Excluded:
+      - Name: .symtab
 
 ## Case E: check we report an error when a symbol references an excluded section.
 # RUN: not yaml2obj %s --docnum=12 -o /dev/null 2>&1 | \
@@ -304,24 +296,23 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .symtab
+      - Name: .strtab
+      - Name: .shstrtab
+    Excluded:
+      - Name: .foo
 Symbols:
   - Name:    foo
     Type:    STT_OBJECT
     Section: .foo
-SectionHeaderTable:
-  Sections:
-    - Name: .symtab
-    - Name: .strtab
-    - Name: .shstrtab
-  Excluded:
-    - Name: .foo
 
 ## Case F.1: check we report an error when a group section
 ##           contains an excluded section member.
@@ -330,21 +321,20 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .group
     Type: SHT_GROUP
     Members:
       - SectionOrType: .strtab
-SectionHeaderTable:
-  Sections:
-    - Name: .group
-    - Name: .shstrtab
-  Excluded:
-    - Name: .strtab
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .group
+      - Name: .shstrtab
+    Excluded:
+      - Name: .strtab
 
 ## Case F.2: check we report an error when the group section is linked
 ##           to an excluded section explicitly.
@@ -353,10 +343,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .group
     Type: SHT_GROUP
@@ -364,13 +353,13 @@ Sections:
     Members: []
   - Name: .symtab
     Type: SHT_SYMTAB
-SectionHeaderTable:
-  Sections:
-    - Name: .group
-    - Name: .strtab
-    - Name: .shstrtab
-  Excluded:
-    - Name: .symtab
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .group
+      - Name: .strtab
+      - Name: .shstrtab
+    Excluded:
+      - Name: .symtab
 
 ## Case G: check we do not link SHT_LLVM_CALL_GRAPH_PROFILE/SHT_LLVM_ADDRSIG/SHT_GROUP/SHT_REL[A] sections
 ##         with .symtab implicitly when the latter is excluded.
@@ -385,10 +374,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:    .cgp
     Type:    SHT_LLVM_CALL_GRAPH_PROFILE
@@ -404,16 +392,16 @@ Sections:
     Relocations: []
   - Name: .symtab
     Type: SHT_SYMTAB
-SectionHeaderTable:
-  Sections:
-    - Name: .cgp
-    - Name: .llvm_addrsig
-    - Name: .group
-    - Name: .rela
-    - Name: .strtab
-    - Name: .shstrtab
-  Excluded:
-    - Name: .symtab
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .cgp
+      - Name: .llvm_addrsig
+      - Name: .group
+      - Name: .rela
+      - Name: .strtab
+      - Name: .shstrtab
+    Excluded:
+      - Name: .symtab
 
 ## Case H: check we do not link SHT_HASH/SHT_GNU_HASH sections with .dynsym
 ##         implicitly when the latter is excluded.
@@ -421,15 +409,14 @@ SectionHeaderTable:
 # RUN: llvm-readelf %t8 --section-headers | FileCheck %s --check-prefix=LINK-HASH
 
 # LINK-HASH:      [Nr] Name      Type     Address          Off    Size   ES Flg Lk Inf Al
-# LINK-HASH:      [ 1] .hash     HASH     0000000000000000 000040 000000 00      0   0  0
+# LINK-HASH:      [ 1] .hash     HASH     0000000000000000 000040 000000 04      0   0  0
 # LINK-HASH-NEXT: [ 2] .gnu_hash GNU_HASH 0000000000000000 000040 000000 00      0   0  0
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:    .hash
     Type:    SHT_HASH
@@ -439,14 +426,14 @@ Sections:
     Content: ""
   - Name: .dynsym
     Type: SHT_DYNSYM
-SectionHeaderTable:
-  Sections:
-    - Name: .hash
-    - Name: .gnu_hash
-    - Name: .strtab
-    - Name: .shstrtab
-  Excluded:
-    - Name: .dynsym
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .hash
+      - Name: .gnu_hash
+      - Name: .strtab
+      - Name: .shstrtab
+    Excluded:
+      - Name: .dynsym
 
 ## Case I: document the case when an excluded section is explicitly linked to another excluded section.
 ##         We report an error in this case, because:
@@ -460,10 +447,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
@@ -471,13 +457,13 @@ Sections:
   - Name: .bar
     Type: SHT_PROGBITS
     Link: .foo
-SectionHeaderTable:
-  Sections:
-    - Name: .strtab
-    - Name: .shstrtab
-  Excluded:
-    - Name: .foo
-    - Name: .bar
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .strtab
+      - Name: .shstrtab
+    Excluded:
+      - Name: .foo
+      - Name: .bar
 
 ## Check we set e_shstrndx field to 0 when the section header string table is excluded.
 ## Check that the e_shnum field is adjusted properly when a section is removed.
@@ -489,26 +475,27 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
-SectionHeaderTable:
-  Sections:
-    - Name: .strtab
-  Excluded:
-    - Name: .shstrtab
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
+Sections:
+  - Type: SectionHeaderTable
+    Sections:
+      - Name: .strtab
+    Excluded:
+      - Name: .shstrtab
 
 ## Check we do not allow using "Excluded" together with "NoHeaders".
-# RUN: not yaml2obj %s --docnum=19 -o /dev/null 2>&1 | FileCheck %s --check-prefix=NOHEADERS
-# NOHEADERS: NoHeaders can't be used together with Sections/Excluded
+# RUN: not yaml2obj %s --docnum=19 -DNOHEADERS=true -o /dev/null 2>&1 | FileCheck %s --check-prefix=NOHEADERS
+# RUN: not yaml2obj %s --docnum=19 -DNOHEADERS=false -o /dev/null 2>&1 | FileCheck %s --check-prefix=NOHEADERS
+# NOHEADERS: NoHeaders can't be used together with Offset/Sections/Excluded
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
-SectionHeaderTable:
-  NoHeaders: true
-  Excluded:  []
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
+Sections:
+  - Type: SectionHeaderTable
+    NoHeaders: [[NOHEADERS]]
+    Excluded:  []

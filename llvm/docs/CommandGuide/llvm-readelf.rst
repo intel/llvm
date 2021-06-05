@@ -14,7 +14,7 @@ DESCRIPTION
 The :program:`llvm-readelf` tool displays low-level format-specific information
 about one or more object files.
 
-If ``input`` is "``-``" or omitted, :program:`llvm-readelf` reads from standard
+If ``input`` is "``-``", :program:`llvm-readelf` reads from standard
 input. Otherwise, it will read from the specified ``filenames``.
 
 OPTIONS
@@ -31,6 +31,11 @@ OPTIONS
 .. option:: --arch-specific, -A
 
  Display architecture-specific information, e.g. the ARM attributes section on ARM.
+
+.. option:: --bb-addr-map
+
+ Display the contents of the basic block address map section(s), which contain the
+ address of each function, along with the relative offset of each basic block.
 
 .. option:: --color
 
@@ -141,6 +146,10 @@ OPTIONS
 
  When used with :option:`--sections`, display section data for each section
  shown. This option has no effect for GNU style output.
+
+.. option:: --section-details, -t
+
+ Display all section details. Used as an alternative to :option:`--sections`.
 
 .. option:: --section-mapping
 

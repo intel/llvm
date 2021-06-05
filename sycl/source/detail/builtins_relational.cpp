@@ -10,6 +10,7 @@
 // in SYCL SPEC section - 4.13.7 Relational functions.
 
 #include "builtins_helper.hpp"
+#include <CL/sycl/detail/stl_type_traits.hpp>
 
 #include <cmath>
 
@@ -76,7 +77,7 @@ template <typename T> inline T __sUnordered(T x, T y) {
 }
 
 template <typename T>
-inline typename std::enable_if<d::is_sgeninteger<T>::value, T>::type
+inline typename sycl::detail::enable_if_t<d::is_sgeninteger<T>::value, T>
 __bitselect(T a, T b, T c) {
   return (a & ~c) | (b & c);
 }
@@ -107,8 +108,8 @@ template <> union databitset<s::cl_half> {
 };
 
 template <typename T>
-typename std::enable_if<d::is_sgenfloat<T>::value, T>::type inline __bitselect(
-    T a, T b, T c) {
+typename sycl::detail::enable_if_t<d::is_sgenfloat<T>::value,
+                                   T> inline __bitselect(T a, T b, T c) {
   databitset<T> ba;
   ba.f = a;
   databitset<T> bb;
@@ -350,13 +351,13 @@ MAKE_1V_FUNC(IsNormal, __vIsNormal, s::cl_short, s::cl_half)
 
 // (Ordered)              // isordered
 __SYCL_EXPORT s::cl_int Ordered(s::cl_float x, s::cl_float y) __NOEXC {
-  return __vOrdered(x, y);
+  return __sOrdered(x, y);
 }
 __SYCL_EXPORT s::cl_int Ordered(s::cl_double x, s::cl_double y) __NOEXC {
-  return __vOrdered(x, y);
+  return __sOrdered(x, y);
 }
 __SYCL_EXPORT s::cl_int Ordered(s::cl_half x, s::cl_half y) __NOEXC {
-  return __vOrdered(x, y);
+  return __sOrdered(x, y);
 }
 MAKE_1V_2V_FUNC(Ordered, __vOrdered, s::cl_int, s::cl_float, s::cl_float)
 MAKE_1V_2V_FUNC(Ordered, __vOrdered, s::cl_long, s::cl_double, s::cl_double)

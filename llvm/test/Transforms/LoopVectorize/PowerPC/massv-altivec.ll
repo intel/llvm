@@ -1,4 +1,4 @@
-; RUN: opt -vector-library=MASSV -loop-vectorize -force-vector-interleave=1 -mattr=-altivec -S < %s | FileCheck %s
+; RUN: opt -vector-library=MASSV -inject-tli-mappings -loop-vectorize -force-vector-interleave=1 -mattr=-altivec -S < %s | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-n32:64" 
 target triple = "powerpc64le-unknown-linux-gnu"
@@ -13,7 +13,7 @@ declare float @atanhf(float) #0
 ; Check that massv entries are not generated.
 define void @cbrt_f64(double* nocapture %varray) {
 ; CHECK-LABEL: @cbrt_f64(
-; CHECK-NOT: __cbrtd2_massv{{.*}}<2 x double>
+; CHECK-NOT: __cbrtd2_P8{{.*}}<2 x double>
 ; CHECK: ret void
 ;
 entry:
@@ -36,7 +36,7 @@ for.end:
 
 define void @cbrt_f32(float* nocapture %varray) {
 ; CHECK-LABEL: @cbrt_f32(
-; CHECK-NOT: __cbrtf4_massv{{.*}}<4 x float>
+; CHECK-NOT: __cbrtf4_P8{{.*}}<4 x float>
 ; CHECK: ret void
 ;
 entry:
@@ -59,7 +59,7 @@ for.end:
 
 define void @atanh_f64(double* nocapture %varray) {
 ; CHECK-LABEL: @atanh_f64(
-; CHECK-NOT: __atanhd2_massv{{.*}}<2 x double>
+; CHECK-NOT: __atanhd2_P8{{.*}}<2 x double>
 ; CHECK: ret void
 ;
 entry:
@@ -82,7 +82,7 @@ for.end:
 
 define void @atanh_f32(float* nocapture %varray) {
 ; CHECK-LABEL: @atanh_f32(
-; CHECK-NOT: __atanhf4_massv{{.*}}<2 x double>
+; CHECK-NOT: __atanhf4_P8{{.*}}<2 x double>
 ; CHECK: ret void
 ;
 entry:

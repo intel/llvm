@@ -26,7 +26,7 @@ body:             |
   ; CHECK:   [[DEF:%[0-9]+]]:gpr64common = IMPLICIT_DEF
   ; CHECK:   [[LDRBBui:%[0-9]+]]:gpr32 = LDRBBui [[DEF]], 0 :: (load 1)
   ; CHECK:   [[SUBREG_TO_REG:%[0-9]+]]:gpr64common = SUBREG_TO_REG 0, [[LDRBBui]], %subreg.sub_32
-  ; CHECK:   $xzr = SUBSXri [[SUBREG_TO_REG]], 8, 0, implicit-def $nzcv
+  ; CHECK:   [[SUBSXri:%[0-9]+]]:gpr64 = SUBSXri [[SUBREG_TO_REG]], 8, 0, implicit-def $nzcv
   ; CHECK:   Bcc 8, %bb.3, implicit $nzcv
   ; CHECK: bb.1:
   ; CHECK:   successors: %bb.2(0x40000000), %bb.3(0x40000000)

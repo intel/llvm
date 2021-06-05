@@ -97,31 +97,27 @@ runFindDocumentHighlights(ClangdServer &Server, PathRef File, Position Pos) {
   return std::move(*Result);
 }
 
-llvm::Expected<FileEdits> runRename(ClangdServer &Server, PathRef File,
-                                    Position Pos, llvm::StringRef NewName,
-                                    const RenameOptions &RenameOpts) {
-  llvm::Optional<llvm::Expected<FileEdits>> Result;
+llvm::Expected<RenameResult> runRename(ClangdServer &Server, PathRef File,
+                                       Position Pos, llvm::StringRef NewName,
+                                       const RenameOptions &RenameOpts) {
+  llvm::Optional<llvm::Expected<RenameResult>> Result;
   Server.rename(File, Pos, NewName, RenameOpts, capture(Result));
   return std::move(*Result);
 }
 
-std::string runDumpAST(ClangdServer &Server, PathRef File) {
-  llvm::Optional<std::string> Result;
-  Server.dumpAST(File, capture(Result));
+llvm::Expected<RenameResult>
+runPrepareRename(ClangdServer &Server, PathRef File, Position Pos,
+                 llvm::Optional<std::string> NewName,
+                 const RenameOptions &RenameOpts) {
+  llvm::Optional<llvm::Expected<RenameResult>> Result;
+  Server.prepareRename(File, Pos, NewName, RenameOpts, capture(Result));
   return std::move(*Result);
 }
 
-llvm::Expected<std::vector<SymbolInformation>>
-runWorkspaceSymbols(ClangdServer &Server, llvm::StringRef Query, int Limit) {
-  llvm::Optional<llvm::Expected<std::vector<SymbolInformation>>> Result;
-  Server.workspaceSymbols(Query, Limit, capture(Result));
-  return std::move(*Result);
-}
-
-llvm::Expected<std::vector<DocumentSymbol>>
-runDocumentSymbols(ClangdServer &Server, PathRef File) {
-  llvm::Optional<llvm::Expected<std::vector<DocumentSymbol>>> Result;
-  Server.documentSymbols(File, capture(Result));
+llvm::Expected<tooling::Replacements>
+runFormatFile(ClangdServer &Server, PathRef File, llvm::Optional<Range> Rng) {
+  llvm::Optional<llvm::Expected<tooling::Replacements>> Result;
+  Server.formatFile(File, Rng, capture(Result));
   return std::move(*Result);
 }
 
@@ -159,6 +155,21 @@ runSwitchHeaderSource(ClangdServer &Server, PathRef File) {
   llvm::Optional<llvm::Expected<llvm::Optional<clangd::Path>>> Result;
   Server.switchSourceHeader(File, capture(Result));
   return std::move(*Result);
+}
+
+llvm::Error runCustomAction(ClangdServer &Server, PathRef File,
+                            llvm::function_ref<void(InputsAndAST)> Action) {
+  llvm::Error Result = llvm::Error::success();
+  Notification Done;
+  Server.customAction(File, "Custom", [&](llvm::Expected<InputsAndAST> AST) {
+    if (!AST)
+      Result = AST.takeError();
+    else
+      Action(*AST);
+    Done.notify();
+  });
+  Done.wait();
+  return Result;
 }
 
 } // namespace clangd

@@ -11,13 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_CODEGEN_ANTIDEPBREAKER_H
-#define LLVM_LIB_CODEGEN_ANTIDEPBREAKER_H
+#ifndef LLVM_CODEGEN_ANTIDEPBREAKER_H
+#define LLVM_CODEGEN_ANTIDEPBREAKER_H
 
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/CodeGen/ScheduleDAG.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Support/Compiler.h"
 #include <cassert>
@@ -94,4 +93,4 @@ AntiDepBreaker *createCriticalAntiDepBreaker(MachineFunction &MFi,
 
 } // end namespace llvm
 
-#endif // LLVM_LIB_CODEGEN_ANTIDEPBREAKER_H
+#endif // LLVM_CODEGEN_ANTIDEPBREAKER_H

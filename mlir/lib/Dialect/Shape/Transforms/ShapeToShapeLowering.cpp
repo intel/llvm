@@ -9,6 +9,7 @@
 #include "PassDetail.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Shape/Transforms/Passes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
@@ -32,15 +33,19 @@ LogicalResult
 NumElementsOpConverter::matchAndRewrite(NumElementsOp op,
                                         PatternRewriter &rewriter) const {
   auto loc = op.getLoc();
-  Value init = rewriter.create<ConstSizeOp>(loc, rewriter.getIndexAttr(1));
+  Type valueType = op.getResult().getType();
+  Value init = op->getDialect()
+                   ->materializeConstant(rewriter, rewriter.getIndexAttr(1),
+                                         valueType, loc)
+                   ->getResult(0);
   ReduceOp reduce = rewriter.create<ReduceOp>(loc, op.shape(), init);
 
   // Generate reduce operator.
   Block *body = reduce.getBody();
   OpBuilder b = OpBuilder::atBlockEnd(body);
-  Value product =
-      b.create<MulOp>(loc, body->getArgument(1), body->getArgument(2));
-  b.create<YieldOp>(loc, product);
+  Value product = b.create<MulOp>(loc, valueType, body->getArgument(1),
+                                  body->getArgument(2));
+  b.create<shape::YieldOp>(loc, product);
 
   rewriter.replaceOp(op, reduce.result());
   return success();
@@ -56,19 +61,19 @@ struct ShapeToShapeLowering
 void ShapeToShapeLowering::runOnFunction() {
   MLIRContext &ctx = getContext();
 
-  OwningRewritePatternList patterns;
-  populateShapeRewritePatterns(&ctx, patterns);
+  RewritePatternSet patterns(&ctx);
+  populateShapeRewritePatterns(patterns);
 
   ConversionTarget target(getContext());
-  target.addLegalDialect<ShapeDialect>();
+  target.addLegalDialect<ShapeDialect, StandardOpsDialect>();
   target.addIllegalOp<NumElementsOp>();
-  if (failed(mlir::applyPartialConversion(getFunction(), target, patterns)))
+  if (failed(mlir::applyPartialConversion(getFunction(), target,
+                                          std::move(patterns))))
     signalPassFailure();
 }
 
-void mlir::populateShapeRewritePatterns(MLIRContext *context,
-                                        OwningRewritePatternList &patterns) {
-  patterns.insert<NumElementsOpConverter>(context);
+void mlir::populateShapeRewritePatterns(RewritePatternSet &patterns) {
+  patterns.add<NumElementsOpConverter>(patterns.getContext());
 }
 
 std::unique_ptr<Pass> mlir::createShapeToShapeLowering() {

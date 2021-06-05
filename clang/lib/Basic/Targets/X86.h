@@ -35,6 +35,11 @@ static const unsigned X86AddrSpaceMap[] = {
     0,   // cuda_device
     0,   // cuda_constant
     0,   // cuda_shared
+    0,   // sycl_global
+    0,   // sycl_global_device
+    0,   // sycl_global_host
+    0,   // sycl_local
+    0,   // sycl_private
     270, // ptr32_sptr
     271, // ptr32_uptr
     272  // ptr64
@@ -127,8 +132,16 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasPTWRITE = false;
   bool HasINVPCID = false;
   bool HasENQCMD = false;
+  bool HasKL = false;      // For key locker
+  bool HasWIDEKL = false; // For wide key locker
+  bool HasHRESET = false;
+  bool HasAVXVNNI = false;
+  bool HasAMXTILE = false;
+  bool HasAMXINT8 = false;
+  bool HasAMXBF16 = false;
   bool HasSERIALIZE = false;
   bool HasTSXLDTRK = false;
+  bool HasUINTR = false;
 
 protected:
   llvm::X86::CPUKind CPU = llvm::X86::CK_None;
@@ -140,6 +153,12 @@ public:
       : TargetInfo(Triple) {
     LongDoubleFormat = &llvm::APFloat::x87DoubleExtended();
     AddrSpaceMap = &X86AddrSpaceMap;
+    HasStrictFP = true;
+
+    bool IsWinCOFF =
+        getTriple().isOSWindows() && getTriple().isOSBinFormatCOFF();
+    if (IsWinCOFF)
+      MaxVectorAlign = MaxTLSAlign = 8192u * getCharWidth();
   }
 
   const char *getLongDoubleMangling() const override {
@@ -261,24 +280,8 @@ public:
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
 
-  static void setSSELevel(llvm::StringMap<bool> &Features, X86SSEEnum Level,
-                          bool Enabled);
-
-  static void setMMXLevel(llvm::StringMap<bool> &Features, MMX3DNowEnum Level,
-                          bool Enabled);
-
-  static void setXOPLevel(llvm::StringMap<bool> &Features, XOPEnum Level,
-                          bool Enabled);
-
   void setFeatureEnabled(llvm::StringMap<bool> &Features, StringRef Name,
-                         bool Enabled) const override {
-    setFeatureEnabledImpl(Features, Name, Enabled);
-  }
-
-  // This exists purely to cut down on the number of virtual calls in
-  // initFeatureMap which calls this repeatedly.
-  static void setFeatureEnabledImpl(llvm::StringMap<bool> &Features,
-                                    StringRef Name, bool Enabled);
+                         bool Enabled) const final;
 
   bool
   initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
@@ -287,7 +290,7 @@ public:
 
   bool isValidFeatureName(StringRef Name) const override;
 
-  bool hasFeature(StringRef Feature) const override;
+  bool hasFeature(StringRef Feature) const final;
 
   bool handleTargetFeatures(std::vector<std::string> &Features,
                             DiagnosticsEngine &Diags) override;
@@ -303,12 +306,27 @@ public:
     return "";
   }
 
+  bool supportsTargetAttributeTune() const override {
+    return true;
+  }
+
   bool isValidCPUName(StringRef Name) const override {
     bool Only64Bit = getTriple().getArch() != llvm::Triple::x86;
     return llvm::X86::parseArchX86(Name, Only64Bit) != llvm::X86::CK_None;
   }
 
+  bool isValidTuneCPUName(StringRef Name) const override {
+    if (Name == "generic")
+      return true;
+
+    // Allow 32-bit only CPUs regardless of 64-bit mode unlike isValidCPUName.
+    // NOTE: gcc rejects 32-bit mtune CPUs in 64-bit mode. But being lenient
+    // since mtune was ignored by clang for so long.
+    return llvm::X86::parseTuneCPU(Name) != llvm::X86::CK_None;
+  }
+
   void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
+  void fillValidTuneCPUList(SmallVectorImpl<StringRef> &Values) const override;
 
   bool setCPU(const std::string &Name) override {
     bool Only64Bit = getTriple().getArch() != llvm::Triple::x86;
@@ -319,6 +337,10 @@ public:
   unsigned multiVersionSortPriority(StringRef Name) const override;
 
   bool setFPMath(StringRef Name) override;
+
+  bool supportsExtendIntArgs() const override {
+    return getTriple().getArch() != llvm::Triple::x86;
+  }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
     // Most of the non-ARM calling conventions are i386 conventions.
@@ -346,9 +368,7 @@ public:
 
   bool hasSjLjLowering() const override { return true; }
 
-  void setSupportedOpenCLOpts() override {
-    getSupportedOpenCLOpts().supportAll();
-  }
+  void setSupportedOpenCLOpts() override { supportAllOpenCLOpts(); }
 
   uint64_t getPointerWidthV(unsigned AddrSpace) const override {
     if (AddrSpace == ptr32_sptr || AddrSpace == ptr32_uptr)
@@ -372,8 +392,13 @@ public:
     LongDoubleWidth = 96;
     LongDoubleAlign = 32;
     SuitableAlign = 128;
-    resetDataLayout("e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-"
-                    "f80:32-n8:16:32-S128");
+    resetDataLayout(
+        Triple.isOSBinFormatMachO()
+            ? "e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-"
+              "f80:32-n8:16:32-S128"
+            : "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-"
+              "f80:32-n8:16:32-S128",
+        Triple.isOSBinFormatMachO() ? "_" : "");
     SizeType = UnsignedInt;
     PtrDiffType = SignedInt;
     IntPtrType = SignedInt;
@@ -477,7 +502,7 @@ public:
     SizeType = UnsignedLong;
     IntPtrType = SignedLong;
     resetDataLayout("e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-"
-                    "f80:128-n8:16:32-S128");
+                    "f80:128-n8:16:32-S128", "_");
     HasAlignMac68kSupport = true;
   }
 
@@ -505,7 +530,8 @@ public:
     resetDataLayout(IsWinCOFF ? "e-m:x-p:32:32-p270:32:32-p271:32:32-p272:64:"
                                 "64-i64:64-f80:32-n8:16:32-a:0:32-S32"
                               : "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:"
-                                "64-i64:64-f80:32-n8:16:32-a:0:32-S32");
+                                "64-i64:64-f80:32-n8:16:32-a:0:32-S32",
+                    IsWinCOFF ? "_" : "");
   }
 };
 
@@ -554,7 +580,8 @@ public:
     this->WCharType = TargetInfo::UnsignedShort;
     DoubleAlign = LongLongAlign = 64;
     resetDataLayout("e-m:x-p:32:32-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:"
-                    "32-n8:16:32-a:0:32-S32");
+                    "32-n8:16:32-a:0:32-S32",
+                    "_");
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -849,7 +876,7 @@ public:
     if (T.isiOS())
       UseSignedCharForObjCBool = false;
     resetDataLayout("e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:"
-                    "16:32:64-S128");
+                    "16:32:64-S128", "_");
   }
 
   bool handleTargetFeatures(std::vector<std::string> &Features,

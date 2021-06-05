@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device %s -emit-llvm -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device %s -emit-llvm -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -o - | FileCheck %s
 // CHECK: %opencl.pipe_wo_t
 // CHECK: %opencl.pipe_ro_t
 
@@ -45,7 +45,7 @@ private:
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 

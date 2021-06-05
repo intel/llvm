@@ -181,8 +181,7 @@ void MCWinCOFFStreamer::EndCOFFSymbolDef() {
 void MCWinCOFFStreamer::EmitCOFFSafeSEH(MCSymbol const *Symbol) {
   // SafeSEH is a feature specific to 32-bit x86.  It does not exist (and is
   // unnecessary) on all platforms which use table-based exception dispatch.
-  if (getContext().getObjectFileInfo()->getTargetTriple().getArch() !=
-      Triple::x86)
+  if (getContext().getTargetTriple().getArch() != Triple::x86)
     return;
 
   const MCSymbolCOFF *CSymbol = cast<MCSymbolCOFF>(Symbol);
@@ -266,7 +265,7 @@ void MCWinCOFFStreamer::emitCommonSymbol(MCSymbol *S, uint64_t Size,
                                          unsigned ByteAlignment) {
   auto *Symbol = cast<MCSymbolCOFF>(S);
 
-  const Triple &T = getContext().getObjectFileInfo()->getTargetTriple();
+  const Triple &T = getContext().getTargetTriple();
   if (T.isWindowsMSVCEnvironment()) {
     if (ByteAlignment > 32)
       report_fatal_error("alignment is limited to 32-bytes");
@@ -308,6 +307,16 @@ void MCWinCOFFStreamer::emitLocalCommonSymbol(MCSymbol *S, uint64_t Size,
   PopSection();
 }
 
+void MCWinCOFFStreamer::emitWeakReference(MCSymbol *AliasS,
+                                          const MCSymbol *Symbol) {
+  auto *Alias = cast<MCSymbolCOFF>(AliasS);
+  emitSymbolAttribute(Alias, MCSA_Weak);
+
+  getAssembler().registerSymbol(*Symbol);
+  Alias->setVariableValue(MCSymbolRefExpr::create(
+      Symbol, MCSymbolRefExpr::VK_WEAKREF, getContext()));
+}
+
 void MCWinCOFFStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
                                      uint64_t Size, unsigned ByteAlignment,
                                      SMLoc Loc) {
@@ -328,7 +337,32 @@ void MCWinCOFFStreamer::EmitWinEHHandlerData(SMLoc Loc) {
   llvm_unreachable("not implemented");
 }
 
+void MCWinCOFFStreamer::emitCGProfileEntry(const MCSymbolRefExpr *From,
+                                           const MCSymbolRefExpr *To,
+                                           uint64_t Count) {
+  // Ignore temporary symbols for now.
+  if (!From->getSymbol().isTemporary() && !To->getSymbol().isTemporary())
+    getAssembler().CGProfile.push_back({From, To, Count});
+}
+
+void MCWinCOFFStreamer::finalizeCGProfileEntry(const MCSymbolRefExpr *&SRE) {
+  const MCSymbol *S = &SRE->getSymbol();
+  bool Created;
+  getAssembler().registerSymbol(*S, &Created);
+  if (Created)
+    cast<MCSymbolCOFF>(S)->setExternal(true);
+}
+
+void MCWinCOFFStreamer::finalizeCGProfile() {
+  for (MCAssembler::CGProfileEntry &E : getAssembler().CGProfile) {
+    finalizeCGProfileEntry(E.From);
+    finalizeCGProfileEntry(E.To);
+  }
+}
+
 void MCWinCOFFStreamer::finishImpl() {
+  finalizeCGProfile();
+
   MCObjectStreamer::finishImpl();
 }
 

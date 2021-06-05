@@ -10,10 +10,10 @@
 
 #include "lldb/Core/Address.h"
 #include "lldb/Core/AddressRange.h"
+#include "lldb/Core/Declaration.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Expression/DWARFExpression.h"
-#include "lldb/Symbol/Declaration.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContext.h"
@@ -33,7 +33,7 @@
 
 #include "llvm/ADT/StringRef.h"
 
-#include <assert.h>
+#include <cassert>
 #include <memory>
 
 namespace lldb_private {
@@ -105,15 +105,15 @@ size_t ValueObjectVariable::CalculateNumChildren(uint32_t max) {
   return child_count <= max ? child_count : max;
 }
 
-uint64_t ValueObjectVariable::GetByteSize() {
+llvm::Optional<uint64_t> ValueObjectVariable::GetByteSize() {
   ExecutionContext exe_ctx(GetExecutionContextRef());
 
   CompilerType type(GetCompilerType());
 
   if (!type.IsValid())
-    return 0;
+    return {};
 
-  return type.GetByteSize(exe_ctx.GetBestExecutionContextScope()).getValueOr(0);
+  return type.GetByteSize(exe_ctx.GetBestExecutionContextScope());
 }
 
 lldb::ValueType ValueObjectVariable::GetValueType() const {
@@ -132,12 +132,15 @@ bool ValueObjectVariable::UpdateValue() {
   if (variable->GetLocationIsConstantValueData()) {
     // expr doesn't contain DWARF bytes, it contains the constant variable
     // value bytes themselves...
-    if (expr.GetExpressionData(m_data))
-      m_value.SetContext(Value::eContextTypeVariable, variable);
+    if (expr.GetExpressionData(m_data)) {
+       if (m_data.GetDataStart() && m_data.GetByteSize())
+        m_value.SetBytes(m_data.GetDataStart(), m_data.GetByteSize());
+      m_value.SetContext(Value::ContextType::Variable, variable);
+    }
     else
       m_error.SetErrorString("empty constant data");
     // constant bytes can't be edited - sorry
-    m_resolved_value.SetContext(Value::eContextTypeInvalid, nullptr);
+    m_resolved_value.SetContext(Value::ContextType::Invalid, nullptr);
   } else {
     lldb::addr_t loclist_base_load_addr = LLDB_INVALID_ADDRESS;
     ExecutionContext exe_ctx(GetExecutionContextRef());
@@ -160,7 +163,7 @@ bool ValueObjectVariable::UpdateValue() {
     if (expr.Evaluate(&exe_ctx, nullptr, loclist_base_load_addr, nullptr,
                       nullptr, m_value, &m_error)) {
       m_resolved_value = m_value;
-      m_value.SetContext(Value::eContextTypeVariable, variable);
+      m_value.SetContext(Value::ContextType::Variable, variable);
 
       CompilerType compiler_type = GetCompilerType();
       if (compiler_type.IsValid())
@@ -180,7 +183,7 @@ bool ValueObjectVariable::UpdateValue() {
       //
       // FIXME: When we grow m_value, we should represent the added bits as
       // undefined somehow instead of as 0's.
-      if (value_type == Value::eValueTypeHostAddress &&
+      if (value_type == Value::ValueType::HostAddress &&
           compiler_type.IsValid()) {
         if (size_t value_buf_size = m_value.GetBuffer().GetByteSize()) {
           size_t value_size = m_value.GetValueByteSize(&m_error, &exe_ctx);
@@ -193,18 +196,19 @@ bool ValueObjectVariable::UpdateValue() {
       const bool process_is_alive = process && process->IsAlive();
 
       switch (value_type) {
-      case Value::eValueTypeVector:
-      // fall through
-      case Value::eValueTypeScalar:
+      case Value::ValueType::Invalid:
+        m_error.SetErrorString("invalid value");
+        break;
+      case Value::ValueType::Scalar:
         // The variable value is in the Scalar value inside the m_value. We can
         // point our m_data right to it.
         m_error =
             m_value.GetValueAsData(&exe_ctx, m_data, GetModule().get());
         break;
 
-      case Value::eValueTypeFileAddress:
-      case Value::eValueTypeLoadAddress:
-      case Value::eValueTypeHostAddress:
+      case Value::ValueType::FileAddress:
+      case Value::ValueType::LoadAddress:
+      case Value::ValueType::HostAddress:
         // The DWARF expression result was an address in the inferior process.
         // If this variable is an aggregate type, we just need the address as
         // the main value as all child variable objects will rely upon this
@@ -213,7 +217,7 @@ bool ValueObjectVariable::UpdateValue() {
         // m_data. Make sure this type has a value before we try and read it
 
         // If we have a file address, convert it to a load address if we can.
-        if (value_type == Value::eValueTypeFileAddress && process_is_alive)
+        if (value_type == Value::ValueType::FileAddress && process_is_alive)
           m_value.ConvertToLoadAddress(GetModule().get(), target);
 
         if (!CanProvideValue()) {
@@ -226,7 +230,7 @@ bool ValueObjectVariable::UpdateValue() {
           // Copy the Value and set the context to use our Variable so it can
           // extract read its value into m_data appropriately
           Value value(m_value);
-          value.SetContext(Value::eContextTypeVariable, variable);
+          value.SetContext(Value::ContextType::Variable, variable);
           m_error =
               value.GetValueAsData(&exe_ctx, m_data, GetModule().get());
 
@@ -239,11 +243,67 @@ bool ValueObjectVariable::UpdateValue() {
       SetValueIsValid(m_error.Success());
     } else {
       // could not find location, won't allow editing
-      m_resolved_value.SetContext(Value::eContextTypeInvalid, nullptr);
+      m_resolved_value.SetContext(Value::ContextType::Invalid, nullptr);
     }
   }
+  
   return m_error.Success();
 }
+
+void ValueObjectVariable::DoUpdateChildrenAddressType(ValueObject &valobj) {
+  Value::ValueType value_type = valobj.GetValue().GetValueType();
+  ExecutionContext exe_ctx(GetExecutionContextRef());
+  Process *process = exe_ctx.GetProcessPtr();
+  const bool process_is_alive = process && process->IsAlive();
+  const uint32_t type_info = valobj.GetCompilerType().GetTypeInfo();
+  const bool is_pointer_or_ref =
+      (type_info & (lldb::eTypeIsPointer | lldb::eTypeIsReference)) != 0;
+
+  switch (value_type) {
+  case Value::ValueType::Invalid:
+    break;
+  case Value::ValueType::FileAddress:
+    // If this type is a pointer, then its children will be considered load
+    // addresses if the pointer or reference is dereferenced, but only if
+    // the process is alive.
+    //
+    // There could be global variables like in the following code:
+    // struct LinkedListNode { Foo* foo; LinkedListNode* next; };
+    // Foo g_foo1;
+    // Foo g_foo2;
+    // LinkedListNode g_second_node = { &g_foo2, NULL };
+    // LinkedListNode g_first_node = { &g_foo1, &g_second_node };
+    //
+    // When we aren't running, we should be able to look at these variables
+    // using the "target variable" command. Children of the "g_first_node"
+    // always will be of the same address type as the parent. But children
+    // of the "next" member of LinkedListNode will become load addresses if
+    // we have a live process, or remain a file address if it was a file
+    // address.
+    if (process_is_alive && is_pointer_or_ref)
+      valobj.SetAddressTypeOfChildren(eAddressTypeLoad);
+    else
+      valobj.SetAddressTypeOfChildren(eAddressTypeFile);
+    break;
+  case Value::ValueType::HostAddress:
+    // Same as above for load addresses, except children of pointer or refs
+    // are always load addresses. Host addresses are used to store freeze
+    // dried variables. If this type is a struct, the entire struct
+    // contents will be copied into the heap of the
+    // LLDB process, but we do not currently follow any pointers.
+    if (is_pointer_or_ref)
+      valobj.SetAddressTypeOfChildren(eAddressTypeLoad);
+    else
+      valobj.SetAddressTypeOfChildren(eAddressTypeHost);
+    break;
+  case Value::ValueType::LoadAddress:
+  case Value::ValueType::Scalar:
+    valobj.SetAddressTypeOfChildren(eAddressTypeLoad);
+    break;
+  }
+}
+
+
 
 bool ValueObjectVariable::IsInScope() {
   const ExecutionContextRef &exe_ctx_ref = GetExecutionContextRef();
@@ -288,7 +348,7 @@ bool ValueObjectVariable::GetDeclaration(Declaration &decl) {
 }
 
 const char *ValueObjectVariable::GetLocationAsCString() {
-  if (m_resolved_value.GetContextType() == Value::eContextTypeRegisterInfo)
+  if (m_resolved_value.GetContextType() == Value::ContextType::RegisterInfo)
     return GetLocationAsCStringImpl(m_resolved_value, m_data);
   else
     return ValueObject::GetLocationAsCString();
@@ -301,7 +361,7 @@ bool ValueObjectVariable::SetValueFromCString(const char *value_str,
     return false;
   }
 
-  if (m_resolved_value.GetContextType() == Value::eContextTypeRegisterInfo) {
+  if (m_resolved_value.GetContextType() == Value::ContextType::RegisterInfo) {
     RegisterInfo *reg_info = m_resolved_value.GetRegisterInfo();
     ExecutionContext exe_ctx(GetExecutionContextRef());
     RegisterContext *reg_ctx = exe_ctx.GetRegisterContext();
@@ -330,7 +390,7 @@ bool ValueObjectVariable::SetData(DataExtractor &data, Status &error) {
     return false;
   }
 
-  if (m_resolved_value.GetContextType() == Value::eContextTypeRegisterInfo) {
+  if (m_resolved_value.GetContextType() == Value::ContextType::RegisterInfo) {
     RegisterInfo *reg_info = m_resolved_value.GetRegisterInfo();
     ExecutionContext exe_ctx(GetExecutionContextRef());
     RegisterContext *reg_ctx = exe_ctx.GetRegisterContext();

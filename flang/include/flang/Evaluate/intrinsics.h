@@ -15,6 +15,7 @@
 #include "flang/Common/default-kinds.h"
 #include "flang/Parser/char-block.h"
 #include "flang/Parser/message.h"
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -64,17 +65,28 @@ class IntrinsicProcTable {
 private:
   class Implementation;
 
+  IntrinsicProcTable() = default;
+
 public:
   ~IntrinsicProcTable();
+  IntrinsicProcTable(IntrinsicProcTable &&) = default;
+
   static IntrinsicProcTable Configure(
       const common::IntrinsicTypeDefaultKinds &);
 
   // Check whether a name should be allowed to appear on an INTRINSIC
   // statement.
   bool IsIntrinsic(const std::string &) const;
+  bool IsIntrinsicFunction(const std::string &) const;
+  bool IsIntrinsicSubroutine(const std::string &) const;
 
   // Inquiry intrinsics are defined in section 16.7, table 16.1
   IntrinsicClass GetIntrinsicClass(const std::string &) const;
+
+  // Return the generic name of a specific intrinsic name.
+  // The name provided is returned if it is a generic intrinsic name or is
+  // not known to be an intrinsic.
+  std::string GetGenericIntrinsicName(const std::string &) const;
 
   // Probe the intrinsics for a match against a specific call.
   // On success, the actual arguments are transferred to the result
@@ -87,10 +99,19 @@ public:
   std::optional<SpecificIntrinsicFunctionInterface> IsSpecificIntrinsicFunction(
       const std::string &) const;
 
+  // Illegal name for an intrinsic used to avoid cascading error messages when
+  // constant folding.
+  static const inline std::string InvalidName{
+      "(invalid intrinsic function call)"};
+
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
 
 private:
-  Implementation *impl_{nullptr}; // owning pointer
+  std::unique_ptr<Implementation> impl_;
 };
+
+// Check if an intrinsic explicitly allows its INTENT(OUT) arguments to be
+// allocatable coarrays.
+bool AcceptsIntentOutAllocatableCoarray(const std::string &);
 } // namespace Fortran::evaluate
 #endif // FORTRAN_EVALUATE_INTRINSICS_H_

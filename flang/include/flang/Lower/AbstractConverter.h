@@ -10,7 +10,7 @@
 #define FORTRAN_LOWER_ABSTRACTCONVERTER_H
 
 #include "flang/Common/Fortran.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 
 namespace Fortran {
 namespace common {
@@ -51,7 +51,7 @@ class FirOpBuilder;
 class AbstractConverter {
 public:
   //===--------------------------------------------------------------------===//
-  // Symbols     
+  // Symbols
   //===--------------------------------------------------------------------===//
 
   /// Get the mlir instance of a symbol.

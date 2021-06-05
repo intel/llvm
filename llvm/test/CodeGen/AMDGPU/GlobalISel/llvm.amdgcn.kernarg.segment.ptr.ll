@@ -1,6 +1,6 @@
-; RUN: llc -global-isel -mtriple=amdgcn--amdhsa -mattr=-code-object-v3 -mcpu=kaveri -verify-machineinstrs < %s | FileCheck -check-prefixes=CO-V2,HSA,ALL %s
-; RUN: llc -global-isel -mtriple=amdgcn-mesa-mesa3d -mcpu=hawaii -mattr=+flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefixes=CO-V2,OS-MESA3D,MESA,ALL %s
-; RUN: llc -global-isel -mtriple=amdgcn-mesa-unknown -mcpu=hawaii -mattr=+flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefixes=OS-UNKNOWN,MESA,ALL %s
+; RUN: llc -global-isel -mtriple=amdgcn--amdhsa --amdhsa-code-object-version=2 -mcpu=kaveri -verify-machineinstrs < %s | FileCheck -check-prefixes=CO-V2,HSA,ALL %s
+; RUN: llc -global-isel -mtriple=amdgcn-mesa-mesa3d -mcpu=hawaii -mattr=+flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefixes=CO-V2,OS-MESA3D,ALL %s
+; RUN: llc -global-isel -mtriple=amdgcn-mesa-unknown -mcpu=hawaii -mattr=+flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefixes=OS-UNKNOWN,ALL %s
 
 ; ALL-LABEL: {{^}}test:
 ; CO-V2: enable_sgpr_kernarg_segment_ptr = 1
@@ -115,10 +115,8 @@ define amdgpu_kernel void @opencl_test_implicit_alignment_no_explicit_kernargs_r
 }
 
 ; ALL-LABEL: {{^}}func_kernarg_segment_ptr:
-; ALL: s_mov_b32 [[S_LO:s[0-9]+]], 0{{$}}
-; ALL: s_mov_b32 [[S_HI:s[0-9]+]], 0{{$}}
-; ALL: v_mov_b32_e32 v0, [[S_LO]]{{$}}
-; ALL: v_mov_b32_e32 v1, [[S_HI]]{{$}}
+; ALL: v_mov_b32_e32 v0, 0{{$}}
+; ALL: v_mov_b32_e32 v1, 0{{$}}
 define i8 addrspace(4)* @func_kernarg_segment_ptr() {
   %ptr = call i8 addrspace(4)* @llvm.amdgcn.kernarg.segment.ptr()
   ret i8 addrspace(4)* %ptr

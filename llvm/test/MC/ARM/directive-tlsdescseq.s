@@ -1,4 +1,5 @@
-@ RUN: llvm-mc -triple armv7-linux-gnu -filetype obj -o - %s | llvm-readobj -r \
+@ RUN: llvm-mc -triple armv7-linux-gnu -filetype obj -o - %s \
+@ RUN:   | llvm-readobj -r - \
 @ RUN:   | FileCheck %s
 @ RUN: llvm-mc -triple armv7-linux-gnu -filetype asm -o - %s \
 @ RUN:   | FileCheck -check-prefix CHECK-ASM %s
@@ -17,10 +18,10 @@ tlsdescseq:
 	.word variable(tlsdesc) + (. - 1b)
 
 @ CHECK: Relocations [
-@ CHECK:     0x4 R_ARM_TLS_DESCSEQ variable 0x0
-@ CHECK:     0x8 R_ARM_TLS_DESCSEQ variable 0x0
-@ CHECK:     0xC R_ARM_TLS_DESCSEQ variable 0x0
-@ CHECK:     0x10 R_ARM_TLS_GOTDESC variable 0x0
+@ CHECK:     0x4 R_ARM_TLS_DESCSEQ variable
+@ CHECK:     0x8 R_ARM_TLS_DESCSEQ variable
+@ CHECK:     0xC R_ARM_TLS_DESCSEQ variable
+@ CHECK:     0x10 R_ARM_TLS_GOTDESC variable
 @ CHECK: ]
 
 @ CHECK-ASM: ldr r1, [pc, #8]

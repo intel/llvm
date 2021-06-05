@@ -9,9 +9,15 @@
 #ifndef LLVM_LIBC_UTILS_FPUTIL_NEAREST_INTEGER_OPERATIONS_H
 #define LLVM_LIBC_UTILS_FPUTIL_NEAREST_INTEGER_OPERATIONS_H
 
+#include "FEnv.h"
 #include "FPBits.h"
 
 #include "utils/CPP/TypeTraits.h"
+
+#include <math.h>
+#if math_errhandling & MATH_ERRNO
+#include <errno.h>
+#endif
 
 namespace __llvm_libc {
 namespace fputil {
@@ -37,15 +43,15 @@ static inline T trunc(T x) {
 
   // If the exponent is such that abs(x) is less than 1, then return 0.
   if (exponent <= -1) {
-    if (bits.sign)
+    if (bits.encoding.sign)
       return T(-0.0);
     else
       return T(0.0);
   }
 
   int trimSize = MantissaWidth<T>::value - exponent;
-  bits.mantissa = (bits.mantissa >> trimSize) << trimSize;
-  return bits;
+  bits.encoding.mantissa = (bits.encoding.mantissa >> trimSize) << trimSize;
+  return T(bits);
 }
 
 template <typename T,
@@ -57,7 +63,7 @@ static inline T ceil(T x) {
   if (bits.isInfOrNaN() || bits.isZero())
     return x;
 
-  bool isNeg = bits.sign;
+  bool isNeg = bits.encoding.sign;
   int exponent = bits.getExponent();
 
   // If the exponent is greater than the most negative mantissa
@@ -73,7 +79,7 @@ static inline T ceil(T x) {
   }
 
   uint32_t trimSize = MantissaWidth<T>::value - exponent;
-  bits.mantissa = (bits.mantissa >> trimSize) << trimSize;
+  bits.encoding.mantissa = (bits.encoding.mantissa >> trimSize) << trimSize;
   T truncValue = T(bits);
 
   // If x is already an integer, return it.
@@ -91,7 +97,7 @@ template <typename T,
           cpp::EnableIfType<cpp::IsFloatingPointType<T>::Value, int> = 0>
 static inline T floor(T x) {
   FPBits<T> bits(x);
-  if (bits.sign) {
+  if (bits.encoding.sign) {
     return -ceil(-x);
   } else {
     return trunc(x);
@@ -108,7 +114,7 @@ static inline T round(T x) {
   if (bits.isInfOrNaN() || bits.isZero())
     return x;
 
-  bool isNeg = bits.sign;
+  bool isNeg = bits.encoding.sign;
   int exponent = bits.getExponent();
 
   // If the exponent is greater than the most negative mantissa
@@ -133,8 +139,8 @@ static inline T round(T x) {
   }
 
   uint32_t trimSize = MantissaWidth<T>::value - exponent;
-  bool halfBitSet = bits.mantissa & (UIntType(1) << (trimSize - 1));
-  bits.mantissa = (bits.mantissa >> trimSize) << trimSize;
+  bool halfBitSet = bits.encoding.mantissa & (UIntType(1) << (trimSize - 1));
+  bits.encoding.mantissa = (bits.encoding.mantissa >> trimSize) << trimSize;
   T truncValue = T(bits);
 
   // If x is already an integer, return it.
@@ -148,6 +154,147 @@ static inline T round(T x) {
   } else {
     return isNeg ? truncValue - T(1.0) : truncValue + T(1.0);
   }
+}
+
+template <typename T,
+          cpp::EnableIfType<cpp::IsFloatingPointType<T>::Value, int> = 0>
+static inline T roundUsingCurrentRoundingMode(T x) {
+  using UIntType = typename FPBits<T>::UIntType;
+  FPBits<T> bits(x);
+
+  // If x is infinity NaN or zero, return it.
+  if (bits.isInfOrNaN() || bits.isZero())
+    return x;
+
+  bool isNeg = bits.encoding.sign;
+  int exponent = bits.getExponent();
+  int roundingMode = getRound();
+
+  // If the exponent is greater than the most negative mantissa
+  // exponent, then x is already an integer.
+  if (exponent >= static_cast<int>(MantissaWidth<T>::value))
+    return x;
+
+  if (exponent <= -1) {
+    switch (roundingMode) {
+    case FE_DOWNWARD:
+      return isNeg ? T(-1.0) : T(0.0);
+    case FE_UPWARD:
+      return isNeg ? T(-0.0) : T(1.0);
+    case FE_TOWARDZERO:
+      return isNeg ? T(-0.0) : T(0.0);
+    case FE_TONEAREST:
+      if (exponent <= -2 || bits.encoding.mantissa == 0)
+        return isNeg ? T(-0.0) : T(0.0); // abs(x) <= 0.5
+      else
+        return isNeg ? T(-1.0) : T(1.0); // abs(x) > 0.5
+    default:
+      __builtin_unreachable();
+    }
+  }
+
+  uint32_t trimSize = MantissaWidth<T>::value - exponent;
+  FPBits<T> newBits = bits;
+  newBits.encoding.mantissa = (bits.encoding.mantissa >> trimSize) << trimSize;
+  T truncValue = T(newBits);
+
+  // If x is already an integer, return it.
+  if (truncValue == x)
+    return x;
+
+  UIntType trimValue = bits.encoding.mantissa & ((UIntType(1) << trimSize) - 1);
+  UIntType halfValue = (UIntType(1) << (trimSize - 1));
+  // If exponent is 0, trimSize will be equal to the mantissa width, and
+  // truncIsOdd` will not be correct. So, we handle it as a special case
+  // below.
+  UIntType truncIsOdd = newBits.encoding.mantissa & (UIntType(1) << trimSize);
+
+  switch (roundingMode) {
+  case FE_DOWNWARD:
+    return isNeg ? truncValue - T(1.0) : truncValue;
+  case FE_UPWARD:
+    return isNeg ? truncValue : truncValue + T(1.0);
+  case FE_TOWARDZERO:
+    return truncValue;
+  case FE_TONEAREST:
+    if (trimValue > halfValue) {
+      return isNeg ? truncValue - T(1.0) : truncValue + T(1.0);
+    } else if (trimValue == halfValue) {
+      if (exponent == 0)
+        return isNeg ? T(-2.0) : T(2.0);
+      if (truncIsOdd)
+        return isNeg ? truncValue - T(1.0) : truncValue + T(1.0);
+      else
+        return truncValue;
+    } else {
+      return truncValue;
+    }
+  default:
+    __builtin_unreachable();
+  }
+}
+
+namespace internal {
+
+template <typename F, typename I,
+          cpp::EnableIfType<cpp::IsFloatingPointType<F>::Value &&
+                                cpp::IsIntegral<I>::Value,
+                            int> = 0>
+static inline I roundedFloatToSignedInteger(F x) {
+  constexpr I IntegerMin = (I(1) << (sizeof(I) * 8 - 1));
+  constexpr I IntegerMax = -(IntegerMin + 1);
+  FPBits<F> bits(x);
+  auto setDomainErrorAndRaiseInvalid = []() {
+#if math_errhandling & MATH_ERRNO
+    errno = EDOM; // NOLINT
+#endif
+#if math_errhandling & MATH_ERREXCEPT
+    raiseExcept(FE_INVALID);
+#endif
+  };
+
+  if (bits.isInfOrNaN()) {
+    setDomainErrorAndRaiseInvalid();
+    return bits.encoding.sign ? IntegerMin : IntegerMax;
+  }
+
+  int exponent = bits.getExponent();
+  constexpr int exponentLimit = sizeof(I) * 8 - 1;
+  if (exponent > exponentLimit) {
+    setDomainErrorAndRaiseInvalid();
+    return bits.encoding.sign ? IntegerMin : IntegerMax;
+  } else if (exponent == exponentLimit) {
+    if (bits.encoding.sign == 0 || bits.encoding.mantissa != 0) {
+      setDomainErrorAndRaiseInvalid();
+      return bits.encoding.sign ? IntegerMin : IntegerMax;
+    }
+    // If the control reaches here, then it means that the rounded
+    // value is the most negative number for the signed integer type I.
+  }
+
+  // For all other cases, if `x` can fit in the integer type `I`,
+  // we just return `x`. Implicit conversion will convert the
+  // floating point value to the exact integer value.
+  return x;
+}
+
+} // namespace internal
+
+template <typename F, typename I,
+          cpp::EnableIfType<cpp::IsFloatingPointType<F>::Value &&
+                                cpp::IsIntegral<I>::Value,
+                            int> = 0>
+static inline I roundToSignedInteger(F x) {
+  return internal::roundedFloatToSignedInteger<F, I>(round(x));
+}
+
+template <typename F, typename I,
+          cpp::EnableIfType<cpp::IsFloatingPointType<F>::Value &&
+                                cpp::IsIntegral<I>::Value,
+                            int> = 0>
+static inline I roundToSignedIntegerUsingCurrentRoundingMode(F x) {
+  return internal::roundedFloatToSignedInteger<F, I>(
+      roundUsingCurrentRoundingMode(x));
 }
 
 } // namespace fputil

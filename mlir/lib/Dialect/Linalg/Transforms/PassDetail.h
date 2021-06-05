@@ -9,9 +9,30 @@
 #ifndef DIALECT_LINALG_TRANSFORMS_PASSDETAIL_H_
 #define DIALECT_LINALG_TRANSFORMS_PASSDETAIL_H_
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/IR/Dialect.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+// Forward declaration from Dialect.h
+template <typename ConcreteDialect>
+void registerDialect(DialectRegistry &registry);
+
+namespace linalg {
+class LinalgDialect;
+} // end namespace linalg
+
+namespace scf {
+class SCFDialect;
+} // end namespace scf
+
+namespace memref {
+class MemRefDialect;
+} // end namespace memref
+
+namespace vector {
+class VectorDialect;
+} // end namespace vector
 
 #define GEN_PASS_CLASSES
 #include "mlir/Dialect/Linalg/Passes.h.inc"

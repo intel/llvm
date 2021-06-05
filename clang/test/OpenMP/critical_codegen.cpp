@@ -22,7 +22,7 @@
 
 // ALL:       define {{.*}}void [[FOO:@.+]]()
 
-void foo() {}
+void foo() { extern void mayThrow(); mayThrow(); }
 
 // ALL-LABEL: @main
 // TERM_DEBUG-LABEL: @main
@@ -68,6 +68,31 @@ int main() {
   return a;
 }
 
+// ALL-LABEL:        lambda_critical
+// TERM_DEBUG-LABEL: lambda_critical
+void lambda_critical(int a, int b) {
+  auto l = [=]() {
+#pragma omp critical
+    {
+      // ALL: call void @__kmpc_critical(
+      int c = a + b;
+    }
+  };
+
+  l();
+
+  auto l1 = [=]() {
+#pragma omp parallel
+#pragma omp critical
+    {
+      // ALL: call void @__kmpc_critical(
+      int c = a + b;
+    }
+  };
+
+  l1();
+}
+
 struct S {
   int a;
 };
@@ -77,8 +102,6 @@ void critical_ref(S &s) {
   // ALL: [[S_REF:%.+]] = load %struct.S*, %struct.S** [[S_ADDR]],
   // ALL: [[S_A_REF:%.+]] = getelementptr inbounds %struct.S, %struct.S* [[S_REF]], i32 0, i32 0
   ++s.a;
-  // NORMAL: [[S_REF:%.+]] = load %struct.S*, %struct.S** [[S_ADDR]],
-  // NORMAL: store %struct.S* [[S_REF]], %struct.S** [[S_ADDR:%.+]],
   // ALL: call void @__kmpc_critical(
 #pragma omp critical
   // ALL: [[S_REF:%.+]] = load %struct.S*, %struct.S** [[S_ADDR]],

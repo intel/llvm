@@ -8,7 +8,7 @@
 
 #include "StructuredDataDarwinLog.h"
 
-#include <string.h>
+#include <cstring>
 
 #include <memory>
 #include <sstream>
@@ -666,7 +666,7 @@ private:
     //   regex {search-regex}
 
     // Parse action.
-    auto action_end_pos = rule_text.find(" ");
+    auto action_end_pos = rule_text.find(' ');
     if (action_end_pos == std::string::npos) {
       error.SetErrorStringWithFormat("could not parse filter rule "
                                      "action from \"%s\"",

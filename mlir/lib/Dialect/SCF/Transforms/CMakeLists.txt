@@ -1,7 +1,9 @@
 add_mlir_dialect_library(MLIRSCFTransforms
+  Bufferize.cpp
   LoopSpecialization.cpp
   ParallelLoopFusion.cpp
   ParallelLoopTiling.cpp
+  StructuralTypeConversions.cpp
   Utils.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -11,10 +13,13 @@ add_mlir_dialect_library(MLIRSCFTransforms
   MLIRSCFPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRAffineOps
+  MLIRAffine
   MLIRIR
+  MLIRMemRef
   MLIRPass
   MLIRSCF
-  MLIRStandardOps
+  MLIRStandard
   MLIRSupport
-  )
+  MLIRTransforms
+  MLIRTransformUtils
+)

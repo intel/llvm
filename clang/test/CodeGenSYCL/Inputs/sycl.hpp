@@ -78,8 +78,8 @@ struct property_base {
 
 class property_list {
 public:
-  template <typename... propertyTN>
-  property_list(propertyTN... props) {}
+  template <typename... propertiesTN>
+  property_list(propertiesTN... props){};
 
   template <typename propertyT>
   bool has_property() const { return true; }
@@ -94,6 +94,29 @@ public:
   bool operator!=(const property_list &rhs) const { return false; }
 };
 
+namespace INTEL {
+namespace property {
+// Compile time known accessor property
+struct buffer_location {
+  template <int> class instance {};
+};
+} // namespace property
+} // namespace INTEL
+
+namespace ONEAPI {
+namespace property {
+// Compile time known accessor property
+struct no_alias {
+  template <bool> class instance {};
+};
+} // namespace property
+} // namespace ONEAPI
+
+namespace ONEAPI {
+template <typename... properties>
+class accessor_property_list {};
+} // namespace ONEAPI
+
 template <int dim>
 struct id {
   template <typename... T>
@@ -103,6 +126,21 @@ private:
   // kernel wrapper
   int Data;
 };
+
+template <int dim> struct item {
+  template <typename... T>
+  item(T... args) {} // fake constructor
+private:
+  // Some fake field added to see using of item arguments in the
+  // kernel wrapper
+  int Data;
+};
+
+template <int Dims> item<Dims>
+this_item() { return item<Dims>{}; }
+
+template <int Dims> id<Dims>
+this_id() { return id<Dims>{}; }
 
 template <int dim>
 struct range {
@@ -141,6 +179,8 @@ public:
 private:
   void __init(__attribute__((opencl_global)) dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
+  void __init_esimd(__attribute__((opencl_global)) dataT *Ptr) {}
+  friend class stream;
 };
 
 template <int dimensions, access::mode accessmode, access::target accesstarget>
@@ -242,6 +282,7 @@ struct get_kernel_name_t<auto_name, Type> {
   using name = Type;
 };
 
+namespace ONEAPI {
 namespace experimental {
 template <typename T, typename ID = T>
 class spec_constant {
@@ -257,29 +298,65 @@ public:
   }
 };
 } // namespace experimental
+} // namespace ONEAPI
+
+class kernel_handler {
+  void __init_specialization_constants_buffer(char *specialization_constants_buffer) {}
+};
+
+template <typename T> class specialization_id {
+public:
+  using value_type = T;
+
+  template <class... Args>
+  explicit constexpr specialization_id(Args &&...args)
+      : MDefaultValue(args...) {}
+
+  specialization_id(const specialization_id &rhs) = delete;
+  specialization_id(specialization_id &&rhs) = delete;
+  specialization_id &operator=(const specialization_id &rhs) = delete;
+  specialization_id &operator=(specialization_id &&rhs) = delete;
+
+private:
+  T MDefaultValue;
+};
+
+#if __cplusplus >= 201703L
+template<typename T> specialization_id(T) -> specialization_id<T>;
+#endif // C++17.
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
-ATTR_SYCL_KERNEL void kernel_single_task(KernelType kernelFunc) {
+ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) { // #KernelSingleTask
+  kernelFunc();
+}
+
+template <typename KernelName = auto_name, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc, kernel_handler kh) {
+  kernelFunc(kh);
+}
+
+template <typename KernelName = auto_name, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_single_task_2017(KernelType kernelFunc) { // #KernelSingleTask2017
   kernelFunc();
 }
 
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
-kernel_parallel_for(KernelType KernelFunc) {
+kernel_parallel_for(const KernelType &KernelFunc) {
   KernelFunc(id<Dims>());
 }
 
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
-kernel_parallel_for_work_group(KernelType KernelFunc) {
+kernel_parallel_for_work_group(const KernelType &KernelFunc) {
   KernelFunc(group<Dims>());
 }
 
 class handler {
 public:
   template <typename KernelName = auto_name, typename KernelType, int Dims>
-  void parallel_for(range<Dims> numWorkItems, KernelType kernelFunc) {
+  void parallel_for(range<Dims> numWorkItems, const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(kernelFunc);
@@ -289,7 +366,7 @@ public:
   }
 
   template <typename KernelName = auto_name, typename KernelType, int Dims>
-  void parallel_for_work_group(range<Dims> numWorkGroups, range<Dims> WorkGroupSize, KernelType kernelFunc) {
+  void parallel_for_work_group(range<Dims> numWorkGroups, range<Dims> WorkGroupSize, const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(kernelFunc);
@@ -300,10 +377,30 @@ public:
   }
 
   template <typename KernelName = auto_name, typename KernelType>
-  void single_task(KernelType kernelFunc) {
+  void single_task(const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task<NameT>(kernelFunc);
+#else
+    kernelFunc();
+#endif
+  }
+
+  template <typename KernelName = auto_name, typename KernelType>
+  void single_task(const KernelType &kernelFunc, kernel_handler kh) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_single_task<NameT>(kernelFunc, kh);
+#else
+    kernelFunc(kh);
+#endif
+  }
+
+  template <typename KernelName = auto_name, typename KernelType>
+  void single_task_2017(KernelType kernelFunc) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_single_task_2017<NameT>(kernelFunc);
 #else
     kernelFunc();
 #endif
@@ -314,10 +411,22 @@ class __attribute__((sycl_special_class(stream))) stream {
 public:
   stream(unsigned long BufferSize, unsigned long MaxStatementSize,
          handler &CGH) {}
+#ifdef __SYCL_DEVICE_ONLY__
+  // Default constructor for objects later initialized with __init member.
+  stream() = default;
+#endif
 
-  void __init() {}
+  void __init(__attribute((opencl_global)) char *Ptr, range<1> AccessRange,
+              range<1> MemRange, id<1> Offset, int _FlushBufferSize) {
+    Acc.__init(Ptr, AccessRange, MemRange, Offset);
+    FlushBufferSize = _FlushBufferSize;
+  }
 
   void __finalize() {}
+
+private:
+  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write> Acc;
+  int FlushBufferSize;
 };
 
 template <typename T>
@@ -416,7 +525,8 @@ template <int dimensions = 1, typename AllocatorT = int>
 class image {
 public:
   image(image_channel_order Order, image_channel_type Type,
-        const range<dimensions> &Range, const property_list &PropList = {}) {}
+        const range<dimensions> &Range,
+        const property_list &PropList = {}) {}
 
   /* -- common interface members -- */
 

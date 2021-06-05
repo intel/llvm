@@ -1,10 +1,10 @@
-; RUN: opt %loadPolly -basicaa -polly-scops -polly-allow-nonaffine-branches \
+; RUN: opt %loadPolly -basic-aa -polly-scops -polly-allow-nonaffine-branches \
 ; RUN:     -polly-allow-nonaffine-loops=false \
 ; RUN:     -analyze < %s | FileCheck %s --check-prefix=INNERMOST
-; RUN: opt %loadPolly -basicaa -polly-scops -polly-allow-nonaffine-branches \
+; RUN: opt %loadPolly -basic-aa -polly-scops -polly-allow-nonaffine-branches \
 ; RUN:     -polly-allow-nonaffine-loops=true \
 ; RUN:      -analyze < %s | FileCheck %s --check-prefix=INNERMOST
-; RUN: opt %loadPolly -basicaa -polly-scops -polly-allow-nonaffine \
+; RUN: opt %loadPolly -basic-aa -polly-scops -polly-allow-nonaffine \
 ; RUN:     -polly-allow-nonaffine-branches -polly-allow-nonaffine-loops=true \
 ; RUN:     -analyze < %s | FileCheck %s --check-prefix=ALL
 ;
@@ -25,7 +25,7 @@
 ; INNERMOST-NEXT: [p_0, p_1, p_2] -> {  :  }
 ; INNERMOST-NEXT: Invalid Context:
 ; INNERMOST-NEXT: [p_0, p_1, p_2] -> {  : false }
-; INNERMOST-NEXT: p0: {0,+,{0,+,1}<nuw><nsw><%bb11>}<nuw><nsw><%bb13>
+; INNERMOST:      p0: {0,+,{0,+,1}<nuw><nsw><%bb11>}<nuw><nsw><%bb13>
 ; INNERMOST-NEXT: p1: {0,+,1}<nuw><nsw><%bb11>
 ; INNERMOST-NEXT: p2: {0,+,1}<nuw><nsw><%bb13>
 ; INNERMOST-NEXT: Arrays {
@@ -76,7 +76,7 @@
 ; ALL-NEXT: {  :  }
 ; ALL-NEXT: Invalid Context:
 ; ALL-NEXT: {  : false }
-; ALL-NEXT: Arrays {
+; ALL:      Arrays {
 ; ALL-NEXT:     i32 MemRef_A[*]; // Element size 4
 ; ALL-NEXT: }
 ; ALL-NEXT: Arrays (Bounds as pw_affs) {

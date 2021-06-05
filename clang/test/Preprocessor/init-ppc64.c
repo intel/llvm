@@ -408,21 +408,6 @@
 // PPC64LE:#define __ppc64__ 1
 // PPC64LE:#define __ppc__ 1
 //
-// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu a2q -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPCA2Q %s
-//
-// PPCA2Q:#define _ARCH_A2 1
-// PPCA2Q:#define _ARCH_A2Q 1
-// PPCA2Q:#define _ARCH_PPC 1
-// PPCA2Q:#define _ARCH_PPC64 1
-// PPCA2Q:#define _ARCH_QP 1
-//
-// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-bgq-linux -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPCBGQ %s
-//
-// PPCBGQ:#define __THW_BLUEGENE__ 1
-// PPCBGQ:#define __TOS_BGQ__ 1
-// PPCBGQ:#define __bg__ 1
-// PPCBGQ:#define __bgq__ 1
-//
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu 630 -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPC630 %s
 //
 // PPC630:#define _ARCH_630 1
@@ -581,6 +566,8 @@
 // PPCPWR8-NOT:#define _ARCH_PWR6X 1
 // PPCPWR8:#define _ARCH_PWR7 1
 // PPCPWR8:#define _ARCH_PWR8 1
+// PPCPWR8-NOT:#define __ROP_PROTECT__ 1
+// PPCPWR8-NOT:#define __PRIVILEGED__ 1
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu power8 -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPCPOWER8 %s
 //
@@ -598,6 +585,8 @@
 // PPCPOWER8-NOT:#define _ARCH_PWR6X 1
 // PPCPOWER8:#define _ARCH_PWR7 1
 // PPCPOWER8:#define _ARCH_PWR8 1
+// PPCPOWER8-NOT:#define __ROP_PROTECT__ 1
+// PPCPOWER8-NOT:#define __PRIVILEGED__ 1
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu pwr9 -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPCPWR9 %s
 //
@@ -612,6 +601,8 @@
 // PPCPWR9-NOT:#define _ARCH_PWR6X 1
 // PPCPWR9:#define _ARCH_PWR7 1
 // PPCPWR9:#define _ARCH_PWR9 1
+// PPCPWR9-NOT:#define __ROP_PROTECT__ 1
+// PPCPWR9-NOT:#define __PRIVILEGED__ 1
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu power9 -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPCPOWER9 %s
 //
@@ -626,6 +617,8 @@
 // PPCPOWER9-NOT:#define _ARCH_PWR6X 1
 // PPCPOWER9:#define _ARCH_PWR7 1
 // PPCPOWER9:#define _ARCH_PWR9 1
+// PPCPOWER9-NOT:#define __ROP_PROTECT__ 1
+// PPCPOWER9-NOT:#define __PRIVILEGED__ 1
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu pwr10 -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPCPOWER10 %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu power10 -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPCPOWER10 %s
@@ -643,6 +636,10 @@
 // PPCPOWER10:#define _ARCH_PWR7 1
 // PPCPOWER10:#define _ARCH_PWR8 1
 // PPCPOWER10:#define _ARCH_PWR9 1
+// PPCPOWER10:#define __MMA__ 1
+// PPCPOWER10:#define __PCREL__ 1
+// PPCPOWER10-NOT:#define __ROP_PROTECT__ 1
+// PPCPOWER10-NOT:#define __PRIVILEGED__ 1
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu future -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPCFUTURE %s
 //
@@ -660,6 +657,23 @@
 // PPCFUTURE:#define _ARCH_PWR8 1
 // PPCFUTURE:#define _ARCH_PWR9 1
 // PPCFUTURE:#define _ARCH_PWR_FUTURE 1
+// PPCFUTURE:#define __MMA__ 1
+// PPCFUTURE:#define __PCREL__ 1
+// PPCFUTURE-NOT:#define __ROP_PROTECT__ 1
+// PPCFUTURE-NOT:#define __PRIVILEGED__ 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-feature +mma -target-cpu power10 -fno-signed-char < /dev/null | FileCheck -check-prefix PPC-MMA %s
+// PPC-MMA:#define __MMA__ 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-feature +rop-protect -target-cpu power10 -fno-signed-char < /dev/null | FileCheck -check-prefix PPC-ROP %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-feature +rop-protect -target-cpu power9 -fno-signed-char < /dev/null | FileCheck -check-prefix PPC-ROP %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-feature +rop-protect -target-cpu power8 -fno-signed-char < /dev/null | FileCheck -check-prefix PPC-ROP %s
+// PPC-ROP:#define __ROP_PROTECT__ 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-feature +privileged -target-cpu power10 -fno-signed-char < /dev/null | FileCheck -check-prefix PPC-PRIV %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-feature +privileged -target-cpu power9 -fno-signed-char < /dev/null | FileCheck -check-prefix PPC-PRIV %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-feature +privileged -target-cpu power8 -fno-signed-char < /dev/null | FileCheck -check-prefix PPC-PRIV %s
+// PPC-PRIV:#define __PRIVILEGED__ 1
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-feature +float128 -target-cpu power9 -fno-signed-char < /dev/null | FileCheck -check-prefix PPC-FLOAT128 %s
 // PPC-FLOAT128:#define __FLOAT128__ 1
@@ -676,7 +690,7 @@
 // PPC64-AIX:#define _LP64 1
 // PPC64-AIX:#define _POWER 1
 // PPC64-AIX:#define __64BIT__ 1
-// PPC64-AIX:#define __BIGGEST_ALIGNMENT__ 8
+// PPC64-AIX:#define __BIGGEST_ALIGNMENT__ 16
 // PPC64-AIX:#define __BIG_ENDIAN__ 1
 // PPC64-AIX:#define __BYTE_ORDER__ __ORDER_BIG_ENDIAN__
 // PPC64-AIX:#define __CHAR16_TYPE__ unsigned short
@@ -1069,7 +1083,6 @@
 
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=powerpc64-unknown-linux-gnu < /dev/null | FileCheck -match-full-lines -check-prefix PPC64-ELFv1 %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=powerpc64-unknown-linux-gnu -target-abi elfv1 < /dev/null | FileCheck -match-full-lines -check-prefix PPC64-ELFv1 %s
-// RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=powerpc64-unknown-linux-gnu -target-abi elfv1-qpx < /dev/null | FileCheck -match-full-lines -check-prefix PPC64-ELFv1 %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=powerpc64-unknown-linux-gnu -target-abi elfv2 < /dev/null | FileCheck -match-full-lines -check-prefix PPC64-ELFv2 %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=powerpc64le-unknown-linux-gnu < /dev/null | FileCheck -match-full-lines -check-prefix PPC64-ELFv2 %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=powerpc64le-unknown-linux-gnu -target-abi elfv1 < /dev/null | FileCheck -match-full-lines -check-prefix PPC64-ELFv1 %s
@@ -1078,6 +1091,8 @@
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-unknown-freebsd11 -target-abi elfv1 -xc /dev/null | FileCheck --check-prefix=PPC64-ELFv1 %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-unknown-freebsd12 -target-abi elfv1 -xc /dev/null | FileCheck --check-prefix=PPC64-ELFv1 %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-unknown-freebsd13 -target-abi elfv2 -xc /dev/null | FileCheck --check-prefix=PPC64-ELFv2 %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64le-unknown-freebsd13 -target-abi elfv2 -xc /dev/null | FileCheck --check-prefix=PPC64-ELFv2 %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-unknown-openbsd -target-abi elfv2 -xc /dev/null | FileCheck --check-prefix=PPC64-ELFv2 %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-linux-musl -target-abi elfv2 -xc /dev/null | FileCheck --check-prefix=PPC64-ELFv2 %s
 
 // PPC64-ELFv1:#define _CALL_ELF 1
@@ -1089,4 +1104,5 @@
 // PPC64LE-LINUX:#define _CALL_LINUX 1
 
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-unknown-freebsd < /dev/null | FileCheck -match-full-lines -check-prefix PPC64-FREEBSD %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64le-unknown-freebsd < /dev/null | FileCheck -match-full-lines -check-prefix PPC64-FREEBSD %s
 // PPC64-FREEBSD-NOT: #define __LONG_DOUBLE_128__ 1

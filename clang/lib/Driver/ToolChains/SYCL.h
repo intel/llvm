@@ -15,6 +15,18 @@
 namespace clang {
 namespace driver {
 
+class SYCLInstallationDetector {
+public:
+  SYCLInstallationDetector(const Driver &D);
+  void getSYCLDeviceLibPath(
+      llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const;
+  void print(llvm::raw_ostream &OS) const;
+
+private:
+  const Driver &D;
+  llvm::SmallVector<llvm::SmallString<128>, 4> InstallationCandidates;
+};
+
 class Command;
 
 namespace tools {
@@ -24,7 +36,7 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                  std::unique_ptr<Command> InputCommand,
                                  const InputInfoList &InputFiles,
                                  const InputInfo &Output, const Tool *T,
-                                 StringRef Ext);
+                                 StringRef Increment, StringRef Ext);
 
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
@@ -72,6 +84,12 @@ public:
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
+
+private:
+  void constructOpenCLAOTCommand(Compilation &C, const JobAction &JA,
+                                 const InputInfo &Output,
+                                 const InputInfoList &InputFiles,
+                                 const llvm::opt::ArgList &Args) const;
 };
 
 } // end namespace fpga
@@ -130,6 +148,9 @@ public:
   void addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
                          llvm::opt::ArgStringList &CC1Args,
                          Action::OffloadKind DeviceOffloadKind) const override;
+  void AddImpliedTargetArgs(const llvm::Triple &Triple,
+                            const llvm::opt::ArgList &Args,
+                            llvm::opt::ArgStringList &CmdArgs) const;
   void TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CmdArgs) const;
   void TranslateLinkerTargetArgs(const llvm::opt::ArgList &Args,
@@ -153,6 +174,7 @@ public:
 
 
   const ToolChain &HostTC;
+  const SYCLInstallationDetector SYCLInstallation;
 
 protected:
   Tool *buildBackendCompiler() const override;

@@ -63,10 +63,6 @@ public:
     return word_ == that.word_;
   }
 
-  // TODO: DIM, MAX, MIN, DPROD, FRACTION,
-  // INT/NINT, NEAREST, OUT_OF_RANGE,
-  // RRSPACING/SPACING, SCALE, SET_EXPONENT
-
   constexpr bool IsSignBitSet() const { return word_.BTEST(bits - 1); }
   constexpr bool IsNegative() const {
     return !IsNotANumber() && IsSignBitSet();
@@ -84,6 +80,7 @@ public:
   constexpr bool IsInfinite() const {
     return Exponent() == maxExponent && GetSignificand().IsZero();
   }
+  constexpr bool IsFinite() const { return Exponent() != maxExponent; }
   constexpr bool IsZero() const {
     return Exponent() == 0 && GetSignificand().IsZero();
   }
@@ -118,7 +115,7 @@ public:
       const Real &, Rounding rounding = defaultRounding) const;
 
   // SQRT(x**2 + y**2) but computed so as to avoid spurious overflow
-  // TODO: needed for CABS
+  // TODO: not yet implemented; needed for CABS
   ValueWithRealFlags<Real> HYPOT(
       const Real &, Rounding rounding = defaultRounding) const;
 
@@ -247,12 +244,17 @@ public:
   template <typename A>
   static ValueWithRealFlags<Real> Convert(
       const A &x, Rounding rounding = defaultRounding) {
+    ValueWithRealFlags<Real> result;
+    if (x.IsNotANumber()) {
+      result.flags.set(RealFlag::InvalidArgument);
+      result.value = NotANumber();
+      return result;
+    }
     bool isNegative{x.IsNegative()};
     A absX{x};
     if (isNegative) {
       absX = x.Negate();
     }
-    ValueWithRealFlags<Real> result;
     int exponent{exponentBias + x.UnbiasedExponent()};
     int bitsLost{A::binaryPrecision - binaryPrecision};
     if (exponent < 1) {

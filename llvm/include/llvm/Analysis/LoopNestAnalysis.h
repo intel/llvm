@@ -14,6 +14,7 @@
 #ifndef LLVM_ANALYSIS_LOOPNESTANALYSIS_H
 #define LLVM_ANALYSIS_LOOPNESTANALYSIS_H
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/Analysis/LoopInfo.h"
 
@@ -58,6 +59,14 @@ public:
   /// \endcode
   /// getMaxPerfectDepth(Loop_i) would return 2.
   static unsigned getMaxPerfectDepth(const Loop &Root, ScalarEvolution &SE);
+
+  /// Recursivelly traverse all empty 'single successor' basic blocks of \p From
+  /// (if there are any). When \p CheckUniquePred is set to true, check if
+  /// each of the empty single successors has a unique predecessor. Return
+  /// the last basic block found or \p End if it was reached during the search.
+  static const BasicBlock &skipEmptyBlockUntil(const BasicBlock *From,
+                                               const BasicBlock *End,
+                                               bool CheckUniquePred = false);
 
   /// Return the outermost loop in the loop nest.
   Loop &getOutermostLoop() const { return *Loops.front(); }
@@ -124,9 +133,20 @@ public:
 
   /// Return true if all loops in the loop nest are in simplify form.
   bool areAllLoopsSimplifyForm() const {
-    return llvm::all_of(Loops,
-                        [](const Loop *L) { return L->isLoopSimplifyForm(); });
+    return all_of(Loops, [](const Loop *L) { return L->isLoopSimplifyForm(); });
   }
+
+  /// Return true if all loops in the loop nest are in rotated form.
+  bool areAllLoopsRotatedForm() const {
+    return all_of(Loops, [](const Loop *L) { return L->isRotatedForm(); });
+  }
+
+  /// Return the function to which the loop-nest belongs.
+  Function *getParent() const {
+    return Loops.front()->getHeader()->getParent();
+  }
+
+  StringRef getName() const { return Loops.front()->getName(); }
 
 protected:
   const unsigned MaxPerfectDepth; // maximum perfect nesting depth level.

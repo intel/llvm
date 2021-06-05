@@ -13,7 +13,7 @@ core concepts that are used throughout the document.
 ### Dimensions and Symbols
 
 Dimensions and symbols are the two kinds of identifiers that can appear in the
-polyhedral structures, and are always of [`index`](../LangRef.md#index-type)
+polyhedral structures, and are always of [`index`](Builtin.md/#indextype)
 type. Dimensions are declared in parentheses and symbols are declared in square
 brackets.
 
@@ -66,11 +66,11 @@ can be bound to a symbolic identifier if that SSA value is either
 2. a value defined at the top level of an `AffineScope` op (i.e., immediately
 enclosed by the latter),
 3. a value that dominates the `AffineScope` op enclosing the value's use,
-4. the result of a [`constant` operation](Standard.md#constant-operation),
+4. the result of a [`constant` operation](Standard.md/#stdconstant-constantop),
 5. the result of an [`affine.apply`
-operation](#affineapply-operation) that recursively takes as arguments any valid
+operation](#affineapply-affineapplyop) that recursively takes as arguments any valid
 symbolic identifiers, or
-6. the result of a [`dim` operation](Standard.md#dim-operation) on either a
+6. the result of a [`dim` operation](MemRef.md/#memrefdim-mlirmemrefdimop) on either a
 memref that is an argument to a `AffineScope` op or a memref where the
 corresponding dimension is either static or a dynamic one in turn bound to a
 valid symbol.
@@ -80,9 +80,9 @@ valid symbol.
 Note that as a result of rule (3) above, symbol validity is sensitive to the
 location of the SSA use.  Dimensions may be bound not only to anything that a
 symbol is bound to, but also to induction variables of enclosing
-[`affine.for`](#affinefor-operation) and
-[`affine.parallel`](#affineparallel-operation) operations, and the result of an
-[`affine.apply` operation](#affineapply-operation) (which recursively may use
+[`affine.for`](#affinefor-affineforop) and
+[`affine.parallel`](#affineparallel-affineparallelop) operations, and the result of an
+[`affine.apply` operation](#affineapply-affineapplyop) (which recursively may use
 other dimensions and symbols).
 
 ### Affine Expressions
@@ -113,7 +113,7 @@ less than or equal to that result. `mod` is the modulo operation: since its
 second argument is always positive, its results are always positive in our
 usage. The `integer-literal` operand for ceildiv, floordiv, and mod is always
 expected to be positive. `bare-id` is an identifier which must have type
-[index](../LangRef.md#index-type). The precedence of operations in an affine
+[index](Builtin.md/#indextype). The precedence of operations in an affine
 expression are ordered from highest to lowest in the order: (1)
 parenthesization, (2) negation, (3) modulo, multiplication, floordiv, and
 ceildiv, and (4) addition and subtraction. All of these operators associate from
@@ -124,19 +124,19 @@ one-dimensional affine expressions, with the entire list enclosed in
 parentheses.
 
 **Context:** An affine function, informally, is a linear function plus a
-constant. More formally, a function f defined on a vector $$\vec{v} \in
-\mathbb{Z}^n$$ is a multidimensional affine function of $$\vec{v}$$ if
-$$f(\vec{v})$$ can be expressed in the form $$M \vec{v} + \vec{c}$$ where $$M$$
-is a constant matrix from $$\mathbb{Z}^{m \times n}$$ and $$\vec{c}$$ is a
-constant vector from $$\mathbb{Z}$$. $$m$$ is the dimensionality of such an
+constant. More formally, a function f defined on a vector $\vec{v} \in
+\mathbb{Z}^n$ is a multidimensional affine function of $\vec{v}$ if
+$f(\vec{v})$ can be expressed in the form $M \vec{v} + \vec{c}$ where $M$
+is a constant matrix from $\mathbb{Z}^{m \times n}$ and $\vec{c}$ is a
+constant vector from $\mathbb{Z}$. $m$ is the dimensionality of such an
 affine function. MLIR further extends the definition of an affine function to
 allow 'floordiv', 'ceildiv', and 'mod' with respect to positive integer
 constants. Such extensions to affine functions have often been referred to as
 quasi-affine functions by the polyhedral compiler community. MLIR uses the term
 'affine map' to refer to these multidimensional quasi-affine functions. As
-examples, $$(i+j+1, j)$$, $$(i \mod 2, j+i)$$, $$(j, i/4, i \mod 4)$$, $$(2i+1,
-j)$$ are two-dimensional affine functions of $$(i, j)$$, but $$(i \cdot j,
-i^2)$$, $$(i \mod j, i/j)$$ are not affine functions of $$(i, j)$$.
+examples, $(i+j+1, j)$, $(i \mod 2, j+i)$, $(j, i/4, i \mod 4)$, $(2i+1,
+j)$ are two-dimensional affine functions of $(i, j)$, but $(i \cdot j,
+i^2)$, $(i \mod j, i/j)$ are not affine functions of $(i, j)$.
 
 ### Affine Maps
 
@@ -157,9 +157,9 @@ dimension indices and symbols into a list of results, with affine expressions
 combining the indices and symbols. Affine maps distinguish between
 [indices and symbols](#dimensions-and-symbols) because indices are inputs to the
 affine map when the map is called (through an operation such as
-[affine.apply](#affineapply-operation)), whereas symbols are bound when
+[affine.apply](#affineapply-affineapplyop)), whereas symbols are bound when
 the map is established (e.g. when a memref is formed, establishing a
-memory [layout map](../LangRef.md#layout-map)).
+memory [layout map](Builtin.md/#layout-map)).
 
 Affine maps are used for various core structures in MLIR. The restrictions we
 impose on their form allows powerful analysis and transformation, while keeping

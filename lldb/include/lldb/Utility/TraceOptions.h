@@ -15,6 +15,8 @@
 #include "lldb/Utility/StructuredData.h"
 
 namespace lldb_private {
+
+/// Deprecated
 class TraceOptions {
 public:
   TraceOptions() : m_trace_params(new StructuredData::Dictionary()) {}
@@ -55,6 +57,7 @@ private:
   /// the lldb-server.
   StructuredData::DictionarySP m_trace_params;
 };
-}
+
+} // namespace lldb_private
 
 #endif // LLDB_UTILITY_TRACEOPTIONS_H

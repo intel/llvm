@@ -7,14 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 #include "support/pstl_test_config.h"
 
 #include <execution>
 #include <algorithm>
 #include <set>
-#include <cassert>
 #include <cmath>
 
 #include "support/utils.h"

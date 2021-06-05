@@ -53,7 +53,7 @@ public:
   /// Note that this function does *not* get run on the very last node
   /// of the report, as the PathDiagnosticPiece associated with the
   /// last node should be unique.
-  /// Use {@code getEndPath} to customize the note associated with the report
+  /// Use \ref getEndPath to customize the note associated with the report
   /// end instead.
   ///
   /// The last parameter can be used to register a new visitor with the given
@@ -93,7 +93,7 @@ enum class TrackingKind {
   /// gathered about the tracked expression value as possible.
   Thorough,
   /// Specifies that a more moderate tracking should be used for the expression
-  /// value. This will essentially make sure that functions relevant to the it
+  /// value. This will essentially make sure that functions relevant to it
   /// aren't pruned, but otherwise relies on the user reading the code or
   /// following the arrows.
   Condition
@@ -373,7 +373,7 @@ public:
 class FalsePositiveRefutationBRVisitor final : public BugReporterVisitor {
 private:
   /// Holds the constraints in a given path
-  ConstraintRangeTy Constraints;
+  ConstraintMap Constraints;
 
 public:
   FalsePositiveRefutationBRVisitor();
@@ -389,7 +389,6 @@ public:
   void addConstraints(const ExplodedNode *N,
                       bool OverwriteConstraintsOnExistingSyms);
 };
-
 
 /// The visitor detects NoteTags and displays the event notes they contain.
 class TagVisitor : public BugReporterVisitor {

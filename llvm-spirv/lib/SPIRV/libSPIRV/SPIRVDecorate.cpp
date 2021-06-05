@@ -71,6 +71,16 @@ SPIRVDecorateGeneric::SPIRVDecorateGeneric(Op OC, SPIRVWord WC,
   updateModuleVersion();
 }
 
+SPIRVDecorateGeneric::SPIRVDecorateGeneric(Op OC, SPIRVWord WC,
+                                           Decoration TheDec,
+                                           SPIRVEntry *TheTarget, SPIRVWord V1,
+                                           SPIRVWord V2)
+    : SPIRVDecorateGeneric(OC, WC, TheDec, TheTarget, V1) {
+  Literals.push_back(V2);
+  validate();
+  updateModuleVersion();
+}
+
 SPIRVDecorateGeneric::SPIRVDecorateGeneric(Op OC)
     : SPIRVAnnotationGeneric(OC), Dec(DecorationRelaxedPrecision),
       Owner(nullptr) {}
@@ -104,6 +114,9 @@ void SPIRVDecorate::encode(spv_ostream &O) const {
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::encodeLiterals(Encoder, Literals);
     break;
+  case DecorationFuncParamDescINTEL:
+    SPIRVDecorateFuncParamDescAttr::encodeLiterals(Encoder, Literals);
+    break;
   default:
     Encoder << Literals;
   }
@@ -130,9 +143,28 @@ void SPIRVDecorate::decode(std::istream &I) {
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::decodeLiterals(Decoder, Literals);
     break;
+  case DecorationFuncParamDescINTEL:
+    SPIRVDecorateFuncParamDescAttr::decodeLiterals(Decoder, Literals);
+    break;
   default:
     Decoder >> Literals;
   }
+  getOrCreateTarget()->addDecorate(this);
+}
+
+void SPIRVDecorateId::encode(spv_ostream &O) const {
+  SPIRVEncoder Encoder = getEncoder(O);
+  Encoder << Target << Dec << Literals;
+}
+
+void SPIRVDecorateId::setWordCount(SPIRVWord Count) {
+  WordCount = Count;
+  Literals.resize(WordCount - FixedWC);
+}
+
+void SPIRVDecorateId::decode(std::istream &I) {
+  SPIRVDecoder Decoder = getDecoder(I);
+  Decoder >> Target >> Dec >> Literals;
   getOrCreateTarget()->addDecorate(this);
 }
 
@@ -148,6 +180,9 @@ void SPIRVMemberDecorate::encode(spv_ostream &O) const {
     break;
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::encodeLiterals(Encoder, Literals);
+    break;
+  case DecorationFuncParamDescINTEL:
+    SPIRVDecorateFuncParamDescAttr::encodeLiterals(Encoder, Literals);
     break;
   default:
     Encoder << Literals;
@@ -171,6 +206,9 @@ void SPIRVMemberDecorate::decode(std::istream &I) {
     break;
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::decodeLiterals(Decoder, Literals);
+    break;
+  case DecorationFuncParamDescINTEL:
+    SPIRVDecorateFuncParamDescAttr::decodeLiterals(Decoder, Literals);
     break;
   default:
     Decoder >> Literals;

@@ -26,9 +26,8 @@ StringFindStartswithCheck::StringFindStartswithCheck(StringRef Name,
     : ClangTidyCheck(Name, Context),
       StringLikeClasses(utils::options::parseStringList(
           Options.get("StringLikeClasses", "::std::basic_string"))),
-      IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
-                                            utils::IncludeSorter::getMapping(),
-                                            utils::IncludeSorter::IS_LLVM)),
+      IncludeInserter(Options.getLocalOrGlobal("IncludeStyle",
+                                               utils::IncludeSorter::IS_LLVM)),
       AbseilStringsMatchHeader(
           Options.get("AbseilStringsMatchHeader", "absl/strings/match.h")) {}
 
@@ -84,46 +83,37 @@ void StringFindStartswithCheck::check(const MatchFinder::MatchResult &Result) {
       Context.getLangOpts());
 
   // Create the StartsWith string, negating if comparison was "!=".
-  bool Neg = ComparisonExpr->getOpcodeStr() == "!=";
-  StringRef StartswithStr;
-  if (Neg) {
-    StartswithStr = "!absl::StartsWith";
-  } else {
-    StartswithStr = "absl::StartsWith";
-  }
+  bool Neg = ComparisonExpr->getOpcode() == BO_NE;
 
   // Create the warning message and a FixIt hint replacing the original expr.
-  auto Diagnostic =
-      diag(ComparisonExpr->getBeginLoc(),
-           (StringRef("use ") + StartswithStr + " instead of find() " +
-            ComparisonExpr->getOpcodeStr() + " 0")
-               .str());
+  auto Diagnostic = diag(ComparisonExpr->getBeginLoc(),
+                         "use %select{absl::StartsWith|!absl::StartsWith}0 "
+                         "instead of find() %select{==|!=}0 0")
+                    << Neg;
 
   Diagnostic << FixItHint::CreateReplacement(
       ComparisonExpr->getSourceRange(),
-      (StartswithStr + "(" + HaystackExprCode + ", " + NeedleExprCode + ")")
+      ((Neg ? "!absl::StartsWith(" : "absl::StartsWith(") + HaystackExprCode +
+       ", " + NeedleExprCode + ")")
           .str());
 
   // Create a preprocessor #include FixIt hint (CreateIncludeInsertion checks
   // whether this already exists).
-  Diagnostic << IncludeInserter->CreateIncludeInsertion(
-      Source.getFileID(ComparisonExpr->getBeginLoc()), AbseilStringsMatchHeader,
-      false);
+  Diagnostic << IncludeInserter.createIncludeInsertion(
+      Source.getFileID(ComparisonExpr->getBeginLoc()),
+      AbseilStringsMatchHeader);
 }
 
 void StringFindStartswithCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
-  IncludeInserter = std::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
-                                                              IncludeStyle);
-  PP->addPPCallbacks(IncludeInserter->CreatePPCallbacks());
+  IncludeInserter.registerPreprocessor(PP);
 }
 
 void StringFindStartswithCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "StringLikeClasses",
                 utils::options::serializeStringList(StringLikeClasses));
-  Options.store(Opts, "IncludeStyle", IncludeStyle,
-                utils::IncludeSorter::getMapping());
+  Options.store(Opts, "IncludeStyle", IncludeInserter.getStyle());
   Options.store(Opts, "AbseilStringsMatchHeader", AbseilStringsMatchHeader);
 }
 

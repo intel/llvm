@@ -49,6 +49,12 @@
 @ CHECK-ERRORS-V7: operand must be an immediate in the range [0,15]
 @ CHECK-ERRORS-V8: invalid instruction
 
+        @ Out of range immediate for ROR.
+        @ (Assembling this instruction to "mov r1, r1" might also be OK.)
+        ror r1, r1, #0
+@ CHECK-ERRORS: invalid instruction
+@ CHECK-ERRORS: operand must be an immediate in the range [1,31]
+
         isb  #-1
         isb  #16
 @ CHECK-ERRORS: error: immediate value out of range
@@ -165,3 +171,25 @@ foo2:
 @ CHECK-ERRORS-V7: error: operand must be a register in range [r0, r12] or r14
 @ CHECK-ERRORS-V7: operand must be a register in range [r0, r12] or r14
 @ CHECK-ERRORS-V7: operand must be a register in range [r0, r12] or r14
+
+        tbb [r0, sp]
+        @ v8 allows rm = sp
+@ CHECK-ERRORS-V7: error: instruction variant requires ARMv8 or later
+        tbb [r0, pc]
+        @ rm = pc is always unpredictable
+@ CHECK-ERRORS: error: invalid operand for instruction
+        tbb [sp, r0]
+        @ v8 allows rn = sp
+@ CHECK-ERRORS-V7: error: instruction variant requires ARMv8 or later
+        @ rn = pc is allowed so not included here
+
+        tbh [r0, sp, lsl #1]
+        @ v8 allows rm = sp
+@ CHECK-ERRORS-V7: error: instruction variant requires ARMv8 or later
+        tbh [r0, pc, lsl #1]
+        @ rm = pc is always unpredictable
+@ CHECK-ERRORS: error: invalid operand for instruction
+        tbh [sp, r0, lsl #1]
+        @ v8 allows rn = sp
+@ CHECK-ERRORS-V7: error: instruction variant requires ARMv8 or later
+        @ rn=pc is allowed so not included here

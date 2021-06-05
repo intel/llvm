@@ -1,5 +1,5 @@
 add_llvm_component_library(LLVMFrontendOpenMP
-  OMPConstants.cpp
+  OMP.cpp
   OMPContext.cpp
   OMPIRBuilder.cpp
 
@@ -10,4 +10,9 @@ add_llvm_component_library(LLVMFrontendOpenMP
   DEPENDS
   intrinsics_gen
   omp_gen
+
+  LINK_COMPONENTS
+  Core
+  Support
+  TransformUtils
   )

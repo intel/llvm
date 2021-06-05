@@ -1039,7 +1039,7 @@ long long clang_Type_getOffsetOf(CXType PT, const char *S) {
   // and we would return InvalidFieldName instead of Incomplete.
   // But this erroneous results does protects again a hidden assertion failure
   // in the RecordLayoutBuilder
-  if (Res.size() != 1)
+  if (!Res.isSingleResult())
     return CXTypeLayoutError_InvalidFieldName;
   if (const FieldDecl *FD = dyn_cast<FieldDecl>(Res.front()))
     return Ctx.getFieldOffset(FD);
@@ -1324,6 +1324,8 @@ enum CXTypeNullabilityKind clang_Type_getNullability(CXType CT) {
         return CXTypeNullability_NonNull;
       case NullabilityKind::Nullable:
         return CXTypeNullability_Nullable;
+      case NullabilityKind::NullableResult:
+        return CXTypeNullability_NullableResult;
       case NullabilityKind::Unspecified:
         return CXTypeNullability_Unspecified;
     }

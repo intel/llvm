@@ -29,8 +29,10 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
+#include "llvm/Support/TimeProfiler.h"
 #include <cassert>
 #include <limits>
 #include <vector>
@@ -100,6 +102,7 @@ private:
                                                  uint64_t withFlags,
                                                  uint64_t withoutFlags);
   unsigned readPhdrType();
+  SortSectionPolicy peekSortKind();
   SortSectionPolicy readSortKind();
   SymbolAssignment *readProvideHidden(bool provide, bool hidden);
   SymbolAssignment *readAssignment(StringRef tok);
@@ -409,7 +412,9 @@ static std::pair<ELFKind, uint16_t> parseBfdName(StringRef s) {
       .Case("elf32-x86-64", {ELF32LEKind, EM_X86_64})
       .Case("elf64-aarch64", {ELF64LEKind, EM_AARCH64})
       .Case("elf64-littleaarch64", {ELF64LEKind, EM_AARCH64})
+      .Case("elf64-bigaarch64", {ELF64BEKind, EM_AARCH64})
       .Case("elf32-powerpc", {ELF32BEKind, EM_PPC})
+      .Case("elf32-powerpcle", {ELF32LEKind, EM_PPC})
       .Case("elf64-powerpc", {ELF64BEKind, EM_PPC64})
       .Case("elf64-powerpcle", {ELF64LEKind, EM_PPC64})
       .Case("elf64-x86-64", {ELF64LEKind, EM_X86_64})
@@ -422,16 +427,30 @@ static std::pair<ELFKind, uint16_t> parseBfdName(StringRef s) {
       .Case("elf32-littleriscv", {ELF32LEKind, EM_RISCV})
       .Case("elf64-littleriscv", {ELF64LEKind, EM_RISCV})
       .Case("elf64-sparc", {ELF64BEKind, EM_SPARCV9})
+      .Case("elf32-msp430", {ELF32LEKind, EM_MSP430})
       .Default({ELFNoneKind, EM_NONE});
 }
 
-// Parse OUTPUT_FORMAT(bfdname) or OUTPUT_FORMAT(bfdname, big, little).
-// Currently we ignore big and little parameters.
+// Parse OUTPUT_FORMAT(bfdname) or OUTPUT_FORMAT(default, big, little). Choose
+// big if -EB is specified, little if -EL is specified, or default if neither is
+// specified.
 void ScriptParser::readOutputFormat() {
   expect("(");
 
+  StringRef s;
   config->bfdname = unquote(next());
-  StringRef s = config->bfdname;
+  if (!consume(")")) {
+    expect(",");
+    s = unquote(next());
+    if (config->optEB)
+      config->bfdname = s;
+    expect(",");
+    s = unquote(next());
+    if (config->optEL)
+      config->bfdname = s;
+    consume(")");
+  }
+  s = config->bfdname;
   if (s.consume_back("-freebsd"))
     config->osabi = ELFOSABI_FREEBSD;
 
@@ -440,14 +459,8 @@ void ScriptParser::readOutputFormat() {
     setError("unknown output format name: " + config->bfdname);
   if (s == "elf32-ntradlittlemips" || s == "elf32-ntradbigmips")
     config->mipsN32Abi = true;
-
-  if (consume(")"))
-    return;
-  expect(",");
-  skip();
-  expect(",");
-  skip();
-  expect(")");
+  if (config->emachine == EM_MSP430)
+    config->osabi = ELFOSABI_STANDALONE;
 }
 
 void ScriptParser::readPhdrs() {
@@ -616,16 +629,20 @@ StringMatcher ScriptParser::readFilePatterns() {
   return Matcher;
 }
 
+SortSectionPolicy ScriptParser::peekSortKind() {
+  return StringSwitch<SortSectionPolicy>(peek())
+      .Cases("SORT", "SORT_BY_NAME", SortSectionPolicy::Name)
+      .Case("SORT_BY_ALIGNMENT", SortSectionPolicy::Alignment)
+      .Case("SORT_BY_INIT_PRIORITY", SortSectionPolicy::Priority)
+      .Case("SORT_NONE", SortSectionPolicy::None)
+      .Default(SortSectionPolicy::Default);
+}
+
 SortSectionPolicy ScriptParser::readSortKind() {
-  if (consume("SORT") || consume("SORT_BY_NAME"))
-    return SortSectionPolicy::Name;
-  if (consume("SORT_BY_ALIGNMENT"))
-    return SortSectionPolicy::Alignment;
-  if (consume("SORT_BY_INIT_PRIORITY"))
-    return SortSectionPolicy::Priority;
-  if (consume("SORT_NONE"))
-    return SortSectionPolicy::None;
-  return SortSectionPolicy::Default;
+  SortSectionPolicy ret = peekSortKind();
+  if (ret != SortSectionPolicy::Default)
+    skip();
+  return ret;
 }
 
 // Reads SECTIONS command contents in the following form:
@@ -651,11 +668,15 @@ std::vector<SectionPattern> ScriptParser::readInputSectionsList() {
     }
 
     StringMatcher SectionMatcher;
-    while (!errorCount() && peek() != ")" && peek() != "EXCLUDE_FILE")
+    // Break if the next token is ), EXCLUDE_FILE, or SORT*.
+    while (!errorCount() && peek() != ")" && peek() != "EXCLUDE_FILE" &&
+           peekSortKind() == SortSectionPolicy::Default)
       SectionMatcher.addPattern(unquote(next()));
 
     if (!SectionMatcher.empty())
       ret.push_back({std::move(excludeFilePat), std::move(SectionMatcher)});
+    else if (excludeFilePat.empty())
+      break;
     else
       setError("section pattern is expected");
   }
@@ -1213,6 +1234,13 @@ static void checkIfExists(OutputSection *cmd, StringRef location) {
     error(location + ": undefined section " + cmd->name);
 }
 
+static bool isValidSymbolName(StringRef s) {
+  auto valid = [](char c) {
+    return isAlnum(c) || c == '$' || c == '.' || c == '_';
+  };
+  return !s.empty() && !isDigit(s[0]) && llvm::all_of(s, valid);
+}
+
 Expr ScriptParser::readPrimary() {
   if (peek() == "(")
     return readParenExpr();
@@ -1310,7 +1338,10 @@ Expr ScriptParser::readPrimary() {
   }
   if (tok == "DEFINED") {
     StringRef name = readParenLiteral();
-    return [=] { return symtab->find(name) ? 1 : 0; };
+    return [=] {
+      Symbol *b = symtab->find(name);
+      return (b && b->isDefined()) ? 1 : 0;
+    };
   }
   if (tok == "LENGTH") {
     StringRef name = readParenLiteral();
@@ -1327,6 +1358,15 @@ Expr ScriptParser::readPrimary() {
     return [=] {
       checkIfExists(cmd, location);
       return cmd->getLMA();
+    };
+  }
+  if (tok == "LOG2CEIL") {
+    expect("(");
+    Expr a = readExpr();
+    expect(")");
+    return [=] {
+      // LOG2CEIL(0) is defined to be 0.
+      return llvm::Log2_64_Ceil(std::max(a().getValue(), UINT64_C(1)));
     };
   }
   if (tok == "MAX" || tok == "MIN") {
@@ -1375,7 +1415,7 @@ Expr ScriptParser::readPrimary() {
     return [=] { return *val; };
 
   // Tok is a symbol name.
-  if (!isValidCIdentifier(tok))
+  if (!isValidSymbolName(tok))
     setError("malformed number: " + tok);
   script->referencedSymbols.push_back(tok);
   return [=] { return script->getSymbolValue(tok, location); };
@@ -1607,17 +1647,23 @@ std::pair<uint32_t, uint32_t> ScriptParser::readMemoryAttributes() {
 }
 
 void elf::readLinkerScript(MemoryBufferRef mb) {
+  llvm::TimeTraceScope timeScope("Read linker script",
+                                 mb.getBufferIdentifier());
   ScriptParser(mb).readLinkerScript();
 }
 
 void elf::readVersionScript(MemoryBufferRef mb) {
+  llvm::TimeTraceScope timeScope("Read version script",
+                                 mb.getBufferIdentifier());
   ScriptParser(mb).readVersionScript();
 }
 
 void elf::readDynamicList(MemoryBufferRef mb) {
+  llvm::TimeTraceScope timeScope("Read dynamic list", mb.getBufferIdentifier());
   ScriptParser(mb).readDynamicList();
 }
 
 void elf::readDefsym(StringRef name, MemoryBufferRef mb) {
+  llvm::TimeTraceScope timeScope("Read defsym input", name);
   ScriptParser(mb).readDefsym(name);
 }

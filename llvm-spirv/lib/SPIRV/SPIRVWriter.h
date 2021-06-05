@@ -42,6 +42,7 @@
 #ifndef SPIRVWRITER_H
 #define SPIRVWRITER_H
 
+#include "LLVMToSPIRVDbgTran.h"
 #include "OCLTypeToSPIRV.h"
 #include "OCLUtil.h"
 #include "SPIRVBasicBlock.h"
@@ -53,6 +54,7 @@
 #include "SPIRVType.h"
 #include "SPIRVValue.h"
 
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/IntrinsicInst.h"
 
@@ -64,21 +66,17 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-class LLVMToSPIRVDbgTran;
-
-class LLVMToSPIRV : public ModulePass {
+class LLVMToSPIRVBase {
 public:
-  LLVMToSPIRV(SPIRVModule *SMod = nullptr);
+  LLVMToSPIRVBase(SPIRVModule *SMod);
+  bool runLLVMToSPIRV(Module &Mod);
 
-  virtual StringRef getPassName() const override { return "LLVMToSPIRV"; }
-
-  bool runOnModule(Module &Mod) override;
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<OCLTypeToSPIRV>();
-  }
-
-  static char ID;
+  // This enum sets the mode used to translate the value which is
+  // a function, that is necessary for a convenient function pointers handling.
+  // By default transValue uses 'Decl' mode, which means every function
+  // we meet during the translation should result in its declaration generated.
+  // In 'Pointer' mode we generate OpConstFunctionPointerINTEL constant instead.
+  enum class FuncTransMode { Decl, Pointer };
 
   SPIRVType *transType(Type *T);
   SPIRVType *transSPIRVOpaqueType(Type *T);
@@ -96,6 +94,7 @@ public:
   bool transSourceLanguage();
   bool transExtension();
   bool transBuiltinSet();
+  bool isKnownIntrinsic(Intrinsic::ID Id);
   SPIRVValue *transIntrinsicInst(IntrinsicInst *Intrinsic, SPIRVBasicBlock *BB);
   SPIRVValue *transCallInst(CallInst *Call, SPIRVBasicBlock *BB);
   SPIRVValue *transDirectCallInst(CallInst *Call, SPIRVBasicBlock *BB);
@@ -103,9 +102,11 @@ public:
   SPIRVValue *transAsmINTEL(InlineAsm *Asm);
   SPIRVValue *transAsmCallINTEL(CallInst *Call, SPIRVBasicBlock *BB);
   bool transDecoration(Value *V, SPIRVValue *BV);
+  void transMemAliasingINTELDecorations(Value *V, SPIRVValue *BV);
   SPIRVWord transFunctionControlMask(Function *);
   SPIRVFunction *transFunctionDecl(Function *F);
   void transVectorComputeMetadata(Function *F);
+  void transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F);
   bool transGlobalVariables();
 
   Op transBoolOpCode(SPIRVValue *Opn, Op OC);
@@ -116,15 +117,27 @@ public:
   void transFPContract();
   SPIRVValue *transConstant(Value *V);
   SPIRVValue *transValue(Value *V, SPIRVBasicBlock *BB,
-                         bool CreateForward = true);
+                         bool CreateForward = true,
+                         FuncTransMode FuncTrans = FuncTransMode::Decl);
   void transGlobalAnnotation(GlobalVariable *V);
-  SPIRVValue *transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
-                                          bool CreateForward = true);
+  SPIRVValue *
+  transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
+                              bool CreateForward = true,
+                              FuncTransMode FuncTrans = FuncTransMode::Decl);
   void transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO);
+
+  static SPIRVInstruction *applyRoundingModeConstraint(Value *V,
+                                                       SPIRVInstruction *I);
 
   typedef DenseMap<Type *, SPIRVType *> LLVMToSPIRVTypeMap;
   typedef DenseMap<Value *, SPIRVValue *> LLVMToSPIRVValueMap;
-  typedef DenseMap<MDNode *, SPIRVId> LLVMToSPIRVMetadataMap;
+  typedef DenseMap<MDNode *, SmallSet<SPIRVId, 2>> LLVMToSPIRVMetadataMap;
+
+  void setOCLTypeToSPIRV(OCLTypeToSPIRVBase *OCLTypeToSPIRV) {
+    OCLTypeToSPIRVPtr = OCLTypeToSPIRV;
+  }
+  OCLTypeToSPIRVBase *getOCLTypeToSPIRV() { return OCLTypeToSPIRVPtr; }
+  ~LLVMToSPIRVBase();
 
 private:
   Module *M;
@@ -137,6 +150,8 @@ private:
   SPIRVWord SrcLangVer;
   std::unique_ptr<LLVMToSPIRVDbgTran> DbgTran;
   std::unique_ptr<CallGraph> CG;
+  OCLTypeToSPIRVBase *OCLTypeToSPIRVPtr;
+  std::vector<llvm::Instruction *> UnboundInst;
 
   enum class FPContract { UNDEF, DISABLED, ENABLED };
   DenseMap<Function *, FPContract> FPContractMap;
@@ -157,6 +172,9 @@ private:
   SPIRVInstruction *transCmpInst(CmpInst *Cmp, SPIRVBasicBlock *BB);
   SPIRVInstruction *transLifetimeIntrinsicInst(Op OC, IntrinsicInst *Intrinsic,
                                                SPIRVBasicBlock *BB);
+
+  SPIRVValue *transAtomicStore(StoreInst *ST, SPIRVBasicBlock *BB);
+  SPIRVValue *transAtomicLoad(LoadInst *LD, SPIRVBasicBlock *BB);
 
   void dumpUsers(Value *V);
 
@@ -196,6 +214,36 @@ private:
       const Function *FS,
       const std::unordered_set<const Function *> Funcs) const;
   void collectInputOutputVariables(SPIRVFunction *SF, Function *F);
+};
+
+class LLVMToSPIRVPass : public PassInfoMixin<LLVMToSPIRVPass>,
+                        public LLVMToSPIRVBase {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    setOCLTypeToSPIRV(&MAM.getResult<OCLTypeToSPIRVPass>(M));
+    return runLLVMToSPIRV(M) ? llvm::PreservedAnalyses::none()
+                             : llvm::PreservedAnalyses::all();
+  }
+};
+
+class LLVMToSPIRVLegacy : public ModulePass, public LLVMToSPIRVBase {
+public:
+  LLVMToSPIRVLegacy(SPIRVModule *SMod = nullptr)
+      : ModulePass(ID), LLVMToSPIRVBase(SMod) {}
+
+  virtual StringRef getPassName() const override { return "LLVMToSPIRV"; }
+
+  bool runOnModule(Module &Mod) override {
+    setOCLTypeToSPIRV(&getAnalysis<OCLTypeToSPIRVLegacy>());
+    return runLLVMToSPIRV(Mod);
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<OCLTypeToSPIRVLegacy>();
+  }
+
+  static char ID;
 };
 
 } // namespace SPIRV

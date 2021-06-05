@@ -13,7 +13,7 @@ class TestDiagnoseVirtualMethodCall(TestBase):
     mydir = TestBase.compute_mydir(__file__)
 
     @skipUnlessDarwin
-    @skipIfDarwinEmbedded  # <rdar://problem/33842388> frame diagnose doesn't work for armv7 or arm64
+    @skipIf(archs=no_match(['x86_64'])) # <rdar://problem/33842388> frame diagnose doesn't work for armv7 or arm64
     def test_diagnose_virtual_method_call(self):
         TestBase.setUp(self)
         self.build()
@@ -22,4 +22,5 @@ class TestDiagnoseVirtualMethodCall(TestBase):
         self.runCmd("run", RUN_SUCCEEDED)
         self.expect("thread list", "Thread should be stopped",
                     substrs=['stopped'])
-        self.expect("frame diagnose", "Crash diagnosis was accurate", "foo")
+        self.expect("frame diagnose", "Crash diagnosis was accurate",
+                    substrs=["foo"])

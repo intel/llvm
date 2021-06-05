@@ -43,7 +43,7 @@ namespace llvm {
 
 /// UnaryConstantExpr - This class is private to Constants.cpp, and is used
 /// behind the scenes to implement unary constant exprs.
-class UnaryConstantExpr : public ConstantExpr {
+class UnaryConstantExpr final : public ConstantExpr {
 public:
   UnaryConstantExpr(unsigned Opcode, Constant *C, Type *Ty)
     : ConstantExpr(Ty, Opcode, &Op<0>(), 1) {
@@ -56,11 +56,19 @@ public:
   }
 
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+
+  static bool classof(const ConstantExpr *CE) {
+    return Instruction::isCast(CE->getOpcode()) ||
+           Instruction::isUnaryOp(CE->getOpcode());
+  }
+  static bool classof(const Value *V) {
+    return isa<ConstantExpr>(V) && classof(cast<ConstantExpr>(V));
+  }
 };
 
 /// BinaryConstantExpr - This class is private to Constants.cpp, and is used
 /// behind the scenes to implement binary constant exprs.
-class BinaryConstantExpr : public ConstantExpr {
+class BinaryConstantExpr final : public ConstantExpr {
 public:
   BinaryConstantExpr(unsigned Opcode, Constant *C1, Constant *C2,
                      unsigned Flags)
@@ -77,11 +85,18 @@ public:
 
   /// Transparently provide more efficient getOperand methods.
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+
+  static bool classof(const ConstantExpr *CE) {
+    return Instruction::isBinaryOp(CE->getOpcode());
+  }
+  static bool classof(const Value *V) {
+    return isa<ConstantExpr>(V) && classof(cast<ConstantExpr>(V));
+  }
 };
 
 /// SelectConstantExpr - This class is private to Constants.cpp, and is used
 /// behind the scenes to implement select constant exprs.
-class SelectConstantExpr : public ConstantExpr {
+class SelectConstantExpr final : public ConstantExpr {
 public:
   SelectConstantExpr(Constant *C1, Constant *C2, Constant *C3)
     : ConstantExpr(C2->getType(), Instruction::Select, &Op<0>(), 3) {
@@ -97,12 +112,19 @@ public:
 
   /// Transparently provide more efficient getOperand methods.
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+
+  static bool classof(const ConstantExpr *CE) {
+    return CE->getOpcode() == Instruction::Select;
+  }
+  static bool classof(const Value *V) {
+    return isa<ConstantExpr>(V) && classof(cast<ConstantExpr>(V));
+  }
 };
 
 /// ExtractElementConstantExpr - This class is private to
 /// Constants.cpp, and is used behind the scenes to implement
 /// extractelement constant exprs.
-class ExtractElementConstantExpr : public ConstantExpr {
+class ExtractElementConstantExpr final : public ConstantExpr {
 public:
   ExtractElementConstantExpr(Constant *C1, Constant *C2)
     : ConstantExpr(cast<VectorType>(C1->getType())->getElementType(),
@@ -118,12 +140,19 @@ public:
 
   /// Transparently provide more efficient getOperand methods.
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+
+  static bool classof(const ConstantExpr *CE) {
+    return CE->getOpcode() == Instruction::ExtractElement;
+  }
+  static bool classof(const Value *V) {
+    return isa<ConstantExpr>(V) && classof(cast<ConstantExpr>(V));
+  }
 };
 
 /// InsertElementConstantExpr - This class is private to
 /// Constants.cpp, and is used behind the scenes to implement
 /// insertelement constant exprs.
-class InsertElementConstantExpr : public ConstantExpr {
+class InsertElementConstantExpr final : public ConstantExpr {
 public:
   InsertElementConstantExpr(Constant *C1, Constant *C2, Constant *C3)
     : ConstantExpr(C1->getType(), Instruction::InsertElement,
@@ -140,12 +169,19 @@ public:
 
   /// Transparently provide more efficient getOperand methods.
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+
+  static bool classof(const ConstantExpr *CE) {
+    return CE->getOpcode() == Instruction::InsertElement;
+  }
+  static bool classof(const Value *V) {
+    return isa<ConstantExpr>(V) && classof(cast<ConstantExpr>(V));
+  }
 };
 
 /// ShuffleVectorConstantExpr - This class is private to
 /// Constants.cpp, and is used behind the scenes to implement
 /// shufflevector constant exprs.
-class ShuffleVectorConstantExpr : public ConstantExpr {
+class ShuffleVectorConstantExpr final : public ConstantExpr {
 public:
   ShuffleVectorConstantExpr(Constant *C1, Constant *C2, ArrayRef<int> Mask)
       : ConstantExpr(VectorType::get(
@@ -168,12 +204,19 @@ public:
 
   /// Transparently provide more efficient getOperand methods.
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+
+  static bool classof(const ConstantExpr *CE) {
+    return CE->getOpcode() == Instruction::ShuffleVector;
+  }
+  static bool classof(const Value *V) {
+    return isa<ConstantExpr>(V) && classof(cast<ConstantExpr>(V));
+  }
 };
 
 /// ExtractValueConstantExpr - This class is private to
 /// Constants.cpp, and is used behind the scenes to implement
 /// extractvalue constant exprs.
-class ExtractValueConstantExpr : public ConstantExpr {
+class ExtractValueConstantExpr final : public ConstantExpr {
 public:
   ExtractValueConstantExpr(Constant *Agg, ArrayRef<unsigned> IdxList,
                            Type *DestTy)
@@ -204,7 +247,7 @@ public:
 /// InsertValueConstantExpr - This class is private to
 /// Constants.cpp, and is used behind the scenes to implement
 /// insertvalue constant exprs.
-class InsertValueConstantExpr : public ConstantExpr {
+class InsertValueConstantExpr final : public ConstantExpr {
 public:
   InsertValueConstantExpr(Constant *Agg, Constant *Val,
                           ArrayRef<unsigned> IdxList, Type *DestTy)
@@ -235,7 +278,7 @@ public:
 
 /// GetElementPtrConstantExpr - This class is private to Constants.cpp, and is
 /// used behind the scenes to implement getelementpr constant exprs.
-class GetElementPtrConstantExpr : public ConstantExpr {
+class GetElementPtrConstantExpr final : public ConstantExpr {
   Type *SrcElementTy;
   Type *ResElementTy;
 
@@ -269,7 +312,7 @@ public:
 // CompareConstantExpr - This class is private to Constants.cpp, and is used
 // behind the scenes to implement ICmp and FCmp constant expressions. This is
 // needed in order to store the predicate value for these instructions.
-class CompareConstantExpr : public ConstantExpr {
+class CompareConstantExpr final : public ConstantExpr {
 public:
   unsigned short predicate;
   CompareConstantExpr(Type *ty, Instruction::OtherOps opc,
@@ -420,24 +463,26 @@ struct InlineAsmKeyType {
   bool HasSideEffects;
   bool IsAlignStack;
   InlineAsm::AsmDialect AsmDialect;
+  bool CanThrow;
 
   InlineAsmKeyType(StringRef AsmString, StringRef Constraints,
                    FunctionType *FTy, bool HasSideEffects, bool IsAlignStack,
-                   InlineAsm::AsmDialect AsmDialect)
+                   InlineAsm::AsmDialect AsmDialect, bool canThrow)
       : AsmString(AsmString), Constraints(Constraints), FTy(FTy),
         HasSideEffects(HasSideEffects), IsAlignStack(IsAlignStack),
-        AsmDialect(AsmDialect) {}
+        AsmDialect(AsmDialect), CanThrow(canThrow) {}
 
   InlineAsmKeyType(const InlineAsm *Asm, SmallVectorImpl<Constant *> &)
       : AsmString(Asm->getAsmString()), Constraints(Asm->getConstraintString()),
         FTy(Asm->getFunctionType()), HasSideEffects(Asm->hasSideEffects()),
-        IsAlignStack(Asm->isAlignStack()), AsmDialect(Asm->getDialect()) {}
+        IsAlignStack(Asm->isAlignStack()), AsmDialect(Asm->getDialect()),
+        CanThrow(Asm->canThrow()) {}
 
   bool operator==(const InlineAsmKeyType &X) const {
     return HasSideEffects == X.HasSideEffects &&
            IsAlignStack == X.IsAlignStack && AsmDialect == X.AsmDialect &&
            AsmString == X.AsmString && Constraints == X.Constraints &&
-           FTy == X.FTy;
+           FTy == X.FTy && CanThrow == X.CanThrow;
   }
 
   bool operator==(const InlineAsm *Asm) const {
@@ -446,12 +491,12 @@ struct InlineAsmKeyType {
            AsmDialect == Asm->getDialect() &&
            AsmString == Asm->getAsmString() &&
            Constraints == Asm->getConstraintString() &&
-           FTy == Asm->getFunctionType();
+           FTy == Asm->getFunctionType() && CanThrow == Asm->canThrow();
   }
 
   unsigned getHash() const {
     return hash_combine(AsmString, Constraints, HasSideEffects, IsAlignStack,
-                        AsmDialect, FTy);
+                        AsmDialect, FTy, CanThrow);
   }
 
   using TypeClass = ConstantInfo<InlineAsm>::TypeClass;
@@ -459,7 +504,7 @@ struct InlineAsmKeyType {
   InlineAsm *create(TypeClass *Ty) const {
     assert(PointerType::getUnqual(FTy) == Ty);
     return new InlineAsm(FTy, std::string(AsmString), std::string(Constraints),
-                         HasSideEffects, IsAlignStack, AsmDialect);
+                         HasSideEffects, IsAlignStack, AsmDialect, CanThrow);
   }
 };
 
@@ -597,6 +642,10 @@ public:
   }
 };
 
+// Free memory for a given constant.  Assumes the constant has already been
+// removed from all relevant maps.
+void deleteConstant(Constant *C);
+
 template <class ConstantClass> class ConstantUniqueMap {
 public:
   using ValType = typename ConstantInfo<ConstantClass>::ValType;
@@ -660,7 +709,7 @@ public:
 
   void freeConstants() {
     for (auto &I : Map)
-      delete I; // Asserts that use_empty().
+      deleteConstant(I);
   }
 
 private:
@@ -732,6 +781,11 @@ public:
     LLVM_DEBUG(dbgs() << "Constant.cpp: ConstantUniqueMap\n");
   }
 };
+
+template <> inline void ConstantUniqueMap<InlineAsm>::freeConstants() {
+  for (auto &I : Map)
+    delete I;
+}
 
 } // end namespace llvm
 

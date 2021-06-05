@@ -150,7 +150,6 @@ void BigRadixFloatingPointNumber<PREC,
   bool incr{false};
   switch (rounding_) {
   case RoundNearest:
-  case RoundDefault:
     incr = LSD > radix / 2 || (LSD == radix / 2 && digit_[0] % 2 != 0);
     break;
   case RoundUp:
@@ -260,7 +259,6 @@ ConversionToBinaryResult<PREC> IntermediateFloat<PREC>::ToBinary(
   bool incr{false};
   switch (rounding) {
   case RoundNearest:
-  case RoundDefault:
     incr = guard > oneHalf || (guard == oneHalf && (fraction & 1));
     break;
   case RoundUp:
@@ -456,7 +454,6 @@ enum ConversionResultFlags ConvertDecimalToDouble(
       reinterpret_cast<const void *>(&result.binary), sizeof *d);
   return result.flags;
 }
-#if __x86_64__ && !defined(_MSC_VER)
 enum ConversionResultFlags ConvertDecimalToLongDouble(
     const char **p, long double *ld, enum FortranRounding rounding) {
   auto result{Fortran::decimal::ConvertToBinary<64>(*p, rounding)};
@@ -464,6 +461,5 @@ enum ConversionResultFlags ConvertDecimalToLongDouble(
       reinterpret_cast<const void *>(&result.binary), sizeof *ld);
   return result.flags;
 }
-#endif
 }
 } // namespace Fortran::decimal

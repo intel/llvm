@@ -11,12 +11,13 @@
 // AddressSanitizer pass to use the new PassManager infrastructure.
 //
 //===----------------------------------------------------------------------===//
-#ifndef LLVM_TRANSFORMS_INSTRUMENTATION_ADDRESSSANITIZERPASS_H
-#define LLVM_TRANSFORMS_INSTRUMENTATION_ADDRESSSANITIZERPASS_H
+#ifndef LLVM_TRANSFORMS_INSTRUMENTATION_ADDRESSSANITIZER_H
+#define LLVM_TRANSFORMS_INSTRUMENTATION_ADDRESSSANITIZER_H
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
 
 namespace llvm {
 
@@ -102,6 +103,7 @@ public:
                                 bool Recover = false,
                                 bool UseAfterScope = false);
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  static bool isRequired() { return true; }
 
 private:
   bool CompileKernel;
@@ -117,17 +119,19 @@ private:
 class ModuleAddressSanitizerPass
     : public PassInfoMixin<ModuleAddressSanitizerPass> {
 public:
-  explicit ModuleAddressSanitizerPass(bool CompileKernel = false,
-                                      bool Recover = false,
-                                      bool UseGlobalGC = true,
-                                      bool UseOdrIndicator = false);
+  explicit ModuleAddressSanitizerPass(
+      bool CompileKernel = false, bool Recover = false, bool UseGlobalGC = true,
+      bool UseOdrIndicator = false,
+      AsanDtorKind DestructorKind = AsanDtorKind::Global);
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  static bool isRequired() { return true; }
 
 private:
   bool CompileKernel;
   bool Recover;
   bool UseGlobalGC;
   bool UseOdrIndicator;
+  AsanDtorKind DestructorKind;
 };
 
 // Insert AddressSanitizer (address sanity checking) instrumentation
@@ -136,7 +140,8 @@ FunctionPass *createAddressSanitizerFunctionPass(bool CompileKernel = false,
                                                  bool UseAfterScope = false);
 ModulePass *createModuleAddressSanitizerLegacyPassPass(
     bool CompileKernel = false, bool Recover = false, bool UseGlobalsGC = true,
-    bool UseOdrIndicator = true);
+    bool UseOdrIndicator = true,
+    AsanDtorKind DestructorKind = AsanDtorKind::Global);
 
 } // namespace llvm
 

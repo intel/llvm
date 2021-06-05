@@ -1,5 +1,13 @@
 add_subdirectory(memory_utils)
 
+add_header_library(
+  string_utils
+  HDRS
+    string_utils.h
+  DEPENDS
+    libc.utils.CPP.standalone_cpp
+)
+
 add_entrypoint_object(
   strcat
   SRCS
@@ -8,8 +16,7 @@ add_entrypoint_object(
     strcat.h
   DEPENDS
     .strcpy
-    .strlen
-    libc.include.string
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -20,8 +27,7 @@ add_entrypoint_object(
     strcpy.h
   DEPENDS
     .memcpy
-    .strlen
-    libc.include.string
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -40,8 +46,135 @@ add_entrypoint_object(
     strcmp.cpp
   HDRS
     strcmp.h
+)
+
+add_entrypoint_object(
+  memchr
+  SRCS
+    memchr.cpp
+  HDRS
+    memchr.h
   DEPENDS
-    libc.include.string
+    .string_utils
+)
+
+add_entrypoint_object(
+  memcmp
+  SRCS
+    memcmp.cpp
+  HDRS
+    memcmp.h
+)
+
+add_entrypoint_object(
+  memmove
+  SRCS
+    memmove.cpp
+  HDRS
+    memmove.h
+  DEPENDS
+    libc.src.__support.integer_operations
+    libc.src.string.memcpy
+)
+
+add_entrypoint_object(
+  strchr
+  SRCS
+    strchr.cpp
+  HDRS
+    strchr.h
+)
+
+add_entrypoint_object(
+  strstr
+  SRCS
+    strstr.cpp
+  HDRS
+    strstr.h
+)
+
+add_entrypoint_object(
+  strncpy
+  SRCS
+    strncpy.cpp
+  HDRS
+    strncpy.h
+)
+
+add_entrypoint_object(
+  strnlen
+  SRCS
+    strnlen.cpp
+  HDRS
+    strnlen.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
+  memrchr
+  SRCS
+    memrchr.cpp
+  HDRS
+    memrchr.h
+)
+
+add_entrypoint_object(
+  strrchr
+  SRCS
+    strrchr.cpp
+  HDRS
+    strrchr.h
+)
+
+add_entrypoint_object(
+  strcspn
+  SRCS
+    strcspn.cpp
+  HDRS
+    strcspn.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
+  strspn
+  SRCS
+    strspn.cpp
+  HDRS
+    strspn.h
+  DEPENDS
+    libc.utils.CPP.standalone_cpp
+)
+
+add_entrypoint_object(
+  strpbrk
+  SRCS
+    strpbrk.cpp
+  HDRS
+    strpbrk.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
+  strtok
+  SRCS
+    strtok.cpp
+  HDRS
+    strtok.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
+  strtok_r
+  SRCS
+    strtok_r.cpp
+  HDRS
+    strtok_r.h
+  DEPENDS
+    .string_utils
 )
 
 # Helper to define a function with multiple implementations
@@ -53,20 +186,15 @@ function(add_implementation name impl_name)
   cmake_parse_arguments(
     "ADD_IMPL"
     "" # Optional arguments
-    "MARCH" # Single value arguments
-    "REQUIRE;REJECT;SRCS;HDRS;DEPENDS;COMPILE_OPTIONS" # Multi value arguments
+    "" # Single value arguments
+    "REQUIRE;SRCS;HDRS;DEPENDS;COMPILE_OPTIONS" # Multi value arguments
     ${ARGN})
-  compute_flags(flags
-    MARCH ${ADD_IMPL_MARCH}
-    REQUIRE ${ADD_IMPL_REQUIRE}
-    REJECT ${ADD_IMPL_REJECT}
-  )
   add_entrypoint_object(${impl_name}
     NAME ${name}
     SRCS ${ADD_IMPL_SRCS}
     HDRS ${ADD_IMPL_HDRS}
     DEPENDS ${ADD_IMPL_DEPENDS}
-    COMPILE_OPTIONS ${ADD_IMPL_COMPILE_OPTIONS} ${flags} -O2
+    COMPILE_OPTIONS ${ADD_IMPL_COMPILE_OPTIONS}
   )
   get_fq_target_name(${impl_name} fq_target_name)
   set_target_properties(${fq_target_name} PROPERTIES REQUIRE_CPU_FEATURES "${ADD_IMPL_REQUIRE}")
@@ -76,15 +204,6 @@ endfunction()
 # ------------------------------------------------------------------------------
 # memcpy
 # ------------------------------------------------------------------------------
-
-# include the relevant architecture specific implementations
-if(${LIBC_TARGET_MACHINE} STREQUAL "x86_64")
-  set(LIBC_STRING_TARGET_ARCH "x86")
-  set(MEMCPY_SRC ${LIBC_SOURCE_DIR}/src/string/x86/memcpy.cpp)
-else()
-  set(LIBC_STRING_TARGET_ARCH ${LIBC_TARGET_MACHINE})
-  set(MEMCPY_SRC ${LIBC_SOURCE_DIR}/src/string/memcpy.cpp)
-endif()
 
 function(add_memcpy memcpy_name)
   add_implementation(memcpy ${memcpy_name}
@@ -99,9 +218,24 @@ function(add_memcpy memcpy_name)
   )
 endfunction()
 
-if(${LIBC_STRING_TARGET_ARCH} STREQUAL "x86")
-  add_memcpy(memcpy MARCH native)
+if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
+  set(MEMCPY_SRC ${LIBC_SOURCE_DIR}/src/string/x86_64/memcpy.cpp)
+  add_memcpy(memcpy_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
+  add_memcpy(memcpy_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
+  add_memcpy(memcpy_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
+  add_memcpy(memcpy_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
+  add_memcpy(memcpy_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
+  add_memcpy(memcpy)
+elseif(${LIBC_TARGET_ARCHITECTURE_IS_AARCH64})
+  set(MEMCPY_SRC ${LIBC_SOURCE_DIR}/src/string/aarch64/memcpy.cpp)
+  # Disable tail merging as it leads to lower performance.
+  # Note that '-mllvm' needs to be prefixed with 'SHELL:' to prevent CMake flag deduplication.
+  add_memcpy(memcpy_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE}
+                                      COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
+  add_memcpy(memcpy                   COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
 else()
+  set(MEMCPY_SRC ${LIBC_SOURCE_DIR}/src/string/memcpy.cpp)
+  add_memcpy(memcpy_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memcpy(memcpy)
 endif()
 
@@ -122,9 +256,15 @@ function(add_memset memset_name)
   )
 endfunction()
 
-if(${LIBC_STRING_TARGET_ARCH} STREQUAL "x86")
-  add_memset(memset MARCH native)
+if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
+  add_memset(memset_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
+  add_memset(memset_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
+  add_memset(memset_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
+  add_memset(memset_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
+  add_memset(memset_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
+  add_memset(memset)
 else()
+  add_memset(memset_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memset(memset)
 endif()
 
@@ -146,16 +286,14 @@ function(add_bzero bzero_name)
   )
 endfunction()
 
-if(${LIBC_STRING_TARGET_ARCH} STREQUAL "x86")
-  add_bzero(bzero MARCH native)
-else()
+if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
+  add_bzero(bzero_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
+  add_bzero(bzero_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
+  add_bzero(bzero_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
+  add_bzero(bzero_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
+  add_bzero(bzero_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_bzero(bzero)
-endif()
-
-# ------------------------------------------------------------------------------
-# Add all other relevant implementations for the native target.
-# ------------------------------------------------------------------------------
-
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_STRING_TARGET_ARCH})
-  include(${LIBC_STRING_TARGET_ARCH}/CMakeLists.txt)
+else()
+  add_bzero(bzero_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
+  add_bzero(bzero)
 endif()

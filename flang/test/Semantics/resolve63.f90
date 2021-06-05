@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
 ! Invalid operand types when user-defined operator is available
 module m1
   type :: t
@@ -44,12 +44,32 @@ module m1
   type(t) :: x, y
   real :: r
   logical :: l
+  integer :: iVar
+  complex :: cvar
+  character :: charVar
 contains
   subroutine test_relational()
     l = x == y  !OK
     l = x .eq. y  !OK
+    l = x .eq. y  !OK
+    l = iVar == z'fe' !OK
+    l = z'fe' == iVar !OK
+    l = r == z'fe' !OK
+    l = z'fe' == r !OK
+    l = cVar == z'fe' !OK
+    l = z'fe' == cVar !OK
+    !ERROR: No intrinsic or user-defined OPERATOR(==) matches operand types CHARACTER(KIND=1) and INTEGER(4)
+    l = charVar == z'fe'
+    !ERROR: No intrinsic or user-defined OPERATOR(==) matches operand types INTEGER(4) and CHARACTER(KIND=1)
+    l = z'fe' == charVar
+    !ERROR: No intrinsic or user-defined OPERATOR(==) matches operand types LOGICAL(4) and INTEGER(4)
+    l = l == z'fe' !OK
+    !ERROR: No intrinsic or user-defined OPERATOR(==) matches operand types INTEGER(4) and LOGICAL(4)
+    l = z'fe' == l !OK
     !ERROR: No intrinsic or user-defined OPERATOR(==) matches operand types TYPE(t) and REAL(4)
     l = x == r
+
+    lVar = z'a' == b'1010' !OK
   end
   subroutine test_numeric()
     l = x + r  !OK
@@ -84,6 +104,7 @@ end
 
 ! Invalid operand types when user-defined operator is not available
 module m2
+  intrinsic :: sin
   type :: t
   end type
   type(t) :: x, y
@@ -93,6 +114,10 @@ contains
   subroutine test_relational()
     !ERROR: Operands of .EQ. must have comparable types; have TYPE(t) and REAL(4)
     l = x == r
+    !ERROR: Subroutine name is not allowed here
+    l = r == test_numeric
+    !ERROR: Function call must have argument list
+    l = r == sin
   end
   subroutine test_numeric()
     !ERROR: Operands of + must be numeric; have REAL(4) and TYPE(t)
@@ -136,6 +161,7 @@ contains
   subroutine s1(x, y) 
     logical :: x
     integer :: y
+    integer, pointer :: px
     logical :: l
     complex :: z
     y = y + z'1'  !OK
@@ -146,8 +172,18 @@ contains
     y = -z'1'
     !ERROR: Operands of + must be numeric; have LOGICAL(4) and untyped
     y = x + z'1'
-    !ERROR: Operands of .NE. must have comparable types; have LOGICAL(4) and untyped
+    !ERROR: NULL() not allowed as an operand of a relational operator
     l = x /= null()
+    !ERROR: NULL() not allowed as an operand of a relational operator
+    l = null(px) /= null(px)
+    !ERROR: NULL() not allowed as an operand of a relational operator
+    l = x /= null(px)
+    !ERROR: NULL() not allowed as an operand of a relational operator
+    l = px /= null()
+    !ERROR: NULL() not allowed as an operand of a relational operator
+    l = px /= null(px)
+    !ERROR: NULL() not allowed as an operand of a relational operator
+    l = null() /= null()
   end
 end
 

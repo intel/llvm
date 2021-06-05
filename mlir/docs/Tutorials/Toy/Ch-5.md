@@ -15,34 +15,35 @@ part of the program and is limited: it doesn't support representing our
 `Affine` for the computation heavy part of Toy, and in the
 [next chapter](Ch-6.md) directly target the `LLVM IR` dialect for lowering
 `print`. As part of this lowering, we will be lowering from the
-[TensorType](../../LangRef.md#tensor-type) that `Toy` operates on to the
-[MemRefType](../../LangRef.md#memref-type) that is indexed via an affine
-loop-nest. Tensors represent an abstract value-typed sequence of data, meaning
-that they don't live in any memory. MemRefs, on the other hand, represent lower
-level buffer access, as they are concrete references to a region of memory.
+[TensorType](../../Dialects/Builtin.md/#rankedtensortype) that `Toy` 
+operates on to the [MemRefType](../../Dialects/Builtin.md/#memreftype) that is 
+indexed via an affine loop-nest. Tensors represent an abstract value-typed 
+sequence of data, meaning that they don't live in any memory. MemRefs, on the
+other hand, represent lower level buffer access, as they are concrete 
+references to a region of memory.
 
 # Dialect Conversions
 
 MLIR has many different dialects, so it is important to have a unified framework
-for [converting](../../../getting_started/Glossary.md#conversion) between them. This is where the
+for [converting](../../../getting_started/Glossary.md/#conversion) between them. This is where the
 `DialectConversion` framework comes into play. This framework allows for
 transforming a set of *illegal* operations to a set of *legal* ones. To use this
 framework, we need to provide two things (and an optional third):
 
-*   A [Conversion Target](../../DialectConversion.md#conversion-target)
+*   A [Conversion Target](../../DialectConversion.md/#conversion-target)
 
     -   This is the formal specification of what operations or dialects are
         legal for the conversion. Operations that aren't legal will require
         rewrite patterns to perform
-        [legalization](../../../getting_started/Glossary.md#legalization).
+        [legalization](../../../getting_started/Glossary.md/#legalization).
 
 *   A set of
-    [Rewrite Patterns](../../DialectConversion.md#rewrite-pattern-specification)
+    [Rewrite Patterns](../../DialectConversion.md/#rewrite-pattern-specification)
 
     -   This is the set of [patterns](../QuickstartRewrites.md) used to
         convert *illegal* operations into a set of zero or more *legal* ones.
 
-*   Optionally, a [Type Converter](../../DialectConversion.md#type-conversion).
+*   Optionally, a [Type Converter](../../DialectConversion.md/#type-conversion).
 
     -   If provided, this is used to convert the types of block arguments. We
         won't be needing this for our conversion.
@@ -50,8 +51,9 @@ framework, we need to provide two things (and an optional third):
 ## Conversion Target
 
 For our purposes, we want to convert the compute-intensive `Toy` operations into
-a combination of operations from the `Affine` `Standard` dialects for further
-optimization. To start off the lowering, we first define our conversion target:
+a combination of operations from the `Affine`, `MemRef` and `Standard` dialects
+for further optimization. To start off the lowering, we first define our
+conversion target:
 
 ```c++
 void ToyToAffineLoweringPass::runOnFunction() {
@@ -61,8 +63,9 @@ void ToyToAffineLoweringPass::runOnFunction() {
 
   // We define the specific operations, or dialects, that are legal targets for
   // this lowering. In our case, we are lowering to a combination of the
-  // `Affine` and `Standard` dialects.
-  target.addLegalDialect<mlir::AffineDialect, mlir::StandardOpsDialect>();
+  // `Affine`, `MemRef` and `Standard` dialects.
+  target.addLegalDialect<mlir::AffineDialect, mlir::memref::MemRefDialect,
+                         mlir::StandardOpsDialect>();
 
   // We also define the Toy dialect as Illegal so that the conversion will fail
   // if any of these operations are *not* converted. Given that we actually want
@@ -94,9 +97,9 @@ additional `operands` parameter containing operands that have been
 remapped/replaced. This is used when dealing with type conversions, as the
 pattern will want to operate on values of the new type but match against the
 old. For our lowering, this invariant will be useful as it translates from the
-[TensorType](../../LangRef.md#tensor-type) currently being operated on to the
-[MemRefType](../../LangRef.md#memref-type). Let's look at a snippet of lowering
-the `toy.transpose` operation:
+[TensorType](../../Dialects/Builtin.md/#rankedtensortype) currently 
+being operated on to the [MemRefType](../../Dialects/Builtin.md/#memreftype).
+Let's look at a snippet of lowering the `toy.transpose` operation:
 
 ```c++
 /// Lower the `toy.transpose` operation to an affine loop nest.
@@ -145,8 +148,8 @@ void ToyToAffineLoweringPass::runOnFunction() {
 
   // Now that the conversion target has been defined, we just need to provide
   // the set of patterns that will lower the Toy operations.
-  mlir::OwningRewritePatternList patterns;
-  patterns.insert<..., TransposeOpLowering>(&getContext());
+  mlir::RewritePatternSet patterns(&getContext());
+  patterns.add<..., TransposeOpLowering>(&getContext());
 
   ...
 ```

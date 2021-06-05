@@ -3,7 +3,10 @@
 ; RUN: llvm-link %S/Inputs/subprogram-linkonce-weak.ll %s -S -o %t2
 ; RUN: FileCheck %s -check-prefix=WL -check-prefix=CHECK <%t2
 ; REQUIRES: default_triple
-
+;
+; Bug 47131
+; XFAIL: sparc
+;
 ; This testcase tests the following flow:
 ;  - File A defines a linkonce version of @foo which has inlined into @bar.
 ;  - File B defines a weak version of @foo (different definition).
@@ -83,6 +86,7 @@ entry:
 !5 = !DISubroutineType(types: !{})
 
 ; Crasher for llc.
+; REQUIRES: object-emission
 ; RUN: %llc_dwarf -filetype=obj -O0 %t1 -o %t1.o
 ; RUN: llvm-dwarfdump %t1.o --all | FileCheck %s -check-prefix=DWLW -check-prefix=DW
 ; RUN: %llc_dwarf -filetype=obj -O0 %t2 -o %t2.o

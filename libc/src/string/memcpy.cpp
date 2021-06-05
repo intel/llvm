@@ -44,23 +44,20 @@ static void memcpy_impl(char *__restrict dst, const char *__restrict src,
     return CopyBlock<4>(dst, src);
   if (count < 8)
     return CopyBlockOverlap<4>(dst, src, count);
-  if (count == 8)
-    return CopyBlock<8>(dst, src);
   if (count < 16)
     return CopyBlockOverlap<8>(dst, src, count);
-  if (count == 16)
-    return CopyBlock<16>(dst, src);
   if (count < 32)
     return CopyBlockOverlap<16>(dst, src, count);
   if (count < 64)
     return CopyBlockOverlap<32>(dst, src, count);
   if (count < 128)
     return CopyBlockOverlap<64>(dst, src, count);
-  return CopyAlignedBlocks<32>(dst, src, count);
+  return CopySrcAlignedBlocks<32>(dst, src, count);
 }
 
-void *LLVM_LIBC_ENTRYPOINT(memcpy)(void *__restrict dst,
-                                   const void *__restrict src, size_t size) {
+LLVM_LIBC_FUNCTION(void *, memcpy,
+                   (void *__restrict dst, const void *__restrict src,
+                    size_t size)) {
   memcpy_impl(reinterpret_cast<char *>(dst),
               reinterpret_cast<const char *>(src), size);
   return dst;

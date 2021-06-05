@@ -266,6 +266,10 @@ PWACtx SCEVAffinator::visitConstant(const SCEVConstant *Expr) {
       isl::manage(isl_pw_aff_from_aff(isl_aff_val_on_domain(ls, v))));
 }
 
+PWACtx SCEVAffinator::visitPtrToIntExpr(const SCEVPtrToIntExpr *Expr) {
+  return visit(Expr->getOperand(0));
+}
+
 PWACtx SCEVAffinator::visitTruncateExpr(const SCEVTruncateExpr *Expr) {
   // Truncate operations are basically modulo operations, thus we can
   // model them that way. However, for large types we assume the operand
@@ -538,8 +542,6 @@ PWACtx SCEVAffinator::visitUnknown(const SCEVUnknown *Expr) {
     switch (I->getOpcode()) {
     case Instruction::IntToPtr:
       return visit(SE.getSCEVAtScope(I->getOperand(0), getScope()));
-    case Instruction::PtrToInt:
-      return visit(SE.getSCEVAtScope(I->getOperand(0), getScope()));
     case Instruction::SDiv:
       return visitSDivInstruction(I);
     case Instruction::SRem:
@@ -549,8 +551,15 @@ PWACtx SCEVAffinator::visitUnknown(const SCEVUnknown *Expr) {
     }
   }
 
-  llvm_unreachable(
-      "Unknowns SCEV was neither parameter nor a valid instruction.");
+  if (isa<ConstantPointerNull>(Expr->getValue())) {
+    isl::val v{Ctx, 0};
+    isl::space Space{Ctx, 0, NumIterators};
+    isl::local_space ls{Space};
+    return getPWACtxFromPWA(isl::aff(ls, v));
+  }
+
+  llvm_unreachable("Unknowns SCEV was neither a parameter, a constant nor a "
+                   "valid instruction.");
 }
 
 PWACtx SCEVAffinator::complexityBailout() {

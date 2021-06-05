@@ -16,6 +16,9 @@ void xxx(int argc) {
 }
 
 int foo();
+#if __cplusplus >= 201103L
+// expected-note@-2 {{declared here}}
+#endif
 
 template <class T>
 T foo() {
@@ -159,7 +162,7 @@ T foo() {
 #pragma omp ordered depend(sink : i, j)
 #pragma omp ordered depend(sink : j, i) // expected-error {{expected 'i' loop iteration variable}} expected-error {{expected 'j' loop iteration variable}}
 #pragma omp ordered depend(sink : i, j, k) // expected-error {{unexpected expression: number of expressions is larger than the number of associated loops}}
-#pragma omp ordered depend(sink : i+foo(), j/4) // expected-error {{expression is not an integral constant expression}} expected-error {{expected '+' or '-' operation}}
+#pragma omp ordered depend(sink : i+foo(), j/4) // expected-error {{integral constant expression}} expected-error {{expected '+' or '-' operation}}
 #if __cplusplus >= 201103L
 // expected-note@-2 {{non-constexpr function 'foo' cannot be used in a constant expression}}
 #endif
@@ -176,7 +179,7 @@ T foo() {
 
 int foo() {
 #if __cplusplus >= 201103L
-// expected-note@-2 2 {{declared here}}
+// expected-note@-2 {{declared here}}
 #endif
 int k;
   #pragma omp for ordered
@@ -296,7 +299,7 @@ int k;
 #pragma omp ordered depend(sink : i, j) allocate(i) // expected-error {{unexpected OpenMP clause 'allocate' in directive '#pragma omp ordered'}}
 #pragma omp ordered depend(sink : j, i) // expected-error {{expected 'i' loop iteration variable}} expected-error {{expected 'j' loop iteration variable}}
 #pragma omp ordered depend(sink : i, j, k) // expected-error {{unexpected expression: number of expressions is larger than the number of associated loops}}
-#pragma omp ordered depend(sink : i+foo(), j/4) // expected-error {{expression is not an integral constant expression}} expected-error {{expected '+' or '-' operation}}
+#pragma omp ordered depend(sink : i+foo(), j/4) // expected-error {{integral constant expression}} expected-error {{expected '+' or '-' operation}}
 #if __cplusplus >= 201103L
 // expected-note@-2 {{non-constexpr function 'foo' cannot be used in a constant expression}}
 #endif

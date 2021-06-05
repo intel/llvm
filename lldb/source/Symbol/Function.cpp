@@ -290,6 +290,8 @@ void Function::GetEndLineSourceInfo(FileSpec &source_file, uint32_t &line_no) {
 }
 
 llvm::ArrayRef<std::unique_ptr<CallEdge>> Function::GetCallEdges() {
+  std::lock_guard<std::mutex> guard(m_call_edges_lock);
+
   if (m_call_edges_resolved)
     return m_call_edges;
 
@@ -424,17 +426,16 @@ lldb::DisassemblerSP Function::GetInstructions(const ExecutionContext &exe_ctx,
                                                bool prefer_file_cache) {
   ModuleSP module_sp(GetAddressRange().GetBaseAddress().GetModule());
   if (module_sp && exe_ctx.HasTargetScope()) {
-    const bool prefer_file_cache = false;
     return Disassembler::DisassembleRange(module_sp->GetArchitecture(), nullptr,
                                           flavor, exe_ctx.GetTargetRef(),
-                                          GetAddressRange(), prefer_file_cache);
+                                          GetAddressRange(), !prefer_file_cache);
   }
   return lldb::DisassemblerSP();
 }
 
 bool Function::GetDisassembly(const ExecutionContext &exe_ctx,
-                              const char *flavor, bool prefer_file_cache,
-                              Stream &strm) {
+                              const char *flavor, Stream &strm,
+                              bool prefer_file_cache) {
   lldb::DisassemblerSP disassembler_sp =
       GetInstructions(exe_ctx, flavor, prefer_file_cache);
   if (disassembler_sp) {

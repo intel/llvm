@@ -18,6 +18,7 @@
 #include "clang/AST/GlobalDecl.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/Basic/ABI.h"
+#include "clang/Basic/Thunk.h"
 #include "llvm/ADT/DenseMap.h"
 #include <memory>
 #include <utility>
@@ -354,6 +355,9 @@ public:
   }
 
   bool IsMicrosoftABI;
+
+  /// Determine whether this function should be assigned a vtable slot.
+  static bool hasVtableSlot(const CXXMethodDecl *MD);
 };
 
 class ItaniumVTableContext : public VTableContextBase {

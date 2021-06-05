@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
 ! Tests valid and invalid usage of forward references to procedures
 ! in specification expressions.
 module m
@@ -8,7 +8,7 @@ module m
   interface ifn3
     module procedure if3
   end interface
-  !ERROR: Specification expression must be constant in declaration of 'a' with the SAVE attribute
+  !ERROR: Automatic data object 'a' may not appear in the specification part of a module
   real :: a(if1(1))
   !ERROR: No specific procedure of generic 'ifn2' matches the actual arguments
   real :: b(ifn2(1))

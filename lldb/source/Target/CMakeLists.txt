@@ -24,6 +24,7 @@ add_lldb_library(lldbTarget
   PathMappingList.cpp
   Platform.cpp
   Process.cpp
+  ProcessTrace.cpp
   Queue.cpp
   QueueItem.cpp
   QueueList.cpp
@@ -65,6 +66,9 @@ add_lldb_library(lldbTarget
   ThreadPlanTracer.cpp
   ThreadPlanStack.cpp
   ThreadSpec.cpp
+  ThreadPostMortemTrace.cpp
+  Trace.cpp
+  TraceSessionFileParser.cpp
   UnixSignals.cpp
   UnwindAssembly.cpp
   UnwindLLDB.cpp
@@ -77,7 +81,6 @@ add_lldb_library(lldbTarget
     lldbInterpreter
     lldbSymbol
     lldbUtility
-    lldbPluginExpressionParserClang
     lldbPluginProcessUtility
 
   LINK_COMPONENTS

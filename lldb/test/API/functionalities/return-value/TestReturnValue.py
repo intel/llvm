@@ -19,13 +19,15 @@ class ReturnValueTestCase(TestBase):
             "aarch64" and self.getPlatform() == "linux")
 
     def affected_by_pr44132(self):
-        return ((self.getArchitecture() == "aarch64" or self.getArchitecture() == 'arm') and self.getPlatform() == "linux")
+        return (self.getArchitecture() in ["aarch64", "arm"] and
+                self.getPlatform() in ["freebsd", "linux"])
 
     # ABIMacOSX_arm can't fetch simple values inside a structure
     def affected_by_radar_34562999(self):
         return (self.getArchitecture() == 'armv7' or self.getArchitecture() == 'armv7k') and self.platformIsDarwin()
 
-    @expectedFailureAll(oslist=["freebsd"], archs=["i386"])
+    @expectedFailureAll(oslist=["freebsd"], archs=["i386"],
+                        bugnumber="llvm.org/pr48376")
     @expectedFailureAll(oslist=["macosx"], archs=["i386"], bugnumber="<rdar://problem/28719652>")
     @expectedFailureAll(
         oslist=["linux"],
@@ -123,7 +125,7 @@ class ReturnValueTestCase(TestBase):
         #self.assertTrue(return_value.IsValid())
         #return_float = float(return_value.GetValue())
 
-        #self.assertTrue(in_float == return_float)
+        #self.assertEqual(in_float, return_float)
 
         if not self.affected_by_radar_34562999() and not self.affected_by_pr44132():
             self.return_and_test_struct_value("return_one_int")
@@ -154,7 +156,8 @@ class ReturnValueTestCase(TestBase):
             #self.return_and_test_struct_value ("return_one_int_one_double_packed")
             self.return_and_test_struct_value("return_one_int_one_long")
 
-    @expectedFailureAll(oslist=["freebsd"], archs=["i386"])
+    @expectedFailureAll(oslist=["freebsd"], archs=["i386"],
+                        bugnumber="llvm.org/pr48376")
     @expectedFailureAll(oslist=["macosx"], archs=["i386"], bugnumber="<rdar://problem/28719652>")
     @expectedFailureAll(
         oslist=["linux"],
@@ -165,7 +168,7 @@ class ReturnValueTestCase(TestBase):
         archs=["i386"])
     @expectedFailureAll(compiler=["gcc"], archs=["x86_64", "i386"])
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr24778")
-    @skipIfDarwinEmbedded # <rdar://problem/33976032> ABIMacOSX_arm64 doesn't get structs this big correctly
+    @expectedFailureDarwin(archs=["arm64"]) # <rdar://problem/33976032> ABIMacOSX_arm64 doesn't get structs this big correctly
     def test_vector_values(self):
         self.build()
         exe = self.getBuildArtifact("a.out")

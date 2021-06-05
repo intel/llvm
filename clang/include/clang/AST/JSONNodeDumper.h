@@ -23,9 +23,12 @@
 #include "clang/AST/CommentVisitor.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Mangle.h"
+#include "clang/AST/Type.h"
 #include "llvm/Support/JSON.h"
 
 namespace clang {
+
+class APValue;
 
 class NodeStreamer {
   bool FirstChild = true;
@@ -201,6 +204,7 @@ public:
   void Visit(const OMPClause *C);
   void Visit(const BlockDecl::Capture &C);
   void Visit(const GenericSelectionExpr::ConstAssociation &A);
+  void Visit(const APValue &Value, QualType Ty);
 
   void VisitTypedefType(const TypedefType *TT);
   void VisitFunctionType(const FunctionType *T);
@@ -259,6 +263,7 @@ public:
   void VisitBlockDecl(const BlockDecl *D);
 
   void VisitDeclRefExpr(const DeclRefExpr *DRE);
+  void VisitSYCLUniqueStableNameExpr(const SYCLUniqueStableNameExpr *E);
   void VisitPredefinedExpr(const PredefinedExpr *PE);
   void VisitUnaryOperator(const UnaryOperator *UO);
   void VisitBinaryOperator(const BinaryOperator *BO);

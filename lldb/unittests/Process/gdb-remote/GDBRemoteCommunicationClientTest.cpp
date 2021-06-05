@@ -343,6 +343,25 @@ TEST_F(GDBRemoteCommunicationClientTest, GetMemoryRegionInfo) {
   EXPECT_EQ(MemoryRegionInfo::eNo, region_info.GetWritable());
   EXPECT_EQ(MemoryRegionInfo::eYes, region_info.GetExecutable());
   EXPECT_EQ("/foo/bar.so", region_info.GetName().GetStringRef());
+  EXPECT_EQ(MemoryRegionInfo::eDontKnow, region_info.GetMemoryTagged());
+
+  result = std::async(std::launch::async, [&] {
+    return client.GetMemoryRegionInfo(addr, region_info);
+  });
+
+  HandlePacket(server, "qMemoryRegionInfo:a000",
+               "start:a000;size:2000;flags:;");
+  EXPECT_TRUE(result.get().Success());
+  EXPECT_EQ(MemoryRegionInfo::eNo, region_info.GetMemoryTagged());
+
+  result = std::async(std::launch::async, [&] {
+    return client.GetMemoryRegionInfo(addr, region_info);
+  });
+
+  HandlePacket(server, "qMemoryRegionInfo:a000",
+               "start:a000;size:2000;flags: mt  zz mt  ;");
+  EXPECT_TRUE(result.get().Success());
+  EXPECT_EQ(MemoryRegionInfo::eYes, region_info.GetMemoryTagged());
 }
 
 TEST_F(GDBRemoteCommunicationClientTest, GetMemoryRegionInfoInvalidResponse) {
@@ -362,195 +381,64 @@ TEST_F(GDBRemoteCommunicationClientTest, GetMemoryRegionInfoInvalidResponse) {
   EXPECT_FALSE(result.get().Success());
 }
 
-TEST_F(GDBRemoteCommunicationClientTest, SendStartTracePacket) {
-  TraceOptions options;
-  Status error;
+TEST_F(GDBRemoteCommunicationClientTest, SendTraceSupportedPacket) {
+  TraceSupportedResponse trace_type;
+  std::string error_message;
+  auto callback = [&] {
+    if (llvm::Expected<TraceSupportedResponse> trace_type_or_err =
+            client.SendTraceSupported()) {
+      trace_type = *trace_type_or_err;
+      error_message = "";
+      return true;
+    } else {
+      trace_type = {};
+      error_message = llvm::toString(trace_type_or_err.takeError());
+      return false;
+    }
+  };
 
-  options.setType(lldb::TraceType::eTraceTypeProcessorTrace);
-  options.setMetaDataBufferSize(8192);
-  options.setTraceBufferSize(8192);
-  options.setThreadID(0x23);
+  // Success response
+  {
+    std::future<bool> result = std::async(std::launch::async, callback);
 
-  StructuredData::DictionarySP custom_params =
-      std::make_shared<StructuredData::Dictionary>();
-  custom_params->AddStringItem("tracetech", "intel-pt");
-  custom_params->AddIntegerItem("psb", 0x01);
+    HandlePacket(
+        server, "jLLDBTraceSupported",
+        R"({"name":"intel-pt","description":"Intel Processor Trace"}])");
 
-  options.setTraceParams(custom_params);
+    EXPECT_TRUE(result.get());
+    ASSERT_STREQ(trace_type.name.c_str(), "intel-pt");
+    ASSERT_STREQ(trace_type.description.c_str(), "Intel Processor Trace");
+  }
 
-  std::future<lldb::user_id_t> result = std::async(std::launch::async, [&] {
-    return client.SendStartTracePacket(options, error);
-  });
+  // Error response - wrong json
+  {
+    std::future<bool> result = std::async(std::launch::async, callback);
 
-  // Since the line is exceeding 80 characters.
-  std::string expected_packet1 =
-      R"(jTraceStart:{"buffersize":8192,"metabuffersize":8192,"params":)";
-  std::string expected_packet2 =
-      R"({"psb":1,"tracetech":"intel-pt"},"threadid":35,"type":1})";
-  HandlePacket(server, (expected_packet1 + expected_packet2), "1");
-  ASSERT_TRUE(error.Success());
-  ASSERT_EQ(result.get(), 1u);
+    HandlePacket(server, "jLLDBTraceSupported", R"({"type":"intel-pt"}])");
 
-  error.Clear();
-  result = std::async(std::launch::async, [&] {
-    return client.SendStartTracePacket(options, error);
-  });
+    EXPECT_FALSE(result.get());
+    ASSERT_STREQ(error_message.c_str(), "missing value at TraceSupportedResponse.description");
+  }
 
-  HandlePacket(server, (expected_packet1 + expected_packet2), "E23");
-  ASSERT_EQ(result.get(), LLDB_INVALID_UID);
-  ASSERT_FALSE(error.Success());
-}
+  // Error response
+  {
+    std::future<bool> result = std::async(std::launch::async, callback);
 
-TEST_F(GDBRemoteCommunicationClientTest, SendStopTracePacket) {
-  lldb::tid_t thread_id = 0x23;
-  lldb::user_id_t trace_id = 3;
+    HandlePacket(server, "jLLDBTraceSupported", "E23");
 
-  std::future<Status> result = std::async(std::launch::async, [&] {
-    return client.SendStopTracePacket(trace_id, thread_id);
-  });
+    EXPECT_FALSE(result.get());
+  }
 
-  const char *expected_packet = R"(jTraceStop:{"threadid":35,"traceid":3})";
-  HandlePacket(server, expected_packet, "OK");
-  ASSERT_TRUE(result.get().Success());
+  // Error response with error message
+  {
+    std::future<bool> result = std::async(std::launch::async, callback);
 
-  result = std::async(std::launch::async, [&] {
-    return client.SendStopTracePacket(trace_id, thread_id);
-  });
+    HandlePacket(server, "jLLDBTraceSupported",
+                 "E23;50726F63657373206E6F742072756E6E696E672E");
 
-  HandlePacket(server, expected_packet, "E23");
-  ASSERT_FALSE(result.get().Success());
-}
-
-TEST_F(GDBRemoteCommunicationClientTest, SendGetDataPacket) {
-  lldb::tid_t thread_id = 0x23;
-  lldb::user_id_t trace_id = 3;
-
-  uint8_t buf[32] = {};
-  llvm::MutableArrayRef<uint8_t> buffer(buf, 32);
-  size_t offset = 0;
-
-  std::future<Status> result = std::async(std::launch::async, [&] {
-    return client.SendGetDataPacket(trace_id, thread_id, buffer, offset);
-  });
-
-  std::string expected_packet1 =
-      R"(jTraceBufferRead:{"buffersize":32,"offset":0,"threadid":35,)";
-  std::string expected_packet2 = R"("traceid":3})";
-  HandlePacket(server, expected_packet1+expected_packet2, "123456");
-  ASSERT_TRUE(result.get().Success());
-  ASSERT_EQ(buffer.size(), 3u);
-  ASSERT_EQ(buf[0], 0x12);
-  ASSERT_EQ(buf[1], 0x34);
-  ASSERT_EQ(buf[2], 0x56);
-
-  llvm::MutableArrayRef<uint8_t> buffer2(buf, 32);
-  result = std::async(std::launch::async, [&] {
-    return client.SendGetDataPacket(trace_id, thread_id, buffer2, offset);
-  });
-
-  HandlePacket(server, expected_packet1+expected_packet2, "E23");
-  ASSERT_FALSE(result.get().Success());
-  ASSERT_EQ(buffer2.size(), 0u);
-}
-
-TEST_F(GDBRemoteCommunicationClientTest, SendGetMetaDataPacket) {
-  lldb::tid_t thread_id = 0x23;
-  lldb::user_id_t trace_id = 3;
-
-  uint8_t buf[32] = {};
-  llvm::MutableArrayRef<uint8_t> buffer(buf, 32);
-  size_t offset = 0;
-
-  std::future<Status> result = std::async(std::launch::async, [&] {
-    return client.SendGetMetaDataPacket(trace_id, thread_id, buffer, offset);
-  });
-
-  std::string expected_packet1 =
-      R"(jTraceMetaRead:{"buffersize":32,"offset":0,"threadid":35,)";
-  std::string expected_packet2 = R"("traceid":3})";
-  HandlePacket(server, expected_packet1+expected_packet2, "123456");
-  ASSERT_TRUE(result.get().Success());
-  ASSERT_EQ(buffer.size(), 3u);
-  ASSERT_EQ(buf[0], 0x12);
-  ASSERT_EQ(buf[1], 0x34);
-  ASSERT_EQ(buf[2], 0x56);
-
-  llvm::MutableArrayRef<uint8_t> buffer2(buf, 32);
-  result = std::async(std::launch::async, [&] {
-    return client.SendGetMetaDataPacket(trace_id, thread_id, buffer2, offset);
-  });
-
-  HandlePacket(server, expected_packet1+expected_packet2, "E23");
-  ASSERT_FALSE(result.get().Success());
-  ASSERT_EQ(buffer2.size(), 0u);
-}
-
-TEST_F(GDBRemoteCommunicationClientTest, SendGetTraceConfigPacket) {
-  lldb::tid_t thread_id = 0x23;
-  lldb::user_id_t trace_id = 3;
-  TraceOptions options;
-  options.setThreadID(thread_id);
-
-  std::future<Status> result = std::async(std::launch::async, [&] {
-    return client.SendGetTraceConfigPacket(trace_id, options);
-  });
-
-  const char *expected_packet =
-      R"(jTraceConfigRead:{"threadid":35,"traceid":3})";
-  std::string response1 =
-      R"({"buffersize":8192,"params":{"psb":1,"tracetech":"intel-pt"})";
-  std::string response2 = R"(],"metabuffersize":8192,"threadid":35,"type":1}])";
-  HandlePacket(server, expected_packet, response1+response2);
-  ASSERT_TRUE(result.get().Success());
-  ASSERT_EQ(options.getTraceBufferSize(), 8192u);
-  ASSERT_EQ(options.getMetaDataBufferSize(), 8192u);
-  ASSERT_EQ(options.getType(), 1);
-
-  auto custom_params = options.getTraceParams();
-
-  uint64_t psb_value;
-  llvm::StringRef trace_tech_value;
-
-  ASSERT_TRUE(custom_params);
-  ASSERT_EQ(custom_params->GetType(), eStructuredDataTypeDictionary);
-  ASSERT_TRUE(custom_params->GetValueForKeyAsInteger("psb", psb_value));
-  ASSERT_EQ(psb_value, 1u);
-  ASSERT_TRUE(
-      custom_params->GetValueForKeyAsString("tracetech", trace_tech_value));
-  ASSERT_STREQ(trace_tech_value.data(), "intel-pt");
-
-  // Checking error response.
-  std::future<Status> result2 = std::async(std::launch::async, [&] {
-    return client.SendGetTraceConfigPacket(trace_id, options);
-  });
-
-  HandlePacket(server, expected_packet, "E23");
-  ASSERT_FALSE(result2.get().Success());
-
-  // Wrong JSON as response.
-  std::future<Status> result3 = std::async(std::launch::async, [&] {
-    return client.SendGetTraceConfigPacket(trace_id, options);
-  });
-
-  std::string incorrect_json1 =
-      R"("buffersize" : 8192,"params" : {"psb" : 1,"tracetech" : "intel-pt"})";
-  std::string incorrect_json2 =
-      R"(],"metabuffersize" : 8192,"threadid" : 35,"type" : 1}])";
-  HandlePacket(server, expected_packet, incorrect_json1+incorrect_json2);
-  ASSERT_FALSE(result3.get().Success());
-
-  // Wrong JSON as custom_params.
-  std::future<Status> result4 = std::async(std::launch::async, [&] {
-    return client.SendGetTraceConfigPacket(trace_id, options);
-  });
-
-  std::string incorrect_custom_params1 =
-      R"({"buffersize" : 8192,"params" : "psb" : 1,"tracetech" : "intel-pt"})";
-  std::string incorrect_custom_params2 =
-      R"(],"metabuffersize" : 8192,"threadid" : 35,"type" : 1}])";
-  HandlePacket(server, expected_packet, incorrect_custom_params1+
-      incorrect_custom_params2);
-  ASSERT_FALSE(result4.get().Success());
+    EXPECT_FALSE(result.get());
+    ASSERT_STREQ(error_message.c_str(), "Process not running.");
+  }
 }
 
 TEST_F(GDBRemoteCommunicationClientTest, GetQOffsets) {

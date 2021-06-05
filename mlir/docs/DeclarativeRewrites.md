@@ -51,7 +51,7 @@ features:
 *   Matching multi-result ops in nested patterns.
 *   Matching and generating variadic operand/result ops in nested patterns.
 *   Packing and unpacking variadic operands/results during generation.
-*   [`NativeCodeCall`](#native-code-call-transforming-the-generated-op)
+*   [`NativeCodeCall`](#nativecodecall-transforming-the-generated-op)
     returning more than one results.
 
 ## Rule Definition
@@ -90,7 +90,7 @@ Each pattern is specified as a TableGen `dag` object with the syntax of
 `(operator arg0, arg1, ...)`.
 
 `operator` is typically an MLIR op, but it can also be other
-[directives](#special-directives). `argN` is for matching (if used in source
+[directives](#rewrite-directives). `argN` is for matching (if used in source
 pattern) or generating (if used in result pattern) the `N`-th argument for
 `operator`. If the `operator` is some MLIR operation, it means the `N`-th
 argument as specified in the `arguments` list of the op's definition.
@@ -136,9 +136,11 @@ and `$attr` in result patterns and additional constraints.
 
 The pattern is position-based: the symbol names used for capturing here do not
 need to match with the op definition as shown in the above example. As another
-example, the pattern can be written as ` def : Pat<(AOp $a, F32Attr:$b), ...>;`
+example, the pattern can be written as `def : Pat<(AOp $a, F32Attr:$b), ...>;`
 and use `$a` and `$b` to refer to the captured input and attribute. But using
-the ODS name directly in the pattern is also allowed.
+the ODS name directly in the pattern is also allowed. Operands in the source
+pattern can have the same name. This bounds one operand to the name while
+verifying the rest are all equal.
 
 Also note that we only need to add `TypeConstraint` or `AttributeConstraint`
 when we need to further limit the match criteria. If all valid cases to the op
@@ -384,30 +386,37 @@ In `NativeCodeCall`, we can use placeholders like `$_builder`, `$N`. The former
 is called _special placeholder_, while the latter is called _positional
 placeholder_.
 
-`NativeCodeCall` right now only supports two special placeholders: `$_builder`
-and `$_self`:
+`NativeCodeCall` right now only supports three special placeholders:
+`$_builder`, `$_loc`, and `$_self`:
 
 *   `$_builder` will be replaced by the current `mlir::PatternRewriter`.
-*   `$_self` will be replaced with the entity `NativeCodeCall` is attached to.
+*   `$_loc` will be replaced by the fused location or custom location (as
+    determined by location directive).
+*   `$_self` will be replaced by the defining operation in a source pattern.
 
 We have seen how `$_builder` can be used in the above; it allows us to pass a
 `mlir::Builder` (`mlir::PatternRewriter` is a subclass of `mlir::OpBuilder`,
 which is a subclass of `mlir::Builder`) to the C++ helper function to use the
 handy methods on `mlir::Builder`.
 
-`$_self` is useful when we want to write something in the form of
-`NativeCodeCall<"...">:$symbol`. For example, if we want to reverse the previous
-example and decompose the array attribute into two attributes:
+Here's an example how we should use `$_self` in source pattern,
 
 ```tablegen
-class getNthAttr<int n> : NativeCodeCall<"$_self[" # n # "]">;
 
-def : Pat<(OneAttrOp $attr),
-          (TwoAttrOp (getNthAttr<0>:$attr), (getNthAttr<1>:$attr)>;
+def : Pat<(OneAttrOp (NativeCodeCall<"Foo($_self, &$0)"> I32Attr:$val)),
+          (TwoAttrOp $val, $val)>;
 ```
 
-In the above, `$_self` is substituted by the attribute bound by `$attr`, which
-is `OneAttrOp`'s array attribute.
+In the above, `$_self` is substituted by the defining operation of the first
+operand of OneAttrOp. Note that we don't support binding name to NativeCodeCall
+in the source pattern. To carry some return values from helper function, put the
+names (constraint is optional) in the parameter list and they will be bound to
+the variables with correspoding type. Then these named must be either passed by
+reference or a pointer to variable used as argument so that the matched value
+can be returned. In the same example, `$val` will be bound to a variable with
+`Attribute` type(as `I32Attr`) and the type of the second argument in Foo()
+could be `Attribute&` or `Attribute*`. Names with attribute constraints will be
+captured as Attributes while everything else will be treated as Value.
 
 Positional placeholders will be substituted by the `dag` object parameters at
 the `NativeCodeCall` use site. For example, if we define `SomeCall :
@@ -736,4 +745,4 @@ deduction ability. See [building operations](#building-operations) for more
 details.
 
 [TableGen]: https://llvm.org/docs/TableGen/index.html
-[OpBase]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/IR/OpBase.td
+[OpBase]: https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/IR/OpBase.td

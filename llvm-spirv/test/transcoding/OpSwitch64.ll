@@ -33,7 +33,7 @@ target triple = "spir64-unknown-unknown"
 
 ;CHECK-LLVM: test_64
 ;CHECK-LLVM: entry
-;CHECK-LLVM: switch i64 %0, label %sw.epilog [
+;CHECK-LLVM: switch i64 %6, label %sw.epilog [
 ;CHECK-LLVM: i64 0, label %sw.bb
 ;CHECK-LLVM: i64 1, label %sw.bb1
 ;CHECK-LLVM: i64 21474836481, label %sw.bb3

@@ -9,11 +9,11 @@
 #ifndef LLVM_LIBC_SRC_STRING_STRCPY_H
 #define LLVM_LIBC_SRC_STRING_STRCPY_H
 
-#include "include/string.h"
+#include <string.h>
 
 namespace __llvm_libc {
 
-char *strcpy(char *dest, const char *src);
+char *strcpy(char *__restrict dest, const char *__restrict src);
 
 } // namespace __llvm_libc
 

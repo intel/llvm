@@ -18,16 +18,36 @@
 
 namespace Fortran::runtime {
 class Descriptor;
-class NamelistGroup;
 } // namespace Fortran::runtime
 
 namespace Fortran::runtime::io {
 
+class NamelistGroup;
 class IoStatementState;
 using Cookie = IoStatementState *;
 using ExternalUnit = int;
 using AsynchronousId = int;
 static constexpr ExternalUnit DefaultUnit{-1}; // READ(*), WRITE(*), PRINT
+
+// INQUIRE specifiers are encoded as simple base-26 packings of
+// the spellings of their keywords.
+using InquiryKeywordHash = std::uint64_t;
+constexpr InquiryKeywordHash HashInquiryKeyword(const char *p) {
+  InquiryKeywordHash hash{1};
+  while (char ch{*p++}) {
+    std::uint64_t letter{0};
+    if (ch >= 'a' && ch <= 'z') {
+      letter = ch - 'a';
+    } else {
+      letter = ch - 'A';
+    }
+    hash = 26 * hash + letter;
+  }
+  return hash;
+}
+
+const char *InquiryKeywordHashDecode(
+    char *buffer, std::size_t, InquiryKeywordHash);
 
 extern "C" {
 
@@ -49,6 +69,10 @@ constexpr std::size_t RecommendedInternalIoScratchAreaBytes(
     int maxFormatParenthesesNestingDepth) {
   return 32 + 8 * maxFormatParenthesesNestingDepth;
 }
+
+// For NAMELIST I/O, use the API for the appropriate form of list-directed
+// I/O initiation and configuration, then call OutputNamelist/InputNamelist
+// below.
 
 // Internal I/O to/from character arrays &/or non-default-kind character
 // requires a descriptor, which is copied.
@@ -86,16 +110,6 @@ Cookie IONAME(BeginInternalFormattedInput)(const char *internal,
     void **scratchArea = nullptr, std::size_t scratchBytes = 0,
     const char *sourceFile = nullptr, int sourceLine = 0);
 
-// Internal namelist I/O
-Cookie IONAME(BeginInternalNamelistOutput)(const Descriptor &,
-    const NamelistGroup &, void **scratchArea = nullptr,
-    std::size_t scratchBytes = 0, const char *sourceFile = nullptr,
-    int sourceLine = 0);
-Cookie IONAME(BeginInternalNamelistInput)(const Descriptor &,
-    const NamelistGroup &, void **scratchArea = nullptr,
-    std::size_t scratchBytes = 0, const char *sourceFile = nullptr,
-    int sourceLine = 0);
-
 // External synchronous I/O initiation
 Cookie IONAME(BeginExternalListOutput)(ExternalUnit = DefaultUnit,
     const char *sourceFile = nullptr, int sourceLine = 0);
@@ -111,12 +125,6 @@ Cookie IONAME(BeginUnformattedOutput)(ExternalUnit = DefaultUnit,
     const char *sourceFile = nullptr, int sourceLine = 0);
 Cookie IONAME(BeginUnformattedInput)(ExternalUnit = DefaultUnit,
     const char *sourceFile = nullptr, int sourceLine = 0);
-Cookie IONAME(BeginExternalNamelistOutput)(const NamelistGroup &,
-    ExternalUnit = DefaultUnit, const char *sourceFile = nullptr,
-    int sourceLine = 0);
-Cookie IONAME(BeginExternalNamelistInput)(const NamelistGroup &,
-    ExternalUnit = DefaultUnit, const char *sourceFile = nullptr,
-    int sourceLine = 0);
 
 // Asynchronous I/O is supported (at most) for unformatted direct access
 // block transfers.
@@ -150,7 +158,7 @@ Cookie IONAME(BeginOpenNewUnit)(
 // BeginInquireIoLength() is basically a no-op output statement.
 Cookie IONAME(BeginInquireUnit)(
     ExternalUnit, const char *sourceFile = nullptr, int sourceLine = 0);
-Cookie IONAME(BeginInquireFile)(const char *, std::size_t, int kind = 1,
+Cookie IONAME(BeginInquireFile)(const char *, std::size_t,
     const char *sourceFile = nullptr, int sourceLine = 0);
 Cookie IONAME(BeginInquireIoLength)(
     const char *sourceFile = nullptr, int sourceLine = 0);
@@ -195,7 +203,7 @@ bool IONAME(SetRound)(Cookie, const char *, std::size_t);
 // SIGN=PLUS, SUPPRESS, PROCESSOR_DEFINED
 bool IONAME(SetSign)(Cookie, const char *, std::size_t);
 
-// Data item transfer for modes other than namelist.
+// Data item transfer for modes other than NAMELIST:
 // Any data object that can be passed as an actual argument without the
 // use of a temporary can be transferred by means of a descriptor;
 // vector-valued subscripts and coindexing will require elementwise
@@ -211,8 +219,12 @@ bool IONAME(SetSign)(Cookie, const char *, std::size_t);
 // and avoid the following items when they might crash.
 bool IONAME(OutputDescriptor)(Cookie, const Descriptor &);
 bool IONAME(InputDescriptor)(Cookie, const Descriptor &);
-bool IONAME(OutputUnformattedBlock)(Cookie, const char *, std::size_t);
-bool IONAME(InputUnformattedBlock)(Cookie, char *, std::size_t);
+// Contiguous transfers for unformatted I/O
+bool IONAME(OutputUnformattedBlock)(
+    Cookie, const char *, std::size_t, std::size_t elementBytes);
+bool IONAME(InputUnformattedBlock)(
+    Cookie, char *, std::size_t, std::size_t elementBytes);
+// Formatted (including list directed) I/O data items
 bool IONAME(OutputInteger64)(Cookie, std::int64_t);
 bool IONAME(InputInteger)(Cookie, std::int64_t &, int kind = 8);
 bool IONAME(OutputReal32)(Cookie, float);
@@ -220,11 +232,20 @@ bool IONAME(InputReal32)(Cookie, float &);
 bool IONAME(OutputReal64)(Cookie, double);
 bool IONAME(InputReal64)(Cookie, double &);
 bool IONAME(OutputComplex32)(Cookie, float, float);
+bool IONAME(InputComplex32)(Cookie, float[2]);
 bool IONAME(OutputComplex64)(Cookie, double, double);
+bool IONAME(InputComplex64)(Cookie, double[2]);
+bool IONAME(OutputCharacter)(Cookie, const char *, std::size_t, int kind = 1);
 bool IONAME(OutputAscii)(Cookie, const char *, std::size_t);
+bool IONAME(InputCharacter)(Cookie, char *, std::size_t, int kind = 1);
 bool IONAME(InputAscii)(Cookie, char *, std::size_t);
 bool IONAME(OutputLogical)(Cookie, bool);
 bool IONAME(InputLogical)(Cookie, bool &);
+
+// NAMELIST I/O must be the only data item in an (otherwise)
+// list-directed I/O statement.
+bool IONAME(OutputNamelist)(Cookie, const NamelistGroup &);
+bool IONAME(InputNamelist)(Cookie, const NamelistGroup &);
 
 // Additional specifier interfaces for the connection-list of
 // on OPEN statement (only).  SetBlank(), SetDecimal(),
@@ -236,6 +257,10 @@ bool IONAME(SetAccess)(Cookie, const char *, std::size_t);
 bool IONAME(SetAction)(Cookie, const char *, std::size_t);
 // ASYNCHRONOUS=YES, NO
 bool IONAME(SetAsynchronous)(Cookie, const char *, std::size_t);
+// CARRIAGECONTROL=LIST, FORTRAN, NONE
+bool IONAME(SetCarriagecontrol)(Cookie, const char *, std::size_t);
+// CONVERT=NATIVE, LITTLE_ENDIAN, BIG_ENDIAN, or SWAP
+bool IONAME(SetConvert)(Cookie, const char *, std::size_t);
 // ENCODING=UTF-8, DEFAULT
 bool IONAME(SetEncoding)(Cookie, const char *, std::size_t);
 // FORM=FORMATTED, UNFORMATTED
@@ -249,10 +274,7 @@ bool IONAME(SetRecl)(Cookie, std::size_t); // RECL=
 // For CLOSE: STATUS=KEEP, DELETE
 bool IONAME(SetStatus)(Cookie, const char *, std::size_t);
 
-// SetFile() may pass a CHARACTER argument of non-default kind,
-// and such filenames are converted to UTF-8 before being
-// presented to the filesystem.
-bool IONAME(SetFile)(Cookie, const char *, std::size_t chars, int kind = 1);
+bool IONAME(SetFile)(Cookie, const char *, std::size_t chars);
 
 // Acquires the runtime-created unit number for OPEN(NEWUNIT=)
 bool IONAME(GetNewUnit)(Cookie, int &, int kind = 4);
@@ -269,18 +291,17 @@ void IONAME(GetIoMsg)(Cookie, char *, std::size_t); // IOMSG=
 
 // INQUIRE() specifiers are mostly identified by their NUL-terminated
 // case-insensitive names.
-// ACCESS, ACTION, ASYNCHRONOUS, BLANK, DECIMAL, DELIM, DIRECT, ENCODING,
-// FORM, FORMATTED, NAME, PAD, POSITION, READ, READWRITE, ROUND,
+// ACCESS, ACTION, ASYNCHRONOUS, BLANK, CONVERT, DECIMAL, DELIM, DIRECT,
+// ENCODING, FORM, FORMATTED, NAME, PAD, POSITION, READ, READWRITE, ROUND,
 // SEQUENTIAL, SIGN, STREAM, UNFORMATTED, WRITE:
-bool IONAME(InquireCharacter)(
-    Cookie, const char *specifier, char *, std::size_t);
+bool IONAME(InquireCharacter)(Cookie, InquiryKeywordHash, char *, std::size_t);
 // EXIST, NAMED, OPENED, and PENDING (without ID):
-bool IONAME(InquireLogical)(Cookie, const char *specifier, bool &);
+bool IONAME(InquireLogical)(Cookie, InquiryKeywordHash, bool &);
 // PENDING with ID
 bool IONAME(InquirePendingId)(Cookie, std::int64_t, bool &);
 // NEXTREC, NUMBER, POS, RECL, SIZE
 bool IONAME(InquireInteger64)(
-    Cookie, const char *specifier, std::int64_t &, int kind = 8);
+    Cookie, InquiryKeywordHash, std::int64_t &, int kind = 8);
 
 // This function must be called to end an I/O statement, and its
 // cookie value may not be used afterwards unless it is recycled

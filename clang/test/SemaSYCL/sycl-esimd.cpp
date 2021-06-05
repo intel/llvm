@@ -1,9 +1,12 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify %s
+
+// This test checks specifics of semantic analysis of ESIMD kernels.
 
 // ----------- Negative tests
 
-__attribute__((sycl_explicit_simd)) // expected-warning {{'sycl_explicit_simd' attribute only applies to functions}}
-int N;
+void foo(
+    __attribute__((sycl_explicit_simd)) // expected-warning {{'sycl_explicit_simd' attribute only applies to functions and global variables}}
+    int N);
 
 __attribute__((sycl_explicit_simd(3))) // expected-error {{'sycl_explicit_simd' attribute takes no arguments}}
 void
@@ -12,12 +15,12 @@ bar() {}
 // -- ESIMD kernel can't call functions with required subgroup size != 1
 
 template <typename ID, typename F>
-void kernel0(F f) __attribute__((sycl_kernel)) {
+void kernel0(const F &f) __attribute__((sycl_kernel)) {
   f();
 }
 
 // expected-note@+1{{conflicting attribute is here}}
-[[cl::intel_reqd_sub_group_size(2)]] void g0() {}
+[[intel::reqd_sub_group_size(2)]] void g0() {}
 
 void test0() {
   // expected-error@+2{{conflicting attributes applied to a SYCL kernel}}
@@ -27,7 +30,7 @@ void test0() {
 
 // -- Usual kernel can't call ESIMD function
 template <typename ID, typename F>
-void kernel1(F f) __attribute__((sycl_kernel)) {
+void kernel1(const F &f) __attribute__((sycl_kernel)) {
   f();
 }
 
@@ -43,7 +46,7 @@ void test1() {
 
 // -- Kernel-function call, both have the attribute, lambda kernel.
 template <typename ID, typename F>
-void kernel2(F f) __attribute__((sycl_kernel)) {
+void kernel2(const F &f) __attribute__((sycl_kernel)) {
   f();
 }
 
@@ -64,14 +67,42 @@ class A {
 // --  Functor object kernel.
 
 template <typename F, typename ID = F>
-void kernel3(F f) __attribute__((sycl_kernel)) {
+void kernel3(const F &f) __attribute__((sycl_kernel)) {
   f();
 }
 
 struct Kernel3 {
-  void operator()() __attribute__((sycl_explicit_simd)) {}
+  void operator()() const __attribute__((sycl_explicit_simd)) {}
 };
 
 void bar3() {
   kernel3(Kernel3{});
+}
+
+// -- Clang-style [[sycl_explicit_simd]] attribute for functor object kernel.
+
+template <typename F, typename ID = F>
+[[clang::sycl_kernel]] void kernel4(const F &f) {
+  f();
+}
+
+struct Kernel4 {
+  [[intel::sycl_explicit_simd]] void operator()() const {}
+};
+
+void bar4() {
+  kernel4(Kernel4{});
+}
+
+// -- Clang-style [[sycl_explicit_simd]] attribute for lambda and free function.
+
+template <typename ID, typename F>
+[[clang::sycl_kernel]] void kernel5(const F &f) {
+  f();
+}
+
+[[intel::sycl_explicit_simd]] void g5() {}
+
+void test5() {
+  kernel5<class Kernel5>([=]() [[intel::sycl_explicit_simd]] { g5(); });
 }

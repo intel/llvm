@@ -87,6 +87,9 @@ namespace types {
   /// isObjC - Is this an "ObjC" input (Obj-C and Obj-C++ sources and headers).
   bool isObjC(ID Id);
 
+  /// isOpenCL - Is this an "OpenCL" input.
+  bool isOpenCL(ID Id);
+
   /// isFortran - Is this a Fortran input.
   bool isFortran(ID Id);
 

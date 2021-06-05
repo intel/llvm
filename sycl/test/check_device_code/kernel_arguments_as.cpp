@@ -1,11 +1,14 @@
-// RUN: %clangxx -fsycl-device-only -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning
-// RUN: FileCheck %s --input-file %t.ll
+// RUN: %clangxx -fsycl-device-only -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning -Xclang -disable-llvm-passes
+// RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-DISABLE
+// RUN: %clangxx -fsycl-device-only -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning -Xclang -disable-llvm-passes -D__ENABLE_USM_ADDR_SPACE__
+// RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-ENABLE
 //
 // Check the address space of the pointer in accessor class.
 //
 // CHECK: %struct{{.*}}AccWrapper = type { %"class{{.*}}cl::sycl::accessor" }
 // CHECK: %"class{{.*}}cl::sycl::accessor" = type { %"class{{.*}}AccessorImplDevice", %[[UNION:.*]] }
-// CHECK: %[[UNION]] = type { i32 addrspace(5)* }
+// CHECK-DISABLE: %[[UNION]] = type { i32 addrspace(1)* }
+// CHECK-ENABLE: %[[UNION]] = type { i32 addrspace(5)* }
 // CHECK: %struct{{.*}}AccWrapper = type { %"class{{.*}}cl::sycl::accessor" }
 // CHECK-NEXT: %"class{{.*}}cl::sycl::accessor" = type { %"class{{.*}}LocalAccessorBaseDevice", i32 addrspace(3)* }
 //

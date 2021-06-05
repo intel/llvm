@@ -15,15 +15,13 @@
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/Function.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
@@ -33,9 +31,14 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Endian.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SaveAndRestore.h"
+
+#include <tuple>
+
 using namespace mlir;
 using namespace mlir::detail;
 
@@ -49,7 +52,39 @@ void OperationName::dump() const { print(llvm::errs()); }
 
 DialectAsmPrinter::~DialectAsmPrinter() {}
 
+//===--------------------------------------------------------------------===//
+// OpAsmPrinter
+//===--------------------------------------------------------------------===//
+
 OpAsmPrinter::~OpAsmPrinter() {}
+
+void OpAsmPrinter::printFunctionalType(Operation *op) {
+  auto &os = getStream();
+  os << '(';
+  llvm::interleaveComma(op->getOperands(), os, [&](Value operand) {
+    // Print the types of null values as <<NULL TYPE>>.
+    *this << (operand ? operand.getType() : Type());
+  });
+  os << ") -> ";
+
+  // Print the result list.  We don't parenthesize single result types unless
+  // it is a function (avoiding a grammar ambiguity).
+  bool wrapped = op->getNumResults() != 1;
+  if (!wrapped && op->getResult(0).getType() &&
+      op->getResult(0).getType().isa<FunctionType>())
+    wrapped = true;
+
+  if (wrapped)
+    os << '(';
+
+  llvm::interleaveComma(op->getResults(), os, [&](const OpResult &result) {
+    // Print the types of null values as <<NULL TYPE>>.
+    *this << (result ? result.getType() : Type());
+  });
+
+  if (wrapped)
+    os << ')';
+}
 
 //===--------------------------------------------------------------------===//
 // Operation OpAsm interface.
@@ -158,7 +193,8 @@ OpPrintingFlags &OpPrintingFlags::useLocalScope() {
 /// Return if the given ElementsAttr should be elided.
 bool OpPrintingFlags::shouldElideElementsAttr(ElementsAttr attr) const {
   return elementsAttrElementLimit.hasValue() &&
-         *elementsAttrElementLimit < int64_t(attr.getNumElements());
+         *elementsAttrElementLimit < int64_t(attr.getNumElements()) &&
+         !attr.isa<SplatElementsAttr>();
 }
 
 /// Return the size limit for printing large ElementsAttr.
@@ -220,6 +256,429 @@ static raw_ostream &operator<<(raw_ostream &os, NewLineCounter &newLine) {
 }
 
 //===----------------------------------------------------------------------===//
+// AliasInitializer
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// This class represents a specific instance of a symbol Alias.
+class SymbolAlias {
+public:
+  SymbolAlias(StringRef name, bool isDeferrable)
+      : name(name), suffixIndex(0), hasSuffixIndex(false),
+        isDeferrable(isDeferrable) {}
+  SymbolAlias(StringRef name, uint32_t suffixIndex, bool isDeferrable)
+      : name(name), suffixIndex(suffixIndex), hasSuffixIndex(true),
+        isDeferrable(isDeferrable) {}
+
+  /// Print this alias to the given stream.
+  void print(raw_ostream &os) const {
+    os << name;
+    if (hasSuffixIndex)
+      os << suffixIndex;
+  }
+
+  /// Returns true if this alias supports deferred resolution when parsing.
+  bool canBeDeferred() const { return isDeferrable; }
+
+private:
+  /// The main name of the alias.
+  StringRef name;
+  /// The optional suffix index of the alias, if multiple aliases had the same
+  /// name.
+  uint32_t suffixIndex : 30;
+  /// A flag indicating whether this alias has a suffix or not.
+  bool hasSuffixIndex : 1;
+  /// A flag indicating whether this alias may be deferred or not.
+  bool isDeferrable : 1;
+};
+
+/// This class represents a utility that initializes the set of attribute and
+/// type aliases, without the need to store the extra information within the
+/// main AliasState class or pass it around via function arguments.
+class AliasInitializer {
+public:
+  AliasInitializer(
+      DialectInterfaceCollection<OpAsmDialectInterface> &interfaces,
+      llvm::BumpPtrAllocator &aliasAllocator)
+      : interfaces(interfaces), aliasAllocator(aliasAllocator),
+        aliasOS(aliasBuffer) {}
+
+  void initialize(Operation *op, const OpPrintingFlags &printerFlags,
+                  llvm::MapVector<Attribute, SymbolAlias> &attrToAlias,
+                  llvm::MapVector<Type, SymbolAlias> &typeToAlias);
+
+  /// Visit the given attribute to see if it has an alias. `canBeDeferred` is
+  /// set to true if the originator of this attribute can resolve the alias
+  /// after parsing has completed (e.g. in the case of operation locations).
+  void visit(Attribute attr, bool canBeDeferred = false);
+
+  /// Visit the given type to see if it has an alias.
+  void visit(Type type);
+
+private:
+  /// Try to generate an alias for the provided symbol. If an alias is
+  /// generated, the provided alias mapping and reverse mapping are updated.
+  /// Returns success if an alias was generated, failure otherwise.
+  template <typename T>
+  LogicalResult
+  generateAlias(T symbol,
+                llvm::MapVector<StringRef, std::vector<T>> &aliasToSymbol);
+
+  /// The set of asm interfaces within the context.
+  DialectInterfaceCollection<OpAsmDialectInterface> &interfaces;
+
+  /// Mapping between an alias and the set of symbols mapped to it.
+  llvm::MapVector<StringRef, std::vector<Attribute>> aliasToAttr;
+  llvm::MapVector<StringRef, std::vector<Type>> aliasToType;
+
+  /// An allocator used for alias names.
+  llvm::BumpPtrAllocator &aliasAllocator;
+
+  /// The set of visited attributes.
+  DenseSet<Attribute> visitedAttributes;
+
+  /// The set of attributes that have aliases *and* can be deferred.
+  DenseSet<Attribute> deferrableAttributes;
+
+  /// The set of visited types.
+  DenseSet<Type> visitedTypes;
+
+  /// Storage and stream used when generating an alias.
+  SmallString<32> aliasBuffer;
+  llvm::raw_svector_ostream aliasOS;
+};
+
+/// This class implements a dummy OpAsmPrinter that doesn't print any output,
+/// and merely collects the attributes and types that *would* be printed in a
+/// normal print invocation so that we can generate proper aliases. This allows
+/// for us to generate aliases only for the attributes and types that would be
+/// in the output, and trims down unnecessary output.
+class DummyAliasOperationPrinter : private OpAsmPrinter {
+public:
+  explicit DummyAliasOperationPrinter(const OpPrintingFlags &flags,
+                                      AliasInitializer &initializer)
+      : printerFlags(flags), initializer(initializer) {}
+
+  /// Print the given operation.
+  void print(Operation *op) {
+    // Visit the operation location.
+    if (printerFlags.shouldPrintDebugInfo())
+      initializer.visit(op->getLoc(), /*canBeDeferred=*/true);
+
+    // If requested, always print the generic form.
+    if (!printerFlags.shouldPrintGenericOpForm()) {
+      // Check to see if this is a known operation.  If so, use the registered
+      // custom printer hook.
+      if (auto *opInfo = op->getAbstractOperation()) {
+        opInfo->printAssembly(op, *this);
+        return;
+      }
+    }
+
+    // Otherwise print with the generic assembly form.
+    printGenericOp(op);
+  }
+
+private:
+  /// Print the given operation in the generic form.
+  void printGenericOp(Operation *op) override {
+    // Consider nested operations for aliases.
+    if (op->getNumRegions() != 0) {
+      for (Region &region : op->getRegions())
+        printRegion(region, /*printEntryBlockArgs=*/true,
+                    /*printBlockTerminators=*/true);
+    }
+
+    // Visit all the types used in the operation.
+    for (Type type : op->getOperandTypes())
+      printType(type);
+    for (Type type : op->getResultTypes())
+      printType(type);
+
+    // Consider the attributes of the operation for aliases.
+    for (const NamedAttribute &attr : op->getAttrs())
+      printAttribute(attr.second);
+  }
+
+  /// Print the given block. If 'printBlockArgs' is false, the arguments of the
+  /// block are not printed. If 'printBlockTerminator' is false, the terminator
+  /// operation of the block is not printed.
+  void print(Block *block, bool printBlockArgs = true,
+             bool printBlockTerminator = true) {
+    // Consider the types of the block arguments for aliases if 'printBlockArgs'
+    // is set to true.
+    if (printBlockArgs) {
+      for (BlockArgument arg : block->getArguments()) {
+        printType(arg.getType());
+
+        // Visit the argument location.
+        if (printerFlags.shouldPrintDebugInfo())
+          // TODO: Allow deferring argument locations.
+          initializer.visit(arg.getLoc(), /*canBeDeferred=*/false);
+      }
+    }
+
+    // Consider the operations within this block, ignoring the terminator if
+    // requested.
+    auto range = llvm::make_range(
+        block->begin(), std::prev(block->end(), printBlockTerminator ? 0 : 1));
+    for (Operation &op : range)
+      print(&op);
+  }
+
+  /// Print the given region.
+  void printRegion(Region &region, bool printEntryBlockArgs,
+                   bool printBlockTerminators,
+                   bool printEmptyBlock = false) override {
+    if (region.empty())
+      return;
+
+    auto *entryBlock = &region.front();
+    print(entryBlock, printEntryBlockArgs, printBlockTerminators);
+    for (Block &b : llvm::drop_begin(region, 1))
+      print(&b);
+  }
+
+  void printRegionArgument(BlockArgument arg, ArrayRef<NamedAttribute> argAttrs,
+                           bool omitType) override {
+    printType(arg.getType());
+    // Visit the argument location.
+    if (printerFlags.shouldPrintDebugInfo())
+      // TODO: Allow deferring argument locations.
+      initializer.visit(arg.getLoc(), /*canBeDeferred=*/false);
+  }
+
+  /// Consider the given type to be printed for an alias.
+  void printType(Type type) override { initializer.visit(type); }
+
+  /// Consider the given attribute to be printed for an alias.
+  void printAttribute(Attribute attr) override { initializer.visit(attr); }
+  void printAttributeWithoutType(Attribute attr) override {
+    printAttribute(attr);
+  }
+
+  /// Print the given set of attributes with names not included within
+  /// 'elidedAttrs'.
+  void printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
+                             ArrayRef<StringRef> elidedAttrs = {}) override {
+    if (attrs.empty())
+      return;
+    if (elidedAttrs.empty()) {
+      for (const NamedAttribute &attr : attrs)
+        printAttribute(attr.second);
+      return;
+    }
+    llvm::SmallDenseSet<StringRef> elidedAttrsSet(elidedAttrs.begin(),
+                                                  elidedAttrs.end());
+    for (const NamedAttribute &attr : attrs)
+      if (!elidedAttrsSet.contains(attr.first.strref()))
+        printAttribute(attr.second);
+  }
+  void printOptionalAttrDictWithKeyword(
+      ArrayRef<NamedAttribute> attrs,
+      ArrayRef<StringRef> elidedAttrs = {}) override {
+    printOptionalAttrDict(attrs, elidedAttrs);
+  }
+
+  /// Return a null stream as the output stream, this will ignore any data fed
+  /// to it.
+  raw_ostream &getStream() const override { return os; }
+
+  /// The following are hooks of `OpAsmPrinter` that are not necessary for
+  /// determining potential aliases.
+  void printAffineMapOfSSAIds(AffineMapAttr, ValueRange) override {}
+  void printAffineExprOfSSAIds(AffineExpr, ValueRange, ValueRange) override {}
+  void printNewline() override {}
+  void printOperand(Value) override {}
+  void printOperand(Value, raw_ostream &os) override {
+    // Users expect the output string to have at least the prefixed % to signal
+    // a value name. To maintain this invariant, emit a name even if it is
+    // guaranteed to go unused.
+    os << "%";
+  }
+  void printSymbolName(StringRef) override {}
+  void printSuccessor(Block *) override {}
+  void printSuccessorAndUseList(Block *, ValueRange) override {}
+  void shadowRegionArgs(Region &, ValueRange) override {}
+
+  /// The printer flags to use when determining potential aliases.
+  const OpPrintingFlags &printerFlags;
+
+  /// The initializer to use when identifying aliases.
+  AliasInitializer &initializer;
+
+  /// A dummy output stream.
+  mutable llvm::raw_null_ostream os;
+};
+} // end anonymous namespace
+
+/// Sanitize the given name such that it can be used as a valid identifier. If
+/// the string needs to be modified in any way, the provided buffer is used to
+/// store the new copy,
+static StringRef sanitizeIdentifier(StringRef name, SmallString<16> &buffer,
+                                    StringRef allowedPunctChars = "$._-",
+                                    bool allowTrailingDigit = true) {
+  assert(!name.empty() && "Shouldn't have an empty name here");
+
+  auto copyNameToBuffer = [&] {
+    for (char ch : name) {
+      if (llvm::isAlnum(ch) || allowedPunctChars.contains(ch))
+        buffer.push_back(ch);
+      else if (ch == ' ')
+        buffer.push_back('_');
+      else
+        buffer.append(llvm::utohexstr((unsigned char)ch));
+    }
+  };
+
+  // Check to see if this name is valid. If it starts with a digit, then it
+  // could conflict with the autogenerated numeric ID's, so add an underscore
+  // prefix to avoid problems.
+  if (isdigit(name[0])) {
+    buffer.push_back('_');
+    copyNameToBuffer();
+    return buffer;
+  }
+
+  // If the name ends with a trailing digit, add a '_' to avoid potential
+  // conflicts with autogenerated ID's.
+  if (!allowTrailingDigit && isdigit(name.back())) {
+    copyNameToBuffer();
+    buffer.push_back('_');
+    return buffer;
+  }
+
+  // Check to see that the name consists of only valid identifier characters.
+  for (char ch : name) {
+    if (!llvm::isAlnum(ch) && !allowedPunctChars.contains(ch)) {
+      copyNameToBuffer();
+      return buffer;
+    }
+  }
+
+  // If there are no invalid characters, return the original name.
+  return name;
+}
+
+/// Given a collection of aliases and symbols, initialize a mapping from a
+/// symbol to a given alias.
+template <typename T>
+static void
+initializeAliases(llvm::MapVector<StringRef, std::vector<T>> &aliasToSymbol,
+                  llvm::MapVector<T, SymbolAlias> &symbolToAlias,
+                  DenseSet<T> *deferrableAliases = nullptr) {
+  std::vector<std::pair<StringRef, std::vector<T>>> aliases =
+      aliasToSymbol.takeVector();
+  llvm::array_pod_sort(aliases.begin(), aliases.end(),
+                       [](const auto *lhs, const auto *rhs) {
+                         return lhs->first.compare(rhs->first);
+                       });
+
+  for (auto &it : aliases) {
+    // If there is only one instance for this alias, use the name directly.
+    if (it.second.size() == 1) {
+      T symbol = it.second.front();
+      bool isDeferrable = deferrableAliases && deferrableAliases->count(symbol);
+      symbolToAlias.insert({symbol, SymbolAlias(it.first, isDeferrable)});
+      continue;
+    }
+    // Otherwise, add the index to the name.
+    for (int i = 0, e = it.second.size(); i < e; ++i) {
+      T symbol = it.second[i];
+      bool isDeferrable = deferrableAliases && deferrableAliases->count(symbol);
+      symbolToAlias.insert({symbol, SymbolAlias(it.first, i, isDeferrable)});
+    }
+  }
+}
+
+void AliasInitializer::initialize(
+    Operation *op, const OpPrintingFlags &printerFlags,
+    llvm::MapVector<Attribute, SymbolAlias> &attrToAlias,
+    llvm::MapVector<Type, SymbolAlias> &typeToAlias) {
+  // Use a dummy printer when walking the IR so that we can collect the
+  // attributes/types that will actually be used during printing when
+  // considering aliases.
+  DummyAliasOperationPrinter aliasPrinter(printerFlags, *this);
+  aliasPrinter.print(op);
+
+  // Initialize the aliases sorted by name.
+  initializeAliases(aliasToAttr, attrToAlias, &deferrableAttributes);
+  initializeAliases(aliasToType, typeToAlias);
+}
+
+void AliasInitializer::visit(Attribute attr, bool canBeDeferred) {
+  if (!visitedAttributes.insert(attr).second) {
+    // If this attribute already has an alias and this instance can't be
+    // deferred, make sure that the alias isn't deferred.
+    if (!canBeDeferred)
+      deferrableAttributes.erase(attr);
+    return;
+  }
+
+  // Try to generate an alias for this attribute.
+  if (succeeded(generateAlias(attr, aliasToAttr))) {
+    if (canBeDeferred)
+      deferrableAttributes.insert(attr);
+    return;
+  }
+
+  if (auto arrayAttr = attr.dyn_cast<ArrayAttr>()) {
+    for (Attribute element : arrayAttr.getValue())
+      visit(element);
+  } else if (auto dictAttr = attr.dyn_cast<DictionaryAttr>()) {
+    for (const NamedAttribute &attr : dictAttr)
+      visit(attr.second);
+  } else if (auto typeAttr = attr.dyn_cast<TypeAttr>()) {
+    visit(typeAttr.getValue());
+  }
+}
+
+void AliasInitializer::visit(Type type) {
+  if (!visitedTypes.insert(type).second)
+    return;
+
+  // Try to generate an alias for this type.
+  if (succeeded(generateAlias(type, aliasToType)))
+    return;
+
+  // Visit several subtypes that contain types or attributes.
+  if (auto funcType = type.dyn_cast<FunctionType>()) {
+    // Visit input and result types for functions.
+    for (auto input : funcType.getInputs())
+      visit(input);
+    for (auto result : funcType.getResults())
+      visit(result);
+  } else if (auto shapedType = type.dyn_cast<ShapedType>()) {
+    visit(shapedType.getElementType());
+
+    // Visit affine maps in memref type.
+    if (auto memref = type.dyn_cast<MemRefType>())
+      for (auto map : memref.getAffineMaps())
+        visit(AffineMapAttr::get(map));
+  }
+}
+
+template <typename T>
+LogicalResult AliasInitializer::generateAlias(
+    T symbol, llvm::MapVector<StringRef, std::vector<T>> &aliasToSymbol) {
+  SmallString<16> tempBuffer;
+  for (const auto &interface : interfaces) {
+    if (failed(interface.getAlias(symbol, aliasOS)))
+      continue;
+    StringRef name = aliasOS.str();
+    assert(!name.empty() && "expected valid alias name");
+    name = sanitizeIdentifier(name, tempBuffer, /*allowedPunctChars=*/"$_-",
+                              /*allowTrailingDigit=*/false);
+    name = name.copy(aliasAllocator);
+
+    aliasToSymbol[name].push_back(symbol);
+    aliasBuffer.clear();
+    return success();
+  }
+  return failure();
+}
+
+//===----------------------------------------------------------------------===//
 // AliasState
 //===----------------------------------------------------------------------===//
 
@@ -229,253 +688,81 @@ class AliasState {
 public:
   // Initialize the internal aliases.
   void
-  initialize(Operation *op,
+  initialize(Operation *op, const OpPrintingFlags &printerFlags,
              DialectInterfaceCollection<OpAsmDialectInterface> &interfaces);
 
-  /// Return a name used for an attribute alias, or empty if there is no alias.
-  Twine getAttributeAlias(Attribute attr) const;
+  /// Get an alias for the given attribute if it has one and print it in `os`.
+  /// Returns success if an alias was printed, failure otherwise.
+  LogicalResult getAlias(Attribute attr, raw_ostream &os) const;
 
-  /// Print all of the referenced attribute aliases.
-  void printAttributeAliases(raw_ostream &os, NewLineCounter &newLine) const;
+  /// Get an alias for the given type if it has one and print it in `os`.
+  /// Returns success if an alias was printed, failure otherwise.
+  LogicalResult getAlias(Type ty, raw_ostream &os) const;
 
-  /// Return a string to use as an alias for the given type, or empty if there
-  /// is no alias recorded.
-  StringRef getTypeAlias(Type ty) const;
+  /// Print all of the referenced aliases that can not be resolved in a deferred
+  /// manner.
+  void printNonDeferredAliases(raw_ostream &os, NewLineCounter &newLine) const {
+    printAliases(os, newLine, /*isDeferred=*/false);
+  }
 
-  /// Print all of the referenced type aliases.
-  void printTypeAliases(raw_ostream &os, NewLineCounter &newLine) const;
+  /// Print all of the referenced aliases that support deferred resolution.
+  void printDeferredAliases(raw_ostream &os, NewLineCounter &newLine) const {
+    printAliases(os, newLine, /*isDeferred=*/true);
+  }
 
 private:
-  /// A special index constant used for non-kind attribute aliases.
-  enum { NonAttrKindAlias = -1 };
+  /// Print all of the referenced aliases that support the provided resolution
+  /// behavior.
+  void printAliases(raw_ostream &os, NewLineCounter &newLine,
+                    bool isDeferred) const;
 
-  /// Record a reference to the given attribute.
-  void recordAttributeReference(Attribute attr);
+  /// Mapping between attribute and alias.
+  llvm::MapVector<Attribute, SymbolAlias> attrToAlias;
+  /// Mapping between type and alias.
+  llvm::MapVector<Type, SymbolAlias> typeToAlias;
 
-  /// Record a reference to the given type.
-  void recordTypeReference(Type ty);
-
-  // Visit functions.
-  void visitOperation(Operation *op);
-  void visitType(Type type);
-  void visitAttribute(Attribute attr);
-
-  /// Set of attributes known to be used within the module.
-  llvm::SetVector<Attribute> usedAttributes;
-
-  /// Mapping between attribute and a pair comprised of a base alias name and a
-  /// count suffix. If the suffix is set to -1, it is not displayed.
-  llvm::MapVector<Attribute, std::pair<StringRef, int>> attrToAlias;
-
-  /// Mapping between attribute kind and a pair comprised of a base alias name
-  /// and a unique list of attributes belonging to this kind sorted by location
-  /// seen in the module.
-  llvm::MapVector<unsigned, std::pair<StringRef, std::vector<Attribute>>>
-      attrKindToAlias;
-
-  /// Set of types known to be used within the module.
-  llvm::SetVector<Type> usedTypes;
-
-  /// A mapping between a type and a given alias.
-  DenseMap<Type, StringRef> typeToAlias;
+  /// An allocator used for alias names.
+  llvm::BumpPtrAllocator aliasAllocator;
 };
 } // end anonymous namespace
 
-// Utility to generate a function to register a symbol alias.
-static bool canRegisterAlias(StringRef name, llvm::StringSet<> &usedAliases) {
-  assert(!name.empty() && "expected alias name to be non-empty");
-  // TODO(riverriddle) Assert that the provided alias name can be lexed as
-  // an identifier.
-
-  // Check that the alias doesn't contain a '.' character and the name is not
-  // already in use.
-  return !name.contains('.') && usedAliases.insert(name).second;
-}
-
 void AliasState::initialize(
-    Operation *op,
+    Operation *op, const OpPrintingFlags &printerFlags,
     DialectInterfaceCollection<OpAsmDialectInterface> &interfaces) {
-  // Track the identifiers in use for each symbol so that the same identifier
-  // isn't used twice.
-  llvm::StringSet<> usedAliases;
-
-  // Collect the set of aliases from each dialect.
-  SmallVector<std::pair<unsigned, StringRef>, 8> attributeKindAliases;
-  SmallVector<std::pair<Attribute, StringRef>, 8> attributeAliases;
-  SmallVector<std::pair<Type, StringRef>, 16> typeAliases;
-
-  // AffineMap/Integer set have specific kind aliases.
-  attributeKindAliases.emplace_back(StandardAttributes::AffineMap, "map");
-  attributeKindAliases.emplace_back(StandardAttributes::IntegerSet, "set");
-
-  for (auto &interface : interfaces) {
-    interface.getAttributeKindAliases(attributeKindAliases);
-    interface.getAttributeAliases(attributeAliases);
-    interface.getTypeAliases(typeAliases);
-  }
-
-  // Setup the attribute kind aliases.
-  StringRef alias;
-  unsigned attrKind;
-  for (auto &attrAliasPair : attributeKindAliases) {
-    std::tie(attrKind, alias) = attrAliasPair;
-    assert(!alias.empty() && "expected non-empty alias string");
-    if (!usedAliases.count(alias) && !alias.contains('.'))
-      attrKindToAlias.insert({attrKind, {alias, {}}});
-  }
-
-  // Clear the set of used identifiers so that the attribute kind aliases are
-  // just a prefix and not the full alias, i.e. there may be some overlap.
-  usedAliases.clear();
-
-  // Register the attribute aliases.
-  // Create a regex for the attribute kind alias names, these have a prefix with
-  // a counter appended to the end. We prevent normal aliases from having these
-  // names to avoid collisions.
-  llvm::Regex reservedAttrNames("[0-9]+$");
-
-  // Attribute value aliases.
-  Attribute attr;
-  for (auto &attrAliasPair : attributeAliases) {
-    std::tie(attr, alias) = attrAliasPair;
-    if (!reservedAttrNames.match(alias) && canRegisterAlias(alias, usedAliases))
-      attrToAlias.insert({attr, {alias, NonAttrKindAlias}});
-  }
-
-  // Clear the set of used identifiers as types can have the same identifiers as
-  // affine structures.
-  usedAliases.clear();
-
-  // Type aliases.
-  for (auto &typeAliasPair : typeAliases)
-    if (canRegisterAlias(typeAliasPair.second, usedAliases))
-      typeToAlias.insert(typeAliasPair);
-
-  // Traverse the given IR to generate the set of used attributes/types.
-  op->walk([&](Operation *op) { visitOperation(op); });
+  AliasInitializer initializer(interfaces, aliasAllocator);
+  initializer.initialize(op, printerFlags, attrToAlias, typeToAlias);
 }
 
-/// Return a name used for an attribute alias, or empty if there is no alias.
-Twine AliasState::getAttributeAlias(Attribute attr) const {
-  auto alias = attrToAlias.find(attr);
-  if (alias == attrToAlias.end())
-    return Twine();
-
-  // Return the alias for this attribute, along with the index if this was
-  // generated by a kind alias.
-  int kindIndex = alias->second.second;
-  return alias->second.first +
-         (kindIndex == NonAttrKindAlias ? Twine() : Twine(kindIndex));
+LogicalResult AliasState::getAlias(Attribute attr, raw_ostream &os) const {
+  auto it = attrToAlias.find(attr);
+  if (it == attrToAlias.end())
+    return failure();
+  it->second.print(os << '#');
+  return success();
 }
 
-/// Print all of the referenced attribute aliases.
-void AliasState::printAttributeAliases(raw_ostream &os,
-                                       NewLineCounter &newLine) const {
-  auto printAlias = [&](StringRef alias, Attribute attr, int index) {
-    os << '#' << alias;
-    if (index != NonAttrKindAlias)
-      os << index;
-    os << " = " << attr << newLine;
+LogicalResult AliasState::getAlias(Type ty, raw_ostream &os) const {
+  auto it = typeToAlias.find(ty);
+  if (it == typeToAlias.end())
+    return failure();
+
+  it->second.print(os << '!');
+  return success();
+}
+
+void AliasState::printAliases(raw_ostream &os, NewLineCounter &newLine,
+                              bool isDeferred) const {
+  auto filterFn = [=](const auto &aliasIt) {
+    return aliasIt.second.canBeDeferred() == isDeferred;
   };
-
-  // Print all of the attribute kind aliases.
-  for (auto &kindAlias : attrKindToAlias) {
-    auto &aliasAttrsPair = kindAlias.second;
-    for (unsigned i = 0, e = aliasAttrsPair.second.size(); i != e; ++i)
-      printAlias(aliasAttrsPair.first, aliasAttrsPair.second[i], i);
-    os << newLine;
+  for (const auto &it : llvm::make_filter_range(attrToAlias, filterFn)) {
+    it.second.print(os << '#');
+    os << " = " << it.first << newLine;
   }
-
-  // In a second pass print all of the remaining attribute aliases that aren't
-  // kind aliases.
-  for (Attribute attr : usedAttributes) {
-    auto alias = attrToAlias.find(attr);
-    if (alias != attrToAlias.end() && alias->second.second == NonAttrKindAlias)
-      printAlias(alias->second.first, attr, alias->second.second);
+  for (const auto &it : llvm::make_filter_range(typeToAlias, filterFn)) {
+    it.second.print(os << '!');
+    os << " = type " << it.first << newLine;
   }
-}
-
-/// Return a string to use as an alias for the given type, or empty if there
-/// is no alias recorded.
-StringRef AliasState::getTypeAlias(Type ty) const {
-  return typeToAlias.lookup(ty);
-}
-
-/// Print all of the referenced type aliases.
-void AliasState::printTypeAliases(raw_ostream &os,
-                                  NewLineCounter &newLine) const {
-  for (Type type : usedTypes) {
-    auto alias = typeToAlias.find(type);
-    if (alias != typeToAlias.end())
-      os << '!' << alias->second << " = type " << type << newLine;
-  }
-}
-
-/// Record a reference to the given attribute.
-void AliasState::recordAttributeReference(Attribute attr) {
-  // Don't recheck attributes that have already been seen or those that
-  // already have an alias.
-  if (!usedAttributes.insert(attr) || attrToAlias.count(attr))
-    return;
-
-  // If this attribute kind has an alias, then record one for this attribute.
-  auto alias = attrKindToAlias.find(static_cast<unsigned>(attr.getKind()));
-  if (alias == attrKindToAlias.end())
-    return;
-  std::pair<StringRef, int> attrAlias(alias->second.first,
-                                      alias->second.second.size());
-  attrToAlias.insert({attr, attrAlias});
-  alias->second.second.push_back(attr);
-}
-
-/// Record a reference to the given type.
-void AliasState::recordTypeReference(Type ty) { usedTypes.insert(ty); }
-
-// TODO Support visiting other types/operations when implemented.
-void AliasState::visitType(Type type) {
-  recordTypeReference(type);
-
-  if (auto funcType = type.dyn_cast<FunctionType>()) {
-    // Visit input and result types for functions.
-    for (auto input : funcType.getInputs())
-      visitType(input);
-    for (auto result : funcType.getResults())
-      visitType(result);
-  } else if (auto shapedType = type.dyn_cast<ShapedType>()) {
-    visitType(shapedType.getElementType());
-
-    // Visit affine maps in memref type.
-    if (auto memref = type.dyn_cast<MemRefType>())
-      for (auto map : memref.getAffineMaps())
-        recordAttributeReference(AffineMapAttr::get(map));
-  }
-}
-
-void AliasState::visitAttribute(Attribute attr) {
-  recordAttributeReference(attr);
-
-  if (auto arrayAttr = attr.dyn_cast<ArrayAttr>()) {
-    for (auto elt : arrayAttr.getValue())
-      visitAttribute(elt);
-  } else if (auto typeAttr = attr.dyn_cast<TypeAttr>()) {
-    visitType(typeAttr.getValue());
-  }
-}
-
-void AliasState::visitOperation(Operation *op) {
-  // Visit all the types used in the operation.
-  for (auto type : op->getOperandTypes())
-    visitType(type);
-  for (auto type : op->getResultTypes())
-    visitType(type);
-  for (auto &region : op->getRegions())
-    for (auto &block : region)
-      for (auto arg : block.getArguments())
-        visitType(arg.getType());
-
-  // Visit each of the attributes.
-  for (auto elt : op->getAttrs())
-    visitAttribute(elt.second);
 }
 
 //===----------------------------------------------------------------------===//
@@ -566,11 +853,61 @@ private:
 SSANameState::SSANameState(
     Operation *op,
     DialectInterfaceCollection<OpAsmDialectInterface> &interfaces) {
-  llvm::ScopedHashTable<StringRef, char>::ScopeTy usedNamesScope(usedNames);
+  llvm::SaveAndRestore<unsigned> valueIDSaver(nextValueID);
+  llvm::SaveAndRestore<unsigned> argumentIDSaver(nextArgumentID);
+  llvm::SaveAndRestore<unsigned> conflictIDSaver(nextConflictID);
+
+  // The naming context includes `nextValueID`, `nextArgumentID`,
+  // `nextConflictID` and `usedNames` scoped HashTable. This information is
+  // carried from the parent region.
+  using UsedNamesScopeTy = llvm::ScopedHashTable<StringRef, char>::ScopeTy;
+  using NamingContext =
+      std::tuple<Region *, unsigned, unsigned, unsigned, UsedNamesScopeTy *>;
+
+  // Allocator for UsedNamesScopeTy
+  llvm::BumpPtrAllocator allocator;
+
+  // Add a scope for the top level operation.
+  auto *topLevelNamesScope =
+      new (allocator.Allocate<UsedNamesScopeTy>()) UsedNamesScopeTy(usedNames);
+
+  SmallVector<NamingContext, 8> nameContext;
+  for (Region &region : op->getRegions())
+    nameContext.push_back(std::make_tuple(&region, nextValueID, nextArgumentID,
+                                          nextConflictID, topLevelNamesScope));
+
   numberValuesInOp(*op, interfaces);
 
-  for (auto &region : op->getRegions())
-    numberValuesInRegion(region, interfaces);
+  while (!nameContext.empty()) {
+    Region *region;
+    UsedNamesScopeTy *parentScope;
+    std::tie(region, nextValueID, nextArgumentID, nextConflictID, parentScope) =
+        nameContext.pop_back_val();
+
+    // When we switch from one subtree to another, pop the scopes(needless)
+    // until the parent scope.
+    while (usedNames.getCurScope() != parentScope) {
+      usedNames.getCurScope()->~UsedNamesScopeTy();
+      assert((usedNames.getCurScope() != nullptr || parentScope == nullptr) &&
+             "top level parentScope must be a nullptr");
+    }
+
+    // Add a scope for the current region.
+    auto *curNamesScope = new (allocator.Allocate<UsedNamesScopeTy>())
+        UsedNamesScopeTy(usedNames);
+
+    numberValuesInRegion(*region, interfaces);
+
+    for (Operation &op : region->getOps())
+      for (Region &region : op.getRegions())
+        nameContext.push_back(std::make_tuple(&region, nextValueID,
+                                              nextArgumentID, nextConflictID,
+                                              curNamesScope));
+  }
+
+  // Manually remove all the scopes.
+  while (usedNames.getCurScope() != nullptr)
+    usedNames.getCurScope()->~UsedNamesScopeTy();
 }
 
 void SSANameState::printValueID(Value value, bool printResultNo,
@@ -619,9 +956,9 @@ unsigned SSANameState::getBlockID(Block *block) {
 
 void SSANameState::shadowRegionArgs(Region &region, ValueRange namesToUse) {
   assert(!region.empty() && "cannot shadow arguments of an empty region");
-  assert(region.front().getNumArguments() == namesToUse.size() &&
+  assert(region.getNumArguments() == namesToUse.size() &&
          "incorrect number of names passed in");
-  assert(region.getParentOp()->isKnownIsolatedFromAbove() &&
+  assert(region.getParentOp()->hasTrait<OpTrait::IsIsolatedFromAbove>() &&
          "only KnownIsolatedFromAbove ops can shadow names");
 
   SmallVector<char, 16> nameStr;
@@ -629,7 +966,7 @@ void SSANameState::shadowRegionArgs(Region &region, ValueRange namesToUse) {
     auto nameToUse = namesToUse[i];
     if (nameToUse == nullptr)
       continue;
-    auto nameToReplace = region.front().getArgument(i);
+    auto nameToReplace = region.getArgument(i);
 
     nameStr.clear();
     llvm::raw_svector_ostream nameStream(nameStr);
@@ -649,15 +986,6 @@ void SSANameState::shadowRegionArgs(Region &region, ValueRange namesToUse) {
 void SSANameState::numberValuesInRegion(
     Region &region,
     DialectInterfaceCollection<OpAsmDialectInterface> &interfaces) {
-  // Save the current value ids to allow for numbering values in sibling regions
-  // the same.
-  llvm::SaveAndRestore<unsigned> valueIDSaver(nextValueID);
-  llvm::SaveAndRestore<unsigned> argumentIDSaver(nextArgumentID);
-  llvm::SaveAndRestore<unsigned> conflictIDSaver(nextConflictID);
-
-  // Push a new used names scope.
-  llvm::ScopedHashTable<StringRef, char>::ScopeTy usedNamesScope(usedNames);
-
   // Number the values within this region in a breadth-first order.
   unsigned nextBlockID = 0;
   for (auto &block : region) {
@@ -665,14 +993,6 @@ void SSANameState::numberValuesInRegion(
     // numbered as well.
     blockIDs[&block] = nextBlockID++;
     numberValuesInBlock(block, interfaces);
-  }
-
-  // After that we traverse the nested regions.
-  // TODO: Rework this loop to not use recursion.
-  for (auto &block : region) {
-    for (auto &op : block)
-      for (auto &nestedRegion : op.getRegions())
-        numberValuesInRegion(nestedRegion, interfaces);
   }
 }
 
@@ -797,42 +1117,9 @@ void SSANameState::setValueName(Value value, StringRef name) {
   valueNames[value] = uniqueValueName(name);
 }
 
-/// Returns true if 'c' is an allowable punctuation character: [$._-]
-/// Returns false otherwise.
-static bool isPunct(char c) {
-  return c == '$' || c == '.' || c == '_' || c == '-';
-}
-
 StringRef SSANameState::uniqueValueName(StringRef name) {
-  assert(!name.empty() && "Shouldn't have an empty name here");
-
-  // Check to see if this name is valid.  If it starts with a digit, then it
-  // could conflict with the autogenerated numeric ID's (we unique them in a
-  // different map), so add an underscore prefix to avoid problems.
-  if (isdigit(name[0])) {
-    SmallString<16> tmpName("_");
-    tmpName += name;
-    return uniqueValueName(tmpName);
-  }
-
-  // Check to see if the name consists of all-valid identifiers.  If not, we
-  // need to escape them.
-  for (char ch : name) {
-    if (isalpha(ch) || isPunct(ch) || isdigit(ch))
-      continue;
-
-    SmallString<16> tmpName;
-    for (char ch : name) {
-      if (isalpha(ch) || isPunct(ch) || isdigit(ch))
-        tmpName += ch;
-      else if (ch == ' ')
-        tmpName += '_';
-      else {
-        tmpName += llvm::utohexstr((unsigned char)ch);
-      }
-    }
-    return uniqueValueName(tmpName);
-  }
+  SmallString<16> tmpBuffer;
+  name = sanitizeIdentifier(name, tmpBuffer);
 
   // Check to see if this name is already unique.
   if (!usedNames.count(name)) {
@@ -844,12 +1131,12 @@ StringRef SSANameState::uniqueValueName(StringRef name) {
     SmallString<64> probeName(name);
     probeName.push_back('_');
     while (true) {
-      probeName.resize(name.size() + 1);
       probeName += llvm::utostr(nextConflictID++);
       if (!usedNames.count(probeName)) {
         name = StringRef(probeName).copy(usedNameAllocator);
         break;
       }
+      probeName.resize(name.size() + 1);
     }
   }
 
@@ -870,8 +1157,8 @@ public:
         locationMap(locationMap) {}
 
   /// Initialize the alias state to enable the printing of aliases.
-  void initializeAliases(Operation *op) {
-    aliasState.initialize(op, interfaces);
+  void initializeAliases(Operation *op, const OpPrintingFlags &printerFlags) {
+    aliasState.initialize(op, printerFlags, interfaces);
   }
 
   /// Get an instance of the OpAsmDialectInterface for the given dialect, or
@@ -952,7 +1239,10 @@ public:
                       AttrTypeElision typeElision = AttrTypeElision::Never);
 
   void printType(Type type);
-  void printLocation(LocationAttr loc);
+
+  /// Print the given location to the stream. If `allowAlias` is true, this
+  /// allows for the internal location to use an attribute alias.
+  void printLocation(LocationAttr loc, bool allowAlias = false);
 
   void printAffineMap(AffineMap map);
   void
@@ -966,7 +1256,7 @@ protected:
                              ArrayRef<StringRef> elidedAttrs = {},
                              bool withKeyword = false);
   void printNamedAttribute(NamedAttribute attr);
-  void printTrailingLocation(Location loc);
+  void printTrailingLocation(Location loc, bool allowAlias = true);
   void printLocationInternal(LocationAttr loc, bool pretty = false);
 
   /// Print a dense elements attribute. If 'allowHex' is true, a hex string is
@@ -1009,86 +1299,84 @@ protected:
 };
 } // end anonymous namespace
 
-void ModulePrinter::printTrailingLocation(Location loc) {
+void ModulePrinter::printTrailingLocation(Location loc, bool allowAlias) {
   // Check to see if we are printing debug information.
   if (!printerFlags.shouldPrintDebugInfo())
     return;
 
   os << " ";
-  printLocation(loc);
+  printLocation(loc, /*allowAlias=*/allowAlias);
 }
 
 void ModulePrinter::printLocationInternal(LocationAttr loc, bool pretty) {
-  switch (loc.getKind()) {
-  case StandardAttributes::OpaqueLocation:
-    printLocationInternal(loc.cast<OpaqueLoc>().getFallbackLocation(), pretty);
-    break;
-  case StandardAttributes::UnknownLocation:
-    if (pretty)
-      os << "[unknown]";
-    else
-      os << "unknown";
-    break;
-  case StandardAttributes::FileLineColLocation: {
-    auto fileLoc = loc.cast<FileLineColLoc>();
-    auto mayQuote = pretty ? "" : "\"";
-    os << mayQuote << fileLoc.getFilename() << mayQuote << ':'
-       << fileLoc.getLine() << ':' << fileLoc.getColumn();
-    break;
-  }
-  case StandardAttributes::NameLocation: {
-    auto nameLoc = loc.cast<NameLoc>();
-    os << '\"' << nameLoc.getName() << '\"';
-
-    // Print the child if it isn't unknown.
-    auto childLoc = nameLoc.getChildLoc();
-    if (!childLoc.isa<UnknownLoc>()) {
-      os << '(';
-      printLocationInternal(childLoc, pretty);
-      os << ')';
-    }
-    break;
-  }
-  case StandardAttributes::CallSiteLocation: {
-    auto callLocation = loc.cast<CallSiteLoc>();
-    auto caller = callLocation.getCaller();
-    auto callee = callLocation.getCallee();
-    if (!pretty)
-      os << "callsite(";
-    printLocationInternal(callee, pretty);
-    if (pretty) {
-      if (callee.isa<NameLoc>()) {
-        if (caller.isa<FileLineColLoc>()) {
-          os << " at ";
+  TypeSwitch<LocationAttr>(loc)
+      .Case<OpaqueLoc>([&](OpaqueLoc loc) {
+        printLocationInternal(loc.getFallbackLocation(), pretty);
+      })
+      .Case<UnknownLoc>([&](UnknownLoc loc) {
+        if (pretty)
+          os << "[unknown]";
+        else
+          os << "unknown";
+      })
+      .Case<FileLineColLoc>([&](FileLineColLoc loc) {
+        if (pretty) {
+          os << loc.getFilename();
         } else {
-          os << newLine << " at ";
+          os << "\"";
+          printEscapedString(loc.getFilename(), os);
+          os << "\"";
         }
-      } else {
-        os << newLine << " at ";
-      }
-    } else {
-      os << " at ";
-    }
-    printLocationInternal(caller, pretty);
-    if (!pretty)
-      os << ")";
-    break;
-  }
-  case StandardAttributes::FusedLocation: {
-    auto fusedLoc = loc.cast<FusedLoc>();
-    if (!pretty)
-      os << "fused";
-    if (auto metadata = fusedLoc.getMetadata())
-      os << '<' << metadata << '>';
-    os << '[';
-    interleave(
-        fusedLoc.getLocations(),
-        [&](Location loc) { printLocationInternal(loc, pretty); },
-        [&]() { os << ", "; });
-    os << ']';
-    break;
-  }
-  }
+        os << ':' << loc.getLine() << ':' << loc.getColumn();
+      })
+      .Case<NameLoc>([&](NameLoc loc) {
+        os << '\"';
+        printEscapedString(loc.getName(), os);
+        os << '\"';
+
+        // Print the child if it isn't unknown.
+        auto childLoc = loc.getChildLoc();
+        if (!childLoc.isa<UnknownLoc>()) {
+          os << '(';
+          printLocationInternal(childLoc, pretty);
+          os << ')';
+        }
+      })
+      .Case<CallSiteLoc>([&](CallSiteLoc loc) {
+        Location caller = loc.getCaller();
+        Location callee = loc.getCallee();
+        if (!pretty)
+          os << "callsite(";
+        printLocationInternal(callee, pretty);
+        if (pretty) {
+          if (callee.isa<NameLoc>()) {
+            if (caller.isa<FileLineColLoc>()) {
+              os << " at ";
+            } else {
+              os << newLine << " at ";
+            }
+          } else {
+            os << newLine << " at ";
+          }
+        } else {
+          os << " at ";
+        }
+        printLocationInternal(caller, pretty);
+        if (!pretty)
+          os << ")";
+      })
+      .Case<FusedLoc>([&](FusedLoc loc) {
+        if (!pretty)
+          os << "fused";
+        if (Attribute metadata = loc.getMetadata())
+          os << '<' << metadata << '>';
+        os << '[';
+        interleave(
+            loc.getLocations(),
+            [&](Location loc) { printLocationInternal(loc, pretty); },
+            [&]() { os << ", "; });
+        os << ']';
+      });
 }
 
 /// Print a floating point value in a way that the parser will be able to
@@ -1141,18 +1429,18 @@ static void printFloatValue(const APFloat &apValue, raw_ostream &os) {
   os << str;
 }
 
-void ModulePrinter::printLocation(LocationAttr loc) {
-  if (printerFlags.shouldPrintDebugInfoPrettyForm()) {
-    printLocationInternal(loc, /*pretty=*/true);
-  } else {
-    os << "loc(";
+void ModulePrinter::printLocation(LocationAttr loc, bool allowAlias) {
+  if (printerFlags.shouldPrintDebugInfoPrettyForm())
+    return printLocationInternal(loc, /*pretty=*/true);
+
+  os << "loc(";
+  if (!allowAlias || !state || failed(state->getAliasState().getAlias(loc, os)))
     printLocationInternal(loc);
-    os << ')';
-  }
+  os << ')';
 }
 
-/// Returns if the given dialect symbol data is simple enough to print in the
-/// pretty form, i.e. without the enclosing "".
+/// Returns true if the given dialect symbol data is simple enough to print in
+/// the pretty form, i.e. without the enclosing "".
 static bool isDialectSymbolSimpleEnoughForPrettyForm(StringRef symName) {
   // The name must start with an identifier.
   if (symName.empty() || !isalpha(symName.front()))
@@ -1241,7 +1529,7 @@ static void printDialectSymbol(raw_ostream &os, StringRef symPrefix,
   os << "<\"" << symString << "\">";
 }
 
-/// Returns if the given string can be represented as a bare identifier.
+/// Returns true if the given string can be represented as a bare identifier.
 static bool isBareIdentifier(StringRef name) {
   assert(!name.empty() && "invalid name");
 
@@ -1285,7 +1573,7 @@ static void printSymbolReference(StringRef symbolRef, raw_ostream &os) {
 // accept the string "elided". The first string must be a registered dialect
 // name and the latter must be a hex constant.
 static void printElidedElementsAttr(raw_ostream &os) {
-  os << R"(opaque<"", "0xDEADBEEF">)";
+  os << R"(opaque<"_", "0xDEADBEEF">)";
 }
 
 void ModulePrinter::printAttribute(Attribute attr,
@@ -1295,37 +1583,24 @@ void ModulePrinter::printAttribute(Attribute attr,
     return;
   }
 
-  // Check for an alias for this attribute.
-  if (state) {
-    Twine alias = state->getAliasState().getAttributeAlias(attr);
-    if (!alias.isTriviallyEmpty()) {
-      os << '#' << alias;
-      return;
-    }
-  }
+  // Try to print an alias for this attribute.
+  if (state && succeeded(state->getAliasState().getAlias(attr, os)))
+    return;
 
   auto attrType = attr.getType();
-  switch (attr.getKind()) {
-  default:
-    return printDialectAttribute(attr);
-
-  case StandardAttributes::Opaque: {
-    auto opaqueAttr = attr.cast<OpaqueAttr>();
+  if (auto opaqueAttr = attr.dyn_cast<OpaqueAttr>()) {
     printDialectSymbol(os, "#", opaqueAttr.getDialectNamespace(),
                        opaqueAttr.getAttrData());
-    break;
-  }
-  case StandardAttributes::Unit:
+  } else if (attr.isa<UnitAttr>()) {
     os << "unit";
-    break;
-  case StandardAttributes::Dictionary:
+    return;
+  } else if (auto dictAttr = attr.dyn_cast<DictionaryAttr>()) {
     os << '{';
-    interleaveComma(attr.cast<DictionaryAttr>().getValue(),
+    interleaveComma(dictAttr.getValue(),
                     [&](NamedAttribute attr) { printNamedAttribute(attr); });
     os << '}';
-    break;
-  case StandardAttributes::Integer: {
-    auto intAttr = attr.cast<IntegerAttr>();
+
+  } else if (auto intAttr = attr.dyn_cast<IntegerAttr>()) {
     if (attrType.isSignlessInteger(1)) {
       os << (intAttr.getValue().getBoolValue() ? "true" : "false");
 
@@ -1343,112 +1618,98 @@ void ModulePrinter::printAttribute(Attribute attr,
     // IntegerAttr elides the type if I64.
     if (typeElision == AttrTypeElision::May && attrType.isSignlessInteger(64))
       return;
-    break;
-  }
-  case StandardAttributes::Float: {
-    auto floatAttr = attr.cast<FloatAttr>();
+
+  } else if (auto floatAttr = attr.dyn_cast<FloatAttr>()) {
     printFloatValue(floatAttr.getValue(), os);
 
     // FloatAttr elides the type if F64.
     if (typeElision == AttrTypeElision::May && attrType.isF64())
       return;
-    break;
-  }
-  case StandardAttributes::String:
+
+  } else if (auto strAttr = attr.dyn_cast<StringAttr>()) {
     os << '"';
-    printEscapedString(attr.cast<StringAttr>().getValue(), os);
+    printEscapedString(strAttr.getValue(), os);
     os << '"';
-    break;
-  case StandardAttributes::Array:
+
+  } else if (auto arrayAttr = attr.dyn_cast<ArrayAttr>()) {
     os << '[';
-    interleaveComma(attr.cast<ArrayAttr>().getValue(), [&](Attribute attr) {
+    interleaveComma(arrayAttr.getValue(), [&](Attribute attr) {
       printAttribute(attr, AttrTypeElision::May);
     });
     os << ']';
-    break;
-  case StandardAttributes::AffineMap:
+
+  } else if (auto affineMapAttr = attr.dyn_cast<AffineMapAttr>()) {
     os << "affine_map<";
-    attr.cast<AffineMapAttr>().getValue().print(os);
+    affineMapAttr.getValue().print(os);
     os << '>';
 
     // AffineMap always elides the type.
     return;
-  case StandardAttributes::IntegerSet:
+
+  } else if (auto integerSetAttr = attr.dyn_cast<IntegerSetAttr>()) {
     os << "affine_set<";
-    attr.cast<IntegerSetAttr>().getValue().print(os);
+    integerSetAttr.getValue().print(os);
     os << '>';
 
     // IntegerSet always elides the type.
     return;
-  case StandardAttributes::Type:
-    printType(attr.cast<TypeAttr>().getValue());
-    break;
-  case StandardAttributes::SymbolRef: {
-    auto refAttr = attr.dyn_cast<SymbolRefAttr>();
+
+  } else if (auto typeAttr = attr.dyn_cast<TypeAttr>()) {
+    printType(typeAttr.getValue());
+
+  } else if (auto refAttr = attr.dyn_cast<SymbolRefAttr>()) {
     printSymbolReference(refAttr.getRootReference(), os);
     for (FlatSymbolRefAttr nestedRef : refAttr.getNestedReferences()) {
       os << "::";
       printSymbolReference(nestedRef.getValue(), os);
     }
-    break;
-  }
-  case StandardAttributes::OpaqueElements: {
-    auto eltsAttr = attr.cast<OpaqueElementsAttr>();
-    if (printerFlags.shouldElideElementsAttr(eltsAttr)) {
-      printElidedElementsAttr(os);
-      break;
-    }
-    os << "opaque<\"" << eltsAttr.getDialect()->getNamespace() << "\", ";
-    os << '"' << "0x" << llvm::toHex(eltsAttr.getValue()) << "\">";
-    break;
-  }
-  case StandardAttributes::DenseIntOrFPElements: {
-    auto eltsAttr = attr.cast<DenseIntOrFPElementsAttr>();
-    if (printerFlags.shouldElideElementsAttr(eltsAttr)) {
-      printElidedElementsAttr(os);
-      break;
-    }
-    os << "dense<";
-    printDenseIntOrFPElementsAttr(eltsAttr, /*allowHex=*/true);
-    os << '>';
-    break;
-  }
-  case StandardAttributes::DenseStringElements: {
-    auto eltsAttr = attr.cast<DenseStringElementsAttr>();
-    if (printerFlags.shouldElideElementsAttr(eltsAttr)) {
-      printElidedElementsAttr(os);
-      break;
-    }
-    os << "dense<";
-    printDenseStringElementsAttr(eltsAttr);
-    os << '>';
-    break;
-  }
-  case StandardAttributes::SparseElements: {
-    auto elementsAttr = attr.cast<SparseElementsAttr>();
-    if (printerFlags.shouldElideElementsAttr(elementsAttr.getIndices()) ||
-        printerFlags.shouldElideElementsAttr(elementsAttr.getValues())) {
-      printElidedElementsAttr(os);
-      break;
-    }
-    os << "sparse<";
-    printDenseIntOrFPElementsAttr(elementsAttr.getIndices(),
-                                  /*allowHex=*/false);
-    os << ", ";
-    printDenseElementsAttr(elementsAttr.getValues(), /*allowHex=*/true);
-    os << '>';
-    break;
-  }
 
-  // Location attributes.
-  case StandardAttributes::CallSiteLocation:
-  case StandardAttributes::FileLineColLocation:
-  case StandardAttributes::FusedLocation:
-  case StandardAttributes::NameLocation:
-  case StandardAttributes::OpaqueLocation:
-  case StandardAttributes::UnknownLocation:
-    printLocation(attr.cast<LocationAttr>());
-    break;
+  } else if (auto opaqueAttr = attr.dyn_cast<OpaqueElementsAttr>()) {
+    if (printerFlags.shouldElideElementsAttr(opaqueAttr)) {
+      printElidedElementsAttr(os);
+    } else {
+      os << "opaque<\"" << opaqueAttr.getDialect() << "\", \"0x"
+         << llvm::toHex(opaqueAttr.getValue()) << "\">";
+    }
+
+  } else if (auto intOrFpEltAttr = attr.dyn_cast<DenseIntOrFPElementsAttr>()) {
+    if (printerFlags.shouldElideElementsAttr(intOrFpEltAttr)) {
+      printElidedElementsAttr(os);
+    } else {
+      os << "dense<";
+      printDenseIntOrFPElementsAttr(intOrFpEltAttr, /*allowHex=*/true);
+      os << '>';
+    }
+
+  } else if (auto strEltAttr = attr.dyn_cast<DenseStringElementsAttr>()) {
+    if (printerFlags.shouldElideElementsAttr(strEltAttr)) {
+      printElidedElementsAttr(os);
+    } else {
+      os << "dense<";
+      printDenseStringElementsAttr(strEltAttr);
+      os << '>';
+    }
+
+  } else if (auto sparseEltAttr = attr.dyn_cast<SparseElementsAttr>()) {
+    if (printerFlags.shouldElideElementsAttr(sparseEltAttr.getIndices()) ||
+        printerFlags.shouldElideElementsAttr(sparseEltAttr.getValues())) {
+      printElidedElementsAttr(os);
+    } else {
+      os << "sparse<";
+      DenseIntElementsAttr indices = sparseEltAttr.getIndices();
+      if (indices.getNumElements() != 0) {
+        printDenseIntOrFPElementsAttr(indices, /*allowHex=*/false);
+        os << ", ";
+        printDenseElementsAttr(sparseEltAttr.getValues(), /*allowHex=*/true);
+      }
+      os << '>';
+    }
+
+  } else if (auto locAttr = attr.dyn_cast<LocationAttr>()) {
+    printLocation(locAttr);
+
+  } else {
+    return printDialectAttribute(attr);
   }
 
   // Don't print the type if we must elide it, or if it is a None type.
@@ -1476,20 +1737,15 @@ printDenseElementsAttrImpl(bool isSplat, ShapedType type, raw_ostream &os,
 
   // Special case for degenerate tensors.
   auto numElements = type.getNumElements();
-  int64_t rank = type.getRank();
-  if (numElements == 0) {
-    for (int i = 0; i < rank; ++i)
-      os << '[';
-    for (int i = 0; i < rank; ++i)
-      os << ']';
+  if (numElements == 0)
     return;
-  }
 
   // We use a mixed-radix counter to iterate through the shape. When we bump a
   // non-least-significant digit, we emit a close bracket. When we next emit an
   // element we re-open all closed brackets.
 
   // The mixed-radix counter, with radices in 'shape'.
+  int64_t rank = type.getRank();
   SmallVector<unsigned, 4> counter(rank, 0);
   // The number of brackets that have been opened and not closed.
   unsigned openBrackets = 0;
@@ -1541,8 +1797,22 @@ void ModulePrinter::printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
   if (!attr.isSplat() && allowHex &&
       shouldPrintElementsAttrWithHex(numElements)) {
     ArrayRef<char> rawData = attr.getRawData();
-    os << '"' << "0x" << llvm::toHex(StringRef(rawData.data(), rawData.size()))
-       << "\"";
+    if (llvm::support::endian::system_endianness() ==
+        llvm::support::endianness::big) {
+      // Convert endianess in big-endian(BE) machines. `rawData` is BE in BE
+      // machines. It is converted here to print in LE format.
+      SmallVector<char, 64> outDataVec(rawData.size());
+      MutableArrayRef<char> convRawData(outDataVec);
+      DenseIntOrFPElementsAttr::convertEndianOfArrayRefForBEmachine(
+          rawData, convRawData, type);
+      os << '"' << "0x"
+         << llvm::toHex(StringRef(convRawData.data(), convRawData.size()))
+         << "\"";
+    } else {
+      os << '"' << "0x"
+         << llvm::toHex(StringRef(rawData.data(), rawData.size())) << "\"";
+    }
+
     return;
   }
 
@@ -1602,137 +1872,114 @@ void ModulePrinter::printType(Type type) {
     return;
   }
 
-  // Check for an alias for this type.
-  if (state) {
-    StringRef alias = state->getAliasState().getTypeAlias(type);
-    if (!alias.empty()) {
-      os << '!' << alias;
-      return;
-    }
-  }
-
-  switch (type.getKind()) {
-  default:
-    return printDialectType(type);
-
-  case Type::Kind::Opaque: {
-    auto opaqueTy = type.cast<OpaqueType>();
-    printDialectSymbol(os, "!", opaqueTy.getDialectNamespace(),
-                       opaqueTy.getTypeData());
-    return;
-  }
-  case StandardTypes::Index:
-    os << "index";
-    return;
-  case StandardTypes::BF16:
-    os << "bf16";
-    return;
-  case StandardTypes::F16:
-    os << "f16";
-    return;
-  case StandardTypes::F32:
-    os << "f32";
-    return;
-  case StandardTypes::F64:
-    os << "f64";
+  // Try to print an alias for this type.
+  if (state && succeeded(state->getAliasState().getAlias(type, os)))
     return;
 
-  case StandardTypes::Integer: {
-    auto integer = type.cast<IntegerType>();
-    if (integer.isSigned())
-      os << 's';
-    else if (integer.isUnsigned())
-      os << 'u';
-    os << 'i' << integer.getWidth();
-    return;
-  }
-  case Type::Kind::Function: {
-    auto func = type.cast<FunctionType>();
-    os << '(';
-    interleaveComma(func.getInputs(), [&](Type type) { printType(type); });
-    os << ") -> ";
-    auto results = func.getResults();
-    if (results.size() == 1 && !results[0].isa<FunctionType>())
-      os << results[0];
-    else {
-      os << '(';
-      interleaveComma(results, [&](Type type) { printType(type); });
-      os << ')';
-    }
-    return;
-  }
-  case StandardTypes::Vector: {
-    auto v = type.cast<VectorType>();
-    os << "vector<";
-    for (auto dim : v.getShape())
-      os << dim << 'x';
-    os << v.getElementType() << '>';
-    return;
-  }
-  case StandardTypes::RankedTensor: {
-    auto v = type.cast<RankedTensorType>();
-    os << "tensor<";
-    for (auto dim : v.getShape()) {
-      if (dim < 0)
-        os << '?';
-      else
-        os << dim;
-      os << 'x';
-    }
-    os << v.getElementType() << '>';
-    return;
-  }
-  case StandardTypes::UnrankedTensor: {
-    auto v = type.cast<UnrankedTensorType>();
-    os << "tensor<*x";
-    printType(v.getElementType());
-    os << '>';
-    return;
-  }
-  case StandardTypes::MemRef: {
-    auto v = type.cast<MemRefType>();
-    os << "memref<";
-    for (auto dim : v.getShape()) {
-      if (dim < 0)
-        os << '?';
-      else
-        os << dim;
-      os << 'x';
-    }
-    printType(v.getElementType());
-    for (auto map : v.getAffineMaps()) {
-      os << ", ";
-      printAttribute(AffineMapAttr::get(map));
-    }
-    // Only print the memory space if it is the non-default one.
-    if (v.getMemorySpace())
-      os << ", " << v.getMemorySpace();
-    os << '>';
-    return;
-  }
-  case StandardTypes::UnrankedMemRef: {
-    auto v = type.cast<UnrankedMemRefType>();
-    os << "memref<*x";
-    printType(v.getElementType());
-    os << '>';
-    return;
-  }
-  case StandardTypes::Complex:
-    os << "complex<";
-    printType(type.cast<ComplexType>().getElementType());
-    os << '>';
-    return;
-  case StandardTypes::Tuple: {
-    auto tuple = type.cast<TupleType>();
-    os << "tuple<";
-    interleaveComma(tuple.getTypes(), [&](Type type) { printType(type); });
-    os << '>';
-    return;
-  }
-  case StandardTypes::None:
-    os << "none";
-    return;
-  }
+  TypeSwitch<Type>(type)
+      .Case<OpaqueType>([&](OpaqueType opaqueTy) {
+        printDialectSymbol(os, "!", opaqueTy.getDialectNamespace(),
+                           opaqueTy.getTypeData());
+      })
+      .Case<IndexType>([&](Type) { os << "index"; })
+      .Case<BFloat16Type>([&](Type) { os << "bf16"; })
+      .Case<Float16Type>([&](Type) { os << "f16"; })
+      .Case<Float32Type>([&](Type) { os << "f32"; })
+      .Case<Float64Type>([&](Type) { os << "f64"; })
+      .Case<Float80Type>([&](Type) { os << "f80"; })
+      .Case<Float128Type>([&](Type) { os << "f128"; })
+      .Case<IntegerType>([&](IntegerType integerTy) {
+        if (integerTy.isSigned())
+          os << 's';
+        else if (integerTy.isUnsigned())
+          os << 'u';
+        os << 'i' << integerTy.getWidth();
+      })
+      .Case<FunctionType>([&](FunctionType funcTy) {
+        os << '(';
+        interleaveComma(funcTy.getInputs(), [&](Type ty) { printType(ty); });
+        os << ") -> ";
+        ArrayRef<Type> results = funcTy.getResults();
+        if (results.size() == 1 && !results[0].isa<FunctionType>()) {
+          os << results[0];
+        } else {
+          os << '(';
+          interleaveComma(results, [&](Type ty) { printType(ty); });
+          os << ')';
+        }
+      })
+      .Case<VectorType>([&](VectorType vectorTy) {
+        os << "vector<";
+        for (int64_t dim : vectorTy.getShape())
+          os << dim << 'x';
+        os << vectorTy.getElementType() << '>';
+      })
+      .Case<RankedTensorType>([&](RankedTensorType tensorTy) {
+        os << "tensor<";
+        for (int64_t dim : tensorTy.getShape()) {
+          if (ShapedType::isDynamic(dim))
+            os << '?';
+          else
+            os << dim;
+          os << 'x';
+        }
+        os << tensorTy.getElementType();
+        // Only print the encoding attribute value if set.
+        if (tensorTy.getEncoding()) {
+          os << ", ";
+          printAttribute(tensorTy.getEncoding());
+        }
+        os << '>';
+      })
+      .Case<UnrankedTensorType>([&](UnrankedTensorType tensorTy) {
+        os << "tensor<*x";
+        printType(tensorTy.getElementType());
+        os << '>';
+      })
+      .Case<MemRefType>([&](MemRefType memrefTy) {
+        os << "memref<";
+        for (int64_t dim : memrefTy.getShape()) {
+          if (ShapedType::isDynamic(dim))
+            os << '?';
+          else
+            os << dim;
+          os << 'x';
+        }
+        printType(memrefTy.getElementType());
+        for (auto map : memrefTy.getAffineMaps()) {
+          os << ", ";
+          printAttribute(AffineMapAttr::get(map));
+        }
+        // Only print the memory space if it is the non-default one.
+        if (memrefTy.getMemorySpace()) {
+          os << ", ";
+          printAttribute(memrefTy.getMemorySpace(), AttrTypeElision::May);
+        }
+        os << '>';
+      })
+      .Case<UnrankedMemRefType>([&](UnrankedMemRefType memrefTy) {
+        os << "memref<*x";
+        printType(memrefTy.getElementType());
+        // Only print the memory space if it is the non-default one.
+        if (memrefTy.getMemorySpace()) {
+          os << ", ";
+          printAttribute(memrefTy.getMemorySpace(), AttrTypeElision::May);
+        }
+        os << '>';
+      })
+      .Case<ComplexType>([&](ComplexType complexTy) {
+        os << "complex<";
+        printType(complexTy.getElementType());
+        os << '>';
+      })
+      .Case<TupleType>([&](TupleType tupleTy) {
+        os << "tuple<";
+        interleaveComma(tupleTy.getTypes(),
+                        [&](Type type) { printType(type); });
+        os << '>';
+      })
+      .Case<NoneType>([&](Type) { os << "none"; })
+      .Default([&](Type type) { return printDialectType(type); });
 }
 
 void ModulePrinter::printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
@@ -1742,25 +1989,31 @@ void ModulePrinter::printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
   if (attrs.empty())
     return;
 
-  // Filter out any attributes that shouldn't be included.
-  SmallVector<NamedAttribute, 8> filteredAttrs(
-      llvm::make_filter_range(attrs, [&](NamedAttribute attr) {
-        return !llvm::is_contained(elidedAttrs, attr.first.strref());
-      }));
+  // Functor used to print a filtered attribute list.
+  auto printFilteredAttributesFn = [&](auto filteredAttrs) {
+    // Print the 'attributes' keyword if necessary.
+    if (withKeyword)
+      os << " attributes";
 
-  // If there are no attributes left to print after filtering, then we're done.
-  if (filteredAttrs.empty())
-    return;
+    // Otherwise, print them all out in braces.
+    os << " {";
+    interleaveComma(filteredAttrs,
+                    [&](NamedAttribute attr) { printNamedAttribute(attr); });
+    os << '}';
+  };
 
-  // Print the 'attributes' keyword if necessary.
-  if (withKeyword)
-    os << " attributes";
+  // If no attributes are elided, we can directly print with no filtering.
+  if (elidedAttrs.empty())
+    return printFilteredAttributesFn(attrs);
 
-  // Otherwise, print them all out in braces.
-  os << " {";
-  interleaveComma(filteredAttrs,
-                  [&](NamedAttribute attr) { printNamedAttribute(attr); });
-  os << '}';
+  // Otherwise, filter out any attributes that shouldn't be included.
+  llvm::SmallDenseSet<StringRef> elidedAttrsSet(elidedAttrs.begin(),
+                                                elidedAttrs.end());
+  auto filteredAttrs = llvm::make_filter_range(attrs, [&](NamedAttribute attr) {
+    return !elidedAttrsSet.contains(attr.first.strref());
+  });
+  if (!filteredAttrs.empty())
+    printFilteredAttributesFn(filteredAttrs);
 }
 
 void ModulePrinter::printNamedAttribute(NamedAttribute attr) {
@@ -2056,8 +2309,9 @@ public:
                             AsmStateImpl &state)
       : ModulePrinter(os, flags, &state) {}
 
-  /// Print the given top-level module.
-  void print(ModuleOp op);
+  /// Print the given top-level operation.
+  void printTopLevelOperation(Operation *op);
+
   /// Print the given operation with its indent and location.
   void print(Operation *op);
   /// Print the bare location, not including indentation/location/etc.
@@ -2085,6 +2339,13 @@ public:
   /// Return the current stream of the printer.
   raw_ostream &getStream() const override { return os; }
 
+  /// Print a newline and indent the printer to the start of the current
+  /// operation.
+  void printNewline() override {
+    os << newLine;
+    os.indent(currentIndent);
+  }
+
   /// Print the given type.
   void printType(Type type) override { ModulePrinter::printType(type); }
 
@@ -2098,6 +2359,15 @@ public:
   void printAttributeWithoutType(Attribute attr) override {
     ModulePrinter::printAttribute(attr, AttrTypeElision::Must);
   }
+
+  /// Print a block argument in the usual format of:
+  ///   %ssaName : type {attr1=42} loc("here")
+  /// where location printing is controlled by the standard internal option.
+  /// You may pass omitType=true to not print a type, and pass an empty
+  /// attribute list if you don't care for attributes.
+  void printRegionArgument(BlockArgument arg,
+                           ArrayRef<NamedAttribute> argAttrs = {},
+                           bool omitType = false) override;
 
   /// Print the ID for the given value.
   void printOperand(Value value) override { printValueID(value); }
@@ -2127,7 +2397,7 @@ public:
 
   /// Print the given region.
   void printRegion(Region &region, bool printEntryBlockArgs,
-                   bool printBlockTerminators) override;
+                   bool printBlockTerminators, bool printEmptyBlock) override;
 
   /// Renumber the arguments for the specified region to the same names as the
   /// SSA values in namesToUse. This may only be used for IsolatedFromAbove
@@ -2141,6 +2411,11 @@ public:
   /// inline with the map.
   void printAffineMapOfSSAIds(AffineMapAttr mapAttr,
                               ValueRange operands) override;
+
+  /// Print the given affine expression with the symbol and dimension operands
+  /// printed inline with the expression.
+  void printAffineExprOfSSAIds(AffineExpr expr, ValueRange dimOperands,
+                               ValueRange symOperands) override;
 
   /// Print the given string as a symbol reference.
   void printSymbolName(StringRef symbolRef) override {
@@ -2156,13 +2431,34 @@ private:
 };
 } // end anonymous namespace
 
-void OperationPrinter::print(ModuleOp op) {
-  // Output the aliases at the top level.
-  state->getAliasState().printAttributeAliases(os, newLine);
-  state->getAliasState().printTypeAliases(os, newLine);
+void OperationPrinter::printTopLevelOperation(Operation *op) {
+  // Output the aliases at the top level that can't be deferred.
+  state->getAliasState().printNonDeferredAliases(os, newLine);
 
   // Print the module.
-  print(op.getOperation());
+  print(op);
+  os << newLine;
+
+  // Output the aliases at the top level that can be deferred.
+  state->getAliasState().printDeferredAliases(os, newLine);
+}
+
+/// Print a block argument in the usual format of:
+///   %ssaName : type {attr1=42} loc("here")
+/// where location printing is controlled by the standard internal option.
+/// You may pass omitType=true to not print a type, and pass an empty
+/// attribute list if you don't care for attributes.
+void OperationPrinter::printRegionArgument(BlockArgument arg,
+                                           ArrayRef<NamedAttribute> argAttrs,
+                                           bool omitType) {
+  printOperand(arg);
+  if (!omitType) {
+    os << ": ";
+    printType(arg.getType());
+  }
+  printOptionalAttrDict(argAttrs);
+  // TODO: We should allow location aliases on block arguments.
+  printTrailingLocation(arg.getLoc(), /*allowAlias*/ false);
 }
 
 void OperationPrinter::print(Operation *op) {
@@ -2209,6 +2505,11 @@ void OperationPrinter::printOperation(Operation *op) {
       opInfo->printAssembly(op, *this);
       return;
     }
+    // Otherwise try to dispatch to the dialect, if available.
+    if (Dialect *dialect = op->getDialect()) {
+      if (succeeded(dialect->printOperation(op, *this)))
+        return;
+    }
   }
 
   // Otherwise print with the generic assembly form.
@@ -2235,7 +2536,7 @@ void OperationPrinter::printGenericOp(Operation *op) {
     os << " (";
     interleaveComma(op->getRegions(), [&](Region &region) {
       printRegion(region, /*printEntryBlockArgs=*/true,
-                  /*printBlockTerminators=*/true);
+                  /*printBlockTerminators=*/true, /*printEmptyBlock=*/true);
     });
     os << ')';
   }
@@ -2270,6 +2571,8 @@ void OperationPrinter::print(Block *block, bool printBlockArgs,
         printValueID(arg);
         os << ": ";
         printType(arg.getType());
+        // TODO: We should allow location aliases on block arguments.
+        printTrailingLocation(arg.getLoc(), /*allowAlias*/ false);
       });
       os << ')';
     }
@@ -2302,8 +2605,7 @@ void OperationPrinter::print(Block *block, bool printBlockArgs,
 
   currentIndent += indentWidth;
   auto range = llvm::make_range(
-      block->getOperations().begin(),
-      std::prev(block->getOperations().end(), printBlockTerminator ? 0 : 1));
+      block->begin(), std::prev(block->end(), printBlockTerminator ? 0 : 1));
   for (auto &op : range) {
     print(&op);
     os << newLine;
@@ -2337,12 +2639,18 @@ void OperationPrinter::printSuccessorAndUseList(Block *successor,
 }
 
 void OperationPrinter::printRegion(Region &region, bool printEntryBlockArgs,
-                                   bool printBlockTerminators) {
+                                   bool printBlockTerminators,
+                                   bool printEmptyBlock) {
   os << " {" << newLine;
   if (!region.empty()) {
     auto *entryBlock = &region.front();
-    print(entryBlock, printEntryBlockArgs && entryBlock->getNumArguments() != 0,
-          printBlockTerminators);
+    // Force printing the block header if printEmptyBlock is set and the block
+    // is empty or if printEntryBlockArgs is set and there are arguments to
+    // print.
+    bool shouldAlwaysPrintBlockHeader =
+        (printEmptyBlock && entryBlock->empty()) ||
+        (printEntryBlockArgs && entryBlock->getNumArguments() != 0);
+    print(entryBlock, shouldAlwaysPrintBlockHeader, printBlockTerminators);
     for (auto &b : llvm::drop_begin(region.getBlocks(), 1))
       print(&b);
   }
@@ -2366,6 +2674,19 @@ void OperationPrinter::printAffineMapOfSSAIds(AffineMapAttr mapAttr,
   interleaveComma(map.getResults(), [&](AffineExpr expr) {
     printAffineExpr(expr, printValueName);
   });
+}
+
+void OperationPrinter::printAffineExprOfSSAIds(AffineExpr expr,
+                                               ValueRange dimOperands,
+                                               ValueRange symOperands) {
+  auto printValueName = [&](unsigned pos, bool isSymbol) {
+    if (!isSymbol)
+      return printValueID(dimOperands[pos]);
+    os << "symbol(";
+    printValueID(symOperands[pos]);
+    os << ')';
+  };
+  printAffineExpr(expr, printValueName);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2423,17 +2744,19 @@ void IntegerSet::print(raw_ostream &os) const {
 void Value::print(raw_ostream &os) {
   if (auto *op = getDefiningOp())
     return op->print(os);
-  // TODO: Improve this.
-  assert(isa<BlockArgument>());
-  os << "<block argument>\n";
+  // TODO: Improve BlockArgument print'ing.
+  BlockArgument arg = this->cast<BlockArgument>();
+  os << "<block argument> of type '" << arg.getType()
+     << "' at index: " << arg.getArgNumber() << '\n';
 }
 void Value::print(raw_ostream &os, AsmState &state) {
   if (auto *op = getDefiningOp())
     return op->print(os, state);
 
-  // TODO: Improve this.
-  assert(isa<BlockArgument>());
-  os << "<block argument>\n";
+  // TODO: Improve BlockArgument print'ing.
+  BlockArgument arg = this->cast<BlockArgument>();
+  os << "<block argument> of type '" << arg.getType()
+     << "' at index: " << arg.getArgNumber() << '\n';
 }
 
 void Value::dump() {
@@ -2442,7 +2765,7 @@ void Value::dump() {
 }
 
 void Value::printAsOperand(raw_ostream &os, AsmState &state) {
-  // TODO(riverriddle) This doesn't necessarily capture all potential cases.
+  // TODO: This doesn't necessarily capture all potential cases.
   // Currently, region arguments can be shadowed when printing the main
   // operation. If the IR hasn't been printed, this will produce the old SSA
   // name and not the shadowed name.
@@ -2451,27 +2774,39 @@ void Value::printAsOperand(raw_ostream &os, AsmState &state) {
 }
 
 void Operation::print(raw_ostream &os, OpPrintingFlags flags) {
+  // If this is a top level operation, we also print aliases.
+  if (!getParent() && !flags.shouldUseLocalScope()) {
+    AsmState state(this);
+    state.getImpl().initializeAliases(this, flags);
+    print(os, state, flags);
+    return;
+  }
+
   // Find the operation to number from based upon the provided flags.
-  Operation *printedOp = this;
+  Operation *op = this;
   bool shouldUseLocalScope = flags.shouldUseLocalScope();
   do {
     // If we are printing local scope, stop at the first operation that is
     // isolated from above.
-    if (shouldUseLocalScope && printedOp->isKnownIsolatedFromAbove())
+    if (shouldUseLocalScope && op->hasTrait<OpTrait::IsIsolatedFromAbove>())
       break;
 
     // Otherwise, traverse up to the next parent.
-    Operation *parentOp = printedOp->getParentOp();
+    Operation *parentOp = op->getParentOp();
     if (!parentOp)
       break;
-    printedOp = parentOp;
+    op = parentOp;
   } while (true);
 
-  AsmState state(printedOp);
+  AsmState state(op);
   print(os, state, flags);
 }
 void Operation::print(raw_ostream &os, AsmState &state, OpPrintingFlags flags) {
-  OperationPrinter(os, flags, state.getImpl()).print(this);
+  OperationPrinter printer(os, flags, state.getImpl());
+  if (!getParent() && !flags.shouldUseLocalScope())
+    printer.printTopLevelOperation(this);
+  else
+    printer.print(this);
 }
 
 void Operation::dump() {
@@ -2512,17 +2847,3 @@ void Block::printAsOperand(raw_ostream &os, AsmState &state) {
   OperationPrinter printer(os, /*flags=*/llvm::None, state.getImpl());
   printer.printBlockName(this);
 }
-
-void ModuleOp::print(raw_ostream &os, OpPrintingFlags flags) {
-  AsmState state(*this);
-
-  // Don't populate aliases when printing at local scope.
-  if (!flags.shouldUseLocalScope())
-    state.getImpl().initializeAliases(*this);
-  print(os, state, flags);
-}
-void ModuleOp::print(raw_ostream &os, AsmState &state, OpPrintingFlags flags) {
-  OperationPrinter(os, flags, state.getImpl()).print(*this);
-}
-
-void ModuleOp::dump() { print(llvm::errs()); }

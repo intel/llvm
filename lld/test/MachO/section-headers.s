@@ -1,7 +1,7 @@
 # REQUIRES: x86
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %s -o %t.o
-# RUN: lld -flavor darwinnew -o %t %t.o
-# RUN: llvm-readobj --section-headers %t | FileCheck %s
+# RUN: %lld -o %t %t.o
+# RUN: llvm-readobj --section-headers --macho-segment %t | FileCheck %s
 
 # CHECK:      Name: __text
 # CHECK-NEXT: Segment: __TEXT
@@ -25,10 +25,20 @@
 
 # CHECK:      Name: maxlen_16ch_name
 # CHECK-NEXT: Segment: __TEXT
-# CHECK-NOT:  }
-# CHECK:      Alignment: 3
+# CHECK-NEXT: Address:
+# CHECK-NEXT: Size:
+# CHECK-NEXT: Offset:
+# CHECK-NEXT: Alignment: 3
 # CHECK-NOT:  }
 # CHECK:      Type: Regular (0x0)
+
+# CHECK-LABEL: Segment {
+# CHECK:       Name: __TEXT
+# CHECK-NEXT:  Size:
+# CHECK-NEXT:  vmaddr:
+# CHECK-NEXT:  vmsize:
+# CHECK-NEXT:  fileoff: 0
+# CHECK-NEXT:  filesize: 4096
 
 .text
 .align 1

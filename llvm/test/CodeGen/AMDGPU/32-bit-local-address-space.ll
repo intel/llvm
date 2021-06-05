@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -mcpu=bonaire -verify-machineinstrs < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
-; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mcpu=bonaire -verify-machineinstrs < %s | FileCheck -check-prefixes=SI,FUNC,GFX7 %s
+; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefixes=SI,FUNC,GFX8 %s
 
 ; On Southern Islands GPUs the local address space(3) uses 32-bit pointers and
 ; the global address space(1) uses 64-bit pointers.  These tests check to make sure
@@ -57,9 +57,11 @@ entry:
 }
 
 ; FUNC-LABEL: {{^}}null_32bit_lds_ptr:
-; SI: s_cmp_lg_u32
-; SI-NOT: v_cmp_ne_u32
-; SI: s_cselect_b32
+; GFX7 v_cmp_ne_u32
+; GFX7: v_cndmask_b32
+; GFX8: s_cmp_lg_u32
+; GFX8-NOT: v_cmp_ne_u32
+; GFX8: s_cselect_b32
 define amdgpu_kernel void @null_32bit_lds_ptr(i32 addrspace(1)* %out, i32 addrspace(3)* %lds) nounwind {
   %cmp = icmp ne i32 addrspace(3)* %lds, null
   %x = select i1 %cmp, i32 123, i32 456
@@ -81,7 +83,7 @@ define amdgpu_kernel void @mul_32bit_ptr(float addrspace(1)* %out, [3 x float] a
 @g_lds = addrspace(3) global float undef, align 4
 
 ; FUNC-LABEL: {{^}}infer_ptr_alignment_global_offset:
-; SI: v_mov_b32_e32 [[PTR:v[0-9]+]], g_lds@abs32@lo
+; SI: v_mov_b32_e32 [[PTR:v[0-9]+]], 0{{$}}
 ; SI: ds_read_b32 v{{[0-9]+}}, [[PTR]]
 define amdgpu_kernel void @infer_ptr_alignment_global_offset(float addrspace(1)* %out, i32 %tid) {
   %val = load float, float addrspace(3)* @g_lds

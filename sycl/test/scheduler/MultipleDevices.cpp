@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out
-// RUN: %t.out
+// RUN: env SYCL_DEVICE_FILTER=host %t.out
 
 //===- MultipleDevices.cpp - Test checking multi-device execution --------===//
 //
@@ -93,8 +93,6 @@ int multidevice_test(queue MyQueue1, queue MyQueue2) {
 
 int main() {
   host_selector hostSelector;
-  cpu_selector CPUSelector;
-  gpu_selector GPUSelector;
 
   int Result = -1;
   try {
@@ -103,52 +101,6 @@ int main() {
     Result &= multidevice_test(MyQueue1, MyQueue2);
   } catch(cl::sycl::runtime_error &) {
     std::cout << "Skipping host and host" << std::endl;
-  }
-
-  try {
-    queue MyQueue1(hostSelector);
-    queue MyQueue2(CPUSelector);
-    Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch(cl::sycl::runtime_error &) {
-    std::cout << "Skipping host and CPU" << std::endl;
-  }
-
-  try {
-    queue MyQueue1(CPUSelector);
-    queue MyQueue2(CPUSelector);
-    Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch(cl::sycl::runtime_error &) {
-    std::cout << "Skipping CPU and CPU" << std::endl;
-  }
-
-  try {
-    queue MyQueue1(CPUSelector);
-    queue MyQueue2(GPUSelector);
-    Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch(cl::sycl::runtime_error &) {
-    std::cout << "Skipping CPU and GPU" << std::endl;
-  } catch (cl::sycl::compile_program_error &) {
-    std::cout << "Skipping CPU and GPU" << std::endl;
-  }
-
-  try {
-    queue MyQueue1(hostSelector);
-    queue MyQueue2(GPUSelector);
-    Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch(cl::sycl::runtime_error &) {
-    std::cout << "Skipping host and GPU" << std::endl;
-  } catch (cl::sycl::compile_program_error &) {
-    std::cout << "Skipping CPU and GPU" << std::endl;
-  }
-
-  try {
-    queue MyQueue1(GPUSelector);
-    queue MyQueue2(GPUSelector);
-    Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch (cl::sycl::runtime_error &) {
-    std::cout << "Skipping GPU and GPU" << std::endl;
-  } catch (cl::sycl::compile_program_error &) {
-    std::cout << "Skipping CPU and GPU" << std::endl;
   }
 
   return Result;

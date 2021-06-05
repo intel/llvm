@@ -43,7 +43,7 @@ namespace {
 const char *getDiagnosticCode(unsigned ID) {
   switch (ID) {
 #define DIAG(ENUM, CLASS, DEFAULT_MAPPING, DESC, GROPU, SFINAE, NOWERROR,      \
-             SHOWINSYSHEADER, CATEGORY)                                        \
+             SHOWINSYSHEADER, DEFERRABLE, CATEGORY)                            \
   case clang::diag::ENUM:                                                      \
     return #ENUM;
 #include "clang/Basic/DiagnosticASTKinds.inc"
@@ -186,7 +186,7 @@ const char *getMainFileRange(const Diag &D, const SourceManager &SM,
 
 // Place the diagnostic the main file, rather than the header, if possible:
 //   - for errors in included files, use the #include location
-//   - for errors in template instantiation, use the instantation location
+//   - for errors in template instantiation, use the instantiation location
 // In both cases, add the original header location as a note.
 bool tryMoveToMainFile(Diag &D, FullSourceLoc DiagLoc) {
   const SourceManager &SM = DiagLoc.getManager();
@@ -377,6 +377,32 @@ CodeAction toCodeAction(const Fix &F, const URIForFile &File) {
   return Action;
 }
 
+Diag toDiag(const llvm::SMDiagnostic &D, Diag::DiagSource Source) {
+  Diag Result;
+  Result.Message = D.getMessage().str();
+  switch (D.getKind()) {
+  case llvm::SourceMgr::DK_Error:
+    Result.Severity = DiagnosticsEngine::Error;
+    break;
+  case llvm::SourceMgr::DK_Warning:
+    Result.Severity = DiagnosticsEngine::Warning;
+    break;
+  default:
+    break;
+  }
+  Result.Source = Source;
+  Result.AbsFile = D.getFilename().str();
+  Result.InsideMainFile = D.getSourceMgr()->FindBufferContainingLoc(
+                              D.getLoc()) == D.getSourceMgr()->getMainFileID();
+  if (D.getRanges().empty())
+    Result.Range = {{D.getLineNo() - 1, D.getColumnNo()},
+                    {D.getLineNo() - 1, D.getColumnNo()}};
+  else
+    Result.Range = {{D.getLineNo() - 1, (int)D.getRanges().front().first},
+                    {D.getLineNo() - 1, (int)D.getRanges().front().second}};
+  return Result;
+}
+
 void toLSPDiags(
     const Diag &D, const URIForFile &File, const ClangdDiagnosticOptions &Opts,
     llvm::function_ref<void(clangd::Diagnostic, llvm::ArrayRef<Fix>)> OutFn) {
@@ -404,6 +430,9 @@ void toLSPDiags(
   case Diag::ClangTidy:
     Main.source = "clang-tidy";
     break;
+  case Diag::ClangdConfig:
+    Main.source = "clangd-config";
+    break;
   case Diag::Unknown:
     break;
   }
@@ -411,6 +440,8 @@ void toLSPDiags(
     Main.codeActions.emplace();
     for (const auto &Fix : D.Fixes)
       Main.codeActions->push_back(toCodeAction(Fix, File));
+    if (Main.codeActions->size() == 1)
+      Main.codeActions->front().isPreferred = true;
   }
   if (Opts.SendDiagnosticCategory && !D.Category.empty())
     Main.category = D.Category;
@@ -445,6 +476,10 @@ void toLSPDiags(
       Res.message = noteMessage(D, Note, Opts);
       OutFn(std::move(Res), llvm::ArrayRef<Fix>());
     }
+
+  // FIXME: Get rid of the copies here by taking in a mutable clangd::Diag.
+  for (auto &Entry : D.OpaqueData)
+    Main.data.insert({Entry.first, Entry.second});
 }
 
 int getSeverity(DiagnosticsEngine::Level L) {
@@ -518,13 +553,17 @@ std::vector<Diag> StoreDiags::take(const clang::tidy::ClangTidyContext *Tidy) {
 }
 
 void StoreDiags::BeginSourceFile(const LangOptions &Opts,
-                                 const Preprocessor *) {
+                                 const Preprocessor *PP) {
   LangOpts = Opts;
+  if (PP) {
+    OrigSrcMgr = &PP->getSourceManager();
+  }
 }
 
 void StoreDiags::EndSourceFile() {
   flushLastDiag();
   LangOpts = None;
+  OrigSrcMgr = nullptr;
 }
 
 /// Sanitizes a piece for presenting it in a synthesized fix message. Ensures
@@ -560,6 +599,16 @@ static void fillNonLocationData(DiagnosticsEngine::Level DiagLevel,
 
 void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
                                   const clang::Diagnostic &Info) {
+  // If the diagnostic was generated for a different SourceManager, skip it.
+  // This happens when a module is imported and needs to be implicitly built.
+  // The compilation of that module will use the same StoreDiags, but different
+  // SourceManager.
+  if (OrigSrcMgr && Info.hasSourceManager() &&
+      OrigSrcMgr != &Info.getSourceManager()) {
+    IgnoreDiagnostics::log(DiagLevel, Info);
+    return;
+  }
+
   DiagnosticConsumer::HandleDiagnostic(DiagLevel, Info);
   bool OriginallyError =
       Info.getDiags()->getDiagnosticIDs()->isDefaultMappingAsError(
@@ -699,6 +748,8 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
       LastDiag->Fixes.insert(LastDiag->Fixes.end(), ExtraFixes.begin(),
                              ExtraFixes.end());
     }
+    if (DiagCB)
+      DiagCB(Info, *LastDiag);
   } else {
     // Handle a note to an existing diagnostic.
 
@@ -754,6 +805,24 @@ void StoreDiags::flushLastDiag() {
   if (!mentionsMainFile(*LastDiag))
     return;
   Output.push_back(std::move(*LastDiag));
+}
+
+bool isBuiltinDiagnosticSuppressed(unsigned ID,
+                                   const llvm::StringSet<> &Suppress) {
+  if (const char *CodePtr = getDiagnosticCode(ID)) {
+    if (Suppress.contains(normalizeSuppressedCode(CodePtr)))
+      return true;
+  }
+  StringRef Warning = DiagnosticIDs::getWarningOptionForDiag(ID);
+  if (!Warning.empty() && Suppress.contains(Warning))
+    return true;
+  return false;
+}
+
+llvm::StringRef normalizeSuppressedCode(llvm::StringRef Code) {
+  Code.consume_front("err_");
+  Code.consume_front("-W");
+  return Code;
 }
 
 } // namespace clangd

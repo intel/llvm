@@ -14,6 +14,9 @@
 #define MLIR_IR_DIALECT_H
 
 #include "mlir/IR/OperationSupport.h"
+#include "mlir/Support/TypeID.h"
+
+#include <map>
 
 namespace mlir {
 class DialectAsmParser;
@@ -22,23 +25,26 @@ class DialectInterface;
 class OpBuilder;
 class Type;
 
-using DialectConstantDecodeHook =
-    std::function<bool(const OpaqueElementsAttr, ElementsAttr &)>;
-using DialectConstantFoldHook = std::function<LogicalResult(
-    Operation *, ArrayRef<Attribute>, SmallVectorImpl<Attribute> &)>;
-using DialectExtractElementHook =
-    std::function<Attribute(const OpaqueElementsAttr, ArrayRef<uint64_t>)>;
-using DialectAllocatorFunction = std::function<void(MLIRContext *)>;
+using DialectAllocatorFunction = std::function<Dialect *(MLIRContext *)>;
+using DialectAllocatorFunctionRef = function_ref<Dialect *(MLIRContext *)>;
+using InterfaceAllocatorFunction =
+    std::function<std::unique_ptr<DialectInterface>(Dialect *)>;
 
-/// Dialects are groups of MLIR operations and behavior associated with the
-/// entire group.  For example, hooks into other systems for constant folding,
-/// default named types for asm printing, etc.
+/// Dialects are groups of MLIR operations, types and attributes, as well as
+/// behavior associated with the entire group.  For example, hooks into other
+/// systems for constant folding, interfaces, default named types for asm
+/// printing, etc.
 ///
-/// Instances of the dialect object are global across all MLIRContext's that may
-/// be active in the process.
+/// Instances of the dialect object are loaded in a specific MLIRContext.
 ///
 class Dialect {
 public:
+  /// Type for a callback provided by the dialect to parse a custom operation.
+  /// This is used for the dialect to provide an alternative way to parse custom
+  /// operations, including unregistered ones.
+  using ParseOpHook =
+      function_ref<ParseResult(OpAsmParser &parser, OperationState &result)>;
+
   virtual ~Dialect();
 
   /// Utility function that returns if the given string is a valid dialect
@@ -48,6 +54,9 @@ public:
   MLIRContext *getContext() const { return context; }
 
   StringRef getNamespace() const { return name; }
+
+  /// Returns the unique identifier that corresponds to this dialect.
+  TypeID getTypeID() const { return dialectID; }
 
   /// Returns true if this dialect allows for unregistered operations, i.e.
   /// operations prefixed with the dialect namespace but not registered with
@@ -59,37 +68,12 @@ public:
   /// These are represented with OpaqueType.
   bool allowsUnknownTypes() const { return unknownTypesAllowed; }
 
-  //===--------------------------------------------------------------------===//
-  // Constant Hooks
-  //===--------------------------------------------------------------------===//
-
-  /// Registered fallback constant fold hook for the dialect. Like the constant
-  /// fold hook of each operation, it attempts to constant fold the operation
-  /// with the specified constant operand values - the elements in "operands"
-  /// will correspond directly to the operands of the operation, but may be null
-  /// if non-constant.  If constant folding is successful, this fills in the
-  /// `results` vector.  If not, this returns failure and `results` is
-  /// unspecified.
-  DialectConstantFoldHook constantFoldHook =
-      [](Operation *op, ArrayRef<Attribute> operands,
-         SmallVectorImpl<Attribute> &results) { return failure(); };
-
-  /// Registered hook to decode opaque constants associated with this
-  /// dialect. The hook function attempts to decode an opaque constant tensor
-  /// into a tensor with non-opaque content. If decoding is successful, this
-  /// method returns false and sets 'output' attribute. If not, it returns true
-  /// and leaves 'output' unspecified. The default hook fails to decode.
-  DialectConstantDecodeHook decodeHook =
-      [](const OpaqueElementsAttr input, ElementsAttr &output) { return true; };
-
-  /// Registered hook to extract an element from an opaque constant associated
-  /// with this dialect. If element has been successfully extracted, this
-  /// method returns that element. If not, it returns an empty attribute.
-  /// The default hook fails to extract an element.
-  DialectExtractElementHook extractElementHook =
-      [](const OpaqueElementsAttr input, ArrayRef<uint64_t> index) {
-        return Attribute();
-      };
+  /// Register dialect-wide canonicalization patterns. This method should only
+  /// be used to register canonicalization patterns that do not conceptually
+  /// belong to any single operation in the dialect. (In that case, use the op's
+  /// canonicalizer.) E.g., canonicalization patterns for op interfaces should
+  /// be registered here.
+  virtual void getCanonicalizationPatterns(RewritePatternSet &results) const {}
 
   /// Registered hook to materialize a single constant operation from a given
   /// attribute value with the desired resultant type. This method should use
@@ -125,6 +109,18 @@ public:
   virtual void printType(Type, DialectAsmPrinter &) const {
     llvm_unreachable("dialect has no registered type printing hook");
   }
+
+  /// Return the hook to parse an operation registered to this dialect, if any.
+  /// By default this will lookup for registered operations and return the
+  /// `parse()` method registered on the AbstractOperation. Dialects can
+  /// override this behavior and handle unregistered operations as well.
+  virtual Optional<ParseOpHook> getParseOperationHook(StringRef opName) const;
+
+  /// Print an operation registered to this dialect.
+  /// This hook is invoked for registered operation which don't override the
+  /// `print()` method to define their own custom assembly.
+  virtual LogicalResult printOperation(Operation *op,
+                                       OpAsmPrinter &printer) const;
 
   //===--------------------------------------------------------------------===//
   // Verification Hooks
@@ -169,6 +165,19 @@ public:
         getRegisteredInterface(InterfaceT::getInterfaceID()));
   }
 
+  /// Lookup an op interface for the given ID if one is registered, otherwise
+  /// nullptr.
+  virtual void *getRegisteredInterfaceForOp(TypeID interfaceID,
+                                            OperationName opName) {
+    return nullptr;
+  }
+  template <typename InterfaceT>
+  typename InterfaceT::Concept *
+  getRegisteredInterfaceForOp(OperationName opName) {
+    return static_cast<typename InterfaceT::Concept *>(
+        getRegisteredInterfaceForOp(InterfaceT::getInterfaceID(), opName));
+  }
+
 protected:
   /// The constructor takes a unique namespace for this dialect as well as the
   /// context to bind to.
@@ -177,25 +186,28 @@ protected:
   ///       with the namespace followed by '.'.
   /// Example:
   ///       - "tf" for the TensorFlow ops like "tf.add".
-  Dialect(StringRef name, MLIRContext *context);
+  Dialect(StringRef name, MLIRContext *context, TypeID id);
 
   /// This method is used by derived classes to add their operations to the set.
   ///
   template <typename... Args> void addOperations() {
     (void)std::initializer_list<int>{
-        0, (addOperation(AbstractOperation::get<Args>(*this)), 0)...};
+        0, (AbstractOperation::insert<Args>(*this), 0)...};
   }
 
-  void addOperation(AbstractOperation opInfo);
-
-  /// This method is used by derived classes to add their types to the set.
+  /// Register a set of type classes with this dialect.
   template <typename... Args> void addTypes() {
-    (void)std::initializer_list<int>{0, (addSymbol(Args::getTypeID()), 0)...};
+    (void)std::initializer_list<int>{0, (addType<Args>(), 0)...};
   }
 
-  /// This method is used by derived classes to add their attributes to the set.
+  /// Register a type instance with this dialect.
+  /// The use of this method is in general discouraged in favor of
+  /// 'addTypes<CustomType>()'.
+  void addType(TypeID typeID, AbstractType &&typeInfo);
+
+  /// Register a set of attribute classes with this dialect.
   template <typename... Args> void addAttributes() {
-    (void)std::initializer_list<int>{0, (addSymbol(Args::getTypeID()), 0)...};
+    (void)std::initializer_list<int>{0, (addAttribute<Args>(), 0)...};
   }
 
   /// Enable support for unregistered operations.
@@ -214,18 +226,30 @@ protected:
   }
 
 private:
-  // Register a symbol(e.g. type) with its given unique class identifier.
-  void addSymbol(TypeID typeID);
-
   Dialect(const Dialect &) = delete;
   void operator=(Dialect &) = delete;
 
-  /// Register this dialect object with the specified context.  The context
-  /// takes ownership of the heap allocated dialect.
-  void registerDialect(MLIRContext *context);
+  /// Register an attribute instance with this dialect.
+  template <typename T> void addAttribute() {
+    // Add this attribute to the dialect and register it with the uniquer.
+    addAttribute(T::getTypeID(), AbstractAttribute::get<T>(*this));
+    detail::AttributeUniquer::registerAttribute<T>(context);
+  }
+  void addAttribute(TypeID typeID, AbstractAttribute &&attrInfo);
+
+  /// Register a type instance with this dialect.
+  template <typename T> void addType() {
+    // Add this type to the dialect and register it with the uniquer.
+    addType(T::getTypeID(), AbstractType::get<T>(*this));
+    detail::TypeUniquer::registerType<T>(context);
+  }
 
   /// The namespace of this dialect.
   StringRef name;
+
+  /// The unique identifier of the derived Op class, this is used in the context
+  /// to allow registering multiple times the same dialect.
+  TypeID dialectID;
 
   /// This is the context that owns this Dialect object.
   MLIRContext *context;
@@ -243,40 +267,102 @@ private:
   /// A collection of registered dialect interfaces.
   DenseMap<TypeID, std::unique_ptr<DialectInterface>> registeredInterfaces;
 
-  /// Registers a specific dialect creation function with the global registry.
-  /// Used through the registerDialect template.
-  /// Registrations are deduplicated by dialect TypeID and only the first
-  /// registration will be used.
-  static void
-  registerDialectAllocator(TypeID typeID,
-                           const DialectAllocatorFunction &function);
-  template <typename ConcreteDialect>
+  friend class DialectRegistry;
   friend void registerDialect();
+  friend class MLIRContext;
 };
-/// Registers all dialects and hooks from the global registries with the
-/// specified MLIRContext.
-void registerAllDialects(MLIRContext *context);
 
-/// Utility to register a dialect. Client can register their dialect with the
-/// global registry by calling registerDialect<MyDialect>();
-template <typename ConcreteDialect> void registerDialect() {
-  Dialect::registerDialectAllocator(TypeID::get<ConcreteDialect>(),
-                                    [](MLIRContext *ctx) {
-                                      // Just allocate the dialect, the context
-                                      // takes ownership of it.
-                                      new ConcreteDialect(ctx);
-                                    });
-}
+/// The DialectRegistry maps a dialect namespace to a constructor for the
+/// matching dialect.
+/// This allows for decoupling the list of dialects "available" from the
+/// dialects loaded in the Context. The parser in particular will lazily load
+/// dialects in the Context as operations are encountered.
+class DialectRegistry {
+  using MapTy =
+      std::map<std::string, std::pair<TypeID, DialectAllocatorFunction>>;
+  using InterfaceMapTy =
+      DenseMap<TypeID,
+               SmallVector<std::pair<TypeID, InterfaceAllocatorFunction>, 2>>;
 
-/// DialectRegistration provides a global initializer that registers a Dialect
-/// allocation routine.
-///
-/// Usage:
-///
-///   // At namespace scope.
-///   static DialectRegistration<MyDialect> Unused;
-template <typename ConcreteDialect> struct DialectRegistration {
-  DialectRegistration() { registerDialect<ConcreteDialect>(); }
+public:
+  explicit DialectRegistry() {}
+
+  template <typename ConcreteDialect>
+  void insert() {
+    insert(TypeID::get<ConcreteDialect>(),
+           ConcreteDialect::getDialectNamespace(),
+           static_cast<DialectAllocatorFunction>(([](MLIRContext *ctx) {
+             // Just allocate the dialect, the context
+             // takes ownership of it.
+             return ctx->getOrLoadDialect<ConcreteDialect>();
+           })));
+  }
+
+  template <typename ConcreteDialect, typename OtherDialect,
+            typename... MoreDialects>
+  void insert() {
+    insert<ConcreteDialect>();
+    insert<OtherDialect, MoreDialects...>();
+  }
+
+  /// Add a new dialect constructor to the registry. The constructor must be
+  /// calling MLIRContext::getOrLoadDialect in order for the context to take
+  /// ownership of the dialect and for delayed interface registration to happen.
+  void insert(TypeID typeID, StringRef name, DialectAllocatorFunction ctor);
+
+  /// Return an allocation function for constructing the dialect identified by
+  /// its namespace, or nullptr if the namespace is not in this registry.
+  DialectAllocatorFunctionRef getDialectAllocator(StringRef name) const;
+
+  // Register all dialects available in the current registry with the registry
+  // in the provided context.
+  void appendTo(DialectRegistry &destination) const {
+    for (const auto &nameAndRegistrationIt : registry)
+      destination.insert(nameAndRegistrationIt.second.first,
+                         nameAndRegistrationIt.first,
+                         nameAndRegistrationIt.second.second);
+    destination.interfaces.insert(interfaces.begin(), interfaces.end());
+  }
+
+  /// Return the names of dialects known to this registry.
+  auto getDialectNames() const {
+    return llvm::map_range(
+        registry,
+        [](const MapTy::value_type &item) -> StringRef { return item.first; });
+  }
+
+  /// Add an interface constructed with the given allocation function to the
+  /// dialect provided as template parameter. The dialect must be present in
+  /// the registry.
+  template <typename DialectTy>
+  void addDialectInterface(TypeID interfaceTypeID,
+                           InterfaceAllocatorFunction allocator) {
+    addDialectInterface(DialectTy::getDialectNamespace(), interfaceTypeID,
+                        allocator);
+  }
+
+  /// Add an interface to the dialect, both provided as template parameter. The
+  /// dialect must be present in the registry.
+  template <typename DialectTy, typename InterfaceTy>
+  void addDialectInterface() {
+    addDialectInterface<DialectTy>(
+        InterfaceTy::getInterfaceID(), [](Dialect *dialect) {
+          return std::make_unique<InterfaceTy>(dialect);
+        });
+  }
+
+  /// Register any interfaces required for the given dialect (based on its
+  /// TypeID). Users are not expected to call this directly.
+  void registerDelayedInterfaces(Dialect *dialect) const;
+
+private:
+  /// Add an interface constructed with the given allocation function to the
+  /// dialect identified by its namespace.
+  void addDialectInterface(StringRef dialectName, TypeID interfaceTypeID,
+                           InterfaceAllocatorFunction allocator);
+
+  MapTy registry;
+  InterfaceMapTy interfaces;
 };
 
 } // namespace mlir
@@ -286,7 +372,7 @@ namespace llvm {
 template <typename T>
 struct isa_impl<T, ::mlir::Dialect> {
   static inline bool doit(const ::mlir::Dialect &dialect) {
-    return T::getDialectNamespace() == dialect.getNamespace();
+    return mlir::TypeID::get<T>() == dialect.getTypeID();
   }
 };
 } // namespace llvm

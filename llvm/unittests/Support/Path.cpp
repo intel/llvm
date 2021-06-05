@@ -85,6 +85,31 @@ TEST(is_separator, Works) {
 #endif
 }
 
+TEST(is_absolute_gnu, Works) {
+  // Test tuple <Path, ExpectedPosixValue, ExpectedWindowsValue>.
+  const std::tuple<StringRef, bool, bool> Paths[] = {
+      std::make_tuple("", false, false),
+      std::make_tuple("/", true, true),
+      std::make_tuple("/foo", true, true),
+      std::make_tuple("\\", false, true),
+      std::make_tuple("\\foo", false, true),
+      std::make_tuple("foo", false, false),
+      std::make_tuple("c", false, false),
+      std::make_tuple("c:", false, true),
+      std::make_tuple("c:\\", false, true),
+      std::make_tuple("!:", false, true),
+      std::make_tuple("xx:", false, false),
+      std::make_tuple("c:abc\\", false, true),
+      std::make_tuple(":", false, false)};
+
+  for (const auto &Path : Paths) {
+    EXPECT_EQ(path::is_absolute_gnu(std::get<0>(Path), path::Style::posix),
+              std::get<1>(Path));
+    EXPECT_EQ(path::is_absolute_gnu(std::get<0>(Path), path::Style::windows),
+              std::get<2>(Path));
+  }
+}
+
 TEST(Support, Path) {
   SmallVector<StringRef, 40> paths;
   paths.push_back("");
@@ -171,6 +196,7 @@ TEST(Support, Path) {
     (void)path::has_extension(*i);
     (void)path::extension(*i);
     (void)path::is_absolute(*i);
+    (void)path::is_absolute_gnu(*i);
     (void)path::is_relative(*i);
 
     SmallString<128> temp_store;
@@ -439,6 +465,26 @@ TEST(Support, HomeDirectoryWithNoEnv) {
   EXPECT_EQ(PwDir, HomeDir);
 }
 
+TEST(Support, ConfigDirectoryWithEnv) {
+  WithEnv Env("XDG_CONFIG_HOME", "/xdg/config");
+
+  SmallString<128> ConfigDir;
+  EXPECT_TRUE(path::user_config_directory(ConfigDir));
+  EXPECT_EQ("/xdg/config", ConfigDir);
+}
+
+TEST(Support, ConfigDirectoryNoEnv) {
+  WithEnv Env("XDG_CONFIG_HOME", nullptr);
+
+  SmallString<128> Fallback;
+  ASSERT_TRUE(path::home_directory(Fallback));
+  path::append(Fallback, ".config");
+
+  SmallString<128> CacheDir;
+  EXPECT_TRUE(path::user_config_directory(CacheDir));
+  EXPECT_EQ(Fallback, CacheDir);
+}
+
 TEST(Support, CacheDirectoryWithEnv) {
   WithEnv Env("XDG_CACHE_HOME", "/xdg/cache");
 
@@ -460,7 +506,29 @@ TEST(Support, CacheDirectoryNoEnv) {
 }
 #endif
 
+#ifdef __APPLE__
+TEST(Support, ConfigDirectory) {
+  SmallString<128> Fallback;
+  ASSERT_TRUE(path::home_directory(Fallback));
+  path::append(Fallback, "Library/Preferences");
+
+  SmallString<128> ConfigDir;
+  EXPECT_TRUE(path::user_config_directory(ConfigDir));
+  EXPECT_EQ(Fallback, ConfigDir);
+}
+#endif
+
 #ifdef _WIN32
+TEST(Support, ConfigDirectory) {
+  std::string Expected = getEnvWin(L"LOCALAPPDATA");
+  // Do not try to test it if we don't know what to expect.
+  if (!Expected.empty()) {
+    SmallString<128> CacheDir;
+    EXPECT_TRUE(path::user_config_directory(CacheDir));
+    EXPECT_EQ(Expected, CacheDir);
+  }
+}
+
 TEST(Support, CacheDirectory) {
   std::string Expected = getEnvWin(L"LOCALAPPDATA");
   // Do not try to test it if we don't know what to expect.
@@ -1020,6 +1088,11 @@ TEST_F(FileSystemTest, DirectoryIteration) {
   ASSERT_NO_ERROR(fs::remove(Twine(TestDirectory) + "/reclevel"));
 }
 
+TEST_F(FileSystemTest, DirectoryNotExecutable) {
+  ASSERT_EQ(fs::access(TestDirectory, sys::fs::AccessMode::Execute),
+            errc::permission_denied);
+}
+
 #ifdef LLVM_ON_UNIX
 TEST_F(FileSystemTest, BrokenSymlinkDirectoryIteration) {
   // Create a known hierarchy to recurse over.
@@ -1107,6 +1180,39 @@ TEST_F(FileSystemTest, BrokenSymlinkDirectoryIteration) {
 }
 #endif
 
+#ifdef _WIN32
+TEST_F(FileSystemTest, UTF8ToUTF16DirectoryIteration) {
+  // The Windows filesystem support uses UTF-16 and converts paths from the
+  // input UTF-8. The UTF-16 equivalent of the input path can be shorter in
+  // length.
+
+  // This test relies on TestDirectory not being so long such that MAX_PATH
+  // would be exceeded (see widenPath). If that were the case, the UTF-16
+  // path is likely to be longer than the input.
+  const char *Pi = "\xcf\x80"; // UTF-8 lower case pi.
+  std::string RootDir = (TestDirectory + "/" + Pi).str();
+
+  // Create test directories.
+  ASSERT_NO_ERROR(fs::create_directories(Twine(RootDir) + "/a"));
+  ASSERT_NO_ERROR(fs::create_directories(Twine(RootDir) + "/b"));
+
+  std::error_code EC;
+  unsigned Count = 0;
+  for (fs::directory_iterator I(Twine(RootDir), EC), E; I != E;
+       I.increment(EC)) {
+    ASSERT_NO_ERROR(EC);
+    StringRef DirName = path::filename(I->path());
+    EXPECT_TRUE(DirName == "a" || DirName == "b");
+    ++Count;
+  }
+  EXPECT_EQ(Count, 2U);
+
+  ASSERT_NO_ERROR(fs::remove(Twine(RootDir) + "/a"));
+  ASSERT_NO_ERROR(fs::remove(Twine(RootDir) + "/b"));
+  ASSERT_NO_ERROR(fs::remove(Twine(RootDir)));
+}
+#endif
+
 TEST_F(FileSystemTest, Remove) {
   SmallString<64> BaseDir;
   SmallString<64> Paths[4];
@@ -1147,7 +1253,7 @@ TEST_F(FileSystemTest, CarriageReturn) {
   path::append(FilePathname, "test");
 
   {
-    raw_fd_ostream File(FilePathname, EC, sys::fs::OF_Text);
+    raw_fd_ostream File(FilePathname, EC, sys::fs::OF_TextWithCRLF);
     ASSERT_NO_ERROR(EC);
     File << '\n';
   }
@@ -1183,6 +1289,31 @@ TEST_F(FileSystemTest, Resize) {
   ASSERT_NO_ERROR(fs::remove(TempPath));
 }
 
+TEST_F(FileSystemTest, ResizeBeforeMapping) {
+  // Create a temp file.
+  int FD;
+  SmallString<64> TempPath;
+  ASSERT_NO_ERROR(fs::createTemporaryFile("prefix", "temp", FD, TempPath));
+  ASSERT_NO_ERROR(fs::resize_file_before_mapping_readwrite(FD, 123));
+
+  // Map in temp file. On Windows, fs::resize_file_before_mapping_readwrite is
+  // a no-op and the mapping itself will resize the file.
+  std::error_code EC;
+  {
+    fs::mapped_file_region mfr(fs::convertFDToNativeFile(FD),
+                               fs::mapped_file_region::readwrite, 123, 0, EC);
+    ASSERT_NO_ERROR(EC);
+    // Unmap temp file
+  }
+
+  // Check the size.
+  fs::file_status Status;
+  ASSERT_NO_ERROR(fs::status(FD, Status));
+  ASSERT_EQ(Status.getSize(), 123U);
+  ::close(FD);
+  ASSERT_NO_ERROR(fs::remove(TempPath));
+}
+
 TEST_F(FileSystemTest, MD5) {
   int FD;
   SmallString<64> TempPath;
@@ -1204,11 +1335,14 @@ TEST_F(FileSystemTest, FileMapping) {
   ASSERT_NO_ERROR(
       fs::createTemporaryFile("prefix", "temp", FileDescriptor, TempPath));
   unsigned Size = 4096;
-  ASSERT_NO_ERROR(fs::resize_file(FileDescriptor, Size));
+  ASSERT_NO_ERROR(
+      fs::resize_file_before_mapping_readwrite(FileDescriptor, Size));
 
   // Map in temp file and add some content
   std::error_code EC;
   StringRef Val("hello there");
+  fs::mapped_file_region MaybeMFR;
+  EXPECT_FALSE(MaybeMFR);
   {
     fs::mapped_file_region mfr(fs::convertFDToNativeFile(FileDescriptor),
                                fs::mapped_file_region::readwrite, Size, 0, EC);
@@ -1216,8 +1350,23 @@ TEST_F(FileSystemTest, FileMapping) {
     std::copy(Val.begin(), Val.end(), mfr.data());
     // Explicitly add a 0.
     mfr.data()[Val.size()] = 0;
-    // Unmap temp file
+
+    // Move it out of the scope and confirm mfr is reset.
+    MaybeMFR = std::move(mfr);
+    EXPECT_FALSE(mfr);
+#if !defined(NDEBUG) && GTEST_HAS_DEATH_TEST
+    EXPECT_DEATH(mfr.data(), "Mapping failed but used anyway!");
+    EXPECT_DEATH(mfr.size(), "Mapping failed but used anyway!");
+#endif
   }
+
+  // Check that the moved-to region is still valid.
+  EXPECT_EQ(Val, StringRef(MaybeMFR.data()));
+  EXPECT_EQ(Size, MaybeMFR.size());
+
+  // Unmap temp file.
+  MaybeMFR.unmap();
+
   ASSERT_EQ(close(FileDescriptor), 0);
 
   // Map it back in read-only
@@ -1784,7 +1933,8 @@ TEST_F(FileSystemTest, getUmask) {
   unsigned CurrentMask = fs::getUmask();
   EXPECT_EQ(CurrentMask, 0022U)
       << "getUmask() didn't return previously set umask()";
-  EXPECT_EQ(::umask(OldMask), 0022U) << "getUmask() may have changed umask()";
+  EXPECT_EQ(::umask(OldMask), mode_t(0022U))
+      << "getUmask() may have changed umask()";
 #endif
 }
 
@@ -2101,6 +2251,53 @@ TEST_F(FileSystemTest, widenPath) {
   Input = ShareName + DirName + "\\.\\foo\\.\\.." + FileName;
   ASSERT_NO_ERROR(windows::widenPath(Input, Result));
   EXPECT_EQ(Result, Expected);
+}
+#endif
+
+#ifdef _WIN32
+// Windows refuses lock request if file region is already locked by the same
+// process. POSIX system in this case updates the existing lock.
+TEST_F(FileSystemTest, FileLocker) {
+  using namespace std::chrono;
+  int FD;
+  std::error_code EC;
+  SmallString<64> TempPath;
+  EC = fs::createTemporaryFile("test", "temp", FD, TempPath);
+  ASSERT_NO_ERROR(EC);
+  FileRemover Cleanup(TempPath);
+  raw_fd_ostream Stream(TempPath, EC);
+
+  EC = fs::tryLockFile(FD);
+  ASSERT_NO_ERROR(EC);
+  EC = fs::unlockFile(FD);
+  ASSERT_NO_ERROR(EC);
+
+  if (auto L = Stream.lock()) {
+    ASSERT_ERROR(fs::tryLockFile(FD));
+    ASSERT_NO_ERROR(L->unlock());
+    ASSERT_NO_ERROR(fs::tryLockFile(FD));
+    ASSERT_NO_ERROR(fs::unlockFile(FD));
+  } else {
+    ADD_FAILURE();
+    handleAllErrors(L.takeError(), [&](ErrorInfoBase &EIB) {});
+  }
+
+  ASSERT_NO_ERROR(fs::tryLockFile(FD));
+  ASSERT_NO_ERROR(fs::unlockFile(FD));
+
+  {
+    Expected<fs::FileLocker> L1 = Stream.lock();
+    ASSERT_THAT_EXPECTED(L1, Succeeded());
+    raw_fd_ostream Stream2(FD, false);
+    Expected<fs::FileLocker> L2 = Stream2.tryLockFor(250ms);
+    ASSERT_THAT_EXPECTED(L2, Failed());
+    ASSERT_NO_ERROR(L1->unlock());
+    Expected<fs::FileLocker> L3 = Stream.tryLockFor(0ms);
+    ASSERT_THAT_EXPECTED(L3, Succeeded());
+  }
+
+  ASSERT_NO_ERROR(fs::tryLockFile(FD));
+  ASSERT_NO_ERROR(fs::unlockFile(FD));
 }
 #endif
 

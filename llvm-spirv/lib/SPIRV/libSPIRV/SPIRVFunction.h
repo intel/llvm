@@ -171,6 +171,33 @@ private:
 
 typedef SPIRVEntryOpCodeOnly<OpFunctionEnd> SPIRVFunctionEnd;
 
+class SPIRVConstFunctionPointerINTEL : public SPIRVValue {
+  const static Op OC = OpConstFunctionPointerINTEL;
+  const static SPIRVWord FixedWordCount = 4;
+
+public:
+  SPIRVConstFunctionPointerINTEL(SPIRVId TheId, SPIRVType *TheType,
+                                 SPIRVFunction *TheFunction, SPIRVModule *M)
+      : SPIRVValue(M, FixedWordCount, OC, TheType, TheId),
+        TheFunction(TheFunction->getId()) {
+    validate();
+  }
+  SPIRVConstFunctionPointerINTEL()
+      : SPIRVValue(OC), TheFunction(SPIRVID_INVALID) {}
+  SPIRVFunction *getFunction() const { return get<SPIRVFunction>(TheFunction); }
+  _SPIRV_DEF_ENCDEC3(Type, Id, TheFunction)
+  void validate() const override { SPIRVValue::validate(); }
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_function_pointers;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityFunctionPointersINTEL);
+  }
+
+protected:
+  SPIRVId TheFunction;
+};
+
 } // namespace SPIRV
 
 #endif // SPIRV_LIBSPIRV_SPIRVFUNCTION_H

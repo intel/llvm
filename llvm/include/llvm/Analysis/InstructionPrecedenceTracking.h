@@ -80,6 +80,11 @@ public:
   /// It makes all necessary updates to internal caches to keep them consistent.
   void removeInstruction(const Instruction *Inst);
 
+  /// Notifies this tracking that we are going to replace all uses of \p Inst.
+  /// It makes all necessary updates to internal caches to keep them consistent.
+  /// Should typically be called before a RAUW.
+  void removeUsersOf(const Instruction *Inst);
+
   /// Invalidates all information from this tracking.
   void clear();
 };
@@ -110,7 +115,7 @@ public:
     return isPreceededBySpecialInstruction(Insn);
   }
 
-  virtual bool isSpecialInstruction(const Instruction *Insn) const;
+  bool isSpecialInstruction(const Instruction *Insn) const override;
 };
 
 class MemoryWriteTracking : public InstructionPrecedenceTracking {
@@ -133,7 +138,7 @@ public:
     return isPreceededBySpecialInstruction(Insn);
   }
 
-  virtual bool isSpecialInstruction(const Instruction *Insn) const;
+  bool isSpecialInstruction(const Instruction *Insn) const override;
 };
 
 } // llvm

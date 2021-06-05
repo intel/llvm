@@ -277,8 +277,8 @@ void BCECmpBlock::split(BasicBlock *NewParent, AliasAnalysis &AA) const {
   for (Instruction &Inst : *BB) {
     if (BlockInsts.count(&Inst))
       continue;
-      assert(canSinkBCECmpInst(&Inst, BlockInsts, AA) &&
-             "Split unsplittable block");
+    assert(canSinkBCECmpInst(&Inst, BlockInsts, AA) &&
+           "Split unsplittable block");
     // This is a non-BCE-cmp-block instruction. And it can be separated
     // from the BCE-cmp-block instruction.
     OtherInsts.push_back(&Inst);
@@ -372,7 +372,7 @@ BCECmpBlock visitCmpBlock(Value *const Val, BasicBlock *const Block,
   } else {
     // In this case, we expect a constant incoming value (the comparison is
     // chained).
-    const auto *const Const = dyn_cast<ConstantInt>(Val);
+    const auto *const Const = cast<ConstantInt>(Val);
     LLVM_DEBUG(dbgs() << "const\n");
     if (!Const->isZero()) return {};
     LLVM_DEBUG(dbgs() << "false\n");
@@ -440,8 +440,7 @@ BCECmpChain::BCECmpChain(const std::vector<BasicBlock *> &Blocks, PHINode &Phi,
   // Now look inside blocks to check for BCE comparisons.
   std::vector<BCECmpBlock> Comparisons;
   BaseIdentifier BaseId;
-  for (size_t BlockIdx = 0; BlockIdx < Blocks.size(); ++BlockIdx) {
-    BasicBlock *const Block = Blocks[BlockIdx];
+  for (BasicBlock *const Block : Blocks) {
     assert(Block && "invalid block");
     BCECmpBlock Comparison = visitCmpBlock(Phi.getIncomingValueForBlock(Block),
                                            Block, Phi.getParent(), BaseId);
@@ -624,6 +623,17 @@ static BasicBlock *mergeComparisons(ArrayRef<BCECmpBlock> Comparisons,
   Value *IsEqual = nullptr;
   LLVM_DEBUG(dbgs() << "Merging " << Comparisons.size() << " comparisons -> "
                     << BB->getName() << "\n");
+
+  // If there is one block that requires splitting, we do it now, i.e.
+  // just before we know we will collapse the chain. The instructions
+  // can be executed before any of the instructions in the chain.
+  const auto ToSplit = llvm::find_if(
+      Comparisons, [](const BCECmpBlock &B) { return B.RequireSplit; });
+  if (ToSplit != Comparisons.end()) {
+    LLVM_DEBUG(dbgs() << "Splitting non_BCE work to header\n");
+    ToSplit->split(BB, AA);
+  }
+
   if (Comparisons.size() == 1) {
     LLVM_DEBUG(dbgs() << "Only one comparison, updating branches\n");
     Value *const LhsLoad =
@@ -633,17 +643,6 @@ static BasicBlock *mergeComparisons(ArrayRef<BCECmpBlock> Comparisons,
     // There are no blocks to merge, just do the comparison.
     IsEqual = Builder.CreateICmpEQ(LhsLoad, RhsLoad);
   } else {
-    // If there is one block that requires splitting, we do it now, i.e.
-    // just before we know we will collapse the chain. The instructions
-    // can be executed before any of the instructions in the chain.
-    const auto ToSplit =
-        std::find_if(Comparisons.begin(), Comparisons.end(),
-                     [](const BCECmpBlock &B) { return B.RequireSplit; });
-    if (ToSplit != Comparisons.end()) {
-      LLVM_DEBUG(dbgs() << "Splitting non_BCE work to header\n");
-      ToSplit->split(BB, AA);
-    }
-
     const unsigned TotalSizeBits = std::accumulate(
         Comparisons.begin(), Comparisons.end(), 0u,
         [](int Size, const BCECmpBlock &C) { return Size + C.SizeBits(); });
@@ -733,8 +732,7 @@ bool BCECmpChain::simplify(const TargetLibraryInfo &TLI, AliasAnalysis &AA,
 
   // If the old cmp chain was the function entry, we need to update the function
   // entry.
-  const bool ChainEntryIsFnEntry =
-      (EntryBlock_ == &EntryBlock_->getParent()->getEntryBlock());
+  const bool ChainEntryIsFnEntry = EntryBlock_->isEntryBlock();
   if (ChainEntryIsFnEntry && DTU.hasDomTree()) {
     LLVM_DEBUG(dbgs() << "Changing function entry from "
                       << EntryBlock_->getName() << " to "
@@ -940,7 +938,6 @@ PreservedAnalyses MergeICmpsPass::run(Function &F,
   if (!MadeChanges)
     return PreservedAnalyses::all();
   PreservedAnalyses PA;
-  PA.preserve<GlobalsAA>();
   PA.preserve<DominatorTreeAnalysis>();
   return PA;
 }

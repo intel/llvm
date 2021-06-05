@@ -1,8 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 #include <CL/sycl.hpp>
 
@@ -24,8 +21,7 @@ To doBitCast(const From &ValueToConvert) {
     Queue.submit([&](sycl::handler &cgh) {
       auto acc = Buf.template get_access<sycl_write>(cgh);
       cgh.single_task<class BitCastKernel<To, From>>([=]() {
-        // TODO: change to sycl::bit_cast in the future
-        acc[0] = sycl::detail::bit_cast<To>(ValueToConvert);
+        acc[0] = sycl::bit_cast<To>(ValueToConvert);
       });
     });
   }

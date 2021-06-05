@@ -8,15 +8,17 @@
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Diagnostics.h"
-#include "mlir/IR/DialectHooks.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/DialectInterface.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Regex.h"
+
+#define DEBUG_TYPE "dialect"
 
 using namespace mlir;
 using namespace detail;
@@ -24,52 +26,73 @@ using namespace detail;
 DialectAsmParser::~DialectAsmParser() {}
 
 //===----------------------------------------------------------------------===//
-// Dialect Registration
+// DialectRegistry
 //===----------------------------------------------------------------------===//
 
-/// Registry for all dialect allocation functions.
-static llvm::ManagedStatic<llvm::MapVector<TypeID, DialectAllocatorFunction>>
-    dialectRegistry;
+void DialectRegistry::addDialectInterface(
+    StringRef dialectName, TypeID interfaceTypeID,
+    InterfaceAllocatorFunction allocator) {
+  assert(allocator && "unexpected null interface allocation function");
+  auto it = registry.find(dialectName.str());
+  assert(it != registry.end() &&
+         "adding an interface for an unregistered dialect");
 
-/// Registry for functions that set dialect hooks.
-static llvm::ManagedStatic<llvm::MapVector<TypeID, DialectHooksSetter>>
-    dialectHooksRegistry;
+  // Bail out if the interface with the given ID is already in the registry for
+  // the given dialect. We expect a small number (dozens) of interfaces so a
+  // linear search is fine here.
+  auto &dialectInterfaces = interfaces[it->second.first];
+  for (const auto &kvp : dialectInterfaces) {
+    if (kvp.first == interfaceTypeID) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "[" DEBUG_TYPE
+                    "] repeated interface registration for dialect "
+                 << dialectName);
+      return;
+    }
+  }
 
-void Dialect::registerDialectAllocator(
-    TypeID typeID, const DialectAllocatorFunction &function) {
-  assert(function &&
-         "Attempting to register an empty dialect initialize function");
-  dialectRegistry->insert({typeID, function});
+  dialectInterfaces.emplace_back(interfaceTypeID, allocator);
 }
 
-/// Registers a function to set specific hooks for a specific dialect, typically
-/// used through the DialectHooksRegistration template.
-void DialectHooks::registerDialectHooksSetter(
-    TypeID typeID, const DialectHooksSetter &function) {
-  assert(
-      function &&
-      "Attempting to register an empty dialect hooks initialization function");
-
-  dialectHooksRegistry->insert({typeID, function});
+DialectAllocatorFunctionRef
+DialectRegistry::getDialectAllocator(StringRef name) const {
+  auto it = registry.find(name.str());
+  if (it == registry.end())
+    return nullptr;
+  return it->second.second;
 }
 
-/// Registers all dialects and hooks from the global registries with the
-/// specified MLIRContext.
-void mlir::registerAllDialects(MLIRContext *context) {
-  for (const auto &it : *dialectRegistry)
-    it.second(context);
-  for (const auto &it : *dialectHooksRegistry)
-    it.second(context);
+void DialectRegistry::insert(TypeID typeID, StringRef name,
+                             DialectAllocatorFunction ctor) {
+  auto inserted = registry.insert(
+      std::make_pair(std::string(name), std::make_pair(typeID, ctor)));
+  if (!inserted.second && inserted.first->second.first != typeID) {
+    llvm::report_fatal_error(
+        "Trying to register different dialects for the same namespace: " +
+        name);
+  }
+}
+
+void DialectRegistry::registerDelayedInterfaces(Dialect *dialect) const {
+  auto it = interfaces.find(dialect->getTypeID());
+  if (it == interfaces.end())
+    return;
+
+  // Add an interface if it is not already present.
+  for (const auto &kvp : it->second) {
+    if (dialect->getRegisteredInterface(kvp.first))
+      continue;
+    dialect->addInterface(kvp.second(dialect));
+  }
 }
 
 //===----------------------------------------------------------------------===//
 // Dialect
 //===----------------------------------------------------------------------===//
 
-Dialect::Dialect(StringRef name, MLIRContext *context)
-    : name(name), context(context) {
+Dialect::Dialect(StringRef name, MLIRContext *context, TypeID id)
+    : name(name), dialectID(id), context(context) {
   assert(isValidNamespace(name) && "invalid dialect namespace");
-  registerDialect(context);
 }
 
 Dialect::~Dialect() {}
@@ -104,13 +127,25 @@ Attribute Dialect::parseAttribute(DialectAsmParser &parser, Type type) const {
 Type Dialect::parseType(DialectAsmParser &parser) const {
   // If this dialect allows unknown types, then represent this with OpaqueType.
   if (allowsUnknownTypes()) {
-    auto ns = Identifier::get(getNamespace(), getContext());
-    return OpaqueType::get(ns, parser.getFullSymbolSpec(), getContext());
+    Identifier ns = Identifier::get(getNamespace(), getContext());
+    return OpaqueType::get(ns, parser.getFullSymbolSpec());
   }
 
   parser.emitError(parser.getNameLoc())
       << "dialect '" << getNamespace() << "' provides no type parsing hook";
   return Type();
+}
+
+Optional<Dialect::ParseOpHook>
+Dialect::getParseOperationHook(StringRef opName) const {
+  return None;
+}
+
+LogicalResult Dialect::printOperation(Operation *op,
+                                      OpAsmPrinter &printer) const {
+  assert(op->getDialect() == this &&
+         "Dialect hook invoked on non-dialect owned operation");
+  return failure();
 }
 
 /// Utility function that returns if the given string is a valid dialect
@@ -138,7 +173,7 @@ DialectInterface::~DialectInterface() {}
 
 DialectInterfaceCollectionBase::DialectInterfaceCollectionBase(
     MLIRContext *ctx, TypeID interfaceKind) {
-  for (auto *dialect : ctx->getRegisteredDialects()) {
+  for (auto *dialect : ctx->getLoadedDialects()) {
     if (auto *interface = dialect->getRegisteredInterface(interfaceKind)) {
       interfaces.insert(interface);
       orderedInterfaces.push_back(interface);

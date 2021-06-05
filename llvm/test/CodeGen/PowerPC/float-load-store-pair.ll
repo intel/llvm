@@ -5,37 +5,46 @@
 ; if the load value isn't used by any other operations,
 ; then consider transforming the pair to integer load / store operations
 
-@a1 = local_unnamed_addr global double 0.000000e+00, align 8
-@a2 = local_unnamed_addr global double 0.000000e+00, align 8
-@a3 = local_unnamed_addr global double 0.000000e+00, align 8
-@a4 = local_unnamed_addr global double 0.000000e+00, align 8
-@a5 = local_unnamed_addr global double 0.000000e+00, align 8
-@a6 = local_unnamed_addr global double 0.000000e+00, align 8
-@a7 = local_unnamed_addr global double 0.000000e+00, align 8
-@a8 = local_unnamed_addr global double 0.000000e+00, align 8
-@a9 = local_unnamed_addr global double 0.000000e+00, align 8
-@a10 = local_unnamed_addr global double 0.000000e+00, align 8
-@a11 = local_unnamed_addr global double 0.000000e+00, align 8
-@a12 = local_unnamed_addr global double 0.000000e+00, align 8
-@a13 = local_unnamed_addr global double 0.000000e+00, align 8
-@a14 = local_unnamed_addr global double 0.000000e+00, align 8
-@a15 = local_unnamed_addr global double 0.000000e+00, align 8
-@a16 = local_unnamed_addr global ppc_fp128 0xM00000000000000000000000000000000, align 16
-@a17 = local_unnamed_addr global fp128 0xL00000000000000000000000000000000, align 16
+@a1 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a2 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a3 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a4 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a5 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a6 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a7 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a8 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a9 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a10 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a11 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a12 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a13 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a14 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a15 = dso_local local_unnamed_addr global double 0.000000e+00, align 8
+@a16 = dso_local local_unnamed_addr global ppc_fp128 0xM00000000000000000000000000000000, align 16
+@a17 = dso_local local_unnamed_addr global fp128 0xL00000000000000000000000000000000, align 16
 
 ; Because this test function is trying to pass float argument by stack,
 ; so the fpr is only used to load/store float argument
-define signext i32 @test() nounwind {
+define dso_local signext i32 @test() nounwind {
 ; CHECK-LABEL: test:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    mflr 0
 ; CHECK-NEXT:    std 0, 16(1)
 ; CHECK-NEXT:    stdu 1, -192(1)
 ; CHECK-NEXT:    addis 3, 2, a1@toc@ha
+; CHECK-NEXT:    addis 5, 2, a16@toc@ha
+; CHECK-NEXT:    addis 6, 2, a17@toc@ha
+; CHECK-NEXT:    addis 4, 2, a15@toc@ha
 ; CHECK-NEXT:    lfd 1, a1@toc@l(3)
 ; CHECK-NEXT:    addis 3, 2, a2@toc@ha
+; CHECK-NEXT:    addi 5, 5, a16@toc@l
+; CHECK-NEXT:    addi 6, 6, a17@toc@l
+; CHECK-NEXT:    ld 4, a15@toc@l(4)
 ; CHECK-NEXT:    lfd 2, a2@toc@l(3)
 ; CHECK-NEXT:    addis 3, 2, a3@toc@ha
+; CHECK-NEXT:    lxvx 34, 0, 6
+; CHECK-NEXT:    lxvx 0, 0, 5
+; CHECK-NEXT:    li 5, 152
 ; CHECK-NEXT:    lfd 3, a3@toc@l(3)
 ; CHECK-NEXT:    addis 3, 2, a4@toc@ha
 ; CHECK-NEXT:    lfd 4, a4@toc@l(3)
@@ -52,15 +61,6 @@ define signext i32 @test() nounwind {
 ; CHECK-NEXT:    addis 3, 2, a10@toc@ha
 ; CHECK-NEXT:    lfd 10, a10@toc@l(3)
 ; CHECK-NEXT:    addis 3, 2, a11@toc@ha
-; CHECK-NEXT:    addis 6, 2, a17@toc@ha
-; CHECK-NEXT:    addis 5, 2, a16@toc@ha
-; CHECK-NEXT:    addi 6, 6, a17@toc@l
-; CHECK-NEXT:    addi 5, 5, a16@toc@l
-; CHECK-NEXT:    lxvx 34, 0, 6
-; CHECK-NEXT:    addis 4, 2, a15@toc@ha
-; CHECK-NEXT:    lxvx 0, 0, 5
-; CHECK-NEXT:    ld 4, a15@toc@l(4)
-; CHECK-NEXT:    li 5, 168
 ; CHECK-NEXT:    lfd 11, a11@toc@l(3)
 ; CHECK-NEXT:    addis 3, 2, a12@toc@ha
 ; CHECK-NEXT:    lfd 12, a12@toc@l(3)
@@ -68,8 +68,6 @@ define signext i32 @test() nounwind {
 ; CHECK-NEXT:    lfd 13, a13@toc@l(3)
 ; CHECK-NEXT:    addis 3, 2, a14@toc@ha
 ; CHECK-NEXT:    ld 3, a14@toc@l(3)
-; CHECK-NEXT:    stxvx 34, 1, 5
-; CHECK-NEXT:    li 5, 152
 ; CHECK-NEXT:    stxvx 0, 1, 5
 ; CHECK-NEXT:    std 4, 144(1)
 ; CHECK-NEXT:    std 3, 136(1)

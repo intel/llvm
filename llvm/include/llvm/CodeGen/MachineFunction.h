@@ -124,11 +124,14 @@ public:
   // NoPHIs: The machine function does not contain any PHI instruction.
   // TracksLiveness: True when tracking register liveness accurately.
   //  While this property is set, register liveness information in basic block
-  //  live-in lists and machine instruction operands (e.g. kill flags, implicit
-  //  defs) is accurate. This means it can be used to change the code in ways
-  //  that affect the values in registers, for example by the register
-  //  scavenger.
-  //  When this property is clear, liveness is no longer reliable.
+  //  live-in lists and machine instruction operands (e.g. implicit defs) is
+  //  accurate, kill flags are conservatively accurate (kill flag correctly
+  //  indicates the last use of a register, an operand without kill flag may or
+  //  may not be the last use of a register). This means it can be used to
+  //  change the code in ways that affect the values in registers, for example
+  //  by the register scavenger.
+  //  When this property is cleared at a very late time, liveness is no longer
+  //  reliable.
   // NoVRegs: The machine function does not use any virtual registers.
   // Legalized: In GlobalISel: the MachineLegalizer ran and all pre-isel generic
   //  instructions have been legalized; i.e., all instructions are now one of:
@@ -321,6 +324,10 @@ class MachineFunction {
   /// construct a table of valid longjmp targets for Windows Control Flow Guard.
   std::vector<MCSymbol *> LongjmpTargets;
 
+  /// List of basic blocks that are the target of catchrets. Used to construct
+  /// a table of valid targets for Windows EHCont Guard.
+  std::vector<MCSymbol *> CatchretTargets;
+
   /// \name Exception Handling
   /// \{
 
@@ -341,6 +348,7 @@ class MachineFunction {
 
   bool CallsEHReturn = false;
   bool CallsUnwindInit = false;
+  bool HasEHCatchret = false;
   bool HasEHScopes = false;
   bool HasEHFunclets = false;
 
@@ -431,6 +439,57 @@ public:
   using VariableDbgInfoMapTy = SmallVector<VariableDbgInfo, 4>;
   VariableDbgInfoMapTy VariableDbgInfos;
 
+  /// A count of how many instructions in the function have had numbers
+  /// assigned to them. Used for debug value tracking, to determine the
+  /// next instruction number.
+  unsigned DebugInstrNumberingCount = 0;
+
+  /// Set value of DebugInstrNumberingCount field. Avoid using this unless
+  /// you're deserializing this data.
+  void setDebugInstrNumberingCount(unsigned Num);
+
+  /// Pair of instruction number and operand number.
+  using DebugInstrOperandPair = std::pair<unsigned, unsigned>;
+
+  /// Substitution map: from one <inst,operand> pair to another. Used to
+  /// record changes in where a value is defined, so that debug variable
+  /// locations can find it later.
+  std::map<DebugInstrOperandPair, DebugInstrOperandPair>
+      DebugValueSubstitutions;
+
+  /// Location of a PHI instruction that is also a debug-info variable value,
+  /// for the duration of register allocation. Loaded by the PHI-elimination
+  /// pass, and emitted as DBG_PHI instructions during VirtRegRewriter, with
+  /// maintenance applied by intermediate passes that edit registers (such as
+  /// coalescing and the allocator passes).
+  class DebugPHIRegallocPos {
+  public:
+    MachineBasicBlock *MBB; ///< Block where this PHI was originally located.
+    Register Reg;           ///< VReg where the control-flow-merge happens.
+    unsigned SubReg;        ///< Optional subreg qualifier within Reg.
+    DebugPHIRegallocPos(MachineBasicBlock *MBB, Register Reg, unsigned SubReg)
+        : MBB(MBB), Reg(Reg), SubReg(SubReg) {}
+  };
+
+  /// Map of debug instruction numbers to the position of their PHI instructions
+  /// during register allocation. See DebugPHIRegallocPos.
+  DenseMap<unsigned, DebugPHIRegallocPos> DebugPHIPositions;
+
+  /// Create a substitution between one <instr,operand> value to a different,
+  /// new value.
+  void makeDebugValueSubstitution(DebugInstrOperandPair, DebugInstrOperandPair);
+
+  /// Create substitutions for any tracked values in \p Old, to point at
+  /// \p New. Needed when we re-create an instruction during optimization,
+  /// which has the same signature (i.e., def operands in the same place) but
+  /// a modified instruction type, flags, or otherwise. An example: X86 moves
+  /// are sometimes transformed into equivalent LEAs.
+  /// If the two instructions are not the same opcode, limit which operands to
+  /// examine for substitutions to the first N operands by setting
+  /// \p MaxOperand.
+  void substituteDebugValuesForInst(const MachineInstr &Old, MachineInstr &New,
+                                    unsigned MaxOperand = UINT_MAX);
+
   MachineFunction(Function &F, const LLVMTargetMachine &Target,
                   const TargetSubtargetInfo &STI, unsigned FunctionNum,
                   MachineModuleInfo &MMI);
@@ -494,7 +553,8 @@ public:
   /// Returns true if this function has basic block sections enabled.
   bool hasBBSections() const {
     return (BBSectionsType == BasicBlockSection::All ||
-            BBSectionsType == BasicBlockSection::List);
+            BBSectionsType == BasicBlockSection::List ||
+            BBSectionsType == BasicBlockSection::Preset);
   }
 
   /// Returns true if basic block labels are to be generated for this function.
@@ -503,9 +563,6 @@ public:
   }
 
   void setBBSectionsType(BasicBlockSection V) { BBSectionsType = V; }
-
-  /// Creates basic block Labels for this function.
-  void createBBLabels();
 
   /// Assign IsBeginSection IsEndSection fields for basic blocks in this
   /// function.
@@ -769,7 +826,7 @@ public:
   /// CreateMachineInstr - Allocate a new MachineInstr. Use this instead
   /// of `new MachineInstr'.
   MachineInstr *CreateMachineInstr(const MCInstrDesc &MCID, const DebugLoc &DL,
-                                   bool NoImp = false);
+                                   bool NoImplicit = false);
 
   /// Create a new MachineInstr which is a copy of \p Orig, identical in all
   /// ways except the instruction has no parent, prev, or next. Bundling flags
@@ -814,6 +871,14 @@ public:
   /// explicitly deallocated.
   MachineMemOperand *getMachineMemOperand(const MachineMemOperand *MMO,
                                           int64_t Offset, uint64_t Size);
+
+  /// getMachineMemOperand - Allocate a new MachineMemOperand by copying
+  /// an existing one, replacing only the MachinePointerInfo and size.
+  /// MachineMemOperands are owned by the MachineFunction and need not be
+  /// explicitly deallocated.
+  MachineMemOperand *getMachineMemOperand(const MachineMemOperand *MMO,
+                                          MachinePointerInfo &PtrInfo,
+                                          uint64_t Size);
 
   /// Allocate a new MachineMemOperand by copying an existing one,
   /// replacing only AliasAnalysis information. MachineMemOperands are owned
@@ -891,6 +956,18 @@ public:
   /// Control Flow Guard.
   void addLongjmpTarget(MCSymbol *Target) { LongjmpTargets.push_back(Target); }
 
+  /// Returns a reference to a list of symbols that we have catchrets.
+  /// Used to construct the catchret target table used by Windows EHCont Guard.
+  const std::vector<MCSymbol *> &getCatchretTargets() const {
+    return CatchretTargets;
+  }
+
+  /// Add the specified symbol to the list of valid catchret targets for Windows
+  /// EHCont Guard.
+  void addCatchretTarget(MCSymbol *Target) {
+    CatchretTargets.push_back(Target);
+  }
+
   /// \name Exception Handling
   /// \{
 
@@ -899,6 +976,9 @@ public:
 
   bool callsUnwindInit() const { return CallsUnwindInit; }
   void setCallsUnwindInit(bool b) { CallsUnwindInit = b; }
+
+  bool hasEHCatchret() const { return HasEHCatchret; }
+  void setHasEHCatchret(bool V) { HasEHCatchret = V; }
 
   bool hasEHScopes() const { return HasEHScopes; }
   void setHasEHScopes(bool V) { HasEHScopes = V; }
@@ -1067,6 +1147,10 @@ public:
   /// the same callee.
   void moveCallSiteInfo(const MachineInstr *Old,
                         const MachineInstr *New);
+
+  unsigned getNewDebugInstrNum() {
+    return ++DebugInstrNumberingCount;
+  }
 };
 
 //===--------------------------------------------------------------------===//
@@ -1132,6 +1216,11 @@ template <> struct GraphTraits<Inverse<const MachineFunction*>> :
     return &G.Graph->front();
   }
 };
+
+class MachineFunctionAnalysisManager;
+void verifyMachineFunction(MachineFunctionAnalysisManager *,
+                           const std::string &Banner,
+                           const MachineFunction &MF);
 
 } // end namespace llvm
 

@@ -7,15 +7,18 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
+#include <CL/sycl/ONEAPI/accessor_property_list.hpp>
 #include <CL/sycl/detail/buffer_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
-
-// TODO: 4.3.4 Properties
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
 class handler;
 class queue;
 template <int dimensions> class range;
@@ -30,8 +33,8 @@ template <int dimensions> class range;
 /// \ingroup sycl_api
 template <typename T, int dimensions = 1,
           typename AllocatorT = cl::sycl::buffer_allocator,
-          typename = typename std::enable_if<(dimensions > 0) &&
-                                             (dimensions <= 3)>::type>
+          typename = typename detail::enable_if_t<(dimensions > 0) &&
+                                                  (dimensions <= 3)>>
 class buffer {
 public:
   using value_type = T;
@@ -39,7 +42,7 @@ public:
   using const_reference = const value_type &;
   using allocator_type = AllocatorT;
   template <int dims>
-  using EnableIfOneDimension = typename std::enable_if<1 == dims>::type;
+  using EnableIfOneDimension = typename detail::enable_if_t<1 == dims>;
   // using same requirement for contiguous container as std::span
   template <class Container>
   using EnableIfContiguous =
@@ -53,9 +56,8 @@ public:
       std::is_convertible<typename std::iterator_traits<It>::iterator_category,
                           std::input_iterator_tag>::value>;
   template <typename ItA, typename ItB>
-  using EnableIfSameNonConstIterators =
-      typename std::enable_if<std::is_same<ItA, ItB>::value &&
-                              !std::is_const<ItA>::value, ItA>::type;
+  using EnableIfSameNonConstIterators = typename detail::enable_if_t<
+      std::is_same<ItA, ItB>::value && !std::is_const<ItA>::value, ItA>;
 
   buffer(const range<dimensions> &bufferRange,
          const property_list &propList = {})
@@ -127,7 +129,28 @@ public:
             allocator));
   }
 
+  buffer(const shared_ptr_class<T[]> &hostData,
+         const range<dimensions> &bufferRange, AllocatorT allocator,
+         const property_list &propList = {})
+      : Range(bufferRange) {
+    impl = std::make_shared<detail::buffer_impl>(
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            allocator));
+  }
+
   buffer(const shared_ptr_class<T> &hostData,
+         const range<dimensions> &bufferRange,
+         const property_list &propList = {})
+      : Range(bufferRange) {
+    impl = std::make_shared<detail::buffer_impl>(
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+  }
+
+  buffer(const shared_ptr_class<T[]> &hostData,
          const range<dimensions> &bufferRange,
          const property_list &propList = {})
       : Range(bufferRange) {
@@ -170,8 +193,8 @@ public:
          const property_list &propList = {})
       : Range(range<1>(container.size())) {
     impl = std::make_shared<detail::buffer_impl>(
-        container.data(), container.data() + container.size(),
-        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
+        container.data(), get_count() * sizeof(T),
+        detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
   }
@@ -201,6 +224,7 @@ public:
   }
 
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   buffer(cl_mem MemObject, const context &SyclContext,
          event AvailableEvent = {})
       : Range{0} {
@@ -245,36 +269,42 @@ public:
 
   template <access::mode Mode,
             access::target Target = access::target::global_buffer>
-  accessor<T, dimensions, Mode, Target, access::placeholder::false_t>
+  accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
+           ONEAPI::accessor_property_list<>>
   get_access(handler &CommandGroupHandler) {
-    return accessor<T, dimensions, Mode, Target, access::placeholder::false_t>(
-        *this, CommandGroupHandler);
+    return accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
+                    ONEAPI::accessor_property_list<>>(*this,
+                                                      CommandGroupHandler);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t>
+           access::placeholder::false_t, ONEAPI::accessor_property_list<>>
   get_access() {
     return accessor<T, dimensions, mode, access::target::host_buffer,
-                    access::placeholder::false_t>(*this);
+                    access::placeholder::false_t,
+                    ONEAPI::accessor_property_list<>>(*this);
   }
 
   template <access::mode mode,
             access::target target = access::target::global_buffer>
-  accessor<T, dimensions, mode, target, access::placeholder::false_t>
+  accessor<T, dimensions, mode, target, access::placeholder::false_t,
+           ONEAPI::accessor_property_list<>>
   get_access(handler &commandGroupHandler, range<dimensions> accessRange,
              id<dimensions> accessOffset = {}) {
-    return accessor<T, dimensions, mode, target, access::placeholder::false_t>(
+    return accessor<T, dimensions, mode, target, access::placeholder::false_t,
+                    ONEAPI::accessor_property_list<>>(
         *this, commandGroupHandler, accessRange, accessOffset);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t>
+           access::placeholder::false_t, ONEAPI::accessor_property_list<>>
   get_access(range<dimensions> accessRange, id<dimensions> accessOffset = {}) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
-                    access::placeholder::false_t>(*this, accessRange,
-                                                  accessOffset);
+                    access::placeholder::false_t,
+                    ONEAPI::accessor_property_list<>>(*this, accessRange,
+                                                      accessOffset);
   }
 
 #if __cplusplus > 201402L
@@ -290,6 +320,11 @@ public:
 
   template <typename... Ts> auto get_host_access(Ts... args) {
     return host_accessor{*this, args...};
+  }
+
+  template <typename... Ts>
+  auto get_host_access(handler &commandGroupHandler, Ts... args) {
+    return host_accessor{*this, commandGroupHandler, args...};
   }
 
 #endif
@@ -317,6 +352,32 @@ public:
         impl, reinterpretRange, OffsetInBytes, IsSubBuffer);
   }
 
+  template <typename ReinterpretT, int ReinterpretDim = dimensions>
+  typename std::enable_if<
+      (sizeof(ReinterpretT) == sizeof(T)) && (dimensions == ReinterpretDim),
+      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
+  reinterpret() const {
+    return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
+        impl, get_range(), OffsetInBytes, IsSubBuffer);
+  }
+
+  template <typename ReinterpretT, int ReinterpretDim = dimensions>
+  typename std::enable_if<
+      (ReinterpretDim == 1) && ((dimensions != ReinterpretDim) ||
+                                (sizeof(ReinterpretT) != sizeof(T))),
+      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
+  reinterpret() const {
+    long sz = get_size(); // TODO: switch to byte_size() once implemented
+    if (sz % sizeof(ReinterpretT) != 0)
+      throw cl::sycl::invalid_object_error(
+          "Total byte size of buffer is not evenly divisible by the size of "
+          "the reinterpreted type",
+          PI_INVALID_VALUE);
+
+    return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
+        impl, range<1>{sz / sizeof(ReinterpretT)}, OffsetInBytes, IsSubBuffer);
+  }
+
   template <typename propertyT> bool has_property() const {
     return impl->template has_property<propertyT>();
   }
@@ -332,7 +393,7 @@ private:
   template <typename A, int dims, typename C, typename Enable>
   friend class buffer;
   template <typename DataT, int dims, access::mode mode, access::target target,
-            access::placeholder isPlaceholder>
+            access::placeholder isPlaceholder, typename PropertyListT>
   friend class accessor;
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent

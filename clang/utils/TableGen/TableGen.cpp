@@ -55,6 +55,8 @@ enum ActionType {
   GenClangTypeWriter,
   GenClangOpcodes,
   GenClangSACheckers,
+  GenClangSyntaxNodeList,
+  GenClangSyntaxNodeClasses,
   GenClangCommentHTMLTags,
   GenClangCommentHTMLTagsProperties,
   GenClangCommentHTMLNamedCharacterReferences,
@@ -82,6 +84,9 @@ enum ActionType {
   GenArmCdeBuiltinSema,
   GenArmCdeBuiltinCG,
   GenArmCdeBuiltinAliases,
+  GenRISCVVectorHeader,
+  GenRISCVVectorBuiltins,
+  GenRISCVVectorBuiltinCG,
   GenAttrDocs,
   GenDiagDocs,
   GenOptDocs,
@@ -167,6 +172,10 @@ cl::opt<ActionType> Action(
                    "Generate Clang constexpr interpreter opcodes"),
         clEnumValN(GenClangSACheckers, "gen-clang-sa-checkers",
                    "Generate Clang Static Analyzer checkers"),
+        clEnumValN(GenClangSyntaxNodeList, "gen-clang-syntax-node-list",
+                   "Generate list of Clang Syntax Tree node types"),
+        clEnumValN(GenClangSyntaxNodeClasses, "gen-clang-syntax-node-classes",
+                   "Generate definitions of Clang Syntax Tree node clasess"),
         clEnumValN(GenClangCommentHTMLTags, "gen-clang-comment-html-tags",
                    "Generate efficient matchers for HTML tag "
                    "names that are used in documentation comments"),
@@ -225,6 +234,12 @@ cl::opt<ActionType> Action(
                    "Generate ARM CDE builtin code-generator for clang"),
         clEnumValN(GenArmCdeBuiltinAliases, "gen-arm-cde-builtin-aliases",
                    "Generate list of valid ARM CDE builtin aliases for clang"),
+        clEnumValN(GenRISCVVectorHeader, "gen-riscv-vector-header",
+                   "Generate riscv_vector.h for clang"),
+        clEnumValN(GenRISCVVectorBuiltins, "gen-riscv-vector-builtins",
+                   "Generate riscv_vector_builtins.inc for clang"),
+        clEnumValN(GenRISCVVectorBuiltinCG, "gen-riscv-vector-builtin-codegen",
+                   "Generate riscv_vector_builtin_cg.inc for clang"),
         clEnumValN(GenAttrDocs, "gen-attr-docs",
                    "Generate attribute documentation"),
         clEnumValN(GenDiagDocs, "gen-diag-docs",
@@ -362,6 +377,12 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
   case GenClangSPIRVBuiltins:
     EmitClangSPIRVBuiltins(Records, OS);
     break;
+  case GenClangSyntaxNodeList:
+    EmitClangSyntaxNodeList(Records, OS);
+    break;
+  case GenClangSyntaxNodeClasses:
+    EmitClangSyntaxNodeClasses(Records, OS);
+    break;
   case GenArmNeon:
     EmitNeon(Records, OS);
     break;
@@ -421,6 +442,15 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenArmCdeBuiltinAliases:
     EmitCdeBuiltinAliases(Records, OS);
+    break;
+  case GenRISCVVectorHeader:
+    EmitRVVHeader(Records, OS);
+    break;
+  case GenRISCVVectorBuiltins:
+    EmitRVVBuiltins(Records, OS);
+    break;
+  case GenRISCVVectorBuiltinCG:
+    EmitRVVBuiltinCG(Records, OS);
     break;
   case GenAttrDocs:
     EmitClangAttrDocs(Records, OS);

@@ -18,7 +18,6 @@ class AttachResumeTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
     @skipIfRemote
-    @expectedFailureAll(oslist=['freebsd'], bugnumber='llvm.org/pr19310')
     @expectedFailureNetBSD
     @skipIfWindows # llvm.org/pr24778, llvm.org/pr21753
     @skipIfReproducer # FIXME: Unexpected packet during (active) replay
@@ -33,7 +32,6 @@ class AttachResumeTestCase(TestBase):
         exe = self.getBuildArtifact(exe_name)
 
         popen = self.spawnSubprocess(exe)
-        self.addTearDownHook(self.cleanupSubprocesses)
 
         self.runCmd("process attach -p " + str(popen.pid))
 

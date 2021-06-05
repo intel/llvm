@@ -25,6 +25,8 @@ def BranchOpInterface : OpInterface<"BranchOpInterface"> {
     This interface provides information for branching terminator operations,
     i.e. terminator operations with successors.
   }];
+  let cppNamespace = "::mlir";
+
   let methods = [
     InterfaceMethod<[{
         Returns a mutable range of operands that correspond to the arguments of
@@ -55,10 +57,10 @@ def BranchOpInterface : OpInterface<"BranchOpInterface"> {
       }],
       "Optional<BlockArgument>", "getSuccessorBlockArgument",
       (ins "unsigned":$operandIndex), [{
-        Operation *opaqueOp = op;
+        Operation *opaqueOp = $_op;
         for (unsigned i = 0, e = opaqueOp->getNumSuccessors(); i != e; ++i) {
           if (Optional<BlockArgument> arg = detail::getBranchSuccessorArgument(
-                op.getSuccessorOperands(i), operandIndex,
+                $_op.getSuccessorOperands(i), operandIndex,
                 opaqueOp->getSuccessor(i)))
             return arg;
         }
@@ -96,12 +98,14 @@ def RegionBranchOpInterface : OpInterface<"RegionBranchOpInterface"> {
     branching behavior between held regions, i.e. this interface allows for
     expressing control flow information for region holding operations.
   }];
+  let cppNamespace = "::mlir";
+
   let methods = [
     InterfaceMethod<[{
         Returns the operands of this operation used as the entry arguments when
-        entering the region at `index`, which was specified as a successor by
-        `getSuccessorRegions`. These operands should correspond 1-1 with the
-        successor inputs specified in `getSuccessorRegions`, and may corre
+        entering the region at `index`, which was specified as a successor of this
+        operation by `getSuccessorRegions`. These operands should correspond 1-1
+        with the successor inputs specified in `getSuccessorRegions`.
       }],
       "OperandRange", "getSuccessorEntryOperands",
       (ins "unsigned":$index), [{}], /*defaultImplementation=*/[{
@@ -126,8 +130,48 @@ def RegionBranchOpInterface : OpInterface<"RegionBranchOpInterface"> {
       "void", "getSuccessorRegions",
       (ins "Optional<unsigned>":$index, "ArrayRef<Attribute>":$operands,
            "SmallVectorImpl<RegionSuccessor> &":$regions)
+    >,
+    InterfaceMethod<[{
+        Populates countPerRegion with the number of times this operation will
+        invoke the attached regions (assuming the regions yield normally, i.e.
+        do not abort or invoke an infinite loop). If the number of region
+        invocations is not known statically it will set the number of
+        invocations to `kUnknownNumRegionInvocations`.
+
+        `operands` is a set of optional attributes that either correspond to a
+        constant values for each operand of this operation, or null if that
+        operand is not a constant.
+      }],
+      "void", "getNumRegionInvocations",
+      (ins "ArrayRef<Attribute>":$operands,
+           "SmallVectorImpl<int64_t> &":$countPerRegion), [{}],
+      /*defaultImplementation=*/[{
+        unsigned numRegions = this->getOperation()->getNumRegions();
+        assert(countPerRegion.empty());
+        countPerRegion.resize(numRegions, kUnknownNumRegionInvocations);
+      }]
     >
   ];
+
+  let verify = [{
+    static_assert(!ConcreteOpType::template hasTrait<OpTrait::ZeroRegion>(),
+                  "expected operation to have non-zero regions");
+    return success();
+  }];
+
+  let extraClassDeclaration = [{
+    /// Convenience helper in case none of the operands is known.
+    void getSuccessorRegions(Optional<unsigned> index,
+                             SmallVectorImpl<RegionSuccessor> &regions) {
+       SmallVector<Attribute, 2> nullAttrs(getOperation()->getNumOperands());
+       getSuccessorRegions(index, nullAttrs, regions);
+    }
+
+    /// Verify types along control flow edges described by this interface.
+    static LogicalResult verifyTypes(Operation *op) {
+      return detail::verifyTypesAlongControlFlowEdges(op);
+    }
+  }];
 }
 
 //===----------------------------------------------------------------------===//

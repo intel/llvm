@@ -7,7 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14
-// UNSUPPORTED: dylib-has-no-bad_any_cast
+
+// Throwing bad_any_cast is supported starting in macosx10.13
+// UNSUPPORTED: use_system_cxx_lib && x86_64-apple-macosx10.12
+// UNSUPPORTED: use_system_cxx_lib && x86_64-apple-macosx10.11
+// UNSUPPORTED: use_system_cxx_lib && x86_64-apple-macosx10.10
+// UNSUPPORTED: use_system_cxx_lib && x86_64-apple-macosx10.9
 
 // <any>
 

@@ -249,6 +249,11 @@ SectionChunk *ObjFile::readSection(uint32_t sectionNumber,
     return nullptr;
   }
 
+  if (name == ".llvm.call-graph-profile") {
+    callgraphSec = sec;
+    return nullptr;
+  }
+
   // Object files may have DWARF debug info or MS CodeView debug info
   // (or both).
   //
@@ -275,8 +280,12 @@ SectionChunk *ObjFile::readSection(uint32_t sectionNumber,
     debugChunks.push_back(c);
   else if (name == ".gfids$y")
     guardFidChunks.push_back(c);
+  else if (name == ".giats$y")
+    guardIATChunks.push_back(c);
   else if (name == ".gljmp$y")
     guardLJmpChunks.push_back(c);
+  else if (name == ".gehcont$y")
+    guardEHContChunks.push_back(c);
   else if (name == ".sxdata")
     sxDataChunks.push_back(c);
   else if (config->tailMerge && sec->NumberOfRelocations == 0 &&
@@ -348,13 +357,13 @@ void ObjFile::recordPrevailingSymbolForMingw(
   // of the section chunk we actually include instead of discarding it,
   // add the symbol to a map to allow using it for implicitly
   // associating .[px]data$<func> sections to it.
+  // Use the suffix from the .text$<func> instead of the leader symbol
+  // name, for cases where the names differ (i386 mangling/decorations,
+  // cases where the leader is a weak symbol named .weak.func.default*).
   int32_t sectionNumber = sym.getSectionNumber();
   SectionChunk *sc = sparseChunks[sectionNumber];
   if (sc && sc->getOutputCharacteristics() & IMAGE_SCN_MEM_EXECUTE) {
-    StringRef name;
-    name = check(coffObj->getSymbolName(sym));
-    if (getMachineType() == I386)
-      name.consume_front("_");
+    StringRef name = sc->getSectionName().split('$').second;
     prevailingSectionMap[name] = sectionNumber;
   }
 }
@@ -467,8 +476,23 @@ Symbol *ObjFile::createUndefined(COFFSymbolRef sym) {
   return symtab->addUndefined(name, this, sym.isWeakExternal());
 }
 
-void ObjFile::handleComdatSelection(COFFSymbolRef sym, COMDATType &selection,
-                                    bool &prevailing, DefinedRegular *leader) {
+static const coff_aux_section_definition *findSectionDef(COFFObjectFile *obj,
+                                                         int32_t section) {
+  uint32_t numSymbols = obj->getNumberOfSymbols();
+  for (uint32_t i = 0; i < numSymbols; ++i) {
+    COFFSymbolRef sym = check(obj->getSymbol(i));
+    if (sym.getSectionNumber() != section)
+      continue;
+    if (const coff_aux_section_definition *def = sym.getSectionDefinition())
+      return def;
+  }
+  return nullptr;
+}
+
+void ObjFile::handleComdatSelection(
+    COFFSymbolRef sym, COMDATType &selection, bool &prevailing,
+    DefinedRegular *leader,
+    const llvm::object::coff_aux_section_definition *def) {
   if (prevailing)
     return;
   // There's already an existing comdat for this symbol: `Leader`.
@@ -535,8 +559,16 @@ void ObjFile::handleComdatSelection(COFFSymbolRef sym, COMDATType &selection,
     break;
 
   case IMAGE_COMDAT_SELECT_SAME_SIZE:
-    if (leaderChunk->getSize() != getSection(sym)->SizeOfRawData)
-      symtab->reportDuplicate(leader, this);
+    if (leaderChunk->getSize() != getSection(sym)->SizeOfRawData) {
+      if (!config->mingw) {
+        symtab->reportDuplicate(leader, this);
+      } else {
+        const coff_aux_section_definition *leaderDef = findSectionDef(
+            leaderChunk->file->getCOFFObj(), leaderChunk->getSectionNumber());
+        if (!leaderDef || leaderDef->Length != def->Length)
+          symtab->reportDuplicate(leader, this);
+      }
+    }
     break;
 
   case IMAGE_COMDAT_SELECT_EXACT_MATCH: {
@@ -652,7 +684,7 @@ Optional<Symbol *> ObjFile::createDefined(
     COMDATType selection = (COMDATType)def->Selection;
 
     if (leader->isCOMDAT)
-      handleComdatSelection(sym, selection, prevailing, leader);
+      handleComdatSelection(sym, selection, prevailing, leader, def);
 
     if (prevailing) {
       SectionChunk *c = readSection(sectionNumber, def, getName());
@@ -757,8 +789,14 @@ void ObjFile::initializeDependencies() {
   else
     data = getDebugSection(".debug$T");
 
-  if (data.empty())
+  // Don't make a TpiSource for objects with no debug info. If the object has
+  // symbols but no types, make a plain, empty TpiSource anyway, because it
+  // simplifies adding the symbols later.
+  if (data.empty()) {
+    if (!debugChunks.empty())
+      debugTypesObj = makeTpiSource(this);
     return;
+  }
 
   // Get the first type record. It will indicate if this object uses a type
   // server (/Zi) or a PCH file (/Yu).
@@ -793,6 +831,8 @@ void ObjFile::initializeDependencies() {
     PrecompRecord precomp = cantFail(
         TypeDeserializer::deserializeAs<PrecompRecord>(firstType->data()));
     debugTypesObj = makeUsePrecompSource(this, precomp);
+    // Drop the LF_PRECOMP record from the input stream.
+    debugTypes = debugTypes.drop_front(firstType->RecordData.size());
     return;
   }
 
@@ -1002,6 +1042,21 @@ BitcodeFile::BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
 
 BitcodeFile::~BitcodeFile() = default;
 
+namespace {
+// Convenience class for initializing a coff_section with specific flags.
+class FakeSection {
+public:
+  FakeSection(int c) { section.Characteristics = c; }
+
+  coff_section section;
+};
+
+FakeSection ltoTextSection(IMAGE_SCN_MEM_EXECUTE);
+FakeSection ltoDataSection(IMAGE_SCN_CNT_INITIALIZED_DATA);
+SectionChunk ltoTextSectionChunk(nullptr, &ltoTextSection.section);
+SectionChunk ltoDataSectionChunk(nullptr, &ltoDataSection.section);
+} // namespace
+
 void BitcodeFile::parse() {
   std::vector<std::pair<Symbol *, bool>> comdat(obj->getComdatTable().size());
   for (size_t i = 0; i != obj->getComdatTable().size(); ++i)
@@ -1012,6 +1067,11 @@ void BitcodeFile::parse() {
     StringRef symName = saver.save(objSym.getName());
     int comdatIndex = objSym.getComdatIndex();
     Symbol *sym;
+    SectionChunk *fakeSC = nullptr;
+    if (objSym.isExecutable())
+      fakeSC = &ltoTextSectionChunk;
+    else
+      fakeSC = &ltoDataSectionChunk;
     if (objSym.isUndefined()) {
       sym = symtab->addUndefined(symName, this, false);
     } else if (objSym.isCommon()) {
@@ -1026,11 +1086,11 @@ void BitcodeFile::parse() {
       if (symName == obj->getComdatTable()[comdatIndex])
         sym = comdat[comdatIndex].first;
       else if (comdat[comdatIndex].second)
-        sym = symtab->addRegular(this, symName);
+        sym = symtab->addRegular(this, symName, nullptr, fakeSC);
       else
         sym = symtab->addUndefined(symName, this, false);
     } else {
-      sym = symtab->addRegular(this, symName);
+      sym = symtab->addRegular(this, symName, nullptr, fakeSC);
     }
     symbols.push_back(sym);
     if (objSym.isUsed())

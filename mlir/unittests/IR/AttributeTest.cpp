@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Identifier.h"
-#include "mlir/IR/StandardTypes.h"
 #include "gtest/gtest.h"
 
 using namespace mlir;
@@ -33,7 +33,7 @@ static void testSplat(Type eltType, const EltTy &splatElt) {
 namespace {
 TEST(DenseSplatTest, BoolSplat) {
   MLIRContext context;
-  IntegerType boolTy = IntegerType::get(1, &context);
+  IntegerType boolTy = IntegerType::get(&context, 1);
   RankedTensorType shape = RankedTensorType::get({2, 2}, boolTy);
 
   // Check that splat is automatically detected for boolean values.
@@ -58,7 +58,7 @@ TEST(DenseSplatTest, LargeBoolSplat) {
   constexpr int64_t boolCount = 56;
 
   MLIRContext context;
-  IntegerType boolTy = IntegerType::get(1, &context);
+  IntegerType boolTy = IntegerType::get(&context, 1);
   RankedTensorType shape = RankedTensorType::get({boolCount}, boolTy);
 
   // Check that splat is automatically detected for boolean values.
@@ -81,7 +81,7 @@ TEST(DenseSplatTest, LargeBoolSplat) {
 
 TEST(DenseSplatTest, BoolNonSplat) {
   MLIRContext context;
-  IntegerType boolTy = IntegerType::get(1, &context);
+  IntegerType boolTy = IntegerType::get(&context, 1);
   RankedTensorType shape = RankedTensorType::get({6}, boolTy);
 
   // Check that we properly handle non-splat values.
@@ -94,7 +94,7 @@ TEST(DenseSplatTest, OddIntSplat) {
   // Test detecting a splat with an odd(non 8-bit) integer bitwidth.
   MLIRContext context;
   constexpr size_t intWidth = 19;
-  IntegerType intTy = IntegerType::get(intWidth, &context);
+  IntegerType intTy = IntegerType::get(&context, intWidth);
   APInt value(intWidth, 10);
 
   testSplat(intTy, value);
@@ -102,7 +102,7 @@ TEST(DenseSplatTest, OddIntSplat) {
 
 TEST(DenseSplatTest, Int32Splat) {
   MLIRContext context;
-  IntegerType intTy = IntegerType::get(32, &context);
+  IntegerType intTy = IntegerType::get(&context, 32);
   int value = 64;
 
   testSplat(intTy, value);
@@ -110,7 +110,7 @@ TEST(DenseSplatTest, Int32Splat) {
 
 TEST(DenseSplatTest, IntAttrSplat) {
   MLIRContext context;
-  IntegerType intTy = IntegerType::get(85, &context);
+  IntegerType intTy = IntegerType::get(&context, 85);
   Attribute value = IntegerAttr::get(intTy, 109);
 
   testSplat(intTy, value);
@@ -150,16 +150,18 @@ TEST(DenseSplatTest, BF16Splat) {
 
 TEST(DenseSplatTest, StringSplat) {
   MLIRContext context;
+  context.allowUnregisteredDialects();
   Type stringType =
-      OpaqueType::get(Identifier::get("test", &context), "string", &context);
+      OpaqueType::get(Identifier::get("test", &context), "string");
   StringRef value = "test-string";
   testSplat(stringType, value);
 }
 
 TEST(DenseSplatTest, StringAttrSplat) {
   MLIRContext context;
+  context.allowUnregisteredDialects();
   Type stringType =
-      OpaqueType::get(Identifier::get("test", &context), "string", &context);
+      OpaqueType::get(Identifier::get("test", &context), "string");
   Attribute stringAttr = StringAttr::get("test-string", stringType);
   testSplat(stringType, stringAttr);
 }
@@ -173,7 +175,7 @@ TEST(DenseComplexTest, ComplexFloatSplat) {
 
 TEST(DenseComplexTest, ComplexIntSplat) {
   MLIRContext context;
-  ComplexType complexType = ComplexType::get(IntegerType::get(64, &context));
+  ComplexType complexType = ComplexType::get(IntegerType::get(&context, 64));
   std::complex<int64_t> value(10, 15);
   testSplat(complexType, value);
 }
@@ -187,9 +189,20 @@ TEST(DenseComplexTest, ComplexAPFloatSplat) {
 
 TEST(DenseComplexTest, ComplexAPIntSplat) {
   MLIRContext context;
-  ComplexType complexType = ComplexType::get(IntegerType::get(64, &context));
+  ComplexType complexType = ComplexType::get(IntegerType::get(&context, 64));
   std::complex<APInt> value(APInt(64, 10), APInt(64, 15));
   testSplat(complexType, value);
+}
+
+TEST(DenseScalarTest, ExtractZeroRankElement) {
+  MLIRContext context;
+  const int elementValue = 12;
+  IntegerType intTy = IntegerType::get(&context, 32);
+  Attribute value = IntegerAttr::get(intTy, elementValue);
+  RankedTensorType shape = RankedTensorType::get({}, intTy);
+
+  auto attr = DenseElementsAttr::get(shape, llvm::makeArrayRef({elementValue}));
+  EXPECT_TRUE(attr.getValue({0}) == value);
 }
 
 } // end namespace

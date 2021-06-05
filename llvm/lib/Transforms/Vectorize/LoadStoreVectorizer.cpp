@@ -49,6 +49,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -111,6 +112,7 @@ using InstrListMap = MapVector<ChainID, InstrList>;
 class Vectorizer {
   Function &F;
   AliasAnalysis &AA;
+  AssumptionCache &AC;
   DominatorTree &DT;
   ScalarEvolution &SE;
   TargetTransformInfo &TTI;
@@ -118,9 +120,9 @@ class Vectorizer {
   IRBuilder<> Builder;
 
 public:
-  Vectorizer(Function &F, AliasAnalysis &AA, DominatorTree &DT,
-             ScalarEvolution &SE, TargetTransformInfo &TTI)
-      : F(F), AA(AA), DT(DT), SE(SE), TTI(TTI),
+  Vectorizer(Function &F, AliasAnalysis &AA, AssumptionCache &AC,
+             DominatorTree &DT, ScalarEvolution &SE, TargetTransformInfo &TTI)
+      : F(F), AA(AA), AC(AC), DT(DT), SE(SE), TTI(TTI),
         DL(F.getParent()->getDataLayout()), Builder(SE.getContext()) {}
 
   bool run();
@@ -186,7 +188,7 @@ private:
 
   /// Check if this load/store access is misaligned accesses.
   bool accessIsMisaligned(unsigned SzInBytes, unsigned AddressSpace,
-                          unsigned Alignment);
+                          Align Alignment);
 };
 
 class LoadStoreVectorizerLegacyPass : public FunctionPass {
@@ -205,6 +207,7 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<AAResultsWrapperPass>();
+    AU.addRequired<AssumptionCacheTracker>();
     AU.addRequired<ScalarEvolutionWrapperPass>();
     AU.addRequired<DominatorTreeWrapperPass>();
     AU.addRequired<TargetTransformInfoWrapperPass>();
@@ -219,6 +222,7 @@ char LoadStoreVectorizerLegacyPass::ID = 0;
 INITIALIZE_PASS_BEGIN(LoadStoreVectorizerLegacyPass, DEBUG_TYPE,
                       "Vectorize load and Store instructions", false, false)
 INITIALIZE_PASS_DEPENDENCY(SCEVAAWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker);
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(GlobalsAAWrapperPass)
@@ -241,7 +245,10 @@ bool LoadStoreVectorizerLegacyPass::runOnFunction(Function &F) {
   TargetTransformInfo &TTI =
       getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
 
-  Vectorizer V(F, AA, DT, SE, TTI);
+  AssumptionCache &AC =
+      getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
+
+  Vectorizer V(F, AA, AC, DT, SE, TTI);
   return V.run();
 }
 
@@ -254,8 +261,9 @@ PreservedAnalyses LoadStoreVectorizerPass::run(Function &F, FunctionAnalysisMana
   DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
   ScalarEvolution &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
   TargetTransformInfo &TTI = AM.getResult<TargetIRAnalysis>(F);
+  AssumptionCache &AC = AM.getResult<AssumptionAnalysis>(F);
 
-  Vectorizer V(F, AA, DT, SE, TTI);
+  Vectorizer V(F, AA, AC, DT, SE, TTI);
   bool Changed = V.run();
   PreservedAnalyses PA;
   PA.preserveSet<CFGAnalyses>();
@@ -506,11 +514,8 @@ bool Vectorizer::lookThroughComplexAddresses(Value *PtrA, Value *PtrB,
   // are known to be zero in ValA, we can add Diff to it while guaranteeing no
   // overflow of any sort.
   if (!Safe) {
-    OpA = dyn_cast<Instruction>(ValA);
-    if (!OpA)
-      return false;
     KnownBits Known(BitWidth);
-    computeKnownBits(OpA, Known, DL, 0, nullptr, OpA, &DT);
+    computeKnownBits(ValA, Known, DL, 0, &AC, OpB, &DT);
     APInt BitsAllowedToBeSet = Known.Zero.zext(IdxDiff.getBitWidth());
     if (Signed)
       BitsAllowedToBeSet.clearBit(BitWidth - 1);
@@ -666,6 +671,13 @@ Vectorizer::getVectorizablePrefix(ArrayRef<Instruction *> Chain) {
                cast<IntrinsicInst>(&I)->getIntrinsicID() ==
                    Intrinsic::sideeffect) {
       // Ignore llvm.sideeffect calls.
+    } else if (isa<IntrinsicInst>(&I) &&
+               cast<IntrinsicInst>(&I)->getIntrinsicID() ==
+                   Intrinsic::pseudoprobe) {
+      // Ignore llvm.pseudoprobe calls.
+    } else if (isa<IntrinsicInst>(&I) &&
+               cast<IntrinsicInst>(&I)->getIntrinsicID() == Intrinsic::assume) {
+      // Ignore llvm.assume calls.
     } else if (IsLoadChain && (I.mayWriteToMemory() || I.mayThrow())) {
       LLVM_DEBUG(dbgs() << "LSV: Found may-write/throw operation: " << I
                         << '\n');
@@ -762,8 +774,8 @@ Vectorizer::getVectorizablePrefix(ArrayRef<Instruction *> Chain) {
   return Chain.slice(0, ChainIdx);
 }
 
-static ChainID getChainID(const Value *Ptr, const DataLayout &DL) {
-  const Value *ObjPtr = GetUnderlyingObject(Ptr, DL);
+static ChainID getChainID(const Value *Ptr) {
+  const Value *ObjPtr = getUnderlyingObject(Ptr);
   if (const auto *Sel = dyn_cast<SelectInst>(ObjPtr)) {
     // The select's themselves are distinct instructions even if they share the
     // same condition and evaluate to consecutive pointers for true and false
@@ -830,7 +842,7 @@ Vectorizer::collectInstructions(BasicBlock *BB) {
         continue;
 
       // Save the load locations.
-      const ChainID ID = getChainID(Ptr, DL);
+      const ChainID ID = getChainID(Ptr);
       LoadRefs[ID].push_back(LI);
     } else if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
       if (!SI->isSimple())
@@ -876,7 +888,7 @@ Vectorizer::collectInstructions(BasicBlock *BB) {
         continue;
 
       // Save store location.
-      const ChainID ID = getChainID(Ptr, DL);
+      const ChainID ID = getChainID(Ptr);
       StoreRefs[ID].push_back(SI);
     }
   }
@@ -1027,8 +1039,8 @@ bool Vectorizer::vectorizeStoreChain(
   unsigned EltSzInBytes = Sz / 8;
   unsigned SzInBytes = EltSzInBytes * ChainSize;
 
-  VectorType *VecTy;
-  VectorType *VecStoreTy = dyn_cast<VectorType>(StoreTy);
+  FixedVectorType *VecTy;
+  auto *VecStoreTy = dyn_cast<FixedVectorType>(StoreTy);
   if (VecStoreTy)
     VecTy = FixedVectorType::get(StoreTy->getScalarType(),
                                  Chain.size() * VecStoreTy->getNumElements());
@@ -1057,7 +1069,7 @@ bool Vectorizer::vectorizeStoreChain(
   InstructionsProcessed->insert(Chain.begin(), Chain.end());
 
   // If the store is going to be misaligned, don't vectorize it.
-  if (accessIsMisaligned(SzInBytes, AS, Alignment.value())) {
+  if (accessIsMisaligned(SzInBytes, AS, Alignment)) {
     if (S0->getPointerAddressSpace() != DL.getAllocaAddrSpace()) {
       auto Chains = splitOddVectorElts(Chain, Sz);
       return vectorizeStoreChain(Chains.first, InstructionsProcessed) |
@@ -1180,7 +1192,7 @@ bool Vectorizer::vectorizeLoadChain(
   unsigned EltSzInBytes = Sz / 8;
   unsigned SzInBytes = EltSzInBytes * ChainSize;
   VectorType *VecTy;
-  VectorType *VecLoadTy = dyn_cast<VectorType>(LoadTy);
+  auto *VecLoadTy = dyn_cast<FixedVectorType>(LoadTy);
   if (VecLoadTy)
     VecTy = FixedVectorType::get(LoadTy->getScalarType(),
                                  Chain.size() * VecLoadTy->getNumElements());
@@ -1202,7 +1214,7 @@ bool Vectorizer::vectorizeLoadChain(
   InstructionsProcessed->insert(Chain.begin(), Chain.end());
 
   // If the load is going to be misaligned, don't vectorize it.
-  if (accessIsMisaligned(SzInBytes, AS, Alignment.value())) {
+  if (accessIsMisaligned(SzInBytes, AS, Alignment)) {
     if (L0->getPointerAddressSpace() != DL.getAllocaAddrSpace()) {
       auto Chains = splitOddVectorElts(Chain, Sz);
       return vectorizeLoadChain(Chains.first, InstructionsProcessed) |
@@ -1297,8 +1309,8 @@ bool Vectorizer::vectorizeLoadChain(
 }
 
 bool Vectorizer::accessIsMisaligned(unsigned SzInBytes, unsigned AddressSpace,
-                                    unsigned Alignment) {
-  if (Alignment % SzInBytes == 0)
+                                    Align Alignment) {
+  if (Alignment.value() % SzInBytes == 0)
     return false;
 
   bool Fast = false;

@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
 ! Error tests for structure constructors: per-component type
 ! (in)compatibility.
 
@@ -14,6 +14,7 @@ module module1
     integer(kind=ik) :: ix = 0
     real(kind=rk) :: rx = 0.
     complex(kind=zk) :: zx = (0.,0.)
+    !ERROR: An automatic variable or component must not be initialized
     character(kind=ck,len=len) :: cx = ' '
     logical(kind=lk) :: lx = .false.
     real(kind=rk), pointer :: rp => NULL()
@@ -35,7 +36,7 @@ module module1
     call scalararg(scalar(4)(ix='a'))
     !ERROR: Value in structure constructor of type LOGICAL(4) is incompatible with component 'ix' of type INTEGER(4)
     call scalararg(scalar(4)(ix=.false.))
-    !ERROR: Value in structure constructor of type INTEGER(4) is incompatible with component 'ix' of type INTEGER(4)
+    !ERROR: Rank-1 array value is not compatible with scalar component 'ix'
     call scalararg(scalar(4)(ix=[1]))
     !TODO more!
   end subroutine errors

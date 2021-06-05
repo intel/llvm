@@ -20,8 +20,62 @@ template <typename T,
           cpp::EnableIfType<cpp::IsFloatingPointType<T>::Value, int> = 0>
 static inline T abs(T x) {
   FPBits<T> bits(x);
-  bits.sign = 0;
+  bits.encoding.sign = 0;
   return T(bits);
+}
+
+template <typename T,
+          cpp::EnableIfType<cpp::IsFloatingPointType<T>::Value, int> = 0>
+static inline T fmin(T x, T y) {
+  FPBits<T> bitx(x), bity(y);
+
+  if (bitx.isNaN()) {
+    return y;
+  } else if (bity.isNaN()) {
+    return x;
+  } else if (bitx.encoding.sign != bity.encoding.sign) {
+    // To make sure that fmin(+0, -0) == -0 == fmin(-0, +0), whenever x and
+    // y has different signs and both are not NaNs, we return the number
+    // with negative sign.
+    return (bitx.encoding.sign ? x : y);
+  } else {
+    return (x < y ? x : y);
+  }
+}
+
+template <typename T,
+          cpp::EnableIfType<cpp::IsFloatingPointType<T>::Value, int> = 0>
+static inline T fmax(T x, T y) {
+  FPBits<T> bitx(x), bity(y);
+
+  if (bitx.isNaN()) {
+    return y;
+  } else if (bity.isNaN()) {
+    return x;
+  } else if (bitx.encoding.sign != bity.encoding.sign) {
+    // To make sure that fmax(+0, -0) == +0 == fmax(-0, +0), whenever x and
+    // y has different signs and both are not NaNs, we return the number
+    // with positive sign.
+    return (bitx.encoding.sign ? y : x);
+  } else {
+    return (x > y ? x : y);
+  }
+}
+
+template <typename T,
+          cpp::EnableIfType<cpp::IsFloatingPointType<T>::Value, int> = 0>
+static inline T fdim(T x, T y) {
+  FPBits<T> bitx(x), bity(y);
+
+  if (bitx.isNaN()) {
+    return x;
+  }
+
+  if (bity.isNaN()) {
+    return y;
+  }
+
+  return (x > y ? x - y : 0);
 }
 
 } // namespace fputil

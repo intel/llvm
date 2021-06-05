@@ -1,6 +1,6 @@
 ; RUN: opt -S -loop-vectorize < %s | FileCheck %s
 target datalayout = "E-m:e-i64:64-n32:64"
-target triple = "powerpc64-bgq-linux"
+target triple = "powerpc64le-unknown-linux"
 
 ; Function Attrs: nounwind
 define zeroext i32 @test() #0 {
@@ -55,8 +55,8 @@ declare void @llvm.lifetime.end(i64, i8* nocapture) #1
 
 declare signext i32 @bar(i32*, i32*) #2
 
-attributes #0 = { nounwind "target-cpu"="a2q" "target-features"="+qpx,-altivec,-bpermd,-crypto,-direct-move,-extdiv,-power8-vector,-vsx" }
+attributes #0 = { nounwind "target-features"="-altivec,-bpermd,-crypto,-direct-move,-extdiv,-power8-vector,-vsx" }
 attributes #1 = { argmemonly nounwind }
-attributes #2 = { "target-cpu"="a2q" "target-features"="+qpx,-altivec,-bpermd,-crypto,-direct-move,-extdiv,-power8-vector,-vsx" }
+attributes #2 = { "target-features"="-altivec,-bpermd,-crypto,-direct-move,-extdiv,-power8-vector,-vsx" }
 attributes #3 = { nounwind }
 

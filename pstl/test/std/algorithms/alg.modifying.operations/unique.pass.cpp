@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // Test for unique
 #include "support/pstl_test_config.h"
@@ -21,8 +21,8 @@ using namespace TestUtils;
 
 struct run_unique
 {
-#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                             \
-    _PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN //dummy specialization by policy type, in case of broken configuration
+#if defined(_PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN) ||                                                             \
+    defined(_PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN) //dummy specialization by policy type, in case of broken configuration
     template <typename ForwardIt, typename Generator>
     void
     operator()(pstl::execution::unsequenced_policy, ForwardIt first1, ForwardIt last1, ForwardIt first2,
@@ -139,7 +139,7 @@ struct test_non_const
 int
 main()
 {
-#if !_PSTL_ICC_16_17_18_TEST_UNIQUE_MASK_RELEASE_BROKEN
+#if !defined(_PSTL_ICC_16_17_18_TEST_UNIQUE_MASK_RELEASE_BROKEN)
     test<int32_t>([](size_t j) { return j / 3; },
                   [](const int32_t& val1, const int32_t& val2) { return val1 * val1 == val2 * val2; });
     test<float64_t>([](size_t) { return float64_t(1); },
@@ -157,7 +157,7 @@ main()
         [](const MemoryChecker& val1, const MemoryChecker& val2){ return val1.value() == val2.value(); });
     EXPECT_FALSE(MemoryChecker::alive_objects() < 0, "wrong effect from unique: number of ctors calls < num of dtors calls");
     EXPECT_FALSE(MemoryChecker::alive_objects() > 0, "wrong effect from unique: number of ctors calls > num of dtors calls");
-    
+
     std::cout << done() << std::endl;
     return 0;
 }

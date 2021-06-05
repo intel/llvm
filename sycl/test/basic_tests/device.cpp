@@ -1,13 +1,7 @@
-// RUN: %clangxx %s -o %t.out -I %sycl_include -lsycl
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %RUN_ON_HOST %t.out
 
-//==--------------- device.cpp - SYCL device test --------------------------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
+// This test performs basic check of the SYCL device class.
 
 #include <CL/sycl.hpp>
 #include <cassert>

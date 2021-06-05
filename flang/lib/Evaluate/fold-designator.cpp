@@ -27,10 +27,11 @@ std::optional<OffsetSymbol> DesignatorFolder::FoldDesignator(
   } else if (symbol.has<semantics::ObjectEntityDetails>() &&
       !IsNamedConstant(symbol)) {
     if (auto type{DynamicType::From(symbol)}) {
-      if (auto bytes{type->MeasureSizeInBytes()}) {
-        if (auto extents{GetConstantExtents(context_, symbol)}) {
-          OffsetSymbol result{symbol, *bytes};
-          auto stride{static_cast<ConstantSubscript>(*bytes)};
+      if (auto extents{GetConstantExtents(context_, symbol)}) {
+        if (auto bytes{ToInt64(
+                type->MeasureSizeInBytes(context_, GetRank(*extents) > 0))}) {
+          OffsetSymbol result{symbol, static_cast<std::size_t>(*bytes)};
+          auto stride{*bytes};
           for (auto extent : *extents) {
             if (extent == 0) {
               return std::nullopt;
@@ -57,8 +58,8 @@ std::optional<OffsetSymbol> DesignatorFolder::FoldDesignator(
     const ArrayRef &x, ConstantSubscript which) {
   const Symbol &array{x.base().GetLastSymbol()};
   if (auto type{DynamicType::From(array)}) {
-    if (auto bytes{type->MeasureSizeInBytes()}) {
-      if (auto extents{GetConstantExtents(context_, array)}) {
+    if (auto extents{GetConstantExtents(context_, array)}) {
+      if (auto bytes{ToInt64(type->MeasureSizeInBytes(context_, true))}) {
         Shape lbs{GetLowerBounds(context_, x.base())};
         if (auto lowerBounds{AsConstantExtents(context_, lbs)}) {
           std::optional<OffsetSymbol> result;
@@ -73,7 +74,7 @@ std::optional<OffsetSymbol> DesignatorFolder::FoldDesignator(
           if (!result) {
             return std::nullopt;
           }
-          auto stride{static_cast<ConstantSubscript>(*bytes)};
+          auto stride{*bytes};
           int dim{0};
           for (const Subscript &subscript : x.subscript()) {
             ConstantSubscript lower{lowerBounds->at(dim)};
@@ -217,14 +218,14 @@ static std::optional<ArrayRef> OffsetToArrayRef(FoldingContext &context,
   auto extents{AsConstantExtents(context, shape)};
   Shape lbs{GetLowerBounds(context, entity)};
   auto lower{AsConstantExtents(context, lbs)};
-  auto elementBytes{elementType.MeasureSizeInBytes()};
+  auto elementBytes{ToInt64(elementType.MeasureSizeInBytes(context, true))};
   if (!extents || !lower || !elementBytes || *elementBytes <= 0) {
     return std::nullopt;
   }
   int rank{GetRank(shape)};
   CHECK(extents->size() == static_cast<std::size_t>(rank) &&
       lower->size() == extents->size());
-  auto element{offset / *elementBytes};
+  auto element{offset / static_cast<std::size_t>(*elementBytes)};
   std::vector<Subscript> subscripts;
   auto at{element};
   for (int dim{0}; dim + 1 < rank; ++dim) {
@@ -239,7 +240,7 @@ static std::optional<ArrayRef> OffsetToArrayRef(FoldingContext &context,
   }
   // This final subscript might be out of range for use in error reporting.
   subscripts.emplace_back(ExtentExpr{(*lower)[rank - 1] + at});
-  offset -= element * *elementBytes;
+  offset -= element * static_cast<std::size_t>(*elementBytes);
   return ArrayRef{std::move(entity), std::move(subscripts)};
 }
 
@@ -311,16 +312,16 @@ std::optional<Expr<SomeType>> OffsetToDesignator(FoldingContext &context,
   if (std::optional<DataRef> dataRef{
           OffsetToDataRef(context, NamedEntity{baseSymbol}, offset, size)}) {
     const Symbol &symbol{dataRef->GetLastSymbol()};
-    if (auto type{DynamicType::From(symbol)}) {
-      if (std::optional<Expr<SomeType>> result{
-              TypedWrapper<Designator>(*type, std::move(*dataRef))}) {
-        if (IsAllocatableOrPointer(symbol)) {
-        } else if (auto elementBytes{type->MeasureSizeInBytes()}) {
+    if (std::optional<Expr<SomeType>> result{
+            AsGenericExpr(std::move(*dataRef))}) {
+      if (IsAllocatableOrPointer(symbol)) {
+      } else if (auto type{DynamicType::From(symbol)}) {
+        if (auto elementBytes{
+                ToInt64(type->MeasureSizeInBytes(context, true))}) {
           if (auto *zExpr{std::get_if<Expr<SomeComplex>>(&result->u)}) {
-            if (size * 2 > *elementBytes) {
+            if (size * 2 > static_cast<std::size_t>(*elementBytes)) {
               return result;
-            } else if (offset == 0 ||
-                offset * 2 == static_cast<ConstantSubscript>(*elementBytes)) {
+            } else if (offset == 0 || offset * 2 == *elementBytes) {
               // Pick a COMPLEX component
               auto part{
                   offset == 0 ? ComplexPart::Part::RE : ComplexPart::Part::IM};
@@ -334,7 +335,7 @@ std::optional<Expr<SomeType>> OffsetToDesignator(FoldingContext &context,
             }
           } else if (auto *cExpr{
                          std::get_if<Expr<SomeCharacter>>(&result->u)}) {
-            if (offset > 0 || size != *elementBytes) {
+            if (offset > 0 || size != static_cast<std::size_t>(*elementBytes)) {
               // Select a substring
               return std::visit(
                   [&](const auto &x) -> std::optional<Expr<SomeType>> {
@@ -350,9 +351,9 @@ std::optional<Expr<SomeType>> OffsetToDesignator(FoldingContext &context,
             }
           }
         }
-        if (offset == 0) {
-          return result;
-        }
+      }
+      if (offset == 0) {
+        return result;
       }
     }
   }

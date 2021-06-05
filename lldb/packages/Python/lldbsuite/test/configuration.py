@@ -57,6 +57,9 @@ settings = [('target.prefer-dynamic-value', 'no-dynamic-values')]
 # Path to the FileCheck testing tool. Not optional.
 filecheck = None
 
+# Path to the yaml2obj tool. Not optional.
+yaml2obj = None
+
 # The arch might dictate some specific CFLAGS to be passed to the toolchain to build
 # the inferior programs.  The global variable cflags_extras provides a hook to do
 # just that.
@@ -73,20 +76,6 @@ regexp = None
 skip_tests = None
 xfail_tests = None
 
-# By default, recorded session info for errored/failed test are dumped into its
-# own file under a session directory named after the timestamp of the test suite
-# run.  Use '-s session-dir-name' to specify a specific dir name.
-sdir_name = None
-
-# Valid options:
-# f - test file name (without extension)
-# n - test class name
-# m - test method name
-# a - architecture
-# c - compiler path
-# The default is to write all fields.
-session_file_format = 'fnmac'
-
 # Set this flag if there is any session info dumped during the test run.
 sdir_has_content = False
 # svn_info stores the output from 'svn info lldb.base.dir'.
@@ -100,6 +89,10 @@ verbose = 0
 # because it doesn't work under a debugger
 testdirs = [lldbsuite.lldb_test_root]
 
+# The root of the test case tree (where the actual tests reside, not the test
+# infrastructure).
+test_src_root = lldbsuite.lldb_test_root
+
 # Separator string.
 separator = '-' * 70
 
@@ -110,6 +103,9 @@ lldb_platform_name = None
 lldb_platform_url = None
 lldb_platform_working_dir = None
 
+# Apple SDK
+apple_sdk = None
+
 # The base directory in which the tests are being built.
 test_build_dir = None
 
@@ -119,18 +115,11 @@ lldb_module_cache_dir = None
 clang_module_cache_dir = None
 
 # Test results handling globals
-results_filename = None
-results_formatter_name = None
-results_formatter_object = None
-results_formatter_options = None
 test_result = None
 
 # Reproducers
 capture_path = None
 replay_path = None
-
-# Test rerun configuration vars
-rerun_all_issues = False
 
 # The names of all tests. Used to assert we don't have two tests with the
 # same base name.
@@ -162,6 +151,13 @@ def get_filecheck_path():
     """
     if filecheck and os.path.lexists(filecheck):
         return filecheck
+
+def get_yaml2obj_path():
+    """
+    Get the path to the yaml2obj tool.
+    """
+    if yaml2obj and os.path.lexists(yaml2obj):
+        return yaml2obj
 
 def is_reproducer_replay():
     """

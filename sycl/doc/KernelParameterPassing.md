@@ -1,6 +1,6 @@
-<h2>SYCL Kernel Parameter Handling and Array Support</h2>
+# SYCL Kernel Parameter Handling and Array Support
 
-<h3>Introduction</h3>
+## Introduction
 
 This document describes how parameters of SYCL kernels are passed
 from host to device. Support for arrays as kernel parameters was added
@@ -28,7 +28,8 @@ The first few sections describe the overall design.
 The last three sections provide additional details of array support.
 The implementation of this design is confined to four classes in the
 file `SemaSYCL.cpp`.
-<h3>A SYCL Kernel</h3>
+
+## A SYCL Kernel
 
 The SYCL constructs `single_task`, `parallel_for`, and
 `parallel_for_work_group` each take a function object or a lambda function
@@ -37,7 +38,7 @@ lambda function is executed on the device.
 To enable execution of the kernel on OpenCL devices, the lambda/function object
 is converted into the format of an OpenCL kernel.
 
-<h3>SYCL Kernel Code Generation</h3>
+## SYCL Kernel Code Generation
 
 Consider a source code example that captures an int, a struct and an accessor
 by value:
@@ -112,7 +113,7 @@ spir_kernel void caller(
     // Reassemble capture object from parts
     local.i = i;
     local.s = s;
-    // Call accessor’s init function
+    // Call accessor's init function
     sycl::accessor::init(&local.outAcc, AccData, AccR1, AccR2, I);
 
     // Call the kernel body
@@ -140,7 +141,7 @@ host to device separately. The values received on the device
 are passed to the `init` functions executed on the device,
 which results in the reassembly of the SYCL object in a form usable on the device.
 
-There is one other aspect of code generation. An “integration header”
+There is one other aspect of code generation. An "integration header"
 is generated for use during host compilation.
 This header file contains entries for each kernel.
 Among the items it defines is a table of sizes and offsets of the
@@ -169,7 +170,7 @@ object which contains three values:
 The previous sections described how kernel arguments are handled today.
 The next three sections describe support for arrays.
 
-<h3>Fix 1: Kernel Arguments that are Standard-Layout Arrays</h3>
+## Fix 1: Kernel Arguments that are Standard-Layout Arrays
 
 As described earlier, each variable captured by a lambda that comprises a
 SYCL kernel becomes a parameter of the kernel caller function.
@@ -180,7 +181,7 @@ the purposes of passing to the device. Each array element is passed as a
 separate parameter. The array elements received on the device
 are copied into the array within the local capture object.
 
-<h4>Source code fragment:</h4>
+**Source code fragment:**
 
 ```C++
   constexpr int num_items = 2;
@@ -197,7 +198,7 @@ are copied into the array within the local capture object.
   });
 ```
 
-<h4>Integration header produced:</h4>
+**Integration header produced:**
 
 ```C++
 static constexpr
@@ -211,7 +212,7 @@ const kernel_param_desc_t kernel_signatures[] = {
 
 ```
 
-<h4>The changes to device code made to support this extension, in pseudo-code:</h4>
+**The changes to device code made to support this extension, in pseudo-code:**
 
 ```C++
 struct Capture {
@@ -238,14 +239,14 @@ spir_kernel void caller(
     // Initialize array using existing clang Initialization mechanisms
     local.array[0] = p_array_0;
     local.array[1] = p_array_1; 
-    // Call accessor’s init function
+    // Call accessor's init function
     sycl::accessor::init(&local.outAcc, AccData, AccR1, AccR2, I);
 
     callee(&local, id<1> wi);
 }
 ```
 
-<h3>Fix 2: Kernel Arguments that are Arrays of Accessors</h3>
+## Fix 2: Kernel Arguments that are Arrays of Accessors
 
 Arrays of accessors are supported in a manner similar to that of a plain
 accessor. For each accessor array element, the four values required to
@@ -253,7 +254,7 @@ call its init function are passed as separate arguments to the kernel.
 Reassembly within the kernel caller is done by calling the `init` functions
 of each accessor array element in ascending index value.
 
-<h4>Source code fragment:</h4>
+**Source code fragment:**
 
 ```C++
   myQueue.submit([&](handler &cgh) {
@@ -269,7 +270,7 @@ of each accessor array element in ascending index value.
   });
 ```
 
-<h4>Integration header:</h4>
+**Integration header:**
 
 ```C++
 static constexpr
@@ -281,7 +282,7 @@ const kernel_param_desc_t kernel_signatures[] = {
 };
 ```
 
-<h4>Device code generated in pseudo-code form:</h4>
+**Device code generated in pseudo-code form:**
 
 ```C++
 struct Capture {
@@ -311,20 +312,20 @@ spir_kernel void caller(
     struct Capture local;
 
     // Reassemble capture object from parts 
-    // Call outAcc accessor’s init function
+    // Call outAcc accessor's init function
     sycl::accessor::init(&local.outAcc, outAccData, outAccR1, outAccR2, outI); 
 
-    // Call inAcc[0] accessor’s init function
+    // Call inAcc[0] accessor's init function
     sycl::accessor::init(&local.inAcc[0], inAccData_0, inAccR1_0, inAccR2_0, inI_0);
 
-    // Call inAcc[1] accessor’s init function
+    // Call inAcc[1] accessor's init function
     sycl::accessor::init(&local.inAcc[1], inAccData_1, inAccR1_1, inAccR2_1, inI_1);
 
     callee(&local, id<1> wi);
 }
 ```
 
-<h3>Fix 3: Accessor Arrays within Structs</h3>
+## Fix 3: Accessor Arrays within Structs
 
 Kernel parameters that are structs are traversed member
 by member, recursively, to enumerate member structs that are one of
@@ -340,7 +341,7 @@ Within the kernel caller function, the lambda object is reassembled
 in a manner similar to other instances of accessor arrays. 
 
 
-<h4>Source code fragment:</h4>
+**Source code fragment:**
 
 ```C++
  myQueue.submit([&](handler &cgh) {
@@ -361,7 +362,7 @@ in a manner similar to other instances of accessor arrays.
 });
 ```
 
-<h4>Integration header:</h4>
+**Integration header:**
 
 ```C++
 static constexpr
@@ -375,7 +376,7 @@ const kernel_param_desc_t kernel_signatures[] = {
 };
 ```
 
-<h4>Device code generated in pseudo-code form:</h4>
+**Device code generated in pseudo-code form:**
 
 ```C++
 struct Capture {
@@ -411,15 +412,15 @@ spir_kernel void caller(
     local.s = s;
 
     // 2. Initialize accessors by calling init functions
-    // 2a. Call outAcc accessor’s init function
+    // 2a. Call outAcc accessor's init function
     sycl::accessor::init(
        &local.outAcc, outAccData, outAccR1, outAccR2, outI); 
 
-    // 2b. Call s.inAcc[0] accessor’s init function
+    // 2b. Call s.inAcc[0] accessor's init function
     sycl::accessor::init(
        &local.s.inAcc[0], inAccData_0, inAccR1_0, inAccR2_0, inI_0);
 
-    // 2c. Call s.inAcc[1] accessor’s init function
+    // 2c. Call s.inAcc[1] accessor's init function
     sycl::accessor::init(
        &local.s.inAcc[1], inAccData_1, inAccR1_1, inAccR2_1, inI_1);
 

@@ -16,6 +16,7 @@
 #include <detail/scheduler/scheduler.hpp>
 
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <map>
 #include <memory>
@@ -31,6 +32,8 @@ namespace detail {
 ///
 /// This information can be used to prove that executing two kernels that
 /// work on different parts of the memory object in parallel is legal.
+// TODO merge with LeavesCollection's version of doOverlap (see
+// leaves_collection.cpp).
 static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
   return (LHS->MOffsetInBytes + LHS->MAccessRange.size() * LHS->MElemSize >=
           RHS->MOffsetInBytes) ||
@@ -67,6 +70,22 @@ static bool isAccessModeAllowed(access::mode Required, access::mode Current) {
   return false;
 }
 
+/// Combines two access modes into a single one that allows both.
+static access::mode combineAccessModes(access::mode A, access::mode B) {
+  if (A == B)
+    return A;
+
+  if (A == access::mode::discard_write &&
+      (B == access::mode::discard_read_write || B == access::mode::write))
+    return B;
+
+  if (B == access::mode::discard_write &&
+      (A == access::mode::discard_read_write || A == access::mode::write))
+    return A;
+
+  return access::mode::read_write;
+}
+
 Scheduler::GraphBuilder::GraphBuilder() {
   if (const char *EnvVarCStr = SYCLConfig<SYCL_PRINT_EXECUTION_GRAPH>::get()) {
     std::string GraphPrintOpts(EnvVarCStr);
@@ -93,16 +112,27 @@ Scheduler::GraphBuilder::GraphBuilder() {
 }
 
 static bool markNodeAsVisited(Command *Cmd, std::vector<Command *> &Visited) {
-  if (Cmd->MVisited)
+  assert(Cmd && "Cmd can't be nullptr");
+  if (Cmd->MMarks.MVisited)
     return false;
-  Cmd->MVisited = true;
+  Cmd->MMarks.MVisited = true;
   Visited.push_back(Cmd);
   return true;
 }
 
 static void unmarkVisitedNodes(std::vector<Command *> &Visited) {
   for (Command *Cmd : Visited)
-    Cmd->MVisited = false;
+    Cmd->MMarks.MVisited = false;
+}
+
+static void handleVisitedNodes(std::vector<Command *> &Visited) {
+  for (Command *Cmd : Visited) {
+    if (Cmd->MMarks.MToBeDeleted) {
+      Cmd->getEvent()->setCommand(nullptr);
+      delete Cmd;
+    } else
+      Cmd->MMarks.MVisited = false;
+  }
 }
 
 static void printDotRecursive(std::fstream &Stream,
@@ -127,15 +157,15 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
   std::fstream Stream(FileName, std::ios::out);
   Stream << "strict digraph {" << std::endl;
 
-  std::vector<Command *> Visited;
+  MVisitedCmds.clear();
 
   for (SYCLMemObjI *MemObject : MMemObjs)
     for (Command *AllocaCmd : MemObject->MRecord->MAllocaCommands)
-      printDotRecursive(Stream, Visited, AllocaCmd);
+      printDotRecursive(Stream, MVisitedCmds, AllocaCmd);
 
   Stream << "}" << std::endl;
 
-  unmarkVisitedNodes(Visited);
+  unmarkVisitedNodes(MVisitedCmds);
 }
 
 MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
@@ -152,8 +182,40 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     return Record;
 
   const size_t LeafLimit = 8;
-  MemObject->MRecord.reset(
-      new MemObjRecord{Queue->getContextImplPtr(), LeafLimit});
+  LeavesCollection::AllocateDependencyF AllocateDependency =
+      [this](Command *Dependant, Command *Dependency, MemObjRecord *Record) {
+        // Add the old leaf as a dependency for the new one by duplicating one
+        // of the requirements for the current record
+        DepDesc Dep = findDepForRecord(Dependant, Record);
+        Dep.MDepCommand = Dependency;
+        Dependant->addDep(Dep);
+        Dependency->addUser(Dependant);
+        --(Dependency->MLeafCounter);
+      };
+
+  const ContextImplPtr &InteropCtxPtr = Req->MSYCLMemObj->getInteropContext();
+  if (InteropCtxPtr) {
+    // The memory object has been constructed using interoperability constructor
+    // which means that there is already an allocation(cl_mem) in some context.
+    // Registering this allocation in the SYCL graph.
+
+    sycl::vector_class<sycl::device> Devices =
+        InteropCtxPtr->get_info<info::context::devices>();
+    assert(Devices.size() != 0);
+    DeviceImplPtr Dev = detail::getSyclObjImpl(Devices[0]);
+
+    // Since all the Scheduler commands require queue but we have only context
+    // here, we need to create a dummy queue bound to the context and one of the
+    // devices from the context.
+    QueueImplPtr InteropQueuePtr{new detail::queue_impl{
+        Dev, InteropCtxPtr, /*AsyncHandler=*/{}, /*PropertyList=*/{}}};
+
+    MemObject->MRecord.reset(
+        new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});
+    getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr);
+  } else
+    MemObject->MRecord.reset(new MemObjRecord{Queue->getContextImplPtr(),
+                                              LeafLimit, AllocateDependency});
 
   MMemObjs.push_back(MemObject);
   return MemObject->MRecord.get();
@@ -168,39 +230,19 @@ void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
     return;
 
   for (Command *Cmd : Cmds) {
-    auto NewEnd = std::remove(Record->MReadLeaves.begin(),
-                              Record->MReadLeaves.end(), Cmd);
-    Cmd->MLeafCounter -= std::distance(NewEnd, Record->MReadLeaves.end());
-    Record->MReadLeaves.erase(NewEnd, Record->MReadLeaves.end());
-
-    NewEnd = std::remove(Record->MWriteLeaves.begin(),
-                         Record->MWriteLeaves.end(), Cmd);
-    Cmd->MLeafCounter -= std::distance(NewEnd, Record->MWriteLeaves.end());
-    Record->MWriteLeaves.erase(NewEnd, Record->MWriteLeaves.end());
+    Cmd->MLeafCounter -= Record->MReadLeaves.remove(Cmd);
+    Cmd->MLeafCounter -= Record->MWriteLeaves.remove(Cmd);
   }
 }
 
 void Scheduler::GraphBuilder::addNodeToLeaves(MemObjRecord *Record,
                                               Command *Cmd,
                                               access::mode AccessMode) {
-  CircularBuffer<Command *> &Leaves{AccessMode == access::mode::read
-                                        ? Record->MReadLeaves
-                                        : Record->MWriteLeaves};
-  if (Leaves.full()) {
-    Command *OldLeaf = Leaves.front();
-    // TODO this is a workaround for duplicate leaves, remove once fixed
-    if (OldLeaf == Cmd)
-      return;
-    // Add the old leaf as a dependency for the new one by duplicating one of
-    // the requirements for the current record
-    DepDesc Dep = findDepForRecord(Cmd, Record);
-    Dep.MDepCommand = OldLeaf;
-    Cmd->addDep(Dep);
-    OldLeaf->addUser(Cmd);
-    --(OldLeaf->MLeafCounter);
-  }
-  Leaves.push_back(Cmd);
-  ++(Cmd->MLeafCounter);
+  LeavesCollection &Leaves{AccessMode == access::mode::read
+                               ? Record->MReadLeaves
+                               : Record->MWriteLeaves};
+  if (Leaves.push_back(Cmd))
+    ++Cmd->MLeafCounter;
 }
 
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
@@ -278,7 +320,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     // Since no alloca command for the sub buffer requirement was found in the
     // current context, need to find a parent alloca command for it (it must be
     // there)
-    auto IsSuitableAlloca = [Record, Req](AllocaCommandBase *AllocaCmd) {
+    auto IsSuitableAlloca = [Record](AllocaCommandBase *AllocaCmd) {
       bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(),
                          Record->MCurContext) &&
                  // Looking for a parent buffer alloca command
@@ -298,7 +340,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
       AllocaCmdSrc =
           static_cast<AllocaSubBufCommand *>(AllocaCmdSrc)->getParentAlloca();
     else if (AllocaCmdSrc->getSYCLMemObj() != Req->MSYCLMemObj)
-      assert(!"Inappropriate alloca command.");
+      assert(false && "Inappropriate alloca command.");
   }
 
   Command *NewCmd = nullptr;
@@ -312,12 +354,18 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     Record->MHostAccess = MapMode;
   } else {
 
-    // Full copy of buffer is needed to avoid loss of data that may be caused
-    // by copying specific range from host to device and backwards.
-    NewCmd =
-        new MemCpyCommand(*AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
-                          *AllocaCmdDst->getRequirement(), AllocaCmdDst,
-                          AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue());
+    if ((Req->MAccessMode == access::mode::discard_write) ||
+        (Req->MAccessMode == access::mode::discard_read_write)) {
+      Record->MCurContext = Queue->getContextImplPtr();
+      return nullptr;
+    } else {
+      // Full copy of buffer is needed to avoid loss of data that may be caused
+      // by copying specific range from host to device and backwards.
+      NewCmd =
+          new MemCpyCommand(*AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
+                            *AllocaCmdDst->getRequirement(), AllocaCmdDst,
+                            AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue());
+    }
   }
 
   for (Command *Dep : Deps) {
@@ -444,7 +492,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req) {
 Command *Scheduler::GraphBuilder::addCGUpdateHost(
     std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr HostQueue) {
 
-  CGUpdateHost *UpdateHost = (CGUpdateHost *)CommandGroup.get();
+  auto UpdateHost = static_cast<CGUpdateHost *>(CommandGroup.get());
   Requirement *Req = UpdateHost->getReqToUpdate();
 
   MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
@@ -467,12 +515,13 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
   std::vector<Command *> Visited;
   const bool ReadOnlyReq = Req->MAccessMode == access::mode::read;
 
-  std::vector<Command *> ToAnalyze{Record->MWriteLeaves.begin(),
-                                   Record->MWriteLeaves.end()};
+  std::vector<Command *> ToAnalyze{Record->MWriteLeaves.toVector()};
 
-  if (!ReadOnlyReq)
-    ToAnalyze.insert(ToAnalyze.begin(), Record->MReadLeaves.begin(),
-                     Record->MReadLeaves.end());
+  if (!ReadOnlyReq) {
+    std::vector<Command *> V{Record->MReadLeaves.toVector()};
+
+    ToAnalyze.insert(ToAnalyze.begin(), V.begin(), V.end());
+  }
 
   while (!ToAnalyze.empty()) {
     Command *DepCmd = ToAnalyze.back();
@@ -548,6 +597,20 @@ Scheduler::GraphBuilder::findAllocaForReq(MemObjRecord *Record,
   return (Record->MAllocaCommands.end() != It) ? *It : nullptr;
 }
 
+static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
+  if (const char *HUMConfig = SYCLConfig<SYCL_HOST_UNIFIED_MEMORY>::get()) {
+    if (std::strcmp(HUMConfig, "0") == 0)
+      return Ctx->is_host();
+    if (std::strcmp(HUMConfig, "1") == 0)
+      return true;
+  }
+  for (const device &Device : Ctx->getDevices()) {
+    if (!Device.get_info<info::device::host_unified_memory>())
+      return false;
+  }
+  return true;
+}
+
 // The function searches for the alloca command matching context and
 // requirement. If none exists, new allocation command is created.
 // Note, creation of new allocation command can lead to the current context
@@ -576,30 +639,80 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       const Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
                                 Req->MMemoryRange, access::mode::read_write,
                                 Req->MSYCLMemObj, Req->MDims, Req->MElemSize,
-                                0 /*ReMOffsetInBytes*/, false /*MIsSubBuffer*/,
-                                Req->MIsESIMDAcc);
-      // Can reuse user data for the first allocation
-      const bool InitFromUserData = Record->MAllocaCommands.empty();
-
+                                0 /*ReMOffsetInBytes*/, false /*MIsSubBuffer*/);
+      // Can reuse user data for the first allocation. Do so if host unified
+      // memory is supported regardless of the access mode (the pointer will be
+      // reused). For devices without host unified memory the initialization
+      // will be performed as a write operation.
+      // TODO the case where the first alloca is made with a discard mode and
+      // the user pointer is read-only is still not handled: it leads to
+      // unnecessary copy on devices with unified host memory support.
+      const bool HostUnifiedMemory =
+          checkHostUnifiedMemory(Queue->getContextImplPtr());
+      const bool InitFromUserData =
+          Record->MAllocaCommands.empty() && HostUnifiedMemory;
       AllocaCommandBase *LinkedAllocaCmd = nullptr;
-      // If it is not the first allocation, try to setup a link
-      // FIXME: Temporary limitation, linked alloca commands for an image is not
-      // supported because map operation is not implemented for an image.
-      if (!Record->MAllocaCommands.empty() &&
-          Req->MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER)
-        // Current limitation is to setup link between current allocation and
-        // new one. There could be situations when we could setup link with
-        // "not" current allocation, but it will require memory copy.
-        // Can setup link between cl and host allocations only
-        if (Queue->is_host() != Record->MCurContext->is_host()) {
+      // TODO casting is required here to get the necessary information
+      // without breaking ABI, replace with the next major version.
+      auto *MemObj = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj);
 
-          AllocaCommandBase *LinkedAllocaCmdCand =
-              findAllocaForReq(Record, Req, Record->MCurContext);
-
-          // Cannot setup link if candidate is linked already
-          if (LinkedAllocaCmdCand && !LinkedAllocaCmdCand->MLinkedAllocaCmd)
-            LinkedAllocaCmd = LinkedAllocaCmdCand;
+      // For the first allocation on a device without host unified memory we
+      // might need to also create a host alloca right away in order to perform
+      // the initial memory write.
+      if (Record->MAllocaCommands.empty()) {
+        if (!HostUnifiedMemory &&
+            Req->MAccessMode != access::mode::discard_write &&
+            Req->MAccessMode != access::mode::discard_read_write) {
+          // There's no need to make a host allocation if the buffer is not
+          // initialized with user data.
+          if (MemObj->hasUserDataPtr()) {
+            QueueImplPtr DefaultHostQueue =
+                Scheduler::getInstance().getDefaultHostQueue();
+            AllocaCommand *HostAllocaCmd = new AllocaCommand(
+                DefaultHostQueue, FullReq, true /* InitFromUserData */,
+                nullptr /* LinkedAllocaCmd */);
+            Record->MAllocaCommands.push_back(HostAllocaCmd);
+            Record->MWriteLeaves.push_back(HostAllocaCmd);
+            ++(HostAllocaCmd->MLeafCounter);
+            Record->MCurContext = DefaultHostQueue->getContextImplPtr();
+          }
         }
+      } else {
+        // If it is not the first allocation, try to setup a link
+        // FIXME: Temporary limitation, linked alloca commands for an image is
+        // not supported because map operation is not implemented for an image.
+        if (Req->MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER)
+          // Current limitation is to setup link between current allocation and
+          // new one. There could be situations when we could setup link with
+          // "not" current allocation, but it will require memory copy.
+          // Can setup link between cl and host allocations only
+          if (Queue->is_host() != Record->MCurContext->is_host()) {
+            // Linked commands assume that the host allocation is reused by the
+            // plugin runtime and that can lead to unnecessary copy overhead on
+            // devices that do not support host unified memory. Do not link the
+            // allocations in this case.
+            // However, if the user explicitly requests use of pinned host
+            // memory, map/unmap operations are expected to work faster than
+            // read/write from/to an artbitrary host pointer. Link such commands
+            // regardless of host unified memory support.
+            bool PinnedHostMemory = MemObj->has_property<
+                sycl::ext::oneapi::property::buffer::use_pinned_host_memory>();
+
+            bool HostUnifiedMemoryOnNonHostDevice =
+                Queue->is_host() ? checkHostUnifiedMemory(Record->MCurContext)
+                                 : HostUnifiedMemory;
+            if (PinnedHostMemory || HostUnifiedMemoryOnNonHostDevice) {
+              AllocaCommandBase *LinkedAllocaCmdCand =
+                  findAllocaForReq(Record, Req, Record->MCurContext);
+
+              // Cannot setup link if candidate is linked already
+              if (LinkedAllocaCmdCand &&
+                  !LinkedAllocaCmdCand->MLinkedAllocaCmd) {
+                LinkedAllocaCmd = LinkedAllocaCmdCand;
+              }
+            }
+          }
+      }
 
       AllocaCmd =
           new AllocaCommand(Queue, FullReq, InitFromUserData, LinkedAllocaCmd);
@@ -655,15 +768,16 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
   case access::mode::discard_read_write:
   case access::mode::atomic:
     Record->MMemModified = true;
+    break;
   case access::mode::read:
     break;
   }
 }
 
 template <typename T>
-typename std::enable_if<
-    std::is_same<typename std::remove_cv<T>::type, Requirement>::value,
-    EmptyCommand *>::type
+typename detail::enable_if_t<
+    std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
+    EmptyCommand *>
 Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
                                      const QueueImplPtr &Queue,
                                      Command::BlockReason Reason) {
@@ -707,10 +821,30 @@ static bool isInteropHostTask(const std::unique_ptr<ExecCGCommand> &Cmd) {
   return HT.MHostTask->isInteropTask();
 }
 
+static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
+  std::unordered_map<SYCLMemObjI *, access::mode> CombinedModes;
+  bool HasDuplicateMemObjects = false;
+  for (const Requirement *Req : Reqs) {
+    auto Result = CombinedModes.insert(
+        std::make_pair(Req->MSYCLMemObj, Req->MAccessMode));
+    if (!Result.second) {
+      Result.first->second =
+          combineAccessModes(Result.first->second, Req->MAccessMode);
+      HasDuplicateMemObjects = true;
+    }
+  }
+
+  if (!HasDuplicateMemObjects)
+    return;
+  for (Requirement *Req : Reqs) {
+    Req->MAccessMode = CombinedModes[Req->MSYCLMemObj];
+  }
+}
+
 Command *
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                QueueImplPtr Queue) {
-  const std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
+  std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
   const CG::CGTYPE CGType = CommandGroup->getType();
 
@@ -722,6 +856,10 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   if (MPrintOptionsArray[BeforeAddCG])
     printGraphAsDot("before_addCG");
 
+  // If there are multiple requirements for the same memory object, its
+  // AllocaCommand creation will be dependent on the access mode of the first
+  // requirement. Combine these access modes to take all of them into account.
+  combineAccessModesOfReqs(Reqs);
   for (Requirement *Req : Reqs) {
     MemObjRecord *Record = nullptr;
     AllocaCommandBase *AllocaCmd = nullptr;
@@ -818,28 +956,30 @@ void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
   }
 }
 
-void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
+void Scheduler::GraphBuilder::cleanupCommandsForRecord(
+    MemObjRecord *Record,
+    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
   std::vector<AllocaCommandBase *> &AllocaCommands = Record->MAllocaCommands;
   if (AllocaCommands.empty())
     return;
 
-  std::queue<Command *> ToVisit;
-  std::vector<Command *> Visited;
-  std::vector<Command *> CmdsToDelete;
+  assert(MCmdsToVisit.empty());
+  MVisitedCmds.clear();
+
   // First, mark all allocas for deletion and their direct users for traversal
   // Dependencies of the users will be cleaned up during the traversal
   for (Command *AllocaCmd : AllocaCommands) {
-    markNodeAsVisited(AllocaCmd, Visited);
+    markNodeAsVisited(AllocaCmd, MVisitedCmds);
 
     for (Command *UserCmd : AllocaCmd->MUsers)
       // Linked alloca cmd may be in users of this alloca. We're not going to
       // visit it.
       if (UserCmd->getType() != Command::CommandType::ALLOCA)
-        ToVisit.push(UserCmd);
+        MCmdsToVisit.push(UserCmd);
       else
-        markNodeAsVisited(UserCmd, Visited);
+        markNodeAsVisited(UserCmd, MVisitedCmds);
 
-    CmdsToDelete.push_back(AllocaCmd);
+    AllocaCmd->MMarks.MToBeDeleted = true;
     // These commands will be deleted later, clear users now to avoid
     // updating them during edge removal
     AllocaCmd->MUsers.clear();
@@ -851,7 +991,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     AllocaCommandBase *LinkedCmd = AllocaCmd->MLinkedAllocaCmd;
 
     if (LinkedCmd) {
-      assert(LinkedCmd->MVisited);
+      assert(LinkedCmd->MMarks.MVisited);
 
       for (DepDesc &Dep : AllocaCmd->MDeps)
         if (Dep.MDepCommand)
@@ -860,16 +1000,25 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   }
 
   // Traverse the graph using BFS
-  while (!ToVisit.empty()) {
-    Command *Cmd = ToVisit.front();
-    ToVisit.pop();
+  while (!MCmdsToVisit.empty()) {
+    Command *Cmd = MCmdsToVisit.front();
+    MCmdsToVisit.pop();
 
-    if (!markNodeAsVisited(Cmd, Visited))
+    if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
+
+    // Collect stream objects for a visited command.
+    if (Cmd->getType() == Command::CommandType::RUN_CG) {
+      auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
+      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
+      ExecCmd->clearStreams();
+      StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
+                                 Streams.end());
+    }
 
     for (Command *UserCmd : Cmd->MUsers)
       if (UserCmd->getType() != Command::CommandType::ALLOCA)
-        ToVisit.push(UserCmd);
+        MCmdsToVisit.push(UserCmd);
 
     // Delete all dependencies on any allocations being removed
     // Track which commands should have their users updated
@@ -896,34 +1045,41 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     // If all dependencies have been removed this way, mark the command for
     // deletion
     if (Cmd->MDeps.empty()) {
-      CmdsToDelete.push_back(Cmd);
+      Cmd->MMarks.MToBeDeleted = true;
       Cmd->MUsers.clear();
     }
   }
 
-  unmarkVisitedNodes(Visited);
-
-  for (Command *Cmd : CmdsToDelete) {
-    Cmd->getEvent()->setCommand(nullptr);
-    delete Cmd;
-  }
+  handleVisitedNodes(MVisitedCmds);
 }
 
-void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
-  std::queue<Command *> CmdsToVisit({FinishedCmd});
-  std::vector<Command *> Visited;
+void Scheduler::GraphBuilder::cleanupFinishedCommands(
+    Command *FinishedCmd,
+    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
+  assert(MCmdsToVisit.empty());
+  MCmdsToVisit.push(FinishedCmd);
+  MVisitedCmds.clear();
 
   // Traverse the graph using BFS
-  while (!CmdsToVisit.empty()) {
-    Command *Cmd = CmdsToVisit.front();
-    CmdsToVisit.pop();
+  while (!MCmdsToVisit.empty()) {
+    Command *Cmd = MCmdsToVisit.front();
+    MCmdsToVisit.pop();
 
-    if (!markNodeAsVisited(Cmd, Visited))
+    if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
+
+    // Collect stream objects for a visited command.
+    if (Cmd->getType() == Command::CommandType::RUN_CG) {
+      auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
+      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
+      ExecCmd->clearStreams();
+      StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
+                                 Streams.end());
+    }
 
     for (const DepDesc &Dep : Cmd->MDeps) {
       if (Dep.MDepCommand)
-        CmdsToVisit.push(Dep.MDepCommand);
+        MCmdsToVisit.push(Dep.MDepCommand);
     }
 
     // Do not clean up the node if it is a leaf for any memory object
@@ -948,12 +1104,10 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
       Command *DepCmd = Dep.MDepCommand;
       DepCmd->MUsers.erase(Cmd);
     }
-    Cmd->getEvent()->setCommand(nullptr);
 
-    Visited.pop_back();
-    delete Cmd;
+    Cmd->MMarks.MToBeDeleted = true;
   }
-  unmarkVisitedNodes(Visited);
+  handleVisitedNodes(MVisitedCmds);
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
@@ -981,7 +1135,7 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
                                               EventImplPtr DepEvent,
                                               const DepDesc &Dep) {
-  assert(Cmd->getContext() != DepEvent->getContextImpl());
+  assert(Cmd->getWorkerContext() != DepEvent->getContextImpl());
 
   // construct Host Task type command manually and make it depend on DepEvent
   ExecCGCommand *ConnectCmd = nullptr;

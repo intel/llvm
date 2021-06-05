@@ -14,14 +14,14 @@ using namespace cl::sycl;
 TEST_F(SchedulerTest, WaitAfterCleanup) {
   auto Cmd = new MockCommand(detail::getSyclObjImpl(MQueue));
   auto Event = Cmd->getEvent();
-  ASSERT_NE(Event, nullptr) << "Command must have an event\n";
+  ASSERT_FALSE(Event == nullptr) << "Command must have an event\n";
 
   detail::Scheduler::getInstance().waitForEvent(Event);
   ASSERT_EQ(Event->getCommand(), Cmd)
       << "Command should not have been cleaned up yet\n";
 
   detail::Scheduler::getInstance().cleanupFinishedCommands(Event);
-  ASSERT_EQ(Event->getCommand(), nullptr)
+  ASSERT_TRUE(Event->getCommand() == nullptr)
       << "Command should have been cleaned up\n";
 
   detail::Scheduler::getInstance().waitForEvent(Event);

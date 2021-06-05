@@ -2,9 +2,9 @@ set(LLVM_TARGET_DEFINITIONS GPUToSPIRV.td)
 mlir_tablegen(GPUToSPIRV.cpp.inc -gen-rewriters)
 add_public_tablegen_target(MLIRGPUToSPIRVIncGen)
 
-add_mlir_conversion_library(MLIRGPUToSPIRVTransforms
-  ConvertGPUToSPIRV.cpp
-  ConvertGPUToSPIRVPass.cpp
+add_mlir_conversion_library(MLIRGPUToSPIRV
+  GPUToSPIRV.cpp
+  GPUToSPIRVPass.cpp
 
   DEPENDS
   MLIRConversionPassIncGen
@@ -14,9 +14,11 @@ add_mlir_conversion_library(MLIRGPUToSPIRVTransforms
   MLIRGPU
   MLIRIR
   MLIRPass
+  MLIRSCFToSPIRV
   MLIRSPIRV
-  MLIRStandardOps
-  MLIRStandardToSPIRVTransforms
+  MLIRSPIRVConversion
+  MLIRStandard
+  MLIRStandardToSPIRV
   MLIRSupport
   MLIRTransforms
   )

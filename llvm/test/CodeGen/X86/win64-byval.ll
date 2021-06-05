@@ -1,6 +1,6 @@
 ; RUN: llc -mtriple x86_64-w64-mingw32 %s -o - | FileCheck %s
 
-declare void @foo({ float, double }* byval)
+declare void @foo({ float, double }* byval({ float, double }))
 @G = external constant { float, double }
 
 define void @bar()
@@ -14,11 +14,11 @@ define void @bar()
 ; CHECK: movq    %rax, 40(%rsp)
 ; CHECK: movq    %rcx, 32(%rsp)
 ; CHECK: leaq    32(%rsp), %rcx
-    call void @foo({ float, double }* byval @G)
+    call void @foo({ float, double }* byval({ float, double }) @G)
     ret void
 }
 
-define void @baz({ float, double }* byval %arg)
+define void @baz({ float, double }* byval({ float, double }) %arg)
 {
 ; On Win64 the byval is effectively ignored on declarations, since we do
 ; pass a real pointer in registers. However, by our semantics if we pass
@@ -29,6 +29,34 @@ define void @baz({ float, double }* byval %arg)
 ; CHECK: movq	%rcx, 40(%rsp)
 ; CHECK: movq	%rax, 32(%rsp)
 ; CHECK: leaq	32(%rsp), %rcx
-    call void @foo({ float, double }* byval %arg)
+    call void @foo({ float, double }* byval({ float, double }) %arg)
     ret void
+}
+
+declare void @foo2({ float, double }* byval({ float, double }), { float, double }* byval({ float, double }), { float, double }* byval({ float, double }), { float, double }* byval({ float, double }), { float, double }* byval({ float, double }), i64 %f)
+@data = external constant { float, double }
+
+define void @test() {
+; CHECK-LABEL: @test
+; CHECK:      movq    (%rax), %rcx
+; CHECK-NEXT: movq    8(%rax), %rax
+; CHECK-NEXT: movq    %rax, 120(%rsp)
+; CHECK-NEXT: movq    %rcx, 112(%rsp)
+; CHECK-NEXT: movq    %rcx, 96(%rsp)
+; CHECK-NEXT: movq    %rax, 104(%rsp)
+; CHECK-NEXT: movq    %rcx, 80(%rsp)
+; CHECK-NEXT: movq    %rax, 88(%rsp)
+; CHECK-NEXT: movq    %rcx, 64(%rsp)
+; CHECK-NEXT: movq    %rax, 72(%rsp)
+; CHECK-NEXT: movq    %rax, 56(%rsp)
+; CHECK-NEXT: movq    %rcx, 48(%rsp)
+; CHECK-NEXT: leaq    48(%rsp), %rax
+; CHECK-NEXT: movq    %rax, 32(%rsp)
+; CHECK-NEXT: movq    $10, 40(%rsp)
+; CHECK-NEXT: leaq    112(%rsp), %rcx
+; CHECK-NEXT: leaq    96(%rsp), %rdx
+; CHECK-NEXT: leaq    80(%rsp), %r8
+; CHECK-NEXT: leaq    64(%rsp), %r9
+  call void @foo2({ float, double }* byval({ float, double }) @G, { float, double }* byval({ float, double }) @G, { float, double }* byval({ float, double }) @G, { float, double }* byval({ float, double }) @G, { float, double }* byval({ float, double }) @G, i64 10)
+  ret void
 }

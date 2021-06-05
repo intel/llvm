@@ -2510,11 +2510,11 @@ define <2 x i64> @test_mm_max_epi16(<2 x i64> %a0, <2 x i64> %a1) nounwind {
 ; AVX512-NEXT:    ret{{[l|q]}} # encoding: [0xc3]
   %arg0 = bitcast <2 x i64> %a0 to <8 x i16>
   %arg1 = bitcast <2 x i64> %a1 to <8 x i16>
-  %cmp = icmp sgt <8 x i16> %arg0, %arg1
-  %sel = select <8 x i1> %cmp, <8 x i16> %arg0, <8 x i16> %arg1
+  %sel = call <8 x i16> @llvm.smax.v8i16(<8 x i16> %arg0, <8 x i16> %arg1)
   %bc = bitcast <8 x i16> %sel to <2 x i64>
   ret <2 x i64> %bc
 }
+declare <8 x i16> @llvm.smax.v8i16(<8 x i16>, <8 x i16>)
 
 define <2 x i64> @test_mm_max_epu8(<2 x i64> %a0, <2 x i64> %a1) nounwind {
 ; SSE-LABEL: test_mm_max_epu8:
@@ -2533,11 +2533,11 @@ define <2 x i64> @test_mm_max_epu8(<2 x i64> %a0, <2 x i64> %a1) nounwind {
 ; AVX512-NEXT:    ret{{[l|q]}} # encoding: [0xc3]
   %arg0 = bitcast <2 x i64> %a0 to <16 x i8>
   %arg1 = bitcast <2 x i64> %a1 to <16 x i8>
-  %cmp = icmp ugt <16 x i8> %arg0, %arg1
-  %sel = select <16 x i1> %cmp, <16 x i8> %arg0, <16 x i8> %arg1
+  %sel = call <16 x i8> @llvm.umax.v16i8(<16 x i8> %arg0, <16 x i8> %arg1)
   %bc = bitcast <16 x i8> %sel to <2 x i64>
   ret <2 x i64> %bc
 }
+declare <16 x i8> @llvm.umax.v16i8(<16 x i8>, <16 x i8>)
 
 define <2 x double> @test_mm_max_pd(<2 x double> %a0, <2 x double> %a1) nounwind {
 ; SSE-LABEL: test_mm_max_pd:
@@ -2606,11 +2606,11 @@ define <2 x i64> @test_mm_min_epi16(<2 x i64> %a0, <2 x i64> %a1) nounwind {
 ; AVX512-NEXT:    ret{{[l|q]}} # encoding: [0xc3]
   %arg0 = bitcast <2 x i64> %a0 to <8 x i16>
   %arg1 = bitcast <2 x i64> %a1 to <8 x i16>
-  %cmp = icmp slt <8 x i16> %arg0, %arg1
-  %sel = select <8 x i1> %cmp, <8 x i16> %arg0, <8 x i16> %arg1
+  %sel = call <8 x i16> @llvm.smin.v8i16(<8 x i16> %arg0, <8 x i16> %arg1)
   %bc = bitcast <8 x i16> %sel to <2 x i64>
   ret <2 x i64> %bc
 }
+declare <8 x i16> @llvm.smin.v8i16(<8 x i16>, <8 x i16>)
 
 define <2 x i64> @test_mm_min_epu8(<2 x i64> %a0, <2 x i64> %a1) nounwind {
 ; SSE-LABEL: test_mm_min_epu8:
@@ -2629,11 +2629,11 @@ define <2 x i64> @test_mm_min_epu8(<2 x i64> %a0, <2 x i64> %a1) nounwind {
 ; AVX512-NEXT:    ret{{[l|q]}} # encoding: [0xc3]
   %arg0 = bitcast <2 x i64> %a0 to <16 x i8>
   %arg1 = bitcast <2 x i64> %a1 to <16 x i8>
-  %cmp = icmp ult <16 x i8> %arg0, %arg1
-  %sel = select <16 x i1> %cmp, <16 x i8> %arg0, <16 x i8> %arg1
+  %sel = call <16 x i8> @llvm.umin.v16i8(<16 x i8> %arg0, <16 x i8> %arg1)
   %bc = bitcast <16 x i8> %sel to <2 x i64>
   ret <2 x i64> %bc
 }
+declare <16 x i8> @llvm.umin.v16i8(<16 x i8>, <16 x i8>)
 
 define <2 x double> @test_mm_min_pd(<2 x double> %a0, <2 x double> %a1) nounwind {
 ; SSE-LABEL: test_mm_min_pd:
@@ -3758,8 +3758,8 @@ define <2 x i64> @test_mm_set1_epi8(i8 %a0) nounwind {
 ; X86-SSE-NEXT:    movd %eax, %xmm0 # encoding: [0x66,0x0f,0x6e,0xc0]
 ; X86-SSE-NEXT:    punpcklbw %xmm0, %xmm0 # encoding: [0x66,0x0f,0x60,0xc0]
 ; X86-SSE-NEXT:    # xmm0 = xmm0[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
-; X86-SSE-NEXT:    pshuflw $224, %xmm0, %xmm0 # encoding: [0xf2,0x0f,0x70,0xc0,0xe0]
-; X86-SSE-NEXT:    # xmm0 = xmm0[0,0,2,3,4,5,6,7]
+; X86-SSE-NEXT:    pshuflw $0, %xmm0, %xmm0 # encoding: [0xf2,0x0f,0x70,0xc0,0x00]
+; X86-SSE-NEXT:    # xmm0 = xmm0[0,0,0,0,4,5,6,7]
 ; X86-SSE-NEXT:    pshufd $0, %xmm0, %xmm0 # encoding: [0x66,0x0f,0x70,0xc0,0x00]
 ; X86-SSE-NEXT:    # xmm0 = xmm0[0,0,0,0]
 ; X86-SSE-NEXT:    retl # encoding: [0xc3]
@@ -3784,8 +3784,8 @@ define <2 x i64> @test_mm_set1_epi8(i8 %a0) nounwind {
 ; X64-SSE-NEXT:    movd %eax, %xmm0 # encoding: [0x66,0x0f,0x6e,0xc0]
 ; X64-SSE-NEXT:    punpcklbw %xmm0, %xmm0 # encoding: [0x66,0x0f,0x60,0xc0]
 ; X64-SSE-NEXT:    # xmm0 = xmm0[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
-; X64-SSE-NEXT:    pshuflw $224, %xmm0, %xmm0 # encoding: [0xf2,0x0f,0x70,0xc0,0xe0]
-; X64-SSE-NEXT:    # xmm0 = xmm0[0,0,2,3,4,5,6,7]
+; X64-SSE-NEXT:    pshuflw $0, %xmm0, %xmm0 # encoding: [0xf2,0x0f,0x70,0xc0,0x00]
+; X64-SSE-NEXT:    # xmm0 = xmm0[0,0,0,0,4,5,6,7]
 ; X64-SSE-NEXT:    pshufd $0, %xmm0, %xmm0 # encoding: [0x66,0x0f,0x70,0xc0,0x00]
 ; X64-SSE-NEXT:    # xmm0 = xmm0[0,0,0,0]
 ; X64-SSE-NEXT:    retq # encoding: [0xc3]
@@ -3827,8 +3827,8 @@ define <2 x i64> @test_mm_set1_epi16(i16 %a0) nounwind {
 ; X86-SSE:       # %bb.0:
 ; X86-SSE-NEXT:    movzwl {{[0-9]+}}(%esp), %eax # encoding: [0x0f,0xb7,0x44,0x24,0x04]
 ; X86-SSE-NEXT:    movd %eax, %xmm0 # encoding: [0x66,0x0f,0x6e,0xc0]
-; X86-SSE-NEXT:    pshuflw $224, %xmm0, %xmm0 # encoding: [0xf2,0x0f,0x70,0xc0,0xe0]
-; X86-SSE-NEXT:    # xmm0 = xmm0[0,0,2,3,4,5,6,7]
+; X86-SSE-NEXT:    pshuflw $0, %xmm0, %xmm0 # encoding: [0xf2,0x0f,0x70,0xc0,0x00]
+; X86-SSE-NEXT:    # xmm0 = xmm0[0,0,0,0,4,5,6,7]
 ; X86-SSE-NEXT:    pshufd $0, %xmm0, %xmm0 # encoding: [0x66,0x0f,0x70,0xc0,0x00]
 ; X86-SSE-NEXT:    # xmm0 = xmm0[0,0,0,0]
 ; X86-SSE-NEXT:    retl # encoding: [0xc3]
@@ -3837,8 +3837,8 @@ define <2 x i64> @test_mm_set1_epi16(i16 %a0) nounwind {
 ; X86-AVX1:       # %bb.0:
 ; X86-AVX1-NEXT:    movzwl {{[0-9]+}}(%esp), %eax # encoding: [0x0f,0xb7,0x44,0x24,0x04]
 ; X86-AVX1-NEXT:    vmovd %eax, %xmm0 # encoding: [0xc5,0xf9,0x6e,0xc0]
-; X86-AVX1-NEXT:    vpshuflw $224, %xmm0, %xmm0 # encoding: [0xc5,0xfb,0x70,0xc0,0xe0]
-; X86-AVX1-NEXT:    # xmm0 = xmm0[0,0,2,3,4,5,6,7]
+; X86-AVX1-NEXT:    vpshuflw $0, %xmm0, %xmm0 # encoding: [0xc5,0xfb,0x70,0xc0,0x00]
+; X86-AVX1-NEXT:    # xmm0 = xmm0[0,0,0,0,4,5,6,7]
 ; X86-AVX1-NEXT:    vpshufd $0, %xmm0, %xmm0 # encoding: [0xc5,0xf9,0x70,0xc0,0x00]
 ; X86-AVX1-NEXT:    # xmm0 = xmm0[0,0,0,0]
 ; X86-AVX1-NEXT:    retl # encoding: [0xc3]
@@ -3852,8 +3852,8 @@ define <2 x i64> @test_mm_set1_epi16(i16 %a0) nounwind {
 ; X64-SSE-LABEL: test_mm_set1_epi16:
 ; X64-SSE:       # %bb.0:
 ; X64-SSE-NEXT:    movd %edi, %xmm0 # encoding: [0x66,0x0f,0x6e,0xc7]
-; X64-SSE-NEXT:    pshuflw $224, %xmm0, %xmm0 # encoding: [0xf2,0x0f,0x70,0xc0,0xe0]
-; X64-SSE-NEXT:    # xmm0 = xmm0[0,0,2,3,4,5,6,7]
+; X64-SSE-NEXT:    pshuflw $0, %xmm0, %xmm0 # encoding: [0xf2,0x0f,0x70,0xc0,0x00]
+; X64-SSE-NEXT:    # xmm0 = xmm0[0,0,0,0,4,5,6,7]
 ; X64-SSE-NEXT:    pshufd $0, %xmm0, %xmm0 # encoding: [0x66,0x0f,0x70,0xc0,0x00]
 ; X64-SSE-NEXT:    # xmm0 = xmm0[0,0,0,0]
 ; X64-SSE-NEXT:    retq # encoding: [0xc3]
@@ -3861,8 +3861,8 @@ define <2 x i64> @test_mm_set1_epi16(i16 %a0) nounwind {
 ; X64-AVX1-LABEL: test_mm_set1_epi16:
 ; X64-AVX1:       # %bb.0:
 ; X64-AVX1-NEXT:    vmovd %edi, %xmm0 # encoding: [0xc5,0xf9,0x6e,0xc7]
-; X64-AVX1-NEXT:    vpshuflw $224, %xmm0, %xmm0 # encoding: [0xc5,0xfb,0x70,0xc0,0xe0]
-; X64-AVX1-NEXT:    # xmm0 = xmm0[0,0,2,3,4,5,6,7]
+; X64-AVX1-NEXT:    vpshuflw $0, %xmm0, %xmm0 # encoding: [0xc5,0xfb,0x70,0xc0,0x00]
+; X64-AVX1-NEXT:    # xmm0 = xmm0[0,0,0,0,4,5,6,7]
 ; X64-AVX1-NEXT:    vpshufd $0, %xmm0, %xmm0 # encoding: [0xc5,0xf9,0x70,0xc0,0x00]
 ; X64-AVX1-NEXT:    # xmm0 = xmm0[0,0,0,0]
 ; X64-AVX1-NEXT:    retq # encoding: [0xc3]

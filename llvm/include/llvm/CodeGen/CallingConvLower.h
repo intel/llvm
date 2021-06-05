@@ -16,7 +16,7 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
-#include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/TargetCallingConv.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/MC/MCRegisterInfo.h"
@@ -25,6 +25,7 @@
 namespace llvm {
 
 class CCState;
+class MachineFunction;
 class MVT;
 class TargetRegisterInfo;
 
@@ -53,7 +54,7 @@ public:
   };
 
 private:
-  /// ValNo - This is the value number begin assigned (e.g. an argument number).
+  /// ValNo - This is the value number being assigned (e.g. an argument number).
   unsigned ValNo;
 
   /// Loc is either a stack offset or a register number.
@@ -221,31 +222,23 @@ private:
   // ByValRegs[1] describes how "%t" is stored (Begin == r3, End == r4).
   //
   // In case of 8 bytes stack alignment,
-  // ByValRegs may also contain information about wasted registers.
   // In function shown above, r3 would be wasted according to AAPCS rules.
-  // And in that case ByValRegs[1].Waste would be "true".
   // ByValRegs vector size still would be 2,
   // while "%t" goes to the stack: it wouldn't be described in ByValRegs.
   //
   // Supposed use-case for this collection:
   // 1. Initially ByValRegs is empty, InRegsParamsProcessed is 0.
-  // 2. HandleByVal fillups ByValRegs.
+  // 2. HandleByVal fills up ByValRegs.
   // 3. Argument analysis (LowerFormatArguments, for example). After
   // some byval argument was analyzed, InRegsParamsProcessed is increased.
   struct ByValInfo {
-    ByValInfo(unsigned B, unsigned E, bool IsWaste = false) :
-      Begin(B), End(E), Waste(IsWaste) {}
+    ByValInfo(unsigned B, unsigned E) : Begin(B), End(E) {}
+
     // First register allocated for current parameter.
     unsigned Begin;
 
     // First after last register allocated for current parameter.
     unsigned End;
-
-    // Means that current range of registers doesn't belong to any
-    // parameters. It was wasted due to stack alignment rules.
-    // For more information see:
-    // AAPCS, 5.5 Parameter Passing, Stage C, C.3.
-    bool Waste;
   };
   SmallVector<ByValInfo, 4 > ByValRegs;
 
@@ -347,6 +340,11 @@ public:
     return Regs.size();
   }
 
+  void DeallocateReg(MCPhysReg Reg) {
+    assert(isAllocated(Reg) && "Trying to deallocate an unallocated register");
+    MarkUnallocated(Reg);
+  }
+
   /// AllocateReg - Attempt to allocate one register.  If it is not available,
   /// return zero.  Otherwise, return the register, marking it and any aliases
   /// as allocated.
@@ -433,26 +431,7 @@ public:
     return Result;
   }
 
-  // FIXME: Deprecate this function when transition to Align is over.
-  LLVM_ATTRIBUTE_DEPRECATED(unsigned AllocateStack(unsigned Size,
-                                                   unsigned Alignment),
-                            "Use the version that takes Align instead.") {
-    return AllocateStack(Size, Align(Alignment));
-  }
-
-  void ensureMaxAlignment(Align Alignment) {
-    if (!AnalyzingMustTailForwardedRegs)
-      MF.getFrameInfo().ensureMaxAlignment(Alignment);
-  }
-
-  /// Version of AllocateStack with extra register to be shadowed.
-  LLVM_ATTRIBUTE_DEPRECATED(unsigned AllocateStack(unsigned Size,
-                                                   unsigned Alignment,
-                                                   unsigned ShadowReg),
-                            "Use the version that takes Align instead.") {
-    MarkAllocated(ShadowReg);
-    return AllocateStack(Size, Align(Alignment));
-  }
+  void ensureMaxAlignment(Align Alignment);
 
   /// Version of AllocateStack with list of extra registers to be shadowed.
   /// Note that, unlike AllocateReg, this shadows ALL of the shadow registers.
@@ -474,7 +453,7 @@ public:
   // in registers.
   unsigned getInRegsParamsCount() const { return ByValRegs.size(); }
 
-  // Returns count of byval in-regs arguments proceed.
+  // Returns count of byval in-regs arguments processed.
   unsigned getInRegsParamsProcessed() const { return InRegsParamsProcessed; }
 
   // Get information about N-th byval parameter that is stored in registers.
@@ -580,6 +559,8 @@ public:
 private:
   /// MarkAllocated - Mark a register and all of its aliases as allocated.
   void MarkAllocated(MCPhysReg Reg);
+
+  void MarkUnallocated(MCPhysReg Reg);
 };
 
 } // end namespace llvm

@@ -54,80 +54,81 @@
 
 // RUN: %clang -### -target amdgcn %s 2>&1 | FileCheck --check-prefix=GCNDEFAULT %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx600 %s 2>&1 | FileCheck --check-prefix=GFX600 %s
-// RUN: %clang -### -target amdgcn -mcpu=tahiti %s 2>&1 | FileCheck --check-prefix=TAHITI %s
+// RUN: %clang -### -target amdgcn -mcpu=tahiti %s 2>&1 | FileCheck --check-prefix=GFX600 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx601 %s 2>&1 | FileCheck --check-prefix=GFX601 %s
-// RUN: %clang -### -target amdgcn -mcpu=hainan %s 2>&1 | FileCheck --check-prefix=HAINAN %s
-// RUN: %clang -### -target amdgcn -mcpu=oland %s 2>&1 | FileCheck --check-prefix=OLAND %s
-// RUN: %clang -### -target amdgcn -mcpu=pitcairn %s 2>&1 | FileCheck --check-prefix=PITCAIRN %s
-// RUN: %clang -### -target amdgcn -mcpu=verde %s 2>&1 | FileCheck --check-prefix=VERDE %s
+// RUN: %clang -### -target amdgcn -mcpu=pitcairn %s 2>&1 | FileCheck --check-prefix=GFX601 %s
+// RUN: %clang -### -target amdgcn -mcpu=verde %s 2>&1 | FileCheck --check-prefix=GFX601 %s
+// RUN: %clang -### -target amdgcn -mcpu=gfx602 %s 2>&1 | FileCheck --check-prefix=GFX602 %s
+// RUN: %clang -### -target amdgcn -mcpu=hainan %s 2>&1 | FileCheck --check-prefix=GFX602 %s
+// RUN: %clang -### -target amdgcn -mcpu=oland %s 2>&1 | FileCheck --check-prefix=GFX602 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx700 %s 2>&1 | FileCheck --check-prefix=GFX700 %s
-// RUN: %clang -### -target amdgcn -mcpu=kaveri %s 2>&1 | FileCheck --check-prefix=KAVERI %s
+// RUN: %clang -### -target amdgcn -mcpu=kaveri %s 2>&1 | FileCheck --check-prefix=GFX700 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx701 %s 2>&1 | FileCheck --check-prefix=GFX701 %s
-// RUN: %clang -### -target amdgcn -mcpu=hawaii %s 2>&1 | FileCheck --check-prefix=HAWAII %s
+// RUN: %clang -### -target amdgcn -mcpu=hawaii %s 2>&1 | FileCheck --check-prefix=GFX701 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx702 %s 2>&1 | FileCheck --check-prefix=GFX702 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx703 %s 2>&1 | FileCheck --check-prefix=GFX703 %s
-// RUN: %clang -### -target amdgcn -mcpu=kabini %s 2>&1 | FileCheck --check-prefix=KABINI %s
-// RUN: %clang -### -target amdgcn -mcpu=mullins %s 2>&1 | FileCheck --check-prefix=MULLINS %s
+// RUN: %clang -### -target amdgcn -mcpu=kabini %s 2>&1 | FileCheck --check-prefix=GFX703 %s
+// RUN: %clang -### -target amdgcn -mcpu=mullins %s 2>&1 | FileCheck --check-prefix=GFX703 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx704 %s 2>&1 | FileCheck --check-prefix=GFX704 %s
-// RUN: %clang -### -target amdgcn -mcpu=bonaire %s 2>&1 | FileCheck --check-prefix=BONAIRE %s
+// RUN: %clang -### -target amdgcn -mcpu=bonaire %s 2>&1 | FileCheck --check-prefix=GFX704 %s
+// RUN: %clang -### -target amdgcn -mcpu=gfx705 %s 2>&1 | FileCheck --check-prefix=GFX705 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx801 %s 2>&1 | FileCheck --check-prefix=GFX801 %s
-// RUN: %clang -### -target amdgcn -mcpu=carrizo %s 2>&1 | FileCheck --check-prefix=CARRIZO %s
+// RUN: %clang -### -target amdgcn -mcpu=carrizo %s 2>&1 | FileCheck --check-prefix=GFX801 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx802 %s 2>&1 | FileCheck --check-prefix=GFX802 %s
-// RUN: %clang -### -target amdgcn -mcpu=iceland %s 2>&1 | FileCheck --check-prefix=ICELAND %s
-// RUN: %clang -### -target amdgcn -mcpu=tonga %s 2>&1 | FileCheck --check-prefix=TONGA %s
+// RUN: %clang -### -target amdgcn -mcpu=iceland %s 2>&1 | FileCheck --check-prefix=GFX802 %s
+// RUN: %clang -### -target amdgcn -mcpu=tonga %s 2>&1 | FileCheck --check-prefix=GFX802 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx803 %s 2>&1 | FileCheck --check-prefix=GFX803 %s
-// RUN: %clang -### -target amdgcn -mcpu=fiji %s 2>&1 | FileCheck --check-prefix=FIJI %s
-// RUN: %clang -### -target amdgcn -mcpu=polaris10 %s 2>&1 | FileCheck --check-prefix=POLARIS10 %s
-// RUN: %clang -### -target amdgcn -mcpu=polaris11 %s 2>&1 | FileCheck --check-prefix=POLARIS11 %s
+// RUN: %clang -### -target amdgcn -mcpu=fiji %s 2>&1 | FileCheck --check-prefix=GFX803 %s
+// RUN: %clang -### -target amdgcn -mcpu=polaris10 %s 2>&1 | FileCheck --check-prefix=GFX803 %s
+// RUN: %clang -### -target amdgcn -mcpu=polaris11 %s 2>&1 | FileCheck --check-prefix=GFX803 %s
+// RUN: %clang -### -target amdgcn -mcpu=gfx805 %s 2>&1 | FileCheck --check-prefix=GFX805 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx810 %s 2>&1 | FileCheck --check-prefix=GFX810 %s
-// RUN: %clang -### -target amdgcn -mcpu=stoney %s 2>&1 | FileCheck --check-prefix=STONEY %s
+// RUN: %clang -### -target amdgcn -mcpu=stoney %s 2>&1 | FileCheck --check-prefix=GFX810 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx900 %s 2>&1 | FileCheck --check-prefix=GFX900 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx902 %s 2>&1 | FileCheck --check-prefix=GFX902 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx904 %s 2>&1 | FileCheck --check-prefix=GFX904 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx906 %s 2>&1 | FileCheck --check-prefix=GFX906 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx908 %s 2>&1 | FileCheck --check-prefix=GFX908 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx909 %s 2>&1 | FileCheck --check-prefix=GFX909 %s
+// RUN: %clang -### -target amdgcn -mcpu=gfx90a %s 2>&1 | FileCheck --check-prefix=GFX90A %s
+// RUN: %clang -### -target amdgcn -mcpu=gfx90c %s 2>&1 | FileCheck --check-prefix=GFX90C %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx1010 %s 2>&1 | FileCheck --check-prefix=GFX1010 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx1011 %s 2>&1 | FileCheck --check-prefix=GFX1011 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx1012 %s 2>&1 | FileCheck --check-prefix=GFX1012 %s
 // RUN: %clang -### -target amdgcn -mcpu=gfx1030 %s 2>&1 | FileCheck --check-prefix=GFX1030 %s
+// RUN: %clang -### -target amdgcn -mcpu=gfx1031 %s 2>&1 | FileCheck --check-prefix=GFX1031 %s
+// RUN: %clang -### -target amdgcn -mcpu=gfx1032 %s 2>&1 | FileCheck --check-prefix=GFX1032 %s
+// RUN: %clang -### -target amdgcn -mcpu=gfx1033 %s 2>&1 | FileCheck --check-prefix=GFX1033 %s
+// RUN: %clang -### -target amdgcn -mcpu=gfx1034 %s 2>&1 | FileCheck --check-prefix=GFX1034 %s
 
 // GCNDEFAULT-NOT: -target-cpu
 // GFX600:    "-target-cpu" "gfx600"
-// TAHITI:    "-target-cpu" "tahiti"
 // GFX601:    "-target-cpu" "gfx601"
-// HAINAN:    "-target-cpu" "hainan"
-// OLAND:     "-target-cpu" "oland"
-// PITCAIRN:  "-target-cpu" "pitcairn"
-// VERDE:     "-target-cpu" "verde"
+// GFX602:    "-target-cpu" "gfx602"
 // GFX700:    "-target-cpu" "gfx700"
-// KAVERI:    "-target-cpu" "kaveri"
 // GFX701:    "-target-cpu" "gfx701"
-// HAWAII:    "-target-cpu" "hawaii"
 // GFX702:    "-target-cpu" "gfx702"
 // GFX703:    "-target-cpu" "gfx703"
-// KABINI:    "-target-cpu" "kabini"
-// MULLINS:   "-target-cpu" "mullins"
 // GFX704:    "-target-cpu" "gfx704"
-// BONAIRE:   "-target-cpu" "bonaire"
+// GFX705:    "-target-cpu" "gfx705"
 // GFX801:    "-target-cpu" "gfx801"
-// CARRIZO:   "-target-cpu" "carrizo"
 // GFX802:    "-target-cpu" "gfx802"
-// ICELAND:   "-target-cpu" "iceland"
-// TONGA:     "-target-cpu" "tonga"
 // GFX803:    "-target-cpu" "gfx803"
-// FIJI:      "-target-cpu" "fiji"
-// POLARIS10: "-target-cpu" "polaris10"
-// POLARIS11: "-target-cpu" "polaris11"
+// GFX805:    "-target-cpu" "gfx805"
 // GFX810:    "-target-cpu" "gfx810"
-// STONEY:    "-target-cpu" "stoney"
 // GFX900:    "-target-cpu" "gfx900"
 // GFX902:    "-target-cpu" "gfx902"
 // GFX904:    "-target-cpu" "gfx904"
 // GFX906:    "-target-cpu" "gfx906"
 // GFX908:    "-target-cpu" "gfx908"
 // GFX909:    "-target-cpu" "gfx909"
+// GFX90A:    "-target-cpu" "gfx90a"
+// GFX90C:    "-target-cpu" "gfx90c"
 // GFX1010:   "-target-cpu" "gfx1010"
 // GFX1011:   "-target-cpu" "gfx1011"
 // GFX1012:   "-target-cpu" "gfx1012"
 // GFX1030:   "-target-cpu" "gfx1030"
+// GFX1031:   "-target-cpu" "gfx1031"
+// GFX1032:   "-target-cpu" "gfx1032"
+// GFX1033:   "-target-cpu" "gfx1033"
+// GFX1034:   "-target-cpu" "gfx1034"

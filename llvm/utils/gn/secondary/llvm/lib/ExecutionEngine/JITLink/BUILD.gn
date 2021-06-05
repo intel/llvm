@@ -2,6 +2,7 @@ static_library("JITLink") {
   output_name = "LLVMJITLink"
   deps = [
     "//llvm/lib/BinaryFormat",
+    "//llvm/lib/ExecutionEngine/Orc/Shared",
     "//llvm/lib/Object",
     "//llvm/lib/Support",
   ]
@@ -16,5 +17,6 @@ static_library("JITLink") {
     "MachOLinkGraphBuilder.cpp",
     "MachO_arm64.cpp",
     "MachO_x86_64.cpp",
+    "x86_64.cpp",
   ]
 }

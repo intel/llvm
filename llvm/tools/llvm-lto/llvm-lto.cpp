@@ -78,17 +78,6 @@ static cl::opt<bool> DisableVerify(
     "disable-verify", cl::init(false),
     cl::desc("Do not run the verifier during the optimization pipeline"));
 
-static cl::opt<bool> DisableInline("disable-inlining", cl::init(false),
-                                   cl::desc("Do not run the inliner pass"));
-
-static cl::opt<bool>
-    DisableGVNLoadPRE("disable-gvn-loadpre", cl::init(false),
-                      cl::desc("Do not run the GVN load PRE pass"));
-
-static cl::opt<bool> DisableLTOVectorization(
-    "disable-lto-vectorization", cl::init(false),
-    cl::desc("Do not run loop or slp vectorization during LTO"));
-
 static cl::opt<bool> EnableFreestanding(
     "lto-freestanding", cl::init(false),
     cl::desc("Enable Freestanding (disable builtins / TLI) during LTO"));
@@ -181,6 +170,10 @@ static cl::opt<std::string> ThinLTOGeneratedObjectsDir(
     cl::desc("Save ThinLTO generated object files using filenames created in "
              "the given directory."));
 
+static cl::opt<bool> SaveLinkedModuleFile(
+    "save-linked-module", cl::init(false),
+    cl::desc("Write linked LTO module to file before optimize"));
+
 static cl::opt<bool>
     SaveModuleFile("save-merged-module", cl::init(false),
                    cl::desc("Write merged LTO module to file before CodeGen"));
@@ -228,6 +221,11 @@ static cl::opt<bool> CheckHasObjC(
 static cl::opt<bool> PrintMachOCPUOnly(
     "print-macho-cpu-only", cl::init(false),
     cl::desc("Instead of running LTO, print the mach-o cpu in each IR file"));
+
+static cl::opt<bool>
+    UseNewPM("use-new-pm",
+             cl::desc("Run LTO passes using the new pass manager"),
+             cl::init(LLVM_ENABLE_NEW_PASS_MANAGER), cl::Hidden);
 
 namespace {
 
@@ -333,7 +331,7 @@ getLocalLTOModule(StringRef Path, std::unique_ptr<MemoryBuffer> &Buffer,
 }
 
 /// Print some statistics on the index for each input files.
-void printIndexStats() {
+static void printIndexStats() {
   for (auto &Filename : InputFilenames) {
     ExitOnError ExitOnErr("llvm-lto: error loading file '" + Filename + "': ");
     std::unique_ptr<ModuleSummaryIndex> Index =
@@ -414,7 +412,7 @@ static void printMachOCPUOnly() {
   LLVMContext Context;
   Context.setDiagnosticHandler(std::make_unique<LLVMLTODiagnosticHandler>(),
                                true);
-  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags();
+  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags(Triple());
   for (auto &Filename : InputFilenames) {
     ErrorOr<std::unique_ptr<LTOModule>> ModuleOrErr =
         LTOModule::createFromFile(Context, Filename, Options);
@@ -461,7 +459,7 @@ static void createCombinedModuleSummaryIndex() {
 static void getThinLTOOldAndNewPrefix(std::string &OldPrefix,
                                       std::string &NewPrefix) {
   assert(ThinLTOPrefixReplace.empty() ||
-         ThinLTOPrefixReplace.find(";") != StringRef::npos);
+         ThinLTOPrefixReplace.find(';') != StringRef::npos);
   StringRef PrefixReplace = ThinLTOPrefixReplace;
   std::pair<StringRef, StringRef> Split = PrefixReplace.split(";");
   OldPrefix = Split.first.str();
@@ -903,7 +901,7 @@ int main(int argc, char **argv) {
   InitializeAllAsmParsers();
 
   // set up the TargetOptions for the machine
-  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags();
+  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags(Triple());
 
   if (ListSymbolsOnly) {
     listSymbols(Options);
@@ -960,6 +958,7 @@ int main(int argc, char **argv) {
                                true);
 
   LTOCodeGenerator CodeGen(Context);
+  CodeGen.setDisableVerify(DisableVerify);
 
   if (UseDiagnosticHandler)
     CodeGen.setDiagnosticHandler(handleDiagnostics, nullptr);
@@ -1018,19 +1017,24 @@ int main(int argc, char **argv) {
   CodeGen.setCpu(codegen::getMCPU().c_str());
 
   CodeGen.setOptLevel(OptLevel - '0');
+  CodeGen.setAttrs(codegen::getMAttrs());
 
-  auto MAttrs = codegen::getMAttrs();
-  if (!MAttrs.empty()) {
-    std::string attrs = join(MAttrs, ",");
-    CodeGen.setAttr(attrs);
-  }
+  CodeGen.setUseNewPM(UseNewPM);
 
   if (auto FT = codegen::getExplicitFileType())
     CodeGen.setFileType(FT.getValue());
 
   if (!OutputFilename.empty()) {
-    if (!CodeGen.optimize(DisableVerify, DisableInline, DisableGVNLoadPRE,
-                          DisableLTOVectorization)) {
+    if (SaveLinkedModuleFile) {
+      std::string ModuleFilename = OutputFilename;
+      ModuleFilename += ".linked.bc";
+      std::string ErrMsg;
+
+      if (!CodeGen.writeMergedModules(ModuleFilename))
+        error("writing linked module failed.");
+    }
+
+    if (!CodeGen.optimize()) {
       // Diagnostic messages should have been printed by the handler.
       error("error optimizing the code");
     }
@@ -1044,25 +1048,24 @@ int main(int argc, char **argv) {
         error("writing merged module failed.");
     }
 
-    std::list<ToolOutputFile> OSs;
-    std::vector<raw_pwrite_stream *> OSPtrs;
-    for (unsigned I = 0; I != Parallelism; ++I) {
+    auto AddStream =
+        [&](size_t Task) -> std::unique_ptr<lto::NativeObjectStream> {
       std::string PartFilename = OutputFilename;
       if (Parallelism != 1)
-        PartFilename += "." + utostr(I);
+        PartFilename += "." + utostr(Task);
+
       std::error_code EC;
-      OSs.emplace_back(PartFilename, EC, sys::fs::OF_None);
+      auto S =
+          std::make_unique<raw_fd_ostream>(PartFilename, EC, sys::fs::OF_None);
       if (EC)
         error("error opening the file '" + PartFilename + "': " + EC.message());
-      OSPtrs.push_back(&OSs.back().os());
-    }
+      return std::make_unique<lto::NativeObjectStream>(std::move(S));
+    };
 
-    if (!CodeGen.compileOptimized(OSPtrs))
+    if (!CodeGen.compileOptimized(AddStream, Parallelism))
       // Diagnostic messages should have been printed by the handler.
       error("error compiling the code");
 
-    for (ToolOutputFile &OS : OSs)
-      OS.keep();
   } else {
     if (Parallelism != 1)
       error("-j must be specified together with -o");
@@ -1071,8 +1074,7 @@ int main(int argc, char **argv) {
       error(": -save-merged-module must be specified with -o");
 
     const char *OutputName = nullptr;
-    if (!CodeGen.compile_to_file(&OutputName, DisableVerify, DisableInline,
-                                 DisableGVNLoadPRE, DisableLTOVectorization))
+    if (!CodeGen.compile_to_file(&OutputName))
       error("error compiling the code");
       // Diagnostic messages should have been printed by the handler.
 

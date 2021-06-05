@@ -42,7 +42,7 @@ bool isReferencedOutsideOfCallExpr(const FunctionDecl &Function,
 bool hasLoopStmtAncestor(const DeclRefExpr &DeclRef, const Decl &Decl,
                          ASTContext &Context) {
   auto Matches = match(
-      traverse(ast_type_traits::TK_AsIs,
+      traverse(TK_AsIs,
                decl(forEachDescendant(declRefExpr(
                    equalsNode(&DeclRef),
                    unless(hasAncestor(stmt(anyOf(forStmt(), cxxForRangeStmt(),
@@ -68,9 +68,8 @@ bool isExplicitTemplateSpecialization(const FunctionDecl &Function) {
 UnnecessaryValueParamCheck::UnnecessaryValueParamCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
-                                            utils::IncludeSorter::getMapping(),
-                                            utils::IncludeSorter::IS_LLVM)),
+      Inserter(Options.getLocalOrGlobal("IncludeStyle",
+                                        utils::IncludeSorter::IS_LLVM)),
       AllowedTypes(
           utils::options::parseStringList(Options.get("AllowedTypes", ""))) {}
 
@@ -84,7 +83,7 @@ void UnnecessaryValueParamCheck::registerMatchers(MatchFinder *Finder) {
       decl().bind("param"));
   Finder->addMatcher(
       traverse(
-          ast_type_traits::TK_AsIs,
+          TK_AsIs,
           functionDecl(hasBody(stmt()), isDefinition(), unless(isImplicit()),
                        unless(cxxMethodDecl(anyOf(isOverride(), isFinal()))),
                        has(typeLoc(forEach(ExpensiveValueParamDecl))),
@@ -96,7 +95,7 @@ void UnnecessaryValueParamCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Param = Result.Nodes.getNodeAs<ParmVarDecl>("param");
   const auto *Function = Result.Nodes.getNodeAs<FunctionDecl>("functionDecl");
 
-  TraversalKindScope RAII(*Result.Context, ast_type_traits::TK_AsIs);
+  TraversalKindScope RAII(*Result.Context, TK_AsIs);
 
   FunctionParmMutationAnalyzer &Analyzer =
       MutationAnalyzers.try_emplace(Function, *Function, *Result.Context)
@@ -138,13 +137,10 @@ void UnnecessaryValueParamCheck::check(const MatchFinder::MatchResult &Result) {
 
   auto Diag =
       diag(Param->getLocation(),
-           IsConstQualified ? "the const qualified parameter %0 is "
-                              "copied for each invocation; consider "
-                              "making it a reference"
-                            : "the parameter %0 is copied for each "
-                              "invocation but only used as a const reference; "
-                              "consider making it a const reference")
-      << paramNameOrIndex(Param->getName(), Index);
+           "the %select{|const qualified }0parameter %1 is copied for each "
+           "invocation%select{ but only used as a const reference|}0; consider "
+           "making it a %select{const |}0reference")
+      << IsConstQualified << paramNameOrIndex(Param->getName(), Index);
   // Do not propose fixes when:
   // 1. the ParmVarDecl is in a macro, since we cannot place them correctly
   // 2. the function is virtual as it might break overrides
@@ -174,15 +170,12 @@ void UnnecessaryValueParamCheck::check(const MatchFinder::MatchResult &Result) {
 
 void UnnecessaryValueParamCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
-  Inserter = std::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
-                                                      IncludeStyle);
-  PP->addPPCallbacks(Inserter->CreatePPCallbacks());
+  Inserter.registerPreprocessor(PP);
 }
 
 void UnnecessaryValueParamCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle", IncludeStyle,
-                utils::IncludeSorter::getMapping());
+  Options.store(Opts, "IncludeStyle", Inserter.getStyle());
   Options.store(Opts, "AllowedTypes",
                 utils::options::serializeStringList(AllowedTypes));
 }
@@ -206,9 +199,8 @@ void UnnecessaryValueParamCheck::handleMoveFix(const ParmVarDecl &Var,
                                            Context.getLangOpts());
   Diag << FixItHint::CreateInsertion(CopyArgument.getBeginLoc(), "std::move(")
        << FixItHint::CreateInsertion(EndLoc, ")")
-       << Inserter->CreateIncludeInsertion(
-              SM.getFileID(CopyArgument.getBeginLoc()), "utility",
-              /*IsAngled=*/true);
+       << Inserter.createIncludeInsertion(
+              SM.getFileID(CopyArgument.getBeginLoc()), "<utility>");
 }
 
 } // namespace performance

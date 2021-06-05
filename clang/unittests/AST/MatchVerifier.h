@@ -117,6 +117,7 @@ MatchVerifier<NodeType>::match(const std::string &Code,
     FileName = "input.cc";
     break;
   case Lang_OpenCL:
+    Args.push_back("-cl-no-stdinc");
     FileName = "input.cl";
     break;
   case Lang_OBJCXX:
@@ -271,7 +272,7 @@ protected:
               const DynTypedNode &Node) override {
     std::string DumpStr;
     llvm::raw_string_ostream Dump(DumpStr);
-    Node.dump(Dump, *Result.SourceManager);
+    Node.dump(Dump, *Result.Context);
 
     if (Dump.str().find(ExpectSubstring) == std::string::npos) {
       std::string MsgStr;

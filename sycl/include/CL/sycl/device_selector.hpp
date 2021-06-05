@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/export.hpp>
 
 // 4.6.1 Device selection class
@@ -32,7 +33,7 @@ protected:
 public:
   virtual ~device_selector() = default;
 
-  device select_device() const;
+  virtual device select_device() const;
 
   virtual int operator()(const device &device) const = 0;
 };
@@ -86,6 +87,5 @@ class __SYCL_EXPORT host_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
-
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

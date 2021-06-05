@@ -183,6 +183,13 @@ void JSONNodeDumper::Visit(const GenericSelectionExpr::ConstAssociation &A) {
   attributeOnlyIfTrue("selected", A.isSelected());
 }
 
+void JSONNodeDumper::Visit(const APValue &Value, QualType Ty) {
+  std::string Str;
+  llvm::raw_string_ostream OS(Str);
+  Value.printPretty(OS, Ctx, Ty);
+  JOS.attribute("value", OS.str());
+}
+
 void JSONNodeDumper::writeIncludeStack(PresumedLoc Loc, bool JustFirst) {
   if (Loc.isInvalid())
     return;
@@ -609,6 +616,12 @@ void JSONNodeDumper::VisitVectorType(const VectorType *VT) {
   case VectorType::NeonPolyVector:
     JOS.attribute("vectorKind", "neon poly");
     break;
+  case VectorType::SveFixedLengthDataVector:
+    JOS.attribute("vectorKind", "fixed-length sve data vector");
+    break;
+  case VectorType::SveFixedLengthPredicateVector:
+    JOS.attribute("vectorKind", "fixed-length sve predicate vector");
+    break;
   }
 }
 
@@ -874,9 +887,10 @@ void JSONNodeDumper::VisitTemplateTemplateParmDecl(
 
   if (D->hasDefaultArgument())
     JOS.attributeObject("defaultArg", [=] {
+      const auto *InheritedFrom = D->getDefaultArgStorage().getInheritedFrom();
       Visit(D->getDefaultArgument().getArgument(),
-            D->getDefaultArgStorage().getInheritedFrom()->getSourceRange(),
-            D->getDefaultArgStorage().getInheritedFrom(),
+            InheritedFrom ? InheritedFrom->getSourceRange() : SourceLocation{},
+            InheritedFrom,
             D->defaultArgumentWasInherited() ? "inherited from" : "previous");
     });
 }
@@ -1150,6 +1164,12 @@ void JSONNodeDumper::VisitDeclRefExpr(const DeclRefExpr *DRE) {
   }
 }
 
+void JSONNodeDumper::VisitSYCLUniqueStableNameExpr(
+    const SYCLUniqueStableNameExpr *E) {
+  JOS.attribute("typeSourceInfo",
+                createQualType(E->getTypeSourceInfo()->getType()));
+}
+
 void JSONNodeDumper::VisitPredefinedExpr(const PredefinedExpr *PE) {
   JOS.attribute("name", PredefinedExpr::getIdentKindName(PE->getIdentKind()));
 }
@@ -1272,12 +1292,8 @@ void JSONNodeDumper::VisitCXXTypeidExpr(const CXXTypeidExpr *CTE) {
 }
 
 void JSONNodeDumper::VisitConstantExpr(const ConstantExpr *CE) {
-  if (CE->getResultAPValueKind() != APValue::None) {
-    std::string Str;
-    llvm::raw_string_ostream OS(Str);
-    CE->getAPValueResult().printPretty(OS, Ctx, CE->getType());
-    JOS.attribute("value", OS.str());
-  }
+  if (CE->getResultAPValueKind() != APValue::None)
+    Visit(CE->getAPValueResult(), CE->getType());
 }
 
 void JSONNodeDumper::VisitInitListExpr(const InitListExpr *ILE) {
@@ -1409,7 +1425,7 @@ void JSONNodeDumper::VisitFixedPointLiteral(const FixedPointLiteral *FPL) {
   JOS.attribute("value", FPL->getValueAsString(/*Radix=*/10));
 }
 void JSONNodeDumper::VisitFloatingLiteral(const FloatingLiteral *FL) {
-  llvm::SmallVector<char, 16> Buffer;
+  llvm::SmallString<16> Buffer;
   FL->getValue().toString(Buffer);
   JOS.attribute("value", Buffer);
 }
@@ -1441,6 +1457,7 @@ void JSONNodeDumper::VisitCaseStmt(const CaseStmt *CS) {
 void JSONNodeDumper::VisitLabelStmt(const LabelStmt *LS) {
   JOS.attribute("name", LS->getName());
   JOS.attribute("declId", createPointerRepresentation(LS->getDecl()));
+  attributeOnlyIfTrue("sideEntry", LS->isSideEntry());
 }
 void JSONNodeDumper::VisitGotoStmt(const GotoStmt *GS) {
   JOS.attribute("targetLabelDeclId",

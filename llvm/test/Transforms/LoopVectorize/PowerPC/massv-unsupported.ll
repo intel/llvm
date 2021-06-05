@@ -1,4 +1,4 @@
-; RUN: opt -vector-library=MASSV -loop-vectorize -force-vector-interleave=1 -S < %s | FileCheck %s
+; RUN: opt -vector-library=MASSV -inject-tli-mappings -loop-vectorize -force-vector-interleave=1 -S < %s | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-n32:64" 
 target triple = "powerpc64le-unknown-linux-gnu"
@@ -13,6 +13,7 @@ declare float @llvm.sqrt.f32(float) #0
 define void @ceil_f64(double* nocapture %varray) {
 ; CHECK-LABEL: @ceil_f64(
 ; CHECK-NOT: __ceild2_massv{{.*}}<2 x double>
+; CHECK-NOT: __ceild2_P8{{.*}}<2 x double>
 ; CHECK: ret void
 ;
 entry:
@@ -37,6 +38,7 @@ for.end:
 define void @fabs_f32(float* nocapture %varray) {
 ; CHECK-LABEL: @fabs_f32(
 ; CHECK-NOT: __fabsf4_massv{{.*}}<4 x float>
+; CHECK-NOT: __fabsf4_P8{{.*}}<4 x float>
 ; CHECK: ret void
 ;
 entry:

@@ -788,8 +788,8 @@ define void @jt_multiple_jump_tables(%1* %arg, i32 %arg1, i32* %arg2) {
   ; CHECK:   ADJCALLSTACKDOWN 0, 0, implicit-def $sp, implicit $sp
   ; CHECK:   $x0 = COPY [[COPY]](p0)
   ; CHECK:   $x1 = COPY [[LOAD]](p0)
-  ; CHECK:   BL @wibble, csr_aarch64_aapcs, implicit-def $lr, implicit $sp, implicit $x0, implicit $x1, implicit-def $x0
-  ; CHECK:   [[COPY3:%[0-9]+]]:_(p0) = COPY $x0
+  ; CHECK:   BL @wibble, csr_aarch64_aapcs_thisreturn, implicit-def $lr, implicit $sp, implicit $x0, implicit $x1
+  ; CHECK:   [[COPY3:%[0-9]+]]:_(p0) = COPY [[COPY]](p0)
   ; CHECK:   ADJCALLSTACKUP 0, 0, implicit-def $sp, implicit $sp
   ; CHECK:   G_BR %bb.59
   ; CHECK: bb.57.bb62:
@@ -797,8 +797,8 @@ define void @jt_multiple_jump_tables(%1* %arg, i32 %arg1, i32* %arg2) {
   ; CHECK:   ADJCALLSTACKDOWN 0, 0, implicit-def $sp, implicit $sp
   ; CHECK:   $x0 = COPY [[COPY]](p0)
   ; CHECK:   $x1 = COPY [[COPY2]](p0)
-  ; CHECK:   BL @wibble, csr_aarch64_aapcs, implicit-def $lr, implicit $sp, implicit $x0, implicit $x1, implicit-def $x0
-  ; CHECK:   [[COPY4:%[0-9]+]]:_(p0) = COPY $x0
+  ; CHECK:   BL @wibble, csr_aarch64_aapcs_thisreturn, implicit-def $lr, implicit $sp, implicit $x0, implicit $x1
+  ; CHECK:   [[COPY4:%[0-9]+]]:_(p0) = COPY [[COPY]](p0)
   ; CHECK:   ADJCALLSTACKUP 0, 0, implicit-def $sp, implicit $sp
   ; CHECK:   G_BR %bb.59
   ; CHECK: bb.58.bb64:
@@ -812,8 +812,8 @@ define void @jt_multiple_jump_tables(%1* %arg, i32 %arg1, i32* %arg2) {
   ; CHECK:   ADJCALLSTACKDOWN 0, 0, implicit-def $sp, implicit $sp
   ; CHECK:   $x0 = COPY [[COPY]](p0)
   ; CHECK:   $x1 = COPY [[COPY5]](p0)
-  ; CHECK:   BL @wibble, csr_aarch64_aapcs, implicit-def $lr, implicit $sp, implicit $x0, implicit $x1, implicit-def $x0
-  ; CHECK:   [[COPY6:%[0-9]+]]:_(p0) = COPY $x0
+  ; CHECK:   BL @wibble, csr_aarch64_aapcs_thisreturn, implicit-def $lr, implicit $sp, implicit $x0, implicit $x1
+  ; CHECK:   [[COPY6:%[0-9]+]]:_(p0) = COPY [[COPY]](p0)
   ; CHECK:   ADJCALLSTACKUP 0, 0, implicit-def $sp, implicit $sp
   ; CHECK: bb.59.bb68:
   ; CHECK:   RET_ReallyLR
@@ -1313,10 +1313,8 @@ define i32 @range_test(i32 %x) {
   ; CHECK:   [[SUB:%[0-9]+]]:_(s32) = G_SUB [[COPY]], [[C1]]
   ; CHECK:   [[C5:%[0-9]+]]:_(s32) = G_CONSTANT i32 2
   ; CHECK:   [[ICMP1:%[0-9]+]]:_(s1) = G_ICMP intpred(ule), [[SUB]](s32), [[C5]]
-  ; CHECK:   [[C6:%[0-9]+]]:_(s1) = G_CONSTANT i1 true
-  ; CHECK:   [[XOR:%[0-9]+]]:_(s1) = G_XOR [[ICMP1]], [[C6]]
-  ; CHECK:   G_BRCOND [[XOR]](s1), %bb.4
-  ; CHECK:   G_BR %bb.2
+  ; CHECK:   G_BRCOND [[ICMP1]](s1), %bb.2
+  ; CHECK:   G_BR %bb.4
   ; CHECK: bb.2.sw.bb:
   ; CHECK:   successors: %bb.4(0x80000000)
   ; CHECK:   [[ADD:%[0-9]+]]:_(s32) = nsw G_ADD [[COPY]], [[C3]]

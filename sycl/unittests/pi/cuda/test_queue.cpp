@@ -100,7 +100,7 @@ TEST_F(CudaTestQueue, PIQueueFinishSimple) {
 TEST_F(CudaTestQueue, PICreateQueueSimpleDefault) {
   pi_queue queue;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piQueueCreate>(
-                context_, device_, PI_CUDA_USE_DEFAULT_STREAM, &queue)),
+                context_, device_, __SYCL_PI_CUDA_USE_DEFAULT_STREAM, &queue)),
             PI_SUCCESS);
   ASSERT_NE(queue, nullptr);
   EXPECT_EQ(queue->get_context(), context_);
@@ -117,7 +117,7 @@ TEST_F(CudaTestQueue, PICreateQueueSimpleDefault) {
 TEST_F(CudaTestQueue, PICreateQueueSyncWithDefault) {
   pi_queue queue;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piQueueCreate>(
-                context_, device_, PI_CUDA_SYNC_WITH_DEFAULT, &queue)),
+                context_, device_, __SYCL_PI_CUDA_SYNC_WITH_DEFAULT, &queue)),
             PI_SUCCESS);
   ASSERT_NE(queue, nullptr);
   EXPECT_EQ(queue->get_context(), context_);

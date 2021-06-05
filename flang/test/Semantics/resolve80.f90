@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
 module m
 !C778 The same binding-attr shall not appear more than once in a given
 !binding-attr-list.
@@ -26,7 +26,7 @@ module m
     !WARNING: Attribute 'PASS' cannot be used more than once
     procedure(subPass), pass, deferred, pass :: passBinding
     !ERROR: Attributes 'PASS' and 'NOPASS' conflict with each other
-    procedure(subPassNopass), pass, deferred, nopass :: passNopassBinding
+    procedure(subPassNopass), pass, deferred, nopass :: passNopassBinding  ! C781
   end type boundProcType
 
 contains

@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
 subroutine s1
   !ERROR: Array 'z' without ALLOCATABLE or POINTER attribute must have explicit shape
   common x, y(4), z(:)
@@ -11,11 +11,11 @@ subroutine s2
 end
 
 subroutine s3
+  !ERROR: 'x' may not be a procedure as it is in a COMMON block
   procedure(real) :: x
-  !ERROR: 'x' is already declared as a procedure
   common x
   common y
-  !ERROR: 'y' is already declared as an object
+  !ERROR: 'y' may not be a procedure as it is in a COMMON block
   procedure(real) :: y
 end
 

@@ -337,7 +337,8 @@ void sls_fun_bad_12() {
     }
     sls_mu.Lock();
   }
-  sls_mu.Unlock();
+  sls_mu.Unlock(); // \
+    // expected-warning{{releasing mutex 'sls_mu' that was not held}}
 }
 
 //-----------------------------------------//
@@ -2582,6 +2583,7 @@ class Foo {
   void test3();
   void test4();
   void test5();
+  void test6();
 };
 
 
@@ -2595,6 +2597,7 @@ void Foo::test2() {
   if (c) {            // test join point -- held/not held during release
     rlock.Release();
   }
+  // No warning on join point because the lock will be released by the scope object anyway.
 }
 
 void Foo::test3() {
@@ -2615,8 +2618,20 @@ void Foo::test5() {
   if (c) {
     rlock.Release();
   }
-  // no warning on join point for managed lock.
+  // No warning on join point because the lock will be released by the scope object anyway.
   rlock.Release();  // expected-warning {{releasing mutex 'mu_' that was not held}}
+}
+
+void Foo::test6() {
+  ReleasableMutexLock rlock(&mu_);
+  do {
+    if (c) {
+      rlock.Release();
+      break;
+    }
+  } while (c);
+  // No warning on join point because the lock will be released by the scope object anyway
+  a = 1; // expected-warning {{writing variable 'a' requires holding mutex 'mu_' exclusively}}
 }
 
 
@@ -2659,6 +2674,7 @@ public:
 
 Mutex mu;
 int x GUARDED_BY(mu);
+bool b;
 
 void print(int);
 
@@ -2738,6 +2754,23 @@ void doubleLock2() {
   scope.Unlock();
   scope.Lock(); // expected-note{{mutex acquired here}}
   scope.Lock(); // expected-warning {{acquiring mutex 'mu' that is already held}}
+}
+
+void lockJoin() {
+  RelockableMutexLock scope(&mu, DeferTraits{});
+  if (b)
+    scope.Lock();
+  // No warning on join point because the lock will be released by the scope object anyway.
+  x = 2; // expected-warning {{writing variable 'x' requires holding mutex 'mu' exclusively}}
+}
+
+void unlockJoin() {
+  RelockableMutexLock scope(&mu, DeferTraits{});
+  scope.Lock();
+  if (b)
+    scope.Unlock();
+  // No warning on join point because the lock will be released by the scope object anyway.
+  x = 2; // expected-warning {{writing variable 'x' requires holding mutex 'mu' exclusively}}
 }
 
 void directUnlock() {
@@ -2871,10 +2904,9 @@ void manual() EXCLUSIVE_LOCKS_REQUIRED(mu) {
 
 void join() EXCLUSIVE_LOCKS_REQUIRED(mu) {
   MutexUnlock scope(&mu);
-  if (c) {
-    scope.Lock(); // expected-note{{mutex acquired here}}
-  }
-  // expected-warning@+1{{mutex 'mu' is not held on every path through here}}
+  if (c)
+    scope.Lock();
+  // No warning on join point because the lock will be released by the scope object anyway.
   scope.Lock();
 }
 
@@ -4985,7 +5017,7 @@ public:
   }
 
   void bar() {
-    bar2();       // expected-warning {{calling function 'bar2' requires holding  '!mu'}}
+    bar2();       // expected-warning {{calling function 'bar2' requires negative capability '!mu'}}
   }
 
   void bar2() EXCLUSIVE_LOCKS_REQUIRED(!mu) {
@@ -5036,7 +5068,8 @@ void spawn_fake_flight_control_thread(void) {
 }
 
 extern const char *deque_log_msg(void) __attribute__((requires_capability(Logger)));
-void logger_entry(void) __attribute__((requires_capability(Logger))) {
+void logger_entry(void) __attribute__((requires_capability(Logger)))
+                        __attribute__((requires_capability(!FlightControl))) {
   const char *msg;
 
   while ((msg = deque_log_msg())) {
@@ -5044,13 +5077,13 @@ void logger_entry(void) __attribute__((requires_capability(Logger))) {
   }
 }
 
-void spawn_fake_logger_thread(void) {
+void spawn_fake_logger_thread(void) __attribute__((requires_capability(!FlightControl))) {
   acquire(Logger);
   logger_entry();
   release(Logger);
 }
 
-int main(void) {
+int main(void) __attribute__((requires_capability(!FlightControl))) {
   spawn_fake_flight_control_thread();
   spawn_fake_logger_thread();
 

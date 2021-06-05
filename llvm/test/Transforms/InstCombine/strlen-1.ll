@@ -141,7 +141,7 @@ define i32 @test_simplify11(i32 %x) {
 
 define i32 @test_no_simplify1() {
 ; CHECK-LABEL: @test_no_simplify1(
-; CHECK-NEXT:    [[A_L:%.*]] = call i32 @strlen(i8* nonnull dereferenceable(1) getelementptr inbounds ([32 x i8], [32 x i8]* @a, i32 0, i32 0))
+; CHECK-NEXT:    [[A_L:%.*]] = call i32 @strlen(i8* noundef nonnull dereferenceable(1) getelementptr inbounds ([32 x i8], [32 x i8]* @a, i32 0, i32 0))
 ; CHECK-NEXT:    ret i32 [[A_L]]
 ;
   %a_p = getelementptr [32 x i8], [32 x i8]* @a, i32 0, i32 0
@@ -154,7 +154,7 @@ define i32 @test_no_simplify1() {
 define i32 @test_no_simplify2(i32 %x) {
 ; CHECK-LABEL: @test_no_simplify2(
 ; CHECK-NEXT:    [[HELLO_P:%.*]] = getelementptr inbounds [7 x i8], [7 x i8]* @null_hello, i32 0, i32 [[X:%.*]]
-; CHECK-NEXT:    [[HELLO_L:%.*]] = call i32 @strlen(i8* nonnull [[HELLO_P]])
+; CHECK-NEXT:    [[HELLO_L:%.*]] = call i32 @strlen(i8* noundef nonnull [[HELLO_P]])
 ; CHECK-NEXT:    ret i32 [[HELLO_L]]
 ;
   %hello_p = getelementptr inbounds [7 x i8], [7 x i8]* @null_hello, i32 0, i32 %x
@@ -165,7 +165,7 @@ define i32 @test_no_simplify2(i32 %x) {
 define i32 @test_no_simplify2_no_null_opt(i32 %x) #0 {
 ; CHECK-LABEL: @test_no_simplify2_no_null_opt(
 ; CHECK-NEXT:    [[HELLO_P:%.*]] = getelementptr inbounds [7 x i8], [7 x i8]* @null_hello, i32 0, i32 [[X:%.*]]
-; CHECK-NEXT:    [[HELLO_L:%.*]] = call i32 @strlen(i8* [[HELLO_P]])
+; CHECK-NEXT:    [[HELLO_L:%.*]] = call i32 @strlen(i8* noundef [[HELLO_P]])
 ; CHECK-NEXT:    ret i32 [[HELLO_L]]
 ;
   %hello_p = getelementptr inbounds [7 x i8], [7 x i8]* @null_hello, i32 0, i32 %x
@@ -179,7 +179,7 @@ define i32 @test_no_simplify3(i32 %x) {
 ; CHECK-LABEL: @test_no_simplify3(
 ; CHECK-NEXT:    [[AND:%.*]] = and i32 [[X:%.*]], 15
 ; CHECK-NEXT:    [[HELLO_P:%.*]] = getelementptr inbounds [13 x i8], [13 x i8]* @null_hello_mid, i32 0, i32 [[AND]]
-; CHECK-NEXT:    [[HELLO_L:%.*]] = call i32 @strlen(i8* nonnull [[HELLO_P]])
+; CHECK-NEXT:    [[HELLO_L:%.*]] = call i32 @strlen(i8* noundef nonnull [[HELLO_P]])
 ; CHECK-NEXT:    ret i32 [[HELLO_L]]
 ;
   %and = and i32 %x, 15
@@ -192,7 +192,7 @@ define i32 @test_no_simplify3_on_null_opt(i32 %x) #0 {
 ; CHECK-LABEL: @test_no_simplify3_on_null_opt(
 ; CHECK-NEXT:    [[AND:%.*]] = and i32 [[X:%.*]], 15
 ; CHECK-NEXT:    [[HELLO_P:%.*]] = getelementptr inbounds [13 x i8], [13 x i8]* @null_hello_mid, i32 0, i32 [[AND]]
-; CHECK-NEXT:    [[HELLO_L:%.*]] = call i32 @strlen(i8* [[HELLO_P]])
+; CHECK-NEXT:    [[HELLO_L:%.*]] = call i32 @strlen(i8* noundef [[HELLO_P]])
 ; CHECK-NEXT:    ret i32 [[HELLO_L]]
 ;
   %and = and i32 %x, 15
@@ -203,7 +203,7 @@ define i32 @test_no_simplify3_on_null_opt(i32 %x) #0 {
 
 define i32 @test1(i8* %str) {
 ; CHECK-LABEL: @test1(
-; CHECK-NEXT:    [[LEN:%.*]] = tail call i32 @strlen(i8* nonnull dereferenceable(1) [[STR:%.*]]) #1
+; CHECK-NEXT:    [[LEN:%.*]] = tail call i32 @strlen(i8* noundef nonnull dereferenceable(1) [[STR:%.*]]) [[ATTR1:#.*]]
 ; CHECK-NEXT:    ret i32 [[LEN]]
 ;
   %len = tail call i32 @strlen(i8* %str) nounwind
@@ -212,11 +212,62 @@ define i32 @test1(i8* %str) {
 
 define i32 @test2(i8* %str) #0 {
 ; CHECK-LABEL: @test2(
-; CHECK-NEXT:    [[LEN:%.*]] = tail call i32 @strlen(i8* [[STR:%.*]]) #1
+; CHECK-NEXT:    [[LEN:%.*]] = tail call i32 @strlen(i8* noundef [[STR:%.*]]) [[ATTR1]]
 ; CHECK-NEXT:    ret i32 [[LEN]]
 ;
   %len = tail call i32 @strlen(i8* %str) nounwind
   ret i32 %len
+}
+
+; Test cases for PR47149.
+define i1 @strlen0_after_write_to_first_byte_global() {
+; CHECK-LABEL: @strlen0_after_write_to_first_byte_global(
+; CHECK-NEXT:    store i8 49, i8* getelementptr inbounds ([32 x i8], [32 x i8]* @a, i32 0, i32 0), align 16
+; CHECK-NEXT:    ret i1 false
+;
+  store i8 49, i8* getelementptr inbounds ([32 x i8], [32 x i8]* @a, i64 0, i64 0), align 16
+  %len = tail call i32 @strlen(i8* nonnull dereferenceable(1) getelementptr inbounds ([32 x i8], [32 x i8]* @a, i64 0, i64 0))
+  %cmp = icmp eq i32 %len, 0
+  ret i1 %cmp
+}
+
+define i1 @strlen0_after_write_to_second_byte_global() {
+; CHECK-LABEL: @strlen0_after_write_to_second_byte_global(
+; CHECK-NEXT:    store i8 49, i8* getelementptr inbounds ([32 x i8], [32 x i8]* @a, i32 0, i32 1), align 16
+; CHECK-NEXT:    [[STRLENFIRST:%.*]] = load i8, i8* getelementptr inbounds ([32 x i8], [32 x i8]* @a, i32 0, i32 0), align 1
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i8 [[STRLENFIRST]], 0
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  store i8 49, i8* getelementptr inbounds ([32 x i8], [32 x i8]* @a, i64 0, i64 1), align 16
+  %len = tail call i32 @strlen(i8* nonnull dereferenceable(1) getelementptr inbounds ([32 x i8], [32 x i8]* @a, i64 0, i64 0))
+  %cmp = icmp eq i32 %len, 0
+  ret i1 %cmp
+}
+
+define i1 @strlen0_after_write_to_first_byte(i8 *%ptr) {
+; CHECK-LABEL: @strlen0_after_write_to_first_byte(
+; CHECK-NEXT:    store i8 49, i8* [[PTR:%.*]], align 1
+; CHECK-NEXT:    ret i1 false
+;
+  store i8 49, i8* %ptr
+  %len = tail call i32 @strlen(i8* nonnull dereferenceable(1) %ptr)
+  %cmp = icmp eq i32 %len, 0
+  ret i1 %cmp
+}
+
+define i1 @strlen0_after_write_to_second_byte(i8 *%ptr) {
+; CHECK-LABEL: @strlen0_after_write_to_second_byte(
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr i8, i8* [[PTR:%.*]], i32 1
+; CHECK-NEXT:    store i8 49, i8* [[GEP]], align 1
+; CHECK-NEXT:    [[STRLENFIRST:%.*]] = load i8, i8* [[PTR]], align 1
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i8 [[STRLENFIRST]], 0
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  %gep = getelementptr i8, i8* %ptr, i64 1
+  store i8 49, i8* %gep
+  %len = tail call i32 @strlen(i8* nonnull dereferenceable(1) %ptr)
+  %cmp = icmp eq i32 %len, 0
+  ret i1 %cmp
 }
 
 attributes #0 = { null_pointer_is_valid }

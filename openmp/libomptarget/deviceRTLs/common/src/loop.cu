@@ -11,10 +11,11 @@
 // interface as loops.
 //
 //===----------------------------------------------------------------------===//
+#pragma omp declare target
 
 #include "common/omptarget.h"
+#include "target/shuffle.h"
 #include "target_impl.h"
-#include "common/target_atomic.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -410,7 +411,7 @@ public:
                                      T loopLowerBound, T loopUpperBound) {
     T N = NextIter();
     lb = loopLowerBound + N * chunkSize;
-    ub = lb + chunkSize - 1;  // Clang uses i <= ub
+    ub = lb + chunkSize - 1; // Clang uses i <= ub
 
     // 3 result cases:
     //  a. lb and ub < loopUpperBound --> NOT_FINISHED
@@ -567,9 +568,9 @@ EXTERN int __kmpc_dispatch_next_4(kmp_Ident *loc, int32_t tid, int32_t *p_last,
       loc, tid, p_last, p_lb, p_ub, p_st);
 }
 
-EXTERN int __kmpc_dispatch_next_4u(kmp_Ident *loc, int32_t tid,
-                                   int32_t *p_last, uint32_t *p_lb,
-                                   uint32_t *p_ub, int32_t *p_st) {
+EXTERN int __kmpc_dispatch_next_4u(kmp_Ident *loc, int32_t tid, int32_t *p_last,
+                                   uint32_t *p_lb, uint32_t *p_ub,
+                                   int32_t *p_st) {
   PRINT0(LD_IO, "call kmpc_dispatch_next_4u\n");
   return omptarget_nvptx_LoopSupport<uint32_t, int32_t>::dispatch_next(
       loc, tid, p_last, p_lb, p_ub, p_st);
@@ -582,9 +583,9 @@ EXTERN int __kmpc_dispatch_next_8(kmp_Ident *loc, int32_t tid, int32_t *p_last,
       loc, tid, p_last, p_lb, p_ub, p_st);
 }
 
-EXTERN int __kmpc_dispatch_next_8u(kmp_Ident *loc, int32_t tid,
-                                   int32_t *p_last, uint64_t *p_lb,
-                                   uint64_t *p_ub, int64_t *p_st) {
+EXTERN int __kmpc_dispatch_next_8u(kmp_Ident *loc, int32_t tid, int32_t *p_last,
+                                   uint64_t *p_lb, uint64_t *p_ub,
+                                   int64_t *p_st) {
   PRINT0(LD_IO, "call kmpc_dispatch_next_8u\n");
   return omptarget_nvptx_LoopSupport<uint64_t, int64_t>::dispatch_next(
       loc, tid, p_last, p_lb, p_ub, p_st);
@@ -708,10 +709,12 @@ void __kmpc_for_static_init_8u_simple_spmd(kmp_Ident *loc, int32_t global_tid,
 }
 
 EXTERN
-void __kmpc_for_static_init_4_simple_generic(
-    kmp_Ident *loc, int32_t global_tid, int32_t schedtype, int32_t *plastiter,
-    int32_t *plower, int32_t *pupper, int32_t *pstride, int32_t incr,
-    int32_t chunk) {
+void __kmpc_for_static_init_4_simple_generic(kmp_Ident *loc, int32_t global_tid,
+                                             int32_t schedtype,
+                                             int32_t *plastiter,
+                                             int32_t *plower, int32_t *pupper,
+                                             int32_t *pstride, int32_t incr,
+                                             int32_t chunk) {
   PRINT0(LD_IO, "call kmpc_for_static_init_4_simple_generic\n");
   omptarget_nvptx_LoopSupport<int32_t, int32_t>::for_static_init(
       global_tid, schedtype, plastiter, plower, pupper, pstride, chunk,
@@ -730,10 +733,12 @@ void __kmpc_for_static_init_4u_simple_generic(
 }
 
 EXTERN
-void __kmpc_for_static_init_8_simple_generic(
-    kmp_Ident *loc, int32_t global_tid, int32_t schedtype, int32_t *plastiter,
-    int64_t *plower, int64_t *pupper, int64_t *pstride, int64_t incr,
-    int64_t chunk) {
+void __kmpc_for_static_init_8_simple_generic(kmp_Ident *loc, int32_t global_tid,
+                                             int32_t schedtype,
+                                             int32_t *plastiter,
+                                             int64_t *plower, int64_t *pupper,
+                                             int64_t *pstride, int64_t incr,
+                                             int64_t chunk) {
   PRINT0(LD_IO, "call kmpc_for_static_init_8_simple_generic\n");
   omptarget_nvptx_LoopSupport<int64_t, int64_t>::for_static_init(
       global_tid, schedtype, plastiter, plower, pupper, pstride, chunk,
@@ -755,54 +760,4 @@ EXTERN void __kmpc_for_static_fini(kmp_Ident *loc, int32_t global_tid) {
   PRINT0(LD_IO, "call kmpc_for_static_fini\n");
 }
 
-namespace {
-INLINE void syncWorkersInGenericMode(uint32_t NumThreads) {
-  int NumWarps = ((NumThreads + WARPSIZE - 1) / WARPSIZE);
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 700
-  // On Volta and newer architectures we require that all lanes in
-  // a warp (at least, all present for the kernel launch) participate in the
-  // barrier.  This is enforced when launching the parallel region.  An
-  // exception is when there are < WARPSIZE workers.  In this case only 1 worker
-  // is started, so we don't need a barrier.
-  if (NumThreads > 1) {
-#endif
-    __kmpc_impl_named_sync(L1_BARRIER, WARPSIZE * NumWarps);
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 700
-  }
-#endif
-}
-}; // namespace
-
-EXTERN void __kmpc_reduce_conditional_lastprivate(kmp_Ident *loc, int32_t gtid,
-                                                  int32_t varNum, void *array) {
-  PRINT0(LD_IO, "call to __kmpc_reduce_conditional_lastprivate(...)\n");
-  ASSERT0(LT_FUSSY, checkRuntimeInitialized(loc),
-          "Expected non-SPMD mode + initialized runtime.");
-
-  omptarget_nvptx_TeamDescr &teamDescr = getMyTeamDescriptor();
-  uint32_t NumThreads = GetNumberOfOmpThreads(checkSPMDMode(loc));
-  uint64_t *Buffer = teamDescr.getLastprivateIterBuffer();
-  for (unsigned i = 0; i < varNum; i++) {
-    // Reset buffer.
-    if (gtid == 0)
-      *Buffer = 0; // Reset to minimum loop iteration value.
-
-    // Barrier.
-    syncWorkersInGenericMode(NumThreads);
-
-    // Atomic max of iterations.
-    uint64_t *varArray = (uint64_t *)array;
-    uint64_t elem = varArray[i];
-    (void)__kmpc_atomic_max((unsigned long long int *)Buffer,
-                            (unsigned long long int)elem);
-
-    // Barrier.
-    syncWorkersInGenericMode(NumThreads);
-
-    // Read max value and update thread private array.
-    varArray[i] = *Buffer;
-
-    // Barrier.
-    syncWorkersInGenericMode(NumThreads);
-  }
-}
+#pragma omp end declare target

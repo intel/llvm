@@ -5,6 +5,9 @@ add_subdirectory(Lower)
 add_subdirectory(Parser)
 add_subdirectory(Semantics)
 
-if(LINK_WITH_FIR)
-  add_subdirectory(Optimizer)
+if(FLANG_BUILD_NEW_DRIVER)
+  add_subdirectory(Frontend)
+  add_subdirectory(FrontendTool)
 endif()
+
+add_subdirectory(Optimizer)

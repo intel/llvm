@@ -16,7 +16,7 @@
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicSize.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicExtent.h"
 
 using namespace clang;
 using namespace ento;
@@ -64,10 +64,12 @@ bool BuiltinFunctionChecker::evalCall(const CallEvent &Call,
 
   case Builtin::BI__builtin_unpredictable:
   case Builtin::BI__builtin_expect:
+  case Builtin::BI__builtin_expect_with_probability:
   case Builtin::BI__builtin_assume_aligned:
   case Builtin::BI__builtin_addressof: {
-    // For __builtin_unpredictable, __builtin_expect, and
-    // __builtin_assume_aligned, just return the value of the subexpression.
+    // For __builtin_unpredictable, __builtin_expect,
+    // __builtin_expect_with_probability and __builtin_assume_aligned,
+    // just return the value of the subexpression.
     // __builtin_addressof is going from a reference to a pointer, but those
     // are represented the same way in the analyzer.
     assert (Call.getNumArgs() > 0);
@@ -90,12 +92,8 @@ bool BuiltinFunctionChecker::evalCall(const CallEvent &Call,
     if (Size.isUndef())
       return true; // Return true to model purity.
 
-    SValBuilder& svalBuilder = C.getSValBuilder();
-    DefinedOrUnknownSVal DynSize = getDynamicSize(state, R, svalBuilder);
-    DefinedOrUnknownSVal DynSizeMatchesSizeArg =
-        svalBuilder.evalEQ(state, DynSize, Size.castAs<DefinedOrUnknownSVal>());
-    state = state->assume(DynSizeMatchesSizeArg, true);
-    assert(state && "The region should not have any previous constraints");
+    state = setDynamicExtent(state, R, Size.castAs<DefinedOrUnknownSVal>(),
+                             C.getSValBuilder());
 
     C.addTransition(state->BindExpr(CE, LCtx, loc::MemRegionVal(R)));
     return true;

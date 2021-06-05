@@ -60,10 +60,7 @@ CheckTy0Ty1MemSizeAlign(const LegalityQuery &Query,
 
 static bool CheckTyN(unsigned N, const LegalityQuery &Query,
                      std::initializer_list<LLT> SupportedValues) {
-  for (auto &Val : SupportedValues)
-    if (Val == Query.Types[N])
-      return true;
-  return false;
+  return llvm::is_contained(SupportedValues, Query.Types[N]);
 }
 
 MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
@@ -322,6 +319,8 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
 
   getActionDefinitionsBuilder(G_SEXT_INREG).lower();
 
+  getActionDefinitionsBuilder({G_MEMCPY, G_MEMMOVE, G_MEMSET}).libcall();
+
   computeTables();
   verify(*ST.getInstrInfo());
 }
@@ -500,7 +499,6 @@ static bool MSA2OpIntrinsicToGeneric(MachineInstr &MI, unsigned Opcode,
 bool MipsLegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
                                           MachineInstr &MI) const {
   MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
-  MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
   const MipsSubtarget &ST =
       static_cast<const MipsSubtarget &>(MI.getMF()->getSubtarget());
   const MipsInstrInfo &TII = *ST.getInstrInfo();
@@ -508,14 +506,6 @@ bool MipsLegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
   const RegisterBankInfo &RBI = *ST.getRegBankInfo();
 
   switch (MI.getIntrinsicID()) {
-  case Intrinsic::memcpy:
-  case Intrinsic::memset:
-  case Intrinsic::memmove:
-    if (createMemLibcall(MIRBuilder, MRI, MI) ==
-        LegalizerHelper::UnableToLegalize)
-      return false;
-    MI.eraseFromParent();
-    return true;
   case Intrinsic::trap: {
     MachineInstr *Trap = MIRBuilder.buildInstr(Mips::TRAP);
     MI.eraseFromParent();

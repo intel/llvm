@@ -8,7 +8,9 @@
 
 #include "mlir/Pass/AnalysisManager.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassManager.h"
 #include "gtest/gtest.h"
 
 using namespace mlir;
@@ -21,6 +23,9 @@ struct MyAnalysis {
 };
 struct OtherAnalysis {
   OtherAnalysis(Operation *) {}
+};
+struct OpSpecificAnalysis {
+  OpSpecificAnalysis(ModuleOp) {}
 };
 
 TEST(AnalysisManagerTest, FineGrainModuleAnalysisPreservation) {
@@ -53,12 +58,13 @@ TEST(AnalysisManagerTest, FineGrainFunctionAnalysisPreservation) {
   FuncOp func1 =
       FuncOp::create(builder.getUnknownLoc(), "foo",
                      builder.getFunctionType(llvm::None, llvm::None));
+  func1.setPrivate();
   module->push_back(func1);
 
   // Test fine grain invalidation of the function analysis manager.
   ModuleAnalysisManager mam(*module, /*passInstrumentor=*/nullptr);
   AnalysisManager am = mam;
-  AnalysisManager fam = am.slice(func1);
+  AnalysisManager fam = am.nest(func1);
 
   // Query two different analyses, but only preserve one before invalidating.
   fam.getAnalysis<MyAnalysis>();
@@ -82,6 +88,7 @@ TEST(AnalysisManagerTest, FineGrainChildFunctionAnalysisPreservation) {
   FuncOp func1 =
       FuncOp::create(builder.getUnknownLoc(), "foo",
                      builder.getFunctionType(llvm::None, llvm::None));
+  func1.setPrivate();
   module->push_back(func1);
 
   // Test fine grain invalidation of a function analysis from within a module
@@ -138,4 +145,105 @@ TEST(AnalysisManagerTest, CustomInvalidation) {
   am.invalidate(pa);
   EXPECT_TRUE(am.getCachedAnalysis<CustomInvalidatingAnalysis>().hasValue());
 }
+
+TEST(AnalysisManagerTest, OpSpecificAnalysis) {
+  MLIRContext context;
+
+  // Create a module.
+  OwningModuleRef module(ModuleOp::create(UnknownLoc::get(&context)));
+  ModuleAnalysisManager mam(*module, /*passInstrumentor=*/nullptr);
+  AnalysisManager am = mam;
+
+  // Query the op specific analysis for the module and verify that its cached.
+  am.getAnalysis<OpSpecificAnalysis, ModuleOp>();
+  EXPECT_TRUE(am.getCachedAnalysis<OpSpecificAnalysis>().hasValue());
+}
+
+struct AnalysisWithDependency {
+  AnalysisWithDependency(Operation *, AnalysisManager &am) {
+    am.getAnalysis<MyAnalysis>();
+  }
+
+  bool isInvalidated(const AnalysisManager::PreservedAnalyses &pa) {
+    return !pa.isPreserved<AnalysisWithDependency>() ||
+           !pa.isPreserved<MyAnalysis>();
+  }
+};
+
+TEST(AnalysisManagerTest, DependentAnalysis) {
+  MLIRContext context;
+
+  // Create a module.
+  OwningModuleRef module(ModuleOp::create(UnknownLoc::get(&context)));
+  ModuleAnalysisManager mam(*module, /*passInstrumentor=*/nullptr);
+  AnalysisManager am = mam;
+
+  am.getAnalysis<AnalysisWithDependency>();
+  EXPECT_TRUE(am.getCachedAnalysis<AnalysisWithDependency>().hasValue());
+  EXPECT_TRUE(am.getCachedAnalysis<MyAnalysis>().hasValue());
+
+  detail::PreservedAnalyses pa;
+  pa.preserve<AnalysisWithDependency>();
+  am.invalidate(pa);
+
+  EXPECT_FALSE(am.getCachedAnalysis<AnalysisWithDependency>().hasValue());
+  EXPECT_FALSE(am.getCachedAnalysis<MyAnalysis>().hasValue());
+}
+
+struct AnalysisWithNestedDependency {
+  AnalysisWithNestedDependency(Operation *, AnalysisManager &am) {
+    am.getAnalysis<AnalysisWithDependency>();
+  }
+
+  bool isInvalidated(const AnalysisManager::PreservedAnalyses &pa) {
+    return !pa.isPreserved<AnalysisWithNestedDependency>() ||
+           !pa.isPreserved<AnalysisWithDependency>();
+  }
+};
+
+TEST(AnalysisManagerTest, NestedDependentAnalysis) {
+  MLIRContext context;
+
+  // Create a module.
+  OwningModuleRef module(ModuleOp::create(UnknownLoc::get(&context)));
+  ModuleAnalysisManager mam(*module, /*passInstrumentor=*/nullptr);
+  AnalysisManager am = mam;
+
+  am.getAnalysis<AnalysisWithNestedDependency>();
+  EXPECT_TRUE(am.getCachedAnalysis<AnalysisWithNestedDependency>().hasValue());
+  EXPECT_TRUE(am.getCachedAnalysis<AnalysisWithDependency>().hasValue());
+  EXPECT_TRUE(am.getCachedAnalysis<MyAnalysis>().hasValue());
+
+  detail::PreservedAnalyses pa;
+  pa.preserve<AnalysisWithDependency>();
+  pa.preserve<AnalysisWithNestedDependency>();
+  am.invalidate(pa);
+
+  EXPECT_FALSE(am.getCachedAnalysis<AnalysisWithNestedDependency>().hasValue());
+  EXPECT_FALSE(am.getCachedAnalysis<AnalysisWithDependency>().hasValue());
+  EXPECT_FALSE(am.getCachedAnalysis<MyAnalysis>().hasValue());
+}
+
+struct AnalysisWith2Ctors {
+  AnalysisWith2Ctors(Operation *) { ctor1called = true; }
+
+  AnalysisWith2Ctors(Operation *, AnalysisManager &) { ctor2called = true; }
+
+  bool ctor1called = false;
+  bool ctor2called = false;
+};
+
+TEST(AnalysisManagerTest, DependentAnalysis2Ctors) {
+  MLIRContext context;
+
+  // Create a module.
+  OwningModuleRef module(ModuleOp::create(UnknownLoc::get(&context)));
+  ModuleAnalysisManager mam(*module, /*passInstrumentor=*/nullptr);
+  AnalysisManager am = mam;
+
+  auto &an = am.getAnalysis<AnalysisWith2Ctors>();
+  EXPECT_FALSE(an.ctor1called);
+  EXPECT_TRUE(an.ctor2called);
+}
+
 } // end namespace

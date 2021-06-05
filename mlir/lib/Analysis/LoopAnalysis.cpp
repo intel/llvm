@@ -213,7 +213,7 @@ DenseSet<Value> mlir::getInvariantAccesses(Value iv, ArrayRef<Value> indices) {
 /// Returns false if the MemRef has a non-identity layoutMap or more than 1
 /// layoutMap. This is conservative.
 ///
-// TODO(ntv): check strides.
+// TODO: check strides.
 template <typename LoadOrStoreOp>
 static bool isContiguousAccess(Value iv, LoadOrStoreOp memoryOp,
                                int *memRefDim) {
@@ -224,8 +224,7 @@ static bool isContiguousAccess(Value iv, LoadOrStoreOp memoryOp,
   auto memRefType = memoryOp.getMemRefType();
 
   auto layoutMap = memRefType.getAffineMaps();
-  // TODO(ntv): remove dependence on Builder once we support non-identity
-  // layout map.
+  // TODO: remove dependence on Builder once we support non-identity layout map.
   Builder b(memoryOp.getContext());
   if (layoutMap.size() >= 2 ||
       (layoutMap.size() == 1 &&
@@ -314,7 +313,7 @@ isVectorizableLoopBodyWithOpCond(AffineForOp loop,
     auto store = dyn_cast<AffineStoreOp>(op);
     // Only scalar types are considered vectorizable, all load/store must be
     // vectorizable for a loop to qualify as vectorizable.
-    // TODO(ntv): ponder whether we want to be more general here.
+    // TODO: ponder whether we want to be more general here.
     bool vector = load ? isVectorElement(load) : isVectorElement(store);
     if (vector) {
       return false;
@@ -328,11 +327,23 @@ isVectorizableLoopBodyWithOpCond(AffineForOp loop,
 
 bool mlir::isVectorizableLoopBody(AffineForOp loop, int *memRefDim,
                                   NestedPattern &vectorTransferMatcher) {
+  *memRefDim = -1;
   VectorizableOpFun fun([memRefDim](AffineForOp loop, Operation &op) {
     auto load = dyn_cast<AffineLoadOp>(op);
     auto store = dyn_cast<AffineStoreOp>(op);
-    return load ? isContiguousAccess(loop.getInductionVar(), load, memRefDim)
-                : isContiguousAccess(loop.getInductionVar(), store, memRefDim);
+    int thisOpMemRefDim = -1;
+    bool isContiguous = load ? isContiguousAccess(loop.getInductionVar(), load,
+                                                  &thisOpMemRefDim)
+                             : isContiguousAccess(loop.getInductionVar(), store,
+                                                  &thisOpMemRefDim);
+    if (thisOpMemRefDim != -1) {
+      // If memory accesses vary across different dimensions then the loop is
+      // not vectorizable.
+      if (*memRefDim != -1 && *memRefDim != thisOpMemRefDim)
+        return false;
+      *memRefDim = thisOpMemRefDim;
+    }
+    return isContiguous;
   });
   return isVectorizableLoopBodyWithOpCond(loop, fun, vectorTransferMatcher);
 }
@@ -345,8 +356,8 @@ bool mlir::isVectorizableLoopBody(AffineForOp loop,
 /// Checks whether SSA dominance would be violated if a for op's body
 /// operations are shifted by the specified shifts. This method checks if a
 /// 'def' and all its uses have the same shift factor.
-// TODO(mlir-team): extend this to check for memory-based dependence violation
-// when we have the support.
+// TODO: extend this to check for memory-based dependence violation when we have
+// the support.
 bool mlir::isOpwiseShiftValid(AffineForOp forOp, ArrayRef<uint64_t> shifts) {
   auto *forBody = forOp.getBody();
   assert(shifts.size() == forBody->getOperations().size());

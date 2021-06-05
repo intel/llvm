@@ -130,7 +130,8 @@ def CallAndMessageModeling : Checker<"CallAndMessageModeling">,
            "function/method call. For instance, if we can't reason about the "
            "nullability of the implicit this parameter after a method call, "
            "this checker conservatively assumes it to be non-null">,
-  Documentation<HasDocumentation>;
+  Documentation<HasDocumentation>,
+  Hidden;
 
 def CallAndMessageChecker : Checker<"CallAndMessage">,
   HelpText<"Check for logical errors for function calls and Objective-C "
@@ -220,7 +221,8 @@ def StackAddrEscapeChecker : Checker<"StackAddressEscape">,
 
 def DynamicTypePropagation : Checker<"DynamicTypePropagation">,
   HelpText<"Generate dynamic type information">,
-  Documentation<NotDocumented>;
+  Documentation<NotDocumented>,
+  Hidden;
 
 def NonnullGlobalConstantsChecker: Checker<"NonnilStringConstants">,
   HelpText<"Assume that const string-like globals are non-null">,
@@ -347,6 +349,8 @@ let ParentPackage = APIModeling in {
 
 def StdCLibraryFunctionsChecker : Checker<"StdCLibraryFunctions">,
   HelpText<"Improve modeling of the C standard library functions">,
+  // Uninitialized value check is a mandatory dependency. This Checker asserts
+  // that arguments are always initialized.
   Dependencies<[CallAndMessageModeling]>,
   CheckerOptions<[
     CmdLineOption<Boolean,
@@ -354,9 +358,17 @@ def StdCLibraryFunctionsChecker : Checker<"StdCLibraryFunctions">,
                   "If set to true, the checker displays the found summaries "
                   "for the given translation unit.",
                   "false",
-                  Released>
+                  Released,
+                  Hide>,
+    CmdLineOption<Boolean,
+                  "ModelPOSIX",
+                  "If set to true, the checker models functions from the "
+                  "POSIX standard.",
+                  "false",
+                  InAlpha>
   ]>,
-  Documentation<NotDocumented>;
+  Documentation<NotDocumented>,
+  Hidden;
 
 def TrustNonnullChecker : Checker<"TrustNonnull">,
   HelpText<"Trust that returns from framework methods annotated with _Nonnull "
@@ -364,18 +376,6 @@ def TrustNonnullChecker : Checker<"TrustNonnull">,
   Documentation<NotDocumented>;
 
 } // end "apiModeling"
-
-let ParentPackage = APIModelingAlpha in {
-
-def StdCLibraryFunctionArgsChecker : Checker<"StdCLibraryFunctionArgs">,
-  HelpText<"Check constraints of arguments of C standard library functions, "
-           "such as whether the parameter of isalpha is in the range [0, 255] "
-           "or is EOF.">,
-  Dependencies<[StdCLibraryFunctionsChecker]>,
-  WeakDependencies<[NonNullParamChecker]>,
-  Documentation<NotDocumented>;
-
-} // end "alpha.apiModeling"
 
 //===----------------------------------------------------------------------===//
 // Evaluate "builtin" functions.
@@ -535,6 +535,14 @@ def BlockInCriticalSectionChecker : Checker<"BlockInCriticalSection">,
   HelpText<"Check for calls to blocking functions inside a critical section">,
   Documentation<HasAlphaDocumentation>;
 
+def StdCLibraryFunctionArgsChecker : Checker<"StdCLibraryFunctionArgs">,
+  HelpText<"Check constraints of arguments of C standard library functions, "
+           "such as whether the parameter of isalpha is in the range [0, 255] "
+           "or is EOF.">,
+  Dependencies<[StdCLibraryFunctionsChecker]>,
+  WeakDependencies<[CallAndMessageChecker, NonNullParamChecker, StreamChecker]>,
+  Documentation<NotDocumented>;
+
 } // end "alpha.unix"
 
 //===----------------------------------------------------------------------===//
@@ -571,9 +579,17 @@ def CXXSelfAssignmentChecker : Checker<"SelfAssignment">,
   Documentation<NotDocumented>,
   Hidden;
 
-def SmartPtrModeling: Checker<"SmartPtr">,
+def SmartPtrModeling: Checker<"SmartPtrModeling">,
   HelpText<"Model behavior of C++ smart pointers">,
   Documentation<NotDocumented>,
+    CheckerOptions<[
+    CmdLineOption<Boolean,
+                  "ModelSmartPtrDereference",
+                  "Enable modeling for SmartPtr null dereferences",
+                  "false",
+                  InAlpha,
+                  Hide>,
+  ]>,
   Hidden;
 
 def MoveChecker: Checker<"Move">,
@@ -728,6 +744,11 @@ def MismatchedIteratorChecker : Checker<"MismatchedIterator">,
   HelpText<"Check for use of iterators of different containers where iterators "
            "of the same container are expected">,
   Dependencies<[IteratorModeling]>,
+  Documentation<HasAlphaDocumentation>;
+
+def SmartPtrChecker: Checker<"SmartPtr">,
+  HelpText<"Find the dereference of null SmrtPtr">,
+  Dependencies<[SmartPtrModeling]>,
   Documentation<HasAlphaDocumentation>;
 
 } // end: "alpha.cplusplus"
@@ -1457,8 +1478,8 @@ def LiveVariablesDumper : Checker<"DumpLiveVars">,
   HelpText<"Print results of live variable analysis">,
   Documentation<NotDocumented>;
 
-def LiveStatementsDumper : Checker<"DumpLiveStmts">,
-  HelpText<"Print results of live statement analysis">,
+def LiveExpressionsDumper : Checker<"DumpLiveExprs">,
+  HelpText<"Print results of live expression analysis">,
   Documentation<NotDocumented>;
 
 def CFGViewer : Checker<"ViewCFG">,
@@ -1635,12 +1656,20 @@ def NoUncountedMemberChecker : Checker<"NoUncountedMemberChecker">,
   HelpText<"Check for no uncounted member variables.">,
   Documentation<HasDocumentation>;
 
+def UncountedLambdaCapturesChecker : Checker<"UncountedLambdaCapturesChecker">,
+  HelpText<"Check uncounted lambda captures.">,
+  Documentation<HasDocumentation>;
+
 } // end webkit
 
 let ParentPackage = WebKitAlpha in {
 
 def UncountedCallArgsChecker : Checker<"UncountedCallArgsChecker">,
   HelpText<"Check uncounted call arguments.">,
+  Documentation<HasDocumentation>;
+
+def UncountedLocalVarsChecker : Checker<"UncountedLocalVarsChecker">,
+  HelpText<"Check uncounted local variables.">,
   Documentation<HasDocumentation>;
 
 } // end alpha.webkit

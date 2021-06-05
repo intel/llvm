@@ -24,14 +24,10 @@ set(LIBUNWIND_ASM_SOURCES
     UnwindRegistersRestore.S
     UnwindRegistersSave.S
     )
-if (MINGW OR APPLE)
-  # CMake doesn't build assembly sources for windows/gnu targets properly
-  # (up to current CMake, 3.16), so treat them as C files.
-  # Additionally, CMake ignores OSX_ARCHITECTURE for ASM files when targeting
-  # Apple platforms.
-  set_source_files_properties(${LIBUNWIND_ASM_SOURCES}
-                              PROPERTIES
-                                LANGUAGE C)
+
+# See add_asm_sources() in compiler-rt for explanation of this workaround.
+if((APPLE AND CMAKE_VERSION VERSION_LESS 3.19) OR (MINGW AND CMAKE_VERSION VERSION_LESS 3.17))
+  set_source_files_properties(${LIBUNWIND_ASM_SOURCES} PROPERTIES LANGUAGE C)
 endif()
 
 set(LIBUNWIND_HEADERS
@@ -42,9 +38,12 @@ set(LIBUNWIND_HEADERS
     dwarf2.h
     DwarfInstructions.hpp
     DwarfParser.hpp
+    EHHeaderParser.hpp
+    FrameHeaderCache.hpp
     libunwind_ext.h
     Registers.hpp
     RWMutex.hpp
+    Unwind-EHABI.h
     UnwindCursor.hpp
     ../include/libunwind.h
     ../include/unwind.h
@@ -81,7 +80,11 @@ if (LIBUNWIND_ENABLE_THREADS)
 endif()
 
 # Setup flags.
-add_link_flags_if_supported(-nodefaultlibs)
+if (LIBUNWIND_SUPPORTS_NOSTDLIBXX_FLAG)
+  add_link_flags_if_supported(-nostdlib++)
+else()
+  add_link_flags_if_supported(-nodefaultlibs)
+endif()
 
 # MINGW_LIBRARIES is defined in config-ix.cmake
 add_library_flags_if(MINGW "${MINGW_LIBRARIES}")
@@ -126,9 +129,6 @@ if (LIBUNWIND_ENABLE_SHARED)
   else()
     target_compile_options(unwind_shared PRIVATE -fno-rtti)
   endif()
-  if(COMMAND llvm_setup_rpath)
-    llvm_setup_rpath(unwind_shared)
-  endif()
   target_link_libraries(unwind_shared PRIVATE ${LIBUNWIND_LIBRARIES})
   set_target_properties(unwind_shared PROPERTIES
     CXX_EXTENSIONS OFF
@@ -164,11 +164,11 @@ if (LIBUNWIND_ENABLE_STATIC)
     LINKER_LANGUAGE C
     OUTPUT_NAME "unwind")
 
-  if(LIBUNWIND_HERMETIC_STATIC_LIBRARY)
+  if(LIBUNWIND_HIDE_SYMBOLS)
     append_flags_if_supported(UNWIND_STATIC_LIBRARY_FLAGS -fvisibility=hidden)
     append_flags_if_supported(UNWIND_STATIC_LIBRARY_FLAGS -fvisibility-global-new-delete-hidden)
     target_compile_options(unwind_static PRIVATE ${UNWIND_STATIC_LIBRARY_FLAGS})
-    target_compile_definitions(unwind_static PRIVATE _LIBUNWIND_DISABLE_VISIBILITY_ANNOTATIONS)
+    target_compile_definitions(unwind_static PRIVATE _LIBUNWIND_HIDE_SYMBOLS)
   endif()
 
   list(APPEND LIBUNWIND_BUILD_TARGETS "unwind_static")
@@ -182,8 +182,9 @@ add_custom_target(unwind DEPENDS ${LIBUNWIND_BUILD_TARGETS})
 
 if (LIBUNWIND_INSTALL_LIBRARY)
   install(TARGETS ${LIBUNWIND_INSTALL_TARGETS}
-    LIBRARY DESTINATION ${LIBUNWIND_INSTALL_PREFIX}${LIBUNWIND_INSTALL_LIBRARY_DIR} COMPONENT unwind
-    ARCHIVE DESTINATION ${LIBUNWIND_INSTALL_PREFIX}${LIBUNWIND_INSTALL_LIBRARY_DIR} COMPONENT unwind)
+    LIBRARY DESTINATION ${LIBUNWIND_INSTALL_LIBRARY_DIR} COMPONENT unwind
+    ARCHIVE DESTINATION ${LIBUNWIND_INSTALL_LIBRARY_DIR} COMPONENT unwind
+    RUNTIME DESTINATION bin COMPONENT unwind)
 endif()
 
 if (NOT CMAKE_CONFIGURATION_TYPES AND LIBUNWIND_INSTALL_LIBRARY)

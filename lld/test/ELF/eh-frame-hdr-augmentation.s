@@ -12,7 +12,7 @@
 // CHECK-NEXT:   Code alignment factor: 1
 // CHECK-NEXT:   Data alignment factor: -8
 // CHECK-NEXT:   Return address column: 16
-// CHECK-NEXT:   Personality Address: 0000000000001029
+// CHECK-NEXT:   Personality Address: 000000000000127c
 // CHECK-NEXT:   Augmentation data:
 
 // CHECK:      DW_CFA_def_cfa:  reg7 +8
@@ -20,9 +20,10 @@
 // CHECK-NEXT: DW_CFA_nop:
 // CHECK-NEXT: DW_CFA_nop:
 
-// CHECK:      00000020 00000014 00000024 FDE cie=00000000 pc=00001014...00001014
+/// FIXME Handle relocation correctly
+// CHECK:      00000020 00000014 00000024 FDE cie=00000000 pc=0000127c...0000127c
 // CHECK-NEXT:   Format:       DWARF32
-// CHECK-NEXT:   LSDA Address: 000000000000100b
+// CHECK-NEXT:   LSDA Address: 000000000000127c
 // CHECK-NEXT:   DW_CFA_nop:
 // CHECK-NEXT:   DW_CFA_nop:
 // CHECK-NEXT:   DW_CFA_nop:

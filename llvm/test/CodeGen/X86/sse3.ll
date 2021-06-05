@@ -66,7 +66,7 @@ define <8 x i16> @t2(<8 x i16> %A, <8 x i16> %B) nounwind {
 ; X86:       # %bb.0:
 ; X86-NEXT:    movdqa {{.*#+}} xmm2 = [0,65535,65535,0,65535,65535,65535,65535]
 ; X86-NEXT:    pand %xmm2, %xmm0
-; X86-NEXT:    pshuflw {{.*#+}} xmm1 = xmm1[1,1,2,1,4,5,6,7]
+; X86-NEXT:    pshuflw {{.*#+}} xmm1 = xmm1[1,1,1,1,4,5,6,7]
 ; X86-NEXT:    pandn %xmm1, %xmm2
 ; X86-NEXT:    por %xmm2, %xmm0
 ; X86-NEXT:    retl
@@ -75,7 +75,7 @@ define <8 x i16> @t2(<8 x i16> %A, <8 x i16> %B) nounwind {
 ; X64:       # %bb.0:
 ; X64-NEXT:    movdqa {{.*#+}} xmm2 = [0,65535,65535,0,65535,65535,65535,65535]
 ; X64-NEXT:    pand %xmm2, %xmm0
-; X64-NEXT:    pshuflw {{.*#+}} xmm1 = xmm1[1,1,2,1,4,5,6,7]
+; X64-NEXT:    pshuflw {{.*#+}} xmm1 = xmm1[1,1,1,1,4,5,6,7]
 ; X64-NEXT:    pandn %xmm1, %xmm2
 ; X64-NEXT:    por %xmm2, %xmm0
 ; X64-NEXT:    retq
@@ -249,8 +249,8 @@ define void @t9(<4 x float>* %r, <2 x i32>* %A) nounwind {
 ; FIXME: This testcase produces icky code. It can be made much better!
 ; PR2585
 
-@g1 = external constant <4 x i32>
-@g2 = external constant <4 x i16>
+@g1 = external dso_local constant <4 x i32>
+@g2 = external dso_local constant <4 x i16>
 
 define void @t10() nounwind {
 ; X86-LABEL: t10:
@@ -397,7 +397,7 @@ define <4 x i32> @t17() nounwind {
 ; X86-LABEL: t17:
 ; X86:       # %bb.0: # %entry
 ; X86-NEXT:    pshufd {{.*#+}} xmm0 = mem[0,1,0,1]
-; X86-NEXT:    pand {{\.LCPI.*}}, %xmm0
+; X86-NEXT:    pand {{\.LCPI[0-9]+_[0-9]+}}, %xmm0
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: t17:

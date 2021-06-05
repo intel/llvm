@@ -7,12 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "MachOObjcopy.h"
-#include "../CopyConfig.h"
+#include "../llvm-objcopy.h"
+#include "CommonConfig.h"
 #include "MachOReader.h"
 #include "MachOWriter.h"
+#include "MultiFormatConfig.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/Object/ArchiveWriter.h"
+#include "llvm/Object/MachOUniversal.h"
+#include "llvm/Object/MachOUniversalWriter.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileOutputBuffer.h"
+#include "llvm/Support/SmallVectorMemoryBuffer.h"
 
 namespace llvm {
 namespace objcopy {
@@ -42,36 +49,7 @@ static StringRef getPayloadString(const LoadCommand &LC) {
       .rtrim('\0');
 }
 
-static Error removeLoadCommands(const CopyConfig &Config, Object &Obj) {
-  DenseSet<StringRef> RPathsToRemove(Config.RPathsToRemove.begin(),
-                                     Config.RPathsToRemove.end());
-
-  LoadCommandPred RemovePred = [&RPathsToRemove](const LoadCommand &LC) {
-    if (LC.MachOLoadCommand.load_command_data.cmd == MachO::LC_RPATH) {
-      StringRef RPath = getPayloadString(LC);
-      if (RPathsToRemove.count(RPath)) {
-        RPathsToRemove.erase(RPath);
-        return true;
-      }
-    }
-    return false;
-  };
-
-  if (Error E = Obj.removeLoadCommands(RemovePred))
-    return E;
-
-  // Emit an error if the Mach-O binary does not contain an rpath path name
-  // specified in -delete_rpath.
-  for (StringRef RPath : Config.RPathsToRemove) {
-    if (RPathsToRemove.count(RPath))
-      return createStringError(errc::invalid_argument,
-                               "no LC_RPATH load command with path: %s",
-                               RPath.str().c_str());
-  }
-  return Error::success();
-}
-
-static Error removeSections(const CopyConfig &Config, Object &Obj) {
+static Error removeSections(const CommonConfig &Config, Object &Obj) {
   SectionPred RemovePred = [](const std::unique_ptr<Section> &) {
     return false;
   };
@@ -102,14 +80,14 @@ static Error removeSections(const CopyConfig &Config, Object &Obj) {
   return Obj.removeSections(RemovePred);
 }
 
-static void markSymbols(const CopyConfig &Config, Object &Obj) {
+static void markSymbols(const CommonConfig &, Object &Obj) {
   // Symbols referenced from the indirect symbol table must not be removed.
   for (IndirectSymbolEntry &ISE : Obj.IndirectSymTable.Symbols)
     if (ISE.Symbol)
       (*ISE.Symbol)->Referenced = true;
 }
 
-static void updateAndRemoveSymbols(const CopyConfig &Config, Object &Obj) {
+static void updateAndRemoveSymbols(const CommonConfig &Config, Object &Obj) {
   for (SymbolEntry &Sym : Obj.SymTable) {
     auto I = Config.SymbolsToRename.find(Sym.Name);
     if (I != Config.SymbolsToRename.end())
@@ -118,6 +96,8 @@ static void updateAndRemoveSymbols(const CopyConfig &Config, Object &Obj) {
 
   auto RemovePred = [Config, &Obj](const std::unique_ptr<SymbolEntry> &N) {
     if (N->Referenced)
+      return false;
+    if (Config.KeepUndefined && N->isUndefinedSymbol())
       return false;
     if (Config.StripAll)
       return true;
@@ -157,6 +137,121 @@ static LoadCommand buildRPathLoadCommand(StringRef Path) {
   return LC;
 }
 
+static Error processLoadCommands(const CommonConfig &Config, Object &Obj) {
+  // Remove RPaths.
+  DenseSet<StringRef> RPathsToRemove(Config.RPathsToRemove.begin(),
+                                     Config.RPathsToRemove.end());
+
+  LoadCommandPred RemovePred = [&RPathsToRemove,
+                                &Config](const LoadCommand &LC) {
+    if (LC.MachOLoadCommand.load_command_data.cmd == MachO::LC_RPATH) {
+      // When removing all RPaths we don't need to care
+      // about what it contains
+      if (Config.RemoveAllRpaths)
+        return true;
+
+      StringRef RPath = getPayloadString(LC);
+      if (RPathsToRemove.count(RPath)) {
+        RPathsToRemove.erase(RPath);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  if (Error E = Obj.removeLoadCommands(RemovePred))
+    return E;
+
+  // Emit an error if the Mach-O binary does not contain an rpath path name
+  // specified in -delete_rpath.
+  for (StringRef RPath : Config.RPathsToRemove) {
+    if (RPathsToRemove.count(RPath))
+      return createStringError(errc::invalid_argument,
+                               "no LC_RPATH load command with path: %s",
+                               RPath.str().c_str());
+  }
+
+  DenseSet<StringRef> RPaths;
+
+  // Get all existing RPaths.
+  for (LoadCommand &LC : Obj.LoadCommands) {
+    if (LC.MachOLoadCommand.load_command_data.cmd == MachO::LC_RPATH)
+      RPaths.insert(getPayloadString(LC));
+  }
+
+  // Throw errors for invalid RPaths.
+  for (const auto &OldNew : Config.RPathsToUpdate) {
+    StringRef Old = OldNew.getFirst();
+    StringRef New = OldNew.getSecond();
+    if (!RPaths.contains(Old))
+      return createStringError(errc::invalid_argument,
+                               "no LC_RPATH load command with path: " + Old);
+    if (RPaths.contains(New))
+      return createStringError(errc::invalid_argument,
+                               "rpath '" + New +
+                                   "' would create a duplicate load command");
+  }
+
+  // Update load commands.
+  for (LoadCommand &LC : Obj.LoadCommands) {
+    switch (LC.MachOLoadCommand.load_command_data.cmd) {
+    case MachO::LC_ID_DYLIB:
+      if (Config.SharedLibId)
+        updateLoadCommandPayloadString<MachO::dylib_command>(
+            LC, *Config.SharedLibId);
+      break;
+
+    case MachO::LC_RPATH: {
+      StringRef RPath = getPayloadString(LC);
+      StringRef NewRPath = Config.RPathsToUpdate.lookup(RPath);
+      if (!NewRPath.empty())
+        updateLoadCommandPayloadString<MachO::rpath_command>(LC, NewRPath);
+      break;
+    }
+
+    // TODO: Add LC_REEXPORT_DYLIB, LC_LAZY_LOAD_DYLIB, and LC_LOAD_UPWARD_DYLIB
+    // here once llvm-objcopy supports them.
+    case MachO::LC_LOAD_DYLIB:
+    case MachO::LC_LOAD_WEAK_DYLIB:
+      StringRef InstallName = getPayloadString(LC);
+      StringRef NewInstallName =
+          Config.InstallNamesToUpdate.lookup(InstallName);
+      if (!NewInstallName.empty())
+        updateLoadCommandPayloadString<MachO::dylib_command>(LC,
+                                                             NewInstallName);
+      break;
+    }
+  }
+
+  // Add new RPaths.
+  for (StringRef RPath : Config.RPathToAdd) {
+    if (RPaths.contains(RPath))
+      return createStringError(errc::invalid_argument,
+                               "rpath '" + RPath +
+                                   "' would create a duplicate load command");
+    RPaths.insert(RPath);
+    Obj.LoadCommands.push_back(buildRPathLoadCommand(RPath));
+  }
+
+  for (StringRef RPath : Config.RPathToPrepend) {
+    if (RPaths.contains(RPath))
+      return createStringError(errc::invalid_argument,
+                               "rpath '" + RPath +
+                                   "' would create a duplicate load command");
+
+    RPaths.insert(RPath);
+    Obj.LoadCommands.insert(Obj.LoadCommands.begin(),
+                            buildRPathLoadCommand(RPath));
+  }
+
+  // Unlike appending rpaths, the indexes of subsequent load commands must
+  // be recalculated after prepending one.
+  if (!Config.RPathToPrepend.empty())
+    Obj.updateLoadCommandIndexes();
+
+  return Error::success();
+}
+
 static Error dumpSectionToFile(StringRef SecName, StringRef Filename,
                                Object &Obj) {
   for (LoadCommand &LC : Obj.LoadCommands)
@@ -190,27 +285,34 @@ static Error addSection(StringRef SecName, StringRef Filename, Object &Obj) {
   StringRef TargetSegName = Pair.first;
   Section Sec(TargetSegName, Pair.second);
   Sec.Content = Obj.NewSectionsContents.save(Buf->getBuffer());
+  Sec.Size = Sec.Content.size();
 
   // Add the a section into an existing segment.
   for (LoadCommand &LC : Obj.LoadCommands) {
     Optional<StringRef> SegName = LC.getSegmentName();
     if (SegName && SegName == TargetSegName) {
+      uint64_t Addr = *LC.getSegmentVMAddr();
+      for (const std::unique_ptr<Section> &S : LC.Sections)
+        Addr = std::max(Addr, S->Addr + S->Size);
       LC.Sections.push_back(std::make_unique<Section>(Sec));
+      LC.Sections.back()->Addr = Addr;
       return Error::success();
     }
   }
 
   // There's no segment named TargetSegName. Create a new load command and
   // Insert a new section into it.
-  LoadCommand &NewSegment = Obj.addSegment(TargetSegName);
+  LoadCommand &NewSegment =
+      Obj.addSegment(TargetSegName, alignTo(Sec.Size, 16384));
   NewSegment.Sections.push_back(std::make_unique<Section>(Sec));
+  NewSegment.Sections.back()->Addr = *NewSegment.getSegmentVMAddr();
   return Error::success();
 }
 
 // isValidMachOCannonicalName returns success if Name is a MachO cannonical name
 // ("<segment>,<section>") and lengths of both segment and section names are
 // valid.
-Error isValidMachOCannonicalName(StringRef Name) {
+static Error isValidMachOCannonicalName(StringRef Name) {
   if (Name.count(',') != 1)
     return createStringError(errc::invalid_argument,
                              "invalid section name '%s' (should be formatted "
@@ -229,27 +331,7 @@ Error isValidMachOCannonicalName(StringRef Name) {
   return Error::success();
 }
 
-static Error handleArgs(const CopyConfig &Config, Object &Obj) {
-  if (Config.AllowBrokenLinks || !Config.BuildIdLinkDir.empty() ||
-      Config.BuildIdLinkInput || Config.BuildIdLinkOutput ||
-      !Config.SplitDWO.empty() || !Config.SymbolsPrefix.empty() ||
-      !Config.AllocSectionsPrefix.empty() || !Config.KeepSection.empty() ||
-      Config.NewSymbolVisibility || !Config.SymbolsToGlobalize.empty() ||
-      !Config.SymbolsToKeep.empty() || !Config.SymbolsToLocalize.empty() ||
-      !Config.SymbolsToWeaken.empty() || !Config.SymbolsToKeepGlobal.empty() ||
-      !Config.SectionsToRename.empty() ||
-      !Config.UnneededSymbolsToRemove.empty() ||
-      !Config.SetSectionAlignment.empty() || !Config.SetSectionFlags.empty() ||
-      Config.ExtractDWO || Config.LocalizeHidden || Config.PreserveDates ||
-      Config.StripAllGNU || Config.StripDWO || Config.StripNonAlloc ||
-      Config.StripSections || Config.Weaken || Config.DecompressDebugSections ||
-      Config.StripNonAlloc || Config.StripSections || Config.StripUnneeded ||
-      Config.DiscardMode == DiscardType::Locals ||
-      !Config.SymbolsToAdd.empty() || Config.EntryExpr) {
-    return createStringError(llvm::errc::invalid_argument,
-                             "option not supported by llvm-objcopy for MachO");
-  }
-
+static Error handleArgs(const CommonConfig &Config, Object &Obj) {
   // Dump sections before add/remove for compatibility with GNU objcopy.
   for (StringRef Flag : Config.DumpSection) {
     StringRef SectionName;
@@ -283,69 +365,115 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj) {
       return E;
   }
 
-  if (Error E = removeLoadCommands(Config, Obj))
+  if (Error E = processLoadCommands(Config, Obj))
     return E;
 
-  StringRef Old, New;
-  for (const auto &OldNew : Config.RPathsToUpdate) {
-    std::tie(Old, New) = OldNew;
-
-    auto FindRPathLC = [&Obj](StringRef RPath) {
-      return find_if(Obj.LoadCommands, [=](const LoadCommand &LC) {
-        return LC.MachOLoadCommand.load_command_data.cmd == MachO::LC_RPATH &&
-               getPayloadString(LC) == RPath;
-      });
-    };
-
-    auto NewIt = FindRPathLC(New);
-    if (NewIt != Obj.LoadCommands.end())
-      return createStringError(errc::invalid_argument,
-                               "rpath " + New +
-                                   " would create a duplicate load command");
-
-    auto OldIt = FindRPathLC(Old);
-    if (OldIt == Obj.LoadCommands.end())
-      return createStringError(errc::invalid_argument,
-                               "no LC_RPATH load command with path: " + Old);
-
-    updateLoadCommandPayloadString<MachO::rpath_command>(*OldIt, New);
-  }
-
-  for (StringRef RPath : Config.RPathToAdd) {
-    for (LoadCommand &LC : Obj.LoadCommands) {
-      if (LC.MachOLoadCommand.load_command_data.cmd == MachO::LC_RPATH &&
-          RPath == getPayloadString(LC)) {
-        return createStringError(errc::invalid_argument,
-                                 "rpath " + RPath +
-                                     " would create a duplicate load command");
-      }
-    }
-    Obj.addLoadCommand(buildRPathLoadCommand(RPath));
-  }
   return Error::success();
 }
 
-Error executeObjcopyOnBinary(const CopyConfig &Config,
-                             object::MachOObjectFile &In, Buffer &Out) {
+Error executeObjcopyOnBinary(const CommonConfig &Config, const MachOConfig &,
+                             object::MachOObjectFile &In, raw_ostream &Out) {
   MachOReader Reader(In);
-  std::unique_ptr<Object> O = Reader.create();
+  Expected<std::unique_ptr<Object>> O = Reader.create();
   if (!O)
-    return createFileError(
-        Config.InputFilename,
-        createStringError(object_error::parse_failed,
-                          "unable to deserialize MachO object"));
+    return createFileError(Config.InputFilename, O.takeError());
 
-  if (Error E = handleArgs(Config, *O))
+  if (Error E = handleArgs(Config, **O))
     return createFileError(Config.InputFilename, std::move(E));
 
-  // TODO: Support 16KB pages which are employed in iOS arm64 binaries:
-  //       https://github.com/llvm/llvm-project/commit/1bebb2832ee312d3b0316dacff457a7a29435edb
-  const uint64_t PageSize = 4096;
+  // Page size used for alignment of segment sizes in Mach-O executables and
+  // dynamic libraries.
+  uint64_t PageSize;
+  switch (In.getArch()) {
+  case Triple::ArchType::arm:
+  case Triple::ArchType::aarch64:
+  case Triple::ArchType::aarch64_32:
+    PageSize = 16384;
+    break;
+  default:
+    PageSize = 4096;
+  }
 
-  MachOWriter Writer(*O, In.is64Bit(), In.isLittleEndian(), PageSize, Out);
+  MachOWriter Writer(**O, In.is64Bit(), In.isLittleEndian(), PageSize, Out);
   if (auto E = Writer.finalize())
     return E;
   return Writer.write();
+}
+
+Error executeObjcopyOnMachOUniversalBinary(const MultiFormatConfig &Config,
+                                           const MachOUniversalBinary &In,
+                                           raw_ostream &Out) {
+  SmallVector<OwningBinary<Binary>, 2> Binaries;
+  SmallVector<Slice, 2> Slices;
+  for (const auto &O : In.objects()) {
+    Expected<std::unique_ptr<Archive>> ArOrErr = O.getAsArchive();
+    if (ArOrErr) {
+      Expected<std::vector<NewArchiveMember>> NewArchiveMembersOrErr =
+          createNewArchiveMembers(Config, **ArOrErr);
+      if (!NewArchiveMembersOrErr)
+        return NewArchiveMembersOrErr.takeError();
+      Expected<std::unique_ptr<MemoryBuffer>> OutputBufferOrErr =
+          writeArchiveToBuffer(*NewArchiveMembersOrErr,
+                               (*ArOrErr)->hasSymbolTable(), (*ArOrErr)->kind(),
+                               Config.getCommonConfig().DeterministicArchives,
+                               (*ArOrErr)->isThin());
+      if (!OutputBufferOrErr)
+        return OutputBufferOrErr.takeError();
+      Expected<std::unique_ptr<Binary>> BinaryOrErr =
+          object::createBinary(**OutputBufferOrErr);
+      if (!BinaryOrErr)
+        return BinaryOrErr.takeError();
+      Binaries.emplace_back(std::move(*BinaryOrErr),
+                            std::move(*OutputBufferOrErr));
+      Slices.emplace_back(*cast<Archive>(Binaries.back().getBinary()),
+                          O.getCPUType(), O.getCPUSubType(),
+                          O.getArchFlagName(), O.getAlign());
+      continue;
+    }
+    // The methods getAsArchive, getAsObjectFile, getAsIRObject of the class
+    // ObjectForArch return an Error in case of the type mismatch. We need to
+    // check each in turn to see what kind of slice this is, so ignore errors
+    // produced along the way.
+    consumeError(ArOrErr.takeError());
+
+    Expected<std::unique_ptr<MachOObjectFile>> ObjOrErr = O.getAsObjectFile();
+    if (!ObjOrErr) {
+      consumeError(ObjOrErr.takeError());
+      return createStringError(
+          std::errc::invalid_argument,
+          "slice for '%s' of the universal Mach-O binary "
+          "'%s' is not a Mach-O object or an archive",
+          O.getArchFlagName().c_str(),
+          Config.getCommonConfig().InputFilename.str().c_str());
+    }
+    std::string ArchFlagName = O.getArchFlagName();
+
+    SmallVector<char, 0> Buffer;
+    raw_svector_ostream MemStream(Buffer);
+
+    Expected<const MachOConfig &> MachO = Config.getMachOConfig();
+    if (!MachO)
+      return MachO.takeError();
+
+    if (Error E = executeObjcopyOnBinary(Config.getCommonConfig(), *MachO,
+                                         **ObjOrErr, MemStream))
+      return E;
+
+    std::unique_ptr<MemoryBuffer> MB =
+        std::make_unique<SmallVectorMemoryBuffer>(std::move(Buffer),
+                                                  ArchFlagName);
+    Expected<std::unique_ptr<Binary>> BinaryOrErr = object::createBinary(*MB);
+    if (!BinaryOrErr)
+      return BinaryOrErr.takeError();
+    Binaries.emplace_back(std::move(*BinaryOrErr), std::move(MB));
+    Slices.emplace_back(*cast<MachOObjectFile>(Binaries.back().getBinary()),
+                        O.getAlign());
+  }
+
+  if (Error Err = writeUniversalBinaryToStream(Slices, Out))
+    return Err;
+
+  return Error::success();
 }
 
 } // end namespace macho

@@ -14,11 +14,13 @@
 #include <CL/sycl/detail/export.hpp>
 
 #include <cstdint>
-#include <stdlib.h>
+#include <cstdlib>
 #include <string>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #ifdef _WIN32
-#define SYCL_RT_OS_WINDOWS
+#define __SYCL_RT_OS_WINDOWS
 // Windows platform
 #ifdef _WIN64
 // 64-bit Windows platform
@@ -27,12 +29,12 @@
 #endif // _WIN64
 #elif __linux__
 // Linux platform
-#define SYCL_RT_OS_LINUX
-#define SYCL_RT_OS_POSIX_SUPPORT
+#define __SYCL_RT_OS_LINUX
+#define __SYCL_RT_OS_POSIX_SUPPORT
 #elif defined(__APPLE__) && defined(__MACH__)
 // Apple OSX
-#define SYCL_RT_OS_DARWIN
-#define SYCL_RT_OS_POSIX_SUPPORT
+#define __SYCL_RT_OS_DARWIN
+#define __SYCL_RT_OS_POSIX_SUPPORT
 #else
 #error "Unsupported compiler or OS"
 #endif // _WIN32
@@ -65,7 +67,7 @@ public:
   /// image loaded from file e.g. via SYCL_USE_KERNEL_SPV env var.
   static constexpr OSModuleHandle DummyModuleHandle = -2;
 
-#ifdef SYCL_RT_OS_WINDOWS
+#ifdef __SYCL_RT_OS_WINDOWS
   static constexpr const char *DirSep = "\\";
 #else
   static constexpr const char *DirSep = "/";
@@ -80,6 +82,20 @@ public:
 
   /// Deallocates the memory referenced by \p Ptr.
   static void alignedFree(void *Ptr);
+
+  /// Make directory recursively and returns zero code on success
+  static int makeDir(const char *Dir);
+
+  /// Checks if specified path is present
+  static inline bool isPathPresent(const std::string &Path) {
+#ifdef __SYCL_RT_OS_WINDOWS
+    struct _stat Stat;
+    return !_stat(Path.c_str(), &Stat);
+#else
+    struct stat Stat;
+    return !stat(Path.c_str(), &Stat);
+#endif
+  }
 };
 
 } // namespace detail

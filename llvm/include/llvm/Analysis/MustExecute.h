@@ -27,6 +27,8 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/Analysis/InstructionPrecedenceTracking.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
 
@@ -111,17 +113,15 @@ class SimpleLoopSafetyInfo: public LoopSafetyInfo {
   bool HeaderMayThrow = false; // Same as previous, but specific to loop header
 
 public:
-  virtual bool blockMayThrow(const BasicBlock *BB) const;
+  bool blockMayThrow(const BasicBlock *BB) const override;
 
-  virtual bool anyBlockMayThrow() const;
+  bool anyBlockMayThrow() const override;
 
-  virtual void computeLoopSafetyInfo(const Loop *CurLoop);
+  void computeLoopSafetyInfo(const Loop *CurLoop) override;
 
-  virtual bool isGuaranteedToExecute(const Instruction &Inst,
-                                     const DominatorTree *DT,
-                                     const Loop *CurLoop) const;
-
-  virtual ~SimpleLoopSafetyInfo() {};
+  bool isGuaranteedToExecute(const Instruction &Inst,
+                             const DominatorTree *DT,
+                             const Loop *CurLoop) const override;
 };
 
 /// This implementation of LoopSafetyInfo use ImplicitControlFlowTracking to
@@ -138,15 +138,15 @@ class ICFLoopSafetyInfo: public LoopSafetyInfo {
   mutable MemoryWriteTracking MW;
 
 public:
-  virtual bool blockMayThrow(const BasicBlock *BB) const;
+  bool blockMayThrow(const BasicBlock *BB) const override;
 
-  virtual bool anyBlockMayThrow() const;
+  bool anyBlockMayThrow() const override;
 
-  virtual void computeLoopSafetyInfo(const Loop *CurLoop);
+  void computeLoopSafetyInfo(const Loop *CurLoop) override;
 
-  virtual bool isGuaranteedToExecute(const Instruction &Inst,
-                                     const DominatorTree *DT,
-                                     const Loop *CurLoop) const;
+  bool isGuaranteedToExecute(const Instruction &Inst,
+                             const DominatorTree *DT,
+                             const Loop *CurLoop) const override;
 
   /// Returns true if we could not execute a memory-modifying instruction before
   /// we enter \p BB under assumption that \p CurLoop is entered.
@@ -167,8 +167,6 @@ public:
   /// from its block. It will make all cache updates to keep it correct after
   /// this removal.
   void removeInstruction(const Instruction *Inst);
-
-  virtual ~ICFLoopSafetyInfo() {};
 };
 
 bool mayContainIrreducibleControl(const Function &F, const LoopInfo *LI);
@@ -543,6 +541,23 @@ private:
 
   /// A unique end iterator.
   MustBeExecutedIterator EndIterator;
+};
+
+class MustExecutePrinterPass : public PassInfoMixin<MustExecutePrinterPass> {
+  raw_ostream &OS;
+
+public:
+  MustExecutePrinterPass(raw_ostream &OS) : OS(OS) {}
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+};
+
+class MustBeExecutedContextPrinterPass
+    : public PassInfoMixin<MustBeExecutedContextPrinterPass> {
+  raw_ostream &OS;
+
+public:
+  MustBeExecutedContextPrinterPass(raw_ostream &OS) : OS(OS) {}
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 } // namespace llvm

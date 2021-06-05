@@ -27,7 +27,6 @@ class LLVM_LIBRARY_VISIBILITY WebAssemblyTargetInfo : public TargetInfo {
   enum SIMDEnum {
     NoSIMD,
     SIMD128,
-    UnimplementedSIMD128,
   } SIMDLevel = NoSIMD;
 
   bool HasNontrappingFPToInt = false;
@@ -69,13 +68,17 @@ protected:
                         MacroBuilder &Builder) const override;
 
 private:
-  static void setSIMDLevel(llvm::StringMap<bool> &Features, SIMDEnum Level);
+  static void setSIMDLevel(llvm::StringMap<bool> &Features, SIMDEnum Level,
+                           bool Enabled);
 
   bool
   initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
                  StringRef CPU,
                  const std::vector<std::string> &FeaturesVec) const override;
   bool hasFeature(StringRef Feature) const final;
+
+  void setFeatureEnabled(llvm::StringMap<bool> &Features, StringRef Name,
+                         bool Enabled) const final;
 
   bool handleTargetFeatures(std::vector<std::string> &Features,
                             DiagnosticsEngine &Diags) final;
@@ -134,6 +137,8 @@ private:
   bool hasExtIntType() const override { return true; }
 
   bool hasProtectedVisibility() const override { return false; }
+
+  void adjust(LangOptions &Opts) override;
 };
 
 class LLVM_LIBRARY_VISIBILITY WebAssembly32TargetInfo
@@ -142,7 +147,7 @@ public:
   explicit WebAssembly32TargetInfo(const llvm::Triple &T,
                                    const TargetOptions &Opts)
       : WebAssemblyTargetInfo(T, Opts) {
-    resetDataLayout("e-m:e-p:32:32-i64:64-n32:64-S128");
+    resetDataLayout("e-m:e-p:32:32-i64:64-n32:64-S128-ni:1");
   }
 
 protected:
@@ -161,7 +166,7 @@ public:
     SizeType = UnsignedLong;
     PtrDiffType = SignedLong;
     IntPtrType = SignedLong;
-    resetDataLayout("e-m:e-p:64:64-i64:64-n32:64-S128");
+    resetDataLayout("e-m:e-p:64:64-i64:64-n32:64-S128-ni:1");
   }
 
 protected:

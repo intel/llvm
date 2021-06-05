@@ -86,7 +86,7 @@ struct CommonFixture {
 
     generate();
 
-    return DWARFDebugLine::SectionParser(LineData, *Context, CUs, TUs);
+    return DWARFDebugLine::SectionParser(LineData, *Context, Units);
   }
 
   void recordRecoverable(Error Err) {
@@ -114,8 +114,7 @@ struct CommonFixture {
   Error Unrecoverable;
   std::function<void(Error)> RecordUnrecoverable;
 
-  SmallVector<std::unique_ptr<DWARFUnit>, 2> CUs;
-  SmallVector<std::unique_ptr<DWARFUnit>, 2> TUs;
+  SmallVector<std::unique_ptr<DWARFUnit>, 2> Units;
 };
 
 // Fixtures must derive from "Test", but parameterised fixtures from
@@ -126,7 +125,7 @@ struct DebugLineBasicFixture : public Test, public CommonFixture {};
 struct DebugLineParameterisedFixture
     : public TestWithParam<std::pair<uint16_t, DwarfFormat>>,
       public CommonFixture {
-  void SetUp() { std::tie(Version, Format) = GetParam(); }
+  void SetUp() override { std::tie(Version, Format) = GetParam(); }
 
   uint16_t Version;
   DwarfFormat Format;
@@ -328,7 +327,7 @@ TEST_F(DebugLineBasicFixture, ErrorForReservedLength) {
 
 struct DebugLineUnsupportedVersionFixture : public TestWithParam<uint16_t>,
                                             public CommonFixture {
-  void SetUp() { Version = GetParam(); }
+  void SetUp() override { Version = GetParam(); }
 
   uint16_t Version;
 };
@@ -350,10 +349,10 @@ TEST_P(DebugLineUnsupportedVersionFixture, ErrorForUnsupportedVersion) {
                         std::to_string(Version)));
 }
 
-INSTANTIATE_TEST_CASE_P(UnsupportedVersionTestParams,
-                        DebugLineUnsupportedVersionFixture,
-                        Values(/*1 below min */ 1, /* 1 above max */ 6,
-                               /* Maximum possible */ 0xffff), );
+INSTANTIATE_TEST_SUITE_P(UnsupportedVersionTestParams,
+                         DebugLineUnsupportedVersionFixture,
+                         Values(/*1 below min */ 1, /* 1 above max */ 6,
+                                /* Maximum possible */ 0xffff));
 
 TEST_F(DebugLineBasicFixture, ErrorForInvalidV5IncludeDirTable) {
   if (!setupGenerator(5))
@@ -478,13 +477,13 @@ TEST_P(DebugLineParameterisedFixture, ErrorForTooShortPrologueLength) {
                     FailedWithMessageArray(testing::ElementsAreArray(Errs)));
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     LineTableTestParams, DebugLineParameterisedFixture,
     Values(std::make_pair(
                2, DWARF32), // Test lower-bound of v2-3 fields and DWARF32.
            std::make_pair(3, DWARF32), // Test upper-bound of v2-3 fields.
            std::make_pair(4, DWARF64), // Test v4 fields and DWARF64.
-           std::make_pair(5, DWARF32), std::make_pair(5, DWARF64)), );
+           std::make_pair(5, DWARF32), std::make_pair(5, DWARF64)));
 
 TEST_F(DebugLineBasicFixture, ErrorForExtendedOpcodeLengthSmallerThanExpected) {
   if (!setupGenerator())
@@ -951,13 +950,13 @@ TEST_P(MaxOpsPerInstFixture, MaxOpsPerInstProblemsReportedCorrectly) {
               ", which is unsupported. Assuming a value of 1 instead");
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     MaxOpsPerInstParams, MaxOpsPerInstFixture,
     Values(std::make_tuple(3, 0, false), // Test for version < 4 (no error).
            std::make_tuple(4, 0, true),  // Test zero value for V4 (error).
            std::make_tuple(4, 1, false), // Test good value for V4 (no error).
            std::make_tuple(
-               4, 2, true)), ); // Test one higher than permitted V4 (error).
+               4, 2, true))); // Test one higher than permitted V4 (error).
 
 struct LineRangeFixture : TestWithParam<std::tuple<uint8_t, bool>>,
                           AdjustAddressFixtureBase {
@@ -994,10 +993,10 @@ TEST_P(LineRangeFixture, LineRangeProblemsReportedCorrectly) {
           "not be adjusted");
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     LineRangeParams, LineRangeFixture,
-    Values(std::make_tuple(0, true),       // Test zero value (error).
-           std::make_tuple(14, false)), ); // Test non-zero value (no error).
+    Values(std::make_tuple(0, true),     // Test zero value (error).
+           std::make_tuple(14, false))); // Test non-zero value (no error).
 
 struct BadMinInstLenFixture : TestWithParam<std::tuple<uint8_t, bool>>,
                               AdjustAddressFixtureBase {
@@ -1029,10 +1028,10 @@ TEST_P(BadMinInstLenFixture, MinInstLengthProblemsReportedCorrectly) {
           "prevents any address advancing");
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     BadMinInstLenParams, BadMinInstLenFixture,
-    Values(std::make_tuple(0, true),      // Test zero value (error).
-           std::make_tuple(1, false)), ); // Test non-zero value (no error).
+    Values(std::make_tuple(0, true),    // Test zero value (error).
+           std::make_tuple(1, false))); // Test non-zero value (no error).
 
 TEST_F(DebugLineBasicFixture, ParserParsesCorrectly) {
   if (!setupGenerator())
@@ -1087,7 +1086,7 @@ TEST_F(DebugLineBasicFixture, ParserAlwaysDoneForEmptySection) {
     return;
 
   generate();
-  DWARFDebugLine::SectionParser Parser(LineData, *Context, CUs, TUs);
+  DWARFDebugLine::SectionParser Parser(LineData, *Context, Units);
 
   EXPECT_TRUE(Parser.done());
 }
@@ -1101,7 +1100,7 @@ TEST_F(DebugLineBasicFixture, ParserMarkedAsDoneForBadLengthWhenParsing) {
   Gen->addLineTable();
   generate();
 
-  DWARFDebugLine::SectionParser Parser(LineData, *Context, CUs, TUs);
+  DWARFDebugLine::SectionParser Parser(LineData, *Context, Units);
   Parser.parseNext(RecordRecoverable, RecordUnrecoverable);
 
   EXPECT_EQ(Parser.getOffset(), 0u);
@@ -1124,7 +1123,7 @@ TEST_F(DebugLineBasicFixture, ParserMarkedAsDoneForBadLengthWhenSkipping) {
   Gen->addLineTable();
   generate();
 
-  DWARFDebugLine::SectionParser Parser(LineData, *Context, CUs, TUs);
+  DWARFDebugLine::SectionParser Parser(LineData, *Context, Units);
   Parser.skip(RecordRecoverable, RecordUnrecoverable);
 
   EXPECT_EQ(Parser.getOffset(), 0u);
@@ -1148,7 +1147,7 @@ TEST_F(DebugLineBasicFixture, ParserReportsFirstErrorInEachTableWhenParsing) {
   LT2.setCustomPrologue({{2, LineTable::Long}, {1, LineTable::Half}});
   generate();
 
-  DWARFDebugLine::SectionParser Parser(LineData, *Context, CUs, TUs);
+  DWARFDebugLine::SectionParser Parser(LineData, *Context, Units);
   Parser.parseNext(RecordRecoverable, RecordUnrecoverable);
   ASSERT_FALSE(Parser.done());
   Parser.parseNext(RecordRecoverable, RecordUnrecoverable);
@@ -1177,7 +1176,7 @@ TEST_F(DebugLineBasicFixture, ParserReportsNonPrologueProblemsWhenParsing) {
   LT2.addByte(0xbb);
   generate();
 
-  DWARFDebugLine::SectionParser Parser(LineData, *Context, CUs, TUs);
+  DWARFDebugLine::SectionParser Parser(LineData, *Context, Units);
   Parser.parseNext(RecordRecoverable, RecordUnrecoverable);
   EXPECT_FALSE(Unrecoverable);
   ASSERT_FALSE(Parser.done());
@@ -1207,7 +1206,7 @@ TEST_F(DebugLineBasicFixture,
   LT2.setCustomPrologue({{2, LineTable::Long}, {1, LineTable::Half}});
   generate();
 
-  DWARFDebugLine::SectionParser Parser(LineData, *Context, CUs, TUs);
+  DWARFDebugLine::SectionParser Parser(LineData, *Context, Units);
   Parser.skip(RecordRecoverable, RecordUnrecoverable);
   ASSERT_FALSE(Parser.done());
   Parser.skip(RecordRecoverable, RecordUnrecoverable);
@@ -1231,7 +1230,7 @@ TEST_F(DebugLineBasicFixture, ParserIgnoresNonPrologueErrorsWhenSkipping) {
   LT.addExtendedOpcode(42, DW_LNE_end_sequence, {});
   generate();
 
-  DWARFDebugLine::SectionParser Parser(LineData, *Context, CUs, TUs);
+  DWARFDebugLine::SectionParser Parser(LineData, *Context, Units);
   Parser.skip(RecordRecoverable, RecordUnrecoverable);
 
   EXPECT_TRUE(Parser.done());
@@ -1290,7 +1289,7 @@ TEST_F(DebugLineBasicFixture, VerboseOutput) {
 
   generate();
 
-  DWARFDebugLine::SectionParser Parser(LineData, *Context, CUs, TUs);
+  DWARFDebugLine::SectionParser Parser(LineData, *Context, Units);
   std::string Output;
   raw_string_ostream OS(Output);
   Parser.parseNext(RecordRecoverable, RecordUnrecoverable, &OS,
@@ -1380,6 +1379,130 @@ TEST_F(DebugLineBasicFixture, VerboseOutput) {
   EXPECT_EQ(Output.size(), Pos);
 }
 
+struct TruncatedPrologueFixture
+    : public TestWithParam<
+          std::tuple<uint64_t, uint64_t, uint16_t, DwarfFormat, StringRef>>,
+      public CommonFixture {
+  void SetUp() override {
+    std::tie(Length, ExpectedOffset, Version, Format, ExpectedErr) = GetParam();
+  }
+
+  uint64_t Length;
+  uint64_t ExpectedOffset;
+  uint16_t Version;
+  DwarfFormat Format;
+  StringRef ExpectedErr;
+};
+
+TEST_P(TruncatedPrologueFixture, ErrorForTruncatedPrologue) {
+  if (!setupGenerator(Version))
+    return;
+
+  LineTable &Padding = Gen->addLineTable();
+  // Add some padding to show that a non-zero offset is handled correctly.
+  Padding.setCustomPrologue({{0, LineTable::Byte}});
+
+  // Add a table with only two standard opcodes - we don't need to test the full
+  // set.
+  LineTable &Table = Gen->addLineTable(Format);
+  DWARFDebugLine::Prologue InputPrologue = Table.createBasicPrologue();
+  InputPrologue.OpcodeBase = 3;
+  InputPrologue.StandardOpcodeLengths.resize(2);
+  Table.setPrologue(InputPrologue);
+
+  generate();
+  // Truncate the data extractor to the specified length.
+  LineData = DWARFDataExtractor(LineData, Length);
+
+  DWARFDebugLine::Prologue Prologue;
+  uint64_t Offset = 1;
+  Error Err = Prologue.parse(LineData, &Offset, RecordRecoverable, *Context);
+
+  EXPECT_THAT_ERROR(std::move(Err), FailedWithMessage(ExpectedErr.str()));
+  EXPECT_EQ(Offset, ExpectedOffset);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TruncatedPrologueParams, TruncatedPrologueFixture,
+    Values(
+        // Truncated length:
+        std::make_tuple(
+            4, 1, 4, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0x4 while reading [0x1, 0x5)"),
+        std::make_tuple(
+            4, 1, 4, DWARF64,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0x4 while reading [0x1, 0x5)"),
+        std::make_tuple(
+            0xc, 1, 4, DWARF64,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0xc while reading [0x5, 0xd)"),
+        // Truncated version:
+        std::make_tuple(
+            6, 5, 4, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0x6 while reading [0x5, 0x7)"),
+        // Truncated address size:
+        std::make_tuple(
+            7, 7, 5, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0x7 while reading [0x7, 0x8)"),
+        // Truncated segment selector size:
+        std::make_tuple(
+            8, 8, 5, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0x8 while reading [0x8, 0x9)"),
+        // Truncated prologue length:
+        std::make_tuple(
+            0xa, 7, 4, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0xa while reading [0x7, 0xb)"),
+        std::make_tuple(
+            0x16, 0xf, 4, DWARF64,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0x16 while reading [0xf, 0x17)"),
+        // Truncated min instruction length:
+        std::make_tuple(
+            0xb, 0xb, 4, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0xb while reading [0xb, 0xc)"),
+        // Truncated max ops per inst:
+        std::make_tuple(
+            0xc, 0xc, 4, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0xc while reading [0xc, 0xd)"),
+        // Truncated default is stmt:
+        std::make_tuple(
+            0xd, 0xd, 4, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0xd while reading [0xd, 0xe)"),
+        // Truncated line base:
+        std::make_tuple(
+            0xe, 0xe, 4, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0xe while reading [0xe, 0xf)"),
+        // Truncated line range:
+        std::make_tuple(
+            0xf, 0xf, 4, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0xf while reading [0xf, 0x10)"),
+        // Truncated opcode base:
+        std::make_tuple(
+            0x10, 0x10, 4, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0x10 while reading [0x10, 0x11)"),
+        // Truncated first standard opcode:
+        std::make_tuple(
+            0x11, 0x11, 4, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0x11 while reading [0x11, 0x12)"),
+        // Truncated second standard opcode:
+        std::make_tuple(
+            0x12, 0x12, 4, DWARF32,
+            "parsing line table prologue at offset 0x00000001: unexpected end "
+            "of data at offset 0x12 while reading [0x12, 0x13)")));
+
 using ValueAndLengths = std::vector<LineTable::ValueAndLength>;
 
 struct TruncatedOpcodeFixtureBase : public CommonFixture {
@@ -1403,7 +1526,7 @@ struct TruncatedOpcodeFixtureBase : public CommonFixture {
 
   void runTest(uint8_t OpcodeValue) {
     generate();
-    DWARFDebugLine::SectionParser Parser(LineData, *Context, CUs, TUs);
+    DWARFDebugLine::SectionParser Parser(LineData, *Context, Units);
     std::string Output;
     raw_string_ostream OS(Output);
     Parser.parseNext(RecordRecoverable, RecordUnrecoverable, &OS,
@@ -1430,7 +1553,7 @@ struct TruncatedStandardOpcodeFixture
     : public TestWithParam<
           std::tuple<uint64_t, uint8_t, ValueAndLengths, StringRef, StringRef>>,
       public TruncatedOpcodeFixtureBase {
-  void SetUp() {
+  void SetUp() override {
     std::tie(BodyLength, Opcode, Operands, ExpectedOutput, ExpectedErr) =
         GetParam();
   }
@@ -1440,24 +1563,9 @@ struct TruncatedExtendedOpcodeFixture
     : public TestWithParam<std::tuple<uint64_t, uint64_t, uint8_t,
                                       ValueAndLengths, StringRef, StringRef>>,
       public TruncatedOpcodeFixtureBase {
-  void SetUp() {
+  void SetUp() override {
     std::tie(BodyLength, OpcodeLength, Opcode, Operands, ExpectedOutput,
              ExpectedErr) = GetParam();
-    // Swap the byte order of the operands on big endian hosts, so that the raw
-    // bytes are always in the same order. ValLen.Value is a uint64_t, so make
-    // sure to shift the value back to the actually used bits for the
-    // appropriate type.
-    if (sys::IsBigEndianHost)
-      for (LineTable::ValueAndLength &ValLen : Operands)
-        if (ValLen.Length != LineTable::SLEB &&
-            ValLen.Length != LineTable::ULEB &&
-            ValLen.Length != LineTable::Byte) {
-          sys::swapByteOrder(ValLen.Value);
-          if (ValLen.Length == LineTable::Long)
-              ValLen.Value >>= 32;
-          if (ValLen.Length == LineTable::Half)
-              ValLen.Value >>= 48;
-        }
   }
 
   uint64_t OpcodeLength;
@@ -1473,7 +1581,7 @@ TEST_P(TruncatedExtendedOpcodeFixture, ErrorForTruncatedExtendedOpcode) {
                     FailedWithMessage(ExpectedErr.str()));
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TruncatedExtendedOpcodeParams, TruncatedExtendedOpcodeFixture,
     Values(
         // Truncated length:
@@ -1492,8 +1600,8 @@ INSTANTIATE_TEST_CASE_P(
             "unexpected end of data at offset 0x32 while reading [0x32, 0x3a)"),
         std::make_tuple(
             10, 9, DW_LNE_set_address,
-            ValueAndLengths{{0x1234567890abcdef, LineTable::Quad}},
-            "DW_LNE_set_address (<parsing error> ef cd ab 90 78 56 34)",
+            ValueAndLengths{{0x1234567878563412, LineTable::Quad}},
+            "DW_LNE_set_address (<parsing error> 12 34 56 78 78 56 34)",
             "unexpected end of data at offset 0x39 while reading [0x32, 0x3a)"),
         std::make_tuple(3, 6, DW_LNE_define_file,
                         ValueAndLengths{{'a', LineTable::Byte},
@@ -1537,10 +1645,10 @@ INSTANTIATE_TEST_CASE_P(
                         "malformed uleb128, extends past end"),
         std::make_tuple(
             6, 5, /*Unknown=*/0x7f,
-            ValueAndLengths{{0x12345678, LineTable::Long}},
-            "Unrecognized extended op 0x7f length 5 (<parsing error> 78 56 34)",
+            ValueAndLengths{{0x12343412, LineTable::Long}},
+            "Unrecognized extended op 0x7f length 5 (<parsing error> 12 34 34)",
             "unexpected end of data at offset 0x35 while reading [0x32, "
-            "0x36)")), );
+            "0x36)")));
 
 TEST_P(TruncatedStandardOpcodeFixture, ErrorForTruncatedStandardOpcode) {
   if (!setupGenerator())
@@ -1552,7 +1660,7 @@ TEST_P(TruncatedStandardOpcodeFixture, ErrorForTruncatedStandardOpcode) {
                     FailedWithMessage(ExpectedErr.str()));
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TruncatedStandardOpcodeParams, TruncatedStandardOpcodeFixture,
     Values(
         std::make_tuple(2, DW_LNS_advance_pc,
@@ -1596,7 +1704,7 @@ INSTANTIATE_TEST_CASE_P(
             ValueAndLengths{{0x900, LineTable::ULEB}, {0xa00, LineTable::ULEB}},
             "Unrecognized standard opcode (operands: 0x0000000000000900)",
             "unable to decode LEB128 at offset 0x00000032: "
-            "malformed uleb128, extends past end")), );
+            "malformed uleb128, extends past end")));
 
 TEST_F(DebugLineBasicFixture, PrintPathsProperly) {
   if (!setupGenerator(5))

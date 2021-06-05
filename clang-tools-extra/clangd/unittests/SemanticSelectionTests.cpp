@@ -17,21 +17,39 @@
 #include "TestTU.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Error.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <vector>
+
 namespace clang {
 namespace clangd {
 namespace {
+
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
+using ::testing::UnorderedElementsAreArray;
 
 // front() is SR.range, back() is outermost range.
 std::vector<Range> gatherRanges(const SelectionRange &SR) {
   std::vector<Range> Ranges;
   for (const SelectionRange *S = &SR; S; S = S->parent.get())
     Ranges.push_back(S->range);
+  return Ranges;
+}
+
+std::vector<Range>
+gatherFoldingRanges(llvm::ArrayRef<FoldingRange> FoldingRanges) {
+  std::vector<Range> Ranges;
+  Range NextRange;
+  for (const auto &R : FoldingRanges) {
+    NextRange.start.line = R.startLine;
+    NextRange.start.character = R.startCharacter;
+    NextRange.end.line = R.endLine;
+    NextRange.end.character = R.endCharacter;
+    Ranges.push_back(NextRange);
+  }
   return Ranges;
 }
 
@@ -118,16 +136,16 @@ TEST(SemanticSelection, All) {
       )cpp",
       R"cpp( // Inside struct.
         struct A { static int a(); };
-        [[struct B { 
+        [[struct B {
           [[static int b() [[{
             [[return [[[[1^1]] + 2]]]];
           }]]]]
         }]];
       )cpp",
       // Namespaces.
-      R"cpp( 
-        [[namespace nsa { 
-          [[namespace nsb { 
+      R"cpp(
+        [[namespace nsa {
+          [[namespace nsb {
             static int ccc();
             [[void func() [[{
               // int x = nsa::nsb::ccc();
@@ -181,6 +199,76 @@ TEST(SemanticSelection, RunViaClangdServer) {
   EXPECT_THAT(gatherRanges(Ranges->back()),
               ElementsAre(SourceAnnotations.range("empty")));
 }
+
+TEST(FoldingRanges, All) {
+  const char *Tests[] = {
+      R"cpp(
+        #define FOO int foo() {\
+          int Variable = 42; \
+        }
+
+        // Do not generate folding range for braces within macro expansion.
+        FOO
+
+        // Do not generate folding range within macro arguments.
+        #define FUNCTOR(functor) functor
+        void func() {[[
+          FUNCTOR([](){});
+        ]]}
+
+        // Do not generate folding range with a brace coming from macro.
+        #define LBRACE {
+        void bar() LBRACE
+          int X = 42;
+        }
+      )cpp",
+      R"cpp(
+        void func() {[[
+          int Variable = 100;
+
+          if (Variable > 5) {[[
+            Variable += 42;
+          ]]} else if (Variable++)
+            ++Variable;
+          else {[[
+            Variable--;
+          ]]}
+
+          // Do not generate FoldingRange for empty CompoundStmts.
+          for (;;) {}
+
+          // If there are newlines between {}, we should generate one.
+          for (;;) {[[
+
+          ]]}
+        ]]}
+      )cpp",
+      R"cpp(
+        class Foo {
+        public:
+          Foo() {[[
+            int X = 1;
+          ]]}
+
+        private:
+          int getBar() {[[
+            return 42;
+          ]]}
+
+          // Braces are located at the same line: no folding range here.
+          void getFooBar() { }
+        };
+      )cpp",
+  };
+  for (const char *Test : Tests) {
+    auto T = Annotations(Test);
+    auto AST = TestTU::withCode(T.code()).build();
+    EXPECT_THAT(gatherFoldingRanges(llvm::cantFail(getFoldingRanges(AST))),
+                UnorderedElementsAreArray(T.ranges()))
+        << Test;
+  }
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang

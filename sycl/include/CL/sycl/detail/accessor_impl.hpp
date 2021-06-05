@@ -17,17 +17,20 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+namespace ext {
 namespace intel {
-namespace gpu {
+namespace experimental {
+namespace esimd {
+namespace detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
-} // namespace gpu
+} // namespace detail
+} // namespace esimd
+} // namespace experimental
 } // namespace intel
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
 namespace detail {
 
 class Command;
@@ -70,29 +73,16 @@ public:
   }
 };
 
-// TODO ESIMD Currently all accessors are treated as ESIMD under corresponding
-// compiler option enabling the macro below. Eventually ESIMD kernels and usual
-// kernels must co-exist and there must be a mechanism for distinguishing usual
-// and ESIMD accessors.
-#ifndef __SYCL_EXPLICIT_SIMD__
-constexpr bool IsESIMDAccInit = false;
-#else
-constexpr bool IsESIMDAccInit = true;
-#endif // __SYCL_EXPLICIT_SIMD__
-
 class __SYCL_EXPORT AccessorImplHost {
 public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
                    int Dims, int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false, bool IsESIMDAcc = IsESIMDAccInit)
+                   bool IsSubBuffer = false, bool IsESIMDAcc = false)
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
         MAccessMode(AccessMode), MSYCLMemObj(SYCLMemObject), MDims(Dims),
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
-        MIsSubBuffer(IsSubBuffer) {
-    MIsESIMDAcc =
-        IsESIMDAcc && (SYCLMemObject->getType() == SYCLMemObjI::BUFFER);
-  }
+        MIsSubBuffer(IsSubBuffer), MIsESIMDAcc(IsESIMDAcc) {}
 
   ~AccessorImplHost();
 
@@ -134,7 +124,8 @@ public:
 
   bool PerWI = false;
 
-  // Whether this accessor is ESIMD accessor with special memory allocation.
+  // Outdated, leaving to preserve ABI.
+  // TODO: Remove during next major release.
   bool MIsESIMDAcc;
 };
 
@@ -148,8 +139,7 @@ public:
                    bool IsSubBuffer = false) {
     impl = shared_ptr_class<AccessorImplHost>(new AccessorImplHost(
         Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject, Dims,
-        ElemSize, OffsetInBytes, IsSubBuffer,
-        IsESIMDAccInit && (SYCLMemObject->getType() == SYCLMemObjI::BUFFER)));
+        ElemSize, OffsetInBytes, IsSubBuffer));
   }
 
 protected:
@@ -167,10 +157,15 @@ protected:
   template <class Obj>
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
 
+  template <typename, int, access::mode, access::target, access::placeholder,
+            typename>
+  friend class accessor;
+
   AccessorImplPtr impl;
 
 private:
-  friend class sycl::intel::gpu::AccessorPrivateProxy;
+  friend class sycl::ext::intel::experimental::esimd::detail::
+      AccessorPrivateProxy;
 };
 
 class __SYCL_EXPORT LocalAccessorImplHost {
@@ -219,7 +214,7 @@ void __SYCL_EXPORT addHostAccessorAndWait(Requirement *Req);
 template <typename MayBeTag1, typename MayBeTag2>
 constexpr access::mode deduceAccessMode() {
   // property_list = {} is not properly detected by deduction guide,
-  // when parameter is passed without curly braces: access(buffer, noinit)
+  // when parameter is passed without curly braces: access(buffer, no_init)
   // thus simplest approach is to check 2 last arguments for being a tag
   if constexpr (std::is_same<MayBeTag1,
                              mode_tag_t<access::mode::read>>::value ||

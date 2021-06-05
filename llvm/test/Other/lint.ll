@@ -1,11 +1,12 @@
 ; RUN: opt -basic-aa -lint -disable-output < %s 2>&1 | FileCheck %s
+; RUN: opt -aa-pipeline=basic-aa -passes=lint -disable-output < %s 2>&1 | FileCheck %s
 target datalayout = "e-p:64:64:64"
 
 declare fastcc void @bar()
 declare void @llvm.stackrestore(i8*)
 declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture, i8* nocapture, i64, i1) nounwind
 declare void @llvm.memcpy.inline.p0i8.p0i8.i64(i8* nocapture, i8* nocapture, i64, i1) nounwind
-declare void @has_sret(i8* sret %p)
+declare void @has_sret(i8* sret(i8) %p)
 declare void @has_noaliases(i32* noalias %p, i32* %q)
 declare void @one_arg(i32)
 

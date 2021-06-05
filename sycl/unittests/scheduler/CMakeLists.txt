@@ -6,5 +6,11 @@ add_sycl_unittest(SchedulerTests OBJECT
     MemObjCommandCleanup.cpp
     CommandsWaitForEvents.cpp
     WaitAfterCleanup.cpp
+    LinkedAllocaDependencies.cpp
+    LeavesCollection.cpp
+    NoHostUnifiedMemory.cpp
+    StreamInitDependencyOnHost.cpp
+    InOrderQueueDeps.cpp
+    AllocaLinking.cpp
     utils.cpp
 )

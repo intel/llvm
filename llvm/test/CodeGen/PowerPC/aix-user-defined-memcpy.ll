@@ -1,5 +1,5 @@
 ; RUN: llc -verify-machineinstrs -mtriple powerpc-ibm-aix-xcoff -mcpu=pwr4 \
-; RUN: -mattr=-altivec -filetype=obj -o %t.o < %s
+; RUN: -mattr=-altivec -filetype=obj -xcoff-traceback-table=false -o %t.o < %s
 
 ; RUN: llvm-readobj --syms %t.o | FileCheck --check-prefix=32-SYM %s
 
@@ -7,6 +7,10 @@
 ; RUN: --check-prefix=32-REL %s
 
 ; RUN: llvm-objdump -D %t.o | FileCheck --check-prefix=32-DIS %s
+
+; RUN: llc -verify-machineinstrs -mtriple powerpc-ibm-aix-xcoff \
+; RUN:     -mcpu=pwr4 -mattr=-altivec < %s | \
+; RUN:   FileCheck %s
 
 ; RUN: not --crash llc -verify-machineinstrs -mtriple powerpc64-ibm-aix-xcoff \
 ; RUN: -mcpu=pwr4 -mattr=-altivec -filetype=obj < %s 2>&1 | FileCheck \
@@ -35,6 +39,8 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture r
 ; 2. There is no relocation associated with the call, since callee is defined.
 ; 3. Branch instruction in raw data is branching back to the right callee location.
 
+; CHECK-NOT: .extern .memcpy
+
 ; 32-SYM:      Symbol {{[{][[:space:]] *}}Index: [[#Index:]]{{[[:space:]] *}}Name: .memcpy 
 ; 32-SYM-NEXT:    Value (RelocatableAddress): 0x0
 ; 32-SYM-NEXT:    Section: .text
@@ -42,8 +48,8 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture r
 ; 32-SYM-NEXT:    StorageClass: C_EXT (0x2)
 ; 32-SYM-NEXT:    NumberOfAuxEntries: 1
 ; 32-SYM-NEXT:    CSECT Auxiliary Entry {
-; 32-SYM-NEXT:      Index: 3
-; 32-SYM-NEXT:      ContainingCsectSymbolIndex: 0
+; 32-SYM-NEXT:      Index: 4
+; 32-SYM-NEXT:      ContainingCsectSymbolIndex: 1
 ; 32-SYM-NEXT:      ParameterHashIndex: 0x0
 ; 32-SYM-NEXT:      TypeChkSectNum: 0x0
 ; 32-SYM-NEXT:      SymbolAlignmentLog2: 0
@@ -60,7 +66,7 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture r
 ; 32-REL-NEXT:  Section (index: 2) .data {
 ; 32-REL-NEXT:  Relocation {
 ; 32-REL-NEXT:    Virtual Address: 0x34
-; 32-REL-NEXT:    Symbol: .memcpy (2)
+; 32-REL-NEXT:    Symbol: .memcpy (3)
 ; 32-REL-NEXT:    IsSigned: No
 ; 32-REL-NEXT:    FixupBitValue: 0
 ; 32-REL-NEXT:    Length: 32
@@ -68,7 +74,7 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture r
 ; 32-REL-NEXT:  }
 ; 32-REL-NEXT:  Relocation {
 ; 32-REL-NEXT:    Virtual Address: 0x38
-; 32-REL-NEXT:    Symbol: TOC (10)
+; 32-REL-NEXT:    Symbol: TOC (11)
 ; 32-REL-NEXT:    IsSigned: No
 ; 32-REL-NEXT:    FixupBitValue: 0
 ; 32-REL-NEXT:    Length: 32
@@ -76,7 +82,7 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture r
 ; 32-REL-NEXT:  }
 ; 32-REL-NEXT:  Relocation {
 ; 32-REL-NEXT:    Virtual Address: 0x40
-; 32-REL-NEXT:    Symbol: .call_memcpy (4)
+; 32-REL-NEXT:    Symbol: .call_memcpy (5)
 ; 32-REL-NEXT:    IsSigned: No
 ; 32-REL-NEXT:    FixupBitValue: 0
 ; 32-REL-NEXT:    Length: 32
@@ -84,7 +90,7 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture r
 ; 32-REL-NEXT:  }
 ; 32-REL-NEXT:  Relocation {
 ; 32-REL-NEXT:    Virtual Address: 0x44
-; 32-REL-NEXT:    Symbol: TOC (10)
+; 32-REL-NEXT:    Symbol: TOC (11)
 ; 32-REL-NEXT:    IsSigned: No
 ; 32-REL-NEXT:    FixupBitValue: 0
 ; 32-REL-NEXT:    Length: 32

@@ -140,17 +140,17 @@ struct IntializerInsertion {
     assert(!Initializers.empty() && "No initializers to insert");
     std::string Code;
     llvm::raw_string_ostream Stream(Code);
-    std::string joined =
+    std::string Joined =
         llvm::join(Initializers.begin(), Initializers.end(), "(), ");
     switch (Placement) {
     case InitializerPlacement::New:
-      Stream << " : " << joined << "()";
+      Stream << " : " << Joined << "()";
       break;
     case InitializerPlacement::Before:
-      Stream << " " << joined << "(),";
+      Stream << " " << Joined << "(),";
       break;
     case InitializerPlacement::After:
-      Stream << ", " << joined << "()";
+      Stream << ", " << Joined << "()";
       break;
     }
     return Stream.str();
@@ -297,6 +297,10 @@ void ProTypeMemberInitCheck::check(const MatchFinder::MatchResult &Result) {
     // Skip declarations delayed by late template parsing without a body.
     if (!Ctor->getBody())
       return;
+    // Skip out-of-band explicitly defaulted special member functions
+    // (except the default constructor).
+    if (Ctor->isExplicitlyDefaulted() && !Ctor->isDefaultConstructor())
+      return;
     checkMissingMemberInitializer(*Result.Context, *Ctor->getParent(), Ctor);
     checkMissingBaseClassInitializer(*Result.Context, *Ctor->getParent(), Ctor);
   } else if (const auto *Record =
@@ -398,6 +402,8 @@ void ProTypeMemberInitCheck::checkMissingMemberInitializer(
   // Gather all fields (direct and indirect) that need to be initialized.
   SmallPtrSet<const FieldDecl *, 16> FieldsToInit;
   forEachField(ClassDecl, ClassDecl.fields(), [&](const FieldDecl *F) {
+    if (IgnoreArrays && F->getType()->isArrayType())
+      return;
     if (!F->hasInClassInitializer() &&
         utils::type_traits::isTriviallyDefaultConstructible(F->getType(),
                                                             Context) &&
@@ -435,10 +441,9 @@ void ProTypeMemberInitCheck::checkMissingMemberInitializer(
 
   DiagnosticBuilder Diag =
       diag(Ctor ? Ctor->getBeginLoc() : ClassDecl.getLocation(),
-           IsUnion
-               ? "union constructor should initialize one of these fields: %0"
-               : "constructor does not initialize these fields: %0")
-      << toCommaSeparatedString(OrderedFields, AllFieldsToInit);
+           "%select{|union }0constructor %select{does not|should}0 initialize "
+           "%select{|one of }0these fields: %1")
+      << IsUnion << toCommaSeparatedString(OrderedFields, AllFieldsToInit);
 
   // Do not propose fixes for constructors in macros since we cannot place them
   // correctly.

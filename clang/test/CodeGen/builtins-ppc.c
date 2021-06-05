@@ -8,7 +8,7 @@ void test_eh_return_data_regno()
   res = __builtin_eh_return_data_regno(1);  // CHECK: store volatile i32 4
 }
 
-// CHECK-LABEL: define i64 @test_builtin_ppc_get_timebase
+// CHECK-LABEL: define{{.*}} i64 @test_builtin_ppc_get_timebase
 long long test_builtin_ppc_get_timebase() {
   // CHECK: call i64 @llvm.readcyclecounter()
   return __builtin_ppc_get_timebase();
@@ -26,4 +26,26 @@ void test_builtin_ppc_setrnd() {
 
   // CHECK: call double @llvm.ppc.setrnd(i32 %2)
   res = __builtin_setrnd(x);
+}
+
+void test_builtin_ppc_flm() {
+  volatile double res;
+  // CHECK: call double @llvm.ppc.readflm()
+  res = __builtin_readflm();
+
+  // CHECK: call double @llvm.ppc.setflm(double %1)
+  res = __builtin_setflm(res);
+}
+
+void test_builtin_ppc_darn() {
+  volatile long res;
+  volatile int x;
+  // CHECK: call i64 @llvm.ppc.darn()
+  res = __builtin_darn();
+
+  // CHECK: call i64 @llvm.ppc.darnraw()
+  res = __builtin_darn_raw();
+
+  // CHECK: call i32 @llvm.ppc.darn32()
+  x = __builtin_darn_32();
 }

@@ -35,56 +35,20 @@ static const char AutoPtrOwnershipTransferId[] = "AutoPtrOwnershipTransferId";
 /// \endcode
 AST_MATCHER(Expr, isLValue) { return Node.getValueKind() == VK_LValue; }
 
-/// Matches declarations whose declaration context is the C++ standard library
-/// namespace std.
-///
-/// Note that inline namespaces are silently ignored during the lookup since
-/// both libstdc++ and libc++ are known to use them for versioning purposes.
-///
-/// Given:
-/// \code
-///   namespace ns {
-///     struct my_type {};
-///     using namespace std;
-///   }
-///
-///   using std::vector;
-///   using ns:my_type;
-///   using ns::list;
-/// \code
-///
-/// usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(isFromStdNamespace())))
-/// matches "using std::vector" and "using ns::list".
-AST_MATCHER(Decl, isFromStdNamespace) {
-  const DeclContext *D = Node.getDeclContext();
-
-  while (D->isInlineNamespace())
-    D = D->getParent();
-
-  if (!D->isNamespace() || !D->getParent()->isTranslationUnit())
-    return false;
-
-  const IdentifierInfo *Info = cast<NamespaceDecl>(D)->getIdentifier();
-
-  return (Info && Info->isStr("std"));
-}
-
 } // namespace
 
 ReplaceAutoPtrCheck::ReplaceAutoPtrCheck(StringRef Name,
                                          ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
-                                            utils::IncludeSorter::getMapping(),
-                                            utils::IncludeSorter::IS_LLVM)) {}
+      Inserter(Options.getLocalOrGlobal("IncludeStyle",
+                                        utils::IncludeSorter::IS_LLVM)) {}
 
 void ReplaceAutoPtrCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle", IncludeStyle,
-                utils::IncludeSorter::getMapping());
+  Options.store(Opts, "IncludeStyle", Inserter.getStyle());
 }
 
 void ReplaceAutoPtrCheck::registerMatchers(MatchFinder *Finder) {
-  auto AutoPtrDecl = recordDecl(hasName("auto_ptr"), isFromStdNamespace());
+  auto AutoPtrDecl = recordDecl(hasName("auto_ptr"), isInStdNamespace());
   auto AutoPtrType = qualType(hasDeclaration(AutoPtrDecl));
 
   //   std::auto_ptr<int> a;
@@ -105,7 +69,7 @@ void ReplaceAutoPtrCheck::registerMatchers(MatchFinder *Finder) {
   //   using std::auto_ptr;
   //   ^~~~~~~~~~~~~~~~~~~
   Finder->addMatcher(usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(namedDecl(
-                                   hasName("auto_ptr"), isFromStdNamespace()))))
+                                   hasName("auto_ptr"), isInStdNamespace()))))
                          .bind(AutoPtrTokenId),
                      this);
 
@@ -124,7 +88,7 @@ void ReplaceAutoPtrCheck::registerMatchers(MatchFinder *Finder) {
                           hasArgument(1, MovableArgumentMatcher)),
       this);
   Finder->addMatcher(
-      traverse(ast_type_traits::TK_AsIs,
+      traverse(TK_AsIs,
                cxxConstructExpr(hasType(AutoPtrType), argumentCountIs(1),
                                 hasArgument(0, MovableArgumentMatcher))),
       this);
@@ -133,9 +97,7 @@ void ReplaceAutoPtrCheck::registerMatchers(MatchFinder *Finder) {
 void ReplaceAutoPtrCheck::registerPPCallbacks(const SourceManager &SM,
                                               Preprocessor *PP,
                                               Preprocessor *ModuleExpanderPP) {
-  Inserter = std::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
-                                                       IncludeStyle);
-  PP->addPPCallbacks(Inserter->CreatePPCallbacks());
+  Inserter.registerPreprocessor(PP);
 }
 
 void ReplaceAutoPtrCheck::check(const MatchFinder::MatchResult &Result) {
@@ -148,12 +110,10 @@ void ReplaceAutoPtrCheck::check(const MatchFinder::MatchResult &Result) {
     if (Range.isInvalid())
       return;
 
-    auto Diag =
-        diag(Range.getBegin(), "use std::move to transfer ownership")
-        << FixItHint::CreateInsertion(Range.getBegin(), "std::move(")
-        << FixItHint::CreateInsertion(Range.getEnd(), ")")
-        << Inserter->CreateIncludeInsertion(SM.getMainFileID(), "utility",
-                                            /*IsAngled=*/true);
+    auto Diag = diag(Range.getBegin(), "use std::move to transfer ownership")
+                << FixItHint::CreateInsertion(Range.getBegin(), "std::move(")
+                << FixItHint::CreateInsertion(Range.getEnd(), ")")
+                << Inserter.createMainFileIncludeInsertion("<utility>");
 
     return;
   }

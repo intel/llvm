@@ -126,7 +126,7 @@ Diagnostic &Diagnostic::operator<<(OperationName val) {
 Diagnostic &Diagnostic::operator<<(Operation &val) {
   std::string str;
   llvm::raw_string_ostream os(str);
-  os << val;
+  val.print(os, OpPrintingFlags().useLocalScope().elideLargeElementsAttrs());
   return *this << os.str();
 }
 
@@ -366,43 +366,32 @@ struct SourceMgrDiagnosticHandlerImpl {
 
 /// Return a processable FileLineColLoc from the given location.
 static Optional<FileLineColLoc> getFileLineColLoc(Location loc) {
-  switch (loc->getKind()) {
-  case StandardAttributes::NameLocation:
-    return getFileLineColLoc(loc.cast<NameLoc>().getChildLoc());
-  case StandardAttributes::FileLineColLocation:
-    return loc.cast<FileLineColLoc>();
-  case StandardAttributes::CallSiteLocation:
-    // Process the callee of a callsite location.
-    return getFileLineColLoc(loc.cast<CallSiteLoc>().getCallee());
-  case StandardAttributes::FusedLocation:
-    for (auto subLoc : loc.cast<FusedLoc>().getLocations()) {
-      if (auto callLoc = getFileLineColLoc(subLoc)) {
-        return callLoc;
-      }
+  Optional<FileLineColLoc> firstFileLoc;
+  loc->walk([&](Location loc) {
+    if (FileLineColLoc fileLoc = loc.dyn_cast<FileLineColLoc>()) {
+      firstFileLoc = fileLoc;
+      return WalkResult::interrupt();
     }
-    return llvm::None;
-  default:
-    return llvm::None;
-  }
+    return WalkResult::advance();
+  });
+  return firstFileLoc;
 }
 
 /// Return a processable CallSiteLoc from the given location.
 static Optional<CallSiteLoc> getCallSiteLoc(Location loc) {
-  switch (loc->getKind()) {
-  case StandardAttributes::NameLocation:
+  if (auto nameLoc = loc.dyn_cast<NameLoc>())
     return getCallSiteLoc(loc.cast<NameLoc>().getChildLoc());
-  case StandardAttributes::CallSiteLocation:
-    return loc.cast<CallSiteLoc>();
-  case StandardAttributes::FusedLocation:
+  if (auto callLoc = loc.dyn_cast<CallSiteLoc>())
+    return callLoc;
+  if (auto fusedLoc = loc.dyn_cast<FusedLoc>()) {
     for (auto subLoc : loc.cast<FusedLoc>().getLocations()) {
       if (auto callLoc = getCallSiteLoc(subLoc)) {
         return callLoc;
       }
     }
     return llvm::None;
-  default:
-    return llvm::None;
   }
+  return llvm::None;
 }
 
 /// Given a diagnostic kind, returns the LLVM DiagKind.

@@ -37,11 +37,10 @@ define <4 x float> @hadd_reverse_v4f32(<4 x float> %a, <4 x float> %b) #0 {
 
 define <4 x float> @reverse_hadd_v4f32(<4 x float> %a, <4 x float> %b) #0 {
 ; CHECK-LABEL: @reverse_hadd_v4f32(
-; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x float> [[A:%.*]], <4 x float> [[B:%.*]], <4 x i32> <i32 0, i32 2, i32 4, i32 6>
-; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <4 x float> [[A]], <4 x float> [[B]], <4 x i32> <i32 1, i32 3, i32 5, i32 7>
+; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x float> [[B:%.*]], <4 x float> [[A:%.*]], <4 x i32> <i32 2, i32 0, i32 6, i32 4>
+; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <4 x float> [[B]], <4 x float> [[A]], <4 x i32> <i32 3, i32 1, i32 7, i32 5>
 ; CHECK-NEXT:    [[TMP3:%.*]] = fadd <4 x float> [[TMP1]], [[TMP2]]
-; CHECK-NEXT:    [[TMP4:%.*]] = shufflevector <4 x float> [[TMP3]], <4 x float> undef, <4 x i32> <i32 3, i32 2, i32 1, i32 0>
-; CHECK-NEXT:    ret <4 x float> [[TMP4]]
+; CHECK-NEXT:    ret <4 x float> [[TMP3]]
 ;
   %vecext = extractelement <4 x float> %a, i32 0
   %vecext1 = extractelement <4 x float> %a, i32 1
@@ -112,7 +111,7 @@ define <8 x float> @reverse_hadd_v8f32(<8 x float> %a, <8 x float> %b) #0 {
 ; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <8 x float> [[A:%.*]], <8 x float> [[B:%.*]], <8 x i32> <i32 0, i32 2, i32 8, i32 10, i32 4, i32 6, i32 12, i32 14>
 ; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <8 x float> [[A]], <8 x float> [[B]], <8 x i32> <i32 1, i32 3, i32 9, i32 11, i32 5, i32 7, i32 13, i32 15>
 ; CHECK-NEXT:    [[TMP3:%.*]] = fadd <8 x float> [[TMP1]], [[TMP2]]
-; CHECK-NEXT:    [[SHUFFLE:%.*]] = shufflevector <8 x float> [[TMP3]], <8 x float> undef, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+; CHECK-NEXT:    [[SHUFFLE:%.*]] = shufflevector <8 x float> [[TMP3]], <8 x float> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
 ; CHECK-NEXT:    ret <8 x float> [[SHUFFLE]]
 ;
   %vecext = extractelement <8 x float> %a, i32 0

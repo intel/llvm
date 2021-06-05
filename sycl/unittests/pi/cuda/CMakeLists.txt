@@ -13,18 +13,19 @@ add_sycl_unittest(PiCudaTests OBJECT
 
 add_dependencies(PiCudaTests sycl)
 
-target_link_libraries(PiCudaTests PRIVATE
-  LLVMTestingSupport
-  OpenCL-Headers)
+target_compile_definitions(PiCudaTests
+  PRIVATE
+    GTEST_HAS_COMBINE=1)
 
-target_compile_definitions(PiCudaTests PRIVATE
-  GTEST_HAS_COMBINE=1)
+target_include_directories(PiCudaTests
+  PRIVATE
+    "../"
+    "${sycl_inc_dir}/CL/sycl/detail/"
+    "${sycl_inc_dir}"
+    "${sycl_plugin_dir}/cuda/"
+)
 
-target_include_directories(
-  PiCudaTests PUBLIC 
-  ${CUDA_INCLUDE_DIRS} 
-  "../"
-  "${sycl_inc_dir}/CL/sycl/detail/"
-  ${sycl_inc_dir}
-  "${sycl_plugin_dir}/cuda/"
+target_link_libraries(PiCudaTests
+  PRIVATE
+    cudadrv
 )

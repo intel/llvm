@@ -228,7 +228,8 @@ static std::error_code GetExecutableName(SmallVectorImpl<char> &Filename) {
   if (EC)
     return EC;
 
-  StringRef Base = sys::path::filename(Filename.data());
+  // Make a copy of the filename since assign makes the StringRef invalid.
+  std::string Base = sys::path::filename(Filename.data()).str();
   Filename.assign(Base.begin(), Base.end());
   return std::error_code();
 }
@@ -501,4 +502,10 @@ llvm::VersionTuple llvm::GetWindowsOSVersion() {
 bool llvm::RunningWindows8OrGreater() {
   // Windows 8 is version 6.2, service pack 0.
   return GetWindowsOSVersion() >= llvm::VersionTuple(6, 2, 0, 0);
+}
+
+LLVM_ATTRIBUTE_NORETURN
+void Process::ExitNoCleanup(int RetCode) {
+  TerminateProcess(GetCurrentProcess(), RetCode);
+  llvm_unreachable("TerminateProcess doesn't return");
 }

@@ -1,4 +1,4 @@
-! RUN: %S/test_symbols.sh %s %t %f18
+! RUN: %S/test_symbols.sh %s %t %flang_fc1
 ! Explicit and implicit entities in blocks
 
 !DEF: /s1 (Subroutine) Subprogram
@@ -33,7 +33,7 @@ subroutine s2
 contains
  !DEF: /s2/s (Subroutine) Subprogram
  subroutine s
-  !REF: /s2/x
+  !DEF: /s2/s/x (Implicit) HostAssoc INTEGER(4)
   x = 1
   !DEF: /s2/s/w (Implicit) ObjectEntity INTEGER(4)
   w = 1
@@ -48,10 +48,10 @@ subroutine s3
   !DEF: /s3/Block1/t DerivedType
   type :: t
    !DEF: /s3/Block1/t/x ObjectEntity REAL(4)
-   !DEF: /s3/Block1/t/ImpliedDos1/i (Implicit) ObjectEntity INTEGER(4)
+   !DEF: /s3/Block1/t/ImpliedDos1/ImpliedDos1/i (Implicit) ObjectEntity INTEGER(4)
    real :: x(10) = [(i, i=1,10)]
    !DEF: /s3/Block1/t/y ObjectEntity REAL(4)
-   !DEF: /s3/Block1/t/ImpliedDos2/j ObjectEntity INTEGER(8)
+   !DEF: /s3/Block1/t/ImpliedDos2/ImpliedDos1/j ObjectEntity INTEGER(8)
    real :: y(10) = [(j, j=1,10)]
   end type
  end block

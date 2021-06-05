@@ -51,7 +51,7 @@ def main():
                         help="pull request base branch")
     parser.add_argument("-r", "--pr-number", metavar="PR_NUM", help="pull request number")
     parser.add_argument("-w", "--builder-dir", metavar="BUILDER_DIR", required=True,
-                        help="builder directory, which is the directory contains source and build directories")
+                        help="builder directory, which is the directory containing source and build directories")
     parser.add_argument("-s", "--src-dir", metavar="SRC_DIR", required=True, help="source directory")
     parser.add_argument("-o", "--obj-dir", metavar="OBJ_DIR", required=True, help="build directory")
 

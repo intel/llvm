@@ -1,4 +1,4 @@
-! RUN: %S/test_symbols.sh %s %t %f18
+! RUN: %S/test_symbols.sh %s %t %flang_fc1
 ! Forward references to derived types (non-error cases)
 
 !DEF: /main MainProgram
@@ -70,7 +70,7 @@ subroutine s1 (q1)
  q1%n = 1
 end subroutine
 !DEF: /f2/fwdpdt DerivedType
-!DEF: /f2/kind INTRINSIC (Function) ProcEntity
+!DEF: /f2/kind INTRINSIC, PURE (Function) ProcEntity
 !DEF: /f2 (Function) Subprogram TYPE(fwdpdt(k=4_4))
 !DEF: /f2/n (Implicit) ObjectEntity INTEGER(4)
 type(fwdpdt(kind(0))) function f2(n)
@@ -80,7 +80,7 @@ type(fwdpdt(kind(0))) function f2(n)
   !REF: /f2/fwdpdt/k
   integer, kind :: k
   !REF: /f2/fwdpdt/k
-  !DEF: /f2/fwdpdt/n ObjectEntity INTEGER(int(k,kind=8))
+  !DEF: /f2/fwdpdt/n ObjectEntity INTEGER(int(int(k,kind=4),kind=8))
   integer(kind=k) :: n
  end type
  !DEF: /f2/f2 ObjectEntity TYPE(fwdpdt(k=4_4))
@@ -92,7 +92,7 @@ end function
 !DEF: /s2/q1 (Implicit) ObjectEntity TYPE(fwdpdt(k=4_4))
 subroutine s2 (q1)
  !DEF: /s2/fwdpdt DerivedType
- !DEF: /s2/kind INTRINSIC (Function) ProcEntity
+ !DEF: /s2/kind INTRINSIC, PURE (Function) ProcEntity
  implicit type(fwdpdt(kind(0)))(q)
  !REF: /s2/fwdpdt
  !DEF: /s2/fwdpdt/k TypeParam INTEGER(4)
@@ -100,7 +100,7 @@ subroutine s2 (q1)
   !REF: /s2/fwdpdt/k
   integer, kind :: k
   !REF: /s2/fwdpdt/k
-  !DEF: /s2/fwdpdt/n ObjectEntity INTEGER(int(k,kind=8))
+  !DEF: /s2/fwdpdt/n ObjectEntity INTEGER(int(int(k,kind=4),kind=8))
   integer(kind=k) :: n
  end type
  !REF: /s2/q1

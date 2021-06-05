@@ -1,4 +1,4 @@
-; RUN: opt -S -functionattrs < %s | FileCheck %s
+; RUN: opt -S -function-attrs < %s | FileCheck %s
 ; RUN: opt -S -passes=function-attrs < %s | FileCheck %s
 
 define void @f() {
@@ -14,4 +14,4 @@ define void @g() {
 }
 
 
-; CHECK: attributes #0 = { nofree nounwind }
+; CHECK: attributes #0 = { nofree nosync nounwind }

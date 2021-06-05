@@ -200,6 +200,7 @@ public:
             /* NameStr= */ Twine(),
             /* InsertBefore= */ CallToOld);
         NewCaller->setTailCallKind(CallToOld->getTailCallKind());
+        NewCaller->copyMetadata(*CallToOld);
         CallToOld->replaceAllUsesWith(NewCaller);
 
         if (CallToOld->hasName()) {
@@ -259,6 +260,9 @@ public:
     Function *NewFunc = Function::Create(NewFuncTy, Func->getLinkage(),
                                          Func->getAddressSpace());
 
+    // Keep original function ordering.
+    M.getFunctionList().insertAfter(Func->getIterator(), NewFunc);
+
     if (KeepOriginal) {
       // TODO: Are there better naming alternatives that allow for unmangling?
       NewFunc->setName(Func->getName() + "_with_offset");
@@ -272,8 +276,8 @@ public:
       }
 
       SmallVector<ReturnInst *, 8> Returns;
-      CloneFunctionInto(NewFunc, Func, VMap, /*ModuleLevelChanges=*/false,
-                        Returns);
+      CloneFunctionInto(NewFunc, Func, VMap,
+                        CloneFunctionChangeType::GlobalChanges, Returns);
     } else {
       NewFunc->copyAttributesFrom(Func);
       NewFunc->setComdat(Func->getComdat());
@@ -298,9 +302,6 @@ public:
         NewFunc->addMetadata(MD.first, *MD.second);
     }
 
-    // Keep original function ordering.
-    M.getFunctionList().insertAfter(Func->getIterator(), NewFunc);
-
     Value *ImplicitOffset = NewFunc->arg_begin() + (NewFunc->arg_size() - 1);
     // Add bitcast to match the return type of the intrinsic if needed.
     if (ImplicitArgumentType != ImplicitOffsetPtrType) {
@@ -320,6 +321,18 @@ public:
     auto NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
     assert(NvvmMetadata && "IR compiled to PTX must have nvvm.annotations");
 
+    SmallPtrSet<GlobalValue *, 8u> Used;
+    SmallVector<GlobalValue *, 4> Vec;
+    collectUsedGlobalVariables(M, Vec, /*CompilerUsed=*/false);
+    collectUsedGlobalVariables(M, Vec, /*CompilerUsed=*/true);
+    Used = {Vec.begin(), Vec.end()};
+
+    auto HasUseOtherThanLLVMUsed = [&Used](GlobalValue *GV) {
+      if (GV->use_empty())
+        return false;
+      return !GV->hasOneUse() || !Used.count(GV);
+    };
+
     llvm::DenseMap<Function *, MDNode *> NvvmEntryPointMetadata;
     for (auto MetadataNode : NvvmMetadata->operands()) {
       if (MetadataNode->getNumOperands() != 3)
@@ -333,15 +346,17 @@ public:
         continue;
 
       // Get a pointer to the entry point function from the metadata.
-      auto FuncConstant =
-          dyn_cast<ConstantAsMetadata>(MetadataNode->getOperand(0));
+      const auto &FuncOperand = MetadataNode->getOperand(0);
+      if (!FuncOperand)
+        continue;
+      auto FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
       if (!FuncConstant)
         continue;
       auto Func = dyn_cast<Function>(FuncConstant->getValue());
       if (!Func)
         continue;
 
-      assert(Func->use_empty() && "Kernel entry point with uses");
+      assert(!HasUseOtherThanLLVMUsed(Func) && "Kernel entry point with uses");
       NvvmEntryPointMetadata[Func] = MetadataNode;
     }
     return NvvmEntryPointMetadata;

@@ -1,9 +1,10 @@
-
 add_flang_library(FortranSemantics
   assignment.cpp
   attr.cpp
+  canonicalize-acc.cpp
   canonicalize-do.cpp
   canonicalize-omp.cpp
+  check-acc-structure.cpp
   check-allocate.cpp
   check-arithmeticif.cpp
   check-call.cpp
@@ -24,14 +25,17 @@ add_flang_library(FortranSemantics
   check-select-type.cpp
   check-stop.cpp
   compute-offsets.cpp
+  data-to-inits.cpp
   expression.cpp
   mod-file.cpp
   pointer-assignment.cpp
   program-tree.cpp
   resolve-labels.cpp
-  resolve-names.cpp
+  resolve-directives.cpp
   resolve-names-utils.cpp
+  resolve-names.cpp
   rewrite-parse-tree.cpp
+  runtime-type-info.cpp
   scope.cpp
   semantics.cpp
   symbol.cpp
@@ -39,10 +43,17 @@ add_flang_library(FortranSemantics
   type.cpp
   unparse-with-symbols.cpp
 
+  DEPENDS
+  acc_gen
+  omp_gen
+
   LINK_LIBS
   FortranCommon
+  FortranParser
   FortranEvaluate
 
   LINK_COMPONENTS
   Support
+  FrontendOpenMP
+  FrontendOpenACC
 )

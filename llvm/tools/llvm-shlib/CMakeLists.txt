@@ -50,6 +50,11 @@ if(LLVM_BUILD_LLVM_DYLIB)
       # Solaris ld does not accept global: *; so there is no way to version *all* global symbols
       set(LIB_NAMES -Wl,--version-script,${LLVM_LIBRARY_DIR}/tools/llvm-shlib/simple_version_script.map ${LIB_NAMES})
     endif()
+    # Optimize function calls for default visibility definitions to avoid PLT and
+    # reduce dynamic relocations.
+    # Note: for -fno-pic default, the address of a function may be different from
+    # inside and outside libLLVM.so.
+    target_link_options(LLVM PRIVATE LINKER:-Bsymbolic-functions)
   elseif("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
     set(LIB_NAMES -Wl,-all_load ${LIB_NAMES})
   endif()
@@ -154,13 +159,17 @@ if(LLVM_BUILD_LLVM_C_DYLIB AND MSVC)
   set(GEN_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/gen-msvc-exports.py)
 
   set(LLVM_EXPORTED_SYMBOL_FILE ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/libllvm-c.exports)
-
-  if(CMAKE_CROSSCOMPILING)
-    build_native_tool(llvm-nm llvm_nm)
-    set(llvm_nm_target "${llvm_nm}")
+  if(NOT LLVM_NM)
+    if(CMAKE_CROSSCOMPILING)
+      build_native_tool(llvm-nm llvm_nm)
+      set(llvm_nm_target "${llvm_nm}")
+    else()
+      set(llvm_nm $<TARGET_FILE:llvm-nm>)
+      set(llvm_nm_target llvm-nm)
+    endif()
   else()
-    set(llvm_nm $<TARGET_FILE:llvm-nm>)
-    set(llvm_nm_target llvm-nm)
+    set(llvm_nm ${LLVM_NM})
+    set(llvm_nm_target "")
   endif()
 
   add_custom_command(OUTPUT ${LLVM_EXPORTED_SYMBOL_FILE}
@@ -172,4 +181,9 @@ if(LLVM_BUILD_LLVM_C_DYLIB AND MSVC)
   # Finally link the target.
   add_llvm_library(LLVM-C SHARED INSTALL_WITH_TOOLCHAIN ${SOURCES} DEPENDS intrinsics_gen)
 
+  if (LLVM_INTEGRATED_CRT_ALLOC AND MSVC)
+    # Make sure we search LLVMSupport first, before the CRT libs
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -INCLUDE:malloc")
+  endif()
+  
 endif()

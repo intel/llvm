@@ -14,17 +14,12 @@
 #ifndef MLIR_DIALECT_AFFINE_TRANSFORMS_PASSES_H
 #define MLIR_DIALECT_AFFINE_TRANSFORMS_PASSES_H
 
-#include "mlir/Support/LLVM.h"
-#include <functional>
+#include "mlir/Pass/Pass.h"
 #include <limits>
 
 namespace mlir {
 
 class AffineForOp;
-class FuncOp;
-class ModuleOp;
-class Pass;
-template <typename T> class OperationPass;
 
 /// Creates a simplification pass for affine structures (maps and sets). In
 /// addition, this pass also normalizes memrefs to have the trivial (identity)
@@ -35,6 +30,13 @@ std::unique_ptr<OperationPass<FuncOp>> createSimplifyAffineStructuresPass();
 /// operations out of affine loops.
 std::unique_ptr<OperationPass<FuncOp>>
 createAffineLoopInvariantCodeMotionPass();
+
+/// Creates a pass to convert all parallel affine.for's into 1-d affine.parallel
+/// ops.
+std::unique_ptr<OperationPass<FuncOp>> createAffineParallelizePass();
+
+/// Apply normalization transformations to affine loop-like ops.
+std::unique_ptr<OperationPass<FuncOp>> createAffineLoopNormalizePass();
 
 /// Performs packing (or explicit copying) of accessed memref regions into
 /// buffers in the specified faster memory space through either pointwise copies
@@ -59,7 +61,8 @@ std::unique_ptr<OperationPass<FuncOp>> createLoopTilingPass();
 /// and no callback is provided, anything passed from the command-line (if at
 /// all) or the default unroll factor is used (LoopUnroll:kDefaultUnrollFactor).
 std::unique_ptr<OperationPass<FuncOp>> createLoopUnrollPass(
-    int unrollFactor = -1, bool unrollFull = false,
+    int unrollFactor = -1, bool unrollUpToFactor = false,
+    bool unrollFull = false,
     const std::function<unsigned(AffineForOp)> &getUnrollFactor = nullptr);
 
 /// Creates a loop unroll jam pass to unroll jam by the specified factor. A
@@ -74,6 +77,14 @@ std::unique_ptr<OperationPass<FuncOp>>
 createSuperVectorizePass(ArrayRef<int64_t> virtualVectorSize);
 /// Overload relying on pass options for initialization.
 std::unique_ptr<OperationPass<FuncOp>> createSuperVectorizePass();
+
+//===----------------------------------------------------------------------===//
+// Registration
+//===----------------------------------------------------------------------===//
+
+/// Generate the code for registering passes.
+#define GEN_PASS_REGISTRATION
+#include "mlir/Dialect/Affine/Passes.h.inc"
 
 } // end namespace mlir
 

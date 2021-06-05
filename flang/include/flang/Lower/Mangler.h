@@ -5,19 +5,31 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// Coding style: https://mlir.llvm.org/getting_started/DeveloperGuide/
+//
+//===----------------------------------------------------------------------===//
 
-#ifndef FORTRAN_LOWER_MANGLER_H_
-#define FORTRAN_LOWER_MANGLER_H_
+#ifndef FORTRAN_LOWER_MANGLER_H
+#define FORTRAN_LOWER_MANGLER_H
 
+#include "mlir/IR/BuiltinTypes.h"
+#include "llvm/ADT/StringRef.h"
 #include <string>
 
 namespace fir {
-struct NameUniquer;
-}
 
-namespace llvm {
-class StringRef;
-}
+/// Returns a name suitable to define mlir functions for Fortran intrinsic
+/// Procedure. These names are guaranteed to not conflict with user defined
+/// procedures. This is needed to implement Fortran generic intrinsics as
+/// several mlir functions specialized for the argument types.
+/// The result is guaranteed to be distinct for different mlir::FunctionType
+/// arguments. The mangling pattern is:
+///    fir.<generic name>.<result type>.<arg type>...
+/// e.g ACOS(COMPLEX(4)) is mangled as fir.acos.z4.z4
+std::string mangleIntrinsicProcedure(llvm::StringRef genericName,
+                                     mlir::FunctionType);
+} // namespace fir
 
 namespace Fortran {
 namespace common {
@@ -27,18 +39,26 @@ class Reference;
 
 namespace semantics {
 class Symbol;
-}
+class DerivedTypeSpec;
+} // namespace semantics
 
-namespace lower {
-namespace mangle {
+namespace lower::mangle {
 
-/// Convert a front-end Symbol to an internal name
-std::string mangleName(fir::NameUniquer &uniquer, const semantics::Symbol &);
+/// Convert a front-end Symbol to an internal name.
+/// If \p keepExternalInScope is true, the mangling of external symbols
+/// retains the scope of the symbol declaring externals. Otherwise,
+/// external symbols are mangled outside of any scope. Keeping the scope is
+/// useful in attributes where all the Fortran context is to be maintained.
+std::string mangleName(const semantics::Symbol &,
+                       bool keepExternalInScope = false);
 
+/// Convert a derived type instance to an internal name.
+std::string mangleName(const semantics::DerivedTypeSpec &);
+
+/// Recover the bare name of the original symbol from an internal name.
 std::string demangleName(llvm::StringRef name);
 
-} // namespace mangle
-} // namespace lower
+} // namespace lower::mangle
 } // namespace Fortran
 
-#endif // FORTRAN_LOWER_MANGLER_H_
+#endif // FORTRAN_LOWER_MANGLER_H

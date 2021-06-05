@@ -1,15 +1,15 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -triple spir64 -fsycl-is-device -verify -fsyntax-only  %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify \
+// RUN:  -aux-triple x86_64-unknown-linux-gnu -fsyntax-only       \
+// RUN:  -Wno-sycl-2017-compat  %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify \
+// RUN:  -aux-triple x86_64-pc-windows-msvc -fsyntax-only         \
+// RUN:  -Wno-sycl-2017-compat  %s
 //
 // Ensure SYCL type restrictions are applied to accessors as well.
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 using namespace cl::sycl;
-
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
-  kernelFunc();
-}
 
 //alias template
 template <typename...>
@@ -42,7 +42,7 @@ int main() {
   // -- Accessor of struct that contains a prohibited type.
   accessor<Mesh, 1, access::mode::read_write> struct_acc;
 
-  kernel<class use_local>(
+  kernel_single_task<class use_local>(
       [=]() {
         ok_acc.use();
 

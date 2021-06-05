@@ -120,21 +120,19 @@ collectParamDecls(const CXXConstructorDecl *Ctor,
 
 PassByValueCheck::PassByValueCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
-                                            utils::IncludeSorter::getMapping(),
-                                            utils::IncludeSorter::IS_LLVM)),
+      Inserter(Options.getLocalOrGlobal("IncludeStyle",
+                                        utils::IncludeSorter::IS_LLVM)),
       ValuesOnly(Options.get("ValuesOnly", false)) {}
 
 void PassByValueCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle", IncludeStyle,
-                utils::IncludeSorter::getMapping());
+  Options.store(Opts, "IncludeStyle", Inserter.getStyle());
   Options.store(Opts, "ValuesOnly", ValuesOnly);
 }
 
 void PassByValueCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       traverse(
-          ast_type_traits::TK_AsIs,
+          TK_AsIs,
           cxxConstructorDecl(
               forEachConstructorInitializer(
                   cxxCtorInitializer(
@@ -169,9 +167,7 @@ void PassByValueCheck::registerMatchers(MatchFinder *Finder) {
 void PassByValueCheck::registerPPCallbacks(const SourceManager &SM,
                                            Preprocessor *PP,
                                            Preprocessor *ModuleExpanderPP) {
-    Inserter = std::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
-                                                         IncludeStyle);
-    PP->addPPCallbacks(Inserter->CreatePPCallbacks());
+  Inserter.registerPreprocessor(PP);
 }
 
 void PassByValueCheck::check(const MatchFinder::MatchResult &Result) {
@@ -218,10 +214,9 @@ void PassByValueCheck::check(const MatchFinder::MatchResult &Result) {
   Diag << FixItHint::CreateInsertion(Initializer->getRParenLoc(), ")")
        << FixItHint::CreateInsertion(
               Initializer->getLParenLoc().getLocWithOffset(1), "std::move(")
-       << Inserter->CreateIncludeInsertion(
+       << Inserter.createIncludeInsertion(
               Result.SourceManager->getFileID(Initializer->getSourceLocation()),
-              "utility",
-              /*IsAngled=*/true);
+              "<utility>");
 }
 
 } // namespace modernize

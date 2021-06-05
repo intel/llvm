@@ -24,12 +24,12 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: DW_AT_name {{.*}}"j"
 ; CHECK: DW_TAG_variable  
 ; CHECK-NEXT:   DW_AT_location [DW_FORM_sec_offset] (
-; CHECK-NEXT:     0x{{.*}}, 0x{{.*}}: DW_OP_breg7 RSP+16, DW_OP_deref)
+; CHECK-NEXT:     0x{{.*}}, 0x{{.*}}: DW_OP_breg7 RSP+8, DW_OP_deref)
 ; CHECK-NEXT:   DW_AT_name {{.*}}"my_a"
 
 %class.A = type { i32, i32, i32, i32 }
 
-define void @_Z3fooi(%class.A* sret %agg.result, i32 %i) ssp !dbg !19 {
+define void @_Z3fooi(%class.A* sret(%class.A) %agg.result, i32 %i) ssp !dbg !19 {
 entry:
   %i.addr = alloca i32, align 4
   %j = alloca i32, align 4

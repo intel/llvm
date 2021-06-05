@@ -1,13 +1,14 @@
-; RUN: llc < %s -asm-verbose=false -verify-machineinstrs -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -mattr=+unimplemented-simd128 | FileCheck %s --check-prefixes CHECK,SIMD128,SIMD128-SLOW
-; RUN: llc < %s -asm-verbose=false -verify-machineinstrs -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -mattr=+unimplemented-simd128 -fast-isel | FileCheck %s --check-prefixes CHECK,SIMD128,SIMD128-FAST
-; RUN: llc < %s -asm-verbose=false -verify-machineinstrs -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -mattr=+simd128 | FileCheck %s
-; RUN: llc < %s -asm-verbose=false -verify-machineinstrs -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -mattr=+simd128 -fast-isel | FileCheck %s
+; RUN: llc < %s -asm-verbose=false -verify-machineinstrs -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -mattr=+simd128 | FileCheck %s --check-prefixes CHECK,SIMD128,SIMD128-SLOW
+
+; RUN: llc < %s -asm-verbose=false -verify-machineinstrs -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -mattr=+simd128 -fast-isel | FileCheck %s --check-prefixes CHECK,SIMD128,SIMD128-FAST
+
 ; RUN: llc < %s -asm-verbose=false -verify-machineinstrs -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers | FileCheck %s --check-prefixes CHECK,NO-SIMD128
+
 ; RUN: llc < %s -asm-verbose=false -verify-machineinstrs -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -fast-isel | FileCheck %s --check-prefixes CHECK,NO-SIMD128
 
 ; check that a non-test run (including explicit locals pass) at least finishes
-; RUN: llc < %s -O0 -mattr=+unimplemented-simd128
-; RUN: llc < %s -O2 -mattr=+unimplemented-simd128
+; RUN: llc < %s -O0 -mattr=+simd128
+; RUN: llc < %s -O2 -mattr=+simd128
 
 ; Test that basic SIMD128 arithmetic operations assemble as expected.
 
@@ -967,6 +968,18 @@ define <2 x i64> @mul_v2i64(<2 x i64> %x, <2 x i64> %y) {
   ret <2 x i64> %a
 }
 
+; CHECK-LABEL: abs_v2i64:
+; NO-SIMD128-NOT: i64x2:
+; SIMD128-NEXT: .functype abs_v2i64 (v128) -> (v128){{$}}
+; SIMD128-NEXT: i64x2.abs $push[[R:[0-9]+]]=, $0{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+define <2 x i64> @abs_v2i64(<2 x i64> %x) {
+  %a = sub <2 x i64> zeroinitializer, %x
+  %b = icmp slt <2 x i64> %x, zeroinitializer
+  %c = select <2 x i1> %b, <2 x i64> %a, <2 x i64> %x
+  ret <2 x i64> %c
+}
+
 ; CHECK-LABEL: neg_v2i64:
 ; NO-SIMD128-NOT: i64x2
 ; SIMD128-NEXT: .functype neg_v2i64 (v128) -> (v128){{$}}
@@ -1278,9 +1291,8 @@ define <4 x float> @abs_v4f32(<4 x float> %x) {
 ; CHECK-LABEL: min_unordered_v4f32:
 ; NO-SIMD128-NOT: f32x4
 ; SIMD128-NEXT: .functype min_unordered_v4f32 (v128) -> (v128){{$}}
-; SIMD128-NEXT: f32.const $push[[L0:[0-9]+]]=, 0x1.4p2
-; SIMD128-NEXT: f32x4.splat $push[[L1:[0-9]+]]=, $pop[[L0]]
-; SIMD128-NEXT: f32x4.min $push[[R:[0-9]+]]=, $0, $pop[[L1]]{{$}}
+; SIMD128-NEXT: v128.const $push[[L0:[0-9]+]]=, 0x1.4p2, 0x1.4p2, 0x1.4p2, 0x1.4p2{{$}}
+; SIMD128-NEXT: f32x4.min $push[[R:[0-9]+]]=, $0, $pop[[L0]]{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <4 x float> @min_unordered_v4f32(<4 x float> %x) {
   %cmps = fcmp ule <4 x float> %x, <float 5., float 5., float 5., float 5.>
@@ -1292,9 +1304,8 @@ define <4 x float> @min_unordered_v4f32(<4 x float> %x) {
 ; CHECK-LABEL: max_unordered_v4f32:
 ; NO-SIMD128-NOT: f32x4
 ; SIMD128-NEXT: .functype max_unordered_v4f32 (v128) -> (v128){{$}}
-; SIMD128-NEXT: f32.const $push[[L0:[0-9]+]]=, 0x1.4p2
-; SIMD128-NEXT: f32x4.splat $push[[L1:[0-9]+]]=, $pop[[L0]]
-; SIMD128-NEXT: f32x4.max $push[[R:[0-9]+]]=, $0, $pop[[L1]]{{$}}
+; SIMD128-NEXT: v128.const $push[[L0:[0-9]+]]=, 0x1.4p2, 0x1.4p2, 0x1.4p2, 0x1.4p2
+; SIMD128-NEXT: f32x4.max $push[[R:[0-9]+]]=, $0, $pop[[L0]]{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <4 x float> @max_unordered_v4f32(<4 x float> %x) {
   %cmps = fcmp uge <4 x float> %x, <float 5., float 5., float 5., float 5.>
@@ -1306,9 +1317,8 @@ define <4 x float> @max_unordered_v4f32(<4 x float> %x) {
 ; CHECK-LABEL: min_ordered_v4f32:
 ; NO-SIMD128-NOT: f32x4
 ; SIMD128-NEXT: .functype min_ordered_v4f32 (v128) -> (v128){{$}}
-; SIMD128-NEXT: f32.const $push[[L0:[0-9]+]]=, 0x1.4p2
-; SIMD128-NEXT: f32x4.splat $push[[L1:[0-9]+]]=, $pop[[L0]]
-; SIMD128-NEXT: f32x4.min $push[[R:[0-9]+]]=, $0, $pop[[L1]]{{$}}
+; SIMD128-NEXT: v128.const $push[[L0:[0-9]+]]=, 0x1.4p2, 0x1.4p2, 0x1.4p2, 0x1.4p2{{$}}
+; SIMD128-NEXT: f32x4.min $push[[R:[0-9]+]]=, $0, $pop[[L0]]{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <4 x float> @min_ordered_v4f32(<4 x float> %x) {
   %cmps = fcmp ole <4 x float> <float 5., float 5., float 5., float 5.>, %x
@@ -1320,9 +1330,8 @@ define <4 x float> @min_ordered_v4f32(<4 x float> %x) {
 ; CHECK-LABEL: max_ordered_v4f32:
 ; NO-SIMD128-NOT: f32x4
 ; SIMD128-NEXT: .functype max_ordered_v4f32 (v128) -> (v128){{$}}
-; SIMD128-NEXT: f32.const $push[[L0:[0-9]+]]=, 0x1.4p2
-; SIMD128-NEXT: f32x4.splat $push[[L1:[0-9]+]]=, $pop[[L0]]
-; SIMD128-NEXT: f32x4.max $push[[R:[0-9]+]]=, $0, $pop[[L1]]{{$}}
+; SIMD128-NEXT: v128.const $push[[L0:[0-9]+]]=, 0x1.4p2, 0x1.4p2, 0x1.4p2, 0x1.4p2{{$}}
+; SIMD128-NEXT: f32x4.max $push[[R:[0-9]+]]=, $0, $pop[[L0]]{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <4 x float> @max_ordered_v4f32(<4 x float> %x) {
   %cmps = fcmp oge <4 x float> <float 5., float 5., float 5., float 5.>, %x
@@ -1378,8 +1387,7 @@ define <4 x float> @maxnum_intrinsic_v4f32(<4 x float> %x, <4 x float> %y) {
 ; CHECK-LABEL: min_const_intrinsic_v4f32:
 ; NO-SIMD128-NOT: f32x4
 ; SIMD128-NEXT: .functype min_const_intrinsic_v4f32 () -> (v128){{$}}
-; SIMD128-NEXT: f32.const $push[[L:[0-9]+]]=, 0x1.4p2{{$}}
-; SIMD128-NEXT: f32x4.splat $push[[R:[0-9]+]]=, $pop[[L]]{{$}}
+; SIMD128-NEXT: v128.const $push[[R:[0-9]+]]=, 0x1.4p2, 0x1.4p2, 0x1.4p2, 0x1.4p2{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <4 x float> @min_const_intrinsic_v4f32() {
   %a = call <4 x float> @llvm.minimum.v4f32(
@@ -1392,8 +1400,7 @@ define <4 x float> @min_const_intrinsic_v4f32() {
 ; CHECK-LABEL: max_const_intrinsic_v4f32:
 ; NO-SIMD128-NOT: f32x4
 ; SIMD128-NEXT: .functype max_const_intrinsic_v4f32 () -> (v128){{$}}
-; SIMD128-NEXT: f32.const $push[[L:[0-9]+]]=, 0x1.5p5{{$}}
-; SIMD128-NEXT: f32x4.splat $push[[R:[0-9]+]]=, $pop[[L]]{{$}}
+; SIMD128-NEXT: v128.const $push[[R:[0-9]+]]=, 0x1.5p5, 0x1.5p5, 0x1.5p5, 0x1.5p5{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <4 x float> @max_const_intrinsic_v4f32() {
   %a = call <4 x float> @llvm.maximum.v4f32(
@@ -1482,9 +1489,8 @@ define <2 x double> @abs_v2f64(<2 x double> %x) {
 ; CHECK-LABEL: min_unordered_v2f64:
 ; NO-SIMD128-NOT: f64x2
 ; SIMD128-NEXT: .functype min_unordered_v2f64 (v128) -> (v128){{$}}
-; SIMD128-NEXT: f64.const $push[[L0:[0-9]+]]=, 0x1.4p2
-; SIMD128-NEXT: f64x2.splat $push[[L1:[0-9]+]]=, $pop[[L0]]
-; SIMD128-NEXT: f64x2.min $push[[R:[0-9]+]]=, $0, $pop[[L1]]{{$}}
+; SIMD128-NEXT: v128.const $push[[L0:[0-9]+]]=, 0x1.4p2, 0x1.4p2{{$}}
+; SIMD128-NEXT: f64x2.min $push[[R:[0-9]+]]=, $0, $pop[[L0]]{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <2 x double> @min_unordered_v2f64(<2 x double> %x) {
   %cmps = fcmp ule <2 x double> %x, <double 5., double 5.>
@@ -1496,9 +1502,8 @@ define <2 x double> @min_unordered_v2f64(<2 x double> %x) {
 ; CHECK-LABEL: max_unordered_v2f64:
 ; NO-SIMD128-NOT: f64x2
 ; SIMD128-NEXT: .functype max_unordered_v2f64 (v128) -> (v128){{$}}
-; SIMD128-NEXT: f64.const $push[[L0:[0-9]+]]=, 0x1.4p2
-; SIMD128-NEXT: f64x2.splat $push[[L1:[0-9]+]]=, $pop[[L0]]
-; SIMD128-NEXT: f64x2.max $push[[R:[0-9]+]]=, $0, $pop[[L1]]{{$}}
+; SIMD128-NEXT: v128.const $push[[L0:[0-9]+]]=, 0x1.4p2, 0x1.4p2{{$}}
+; SIMD128-NEXT: f64x2.max $push[[R:[0-9]+]]=, $0, $pop[[L0]]{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <2 x double> @max_unordered_v2f64(<2 x double> %x) {
   %cmps = fcmp uge <2 x double> %x, <double 5., double 5.>
@@ -1510,9 +1515,8 @@ define <2 x double> @max_unordered_v2f64(<2 x double> %x) {
 ; CHECK-LABEL: min_ordered_v2f64:
 ; NO-SIMD128-NOT: f64x2
 ; SIMD128-NEXT: .functype min_ordered_v2f64 (v128) -> (v128){{$}}
-; SIMD128-NEXT: f64.const $push[[L0:[0-9]+]]=, 0x1.4p2
-; SIMD128-NEXT: f64x2.splat $push[[L1:[0-9]+]]=, $pop[[L0]]
-; SIMD128-NEXT: f64x2.min $push[[R:[0-9]+]]=, $0, $pop[[L1]]{{$}}
+; SIMD128-NEXT: v128.const $push[[L0:[0-9]+]]=, 0x1.4p2, 0x1.4p2{{$}}
+; SIMD128-NEXT: f64x2.min $push[[R:[0-9]+]]=, $0, $pop[[L0]]{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <2 x double> @min_ordered_v2f64(<2 x double> %x) {
   %cmps = fcmp ole <2 x double> <double 5., double 5.>, %x
@@ -1524,9 +1528,8 @@ define <2 x double> @min_ordered_v2f64(<2 x double> %x) {
 ; CHECK-LABEL: max_ordered_v2f64:
 ; NO-SIMD128-NOT: f64x2
 ; SIMD128-NEXT: .functype max_ordered_v2f64 (v128) -> (v128){{$}}
-; SIMD128-NEXT: f64.const $push[[L0:[0-9]+]]=, 0x1.4p2
-; SIMD128-NEXT: f64x2.splat $push[[L1:[0-9]+]]=, $pop[[L0]]
-; SIMD128-NEXT: f64x2.max $push[[R:[0-9]+]]=, $0, $pop[[L1]]{{$}}
+; SIMD128-NEXT: v128.const $push[[L0:[0-9]+]]=, 0x1.4p2, 0x1.4p2{{$}}
+; SIMD128-NEXT: f64x2.max $push[[R:[0-9]+]]=, $0, $pop[[L0]]{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <2 x double> @max_ordered_v2f64(<2 x double> %x) {
   %cmps = fcmp oge <2 x double> <double 5., double 5.>, %x
@@ -1560,8 +1563,7 @@ define <2 x double> @max_intrinsic_v2f64(<2 x double> %x, <2 x double> %y) {
 ; CHECK-LABEL: min_const_intrinsic_v2f64:
 ; NO-SIMD128-NOT: f64x2
 ; SIMD128-NEXT: .functype min_const_intrinsic_v2f64 () -> (v128){{$}}
-; SIMD128-NEXT: f64.const $push[[L:[0-9]+]]=, 0x1.4p2{{$}}
-; SIMD128-NEXT: f64x2.splat $push[[R:[0-9]+]]=, $pop[[L]]{{$}}
+; SIMD128-NEXT: v128.const $push[[R:[0-9]+]]=, 0x1.4p2, 0x1.4p2{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <2 x double> @min_const_intrinsic_v2f64() {
   %a = call <2 x double> @llvm.minimum.v2f64(
@@ -1574,8 +1576,7 @@ define <2 x double> @min_const_intrinsic_v2f64() {
 ; CHECK-LABEL: max_const_intrinsic_v2f64:
 ; NO-SIMD128-NOT: f64x2
 ; SIMD128-NEXT: .functype max_const_intrinsic_v2f64 () -> (v128){{$}}
-; SIMD128-NEXT: f64.const $push[[L:[0-9]+]]=, 0x1.5p5{{$}}
-; SIMD128-NEXT: f64x2.splat $push[[R:[0-9]+]]=, $pop[[L]]{{$}}
+; SIMD128-NEXT: v128.const $push[[R:[0-9]+]]=, 0x1.5p5, 0x1.5p5{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <2 x double> @max_const_intrinsic_v2f64() {
   %a = call <2 x double> @llvm.maximum.v2f64(

@@ -70,11 +70,11 @@ define <2 x i32> @and_xor_common_op_commute3(<2 x i32> %pa, <2 x i32> %pb) {
 }
 
 ; It's ok to match a common constant.
-; TODO: The xor should be a 'not' op (-1 constant), but demanded bits shrinks it.
+; The xor should be a 'not' op (-1 constant).
 
 define <4 x i32> @and_xor_common_op_constant(<4 x i32> %A) {
 ; CHECK-LABEL: @and_xor_common_op_constant(
-; CHECK-NEXT:    [[TMP1:%.*]] = xor <4 x i32> [[A:%.*]], <i32 7, i32 7, i32 7, i32 7>
+; CHECK-NEXT:    [[TMP1:%.*]] = xor <4 x i32> [[A:%.*]], <i32 -1, i32 -1, i32 -1, i32 -1>
 ; CHECK-NEXT:    [[TMP2:%.*]] = and <4 x i32> [[TMP1]], <i32 1, i32 2, i32 3, i32 4>
 ; CHECK-NEXT:    ret <4 x i32> [[TMP2]]
 ;
@@ -87,12 +87,55 @@ define <4 x i32> @and_xor_common_op_constant(<4 x i32> %A) {
 
 define i32 @and_xor_not_common_op(i32 %a, i32 %b) {
 ; CHECK-LABEL: @and_xor_not_common_op(
-; CHECK-NEXT:    [[T4:%.*]] = and i32 [[B:%.*]], [[A:%.*]]
+; CHECK-NEXT:    [[T4:%.*]] = and i32 [[A:%.*]], [[B:%.*]]
 ; CHECK-NEXT:    ret i32 [[T4]]
 ;
   %b2 = xor i32 %b, -1
   %t2 = xor i32 %a, %b2
   %t4 = and i32 %t2, %a
+  ret i32 %t4
+}
+
+; a & (a ^ ~b) --> a & b
+
+define i32 @and_xor_not_common_op_extrause(i32 %a, i32 %b, i32* %dst) {
+; CHECK-LABEL: @and_xor_not_common_op_extrause(
+; CHECK-NEXT:    [[B2:%.*]] = xor i32 [[B:%.*]], -1
+; CHECK-NEXT:    store i32 [[B2]], i32* [[DST:%.*]], align 4
+; CHECK-NEXT:    [[T4:%.*]] = and i32 [[A:%.*]], [[B]]
+; CHECK-NEXT:    ret i32 [[T4]]
+;
+  %b2 = xor i32 %b, -1
+  store i32 %b2, i32* %dst
+  %t2 = xor i32 %a, %b2
+  %t4 = and i32 %t2, %a
+  ret i32 %t4
+}
+
+; a & ~(a ^ b) --> a & b
+
+define i32 @and_not_xor_common_op(i32 %a, i32 %b) {
+; CHECK-LABEL: @and_not_xor_common_op(
+; CHECK-NEXT:    [[T4:%.*]] = and i32 [[A:%.*]], [[B:%.*]]
+; CHECK-NEXT:    ret i32 [[T4]]
+;
+  %b2 = xor i32 %b, %a
+  %t2 = xor i32 %b2, -1
+  %t4 = and i32 %t2, %a
+  ret i32 %t4
+}
+
+declare i32 @gen32()
+define i32 @and_not_xor_common_op_commutative(i32 %b) {
+; CHECK-LABEL: @and_not_xor_common_op_commutative(
+; CHECK-NEXT:    [[A:%.*]] = call i32 @gen32()
+; CHECK-NEXT:    [[T4:%.*]] = and i32 [[A]], [[B:%.*]]
+; CHECK-NEXT:    ret i32 [[T4]]
+;
+  %a = call i32 @gen32()
+  %b2 = xor i32 %a, %b ; swapped order
+  %t2 = xor i32 %b2, -1
+  %t4 = and i32 %a, %t2 ; swapped order
   ret i32 %t4
 }
 

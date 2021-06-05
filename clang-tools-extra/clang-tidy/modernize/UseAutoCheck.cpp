@@ -27,7 +27,7 @@ const char DeclWithNewId[] = "decl_new";
 const char DeclWithCastId[] = "decl_cast";
 const char DeclWithTemplateCastId[] = "decl_template";
 
-size_t GetTypeNameLength(bool RemoveStars, StringRef Text) {
+size_t getTypeNameLength(bool RemoveStars, StringRef Text) {
   enum CharType { Space, Alpha, Punctuation };
   CharType LastChar = Space, BeforeSpace = Punctuation;
   size_t NumChars = 0;
@@ -119,16 +119,11 @@ AST_MATCHER_P(QualType, isSugarFor, Matcher<QualType>, SugarMatcher) {
 /// \endcode
 ///
 /// namedDecl(hasStdIteratorName()) matches \c I and \c CI.
-AST_MATCHER(NamedDecl, hasStdIteratorName) {
-  static const char *const IteratorNames[] = {"iterator", "reverse_iterator",
-                                              "const_iterator",
-                                              "const_reverse_iterator"};
-
-  for (const char *Name : IteratorNames) {
-    if (hasName(Name).matches(Node, Finder, Builder))
-      return true;
-  }
-  return false;
+Matcher<NamedDecl> hasStdIteratorName() {
+  static const StringRef IteratorNames[] = {"iterator", "reverse_iterator",
+                                            "const_iterator",
+                                            "const_reverse_iterator"};
+  return hasAnyName(IteratorNames);
 }
 
 /// Matches named declarations that have one of the standard container
@@ -143,60 +138,21 @@ AST_MATCHER(NamedDecl, hasStdIteratorName) {
 ///
 /// recordDecl(hasStdContainerName()) matches \c vector and \c forward_list
 /// but not \c my_vec.
-AST_MATCHER(NamedDecl, hasStdContainerName) {
-  static const char *const ContainerNames[] = {
-      "array",         "deque",
-      "forward_list",  "list",
-      "vector",
+Matcher<NamedDecl> hasStdContainerName() {
+  static StringRef ContainerNames[] = {"array",         "deque",
+                                       "forward_list",  "list",
+                                       "vector",
 
-      "map",           "multimap",
-      "set",           "multiset",
+                                       "map",           "multimap",
+                                       "set",           "multiset",
 
-      "unordered_map", "unordered_multimap",
-      "unordered_set", "unordered_multiset",
+                                       "unordered_map", "unordered_multimap",
+                                       "unordered_set", "unordered_multiset",
 
-      "queue",         "priority_queue",
-      "stack"};
+                                       "queue",         "priority_queue",
+                                       "stack"};
 
-  for (const char *Name : ContainerNames) {
-    if (hasName(Name).matches(Node, Finder, Builder))
-      return true;
-  }
-  return false;
-}
-
-/// Matches declarations whose declaration context is the C++ standard library
-/// namespace std.
-///
-/// Note that inline namespaces are silently ignored during the lookup since
-/// both libstdc++ and libc++ are known to use them for versioning purposes.
-///
-/// Given:
-/// \code
-///   namespace ns {
-///     struct my_type {};
-///     using namespace std;
-///   }
-///
-///   using std::vector;
-///   using ns:my_type;
-///   using ns::list;
-/// \code
-///
-/// usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(isFromStdNamespace())))
-/// matches "using std::vector" and "using ns::list".
-AST_MATCHER(Decl, isFromStdNamespace) {
-  const DeclContext *D = Node.getDeclContext();
-
-  while (D->isInlineNamespace())
-    D = D->getParent();
-
-  if (!D->isNamespace() || !D->getParent()->isTranslationUnit())
-    return false;
-
-  const IdentifierInfo *Info = cast<NamespaceDecl>(D)->getIdentifier();
-
-  return (Info && Info->isStr("std"));
+  return hasAnyName(ContainerNames);
 }
 
 /// Matches declaration reference or member expressions with explicit template
@@ -212,7 +168,7 @@ AST_POLYMORPHIC_MATCHER(hasExplicitTemplateArgs,
 DeclarationMatcher standardIterator() {
   return decl(
       namedDecl(hasStdIteratorName()),
-      hasDeclContext(recordDecl(hasStdContainerName(), isFromStdNamespace())));
+      hasDeclContext(recordDecl(hasStdContainerName(), isInStdNamespace())));
 }
 
 /// Returns a TypeMatcher that matches typedefs for standard iterators
@@ -236,7 +192,7 @@ TypeMatcher iteratorFromUsingDeclaration() {
       // Unwrap the nested name specifier to test for one of the standard
       // containers.
       hasQualifier(specifiesType(templateSpecializationType(hasDeclaration(
-          namedDecl(hasStdContainerName(), isFromStdNamespace()))))),
+          namedDecl(hasStdContainerName(), isInStdNamespace()))))),
       // the named type is what comes after the final '::' in the type. It
       // should name one of the standard iterator names.
       namesType(
@@ -325,8 +281,7 @@ void UseAutoCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void UseAutoCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(traverse(ast_type_traits::TK_AsIs, makeCombinedMatcher()),
-                     this);
+  Finder->addMatcher(traverse(TK_AsIs, makeCombinedMatcher()), this);
 }
 
 void UseAutoCheck::replaceIterators(const DeclStmt *D, ASTContext *Context) {
@@ -348,7 +303,7 @@ void UseAutoCheck::replaceIterators(const DeclStmt *D, ASTContext *Context) {
 
     // Drill down to the as-written initializer.
     const Expr *E = (*Construct->arg_begin())->IgnoreParenImpCasts();
-    if (E != E->IgnoreConversionOperator()) {
+    if (E != E->IgnoreConversionOperatorSingleStep()) {
       // We hit a conversion operator. Early-out now as they imply an implicit
       // conversion from a different type. Could also mean an explicit
       // conversion from the same type but that's pretty rare.
@@ -444,7 +399,7 @@ void UseAutoCheck::replaceExpr(
   SourceRange Range(Loc.getSourceRange());
 
   if (MinTypeNameLength != 0 &&
-      GetTypeNameLength(RemoveStars,
+      getTypeNameLength(RemoveStars,
                         tooling::fixit::getText(Loc.getSourceRange(),
                                                 FirstDecl->getASTContext())) <
           MinTypeNameLength)

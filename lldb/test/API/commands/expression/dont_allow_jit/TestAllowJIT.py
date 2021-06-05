@@ -58,7 +58,7 @@ class TestAllowJIT(TestBase):
 
         # Now use the options:
         result = frame.EvaluateExpression("call_me(10)", options)
-        self.assertTrue(result.GetError().Success(), "expression succeeded")
+        self.assertSuccess(result.GetError())
         self.assertEqual(result.GetValueAsSigned(), 18, "got the right value.")
 
         # Now disallow JIT and make sure it fails:
@@ -69,7 +69,7 @@ class TestAllowJIT(TestBase):
         # Again use it and ensure we fail:
         result = frame.EvaluateExpression("call_me(10)", options)
         self.assertTrue(result.GetError().Fail(), "expression failed with no JIT")
-        self.assertTrue("Can't evaluate the expression without a running target" in result.GetError().GetCString(), "Got right error")
+        self.assertIn("Can't evaluate the expression without a running target", result.GetError().GetCString(), "Got right error")
 
         # Finally set the allow JIT value back to true and make sure that works:
         options.SetAllowJIT(True)
@@ -77,6 +77,19 @@ class TestAllowJIT(TestBase):
 
         # And again, make sure this works:
         result = frame.EvaluateExpression("call_me(10)", options)
-        self.assertTrue(result.GetError().Success(), "expression succeeded")
+        self.assertSuccess(result.GetError())
         self.assertEqual(result.GetValueAsSigned(), 18, "got the right value.")
 
+    def test_allow_jit_with_top_level(self):
+        """Test combined --allow-jit and --top-level flags"""
+        # Can't force interpreting for top-level expressions which are always
+        # injected.
+        self.expect("expr --allow-jit false --top-level -- int i;", error=True,
+                    substrs=["Can't disable JIT compilation for top-level expressions."])
+
+        self.build()
+        lldbutil.run_to_source_breakpoint(self, "Set a breakpoint here", lldb.SBFileSpec("main.c"))
+        # Allowing JITing for top-level expressions is redundant but should work.
+        self.expect("expr --allow-jit true --top-level -- int top_level_f() { return 2; }")
+        # Make sure we actually declared a working top-level function.
+        self.expect_expr("top_level_f()", result_value="2")

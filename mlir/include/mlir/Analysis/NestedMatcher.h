@@ -9,7 +9,7 @@
 #ifndef MLIR_ANALYSIS_MLFUNCTIONMATCHER_H_
 #define MLIR_ANALYSIS_MLFUNCTIONMATCHER_H_
 
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
 #include "llvm/Support/Allocator.h"
 
@@ -52,7 +52,7 @@ public:
 
   explicit operator bool() { return matchedOperation != nullptr; }
 
-  Operation *getMatchedOperation() { return matchedOperation; }
+  Operation *getMatchedOperation() const { return matchedOperation; }
   ArrayRef<NestedMatch> getMatchedChildren() { return matchedChildren; }
 
 private:
@@ -73,7 +73,7 @@ private:
 ///   1. recursively matches a substructure in the tree;
 ///   2. uses a filter function to refine matches with extra semantic
 ///      constraints (passed via a lambda of type FilterFunctionType);
-///   3. TODO(ntv) optionally applies actions (lambda).
+///   3. TODO: optionally applies actions (lambda).
 ///
 /// Nested patterns are meant to capture imperfectly nested loops while matching
 /// properties over the whole loop nest. For instance, in vectorization we are
@@ -93,8 +93,15 @@ class NestedPattern {
 public:
   NestedPattern(ArrayRef<NestedPattern> nested,
                 FilterFunctionType filter = defaultFilterFunction);
-  NestedPattern(const NestedPattern &) = default;
-  NestedPattern &operator=(const NestedPattern &) = default;
+  NestedPattern(const NestedPattern &other);
+  NestedPattern &operator=(const NestedPattern &other);
+
+  ~NestedPattern() {
+    // Call destructors manually, ArrayRef is non-owning so it wouldn't call
+    // them, but we should free the memory allocated by std::function outside of
+    // the arena allocator.
+    freeNested();
+  }
 
   /// Returns all the top-level matches in `func`.
   void match(FuncOp func, SmallVectorImpl<NestedMatch> *matches) {
@@ -113,6 +120,13 @@ private:
   friend class NestedPatternContext;
   friend class NestedMatch;
   friend struct State;
+
+  /// Copies the list of nested patterns to the arena allocator associated with
+  /// this pattern.
+  void copyNestedToThis(ArrayRef<NestedPattern> nested);
+
+  /// Calls destructors on nested patterns.
+  void freeNested();
 
   /// Underlying global bump allocator managed by a NestedPatternContext.
   static llvm::BumpPtrAllocator *&allocator();

@@ -9,14 +9,13 @@
 # CHECK-NEXT:    Type: SHT_PROGBITS
 # CHECK-NEXT:  - Name: .bar
 # CHECK-NEXT:    Type: SHT_PROGBITS
-# CHECK-NEXT:    Info: 0x0000000000000001
+# CHECK-NEXT:    Info: 0x1
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS

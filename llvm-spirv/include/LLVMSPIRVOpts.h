@@ -39,10 +39,18 @@
 #ifndef SPIRV_LLVMSPIRVOPTS_H
 #define SPIRV_LLVMSPIRVOPTS_H
 
+#include <llvm/ADT/Optional.h>
+#include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/StringRef.h>
+
 #include <cassert>
 #include <cstdint>
 #include <map>
 #include <unordered_map>
+
+namespace llvm {
+class IntrinsicInst;
+} // namespace llvm
 
 namespace SPIRV {
 
@@ -71,10 +79,13 @@ enum class BIsRepresentation : uint32_t { OpenCL12, OpenCL20, SPIRVFriendlyIR };
 
 enum class FPContractMode : uint32_t { On, Off, Fast };
 
+enum class DebugInfoEIS : uint32_t { SPIRV_Debug, OpenCL_DebugInfo_100 };
+
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {
 public:
   using ExtensionsStatusMap = std::map<ExtensionID, bool>;
+  using ArgList = llvm::SmallVector<llvm::StringRef, 4>;
 
   TranslatorOpts() = default;
 
@@ -137,6 +148,30 @@ public:
 
   FPContractMode getFPContractMode() const { return FPCMode; }
 
+  bool isUnknownIntrinsicAllowed(llvm::IntrinsicInst *II) const noexcept;
+  bool isSPIRVAllowUnknownIntrinsicsEnabled() const noexcept;
+  void setSPIRVAllowUnknownIntrinsics(ArgList IntrinsicPrefixList) noexcept;
+
+  bool allowExtraDIExpressions() const noexcept {
+    return AllowExtraDIExpressions;
+  }
+
+  void setAllowExtraDIExpressionsEnabled(bool Allow) noexcept {
+    AllowExtraDIExpressions = Allow;
+  }
+
+  DebugInfoEIS getDebugInfoEIS() const { return DebugInfoVersion; }
+
+  void setDebugInfoEIS(DebugInfoEIS EIS) { DebugInfoVersion = EIS; }
+
+  bool shouldReplaceLLVMFmulAddWithOpenCLMad() const noexcept {
+    return ReplaceLLVMFmulAddWithOpenCLMad;
+  }
+
+  void setReplaceLLVMFmulAddWithOpenCLMad(bool Value) noexcept {
+    ReplaceLLVMFmulAddWithOpenCLMad = Value;
+  }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -159,6 +194,20 @@ private:
   // - FPContractMode::Fast allows *all* operations to be contracted
   //   for all entry points
   FPContractMode FPCMode = FPContractMode::On;
+
+  // Unknown LLVM intrinsics will be translated as external function calls in
+  // SPIR-V
+  llvm::Optional<ArgList> SPIRVAllowUnknownIntrinsics{};
+
+  // Enable support for extra DIExpression opcodes not listed in the SPIR-V
+  // DebugInfo specification.
+  bool AllowExtraDIExpressions = false;
+
+  DebugInfoEIS DebugInfoVersion = DebugInfoEIS::OpenCL_DebugInfo_100;
+
+  // Controls whether llvm.fmuladd.* should be replaced with mad from OpenCL
+  // extended instruction set or with a simple fmul + fadd
+  bool ReplaceLLVMFmulAddWithOpenCLMad = true;
 };
 
 } // namespace SPIRV

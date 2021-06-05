@@ -1,4 +1,4 @@
-; RUN: opt -S -functionattrs < %s | FileCheck %s
+; RUN: opt -S -function-attrs < %s | FileCheck %s
 ; RUN: opt -S -passes=function-attrs < %s | FileCheck %s
 
 @i = global i32 0
@@ -17,4 +17,4 @@ define void @bar() {
   ret void
 }
 
-; CHECK: attributes #0 = { nofree nounwind }
+; CHECK: attributes #0 = { nofree nosync nounwind }

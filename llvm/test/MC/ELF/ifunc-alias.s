@@ -1,4 +1,4 @@
-// RUN: llvm-mc -filetype=obj -triple x86_64-pc-linux-gnu %s -o - | llvm-readelf -s | FileCheck %s
+// RUN: llvm-mc -filetype=obj -triple x86_64-pc-linux-gnu %s -o - | llvm-readelf -s - | FileCheck %s
 .text
 
 .type  foo_impl,@function
@@ -23,10 +23,10 @@ foo_resolver:
 .set   tls,foo
 .type  tls,@tls_object
 
-// CHECK: IFUNC   LOCAL  DEFAULT    2 foo
-// CHECK: IFUNC   LOCAL  DEFAULT    2 foo2
-// CHECK: IFUNC   LOCAL  DEFAULT    2 foo3
-// CHECK: IFUNC   LOCAL  DEFAULT    2 foo4
-// CHECK: FUNC    LOCAL  DEFAULT    2 foo_impl
-// CHECK: FUNC    LOCAL  DEFAULT    2 foo_resolver
-// CHECK: TLS     LOCAL  DEFAULT    2 tls
+// CHECK:      FUNC    LOCAL  DEFAULT    2 foo_impl
+// CHECK-NEXT: FUNC    LOCAL  DEFAULT    2 foo_resolver
+// CHECK-NEXT: IFUNC   LOCAL  DEFAULT    2 foo
+// CHECK-NEXT: IFUNC   LOCAL  DEFAULT    2 foo2
+// CHECK-NEXT: IFUNC   LOCAL  DEFAULT    2 foo3
+// CHECK-NEXT: IFUNC   LOCAL  DEFAULT    2 foo4
+// CHECK-NEXT: TLS     LOCAL  DEFAULT    2 tls

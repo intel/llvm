@@ -24,6 +24,7 @@
 #include "index/Relation.h"
 #include "index/Serialization.h"
 #include "index/Symbol.h"
+#include "support/MemoryTree.h"
 #include "support/Path.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/CompilationDatabase.h"
@@ -70,6 +71,7 @@ enum class DuplicateHandling {
 /// locking when we swap or obtain references to snapshots.
 class FileSymbols {
 public:
+  FileSymbols(IndexContents IdxContents);
   /// Updates all slabs associated with the \p Key.
   /// If either is nullptr, corresponding data for \p Key will be removed.
   /// If CountReferences is true, \p Refs will be used for counting references
@@ -81,27 +83,34 @@ public:
   /// The index keeps the slabs alive.
   /// Will count Symbol::References based on number of references in the main
   /// files, while building the index with DuplicateHandling::Merge option.
+  /// Version is populated with an increasing sequence counter.
   std::unique_ptr<SymbolIndex>
   buildIndex(IndexType,
-             DuplicateHandling DuplicateHandle = DuplicateHandling::PickOne);
+             DuplicateHandling DuplicateHandle = DuplicateHandling::PickOne,
+             size_t *Version = nullptr);
+
+  void profile(MemoryTree &MT) const;
 
 private:
+  IndexContents IdxContents;
+
   struct RefSlabAndCountReferences {
     std::shared_ptr<RefSlab> Slab;
     bool CountReferences = false;
   };
   mutable std::mutex Mutex;
 
+  size_t Version = 0;
   llvm::StringMap<std::shared_ptr<SymbolSlab>> SymbolsSnapshot;
   llvm::StringMap<RefSlabAndCountReferences> RefsSnapshot;
-  llvm::StringMap<std::shared_ptr<RelationSlab>> RelatiosSnapshot;
+  llvm::StringMap<std::shared_ptr<RelationSlab>> RelationsSnapshot;
 };
 
 /// This manages symbols from files and an in-memory index on all symbols.
 /// FIXME: Expose an interface to remove files that are closed.
 class FileIndex : public MergedIndex {
 public:
-  FileIndex(bool UseDex = true);
+  FileIndex();
 
   /// Update preamble symbols of file \p Path with all declarations in \p AST
   /// and macros in \p PP.
@@ -113,9 +122,9 @@ public:
   /// `indexMainDecls`.
   void updateMain(PathRef Path, ParsedAST &AST);
 
-private:
-  bool UseDex; // FIXME: this should be always on.
+  void profile(MemoryTree &MT) const;
 
+private:
   // Contains information from each file's preamble only. Symbols and relations
   // are sharded per declaration file to deduplicate multiple symbols and reduce
   // memory usage.
@@ -136,6 +145,12 @@ private:
   // (Note that symbols *only* in the main file are not indexed).
   FileSymbols MainFileSymbols;
   SwapIndex MainFileIndex;
+
+  // While both the FileIndex and SwapIndex are threadsafe, we need to track
+  // versions to ensure that we don't overwrite newer indexes with older ones.
+  std::mutex UpdateIndexMu;
+  unsigned MainIndexVersion = 0;
+  unsigned PreambleIndexVersion = 0;
 };
 
 using SlabTuple = std::tuple<SymbolSlab, RefSlab, RelationSlab>;

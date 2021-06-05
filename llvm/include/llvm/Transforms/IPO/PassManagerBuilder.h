@@ -156,6 +156,7 @@ public:
 
   bool DisableTailCalls;
   bool DisableUnrollLoops;
+  bool CallGraphProfile;
   bool SLPVectorize;
   bool LoopVectorize;
   bool LoopsInterleaved;
@@ -217,7 +218,8 @@ private:
   void addLateLTOOptimizationPasses(legacy::PassManagerBase &PM);
   void addPGOInstrPasses(legacy::PassManagerBase &MPM, bool IsCS);
   void addFunctionSimplificationPasses(legacy::PassManagerBase &MPM);
-
+  void addVectorPasses(legacy::PassManagerBase &PM, bool IsLTO);
+  
 public:
   /// populateFunctionPassManager - This fills in the function pass manager,
   /// which is expected to be run on each function immediately as it is

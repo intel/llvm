@@ -62,12 +62,6 @@ struct ShadowSegmentEndpoint {
   }
 };
 
-void FlushUnneededASanShadowMemory(uptr p, uptr size) {
-  // Since asan's mapping is compacting, the shadow chunk may be
-  // not page-aligned, so we only flush the page-aligned portion.
-  ReleaseMemoryPagesToOS(MemToShadow(p), MemToShadow(p + size));
-}
-
 void AsanPoisonOrUnpoisonIntraObjectRedzone(uptr ptr, uptr size, bool poison) {
   uptr end = ptr + size;
   if (Verbosity()) {
@@ -370,7 +364,7 @@ void __sanitizer_annotate_contiguous_container(const void *beg_p,
                                                  &stack);
   }
   CHECK_LE(end - beg,
-           FIRST_32_SECOND_64(1UL << 30, 1ULL << 34)); // Sanity check.
+           FIRST_32_SECOND_64(1UL << 30, 1ULL << 40)); // Sanity check.
 
   uptr a = RoundDownTo(Min(old_mid, new_mid), granularity);
   uptr c = RoundUpTo(Max(old_mid, new_mid), granularity);

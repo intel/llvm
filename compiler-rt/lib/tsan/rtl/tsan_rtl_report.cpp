@@ -31,23 +31,6 @@ using namespace __sanitizer;
 
 static ReportStack *SymbolizeStack(StackTrace trace);
 
-void TsanCheckFailed(const char *file, int line, const char *cond,
-                     u64 v1, u64 v2) {
-  // There is high probability that interceptors will check-fail as well,
-  // on the other hand there is no sense in processing interceptors
-  // since we are going to die soon.
-  ScopedIgnoreInterceptors ignore;
-#if !SANITIZER_GO
-  cur_thread()->ignore_sync++;
-  cur_thread()->ignore_reads_and_writes++;
-#endif
-  Printf("FATAL: ThreadSanitizer CHECK failed: "
-         "%s:%d \"%s\" (0x%zx, 0x%zx)\n",
-         file, line, cond, (uptr)v1, (uptr)v2);
-  PrintCurrentStackSlow(StackTrace::GetCurrentPc());
-  Die();
-}
-
 // Can be overriden by an application/test to intercept reports.
 #ifdef TSAN_EXTERNAL_HOOKS
 bool OnReport(const ReportDesc *rep, bool suppressed);
@@ -140,6 +123,34 @@ static ReportStack *SymbolizeStack(StackTrace trace) {
   ReportStack *stack = ReportStack::New();
   stack->frames = top;
   return stack;
+}
+
+bool ShouldReport(ThreadState *thr, ReportType typ) {
+  // We set thr->suppress_reports in the fork context.
+  // Taking any locking in the fork context can lead to deadlocks.
+  // If any locks are already taken, it's too late to do this check.
+  CheckNoLocks(thr);
+  // For the same reason check we didn't lock thread_registry yet.
+  if (SANITIZER_DEBUG)
+    ThreadRegistryLock l(ctx->thread_registry);
+  if (!flags()->report_bugs || thr->suppress_reports)
+    return false;
+  switch (typ) {
+    case ReportTypeSignalUnsafe:
+      return flags()->report_signal_unsafe;
+    case ReportTypeThreadLeak:
+#if !SANITIZER_GO
+      // It's impossible to join phantom threads
+      // in the child after fork.
+      if (ctx->after_multithreaded_fork)
+        return false;
+#endif
+      return flags()->report_thread_leaks;
+    case ReportTypeMutexDestroyLocked:
+      return flags()->report_destroy_locked;
+    default:
+      return true;
+  }
 }
 
 ScopedReportBase::ScopedReportBase(ReportType typ, uptr tag) {
@@ -439,70 +450,68 @@ void RestoreStack(int tid, const u64 epoch, VarSizeStackTrace *stk,
   ExtractTagFromStack(stk, tag);
 }
 
-static bool HandleRacyStacks(ThreadState *thr, VarSizeStackTrace traces[2],
-                             uptr addr_min, uptr addr_max) {
-  bool equal_stack = false;
+static bool FindRacyStacks(const RacyStacks &hash) {
+  for (uptr i = 0; i < ctx->racy_stacks.Size(); i++) {
+    if (hash == ctx->racy_stacks[i]) {
+      VPrintf(2, "ThreadSanitizer: suppressing report as doubled (stack)\n");
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool HandleRacyStacks(ThreadState *thr, VarSizeStackTrace traces[2]) {
+  if (!flags()->suppress_equal_stacks)
+    return false;
   RacyStacks hash;
-  bool equal_address = false;
+  hash.hash[0] = md5_hash(traces[0].trace, traces[0].size * sizeof(uptr));
+  hash.hash[1] = md5_hash(traces[1].trace, traces[1].size * sizeof(uptr));
+  {
+    ReadLock lock(&ctx->racy_mtx);
+    if (FindRacyStacks(hash))
+      return true;
+  }
+  Lock lock(&ctx->racy_mtx);
+  if (FindRacyStacks(hash))
+    return true;
+  ctx->racy_stacks.PushBack(hash);
+  return false;
+}
+
+static bool FindRacyAddress(const RacyAddress &ra0) {
+  for (uptr i = 0; i < ctx->racy_addresses.Size(); i++) {
+    RacyAddress ra2 = ctx->racy_addresses[i];
+    uptr maxbeg = max(ra0.addr_min, ra2.addr_min);
+    uptr minend = min(ra0.addr_max, ra2.addr_max);
+    if (maxbeg < minend) {
+      VPrintf(2, "ThreadSanitizer: suppressing report as doubled (addr)\n");
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool HandleRacyAddress(ThreadState *thr, uptr addr_min, uptr addr_max) {
+  if (!flags()->suppress_equal_addresses)
+    return false;
   RacyAddress ra0 = {addr_min, addr_max};
   {
     ReadLock lock(&ctx->racy_mtx);
-    if (flags()->suppress_equal_stacks) {
-      hash.hash[0] = md5_hash(traces[0].trace, traces[0].size * sizeof(uptr));
-      hash.hash[1] = md5_hash(traces[1].trace, traces[1].size * sizeof(uptr));
-      for (uptr i = 0; i < ctx->racy_stacks.Size(); i++) {
-        if (hash == ctx->racy_stacks[i]) {
-          VPrintf(2,
-              "ThreadSanitizer: suppressing report as doubled (stack)\n");
-          equal_stack = true;
-          break;
-        }
-      }
-    }
-    if (flags()->suppress_equal_addresses) {
-      for (uptr i = 0; i < ctx->racy_addresses.Size(); i++) {
-        RacyAddress ra2 = ctx->racy_addresses[i];
-        uptr maxbeg = max(ra0.addr_min, ra2.addr_min);
-        uptr minend = min(ra0.addr_max, ra2.addr_max);
-        if (maxbeg < minend) {
-          VPrintf(2, "ThreadSanitizer: suppressing report as doubled (addr)\n");
-          equal_address = true;
-          break;
-        }
-      }
-    }
+    if (FindRacyAddress(ra0))
+      return true;
   }
-  if (!equal_stack && !equal_address)
-    return false;
-  if (!equal_stack) {
-    Lock lock(&ctx->racy_mtx);
-    ctx->racy_stacks.PushBack(hash);
-  }
-  if (!equal_address) {
-    Lock lock(&ctx->racy_mtx);
-    ctx->racy_addresses.PushBack(ra0);
-  }
-  return true;
-}
-
-static void AddRacyStacks(ThreadState *thr, VarSizeStackTrace traces[2],
-                          uptr addr_min, uptr addr_max) {
   Lock lock(&ctx->racy_mtx);
-  if (flags()->suppress_equal_stacks) {
-    RacyStacks hash;
-    hash.hash[0] = md5_hash(traces[0].trace, traces[0].size * sizeof(uptr));
-    hash.hash[1] = md5_hash(traces[1].trace, traces[1].size * sizeof(uptr));
-    ctx->racy_stacks.PushBack(hash);
-  }
-  if (flags()->suppress_equal_addresses) {
-    RacyAddress ra0 = {addr_min, addr_max};
-    ctx->racy_addresses.PushBack(ra0);
-  }
+  if (FindRacyAddress(ra0))
+    return true;
+  ctx->racy_addresses.PushBack(ra0);
+  return false;
 }
 
 bool OutputReport(ThreadState *thr, const ScopedReport &srep) {
-  if (!flags()->report_bugs || thr->suppress_reports)
-    return false;
+  // These should have been checked in ShouldReport.
+  // It's too late to check them here, we have already taken locks.
+  CHECK(flags()->report_bugs);
+  CHECK(!thr->suppress_reports);
   atomic_store_relaxed(&ctx->last_symbolize_time_ns, NanoTime());
   const ReportDesc *rep = srep.GetReport();
   CHECK_EQ(thr->current_report, nullptr);
@@ -593,7 +602,7 @@ void ReportRace(ThreadState *thr) {
   // at best it will cause deadlocks on internal mutexes.
   ScopedIgnoreInterceptors ignore;
 
-  if (!flags()->report_bugs)
+  if (!ShouldReport(thr, ReportTypeRace))
     return;
   if (!flags()->report_atomic_races && !RaceBetweenAtomicAndFree(thr))
     return;
@@ -618,6 +627,8 @@ void ReportRace(ThreadState *thr) {
     if (IsExpectedReport(addr_min, addr_max - addr_min))
       return;
   }
+  if (HandleRacyAddress(thr, addr_min, addr_max))
+    return;
 
   ReportType typ = ReportTypeRace;
   if (thr->is_vptr_access && freed)
@@ -668,7 +679,7 @@ void ReportRace(ThreadState *thr) {
   if (IsFiredSuppression(ctx, typ, traces[1]))
     return;
 
-  if (HandleRacyStacks(thr, traces, addr_min, addr_max))
+  if (HandleRacyStacks(thr, traces))
     return;
 
   // If any of the accesses has a tag, treat this as an "external" race.
@@ -708,10 +719,7 @@ void ReportRace(ThreadState *thr) {
   }
 #endif
 
-  if (!OutputReport(thr, rep))
-    return;
-
-  AddRacyStacks(thr, traces, addr_min, addr_max);
+  OutputReport(thr, rep);
 }
 
 void PrintCurrentStack(ThreadState *thr, uptr pc) {
@@ -727,8 +735,7 @@ void PrintCurrentStack(ThreadState *thr, uptr pc) {
 // However, this solution is not reliable enough, please see dvyukov's comment
 // http://reviews.llvm.org/D19148#406208
 // Also see PR27280 comment 2 and 3 for breaking examples and analysis.
-ALWAYS_INLINE
-void PrintCurrentStackSlow(uptr pc) {
+ALWAYS_INLINE USED void PrintCurrentStackSlow(uptr pc) {
 #if !SANITIZER_GO
   uptr bp = GET_CURRENT_FRAME();
   BufferedStackTrace *ptrace =

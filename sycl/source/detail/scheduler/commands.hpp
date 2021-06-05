@@ -19,6 +19,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/cg.hpp>
+#include <detail/program_manager/program_manager.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -32,6 +33,7 @@ class DispatchHostTask;
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
 class Command;
 class AllocaCommand;
@@ -120,7 +122,7 @@ public:
   /// \param Blocking if this argument is true, function will wait for the
   ///        command to be unblocked before calling enqueueImp.
   /// \return true if the command is enqueued.
-  bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking);
+  virtual bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking);
 
   bool isFinished();
 
@@ -128,9 +130,13 @@ public:
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
   }
 
-  std::shared_ptr<queue_impl> getQueue() const { return MQueue; }
+  bool isEnqueueBlocked() const {
+    return MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
+  }
 
-  std::shared_ptr<event_impl> getEvent() const { return MEvent; }
+  const QueueImplPtr &getQueue() const { return MQueue; }
+
+  const EventImplPtr &getEvent() const { return MEvent; }
 
   // Methods needed to support SYCL instrumentation
 
@@ -173,7 +179,13 @@ public:
 
   const char *getBlockReason() const;
 
-  virtual ContextImplPtr getContext() const;
+  /// Get the context of the queue this command will be submitted to. Could
+  /// differ from the context of MQueue for memory copy commands.
+  virtual const ContextImplPtr &getWorkerContext() const;
+
+  /// Get the queue this command will be submitted to. Could differ from MQueue
+  /// for memory copy commands.
+  virtual const QueueImplPtr &getWorkerQueue() const;
 
 protected:
   EventImplPtr MEvent;
@@ -195,7 +207,7 @@ protected:
   ///
   /// Glueing (i.e. connecting) will be performed if and only if DepEvent is
   /// not from host context and its context doesn't match to context of this
-  /// command. Context of this command is fetched via getContext().
+  /// command. Context of this command is fetched via getWorkerContext().
   ///
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
   void processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep);
@@ -211,6 +223,10 @@ protected:
   friend class DispatchHostTask;
 
 public:
+  const std::vector<EventImplPtr> &getPreparedHostDepsEvents() const {
+    return MPreparedHostDepsEvents;
+  }
+
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
@@ -219,8 +235,15 @@ public:
   bool MIsBlockable = false;
   /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
-  /// Used for marking the node as visited during graph traversal.
-  bool MVisited = false;
+
+  struct Marks {
+    /// Used for marking the node as visited during graph traversal.
+    bool MVisited = false;
+    /// Used for marking the node for deletion during cleanup.
+    bool MToBeDeleted = false;
+  };
+  /// Used for marking the node during graph traversal.
+  Marks MMarks;
 
   enum class BlockReason : int { HostAccessor = 0, HostTask };
 
@@ -241,7 +264,7 @@ public:
   ///
   /// Stream ids are positive integers and we set it to an invalid value.
   int32_t MStreamID = -1;
-  /// Reserved for storing the object address such as SPIRV or memory object
+  /// Reserved for storing the object address such as SPIR-V or memory object
   /// address.
   void *MAddress = nullptr;
   /// Buffer to build the address string.
@@ -277,7 +300,7 @@ public:
   void addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
                       const Requirement *Req);
 
-  void emitInstrumentationData();
+  void emitInstrumentationData() override;
 
 private:
   cl_int enqueueImp() final;
@@ -295,7 +318,7 @@ public:
   ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd);
 
   void printDot(std::ostream &Stream) const final;
-  void emitInstrumentationData();
+  void emitInstrumentationData() override;
 
 private:
   cl_int enqueueImp() final;
@@ -318,16 +341,9 @@ public:
 
   const Requirement *getRequirement() const final { return &MRequirement; }
 
-  void emitInstrumentationData();
+  void emitInstrumentationData() override;
 
   void *MMemAllocation = nullptr;
-
-  // ESIMD-extension-specific fields.
-  struct {
-    // If this alloca corresponds to an ESIMD accessor, then this field holds
-    // an image buffer wrapping the memory allocation above.
-    void *MWrapperImage = nullptr;
-  } ESIMDExt;
 
   /// Alloca command linked with current command.
   /// Device and host alloca commands can be linked, so they may share the same
@@ -357,7 +373,7 @@ public:
 
   void *getMemAllocation() const final { return MMemAllocation; }
   void printDot(std::ostream &Stream) const final;
-  void emitInstrumentationData();
+  void emitInstrumentationData() override;
 
 private:
   cl_int enqueueImp() final;
@@ -376,7 +392,7 @@ public:
   void *getMemAllocation() const final;
   void printDot(std::ostream &Stream) const final;
   AllocaCommandBase *getParentAlloca() { return MParentAlloca; }
-  void emitInstrumentationData();
+  void emitInstrumentationData() override;
 
 private:
   cl_int enqueueImp() final;
@@ -392,7 +408,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MSrcReq; }
-  void emitInstrumentationData();
+  void emitInstrumentationData() override;
 
 private:
   cl_int enqueueImp() final;
@@ -411,7 +427,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData();
+  void emitInstrumentationData() override;
 
 private:
   cl_int enqueueImp() final;
@@ -432,7 +448,8 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  ContextImplPtr getContext() const final;
+  const ContextImplPtr &getWorkerContext() const final;
+  const QueueImplPtr &getWorkerQueue() const final;
 
 private:
   cl_int enqueueImp() final;
@@ -455,7 +472,8 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  ContextImplPtr getContext() const final;
+  const ContextImplPtr &getWorkerContext() const final;
+  const QueueImplPtr &getWorkerQueue() const final;
 
 private:
   cl_int enqueueImp() final;
@@ -473,28 +491,38 @@ class ExecCGCommand : public Command {
 public:
   ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
 
-  void flushStreams();
+  vector_class<StreamImplPtr> getStreams() const;
+
+  void clearStreams();
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
 
   detail::CG &getCG() const { return *MCommandGroup; }
 
-  // MEmptyCmd one is only employed if this command refers to host-task.
-  // MEmptyCmd due to unreliable mechanism of lookup for single EmptyCommand
-  // amongst users of host-task-representing command. This unreliability roots
-  // in cleanup process.
+  // MEmptyCmd is only employed if this command refers to host-task.
+  // The mechanism of lookup for single EmptyCommand amongst users of
+  // host-task-representing command is unreliable. This unreliability roots in
+  // the cleanup process.
   EmptyCommand *MEmptyCmd = nullptr;
+
+  // This function is only usable for native kernel to prevent access to free'd
+  // memory in DispatchNativeKernel.
+  // TODO remove when native kernel support is terminated.
+  void releaseCG() {
+    MCommandGroup.release();
+  }
 
 private:
   cl_int enqueueImp() final;
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
-  pi_result SetKernelParamsAndLaunch(CGExecKernel *ExecKernel,
-                                     RT::PiKernel Kernel, NDRDescT &NDRDesc,
-                                     std::vector<RT::PiEvent> &RawEvents,
-                                     RT::PiEvent &Event);
+  pi_result SetKernelParamsAndLaunch(
+      CGExecKernel *ExecKernel,
+      std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
+      NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
+      RT::PiEvent &Event, ProgramManager::KernelArgMask EliminatedArgMask);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 

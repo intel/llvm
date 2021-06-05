@@ -75,6 +75,8 @@ static llvm::sys::Mutex MapLock;
     return MT;                                                                 \
   }
 
+constexpr unsigned MaxWordCount = UINT16_MAX;
+
 // A bi-way map
 template <class Ty1, class Ty2, class Identifier = void> struct SPIRVMap {
 public:
@@ -84,7 +86,7 @@ public:
   void init();
 
   static Ty2 map(Ty1 Key) {
-    Ty2 Val;
+    Ty2 Val = {};
     bool Found = find(Key, &Val);
     (void)Found;
     assert(Found && "Invalid key");
@@ -92,7 +94,7 @@ public:
   }
 
   static Ty1 rmap(Ty2 Key) {
-    Ty1 Val;
+    Ty1 Val = {};
     bool Found = rfind(Key, &Val);
     (void)Found;
     assert(Found && "Invalid key");

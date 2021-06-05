@@ -26,7 +26,6 @@ class HiddenIvarsTestCase(TestBase):
         # localized
         self.shlib_names = ["InternalDefiner"]
 
-    @skipUnlessDarwin
     @skipIf(
         debug_info=no_match("dsym"),
         bugnumber="This test requires a stripped binary and a dSYM")
@@ -38,7 +37,6 @@ class HiddenIvarsTestCase(TestBase):
             self.build()
             self.expr(True)
 
-    @skipUnlessDarwin
     @skipIfReproducer # FIXME: Unexpected packet during (passive) replay
     def test_expr(self):
         if self.getArchitecture() == 'i386':
@@ -47,7 +45,6 @@ class HiddenIvarsTestCase(TestBase):
             self.build()
             self.expr(False)
 
-    @skipUnlessDarwin
     @skipIf(
         debug_info=no_match("dsym"),
         bugnumber="This test requires a stripped binary and a dSYM")
@@ -58,7 +55,6 @@ class HiddenIvarsTestCase(TestBase):
             self.build()
             self.frame_var(True)
 
-    @skipUnlessDarwin
     def test_frame_variable(self):
         if self.getArchitecture() == 'i386':
             self.skipTest("requires modern objc runtime")
@@ -66,8 +62,7 @@ class HiddenIvarsTestCase(TestBase):
             self.build()
             self.frame_var(False)
 
-    @unittest2.expectedFailure("rdar://18683637")
-    @skipUnlessDarwin
+    @expectedFailure("rdar://18683637")
     def test_frame_variable_across_modules(self):
         if self.getArchitecture() == 'i386':
             self.skipTest("requires modern objc runtime")

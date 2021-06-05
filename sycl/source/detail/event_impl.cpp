@@ -35,13 +35,13 @@ extern xpti::trace_event_data_t *GSYCLGraphEvent;
 bool event_impl::is_host() const { return MHostEvent || !MOpenCLInterop; }
 
 cl_event event_impl::get() const {
-  if (MOpenCLInterop) {
-    getPlugin().call<PiApiKind::piEventRetain>(MEvent);
-    return pi::cast<cl_event>(MEvent);
+  if (!MOpenCLInterop) {
+    throw invalid_object_error(
+        "This instance of event doesn't support OpenCL interoperability.",
+        PI_INVALID_EVENT);
   }
-  throw invalid_object_error(
-      "This instance of event doesn't support OpenCL interoperability.",
-      PI_INVALID_EVENT);
+  getPlugin().call<PiApiKind::piEventRetain>(MEvent);
+  return pi::cast<cl_event>(MEvent);
 }
 
 event_impl::~event_impl() {
@@ -119,7 +119,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
   getPlugin().call<PiApiKind::piEventRetain>(MEvent);
 }
 
-event_impl::event_impl(QueueImplPtr Queue) : MQueue(Queue) {
+event_impl::event_impl(QueueImplPtr Queue) {
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
 
@@ -217,17 +217,22 @@ void event_impl::wait_and_throw(
     if (Cmd)
       Cmd->getQueue()->throw_asynchronous();
   }
-  QueueImplPtr Queue = MQueue.lock();
-  if (Queue)
-    Queue->throw_asynchronous();
+  Command *Cmd = (Command *)getCommand();
+  if (Cmd)
+    Cmd->getQueue()->throw_asynchronous();
 }
 
 template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
   if (!MHostEvent) {
-    return get_event_profiling_info<info::event_profiling::command_submit>::get(
-        this->getHandleRef(), this->getPlugin());
+    if (MEvent)
+      return get_event_profiling_info<
+          info::event_profiling::command_submit>::get(this->getHandleRef(),
+                                                      this->getPlugin());
+    // TODO this should throw an exception if the queue the dummy event is
+    // bound to does not support profiling info.
+    return 0;
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
@@ -239,8 +244,13 @@ template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_start>() const {
   if (!MHostEvent) {
-    return get_event_profiling_info<info::event_profiling::command_start>::get(
-        this->getHandleRef(), this->getPlugin());
+    if (MEvent)
+      return get_event_profiling_info<
+          info::event_profiling::command_start>::get(this->getHandleRef(),
+                                                     this->getPlugin());
+    // TODO this should throw an exception if the queue the dummy event is
+    // bound to does not support profiling info.
+    return 0;
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
@@ -252,8 +262,12 @@ template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_end>() const {
   if (!MHostEvent) {
-    return get_event_profiling_info<info::event_profiling::command_end>::get(
-        this->getHandleRef(), this->getPlugin());
+    if (MEvent)
+      return get_event_profiling_info<info::event_profiling::command_end>::get(
+          this->getHandleRef(), this->getPlugin());
+    // TODO this should throw an exception if the queue the dummy event is
+    // bound to does not support profiling info.
+    return 0;
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
@@ -262,7 +276,7 @@ event_impl::get_profiling_info<info::event_profiling::command_end>() const {
 }
 
 template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
-  if (!MHostEvent) {
+  if (!MHostEvent && MEvent) {
     return get_event_info<info::event::reference_count>::get(
         this->getHandleRef(), this->getPlugin());
   }
@@ -272,7 +286,7 @@ template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
 template <>
 info::event_command_status
 event_impl::get_info<info::event::command_execution_status>() const {
-  if (!MHostEvent) {
+  if (!MHostEvent && MEvent) {
     return get_event_info<info::event::command_execution_status>::get(
         this->getHandleRef(), this->getPlugin());
   }
@@ -291,6 +305,8 @@ void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 pi_native_handle event_impl::getNative() const {
   auto Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;

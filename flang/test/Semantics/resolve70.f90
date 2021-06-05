@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
 ! C703 (R702) The derived-type-spec shall not specify an abstract type (7.5.7).
 ! This constraint refers to the derived-type-spec in a type-spec.  A type-spec
 ! can appear in an ALLOCATE statement, an ac-spec for an array constructor, and
@@ -23,7 +23,6 @@ subroutine s()
   type (abstractType), allocatable :: abstractVar
 
   ! ac-spec for an array constructor
-  !ERROR: ABSTRACT derived type may not be used here
   !ERROR: ABSTRACT derived type may not be used here
   type (abstractType), parameter :: abstractArray(*) = (/ abstractType :: /)
 
@@ -57,3 +56,19 @@ subroutine s1()
   !ERROR: Non-extensible derived type 'inextensible' may not be used with CLASS keyword
   class(inextensible), allocatable :: x
 end subroutine s1
+
+subroutine s2()
+  type t
+    integer i
+  end type t
+  type, extends(t) :: t2
+    real x
+  end type t2
+contains
+  function f1(dummy)
+    class(*) dummy
+    type(t) f1(1)
+    !ERROR: Cannot have an unlimited polymorphic value in an array constructor
+    f1 = [ (dummy) ]
+  end function f1
+end subroutine s2

@@ -1,7 +1,6 @@
-add_mlir_conversion_library(MLIRStandardToSPIRVTransforms
-  ConvertStandardToSPIRV.cpp
-  ConvertStandardToSPIRVPass.cpp
-  LegalizeStandardForSPIRV.cpp
+add_mlir_conversion_library(MLIRStandardToSPIRV
+  StandardToSPIRV.cpp
+  StandardToSPIRVPass.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/SPIRV
@@ -12,10 +11,12 @@ add_mlir_conversion_library(MLIRStandardToSPIRVTransforms
 
   LINK_LIBS PUBLIC
   MLIRIR
+  MLIRMath
+  MLIRMemRef
   MLIRPass
   MLIRSPIRV
+  MLIRSPIRVConversion
   MLIRSupport
   MLIRTransformUtils
-  MLIRSPIRV
-  MLIRStandardOps
+  MLIRStandard
   )

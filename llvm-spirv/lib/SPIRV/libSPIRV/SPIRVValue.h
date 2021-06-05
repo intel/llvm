@@ -47,9 +47,11 @@
 #include "SPIRVEntry.h"
 #include "SPIRVType.h"
 
+namespace llvm {
+class APInt;
+} // namespace llvm
+
 #include <iostream>
-#include <map>
-#include <memory>
 
 namespace SPIRV {
 
@@ -121,12 +123,13 @@ public:
     return Type->getRequiredCapability();
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    SPIRVExtSet EV;
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    llvm::Optional<ExtensionID> EV;
     if (!hasType())
       return EV;
-    EV = Type->getRequiredExtensions();
-    assert(!Module || Module->isAllowedToUseExtensions(EV));
+    EV = Type->getRequiredExtension();
+    assert(Module &&
+           (!EV.hasValue() || Module->isAllowedToUseExtension(EV.getValue())));
     return EV;
   }
 
@@ -143,66 +146,74 @@ public:
   SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId,
                     uint64_t TheValue)
       : SPIRVValue(M, 0, OC, TheType, TheId) {
-    Union.UInt64Val = TheValue;
-    recalculateWordCount();
-    validate();
+    setWords(&TheValue);
   }
+  // Incomplete constructor for AP integer constant
+  SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId,
+                    const llvm::APInt &TheValue);
   // Complete constructor for float constant
   SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId,
                     float TheValue)
       : SPIRVValue(M, 0, OC, TheType, TheId) {
-    Union.FloatVal = TheValue;
-    recalculateWordCount();
-    validate();
+    setWords(reinterpret_cast<uint64_t *>(&TheValue));
   }
   // Complete constructor for double constant
   SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId,
                     double TheValue)
       : SPIRVValue(M, 0, OC, TheType, TheId) {
-    Union.DoubleVal = TheValue;
-    recalculateWordCount();
-    validate();
+    setWords(reinterpret_cast<uint64_t *>(&TheValue));
   }
   // Incomplete constructor
   SPIRVConstantBase() : SPIRVValue(OC), NumWords(0) {}
-  uint64_t getZExtIntValue() const { return Union.UInt64Val; }
-  float getFloatValue() const { return Union.FloatVal; }
-  double getDoubleValue() const { return Union.DoubleVal; }
+  uint64_t getZExtIntValue() const { return getValue<uint64_t>(); }
+  float getFloatValue() const { return getValue<float>(); }
+  double getDoubleValue() const { return getValue<double>(); }
+  unsigned getNumWords() const { return NumWords; }
+  const std::vector<SPIRVWord> &getSPIRVWords() { return Words; }
 
 protected:
+  constexpr static SPIRVWord FixedWC = 3;
+
+  // Common method for getting values of size less or equal to 64 bits.
+  template <typename T> T getValue() const {
+    constexpr auto ValueSize = static_cast<unsigned>(sizeof(T));
+    assert((ValueSize <= 8) && "Incorrect result type of requested value");
+    T TheValue{};
+    unsigned CopyBytes = std::min(ValueSize, NumWords * SpirvWordSize);
+    std::memcpy(&TheValue, Words.data(), CopyBytes);
+    return TheValue;
+  }
+
+  void setWords(const uint64_t *TheValue);
   void recalculateWordCount() {
-    NumWords = Type->getBitWidth() / 32;
-    if (NumWords < 1)
-      NumWords = 1;
-    WordCount = 3 + NumWords;
+    NumWords =
+        (Type->getBitWidth() + SpirvWordBitWidth - 1) / SpirvWordBitWidth;
+    WordCount = FixedWC + NumWords;
   }
   void validate() const override {
     SPIRVValue::validate();
-    assert(NumWords >= 1 && NumWords <= 2 && "Invalid constant size");
+    assert(NumWords >= 1 && "Invalid constant size");
   }
   void encode(spv_ostream &O) const override {
     getEncoder(O) << Type << Id;
-    for (unsigned I = 0; I < NumWords; ++I)
-      getEncoder(O) << Union.Words[I];
+    for (const auto &Word : Words)
+      getEncoder(O) << Word;
   }
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVValue::setWordCount(WordCount);
-    NumWords = WordCount - 3;
+    NumWords = WordCount - FixedWC;
   }
   void decode(std::istream &I) override {
     getDecoder(I) >> Type >> Id;
-    for (unsigned J = 0; J < NumWords; ++J)
-      getDecoder(I) >> Union.Words[J];
+    Words.resize(NumWords);
+    for (auto &Word : Words)
+      getDecoder(I) >> Word;
   }
 
   unsigned NumWords;
-  union UnionType {
-    uint64_t UInt64Val;
-    float FloatVal;
-    double DoubleVal;
-    SPIRVWord Words[2];
-    UnionType() { UInt64Val = 0; }
-  } Union;
+
+private:
+  std::vector<SPIRVWord> Words;
 };
 
 using SPIRVConstant = SPIRVConstantBase<OpConstant>;
@@ -281,20 +292,41 @@ protected:
 
 template <spv::Op OC> class SPIRVConstantCompositeBase : public SPIRVValue {
 public:
+  // There are always 3 words in this instruction except constituents:
+  // 1) WordCount + OpCode
+  // 2) Result type
+  // 3) Result Id
+  constexpr static SPIRVWord FixedWC = 3;
+  using ContinuedInstType = typename InstToContinued<OC>::Type;
   // Complete constructor for composite constant
   SPIRVConstantCompositeBase(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId,
                              const std::vector<SPIRVValue *> TheElements)
-      : SPIRVValue(M, TheElements.size() + 3, OpConstantComposite, TheType,
-                   TheId) {
+      : SPIRVValue(M, TheElements.size() + FixedWC, OC, TheType, TheId) {
     Elements = getIds(TheElements);
     validate();
   }
   // Incomplete constructor
-  SPIRVConstantCompositeBase() : SPIRVValue(OpConstantComposite) {}
+  SPIRVConstantCompositeBase() : SPIRVValue(OC) {}
   std::vector<SPIRVValue *> getElements() const { return getValues(Elements); }
+
+  // TODO: Should we attach operands of continued instructions as well?
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     std::vector<SPIRVValue *> Elements = getElements();
     return std::vector<SPIRVEntry *>(Elements.begin(), Elements.end());
+  }
+
+  std::vector<ContinuedInstType> getContinuedInstructions() {
+    return ContinuedInstructions;
+  }
+
+  void addContinuedInstruction(ContinuedInstType Inst) {
+    ContinuedInstructions.push_back(Inst);
+  }
+
+  void encodeChildren(spv_ostream &O) const override {
+    O << SPIRVNL();
+    for (auto &I : ContinuedInstructions)
+      O << *I;
   }
 
 protected:
@@ -303,13 +335,28 @@ protected:
     for (auto &I : Elements)
       getValue(I)->validate();
   }
+
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVEntry::setWordCount(WordCount);
-    Elements.resize(WordCount - 3);
+    Elements.resize(WordCount - FixedWC);
   }
-  _SPIRV_DEF_ENCDEC3(Type, Id, Elements)
+
+  void encode(spv_ostream &O) const override {
+    getEncoder(O) << Type << Id << Elements;
+  }
+
+  void decode(std::istream &I) override {
+    SPIRVDecoder Decoder = getDecoder(I);
+    Decoder >> Type >> Id >> Elements;
+
+    for (SPIRVEntry *E : Decoder.getContinuedInstructions(ContinuedOpCode)) {
+      addContinuedInstruction(static_cast<ContinuedInstType>(E));
+    }
+  }
 
   std::vector<SPIRVId> Elements;
+  std::vector<ContinuedInstType> ContinuedInstructions;
+  const spv::Op ContinuedOpCode = InstToContinued<OC>::OpCode;
 };
 
 using SPIRVConstantComposite = SPIRVConstantCompositeBase<OpConstantComposite>;
@@ -395,7 +442,7 @@ protected:
 
 class SPIRVForward : public SPIRVValue, public SPIRVComponentExecutionModes {
 public:
-  const static Op OC = OpForward;
+  const static Op OC = internal::OpForward;
   // Complete constructor
   SPIRVForward(SPIRVModule *TheModule, SPIRVType *TheTy, SPIRVId TheId)
       : SPIRVValue(TheModule, 0, OC, TheId) {

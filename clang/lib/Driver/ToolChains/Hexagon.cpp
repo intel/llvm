@@ -189,8 +189,9 @@ void hexagon::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   auto *Exec = Args.MakeArgString(HTC.GetProgramPath(AsName));
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this,
+                                         ResponseFileSupport::AtFileCurCP(),
+                                         Exec, CmdArgs, Inputs, Output));
 }
 
 void hexagon::Linker::RenderExtraToolArgs(const JobAction &JA,
@@ -407,8 +408,9 @@ void hexagon::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                            LinkingOutput);
 
   const char *Exec = Args.MakeArgString(HTC.GetLinkerPath());
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this,
+                                         ResponseFileSupport::AtFileCurCP(),
+                                         Exec, CmdArgs, Inputs, Output));
 }
 // Hexagon tools end.
 
@@ -611,15 +613,15 @@ void HexagonToolChain::addLibCxxIncludePaths(
     llvm::opt::ArgStringList &CC1Args) const {
   const Driver &D = getDriver();
   if (!D.SysRoot.empty() && getTriple().isMusl())
-    addLibStdCXXIncludePaths(D.SysRoot + "/usr/include/c++/v1", "", "", "", "",
-                             "", DriverArgs, CC1Args);
-  else if (getTriple().isMusl())
-    addLibStdCXXIncludePaths("/usr/include/c++/v1", "", "", "", "", "",
+    addLibStdCXXIncludePaths(D.SysRoot + "/usr/include/c++/v1", "", "",
                              DriverArgs, CC1Args);
+  else if (getTriple().isMusl())
+    addLibStdCXXIncludePaths("/usr/include/c++/v1", "", "", DriverArgs,
+                             CC1Args);
   else {
     std::string TargetDir = getHexagonTargetDir(D.InstalledDir, D.PrefixDirs);
-    addLibStdCXXIncludePaths(TargetDir, "/hexagon/include/c++/v1", "", "", "",
-                             "", DriverArgs, CC1Args);
+    addLibStdCXXIncludePaths(TargetDir + "/hexagon/include/c++/v1", "", "",
+                             DriverArgs, CC1Args);
   }
 }
 void HexagonToolChain::addLibStdCxxIncludePaths(
@@ -627,7 +629,7 @@ void HexagonToolChain::addLibStdCxxIncludePaths(
     llvm::opt::ArgStringList &CC1Args) const {
   const Driver &D = getDriver();
   std::string TargetDir = getHexagonTargetDir(D.InstalledDir, D.PrefixDirs);
-  addLibStdCXXIncludePaths(TargetDir, "/hexagon/include/c++", "", "", "", "",
+  addLibStdCXXIncludePaths(TargetDir + "/hexagon/include/c++", "", "",
                            DriverArgs, CC1Args);
 }
 

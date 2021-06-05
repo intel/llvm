@@ -439,8 +439,8 @@ void ARCFrameLowering::processFunctionBeforeFrameFinalized(
   LLVM_DEBUG(dbgs() << "Current stack size: " << MFI.getStackSize() << "\n");
   const TargetRegisterClass *RC = &ARC::GPR32RegClass;
   if (MFI.hasStackObjects()) {
-    int RegScavFI = MFI.CreateStackObject(
-        RegInfo->getSpillSize(*RC), RegInfo->getSpillAlignment(*RC), false);
+    int RegScavFI = MFI.CreateStackObject(RegInfo->getSpillSize(*RC),
+                                          RegInfo->getSpillAlign(*RC), false);
     RS->addScavengingFrameIndex(RegScavFI);
     LLVM_DEBUG(dbgs() << "Created scavenging index RegScavFI=" << RegScavFI
                       << "\n");
@@ -493,6 +493,6 @@ bool ARCFrameLowering::hasFP(const MachineFunction &MF) const {
   bool HasFP = MF.getTarget().Options.DisableFramePointerElim(MF) ||
                MF.getFrameInfo().hasVarSizedObjects() ||
                MF.getFrameInfo().isFrameAddressTaken() ||
-               RegInfo->needsStackRealignment(MF);
+               RegInfo->hasStackRealignment(MF);
   return HasFP;
 }

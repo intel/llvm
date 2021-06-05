@@ -19,7 +19,7 @@
 
 // ALL:       define {{.*}}void [[FOO:@.+]]()
 
-void foo() {}
+void foo() { extern void mayThrow(); mayThrow(); }
 
 // ALL-LABEL: @main
 // TERM_DEBUG-LABEL: @main
@@ -53,6 +53,41 @@ int main() {
   // ALL-NOT:   call i32 @__kmpc_master
   // ALL-NOT:   call void @__kmpc_end_master
   return a;
+}
+
+// ALL-LABEL:        lambda_master
+// TERM_DEBUG-LABEL: lambda_master
+void lambda_master(int a, int b) {
+  auto l = [=]() {
+#pragma omp master
+    {
+      // ALL: call i32 @__kmpc_master(
+      int c = a + b;
+    }
+  };
+
+  l();
+
+  auto l1 = [=]() {
+#pragma omp parallel
+#pragma omp master
+    {
+      // ALL: call i32 @__kmpc_master(
+      int c = a + b;
+    }
+  };
+
+  l1();
+
+  auto l2 = [=]() {
+#pragma omp parallel master
+    {
+      // ALL: call i32 @__kmpc_master(
+      int c = a + b;
+    }
+  };
+
+  l2();
 }
 
 // ALL-LABEL:      parallel_master

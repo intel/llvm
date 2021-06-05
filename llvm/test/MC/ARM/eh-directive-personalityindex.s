@@ -1,5 +1,5 @@
 @ RUN: llvm-mc -triple armv7-linux-eabi -filetype obj -o - %s \
-@ RUN:   | llvm-readobj -S --sd --sr > %t
+@ RUN:   | llvm-readobj -S --sd --sr - > %t
 @ RUN: FileCheck %s < %t
 @ RUN: FileCheck --check-prefix=RELOC %s < %t
 
@@ -28,8 +28,8 @@ pr0:
 @ RELOC: Section {
 @ RELOC:   Name: .rel.ARM.exidx.pr0
 @ RELOC:   Relocations [
-@ RELOC:     0x0 R_ARM_NONE __aeabi_unwind_cpp_pr0 0x0
-@ RELOC:     0x0 R_ARM_PREL31 .pr0 0x0
+@ RELOC:     0x0 R_ARM_NONE __aeabi_unwind_cpp_pr0
+@ RELOC:     0x0 R_ARM_PREL31 .pr0
 @ RELOC:   ]
 @ RELOC: }
 
@@ -57,8 +57,8 @@ pr0_nontrivial:
 @ RELOC: Section {
 @ RELOC:   Name: .rel.ARM.exidx.pr0.nontrivial
 @ RELOC:   Relocations [
-@ RELOC:     0x0 R_ARM_NONE __aeabi_unwind_cpp_pr0 0x0
-@ RELOC:     0x0 R_ARM_PREL31 .pr0.nontrivial 0x0
+@ RELOC:     0x0 R_ARM_NONE __aeabi_unwind_cpp_pr0
+@ RELOC:     0x0 R_ARM_PREL31 .pr0.nontrivial
 @ RELOC:   ]
 @ RELOC: }
 
@@ -90,9 +90,9 @@ pr1:
 @ RELOC: Section {
 @ RELOC:   Name: .rel.ARM.exidx.pr1
 @ RELOC:   Relocations [
-@ RELOC:     0x0 R_ARM_NONE __aeabi_unwind_cpp_pr1 0x0
-@ RELOC:     0x0 R_ARM_PREL31 .pr1 0x0
-@ RELOC:     0x4 R_ARM_PREL31 .ARM.extab.pr1 0x0
+@ RELOC:     0x0 R_ARM_NONE __aeabi_unwind_cpp_pr1
+@ RELOC:     0x0 R_ARM_PREL31 .pr1
+@ RELOC:     0x4 R_ARM_PREL31 .ARM.extab.pr1
 @ RELOC:   ]
 @ RELOC: }
 
@@ -127,9 +127,9 @@ pr1_nontrivial:
 @ RELOC: Section {
 @ RELOC:   Name: .rel.ARM.exidx.pr1.nontrivial
 @ RELOC:   Relocations [
-@ RELOC:     0x0 R_ARM_NONE __aeabi_unwind_cpp_pr1 0x0
-@ RELOC:     0x0 R_ARM_PREL31 .pr1.nontrivial 0x0
-@ RELOC:     0x4 R_ARM_PREL31 .ARM.extab.pr1.nontrivial 0x0
+@ RELOC:     0x0 R_ARM_NONE __aeabi_unwind_cpp_pr1
+@ RELOC:     0x0 R_ARM_PREL31 .pr1.nontrivial
+@ RELOC:     0x4 R_ARM_PREL31 .ARM.extab.pr1.nontrivial
 @ RELOC:   ]
 @ RELOC: }
 
@@ -161,9 +161,9 @@ pr2:
 @ RELOC: Section {
 @ RELOC:   Name: .rel.ARM.exidx.pr2
 @ RELOC:   Relocations [
-@ RELOC:     0x0 R_ARM_NONE __aeabi_unwind_cpp_pr2 0x0
-@ RELOC:     0x0 R_ARM_PREL31 .pr2 0x0
-@ RELOC:     0x4 R_ARM_PREL31 .ARM.extab.pr2 0x0
+@ RELOC:     0x0 R_ARM_NONE __aeabi_unwind_cpp_pr2
+@ RELOC:     0x0 R_ARM_PREL31 .pr2
+@ RELOC:     0x4 R_ARM_PREL31 .ARM.extab.pr2
 @ RELOC:   ]
 @ RELOC: }
 
@@ -196,8 +196,8 @@ pr2_nontrivial:
 @ RELOC: Section {
 @ RELOC:   Name: .rel.ARM.exidx.pr2.nontrivial
 @ RELOC:   Relocations [
-@ RELOC:     0x0 R_ARM_NONE __aeabi_unwind_cpp_pr2 0x0
-@ RELOC:     0x0 R_ARM_PREL31 .pr2.nontrivial 0x0
-@ RELOC:     0x4 R_ARM_PREL31 .ARM.extab.pr2.nontrivial 0x0
+@ RELOC:     0x0 R_ARM_NONE __aeabi_unwind_cpp_pr2
+@ RELOC:     0x0 R_ARM_PREL31 .pr2.nontrivial
+@ RELOC:     0x4 R_ARM_PREL31 .ARM.extab.pr2.nontrivial
 @ RELOC:   ]
 @ RELOC: }

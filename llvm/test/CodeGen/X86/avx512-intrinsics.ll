@@ -1046,11 +1046,11 @@ define i16 @test_cmpps(<16 x float> %a, <16 x float> %b) {
 ; CHECK-NEXT:    # kill: def $ax killed $ax killed $eax
 ; CHECK-NEXT:    vzeroupper
 ; CHECK-NEXT:    ret{{[l|q]}}
-  %res = call <16 x i1> @llvm.x86.avx512.cmp.ps.512(<16 x float> %a, <16 x float> %b, i32 2, i32 8)
+  %res = call <16 x i1> @llvm.x86.avx512.mask.cmp.ps.512(<16 x float> %a, <16 x float> %b, i32 2, <16 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>, i32 8)
   %1 = bitcast <16 x i1> %res to i16
   ret i16 %1
 }
-declare <16 x i1> @llvm.x86.avx512.cmp.ps.512(<16 x float>, <16 x float>, i32, i32)
+declare <16 x i1> @llvm.x86.avx512.mask.cmp.ps.512(<16 x float>, <16 x float>, i32, <16 x i1>, i32)
 
 define i8 @test_cmppd(<8 x double> %a, <8 x double> %b) {
 ; CHECK-LABEL: test_cmppd:
@@ -1060,11 +1060,11 @@ define i8 @test_cmppd(<8 x double> %a, <8 x double> %b) {
 ; CHECK-NEXT:    # kill: def $al killed $al killed $eax
 ; CHECK-NEXT:    vzeroupper
 ; CHECK-NEXT:    ret{{[l|q]}}
-  %res = call <8 x i1> @llvm.x86.avx512.cmp.pd.512(<8 x double> %a, <8 x double> %b, i32 4, i32 4)
+  %res = call <8 x i1> @llvm.x86.avx512.mask.cmp.pd.512(<8 x double> %a, <8 x double> %b, i32 4, <8 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>, i32 4)
   %1 = bitcast <8 x i1> %res to i8
   ret i8 %1
 }
-declare <8 x i1> @llvm.x86.avx512.cmp.pd.512(<8 x double>, <8 x double>, i32, i32)
+declare <8 x i1> @llvm.x86.avx512.mask.cmp.pd.512(<8 x double>, <8 x double>, i32, <8 x i1>, i32)
 
 ; Function Attrs: nounwind readnone
 
@@ -7118,9 +7118,9 @@ define <16 x i32> @test_x86_avx512_psllv_d_512_const() {
 ; X86-LABEL: test_x86_avx512_psllv_d_512_const:
 ; X86:       # %bb.0:
 ; X86-NEXT:    vmovdqa64 {{.*#+}} zmm0 = [2,9,0,4294967295,3,7,4294967295,0,4,5,4294967294,0,5,3,4294967293,0]
-; X86-NEXT:    vpsllvd {{\.LCPI.*}}, %zmm0, %zmm0
+; X86-NEXT:    vpsllvd {{\.LCPI[0-9]+_[0-9]+}}, %zmm0, %zmm0
 ; X86-NEXT:    vmovdqa64 {{.*#+}} zmm1 = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4294967295]
-; X86-NEXT:    vpsllvd {{\.LCPI.*}}, %zmm1, %zmm1
+; X86-NEXT:    vpsllvd {{\.LCPI[0-9]+_[0-9]+}}, %zmm1, %zmm1
 ; X86-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
 ; X86-NEXT:    retl
   %res0 = call <16 x i32> @llvm.x86.avx512.psllv.d.512(<16 x i32> <i32 2, i32 9, i32 0, i32 -1, i32 3, i32 7, i32 -1, i32 0, i32 4, i32 5, i32 -2, i32 0, i32 5, i32 3, i32 -3, i32 0>, <16 x i32> <i32 1, i32 0, i32 33, i32 -1,i32 2, i32 0, i32 34, i32 -2, i32 3, i32 0, i32 35, i32 -1, i32 4, i32 0, i32 36, i32 -3>)
@@ -7191,9 +7191,9 @@ define <8 x i64> @test_x86_avx512_psllv_q_512_const() {
 ; X86-LABEL: test_x86_avx512_psllv_q_512_const:
 ; X86:       # %bb.0:
 ; X86-NEXT:    vmovdqa64 {{.*#+}} zmm0 = [2,0,9,0,0,0,4294967295,4294967295,3,0,7,0,4294967295,4294967295,0,0]
-; X86-NEXT:    vpsllvq {{\.LCPI.*}}, %zmm0, %zmm0
+; X86-NEXT:    vpsllvq {{\.LCPI[0-9]+_[0-9]+}}, %zmm0, %zmm0
 ; X86-NEXT:    vmovdqa64 {{.*#+}} zmm1 = [4,0,4,0,4,0,4,0,4,0,4,0,4,0,4294967295,4294967295]
-; X86-NEXT:    vpsllvq {{\.LCPI.*}}, %zmm1, %zmm1
+; X86-NEXT:    vpsllvq {{\.LCPI[0-9]+_[0-9]+}}, %zmm1, %zmm1
 ; X86-NEXT:    vpaddq %zmm1, %zmm0, %zmm0
 ; X86-NEXT:    retl
   %res0 = call <8 x i64> @llvm.x86.avx512.psllv.q.512(<8 x i64> <i64 2, i64 9, i64 0, i64 -1, i64 3, i64 7, i64 -1, i64 0>, <8 x i64> <i64 1, i64 0, i64 33, i64 -1,i64 2, i64 0, i64 34, i64 -2>)
@@ -7366,9 +7366,9 @@ define <16 x i32> @test_x86_avx512_psrlv_d_512_const() {
 ; X86-LABEL: test_x86_avx512_psrlv_d_512_const:
 ; X86:       # %bb.0:
 ; X86-NEXT:    vmovdqa64 {{.*#+}} zmm0 = [2,9,0,4294967295,3,7,4294967295,0,4,5,4294967294,0,5,3,4294967293,0]
-; X86-NEXT:    vpsrlvd {{\.LCPI.*}}, %zmm0, %zmm0
+; X86-NEXT:    vpsrlvd {{\.LCPI[0-9]+_[0-9]+}}, %zmm0, %zmm0
 ; X86-NEXT:    vmovdqa64 {{.*#+}} zmm1 = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4294967295]
-; X86-NEXT:    vpsrlvd {{\.LCPI.*}}, %zmm1, %zmm1
+; X86-NEXT:    vpsrlvd {{\.LCPI[0-9]+_[0-9]+}}, %zmm1, %zmm1
 ; X86-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
 ; X86-NEXT:    retl
   %res0 = call <16 x i32> @llvm.x86.avx512.psrlv.d.512(<16 x i32> <i32 2, i32 9, i32 0, i32 -1, i32 3, i32 7, i32 -1, i32 0, i32 4, i32 5, i32 -2, i32 0, i32 5, i32 3, i32 -3, i32 0>, <16 x i32> <i32 1, i32 0, i32 33, i32 -1,i32 2, i32 0, i32 34, i32 -2, i32 3, i32 0, i32 35, i32 -1, i32 4, i32 0, i32 36, i32 -3>)
@@ -7439,9 +7439,9 @@ define <8 x i64> @test_x86_avx512_psrlv_q_512_const() {
 ; X86-LABEL: test_x86_avx512_psrlv_q_512_const:
 ; X86:       # %bb.0:
 ; X86-NEXT:    vmovdqa64 {{.*#+}} zmm0 = [2,0,9,0,0,0,4294967295,4294967295,3,0,7,0,4294967295,4294967295,0,0]
-; X86-NEXT:    vpsrlvq {{\.LCPI.*}}, %zmm0, %zmm0
+; X86-NEXT:    vpsrlvq {{\.LCPI[0-9]+_[0-9]+}}, %zmm0, %zmm0
 ; X86-NEXT:    vmovdqa64 {{.*#+}} zmm1 = [4,0,4,0,4,0,4,0,4,0,4,0,4,0,4294967295,4294967295]
-; X86-NEXT:    vpsrlvq {{\.LCPI.*}}, %zmm1, %zmm1
+; X86-NEXT:    vpsrlvq {{\.LCPI[0-9]+_[0-9]+}}, %zmm1, %zmm1
 ; X86-NEXT:    vpaddq %zmm1, %zmm0, %zmm0
 ; X86-NEXT:    retl
   %res0 = call <8 x i64> @llvm.x86.avx512.psrlv.q.512(<8 x i64> <i64 2, i64 9, i64 0, i64 -1, i64 3, i64 7, i64 -1, i64 0>, <8 x i64> <i64 1, i64 0, i64 33, i64 -1,i64 2, i64 0, i64 34, i64 -2>)
@@ -7521,9 +7521,9 @@ define <16 x float> @bad_mask_transition(<8 x double> %a, <8 x double> %b, <8 x 
 ; X86-NEXT:    .cfi_def_cfa %esp, 4
 ; X86-NEXT:    retl
 entry:
-  %0 = call <8 x i1> @llvm.x86.avx512.cmp.pd.512(<8 x double> %a, <8 x double> %b, i32 17, i32 4)
+  %0 = call <8 x i1> @llvm.x86.avx512.mask.cmp.pd.512(<8 x double> %a, <8 x double> %b, i32 17, <8 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>, i32 4)
   %1 = bitcast <8 x i1> %0 to i8
-  %2 = call <8 x i1> @llvm.x86.avx512.cmp.pd.512(<8 x double> %c, <8 x double> %d, i32 17, i32 4)
+  %2 = call <8 x i1> @llvm.x86.avx512.mask.cmp.pd.512(<8 x double> %c, <8 x double> %d, i32 17, <8 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>, i32 4)
   %3 = bitcast <8 x i1> %2 to i8
   %conv = zext i8 %1 to i16
   %conv2 = zext i8 %3 to i16
@@ -7561,7 +7561,7 @@ define <16 x float> @bad_mask_transition_2(<8 x double> %a, <8 x double> %b, <8 
 ; X86-NEXT:    .cfi_def_cfa %esp, 4
 ; X86-NEXT:    retl
 entry:
-  %0 = call <8 x i1> @llvm.x86.avx512.cmp.pd.512(<8 x double> %a, <8 x double> %b, i32 17, i32 4)
+  %0 = call <8 x i1> @llvm.x86.avx512.mask.cmp.pd.512(<8 x double> %a, <8 x double> %b, i32 17, <8 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>, i32 4)
   %1 = bitcast <8 x i1> %0 to i8
   %conv = zext i8 %1 to i16
   %2 = bitcast i16 %conv to <16 x i1>

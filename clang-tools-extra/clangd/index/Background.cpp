@@ -8,6 +8,7 @@
 
 #include "index/Background.h"
 #include "Compiler.h"
+#include "Config.h"
 #include "Headers.h"
 #include "ParsedAST.h"
 #include "SourceCode.h"
@@ -15,6 +16,7 @@
 #include "URI.h"
 #include "index/BackgroundIndexLoader.h"
 #include "index/FileIndex.h"
+#include "index/Index.h"
 #include "index/IndexAction.h"
 #include "index/MemIndex.h"
 #include "index/Ref.h"
@@ -41,6 +43,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Threading.h"
+#include "llvm/Support/xxhash.h"
 
 #include <algorithm>
 #include <atomic>
@@ -90,26 +93,26 @@ bool shardIsStale(const LoadedShard &LS, llvm::vfs::FileSystem *FS) {
 } // namespace
 
 BackgroundIndex::BackgroundIndex(
-    Context BackgroundContext, const ThreadsafeFS &TFS,
-    const GlobalCompilationDatabase &CDB,
-    BackgroundIndexStorage::Factory IndexStorageFactory, size_t ThreadPoolSize,
-    std::function<void(BackgroundQueue::Stats)> OnProgress)
+    const ThreadsafeFS &TFS, const GlobalCompilationDatabase &CDB,
+    BackgroundIndexStorage::Factory IndexStorageFactory, Options Opts)
     : SwapIndex(std::make_unique<MemIndex>()), TFS(TFS), CDB(CDB),
-      BackgroundContext(std::move(BackgroundContext)),
-      Rebuilder(this, &IndexedSymbols, ThreadPoolSize),
+      ContextProvider(std::move(Opts.ContextProvider)),
+      IndexedSymbols(IndexContents::All),
+      Rebuilder(this, &IndexedSymbols, Opts.ThreadPoolSize),
       IndexStorageFactory(std::move(IndexStorageFactory)),
-      Queue(std::move(OnProgress)),
+      Queue(std::move(Opts.OnProgress)),
       CommandsChanged(
           CDB.watch([&](const std::vector<std::string> &ChangedFiles) {
             enqueue(ChangedFiles);
           })) {
-  assert(ThreadPoolSize > 0 && "Thread pool size can't be zero.");
+  assert(Opts.ThreadPoolSize > 0 && "Thread pool size can't be zero.");
   assert(this->IndexStorageFactory && "Storage factory can not be null!");
-  for (unsigned I = 0; I < ThreadPoolSize; ++I) {
-    ThreadPool.runAsync("background-worker-" + llvm::Twine(I + 1), [this] {
-      WithContext Ctx(this->BackgroundContext.clone());
-      Queue.work([&] { Rebuilder.idle(); });
-    });
+  for (unsigned I = 0; I < Opts.ThreadPoolSize; ++I) {
+    ThreadPool.runAsync("background-worker-" + llvm::Twine(I + 1),
+                        [this, Ctx(Context::current().clone())]() mutable {
+                          WithContext BGContext(std::move(Ctx));
+                          Queue.work([&] { Rebuilder.idle(); });
+                        });
   }
 }
 
@@ -122,6 +125,11 @@ BackgroundQueue::Task BackgroundIndex::changedFilesTask(
     const std::vector<std::string> &ChangedFiles) {
   BackgroundQueue::Task T([this, ChangedFiles] {
     trace::Span Tracer("BackgroundIndexEnqueue");
+
+    llvm::Optional<WithContext> WithProvidedContext;
+    if (ContextProvider)
+      WithProvidedContext.emplace(ContextProvider(/*Path=*/""));
+
     // We're doing this asynchronously, because we'll read shards here too.
     log("Enqueueing {0} commands for indexing", ChangedFiles.size());
     SPAN_ATTACH(Tracer, "files", int64_t(ChangedFiles.size()));
@@ -132,8 +140,8 @@ BackgroundQueue::Task BackgroundIndex::changedFilesTask(
                  std::mt19937(std::random_device{}()));
     std::vector<BackgroundQueue::Task> Tasks;
     Tasks.reserve(NeedsReIndexing.size());
-    for (auto &Cmd : NeedsReIndexing)
-      Tasks.push_back(indexFileTask(std::move(Cmd)));
+    for (const auto &File : NeedsReIndexing)
+      Tasks.push_back(indexFileTask(std::move(File)));
     Queue.append(std::move(Tasks));
   });
 
@@ -147,17 +155,22 @@ static llvm::StringRef filenameWithoutExtension(llvm::StringRef Path) {
   return Path.drop_back(llvm::sys::path::extension(Path).size());
 }
 
-BackgroundQueue::Task
-BackgroundIndex::indexFileTask(tooling::CompileCommand Cmd) {
-  BackgroundQueue::Task T([this, Cmd] {
-    // We can't use llvm::StringRef here since we are going to
-    // move from Cmd during the call below.
-    const std::string FileName = Cmd.Filename;
-    if (auto Error = index(std::move(Cmd)))
-      elog("Indexing {0} failed: {1}", FileName, std::move(Error));
+BackgroundQueue::Task BackgroundIndex::indexFileTask(std::string Path) {
+  std::string Tag = filenameWithoutExtension(Path).str();
+  uint64_t Key = llvm::xxHash64(Path);
+  BackgroundQueue::Task T([this, Path(std::move(Path))] {
+    llvm::Optional<WithContext> WithProvidedContext;
+    if (ContextProvider)
+      WithProvidedContext.emplace(ContextProvider(Path));
+    auto Cmd = CDB.getCompileCommand(Path);
+    if (!Cmd)
+      return;
+    if (auto Error = index(std::move(*Cmd)))
+      elog("Indexing {0} failed: {1}", Path, std::move(Error));
   });
   T.QueuePri = IndexFile;
-  T.Tag = std::string(filenameWithoutExtension(Cmd.Filename));
+  T.Tag = std::move(Tag);
+  T.Key = Key;
   return T;
 }
 
@@ -230,7 +243,7 @@ void BackgroundIndex::update(
       // this thread sees the older version but finishes later. This should be
       // rare in practice.
       IndexedSymbols.update(
-          Path, std::make_unique<SymbolSlab>(std::move(*IF->Symbols)),
+          Uri, std::make_unique<SymbolSlab>(std::move(*IF->Symbols)),
           std::make_unique<RefSlab>(std::move(*IF->Refs)),
           std::make_unique<RelationSlab>(std::move(*IF->Relations)),
           Path == MainFile);
@@ -263,15 +276,13 @@ llvm::Error BackgroundIndex::index(tooling::CompileCommand Cmd) {
   IgnoreDiagnostics IgnoreDiags;
   auto CI = buildCompilerInvocation(Inputs, IgnoreDiags);
   if (!CI)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Couldn't build compiler invocation");
+    return error("Couldn't build compiler invocation");
 
   auto Clang =
       prepareCompilerInstance(std::move(CI), /*Preamble=*/nullptr,
                               std::move(*Buf), std::move(FS), IgnoreDiags);
   if (!Clang)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Couldn't build compiler instance");
+    return error("Couldn't build compiler instance");
 
   SymbolCollector::Options IndexOpts;
   // Creates a filter to not collect index results from files with unchanged
@@ -293,6 +304,7 @@ llvm::Error BackgroundIndex::index(tooling::CompileCommand Cmd) {
       return false; // Skip files that haven't changed, without errors.
     return true;
   };
+  IndexOpts.CollectMainFileRefs = true;
 
   IndexFileIn Index;
   auto Action = createStaticIndexingAction(
@@ -308,8 +320,7 @@ llvm::Error BackgroundIndex::index(tooling::CompileCommand Cmd) {
 
   const FrontendInputFile &Input = Clang->getFrontendOpts().Inputs.front();
   if (!Action->BeginSourceFile(*Clang, Input))
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "BeginSourceFile() failed");
+    return error("BeginSourceFile() failed");
   if (llvm::Error Err = Action->Execute())
     return Err;
 
@@ -342,10 +353,16 @@ llvm::Error BackgroundIndex::index(tooling::CompileCommand Cmd) {
 // Restores shards for \p MainFiles from index storage. Then checks staleness of
 // those shards and returns a list of TUs that needs to be indexed to update
 // staleness.
-std::vector<tooling::CompileCommand>
+std::vector<std::string>
 BackgroundIndex::loadProject(std::vector<std::string> MainFiles) {
-  std::vector<tooling::CompileCommand> NeedsReIndexing;
-
+  // Drop files where background indexing is disabled in config.
+  if (ContextProvider)
+    llvm::erase_if(MainFiles, [&](const std::string &TU) {
+      // Load the config for each TU, as indexing may be selectively enabled.
+      WithContext WithProvidedContext(ContextProvider(TU));
+      return Config::current().Index.Background ==
+             Config::BackgroundPolicy::Skip;
+    });
   Rebuilder.startLoading();
   // Load shards for all of the mainfiles.
   const std::vector<LoadedShard> Result =
@@ -373,8 +390,9 @@ BackgroundIndex::loadProject(std::vector<std::string> MainFiles) {
       SV.HadErrors = LS.HadErrors;
       ++LoadedShards;
 
-      IndexedSymbols.update(LS.AbsolutePath, std::move(SS), std::move(RS),
-                            std::move(RelS), LS.CountReferences);
+      IndexedSymbols.update(URI::create(LS.AbsolutePath).toString(),
+                            std::move(SS), std::move(RS), std::move(RelS),
+                            LS.CountReferences);
     }
   }
   Rebuilder.loadedShard(LoadedShards);
@@ -398,15 +416,13 @@ BackgroundIndex::loadProject(std::vector<std::string> MainFiles) {
     TUsToIndex.insert(TUForFile);
   }
 
-  for (PathRef TU : TUsToIndex) {
-    auto Cmd = CDB.getCompileCommand(TU);
-    if (!Cmd)
-      continue;
-    NeedsReIndexing.emplace_back(std::move(*Cmd));
-  }
-
-  return NeedsReIndexing;
+  return {TUsToIndex.begin(), TUsToIndex.end()};
 }
 
+void BackgroundIndex::profile(MemoryTree &MT) const {
+  IndexedSymbols.profile(MT.child("slabs"));
+  // We don't want to mix memory used by index and symbols, so call base class.
+  MT.child("index").addUsage(SwapIndex::estimateMemoryUsage());
+}
 } // namespace clangd
 } // namespace clang

@@ -1,4 +1,4 @@
-; RUN: opt < %s -functionattrs -S | FileCheck %s
+; RUN: opt < %s -function-attrs -S | FileCheck %s
 ; RUN: opt < %s -aa-pipeline=basic-aa -passes='cgscc(function-attrs)' -S | FileCheck %s
 
 @x = global i32 0
@@ -50,9 +50,9 @@ define void @test6_2(i8** %p, i8* %q) {
   ret void
 }
 
-; CHECK: define void @test7_1(i32* inalloca nocapture %a)
+; CHECK: define void @test7_1(i32* nocapture inalloca(i32) %a)
 ; inalloca parameters are always considered written
-define void @test7_1(i32* inalloca %a) {
+define void @test7_1(i32* inalloca(i32) %a) {
   ret void
 }
 
@@ -130,7 +130,7 @@ declare void @escape_readonly_ptr(i8** %addr, i8* readonly %ptr)
 ; is marked as readnone/only. However, the functions can write the pointer into
 ; %addr, causing the store to write to %escaped_then_written.
 ;
-; FIXME: This test currently exposes a bug in functionattrs!
+; FIXME: This test currently exposes a bug in function-attrs!
 ;
 ; CHECK: define void @unsound_readnone(i8* nocapture readnone %ignored, i8* readnone %escaped_then_written)
 ; CHECK: define void @unsound_readonly(i8* nocapture readnone %ignored, i8* readonly %escaped_then_written)

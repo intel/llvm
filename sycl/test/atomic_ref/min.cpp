@@ -1,7 +1,9 @@
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -DSYCL_USE_NATIVE_FP_ATOMICS \
+// RUN:  -fsycl-device-only -S %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-device-only -S %s -o - \
+// RUN: | FileCheck %s --check-prefix=CHECK-LLVM-EMU
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 #include <CL/sycl.hpp>
 #include <algorithm>
@@ -10,7 +12,7 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ONEAPI;
 
 template <typename T>
 void min_test(queue q, size_t N) {
@@ -27,7 +29,9 @@ void min_test(queue q, size_t N) {
       auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::global_space>(val[0]);
+        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
+                              ONEAPI::memory_scope::device,
+                              access::address_space::global_space>(val[0]);
         out[gid] = atm.fetch_min(T(gid));
       });
     });
@@ -55,17 +59,46 @@ int main() {
   }
 
   constexpr int N = 32;
-
-  // TODO: Enable missing tests when supported
+  // CHECK-LLVM: declare dso_local spir_func i32
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicSMin
+  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32, i32)
   min_test<int>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i32
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicUMin
+  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32, i32)
   min_test<unsigned int>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i[[long:(32)|(64)]]
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicSMin
+  // CHECK-LLVM-SAME: (i[[long]] addrspace(1)*, i32, i32, i[[long]])
   min_test<long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i[[long]]
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicUMin
+  // CHECK-LLVM-SAME: (i[[long]] addrspace(1)*, i32, i32, i[[long]])
   min_test<unsigned long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicSMin
+  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i64)
   min_test<long long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicUMin
+  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i64)
   min_test<unsigned long long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func float
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicFMinEXT
+  // CHECK-LLVM-SAME: (float addrspace(1)*, i32, i32, float)
+  // CHECK-LLVM-EMU: declare {{.*}} i32 @{{.*}}__spirv_AtomicLoad
+  // CHECK-LLVM-EMU-SAME: (i32 addrspace(1)*, i32, i32)
+  // CHECK-LLVM-EMU: declare {{.*}} i32 @{{.*}}__spirv_AtomicCompareExchange
+  // CHECK-LLVM-EMU-SAME: (i32 addrspace(1)*, i32, i32, i32, i32, i32)
   min_test<float>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func double
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicFMinEXT
+  // CHECK-LLVM-SAME: (double addrspace(1)*, i32, i32, double)
+  // CHECK-LLVM-EMU: declare {{.*}} i64 @{{.*}}__spirv_AtomicLoad
+  // CHECK-LLVM-EMU-SAME: (i64 addrspace(1)*, i32, i32)
+  // CHECK-LLVM-EMU: declare {{.*}} i64 @{{.*}}__spirv_AtomicCompareExchange
+  // CHECK-LLVM-EMU-SAME: (i64 addrspace(1)*, i32, i32, i32, i64, i64)
   min_test<double>(q, N);
-  //min_test<char*>(q, N);
 
   std::cout << "Test passed." << std::endl;
 }

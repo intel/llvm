@@ -14,7 +14,7 @@
 
 #ifndef _LIBCXX_IN_DEVCRT
     // Silence warnings about CRT machinery.
-    #define _CRT_SECURE_NO_WARNINGS
+    #define _CRT_SECURE_NO_WARNINGS 1
 
     // Avoid assertion dialogs.
     #define _CRT_SECURE_INVALID_PARAMETER(EXPR) ::abort()
@@ -64,9 +64,6 @@ const AssertionDialogAvoider assertion_dialog_avoider{};
 
 // MSVC doesn't have __int128_t.
 #define _LIBCPP_HAS_NO_INT128
-
-// MSVC has quick_exit() and at_quick_exit().
-#define _LIBCPP_HAS_QUICK_EXIT
 
 #ifndef _LIBCXX_IN_DEVCRT
     // atomic_is_lock_free.pass.cpp needs this VS 2015 Update 2 fix.

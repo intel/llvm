@@ -1,14 +1,10 @@
-// RUN: %clangxx %s -o %t.out -lsycl -I%sycl_include
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %RUN_ON_HOST %t.out
 //
 // CHECK: PASSED
-//==--------------- property_list.cpp - SYCL property list test ------------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
+
+// This test performs basic check of the SYCL property_list class.
+
 #include <CL/sycl.hpp>
 #include <iostream>
 
@@ -59,6 +55,23 @@ int main() {
     } catch (cl::sycl::invalid_object_error &Error) {
       Error.what();
       std::cerr << "Error: exception was thrown in get_property method."
+                << std::endl;
+      Failed = true;
+    }
+  }
+
+  {
+    cl::sycl::property_list MemChannelProp{
+        sycl_property::buffer::mem_channel(2)};
+    if (!MemChannelProp.has_property<sycl_property::buffer::mem_channel>()) {
+      std::cerr << "Error: property list has no property while should have."
+                << std::endl;
+      Failed = true;
+    }
+    auto Prop =
+        MemChannelProp.get_property<sycl_property::buffer::mem_channel>();
+    if (Prop.get_channel() != 2) {
+      std::cerr << "Error: mem_channel property is not equal to 2."
                 << std::endl;
       Failed = true;
     }

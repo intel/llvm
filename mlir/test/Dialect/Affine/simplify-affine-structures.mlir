@@ -5,7 +5,7 @@
 // CHECK-DAG: #[[$SET_7_11:.*]] = affine_set<(d0, d1) : (d0 * 7 + d1 * 5 + 88 == 0, d0 * 5 - d1 * 11 + 60 == 0, d0 * 11 + d1 * 7 - 24 == 0, d0 * 7 + d1 * 5 + 88 == 0)>
 
 // An external function that we will use in bodies to avoid DCE.
-func @external() -> ()
+func private @external() -> ()
 
 // CHECK-LABEL: func @test_gaussian_elimination_empty_set0() {
 func @test_gaussian_elimination_empty_set0() {
@@ -236,7 +236,7 @@ func @test_empty_set(%N : index) {
 // -----
 
 // An external function that we will use in bodies to avoid DCE.
-func @external() -> ()
+func private @external() -> ()
 
 // CHECK-DAG: #[[$SET:.*]] = affine_set<()[s0] : (s0 >= 0, -s0 + 50 >= 0)
 // CHECK-DAG: #[[$EMPTY_SET:.*]] = affine_set<() : (1 == 0)
@@ -274,10 +274,54 @@ func @affine.apply(%N : index) {
 
 // -----
 
-// CHECK-DAG: #[[MAP_0D:.*]] = affine_map<() -> ()>
-
 // CHECK-LABEL: func @simplify_zero_dim_map
 func @simplify_zero_dim_map(%in : memref<f32>) -> f32 {
   %out = affine.load %in[] : memref<f32>
   return %out : f32
+}
+
+// -----
+
+// Tests the simplification of a semi-affine expression in various cases.
+// CHECK-DAG: #[[$map0:.*]] = affine_map<()[s0, s1] -> (-(s1 floordiv s0) + 2)>
+// CHECK-DAG: #[[$map1:.*]] = affine_map<()[s0, s1] -> (-(s1 floordiv s0) + 42)>
+
+// Tests the simplification of a semi-affine expression with a modulo operation on a floordiv and multiplication.
+// CHECK-LABEL: func @semiaffine_mod
+func @semiaffine_mod(%arg0: index, %arg1: index) -> index {
+  %a = affine.apply affine_map<(d0)[s0] ->((-((d0 floordiv s0) * s0) + s0 * s0) mod s0)> (%arg0)[%arg1]
+  // CHECK:       %[[CST:.*]] = constant 0
+  return %a : index
+}
+
+// Tests the simplification of a semi-affine expression with a nested floordiv and a floordiv on modulo operation.
+// CHECK-LABEL: func @semiaffine_floordiv
+func @semiaffine_floordiv(%arg0: index, %arg1: index) -> index {
+  %a = affine.apply affine_map<(d0)[s0] ->((-((d0 floordiv s0) * s0) + ((2 * s0) mod (3 * s0))) floordiv s0)> (%arg0)[%arg1]
+  // CHECK: affine.apply #[[$map0]]()[%arg1, %arg0]
+  return %a : index
+}
+
+// Tests the simplification of a semi-affine expression with a ceildiv operation and a division of constant 0 by a symbol.
+// CHECK-LABEL: func @semiaffine_ceildiv
+func @semiaffine_ceildiv(%arg0: index, %arg1: index) -> index {
+  %a = affine.apply affine_map<(d0)[s0] ->((-((d0 floordiv s0) * s0) + s0 * 42 + ((5-5) floordiv s0)) ceildiv  s0)> (%arg0)[%arg1]
+  // CHECK: affine.apply #[[$map1]]()[%arg1, %arg0]
+  return %a : index
+}
+
+// Tests the simplification of a semi-affine expression with a nested ceildiv operation and further simplifications after performing ceildiv.
+// CHECK-LABEL: func @semiaffine_composite_floor
+func @semiaffine_composite_floor(%arg0: index, %arg1: index) -> index {
+  %a = affine.apply affine_map<(d0)[s0] ->(((((s0 * 2) ceildiv 4) * 5) + s0 * 42) ceildiv s0)> (%arg0)[%arg1]
+  // CHECK:       %[[CST:.*]] = constant 47
+  return %a : index
+}
+
+// Tests the simplification of a semi-affine expression with a modulo operation with a second operand that simplifies to symbol.
+// CHECK-LABEL: func @semiaffine_unsimplified_symbol
+func @semiaffine_unsimplified_symbol(%arg0: index, %arg1: index) -> index {
+  %a = affine.apply affine_map<(d0)[s0] ->(s0 mod (2 * s0 - s0))> (%arg0)[%arg1]
+  // CHECK:       %[[CST:.*]] = constant 0
+  return %a : index
 }

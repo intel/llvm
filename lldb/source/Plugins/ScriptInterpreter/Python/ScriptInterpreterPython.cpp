@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Host/Config.h"
+#include "lldb/lldb-enumerations.h"
 
 #if LLDB_ENABLE_PYTHON
 
@@ -15,7 +16,11 @@
 
 #include "PythonDataObjects.h"
 #include "PythonReadline.h"
+#include "SWIGPythonBridge.h"
 #include "ScriptInterpreterPythonImpl.h"
+#include "ScriptedProcessPythonInterface.h"
+
+#include "lldb/API/SBError.h"
 #include "lldb/API/SBFrame.h"
 #include "lldb/API/SBValue.h"
 #include "lldb/Breakpoint/StoppointCallbackContext.h"
@@ -32,6 +37,7 @@
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadPlan.h"
+#include "lldb/Utility/ReproducerInstrumentation.h"
 #include "lldb/Utility/Timer.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -39,10 +45,10 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatAdapters.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <mutex>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string>
 
 using namespace lldb;
@@ -127,6 +133,16 @@ extern "C" unsigned int
 LLDBSwigPythonCallBreakpointResolver(void *implementor, const char *method_name,
                                      lldb_private::SymbolContext *sym_ctx);
 
+extern "C" void *LLDBSwigPythonCreateScriptedStopHook(
+    TargetSP target_sp, const char *python_class_name,
+    const char *session_dictionary_name, lldb_private::StructuredDataImpl *args,
+    lldb_private::Status &error);
+
+extern "C" bool
+LLDBSwigPythonStopHookCallHandleStop(void *implementor,
+                                     lldb::ExecutionContextRefSP exc_ctx,
+                                     lldb::StreamSP stream);
+
 extern "C" size_t LLDBSwigPython_CalculateNumChildren(void *implementor,
                                                       uint32_t max);
 
@@ -135,8 +151,6 @@ extern "C" void *LLDBSwigPython_GetChildAtIndex(void *implementor,
 
 extern "C" int LLDBSwigPython_GetIndexOfChildWithName(void *implementor,
                                                       const char *child_name);
-
-extern "C" void *LLDBSWIGPython_CastPyObjectToSBValue(void *data);
 
 extern lldb::ValueObjectSP
 LLDBSWIGPython_GetValueObjectSPFromSBValue(void *data);
@@ -203,6 +217,12 @@ extern "C" bool LLDBSWIGPythonRunScriptKeywordValue(
 extern "C" void *
 LLDBSWIGPython_GetDynamicSetting(void *module, const char *setting,
                                  const lldb::TargetSP &target_sp);
+
+static ScriptInterpreterPythonImpl *GetPythonInterpreter(Debugger &debugger) {
+  ScriptInterpreter *script_interpreter =
+      debugger.GetScriptInterpreter(true, lldb::eScriptLanguagePython);
+  return static_cast<ScriptInterpreterPythonImpl *>(script_interpreter);
+}
 
 static bool g_initialized = false;
 
@@ -392,6 +412,32 @@ FileSpec ScriptInterpreterPython::GetPythonDir() {
   return g_spec;
 }
 
+void ScriptInterpreterPython::SharedLibraryDirectoryHelper(
+    FileSpec &this_file) {
+  // When we're loaded from python, this_file will point to the file inside the
+  // python package directory. Replace it with the one in the lib directory.
+#ifdef _WIN32
+  // On windows, we need to manually back out of the python tree, and go into
+  // the bin directory. This is pretty much the inverse of what ComputePythonDir
+  // does.
+  if (this_file.GetFileNameExtension() == ConstString(".pyd")) {
+    this_file.RemoveLastPathComponent(); // _lldb.pyd or _lldb_d.pyd
+    this_file.RemoveLastPathComponent(); // lldb
+    llvm::StringRef libdir = LLDB_PYTHON_RELATIVE_LIBDIR;
+    for (auto it = llvm::sys::path::begin(libdir),
+              end = llvm::sys::path::end(libdir);
+         it != end; ++it)
+      this_file.RemoveLastPathComponent();
+    this_file.AppendPathComponent("bin");
+    this_file.AppendPathComponent("liblldb.dll");
+  }
+#else
+  // The python file is a symlink, so we can find the real library by resolving
+  // it. We can do this unconditionally.
+  FileSystem::Instance().ResolveSymbolicLink(this_file, this_file);
+#endif
+}
+
 lldb_private::ConstString ScriptInterpreterPython::GetPluginNameStatic() {
   static ConstString g_name("script-python");
   return g_name;
@@ -420,6 +466,7 @@ ScriptInterpreterPythonImpl::Locker::Locker(
     : ScriptInterpreterLocker(),
       m_teardown_session((on_leave & TearDownSession) == TearDownSession),
       m_python_interpreter(py_interpreter) {
+  repro::Recorder::PrivateThread();
   DoAcquireLock();
   if ((on_entry & InitSession) == InitSession) {
     if (!DoInitSession(on_entry, in, out, err)) {
@@ -486,6 +533,9 @@ ScriptInterpreterPythonImpl::ScriptInterpreterPythonImpl(Debugger &debugger)
       m_pty_secondary_is_open(false), m_valid_session(true), m_lock_count(0),
       m_command_thread_state(nullptr) {
   InitializePrivate();
+
+  m_scripted_process_interface_up =
+      std::make_unique<ScriptedProcessPythonInterface>(*this);
 
   m_dictionary_name.append("_dict");
   StreamString run_string;
@@ -982,8 +1032,7 @@ bool ScriptInterpreterPythonImpl::ExecuteOneLine(
 }
 
 void ScriptInterpreterPythonImpl::ExecuteInterpreterLoop() {
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+  LLDB_SCOPED_TIMER();
 
   Debugger &debugger = m_debugger;
 
@@ -1660,35 +1709,6 @@ StructuredData::ArraySP ScriptInterpreterPythonImpl::OSPlugin_ThreadsInfo(
   return StructuredData::ArraySP();
 }
 
-// GetPythonValueFormatString provides a system independent type safe way to
-// convert a variable's type into a python value format. Python value formats
-// are defined in terms of builtin C types and could change from system to as
-// the underlying typedef for uint* types, size_t, off_t and other values
-// change.
-
-template <typename T> const char *GetPythonValueFormatString(T t);
-template <> const char *GetPythonValueFormatString(char *) { return "s"; }
-template <> const char *GetPythonValueFormatString(char) { return "b"; }
-template <> const char *GetPythonValueFormatString(unsigned char) {
-  return "B";
-}
-template <> const char *GetPythonValueFormatString(short) { return "h"; }
-template <> const char *GetPythonValueFormatString(unsigned short) {
-  return "H";
-}
-template <> const char *GetPythonValueFormatString(int) { return "i"; }
-template <> const char *GetPythonValueFormatString(unsigned int) { return "I"; }
-template <> const char *GetPythonValueFormatString(long) { return "l"; }
-template <> const char *GetPythonValueFormatString(unsigned long) {
-  return "k";
-}
-template <> const char *GetPythonValueFormatString(long long) { return "L"; }
-template <> const char *GetPythonValueFormatString(unsigned long long) {
-  return "K";
-}
-template <> const char *GetPythonValueFormatString(float t) { return "f"; }
-template <> const char *GetPythonValueFormatString(double t) { return "d"; }
-
 StructuredData::StringSP
 ScriptInterpreterPythonImpl::OSPlugin_RegisterContextData(
     StructuredData::ObjectSP os_plugin_object_sp, lldb::tid_t tid) {
@@ -1815,11 +1835,10 @@ StructuredData::ObjectSP ScriptInterpreterPythonImpl::CreateScriptedThreadPlan(
     return {};
 
   Debugger &debugger = thread_plan_sp->GetTarget().GetDebugger();
-  ScriptInterpreter *script_interpreter = debugger.GetScriptInterpreter();
   ScriptInterpreterPythonImpl *python_interpreter =
-      static_cast<ScriptInterpreterPythonImpl *>(script_interpreter);
+      GetPythonInterpreter(debugger);
 
-  if (!script_interpreter)
+  if (!python_interpreter)
     return {};
 
   void *ret_val;
@@ -1919,11 +1938,10 @@ ScriptInterpreterPythonImpl::CreateScriptedBreakpointResolver(
     return StructuredData::GenericSP();
 
   Debugger &debugger = bkpt_sp->GetTarget().GetDebugger();
-  ScriptInterpreter *script_interpreter = debugger.GetScriptInterpreter();
   ScriptInterpreterPythonImpl *python_interpreter =
-      static_cast<ScriptInterpreterPythonImpl *>(script_interpreter);
+      GetPythonInterpreter(debugger);
 
-  if (!script_interpreter)
+  if (!python_interpreter)
     return StructuredData::GenericSP();
 
   void *ret_val;
@@ -1977,6 +1995,59 @@ ScriptInterpreterPythonImpl::ScriptedBreakpointResolverSearchDepth(
   if (depth_as_int <= lldb::kLastSearchDepthKind)
     return (lldb::SearchDepth)depth_as_int;
   return lldb::eSearchDepthModule;
+}
+
+StructuredData::GenericSP ScriptInterpreterPythonImpl::CreateScriptedStopHook(
+    TargetSP target_sp, const char *class_name, StructuredDataImpl *args_data,
+    Status &error) {
+
+  if (!target_sp) {
+    error.SetErrorString("No target for scripted stop-hook.");
+    return StructuredData::GenericSP();
+  }
+
+  if (class_name == nullptr || class_name[0] == '\0') {
+    error.SetErrorString("No class name for scripted stop-hook.");
+    return StructuredData::GenericSP();
+  }
+
+  ScriptInterpreterPythonImpl *python_interpreter =
+      GetPythonInterpreter(m_debugger);
+
+  if (!python_interpreter) {
+    error.SetErrorString("No script interpreter for scripted stop-hook.");
+    return StructuredData::GenericSP();
+  }
+
+  void *ret_val;
+
+  {
+    Locker py_lock(this,
+                   Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+
+    ret_val = LLDBSwigPythonCreateScriptedStopHook(
+        target_sp, class_name, python_interpreter->m_dictionary_name.c_str(),
+        args_data, error);
+  }
+
+  return StructuredData::GenericSP(new StructuredPythonObject(ret_val));
+}
+
+bool ScriptInterpreterPythonImpl::ScriptedStopHookHandleStop(
+    StructuredData::GenericSP implementor_sp, ExecutionContext &exc_ctx,
+    lldb::StreamSP stream_sp) {
+  assert(implementor_sp &&
+         "can't call a stop hook with an invalid implementor");
+  assert(stream_sp && "can't call a stop hook with an invalid stream");
+
+  Locker py_lock(this,
+                 Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+
+  lldb::ExecutionContextRefSP exc_ctx_ref_sp(new ExecutionContextRef(exc_ctx));
+
+  bool ret_val = LLDBSwigPythonStopHookCallHandleStop(
+      implementor_sp->GetValue(), exc_ctx_ref_sp, stream_sp);
+  return ret_val;
 }
 
 StructuredData::ObjectSP
@@ -2039,11 +2110,10 @@ ScriptInterpreterPythonImpl::CreateSyntheticScriptedProvider(
     return StructuredData::ObjectSP();
 
   Debugger &debugger = target->GetDebugger();
-  ScriptInterpreter *script_interpreter = debugger.GetScriptInterpreter();
   ScriptInterpreterPythonImpl *python_interpreter =
-      (ScriptInterpreterPythonImpl *)script_interpreter;
+      GetPythonInterpreter(debugger);
 
-  if (!script_interpreter)
+  if (!python_interpreter)
     return StructuredData::ObjectSP();
 
   void *ret_val = nullptr;
@@ -2151,8 +2221,7 @@ bool ScriptInterpreterPythonImpl::GetScriptedSummary(
     StructuredData::ObjectSP &callee_wrapper_sp,
     const TypeSummaryOptions &options, std::string &retval) {
 
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+  LLDB_SCOPED_TIMER();
 
   if (!valobj.get()) {
     retval.assign("<no object>");
@@ -2210,11 +2279,10 @@ bool ScriptInterpreterPythonImpl::BreakpointCallbackFunction(
     return true;
 
   Debugger &debugger = target->GetDebugger();
-  ScriptInterpreter *script_interpreter = debugger.GetScriptInterpreter();
   ScriptInterpreterPythonImpl *python_interpreter =
-      (ScriptInterpreterPythonImpl *)script_interpreter;
+      GetPythonInterpreter(debugger);
 
-  if (!script_interpreter)
+  if (!python_interpreter)
     return true;
 
   if (python_function_name && python_function_name[0]) {
@@ -2276,11 +2344,10 @@ bool ScriptInterpreterPythonImpl::WatchpointCallbackFunction(
     return true;
 
   Debugger &debugger = target->GetDebugger();
-  ScriptInterpreter *script_interpreter = debugger.GetScriptInterpreter();
   ScriptInterpreterPythonImpl *python_interpreter =
-      (ScriptInterpreterPythonImpl *)script_interpreter;
+      GetPythonInterpreter(debugger);
 
-  if (!script_interpreter)
+  if (!python_interpreter)
     return true;
 
   if (python_function_name && python_function_name[0]) {
@@ -2669,7 +2736,10 @@ uint64_t replace_all(std::string &str, const std::string &oldStr,
 
 bool ScriptInterpreterPythonImpl::LoadScriptingModule(
     const char *pathname, bool init_session, lldb_private::Status &error,
-    StructuredData::ObjectSP *module_sp) {
+    StructuredData::ObjectSP *module_sp, FileSpec extra_search_dir) {
+  namespace fs = llvm::sys::fs;
+  namespace path = llvm::sys::path;
+
   if (!pathname || !pathname[0]) {
     error.SetErrorString("invalid pathname");
     return false;
@@ -2677,24 +2747,56 @@ bool ScriptInterpreterPythonImpl::LoadScriptingModule(
 
   lldb::DebuggerSP debugger_sp = m_debugger.shared_from_this();
 
-  {
-    FileSpec target_file(pathname);
-    FileSystem::Instance().Resolve(target_file);
-    FileSystem::Instance().Collect(target_file);
-    std::string basename(target_file.GetFilename().GetCString());
+  // Before executing Python code, lock the GIL.
+  Locker py_lock(this,
+                 Locker::AcquireLock |
+                     (init_session ? Locker::InitSession : 0) | Locker::NoSTDIN,
+                 Locker::FreeAcquiredLock |
+                     (init_session ? Locker::TearDownSession : 0));
 
+  auto ExtendSysPath = [this](std::string directory) -> llvm::Error {
+    if (directory.empty()) {
+      return llvm::make_error<llvm::StringError>(
+          "invalid directory name", llvm::inconvertibleErrorCode());
+    }
+
+    replace_all(directory, "\\", "\\\\");
+    replace_all(directory, "'", "\\'");
+
+    // Make sure that Python has "directory" in the search path.
     StreamString command_stream;
+    command_stream.Printf("if not (sys.path.__contains__('%s')):\n    "
+                          "sys.path.insert(1,'%s');\n\n",
+                          directory.c_str(), directory.c_str());
+    bool syspath_retval =
+        ExecuteMultipleLines(command_stream.GetData(),
+                             ScriptInterpreter::ExecuteScriptOptions()
+                                 .SetEnableIO(false)
+                                 .SetSetLLDBGlobals(false))
+            .Success();
+    if (!syspath_retval) {
+      return llvm::make_error<llvm::StringError>(
+          "Python sys.path handling failed", llvm::inconvertibleErrorCode());
+    }
 
-    // Before executing Python code, lock the GIL.
-    Locker py_lock(this,
-                   Locker::AcquireLock |
-                       (init_session ? Locker::InitSession : 0) |
-                       Locker::NoSTDIN,
-                   Locker::FreeAcquiredLock |
-                       (init_session ? Locker::TearDownSession : 0));
-    namespace fs = llvm::sys::fs;
+    return llvm::Error::success();
+  };
+
+  std::string module_name(pathname);
+  bool possible_package = false;
+
+  if (extra_search_dir) {
+    if (llvm::Error e = ExtendSysPath(extra_search_dir.GetPath())) {
+      error = std::move(e);
+      return false;
+    }
+  } else {
+    FileSpec module_file(pathname);
+    FileSystem::Instance().Resolve(module_file);
+    FileSystem::Instance().Collect(module_file);
+
     fs::file_status st;
-    std::error_code ec = status(target_file.GetPath(), st);
+    std::error_code ec = status(module_file.GetPath(), st);
 
     if (ec || st.type() == fs::file_type::status_error ||
         st.type() == fs::file_type::type_unknown ||
@@ -2705,113 +2807,106 @@ bool ScriptInterpreterPythonImpl::LoadScriptingModule(
         error.SetErrorString("invalid pathname");
         return false;
       }
-      basename = pathname; // not a filename, probably a package of some sort,
-                           // let it go through
+      // Not a filename, probably a package of some sort, let it go through.
+      possible_package = true;
     } else if (is_directory(st) || is_regular_file(st)) {
-      if (target_file.GetDirectory().IsEmpty()) {
+      if (module_file.GetDirectory().IsEmpty()) {
         error.SetErrorString("invalid directory name");
         return false;
       }
-
-      std::string directory = target_file.GetDirectory().GetCString();
-      replace_all(directory, "\\", "\\\\");
-      replace_all(directory, "'", "\\'");
-
-      // now make sure that Python has "directory" in the search path
-      StreamString command_stream;
-      command_stream.Printf("if not (sys.path.__contains__('%s')):\n    "
-                            "sys.path.insert(1,'%s');\n\n",
-                            directory.c_str(), directory.c_str());
-      bool syspath_retval =
-          ExecuteMultipleLines(command_stream.GetData(),
-                               ScriptInterpreter::ExecuteScriptOptions()
-                                   .SetEnableIO(false)
-                                   .SetSetLLDBGlobals(false))
-              .Success();
-      if (!syspath_retval) {
-        error.SetErrorString("Python sys.path handling failed");
+      if (llvm::Error e =
+              ExtendSysPath(module_file.GetDirectory().GetCString())) {
+        error = std::move(e);
         return false;
       }
-
-      // strip .py or .pyc extension
-      ConstString extension = target_file.GetFileNameExtension();
-      if (extension) {
-        if (llvm::StringRef(extension.GetCString()) == ".py")
-          basename.resize(basename.length() - 3);
-        else if (llvm::StringRef(extension.GetCString()) == ".pyc")
-          basename.resize(basename.length() - 4);
-      }
+      module_name = module_file.GetFilename().GetCString();
     } else {
       error.SetErrorString("no known way to import this module specification");
       return false;
     }
-
-    // check if the module is already import-ed
-    command_stream.Clear();
-    command_stream.Printf("sys.modules.__contains__('%s')", basename.c_str());
-    bool does_contain = false;
-    // this call will succeed if the module was ever imported in any Debugger
-    // in the lifetime of the process in which this LLDB framework is living
-    bool was_imported_globally =
-        (ExecuteOneLineWithReturn(
-             command_stream.GetData(),
-             ScriptInterpreterPythonImpl::eScriptReturnTypeBool, &does_contain,
-             ScriptInterpreter::ExecuteScriptOptions()
-                 .SetEnableIO(false)
-                 .SetSetLLDBGlobals(false)) &&
-         does_contain);
-    // this call will fail if the module was not imported in this Debugger
-    // before
-    command_stream.Clear();
-    command_stream.Printf("sys.getrefcount(%s)", basename.c_str());
-    bool was_imported_locally = GetSessionDictionary()
-                                    .GetItemForKey(PythonString(basename))
-                                    .IsAllocated();
-
-    bool was_imported = (was_imported_globally || was_imported_locally);
-
-    // now actually do the import
-    command_stream.Clear();
-
-    if (was_imported) {
-      if (!was_imported_locally)
-        command_stream.Printf("import %s ; reload_module(%s)", basename.c_str(),
-                              basename.c_str());
-      else
-        command_stream.Printf("reload_module(%s)", basename.c_str());
-    } else
-      command_stream.Printf("import %s", basename.c_str());
-
-    error = ExecuteMultipleLines(command_stream.GetData(),
-                                 ScriptInterpreter::ExecuteScriptOptions()
-                                     .SetEnableIO(false)
-                                     .SetSetLLDBGlobals(false));
-    if (error.Fail())
-      return false;
-
-    // if we are here, everything worked
-    // call __lldb_init_module(debugger,dict)
-    if (!LLDBSwigPythonCallModuleInit(basename.c_str(),
-                                      m_dictionary_name.c_str(), debugger_sp)) {
-      error.SetErrorString("calling __lldb_init_module failed");
-      return false;
-    }
-
-    if (module_sp) {
-      // everything went just great, now set the module object
-      command_stream.Clear();
-      command_stream.Printf("%s", basename.c_str());
-      void *module_pyobj = nullptr;
-      if (ExecuteOneLineWithReturn(
-              command_stream.GetData(),
-              ScriptInterpreter::eScriptReturnTypeOpaqueObject,
-              &module_pyobj) &&
-          module_pyobj)
-        *module_sp = std::make_shared<StructuredPythonObject>(module_pyobj);
-    }
-
-    return true;
   }
+
+  // Strip .py or .pyc extension
+  llvm::StringRef extension = llvm::sys::path::extension(module_name);
+  if (!extension.empty()) {
+    if (extension == ".py")
+      module_name.resize(module_name.length() - 3);
+    else if (extension == ".pyc")
+      module_name.resize(module_name.length() - 4);
+  }
+
+  if (!possible_package && module_name.find('.') != llvm::StringRef::npos) {
+    error.SetErrorStringWithFormat(
+        "Python does not allow dots in module names: %s", module_name.c_str());
+    return false;
+  }
+
+  if (module_name.find('-') != llvm::StringRef::npos) {
+    error.SetErrorStringWithFormat(
+        "Python discourages dashes in module names: %s", module_name.c_str());
+    return false;
+  }
+
+  // check if the module is already import-ed
+  StreamString command_stream;
+  command_stream.Clear();
+  command_stream.Printf("sys.modules.__contains__('%s')", module_name.c_str());
+  bool does_contain = false;
+  // this call will succeed if the module was ever imported in any Debugger
+  // in the lifetime of the process in which this LLDB framework is living
+  const bool was_imported_globally =
+      (ExecuteOneLineWithReturn(
+           command_stream.GetData(),
+           ScriptInterpreterPythonImpl::eScriptReturnTypeBool, &does_contain,
+           ScriptInterpreter::ExecuteScriptOptions()
+               .SetEnableIO(false)
+               .SetSetLLDBGlobals(false)) &&
+       does_contain);
+  const bool was_imported_locally =
+      GetSessionDictionary()
+          .GetItemForKey(PythonString(module_name))
+          .IsAllocated();
+
+  // now actually do the import
+  command_stream.Clear();
+
+  if (was_imported_globally || was_imported_locally) {
+    if (!was_imported_locally)
+      command_stream.Printf("import %s ; reload_module(%s)",
+                            module_name.c_str(), module_name.c_str());
+    else
+      command_stream.Printf("reload_module(%s)", module_name.c_str());
+  } else
+    command_stream.Printf("import %s", module_name.c_str());
+
+  error = ExecuteMultipleLines(command_stream.GetData(),
+                               ScriptInterpreter::ExecuteScriptOptions()
+                                   .SetEnableIO(false)
+                                   .SetSetLLDBGlobals(false));
+  if (error.Fail())
+    return false;
+
+  // if we are here, everything worked
+  // call __lldb_init_module(debugger,dict)
+  if (!LLDBSwigPythonCallModuleInit(module_name.c_str(),
+                                    m_dictionary_name.c_str(), debugger_sp)) {
+    error.SetErrorString("calling __lldb_init_module failed");
+    return false;
+  }
+
+  if (module_sp) {
+    // everything went just great, now set the module object
+    command_stream.Clear();
+    command_stream.Printf("%s", module_name.c_str());
+    void *module_pyobj = nullptr;
+    if (ExecuteOneLineWithReturn(
+            command_stream.GetData(),
+            ScriptInterpreter::eScriptReturnTypeOpaqueObject, &module_pyobj) &&
+        module_pyobj)
+      *module_sp = std::make_shared<StructuredPythonObject>(module_pyobj);
+  }
+
+  return true;
 }
 
 bool ScriptInterpreterPythonImpl::IsReservedWord(const char *word) {
@@ -3154,8 +3249,7 @@ void ScriptInterpreterPythonImpl::InitializePrivate() {
 
   g_initialized = true;
 
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+  LLDB_SCOPED_TIMER();
 
   // RAII-based initialization which correctly handles multiple-initialization,
   // version- specific differences among Python 2 and Python 3, and saving and

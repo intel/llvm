@@ -72,6 +72,13 @@
 // || `[0x2000000000, 0x23ffffffff]` || LowShadow  ||
 // || `[0x0000000000, 0x1fffffffff]` || LowMem     ||
 //
+// Default Linux/RISCV64 Sv39 mapping:
+// || `[0x1555550000, 0x3fffffffff]` || HighMem    ||
+// || `[0x0fffffa000, 0x1555555fff]` || HighShadow ||
+// || `[0x0effffa000, 0x0fffff9fff]` || ShadowGap  ||
+// || `[0x0d55550000, 0x0effff9fff]` || LowShadow  ||
+// || `[0x0000000000, 0x0d5554ffff]` || LowMem     ||
+//
 // Default Linux/AArch64 (39-bit VMA) mapping:
 // || `[0x2000000000, 0x7fffffffff]` || highmem    ||
 // || `[0x1400000000, 0x1fffffffff]` || highshadow ||
@@ -161,6 +168,7 @@ static const u64 kDefaultShadowOffset64 = 1ULL << 44;
 static const u64 kDefaultShort64bitShadowOffset =
     0x7FFFFFFF & (~0xFFFULL << kDefaultShadowScale);  // < 2G.
 static const u64 kAArch64_ShadowOffset64 = 1ULL << 36;
+static const u64 kRiscv64_ShadowOffset64 = 0xd55550000;
 static const u64 kMIPS32_ShadowOffset32 = 0x0aaa0000;
 static const u64 kMIPS64_ShadowOffset64 = 1ULL << 37;
 static const u64 kPPC64_ShadowOffset64 = 1ULL << 44;
@@ -206,6 +214,10 @@ static const u64 kMyriadCacheBitMask32 = 0x40000000ULL;
 #else
 #  if SANITIZER_IOS
 #    define SHADOW_OFFSET __asan_shadow_memory_dynamic_address
+#  elif SANITIZER_MAC && defined(__aarch64__)
+#    define SHADOW_OFFSET __asan_shadow_memory_dynamic_address
+#elif SANITIZER_RISCV64
+#define SHADOW_OFFSET kRiscv64_ShadowOffset64
 #  elif defined(__aarch64__)
 #    define SHADOW_OFFSET kAArch64_ShadowOffset64
 #  elif defined(__powerpc64__)
@@ -354,6 +366,8 @@ static inline bool AddrIsInShadowGap(uptr a) {
 #endif  // SANITIZER_MYRIAD2
 
 namespace __asan {
+
+static inline uptr MemToShadowSize(uptr size) { return size >> SHADOW_SCALE; }
 
 static inline bool AddrIsInMem(uptr a) {
   PROFILE_ASAN_MAPPING();

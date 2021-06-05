@@ -10,6 +10,9 @@
 
 #ifdef __SPIR__
 
+// To support fallback device libraries on-demand loading, please update the
+// DeviceLibFuncMap in llvm/tools/sycl-post-link/sycl-post-link.cpp if you add
+// or remove any item in this file.
 DEVICE_EXTERN_C
 double __devicelib_log(double x) { return __spirv_ocl_log(x); }
 
@@ -140,4 +143,9 @@ double __devicelib_asinh(double x) { return __spirv_ocl_asinh(x); }
 
 DEVICE_EXTERN_C
 double __devicelib_atanh(double x) { return __spirv_ocl_atanh(x); }
+
+DEVICE_EXTERN_C
+double __devicelib_scalbn(double x, int exp) {
+  return __spirv_ocl_ldexp(x, exp);
+}
 #endif // __SPIR__

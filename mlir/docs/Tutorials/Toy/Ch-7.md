@@ -60,50 +60,20 @@ representation.
 
 ### Defining the Type Class
 
-#### Reserving a Range of Type Kinds
-
-Types in MLIR rely on having a unique `kind` value to ensure that casting checks
-remain extremely efficient
-([rationale](../../Rationale/Rationale.md#reserving-dialect-type-kinds)). For `toy`, this
-means we need to explicitly reserve a static range of type `kind` values in the
-symbol registry file
-[DialectSymbolRegistry](https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/IR/DialectSymbolRegistry.def).
-
-```c++
-DEFINE_SYM_KIND_RANGE(LINALG) // Linear Algebra Dialect
-DEFINE_SYM_KIND_RANGE(TOY)    // Toy language (tutorial) Dialect
-
-// The following ranges are reserved for experimenting with MLIR dialects in a
-// private context.
-DEFINE_SYM_KIND_RANGE(PRIVATE_EXPERIMENTAL_0)
-```
-
-These definitions will provide a range in the Type::Kind enum to use when
-defining the derived types.
-
-```c++
-/// Create a local enumeration with all of the types that are defined by Toy.
-namespace ToyTypes {
-enum Types {
-  Struct = mlir::Type::FIRST_TOY_TYPE,
-};
-} // end namespace ToyTypes
-```
-
 #### Defining the Type Class
 
-As mentioned in [chapter 2](Ch-2.md), [`Type`](../../LangRef.md#type-system)
+As mentioned in [chapter 2](Ch-2.md), [`Type`](../../LangRef.md/#type-system)
 objects in MLIR are value-typed and rely on having an internal storage object
 that holds the actual data for the type. The `Type` class in itself acts as a
 simple wrapper around an internal `TypeStorage` object that is uniqued within an
 instance of an `MLIRContext`. When constructing a `Type`, we are internally just
 constructing and uniquing an instance of a storage class.
 
-When defining a new `Type` that requires additional information beyond just the
-`kind` (e.g. the `struct` type, which requires additional information to hold
-the element types), we will need to provide a derived storage class. The
-`primitive` types that don't have any additional data (e.g. the
-[`index` type](../../LangRef.md#index-type)) don't require a storage class.
+When defining a new `Type` that contains parametric data (e.g. the `struct`
+type, which requires additional information to hold the element types), we will
+need to provide a derived storage class. The `singleton` types that don't have
+any additional data (e.g. the [`index` type](../../Dialects/Builtin.md/#indextype)) don't
+require a storage class and use the default `TypeStorage`.
 
 ##### Defining the Storage Class
 
@@ -184,21 +154,16 @@ public:
   /// Inherit some necessary constructors from 'TypeBase'.
   using Base::Base;
 
-  /// This static method is used to support type inquiry through isa, cast,
-  /// and dyn_cast.
-  static bool kindof(unsigned kind) { return kind == ToyTypes::Struct; }
-
   /// Create an instance of a `StructType` with the given element types. There
   /// *must* be at least one element type.
   static StructType get(llvm::ArrayRef<mlir::Type> elementTypes) {
     assert(!elementTypes.empty() && "expected at least 1 element type");
 
     // Call into a helper 'get' method in 'TypeBase' to get a uniqued instance
-    // of this type. The first two parameters are the context to unique in and
-    // the kind of the type. The parameters after the type kind are forwarded to
-    // the storage instance.
+    // of this type. The first parameter is the context to unique in. The
+    // parameters after are forwarded to the storage instance.
     mlir::MLIRContext *ctx = elementTypes.front().getContext();
-    return Base::get(ctx, ToyTypes::Struct, elementTypes);
+    return Base::get(ctx, elementTypes);
   }
 
   /// Returns the element types of this struct type.
@@ -212,18 +177,38 @@ public:
 };
 ```
 
-We register this type in the `ToyDialect` constructor in a similar way to how we
+We register this type in the `ToyDialect` initializer in a similar way to how we
 did with operations:
 
 ```c++
-ToyDialect::ToyDialect(mlir::MLIRContext *ctx)
-    : mlir::Dialect(getDialectNamespace(), ctx) {
+void ToyDialect::initialize() {
   addTypes<StructType>();
 }
 ```
 
+(An important note here is that when registering a type, the definition of the
+storage class must be visible.)
+
 With this we can now use our `StructType` when generating MLIR from Toy. See
 examples/toy/Ch7/mlir/MLIRGen.cpp for more details.
+
+### Exposing to ODS
+
+After defining a new type, we should make the ODS framework aware of our Type so
+that we can use it in the operation definitions and auto-generate utilities
+within the Dialect. A simple example is shown below:
+
+```tablegen
+// Provide a definition for the Toy StructType for use in ODS. This allows for
+// using StructType in a similar way to Tensor or MemRef. We use `DialectType`
+// to demarcate the StructType as belonging to the Toy dialect.
+def Toy_StructType :
+    DialectType<Toy_Dialect, CPred<"$_self.isa<StructType>()">,
+                "Toy struct type">;
+
+// Provide a definition of the types that are used within the Toy dialect.
+def Toy_Type : AnyTypeOf<[F64Tensor, Toy_StructType]>;
+```
 
 ### Parsing and Printing
 
@@ -231,6 +216,8 @@ At this point we can use our `StructType` during MLIR generation and
 transformation, but we can't output or parse `.mlir`. For this we need to add
 support for parsing and printing instances of the `StructType`. This can be done
 by overriding the `parseType` and `printType` methods on the `ToyDialect`.
+Declarations for these methods are automatically provided when the type is
+exposed to ODS as detailed in the previous section.
 
 ```c++
 class ToyDialect : public mlir::Dialect {
@@ -248,7 +235,7 @@ These methods take an instance of a high-level parser or printer that allows for
 easily implementing the necessary functionality. Before going into the
 implementation, let's think about the syntax that we want for the `struct` type
 in the printed IR. As described in the
-[MLIR language reference](../../LangRef.md#dialect-types), dialect types are
+[MLIR language reference](../../LangRef.md/#dialect-types), dialect types are
 generally represented as: `! dialect-namespace < type-data >`, with a pretty
 form available under certain circumstances. The responsibility of our `Toy`
 parser and printer is to provide the `type-data` bits. We will define our
@@ -353,22 +340,8 @@ the IR. The next step is to add support for using it within our operations.
 
 #### Updating Existing Operations
 
-A few of our existing operations will need to be updated to handle `StructType`.
-The first step is to make the ODS framework aware of our Type so that we can use
-it in the operation definitions. A simple example is shown below:
-
-```tablegen
-// Provide a definition for the Toy StructType for use in ODS. This allows for
-// using StructType in a similar way to Tensor or MemRef.
-def Toy_StructType :
-    Type<CPred<"$_self.isa<StructType>()">, "Toy struct type">;
-
-// Provide a definition of the types that are used within the Toy dialect.
-def Toy_Type : AnyTypeOf<[F64Tensor, Toy_StructType]>;
-```
-
-We can then update our operations, e.g. `ReturnOp`, to also accept the
-`Toy_StructType`:
+A few of our existing operations, e.g. `ReturnOp`, will need to be updated to
+handle `Toy_StructType`.
 
 ```tablegen
 def ReturnOp : Toy_Op<"return", [Terminator, HasParent<"FuncOp">]> {
@@ -386,7 +359,7 @@ that will provide more specific handling of `structs`.
 ##### `toy.struct_constant`
 
 This new operation materializes a constant value for a struct. In our current
-modeling, we just use an [array attribute](../../LangRef.md#array-attribute)
+modeling, we just use an [array attribute](../../Dialects/Builtin.md/#arrayattr)
 that contains a set of constant values for each of the `struct` elements.
 
 ```mlir

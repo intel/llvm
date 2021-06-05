@@ -45,6 +45,7 @@ int TestAlignedExpr __attribute__((aligned(4)));
 // CHECK:      VarDecl{{.*}}TestAlignedExpr
 // CHECK-NEXT:   AlignedAttr {{.*}} aligned
 // CHECK-NEXT:     ConstantExpr
+// CHECK-NEXT:       value: Int 4
 // CHECK-NEXT:       IntegerLiteral
 
 int TestEnum __attribute__((visibility("default")));
@@ -118,6 +119,7 @@ namespace Test {
 extern "C" int printf(const char *format, ...);
 // CHECK: FunctionDecl{{.*}}printf
 // CHECK-NEXT: ParmVarDecl{{.*}}format{{.*}}'const char *'
+// CHECK-NEXT: BuiltinAttr{{.*}}Implicit
 // CHECK-NEXT: FormatAttr{{.*}}Implicit printf 1 2
 
 alignas(8) extern int x;

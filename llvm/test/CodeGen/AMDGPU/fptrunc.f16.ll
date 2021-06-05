@@ -44,8 +44,7 @@ entry:
 ; VI:     v_or_b32_e32 v[[R_V2_F16:[0-9]+]], v[[R_F16_0]], v[[R_F16_1]]
 
 ; GFX9-DAG:   v_cvt_f16_f32_e32 v[[R_F16_1:[0-9]+]], v[[A_F32_1]]
-; GFX9: v_and_b32_e32 v[[R_F16_LO:[0-9]+]], 0xffff, v[[R_F16_0]]
-; GFX9: v_lshl_or_b32 v[[R_V2_F16:[0-9]+]], v[[R_F16_1]], 16, v[[R_F16_LO]]
+; GFX9: v_pack_b32_f16 v[[R_V2_F16:[0-9]+]], v[[R_F16_0]], v[[R_F16_1]]
 
 ; GCN:     buffer_store_dword v[[R_V2_F16]]
 ; GCN:     s_endpgm
@@ -99,7 +98,7 @@ define amdgpu_kernel void @fneg_fptrunc_f32_to_f16(
     float addrspace(1)* %a) {
 entry:
   %a.val = load float, float addrspace(1)* %a
-  %a.fneg = fsub float -0.0, %a.val
+  %a.fneg = fneg float %a.val
   %r.val = fptrunc float %a.fneg to half
   store half %r.val, half addrspace(1)* %r
   ret void
@@ -132,7 +131,7 @@ define amdgpu_kernel void @fneg_fabs_fptrunc_f32_to_f16(
 entry:
   %a.val = load float, float addrspace(1)* %a
   %a.fabs = call float @llvm.fabs.f32(float %a.val)
-  %a.fneg.fabs = fsub float -0.0, %a.fabs
+  %a.fneg.fabs = fneg float %a.fabs
   %r.val = fptrunc float %a.fneg.fabs to half
   store half %r.val, half addrspace(1)* %r
   ret void

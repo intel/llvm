@@ -74,6 +74,15 @@ struct UnwrapperHelper {
     }
   }
 
+  template <typename A, typename B>
+  static const A *Unwrap(const UnlabeledStatement<B> &x) {
+    return Unwrap<A>(x.statement);
+  }
+  template <typename A, typename B>
+  static const A *Unwrap(const Statement<B> &x) {
+    return Unwrap<A>(x.statement);
+  }
+
   template <typename A, typename B> static const A *Unwrap(B &x) {
     if constexpr (std::is_same_v<std::decay_t<A>, std::decay_t<B>>) {
       return &x;
@@ -99,6 +108,8 @@ template <typename A, typename B> A *Unwrap(B &x) {
 // Get the CoindexedNamedObject if the entity is a coindexed object.
 const CoindexedNamedObject *GetCoindexedNamedObject(const AllocateObject &);
 const CoindexedNamedObject *GetCoindexedNamedObject(const DataRef &);
+const CoindexedNamedObject *GetCoindexedNamedObject(const Designator &);
+const CoindexedNamedObject *GetCoindexedNamedObject(const Variable &);
 
 // Detects parse tree nodes with "source" members.
 template <typename A, typename = int> struct HasSource : std::false_type {};
@@ -106,5 +117,10 @@ template <typename A>
 struct HasSource<A, decltype(static_cast<void>(A::source), 0)>
     : std::true_type {};
 
+// Detects parse tree nodes with "typedExpr" members.
+template <typename A, typename = int> struct HasTypedExpr : std::false_type {};
+template <typename A>
+struct HasTypedExpr<A, decltype(static_cast<void>(A::typedExpr), 0)>
+    : std::true_type {};
 } // namespace Fortran::parser
 #endif // FORTRAN_PARSER_TOOLS_H_

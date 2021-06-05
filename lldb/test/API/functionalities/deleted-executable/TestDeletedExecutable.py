@@ -19,7 +19,6 @@ class TestDeletedExecutable(TestBase):
     @expectedFailureAll(oslist=["linux"],
         triple=no_match('aarch64-.*-android'))
         # determining the architecture of the process fails
-    @expectedFailureNetBSD
     @skipIfReproducer # File synchronization is not supported during replay.
     def test(self):
         self.build()
@@ -35,7 +34,6 @@ class TestDeletedExecutable(TestBase):
 
         # Spawn a new process
         popen = self.spawnSubprocess(exe, [pid_file_path])
-        self.addTearDownHook(self.cleanupSubprocesses)
 
         # Wait until process has fully started up.
         pid = lldbutil.wait_for_file_on_target(self, pid_file_path)

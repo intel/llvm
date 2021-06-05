@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/array.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/range.hpp>
 
@@ -99,7 +100,7 @@ public:
    * conversion:
    * int a = id<1>(value); */
 
-  ALWAYS_INLINE operator EnableIfT<(dimensions == 1), size_t>() const {
+  __SYCL_ALWAYS_INLINE operator EnableIfT<(dimensions == 1), size_t>() const {
     size_t Result = this->common_array[0];
     __SYCL_ASSUME_INT(Result);
     return Result;
@@ -109,7 +110,9 @@ public:
 // OP is: ==, !=
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
   using detail::array<dimensions>::operator==;
+#if __cpp_impl_three_way_comparison < 201907
   using detail::array<dimensions>::operator!=;
+#endif
 
   /* Enable operators with integral types.
    * Template operators take precedence than type conversion. In the case of
@@ -236,6 +239,10 @@ public:
   __SYCL_GEN_OPT(^=)
 
 #undef __SYCL_GEN_OPT
+
+private:
+  friend class handler;
+  void set_allowed_range(range<dimensions> rnwi) { (void)rnwi[0]; }
 };
 
 namespace detail {
@@ -256,6 +263,20 @@ id(size_t)->id<1>;
 id(size_t, size_t)->id<2>;
 id(size_t, size_t, size_t)->id<3>;
 #endif
+
+namespace detail {
+template <int Dims> id<Dims> store_id(const id<Dims> *i) {
+  return get_or_store(i);
+}
+} // namespace detail
+
+template <int Dims> id<Dims> this_id() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<id<Dims>>());
+#else
+  return detail::store_id<Dims>(nullptr);
+#endif
+}
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

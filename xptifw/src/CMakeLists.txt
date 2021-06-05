@@ -1,6 +1,3 @@
-cmake_minimum_required(VERSION 2.8.9)
-project (xptifw)
-
 file(GLOB SOURCES *.cpp)
 include_directories(${XPTIFW_DIR}/include)
 include_directories(${XPTI_DIR}/include)
@@ -18,5 +15,8 @@ if (XPTI_ENABLE_TBB)
   target_link_libraries(xptifw PRIVATE tbb)
 endif()
 
+if (SYCL_USE_LIBCXX)
+    target_link_libraries(xptifw PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
+endif()
 # Set the location of the library installation
 install(TARGETS xptifw DESTINATION ${CMAKE_BINARY_DIR})

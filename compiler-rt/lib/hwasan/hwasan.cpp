@@ -112,7 +112,7 @@ static void InitializeFlags() {
   if (__hwasan_default_options)
     parser.ParseString(__hwasan_default_options());
 #if HWASAN_CONTAINS_UBSAN
-  const char *ubsan_default_options = __ubsan::MaybeCallUbsanDefaultOptions();
+  const char *ubsan_default_options = __ubsan_default_options();
   ubsan_parser.ParseString(ubsan_default_options);
 #endif
 
@@ -128,15 +128,10 @@ static void InitializeFlags() {
   if (common_flags()->help) parser.PrintFlagDescriptions();
 }
 
-static void HWAsanCheckFailed(const char *file, int line, const char *cond,
-                              u64 v1, u64 v2) {
-  Report("HWAddressSanitizer CHECK failed: %s:%d \"%s\" (0x%zx, 0x%zx)\n", file,
-         line, cond, (uptr)v1, (uptr)v2);
-  PRINT_CURRENT_STACK_CHECK();
-  Die();
+static void CheckUnwind() {
+  GET_FATAL_STACK_TRACE_PC_BP(StackTrace::GetCurrentPc(), GET_CURRENT_FRAME());
+  stack.Print();
 }
-
-static constexpr uptr kMemoryUsageBufferSize = 4096;
 
 static void HwasanFormatMemoryUsage(InternalScopedString &s) {
   HwasanThreadList &thread_list = hwasanThreadList();
@@ -155,6 +150,8 @@ static void HwasanFormatMemoryUsage(InternalScopedString &s) {
 }
 
 #if SANITIZER_ANDROID
+static constexpr uptr kMemoryUsageBufferSize = 4096;
+
 static char *memory_usage_buffer = nullptr;
 
 static void InitMemoryUsage() {
@@ -171,7 +168,7 @@ void UpdateMemoryUsage() {
     return;
   if (!memory_usage_buffer)
     InitMemoryUsage();
-  InternalScopedString s(kMemoryUsageBufferSize);
+  InternalScopedString s;
   HwasanFormatMemoryUsage(s);
   internal_strncpy(memory_usage_buffer, s.data(), kMemoryUsageBufferSize - 1);
   memory_usage_buffer[kMemoryUsageBufferSize - 1] = '\0';
@@ -271,7 +268,7 @@ void __hwasan_init() {
   InitializeFlags();
 
   // Install tool-specific callbacks in sanitizer_common.
-  SetCheckFailedCallback(HWAsanCheckFailed);
+  SetCheckUnwindCallback(CheckUnwind);
 
   __sanitizer_set_report_path(common_flags()->log_path);
 
@@ -285,8 +282,6 @@ void __hwasan_init() {
   // Needs to be called here because flags()->random_tags might not have been
   // initialized when InitInstrumentation() was called.
   GetCurrentThread()->InitRandomState();
-
-  MadviseShadow();
 
   SetPrintfAndReportCallback(AppendToErrorMessageBuffer);
   // This may call libc -> needs initialized shadow.
@@ -495,7 +490,7 @@ extern "C" void *__hwasan_extra_spill_area() {
 }
 
 void __hwasan_print_memory_usage() {
-  InternalScopedString s(kMemoryUsageBufferSize);
+  InternalScopedString s;
   HwasanFormatMemoryUsage(s);
   Printf("%s\n", s.data());
 }

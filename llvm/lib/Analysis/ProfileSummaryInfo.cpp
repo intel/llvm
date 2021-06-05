@@ -19,52 +19,17 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ProfileSummary.h"
 #include "llvm/InitializePasses.h"
+#include "llvm/ProfileData/ProfileCommon.h"
 #include "llvm/Support/CommandLine.h"
 using namespace llvm;
 
-// The following two parameters determine the threshold for a count to be
-// considered hot/cold. These two parameters are percentile values (multiplied
-// by 10000). If the counts are sorted in descending order, the minimum count to
-// reach ProfileSummaryCutoffHot gives the threshold to determine a hot count.
-// Similarly, the minimum count to reach ProfileSummaryCutoffCold gives the
-// threshold for determining cold count (everything <= this threshold is
-// considered cold).
-
-static cl::opt<int> ProfileSummaryCutoffHot(
-    "profile-summary-cutoff-hot", cl::Hidden, cl::init(990000), cl::ZeroOrMore,
-    cl::desc("A count is hot if it exceeds the minimum count to"
-             " reach this percentile of total counts."));
-
-static cl::opt<int> ProfileSummaryCutoffCold(
-    "profile-summary-cutoff-cold", cl::Hidden, cl::init(999999), cl::ZeroOrMore,
-    cl::desc("A count is cold if it is below the minimum count"
-             " to reach this percentile of total counts."));
-
-static cl::opt<unsigned> ProfileSummaryHugeWorkingSetSizeThreshold(
-    "profile-summary-huge-working-set-size-threshold", cl::Hidden,
-    cl::init(15000), cl::ZeroOrMore,
-    cl::desc("The code working set size is considered huge if the number of"
-             " blocks required to reach the -profile-summary-cutoff-hot"
-             " percentile exceeds this count."));
-
-static cl::opt<unsigned> ProfileSummaryLargeWorkingSetSizeThreshold(
-    "profile-summary-large-working-set-size-threshold", cl::Hidden,
-    cl::init(12500), cl::ZeroOrMore,
-    cl::desc("The code working set size is considered large if the number of"
-             " blocks required to reach the -profile-summary-cutoff-hot"
-             " percentile exceeds this count."));
-
-// The next two options override the counts derived from summary computation and
-// are useful for debugging purposes.
-static cl::opt<int> ProfileSummaryHotCount(
-    "profile-summary-hot-count", cl::ReallyHidden, cl::ZeroOrMore,
-    cl::desc("A fixed hot count that overrides the count derived from"
-             " profile-summary-cutoff-hot"));
-
-static cl::opt<int> ProfileSummaryColdCount(
-    "profile-summary-cold-count", cl::ReallyHidden, cl::ZeroOrMore,
-    cl::desc("A fixed cold count that overrides the count derived from"
-             " profile-summary-cutoff-cold"));
+// Knobs for profile summary based thresholds.
+extern cl::opt<int> ProfileSummaryCutoffHot;
+extern cl::opt<int> ProfileSummaryCutoffCold;
+extern cl::opt<unsigned> ProfileSummaryHugeWorkingSetSizeThreshold;
+extern cl::opt<unsigned> ProfileSummaryLargeWorkingSetSizeThreshold;
+extern cl::opt<int> ProfileSummaryHotCount;
+extern cl::opt<int> ProfileSummaryColdCount;
 
 static cl::opt<bool> PartialProfile(
     "partial-profile", cl::Hidden, cl::init(false),
@@ -86,19 +51,6 @@ static cl::opt<double> PartialSampleProfileWorkingSetSizeScaleFactor(
              "and the factor to scale the working set size to use the same "
              "shared thresholds as PGO."));
 
-// Find the summary entry for a desired percentile of counts.
-static const ProfileSummaryEntry &getEntryForPercentile(SummaryEntryVector &DS,
-                                                        uint64_t Percentile) {
-  auto It = partition_point(DS, [=](const ProfileSummaryEntry &Entry) {
-    return Entry.Cutoff < Percentile;
-  });
-  // The required percentile has to be <= one of the percentiles in the
-  // detailed summary.
-  if (It == DS.end())
-    report_fatal_error("Desired percentile exceeds the maximum cutoff");
-  return *It;
-}
-
 // The profile summary metadata may be attached either by the frontend or by
 // any backend passes (IR level instrumentation, for example). This method
 // checks if the Summary is null and if so checks if the summary metadata is now
@@ -107,13 +59,13 @@ void ProfileSummaryInfo::refresh() {
   if (hasProfileSummary())
     return;
   // First try to get context sensitive ProfileSummary.
-  auto *SummaryMD = M.getProfileSummary(/* IsCS */ true);
+  auto *SummaryMD = M->getProfileSummary(/* IsCS */ true);
   if (SummaryMD)
     Summary.reset(ProfileSummary::getFromMD(SummaryMD));
 
   if (!hasProfileSummary()) {
     // This will actually return PSK_Instr or PSK_Sample summary.
-    SummaryMD = M.getProfileSummary(/* IsCS */ false);
+    SummaryMD = M->getProfileSummary(/* IsCS */ false);
     if (SummaryMD)
       Summary.reset(ProfileSummary::getFromMD(SummaryMD));
   }
@@ -284,16 +236,12 @@ bool ProfileSummaryInfo::isFunctionEntryCold(const Function *F) const {
 /// Compute the hot and cold thresholds.
 void ProfileSummaryInfo::computeThresholds() {
   auto &DetailedSummary = Summary->getDetailedSummary();
-  auto &HotEntry =
-      getEntryForPercentile(DetailedSummary, ProfileSummaryCutoffHot);
-  HotCountThreshold = HotEntry.MinCount;
-  if (ProfileSummaryHotCount.getNumOccurrences() > 0)
-    HotCountThreshold = ProfileSummaryHotCount;
-  auto &ColdEntry =
-      getEntryForPercentile(DetailedSummary, ProfileSummaryCutoffCold);
-  ColdCountThreshold = ColdEntry.MinCount;
-  if (ProfileSummaryColdCount.getNumOccurrences() > 0)
-    ColdCountThreshold = ProfileSummaryColdCount;
+  auto &HotEntry = ProfileSummaryBuilder::getEntryForPercentile(
+      DetailedSummary, ProfileSummaryCutoffHot);
+  HotCountThreshold =
+      ProfileSummaryBuilder::getHotCountThreshold(DetailedSummary);
+  ColdCountThreshold =
+      ProfileSummaryBuilder::getColdCountThreshold(DetailedSummary);
   assert(ColdCountThreshold <= HotCountThreshold &&
          "Cold count threshold cannot exceed hot count threshold!");
   if (!hasPartialSampleProfile() || !ScalePartialSampleProfileWorkingSetSize) {
@@ -324,8 +272,8 @@ ProfileSummaryInfo::computeThreshold(int PercentileCutoff) const {
     return iter->second;
   }
   auto &DetailedSummary = Summary->getDetailedSummary();
-  auto &Entry =
-      getEntryForPercentile(DetailedSummary, PercentileCutoff);
+  auto &Entry = ProfileSummaryBuilder::getEntryForPercentile(DetailedSummary,
+                                                             PercentileCutoff);
   uint64_t CountThreshold = Entry.MinCount;
   ThresholdCache[PercentileCutoff] = CountThreshold;
   return CountThreshold;

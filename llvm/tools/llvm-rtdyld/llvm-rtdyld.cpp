@@ -27,6 +27,7 @@
 #include "llvm/Object/SymbolSize.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MSVCErrorWorkarounds.h"
 #include "llvm/Support/Memory.h"
@@ -756,7 +757,7 @@ static int linkAndVerify() {
   if (!MAI)
     ErrorAndExit("Unable to create target asm info!");
 
-  MCContext Ctx(MAI.get(), MRI.get(), nullptr);
+  MCContext Ctx(Triple(TripleName), MAI.get(), MRI.get(), STI.get());
 
   std::unique_ptr<MCDisassembler> Disassembler(
     TheTarget->createMCDisassembler(*STI, Ctx));
@@ -764,6 +765,8 @@ static int linkAndVerify() {
     ErrorAndExit("Unable to create disassembler!");
 
   std::unique_ptr<MCInstrInfo> MII(TheTarget->createMCInstrInfo());
+  if (!MII)
+    ErrorAndExit("Unable to create target instruction info!");
 
   std::unique_ptr<MCInstPrinter> InstPrinter(
       TheTarget->createMCInstPrinter(Triple(TripleName), 0, *MAI, *MII, *MRI));
@@ -838,7 +841,7 @@ static int linkAndVerify() {
         char *CSymAddr = static_cast<char *>(SymAddr);
         StringRef SecContent = Dyld.getSectionContent(SectionID);
         uint64_t SymSize = SecContent.size() - (CSymAddr - SecContent.data());
-        SymInfo.setContent(StringRef(CSymAddr, SymSize));
+        SymInfo.setContent(ArrayRef<char>(CSymAddr, SymSize));
       }
     }
     return SymInfo;
@@ -865,7 +868,8 @@ static int linkAndVerify() {
       return SectionID.takeError();
     RuntimeDyldChecker::MemoryRegionInfo SecInfo;
     SecInfo.setTargetAddress(Dyld.getSectionLoadAddress(*SectionID));
-    SecInfo.setContent(Dyld.getSectionContent(*SectionID));
+    StringRef SecContent = Dyld.getSectionContent(*SectionID);
+    SecInfo.setContent(ArrayRef<char>(SecContent.data(), SecContent.size()));
     return SecInfo;
   };
 
@@ -884,8 +888,10 @@ static int linkAndVerify() {
     RuntimeDyldChecker::MemoryRegionInfo StubMemInfo;
     StubMemInfo.setTargetAddress(Dyld.getSectionLoadAddress(SI.SectionID) +
                                  SI.Offset);
+    StringRef SecContent =
+        Dyld.getSectionContent(SI.SectionID).substr(SI.Offset);
     StubMemInfo.setContent(
-        Dyld.getSectionContent(SI.SectionID).substr(SI.Offset));
+        ArrayRef<char>(SecContent.data(), SecContent.size()));
     return StubMemInfo;
   };
 

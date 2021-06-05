@@ -26,9 +26,9 @@
 // WARNINGS-NEXT: (CXXConstructExpr, struct standalone)
 // ANALYZER-NEXT: (CXXConstructExpr, [B1.9], struct standalone)
 // CHECK-NEXT:   9: struct standalone myStandalone;
-// WARNINGS-NEXT: (CXXConstructExpr, struct (anonymous struct at {{.*}}))
-// ANALYZER-NEXT: (CXXConstructExpr, [B1.11], struct (anonymous struct at {{.*}}))
-// CHECK-NEXT:  11: struct (anonymous struct at {{.*}}) myAnon;
+// WARNINGS-NEXT: (CXXConstructExpr, struct (unnamed struct at {{.*}}))
+// ANALYZER-NEXT: (CXXConstructExpr, [B1.11], struct (unnamed struct at {{.*}}))
+// CHECK-NEXT:  11: struct (unnamed struct at {{.*}}) myAnon;
 // WARNINGS-NEXT: (CXXConstructExpr, struct named)
 // ANALYZER-NEXT: (CXXConstructExpr, [B1.13], struct named)
 // CHECK-NEXT:  13: struct named myNamed;
@@ -573,6 +573,24 @@ int vla_evaluate(int x) {
   _Generic((int(*)[++x])0, default : 0);
 
   return x;
+}
+
+// CHECK-LABEL: void CommaTemp::f()
+// CHECK:       [B1]
+// CHECK-NEXT:    1: CommaTemp::A() (CXXConstructExpr,
+// CHECK-NEXT:    2: [B1.1] (BindTemporary)
+// CHECK-NEXT:    3: CommaTemp::B() (CXXConstructExpr,
+// CHECK-NEXT:    4: [B1.3] (BindTemporary)
+// CHECK-NEXT:    5: ... , [B1.4]
+// CHECK-NEXT:    6: ~CommaTemp::B() (Temporary object destructor)
+// CHECK-NEXT:    7: ~CommaTemp::A() (Temporary object destructor)
+namespace CommaTemp {
+  struct A { ~A(); };
+  struct B { ~B(); };
+  void f();
+}
+void CommaTemp::f() {
+  A(), B();
 }
 
 // CHECK-LABEL: template<> int *PR18472<int>()

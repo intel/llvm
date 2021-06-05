@@ -30,14 +30,13 @@ class SBEnvironmentAPICase(TestBase):
 
 
 
-    @add_test_categories(['pyapi'])
+    @skipIfRemote # Remote environment not supported.
     def test_platform_environment(self):
         env = self.dbg.GetSelectedPlatform().GetEnvironment()
         # We assume at least PATH is set
         self.assertNotEqual(env.Get("PATH"), None)
 
 
-    @add_test_categories(['pyapi'])
     def test_launch_info(self):
         target = self.dbg.CreateTarget("")
         launch_info = target.GetLaunchInfo()
@@ -53,6 +52,11 @@ class SBEnvironmentAPICase(TestBase):
         launch_info.SetEnvironment(env, append=True)
         self.assertEqual(launch_info.GetEnvironment().GetNumValues(), env_count + 1)
 
+        env.Set("FOO", "baz", overwrite=True)
+        launch_info.SetEnvironment(env, append=True)
+        self.assertEqual(launch_info.GetEnvironment().GetNumValues(), env_count + 1)
+        self.assertEqual(launch_info.GetEnvironment().Get("FOO"), "baz")
+
         # Make sure we can replace the launchInfo's environment
         env.Clear()
         env.Set("BAR", "foo", overwrite=True)
@@ -61,7 +65,7 @@ class SBEnvironmentAPICase(TestBase):
         self.assertEqualEntries(launch_info.GetEnvironment(), ["BAR=foo", "X=y"])
 
 
-    @add_test_categories(['pyapi'])
+    @skipIfRemote # Remote environment not supported.
     def test_target_environment(self):
         env = self.dbg.GetSelectedTarget().GetEnvironment()
         # There is no target, so env should be empty
@@ -78,7 +82,6 @@ class SBEnvironmentAPICase(TestBase):
         env.PutEntry("PATH=#" + path)
         self.assertEqual(target.GetEnvironment().Get("PATH"), path)
 
-    @add_test_categories(['pyapi'])
     def test_creating_and_modifying_environment(self):
         env = lldb.SBEnvironment()
 
@@ -119,6 +122,11 @@ class SBEnvironmentAPICase(TestBase):
 
         env.SetEntries(entries, append=False)
         self.assertEqualEntries(env, ["X=x", "Y=y"])
+
+        entries.Clear()
+        entries.AppendList(["X=y", "Y=x"], 2)
+        env.SetEntries(entries, append=True)
+        self.assertEqualEntries(env, ["X=y", "Y=x"])
 
         # Test clear
         env.Clear()

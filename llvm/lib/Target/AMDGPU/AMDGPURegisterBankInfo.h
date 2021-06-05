@@ -20,7 +20,6 @@
 
 #define GET_REGBANK_DECLARATIONS
 #include "AMDGPUGenRegisterBank.inc"
-#undef GET_REGBANK_DECLARATIONS
 
 namespace llvm {
 
@@ -39,7 +38,8 @@ protected:
 #define GET_TARGET_REGBANK_CLASS
 #include "AMDGPUGenRegisterBank.inc"
 };
-class AMDGPURegisterBankInfo : public AMDGPUGenRegisterBankInfo {
+
+class AMDGPURegisterBankInfo final : public AMDGPUGenRegisterBankInfo {
 public:
   const GCNSubtarget &Subtarget;
   const SIRegisterInfo *TRI;
@@ -84,8 +84,6 @@ public:
   bool applyMappingBFEIntrinsic(const OperandsMapper &OpdMapper,
                                 bool Signed) const;
 
-  void lowerScalarMinMax(MachineIRBuilder &B, MachineInstr &MI) const;
-
   Register handleD16VData(MachineIRBuilder &B, MachineRegisterInfo &MRI,
                           Register Reg) const;
 
@@ -105,7 +103,6 @@ public:
   getInstrMappingForLoad(const MachineInstr &MI) const;
 
   unsigned getRegBankID(Register Reg, const MachineRegisterInfo &MRI,
-                        const TargetRegisterInfo &TRI,
                         unsigned Default = AMDGPU::VGPRRegBankID) const;
 
   // Return a value mapping for an operand that is required to be an SGPR.
@@ -149,6 +146,9 @@ public:
   RegisterBankInfo::InstructionMappings
   getInstrAlternativeMappingsIntrinsicWSideEffects(
       const MachineInstr &MI, const MachineRegisterInfo &MRI) const;
+
+  unsigned getMappingType(const MachineRegisterInfo &MRI,
+                          const MachineInstr &MI) const;
 
   bool isSALUMapping(const MachineInstr &MI) const;
 

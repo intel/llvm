@@ -187,10 +187,11 @@ static bool considerForSize(ObjectFile *Obj, SectionRef Section) {
   switch (static_cast<ELFSectionRef>(Section).getType()) {
   case ELF::SHT_NULL:
   case ELF::SHT_SYMTAB:
+    return false;
   case ELF::SHT_STRTAB:
   case ELF::SHT_REL:
   case ELF::SHT_RELA:
-    return false;
+    return static_cast<ELFSectionRef>(Section).getFlags() & ELF::SHF_ALLOC;
   }
   return true;
 }
@@ -541,9 +542,7 @@ static bool checkMachOAndArchFlags(ObjectFile *O, StringRef Filename) {
     H = MachO->MachOObjectFile::getHeader();
     T = MachOObjectFile::getArchTriple(H.cputype, H.cpusubtype);
   }
-  if (none_of(ArchFlags, [&](const std::string &Name) {
-        return Name == T.getArchName();
-      })) {
+  if (!is_contained(ArchFlags, T.getArchName())) {
     error("no architecture specified", Filename);
     return false;
   }

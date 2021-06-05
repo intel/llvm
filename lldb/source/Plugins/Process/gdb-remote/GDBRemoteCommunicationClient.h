@@ -22,6 +22,7 @@
 #include "lldb/Utility/GDBRemote.h"
 #include "lldb/Utility/ProcessInfo.h"
 #include "lldb/Utility/StructuredData.h"
+#include "lldb/Utility/TraceGDBRemotePackets.h"
 #if defined(_WIN32)
 #include "lldb/Host/windows/PosixApi.h"
 #endif
@@ -274,6 +275,8 @@ public:
 
   ArchSpec GetSystemArchitecture();
 
+  uint32_t GetAddressingBits();
+
   bool GetHostname(std::string &s);
 
   lldb::addr_t GetShlibInfoAddr();
@@ -365,6 +368,9 @@ public:
     return m_supports_alloc_dealloc_memory;
   }
 
+  std::vector<std::pair<lldb::pid_t, lldb::tid_t>>
+  GetCurrentProcessAndThreadIDs(bool &sequence_mutex_unavailable);
+
   size_t GetCurrentThreadIDs(std::vector<lldb::tid_t> &thread_ids,
                              bool &sequence_mutex_unavailable);
 
@@ -374,6 +380,9 @@ public:
   bool CloseFile(lldb::user_id_t fd, Status &error);
 
   lldb::user_id_t GetFileSize(const FileSpec &file_spec);
+
+  void AutoCompleteDiskFileOrDirectory(CompletionRequest &request,
+                                       bool only_dir);
 
   Status GetFilePermissions(const FileSpec &file_spec,
                             uint32_t &file_permissions);
@@ -396,7 +405,7 @@ public:
   bool GetFileExists(const FileSpec &file_spec);
 
   Status RunShellCommand(
-      const char *command,         // Shouldn't be nullptr
+      llvm::StringRef command,
       const FileSpec &working_dir, // Pass empty FileSpec to use the current
                                    // working directory
       int *status_ptr, // Pass nullptr if you don't want the process exit status
@@ -501,20 +510,16 @@ public:
   ConfigureRemoteStructuredData(ConstString type_name,
                                 const StructuredData::ObjectSP &config_sp);
 
-  lldb::user_id_t SendStartTracePacket(const TraceOptions &options,
-                                       Status &error);
+  llvm::Expected<TraceSupportedResponse> SendTraceSupported();
 
-  Status SendStopTracePacket(lldb::user_id_t uid, lldb::tid_t thread_id);
+  llvm::Error SendTraceStart(const llvm::json::Value &request);
 
-  Status SendGetDataPacket(lldb::user_id_t uid, lldb::tid_t thread_id,
-                           llvm::MutableArrayRef<uint8_t> &buffer,
-                           size_t offset = 0);
+  llvm::Error SendTraceStop(const TraceStopRequest &request);
 
-  Status SendGetMetaDataPacket(lldb::user_id_t uid, lldb::tid_t thread_id,
-                               llvm::MutableArrayRef<uint8_t> &buffer,
-                               size_t offset = 0);
+  llvm::Expected<std::string> SendTraceGetState(llvm::StringRef type);
 
-  Status SendGetTraceConfigPacket(lldb::user_id_t uid, TraceOptions &options);
+  llvm::Expected<std::vector<uint8_t>>
+  SendTraceGetBinaryData(const TraceGetBinaryDataRequest &request);
 
 protected:
   LazyBool m_supports_not_sending_acks;
@@ -552,6 +557,7 @@ protected:
   LazyBool m_supports_jGetSharedCacheInfo;
   LazyBool m_supports_QPassSignals;
   LazyBool m_supports_error_string_reply;
+  LazyBool m_supports_multiprocess;
 
   bool m_supports_qProcessInfoPID : 1, m_supports_qfProcessInfo : 1,
       m_supports_qUserName : 1, m_supports_qGroupName : 1,
@@ -569,6 +575,7 @@ protected:
                               // continue, step, etc
 
   uint32_t m_num_supported_hardware_watchpoints;
+  uint32_t m_addressing_bits;
 
   ArchSpec m_host_arch;
   ArchSpec m_process_arch;
@@ -597,7 +604,8 @@ protected:
 
   // Given the list of compression types that the remote debug stub can support,
   // possibly enable compression if we find an encoding we can handle.
-  void MaybeEnableCompression(std::vector<std::string> supported_compressions);
+  void MaybeEnableCompression(
+      llvm::ArrayRef<llvm::StringRef> supported_compressions);
 
   bool DecodeProcessInfoResponse(StringExtractorGDBRemote &response,
                                  ProcessInstanceInfo &process_info);

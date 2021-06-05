@@ -12,6 +12,9 @@
 #ifdef __SPIR__
 #include <cmath>
 
+// To support fallback device libraries on-demand loading, please update the
+// DeviceLibFuncMap in llvm/tools/sycl-post-link/sycl-post-link.cpp if you add
+// or remove any item in this file.
 DEVICE_EXTERN_C
 float __devicelib_crealf(float __complex__ z) { return __real__(z); }
 

@@ -34,8 +34,8 @@ public:
   explicit WebAssemblyWasmObjectWriter(bool Is64Bit, bool IsEmscripten);
 
 private:
-  unsigned getRelocType(const MCValue &Target,
-                        const MCFixup &Fixup) const override;
+  unsigned getRelocType(const MCValue &Target, const MCFixup &Fixup,
+                        bool IsLocRel) const override;
 };
 } // end anonymous namespace
 
@@ -63,7 +63,8 @@ static const MCSection *getFixupSection(const MCExpr *Expr) {
 }
 
 unsigned WebAssemblyWasmObjectWriter::getRelocType(const MCValue &Target,
-                                                   const MCFixup &Fixup) const {
+                                                   const MCFixup &Fixup,
+                                                   bool IsLocRel) const {
   const MCSymbolRefExpr *RefA = Target.getSymA();
   assert(RefA);
   auto& SymA = cast<MCSymbolWasm>(RefA->getSymbol());
@@ -75,7 +76,10 @@ unsigned WebAssemblyWasmObjectWriter::getRelocType(const MCValue &Target,
       return wasm::R_WASM_GLOBAL_INDEX_LEB;
     case MCSymbolRefExpr::VK_WASM_TBREL:
       assert(SymA.isFunction());
-      return wasm::R_WASM_TABLE_INDEX_REL_SLEB;
+      return is64Bit() ? wasm::R_WASM_TABLE_INDEX_REL_SLEB64
+                       : wasm::R_WASM_TABLE_INDEX_REL_SLEB;
+    case MCSymbolRefExpr::VK_WASM_TLSREL:
+      return wasm::R_WASM_MEMORY_ADDR_TLS_SLEB;
     case MCSymbolRefExpr::VK_WASM_MBREL:
       assert(SymA.isData());
       return is64Bit() ? wasm::R_WASM_MEMORY_ADDR_REL_SLEB64
@@ -92,7 +96,8 @@ unsigned WebAssemblyWasmObjectWriter::getRelocType(const MCValue &Target,
       return wasm::R_WASM_TABLE_INDEX_SLEB;
     return wasm::R_WASM_MEMORY_ADDR_SLEB;
   case WebAssembly::fixup_sleb128_i64:
-    assert(SymA.isData());
+    if (SymA.isFunction())
+      return wasm::R_WASM_TABLE_INDEX_SLEB64;
     return wasm::R_WASM_MEMORY_ADDR_SLEB64;
   case WebAssembly::fixup_uleb128_i32:
     if (SymA.isGlobal())
@@ -101,6 +106,8 @@ unsigned WebAssemblyWasmObjectWriter::getRelocType(const MCValue &Target,
       return wasm::R_WASM_FUNCTION_INDEX_LEB;
     if (SymA.isEvent())
       return wasm::R_WASM_EVENT_INDEX_LEB;
+    if (SymA.isTable())
+      return wasm::R_WASM_TABLE_NUMBER_LEB;
     return wasm::R_WASM_MEMORY_ADDR_LEB;
   case WebAssembly::fixup_uleb128_i64:
     assert(SymA.isData());
@@ -117,8 +124,20 @@ unsigned WebAssemblyWasmObjectWriter::getRelocType(const MCValue &Target,
       else if (!Section->isWasmData())
         return wasm::R_WASM_SECTION_OFFSET_I32;
     }
-    return wasm::R_WASM_MEMORY_ADDR_I32;
+    return IsLocRel ? wasm::R_WASM_MEMORY_ADDR_LOCREL_I32
+                    : wasm::R_WASM_MEMORY_ADDR_I32;
   case FK_Data_8:
+    if (SymA.isFunction())
+      return wasm::R_WASM_TABLE_INDEX_I64;
+    if (SymA.isGlobal())
+      llvm_unreachable("unimplemented R_WASM_GLOBAL_INDEX_I64");
+    if (auto Section = static_cast<const MCSectionWasm *>(
+            getFixupSection(Fixup.getValue()))) {
+      if (Section->getKind().isText())
+        return wasm::R_WASM_FUNCTION_OFFSET_I64;
+      else if (!Section->isWasmData())
+        llvm_unreachable("unimplemented R_WASM_SECTION_OFFSET_I64");
+    }
     assert(SymA.isData());
     return wasm::R_WASM_MEMORY_ADDR_I64;
   default:

@@ -2,123 +2,71 @@
 Test target commands: target.auto-install-main-executable.
 """
 
+import socket
 import time
-import gdbremote_testcase
+import lldbgdbserverutils
 
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
-class TestAutoInstallMainExecutable(gdbremote_testcase.GdbRemoteTestCaseBase):
+class TestAutoInstallMainExecutable(TestBase):
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
-    @llgs_test
-    @no_debug_info_test
-    @skipIf(remote=False)
-    @expectedFailureAll(hostoslist=["windows"], triple='.*-android')
+    @skipIfRemote
     def test_target_auto_install_main_executable(self):
+        if lldbgdbserverutils.get_lldb_server_exe() is None:
+          self.skipTest("lldb-server not found")
         self.build()
-        self.init_llgs_test(False)
 
-        # Manually install the modified binary.
-        working_dir = lldb.remote_platform.GetWorkingDirectory()
-        src_device = lldb.SBFileSpec(self.getBuildArtifact("a.device.out"))
-        dest = lldb.SBFileSpec(os.path.join(working_dir, "a.out"))
-        err = lldb.remote_platform.Put(src_device, dest)
-        if err.Fail():
-            raise RuntimeError(
-                "Unable copy '%s' to '%s'.\n>>> %s" %
-                (src_device.GetFilename(), working_dir, err.GetCString()))
+        hostname = socket.getaddrinfo("localhost", 0, proto=socket.IPPROTO_TCP)[0][4][0]
+        listen_url = "[%s]:0"%hostname
 
-        m = re.search("^(.*)://([^/]*):(.*)$", configuration.lldb_platform_url)
-        protocol = m.group(1)
-        hostname = m.group(2)
-        hostport = int(m.group(3))
-        listen_url = "*:"+str(hostport+1)
-
+        port_file = self.getBuildArtifact("port")
         commandline_args = [
             "platform",
             "--listen",
             listen_url,
-            "--server"
-            ]
-
+            "--socket-file",
+            port_file]
         self.spawnSubprocess(
-            self.debug_monitor_exe,
-            commandline_args,
-            install_remote=False)
-        self.addTearDownHook(self.cleanupSubprocesses)
+            lldbgdbserverutils.get_lldb_server_exe(),
+            commandline_args)
 
-        # Wait for the new process gets ready.
-        time.sleep(0.1)
+        socket_id = lldbutil.wait_for_file_on_target(self, port_file)
 
-        self.dbg.SetAsync(False)
-
-        new_platform = lldb.SBPlatform(lldb.remote_platform.GetName())
+        new_platform = lldb.SBPlatform("remote-" + self.getPlatform())
         self.dbg.SetSelectedPlatform(new_platform)
-        interpreter = self.dbg.GetCommandInterpreter()
 
-        connect_url = "%s://%s:%s" % (protocol, hostname, str(hostport+1))
+        connect_url = "connect://[%s]:%s" % (hostname, socket_id)
+        connect_opts = lldb.SBPlatformConnectOptions(connect_url)
+        self.assertSuccess(new_platform.ConnectRemote(connect_opts))
 
-        command = "platform connect %s" % (connect_url)
+        wd = self.getBuildArtifact("wd")
+        os.mkdir(wd)
+        new_platform.SetWorkingDirectory(wd)
 
-        result = lldb.SBCommandReturnObject()
+
+        # Manually install the modified binary.
+        src_device = lldb.SBFileSpec(self.getBuildArtifact("a.device.out"))
+        dest = lldb.SBFileSpec(os.path.join(wd, "a.out"))
+        self.assertSuccess(new_platform.Put(src_device, dest))
 
         # Test the default setting.
-        interpreter.HandleCommand("settings show target.auto-install-main-executable", result)
-        self.assertTrue(
-            result.Succeeded() and
-            "target.auto-install-main-executable (boolean) = true" in result.GetOutput(),
-            "Default settings for target.auto-install-main-executable failed.: %s - %s" %
-            (result.GetOutput(), result.GetError()))
+        self.expect("settings show target.auto-install-main-executable",
+                substrs=["target.auto-install-main-executable (boolean) = true"],
+                msg="Default settings for target.auto-install-main-executable failed.")
 
         # Disable the auto install.
-        interpreter.HandleCommand("settings set target.auto-install-main-executable false", result)
-        interpreter.HandleCommand("settings show target.auto-install-main-executable", result)
-        self.assertTrue(
-            result.Succeeded() and
-            "target.auto-install-main-executable (boolean) = false" in result.GetOutput(),
-            "Default settings for target.auto-install-main-executable failed.: %s - %s" %
-            (result.GetOutput(), result.GetError()))
-
-        interpreter.HandleCommand("platform select %s"%configuration.lldb_platform_name, result)
-        interpreter.HandleCommand(command, result)
-
-        self.assertTrue(
-            result.Succeeded(),
-            "platform process connect failed: %s - %s" %
-            (result.GetOutput(),result.GetError()))
+        self.runCmd("settings set target.auto-install-main-executable false")
+        self.expect("settings show target.auto-install-main-executable",
+            substrs=["target.auto-install-main-executable (boolean) = false"])
 
         # Create the target with the original file.
-        interpreter.HandleCommand("target create --remote-file %s %s "%
-                                        (os.path.join(working_dir,dest.GetFilename()), self.getBuildArtifact("a.out")),
-                                      result)
-        self.assertTrue(
-            result.Succeeded(),
-            "platform create failed: %s - %s" %
-            (result.GetOutput(),result.GetError()))
+        self.runCmd("target create --remote-file %s %s "%
+                                        (dest.fullpath,
+                                            self.getBuildArtifact("a.out")))
 
-        target = new_debugger.GetSelectedTarget()
-        breakpoint = target.BreakpointCreateByName("main")
-
-        launch_info = lldb.SBLaunchInfo(None)
-        error = lldb.SBError()
-        process = target.Launch(launch_info, error)
-        self.assertTrue(process, PROCESS_IS_VALID)
-
-        thread = lldbutil.get_stopped_thread(process, lldb.eStopReasonBreakpoint)
-        self.assertTrue(
-            thread.IsValid(),
-            "There should be a thread stopped due to breakpoint")
-
-        frame = thread.GetFrameAtIndex(0)
-        self.assertEqual(frame.GetFunction().GetName(), "main")
-
-        interpreter.HandleCommand("target variable build", result)
-        self.assertTrue(
-            result.Succeeded() and
-            '"device"' in result.GetOutput(),
-            "Magic in the binary is wrong: %s " % result.GetOutput())
-
-        process.Continue()
+        self.expect("process launch", substrs=["exited with status = 74"])

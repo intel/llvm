@@ -12,13 +12,13 @@
 #include "src/signal/raise.h"
 #include "src/signal/signal.h"
 
-#include "utils/UnitTest/ErrnoSetterMatcher.h"
+#include "test/ErrnoSetterMatcher.h"
 #include "utils/UnitTest/Test.h"
 
 using __llvm_libc::testing::ErrnoSetterMatcher::Fails;
 using __llvm_libc::testing::ErrnoSetterMatcher::Succeeds;
 
-TEST(Signal, Invalid) {
+TEST(LlvmLibcSignal, Invalid) {
   llvmlibc_errno = 0;
   __llvm_libc::sighandler_t valid = +[](int) {};
   EXPECT_THAT((void *)__llvm_libc::signal(0, valid),
@@ -28,7 +28,7 @@ TEST(Signal, Invalid) {
 }
 
 static int sum;
-TEST(Signal, Basic) {
+TEST(LlvmLibcSignal, Basic) {
   // In case test get run multiple times.
   sum = 0;
   ASSERT_NE(__llvm_libc::signal(SIGUSR1, +[](int) { sum++; }),

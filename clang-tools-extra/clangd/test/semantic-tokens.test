@@ -1,6 +1,6 @@
 # RUN: clangd -lit-test < %s | FileCheck -strict-whitespace %s -implicit-check-not=semanticHighlight
 # Send capabilities for both Theia semanticHighlight & standard semanticTokens.
-# clangd should not use/acknowledge the Theia protocol in this case.
+# clangd should not use/acknowledge the Theia protocol.
 {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"capabilities":{"textDocument":{
   "semanticHighlightingCapabilities":{"semanticHighlighting":true},
   "semanticTokens":{"dynamicRegistration":true}
@@ -13,17 +13,17 @@
 }}}
 ---
 # Non-incremental token request.
-{"jsonrpc":"2.0","id":1,"method":"textDocument/semanticTokens","params":{"textDocument":{"uri":"test:///foo.cpp"}}}
+{"jsonrpc":"2.0","id":1,"method":"textDocument/semanticTokens/full","params":{"textDocument":{"uri":"test:///foo.cpp"}}}
 # CHECK:       "id": 1,
 # CHECK-NEXT:  "jsonrpc": "2.0",
 # CHECK-NEXT:  "result": {
 # CHECK-NEXT:    "data": [
-#                  First line, char 5, variable, no modifiers.
+#                  First line, char 5, variable, declaration+globalScope
 # CHECK-NEXT:      0,
 # CHECK-NEXT:      4,
 # CHECK-NEXT:      1,
 # CHECK-NEXT:      0,
-# CHECK-NEXT:      0
+# CHECK-NEXT:      1025
 # CHECK-NEXT:    ],
 # CHECK-NEXT:    "resultId": "1"
 # CHECK-NEXT:  }
@@ -34,7 +34,7 @@
 }}
 ---
 # Incremental token request, based on previous response.
-{"jsonrpc":"2.0","id":2,"method":"textDocument/semanticTokens/edits","params":{
+{"jsonrpc":"2.0","id":2,"method":"textDocument/semanticTokens/full/delta","params":{
   "textDocument": {"uri":"test:///foo.cpp"},
   "previousResultId": "1"
 }}
@@ -44,12 +44,12 @@
 # CHECK-NEXT:    "edits": [
 # CHECK-NEXT:      {
 # CHECK-NEXT:        "data": [
-#                      Next line, char 5, variable, no modifiers
+#                      Next line, char 5, variable, declaration+globalScope
 # CHECK-NEXT:          1,
 # CHECK-NEXT:          4,
 # CHECK-NEXT:          1,
 # CHECK-NEXT:          0,
-# CHECK-NEXT:          0
+# CHECK-NEXT:          1025
 # CHECK-NEXT:        ],
 #                    Inserted at position 1
 # CHECK-NEXT:        "deleteCount": 0,
@@ -60,7 +60,7 @@
 # CHECK-NEXT:  }
 ---
 # Incremental token request with incorrect baseline => full tokens list.
-{"jsonrpc":"2.0","id":2,"method":"textDocument/semanticTokens/edits","params":{
+{"jsonrpc":"2.0","id":2,"method":"textDocument/semanticTokens/full/delta","params":{
   "textDocument": {"uri":"test:///foo.cpp"},
   "previousResultId": "bogus"
 }}
@@ -72,12 +72,12 @@
 # CHECK-NEXT:      4,
 # CHECK-NEXT:      1,
 # CHECK-NEXT:      0,
-# CHECK-NEXT:      0,
+# CHECK-NEXT:      1025,
 # CHECK-NEXT:      1,
 # CHECK-NEXT:      4,
 # CHECK-NEXT:      1,
 # CHECK-NEXT:      0,
-# CHECK-NEXT:      0
+# CHECK-NEXT:      1025
 # CHECK-NEXT:    ],
 # CHECK-NEXT:    "resultId": "3"
 # CHECK-NEXT:  }

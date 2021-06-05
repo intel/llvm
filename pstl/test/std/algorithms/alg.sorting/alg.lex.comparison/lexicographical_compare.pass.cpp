@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 #include "support/pstl_test_config.h"
 
@@ -161,7 +161,7 @@ main()
 {
     test<uint16_t, float64_t>(std::less<float64_t>());
     test<float32_t, int32_t>(std::greater<float32_t>());
-#if !_PSTL_ICC_18_TEST_EARLY_EXIT_AVX_RELEASE_BROKEN
+#if !defined(_PSTL_ICC_18_TEST_EARLY_EXIT_AVX_RELEASE_BROKEN)
     test<float64_t, int32_t>([](const float64_t x, const int32_t y) { return x * x < y * y; });
 #endif
     test<LocalWrapper<int32_t>, LocalWrapper<int32_t>>(

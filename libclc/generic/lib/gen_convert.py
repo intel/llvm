@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import sys
 from os.path import dirname, join, abspath

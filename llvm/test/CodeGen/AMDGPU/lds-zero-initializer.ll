@@ -1,7 +1,7 @@
-; RUN: not --crash llc -march=amdgcn -mcpu=tahiti < %s 2>&1 | FileCheck %s
-; RUN: not --crash llc -march=amdgcn -mcpu=tonga < %s 2>&1 | FileCheck %s
+; RUN: not llc -march=amdgcn -mcpu=tahiti -filetype=null < %s 2>&1 | FileCheck %s
+; RUN: not llc -march=amdgcn -mcpu=tonga -filetype=null < %s 2>&1 | FileCheck %s
 
-; CHECK: lds: unsupported initializer for address space
+; CHECK: error: lds: unsupported initializer for address space
 
 @lds = addrspace(3) global [256 x i32] zeroinitializer
 

@@ -3,6 +3,7 @@ import os
 from json import JSONEncoder
 
 from lit.BooleanExpression import BooleanExpression
+from lit.TestTimes import read_test_times
 
 # Test result codes.
 
@@ -150,6 +151,8 @@ class Result(object):
         self.output = output
         # The wall timing to execute the test, if timing.
         self.elapsed = elapsed
+        self.start = None
+        self.pid = None
         # The metrics reported by this test.
         self.metrics = {}
         # The micro-test results reported by this test.
@@ -205,6 +208,8 @@ class TestSuite:
         # The test suite configuration.
         self.config = config
 
+        self.test_times = read_test_times(self)
+
     def getSourcePath(self, components):
         return os.path.join(self.source_root, *components)
 
@@ -243,6 +248,18 @@ class Test:
 
         # The test result, once complete.
         self.result = None
+
+        # The previous test failure state, if applicable.
+        self.previous_failure = False
+
+        # The previous test elapsed time, if applicable.
+        self.previous_elapsed = 0.0
+
+        if '/'.join(path_in_suite) in suite.test_times:
+            time = suite.test_times['/'.join(path_in_suite)]
+            self.previous_elapsed = abs(time)
+            self.previous_failure = time < 0
+
 
     def setResult(self, result):
         assert self.result is None, "result already set"
@@ -393,13 +410,3 @@ class Test:
         )
         identifiers = set(filter(BooleanExpression.isIdentifier, tokens))
         return identifiers
-
-    def isEarlyTest(self):
-        """
-        isEarlyTest() -> bool
-
-        Check whether this test should be executed early in a particular run.
-        This can be used for test suites with long running tests to maximize
-        parallelism or where it is desirable to surface their failures early.
-        """
-        return self.suite.config.is_early

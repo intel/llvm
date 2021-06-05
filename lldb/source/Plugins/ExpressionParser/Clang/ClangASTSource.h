@@ -197,11 +197,6 @@ public:
 
   clang::Sema *getSema();
 
-  void SetImportInProgress(bool import_in_progress) {
-    m_import_in_progress = import_in_progress;
-  }
-  bool GetImportInProgress() { return m_import_in_progress; }
-
   void SetLookupsEnabled(bool lookups_enabled) {
     m_lookups_enabled = lookups_enabled;
   }
@@ -319,6 +314,8 @@ protected:
   ///     The imported type.
   CompilerType GuardedCopyType(const CompilerType &src_type);
 
+  std::shared_ptr<ClangModulesDeclVendor> GetClangModulesDeclVendor();
+
 public:
   /// Returns true if a name should be ignored by name lookup.
   ///
@@ -376,7 +373,6 @@ protected:
 
   friend struct NameSearchContext;
 
-  bool m_import_in_progress;
   bool m_lookups_enabled;
 
   /// The target to use in finding variables and types.

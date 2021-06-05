@@ -31,16 +31,17 @@ struct MutableModes {
   enum decimal::FortranRounding round{
       executionEnvironment
           .defaultOutputRoundingMode}; // RP/ROUND='PROCESSOR_DEFAULT'
-  bool pad{false}; // PAD= mode on READ
+  bool pad{true}; // PAD= mode on READ
   char delim{'\0'}; // DELIM=
   short scale{0}; // kP
+  bool inNamelist{false}; // skip ! comments
 };
 
 // A single edit descriptor extracted from a FORMAT
 struct DataEdit {
   char descriptor; // capitalized: one of A, I, B, O, Z, F, E(N/S/X), D, G
 
-  // Special internal data edit descriptors for list-directed I/O
+  // Special internal data edit descriptors for list-directed & NAMELIST I/O
   static constexpr char ListDirected{'g'}; // non-COMPLEX list-directed
   static constexpr char ListDirectedRealPart{'r'}; // emit "(r," or "(r;"
   static constexpr char ListDirectedImaginaryPart{'z'}; // emit "z)"
@@ -63,7 +64,7 @@ struct DataEdit {
 struct DefaultFormatControlCallbacks : public IoErrorHandler {
   using IoErrorHandler::IoErrorHandler;
   DataEdit GetNextDataEdit(int = 1);
-  bool Emit(const char *, std::size_t);
+  bool Emit(const char *, std::size_t, std::size_t elementBytes = 0);
   bool Emit(const char16_t *, std::size_t);
   bool Emit(const char32_t *, std::size_t);
   std::optional<char32_t> GetCurrentChar();

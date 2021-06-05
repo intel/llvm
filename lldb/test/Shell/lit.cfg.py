@@ -36,12 +36,16 @@ config.excludes = ['Inputs', 'CMakeLists.txt', 'README.txt', 'LICENSE.txt']
 config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
-config.test_exec_root = os.path.join(config.lldb_obj_root, 'test')
+config.test_exec_root = os.path.join(config.lldb_obj_root, 'test', 'Shell')
 
-# Propagate reproducer environment vars.
-if 'LLDB_CAPTURE_REPRODUCER' in os.environ:
-  config.environment['LLDB_CAPTURE_REPRODUCER'] = os.environ[
-      'LLDB_CAPTURE_REPRODUCER']
+# Propagate environment vars.
+llvm_config.with_system_environment([
+    'FREEBSD_LEGACY_PLUGIN',
+    'HOME',
+    'TEMP',
+    'TMP',
+    'XDG_CACHE_HOME',
+])
 
 # Support running the test suite under the lldb-repro wrapper. This makes it
 # possible to capture a test suite run and then rerun all the test from the
@@ -119,6 +123,9 @@ if config.lldb_enable_lzma:
 
 if find_executable('xz') != None:
     config.available_features.add('xz')
+
+if config.lldb_system_debugserver:
+    config.available_features.add('system-debugserver')
 
 # NetBSD permits setting dbregs either if one is root
 # or if user_set_dbregs is enabled

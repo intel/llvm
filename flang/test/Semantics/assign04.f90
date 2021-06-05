@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
 ! 9.4.5
 subroutine s1
   type :: t(k, l)
@@ -8,7 +8,7 @@ subroutine s1
   type(t(1, 2)) :: x
   !ERROR: Assignment to constant 'x%k' is not allowed
   x%k = 4
-  !ERROR: Left-hand side of assignment is not modifiable
+  !ERROR: Assignment to constant 'x%l' is not allowed
   x%l = 3
 end
 
@@ -94,7 +94,7 @@ subroutine s6(x)
   x(:3) = [1, 2, 3]
   !ERROR: Assumed-size array 'x' must have explicit final subscript upper bound value
   x(:) = [1, 2, 3]
-  !ERROR: Left-hand side of assignment may not be a whole assumed-size array
+  !ERROR: Whole assumed-size array 'x' may not appear here without subscripts
   x = [1, 2, 3]
 end
 
@@ -106,7 +106,7 @@ contains
   subroutine s7(x)
     type(t) :: x(*)
     x(:3)%i = [1, 2, 3]
-    !ERROR: Left-hand side of assignment may not be a whole assumed-size array
+    !ERROR: Whole assumed-size array 'x' may not appear here without subscripts
     x%i = [1, 2, 3]
   end
 end
@@ -115,3 +115,60 @@ subroutine s7
   integer :: a(10), v(10)
   a(v(:)) = 1  ! vector subscript is ok
 end
+
+subroutine s8
+  !ERROR: Assignment to subprogram 's8' is not allowed
+  s8 = 1.0
+end
+
+real function f9() result(r)
+  !ERROR: Assignment to subprogram 'f9' is not allowed
+  f9 = 1.0
+end
+
+!ERROR: No explicit type declared for dummy argument 'n'
+subroutine s10(a, n)
+  implicit none
+  real a(n)
+  a(1:n) = 0.0  ! should not get a second error here
+end
+
+subroutine s11
+  intrinsic :: sin
+  real :: a
+  !ERROR: Function call must have argument list
+  a = sin
+  !ERROR: Subroutine name is not allowed here
+  a = s11
+end
+
+subroutine s12()
+  type dType(l1, k1, l2, k2)
+    integer, len :: l1
+    integer, kind :: k1
+    integer, len :: l2
+    integer, kind :: k2
+  end type
+
+  contains
+    subroutine sub(arg1, arg2, arg3)
+      integer :: arg1
+      type(dType(arg1, 2, *, 4)) :: arg2
+      type(dType(*, 2, arg1, 4)) :: arg3
+      type(dType(1, 2, 3, 4)) :: local1
+      type(dType(1, 2, 3, 4)) :: local2
+      type(dType(1, 2, arg1, 4)) :: local3
+      type(dType(9, 2, 3, 4)) :: local4
+      type(dType(1, 9, 3, 4)) :: local5
+
+      arg2 = arg3
+      arg2 = local1
+      arg3 = local1
+      local1 = local2
+      local2 = local3
+      !ERROR: No intrinsic or user-defined ASSIGNMENT(=) matches operand types TYPE(dtype(k1=2_4,k2=4_4,l1=1_4,l2=3_4)) and TYPE(dtype(k1=2_4,k2=4_4,l1=9_4,l2=3_4))
+      local1 = local4 ! mismatched constant KIND type parameter
+      !ERROR: No intrinsic or user-defined ASSIGNMENT(=) matches operand types TYPE(dtype(k1=2_4,k2=4_4,l1=1_4,l2=3_4)) and TYPE(dtype(k1=9_4,k2=4_4,l1=1_4,l2=3_4))
+      local1 = local5 ! mismatched constant LEN type parameter
+    end subroutine sub
+end subroutine s12

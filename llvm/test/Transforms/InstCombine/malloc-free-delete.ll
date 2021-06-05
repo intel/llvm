@@ -83,8 +83,8 @@ define void @test5(i8* %ptr, i8** %esc) {
 ; CHECK-NEXT:    [[E:%.*]] = call dereferenceable_or_null(700) i8* @malloc(i32 700)
 ; CHECK-NEXT:    [[F:%.*]] = call dereferenceable_or_null(700) i8* @malloc(i32 700)
 ; CHECK-NEXT:    [[G:%.*]] = call dereferenceable_or_null(700) i8* @malloc(i32 700)
-; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p0i8.i32(i8* nonnull align 1 dereferenceable(32) [[PTR:%.*]], i8* nonnull align 1 dereferenceable(32) [[A]], i32 32, i1 false)
-; CHECK-NEXT:    call void @llvm.memmove.p0i8.p0i8.i32(i8* nonnull align 1 dereferenceable(32) [[PTR]], i8* nonnull align 1 dereferenceable(32) [[B]], i32 32, i1 false)
+; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p0i8.i32(i8* noundef nonnull align 1 dereferenceable(32) [[PTR:%.*]], i8* noundef nonnull align 1 dereferenceable(32) [[A]], i32 32, i1 false)
+; CHECK-NEXT:    call void @llvm.memmove.p0i8.p0i8.i32(i8* noundef nonnull align 1 dereferenceable(32) [[PTR]], i8* noundef nonnull align 1 dereferenceable(32) [[B]], i32 32, i1 false)
 ; CHECK-NEXT:    store i8* [[C]], i8** [[ESC:%.*]], align 8
 ; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p0i8.i32(i8* [[D]], i8* [[PTR]], i32 32, i1 true)
 ; CHECK-NEXT:    call void @llvm.memmove.p0i8.p0i8.i32(i8* [[E]], i8* [[PTR]], i32 32, i1 true)
@@ -149,10 +149,11 @@ define void @test6a(i8* %foo) minsize {
 ; CHECK-NEXT:    [[TOBOOL:%.*]] = icmp eq i8* [[FOO:%.*]], null
 ; CHECK-NEXT:    br i1 [[TOBOOL]], label [[IF_END:%.*]], label [[IF_THEN:%.*]]
 ; CHECK:       if.then:
-; CHECK-NEXT:    tail call void @_ZdlPv(i8* [[FOO]])
+; CHECK-NEXT:    tail call void @_ZdlPv(i8* [[FOO]]) #[[ATTR8:[0-9]+]]
 ; CHECK-NEXT:    br label [[IF_END]]
 ; CHECK:       if.end:
 ; CHECK-NEXT:    ret void
+;
 entry:
   %tobool = icmp eq i8* %foo, null
   br i1 %tobool, label %if.end, label %if.then
@@ -276,6 +277,8 @@ declare void @_ZdaPvjSt11align_val_t(i8*, i32, i32) nobuiltin
 ; delete[](void*, unsigned long, align_val_t)
 declare void @_ZdaPvmSt11align_val_t(i8*, i64, i64) nobuiltin
 
+declare void @llvm.assume(i1)
+
 define void @test8() {
 ; CHECK-LABEL: @test8(
 ; CHECK-NEXT:    ret void
@@ -317,6 +320,12 @@ define void @test8() {
   call void @_ZdaPvmSt11align_val_t(i8* %naa2, i64 32, i64 8) builtin
   %naja2 = call i8* @_ZnajSt11align_val_t(i32 32, i32 8) builtin
   call void @_ZdaPvjSt11align_val_t(i8* %naja2, i32 32, i32 8) builtin
+
+  ; Check that the alignment assume does not prevent the removal.
+  %nwa3 = call i8* @_ZnwmSt11align_val_t(i64 32, i64 16) builtin
+  call void @llvm.assume(i1 true) [ "align"(i8* %nwa3, i64 16) ]
+  call void @_ZdlPvmSt11align_val_t(i8* %nwa3, i64 32, i64 16) builtin
+
   ret void
 }
 
@@ -343,7 +352,7 @@ define void @test10()  {
 
 define void @test11() {
 ; CHECK-LABEL: @test11(
-; CHECK-NEXT:    [[CALL:%.*]] = call dereferenceable(8) i8* @_Znwm(i64 8) #6
+; CHECK-NEXT:    [[CALL:%.*]] = call dereferenceable(8) i8* @_Znwm(i64 8) #[[ATTR8]]
 ; CHECK-NEXT:    call void @_ZdlPv(i8* nonnull [[CALL]])
 ; CHECK-NEXT:    ret void
 ;
@@ -382,3 +391,46 @@ if.end:                                           ; preds = %entry, %if.then
   ret void
 }
 
+; The next four tests cover the semantics of the nofree attributes.  These
+; are thought to be legal transforms, but an implementation thereof has
+; been reverted once due to difficult to isolate fallout.
+
+; TODO: Freeing a no-free pointer -> %foo must be null
+define void @test13(i8* nofree %foo) {
+; CHECK-LABEL: @test13(
+; CHECK-NEXT:    call void @free(i8* [[FOO:%.*]])
+; CHECK-NEXT:    ret void
+;
+  call void @free(i8* %foo)
+  ret void
+}
+
+; TODO: Freeing a no-free pointer -> %foo must be null
+define void @test14(i8* %foo) nofree {
+; CHECK-LABEL: @test14(
+; CHECK-NEXT:    call void @free(i8* [[FOO:%.*]])
+; CHECK-NEXT:    ret void
+;
+  call void @free(i8* %foo)
+  ret void
+}
+
+; TODO: free call marked no-free ->  %foo must be null
+define void @test15(i8* %foo) {
+; CHECK-LABEL: @test15(
+; CHECK-NEXT:    call void @free(i8* [[FOO:%.*]]) #[[ATTR6:[0-9]+]]
+; CHECK-NEXT:    ret void
+;
+  call void @free(i8* %foo) nofree
+  ret void
+}
+
+; TODO: freeing a nonnull nofree pointer -> full UB
+define void @test16(i8* nonnull nofree %foo) {
+; CHECK-LABEL: @test16(
+; CHECK-NEXT:    call void @free(i8* [[FOO:%.*]])
+; CHECK-NEXT:    ret void
+;
+  call void @free(i8* %foo)
+  ret void
+}

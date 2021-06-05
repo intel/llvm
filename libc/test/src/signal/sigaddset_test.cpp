@@ -10,11 +10,11 @@
 #include "include/signal.h"
 #include "src/signal/sigaddset.h"
 
-#include "utils/UnitTest/ErrnoSetterMatcher.h"
+#include "test/ErrnoSetterMatcher.h"
 #include "utils/UnitTest/Test.h"
 
 // This tests invalid inputs and ensures errno is properly set.
-TEST(SignalTest, SigaddsetInvalid) {
+TEST(LlvmLibcSignalTest, SigaddsetInvalid) {
   using __llvm_libc::testing::ErrnoSetterMatcher::Fails;
   using __llvm_libc::testing::ErrnoSetterMatcher::Succeeds;
   EXPECT_THAT(__llvm_libc::sigaddset(nullptr, SIGSEGV), Fails(EINVAL));

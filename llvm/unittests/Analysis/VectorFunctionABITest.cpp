@@ -101,9 +101,14 @@ protected:
 
 // This test makes sure correct mangling occurs for given string.
 TEST_F(VFABIParserTest, ManglingVectorTLINames) {
-  EXPECT_EQ(VFABI::mangleTLIVectorName("vec", "scalar", 3, 4),
-            "_ZGV_LLVM_N4vvv_scalar(vec)");
-  EXPECT_EQ(VFABI::mangleTLIVectorName("custom.call.v5", "custom.call", 1, 5),
+  EXPECT_EQ(
+      VFABI::mangleTLIVectorName("vec", "scalar", 3, ElementCount::getFixed(4)),
+      "_ZGV_LLVM_N4vvv_scalar(vec)");
+  EXPECT_EQ(VFABI::mangleTLIVectorName("vec", "scalar", 3,
+                                       ElementCount::getScalable(4)),
+            "_ZGV_LLVM_Nxvvv_scalar(vec)");
+  EXPECT_EQ(VFABI::mangleTLIVectorName("custom.call.v5", "custom.call", 1,
+                                       ElementCount::getFixed(5)),
             "_ZGV_LLVM_N5v_custom.call(custom.call.v5)");
 }
 
@@ -617,4 +622,30 @@ TEST_F(VFABIParserTest, ZeroIsInvalidVLEN) {
   EXPECT_FALSE(invokeParser("_ZGVeN0v_sin"));
   EXPECT_FALSE(invokeParser("_ZGVsM0v_sin"));
   EXPECT_FALSE(invokeParser("_ZGVsN0v_sin"));
+}
+
+static std::unique_ptr<Module> parseIR(LLVMContext &C, const char *IR) {
+  SMDiagnostic Err;
+  std::unique_ptr<Module> Mod = parseAssemblyString(IR, Err, C);
+  if (!Mod)
+    Err.print("VectorFunctionABITests", errs());
+  return Mod;
+}
+
+TEST(VFABIGetMappingsTest, IndirectCallInst) {
+  LLVMContext C;
+  std::unique_ptr<Module> M = parseIR(C, R"IR(
+define void @call(void () * %f) {
+entry:
+  call void %f()
+  ret void
+}
+)IR");
+  auto F = dyn_cast_or_null<Function>(M->getNamedValue("call"));
+  ASSERT_TRUE(F);
+  auto CI = dyn_cast<CallInst>(&F->front().front());
+  ASSERT_TRUE(CI);
+  ASSERT_TRUE(CI->isIndirectCall());
+  auto Mappings = VFDatabase::getMappings(*CI);
+  EXPECT_EQ(Mappings.size(), (unsigned)0);
 }

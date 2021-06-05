@@ -1,4 +1,4 @@
-! RUN: %S/test_symbols.sh %s %t %f18
+! RUN: %S/test_symbols.sh %s %t %flang_fc1
 ! Test host association in module subroutine and internal subroutine.
 
 !DEF: /m Module
@@ -44,7 +44,7 @@ contains
    !REF: /m/x
    z = x
    !REF: /m/s/s2/z
-   !REF: /m/s/y
+   !DEF: /m/s/s2/y HostAssoc TYPE(t)
    z = y
    !REF: /m/s/s
    call s

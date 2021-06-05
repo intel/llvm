@@ -11,11 +11,12 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <type_traits>
 // 4.6.2 Context class
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -37,14 +38,36 @@ public:
   ///
   /// The instance of default_selector is used to select the associated platform
   /// and device(s).
+  /// SYCL properties are passed to the constructed SYCL context through
+  /// PropList.
+  ///
+  /// \param PropList is an instance of property_list.
+  explicit context(const property_list &PropList = {});
+
+  /// Constructs a SYCL context instance using an instance of default_selector.
+  ///
+  /// The instance of default_selector is used to select the associated platform
+  /// and device(s).
   /// The constructed SYCL context will use the AsyncHandler parameter to handle
   /// exceptions.
+  /// SYCL properties are passed to the constructed SYCL context through
+  /// PropList.
   ///
   /// \param AsyncHandler is an instance of async_handler.
-  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
-  ///        primary context in the CUDA backend.
-  explicit context(const async_handler &AsyncHandler = {},
-                   bool UseCUDAPrimaryContext = false);
+  /// \param PropList is an instance of property_list.
+  explicit context(const async_handler &AsyncHandler,
+                   const property_list &PropList = {});
+
+  /// Constructs a SYCL context instance using the provided device.
+  ///
+  /// Newly created context is associated with the Device and the SYCL platform
+  /// that is associated with the Device.
+  /// SYCL properties are passed to the constructed SYCL context through
+  /// PropList.
+  ///
+  /// \param Device is an instance of SYCL device.
+  /// \param PropList is an instance of property_list.
+  explicit context(const device &Device, const property_list &PropList = {});
 
   /// Constructs a SYCL context instance using the provided device.
   ///
@@ -52,13 +75,26 @@ public:
   /// that is associated with the Device.
   /// The constructed SYCL context will use the AsyncHandler parameter to handle
   /// exceptions.
+  /// SYCL properties are passed to the constructed SYCL context through
+  /// PropList.
   ///
   /// \param Device is an instance of SYCL device.
   /// \param AsyncHandler is an instance of async_handler.
-  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
-  ///        primary context in the CUDA backend.
-  explicit context(const device &Device, async_handler AsyncHandler = {},
-                   bool UseCUDAPrimaryContext = false);
+  /// \param PropList is an instance of property_list.
+  explicit context(const device &Device, async_handler AsyncHandler,
+                   const property_list &PropList = {});
+
+  /// Constructs a SYCL context instance using the provided platform.
+  ///
+  /// Newly created context is associated with the Platform and with each
+  /// SYCL device that is associated with the Platform.
+  /// SYCL properties are passed to the constructed SYCL context through
+  /// PropList.
+  ///
+  /// \param Platform is an instance of SYCL platform.
+  /// \param PropList is an instance of property_list.
+  explicit context(const platform &Platform,
+                   const property_list &PropList = {});
 
   /// Constructs a SYCL context instance using the provided platform.
   ///
@@ -66,13 +102,26 @@ public:
   /// SYCL device that is associated with the Platform.
   /// The constructed SYCL context will use the AsyncHandler parameter to handle
   /// exceptions.
+  /// SYCL properties are passed to the constructed SYCL context through
+  /// PropList.
   ///
   /// \param Platform is an instance of SYCL platform.
-  /// \param AsyncHandler is an instance of async_handler.
-  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
-  ///        primary context in the CUDA backend.
-  explicit context(const platform &Platform, async_handler AsyncHandler = {},
-                   bool UseCUDAPrimaryContext = false);
+  /// \param PropList is an instance of property_list.
+  explicit context(const platform &Platform, async_handler AsyncHandler,
+                   const property_list &PropList = {});
+
+  /// Constructs a SYCL context instance using list of devices.
+  ///
+  /// Newly created context will be associated with each SYCL device in the
+  /// DeviceList. This requires that all SYCL devices in the list have the same
+  /// associated SYCL platform.
+  /// SYCL properties are passed to the constructed SYCL context through
+  /// PropList.
+  ///
+  /// \param DeviceList is a list of SYCL device instances.
+  /// \param PropList is an instance of property_list.
+  explicit context(const vector_class<device> &DeviceList,
+                   const property_list &PropList = {});
 
   /// Constructs a SYCL context instance using list of devices.
   ///
@@ -81,14 +130,15 @@ public:
   /// associated SYCL platform.
   /// The constructed SYCL context will use the AsyncHandler parameter to handle
   /// exceptions.
+  /// SYCL properties are passed to the constructed SYCL context through
+  /// PropList.
   ///
   /// \param DeviceList is a list of SYCL device instances.
   /// \param AsyncHandler is an instance of async_handler.
-  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
-  ///        primary context in the CUDA backend.
+  /// \param PropList is an instance of property_list.
   explicit context(const vector_class<device> &DeviceList,
-                   async_handler AsyncHandler = {},
-                   bool UseCUDAPrimaryContext = false);
+                   async_handler AsyncHandler,
+                   const property_list &PropList = {});
 
   /// Constructs a SYCL context instance from OpenCL cl_context.
   ///
@@ -98,6 +148,7 @@ public:
   ///
   /// \param ClContext is an instance of OpenCL cl_context.
   /// \param AsyncHandler is an instance of async_handler.
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   context(cl_context ClContext, async_handler AsyncHandler = {});
 
   /// Queries this SYCL context for information.
@@ -119,17 +170,36 @@ public:
 
   bool operator!=(const context &rhs) const { return !(*this == rhs); }
 
+  /// Checks if this context has a property of type propertyT.
+  ///
+  /// \return true if this context has a property of type propertyT.
+  template <typename propertyT> bool has_property() const;
+
+  /// Gets the specified property of this context.
+  ///
+  /// Throws invalid_object_error if this context does not have a property
+  /// of type propertyT.
+  ///
+  /// \return a copy of the property of type propertyT.
+  template <typename propertyT> propertyT get_property() const;
+
   /// Gets OpenCL interoperability context.
   ///
   /// The OpenCL cl_context handle is retained on return.
   ///
   /// \return a valid instance of OpenCL cl_context.
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   cl_context get() const;
 
   /// Checks if this context is a SYCL host context.
   ///
   /// \return true if this context is a SYCL host context.
   bool is_host() const;
+
+  /// Returns the backend associated with this context.
+  ///
+  /// \return the backend associated with this context.
+  backend get_backend() const noexcept;
 
   /// Gets platform associated with this SYCL context.
   ///
@@ -162,7 +232,7 @@ private:
 
   template <class T>
   friend
-      typename std::add_pointer<typename decltype(T::impl)::element_type>::type
+      typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
       detail::getRawSyclObjImpl(const T &SyclObject);
 
   template <class T>

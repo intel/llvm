@@ -44,11 +44,12 @@ using ProfileCount = Function::ProfileCount;
 
 #define DEBUG_TYPE "synthetic-counts-propagation"
 
-/// Initial synthetic count assigned to functions.
+namespace llvm {
 cl::opt<int>
     InitialSyntheticCount("initial-synthetic-count", cl::Hidden, cl::init(10),
                           cl::ZeroOrMore,
-                          cl::desc("Initial value of synthetic entry count."));
+                          cl::desc("Initial value of synthetic entry count"));
+} // namespace llvm
 
 /// Initial synthetic count assigned to inline functions.
 static cl::opt<int> InlineSyntheticCount(
@@ -109,7 +110,7 @@ PreservedAnalyses SyntheticCountsPropagation::run(Module &M,
     Optional<Scaled64> Res = None;
     if (!Edge.first)
       return Res;
-    CallBase &CB = *cast<CallBase>(Edge.first);
+    CallBase &CB = *cast<CallBase>(*Edge.first);
     Function *Caller = CB.getCaller();
     auto &BFI = FAM.getResult<BlockFrequencyAnalysis>(*Caller);
 

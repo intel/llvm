@@ -1,16 +1,20 @@
-set(CommonMLSources MLInlineAdvisor.cpp)
-set(ReleaseModeMLSources ReleaseModeModelRunner.cpp)
+if (DEFINED LLVM_HAVE_TF_AOT OR DEFINED LLVM_HAVE_TF_API)
+  if (DEFINED LLVM_HAVE_TF_AOT)
+    set(LLVM_INLINER_MODEL_PATH "models/inliner" 
+      CACHE STRING 
+      "ML-driven inliner policy location (path to saved model)")
+    include(TensorFlowCompile)
+    tfcompile(${LLVM_INLINER_MODEL_PATH} serve action InlinerSizeModel llvm::InlinerSizeModel)
+    list(APPEND GeneratedMLSources
+      ${GENERATED_HEADERS}
+    )
+    LIST(APPEND MLDeps tf_xla_runtime)
+    LIST(APPEND MLLinkDeps tf_xla_runtime ${GENERATED_OBJS})
+  endif()
 
-if (DEFINED LLVM_HAVE_TF_AOT)
-  include(TensorFlowCompile)
-  tfcompile(models/inliner serve action InlinerSizeModel llvm::InlinerSizeModel)
-  list(APPEND ReleaseModeMLSources
-    $<TARGET_OBJECTS:tf_xla_runtime_objects>
-    ${GENERATED_OBJS}
-  )
-  set(MLPolicySources ${CommonMLSources} ${ReleaseModeMLSources})
-else()
-  set(LLVM_OPTIONAL_SOURCES ${CommonMLSources} ${ReleaseModeMLSources})
+  if (DEFINED LLVM_HAVE_TF_API)
+    LIST(APPEND MLLinkDeps ${tensorflow_c_api})
+  endif()
 endif()
 
 add_llvm_component_library(LLVMAnalysis
@@ -39,24 +43,30 @@ add_llvm_component_library(LLVMAnalysis
   CodeMetrics.cpp
   ConstantFolding.cpp
   DDG.cpp
+  DDGPrinter.cpp
+  ConstraintSystem.cpp
   Delinearization.cpp
   DemandedBits.cpp
   DependenceAnalysis.cpp
   DependenceGraphBuilder.cpp
+  DevelopmentModeInlineAdvisor.cpp
   DivergenceAnalysis.cpp
   DomPrinter.cpp
   DomTreeUpdater.cpp
   DominanceFrontier.cpp
   EHPersonalities.cpp
+  FunctionPropertiesAnalysis.cpp
   GlobalsModRef.cpp
   GuardUtils.cpp
   HeatUtils.cpp
+  IRSimilarityIdentifier.cpp
   IVDescriptors.cpp
   IVUsers.cpp
+  ImportedFunctionsInliningStatistics.cpp
   IndirectCallPromotionAnalysis.cpp
   InlineCost.cpp
   InlineAdvisor.cpp
-  InlineFeaturesAnalysis.cpp
+  InlineSizeEstimatorAnalysis.cpp
   InstCount.cpp
   InstructionPrecedenceTracking.cpp
   InstructionSimplify.cpp
@@ -76,6 +86,7 @@ add_llvm_component_library(LLVMAnalysis
   LoopUnrollAnalyzer.cpp
   LoopInfo.cpp
   LoopPass.cpp
+  MLInlineAdvisor.cpp
   MemDepPrinter.cpp
   MemDerefPrinter.cpp
   MemoryBuiltins.cpp
@@ -90,7 +101,7 @@ add_llvm_component_library(LLVMAnalysis
   ObjCARCAnalysisUtils.cpp
   ObjCARCInstKind.cpp
   OptimizationRemarkEmitter.cpp
-  OrderedInstructions.cpp
+  OverflowInstAnalysis.cpp
   PHITransAddr.cpp
   PhiValues.cpp
   PostDominators.cpp
@@ -99,6 +110,8 @@ add_llvm_component_library(LLVMAnalysis
   RegionInfo.cpp
   RegionPass.cpp
   RegionPrinter.cpp
+  ReleaseModeModelRunner.cpp
+  ReplayInlineAdvisor.cpp
   ScalarEvolution.cpp
   ScalarEvolutionAliasAnalysis.cpp
   ScalarEvolutionDivision.cpp
@@ -107,6 +120,7 @@ add_llvm_component_library(LLVMAnalysis
   StackSafetyAnalysis.cpp
   SyncDependenceAnalysis.cpp
   SyntheticCountsUtils.cpp
+  TFUtils.cpp
   TargetLibraryInfo.cpp
   TargetTransformInfo.cpp
   Trace.cpp
@@ -118,11 +132,22 @@ add_llvm_component_library(LLVMAnalysis
   ValueTracking.cpp
   VectorUtils.cpp
   VFABIDemangling.cpp
-  ${MLPolicySources}
+  ${GeneratedMLSources}
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis
 
   DEPENDS
   intrinsics_gen
+  ${MLDeps}
+
+  LINK_LIBS
+  ${MLLinkDeps}
+
+  LINK_COMPONENTS
+  BinaryFormat
+  Core
+  Object
+  ProfileData
+  Support
   )

@@ -258,26 +258,24 @@ define <4 x i16> @fix_float_to_i16(<4 x float> %in) {
 define <2 x i64> @fix_float_to_i64(<2 x float> %in) {
 ; CHECK-LABEL: fix_float_to_i64:
 ; CHECK:       @ %bb.0:
-; CHECK-NEXT:    .save {r4, lr}
-; CHECK-NEXT:    push {r4, lr}
-; CHECK-NEXT:    .vsave {d8, d9}
-; CHECK-NEXT:    vpush {d8, d9}
+; CHECK-NEXT:    .save {r4, r5, r11, lr}
+; CHECK-NEXT:    push {r4, r5, r11, lr}
+; CHECK-NEXT:    .vsave {d8}
+; CHECK-NEXT:    vpush {d8}
 ; CHECK-NEXT:    vmov d16, r0, r1
 ; CHECK-NEXT:    vadd.f32 d8, d16, d16
+; CHECK-NEXT:    vmov r0, s16
+; CHECK-NEXT:    bl __aeabi_f2ulz
+; CHECK-NEXT:    mov r4, r0
 ; CHECK-NEXT:    vmov r0, s17
+; CHECK-NEXT:    mov r5, r1
 ; CHECK-NEXT:    bl __aeabi_f2ulz
-; CHECK-NEXT:    mov r4, r1
-; CHECK-NEXT:    vmov r1, s16
-; CHECK-NEXT:    vmov.32 d9[0], r0
-; CHECK-NEXT:    mov r0, r1
-; CHECK-NEXT:    bl __aeabi_f2ulz
-; CHECK-NEXT:    vmov.32 d8[0], r0
-; CHECK-NEXT:    vmov.32 d9[1], r4
-; CHECK-NEXT:    vmov.32 d8[1], r1
-; CHECK-NEXT:    vmov r2, r3, d9
-; CHECK-NEXT:    vmov r0, r1, d8
-; CHECK-NEXT:    vpop {d8, d9}
-; CHECK-NEXT:    pop {r4, lr}
+; CHECK-NEXT:    mov r2, r0
+; CHECK-NEXT:    mov r3, r1
+; CHECK-NEXT:    mov r0, r4
+; CHECK-NEXT:    mov r1, r5
+; CHECK-NEXT:    vpop {d8}
+; CHECK-NEXT:    pop {r4, r5, r11, lr}
 ; CHECK-NEXT:    mov pc, lr
 
   %scale = fmul <2 x float> %in, <float 2.0, float 2.0>
@@ -296,13 +294,13 @@ define <4 x i16> @fix_double_to_i16(<4 x double> %in) {
 ; CHECK-NEXT:    vcvt.s32.f64 s0, d18
 ; CHECK-NEXT:    vmov r0, s0
 ; CHECK-NEXT:    vadd.f64 d20, d16, d16
-; CHECK-NEXT:    vadd.f64 d19, d19, d19
 ; CHECK-NEXT:    vadd.f64 d16, d17, d17
 ; CHECK-NEXT:    vcvt.s32.f64 s2, d20
-; CHECK-NEXT:    vcvt.s32.f64 s4, d19
 ; CHECK-NEXT:    vcvt.s32.f64 s6, d16
 ; CHECK-NEXT:    vmov.32 d16[0], r0
 ; CHECK-NEXT:    vmov r0, s2
+; CHECK-NEXT:    vadd.f64 d19, d19, d19
+; CHECK-NEXT:    vcvt.s32.f64 s4, d19
 ; CHECK-NEXT:    vmov.32 d17[0], r0
 ; CHECK-NEXT:    vmov r0, s4
 ; CHECK-NEXT:    vmov.32 d16[1], r0
@@ -320,30 +318,26 @@ define <4 x i16> @fix_double_to_i16(<4 x double> %in) {
 define <2 x i64> @fix_double_to_i64(<2 x double> %in) {
 ; CHECK-LABEL: fix_double_to_i64:
 ; CHECK:       @ %bb.0:
-; CHECK-NEXT:    .save {r4, lr}
-; CHECK-NEXT:    push {r4, lr}
-; CHECK-NEXT:    .vsave {d8, d9}
-; CHECK-NEXT:    vpush {d8, d9}
-; CHECK-NEXT:    vmov d16, r2, r3
-; CHECK-NEXT:    vadd.f64 d16, d16, d16
-; CHECK-NEXT:    vmov r2, r3, d16
+; CHECK-NEXT:    .save {r4, r5, r11, lr}
+; CHECK-NEXT:    push {r4, r5, r11, lr}
+; CHECK-NEXT:    .vsave {d8}
+; CHECK-NEXT:    vpush {d8}
 ; CHECK-NEXT:    vmov d16, r0, r1
+; CHECK-NEXT:    vadd.f64 d16, d16, d16
+; CHECK-NEXT:    vmov r0, r1, d16
+; CHECK-NEXT:    vmov d16, r2, r3
 ; CHECK-NEXT:    vadd.f64 d8, d16, d16
-; CHECK-NEXT:    mov r0, r2
-; CHECK-NEXT:    mov r1, r3
 ; CHECK-NEXT:    bl __aeabi_d2ulz
-; CHECK-NEXT:    mov r4, r1
-; CHECK-NEXT:    vmov r2, r1, d8
-; CHECK-NEXT:    vmov.32 d9[0], r0
-; CHECK-NEXT:    mov r0, r2
-; CHECK-NEXT:    bl __aeabi_d2ulz
-; CHECK-NEXT:    vmov.32 d8[0], r0
-; CHECK-NEXT:    vmov.32 d9[1], r4
-; CHECK-NEXT:    vmov.32 d8[1], r1
-; CHECK-NEXT:    vmov r2, r3, d9
+; CHECK-NEXT:    mov r4, r0
+; CHECK-NEXT:    mov r5, r1
 ; CHECK-NEXT:    vmov r0, r1, d8
-; CHECK-NEXT:    vpop {d8, d9}
-; CHECK-NEXT:    pop {r4, lr}
+; CHECK-NEXT:    bl __aeabi_d2ulz
+; CHECK-NEXT:    mov r2, r0
+; CHECK-NEXT:    mov r3, r1
+; CHECK-NEXT:    mov r0, r4
+; CHECK-NEXT:    mov r1, r5
+; CHECK-NEXT:    vpop {d8}
+; CHECK-NEXT:    pop {r4, r5, r11, lr}
 ; CHECK-NEXT:    mov pc, lr
   %scale = fmul <2 x double> %in, <double 2.0, double 2.0>
   %conv = fptoui <2 x double> %scale to <2 x i64>
@@ -355,10 +349,8 @@ define i32 @multi_sint(double %c, i32* nocapture %p, i32* nocapture %q) {
 ; CHECK:       @ %bb.0:
 ; CHECK-NEXT:    vmov d16, r0, r1
 ; CHECK-NEXT:    vcvt.s32.f64 s0, d16
+; CHECK-NEXT:    vmov r0, s0
 ; CHECK-NEXT:    vstr s0, [r2]
-; CHECK-NEXT:    vcvt.s32.f64 s0, d16
-; CHECK-NEXT:    vcvt.s32.f64 s2, d16
-; CHECK-NEXT:    vmov r0, s2
 ; CHECK-NEXT:    vstr s0, [r3]
 ; CHECK-NEXT:    mov pc, lr
   %conv = fptosi double %c to i32
@@ -372,10 +364,8 @@ define i32 @multi_uint(double %c, i32* nocapture %p, i32* nocapture %q) {
 ; CHECK:       @ %bb.0:
 ; CHECK-NEXT:    vmov d16, r0, r1
 ; CHECK-NEXT:    vcvt.u32.f64 s0, d16
+; CHECK-NEXT:    vmov r0, s0
 ; CHECK-NEXT:    vstr s0, [r2]
-; CHECK-NEXT:    vcvt.u32.f64 s0, d16
-; CHECK-NEXT:    vcvt.u32.f64 s2, d16
-; CHECK-NEXT:    vmov r0, s2
 ; CHECK-NEXT:    vstr s0, [r3]
 ; CHECK-NEXT:    mov pc, lr
   %conv = fptoui double %c to i32

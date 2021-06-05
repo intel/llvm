@@ -2,7 +2,9 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.out.bc
-; RUN: llvm-dis %t.out.bc -o - | FileCheck %s
+; RUN: llvm-dis %t.out.bc -o - | FileCheck %s --check-prefix=CHECK-OCL
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o %t.out.bc
+; RUN: llvm-dis %t.out.bc -o - | FileCheck %s --check-prefix=CHECK-SPV
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"
@@ -13,7 +15,8 @@ target triple = "spir-unknown-unknown"
 define spir_kernel void @f() #0 !kernel_arg_addr_space !0 !kernel_arg_access_qual !0 !kernel_arg_type !0 !kernel_arg_base_type !0 !kernel_arg_type_qual !0 {
 entry:
   %0 = load i32, i32 addrspace(4)* addrspacecast (i32 addrspace(1)* @__spirv_BuiltInGlobalLinearId to i32 addrspace(4)*), align 4
-  ; CHECK: %0 = call spir_func i32 @_Z20get_global_linear_idv() #1
+  ; CHECK-OCL: %0 = call spir_func i32 @_Z20get_global_linear_idv() #1
+  ; CHECK-SPV: %0 = call spir_func i32 @_Z29__spirv_BuiltInGlobalLinearIdv() #1
   ret void
 }
 

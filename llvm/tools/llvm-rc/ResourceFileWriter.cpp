@@ -138,7 +138,8 @@ enum class NullHandlingMethod {
 };
 
 // Parses an identifier or string and returns a processed version of it:
-//   * String the string boundary quotes.
+//   * Strip the string boundary quotes.
+//   * Convert the input code page characters to UTF16.
 //   * Squash "" to a single ".
 //   * Replace the escape sequences with their processed version.
 // For identifiers, this is no-op.
@@ -1246,7 +1247,8 @@ Error ResourceFileWriter::visitStringTableBundle(const RCResource *Res) {
 }
 
 Error ResourceFileWriter::insertStringIntoBundle(
-    StringTableInfo::Bundle &Bundle, uint16_t StringID, StringRef String) {
+    StringTableInfo::Bundle &Bundle, uint16_t StringID,
+    const std::vector<StringRef> &String) {
   uint16_t StringLoc = StringID & 15;
   if (Bundle.Data[StringLoc])
     return createError("Multiple STRINGTABLE strings located under ID " +
@@ -1261,13 +1263,15 @@ Error ResourceFileWriter::writeStringTableBundleBody(const RCResource *Base) {
     // The string format is a tiny bit different here. We
     // first output the size of the string, and then the string itself
     // (which is not null-terminated).
-    bool IsLongString;
     SmallVector<UTF16, 128> Data;
-    RETURN_IF_ERROR(processString(Res->Bundle.Data[ID].getValueOr(StringRef()),
-                                  NullHandlingMethod::CutAtDoubleNull,
-                                  IsLongString, Data, Params.CodePage));
-    if (AppendNull && Res->Bundle.Data[ID])
-      Data.push_back('\0');
+    if (Res->Bundle.Data[ID]) {
+      bool IsLongString;
+      for (StringRef S : *Res->Bundle.Data[ID])
+        RETURN_IF_ERROR(processString(S, NullHandlingMethod::CutAtDoubleNull,
+                                      IsLongString, Data, Params.CodePage));
+      if (AppendNull)
+        Data.push_back('\0');
+    }
     RETURN_IF_ERROR(
         checkNumberFits<uint16_t>(Data.size(), "STRINGTABLE string size"));
     writeInt<uint16_t>(Data.size());
@@ -1510,16 +1514,26 @@ ResourceFileWriter::loadFile(StringRef File) const {
   SmallString<128> Cwd;
   std::unique_ptr<MemoryBuffer> Result;
 
-  // 0. The file path is absolute and the file exists.
-  if (sys::path::is_absolute(File))
-    return errorOrToExpected(MemoryBuffer::getFile(File, -1, false));
+  // 0. The file path is absolute or has a root directory, so we shouldn't
+  // try to append it on top of other base directories. (An absolute path
+  // must have a root directory, but e.g. the path "\dir\file" on windows
+  // isn't considered absolute, but it does have a root directory. As long as
+  // sys::path::append doesn't handle appending an absolute path or a path
+  // starting with a root directory on top of a base, we must handle this
+  // case separately at the top. C++17's path::append handles that case
+  // properly though, so if using that to append paths below, this early
+  // exception case could be removed.)
+  if (sys::path::has_root_directory(File))
+    return errorOrToExpected(MemoryBuffer::getFile(
+        File, /*IsText=*/false, /*RequiresNullTerminator=*/false));
 
   // 1. The current working directory.
   sys::fs::current_path(Cwd);
   Path.assign(Cwd.begin(), Cwd.end());
   sys::path::append(Path, File);
   if (sys::fs::exists(Path))
-    return errorOrToExpected(MemoryBuffer::getFile(Path, -1, false));
+    return errorOrToExpected(MemoryBuffer::getFile(
+        Path, /*IsText=*/false, /*RequiresNullTerminator=*/false));
 
   // 2. The directory of the input resource file, if it is different from the
   // current working directory.
@@ -1527,19 +1541,23 @@ ResourceFileWriter::loadFile(StringRef File) const {
   Path.assign(InputFileDir.begin(), InputFileDir.end());
   sys::path::append(Path, File);
   if (sys::fs::exists(Path))
-    return errorOrToExpected(MemoryBuffer::getFile(Path, -1, false));
+    return errorOrToExpected(MemoryBuffer::getFile(
+        Path, /*IsText=*/false, /*RequiresNullTerminator=*/false));
 
   // 3. All of the include directories specified on the command line.
   for (StringRef ForceInclude : Params.Include) {
     Path.assign(ForceInclude.begin(), ForceInclude.end());
     sys::path::append(Path, File);
     if (sys::fs::exists(Path))
-      return errorOrToExpected(MemoryBuffer::getFile(Path, -1, false));
+      return errorOrToExpected(MemoryBuffer::getFile(
+          Path, /*IsText=*/false, /*RequiresNullTerminator=*/false));
   }
 
-  if (auto Result =
-          llvm::sys::Process::FindInEnvPath("INCLUDE", File, Params.NoInclude))
-    return errorOrToExpected(MemoryBuffer::getFile(*Result, -1, false));
+  if (!Params.NoInclude) {
+    if (auto Result = llvm::sys::Process::FindInEnvPath("INCLUDE", File))
+      return errorOrToExpected(MemoryBuffer::getFile(
+          *Result, /*IsText=*/false, /*RequiresNullTerminator=*/false));
+  }
 
   return make_error<StringError>("error : file not found : " + Twine(File),
                                  inconvertibleErrorCode());

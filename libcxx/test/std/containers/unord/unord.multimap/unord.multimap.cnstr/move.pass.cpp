@@ -82,7 +82,9 @@ int main(int, char**)
             test_compare<std::equal_to<int> >(9),
             test_allocator<std::pair<const int, std::string> >(10)
            );
+        C::iterator it0 = c0.begin();
         C c = std::move(c0);
+        assert(it0 == c.begin()); // Iterators remain valid
         LIBCPP_ASSERT(c.bucket_count() == 7);
         assert(c.size() == 6);
         typedef std::pair<C::const_iterator, C::const_iterator> Eq;
@@ -166,7 +168,9 @@ int main(int, char**)
             test_compare<std::equal_to<int> >(9),
             min_allocator<std::pair<const int, std::string> >()
            );
+        C::iterator it0 = c0.begin();
         C c = std::move(c0);
+        assert(it0 == c.begin()); // Iterators remain valid
         LIBCPP_ASSERT(c.bucket_count() == 7);
         assert(c.size() == 6);
         typedef std::pair<C::const_iterator, C::const_iterator> Eq;
@@ -202,17 +206,6 @@ int main(int, char**)
 
         assert(c0.empty());
     }
-#if _LIBCPP_DEBUG >= 1
-    {
-        std::unordered_multimap<int, int> s1 = {{1, 1}, {2, 2}, {3, 3}};
-        std::unordered_multimap<int, int>::iterator i = s1.begin();
-        std::pair<const int, int> k = *i;
-        std::unordered_multimap<int, int> s2 = std::move(s1);
-        assert(*i == k);
-        s2.erase(i);
-        assert(s2.size() == 2);
-    }
-#endif
 
-  return 0;
+    return 0;
 }

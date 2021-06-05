@@ -61,7 +61,9 @@ public:
   CommandObjectBreakpointCommandAdd(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "add",
                             "Add LLDB commands to a breakpoint, to be executed "
-                            "whenever the breakpoint is hit."
+                            "whenever the breakpoint is hit.  "
+                            "The commands added to the breakpoint replace any "
+                            "commands previously added to it."
                             "  If no breakpoint is specified, adds the "
                             "commands to the last created breakpoint.",
                             nullptr),
@@ -117,14 +119,22 @@ to supply the function name prepended by the module name:"
 
     --python-function myutils.breakpoint_callback
 
-The function itself must have the following prototype:
+The function itself must have either of the following prototypes:
 
-def breakpoint_callback(frame, bp_loc, dict):
+def breakpoint_callback(frame, bp_loc, internal_dict):
+  # Your code goes here
+
+or:
+
+def breakpoint_callback(frame, bp_loc, extra_args, internal_dict):
   # Your code goes here
 
 )"
         "The arguments are the same as the arguments passed to generated functions as \
-described above.  Note that the global variable 'lldb.frame' will NOT be updated when \
+described above.  In the second form, any -k and -v pairs provided to the command will \
+be packaged into a SBDictionary in an SBStructuredData and passed as the extra_args parameter. \
+\n\n\
+Note that the global variable 'lldb.frame' will NOT be updated when \
 this function is called, so be sure to use the 'frame' argument. The 'frame' argument \
 can get you to the thread via frame.GetThread(), the thread can get you to the \
 process via thread.GetProcess(), and the process can get you back to the target \
@@ -141,12 +151,16 @@ Example Python one-line breakpoint command:
 
 (lldb) breakpoint command add -s python 1
 Enter your Python command(s). Type 'DONE' to end.
-> print "Hit this breakpoint!"
-> DONE
+def function (frame, bp_loc, internal_dict):
+    """frame: the lldb.SBFrame for the location at which you stopped
+       bp_loc: an lldb.SBBreakpointLocation for the breakpoint location information
+       internal_dict: an LLDB support object not to be used"""
+    print("Hit this breakpoint!")
+    DONE
 
 As a convenience, this also works for a short Python one-liner:
 
-(lldb) breakpoint command add -s python 1 -o 'import time; print time.asctime()'
+(lldb) breakpoint command add -s python 1 -o 'import time; print(time.asctime())'
 (lldb) run
 Launching '.../a.out'  (x86_64)
 (lldb) Fri Sep 10 12:17:45 2010
@@ -164,21 +178,14 @@ Example multiple line Python breakpoint command:
 
 (lldb) breakpoint command add -s p 1
 Enter your Python command(s). Type 'DONE' to end.
-> global bp_count
-> bp_count = bp_count + 1
-> print "Hit this breakpoint " + repr(bp_count) + " times!"
-> DONE
-
-Example multiple line Python breakpoint command, using function definition:
-
-(lldb) breakpoint command add -s python 1
-Enter your Python command(s). Type 'DONE' to end.
-> def breakpoint_output (bp_no):
->     out_string = "Hit breakpoint number " + repr (bp_no)
->     print out_string
->     return True
-> breakpoint_output (1)
-> DONE
+def function (frame, bp_loc, internal_dict):
+    """frame: the lldb.SBFrame for the location at which you stopped
+       bp_loc: an lldb.SBBreakpointLocation for the breakpoint location information
+       internal_dict: an LLDB support object not to be used"""
+    global bp_count
+    bp_count = bp_count + 1
+    print("Hit this breakpoint " + repr(bp_count) + " times!")
+    DONE
 
 )"
         "In this case, since there is a reference to a global variable, \
@@ -417,22 +424,23 @@ protected:
       // to set or collect command callback.  Otherwise, call the methods
       // associated with this object.
       if (m_options.m_use_script_language) {
+        Status error;
         ScriptInterpreter *script_interp = GetDebugger().GetScriptInterpreter(
             /*can_create=*/true, m_options.m_script_language);
         // Special handling for one-liner specified inline.
         if (m_options.m_use_one_liner) {
-          script_interp->SetBreakpointCommandCallback(
+          error = script_interp->SetBreakpointCommandCallback(
               m_bp_options_vec, m_options.m_one_liner.c_str());
         } else if (!m_func_options.GetName().empty()) {
-          Status error = script_interp->SetBreakpointCommandCallbackFunction(
+          error = script_interp->SetBreakpointCommandCallbackFunction(
               m_bp_options_vec, m_func_options.GetName().c_str(),
               m_func_options.GetStructuredData());
-          if (!error.Success())
-            result.SetError(error);
         } else {
           script_interp->CollectDataForBreakpointCommandCallback(
               m_bp_options_vec, result);
         }
+        if (!error.Success())
+          result.SetError(error);
       } else {
         // Special handling for one-liner specified inline.
         if (m_options.m_use_one_liner)

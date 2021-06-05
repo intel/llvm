@@ -173,7 +173,7 @@ bool X86InsertPrefetch::doInitialization(Module &M) {
 
 void X86InsertPrefetch::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<MachineModuleInfoWrapperPass>();
+  MachineFunctionPass::getAnalysisUsage(AU);
 }
 
 bool X86InsertPrefetch::runOnMachineFunction(MachineFunction &MF) {
@@ -214,10 +214,10 @@ bool X86InsertPrefetch::runOnMachineFunction(MachineFunction &MF) {
             MF.CreateMachineInstr(Desc, Current->getDebugLoc(), true);
         MachineInstrBuilder MIB(MF, PFetch);
 
-        assert(X86::AddrBaseReg == 0 && X86::AddrScaleAmt == 1 &&
-               X86::AddrIndexReg == 2 && X86::AddrDisp == 3 &&
-               X86::AddrSegmentReg == 4 &&
-               "Unexpected change in X86 operand offset order.");
+        static_assert(X86::AddrBaseReg == 0 && X86::AddrScaleAmt == 1 &&
+                          X86::AddrIndexReg == 2 && X86::AddrDisp == 3 &&
+                          X86::AddrSegmentReg == 4,
+                      "Unexpected change in X86 operand offset order.");
 
         // This assumes X86::AddBaseReg = 0, {...}ScaleAmt = 1, etc.
         // FIXME(mtrofin): consider adding a:

@@ -31,11 +31,8 @@ TEST(ToolChainTest, VFSGCCInstallation) {
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
   struct TestDiagnosticConsumer : public DiagnosticConsumer {};
-  DiagnosticsEngine Diags(DiagID, &*DiagOpts, new TestDiagnosticConsumer);
   IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
       new llvm::vfs::InMemoryFileSystem);
-  Driver TheDriver("/bin/clang", "arm-linux-gnueabihf", Diags,
-                   InMemoryFileSystem);
 
   const char *EmptyFiles[] = {
       "foo.cpp",
@@ -53,31 +50,78 @@ TEST(ToolChainTest, VFSGCCInstallation) {
       "/usr/include/arm-linux-gnueabi/.keep",
       "/usr/include/arm-linux-gnueabihf/.keep",
       "/lib/arm-linux-gnueabi/.keep",
-      "/lib/arm-linux-gnueabihf/.keep"};
+      "/lib/arm-linux-gnueabihf/.keep",
+
+      "/sysroot/usr/lib/gcc/arm-linux-gnueabi/4.5.1/crtbegin.o",
+      "/sysroot/usr/lib/gcc/arm-linux-gnueabi/4.5.1/crtend.o",
+      "/sysroot/usr/lib/gcc/arm-linux-gnueabihf/4.5.3/crtbegin.o",
+      "/sysroot/usr/lib/gcc/arm-linux-gnueabihf/4.5.3/crtend.o",
+      "/sysroot/usr/lib/arm-linux-gnueabi/crt1.o",
+      "/sysroot/usr/lib/arm-linux-gnueabi/crti.o",
+      "/sysroot/usr/lib/arm-linux-gnueabi/crtn.o",
+      "/sysroot/usr/lib/arm-linux-gnueabihf/crt1.o",
+      "/sysroot/usr/lib/arm-linux-gnueabihf/crti.o",
+      "/sysroot/usr/lib/arm-linux-gnueabihf/crtn.o",
+      "/sysroot/usr/include/arm-linux-gnueabi/.keep",
+      "/sysroot/usr/include/arm-linux-gnueabihf/.keep",
+      "/sysroot/lib/arm-linux-gnueabi/.keep",
+      "/sysroot/lib/arm-linux-gnueabihf/.keep",
+  };
 
   for (const char *Path : EmptyFiles)
     InMemoryFileSystem->addFile(Path, 0,
                                 llvm::MemoryBuffer::getMemBuffer("\n"));
 
-  std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(
-      {"-fsyntax-only", "--gcc-toolchain=", "--sysroot=", "foo.cpp"}));
-  EXPECT_TRUE(C);
-
-  std::string S;
   {
-    llvm::raw_string_ostream OS(S);
-    C->getDefaultToolChain().printVerboseInfo(OS);
-  }
+    DiagnosticsEngine Diags(DiagID, &*DiagOpts, new TestDiagnosticConsumer);
+    Driver TheDriver("/bin/clang", "arm-linux-gnueabihf", Diags,
+                     "clang LLVM compiler", InMemoryFileSystem);
+    std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(
+        {"-fsyntax-only", "--gcc-toolchain=", "--sysroot=", "foo.cpp"}));
+    ASSERT_TRUE(C);
+    std::string S;
+    {
+      llvm::raw_string_ostream OS(S);
+      C->getDefaultToolChain().printVerboseInfo(OS);
+    }
 #if _WIN32
-  std::replace(S.begin(), S.end(), '\\', '/');
+    std::replace(S.begin(), S.end(), '\\', '/');
 #endif
-  EXPECT_EQ(
-      "Found candidate GCC installation: "
-      "/usr/lib/gcc/arm-linux-gnueabihf/4.6.3\n"
-      "Selected GCC installation: /usr/lib/gcc/arm-linux-gnueabihf/4.6.3\n"
-      "Candidate multilib: .;@m32\n"
-      "Selected multilib: .;@m32\n",
-      S);
+    EXPECT_EQ(
+        "Found candidate GCC installation: "
+        "/usr/lib/gcc/arm-linux-gnueabihf/4.6.3\n"
+        "Selected GCC installation: /usr/lib/gcc/arm-linux-gnueabihf/4.6.3\n"
+        "Candidate multilib: .;@m32\n"
+        "Selected multilib: .;@m32\n",
+        S);
+  }
+
+  {
+    DiagnosticsEngine Diags(DiagID, &*DiagOpts, new TestDiagnosticConsumer);
+    Driver TheDriver("/bin/clang", "arm-linux-gnueabihf", Diags,
+                     "clang LLVM compiler", InMemoryFileSystem);
+    std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(
+        {"-fsyntax-only", "--gcc-toolchain=", "--sysroot=/sysroot",
+         "foo.cpp"}));
+    ASSERT_TRUE(C);
+    std::string S;
+    {
+      llvm::raw_string_ostream OS(S);
+      C->getDefaultToolChain().printVerboseInfo(OS);
+    }
+#if _WIN32
+    std::replace(S.begin(), S.end(), '\\', '/');
+#endif
+    // Test that 4.5.3 from --sysroot is not overridden by 4.6.3 (larger
+    // version) from /usr.
+    EXPECT_EQ("Found candidate GCC installation: "
+              "/sysroot/usr/lib/gcc/arm-linux-gnueabihf/4.5.3\n"
+              "Selected GCC installation: "
+              "/sysroot/usr/lib/gcc/arm-linux-gnueabihf/4.5.3\n"
+              "Candidate multilib: .;@m32\n"
+              "Selected multilib: .;@m32\n",
+              S);
+  }
 }
 
 TEST(ToolChainTest, VFSGCCInstallationRelativeDir) {
@@ -89,7 +133,7 @@ TEST(ToolChainTest, VFSGCCInstallationRelativeDir) {
   IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
       new llvm::vfs::InMemoryFileSystem);
   Driver TheDriver("/home/test/bin/clang", "arm-linux-gnueabi", Diags,
-                   InMemoryFileSystem);
+                   "clang LLVM compiler", InMemoryFileSystem);
 
   const char *EmptyFiles[] = {
       "foo.cpp", "/home/test/lib/gcc/arm-linux-gnueabi/4.6.1/crtbegin.o",
@@ -130,13 +174,13 @@ TEST(ToolChainTest, DefaultDriverMode) {
       new llvm::vfs::InMemoryFileSystem);
 
   Driver CCDriver("/home/test/bin/clang", "arm-linux-gnueabi", Diags,
-                  InMemoryFileSystem);
+                  "clang LLVM compiler", InMemoryFileSystem);
   CCDriver.setCheckInputsExist(false);
   Driver CXXDriver("/home/test/bin/clang++", "arm-linux-gnueabi", Diags,
-                   InMemoryFileSystem);
+                   "clang LLVM compiler", InMemoryFileSystem);
   CXXDriver.setCheckInputsExist(false);
   Driver CLDriver("/home/test/bin/clang-cl", "arm-linux-gnueabi", Diags,
-                  InMemoryFileSystem);
+                  "clang LLVM compiler", InMemoryFileSystem);
   CLDriver.setCheckInputsExist(false);
 
   std::unique_ptr<Compilation> CC(CCDriver.BuildCompilation(
@@ -259,4 +303,58 @@ TEST(ToolChainTest, GetTargetAndMode) {
   EXPECT_STREQ(Res.DriverMode, "--driver-mode=cl");
   EXPECT_FALSE(Res.TargetIsValid);
 }
+
+TEST(ToolChainTest, CommandOutput) {
+  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+
+  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+  struct TestDiagnosticConsumer : public DiagnosticConsumer {};
+  DiagnosticsEngine Diags(DiagID, &*DiagOpts, new TestDiagnosticConsumer);
+  IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
+      new llvm::vfs::InMemoryFileSystem);
+
+  Driver CCDriver("/home/test/bin/clang", "arm-linux-gnueabi", Diags,
+                  "clang LLVM compiler", InMemoryFileSystem);
+  CCDriver.setCheckInputsExist(false);
+  std::unique_ptr<Compilation> CC(
+      CCDriver.BuildCompilation({"/home/test/bin/clang", "foo.cpp"}));
+  const JobList &Jobs = CC->getJobs();
+
+  const auto &CmdCompile = Jobs.getJobs().front();
+  const auto &InFile = CmdCompile->getInputFilenames().front();
+  EXPECT_STREQ(InFile, "foo.cpp");
+  auto ObjFile = CmdCompile->getOutputFilenames().front();
+  EXPECT_TRUE(StringRef(ObjFile).endswith(".o"));
+
+  const auto &CmdLink = Jobs.getJobs().back();
+  const auto LinkInFile = CmdLink->getInputFilenames().front();
+  EXPECT_EQ(ObjFile, LinkInFile);
+  auto ExeFile = CmdLink->getOutputFilenames().front();
+  EXPECT_EQ("a.out", ExeFile);
+}
+
+TEST(ToolChainTest, PostCallback) {
+  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+  struct TestDiagnosticConsumer : public DiagnosticConsumer {};
+  DiagnosticsEngine Diags(DiagID, &*DiagOpts, new TestDiagnosticConsumer);
+  IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
+      new llvm::vfs::InMemoryFileSystem);
+
+  // The executable path must not exist.
+  Driver CCDriver("/home/test/bin/clang", "arm-linux-gnueabi", Diags,
+                  "clang LLVM compiler", InMemoryFileSystem);
+  CCDriver.setCheckInputsExist(false);
+  std::unique_ptr<Compilation> CC(
+      CCDriver.BuildCompilation({"/home/test/bin/clang", "foo.cpp"}));
+  bool CallbackHasCalled = false;
+  CC->setPostCallback(
+      [&](const Command &C, int Ret) { CallbackHasCalled = true; });
+  const JobList &Jobs = CC->getJobs();
+  auto &CmdCompile = Jobs.getJobs().front();
+  const Command *FailingCmd = nullptr;
+  CC->ExecuteCommand(*CmdCompile, FailingCmd);
+  EXPECT_TRUE(CallbackHasCalled);
+}
+
 } // end anonymous namespace.

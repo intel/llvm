@@ -6,12 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/program.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
-#include <detail/kernel_info.hpp>
+#include <detail/program_impl.hpp>
 
 #include <memory>
 
@@ -27,6 +25,11 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context)
   // Let the runtime caller handle native kernel retaining in other cases if
   // it's needed.
   getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
+  // Enable USM indirect access for interoperability kernels.
+  // Some PI Plugins (like OpenCL) require this call to enable USM
+  // For others, PI will turn this into a NOP.
+  getPlugin().call<PiApiKind::piKernelSetExecInfo>(
+      MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 }
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
@@ -46,6 +49,19 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
         PI_INVALID_CONTEXT);
 }
 
+kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+                         DeviceImageImplPtr DeviceImageImpl,
+                         KernelBundleImplPtr KernelBundleImpl)
+    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgramImpl(nullptr),
+      MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
+      MKernelBundleImpl(std::move(KernelBundleImpl)) {
+
+  // kernel_impl shared ownership of kernel handle
+  if (!is_host()) {
+    getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
+  }
+}
+
 kernel_impl::kernel_impl(ContextImplPtr Context,
                          ProgramImplPtr ProgramImpl)
     : MContext(Context), MProgramImpl(std::move(ProgramImpl)) {}
@@ -57,91 +73,6 @@ kernel_impl::~kernel_impl() {
   }
 }
 
-template <info::kernel param>
-typename info::param_traits<info::kernel, param>::return_type
-kernel_impl::get_info() const {
-  if (is_host()) {
-    // TODO implement
-    assert(0 && "Not implemented");
-  }
-  return get_kernel_info<
-      typename info::param_traits<info::kernel, param>::return_type,
-      param>::get(this->getHandleRef(), getPlugin());
-}
-
-template <> context kernel_impl::get_info<info::kernel::context>() const {
-  return createSyclObjFromImpl<context>(MContext);
-}
-
-template <> program kernel_impl::get_info<info::kernel::program>() const {
-  return createSyclObjFromImpl<program>(MProgramImpl);
-}
-
-template <info::kernel_work_group param>
-typename info::param_traits<info::kernel_work_group, param>::return_type
-kernel_impl::get_work_group_info(const device &Device) const {
-  if (is_host()) {
-    return get_kernel_work_group_info_host<param>(Device);
-  }
-  return get_kernel_work_group_info<
-      typename info::param_traits<info::kernel_work_group, param>::return_type,
-      param>::get(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
-                  getPlugin());
-}
-
-template <info::kernel_sub_group param>
-typename info::param_traits<info::kernel_sub_group, param>::return_type
-kernel_impl::get_sub_group_info(const device &Device) const {
-  if (is_host()) {
-    throw runtime_error("Sub-group feature is not supported on HOST device.",
-                        PI_INVALID_DEVICE);
-  }
-  return get_kernel_sub_group_info<param>::get(
-      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
-      getPlugin());
-}
-
-template <info::kernel_sub_group param>
-typename info::param_traits<info::kernel_sub_group, param>::return_type
-kernel_impl::get_sub_group_info(
-    const device &Device,
-    typename info::param_traits<info::kernel_sub_group, param>::input_type
-        Value) const {
-  if (is_host()) {
-    throw runtime_error("Sub-group feature is not supported on HOST device.",
-                        PI_INVALID_DEVICE);
-  }
-  return get_kernel_sub_group_info_with_input<param>::get(
-      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), Value,
-      getPlugin());
-}
-
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type kernel_impl::get_info<info::param_type::param>() const;
-
-#include <CL/sycl/info/kernel_traits.def>
-
-#undef PARAM_TRAITS_SPEC
-
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type kernel_impl::get_work_group_info<info::param_type::param>( \
-      const device &) const;
-
-#include <CL/sycl/info/kernel_work_group_traits.def>
-
-#undef PARAM_TRAITS_SPEC
-
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type kernel_impl::get_sub_group_info<info::param_type::param>(  \
-      const device &) const;
-#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
-  template ret_type kernel_impl::get_sub_group_info<info::param_type::param>(  \
-      const device &, in_type) const;
-
-#include <CL/sycl/info/kernel_sub_group_traits.def>
-
-#undef PARAM_TRAITS_SPEC
-#undef PARAM_TRAITS_SPEC_WITH_INPUT
 
 bool kernel_impl::isCreatedFromSource() const {
   // TODO it is not clear how to understand whether the SYCL kernel is created

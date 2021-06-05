@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <errno.h>
-#include <stdlib.h>
+#include <cerrno>
+#include <cstdlib>
 
 #include <memory>
 #include <mutex>
@@ -111,7 +111,8 @@ void ProcessKDP::Terminate() {
 
 lldb::ProcessSP ProcessKDP::CreateInstance(TargetSP target_sp,
                                            ListenerSP listener_sp,
-                                           const FileSpec *crash_file_path) {
+                                           const FileSpec *crash_file_path,
+                                           bool can_connect) {
   lldb::ProcessSP process_sp;
   if (crash_file_path == NULL)
     process_sp = std::make_shared<ProcessKDP>(target_sp, listener_sp);
@@ -217,7 +218,7 @@ bool ProcessKDP::GetHostArchitecture(ArchSpec &arch) {
   return false;
 }
 
-Status ProcessKDP::DoConnectRemote(Stream *strm, llvm::StringRef remote_url) {
+Status ProcessKDP::DoConnectRemote(llvm::StringRef remote_url) {
   Status error;
 
   // Don't let any JIT happen when doing KDP as we can't allocate memory and we
@@ -507,8 +508,8 @@ lldb::ThreadSP ProcessKDP::GetKernelThread() {
   return thread_sp;
 }
 
-bool ProcessKDP::UpdateThreadList(ThreadList &old_thread_list,
-                                  ThreadList &new_thread_list) {
+bool ProcessKDP::DoUpdateThreadList(ThreadList &old_thread_list,
+                                    ThreadList &new_thread_list) {
   // locker will keep a mutex locked until it goes out of scope
   Log *log(ProcessKDPLog::GetLogIfAllCategoriesSet(KDP_LOG_THREAD));
   LLDB_LOGV(log, "pid = {0}", GetID());
@@ -644,6 +645,9 @@ Status ProcessKDP::DoDeallocateMemory(lldb::addr_t addr) {
 }
 
 Status ProcessKDP::EnableBreakpointSite(BreakpointSite *bp_site) {
+  if (bp_site->HardwareRequired())
+    return Status("Hardware breakpoints are not supported.");
+
   if (m_comm.LocalBreakpointsAreSupported()) {
     Status error;
     if (!bp_site->IsEnabled()) {
@@ -873,7 +877,7 @@ private:
   OptionGroupUInt64 m_command_byte;
   OptionGroupString m_packet_data;
 
-  virtual Options *GetOptions() { return &m_option_group; }
+  Options *GetOptions() override { return &m_option_group; }
 
 public:
   CommandObjectProcessKDPPacketSend(CommandInterpreter &interpreter)
@@ -900,7 +904,7 @@ public:
 
   ~CommandObjectProcessKDPPacketSend() {}
 
-  bool DoExecute(Args &command, CommandReturnObject &result) {
+  bool DoExecute(Args &command, CommandReturnObject &result) override {
     const size_t argc = command.GetArgumentCount();
     if (argc == 0) {
       if (!m_command_byte.GetOptionValue().OptionWasSet()) {

@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
 ! 15.5.1 procedure reference constraints and restrictions
 
 subroutine s01(elem, subr)
@@ -15,9 +15,14 @@ subroutine s01(elem, subr)
       procedure(elem) :: dummy
     end subroutine
   end interface
+  intrinsic :: cos
   call subr(cos) ! not an error
   !ERROR: Non-intrinsic ELEMENTAL procedure 'elem' may not be passed as an actual argument
   call subr(elem) ! C1533
+  !ERROR: Actual argument associated with procedure dummy argument 'dummy=' is a null pointer
+  call subr(null())
+  !ERROR: Actual argument associated with procedure dummy argument 'dummy=' is typeless
+  call subr(B"1010")
 end subroutine
 
 module m01
@@ -35,6 +40,7 @@ module m01
     real, value :: x
   end function
   subroutine test
+    intrinsic :: cos
     call callme(cos) ! not an error
     !ERROR: Non-intrinsic ELEMENTAL procedure 'elem01' may not be passed as an actual argument
     call callme(elem01) ! C1533
@@ -65,3 +71,25 @@ module m02
     call callee(coarray[1]) ! C1537
   end subroutine
 end module
+
+program p03
+  logical :: l
+  call s1(index)
+  l = index .eq. 0  ! index is an object entity, not an intrinsic
+  call s2(sin)
+  !ERROR: Actual argument associated with procedure dummy argument 'p=' is not a procedure
+  call s3(cos)
+contains
+  subroutine s2(x)
+    real :: x
+  end
+  subroutine s3(p)
+    procedure(real) :: p
+  end
+end
+
+program p04
+  implicit none
+  !ERROR: No explicit type declared for 'index'
+  call s1(index)
+end

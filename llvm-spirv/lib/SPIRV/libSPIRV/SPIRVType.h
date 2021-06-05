@@ -48,8 +48,6 @@
 #include "SPIRVStream.h"
 
 #include <cassert>
-#include <iostream>
-#include <map>
 #include <tuple>
 #include <vector>
 
@@ -167,15 +165,15 @@ public:
     }
     return CV;
   }
-  SPIRVExtSet getRequiredExtensions() const override {
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
     switch (BitWidth) {
     case 8:
     case 16:
     case 32:
     case 64:
-      return SPIRVExtSet();
+      return {};
     default:
-      return getSet(ExtensionID::SPV_INTEL_arbitrary_precision_integers);
+      return ExtensionID::SPV_INTEL_arbitrary_precision_integers;
     }
   }
 
@@ -183,7 +181,11 @@ protected:
   _SPIRV_DEF_ENCDEC3(Id, BitWidth, IsSigned)
   void validate() const override {
     SPIRVEntry::validate();
-    assert(BitWidth > 1 && BitWidth <= 64 && "Invalid bit width");
+    assert((BitWidth == 8 || BitWidth == 16 || BitWidth == 32 ||
+            BitWidth == 64 ||
+            Module->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_arbitrary_precision_integers)) &&
+           "Invalid bit width");
   }
 
 private:
@@ -481,7 +483,7 @@ inline bool operator<(const SPIRVTypeImageDescriptor &A,
 class SPIRVTypeImage : public SPIRVType {
 public:
   const static Op OC = OpTypeImage;
-  const static SPIRVWord FixedWC = 9;
+  constexpr static SPIRVWord FixedWC = 9;
   SPIRVTypeImage(SPIRVModule *M, SPIRVId TheId, SPIRVId TheSampledType,
                  const SPIRVTypeImageDescriptor &TheDesc)
       : SPIRVType(M, FixedWC, OC, TheId), SampledType(TheSampledType),
@@ -616,11 +618,17 @@ protected:
 
 class SPIRVTypeStruct : public SPIRVType {
 public:
+  const static Op OC = OpTypeStruct;
+  // There are always 2 words in this instruction except member types:
+  // 1) WordCount + OpCode
+  // 2) Result Id
+  constexpr static SPIRVWord FixedWC = 2;
+  using ContinuedInstType = typename InstToContinued<OC>::Type;
   // Complete constructor
   SPIRVTypeStruct(SPIRVModule *M, SPIRVId TheId,
                   const std::vector<SPIRVType *> &TheMemberTypes,
                   const std::string &TheName)
-      : SPIRVType(M, 2 + TheMemberTypes.size(), OpTypeStruct, TheId) {
+      : SPIRVType(M, FixedWC + TheMemberTypes.size(), OC, TheId) {
     MemberTypeIdVec.resize(TheMemberTypes.size());
     for (auto &T : TheMemberTypes)
       MemberTypeIdVec.push_back(T->getId());
@@ -629,20 +637,27 @@ public:
   }
   SPIRVTypeStruct(SPIRVModule *M, SPIRVId TheId, unsigned NumMembers,
                   const std::string &TheName)
-      : SPIRVType(M, 2 + NumMembers, OpTypeStruct, TheId) {
+      : SPIRVType(M, FixedWC + NumMembers, OC, TheId) {
     Name = TheName;
     validate();
     MemberTypeIdVec.resize(NumMembers);
   }
   // Incomplete constructor
-  SPIRVTypeStruct() : SPIRVType(OpTypeStruct) {}
+  SPIRVTypeStruct() : SPIRVType(OC) {}
 
   SPIRVWord getMemberCount() const { return MemberTypeIdVec.size(); }
   SPIRVType *getMemberType(size_t I) const {
     return static_cast<SPIRVType *>(getEntry(MemberTypeIdVec[I]));
   }
   void setMemberType(size_t I, SPIRVType *Ty) {
-    MemberTypeIdVec[I] = Ty->getId();
+    if (I >= MemberTypeIdVec.size() && !ContinuedInstructions.empty()) {
+      const size_t MaxNumElements = MaxWordCount - FixedWC;
+      I -= MaxNumElements; // Remove operands that included into OpTypeStruct
+      ContinuedInstructions[I / MaxNumElements]->setElementId(
+          I % MaxNumElements, Ty->getId());
+    } else {
+      MemberTypeIdVec[I] = Ty->getId();
+    }
   }
 
   bool isPacked() const;
@@ -650,23 +665,51 @@ public:
 
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVType::setWordCount(WordCount);
-    MemberTypeIdVec.resize(WordCount - 2);
+    MemberTypeIdVec.resize(WordCount - FixedWC);
   }
 
+  // TODO: Should we attach operands of continued instructions as well?
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     std::vector<SPIRVEntry *> Operands(MemberTypeIdVec.size());
     for (size_t I = 0, E = MemberTypeIdVec.size(); I < E; ++I)
       Operands[I] = getEntry(MemberTypeIdVec[I]);
     return Operands;
   }
+  void addContinuedInstruction(ContinuedInstType Inst) {
+    ContinuedInstructions.push_back(Inst);
+  }
+
+  void encodeChildren(spv_ostream &O) const override {
+    O << SPIRVNL();
+    for (auto &I : ContinuedInstructions)
+      O << *I;
+  }
+
+  std::vector<ContinuedInstType> getContinuedInstructions() {
+    return ContinuedInstructions;
+  }
 
 protected:
-  _SPIRV_DEF_ENCDEC2(Id, MemberTypeIdVec)
+  void encode(spv_ostream &O) const override {
+    getEncoder(O) << Id << MemberTypeIdVec;
+  }
+
+  void decode(std::istream &I) override {
+    SPIRVDecoder Decoder = getDecoder(I);
+    Decoder >> Id >> MemberTypeIdVec;
+    Module->add(this);
+
+    for (SPIRVEntry *E : Decoder.getContinuedInstructions(ContinuedOpCode)) {
+      addContinuedInstruction(static_cast<ContinuedInstType>(E));
+    }
+  }
 
   void validate() const override { SPIRVEntry::validate(); }
 
 private:
   std::vector<SPIRVId> MemberTypeIdVec; // Member Type Ids
+  std::vector<ContinuedInstType> ContinuedInstructions;
+  const spv::Op ContinuedOpCode = InstToContinued<OC>::OpCode;
 };
 
 class SPIRVTypeFunction : public SPIRVType {
@@ -675,37 +718,44 @@ public:
   SPIRVTypeFunction(SPIRVModule *M, SPIRVId TheId, SPIRVType *TheReturnType,
                     const std::vector<SPIRVType *> &TheParameterTypes)
       : SPIRVType(M, 3 + TheParameterTypes.size(), OpTypeFunction, TheId),
-        ReturnType(TheReturnType), ParamTypeVec(TheParameterTypes) {
+        ReturnType(TheReturnType) {
+    for (const SPIRVType *T : TheParameterTypes) {
+      ParamTypeIdVec.push_back(T->getId());
+    }
     validate();
   }
   // Incomplete constructor
   SPIRVTypeFunction() : SPIRVType(OpTypeFunction), ReturnType(NULL) {}
 
   SPIRVType *getReturnType() const { return ReturnType; }
-  SPIRVWord getNumParameters() const { return ParamTypeVec.size(); }
-  SPIRVType *getParameterType(unsigned I) const { return ParamTypeVec[I]; }
+  SPIRVWord getNumParameters() const { return ParamTypeIdVec.size(); }
+  SPIRVType *getParameterType(unsigned I) const {
+    return static_cast<SPIRVType *>(getEntry(ParamTypeIdVec[I]));
+  }
+
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
-    std::vector<SPIRVEntry *> Operands(1 + ParamTypeVec.size(), ReturnType);
-    std::copy(ParamTypeVec.begin(), ParamTypeVec.end(), ++Operands.begin());
+    std::vector<SPIRVEntry *> Operands = {ReturnType};
+    for (SPIRVId I : ParamTypeIdVec)
+      Operands.push_back(getEntry(I));
     return Operands;
   }
 
 protected:
-  _SPIRV_DEF_ENCDEC3(Id, ReturnType, ParamTypeVec)
+  _SPIRV_DEF_ENCDEC3(Id, ReturnType, ParamTypeIdVec)
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVType::setWordCount(WordCount);
-    ParamTypeVec.resize(WordCount - 3);
+    ParamTypeIdVec.resize(WordCount - 3);
   }
   void validate() const override {
     SPIRVEntry::validate();
     ReturnType->validate();
-    for (auto T : ParamTypeVec)
-      T->validate();
+    for (auto I : ParamTypeIdVec)
+      getEntry(I)->validate();
   }
 
 private:
-  SPIRVType *ReturnType;                 // Return Type
-  std::vector<SPIRVType *> ParamTypeVec; // Parameter Types
+  SPIRVType *ReturnType;               // Return Type
+  std::vector<SPIRVId> ParamTypeIdVec; // Parameter Type Ids
 };
 
 class SPIRVTypeOpaqueGeneric : public SPIRVType {
@@ -824,6 +874,51 @@ bool isType(const T1 *Ty, unsigned Bits = 0) {
   return static_cast<const T2 *>(Ty)->getBitWidth() == Bits;
 }
 
+class SPIRVTypeBufferSurfaceINTEL : public SPIRVType {
+public:
+  const static Op OC = OpTypeBufferSurfaceINTEL;
+  const static SPIRVWord FixedWC = 2;
+  SPIRVTypeBufferSurfaceINTEL(SPIRVModule *M, SPIRVId TheId,
+                              SPIRVAccessQualifierKind TheAccess)
+      : SPIRVType(M, FixedWC + 1, OC, TheId), AccessKind(TheAccess) {
+    validate();
+  }
+  SPIRVTypeBufferSurfaceINTEL(SPIRVModule *M, SPIRVId TheId)
+      : SPIRVType(M, FixedWC, OC, TheId) {
+    validate();
+  }
+  SPIRVTypeBufferSurfaceINTEL() : SPIRVType(OC) {}
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityVectorComputeINTEL);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return {ExtensionID::SPV_INTEL_vector_compute};
+  }
+
+  bool hasAccessQualifier() const { return AccessKind.hasValue(); }
+  SPIRVAccessQualifierKind getAccessQualifier() const {
+    assert(hasAccessQualifier());
+    return AccessKind.getValue();
+  }
+
+protected:
+  _SPIRV_DEF_ENCDEC2(Id, AccessKind)
+  void validate() const override {
+    assert(OpCode == OC);
+    assert(WordCount == FixedWC + (AccessKind ? 1 : 0));
+  }
+  void setWordCount(SPIRVWord TheWC) override {
+    if (TheWC > FixedWC)
+      AccessKind = SPIRVAccessQualifierKind::AccessQualifierMax;
+    WordCount = TheWC;
+  }
+
+private:
+  llvm::Optional<SPIRVAccessQualifierKind> AccessKind;
+};
+
 // SPV_INTEL_device_side_avc_motion_estimation extension types
 class SPIRVTypeVmeImageINTEL : public SPIRVType {
 public:
@@ -848,8 +943,8 @@ public:
     return getVec(CapabilitySubgroupAvcMotionEstimationINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_device_side_avc_motion_estimation);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_device_side_avc_motion_estimation;
   }
 
 protected:
@@ -903,8 +998,8 @@ public:
     return getVec(CapabilitySubgroupAvcMotionEstimationINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_device_side_avc_motion_estimation);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_device_side_avc_motion_estimation;
   }
 
   SPIRVValue *getOperand() { return getValue(Opn); }
@@ -941,5 +1036,26 @@ _SPIRV_OP(AvcImeDualReferenceStreamin)
 _SPIRV_OP(AvcRefResult)
 _SPIRV_OP(AvcSicResult)
 #undef _SPIRV_OP
+
+class SPIRVTypeTokenINTEL : public SPIRVType {
+public:
+  // Complete constructor
+  SPIRVTypeTokenINTEL(SPIRVModule *M, SPIRVId TheId)
+      : SPIRVType(M, 2, internal::OpTypeTokenINTEL, TheId) {}
+  // Incomplete constructor
+  SPIRVTypeTokenINTEL() : SPIRVType(internal::OpTypeTokenINTEL) {}
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityTokenTypeINTEL);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_token_type;
+  }
+
+protected:
+  _SPIRV_DEF_ENCDEC1(Id)
+};
+
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVTYPE_H

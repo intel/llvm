@@ -520,14 +520,14 @@ ValueObjectSP ABISysV_ppc::GetReturnValueObjectSimple(
 
   const uint32_t type_flags = return_compiler_type.GetTypeInfo();
   if (type_flags & eTypeIsScalar) {
-    value.SetValueType(Value::eValueTypeScalar);
+    value.SetValueType(Value::ValueType::Scalar);
 
     bool success = false;
     if (type_flags & eTypeIsInteger) {
       // Extract the register context so we can read arguments from registers
 
       llvm::Optional<uint64_t> byte_size =
-          return_compiler_type.GetByteSize(nullptr);
+          return_compiler_type.GetByteSize(&thread);
       if (!byte_size)
         return return_valobj_sp;
       uint64_t raw_value = thread.GetRegisterContext()->ReadRegisterAsUnsigned(
@@ -574,7 +574,7 @@ ValueObjectSP ABISysV_ppc::GetReturnValueObjectSimple(
         // Don't handle complex yet.
       } else {
         llvm::Optional<uint64_t> byte_size =
-            return_compiler_type.GetByteSize(nullptr);
+            return_compiler_type.GetByteSize(&thread);
         if (byte_size && *byte_size <= sizeof(long double)) {
           const RegisterInfo *f1_info = reg_ctx->GetRegisterInfoByName("f1", 0);
           RegisterValue f1_value;
@@ -603,12 +603,12 @@ ValueObjectSP ABISysV_ppc::GetReturnValueObjectSimple(
         reg_ctx->GetRegisterInfoByName("r3", 0)->kinds[eRegisterKindLLDB];
     value.GetScalar() =
         (uint64_t)thread.GetRegisterContext()->ReadRegisterAsUnsigned(r3_id, 0);
-    value.SetValueType(Value::eValueTypeScalar);
+    value.SetValueType(Value::ValueType::Scalar);
     return_valobj_sp = ValueObjectConstResult::Create(
         thread.GetStackFrameAtIndex(0).get(), value, ConstString(""));
   } else if (type_flags & eTypeIsVector) {
     llvm::Optional<uint64_t> byte_size =
-        return_compiler_type.GetByteSize(nullptr);
+        return_compiler_type.GetByteSize(&thread);
     if (byte_size && *byte_size > 0) {
       const RegisterInfo *altivec_reg = reg_ctx->GetRegisterInfoByName("v2", 0);
       if (altivec_reg) {
@@ -900,6 +900,7 @@ bool ABISysV_ppc::CreateDefaultUnwindPlan(UnwindPlan &unwind_plan) {
   UnwindPlan::RowSP row(new UnwindPlan::Row);
 
   const int32_t ptr_size = 4;
+  row->SetUnspecifiedRegistersAreUndefined(true);
   row->GetCFAValue().SetIsRegisterDereferenced(sp_reg_num);
 
   row->SetRegisterLocationToAtCFAPlusOffset(pc_reg_num, ptr_size * 1, true);

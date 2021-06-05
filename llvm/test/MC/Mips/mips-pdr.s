@@ -2,7 +2,7 @@
 # RUN:   FileCheck %s -check-prefix=ASMOUT
 
 # RUN: llvm-mc %s -arch=mips -mcpu=mips32r2 -filetype=obj -o - | \
-# RUN:   llvm-readobj -S --section-data -r | \
+# RUN:   llvm-readobj -S --section-data -r - | \
 # RUN:     FileCheck %s -check-prefix=OBJOUT
 
 # ASMOUT: .text
@@ -34,8 +34,8 @@
 # We should also check if relocation information was correctly generated.
 # OBJOUT:      Relocations [
 # OBJOUT-NEXT:   Section ({{.*}}) .rel.pdr {
-# OBJOUT-NEXT:     0x0 R_MIPS_32 .text 0x0
-# OBJOUT-NEXT:     0x20 R_MIPS_32 _global_foo 0x0
+# OBJOUT-NEXT:     0x0 R_MIPS_32 .text
+# OBJOUT-NEXT:     0x20 R_MIPS_32 _global_foo
 # OBJOUT-NEXT:   }
 # OBJOUT-NEXT: ]
 

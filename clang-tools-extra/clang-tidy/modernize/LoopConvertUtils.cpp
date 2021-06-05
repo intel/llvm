@@ -10,8 +10,8 @@
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/Lambda.h"
-#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/Lexer.h"
 #include "llvm/ADT/APSInt.h"
@@ -50,8 +50,8 @@ bool StmtAncestorASTVisitor::TraverseStmt(Stmt *Statement) {
 /// Scope, as we can map a VarDecl to its DeclStmt, then walk up the parent tree
 /// using StmtAncestors.
 bool StmtAncestorASTVisitor::VisitDeclStmt(DeclStmt *Decls) {
-  for (const auto *decl : Decls->decls()) {
-    if (const auto *V = dyn_cast<VarDecl>(decl))
+  for (const auto *Decl : Decls->decls()) {
+    if (const auto *V = dyn_cast<VarDecl>(Decl))
       DeclParents.insert(std::make_pair(V, Decls));
   }
   return true;
@@ -356,7 +356,7 @@ static bool isAliasDecl(ASTContext *Context, const Decl *TheDecl,
 
   bool OnlyCasts = true;
   const Expr *Init = VDecl->getInit()->IgnoreParenImpCasts();
-  if (Init && isa<CXXConstructExpr>(Init)) {
+  if (isa_and_nonnull<CXXConstructExpr>(Init)) {
     Init = digThroughConstructors(Init);
     OnlyCasts = false;
   }
@@ -438,11 +438,12 @@ static bool arrayMatchesBoundExpr(ASTContext *Context,
       Context->getAsConstantArrayType(ArrayType);
   if (!ConstType)
     return false;
-  llvm::APSInt ConditionSize;
-  if (!ConditionExpr->isIntegerConstantExpr(ConditionSize, *Context))
+  Optional<llvm::APSInt> ConditionSize =
+      ConditionExpr->getIntegerConstantExpr(*Context);
+  if (!ConditionSize)
     return false;
   llvm::APSInt ArraySize(ConstType->getSize());
-  return llvm::APSInt::isSameValue(ConditionSize, ArraySize);
+  return llvm::APSInt::isSameValue(*ConditionSize, ArraySize);
 }
 
 ForLoopIndexUseVisitor::ForLoopIndexUseVisitor(ASTContext *Context,
@@ -500,7 +501,7 @@ void ForLoopIndexUseVisitor::addUsage(const Usage &U) {
 ///     int k = *i + 2;
 ///   }
 /// \endcode
-bool ForLoopIndexUseVisitor::TraverseUnaryDeref(UnaryOperator *Uop) {
+bool ForLoopIndexUseVisitor::TraverseUnaryOperator(UnaryOperator *Uop) {
   // If we dereference an iterator that's actually a pointer, count the
   // occurrence.
   if (isDereferenceOfUop(Uop, IndexVar)) {

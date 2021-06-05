@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18 -fopenmp
+! RUN: %S/test_errors.sh %s %t %flang -fopenmp
 
 ! Check OpenMP declarative directives
 
@@ -9,8 +9,6 @@
 
 subroutine declare_simd_1(a, b)
   real(8), intent(inout) :: a, b
-  !ERROR: Internal: no symbol found for 'declare_simd_1'
-  !ERROR: Internal: no symbol found for 'a'
   !$omp declare simd(declare_simd_1) aligned(a)
   a = 3.14 + b
 end subroutine declare_simd_1
@@ -27,8 +25,7 @@ end module m1
 subroutine declare_simd_2
   use m1
   procedure (sub) sub1
-  !ERROR: Internal: no symbol found for 'sub1'
-  !ERROR: NOTINBRANCH and INBRANCH are mutually exclusive and may not appear on the same DECLARE SIMD directive
+  !ERROR: NOTINBRANCH and INBRANCH clauses are mutually exclusive and may not appear on the same DECLARE SIMD directive
   !$omp declare simd(sub1) inbranch notinbranch
   procedure (sub), pointer::p
   p=>sub1

@@ -47,7 +47,7 @@ define void @test3(i64 %a, i64 %b, i1 %p) nounwind {
 ; CHECK-NEXT:    pushq %rax
 ; CHECK-NEXT:    testb $1, %dl
 ; CHECK-NEXT:    cmovel %esi, %edi
-; CHECK-NEXT:    callq bar
+; CHECK-NEXT:    callq bar@PLT
 ; CHECK-NEXT:    popq %rax
 ; CHECK-NEXT:    retq
   %c = trunc i64 %a to i32
@@ -70,10 +70,10 @@ define void @test3(i64 %a, i64 %b, i1 %p) nounwind {
 ; PR4814
 
 
-@g_3 = external global i8
-@g_96 = external global i8
-@g_100 = external global i8
-@_2E_str = external constant [15 x i8], align 1
+@g_3 = external dso_local global i8
+@g_96 = external dso_local global i8
+@g_100 = external dso_local global i8
+@_2E_str = external dso_local constant [15 x i8], align 1
 
 define i1 @test4() nounwind {
 ; CHECK-LABEL: test4:
@@ -110,7 +110,7 @@ define i1 @test4() nounwind {
 ; CHECK-NEXT:    movzbl %cl, %esi
 ; CHECK-NEXT:    movl $_2E_str, %edi
 ; CHECK-NEXT:    xorl %eax, %eax
-; CHECK-NEXT:    callq printf
+; CHECK-NEXT:    callq printf@PLT
 ; CHECK-NEXT:    movl %ebx, %eax
 ; CHECK-NEXT:    popq %rbx
 ; CHECK-NEXT:    retq
@@ -212,3 +212,50 @@ define i32 @smin(i32 %x) {
   ret i32 %sel
 }
 
+define i32 @pr47049_1(i32 %0) {
+; CHECK-LABEL: pr47049_1:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    testl %edi, %edi
+; CHECK-NEXT:    movl $1, %eax
+; CHECK-NEXT:    cmovlel %edi, %eax
+; CHECK-NEXT:    retq
+  %2 = icmp slt i32 %0, 1
+  %3 = select i1 %2, i32 %0, i32 1
+  ret i32 %3
+}
+
+define i32 @pr47049_2(i32 %0) {
+; CHECK-LABEL: pr47049_2:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    testl %edi, %edi
+; CHECK-NEXT:    movl $-1, %eax
+; CHECK-NEXT:    cmovnsl %edi, %eax
+; CHECK-NEXT:    retq
+  %2 = icmp sgt i32 %0, -1
+  %3 = select i1 %2, i32 %0, i32 -1
+  ret i32 %3
+}
+
+define i32 @pr47049_3(i32 %0) {
+; CHECK-LABEL: pr47049_3:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    testl %edi, %edi
+; CHECK-NEXT:    movl $1, %eax
+; CHECK-NEXT:    cmovgl %edi, %eax
+; CHECK-NEXT:    retq
+  %2 = icmp sgt i32 %0, 1
+  %3 = select i1 %2, i32 %0, i32 1
+  ret i32 %3
+}
+
+define i32 @pr47049_4(i32 %0) {
+; CHECK-LABEL: pr47049_4:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    testl %edi, %edi
+; CHECK-NEXT:    movl $1, %eax
+; CHECK-NEXT:    cmovnel %edi, %eax
+; CHECK-NEXT:    retq
+  %2 = icmp ugt i32 %0, 1
+  %3 = select i1 %2, i32 %0, i32 1
+  ret i32 %3
+}

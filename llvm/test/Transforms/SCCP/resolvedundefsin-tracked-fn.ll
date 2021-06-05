@@ -136,13 +136,12 @@ define internal i1 @test2_g(%t1* %h, i32 %i) {
 ; CHECK-LABEL: define {{[^@]+}}@test2_g
 ; CHECK-SAME: (%t1* [[H:%.*]], i32 [[I:%.*]])
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    br i1 true, label [[LAND_RHS:%.*]], label [[LAND_END:%.*]]
+; CHECK-NEXT:    br label [[LAND_RHS:%.*]]
 ; CHECK:       land.rhs:
 ; CHECK-NEXT:    [[CALL:%.*]] = call i32 (...) @test2_j()
 ; CHECK-NEXT:    [[TOBOOL1:%.*]] = icmp ne i32 [[CALL]], 0
-; CHECK-NEXT:    br label [[LAND_END]]
+; CHECK-NEXT:    br label [[LAND_END:%.*]]
 ; CHECK:       land.end:
-; CHECK-NEXT:    [[TMP0:%.*]] = phi i1 [ false, [[ENTRY:%.*]] ], [ [[TOBOOL1]], [[LAND_RHS]] ]
 ; CHECK-NEXT:    ret i1 undef
 ;
 entry:
@@ -196,10 +195,9 @@ define internal i32 @test3_k(i8 %h, i32 %i) {
 ; CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[CONV]] to %t1*
 ; CHECK-NEXT:    br label [[LOOP:%.*]]
 ; CHECK:       loop:
-; CHECK-NEXT:    [[PHI:%.*]] = phi i1 [ undef, [[ENTRY:%.*]] ], [ false, [[LOOP]] ]
 ; CHECK-NEXT:    [[CALL:%.*]] = call i1 @test3_g(%t1* [[TMP1]], i32 0)
 ; CHECK-NEXT:    call void @use.1(i1 false)
-; CHECK-NEXT:    br i1 false, label [[LOOP]], label [[EXIT:%.*]]
+; CHECK-NEXT:    br label [[EXIT:%.*]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret i32 undef
 ;
@@ -276,8 +274,9 @@ define internal void @test4_b(i8* %arg) {
 ; CHECK-SAME: (i8* [[ARG:%.*]])
 ; CHECK-NEXT:  bb:
 ; CHECK-NEXT:    [[TMP:%.*]] = bitcast i8* null to i16*
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 false, i8* null, i8* null
 ; CHECK-NEXT:    call void @use.16(i16* [[TMP]])
-; CHECK-NEXT:    call void @use.8(i8* null)
+; CHECK-NEXT:    call void @use.8(i8* [[SEL]])
 ; CHECK-NEXT:    ret void
 ;
 bb:
@@ -386,7 +385,10 @@ define void @test3() {
 ; CHECK-NEXT:    store i32 [[MUL]], i32* @pcount, align 4
 ; CHECK-NEXT:    ret void
 ; CHECK:       if.end24:
-; CHECK-NEXT:    br label [[FOR_END:%.*]]
+; CHECK-NEXT:    [[CMP25474:%.*]] = icmp sgt i32 [[TMP2]], 0
+; CHECK-NEXT:    br i1 [[CMP25474]], label [[FOR_BODY:%.*]], label [[FOR_END:%.*]]
+; CHECK:       for.body:
+; CHECK-NEXT:    ret void
 ; CHECK:       for.end:
 ; CHECK-NEXT:    ret void
 ;

@@ -1,4 +1,4 @@
-! RUN: %S/test_modfile.sh %s %t %f18
+! RUN: %S/test_modfile.sh %s %t %flang_fc1
 ! Test modfiles for entities with initialization
 module m
   integer, parameter :: k8 = 8
@@ -33,7 +33,7 @@ end
 !    integer(4)::a=123_4
 !    type(t),pointer::b=>NULL()
 !  end type
+!  intrinsic::null
 !  type(t),parameter::x=t(a=456_4,b=NULL())
 !  type(t),parameter::y=t(a=789_4,b=NULL())
-!  intrinsic::null
 !end

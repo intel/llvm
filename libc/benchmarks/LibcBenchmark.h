@@ -41,10 +41,6 @@
 namespace llvm {
 namespace libc_benchmarks {
 
-// Makes sure the binary was compiled in release mode and that frequency
-// governor is set on performance.
-void checkRequirements();
-
 using Duration = std::chrono::duration<double>;
 
 enum class BenchmarkLog {
@@ -69,7 +65,7 @@ struct BenchmarkOptions {
   uint32_t MinSamples = 4;
   // The maximum number of samples.
   uint32_t MaxSamples = 1000;
-  // The benchmark will stop is the relative difference between the current and
+  // The benchmark will stop if the relative difference between the current and
   // the last estimation is less than epsilon. This is 1% by default.
   double Epsilon = 0.01;
   // The number of iterations grows exponentially between each sample.
@@ -279,17 +275,21 @@ public:
       : public std::iterator<std::input_iterator_tag, T, ssize_t> {
     llvm::ArrayRef<T> Array;
     size_t Index;
+    size_t Offset;
 
   public:
     explicit const_iterator(llvm::ArrayRef<T> Array, size_t Index = 0)
-        : Array(Array), Index(Index) {}
+        : Array(Array), Index(Index), Offset(Index % Array.size()) {}
     const_iterator &operator++() {
       ++Index;
+      ++Offset;
+      if (Offset == Array.size())
+        Offset = 0;
       return *this;
     }
     bool operator==(const_iterator Other) const { return Index == Other.Index; }
     bool operator!=(const_iterator Other) const { return !(*this == Other); }
-    const T &operator*() const { return Array[Index % Array.size()]; }
+    const T &operator*() const { return Array[Offset]; }
   };
 
   CircularArrayRef(llvm::ArrayRef<T> Array, size_t Size)
@@ -317,6 +317,10 @@ template <typename T, size_t N>
 CircularArrayRef<T> cycle(const std::array<T, N> &Container, size_t Size) {
   return {llvm::ArrayRef<T>(Container.cbegin(), Container.cend()), Size};
 }
+
+// Makes sure the binary was compiled in release mode and that frequency
+// governor is set on performance.
+void checkRequirements();
 
 } // namespace libc_benchmarks
 } // namespace llvm

@@ -59,12 +59,12 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <assert.h>
+#include <cassert>
+#include <cinttypes>
+#include <cstdarg>
 #include <cstdint>
-#include <inttypes.h>
+#include <cstring>
 #include <map>
-#include <stdarg.h>
-#include <string.h>
 #include <type_traits>
 #include <utility>
 
@@ -147,11 +147,16 @@ Module::Module(const ModuleSpec &module_spec)
                   : module_spec.GetObjectName().AsCString(""),
               module_spec.GetObjectName().IsEmpty() ? "" : ")");
 
+  auto data_sp = module_spec.GetData();
+  lldb::offset_t file_size = 0;
+  if (data_sp)
+    file_size = data_sp->GetByteSize();
+
   // First extract all module specifications from the file using the local file
   // path. If there are no specifications, then don't fill anything in
   ModuleSpecList modules_specs;
-  if (ObjectFile::GetModuleSpecifications(module_spec.GetFileSpec(), 0, 0,
-                                          modules_specs) == 0)
+  if (ObjectFile::GetModuleSpecifications(
+          module_spec.GetFileSpec(), 0, file_size, modules_specs, data_sp) == 0)
     return;
 
   // Now make sure that one of the module specifications matches what we just
@@ -170,11 +175,20 @@ Module::Module(const ModuleSpec &module_spec)
     return;
   }
 
-  if (module_spec.GetFileSpec())
-    m_mod_time = FileSystem::Instance().GetModificationTime(module_spec.GetFileSpec());
-  else if (matching_module_spec.GetFileSpec())
-    m_mod_time =
-        FileSystem::Instance().GetModificationTime(matching_module_spec.GetFileSpec());
+  // Set m_data_sp if it was initially provided in the ModuleSpec. Note that
+  // we cannot use the data_sp variable here, because it will have been
+  // modified by GetModuleSpecifications().
+  if (auto module_spec_data_sp = module_spec.GetData()) {
+    m_data_sp = module_spec_data_sp;
+    m_mod_time = {};
+  } else {
+    if (module_spec.GetFileSpec())
+      m_mod_time =
+          FileSystem::Instance().GetModificationTime(module_spec.GetFileSpec());
+    else if (matching_module_spec.GetFileSpec())
+      m_mod_time = FileSystem::Instance().GetModificationTime(
+          matching_module_spec.GetFileSpec());
+  }
 
   // Copy the architecture from the actual spec if we got one back, else use
   // the one that was specified
@@ -405,8 +419,7 @@ void Module::DumpSymbolContext(Stream *s) {
 
 size_t Module::GetNumCompileUnits() {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, "Module::GetNumCompileUnits (module = %p)",
+  LLDB_SCOPED_TIMERF("Module::GetNumCompileUnits (module = %p)",
                      static_cast<void *>(this));
   if (SymbolFile *symbols = GetSymbolFile())
     return symbols->GetNumCompileUnits();
@@ -427,9 +440,7 @@ CompUnitSP Module::GetCompileUnitAtIndex(size_t index) {
 
 bool Module::ResolveFileAddress(lldb::addr_t vm_addr, Address &so_addr) {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat,
-                     "Module::ResolveFileAddress (vm_addr = 0x%" PRIx64 ")",
+  LLDB_SCOPED_TIMERF("Module::ResolveFileAddress (vm_addr = 0x%" PRIx64 ")",
                      vm_addr);
   SectionList *section_list = GetSectionList();
   if (section_list)
@@ -580,18 +591,20 @@ uint32_t Module::ResolveSymbolContextsForFileSpec(
     const FileSpec &file_spec, uint32_t line, bool check_inlines,
     lldb::SymbolContextItem resolve_scope, SymbolContextList &sc_list) {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat,
-                     "Module::ResolveSymbolContextForFilePath (%s:%u, "
+  LLDB_SCOPED_TIMERF("Module::ResolveSymbolContextForFilePath (%s:%u, "
                      "check_inlines = %s, resolve_scope = 0x%8.8x)",
                      file_spec.GetPath().c_str(), line,
                      check_inlines ? "yes" : "no", resolve_scope);
 
   const uint32_t initial_count = sc_list.GetSize();
 
-  if (SymbolFile *symbols = GetSymbolFile())
-    symbols->ResolveSymbolContext(file_spec, line, check_inlines, resolve_scope,
-                                  sc_list);
+  if (SymbolFile *symbols = GetSymbolFile()) {
+    // TODO: Handle SourceLocationSpec column information
+    SourceLocationSpec location_spec(file_spec, line, /*column=*/llvm::None,
+                                     check_inlines, /*exact_match=*/false);
+
+    symbols->ResolveSymbolContext(location_spec, resolve_scope, sc_list);
+  }
 
   return sc_list.GetSize() - initial_count;
 }
@@ -908,7 +921,12 @@ void Module::FindAddressesForLine(const lldb::TargetSP target_sp,
                                   std::vector<Address> &output_local,
                                   std::vector<Address> &output_extern) {
   SearchFilterByModule filter(target_sp, m_file);
-  AddressResolverFileLine resolver(file, line, true);
+
+  // TODO: Handle SourceLocationSpec column information
+  SourceLocationSpec location_spec(file, line, /*column=*/llvm::None,
+                                   /*check_inlines=*/true,
+                                   /*exact_match=*/false);
+  AddressResolverFileLine resolver(location_spec);
   resolver.ResolveAddress(filter);
 
   for (size_t n = 0; n < resolver.GetNumberOfAddresses(); n++) {
@@ -926,8 +944,7 @@ void Module::FindTypes_Impl(
     size_t max_matches,
     llvm::DenseSet<lldb_private::SymbolFile *> &searched_symbol_files,
     TypeMap &types) {
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+  LLDB_SCOPED_TIMER();
   if (SymbolFile *symbols = GetSymbolFile())
     symbols->FindTypes(name, parent_decl_ctx, max_matches,
                        searched_symbol_files, types);
@@ -1014,8 +1031,7 @@ void Module::FindTypes(
     llvm::ArrayRef<CompilerContext> pattern, LanguageSet languages,
     llvm::DenseSet<lldb_private::SymbolFile *> &searched_symbol_files,
     TypeMap &types) {
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+  LLDB_SCOPED_TIMER();
   if (SymbolFile *symbols = GetSymbolFile())
     symbols->FindTypes(pattern, languages, searched_symbol_files, types);
 }
@@ -1026,8 +1042,7 @@ SymbolFile *Module::GetSymbolFile(bool can_create, Stream *feedback_strm) {
     if (!m_did_load_symfile.load() && can_create) {
       ObjectFile *obj_file = GetObjectFile();
       if (obj_file != nullptr) {
-        static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-        Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+        LLDB_SCOPED_TIMER();
         m_symfile_up.reset(
             SymbolVendor::FindPlugin(shared_from_this(), feedback_strm));
         m_did_load_symfile = true;
@@ -1066,8 +1081,6 @@ std::string Module::GetSpecificationDescription() const {
 
 void Module::GetDescription(llvm::raw_ostream &s,
                             lldb::DescriptionLevel level) {
-  std::lock_guard<std::recursive_mutex> guard(m_mutex);
-
   if (level >= eDescriptionLevelFull) {
     if (m_arch.IsValid())
       s << llvm::formatv("({0}) ", m_arch.GetArchitectureName());
@@ -1110,6 +1123,10 @@ void Module::ReportError(const char *format, ...) {
 }
 
 bool Module::FileHasChanged() const {
+  // We have provided the DataBuffer for this module to avoid accessing the
+  // filesystem. We never want to reload those files.
+  if (m_data_sp)
+    return false;
   if (!m_file_has_changed)
     m_file_has_changed =
         (FileSystem::Instance().GetModificationTime(m_file) != m_mod_time);
@@ -1226,15 +1243,21 @@ ObjectFile *Module::GetObjectFile() {
   if (!m_did_load_objfile.load()) {
     std::lock_guard<std::recursive_mutex> guard(m_mutex);
     if (!m_did_load_objfile.load()) {
-      static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-      Timer scoped_timer(func_cat, "Module::GetObjectFile () module = %s",
+      LLDB_SCOPED_TIMERF("Module::GetObjectFile () module = %s",
                          GetFileSpec().GetFilename().AsCString(""));
-      DataBufferSP data_sp;
       lldb::offset_t data_offset = 0;
-      const lldb::offset_t file_size =
-          FileSystem::Instance().GetByteSize(m_file);
+      lldb::offset_t file_size = 0;
+
+      if (m_data_sp)
+        file_size = m_data_sp->GetByteSize();
+      else if (m_file)
+        file_size = FileSystem::Instance().GetByteSize(m_file);
+
       if (file_size > m_object_offset) {
         m_did_load_objfile = true;
+        // FindPlugin will modify its data_sp argument. Do not let it
+        // modify our m_data_sp member.
+        auto data_sp = m_data_sp;
         m_objfile_sp = ObjectFile::FindPlugin(
             shared_from_this(), &m_file, m_object_offset,
             file_size - m_object_offset, data_sp, data_offset);
@@ -1287,9 +1310,8 @@ SectionList *Module::GetUnifiedSectionList() {
 
 const Symbol *Module::FindFirstSymbolWithNameAndType(ConstString name,
                                                      SymbolType symbol_type) {
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(
-      func_cat, "Module::FindFirstSymbolWithNameAndType (name = %s, type = %i)",
+  LLDB_SCOPED_TIMERF(
+      "Module::FindFirstSymbolWithNameAndType (name = %s, type = %i)",
       name.AsCString(), symbol_type);
   if (Symtab *symtab = GetSymtab())
     return symtab->FindFirstSymbolWithNameAndType(
@@ -1317,9 +1339,7 @@ void Module::SymbolIndicesToSymbolContextList(
 void Module::FindFunctionSymbols(ConstString name,
                                    uint32_t name_type_mask,
                                    SymbolContextList &sc_list) {
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat,
-                     "Module::FindSymbolsFunctions (name = %s, mask = 0x%8.8x)",
+  LLDB_SCOPED_TIMERF("Module::FindSymbolsFunctions (name = %s, mask = 0x%8.8x)",
                      name.AsCString(), name_type_mask);
   if (Symtab *symtab = GetSymtab())
     symtab->FindFunctionSymbols(name, name_type_mask, sc_list);
@@ -1330,10 +1350,8 @@ void Module::FindSymbolsWithNameAndType(ConstString name,
                                           SymbolContextList &sc_list) {
   // No need to protect this call using m_mutex all other method calls are
   // already thread safe.
-
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(
-      func_cat, "Module::FindSymbolsWithNameAndType (name = %s, type = %i)",
+  LLDB_SCOPED_TIMERF(
+      "Module::FindSymbolsWithNameAndType (name = %s, type = %i)",
       name.AsCString(), symbol_type);
   if (Symtab *symtab = GetSymtab()) {
     std::vector<uint32_t> symbol_indexes;
@@ -1347,10 +1365,7 @@ void Module::FindSymbolsMatchingRegExAndType(const RegularExpression &regex,
                                              SymbolContextList &sc_list) {
   // No need to protect this call using m_mutex all other method calls are
   // already thread safe.
-
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(
-      func_cat,
+  LLDB_SCOPED_TIMERF(
       "Module::FindSymbolsMatchingRegExAndType (regex = %s, type = %i)",
       regex.GetText().str().c_str(), symbol_type);
   if (Symtab *symtab = GetSymtab()) {

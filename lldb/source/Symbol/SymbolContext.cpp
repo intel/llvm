@@ -127,11 +127,18 @@ bool SymbolContext::DumpStopContext(Stream *s, ExecutionContextScope *exe_scope,
           s->Printf(" + %" PRIu64, inlined_function_offset);
         }
       }
-      const Declaration &call_site = inlined_block_info->GetCallSite();
-      if (call_site.IsValid()) {
+      // "line_entry" will always be valid as GetParentOfInlinedScope(...) will
+      // fill it in correctly with the calling file and line. Previous code
+      // was extracting the calling file and line from inlined_block_info and
+      // using it right away which is not correct. On the first call to this
+      // function "line_entry" will contain the actual line table entry. On
+      // susequent calls "line_entry" will contain the calling file and line
+      // from the previous inline info.
+      if (line_entry.IsValid()) {
         s->PutCString(" at ");
-        call_site.DumpStopContext(s, show_fullpaths);
+        line_entry.DumpStopContext(s, show_fullpaths);
       }
+
       if (show_inlined_frames) {
         s->EOL();
         s->Indent();
@@ -204,7 +211,7 @@ void SymbolContext::GetDescription(Stream *s, lldb::DescriptionLevel level,
     Type *func_type = function->GetType();
     if (func_type) {
       s->Indent("   FuncType: ");
-      func_type->GetDescription(s, level, false);
+      func_type->GetDescription(s, level, false, target);
       s->EOL();
     }
   }
@@ -1010,11 +1017,15 @@ void SymbolContextSpecifier::Clear() {
   m_type = eNothingSpecified;
 }
 
-bool SymbolContextSpecifier::SymbolContextMatches(SymbolContext &sc) {
+bool SymbolContextSpecifier::SymbolContextMatches(const SymbolContext &sc) {
   if (m_type == eNothingSpecified)
     return true;
 
-  if (m_target_sp.get() != sc.target_sp.get())
+  // Only compare targets if this specifier has one and it's not the Dummy
+  // target.  Otherwise if a specifier gets made in the dummy target and
+  // copied over we'll artificially fail the comparision.
+  if (m_target_sp && !m_target_sp->IsDummyTarget() &&
+      m_target_sp != sc.target_sp)
     return false;
 
   if (m_type & eModuleSpecified) {

@@ -26,5 +26,14 @@ context exception::get_context() const {
 
 cl_int exception::get_cl_code() const { return MCLErr; }
 
+const std::error_category &sycl_category() noexcept {
+  static const detail::SYCLCategory SYCLCategoryObj;
+  return SYCLCategoryObj;
+}
+
+std::error_code make_error_code(sycl::errc Err) noexcept {
+  return {static_cast<int>(Err), sycl_category()};
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

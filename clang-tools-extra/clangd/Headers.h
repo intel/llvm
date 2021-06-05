@@ -114,6 +114,9 @@ class IncludeStructure {
 public:
   std::vector<Inclusion> MainFileIncludes;
 
+  // Return all transitively reachable files.
+  llvm::ArrayRef<std::string> allHeaders() const { return RealPathNames; }
+
   // Return all transitively reachable files, and their minimum include depth.
   // All transitive includes (absolute paths), with their minimum include depth.
   // Root --> 0, #included file --> 1, etc.
@@ -136,7 +139,7 @@ private:
   unsigned fileIndex(llvm::StringRef Name);
   llvm::StringMap<unsigned> NameToIndex; // Values are file indexes.
   // Maps a file's index to that of the files it includes.
-  llvm::DenseMap<unsigned, SmallVector<unsigned, 8>> IncludeChildren;
+  llvm::DenseMap<unsigned, llvm::SmallVector<unsigned>> IncludeChildren;
 };
 
 /// Returns a PPCallback that visits all inclusions in the main file.

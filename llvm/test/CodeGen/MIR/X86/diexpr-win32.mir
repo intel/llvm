@@ -1,4 +1,4 @@
-# RUN: llc -start-after=prologepilog -filetype=obj -O0 %s -o - | llvm-readobj --codeview | FileCheck %s
+# RUN: llc -start-after=prologepilog -filetype=obj -O0 %s -o - | llvm-readobj --codeview - | FileCheck %s
 
 # Offsets are now CFA, or VFRAME, relative. Both the NRVO sret pointer and the
 # string* parameter are on the stack, NRVO at offset 4 (after RA), and Str at
@@ -67,7 +67,7 @@
 
   %struct.string = type { i32, i32, i8* }
 
-  define void @fun(%struct.string* noalias sret %agg.result, %struct.string* noalias %str) !dbg !12 {
+  define void @fun(%struct.string* noalias sret(%struct.string) %agg.result, %struct.string* noalias %str) !dbg !12 {
   entry:
     call void @llvm.dbg.value(metadata %struct.string* %agg.result, metadata !23, metadata !24), !dbg !25
     call void @llvm.dbg.value(metadata %struct.string* %str, metadata !26, metadata !28), !dbg !25

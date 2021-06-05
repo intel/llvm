@@ -7,20 +7,20 @@
 %_elem_type_of_x = type <{ double }>
 %_elem_type_of_a = type <{ double }>
 
-@scalars = common local_unnamed_addr global %_type_of_scalars zeroinitializer, align 16
+@scalars = common dso_local local_unnamed_addr global %_type_of_scalars zeroinitializer, align 16
 
-define void @test([0 x %_elem_type_of_x]* noalias %.x, [0 x %_elem_type_of_a]* %.a, i64* noalias %.n) {
+define dso_local void @test([0 x %_elem_type_of_x]* noalias %.x, [0 x %_elem_type_of_a]* %.a, i64* noalias %.n) {
 ; CHECK-P9-LABEL: test:
 ; CHECK-P9:       # %bb.0: # %entry
 ; CHECK-P9-NEXT:    ld 5, 0(5)
 ; CHECK-P9-NEXT:    addis 6, 2, scalars@toc@ha
 ; CHECK-P9-NEXT:    addi 6, 6, scalars@toc@l
-; CHECK-P9-NEXT:    addi 6, 6, 16
 ; CHECK-P9-NEXT:    rldicr 5, 5, 0, 58
+; CHECK-P9-NEXT:    addi 6, 6, 16
 ; CHECK-P9-NEXT:    addi 5, 5, -32
+; CHECK-P9-NEXT:    lxvdsx 0, 0, 6
 ; CHECK-P9-NEXT:    rldicl 5, 5, 59, 5
 ; CHECK-P9-NEXT:    addi 5, 5, 1
-; CHECK-P9-NEXT:    lxvdsx 0, 0, 6
 ; CHECK-P9-NEXT:    mtctr 5
 ; CHECK-P9-NEXT:    .p2align 4
 ; CHECK-P9-NEXT:  .LBB0_1: # %vector.body
@@ -35,14 +35,14 @@ define void @test([0 x %_elem_type_of_x]* noalias %.x, [0 x %_elem_type_of_a]* %
 ; CHECK-P9-NEXT:    xvmuldp 1, 1, 0
 ; CHECK-P9-NEXT:    xvmuldp 4, 4, 0
 ; CHECK-P9-NEXT:    xvmuldp 3, 3, 0
+; CHECK-P9-NEXT:    xvmuldp 6, 6, 0
 ; CHECK-P9-NEXT:    xvmuldp 5, 5, 0
+; CHECK-P9-NEXT:    addi 4, 4, 256
 ; CHECK-P9-NEXT:    stxv 1, 16(3)
+; CHECK-P9-NEXT:    stxv 2, 0(3)
 ; CHECK-P9-NEXT:    stxv 3, 48(3)
 ; CHECK-P9-NEXT:    stxv 4, 32(3)
 ; CHECK-P9-NEXT:    stxv 5, 240(3)
-; CHECK-P9-NEXT:    addi 4, 4, 256
-; CHECK-P9-NEXT:    xvmuldp 6, 6, 0
-; CHECK-P9-NEXT:    stxv 2, 0(3)
 ; CHECK-P9-NEXT:    stxv 6, 224(3)
 ; CHECK-P9-NEXT:    addi 3, 3, 256
 ; CHECK-P9-NEXT:    bdnz .LBB0_1
@@ -57,9 +57,9 @@ define void @test([0 x %_elem_type_of_x]* noalias %.x, [0 x %_elem_type_of_a]* %
 ; CHECK-P9-NO-HEURISTIC-NEXT:    rldicr 5, 5, 0, 58
 ; CHECK-P9-NO-HEURISTIC-NEXT:    addi 6, 6, 16
 ; CHECK-P9-NO-HEURISTIC-NEXT:    addi 5, 5, -32
+; CHECK-P9-NO-HEURISTIC-NEXT:    lxvdsx 0, 0, 6
 ; CHECK-P9-NO-HEURISTIC-NEXT:    rldicl 5, 5, 59, 5
 ; CHECK-P9-NO-HEURISTIC-NEXT:    addi 5, 5, 1
-; CHECK-P9-NO-HEURISTIC-NEXT:    lxvdsx 0, 0, 6
 ; CHECK-P9-NO-HEURISTIC-NEXT:    mtctr 5
 ; CHECK-P9-NO-HEURISTIC-NEXT:    .p2align 4
 ; CHECK-P9-NO-HEURISTIC-NEXT:  .LBB0_1: # %vector.body
@@ -76,13 +76,13 @@ define void @test([0 x %_elem_type_of_x]* noalias %.x, [0 x %_elem_type_of_a]* %
 ; CHECK-P9-NO-HEURISTIC-NEXT:    xvmuldp 3, 3, 0
 ; CHECK-P9-NO-HEURISTIC-NEXT:    xvmuldp 6, 6, 0
 ; CHECK-P9-NO-HEURISTIC-NEXT:    xvmuldp 5, 5, 0
+; CHECK-P9-NO-HEURISTIC-NEXT:    addi 4, 4, 256
 ; CHECK-P9-NO-HEURISTIC-NEXT:    stxv 1, 16(3)
 ; CHECK-P9-NO-HEURISTIC-NEXT:    stxv 2, 0(3)
 ; CHECK-P9-NO-HEURISTIC-NEXT:    stxv 3, 48(3)
 ; CHECK-P9-NO-HEURISTIC-NEXT:    stxv 4, 32(3)
 ; CHECK-P9-NO-HEURISTIC-NEXT:    stxv 5, 240(3)
 ; CHECK-P9-NO-HEURISTIC-NEXT:    stxv 6, 224(3)
-; CHECK-P9-NO-HEURISTIC-NEXT:    addi 4, 4, 256
 ; CHECK-P9-NO-HEURISTIC-NEXT:    addi 3, 3, 256
 ; CHECK-P9-NO-HEURISTIC-NEXT:    bdnz .LBB0_1
 ; CHECK-P9-NO-HEURISTIC-NEXT:  # %bb.2: # %return.block

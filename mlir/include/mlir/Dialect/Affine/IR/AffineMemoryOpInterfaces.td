@@ -69,16 +69,13 @@ def AffineReadOpInterface : OpInterface<"AffineReadOpInterface"> {
       }]
     >,
     InterfaceMethod<
-      /*desc=*/"Returns the AffineMapAttr associated with 'memref'.",
-      /*retTy=*/"NamedAttribute",
-      /*methodName=*/"getAffineMapAttrForMemRef",
-      /*args=*/(ins "Value":$memref),
+      /*desc=*/"Returns the value read by this operation.",
+      /*retTy=*/"Value",
+      /*methodName=*/"getValue",
+      /*args=*/(ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        ConcreteOp op = cast<ConcreteOp>(this->getOperation());
-        assert(memref == getMemRef());
-        return {Identifier::get(op.getMapAttrName(), op.getContext()),
-                op.getAffineMapAttr()};
+        return cast<ConcreteOp>(this->getOperation());
       }]
     >,
   ];
@@ -138,6 +135,29 @@ def AffineWriteOpInterface : OpInterface<"AffineWriteOpInterface"> {
       }]
     >,
     InterfaceMethod<
+      /*desc=*/"Returns the value to store.",
+      /*retTy=*/"Value",
+      /*methodName=*/"getValueToStore",
+      /*args=*/(ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        ConcreteOp op = cast<ConcreteOp>(this->getOperation());
+        return op.getOperand(op.getStoredValOperandIndex());
+      }]
+    >,
+  ];
+}
+
+def AffineMapAccessInterface : OpInterface<"AffineMapAccessInterface"> {
+  let description = [{
+      Interface to query the AffineMap used to dereference and access a given
+      memref. Implementers of this interface must operate on at least one
+      memref operand.  The memref argument given to this interface much match
+      one of those memref operands.
+  }];
+
+  let methods = [
+    InterfaceMethod<
       /*desc=*/"Returns the AffineMapAttr associated with 'memref'.",
       /*retTy=*/"NamedAttribute",
       /*methodName=*/"getAffineMapAttrForMemRef",
@@ -145,7 +165,8 @@ def AffineWriteOpInterface : OpInterface<"AffineWriteOpInterface"> {
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
         ConcreteOp op = cast<ConcreteOp>(this->getOperation());
-        assert(memref == getMemRef());
+        assert(memref == op.getMemRef() &&
+               "Expected memref argument to match memref operand");
         return {Identifier::get(op.getMapAttrName(), op.getContext()),
                 op.getAffineMapAttr()};
       }]

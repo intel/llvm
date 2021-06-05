@@ -4,6 +4,13 @@
 
 __constant int ci = 1;
 
+// __constant ints are allowed in constant expressions.
+enum use_ci_in_enum { enumerator = ci };
+typedef int use_ci_in_array_bound[ci];
+
+// general constant folding of array bounds is not permitted
+typedef int folding_in_array_bounds[&ci + 3 - &ci]; // expected-error-re {{{{variable length arrays are not supported in OpenCL|array size is not a constant expression}}}} expected-note {{cannot refer to element 3}}
+
 __kernel void foo(__global int *gip) {
   __local int li;
   __local int lj = 2; // expected-error {{'__local' variable cannot have an initializer}}
@@ -249,7 +256,8 @@ __kernel void k() {
 
 void func_multiple_addr2(void) {
   typedef __private int private_int_t;
-  __private __attribute__((opencl_global)) int var1;   // expected-error {{multiple address spaces specified for type}}
+  __private __attribute__((opencl_global)) int var1;   // expected-error {{multiple address spaces specified for type}} \
+                                                       // expected-error {{function scope variable cannot be declared in global address space}}
   __private __attribute__((opencl_global)) int *var2;  // expected-error {{multiple address spaces specified for type}}
   __attribute__((opencl_global)) private_int_t var3;   // expected-error {{multiple address spaces specified for type}}
   __attribute__((opencl_global)) private_int_t *var4;  // expected-error {{multiple address spaces specified for type}}

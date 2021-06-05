@@ -1,7 +1,7 @@
 # Check if this is a in tree build.
 if (NOT DEFINED LLVM_MAIN_SRC_DIR)
   project(Polly)
-  cmake_minimum_required(VERSION 3.4.3)
+  cmake_minimum_required(VERSION 3.13.4)
 
   # Where is LLVM installed?
   find_package(LLVM CONFIG REQUIRED)
@@ -27,39 +27,16 @@ if (NOT DEFINED LLVM_MAIN_SRC_DIR)
   set(POLLY_GTEST_AVAIL 0)
   set(UNITTEST_DIR ${LLVM_SOURCE_ROOT}/utils/unittest)
   if(EXISTS ${UNITTEST_DIR}/googletest/include/gtest/gtest.h)
-    # The build tree already exports the gtest target, which we can reuse
-    if (TARGET gtest)
-      # LLVM Doesn't export gtest's include directorys, so do that here
-      set_target_properties(gtest
-        PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
-        "${UNITTEST_DIR}/googletest/include;${UNITTEST_DIR}/googlemock/include"
-        )
-      set(POLLY_GTEST_AVAIL 1)
-    else()
-      add_library(gtest
-        ${UNITTEST_DIR}/googletest/src/gtest-all.cc
-        ${UNITTEST_DIR}/googlemock/src/gmock-all.cc
-        )
-      target_include_directories(gtest
-        PUBLIC
-        "${UNITTEST_DIR}/googletest/include"
-        "${UNITTEST_DIR}/googlemock/include"
-
-        PRIVATE
-        "${UNITTEST_DIR}/googletest"
-        "${UNITTEST_DIR}/googlemock"
-        )
-      target_link_libraries(gtest PUBLIC -lpthread)
-
-      add_library(gtest_main ${UNITTEST_DIR}/UnitTestMain/TestMain.cpp)
-      target_link_libraries(gtest_main PUBLIC gtest)
-
-      set(POLLY_GTEST_AVAIL 1)
+    if (NOT TARGET gtest)
+      add_subdirectory(${UNITTEST_DIR} utils/unittest)
     endif()
+    set(POLLY_GTEST_AVAIL 1)
   endif()
 
-  # Make sure the isl c files are built as fPIC
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+  if (LLVM_ENABLE_PIC)
+    # Make sure the isl c files are built as fPIC if possible
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+  endif ()
 
   # Set directory for polly-isl-test.
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
@@ -148,7 +125,6 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     DESTINATION include
     FILES_MATCHING
     PATTERN "*.h"
-    PATTERN ".svn" EXCLUDE
     )
 
   install(DIRECTORY ${POLLY_BINARY_DIR}/include/
@@ -156,7 +132,6 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     FILES_MATCHING
     PATTERN "*.h"
     PATTERN "CMakeFiles" EXCLUDE
-    PATTERN ".svn" EXCLUDE
     )
 endif()
 

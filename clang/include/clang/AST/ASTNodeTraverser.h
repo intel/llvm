@@ -22,9 +22,12 @@
 #include "clang/AST/LocInfoType.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/TemplateArgumentVisitor.h"
+#include "clang/AST/Type.h"
 #include "clang/AST/TypeVisitor.h"
 
 namespace clang {
+
+class APValue;
 
 /**
 
@@ -50,6 +53,7 @@ struct {
   void Visit(const OMPClause *C);
   void Visit(const BlockDecl::Capture &C);
   void Visit(const GenericSelectionExpr::ConstAssociation &A);
+  void Visit(const APValue &Value, QualType Ty);
 };
 */
 template <typename Derived, typename NodeDelegateType>
@@ -78,8 +82,12 @@ public:
   bool getDeserialize() const { return Deserialize; }
 
   void SetTraversalKind(TraversalKind TK) { Traversal = TK; }
+  TraversalKind GetTraversalKind() const { return Traversal; }
 
   void Visit(const Decl *D) {
+    if (Traversal == TK_IgnoreUnlessSpelledInSource && D->isImplicit())
+      return;
+
     getNodeDelegate().AddChild([=] {
       getNodeDelegate().Visit(D);
       if (!D)
@@ -96,6 +104,14 @@ public:
 
       // Decls within functions are visited by the body.
       if (!isa<FunctionDecl>(*D) && !isa<ObjCMethodDecl>(*D)) {
+        if (Traversal != TK_AsIs) {
+          if (const auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
+            auto SK = CTSD->getSpecializationKind();
+            if (SK == TSK_ExplicitInstantiationDeclaration ||
+                SK == TSK_ExplicitInstantiationDefinition)
+              return;
+          }
+        }
         if (const auto *DC = dyn_cast<DeclContext>(D))
           dumpDeclContext(DC);
       }
@@ -109,9 +125,6 @@ public:
       if (auto *E = dyn_cast_or_null<Expr>(S)) {
         switch (Traversal) {
         case TK_AsIs:
-          break;
-        case TK_IgnoreImplicitCastsAndParentheses:
-          S = E->IgnoreParenImpCasts();
           break;
         case TK_IgnoreUnlessSpelledInSource:
           S = E->IgnoreUnlessSpelledInSource();
@@ -131,7 +144,9 @@ public:
       if (isa<DeclStmt>(S) || isa<GenericSelectionExpr>(S))
         return;
 
-      if (isa<LambdaExpr>(S) && Traversal == TK_IgnoreUnlessSpelledInSource)
+      if (Traversal == TK_IgnoreUnlessSpelledInSource &&
+          isa<LambdaExpr, CXXForRangeStmt, CallExpr,
+              CXXRewrittenBinaryOperator>(S))
         return;
 
       for (const Stmt *SubStmt : S->children())
@@ -172,6 +187,8 @@ public:
   }
 
   void Visit(const CXXCtorInitializer *Init) {
+    if (Traversal == TK_IgnoreUnlessSpelledInSource && !Init->isWritten())
+      return;
     getNodeDelegate().AddChild([=] {
       getNodeDelegate().Visit(Init);
       Visit(Init->getInit());
@@ -209,6 +226,10 @@ public:
         Visit(TSI->getType());
       Visit(A.getAssociationExpr());
     });
+  }
+
+  void Visit(const APValue &Value, QualType Ty) {
+    getNodeDelegate().AddChild([=] { getNodeDelegate().Visit(Value, Ty); });
   }
 
   void Visit(const comments::Comment *C, const comments::FullComment *FC) {
@@ -384,6 +405,9 @@ public:
     if (const Expr *TRC = D->getTrailingRequiresClause())
       Visit(TRC);
 
+    if (Traversal == TK_IgnoreUnlessSpelledInSource && D->isDefaulted())
+      return;
+
     if (const auto *C = dyn_cast<CXXConstructorDecl>(D))
       for (const auto *I : C->inits())
         Visit(I);
@@ -400,6 +424,9 @@ public:
   }
 
   void VisitVarDecl(const VarDecl *D) {
+    if (Traversal == TK_IgnoreUnlessSpelledInSource && D->isCXXForRangeDecl())
+      return;
+
     if (D->hasInit())
       Visit(D->getInit());
   }
@@ -411,6 +438,8 @@ public:
   }
 
   void VisitBindingDecl(const BindingDecl *D) {
+    if (Traversal == TK_IgnoreUnlessSpelledInSource)
+      return;
     if (const auto *E = D->getBinding())
       Visit(E);
   }
@@ -473,8 +502,10 @@ public:
 
     Visit(D->getTemplatedDecl());
 
-    for (const auto *Child : D->specializations())
-      dumpTemplateDeclSpecialization(Child);
+    if (Traversal == TK_AsIs) {
+      for (const auto *Child : D->specializations())
+        dumpTemplateDeclSpecialization(Child);
+    }
   }
 
   void VisitTypeAliasDecl(const TypeAliasDecl *D) {
@@ -535,9 +566,7 @@ public:
 
   void VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *D) {
     if (const auto *TC = D->getTypeConstraint())
-      if (TC->hasExplicitTemplateArgs())
-        for (const auto &ArgLoc : TC->getTemplateArgsAsWritten()->arguments())
-          dumpTemplateArgumentLoc(ArgLoc);
+      Visit(TC->getImmediatelyDeclaredConstraint());
     if (D->hasDefaultArgument())
       Visit(D->getDefaultArgument(), SourceRange(),
             D->getDefaultArgStorage().getInheritedFrom(),
@@ -564,6 +593,12 @@ public:
   void VisitConceptDecl(const ConceptDecl *D) {
     dumpTemplateParameters(D->getTemplateParameters());
     Visit(D->getConstraintExpr());
+  }
+
+  void VisitConceptSpecializationExpr(const ConceptSpecializationExpr *CSE) {
+    if (CSE->hasExplicitTemplateArgs())
+      for (const auto &ArgLoc : CSE->getTemplateArgsAsWritten()->arguments())
+        dumpTemplateArgumentLoc(ArgLoc);
   }
 
   void VisitUsingShadowDecl(const UsingShadowDecl *D) {
@@ -692,6 +727,35 @@ public:
   void VisitObjCAtCatchStmt(const ObjCAtCatchStmt *Node) {
     if (const VarDecl *CatchParam = Node->getCatchParamDecl())
       Visit(CatchParam);
+  }
+
+  void VisitCXXForRangeStmt(const CXXForRangeStmt *Node) {
+    if (Traversal == TK_IgnoreUnlessSpelledInSource) {
+      Visit(Node->getInit());
+      Visit(Node->getLoopVariable());
+      Visit(Node->getRangeInit());
+      Visit(Node->getBody());
+    }
+  }
+
+  void VisitCallExpr(const CallExpr *Node) {
+    for (const auto *Child :
+         make_filter_range(Node->children(), [this](const Stmt *Child) {
+           if (Traversal != TK_IgnoreUnlessSpelledInSource)
+             return false;
+           return !isa<CXXDefaultArgExpr>(Child);
+         })) {
+      Visit(Child);
+    }
+  }
+
+  void VisitCXXRewrittenBinaryOperator(const CXXRewrittenBinaryOperator *Node) {
+    if (Traversal == TK_IgnoreUnlessSpelledInSource) {
+      Visit(Node->getLHS());
+      Visit(Node->getRHS());
+    } else {
+      ConstStmtVisitor<Derived>::VisitCXXRewrittenBinaryOperator(Node);
+    }
   }
 
   void VisitExpressionTemplateArgument(const TemplateArgument &TA) {

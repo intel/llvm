@@ -1,8 +1,8 @@
 ; RUN: opt < %s -pgo-instr-gen -S | FileCheck %s --check-prefix=GEN
-; RUN: opt < %s -pgo-instr-gen -instrprof -S | FileCheck %s --check-prefix=LOWER
+; RUN: opt < %s -pgo-instr-gen -instrprof -S | FileCheck %s --check-prefixes=LOWER
 
 ; RUN: opt < %s -passes=pgo-instr-gen -S | FileCheck %s --check-prefix=GEN
-; RUN: opt < %s -passes=pgo-instr-gen,instrprof -S | FileCheck %s --check-prefix=LOWER
+; RUN: opt < %s -passes=pgo-instr-gen,instrprof -S | FileCheck %s --check-prefixes=LOWER
 
 ; This test is to verify that PGO runtime library calls get created with the
 ; appropriate operand bundle funclet information when a memory intrinsic
@@ -63,7 +63,7 @@ try.cont:                                         ; preds = %entry
 ; GEN-SAME: [ "funclet"(token %tmp1) ]
 
 ; LOWER: catch:
-; LOWER: call void @__llvm_profile_instrument_range(
+; LOWER: call void @__llvm_profile_instrument_memop(
 ; LOWER-SAME: [ "funclet"(token %tmp1) ]
 
 declare dso_local void @"?may_throw@@YAXH@Z"(i32)

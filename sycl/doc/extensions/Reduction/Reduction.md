@@ -38,6 +38,31 @@ unspecified reduction(span<T, Extent> var, const T& identity, BinaryOperation co
 
 The exact behavior of a reduction is specific to an implementation; the only interface exposed to the user is the set of functions above, which construct an unspecified `reduction` object encapsulating the reduction variable, an optional operator identity and the reduction operator.  For user-defined binary operations, an implementation should issue a compile-time warning if an identity is not specified and this is known to negatively impact performance (e.g. as a result of the implementation choosing a different reduction algorithm).  For standard binary operations (e.g. `std::plus`) on arithmetic types, the implementation must determine the correct identity automatically in order to avoid performance penalties.
 
+If an implementation can identify the identity value for a given combination of accumulator type `AccumulatorT` and function object type `BinaryOperation`, the value is defined as a member of the `known_identity` trait class:
+```c++
+template <typename BinaryOperation, typename AccumulatorT>
+struct known_identity {
+  static constexpr AccumulatorT value;
+};
+
+// Available if C++17
+template <typename BinaryOperation, typename AccumulatorT>
+inline constexpr AccumulatorT known_identity_v = known_identity<BinaryOperation, AccumulatorT>::value;
+```
+
+Whether `known_identity<BinaryOperation, AccumulatorT>::value` exists can be tested using the `has_known_identity` trait class:
+
+```c++
+template <typename BinaryOperation, typename AccumulatorT>
+struct has_known_identity {
+  static constexpr bool value;
+};
+
+// Available if C++17
+template <typename BinaryOperation, typename AccumulatorT>
+inline constexpr bool has_known_identity_v = has_known_identity<BinaryOperation, AccumulatorT>::value;
+```
+
 The dimensionality of the `accessor` passed to the `reduction` function specifies the dimensionality of the reduction variable: a 0-dimensional `accessor` represents a scalar reduction, and any other dimensionality represents an array reduction.  Specifying an array reduction of size N is functionally equivalent to specifying N independent scalar reductions.  The access mode of the accessor determines whether the reduction variable's original value is included in the reduction (i.e. for `access::mode::read_write` it is included, and for `access::mode::discard_write` it is not).  Multiple reductions aliasing the same output results in undefined behavior.
 
 `T` must be trivially copyable, permitting an implementation to (optionally) use atomic operations to implement the reduction.  This restriction is aligned with `std::atomic<T>` and `std::atomic_ref<T>`.

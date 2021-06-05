@@ -313,8 +313,8 @@ TEST(SmallPtrSetTest, ConstTest) {
   IntSet.insert(B);
   EXPECT_EQ(IntSet.count(B), 1u);
   EXPECT_EQ(IntSet.count(C), 1u);
-  EXPECT_NE(IntSet.find(B), IntSet.end());
-  EXPECT_NE(IntSet.find(C), IntSet.end());
+  EXPECT_TRUE(IntSet.contains(B));
+  EXPECT_TRUE(IntSet.contains(C));
 }
 
 // Verify that we automatically get the const version of PointerLikeTypeTraits
@@ -327,7 +327,7 @@ TEST(SmallPtrSetTest, ConstNonPtrTest) {
   TestPair Pair(&A[0], 1);
   IntSet.insert(Pair);
   EXPECT_EQ(IntSet.count(Pair), 1u);
-  EXPECT_NE(IntSet.find(Pair), IntSet.end());
+  EXPECT_TRUE(IntSet.contains(Pair));
 }
 
 // Test equality comparison.
@@ -366,4 +366,45 @@ TEST(SmallPtrSetTest, EqualityComparison) {
   EXPECT_NE(e, a);
   EXPECT_NE(c, e);
   EXPECT_NE(e, d);
+}
+
+TEST(SmallPtrSetTest, Contains) {
+  SmallPtrSet<int *, 2> Set;
+  int buf[4] = {0, 11, 22, 11};
+  EXPECT_FALSE(Set.contains(&buf[0]));
+  EXPECT_FALSE(Set.contains(&buf[1]));
+
+  Set.insert(&buf[0]);
+  Set.insert(&buf[1]);
+  EXPECT_TRUE(Set.contains(&buf[0]));
+  EXPECT_TRUE(Set.contains(&buf[1]));
+  EXPECT_FALSE(Set.contains(&buf[3]));
+
+  Set.insert(&buf[1]);
+  EXPECT_TRUE(Set.contains(&buf[0]));
+  EXPECT_TRUE(Set.contains(&buf[1]));
+  EXPECT_FALSE(Set.contains(&buf[3]));
+
+  Set.erase(&buf[1]);
+  EXPECT_TRUE(Set.contains(&buf[0]));
+  EXPECT_FALSE(Set.contains(&buf[1]));
+
+  Set.insert(&buf[1]);
+  Set.insert(&buf[2]);
+  EXPECT_TRUE(Set.contains(&buf[0]));
+  EXPECT_TRUE(Set.contains(&buf[1]));
+  EXPECT_TRUE(Set.contains(&buf[2]));
+}
+
+TEST(SmallPtrSetTest, InsertIterator) {
+  SmallPtrSet<int *, 5> Set;
+  int Vals[5] = {11, 22, 33, 44, 55};
+  int *Buf[5] = {&Vals[0], &Vals[1], &Vals[2], &Vals[3], &Vals[4]};
+
+  for (int *Ptr : Buf)
+    Set.insert(Set.begin(), Ptr);
+
+  // Ensure that all of the values were copied into the set.
+  for (const auto *Ptr : Buf)
+    EXPECT_TRUE(Set.contains(Ptr));
 }

@@ -16,6 +16,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/Utils.h"
+#include "llvm/ADT/ScopeExit.h"
 
 namespace clang {
 namespace clangd {
@@ -35,6 +36,7 @@ ParseInputs TestTU::inputs(MockFS &FS) const {
   FS.Files[ImportThunk] = ThunkContents;
 
   ParseInputs Inputs;
+  Inputs.FeatureModules = FeatureModules;
   auto &Argv = Inputs.CompileCommand.CommandLine;
   Argv = {"clang"};
   // FIXME: this shouldn't need to be conditional, but it breaks a
@@ -54,27 +56,42 @@ ParseInputs TestTU::inputs(MockFS &FS) const {
   Inputs.CompileCommand.Filename = FullFilename;
   Inputs.CompileCommand.Directory = testRoot();
   Inputs.Contents = Code;
+  if (OverlayRealFileSystemForModules)
+    FS.OverlayRealFileSystemForModules = true;
   Inputs.TFS = &FS;
   Inputs.Opts = ParseOptions();
-  Inputs.Opts.BuildRecoveryAST = true;
-  Inputs.Opts.PreserveRecoveryASTType = true;
-  Inputs.Opts.ClangTidyOpts.Checks = ClangTidyChecks;
-  Inputs.Opts.ClangTidyOpts.WarningsAsErrors = ClangTidyWarningsAsErrors;
+  if (ClangTidyProvider)
+    Inputs.ClangTidyProvider = ClangTidyProvider;
   Inputs.Index = ExternalIndex;
-  if (Inputs.Index)
-    Inputs.Opts.SuggestMissingIncludes = true;
   return Inputs;
 }
 
-std::shared_ptr<const PreambleData> TestTU::preamble() const {
+void initializeModuleCache(CompilerInvocation &CI) {
+  llvm::SmallString<128> ModuleCachePath;
+  ASSERT_FALSE(
+      llvm::sys::fs::createUniqueDirectory("module-cache", ModuleCachePath));
+  CI.getHeaderSearchOpts().ModuleCachePath = ModuleCachePath.c_str();
+}
+
+void deleteModuleCache(const std::string ModuleCachePath) {
+  if (!ModuleCachePath.empty()) {
+    ASSERT_FALSE(llvm::sys::fs::remove_directories(ModuleCachePath));
+  }
+}
+
+std::shared_ptr<const PreambleData>
+TestTU::preamble(PreambleParsedCallback PreambleCallback) const {
   MockFS FS;
   auto Inputs = inputs(FS);
   IgnoreDiagnostics Diags;
   auto CI = buildCompilerInvocation(Inputs, Diags);
   assert(CI && "Failed to build compilation invocation.");
+  if (OverlayRealFileSystemForModules)
+    initializeModuleCache(*CI);
+  auto ModuleCacheDeleter = llvm::make_scope_exit(
+      std::bind(deleteModuleCache, CI->getHeaderSearchOpts().ModuleCachePath));
   return clang::clangd::buildPreamble(testPath(Filename), *CI, Inputs,
-                                      /*StoreInMemory=*/true,
-                                      /*PreambleCallback=*/nullptr);
+                                      /*StoreInMemory=*/true, PreambleCallback);
 }
 
 ParsedAST TestTU::build() const {
@@ -83,6 +100,11 @@ ParsedAST TestTU::build() const {
   StoreDiags Diags;
   auto CI = buildCompilerInvocation(Inputs, Diags);
   assert(CI && "Failed to build compilation invocation.");
+  if (OverlayRealFileSystemForModules)
+    initializeModuleCache(*CI);
+  auto ModuleCacheDeleter = llvm::make_scope_exit(
+      std::bind(deleteModuleCache, CI->getHeaderSearchOpts().ModuleCachePath));
+
   auto Preamble = clang::clangd::buildPreamble(testPath(Filename), *CI, Inputs,
                                                /*StoreInMemory=*/true,
                                                /*PreambleCallback=*/nullptr);
@@ -91,6 +113,11 @@ ParsedAST TestTU::build() const {
   if (!AST.hasValue()) {
     ADD_FAILURE() << "Failed to build code:\n" << Code;
     llvm_unreachable("Failed to build TestTU!");
+  }
+  if (!AST->getDiagnostics()) {
+    ADD_FAILURE() << "TestTU should always build an AST with a fresh Preamble"
+                  << Code;
+    return std::move(*AST);
   }
   // Check for error diagnostics and report gtest failures (unless expected).
   // This guards against accidental syntax errors silently subverting tests.
@@ -107,7 +134,8 @@ ParsedAST TestTU::build() const {
     return false;
   }();
   if (!ErrorOk) {
-    for (const auto &D : AST->getDiagnostics())
+    // We always build AST with a fresh preamble in TestTU.
+    for (const auto &D : *AST->getDiagnostics())
       if (D.Severity >= DiagnosticsEngine::Error) {
         ADD_FAILURE()
             << "TestTU failed to build (suppress with /*error-ok*/): \n"
@@ -133,7 +161,7 @@ RefSlab TestTU::headerRefs() const {
 
 std::unique_ptr<SymbolIndex> TestTU::index() const {
   auto AST = build();
-  auto Idx = std::make_unique<FileIndex>(/*UseDex=*/true);
+  auto Idx = std::make_unique<FileIndex>();
   Idx->updatePreamble(testPath(Filename), /*Version=*/"null",
                       AST.getASTContext(), AST.getPreprocessorPtr(),
                       AST.getCanonicalIncludes());
@@ -163,24 +191,23 @@ const Symbol &findSymbol(const SymbolSlab &Slab, llvm::StringRef QName) {
 }
 
 const NamedDecl &findDecl(ParsedAST &AST, llvm::StringRef QName) {
-  llvm::SmallVector<llvm::StringRef, 4> Components;
-  QName.split(Components, "::");
-
   auto &Ctx = AST.getASTContext();
   auto LookupDecl = [&Ctx](const DeclContext &Scope,
                            llvm::StringRef Name) -> const NamedDecl & {
     auto LookupRes = Scope.lookup(DeclarationName(&Ctx.Idents.get(Name)));
     assert(!LookupRes.empty() && "Lookup failed");
-    assert(LookupRes.size() == 1 && "Lookup returned multiple results");
+    assert(LookupRes.isSingleResult() && "Lookup returned multiple results");
     return *LookupRes.front();
   };
 
   const DeclContext *Scope = Ctx.getTranslationUnitDecl();
-  for (auto NameIt = Components.begin(), End = Components.end() - 1;
-       NameIt != End; ++NameIt) {
-    Scope = &cast<DeclContext>(LookupDecl(*Scope, *NameIt));
+
+  StringRef Cur, Rest;
+  for (std::tie(Cur, Rest) = QName.split("::"); !Rest.empty();
+       std::tie(Cur, Rest) = Rest.split("::")) {
+    Scope = &cast<DeclContext>(LookupDecl(*Scope, Cur));
   }
-  return LookupDecl(*Scope, Components.back());
+  return LookupDecl(*Scope, Cur);
 }
 
 const NamedDecl &findDecl(ParsedAST &AST,

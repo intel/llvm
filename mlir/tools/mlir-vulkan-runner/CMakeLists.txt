@@ -45,30 +45,30 @@ if (MLIR_VULKAN_RUNNER_ENABLED)
 
   # *IMPORTANT*: This library cannot depend on LLVM libraries. Otherwise,
   # it may cause LLVM version conflict when used together with other shared
-  # libraries depending on LLVM. Notably, Mesa, who implemnents Vulkan
+  # libraries depending on LLVM. Notably, Mesa, who implements Vulkan
   # drivers on Linux, depends on the system libLLVM.so.
   target_link_libraries(vulkan-runtime-wrappers
     PUBLIC
     ${Vulkan_LIBRARY}
   )
 
-  get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
   get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
   set(LIBS
-    ${dialect_libs}
     ${conversion_libs}
-    LLVMCore
-    LLVMSupport
     MLIRAnalysis
-    MLIREDSC
     MLIRExecutionEngine
+    MLIRGPU
     MLIRIR
     MLIRJitRunner
     MLIRLLVMIR
+    MLIRLLVMToLLVMIRTranslation
+    MLIRMemRef
     MLIRParser
+    MLIRSPIRV
     MLIRSPIRVTransforms
+    MLIRStandard
     MLIRSupport
-    MLIRTargetLLVMIR
+    MLIRTargetLLVMIRExport
     MLIRTransforms
     MLIRTranslation
     ${Vulkan_LIBRARY}
@@ -87,9 +87,11 @@ if (MLIR_VULKAN_RUNNER_ENABLED)
 
   add_llvm_tool(mlir-vulkan-runner
     mlir-vulkan-runner.cpp
+
+    DEPENDS
+    vulkan-runtime-wrappers
   )
-  add_dependencies(mlir-vulkan-runner vulkan-runtime-wrappers)
   llvm_update_compile_flags(mlir-vulkan-runner)
-  target_link_libraries(mlir-vulkan-runner PRIVATE ${FULL_LINK_LIBS} ${LIBS})
+  target_link_libraries(mlir-vulkan-runner PRIVATE ${LIBS})
 
 endif()

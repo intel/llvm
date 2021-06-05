@@ -66,6 +66,10 @@ public:
 };
 
 TEST(ScudoWrappersCppTest, New) {
+  if (getenv("SKIP_TYPE_MISMATCH")) {
+    printf("Skipped type mismatch tests.\n");
+    return;
+  }
   testCxxNew<bool>();
   testCxxNew<uint8_t>();
   testCxxNew<uint16_t>();
@@ -79,7 +83,7 @@ TEST(ScudoWrappersCppTest, New) {
 
 static std::mutex Mutex;
 static std::condition_variable Cv;
-static bool Ready = false;
+static bool Ready;
 
 static void stressNew() {
   std::vector<uintptr_t *> V;
@@ -103,6 +107,7 @@ static void stressNew() {
 }
 
 TEST(ScudoWrappersCppTest, ThreadedNew) {
+  Ready = false;
   std::thread Threads[32];
   for (size_t I = 0U; I < sizeof(Threads) / sizeof(Threads[0]); I++)
     Threads[I] = std::thread(stressNew);

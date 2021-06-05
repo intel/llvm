@@ -41,6 +41,7 @@
 
 #include "SPIRVDebug.h"
 #include "SPIRVUtil.h"
+#include <iostream>
 #include <sstream>
 #include <string>
 
@@ -48,17 +49,32 @@ namespace SPIRV {
 
 // Check condition and set error code and error msg.
 // To use this macro, function checkError must be defined in the scope.
+// Emit absolute path only in debug mode.
+#ifdef NDEBUG
+#define SPIRVCK(Condition, ErrCode, ErrMsg)                                    \
+  getErrorLog().checkError(Condition, SPIRVEC_##ErrCode,                       \
+                           std::string() + (ErrMsg), #Condition)
+#else
 #define SPIRVCK(Condition, ErrCode, ErrMsg)                                    \
   getErrorLog().checkError(Condition, SPIRVEC_##ErrCode,                       \
                            std::string() + (ErrMsg), #Condition, __FILE__,     \
                            __LINE__)
+#endif // NDEBUG
 
 // Check condition and set error code and error msg. If fail returns false.
+// Emit absolute path only in debug mode.
+#ifdef NDEBUG
+#define SPIRVCKRT(Condition, ErrCode, ErrMsg)                                  \
+  if (!getErrorLog().checkError(Condition, SPIRVEC_##ErrCode,                  \
+                                std::string() + (ErrMsg), #Condition))         \
+    return false;
+#else
 #define SPIRVCKRT(Condition, ErrCode, ErrMsg)                                  \
   if (!getErrorLog().checkError(Condition, SPIRVEC_##ErrCode,                  \
                                 std::string() + (ErrMsg), #Condition,          \
                                 __FILE__, __LINE__))                           \
     return false;
+#endif // NDEBUG
 
 // Defines error code enum type SPIRVErrorCode.
 enum SPIRVErrorCode {
@@ -115,16 +131,17 @@ inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
   setError(ErrCode, SS.str());
   switch (SPIRVDbgError) {
   case SPIRVDbgErrorHandlingKinds::Abort:
-    spvdbgs() << SS.str() << '\n';
-    spvdbgs().flush();
+    std::cerr << SS.str() << std::endl;
     abort();
     break;
   case SPIRVDbgErrorHandlingKinds::Exit:
-    spvdbgs() << SS.str() << '\n';
-    spvdbgs().flush();
+    std::cerr << SS.str() << std::endl;
     std::exit(ErrCode);
     break;
   case SPIRVDbgErrorHandlingKinds::Ignore:
+    // Still print info about the error into debug output stream
+    spvdbgs() << SS.str() << '\n';
+    spvdbgs().flush();
     break;
   }
   return Cond;

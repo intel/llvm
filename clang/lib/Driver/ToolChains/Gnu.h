@@ -218,6 +218,9 @@ public:
     /// The set of multilibs that the detected installation supports.
     MultilibSet Multilibs;
 
+    // Gentoo-specific toolchain configurations are stored here.
+    const std::string GentooConfigDir = "/etc/env.d/gcc";
+
   public:
     explicit GCCInstallationDetector(const Driver &D) : IsValid(false), D(D) {}
     void init(const llvm::Triple &TargetTriple, const llvm::opt::ArgList &Args,
@@ -273,7 +276,8 @@ public:
                                 const llvm::opt::ArgList &Args,
                                 const std::string &LibDir,
                                 StringRef CandidateTriple,
-                                bool NeedsBiarchSuffix = false);
+                                bool NeedsBiarchSuffix, bool GCCDirExists,
+                                bool GCCCrossDirExists);
 
     bool ScanGentooConfigs(const llvm::Triple &TargetTriple,
                            const llvm::opt::ArgList &Args,
@@ -312,11 +316,6 @@ protected:
   Tool *buildAssembler() const override;
   Tool *buildLinker() const override;
 
-  virtual std::string getMultiarchTriple(const Driver &D,
-                                         const llvm::Triple &TargetTriple,
-                                         StringRef SysRoot) const
-  { return TargetTriple.str(); }
-
   /// \name ToolChain Implementation Helper Functions
   /// @{
 
@@ -349,16 +348,15 @@ protected:
   addLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
                            llvm::opt::ArgStringList &CC1Args) const;
 
-  bool
-  addGCCLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
-                           llvm::opt::ArgStringList &CC1Args) const;
+  bool addGCCLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
+                                   llvm::opt::ArgStringList &CC1Args,
+                                   StringRef DebianMultiarch) const;
 
-  bool addLibStdCXXIncludePaths(Twine Base, Twine Suffix, StringRef GCCTriple,
-                                StringRef GCCMultiarchTriple,
-                                StringRef TargetMultiarchTriple,
+  bool addLibStdCXXIncludePaths(Twine IncludeDir, StringRef Triple,
                                 Twine IncludeSuffix,
                                 const llvm::opt::ArgList &DriverArgs,
-                                llvm::opt::ArgStringList &CC1Args) const;
+                                llvm::opt::ArgStringList &CC1Args,
+                                bool DetectDebian = false) const;
 
   /// @}
 

@@ -476,6 +476,8 @@ int main(int argc, const char *argv[]) {
   [newMutableDictionary setObject:@"foo" forKey:@"bar19"];
   [newMutableDictionary setObject:@"foo" forKey:@"bar20"];
 
+  CFMutableDictionaryRef newMutableDictionaryRef = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, newMutableDictionary);
+
   id cfKeys[4] = {@"foo", @"bar", @"baz", @"quux"};
   id cfValues[4] = {@"foo", @"bar", @"baz", @"quux"};
   NSDictionary *nsDictionary = CFBridgingRelease(
@@ -654,6 +656,17 @@ int main(int argc, const char *argv[]) {
   NSDate *date5 =
       [NSDate dateWithTimeIntervalSinceReferenceDate:
                   floor([[NSDate date] timeIntervalSinceReferenceDate])];
+
+  NSDate *date_1970_minus_06 = [NSDate dateWithTimeIntervalSince1970:-0.6];
+  NSDate *date_1970_minus_05 = [NSDate dateWithTimeIntervalSince1970:-0.5];
+  NSDate *date_1970_minus_04 = [NSDate dateWithTimeIntervalSince1970:-0.4];
+
+  NSDate *date_1970_plus_06 = [NSDate dateWithTimeIntervalSince1970:0.6];
+  NSDate *date_1970_plus_05 = [NSDate dateWithTimeIntervalSince1970:0.5];
+  NSDate *date_1970_plus_04 = [NSDate dateWithTimeIntervalSince1970:0.4];
+
+  NSDate *distant_past = [NSDate distantPast];
+  NSDate *distant_future = [NSDate distantFuture];
 
   CFAbsoluteTime date1_abs = CFDateGetAbsoluteTime(date1);
   CFAbsoluteTime date2_abs = CFDateGetAbsoluteTime(date2);

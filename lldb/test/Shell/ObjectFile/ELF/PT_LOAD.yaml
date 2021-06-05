@@ -1,6 +1,6 @@
 # Test that sections are made child-sections of the PT_LOAD segments/sections.
 
-# RUN: yaml2obj %s > %t
+# RUN: yaml2obj %s -o %t
 # RUN: lldb-test object-file %t | FileCheck %s
 
 # CHECK:      Index: 0
@@ -74,6 +74,5 @@ ProgramHeaders:
     Flags: [ PF_X, PF_W, PF_R ]
     VAddr: 0x1000
     Align: 0x4
-    Sections:
-      - Section: .text
-      - Section: .data
+    FirstSec: .text
+    LastSec:  .data

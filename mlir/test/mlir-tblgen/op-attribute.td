@@ -48,21 +48,21 @@ def AOp : NS_Op<"a_op", []> {
 // ---
 
 // DEF:      some-attr-kind AOp::aAttrAttr()
-// DEF-NEXT:   this->getAttr("aAttr").cast<some-attr-kind>()
+// DEF-NEXT:   (*this)->getAttr("aAttr").template cast<some-attr-kind>()
 // DEF:      some-return-type AOp::aAttr() {
 // DEF-NEXT:   auto attr = aAttrAttr()
 // DEF-NEXT:   return attr.some-convert-from-storage();
 
 // DEF:      some-attr-kind AOp::bAttrAttr()
-// DEF-NEXT:   return this->getAttr("bAttr").dyn_cast_or_null<some-attr-kind>()
+// DEF-NEXT:   return (*this)->getAttr("bAttr").template dyn_cast_or_null<some-attr-kind>()
 // DEF:      some-return-type AOp::bAttr() {
 // DEF-NEXT:   auto attr = bAttrAttr();
 // DEF-NEXT:   if (!attr)
-// DEF-NEXT:       return some-const-builder-call(::mlir::Builder(this->getContext()), 4.2).some-convert-from-storage();
+// DEF-NEXT:       return some-const-builder-call(::mlir::Builder((*this)->getContext()), 4.2).some-convert-from-storage();
 // DEF-NEXT:   return attr.some-convert-from-storage();
 
 // DEF:      some-attr-kind AOp::cAttrAttr()
-// DEF-NEXT:   return this->getAttr("cAttr").dyn_cast_or_null<some-attr-kind>()
+// DEF-NEXT:   return (*this)->getAttr("cAttr").template dyn_cast_or_null<some-attr-kind>()
 // DEF:      ::llvm::Optional<some-return-type> AOp::cAttr() {
 // DEF-NEXT:   auto attr = cAttrAttr()
 // DEF-NEXT:   return attr ? ::llvm::Optional<some-return-type>(attr.some-convert-from-storage()) : (::llvm::None);
@@ -71,11 +71,17 @@ def AOp : NS_Op<"a_op", []> {
 // ---
 
 // DEF:      void AOp::aAttrAttr(some-attr-kind attr) {
-// DEF-NEXT:   this->getOperation()->setAttr("aAttr", attr);
+// DEF-NEXT:   (*this)->setAttr("aAttr", attr);
 // DEF:      void AOp::bAttrAttr(some-attr-kind attr) {
-// DEF-NEXT:   this->getOperation()->setAttr("bAttr", attr);
+// DEF-NEXT:   (*this)->setAttr("bAttr", attr);
 // DEF:      void AOp::cAttrAttr(some-attr-kind attr) {
-// DEF-NEXT:   this->getOperation()->setAttr("cAttr", attr);
+// DEF-NEXT:   (*this)->setAttr("cAttr", attr);
+
+// Test remove methods
+// ---
+
+// DEF: ::mlir::Attribute AOp::removeCAttrAttr() {
+// DEF-NEXT: return (*this)->removeAttr("cAttr");
 
 // Test build methods
 // ---
@@ -107,7 +113,7 @@ def BOp : NS_Op<"b_op", []> {
     StrAttr:$str_attr,
     ElementsAttr:$elements_attr,
     FlatSymbolRefAttr:$function_attr,
-    SomeTypeAttr:$type_attr,
+    SomeTypeAttr:$some_type_attr,
     ArrayAttr:$array_attr,
     TypedArrayAttrBase<SomeAttr, "SomeAttr array">:$some_attr_array,
     TypeAttr:$type_attr
@@ -128,9 +134,9 @@ def BOp : NS_Op<"b_op", []> {
 // DEF: if (!((tblgen_str_attr.isa<::mlir::StringAttr>())))
 // DEF: if (!((tblgen_elements_attr.isa<::mlir::ElementsAttr>())))
 // DEF: if (!((tblgen_function_attr.isa<::mlir::FlatSymbolRefAttr>())))
-// DEF: if (!(((tblgen_type_attr.isa<::mlir::TypeAttr>())) && ((tblgen_type_attr.cast<::mlir::TypeAttr>().getValue().isa<SomeType>()))))
+// DEF: if (!(((tblgen_some_type_attr.isa<::mlir::TypeAttr>())) && ((tblgen_some_type_attr.cast<::mlir::TypeAttr>().getValue().isa<SomeType>()))))
 // DEF: if (!((tblgen_array_attr.isa<::mlir::ArrayAttr>())))
-// DEF: if (!(((tblgen_some_attr_array.isa<::mlir::ArrayAttr>())) && (::llvm::all_of(tblgen_some_attr_array.cast<::mlir::ArrayAttr>(), [](::mlir::Attribute attr) { return (some-condition); }))))
+// DEF: if (!(((tblgen_some_attr_array.isa<::mlir::ArrayAttr>())) && (::llvm::all_of(tblgen_some_attr_array.cast<::mlir::ArrayAttr>(), [&](::mlir::Attribute attr) { return (some-condition); }))))
 // DEF: if (!(((tblgen_type_attr.isa<::mlir::TypeAttr>())) && ((tblgen_type_attr.cast<::mlir::TypeAttr>().getValue().isa<::mlir::Type>()))))
 
 // Test common attribute kind getters' return types
@@ -138,14 +144,14 @@ def BOp : NS_Op<"b_op", []> {
 
 // DEF: ::mlir::Attribute BOp::any_attr()
 // DEF: bool BOp::bool_attr()
-// DEF: ::llvm::APInt BOp::i32_attr()
-// DEF: ::llvm::APInt BOp::i64_attr()
+// DEF: uint32_t BOp::i32_attr()
+// DEF: uint64_t BOp::i64_attr()
 // DEF: ::llvm::APFloat BOp::f32_attr()
 // DEF: ::llvm::APFloat BOp::f64_attr()
 // DEF: ::llvm::StringRef BOp::str_attr()
 // DEF: ::mlir::ElementsAttr BOp::elements_attr()
 // DEF: ::llvm::StringRef BOp::function_attr()
-// DEF: SomeType BOp::type_attr()
+// DEF: SomeType BOp::some_type_attr()
 // DEF: ::mlir::ArrayAttr BOp::array_attr()
 // DEF: ::mlir::ArrayAttr BOp::some_attr_array()
 // DEF: ::mlir::Type BOp::type_attr()
@@ -164,11 +170,11 @@ def COp : NS_Op<"c_op", []> {
 }
 
 // DEF-LABEL: COp definitions
-// DEF: ::mlir::Builder(this->getContext()).getI32ArrayAttr({1, 2})
-// DEF: ::mlir::Builder(this->getContext()).getI64ArrayAttr({3, 4})
-// DEF: ::mlir::Builder(this->getContext()).getF32ArrayAttr({5.f, 6.f})
-// DEF: ::mlir::Builder(this->getContext()).getF64ArrayAttr({7., 8.})
-// DEF: ::mlir::Builder(this->getContext()).getStrArrayAttr({"a", "b"})
+// DEF: ::mlir::Builder((*this)->getContext()).getI32ArrayAttr({1, 2})
+// DEF: ::mlir::Builder((*this)->getContext()).getI64ArrayAttr({3, 4})
+// DEF: ::mlir::Builder((*this)->getContext()).getF32ArrayAttr({5.f, 6.f})
+// DEF: ::mlir::Builder((*this)->getContext()).getF64ArrayAttr({7., 8.})
+// DEF: ::mlir::Builder((*this)->getContext()).getStrArrayAttr({"a", "b"})
 
 
 // Test builder method which takes unwrapped values for attributes
@@ -196,7 +202,7 @@ def DOp : NS_Op<"d_op", []> {
 }
 
 // DECL-LABEL: DOp declarations
-// DECL: static void build({{.*}}, ::llvm::APInt i32_attr, ::llvm::APFloat f64_attr, ::llvm::StringRef str_attr, bool bool_attr, ::SomeI32Enum enum_attr, ::llvm::APInt dv_i32_attr, ::llvm::APFloat dv_f64_attr, ::llvm::StringRef dv_str_attr = "abc", bool dv_bool_attr = true, ::SomeI32Enum dv_enum_attr = ::SomeI32Enum::case5)
+// DECL: static void build({{.*}}, uint32_t i32_attr, ::llvm::APFloat f64_attr, ::llvm::StringRef str_attr, bool bool_attr, ::SomeI32Enum enum_attr, uint32_t dv_i32_attr, ::llvm::APFloat dv_f64_attr, ::llvm::StringRef dv_str_attr = "abc", bool dv_bool_attr = true, ::SomeI32Enum dv_enum_attr = ::SomeI32Enum::case5)
 
 // DEF-LABEL: DOp definitions
 // DEF: odsState.addAttribute("str_attr", odsBuilder.getStringAttr(str_attr));
@@ -238,7 +244,7 @@ def EOp : NS_Op<"e_op", []> {
 }
 
 // DECL-LABEL: EOp declarations
-// DECL: static void build({{.*}}, ::llvm::APInt i32_attr, ::llvm::APInt dv_i32_attr, ::llvm::APFloat f64_attr, ::llvm::APFloat dv_f64_attr, ::llvm::StringRef str_attr, ::llvm::StringRef dv_str_attr, bool bool_attr, bool dv_bool_attr, ::SomeI32Enum enum_attr, ::SomeI32Enum dv_enum_attr = ::SomeI32Enum::case5)
+// DECL: static void build({{.*}}, uint32_t i32_attr, uint32_t dv_i32_attr, ::llvm::APFloat f64_attr, ::llvm::APFloat dv_f64_attr, ::llvm::StringRef str_attr, ::llvm::StringRef dv_str_attr, bool bool_attr, bool dv_bool_attr, ::SomeI32Enum enum_attr, ::SomeI32Enum dv_enum_attr = ::SomeI32Enum::case5)
 
 // Test mixing operands and attributes in arbitrary order
 // ---
@@ -265,6 +271,9 @@ def UnitAttrOp : NS_Op<"unit_attr_op", []> {
 // DEF: bool UnitAttrOp::attr() {
 // DEF:   return {{.*}} != nullptr
 
+// DEF: ::mlir::Attribute UnitAttrOp::removeAttrAttr() {
+// DEF-NEXT:   (*this)->removeAttr("attr");
+
 // DEF: build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, /*optional*/::mlir::UnitAttr attr)
 
 
@@ -275,3 +284,19 @@ def SomeTypedArrayAttr : TypedArrayAttrBase<SomeAttr, "SomeAttr array">;
 
 // RECORD-LABEL: def SomeTypedArrayAttr
 // RECORD: Attr elementAttr = SomeAttr;
+
+def Test_Dialect_2 : Dialect {
+  let name = "dialect_2";
+}
+def MyStruct : StructAttr<"MyStruct", Test_Dialect_2,
+[StructFieldAttr<"potatoes", I64ElementsAttr>]> {
+  let summary = "A structure describing a number of potatoes.";
+}
+
+def StructAttrOp : NS_Op<"struct_attr_op", []> {
+  let arguments = (ins
+    MyStruct:$potatoes
+  );
+}
+
+// DECL: dialect_2::MyStruct potatoes();

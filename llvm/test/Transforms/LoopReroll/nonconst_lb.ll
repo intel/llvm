@@ -48,15 +48,15 @@ for.end:                                          ; preds = %for.body, %entry
   ret void
 }
 ; CHECK-LABEL: @foo
-; CHECK: for.body.preheader:                               ; preds = %entry
+; CHECK: for.body.preheader:
 ; CHECK:   %0 = add i32 %n, -1
 ; CHECK:   %1 = sub i32 %0, %m
 ; CHECK:   %2 = lshr i32 %1, 2
 ; CHECK:   %3 = shl nuw i32 %2, 2
-; CHECK:   %4 = add i32 %3, 3
+; CHECK:   %4 = add nuw nsw i32 %3, 3
 ; CHECK:   br label %for.body
 
-; CHECK: for.body:                                         ; preds = %for.body, %for.body.preheader
+; CHECK: for.body:
 ; CHECK:   %indvar = phi i32 [ 0, %for.body.preheader ], [ %indvar.next, %for.body ]
 ; CHECK:   %5 = add i32 %m, %indvar
 ; CHECK:   %arrayidx = getelementptr inbounds i32, i32* %B, i32 %5
@@ -132,7 +132,7 @@ for.end:                                          ; preds = %for.body, %entry
 ; CHECK:   %1 = sub i32 %0, %rem
 ; CHECK:   %2 = lshr i32 %1, 2
 ; CHECK:   %3 = shl nuw i32 %2, 2
-; CHECK:   %4 = add i32 %3, 3
+; CHECK:   %4 = add nuw nsw i32 %3, 3
 ; CHECK:   br label %for.body
 
 ; CHECK: for.body:

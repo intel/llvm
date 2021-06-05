@@ -55,7 +55,7 @@ define float @test_fminf(float %x, float %y) {
 define float @test_fminf_minsize(float %x, float %y) minsize {
 ; CHECK-LABEL: test_fminf_minsize:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    jmp fminf # TAILCALL
+; CHECK-NEXT:    jmp fminf@PLT # TAILCALL
   %z = call float @fminf(float %x, float %y) readnone
   ret float %z
 }
@@ -606,6 +606,14 @@ define float @test_minnum_const_op2(float %x) {
 ; AVX-NEXT:    vminss {{.*}}(%rip), %xmm0, %xmm0
 ; AVX-NEXT:    retq
   %r = call float @llvm.minnum.f32(float %x, float 1.0)
+  ret float %r
+}
+
+define float @test_minnum_const_nan(float %x) {
+; CHECK-LABEL: test_minnum_const_nan:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    retq
+  %r = call float @llvm.minnum.f32(float %x, float 0x7fff000000000000)
   ret float %r
 }
 

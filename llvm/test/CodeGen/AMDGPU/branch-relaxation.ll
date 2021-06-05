@@ -1,9 +1,9 @@
-; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs -amdgpu-s-branch-bits=4 < %s | FileCheck -enable-var-scope -check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs -amdgpu-s-branch-bits=4 -simplifycfg-require-and-preserve-domtree=1 < %s | FileCheck -enable-var-scope -check-prefix=GCN %s
 
 
 ; FIXME: We should use llvm-mc for this, but we can't even parse our own output.
 ;        See PR33579.
-; RUN: llc -march=amdgcn -verify-machineinstrs -amdgpu-s-branch-bits=4 -o %t.o -filetype=obj %s
+; RUN: llc -march=amdgcn -verify-machineinstrs -amdgpu-s-branch-bits=4 -o %t.o -filetype=obj -simplifycfg-require-and-preserve-domtree=1 %s
 ; RUN: llvm-readobj -r %t.o | FileCheck --check-prefix=OBJ %s
 
 ; OBJ:       Relocations [
@@ -245,7 +245,7 @@ bb3:
 
 ; GCN: v_mov_b32_e32 [[BB4_K:v[0-9]+]], 63
 ; GCN: buffer_store_dword [[BB4_K]]
-; GCN-NEXT: s_endpgm
+; GCN: s_endpgm
 ; GCN-NEXT: .Lfunc_end{{[0-9]+}}:
 define amdgpu_kernel void @uniform_unconditional_min_long_forward_branch(i32 addrspace(1)* %arg, i32 %arg1) {
 bb0:
@@ -482,13 +482,10 @@ ret:
 ; GCN: s_add_u32 s{{[0-9]+}}, s{{[0-9]+}}, [[LONG_BR_DEST0:BB[0-9]+_[0-9]+]]-(
 ; GCN-NEXT: s_addc_u32
 ; GCN-NEXT: s_setpc_b64
-
 ; GCN-NEXT: [[LONG_BR_0]]:
-; GCN: s_setpc_b64
 
-; GCN: [[LONG_BR_DEST0]]
+; GCN: [[LONG_BR_DEST0]]:
 
-; GCN: s_cbranch_vccnz
 ; GCN-DAG: v_cmp_lt_i32
 ; GCN-DAG: v_cmp_ge_i32
 

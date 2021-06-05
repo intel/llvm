@@ -80,23 +80,24 @@ namespace {
     bool tryExpandAtomicRMW(AtomicRMWInst *AI);
     Value *
     insertRMWLLSCLoop(IRBuilder<> &Builder, Type *ResultTy, Value *Addr,
-                      AtomicOrdering MemOpOrder,
+                      Align AddrAlign, AtomicOrdering MemOpOrder,
                       function_ref<Value *(IRBuilder<> &, Value *)> PerformOp);
     void expandAtomicOpToLLSC(
-        Instruction *I, Type *ResultTy, Value *Addr, AtomicOrdering MemOpOrder,
+        Instruction *I, Type *ResultTy, Value *Addr, Align AddrAlign,
+        AtomicOrdering MemOpOrder,
         function_ref<Value *(IRBuilder<> &, Value *)> PerformOp);
     void expandPartwordAtomicRMW(
         AtomicRMWInst *I,
         TargetLoweringBase::AtomicExpansionKind ExpansionKind);
     AtomicRMWInst *widenPartwordAtomicRMW(AtomicRMWInst *AI);
-    void expandPartwordCmpXchg(AtomicCmpXchgInst *I);
+    bool expandPartwordCmpXchg(AtomicCmpXchgInst *I);
     void expandAtomicRMWToMaskedIntrinsic(AtomicRMWInst *AI);
     void expandAtomicCmpXchgToMaskedIntrinsic(AtomicCmpXchgInst *CI);
 
     AtomicCmpXchgInst *convertCmpXchgToIntegerType(AtomicCmpXchgInst *CI);
     static Value *insertRMWCmpXchgLoop(
-        IRBuilder<> &Builder, Type *ResultType, Value *Addr,
-        AtomicOrdering MemOpOrder,
+        IRBuilder<> &Builder, Type *ResultType, Value *Addr, Align AddrAlign,
+        AtomicOrdering MemOpOrder, SyncScope::ID SSID,
         function_ref<Value *(IRBuilder<> &, Value *)> PerformOp,
         CreateCmpXchgInstFun CreateCmpXchg);
     bool tryExpandAtomicCmpXchg(AtomicCmpXchgInst *CI);
@@ -105,7 +106,7 @@ namespace {
     bool isIdempotentRMW(AtomicRMWInst *RMWI);
     bool simplifyIdempotentRMW(AtomicRMWInst *RMWI);
 
-    bool expandAtomicOpToLibcall(Instruction *I, unsigned Size, unsigned Align,
+    bool expandAtomicOpToLibcall(Instruction *I, unsigned Size, Align Alignment,
                                  Value *PointerOperand, Value *ValueOperand,
                                  Value *CASExpected, AtomicOrdering Ordering,
                                  AtomicOrdering Ordering2,
@@ -152,47 +153,15 @@ static unsigned getAtomicOpSize(AtomicCmpXchgInst *CASI) {
   return DL.getTypeStoreSize(CASI->getCompareOperand()->getType());
 }
 
-// Helper functions to retrieve the alignment of atomic instructions.
-static unsigned getAtomicOpAlign(LoadInst *LI) {
-  unsigned Align = LI->getAlignment();
-  // In the future, if this IR restriction is relaxed, we should
-  // return DataLayout::getABITypeAlignment when there's no align
-  // value.
-  assert(Align != 0 && "An atomic LoadInst always has an explicit alignment");
-  return Align;
-}
-
-static unsigned getAtomicOpAlign(StoreInst *SI) {
-  unsigned Align = SI->getAlignment();
-  // In the future, if this IR restriction is relaxed, we should
-  // return DataLayout::getABITypeAlignment when there's no align
-  // value.
-  assert(Align != 0 && "An atomic StoreInst always has an explicit alignment");
-  return Align;
-}
-
-static unsigned getAtomicOpAlign(AtomicRMWInst *RMWI) {
-  // TODO(PR27168): This instruction has no alignment attribute, but unlike the
-  // default alignment for load/store, the default here is to assume
-  // it has NATURAL alignment, not DataLayout-specified alignment.
-  const DataLayout &DL = RMWI->getModule()->getDataLayout();
-  return DL.getTypeStoreSize(RMWI->getValOperand()->getType());
-}
-
-static unsigned getAtomicOpAlign(AtomicCmpXchgInst *CASI) {
-  // TODO(PR27168): same comment as above.
-  const DataLayout &DL = CASI->getModule()->getDataLayout();
-  return DL.getTypeStoreSize(CASI->getCompareOperand()->getType());
-}
-
 // Determine if a particular atomic operation has a supported size,
 // and is of appropriate alignment, to be passed through for target
 // lowering. (Versus turning into a __atomic libcall)
 template <typename Inst>
 static bool atomicSizeSupported(const TargetLowering *TLI, Inst *I) {
   unsigned Size = getAtomicOpSize(I);
-  unsigned Align = getAtomicOpAlign(I);
-  return Align >= Size && Size <= TLI->getMaxAtomicSizeInBitsSupported() / 8;
+  Align Alignment = I->getAlign();
+  return Alignment >= Size &&
+         Size <= TLI->getMaxAtomicSizeInBitsSupported() / 8;
 }
 
 bool AtomicExpand::runOnFunction(Function &F) {
@@ -400,7 +369,8 @@ bool AtomicExpand::tryExpandAtomicLoad(LoadInst *LI) {
     return false;
   case TargetLoweringBase::AtomicExpansionKind::LLSC:
     expandAtomicOpToLLSC(
-        LI, LI->getType(), LI->getPointerOperand(), LI->getOrdering(),
+        LI, LI->getType(), LI->getPointerOperand(), LI->getAlign(),
+        LI->getOrdering(),
         [](IRBuilder<> &Builder, Value *Loaded) { return Loaded; });
     return true;
   case TargetLoweringBase::AtomicExpansionKind::LLOnly:
@@ -439,7 +409,7 @@ bool AtomicExpand::expandAtomicLoadToCmpXchg(LoadInst *LI) {
   Constant *DummyVal = Constant::getNullValue(Ty);
 
   Value *Pair = Builder.CreateAtomicCmpXchg(
-      Addr, DummyVal, DummyVal, Order,
+      Addr, DummyVal, DummyVal, LI->getAlign(), Order,
       AtomicCmpXchgInst::getStrongestFailureOrdering(Order));
   Value *Loaded = Builder.CreateExtractValue(Pair, 0, "loaded");
 
@@ -486,9 +456,9 @@ bool AtomicExpand::expandAtomicStore(StoreInst *SI) {
   // It is the responsibility of the target to only signal expansion via
   // shouldExpandAtomicRMW in cases where this is required and possible.
   IRBuilder<> Builder(SI);
-  AtomicRMWInst *AI =
-      Builder.CreateAtomicRMW(AtomicRMWInst::Xchg, SI->getPointerOperand(),
-                              SI->getValueOperand(), SI->getOrdering());
+  AtomicRMWInst *AI = Builder.CreateAtomicRMW(
+      AtomicRMWInst::Xchg, SI->getPointerOperand(), SI->getValueOperand(),
+      SI->getAlign(), SI->getOrdering());
   SI->eraseFromParent();
 
   // Now we have an appropriate swap instruction, lower it as usual.
@@ -496,8 +466,8 @@ bool AtomicExpand::expandAtomicStore(StoreInst *SI) {
 }
 
 static void createCmpXchgInstFun(IRBuilder<> &Builder, Value *Addr,
-                                 Value *Loaded, Value *NewVal,
-                                 AtomicOrdering MemOpOrder,
+                                 Value *Loaded, Value *NewVal, Align AddrAlign,
+                                 AtomicOrdering MemOpOrder, SyncScope::ID SSID,
                                  Value *&Success, Value *&NewLoaded) {
   Type *OrigTy = NewVal->getType();
 
@@ -511,9 +481,9 @@ static void createCmpXchgInstFun(IRBuilder<> &Builder, Value *Addr,
     Loaded = Builder.CreateBitCast(Loaded, IntTy);
   }
 
-  Value* Pair = Builder.CreateAtomicCmpXchg(
-      Addr, Loaded, NewVal, MemOpOrder,
-      AtomicCmpXchgInst::getStrongestFailureOrdering(MemOpOrder));
+  Value *Pair = Builder.CreateAtomicCmpXchg(
+      Addr, Loaded, NewVal, AddrAlign, MemOpOrder,
+      AtomicCmpXchgInst::getStrongestFailureOrdering(MemOpOrder), SSID);
   Success = Builder.CreateExtractValue(Pair, 1, "success");
   NewLoaded = Builder.CreateExtractValue(Pair, 0, "newloaded");
 
@@ -578,7 +548,7 @@ bool AtomicExpand::tryExpandAtomicRMW(AtomicRMWInst *AI) {
                                AI->getValOperand());
       };
       expandAtomicOpToLLSC(AI, AI->getType(), AI->getPointerOperand(),
-                           AI->getOrdering(), PerformOp);
+                           AI->getAlign(), AI->getOrdering(), PerformOp);
     }
     return true;
   }
@@ -613,6 +583,7 @@ struct PartwordMaskValues {
   Type *WordType = nullptr;
   Type *ValueType = nullptr;
   Value *AlignedAddr = nullptr;
+  Align AlignedAddrAlignment;
   // The remaining fields can be null.
   Value *ShiftAmt = nullptr;
   Value *Mask = nullptr;
@@ -635,6 +606,7 @@ raw_ostream &operator<<(raw_ostream &O, const PartwordMaskValues &PMV) {
   PrintObj(PMV.ValueType);
   O << "  AlignedAddr: ";
   PrintObj(PMV.AlignedAddr);
+  O << "  AlignedAddrAlignment: " << PMV.AlignedAddrAlignment.value() << '\n';
   O << "  ShiftAmt: ";
   PrintObj(PMV.ShiftAmt);
   O << "  Mask: ";
@@ -665,6 +637,7 @@ raw_ostream &operator<<(raw_ostream &O, const PartwordMaskValues &PMV) {
 /// Inv_Mask: The inverse of Mask.
 static PartwordMaskValues createMaskInstrs(IRBuilder<> &Builder, Instruction *I,
                                            Type *ValueType, Value *Addr,
+                                           Align AddrAlign,
                                            unsigned MinWordSize) {
   PartwordMaskValues PMV;
 
@@ -678,6 +651,7 @@ static PartwordMaskValues createMaskInstrs(IRBuilder<> &Builder, Instruction *I,
                                          : ValueType;
   if (PMV.ValueType == PMV.WordType) {
     PMV.AlignedAddr = Addr;
+    PMV.AlignedAddrAlignment = AddrAlign;
     return PMV;
   }
 
@@ -686,10 +660,12 @@ static PartwordMaskValues createMaskInstrs(IRBuilder<> &Builder, Instruction *I,
   Type *WordPtrType =
       PMV.WordType->getPointerTo(Addr->getType()->getPointerAddressSpace());
 
+  // TODO: we could skip some of this if AddrAlign >= MinWordSize.
   Value *AddrInt = Builder.CreatePtrToInt(Addr, DL.getIntPtrType(Ctx));
   PMV.AlignedAddr = Builder.CreateIntToPtr(
       Builder.CreateAnd(AddrInt, ~(uint64_t)(MinWordSize - 1)), WordPtrType,
       "AlignedAddr");
+  PMV.AlignedAddrAlignment = Align(MinWordSize);
 
   Value *PtrLSB = Builder.CreateAnd(AddrInt, MinWordSize - 1, "PtrLSB");
   if (DL.isLittleEndian()) {
@@ -792,12 +768,13 @@ static Value *performMaskedAtomicOp(AtomicRMWInst::BinOp Op,
 void AtomicExpand::expandPartwordAtomicRMW(
     AtomicRMWInst *AI, TargetLoweringBase::AtomicExpansionKind ExpansionKind) {
   AtomicOrdering MemOpOrder = AI->getOrdering();
+  SyncScope::ID SSID = AI->getSyncScopeID();
 
   IRBuilder<> Builder(AI);
 
   PartwordMaskValues PMV =
       createMaskInstrs(Builder, AI, AI->getType(), AI->getPointerOperand(),
-                       TLI->getMinCmpXchgSizeInBits() / 8);
+                       AI->getAlign(), TLI->getMinCmpXchgSizeInBits() / 8);
 
   Value *ValOperand_Shifted =
       Builder.CreateShl(Builder.CreateZExt(AI->getValOperand(), PMV.WordType),
@@ -810,13 +787,15 @@ void AtomicExpand::expandPartwordAtomicRMW(
 
   Value *OldResult;
   if (ExpansionKind == TargetLoweringBase::AtomicExpansionKind::CmpXChg) {
-    OldResult =
-        insertRMWCmpXchgLoop(Builder, PMV.WordType, PMV.AlignedAddr, MemOpOrder,
-                             PerformPartwordOp, createCmpXchgInstFun);
+    OldResult = insertRMWCmpXchgLoop(Builder, PMV.WordType, PMV.AlignedAddr,
+                                     PMV.AlignedAddrAlignment, MemOpOrder,
+                                     SSID, PerformPartwordOp,
+                                     createCmpXchgInstFun);
   } else {
     assert(ExpansionKind == TargetLoweringBase::AtomicExpansionKind::LLSC);
     OldResult = insertRMWLLSCLoop(Builder, PMV.WordType, PMV.AlignedAddr,
-                                  MemOpOrder, PerformPartwordOp);
+                                  PMV.AlignedAddrAlignment, MemOpOrder,
+                                  PerformPartwordOp);
   }
 
   Value *FinalOldResult = extractMaskedValue(Builder, OldResult, PMV);
@@ -835,7 +814,7 @@ AtomicRMWInst *AtomicExpand::widenPartwordAtomicRMW(AtomicRMWInst *AI) {
 
   PartwordMaskValues PMV =
       createMaskInstrs(Builder, AI, AI->getType(), AI->getPointerOperand(),
-                       TLI->getMinCmpXchgSizeInBits() / 8);
+                       AI->getAlign(), TLI->getMinCmpXchgSizeInBits() / 8);
 
   Value *ValOperand_Shifted =
       Builder.CreateShl(Builder.CreateZExt(AI->getValOperand(), PMV.WordType),
@@ -849,8 +828,9 @@ AtomicRMWInst *AtomicExpand::widenPartwordAtomicRMW(AtomicRMWInst *AI) {
   else
     NewOperand = ValOperand_Shifted;
 
-  AtomicRMWInst *NewAI = Builder.CreateAtomicRMW(Op, PMV.AlignedAddr,
-                                                 NewOperand, AI->getOrdering());
+  AtomicRMWInst *NewAI =
+      Builder.CreateAtomicRMW(Op, PMV.AlignedAddr, NewOperand,
+                              PMV.AlignedAddrAlignment, AI->getOrdering());
 
   Value *FinalOldResult = extractMaskedValue(Builder, NewAI, PMV);
   AI->replaceAllUsesWith(FinalOldResult);
@@ -858,7 +838,7 @@ AtomicRMWInst *AtomicExpand::widenPartwordAtomicRMW(AtomicRMWInst *AI) {
   return NewAI;
 }
 
-void AtomicExpand::expandPartwordCmpXchg(AtomicCmpXchgInst *CI) {
+bool AtomicExpand::expandPartwordCmpXchg(AtomicCmpXchgInst *CI) {
   // The basic idea here is that we're expanding a cmpxchg of a
   // smaller memory size up to a word-sized cmpxchg. To do this, we
   // need to add a retry-loop for strong cmpxchg, so that
@@ -903,8 +883,6 @@ void AtomicExpand::expandPartwordCmpXchg(AtomicCmpXchgInst *CI) {
   IRBuilder<> Builder(CI);
   LLVMContext &Ctx = Builder.getContext();
 
-  const int WordSize = TLI->getMinCmpXchgSizeInBits() / 8;
-
   BasicBlock *EndBB =
       BB->splitBasicBlock(CI->getIterator(), "partword.cmpxchg.end");
   auto FailureBB =
@@ -916,8 +894,9 @@ void AtomicExpand::expandPartwordCmpXchg(AtomicCmpXchgInst *CI) {
   std::prev(BB->end())->eraseFromParent();
   Builder.SetInsertPoint(BB);
 
-  PartwordMaskValues PMV = createMaskInstrs(
-      Builder, CI, CI->getCompareOperand()->getType(), Addr, WordSize);
+  PartwordMaskValues PMV =
+      createMaskInstrs(Builder, CI, CI->getCompareOperand()->getType(), Addr,
+                       CI->getAlign(), TLI->getMinCmpXchgSizeInBits() / 8);
 
   // Shift the incoming values over, into the right location in the word.
   Value *NewVal_Shifted =
@@ -941,8 +920,8 @@ void AtomicExpand::expandPartwordCmpXchg(AtomicCmpXchgInst *CI) {
   Value *FullWord_NewVal = Builder.CreateOr(Loaded_MaskOut, NewVal_Shifted);
   Value *FullWord_Cmp = Builder.CreateOr(Loaded_MaskOut, Cmp_Shifted);
   AtomicCmpXchgInst *NewCI = Builder.CreateAtomicCmpXchg(
-      PMV.AlignedAddr, FullWord_Cmp, FullWord_NewVal, CI->getSuccessOrdering(),
-      CI->getFailureOrdering(), CI->getSyncScopeID());
+      PMV.AlignedAddr, FullWord_Cmp, FullWord_NewVal, PMV.AlignedAddrAlignment,
+      CI->getSuccessOrdering(), CI->getFailureOrdering(), CI->getSyncScopeID());
   NewCI->setVolatile(CI->isVolatile());
   // When we're building a strong cmpxchg, we need a loop, so you
   // might think we could use a weak cmpxchg inside. But, using strong
@@ -981,14 +960,16 @@ void AtomicExpand::expandPartwordCmpXchg(AtomicCmpXchgInst *CI) {
 
   CI->replaceAllUsesWith(Res);
   CI->eraseFromParent();
+  return true;
 }
 
 void AtomicExpand::expandAtomicOpToLLSC(
-    Instruction *I, Type *ResultType, Value *Addr, AtomicOrdering MemOpOrder,
+    Instruction *I, Type *ResultType, Value *Addr, Align AddrAlign,
+    AtomicOrdering MemOpOrder,
     function_ref<Value *(IRBuilder<> &, Value *)> PerformOp) {
   IRBuilder<> Builder(I);
-  Value *Loaded =
-      insertRMWLLSCLoop(Builder, ResultType, Addr, MemOpOrder, PerformOp);
+  Value *Loaded = insertRMWLLSCLoop(Builder, ResultType, Addr, AddrAlign,
+                                    MemOpOrder, PerformOp);
 
   I->replaceAllUsesWith(Loaded);
   I->eraseFromParent();
@@ -999,7 +980,7 @@ void AtomicExpand::expandAtomicRMWToMaskedIntrinsic(AtomicRMWInst *AI) {
 
   PartwordMaskValues PMV =
       createMaskInstrs(Builder, AI, AI->getType(), AI->getPointerOperand(),
-                       TLI->getMinCmpXchgSizeInBits() / 8);
+                       AI->getAlign(), TLI->getMinCmpXchgSizeInBits() / 8);
 
   // The value operand must be sign-extended for signed min/max so that the
   // target's signed comparison instructions can be used. Otherwise, just
@@ -1025,7 +1006,7 @@ void AtomicExpand::expandAtomicCmpXchgToMaskedIntrinsic(AtomicCmpXchgInst *CI) {
 
   PartwordMaskValues PMV = createMaskInstrs(
       Builder, CI, CI->getCompareOperand()->getType(), CI->getPointerOperand(),
-      TLI->getMinCmpXchgSizeInBits() / 8);
+      CI->getAlign(), TLI->getMinCmpXchgSizeInBits() / 8);
 
   Value *CmpVal_Shifted = Builder.CreateShl(
       Builder.CreateZExt(CI->getCompareOperand(), PMV.WordType), PMV.ShiftAmt,
@@ -1048,12 +1029,16 @@ void AtomicExpand::expandAtomicCmpXchgToMaskedIntrinsic(AtomicCmpXchgInst *CI) {
 }
 
 Value *AtomicExpand::insertRMWLLSCLoop(
-    IRBuilder<> &Builder, Type *ResultTy, Value *Addr,
+    IRBuilder<> &Builder, Type *ResultTy, Value *Addr, Align AddrAlign,
     AtomicOrdering MemOpOrder,
     function_ref<Value *(IRBuilder<> &, Value *)> PerformOp) {
   LLVMContext &Ctx = Builder.getContext();
   BasicBlock *BB = Builder.GetInsertBlock();
   Function *F = BB->getParent();
+
+  assert(AddrAlign >=
+             F->getParent()->getDataLayout().getTypeStoreSize(ResultTy) &&
+         "Expected at least natural alignment at this point.");
 
   // Given: atomicrmw some_op iN* %addr, iN %incr ordering
   //
@@ -1113,11 +1098,9 @@ AtomicCmpXchgInst *AtomicExpand::convertCmpXchgToIntegerType(AtomicCmpXchgInst *
   Value *NewCmp = Builder.CreatePtrToInt(CI->getCompareOperand(), NewTy);
   Value *NewNewVal = Builder.CreatePtrToInt(CI->getNewValOperand(), NewTy);
 
-
-  auto *NewCI = Builder.CreateAtomicCmpXchg(NewAddr, NewCmp, NewNewVal,
-                                            CI->getSuccessOrdering(),
-                                            CI->getFailureOrdering(),
-                                            CI->getSyncScopeID());
+  auto *NewCI = Builder.CreateAtomicCmpXchg(
+      NewAddr, NewCmp, NewNewVal, CI->getAlign(), CI->getSuccessOrdering(),
+      CI->getFailureOrdering(), CI->getSyncScopeID());
   NewCI->setVolatile(CI->isVolatile());
   NewCI->setWeak(CI->isWeak());
   LLVM_DEBUG(dbgs() << "Replaced " << *CI << " with " << *NewCI << "\n");
@@ -1242,7 +1225,7 @@ bool AtomicExpand::expandAtomicCmpXchg(AtomicCmpXchgInst *CI) {
 
   PartwordMaskValues PMV =
       createMaskInstrs(Builder, CI, CI->getCompareOperand()->getType(), Addr,
-                       TLI->getMinCmpXchgSizeInBits() / 8);
+                       CI->getAlign(), TLI->getMinCmpXchgSizeInBits() / 8);
   Builder.CreateBr(StartBB);
 
   // Start the main loop block now that we've taken care of the preliminaries.
@@ -1270,7 +1253,8 @@ bool AtomicExpand::expandAtomicCmpXchg(AtomicCmpXchgInst *CI) {
   Value *NewValueInsert =
       insertMaskedValue(Builder, LoadedTryStore, CI->getNewValOperand(), PMV);
   Value *StoreSuccess =
-      TLI->emitStoreConditional(Builder, NewValueInsert, Addr, MemOpOrder);
+      TLI->emitStoreConditional(Builder, NewValueInsert, PMV.AlignedAddr,
+                                MemOpOrder);
   StoreSuccess = Builder.CreateICmpEQ(
       StoreSuccess, ConstantInt::get(Type::getInt32Ty(Ctx), 0), "success");
   BasicBlock *RetryBB = HasReleasedLoadBB ? ReleasedLoadBB : StartBB;
@@ -1409,8 +1393,8 @@ bool AtomicExpand::simplifyIdempotentRMW(AtomicRMWInst* RMWI) {
 }
 
 Value *AtomicExpand::insertRMWCmpXchgLoop(
-    IRBuilder<> &Builder, Type *ResultTy, Value *Addr,
-    AtomicOrdering MemOpOrder,
+    IRBuilder<> &Builder, Type *ResultTy, Value *Addr, Align AddrAlign,
+    AtomicOrdering MemOpOrder, SyncScope::ID SSID,
     function_ref<Value *(IRBuilder<> &, Value *)> PerformOp,
     CreateCmpXchgInstFun CreateCmpXchg) {
   LLVMContext &Ctx = Builder.getContext();
@@ -1441,9 +1425,7 @@ Value *AtomicExpand::insertRMWCmpXchgLoop(
   // the branch entirely.
   std::prev(BB->end())->eraseFromParent();
   Builder.SetInsertPoint(BB);
-  LoadInst *InitLoaded = Builder.CreateLoad(ResultTy, Addr);
-  // Atomics require at least natural alignment.
-  InitLoaded->setAlignment(Align(ResultTy->getPrimitiveSizeInBits() / 8));
+  LoadInst *InitLoaded = Builder.CreateAlignedLoad(ResultTy, Addr, AddrAlign);
   Builder.CreateBr(LoopBB);
 
   // Start the main loop block now that we've taken care of the preliminaries.
@@ -1456,11 +1438,11 @@ Value *AtomicExpand::insertRMWCmpXchgLoop(
   Value *NewLoaded = nullptr;
   Value *Success = nullptr;
 
-  CreateCmpXchg(Builder, Addr, Loaded, NewVal,
+  CreateCmpXchg(Builder, Addr, Loaded, NewVal, AddrAlign,
                 MemOpOrder == AtomicOrdering::Unordered
                     ? AtomicOrdering::Monotonic
                     : MemOpOrder,
-                Success, NewLoaded);
+                SSID, Success, NewLoaded);
   assert(Success && NewLoaded);
 
   Loaded->addIncoming(NewLoaded, LoopBB);
@@ -1480,7 +1462,7 @@ bool AtomicExpand::tryExpandAtomicCmpXchg(AtomicCmpXchgInst *CI) {
     llvm_unreachable("Unhandled case in tryExpandAtomicCmpXchg");
   case TargetLoweringBase::AtomicExpansionKind::None:
     if (ValueSize < MinCASSize)
-      expandPartwordCmpXchg(CI);
+      return expandPartwordCmpXchg(CI);
     return false;
   case TargetLoweringBase::AtomicExpansionKind::LLSC: {
     return expandAtomicCmpXchg(CI);
@@ -1496,7 +1478,8 @@ bool llvm::expandAtomicRMWToCmpXchg(AtomicRMWInst *AI,
                                     CreateCmpXchgInstFun CreateCmpXchg) {
   IRBuilder<> Builder(AI);
   Value *Loaded = AtomicExpand::insertRMWCmpXchgLoop(
-      Builder, AI->getType(), AI->getPointerOperand(), AI->getOrdering(),
+      Builder, AI->getType(), AI->getPointerOperand(), AI->getAlign(),
+      AI->getOrdering(), AI->getSyncScopeID(),
       [&](IRBuilder<> &Builder, Value *Loaded) {
         return performAtomicOp(AI->getOperation(), Builder, Loaded,
                                AI->getValOperand());
@@ -1513,7 +1496,7 @@ bool llvm::expandAtomicRMWToCmpXchg(AtomicRMWInst *AI,
 // must be one of the potentially-specialized sizes, and the value
 // type must actually exist in C on the target (otherwise, the
 // function wouldn't actually be defined.)
-static bool canUseSizedAtomicCall(unsigned Size, unsigned Align,
+static bool canUseSizedAtomicCall(unsigned Size, Align Alignment,
                                   const DataLayout &DL) {
   // TODO: "LargestSize" is an approximation for "largest type that
   // you can express in C". It seems to be the case that int128 is
@@ -1523,7 +1506,7 @@ static bool canUseSizedAtomicCall(unsigned Size, unsigned Align,
   // really be some more reliable way in LLVM of determining integer
   // sizes which are valid in the target's C ABI...
   unsigned LargestSize = DL.getLargestLegalIntTypeSizeInBits() >= 64 ? 16 : 8;
-  return Align >= Size &&
+  return Alignment >= Size &&
          (Size == 1 || Size == 2 || Size == 4 || Size == 8 || Size == 16) &&
          Size <= LargestSize;
 }
@@ -1533,13 +1516,12 @@ void AtomicExpand::expandAtomicLoadToLibcall(LoadInst *I) {
       RTLIB::ATOMIC_LOAD,   RTLIB::ATOMIC_LOAD_1, RTLIB::ATOMIC_LOAD_2,
       RTLIB::ATOMIC_LOAD_4, RTLIB::ATOMIC_LOAD_8, RTLIB::ATOMIC_LOAD_16};
   unsigned Size = getAtomicOpSize(I);
-  unsigned Align = getAtomicOpAlign(I);
 
   bool expanded = expandAtomicOpToLibcall(
-      I, Size, Align, I->getPointerOperand(), nullptr, nullptr,
+      I, Size, I->getAlign(), I->getPointerOperand(), nullptr, nullptr,
       I->getOrdering(), AtomicOrdering::NotAtomic, Libcalls);
-  (void)expanded;
-  assert(expanded && "expandAtomicOpToLibcall shouldn't fail tor Load");
+  if (!expanded)
+    report_fatal_error("expandAtomicOpToLibcall shouldn't fail for Load");
 }
 
 void AtomicExpand::expandAtomicStoreToLibcall(StoreInst *I) {
@@ -1547,13 +1529,12 @@ void AtomicExpand::expandAtomicStoreToLibcall(StoreInst *I) {
       RTLIB::ATOMIC_STORE,   RTLIB::ATOMIC_STORE_1, RTLIB::ATOMIC_STORE_2,
       RTLIB::ATOMIC_STORE_4, RTLIB::ATOMIC_STORE_8, RTLIB::ATOMIC_STORE_16};
   unsigned Size = getAtomicOpSize(I);
-  unsigned Align = getAtomicOpAlign(I);
 
   bool expanded = expandAtomicOpToLibcall(
-      I, Size, Align, I->getPointerOperand(), I->getValueOperand(), nullptr,
-      I->getOrdering(), AtomicOrdering::NotAtomic, Libcalls);
-  (void)expanded;
-  assert(expanded && "expandAtomicOpToLibcall shouldn't fail tor Store");
+      I, Size, I->getAlign(), I->getPointerOperand(), I->getValueOperand(),
+      nullptr, I->getOrdering(), AtomicOrdering::NotAtomic, Libcalls);
+  if (!expanded)
+    report_fatal_error("expandAtomicOpToLibcall shouldn't fail for Store");
 }
 
 void AtomicExpand::expandAtomicCASToLibcall(AtomicCmpXchgInst *I) {
@@ -1562,14 +1543,13 @@ void AtomicExpand::expandAtomicCASToLibcall(AtomicCmpXchgInst *I) {
       RTLIB::ATOMIC_COMPARE_EXCHANGE_2, RTLIB::ATOMIC_COMPARE_EXCHANGE_4,
       RTLIB::ATOMIC_COMPARE_EXCHANGE_8, RTLIB::ATOMIC_COMPARE_EXCHANGE_16};
   unsigned Size = getAtomicOpSize(I);
-  unsigned Align = getAtomicOpAlign(I);
 
   bool expanded = expandAtomicOpToLibcall(
-      I, Size, Align, I->getPointerOperand(), I->getNewValOperand(),
+      I, Size, I->getAlign(), I->getPointerOperand(), I->getNewValOperand(),
       I->getCompareOperand(), I->getSuccessOrdering(), I->getFailureOrdering(),
       Libcalls);
-  (void)expanded;
-  assert(expanded && "expandAtomicOpToLibcall shouldn't fail tor CAS");
+  if (!expanded)
+    report_fatal_error("expandAtomicOpToLibcall shouldn't fail for CAS");
 }
 
 static ArrayRef<RTLIB::Libcall> GetRMWLibcall(AtomicRMWInst::BinOp Op) {
@@ -1635,33 +1615,32 @@ void AtomicExpand::expandAtomicRMWToLibcall(AtomicRMWInst *I) {
   ArrayRef<RTLIB::Libcall> Libcalls = GetRMWLibcall(I->getOperation());
 
   unsigned Size = getAtomicOpSize(I);
-  unsigned Align = getAtomicOpAlign(I);
 
   bool Success = false;
   if (!Libcalls.empty())
     Success = expandAtomicOpToLibcall(
-        I, Size, Align, I->getPointerOperand(), I->getValOperand(), nullptr,
-        I->getOrdering(), AtomicOrdering::NotAtomic, Libcalls);
+        I, Size, I->getAlign(), I->getPointerOperand(), I->getValOperand(),
+        nullptr, I->getOrdering(), AtomicOrdering::NotAtomic, Libcalls);
 
   // The expansion failed: either there were no libcalls at all for
   // the operation (min/max), or there were only size-specialized
   // libcalls (add/sub/etc) and we needed a generic. So, expand to a
   // CAS libcall, via a CAS loop, instead.
   if (!Success) {
-    expandAtomicRMWToCmpXchg(I, [this](IRBuilder<> &Builder, Value *Addr,
-                                       Value *Loaded, Value *NewVal,
-                                       AtomicOrdering MemOpOrder,
-                                       Value *&Success, Value *&NewLoaded) {
-      // Create the CAS instruction normally...
-      AtomicCmpXchgInst *Pair = Builder.CreateAtomicCmpXchg(
-          Addr, Loaded, NewVal, MemOpOrder,
-          AtomicCmpXchgInst::getStrongestFailureOrdering(MemOpOrder));
-      Success = Builder.CreateExtractValue(Pair, 1, "success");
-      NewLoaded = Builder.CreateExtractValue(Pair, 0, "newloaded");
+    expandAtomicRMWToCmpXchg(
+        I, [this](IRBuilder<> &Builder, Value *Addr, Value *Loaded,
+                  Value *NewVal, Align Alignment, AtomicOrdering MemOpOrder,
+                  SyncScope::ID SSID, Value *&Success, Value *&NewLoaded) {
+          // Create the CAS instruction normally...
+          AtomicCmpXchgInst *Pair = Builder.CreateAtomicCmpXchg(
+              Addr, Loaded, NewVal, Alignment, MemOpOrder,
+              AtomicCmpXchgInst::getStrongestFailureOrdering(MemOpOrder), SSID);
+          Success = Builder.CreateExtractValue(Pair, 1, "success");
+          NewLoaded = Builder.CreateExtractValue(Pair, 0, "newloaded");
 
-      // ...and then expand the CAS into a libcall.
-      expandAtomicCASToLibcall(Pair);
-    });
+          // ...and then expand the CAS into a libcall.
+          expandAtomicCASToLibcall(Pair);
+        });
   }
 }
 
@@ -1672,7 +1651,7 @@ void AtomicExpand::expandAtomicRMWToLibcall(AtomicRMWInst *I) {
 // 'I' are extracted from the Instruction subclass by the
 // caller. Depending on the particular call, some will be null.
 bool AtomicExpand::expandAtomicOpToLibcall(
-    Instruction *I, unsigned Size, unsigned Align, Value *PointerOperand,
+    Instruction *I, unsigned Size, Align Alignment, Value *PointerOperand,
     Value *ValueOperand, Value *CASExpected, AtomicOrdering Ordering,
     AtomicOrdering Ordering2, ArrayRef<RTLIB::Libcall> Libcalls) {
   assert(Libcalls.size() == 6);
@@ -1683,10 +1662,10 @@ bool AtomicExpand::expandAtomicOpToLibcall(
   IRBuilder<> Builder(I);
   IRBuilder<> AllocaBuilder(&I->getFunction()->getEntryBlock().front());
 
-  bool UseSizedLibcall = canUseSizedAtomicCall(Size, Align, DL);
+  bool UseSizedLibcall = canUseSizedAtomicCall(Size, Alignment, DL);
   Type *SizedIntTy = Type::getIntNTy(Ctx, Size * 8);
 
-  const llvm::Align AllocaAlignment(DL.getPrefTypeAlignment(SizedIntTy));
+  const Align AllocaAlignment = DL.getPrefTypeAlign(SizedIntTy);
 
   // TODO: the "order" argument type is "int", not int32. So
   // getInt32Ty may be wrong if the arch uses e.g. 16-bit ints.
@@ -1716,6 +1695,11 @@ bool AtomicExpand::expandAtomicOpToLibcall(
   } else {
     // Can't use sized function, and there's no generic for this
     // operation, so give up.
+    return false;
+  }
+
+  if (!TLI->getLibcallName(RTLibType)) {
+    // This target does not implement the requested atomic libcall so give up.
     return false;
   }
 

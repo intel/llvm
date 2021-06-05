@@ -12,11 +12,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Analysis/AffineAnalysis.h"
+#include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IntegerSet.h"
-#include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -29,7 +31,7 @@ static void promoteIfBlock(AffineIfOp ifOp, bool elseBlock) {
   if (elseBlock)
     assert(ifOp.hasElse() && "else block expected");
 
-  Block *destBlock = ifOp.getOperation()->getBlock();
+  Block *destBlock = ifOp->getBlock();
   Block *srcBlock = elseBlock ? ifOp.getElseBlock() : ifOp.getThenBlock();
   destBlock->getOperations().splice(
       Block::iterator(ifOp), srcBlock->getOperations(), srcBlock->begin(),
@@ -44,7 +46,7 @@ static void promoteIfBlock(AffineIfOp ifOp, bool elseBlock) {
 static Operation *getOutermostInvariantForOp(AffineIfOp ifOp) {
   // Walk up the parents past all for op that this conditional is invariant on.
   auto ifOperands = ifOp.getOperands();
-  auto res = ifOp.getOperation();
+  auto *res = ifOp.getOperation();
   while (!isa<FuncOp>(res->getParentOp())) {
     auto *parentOp = res->getParentOp();
     if (auto forOp = dyn_cast<AffineForOp>(parentOp)) {
@@ -92,7 +94,7 @@ static AffineIfOp hoistAffineIfOp(AffineIfOp ifOp, Operation *hoistOverOp) {
   operandMap.clear();
   b.setInsertionPointAfter(hoistOverOp);
   // We'll set an attribute to identify this op in a clone of this sub-tree.
-  ifOp.setAttr(idForIfOp, b.getBoolAttr(true));
+  ifOp->setAttr(idForIfOp, b.getBoolAttr(true));
   hoistOverOpClone = b.clone(*hoistOverOp, operandMap);
 
   // Promote the 'then' block of the original affine.if in the then version.
@@ -107,7 +109,7 @@ static AffineIfOp hoistAffineIfOp(AffineIfOp ifOp, Operation *hoistOverOp) {
   // Find the clone of the original affine.if op in the else version.
   AffineIfOp ifCloneInElse;
   hoistOverOpClone->walk([&](AffineIfOp ifClone) {
-    if (!ifClone.getAttr(idForIfOp))
+    if (!ifClone->getAttr(idForIfOp))
       return WalkResult::advance();
     ifCloneInElse = ifClone;
     return WalkResult::interrupt();
@@ -129,17 +131,87 @@ static AffineIfOp hoistAffineIfOp(AffineIfOp ifOp, Operation *hoistOverOp) {
   return hoistedIfOp;
 }
 
+/// Replace affine.for with a 1-d affine.parallel and clone the former's body
+/// into the latter while remapping values. Parallelizes the specified
+/// reductions. Parallelization will fail in presence of loop iteration
+/// arguments that are not listed in `parallelReductions`.
+LogicalResult
+mlir::affineParallelize(AffineForOp forOp,
+                        ArrayRef<LoopReduction> parallelReductions) {
+  // Fail early if there are iter arguments that are not reductions.
+  unsigned numReductions = parallelReductions.size();
+  if (numReductions != forOp.getNumIterOperands())
+    return failure();
+
+  Location loc = forOp.getLoc();
+  OpBuilder outsideBuilder(forOp);
+  AffineMap lowerBoundMap = forOp.getLowerBoundMap();
+  ValueRange lowerBoundOperands = forOp.getLowerBoundOperands();
+  AffineMap upperBoundMap = forOp.getUpperBoundMap();
+  ValueRange upperBoundOperands = forOp.getUpperBoundOperands();
+
+  // Creating empty 1-D affine.parallel op.
+  auto reducedValues = llvm::to_vector<4>(llvm::map_range(
+      parallelReductions, [](const LoopReduction &red) { return red.value; }));
+  auto reductionKinds = llvm::to_vector<4>(llvm::map_range(
+      parallelReductions, [](const LoopReduction &red) { return red.kind; }));
+  AffineParallelOp newPloop = outsideBuilder.create<AffineParallelOp>(
+      loc, ValueRange(reducedValues).getTypes(), reductionKinds,
+      llvm::makeArrayRef(lowerBoundMap), lowerBoundOperands,
+      llvm::makeArrayRef(upperBoundMap), upperBoundOperands,
+      llvm::makeArrayRef(forOp.getStep()));
+  // Steal the body of the old affine for op.
+  newPloop.region().takeBody(forOp.region());
+  Operation *yieldOp = &newPloop.getBody()->back();
+
+  // Handle the initial values of reductions because the parallel loop always
+  // starts from the neutral value.
+  SmallVector<Value> newResults;
+  newResults.reserve(numReductions);
+  for (unsigned i = 0; i < numReductions; ++i) {
+    Value init = forOp.getIterOperands()[i];
+    // This works because we are only handling single-op reductions at the
+    // moment. A switch on reduction kind or a mechanism to collect operations
+    // participating in the reduction will be necessary for multi-op reductions.
+    Operation *reductionOp = yieldOp->getOperand(i).getDefiningOp();
+    assert(reductionOp && "yielded value is expected to be produced by an op");
+    outsideBuilder.getInsertionBlock()->getOperations().splice(
+        outsideBuilder.getInsertionPoint(), newPloop.getBody()->getOperations(),
+        reductionOp);
+    reductionOp->setOperands({init, newPloop->getResult(i)});
+    forOp->getResult(i).replaceAllUsesWith(reductionOp->getResult(0));
+  }
+
+  // Update the loop terminator to yield reduced values bypassing the reduction
+  // operation itself (now moved outside of the loop) and erase the block
+  // arguments that correspond to reductions. Note that the loop always has one
+  // "main" induction variable whenc coming from a non-parallel for.
+  unsigned numIVs = 1;
+  yieldOp->setOperands(reducedValues);
+  newPloop.getBody()->eraseArguments(
+      llvm::to_vector<4>(llvm::seq<unsigned>(numIVs, numReductions + numIVs)));
+
+  forOp.erase();
+  return success();
+}
+
 // Returns success if any hoisting happened.
 LogicalResult mlir::hoistAffineIfOp(AffineIfOp ifOp, bool *folded) {
+  // Bail out early if the ifOp returns a result.  TODO: Consider how to
+  // properly support this case.
+  if (ifOp.getNumResults() != 0)
+    return failure();
+
   // Apply canonicalization patterns and folding - this is necessary for the
   // hoisting check to be correct (operands should be composed), and to be more
   // effective (no unused operands). Since the pattern rewriter's folding is
   // entangled with application of patterns, we may fold/end up erasing the op,
   // in which case we return with `folded` being set.
-  OwningRewritePatternList patterns;
+  RewritePatternSet patterns(ifOp.getContext());
   AffineIfOp::getCanonicalizationPatterns(patterns, ifOp.getContext());
   bool erased;
-  applyOpPatternsAndFold(ifOp, patterns, &erased);
+  FrozenRewritePatternSet frozenPatterns(std::move(patterns));
+  (void)applyOpPatternsAndFold(ifOp, frozenPatterns, &erased);
   if (erased) {
     if (folded)
       *folded = true;
@@ -167,9 +239,36 @@ LogicalResult mlir::hoistAffineIfOp(AffineIfOp ifOp, bool *folded) {
 
   // Canonicalize to remove dead else blocks (happens whenever an 'if' moves up
   // a sequence of affine.fors that are all perfectly nested).
-  applyPatternsAndFoldGreedily(
-      hoistedIfOp.getParentWithTrait<OpTrait::IsIsolatedFromAbove>(),
-      std::move(patterns));
+  (void)applyPatternsAndFoldGreedily(
+      hoistedIfOp->getParentWithTrait<OpTrait::IsIsolatedFromAbove>(),
+      frozenPatterns);
 
   return success();
+}
+
+// Return the min expr after replacing the given dim.
+AffineExpr mlir::substWithMin(AffineExpr e, AffineExpr dim, AffineExpr min,
+                              AffineExpr max, bool positivePath) {
+  if (e == dim)
+    return positivePath ? min : max;
+  if (auto bin = e.dyn_cast<AffineBinaryOpExpr>()) {
+    AffineExpr lhs = bin.getLHS();
+    AffineExpr rhs = bin.getRHS();
+    if (bin.getKind() == mlir::AffineExprKind::Add)
+      return substWithMin(lhs, dim, min, max, positivePath) +
+             substWithMin(rhs, dim, min, max, positivePath);
+
+    auto c1 = bin.getLHS().dyn_cast<AffineConstantExpr>();
+    auto c2 = bin.getRHS().dyn_cast<AffineConstantExpr>();
+    if (c1 && c1.getValue() < 0)
+      return getAffineBinaryOpExpr(
+          bin.getKind(), c1, substWithMin(rhs, dim, min, max, !positivePath));
+    if (c2 && c2.getValue() < 0)
+      return getAffineBinaryOpExpr(
+          bin.getKind(), substWithMin(lhs, dim, min, max, !positivePath), c2);
+    return getAffineBinaryOpExpr(
+        bin.getKind(), substWithMin(lhs, dim, min, max, positivePath),
+        substWithMin(rhs, dim, min, max, positivePath));
+  }
+  return e;
 }

@@ -82,7 +82,7 @@ isl_size isl_aff_domain_offset(__isl_keep isl_aff *aff, enum isl_dim_type type);
 __isl_give isl_aff *isl_aff_reset_space_and_domain(__isl_take isl_aff *aff,
 	__isl_take isl_space *space, __isl_take isl_space *domain);
 __isl_give isl_aff *isl_aff_reset_domain_space(__isl_take isl_aff *aff,
-	__isl_take isl_space *dim);
+	__isl_take isl_space *space);
 __isl_give isl_aff *isl_aff_realign_domain(__isl_take isl_aff *aff,
 	__isl_take isl_reordering *r);
 
@@ -104,7 +104,7 @@ __isl_give isl_aff *isl_aff_expand_divs( __isl_take isl_aff *aff,
 __isl_give isl_pw_aff *isl_pw_aff_alloc_size(__isl_take isl_space *space,
 	int n);
 __isl_give isl_pw_aff *isl_pw_aff_reset_space(__isl_take isl_pw_aff *pwaff,
-	__isl_take isl_space *dim);
+	__isl_take isl_space *space);
 __isl_give isl_pw_aff *isl_pw_aff_reset_domain_space(
 	__isl_take isl_pw_aff *pwaff, __isl_take isl_space *space);
 __isl_give isl_pw_aff *isl_pw_aff_add_disjoint(
@@ -199,6 +199,9 @@ __isl_give isl_basic_set *isl_aff_pos_basic_set(__isl_take isl_aff *aff);
 #include <isl_multi_templ.h>
 
 #undef EXPLICIT_DOMAIN
+
+__isl_give isl_map *isl_map_intersect_multi_pw_aff_explicit_domain(
+	__isl_take isl_map *map, __isl_keep isl_multi_pw_aff *mpa);
 
 #undef EL
 #define EL isl_union_pw_aff

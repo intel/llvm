@@ -63,9 +63,30 @@ public:
   bool isPIEDefault() const override { return false; }
   bool isPICDefaultForced() const override { return true; }
 
+  void
+  AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                            llvm::opt::ArgStringList &CC1Args) const override;
+
+  void AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
+                           llvm::opt::ArgStringList &CmdArgs) const override;
+
+  CXXStdlibType GetDefaultCXXStdlibType() const override;
+
+  RuntimeLibType GetDefaultRuntimeLibType() const override;
+
+  // Set default DWARF version to 3 for now as latest AIX OS supports version 3.
+  unsigned GetDefaultDwarfVersion() const override { return 3; }
+
+  llvm::DebuggerKind getDefaultDebuggerTuning() const override {
+    return llvm::DebuggerKind::DBX;
+  }
+
 protected:
   Tool *buildAssembler() const override;
   Tool *buildLinker() const override;
+
+private:
+  llvm::StringRef GetHeaderSysroot(const llvm::opt::ArgList &DriverArgs) const;
 };
 
 } // end namespace toolchains

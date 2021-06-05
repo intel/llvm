@@ -1,4 +1,4 @@
-! RUN: %S/test_modfile.sh %s %t %f18 -flogical-abbreviations -fxor-operator
+! RUN: %S/test_modfile.sh %s %t %flang_fc1 -flogical-abbreviations -fxor-operator
 
 ! Resolution of user-defined operators in expressions.
 ! Test by using generic function in a specification expression that needs
@@ -608,7 +608,7 @@ end
 !module m7
 ! type :: t(k)
 !  integer(4), kind :: k
-!  real(int(k, kind=8)) :: a
+!  real(int(int(k,kind=4),kind=8))::a
 ! end type
 ! interface operator(+)
 !  procedure :: f1

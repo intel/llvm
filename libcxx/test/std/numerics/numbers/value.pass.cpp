@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
 
 #include <cassert>
@@ -83,4 +83,7 @@ constexpr bool tests() {
 
 static_assert(tests());
 
-int main() { tests(); }
+int main(int, char**) {
+  tests();
+  return 0;
+}

@@ -37,7 +37,8 @@ protected:
 
 TEST_P(CudaPrimaryContextTests, piSingleContext) {
   std::cout << "create single context" << std::endl;
-  context Context(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
+  context Context(deviceA_, async_handler{},
+                  {sycl::property::context::cuda::use_primary_context{}});
 
   CUdevice CudaDevice = deviceA_.get_native<backend::cuda>();
   CUcontext CudaContext = Context.get_native<backend::cuda>();
@@ -52,8 +53,10 @@ TEST_P(CudaPrimaryContextTests, piSingleContext) {
 
 TEST_P(CudaPrimaryContextTests, piMultiContextSingleDevice) {
   std::cout << "create multiple contexts for one device" << std::endl;
-  context ContextA(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
-  context ContextB(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
+  context ContextA(deviceA_, async_handler{},
+                   {sycl::property::context::cuda::use_primary_context{}});
+  context ContextB(deviceA_, async_handler{},
+                   {sycl::property::context::cuda::use_primary_context{}});
 
   CUcontext CudaContextA = ContextA.get_native<backend::cuda>();
   CUcontext CudaContextB = ContextB.get_native<backend::cuda>();
@@ -71,8 +74,10 @@ TEST_P(CudaPrimaryContextTests, piMultiContextMultiDevice) {
   ASSERT_NE(CudaDeviceA, CudaDeviceB);
 
   std::cout << "create multiple contexts for multiple devices" << std::endl;
-  context ContextA(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
-  context ContextB(deviceB_, async_handler{}, /*UsePrimaryContext=*/true);
+  context ContextA(deviceA_, async_handler{},
+                   {sycl::property::context::cuda::use_primary_context{}});
+  context ContextB(deviceB_, async_handler{},
+                   {sycl::property::context::cuda::use_primary_context{}});
 
   CUcontext CudaContextA = ContextA.get_native<backend::cuda>();
   CUcontext CudaContextB = ContextB.get_native<backend::cuda>();
@@ -80,6 +85,6 @@ TEST_P(CudaPrimaryContextTests, piMultiContextMultiDevice) {
   ASSERT_NE(CudaContextA, CudaContextB);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     OnCudaPlatform, CudaPrimaryContextTests,
-    ::testing::ValuesIn(pi::getPlatformsWithName("CUDA BACKEND")), );
+    ::testing::ValuesIn(pi::getPlatformsWithName("CUDA BACKEND")));

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+# This simple script can be used to set up a CI node running MacOS.
+# An additional requirement that is *not* handled by this script is the
+# installation of Xcode, which requires manual intervention.
+
+source secrets.env
+
+# Install Homebrew
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+
+# Install the required tools to run CI
+brew install sphinx-doc python3 ninja cmake clang-format buildkite/buildkite/buildkite-agent
+
+CFG_DIR="$(brew --prefix)/etc/buildkite-agent"
+
+version="$(sw_vers -productVersion | sed -E 's/([0-9]+).([0-9]+).[0-9]+/\1.\2/')"
+
+# Setup the tags of the agent
+echo 'tags="queue=libcxx-builders-macos,queue=libcxx-builders-macos${version}"' >> "${CFG_DIR}/buildkite-agent.cfg"
+
+# Setup the BuildKite Agent token
+sed -i '' "s/xxx/${BUILDKITE_AGENT_TOKEN}/g" "${CFG_DIR}/buildkite-agent.cfg"

@@ -18,14 +18,13 @@ char *CharBuffer::FreeSpace(std::size_t &n) {
   int offset{LastBlockOffset()};
   if (blocks_.empty()) {
     blocks_.emplace_front();
-    last_ = blocks_.begin();
     lastBlockEmpty_ = true;
   } else if (offset == 0 && !lastBlockEmpty_) {
-    last_ = blocks_.emplace_after(last_);
+    blocks_.emplace_back();
     lastBlockEmpty_ = true;
   }
   n = Block::capacity - offset;
-  return last_->data + offset;
+  return blocks_.back().data + offset;
 }
 
 void CharBuffer::Claim(std::size_t n) {
@@ -63,28 +62,6 @@ std::string CharBuffer::Marshal() const {
   }
   result.shrink_to_fit();
   CHECK(result.size() == bytes_);
-  return result;
-}
-
-std::string CharBuffer::MarshalNormalized() const {
-  std::string result;
-  std::size_t bytes{bytes_};
-  result.reserve(bytes + 1 /* for terminal line feed */);
-  char ch{'\0'};
-  for (const Block &block : blocks_) {
-    std::size_t chunk{std::min(bytes, Block::capacity)};
-    for (std::size_t j{0}; j < chunk; ++j) {
-      ch = block.data[j];
-      if (ch != '\r') {
-        result += ch;
-      }
-    }
-    bytes -= chunk;
-  }
-  if (ch != '\n') {
-    result += '\n';
-  }
-  result.shrink_to_fit();
   return result;
 }
 } // namespace Fortran::parser

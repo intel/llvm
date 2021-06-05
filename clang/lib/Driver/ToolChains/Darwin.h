@@ -10,6 +10,8 @@
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_DARWIN_H
 
 #include "Cuda.h"
+#include "ROCm.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Driver/DarwinSDKInfo.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
@@ -61,7 +63,8 @@ class LLVM_LIBRARY_VISIBILITY Linker : public MachOTool {
   bool NeedsTempPath(const InputInfoList &Inputs) const;
   void AddLinkArgs(Compilation &C, const llvm::opt::ArgList &Args,
                    llvm::opt::ArgStringList &CmdArgs,
-                   const InputInfoList &Inputs, unsigned Version[5]) const;
+                   const InputInfoList &Inputs, unsigned Version[5],
+                   bool LinkerIsLLD, bool LinkerIsLLDDarwinNew) const;
 
 public:
   Linker(const ToolChain &TC) : MachOTool("darwin::Linker", "linker", TC) {}
@@ -293,6 +296,7 @@ public:
   mutable Optional<DarwinSDKInfo> SDKInfo;
 
   CudaInstallationDetector CudaInstallation;
+  RocmInstallationDetector RocmInstallation;
 
 private:
   void AddDeploymentTarget(llvm::opt::DerivedArgList &Args) const;
@@ -434,7 +438,11 @@ public:
   bool isMacosxVersionLT(unsigned V0, unsigned V1 = 0, unsigned V2 = 0) const {
     assert(isTargetMacOS() && getTriple().isMacOSX() &&
            "Unexpected call for non OS X target!");
-    VersionTuple MinVers = getTriple().getMinimumSupportedOSVersion();
+    // The effective triple might not be initialized yet, so construct a
+    // pseudo-effective triple to get the minimum supported OS version.
+    VersionTuple MinVers =
+        llvm::Triple(getTriple().getArchName(), "apple", "macos")
+            .getMinimumSupportedOSVersion();
     return (!MinVers.empty() && MinVers > TargetVersion
                 ? MinVers
                 : TargetVersion) < VersionTuple(V0, V1, V2);
@@ -475,6 +483,8 @@ public:
 
   void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;
+  void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                         llvm::opt::ArgStringList &CC1Args) const override;
 
   bool UseObjCMixedDispatch() const override {
     // This is only used with the non-fragile ABI and non-legacy dispatch.
@@ -483,17 +493,18 @@ public:
     return !(isTargetMacOS() && isMacosxVersionLT(10, 6));
   }
 
-  unsigned GetDefaultStackProtectorLevel(bool KernelOrKext) const override {
+  LangOptions::StackProtectorMode
+  GetDefaultStackProtectorLevel(bool KernelOrKext) const override {
     // Stack protectors default to on for user code on 10.5,
     // and for everything in 10.6 and beyond
     if (isTargetIOSBased() || isTargetWatchOSBased())
-      return 1;
+      return LangOptions::SSPOn;
     else if (isTargetMacOS() && !isMacosxVersionLT(10, 6))
-      return 1;
+      return LangOptions::SSPOn;
     else if (isTargetMacOS() && !isMacosxVersionLT(10, 5) && !KernelOrKext)
-      return 1;
+      return LangOptions::SSPOn;
 
-    return 0;
+    return LangOptions::SSPOff;
   }
 
   void CheckObjCARC() const override;

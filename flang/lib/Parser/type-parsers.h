@@ -85,6 +85,7 @@ constexpr Parser<Variable> variable; // R902
 constexpr Parser<Substring> substring; // R908
 constexpr Parser<DataRef> dataRef; // R911, R914, R917
 constexpr Parser<StructureComponent> structureComponent; // R913
+constexpr Parser<AllocateStmt> allocateStmt; // R927
 constexpr Parser<StatVariable> statVariable; // R929
 constexpr Parser<StatOrErrmsg> statOrErrmsg; // R942 & R1165
 constexpr Parser<DefinedOpName> definedOpName; // R1003, R1023, R1414, & R1415
@@ -130,6 +131,9 @@ constexpr Parser<EndSubroutineStmt> endSubroutineStmt; // R1537
 constexpr Parser<EntryStmt> entryStmt; // R1541
 constexpr Parser<ContainsStmt> containsStmt; // R1543
 constexpr Parser<CompilerDirective> compilerDirective;
+constexpr Parser<OpenACCConstruct> openaccConstruct;
+constexpr Parser<AccEndCombinedDirective> accEndCombinedDirective;
+constexpr Parser<OpenACCDeclarativeConstruct> openaccDeclarativeConstruct;
 constexpr Parser<OpenMPConstruct> openmpConstruct;
 constexpr Parser<OpenMPDeclarativeConstruct> openmpDeclarativeConstruct;
 constexpr Parser<OmpEndLoopDirective> ompEndLoopDirective;

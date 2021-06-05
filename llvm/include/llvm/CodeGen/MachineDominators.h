@@ -23,7 +23,6 @@
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include <cassert>
 #include <memory>
-#include <vector>
 
 namespace llvm {
 
@@ -92,15 +91,6 @@ public:
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
-
-  /// getRoots -  Return the root blocks of the current CFG.  This may include
-  /// multiple blocks if we are computing post dominators.  For forward
-  /// dominators, this will always be a single block (the entry node).
-  ///
-  const SmallVectorImpl<MachineBasicBlock*> &getRoots() const {
-    applySplitCriticalEdges();
-    return DT->getRoots();
-  }
 
   MachineBasicBlock *getRoot() const {
     applySplitCriticalEdges();
@@ -270,7 +260,8 @@ template <class T> struct GraphTraits;
 template <>
 struct GraphTraits<MachineDomTreeNode *>
     : public MachineDomTreeGraphTraitsBase<MachineDomTreeNode,
-                                           MachineDomTreeNode::iterator> {};
+                                           MachineDomTreeNode::const_iterator> {
+};
 
 template <>
 struct GraphTraits<const MachineDomTreeNode *>

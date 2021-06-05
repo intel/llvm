@@ -141,7 +141,7 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed) {
     }
     return SignPrefix + Stem;
   }
-  if (auto VecTy = dyn_cast<VectorType>(Ty)) {
+  if (auto VecTy = dyn_cast<FixedVectorType>(Ty)) {
     Type *EleTy = VecTy->getElementType();
     unsigned Size = VecTy->getNumElements();
     std::stringstream Ss;
@@ -205,7 +205,7 @@ std::string mapSPIRVTypeToOCLType(SPIRVType *Ty, bool Signed) {
 
 PointerType *getOrCreateOpaquePtrType(Module *M, const std::string &Name,
                                       unsigned AddrSpace) {
-  auto OpaqueType = M->getTypeByName(Name);
+  auto OpaqueType = StructType::getTypeByName(M->getContext(), Name);
   if (!OpaqueType)
     OpaqueType = StructType::create(M->getContext(), Name);
   return PointerType::get(OpaqueType, AddrSpace);
@@ -379,7 +379,7 @@ std::string getSPIRVFuncName(Op OC, StringRef PostFix) {
 
 std::string getSPIRVFuncName(Op OC, const Type *PRetTy, bool IsSigned) {
   return prefixSPIRVName(getName(OC) + kSPIRVPostfix::Divider +
-                         getPostfixForReturnType(PRetTy, false));
+                         getPostfixForReturnType(PRetTy, IsSigned));
 }
 
 std::string getSPIRVExtFuncName(SPIRVExtInstSetKind Set, unsigned ExtOp,
@@ -438,6 +438,16 @@ std::string getPostfixForReturnType(const Type *PRetTy, bool IsSigned) {
          mapLLVMTypeToOCLType(PRetTy, IsSigned);
 }
 
+// Enqueue kernel, kernel query, pipe and address space cast built-ins
+// are not mangled.
+bool isNonMangledOCLBuiltin(StringRef Name) {
+  if (!Name.startswith("__"))
+    return false;
+
+  return isEnqueueKernelBI(Name) || isKernelQueryBI(Name) ||
+         isPipeOrAddressSpaceCastBI(Name.drop_front(2));
+}
+
 Op getSPIRVFuncOC(StringRef S, SmallVectorImpl<std::string> *Dec) {
   Op OC;
   SmallVector<StringRef, 2> Postfix;
@@ -445,9 +455,10 @@ Op getSPIRVFuncOC(StringRef S, SmallVectorImpl<std::string> *Dec) {
   if (!oclIsBuiltin(S, Name))
     Name = S;
   StringRef R(Name);
-  R = dePrefixSPIRVName(R, Postfix);
-  if (!getByName(R.str(), OC))
+  if ((!Name.startswith(kSPIRVName::Prefix) && !isNonMangledOCLBuiltin(S)) ||
+      !getByName(dePrefixSPIRVName(R, Postfix).str(), OC)) {
     return OpNop;
+  }
   if (Dec)
     for (auto &I : Postfix)
       Dec->push_back(I.str());
@@ -460,16 +471,6 @@ bool getSPIRVBuiltin(const std::string &OrigName, spv::BuiltIn &B) {
   R = dePrefixSPIRVName(R, Postfix);
   assert(Postfix.empty() && "Invalid SPIR-V builtin Name");
   return getByName(R.str(), B);
-}
-
-// Enqueue kernel, kernel query, pipe and address space cast built-ins
-// are not mangled.
-bool isNonMangledOCLBuiltin(StringRef Name) {
-  if (!Name.startswith("__"))
-    return false;
-
-  return isEnqueueKernelBI(Name) || isKernelQueryBI(Name) ||
-         isPipeOrAddressSpaceCastBI(Name.drop_front(2));
 }
 
 // Demangled name is a substring of the name. The DemangledName is updated only
@@ -739,7 +740,7 @@ void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
 void expandVector(Instruction *InsPos, std::vector<Value *> &Ops,
                   size_t VecPos) {
   auto Vec = Ops[VecPos];
-  auto *VT = dyn_cast<VectorType>(Vec->getType());
+  auto *VT = dyn_cast<FixedVectorType>(Vec->getType());
   if (!VT)
     return;
   size_t N = VT->getNumElements();
@@ -910,7 +911,7 @@ ConstantInt *mapSInt(Module *M, ConstantInt *I, std::function<int(int)> F) {
 bool isDecoratedSPIRVFunc(const Function *F, StringRef &UndecoratedName) {
   if (!F->hasName() || !F->getName().startswith(kSPIRVName::Prefix))
     return false;
-  UndecoratedName = undecorateSPIRVFunction(F->getName());
+  UndecoratedName = F->getName();
   return true;
 }
 
@@ -1046,7 +1047,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_FLOAT));
   if (Ty->isDoubleTy())
     return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_DOUBLE));
-  if (auto *VecTy = dyn_cast<VectorType>(Ty)) {
+  if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     return SPIR::RefParamType(new SPIR::VectorType(
         transTypeDesc(VecTy->getElementType(), Info), VecTy->getNumElements()));
   }
@@ -1160,7 +1161,7 @@ Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos) {
 Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
   if (auto IT = dyn_cast<IntegerType>(T))
     return ConstantInt::get(IT, V);
-  if (auto VT = dyn_cast<VectorType>(T)) {
+  if (auto VT = dyn_cast<FixedVectorType>(T)) {
     std::vector<Constant *> EV(
         VT->getNumElements(),
         getScalarOrVectorConstantInt(VT->getElementType(), V, IsSigned));
@@ -1242,9 +1243,9 @@ std::string getSPIRVImageTypePostfixes(StringRef SampledType,
                                        SPIRVAccessQualifierKind Acc) {
   std::string S;
   raw_string_ostream OS(S);
-  OS << SampledType << kSPIRVTypeName::PostfixDelim << Desc.Dim
-     << kSPIRVTypeName::PostfixDelim << Desc.Depth
-     << kSPIRVTypeName::PostfixDelim << Desc.Arrayed
+  OS << kSPIRVTypeName::PostfixDelim << SampledType
+     << kSPIRVTypeName::PostfixDelim << Desc.Dim << kSPIRVTypeName::PostfixDelim
+     << Desc.Depth << kSPIRVTypeName::PostfixDelim << Desc.Arrayed
      << kSPIRVTypeName::PostfixDelim << Desc.MS << kSPIRVTypeName::PostfixDelim
      << Desc.Sampled << kSPIRVTypeName::PostfixDelim << Desc.Format
      << kSPIRVTypeName::PostfixDelim << Acc;
@@ -1319,8 +1320,6 @@ std::string mapOCLTypeNameToSPIRV(StringRef Name, StringRef Acc) {
   std::string BaseTy;
   std::string Postfixes;
   raw_string_ostream OS(Postfixes);
-  if (!Acc.empty())
-    OS << kSPIRVTypeName::PostfixDelim;
   if (Name.startswith(kSPR2TypeName::ImagePrefix)) {
     std::string ImageTyName = getImageBaseTypeName(Name);
     auto Desc = map<SPIRVTypeImageDescriptor>(ImageTyName);
@@ -1454,22 +1453,44 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
 
 /// Check if access qualifier is encoded in the type Name.
 bool hasAccessQualifiedName(StringRef TyName) {
-  if (TyName.endswith("_ro_t") || TyName.endswith("_wo_t") ||
-      TyName.endswith("_rw_t"))
-    return true;
-  return false;
+  if (TyName.size() < 5)
+    return false;
+  auto Acc = TyName.substr(TyName.size() - 5, 3);
+  return llvm::StringSwitch<bool>(Acc)
+      .Case(kAccessQualPostfix::ReadOnly, true)
+      .Case(kAccessQualPostfix::WriteOnly, true)
+      .Case(kAccessQualPostfix::ReadWrite, true)
+      .Default(false);
+}
+
+SPIRVAccessQualifierKind getAccessQualifier(StringRef TyName) {
+  return SPIRSPIRVAccessQualifierMap::map(
+      getAccessQualifierFullName(TyName).str());
+}
+
+StringRef getAccessQualifierPostfix(SPIRVAccessQualifierKind Access) {
+  switch (Access) {
+  case AccessQualifierReadOnly:
+    return kAccessQualPostfix::ReadOnly;
+  case AccessQualifierWriteOnly:
+    return kAccessQualPostfix::WriteOnly;
+  case AccessQualifierReadWrite:
+    return kAccessQualPostfix::ReadWrite;
+  default:
+    assert(false && "Unrecognized access qualifier!");
+    return kAccessQualPostfix::ReadWrite;
+  }
 }
 
 /// Get access qualifier from the type Name.
-StringRef getAccessQualifier(StringRef TyName) {
+StringRef getAccessQualifierFullName(StringRef TyName) {
   assert(hasAccessQualifiedName(TyName) &&
          "Type is not qualified with access.");
-  auto Acc = TyName.substr(TyName.size() - 4, 2);
+  auto Acc = TyName.substr(TyName.size() - 5, 3);
   return llvm::StringSwitch<StringRef>(Acc)
-      .Case("ro", "read_only")
-      .Case("wo", "write_only")
-      .Case("rw", "read_write")
-      .Default("");
+      .Case(kAccessQualPostfix::ReadOnly, kAccessQualName::ReadOnly)
+      .Case(kAccessQualPostfix::WriteOnly, kAccessQualName::WriteOnly)
+      .Case(kAccessQualPostfix::ReadWrite, kAccessQualName::ReadWrite);
 }
 
 /// Translates OpenCL image type names to SPIR-V.
@@ -1478,7 +1499,7 @@ Type *getSPIRVImageTypeFromOCL(Module *M, Type *ImageTy) {
   auto ImageTypeName = ImageTy->getPointerElementType()->getStructName();
   StringRef Acc = kAccessQualName::ReadOnly;
   if (hasAccessQualifiedName(ImageTypeName))
-    Acc = getAccessQualifier(ImageTypeName);
+    Acc = getAccessQualifierFullName(ImageTypeName);
   return getOrCreateOpaquePtrType(M, mapOCLTypeNameToSPIRV(ImageTypeName, Acc));
 }
 
@@ -1505,25 +1526,93 @@ bool hasLoopMetadata(const Module *M) {
   return false;
 }
 
+bool isSPIRVOCLExtInst(const CallInst *CI, OCLExtOpKind *ExtOp) {
+  StringRef DemangledName;
+  if (!oclIsBuiltin(CI->getCalledFunction()->getName(), DemangledName))
+    return false;
+  StringRef S = DemangledName;
+  if (!S.startswith(kSPIRVName::Prefix))
+    return false;
+  S = S.drop_front(strlen(kSPIRVName::Prefix));
+  auto Loc = S.find(kSPIRVPostfix::Divider);
+  auto ExtSetName = S.substr(0, Loc);
+  SPIRVExtInstSetKind Set = SPIRVEIS_Count;
+  if (!SPIRVExtSetShortNameMap::rfind(ExtSetName.str(), &Set))
+    return false;
+
+  if (Set != SPIRVEIS_OpenCL)
+    return false;
+
+  auto ExtOpName = S.substr(Loc + 1);
+  auto PostFixPos = ExtOpName.find("_R");
+  ExtOpName = ExtOpName.substr(0, PostFixPos);
+
+  OCLExtOpKind EOC;
+  if (!OCLExtOpMap::rfind(ExtOpName.str(), &EOC))
+    return false;
+
+  *ExtOp = EOC;
+  return true;
+}
+
 // Returns true if type(s) and number of elements (if vector) is valid
 bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   switch (II->getIntrinsicID()) {
+  case Intrinsic::ceil:
+  case Intrinsic::copysign:
+  case Intrinsic::cos:
+  case Intrinsic::exp:
+  case Intrinsic::exp2:
   case Intrinsic::fabs:
-  case Intrinsic::ceil: {
+  case Intrinsic::floor:
+  case Intrinsic::fma:
+  case Intrinsic::log:
+  case Intrinsic::log10:
+  case Intrinsic::log2:
+  case Intrinsic::maximum:
+  case Intrinsic::maxnum:
+  case Intrinsic::minimum:
+  case Intrinsic::minnum:
+  case Intrinsic::nearbyint:
+  case Intrinsic::pow:
+  case Intrinsic::powi:
+  case Intrinsic::rint:
+  case Intrinsic::round:
+  case Intrinsic::roundeven:
+  case Intrinsic::sin:
+  case Intrinsic::sqrt:
+  case Intrinsic::trunc: {
+    // Although some of the intrinsics above take multiple arguments, it is
+    // sufficient to check arg 0 because the LLVM Verifier will have checked
+    // that all floating point operands have the same type and the second
+    // argument of powi is i32.
     Type *Ty = II->getType();
     if (II->getArgOperand(0)->getType() != Ty)
       return false;
     int NumElems = 1;
-    if (auto *VecTy = dyn_cast<VectorType>(Ty)) {
+    if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
       NumElems = VecTy->getNumElements();
       Ty = VecTy->getElementType();
     }
-    if ((!Ty->isFloatTy() && !Ty->isDoubleTy()) ||
+    if ((!Ty->isFloatTy() && !Ty->isDoubleTy() && !Ty->isHalfTy()) ||
         ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
-      BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
-                                   II->getCalledOperand()->getName().str(), "",
-                                   __FILE__, __LINE__);
+      BM->SPIRVCK(
+          false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
       return false;
+    }
+    break;
+  }
+  case Intrinsic::abs: {
+    Type *Ty = II->getType();
+    int NumElems = 1;
+    if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
+      NumElems = VecTy->getNumElements();
+      Ty = VecTy->getElementType();
+    }
+    if ((!Ty->isIntegerTy()) ||
+        ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
+      BM->SPIRVCK(
+          false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
     }
     break;
   }
@@ -1531,6 +1620,151 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
     break;
   }
   return true;
+}
+} // namespace SPIRV
+
+namespace {
+class SPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
+public:
+  SPIRVFriendlyIRMangleInfo(spv::Op OC, ArrayRef<Type *> ArgTys)
+      : OC(OC), ArgTys(ArgTys) {}
+
+  void init(StringRef UniqUnmangledName) override {
+    UnmangledName = UniqUnmangledName.str();
+    switch (OC) {
+    case OpConvertUToF:
+      LLVM_FALLTHROUGH;
+    case OpUConvert:
+      LLVM_FALLTHROUGH;
+    case OpSatConvertUToS:
+      // Treat all arguments as unsigned
+      addUnsignedArg(-1);
+      break;
+    case OpSubgroupShuffleINTEL:
+      LLVM_FALLTHROUGH;
+    case OpSubgroupShuffleXorINTEL:
+      addUnsignedArg(1);
+      break;
+    case OpSubgroupShuffleDownINTEL:
+      LLVM_FALLTHROUGH;
+    case OpSubgroupShuffleUpINTEL:
+      addUnsignedArg(2);
+      break;
+    case OpSubgroupBlockWriteINTEL:
+      addUnsignedArg(0);
+      addUnsignedArg(1);
+      break;
+    case OpSubgroupImageBlockWriteINTEL:
+      addUnsignedArg(2);
+      break;
+    case OpSubgroupBlockReadINTEL:
+      setArgAttr(0, SPIR::ATTR_CONST);
+      addUnsignedArg(0);
+      break;
+    case OpAtomicUMax:
+      LLVM_FALLTHROUGH;
+    case OpAtomicUMin:
+      addUnsignedArg(0);
+      addUnsignedArg(3);
+      break;
+    default:;
+      // No special handling is needed
+    }
+  }
+
+private:
+  spv::Op OC;
+  ArrayRef<Type *> ArgTys;
+};
+class OpenCLStdToSPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
+public:
+  OpenCLStdToSPIRVFriendlyIRMangleInfo(OCLExtOpKind ExtOpId,
+                                       ArrayRef<Type *> ArgTys, Type *RetTy)
+      : ExtOpId(ExtOpId), ArgTys(ArgTys) {
+
+    std::string Postfix = "";
+    if (needRetTypePostfix())
+      Postfix = kSPIRVPostfix::Divider + getPostfixForReturnType(RetTy, true);
+
+    UnmangledName = getSPIRVExtFuncName(SPIRVEIS_OpenCL, ExtOpId, Postfix);
+  }
+
+  bool needRetTypePostfix() {
+    switch (ExtOpId) {
+    case OpenCLLIB::Vload_half:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::Vload_halfn:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::Vloada_halfn:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::Vloadn:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  void init(StringRef) override {
+    switch (ExtOpId) {
+    case OpenCLLIB::UAbs:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UAbs_diff:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UAdd_sat:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UHadd:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::URhadd:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UClamp:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMad_hi:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMad_sat:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMax:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMin:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMul_hi:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::USub_sat:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::U_Upsample:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMad24:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMul24:
+      // Treat all arguments as unsigned
+      addUnsignedArg(-1);
+      break;
+    case OpenCLLIB::S_Upsample:
+      addUnsignedArg(1);
+      break;
+    default:;
+      // No special handling is needed
+    }
+  }
+
+private:
+  OCLExtOpKind ExtOpId;
+  ArrayRef<Type *> ArgTys;
+};
+} // namespace
+
+namespace SPIRV {
+std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
+                                           ArrayRef<Type *> ArgTys,
+                                           Type *RetTy) {
+  OpenCLStdToSPIRVFriendlyIRMangleInfo MangleInfo(ExtOpId, ArgTys, RetTy);
+  return mangleBuiltin(MangleInfo.getUnmangledName(), ArgTys, &MangleInfo);
+}
+
+std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
+                                           spv::Op OC,
+                                           ArrayRef<Type *> ArgTys) {
+  SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys);
+  return mangleBuiltin(UniqName, ArgTys, &MangleInfo);
 }
 
 } // namespace SPIRV

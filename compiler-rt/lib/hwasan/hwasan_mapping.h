@@ -39,6 +39,17 @@ constexpr uptr kShadowAlignment = 1ULL << kShadowScale;
 
 namespace __hwasan {
 
+extern uptr kLowMemStart;
+extern uptr kLowMemEnd;
+extern uptr kLowShadowEnd;
+extern uptr kLowShadowStart;
+extern uptr kHighShadowStart;
+extern uptr kHighShadowEnd;
+extern uptr kHighMemStart;
+extern uptr kHighMemEnd;
+
+extern uptr kAliasRegionStart;
+
 inline uptr MemToShadow(uptr untagged_addr) {
   return (untagged_addr >> kShadowScale) +
          __hwasan_shadow_memory_dynamic_address;

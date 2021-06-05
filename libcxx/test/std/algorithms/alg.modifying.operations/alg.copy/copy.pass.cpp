@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: clang-8
+
 // <algorithm>
 
 // template<InputIterator InIter, OutputIterator<auto, InIter::reference> OutIter>
@@ -37,40 +39,49 @@ test_copy()
 TEST_CONSTEXPR_CXX20 bool
 test()
 {
-    test_copy<input_iterator<const int*>, output_iterator<int*> >();
-    test_copy<input_iterator<const int*>, input_iterator<int*> >();
-    test_copy<input_iterator<const int*>, forward_iterator<int*> >();
-    test_copy<input_iterator<const int*>, bidirectional_iterator<int*> >();
-    test_copy<input_iterator<const int*>, random_access_iterator<int*> >();
-    test_copy<input_iterator<const int*>, int*>();
+    test_copy<cpp17_input_iterator<const int*>, output_iterator<int*> >();
+    test_copy<cpp17_input_iterator<const int*>, forward_iterator<int*> >();
+    test_copy<cpp17_input_iterator<const int*>, bidirectional_iterator<int*> >();
+    test_copy<cpp17_input_iterator<const int*>, random_access_iterator<int*> >();
+    test_copy<cpp17_input_iterator<const int*>, int*>();
 
     test_copy<forward_iterator<const int*>, output_iterator<int*> >();
-    test_copy<forward_iterator<const int*>, input_iterator<int*> >();
     test_copy<forward_iterator<const int*>, forward_iterator<int*> >();
     test_copy<forward_iterator<const int*>, bidirectional_iterator<int*> >();
     test_copy<forward_iterator<const int*>, random_access_iterator<int*> >();
     test_copy<forward_iterator<const int*>, int*>();
 
     test_copy<bidirectional_iterator<const int*>, output_iterator<int*> >();
-    test_copy<bidirectional_iterator<const int*>, input_iterator<int*> >();
     test_copy<bidirectional_iterator<const int*>, forward_iterator<int*> >();
     test_copy<bidirectional_iterator<const int*>, bidirectional_iterator<int*> >();
     test_copy<bidirectional_iterator<const int*>, random_access_iterator<int*> >();
     test_copy<bidirectional_iterator<const int*>, int*>();
 
     test_copy<random_access_iterator<const int*>, output_iterator<int*> >();
-    test_copy<random_access_iterator<const int*>, input_iterator<int*> >();
     test_copy<random_access_iterator<const int*>, forward_iterator<int*> >();
     test_copy<random_access_iterator<const int*>, bidirectional_iterator<int*> >();
     test_copy<random_access_iterator<const int*>, random_access_iterator<int*> >();
     test_copy<random_access_iterator<const int*>, int*>();
 
     test_copy<const int*, output_iterator<int*> >();
-    test_copy<const int*, input_iterator<int*> >();
     test_copy<const int*, forward_iterator<int*> >();
     test_copy<const int*, bidirectional_iterator<int*> >();
     test_copy<const int*, random_access_iterator<int*> >();
     test_copy<const int*, int*>();
+
+#if TEST_STD_VER > 17
+    test_copy<cpp17_input_iterator<const int*>, contiguous_iterator<int*>>();
+    test_copy<forward_iterator<const int*>, contiguous_iterator<int*>>();
+    test_copy<bidirectional_iterator<const int*>, contiguous_iterator<int*>>();
+    test_copy<random_access_iterator<const int*>, contiguous_iterator<int*>>();
+    test_copy<const int*, contiguous_iterator<int*>>();
+
+    test_copy<contiguous_iterator<const int*>, output_iterator<int*>>();
+    test_copy<contiguous_iterator<const int*>, forward_iterator<int*>>();
+    test_copy<contiguous_iterator<const int*>, bidirectional_iterator<int*>>();
+    test_copy<contiguous_iterator<const int*>, random_access_iterator<int*>>();
+    test_copy<contiguous_iterator<const int*>, int*>();
+#endif
 
   return true;
 }
@@ -79,7 +90,7 @@ int main(int, char**)
 {
     test();
 
-#if TEST_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_BUILTIN_IS_CONSTANT_EVALUATED)
+#if TEST_STD_VER > 17
     static_assert(test());
 #endif
 

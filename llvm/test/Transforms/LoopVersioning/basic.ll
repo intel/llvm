@@ -1,4 +1,5 @@
 ; RUN: opt -basic-aa -loop-versioning -S < %s | FileCheck %s
+; RUN: opt -aa-pipeline=basic-aa -passes=loop-versioning -S < %s | FileCheck %s
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 
@@ -18,10 +19,14 @@ entry:
 
 ; CHECK: for.body.ph.lver.orig:
 ; CHECK: for.body.lver.orig:
-; CHECK:   br i1 %exitcond.lver.orig, label %for.end, label %for.body.lver.orig
+; CHECK:   br i1 %exitcond.lver.orig, label %for.end.loopexit, label %for.body.lver.orig
 ; CHECK: for.body.ph:
 ; CHECK: for.body:
-; CHECK:   br i1 %exitcond, label %for.end, label %for.body
+; CHECK:   br i1 %exitcond, label %for.end.loopexit12, label %for.body
+; CHECK: for.end.loopexit:
+; CHECK:   br label %for.end
+; CHECK: for.end.loopexit12:
+; CHECK:   br label %for.end
 ; CHECK: for.end:
 
 for.body:                                         ; preds = %for.body, %entry

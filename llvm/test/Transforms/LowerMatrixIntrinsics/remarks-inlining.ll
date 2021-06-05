@@ -47,66 +47,65 @@
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "aarch64-apple-ios"
 
-; CHECK-LABEL: remark: load.h:41:43: Lowered with 0 stores, 10 loads, 0 compute ops
+; CHECK-LABEL: remark: load.h:41:43: Lowered with 0 stores, 10 loads, 0 compute ops, 0 exposed transposes
 ; CHECK-NEXT:  load(addr %A)
 
-; CHECK-LABEL: remark: load.h:41:43: Lowered with 0 stores, 10 loads, 0 compute ops
+; CHECK-LABEL: remark: load.h:41:43: Lowered with 0 stores, 10 loads, 0 compute ops, 0 exposed transposes
 ; CHECK-NEXT:  column.major.load.3x5.double(addr %B, 5)
 
-; CHECK-LABEL: remark: load.h:41:11: Lowered with 0 stores, 1 loads, 0 compute ops
+; CHECK-LABEL: remark: load.h:41:11: Lowered with 0 stores, 1 loads, 0 compute ops, 0 exposed transposes
 ; CHECK-NEXT: load(addr %D)
 
-; CHECK-LABEL: remark: assign.h:32:43: Lowered with 0 stores, 10 loads, 0 compute ops
+; CHECK-LABEL: remark: assign.h:32:43: Lowered with 0 stores, 10 loads, 0 compute ops, 0 exposed transposes
 ; CHECK-NEXT:  load(addr %A)
 
-; CHECK-LABEL: remark: assign.h:32:43: Lowered with 0 stores, 10 loads, 0 compute ops
+; CHECK-LABEL: remark: assign.h:32:43: Lowered with 0 stores, 10 loads, 0 compute ops, 0 exposed transposes
 ; CHECK-NEXT:  column.major.load.3x5.double(addr %B, 5)
 
-; CHECK-LABEL: remark: toplevel.c:410:0: Lowered with 10 stores, 20 loads, 10 compute ops
+; CHECK-LABEL: remark: toplevel.c:410:0: Lowered with 10 stores, 20 loads, 10 compute ops, 0 exposed transposes
 ; CHECK-NEXT:  store(
 ; CHECK-NEXT:   fadd(
 ; CHECK-NEXT:    load(addr %A),
 ; CHECK-NEXT:    column.major.load.3x5.double(addr %B, 5)),
 ; CHECK-NEXT:   addr %C)
 
-; CHECK-LABEL: remark: toplevel.c:510:0: Lowered with 1 stores, 1 loads, 8 compute ops
+; CHECK-LABEL: remark: toplevel.c:510:0: Lowered with 2 stores, 1 loads, 4 compute ops, 1 exposed transposes
 ; CHECK-NEXT:  store(
-; CHECK-NEXT:   transpose.1x2.float(transpose.2x1.float(load(addr %D))),
+; CHECK-NEXT:   transpose.2x1.float(load(addr %D)),
 ; CHECK-NEXT:   addr %D)
 
-; CHECK-LABEL: remark: add.h:66:11: Lowered with 0 stores, 0 loads, 10 compute ops
+; CHECK-LABEL: remark: add.h:66:11: Lowered with 0 stores, 0 loads, 10 compute ops, 0 exposed transposes
 ; CHECK-NEXT:  fadd(
 ; CHECK-NEXT:   addr %A,
 ; CHECK-NEXT:   scalar)
 
-; CHECK-LABEL: remark: store.h:10:11: Lowered with 10 stores, 0 loads, 0 compute ops
+; CHECK-LABEL: remark: store.h:10:11: Lowered with 10 stores, 0 loads, 0 compute ops, 0 exposed transposes
 ; CHECK-NEXT:  store(
 ; CHECK-NEXT:   scalar,
 ; CHECK-NEXT:   addr %C)
 
-; CHECK-LABEL: remark: store.h:66:11: Lowered with 1 stores, 0 loads, 0 compute ops
+; CHECK-LABEL: remark: store.h:66:11: Lowered with 2 stores, 0 loads, 0 compute ops, 0 exposed transposes
 ; CHECK-NEXT:  store(
 ; CHECK-NEXT:  scalar,
 ; CHECK-NEXT:  addr %D)
 
-; CHECK-LABEL: remark: transpose.h:13:11: Lowered with 0 stores, 0 loads, 8 compute ops
-; CHECK-NEXT:  transpose.1x2.float(transpose.2x1.float(addr %D))
+; CHECK-LABEL: remark: transpose.h:13:11: Lowered with 0 stores, 0 loads, 4 compute ops, 1 exposed transposes
+; CHECK-NEXT:  transpose.2x1.float(addr %D)
 
-define void @toplevel(<15 x double>* %A, <15 x double>* %B, <15 x double>* %C, <2 x float>* %D) !dbg !16 {
+define void @toplevel(<15 x double>* %A, double* %B, <15 x double>* %C, <2 x float>* %D) !dbg !16 {
 entry:
   %a = load <15 x double>, <15 x double> *%A, align 16, !dbg !3791
-  %b = call <15 x double> @llvm.matrix.column.major.load(<15 x double>* %B, i64 5, i1 false, i32 3, i32 5), !dbg !3793
+  %b = call <15 x double> @llvm.matrix.column.major.load(double* %B, i64 5, i1 false, i32 3, i32 5), !dbg !3793
   %c  = fadd <15 x double> %a, %b, !dbg !100
   store <15 x double> %c, <15 x double> *%C, align 16, !dbg !102
 
   %load = load <2 x float>, <2 x float>* %D, !dbg !104
   %t1 = call <2 x float> @llvm.matrix.transpose(<2 x float> %load, i32 2, i32 1), !dbg !106
-  %t2 = call <2 x float> @llvm.matrix.transpose(<2 x float> %t1, i32 1, i32 2), !dbg !106
-  store <2 x float> %t2, <2 x float>* %D, !dbg !108
+  store <2 x float> %t1, <2 x float>* %D, !dbg !108
   ret void
 }
 
-declare <15 x double> @llvm.matrix.column.major.load(<15 x double>*, i64, i1, i32, i32)
+declare <15 x double> @llvm.matrix.column.major.load(double*, i64, i1, i32, i32)
 declare <2 x float> @llvm.matrix.transpose(<2 x float>, i32, i32)
 
 !llvm.dbg.cu = !{!0}

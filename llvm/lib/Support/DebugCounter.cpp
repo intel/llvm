@@ -31,7 +31,7 @@ private:
     // width, so we do the same.
     Option::printHelpStr(HelpStr, GlobalWidth, ArgStr.size() + 6);
     const auto &CounterInstance = DebugCounter::instance();
-    for (auto Name : CounterInstance) {
+    for (const auto &Name : CounterInstance) {
       const auto Info =
           CounterInstance.getCounterInfo(CounterInstance.getCounterId(Name));
       size_t NumSpaces = GlobalWidth - Info.first.size() - 8;
@@ -118,7 +118,7 @@ void DebugCounter::push_back(const std::string &Val) {
 void DebugCounter::print(raw_ostream &OS) const {
   SmallVector<StringRef, 16> CounterNames(RegisteredCounters.begin(),
                                           RegisteredCounters.end());
-  sort(CounterNames.begin(), CounterNames.end());
+  sort(CounterNames);
 
   auto &Us = instance();
   OS << "Counters and values:\n";

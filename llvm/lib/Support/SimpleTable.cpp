@@ -64,7 +64,7 @@ int SimpleTable::getColumnId(StringRef ColName) const {
 
 Error SimpleTable::addColumnName(StringRef ColName) {
   if (ColumnName2Num.find(ColName) != ColumnName2Num.end())
-    return makeError("column already exists" + ColName);
+    return makeError("column already exists " + ColName);
   ColumnNames.emplace_back(ColName.str());
   ColumnName2Num[ColumnNames.back()] = static_cast<int>(ColumnNames.size()) - 1;
   ColumnNum2Name.push_back(std::prev(ColumnNames.end()));
@@ -76,7 +76,7 @@ Error SimpleTable::addColumn(const Twine &Title, ArrayRef<std::string> Cells) {
   if (!Rows.empty() && (Rows.size() != N))
     return makeError("column size mismatch for " + Title);
   if (Error Err = addColumnName(Title.str()))
-    return std::move(Err);
+    return Err;
   if (Rows.empty()) {
     Rows.resize(Cells.size());
     for (auto &R : Rows)
@@ -114,7 +114,7 @@ Error SimpleTable::renameColumn(StringRef OldName, StringRef NewName) {
 
   if (I < 0)
     return makeError("column not found: " + OldName);
-  *ColumnNum2Name[I] = std::move(NewName.str());
+  *ColumnNum2Name[I] = NewName.str();
   ColumnName2Num.erase(OldName);
   ColumnName2Num[StringRef(*ColumnNum2Name[I])] = I;
   return Error::success();

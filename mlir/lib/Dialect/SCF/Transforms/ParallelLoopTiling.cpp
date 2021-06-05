@@ -15,6 +15,7 @@
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SCF/Transforms.h"
+#include "mlir/Dialect/SCF/Utils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 
 using namespace mlir;
@@ -22,21 +23,22 @@ using namespace mlir::scf;
 
 /// Tile a parallel loop of the form
 ///   scf.parallel (%i0, %i1) = (%arg0, %arg1) to (%arg2, %arg3)
-///                                             step (%arg4, %arg5)
+///                                            step (%arg4, %arg5)
 ///
 /// into
 ///   scf.parallel (%i0, %i1) = (%arg0, %arg1) to (%arg2, %arg3)
-///                                             step (%arg4*tileSize[0],
-///                                                   %arg5*tileSize[1])
+///                                            step (%arg4*tileSize[0],
+///                                                  %arg5*tileSize[1])
 ///     scf.parallel (%j0, %j1) = (0, 0) to (min(%arg4*tileSize[0], %arg2-%i0)
-///                                           min(%arg5*tileSize[1], %arg3-%i1))
-///                                        step (%arg4, %arg5)
+///                                          min(%arg5*tileSize[1], %arg3-%i1))
+///                                      step (%arg4, %arg5)
 ///
 /// where the uses of %i0 and %i1 in the loop body are replaced by
 /// %i0 + j0 and %i1 + %j1.
 //
 /// The old loop is replaced with the new one.
-void mlir::scf::tileParallelLoop(ParallelOp op, ArrayRef<int64_t> tileSizes) {
+std::pair<ParallelOp, ParallelOp>
+mlir::scf::tileParallelLoop(ParallelOp op, ArrayRef<int64_t> tileSizes) {
   OpBuilder b(op);
   auto zero = b.create<ConstantIndexOp>(op.getLoc(), 0);
   SmallVector<Value, 2> tileSizeConstants;
@@ -119,24 +121,11 @@ void mlir::scf::tileParallelLoop(ParallelOp op, ArrayRef<int64_t> tileSizes) {
     Value inner_index = std::get<0>(ivs);
     AddIOp newIndex =
         b.create<AddIOp>(op.getLoc(), std::get<0>(ivs), std::get<1>(ivs));
-    inner_index.replaceAllUsesExcept(
-        newIndex, SmallPtrSet<Operation *, 1>{newIndex.getOperation()});
+    inner_index.replaceAllUsesExcept(newIndex, newIndex);
   }
 
   op.erase();
-}
-
-/// Get a list of most nested parallel loops. Assumes that ParallelOps are
-/// only directly nested.
-static bool getInnermostNestedLoops(Block *block,
-                                    SmallVectorImpl<ParallelOp> &loops) {
-  bool hasInnerLoop = false;
-  for (auto parallelOp : block->getOps<ParallelOp>()) {
-    hasInnerLoop = true;
-    if (!getInnermostNestedLoops(parallelOp.getBody(), loops))
-      loops.push_back(parallelOp);
-  }
-  return hasInnerLoop;
+  return std::make_pair(outerLoop, innerLoop);
 }
 
 namespace {
@@ -148,14 +137,12 @@ struct ParallelLoopTiling
   }
 
   void runOnFunction() override {
-    SmallVector<ParallelOp, 2> mostNestedParallelOps;
-    for (Block &block : getFunction()) {
-      getInnermostNestedLoops(&block, mostNestedParallelOps);
-    }
-    for (ParallelOp pLoop : mostNestedParallelOps) {
+    SmallVector<ParallelOp, 2> innermostPloops;
+    getInnermostParallelLoops(getFunction().getOperation(), innermostPloops);
+    for (ParallelOp ploop : innermostPloops) {
       // FIXME: Add reduction support.
-      if (pLoop.getNumReductions() == 0)
-        tileParallelLoop(pLoop, tileSizes);
+      if (ploop.getNumReductions() == 0)
+        tileParallelLoop(ploop, tileSizes);
     }
   }
 };

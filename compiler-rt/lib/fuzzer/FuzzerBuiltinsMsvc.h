@@ -12,7 +12,7 @@
 #ifndef LLVM_FUZZER_BUILTINS_MSVC_H
 #define LLVM_FUZZER_BUILTINS_MSVC_H
 
-#include "FuzzerDefs.h"
+#include "FuzzerPlatform.h"
 
 #if LIBFUZZER_MSVC
 #include <intrin.h>
@@ -50,12 +50,6 @@ inline uint32_t Clzll(uint64_t X) {
   if (_BitScanReverse64(&LeadZeroIdx, X)) return 63 - LeadZeroIdx;
 #endif
   return 64;
-}
-
-inline uint32_t Clz(uint32_t X) {
-  unsigned long LeadZeroIdx = 0;
-  if (_BitScanReverse(&LeadZeroIdx, X)) return 31 - LeadZeroIdx;
-  return 32;
 }
 
 inline int Popcountll(unsigned long long X) {

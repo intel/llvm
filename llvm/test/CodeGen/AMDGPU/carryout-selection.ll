@@ -5,7 +5,7 @@
 ; RUN: llc -march=amdgcn -mcpu=gfx900  -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX9    %s
 ; RUN: llc -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX1010 %s
 
-; GCN-ISEL-LABEL: name:   sadd64rr 
+; GCN-ISEL-LABEL: name:   sadd64rr
 ; GCN-ISEL-LABEL: body:
 ; GCN-ISEL-LABEL: bb.0.entry:
 ; GCN-ISEL: S_ADD_U64_PSEUDO
@@ -20,7 +20,7 @@ entry:
   ret void
 }
 
-; GCN-ISEL-LABEL: name:   sadd64ri 
+; GCN-ISEL-LABEL: name:   sadd64ri
 ; GCN-ISEL-LABEL: body:
 ; GCN-ISEL-LABEL: bb.0.entry:
 ; GCN-ISEL: S_ADD_U64_PSEUDO
@@ -35,7 +35,7 @@ entry:
   ret void
 }
 
-; GCN-ISEL-LABEL: name:   vadd64rr 
+; GCN-ISEL-LABEL: name:   vadd64rr
 ; GCN-ISEL-LABEL: body:
 ; GCN-ISEL-LABEL: bb.0.entry:
 ; GCN-ISEL: V_ADD_U64_PSEUDO
@@ -51,7 +51,7 @@ entry:
 ; GFX9:	v_add_co_u32_e32 v{{[0-9]+}}, vcc, s{{[0-9]+}}, v{{[0-9]+}}
 ; GFX9: v_addc_co_u32_e32 v{{[0-9]+}}, vcc, 0, v{{[0-9]+}}, vcc
 ;
-; GFX1010: v_add_co_u32_e64 v{{[0-9]+}}, [[CARRY:s[0-9]+]], s{{[0-9]+}}, v{{[0-9]+}}
+; GFX1010: v_add_co_u32 v{{[0-9]+}}, [[CARRY:s[0-9]+]], s{{[0-9]+}}, v{{[0-9]+}}
 ; GFX1010: v_add_co_ci_u32_e64 v{{[0-9]+}}, [[CARRY]], s{{[0-9]+}}, 0, [[CARRY]]
 define amdgpu_kernel void @vadd64rr(i64 addrspace(1)* %out, i64 %a) {
 entry:
@@ -62,7 +62,7 @@ entry:
   ret void
 }
 
-; GCN-ISEL-LABEL: name:   vadd64ri 
+; GCN-ISEL-LABEL: name:   vadd64ri
 ; GCN-ISEL-LABEL: body:
 ; GCN-ISEL-LABEL: bb.0.entry:
 ; GCN-ISEL: V_ADD_U64_PSEUDO
@@ -77,11 +77,11 @@ entry:
 ; VI: v_mov_b32_e32 v1, 0x1234
 ; VI: v_addc_u32_e32 v1, vcc, 0, v1, vcc
 ;
-; GFX9:	v_add_co_u32_e32 v0, vcc, 0x56789876, v0 
-; GFX9: v_mov_b32_e32 v1, 0x1234                 
-; GFX9: v_addc_co_u32_e32 v1, vcc, 0, v1, vcc    
+; GFX9:	v_add_co_u32_e32 v0, vcc, 0x56789876, v0
+; GFX9: v_mov_b32_e32 v1, 0x1234
+; GFX9: v_addc_co_u32_e32 v1, vcc, 0, v1, vcc
 ;
-; GFX1010: v_add_co_u32_e64 v{{[0-9]+}}, [[CARRY:s[0-9]+]], 0x56789876, v{{[0-9]+}}
+; GFX1010: v_add_co_u32 v{{[0-9]+}}, [[CARRY:s[0-9]+]], 0x56789876, v{{[0-9]+}}
 ; GFX1010: v_add_co_ci_u32_e64 v{{[0-9]+}}, [[CARRY]], 0, 0x1234, [[CARRY]]
 define amdgpu_kernel void @vadd64ri(i64 addrspace(1)* %out) {
 entry:
@@ -108,7 +108,7 @@ define amdgpu_kernel void @suaddo32(i32 addrspace(1)* %out, i1 addrspace(1)* %ca
 ; GCN-ISEL-LABEL: name:   uaddo32_vcc_user
 ; GCN-ISEL-LABEL: body:
 ; GCN-ISEL-LABEL: bb.0
-; GCN-ISEL: V_ADD_I32_e64
+; GCN-ISEL: V_ADD_CO_U32_e64
 
 ; below we check selection to v_add/addc
 ; because the only user of VCC produced by the UADDOis v_cndmask.
@@ -125,7 +125,7 @@ define amdgpu_kernel void @suaddo32(i32 addrspace(1)* %out, i1 addrspace(1)* %ca
 ; GFX9:	v_add_co_u32_e32 v{{[0-9]+}}, vcc, s{{[0-9]+}}, v{{[0-9]+}}
 ; GFX9:	v_cndmask_b32_e64 v{{[0-9]+}}, 0, 1, vcc
 ;
-; GFX1010: v_add_co_u32_e64 v{{[0-9]+}}, [[CARRY:s[0-9]+]], s{{[0-9]+}}, s{{[0-9]+}}
+; GFX1010: v_add_co_u32 v{{[0-9]+}}, [[CARRY:s[0-9]+]], s{{[0-9]+}}, s{{[0-9]+}}
 ; GFX1010: v_cndmask_b32_e64 v{{[0-9]+}}, 0, 1, [[CARRY]]
 define amdgpu_kernel void @uaddo32_vcc_user(i32 addrspace(1)* %out, i1 addrspace(1)* %carryout, i32 %a, i32 %b) #0 {
   %uadd = call { i32, i1 } @llvm.uadd.with.overflow.i32(i32 %a, i32 %b)
@@ -170,7 +170,7 @@ define amdgpu_kernel void @suaddo64(i64 addrspace(1)* %out, i1 addrspace(1)* %ca
 ; GFX9:	v_add_co_u32_e32 v{{[0-9]+}}, vcc, s{{[0-9]+}}, v0
 ; GFX9:	v_addc_co_u32_e32 v{{[0-9]+}}, vcc, 0, v{{[0-9]+}}, vcc
 ;
-; GFX1010: v_add_co_u32_e64 v{{[0-9]+}}, [[CARRY:s[0-9]+]], s{{[0-9]+}}, v0
+; GFX1010: v_add_co_u32 v{{[0-9]+}}, [[CARRY:s[0-9]+]], s{{[0-9]+}}, v0
 ; GFX1010: v_add_co_ci_u32_e64 v{{[0-9]+}}, [[CARRY]], s{{[0-9]+}}, 0, [[CARRY]]
 define amdgpu_kernel void @vuaddo64(i64 addrspace(1)* %out, i1 addrspace(1)* %carryout, i64 %a) #0 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
@@ -190,7 +190,7 @@ define amdgpu_kernel void @vuaddo64(i64 addrspace(1)* %out, i1 addrspace(1)* %ca
 ; RUN: llc -march=amdgcn -mcpu=gfx900  -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX9    %s
 ; RUN: llc -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX1010 %s
 
-; GCN-ISEL-LABEL: name:   ssub64rr 
+; GCN-ISEL-LABEL: name:   ssub64rr
 ; GCN-ISEL-LABEL: body:
 ; GCN-ISEL-LABEL: bb.0.entry:
 ; GCN-ISEL: S_SUB_U64_PSEUDO
@@ -205,7 +205,7 @@ entry:
   ret void
 }
 
-; GCN-ISEL-LABEL: name:   ssub64ri 
+; GCN-ISEL-LABEL: name:   ssub64ri
 ; GCN-ISEL-LABEL: body:
 ; GCN-ISEL-LABEL: bb.0.entry:
 ; GCN-ISEL: S_SUB_U64_PSEUDO
@@ -220,7 +220,7 @@ entry:
   ret void
 }
 
-; GCN-ISEL-LABEL: name:   vsub64rr 
+; GCN-ISEL-LABEL: name:   vsub64rr
 ; GCN-ISEL-LABEL: body:
 ; GCN-ISEL-LABEL: bb.0.entry:
 ; GCN-ISEL: V_SUB_U64_PSEUDO
@@ -236,7 +236,7 @@ entry:
 ; GFX9:	v_sub_co_u32_e32 v{{[0-9]+}}, vcc, s{{[0-9]+}}, v{{[0-9]+}}
 ; GFX9: v_subbrev_co_u32_e32 v{{[0-9]+}}, vcc, 0, v{{[0-9]+}}, vcc
 ;
-; GFX1010: v_sub_co_u32_e64 v{{[0-9]+}}, [[CARRY:s[0-9]+]], s{{[0-9]+}}, v{{[0-9]+}}
+; GFX1010: v_sub_co_u32 v{{[0-9]+}}, [[CARRY:s[0-9]+]], s{{[0-9]+}}, v{{[0-9]+}}
 ; GFX1010: v_sub_co_ci_u32_e64 v{{[0-9]+}}, [[CARRY]], s{{[0-9]+}}, 0, [[CARRY]]
 define amdgpu_kernel void @vsub64rr(i64 addrspace(1)* %out, i64 %a) {
 entry:
@@ -247,7 +247,7 @@ entry:
   ret void
 }
 
-; GCN-ISEL-LABEL: name:   vsub64ri 
+; GCN-ISEL-LABEL: name:   vsub64ri
 ; GCN-ISEL-LABEL: body:
 ; GCN-ISEL-LABEL: bb.0.entry:
 ; GCN-ISEL: V_SUB_U64_PSEUDO
@@ -262,11 +262,11 @@ entry:
 ; VI: v_mov_b32_e32 v1, 0x1234
 ; VI: v_subbrev_u32_e32 v1, vcc, 0, v1, vcc
 ;
-; GFX9:	v_sub_co_u32_e32 v0, vcc, 0x56789876, v0 
-; GFX9: v_mov_b32_e32 v1, 0x1234                 
-; GFX9: v_subbrev_co_u32_e32 v1, vcc, 0, v1, vcc    
+; GFX9:	v_sub_co_u32_e32 v0, vcc, 0x56789876, v0
+; GFX9: v_mov_b32_e32 v1, 0x1234
+; GFX9: v_subbrev_co_u32_e32 v1, vcc, 0, v1, vcc
 ;
-; GFX1010: v_sub_co_u32_e64 v{{[0-9]+}}, [[CARRY:s[0-9]+]], 0x56789876, v{{[0-9]+}}
+; GFX1010: v_sub_co_u32 v{{[0-9]+}}, [[CARRY:s[0-9]+]], 0x56789876, v{{[0-9]+}}
 ; GFX1010: v_sub_co_ci_u32_e64 v{{[0-9]+}}, [[CARRY]], 0x1234, 0, [[CARRY]]
 define amdgpu_kernel void @vsub64ri(i64 addrspace(1)* %out) {
 entry:
@@ -293,7 +293,7 @@ define amdgpu_kernel void @susubo32(i32 addrspace(1)* %out, i1 addrspace(1)* %ca
 ; GCN-ISEL-LABEL: name:   usubo32_vcc_user
 ; GCN-ISEL-LABEL: body:
 ; GCN-ISEL-LABEL: bb.0
-; GCN-ISEL: V_SUB_I32_e64
+; GCN-ISEL: V_SUB_CO_U32_e64
 
 ; below we check selection to v_sub/subb
 ; because the only user of VCC produced by the USUBOis v_cndmask.
@@ -310,7 +310,7 @@ define amdgpu_kernel void @susubo32(i32 addrspace(1)* %out, i1 addrspace(1)* %ca
 ; GFX9:	v_sub_co_u32_e32 v{{[0-9]+}}, vcc, s{{[0-9]+}}, v{{[0-9]+}}
 ; GFX9:	v_cndmask_b32_e64 v{{[0-9]+}}, 0, 1, vcc
 ;
-; GFX1010: v_sub_co_u32_e64 v{{[0-9]+}}, [[CARRY:s[0-9]+]], s{{[0-9]+}}, s{{[0-9]+}}
+; GFX1010: v_sub_co_u32 v{{[0-9]+}}, [[CARRY:s[0-9]+]], s{{[0-9]+}}, s{{[0-9]+}}
 ; GFX1010: v_cndmask_b32_e64 v{{[0-9]+}}, 0, 1, [[CARRY]]
 define amdgpu_kernel void @usubo32_vcc_user(i32 addrspace(1)* %out, i1 addrspace(1)* %carryout, i32 %a, i32 %b) #0 {
   %usub = call { i32, i1 } @llvm.usub.with.overflow.i32(i32 %a, i32 %b)
@@ -355,7 +355,7 @@ define amdgpu_kernel void @susubo64(i64 addrspace(1)* %out, i1 addrspace(1)* %ca
 ; GFX9:	v_sub_co_u32_e32 v{{[0-9]+}}, vcc, s{{[0-9]+}}, v0
 ; GFX9:	v_subbrev_co_u32_e32 v{{[0-9]+}}, vcc, 0, v{{[0-9]+}}, vcc
 ;
-; GFX1010: v_sub_co_u32_e64 v{{[0-9]+}}, [[CARRY:s[0-9]+]], s{{[0-9]+}}, v0
+; GFX1010: v_sub_co_u32 v{{[0-9]+}}, [[CARRY:s[0-9]+]], s{{[0-9]+}}, v0
 ; GFX1010: v_sub_co_ci_u32_e64 v{{[0-9]+}}, [[CARRY]], s{{[0-9]+}}, 0, [[CARRY]]
 define amdgpu_kernel void @vusubo64(i64 addrspace(1)* %out, i1 addrspace(1)* %carryout, i64 %a) #0 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
@@ -371,9 +371,9 @@ define amdgpu_kernel void @vusubo64(i64 addrspace(1)* %out, i1 addrspace(1)* %ca
 ; GCN-ISEL-LABEL: name:   sudiv64
 ; GCN-ISEL-LABEL: body:
 ; GCN-ISEL-LABEL: bb.3
-; GCN-ISEL: %[[CARRY:[0-9]+]]:sreg_64_xexec = V_ADD_I32_e64
+; GCN-ISEL: %[[CARRY:[0-9]+]]:sreg_64_xexec = V_ADD_CO_U32_e64
 ; GCN-ISEL: S_ADD_CO_PSEUDO %{{[0-9]+}}, %{{[0-9]+}}, %[[CARRY]]
-; GCN-ISEL: %[[CARRY:[0-9]+]]:sreg_64_xexec = V_SUB_I32_e64
+; GCN-ISEL: %[[CARRY:[0-9]+]]:sreg_64_xexec = V_SUB_CO_U32_e64
 ; GCN-ISEL: S_SUB_CO_PSEUDO %{{[0-9]+}}, %{{[0-9]+}}, %[[CARRY]]
 define amdgpu_kernel void @sudiv64(i64 addrspace(1)* %out, i64 %x, i64 %y) {
   %result = udiv i64 %x, %y

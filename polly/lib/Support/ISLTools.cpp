@@ -157,10 +157,9 @@ isl::set polly::singleton(isl::union_set USet, isl::space ExpectedSpace) {
   return Result;
 }
 
-unsigned polly::getNumScatterDims(const isl::union_map &Schedule) {
-  unsigned Dims = 0;
+isl_size polly::getNumScatterDims(const isl::union_map &Schedule) {
+  isl_size Dims = 0;
   for (isl::map Map : Schedule.get_map_list()) {
-    // Map.dim would return UINT_MAX.
     if (!Map)
       continue;
 
@@ -524,6 +523,12 @@ isl::map polly::subtractParams(isl::map Map, isl::set Params) {
   return Map.subtract(ParamsMap);
 }
 
+isl::set polly::subtractParams(isl::set Set, isl::set Params) {
+  isl::space SetSpace = Set.get_space();
+  isl::set ParamsSet = isl::set::universe(SetSpace).intersect_params(Params);
+  return Set.subtract(ParamsSet);
+}
+
 isl::val polly::getConstant(isl::pw_aff PwAff, bool Max, bool Min) {
   assert(!Max || !Min); // Cannot return min and max at the same time.
   isl::val Result;
@@ -662,11 +667,11 @@ static int structureCompare(const isl::space &ASpace, const isl::space &BSpace,
   }
 
   std::string AName;
-  if (ASpace.has_tuple_name(isl::dim::set))
+  if (!ASpace.is_params() && ASpace.has_tuple_name(isl::dim::set))
     AName = ASpace.get_tuple_name(isl::dim::set);
 
   std::string BName;
-  if (BSpace.has_tuple_name(isl::dim::set))
+  if (!BSpace.is_params() && BSpace.has_tuple_name(isl::dim::set))
     BName = BSpace.get_tuple_name(isl::dim::set);
 
   int NameCompare = AName.compare(BName);

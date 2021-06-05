@@ -3,8 +3,8 @@
 ; RUN: opt < %s -msan -msan-check-access-address=0 -S | FileCheck %s
 ; RUN: opt < %s -msan-check-access-address=0 -msan-track-origins=1 -S          \
 ; RUN: -passes=msan 2>&1 | FileCheck -check-prefix=CHECK                       \
-; RUN: -check-prefix=CHECK-ORIGINS %s --allow-empty
-; RUN: opt < %s -msan -msan-check-access-address=0 -msan-track-origins=1 -S | FileCheck -check-prefix=CHECK -check-prefix=CHECK-ORIGINS %s
+; RUN: %s --allow-empty
+; RUN: opt < %s -msan -msan-check-access-address=0 -msan-track-origins=1 -S | FileCheck -check-prefix=CHECK %s
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
@@ -17,8 +17,8 @@ entry:
 }
 
 ; CHECK-LABEL: @InsertValue(
-; CHECK-DAG: [[Sy:%.*]] = load i32, i32* {{.*}}@__msan_param_tls to i64), i64 8) to i32*)
 ; CHECK-DAG: [[Sx:%.*]] = load i32, i32* {{.*}}@__msan_param_tls to i32*)
+; CHECK-DAG: [[Sy:%.*]] = load i32, i32* {{.*}}@__msan_param_tls to i64), i64 8) to i32*)
 ; CHECK: [[A:%.*]] = insertvalue [2 x i32] [i32 -1, i32 -1], i32 [[Sx]], 0
 ; CHECK: [[B:%.*]] = insertvalue [2 x i32] [[A]], i32 [[Sy]], 1
 ; CHECK: store [2 x i32] [[B]], [2 x i32]* {{.*}}@__msan_retval_tls
@@ -33,8 +33,8 @@ entry:
 }
 
 ; CHECK-LABEL: @InsertValueDouble(
-; CHECK-DAG: [[Sy:%.*]] = load i64, i64* {{.*}}@__msan_param_tls to i64), i64 8) to i64*)
 ; CHECK-DAG: [[Sx:%.*]] = load i64, i64* getelementptr {{.*}}@__msan_param_tls, i32 0, i32 0
+; CHECK-DAG: [[Sy:%.*]] = load i64, i64* {{.*}}@__msan_param_tls to i64), i64 8) to i64*)
 ; CHECK: [[A:%.*]] = insertvalue [2 x i64] [i64 -1, i64 -1], i64 [[Sx]], 0
 ; CHECK: [[B:%.*]] = insertvalue [2 x i64] [[A]], i64 [[Sy]], 1
 ; CHECK: store [2 x i64] [[B]], [2 x i64]* {{.*}}@__msan_retval_tls

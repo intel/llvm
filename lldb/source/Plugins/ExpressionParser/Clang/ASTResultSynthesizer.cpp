@@ -15,7 +15,6 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/LLDBAssert.h"
 #include "lldb/Utility/Log.h"
-#include "stdlib.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -27,6 +26,7 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
+#include <cstdlib>
 
 using namespace llvm;
 using namespace clang;
@@ -443,7 +443,9 @@ void ASTResultSynthesizer::CommitPersistentDecls() {
     return;
 
   auto *persistent_vars = llvm::cast<ClangPersistentVariables>(state);
-  TypeSystemClang *scratch_ctx = TypeSystemClang::GetScratch(m_target);
+
+  TypeSystemClang *scratch_ctx = ScratchTypeSystemClang::GetForTarget(
+      m_target, m_ast_context->getLangOpts());
 
   for (clang::NamedDecl *decl : m_decls) {
     StringRef name = decl->getName();

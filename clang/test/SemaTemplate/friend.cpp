@@ -122,3 +122,29 @@ namespace qualified_friend_finds_nothing {
   namespace N { void f(int); }
   B<int> bi; // ok?!
 }
+
+namespace PR37556 {
+  inline namespace N { int x1, x2, y1, y2; } // expected-note 2{{previous}}
+  struct X {
+    friend void x1(int);
+    friend void PR37556::x2(int); // expected-error {{different kind}}
+  };
+  template<typename T> struct Y {
+    friend void y1(T);
+    friend void PR37556::y2(T); // expected-error {{different kind}}
+  };
+  template struct Y<int>;
+  template<typename T> struct Z {
+    friend void z1(T);
+    friend void PR37556::z2(T); // expected-error {{does not match any}}
+  };
+  inline namespace N { int z1, z2; }
+  template struct Z<int>;
+}
+
+namespace PR42513_comment3 {
+  template<typename X> struct T { friend auto f(X*) { return nullptr; } };
+  struct X1 { friend auto f(X1*); };
+  template struct T<X1>;
+  int n = f((X1*)nullptr); // expected-error {{cannot initialize a variable of type 'int' with an rvalue of type 'nullptr_t'}}
+}

@@ -23,7 +23,7 @@ class TestInterruptThreadNames(TestBase):
         target = self.dbg.CreateTarget(exe)
         self.assertTrue(target, VALID_TARGET)
 
-        launch_info = lldb.SBLaunchInfo(None)
+        launch_info = target.GetLaunchInfo()
         error = lldb.SBError()
         self.dbg.SetAsync(True)
         process = target.Launch(launch_info, error)
@@ -126,8 +126,8 @@ class TestInterruptThreadNames(TestBase):
 
 
     def check_number_of_threads(self, process):
-        self.assertTrue(
-            process.GetNumThreads() == 3,
+        self.assertEqual(
+            process.GetNumThreads(), 3,
             "Check that the process has three threads when sitting at the stopper() breakpoint")
 
     def check_expected_threads_present(self, main_thread, second_thread, third_thread):

@@ -108,7 +108,7 @@ public:
     ParseState backtrack{state};
     std::optional<resultType> result{parser_.Parse(state)};
     if (result) {
-      state.messages().Restore(std::move(messages));
+      state.messages().Annex(std::move(messages));
     } else {
       state = std::move(backtrack);
       state.messages() = std::move(messages);
@@ -311,7 +311,7 @@ public:
         ParseRest<1>(result, state, backtrack);
       }
     }
-    state.messages().Restore(std::move(messages));
+    state.messages().Annex(std::move(messages));
     return result;
   }
 
@@ -371,7 +371,7 @@ public:
     }
     Messages messages{std::move(state.messages())};
     if (std::optional<resultType> ax{pa_.Parse(state)}) {
-      state.messages().Restore(std::move(messages));
+      state.messages().Annex(std::move(messages));
       return ax;
     }
     messages.Annex(std::move(state.messages()));
@@ -636,14 +636,14 @@ private:
 
 template <typename RESULT, typename... PARSER>
 inline constexpr auto applyFunction(
-    ApplicableFunctionPointer<RESULT, PARSER...> f, const PARSER &... parser) {
+    ApplicableFunctionPointer<RESULT, PARSER...> f, const PARSER &...parser) {
   return ApplyFunction<ApplicableFunctionPointer, RESULT, PARSER...>{
       f, parser...};
 }
 
 template <typename RESULT, typename... PARSER>
 inline /* not constexpr */ auto applyLambda(
-    ApplicableFunctionObject<RESULT, PARSER...> f, const PARSER &... parser) {
+    ApplicableFunctionObject<RESULT, PARSER...> f, const PARSER &...parser) {
   return ApplyFunction<ApplicableFunctionObject, RESULT, PARSER...>{
       f, parser...};
 }
@@ -729,13 +729,7 @@ public:
       return RESULT{};
     } else {
       if constexpr (sizeof...(PARSER) == 1) {
-        if constexpr (std::is_same_v<Success, typename PARSER::resultType...>) {
-          if (std::get<0>(parsers_).Parse(state)) {
-            return RESULT{};
-          }
-        } else if (auto arg{std::get<0>(parsers_).Parse(state)}) {
-          return RESULT{std::move(*arg)};
-        }
+        return ParseOne(state);
       } else {
         ApplyArgs<PARSER...> results;
         using Sequence = std::index_sequence_for<PARSER...>;
@@ -749,6 +743,17 @@ public:
   }
 
 private:
+  std::optional<resultType> ParseOne(ParseState &state) const {
+    if constexpr (std::is_same_v<Success, typename PARSER::resultType...>) {
+      if (std::get<0>(parsers_).Parse(state)) {
+        return RESULT{};
+      }
+    } else if (auto arg{std::get<0>(parsers_).Parse(state)}) {
+      return RESULT{std::move(*arg)};
+    }
+    return std::nullopt;
+  }
+
   const std::tuple<PARSER...> parsers_;
 };
 
@@ -782,7 +787,8 @@ public:
   constexpr NonemptySeparated(const NonemptySeparated &) = default;
   constexpr NonemptySeparated(PA p, PB sep) : parser_{p}, separator_{sep} {}
   std::optional<resultType> Parse(ParseState &state) const {
-    return applyFunction(prepend<paType>, parser_, many(separator_ >> parser_))
+    return applyFunction<std::list<paType>>(
+        prepend<paType>, parser_, many(separator_ >> parser_))
         .Parse(state);
   }
 
@@ -800,13 +806,14 @@ inline constexpr auto nonemptySeparated(PA p, PB sep) {
 // must discard its result in order to be compatible in type with other
 // parsers in an alternative, e.g. "x >> ok || y >> ok" is type-safe even
 // when x and y have distinct result types.
-constexpr struct OkParser {
+struct OkParser {
   using resultType = Success;
   constexpr OkParser() {}
   static constexpr std::optional<Success> Parse(ParseState &) {
     return Success{};
   }
-} ok;
+};
+constexpr OkParser ok;
 
 // A variant of recovery() above for convenience.
 template <typename PA, typename PB>

@@ -19,6 +19,9 @@ def err_fe_inline_asm : Error<"%0">, CatInlineAsm;
 def warn_fe_inline_asm : Warning<"%0">, CatInlineAsm, InGroup<BackendInlineAsm>;
 def note_fe_inline_asm : Note<"%0">, CatInlineAsm;
 def note_fe_inline_asm_here : Note<"instantiated into assembly here">;
+def err_fe_source_mgr : Error<"%0">, CatSourceMgr;
+def warn_fe_source_mgr : Warning<"%0">, CatSourceMgr, InGroup<BackendSourceMgr>;
+def note_fe_source_mgr : Note<"%0">, CatSourceMgr;
 def err_fe_cannot_link_module : Error<"cannot link module '%0': %1">,
   DefaultFatal;
 
@@ -37,6 +40,12 @@ def note_fe_backend_plugin: Note<"%0">, BackendInfo;
 def warn_fe_override_module : Warning<
     "overriding the module target triple with %0">,
     InGroup<DiagGroup<"override-module">>;
+def warn_fe_backend_unsupported_fp_rounding : Warning<
+    "overriding currently unsupported rounding mode on this target">,
+    InGroup<UnsupportedFPOpt>;
+def warn_fe_backend_unsupported_fp_exceptions : Warning<
+    "overriding currently unsupported use of floating point exceptions "
+    "on this target">, InGroup<UnsupportedFPOpt>;
 
 def remark_fe_backend_optimization_remark : Remark<"%0">, BackendInfo,
     InGroup<BackendOptimizationRemark>;
@@ -102,10 +111,8 @@ def err_fe_action_not_available : Error<
     "action %0 not compiled in">;
 def err_fe_invalid_alignment : Error<
     "invalid value '%1' in '%0'; alignment must be a power of 2">;
-def err_fe_invalid_wchar_type
-    : Error<"invalid wchar_t type '%0'; must be one of 'char', 'short', 'int'">;
 def err_fe_invalid_exception_model
-   : Error<"invalid exception model '%0' for target '%1'">;
+   : Error<"invalid exception model '%select{none|sjlj|seh|dwarf|wasm}0' for target '%1'">;
 def warn_fe_concepts_ts_flag : Warning<
   "-fconcepts-ts is deprecated - use '-std=c++20' for Concepts support">,
   InGroup<Deprecated>;
@@ -118,6 +125,9 @@ def warn_fe_serialized_diag_merge_failure : Warning<
     InGroup<SerializedDiagnostics>;
 def warn_fe_serialized_diag_failure : Warning<
     "unable to open file %0 for serializing diagnostics (%1)">,
+    InGroup<SerializedDiagnostics>;
+def warn_fe_serialized_diag_failure_during_finalisation : Warning<
+    "Received warning after diagnostic serialization teardown was underway: %0">,
     InGroup<SerializedDiagnostics>;
 
 def err_verify_missing_line : Error<
@@ -148,6 +158,8 @@ def err_verify_invalid_no_diags : Error<
     "%select{'expected-no-diagnostics' directive|other expected directives}0">;
 def err_verify_no_directives : Error<
     "no expected directives found: consider use of 'expected-no-diagnostics'">;
+def err_verify_nonconst_addrspace : Error<
+  "qualifier 'const' is needed for variables in address space '%0'">;
 
 def note_fixit_applied : Note<"FIX-IT applied suggested code changes">;
 def note_fixit_in_macro : Note<
@@ -240,6 +252,12 @@ def err_function_needs_feature : Error<
   "always_inline function %1 requires target feature '%2', but would "
   "be inlined into function %0 that is compiled without support for '%2'">;
 
+def warn_avx_calling_convention
+    : Warning<"AVX vector %select{return|argument}0 of type %1 without '%2' "
+              "enabled changes the ABI">,
+      InGroup<DiagGroup<"psabi">>;
+def err_avx_calling_convention : Error<warn_avx_calling_convention.Text>;
+
 def err_alias_to_undefined : Error<
   "%select{alias|ifunc}0 must point to a defined "
   "%select{variable or |}1function">;
@@ -255,8 +273,16 @@ def err_ifunc_resolver_return : Error<
   "ifunc resolver function must return a pointer">;
 
 def warn_atomic_op_misaligned : Warning<
-  "%select{large|misaligned}0 atomic operation may incur "
-  "significant performance penalty">, InGroup<DiagGroup<"atomic-alignment">>;
+  "misaligned atomic operation may incur "
+  "significant performance penalty"
+  "; the expected alignment (%0 bytes) exceeds the actual alignment (%1 bytes)">,
+  InGroup<AtomicAlignment>;
+
+def warn_atomic_op_oversized : Warning<
+  "large atomic operation may incur "
+  "significant performance penalty"
+  "; the access size (%0 bytes) exceeds the max lock-free size (%1  bytes)">,
+InGroup<AtomicAlignment>;
 
 def warn_alias_with_section : Warning<
   "%select{alias|ifunc}1 will not be in section '%0' but in the same section "
@@ -276,12 +302,6 @@ def warn_profile_data_missing : Warning<
 def warn_profile_data_unprofiled : Warning<
   "no profile data available for file \"%0\"">,
   InGroup<ProfileInstrUnprofiled>;
-def warn_profile_data_misexpect : Warning<
-  "Potential performance regression from use of __builtin_expect(): "
-  "Annotation was correct on %0 of profiled executions.">,
-  BackendInfo,
-  InGroup<MisExpect>,
-  DefaultIgnore;
 } // end of instrumentation issue category
 
 }

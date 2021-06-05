@@ -38,9 +38,6 @@ class NamespaceLookupTestCase(TestBase):
                     substrs=['stopped',
                              'stop reason = breakpoint'])
 
-    @expectedFailureAll(
-        oslist=["freebsd"],
-        bugnumber="llvm.org/pr25819")
     @skipIfWindows # This is flakey on Windows: llvm.org/pr38373
     def test_scope_lookup_with_run_command(self):
         """Test scope lookup of functions in lldb."""
@@ -142,7 +139,7 @@ class NamespaceLookupTestCase(TestBase):
         # Evaluate B::func() - should call B::func()
         self.expect("expr -- B::func()", startstr="(int) $15 = 4")
 
-    @unittest2.expectedFailure("lldb scope lookup of functions bugs")
+    @expectedFailure("lldb scope lookup of functions bugs")
     def test_function_scope_lookup_with_run_command(self):
         """Test scope lookup of functions in lldb."""
         self.build()
@@ -179,7 +176,7 @@ class NamespaceLookupTestCase(TestBase):
         # before functions.
         self.expect("expr -- foo()", startstr="(int) $2 = 42")
 
-    @unittest2.expectedFailure("lldb file scope lookup bugs")
+    @expectedFailure("lldb file scope lookup bugs")
     @skipIfWindows # This is flakey on Windows: llvm.org/pr38373
     def test_file_scope_lookup_with_run_command(self):
         """Test file scope lookup in lldb."""
@@ -225,9 +222,6 @@ class NamespaceLookupTestCase(TestBase):
         compiler="gcc",
         oslist=["linux"],
         debug_info=["dwo"])  # Skip to avoid crash
-    @expectedFailureAll(
-        oslist=["freebsd"],
-        bugnumber="llvm.org/pr25819")
     def test_scope_after_using_directive_lookup_with_run_command(self):
         """Test scope lookup after using directive in lldb."""
         self.build()
@@ -246,7 +240,7 @@ class NamespaceLookupTestCase(TestBase):
         # Evaluate func2() - should call A::func2()
         self.expect("expr -- func2()", startstr="(int) $0 = 3")
 
-    @unittest2.expectedFailure(
+    @expectedFailure(
         "lldb scope lookup after using declaration bugs")
     # NOTE: this test may fail on older systems that don't emit import
     # emtries in DWARF - may need to add checks for compiler versions here.
@@ -268,7 +262,7 @@ class NamespaceLookupTestCase(TestBase):
         # Evaluate func() - should call A::func()
         self.expect("expr -- func()", startstr="(int) $0 = 3")
 
-    @unittest2.expectedFailure("lldb scope lookup ambiguity after using bugs")
+    @expectedFailure("lldb scope lookup ambiguity after using bugs")
     def test_scope_ambiguity_after_using_lookup_with_run_command(self):
         """Test scope lookup ambiguity after using in lldb."""
         self.build()
@@ -289,9 +283,6 @@ class NamespaceLookupTestCase(TestBase):
         # the same type.
         self.expect("expr -- func()", startstr="error")
 
-    @expectedFailureAll(
-        oslist=["freebsd"],
-        bugnumber="llvm.org/pr25819")
     def test_scope_lookup_shadowed_by_using_with_run_command(self):
         """Test scope lookup shadowed by using in lldb."""
         self.build()

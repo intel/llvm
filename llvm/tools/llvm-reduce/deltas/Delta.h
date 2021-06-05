@@ -12,38 +12,71 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TOOLS_LLVMREDUCE_LLVMREDUCE_DELTA_H
-#define LLVM_TOOLS_LLVMREDUCE_LLVMREDUCE_DELTA_H
+#ifndef LLVM_TOOLS_LLVM_REDUCE_DELTAS_DELTA_H
+#define LLVM_TOOLS_LLVM_REDUCE_DELTAS_DELTA_H
 
 #include "TestRunner.h"
-#include <vector>
-#include <utility>
+#include "llvm/ADT/ScopeExit.h"
 #include <functional>
+#include <utility>
+#include <vector>
 
 namespace llvm {
 
 struct Chunk {
-  int begin;
-  int end;
+  int Begin;
+  int End;
 
   /// Helper function to verify if a given Target-index is inside the Chunk
-  bool contains(int Index) const { return Index >= begin && Index <= end; }
+  bool contains(int Index) const { return Index >= Begin && Index <= End; }
 
   void print() const {
-    errs() << "[" << begin;
-    if (end - begin != 0)
-      errs() << "," << end;
+    errs() << "[" << Begin;
+    if (End - Begin != 0)
+      errs() << "," << End;
     errs() << "]";
   }
 
   /// Operator when populating CurrentChunks in Generic Delta Pass
   friend bool operator!=(const Chunk &C1, const Chunk &C2) {
-    return C1.begin != C2.begin || C1.end != C2.end;
+    return C1.Begin != C2.Begin || C1.End != C2.End;
   }
 
   /// Operator used for sets
   friend bool operator<(const Chunk &C1, const Chunk &C2) {
-    return std::tie(C1.begin, C1.end) < std::tie(C2.begin, C2.end);
+    return std::tie(C1.Begin, C1.End) < std::tie(C2.Begin, C2.End);
+  }
+};
+
+/// Provides opaque interface for querying into ChunksToKeep without having to
+/// actually understand what is going on.
+class Oracle {
+  /// Out of all the features that we promised to be,
+  /// how many have we already processed? 1-based!
+  int Index = 1;
+
+  /// The actual workhorse, contains the knowledge whether or not
+  /// some particular feature should be preserved this time.
+  ArrayRef<Chunk> ChunksToKeep;
+
+public:
+  explicit Oracle(ArrayRef<Chunk> ChunksToKeep) : ChunksToKeep(ChunksToKeep) {}
+
+  /// Should be called for each feature on which we are operating.
+  /// Name is self-explanatory - if returns true, then it should be preserved.
+  bool shouldKeep() {
+    if (ChunksToKeep.empty())
+      return false; // All further features are to be discarded.
+
+    // Does the current (front) chunk contain such a feature?
+    bool ShouldKeep = ChunksToKeep.front().contains(Index);
+    auto _ = make_scope_exit([&]() { ++Index; }); // Next time - next feature.
+
+    // Is this the last feature in the chunk?
+    if (ChunksToKeep.front().End == Index)
+      ChunksToKeep = ChunksToKeep.drop_front(); // Onto next chunk.
+
+    return ShouldKeep;
   }
 };
 

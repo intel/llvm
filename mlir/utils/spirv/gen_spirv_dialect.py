@@ -255,7 +255,7 @@ def get_availability_spec(enum_case, capability_mapping, for_op, for_cap):
     min_version = ''
   elif min_version:
     min_version = 'MinVersion<SPV_V_{}>'.format(min_version.replace('.', '_'))
-  # TODO(antiagainst): delete this once ODS can support dialect-specific content
+  # TODO: delete this once ODS can support dialect-specific content
   # and we can use omission to mean no requirements.
   if for_op and not min_version:
     min_version = DEFAULT_MIN_VERSION
@@ -263,7 +263,7 @@ def get_availability_spec(enum_case, capability_mapping, for_op, for_cap):
   max_version = enum_case.get('lastVersion', '')
   if max_version:
     max_version = 'MaxVersion<SPV_V_{}>'.format(max_version.replace('.', '_'))
-  # TODO(antiagainst): delete this once ODS can support dialect-specific content
+  # TODO: delete this once ODS can support dialect-specific content
   # and we can use omission to mean no requirements.
   if for_op and not max_version:
     max_version = DEFAULT_MAX_VERSION
@@ -278,7 +278,7 @@ def get_availability_spec(enum_case, capability_mapping, for_op, for_cap):
     # a core symbol since the given version, rather than a minimal version
     # requirement.
     min_version = DEFAULT_MIN_VERSION if for_op else ''
-  # TODO(antiagainst): delete this once ODS can support dialect-specific content
+  # TODO: delete this once ODS can support dialect-specific content
   # and we can use omission to mean no requirements.
   if for_op and not exts:
     exts = DEFAULT_EXT
@@ -305,7 +305,7 @@ def get_availability_spec(enum_case, capability_mapping, for_op, for_cap):
     else:
       caps = 'Capability<[{}]>'.format(', '.join(prefixed_caps))
       implies = ''
-  # TODO(antiagainst): delete this once ODS can support dialect-specific content
+  # TODO: delete this once ODS can support dialect-specific content
   # and we can use omission to mean no requirements.
   if for_op and not caps:
     caps = DEFAULT_CAP
@@ -621,7 +621,7 @@ def map_spec_operand_to_ods_argument(operand):
     else:
       arg_type = 'Variadic<SPV_Type>'
   elif kind == 'IdMemorySemantics' or kind == 'IdScope':
-    # TODO(antiagainst): Need to further constrain 'IdMemorySemantics'
+    # TODO: Need to further constrain 'IdMemorySemantics'
     # and 'IdScope' given that they should be generated from OpConstant.
     assert quantifier == '', ('unexpected to have optional/variadic memory '
                               'semantics or scope <id>')
@@ -722,13 +722,9 @@ def get_op_definition(instruction, doc, existing_info, capability_mapping):
   operands = instruction.get('operands', [])
 
   # Op availability
-  avail = ''
-  # We assume other instruction categories has a base availability spec, so
-  # only add this if this is directly using SPV_Op as the base.
-  if inst_category == 'Op':
-    avail = get_availability_spec(instruction, capability_mapping, True, False)
-    if avail:
-      avail = '\n\n  {0}'.format(avail)
+  avail = get_availability_spec(instruction, capability_mapping, True, False)
+  if avail:
+    avail = '\n\n  {0}'.format(avail)
 
   # Set op's result
   results = ''

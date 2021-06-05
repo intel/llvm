@@ -1905,7 +1905,7 @@ define <2 x i64> @test_mm_mask_set1_epi32(<2 x i64> %__O, i8 zeroext %__M)  {
 ; X86:       # %bb.0: # %entry
 ; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
 ; X86-NEXT:    kmovw %eax, %k1
-; X86-NEXT:    vpbroadcastd {{\.LCPI.*}}, %xmm0 {%k1}
+; X86-NEXT:    vpbroadcastd {{\.LCPI[0-9]+_[0-9]+}}, %xmm0 {%k1}
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: test_mm_mask_set1_epi32:
@@ -1927,7 +1927,7 @@ define <2 x i64> @test_mm_maskz_set1_epi32(i8 zeroext %__M) {
 ; X86:       # %bb.0: # %entry
 ; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
 ; X86-NEXT:    kmovw %eax, %k1
-; X86-NEXT:    vpbroadcastd {{\.LCPI.*}}, %xmm0 {%k1} {z}
+; X86-NEXT:    vpbroadcastd {{\.LCPI[0-9]+_[0-9]+}}, %xmm0 {%k1} {z}
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: test_mm_maskz_set1_epi32:
@@ -1948,7 +1948,7 @@ define <4 x i64> @test_mm256_mask_set1_epi32(<4 x i64> %__O, i8 zeroext %__M)  {
 ; X86:       # %bb.0: # %entry
 ; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
 ; X86-NEXT:    kmovw %eax, %k1
-; X86-NEXT:    vpbroadcastd {{\.LCPI.*}}, %ymm0 {%k1}
+; X86-NEXT:    vpbroadcastd {{\.LCPI[0-9]+_[0-9]+}}, %ymm0 {%k1}
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: test_mm256_mask_set1_epi32:
@@ -1969,7 +1969,7 @@ define <4 x i64> @test_mm256_maskz_set1_epi32(i8 zeroext %__M)  {
 ; X86:       # %bb.0: # %entry
 ; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
 ; X86-NEXT:    kmovw %eax, %k1
-; X86-NEXT:    vpbroadcastd {{\.LCPI.*}}, %ymm0 {%k1} {z}
+; X86-NEXT:    vpbroadcastd {{\.LCPI[0-9]+_[0-9]+}}, %ymm0 {%k1} {z}
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: test_mm256_maskz_set1_epi32:
@@ -3418,8 +3418,6 @@ define <2 x i64> @test_mm256_cvtepi64_epi8(<4 x i64> %__A) {
 ; CHECK-LABEL: test_mm256_cvtepi64_epi8:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    vpmovqb %ymm0, %xmm0
-; CHECK-NEXT:    vpxor %xmm1, %xmm1, %xmm1
-; CHECK-NEXT:    vpblendw {{.*#+}} xmm0 = xmm0[0,1],xmm1[2,3,4,5,6,7]
 ; CHECK-NEXT:    vzeroupper
 ; CHECK-NEXT:    ret{{[l|q]}}
 entry:
@@ -3433,7 +3431,6 @@ define <2 x i64> @test_mm256_cvtepi64_epi16(<4 x i64> %__A) {
 ; CHECK-LABEL: test_mm256_cvtepi64_epi16:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    vpmovqw %ymm0, %xmm0
-; CHECK-NEXT:    vmovq {{.*#+}} xmm0 = xmm0[0],zero
 ; CHECK-NEXT:    vzeroupper
 ; CHECK-NEXT:    ret{{[l|q]}}
 entry:
@@ -3447,7 +3444,6 @@ define <2 x i64> @test_mm256_cvtepi32_epi8(<4 x i64> %__A) {
 ; CHECK-LABEL: test_mm256_cvtepi32_epi8:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    vpmovdb %ymm0, %xmm0
-; CHECK-NEXT:    vmovq {{.*#+}} xmm0 = xmm0[0],zero
 ; CHECK-NEXT:    vzeroupper
 ; CHECK-NEXT:    ret{{[l|q]}}
 entry:

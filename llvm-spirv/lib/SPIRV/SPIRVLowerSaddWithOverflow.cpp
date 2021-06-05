@@ -39,35 +39,31 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spv-lower-llvm_sadd_with_overflow"
 
-#include "LLVMSPIRVLib.h"
 #include "LLVMSaddWithOverflow.h"
+
+#include "LLVMSPIRVLib.h"
 #include "SPIRVError.h"
+#include "libSPIRV/SPIRVDebug.h"
+
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Verifier.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
+#include "llvm/Support/SourceMgr.h"
 
 using namespace llvm;
 using namespace SPIRV;
 
 namespace SPIRV {
-cl::opt<bool> SPIRVLowerSaddWithOverflowValidate(
-    "spv-lower-saddwithoverflow-validate",
-    cl::desc("Validate module after lowering llvm.sadd.with.overflow.*"
-             "intrinsics"));
 
-class SPIRVLowerSaddWithOverflow
-    : public ModulePass,
-      public InstVisitor<SPIRVLowerSaddWithOverflow> {
+class SPIRVLowerSaddWithOverflowBase
+    : public InstVisitor<SPIRVLowerSaddWithOverflowBase> {
 public:
-  SPIRVLowerSaddWithOverflow() : ModulePass(ID), Context(nullptr) {
-    initializeSPIRVLowerSaddWithOverflowPass(*PassRegistry::getPassRegistry());
-  }
+  SPIRVLowerSaddWithOverflowBase() : Context(nullptr) {}
+  virtual ~SPIRVLowerSaddWithOverflowBase() {}
   virtual void visitIntrinsicInst(CallInst &I) {
     IntrinsicInst *II = dyn_cast<IntrinsicInst>(&I);
     if (!II || II->getIntrinsicID() != Intrinsic::sadd_with_overflow)
@@ -120,24 +116,14 @@ public:
       TheModuleIsModified = true;
   }
 
-  bool runOnModule(Module &M) override {
+  bool runLowerSaddWithOverflow(Module &M) {
     Context = &M.getContext();
     Mod = &M;
     visit(M);
 
-    if (SPIRVLowerSaddWithOverflowValidate) {
-      LLVM_DEBUG(dbgs() << "After SPIRVLowerSaddWithOverflow:\n" << M);
-      std::string Err;
-      raw_string_ostream ErrorOS(Err);
-      if (verifyModule(M, &ErrorOS)) {
-        Err = std::string("Fails to verify module: ") + Err;
-        report_fatal_error(Err.c_str(), false);
-      }
-    }
+    verifyRegularizationPass(M, "SPIRVLowerSaddWithOverflow");
     return TheModuleIsModified;
   }
-
-  static char ID;
 
 private:
   LLVMContext *Context;
@@ -145,12 +131,37 @@ private:
   bool TheModuleIsModified = false;
 };
 
-char SPIRVLowerSaddWithOverflow::ID = 0;
+class SPIRVLowerSaddWithOverflowPass
+    : public llvm::PassInfoMixin<SPIRVLowerSaddWithOverflowPass>,
+      public SPIRVLowerSaddWithOverflowBase {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    return runLowerSaddWithOverflow(M) ? llvm::PreservedAnalyses::none()
+                                       : llvm::PreservedAnalyses::all();
+  }
+};
+
+class SPIRVLowerSaddWithOverflowLegacy : public ModulePass,
+                                         public SPIRVLowerSaddWithOverflowBase {
+public:
+  SPIRVLowerSaddWithOverflowLegacy() : ModulePass(ID) {
+    initializeSPIRVLowerSaddWithOverflowLegacyPass(
+        *PassRegistry::getPassRegistry());
+  }
+
+  bool runOnModule(Module &M) override { return runLowerSaddWithOverflow(M); }
+
+  static char ID;
+};
+
+char SPIRVLowerSaddWithOverflowLegacy::ID = 0;
 } // namespace SPIRV
 
-INITIALIZE_PASS(SPIRVLowerSaddWithOverflow, "spv-lower-llvm_sadd_with_overflow",
+INITIALIZE_PASS(SPIRVLowerSaddWithOverflowLegacy,
+                "spv-lower-llvm_sadd_with_overflow",
                 "Lower llvm.sadd.with.overflow.* intrinsics", false, false)
 
-ModulePass *llvm::createSPIRVLowerSaddWithOverflow() {
-  return new SPIRVLowerSaddWithOverflow();
+ModulePass *llvm::createSPIRVLowerSaddWithOverflowLegacy() {
+  return new SPIRVLowerSaddWithOverflowLegacy();
 }

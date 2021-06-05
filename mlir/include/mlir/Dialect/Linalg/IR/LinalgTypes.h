@@ -9,19 +9,20 @@
 #ifndef MLIR_DIALECT_LINALG_LINALGTYPES_H_
 #define MLIR_DIALECT_LINALG_LINALGTYPES_H_
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/Types.h"
+#include "llvm/ADT/StringMap.h"
+
+#include "mlir/Dialect/Linalg/IR/LinalgOpsDialect.h.inc"
 
 namespace mlir {
 class MLIRContext;
 
 namespace linalg {
-enum LinalgTypes {
-  Range = Type::FIRST_LINALG_TYPE,
-  LAST_USED_LINALG_TYPE = Range,
-};
-
-#include "mlir/Dialect/Linalg/IR/LinalgOpsDialect.h.inc"
 
 /// A RangeType represents a minimal range abstraction (min, max, step).
 /// It is constructed by calling the linalg.range op with three values index of
@@ -32,17 +33,10 @@ enum LinalgTypes {
 ///      %0 = linalg.range %arg0:%arg1:%arg2 : !linalg.range
 ///    }
 /// ```
-class RangeType : public Type::TypeBase<RangeType, Type> {
+class RangeType : public Type::TypeBase<RangeType, Type, TypeStorage> {
 public:
   // Used for generic hooks in TypeBase.
   using Base::Base;
-  /// Construction hook.
-  static RangeType get(MLIRContext *context) {
-    /// Custom, uniq'ed construction in the MLIRContext.
-    return Base::get(context, LinalgTypes::Range);
-  }
-  /// Used to implement llvm-style cast.
-  static bool kindof(unsigned kind) { return kind == LinalgTypes::Range; }
 };
 
 } // namespace linalg

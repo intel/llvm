@@ -34,6 +34,7 @@
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
+#include "clang/StaticAnalyzer/Core/CheckerRegistryData.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExplodedGraph.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/MemRegion.h"
@@ -1569,9 +1570,8 @@ static Optional<size_t> getLengthOnSingleLine(const SourceManager &SM,
   if (FID != SM.getFileID(ExpansionRange.getEnd()))
     return None;
 
-  bool Invalid;
-  const llvm::MemoryBuffer *Buffer = SM.getBuffer(FID, &Invalid);
-  if (Invalid)
+  Optional<MemoryBufferRef> Buffer = SM.getBufferOrNone(FID);
+  if (!Buffer)
     return None;
 
   unsigned BeginOffset = SM.getFileOffset(ExpansionRange.getBegin());
@@ -1988,12 +1988,11 @@ PathDiagnosticBuilder::generate(const PathDiagnosticConsumer *PDC) const {
 
   const SourceManager &SM = getSourceManager();
   const AnalyzerOptions &Opts = getAnalyzerOptions();
-  StringRef ErrorTag = ErrorNode->getLocation().getTag()->getTagDescription();
 
   // See whether we need to silence the checker/package.
   // FIXME: This will not work if the report was emitted with an incorrect tag.
   for (const std::string &CheckerOrPackage : Opts.SilencedCheckersAndPackages) {
-    if (ErrorTag.startswith(CheckerOrPackage))
+    if (R->getBugType().getCheckerName().startswith(CheckerOrPackage))
       return nullptr;
   }
 
@@ -2107,6 +2106,53 @@ void BuiltinBug::anchor() {}
 // Methods for BugReport and subclasses.
 //===----------------------------------------------------------------------===//
 
+LLVM_ATTRIBUTE_USED static bool
+isDependency(const CheckerRegistryData &Registry, StringRef CheckerName) {
+  for (const std::pair<StringRef, StringRef> &Pair : Registry.Dependencies) {
+    if (Pair.second == CheckerName)
+      return true;
+  }
+  return false;
+}
+
+LLVM_ATTRIBUTE_USED static bool isHidden(const CheckerRegistryData &Registry,
+                                         StringRef CheckerName) {
+  for (const CheckerInfo &Checker : Registry.Checkers) {
+    if (Checker.FullName == CheckerName)
+      return Checker.IsHidden;
+  }
+  llvm_unreachable(
+      "Checker name not found in CheckerRegistry -- did you retrieve it "
+      "correctly from CheckerManager::getCurrentCheckerName?");
+}
+
+PathSensitiveBugReport::PathSensitiveBugReport(
+    const BugType &bt, StringRef shortDesc, StringRef desc,
+    const ExplodedNode *errorNode, PathDiagnosticLocation LocationToUnique,
+    const Decl *DeclToUnique)
+    : BugReport(Kind::PathSensitive, bt, shortDesc, desc), ErrorNode(errorNode),
+      ErrorNodeRange(getStmt() ? getStmt()->getSourceRange() : SourceRange()),
+      UniqueingLocation(LocationToUnique), UniqueingDecl(DeclToUnique) {
+  assert(!isDependency(ErrorNode->getState()
+                           ->getAnalysisManager()
+                           .getCheckerManager()
+                           ->getCheckerRegistryData(),
+                       bt.getCheckerName()) &&
+         "Some checkers depend on this one! We don't allow dependency "
+         "checkers to emit warnings, because checkers should depend on "
+         "*modeling*, not *diagnostics*.");
+
+  assert(
+      (bt.getCheckerName().startswith("debug") ||
+       !isHidden(ErrorNode->getState()
+                     ->getAnalysisManager()
+                     .getCheckerManager()
+                     ->getCheckerRegistryData(),
+                 bt.getCheckerName())) &&
+          "Hidden checkers musn't emit diagnostics as they are by definition "
+          "non-user facing!");
+}
+
 void PathSensitiveBugReport::addVisitor(
     std::unique_ptr<BugReporterVisitor> visitor) {
   if (!visitor)
@@ -2146,8 +2192,8 @@ void BasicBugReport::Profile(llvm::FoldingSetNodeID& hash) const {
   for (SourceRange range : Ranges) {
     if (!range.isValid())
       continue;
-    hash.AddInteger(range.getBegin().getRawEncoding());
-    hash.AddInteger(range.getEnd().getRawEncoding());
+    hash.Add(range.getBegin());
+    hash.Add(range.getEnd());
   }
 }
 
@@ -2169,8 +2215,8 @@ void PathSensitiveBugReport::Profile(llvm::FoldingSetNodeID &hash) const {
   for (SourceRange range : Ranges) {
     if (!range.isValid())
       continue;
-    hash.AddInteger(range.getBegin().getRawEncoding());
-    hash.AddInteger(range.getEnd().getRawEncoding());
+    hash.Add(range.getBegin());
+    hash.Add(range.getEnd());
   }
 }
 
@@ -2195,12 +2241,12 @@ static void insertToInterestingnessMap(
       return;
     case bugreporter::TrackingKind::Condition:
       return;
-  }
+    }
 
-  llvm_unreachable(
-      "BugReport::markInteresting currently can only handle 2 different "
-      "tracking kinds! Please define what tracking kind should this entitiy"
-      "have, if it was already marked as interesting with a different kind!");
+    llvm_unreachable(
+        "BugReport::markInteresting currently can only handle 2 different "
+        "tracking kinds! Please define what tracking kind should this entitiy"
+        "have, if it was already marked as interesting with a different kind!");
 }
 
 void PathSensitiveBugReport::markInteresting(SymbolRef sym,
@@ -2691,8 +2737,8 @@ static void CompactMacroExpandedPieces(PathPieces &path,
 }
 
 /// Generate notes from all visitors.
-/// Notes associated with {@code ErrorNode} are generated using
-/// {@code getEndPath}, and the rest are generated with {@code VisitNode}.
+/// Notes associated with @c ErrorNode are generated using
+/// @c getEndPath, and the rest are generated with @c VisitNode.
 static std::unique_ptr<VisitorsDiagnosticsTy>
 generateVisitorsDiagnostics(PathSensitiveBugReport *R,
                             const ExplodedNode *ErrorNode,
@@ -2702,7 +2748,7 @@ generateVisitorsDiagnostics(PathSensitiveBugReport *R,
   PathSensitiveBugReport::VisitorList visitors;
 
   // Run visitors on all nodes starting from the node *before* the last one.
-  // The last node is reserved for notes generated with {@code getEndPath}.
+  // The last node is reserved for notes generated with @c getEndPath.
   const ExplodedNode *NextNode = ErrorNode->getFirstPred();
   while (NextNode) {
 

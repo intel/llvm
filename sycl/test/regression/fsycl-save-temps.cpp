@@ -20,8 +20,3 @@ int main() {
   });
   return 0;
 }
-
-// TODO: Address a Windows-specific issue with integration header filenames
-// XFAIL: system-windows && !level0
-// TODO: fail is flaky on Windows for Level Zero. Enable when fixed.
-// UNSUPPORTED: system-windows && level0

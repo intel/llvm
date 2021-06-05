@@ -87,13 +87,6 @@ class CallGraph {
   /// or calling an external function.
   std::unique_ptr<CallGraphNode> CallsExternalNode;
 
-  /// Replace the function represented by this node by another.
-  ///
-  /// This does not rescan the body of the function, so it is suitable when
-  /// splicing the body of one function to another while also updating all
-  /// callers from the old function to the new.
-  void spliceFunction(const Function *From, const Function *To);
-
 public:
   explicit CallGraph(Module &M);
   CallGraph(CallGraph &&Arg);
@@ -175,13 +168,21 @@ class CallGraphNode {
 public:
   /// A pair of the calling instruction (a call or invoke)
   /// and the call graph node being called.
-  using CallRecord = std::pair<WeakTrackingVH, CallGraphNode *>;
+  /// Call graph node may have two types of call records which represent an edge
+  /// in the call graph - reference or a call edge. Reference edges are not
+  /// associated with any call instruction and are created with the first field
+  /// set to `None`, while real call edges have instruction address in this
+  /// field. Therefore, all real call edges are expected to have a value in the
+  /// first field and it is not supposed to be `nullptr`.
+  /// Reference edges, for example, are used for connecting broker function
+  /// caller to the callback function for callback call sites.
+  using CallRecord = std::pair<Optional<WeakTrackingVH>, CallGraphNode *>;
 
 public:
   using CalledFunctionsVector = std::vector<CallRecord>;
 
   /// Creates a node for the specified function.
-  inline CallGraphNode(Function *F) : F(F) {}
+  inline CallGraphNode(CallGraph *CG, Function *F) : CG(CG), F(F) {}
 
   CallGraphNode(const CallGraphNode &) = delete;
   CallGraphNode &operator=(const CallGraphNode &) = delete;
@@ -243,7 +244,8 @@ public:
     assert(!Call || !Call->getCalledFunction() ||
            !Call->getCalledFunction()->isIntrinsic() ||
            !Intrinsic::isLeaf(Call->getCalledFunction()->getIntrinsicID()));
-    CalledFunctions.emplace_back(Call, M);
+    CalledFunctions.emplace_back(
+        Call ? Optional<WeakTrackingVH>(Call) : Optional<WeakTrackingVH>(), M);
     M->AddRef();
   }
 
@@ -279,6 +281,7 @@ public:
 private:
   friend class CallGraph;
 
+  CallGraph *CG;
   Function *F;
 
   std::vector<CallRecord> CalledFunctions;

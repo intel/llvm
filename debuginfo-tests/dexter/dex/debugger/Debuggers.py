@@ -27,6 +27,7 @@ from dex.debugger.dbgeng.dbgeng import DbgEng
 from dex.debugger.lldb.LLDB import LLDB
 from dex.debugger.visualstudio.VisualStudio2015 import VisualStudio2015
 from dex.debugger.visualstudio.VisualStudio2017 import VisualStudio2017
+from dex.debugger.visualstudio.VisualStudio2019 import VisualStudio2019
 
 
 def _get_potential_debuggers():  # noqa
@@ -38,7 +39,8 @@ def _get_potential_debuggers():  # noqa
         DbgEng.get_option_name(): DbgEng,
         LLDB.get_option_name(): LLDB,
         VisualStudio2015.get_option_name(): VisualStudio2015,
-        VisualStudio2017.get_option_name(): VisualStudio2017
+        VisualStudio2017.get_option_name(): VisualStudio2017,
+        VisualStudio2019.get_option_name(): VisualStudio2019
     }
 
 
@@ -103,9 +105,15 @@ def add_debugger_tool_arguments(parser, context, defaults):
     defaults.source_root_dir = ''
     parser.add_argument(
         '--source-root-dir',
+        type=str,
+        metavar='<directory>',
         default=None,
-        help='prefix path to ignore when matching debug info and source files.')
-
+        help='source root directory')
+    parser.add_argument(
+        '--debugger-use-relative-paths',
+        action='store_true',
+        default=False,
+        help='pass the debugger paths relative to --source-root-dir')
 
 def handle_debugger_tool_base_options(context, defaults):  # noqa
     options = context.options
@@ -139,6 +147,15 @@ def handle_debugger_tool_options(context, defaults):  # noqa
         if options.debugger == 'lldb':
             _warn_meaningless_option(context, '--show-debugger')
 
+    if options.source_root_dir != None:
+        if not os.path.isabs(options.source_root_dir):
+            raise ToolArgumentError(f'<d>--source-root-dir: expected absolute path, got</> <r>"{options.source_root_dir}"</>')
+        if not os.path.isdir(options.source_root_dir):
+            raise ToolArgumentError(f'<d>--source-root-dir: could not find directory</> <r>"{options.source_root_dir}"</>')
+
+    if options.debugger_use_relative_paths:
+        if not options.source_root_dir:
+            raise ToolArgumentError(f'<d>--debugger-relative-paths</> <r>requires --source-root-dir</>')
 
 def run_debugger_subprocess(debugger_controller, working_dir_path):
     with NamedTemporaryFile(

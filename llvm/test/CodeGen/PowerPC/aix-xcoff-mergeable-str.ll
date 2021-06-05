@@ -3,12 +3,13 @@
 ; the test in this file should be merged into aix-xcoff-data.ll with additional
 ; tests for XCOFF object files.
 
-; RUN: llc -verify-machineinstrs -mcpu=pwr4 \
-; RUN:     -mtriple powerpc-ibm-aix-xcoff < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr4 \
-; RUN:     -mtriple powerpc64-ibm-aix-xcoff < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -xcoff-traceback-table=false \
+; RUN:     -mtriple powerpc-ibm-aix-xcoff  -data-sections=false < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -xcoff-traceback-table=false \
+; RUN:     -mtriple powerpc64-ibm-aix-xcoff -data-sections=false < %s | FileCheck %s
 
-; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mtriple powerpc-ibm-aix-xcoff -filetype=obj -o %t.o < %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
+; RUN:     -xcoff-traceback-table=false -data-sections=false -filetype=obj -o %t.o < %s
 ; RUN: llvm-objdump -D %t.o | FileCheck --check-prefix=CHECKOBJ %s
 
 @magic16 = private unnamed_addr constant [4 x i16] [i16 264, i16 272, i16 213, i16 0], align 2
@@ -27,44 +28,23 @@ entry:
 
 ; CHECK:   .csect .rodata.str2.2[RO],2
 ; CHECK-NEXT:   .align  1
-; CHECK-NEXT: .Lmagic16:
+; CHECK-NEXT: L..magic16:
 ; CHECK-NEXT:   .vbyte	2, 264                     # 0x108
 ; CHECK-NEXT:   .vbyte	2, 272                     # 0x110
 ; CHECK-NEXT:   .vbyte	2, 213                     # 0xd5
 ; CHECK-NEXT:   .vbyte	2, 0                       # 0x0
 ; CHECK-NEXT:   .csect .rodata.str4.4[RO],2
 ; CHECK-NEXT:   .align  2
-; CHECK-NEXT: .Lmagic32:
+; CHECK-NEXT: L..magic32:
 ; CHECK-NEXT:   .vbyte	4, 464                     # 0x1d0
 ; CHECK-NEXT:   .vbyte	4, 472                     # 0x1d8
 ; CHECK-NEXT:   .vbyte	4, 413                     # 0x19d
 ; CHECK-NEXT:   .vbyte	4, 0                       # 0x0
 ; CHECK-NEXT:   .csect .rodata.str1.1[RO],2
-; CHECK-NEXT: .LstrA:
-; CHECK-NEXT: .byte   104
-; CHECK-NEXT: .byte   101
-; CHECK-NEXT: .byte   108
-; CHECK-NEXT: .byte   108
-; CHECK-NEXT: .byte   111
-; CHECK-NEXT: .byte   32
-; CHECK-NEXT: .byte   119
-; CHECK-NEXT: .byte   111
-; CHECK-NEXT: .byte   114
-; CHECK-NEXT: .byte   108
-; CHECK-NEXT: .byte   100
-; CHECK-NEXT: .byte   33
-; CHECK-NEXT: .byte   10
-; CHECK-NEXT: .byte   0
-; CHECK-NEXT: .L.str:
-; CHECK-NEXT: .byte   97
-; CHECK-NEXT: .byte   98
-; CHECK-NEXT: .byte   99
-; CHECK-NEXT: .byte   100
-; CHECK-NEXT: .byte   101
-; CHECK-NEXT: .byte   102
-; CHECK-NEXT: .byte   103
-; CHECK-NEXT: .byte   104
-; CHECK-NEXT: .byte   0
+; CHECK-NEXT: L..strA:
+; CHECK-NEXT: .byte   'h,'e,'l,'l,'o,' ,'w,'o,'r,'l,'d,'!,0012,0000
+; CHECK-NEXT: L...str:
+; CHECK-NEXT: .string "abcdefgh"
 
 ; CHECKOBJ:     00000010 <.rodata.str2.2>:
 ; CHECKOBJ-NEXT:       10: 01 08 01 10

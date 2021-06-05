@@ -59,6 +59,9 @@ static cl::opt<unsigned> SVEVectorBitsMin(
              "with zero meaning no minimum size is assumed."),
     cl::init(0), cl::Hidden);
 
+static cl::opt<bool> UseAA("aarch64-use-aa", cl::init(true),
+                           cl::desc("Enable the use of AA during codegen."));
+
 AArch64Subtarget &
 AArch64Subtarget::initializeSubtargetDependencies(StringRef FS,
                                                   StringRef CPUString) {
@@ -67,7 +70,7 @@ AArch64Subtarget::initializeSubtargetDependencies(StringRef FS,
   if (CPUString.empty())
     CPUString = "generic";
 
-  ParseSubtargetFeatures(CPUString, FS);
+  ParseSubtargetFeatures(CPUString, /*TuneCPU*/ CPUString, FS);
   initializeProperties();
 
   return *this;
@@ -86,9 +89,8 @@ void AArch64Subtarget::initializeProperties() {
   case CortexA35:
     break;
   case CortexA53:
-    PrefFunctionLogAlignment = 3;
-    break;
   case CortexA55:
+    PrefFunctionLogAlignment = 4;
     break;
   case CortexA57:
     MaxInterleaveFactor = 4;
@@ -101,18 +103,28 @@ void AArch64Subtarget::initializeProperties() {
   case CortexA73:
   case CortexA75:
   case CortexA76:
+  case CortexA77:
+  case CortexA78:
+  case CortexA78C:
+  case CortexR82:
+  case CortexX1:
     PrefFunctionLogAlignment = 4;
     break;
   case A64FX:
     CacheLineSize = 256;
-    PrefFunctionLogAlignment = 5;
-    PrefLoopLogAlignment = 5;
+    PrefFunctionLogAlignment = 3;
+    PrefLoopLogAlignment = 2;
+    MaxInterleaveFactor = 4;
+    PrefetchDistance = 128;
+    MinPrefetchStride = 1024;
+    MaxPrefetchIterationsAhead = 4;
     break;
   case AppleA7:
   case AppleA10:
   case AppleA11:
   case AppleA12:
   case AppleA13:
+  case AppleA14:
     CacheLineSize = 64;
     PrefetchDistance = 280;
     MinPrefetchStride = 2048;
@@ -147,6 +159,8 @@ void AArch64Subtarget::initializeProperties() {
     PrefFunctionLogAlignment = 3;
     break;
   case NeoverseN1:
+  case NeoverseN2:
+  case NeoverseV1:
     PrefFunctionLogAlignment = 4;
     break;
   case Saphira:
@@ -197,7 +211,7 @@ void AArch64Subtarget::initializeProperties() {
 AArch64Subtarget::AArch64Subtarget(const Triple &TT, const std::string &CPU,
                                    const std::string &FS,
                                    const TargetMachine &TM, bool LittleEndian)
-    : AArch64GenSubtargetInfo(TT, CPU, FS),
+    : AArch64GenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS),
       ReserveXRegister(AArch64::GPR64commonRegClass.getNumRegs()),
       CustomCallSavedXRegs(AArch64::GPR64commonRegClass.getNumRegs()),
       IsLittle(LittleEndian),
@@ -363,3 +377,10 @@ unsigned AArch64Subtarget::getMinSVEVectorSizeInBits() const {
     return (SVEVectorBitsMin / 128) * 128;
   return (std::min(SVEVectorBitsMin, SVEVectorBitsMax) / 128) * 128;
 }
+
+bool AArch64Subtarget::useSVEForFixedLengthVectors() const {
+  // Prefer NEON unless larger SVE registers are available.
+  return hasSVE() && getMinSVEVectorSizeInBits() >= 256;
+}
+
+bool AArch64Subtarget::useAA() const { return UseAA; }

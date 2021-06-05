@@ -155,7 +155,17 @@ public:
   iterator end() const { return getSubLoops().end(); }
   reverse_iterator rbegin() const { return getSubLoops().rbegin(); }
   reverse_iterator rend() const { return getSubLoops().rend(); }
-  bool empty() const { return getSubLoops().empty(); }
+
+  // LoopInfo does not detect irreducible control flow, just natural
+  // loops. That is, it is possible that there is cyclic control
+  // flow within the "innermost loop" or around the "outermost
+  // loop".
+
+  /// Return true if the loop does not contain any (natural) loops.
+  bool isInnermost() const { return getSubLoops().empty(); }
+  /// Return true if the loop does not have a parent (natural) loop
+  // (i.e. it is outermost, which is the same as top-level).
+  bool isOutermost() const { return getParentLoop() == nullptr; }
 
   /// Get a list of the basic blocks which make up this loop.
   ArrayRef<BlockT *> getBlocks() const {
@@ -291,6 +301,9 @@ public:
   /// If getUniqueExitBlocks would return exactly one block, return that block.
   /// Otherwise return null.
   BlockT *getUniqueExitBlock() const;
+
+  /// Return true if this loop does not have any exit blocks.
+  bool hasNoExitBlocks() const;
 
   /// Edge type.
   typedef std::pair<BlockT *, BlockT *> Edge;
@@ -466,7 +479,8 @@ public:
   bool isAnnotatedParallel() const { return false; }
 
   /// Print loop with all the BBs inside it.
-  void print(raw_ostream &OS, unsigned Depth = 0, bool Verbose = false) const;
+  void print(raw_ostream &OS, bool Verbose = false, bool PrintNested = true,
+             unsigned Depth = 0) const;
 
 protected:
   friend class LoopInfoBase<BlockT, LoopT>;
@@ -830,6 +844,9 @@ public:
   /// unrolling pass is run more than once (which it generally is).
   void setLoopAlreadyUnrolled();
 
+  /// Add llvm.loop.mustprogress to this loop's loop id metadata.
+  void setLoopMustProgress();
+
   void dump() const;
   void dumpVerbose() const;
 
@@ -974,7 +991,7 @@ public:
   LoopT *removeLoop(iterator I) {
     assert(I != end() && "Cannot remove end iterator!");
     LoopT *L = *I;
-    assert(!L->getParentLoop() && "Not a top-level loop!");
+    assert(L->isOutermost() && "Not a top-level loop!");
     TopLevelLoops.erase(TopLevelLoops.begin() + (I - begin()));
     return L;
   }
@@ -1002,7 +1019,7 @@ public:
 
   /// This adds the specified loop to the collection of top-level loops.
   void addTopLevelLoop(LoopT *New) {
-    assert(!New->getParentLoop() && "Loop already in subloop!");
+    assert(New->isOutermost() && "Loop already in subloop!");
     TopLevelLoops.push_back(New);
   }
 
@@ -1183,6 +1200,14 @@ public:
 
     return true;
   }
+
+  // Return true if a new use of V added in ExitBB would require an LCSSA PHI
+  // to be inserted at the begining of the block.  Note that V is assumed to
+  // dominate ExitBB, and ExitBB must be the exit block of some loop.  The
+  // IR is assumed to be in LCSSA form before the planned insertion.
+  bool wouldBeOutOfLoopUseRequiringLCSSA(const Value *V,
+                                         const BasicBlock *ExitBB) const;
+
 };
 
 // Allow clients to walk the list of nested loops...

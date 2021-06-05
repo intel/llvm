@@ -1,7 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out -g
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_DEVICE_FILTER=host %t.out
 //
 //==-------------------------- DataMovement.cpp ----------------------------==//
 //
@@ -57,8 +55,8 @@ public:
 };
 
 int main() {
-  TestQueue Queue1(sycl::default_selector{});
-  TestQueue Queue2(sycl::default_selector{});
+  TestQueue Queue1(sycl::host_selector{});
+  TestQueue Queue2(sycl::host_selector{});
   TestQueue Queue3(sycl::host_selector{});
 
   std::vector<int> Data(1);

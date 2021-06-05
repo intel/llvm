@@ -9,7 +9,7 @@
 #ifndef LLDB_DATAFORMATTERS_TYPESYNTHETIC_H
 #define LLDB_DATAFORMATTERS_TYPESYNTHETIC_H
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <functional>
 #include <initializer_list>
@@ -362,7 +362,7 @@ public:
       CreateFrontEndCallback;
   CXXSyntheticChildren(const SyntheticChildren::Flags &flags,
                        const char *description, CreateFrontEndCallback callback)
-      : SyntheticChildren(flags), m_create_callback(callback),
+      : SyntheticChildren(flags), m_create_callback(std::move(callback)),
         m_description(description ? description : "") {}
 
   bool IsScripted() override { return false; }

@@ -146,6 +146,13 @@ public:
   /// 'this' parameter of C++ instance methods.
   virtual bool isSRetParameterAfterThis() const { return false; }
 
+  /// Returns true if the ABI permits the argument to be a homogeneous
+  /// aggregate.
+  virtual bool
+  isPermittedToBeHomogeneousAggregate(const CXXRecordDecl *RD) const {
+    return true;
+  };
+
   /// Find the LLVM type used to represent the given member pointer
   /// type.
   virtual llvm::Type *
@@ -219,12 +226,6 @@ protected:
   /// support an ABI that allows this).  Returns null if no adjustment
   /// is required.
   llvm::Constant *getMemberPointerAdjustment(const CastExpr *E);
-
-  /// Computes the non-virtual adjustment needed for a member pointer
-  /// conversion along an inheritance path stored in an APValue.  Unlike
-  /// getMemberPointerAdjustment(), the adjustment can be negative if the path
-  /// is from a derived type to a base type.
-  CharUnits getMemberPointerPathAdjustment(const APValue &MP);
 
 public:
   virtual void emitVirtualObjectDelete(CodeGenFunction &CGF,
@@ -401,6 +402,13 @@ public:
   addImplicitConstructorArgs(CodeGenFunction &CGF, const CXXConstructorDecl *D,
                              CXXCtorType Type, bool ForVirtualBase,
                              bool Delegating, CallArgList &Args);
+
+  /// Get the implicit (second) parameter that comes after the "this" pointer,
+  /// or nullptr if there is isn't one.
+  virtual llvm::Value *
+  getCXXDestructorImplicitParam(CodeGenFunction &CGF,
+                                const CXXDestructorDecl *DD, CXXDtorType Type,
+                                bool ForVirtualBase, bool Delegating) = 0;
 
   /// Emit the destructor call.
   virtual void EmitDestructorCall(CodeGenFunction &CGF,

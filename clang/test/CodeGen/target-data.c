@@ -14,6 +14,10 @@
 // RUN:     FileCheck --check-prefix=I686-CYGWIN %s
 // I686-CYGWIN: target datalayout = "e-m:x-p:32:32-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:32-n8:16:32-a:0:32-S32"
 
+// RUN: %clang_cc1 -triple i686-pc-macho -emit-llvm -o - %s | \
+// RUN:     FileCheck --check-prefix=I686-MACHO %s
+// I686-MACHO: target datalayout = "e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-f80:32-n8:16:32-S128"
+
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown -emit-llvm -o - %s | \
 // RUN:     FileCheck --check-prefix=X86_64 %s
 // X86_64: target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
@@ -102,17 +106,13 @@
 // RUN: FileCheck %s -check-prefix=MIPS-NACL
 // MIPS-NACL: target datalayout = "e-m:m-p:32:32-i8:8:32-i16:16:32-i64:64-n32-S64"
 
-// RUN: %clang_cc1 -triple le32-nacl -o - -emit-llvm %s | \
-// RUN: FileCheck %s -check-prefix=LE32-NACL
-// LE32-NACL: target datalayout = "e-p:32:32-i64:64"
-
 // RUN: %clang_cc1 -triple wasm32-unknown-unknown -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=WEBASSEMBLY32
-// WEBASSEMBLY32: target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
+// WEBASSEMBLY32: target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128-ni:1"
 
 // RUN: %clang_cc1 -triple wasm64-unknown-unknown -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=WEBASSEMBLY64
-// WEBASSEMBLY64: target datalayout = "e-m:e-p:64:64-i64:64-n32:64-S128"
+// WEBASSEMBLY64: target datalayout = "e-m:e-p:64:64-i64:64-n32:64-S128-ni:1"
 
 // RUN: %clang_cc1 -triple lanai-unknown-unknown -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=LANAI
@@ -122,17 +122,41 @@
 // RUN: FileCheck %s -check-prefix=PPC
 // PPC: target datalayout = "E-m:e-p:32:32-i64:64-n32"
 
+// RUN: %clang_cc1 -triple powerpcle-unknown -o - -emit-llvm %s | \
+// RUN: FileCheck %s -check-prefix=PPCLE
+// PPCLE: target datalayout = "e-m:e-p:32:32-i64:64-n32"
+
 // RUN: %clang_cc1 -triple powerpc64-freebsd -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=PPC64-FREEBSD
 // PPC64-FREEBSD: target datalayout = "E-m:e-i64:64-n32:64"
 
+// RUN: %clang_cc1 -triple powerpc64le-freebsd -o - -emit-llvm %s | \
+// RUN: FileCheck %s -check-prefix=PPC64LE-FREEBSD
+// PPC64LE-FREEBSD: target datalayout = "e-m:e-i64:64-n32:64"
+
 // RUN: %clang_cc1 -triple powerpc64-linux -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=PPC64-LINUX
-// PPC64-LINUX: target datalayout = "E-m:e-i64:64-n32:64"
+// PPC64-LINUX: target datalayout = "E-m:e-i64:64-n32:64-S128-v256:256:256-v512:512:512"
+
+// RUN: %clang_cc1 -triple powerpc64-linux -o - -emit-llvm -target-cpu future %s | \
+// RUN: FileCheck %s -check-prefix=PPC64-FUTURE
+// PPC64-FUTURE: target datalayout = "E-m:e-i64:64-n32:64-S128-v256:256:256-v512:512:512"
+
+// RUN: %clang_cc1 -triple powerpc64-linux -o - -emit-llvm -target-cpu pwr10 %s | \
+// RUN: FileCheck %s -check-prefix=PPC64-P10
+// PPC64-P10: target datalayout = "E-m:e-i64:64-n32:64-S128-v256:256:256-v512:512:512"
 
 // RUN: %clang_cc1 -triple powerpc64le-linux -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=PPC64LE-LINUX
-// PPC64LE-LINUX: target datalayout = "e-m:e-i64:64-n32:64"
+// PPC64LE-LINUX: target datalayout = "e-m:e-i64:64-n32:64-S128-v256:256:256-v512:512:512"
+
+// RUN: %clang_cc1 -triple powerpc64le-linux -o - -emit-llvm -target-cpu future %s | \
+// RUN: FileCheck %s -check-prefix=PPC64LE-FUTURE
+// PPC64LE-FUTURE: target datalayout = "e-m:e-i64:64-n32:64-S128-v256:256:256-v512:512:512"
+
+// RUN: %clang_cc1 -triple powerpc64le-linux -o - -emit-llvm -target-cpu pwr10 %s | \
+// RUN: FileCheck %s -check-prefix=PPC64LE-P10
+// PPC64LE-P10: target datalayout = "e-m:e-i64:64-n32:64-S128-v256:256:256-v512:512:512"
 
 // RUN: %clang_cc1 -triple nvptx-unknown -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=NVPTX
@@ -144,20 +168,20 @@
 
 // RUN: %clang_cc1 -triple r600-unknown -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=R600
-// R600: target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5"
+// R600: target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1"
 
 // RUN: %clang_cc1 -triple r600-unknown -target-cpu cayman -o - -emit-llvm %s \
 // RUN: | FileCheck %s -check-prefix=R600D
-// R600D: target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5"
+// R600D: target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1"
 
 // RUN: %clang_cc1 -triple amdgcn-unknown -target-cpu hawaii -o - -emit-llvm %s \
 // RUN: | FileCheck %s -check-prefix=R600SI
-// R600SI: target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-ni:7"
+// R600SI: target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1-ni:7"
 
 // Test default -target-cpu
 // RUN: %clang_cc1 -triple amdgcn-unknown -o - -emit-llvm %s \
 // RUN: | FileCheck %s -check-prefix=R600SIDefault
-// R600SIDefault: target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-ni:7"
+// R600SIDefault: target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1-ni:7"
 
 // RUN: %clang_cc1 -triple arm64-unknown -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=AARCH64
@@ -166,6 +190,10 @@
 // RUN: %clang_cc1 -triple arm64_32-apple-ios7.0 -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=AARCH64-ILP32
 // AARCH64-ILP32: target datalayout = "e-m:o-p:32:32-i64:64-i128:128-n32:64-S128"
+
+// RUN: %clang_cc1 -triple arm64-pc-win32-macho -o - -emit-llvm %s | \
+// RUN: FileCheck %s -check-prefix=AARCH64-WIN32-MACHO
+// AARCH64-WIN32-MACHO: target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 
 // RUN: %clang_cc1 -triple thumb-unknown-gnueabi -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=THUMB
@@ -250,3 +278,7 @@
 // RUN: %clang_cc1 -triple bpfeb -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=BPFEB
 // BPFEB: target datalayout = "E-m:e-p:64:64-i64:64-i128:128-n32:64-S128"
+
+// RUN: %clang_cc1 -triple ve -o - -emit-llvm %s | \
+// RUN: FileCheck %s -check-prefix=VE
+// VE: target datalayout = "e-m:e-i64:64-n32:64-S128-v64:64:64-v128:64:64-v256:64:64-v512:64:64-v1024:64:64-v2048:64:64-v4096:64:64-v8192:64:64-v16384:64:64"

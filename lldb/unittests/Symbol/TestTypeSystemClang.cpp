@@ -10,9 +10,9 @@
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "TestingSupport/SubsystemRAII.h"
 #include "TestingSupport/Symbol/ClangTestUtils.h"
+#include "lldb/Core/Declaration.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
-#include "lldb/Symbol/Declaration.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/ExprCXX.h"
@@ -482,9 +482,8 @@ TEST_F(TestTypeSystemClang, TemplateArguments) {
   m_ast->CompleteTagDeclarationDefinition(type);
 
   // typedef foo<int, 47> foo_def;
-  CompilerType typedef_type = m_ast->CreateTypedefType(
-      type, "foo_def",
-      m_ast->CreateDeclContext(m_ast->GetTranslationUnitDecl()), 0);
+  CompilerType typedef_type = type.CreateTypedef(
+      "foo_def", m_ast->CreateDeclContext(m_ast->GetTranslationUnitDecl()), 0);
 
   CompilerType auto_type(
       m_ast.get(),
@@ -514,6 +513,12 @@ TEST_F(TestTypeSystemClang, TemplateArguments) {
     EXPECT_EQ(arg, result->value);
     EXPECT_EQ(int_type, result->type);
   }
+}
+
+TEST_F(TestTypeSystemClang, OnlyPackName) {
+  TypeSystemClang::TemplateParameterInfos infos;
+  infos.pack_name = "A";
+  EXPECT_FALSE(infos.IsValid());
 }
 
 static QualType makeConstInt(clang::ASTContext &ctxt) {
@@ -559,13 +564,14 @@ TEST_F(TestTypeSystemClang, TestFunctionTemplateConstruction) {
   CompilerType clang_type =
       m_ast->CreateFunctionType(int_type, nullptr, 0U, false, 0U);
   FunctionDecl *func = m_ast->CreateFunctionDeclaration(
-      TU, OptionalClangModuleID(), "foo", clang_type, 0, false);
+      TU, OptionalClangModuleID(), "foo", clang_type, StorageClass::SC_None,
+      false);
   TypeSystemClang::TemplateParameterInfos empty_params;
 
   // Create the actual function template.
   clang::FunctionTemplateDecl *func_template =
       m_ast->CreateFunctionTemplateDecl(TU, OptionalClangModuleID(), func,
-                                        "foo", empty_params);
+                                        empty_params);
 
   EXPECT_EQ(TU, func_template->getDeclContext());
   EXPECT_EQ("foo", func_template->getName());
@@ -590,13 +596,14 @@ TEST_F(TestTypeSystemClang, TestFunctionTemplateInRecordConstruction) {
   // 1. FunctionDecls can't be in a Record (only CXXMethodDecls can).
   // 2. It is mirroring the behavior of DWARFASTParserClang::ParseSubroutine.
   FunctionDecl *func = m_ast->CreateFunctionDeclaration(
-      TU, OptionalClangModuleID(), "foo", clang_type, 0, false);
+      TU, OptionalClangModuleID(), "foo", clang_type, StorageClass::SC_None,
+      false);
   TypeSystemClang::TemplateParameterInfos empty_params;
 
   // Create the actual function template.
   clang::FunctionTemplateDecl *func_template =
       m_ast->CreateFunctionTemplateDecl(record, OptionalClangModuleID(), func,
-                                        "foo", empty_params);
+                                        empty_params);
 
   EXPECT_EQ(record, func_template->getDeclContext());
   EXPECT_EQ("foo", func_template->getName());
@@ -722,3 +729,27 @@ TEST_F(TestTypeSystemClang, AddMethodToObjCObjectType) {
   EXPECT_FALSE(method->isDirectMethod());
   EXPECT_EQ(method->getDeclName().getObjCSelector().getAsString(), "foo");
 }
+
+TEST(TestScratchTypeSystemClang, InferSubASTFromLangOpts) {
+  LangOptions lang_opts;
+  EXPECT_EQ(
+      ScratchTypeSystemClang::DefaultAST,
+      ScratchTypeSystemClang::InferIsolatedASTKindFromLangOpts(lang_opts));
+
+  lang_opts.Modules = true;
+  EXPECT_EQ(
+      ScratchTypeSystemClang::IsolatedASTKind::CppModules,
+      ScratchTypeSystemClang::InferIsolatedASTKindFromLangOpts(lang_opts));
+}
+
+TEST_F(TestTypeSystemClang, GetExeModuleWhenMissingSymbolFile) {
+  CompilerType compiler_type = m_ast->GetBasicTypeFromAST(lldb::eBasicTypeInt);
+  lldb_private::Type t(0, nullptr, ConstString("MyType"), llvm::None, nullptr,
+                       0, {}, {}, compiler_type,
+                       lldb_private::Type::ResolveState::Full);
+  // Test that getting the execution module when no type system is present
+  // is handled gracefully.
+  ModuleSP module = t.GetExeModule();
+  EXPECT_EQ(module.get(), nullptr);
+}
+

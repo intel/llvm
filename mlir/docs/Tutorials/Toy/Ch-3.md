@@ -13,7 +13,7 @@ We divide compiler transformations into two categories: local and global. In
 this chapter, we focus on how to leverage the Toy Dialect and its high-level
 semantics to perform local pattern-match transformations that would be difficult
 in LLVM. For this, we use MLIR's
-[Generic DAG Rewriter](../../GenericDAGRewriter.md).
+[Generic DAG Rewriter](../../PatternRewriter.md).
 
 There are two methods that can be used to implement pattern-match
 transformations: 1. Imperative, C++ pattern-match and rewrite 2. Declarative,
@@ -108,14 +108,14 @@ The implementation of this rewriter is in `ToyCombine.cpp`. The
 [canonicalization pass](../../Canonicalization.md) applies transformations
 defined by operations in a greedy, iterative manner. To ensure that the
 canonicalization pass applies our new transform, we set
-[hasCanonicalizer = 1](../../OpDefinitions.md#hascanonicalizer) and register the
+[hasCanonicalizer = 1](../../OpDefinitions.md/#hascanonicalizer) and register the
 pattern with the canonicalization framework.
 
 ```c++
 // Register our patterns for rewrite by the Canonicalization framework.
 void TransposeOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<SimplifyRedundantTranspose>(context);
+    RewritePatternSet &results, MLIRContext *context) {
+  results.add<SimplifyRedundantTranspose>(context);
 }
 ```
 

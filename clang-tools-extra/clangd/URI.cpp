@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "URI.h"
+#include "support/Logger.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
@@ -21,9 +22,13 @@ namespace clang {
 namespace clangd {
 namespace {
 
-inline llvm::Error make_string_error(const llvm::Twine &Message) {
-  return llvm::make_error<llvm::StringError>(Message,
-                                             llvm::inconvertibleErrorCode());
+bool isWindowsPath(llvm::StringRef Path) {
+  return Path.size() > 1 && llvm::isAlpha(Path[0]) && Path[1] == ':';
+}
+
+bool isNetworkPath(llvm::StringRef Path) {
+  return Path.size() > 2 && Path[0] == Path[1] &&
+         llvm::sys::path::is_separator(Path[0]);
 }
 
 /// This manages file paths in the file system. All paths in the scheme
@@ -33,28 +38,40 @@ inline llvm::Error make_string_error(const llvm::Twine &Message) {
 class FileSystemScheme : public URIScheme {
 public:
   llvm::Expected<std::string>
-  getAbsolutePath(llvm::StringRef /*Authority*/, llvm::StringRef Body,
+  getAbsolutePath(llvm::StringRef Authority, llvm::StringRef Body,
                   llvm::StringRef /*HintPath*/) const override {
     if (!Body.startswith("/"))
-      return make_string_error("File scheme: expect body to be an absolute "
-                               "path starting with '/': " +
-                               Body);
-    // For Windows paths e.g. /X:
-    if (Body.size() > 2 && Body[0] == '/' && Body[2] == ':')
+      return error("File scheme: expect body to be an absolute path starting "
+                   "with '/': {0}",
+                   Body);
+    llvm::SmallString<128> Path;
+    if (!Authority.empty()) {
+      // Windows UNC paths e.g. file://server/share => \\server\share
+      ("//" + Authority).toVector(Path);
+    } else if (isWindowsPath(Body.substr(1))) {
+      // Windows paths e.g. file:///X:/path => X:\path
       Body.consume_front("/");
-    llvm::SmallVector<char, 16> Path(Body.begin(), Body.end());
+    }
+    Path.append(Body);
     llvm::sys::path::native(Path);
-    return std::string(Path.begin(), Path.end());
+    return std::string(Path);
   }
 
   llvm::Expected<URI>
   uriFromAbsolutePath(llvm::StringRef AbsolutePath) const override {
     std::string Body;
-    // For Windows paths e.g. X:
-    if (AbsolutePath.size() > 1 && AbsolutePath[1] == ':')
+    llvm::StringRef Authority;
+    llvm::StringRef Root = llvm::sys::path::root_name(AbsolutePath);
+    if (isNetworkPath(Root)) {
+      // Windows UNC paths e.g. \\server\share => file://server/share
+      Authority = Root.drop_front(2);
+      AbsolutePath.consume_front(Root);
+    } else if (isWindowsPath(Root)) {
+      // Windows paths e.g. X:\path => file:///X:/path
       Body = "/";
+    }
     Body += llvm::sys::path::convert_to_slash(AbsolutePath);
-    return URI("file", /*Authority=*/"", Body);
+    return URI("file", Authority, Body);
   }
 };
 
@@ -68,7 +85,7 @@ findSchemeByName(llvm::StringRef Scheme) {
       continue;
     return URIScheme.instantiate();
   }
-  return make_string_error("Can't find scheme: " + Scheme);
+  return error("Can't find scheme: {0}", Scheme);
 }
 
 bool shouldEscape(unsigned char C) {
@@ -94,15 +111,14 @@ bool shouldEscape(unsigned char C) {
 /// - Reserved characters always escaped with exceptions like '/'.
 /// - All other characters are escaped.
 void percentEncode(llvm::StringRef Content, std::string &Out) {
-  std::string Result;
   for (unsigned char C : Content)
-    if (shouldEscape(C))
-    {
+    if (shouldEscape(C)) {
       Out.push_back('%');
       Out.push_back(llvm::hexdigit(C / 16));
       Out.push_back(llvm::hexdigit(C % 16));
-    } else
-    { Out.push_back(C); }
+    } else {
+      Out.push_back(C);
+    }
 }
 
 /// Decodes a string according to percent-encoding.
@@ -166,12 +182,11 @@ llvm::Expected<URI> URI::parse(llvm::StringRef OrigUri) {
 
   auto Pos = Uri.find(':');
   if (Pos == llvm::StringRef::npos)
-    return make_string_error("Scheme must be provided in URI: " + OrigUri);
+    return error("Scheme must be provided in URI: {0}", OrigUri);
   auto SchemeStr = Uri.substr(0, Pos);
   U.Scheme = percentDecode(SchemeStr);
   if (!isValidScheme(U.Scheme))
-    return make_string_error(llvm::formatv("Invalid scheme: {0} (decoded: {1})",
-                                           SchemeStr, U.Scheme));
+    return error("Invalid scheme: {0} (decoded: {1})", SchemeStr, U.Scheme);
   Uri = Uri.substr(Pos + 1);
   if (Uri.consume_front("//")) {
     Pos = Uri.find('/');
@@ -196,7 +211,7 @@ llvm::Expected<std::string> URI::resolve(llvm::StringRef FileURI,
 llvm::Expected<URI> URI::create(llvm::StringRef AbsolutePath,
                                 llvm::StringRef Scheme) {
   if (!llvm::sys::path::is_absolute(AbsolutePath))
-    return make_string_error("Not a valid absolute path: " + AbsolutePath);
+    return error("Not a valid absolute path: {0}", AbsolutePath);
   auto S = findSchemeByName(Scheme);
   if (!S)
     return S.takeError();

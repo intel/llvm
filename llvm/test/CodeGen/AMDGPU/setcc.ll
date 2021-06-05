@@ -96,11 +96,9 @@ entry:
 }
 
 ; FUNC-LABEL: {{^}}f32_one:
-; R600-DAG: SETE_DX10
-; R600-DAG: SETE_DX10
-; R600-DAG: AND_INT
-; R600-DAG: SETNE_DX10
-; R600-DAG: AND_INT
+; R600-DAG: SETGT_DX10
+; R600-DAG: SETGT_DX10
+; R600-DAG: OR_INT
 ; R600-DAG: SETNE_INT
 
 ; GCN: v_cmp_lg_f32_e32 vcc
@@ -128,12 +126,10 @@ entry:
 }
 
 ; FUNC-LABEL: {{^}}f32_ueq:
-; R600-DAG: SETNE_DX10
-; R600-DAG: SETNE_DX10
+; R600-DAG: SETGT_DX10
+; R600-DAG: SETGT_DX10
 ; R600-DAG: OR_INT
-; R600-DAG: SETE_DX10
-; R600-DAG: OR_INT
-; R600-DAG: SETNE_INT
+; R600-DAG: SETE_INT
 
 ; GCN: v_cmp_nlg_f32_e32 vcc
 ; GCN-NEXT: v_cndmask_b32_e64 {{v[0-9]+}}, 0, -1, vcc
@@ -397,9 +393,9 @@ endif:
 }
 
 ; FUNC-LABEL: setcc-i1-and-xor
-; GCN-DAG: v_cmp_ge_f32_e64 [[A:s\[[0-9]+:[0-9]+\]]], s{{[0-9]+}}, 0{{$}}
-; GCN-DAG: v_cmp_le_f32_e64 [[B:s\[[0-9]+:[0-9]+\]]], s{{[0-9]+}}, 1.0
-; GCN: s_and_b64 s[2:3], [[A]], [[B]]
+; GCN-DAG: v_cmp_nge_f32_e64 [[A:s\[[0-9]+:[0-9]+\]]], s{{[0-9]+}}, 0{{$}}
+; GCN-DAG: v_cmp_nle_f32_e64 [[B:s\[[0-9]+:[0-9]+\]]], s{{[0-9]+}}, 1.0
+; GCN: s_or_b64 s[2:3], [[A]], [[B]]
 define amdgpu_kernel void @setcc-i1-and-xor(i32 addrspace(1)* %out, float %cond) #0 {
 bb0:
   %tmp5 = fcmp oge float %cond, 0.000000e+00

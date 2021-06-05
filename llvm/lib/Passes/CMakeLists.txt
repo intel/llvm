@@ -1,9 +1,6 @@
-if (MSVC)
-  set_source_files_properties(PassBuilder.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-endif()
-
 add_llvm_component_library(LLVMPasses
   PassBuilder.cpp
+  PassBuilderBindings.cpp
   PassPlugin.cpp
   StandardInstrumentations.cpp
 
@@ -13,4 +10,20 @@ add_llvm_component_library(LLVMPasses
 
   DEPENDS
   intrinsics_gen
+
+  LINK_COMPONENTS
+  AggressiveInstCombine
+  Analysis
+  Core
+  Coroutines
+  IPO
+  InstCombine
+  ObjCARC
+  Scalar
+  Support
+  SYCLLowerIR
+  Target
+  TransformUtils
+  Vectorize
+  Instrumentation
   )

@@ -28,7 +28,8 @@ class RegisterCommandsTestCase(TestBase):
 
     @skipIfiOSSimulator
     @skipIf(archs=no_match(['amd64', 'arm', 'i386', 'x86_64']))
-    @expectedFailureNetBSD
+    @expectedFailureAll(oslist=["freebsd", "netbsd"],
+                        bugnumber='llvm.org/pr48371')
     def test_register_commands(self):
         """Test commands related to registers, in particular vector registers."""
         self.build()
@@ -67,11 +68,9 @@ class RegisterCommandsTestCase(TestBase):
     @skipIfiOSSimulator
     # "register read fstat" always return 0xffff
     @expectedFailureAndroid(archs=["i386"])
-    @skipIfFreeBSD  # llvm.org/pr25057
     @skipIf(archs=no_match(['amd64', 'i386', 'x86_64']))
     @skipIfOutOfTreeDebugserver
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr37995")
-    @expectedFailureNetBSD
     def test_fp_special_purpose_register_read(self):
         """Test commands that read fpu special purpose registers."""
         self.build()
@@ -117,7 +116,6 @@ class RegisterCommandsTestCase(TestBase):
     @skipIfiOSSimulator
     @skipIf(archs=no_match(['amd64', 'x86_64']))
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr37683")
-    @expectedFailureNetBSD
     def test_convenience_registers_with_process_attach(self):
         """Test convenience registers after a 'process attach'."""
         self.build()
@@ -126,7 +124,6 @@ class RegisterCommandsTestCase(TestBase):
     @skipIfiOSSimulator
     @skipIf(archs=no_match(['amd64', 'x86_64']))
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr37683")
-    @expectedFailureNetBSD
     def test_convenience_registers_16bit_with_process_attach(self):
         """Test convenience registers after a 'process attach'."""
         self.build()
@@ -194,12 +191,13 @@ class RegisterCommandsTestCase(TestBase):
                 ' = ',
                 new_value])
 
+    # This test relies on ftag containing the 'abridged' value.  Linux
+    # and *BSD targets have been ported to report the full value instead
+    # consistently with GDB.  They are covered by the new-style
+    # lldb/test/Shell/Register/x86*-fp-read.test.
+    @skipUnlessDarwin
     def fp_special_purpose_register_read(self):
-        exe = self.getBuildArtifact("a.out")
-
-        # Create a target by the debugger.
-        target = self.dbg.CreateTarget(exe)
-        self.assertTrue(target, VALID_TARGET)
+        target = self.createTestTarget()
 
         # Launch the process and stop.
         self.expect("run", PROCESS_STOPPED, substrs=['stopped'])
@@ -220,7 +218,7 @@ class RegisterCommandsTestCase(TestBase):
         self.assertTrue(matched, STOPPED_DUE_TO_SIGNAL)
 
         process = target.GetProcess()
-        self.assertTrue(process.GetState() == lldb.eStateStopped,
+        self.assertEqual(process.GetState(), lldb.eStateStopped,
                         PROCESS_STOPPED)
 
         thread = process.GetThreadAtIndex(0)
@@ -235,12 +233,12 @@ class RegisterCommandsTestCase(TestBase):
         error = lldb.SBError()
         reg_value_fstat_initial = value.GetValueAsUnsigned(error, 0)
 
-        self.assertTrue(error.Success(), "reading a value for fstat")
+        self.assertSuccess(error, "reading a value for fstat")
         value = currentFrame.FindValue("ftag", lldb.eValueTypeRegister)
         error = lldb.SBError()
         reg_value_ftag_initial = value.GetValueAsUnsigned(error, 0)
 
-        self.assertTrue(error.Success(), "reading a value for ftag")
+        self.assertSuccess(error, "reading a value for ftag")
         fstat_top_pointer_initial = (reg_value_fstat_initial & 0x3800) >> 11
 
         # Execute 'si' aka 'thread step-inst' instruction 5 times and with
@@ -276,26 +274,23 @@ class RegisterCommandsTestCase(TestBase):
                 1 << fstat_top_pointer_initial)
 
     def fp_register_write(self):
-        exe = self.getBuildArtifact("a.out")
-
-        # Create a target by the debugger.
-        target = self.dbg.CreateTarget(exe)
-        self.assertTrue(target, VALID_TARGET)
+        target = self.createTestTarget()
 
         # Launch the process, stop at the entry point.
         error = lldb.SBError()
+        flags = target.GetLaunchInfo().GetLaunchFlags()
         process = target.Launch(
                 lldb.SBListener(),
                 None, None, # argv, envp
                 None, None, None, # stdin/out/err
                 self.get_process_working_directory(),
-                0, # launch flags
-                True, # stop at entry
+                flags, # launch flags
+                True,  # stop at entry
                 error)
-        self.assertTrue(error.Success(), "Launch succeeds. Error is :" + str(error))
+        self.assertSuccess(error, "Launch succeeds")
 
-        self.assertTrue(
-            process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
 
         thread = process.GetThreadAtIndex(0)
@@ -317,10 +312,12 @@ class RegisterCommandsTestCase(TestBase):
             ]
 
             st0regname = None
-            if currentFrame.FindRegister("st0").IsValid():
-                st0regname = "st0"
-            elif currentFrame.FindRegister("stmm0").IsValid():
+            # Darwin is using stmmN by default but support stN as an alias.
+            # Therefore, we need to check for stmmN first.
+            if currentFrame.FindRegister("stmm0").IsValid():
                 st0regname = "stmm0"
+            elif currentFrame.FindRegister("st0").IsValid():
+                st0regname = "st0"
             if st0regname is not None:
                 # reg          value
                 # must-have
@@ -402,7 +399,12 @@ class RegisterCommandsTestCase(TestBase):
             for registerSet in registerSets:
                 if 'advanced vector extensions' in registerSet.GetName().lower():
                     has_avx = True
-                if 'memory protection extension' in registerSet.GetName().lower():
+                # FreeBSD/NetBSD reports missing register sets differently
+                # at the moment and triggers false positive here.
+                # TODO: remove FreeBSD/NetBSD exception when we make unsupported
+                # register groups correctly disappear.
+                if ('memory protection extension' in registerSet.GetName().lower()
+                        and self.getPlatform() not in ["freebsd", "netbsd"]):
                     has_mpx = True
 
             if has_avx:
@@ -457,7 +459,6 @@ class RegisterCommandsTestCase(TestBase):
 
         # Spawn a new process
         pid = self.spawnSubprocess(exe, ['wait_for_attach']).pid
-        self.addTearDownHook(self.cleanupSubprocesses)
 
         if self.TraceOn():
             print("pid of spawned process: %d" % pid)

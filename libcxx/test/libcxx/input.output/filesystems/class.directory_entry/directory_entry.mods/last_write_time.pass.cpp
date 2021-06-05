@@ -7,7 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03
-// ADDITIONAL_COMPILE_FLAGS: -I%{libcxx_src_root}/src/filesystem
+// ADDITIONAL_COMPILE_FLAGS: -I %S/../../../../../../src/filesystem
+
+// This test relies on calling functions from the libcxx internal header
+// filesystem_common.h; the Windows implementation uses different
+// internals and doesn't provide the same set_file_times function as for
+// other platforms.
+// UNSUPPORTED: windows
 
 // <filesystem>
 

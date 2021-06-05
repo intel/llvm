@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: clang-8
+// UNSUPPORTED: LIBCXX-DEBUG-FIXME
+
 // <string>
 
 // template<> struct char_traits<char>
@@ -35,7 +38,7 @@ int main(int, char**)
 {
     test();
 
-#if TEST_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_BUILTIN_IS_CONSTANT_EVALUATED)
+#if TEST_STD_VER > 17
     static_assert(test());
 #endif
 

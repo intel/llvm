@@ -266,7 +266,7 @@ TEST_F(AArch64GISelMITest, BuildCasts) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(AArch64GISelMITest, BuildMinMax) {
+TEST_F(AArch64GISelMITest, BuildMinMaxAbs) {
   setUp();
   if (!TM)
     return;
@@ -279,6 +279,7 @@ TEST_F(AArch64GISelMITest, BuildMinMax) {
   B.buildSMax(S64, Copies[0], Copies[1]);
   B.buildUMin(S64, Copies[0], Copies[1]);
   B.buildUMax(S64, Copies[0], Copies[1]);
+  B.buildAbs(S64, Copies[0]);
 
   auto CheckStr = R"(
   ; CHECK: [[COPY0:%[0-9]+]]:_(s64) = COPY $x0
@@ -287,6 +288,7 @@ TEST_F(AArch64GISelMITest, BuildMinMax) {
   ; CHECK: [[SMAX0:%[0-9]+]]:_(s64) = G_SMAX [[COPY0]]:_, [[COPY1]]:_
   ; CHECK: [[UMIN0:%[0-9]+]]:_(s64) = G_UMIN [[COPY0]]:_, [[COPY1]]:_
   ; CHECK: [[UMAX0:%[0-9]+]]:_(s64) = G_UMAX [[COPY0]]:_, [[COPY1]]:_
+  ; CHECK: [[UABS0:%[0-9]+]]:_(s64) = G_ABS [[COPY0]]:_
   )";
 
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
@@ -392,6 +394,28 @@ TEST_F(AArch64GISelMITest, BuildAddoSubo) {
   ; CHECK: [[USUBE:%[0-9]+]]:_(s64), [[USUBE_FLAG:%[0-9]+]]:_(s1) = G_USUBE [[COPY0]]:_, [[COPY1]]:_, [[USUBO_FLAG]]
   ; CHECK: [[SADDE:%[0-9]+]]:_(s64), [[SADDE_FLAG:%[0-9]+]]:_(s1) = G_SADDE [[COPY0]]:_, [[COPY1]]:_, [[SADDO_FLAG]]
   ; CHECK: [[SSUBE:%[0-9]+]]:_(s64), [[SSUBE_FLAG:%[0-9]+]]:_(s1) = G_SSUBE [[COPY0]]:_, [[COPY1]]:_, [[SSUBO_FLAG]]
+  )";
+
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
+TEST_F(AArch64GISelMITest, BuildBitfieldExtract) {
+  setUp();
+  if (!TM)
+    return;
+  LLT S64 = LLT::scalar(64);
+  SmallVector<Register, 4> Copies;
+  collectCopies(Copies, MF);
+
+  auto Ubfx = B.buildUbfx(S64, Copies[0], Copies[1], Copies[2]);
+  B.buildSbfx(S64, Ubfx, Copies[0], Copies[2]);
+
+  const auto *CheckStr = R"(
+  ; CHECK: [[COPY0:%[0-9]+]]:_(s64) = COPY $x0
+  ; CHECK: [[COPY1:%[0-9]+]]:_(s64) = COPY $x1
+  ; CHECK: [[COPY2:%[0-9]+]]:_(s64) = COPY $x2
+  ; CHECK: [[UBFX:%[0-9]+]]:_(s64) = G_UBFX [[COPY0]]:_, [[COPY1]]:_(s64), [[COPY2]]:_
+  ; CHECK: [[SBFX:%[0-9]+]]:_(s64) = G_SBFX [[UBFX]]:_, [[COPY0]]:_(s64), [[COPY2]]:_
   )";
 
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;

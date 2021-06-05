@@ -12,20 +12,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SPIRV/SPIRVBinaryUtils.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
-#include "mlir/Dialect/SPIRV/Serialization.h"
+#include "mlir/Target/SPIRV/Deserialization.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/Target/SPIRV/SPIRVBinaryUtils.h"
 #include "gmock/gmock.h"
 
 #include <memory>
 
 using namespace mlir;
-
-// Load the SPIRV dialect
-static DialectRegistration<spirv::SPIRVDialect> SPIRVRegistration;
 
 using ::testing::StrEq;
 
@@ -38,6 +35,7 @@ using ::testing::StrEq;
 class DeserializationTest : public ::testing::Test {
 protected:
   DeserializationTest() {
+    context.getOrLoadDialect<mlir::spirv::SPIRVDialect>();
     // Register a diagnostic handler to capture the diagnostic so that we can
     // check it later.
     context.getDiagEngine().registerHandler([&](Diagnostic &diag) {
@@ -46,7 +44,7 @@ protected:
   }
 
   /// Performs deserialization and returns the constructed spv.module op.
-  Optional<spirv::ModuleOp> deserialize() {
+  OwningOpRef<spirv::ModuleOp> deserialize() {
     return spirv::deserialize(binary, &context);
   }
 
@@ -54,7 +52,7 @@ protected:
   void expectDiagnostic(StringRef errorMessage) {
     ASSERT_NE(nullptr, diagnostic.get());
 
-    // TODO(antiagainst): check error location too.
+    // TODO: check error location too.
     EXPECT_THAT(diagnostic->str(), StrEq(std::string(errorMessage)));
   }
 
@@ -130,27 +128,27 @@ protected:
 //===----------------------------------------------------------------------===//
 
 TEST_F(DeserializationTest, EmptyModuleFailure) {
-  ASSERT_EQ(llvm::None, deserialize());
+  ASSERT_FALSE(deserialize());
   expectDiagnostic("SPIR-V binary module must have a 5-word header");
 }
 
 TEST_F(DeserializationTest, WrongMagicNumberFailure) {
   addHeader();
   binary.front() = 0xdeadbeef; // Change to a wrong magic number
-  ASSERT_EQ(llvm::None, deserialize());
+  ASSERT_FALSE(deserialize());
   expectDiagnostic("incorrect magic number");
 }
 
 TEST_F(DeserializationTest, OnlyHeaderSuccess) {
   addHeader();
-  EXPECT_NE(llvm::None, deserialize());
+  EXPECT_TRUE(deserialize());
 }
 
 TEST_F(DeserializationTest, ZeroWordCountFailure) {
   addHeader();
   binary.push_back(0); // OpNop with zero word count
 
-  ASSERT_EQ(llvm::None, deserialize());
+  ASSERT_FALSE(deserialize());
   expectDiagnostic("word count cannot be zero");
 }
 
@@ -158,9 +156,9 @@ TEST_F(DeserializationTest, InsufficientWordFailure) {
   addHeader();
   binary.push_back((2u << 16) |
                    static_cast<uint32_t>(spirv::Opcode::OpTypeVoid));
-  // Missing word for type <id>
+  // Missing word for type <id>.
 
-  ASSERT_EQ(llvm::None, deserialize());
+  ASSERT_FALSE(deserialize());
   expectDiagnostic("insufficient words for the last instruction");
 }
 
@@ -172,7 +170,7 @@ TEST_F(DeserializationTest, IntTypeMissingSignednessFailure) {
   addHeader();
   addInstruction(spirv::Opcode::OpTypeInt, {nextID++, 32});
 
-  ASSERT_EQ(llvm::None, deserialize());
+  ASSERT_FALSE(deserialize());
   expectDiagnostic("OpTypeInt must have bitwidth and signedness parameters");
 }
 
@@ -190,15 +188,15 @@ TEST_F(DeserializationTest, OpMemberNameSuccess) {
   std::swap(typeDecl, binary);
 
   SmallVector<uint32_t, 5> operands1 = {structType, 0};
-  spirv::encodeStringLiteralInto(operands1, "i1");
+  (void)spirv::encodeStringLiteralInto(operands1, "i1");
   addInstruction(spirv::Opcode::OpMemberName, operands1);
 
   SmallVector<uint32_t, 5> operands2 = {structType, 1};
-  spirv::encodeStringLiteralInto(operands2, "i2");
+  (void)spirv::encodeStringLiteralInto(operands2, "i2");
   addInstruction(spirv::Opcode::OpMemberName, operands2);
 
   binary.append(typeDecl.begin(), typeDecl.end());
-  EXPECT_NE(llvm::None, deserialize());
+  EXPECT_TRUE(deserialize());
 }
 
 TEST_F(DeserializationTest, OpMemberNameMissingOperands) {
@@ -215,7 +213,7 @@ TEST_F(DeserializationTest, OpMemberNameMissingOperands) {
   addInstruction(spirv::Opcode::OpMemberName, operands1);
 
   binary.append(typeDecl.begin(), typeDecl.end());
-  ASSERT_EQ(llvm::None, deserialize());
+  ASSERT_FALSE(deserialize());
   expectDiagnostic("OpMemberName must have at least 3 operands");
 }
 
@@ -229,12 +227,12 @@ TEST_F(DeserializationTest, OpMemberNameExcessOperands) {
   std::swap(typeDecl, binary);
 
   SmallVector<uint32_t, 5> operands = {structType, 0};
-  spirv::encodeStringLiteralInto(operands, "int32");
+  (void)spirv::encodeStringLiteralInto(operands, "int32");
   operands.push_back(42);
   addInstruction(spirv::Opcode::OpMemberName, operands);
 
   binary.append(typeDecl.begin(), typeDecl.end());
-  ASSERT_EQ(llvm::None, deserialize());
+  ASSERT_FALSE(deserialize());
   expectDiagnostic("unexpected trailing words in OpMemberName instruction");
 }
 
@@ -247,9 +245,9 @@ TEST_F(DeserializationTest, FunctionMissingEndFailure) {
   auto voidType = addVoidType();
   auto fnType = addFunctionType(voidType, {});
   addFunction(voidType, fnType);
-  // Missing OpFunctionEnd
+  // Missing OpFunctionEnd.
 
-  ASSERT_EQ(llvm::None, deserialize());
+  ASSERT_FALSE(deserialize());
   expectDiagnostic("expected OpFunctionEnd instruction");
 }
 
@@ -259,9 +257,9 @@ TEST_F(DeserializationTest, FunctionMissingParameterFailure) {
   auto i32Type = addIntType(32);
   auto fnType = addFunctionType(voidType, {i32Type});
   addFunction(voidType, fnType);
-  // Missing OpFunctionParameter
+  // Missing OpFunctionParameter.
 
-  ASSERT_EQ(llvm::None, deserialize());
+  ASSERT_FALSE(deserialize());
   expectDiagnostic("expected OpFunctionParameter instruction");
 }
 
@@ -270,11 +268,11 @@ TEST_F(DeserializationTest, FunctionMissingLabelForFirstBlockFailure) {
   auto voidType = addVoidType();
   auto fnType = addFunctionType(voidType, {});
   addFunction(voidType, fnType);
-  // Missing OpLabel
+  // Missing OpLabel.
   addReturn();
   addFunctionEnd();
 
-  ASSERT_EQ(llvm::None, deserialize());
+  ASSERT_FALSE(deserialize());
   expectDiagnostic("a basic block must start with OpLabel");
 }
 
@@ -287,6 +285,6 @@ TEST_F(DeserializationTest, FunctionMalformedLabelFailure) {
   addReturn();
   addFunctionEnd();
 
-  ASSERT_EQ(llvm::None, deserialize());
+  ASSERT_FALSE(deserialize());
   expectDiagnostic("OpLabel should only have result <id>");
 }

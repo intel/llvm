@@ -29,7 +29,7 @@ class SYCLMemObjI {
 public:
   virtual ~SYCLMemObjI() = default;
 
-  enum MemObjType { BUFFER, IMAGE, UNDEFINED };
+  enum MemObjType { BUFFER = 0, IMAGE = 1, UNDEFINED = 2 };
 
   virtual MemObjType getType() const = 0;
 
@@ -60,6 +60,10 @@ public:
 
   // Returns size of object in bytes
   virtual size_t getSize() const = 0;
+
+  // Returns the context which is passed if a memory object is created using
+  // interoperability constructor, nullptr otherwise.
+  virtual ContextImplPtr getInteropContext() const = 0;
 
 protected:
   // Pointer to the record that contains the memory commands. This is managed

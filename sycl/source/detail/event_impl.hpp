@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/plugin.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -26,7 +27,6 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
 using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
-using QueueImplWPtr = std::weak_ptr<cl::sycl::detail::queue_impl>;
 
 class event_impl {
 public:
@@ -166,7 +166,6 @@ private:
 
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
-  QueueImplWPtr MQueue;
   bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;

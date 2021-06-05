@@ -6,22 +6,27 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/frexp.h"
 #include "utils/FPUtil/BasicOperations.h"
 #include "utils/FPUtil/BitPatterns.h"
 #include "utils/FPUtil/ClassificationFunctions.h"
+#include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/FloatOperations.h"
 #include "utils/FPUtil/FloatProperties.h"
+#include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
+using FPBits = __llvm_libc::fputil::FPBits<double>;
 using __llvm_libc::fputil::valueAsBits;
 using __llvm_libc::fputil::valueFromBits;
+
+namespace mpfr = __llvm_libc::testing::mpfr;
 
 using BitPatterns = __llvm_libc::fputil::BitPatterns<double>;
 using Properties = __llvm_libc::fputil::FloatProperties<double>;
 
-TEST(FrexpTest, SpecialNumbers) {
+TEST(LlvmLibcFrexpTest, SpecialNumbers) {
   int exponent;
 
   EXPECT_EQ(BitPatterns::aQuietNaN,
@@ -55,7 +60,7 @@ TEST(FrexpTest, SpecialNumbers) {
   EXPECT_EQ(exponent, 0);
 }
 
-TEST(FrexpTest, PowersOfTwo) {
+TEST(LlvmLibcFrexpTest, PowersOfTwo) {
   int exponent;
 
   EXPECT_EQ(valueAsBits(0.5), valueAsBits(__llvm_libc::frexp(1.0, &exponent)));
@@ -101,7 +106,7 @@ TEST(FrexpTest, PowersOfTwo) {
   EXPECT_EQ(exponent, 7);
 }
 
-TEST(FrexpTest, SomeIntegers) {
+TEST(LlvmLibcFrexpTest, SomeIntegers) {
   int exponent;
 
   EXPECT_EQ(valueAsBits(0.75),
@@ -126,18 +131,20 @@ TEST(FrexpTest, SomeIntegers) {
   EXPECT_EQ(exponent, 10);
 }
 
-TEST(FrexpTest, InDoubleRange) {
-  using BitsType = Properties::BitsType;
-  constexpr BitsType count = 1000000;
-  constexpr BitsType step = UINT64_MAX / count;
-  for (BitsType i = 0, v = 0; i <= count; ++i, v += step) {
-    double x = valueFromBits(v);
+TEST(LlvmLibcFrexpTest, InDoubleRange) {
+  using UIntType = FPBits::UIntType;
+  constexpr UIntType count = 1000001;
+  constexpr UIntType step = UIntType(-1) / count;
+  for (UIntType i = 0, v = 0; i <= count; ++i, v += step) {
+    double x = double(FPBits(v));
     if (isnan(x) || isinf(x) || x == 0.0)
       continue;
-    int exponent;
-    double frac = __llvm_libc::frexp(x, &exponent);
 
-    ASSERT_TRUE(__llvm_libc::fputil::abs(frac) < 1.0);
-    ASSERT_TRUE(__llvm_libc::fputil::abs(frac) >= 0.5);
+    mpfr::BinaryOutput<double> result;
+    result.f = __llvm_libc::frexp(x, &result.i);
+
+    ASSERT_TRUE(__llvm_libc::fputil::abs(result.f) < 1.0);
+    ASSERT_TRUE(__llvm_libc::fputil::abs(result.f) >= 0.5);
+    ASSERT_MPFR_MATCH(mpfr::Operation::Frexp, x, result, 0.0);
   }
 }

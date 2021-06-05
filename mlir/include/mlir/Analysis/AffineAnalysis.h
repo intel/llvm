@@ -15,6 +15,7 @@
 #ifndef MLIR_ANALYSIS_AFFINE_ANALYSIS_H
 #define MLIR_ANALYSIS_AFFINE_ANALYSIS_H
 
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
@@ -27,6 +28,30 @@ class AffineValueMap;
 class FlatAffineConstraints;
 class Operation;
 
+/// A description of a (parallelizable) reduction in an affine loop.
+struct LoopReduction {
+  /// Reduction kind.
+  AtomicRMWKind kind;
+
+  /// Position of the iteration argument that acts as accumulator.
+  unsigned iterArgPosition;
+
+  /// The value being reduced.
+  Value value;
+};
+
+/// Returns true if `forOp' is a parallel loop. If `parallelReductions` is
+/// provided, populates it with descriptors of the parallelizable reductions and
+/// treats them as not preventing parallelization.
+bool isLoopParallel(
+    AffineForOp forOp,
+    SmallVectorImpl<LoopReduction> *parallelReductions = nullptr);
+
+/// Returns true if `forOp' doesn't have memory dependences preventing
+/// parallelization. This function doesn't check iter_args and should be used
+/// only as a building block for full parallel-checking functions.
+bool isLoopMemoryParallel(AffineForOp forOp);
+
 /// Returns in `affineApplyOps`, the sequence of those AffineApplyOp
 /// Operations that are reachable via a search starting from `operands` and
 /// ending at those operands that are not the result of an AffineApplyOp.
@@ -34,12 +59,14 @@ void getReachableAffineApplyOps(ArrayRef<Value> operands,
                                 SmallVectorImpl<Operation *> &affineApplyOps);
 
 /// Builds a system of constraints with dimensional identifiers corresponding to
-/// the loop IVs of the forOps appearing in that order. Bounds of the loop are
-/// used to add appropriate inequalities. Any symbols founds in the bound
-/// operands are added as symbols in the system. Returns failure for the yet
-/// unimplemented cases.
-//  TODO(bondhugula): handle non-unit strides.
-LogicalResult getIndexSet(MutableArrayRef<AffineForOp> forOps,
+/// the loop IVs of the forOps and AffineIfOp's operands appearing in
+/// that order. Bounds of the loop are used to add appropriate inequalities.
+/// Constraints from the index sets of AffineIfOp are also added. Any symbols
+/// founds in the bound operands are added as symbols in the system. Returns
+/// failure for the yet unimplemented cases. `ops` accepts both AffineForOp and
+/// AffineIfOp.
+//  TODO: handle non-unit strides.
+LogicalResult getIndexSet(MutableArrayRef<Operation *> ops,
                           FlatAffineConstraints *domain);
 
 /// Encapsulates a memref load or store access information.
@@ -49,8 +76,8 @@ struct MemRefAccess {
   SmallVector<Value, 4> indices;
 
   /// Constructs a MemRefAccess from a load or store operation.
-  // TODO(b/119949820): add accessors to standard op's load, store, DMA op's to
-  // return MemRefAccess, i.e., loadOp->getAccess(), dmaOp->getRead/WriteAccess.
+  // TODO: add accessors to standard op's load, store, DMA op's to return
+  // MemRefAccess, i.e., loadOp->getAccess(), dmaOp->getRead/WriteAccess.
   explicit MemRefAccess(Operation *opInst);
 
   // Returns the rank of the memref associated with this access.
@@ -95,9 +122,9 @@ struct DependenceComponent {
 /// access the same memref element. If 'allowRAR' is true, will consider
 /// read-after-read dependences (typically used by applications trying to
 /// optimize input reuse).
-// TODO(andydavis) Wrap 'dependenceConstraints' and 'dependenceComponents' into
-// a single struct.
-// TODO(andydavis) Make 'dependenceConstraints' optional arg.
+// TODO: Wrap 'dependenceConstraints' and 'dependenceComponents' into a single
+// struct.
+// TODO: Make 'dependenceConstraints' optional arg.
 struct DependenceResult {
   enum ResultEnum {
     HasDependence, // A dependence exists between 'srcAccess' and 'dstAccess'.

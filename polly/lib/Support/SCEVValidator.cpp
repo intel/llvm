@@ -161,6 +161,10 @@ public:
     return ValidatorResult(SCEVType::PARAM, Expr);
   }
 
+  class ValidatorResult visitPtrToIntExpr(const SCEVPtrToIntExpr *Expr) {
+    return visit(Expr->getOperand());
+  }
+
   class ValidatorResult visitTruncateExpr(const SCEVTruncateExpr *Expr) {
     return visitZeroExtendOrTruncateExpr(Expr, Expr->getOperand());
   }
@@ -444,8 +448,6 @@ public:
       switch (I->getOpcode()) {
       case Instruction::IntToPtr:
         return visit(SE.getSCEVAtScope(I->getOperand(0), Scope));
-      case Instruction::PtrToInt:
-        return visit(SE.getSCEVAtScope(I->getOperand(0), Scope));
       case Instruction::Load:
         return visitLoadInstruction(I, Expr);
       case Instruction::SDiv:
@@ -457,6 +459,11 @@ public:
       default:
         return visitGenericInst(I, Expr);
       }
+    }
+
+    if (Expr->getType()->isPointerTy()) {
+      if (isa<ConstantPointerNull>(V))
+        return ValidatorResult(SCEVType::INT); // "int"
     }
 
     return ValidatorResult(SCEVType::PARAM, Expr);

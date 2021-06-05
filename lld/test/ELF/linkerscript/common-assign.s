@@ -27,7 +27,7 @@
 # CHECK-NEXT:     Value: [[FOO]]
 # CHECK-NEXT:     Size: 0
 # CHECK-NEXT:     Binding: Global
-# CHECK-NEXT:     Type: None
+# CHECK-NEXT:     Type: Object
 # CHECK-NEXT:     Other: 0
 # CHECK-NEXT:     Section: .bss
 # CHECK-NEXT:   }
@@ -36,13 +36,13 @@
 # CHECK-NEXT:     Value: [[BAR]]
 # CHECK-NEXT:     Size: 0
 # CHECK-NEXT:     Binding: Global
-# CHECK-NEXT:     Type: None
+# CHECK-NEXT:     Type: Object
 # CHECK-NEXT:     Other: 0
 # CHECK-NEXT:     Section: .bss
 # CHECK-NEXT:   }
 # CHECK-NEXT: ]
 
-.comm	foo,4,4
 .comm	bar,4,4
+.comm	foo,4,4
 movl	$1, foo(%rip)
 movl	$2, bar(%rip)

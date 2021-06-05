@@ -21,7 +21,7 @@ class ExprCommandWithThrowTestCase(TestBase):
         self.main_source = "call-throws.m"
         self.main_source_spec = lldb.SBFileSpec(self.main_source)
 
-    @skipUnlessDarwin
+    @add_test_categories(["objc"])
     def test(self):
         """Test calling a function that throws and ObjC exception."""
         self.build()
@@ -30,8 +30,8 @@ class ExprCommandWithThrowTestCase(TestBase):
     def check_after_call(self):
         # Check that we are back where we were before:
         frame = self.thread.GetFrameAtIndex(0)
-        self.assertTrue(
-            self.orig_frame_pc == frame.GetPC(),
+        self.assertEqual(
+            self.orig_frame_pc, frame.GetPC(),
             "Restored the zeroth frame correctly")
 
     def call_function(self):
@@ -88,7 +88,7 @@ class ExprCommandWithThrowTestCase(TestBase):
         options.SetTrapExceptions(False)
         value = frame.EvaluateExpression("[my_class iCatchMyself]", options)
         self.assertTrue(value.IsValid())
-        self.assertTrue(value.GetError().Success())
+        self.assertSuccess(value.GetError())
         self.assertEquals(value.GetValueAsUnsigned(), 57)
         self.check_after_call()
         options.SetTrapExceptions(True)

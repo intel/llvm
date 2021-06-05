@@ -90,7 +90,6 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
         self.addTearDownHook(cleanup)
 
         popen = self.spawnSubprocess(program, [pid_file_path])
-        self.addTearDownHook(self.cleanupSubprocesses)
 
         pid = lldbutil.wait_for_file_on_target(self, pid_file_path)
 
@@ -117,7 +116,7 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
     @skipIfWindows
     @skipIfDarwin
     @skipIfNetBSD # Hangs on NetBSD as well
-    @skipIf(archs="aarch64") # Example of a flaky run http://lab.llvm.org:8011/builders/lldb-aarch64-ubuntu/builds/5527/steps/test/logs/stdio
+    @skipIf(archs=["arm", "aarch64"]) # Example of a flaky run http://lab.llvm.org:8011/builders/lldb-aarch64-ubuntu/builds/5527/steps/test/logs/stdio
     def test_commands(self):
         '''
             Tests the "initCommands", "preRunCommands", "stopCommands",
@@ -146,10 +145,11 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
         # and use it for debugging
         attachCommands = [
             'target create -d "%s"' % (program),
-            'process launch'
+            'process launch --stop-at-entry'
         ]
         initCommands = ['target list', 'platform list']
         preRunCommands = ['image list a.out', 'image dump sections a.out']
+        postRunCommands = ['help trace', 'help process trace']
         stopCommands = ['frame variable', 'bt']
         exitCommands = ['expr 2+3', 'expr 3+4']
         terminateCommands = ['expr 4+2']
@@ -159,7 +159,8 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
                     preRunCommands=preRunCommands,
                     stopCommands=stopCommands,
                     exitCommands=exitCommands,
-                    terminateCommands=terminateCommands)
+                    terminateCommands=terminateCommands,
+                    postRunCommands=postRunCommands)
         # Get output from the console. This should contain both the
         # "initCommands" and the "preRunCommands".
         output = self.get_console()
@@ -167,6 +168,8 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
         self.verify_commands('initCommands', output, initCommands)
         # Verify all "preRunCommands" were found in console output
         self.verify_commands('preRunCommands', output, preRunCommands)
+        # Verify all "postRunCommands" were found in console output
+        self.verify_commands('postRunCommands', output, postRunCommands)
 
         functions = ['main']
         breakpoint_ids = self.set_function_breakpoints(functions)
@@ -198,7 +201,7 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
     @skipIfWindows
     @skipIfDarwin
     @skipIfNetBSD # Hangs on NetBSD as well
-    @skipIf(archs="aarch64") # Example of a flaky run http://lab.llvm.org:8011/builders/lldb-aarch64-ubuntu/builds/5517/steps/test/logs/stdio
+    @skipIf(archs=["arm", "aarch64"]) # Example of a flaky run http://lab.llvm.org:8011/builders/lldb-aarch64-ubuntu/builds/5517/steps/test/logs/stdio
     def test_terminate_commands(self):
         '''
             Tests that the "terminateCommands", that can be passed during

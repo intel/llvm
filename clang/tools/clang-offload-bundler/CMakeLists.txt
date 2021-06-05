@@ -1,14 +1,19 @@
-set(LLVM_LINK_COMPONENTS Object Support)
-
-if(NOT CLANG_BUILT_STANDALONE)
-  set(tablegen_deps intrinsics_gen)
-endif()
+set(LLVM_LINK_COMPONENTS
+  AllTargetsAsmParsers
+  AllTargetsDescs
+  AllTargetsInfos
+  BitWriter
+  Core
+  IRReader
+  Object
+  Support
+  )
 
 add_clang_tool(clang-offload-bundler
   ClangOffloadBundler.cpp
   
   DEPENDS
-  ${tablegen_deps}
+  intrinsics_gen
   )
 
 set(CLANG_OFFLOAD_BUNDLER_LIB_DEPS

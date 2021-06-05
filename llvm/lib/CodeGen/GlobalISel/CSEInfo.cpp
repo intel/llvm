@@ -11,6 +11,7 @@
 #include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/InitializePasses.h"
+#include "llvm/Support/Error.h"
 
 #define DEBUG_TYPE "cseinfo"
 
@@ -59,6 +60,7 @@ bool CSEConfigFull::shouldCSEOpc(unsigned Opc) {
   case TargetOpcode::G_UNMERGE_VALUES:
   case TargetOpcode::G_TRUNC:
   case TargetOpcode::G_PTR_ADD:
+  case TargetOpcode::G_EXTRACT:
     return true;
   }
   return false;
@@ -277,8 +279,7 @@ Error GISelCSEInfo::verify() {
 
   // For every node in the CSEMap, make sure that the InstrMapping
   // points to it.
-  for (auto It = CSEMap.begin(), End = CSEMap.end(); It != End; ++It) {
-    const UniqueMachineInstr &UMI = *It;
+  for (const UniqueMachineInstr &UMI : CSEMap) {
     if (!InstrMapping.count(UMI.MI))
       return createStringError(std::errc::not_supported,
                                "Node in CSE without InstrMapping", UMI.MI);
@@ -366,23 +367,30 @@ GISelInstProfileBuilder::addNodeIDFlag(unsigned Flag) const {
   return *this;
 }
 
+const GISelInstProfileBuilder &
+GISelInstProfileBuilder::addNodeIDReg(Register Reg) const {
+  LLT Ty = MRI.getType(Reg);
+  if (Ty.isValid())
+    addNodeIDRegType(Ty);
+
+  if (const RegClassOrRegBank &RCOrRB = MRI.getRegClassOrRegBank(Reg)) {
+    if (const auto *RB = RCOrRB.dyn_cast<const RegisterBank *>())
+      addNodeIDRegType(RB);
+    else if (const auto *RC = RCOrRB.dyn_cast<const TargetRegisterClass *>())
+      addNodeIDRegType(RC);
+  }
+  return *this;
+}
+
 const GISelInstProfileBuilder &GISelInstProfileBuilder::addNodeIDMachineOperand(
     const MachineOperand &MO) const {
   if (MO.isReg()) {
     Register Reg = MO.getReg();
     if (!MO.isDef())
       addNodeIDRegNum(Reg);
-    LLT Ty = MRI.getType(Reg);
-    if (Ty.isValid())
-      addNodeIDRegType(Ty);
 
-    if (const RegClassOrRegBank &RCOrRB = MRI.getRegClassOrRegBank(Reg)) {
-      if (const auto *RB = RCOrRB.dyn_cast<const RegisterBank *>())
-        addNodeIDRegType(RB);
-      else if (const auto *RC = RCOrRB.dyn_cast<const TargetRegisterClass *>())
-        addNodeIDRegType(RC);
-    }
-
+    // Profile the register properties.
+    addNodeIDReg(Reg);
     assert(!MO.isImplicit() && "Unhandled case");
   } else if (MO.isImm())
     ID.AddInteger(MO.getImm());

@@ -32,8 +32,7 @@ class TargetRegisterInfo;
 
   class LLVM_LIBRARY_VISIBILITY BranchFolder {
   public:
-    explicit BranchFolder(bool defaultEnableTailMerge,
-                          bool CommonHoist,
+    explicit BranchFolder(bool DefaultEnableTailMerge, bool CommonHoist,
                           MBFIWrapper &FreqInfo,
                           const MachineBranchProbabilityInfo &ProbInfo,
                           ProfileSummaryInfo *PSI,
@@ -45,7 +44,7 @@ class TargetRegisterInfo;
     /// given function.  Block placement changes the layout and may create new
     /// tail merging opportunities.
     bool OptimizeFunction(MachineFunction &MF, const TargetInstrInfo *tii,
-                          const TargetRegisterInfo *tri, MachineModuleInfo *mmi,
+                          const TargetRegisterInfo *tri,
                           MachineLoopInfo *mli = nullptr,
                           bool AfterPlacement = false);
 
@@ -124,7 +123,6 @@ class TargetRegisterInfo;
     const TargetInstrInfo *TII;
     const MachineRegisterInfo *MRI;
     const TargetRegisterInfo *TRI;
-    MachineModuleInfo *MMI;
     MachineLoopInfo *MLI;
     LivePhysRegs LiveRegs;
 

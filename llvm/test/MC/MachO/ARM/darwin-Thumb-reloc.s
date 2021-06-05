@@ -1,5 +1,5 @@
 @ RUN: llvm-mc -n -triple thumbv7-apple-darwin10 %s -filetype=obj -o %t.obj
-@ RUN: llvm-readobj --file-headers -S --sd -r --symbols --macho-segment --macho-dysymtab --macho-indirect-symbols < %t.obj > %t.dump
+@ RUN: llvm-readobj --file-headers -S --sd -r --symbols --macho-segment --macho-dysymtab --macho-indirect-symbols - < %t.obj > %t.dump
 @ RUN: FileCheck < %t.dump %s
 
 	.syntax unified
@@ -92,8 +92,9 @@ L_.str:
 @ CHECK:     Extern
 @ CHECK:     Type: Section (0xE)
 @ CHECK:     Section: __text (0x1)
-@ CHECK:     RefType: 0x8
-@ CHECK:     Flags [ (0x0)
+@ CHECK:     RefType: UndefinedNonLazy (0x0)
+@ CHECK:     Flags [ (0x8)
+@ CHECK:       ThumbDef (0x8)
 @ CHECK:     ]
 @ CHECK:     Value: 0x0
 @ CHECK:   }

@@ -18,18 +18,16 @@
 
 #include "amdgcn_interface.h"
 
-#include <assert.h>
-#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#define DEVICE __attribute__((device))
-#define INLINE inline DEVICE
-#define NOINLINE __attribute__((noinline)) DEVICE
-#define SHARED __attribute__((shared))
-#define ALIGN(N) __attribute__((aligned(N)))
+// subset of inttypes.h
+#define PRId64 "ld"
+#define PRIu64 "lu"
 
-#include "hip_atomics.h"
+#define INLINE inline
+#define NOINLINE __attribute__((noinline))
+#define ALIGN(N) __attribute__((aligned(N)))
 
 ////////////////////////////////////////////////////////////////////////////////
 // Kernel options
@@ -41,10 +39,6 @@
 #define MAX_THREADS_PER_TEAM 1024
 
 #define WARPSIZE 64
-
-// The named barrier for active parallel threads of a team in an L1 parallel
-// region to synchronize with each other.
-#define L1_BARRIER (1)
 
 // Maximum number of preallocated arguments to an outlined parallel/simd
 // function. Anything more requires dynamic memory allocation.
@@ -69,87 +63,14 @@ enum DATA_SHARING_SIZES {
   DS_Max_Warp_Number = 16,
 };
 
-INLINE void __kmpc_impl_unpack(uint64_t val, uint32_t &lo, uint32_t &hi) {
-  lo = (uint32_t)(val & UINT64_C(0x00000000FFFFFFFF));
-  hi = (uint32_t)((val & UINT64_C(0xFFFFFFFF00000000)) >> 32);
-}
+enum : __kmpc_impl_lanemask_t {
+  __kmpc_impl_all_lanes = ~(__kmpc_impl_lanemask_t)0
+};
 
-INLINE uint64_t __kmpc_impl_pack(uint32_t lo, uint32_t hi) {
-  return (((uint64_t)hi) << 32) | (uint64_t)lo;
-}
-
-static const __kmpc_impl_lanemask_t __kmpc_impl_all_lanes =
-    UINT64_C(0xffffffffffffffff);
-
-DEVICE __kmpc_impl_lanemask_t __kmpc_impl_lanemask_lt();
-
-DEVICE __kmpc_impl_lanemask_t __kmpc_impl_lanemask_gt();
-
-DEVICE uint32_t __kmpc_impl_smid();
-
-DEVICE double __kmpc_impl_get_wtick();
-
-DEVICE double __kmpc_impl_get_wtime();
-
-INLINE uint64_t __kmpc_impl_ffs(uint64_t x) { return __builtin_ffsl(x); }
-
-INLINE uint64_t __kmpc_impl_popc(uint64_t x) { return __builtin_popcountl(x); }
-
-template <typename T> INLINE T __kmpc_impl_min(T x, T y) {
-  return x < y ? x : y;
-}
-
-DEVICE __kmpc_impl_lanemask_t __kmpc_impl_activemask();
-
-DEVICE int32_t __kmpc_impl_shfl_sync(__kmpc_impl_lanemask_t, int32_t Var,
-                                     int32_t SrcLane);
-
-DEVICE int32_t __kmpc_impl_shfl_down_sync(__kmpc_impl_lanemask_t, int32_t Var,
-                                          uint32_t Delta, int32_t Width);
-
-INLINE void __kmpc_impl_syncthreads() { __builtin_amdgcn_s_barrier(); }
-
-INLINE void __kmpc_impl_syncwarp(__kmpc_impl_lanemask_t) {
-  // AMDGCN doesn't need to sync threads in a warp
-}
-
-INLINE void __kmpc_impl_named_sync(int barrier, uint32_t num_threads) {
-  // we have protected the master warp from releasing from its barrier
-  // due to a full workgroup barrier in the middle of a work function.
-  // So it is ok to issue a full workgroup barrier here.
-  __builtin_amdgcn_s_barrier();
-}
-
-DEVICE void __kmpc_impl_threadfence(void);
-DEVICE void __kmpc_impl_threadfence_block(void);
-DEVICE void __kmpc_impl_threadfence_system(void);
-
-// Calls to the AMDGCN layer (assuming 1D layout)
-INLINE int GetThreadIdInBlock() { return __builtin_amdgcn_workitem_id_x(); }
-INLINE int GetBlockIdInKernel() { return __builtin_amdgcn_workgroup_id_x(); }
-DEVICE int GetNumberOfBlocksInKernel();
-DEVICE int GetNumberOfThreadsInBlock();
-DEVICE unsigned GetWarpId();
-DEVICE unsigned GetLaneId();
-
-DEVICE bool __kmpc_impl_is_first_active_thread();
-
-// Locks
-DEVICE void __kmpc_impl_init_lock(omp_lock_t *lock);
-DEVICE void __kmpc_impl_destroy_lock(omp_lock_t *lock);
-DEVICE void __kmpc_impl_set_lock(omp_lock_t *lock);
-DEVICE void __kmpc_impl_unset_lock(omp_lock_t *lock);
-DEVICE int __kmpc_impl_test_lock(omp_lock_t *lock);
-
-// Memory
-DEVICE void *__kmpc_impl_malloc(size_t x);
-DEVICE void __kmpc_impl_free(void *x);
-
-// DEVICE versions of part of libc
-INLINE void __assert_fail(const char *, const char *, unsigned int,
-                          const char *) {
-  __builtin_trap();
-}
-EXTERN int printf(const char *, ...);
+// The return code of printf is not checked in the call sites in this library.
+// A call to a function named printf currently hits some special case handling
+// for opencl, which translates to calls that do not presently exist for openmp
+// Therefore, for now, stub out printf while building this library.
+#define printf(...)
 
 #endif

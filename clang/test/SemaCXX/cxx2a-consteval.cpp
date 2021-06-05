@@ -238,7 +238,7 @@ constexpr int f_c(int i) {
 // expected-note@-1 {{declared here}}
   int t = f(i);
 // expected-error@-1 {{is not a constant expression}}
-// expected-note@-2 {{read of non-const variable}}
+// expected-note@-2 {{function parameter}}
   return f(0);  
 }
 
@@ -254,7 +254,7 @@ auto l1 = [](int i) constexpr {
 // expected-note@-1 {{declared here}}
   int t = f(i);
 // expected-error@-1 {{is not a constant expression}}
-// expected-note@-2 {{read of non-const variable}}
+// expected-note@-2 {{function parameter}}
   return f(0);  
 };
 
@@ -474,6 +474,25 @@ namespace override {
       // expected-error@-1 {{consteval function 'operator==' cannot override a non-consteval function}}
     };
   }
+}
+
+namespace operator_rewrite {
+  struct A {
+    friend consteval int operator<=>(const A&, const A&) { return 0; }
+  };
+  const bool k = A() < A();
+  static_assert(!k);
+
+  A a;
+  bool k2 = A() < a; // OK, does not access 'a'.
+
+  struct B {
+    friend consteval int operator<=>(const B &l, const B &r) { return r.n - l.n; } // expected-note {{read of }}
+    int n;
+  };
+  static_assert(B() >= B());
+  B b; // expected-note {{here}}
+  bool k3 = B() < b; // expected-error-re {{call to consteval function '{{.*}}::operator<=>' is not a constant expression}} expected-note {{in call}}
 }
 
 struct A {

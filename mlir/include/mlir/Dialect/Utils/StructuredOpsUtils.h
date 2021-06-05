@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This header file define utilities that operate on standard types and are
+// This header file define utilities that operate on builtin types and are
 // useful across multiple dialects that use structured ops abstractions. These
 // abstractions consist of define custom operations that encode and transport
 // information about their semantics (e.g. type of iterators like parallel,
@@ -18,33 +18,29 @@
 #define MLIR_DIALECT_UTILS_STRUCTUREDOPSUTILS_H
 
 #include "mlir/IR/AffineMap.h"
-#include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/StringRef.h"
 
 namespace mlir {
 
-inline bool isRowMajorMatmul(ArrayAttr indexingMaps) {
-  auto context = indexingMaps.getContext();
-  AffineExpr m, n, k;
-  bindDims(context, m, n, k);
-  auto mapA = AffineMapAttr::get(AffineMap::get(3, 0, {m, k}, context));
-  auto mapB = AffineMapAttr::get(AffineMap::get(3, 0, {k, n}, context));
-  auto mapC = AffineMapAttr::get(AffineMap::get(3, 0, {m, n}, context));
-  auto maps = ArrayAttr::get({mapA, mapB, mapC}, context);
-  return indexingMaps == maps;
-}
+/// Tests whether the given maps describe a row major matmul. The test is
+/// permutation-invariant. Note that this only checks the affine maps from an
+/// operation, so does not perform any checks on the math being performed within
+/// the reduction.
+bool isRowMajorMatmul(ArrayAttr indexingMaps);
 
-inline bool isColumnMajorMatmul(ArrayAttr indexingMaps) {
-  auto context = indexingMaps.getContext();
-  AffineExpr m, n, k;
-  bindDims(context, m, n, k);
-  auto mapA = AffineMapAttr::get(AffineMap::get(3, 0, {k, n}, context));
-  auto mapB = AffineMapAttr::get(AffineMap::get(3, 0, {m, k}, context));
-  auto mapC = AffineMapAttr::get(AffineMap::get(3, 0, {n, m}, context));
-  auto maps = ArrayAttr::get({mapA, mapB, mapC}, context);
-  return indexingMaps == maps;
-}
+/// Tests whether the given maps describe a column major matmul. The test is
+/// permutation-invariant. Note that this only checks the affine maps from an
+/// operation, so does not perform any checks on the math being performed within
+/// the reduction.
+bool isColumnMajorMatmul(ArrayAttr indexingMaps);
+
+/// Tests whether the given maps describe a row major batch matmul. The test is
+/// permutation-invariant. Note that this only checks the affine maps from an
+/// operation, so does not perform any checks on the math being performed within
+/// the reduction.
+bool isRowMajorBatchMatmul(ArrayAttr indexingMaps);
 
 /// Attribute name for the AffineArrayAttr which encodes the relationship
 /// between a structured op iterators' and its operands.
@@ -54,13 +50,11 @@ constexpr StringRef getIndexingMapsAttrName() { return "indexing_maps"; }
 /// op's iterators.
 constexpr StringRef getIteratorTypesAttrName() { return "iterator_types"; }
 
-/// Attribute name for the IntegerAttr which encodes the number of input buffer
-/// arguments.
-constexpr StringRef getArgsInAttrName() { return "args_in"; }
-
-/// Attribute name for the IntegerAttr which encodes the number of input buffer
-/// arguments.
-constexpr StringRef getArgsOutAttrName() { return "args_out"; }
+/// Attribute name for the StrArrayAttr which encodes the distribution type for
+/// `linalg.tiled_loop`.
+constexpr StringRef getDistributionTypesAttrName() {
+  return "distribution_types";
+}
 
 /// Attribute name for the StringAttr which encodes an optional documentation
 /// string of the structured op.

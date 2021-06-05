@@ -10,9 +10,15 @@ __global__ void use_dispatch_ptr(int* out) {
 }
 
 // CHECK-LABEL: @_Z12test_ds_fmaxf(
-// CHECK: call contract float @llvm.amdgcn.ds.fmax(float addrspace(3)* @_ZZ12test_ds_fmaxfE6shared, float %{{[^,]*}}, i32 0, i32 0, i1 false)
+// CHECK: call contract float @llvm.amdgcn.ds.fmax.f32(float addrspace(3)* @_ZZ12test_ds_fmaxfE6shared, float %{{[^,]*}}, i32 0, i32 0, i1 false)
 __global__
 void test_ds_fmax(float src) {
   __shared__ float shared;
   volatile float x = __builtin_amdgcn_ds_fmaxf(&shared, src, 0, 0, false);
+}
+
+// CHECK-LABEL: @_Z6endpgmv(
+// CHECK: call void @llvm.amdgcn.endpgm()
+__global__ void endpgm() {
+  __builtin_amdgcn_endpgm();
 }

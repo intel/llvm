@@ -55,13 +55,18 @@ namespace X86 {
   /// The constants to describe instr prefixes if there are
   enum IPREFIXES {
     IP_NO_PREFIX = 0,
-    IP_HAS_OP_SIZE = 1,
-    IP_HAS_AD_SIZE = 2,
-    IP_HAS_REPEAT_NE = 4,
-    IP_HAS_REPEAT = 8,
-    IP_HAS_LOCK = 16,
-    IP_HAS_NOTRACK = 32,
-    IP_USE_VEX3 = 64,
+    IP_HAS_OP_SIZE =   1U << 0,
+    IP_HAS_AD_SIZE =   1U << 1,
+    IP_HAS_REPEAT_NE = 1U << 2,
+    IP_HAS_REPEAT =    1U << 3,
+    IP_HAS_LOCK =      1U << 4,
+    IP_HAS_NOTRACK =   1U << 5,
+    IP_USE_VEX =       1U << 6,
+    IP_USE_VEX2 =      1U << 7,
+    IP_USE_VEX3 =      1U << 8,
+    IP_USE_EVEX =      1U << 9,
+    IP_USE_DISP8 =     1U << 10,
+    IP_USE_DISP32 =    1U << 11,
   };
 
   enum OperandType : unsigned {
@@ -110,6 +115,7 @@ namespace X86 {
     Cmp,
     // AND
     And,
+    // FIXME: Zen 3 support branch fusion for OR/XOR.
     // ADD, SUB
     AddSub,
     // INC, DEC
@@ -178,6 +184,7 @@ namespace X86 {
     case X86::AND8rr:
     case X86::AND8rr_REV:
       return FirstMacroFusionInstKind::And;
+    // FIXME: Zen 3 support branch fusion for OR/XOR.
     // CMP
     case X86::CMP16i16:
     case X86::CMP16mr:
@@ -623,6 +630,15 @@ namespace X86II {
     /// information.  In the intel manual these are represented as /0, /1, ...
     ///
 
+    // Instructions operate on a register Reg/Opcode operand not the r/m field.
+    MRMr0 = 21,
+
+    /// MRMSrcMem - But force to use the SIB field.
+    MRMSrcMemFSIB  = 22,
+
+    /// MRMDestMem - But force to use the SIB field.
+    MRMDestMemFSIB = 23,
+
     /// MRMDestMem - This form is used for instructions that use the Mod/RM byte
     /// to specify a destination, which in this case is memory.
     ///
@@ -938,7 +954,11 @@ namespace X86II {
 
     // NOTRACK prefix
     NoTrackShift = EVEX_RCShift + 1,
-    NOTRACK = 1ULL << NoTrackShift
+    NOTRACK = 1ULL << NoTrackShift,
+
+    // Force VEX encoding
+    ExplicitVEXShift = NoTrackShift + 1,
+    ExplicitVEXPrefix = 1ULL << ExplicitVEXShift
   };
 
   /// \returns true if the instruction with given opcode is a prefix.
@@ -1082,8 +1102,10 @@ namespace X86II {
     case X86II::PrefixByte:
       return -1;
     case X86II::MRMDestMem:
+    case X86II::MRMDestMemFSIB:
       return 0;
     case X86II::MRMSrcMem:
+    case X86II::MRMSrcMemFSIB:
       // Start from 1, skip any registers encoded in VEX_VVVV or I8IMM, or a
       // mask register.
       return 1 + HasVEX_4V + HasEVEX_K;
@@ -1103,6 +1125,7 @@ namespace X86II {
     case X86II::MRMSrcRegOp4:
     case X86II::MRMSrcRegCC:
     case X86II::MRMXrCC:
+    case X86II::MRMr0:
     case X86II::MRMXr:
     case X86II::MRM0r: case X86II::MRM1r:
     case X86II::MRM2r: case X86II::MRM3r:

@@ -665,11 +665,7 @@ define <16 x i16> @_clearupper16xi16b(<16 x i16>) nounwind {
 ;
 ; AVX-LABEL: _clearupper16xi16b:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    vmovaps {{.*#+}} xmm1 = [255,0,255,0,255,0,255,0,255,0,255,0,255,0,255,0]
-; AVX-NEXT:    vandps %xmm1, %xmm0, %xmm2
-; AVX-NEXT:    vextractf128 $1, %ymm0, %xmm0
-; AVX-NEXT:    vandps %xmm1, %xmm0, %xmm0
-; AVX-NEXT:    vinsertf128 $1, %xmm0, %ymm2, %ymm0
+; AVX-NEXT:    vandps {{.*}}(%rip), %ymm0, %ymm0
 ; AVX-NEXT:    retq
   %x8 = bitcast <16 x i16> %0 to <32 x i8>
   %r0  = insertelement <32 x i8> %x8,  i8 zeroinitializer, i32 1
@@ -696,7 +692,7 @@ define <16 x i8> @_clearupper16xi8b(<16 x i8>) nounwind {
 ; SSE2-LABEL: _clearupper16xi8b:
 ; SSE2:       # %bb.0:
 ; SSE2-NEXT:    pushq %rbx
-; SSE2-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[2,3,0,1]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[2,3,2,3]
 ; SSE2-NEXT:    movq %xmm1, %r10
 ; SSE2-NEXT:    movq %r10, %r8
 ; SSE2-NEXT:    shrq $56, %r8
@@ -878,7 +874,7 @@ define <32 x i8> @_clearupper32xi8b(<32 x i8>) nounwind {
 ; SSE2-LABEL: _clearupper32xi8b:
 ; SSE2:       # %bb.0:
 ; SSE2-NEXT:    pushq %rbx
-; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[2,3,0,1]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[2,3,2,3]
 ; SSE2-NEXT:    movq %xmm2, %r10
 ; SSE2-NEXT:    movq %r10, %r8
 ; SSE2-NEXT:    shrq $56, %r8

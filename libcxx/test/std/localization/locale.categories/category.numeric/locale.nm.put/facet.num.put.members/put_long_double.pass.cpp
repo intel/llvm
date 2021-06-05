@@ -15,6 +15,8 @@
 // TODO GLIBC uses a different string for positive and negative NAN numbers.
 // XFAIL: linux-gnu
 
+// XFAIL: LIBCXX-WINDOWS-FIXME
+
 #include <locale>
 #include <ios>
 #include <cassert>
@@ -24415,7 +24417,7 @@ void test12()
     output_iterator<char*> iter;
     std::locale lc = std::locale::classic();
     std::locale lg(lc, new my_numpunct);
-#ifdef __APPLE__
+#if defined(__APPLE__) && defined(__x86_64__)
 // This test is failing on FreeBSD, possibly due to different representations
 // of the floating point numbers.
     const my_facet f(1);

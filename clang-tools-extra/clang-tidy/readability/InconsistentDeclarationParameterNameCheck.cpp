@@ -12,7 +12,6 @@
 
 #include <algorithm>
 #include <functional>
-#include <sstream>
 
 using namespace clang::ast_matchers;
 
@@ -196,18 +195,16 @@ getParameterSourceDeclaration(const FunctionDecl *OriginalDeclaration) {
 std::string joinParameterNames(
     const DifferingParamsContainer &DifferingParams,
     llvm::function_ref<StringRef(const DifferingParamInfo &)> ChooseParamName) {
-  llvm::SmallVector<char, 40> Buffer;
-  llvm::raw_svector_ostream Str(Buffer);
+  llvm::SmallString<40> Str;
   bool First = true;
   for (const DifferingParamInfo &ParamInfo : DifferingParams) {
     if (First)
       First = false;
     else
-      Str << ", ";
-
-    Str << "'" << ChooseParamName(ParamInfo).str() << "'";
+      Str += ", ";
+    Str.append({"'", ChooseParamName(ParamInfo), "'"});
   }
-  return Str.str().str();
+  return std::string(Str);
 }
 
 void formatDifferingParamsDiagnostic(
@@ -297,8 +294,7 @@ void InconsistentDeclarationParameterNameCheck::storeOptions(
 
 void InconsistentDeclarationParameterNameCheck::registerMatchers(
     MatchFinder *Finder) {
-  Finder->addMatcher(functionDecl(unless(isImplicit()), hasOtherDeclarations())
-                         .bind("functionDecl"),
+  Finder->addMatcher(functionDecl(hasOtherDeclarations()).bind("functionDecl"),
                      this);
 }
 

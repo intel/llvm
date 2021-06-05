@@ -552,6 +552,8 @@ define void @vselect_v1i1(<1 x i1>* %w, <1 x i1>* %x, <1 x i1>* %y) nounwind {
 ; X86-AVX512F-NEXT:    kandnw %k1, %k2, %k1
 ; X86-AVX512F-NEXT:    kandw %k2, %k0, %k0
 ; X86-AVX512F-NEXT:    korw %k1, %k0, %k0
+; X86-AVX512F-NEXT:    kshiftlw $15, %k0, %k0
+; X86-AVX512F-NEXT:    kshiftrw $15, %k0, %k0
 ; X86-AVX512F-NEXT:    kmovw %k0, %eax
 ; X86-AVX512F-NEXT:    movb %al, (%edx)
 ; X86-AVX512F-NEXT:    popl %esi
@@ -568,6 +570,8 @@ define void @vselect_v1i1(<1 x i1>* %w, <1 x i1>* %x, <1 x i1>* %y) nounwind {
 ; X64-AVX512F-NEXT:    kandnw %k1, %k2, %k1
 ; X64-AVX512F-NEXT:    kandw %k2, %k0, %k0
 ; X64-AVX512F-NEXT:    korw %k1, %k0, %k0
+; X64-AVX512F-NEXT:    kshiftlw $15, %k0, %k0
+; X64-AVX512F-NEXT:    kshiftrw $15, %k0, %k0
 ; X64-AVX512F-NEXT:    kmovw %k0, %eax
 ; X64-AVX512F-NEXT:    movb %al, (%rsi)
 ; X64-AVX512F-NEXT:    retq
@@ -587,6 +591,8 @@ define void @vselect_v1i1(<1 x i1>* %w, <1 x i1>* %x, <1 x i1>* %y) nounwind {
 ; X86-AVX512BW-NEXT:    kandnw %k1, %k2, %k1
 ; X86-AVX512BW-NEXT:    kandw %k2, %k0, %k0
 ; X86-AVX512BW-NEXT:    korw %k1, %k0, %k0
+; X86-AVX512BW-NEXT:    kshiftlw $15, %k0, %k0
+; X86-AVX512BW-NEXT:    kshiftrw $15, %k0, %k0
 ; X86-AVX512BW-NEXT:    kmovd %k0, %eax
 ; X86-AVX512BW-NEXT:    movb %al, (%edx)
 ; X86-AVX512BW-NEXT:    popl %esi
@@ -603,6 +609,8 @@ define void @vselect_v1i1(<1 x i1>* %w, <1 x i1>* %x, <1 x i1>* %y) nounwind {
 ; X64-AVX512BW-NEXT:    kandnw %k1, %k2, %k1
 ; X64-AVX512BW-NEXT:    kandw %k2, %k0, %k0
 ; X64-AVX512BW-NEXT:    korw %k1, %k0, %k0
+; X64-AVX512BW-NEXT:    kshiftlw $15, %k0, %k0
+; X64-AVX512BW-NEXT:    kshiftrw $15, %k0, %k0
 ; X64-AVX512BW-NEXT:    kmovd %k0, %eax
 ; X64-AVX512BW-NEXT:    movb %al, (%rsi)
 ; X64-AVX512BW-NEXT:    retq
@@ -634,6 +642,8 @@ define void @select_v1i1(<1 x i1>* %w, <1 x i1>* %x, <1 x i1>* %y, i1 %z) nounwi
 ; X86-AVX512F-NEXT:    movzbl (%eax), %ecx
 ; X86-AVX512F-NEXT:    kmovw %ecx, %k0
 ; X86-AVX512F-NEXT:  .LBB18_3:
+; X86-AVX512F-NEXT:    kshiftlw $15, %k0, %k0
+; X86-AVX512F-NEXT:    kshiftrw $15, %k0, %k0
 ; X86-AVX512F-NEXT:    kmovw %k0, %ecx
 ; X86-AVX512F-NEXT:    movb %cl, (%eax)
 ; X86-AVX512F-NEXT:    retl
@@ -653,6 +663,8 @@ define void @select_v1i1(<1 x i1>* %w, <1 x i1>* %x, <1 x i1>* %y, i1 %z) nounwi
 ; X64-AVX512F-NEXT:    movzbl (%rsi), %eax
 ; X64-AVX512F-NEXT:    kmovw %eax, %k0
 ; X64-AVX512F-NEXT:  .LBB18_3:
+; X64-AVX512F-NEXT:    kshiftlw $15, %k0, %k0
+; X64-AVX512F-NEXT:    kshiftrw $15, %k0, %k0
 ; X64-AVX512F-NEXT:    kmovw %k0, %eax
 ; X64-AVX512F-NEXT:    movb %al, (%rsi)
 ; X64-AVX512F-NEXT:    retq
@@ -675,6 +687,8 @@ define void @select_v1i1(<1 x i1>* %w, <1 x i1>* %x, <1 x i1>* %y, i1 %z) nounwi
 ; X86-AVX512BW-NEXT:    movzbl (%eax), %ecx
 ; X86-AVX512BW-NEXT:    kmovd %ecx, %k0
 ; X86-AVX512BW-NEXT:  .LBB18_3:
+; X86-AVX512BW-NEXT:    kshiftlw $15, %k0, %k0
+; X86-AVX512BW-NEXT:    kshiftrw $15, %k0, %k0
 ; X86-AVX512BW-NEXT:    kmovd %k0, %ecx
 ; X86-AVX512BW-NEXT:    movb %cl, (%eax)
 ; X86-AVX512BW-NEXT:    retl
@@ -694,6 +708,8 @@ define void @select_v1i1(<1 x i1>* %w, <1 x i1>* %x, <1 x i1>* %y, i1 %z) nounwi
 ; X64-AVX512BW-NEXT:    movzbl (%rsi), %eax
 ; X64-AVX512BW-NEXT:    kmovd %eax, %k0
 ; X64-AVX512BW-NEXT:  .LBB18_3:
+; X64-AVX512BW-NEXT:    kshiftlw $15, %k0, %k0
+; X64-AVX512BW-NEXT:    kshiftrw $15, %k0, %k0
 ; X64-AVX512BW-NEXT:    kmovd %k0, %eax
 ; X64-AVX512BW-NEXT:    movb %al, (%rsi)
 ; X64-AVX512BW-NEXT:    retq
@@ -704,4 +720,65 @@ define void @select_v1i1(<1 x i1>* %w, <1 x i1>* %x, <1 x i1>* %y, i1 %z) nounwi
   %c = select i1 %z, <1 x i1> %a, <1 x i1> %b3
   store <1 x i1> %c, <1 x i1>* %x
   ret void
+}
+
+; Regression test from https://github.com/JuliaLang/julia/issues/36955
+define i8 @julia_issue36955(<8 x i1> %mask, <8 x double> %a) {
+; X86-AVX512F-LABEL: julia_issue36955:
+; X86-AVX512F:       # %bb.0:
+; X86-AVX512F-NEXT:    vpmovsxwq %xmm0, %zmm0
+; X86-AVX512F-NEXT:    vpsllq $63, %zmm0, %zmm0
+; X86-AVX512F-NEXT:    vxorpd %xmm2, %xmm2, %xmm2
+; X86-AVX512F-NEXT:    vcmplepd %zmm2, %zmm1, %k1
+; X86-AVX512F-NEXT:    vptestmq %zmm0, %zmm0, %k0 {%k1}
+; X86-AVX512F-NEXT:    korw %k0, %k1, %k0
+; X86-AVX512F-NEXT:    kmovw %k0, %eax
+; X86-AVX512F-NEXT:    # kill: def $al killed $al killed $eax
+; X86-AVX512F-NEXT:    vzeroupper
+; X86-AVX512F-NEXT:    retl
+;
+; X64-AVX512F-LABEL: julia_issue36955:
+; X64-AVX512F:       # %bb.0:
+; X64-AVX512F-NEXT:    vpmovsxwq %xmm0, %zmm0
+; X64-AVX512F-NEXT:    vpsllq $63, %zmm0, %zmm0
+; X64-AVX512F-NEXT:    vxorpd %xmm2, %xmm2, %xmm2
+; X64-AVX512F-NEXT:    vcmplepd %zmm2, %zmm1, %k1
+; X64-AVX512F-NEXT:    vptestmq %zmm0, %zmm0, %k0 {%k1}
+; X64-AVX512F-NEXT:    korw %k0, %k1, %k0
+; X64-AVX512F-NEXT:    kmovw %k0, %eax
+; X64-AVX512F-NEXT:    # kill: def $al killed $al killed $eax
+; X64-AVX512F-NEXT:    vzeroupper
+; X64-AVX512F-NEXT:    retq
+;
+; X86-AVX512BW-LABEL: julia_issue36955:
+; X86-AVX512BW:       # %bb.0:
+; X86-AVX512BW-NEXT:    vpsllw $15, %xmm0, %xmm0
+; X86-AVX512BW-NEXT:    vpxor %xmm2, %xmm2, %xmm2
+; X86-AVX512BW-NEXT:    vxorpd %xmm3, %xmm3, %xmm3
+; X86-AVX512BW-NEXT:    vcmplepd %zmm3, %zmm1, %k1
+; X86-AVX512BW-NEXT:    vpcmpgtw %zmm0, %zmm2, %k0 {%k1}
+; X86-AVX512BW-NEXT:    korw %k0, %k1, %k0
+; X86-AVX512BW-NEXT:    kmovd %k0, %eax
+; X86-AVX512BW-NEXT:    # kill: def $al killed $al killed $eax
+; X86-AVX512BW-NEXT:    vzeroupper
+; X86-AVX512BW-NEXT:    retl
+;
+; X64-AVX512BW-LABEL: julia_issue36955:
+; X64-AVX512BW:       # %bb.0:
+; X64-AVX512BW-NEXT:    vpsllw $15, %xmm0, %xmm0
+; X64-AVX512BW-NEXT:    vpxor %xmm2, %xmm2, %xmm2
+; X64-AVX512BW-NEXT:    vxorpd %xmm3, %xmm3, %xmm3
+; X64-AVX512BW-NEXT:    vcmplepd %zmm3, %zmm1, %k1
+; X64-AVX512BW-NEXT:    vpcmpgtw %zmm0, %zmm2, %k0 {%k1}
+; X64-AVX512BW-NEXT:    korw %k0, %k1, %k0
+; X64-AVX512BW-NEXT:    kmovd %k0, %eax
+; X64-AVX512BW-NEXT:    # kill: def $al killed $al killed $eax
+; X64-AVX512BW-NEXT:    vzeroupper
+; X64-AVX512BW-NEXT:    retq
+  %fcmp = fcmp ugt <8 x double> %a, zeroinitializer
+  %xor = xor <8 x i1> %fcmp, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+  %select1 = select <8 x i1> %fcmp, <8 x i1> zeroinitializer, <8 x i1> %mask
+  %select2 = select <8 x i1> %xor, <8 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>, <8 x i1> %select1
+  %ret = bitcast <8 x i1> %select2 to i8
+  ret i8 %ret
 }

@@ -86,7 +86,16 @@ enum NodeType {
   /// the parent's frame or return address, and so on.
   FRAMEADDR,
   RETURNADDR,
+
+  /// ADDROFRETURNADDR - Represents the llvm.addressofreturnaddress intrinsic.
+  /// This node takes no operand, returns a target-specific pointer to the
+  /// place in the stack frame where the return address of the current
+  /// function is stored.
   ADDROFRETURNADDR,
+
+  /// SPONENTRY - Represents the llvm.sponentry intrinsic. Takes no argument
+  /// and returns the stack pointer value at the entry of the current
+  /// function calling this intrinsic.
   SPONENTRY,
 
   /// LOCAL_RECOVER - Represents the llvm.localrecover intrinsic.
@@ -274,6 +283,16 @@ enum NodeType {
   ADDCARRY,
   SUBCARRY,
 
+  /// Carry-using overflow-aware nodes for multiple precision addition and
+  /// subtraction. These nodes take three operands: The first two are normal lhs
+  /// and rhs to the add or sub, and the third is a boolean indicating if there
+  /// is an incoming carry. They produce two results: the normal result of the
+  /// add or sub, and a boolean that indicates if an overflow occured (*not*
+  /// flag, because it may be a store to memory, etc.). If the type of the
+  /// boolean is not i1 then the high bits conform to getBooleanContents.
+  SADDO_CARRY,
+  SSUBO_CARRY,
+
   /// RESULT, BOOL = [SU]ADDO(LHS, RHS) - Overflow-aware nodes for addition.
   /// These nodes take two operands: the normal LHS and RHS to the add. They
   /// produce two results: the normal result of the add, and a boolean that
@@ -309,6 +328,16 @@ enum NodeType {
   /// resulting value is this minimum value.
   SSUBSAT,
   USUBSAT,
+
+  /// RESULT = [US]SHLSAT(LHS, RHS) - Perform saturation left shift. The first
+  /// operand is the value to be shifted, and the second argument is the amount
+  /// to shift by. Both must be integers of the same bit width (W). If the true
+  /// value of LHS << RHS exceeds the largest value that can be represented by
+  /// W bits, the resulting value is this maximum value, Otherwise, if this
+  /// value is less than the smallest value that can be represented by W bits,
+  /// the resulting value is this minimum value.
+  SSHLSAT,
+  USHLSAT,
 
   /// RESULT = [US]MULFIX(LHS, RHS, SCALE) - Perform fixed point multiplication
   /// on
@@ -448,11 +477,11 @@ enum NodeType {
   FCANONICALIZE,
 
   /// BUILD_VECTOR(ELT0, ELT1, ELT2, ELT3,...) - Return a fixed-width vector
-  /// with the specified, possibly variable, elements.  The number of elements
-  /// is required to be a power of two. The types of the operands must all be
-  /// the same and must match the vector element type, except that integer types
-  /// are allowed to be larger than the element type, in which case the operands
-  /// are implicitly truncated.
+  /// with the specified, possibly variable, elements. The types of the
+  /// operands must match the vector element type, except that integer types
+  /// are allowed to be larger than the element type, in which case the
+  /// operands are implicitly truncated. The types of the operands must all
+  /// be the same.
   BUILD_VECTOR,
 
   /// INSERT_VECTOR_ELT(VECTOR, VAL, IDX) - Returns VECTOR with the element
@@ -491,7 +520,9 @@ enum NodeType {
   /// The elements of VECTOR1 starting at IDX are overwritten with VECTOR2.
   /// Elements IDX through (IDX + num_elements(T) - 1) must be valid VECTOR1
   /// indices. If this condition cannot be determined statically but is false at
-  /// runtime, then the result vector is undefined.
+  /// runtime, then the result vector is undefined. The IDX parameter must be a
+  /// vector index constant type, which for most targets will be an integer
+  /// pointer type.
   ///
   /// This operation supports inserting a fixed-width vector into a scalable
   /// vector, but not the other way around.
@@ -504,11 +535,17 @@ enum NodeType {
   /// IDX is first scaled by the runtime scaling factor of T. Elements IDX
   /// through (IDX + num_elements(T) - 1) must be valid VECTOR indices. If this
   /// condition cannot be determined statically but is false at runtime, then
-  /// the result vector is undefined.
+  /// the result vector is undefined. The IDX parameter must be a vector index
+  /// constant type, which for most targets will be an integer pointer type.
   ///
   /// This operation supports extracting a fixed-width vector from a scalable
   /// vector, but not the other way around.
   EXTRACT_SUBVECTOR,
+
+  /// VECTOR_REVERSE(VECTOR) - Returns a vector, of the same type as VECTOR,
+  /// whose elements are shuffled using the following algorithm:
+  ///   RESULT[i] = VECTOR[VECTOR.ElementCount - 1 - i]
+  VECTOR_REVERSE,
 
   /// VECTOR_SHUFFLE(VEC1, VEC2) - Returns a vector, of the same type as
   /// VEC1/VEC2.  A VECTOR_SHUFFLE node also contains an array of constant int
@@ -518,6 +555,18 @@ enum NodeType {
   /// 'vperm' instruction, except that the indices must be constants and are
   /// in terms of the element size of VEC1/VEC2, not in terms of bytes.
   VECTOR_SHUFFLE,
+
+  /// VECTOR_SPLICE(VEC1, VEC2, IMM) - Returns a subvector of the same type as
+  /// VEC1/VEC2 from CONCAT_VECTORS(VEC1, VEC2), based on the IMM in two ways.
+  /// Let the result type be T, if IMM is positive it represents the starting
+  /// element number (an index) from which a subvector of type T is extracted
+  /// from CONCAT_VECTORS(VEC1, VEC2). If IMM is negative it represents a count
+  /// specifying the number of trailing elements to extract from VEC1, where the
+  /// elements of T are selected using the following algorithm:
+  ///   RESULT[i] = CONCAT_VECTORS(VEC1,VEC2)[VEC1.ElementCount - ABS(IMM) + i]
+  /// If IMM is not in the range [-VL, VL-1] the result vector is undefined. IMM
+  /// is a constant integer.
+  VECTOR_SPLICE,
 
   /// SCALAR_TO_VECTOR(VAL) - This represents the operation of loading a
   /// scalar value into element 0 of the resultant vector type.  The top
@@ -534,13 +583,35 @@ enum NodeType {
   /// implicitly truncated to it.
   SPLAT_VECTOR,
 
+  /// SPLAT_VECTOR_PARTS(SCALAR1, SCALAR2, ...) - Returns a vector with the
+  /// scalar values joined together and then duplicated in all lanes. This
+  /// represents a SPLAT_VECTOR that has had its scalar operand expanded. This
+  /// allows representing a 64-bit splat on a target with 32-bit integers. The
+  /// total width of the scalars must cover the element width. SCALAR1 contains
+  /// the least significant bits of the value regardless of endianness and all
+  /// scalars should have the same type.
+  SPLAT_VECTOR_PARTS,
+
+  /// STEP_VECTOR(IMM) - Returns a scalable vector whose lanes are comprised
+  /// of a linear sequence of unsigned values starting from 0 with a step of
+  /// IMM, where IMM must be a vector index constant integer value which must
+  /// fit in the vector element type.
+  /// Note that IMM may be a smaller type than the vector element type, in
+  /// which case the step is implicitly sign-extended to the vector element
+  /// type. IMM may also be a larger type than the vector element type, in
+  /// which case the step is implicitly truncated to the vector element type.
+  /// The operation does not support returning fixed-width vectors or
+  /// non-constant operands. If the sequence value exceeds the limit allowed
+  /// for the element type then the values for those lanes are undefined.
+  STEP_VECTOR,
+
   /// MULHU/MULHS - Multiply high - Multiply two integers of type iN,
   /// producing an unsigned/signed value of type i[2*N], then return the top
   /// part.
   MULHU,
   MULHS,
 
-  /// [US]{MIN/MAX} - Binary minimum or maximum or signed or unsigned
+  /// [US]{MIN/MAX} - Binary minimum or maximum of signed or unsigned
   /// integers.
   SMIN,
   SMAX,
@@ -587,6 +658,7 @@ enum NodeType {
   CTLZ,
   CTPOP,
   BITREVERSE,
+  PARITY,
 
   /// Bit counting operators with an undefined result for zero inputs.
   CTTZ_ZERO_UNDEF,
@@ -703,6 +775,21 @@ enum NodeType {
   FP_TO_SINT,
   FP_TO_UINT,
 
+  /// FP_TO_[US]INT_SAT - Convert floating point value in operand 0 to a
+  /// signed or unsigned scalar integer type given in operand 1 with the
+  /// following semantics:
+  ///
+  ///  * If the value is NaN, zero is returned.
+  ///  * If the value is larger/smaller than the largest/smallest integer,
+  ///    the largest/smallest integer is returned (saturation).
+  ///  * Otherwise the result of rounding the value towards zero is returned.
+  ///
+  /// The scalar width of the type given in operand 1 must be equal to, or
+  /// smaller than, the scalar result type width. It may end up being smaller
+  /// than the result width as a result of integer type legalization.
+  FP_TO_SINT_SAT,
+  FP_TO_UINT_SAT,
+
   /// X = FP_ROUND(Y, TRUNC) - Rounding 'Y' from a larger floating point type
   /// down to the precision of the destination VT.  TRUNC is a flag, which is
   /// always an integer that is zero or one.  If TRUNC is 0, this is a
@@ -716,14 +803,21 @@ enum NodeType {
   /// FP_EXTEND(FP_ROUND(X,0)) because the extra bits aren't removed.
   FP_ROUND,
 
-  /// FLT_ROUNDS_ - Returns current rounding mode:
+  /// Returns current rounding mode:
   /// -1 Undefined
   ///  0 Round to 0
-  ///  1 Round to nearest
+  ///  1 Round to nearest, ties to even
   ///  2 Round to +inf
   ///  3 Round to -inf
+  ///  4 Round to nearest, ties to zero
   /// Result is rounding mode and chain. Input is a chain.
+  /// TODO: Rename this node to GET_ROUNDING.
   FLT_ROUNDS_,
+
+  /// Set rounding mode.
+  /// The first operand is a chain pointer. The second specifies the required
+  /// rounding mode, encoded in the same way as used in '``FLT_ROUNDS_``'.
+  SET_ROUNDING,
 
   /// X = FP_EXTEND(Y) - Extend a smaller FP type into a larger FP type.
   FP_EXTEND,
@@ -844,13 +938,18 @@ enum NodeType {
   /// BRCOND - Conditional branch.  The first operand is the chain, the
   /// second is the condition, the third is the block to branch to if the
   /// condition is true.  If the type of the condition is not i1, then the
-  /// high bits must conform to getBooleanContents.
+  /// high bits must conform to getBooleanContents. If the condition is undef,
+  /// it nondeterministically jumps to the block.
+  /// TODO: Its semantics w.r.t undef requires further discussion; we need to
+  /// make it sure that it is consistent with optimizations in MIR & the
+  /// meaning of IMPLICIT_DEF. See https://reviews.llvm.org/D92015
   BRCOND,
 
   /// BR_CC - Conditional branch.  The behavior is like that of SELECT_CC, in
   /// that the condition is represented as condition code, and two nodes to
   /// compare, rather than as a combined SetCC node.  The operands in order
-  /// are chain, cc, lhs, rhs, block to branch to if condition is true.
+  /// are chain, cc, lhs, rhs, block to branch to if condition is true. If
+  /// condition is undef, it nondeterministically jumps to the block.
   BR_CC,
 
   /// INLINEASM - Represents an inline asm block.  This node always has two
@@ -870,7 +969,7 @@ enum NodeType {
   /// SDOperands.
   INLINEASM,
 
-  /// INLINEASM_BR - Terminator version of inline asm. Used by asm-goto.
+  /// INLINEASM_BR - Branching version of inline asm. Used by asm-goto.
   INLINEASM_BR,
 
   /// EH_LABEL - Represents a label in mid basic block used to track
@@ -981,6 +1080,10 @@ enum NodeType {
   /// DEBUGTRAP - Trap intended to get the attention of a debugger.
   DEBUGTRAP,
 
+  /// UBSANTRAP - Trap with an immediate describing the kind of sanitizer
+  /// failure.
+  UBSANTRAP,
+
   /// PREFETCH - This corresponds to a prefetch intrinsic. The first operand
   /// is the chain.  The other operands are the address to prefetch,
   /// read / write specifier, locality specifier and instruction / data cache
@@ -1075,6 +1178,10 @@ enum NodeType {
   /// known nonzero constant. The only operand here is the chain.
   GET_DYNAMIC_AREA_OFFSET,
 
+  /// Pseudo probe for AutoFDO, as a place holder in a basic block to improve
+  /// the sample counts quality.
+  PSEUDO_PROBE,
+
   /// VSCALE(IMM) - Returns the runtime scaling factor used to calculate the
   /// number of elements within a scalable vector. IMM is a constant integer
   /// multiplier that is applied to the runtime value.
@@ -1082,12 +1189,25 @@ enum NodeType {
 
   /// Generic reduction nodes. These nodes represent horizontal vector
   /// reduction operations, producing a scalar result.
-  /// The STRICT variants perform reductions in sequential order. The first
+  /// The SEQ variants perform reductions in sequential order. The first
   /// operand is an initial scalar accumulator value, and the second operand
   /// is the vector to reduce.
-  VECREDUCE_STRICT_FADD,
-  VECREDUCE_STRICT_FMUL,
-  /// These reductions are non-strict, and have a single vector operand.
+  /// E.g. RES = VECREDUCE_SEQ_FADD f32 ACC, <4 x f32> SRC_VEC
+  ///  ... is equivalent to
+  /// RES = (((ACC + SRC_VEC[0]) + SRC_VEC[1]) + SRC_VEC[2]) + SRC_VEC[3]
+  VECREDUCE_SEQ_FADD,
+  VECREDUCE_SEQ_FMUL,
+
+  /// These reductions have relaxed evaluation order semantics, and have a
+  /// single vector operand. The order of evaluation is unspecified. For
+  /// pow-of-2 vectors, one valid legalizer expansion is to use a tree
+  /// reduction, i.e.:
+  /// For RES = VECREDUCE_FADD <8 x f16> SRC_VEC
+  ///   PART_RDX = FADD SRC_VEC[0:3], SRC_VEC[4:7]
+  ///   PART_RDX2 = FADD PART_RDX[0:1], PART_RDX[2:3]
+  ///   RES = FADD PART_RDX2[0], PART_RDX2[1]
+  /// For non-pow-2 vectors, this can be computed by extracting each element
+  /// and performing the operation as if it were scalarized.
   VECREDUCE_FADD,
   VECREDUCE_FMUL,
   /// FMIN/FMAX nodes can have flags, for NaN/NoNaN variants.
@@ -1106,6 +1226,10 @@ enum NodeType {
   VECREDUCE_UMAX,
   VECREDUCE_UMIN,
 
+// Vector Predication
+#define BEGIN_REGISTER_VP_SDNODE(VPSDID, ...) VPSDID,
+#include "llvm/IR/VPIntrinsics.def"
+
   /// BUILTIN_OP_END - This must be the last enum value in this list.
   /// The target-specific pre-isel opcode values start here.
   BUILTIN_OP_END
@@ -1121,6 +1245,19 @@ static const int FIRST_TARGET_STRICTFP_OPCODE = BUILTIN_OP_END + 400;
 /// this value. Those that do must not be less than this value, and can
 /// be used with SelectionDAG::getMemIntrinsicNode.
 static const int FIRST_TARGET_MEMORY_OPCODE = BUILTIN_OP_END + 500;
+
+/// Get underlying scalar opcode for VECREDUCE opcode.
+/// For example ISD::AND for ISD::VECREDUCE_AND.
+NodeType getVecReduceBaseOpcode(unsigned VecReduceOpcode);
+
+/// Whether this is a vector-predicated Opcode.
+bool isVPOpcode(unsigned Opcode);
+
+/// The operand position of the vector mask.
+Optional<unsigned> getVPMaskIdx(unsigned Opcode);
+
+/// The operand position of the explicit vector length parameter.
+Optional<unsigned> getVPExplicitVectorLengthIdx(unsigned Opcode);
 
 //===--------------------------------------------------------------------===//
 /// MemIndexedMode enum - This enum defines the load / store indexed
@@ -1242,6 +1379,12 @@ inline bool isSignedIntSetCC(CondCode Code) {
 /// comparison when used with integer operands.
 inline bool isUnsignedIntSetCC(CondCode Code) {
   return Code == SETUGT || Code == SETUGE || Code == SETULT || Code == SETULE;
+}
+
+/// Return true if this is a setcc instruction that performs an equality
+/// comparison when used with integer operands.
+inline bool isIntEqualitySetCC(CondCode Code) {
+  return Code == SETEQ || Code == SETNE;
 }
 
 /// Return true if the specified condition returns true if the two operands to

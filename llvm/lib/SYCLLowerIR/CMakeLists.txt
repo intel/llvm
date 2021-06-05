@@ -4,10 +4,12 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     message(STATUS "vc-intrinsics are missing. Will try to download them from github.com")
 
+    set(LLVMGenXIntrinsics_GIT_TAG b831d10e49e1fb8fcd92b5b50e2cdc8f9cb6277b)
+
     include(FetchContent)
     FetchContent_Declare(vc-intrinsics
       GIT_REPOSITORY https://github.com/intel/vc-intrinsics.git
-      GIT_TAG        cce6e48c28eb850d7dadd30841c0d95f009bbca1
+      GIT_TAG        ${LLVMGenXIntrinsics_GIT_TAG}
     )
     FetchContent_MakeAvailable(vc-intrinsics)
     FetchContent_GetProperties(vc-intrinsics)
@@ -28,10 +30,15 @@ if (NOT TARGET LLVMGenXIntrinsics)
   )
 endif()
 
+set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP ${LLVMGenXIntrinsics_SOURCE_DIR})
+set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_BINARY_PROP ${LLVMGenXIntrinsics_BINARY_DIR})
+
 add_llvm_component_library(LLVMSYCLLowerIR
   LowerWGScope.cpp
   LowerESIMD.cpp
   LowerESIMDVLoadVStore.cpp
+  LowerESIMDVecArg.cpp
+  LowerWGLocalMemory.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -48,6 +55,10 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMGenXIntrinsics
   LLVMDemangle
   LLVMTransformUtils
+  
+  LINK_COMPONENTS
+  Core
+  Support
   )
 
 target_include_directories(LLVMSYCLLowerIR

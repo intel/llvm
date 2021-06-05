@@ -83,8 +83,8 @@ def get_tidy_invocation(f, clang_tidy_binary, checks, tmpdir, build_path,
                         header_filter, allow_enabling_alpha_checkers,
                         extra_arg, extra_arg_before, quiet, config):
   """Gets a command line for clang-tidy."""
-  start = [clang_tidy_binary]
-  if allow_enabling_alpha_checkers is not None:
+  start = [clang_tidy_binary, '--use-color']
+  if allow_enabling_alpha_checkers:
     start.append('-allow-enabling-analyzer-alpha-checkers')
   if header_filter is not None:
     start.append('-header-filter=' + header_filter)
@@ -277,7 +277,6 @@ def main():
     tmpdir = tempfile.mkdtemp()
 
   # Build up a big regexy filter from all command line arguments.
-  args.files = [re.escape(f) for f in args.files]
   file_name_re = re.compile('|'.join(args.files))
 
   return_code = 0

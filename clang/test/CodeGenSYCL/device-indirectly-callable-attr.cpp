@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 void helper() {}
 
@@ -7,10 +7,10 @@ void foo() {
   helper();
 }
 
-// CHECK: define spir_func void @{{.*foo.*}}() #[[ATTRS_INDIR_CALL:[0-9]+]]
+// CHECK: define {{.*}}spir_func void @{{.*foo.*}}() #[[ATTRS_INDIR_CALL:[0-9]+]]
 // CHECK: call spir_func void @{{.*helper.*}}()
 //
-// CHECK: define spir_func void @{{.*helper.*}}() #[[ATTRS_NOT_INDIR_CALL:[0-9]+]]
+// CHECK: define {{.*}}spir_func void @{{.*helper.*}}() #[[ATTRS_NOT_INDIR_CALL:[0-9]+]]
 //
 
 int bar20(int a) { return a + 20; }
@@ -18,12 +18,12 @@ int bar20(int a) { return a + 20; }
 class A {
 public:
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1A3fooEv{{.*}}#[[ATTRS_INDIR_CALL]]
-  // CHECK-DAG: define spir_func i32 @_Z5bar20{{.*}}#[[ATTRS_NOT_INDIR_CALL]]
+  // CHECK-DAG: define {{.*}}spir_func i32 @_Z5bar20{{.*}}#[[ATTRS_NOT_INDIR_CALL]]
   [[intel::device_indirectly_callable]] void foo() { bar20(10); }
 
-  // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AC1Ev{{.*}}#[[ATTRS_INDIR_CALL]]
+  // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AC1Ev{{.*}}#[[ATTRS_INDIR_CALL_1:[0-9]+]]
   [[intel::device_indirectly_callable]] A() {}
-  // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AD1Ev{{.*}}#[[ATTRS_INDIR_CALL]]
+  // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AD1Ev{{.*}}#[[ATTRS_INDIR_CALL_1]]
   [[intel::device_indirectly_callable]] ~A() {}
 
   template <typename T>
@@ -67,3 +67,4 @@ struct Finalizer1 : Base {
 
 // CHECK: attributes #[[ATTRS_INDIR_CALL]] = { {{.*}} "referenced-indirectly"
 // CHECK-NOT: attributes #[[ATTRS_NOT_INDIR_CALL]] = { {{.*}} "referenced-indirectly"
+// CHECK: attributes #[[ATTRS_INDIR_CALL_1]] = { {{.*}} "referenced-indirectly"

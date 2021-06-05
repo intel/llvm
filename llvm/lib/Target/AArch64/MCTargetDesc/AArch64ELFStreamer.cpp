@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "AArch64ELFStreamer.h"
+#include "AArch64MCTargetDesc.h"
 #include "AArch64TargetStreamer.h"
 #include "AArch64WinCOFFStreamer.h"
 #include "llvm/ADT/DenseMap.h"
@@ -46,6 +48,65 @@ class AArch64TargetAsmStreamer : public AArch64TargetStreamer {
   formatted_raw_ostream &OS;
 
   void emitInst(uint32_t Inst) override;
+
+  void emitDirectiveVariantPCS(MCSymbol *Symbol) override {
+    OS << "\t.variant_pcs\t" << Symbol->getName() << "\n";
+  }
+
+  void EmitARM64WinCFIAllocStack(unsigned Size) override {
+    OS << "\t.seh_stackalloc\t" << Size << "\n";
+  }
+  void EmitARM64WinCFISaveR19R20X(int Offset) override {
+    OS << "\t.seh_save_r19r20_x\t" << Offset << "\n";
+  }
+  void EmitARM64WinCFISaveFPLR(int Offset) override {
+    OS << "\t.seh_save_fplr\t" << Offset << "\n";
+  }
+  void EmitARM64WinCFISaveFPLRX(int Offset) override {
+    OS << "\t.seh_save_fplr_x\t" << Offset << "\n";
+  }
+  void EmitARM64WinCFISaveReg(unsigned Reg, int Offset) override {
+    OS << "\t.seh_save_reg\tx" << Reg << ", " << Offset << "\n";
+  }
+  void EmitARM64WinCFISaveRegX(unsigned Reg, int Offset) override {
+    OS << "\t.seh_save_reg_x\tx" << Reg << ", " << Offset << "\n";
+  }
+  void EmitARM64WinCFISaveRegP(unsigned Reg, int Offset) override {
+    OS << "\t.seh_save_regp\tx" << Reg << ", " << Offset << "\n";
+  }
+  void EmitARM64WinCFISaveRegPX(unsigned Reg, int Offset) override {
+    OS << "\t.seh_save_regp_x\tx" << Reg << ", " << Offset << "\n";
+  }
+  void EmitARM64WinCFISaveLRPair(unsigned Reg, int Offset) override {
+    OS << "\t.seh_save_lrpair\tx" << Reg << ", " << Offset << "\n";
+  }
+  void EmitARM64WinCFISaveFReg(unsigned Reg, int Offset) override {
+    OS << "\t.seh_save_freg\td" << Reg << ", " << Offset << "\n";
+  }
+  void EmitARM64WinCFISaveFRegX(unsigned Reg, int Offset) override {
+    OS << "\t.seh_save_freg_x\td" << Reg << ", " << Offset << "\n";
+  }
+  void EmitARM64WinCFISaveFRegP(unsigned Reg, int Offset) override {
+    OS << "\t.seh_save_fregp\td" << Reg << ", " << Offset << "\n";
+  }
+  void EmitARM64WinCFISaveFRegPX(unsigned Reg, int Offset) override {
+    OS << "\t.seh_save_fregp_x\td" << Reg << ", " << Offset << "\n";
+  }
+  void EmitARM64WinCFISetFP() override { OS << "\t.seh_set_fp\n"; }
+  void EmitARM64WinCFIAddFP(unsigned Size) override {
+    OS << "\t.seh_add_fp\t" << Size << "\n";
+  }
+  void EmitARM64WinCFINop() override { OS << "\t.seh_nop\n"; }
+  void EmitARM64WinCFISaveNext() override { OS << "\t.seh_save_next\n"; }
+  void EmitARM64WinCFIPrologEnd() override { OS << "\t.seh_endprologue\n"; }
+  void EmitARM64WinCFIEpilogStart() override { OS << "\t.seh_startepilogue\n"; }
+  void EmitARM64WinCFIEpilogEnd() override { OS << "\t.seh_endepilogue\n"; }
+  void EmitARM64WinCFITrapFrame() override { OS << "\t.seh_trap_frame\n"; }
+  void EmitARM64WinCFIMachineFrame() override { OS << "\t.seh_pushframe\n"; }
+  void EmitARM64WinCFIContext() override { OS << "\t.seh_context\n"; }
+  void EmitARM64WinCFIClearUnwoundToCall() override {
+    OS << "\t.seh_clear_unwound_to_call\n";
+  }
 
 public:
   AArch64TargetAsmStreamer(MCStreamer &S, formatted_raw_ostream &OS);
@@ -184,8 +245,6 @@ private:
 
 } // end anonymous namespace
 
-namespace llvm {
-
 AArch64ELFStreamer &AArch64TargetELFStreamer::getStreamer() {
   return static_cast<AArch64ELFStreamer &>(Streamer);
 }
@@ -194,23 +253,24 @@ void AArch64TargetELFStreamer::emitInst(uint32_t Inst) {
   getStreamer().emitInst(Inst);
 }
 
-MCTargetStreamer *createAArch64AsmTargetStreamer(MCStreamer &S,
-                                                 formatted_raw_ostream &OS,
-                                                 MCInstPrinter *InstPrint,
-                                                 bool isVerboseAsm) {
+void AArch64TargetELFStreamer::emitDirectiveVariantPCS(MCSymbol *Symbol) {
+  cast<MCSymbolELF>(Symbol)->setOther(ELF::STO_AARCH64_VARIANT_PCS);
+}
+
+MCTargetStreamer *
+llvm::createAArch64AsmTargetStreamer(MCStreamer &S, formatted_raw_ostream &OS,
+                                     MCInstPrinter *InstPrint,
+                                     bool isVerboseAsm) {
   return new AArch64TargetAsmStreamer(S, OS);
 }
 
-MCELFStreamer *createAArch64ELFStreamer(MCContext &Context,
-                                        std::unique_ptr<MCAsmBackend> TAB,
-                                        std::unique_ptr<MCObjectWriter> OW,
-                                        std::unique_ptr<MCCodeEmitter> Emitter,
-                                        bool RelaxAll) {
+MCELFStreamer *llvm::createAArch64ELFStreamer(
+    MCContext &Context, std::unique_ptr<MCAsmBackend> TAB,
+    std::unique_ptr<MCObjectWriter> OW, std::unique_ptr<MCCodeEmitter> Emitter,
+    bool RelaxAll) {
   AArch64ELFStreamer *S = new AArch64ELFStreamer(
       Context, std::move(TAB), std::move(OW), std::move(Emitter));
   if (RelaxAll)
     S->getAssembler().setRelaxAll(true);
   return S;
 }
-
-} // end namespace llvm

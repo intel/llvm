@@ -18,6 +18,7 @@ class ProcessListTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
     @skipIfWindows  # https://bugs.llvm.org/show_bug.cgi?id=43702
+    @skipIfRemote   # rdar://problem/66542336
     def test_process_list_with_args(self):
         """Test process list show process args"""
         self.build()
@@ -25,7 +26,6 @@ class ProcessListTestCase(TestBase):
 
         # Spawn a new process
         popen = self.spawnSubprocess(exe, args=["arg1", "--arg2", "arg3"])
-        self.addTearDownHook(self.cleanupSubprocesses)
 
         substrs = [str(popen.pid), "TestProcess arg1 --arg2 arg3"]
 

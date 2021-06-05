@@ -22,6 +22,7 @@
 #include "llvm/ADT/SetVector.h"
 
 namespace polly {
+using llvm::SmallSetVector;
 
 class ScopDetection;
 
@@ -31,8 +32,8 @@ extern bool ModelReadOnlyScalars;
 /// Build the Polly IR (Scop and ScopStmt) on a Region.
 class ScopBuilder {
 
-  /// The AliasAnalysis to build AliasSetTracker.
-  AliasAnalysis &AA;
+  /// The AAResults to build AliasSetTracker.
+  AAResults &AA;
 
   /// Target data for element size computing.
   const DataLayout &DL;
@@ -823,7 +824,7 @@ class ScopBuilder {
   void buildSchedule(RegionNode *RN, LoopStackTy &LoopStack);
 
 public:
-  explicit ScopBuilder(Region *R, AssumptionCache &AC, AliasAnalysis &AA,
+  explicit ScopBuilder(Region *R, AssumptionCache &AC, AAResults &AA,
                        const DataLayout &DL, DominatorTree &DT, LoopInfo &LI,
                        ScopDetection &SD, ScalarEvolution &SE,
                        OptimizationRemarkEmitter &ORE);

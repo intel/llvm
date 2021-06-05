@@ -67,6 +67,7 @@ class CodeCompletionHandler;
 class CommentHandler;
 class DirectoryEntry;
 class DirectoryLookup;
+class EmptylineHandler;
 class ExternalPreprocessorSource;
 class FileEntry;
 class FileManager;
@@ -256,6 +257,9 @@ class Preprocessor {
   /// with this preprocessor.
   std::vector<CommentHandler *> CommentHandlers;
 
+  /// Empty line handler.
+  EmptylineHandler *Emptyline = nullptr;
+
   /// True if we want to ignore EOF token and continue later on (thus
   /// avoid tearing the Lexer and etc. down).
   bool IncrementalProcessing = false;
@@ -418,6 +422,9 @@ class Preprocessor {
 
   /// The number of (LexLevel 0) preprocessor tokens.
   unsigned TokenCount = 0;
+
+  /// Preprocess every token regardless of LexLevel.
+  bool PreprocessToken = false;
 
   /// The maximum number of (LexLevel 0) tokens before issuing a -Wmax-tokens
   /// warning, or zero for unlimited.
@@ -1038,6 +1045,8 @@ public:
     OnToken = std::move(F);
   }
 
+  void setPreprocessToken(bool Preprocess) { PreprocessToken = Preprocess; }
+
   bool isMacroDefined(StringRef Id) {
     return isMacroDefined(&Identifiers.get(Id));
   }
@@ -1142,7 +1151,7 @@ public:
   /// Register an exported macro for a module and identifier.
   ModuleMacro *addModuleMacro(Module *Mod, IdentifierInfo *II, MacroInfo *Macro,
                               ArrayRef<ModuleMacro *> Overrides, bool &IsNew);
-  ModuleMacro *getModuleMacro(Module *Mod, IdentifierInfo *II);
+  ModuleMacro *getModuleMacro(Module *Mod, const IdentifierInfo *II);
 
   /// Get the list of leaf (non-overridden) module macros for a name.
   ArrayRef<ModuleMacro*> getLeafModuleMacros(const IdentifierInfo *II) const {
@@ -1152,6 +1161,11 @@ public:
     if (I != LeafModuleMacros.end())
       return I->second;
     return None;
+  }
+
+  /// Get the list of submodules that we're currently building.
+  ArrayRef<BuildingSubmoduleInfo> getBuildingSubmodules() const {
+    return BuildingSubmoduleStack;
   }
 
   /// \{
@@ -1213,6 +1227,11 @@ public:
 
   /// Install empty handlers for all pragmas (making them ignored).
   void IgnorePragmas();
+
+  /// Set empty line handler.
+  void setEmptylineHandler(EmptylineHandler *Handler) { Emptyline = Handler; }
+
+  EmptylineHandler *getEmptylineHandler() const { return Emptyline; }
 
   /// Add the specified comment handler to the preprocessor.
   void addCommentHandler(CommentHandler *Handler);
@@ -2338,7 +2357,8 @@ private:
                          bool ReadAnyTokensBeforeDirective);
   void HandleEndifDirective(Token &EndifToken);
   void HandleElseDirective(Token &Result, const Token &HashToken);
-  void HandleElifDirective(Token &ElifToken, const Token &HashToken);
+  void HandleElifFamilyDirective(Token &ElifToken, const Token &HashToken,
+                                 tok::PPKeywordKind Kind);
 
   // Pragmas.
   void HandlePragmaDirective(PragmaIntroducer Introducer);
@@ -2383,6 +2403,16 @@ public:
   // The handler shall return true if it has pushed any tokens
   // to be read using e.g. EnterToken or EnterTokenStream.
   virtual bool HandleComment(Preprocessor &PP, SourceRange Comment) = 0;
+};
+
+/// Abstract base class that describes a handler that will receive
+/// source ranges for empty lines encountered in the source file.
+class EmptylineHandler {
+public:
+  virtual ~EmptylineHandler();
+
+  // The handler handles empty lines.
+  virtual void HandleEmptyline(SourceRange Range) = 0;
 };
 
 /// Registry of pragma handlers added by plugins

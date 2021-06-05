@@ -1,6 +1,8 @@
 // REQUIRES: powerpc-registered-target
 // RUN: %clang_cc1 -target-feature +altivec -triple powerpc-unknown-unknown -emit-llvm %s \
 // RUN:            -flax-vector-conversions=none -o - | FileCheck %s
+// RUN: %clang_cc1 -target-feature +altivec -triple powerpcle-unknown-unknown -emit-llvm %s \
+// RUN:            -flax-vector-conversions=none -o - | FileCheck %s -check-prefix=CHECK-LE
 // RUN: %clang_cc1 -target-feature +altivec -triple powerpc64-unknown-unknown -emit-llvm %s \
 // RUN:            -flax-vector-conversions=none -o - | FileCheck %s
 // RUN: %clang_cc1 -target-feature +altivec -triple powerpc64le-unknown-unknown -emit-llvm %s \
@@ -38,6 +40,13 @@ vector float res_vf;
 
 // CHECK-NOALTIVEC: error: unknown type name 'vector'
 // CHECK-NOALTIVEC-NOT: '(error)'
+const signed char *param_sc_ld;
+const unsigned char *param_uc_ld;
+const short *param_s_ld;
+const unsigned short *param_us_ld;
+const int *param_i_ld;
+const unsigned int *param_ui_ld;
+const float *param_f_ld;
 
 signed char param_sc;
 unsigned char param_uc;
@@ -56,7 +65,7 @@ int res_i;
 int res_ui;
 int res_f;
 
-// CHECK-LABEL: define void @test1
+// CHECK-LABEL: define{{.*}} void @test1
 void test1() {
 
   /* vec_abs */
@@ -907,7 +916,7 @@ void test1() {
 
 }
 
-// CHECK-LABEL: define void @test2
+// CHECK-LABEL: define{{.*}} void @test2
 void test2() {
   /* vec_avg */
   res_vsc = vec_avg(vsc, vsc);
@@ -1029,6 +1038,85 @@ void test2() {
 // CHECK: @llvm.ppc.altivec.vcmpeqfp
 // CHECK-LE: @llvm.ppc.altivec.vcmpeqfp
 
+  /* vec_cmpne */
+  res_vbc = vec_cmpne(vsc, vsc);
+// CHECK: @llvm.ppc.altivec.vcmpequb
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpequb
+// CHECK-LE: xor
+
+  res_vbc = vec_cmpne(vuc, vuc);
+// CHECK: @llvm.ppc.altivec.vcmpequb
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpequb
+// CHECK-LE: xor
+
+  res_vbc = vec_cmpne(vbc, vbc);
+// CHECK: @llvm.ppc.altivec.vcmpequb
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpequb
+// CHECK-LE: xor
+
+  res_vbc = vec_cmpne(vbc, vbc);
+// CHECK: @llvm.ppc.altivec.vcmpequb
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpequb
+// CHECK-LE: xor
+
+  res_vbs = vec_cmpne(vs, vs);
+// CHECK: @llvm.ppc.altivec.vcmpequh
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpequh
+// CHECK-LE: xor
+
+  res_vbs = vec_cmpne(vus, vus);
+// CHECK: @llvm.ppc.altivec.vcmpequh
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpequh
+// CHECK-LE: xor
+
+  res_vbs = vec_cmpne(vbs, vbs);
+// CHECK: @llvm.ppc.altivec.vcmpequh
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpequh
+// CHECK-LE: xor
+
+  res_vbs = vec_cmpne(vbs, vbs);
+// CHECK: @llvm.ppc.altivec.vcmpequh
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpequh
+// CHECK-LE: xor
+
+  res_vbi = vec_cmpne(vi, vi);
+// CHECK: @llvm.ppc.altivec.vcmpequw
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpequw
+// CHECK-LE: xor
+
+  res_vbi = vec_cmpne(vui, vui);
+// CHECK: @llvm.ppc.altivec.vcmpequw
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpequw
+// CHECK-LE: xor
+
+  res_vbi = vec_cmpne(vbi, vbi);
+// CHECK: @llvm.ppc.altivec.vcmpequw
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpequw
+// CHECK-LE: xor
+
+  res_vbi = vec_cmpne(vbi, vbi);
+// CHECK: @llvm.ppc.altivec.vcmpequw
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpequw
+// CHECK-LE: xor
+
+  res_vbi = vec_cmpne(vf, vf);
+// CHECK: @llvm.ppc.altivec.vcmpeqfp
+// CHECK: xor
+// CHECK-LE: @llvm.ppc.altivec.vcmpeqfp
+// CHECK-LE: xor
+
   /* vec_cmpge */
   res_vbc = vec_cmpge(vsc, vsc);
 // CHECK: @llvm.ppc.altivec.vcmpgtsb
@@ -1063,7 +1151,7 @@ void test2() {
 // CHECK-LE: @llvm.ppc.altivec.vcmpgefp
 }
 
-// CHECK-LABEL: define void @test5
+// CHECK-LABEL: define{{.*}} void @test5
 void test5() {
 
   /* vec_cmpgt */
@@ -1153,7 +1241,7 @@ void test5() {
 // CHECK-LE: @llvm.ppc.altivec.vcmpgefp
 }
 
-// CHECK-LABEL: define void @test6
+// CHECK-LABEL: define{{.*}} void @test6
 void test6() {
   /* vec_cmplt */
   res_vbc = vec_cmplt(vsc, vsc);
@@ -1313,7 +1401,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vsc = vec_ld(0, &param_sc);
+  res_vsc = vec_ld(0, param_sc_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1321,7 +1409,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vuc = vec_ld(0, &param_uc);
+  res_vuc = vec_ld(0, param_uc_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1333,7 +1421,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vs  = vec_ld(0, &param_s);
+  res_vs  = vec_ld(0, param_s_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1341,7 +1429,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vus = vec_ld(0, &param_us);
+  res_vus = vec_ld(0, param_us_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1357,7 +1445,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vi  = vec_ld(0, &param_i);
+  res_vi  = vec_ld(0, param_i_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1365,7 +1453,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vui = vec_ld(0, &param_ui);
+  res_vui = vec_ld(0, param_ui_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1377,7 +1465,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vf  = vec_ld(0, &param_f);
+  res_vf  = vec_ld(0, param_f_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1385,7 +1473,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vsc = vec_lvx(0, &param_sc);
+  res_vsc = vec_lvx(0, param_sc_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1393,7 +1481,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vuc = vec_lvx(0, &param_uc);
+  res_vuc = vec_lvx(0, param_uc_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1405,7 +1493,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vs  = vec_lvx(0, &param_s);
+  res_vs  = vec_lvx(0, param_s_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1413,7 +1501,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vus = vec_lvx(0, &param_us);
+  res_vus = vec_lvx(0, param_us_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1429,7 +1517,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vi  = vec_lvx(0, &param_i);
+  res_vi  = vec_lvx(0, param_i_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1437,7 +1525,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vui = vec_lvx(0, &param_ui);
+  res_vui = vec_lvx(0, param_ui_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
@@ -1449,64 +1537,64 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
-  res_vf  = vec_lvx(0, &param_f);
+  res_vf  = vec_lvx(0, param_f_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK-LE: @llvm.ppc.altivec.lvx
 
   /* vec_lde */
-  res_vsc = vec_lde(0, &param_sc);
+  res_vsc = vec_lde(0, param_sc_ld);
 // CHECK: @llvm.ppc.altivec.lvebx
 // CHECK-LE: @llvm.ppc.altivec.lvebx
 
-  res_vuc = vec_lde(0, &param_uc);
+  res_vuc = vec_lde(0, param_uc_ld);
 // CHECK: @llvm.ppc.altivec.lvebx
 // CHECK-LE: @llvm.ppc.altivec.lvebx
 
-  res_vs  = vec_lde(0, &param_s);
+  res_vs  = vec_lde(0, param_s_ld);
 // CHECK: @llvm.ppc.altivec.lvehx
 // CHECK-LE: @llvm.ppc.altivec.lvehx
 
-  res_vus = vec_lde(0, &param_us);
+  res_vus = vec_lde(0, param_us_ld);
 // CHECK: @llvm.ppc.altivec.lvehx
 // CHECK-LE: @llvm.ppc.altivec.lvehx
 
-  res_vi  = vec_lde(0, &param_i);
+  res_vi  = vec_lde(0, param_i_ld);
 // CHECK: @llvm.ppc.altivec.lvewx
 // CHECK-LE: @llvm.ppc.altivec.lvewx
 
-  res_vui = vec_lde(0, &param_ui);
+  res_vui = vec_lde(0, param_ui_ld);
 // CHECK: @llvm.ppc.altivec.lvewx
 // CHECK-LE: @llvm.ppc.altivec.lvewx
 
-  res_vf  = vec_lde(0, &param_f);
+  res_vf  = vec_lde(0, param_f_ld);
 // CHECK: @llvm.ppc.altivec.lvewx
 // CHECK-LE: @llvm.ppc.altivec.lvewx
 
-  res_vsc = vec_lvebx(0, &param_sc);
+  res_vsc = vec_lvebx(0, param_sc_ld);
 // CHECK: @llvm.ppc.altivec.lvebx
 // CHECK-LE: @llvm.ppc.altivec.lvebx
 
-  res_vuc = vec_lvebx(0, &param_uc);
+  res_vuc = vec_lvebx(0, param_uc_ld);
 // CHECK: @llvm.ppc.altivec.lvebx
 // CHECK-LE: @llvm.ppc.altivec.lvebx
 
-  res_vs  = vec_lvehx(0, &param_s);
+  res_vs  = vec_lvehx(0, param_s_ld);
 // CHECK: @llvm.ppc.altivec.lvehx
 // CHECK-LE: @llvm.ppc.altivec.lvehx
 
-  res_vus = vec_lvehx(0, &param_us);
+  res_vus = vec_lvehx(0, param_us_ld);
 // CHECK: @llvm.ppc.altivec.lvehx
 // CHECK-LE: @llvm.ppc.altivec.lvehx
 
-  res_vi  = vec_lvewx(0, &param_i);
+  res_vi  = vec_lvewx(0, param_i_ld);
 // CHECK: @llvm.ppc.altivec.lvewx
 // CHECK-LE: @llvm.ppc.altivec.lvewx
 
-  res_vui = vec_lvewx(0, &param_ui);
+  res_vui = vec_lvewx(0, param_ui_ld);
 // CHECK: @llvm.ppc.altivec.lvewx
 // CHECK-LE: @llvm.ppc.altivec.lvewx
 
-  res_vf  = vec_lvewx(0, &param_f);
+  res_vf  = vec_lvewx(0, param_f_ld);
 // CHECK: @llvm.ppc.altivec.lvewx
 // CHECK-LE: @llvm.ppc.altivec.lvewx
 
@@ -1515,7 +1603,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vsc = vec_ldl(0, &param_sc);
+  res_vsc = vec_ldl(0, param_sc_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1523,7 +1611,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vuc = vec_ldl(0, &param_uc);
+  res_vuc = vec_ldl(0, param_uc_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1535,7 +1623,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vs  = vec_ldl(0, &param_s);
+  res_vs  = vec_ldl(0, param_s_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1543,7 +1631,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vus = vec_ldl(0, &param_us);
+  res_vus = vec_ldl(0, param_us_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1559,7 +1647,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vi  = vec_ldl(0, &param_i);
+  res_vi  = vec_ldl(0, param_i_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1567,7 +1655,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vui = vec_ldl(0, &param_ui);
+  res_vui = vec_ldl(0, param_ui_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1579,7 +1667,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vf  = vec_ldl(0, &param_f);
+  res_vf  = vec_ldl(0, param_f_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1587,7 +1675,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vsc = vec_lvxl(0, &param_sc);
+  res_vsc = vec_lvxl(0, param_sc_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1599,7 +1687,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vuc = vec_lvxl(0, &param_uc);
+  res_vuc = vec_lvxl(0, param_uc_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1607,7 +1695,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vs  = vec_lvxl(0, &param_s);
+  res_vs  = vec_lvxl(0, param_s_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1615,7 +1703,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vus = vec_lvxl(0, &param_us);
+  res_vus = vec_lvxl(0, param_us_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1631,7 +1719,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vi  = vec_lvxl(0, &param_i);
+  res_vi  = vec_lvxl(0, param_i_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1639,7 +1727,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vui = vec_lvxl(0, &param_ui);
+  res_vui = vec_lvxl(0, param_ui_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1651,7 +1739,7 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
-  res_vf  = vec_lvxl(0, &param_f);
+  res_vf  = vec_lvxl(0, param_f_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK-LE: @llvm.ppc.altivec.lvxl
 
@@ -1665,12 +1753,12 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.vlogefp
 
   /* vec_lvsl */
-  res_vuc = vec_lvsl(0, &param_i);
+  res_vuc = vec_lvsl(0, param_i_ld);
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK-LE: @llvm.ppc.altivec.lvsl
 
   /* vec_lvsr */
-  res_vuc = vec_lvsr(0, &param_i);
+  res_vuc = vec_lvsr(0, param_i_ld);
 // CHECK: @llvm.ppc.altivec.lvsr
 // CHECK-LE: @llvm.ppc.altivec.lvsr
 
@@ -3660,6 +3748,18 @@ void test6() {
   // CHECK-LE: @llvm.ppc.altivec.vperm
 
   res_vus = vec_sldw(vus, vus, 0);
+  // CHECK: add nsw i32 {{[0-9a-zA-Z%.]+}}, 1
+  // CHECK: add nsw i32 {{[0-9a-zA-Z%.]+}}, 2
+  // CHECK: add nsw i32 {{[0-9a-zA-Z%.]+}}, 3
+  // CHECK: add nsw i32 {{[0-9a-zA-Z%.]+}}, 15
+  // CHECK: @llvm.ppc.altivec.vperm
+  // CHECK-LE: sub nsw i32 16
+  // CHECK-LE: sub nsw i32 17
+  // CHECK-LE: sub nsw i32 18
+  // CHECK-LE: sub nsw i32 31
+  // CHECK-LE: @llvm.ppc.altivec.vperm
+
+  res_vf = vec_sldw(vf, vf, 0);
   // CHECK: add nsw i32 {{[0-9a-zA-Z%.]+}}, 1
   // CHECK: add nsw i32 {{[0-9a-zA-Z%.]+}}, 2
   // CHECK: add nsw i32 {{[0-9a-zA-Z%.]+}}, 3
@@ -5690,6 +5790,10 @@ void test6() {
 // CHECK: @llvm.ppc.altivec.vupkhpx
 // CHECK-LE: @llvm.ppc.altivec.vupklpx
 
+  res_vui = vec_vupkhpx(vp);
+// CHECK: @llvm.ppc.altivec.vupkhpx
+// CHECK-LE: @llvm.ppc.altivec.vupklpx
+
   res_vs  = vec_vupkhsb(vsc);
 // CHECK: @llvm.ppc.altivec.vupkhsb
 // CHECK-LE: @llvm.ppc.altivec.vupklsb
@@ -5728,6 +5832,10 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.vupkhsh
 
   res_vui = vec_unpackl(vp);
+// CHECK: @llvm.ppc.altivec.vupklpx
+// CHECK-LE: @llvm.ppc.altivec.vupkhpx
+
+  res_vui = vec_vupklpx(vp);
 // CHECK: @llvm.ppc.altivec.vupklpx
 // CHECK-LE: @llvm.ppc.altivec.vupkhpx
 
@@ -6029,7 +6137,7 @@ void test6() {
 // CHECK-LE: insertelement <4 x float>
 
   /* vec_lvlx */
-  res_vsc = vec_lvlx(0, &param_sc);
+  res_vsc = vec_lvlx(0, param_sc_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <16 x i8> zeroinitializer
@@ -6049,7 +6157,7 @@ void test6() {
 // CHECK-LE: store <16 x i8> zeroinitializer
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vuc = vec_lvlx(0, &param_uc);
+  res_vuc = vec_lvlx(0, param_uc_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <16 x i8> zeroinitializer
@@ -6079,7 +6187,7 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.lvsl
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vs  = vec_lvlx(0, &param_s);
+  res_vs  = vec_lvlx(0, param_s_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <8 x i16> zeroinitializer
@@ -6099,7 +6207,7 @@ void test6() {
 // CHECK-LE: store <8 x i16> zeroinitializer
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vus = vec_lvlx(0, &param_us);
+  res_vus = vec_lvlx(0, param_us_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <8 x i16> zeroinitializer
@@ -6139,7 +6247,7 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.lvsl
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vi  = vec_lvlx(0, &param_i);
+  res_vi  = vec_lvlx(0, param_i_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <4 x i32> zeroinitializer
@@ -6159,7 +6267,7 @@ void test6() {
 // CHECK-LE: store <4 x i32> zeroinitializer
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vui = vec_lvlx(0, &param_ui);
+  res_vui = vec_lvlx(0, param_ui_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <4 x i32> zeroinitializer
@@ -6200,7 +6308,7 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
   /* vec_lvlxl */
-  res_vsc = vec_lvlxl(0, &param_sc);
+  res_vsc = vec_lvlxl(0, param_sc_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <16 x i8> zeroinitializer
@@ -6220,7 +6328,7 @@ void test6() {
 // CHECK-LE: store <16 x i8> zeroinitializer
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vuc = vec_lvlxl(0, &param_uc);
+  res_vuc = vec_lvlxl(0, param_uc_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <16 x i8> zeroinitializer
@@ -6250,7 +6358,7 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.lvsl
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vs  = vec_lvlxl(0, &param_s);
+  res_vs  = vec_lvlxl(0, param_s_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <8 x i16> zeroinitializer
@@ -6270,7 +6378,7 @@ void test6() {
 // CHECK-LE: store <8 x i16> zeroinitializer
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vus = vec_lvlxl(0, &param_us);
+  res_vus = vec_lvlxl(0, param_us_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <8 x i16> zeroinitializer
@@ -6310,7 +6418,7 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.lvsl
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vi  = vec_lvlxl(0, &param_i);
+  res_vi  = vec_lvlxl(0, param_i_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <4 x i32> zeroinitializer
@@ -6330,7 +6438,7 @@ void test6() {
 // CHECK-LE: store <4 x i32> zeroinitializer
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vui = vec_lvlxl(0, &param_ui);
+  res_vui = vec_lvlxl(0, param_ui_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <4 x i32> zeroinitializer
@@ -6371,7 +6479,7 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
   /* vec_lvrx */
-  res_vsc = vec_lvrx(0, &param_sc);
+  res_vsc = vec_lvrx(0, param_sc_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <16 x i8> zeroinitializer
@@ -6391,7 +6499,7 @@ void test6() {
 // CHECK-LE: store <16 x i8> zeroinitializer
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vuc = vec_lvrx(0, &param_uc);
+  res_vuc = vec_lvrx(0, param_uc_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <16 x i8> zeroinitializer
@@ -6421,7 +6529,7 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.lvsl
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vs  = vec_lvrx(0, &param_s);
+  res_vs  = vec_lvrx(0, param_s_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <8 x i16> zeroinitializer
@@ -6441,7 +6549,7 @@ void test6() {
 // CHECK-LE: store <8 x i16> zeroinitializer
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vus = vec_lvrx(0, &param_us);
+  res_vus = vec_lvrx(0, param_us_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <8 x i16> zeroinitializer
@@ -6481,7 +6589,7 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.lvsl
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vi  = vec_lvrx(0, &param_i);
+  res_vi  = vec_lvrx(0, param_i_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <4 x i32> zeroinitializer
@@ -6501,7 +6609,7 @@ void test6() {
 // CHECK-LE: store <4 x i32> zeroinitializer
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vui = vec_lvrx(0, &param_ui);
+  res_vui = vec_lvrx(0, param_ui_ld);
 // CHECK: @llvm.ppc.altivec.lvx
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <4 x i32> zeroinitializer
@@ -6542,7 +6650,7 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
   /* vec_lvrxl */
-  res_vsc = vec_lvrxl(0, &param_sc);
+  res_vsc = vec_lvrxl(0, param_sc_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <16 x i8> zeroinitializer
@@ -6562,7 +6670,7 @@ void test6() {
 // CHECK-LE: store <16 x i8> zeroinitializer
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vuc = vec_lvrxl(0, &param_uc);
+  res_vuc = vec_lvrxl(0, param_uc_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <16 x i8> zeroinitializer
@@ -6592,7 +6700,7 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.lvsl
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vs  = vec_lvrxl(0, &param_s);
+  res_vs  = vec_lvrxl(0, param_s_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <8 x i16> zeroinitializer
@@ -6612,7 +6720,7 @@ void test6() {
 // CHECK-LE: store <8 x i16> zeroinitializer
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vus = vec_lvrxl(0, &param_us);
+  res_vus = vec_lvrxl(0, param_us_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <8 x i16> zeroinitializer
@@ -6652,7 +6760,7 @@ void test6() {
 // CHECK-LE: @llvm.ppc.altivec.lvsl
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vi  = vec_lvrxl(0, &param_i);
+  res_vi  = vec_lvrxl(0, param_i_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <4 x i32> zeroinitializer
@@ -6672,7 +6780,7 @@ void test6() {
 // CHECK-LE: store <4 x i32> zeroinitializer
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
-  res_vui = vec_lvrxl(0, &param_ui);
+  res_vui = vec_lvrxl(0, param_ui_ld);
 // CHECK: @llvm.ppc.altivec.lvxl
 // CHECK: @llvm.ppc.altivec.lvsl
 // CHECK: store <4 x i32> zeroinitializer
@@ -9034,7 +9142,7 @@ void test6() {
 }
 
 /* ------------------------------ Relational Operators ------------------------------ */
-// CHECK-LABEL: define void @test7
+// CHECK-LABEL: define{{.*}} void @test7
 void test7() {
   vector signed char vsc1 = (vector signed char)(-1);
   vector signed char vsc2 = (vector signed char)(-2);
@@ -9221,8 +9329,8 @@ void test7() {
 
 /* ------------------------------ optional ---------------------------------- */
 void test8() {
-// CHECK-LABEL: define void @test8
-// CHECK-LE-LABEL: define void @test8
+// CHECK-LABEL: define{{.*}} void @test8
+// CHECK-LE-LABEL: define{{.*}} void @test8
   res_vbc = vec_reve(vbc);
   // CHECK: shufflevector <16 x i8> %{{[0-9]+}}, <16 x i8> %{{[0-9]+}}, <16 x i32> <i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
   // CHECK-LE: shufflevector <16 x i8> %{{[0-9]+}}, <16 x i8> %{{[0-9]+}}, <16 x i32> <i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
@@ -9352,41 +9460,41 @@ void test8() {
 
 /* ------------------------------ vec_xl ------------------------------------ */
 void test9() {
-  // CHECK-LABEL: define void @test9
-  // CHECK-LE-LABEL: define void @test9
-  res_vsc = vec_xl(param_sll, &param_sc);
+  // CHECK-LABEL: define{{.*}} void @test9
+  // CHECK-LE-LABEL: define{{.*}} void @test9
+  res_vsc = vec_xl(param_sll, param_sc_ld);
   // CHECK: load <16 x i8>, <16 x i8>* %{{[0-9]+}}, align 1
   // CHECK-LE: load <16 x i8>, <16 x i8>* %{{[0-9]+}}, align 1
 
-  res_vuc = vec_xl(param_sll, &param_uc);
+  res_vuc = vec_xl(param_sll, param_uc_ld);
   // CHECK: load <16 x i8>, <16 x i8>* %{{[0-9]+}}, align 1
   // CHECK-LE: load <16 x i8>, <16 x i8>* %{{[0-9]+}}, align 1
 
-  res_vs = vec_xl(param_sll, &param_s);
+  res_vs = vec_xl(param_sll, param_s_ld);
   // CHECK: load <8 x i16>, <8 x i16>* %{{[0-9]+}}, align 1
   // CHECK-LE: load <8 x i16>, <8 x i16>* %{{[0-9]+}}, align 1
 
-  res_vus = vec_xl(param_sll, &param_us);
+  res_vus = vec_xl(param_sll, param_us_ld);
   // CHECK: load <8 x i16>, <8 x i16>* %{{[0-9]+}}, align 1
   // CHECK-LE: load <8 x i16>, <8 x i16>* %{{[0-9]+}}, align 1
 
-  res_vi = vec_xl(param_sll, &param_i);
+  res_vi = vec_xl(param_sll, param_i_ld);
   // CHECK: load <4 x i32>, <4 x i32>* %{{[0-9]+}}, align 1
   // CHECK-LE: load <4 x i32>, <4 x i32>* %{{[0-9]+}}, align 1
 
-  res_vui = vec_xl(param_sll, &param_ui);
+  res_vui = vec_xl(param_sll, param_ui_ld);
   // CHECK: load <4 x i32>, <4 x i32>* %{{[0-9]+}}, align 1
   // CHECK-LE: load <4 x i32>, <4 x i32>* %{{[0-9]+}}, align 1
 
-  res_vf = vec_xl(param_sll, &param_f);
+  res_vf = vec_xl(param_sll, param_f_ld);
   // CHECK: load <4 x float>, <4 x float>* %{{[0-9]+}}, align 1
   // CHECK-LE: load <4 x float>, <4 x float>* %{{[0-9]+}}, align 1
 }
 
 /* ------------------------------ vec_xst ----------------------------------- */
 void test10() {
-  // CHECK-LABEL: define void @test10
-  // CHECK-LE-LABEL: define void @test10
+  // CHECK-LABEL: define{{.*}} void @test10
+  // CHECK-LE-LABEL: define{{.*}} void @test10
   vec_xst(vsc, param_sll, &param_sc);
   // CHECK: store <16 x i8> %{{[0-9]+}}, <16 x i8>* %{{[0-9]+}}, align 1
   // CHECK-LE: store <16 x i8> %{{[0-9]+}}, <16 x i8>* %{{[0-9]+}}, align 1
@@ -9418,45 +9526,45 @@ void test10() {
 
 /* ----------------------------- vec_xl_be ---------------------------------- */
 void test11() {
-  // CHECK-LABEL: define void @test11
-  // CHECK-LE-LABEL: define void @test11
-  res_vsc = vec_xl_be(param_sll, &param_sc);
+  // CHECK-LABEL: define{{.*}} void @test11
+  // CHECK-LE-LABEL: define{{.*}} void @test11
+  res_vsc = vec_xl_be(param_sll, param_sc_ld);
   // CHECK: load <16 x i8>, <16 x i8>* %{{[0-9]+}}, align 1
   // CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(i8* %{{[0-9]+}})
   // CHECK-LE: shufflevector <16 x i8> %{{[0-9]+}}, <16 x i8> %{{[0-9]+}}, <16 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0, i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8>
 
-  res_vuc = vec_xl_be(param_sll, &param_uc);
+  res_vuc = vec_xl_be(param_sll, param_uc_ld);
   // CHECK: load <16 x i8>, <16 x i8>* %{{[0-9]+}}, align 1
   // CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(i8* %{{[0-9]+}})
   // CHECK-LE: shufflevector <16 x i8> %{{[0-9]+}}, <16 x i8> %{{[0-9]+}}, <16 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0, i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8>
 
-  res_vs = vec_xl_be(param_sll, &param_s);
+  res_vs = vec_xl_be(param_sll, param_s_ld);
   // CHECK: load <8 x i16>, <8 x i16>* %{{[0-9]+}}, align 1
   // CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(i8* %{{[0-9]+}})
   // CHECK-LE: shufflevector <8 x i16> %{{[0-9]+}}, <8 x i16> %{{[0-9]+}}, <8 x i32> <i32 3, i32 2, i32 1, i32 0, i32 7, i32 6, i32 5, i32 4>
 
-  res_vus = vec_xl_be(param_sll, &param_us);
+  res_vus = vec_xl_be(param_sll, param_us_ld);
   // CHECK: load <8 x i16>, <8 x i16>* %{{[0-9]+}}, align 1
   // CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(i8* %{{[0-9]+}})
   // CHECK-LE: shufflevector <8 x i16> %{{[0-9]+}}, <8 x i16> %{{[0-9]+}}, <8 x i32> <i32 3, i32 2, i32 1, i32 0, i32 7, i32 6, i32 5, i32 4>
 
-  res_vi = vec_xl_be(param_sll, &param_i);
+  res_vi = vec_xl_be(param_sll, param_i_ld);
   // CHECK: load <4 x i32>, <4 x i32>* %{{[0-9]+}}, align 1
   // CHECK-LE: call <4 x i32> @llvm.ppc.vsx.lxvw4x.be(i8* %{{[0-9]+}})
 
-  res_vui = vec_xl_be(param_sll, &param_ui);
+  res_vui = vec_xl_be(param_sll, param_ui_ld);
   // CHECK: load <4 x i32>, <4 x i32>* %{{[0-9]+}}, align 1
   // CHECK-LE: call <4 x i32> @llvm.ppc.vsx.lxvw4x.be(i8* %{{[0-9]+}})
 
-  res_vf = vec_xl_be(param_sll, &param_f);
+  res_vf = vec_xl_be(param_sll, param_f_ld);
   // CHECK: load <4 x float>, <4 x float>* %{{[0-9]+}}, align 1
   // CHECK-LE: call <4 x i32> @llvm.ppc.vsx.lxvw4x.be(i8* %{{[0-9]+}})
 }
 
 /* ----------------------------- vec_xst_be --------------------------------- */
 void test12() {
-  // CHECK-LABEL: define void @test12
-  // CHECK-LE-LABEL: define void @test12
+  // CHECK-LABEL: define{{.*}} void @test12
+  // CHECK-LE-LABEL: define{{.*}} void @test12
   vec_xst_be(vsc, param_sll, &param_sc);
   // CHECK: store <16 x i8> %{{[0-9]+}}, <16 x i8>* %{{[0-9]+}}, align 1
   // CHECK-LE: shufflevector <16 x i8> %{{[0-9]+}}, <16 x i8> %{{[0-9]+}}, <16 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0, i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8>
@@ -9488,4 +9596,22 @@ void test12() {
   vec_xst_be(vf, param_sll, &param_f);
   // CHECK: store <4 x float> %{{[0-9]+}}, <4 x float>* %{{[0-9]+}}, align 1
   // CHECK-LE: call void @llvm.ppc.vsx.stxvw4x.be(<4 x i32> %{{[0-9]+}}, i8* %{{[0-9]+}})
+}
+
+vector float test_rsqrtf(vector float a, vector float b) {
+  // CHECK-LABEL: test_rsqrtf
+  // CHECK: call fast <4 x float> @llvm.sqrt.v4f32
+  // CHECK: fdiv fast <4 x float> <float 1.000000e+00, float 1.000000e+00, float 1.000000e+00, float 1.000000e+00>
+  // CHECK-LE-LABEL: test_rsqrtf
+  // CHECK-LE: call fast <4 x float> @llvm.sqrt.v4f32
+  // CHECK-LE: fdiv fast <4 x float> <float 1.000000e+00, float 1.000000e+00, float 1.000000e+00, float 1.000000e+00>
+  return vec_rsqrt(a);
+}
+
+vector float test_recipdivf(vector float a, vector float b) {
+  // CHECK-LABEL: test_recipdivf
+  // CHECK: fdiv fast <4 x float>
+  // CHECK-LE-LABEL: test_recipdivf
+  // CHECK-LE: fdiv fast <4 x float>
+  return vec_recipdiv(a, b);
 }

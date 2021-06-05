@@ -13,6 +13,7 @@
 #ifndef MLIR_ANALYSIS_AFFINE_STRUCTURES_H
 #define MLIR_ANALYSIS_AFFINE_STRUCTURES_H
 
+#include "mlir/Analysis/Presburger/Matrix.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Support/LogicalResult.h"
@@ -21,6 +22,7 @@ namespace mlir {
 
 class AffineCondition;
 class AffineForOp;
+class AffineIfOp;
 class AffineMap;
 class AffineValueMap;
 class IntegerSet;
@@ -96,9 +98,15 @@ public:
       ids.append(idArgs.begin(), idArgs.end());
   }
 
+  /// Return a system with no constraints, i.e., one which is satisfied by all
+  /// points.
+  static FlatAffineConstraints getUniverse(unsigned numDims = 0,
+                                           unsigned numSymbols = 0) {
+    return FlatAffineConstraints(numDims, numSymbols);
+  }
+
   /// Create a flat affine constraint system from an AffineValueMap or a list of
   /// these. The constructed system will only include equalities.
-  // TODO(bondhugula)
   explicit FlatAffineConstraints(const AffineValueMap &avm);
   explicit FlatAffineConstraints(ArrayRef<const AffineValueMap *> avmRef);
 
@@ -126,18 +134,40 @@ public:
   /// intersection with no simplification of any sort attempted.
   void append(const FlatAffineConstraints &other);
 
-  // Checks for emptiness by performing variable elimination on all identifiers,
-  // running the GCD test on each equality constraint, and checking for invalid
-  // constraints.
-  // Returns true if the GCD test fails for any equality, or if any invalid
-  // constraints are discovered on any row. Returns false otherwise.
+  /// Checks for emptiness by performing variable elimination on all
+  /// identifiers, running the GCD test on each equality constraint, and
+  /// checking for invalid constraints. Returns true if the GCD test fails for
+  /// any equality, or if any invalid constraints are discovered on any row.
+  /// Returns false otherwise.
   bool isEmpty() const;
 
-  // Runs the GCD test on all equality constraints. Returns 'true' if this test
-  // fails on any equality. Returns 'false' otherwise.
-  // This test can be used to disprove the existence of a solution. If it
-  // returns true, no integer solution to the equality constraints can exist.
+  /// Runs the GCD test on all equality constraints. Returns 'true' if this test
+  /// fails on any equality. Returns 'false' otherwise.
+  /// This test can be used to disprove the existence of a solution. If it
+  /// returns true, no integer solution to the equality constraints can exist.
   bool isEmptyByGCDTest() const;
+
+  /// Returns true if the set of constraints is found to have no solution,
+  /// false if a solution exists. Uses the same algorithm as findIntegerSample.
+  bool isIntegerEmpty() const;
+
+  // Returns a matrix where each row is a vector along which the polytope is
+  // bounded. The span of the returned vectors is guaranteed to contain all
+  // such vectors. The returned vectors are NOT guaranteed to be linearly
+  // independent. This function should not be called on empty sets.
+  Matrix getBoundedDirections() const;
+
+  /// Find an integer sample point satisfying the constraints using a
+  /// branch and bound algorithm with generalized basis reduction, with some
+  /// additional processing using Simplex for unbounded sets.
+  ///
+  /// Returns an integer sample point if one exists, or an empty Optional
+  /// otherwise.
+  Optional<SmallVector<int64_t, 8>> findIntegerSample() const;
+
+  /// Returns true if the given point satisfies the constraints, or false
+  /// otherwise.
+  bool containsPoint(ArrayRef<int64_t> point) const;
 
   // Clones this object.
   std::unique_ptr<FlatAffineConstraints> clone() const;
@@ -199,8 +229,32 @@ public:
   /// 'affine.for' operation are added as trailing identifiers (either
   /// dimensional or symbolic depending on whether the operand is a valid
   /// symbol).
-  //  TODO(bondhugula): add support for non-unit strides.
+  //  TODO: add support for non-unit strides.
   LogicalResult addAffineForOpDomain(AffineForOp forOp);
+
+  /// Adds constraints (lower and upper bounds) for each loop in the loop nest
+  /// described by the bound maps 'lbMaps' and 'ubMaps' of a computation slice.
+  /// Every pair ('lbMaps[i]', 'ubMaps[i]') describes the bounds of a loop in
+  /// the nest, sorted outer-to-inner. 'operands' contains the bound operands
+  /// for a single bound map. All the bound maps will use the same bound
+  /// operands. Note that some loops described by a computation slice might not
+  /// exist yet in the IR so the Value attached to those dimension identifiers
+  /// might be empty. For that reason, this method doesn't perform Value
+  /// look-ups to retrieve the dimension identifier positions. Instead, it
+  /// assumes the position of the dim identifiers in the constraint system is
+  /// the same as the position of the loop in the loop nest.
+  LogicalResult addDomainFromSliceMaps(ArrayRef<AffineMap> lbMaps,
+                                       ArrayRef<AffineMap> ubMaps,
+                                       ArrayRef<Value> operands);
+
+  /// Adds constraints imposed by the `affine.if` operation. These constraints
+  /// are collected from the IntegerSet attached to the given `affine.if`
+  /// instance argument (`ifOp`). It is asserted that:
+  /// 1) The IntegerSet of the given `affine.if` instance should not contain
+  /// semi-affine expressions,
+  /// 2) The columns of the constraint system created from `ifOp` should match
+  /// the columns in the current one regarding numbers and values.
+  void addAffineIfOpDomain(AffineIfOp ifOp);
 
   /// Adds a lower or an upper bound for the identifier at the specified
   /// position with constraints being drawn from the specified bound map and
@@ -284,6 +338,9 @@ public:
   /// otherwise.
   bool containsId(Value id) const;
 
+  /// Swap the posA^th identifier with the posB^th identifier.
+  void swapId(unsigned posA, unsigned posB);
+
   // Add identifiers of the specified kind - specified positions are relative to
   // the kind of identifier. The coefficient column corresponding to the added
   // identifier is initialized to zero. 'id' is the Value corresponding to the
@@ -321,8 +378,8 @@ public:
   /// Projects out (aka eliminates) 'num' identifiers starting at position
   /// 'pos'. The resulting constraint system is the shadow along the dimensions
   /// that still exist. This method may not always be integer exact.
-  // TODO(bondhugula): deal with integer exactness when necessary - can return a
-  // value to mark exactness for example.
+  // TODO: deal with integer exactness when necessary - can return a value to
+  // mark exactness for example.
   void projectOut(unsigned pos, unsigned num);
   inline void projectOut(unsigned pos) { return projectOut(pos, 1); }
 
@@ -343,8 +400,9 @@ public:
   /// Changes all symbol identifiers which are loop IVs to dim identifiers.
   void convertLoopIVSymbolsToDims();
 
-  /// Sets the specified identifier to a constant and removes it.
-  void setAndEliminate(unsigned pos, int64_t constVal);
+  /// Sets the values.size() identifiers starting at pos to the specified values
+  /// and removes them.
+  void setAndEliminate(unsigned pos, ArrayRef<int64_t> values);
 
   /// Tries to fold the specified identifier to a constant using a trivial
   /// equality detection; if successful, the constant is substituted for the
@@ -522,6 +580,13 @@ public:
   /// A more expensive check to detect redundant inequalities thatn
   /// removeTrivialRedundancy.
   void removeRedundantInequalities();
+
+  /// Removes redundant constraints using Simplex. Although the algorithm can
+  /// theoretically take exponential time in the worst case (rare), it is known
+  /// to perform much better in the average case. If V is the number of vertices
+  /// in the polytope and C is the number of constraints, the algorithm takes
+  /// O(VC) time.
+  void removeRedundantConstraints();
 
   // Removes all equalities and inequalities.
   void clearConstraints();

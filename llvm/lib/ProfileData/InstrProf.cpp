@@ -18,6 +18,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Config/config.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
@@ -95,6 +96,10 @@ static std::string getInstrProfErrString(instrprof_error Err) {
     return "Truncated profile data";
   case instrprof_error::malformed:
     return "Malformed instrumentation profile data";
+  case instrprof_error::invalid_prof:
+    return "Invalid profile created. Please file a bug "
+           "at: " BUG_REPORT_URL
+           " and include the profraw files that caused this error.";
   case instrprof_error::unknown_function:
     return "No profile data available for function";
   case instrprof_error::hash_mismatch:
@@ -348,16 +353,29 @@ Error InstrProfSymtab::create(Module &M, bool InLTO) {
       return E;
     MD5FuncMap.emplace_back(Function::getGUID(PGOFuncName), &F);
     // In ThinLTO, local function may have been promoted to global and have
-    // suffix added to the function name. We need to add the stripped function
-    // name to the symbol table so that we can find a match from profile.
-    if (InLTO) {
-      auto pos = PGOFuncName.find('.');
-      if (pos != std::string::npos) {
-        const std::string &OtherFuncName = PGOFuncName.substr(0, pos);
-        if (Error E = addFuncName(OtherFuncName))
-          return E;
-        MD5FuncMap.emplace_back(Function::getGUID(OtherFuncName), &F);
-      }
+    // suffix ".llvm." added to the function name. We need to add the
+    // stripped function name to the symbol table so that we can find a match
+    // from profile.
+    //
+    // We may have other suffixes similar as ".llvm." which are needed to
+    // be stripped before the matching, but ".__uniq." suffix which is used
+    // to differentiate internal linkage functions in different modules
+    // should be kept. Now this is the only suffix with the pattern ".xxx"
+    // which is kept before matching.
+    const std::string UniqSuffix = ".__uniq.";
+    auto pos = PGOFuncName.find(UniqSuffix);
+    // Search '.' after ".__uniq." if ".__uniq." exists, otherwise
+    // search '.' from the beginning.
+    if (pos != std::string::npos)
+      pos += UniqSuffix.length();
+    else
+      pos = 0;
+    pos = PGOFuncName.find('.', pos);
+    if (pos != std::string::npos && pos != 0) {
+      const std::string &OtherFuncName = PGOFuncName.substr(0, pos);
+      if (Error E = addFuncName(OtherFuncName))
+        return E;
+      MD5FuncMap.emplace_back(Function::getGUID(OtherFuncName), &F);
     }
   }
   Sorted = false;
@@ -625,11 +643,11 @@ void InstrProfValueSiteRecord::merge(InstrProfValueSiteRecord &Input,
   }
 }
 
-void InstrProfValueSiteRecord::scale(uint64_t Weight,
+void InstrProfValueSiteRecord::scale(uint64_t N, uint64_t D,
                                      function_ref<void(instrprof_error)> Warn) {
   for (auto I = ValueData.begin(), IE = ValueData.end(); I != IE; ++I) {
     bool Overflowed;
-    I->Count = SaturatingMultiply(I->Count, Weight, &Overflowed);
+    I->Count = SaturatingMultiply(I->Count, N, &Overflowed) / D;
     if (Overflowed)
       Warn(instrprof_error::counter_overflow);
   }
@@ -678,22 +696,23 @@ void InstrProfRecord::merge(InstrProfRecord &Other, uint64_t Weight,
 }
 
 void InstrProfRecord::scaleValueProfData(
-    uint32_t ValueKind, uint64_t Weight,
+    uint32_t ValueKind, uint64_t N, uint64_t D,
     function_ref<void(instrprof_error)> Warn) {
   for (auto &R : getValueSitesForKind(ValueKind))
-    R.scale(Weight, Warn);
+    R.scale(N, D, Warn);
 }
 
-void InstrProfRecord::scale(uint64_t Weight,
+void InstrProfRecord::scale(uint64_t N, uint64_t D,
                             function_ref<void(instrprof_error)> Warn) {
+  assert(D != 0 && "D cannot be 0");
   for (auto &Count : this->Counts) {
     bool Overflowed;
-    Count = SaturatingMultiply(Count, Weight, &Overflowed);
+    Count = SaturatingMultiply(Count, N, &Overflowed) / D;
     if (Overflowed)
       Warn(instrprof_error::counter_overflow);
   }
   for (uint32_t Kind = IPVK_First; Kind <= IPVK_Last; ++Kind)
-    scaleValueProfData(Kind, Weight, Warn);
+    scaleValueProfData(Kind, N, D, Warn);
 }
 
 // Map indirect call target name hash to name string.
@@ -981,7 +1000,8 @@ bool getValueProfDataFromInst(const Instruction &Inst,
                               InstrProfValueKind ValueKind,
                               uint32_t MaxNumValueData,
                               InstrProfValueData ValueData[],
-                              uint32_t &ActualNumValueData, uint64_t &TotalC) {
+                              uint32_t &ActualNumValueData, uint64_t &TotalC,
+                              bool GetNoICPValue) {
   MDNode *MD = Inst.getMetadata(LLVMContext::MD_prof);
   if (!MD)
     return false;
@@ -1022,8 +1042,11 @@ bool getValueProfDataFromInst(const Instruction &Inst,
         mdconst::dyn_extract<ConstantInt>(MD->getOperand(I + 1));
     if (!Value || !Count)
       return false;
+    uint64_t CntValue = Count->getZExtValue();
+    if (!GetNoICPValue && (CntValue == NOMORE_ICP_MAGICNUM))
+      continue;
     ValueData[ActualNumValueData].Value = Value->getZExtValue();
-    ValueData[ActualNumValueData].Count = Count->getZExtValue();
+    ValueData[ActualNumValueData].Count = CntValue;
     ActualNumValueData++;
   }
   return true;
@@ -1111,35 +1134,17 @@ bool canRenameComdatFunc(const Function &F, bool CheckAddressTaken) {
   return true;
 }
 
-// Parse the value profile options.
-void getMemOPSizeRangeFromOption(StringRef MemOPSizeRange, int64_t &RangeStart,
-                                 int64_t &RangeLast) {
-  static const int64_t DefaultMemOPSizeRangeStart = 0;
-  static const int64_t DefaultMemOPSizeRangeLast = 8;
-  RangeStart = DefaultMemOPSizeRangeStart;
-  RangeLast = DefaultMemOPSizeRangeLast;
-
-  if (!MemOPSizeRange.empty()) {
-    auto Pos = MemOPSizeRange.find(':');
-    if (Pos != std::string::npos) {
-      if (Pos > 0)
-        MemOPSizeRange.substr(0, Pos).getAsInteger(10, RangeStart);
-      if (Pos < MemOPSizeRange.size() - 1)
-        MemOPSizeRange.substr(Pos + 1).getAsInteger(10, RangeLast);
-    } else
-      MemOPSizeRange.getAsInteger(10, RangeLast);
-  }
-  assert(RangeLast >= RangeStart);
-}
-
 // Create a COMDAT variable INSTR_PROF_RAW_VERSION_VAR to make the runtime
 // aware this is an ir_level profile so it can set the version flag.
-void createIRLevelProfileFlagVar(Module &M, bool IsCS) {
+void createIRLevelProfileFlagVar(Module &M, bool IsCS,
+                                 bool InstrEntryBBEnabled) {
   const StringRef VarName(INSTR_PROF_QUOTE(INSTR_PROF_RAW_VERSION_VAR));
   Type *IntTy64 = Type::getInt64Ty(M.getContext());
   uint64_t ProfileVersion = (INSTR_PROF_RAW_VERSION | VARIANT_MASK_IR_PROF);
   if (IsCS)
     ProfileVersion |= VARIANT_MASK_CSIR_PROF;
+  if (InstrEntryBBEnabled)
+    ProfileVersion |= VARIANT_MASK_INSTR_ENTRY;
   auto IRLevelVersionVariable = new GlobalVariable(
       M, IntTy64, true, GlobalValue::WeakAnyLinkage,
       Constant::getIntegerValue(IntTy64, APInt(64, ProfileVersion)), VarName);

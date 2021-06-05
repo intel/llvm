@@ -243,6 +243,10 @@ bool NestedNameSpecifier::containsUnexpandedParameterPack() const {
   return getDependence() & NestedNameSpecifierDependence::UnexpandedPack;
 }
 
+bool NestedNameSpecifier::containsErrors() const {
+  return getDependence() & NestedNameSpecifierDependence::Error;
+}
+
 /// Print this nested name specifier to the given output
 /// stream.
 void NestedNameSpecifier::print(raw_ostream &OS, const PrintingPolicy &Policy,
@@ -284,8 +288,9 @@ void NestedNameSpecifier::print(raw_ostream &OS, const PrintingPolicy &Policy,
     if (ResolveTemplateArguments && Record) {
         // Print the type trait with resolved template parameters.
         Record->printName(OS);
-        printTemplateArgumentList(OS, Record->getTemplateArgs().asArray(),
-                                  Policy);
+        printTemplateArgumentList(
+            OS, Record->getTemplateArgs().asArray(), Policy,
+            Record->getSpecializedTemplate()->getTemplateParameters());
         break;
     }
     const Type *T = getAsType();

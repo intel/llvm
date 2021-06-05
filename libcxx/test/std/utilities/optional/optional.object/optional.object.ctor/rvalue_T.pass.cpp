@@ -8,7 +8,11 @@
 //
 // UNSUPPORTED: c++03, c++11, c++14
 
-// XFAIL: dylib-has-no-bad_optional_access && !no-exceptions
+// Throwing bad_optional_access is supported starting in macosx10.13
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.12 && !no-exceptions
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.11 && !no-exceptions
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.10 && !no-exceptions
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.9 && !no-exceptions
 
 // <optional>
 
@@ -134,15 +138,10 @@ int main(int, char**)
     }
 #ifndef TEST_HAS_NO_EXCEPTIONS
     {
-        struct Z {
-            Z(int) {}
-            Z(Z&&) {throw 6;}
-        };
-        typedef Z T;
         try
         {
-            T t(3);
-            optional<T> opt(std::move(t));
+            Z z(3);
+            optional<Z> opt(std::move(z));
             assert(false);
         }
         catch (int i)

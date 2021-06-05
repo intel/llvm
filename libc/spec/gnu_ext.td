@@ -1,4 +1,18 @@
 def GnuExtensions : StandardSpec<"GNUExtensions"> {
+  HeaderSpec CType = HeaderSpec<
+    "ctype.h",
+    [], // Macros
+    [], // Types
+    [], // Enumerations
+    [
+        FunctionSpec<
+            "toascii",
+            RetValSpec<IntType>,
+            [ArgSpec<IntType>]
+        >,
+    ]
+  >;
+
   HeaderSpec Math = HeaderSpec<
       "math.h",
       [], // Macros
@@ -12,8 +26,25 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
         >,
       ]
   >;
+  
+  HeaderSpec String = HeaderSpec<
+      "string.h",
+      [], // Macros
+      [], // Types
+      [], // Enumerations
+      [ 
+        FunctionSpec<
+            "memrchr",
+            RetValSpec<VoidPtr>,
+            [ArgSpec<VoidPtr>, ArgSpec<IntType>, ArgSpec<SizeTType>]
+        >,
+      ]
+  >;
+
 
   let Headers = [
-    Math,
+    CType,
+    Math, 
+    String,
   ];
 }

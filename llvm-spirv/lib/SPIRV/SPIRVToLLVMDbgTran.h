@@ -40,7 +40,6 @@
 #define SPIRVTOLLVMDBGTRAN_H
 
 #include "SPIRVInstruction.h"
-#include "SPIRVModule.h"
 
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugLoc.h"
@@ -70,7 +69,8 @@ public:
   void transDbgInfo(const SPIRVValue *SV, Value *V);
   template <typename T = MDNode>
   T *transDebugInst(const SPIRVExtInst *DebugInst) {
-    assert(DebugInst->getExtSetKind() == SPIRVEIS_Debug &&
+    assert((DebugInst->getExtSetKind() == SPIRVEIS_Debug ||
+            DebugInst->getExtSetKind() == SPIRVEIS_OpenCL_DebugInfo_100) &&
            "Unexpected extended instruction set");
     auto It = DebugInstCache.find(DebugInst);
     if (It != DebugInstCache.end())
@@ -85,7 +85,8 @@ public:
 
 private:
   DIFile *getFile(const SPIRVId SourceId);
-  DIFile *getDIFile(const std::string &FileName);
+  DIFile *getDIFile(const std::string &FileName,
+                    Optional<DIFile::ChecksumInfo<StringRef>> CS = None);
   DIFile *getDIFile(const SPIRVEntry *E);
   unsigned getLineNo(const SPIRVEntry *E);
 
@@ -172,6 +173,7 @@ private:
     return nullptr;
   }
   const std::string &getString(const SPIRVId Id);
+  Optional<DIFile::ChecksumInfo<StringRef>> ParseChecksum(StringRef Text);
 };
 } // namespace SPIRV
 

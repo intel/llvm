@@ -1,4 +1,4 @@
-! RUN: %S/test_modfile.sh %s %t %f18
+! RUN: %S/test_modfile.sh %s %t %flang_fc1
 ! Verify miscellaneous bugs
 
 ! The function result must be declared after the dummy arguments
@@ -19,11 +19,11 @@ end
 !contains
 ! function f1(x) result(y)
 !  integer(4)::x(:)
-!  integer(4)::y(1_8:int(int(1_8*size(x,dim=1),kind=4),kind=8))
+!  integer(4)::y(1_8:size(x,dim=1))
 ! end
 ! function f2(x)
 !  integer(4)::x(:)
-!  integer(4)::f2(1_8:int(int(1_8*size(x,dim=1),kind=4),kind=8))
+!  integer(4)::f2(1_8:size(x,dim=1))
 ! end
 !end
 
@@ -42,7 +42,6 @@ end
 ! type(t),parameter::a=t()
 !end
 
-! Don't write out intrinsics
 module m3a
   integer, parameter :: i4 = selected_int_kind(9)
 end
@@ -60,7 +59,6 @@ end
 !Expect: m3b.mod
 !module m3b
 ! use m3a,only:i4
-! use m3a,only:selected_int_kind
 ! integer(4)::j
 !end
 
@@ -82,7 +80,6 @@ end
 !Expect: m4b.mod
 !module m4b
 ! use m4a,only:a
-! use m4a,only:achar
 ! character(1_4,1),parameter::b="\001"
 !end
 

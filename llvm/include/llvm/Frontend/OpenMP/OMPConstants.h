@@ -11,10 +11,12 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_OPENMP_CONSTANTS_H
-#define LLVM_OPENMP_CONSTANTS_H
+#ifndef LLVM_FRONTEND_OPENMP_OMPCONSTANTS_H
+#define LLVM_FRONTEND_OPENMP_OMPCONSTANTS_H
 
 #include "llvm/ADT/BitmaskEnum.h"
+
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Frontend/OpenMP/OMP.h.inc"
 
 namespace llvm {
@@ -40,12 +42,12 @@ enum class InternalControlVar {
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
 
 enum class ICVInitValue {
-#define ICV_DATA_ENV(Enum, Name, EnvVar, Init) Init,
+#define ICV_INIT_VALUE(Enum, Name) Enum,
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
 };
 
-#define ICV_DATA_ENV(Enum, Name, EnvVar, Init)                                 \
-  constexpr auto Init = omp::ICVInitValue::Init;
+#define ICV_INIT_VALUE(Enum, Name)                                             \
+  constexpr auto Enum = omp::ICVInitValue::Enum;
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
 
 /// IDs for all omp runtime library (RTL) functions.
@@ -67,16 +69,6 @@ enum class DefaultKind {
   constexpr auto Enum = omp::DefaultKind::Enum;
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
 
-/// IDs for the different proc bind kinds.
-enum class ProcBindKind {
-#define OMP_PROC_BIND_KIND(Enum, Str, Value) Enum = Value,
-#include "llvm/Frontend/OpenMP/OMPKinds.def"
-};
-
-#define OMP_PROC_BIND_KIND(Enum, ...)                                          \
-  constexpr auto Enum = omp::ProcBindKind::Enum;
-#include "llvm/Frontend/OpenMP/OMPKinds.def"
-
 /// IDs for all omp runtime library ident_t flag encodings (see
 /// their defintion in openmp/runtime/src/kmp.h).
 enum class IdentFlag {
@@ -88,52 +80,51 @@ enum class IdentFlag {
 #define OMP_IDENT_FLAG(Enum, ...) constexpr auto Enum = omp::IdentFlag::Enum;
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
 
-/// Parse \p Str and return the directive it matches or OMPD_unknown if none.
-Directive getOpenMPDirectiveKind(StringRef Str);
+/// Helper to describe assume clauses.
+struct AssumptionClauseMappingInfo {
+  /// The identifier describing the (beginning of the) clause.
+  llvm::StringLiteral Identifier;
+  /// Flag to determine if the identifier is a full name or the start of a name.
+  bool StartsWith;
+  /// Flag to determine if a directive lists follows.
+  bool HasDirectiveList;
+  /// Flag to determine if an expression follows.
+  bool HasExpression;
+};
 
-/// Return a textual representation of the directive \p D.
-StringRef getOpenMPDirectiveName(Directive D);
-
-/// Parse \p Str and return the clause it matches or OMPC_unknown if none.
-Clause getOpenMPClauseKind(StringRef Str);
-
-/// Return a textual representation of the clause \p C.
-StringRef getOpenMPClauseName(Clause C);
-
-/// Return true if \p C is a valid clause for \p D in version \p Version.
-bool isAllowedClauseForDirective(Directive D, Clause C, unsigned Version);
-
-/// Forward declarations for LLVM-IR types (simple, function and structure) are
-/// generated below. Their names are defined and used in OpenMP/OMPKinds.def.
-/// Here we provide the forward declarations, the initializeTypes function will
-/// provide the values.
-///
-///{
-namespace types {
-
-#define OMP_TYPE(VarName, InitValue) extern Type *VarName;
-#define OMP_ARRAY_TYPE(VarName, ElemTy, ArraySize)                             \
-  extern ArrayType *VarName##Ty;                                               \
-  extern PointerType *VarName##PtrTy;
-#define OMP_FUNCTION_TYPE(VarName, IsVarArg, ReturnType, ...)                  \
-  extern FunctionType *VarName;                                                \
-  extern PointerType *VarName##Ptr;
-#define OMP_STRUCT_TYPE(VarName, StrName, ...)                                 \
-  extern StructType *VarName;                                                  \
-  extern PointerType *VarName##Ptr;
+/// All known assume clauses.
+static constexpr AssumptionClauseMappingInfo AssumptionClauseMappings[] = {
+#define OMP_ASSUME_CLAUSE(Identifier, StartsWith, HasDirectiveList,            \
+                          HasExpression)                                       \
+  {Identifier, StartsWith, HasDirectiveList, HasExpression},
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
+};
 
-/// Helper to initialize all types defined in OpenMP/OMPKinds.def.
-void initializeTypes(Module &M);
+inline std::string getAllAssumeClauseOptions() {
+  std::string S;
+  for (const AssumptionClauseMappingInfo &ACMI : AssumptionClauseMappings)
+    S += (S.empty() ? "'" : "', '") + ACMI.Identifier.str();
+  return S + "'";
+}
 
-/// Helper to uninitialize all types defined in OpenMP/OMPKinds.def.
-void uninitializeTypes();
+/// \note This needs to be kept in sync with kmp.h enum sched_type.
+/// Todo: Update kmp.h to include this file, and remove the enums in kmp.h
+///       To complete this, more enum values will need to be moved here.
+enum class OMPScheduleType {
+  Static = 34, // static unspecialized
+  DynamicChunked = 35,
+  GuidedChunked = 36, // guided unspecialized
+  Runtime = 37,
+  Auto = 38, // auto
 
-} // namespace types
-///}
+  ModifierNonmonotonic =
+      (1 << 30), /**< Set if the nonmonotonic schedule modifier was present */
+
+  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue */ ModifierNonmonotonic)
+};
 
 } // end namespace omp
 
 } // end namespace llvm
 
-#endif // LLVM_OPENMP_CONSTANTS_H
+#endif // LLVM_FRONTEND_OPENMP_OMPCONSTANTS_H

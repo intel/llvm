@@ -24,7 +24,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/Support/CommandLine.h"
@@ -46,7 +46,7 @@ namespace {
 /// inner levels if necessary to determine at what depth copies need to be
 /// placed so that the allocated buffers fit within the memory capacity
 /// provided.
-// TODO(bondhugula): We currently can't generate copies correctly when stores
+// TODO: We currently can't generate copies correctly when stores
 // are strided. Check for strided stores.
 struct AffineDataCopyGeneration
     : public AffineDataCopyGenerationBase<AffineDataCopyGeneration> {
@@ -75,7 +75,7 @@ struct AffineDataCopyGeneration
 /// Generates copies for memref's living in 'slowMemorySpace' into newly created
 /// buffers in 'fastMemorySpace', and replaces memory operations to the former
 /// by the latter. Only load op's handled for now.
-/// TODO(bondhugula): extend this to store op's.
+/// TODO: extend this to store op's.
 std::unique_ptr<OperationPass<FuncOp>> mlir::createAffineDataCopyGenerationPass(
     unsigned slowMemorySpace, unsigned fastMemorySpace, unsigned tagMemorySpace,
     int minDmaTransferSize, uint64_t fastMemCapacityBytes) {
@@ -113,7 +113,7 @@ AffineDataCopyGeneration::runOnBlock(Block *block,
   // operations excluding AffineForOp's) are always assumed to not exhaust
   // memory. As a result, this approach is conservative in some cases at the
   // moment; we do a check later and report an error with location info.
-  // TODO(bondhugula): An 'affine.if' operation is being treated similar to an
+  // TODO: An 'affine.if' operation is being treated similar to an
   // operation. 'affine.if''s could have 'affine.for's in them;
   // treat them separately.
 
@@ -155,7 +155,7 @@ AffineDataCopyGeneration::runOnBlock(Block *block,
       if (recurseInner) {
         // We'll recurse and do the copies at an inner level for 'forInst'.
         // Recurse onto the body of this loop.
-        runOnBlock(forOp.getBody(), copyNests);
+        (void)runOnBlock(forOp.getBody(), copyNests);
       } else {
         // We have enough capacity, i.e., copies will be computed for the
         // portion of the block until 'it', and for 'it', which is 'forOp'. Note
@@ -185,8 +185,9 @@ AffineDataCopyGeneration::runOnBlock(Block *block,
   // Generate the copy for the final block range.
   if (curBegin != block->end()) {
     // Can't be a terminator because it would have been skipped above.
-    assert(!curBegin->isKnownTerminator() && "can't be a terminator");
-    // Exclude the affine terminator - hence, the std::prev.
+    assert(!curBegin->hasTrait<OpTrait::IsTerminator>() &&
+           "can't be a terminator");
+    // Exclude the affine.yield - hence, the std::prev.
     affineDataCopyGenerate(/*begin=*/curBegin, /*end=*/std::prev(block->end()),
                            copyOptions, /*filterMemRef=*/llvm::None, copyNests);
   }
@@ -207,17 +208,17 @@ void AffineDataCopyGeneration::runOnFunction() {
   copyNests.clear();
 
   for (auto &block : f)
-    runOnBlock(&block, copyNests);
+    (void)runOnBlock(&block, copyNests);
 
   // Promote any single iteration loops in the copy nests and collect
   // load/stores to simplify.
   SmallVector<Operation *, 4> copyOps;
-  for (auto nest : copyNests)
+  for (Operation *nest : copyNests)
     // With a post order walk, the erasure of loops does not affect
     // continuation of the walk or the collection of load/store ops.
     nest->walk([&](Operation *op) {
       if (auto forOp = dyn_cast<AffineForOp>(op))
-        promoteIfSingleIteration(forOp);
+        (void)promoteIfSingleIteration(forOp);
       else if (isa<AffineLoadOp, AffineStoreOp>(op))
         copyOps.push_back(op);
     });
@@ -225,9 +226,10 @@ void AffineDataCopyGeneration::runOnFunction() {
   // Promoting single iteration loops could lead to simplification of
   // contained load's/store's, and the latter could anyway also be
   // canonicalized.
-  OwningRewritePatternList patterns;
+  RewritePatternSet patterns(&getContext());
   AffineLoadOp::getCanonicalizationPatterns(patterns, &getContext());
   AffineStoreOp::getCanonicalizationPatterns(patterns, &getContext());
-  for (auto op : copyOps)
-    applyOpPatternsAndFold(op, std::move(patterns));
+  FrozenRewritePatternSet frozenPatterns(std::move(patterns));
+  for (Operation *op : copyOps)
+    (void)applyOpPatternsAndFold(op, frozenPatterns);
 }

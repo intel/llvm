@@ -1,4 +1,5 @@
 ; RUN: opt -basic-aa -objc-arc -S < %s | FileCheck %s
+; RUN: opt -aa-pipeline=basic-aa -passes=objc-arc -S < %s | FileCheck %s
 
 target datalayout = "e-p:64:64:64"
 
@@ -18,6 +19,7 @@ declare i8* @llvm.objc.unretainedPointer(i8*)
 
 declare void @use_pointer(i8*)
 declare void @callee()
+declare void @callee2(i8*, i8*)
 declare void @callee_fnptr(void ()*)
 declare void @invokee()
 declare i8* @returner()
@@ -721,14 +723,15 @@ return:
 ; CHECK-LABEL: define void @test8c(
 ; CHECK: entry:
 ; CHECK: t:
-; CHECK:   @llvm.objc.retain
+; CHECK-NOT: @llvm.objc.
 ; CHECK: f:
-; CHECK:   @llvm.objc.retain
+; CHECK-NOT: @llvm.objc.
 ; CHECK: mid:
 ; CHECK: u:
+; CHECK:   @llvm.objc.retain
 ; CHECK:   @llvm.objc.release
 ; CHECK: g:
-; CHECK:   @llvm.objc.release
+; CHECK-NOT: @llvm.objc.
 ; CHECK: return:
 ; CHECK: }
 define void @test8c(i32* %x, i1 %p, i1 %q) nounwind {
@@ -1547,17 +1550,14 @@ done:
 ; Like test28. but with two releases.
 
 ; CHECK-LABEL: define void @test29(
-; CHECK-NOT: @llvm.objc.
-; CHECK: true:
 ; CHECK: call i8* @llvm.objc.retain
+; CHECK: true:
 ; CHECK: call void @callee()
 ; CHECK: store
-; CHECK: call void @llvm.objc.release
-; CHECK-NOT: @llvm.objc.release
 ; CHECK: done:
-; CHECK-NOT: @llvm.objc.
+; CHECK: call void @llvm.objc.release
 ; CHECK: ohno:
-; CHECK-NOT: @llvm.objc.
+; CHECK: call void @llvm.objc.release
 ; CHECK: }
 define void @test29(i8* %p, i1 %x, i1 %y) {
 entry:
@@ -1582,19 +1582,15 @@ ohno:
 ; with an extra release.
 
 ; CHECK-LABEL: define void @test30(
-; CHECK-NOT: @llvm.objc.
-; CHECK: true:
 ; CHECK: call i8* @llvm.objc.retain
+; CHECK: true:
 ; CHECK: call void @callee()
 ; CHECK: store
-; CHECK: call void @llvm.objc.release
-; CHECK-NOT: @llvm.objc.release
 ; CHECK: false:
-; CHECK-NOT: @llvm.objc.
 ; CHECK: done:
-; CHECK-NOT: @llvm.objc.
+; CHECK: call void @llvm.objc.release
 ; CHECK: ohno:
-; CHECK-NOT: @llvm.objc.
+; CHECK: call void @llvm.objc.release
 ; CHECK: }
 define void @test30(i8* %p, i1 %x, i1 %y, i1 %z) {
 entry:
@@ -1624,14 +1620,11 @@ ohno:
 ; CHECK: call i8* @llvm.objc.retain(i8* %p)
 ; CHECK: call void @callee()
 ; CHECK: store
-; CHECK: call void @llvm.objc.release
-; CHECK-NOT: @llvm.objc.release
 ; CHECK: true:
-; CHECK-NOT: @llvm.objc.release
+; CHECK: call void @llvm.objc.release
 ; CHECK: false:
-; CHECK-NOT: @llvm.objc.release
+; CHECK: call void @llvm.objc.release
 ; CHECK: ret void
-; CHECK-NOT: @llvm.objc.release
 ; CHECK: }
 define void @test31(i8* %p, i1 %x) {
 entry:
@@ -1650,14 +1643,12 @@ false:
 ; Don't consider bitcasts or getelementptrs direct uses.
 
 ; CHECK-LABEL: define void @test32(
-; CHECK-NOT: @llvm.objc.
-; CHECK: true:
 ; CHECK: call i8* @llvm.objc.retain
+; CHECK: true:
 ; CHECK: call void @callee()
 ; CHECK: store
-; CHECK: call void @llvm.objc.release
 ; CHECK: done:
-; CHECK-NOT: @llvm.objc.
+; CHECK: call void @llvm.objc.release
 ; CHECK: }
 define void @test32(i8* %p, i1 %x) {
 entry:
@@ -1679,14 +1670,12 @@ done:
 ; Do consider icmps to be direct uses.
 
 ; CHECK-LABEL: define void @test33(
-; CHECK-NOT: @llvm.objc.
-; CHECK: true:
 ; CHECK: call i8* @llvm.objc.retain
+; CHECK: true:
 ; CHECK: call void @callee()
 ; CHECK: icmp
-; CHECK: call void @llvm.objc.release
 ; CHECK: done:
-; CHECK-NOT: @llvm.objc.
+; CHECK: call void @llvm.objc.release
 ; CHECK: }
 define void @test33(i8* %p, i1 %x, i8* %y) {
 entry:
@@ -3056,6 +3045,21 @@ define void @test67(i8* %x) {
   ret void
 }
 
+; CHECK-LABEL: define void @test68(
+; CHECK-NOT:     call
+; CHECK:         call void @callee2(
+; CHECK-NOT:     call
+; CHECK:         ret void
+
+define void @test68(i8* %a, i8* %b) {
+  call i8* @llvm.objc.retain(i8* %a)
+  call i8* @llvm.objc.retain(i8* %b)
+  call void @callee2(i8* %a, i8* %b)
+  call void @llvm.objc.release(i8* %b), !clang.imprecise_release !0
+  call void @llvm.objc.release(i8* %a), !clang.imprecise_release !0
+  ret void
+}
+
 !llvm.module.flags = !{!1}
 !llvm.dbg.cu = !{!3}
 
@@ -3070,5 +3074,5 @@ define void @test67(i8* %x) {
 !5 = !{i32 2, !"Debug Info Version", i32 3}
 
 ; CHECK: attributes [[NUW]] = { nounwind }
-; CHECK: attributes #1 = { nounwind readnone speculatable willreturn }
+; CHECK: attributes #1 = { nofree nosync nounwind readnone speculatable willreturn }
 ; CHECK: ![[RELEASE]] = !{}

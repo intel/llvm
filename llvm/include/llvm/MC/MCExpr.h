@@ -224,6 +224,7 @@ public:
     VK_WEAKREF, // The link between the symbols in .weakref foo, bar
 
     VK_X86_ABS8,
+    VK_X86_PLTOFF,
 
     VK_ARM_NONE,
     VK_ARM_GOT_PREL,
@@ -241,6 +242,7 @@ public:
     VK_AVR_DIFF8,
     VK_AVR_DIFF16,
     VK_AVR_DIFF32,
+    VK_AVR_PM,
 
     VK_PPC_LO,              // symbol@l
     VK_PPC_HI,              // symbol@h
@@ -294,14 +296,21 @@ public:
     VK_PPC_GOT_TLSGD_HI,    // symbol@got@tlsgd@h
     VK_PPC_GOT_TLSGD_HA,    // symbol@got@tlsgd@ha
     VK_PPC_TLSGD,           // symbol@tlsgd
+    VK_PPC_AIX_TLSGD,       // symbol@gd
+    VK_PPC_AIX_TLSGDM,      // symbol@m
     VK_PPC_GOT_TLSLD,       // symbol@got@tlsld
     VK_PPC_GOT_TLSLD_LO,    // symbol@got@tlsld@l
     VK_PPC_GOT_TLSLD_HI,    // symbol@got@tlsld@h
     VK_PPC_GOT_TLSLD_HA,    // symbol@got@tlsld@ha
     VK_PPC_GOT_PCREL,       // symbol@got@pcrel
+    VK_PPC_GOT_TLSGD_PCREL, // symbol@got@tlsgd@pcrel
+    VK_PPC_GOT_TLSLD_PCREL, // symbol@got@tlsld@pcrel
+    VK_PPC_GOT_TPREL_PCREL, // symbol@got@tprel@pcrel
+    VK_PPC_TLS_PCREL,       // symbol@tls@pcrel
     VK_PPC_TLSLD,           // symbol@tlsld
     VK_PPC_LOCAL,           // symbol@local
     VK_PPC_NOTOC,           // symbol@notoc
+    VK_PPC_PCREL_OPT,       // .reloc expr, R_PPC64_PCREL_OPT, expr
 
     VK_COFF_IMGREL32, // symbol@imgrel (image-relative)
 
@@ -316,8 +325,9 @@ public:
     VK_Hexagon_IE_GOT,
 
     VK_WASM_TYPEINDEX, // Reference to a symbol's type (signature)
-    VK_WASM_MBREL,     // Memory address relative to memory base
-    VK_WASM_TBREL,     // Table index relative to table bare
+    VK_WASM_TLSREL,    // Memory address relative to __tls_base
+    VK_WASM_MBREL,     // Memory address relative to __memory_base
+    VK_WASM_TBREL,     // Table index relative to __table_base
 
     VK_AMDGPU_GOTPCREL32_LO, // symbol@gotpcrel32@lo
     VK_AMDGPU_GOTPCREL32_HI, // symbol@gotpcrel32@hi
@@ -327,6 +337,21 @@ public:
     VK_AMDGPU_ABS32_LO,      // symbol@abs32@lo
     VK_AMDGPU_ABS32_HI,      // symbol@abs32@hi
 
+    VK_VE_HI32,        // symbol@hi
+    VK_VE_LO32,        // symbol@lo
+    VK_VE_PC_HI32,     // symbol@pc_hi
+    VK_VE_PC_LO32,     // symbol@pc_lo
+    VK_VE_GOT_HI32,    // symbol@got_hi
+    VK_VE_GOT_LO32,    // symbol@got_lo
+    VK_VE_GOTOFF_HI32, // symbol@gotoff_hi
+    VK_VE_GOTOFF_LO32, // symbol@gotoff_lo
+    VK_VE_PLT_HI32,    // symbol@plt_hi
+    VK_VE_PLT_LO32,    // symbol@plt_lo
+    VK_VE_TLS_GD_HI32, // symbol@tls_gd_hi
+    VK_VE_TLS_GD_LO32, // symbol@tls_gd_lo
+    VK_VE_TPOFF_HI32,  // symbol@tpoff_hi
+    VK_VE_TPOFF_LO32,  // symbol@tpoff_lo
+
     VK_TPREL,
     VK_DTPREL
   };
@@ -335,28 +360,18 @@ private:
   /// The symbol being referenced.
   const MCSymbol *Symbol;
 
-  // Subclass data stores VariantKind in bits 0..15, UseParensForSymbolVariant
-  // in bit 16 and HasSubsectionsViaSymbols in bit 17.
+  // Subclass data stores VariantKind in bits 0..15 and HasSubsectionsViaSymbols
+  // in bit 16.
   static const unsigned VariantKindBits = 16;
   static const unsigned VariantKindMask = (1 << VariantKindBits) - 1;
 
-  /// Specifies how the variant kind should be printed.
-  static const unsigned UseParensForSymbolVariantBit = 1 << VariantKindBits;
-
   // FIXME: Remove this bit.
-  static const unsigned HasSubsectionsViaSymbolsBit =
-      1 << (VariantKindBits + 1);
+  static const unsigned HasSubsectionsViaSymbolsBit = 1 << VariantKindBits;
 
   static unsigned encodeSubclassData(VariantKind Kind,
-                              bool UseParensForSymbolVariant,
-                              bool HasSubsectionsViaSymbols) {
+                                     bool HasSubsectionsViaSymbols) {
     return (unsigned)Kind |
-           (UseParensForSymbolVariant ? UseParensForSymbolVariantBit : 0) |
            (HasSubsectionsViaSymbols ? HasSubsectionsViaSymbolsBit : 0);
-  }
-
-  bool useParensForSymbolVariant() const {
-    return (getSubclassData() & UseParensForSymbolVariantBit) != 0;
   }
 
   explicit MCSymbolRefExpr(const MCSymbol *Symbol, VariantKind Kind,
@@ -384,8 +399,6 @@ public:
   VariantKind getKind() const {
     return (VariantKind)(getSubclassData() & VariantKindMask);
   }
-
-  void printVariantKind(raw_ostream &OS) const;
 
   bool hasSubsectionsViaSymbols() const {
     return (getSubclassData() & HasSubsectionsViaSymbolsBit) != 0;
@@ -484,6 +497,7 @@ public:
     Mul,  ///< Multiplication.
     NE,   ///< Inequality comparison.
     Or,   ///< Bitwise or.
+    OrNot, ///< Bitwise or not.
     Shl,  ///< Shift left.
     AShr, ///< Arithmetic shift right.
     LShr, ///< Logical shift right.

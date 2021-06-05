@@ -6,7 +6,13 @@ set(LLVM_LINK_COMPONENTS
   TransformUtils
   )
 
-add_llvm_unittest(AnalysisTests
+if (DEFINED LLVM_HAVE_TF_API)
+  LIST(APPEND EXTRA_TESTS TFUtilsTest.cpp)
+else()
+  LIST(APPEND LLVM_OPTIONAL_SOURCES TFUtilsTest.cpp)
+endif()
+
+add_llvm_unittest_with_input_files(AnalysisTests
   AliasAnalysisTest.cpp
   AliasSetTrackerTest.cpp
   AssumeBundleQueriesTest.cpp
@@ -17,11 +23,13 @@ add_llvm_unittest(AnalysisTests
   CaptureTrackingTest.cpp
   CFGTest.cpp
   CGSCCPassManagerTest.cpp
+  ConstraintSystemTest.cpp
   DDGTest.cpp
   DivergenceAnalysisTest.cpp
   DomTreeUpdaterTest.cpp
   GlobalsModRefTest.cpp
-  InlineFeaturesAnalysisTest.cpp
+  FunctionPropertiesAnalysisTest.cpp
+  IRSimilarityIdentifierTest.cpp
   IVDescriptorsTest.cpp
   LazyCallGraphTest.cpp
   LoadsTest.cpp
@@ -29,7 +37,6 @@ add_llvm_unittest(AnalysisTests
   LoopNestTest.cpp
   MemoryBuiltinsTest.cpp
   MemorySSATest.cpp
-  OrderedInstructionsTest.cpp
   PhiValuesTest.cpp
   ProfileSummaryInfoTest.cpp
   ScalarEvolutionTest.cpp
@@ -41,4 +48,7 @@ add_llvm_unittest(AnalysisTests
   ValueLatticeTest.cpp
   ValueTrackingTest.cpp
   VectorUtilsTest.cpp
+  ${EXTRA_TESTS}
   )
+
+ target_link_libraries(AnalysisTests PRIVATE LLVMTestingSupport)

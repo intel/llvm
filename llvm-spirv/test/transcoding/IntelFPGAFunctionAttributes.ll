@@ -1,10 +1,16 @@
 ;; Can be compiled using https://github.com/intel/llvm SYCL compiler from:
 ;; class Foo {
 ;; public:
-;;   [[intelfpga::no_global_work_offset,
-;;     intelfpga::max_global_work_dim(1),
-;;     intelfpga::max_work_group_size(1,1,1),
-;;     intelfpga::num_simd_work_items(8)]] void operator()() {}
+;;   [[intel::no_global_work_offset,
+;;     intel::max_global_work_dim(1),
+;;     intel::max_work_group_size(1,1,1),
+;;     intel::num_simd_work_items(8),
+;;     intel::stall_enable,
+;;     intel::scheduler_target_fmax_mhz(1000),
+;;     intel::loop_fuse_independent(3),
+;;     intel::initiation_interval(10),
+;;     intel::max_concurrency(12),
+;;     intel::disable_loop_pipelining]] void operator()() {}
 ;; };
 ;;
 ;; template <typename name, typename Func>
@@ -15,11 +21,11 @@
 ;; void bar() {
 ;;   Foo boo;
 ;;   kernel<class kernel_name>(boo);
-;;   kernel<class kernel_name2>([]() [[intelfpga::no_global_work_offset(0)]]{});
+;;   kernel<class kernel_name2>([]() [[intel::no_global_work_offset(0)]]{});
 ;; }
 
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_kernel_attributes -o %t.spv
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_kernel_attributes,+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse,+SPV_INTEL_fpga_invocation_pipelining_attributes -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
@@ -29,20 +35,44 @@
 ; RUN: llvm-spirv -spirv-text -r %t.spt -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: 2 Capability KernelAttributesINTEL
-; CHECK-SPIRV: 2 Capability FPGAKernelAttributesINTEL
-; CHECK-SPIRV: 6 ExecutionMode [[FUNCENTRY:[0-9]+]] 5893 1 1 1
-; CHECK-SPIRV: 4 ExecutionMode [[FUNCENTRY]] 5894 1
-; CHECK-SPIRV: 3 ExecutionMode [[FUNCENTRY]] 5895
-; CHECK-SPIRV: 4 ExecutionMode [[FUNCENTRY]] 5896 8
-; CHECK-SPIRV: 5 Function {{.*}} [[FUNCENTRY]] {{.*}}
+; CHECK-SPIRV: Capability KernelAttributesINTEL
+; CHECK-SPIRV: Capability FPGAKernelAttributesINTEL
+; CHECK-SPIRV: Capability FPGAClusterAttributesINTEL
+; CHECK-SPIRV: Capability LoopFuseINTEL
+; CHECK-SPIRV: Capability FPGAInvocationPipeliningAttributesINTEL
+; CHECK-SPIRV: Extension "SPV_INTEL_fpga_cluster_attributes"
+; CHECK-SPIRV: Extension "SPV_INTEL_fpga_invocation_pipelining_attributes"
+; CHECK-SPIRV: Extension "SPV_INTEL_loop_fuse"
+; CHECK-SPIRV: ExecutionMode [[FUNCENTRY:[0-9]+]] 5893 1 1 1
+; CHECK-SPIRV: ExecutionMode [[FUNCENTRY]] 5894 1
+; CHECK-SPIRV: ExecutionMode [[FUNCENTRY]] 5895
+; CHECK-SPIRV: ExecutionMode [[FUNCENTRY]] 5896 8
+; CHECK-SPIRV: ExecutionMode [[FUNCENTRY]] 5903 1000
+; CHECK-SPIRV: Decorate [[FUNCENTRY]] StallEnableINTEL
+; CHECK-SPIRV: Decorate [[FUNCENTRY]] FuseLoopsInFunctionINTEL 3 1
+; CHECK-SPIRV: Decorate [[FUNCENTRY]] InitiationIntervalINTEL 10
+; CHECK-SPIRV: Decorate [[FUNCENTRY]] MaxConcurrencyINTEL 12
+; CHECK-SPIRV: Decorate [[FUNCENTRY]] PipelineEnableINTEL 0
+; CHECK-SPIRV: Function {{.*}} [[FUNCENTRY]] {{.*}}
 
-; CHECK-LLVM: define spir_kernel void {{.*}}kernel_name() {{.*}} !max_work_group_size ![[MAXWG:[0-9]+]] !no_global_work_offset ![[OFFSET:[0-9]+]] !max_global_work_dim ![[MAXWD:[0-9]+]] !num_simd_work_items ![[NUMSIMD:[0-9]+]]
+; CHECK-LLVM: define spir_kernel void {{.*}}kernel_name()
+; CHECK-LLVM-SAME: !stall_enable ![[ONEMD:[0-9]+]] !loop_fuse ![[FUSE:[0-9]+]]
+; CHECK-LLVM-SAME: !initiation_interval ![[II:[0-9]+]]
+; CHECK-LLVM-SAME: !max_concurrency ![[MAXCON:[0-9]+]]
+; CHECK-LLVM-SAME: !disable_loop_pipelining ![[ONEMD]]
+; CHECK-LLVM-SAME: !max_work_group_size ![[MAXWG:[0-9]+]]
+; CHECK-LLVM-SAME: !no_global_work_offset ![[OFFSET:[0-9]+]]
+; CHECK-LLVM-SAME: !max_global_work_dim ![[ONEMD]] !num_simd_work_items ![[NUMSIMD:[0-9]+]]
+; CHECK-LLVM-SAME: !scheduler_target_fmax_mhz ![[MAXMHZ:[0-9]+]]
 ; CHECK-LLVM-NOT: define spir_kernel void {{.*}}kernel_name2 {{.*}} !no_global_work_offset {{.*}}
 ; CHECK-LLVM: ![[OFFSET]] = !{}
+; CHECK-LLVM: ![[ONEMD]] = !{i32 1}
+; CHECK-LLVM: ![[FUSE]] = !{i32 3, i32 1}
+; CHECK-LLVM: ![[II]] = !{i32 10}
+; CHECK-LLVM: ![[MAXCON]] = !{i32 12}
 ; CHECK-LLVM: ![[MAXWG]] = !{i32 1, i32 1, i32 1}
-; CHECK-LLVM: ![[MAXWD]] = !{i32 1}
 ; CHECK-LLVM: ![[NUMSIMD]] = !{i32 8}
+; CHECK-LLVM: ![[MAXMHZ]] = !{i32 1000}
 
 ; ModuleID = 'kernel-attrs.cpp'
 source_filename = "kernel-attrs.cpp"
@@ -55,7 +85,7 @@ target triple = "spir64-unknown-linux-sycldevice"
 $_ZN3FooclEv = comdat any
 
 ; Function Attrs: nounwind
-define spir_kernel void @_ZTSZ3barvE11kernel_name() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 !num_simd_work_items !5 !max_work_group_size !6 !max_global_work_dim !7 !no_global_work_offset !4 {
+define spir_kernel void @_ZTSZ3barvE11kernel_name() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 !num_simd_work_items !5 !max_work_group_size !6 !max_global_work_dim !7 !no_global_work_offset !4 !stall_enable !7 !scheduler_target_fmax_mhz !12 !loop_fuse !13 !initiation_interval !14 !max_concurrency !15 !disable_loop_pipelining !7 {
 entry:
   %Foo = alloca %class._ZTS3Foo.Foo, align 1
   %0 = bitcast %class._ZTS3Foo.Foo* %Foo to i8*
@@ -125,3 +155,7 @@ attributes #4 = { nounwind }
 !9 = !{!"any pointer", !10, i64 0}
 !10 = !{!"omnipotent char", !11, i64 0}
 !11 = !{!"Simple C++ TBAA"}
+!12 = !{i32 1000}
+!13 = !{i32 3, i32 1}
+!14 = !{i32 10}
+!15 = !{i32 12}

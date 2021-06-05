@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 
-// General information about the directive language
+// General information about the directive language.
 class DirectiveLanguage {
   // Name of the directive language such as omp or acc.
   string name = ?;
@@ -35,35 +35,111 @@ class DirectiveLanguage {
 
   // Make the enum values available in the namespace. This allows us to
   // write something like Enum_X if we have a `using namespace cppNamespace`.
-  bit makeEnumAvailableInNamespace = 0;
+  bit makeEnumAvailableInNamespace = false;
 
-  // Generate include and macro to enable LLVM BitmaskEnum
-  bit enableBitmaskEnumInNamespace = 0;
+  // Generate include and macro to enable LLVM BitmaskEnum.
+  bit enableBitmaskEnumInNamespace = false;
+
+  // Header file included in the implementation code generated. Ususally the
+  // output file of the declaration code generation. Can be left blank.
+  string includeHeader = "";
+
+  // EnumSet class name used for clauses to generated the allowed clauses map.
+  string clauseEnumSetClass = "";
+
+  // Class holding the clauses in the flang parse-tree.
+  string flangClauseBaseClass = "";
 }
 
-// Information about a specific clause
+// Information about values accepted by enum-like clauses
+class ClauseVal<string n, int v, bit uv> {
+  // Name of the clause value.
+  string name = n;
+
+  // Integer value of the clause.
+  int value = v;
+
+  // Can user specify this value?
+  bit isUserValue = uv;
+
+  // Set clause value used by default when unknown.
+  bit isDefault = false;
+}
+
+// Information about a specific clause.
 class Clause<string c> {
-  // Name of the clause
+  // Name of the clause.
   string name = c;
 
-  // Optional class holding value of the clause in clang AST
-  string clangClass = ?;
+  // Define an alternative name return in get<LanguageName>ClauseName function.
+  string alternativeName = "";
 
-  // Is clause implicit?
-  bit isImplicit = 0;
+  // Optional class holding value of the clause in clang AST.
+  string clangClass = "";
+
+  // Optional class holding value of the clause in flang AST.
+  string flangClass = "";
+
+  // If set to true, value is optional. Not optional by default.
+  bit isValueOptional = false;
+
+  // Name of enum when there is a list of allowed clause values.
+  string enumClauseValue = "";
+
+  // List of allowed clause values
+  list<ClauseVal> allowedClauseValues = [];
+  // If set to true, value class is part of a list. Single class by default.
+  bit isValueList = false;
+
+  // Define a default value such as "*".
+  string defaultValue = "";
+
+  // Is clause implicit? If clause is set as implicit, the default kind will
+  // be return in get<LanguageName>ClauseKind instead of their own kind.
+  bit isImplicit = false;
+
+  // Set clause used by default when unknown. Function returning the kind
+  // of enumeration will use this clause as the default.
+  bit isDefault = false;
 }
 
-// Information about a specific directive
+// Hold information about clause validity by version.
+class VersionedClause<Clause c, int min = 1, int max = 0x7FFFFFFF> {
+  // Actual clause.
+  Clause clause = c;
+
+  // Mininum version number where this clause is valid.
+  int minVersion = min;
+
+  // Maximum version number where this clause is valid.
+  int maxVersion = max;
+}
+
+// Information about a specific directive.
 class Directive<string d> {
   // Name of the directive. Can be composite directive sepearted by whitespace.
   string name = d;
 
+  // Define an alternative name return in get<LanguageName>DirectiveName
+  // function.
+  string alternativeName = "";
+
+  // Clauses cannot appear twice in the three allowed lists below. Also, since
+  // required implies allowed, the same clause cannot appear in both the
+  // allowedClauses and requiredClauses lists.
+
   // List of allowed clauses for the directive.
-  list<Clause> allowedClauses = ?;
+  list<VersionedClause> allowedClauses = [];
 
   // List of clauses that are allowed to appear only once.
-  list<Clause> allowedOnceClauses = ?;
+  list<VersionedClause> allowedOnceClauses = [];
+
+  // List of clauses that are allowed but mutually exclusive.
+  list<VersionedClause> allowedExclusiveClauses = [];
 
   // List of clauses that are required.
-  list<Clause> requiredClauses = ?;
+  list<VersionedClause> requiredClauses = [];
+
+  // Set directive used by default when unknown.
+  bit isDefault = false;
 }

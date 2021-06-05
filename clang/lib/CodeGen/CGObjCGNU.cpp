@@ -42,16 +42,6 @@ using namespace CodeGen;
 
 namespace {
 
-std::string SymbolNameForMethod( StringRef ClassName,
-     StringRef CategoryName, const Selector MethodName,
-    bool isClassMethod) {
-  std::string MethodNameColonStripped = MethodName.getAsString();
-  std::replace(MethodNameColonStripped.begin(), MethodNameColonStripped.end(),
-      ':', '_');
-  return (Twine(isClassMethod ? "_c_" : "_i_") + ClassName + "_" +
-    CategoryName + "_" + MethodNameColonStripped).str();
-}
-
 /// Class that lazily initialises the runtime function.  Avoids inserting the
 /// types and the function declaration into a module if they're not used, and
 /// avoids constructing the type more than once if it's used more than once.
@@ -790,7 +780,8 @@ class CGObjCGNUstep : public CGObjCGNU {
 
       // Load the imp from the slot
       llvm::Value *imp = Builder.CreateAlignedLoad(
-          Builder.CreateStructGEP(nullptr, slot, 4), CGF.getPointerAlign());
+          IMPTy, Builder.CreateStructGEP(nullptr, slot, 4),
+          CGF.getPointerAlign());
 
       // The lookup function may have changed the receiver, so make sure we use
       // the new one.
@@ -808,8 +799,9 @@ class CGObjCGNUstep : public CGObjCGNU {
         CGF.EmitNounwindRuntimeCall(SlotLookupSuperFn, lookupArgs);
       slot->setOnlyReadsMemory();
 
-      return Builder.CreateAlignedLoad(Builder.CreateStructGEP(nullptr, slot, 4),
-                                       CGF.getPointerAlign());
+      return Builder.CreateAlignedLoad(
+          IMPTy, Builder.CreateStructGEP(nullptr, slot, 4),
+          CGF.getPointerAlign());
     }
 
   public:
@@ -1197,8 +1189,11 @@ class CGObjCGNUstep2 : public CGObjCGNUstep {
   }
   llvm::Constant *GenerateCategoryProtocolList(const ObjCCategoryDecl *OCD)
     override {
-    SmallVector<llvm::Constant*, 16> Protocols;
-    for (const auto *PI : OCD->getReferencedProtocols())
+    const auto &ReferencedProtocols = OCD->getReferencedProtocols();
+    auto RuntimeProtocols = GetRuntimeProtocolList(ReferencedProtocols.begin(),
+                                                   ReferencedProtocols.end());
+    SmallVector<llvm::Constant *, 16> Protocols;
+    for (const auto *PI : RuntimeProtocols)
       Protocols.push_back(
           llvm::ConstantExpr::getBitCast(GenerateProtocolRef(PI),
             ProtocolPtrTy));
@@ -1237,7 +1232,7 @@ class CGObjCGNUstep2 : public CGObjCGNUstep {
         DeclContext *DC = TranslationUnitDecl::castToDeclContext(TUDecl);
 
         const ObjCInterfaceDecl *OID = nullptr;
-        for (const auto &Result : DC->lookup(&II))
+        for (const auto *Result : DC->lookup(&II))
           if ((OID = dyn_cast<ObjCInterfaceDecl>(Result)))
             break;
 
@@ -1335,7 +1330,8 @@ class CGObjCGNUstep2 : public CGObjCGNUstep {
       Ref = GV;
     }
     EmittedProtocolRef = true;
-    return CGF.Builder.CreateAlignedLoad(Ref, CGM.getPointerAlign());
+    return CGF.Builder.CreateAlignedLoad(ProtocolPtrTy, Ref,
+                                         CGM.getPointerAlign());
   }
 
   llvm::Constant *GenerateProtocolList(ArrayRef<llvm::Constant*> Protocols) {
@@ -1381,7 +1377,9 @@ class CGObjCGNUstep2 : public CGObjCGNUstep {
     }
 
     SmallVector<llvm::Constant*, 16> Protocols;
-    for (const auto *PI : PD->protocols())
+    auto RuntimeProtocols =
+        GetRuntimeProtocolList(PD->protocol_begin(), PD->protocol_end());
+    for (const auto *PI : RuntimeProtocols)
       Protocols.push_back(
           llvm::ConstantExpr::getBitCast(GenerateProtocolRef(PI),
             ProtocolPtrTy));
@@ -1694,7 +1692,8 @@ class CGObjCGNUstep2 : public CGObjCGNUstep {
       IvarOffsetPointer = new llvm::GlobalVariable(TheModule, IntTy, false,
               llvm::GlobalValue::ExternalLinkage, nullptr, Name);
     CharUnits Align = CGM.getIntAlign();
-    llvm::Value *Offset = CGF.Builder.CreateAlignedLoad(IvarOffsetPointer, Align);
+    llvm::Value *Offset =
+        CGF.Builder.CreateAlignedLoad(IntTy, IvarOffsetPointer, Align);
     if (Offset->getType() != PtrDiffTy)
       Offset = CGF.Builder.CreateZExtOrBitCast(Offset, PtrDiffTy);
     return Offset;
@@ -1920,8 +1919,10 @@ class CGObjCGNUstep2 : public CGObjCGNUstep {
     // struct objc_class *sibling_class
     classFields.addNullPointer(PtrTy);
     // struct objc_protocol_list *protocols;
-    SmallVector<llvm::Constant*, 16> Protocols;
-    for (const auto *I : classDecl->protocols())
+    auto RuntimeProtocols = GetRuntimeProtocolList(classDecl->protocol_begin(),
+                                                   classDecl->protocol_end());
+    SmallVector<llvm::Constant *, 16> Protocols;
+    for (const auto *I : RuntimeProtocols)
       Protocols.push_back(
           llvm::ConstantExpr::getBitCast(GenerateProtocolRef(I),
             ProtocolPtrTy));
@@ -2318,7 +2319,7 @@ llvm::Value *CGObjCGNU::EmitNSAutoreleasePoolClassRef(CodeGenFunction &CGF) {
       DeclContext *DC = TranslationUnitDecl::castToDeclContext(TUDecl);
 
       const VarDecl *VD = nullptr;
-      for (const auto &Result : DC->lookup(&II))
+      for (const auto *Result : DC->lookup(&II))
         if ((VD = dyn_cast<VarDecl>(Result)))
           break;
 
@@ -2546,7 +2547,7 @@ CGObjCGNU::GenerateMessageSendSuper(CodeGenFunction &CGF,
       ReceiverClass = Builder.CreateBitCast(ReceiverClass,
                                             llvm::PointerType::getUnqual(IdTy));
       ReceiverClass =
-        Builder.CreateAlignedLoad(ReceiverClass, CGF.getPointerAlign());
+        Builder.CreateAlignedLoad(IdTy, ReceiverClass, CGF.getPointerAlign());
     }
     ReceiverClass = EnforceType(Builder, ReceiverClass, IdTy);
   } else {
@@ -2591,7 +2592,7 @@ CGObjCGNU::GenerateMessageSendSuper(CodeGenFunction &CGF,
     ReceiverClass = Builder.CreateStructGEP(CastTy, ReceiverClass, 1);
     // Load the superclass pointer
     ReceiverClass =
-      Builder.CreateAlignedLoad(ReceiverClass, CGF.getPointerAlign());
+      Builder.CreateAlignedLoad(IdTy, ReceiverClass, CGF.getPointerAlign());
   }
   // Construct the structure used to look up the IMP
   llvm::StructType *ObjCSuperTy =
@@ -2823,9 +2824,7 @@ GenerateMethodList(StringRef ClassName,
   ASTContext &Context = CGM.getContext();
   for (const auto *OMD : Methods) {
     llvm::Constant *FnPtr =
-      TheModule.getFunction(SymbolNameForMethod(ClassName, CategoryName,
-                                                OMD->getSelector(),
-                                                isClassMethodList));
+      TheModule.getFunction(getSymbolNameForMethod(OMD));
     assert(FnPtr && "Can't generate metadata for method that doesn't exist");
     auto Method = MethodArray.beginStruct(ObjCMethodTy);
     if (isV2ABI) {
@@ -3088,6 +3087,9 @@ CGObjCGNU::GenerateEmptyProtocol(StringRef ProtocolName) {
 }
 
 void CGObjCGNU::GenerateProtocol(const ObjCProtocolDecl *PD) {
+  if (PD->isNonRuntimeProtocol())
+    return;
+
   std::string ProtocolName = PD->getNameAsString();
 
   // Use the protocol definition, if there is one.
@@ -3240,8 +3242,11 @@ llvm::Constant *CGObjCGNU::MakeBitField(ArrayRef<bool> bits) {
 
 llvm::Constant *CGObjCGNU::GenerateCategoryProtocolList(const
     ObjCCategoryDecl *OCD) {
+  const auto &RefPro = OCD->getReferencedProtocols();
+  const auto RuntimeProtos =
+      GetRuntimeProtocolList(RefPro.begin(), RefPro.end());
   SmallVector<std::string, 16> Protocols;
-  for (const auto *PD : OCD->getReferencedProtocols())
+  for (const auto *PD : RuntimeProtos)
     Protocols.push_back(PD->getNameAsString());
   return GenerateProtocolList(Protocols);
 }
@@ -3511,24 +3516,14 @@ void CGObjCGNU::GenerateClass(const ObjCImplementationDecl *OID) {
   ClassMethods.insert(ClassMethods.begin(), OID->classmeth_begin(),
       OID->classmeth_end());
 
-  // Collect the same information about synthesized properties, which don't
-  // show up in the instance method lists.
-  for (auto *propertyImpl : OID->property_impls())
-    if (propertyImpl->getPropertyImplementation() ==
-        ObjCPropertyImplDecl::Synthesize) {
-      auto addPropertyMethod = [&](const ObjCMethodDecl *accessor) {
-        if (accessor)
-          InstanceMethods.push_back(accessor);
-      };
-      addPropertyMethod(propertyImpl->getGetterMethodDecl());
-      addPropertyMethod(propertyImpl->getSetterMethodDecl());
-    }
-
   llvm::Constant *Properties = GeneratePropertyList(OID, ClassDecl);
 
   // Collect the names of referenced protocols
+  auto RefProtocols = ClassDecl->protocols();
+  auto RuntimeProtocols =
+      GetRuntimeProtocolList(RefProtocols.begin(), RefProtocols.end());
   SmallVector<std::string, 16> Protocols;
-  for (const auto *I : ClassDecl->protocols())
+  for (const auto *I : RuntimeProtocols)
     Protocols.push_back(I->getNameAsString());
 
   // Get the superclass pointer.
@@ -3873,18 +3868,10 @@ llvm::Function *CGObjCGNU::ModuleInitFunction() {
 
 llvm::Function *CGObjCGNU::GenerateMethod(const ObjCMethodDecl *OMD,
                                           const ObjCContainerDecl *CD) {
-  const ObjCCategoryImplDecl *OCD =
-    dyn_cast<ObjCCategoryImplDecl>(OMD->getDeclContext());
-  StringRef CategoryName = OCD ? OCD->getName() : "";
-  StringRef ClassName = CD->getName();
-  Selector MethodName = OMD->getSelector();
-  bool isClassMethod = !OMD->isInstanceMethod();
-
   CodeGenTypes &Types = CGM.getTypes();
   llvm::FunctionType *MethodTy =
     Types.GetFunctionType(Types.arrangeObjCMethodDeclaration(OMD));
-  std::string FunctionName = SymbolNameForMethod(ClassName, CategoryName,
-      MethodName, isClassMethod);
+  std::string FunctionName = getSymbolNameForMethod(OMD);
 
   llvm::Function *Method
     = llvm::Function::Create(MethodTy,
@@ -4103,6 +4090,7 @@ llvm::Value *CGObjCGNU::EmitIvarOffset(CodeGenFunction &CGF,
       return CGF.Builder.CreateZExtOrBitCast(
           CGF.Builder.CreateAlignedLoad(
               Int32Ty, CGF.Builder.CreateAlignedLoad(
+                           llvm::Type::getInt32PtrTy(VMContext),
                            ObjCIvarOffsetVariable(Interface, Ivar),
                            CGF.getPointerAlign(), "ivar"),
               CharUnits::fromQuantity(4)),
@@ -4118,7 +4106,7 @@ llvm::Value *CGObjCGNU::EmitIvarOffset(CodeGenFunction &CGF,
       GV->setAlignment(Align.getAsAlign());
       Offset = GV;
     }
-    Offset = CGF.Builder.CreateAlignedLoad(Offset, Align);
+    Offset = CGF.Builder.CreateAlignedLoad(IntTy, Offset, Align);
     if (Offset->getType() != PtrDiffTy)
       Offset = CGF.Builder.CreateZExtOrBitCast(Offset, PtrDiffTy);
     return Offset;

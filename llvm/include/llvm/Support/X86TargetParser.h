@@ -10,10 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_SUPPORT_X86TARGETPARSERCOMMON_H
-#define LLVM_SUPPORT_X86TARGETPARSERCOMMON_H
+#ifndef LLVM_SUPPORT_X86TARGETPARSER_H
+#define LLVM_SUPPORT_X86TARGETPARSER_H
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringMap.h"
 
 namespace llvm {
 class StringRef;
@@ -34,7 +35,7 @@ enum ProcessorVendors : unsigned {
 // as a proxy for what's in libgcc/compiler-rt.
 enum ProcessorTypes : unsigned {
   CPU_TYPE_DUMMY,
-#define X86_CPU_TYPE(ARCHNAME, ENUM) \
+#define X86_CPU_TYPE(ENUM, STRING) \
   ENUM,
 #include "llvm/Support/X86TargetParser.def"
   CPU_TYPE_MAX
@@ -44,7 +45,7 @@ enum ProcessorTypes : unsigned {
 // as a proxy for what's in libgcc/compiler-rt.
 enum ProcessorSubtypes : unsigned {
   CPU_SUBTYPE_DUMMY,
-#define X86_CPU_SUBTYPE(ARCHNAME, ENUM) \
+#define X86_CPU_SUBTYPE(ENUM, STRING) \
   ENUM,
 #include "llvm/Support/X86TargetParser.def"
   CPU_SUBTYPE_MAX
@@ -53,8 +54,7 @@ enum ProcessorSubtypes : unsigned {
 // This should be kept in sync with libcc/compiler-rt as it should be used
 // by clang as a proxy for what's in libgcc/compiler-rt.
 enum ProcessorFeatures {
-#define X86_FEATURE(ENUM) \
-  ENUM,
+#define X86_FEATURE(ENUM, STRING) FEATURE_##ENUM,
 #include "llvm/Support/X86TargetParser.def"
   CPU_FEATURE_MAX
 };
@@ -98,8 +98,11 @@ enum CPUKind {
   CK_Cooperlake,
   CK_Cannonlake,
   CK_IcelakeClient,
+  CK_Rocketlake,
   CK_IcelakeServer,
   CK_Tigerlake,
+  CK_SapphireRapids,
+  CK_Alderlake,
   CK_KNL,
   CK_KNM,
   CK_Lakemont,
@@ -119,20 +122,37 @@ enum CPUKind {
   CK_BDVER4,
   CK_ZNVER1,
   CK_ZNVER2,
+  CK_ZNVER3,
   CK_x86_64,
+  CK_x86_64_v2,
+  CK_x86_64_v3,
+  CK_x86_64_v4,
   CK_Geode,
 };
 
 /// Parse \p CPU string into a CPUKind. Will only accept 64-bit capable CPUs if
 /// \p Only64Bit is true.
 CPUKind parseArchX86(StringRef CPU, bool Only64Bit = false);
+CPUKind parseTuneCPU(StringRef CPU, bool Only64Bit = false);
 
 /// Provide a list of valid CPU names. If \p Only64Bit is true, the list will
 /// only contain 64-bit capable CPUs.
 void fillValidCPUArchList(SmallVectorImpl<StringRef> &Values,
-                          bool ArchIs32Bit);
+                          bool Only64Bit = false);
+/// Provide a list of valid -mtune names.
+void fillValidTuneCPUList(SmallVectorImpl<StringRef> &Values,
+                          bool Only64Bit = false);
 
+/// Get the key feature prioritizing target multiversioning.
 ProcessorFeatures getKeyFeature(CPUKind Kind);
+
+/// Fill in the features that \p CPU supports into \p Features.
+void getFeaturesForCPU(StringRef CPU, SmallVectorImpl<StringRef> &Features);
+
+/// Set or clear entries in \p Features that are implied to be enabled/disabled
+/// by the provided \p Feature.
+void updateImpliedFeatures(StringRef Feature, bool Enabled,
+                           StringMap<bool> &Features);
 
 } // namespace X86
 } // namespace llvm

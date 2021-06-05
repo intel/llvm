@@ -14,10 +14,14 @@
 #define LLVM_EXECUTIONENGINE_JITLINK_JITLINKMEMORYMANAGER_H
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ExecutionEngine/JITLink/JITLinkDylib.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/MSVCErrorWorkarounds.h"
 #include "llvm/Support/Memory.h"
+
 #include <cstdint>
+#include <future>
 
 namespace llvm {
 namespace jitlink {
@@ -74,6 +78,15 @@ public:
     /// working memory.
     virtual void finalizeAsync(FinalizeContinuation OnFinalize) = 0;
 
+    /// Calls finalizeAsync and waits for completion.
+    Error finalize() {
+      std::promise<MSVCPError> FinalizeResultP;
+      auto FinalizeResultF = FinalizeResultP.get_future();
+      finalizeAsync(
+          [&](Error Err) { FinalizeResultP.set_value(std::move(Err)); });
+      return FinalizeResultF.get();
+    }
+
     /// Should deallocate target memory.
     virtual Error deallocate() = 0;
   };
@@ -81,18 +94,28 @@ public:
   virtual ~JITLinkMemoryManager();
 
   /// Create an Allocation object.
+  ///
+  /// The JD argument represents the target JITLinkDylib, and can be used by
+  /// JITLinkMemoryManager implementers to manage per-dylib allocation pools
+  /// (e.g. one pre-reserved address space slab per dylib to ensure that all
+  /// allocations for the dylib are within a certain range). The JD argument
+  /// may be null (representing an allocation not associated with any
+  /// JITDylib.
+  ///
+  /// The request argument describes the segment sizes and permisssions being
+  /// requested.
   virtual Expected<std::unique_ptr<Allocation>>
-  allocate(const SegmentsRequestMap &Request) = 0;
+  allocate(const JITLinkDylib *JD, const SegmentsRequestMap &Request) = 0;
 };
 
 /// A JITLinkMemoryManager that allocates in-process memory.
 class InProcessMemoryManager : public JITLinkMemoryManager {
 public:
   Expected<std::unique_ptr<Allocation>>
-  allocate(const SegmentsRequestMap &Request) override;
+  allocate(const JITLinkDylib *JD, const SegmentsRequestMap &Request) override;
 };
 
 } // end namespace jitlink
 } // end namespace llvm
 
-#endif // LLVM_EXECUTIONENGINE_JITLINK_JITLINK_H
+#endif // LLVM_EXECUTIONENGINE_JITLINK_JITLINKMEMORYMANAGER_H

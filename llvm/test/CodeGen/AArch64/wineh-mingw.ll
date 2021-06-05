@@ -1,5 +1,5 @@
 ; RUN: llc < %s -mtriple=aarch64-pc-mingw32 | FileCheck %s -check-prefix=WINEH
-; RUN: llc < %s -mtriple=aarch64-pc-mingw32 -filetype=obj | llvm-readobj -S | FileCheck %s -check-prefix=WINEH-SECTIONS
+; RUN: llc < %s -mtriple=aarch64-pc-mingw32 -filetype=obj | llvm-readobj -S - | FileCheck %s -check-prefix=WINEH-SECTIONS
 
 ; Check emission of eh handler and handler data
 declare i32 @_d_eh_personality(i32, i32, i64, i8*, i8*)
@@ -36,8 +36,7 @@ endtryfinally:
 ; WINEH: .seh_proc foo4
 ; WINEH: .seh_handler _d_eh_personality, @unwind, @except
 ; WINEH: ret
-; WINEH: .section .xdata,"dr"
-; WINEH-NEXT: .seh_handlerdata
+; WINEH:      .seh_handlerdata
 ; WINEH-NEXT: .text
 ; WINEH-NEXT: .seh_endproc
 ; WINEH: .section .xdata,"dr"

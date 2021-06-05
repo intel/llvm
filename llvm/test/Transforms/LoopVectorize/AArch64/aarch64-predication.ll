@@ -1,18 +1,18 @@
 ; REQUIRES: asserts
 ; RUN: opt < %s -loop-vectorize -disable-output -debug-only=loop-vectorize 2>&1 | FileCheck %s --check-prefix=COST
-; RUN: opt < %s -loop-vectorize -force-vector-width=2 -instcombine -simplifycfg -S | FileCheck %s
+; RUN: opt < %s -loop-vectorize -force-vector-width=2 -instcombine -simplifycfg -simplifycfg-require-and-preserve-domtree=1 -S | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-i128:128-n32:64-S128"
 target triple = "aarch64--linux-gnu"
 
 ; This test checks that we correctly compute the scalarized operands for a
 ; user-specified vectorization factor when interleaving is disabled. We use the
-; "optsize" attribute to disable all interleaving calculations.  A cost of 5
+; "optsize" attribute to disable all interleaving calculations.  A cost of 4
 ; for %tmp4 indicates that we would scalarize it's operand (%tmp3), giving
 ; %tmp4 a lower scalarization overhead.
 ;
 ; COST-LABEL:  predicated_udiv_scalarized_operand
-; COST:        LV: Found an estimated cost of 5 for VF 2 For instruction: %tmp4 = udiv i64 %tmp2, %tmp3
+; COST:        LV: Found an estimated cost of 4 for VF 2 For instruction: %tmp4 = udiv i64 %tmp2, %tmp3
 ;
 ; CHECK-LABEL: @predicated_udiv_scalarized_operand(
 ; CHECK:       vector.body:
@@ -29,10 +29,10 @@ target triple = "aarch64--linux-gnu"
 ; CHECK-NEXT:    [[TMP5:%.*]] = add nsw i64 [[TMP4]], %x
 ; CHECK-NEXT:    [[TMP6:%.*]] = extractelement <2 x i64> [[WIDE_LOAD]], i32 0
 ; CHECK-NEXT:    [[TMP7:%.*]] = udiv i64 [[TMP6]], [[TMP5]]
-; CHECK-NEXT:    [[TMP8:%.*]] = insertelement <2 x i64> undef, i64 [[TMP7]], i32 0
+; CHECK-NEXT:    [[TMP8:%.*]] = insertelement <2 x i64> poison, i64 [[TMP7]], i32 0
 ; CHECK-NEXT:    br label %[[PRED_UDIV_CONTINUE]]
 ; CHECK:       [[PRED_UDIV_CONTINUE]]:
-; CHECK-NEXT:    [[TMP9:%.*]] = phi <2 x i64> [ undef, %vector.body ], [ [[TMP8]], %[[PRED_UDIV_IF]] ]
+; CHECK-NEXT:    [[TMP9:%.*]] = phi <2 x i64> [ poison, %vector.body ], [ [[TMP8]], %[[PRED_UDIV_IF]] ]
 ; CHECK-NEXT:    [[TMP10:%.*]] = extractelement <2 x i1> [[TMP2]], i32 1
 ; CHECK-NEXT:    br i1 [[TMP10]], label %[[PRED_UDIV_IF1:.*]], label %[[PRED_UDIV_CONTINUE2]]
 ; CHECK:       [[PRED_UDIV_IF1]]:

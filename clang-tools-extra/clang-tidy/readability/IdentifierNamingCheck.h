@@ -10,6 +10,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_IDENTIFIERNAMINGCHECK_H
 
 #include "../utils/RenamerClangTidyCheck.h"
+#include "llvm/ADT/Optional.h"
 namespace clang {
 
 class MacroInfo;
@@ -51,12 +52,38 @@ public:
     NamingStyle() = default;
 
     NamingStyle(llvm::Optional<CaseType> Case, const std::string &Prefix,
-                const std::string &Suffix)
-        : Case(Case), Prefix(Prefix), Suffix(Suffix) {}
+                const std::string &Suffix, const std::string &IgnoredRegexpStr);
+    NamingStyle(const NamingStyle &O) = delete;
+    NamingStyle &operator=(NamingStyle &&O) = default;
+    NamingStyle(NamingStyle &&O) = default;
 
     llvm::Optional<CaseType> Case;
     std::string Prefix;
     std::string Suffix;
+    // Store both compiled and non-compiled forms so original value can be
+    // serialized
+    llvm::Regex IgnoredRegexp;
+    std::string IgnoredRegexpStr;
+  };
+
+  struct FileStyle {
+    FileStyle() : IsActive(false), IgnoreMainLikeFunctions(false) {}
+    FileStyle(SmallVectorImpl<Optional<NamingStyle>> &&Styles,
+              bool IgnoreMainLike)
+        : Styles(std::move(Styles)), IsActive(true),
+          IgnoreMainLikeFunctions(IgnoreMainLike) {}
+
+    ArrayRef<Optional<NamingStyle>> getStyles() const {
+      assert(IsActive);
+      return Styles;
+    }
+    bool isActive() const { return IsActive; }
+    bool isIgnoringMainLikeFunction() const { return IgnoreMainLikeFunctions; }
+
+  private:
+    SmallVector<Optional<NamingStyle>, 0> Styles;
+    bool IsActive;
+    bool IgnoreMainLikeFunctions;
   };
 
 private:
@@ -69,12 +96,25 @@ private:
   DiagInfo GetDiagInfo(const NamingCheckId &ID,
                        const NamingCheckFailure &Failure) const override;
 
-  std::vector<llvm::Optional<NamingStyle>> NamingStyles;
+  const FileStyle &getStyleForFile(StringRef FileName) const;
+
+  /// Stores the style options as a vector, indexed by the specified \ref
+  /// StyleKind, for a given directory.
+  mutable llvm::StringMap<FileStyle> NamingStylesCache;
+  FileStyle *MainFileStyle;
+  ClangTidyContext *const Context;
+  const std::string CheckName;
+  const bool GetConfigPerFile;
   const bool IgnoreFailedSplit;
-  const bool IgnoreMainLikeFunctions;
 };
 
 } // namespace readability
+template <>
+struct OptionEnumMapping<readability::IdentifierNamingCheck::CaseType> {
+  static llvm::ArrayRef<
+      std::pair<readability::IdentifierNamingCheck::CaseType, StringRef>>
+  getEnumMapping();
+};
 } // namespace tidy
 } // namespace clang
 

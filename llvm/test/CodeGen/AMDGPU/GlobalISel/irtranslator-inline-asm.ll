@@ -174,7 +174,7 @@ define amdgpu_kernel void @test_input_vgpr_imm() {
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 42
   ; CHECK:   [[COPY:%[0-9]+]]:vgpr_32 = COPY [[C]](s32)
-  ; CHECK:   INLINEASM &"v_mov_b32 v0, $0", 1 /* sideeffect attdialect */, 9 /* reguse */, [[COPY]]
+  ; CHECK:   INLINEASM &"v_mov_b32 v0, $0", 1 /* sideeffect attdialect */, 1835017 /* reguse:VGPR_32 */, [[COPY]]
   ; CHECK:   S_ENDPGM 0
   call void asm sideeffect "v_mov_b32 v0, $0", "v"(i32 42)
   ret void
@@ -185,7 +185,7 @@ define amdgpu_kernel void @test_input_sgpr_imm() {
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 42
   ; CHECK:   [[COPY:%[0-9]+]]:sreg_32 = COPY [[C]](s32)
-  ; CHECK:   INLINEASM &"s_mov_b32 s0, $0", 1 /* sideeffect attdialect */, 9 /* reguse */, [[COPY]]
+  ; CHECK:   INLINEASM &"s_mov_b32 s0, $0", 1 /* sideeffect attdialect */, 1966089 /* reguse:SReg_32 */, [[COPY]]
   ; CHECK:   S_ENDPGM 0
   call void asm sideeffect "s_mov_b32 s0, $0", "s"(i32 42)
   ret void
@@ -209,7 +209,7 @@ define float @test_input_vgpr(i32 %src) nounwind {
   ; CHECK:   [[COPY:%[0-9]+]]:_(s32) = COPY $vgpr0
   ; CHECK:   [[COPY1:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
   ; CHECK:   [[COPY2:%[0-9]+]]:vgpr_32 = COPY [[COPY]](s32)
-  ; CHECK:   INLINEASM &"v_add_f32 $0, 1.0, $1", 0 /* attdialect */, 1835018 /* regdef:VGPR_32 */, def %2, 9 /* reguse */, [[COPY2]]
+  ; CHECK:   INLINEASM &"v_add_f32 $0, 1.0, $1", 0 /* attdialect */, 1835018 /* regdef:VGPR_32 */, def %2, 1835017 /* reguse:VGPR_32 */, [[COPY2]]
   ; CHECK:   [[COPY3:%[0-9]+]]:_(s32) = COPY %2
   ; CHECK:   $vgpr0 = COPY [[COPY3]](s32)
   ; CHECK:   [[COPY4:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY1]]
@@ -232,6 +232,107 @@ define i32 @test_memory_constraint(i32 addrspace(3)* %a) nounwind {
   ; CHECK:   S_SETPC_B64_return [[COPY3]], implicit $vgpr0
   %1 = tail call i32 asm "ds_read_b32 $0, $1", "=v,*m"(i32 addrspace(3)* %a)
   ret i32 %1
+}
+
+define i32 @test_vgpr_matching_constraint(i32 %a) nounwind {
+  ; CHECK-LABEL: name: test_vgpr_matching_constraint
+  ; CHECK: bb.1 (%ir-block.0):
+  ; CHECK:   liveins: $vgpr0, $sgpr30_sgpr31
+  ; CHECK:   [[COPY:%[0-9]+]]:_(s32) = COPY $vgpr0
+  ; CHECK:   [[COPY1:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
+  ; CHECK:   [[AND:%[0-9]+]]:_(s32) = G_AND [[COPY]], [[C]]
+  ; CHECK:   [[COPY2:%[0-9]+]]:vgpr_32 = COPY [[AND]](s32)
+  ; CHECK:   INLINEASM &";", 1 /* sideeffect attdialect */, 1835018 /* regdef:VGPR_32 */, def %4, 2147483657 /* reguse tiedto:$0 */, [[COPY2]](tied-def 3)
+  ; CHECK:   [[COPY3:%[0-9]+]]:_(s32) = COPY %4
+  ; CHECK:   $vgpr0 = COPY [[COPY3]](s32)
+  ; CHECK:   [[COPY4:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY1]]
+  ; CHECK:   S_SETPC_B64_return [[COPY4]], implicit $vgpr0
+  %and = and i32 %a, 1
+  %asm = call i32 asm sideeffect ";", "=v,0"(i32 %and)
+  ret i32 %asm
+}
+
+define i32 @test_sgpr_matching_constraint() nounwind {
+  ; CHECK-LABEL: name: test_sgpr_matching_constraint
+  ; CHECK: bb.1.entry:
+  ; CHECK:   liveins: $sgpr30_sgpr31
+  ; CHECK:   [[COPY:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK:   INLINEASM &"s_mov_b32 $0, 7", 0 /* attdialect */, 1966090 /* regdef:SReg_32 */, def %1
+  ; CHECK:   [[COPY1:%[0-9]+]]:_(s32) = COPY %1
+  ; CHECK:   INLINEASM &"s_mov_b32 $0, 8", 0 /* attdialect */, 1966090 /* regdef:SReg_32 */, def %3
+  ; CHECK:   [[COPY2:%[0-9]+]]:_(s32) = COPY %3
+  ; CHECK:   [[COPY3:%[0-9]+]]:sreg_32 = COPY [[COPY1]](s32)
+  ; CHECK:   [[COPY4:%[0-9]+]]:sreg_32 = COPY [[COPY2]](s32)
+  ; CHECK:   INLINEASM &"s_add_u32 $0, $1, $2", 0 /* attdialect */, 1966090 /* regdef:SReg_32 */, def %5, 1966089 /* reguse:SReg_32 */, [[COPY3]], 2147483657 /* reguse tiedto:$0 */, [[COPY4]](tied-def 3)
+  ; CHECK:   [[COPY5:%[0-9]+]]:_(s32) = COPY %5
+  ; CHECK:   $vgpr0 = COPY [[COPY5]](s32)
+  ; CHECK:   [[COPY6:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY]]
+  ; CHECK:   S_SETPC_B64_return [[COPY6]], implicit $vgpr0
+entry:
+  %asm0 = tail call i32 asm "s_mov_b32 $0, 7", "=s"() nounwind
+  %asm1 = tail call i32 asm "s_mov_b32 $0, 8", "=s"() nounwind
+  %asm2 = tail call i32 asm "s_add_u32 $0, $1, $2", "=s,s,0"(i32 %asm0, i32 %asm1) nounwind
+  ret i32 %asm2
+}
+
+define void @test_many_matching_constraints(i32 %a, i32 %b, i32 %c) nounwind {
+  ; CHECK-LABEL: name: test_many_matching_constraints
+  ; CHECK: bb.1 (%ir-block.0):
+  ; CHECK:   liveins: $vgpr0, $vgpr1, $vgpr2, $sgpr30_sgpr31
+  ; CHECK:   [[COPY:%[0-9]+]]:_(s32) = COPY $vgpr0
+  ; CHECK:   [[COPY1:%[0-9]+]]:_(s32) = COPY $vgpr1
+  ; CHECK:   [[COPY2:%[0-9]+]]:_(s32) = COPY $vgpr2
+  ; CHECK:   [[COPY3:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
+  ; CHECK:   [[COPY4:%[0-9]+]]:vgpr_32 = COPY [[COPY2]](s32)
+  ; CHECK:   [[COPY5:%[0-9]+]]:vgpr_32 = COPY [[COPY]](s32)
+  ; CHECK:   [[COPY6:%[0-9]+]]:vgpr_32 = COPY [[COPY1]](s32)
+  ; CHECK:   INLINEASM &"; ", 1 /* sideeffect attdialect */, 1835018 /* regdef:VGPR_32 */, def %4, 1835018 /* regdef:VGPR_32 */, def %5, 1835018 /* regdef:VGPR_32 */, def %6, 2147483657 /* reguse tiedto:$0 */, [[COPY4]](tied-def 3), 2147614729 /* reguse tiedto:$2 */, [[COPY5]](tied-def 7), 2147549193 /* reguse tiedto:$1 */, [[COPY6]](tied-def 5)
+  ; CHECK:   [[COPY7:%[0-9]+]]:_(s32) = COPY %4
+  ; CHECK:   [[COPY8:%[0-9]+]]:_(s32) = COPY %5
+  ; CHECK:   [[COPY9:%[0-9]+]]:_(s32) = COPY %6
+  ; CHECK:   G_STORE [[COPY7]](s32), [[DEF]](p1) :: (store 4 into `i32 addrspace(1)* undef`, addrspace 1)
+  ; CHECK:   G_STORE [[COPY8]](s32), [[DEF]](p1) :: (store 4 into `i32 addrspace(1)* undef`, addrspace 1)
+  ; CHECK:   G_STORE [[COPY9]](s32), [[DEF]](p1) :: (store 4 into `i32 addrspace(1)* undef`, addrspace 1)
+  ; CHECK:   [[COPY10:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY3]]
+  ; CHECK:   S_SETPC_B64_return [[COPY10]]
+  %asm = call {i32, i32, i32} asm sideeffect "; ", "=v,=v,=v,0,2,1"(i32 %c, i32 %a, i32 %b)
+  %asmresult0 = extractvalue  {i32, i32, i32} %asm, 0
+  store i32 %asmresult0, i32 addrspace(1)* undef
+  %asmresult1 = extractvalue  {i32, i32, i32} %asm, 1
+  store i32 %asmresult1, i32 addrspace(1)* undef
+  %asmresult2 = extractvalue  {i32, i32, i32} %asm, 2
+  store i32 %asmresult2, i32 addrspace(1)* undef
+  ret void
+}
+
+define i32 @test_sgpr_to_vgpr_move_matching_constraint() nounwind {
+  ; CHECK-LABEL: name: test_sgpr_to_vgpr_move_matching_constraint
+  ; CHECK: bb.1.entry:
+  ; CHECK:   liveins: $sgpr30_sgpr31
+  ; CHECK:   [[COPY:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK:   INLINEASM &"s_mov_b32 $0, 7", 0 /* attdialect */, 1966090 /* regdef:SReg_32 */, def %1
+  ; CHECK:   [[COPY1:%[0-9]+]]:_(s32) = COPY %1
+  ; CHECK:   [[COPY2:%[0-9]+]]:vgpr_32 = COPY [[COPY1]](s32)
+  ; CHECK:   INLINEASM &"v_mov_b32 $0, $1", 0 /* attdialect */, 1835018 /* regdef:VGPR_32 */, def %3, 2147483657 /* reguse tiedto:$0 */, [[COPY2]](tied-def 3)
+  ; CHECK:   [[COPY3:%[0-9]+]]:_(s32) = COPY %3
+  ; CHECK:   $vgpr0 = COPY [[COPY3]](s32)
+  ; CHECK:   [[COPY4:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY]]
+  ; CHECK:   S_SETPC_B64_return [[COPY4]], implicit $vgpr0
+entry:
+  %asm0 = tail call i32 asm "s_mov_b32 $0, 7", "=s"() nounwind
+  %asm1 = tail call i32 asm "v_mov_b32 $0, $1", "=v,0"(i32 %asm0) nounwind
+  ret i32 %asm1
+}
+
+define amdgpu_kernel void @asm_constraint_n_n()  {
+  ; CHECK-LABEL: name: asm_constraint_n_n
+  ; CHECK: bb.1 (%ir-block.0):
+  ; CHECK:   INLINEASM &"s_trap ${0:n}", 1 /* sideeffect attdialect */, 13 /* imm */, 10
+  ; CHECK:   S_ENDPGM 0
+  tail call void asm sideeffect "s_trap ${0:n}", "n"(i32 10) #1
+  ret void
 }
 
 !0 = !{i32 70}

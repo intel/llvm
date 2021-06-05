@@ -950,6 +950,20 @@ namespace dynamic_alloc {
     p = new ((std::align_val_t)n) char[n];
     p = new char(n);
   }
+
+  namespace PR47143 {
+    constexpr char *f(int n) {
+      return new char[n]();
+    }
+    const char *p = f(3);
+    constexpr bool test() {
+      char *p = f(3);
+      bool result = !p[0] && !p[1] && !p[2];
+      delete [] p;
+      return result;
+    }
+    static_assert(test());
+  }
 }
 
 struct placement_new_arg {};
@@ -1047,9 +1061,10 @@ namespace memory_leaks {
   static_assert(h({new bool(true)})); // ok
 }
 
-void *operator new(std::size_t, void*);
+constexpr void *operator new(std::size_t, void *p) { return p; }
 namespace std {
   template<typename T> constexpr T *construct(T *p) { return new (p) T; }
+  template<typename T> constexpr void destroy(T *p) { p->~T(); }
 }
 
 namespace dtor_call {
@@ -1400,4 +1415,35 @@ namespace PR45350 {
   //   In the case of an array, the elements will be destroyed in order of
   //   decreasing address
   static_assert(f(6) == 543210);
+}
+
+namespace PR47805 {
+  struct A {
+    bool bad = true;
+    constexpr ~A() { if (bad) throw; }
+  };
+  constexpr bool f(A a) { a.bad = false; return true; }
+  constexpr bool b = f(A());
+
+  struct B { B *p = this; };
+  constexpr bool g(B b) { return &b == b.p; }
+  static_assert(g({}));
+}
+
+constexpr bool destroy_at_test() {
+  int n = 0;
+  std::destroy(&n);
+  std::construct(&n);
+  return true;
+}
+static_assert(destroy_at_test());
+
+namespace PR48582 {
+  struct S {
+    void *p = this;
+    constexpr S() {}
+    constexpr S(const S&) {}
+  };
+  constexpr bool b = [a = S(), b = S()] { return a.p == b.p; }();
+  static_assert(!b);
 }

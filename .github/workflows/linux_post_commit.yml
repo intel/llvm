@@ -6,7 +6,8 @@ on:
       - sycl
 jobs:
    check:
-     runs-on: ubuntu-latest
+     runs-on: ubuntu-18.04
+     if: github.repository == 'intel/llvm'
      strategy:
        fail-fast: false
        matrix:
@@ -26,7 +27,13 @@ jobs:
                  export ARGS=""
                  ;;
              SharedLibs)
+                 wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+                 sudo add-apt-repository "deb http://apt.llvm.org/bionic/   llvm-toolchain-bionic-12 main"
+                 sudo apt-get update
+                 sudo apt-get install -y clang-12
                  export ARGS="--shared-libs"
+                 export CC="clang-12"
+                 export CXX="clang++-12"
                  ;;
              NoAssertions)
                  export ARGS="--no-assertions"

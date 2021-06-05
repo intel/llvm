@@ -1,11 +1,11 @@
 add_llvm_library(LLVMSPIRVLib
+  LLVMSPIRVOpts.cpp
   LLVMToSPIRVDbgTran.cpp
   Mangler/FunctionDescriptor.cpp
   Mangler/Mangler.cpp
   Mangler/ManglingUtils.cpp
   Mangler/ParameterType.cpp
-  OCL20ToSPIRV.cpp
-  OCL21ToSPIRV.cpp
+  OCLToSPIRV.cpp
   OCLTypeToSPIRV.cpp
   OCLUtil.cpp
   VectorComputeUtil.cpp

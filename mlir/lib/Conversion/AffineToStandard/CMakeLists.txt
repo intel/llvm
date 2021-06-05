@@ -11,10 +11,11 @@ add_mlir_conversion_library(MLIRAffineToStandard
   Core
 
   LINK_LIBS PUBLIC
-  MLIRAffineOps
+  MLIRAffine
+  MLIRMemRef
   MLIRSCF
   MLIRPass
-  MLIRStandardOps
+  MLIRStandard
   MLIRTransforms
   MLIRIR
   )

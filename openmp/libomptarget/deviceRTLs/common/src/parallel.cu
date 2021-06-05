@@ -31,164 +31,10 @@
 //    To make a long story short...
 //
 //===----------------------------------------------------------------------===//
+#pragma omp declare target
 
 #include "common/omptarget.h"
 #include "target_impl.h"
-
-typedef struct ConvergentSimdJob {
-  omptarget_nvptx_TaskDescr taskDescr;
-  omptarget_nvptx_TaskDescr *convHeadTaskDescr;
-  uint16_t slimForNextSimd;
-} ConvergentSimdJob;
-
-////////////////////////////////////////////////////////////////////////////////
-// support for convergent simd (team of threads in a warp only)
-////////////////////////////////////////////////////////////////////////////////
-EXTERN bool __kmpc_kernel_convergent_simd(void *buffer,
-                                          __kmpc_impl_lanemask_t Mask,
-                                          bool *IsFinal, int32_t *LaneSource,
-                                          int32_t *LaneId, int32_t *NumLanes) {
-  PRINT0(LD_IO, "call to __kmpc_kernel_convergent_simd\n");
-  __kmpc_impl_lanemask_t ConvergentMask = Mask;
-  int32_t ConvergentSize = __kmpc_impl_popc(ConvergentMask);
-  __kmpc_impl_lanemask_t WorkRemaining = ConvergentMask >> (*LaneSource + 1);
-  *LaneSource += __kmpc_impl_ffs(WorkRemaining);
-  *IsFinal = __kmpc_impl_popc(WorkRemaining) == 1;
-  __kmpc_impl_lanemask_t lanemask_lt = __kmpc_impl_lanemask_lt();
-  *LaneId = __kmpc_impl_popc(ConvergentMask & lanemask_lt);
-
-  int threadId = GetLogicalThreadIdInBlock(isSPMDMode());
-  int sourceThreadId = (threadId & ~(WARPSIZE - 1)) + *LaneSource;
-
-  ConvergentSimdJob *job = (ConvergentSimdJob *)buffer;
-  int32_t SimdLimit =
-      omptarget_nvptx_threadPrivateContext->SimdLimitForNextSimd(threadId);
-  job->slimForNextSimd = SimdLimit;
-
-  int32_t SimdLimitSource = __kmpc_impl_shfl_sync(Mask, SimdLimit, *LaneSource);
-  // reset simdlimit to avoid propagating to successive #simd
-  if (SimdLimitSource > 0 && threadId == sourceThreadId)
-    omptarget_nvptx_threadPrivateContext->SimdLimitForNextSimd(threadId) = 0;
-
-  // We cannot have more than the # of convergent threads.
-  if (SimdLimitSource > 0)
-    *NumLanes = __kmpc_impl_min(ConvergentSize, SimdLimitSource);
-  else
-    *NumLanes = ConvergentSize;
-  ASSERT(LT_FUSSY, *NumLanes > 0, "bad thread request of %d threads",
-         (int)*NumLanes);
-
-  // Set to true for lanes participating in the simd region.
-  bool isActive = false;
-  // Initialize state for active threads.
-  if (*LaneId < *NumLanes) {
-    omptarget_nvptx_TaskDescr *currTaskDescr =
-        omptarget_nvptx_threadPrivateContext->GetTopLevelTaskDescr(threadId);
-    omptarget_nvptx_TaskDescr *sourceTaskDescr =
-        omptarget_nvptx_threadPrivateContext->GetTopLevelTaskDescr(
-            sourceThreadId);
-    job->convHeadTaskDescr = currTaskDescr;
-    // install top descriptor from the thread for which the lanes are working.
-    omptarget_nvptx_threadPrivateContext->SetTopLevelTaskDescr(threadId,
-                                                               sourceTaskDescr);
-    isActive = true;
-  }
-
-  // requires a memory fence between threads of a warp
-  return isActive;
-}
-
-EXTERN void __kmpc_kernel_end_convergent_simd(void *buffer) {
-  PRINT0(LD_IO | LD_PAR, "call to __kmpc_kernel_end_convergent_parallel\n");
-  // pop stack
-  int threadId = GetLogicalThreadIdInBlock(isSPMDMode());
-  ConvergentSimdJob *job = (ConvergentSimdJob *)buffer;
-  omptarget_nvptx_threadPrivateContext->SimdLimitForNextSimd(threadId) =
-      job->slimForNextSimd;
-  omptarget_nvptx_threadPrivateContext->SetTopLevelTaskDescr(
-      threadId, job->convHeadTaskDescr);
-}
-
-typedef struct ConvergentParallelJob {
-  omptarget_nvptx_TaskDescr taskDescr;
-  omptarget_nvptx_TaskDescr *convHeadTaskDescr;
-  uint16_t tnumForNextPar;
-} ConvergentParallelJob;
-
-////////////////////////////////////////////////////////////////////////////////
-// support for convergent parallelism (team of threads in a warp only)
-////////////////////////////////////////////////////////////////////////////////
-EXTERN bool __kmpc_kernel_convergent_parallel(void *buffer,
-                                              __kmpc_impl_lanemask_t Mask,
-                                              bool *IsFinal,
-                                              int32_t *LaneSource) {
-  PRINT0(LD_IO, "call to __kmpc_kernel_convergent_parallel\n");
-  __kmpc_impl_lanemask_t ConvergentMask = Mask;
-  int32_t ConvergentSize = __kmpc_impl_popc(ConvergentMask);
-  __kmpc_impl_lanemask_t WorkRemaining = ConvergentMask >> (*LaneSource + 1);
-  *LaneSource += __kmpc_impl_ffs(WorkRemaining);
-  *IsFinal = __kmpc_impl_popc(WorkRemaining) == 1;
-  __kmpc_impl_lanemask_t lanemask_lt = __kmpc_impl_lanemask_lt();
-  uint32_t OmpId = __kmpc_impl_popc(ConvergentMask & lanemask_lt);
-
-  int threadId = GetLogicalThreadIdInBlock(isSPMDMode());
-  int sourceThreadId = (threadId & ~(WARPSIZE - 1)) + *LaneSource;
-
-  ConvergentParallelJob *job = (ConvergentParallelJob *)buffer;
-  int32_t NumThreadsClause =
-      omptarget_nvptx_threadPrivateContext->NumThreadsForNextParallel(threadId);
-  job->tnumForNextPar = NumThreadsClause;
-
-  int32_t NumThreadsSource =
-      __kmpc_impl_shfl_sync(Mask, NumThreadsClause, *LaneSource);
-  // reset numthreads to avoid propagating to successive #parallel
-  if (NumThreadsSource > 0 && threadId == sourceThreadId)
-    omptarget_nvptx_threadPrivateContext->NumThreadsForNextParallel(threadId) =
-        0;
-
-  // We cannot have more than the # of convergent threads.
-  uint16_t NumThreads;
-  if (NumThreadsSource > 0)
-    NumThreads = __kmpc_impl_min(ConvergentSize, NumThreadsSource);
-  else
-    NumThreads = ConvergentSize;
-  ASSERT(LT_FUSSY, NumThreads > 0, "bad thread request of %d threads",
-         (int)NumThreads);
-
-  // Set to true for workers participating in the parallel region.
-  bool isActive = false;
-  // Initialize state for active threads.
-  if (OmpId < NumThreads) {
-    // init L2 task descriptor and storage for the L1 parallel task descriptor.
-    omptarget_nvptx_TaskDescr *newTaskDescr = &job->taskDescr;
-    ASSERT0(LT_FUSSY, newTaskDescr, "expected a task descr");
-    omptarget_nvptx_TaskDescr *currTaskDescr =
-        omptarget_nvptx_threadPrivateContext->GetTopLevelTaskDescr(threadId);
-    omptarget_nvptx_TaskDescr *sourceTaskDescr =
-        omptarget_nvptx_threadPrivateContext->GetTopLevelTaskDescr(
-            sourceThreadId);
-    job->convHeadTaskDescr = currTaskDescr;
-    newTaskDescr->CopyConvergentParent(sourceTaskDescr, OmpId, NumThreads);
-    // install new top descriptor
-    omptarget_nvptx_threadPrivateContext->SetTopLevelTaskDescr(threadId,
-                                                               newTaskDescr);
-    isActive = true;
-  }
-
-  // requires a memory fence between threads of a warp
-  return isActive;
-}
-
-EXTERN void __kmpc_kernel_end_convergent_parallel(void *buffer) {
-  PRINT0(LD_IO | LD_PAR, "call to __kmpc_kernel_end_convergent_parallel\n");
-  // pop stack
-  int threadId = GetLogicalThreadIdInBlock(isSPMDMode());
-  ConvergentParallelJob *job = (ConvergentParallelJob *)buffer;
-  omptarget_nvptx_threadPrivateContext->SetTopLevelTaskDescr(
-      threadId, job->convHeadTaskDescr);
-  omptarget_nvptx_threadPrivateContext->NumThreadsForNextParallel(threadId) =
-      job->tnumForNextPar;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // support for parallel that goes parallel (1 static level only)
@@ -227,10 +73,8 @@ INLINE static uint16_t determineNumberOfThreads(uint16_t NumThreadsClause,
 }
 
 // This routine is always called by the team master..
-EXTERN void __kmpc_kernel_prepare_parallel(void *WorkFn,
-                                           int16_t IsOMPRuntimeInitialized) {
+EXTERN void __kmpc_kernel_prepare_parallel(void *WorkFn) {
   PRINT0(LD_IO, "call to __kmpc_kernel_prepare_parallel\n");
-  ASSERT0(LT_FUSSY, IsOMPRuntimeInitialized, "Expected initialized runtime.");
 
   omptarget_nvptx_workFn = WorkFn;
 
@@ -275,11 +119,8 @@ EXTERN void __kmpc_kernel_prepare_parallel(void *WorkFn,
 // returns True if this thread is active, else False.
 //
 // Only the worker threads call this routine.
-EXTERN bool __kmpc_kernel_parallel(void **WorkFn,
-                                   int16_t IsOMPRuntimeInitialized) {
+EXTERN bool __kmpc_kernel_parallel(void **WorkFn) {
   PRINT0(LD_IO | LD_PAR, "call to __kmpc_kernel_parallel\n");
-
-  ASSERT0(LT_FUSSY, IsOMPRuntimeInitialized, "Expected initialized runtime.");
 
   // Work function and arguments for L1 parallel region.
   *WorkFn = omptarget_nvptx_workFn;
@@ -313,16 +154,6 @@ EXTERN bool __kmpc_kernel_parallel(void **WorkFn,
           (int)newTaskDescr->ThreadId(), (int)nThreads);
 
     isActive = true;
-    // Reconverge the threads at the end of the parallel region to correctly
-    // handle parallel levels.
-    // In Cuda9+ in non-SPMD mode we have either 1 worker thread or the whole
-    // warp. If only 1 thread is active, not need to reconverge the threads.
-    // If we have the whole warp, reconverge all the threads in the warp before
-    // actually trying to change the parallel level. Otherwise, parallel level
-    // can be changed incorrectly because of threads divergence.
-    bool IsActiveParallelRegion = threadsInTeam != 1;
-    IncParallelLevel(IsActiveParallelRegion,
-                     IsActiveParallelRegion ? __kmpc_impl_all_lanes : 1u);
   }
 
   return isActive;
@@ -339,17 +170,6 @@ EXTERN void __kmpc_kernel_end_parallel() {
   omptarget_nvptx_TaskDescr *currTaskDescr = getMyTopTaskDescriptor(threadId);
   omptarget_nvptx_threadPrivateContext->SetTopLevelTaskDescr(
       threadId, currTaskDescr->GetPrevTaskDescr());
-
-  // Reconverge the threads at the end of the parallel region to correctly
-  // handle parallel levels.
-  // In Cuda9+ in non-SPMD mode we have either 1 worker thread or the whole
-  // warp. If only 1 thread is active, not need to reconverge the threads.
-  // If we have the whole warp, reconverge all the threads in the warp before
-  // actually trying to change the parallel level. Otherwise, parallel level can
-  // be changed incorrectly because of threads divergence.
-    bool IsActiveParallelRegion = threadsInTeam != 1;
-    DecParallelLevel(IsActiveParallelRegion,
-                     IsActiveParallelRegion ? __kmpc_impl_all_lanes : 1u);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -440,18 +260,11 @@ EXTERN int32_t __kmpc_global_thread_num(kmp_Ident *loc) {
 EXTERN void __kmpc_push_num_threads(kmp_Ident *loc, int32_t tid,
                                     int32_t num_threads) {
   PRINT(LD_IO, "call kmpc_push_num_threads %d\n", num_threads);
-  ASSERT0(LT_FUSSY, checkRuntimeInitialized(loc), "Runtime must be initialized.");
+  ASSERT0(LT_FUSSY, checkRuntimeInitialized(loc),
+          "Runtime must be initialized.");
   tid = GetLogicalThreadIdInBlock(checkSPMDMode(loc));
   omptarget_nvptx_threadPrivateContext->NumThreadsForNextParallel(tid) =
       num_threads;
-}
-
-EXTERN void __kmpc_push_simd_limit(kmp_Ident *loc, int32_t tid,
-                                   int32_t simd_limit) {
-  PRINT(LD_IO, "call kmpc_push_simd_limit %d\n", (int)simd_limit);
-  ASSERT0(LT_FUSSY, checkRuntimeInitialized(loc), "Runtime must be initialized.");
-  tid = GetLogicalThreadIdInBlock(checkSPMDMode(loc));
-  omptarget_nvptx_threadPrivateContext->SimdLimitForNextSimd(tid) = simd_limit;
 }
 
 // Do nothing. The host guarantees we started the requested number of
@@ -460,11 +273,86 @@ EXTERN void __kmpc_push_simd_limit(kmp_Ident *loc, int32_t tid,
 EXTERN void __kmpc_push_num_teams(kmp_Ident *loc, int32_t tid,
                                   int32_t num_teams, int32_t thread_limit) {
   PRINT(LD_IO, "call kmpc_push_num_teams %d\n", (int)num_teams);
-  ASSERT0(LT_FUSSY, 0,
-          "should never have anything with new teams on device");
+  ASSERT0(LT_FUSSY, 0, "should never have anything with new teams on device");
 }
 
-EXTERN void __kmpc_push_proc_bind(kmp_Ident *loc, uint32_t tid,
-                                  int proc_bind) {
+EXTERN void __kmpc_push_proc_bind(kmp_Ident *loc, uint32_t tid, int proc_bind) {
   PRINT(LD_IO, "call kmpc_push_proc_bind %d\n", (int)proc_bind);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// parallel interface
+////////////////////////////////////////////////////////////////////////////////
+
+EXTERN void __kmpc_parallel_51(kmp_Ident *ident, kmp_int32 global_tid,
+                               kmp_int32 if_expr, kmp_int32 num_threads,
+                               int proc_bind, void *fn, void *wrapper_fn,
+                               void **args, size_t nargs) {
+
+  // Handle the serialized case first, same for SPMD/non-SPMD except that in
+  // SPMD mode we already incremented the parallel level counter, account for
+  // that.
+  bool InParallelRegion =
+      (__kmpc_parallel_level(ident, global_tid) > __kmpc_is_spmd_exec_mode());
+  if (!if_expr || InParallelRegion) {
+    __kmpc_serialized_parallel(ident, global_tid);
+    __kmp_invoke_microtask(global_tid, 0, fn, args, nargs);
+    __kmpc_end_serialized_parallel(ident, global_tid);
+    return;
+  }
+
+  if (__kmpc_is_spmd_exec_mode()) {
+    __kmp_invoke_microtask(global_tid, 0, fn, args, nargs);
+    return;
+  }
+
+  // Handle the num_threads clause.
+  if (num_threads != -1)
+    __kmpc_push_num_threads(ident, global_tid, num_threads);
+
+  __kmpc_kernel_prepare_parallel((void *)wrapper_fn);
+
+  if (nargs) {
+    void **GlobalArgs;
+    __kmpc_begin_sharing_variables(&GlobalArgs, nargs);
+    // TODO: faster memcpy?
+    for (int I = 0; I < nargs; I++)
+      GlobalArgs[I] = args[I];
+  }
+
+  // TODO: what if that's a parallel region with a single thread? this is
+  // considered not active in the existing implementation.
+  bool IsActiveParallelRegion = threadsInTeam != 1;
+  int NumWarps =
+      threadsInTeam / WARPSIZE + ((threadsInTeam % WARPSIZE) ? 1 : 0);
+  // Increment parallel level for non-SPMD warps.
+  for (int I = 0; I < NumWarps; ++I)
+    parallelLevel[I] +=
+        (1 + (IsActiveParallelRegion ? OMP_ACTIVE_PARALLEL_LEVEL : 0));
+
+  // Master signals work to activate workers.
+  __kmpc_barrier_simple_spmd(nullptr, 0);
+
+  // OpenMP [2.5, Parallel Construct, p.49]
+  // There is an implied barrier at the end of a parallel region. After the
+  // end of a parallel region, only the master thread of the team resumes
+  // execution of the enclosing task region.
+  //
+  // The master waits at this barrier until all workers are done.
+  __kmpc_barrier_simple_spmd(nullptr, 0);
+
+  // Decrement parallel level for non-SPMD warps.
+  for (int I = 0; I < NumWarps; ++I)
+    parallelLevel[I] -=
+        (1 + (IsActiveParallelRegion ? OMP_ACTIVE_PARALLEL_LEVEL : 0));
+  // TODO: Is synchronization needed since out of parallel execution?
+
+  if (nargs)
+    __kmpc_end_sharing_variables();
+
+  // TODO: proc_bind is a noop?
+  // if (proc_bind != proc_bind_default)
+  //  __kmpc_push_proc_bind(ident, global_tid, proc_bind);
+}
+
+#pragma omp end declare target

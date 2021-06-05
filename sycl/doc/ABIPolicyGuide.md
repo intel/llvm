@@ -87,12 +87,22 @@ There is a set of tests to help identifying ABI changes:
   Please, prefer updating the test files with the above command. The checker
   script automatically sorts symbols. This would allow developers to avoid
   large diffs and help maintainers identify the nature of ABI changes.
-* `test/abi/layout*` and `test/abi/symbol_size*` are a group of tests to check
-  the internal layout of some classes. The `layout*` tests check some of API
-  classes for layout changes, while `symbol_size` only checks `sizeof` for API
-  classes. Changing the class layout is a breaking change.
+* `test/abi/layout*` and `test/abi/symbol_size_alignment.cpp` are a group of 
+  tests to check the internal layout of some classes. The `layout*` tests check 
+  some of API classes for layout changes, while `symbol_size_alignment` only 
+  checks `sizeof` and `alignof` for API classes. Changing the class layout is a 
+  breaking change.
 
-## Breaking ABI
+## Changing ABI
+
+**Note (October, 2020)**: DPC++ runtime and compiler ABI is currently in frozen
+state. This means that no ABI-breaking changes will be accepted by default.
+Project maintainers may still approve breaking changes in some cases. Please,
+try to avoid any breaking changes until freeze is lifted. If you need to change
+existing functionality, consider adding new APIs instead of replacing them.
+Also, please, avoid any changes, mentioned in the [Intro](#intro) section as
+breaking. Refer to the above guide to distinguish breaking and non-breaking
+changes. If not sure, do not hesitate to ask code owners for help.
 
 Whenever you need to change the existing ABI, please, follow these steps:
 
@@ -100,5 +110,12 @@ Whenever you need to change the existing ABI, please, follow these steps:
    it is clear, why breaking ABI is necessary.
 2. Fix failing ABI tests in your Pull Request. Use aforementioned techniques to
    update test files.
-3. If Pull Request introduces a breaking change, update the library version
-   according to the policies.
+3. ~~If Pull Request introduces a breaking change, update the library version~~
+   ~~according to the policies.~~ **(See note above)**
+
+## BKMs on avoiding changing ABI
+
+1. If there is a need to add a new field in `sycl::handler` or/and
+   `sycl::detail::CG` classes it can be done without breaking ABI using the
+   approach described in the comment at the beggining of
+   [cg.hpp](../include/CL/sycl/detail/cg.hpp)

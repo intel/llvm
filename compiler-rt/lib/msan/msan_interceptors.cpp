@@ -827,7 +827,7 @@ INTERCEPTOR(int, prlimit64, int pid, int resource, void *new_rlimit,
 INTERCEPTOR(int, gethostname, char *name, SIZE_T len) {
   ENSURE_MSAN_INITED();
   int res = REAL(gethostname)(name, len);
-  if (!res) {
+  if (!res || (res == -1 && errno == errno_ENAMETOOLONG)) {
     SIZE_T real_len = REAL(strnlen)(name, len);
     if (real_len < len)
       ++real_len;
@@ -1245,10 +1245,10 @@ int OnExit() {
       CHECK_UNPOISONED_0(x, n);                                 \
   } while (0)
 
-#define MSAN_INTERCEPT_FUNC(name)                                        \
-  do {                                                                   \
-    if (!INTERCEPT_FUNCTION(name))                                       \
-      VReport(1, "MemorySanitizer: failed to intercept '%s'\n'", #name); \
+#define MSAN_INTERCEPT_FUNC(name)                                       \
+  do {                                                                  \
+    if (!INTERCEPT_FUNCTION(name))                                      \
+      VReport(1, "MemorySanitizer: failed to intercept '%s'\n", #name); \
   } while (0)
 
 #define MSAN_INTERCEPT_FUNC_VER(name, ver)                                 \
@@ -1257,10 +1257,18 @@ int OnExit() {
       VReport(1, "MemorySanitizer: failed to intercept '%s@@%s'\n", #name, \
               #ver);                                                       \
   } while (0)
+#define MSAN_INTERCEPT_FUNC_VER_UNVERSIONED_FALLBACK(name, ver)             \
+  do {                                                                      \
+    if (!INTERCEPT_FUNCTION_VER(name, ver) && !INTERCEPT_FUNCTION(name))    \
+      VReport(1, "MemorySanitizer: failed to intercept '%s@@%s' or '%s'\n", \
+              #name, #ver, #name);                                          \
+  } while (0)
 
 #define COMMON_INTERCEPT_FUNCTION(name) MSAN_INTERCEPT_FUNC(name)
-#define COMMON_INTERCEPT_FUNCTION_VER(name, ver)                          \
+#define COMMON_INTERCEPT_FUNCTION_VER(name, ver) \
   MSAN_INTERCEPT_FUNC_VER(name, ver)
+#define COMMON_INTERCEPT_FUNCTION_VER_UNVERSIONED_FALLBACK(name, ver) \
+  MSAN_INTERCEPT_FUNC_VER_UNVERSIONED_FALLBACK(name, ver)
 #define COMMON_INTERCEPTOR_UNPOISON_PARAM(count)  \
   UnpoisonParam(count)
 #define COMMON_INTERCEPTOR_WRITE_RANGE(ctx, ptr, size) \

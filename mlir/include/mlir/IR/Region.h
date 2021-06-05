@@ -16,6 +16,9 @@
 #include "mlir/IR/Block.h"
 
 namespace mlir {
+class TypeRange;
+template <typename ValueRangeT>
+class ValueTypeRange;
 class BlockAndValueMapping;
 
 /// This class contains a list of basic blocks and a link to the parent
@@ -40,6 +43,10 @@ public:
 
   using BlockListType = llvm::iplist<Block>;
   BlockListType &getBlocks() { return blocks; }
+  Block &emplaceBlock() {
+    push_back(new Block);
+    return back();
+  }
 
   // Iteration over the blocks in the region.
   using iterator = BlockListType::iterator;
@@ -61,6 +68,51 @@ public:
   static BlockListType Region::*getSublistAccess(Block *) {
     return &Region::blocks;
   }
+
+  //===--------------------------------------------------------------------===//
+  // Argument Handling
+  //===--------------------------------------------------------------------===//
+
+  // This is the list of arguments to the block.
+  using BlockArgListType = MutableArrayRef<BlockArgument>;
+  BlockArgListType getArguments() {
+    return empty() ? BlockArgListType() : front().getArguments();
+  }
+
+  ValueTypeRange<BlockArgListType> getArgumentTypes();
+
+  using args_iterator = BlockArgListType::iterator;
+  using reverse_args_iterator = BlockArgListType::reverse_iterator;
+  args_iterator args_begin() { return getArguments().begin(); }
+  args_iterator args_end() { return getArguments().end(); }
+  reverse_args_iterator args_rbegin() { return getArguments().rbegin(); }
+  reverse_args_iterator args_rend() { return getArguments().rend(); }
+
+  bool args_empty() { return getArguments().empty(); }
+
+  /// Add one value to the argument list.
+  BlockArgument addArgument(Type type) { return front().addArgument(type); }
+
+  /// Insert one value to the position in the argument list indicated by the
+  /// given iterator. The existing arguments are shifted. The block is expected
+  /// not to have predecessors.
+  BlockArgument insertArgument(args_iterator it, Type type) {
+    return front().insertArgument(it, type);
+  }
+
+  /// Add one argument to the argument list for each type specified in the list.
+  iterator_range<args_iterator> addArguments(TypeRange types);
+
+  /// Add one value to the argument list at the specified position.
+  BlockArgument insertArgument(unsigned index, Type type) {
+    return front().insertArgument(index, type);
+  }
+
+  /// Erase the argument at 'index' and remove it from the argument list.
+  void eraseArgument(unsigned index) { front().eraseArgument(index); }
+
+  unsigned getNumArguments() { return getArguments().size(); }
+  BlockArgument getArgument(unsigned i) { return getArguments()[i]; }
 
   //===--------------------------------------------------------------------===//
   // Operation list utilities
@@ -194,24 +246,40 @@ public:
   // Operation Walkers
   //===--------------------------------------------------------------------===//
 
-  /// Walk the operations in this region in postorder, calling the callback for
-  /// each operation. This method is invoked for void-returning callbacks.
-  /// See Operation::walk for more details.
-  template <typename FnT, typename RetT = detail::walkResultType<FnT>>
+  /// Walk the operations in this region. The callback method is called for each
+  /// nested region, block or operation, depending on the callback provided.
+  /// Regions, blocks and operations at the same nesting level are visited in
+  /// lexicographical order. The walk order for enclosing regions, blocks and
+  /// operations with respect to their nested ones is specified by 'Order'
+  /// (post-order by default). This method is invoked for void-returning
+  /// callbacks. A callback on a block or operation is allowed to erase that
+  /// block or operation only if the walk is in post-order. See non-void method
+  /// for pre-order erasure. See Operation::walk for more details.
+  template <WalkOrder Order = WalkOrder::PostOrder, typename FnT,
+            typename RetT = detail::walkResultType<FnT>>
   typename std::enable_if<std::is_same<RetT, void>::value, RetT>::type
   walk(FnT &&callback) {
     for (auto &block : *this)
-      block.walk(callback);
+      block.walk<Order>(callback);
   }
 
-  /// Walk the operations in this region in postorder, calling the callback for
-  /// each operation. This method is invoked for interruptible callbacks.
+  /// Walk the operations in this region. The callback method is called for each
+  /// nested region, block or operation, depending on the callback provided.
+  /// Regions, blocks and operations at the same nesting level are visited in
+  /// lexicographical order. The walk order for enclosing regions, blocks and
+  /// operations with respect to their nested ones is specified by 'Order'
+  /// (post-order by default). This method is invoked for skippable or
+  /// interruptible callbacks. A callback on a block or operation is allowed to
+  /// erase that block or operation if either:
+  ///   * the walk is in post-order,
+  ///   * or the walk is in pre-order and the walk is skipped after the erasure.
   /// See Operation::walk for more details.
-  template <typename FnT, typename RetT = detail::walkResultType<FnT>>
+  template <WalkOrder Order = WalkOrder::PostOrder, typename FnT,
+            typename RetT = detail::walkResultType<FnT>>
   typename std::enable_if<std::is_same<RetT, WalkResult>::value, RetT>::type
   walk(FnT &&callback) {
     for (auto &block : *this)
-      if (block.walk(callback).wasInterrupted())
+      if (block.walk<Order>(callback).wasInterrupted())
         return WalkResult::interrupt();
     return WalkResult::advance();
   }

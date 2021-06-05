@@ -5,6 +5,7 @@
 #include <isl_morph.h>
 #include <isl/polynomial.h>
 #include <isl_reordering.h>
+#include "isl_list_private.h"
 
 struct isl_poly {
 	int ref;
@@ -39,6 +40,11 @@ struct isl_qpolynomial {
 	struct isl_mat *div;
 	isl_poly *poly;
 };
+
+#undef EL
+#define EL isl_qpolynomial
+
+#include <isl_list_templ.h>
 
 struct isl_term {
 	int ref;
@@ -86,10 +92,7 @@ struct isl_qpolynomial_fold {
 	enum isl_fold type;
 	isl_space *dim;
 
-	int n;
-
-	size_t size;
-	struct isl_qpolynomial *qp[1];
+	isl_qpolynomial_list *list;
 };
 
 struct isl_pw_qpolynomial_fold_piece {
@@ -146,11 +149,13 @@ __isl_give isl_qpolynomial *isl_qpolynomial_alloc(__isl_take isl_space *space,
 __isl_give isl_qpolynomial *isl_qpolynomial_cow(__isl_take isl_qpolynomial *qp);
 __isl_give isl_qpolynomial *isl_qpolynomial_dup(__isl_keep isl_qpolynomial *qp);
 
-__isl_give isl_qpolynomial *isl_qpolynomial_cst_on_domain(__isl_take isl_space *dim,
+__isl_give isl_qpolynomial *isl_qpolynomial_cst_on_domain(
+	__isl_take isl_space *domain,
 	isl_int v);
 __isl_give isl_qpolynomial *isl_qpolynomial_rat_cst_on_domain(
-	__isl_take isl_space *space, const isl_int n, const isl_int d);
-__isl_give isl_qpolynomial *isl_qpolynomial_var_pow_on_domain(__isl_take isl_space *dim,
+	__isl_take isl_space *domain, const isl_int n, const isl_int d);
+__isl_give isl_qpolynomial *isl_qpolynomial_var_pow_on_domain(
+	__isl_take isl_space *domain,
 	int pos, int power);
 isl_bool isl_qpolynomial_is_one(__isl_keep isl_qpolynomial *qp);
 isl_bool isl_qpolynomial_is_affine(__isl_keep isl_qpolynomial *qp);
@@ -200,6 +205,9 @@ __isl_give isl_qpolynomial_fold *isl_qpolynomial_fold_cow(
 __isl_give isl_qpolynomial_fold *isl_qpolynomial_fold_dup(
 	__isl_keep isl_qpolynomial_fold *fold);
 
+__isl_keep isl_qpolynomial_list *isl_qpolynomial_fold_peek_list(
+	__isl_keep isl_qpolynomial_fold *fold);
+
 __isl_give isl_pw_qpolynomial_fold *isl_pw_qpolynomial_fold_cow(
 	__isl_take isl_pw_qpolynomial_fold *pwf);
 
@@ -234,7 +242,7 @@ __isl_give isl_pw_qpolynomial_fold *isl_pw_qpolynomial_fold_morph_domain(
 __isl_give isl_qpolynomial *isl_qpolynomial_lift(__isl_take isl_qpolynomial *qp,
 	__isl_take isl_space *space);
 __isl_give isl_qpolynomial_fold *isl_qpolynomial_fold_lift(
-	__isl_take isl_qpolynomial_fold *fold, __isl_take isl_space *dim);
+	__isl_take isl_qpolynomial_fold *fold, __isl_take isl_space *space);
 
 __isl_give isl_qpolynomial *isl_qpolynomial_substitute_equalities(
 	__isl_take isl_qpolynomial *qp, __isl_take isl_basic_set *eq);
@@ -255,17 +263,17 @@ __isl_give isl_pw_qpolynomial_fold *isl_pw_qpolynomial_fold_realign_domain(
 __isl_give isl_pw_qpolynomial *isl_pw_qpolynomial_reset_space(
 	__isl_take isl_pw_qpolynomial *pwqp, __isl_take isl_space *space);
 __isl_give isl_qpolynomial *isl_qpolynomial_reset_domain_space(
-	__isl_take isl_qpolynomial *qp, __isl_take isl_space *dim);
+	__isl_take isl_qpolynomial *qp, __isl_take isl_space *space);
 __isl_give isl_qpolynomial *isl_qpolynomial_reset_space_and_domain(
 	__isl_take isl_qpolynomial *qp, __isl_take isl_space *space,
 	__isl_take isl_space *domain);
 __isl_give isl_qpolynomial_fold *isl_qpolynomial_fold_reset_domain_space(
-	__isl_take isl_qpolynomial_fold *fold, __isl_take isl_space *dim);
+	__isl_take isl_qpolynomial_fold *fold, __isl_take isl_space *space);
 __isl_give isl_qpolynomial_fold *isl_qpolynomial_fold_reset_space_and_domain(
 	__isl_take isl_qpolynomial_fold *fold, __isl_take isl_space *space,
 	__isl_take isl_space *domain);
 __isl_give isl_pw_qpolynomial_fold *isl_pw_qpolynomial_fold_reset_domain_space(
-	__isl_take isl_pw_qpolynomial_fold *pwf, __isl_take isl_space *dim);
+	__isl_take isl_pw_qpolynomial_fold *pwf, __isl_take isl_space *space);
 
 __isl_give isl_val *isl_qpolynomial_get_den(__isl_keep isl_qpolynomial *qp);
 __isl_give isl_qpolynomial *isl_qpolynomial_add_isl_int(
@@ -287,3 +295,5 @@ __isl_give isl_union_pw_qpolynomial *isl_union_pw_qpolynomial_mul_isl_int(
 __isl_give isl_union_pw_qpolynomial_fold *
 isl_union_pw_qpolynomial_fold_mul_isl_int(
 	__isl_take isl_union_pw_qpolynomial_fold *upwf, isl_int v);
+
+ISL_DECLARE_LIST_FN_PRIVATE(qpolynomial)

@@ -34,6 +34,14 @@ We start by showing you how to construct a pass, everything from setting up the
 code, to compiling, loading, and executing it.  After the basics are down, more
 advanced features are discussed.
 
+.. warning::
+  This document deals with the legacy pass manager. LLVM uses the new pass
+  manager by default for the optimization pipeline (the codegen pipeline is
+  still using the legacy pass manager), which has its own way of defining
+  passes. For more details, see :doc:`WritingAnLLVMNewPMPass` and
+  :doc:`NewPassManager`. To use the legacy pass manager with ``opt``, pass
+  the ``-enable-new-pm=0`` flag to all ``opt`` invocations.
+
 Quick Start --- Writing hello world
 ===================================
 
@@ -916,7 +924,7 @@ be registered with :ref:`RegisterAnalysisGroup
 As a concrete example of an Analysis Group in action, consider the
 `AliasAnalysis <https://llvm.org/doxygen/classllvm_1_1AliasAnalysis.html>`_
 analysis group.  The default implementation of the alias analysis interface
-(the `basicaa <https://llvm.org/doxygen/structBasicAliasAnalysis.html>`_ pass)
+(the `basic-aa <https://llvm.org/doxygen/structBasicAliasAnalysis.html>`_ pass)
 just does a few simple checks that don't require significant analysis to
 compute (such as: two different globals can never alias each other, etc).
 Passes that use the `AliasAnalysis
@@ -926,7 +934,7 @@ care which implementation of alias analysis is actually provided, they just use
 the designated interface.
 
 From the user's perspective, commands work just like normal.  Issuing the
-command ``opt -gvn ...`` will cause the ``basicaa`` class to be instantiated
+command ``opt -gvn ...`` will cause the ``basic-aa`` class to be instantiated
 and added to the pass sequence.  Issuing the command ``opt -somefancyaa -gvn
 ...`` will cause the ``gvn`` pass to use the ``somefancyaa`` alias analysis
 (which doesn't actually exist, it's just a hypothetical example) instead.
@@ -970,7 +978,7 @@ Every implementation of an analysis group should join using this macro.
 
   namespace {
     // Declare that we implement the AliasAnalysis interface
-    INITIALIZE_AG_PASS(BasicAA, AliasAnalysis, "basicaa",
+    INITIALIZE_AG_PASS(BasicAA, AliasAnalysis, "basic-aa",
         "Basic Alias Analysis (default AA impl)",
         false, // Is CFG Only?
         true,  // Is Analysis?

@@ -14,8 +14,6 @@ class TestPtrRefsObjC(TestBase):
     mydir = TestBase.compute_mydir(__file__)
 
     @skipIfAsan # The output looks different under ASAN.
-    @skipUnlessDarwin
-    @expectedFailureAll(oslist=["macosx"], debug_info=["dwarf", "gmodules"], bugnumber="llvm.org/pr45112")
     def test_ptr_refs(self):
         """Test the ptr_refs tool on Darwin with Objective-C"""
         self.build()
@@ -44,6 +42,6 @@ class TestPtrRefsObjC(TestBase):
 
         frame = thread.GetFrameAtIndex(0)
 
-        self.runCmd("script import lldb.macosx.heap")
+        self.runCmd("command script import lldb.macosx.heap")
         self.expect("ptr_refs self", substrs=["malloc", "stack"])
 

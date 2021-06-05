@@ -24,7 +24,6 @@
 namespace llvm {
 
 class MCInst;
-class MCParsedAsmOperand;
 class MCStreamer;
 class MCSubtargetInfo;
 template <typename T> class SmallVectorImpl;
@@ -334,7 +333,7 @@ protected: // Can only create subclasses.
 
   /// SemaCallback - The Sema callback implementation.  Must be set when parsing
   /// ms-style inline assembly.
-  MCAsmParserSemaCallback *SemaCallback;
+  MCAsmParserSemaCallback *SemaCallback = nullptr;
 
   /// Set of options which affects instrumentation of inline assembly.
   MCTargetOptions MCOptions;
@@ -370,7 +369,7 @@ public:
 
   // Target-specific parsing of expression.
   virtual bool parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) {
-    return getParser().parsePrimaryExpr(Res, EndLoc);
+    return getParser().parsePrimaryExpr(Res, EndLoc, nullptr);
   }
 
   virtual bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
@@ -491,6 +490,9 @@ public:
                                               MCContext &Ctx) {
     return nullptr;
   }
+
+  // For any initialization at the beginning of parsing.
+  virtual void onBeginOfFile() {}
 
   // For any checks or cleanups at the end of parsing.
   virtual void onEndOfFile() {}

@@ -46,6 +46,18 @@ Expr<Type<TypeCategory::Logical, KIND>> FoldIntrinsicFunction(
         return Expr<T>{result};
       }
     }
+  } else if (name == "associated") {
+    bool gotConstant{true};
+    const Expr<SomeType> *firstArgExpr{args[0]->UnwrapExpr()};
+    if (!firstArgExpr || !IsNullPointer(*firstArgExpr)) {
+      gotConstant = false;
+    } else if (args[1]) { // There's a second argument
+      const Expr<SomeType> *secondArgExpr{args[1]->UnwrapExpr()};
+      if (!secondArgExpr || !IsNullPointer(*secondArgExpr)) {
+        gotConstant = false;
+      }
+    }
+    return gotConstant ? Expr<T>{false} : Expr<T>{std::move(funcRef)};
   } else if (name == "bge" || name == "bgt" || name == "ble" || name == "blt") {
     using LargestInt = Type<TypeCategory::Integer, 16>;
     static_assert(std::is_same_v<Scalar<LargestInt>, BOZLiteralConstant>);
@@ -77,16 +89,41 @@ Expr<Type<TypeCategory::Logical, KIND>> FoldIntrinsicFunction(
             [&fptr](const Scalar<LargestInt> &i, const Scalar<LargestInt> &j) {
               return Scalar<T>{std::invoke(fptr, i, j)};
             }));
+  } else if (name == "isnan" || name == "__builtin_ieee_is_nan") {
+    // A warning about an invalid argument is discarded from converting
+    // the argument of isnan() / IEEE_IS_NAN().
+    auto restorer{context.messages().DiscardMessages()};
+    using DefaultReal = Type<TypeCategory::Real, 4>;
+    return FoldElementalIntrinsic<T, DefaultReal>(context, std::move(funcRef),
+        ScalarFunc<T, DefaultReal>([](const Scalar<DefaultReal> &x) {
+          return Scalar<T>{x.IsNotANumber()};
+        }));
   } else if (name == "is_contiguous") {
     if (args.at(0)) {
       if (auto *expr{args[0]->UnwrapExpr()}) {
-        if (IsSimplyContiguous(*expr, context.intrinsics())) {
+        if (IsSimplyContiguous(*expr, context)) {
           return Expr<T>{true};
         }
       }
     }
+  } else if (name == "logical") {
+    if (auto *expr{UnwrapExpr<Expr<SomeLogical>>(args[0])}) {
+      return Fold(context, ConvertToType<T>(std::move(*expr)));
+    }
   } else if (name == "merge") {
     return FoldMerge<T>(context, std::move(funcRef));
+  } else if (name == "__builtin_ieee_support_datatype" ||
+      name == "__builtin_ieee_support_denormal" ||
+      name == "__builtin_ieee_support_divide" ||
+      name == "__builtin_ieee_support_divide" ||
+      name == "__builtin_ieee_support_inf" ||
+      name == "__builtin_ieee_support_io" ||
+      name == "__builtin_ieee_support_nan" ||
+      name == "__builtin_ieee_support_sqrt" ||
+      name == "__builtin_ieee_support_standard" ||
+      name == "__builtin_ieee_support_subnormal" ||
+      name == "__builtin_ieee_support_underflow_control") {
+    return Expr<T>{true};
   }
   // TODO: btest, cshift, dot_product, eoshift, is_iostat_end,
   // is_iostat_eor, lge, lgt, lle, llt, logical, matmul, out_of_range,
@@ -113,11 +150,13 @@ Expr<LogicalResult> FoldOperation(
           Satisfies(relation.opr, folded->first.CompareSigned(folded->second));
     } else if constexpr (T::category == TypeCategory::Real) {
       result = Satisfies(relation.opr, folded->first.Compare(folded->second));
+    } else if constexpr (T::category == TypeCategory::Complex) {
+      result = (relation.opr == RelationalOperator::EQ) ==
+          folded->first.Equals(folded->second);
     } else if constexpr (T::category == TypeCategory::Character) {
       result = Satisfies(relation.opr, Compare(folded->first, folded->second));
     } else {
-      static_assert(T::category != TypeCategory::Complex &&
-          T::category != TypeCategory::Logical);
+      static_assert(T::category != TypeCategory::Logical);
     }
     return Expr<LogicalResult>{Constant<LogicalResult>{result}};
   }

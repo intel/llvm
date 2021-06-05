@@ -32,9 +32,6 @@ namespace llvm {
 class raw_ostream;
 }
 
-namespace Fortran::evaluate {
-class IntrinsicProcTable;
-}
 namespace Fortran::evaluate::characteristics {
 struct Procedure;
 }
@@ -45,7 +42,7 @@ namespace Fortran::evaluate::characteristics {
 
 using common::CopyableIndirection;
 
-// Are these procedures distinguishable for a generic name?
+// Are these procedures distinguishable for a generic name or FINAL?
 bool Distinguishable(const Procedure &, const Procedure &);
 // Are these procedures distinguishable for a generic operator or assignment?
 bool DistinguishableOpOrAssign(const Procedure &, const Procedure &);
@@ -78,41 +75,56 @@ public:
 
   bool operator==(const TypeAndShape &) const;
   bool operator!=(const TypeAndShape &that) const { return !(*this == that); }
+
   static std::optional<TypeAndShape> Characterize(
       const semantics::Symbol &, FoldingContext &);
   static std::optional<TypeAndShape> Characterize(
-      const semantics::ObjectEntityDetails &);
+      const semantics::ProcInterface &, FoldingContext &);
   static std::optional<TypeAndShape> Characterize(
-      const semantics::AssocEntityDetails &, FoldingContext &);
+      const semantics::DeclTypeSpec &, FoldingContext &);
   static std::optional<TypeAndShape> Characterize(
-      const semantics::ProcEntityDetails &);
-  static std::optional<TypeAndShape> Characterize(
-      const semantics::ProcInterface &);
-  static std::optional<TypeAndShape> Characterize(
-      const semantics::DeclTypeSpec &);
+      const ActualArgument &, FoldingContext &);
 
+  // Handle Expr<T> & Designator<T>
   template <typename A>
   static std::optional<TypeAndShape> Characterize(
       const A &x, FoldingContext &context) {
-    if (const auto *symbol{UnwrapWholeSymbolDataRef(x)}) {
+    if (const auto *symbol{UnwrapWholeSymbolOrComponentDataRef(x)}) {
       if (auto result{Characterize(*symbol, context)}) {
         return result;
       }
     }
     if (auto type{x.GetType()}) {
-      if (auto shape{GetShape(context, x)}) {
-        TypeAndShape result{*type, std::move(*shape)};
-        if (type->category() == TypeCategory::Character) {
-          if (const auto *chExpr{UnwrapExpr<Expr<SomeCharacter>>(x)}) {
-            if (auto length{chExpr->LEN()}) {
-              result.set_LEN(Expr<SomeInteger>{std::move(*length)});
-            }
+      TypeAndShape result{*type, GetShape(context, x)};
+      if (type->category() == TypeCategory::Character) {
+        if (const auto *chExpr{UnwrapExpr<Expr<SomeCharacter>>(x)}) {
+          if (auto length{chExpr->LEN()}) {
+            result.set_LEN(std::move(*length));
           }
         }
-        return result;
       }
+      return std::move(result.Rewrite(context));
     }
     return std::nullopt;
+  }
+
+  template <typename A>
+  static std::optional<TypeAndShape> Characterize(
+      const std::optional<A> &x, FoldingContext &context) {
+    if (x) {
+      return Characterize(*x, context);
+    } else {
+      return std::nullopt;
+    }
+  }
+  template <typename A>
+  static std::optional<TypeAndShape> Characterize(
+      const A *p, FoldingContext &context) {
+    if (p) {
+      return Characterize(*p, context);
+    } else {
+      return std::nullopt;
+    }
   }
 
   DynamicType type() const { return type_; }
@@ -120,8 +132,8 @@ public:
     type_ = t;
     return *this;
   }
-  const std::optional<Expr<SomeInteger>> &LEN() const { return LEN_; }
-  TypeAndShape &set_LEN(Expr<SomeInteger> &&len) {
+  const std::optional<Expr<SubscriptInteger>> &LEN() const { return LEN_; }
+  TypeAndShape &set_LEN(Expr<SubscriptInteger> &&len) {
     LEN_ = std::move(len);
     return *this;
   }
@@ -131,18 +143,32 @@ public:
 
   int Rank() const { return GetRank(shape_); }
   bool IsCompatibleWith(parser::ContextualMessages &, const TypeAndShape &that,
-      const char *thisIs = "POINTER", const char *thatIs = "TARGET",
-      bool isElemental = false) const;
+      const char *thisIs = "pointer", const char *thatIs = "target",
+      bool isElemental = false, bool thisIsDeferredShape = false,
+      bool thatIsDeferredShape = false) const;
+  std::optional<Expr<SubscriptInteger>> MeasureElementSizeInBytes(
+      FoldingContext &, bool align) const;
+  std::optional<Expr<SubscriptInteger>> MeasureSizeInBytes(
+      FoldingContext &) const;
 
+  // called by Fold() to rewrite in place
+  TypeAndShape &Rewrite(FoldingContext &);
+
+  std::string AsFortran() const;
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
 
 private:
-  void AcquireShape(const semantics::ObjectEntityDetails &);
+  static std::optional<TypeAndShape> Characterize(
+      const semantics::AssocEntityDetails &, FoldingContext &);
+  static std::optional<TypeAndShape> Characterize(
+      const semantics::ProcEntityDetails &, FoldingContext &);
+  void AcquireAttrs(const semantics::Symbol &);
   void AcquireLEN();
+  void AcquireLEN(const semantics::Symbol &);
 
 protected:
   DynamicType type_;
-  std::optional<Expr<SomeInteger>> LEN_;
+  std::optional<Expr<SubscriptInteger>> LEN_;
   Shape shape_;
   Attrs attrs_;
   int corank_{0};
@@ -161,7 +187,8 @@ struct DummyDataObject {
   bool operator!=(const DummyDataObject &that) const {
     return !(*this == that);
   }
-  static std::optional<DummyDataObject> Characterize(const semantics::Symbol &);
+  static std::optional<DummyDataObject> Characterize(
+      const semantics::Symbol &, FoldingContext &);
   bool CanBePassedViaImplicitInterface() const;
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
   TypeAndShape type;
@@ -178,8 +205,6 @@ struct DummyProcedure {
   explicit DummyProcedure(Procedure &&);
   bool operator==(const DummyProcedure &) const;
   bool operator!=(const DummyProcedure &that) const { return !(*this == that); }
-  static std::optional<DummyProcedure> Characterize(
-      const semantics::Symbol &, const IntrinsicProcTable &);
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
   CopyableIndirection<Procedure> procedure;
   common::Intent intent{common::Intent::Default};
@@ -204,13 +229,14 @@ struct DummyArgument {
   ~DummyArgument();
   bool operator==(const DummyArgument &) const;
   bool operator!=(const DummyArgument &that) const { return !(*this == that); }
-  static std::optional<DummyArgument> Characterize(
-      const semantics::Symbol &, const IntrinsicProcTable &);
   static std::optional<DummyArgument> FromActual(
       std::string &&, const Expr<SomeType> &, FoldingContext &);
   bool IsOptional() const;
   void SetOptional(bool = true);
+  common::Intent GetIntent() const;
+  void SetIntent(common::Intent);
   bool CanBePassedViaImplicitInterface() const;
+  bool IsTypelessIntrinsicDummy() const;
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
   // name and pass are not characteristics and so does not participate in
   // operator== but are needed to determine if procedures are distinguishable
@@ -233,7 +259,7 @@ struct FunctionResult {
   bool operator==(const FunctionResult &) const;
   bool operator!=(const FunctionResult &that) const { return !(*this == that); }
   static std::optional<FunctionResult> Characterize(
-      const Symbol &, const IntrinsicProcTable &);
+      const Symbol &, FoldingContext &);
 
   bool IsAssumedLengthCharacter() const;
 
@@ -261,6 +287,7 @@ struct Procedure {
   ENUM_CLASS(
       Attr, Pure, Elemental, BindC, ImplicitInterface, NullPointer, Subroutine)
   using Attrs = common::EnumSet<Attr, Attr_enumSize>;
+  Procedure(){};
   Procedure(FunctionResult &&, DummyArguments &&, Attrs);
   Procedure(DummyArguments &&, Attrs); // for subroutines and NULL()
   DECLARE_CONSTRUCTORS_AND_ASSIGNMENTS(Procedure)
@@ -271,11 +298,12 @@ struct Procedure {
   // Characterizes the procedure represented by a symbol, which may be an
   // "unrestricted specific intrinsic function".
   static std::optional<Procedure> Characterize(
-      const semantics::Symbol &, const IntrinsicProcTable &);
+      const semantics::Symbol &, FoldingContext &);
+  // This function is the initial point of entry for characterizing procedure
   static std::optional<Procedure> Characterize(
-      const ProcedureDesignator &, const IntrinsicProcTable &);
+      const ProcedureDesignator &, FoldingContext &);
   static std::optional<Procedure> Characterize(
-      const ProcedureRef &, const IntrinsicProcTable &);
+      const ProcedureRef &, FoldingContext &);
 
   // At most one of these will return true.
   // For "EXTERNAL P" with no type for or calls to P, both will be false.
@@ -296,10 +324,6 @@ struct Procedure {
   std::optional<FunctionResult> functionResult;
   DummyArguments dummyArguments;
   Attrs attrs;
-
-private:
-  Procedure() {}
 };
-
 } // namespace Fortran::evaluate::characteristics
 #endif // FORTRAN_EVALUATE_CHARACTERISTICS_H_

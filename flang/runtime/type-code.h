@@ -11,6 +11,8 @@
 
 #include "flang/Common/Fortran.h"
 #include "flang/ISO_Fortran_binding.h"
+#include <optional>
+#include <utility>
 
 namespace Fortran::runtime {
 
@@ -41,9 +43,17 @@ public:
     return raw_ == CFI_type_char || raw_ == CFI_type_char16_t ||
         raw_ == CFI_type_char32_t;
   }
-  constexpr bool IsLogical() const { return raw_ == CFI_type_Bool; }
+  constexpr bool IsLogical() const {
+    return raw_ == CFI_type_Bool ||
+        (raw_ >= CFI_type_int_least8_t && raw_ <= CFI_type_int_least64_t);
+  }
   constexpr bool IsDerived() const { return raw_ == CFI_type_struct; }
   constexpr bool IsIntrinsic() const { return IsValid() && !IsDerived(); }
+
+  std::optional<std::pair<TypeCategory, int>> GetCategoryAndKind() const;
+
+  bool operator==(const TypeCode &that) const { return raw_ == that.raw_; }
+  bool operator!=(const TypeCode &that) const { return raw_ != that.raw_; }
 
 private:
   ISO::CFI_type_t raw_{CFI_type_other};

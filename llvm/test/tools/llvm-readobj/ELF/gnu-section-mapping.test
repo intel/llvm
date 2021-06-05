@@ -14,11 +14,10 @@
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
-  Entry:   0x12345678
+  Class:      ELFCLASS64
+  Data:       ELFDATA2LSB
+  Type:       ET_EXEC
+  EPhEntSize: [[PHENTSIZE=<none>]]
 Sections:
   - Name:    .foo.begin
     Type:    SHT_PROGBITS
@@ -40,19 +39,17 @@ Sections:
     Size:    0x4
 ProgramHeaders:
 ## Case 1: an arbitrary segment with sections.
-  - Type:  PT_PHDR
-    Flags: [ PF_W ]
-    VAddr: 0x1000
-    Sections:
-      - Section: .foo.begin
-      - Section: .foo.end
+  - Type:     PT_PHDR
+    Flags:    [ PF_W ]
+    VAddr:    0x1000
+    FirstSec: .foo.begin
+    LastSec:  .foo.end
 ## Case 2: another segment with different sections.
-  - Type:  PT_PHDR
-    Flags: [ PF_X ]
-    VAddr: 0x2000
-    Sections:
-      - Section: .bar.begin
-      - Section: .bar.end
+  - Type:     PT_PHDR
+    Flags:    [ PF_X ]
+    VAddr:    0x2000
+    FirstSec: .bar.begin
+    LastSec:  .bar.end
 
 ## Check that --section-mapping=false --program-headers produces just program headers.
 # RUN: llvm-readelf --section-mapping=false --program-headers %t64.elf \
@@ -74,3 +71,12 @@ ProgramHeaders:
 # NO-SECHDRS-NEXT:   00 {{$}}
 # NO-SECHDRS-NEXT:   01 {{$}}
 # NO-SECHDRS-NOT: {{.}}
+
+## Check we report a warning when we are unable to read program headers.
+# RUN: yaml2obj %s -DPHENTSIZE=1 -o %t64-err1.elf
+# RUN: llvm-readelf --section-mapping %t64-err1.elf 2>&1 | \
+# RUN:   FileCheck %s -DFILE=%t64-err1.elf --check-prefix=PHENTSIZE
+
+# PHENTSIZE:      Section to Segment mapping:
+# PHENTSIZE-NEXT:  Segment Sections...
+# PHENTSIZE-NEXT: warning: '[[FILE]]': can't read program headers to build section to segment mapping: invalid e_phentsize: 1

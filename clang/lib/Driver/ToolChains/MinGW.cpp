@@ -51,11 +51,11 @@ void tools::MinGW::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
 
   const char *Exec = Args.MakeArgString(getToolChain().GetProgramPath("as"));
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                         Exec, CmdArgs, Inputs));
+                                         Exec, CmdArgs, Inputs, Output));
 
   if (Args.hasArg(options::OPT_gsplit_dwarf))
     SplitDebugInfo(getToolChain(), C, *this, JA, Args, Output,
-                   SplitDebugName(Args, Inputs[0], Output));
+                   SplitDebugName(JA, Args, Inputs[0], Output));
 }
 
 void tools::MinGW::Linker::AddLibGCC(const ArgList &Args,
@@ -164,17 +164,14 @@ void tools::MinGW::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back("-o");
   const char *OutputFile = Output.getFilename();
   // GCC implicitly adds an .exe extension if it is given an output file name
-  // that lacks an extension. However, GCC only does this when actually
-  // running on windows, not when operating as a cross compiler. As some users
-  // have come to rely on this behaviour, try to replicate it.
-#ifdef _WIN32
-  if (!llvm::sys::path::has_extension(OutputFile))
+  // that lacks an extension.
+  // GCC used to do this only when the compiler itself runs on windows, but
+  // since GCC 8 it does the same when cross compiling as well.
+  if (!llvm::sys::path::has_extension(OutputFile)) {
     CmdArgs.push_back(Args.MakeArgString(Twine(OutputFile) + ".exe"));
-  else
+    OutputFile = CmdArgs.back();
+  } else
     CmdArgs.push_back(OutputFile);
-#else
-  CmdArgs.push_back(OutputFile);
-#endif
 
   Args.AddAllArgs(CmdArgs, options::OPT_e);
   // FIXME: add -N, -n flags
@@ -322,8 +319,9 @@ void tools::MinGW::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
   const char *Exec = Args.MakeArgString(TC.GetLinkerPath());
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this,
+                                         ResponseFileSupport::AtFileUTF8(),
+                                         Exec, CmdArgs, Inputs, Output));
 }
 
 // Simplified from Generic_GCC::GCCInstallationDetector::ScanLibDirForGCCTriple.
@@ -398,7 +396,8 @@ llvm::ErrorOr<std::string> toolchains::MinGW::findClangRelativeSysroot() {
 
 toolchains::MinGW::MinGW(const Driver &D, const llvm::Triple &Triple,
                          const ArgList &Args)
-    : ToolChain(D, Triple, Args), CudaInstallation(D, Triple, Args) {
+    : ToolChain(D, Triple, Args), CudaInstallation(D, Triple, Args),
+      RocmInstallation(D, Triple, Args) {
   getProgramPaths().push_back(getDriver().getInstalledDir());
 
   if (getDriver().SysRoot.size())
@@ -492,6 +491,7 @@ SanitizerMask toolchains::MinGW::getSupportedSanitizers() const {
   Res |= SanitizerKind::Address;
   Res |= SanitizerKind::PointerCompare;
   Res |= SanitizerKind::PointerSubtract;
+  Res |= SanitizerKind::Vptr;
   return Res;
 }
 
@@ -500,8 +500,14 @@ void toolchains::MinGW::AddCudaIncludeArgs(const ArgList &DriverArgs,
   CudaInstallation.AddCudaIncludeArgs(DriverArgs, CC1Args);
 }
 
+void toolchains::MinGW::AddHIPIncludeArgs(const ArgList &DriverArgs,
+                                          ArgStringList &CC1Args) const {
+  RocmInstallation.AddHIPIncludeArgs(DriverArgs, CC1Args);
+}
+
 void toolchains::MinGW::printVerboseInfo(raw_ostream &OS) const {
   CudaInstallation.print(OS);
+  RocmInstallation.print(OS);
 }
 
 // Include directories for various hosts:

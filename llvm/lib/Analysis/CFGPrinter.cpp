@@ -63,7 +63,7 @@ static void writeCFGToDotFile(Function &F, BlockFrequencyInfo *BFI,
   errs() << "Writing '" << Filename << "'...";
 
   std::error_code EC;
-  raw_fd_ostream File(Filename, EC, sys::fs::F_Text);
+  raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
 
   DOTFuncInfo CFGInfo(&F, BFI, BPI, MaxFreq);
   CFGInfo.setHeatColors(ShowHeatColors);
@@ -272,24 +272,25 @@ FunctionPass *llvm::createCFGOnlyPrinterLegacyPassPass() {
 
 void DOTGraphTraits<DOTFuncInfo *>::computeHiddenNodes(const Function *F) {
   auto evaluateBB = [&](const BasicBlock *Node) {
-    if (succ_begin(Node) == succ_end(Node)) {
+    if (succ_empty(Node)) {
       const Instruction *TI = Node->getTerminator();
       isHiddenBasicBlock[Node] =
           (HideUnreachablePaths && isa<UnreachableInst>(TI)) ||
           (HideDeoptimizePaths && Node->getTerminatingDeoptimizeCall());
       return;
     }
-    isHiddenBasicBlock[Node] = std::all_of(
-        succ_begin(Node), succ_end(Node),
-        [this](const BasicBlock *BB) { return isHiddenBasicBlock[BB]; });
+    isHiddenBasicBlock[Node] =
+        llvm::all_of(successors(Node), [this](const BasicBlock *BB) {
+          return isHiddenBasicBlock[BB];
+        });
   };
   /// The post order traversal iteration is done to know the status of
   /// isHiddenBasicBlock for all the successors on the current BB.
-  for_each(po_begin(&F->getEntryBlock()), po_end(&F->getEntryBlock()),
-           evaluateBB);
+  llvm::for_each(post_order(&F->getEntryBlock()), evaluateBB);
 }
 
-bool DOTGraphTraits<DOTFuncInfo *>::isNodeHidden(const BasicBlock *Node) {
+bool DOTGraphTraits<DOTFuncInfo *>::isNodeHidden(const BasicBlock *Node,
+                                                 const DOTFuncInfo *CFGInfo) {
   // If both restricting flags are false, all nodes are displayed.
   if (!HideUnreachablePaths && !HideDeoptimizePaths)
     return false;

@@ -77,7 +77,9 @@ int main(int, char**)
             test_compare<std::equal_to<int> >(9),
             test_allocator<int>(10)
            );
+        C::iterator it0 = c0.begin();
         C c = std::move(c0);
+        assert(it0 == c.begin()); // Iterators remain valid
         LIBCPP_ASSERT(c.bucket_count() == 7);
         assert(c.size() == 6);
         assert(c.count(1) == 2);
@@ -142,7 +144,9 @@ int main(int, char**)
             test_compare<std::equal_to<int> >(9),
             min_allocator<int>()
            );
+        C::iterator it0 = c0.begin();
         C c = std::move(c0);
+        assert(it0 == c.begin()); // Iterators remain valid
         LIBCPP_ASSERT(c.bucket_count() == 7);
         assert(c.size() == 6);
         assert(c.count(1) == 2);
@@ -160,17 +164,6 @@ int main(int, char**)
 
         assert(c0.empty());
     }
-#if _LIBCPP_DEBUG >= 1
-    {
-        std::unordered_multiset<int> s1 = {1, 2, 3};
-        std::unordered_multiset<int>::iterator i = s1.begin();
-        int k = *i;
-        std::unordered_multiset<int> s2 = std::move(s1);
-        assert(*i == k);
-        s2.erase(i);
-        assert(s2.size() == 2);
-    }
-#endif
 
-  return 0;
+    return 0;
 }

@@ -34,6 +34,9 @@ class AttributeList;
 /// function known by LLVM. The enum values are returned by
 /// Function::getIntrinsicID().
 namespace Intrinsic {
+  // Abstraction for the arguments of the noalias intrinsics
+  static const int NoAliasScopeDeclScopeArg = 0;
+
   // Intrinsic ID type. This is an opaque typedef to facilitate splitting up
   // the enum into target-specific enums.
   typedef unsigned ID;
@@ -53,11 +56,20 @@ namespace Intrinsic {
   StringRef getName(ID id);
 
   /// Return the LLVM name for an intrinsic, such as "llvm.ppc.altivec.lvx".
-  /// Note, this version of getName supports overloads, but is less efficient
-  /// than the StringRef version of this function.  If no overloads are
-  /// requried, it is safe to use this version, but better to use the StringRef
-  /// version.
-  std::string getName(ID id, ArrayRef<Type*> Tys);
+  /// Note, this version of getName supports overloads, but not unnamed types.
+  /// It is less efficient than the StringRef version of this function. If no
+  /// overloads are required, it is safe to use this version, but better to use
+  /// the StringRef version.
+  std::string getName(ID Id, ArrayRef<Type *> Tys);
+
+  /// Return the LLVM name for an intrinsic, such as "llvm.ssa.copy.p0s_s.1".
+  /// Note, this version of getName supports overloads and unnamed types, but is
+  /// less efficient than the StringRef version of this function.  If no
+  /// overloads are required, it is safe to use this version, but better to use
+  /// the StringRef version. A function type FT can be provided to avoid
+  /// computing it. It is used (or computed) if one of the types is based on an
+  /// unnamed type.
+  std::string getName(ID Id, ArrayRef<Type *> Tys, Module *M, FunctionType *FT);
 
   /// Return the function type for an intrinsic.
   FunctionType *getType(LLVMContext &Context, ID id,
@@ -125,7 +137,8 @@ namespace Intrinsic {
       VecElementArgument,
       Subdivide2Argument,
       Subdivide4Argument,
-      VecOfBitcastsToInt
+      VecOfBitcastsToInt,
+      AMX
     } Kind;
 
     union {
@@ -188,10 +201,8 @@ namespace Intrinsic {
     }
 
     static IITDescriptor getVector(unsigned Width, bool IsScalable) {
-      IITDescriptor Result;
-      Result.Kind = Vector;
-      Result.Vector_Width.Min = Width;
-      Result.Vector_Width.Scalable = IsScalable;
+      IITDescriptor Result = {Vector, {0}};
+      Result.Vector_Width = ElementCount::get(Width, IsScalable);
       return Result;
     }
   };

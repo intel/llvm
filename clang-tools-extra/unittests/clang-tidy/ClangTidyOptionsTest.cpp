@@ -2,10 +2,27 @@
 #include "ClangTidyCheck.h"
 #include "ClangTidyDiagnosticConsumer.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/ScopedPrinter.h"
+#include "llvm/Testing/Support/Annotations.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace clang {
 namespace tidy {
+
+enum class Colours { Red, Orange, Yellow, Green, Blue, Indigo, Violet };
+
+template <> struct OptionEnumMapping<Colours> {
+  static llvm::ArrayRef<std::pair<Colours, StringRef>> getEnumMapping() {
+    static constexpr std::pair<Colours, StringRef> Mapping[] = {
+        {Colours::Red, "Red"},       {Colours::Orange, "Orange"},
+        {Colours::Yellow, "Yellow"}, {Colours::Green, "Green"},
+        {Colours::Blue, "Blue"},     {Colours::Indigo, "Indigo"},
+        {Colours::Violet, "Violet"}};
+    return makeArrayRef(Mapping);
+  }
+};
+
 namespace test {
 
 TEST(ParseLineFilter, EmptyFilter) {
@@ -58,10 +75,11 @@ TEST(ParseLineFilter, ValidFilter) {
 
 TEST(ParseConfiguration, ValidConfiguration) {
   llvm::ErrorOr<ClangTidyOptions> Options =
-      parseConfiguration("Checks: \"-*,misc-*\"\n"
-                         "HeaderFilterRegex: \".*\"\n"
-                         "AnalyzeTemporaryDtors: true\n"
-                         "User: some.user");
+      parseConfiguration(llvm::MemoryBufferRef("Checks: \"-*,misc-*\"\n"
+                                               "HeaderFilterRegex: \".*\"\n"
+                                               "AnalyzeTemporaryDtors: true\n"
+                                               "User: some.user",
+                                               "Options"));
   EXPECT_TRUE(!!Options);
   EXPECT_EQ("-*,misc-*", *Options->Checks);
   EXPECT_EQ(".*", *Options->HeaderFilterRegex);
@@ -69,7 +87,8 @@ TEST(ParseConfiguration, ValidConfiguration) {
 }
 
 TEST(ParseConfiguration, MergeConfigurations) {
-  llvm::ErrorOr<ClangTidyOptions> Options1 = parseConfiguration(R"(
+  llvm::ErrorOr<ClangTidyOptions> Options1 =
+      parseConfiguration(llvm::MemoryBufferRef(R"(
       Checks: "check1,check2"
       HeaderFilterRegex: "filter1"
       AnalyzeTemporaryDtors: true
@@ -77,9 +96,11 @@ TEST(ParseConfiguration, MergeConfigurations) {
       ExtraArgs: ['arg1', 'arg2']
       ExtraArgsBefore: ['arg-before1', 'arg-before2']
       UseColor: false
-  )");
+  )",
+                                               "Options1"));
   ASSERT_TRUE(!!Options1);
-  llvm::ErrorOr<ClangTidyOptions> Options2 = parseConfiguration(R"(
+  llvm::ErrorOr<ClangTidyOptions> Options2 =
+      parseConfiguration(llvm::MemoryBufferRef(R"(
       Checks: "check3,check4"
       HeaderFilterRegex: "filter2"
       AnalyzeTemporaryDtors: false
@@ -87,9 +108,10 @@ TEST(ParseConfiguration, MergeConfigurations) {
       ExtraArgs: ['arg3', 'arg4']
       ExtraArgsBefore: ['arg-before3', 'arg-before4']
       UseColor: true
-  )");
+  )",
+                                               "Options2"));
   ASSERT_TRUE(!!Options2);
-  ClangTidyOptions Options = Options1->mergeWith(*Options2, 0);
+  ClangTidyOptions Options = Options1->merge(*Options2, 0);
   EXPECT_EQ("check1,check2,check3,check4", *Options.Checks);
   EXPECT_EQ("filter2", *Options.HeaderFilterRegex);
   EXPECT_EQ("user2", *Options.User);
@@ -104,6 +126,102 @@ TEST(ParseConfiguration, MergeConfigurations) {
   EXPECT_TRUE(*Options.UseColor);
 }
 
+namespace {
+class DiagCollecter {
+public:
+  struct Diag {
+  private:
+    static size_t posToOffset(const llvm::SMLoc Loc,
+                              const llvm::SourceMgr *Src) {
+      return Loc.getPointer() -
+             Src->getMemoryBuffer(Src->FindBufferContainingLoc(Loc))
+                 ->getBufferStart();
+    }
+
+  public:
+    Diag(const llvm::SMDiagnostic &D)
+        : Message(D.getMessage()), Kind(D.getKind()),
+          Pos(posToOffset(D.getLoc(), D.getSourceMgr())) {
+      if (!D.getRanges().empty()) {
+        // Ranges are stored as column numbers on the line that has the error.
+        unsigned Offset = Pos - D.getColumnNo();
+        Range.emplace();
+        Range->Begin = Offset + D.getRanges().front().first,
+        Range->End = Offset + D.getRanges().front().second;
+      }
+    }
+    std::string Message;
+    llvm::SourceMgr::DiagKind Kind;
+    size_t Pos;
+    Optional<llvm::Annotations::Range> Range;
+
+    friend void PrintTo(const Diag &D, std::ostream *OS) {
+      *OS << (D.Kind == llvm::SourceMgr::DK_Error ? "error: " : "warning: ")
+          << D.Message << "@" << llvm::to_string(D.Pos);
+      if (D.Range)
+        *OS << ":[" << D.Range->Begin << ", " << D.Range->End << ")";
+    }
+  };
+
+  DiagCollecter() = default;
+  DiagCollecter(const DiagCollecter &) = delete;
+
+  std::function<void(const llvm::SMDiagnostic &)>
+  getCallback(bool Clear = true) & {
+    if (Clear)
+      Diags.clear();
+    return [&](const llvm::SMDiagnostic &Diag) { Diags.emplace_back(Diag); };
+  }
+
+  std::function<void(const llvm::SMDiagnostic &)>
+  getCallback(bool Clear = true) && = delete;
+
+  llvm::ArrayRef<Diag> getDiags() const { return Diags; }
+
+private:
+  std::vector<Diag> Diags;
+};
+
+MATCHER_P(DiagMessage, M, "") { return arg.Message == M; }
+MATCHER_P(DiagKind, K, "") { return arg.Kind == K; }
+MATCHER_P(DiagPos, P, "") { return arg.Pos == P; }
+MATCHER_P(DiagRange, P, "") { return arg.Range && *arg.Range == P; }
+} // namespace
+
+using ::testing::AllOf;
+using ::testing::ElementsAre;
+using ::testing::UnorderedElementsAre;
+
+TEST(ParseConfiguration, CollectDiags) {
+  DiagCollecter Collector;
+  auto ParseWithDiags = [&](llvm::StringRef Buffer) {
+    return parseConfigurationWithDiags(llvm::MemoryBufferRef(Buffer, "Options"),
+                                       Collector.getCallback());
+  };
+  llvm::Annotations Options(R"(
+    [[Check]]: llvm-include-order
+  )");
+  llvm::ErrorOr<ClangTidyOptions> ParsedOpt = ParseWithDiags(Options.code());
+  EXPECT_TRUE(!ParsedOpt);
+  EXPECT_THAT(Collector.getDiags(),
+              testing::ElementsAre(AllOf(DiagMessage("unknown key 'Check'"),
+                                         DiagKind(llvm::SourceMgr::DK_Error),
+                                         DiagPos(Options.range().Begin),
+                                         DiagRange(Options.range()))));
+
+  Options = llvm::Annotations(R"(
+    UseColor: [[NotABool]]
+  )");
+  ParsedOpt = ParseWithDiags(Options.code());
+  EXPECT_TRUE(!ParsedOpt);
+  EXPECT_THAT(Collector.getDiags(),
+              testing::ElementsAre(AllOf(DiagMessage("invalid boolean"),
+                                         DiagKind(llvm::SourceMgr::DK_Error),
+                                         DiagPos(Options.range().Begin),
+                                         DiagRange(Options.range()))));
+}
+
+namespace {
 class TestCheck : public ClangTidyCheck {
 public:
   TestCheck(ClangTidyContext *Context) : ClangTidyCheck("test", Context) {}
@@ -134,89 +252,104 @@ public:
     EXPECT_EQ(*Item, Expected);                                                \
   } while (false)
 
-#define CHECK_ERROR(Value, ErrorType, ExpectedMessage)                         \
-  do {                                                                         \
-    auto Item = Value;                                                         \
-    ASSERT_FALSE(Item);                                                        \
-    ASSERT_TRUE(Item.errorIsA<ErrorType>());                                   \
-    ASSERT_FALSE(llvm::handleErrors(                                           \
-        Item.takeError(), [&](const ErrorType &Err) -> llvm::Error {           \
-          EXPECT_EQ(Err.message(), ExpectedMessage);                           \
-          return llvm::Error::success();                                       \
-        }));                                                                   \
-  } while (false)
+MATCHER_P(ToolDiagMessage, M, "") { return arg.Message.Message == M; }
+MATCHER_P(ToolDiagLevel, L, "") { return arg.DiagLevel == L; }
+
+} // namespace
+
+} // namespace test
+
+static constexpr auto Warning = tooling::Diagnostic::Warning;
+static constexpr auto Error = tooling::Diagnostic::Error;
+
+static void PrintTo(const ClangTidyError &Err, ::std::ostream *OS) {
+  *OS << (Err.DiagLevel == Error ? "error: " : "warning: ")
+      << Err.Message.Message;
+}
+
+namespace test {
 
 TEST(CheckOptionsValidation, MissingOptions) {
   ClangTidyOptions Options;
   ClangTidyContext Context(std::make_unique<DefaultOptionsProvider>(
       ClangTidyGlobalOptions(), Options));
+  ClangTidyDiagnosticConsumer DiagConsumer(Context);
+  DiagnosticsEngine DE(new DiagnosticIDs(), new DiagnosticOptions,
+                       &DiagConsumer, false);
+  Context.setDiagnosticsEngine(&DE);
   TestCheck TestCheck(&Context);
-  CHECK_ERROR(TestCheck.getLocal("Opt"), MissingOptionError,
-              "option not found 'test.Opt'");
+  EXPECT_FALSE(TestCheck.getLocal("Opt").hasValue());
   EXPECT_EQ(TestCheck.getLocal("Opt", "Unknown"), "Unknown");
+  // Missing options aren't errors.
+  EXPECT_TRUE(DiagConsumer.take().empty());
 }
 
 TEST(CheckOptionsValidation, ValidIntOptions) {
   ClangTidyOptions Options;
   auto &CheckOptions = Options.CheckOptions;
-  CheckOptions["test.IntExpected1"] = "1";
-  CheckOptions["test.IntExpected2"] = "1WithMore";
-  CheckOptions["test.IntExpected3"] = "NoInt";
-  CheckOptions["GlobalIntExpected1"] = "1";
-  CheckOptions["GlobalIntExpected2"] = "NoInt";
-  CheckOptions["test.DefaultedIntInvalid"] = "NoInt";
+  CheckOptions["test.IntExpected"] = "1";
+  CheckOptions["test.IntInvalid1"] = "1WithMore";
+  CheckOptions["test.IntInvalid2"] = "NoInt";
+  CheckOptions["GlobalIntExpected"] = "1";
   CheckOptions["GlobalIntInvalid"] = "NoInt";
+  CheckOptions["test.DefaultedIntInvalid"] = "NoInt";
   CheckOptions["test.BoolITrueValue"] = "1";
   CheckOptions["test.BoolIFalseValue"] = "0";
   CheckOptions["test.BoolTrueValue"] = "true";
   CheckOptions["test.BoolFalseValue"] = "false";
+  CheckOptions["test.BoolTrueShort"] = "Y";
+  CheckOptions["test.BoolFalseShort"] = "N";
   CheckOptions["test.BoolUnparseable"] = "Nothing";
-  CheckOptions["test.BoolCaseMismatch"] = "True";
 
   ClangTidyContext Context(std::make_unique<DefaultOptionsProvider>(
       ClangTidyGlobalOptions(), Options));
+  ClangTidyDiagnosticConsumer DiagConsumer(Context);
+  DiagnosticsEngine DE(new DiagnosticIDs(), new DiagnosticOptions,
+                       &DiagConsumer, false);
+  Context.setDiagnosticsEngine(&DE);
   TestCheck TestCheck(&Context);
 
-#define CHECK_ERROR_INT(Name, Expected)                                        \
-  CHECK_ERROR(Name, UnparseableIntegerOptionError, Expected)
-
-  CHECK_VAL(TestCheck.getIntLocal("IntExpected1"), 1);
-  CHECK_VAL(TestCheck.getIntGlobal("GlobalIntExpected1"), 1);
-  CHECK_ERROR_INT(TestCheck.getIntLocal("IntExpected2"),
-                  "invalid configuration value '1WithMore' for option "
-                  "'test.IntExpected2'; expected an integer value");
-  CHECK_ERROR_INT(TestCheck.getIntLocal("IntExpected3"),
-                  "invalid configuration value 'NoInt' for option "
-                  "'test.IntExpected3'; expected an integer value");
-  CHECK_ERROR_INT(TestCheck.getIntGlobal("GlobalIntExpected2"),
-                  "invalid configuration value 'NoInt' for option "
-                  "'GlobalIntExpected2'; expected an integer value");
+  CHECK_VAL(TestCheck.getIntLocal("IntExpected"), 1);
+  CHECK_VAL(TestCheck.getIntGlobal("GlobalIntExpected"), 1);
+  EXPECT_FALSE(TestCheck.getIntLocal("IntInvalid1").hasValue());
+  EXPECT_FALSE(TestCheck.getIntLocal("IntInvalid2").hasValue());
+  EXPECT_FALSE(TestCheck.getIntGlobal("GlobalIntInvalid").hasValue());
   ASSERT_EQ(TestCheck.getIntLocal("DefaultedIntInvalid", 1), 1);
-  ASSERT_EQ(TestCheck.getIntGlobal("GlobalIntInvalid", 1), 1);
 
   CHECK_VAL(TestCheck.getIntLocal<bool>("BoolITrueValue"), true);
   CHECK_VAL(TestCheck.getIntLocal<bool>("BoolIFalseValue"), false);
   CHECK_VAL(TestCheck.getIntLocal<bool>("BoolTrueValue"), true);
   CHECK_VAL(TestCheck.getIntLocal<bool>("BoolFalseValue"), false);
-  CHECK_ERROR_INT(TestCheck.getIntLocal<bool>("BoolUnparseable"),
-                  "invalid configuration value 'Nothing' for option "
-                  "'test.BoolUnparseable'; expected a bool");
-  CHECK_ERROR_INT(TestCheck.getIntLocal<bool>("BoolCaseMismatch"),
-                  "invalid configuration value 'True' for option "
-                  "'test.BoolCaseMismatch'; expected a bool");
+  CHECK_VAL(TestCheck.getIntLocal<bool>("BoolTrueShort"), true);
+  CHECK_VAL(TestCheck.getIntLocal<bool>("BoolFalseShort"), false);
+  EXPECT_FALSE(TestCheck.getIntLocal<bool>("BoolUnparseable").hasValue());
 
-#undef CHECK_ERROR_INT
+  EXPECT_THAT(
+      DiagConsumer.take(),
+      UnorderedElementsAre(
+          AllOf(ToolDiagMessage(
+                    "invalid configuration value '1WithMore' for option "
+                    "'test.IntInvalid1'; expected an integer"),
+                ToolDiagLevel(Warning)),
+          AllOf(
+              ToolDiagMessage("invalid configuration value 'NoInt' for option "
+                              "'test.IntInvalid2'; expected an integer"),
+              ToolDiagLevel(Warning)),
+          AllOf(
+              ToolDiagMessage("invalid configuration value 'NoInt' for option "
+                              "'GlobalIntInvalid'; expected an integer"),
+              ToolDiagLevel(Warning)),
+          AllOf(ToolDiagMessage(
+                    "invalid configuration value 'NoInt' for option "
+                    "'test.DefaultedIntInvalid'; expected an integer"),
+                ToolDiagLevel(Warning)),
+          AllOf(ToolDiagMessage(
+                    "invalid configuration value 'Nothing' for option "
+                    "'test.BoolUnparseable'; expected a bool"),
+                ToolDiagLevel(Warning))));
 }
 
 TEST(ValidConfiguration, ValidEnumOptions) {
-
-  enum class Colours { Red, Orange, Yellow, Green, Blue, Indigo, Violet };
-  static constexpr std::pair<StringRef, Colours> Mapping[] = {
-      {"Red", Colours::Red},       {"Orange", Colours::Orange},
-      {"Yellow", Colours::Yellow}, {"Green", Colours::Green},
-      {"Blue", Colours::Blue},     {"Indigo", Colours::Indigo},
-      {"Violet", Colours::Violet}};
-  static const auto Map = makeArrayRef(Mapping);
 
   ClangTidyOptions Options;
   auto &CheckOptions = Options.CheckOptions;
@@ -232,42 +365,57 @@ TEST(ValidConfiguration, ValidEnumOptions) {
 
   ClangTidyContext Context(std::make_unique<DefaultOptionsProvider>(
       ClangTidyGlobalOptions(), Options));
+  ClangTidyDiagnosticConsumer DiagConsumer(Context);
+  DiagnosticsEngine DE(new DiagnosticIDs(), new DiagnosticOptions,
+                       &DiagConsumer, false);
+  Context.setDiagnosticsEngine(&DE);
   TestCheck TestCheck(&Context);
 
-#define CHECK_ERROR_ENUM(Name, Expected)                                       \
-  CHECK_ERROR(Name, UnparseableEnumOptionError, Expected)
+  CHECK_VAL(TestCheck.getIntLocal<Colours>("Valid"), Colours::Red);
+  CHECK_VAL(TestCheck.getIntGlobal<Colours>("GlobalValid"), Colours::Violet);
 
-  CHECK_VAL(TestCheck.getLocal("Valid", Map), Colours::Red);
-  CHECK_VAL(TestCheck.getGlobal("GlobalValid", Map), Colours::Violet);
-  CHECK_VAL(TestCheck.getLocal("ValidWrongCase", Map, /*IgnoreCase*/ true),
-            Colours::Red);
   CHECK_VAL(
-      TestCheck.getGlobal("GlobalValidWrongCase", Map, /*IgnoreCase*/ true),
-      Colours::Violet);
-  CHECK_ERROR_ENUM(TestCheck.getLocal("Invalid", Map),
-                   "invalid configuration value "
-                   "'Scarlet' for option 'test.Invalid'");
-  CHECK_ERROR_ENUM(TestCheck.getLocal("ValidWrongCase", Map),
-                   "invalid configuration value 'rED' for option "
-                   "'test.ValidWrongCase'; did you mean 'Red'?");
-  CHECK_ERROR_ENUM(TestCheck.getLocal("NearMiss", Map),
-                   "invalid configuration value 'Oragne' for option "
-                   "'test.NearMiss'; did you mean 'Orange'?");
-  CHECK_ERROR_ENUM(TestCheck.getGlobal("GlobalInvalid", Map),
-                   "invalid configuration value "
-                   "'Purple' for option 'GlobalInvalid'");
-  CHECK_ERROR_ENUM(TestCheck.getGlobal("GlobalValidWrongCase", Map),
-                   "invalid configuration value 'vIOLET' for option "
-                   "'GlobalValidWrongCase'; did you mean 'Violet'?");
-  CHECK_ERROR_ENUM(TestCheck.getGlobal("GlobalNearMiss", Map),
-                   "invalid configuration value 'Yelow' for option "
-                   "'GlobalNearMiss'; did you mean 'Yellow'?");
+      TestCheck.getIntLocal<Colours>("ValidWrongCase", /*IgnoreCase*/ true),
+      Colours::Red);
+  CHECK_VAL(TestCheck.getIntGlobal<Colours>("GlobalValidWrongCase",
+                                            /*IgnoreCase*/ true),
+            Colours::Violet);
 
-#undef CHECK_ERROR_ENUM
+  EXPECT_FALSE(TestCheck.getIntLocal<Colours>("ValidWrongCase").hasValue());
+  EXPECT_FALSE(TestCheck.getIntLocal<Colours>("NearMiss").hasValue());
+  EXPECT_FALSE(TestCheck.getIntGlobal<Colours>("GlobalInvalid").hasValue());
+  EXPECT_FALSE(
+      TestCheck.getIntGlobal<Colours>("GlobalValidWrongCase").hasValue());
+  EXPECT_FALSE(TestCheck.getIntGlobal<Colours>("GlobalNearMiss").hasValue());
+
+  EXPECT_FALSE(TestCheck.getIntLocal<Colours>("Invalid").hasValue());
+  EXPECT_THAT(
+      DiagConsumer.take(),
+      UnorderedElementsAre(
+          AllOf(ToolDiagMessage("invalid configuration value "
+                                "'Scarlet' for option 'test.Invalid'"),
+                ToolDiagLevel(Warning)),
+          AllOf(ToolDiagMessage("invalid configuration value 'rED' for option "
+                                "'test.ValidWrongCase'; did you mean 'Red'?"),
+                ToolDiagLevel(Warning)),
+          AllOf(
+              ToolDiagMessage("invalid configuration value 'Oragne' for option "
+                              "'test.NearMiss'; did you mean 'Orange'?"),
+              ToolDiagLevel(Warning)),
+          AllOf(ToolDiagMessage("invalid configuration value "
+                                "'Purple' for option 'GlobalInvalid'"),
+                ToolDiagLevel(Warning)),
+          AllOf(
+              ToolDiagMessage("invalid configuration value 'vIOLET' for option "
+                              "'GlobalValidWrongCase'; did you mean 'Violet'?"),
+              ToolDiagLevel(Warning)),
+          AllOf(
+              ToolDiagMessage("invalid configuration value 'Yelow' for option "
+                              "'GlobalNearMiss'; did you mean 'Yellow'?"),
+              ToolDiagLevel(Warning))));
 }
 
 #undef CHECK_VAL
-#undef CHECK_ERROR
 
 } // namespace test
 } // namespace tidy

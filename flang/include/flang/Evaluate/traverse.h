@@ -33,6 +33,9 @@
 //   subtrees of interior nodes, and the visitor's Combine() to merge their
 //   results together.
 // - Overloads of operator() in each visitor handle the cases of interest.
+//
+// The default handler for semantics::Symbol will descend into the associated
+// expression of an ASSOCIATE (or related) construct entity.
 
 #include "expression.h"
 #include "flang/Semantics/symbol.h"
@@ -50,7 +53,7 @@ public:
   Result operator()(const common::Indirection<A, C> &x) const {
     return visitor_(x.value());
   }
-  template <typename A> Result operator()(SymbolRef x) const {
+  template <typename A> Result operator()(const SymbolRef x) const {
     return visitor_(*x);
   }
   template <typename A> Result operator()(const std::unique_ptr<A> &x) const {
@@ -102,7 +105,15 @@ public:
       return visitor_.Default();
     }
   }
-  Result operator()(const Symbol &) const { return visitor_.Default(); }
+  Result operator()(const Symbol &symbol) const {
+    const Symbol &ultimate{symbol.GetUltimate()};
+    if (const auto *assoc{
+            ultimate.detailsIf<semantics::AssocEntityDetails>()}) {
+      return visitor_(assoc->expr());
+    } else {
+      return visitor_.Default();
+    }
+  }
   Result operator()(const StaticDataObject &) const {
     return visitor_.Default();
   }
@@ -120,7 +131,7 @@ public:
       return visitor_(x.GetFirstSymbol());
     }
   }
-  template <int KIND> Result operator()(const TypeParamInquiry<KIND> &x) const {
+  Result operator()(const TypeParamInquiry &x) const {
     return visitor_(x.base());
   }
   Result operator()(const Triplet &x) const {
@@ -241,7 +252,7 @@ private:
   }
 
   template <typename A, typename... Bs>
-  Result Combine(const A &x, const Bs &... ys) const {
+  Result Combine(const A &x, const Bs &...ys) const {
     if constexpr (sizeof...(Bs) == 0) {
       return visitor_(x);
     } else {

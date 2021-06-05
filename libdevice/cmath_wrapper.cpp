@@ -11,6 +11,26 @@
 #ifdef __SPIR__
 
 DEVICE_EXTERN_C
+int abs(int x) { return __devicelib_abs(x); }
+
+DEVICE_EXTERN_C
+long int labs(long int x) { return __devicelib_labs(x); }
+
+DEVICE_EXTERN_C
+long long int llabs(long long int x) { return __devicelib_llabs(x); }
+
+DEVICE_EXTERN_C
+div_t div(int x, int y) { return __devicelib_div(x, y); }
+
+DEVICE_EXTERN_C
+ldiv_t ldiv(long int x, long int y) { return __devicelib_ldiv(x, y); }
+
+DEVICE_EXTERN_C
+lldiv_t lldiv(long long int x, long long int y) {
+  return __devicelib_lldiv(x, y);
+}
+
+DEVICE_EXTERN_C
 float scalbnf(float x, int n) { return __devicelib_scalbnf(x, n); }
 
 DEVICE_EXTERN_C
@@ -179,6 +199,47 @@ short _FDtest(float *px) { // categorize *px
     ret = (ps->_Sh[_F0] & _FMASK) == 0 ? _DENORM : _FINITE;
 
   return ret;
+}
+
+// Returns _FP_LT, _FP_GT or _FP_EQ based on the ordering
+// relationship between x and y. '0' means unordered.
+DEVICE_EXTERN_C
+int _fdpcomp(float x, float y) {
+  int res = 0;
+  if (_FDtest(&x) == _NANCODE || _FDtest(&y) == _NANCODE) {
+    // '0' means unordered.
+    return res;
+  }
+
+  if (x < y)
+    res |= _FP_LT;
+  else if (x > y)
+    res |= _FP_GT;
+  else
+    res |= _FP_EQ;
+
+  return res;
+}
+
+// Returns 0, if the sign bit is not set, and non-zero otherwise.
+DEVICE_EXTERN_C
+int _fdsign(float x) { return FSIGN(x); }
+
+// fpclassify() equivalent with a pointer argument.
+DEVICE_EXTERN_C
+short _fdtest(float *px) {
+  switch (_FDtest(px)) {
+  case _DENORM:
+    return FP_SUBNORMAL;
+  case _FINITE:
+    return FP_NORMAL;
+  case _INFCODE:
+    return FP_INFINITE;
+  case _NANCODE:
+    return FP_NAN;
+  }
+
+  return FP_ZERO;
 }
 
 DEVICE_EXTERN_C

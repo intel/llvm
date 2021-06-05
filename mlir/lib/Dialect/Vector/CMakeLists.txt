@@ -1,22 +1,27 @@
 add_mlir_dialect_library(MLIRVector
   VectorOps.cpp
+  VectorTransferOpTransforms.cpp
   VectorTransforms.cpp
   VectorUtils.cpp
-  EDSC/Builders.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Vector
 
   DEPENDS
   MLIRVectorOpsIncGen
-  MLIRVectorTransformPatternsIncGen
+  MLIRVectorOpsEnumsIncGen
 
   LINK_LIBS PUBLIC
-  MLIREDSC
+  MLIRDialectUtils
   MLIRIR
-  MLIRStandardOps
-  MLIRAffineOps
+  MLIRStandard
+  MLIRAffine
+  MLIRAffineUtils
+  MLIRLinalg
+  MLIRMemRef
   MLIRSCF
   MLIRLoopAnalysis
+  MLIRDataLayoutInterfaces
   MLIRSideEffectInterfaces
+  MLIRVectorInterfaces
   )

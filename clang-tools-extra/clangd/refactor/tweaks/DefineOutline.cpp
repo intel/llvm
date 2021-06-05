@@ -51,7 +51,7 @@ namespace {
 const FunctionDecl *getSelectedFunction(const SelectionTree::Node *SelNode) {
   if (!SelNode)
     return nullptr;
-  const ast_type_traits::DynTypedNode &AstNode = SelNode->ASTNode;
+  const DynTypedNode &AstNode = SelNode->ASTNode;
   if (const FunctionDecl *FD = AstNode.get<FunctionDecl>())
     return FD;
   if (AstNode.get<CompoundStmt>() &&
@@ -64,12 +64,10 @@ const FunctionDecl *getSelectedFunction(const SelectionTree::Node *SelNode) {
 
 llvm::Optional<Path> getSourceFile(llvm::StringRef FileName,
                                    const Tweak::Selection &Sel) {
-  if (auto Source = getCorrespondingHeaderOrSource(
-          std::string(FileName),
-          &Sel.AST->getSourceManager().getFileManager().getVirtualFileSystem()))
+  assert(Sel.FS);
+  if (auto Source = getCorrespondingHeaderOrSource(FileName, Sel.FS))
     return *Source;
-  return getCorrespondingHeaderOrSource(std::string(FileName), *Sel.AST,
-                                        Sel.Index);
+  return getCorrespondingHeaderOrSource(FileName, *Sel.AST, Sel.Index);
 }
 
 // Synthesize a DeclContext for TargetNS from CurContext. TargetNS must be empty
@@ -120,11 +118,9 @@ getFunctionSourceAfterReplacements(const FunctionDecl *FD,
   auto OrigFuncRange = toHalfOpenFileRange(
       SM, FD->getASTContext().getLangOpts(), FD->getSourceRange());
   if (!OrigFuncRange)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Couldn't get range for function.");
-  // Include template parameter list.
-  if (auto *FTD = FD->getDescribedFunctionTemplate())
-    OrigFuncRange->setBegin(FTD->getBeginLoc());
+    return error("Couldn't get range for function.");
+  assert(!FD->getDescribedFunctionTemplate() &&
+         "Define out-of-line doesn't apply to function templates.");
 
   // Get new begin and end positions for the qualified function definition.
   unsigned FuncBegin = SM.getFileOffset(OrigFuncRange->getBegin());
@@ -147,45 +143,49 @@ getFunctionSourceAfterReplacements(const FunctionDecl *FD,
 // FIXME: Drop attributes in function signature.
 llvm::Expected<std::string>
 getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
-                      const syntax::TokenBuffer &TokBuf) {
+                      const syntax::TokenBuffer &TokBuf,
+                      const HeuristicResolver *Resolver) {
   auto &AST = FD->getASTContext();
   auto &SM = AST.getSourceManager();
   auto TargetContext = findContextForNS(TargetNamespace, FD->getDeclContext());
   if (!TargetContext)
-    return llvm::createStringError(
-        llvm::inconvertibleErrorCode(),
-        "define outline: couldn't find a context for target");
+    return error("define outline: couldn't find a context for target");
 
   llvm::Error Errors = llvm::Error::success();
   tooling::Replacements DeclarationCleanups;
 
   // Finds the first unqualified name in function return type and name, then
   // qualifies those to be valid in TargetContext.
-  findExplicitReferences(FD, [&](ReferenceLoc Ref) {
-    // It is enough to qualify the first qualifier, so skip references with a
-    // qualifier. Also we can't do much if there are no targets or name is
-    // inside a macro body.
-    if (Ref.Qualifier || Ref.Targets.empty() || Ref.NameLoc.isMacroID())
-      return;
-    // Only qualify return type and function name.
-    if (Ref.NameLoc != FD->getReturnTypeSourceRange().getBegin() &&
-        Ref.NameLoc != FD->getLocation())
-      return;
+  findExplicitReferences(
+      FD,
+      [&](ReferenceLoc Ref) {
+        // It is enough to qualify the first qualifier, so skip references with
+        // a qualifier. Also we can't do much if there are no targets or name is
+        // inside a macro body.
+        if (Ref.Qualifier || Ref.Targets.empty() || Ref.NameLoc.isMacroID())
+          return;
+        // Only qualify return type and function name.
+        if (Ref.NameLoc != FD->getReturnTypeSourceRange().getBegin() &&
+            Ref.NameLoc != FD->getLocation())
+          return;
 
-    for (const NamedDecl *ND : Ref.Targets) {
-      if (ND->getDeclContext() != Ref.Targets.front()->getDeclContext()) {
-        elog("Targets from multiple contexts: {0}, {1}",
-             printQualifiedName(*Ref.Targets.front()), printQualifiedName(*ND));
-        return;
-      }
-    }
-    const NamedDecl *ND = Ref.Targets.front();
-    const std::string Qualifier = getQualification(
-        AST, *TargetContext, SM.getLocForStartOfFile(SM.getMainFileID()), ND);
-    if (auto Err = DeclarationCleanups.add(
-            tooling::Replacement(SM, Ref.NameLoc, 0, Qualifier)))
-      Errors = llvm::joinErrors(std::move(Errors), std::move(Err));
-  });
+        for (const NamedDecl *ND : Ref.Targets) {
+          if (ND->getDeclContext() != Ref.Targets.front()->getDeclContext()) {
+            elog("Targets from multiple contexts: {0}, {1}",
+                 printQualifiedName(*Ref.Targets.front()),
+                 printQualifiedName(*ND));
+            return;
+          }
+        }
+        const NamedDecl *ND = Ref.Targets.front();
+        const std::string Qualifier =
+            getQualification(AST, *TargetContext,
+                             SM.getLocForStartOfFile(SM.getMainFileID()), ND);
+        if (auto Err = DeclarationCleanups.add(
+                tooling::Replacement(SM, Ref.NameLoc, 0, Qualifier)))
+          Errors = llvm::joinErrors(std::move(Errors), std::move(Err));
+      },
+      Resolver);
 
   // Get rid of default arguments, since they should not be specified in
   // out-of-line definition.
@@ -220,12 +220,9 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
     assert(A->getLocation().isValid());
     if (!AttrTokens || AttrTokens->empty()) {
       Errors = llvm::joinErrors(
-          std::move(Errors),
-          llvm::createStringError(
-              llvm::inconvertibleErrorCode(),
-              llvm::StringRef("define outline: Can't move out of line as "
-                              "function has a macro `") +
-                  A->getSpelling() + "` specifier."));
+          std::move(Errors), error("define outline: Can't move out of line as "
+                                   "function has a macro `{0}` specifier.",
+                                   A->getSpelling()));
       return;
     }
     CharSourceRange DelRange =
@@ -249,10 +246,8 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
       if (!Spelling) {
         Errors = llvm::joinErrors(
             std::move(Errors),
-            llvm::createStringError(
-                llvm::inconvertibleErrorCode(),
-                llvm::formatv("define outline: couldn't remove `{0}` keyword.",
-                              tok::getKeywordSpelling(Kind))));
+            error("define outline: couldn't remove `{0}` keyword.",
+                  tok::getKeywordSpelling(Kind)));
         break;
       }
       CharSourceRange DelRange =
@@ -265,11 +260,8 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
     if (!FoundAny) {
       Errors = llvm::joinErrors(
           std::move(Errors),
-          llvm::createStringError(
-              llvm::inconvertibleErrorCode(),
-              llvm::formatv(
-                  "define outline: couldn't find `{0}` keyword to remove.",
-                  tok::getKeywordSpelling(Kind))));
+          error("define outline: couldn't find `{0}` keyword to remove.",
+                tok::getKeywordSpelling(Kind)));
     }
   };
 
@@ -278,6 +270,10 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
       DelKeyword(tok::kw_virtual, {FD->getBeginLoc(), FD->getLocation()});
     if (MD->isStatic())
       DelKeyword(tok::kw_static, {FD->getBeginLoc(), FD->getLocation()});
+  }
+  if (const auto *CD = dyn_cast<CXXConstructorDecl>(FD)) {
+    if (CD->isExplicit())
+      DelKeyword(tok::kw_explicit, {FD->getBeginLoc(), FD->getLocation()});
   }
 
   if (Errors)
@@ -368,9 +364,11 @@ public:
   const char *id() const override;
 
   bool hidden() const override { return false; }
-  Intent intent() const override { return Intent::Refactor; }
+  llvm::StringLiteral kind() const override {
+    return CodeAction::REFACTOR_KIND;
+  }
   std::string title() const override {
-    return "Move function body to out-of-line.";
+    return "Move function body to out-of-line";
   }
 
   bool prepare(const Selection &Sel) override {
@@ -385,6 +383,13 @@ public:
     // Bail out if the selection is not a in-line function definition.
     if (!Source || !Source->doesThisDeclarationHaveABody() ||
         Source->isOutOfLine())
+      return false;
+
+    // Bail out if this is a function template or specialization, as their
+    // definitions need to be visible in all including translation units.
+    if (Source->getDescribedFunctionTemplate())
+      return false;
+    if (Source->getTemplateSpecializationInfo())
       return false;
 
     // Bail out in templated classes, as it is hard to spell the class name, i.e
@@ -405,24 +410,18 @@ public:
     auto MainFileName =
         getCanonicalPath(SM.getFileEntryForID(SM.getMainFileID()), SM);
     if (!MainFileName)
-      return llvm::createStringError(
-          llvm::inconvertibleErrorCode(),
-          "Couldn't get absolute path for mainfile.");
+      return error("Couldn't get absolute path for main file.");
 
     auto CCFile = getSourceFile(*MainFileName, Sel);
-    if (!CCFile)
-      return llvm::createStringError(
-          llvm::inconvertibleErrorCode(),
-          "Couldn't find a suitable implementation file.");
 
-    auto &FS =
-        Sel.AST->getSourceManager().getFileManager().getVirtualFileSystem();
-    auto Buffer = FS.getBufferForFile(*CCFile);
+    if (!CCFile)
+      return error("Couldn't find a suitable implementation file.");
+    assert(Sel.FS && "FS Must be set in apply");
+    auto Buffer = Sel.FS->getBufferForFile(*CCFile);
     // FIXME: Maybe we should consider creating the implementation file if it
     // doesn't exist?
     if (!Buffer)
-      return llvm::createStringError(Buffer.getError(),
-                                     Buffer.getError().message());
+      return llvm::errorCodeToError(Buffer.getError());
     auto Contents = Buffer->get()->getBuffer();
     auto InsertionPoint = getInsertionPoint(
         Contents, Source->getQualifiedNameAsString(), Sel.AST->getLangOpts());
@@ -430,7 +429,8 @@ public:
       return InsertionPoint.takeError();
 
     auto FuncDef = getFunctionSourceCode(
-        Source, InsertionPoint->EnclosingNamespace, Sel.AST->getTokens());
+        Source, InsertionPoint->EnclosingNamespace, Sel.AST->getTokens(),
+        Sel.AST->getHeuristicResolver());
     if (!FuncDef)
       return FuncDef.takeError();
 

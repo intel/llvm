@@ -17,9 +17,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#ifdef HAVE_VCS_VERSION_INC
 #include "VCSVersion.inc"
-#endif
 
 namespace clang {
 
@@ -97,8 +95,12 @@ std::string getClangToolFullVersion(StringRef ToolName) {
 #ifdef CLANG_VENDOR
   OS << CLANG_VENDOR;
 #endif
-  OS << ToolName << " version " CLANG_VERSION_STRING " "
-     << getClangFullRepositoryVersion();
+  OS << ToolName << " version " CLANG_VERSION_STRING;
+
+  std::string repo = getClangFullRepositoryVersion();
+  if (!repo.empty()) {
+    OS << " " << repo;
+  }
 
   return OS.str();
 }
@@ -111,7 +113,13 @@ std::string getClangFullCPPVersion() {
 #ifdef CLANG_VENDOR
   OS << CLANG_VENDOR;
 #endif
-  OS << "Clang " CLANG_VERSION_STRING " " << getClangFullRepositoryVersion();
+  OS << "Clang " CLANG_VERSION_STRING;
+
+  std::string repo = getClangFullRepositoryVersion();
+  if (!repo.empty()) {
+    OS << " " << repo;
+  }
+
   return OS.str();
 }
 

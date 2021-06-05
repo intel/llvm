@@ -805,7 +805,7 @@ TEST(DominatorTree, InsertFromUnreachable) {
   BasicBlock *To = B.getOrAddBlock(LastUpdate->Edge.To);
   PDT.insertEdge(From, To);
   EXPECT_TRUE(PDT.verify());
-  EXPECT_TRUE(PDT.getRoots().size() == 2);
+  EXPECT_EQ(PDT.root_size(), 2UL);
   // Make sure we can use a const pointer with getNode.
   const BasicBlock *BB5 = B.getOrAddBlock("5");
   EXPECT_NE(PDT.getNode(BB5), nullptr);
@@ -1069,5 +1069,34 @@ TEST(DominatorTree, EdgeDomination) {
     EXPECT_FALSE(DT->dominates(E23, E02));
     EXPECT_FALSE(DT->dominates(E23, E13));
     EXPECT_TRUE(DT->dominates(E23, E23));
+  });
+}
+
+TEST(DominatorTree, ValueDomination) {
+  StringRef ModuleString = R"(
+    @foo = global i8 0
+    define i8 @f(i8 %arg) {
+      ret i8 %arg
+    }
+  )";
+
+  LLVMContext Context;
+  std::unique_ptr<Module> M = makeLLVMModule(Context, ModuleString);
+
+  runWithDomTree(*M, "f",
+                 [&](Function &F, DominatorTree *DT, PostDominatorTree *PDT) {
+    Argument *A = F.getArg(0);
+    GlobalValue *G = M->getNamedValue("foo");
+    Constant *C = ConstantInt::getNullValue(Type::getInt8Ty(Context));
+
+    Instruction *I = F.getEntryBlock().getTerminator();
+    EXPECT_TRUE(DT->dominates(A, I));
+    EXPECT_TRUE(DT->dominates(G, I));
+    EXPECT_TRUE(DT->dominates(C, I));
+
+    const Use &U = I->getOperandUse(0);
+    EXPECT_TRUE(DT->dominates(A, U));
+    EXPECT_TRUE(DT->dominates(G, U));
+    EXPECT_TRUE(DT->dominates(C, U));
   });
 }

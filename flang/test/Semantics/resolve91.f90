@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
 ! Tests for duplicate definitions and initializations, mostly of procedures
 module m
   procedure(real), pointer :: p
@@ -63,3 +63,14 @@ module m7
   !ERROR: Derived type 'ubound' not found
   integer :: ivar = ubound(iarray)(1)
 end module m7
+
+module m8
+  integer :: iVar = 3
+  !ERROR: The type of 'ivar' has already been declared
+  integer :: iVar = 4
+  integer, target :: jVar = 5
+  integer, target :: kVar = 5
+  integer, pointer :: pVar => jVar
+  !ERROR: The type of 'pvar' has already been declared
+  integer, pointer :: pVar => kVar
+end module m8

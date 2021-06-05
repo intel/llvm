@@ -1,9 +1,9 @@
 ; RUN: llc -O2 -mtriple powerpc-ibm-aix-xcoff -stop-after=machine-cp -verify-machineinstrs < %s | \
-; RUN: FileCheck --check-prefixes=CHECK,32BIT %s
+; RUN: FileCheck --check-prefix=32BIT %s
 
 ; RUN: llc -O2 -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec \
 ; RUN:  -mtriple powerpc-ibm-aix-xcoff < %s | \
-; RUN: FileCheck --check-prefixes=CHECKASM,ASM32 %s
+; RUN: FileCheck --check-prefix=ASM32 %s
 
   define i32 @int_va_arg(i32 %a, ...) local_unnamed_addr  {
   entry:
@@ -74,9 +74,9 @@
 ; 32BIT-DAG:     renamable $r11 = ADDI %fixed-stack.0, 0
 ; 32BIT-DAG:     STW renamable $r11, 0, %stack.0.arg1 :: (store 4 into %ir.0)
 ; 32BIT-DAG:     STW renamable $r4, 0, %stack.0.arg1 :: (store 4 into %ir.arg1)
-; 32BIT-DAG:     renamable $r5 = LWZ 0, %fixed-stack.0 :: (load 4 from %ir.2)
+; 32BIT-DAG:     renamable $r6 = LWZ 0, %fixed-stack.0 :: (load 4 from %ir.2)
 ; 32BIT-DAG:     renamable $r4 = LWZ 0, %fixed-stack.0 :: (load 4 from %ir.4)
-; 32BIT-DAG:     renamable $r3 = nsw ADD4 killed renamable $r5, killed renamable $r3
+; 32BIT-DAG:     renamable $r3 = nsw ADD4 killed renamable $r6, killed renamable $r3
 ; 32BIT-DAG:     renamable $r3 = nsw ADD4 killed renamable $r3, killed renamable $r4
 ; 32BIT-DAG:     BLR implicit $lr, implicit $rm, implicit $r3
 

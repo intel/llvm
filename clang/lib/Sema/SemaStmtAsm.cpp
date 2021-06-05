@@ -228,7 +228,7 @@ getClobberConflictLocation(MultiExprArg Exprs, StringLiteral **Constraints,
     StringRef Clobber = Clobbers[i]->getString();
     // We only check registers, therefore we don't check cc and memory
     // clobbers
-    if (Clobber == "cc" || Clobber == "memory")
+    if (Clobber == "cc" || Clobber == "memory" || Clobber == "unwind")
       continue;
     Clobber = Target.getNormalizedGCCRegisterName(Clobber, true);
     // Go over the output's registers we collected
@@ -448,10 +448,12 @@ StmtResult Sema::ActOnGCCAsmStmt(SourceLocation AsmLoc, bool IsSimple,
     unsigned Size = Context.getTypeSize(Ty);
     if (!Context.getTargetInfo().validateInputSize(FeatureMap,
                                                    Literal->getString(), Size))
-      return StmtResult(
-          targetDiag(InputExpr->getBeginLoc(), diag::err_asm_invalid_input_size)
-          << Info.getConstraintStr());
+      return targetDiag(InputExpr->getBeginLoc(),
+                        diag::err_asm_invalid_input_size)
+             << Info.getConstraintStr();
   }
+
+  Optional<SourceLocation> UnwindClobberLoc;
 
   // Check that the clobbers are valid.
   for (unsigned i = 0; i != NumClobbers; i++) {
@@ -468,6 +470,19 @@ StmtResult Sema::ActOnGCCAsmStmt(SourceLocation AsmLoc, bool IsSimple,
                      NumInputs, Names, Constraints, Exprs.data(), AsmString,
                      NumClobbers, Clobbers, NumLabels, RParenLoc);
     }
+
+    if (Clobber == "unwind") {
+      UnwindClobberLoc = Literal->getBeginLoc();
+    }
+  }
+
+  // Using unwind clobber and asm-goto together is not supported right now.
+  if (UnwindClobberLoc && NumLabels > 0) {
+    targetDiag(*UnwindClobberLoc, diag::err_asm_unwind_and_goto);
+    return new (Context)
+        GCCAsmStmt(Context, AsmLoc, IsSimple, IsVolatile, NumOutputs, NumInputs,
+                   Names, Constraints, Exprs.data(), AsmString, NumClobbers,
+                   Clobbers, NumLabels, RParenLoc);
   }
 
   GCCAsmStmt *NS =

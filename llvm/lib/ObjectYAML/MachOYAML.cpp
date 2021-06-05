@@ -107,8 +107,8 @@ void MappingTraits<MachOYAML::Object>::mapping(IO &IO,
   Object.DWARF.IsLittleEndian = Object.IsLittleEndian;
 
   IO.mapRequired("FileHeader", Object.Header);
-  Object.DWARF.Is64bit = Object.Header.magic == MachO::MH_MAGIC_64 ||
-                         Object.Header.magic == MachO::MH_CIGAM_64;
+  Object.DWARF.Is64BitAddrSize = Object.Header.magic == MachO::MH_MAGIC_64 ||
+                                 Object.Header.magic == MachO::MH_CIGAM_64;
   IO.mapOptional("LoadCommands", Object.LoadCommands);
   if(!Object.LinkEdit.isEmpty() || !IO.outputting())
     IO.mapOptional("LinkEditData", Object.LinkEdit);
@@ -305,12 +305,12 @@ void MappingTraits<MachOYAML::Section>::mapping(IO &IO,
   IO.mapOptional("relocations", Section.relocations);
 }
 
-StringRef
+std::string
 MappingTraits<MachOYAML::Section>::validate(IO &IO,
                                             MachOYAML::Section &Section) {
   if (Section.content && Section.size < Section.content->binary_size())
     return "Section size must be greater than or equal to the content size";
-  return {};
+  return "";
 }
 
 void MappingTraits<MachO::build_tool_version>::mapping(

@@ -9,11 +9,11 @@
 #ifndef LLVM_LIBC_SRC_STRING_STRCAT_H
 #define LLVM_LIBC_SRC_STRING_STRCAT_H
 
-#include "include/string.h"
+#include <string.h>
 
 namespace __llvm_libc {
 
-char *strcat(char *dest, const char *src);
+char *strcat(char *__restrict dest, const char *__restrict src);
 
 } // namespace __llvm_libc
 

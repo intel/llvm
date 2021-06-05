@@ -40,12 +40,12 @@
 
 ; CHECK: DW_TAG_member
 ; CHECK:     DW_AT_name {{.*}}"pub_default_static")
-; CHECK-NOT: DW_AT_accessibility
+; CHECK: DW_AT_accessibility
 ; CHECK-NOT: DW_TAG
 ;
 ; CHECK: DW_TAG_subprogram
 ; CHECK:     DW_AT_name {{.*}}"pub_default")
-; CHECK-NOT: DW_AT_accessibility
+; CHECK: DW_AT_accessibility
 ; CHECK: DW_TAG
 ;
 ; CHECK: DW_TAG_inheritance
@@ -69,7 +69,7 @@
 ;
 ; CHECK: DW_TAG_subprogram
 ; CHECK:     DW_AT_name {{.*}}"priv_default")
-; CHECK-NOT: DW_AT_accessibility
+; CHECK: DW_AT_accessibility
 ; CHECK: DW_TAG
 ;
 ; CHECK: DW_TAG_member
@@ -79,7 +79,7 @@
 ;
 ; CHECK: DW_TAG_subprogram
 ; CHECK:     DW_AT_name {{.*}}"union_pub_default")
-; CHECK-NOT: DW_AT_accessibility
+; CHECK: DW_AT_accessibility
 ; CHECK: DW_TAG
 ;
 ; CHECK: DW_TAG_subprogram

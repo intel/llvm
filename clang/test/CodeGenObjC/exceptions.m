@@ -14,7 +14,7 @@ void f0() {
   }
 }
 
-// CHECK-LABEL: define void @f1()
+// CHECK-LABEL: define{{.*}} void @f1()
 void f1() {
   extern void foo(void);
 
@@ -25,12 +25,12 @@ void f1() {
     // CHECK-NEXT: icmp
     // CHECK-NEXT: br i1
     @try {
+    // CHECK:      call void asm sideeffect "", "=*m"
     // CHECK:      call void asm sideeffect "", "*m"
     // CHECK-NEXT: call void @foo()
       foo();
     // CHECK:      call void @objc_exception_try_exit
 
-    // CHECK:      call void asm sideeffect "", "=*m"
     } @finally {
       break;
     }
@@ -40,7 +40,7 @@ void f1() {
 // Test that modifications to local variables are respected under
 // optimization.  rdar://problem/8160285
 
-// CHECK-LABEL: define i32 @f2()
+// CHECK-LABEL: define{{.*}} i32 @f2()
 int f2() {
   extern void foo(void);
 
@@ -53,6 +53,12 @@ int f2() {
   // CHECK-NEXT:   [[CAUGHT:%.*]] = icmp eq i32 [[SETJMP]], 0
   // CHECK-NEXT:   br i1 [[CAUGHT]]
   @try {
+    // Landing pad.  Note that we elide the re-enter.
+    // CHECK:      call void asm sideeffect "", "=*m,=*m"(i32* nonnull [[X]]
+    // CHECK-NEXT: call i8* @objc_exception_extract
+    // CHECK-NEXT: [[T1:%.*]] = load i32, i32* [[X]]
+    // CHECK-NEXT: [[T2:%.*]] = add nsw i32 [[T1]], -1
+
     // CHECK: store i32 6, i32* [[X]]
     x++;
     // CHECK-NEXT: call void asm sideeffect "", "*m,*m"(i32* nonnull [[X]]
@@ -61,14 +67,6 @@ int f2() {
     // CHECK-NEXT: [[T:%.*]] = load i32, i32* [[X]]
     foo();
   } @catch (id) {
-    // Landing pad.  Note that we elide the re-enter.
-    // CHECK:      call void asm sideeffect "", "=*m,=*m"(i32* nonnull [[X]]
-    // CHECK-NEXT: call i8* @objc_exception_extract
-    // CHECK-NEXT: [[T1:%.*]] = load i32, i32* [[X]]
-    // CHECK-NEXT: [[T2:%.*]] = add nsw i32 [[T1]], -1
-
-    // This store is dead.
-    // CHECK-NEXT: store i32 [[T2]], i32* [[X]]
     x--;
   }
 
@@ -77,7 +75,7 @@ int f2() {
 
 // Test that the cleanup destination is saved when entering a finally
 // block.  rdar://problem/8293901
-// CHECK-LABEL: define void @f3()
+// CHECK-LABEL: define{{.*}} void @f3()
 void f3() {
   extern void f3_helper(int, int*);
 
@@ -89,23 +87,23 @@ void f3() {
 
   // CHECK:      call void @objc_exception_try_enter(
   // CHECK:      call i32 @_setjmp
-  // CHECK-NEXT: icmp eq
-  // CHECK-NEXT: br i1
+  // CHECK-NEXT: [[DEST1:%.*]] = icmp eq
+  // CHECK-NEXT: br i1 [[DEST1]]
 
   @try {
     // CHECK:    call void @f3_helper(i32 0, i32* nonnull [[X]])
     // CHECK:    call void @objc_exception_try_exit(
     f3_helper(0, &x);
   } @finally {
-    // CHECK:    [[DEST1:%.*]] = phi i1 [ true, {{%.*}} ], [ false, {{%.*}} ]
     // CHECK:    call void @objc_exception_try_enter
     // CHECK:    call i32 @_setjmp
+    // CHECK-NEXT: [[DEST2:%.*]] = icmp eq
+    // CHECK-NEXT: br i1 [[DEST2]]
     @try {
       // CHECK:  call void @f3_helper(i32 1, i32* nonnull [[X]])
       // CHECK:  call void @objc_exception_try_exit(
       f3_helper(1, &x);
     } @finally {
-      // CHECK:  [[DEST2:%.*]] = phi i1 [ true, {{%.*}} ], [ false, {{%.*}} ]
       // CHECK:  call void @f3_helper(i32 2, i32* nonnull [[X]])
       f3_helper(2, &x);
 
@@ -133,7 +131,7 @@ void f3() {
 void f4() {
   extern void f4_help(int);
 
-  // CHECK-LABEL: define void @f4()
+  // CHECK-LABEL: define{{.*}} void @f4()
   // CHECK:      [[EXNDATA:%.*]] = alloca [[EXNDATA_T:%.*]], align
   // CHECK:      call void @objc_exception_try_enter([[EXNDATA_T]]* nonnull [[EXNDATA]])
   // CHECK:      call i32 @_setjmp

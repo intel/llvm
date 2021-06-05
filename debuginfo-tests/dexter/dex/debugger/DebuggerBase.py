@@ -125,26 +125,46 @@ class DebuggerBase(object, metaclass=abc.ABCMeta):
         pass
 
     def add_breakpoint(self, file_, line):
+        """Returns a unique opaque breakpoint id.
+
+        The ID type depends on the debugger being used, but will probably be
+        an int.
+        """
         return self._add_breakpoint(self._external_to_debug_path(file_), line)
 
     @abc.abstractmethod
     def _add_breakpoint(self, file_, line):
+        """Returns a unique opaque breakpoint id.
+        """
         pass
 
     def add_conditional_breakpoint(self, file_, line, condition):
+        """Returns a unique opaque breakpoint id.
+
+        The ID type depends on the debugger being used, but will probably be
+        an int.
+        """
         return self._add_conditional_breakpoint(
             self._external_to_debug_path(file_), line, condition)
 
     @abc.abstractmethod
     def _add_conditional_breakpoint(self, file_, line, condition):
+        """Returns a unique opaque breakpoint id.
+        """
         pass
 
-    def delete_conditional_breakpoint(self, file_, line, condition):
-        return self._delete_conditional_breakpoint(
-            self._external_to_debug_path(file_), line, condition)
+    @abc.abstractmethod
+    def delete_breakpoint(self, id):
+        """Delete a breakpoint by id.
+
+        Raises a KeyError if no breakpoint with this id exists.
+        """
+        pass
 
     @abc.abstractmethod
-    def _delete_conditional_breakpoint(self, file_, line, condition):
+    def get_triggered_breakpoint_ids(self):
+        """Returns a set of opaque ids for just-triggered breakpoints.
+        """
         pass
 
     @abc.abstractmethod
@@ -186,6 +206,8 @@ class DebuggerBase(object, metaclass=abc.ABCMeta):
         pass
 
     def _external_to_debug_path(self, path):
+        if not self.options.debugger_use_relative_paths:
+            return path
         root_dir = self.options.source_root_dir
         if not root_dir or not path:
             return path
@@ -193,6 +215,8 @@ class DebuggerBase(object, metaclass=abc.ABCMeta):
         return path[len(root_dir):].lstrip(os.path.sep)
 
     def _debug_to_external_path(self, path):
+        if not self.options.debugger_use_relative_paths:
+            return path
         if not path or not self.options.source_root_dir:
             return path
         for file in self.options.source_files:
@@ -235,32 +259,38 @@ class TestDebuggerBase(unittest.TestCase):
         return [frame.loc.path for frame in step.frames]
 
     def test_add_breakpoint_no_source_root_dir(self):
+        self.options.debugger_use_relative_paths = True
         self.options.source_root_dir = ''
         self.dbg.add_breakpoint('/root/some_file', 12)
         self.assertEqual('/root/some_file', self.dbg.breakpoint_file)
 
     def test_add_breakpoint_with_source_root_dir(self):
+        self.options.debugger_use_relative_paths = True
         self.options.source_root_dir = '/my_root'
         self.dbg.add_breakpoint('/my_root/some_file', 12)
         self.assertEqual('some_file', self.dbg.breakpoint_file)
 
     def test_add_breakpoint_with_source_root_dir_slash_suffix(self):
+        self.options.debugger_use_relative_paths = True
         self.options.source_root_dir = '/my_root/'
         self.dbg.add_breakpoint('/my_root/some_file', 12)
         self.assertEqual('some_file', self.dbg.breakpoint_file)
 
     def test_get_step_info_no_source_root_dir(self):
+        self.options.debugger_use_relative_paths = True
         self.dbg.step_info = self._new_step(['/root/some_file'])
         self.assertEqual(['/root/some_file'],
             self._step_paths(self.dbg.get_step_info([], 0)))
 
     def test_get_step_info_no_frames(self):
+        self.options.debugger_use_relative_paths = True
         self.options.source_root_dir = '/my_root'
         self.dbg.step_info = self._new_step([])
         self.assertEqual([],
             self._step_paths(self.dbg.get_step_info([], 0)))
 
     def test_get_step_info(self):
+        self.options.debugger_use_relative_paths = True
         self.options.source_root_dir = '/my_root'
         self.options.source_files = ['/my_root/some_file']
         self.dbg.step_info = self._new_step(

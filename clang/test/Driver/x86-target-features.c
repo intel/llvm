@@ -178,6 +178,27 @@
 // RUN: %clang -target i386-linux-gnu -mlvi-hardening -mretpoline-external-thunk %s -### -o %t.o 2>&1 | FileCheck -check-prefix=LVIHARDENING-RETPOLINE-EXTERNAL-THUNK %s
 // LVIHARDENING-RETPOLINE-EXTERNAL-THUNK: error: invalid argument 'mretpoline-external-thunk' not allowed with 'mlvi-hardening'
 
+// RUN: %clang -target i386-linux-gnu -mseses %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SESES %s
+// RUN: %clang -target i386-linux-gnu -mno-seses %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-SESES %s
+// SESES: "-target-feature" "+seses"
+// SESES: "-target-feature" "+lvi-cfi"
+// NO-SESES-NOT: seses
+// NO-SESES-NOT: lvi-cfi
+
+// RUN: %clang -target i386-linux-gnu -mseses -mno-lvi-cfi %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SESES-NOLVICFI %s
+// SESES-NOLVICFI: "-target-feature" "+seses"
+// SESES-NOLVICFI-NOT: lvi-cfi
+
+// RUN: %clang -target i386-linux-gnu -mseses -mspeculative-load-hardening %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SESES-SLH %s
+// SESES-SLH: error: invalid argument 'mspeculative-load-hardening' not allowed with 'mseses'
+// RUN: %clang -target i386-linux-gnu -mseses -mretpoline %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SESES-RETPOLINE %s
+// SESES-RETPOLINE: error: invalid argument 'mretpoline' not allowed with 'mseses'
+// RUN: %clang -target i386-linux-gnu -mseses -mretpoline-external-thunk %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SESES-RETPOLINE-EXTERNAL-THUNK %s
+// SESES-RETPOLINE-EXTERNAL-THUNK: error: invalid argument 'mretpoline-external-thunk' not allowed with 'mseses'
+
+// RUN: %clang -target i386-linux-gnu -mseses -mlvi-hardening %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SESES-LVIHARDENING %s
+// SESES-LVIHARDENING: error: invalid argument 'mlvi-hardening' not allowed with 'mseses'
+
 // RUN: %clang -target i386-linux-gnu -mwaitpkg %s -### -o %t.o 2>&1 | FileCheck -check-prefix=WAITPKG %s
 // RUN: %clang -target i386-linux-gnu -mno-waitpkg %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-WAITPKG %s
 // WAITPKG: "-target-feature" "+waitpkg"
@@ -232,3 +253,43 @@
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-tsxldtrk %s -### -o %t.o 2>&1 | FileCheck --check-prefix=NO-TSXLDTRK %s
 // TSXLDTRK: "-target-feature" "+tsxldtrk"
 // NO-TSXLDTRK: "-target-feature" "-tsxldtrk"
+
+// RUN: %clang -target i386-linux-gnu -mkl %s -### -o %t.o 2>&1 | FileCheck -check-prefix=KL %s
+// RUN: %clang -target i386-linux-gnu -mno-kl %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-KL %s
+// KL: "-target-feature" "+kl"
+// NO-KL: "-target-feature" "-kl"
+
+// RUN: %clang -target i386-linux-gnu -mwidekl %s -### -o %t.o 2>&1 | FileCheck -check-prefix=WIDE_KL %s
+// RUN: %clang -target i386-linux-gnu -mno-widekl %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-WIDE_KL %s
+// WIDE_KL: "-target-feature" "+widekl"
+// NO-WIDE_KL: "-target-feature" "-widekl"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mamx-tile %s -### -o %t.o 2>&1 | FileCheck --check-prefix=AMX-TILE %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-amx-tile %s -### -o %t.o 2>&1 | FileCheck --check-prefix=NO-AMX-TILE %s
+// AMX-TILE: "-target-feature" "+amx-tile"
+// NO-AMX-TILE: "-target-feature" "-amx-tile"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mamx-bf16 %s -### -o %t.o 2>&1 | FileCheck --check-prefix=AMX-BF16 %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-amx-bf16 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-AMX-BF16 %s
+// AMX-BF16: "-target-feature" "+amx-bf16"
+// NO-AMX-BF16: "-target-feature" "-amx-bf16"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mamx-int8 %s -### -o %t.o 2>&1 | FileCheck --check-prefix=AMX-INT8 %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-amx-int8 %s -### -o %t.o 2>&1 | FileCheck --check-prefix=NO-AMX-INT8 %s
+// AMX-INT8: "-target-feature" "+amx-int8"
+// NO-AMX-INT8: "-target-feature" "-amx-int8"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mhreset %s -### -o %t.o 2>&1 | FileCheck -check-prefix=HRESET %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-hreset %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-HRESET %s
+// HRESET: "-target-feature" "+hreset"
+// NO-HRESET: "-target-feature" "-hreset"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -muintr %s -### -o %t.o 2>&1 | FileCheck -check-prefix=UINTR %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-uintr %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-UINTR %s
+// UINTR: "-target-feature" "+uintr"
+// NO-UINTR: "-target-feature" "-uintr"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mavxvnni %s -### -o %t.o 2>&1 | FileCheck --check-prefix=AVX-VNNI %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-avxvnni %s -### -o %t.o 2>&1 | FileCheck --check-prefix=NO-AVX-VNNI %s
+// AVX-VNNI: "-target-feature" "+avxvnni"
+// NO-AVX-VNNI: "-target-feature" "-avxvnni"

@@ -1,8 +1,13 @@
 ; This file tests the codegen of mergeable const in AIX assembly.
 ; This file also tests mergeable const in XCOFF object file generation.
-; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mtriple powerpc-ibm-aix-xcoff < %s | FileCheck --check-prefixes=CHECK,CHECK32 %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mtriple powerpc64-ibm-aix-xcoff < %s | FileCheck --check-prefixes=CHECK,CHECK64 %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mtriple powerpc-ibm-aix-xcoff -filetype=obj -o %t.o < %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
+; RUN:     -data-sections=false -xcoff-traceback-table=false < %s | \
+; RUN:   FileCheck --check-prefixes=CHECK,CHECK32 %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -mtriple powerpc64-ibm-aix-xcoff \
+; RUN:     -xcoff-traceback-table=false -data-sections=false < %s | \
+; RUN:   FileCheck --check-prefixes=CHECK,CHECK64 %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
+; RUN:     -xcoff-traceback-table=false -data-sections=false -filetype=obj -o %t.o < %s
 ; RUN: llvm-objdump -D %t.o | FileCheck --check-prefix=CHECKOBJ %s
 ; RUN: llvm-readobj -syms %t.o | FileCheck --check-prefix=CHECKSYM %s
 
@@ -25,7 +30,7 @@ entry:
 ;CHECK:         .csect .rodata[RO],4
 
 ;CHECK-NEXT:         .align  4
-;CHECK-NEXT: .L__const.main.cnst32:
+;CHECK-NEXT: L..__const.main.cnst32:
 ;CHECK32-NEXT:         .vbyte	4, 1073741824
 ;CHECK32-NEXT:         .vbyte	4, 50
 ;CHECK64-NEXT:         .vbyte	8, 4611686018427387954
@@ -38,7 +43,7 @@ entry:
 ;CHECK-NEXT:           .space  4
 
 ;CHECK-NEXT:           .align  3
-;CHECK-NEXT: .L__const.main.cnst16:
+;CHECK-NEXT: L..__const.main.cnst16:
 ;CHECK32-NEXT:         .vbyte	4, 1073741824
 ;CHECK32-NEXT:         .vbyte	4, 22
 ;CHECK64-NEXT:         .vbyte	8, 4611686018427387926
@@ -46,12 +51,12 @@ entry:
 ;CHECK-NEXT:           .space  4
 
 ;CHECK-NEXT:         .align  3
-;CHECK-NEXT: .L__const.main.cnst8:
+;CHECK-NEXT: L..__const.main.cnst8:
 ;CHECK-NEXT:         .vbyte	4, 1073741832              # 0x40000008
 ;CHECK-NEXT:         .vbyte	4, 0                       # 0x0
 
 ;CHECK-NEXT:         .align  3
-;CHECK-NEXT: .L__const.main.cnst4:
+;CHECK-NEXT: L..__const.main.cnst4:
 ;CHECK-NEXT:         .vbyte	2, 16392                   # 0x4008
 ;CHECK-NEXT:         .byte   0                       # 0x0
 ;CHECK-NEXT:         .space  1

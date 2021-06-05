@@ -1,3 +1,13 @@
 add_llvm_component_library(LLVMWebAssemblyAsmParser
   WebAssemblyAsmParser.cpp
+
+  LINK_COMPONENTS
+  MC
+  MCParser
+  WebAssemblyInfo
+  WebAssemblyUtils
+  Support
+
+  ADD_TO_COMPONENT
+  WebAssembly
   )

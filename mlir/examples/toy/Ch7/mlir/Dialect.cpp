@@ -14,9 +14,9 @@
 #include "toy/Dialect.h"
 
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Transforms/InliningUtils.h"
 
 using namespace mlir;
@@ -35,8 +35,14 @@ struct ToyInlinerInterface : public DialectInlinerInterface {
   // Analysis Hooks
   //===--------------------------------------------------------------------===//
 
+  /// All call operations within toy can be inlined.
+  bool isLegalToInline(Operation *call, Operation *callable,
+                       bool wouldBeCloned) const final {
+    return true;
+  }
+
   /// All operations within toy can be inlined.
-  bool isLegalToInline(Operation *, Region *,
+  bool isLegalToInline(Operation *, Region *, bool,
                        BlockAndValueMapping &) const final {
     return true;
   }
@@ -69,32 +75,6 @@ struct ToyInlinerInterface : public DialectInlinerInterface {
     return builder.create<CastOp>(conversionLoc, resultType, input);
   }
 };
-
-//===----------------------------------------------------------------------===//
-// ToyDialect
-//===----------------------------------------------------------------------===//
-
-/// Dialect creation, the instance will be owned by the context. This is the
-/// point of registration of custom types and operations for the dialect.
-ToyDialect::ToyDialect(mlir::MLIRContext *ctx) : mlir::Dialect("toy", ctx) {
-  addOperations<
-#define GET_OP_LIST
-#include "toy/Ops.cpp.inc"
-      >();
-  addInterfaces<ToyInlinerInterface>();
-  addTypes<StructType>();
-}
-
-mlir::Operation *ToyDialect::materializeConstant(mlir::OpBuilder &builder,
-                                                 mlir::Attribute value,
-                                                 mlir::Type type,
-                                                 mlir::Location loc) {
-  if (type.isa<StructType>())
-    return builder.create<StructConstantOp>(loc, type,
-                                            value.cast<mlir::ArrayAttr>());
-  return builder.create<ConstantOp>(loc, type,
-                                    value.cast<mlir::DenseElementsAttr>());
-}
 
 //===----------------------------------------------------------------------===//
 // Toy Operations
@@ -183,7 +163,7 @@ static mlir::ParseResult parseConstantOp(mlir::OpAsmParser &parser,
 /// strings, attributes, operands, types, etc.
 static void print(mlir::OpAsmPrinter &printer, ConstantOp op) {
   printer << "toy.constant ";
-  printer.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"value"});
+  printer.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{"value"});
   printer << op.value();
 }
 
@@ -237,7 +217,7 @@ static mlir::LogicalResult verifyConstantForType(mlir::Type type,
 
   // Check that each of the elements are valid.
   llvm::ArrayRef<mlir::Attribute> attrElementValues = attrValue.getValue();
-  for (const auto &it : llvm::zip(resultElementTypes, attrElementValues))
+  for (const auto it : llvm::zip(resultElementTypes, attrElementValues))
     if (failed(verifyConstantForType(std::get<0>(it), std::get<1>(it), op)))
       return mlir::failure();
   return mlir::success();
@@ -277,6 +257,21 @@ void AddOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
 /// inference interface.
 void CastOp::inferShapes() { getResult().setType(getOperand().getType()); }
 
+/// Returns true if the given set of input and result types are compatible with
+/// this cast operation. This is required by the `CastOpInterface` to verify
+/// this operation and provide other additional utilities.
+bool CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  // The inputs must be Tensors with the same element type.
+  TensorType input = inputs.front().dyn_cast<TensorType>();
+  TensorType output = outputs.front().dyn_cast<TensorType>();
+  if (!input || !output || input.getElementType() != output.getElementType())
+    return false;
+  // The shape is required to match if both types are ranked.
+  return !input.hasRank() || !output.hasRank() || input == output;
+}
+
 //===----------------------------------------------------------------------===//
 // GenericCallOp
 
@@ -291,7 +286,7 @@ void GenericCallOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 /// Return the callee of the generic call operation, this is required by the
 /// call interface.
 CallInterfaceCallable GenericCallOp::getCallableForCallee() {
-  return getAttrOfType<SymbolRefAttr>("callee");
+  return (*this)->getAttrOfType<SymbolRefAttr>("callee");
 }
 
 /// Get the argument operands to the called function, this is required by the
@@ -317,7 +312,7 @@ void MulOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
 static mlir::LogicalResult verify(ReturnOp op) {
   // We know that the parent operation is a function, because of the 'HasParent'
   // trait attached to the operation definition.
-  auto function = cast<FuncOp>(op.getParentOp());
+  auto function = cast<FuncOp>(op->getParentOp());
 
   /// ReturnOps can only have a single optional operand.
   if (op.getNumOperands() > 1)
@@ -364,7 +359,7 @@ void StructAccessOp::build(mlir::OpBuilder &b, mlir::OperationState &state,
 
 static mlir::LogicalResult verify(StructAccessOp op) {
   StructType structTy = op.input().getType().cast<StructType>();
-  size_t index = op.index().getZExtValue();
+  size_t index = op.index();
   if (index >= structTy.getNumElementTypes())
     return op.emitOpError()
            << "index should be within the range of the input struct type";
@@ -473,11 +468,10 @@ StructType StructType::get(llvm::ArrayRef<mlir::Type> elementTypes) {
   assert(!elementTypes.empty() && "expected at least 1 element type");
 
   // Call into a helper 'get' method in 'TypeBase' to get a uniqued instance
-  // of this type. The first two parameters are the context to unique in and the
-  // kind of the type. The parameters after the type kind are forwarded to the
-  // storage instance.
+  // of this type. The first parameter is the context to unique in. The
+  // parameters after the context are forwarded to the storage instance.
   mlir::MLIRContext *ctx = elementTypes.front().getContext();
-  return Base::get(ctx, ToyTypes::Struct, elementTypes);
+  return Base::get(ctx, elementTypes);
 }
 
 /// Returns the element types of this struct type.
@@ -545,3 +539,29 @@ void ToyDialect::printType(mlir::Type type,
 
 #define GET_OP_CLASSES
 #include "toy/Ops.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// ToyDialect
+//===----------------------------------------------------------------------===//
+
+/// Dialect initialization, the instance will be owned by the context. This is
+/// the point of registration of types and operations for the dialect.
+void ToyDialect::initialize() {
+  addOperations<
+#define GET_OP_LIST
+#include "toy/Ops.cpp.inc"
+      >();
+  addInterfaces<ToyInlinerInterface>();
+  addTypes<StructType>();
+}
+
+mlir::Operation *ToyDialect::materializeConstant(mlir::OpBuilder &builder,
+                                                 mlir::Attribute value,
+                                                 mlir::Type type,
+                                                 mlir::Location loc) {
+  if (type.isa<StructType>())
+    return builder.create<StructConstantOp>(loc, type,
+                                            value.cast<mlir::ArrayAttr>());
+  return builder.create<ConstantOp>(loc, type,
+                                    value.cast<mlir::DenseElementsAttr>());
+}

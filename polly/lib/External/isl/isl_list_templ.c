@@ -265,7 +265,7 @@ isl_size FN(FN(LIST(EL),n),EL_BASE)(__isl_keep LIST(EL) *list)
 
 /* Return the element at position "index" in "list".
  */
-static __isl_keep EL *FN(LIST(EL),peek)(__isl_keep LIST(EL) *list, int index)
+__isl_keep EL *FN(LIST(EL),peek)(__isl_keep LIST(EL) *list, int index)
 {
 	if (FN(LIST(EL),check_index)(list, index) < 0)
 		return NULL;
@@ -391,6 +391,27 @@ isl_stat FN(LIST(EL),foreach)(__isl_keep LIST(EL) *list,
 	}
 
 	return isl_stat_ok;
+}
+
+/* Does "test" succeed on every element of "list"?
+ */
+isl_bool FN(LIST(EL),every)(__isl_keep LIST(EL) *list,
+	isl_bool (*test)(__isl_keep EL *el, void *user), void *user)
+{
+	int i;
+
+	if (!list)
+		return isl_bool_error;
+
+	for (i = 0; i < list->n; ++i) {
+		isl_bool r;
+
+		r = test(list->p[i], user);
+		if (r < 0 || !r)
+			return r;
+	}
+
+	return isl_bool_true;
 }
 
 /* Replace each element in "list" by the result of calling "fn"

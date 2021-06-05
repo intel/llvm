@@ -98,6 +98,7 @@ add_llvm_pass_plugin(Polly
   Transform/MaximalStaticExpansion.cpp
   Transform/RewriteByReferenceParameters.cpp
   Transform/ScopInliner.cpp
+  Transform/ManualOptimizer.cpp
   ${POLLY_HEADER_FILES}
 
   LINK_COMPONENTS
@@ -137,8 +138,9 @@ endif ()
 
 # Create a loadable module Polly.so that can be loaded using
 # LLVM's/clang's "-load" option.
-if (MSVC)
-  # Add dummy target, because loadable modules are not supported on Windows
+if (WIN32 OR NOT LLVM_ENABLE_PIC)
+  # Add dummy target, either because loadable modules are not supported
+  # as on Windows or because PIC code has been disabled
   add_custom_target(LLVMPolly)
   set_target_properties(LLVMPolly PROPERTIES FOLDER "Polly")
 else ()

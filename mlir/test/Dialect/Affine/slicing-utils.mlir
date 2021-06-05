@@ -17,7 +17,7 @@
 // FWDBWD-LABEL: slicing_test
 func @slicing_test() {
   // Fake 0 to align on 1 and match ASCII art.
-  %0 = alloc() : memref<1xi32>
+  %0 = memref.alloc() : memref<1xi32>
 
   // FWD: matched: %[[v1:.*]] {{.*}} forward static slice:
   // FWD-NEXT: %[[v5:.*]] {{.*}} -> i5
@@ -272,6 +272,17 @@ func @slicing_test_function_argument(%arg0: index) -> index {
   // BWD: matched: {{.*}} (index, index) -> index backward static slice:
   %0 = "slicing-test-op"(%arg0, %arg0): (index, index) -> index
   return %0 : index
+}
+
+// FWD-LABEL: slicing_test_multiple_return
+// BWD-LABEL: slicing_test_multiple_return
+// FWDBWD-LABEL: slicing_test_multiple_return
+func @slicing_test_multiple_return(%arg0: index) -> (index, index) {
+  // BWD: matched: {{.*}} (index, index) -> (index, index) backward static slice:
+  // FWD: matched: %{{.*}}:2 = "slicing-test-op"(%arg0, %arg0) : (index, index) -> (index, index) forward static slice:
+  // FWD: return %{{.*}}#0, %{{.*}}#1 : index, index
+  %0:2 = "slicing-test-op"(%arg0, %arg0): (index, index) -> (index, index)
+  return %0#0, %0#1 : index, index
 }
 
 // This test dumps 2 sets of outputs: first the test outputs themselves followed

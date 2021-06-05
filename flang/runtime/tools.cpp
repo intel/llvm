@@ -7,10 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "tools.h"
+#include "terminator.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 
 namespace Fortran::runtime {
+
+std::size_t TrimTrailingSpaces(const char *s, std::size_t n) {
+  while (n > 0 && s[n - 1] == ' ') {
+    --n;
+  }
+  return n;
+}
 
 OwningPtr<char> SaveDefaultCharacter(
     const char *s, std::size_t length, const Terminator &terminator) {
@@ -68,4 +77,33 @@ void ToFortranDefaultCharacter(
   }
 }
 
+void CheckConformability(const Descriptor &to, const Descriptor &x,
+    Terminator &terminator, const char *funcName, const char *toName,
+    const char *xName) {
+  if (x.rank() == 0) {
+    return; // scalar conforms with anything
+  }
+  int rank{to.rank()};
+  if (x.rank() != rank) {
+    terminator.Crash(
+        "Incompatible array arguments to %s: %s has rank %d but %s has rank %d",
+        funcName, toName, rank, xName, x.rank());
+  } else {
+    for (int j{0}; j < rank; ++j) {
+      auto toExtent{static_cast<std::int64_t>(to.GetDimension(j).Extent())};
+      auto xExtent{static_cast<std::int64_t>(x.GetDimension(j).Extent())};
+      if (xExtent != toExtent) {
+        terminator.Crash("Incompatible array arguments to %s: dimension %d of "
+                         "%s has extent %" PRId64 " but %s has extent %" PRId64,
+            funcName, j, toName, toExtent, xName, xExtent);
+      }
+    }
+  }
+}
+
+void CheckIntegerKind(Terminator &terminator, int kind, const char *intrinsic) {
+  if (kind < 1 || kind > 16 || (kind & (kind - 1)) != 0) {
+    terminator.Crash("%s: bad KIND=%d argument", intrinsic, kind);
+  }
+}
 } // namespace Fortran::runtime

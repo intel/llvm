@@ -1,5 +1,5 @@
-; RUN: opt -openmpopt -pass-remarks=openmp-opt -disable-output < %s 2>&1 | FileCheck %s
-; RUN: opt -passes=openmpopt -pass-remarks=openmp-opt -disable-output < %s 2>&1 | FileCheck %s
+; RUN: opt -openmp-opt-cgscc -pass-remarks=openmp-opt -disable-output < %s 2>&1 | FileCheck %s
+; RUN: opt -passes=openmp-opt-cgscc -pass-remarks=openmp-opt -disable-output < %s 2>&1 | FileCheck %s
 ; ModuleID = 'deduplication_remarks.c'
 source_filename = "deduplication_remarks.c"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
@@ -10,9 +10,9 @@ target triple = "x86_64-pc-linux-gnu"
 @0 = private unnamed_addr global %struct.ident_t { i32 0, i32 34, i32 0, i32 0, i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str0, i32 0, i32 0) }, align 8
 @.str0 = private unnamed_addr constant [23 x i8] c";unknown;unknown;0;0;;\00", align 1
 
-; CHECK: remark: deduplication_remarks.c:9:10: OpenMP runtime call __kmpc_global_thread_num moved to deduplication_remarks.c:5:10
-; CHECK: remark: deduplication_remarks.c:7:10: OpenMP runtime call __kmpc_global_thread_num deduplicated
-; CHECK: remark: deduplication_remarks.c:5:10: OpenMP runtime call __kmpc_global_thread_num deduplicated
+; CHECK: remark: deduplication_remarks.c:4:0: OpenMP runtime call __kmpc_global_thread_num moved to beginning of OpenMP region
+; CHECK: remark: deduplication_remarks.c:4:0: OpenMP runtime call __kmpc_global_thread_num deduplicated
+; CHECK: remark: deduplication_remarks.c:4:0: OpenMP runtime call __kmpc_global_thread_num deduplicated
 define dso_local void @deduplicate() local_unnamed_addr !dbg !14 {
   %1 = tail call i32 @__kmpc_global_thread_num(%struct.ident_t* nonnull @0), !dbg !21
   call void @useI32(i32 %1), !dbg !23

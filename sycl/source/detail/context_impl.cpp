@@ -14,27 +14,29 @@
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
+#include <CL/sycl/properties/context_properties.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/context_info.hpp>
+#include <detail/platform_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
-                           bool UseCUDAPrimaryContext)
+                           const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
-      MPlatform(), MPluginInterop(false), MHostContext(true),
-      MUseCUDAPrimaryContext(UseCUDAPrimaryContext) {
+      MPlatform(), MPropList(PropList), MHostContext(Device.is_host()) {
   MKernelProgramCache.setContextPtr(this);
 }
 
 context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
-                           async_handler AsyncHandler, bool UseCUDAPrimaryContext)
+                           async_handler AsyncHandler,
+                           const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
-      MPlatform(), MPluginInterop(true), MHostContext(false),
-      MUseCUDAPrimaryContext(UseCUDAPrimaryContext) {
+      MPlatform(), MPropList(PropList), MHostContext(false) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   vector_class<RT::PiDevice> DeviceIds;
   for (const auto &D : MDevices) {
@@ -43,19 +45,19 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
 
   const auto Backend = getPlugin().getBackend();
   if (Backend == backend::cuda) {
-#if USE_PI_CUDA
-    const pi_context_properties props[] = {
-        static_cast<pi_context_properties>(PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
+    const bool UseCUDAPrimaryContext =
+        MPropList.has_property<property::context::cuda::use_primary_context>();
+    const pi_context_properties Props[] = {
+        static_cast<pi_context_properties>(
+            __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
         static_cast<pi_context_properties>(UseCUDAPrimaryContext), 0};
 
-    getPlugin().call<PiApiKind::piContextCreate>(props, DeviceIds.size(), 
-	  	  DeviceIds.data(), nullptr, nullptr, &MContext);
-#else
-    cl::sycl::detail::pi::die("CUDA support was not enabled at compilation time");
-#endif
+    getPlugin().call<PiApiKind::piContextCreate>(
+        Props, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
   } else {
-    getPlugin().call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(), 
-	  	  DeviceIds.data(), nullptr, nullptr, &MContext);
+    getPlugin().call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(),
+                                                 DeviceIds.data(), nullptr,
+                                                 nullptr, &MContext);
   }
 
   MKernelProgramCache.setContextPtr(this);
@@ -64,7 +66,7 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                            const plugin &Plugin)
     : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
-      MPluginInterop(true), MHostContext(false) {
+      MHostContext(false) {
 
   vector_class<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
@@ -78,40 +80,48 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                                            sizeof(RT::PiDevice) * DevicesNum,
                                            &DeviceIds[0], nullptr);
 
-  for (auto Dev : DeviceIds) {
-    MDevices.emplace_back(createSyclObjFromImpl<device>(
-        std::make_shared<device_impl>(Dev, Plugin)));
+  if (!DeviceIds.empty()) {
+    std::shared_ptr<detail::platform_impl> Platform =
+        platform_impl::getPlatformFromPiDevice(DeviceIds[0], Plugin);
+    for (RT::PiDevice Dev : DeviceIds) {
+      MDevices.emplace_back(createSyclObjFromImpl<device>(
+          Platform->getOrMakeDeviceImpl(Dev, Platform)));
+    }
+    MPlatform = Platform;
   }
-  // TODO What if m_Devices if empty? m_Devices[0].get_platform()
-  MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   // TODO catch an exception and put it to list of asynchronous exceptions
   // getPlugin() will be the same as the Plugin passed. This should be taken
   // care of when creating device object.
-  getPlugin().call<PiApiKind::piContextRetain>(MContext);
+  //
+  // TODO: Move this backend-specific retain of the context to SYCL-2020 style
+  //       make_context<backend::opencl> interop, when that is created.
+  if (getPlugin().getBackend() == cl::sycl::backend::opencl) {
+    getPlugin().call<PiApiKind::piContextRetain>(MContext);
+  }
   MKernelProgramCache.setContextPtr(this);
 }
 
 cl_context context_impl::get() const {
-  if (MPluginInterop) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piContextRetain>(MContext);
-    return pi::cast<cl_context>(MContext);
+  if (MHostContext) {
+    throw invalid_object_error(
+        "This instance of context doesn't support OpenCL interoperability.",
+        PI_INVALID_CONTEXT);
   }
-  throw invalid_object_error(
-      "This instance of context doesn't support OpenCL interoperability.",
-      PI_INVALID_CONTEXT);
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  getPlugin().call<PiApiKind::piContextRetain>(MContext);
+  return pi::cast<cl_context>(MContext);
 }
 
-bool context_impl::is_host() const { return MHostContext || !MPluginInterop; }
+bool context_impl::is_host() const { return MHostContext; }
 
 context_impl::~context_impl() {
-  if (MPluginInterop) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piContextRelease>(MContext);
-  }
   for (auto LibProg : MCachedLibPrograms) {
     assert(LibProg.second && "Null program must not be kept in the cache");
     getPlugin().call<PiApiKind::piProgramRelease>(LibProg.second);
+  }
+  if (!MHostContext) {
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    getPlugin().call<PiApiKind::piContextRelease>(MContext);
   }
 }
 
@@ -144,8 +154,8 @@ KernelProgramCache &context_impl::getKernelProgramCache() const {
   return MKernelProgramCache;
 }
 
-bool
-context_impl::hasDevice(shared_ptr_class<detail::device_impl> Device) const {
+bool context_impl::hasDevice(
+    shared_ptr_class<detail::device_impl> Device) const {
   for (auto D : MDevices)
     if (getSyclObjImpl(D) == Device)
       return true;
@@ -154,6 +164,8 @@ context_impl::hasDevice(shared_ptr_class<detail::device_impl> Device) const {
 
 pi_native_handle context_impl::getNative() const {
   auto Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piContextRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;

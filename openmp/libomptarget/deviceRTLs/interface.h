@@ -89,7 +89,6 @@ EXTERN int omp_get_default_device(void);
 EXTERN int omp_get_num_devices(void);
 EXTERN int omp_get_num_teams(void);
 EXTERN int omp_get_team_num(void);
-EXTERN int omp_is_initial_device(void);
 EXTERN int omp_get_initial_device(void);
 EXTERN int omp_get_max_task_priority(void);
 
@@ -178,32 +177,26 @@ enum {
  * The struct is identical to the one in the kmp.h file.
  * We maintain the same data structure for compatibility.
  */
+typedef short kmp_int16;
 typedef int kmp_int32;
 typedef struct ident {
   kmp_int32 reserved_1; /**<  might be used in Fortran; see above  */
-  kmp_int32 flags; /**<  also f.flags; KMP_IDENT_xxx flags; KMP_IDENT_KMPC
-                      identifies this union member  */
+  kmp_int32 flags;      /**<  also f.flags; KMP_IDENT_xxx flags; KMP_IDENT_KMPC
+                           identifies this union member  */
   kmp_int32 reserved_2; /**<  not really used in Fortran any more; see above */
   kmp_int32 reserved_3; /**<  source[4] in Fortran, do not use for C++  */
-  char const *psource; /**<  String describing the source location.
-                       The string is composed of semi-colon separated fields
-                       which describe the source file, the function and a pair
-                       of line numbers that delimit the construct. */
+  char const *psource;  /**<  String describing the source location.
+                        The string is composed of semi-colon separated fields
+                        which describe the source file, the function and a pair
+                        of line numbers that delimit the construct. */
 } ident_t;
 
 // parallel defs
 typedef ident_t kmp_Ident;
-typedef void (*kmp_ParFctPtr)(int32_t *global_tid, int32_t *bound_tid, ...);
-typedef void (*kmp_ReductFctPtr)(void *lhsData, void *rhsData);
 typedef void (*kmp_InterWarpCopyFctPtr)(void *src, int32_t warp_num);
 typedef void (*kmp_ShuffleReductFctPtr)(void *rhsData, int16_t lane_id,
                                         int16_t lane_offset,
                                         int16_t shortCircuit);
-typedef void (*kmp_CopyToScratchpadFctPtr)(void *reduceData, void *scratchpad,
-                                           int32_t index, int32_t width);
-typedef void (*kmp_LoadReduceFctPtr)(void *reduceData, void *scratchpad,
-                                     int32_t index, int32_t width,
-                                     int32_t reduce);
 typedef void (*kmp_ListGlobalFctPtr)(void *buffer, int idx, void *reduce_data);
 
 // task defs
@@ -227,15 +220,8 @@ typedef int32_t kmp_CriticalName[8];
 EXTERN int32_t __kmpc_global_thread_num(kmp_Ident *loc);
 EXTERN void __kmpc_push_num_threads(kmp_Ident *loc, int32_t global_tid,
                                     int32_t num_threads);
-// simd
-EXTERN void __kmpc_push_simd_limit(kmp_Ident *loc, int32_t global_tid,
-                                   int32_t simd_limit);
-// aee ... not supported
-// EXTERN void __kmpc_fork_call(kmp_Ident *loc, int32_t argc, kmp_ParFctPtr
-// microtask, ...);
 EXTERN void __kmpc_serialized_parallel(kmp_Ident *loc, uint32_t global_tid);
-EXTERN void __kmpc_end_serialized_parallel(kmp_Ident *loc,
-                                           uint32_t global_tid);
+EXTERN void __kmpc_end_serialized_parallel(kmp_Ident *loc, uint32_t global_tid);
 EXTERN uint16_t __kmpc_parallel_level(kmp_Ident *loc, uint32_t global_tid);
 
 // proc bind
@@ -294,9 +280,8 @@ void __kmpc_for_static_init_8u_simple_spmd(kmp_Ident *loc, int32_t global_tid,
                                            int64_t *pstride, int64_t incr,
                                            int64_t chunk);
 EXTERN
-void __kmpc_for_static_init_4_simple_generic(kmp_Ident *loc,
-                                             int32_t global_tid, int32_t sched,
-                                             int32_t *plastiter,
+void __kmpc_for_static_init_4_simple_generic(kmp_Ident *loc, int32_t global_tid,
+                                             int32_t sched, int32_t *plastiter,
                                              int32_t *plower, int32_t *pupper,
                                              int32_t *pstride, int32_t incr,
                                              int32_t chunk);
@@ -306,9 +291,8 @@ void __kmpc_for_static_init_4u_simple_generic(
     uint32_t *plower, uint32_t *pupper, int32_t *pstride, int32_t incr,
     int32_t chunk);
 EXTERN
-void __kmpc_for_static_init_8_simple_generic(kmp_Ident *loc,
-                                             int32_t global_tid, int32_t sched,
-                                             int32_t *plastiter,
+void __kmpc_for_static_init_8_simple_generic(kmp_Ident *loc, int32_t global_tid,
+                                             int32_t sched, int32_t *plastiter,
                                              int64_t *plower, int64_t *pupper,
                                              int64_t *pstride, int64_t incr,
                                              int64_t chunk);
@@ -354,61 +338,25 @@ EXTERN void __kmpc_dispatch_fini_4u(kmp_Ident *loc, int32_t global_tid);
 EXTERN void __kmpc_dispatch_fini_8(kmp_Ident *loc, int32_t global_tid);
 EXTERN void __kmpc_dispatch_fini_8u(kmp_Ident *loc, int32_t global_tid);
 
-// Support for reducing conditional lastprivate variables
-EXTERN void __kmpc_reduce_conditional_lastprivate(kmp_Ident *loc,
-                                                  int32_t global_tid,
-                                                  int32_t varNum, void *array);
-
 // reduction
 EXTERN void __kmpc_nvptx_end_reduce(int32_t global_tid);
 EXTERN void __kmpc_nvptx_end_reduce_nowait(int32_t global_tid);
-EXTERN __attribute__((deprecated)) int32_t __kmpc_nvptx_parallel_reduce_nowait(
-    int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
-    kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct);
 EXTERN int32_t __kmpc_nvptx_parallel_reduce_nowait_v2(
     kmp_Ident *loc, int32_t global_tid, int32_t num_vars, size_t reduce_size,
     void *reduce_data, kmp_ShuffleReductFctPtr shflFct,
     kmp_InterWarpCopyFctPtr cpyFct);
-EXTERN int32_t __kmpc_nvptx_parallel_reduce_nowait_simple_spmd(
-    int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
-    kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct);
-EXTERN int32_t __kmpc_nvptx_parallel_reduce_nowait_simple_generic(
-    int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
-    kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct);
-EXTERN int32_t __kmpc_nvptx_simd_reduce_nowait(
-    int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
-    kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct);
 EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait_v2(
     kmp_Ident *loc, int32_t global_tid, void *global_buffer,
     int32_t num_of_records, void *reduce_data, kmp_ShuffleReductFctPtr shflFct,
     kmp_InterWarpCopyFctPtr cpyFct, kmp_ListGlobalFctPtr lgcpyFct,
     kmp_ListGlobalFctPtr lgredFct, kmp_ListGlobalFctPtr glcpyFct,
     kmp_ListGlobalFctPtr glredFct);
-EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait(
-    int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
-    kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct,
-    kmp_CopyToScratchpadFctPtr sratchFct, kmp_LoadReduceFctPtr ldFct);
-EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait_simple_spmd(
-    int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
-    kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct,
-    kmp_CopyToScratchpadFctPtr sratchFct, kmp_LoadReduceFctPtr ldFct);
-EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait_simple_generic(
-    int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
-    kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct,
-    kmp_CopyToScratchpadFctPtr sratchFct, kmp_LoadReduceFctPtr ldFct);
-EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait_simple(kmp_Ident *loc,
-                                                       int32_t global_tid,
-                                                       kmp_CriticalName *crit);
-EXTERN void __kmpc_nvptx_teams_end_reduce_nowait_simple(kmp_Ident *loc,
-                                                        int32_t global_tid,
-                                                        kmp_CriticalName *crit);
 EXTERN int32_t __kmpc_shuffle_int32(int32_t val, int16_t delta, int16_t size);
 EXTERN int64_t __kmpc_shuffle_int64(int64_t val, int16_t delta, int16_t size);
 
 // sync barrier
 EXTERN void __kmpc_barrier(kmp_Ident *loc_ref, int32_t tid);
 EXTERN void __kmpc_barrier_simple_spmd(kmp_Ident *loc_ref, int32_t tid);
-EXTERN void __kmpc_barrier_simple_generic(kmp_Ident *loc_ref, int32_t tid);
 EXTERN int32_t __kmpc_cancel_barrier(kmp_Ident *loc, int32_t global_tid);
 
 // single
@@ -432,8 +380,8 @@ EXTERN __kmpc_impl_lanemask_t __kmpc_warp_active_thread_mask();
 EXTERN void __kmpc_syncwarp(__kmpc_impl_lanemask_t);
 
 // tasks
-EXTERN kmp_TaskDescr *__kmpc_omp_task_alloc(kmp_Ident *loc,
-                                            uint32_t global_tid, int32_t flag,
+EXTERN kmp_TaskDescr *__kmpc_omp_task_alloc(kmp_Ident *loc, uint32_t global_tid,
+                                            int32_t flag,
                                             size_t sizeOfTaskInclPrivate,
                                             size_t sizeOfSharedTable,
                                             kmp_TaskFctPtr sub);
@@ -468,66 +416,41 @@ EXTERN int32_t __kmpc_cancel(kmp_Ident *loc, int32_t global_tid,
                              int32_t cancelVal);
 
 // non standard
-EXTERN void __kmpc_kernel_init_params(void *ReductionScratchpadPtr);
 EXTERN void __kmpc_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime);
 EXTERN void __kmpc_kernel_deinit(int16_t IsOMPRuntimeInitialized);
-EXTERN void __kmpc_spmd_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime,
-                                    int16_t RequiresDataSharing);
-EXTERN __attribute__((deprecated)) void __kmpc_spmd_kernel_deinit();
+EXTERN void __kmpc_spmd_kernel_init(int ThreadLimit,
+                                    int16_t RequiresOMPRuntime);
 EXTERN void __kmpc_spmd_kernel_deinit_v2(int16_t RequiresOMPRuntime);
-EXTERN void __kmpc_kernel_prepare_parallel(void *WorkFn,
-                                           int16_t IsOMPRuntimeInitialized);
-EXTERN bool __kmpc_kernel_parallel(void **WorkFn,
-                                   int16_t IsOMPRuntimeInitialized);
+EXTERN void __kmpc_kernel_prepare_parallel(void *WorkFn);
+EXTERN bool __kmpc_kernel_parallel(void **WorkFn);
 EXTERN void __kmpc_kernel_end_parallel();
-EXTERN bool __kmpc_kernel_convergent_parallel(void *buffer,
-                                              __kmpc_impl_lanemask_t Mask,
-                                              bool *IsFinal,
-                                              int32_t *LaneSource);
-EXTERN void __kmpc_kernel_end_convergent_parallel(void *buffer);
-EXTERN bool __kmpc_kernel_convergent_simd(void *buffer,
-                                          __kmpc_impl_lanemask_t Mask,
-                                          bool *IsFinal, int32_t *LaneSource,
-                                          int32_t *LaneId, int32_t *NumLanes);
-EXTERN void __kmpc_kernel_end_convergent_simd(void *buffer);
-
 
 EXTERN void __kmpc_data_sharing_init_stack();
 EXTERN void __kmpc_data_sharing_init_stack_spmd();
 EXTERN void *__kmpc_data_sharing_coalesced_push_stack(size_t size,
-    int16_t UseSharedMemory);
-EXTERN void *__kmpc_data_sharing_push_stack(size_t size, int16_t UseSharedMemory);
+                                                      int16_t UseSharedMemory);
+EXTERN void *__kmpc_data_sharing_push_stack(size_t size,
+                                            int16_t UseSharedMemory);
 EXTERN void __kmpc_data_sharing_pop_stack(void *a);
 EXTERN void __kmpc_begin_sharing_variables(void ***GlobalArgs, size_t nArgs);
 EXTERN void __kmpc_end_sharing_variables();
 EXTERN void __kmpc_get_shared_variables(void ***GlobalArgs);
 
-// The slot used for data sharing by the master and worker threads. We use a
-// complete (default size version and an incomplete one so that we allow sizes
-// greater than the default).
-struct __kmpc_data_sharing_slot {
-  __kmpc_data_sharing_slot *Next;
-  __kmpc_data_sharing_slot *Prev;
-  void *PrevSlotStackPtr;
-  void *DataEnd;
-  char Data[];
-};
-EXTERN void
-__kmpc_initialize_data_sharing_environment(__kmpc_data_sharing_slot *RootS,
-                                           size_t InitialDataSize);
-EXTERN void *__kmpc_data_sharing_environment_begin(
-    __kmpc_data_sharing_slot **SavedSharedSlot, void **SavedSharedStack,
-    void **SavedSharedFrame, __kmpc_impl_lanemask_t *SavedActiveThreads,
-    size_t SharingDataSize, size_t SharingDefaultDataSize,
-    int16_t IsOMPRuntimeInitialized);
-EXTERN void __kmpc_data_sharing_environment_end(
-    __kmpc_data_sharing_slot **SavedSharedSlot, void **SavedSharedStack,
-    void **SavedSharedFrame, __kmpc_impl_lanemask_t *SavedActiveThreads,
-    int32_t IsEntryPoint);
-
-EXTERN void *
-__kmpc_get_data_sharing_environment_frame(int32_t SourceThreadID,
-                                          int16_t IsOMPRuntimeInitialized);
+/// Entry point to start a new parallel region.
+///
+/// \param ident       The source identifier.
+/// \param global_tid  The global thread ID.
+/// \param if_expr     The if(expr), or 1 if none given.
+/// \param num_threads The num_threads(expr), or -1 if none given.
+/// \param proc_bind   The proc_bind, or `proc_bind_default` if none given.
+/// \param fn          The outlined parallel region function.
+/// \param wrapper_fn  The worker wrapper function of fn.
+/// \param args        The pointer array of arguments to fn.
+/// \param nargs       The number of arguments to fn.
+EXTERN void __kmpc_parallel_51(ident_t *ident, kmp_int32 global_tid,
+                               kmp_int32 if_expr, kmp_int32 num_threads,
+                               int proc_bind, void *fn, void *wrapper_fn,
+                               void **args, size_t nargs);
 
 // SPMD execution mode interrogation function.
 EXTERN int8_t __kmpc_is_spmd_exec_mode();

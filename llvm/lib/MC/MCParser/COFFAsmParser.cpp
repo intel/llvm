@@ -70,12 +70,15 @@ class COFFAsmParser : public MCAsmParserExtension {
     addDirectiveHandler<&COFFAsmParser::ParseDirectiveLinkOnce>(".linkonce");
     addDirectiveHandler<&COFFAsmParser::ParseDirectiveRVA>(".rva");
     addDirectiveHandler<&COFFAsmParser::ParseDirectiveSymbolAttribute>(".weak");
+    addDirectiveHandler<&COFFAsmParser::ParseDirectiveCGProfile>(".cg_profile");
 
     // Win64 EH directives.
     addDirectiveHandler<&COFFAsmParser::ParseSEHDirectiveStartProc>(
                                                                    ".seh_proc");
     addDirectiveHandler<&COFFAsmParser::ParseSEHDirectiveEndProc>(
                                                                 ".seh_endproc");
+    addDirectiveHandler<&COFFAsmParser::ParseSEHDirectiveEndFuncletOrFunc>(
+                                                                ".seh_endfunclet");
     addDirectiveHandler<&COFFAsmParser::ParseSEHDirectiveStartChained>(
                                                            ".seh_startchained");
     addDirectiveHandler<&COFFAsmParser::ParseSEHDirectiveEndChained>(
@@ -125,10 +128,12 @@ class COFFAsmParser : public MCAsmParserExtension {
   bool parseCOMDATType(COFF::COMDATType &Type);
   bool ParseDirectiveLinkOnce(StringRef, SMLoc);
   bool ParseDirectiveRVA(StringRef, SMLoc);
+  bool ParseDirectiveCGProfile(StringRef, SMLoc);
 
   // Win64 EH directives.
   bool ParseSEHDirectiveStartProc(StringRef, SMLoc);
   bool ParseSEHDirectiveEndProc(StringRef, SMLoc);
+  bool ParseSEHDirectiveEndFuncletOrFunc(StringRef, SMLoc);
   bool ParseSEHDirectiveStartChained(StringRef, SMLoc);
   bool ParseSEHDirectiveEndChained(StringRef, SMLoc);
   bool ParseSEHDirectiveHandler(StringRef, SMLoc);
@@ -137,7 +142,6 @@ class COFFAsmParser : public MCAsmParserExtension {
   bool ParseSEHDirectiveEndProlog(StringRef, SMLoc);
 
   bool ParseAtUnwindOrAtExcept(bool &unwind, bool &except);
-  bool ParseSEHRegisterNumber(unsigned &RegNo);
   bool ParseDirectiveSymbolAttribute(StringRef Directive, SMLoc);
 
 public:
@@ -299,6 +303,10 @@ bool COFFAsmParser::ParseDirectiveSymbolAttribute(StringRef Directive, SMLoc) {
   return false;
 }
 
+bool COFFAsmParser::ParseDirectiveCGProfile(StringRef S, SMLoc Loc) {
+  return MCAsmParserExtension::ParseDirectiveCGProfile(S, Loc);
+}
+
 bool COFFAsmParser::ParseSectionSwitch(StringRef Section,
                                        unsigned Characteristics,
                                        SectionKind Kind) {
@@ -395,7 +403,7 @@ bool COFFAsmParser::ParseDirectiveSection(StringRef, SMLoc) {
 
   SectionKind Kind = computeSectionKind(Flags);
   if (Kind.isText()) {
-    const Triple &T = getContext().getObjectFileInfo()->getTargetTriple();
+    const Triple &T = getContext().getTargetTriple();
     if (T.getArch() == Triple::arm || T.getArch() == Triple::thumb)
       Flags |= COFF::IMAGE_SCN_MEM_16BIT;
   }
@@ -620,6 +628,12 @@ bool COFFAsmParser::ParseSEHDirectiveStartProc(StringRef, SMLoc Loc) {
 bool COFFAsmParser::ParseSEHDirectiveEndProc(StringRef, SMLoc Loc) {
   Lex();
   getStreamer().EmitWinCFIEndProc(Loc);
+  return false;
+}
+
+bool COFFAsmParser::ParseSEHDirectiveEndFuncletOrFunc(StringRef, SMLoc Loc) {
+  Lex();
+  getStreamer().EmitWinCFIFuncletOrFuncEnd(Loc);
   return false;
 }
 

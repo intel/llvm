@@ -95,7 +95,6 @@ struct LVIThunkInserter : ThunkInserter<LVIThunkInserter> {
     BuildMI(&MF.front(), DebugLoc(), TII->get(X86::LFENCE));
     BuildMI(&MF.front(), DebugLoc(), TII->get(X86::JMP64r)).addReg(X86::R11);
     MF.front().addLiveIn(X86::R11);
-    return;
   }
 };
 
@@ -109,12 +108,6 @@ public:
 
   bool doInitialization(Module &M) override;
   bool runOnMachineFunction(MachineFunction &MF) override;
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    MachineFunctionPass::getAnalysisUsage(AU);
-    AU.addRequired<MachineModuleInfoWrapperPass>();
-    AU.addPreserved<MachineModuleInfoWrapperPass>();
-  }
 
 private:
   std::tuple<RetpolineThunkInserter, LVIThunkInserter> TIs;

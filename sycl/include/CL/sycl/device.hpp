@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/aspects.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
@@ -39,6 +40,7 @@ public:
   /// in accordance with the requirements described in 4.3.1.
   ///
   /// \param DeviceId is OpenCL device represented with cl_device_id
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   explicit device(cl_device_id DeviceId);
 
   /// Constructs a SYCL device instance using the device selected
@@ -63,6 +65,7 @@ public:
   ///
   /// \return a valid cl_device_id instance in accordance with the requirements
   /// described in 4.3.1.
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   cl_device_id get() const;
 
   /// Check if device is a host device
@@ -171,6 +174,11 @@ public:
   static vector_class<device>
   get_devices(info::device_type deviceType = info::device_type::all);
 
+  /// Returns the backend associated with this device.
+  ///
+  /// \return the backend associated with this device.
+  backend get_backend() const noexcept;
+
   /// Gets the native handle of the SYCL device.
   ///
   /// \return a native handle, the type of which defined by the backend.
@@ -178,6 +186,14 @@ public:
   auto get_native() const -> typename interop<BackendName, device>::type {
     return (typename interop<BackendName, device>::type)getNative();
   }
+
+  /// Indicates if the SYCL device has the given feature.
+  ///
+  /// \param Aspect is one of the values in Table 4.20 of the SYCL 2020
+  /// Provisional Spec.
+  ///
+  /// \return true if the SYCL device has the given feature.
+  bool has(aspect Aspect) const;
 
 private:
   shared_ptr_class<detail::device_impl> impl;
@@ -190,7 +206,7 @@ private:
 
   template <class T>
   friend
-      typename std::add_pointer<typename decltype(T::impl)::element_type>::type
+      typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
       detail::getRawSyclObjImpl(const T &SyclObject);
 
   template <class T>

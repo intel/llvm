@@ -34,29 +34,10 @@ def add(parser, args):
 
 def build(parser, args):
     import SATestBuild
-    from ProjectMap import ProjectMap
 
     SATestBuild.VERBOSE = args.verbose
 
-    project_map = ProjectMap()
-    projects = project_map.projects
-
-    if args.projects:
-        projects_arg = args.projects.split(",")
-        available_projects = [project.name
-                              for project in projects]
-
-        # validate that given projects are present in the project map file
-        for manual_project in projects_arg:
-            if manual_project not in available_projects:
-                parser.error("Project '{project}' is not found in "
-                             "the project map file. Available projects are "
-                             "{all}.".format(project=manual_project,
-                                             all=available_projects))
-
-        projects = [project.with_fields(enabled=project.name in projects_arg)
-                    for project in projects]
-
+    projects = get_projects(parser, args)
     tester = SATestBuild.RegressionTester(args.jobs,
                                           projects,
                                           args.override_compiler,
@@ -97,7 +78,59 @@ def update(parser, args):
 
     project_map = ProjectMap()
     for project in project_map.projects:
-        SATestUpdateDiffs.update_reference_results(project)
+        SATestUpdateDiffs.update_reference_results(project, args.git)
+
+
+def benchmark(parser, args):
+    from SATestBenchmark import Benchmark
+
+    projects = get_projects(parser, args)
+    benchmark = Benchmark(projects, args.iterations, args.output)
+    benchmark.run()
+
+
+def benchmark_compare(parser, args):
+    import SATestBenchmark
+    SATestBenchmark.compare(args.old, args.new, args.output)
+
+
+def get_projects(parser, args):
+    from ProjectMap import ProjectMap, Size
+
+    project_map = ProjectMap()
+    projects = project_map.projects
+
+    def filter_projects(projects, predicate, force=False):
+        return [project.with_fields(enabled=(force or project.enabled) and
+                                    predicate(project))
+                for project in projects]
+
+    if args.projects:
+        projects_arg = args.projects.split(",")
+        available_projects = [project.name
+                              for project in projects]
+
+        # validate that given projects are present in the project map file
+        for manual_project in projects_arg:
+            if manual_project not in available_projects:
+                parser.error("Project '{project}' is not found in "
+                             "the project map file. Available projects are "
+                             "{all}.".format(project=manual_project,
+                                             all=available_projects))
+
+        projects = filter_projects(projects, lambda project:
+                                   project.name in projects_arg,
+                                   force=True)
+
+    try:
+        max_size = Size.from_str(args.max_size)
+    except ValueError as e:
+        parser.error("{}".format(e))
+
+    projects = filter_projects(projects, lambda project:
+                               project.size <= max_size)
+
+    return projects
 
 
 def docker(parser, args):
@@ -132,27 +165,35 @@ def docker_shell(args):
         pass
 
     finally:
-        print("Please wait for docker to clean up")
-        call("docker stop satest", shell=True)
+        docker_cleanup()
 
 
 def docker_run(args, command, docker_args=""):
-    return call("docker run --rm --name satest "
-                "-v {llvm}:/llvm-project "
-                "-v {build}:/build "
-                "-v {clang}:/analyzer "
-                "-v {scripts}:/scripts "
-                "-v {projects}:/projects "
-                "{docker_args} "
-                "satest-image:latest {command}"
-                .format(llvm=args.llvm_project_dir,
-                        build=args.build_dir,
-                        clang=args.clang_dir,
-                        scripts=SCRIPTS_DIR,
-                        projects=PROJECTS_DIR,
-                        docker_args=docker_args,
-                        command=command),
-                shell=True)
+    try:
+        return call("docker run --rm --name satest "
+                    "-v {llvm}:/llvm-project "
+                    "-v {build}:/build "
+                    "-v {clang}:/analyzer "
+                    "-v {scripts}:/scripts "
+                    "-v {projects}:/projects "
+                    "{docker_args} "
+                    "satest-image:latest {command}"
+                    .format(llvm=args.llvm_project_dir,
+                            build=args.build_dir,
+                            clang=args.clang_dir,
+                            scripts=SCRIPTS_DIR,
+                            projects=PROJECTS_DIR,
+                            docker_args=docker_args,
+                            command=command),
+                    shell=True)
+
+    except KeyboardInterrupt:
+        docker_cleanup()
+
+
+def docker_cleanup():
+    print("Please wait for docker to clean up")
+    call("docker stop satest", shell=True)
 
 
 def main():
@@ -211,6 +252,8 @@ def main():
                               help="Arguments passed to to -analyzer-config")
     build_parser.add_argument("--projects", action="store", default="",
                               help="Comma-separated list of projects to test")
+    build_parser.add_argument("--max-size", action="store", default=None,
+                              help="Maximum size for the projects to test")
     build_parser.add_argument("-v", "--verbose", action="count", default=0)
     build_parser.set_defaults(func=build)
 
@@ -250,7 +293,8 @@ def main():
         "update",
         help="Update static analyzer reference results based on the previous "
         "run of SATest build. Assumes that SATest build was just run.")
-    # TODO: add option to decide whether we should use git
+    upd_parser.add_argument("--git", action="store_true",
+                            help="Stage updated results using git.")
     upd_parser.set_defaults(func=update)
 
     # docker subcommand
@@ -275,6 +319,38 @@ def main():
                              help="Additionall args that will be forwarded "
                              "to the docker's entrypoint.")
     dock_parser.set_defaults(func=docker)
+
+    # benchmark subcommand
+    bench_parser = subparsers.add_parser(
+        "benchmark",
+        help="Run benchmarks by building a set of projects multiple times.")
+
+    bench_parser.add_argument("-i", "--iterations", action="store",
+                              type=int, default=20,
+                              help="Number of iterations for building each "
+                              "project.")
+    bench_parser.add_argument("-o", "--output", action="store",
+                              default="benchmark.csv",
+                              help="Output csv file for the benchmark results")
+    bench_parser.add_argument("--projects", action="store", default="",
+                              help="Comma-separated list of projects to test")
+    bench_parser.add_argument("--max-size", action="store", default=None,
+                              help="Maximum size for the projects to test")
+    bench_parser.set_defaults(func=benchmark)
+
+    bench_subparsers = bench_parser.add_subparsers()
+    bench_compare_parser = bench_subparsers.add_parser(
+        "compare",
+        help="Compare benchmark runs.")
+    bench_compare_parser.add_argument("--old", action="store", required=True,
+                                      help="Benchmark reference results to "
+                                      "compare agains.")
+    bench_compare_parser.add_argument("--new", action="store", required=True,
+                                      help="New benchmark results to check.")
+    bench_compare_parser.add_argument("-o", "--output",
+                                      action="store", required=True,
+                                      help="Output file for plots.")
+    bench_compare_parser.set_defaults(func=benchmark_compare)
 
     args = parser.parse_args()
     args.func(parser, args)

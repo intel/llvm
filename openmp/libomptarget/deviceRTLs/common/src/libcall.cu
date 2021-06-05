@@ -10,9 +10,9 @@
 // invoked by the user in an OpenMP region
 //
 //===----------------------------------------------------------------------===//
+#pragma omp declare target
 
 #include "common/omptarget.h"
-#include "common/target_atomic.h"
 #include "target_impl.h"
 
 EXTERN double omp_get_wtick(void) {
@@ -316,11 +316,6 @@ EXTERN int omp_get_team_num() {
   return rc;
 }
 
-EXTERN int omp_is_initial_device(void) {
-  PRINT0(LD_IO, "call omp_is_initial_device() returns 0\n");
-  return 0; // 0 by def on device
-}
-
 // Unspecified on the device.
 EXTERN int omp_get_initial_device(void) {
   PRINT0(LD_IO, "call omp_get_initial_device() returns 0\n");
@@ -363,52 +358,4 @@ EXTERN int omp_test_lock(omp_lock_t *lock) {
   return rc;
 }
 
-// for xlf Fortran
-// Fortran, the return is LOGICAL type
-
-#define FLOGICAL long
-EXTERN FLOGICAL __xlf_omp_is_initial_device_i8() {
-  int ret = omp_is_initial_device();
-  if (ret == 0)
-    return (FLOGICAL)0;
-  else
-    return (FLOGICAL)1;
-}
-
-EXTERN int __xlf_omp_is_initial_device_i4() {
-  int ret = omp_is_initial_device();
-  if (ret == 0)
-    return 0;
-  else
-    return 1;
-}
-
-EXTERN long __xlf_omp_get_team_num_i4() {
-  int ret = omp_get_team_num();
-  return (long)ret;
-}
-
-EXTERN long __xlf_omp_get_num_teams_i4() {
-  int ret = omp_get_num_teams();
-  return (long)ret;
-}
-
-EXTERN void xlf_debug_print_int(int *p) {
-  printf("xlf DEBUG %d): %p %d\n", omp_get_team_num(), p, p == 0 ? 0 : *p);
-}
-
-EXTERN void xlf_debug_print_long(long *p) {
-  printf("xlf DEBUG %d): %p %ld\n", omp_get_team_num(), p, p == 0 ? 0 : *p);
-}
-
-EXTERN void xlf_debug_print_float(float *p) {
-  printf("xlf DEBUG %d): %p %f\n", omp_get_team_num(), p, p == 0 ? 0 : *p);
-}
-
-EXTERN void xlf_debug_print_double(double *p) {
-  printf("xlf DEBUG %d): %p %f\n", omp_get_team_num(), p, p == 0 ? 0 : *p);
-}
-
-EXTERN void xlf_debug_print_addr(void *p) {
-  printf("xlf DEBUG %d): %p \n", omp_get_team_num(), p);
-}
+#pragma omp end declare target

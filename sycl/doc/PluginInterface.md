@@ -121,9 +121,22 @@ The trace shows the PI API calls made when using SYCL_PI_TRACE=-1.
 bound.)
 
 ### Plugin Unloading
-The plugins not chosen to be connected to should be unloaded.
+The plugins not chosen to be connected to should be unloaded. piInitializePlugins()
+can be called to load and bound the necessary plugins. In addition, piTearDown()
+can be called when plugins are not needed any more. It notifies each
+plugin to start performing its own tear-down process such as global memory
+deallocation. In the future, piTearDown() can include any other jobs that need to
+be done before the plugin is unloaded from memory. Possibly, a
+notification of the plugin unloading to lower-level plugins can be added so that
+they can clean up their own memory [TBD].
+After piTearDown() is called, the plugin can be safely unloaded by calling unload(),
+which is going to invoke OS-specific system calls to remove the dynamic library
+from memory.
 
-TBD - Unloading a bound plugin.
+Each plugin should not create global variables that require non-trivial
+destructor. Pointer variables with heap memory allocation is a good example
+to be created at the global scope. A std::vector object is not. piTearDown
+will take care of deallocation of these global variables safely.
 
 ## PI API Specification
 

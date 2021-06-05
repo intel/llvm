@@ -113,16 +113,16 @@ n-ranked tensor. This disallows the equivalent of pointer arithmetic or the
 ability to index into the same memref in other ways (something which C arrays
 allow for example). Furthermore, for the affine constructs, the compiler can
 follow use-def chains (e.g. through
-[affine.apply operations](../Dialects/Affine.md#affineapply-operation)) or through
-the map attributes of [affine operations](../Dialects/Affine.md#Operations)) to
+[affine.apply operations](../Dialects/Affine.md/#affineapply-affineapplyop)) or through
+the map attributes of [affine operations](../Dialects/Affine.md/#operations)) to
 precisely analyze references at compile-time using polyhedral techniques. This
-is possible because of the [restrictions on dimensions and symbols](../Dialects/Affine.md#restrictions-on-dimensions-and-symbols).
+is possible because of the [restrictions on dimensions and symbols](../Dialects/Affine.md/#restrictions-on-dimensions-and-symbols).
 
 A scalar of element-type (a primitive type or a vector type) that is stored in
 memory is modeled as a 0-d memref. This is also necessary for scalars that are
 live out of for loops and if conditionals in a function, for which we don't yet
 have an SSA representation --
-[an extension](#mlfunction-extensions-for-"escaping-scalars") to allow that is
+[an extension](#affineif-and-affinefor-extensions-for-escaping-scalars) to allow that is
 described later in this doc.
 
 ### Symbols and types
@@ -167,7 +167,7 @@ change.
 
 ### Block Arguments vs PHI nodes
 
-MLIR Regions represent SSA using "[block arguments](../LangRef.md#blocks)" rather
+MLIR Regions represent SSA using "[block arguments](../LangRef.md/#blocks)" rather
 than [PHI instructions](http://llvm.org/docs/LangRef.html#i-phi) used in LLVM.
 This choice is representationally identical (the same constructs can be
 represented in either form) but block arguments have several advantages:
@@ -202,52 +202,39 @@ and described in
 interest
 [starts here](https://www.google.com/url?q=https://youtu.be/Ntj8ab-5cvE?t%3D596&sa=D&ust=1529450150971000&usg=AFQjCNFQHEWL7m8q3eO-1DiKw9zqC2v24Q).
 
-### Index type disallowed in vector/memref types
+### Index type usage and limitations
 
-Index types are not allowed as elements of `vector` and `memref` types. Index
-types are intended to be used for platform-specific "size" values and may appear
-in subscripts, sizes of aggregate types and affine expressions. They are also
-tightly coupled with `affine.apply` and affine.load/store operations; having
-`index` type is a necessary precondition of a value to be acceptable by these
-operations. While it may be useful to have `memref<?xindex>` to express indirect
-accesses, e.g. sparse matrix manipulations or lookup tables, it creates problems
-MLIR is not ready to address yet. MLIR needs to internally store constants of
-aggregate types and emit code operating on values of those types, which are
-subject to target-specific size and alignment constraints. Since MLIR does not
-have a target description mechanism at the moment, it cannot reliably emit such
-code. Moreover, some platforms may not support vectors of type equivalent to
-`index`.
+Index types are intended to be used for platform-specific "size" values and may
+appear in subscripts, sizes of aggregate types and affine expressions. They are
+also tightly coupled with `affine.apply` and affine.load/store operations;
+having `index` type is a necessary precondition of a value to be acceptable by
+these operations.
 
-Indirect access use cases can be alternatively supported by providing and
-`index_cast` instruction that allows for conversion between `index` and
-fixed-width integer types, at the SSA value level. It has an additional benefit
-of supporting smaller integer types, e.g. `i8` or `i16`, for small indices
-instead of (presumably larger) `index` type.
+We allow `index` types in tensors, vectors, and memrefs as a code generation
+strategy has to map `index` to an implementation type and hence needs to be able
+to materialize corresponding values. However, the target might lack support for
+`vector` values with the target specific equivalent of the `index` type.
 
-Index types are allowed as element types of `tensor` types. The `tensor` type
-specifically abstracts the target-specific aspects that intersect with the
-code-generation-related/lowering-related concerns explained above. In fact, the
-`tensor` type even allows dialect-specific types as element types.
+### Data layout of non-primitive types
 
-### Bit width of a non-primitive type and `index` is undefined
+Data layout information such as the bit width or the alignment of types may be
+target and ABI-specific and thus should be configurable rather than imposed by
+the compiler. Especially, the layout of compound or `index` types may vary. MLIR
+specifies default bit widths for certain primitive _types_, in particular for
+integers and floats. It is equal to the number that appears in the type
+definition, e.g. the bit width of `i32` is `32`, so is the bit width of `f32`.
+The bit width is not _necessarily_ related to the amount of memory (in bytes) or
+the register size (in bits) that is necessary to store the value of the given
+type. For example, `vector<3xi57>` is likely to be lowered to a vector of four
+64-bit integers, so that its storage requirement is `4 x 64 / 8 = 32` bytes,
+rather than `(3 x 57) ceildiv 8 = 22` bytes as can be naively computed from the
+bit width. MLIR makes such [data layout information](../DataLayout.md)
+configurable using attributes that can be queried during lowering, for example,
+when allocating a compound type.
 
-The bit width of a compound type is not defined by MLIR, it may be defined by a
-specific lowering pass. In MLIR, bit width is a property of certain primitive
-_type_, in particular integers and floats. It is equal to the number that
-appears in the type definition, e.g. the bit width of `i32` is `32`, so is the
-bit width of `f32`. The bit width is not _necessarily_ related to the amount of
-memory (in bytes) or the size of register (in bits) that is necessary to store
-the value of the given type. These quantities are target and ABI-specific and
-should be defined during the lowering process rather than imposed from above.
-For example, `vector<3xi57>` is likely to be lowered to a vector of four 64-bit
-integers, so that its storage requirement is `4 x 64 / 8 = 32` bytes, rather
-than `(3 x 57) ceildiv 8 = 22` bytes as can be naively computed from the
-bitwidth. Individual components of MLIR that allocate space for storing values
-may use the bit size as the baseline and query the target description when it is
-introduced.
-
-The bit width is not defined for dialect-specific types at MLIR level. Dialects
-are free to define their own quantities for type sizes.
+The data layout of dialect-specific types is undefined at MLIR level. Yet
+dialects are free to define their own quantities and make them available via the
+data layout infrastructure.
 
 ### Integer signedness semantics
 
@@ -321,7 +308,7 @@ an external system, and should aim to reflect its design as closely as possible.
 
 ### Specifying sign in integer comparison operations
 
-Since integers are [signless](#signless-types), it is necessary to define the
+Since integers are [signless](#integer-signedness-semantics), it is necessary to define the
 sign for integer comparison operations. This sign indicates how to treat the
 foremost bit of the integer: as sign bit or as most significant bit. For
 example, comparing two `i4` values `0b1000` and `0b0010` yields different
@@ -440,43 +427,10 @@ arguments to explicitly break the use-def chains in the current proposal. This
 can be combined with an attribute-imposed semantic requirement disallowing the
 body of the region to refer to any value from outside it.
 
-### Quantized integer operations
-
-We haven't designed integer quantized operations in MLIR, but experience from
-TensorFlow suggests that it is better to put information about the quantization
-range/scale into the type itself, rather than have a single type like "qint8"
-and put these on attributes of the operation.
-
-There are a few ways to do this with MLIR, including at least:
-
-*   We could do the same thing TensorFlow does - and we will _have_ to support
-    that model to some extent for compatibility.
-*   We can encode the fp range of quantized integers directly into the types
-    when they are constants. The best practice on this seems to be to encode the
-    zero point as well as a scale factor. This ensures that 0.0 is always
-    exactly representable, e.g. `qi8<-1.42, 31.23x>`.
-*   We could theoretically encode dynamically determined ranges into the types
-    using something like `qi8<?,?>` with the bounds being determined through the
-    SSA dataflow graph dynamically - similar to how dynamic shapes are handled.
-
-We will definitely need to do #1 for compatibility, we probably want to do #2,
-and we should investigate #3 over time. That said, our short term plan is to get
-more implementation experience with the rest of the system first, then come back
-to re-examine the representation for quantized arithmetic when we have that
-experience. When we do, we should chat with benoitjacob@ and
-[read the paper](https://arxiv.org/abs/1712.05877).
-
 ### Dialect type extensions
 
 This section describes the design decisions that shaped the dialect extensible
 type system present in MLIR.
-
-#### Reserving dialect type kinds
-
-Dialects that wish to define type extensions must reserve a range of type kinds
-within a '.def' file within the core IR library. This means that every dialect
-wishing to define custom types must modify this file, but it guarantees that all
-type casting checkings are performed in O(1) time.
 
 #### Interactions between dialects
 
@@ -485,23 +439,23 @@ understand. When types of a dialect are:
 
 *   In operations of other dialects
 
-    -   For standard/builtin operations, only standard/builtin types are
-        allowed. This restriction allows for operations to clearly understand
-        the invariants that they are working under.
+    -   For standard/builtin operations, only builtin types are allowed. This
+        restriction allows for operations to clearly understand the invariants
+        that they are working under.
     -   Outside of standard/builtin operations, dialects are expected to verify
         the allowable operation types per operation.
 
 *   In types of other dialects
 
-    -   For standard/builtin types, these types are allowed to contain types
-        from other dialects. This simplifies the type system and removes the
-        need for dialects to redefine all of the standard aggregate types, e.g.
-        tensor, as well as the memref type. Dialects are expected to verify that
-        a specific type is valid within a standard type, e.g. if a type can be
-        an element of a tensor.
+    -   For builtin types, these types are allowed to contain types from other
+        dialects. This simplifies the type system and removes the need for
+        dialects to redefine all of the builtin aggregate types, e.g. tensor, as
+        well as the memref type. Dialects are expected to verify that a specific
+        type is valid within a builtin type, e.g. if a type can be an element of
+        a tensor.
     -   For dialect types, the dialect is expected to verify any type
-        invariants, e.g. if the standard tensor type can contain a specific type
-        of that dialect.
+        invariants, e.g. if the tensor type can contain a specific type of that
+        dialect.
 
 #### Separating builtin and standard types
 
@@ -559,12 +513,12 @@ systems, e.g. LLVM, are likely to provide wrappers around their existing type
 systems. For these wrapper types there is no simple canonical name, it's logical
 to think of these types as existing within the namespace of the dialect. If a
 dialect wishes to assign a canonical name to a type, it can be done via
-[type aliases](../LangRef.md#type-aliases).
+[type aliases](../LangRef.md/#type-aliases).
 
 ### Tuple types
 
 The MLIR type system provides first class support for defining
-[tuple types](../LangRef.md#tuple-type). This is due to the fact that `Tuple`
+[tuple types](../Dialects/Builtin/#tupletype). This is due to the fact that `Tuple`
 represents a universal concept that is likely to, and has already begun to,
 present itself in many different dialects. Though this type is first class in
 the type system, it merely serves to provide a common mechanism in which to
@@ -616,10 +570,10 @@ for (i = 0; i < N; i++) {
 ```
 
 The presence of dynamic control flow leads to an inner non-affine function
-nested in an outer function that using affine loops.
+nested in an outer function that uses affine loops.
 
 ```mlir
-func @search(%A: memref<?x?xi32, %S: <?xi32>, %key : i32) {
+func @search(%A: memref<?x?xi32>, %S: <?xi32>, %key : i32) {
   %ni = dim %A, 0 : memref<?x?xi32>
   // This loop can be parallelized
   affine.for %i = 0 to %ni {
@@ -765,7 +719,7 @@ func @conv2d(%input: memref<16x1024x1024x3xf32, #lm0, /*scratchpad=*/1>,
 }
 ```
 
-TODO (Add more examples showing the IR for a variety of interesting cases)
+TODO: (Add more examples showing the IR for a variety of interesting cases)
 
 ## Design alternatives and extensions
 

@@ -35,20 +35,25 @@ struct DILineInfo {
   static constexpr const char *const Addr2LineBadString = "??";
   std::string FileName;
   std::string FunctionName;
+  std::string StartFileName;
   Optional<StringRef> Source;
   uint32_t Line = 0;
   uint32_t Column = 0;
   uint32_t StartLine = 0;
+  Optional<uint64_t> StartAddress;
 
   // DWARF-specific.
   uint32_t Discriminator = 0;
 
-  DILineInfo() : FileName(BadString), FunctionName(BadString) {}
+  DILineInfo()
+      : FileName(BadString), FunctionName(BadString), StartFileName(BadString) {
+  }
 
   bool operator==(const DILineInfo &RHS) const {
     return Line == RHS.Line && Column == RHS.Column &&
            FileName == RHS.FileName && FunctionName == RHS.FunctionName &&
-           StartLine == RHS.StartLine && Discriminator == RHS.Discriminator;
+           StartFileName == RHS.StartFileName && StartLine == RHS.StartLine &&
+           Discriminator == RHS.Discriminator;
   }
 
   bool operator!=(const DILineInfo &RHS) const {
@@ -56,10 +61,10 @@ struct DILineInfo {
   }
 
   bool operator<(const DILineInfo &RHS) const {
-    return std::tie(FileName, FunctionName, Line, Column, StartLine,
-                    Discriminator) <
-           std::tie(RHS.FileName, RHS.FunctionName, RHS.Line, RHS.Column,
-                    RHS.StartLine, RHS.Discriminator);
+    return std::tie(FileName, FunctionName, StartFileName, Line, Column,
+                    StartLine, Discriminator) <
+           std::tie(RHS.FileName, RHS.FunctionName, RHS.StartFileName, RHS.Line,
+                    RHS.Column, RHS.StartLine, RHS.Discriminator);
   }
 
   explicit operator bool() const { return *this != DILineInfo(); }
@@ -72,6 +77,8 @@ struct DILineInfo {
       OS << "function '" << FunctionName << "', ";
     OS << "line " << Line << ", ";
     OS << "column " << Column << ", ";
+    if (StartFileName != BadString)
+      OS << "start file '" << StartFileName << "', ";
     OS << "start line " << StartLine << '\n';
   }
 };

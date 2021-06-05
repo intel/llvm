@@ -55,6 +55,18 @@
 // RUN: FileCheck %s -check-prefix=CHECK-NVSX-FLT128
 
 // RUN: not %clang -target powerpc64le-unknown-unknown -fsyntax-only \
+// RUN: -mcpu=power10 -std=c++11 -mno-vsx -mpaired-vector-memops %s 2>&1 | \
+// RUN: FileCheck %s -check-prefix=CHECK-NVSX-PAIRED-VEC-MEMOPS
+
+// RUN: not %clang -target powerpc64le-unknown-unknown -fsyntax-only \
+// RUN: -mcpu=power10 -std=c++11 -mno-vsx -mmma %s 2>&1 | \
+// RUN: FileCheck %s -check-prefix=CHECK-NVSX-MMA
+
+// RUN: not %clang -target powerpc64le-unknown-unknown -fsyntax-only \
+// RUN: -mcpu=future -std=c++11 -mno-vsx -mmma %s 2>&1 | \
+// RUN: FileCheck %s -check-prefix=CHECK-NVSX-MMA
+
+// RUN: not %clang -target powerpc64le-unknown-unknown -fsyntax-only \
 // RUN: -mcpu=power9 -std=c++11 -mno-vsx -mfloat128 -mpower9-vector %s 2>&1 | \
 // RUN: FileCheck %s -check-prefix=CHECK-NVSX-MULTI
 
@@ -96,7 +108,9 @@ static_assert(false, "Neither enabled");
 // CHECK-NVSX-P10V: error: option '-mpower10-vector' cannot be specified with '-mno-vsx'
 // CHECK-NVSX-FLT128: error: option '-mfloat128' cannot be specified with '-mno-vsx'
 // CHECK-NVSX-DMV: error: option '-mdirect-move' cannot be specified with '-mno-vsx'
+// CHECK-NVSX-PAIRED-VEC-MEMOPS: error: option '-mpaired-vector-memops' cannot be specified with '-mno-vsx'
 // CHECK-NVSX-MULTI: error: option '-mfloat128' cannot be specified with '-mno-vsx'
 // CHECK-NVSX-MULTI: error: option '-mpower9-vector' cannot be specified with '-mno-vsx'
+// CHECK-NVSX-MMA: error: option '-mmma' cannot be specified with '-mno-vsx'
 // CHECK-NVSX: Neither enabled
 // CHECK-VSX: VSX enabled

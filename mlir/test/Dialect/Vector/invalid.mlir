@@ -80,13 +80,6 @@ func @extract_vector_type(%arg0: index) {
 
 // -----
 
-func @extract_position_empty(%arg0: vector<4x8x16xf32>) {
-  // expected-error@+1 {{expected non-empty position attribute}}
-  %1 = vector.extract %arg0[] : vector<4x8x16xf32>
-}
-
-// -----
-
 func @extract_position_rank_overflow(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{expected position attribute of rank smaller than vector}}
   %1 = vector.extract %arg0[0, 0, 0, 0] : vector<4x8x16xf32>
@@ -139,13 +132,6 @@ func @insert_element_wrong_type(%arg0: i32, %arg1: vector<4xf32>) {
 // -----
 
 func @insert_vector_type(%a: f32, %b: vector<4x8x16xf32>) {
-  // expected-error@+1 {{expected non-empty position attribute}}
-  %1 = vector.insert %a, %b[] : f32 into vector<4x8x16xf32>
-}
-
-// -----
-
-func @insert_vector_type(%a: f32, %b: vector<4x8x16xf32>) {
   // expected-error@+1 {{expected position attribute of rank smaller than dest vector rank}}
   %1 = vector.insert %a, %b[3, 3, 3, 3, 3, 3] : f32 into vector<4x8x16xf32>
 }
@@ -187,7 +173,7 @@ func @outerproduct_num_operands(%arg0: f32) {
 // -----
 
 func @outerproduct_non_vector_operand(%arg0: f32) {
-  // expected-error@+1 {{expected 2 vector types}}
+  // expected-error@+1 {{expected vector type for operand #1}}
   %1 = vector.outerproduct %arg0, %arg0 : f32, f32
 }
 
@@ -228,6 +214,27 @@ func @outerproduct_operand_2_dim_generic(%arg0: vector<4xf32>, %arg1: vector<8xf
 
 // -----
 
+func @outerproduct_axpy_operand(%arg0: vector<4x8xf32>, %arg1: f32) {
+  // expected-error@+1 {{expected 1-d vector for operand #1}}
+  %1 = vector.outerproduct %arg0, %arg1 : vector<4x8xf32>, f32
+}
+
+// -----
+
+func @outerproduct_axpy_result_generic(%arg0: vector<4xf32>, %arg1: f32) {
+  // expected-error@+1 {{expected 1-d vector result}}
+  %1 = "vector.outerproduct" (%arg0, %arg1) : (vector<4xf32>, f32) -> (vector<4x8xf32>)
+}
+
+// -----
+
+func @outerproduct_axpy_operand_dim_generic(%arg0: vector<8xf32>, %arg1: f32) {
+  // expected-error@+1 {{expected #1 operand dim to match result dim #1}}
+  %1 = "vector.outerproduct" (%arg0, %arg1) : (vector<8xf32>, f32) -> (vector<16xf32>)
+}
+
+// -----
+
 func @outerproduct_operand_3_result_type_generic(%arg0: vector<4xf32>, %arg1: vector<8xf32>, %arg2: vector<4x16xf32>) {
   // expected-error@+1 {{expected operand #3 of same type as result type}}
   %1 = "vector.outerproduct" (%arg0, %arg1, %arg2) : (vector<4xf32>, vector<8xf32>, vector<4x16xf32>) -> (vector<4x8xf32>)
@@ -248,7 +255,7 @@ func @test_vector.transfer_read(%arg0: vector<4x3xf32>) {
   %c3 = constant 3 : index
   %f0 = constant 0.0 : f32
   %vf0 = splat %f0 : vector<4x3xf32>
-  // expected-error@+1 {{ requires memref type}}
+  // expected-error@+1 {{ requires memref or ranked tensor type}}
   %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 : vector<4x3xf32>, vector<1x1x2x3xf32>
 }
 
@@ -276,7 +283,7 @@ func @test_vector.transfer_read(%arg0: memref<?x?xf32>) {
 func @test_vector.transfer_read(%arg0: memref<?x?xf32>) {
   %c3 = constant 3 : index
   %cst = constant 3.0 : f32
-  // expected-error@+1 {{requires a permutation_map with input dims of the same rank as the memref type}}
+  // expected-error@+1 {{requires a permutation_map with input dims of the same rank as the source type}}
   %0 = vector.transfer_read %arg0[%c3, %c3], %cst {permutation_map = affine_map<(d0)->(d0)>} : memref<?x?xf32>, vector<128xf32>
 }
 
@@ -318,12 +325,14 @@ func @test_vector.transfer_read(%arg0: memref<?x?x?xf32>) {
 
 // -----
 
-func @test_vector.transfer_read(%arg0: memref<?x?xvector<4x3xf32>>) {
+func @test_vector.transfer_read(%arg0: memref<?x?x?xf32>) {
+  %c1 = constant 1 : i1
   %c3 = constant 3 : index
-  %f0 = constant 0.0 : f32
-  %vf0 = splat %f0 : vector<4x3xf32>
-  // expected-error@+1 {{requires memref and vector types of the same elemental type}}
-  %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 {permutation_map = affine_map<(d0, d1)->(d0, d1)>} : memref<?x?xvector<4x3xf32>>, vector<1x1x4x3xi32>
+  %cst = constant 3.0 : f32
+  // expected-note@+1 {{prior use here}}
+  %mask = splat %c1 : vector<3x8x7xi1>
+  // expected-error@+1 {{expects different type than prior uses: 'vector<3x7xi1>' vs 'vector<3x8x7xi1>'}}
+  %0 = vector.transfer_read %arg0[%c3, %c3, %c3], %cst, %mask {permutation_map = affine_map<(d0, d1, d2)->(d0, 0, d2)>} : memref<?x?x?xf32>, vector<3x8x7xf32>
 }
 
 // -----
@@ -332,18 +341,18 @@ func @test_vector.transfer_read(%arg0: memref<?x?xvector<4x3xf32>>) {
   %c3 = constant 3 : index
   %f0 = constant 0.0 : f32
   %vf0 = splat %f0 : vector<4x3xf32>
-  // expected-error@+1 {{requires memref vector element and vector result ranks to match}}
+  // expected-error@+1 {{requires source vector element and vector result ranks to match}}
   %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 {permutation_map = affine_map<(d0, d1)->(d0, d1)>} : memref<?x?xvector<4x3xf32>>, vector<3xf32>
 }
 
 // -----
 
-func @test_vector.transfer_read(%arg0: memref<?x?xvector<4x3xf32>>) {
+func @test_vector.transfer_read(%arg0: memref<?x?xvector<6xf32>>) {
   %c3 = constant 3 : index
   %f0 = constant 0.0 : f32
-  %vf0 = splat %f0 : vector<4x3xf32>
-  // expected-error@+1 {{ requires memref vector element shape to match suffix of vector result shape}}
-  %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 {permutation_map = affine_map<(d0, d1)->(d0, d1)>} : memref<?x?xvector<4x3xf32>>, vector<1x1x2x3xf32>
+  %vf0 = splat %f0 : vector<6xf32>
+  // expected-error@+1 {{requires the bitwidth of the minor 1-D vector to be an integral multiple of the bitwidth of the minor 1-D vector of the source}}
+  %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 : memref<?x?xvector<6xf32>>, vector<3xf32>
 }
 
 // -----
@@ -352,8 +361,29 @@ func @test_vector.transfer_read(%arg0: memref<?x?xvector<2x3xf32>>) {
   %c3 = constant 3 : index
   %f0 = constant 0.0 : f32
   %vf0 = splat %f0 : vector<2x3xf32>
-  // expected-error@+1 {{ expects the optional masked attr of same rank as permutation_map results: affine_map<(d0, d1) -> (d0, d1)>}}
-  %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 {masked = [false], permutation_map = affine_map<(d0, d1)->(d0, d1)>} : memref<?x?xvector<2x3xf32>>, vector<1x1x2x3xf32>
+  // expected-error@+1 {{ expects the optional in_bounds attr of same rank as permutation_map results: affine_map<(d0, d1) -> (d0, d1)>}}
+  %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 {in_bounds = [true], permutation_map = affine_map<(d0, d1)->(d0, d1)>} : memref<?x?xvector<2x3xf32>>, vector<1x1x2x3xf32>
+}
+
+// -----
+
+func @test_vector.transfer_read(%arg0: memref<?x?xvector<2x3xf32>>) {
+  %c3 = constant 3 : index
+  %f0 = constant 0.0 : f32
+  %vf0 = splat %f0 : vector<2x3xf32>
+  // expected-error@+1 {{requires broadcast dimensions to be in-bounds}}
+  %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 {in_bounds = [false, true], permutation_map = affine_map<(d0, d1)->(0, d1)>} : memref<?x?xvector<2x3xf32>>, vector<1x1x2x3xf32>
+}
+
+// -----
+
+func @test_vector.transfer_read(%arg0: memref<?x?xvector<2x3xf32>>) {
+  %c3 = constant 3 : index
+  %f0 = constant 0.0 : f32
+  %vf0 = splat %f0 : vector<2x3xf32>
+  %mask = splat %c1 : vector<2x3xi1>
+  // expected-error@+1 {{does not support masks with vector element type}}
+  %0 = vector.transfer_read %arg0[%c3, %c3], %vf0, %mask {permutation_map = affine_map<(d0, d1)->(d0, d1)>} : memref<?x?xvector<2x3xf32>>, vector<1x1x2x3xf32>
 }
 
 // -----
@@ -381,7 +411,7 @@ func @test_vector.transfer_write(%arg0: vector<4x3xf32>) {
   %c3 = constant 3 : index
   %f0 = constant 0.0 : f32
   %vf0 = splat %f0 : vector<4x3xf32>
-  // expected-error@+1 {{ requires memref type}}
+  // expected-error@+1 {{ requires memref or ranked tensor type}}
   vector.transfer_write %arg0, %arg0[%c3, %c3] : vector<4x3xf32>, f32
 }
 
@@ -408,7 +438,7 @@ func @test_vector.transfer_write(%arg0: memref<?x?xf32>) {
 func @test_vector.transfer_write(%arg0: memref<?x?xf32>) {
   %c3 = constant 3 : index
   %cst = constant dense<3.0> : vector<128 x f32>
-  // expected-error@+1 {{requires a permutation_map with input dims of the same rank as the memref type}}
+  // expected-error@+1 {{requires a permutation_map with input dims of the same rank as the source type}}
   vector.transfer_write %cst, %arg0[%c3, %c3] {permutation_map = affine_map<(d0)->(d0)>} : vector<128xf32>, memref<?x?xf32>
 }
 
@@ -446,6 +476,17 @@ func @test_vector.transfer_write(%arg0: memref<?x?x?xf32>) {
   %cst = constant dense<3.0> : vector<3 x 7 x f32>
   // expected-error@+1 {{requires a permutation_map that is a permutation (found one dim used more than once)}}
   vector.transfer_write %cst, %arg0[%c3, %c3, %c3] {permutation_map = affine_map<(d0, d1, d2)->(d0, d0)>} : vector<3x7xf32>, memref<?x?x?xf32>
+}
+
+// -----
+
+func @test_vector.transfer_write(%arg0: memref<?xf32>, %arg1: vector<7xf32>) {
+  %c3 = constant 3 : index
+  %cst = constant 3.0 : f32
+  // expected-error@+1 {{should not have broadcast dimensions}}
+  vector.transfer_write %arg1, %arg0[%c3]
+      {permutation_map = affine_map<(d0) -> (0)>}
+      : vector<7xf32>, memref<?xf32>
 }
 
 // -----
@@ -1054,6 +1095,34 @@ func @shape_cast_different_tuple_sizes(
 
 // -----
 
+func @bitcast_not_vector(%arg0 : vector<5x1x3x2xf32>) {
+  // expected-error@+1 {{must be vector of any type values}}
+  %0 = vector.bitcast %arg0 : vector<5x1x3x2xf32> to f32
+}
+
+// -----
+
+func @bitcast_rank_mismatch(%arg0 : vector<5x1x3x2xf32>) {
+  // expected-error@+1 {{op failed to verify that all of {source, result} have same rank}}
+  %0 = vector.bitcast %arg0 : vector<5x1x3x2xf32> to vector<5x3x2xf32>
+}
+
+// -----
+
+func @bitcast_shape_mismatch(%arg0 : vector<5x1x3x2xf32>) {
+  // expected-error@+1 {{op dimension size mismatch}}
+  %0 = vector.bitcast %arg0 : vector<5x1x3x2xf32> to vector<5x2x3x2xf32>
+}
+
+// -----
+
+func @bitcast_sizemismatch(%arg0 : vector<5x1x3x2xf32>) {
+  // expected-error@+1 {{op source/result bitwidth of the minor 1-D vectors must be equal}}
+  %0 = vector.bitcast %arg0 : vector<5x1x3x2xf32> to vector<5x1x3x3xf16>
+}
+
+// -----
+
 func @reduce_unknown_kind(%arg0: vector<16xf32>) -> f32 {
   // expected-error@+1 {{'vector.reduction' op unknown reduction kind: joho}}
   %0 = vector.reduction "joho", %arg0 : vector<16xf32> into f32
@@ -1155,4 +1224,299 @@ func @flat_transpose_type_mismatch(%arg0: vector<16xf32>) {
 func @type_cast_layout(%arg0: memref<4x3xf32, affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s0 + d1 * s1 + s2)>>) {
   // expected-error@+1 {{expects operand to be a memref with no layout}}
   %0 = vector.type_cast %arg0: memref<4x3xf32, affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s0 + d1 * s1 + s2)>> to memref<vector<4x3xf32>>
+}
+
+// -----
+
+func @store_unsupported_layout(%memref : memref<200x100xf32, affine_map<(d0, d1) -> (d1, d0)>>,
+                               %i : index, %j : index, %value : vector<8xf32>) {
+  // expected-error@+1 {{'vector.store' op base memref should have a default identity layout}}
+  vector.store %value, %memref[%i, %j] : memref<200x100xf32, affine_map<(d0, d1) -> (d1, d0)>>,
+                                         vector<8xf32>
+}
+
+// -----
+
+func @vector_memref_mismatch(%memref : memref<200x100xvector<4xf32>>, %i : index,
+                             %j : index, %value : vector<8xf32>) {
+  // expected-error@+1 {{'vector.store' op base memref and valueToStore vector types should match}}
+  vector.store %value, %memref[%i, %j] : memref<200x100xvector<4xf32>>, vector<8xf32>
+}
+
+// -----
+
+func @store_base_type_mismatch(%base : memref<?xf64>, %value : vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.store' op base and valueToStore element type should match}}
+  vector.store %value, %base[%c0] : memref<?xf64>, vector<16xf32>
+}
+
+// -----
+
+func @store_memref_index_mismatch(%base : memref<?xf32>, %value : vector<16xf32>) {
+  // expected-error@+1 {{'vector.store' op requires 1 indices}}
+  vector.store %value, %base[] : memref<?xf32>, vector<16xf32>
+}
+
+// -----
+
+func @maskedload_base_type_mismatch(%base: memref<?xf64>, %mask: vector<16xi1>, %pass: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.maskedload' op base and result element type should match}}
+  %0 = vector.maskedload %base[%c0], %mask, %pass : memref<?xf64>, vector<16xi1>, vector<16xf32> into vector<16xf32>
+}
+
+// -----
+
+func @maskedload_dim_mask_mismatch(%base: memref<?xf32>, %mask: vector<15xi1>, %pass: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.maskedload' op expected result dim to match mask dim}}
+  %0 = vector.maskedload %base[%c0], %mask, %pass : memref<?xf32>, vector<15xi1>, vector<16xf32> into vector<16xf32>
+}
+
+// -----
+
+func @maskedload_pass_thru_type_mask_mismatch(%base: memref<?xf32>, %mask: vector<16xi1>, %pass: vector<16xi32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.maskedload' op expected pass_thru of same type as result type}}
+  %0 = vector.maskedload %base[%c0], %mask, %pass : memref<?xf32>, vector<16xi1>, vector<16xi32> into vector<16xf32>
+}
+
+// -----
+
+func @maskedload_memref_mismatch(%base: memref<?xf32>, %mask: vector<16xi1>, %pass: vector<16xf32>) {
+  // expected-error@+1 {{'vector.maskedload' op requires 1 indices}}
+  %0 = vector.maskedload %base[], %mask, %pass : memref<?xf32>, vector<16xi1>, vector<16xf32> into vector<16xf32>
+}
+
+// -----
+
+func @maskedstore_base_type_mismatch(%base: memref<?xf64>, %mask: vector<16xi1>, %value: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.maskedstore' op base and valueToStore element type should match}}
+  vector.maskedstore %base[%c0], %mask, %value : memref<?xf64>, vector<16xi1>, vector<16xf32>
+}
+
+// -----
+
+func @maskedstore_dim_mask_mismatch(%base: memref<?xf32>, %mask: vector<15xi1>, %value: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.maskedstore' op expected valueToStore dim to match mask dim}}
+  vector.maskedstore %base[%c0], %mask, %value : memref<?xf32>, vector<15xi1>, vector<16xf32>
+}
+
+// -----
+
+func @maskedstore_memref_mismatch(%base: memref<?xf32>, %mask: vector<16xi1>, %value: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.maskedstore' op requires 1 indices}}
+  vector.maskedstore %base[%c0, %c0], %mask, %value : memref<?xf32>, vector<16xi1>, vector<16xf32>
+}
+
+// -----
+
+func @gather_base_type_mismatch(%base: memref<?xf64>, %indices: vector<16xi32>,
+                                %mask: vector<16xi1>, %pass_thru: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.gather' op base and result element type should match}}
+  %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
+    : memref<?xf64>, vector<16xi32>, vector<16xi1>, vector<16xf32> into vector<16xf32>
+}
+
+// -----
+
+func @gather_memref_mismatch(%base: memref<?x?xf64>, %indices: vector<16xi32>,
+                             %mask: vector<16xi1>, %pass_thru: vector<16xf64>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.gather' op requires 2 indices}}
+  %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
+    : memref<?x?xf64>, vector<16xi32>, vector<16xi1>, vector<16xf64> into vector<16xf64>
+}
+
+// -----
+
+func @gather_rank_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
+                           %mask: vector<16xi1>, %pass_thru: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.gather' op result #0 must be  of ranks 1, but got 'vector<2x16xf32>'}}
+  %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
+    : memref<?xf32>, vector<16xi32>, vector<16xi1>, vector<16xf32> into vector<2x16xf32>
+}
+
+// -----
+
+func @gather_dim_indices_mismatch(%base: memref<?xf32>, %indices: vector<17xi32>,
+                                  %mask: vector<16xi1>, %pass_thru: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.gather' op expected result dim to match indices dim}}
+  %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
+    : memref<?xf32>, vector<17xi32>, vector<16xi1>, vector<16xf32> into vector<16xf32>
+}
+
+// -----
+
+func @gather_dim_mask_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
+                               %mask: vector<17xi1>, %pass_thru: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.gather' op expected result dim to match mask dim}}
+  %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
+    : memref<?xf32>, vector<16xi32>, vector<17xi1>, vector<16xf32> into vector<16xf32>
+}
+
+// -----
+
+func @gather_pass_thru_type_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
+                                     %mask: vector<16xi1>, %pass_thru: vector<16xf64>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.gather' op expected pass_thru of same type as result type}}
+  %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
+    : memref<?xf32>, vector<16xi32>, vector<16xi1>, vector<16xf64> into vector<16xf32>
+}
+
+// -----
+
+func @scatter_base_type_mismatch(%base: memref<?xf64>, %indices: vector<16xi32>,
+                                 %mask: vector<16xi1>, %value: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.scatter' op base and valueToStore element type should match}}
+  vector.scatter %base[%c0][%indices], %mask, %value
+    : memref<?xf64>, vector<16xi32>, vector<16xi1>, vector<16xf32>
+}
+
+// -----
+
+func @scatter_memref_mismatch(%base: memref<?x?xf64>, %indices: vector<16xi32>,
+                              %mask: vector<16xi1>, %value: vector<16xf64>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.scatter' op requires 2 indices}}
+  vector.scatter %base[%c0][%indices], %mask, %value
+    : memref<?x?xf64>, vector<16xi32>, vector<16xi1>, vector<16xf64>
+}
+
+// -----
+
+func @scatter_rank_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
+                            %mask: vector<16xi1>, %value: vector<2x16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.scatter' op operand #4 must be  of ranks 1, but got 'vector<2x16xf32>'}}
+  vector.scatter %base[%c0][%indices], %mask, %value
+    : memref<?xf32>, vector<16xi32>, vector<16xi1>, vector<2x16xf32>
+}
+
+// -----
+
+func @scatter_dim_indices_mismatch(%base: memref<?xf32>, %indices: vector<17xi32>,
+                                   %mask: vector<16xi1>, %value: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.scatter' op expected valueToStore dim to match indices dim}}
+  vector.scatter %base[%c0][%indices], %mask, %value
+    : memref<?xf32>, vector<17xi32>, vector<16xi1>, vector<16xf32>
+}
+
+// -----
+
+func @scatter_dim_mask_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
+                                %mask: vector<17xi1>, %value: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.scatter' op expected valueToStore dim to match mask dim}}
+  vector.scatter %base[%c0][%indices], %mask, %value
+    : memref<?xf32>, vector<16xi32>, vector<17xi1>, vector<16xf32>
+}
+
+// -----
+
+func @expand_base_type_mismatch(%base: memref<?xf64>, %mask: vector<16xi1>, %pass_thru: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.expandload' op base and result element type should match}}
+  %0 = vector.expandload %base[%c0], %mask, %pass_thru : memref<?xf64>, vector<16xi1>, vector<16xf32> into vector<16xf32>
+}
+
+// -----
+
+func @expand_dim_mask_mismatch(%base: memref<?xf32>, %mask: vector<17xi1>, %pass_thru: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.expandload' op expected result dim to match mask dim}}
+  %0 = vector.expandload %base[%c0], %mask, %pass_thru : memref<?xf32>, vector<17xi1>, vector<16xf32> into vector<16xf32>
+}
+
+// -----
+
+func @expand_pass_thru_mismatch(%base: memref<?xf32>, %mask: vector<16xi1>, %pass_thru: vector<17xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.expandload' op expected pass_thru of same type as result type}}
+  %0 = vector.expandload %base[%c0], %mask, %pass_thru : memref<?xf32>, vector<16xi1>, vector<17xf32> into vector<16xf32>
+}
+
+// -----
+
+func @expand_memref_mismatch(%base: memref<?x?xf32>, %mask: vector<16xi1>, %pass_thru: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.expandload' op requires 2 indices}}
+  %0 = vector.expandload %base[%c0], %mask, %pass_thru : memref<?x?xf32>, vector<16xi1>, vector<16xf32> into vector<16xf32>
+}
+
+// -----
+
+func @compress_base_type_mismatch(%base: memref<?xf64>, %mask: vector<16xi1>, %value: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.compressstore' op base and valueToStore element type should match}}
+  vector.compressstore %base[%c0], %mask, %value : memref<?xf64>, vector<16xi1>, vector<16xf32>
+}
+
+// -----
+
+func @compress_dim_mask_mismatch(%base: memref<?xf32>, %mask: vector<17xi1>, %value: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.compressstore' op expected valueToStore dim to match mask dim}}
+  vector.compressstore %base[%c0], %mask, %value : memref<?xf32>, vector<17xi1>, vector<16xf32>
+}
+
+// -----
+
+func @compress_memref_mismatch(%base: memref<?x?xf32>, %mask: vector<16xi1>, %value: vector<16xf32>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.compressstore' op requires 2 indices}}
+  vector.compressstore %base[%c0, %c0, %c0], %mask, %value : memref<?x?xf32>, vector<16xi1>, vector<16xf32>
+}
+
+// -----
+
+func @extract_map_rank(%v: vector<32xf32>, %id : index) {
+  // expected-error@+1 {{'vector.extract_map' op expected source and destination vectors of same rank}}
+  %0 = vector.extract_map %v[%id] : vector<32xf32> to vector<2x1xf32>
+}
+
+// -----
+
+func @extract_map_size(%v: vector<63xf32>, %id : index) {
+  // expected-error@+1 {{'vector.extract_map' op source vector dimensions must be a multiple of destination vector dimensions}}
+  %0 = vector.extract_map %v[%id] : vector<63xf32> to vector<2xf32>
+}
+
+// -----
+
+func @extract_map_id(%v: vector<2x32xf32>, %id : index) {
+  // expected-error@+1 {{'vector.extract_map' op expected number of ids must match the number of dimensions distributed}}
+  %0 = vector.extract_map %v[%id] : vector<2x32xf32> to vector<1x1xf32>
+}
+
+// -----
+
+func @insert_map_rank(%v: vector<2x1xf32>, %v1: vector<32xf32>, %id : index) {
+  // expected-error@+1 {{'vector.insert_map' op expected source and destination vectors of same rank}}
+  %0 = vector.insert_map %v, %v1[%id] : vector<2x1xf32> into vector<32xf32>
+}
+
+// -----
+
+func @insert_map_size(%v: vector<3xf32>, %v1: vector<64xf32>, %id : index) {
+  // expected-error@+1 {{'vector.insert_map' op destination vector size must be a multiple of source vector size}}
+  %0 = vector.insert_map %v, %v1[%id] : vector<3xf32> into vector<64xf32>
+}
+
+// -----
+
+func @insert_map_id(%v: vector<2x1xf32>, %v1: vector<4x32xf32>, %id : index) {
+  // expected-error@+1 {{'vector.insert_map' op expected number of ids must match the number of dimensions distributed}}
+  %0 = vector.insert_map %v, %v1[%id] : vector<2x1xf32> into vector<4x32xf32>
 }

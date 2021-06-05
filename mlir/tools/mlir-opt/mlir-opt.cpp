@@ -27,174 +27,174 @@
 using namespace llvm;
 using namespace mlir;
 
-namespace mlir {
 // Defined in the test directory, no public header.
+namespace mlir {
 void registerConvertToTargetEnvPass();
-void registerInliner();
-void registerMemRefBoundCheck();
 void registerPassManagerTestPass();
-void registerPatternsTestPass();
 void registerPrintOpAvailabilityPass();
+void registerShapeFunctionTestPasses();
 void registerSideEffectTestPasses();
-void registerSimpleParametricTilingPass();
+void registerSliceAnalysisTestPass();
 void registerSymbolTestPasses();
 void registerTestAffineDataCopyPass();
-void registerTestAllReduceLoweringPass();
 void registerTestAffineLoopUnswitchingPass();
-void registerTestBufferPlacementPreparationPass();
-void registerTestLoopPermutationPass();
-void registerTestCallGraphPass();
-void registerTestConstantFold();
-void registerTestConvertGPUKernelToCubinPass();
-void registerTestConvertGPUKernelToHsacoPass();
-void registerTestDominancePass();
-void registerTestExpandTanhPass();
+void registerTestAllReduceLoweringPass();
 void registerTestFunc();
 void registerTestGpuMemoryPromotionPass();
+void registerTestLoopPermutationPass();
+void registerTestMatchers();
+void registerTestPrintDefUsePass();
+void registerTestPrintNestingPass();
+void registerTestReducer();
+void registerTestSpirvEntryPointABIPass();
+void registerTestSpirvGLSLCanonicalizationPass();
+void registerTestSpirvModuleCombinerPass();
+void registerTestTraitsPass();
+void registerTosaTestQuantUtilAPIPass();
+void registerVectorizerTestPass();
+
+namespace test {
+void registerConvertCallOpPass();
+void registerInliner();
+void registerMemRefBoundCheck();
+void registerPatternsTestPass();
+void registerSimpleParametricTilingPass();
+void registerTestAffineLoopParametricTilingPass();
+void registerTestAliasAnalysisPass();
+void registerTestCallGraphPass();
+void registerTestConstantFold();
+void registerTestConvVectorization();
+void registerTestGpuSerializeToCubinPass();
+void registerTestGpuSerializeToHsacoPass();
+void registerTestDataLayoutQuery();
+void registerTestDecomposeCallGraphTypes();
+void registerTestDialect(DialectRegistry &);
+void registerTestDominancePass();
+void registerTestDynamicPipelinePass();
+void registerTestExpandTanhPass();
+void registerTestComposeSubView();
+void registerTestGpuParallelLoopMappingPass();
+void registerTestIRVisitorsPass();
+void registerTestInterfaces();
+void registerTestLinalgCodegenStrategy();
+void registerTestLinalgDistribution();
+void registerTestLinalgElementwiseFusion();
+void registerTestPushExpandingReshape();
+void registerTestLinalgFusionTransforms();
+void registerTestLinalgTensorFusionTransforms();
+void registerTestLinalgTiledLoopFusionTransforms();
+void registerTestLinalgGreedyFusion();
 void registerTestLinalgHoisting();
+void registerTestLinalgTileAndFuseSequencePass();
 void registerTestLinalgTransforms();
 void registerTestLivenessPass();
 void registerTestLoopFusion();
 void registerTestLoopMappingPass();
 void registerTestLoopUnrollingPass();
-void registerTestMatchers();
+void registerTestMathPolynomialApproximationPass();
 void registerTestMemRefDependenceCheck();
 void registerTestMemRefStrideCalculation();
+void registerTestNumberOfBlockExecutionsPass();
+void registerTestNumberOfOperationExecutionsPass();
 void registerTestOpaqueLoc();
-void registerTestParallelismDetection();
+void registerTestPDLByteCodePass();
 void registerTestPreparationPassWithAllowedMemrefResults();
-void registerTestGpuParallelLoopMappingPass();
+void registerTestRecursiveTypesPass();
 void registerTestSCFUtilsPass();
 void registerTestVectorConversions();
-void registerVectorizerTestPass();
+} // namespace test
 } // namespace mlir
-
-static cl::opt<std::string>
-    inputFilename(cl::Positional, cl::desc("<input file>"), cl::init("-"));
-
-static cl::opt<std::string> outputFilename("o", cl::desc("Output filename"),
-                                           cl::value_desc("filename"),
-                                           cl::init("-"));
-
-static cl::opt<bool>
-    splitInputFile("split-input-file",
-                   cl::desc("Split the input file into pieces and process each "
-                            "chunk independently"),
-                   cl::init(false));
-
-static cl::opt<bool>
-    verifyDiagnostics("verify-diagnostics",
-                      cl::desc("Check that emitted diagnostics match "
-                               "expected-* lines on the corresponding line"),
-                      cl::init(false));
-
-static cl::opt<bool>
-    verifyPasses("verify-each",
-                 cl::desc("Run the verifier after each transformation pass"),
-                 cl::init(true));
-
-static cl::opt<bool> allowUnregisteredDialects(
-    "allow-unregistered-dialect",
-    cl::desc("Allow operation with no registered dialects"), cl::init(false));
 
 #ifdef MLIR_INCLUDE_TESTS
 void registerTestPasses() {
   registerConvertToTargetEnvPass();
-  registerInliner();
-  registerMemRefBoundCheck();
   registerPassManagerTestPass();
-  registerPatternsTestPass();
   registerPrintOpAvailabilityPass();
+  registerShapeFunctionTestPasses();
   registerSideEffectTestPasses();
-  registerSimpleParametricTilingPass();
+  registerSliceAnalysisTestPass();
   registerSymbolTestPasses();
   registerTestAffineDataCopyPass();
-  registerTestAllReduceLoweringPass();
   registerTestAffineLoopUnswitchingPass();
+  registerTestAllReduceLoweringPass();
+  registerTestFunc();
+  registerTestGpuMemoryPromotionPass();
   registerTestLoopPermutationPass();
-  registerTestCallGraphPass();
-  registerTestConstantFold();
+  registerTestMatchers();
+  registerTestPrintDefUsePass();
+  registerTestPrintNestingPass();
+  registerTestReducer();
+  registerTestSpirvEntryPointABIPass();
+  registerTestSpirvGLSLCanonicalizationPass();
+  registerTestSpirvModuleCombinerPass();
+  registerTestTraitsPass();
+  registerVectorizerTestPass();
+  registerTosaTestQuantUtilAPIPass();
+
+  test::registerConvertCallOpPass();
+  test::registerInliner();
+  test::registerMemRefBoundCheck();
+  test::registerPatternsTestPass();
+  test::registerSimpleParametricTilingPass();
+  test::registerTestAffineLoopParametricTilingPass();
+  test::registerTestAliasAnalysisPass();
+  test::registerTestCallGraphPass();
+  test::registerTestConstantFold();
 #if MLIR_CUDA_CONVERSIONS_ENABLED
-  registerTestConvertGPUKernelToCubinPass();
+  test::registerTestGpuSerializeToCubinPass();
 #endif
 #if MLIR_ROCM_CONVERSIONS_ENABLED
-  registerTestConvertGPUKernelToHsacoPass();
+  test::registerTestGpuSerializeToHsacoPass();
 #endif
-  registerTestBufferPlacementPreparationPass();
-  registerTestDominancePass();
-  registerTestFunc();
-  registerTestExpandTanhPass();
-  registerTestGpuMemoryPromotionPass();
-  registerTestLinalgHoisting();
-  registerTestLinalgTransforms();
-  registerTestLivenessPass();
-  registerTestLoopFusion();
-  registerTestLoopMappingPass();
-  registerTestLoopUnrollingPass();
-  registerTestMatchers();
-  registerTestMemRefDependenceCheck();
-  registerTestMemRefStrideCalculation();
-  registerTestOpaqueLoc();
-  registerTestParallelismDetection();
-  registerTestPreparationPassWithAllowedMemrefResults();
-  registerTestGpuParallelLoopMappingPass();
-  registerTestSCFUtilsPass();
-  registerTestVectorConversions();
-  registerVectorizerTestPass();
+  test::registerTestConvVectorization();
+  test::registerTestDecomposeCallGraphTypes();
+  test::registerTestDataLayoutQuery();
+  test::registerTestDominancePass();
+  test::registerTestDynamicPipelinePass();
+  test::registerTestExpandTanhPass();
+  test::registerTestComposeSubView();
+  test::registerTestGpuParallelLoopMappingPass();
+  test::registerTestIRVisitorsPass();
+  test::registerTestInterfaces();
+  test::registerTestLinalgCodegenStrategy();
+  test::registerTestLinalgDistribution();
+  test::registerTestLinalgElementwiseFusion();
+  test::registerTestPushExpandingReshape();
+  test::registerTestLinalgFusionTransforms();
+  test::registerTestLinalgTensorFusionTransforms();
+  test::registerTestLinalgTiledLoopFusionTransforms();
+  test::registerTestLinalgGreedyFusion();
+  test::registerTestLinalgHoisting();
+  test::registerTestLinalgTileAndFuseSequencePass();
+  test::registerTestLinalgTransforms();
+  test::registerTestLivenessPass();
+  test::registerTestLoopFusion();
+  test::registerTestLoopMappingPass();
+  test::registerTestLoopUnrollingPass();
+  test::registerTestMathPolynomialApproximationPass();
+  test::registerTestMemRefDependenceCheck();
+  test::registerTestMemRefStrideCalculation();
+  test::registerTestNumberOfBlockExecutionsPass();
+  test::registerTestNumberOfOperationExecutionsPass();
+  test::registerTestOpaqueLoc();
+  test::registerTestPDLByteCodePass();
+  test::registerTestRecursiveTypesPass();
+  test::registerTestSCFUtilsPass();
+  test::registerTestVectorConversions();
 }
 #endif
 
-static cl::opt<bool>
-    showDialects("show-dialects",
-                 cl::desc("Print the list of registered dialects"),
-                 cl::init(false));
-
 int main(int argc, char **argv) {
-  registerAllDialects();
   registerAllPasses();
 #ifdef MLIR_INCLUDE_TESTS
   registerTestPasses();
 #endif
-  InitLLVM y(argc, argv);
-
-  // Register any command line options.
-  registerAsmPrinterCLOptions();
-  registerMLIRContextCLOptions();
-  registerPassManagerCLOptions();
-  PassPipelineCLParser passPipeline("", "Compiler passes to run");
-
-  // Parse pass names in main to ensure static initialization completed.
-  cl::ParseCommandLineOptions(argc, argv, "MLIR modular optimizer driver\n");
-
-  if(showDialects) {
-    llvm::outs() << "Registered Dialects:\n";
-    MLIRContext context;
-    for(Dialect *dialect : context.getRegisteredDialects()) {
-      llvm::outs() << dialect->getNamespace() << "\n";
-    }
-    return 0;
-  }
-
-  // Set up the input file.
-  std::string errorMessage;
-  auto file = openInputFile(inputFilename, &errorMessage);
-  if (!file) {
-    llvm::errs() << errorMessage << "\n";
-    return 1;
-  }
-
-  auto output = openOutputFile(outputFilename, &errorMessage);
-  if (!output) {
-    llvm::errs() << errorMessage << "\n";
-    exit(1);
-  }
-
-  if (failed(MlirOptMain(output->os(), std::move(file), passPipeline,
-                         splitInputFile, verifyDiagnostics, verifyPasses,
-                         allowUnregisteredDialects))) {
-    return 1;
-  }
-  // Keep the output file if the invocation of MlirOptMain was successful.
-  output->keep();
-  return 0;
+  DialectRegistry registry;
+  registerAllDialects(registry);
+#ifdef MLIR_INCLUDE_TESTS
+  test::registerTestDialect(registry);
+#endif
+  return mlir::asMainReturnCode(
+      mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry,
+                        /*preloadDialectsInContext=*/false));
 }

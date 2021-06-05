@@ -35,7 +35,6 @@ class TargetAPITestCase(TestBase):
     # It does not segfaults now.  But for dwarf, the variable value is None if
     # the inferior process does not exist yet.  The radar has been updated.
     #@unittest232.skip("segmentation fault -- skipping")
-    @add_test_categories(['pyapi'])
     def test_find_global_variables(self):
         """Exercise SBTarget.FindGlobalVariables() API."""
         d = {'EXE': 'b.out'}
@@ -43,7 +42,6 @@ class TargetAPITestCase(TestBase):
         self.setTearDownCleanup(dictionary=d)
         self.find_global_variables('b.out')
 
-    @add_test_categories(['pyapi'])
     def test_find_compile_units(self):
         """Exercise SBTarget.FindCompileUnits() API."""
         d = {'EXE': 'b.out'}
@@ -51,7 +49,6 @@ class TargetAPITestCase(TestBase):
         self.setTearDownCleanup(dictionary=d)
         self.find_compile_units(self.getBuildArtifact('b.out'))
 
-    @add_test_categories(['pyapi'])
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr24778")
     def test_find_functions(self):
         """Exercise SBTarget.FindFunctions() API."""
@@ -60,20 +57,17 @@ class TargetAPITestCase(TestBase):
         self.setTearDownCleanup(dictionary=d)
         self.find_functions('b.out')
 
-    @add_test_categories(['pyapi'])
     def test_get_description(self):
         """Exercise SBTarget.GetDescription() API."""
         self.build()
         self.get_description()
 
-    @add_test_categories(['pyapi'])
     @expectedFailureAll(oslist=["windows"], bugnumber='llvm.org/pr21765')
     def test_resolve_symbol_context_with_address(self):
         """Exercise SBTarget.ResolveSymbolContextForAddress() API."""
         self.build()
         self.resolve_symbol_context_with_address()
 
-    @add_test_categories(['pyapi'])
     def test_get_platform(self):
         d = {'EXE': 'b.out'}
         self.build(dictionary=d)
@@ -82,7 +76,6 @@ class TargetAPITestCase(TestBase):
         platform = target.platform
         self.assertTrue(platform, VALID_PLATFORM)
 
-    @add_test_categories(['pyapi'])
     def test_get_data_byte_size(self):
         d = {'EXE': 'b.out'}
         self.build(dictionary=d)
@@ -90,7 +83,6 @@ class TargetAPITestCase(TestBase):
         target = self.create_simple_target('b.out')
         self.assertEqual(target.data_byte_size, 1)
 
-    @add_test_categories(['pyapi'])
     def test_get_code_byte_size(self):
         d = {'EXE': 'b.out'}
         self.build(dictionary=d)
@@ -98,7 +90,6 @@ class TargetAPITestCase(TestBase):
         target = self.create_simple_target('b.out')
         self.assertEqual(target.code_byte_size, 1)
 
-    @add_test_categories(['pyapi'])
     def test_resolve_file_address(self):
         d = {'EXE': 'b.out'}
         self.build(dictionary=d)
@@ -121,7 +112,6 @@ class TargetAPITestCase(TestBase):
         self.assertIsNotNone(data_section2)
         self.assertEqual(data_section.name, data_section2.name)
 
-    @add_test_categories(['pyapi'])
     @skipIfReproducer # SBTarget::ReadMemory is not instrumented.
     def test_read_memory(self):
         d = {'EXE': 'b.out'}
@@ -149,6 +139,49 @@ class TargetAPITestCase(TestBase):
         content = target.ReadMemory(sb_addr, 1, error)
         self.assertTrue(error.Success(), "Make sure memory read succeeded")
         self.assertEqual(len(content), 1)
+
+
+    @skipIfWindows  # stdio manipulation unsupported on Windows
+    @skipIfRemote   # stdio manipulation unsupported on remote iOS devices<rdar://problem/54581135>
+    @skipIfReproducer  # stdout not captured by reproducers
+    @skipIf(oslist=["linux"], archs=["arm", "aarch64"])
+    @no_debug_info_test
+    def test_launch_simple(self):
+        d = {'EXE': 'b.out'}
+        self.build(dictionary=d)
+        self.setTearDownCleanup(dictionary=d)
+        target = self.create_simple_target('b.out')
+
+        # Set the debugger to synchronous mode so we only continue after the
+        # process has exited.
+        self.dbg.SetAsync(False)
+
+        process = target.LaunchSimple(
+            ['foo', 'bar'], ['baz'], self.get_process_working_directory())
+        process.Continue()
+        self.assertEqual(process.GetState(), lldb.eStateExited)
+        output = process.GetSTDOUT(9999)
+        self.assertIn('arg: foo', output)
+        self.assertIn('arg: bar', output)
+        self.assertIn('env: baz', output)
+
+        self.runCmd("setting set target.run-args foo")
+        self.runCmd("setting set target.env-vars bar=baz")
+        process = target.LaunchSimple(None, None,
+                                      self.get_process_working_directory())
+        process.Continue()
+        self.assertEqual(process.GetState(), lldb.eStateExited)
+        output = process.GetSTDOUT(9999)
+        self.assertIn('arg: foo', output)
+        self.assertIn('env: bar=baz', output)
+
+        self.runCmd("settings set target.disable-stdio true")
+        process = target.LaunchSimple(
+            None, None, self.get_process_working_directory())
+        process.Continue()
+        self.assertEqual(process.GetState(), lldb.eStateExited)
+        output = process.GetSTDOUT(9999)
+        self.assertEqual(output, "")
 
     def create_simple_target(self, fn):
         exe = self.getBuildArtifact(fn)
@@ -200,11 +233,11 @@ class TargetAPITestCase(TestBase):
         # Make sure we hit our breakpoint:
         thread_list = lldbutil.get_threads_stopped_at_breakpoint(
             process, breakpoint)
-        self.assertTrue(len(thread_list) == 1)
+        self.assertEqual(len(thread_list), 1)
 
         value_list = target.FindGlobalVariables(
             'my_global_var_of_char_type', 3)
-        self.assertTrue(value_list.GetSize() == 1)
+        self.assertEqual(value_list.GetSize(), 1)
         my_global_var = value_list.GetValueAtIndex(0)
         self.DebugSBValue(my_global_var)
         self.assertTrue(my_global_var)
@@ -223,9 +256,9 @@ class TargetAPITestCase(TestBase):
                 if os.path.normpath(m.GetFileSpec().GetDirectory()) == self.getBuildDir() and m.GetFileSpec().GetFilename() == exe_name:
                     value_list = m.FindGlobalVariables(
                         target, 'my_global_var_of_char_type', 3)
-                    self.assertTrue(value_list.GetSize() == 1)
-                    self.assertTrue(
-                        value_list.GetValueAtIndex(0).GetValue() == "'X'")
+                    self.assertEqual(value_list.GetSize(), 1)
+                    self.assertEqual(
+                        value_list.GetValueAtIndex(0).GetValue(), "'X'")
                     break
 
     def find_compile_units(self, exe):
@@ -239,8 +272,8 @@ class TargetAPITestCase(TestBase):
         list = target.FindCompileUnits(lldb.SBFileSpec(source_name, False))
         # Executable has been built just from one source file 'main.c',
         # so we may check only the first element of list.
-        self.assertTrue(
-            list[0].GetCompileUnit().GetFileSpec().GetFilename() == source_name)
+        self.assertEqual(
+            list[0].GetCompileUnit().GetFileSpec().GetFilename(), source_name)
 
     def find_functions(self, exe_name):
         """Exercise SBTaget.FindFunctions() API."""
@@ -250,13 +283,17 @@ class TargetAPITestCase(TestBase):
         target = self.dbg.CreateTarget(exe)
         self.assertTrue(target, VALID_TARGET)
 
+        # Try it with a null name:
+        list = target.FindFunctions(None, lldb.eFunctionNameTypeAuto)
+        self.assertEqual(list.GetSize(), 0)
+
         list = target.FindFunctions('c', lldb.eFunctionNameTypeAuto)
-        self.assertTrue(list.GetSize() == 1)
+        self.assertEqual(list.GetSize(), 1)
 
         for sc in list:
-            self.assertTrue(
-                sc.GetModule().GetFileSpec().GetFilename() == exe_name)
-            self.assertTrue(sc.GetSymbol().GetName() == 'c')
+            self.assertEqual(
+                sc.GetModule().GetFileSpec().GetFilename(), exe_name)
+            self.assertEqual(sc.GetSymbol().GetName(), 'c')
 
     def get_description(self):
         """Exercise SBTaget.GetDescription() API."""
@@ -283,10 +320,9 @@ class TargetAPITestCase(TestBase):
         if not desc:
             self.fail("SBTarget.GetDescription() failed")
         self.expect(desc, exe=False,
-                    substrs=['a.out', 'Target', 'Module', 'Breakpoint'])
+                    substrs=['Target', 'Module', 'a.out', 'Breakpoint'])
 
-    @not_remote_testsuite_ready
-    @add_test_categories(['pyapi'])
+    @skipIfRemote
     @no_debug_info_test
     @skipIfReproducer # Inferior doesn't run during replay.
     def test_launch_new_process_and_redirect_stdout(self):
@@ -374,7 +410,7 @@ class TargetAPITestCase(TestBase):
         self.assertTrue(process, PROCESS_IS_VALID)
 
         # Frame #0 should be on self.line1.
-        self.assertTrue(process.GetState() == lldb.eStateStopped)
+        self.assertEqual(process.GetState(), lldb.eStateStopped)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
         self.assertTrue(
@@ -383,13 +419,13 @@ class TargetAPITestCase(TestBase):
         #self.runCmd("process status")
         frame0 = thread.GetFrameAtIndex(0)
         lineEntry = frame0.GetLineEntry()
-        self.assertTrue(lineEntry.GetLine() == self.line1)
+        self.assertEqual(lineEntry.GetLine(), self.line1)
 
         address1 = lineEntry.GetStartAddress()
 
         # Continue the inferior, the breakpoint 2 should be hit.
         process.Continue()
-        self.assertTrue(process.GetState() == lldb.eStateStopped)
+        self.assertEqual(process.GetState(), lldb.eStateStopped)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
         self.assertTrue(
@@ -398,7 +434,7 @@ class TargetAPITestCase(TestBase):
         #self.runCmd("process status")
         frame0 = thread.GetFrameAtIndex(0)
         lineEntry = frame0.GetLineEntry()
-        self.assertTrue(lineEntry.GetLine() == self.line2)
+        self.assertEqual(lineEntry.GetLine(), self.line2)
 
         address2 = lineEntry.GetStartAddress()
 
@@ -428,3 +464,41 @@ class TargetAPITestCase(TestBase):
         desc2 = get_description(symbol2)
         self.assertTrue(desc1 and desc2 and desc1 == desc2,
                         "The two addresses should resolve to the same symbol")
+
+    def test_default_arch(self):
+        """ Test the other two target create methods using LLDB_ARCH_DEFAULT. """
+        self.build()
+        exe = self.getBuildArtifact("a.out")
+        target = self.dbg.CreateTargetWithFileAndArch(exe, lldb.LLDB_ARCH_DEFAULT)
+        self.assertTrue(target.IsValid(), "Default arch made a valid target.")
+        # This should also work with the target's triple:
+        target2 = self.dbg.CreateTargetWithFileAndArch(exe, target.GetTriple())
+        self.assertTrue(target2.IsValid(), "Round trip with triple works")
+        # And this triple should work for the FileAndTriple API:
+        target3 = self.dbg.CreateTargetWithFileAndTargetTriple(exe, target.GetTriple())
+        self.assertTrue(target3.IsValid())
+
+
+    @skipIfWindows
+    def test_is_loaded(self):
+        """Exercise SBTarget.IsLoaded(SBModule&) API."""
+        d = {'EXE': 'b.out'}
+        self.build(dictionary=d)
+        self.setTearDownCleanup(dictionary=d)
+        target = self.create_simple_target('b.out')
+
+        self.assertFalse(target.IsLoaded(lldb.SBModule()))
+
+        num_modules = target.GetNumModules()
+        for i in range(num_modules):
+            module = target.GetModuleAtIndex(i)
+            self.assertFalse(target.IsLoaded(module), "Target that isn't "
+                             "running shouldn't have any module loaded.")
+
+        process = target.LaunchSimple(None, None,
+                                      self.get_process_working_directory())
+
+        for i in range(num_modules):
+            module = target.GetModuleAtIndex(i)
+            self.assertTrue(target.IsLoaded(module), "Running the target should "
+                            "have loaded its modules.")

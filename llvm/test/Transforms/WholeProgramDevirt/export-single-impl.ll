@@ -4,7 +4,7 @@
 ; SUMMARY:      TypeIdMap:
 ; SUMMARY-NEXT:   typeid3:
 ; SUMMARY-NEXT:     TTRes:
-; SUMMARY-NEXT:       Kind:            Unsat
+; SUMMARY-NEXT:       Kind:            Unknown
 ; SUMMARY-NEXT:       SizeM1BitWidth:  0
 ; SUMMARY-NEXT:       AlignLog2:       0
 ; SUMMARY-NEXT:       SizeM1:          0
@@ -13,11 +13,11 @@
 ; SUMMARY-NEXT:     WPDRes:
 ; SUMMARY-NEXT:       0:
 ; SUMMARY-NEXT:         Kind:            SingleImpl
-; SUMMARY-NEXT:         SingleImplName:  'vf3$merged'
+; SUMMARY-NEXT:         SingleImplName:  vf3.llvm.merged
 ; SUMMARY-NEXT:         ResByArg:
 ; SUMMARY-NEXT:   typeid1:
 ; SUMMARY-NEXT:     TTRes:
-; SUMMARY-NEXT:       Kind:            Unsat
+; SUMMARY-NEXT:       Kind:            Unknown
 ; SUMMARY-NEXT:       SizeM1BitWidth:  0
 ; SUMMARY-NEXT:       AlignLog2:       0
 ; SUMMARY-NEXT:       SizeM1:          0
@@ -30,7 +30,7 @@
 ; SUMMARY-NEXT:         ResByArg:
 ; SUMMARY-NEXT:   typeid2:
 ; SUMMARY-NEXT:     TTRes:
-; SUMMARY-NEXT:       Kind:            Unsat
+; SUMMARY-NEXT:       Kind:            Unknown
 ; SUMMARY-NEXT:       SizeM1BitWidth:  0
 ; SUMMARY-NEXT:       AlignLog2:       0
 ; SUMMARY-NEXT:       SizeM1:          0
@@ -43,7 +43,7 @@
 ; SUMMARY-NEXT:         ResByArg:
 ; SUMMARY-NEXT:   typeid4:
 ; SUMMARY-NEXT:     TTRes:
-; SUMMARY-NEXT:       Kind:            Unsat
+; SUMMARY-NEXT:       Kind:            Unknown
 ; SUMMARY-NEXT:       SizeM1BitWidth:  0
 ; SUMMARY-NEXT:       AlignLog2:       0
 ; SUMMARY-NEXT:       SizeM1:          0
@@ -52,12 +52,12 @@
 ; SUMMARY-NEXT:     WPDRes:
 ; SUMMARY-NEXT:       0:
 ; SUMMARY-NEXT:         Kind:            SingleImpl
-; SUMMARY-NEXT:         SingleImplName:  'vf4$merged'
+; SUMMARY-NEXT:         SingleImplName:  vf4.llvm.merged
 ; SUMMARY-NEXT:         ResByArg:
 ; SUMMARY-NEXT: WithGlobalValueDeadStripping: false
 ; SUMMARY-NEXT: ...
 
-; CHECK: $"vf4$merged" = comdat largest
+; CHECK: $vf4.llvm.merged = comdat largest
 $vf4 = comdat largest
 
 ; CHECK: @vt1 = constant void (i8*)* @vf1
@@ -68,7 +68,7 @@ $vf4 = comdat largest
 
 @vt3 = constant void (i8*)* @vf3, !type !2
 
-; CHECK: @vt4 = constant void (i8*)* @"vf4$merged", comdat($"vf4$merged")
+; CHECK: @vt4 = constant void (i8*)* @vf4.llvm.merged, comdat($vf4.llvm.merged)
 @vt4 = constant void (i8*)* @vf4, comdat($vf4), !type !3
 
 @vt5 = constant void (i8*)* @vf5, !type !4
@@ -81,12 +81,12 @@ define void @vf2(i8*) {
   ret void
 }
 
-; CHECK: define hidden void @"vf3$merged"(i8* %0) {
+; CHECK: define hidden void @vf3.llvm.merged(i8* %0) {
 define internal void @vf3(i8*) {
   ret void
 }
 
-; CHECK: define hidden void @"vf4$merged"(i8* %0) comdat {
+; CHECK: define hidden void @vf4.llvm.merged(i8* %0) comdat {
 define internal void @vf4(i8*) comdat {
   ret void
 }

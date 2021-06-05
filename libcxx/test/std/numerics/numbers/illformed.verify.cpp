@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
 
 #include <numbers>
@@ -26,4 +26,4 @@ int inv_sqrt3{std::numbers::inv_sqrt3_v<int>};
 int egamma{std::numbers::egamma_v<int>};
 int phi{std::numbers::phi_v<int>};
 
-int main() { return 0; }
+int main(int, char**) { return 0; }

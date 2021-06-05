@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+!RUN: %S/test_errors.sh %s %t %flang_fc1
 subroutine s1
   integer i, j
   real r(2)
@@ -113,7 +113,7 @@ subroutine s9
   equivalence(d(1:n), i)
   character(4) :: a(10)
   equivalence(c, a(10)(1:2))
-  !ERROR: 'a(10)' and 'a(10)(2:)' cannot have the same first storage unit
+  !ERROR: 'a(10_8)(2_8:2_8)' and 'a(10_8)(1_8:1_8)' cannot have the same first storage unit
   equivalence(c, a(10)(2:3))
 end
 
@@ -165,13 +165,52 @@ end
 
 module s14
   real :: a(10), b, c, d
-  !ERROR: 'a(1)' and 'a(2)' cannot have the same first storage unit
+  !ERROR: 'a(2_8)' and 'a(1_8)' cannot have the same first storage unit
   equivalence(a(1), a(2))
   equivalence(b, a(3))
-  !ERROR: 'a(3)' and 'a(4)' cannot have the same first storage unit
+  !ERROR: 'a(4_8)' and 'a(3_8)' cannot have the same first storage unit
   equivalence(a(4), b)
   equivalence(c, a(5))
+  !ERROR: 'a(6_8)' and 'a(5_8)' cannot have the same first storage unit
   equivalence(a(6), d)
-  !ERROR: 'a(5)' and 'a(6)' cannot have the same first storage unit
   equivalence(c, d)
 end
+
+module s15
+  real :: a(2), b(2)
+  equivalence(a(2),b(1))
+  !ERROR: 'a(3_8)' and 'a(1_8)' cannot have the same first storage unit
+  equivalence(b(2),a(1))
+end module
+
+subroutine s16
+
+  integer var, dupName
+
+  ! There should be no error message for the following
+  equivalence (dupName, var)
+
+  interface
+    subroutine interfaceSub (dupName)
+      integer dupName
+    end subroutine interfaceSub
+  end interface
+
+end subroutine s16
+
+module m17
+  real :: dupName
+contains
+  real function f17a()
+    implicit none
+    real :: y
+    !ERROR: No explicit type declared for 'dupname'
+    equivalence (dupName, y) 
+  end function f17a
+  real function f17b()
+    real :: y
+    ! The following implicitly declares an object called "dupName" local to 
+    ! the function f17b().  OK since there's no "implicit none
+    equivalence (dupName, y) 
+  end function f17b
+end module m17

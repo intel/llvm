@@ -1,7 +1,11 @@
 add_mlir_dialect_library(MLIRStandardOpsTransforms
-  ExpandAtomic.cpp
-  ExpandTanh.cpp
+  Bufferize.cpp
+  ComposeSubView.cpp
+  DecomposeCallGraphTypes.cpp
+  ExpandOps.cpp
+  FuncBufferize.cpp
   FuncConversions.cpp
+  TensorConstantBufferize.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/StandardOps/Transforms
@@ -11,7 +15,9 @@ add_mlir_dialect_library(MLIRStandardOpsTransforms
 
   LINK_LIBS PUBLIC
   MLIRIR
+  MLIRMemRef
   MLIRPass
-  MLIRStandardOps
+  MLIRSCF
+  MLIRStandard
   MLIRTransforms
   )

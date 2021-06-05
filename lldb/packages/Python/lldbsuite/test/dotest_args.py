@@ -51,8 +51,8 @@ def create_parser():
                                                            suggestions: do not lump the "-A arch1 -A arch2" together such that the -E option applies to only one of the architectures'''))
 
     group.add_argument('--dsymutil', metavar='dsymutil', dest='dsymutil', help=textwrap.dedent('Specify which dsymutil to use.'))
-
-    group.add_argument('--filecheck', metavar='filecheck', dest='filecheck', help=textwrap.dedent('Specify which FileCheck binary to use.'))
+    group.add_argument('--llvm-tools-dir', metavar='dir', dest='llvm_tools_dir',
+            help=textwrap.dedent('The location of llvm tools used for testing (yaml2obj, FileCheck, etc.).'))
 
     # Test filtering options
     group = parser.add_argument_group('Test filtering options')
@@ -101,10 +101,6 @@ def create_parser():
         metavar='executable-path',
         help='The path to the lldb executable')
     group.add_argument(
-        '--server',
-        metavar='server-path',
-        help='The path to the debug server executable to use')
-    group.add_argument(
         '--out-of-tree-debugserver',
         dest='out_of_tree_debugserver',
         action='store_true',
@@ -123,16 +119,6 @@ def create_parser():
         nargs=1,
         action='append',
         help='Run "setting set SETTING VALUE" before executing any test.')
-    group.add_argument(
-        '-s',
-        metavar='name',
-        help='Specify the name of the dir created to store the session files of tests with errored or failed status. If not specified, the test driver uses the timestamp as the session dir name')
-    group.add_argument(
-        '-S',
-        '--session-file-format',
-        default=configuration.session_file_format,
-        metavar='format',
-        help='Specify session file name format.  See configuration.py for a description.')
     group.add_argument(
         '-y',
         type=int,
@@ -243,38 +229,6 @@ def create_parser():
         action='store_false',
         help='(Windows only) When LLDB crashes, display the Windows crash dialog.')
     group.set_defaults(disable_crash_dialog=True)
-
-    # Test results support.
-    group = parser.add_argument_group('Test results options')
-    group.add_argument(
-        '--results-file',
-        action='store',
-        help=('Specifies the file where test results will be written '
-              'according to the results-formatter class used'))
-    group.add_argument(
-        '--results-formatter',
-        action='store',
-        help=('Specifies the full package/module/class name used to translate '
-              'test events into some kind of meaningful report, written to '
-              'the designated output results file-like object'))
-    group.add_argument(
-        '--results-formatter-option',
-        '-O',
-        action='append',
-        dest='results_formatter_options',
-        help=('Specify an option to pass to the formatter. '
-              'Use --results-formatter-option="--option1=val1" '
-              'syntax.  Note the "=" is critical, don\'t include whitespace.'))
-
-    # Re-run related arguments
-    group = parser.add_argument_group('Test Re-run Options')
-    group.add_argument(
-        '--rerun-all-issues',
-        action='store_true',
-        help=('Re-run all issues that occurred during the test run '
-              'irrespective of the test method\'s marking as flakey. '
-              'Default behavior is to apply re-runs only to flakey '
-              'tests that generate issues.'))
 
     # Remove the reference to our helper function
     del X

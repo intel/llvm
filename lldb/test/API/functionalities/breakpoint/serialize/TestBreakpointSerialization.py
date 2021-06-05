@@ -3,6 +3,7 @@ Test breakpoint serialization.
 """
 
 import os
+import json
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -56,6 +57,41 @@ class BreakpointSerialization(TestBase):
         self.setup_targets_and_cleanup()
         self.do_check_extra_args()
 
+    def test_structured_data_serialization(self):
+        target = self.dbg.GetDummyTarget()
+        self.assertTrue(target.IsValid(), VALID_TARGET)
+
+        interpreter = self.dbg.GetCommandInterpreter()
+        result = lldb.SBCommandReturnObject()
+        interpreter.HandleCommand("br set -f foo -l 42", result)
+        result = lldb.SBCommandReturnObject()
+        interpreter.HandleCommand("br set -c 'argc == 1' -n main", result)
+
+        bkp1 =  target.GetBreakpointAtIndex(0)
+        self.assertTrue(bkp1.IsValid(), VALID_BREAKPOINT)
+        stream = lldb.SBStream()
+        sd = bkp1.SerializeToStructuredData()
+        sd.GetAsJSON(stream)
+        serialized_data = json.loads(stream.GetData())
+        self.assertEqual(serialized_data["Breakpoint"]["BKPTResolver"]["Options"]["FileName"], "foo")
+        self.assertEqual(serialized_data["Breakpoint"]["BKPTResolver"]["Options"]["LineNumber"], 42)
+
+        bkp2 =  target.GetBreakpointAtIndex(1)
+        self.assertTrue(bkp2.IsValid(), VALID_BREAKPOINT)
+        stream = lldb.SBStream()
+        sd = bkp2.SerializeToStructuredData()
+        sd.GetAsJSON(stream)
+        serialized_data = json.loads(stream.GetData())
+        self.assertIn("main", serialized_data["Breakpoint"]["BKPTResolver"]["Options"]["SymbolNames"])
+        self.assertEqual(serialized_data["Breakpoint"]["BKPTOptions"]["ConditionText"],"argc == 1")
+
+        invalid_bkp = lldb.SBBreakpoint()
+        self.assertFalse(invalid_bkp.IsValid(), "Breakpoint should not be valid.")
+        stream = lldb.SBStream()
+        sd = invalid_bkp.SerializeToStructuredData()
+        sd.GetAsJSON(stream)
+        self.assertFalse(stream.GetData(), "Invalid breakpoint should have an empty structured data")
+
     def setup_targets_and_cleanup(self):
         def cleanup ():
             self.RemoveTempFile(self.bkpts_file_path)
@@ -97,7 +133,7 @@ class BreakpointSerialization(TestBase):
 
         num_source_bps = source_bps.GetSize()
         num_copy_bps = copy_bps.GetSize()
-        self.assertTrue(num_source_bps == num_copy_bps, "Didn't get same number of input and output breakpoints - orig: %d copy: %d"%(num_source_bps, num_copy_bps))
+        self.assertEqual(num_source_bps, num_copy_bps, "Didn't get same number of input and output breakpoints - orig: %d copy: %d"%(num_source_bps, num_copy_bps))
 
         for i in range(0, num_source_bps):
             source_bp = source_bps.GetBreakpointAtIndex(i)
@@ -291,12 +327,12 @@ class BreakpointSerialization(TestBase):
 
         error = self.copy_target.BreakpointsCreateFromFile(self.bkpts_file_spec, names_list, copy_bps)
         self.assertTrue(error.Success(), "Failed reading breakpoints from file: %s"%(error.GetCString()))
-        self.assertTrue(copy_bps.GetSize() == 0, "Found breakpoints with a nonexistent name.")
+        self.assertEqual(copy_bps.GetSize(), 0, "Found breakpoints with a nonexistent name.")
 
         names_list.AppendString(good_bkpt_name)
         error = self.copy_target.BreakpointsCreateFromFile(self.bkpts_file_spec, names_list, copy_bps)
         self.assertTrue(error.Success(), "Failed reading breakpoints from file: %s"%(error.GetCString()))
-        self.assertTrue(copy_bps.GetSize() == 1, "Found the matching breakpoint.")
+        self.assertEqual(copy_bps.GetSize(), 1, "Found the matching breakpoint.")
 
     def do_check_extra_args(self):
 

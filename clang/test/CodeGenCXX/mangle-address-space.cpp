@@ -66,11 +66,11 @@ __constant float *ocl_f1(char __generic const *p) { return 0;}
 // WINOCL-LABEL: define {{.*}}float* @"?ocl_f2@@YAPEAU?$_ASCLgeneric@$$CAM@__clang@@QEAU?$_ASCLgeneric@$$CBD@2@@Z"
 __generic float *ocl_f2(__generic char const * const p) { return 0;}
 
-// CHECKOCL-LABEL: define {{.*}}void @_Z6ocl_f3PU6CLHost14ocl_OpaqueType
-// WINOCL-LABEL: define {{.*}}void @"?ocl_f3@@YAXPEAU?$_ASCLHost@$$CAUocl_OpaqueType@@@__clang@@@Z"
+// CHECKOCL-LABEL: define {{.*}}void @_Z6ocl_f3PU6CLhost14ocl_OpaqueType
+// WINOCL-LABEL: define {{.*}}void @"?ocl_f3@@YAXPEAU?$_ASCLhost@$$CAUocl_OpaqueType@@@__clang@@@Z"
 void ocl_f3(ocl_OpaqueTypePtrH) {}
 
-// CHECKOCL-LABEL: define {{.*}}void @_Z6ocl_f4PU8CLDevice14ocl_OpaqueType
-// WINOCL-LABEL: define {{.*}}void @"?ocl_f4@@YAXPEAU?$_ASCLDevice@$$CAUocl_OpaqueType@@@__clang@@@Z"
+// CHECKOCL-LABEL: define {{.*}}void @_Z6ocl_f4PU8CLdevice14ocl_OpaqueType
+// WINOCL-LABEL: define {{.*}}void @"?ocl_f4@@YAXPEAU?$_ASCLdevice@$$CAUocl_OpaqueType@@@__clang@@@Z"
 void ocl_f4(ocl_OpaqueTypePtrD) {}
 #endif

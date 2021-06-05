@@ -1,19 +1,19 @@
 ========================
-lld 11.0.0 Release Notes
+lld 13.0.0 Release Notes
 ========================
 
 .. contents::
     :local:
 
 .. warning::
-   These are in-progress notes for the upcoming LLVM 11.0.0 release.
+   These are in-progress notes for the upcoming LLVM 13.0.0 release.
    Release notes for previous releases can be found on
    `the Download Page <https://releases.llvm.org/download.html>`_.
 
 Introduction
 ============
 
-This document contains the release notes for the lld linker, release 11.0.0.
+This document contains the release notes for the lld linker, release 13.0.0.
 Here we describe the status of lld, including major improvements
 from the previous release. All lld releases may be downloaded
 from the `LLVM releases web site <https://llvm.org/releases/>`_.
@@ -24,18 +24,16 @@ Non-comprehensive list of changes in this release
 ELF Improvements
 ----------------
 
-* New ``--time-trace`` option records a time trace file that can be viewed in
-  chrome://tracing. The file can be specified with ``--time-trace-file``.
-  Trace granularity can be specified with ``--time-trace-granularity``.
-  (`D71060 <https://reviews.llvm.org/D71060>`_)
-* ...
+* ``-Bsymbolic -Bsymbolic-functions`` has been changed to behave the same as ``-Bsymbolic-functions``. This matches GNU ld.
+  (`D102461 <https://reviews.llvm.org/D102461>`_)
+* ``-Bno-symbolic`` has been added.
+  (`D102461 <https://reviews.llvm.org/D102461>`_)
 
 Breaking changes
 ----------------
 
-* One-dash form of some long option (``--thinlto-*``, ``--lto-*``, ``--shuffle-sections=``)
-  are no longer supported.
-* ``--export-dynamic-symbol`` no longer implies ``-u``.
+* ``--shuffle-sections=<seed>`` has been changed to ``--shuffle-sections=<section-glob>=<seed>``.
+  Specify ``*`` as ``<section-glob>`` to get the previous behavior.
 
 COFF Improvements
 -----------------

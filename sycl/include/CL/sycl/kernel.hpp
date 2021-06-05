@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -20,9 +21,28 @@ namespace sycl {
 // Forward declaration
 class program;
 class context;
+template <backend Backend> class backend_traits;
+
 namespace detail {
 class kernel_impl;
-}
+
+/// This class is the default KernelName template parameter type for kernel
+/// invocation APIs such as single_task.
+class auto_name {};
+
+/// Helper struct to get a kernel name type based on given \c Name and \c Type
+/// types: if \c Name is undefined (is a \c auto_name) then \c Type becomes
+/// the \c Name.
+template <typename Name, typename Type> struct get_kernel_name_t {
+  using name = Name;
+};
+
+/// Specialization for the case when \c Name is undefined.
+template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
+  using name = Type;
+};
+
+} // namespace detail
 
 /// Provides an abstraction of a SYCL kernel.
 ///
@@ -40,6 +60,8 @@ public:
   ///
   /// \param ClKernel is a valid OpenCL cl_kernel instance
   /// \param SyclContext is a valid SYCL context
+  __SYCL2020_DEPRECATED(
+      "OpenCL interop constructors are deprecated, use make_kernel() instead")
   kernel(cl_kernel ClKernel, const context &SyclContext);
 
   kernel(const kernel &RHS) = default;
@@ -61,6 +83,8 @@ public:
   /// an invalid_object_error exception will be thrown.
   ///
   /// \return a valid cl_kernel instance
+  __SYCL2020_DEPRECATED(
+      "OpenCL interop get() functions are deprecated, use get_native() instead")
   cl_kernel get() const;
 
   /// Check if the associated SYCL context is a SYCL host context.
@@ -92,6 +116,27 @@ public:
   typename info::param_traits<info::kernel, param>::return_type
   get_info() const;
 
+  /// Query device-specific information from the kernel object using the
+  /// info::kernel_device_specific descriptor.
+  ///
+  /// \param Device is a valid SYCL device to query info for.
+  /// \return depends on information being queried.
+  template <info::kernel_device_specific param>
+  typename info::param_traits<info::kernel_device_specific, param>::return_type
+  get_info(const device &Device) const;
+
+  /// Query device-specific information from a kernel using the
+  /// info::kernel_device_specific descriptor for a specific device and value.
+  ///
+  /// \param Device is a valid SYCL device.
+  /// \param Value depends on information being queried.
+  /// \return depends on information being queried.
+  template <info::kernel_device_specific param>
+  typename info::param_traits<info::kernel_device_specific, param>::return_type
+  get_info(const device &Device,
+           typename info::param_traits<info::kernel_device_specific,
+                                       param>::input_type Value) const;
+
   /// Query work-group information from a kernel using the
   /// info::kernel_work_group descriptor for a specific device.
   ///
@@ -107,8 +152,11 @@ public:
   /// \param Device is a valid SYCL device.
   /// \return depends on information being queried.
   template <info::kernel_sub_group param>
+  // clang-format off
+  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device) const;
+  // clang-format on
 
   /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device and value.
@@ -117,15 +165,27 @@ public:
   /// \param Value depends on information being queried.
   /// \return depends on information being queried.
   template <info::kernel_sub_group param>
+  // clang-format off
+  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
   typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(
-      const device &Device,
-      typename info::param_traits<info::kernel_sub_group, param>::input_type
-          Value) const;
+  get_sub_group_info(const device &Device,
+                     typename info::param_traits<info::kernel_sub_group,
+                     param>::input_type Value) const;
+  // clang-format on
+
+  template <backend Backend>
+  typename backend_traits<Backend>::template return_type<kernel>
+  get_native() const {
+    return detail::pi::cast<
+        typename backend_traits<Backend>::template return_type<kernel>>(
+        getNativeImpl());
+  }
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);
+
+  pi_native_handle getNativeImpl() const;
 
   shared_ptr_class<detail::kernel_impl> impl;
 

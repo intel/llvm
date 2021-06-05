@@ -44,7 +44,7 @@ template <typename ImageType> struct sampled_opencl_image_type;
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#define INVOKE_SPIRV_CALL_ARG1(call)                                           \
+#define __SYCL_INVOKE_SPIRV_CALL_ARG1(call)                                    \
   template <typename R, typename T1> inline R __invoke_##call(T1 ParT1) {      \
     using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
     T1 Arg1 = ParT1;                                                           \
@@ -54,9 +54,9 @@ template <typename ImageType> struct sampled_opencl_image_type;
 
 // The macro defines the function __invoke_ImageXXXX,
 // The functions contains the spirv call to __spirv_ImageXXXX.
-INVOKE_SPIRV_CALL_ARG1(ImageQuerySize)
-INVOKE_SPIRV_CALL_ARG1(ImageQueryFormat)
-INVOKE_SPIRV_CALL_ARG1(ImageQueryOrder)
+__SYCL_INVOKE_SPIRV_CALL_ARG1(ImageQuerySize)
+__SYCL_INVOKE_SPIRV_CALL_ARG1(ImageQueryFormat)
+__SYCL_INVOKE_SPIRV_CALL_ARG1(ImageQueryOrder)
 
 template <typename ImageT, typename CoordT, typename ValT>
 static void __invoke__ImageWrite(ImageT Img, CoordT Coords, ValT Val) {
@@ -95,15 +95,15 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
 
   TempArgT TmpCoords =
       cl::sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
-  // According to validation rules(SPIRV specification, section 2.16.1) result
+  // According to validation rules(SPIR-V specification, section 2.16.1) result
   // of __spirv_SampledImage is allowed to be an operand of image lookup
   // and query instructions explicitly specified to take an operand whose
   // type is OpTypeSampledImage.
   //
-  // According to SPIRV specification section 3.32.10 at least one operand
+  // According to SPIR-V specification section 3.32.10 at least one operand
   // setting the level of detail must be present. The last two arguments of
   // __spirv_ImageSampleExplicitLod represent image operand type and value.
-  // From the SPIRV specification section 3.14:
+  // From the SPIR-V specification section 3.14:
   enum ImageOperands { Lod = 0x2 };
 
   // Lod value is zero as mipmap is not supported.
@@ -118,9 +118,9 @@ namespace sycl {
 namespace detail {
 
 // Function to return the number of channels for Image Channel Order returned by
-// SPIRV call to OpImageQueryOrder.
+// SPIR-V call to OpImageQueryOrder.
 // The returned int value represents an enum from Image Channel Order. The enums
-// for Image Channel Order are mapped differently in sycl and SPIRV spec.
+// for Image Channel Order are mapped differently in sycl and SPIR-V spec.
 inline int getSPIRVNumChannels(int ImageChannelOrder) {
   switch (ImageChannelOrder) {
   case 0:  // R
@@ -155,11 +155,11 @@ inline int getSPIRVNumChannels(int ImageChannelOrder) {
 }
 
 // Function to compute the Element Size for a given Image Channel Type and Image
-// Channel Order, returned by SPIRV calls to OpImageQueryFormat and
+// Channel Order, returned by SPIR-V calls to OpImageQueryFormat and
 // OpImageQueryOrder respectively.
 // The returned int value from OpImageQueryFormat represents an enum from Image
 // Channel Data Type. The enums for Image Channel Data Type are mapped
-// differently in sycl and SPIRV spec.
+// differently in sycl and SPIR-V spec.
 inline int getSPIRVElementSize(int ImageChannelType, int ImageChannelOrder) {
   int NumChannels = getSPIRVNumChannels(ImageChannelOrder);
   switch (ImageChannelType) {
@@ -192,30 +192,6 @@ inline int getSPIRVElementSize(int ImageChannelType, int ImageChannelOrder) {
   }
 }
 
-#ifdef __SYCL_EXPLICIT_SIMD__
-template <access::mode AccessMode> struct opencl_image1d_buffer_type;
-
-// OpenCL types used only when compiling DPCPP ESIMD kernels
-#define IMAGE_BUFFER_TY_DEFINE(AccessMode, AMSuffix)                           \
-  template <> struct opencl_image1d_buffer_type<access::mode::AccessMode> {    \
-    using type = __ocl_image1d_buffer_##AMSuffix##_t;                          \
-  }
-
-IMAGE_BUFFER_TY_DEFINE(read, ro);
-IMAGE_BUFFER_TY_DEFINE(write, wo);
-IMAGE_BUFFER_TY_DEFINE(discard_write, wo);
-IMAGE_BUFFER_TY_DEFINE(read_write, rw);
-
-template <> struct opencl_image1d_buffer_type<access::mode::atomic> {
-  // static_assert(false && "atomic access not supported for image1d
-  // buffers");
-  // TODO this should be disabled; currently there is instantiation of this
-  // class happenning even if atomic access not used - using dummy type
-  // definition for now.
-  using type = unsigned int;
-};
-#endif // __SYCL_EXPLICIT_SIMD__
-
 template <int Dimensions, access::mode AccessMode, access::target AccessTarget>
 struct opencl_image_type;
 
@@ -231,64 +207,67 @@ template <typename T> struct sampled_opencl_image_type<T *> {
   using type = void *;
 };
 
-#define IMAGETY_DEFINE(Dim, AccessMode, AMSuffix, Target, Ifarray_)            \
+#define __SYCL_IMAGETY_DEFINE(Dim, AccessMode, AMSuffix, Target, Ifarray_)     \
   template <>                                                                  \
   struct opencl_image_type<Dim, access::mode::AccessMode,                      \
                            access::target::Target> {                           \
     using type = __ocl_image##Dim##d_##Ifarray_##AMSuffix##_t;                 \
   };
-#define SAMPLED_AND_IMAGETY_DEFINE(Dim, AccessMode, AMSuffix, Target,          \
-                                   Ifarray_)                                   \
-  IMAGETY_DEFINE(Dim, AccessMode, AMSuffix, Target, Ifarray_)                  \
+#define __SYCL_SAMPLED_AND_IMAGETY_DEFINE(Dim, AccessMode, AMSuffix, Target,   \
+                                          Ifarray_)                            \
+  __SYCL_IMAGETY_DEFINE(Dim, AccessMode, AMSuffix, Target, Ifarray_)           \
   template <>                                                                  \
   struct sampled_opencl_image_type<typename opencl_image_type<                 \
       Dim, access::mode::AccessMode, access::target::Target>::type> {          \
     using type = __ocl_sampled_image##Dim##d_##Ifarray_##AMSuffix##_t;         \
   };
 
-#define IMAGETY_READ_3_DIM_IMAGE                                               \
-  SAMPLED_AND_IMAGETY_DEFINE(1, read, ro, image, )                             \
-  SAMPLED_AND_IMAGETY_DEFINE(2, read, ro, image, )                             \
-  SAMPLED_AND_IMAGETY_DEFINE(3, read, ro, image, )
+#define __SYCL_IMAGETY_READ_3_DIM_IMAGE                                        \
+  __SYCL_SAMPLED_AND_IMAGETY_DEFINE(1, read, ro, image, )                      \
+  __SYCL_SAMPLED_AND_IMAGETY_DEFINE(2, read, ro, image, )                      \
+  __SYCL_SAMPLED_AND_IMAGETY_DEFINE(3, read, ro, image, )
 
-#define IMAGETY_WRITE_3_DIM_IMAGE                                              \
-  IMAGETY_DEFINE(1, write, wo, image, )                                        \
-  IMAGETY_DEFINE(2, write, wo, image, )                                        \
-  IMAGETY_DEFINE(3, write, wo, image, )
+#define __SYCL_IMAGETY_WRITE_3_DIM_IMAGE                                       \
+  __SYCL_IMAGETY_DEFINE(1, write, wo, image, )                                 \
+  __SYCL_IMAGETY_DEFINE(2, write, wo, image, )                                 \
+  __SYCL_IMAGETY_DEFINE(3, write, wo, image, )
 
-#define IMAGETY_DISCARD_WRITE_3_DIM_IMAGE                                      \
-  IMAGETY_DEFINE(1, discard_write, wo, image, )                                \
-  IMAGETY_DEFINE(2, discard_write, wo, image, )                                \
-  IMAGETY_DEFINE(3, discard_write, wo, image, )
+#define __SYCL_IMAGETY_DISCARD_WRITE_3_DIM_IMAGE                               \
+  __SYCL_IMAGETY_DEFINE(1, discard_write, wo, image, )                         \
+  __SYCL_IMAGETY_DEFINE(2, discard_write, wo, image, )                         \
+  __SYCL_IMAGETY_DEFINE(3, discard_write, wo, image, )
 
-#define IMAGETY_READ_2_DIM_IARRAY                                              \
-  SAMPLED_AND_IMAGETY_DEFINE(1, read, ro, image_array, array_)                 \
-  SAMPLED_AND_IMAGETY_DEFINE(2, read, ro, image_array, array_)
+#define __SYCL_IMAGETY_READ_2_DIM_IARRAY                                       \
+  __SYCL_SAMPLED_AND_IMAGETY_DEFINE(1, read, ro, image_array, array_)          \
+  __SYCL_SAMPLED_AND_IMAGETY_DEFINE(2, read, ro, image_array, array_)
 
-#define IMAGETY_WRITE_2_DIM_IARRAY                                             \
-  IMAGETY_DEFINE(1, write, wo, image_array, array_)                            \
-  IMAGETY_DEFINE(2, write, wo, image_array, array_)
+#define __SYCL_IMAGETY_WRITE_2_DIM_IARRAY                                      \
+  __SYCL_IMAGETY_DEFINE(1, write, wo, image_array, array_)                     \
+  __SYCL_IMAGETY_DEFINE(2, write, wo, image_array, array_)
 
-#define IMAGETY_DISCARD_WRITE_2_DIM_IARRAY                                     \
-  IMAGETY_DEFINE(1, discard_write, wo, image_array, array_)                    \
-  IMAGETY_DEFINE(2, discard_write, wo, image_array, array_)
+#define __SYCL_IMAGETY_DISCARD_WRITE_2_DIM_IARRAY                              \
+  __SYCL_IMAGETY_DEFINE(1, discard_write, wo, image_array, array_)             \
+  __SYCL_IMAGETY_DEFINE(2, discard_write, wo, image_array, array_)
 
-IMAGETY_READ_3_DIM_IMAGE
-IMAGETY_WRITE_3_DIM_IMAGE
-IMAGETY_DISCARD_WRITE_3_DIM_IMAGE
+__SYCL_IMAGETY_READ_3_DIM_IMAGE
+__SYCL_IMAGETY_WRITE_3_DIM_IMAGE
+__SYCL_IMAGETY_DISCARD_WRITE_3_DIM_IMAGE
 
-IMAGETY_READ_2_DIM_IARRAY
-IMAGETY_WRITE_2_DIM_IARRAY
-IMAGETY_DISCARD_WRITE_2_DIM_IARRAY
+__SYCL_IMAGETY_READ_2_DIM_IARRAY
+__SYCL_IMAGETY_WRITE_2_DIM_IARRAY
+__SYCL_IMAGETY_DISCARD_WRITE_2_DIM_IARRAY
 
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#undef INVOKE_SPIRV_CALL_ARG1
-#undef IMAGETY_DEFINE
-#undef IMAGETY_READ_3_DIM_IMAGE
-#undef IMAGETY_WRITE_3_DIM_IMAGE
-#undef IMAGETY_READ_2_DIM_IARRAY
-#undef IMAGETY_WRITE_2_DIM_IARRAY
+#undef __SYCL_SAMPLED_AND_IMAGETY_DEFINE
+#undef __SYCL_INVOKE_SPIRV_CALL_ARG1
+#undef __SYCL_IMAGETY_DEFINE
+#undef __SYCL_IMAGETY_DISCARD_WRITE_3_DIM_IMAGE
+#undef __SYCL_IMAGETY_READ_3_DIM_IMAGE
+#undef __SYCL_IMAGETY_WRITE_3_DIM_IMAGE
+#undef __SYCL_IMAGETY_DISCARD_WRITE_2_DIM_IARRAY
+#undef __SYCL_IMAGETY_READ_2_DIM_IARRAY
+#undef __SYCL_IMAGETY_WRITE_2_DIM_IARRAY
 #endif //#ifdef __SYCL_DEVICE_ONLY__

@@ -24,10 +24,12 @@
 #include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
+#include "llvm/MC/MCPseudoProbe.h"
 #include "llvm/MC/MCRegister.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSectionMachO.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/MC/MCSymbolXCOFF.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormattedStream.h"
@@ -58,6 +60,13 @@ class MCAsmStreamer final : public MCStreamer {
   unsigned UseDwarfDirectory : 1;
 
   void EmitRegisterName(int64_t Register);
+  void PrintQuotedString(StringRef Data, raw_ostream &OS) const;
+  void printDwarfFileDirective(unsigned FileNo, StringRef Directory,
+                               StringRef Filename,
+                               Optional<MD5::MD5Result> Checksum,
+                               Optional<StringRef> Source,
+                               bool UseDwarfDirectory,
+                               raw_svector_ostream &OS) const;
   void emitCFIStartProcImpl(MCDwarfFrameInfo &Frame) override;
   void emitCFIEndProcImpl(MCDwarfFrameInfo &Frame) override;
 
@@ -139,10 +148,15 @@ public:
 
   void changeSection(MCSection *Section, const MCExpr *Subsection) override;
 
-  void emitELFSymverDirective(StringRef AliasName,
-                              const MCSymbol *Aliasee) override;
+  void emitELFSymverDirective(const MCSymbol *OriginalSym, StringRef Name,
+                              bool KeepOriginalSym) override;
 
   void emitLOHDirective(MCLOHType Kind, const MCLOHArgs &Args) override;
+
+  StringRef getMnemonic(MCInst &MI) override {
+    return InstPrinter->getMnemonic(&MI).first;
+  }
+
   void emitLabel(MCSymbol *Symbol, SMLoc Loc = SMLoc()) override;
 
   void emitAssemblerFlag(MCAssemblerFlag Flag) override;
@@ -174,6 +188,8 @@ public:
   void emitXCOFFSymbolLinkageWithVisibility(MCSymbol *Symbol,
                                             MCSymbolAttr Linakge,
                                             MCSymbolAttr Visibility) override;
+  void emitXCOFFRenameDirective(const MCSymbol *Name,
+                                StringRef Rename) override;
 
   void emitELFSize(MCSymbol *Symbol, const MCExpr *Value) override;
   void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
@@ -342,13 +358,17 @@ public:
 
   void emitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI) override;
 
+  void emitPseudoProbe(uint64_t Guid, uint64_t Index, uint64_t Type,
+                       uint64_t Attr,
+                       const MCPseudoProbeInlineStack &InlineStack) override;
+
   void emitBundleAlignMode(unsigned AlignPow2) override;
   void emitBundleLock(bool AlignToEnd) override;
   void emitBundleUnlock() override;
 
-  bool emitRelocDirective(const MCExpr &Offset, StringRef Name,
-                          const MCExpr *Expr, SMLoc Loc,
-                          const MCSubtargetInfo &STI) override;
+  Optional<std::pair<bool, std::string>>
+  emitRelocDirective(const MCExpr &Offset, StringRef Name, const MCExpr *Expr,
+                     SMLoc Loc, const MCSubtargetInfo &STI) override;
 
   void emitAddrsig() override;
   void emitAddrsigSym(const MCSymbol *Sym) override;
@@ -359,6 +379,21 @@ public:
   void emitRawTextImpl(StringRef String) override;
 
   void finishImpl() override;
+
+  void emitDwarfUnitLength(uint64_t Length, const Twine &Comment) override;
+
+  MCSymbol *emitDwarfUnitLength(const Twine &Prefix,
+                                const Twine &Comment) override;
+
+  void emitDwarfLineStartLabel(MCSymbol *StartSym) override;
+
+  void emitDwarfLineEndEntry(MCSection *Section, MCSymbol *LastLabel) override;
+
+  void emitDwarfAdvanceLineAddr(int64_t LineDelta, const MCSymbol *LastLabel,
+                                const MCSymbol *Label,
+                                unsigned PointerSize) override;
+
+  void doFinalizationAtSectionEnd(MCSection *Section) override;
 };
 
 } // end anonymous namespace.
@@ -456,17 +491,19 @@ void MCAsmStreamer::changeSection(MCSection *Section,
   if (MCTargetStreamer *TS = getTargetStreamer()) {
     TS->changeSection(getCurrentSectionOnly(), Section, Subsection, OS);
   } else {
-    Section->PrintSwitchToSection(
-        *MAI, getContext().getObjectFileInfo()->getTargetTriple(), OS,
-        Subsection);
+    Section->PrintSwitchToSection(*MAI, getContext().getTargetTriple(), OS,
+                                  Subsection);
   }
 }
 
-void MCAsmStreamer::emitELFSymverDirective(StringRef AliasName,
-                                           const MCSymbol *Aliasee) {
+void MCAsmStreamer::emitELFSymverDirective(const MCSymbol *OriginalSym,
+                                           StringRef Name,
+                                           bool KeepOriginalSym) {
   OS << ".symver ";
-  Aliasee->print(OS, MAI);
-  OS << ", " << AliasName;
+  OriginalSym->print(OS, MAI);
+  OS << ", " << Name;
+  if (!KeepOriginalSym && !Name.contains("@@@"))
+    OS << ", remove";
   EmitEOL();
 }
 
@@ -577,6 +614,7 @@ static const char *getPlatformName(MachO::PlatformType Type) {
   case MachO::PLATFORM_IOSSIMULATOR:     return "iossimulator";
   case MachO::PLATFORM_TVOSSIMULATOR:    return "tvossimulator";
   case MachO::PLATFORM_WATCHOSSIMULATOR: return "watchossimulator";
+  case MachO::PLATFORM_DRIVERKIT:        return "driverkit";
   }
   llvm_unreachable("Invalid Mach-O platform type");
 }
@@ -793,6 +831,12 @@ void MCAsmStreamer::emitXCOFFLocalCommonSymbol(MCSymbol *LabelSym,
   OS << ',' << Log2_32(ByteAlignment);
 
   EmitEOL();
+
+  // Print symbol's rename (original name contains invalid character(s)) if
+  // there is one.
+  MCSymbolXCOFF *XSym = cast<MCSymbolXCOFF>(CsectSym);
+  if (XSym->hasRename())
+    emitXCOFFRenameDirective(XSym, XSym->getSymbolTableName());
 }
 
 void MCAsmStreamer::emitXCOFFSymbolLinkageWithVisibility(
@@ -807,6 +851,9 @@ void MCAsmStreamer::emitXCOFFSymbolLinkageWithVisibility(
     break;
   case MCSA_Extern:
     OS << "\t.extern\t";
+    break;
+  case MCSA_LGlobal:
+    OS << "\t.lglobl\t";
     break;
   default:
     report_fatal_error("unhandled linkage type");
@@ -827,6 +874,28 @@ void MCAsmStreamer::emitXCOFFSymbolLinkageWithVisibility(
   default:
     report_fatal_error("unexpected value for Visibility type");
   }
+  EmitEOL();
+
+  // Print symbol's rename (original name contains invalid character(s)) if
+  // there is one.
+  if (cast<MCSymbolXCOFF>(Symbol)->hasRename())
+    emitXCOFFRenameDirective(Symbol,
+                             cast<MCSymbolXCOFF>(Symbol)->getSymbolTableName());
+}
+
+void MCAsmStreamer::emitXCOFFRenameDirective(const MCSymbol *Name,
+                                             StringRef Rename) {
+  OS << "\t.rename\t";
+  Name->print(OS, MAI);
+  const char DQ = '"';
+  OS << ',' << DQ;
+  for (char C : Rename) {
+    // To escape a double quote character, the character should be doubled.
+    if (C == DQ)
+      OS << DQ;
+    OS << C;
+  }
+  OS << DQ;
   EmitEOL();
 }
 
@@ -852,6 +921,13 @@ void MCAsmStreamer::emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
       OS << ',' << Log2_32(ByteAlignment);
   }
   EmitEOL();
+
+  // Print symbol's rename (original name contains invalid character(s)) if
+  // there is one.
+  MCSymbolXCOFF *XSym = dyn_cast<MCSymbolXCOFF>(Symbol);
+  if (XSym && XSym->hasRename())
+    emitXCOFFRenameDirective(XSym, XSym->getSymbolTableName());
+
 }
 
 void MCAsmStreamer::emitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
@@ -927,35 +1003,105 @@ void MCAsmStreamer::emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
   EmitEOL();
 }
 
+static inline bool isPrintableString(StringRef Data) {
+  const auto BeginPtr = Data.begin(), EndPtr = Data.end();
+  for (const unsigned char C : make_range(BeginPtr, EndPtr - 1)) {
+    if (!isPrint(C))
+      return false;
+  }
+  return isPrint(Data.back()) || Data.back() == 0;
+}
+
 static inline char toOctal(int X) { return (X&7)+'0'; }
 
-static void PrintQuotedString(StringRef Data, raw_ostream &OS) {
+static void PrintByteList(StringRef Data, raw_ostream &OS,
+                          MCAsmInfo::AsmCharLiteralSyntax ACLS) {
+  assert(!Data.empty() && "Cannot generate an empty list.");
+  const auto printCharacterInOctal = [&OS](unsigned char C) {
+    OS << '0';
+    OS << toOctal(C >> 6);
+    OS << toOctal(C >> 3);
+    OS << toOctal(C >> 0);
+  };
+  const auto printOneCharacterFor = [printCharacterInOctal](
+                                        auto printOnePrintingCharacter) {
+    return [printCharacterInOctal, printOnePrintingCharacter](unsigned char C) {
+      if (isPrint(C)) {
+        printOnePrintingCharacter(static_cast<char>(C));
+        return;
+      }
+      printCharacterInOctal(C);
+    };
+  };
+  const auto printCharacterList = [Data, &OS](const auto &printOneCharacter) {
+    const auto BeginPtr = Data.begin(), EndPtr = Data.end();
+    for (const unsigned char C : make_range(BeginPtr, EndPtr - 1)) {
+      printOneCharacter(C);
+      OS << ',';
+    }
+    printOneCharacter(*(EndPtr - 1));
+  };
+  switch (ACLS) {
+  case MCAsmInfo::ACLS_Unknown:
+    printCharacterList(printCharacterInOctal);
+    return;
+  case MCAsmInfo::ACLS_SingleQuotePrefix:
+    printCharacterList(printOneCharacterFor([&OS](char C) {
+      const char AsmCharLitBuf[2] = {'\'', C};
+      OS << StringRef(AsmCharLitBuf, sizeof(AsmCharLitBuf));
+    }));
+    return;
+  }
+  llvm_unreachable("Invalid AsmCharLiteralSyntax value!");
+}
+
+void MCAsmStreamer::PrintQuotedString(StringRef Data, raw_ostream &OS) const {
   OS << '"';
 
-  for (unsigned i = 0, e = Data.size(); i != e; ++i) {
-    unsigned char C = Data[i];
-    if (C == '"' || C == '\\') {
-      OS << '\\' << (char)C;
-      continue;
+  if (MAI->hasPairedDoubleQuoteStringConstants()) {
+    for (unsigned i = 0, e = Data.size(); i != e; ++i) {
+      unsigned char C = Data[i];
+      if (C == '"')
+        OS << "\"\"";
+      else
+        OS << (char)C;
     }
+  } else {
+    for (unsigned i = 0, e = Data.size(); i != e; ++i) {
+      unsigned char C = Data[i];
+      if (C == '"' || C == '\\') {
+        OS << '\\' << (char)C;
+        continue;
+      }
 
-    if (isPrint((unsigned char)C)) {
-      OS << (char)C;
-      continue;
-    }
+      if (isPrint((unsigned char)C)) {
+        OS << (char)C;
+        continue;
+      }
 
-    switch (C) {
-      case '\b': OS << "\\b"; break;
-      case '\f': OS << "\\f"; break;
-      case '\n': OS << "\\n"; break;
-      case '\r': OS << "\\r"; break;
-      case '\t': OS << "\\t"; break;
+      switch (C) {
+      case '\b':
+        OS << "\\b";
+        break;
+      case '\f':
+        OS << "\\f";
+        break;
+      case '\n':
+        OS << "\\n";
+        break;
+      case '\r':
+        OS << "\\r";
+        break;
+      case '\t':
+        OS << "\\t";
+        break;
       default:
         OS << '\\';
         OS << toOctal(C >> 6);
         OS << toOctal(C >> 3);
         OS << toOctal(C >> 0);
         break;
+      }
     }
   }
 
@@ -967,33 +1113,58 @@ void MCAsmStreamer::emitBytes(StringRef Data) {
          "Cannot emit contents before setting section!");
   if (Data.empty()) return;
 
-  // If only single byte is provided or no ascii or asciz directives is
-  // supported, emit as vector of 8bits data.
-  if (Data.size() == 1 ||
-      !(MAI->getAscizDirective() || MAI->getAsciiDirective())) {
-    if (MCTargetStreamer *TS = getTargetStreamer()) {
-      TS->emitRawBytes(Data);
-    } else {
-      const char *Directive = MAI->getData8bitsDirective();
-      for (const unsigned char C : Data.bytes()) {
-        OS << Directive << (unsigned)C;
-        EmitEOL();
+  const auto emitAsString = [this](StringRef Data) {
+    // If the data ends with 0 and the target supports .asciz, use it, otherwise
+    // use .ascii or a byte-list directive
+    if (MAI->getAscizDirective() && Data.back() == 0) {
+      OS << MAI->getAscizDirective();
+      Data = Data.substr(0, Data.size() - 1);
+    } else if (LLVM_LIKELY(MAI->getAsciiDirective())) {
+      OS << MAI->getAsciiDirective();
+    } else if (MAI->hasPairedDoubleQuoteStringConstants() &&
+               isPrintableString(Data)) {
+      // For target with DoubleQuoteString constants, .string and .byte are used
+      // as replacement of .asciz and .ascii.
+      assert(MAI->getPlainStringDirective() &&
+             "hasPairedDoubleQuoteStringConstants target must support "
+             "PlainString Directive");
+      assert(MAI->getByteListDirective() &&
+             "hasPairedDoubleQuoteStringConstants target must support ByteList "
+             "Directive");
+      if (Data.back() == 0) {
+        OS << MAI->getPlainStringDirective();
+        Data = Data.substr(0, Data.size() - 1);
+      } else {
+        OS << MAI->getByteListDirective();
       }
+    } else if (MAI->getByteListDirective()) {
+      OS << MAI->getByteListDirective();
+      PrintByteList(Data, OS, MAI->characterLiteralSyntax());
+      EmitEOL();
+      return true;
+    } else {
+      return false;
     }
+
+    PrintQuotedString(Data, OS);
+    EmitEOL();
+    return true;
+  };
+
+  if (Data.size() != 1 && emitAsString(Data))
+    return;
+
+  // Only single byte is provided or no ascii, asciz, or byte-list directives
+  // are applicable. Emit as vector of individual 8bits data elements.
+  if (MCTargetStreamer *TS = getTargetStreamer()) {
+    TS->emitRawBytes(Data);
     return;
   }
-
-  // If the data ends with 0 and the target supports .asciz, use it, otherwise
-  // use .ascii
-  if (MAI->getAscizDirective() && Data.back() == 0) {
-    OS << MAI->getAscizDirective();
-    Data = Data.substr(0, Data.size()-1);
-  } else {
-    OS << MAI->getAsciiDirective();
+  const char *Directive = MAI->getData8bitsDirective();
+  for (const unsigned char C : Data.bytes()) {
+    OS << Directive << (unsigned)C;
+    EmitEOL();
   }
-
-  PrintQuotedString(Data, OS);
-  EmitEOL();
 }
 
 void MCAsmStreamer::emitBinaryData(StringRef Data) {
@@ -1271,12 +1442,10 @@ void MCAsmStreamer::emitFileDirective(StringRef Filename) {
   EmitEOL();
 }
 
-static void printDwarfFileDirective(unsigned FileNo, StringRef Directory,
-                                    StringRef Filename,
-                                    Optional<MD5::MD5Result> Checksum,
-                                    Optional<StringRef> Source,
-                                    bool UseDwarfDirectory,
-                                    raw_svector_ostream &OS) {
+void MCAsmStreamer::printDwarfFileDirective(
+    unsigned FileNo, StringRef Directory, StringRef Filename,
+    Optional<MD5::MD5Result> Checksum, Optional<StringRef> Source,
+    bool UseDwarfDirectory, raw_svector_ostream &OS) const {
   SmallString<128> FullPathName;
 
   if (!UseDwarfDirectory && !Directory.empty()) {
@@ -1317,7 +1486,11 @@ Expected<unsigned> MCAsmStreamer::tryEmitDwarfFileDirective(
   if (!FileNoOrErr)
     return FileNoOrErr.takeError();
   FileNo = FileNoOrErr.get();
-  if (NumFiles == Table.getMCDwarfFiles().size())
+
+  // Return early if this file is already emitted before or if target doesn't
+  // support .file directive.
+  if (NumFiles == Table.getMCDwarfFiles().size() ||
+      !MAI->usesDwarfFileAndLocDirectives())
     return FileNo;
 
   SmallString<128> Str;
@@ -1346,6 +1519,10 @@ void MCAsmStreamer::emitDwarfFile0Directive(StringRef Directory,
   getContext().setMCLineTableRootFile(CUID, Directory, Filename, Checksum,
                                       Source);
 
+  // Target doesn't support .loc/.file directives, return early.
+  if (!MAI->usesDwarfFileAndLocDirectives())
+    return;
+
   SmallString<128> Str;
   raw_svector_ostream OS1(Str);
   printDwarfFileDirective(0, Directory, Filename, Checksum, Source,
@@ -1361,6 +1538,17 @@ void MCAsmStreamer::emitDwarfLocDirective(unsigned FileNo, unsigned Line,
                                           unsigned Column, unsigned Flags,
                                           unsigned Isa, unsigned Discriminator,
                                           StringRef FileName) {
+  // If target doesn't support .loc/.file directive, we need to record the lines
+  // same way like we do in object mode.
+  if (!MAI->usesDwarfFileAndLocDirectives()) {
+    // In case we see two .loc directives in a row, make sure the
+    // first one gets a line entry.
+    MCDwarfLineEntry::make(this, getCurrentSectionOnly());
+    this->MCStreamer::emitDwarfLocDirective(FileNo, Line, Column, Flags, Isa,
+                                            Discriminator, FileName);
+    return;
+  }
+
   OS << "\t.loc\t" << FileNo << " " << Line << " " << Column;
   if (MAI->supportsExtendedDwarfLocDirective()) {
     if (Flags & DWARF2_FLAG_BASIC_BLOCK)
@@ -1780,8 +1968,11 @@ void MCAsmStreamer::EmitWinCFIEndProc(SMLoc Loc) {
   EmitEOL();
 }
 
-// TODO: Implement
 void MCAsmStreamer::EmitWinCFIFuncletOrFuncEnd(SMLoc Loc) {
+  MCStreamer::EmitWinCFIFuncletOrFuncEnd(Loc);
+
+  OS << "\t.seh_endfunclet";
+  EmitEOL();
 }
 
 void MCAsmStreamer::EmitWinCFIStartChained(SMLoc Loc) {
@@ -2001,6 +2192,11 @@ void MCAsmStreamer::emitInstruction(const MCInst &Inst,
   assert(getCurrentSectionOnly() &&
          "Cannot emit contents before setting section!");
 
+  if (!MAI->usesDwarfFileAndLocDirectives())
+    // Now that a machine instruction has been assembled into this section, make
+    // a line entry for any .loc directive that has been seen.
+    MCDwarfLineEntry::make(this, getCurrentSectionOnly());
+
   // Show the encoding in a comment if we have a code emitter.
   AddEncodingComment(Inst, STI);
 
@@ -2022,6 +2218,18 @@ void MCAsmStreamer::emitInstruction(const MCInst &Inst,
   EmitEOL();
 }
 
+void MCAsmStreamer::emitPseudoProbe(
+    uint64_t Guid, uint64_t Index, uint64_t Type, uint64_t Attr,
+    const MCPseudoProbeInlineStack &InlineStack) {
+  OS << "\t.pseudoprobe\t" << Guid << " " << Index << " " << Type << " "
+     << Attr;
+  // Emit inline stack like
+  //  @ GUIDmain:3 @ GUIDCaller:1 @ GUIDDirectCaller:11
+  for (const auto &Site : InlineStack)
+    OS << " @ " << std::get<0>(Site) << ":" << std::get<1>(Site);
+  EmitEOL();
+}
+
 void MCAsmStreamer::emitBundleAlignMode(unsigned AlignPow2) {
   OS << "\t.bundle_align_mode " << AlignPow2;
   EmitEOL();
@@ -2039,9 +2247,10 @@ void MCAsmStreamer::emitBundleUnlock() {
   EmitEOL();
 }
 
-bool MCAsmStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
-                                       const MCExpr *Expr, SMLoc,
-                                       const MCSubtargetInfo &STI) {
+Optional<std::pair<bool, std::string>>
+MCAsmStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
+                                  const MCExpr *Expr, SMLoc,
+                                  const MCSubtargetInfo &STI) {
   OS << "\t.reloc ";
   Offset.print(OS, MAI);
   OS << ", " << Name;
@@ -2050,7 +2259,7 @@ bool MCAsmStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
     Expr->print(OS, MAI);
   }
   EmitEOL();
-  return false;
+  return None;
 }
 
 void MCAsmStreamer::emitAddrsig() {
@@ -2079,6 +2288,13 @@ void MCAsmStreamer::finishImpl() {
   if (getContext().getGenDwarfForAssembly())
     MCGenDwarfInfo::Emit(this);
 
+  // Now it is time to emit debug line sections if target doesn't support .loc
+  // and .line directives.
+  if (!MAI->usesDwarfFileAndLocDirectives()) {
+    MCDwarfLineTable::emit(this, getAssembler().getDWARFLinetableParams());
+    return;
+  }
+
   // Emit the label for the line table, if requested - since the rest of the
   // line table will be defined by .loc/.file directives, and not emitted
   // directly, the label is the only work required here.
@@ -2090,6 +2306,135 @@ void MCAsmStreamer::finishImpl() {
       emitLabel(Label);
     }
   }
+}
+
+void MCAsmStreamer::emitDwarfUnitLength(uint64_t Length, const Twine &Comment) {
+  // If the assembler on some target fills in the DWARF unit length, we
+  // don't want to emit the length in the compiler. For example, the AIX
+  // assembler requires the assembly file with the unit length omitted from
+  // the debug section headers. In such cases, any label we placed occurs
+  // after the implied length field. We need to adjust the reference here
+  // to account for the offset introduced by the inserted length field.
+  if (!MAI->needsDwarfSectionSizeInHeader())
+    return;
+  MCStreamer::emitDwarfUnitLength(Length, Comment);
+}
+
+MCSymbol *MCAsmStreamer::emitDwarfUnitLength(const Twine &Prefix,
+                                             const Twine &Comment) {
+  // If the assembler on some target fills in the DWARF unit length, we
+  // don't want to emit the length in the compiler. For example, the AIX
+  // assembler requires the assembly file with the unit length omitted from
+  // the debug section headers. In such cases, any label we placed occurs
+  // after the implied length field. We need to adjust the reference here
+  // to account for the offset introduced by the inserted length field.
+  if (!MAI->needsDwarfSectionSizeInHeader())
+    return getContext().createTempSymbol(Prefix + "_end");
+  return MCStreamer::emitDwarfUnitLength(Prefix, Comment);
+}
+
+void MCAsmStreamer::emitDwarfLineStartLabel(MCSymbol *StartSym) {
+  // If the assembler on some target fills in the DWARF unit length, we
+  // don't want to emit the length in the compiler. For example, the AIX
+  // assembler requires the assembly file with the unit length omitted from
+  // the debug section headers. In such cases, any label we placed occurs
+  // after the implied length field. We need to adjust the reference here
+  // to account for the offset introduced by the inserted length field.
+  MCContext &Ctx = getContext();
+  if (!MAI->needsDwarfSectionSizeInHeader()) {
+    MCSymbol *DebugLineSymTmp = Ctx.createTempSymbol("debug_line_");
+    // Emit the symbol which does not contain the unit length field.
+    emitLabel(DebugLineSymTmp);
+
+    // Adjust the outer reference to account for the offset introduced by the
+    // inserted length field.
+    unsigned LengthFieldSize =
+        dwarf::getUnitLengthFieldByteSize(Ctx.getDwarfFormat());
+    const MCExpr *EntrySize = MCConstantExpr::create(LengthFieldSize, Ctx);
+    const MCExpr *OuterSym = MCBinaryExpr::createSub(
+        MCSymbolRefExpr::create(DebugLineSymTmp, Ctx), EntrySize, Ctx);
+
+    emitAssignment(StartSym, OuterSym);
+    return;
+  }
+  MCStreamer::emitDwarfLineStartLabel(StartSym);
+}
+
+void MCAsmStreamer::emitDwarfLineEndEntry(MCSection *Section,
+                                          MCSymbol *LastLabel) {
+  // If the targets write the raw debug line data for assembly output (We can
+  // not switch to Section and add the end symbol there for assembly output)
+  // we currently use the .text end label as any section end. This will not
+  // impact the debugability as we will jump to the caller of the last function
+  // in the section before we come into the .text end address.
+  assert(!MAI->usesDwarfFileAndLocDirectives() &&
+         ".loc should not be generated together with raw data!");
+
+  MCContext &Ctx = getContext();
+
+  // FIXME: use section end symbol as end of the Section. We need to consider
+  // the explicit sections and -ffunction-sections when we try to generate or
+  // find section end symbol for the Section.
+  MCSection *TextSection = Ctx.getObjectFileInfo()->getTextSection();
+  assert(TextSection->hasEnded() && ".text section is not end!");
+
+  MCSymbol *SectionEnd = TextSection->getEndSymbol(Ctx);
+  const MCAsmInfo *AsmInfo = Ctx.getAsmInfo();
+  emitDwarfAdvanceLineAddr(INT64_MAX, LastLabel, SectionEnd,
+                           AsmInfo->getCodePointerSize());
+}
+
+// Generate DWARF line sections for assembly mode without .loc/.file
+void MCAsmStreamer::emitDwarfAdvanceLineAddr(int64_t LineDelta,
+                                             const MCSymbol *LastLabel,
+                                             const MCSymbol *Label,
+                                             unsigned PointerSize) {
+  assert(!MAI->usesDwarfFileAndLocDirectives() &&
+         ".loc/.file don't need raw data in debug line section!");
+
+  // Set to new address.
+  AddComment("Set address to " + Label->getName());
+  emitIntValue(dwarf::DW_LNS_extended_op, 1);
+  emitULEB128IntValue(PointerSize + 1);
+  emitIntValue(dwarf::DW_LNE_set_address, 1);
+  emitSymbolValue(Label, PointerSize);
+
+  if (!LastLabel) {
+    // Emit the sequence for the LineDelta (from 1) and a zero address delta.
+    AddComment("Start sequence");
+    MCDwarfLineAddr::Emit(this, MCDwarfLineTableParams(), LineDelta, 0);
+    return;
+  }
+
+  // INT64_MAX is a signal of the end of the section. Emit DW_LNE_end_sequence
+  // for the end of the section.
+  if (LineDelta == INT64_MAX) {
+    AddComment("End sequence");
+    emitIntValue(dwarf::DW_LNS_extended_op, 1);
+    emitULEB128IntValue(1);
+    emitIntValue(dwarf::DW_LNE_end_sequence, 1);
+    return;
+  }
+
+  // Advance line.
+  AddComment("Advance line " + Twine(LineDelta));
+  emitIntValue(dwarf::DW_LNS_advance_line, 1);
+  emitSLEB128IntValue(LineDelta);
+  emitIntValue(dwarf::DW_LNS_copy, 1);
+}
+
+void MCAsmStreamer::doFinalizationAtSectionEnd(MCSection *Section) {
+  // Emit section end. This is used to tell the debug line section where the end
+  // is for a text section if we don't use .loc to represent the debug line.
+  if (MAI->usesDwarfFileAndLocDirectives())
+    return;
+
+  SwitchSectionNoChange(Section);
+
+  MCSymbol *Sym = getCurrentSectionOnly()->getEndSymbol(getContext());
+
+  if (!Sym->isInSection())
+    emitLabel(Sym);
 }
 
 MCStreamer *llvm::createAsmStreamer(MCContext &Context,

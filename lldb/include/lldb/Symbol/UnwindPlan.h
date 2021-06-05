@@ -322,8 +322,6 @@ public:
 
     Row();
 
-    Row(const UnwindPlan::Row &rhs) = default;
-
     bool operator==(const Row &rhs) const;
 
     bool GetRegisterInfo(uint32_t reg_num,
@@ -360,6 +358,25 @@ public:
 
     bool SetRegisterLocationToSame(uint32_t reg_num, bool must_replace);
 
+    // When this UnspecifiedRegistersAreUndefined mode is
+    // set, any register that is not specified by this Row will
+    // be described as Undefined.
+    // This will prevent the unwinder from iterating down the
+    // stack looking for a spill location, or a live register value
+    // at frame 0.
+    // It would be used for an UnwindPlan row where we can't track
+    // spilled registers -- for instance a jitted stack frame where
+    // we have no unwind information or start address -- and registers
+    // MAY have been spilled and overwritten, so providing the
+    // spilled/live value from a newer frame may show an incorrect value.
+    void SetUnspecifiedRegistersAreUndefined(bool unspec_is_undef) {
+      m_unspecified_registers_are_undefined = unspec_is_undef;
+    }
+
+    bool GetUnspecifiedRegistersAreUndefined() {
+      return m_unspecified_registers_are_undefined;
+    }
+
     void Clear();
 
     void Dump(Stream &s, const UnwindPlan *unwind_plan, Thread *thread,
@@ -372,6 +389,7 @@ public:
     FAValue m_cfa_value;
     FAValue m_afa_value;
     collection m_register_locations;
+    bool m_unspecified_registers_are_undefined;
   }; // class Row
 
   typedef std::shared_ptr<Row> RowSP;
@@ -393,6 +411,7 @@ public:
         m_plan_is_sourced_from_compiler(rhs.m_plan_is_sourced_from_compiler),
         m_plan_is_valid_at_all_instruction_locations(
             rhs.m_plan_is_valid_at_all_instruction_locations),
+        m_plan_is_for_signal_trap(rhs.m_plan_is_for_signal_trap),
         m_lsda_address(rhs.m_lsda_address),
         m_personality_func_addr(rhs.m_personality_func_addr) {
     m_row_list.reserve(rhs.m_row_list.size());

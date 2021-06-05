@@ -19,8 +19,8 @@ define i32 @foo(i32 %a, i32 %b, i32 %c, i32 %d) {
 
 define i32 @bar(i32 %a, i32 %b, i32 %c, i32 %d) {
 ; CHECK-LABEL: @bar(
-; CHECK-NEXT:    [[E:%.*]] = icmp slt i32 [[A:%.*]], [[B:%.*]]
-; CHECK-NEXT:    [[TMP1:%.*]] = select i1 [[E]], i32 [[C:%.*]], i32 [[D:%.*]]
+; CHECK-NEXT:    [[E_NOT:%.*]] = icmp slt i32 [[A:%.*]], [[B:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = select i1 [[E_NOT]], i32 [[C:%.*]], i32 [[D:%.*]]
 ; CHECK-NEXT:    ret i32 [[TMP1]]
 ;
   %e = icmp slt i32 %a, %b
@@ -69,8 +69,8 @@ define i32 @fold_inverted_icmp_preds(i32 %a, i32 %b, i32 %c, i32 %d) {
 ; CHECK-LABEL: @fold_inverted_icmp_preds(
 ; CHECK-NEXT:    [[CMP1:%.*]] = icmp slt i32 [[A:%.*]], [[B:%.*]]
 ; CHECK-NEXT:    [[SEL1:%.*]] = select i1 [[CMP1]], i32 [[C:%.*]], i32 0
-; CHECK-NEXT:    [[CMP2:%.*]] = icmp slt i32 [[A]], [[B]]
-; CHECK-NEXT:    [[SEL2:%.*]] = select i1 [[CMP2]], i32 0, i32 [[D:%.*]]
+; CHECK-NEXT:    [[CMP2_NOT:%.*]] = icmp slt i32 [[A]], [[B]]
+; CHECK-NEXT:    [[SEL2:%.*]] = select i1 [[CMP2_NOT]], i32 0, i32 [[D:%.*]]
 ; CHECK-NEXT:    [[OR:%.*]] = or i32 [[SEL1]], [[SEL2]]
 ; CHECK-NEXT:    ret i32 [[OR]]
 ;
@@ -88,8 +88,8 @@ define i32 @fold_inverted_icmp_preds_reverse(i32 %a, i32 %b, i32 %c, i32 %d) {
 ; CHECK-LABEL: @fold_inverted_icmp_preds_reverse(
 ; CHECK-NEXT:    [[CMP1:%.*]] = icmp slt i32 [[A:%.*]], [[B:%.*]]
 ; CHECK-NEXT:    [[SEL1:%.*]] = select i1 [[CMP1]], i32 0, i32 [[C:%.*]]
-; CHECK-NEXT:    [[CMP2:%.*]] = icmp slt i32 [[A]], [[B]]
-; CHECK-NEXT:    [[SEL2:%.*]] = select i1 [[CMP2]], i32 [[D:%.*]], i32 0
+; CHECK-NEXT:    [[CMP2_NOT:%.*]] = icmp slt i32 [[A]], [[B]]
+; CHECK-NEXT:    [[SEL2:%.*]] = select i1 [[CMP2_NOT]], i32 [[D:%.*]], i32 0
 ; CHECK-NEXT:    [[OR:%.*]] = or i32 [[SEL1]], [[SEL2]]
 ; CHECK-NEXT:    ret i32 [[OR]]
 ;
@@ -124,8 +124,8 @@ define i32 @fold_inverted_fcmp_preds(float %a, float %b, i32 %c, i32 %d) {
 
 define <2 x i32> @fold_inverted_icmp_vector_preds(<2 x i32> %a, <2 x i32> %b, <2 x i32> %c, <2 x i32> %d) {
 ; CHECK-LABEL: @fold_inverted_icmp_vector_preds(
-; CHECK-NEXT:    [[CMP1:%.*]] = icmp eq <2 x i32> [[A:%.*]], [[B:%.*]]
-; CHECK-NEXT:    [[SEL1:%.*]] = select <2 x i1> [[CMP1]], <2 x i32> zeroinitializer, <2 x i32> [[C:%.*]]
+; CHECK-NEXT:    [[CMP1_NOT:%.*]] = icmp eq <2 x i32> [[A:%.*]], [[B:%.*]]
+; CHECK-NEXT:    [[SEL1:%.*]] = select <2 x i1> [[CMP1_NOT]], <2 x i32> zeroinitializer, <2 x i32> [[C:%.*]]
 ; CHECK-NEXT:    [[CMP2:%.*]] = icmp eq <2 x i32> [[A]], [[B]]
 ; CHECK-NEXT:    [[SEL2:%.*]] = select <2 x i1> [[CMP2]], <2 x i32> [[D:%.*]], <2 x i32> zeroinitializer
 ; CHECK-NEXT:    [[OR:%.*]] = or <2 x i32> [[SEL1]], [[SEL2]]
@@ -376,6 +376,18 @@ define i1 @bools(i1 %a, i1 %b, i1 %c) {
   ret i1 %or
 }
 
+define i1 @bools_logical(i1 %a, i1 %b, i1 %c) {
+; CHECK-LABEL: @bools_logical(
+; CHECK-NEXT:    [[OR:%.*]] = select i1 [[C:%.*]], i1 [[B:%.*]], i1 [[A:%.*]]
+; CHECK-NEXT:    ret i1 [[OR]]
+;
+  %not = xor i1 %c, -1
+  %and1 = select i1 %not, i1 %a, i1 false
+  %and2 = select i1 %c, i1 %b, i1 false
+  %or = select i1 %and1, i1 true, i1 %and2
+  ret i1 %or
+}
+
 ; Form a select if we know we can get replace 2 simple logic ops.
 
 define i1 @bools_multi_uses1(i1 %a, i1 %b, i1 %c) {
@@ -394,6 +406,22 @@ define i1 @bools_multi_uses1(i1 %a, i1 %b, i1 %c) {
   ret i1 %xor
 }
 
+define i1 @bools_multi_uses1_logical(i1 %a, i1 %b, i1 %c) {
+; CHECK-LABEL: @bools_multi_uses1_logical(
+; CHECK-NEXT:    [[NOT:%.*]] = xor i1 [[C:%.*]], true
+; CHECK-NEXT:    [[AND1:%.*]] = select i1 [[NOT]], i1 [[A:%.*]], i1 false
+; CHECK-NEXT:    [[OR:%.*]] = select i1 [[C]], i1 [[B:%.*]], i1 [[A]]
+; CHECK-NEXT:    [[XOR:%.*]] = xor i1 [[OR]], [[AND1]]
+; CHECK-NEXT:    ret i1 [[XOR]]
+;
+  %not = xor i1 %c, -1
+  %and1 = select i1 %not, i1 %a, i1 false
+  %and2 = select i1 %c, i1 %b, i1 false
+  %or = select i1 %and1, i1 true, i1 %and2
+  %xor = xor i1 %or, %and1
+  ret i1 %xor
+}
+
 ; Don't replace a cheap logic op with a potentially expensive select
 ; unless we can also eliminate one of the other original ops.
 
@@ -408,6 +436,25 @@ define i1 @bools_multi_uses2(i1 %a, i1 %b, i1 %c) {
   %or = or i1 %and1, %and2
   %add = add i1 %and1, %and2
   %and3 = and i1 %or, %add
+  ret i1 %and3
+}
+
+define i1 @bools_multi_uses2_logical(i1 %a, i1 %b, i1 %c) {
+; CHECK-LABEL: @bools_multi_uses2_logical(
+; CHECK-NEXT:    [[NOT:%.*]] = xor i1 [[C:%.*]], true
+; CHECK-NEXT:    [[AND1:%.*]] = select i1 [[NOT]], i1 [[A:%.*]], i1 false
+; CHECK-NEXT:    [[AND2:%.*]] = select i1 [[C]], i1 [[B:%.*]], i1 false
+; CHECK-NEXT:    [[OR:%.*]] = select i1 [[C]], i1 [[B]], i1 [[A]]
+; CHECK-NEXT:    [[ADD:%.*]] = xor i1 [[AND1]], [[AND2]]
+; CHECK-NEXT:    [[AND3:%.*]] = select i1 [[OR]], i1 [[ADD]], i1 false
+; CHECK-NEXT:    ret i1 [[AND3]]
+;
+  %not = xor i1 %c, -1
+  %and1 = select i1 %not, i1 %a, i1 false
+  %and2 = select i1 %c, i1 %b, i1 false
+  %or = select i1 %and1, i1 true, i1 %and2
+  %add = add i1 %and1, %and2
+  %and3 = select i1 %or, i1 %add, i1 false
   ret i1 %and3
 }
 
@@ -535,9 +582,9 @@ define <4 x i32> @vec_sel_xor_multi_use(<4 x i32> %a, <4 x i32> %b, <4 x i1> %c)
 
 define i32 @allSignBits(i32 %cond, i32 %tval, i32 %fval) {
 ; CHECK-LABEL: @allSignBits(
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp sgt i32 [[COND:%.*]], -1
-; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[TMP1]], i32 [[FVAL:%.*]], i32 [[TVAL:%.*]]
-; CHECK-NEXT:    ret i32 [[TMP2]]
+; CHECK-NEXT:    [[DOTNOT:%.*]] = icmp slt i32 [[COND:%.*]], 0
+; CHECK-NEXT:    [[TMP1:%.*]] = select i1 [[DOTNOT]], i32 [[TVAL:%.*]], i32 [[FVAL:%.*]]
+; CHECK-NEXT:    ret i32 [[TMP1]]
 ;
   %bitmask = ashr i32 %cond, 31
   %not_bitmask = xor i32 %bitmask, -1
@@ -549,9 +596,9 @@ define i32 @allSignBits(i32 %cond, i32 %tval, i32 %fval) {
 
 define <4 x i8> @allSignBits_vec(<4 x i8> %cond, <4 x i8> %tval, <4 x i8> %fval) {
 ; CHECK-LABEL: @allSignBits_vec(
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp sgt <4 x i8> [[COND:%.*]], <i8 -1, i8 -1, i8 -1, i8 -1>
-; CHECK-NEXT:    [[TMP2:%.*]] = select <4 x i1> [[TMP1]], <4 x i8> [[FVAL:%.*]], <4 x i8> [[TVAL:%.*]]
-; CHECK-NEXT:    ret <4 x i8> [[TMP2]]
+; CHECK-NEXT:    [[DOTNOT:%.*]] = icmp sgt <4 x i8> [[COND:%.*]], <i8 -1, i8 -1, i8 -1, i8 -1>
+; CHECK-NEXT:    [[TMP1:%.*]] = select <4 x i1> [[DOTNOT]], <4 x i8> [[FVAL:%.*]], <4 x i8> [[TVAL:%.*]]
+; CHECK-NEXT:    ret <4 x i8> [[TMP1]]
 ;
   %bitmask = ashr <4 x i8> %cond, <i8 7, i8 7, i8 7, i8 7>
   %not_bitmask = xor <4 x i8> %bitmask, <i8 -1, i8 -1, i8 -1, i8 -1>

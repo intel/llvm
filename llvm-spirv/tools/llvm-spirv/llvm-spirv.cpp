@@ -113,6 +113,14 @@ static cl::list<std::string>
            cl::value_desc("+SPV_extenstion1_name,-SPV_extension2_name"),
            cl::ValueRequired);
 
+static cl::list<std::string> SPIRVAllowUnknownIntrinsics(
+    "spirv-allow-unknown-intrinsics", cl::CommaSeparated,
+    cl::desc("Unknown intrinsics that begin with any prefix from the "
+             "comma-separated input list will be translated as external "
+             "function calls in SPIR-V.\nLeaving any prefix unspecified "
+             "(default) would naturally allow all unknown intrinsics"),
+    cl::value_desc("intrinsic_prefix_1,intrinsic_prefix_2"), cl::ValueOptional);
+
 static cl::opt<bool> SPIRVGenKernelArgNameMD(
     "spirv-gen-kernel-arg-name-md", cl::init(false),
     cl::desc("Enable generating OpenCL kernel argument name "
@@ -177,6 +185,31 @@ static cl::opt<SPIRV::FPContractMode> FPCMode(
         clEnumValN(
             SPIRV::FPContractMode::Fast, "fast",
             "allow all operations to be contracted for all entry points")));
+
+static cl::opt<bool> SPIRVAllowExtraDIExpressions(
+    "spirv-allow-extra-diexpressions", cl::init(false),
+    cl::desc("Allow DWARF operations not listed in the OpenCL.DebugInfo.100 "
+             "specification (experimental, may produce incompatible SPIR-V "
+             "module)"));
+
+static cl::opt<SPIRV::DebugInfoEIS> DebugEIS(
+    "spirv-debug-info-version", cl::desc("Set SPIR-V debug info version:"),
+    cl::init(SPIRV::DebugInfoEIS::OpenCL_DebugInfo_100),
+    cl::values(
+        clEnumValN(SPIRV::DebugInfoEIS::SPIRV_Debug, "legacy",
+                   "Emit debug info compliant with the SPIRV.debug extended "
+                   "instruction set. This option is used for compatibility "
+                   "with older versions of the translator"),
+        clEnumValN(SPIRV::DebugInfoEIS::OpenCL_DebugInfo_100, "ocl-100",
+                   "Emit debug info compliant with the OpenCL.DebugInfo.100 "
+                   "extended instruction set. This version of SPIR-V debug "
+                   "info format is compatible with the SPIRV-Tools")));
+
+static cl::opt<bool> SPIRVReplaceLLVMFmulAddWithOpenCLMad(
+    "spirv-replace-fmuladd-with-ocl-mad",
+    cl::desc("Allow replacement of llvm.fmuladd.* intrinsic with OpenCL mad "
+             "instruction from OpenCL extended instruction set"),
+    cl::init(true));
 
 static std::string removeExt(const std::string &FileName) {
   size_t Pos = FileName.find_last_of(".");
@@ -513,6 +546,14 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
   return false;
 }
 
+static void parseAllowUnknownIntrinsicsOpt(SPIRV::TranslatorOpts &Opts) {
+  SPIRV::TranslatorOpts::ArgList PrefixList;
+  for (const auto &Prefix : SPIRVAllowUnknownIntrinsics) {
+    PrefixList.push_back(Prefix);
+  }
+  Opts.setSPIRVAllowUnknownIntrinsics(PrefixList);
+}
+
 int main(int Ac, char **Av) {
   EnablePrettyStackTrace();
   sys::PrintStackTraceOnErrorSignal(Av[0]);
@@ -551,6 +592,39 @@ int main(int Ac, char **Av) {
   if (IsReverse && !SpecConst.empty()) {
     if (parseSpecConstOpt(SpecConst, Opts))
       return -1;
+  }
+
+  if (SPIRVAllowUnknownIntrinsics.getNumOccurrences() != 0) {
+    if (IsReverse) {
+      errs()
+          << "Note: --spirv-allow-unknown-intrinsics option ignored as it only "
+             "affects translation from LLVM IR to SPIR-V";
+    } else {
+      parseAllowUnknownIntrinsicsOpt(Opts);
+    }
+  }
+
+  if (SPIRVReplaceLLVMFmulAddWithOpenCLMad.getNumOccurrences() != 0) {
+    if (IsReverse) {
+      errs() << "Note: --spirv-replace-fmuladd-with-ocl-mad option ignored as "
+                "it only affects translation from LLVM IR to SPIR-V";
+    } else {
+      Opts.setReplaceLLVMFmulAddWithOpenCLMad(
+          SPIRVReplaceLLVMFmulAddWithOpenCLMad);
+    }
+  }
+
+  if (SPIRVAllowExtraDIExpressions.getNumOccurrences() != 0) {
+    Opts.setAllowExtraDIExpressionsEnabled(SPIRVAllowExtraDIExpressions);
+  }
+
+  if (DebugEIS.getNumOccurrences() != 0) {
+    if (IsReverse) {
+      errs() << "Note: --spirv-debug-info-version option ignored as it only "
+                "affects translation from LLVM IR to SPIR-V";
+    } else {
+      Opts.setDebugInfoEIS(DebugEIS);
+    }
   }
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
