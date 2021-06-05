@@ -5061,7 +5061,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 // Utility class methods
 // -----------------------------------------------------------------------------
 
-bool Util::isSyclAccessorType(const QualType &Ty) {
+bool Util::isSyclAccessorType(const QualType Ty) {
   const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
   if (!RecTy)
     return false; // only classes/structs supported
@@ -5070,7 +5070,7 @@ bool Util::isSyclAccessorType(const QualType &Ty) {
   return false;
 }
 
-bool Util::isSyclSamplerType(const QualType &Ty) {
+bool Util::isSyclSamplerType(const QualType Ty) {
   const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
   if (!RecTy)
     return false; // only classes/structs supported
@@ -5079,7 +5079,7 @@ bool Util::isSyclSamplerType(const QualType &Ty) {
   return false;
 }
 
-bool Util::isSyclStreamType(const QualType &Ty) {
+bool Util::isSyclStreamType(const QualType Ty) {
   const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
   if (!RecTy)
     return false; // only classes/structs supported
@@ -5089,7 +5089,7 @@ bool Util::isSyclStreamType(const QualType &Ty) {
 }
 
 // TODO: Remove this once structs decomposing is optimized
-bool Util::isSyclHalfType(const QualType &Ty) {
+bool Util::isSyclHalfType(const QualType Ty) {
   const StringRef &Name = "half";
   std::array<DeclContextDesc, 5> Scopes = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
@@ -5139,9 +5139,11 @@ bool Util::isSyclBufferLocationType(QualType Ty) {
       Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "buffer_location"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "instance")};
+  return matchQualifiedTypeName(Ty, Scopes);
+}
 
 // TODO: Do we need an attribute for this one as well?
-bool Util::isSyclSpecConstantType(const QualType &Ty) {
+bool Util::isSyclSpecConstantType(const QualType Ty) {
   const StringRef &Name = "spec_constant";
   std::array<DeclContextDesc, 4> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
