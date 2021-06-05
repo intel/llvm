@@ -34,4 +34,5 @@ Developing oneAPI DPC++ Compiler
    LinkedAllocations
    Assert
    SharedLibraries
+   MultiTileCardWithLevelZero
 
