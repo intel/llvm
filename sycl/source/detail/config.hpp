@@ -102,8 +102,15 @@ template <ConfigID Config> class SYCLConfig {
   using BaseT = SYCLConfigBase<Config>;
 
 public:
-  static const char *get() {
+  static const char *get() { return getCachedValue(); }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
     static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
     return ValStr;
   }
 };
