@@ -10,6 +10,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/plugin.hpp>
+#include <detail/program_manager/program_manager.hpp>
 
 #if defined(__SYCL_RT_OS_LINUX)
 #include <unistd.h>
@@ -50,6 +51,11 @@ bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
   // Cache shoould be enabled and image type should be SPIR-V
   if (!isEnabled() || Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV)
     return false;
+
+  // Disable cache for ITT-profiled images.
+  if (SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::get()) {
+    return false;
+  }
 
   static auto MaxImgSize = getNumParam<SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE>(
       DEFAULT_MAX_DEVICE_IMAGE_SIZE);
