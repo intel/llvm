@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_CACHE_PERSISTENT=1 %CPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_CACHE_PERSISTENT=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_CACHE_PERSISTENT=1 %ACC_RUN_PLACEHOLDER %t.out
 // XFAIL: cuda
 #include <CL/sycl.hpp>
 
