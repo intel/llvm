@@ -27,11 +27,11 @@ using IsReduPlus =
                   std::is_same<BinaryOperation, ONEAPI::plus<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsReduMultiplies =
-    bool_constant<std::is_same<BinaryOperation, sycl::multiplies<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::multiplies<void>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::multiplies<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::multiplies<void>>::value>;
+using IsReduMultiplies = bool_constant<
+    std::is_same<BinaryOperation, sycl::multiplies<T>>::value ||
+    std::is_same<BinaryOperation, sycl::multiplies<void>>::value ||
+    std::is_same<BinaryOperation, ONEAPI::multiplies<T>>::value ||
+    std::is_same<BinaryOperation, ONEAPI::multiplies<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduMinimum =
