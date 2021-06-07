@@ -84,7 +84,7 @@ std::string lld::toString(const InputFile *f) {
   // Multiple dylibs can be defined in one .tbd file.
   if (auto dylibFile = dyn_cast<DylibFile>(f))
     if (f->getName().endswith(".tbd"))
-      return (f->getName() + "(" + dylibFile->dylibName + ")").str();
+      return (f->getName() + "(" + dylibFile->installName + ")").str();
 
   if (f->archiveName.empty())
     return std::string(f->getName());
@@ -752,22 +752,36 @@ static DylibFile *loadDylib(StringRef path, DylibFile *umbrella) {
 //
 // Re-exports can either refer to on-disk files, or to documents within .tbd
 // files.
-DylibFile *findDylib(StringRef path, DylibFile *umbrella,
-                     const InterfaceFile *currentTopLevelTapi) {
+static DylibFile *findDylib(StringRef path, DylibFile *umbrella,
+                            const InterfaceFile *currentTopLevelTapi) {
   if (path::is_absolute(path, path::Style::posix))
     for (StringRef root : config->systemLibraryRoots)
       if (Optional<std::string> dylibPath =
               resolveDylibPath((root + path).str()))
         return loadDylib(*dylibPath, umbrella);
 
-  // TODO: Expand @loader_path, @executable_path, @rpath etc, handle -dylib_path
+  // TODO: Expand @rpath, handle -dylib_file
+  SmallString<128> newPath;
+  if (config->outputType == MH_EXECUTE &&
+      path.consume_front("@executable_path/")) {
+    // ld64 allows overriding this with the undocumented flag -executable_path.
+    // lld doesn't currently implement that flag.
+    path::append(newPath, sys::path::parent_path(config->outputFile), path);
+    path = newPath;
+  } else if (path.consume_front("@loader_path/")) {
+    path::append(newPath, sys::path::parent_path(umbrella->getName()), path);
+    path = newPath;
+  }
 
   if (currentTopLevelTapi) {
     for (InterfaceFile &child :
          make_pointee_range(currentTopLevelTapi->documents())) {
       assert(child.documents().empty());
-      if (path == child.getInstallName())
-        return make<DylibFile>(child, umbrella);
+      if (path == child.getInstallName()) {
+        auto file = make<DylibFile>(child, umbrella);
+        file->parseReexports(child);
+        return file;
+      }
     }
   }
 
@@ -797,8 +811,8 @@ static bool isImplicitlyLinked(StringRef path) {
   return false;
 }
 
-void loadReexport(StringRef path, DylibFile *umbrella,
-                  const InterfaceFile *currentTopLevelTapi) {
+static void loadReexport(StringRef path, DylibFile *umbrella,
+                         const InterfaceFile *currentTopLevelTapi) {
   DylibFile *reexport = findDylib(path, umbrella, currentTopLevelTapi);
   if (!reexport)
     error("unable to locate re-export with install name " + path);
@@ -813,16 +827,18 @@ DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
   assert(!isBundleLoader || !umbrella);
   if (umbrella == nullptr)
     umbrella = this;
+  this->umbrella = umbrella;
 
   auto *buf = reinterpret_cast<const uint8_t *>(mb.getBufferStart());
   auto *hdr = reinterpret_cast<const mach_header *>(mb.getBufferStart());
 
-  // Initialize dylibName.
+  // Initialize installName.
   if (const load_command *cmd = findCommand(hdr, LC_ID_DYLIB)) {
     auto *c = reinterpret_cast<const dylib_command *>(cmd);
     currentVersion = read32le(&c->dylib.current_version);
     compatibilityVersion = read32le(&c->dylib.compatibility_version);
-    dylibName = reinterpret_cast<const char *>(cmd) + read32le(&c->dylib.name);
+    installName =
+        reinterpret_cast<const char *>(cmd) + read32le(&c->dylib.name);
   } else if (!isBundleLoader) {
     // macho_executable and macho_bundle don't have LC_ID_DYLIB,
     // so it's OK.
@@ -839,15 +855,18 @@ DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
     return;
 
   // Initialize symbols.
-  exportingFile = isImplicitlyLinked(dylibName) ? this : umbrella;
+  exportingFile = isImplicitlyLinked(installName) ? this : this->umbrella;
   if (const load_command *cmd = findCommand(hdr, LC_DYLD_INFO_ONLY)) {
     auto *c = reinterpret_cast<const dyld_info_command *>(cmd);
     parseTrie(buf + c->export_off, c->export_size,
               [&](const Twine &name, uint64_t flags) {
+                StringRef savedName = saver.save(name);
+                if (handleLDSymbol(savedName))
+                  return;
                 bool isWeakDef = flags & EXPORT_SYMBOL_FLAGS_WEAK_DEFINITION;
                 bool isTlv = flags & EXPORT_SYMBOL_FLAGS_KIND_THREAD_LOCAL;
-                symbols.push_back(symtab->addDylib(
-                    saver.save(name), exportingFile, isWeakDef, isTlv));
+                symbols.push_back(symtab->addDylib(savedName, exportingFile,
+                                                   isWeakDef, isTlv));
               });
   } else {
     error("LC_DYLD_INFO_ONLY not found in " + toString(this));
@@ -855,7 +874,7 @@ DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
   }
 }
 
-void DylibFile::parseLoadCommands(MemoryBufferRef mb, DylibFile *umbrella) {
+void DylibFile::parseLoadCommands(MemoryBufferRef mb) {
   auto *hdr = reinterpret_cast<const mach_header *>(mb.getBufferStart());
   const uint8_t *p = reinterpret_cast<const uint8_t *>(mb.getBufferStart()) +
                      target->headerSize;
@@ -902,22 +921,23 @@ DylibFile::DylibFile(const InterfaceFile &interface, DylibFile *umbrella,
 
   if (umbrella == nullptr)
     umbrella = this;
+  this->umbrella = umbrella;
 
-  dylibName = saver.save(interface.getInstallName());
+  installName = saver.save(interface.getInstallName());
   compatibilityVersion = interface.getCompatibilityVersion().rawValue();
   currentVersion = interface.getCurrentVersion().rawValue();
 
   if (config->printEachFile)
     message(toString(this));
 
-  if (!is_contained(skipPlatformChecks, dylibName) &&
+  if (!is_contained(skipPlatformChecks, installName) &&
       !is_contained(interface.targets(), config->platformInfo.target)) {
     error(toString(this) + " is incompatible with " +
           std::string(config->platformInfo.target));
     return;
   }
 
-  exportingFile = isImplicitlyLinked(dylibName) ? this : umbrella;
+  exportingFile = isImplicitlyLinked(installName) ? this : umbrella;
   auto addSymbol = [&](const Twine &name) -> void {
     symbols.push_back(symtab->addDylib(saver.save(name), exportingFile,
                                        /*isWeakDef=*/false,
@@ -927,6 +947,9 @@ DylibFile::DylibFile(const InterfaceFile &interface, DylibFile *umbrella,
   // TODO: handle weak defs, thread locals
   for (const auto *symbol : interface.symbols()) {
     if (!symbol->getArchitectures().has(config->arch()))
+      continue;
+
+    if (handleLDSymbol(symbol->getName()))
       continue;
 
     switch (symbol->getKind()) {
@@ -949,7 +972,7 @@ DylibFile::DylibFile(const InterfaceFile &interface, DylibFile *umbrella,
   }
 }
 
-void DylibFile::parseReexports(const llvm::MachO::InterfaceFile &interface) {
+void DylibFile::parseReexports(const InterfaceFile &interface) {
   const InterfaceFile *topLevel =
       interface.getParent() == nullptr ? &interface : interface.getParent();
   for (InterfaceFileRef intfRef : interface.reexportedLibraries()) {
@@ -958,6 +981,88 @@ void DylibFile::parseReexports(const llvm::MachO::InterfaceFile &interface) {
         is_contained(targets, config->platformInfo.target))
       loadReexport(intfRef.getInstallName(), exportingFile, topLevel);
   }
+}
+
+// $ld$ symbols modify the properties/behavior of the library (e.g. its install
+// name, compatibility version or hide/add symbols) for specific target
+// versions.
+bool DylibFile::handleLDSymbol(StringRef originalName) {
+  if (!originalName.startswith("$ld$"))
+    return false;
+
+  StringRef action;
+  StringRef name;
+  std::tie(action, name) = originalName.drop_front(strlen("$ld$")).split('$');
+  if (action == "previous")
+    handleLDPreviousSymbol(name, originalName);
+  else if (action == "install_name")
+    handleLDInstallNameSymbol(name, originalName);
+  return true;
+}
+
+void DylibFile::handleLDPreviousSymbol(StringRef name, StringRef originalName) {
+  // originalName: $ld$ previous $ <installname> $ <compatversion> $
+  // <platformstr> $ <startversion> $ <endversion> $ <symbol-name> $
+  StringRef installName;
+  StringRef compatVersion;
+  StringRef platformStr;
+  StringRef startVersion;
+  StringRef endVersion;
+  StringRef symbolName;
+  StringRef rest;
+
+  std::tie(installName, name) = name.split('$');
+  std::tie(compatVersion, name) = name.split('$');
+  std::tie(platformStr, name) = name.split('$');
+  std::tie(startVersion, name) = name.split('$');
+  std::tie(endVersion, name) = name.split('$');
+  std::tie(symbolName, rest) = name.split('$');
+  // TODO: ld64 contains some logic for non-empty symbolName as well.
+  if (!symbolName.empty())
+    return;
+  unsigned platform;
+  if (platformStr.getAsInteger(10, platform) ||
+      platform != static_cast<unsigned>(config->platform()))
+    return;
+
+  VersionTuple start;
+  if (start.tryParse(startVersion)) {
+    warn("failed to parse start version, symbol '" + originalName +
+         "' ignored");
+    return;
+  }
+  VersionTuple end;
+  if (end.tryParse(endVersion)) {
+    warn("failed to parse end version, symbol '" + originalName + "' ignored");
+    return;
+  }
+  if (config->platformInfo.minimum < start ||
+      config->platformInfo.minimum >= end)
+    return;
+
+  this->installName = saver.save(installName);
+
+  if (!compatVersion.empty()) {
+    VersionTuple cVersion;
+    if (cVersion.tryParse(compatVersion)) {
+      warn("failed to parse compatibility version, symbol '" + originalName +
+           "' ignored");
+      return;
+    }
+    compatibilityVersion = encodeVersion(cVersion);
+  }
+}
+
+void DylibFile::handleLDInstallNameSymbol(StringRef name,
+                                          StringRef originalName) {
+  // originalName: $ld$ install_name $ os<version> $ install_name
+  StringRef condition, installName;
+  std::tie(condition, installName) = name.split('$');
+  VersionTuple version;
+  if (!condition.consume_front("os") || version.tryParse(condition))
+    warn("failed to parse os version, symbol '" + originalName + "' ignored");
+  else if (version == config->platformInfo.minimum)
+    this->installName = saver.save(installName);
 }
 
 ArchiveFile::ArchiveFile(std::unique_ptr<object::Archive> &&f)
