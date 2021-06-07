@@ -108,7 +108,7 @@ private:
   // This is necessary to ensure that any kernels we get info for are properly
   // labeled as such before we call __builtin_sycl_unique_stable_name in a
   // constant expression, otherwise subsequent calls to a sycl_kernel function
-  // could cause the kernel name to altered, and change the result of the
+  // could cause the kernel name to be altered, and change the result of the
   // builtin.
   // Additionally, we make this a dependency of 'n' so that we can guarantee
   // that this is evaluated first. The builtin always returns 'true', so the
