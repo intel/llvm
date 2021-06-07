@@ -36,30 +36,32 @@ these is described in more detail in the sections that follow:
   speculative compilation of a kernel for a device, when the application does
   not specifically submit the kernel to that device.
 
-### Clarification of a kernel's static call tree
 
-Some of the requirements below refer to the "static call tree" of a kernel.  In
-standard SYCL, device code is not allowed to contain function pointers, virtual
-function, or indirect function calls.  It is therefore easy to compute the
-static call tree of a kernel.  By starting at the kernel function itself (e.g.
-the function passed to `parallel_for`), the compiler can identify all functions
-called by that function, then it can find all functions called by those
-functions, etc.  Depending on the tool which does the analysis, the "static
-call tree" could include only those functions that reside in the same
+### Clarification of a kernel's static call graph
+
+Some of the requirements below refer to the "static call graph" of a kernel.
+In standard SYCL, device code is not allowed to contain function pointers,
+virtual functions, or indirect function calls.  It is therefore easy to compute
+the static call graph of a kernel.  By starting at the kernel function itself
+(e.g.  the function passed to `parallel_for`), the compiler can identify all
+functions called by that function, then it can find all functions called by
+those functions, etc.  Depending on the tool which does the analysis, the
+"static call graph" could include only those functions that reside in the same
 translation unit as the kernel, or it could include all functions that reside
 in the same executable image (or shared library) as the kernel.  In the
 sections below, we try to make the distinction clear whenever we refer to a
-kernel's static call tree.
+kernel's static call graph.
 
 We are contemplating a DPC++ extension that would allow some limited use of
 function pointers in device code.  This feature is not yet fully defined or
 supported.  We expect that the semantics of this feature will include some way
 for the compiler to deduce a limited set of possible targets for each indirect
 function call.  Therefore, it is still possible for the compiler to construct a
-"static call tree" for each kernel, the only difference is that each call site
-now adds a set of possible target functions to a kernel's static call tree.
+"static call graph" for each kernel, the only difference is that each call site
+now adds a set of possible target functions to a kernel's static call graph.
 The details about how this will work are expected to be included in the DPC++
 extension specification that enables indirect function calls.
+
 
 ### Diagnostics from the front-end compiler
 
@@ -79,17 +81,18 @@ device function is allowed to use only those optional features which are listed
 by the attribute.  Therefore, the front-end compiler must issue a diagnostic if
 the kernel or device function uses any other optional kernel features.
 
-The SYCL 2020 specification only mandates this error when a kernel or device
-function that is decorated with `[[sycl::requires()]]` uses an optional kernel
-feature (not listed in the attribute), **and** when that use is in the kernel's
-static call tree as computed for the translation unit that contains the kernel
-function.  Thus, the compiler is not required to diagnose an error if the use
-is in a `SYCL_EXTERNAL` function that is defined in another translation unit.
+The SYCL 2020 specification only mandates this diagnostic when a kernel or
+device function that is decorated with `[[sycl::requires()]]` uses an optional
+kernel feature (not listed in the attribute), **and** when that use is in the
+kernel's static call graph as computed for the translation unit that contains
+the kernel function.  Thus, the compiler is not required to issue a diagnostic
+if the use is in a `SYCL_EXTERNAL` function that is defined in another
+translation unit.
 
 It turns out, though, that DPC++ can diagnose this case at link time, when we
 have visibility into device functions that are defined in other translation
-units.  Since the design proposed below allows this error to be checked with
-minimal extra effort, it is desirable to do so.
+units.  Since the design proposed below allows this diagnostic to be checked
+with minimal extra effort, it is desirable to do so.
 
 Note that this behavior does not change when the compiler runs in AOT mode.
 Even if the user specifies a target device via "-fsycl-targets", that does not
@@ -101,6 +104,7 @@ library without getting errors.  Therefore the AOT compiler must not fail
 simply because the middleware header contains device code for devices that
 are not being compiled for.
 
+
 ### Runtime exception if device doesn't support feature
 
 When the application submits a kernel to a device via one of the kernel
@@ -110,9 +114,9 @@ kernel uses an unsupported feature, the runtime must throw a synchronous
 `errc::kernel_not_supported` exception.
 
 When doing these checks, the runtime must consider all uses of optional
-features in the kernel's static call tree, regardless of whether those uses are
-in the same translation unit as the kernel and regardless of whether those uses
-come from device code in a shared library.
+features in the kernel's static call graph, regardless of whether those uses
+are in the same translation unit as the kernel and regardless of whether those
+uses come from device code in a shared library.
 
 This exception, however, is only required for features that are exposed via a
 C++ type or function.  Examples of this include `sycl::half` or instantiating
@@ -135,11 +139,10 @@ circumstances:
 
 * For a kernel that is decorated with `[[sycl::requires()]]`, the compiler will
   mostly check (at compile time) whether the kernel uses any features that are
-  not listed in the attribute.  The only case not checked at compile time is
-  when a kernel calls a device function that is defined in a shared library.
-  Therefore, the runtime is responsible for throwing the exception if a
-  kernel's function (defined in a shared library) uses an optional feature
-  that the device does not support.
+  not listed in the attribute.  However, this check only results in a warning,
+  so the runtime is still responsible for throwing the exception if any of the
+  functions called by the kernel uses an optional feature that the device does
+  not support.
 
 * For a kernel that is decorated with the `[[sycl::reqd_work_group_size(W)]]`
   or `[[sycl::reqd_sub_group_size(S)]]` attribute, the exception must be thrown
@@ -149,19 +152,20 @@ circumstances:
 Note that the exception must be thrown synchronously, not delayed and thrown on
 the queue's asynchronous handler.
 
+
 ### No runtime exception for speculative compilation
 
 It is currently common for the runtime to speculatively compile some kernels.
 For example, DPC++ may bundle all kernels from the same translation unit
-together into a single device image.  When the application submits one kernel K
-to a device D, the runtime actually compiles all kernels in K's device image
-for device D.  Let's assume in this example that the kernel K uses only
-features that are supported by D.  It would be illegal for the runtime to throw
-an exception in such a case just because some other kernel in the same device
-image uses a feature that is not supported by device D.
+together into a single device image.  When the application submits one kernel
+*K* to a device *D*, the runtime actually compiles all kernels in *K*'s device
+image for device *D*.  Let's assume in this example that the kernel *K* uses
+only features that are supported by *D*.  It would be illegal for the runtime
+to throw an exception in such a case just because some other kernel in the same
+device image uses a feature that is not supported by device *D*.
 
 
-## Design to implement required diagnostics
+## Design
 
 ### Changes to DPC++ headers
 
@@ -173,448 +177,437 @@ is an optional feature which is only supported on devices that have the
 describe the set of optional features that a kernel uses (with the exception
 of the required work-group or sub-group size).
 
-As we will see later, it will be very helpful to decorate all APIs in DPC++
-headers that correspond to optional kernel features with the
-`[[sycl::requires()]]` attribute.  For example, the declaration of the
-`sycl::half` type would look like this:
+As we will see later, it is helpful to decorate all APIs in DPC++ headers that
+correspond to optional kernel features with a C++ attribute that identifies the
+associated aspect.  We cannot use the `[[sycl::requires()]]` attribute for this
+purpose, though, because that attribute is allowed only for functions.
+Instead, we invent a new internal attribute `[[sycl_detail::uses_aspects()]]`
+that can be used to decorate both functions and types.  This attribute is not
+documented for user code; instead it is an internal implementation detail of
+DPC++.
+
+Like all use of C++ attributes in the DPC++ headers, the headers should spell
+the attribute using initial and trailing double underscores
+(`[[__sycl_detail__::__uses_aspects__()]]`).  We show that form in the code
+samples below, but this design document uses the form without the underbars
+elsewhere.  Both forms refer to the same attribute.
+
+To illustrate, the type `sycl::half` is an optional feature whose associated
+aspect is `aspect::fp16`.  We therefore decorate the declaration like this:
 
 ```
-using half [[sycl::requires(has(aspect::fp16))]] = cl::sycl::detail::half_impl::half;
+using half [[__sycl_detail__::__uses_aspects__(has(aspect::fp16))]] =
+  cl::sycl::detail::half_impl::half;
 ```
 
-In cases where the optional feature corresponds to use of a class (e.g.
-`sycl::atomic_ref`), the declaration can look like this:
+If an optional feature is expressed as a class type, it can be similarly
+decorated (here illustrating a hypothetical AMX type):
 
 ```
-template</*...*/>
-class [[sycl::requires(has(aspect::atomic64))]] atomic_ref {
+class [[__sycl_detail__::__uses_aspects__(has(aspect::ext_intel_amx))]] amx_type {
   /* ... */
 };
 ```
 
-(In reality, we can use partial specialization tricks to decorate `atomic_ref`
-with the attribute only when the underlying type is 64-bits.  See ["Appendix:
-Adding an attribute to 8-byte `atomic_ref`"][4].)
-
-[4]: <#appendix-adding-an-attribute-to-8-byte-atomic_ref>
-
-In cases where the optional feature corresponds to a function, we can decorate
-the function's declaration with the attribute like so (demonstrating a
-hypothetical AMX multiplication extension):
+This attribute is also used to decorate function declarations that correspond
+to optional features.  Again, illustrating a hypothetical AMX extension:
 
 ```
-[[sycl::requires(has(aspect::ext_intel_amx))]]
+[[__sycl_detail__::__uses_aspects__(has(aspect::ext_intel_amx))]]
 void amx_multiply();
 ```
 
-These attributes provide an explicit mapping between each optional kernel
-feature and its associated aspect.
+This attribute can also be used to decorate class templates where only certain
+instantiations correspond to optional features.  See ["Appendix: Adding an
+attribute to 8-byte `atomic_ref`"][4] for an illustration of how this attribute
+can be used in conjunction with partial specialization to mark only certain
+instantiations of `sycl::atomic_ref` as an optional feature.
+
+[4]: <#appendix-adding-an-attribute-to-8-byte-atomic_ref>
+
+As you can see from the examples above, the syntax for the parameter to the
+`[[sycl_detail::uses_aspects()]]` attribute is identical to the syntax for the
+standard `[[sycl::requires()]]` attribute.
 
 Unfortunately, the fundamental type `double` is also an optional kernel
 feature.  Since there is no type alias for `double`, there is no convenient
 place to add an attribute.  Instead, the front-end device compiler must behave
-as though there was an implicit `[[sycl::requires(has(aspect::fp64))]]`
-attribute for any device code that uses the `double` type.
-
-Note that the usage of `[[sycl::requires()]]` is slightly expanded here beyond
-the specified usage in the SYCL 2020 specification because we allow the
-attribute also on type alias declarations and class declarations.  If a device
-function does any of the following with a type alias or class that was so
-decorated, the function is assumed to "use the aspects" listed in the
-attribute:
-
-* Declares a variable of that type.
-* Has a formal parameter declared with that type.
-* Returns that type.
-
-This also includes any qualified version of the type.
-
-**TODO**: This language is not very precise.  The intent is to include most
-uses of the type, except for cases like `sizeof(T)` or `decltype(T)`.  Help
-appreciated on tightening the wording here.
-
-**TODO**: Would it be better to use a different attribute name when decorating
-types, rather than expanding the meaning of `[[sycl::requires()]]`?  If we did
-this, the new attribute would become an internal DPC++ implementation detail;
-we would not add it to the SYCL specification.
-
-### Implementing diagnostics in the DPC++ front-end
-
-As noted above, the front-end device compiler must behave as though there is an
-implicit `[[sycl::requires(has(aspect::fp64))]]` attribute on any use of the
-`double` type in device code.
-
-Aside from this, the front-end compiler can implement the required diagnostics
-purely from the C++ attributes that have been added to the DPC++ headers.
-There is no need for the front-end compiler to know which device features are
-optional.
-
-When the front-end compiler sees a kernel or device function that is decorated
-with `[[sycl::requires()]]`, it forms the set of allowed aspects for that
-kernel or device function using aspects listed in the attribute.  Let's call
-this the `Allowed` set.  The front-end then computes the static call tree of
-that kernel or device function (examining only code within this translation
-unit) and forms the union of all aspects in any `[[sycl::requires()]]`
-attributes that decorate any of these functions or any of the types used inside
-these functions.  Let's call this the `Used` set.  If the `Used` set contains
-any aspects not in the `Allowed` set, the front-end issues a diagnostic.
-
-In order to be user-friendly, the diagnostic should point the user to the
-location of the problem.  Therefore, the diagnostic message should include the
-following information:
-
-* The source position of the `[[sycl::requires()]]` attribute that decorates
-  the kernel or device function which provides the `Allowed` aspect set.  This
-  tells the user which aspects the kernel or device function intends to use.
-
-* The source position of the call to a function that is decorated with
-  `[[sycl::requires()]]` or the source position of the use of a type that is
-  decorated with `[[sycl::requires()]]`.  This tells the user where in the
-  kernel a particular aspect is actually used.
-
-Note that this analysis can be done in the front-end compiler even when a
-kernel makes a call to a function that is in another translation unit.
-Language rules require the application to declare such a function with
-`SYCL_EXTERNAL` in the calling TU, and the `SYCL_EXTERNAL` declaration must be
-decorated with the `[[sycl::requires()]]` attribute.  Therefore, the front-end
-can diagnose errors with aspect usage even without seeing the definition of the
-`SYCL_EXTERNAL` function.
+as though there was an implicit
+`[[sycl_detail::uses_aspects(has(aspect::fp64))]]` attribute for any device
+code that uses the `double` type.
 
 
-## Design to raise required exceptions (and avoid forbidden errors)
+### New LLVM IR metadata
 
-As described above the runtime must raise an `errc::kernel_not_supported`
-exception when a kernel is submitted to a device that does not support the
-optional features that the kernel uses.  Likewise, the runtime must **not**
-raise an exception (or otherwise produce an error) due to speculative
-compilation of a kernel for a device, unless the application actually submits
-the kernel to that device.  The solution is largely the same for both JIT and
-AOT cases.
+In order to communicate the information from `[[sycl::requires()]]` and
+`[[sycl_detail::uses_aspects()]]` attributes to the DPC++ post-link tool, we
+introduce two new LLVM IR metadata that can be attached to a function
+definition, similar to the existing `!intel_reqd_sub_group_size`.
 
-### JIT case
-
-The JIT case requires some change to the way kernels and device functions are
-bundled together into device images.  Currently, kernels and device functions
-are bundled together regardless of the features they use, and this can lead to
-JIT errors due to speculative compilation.  Consider a device image that
-contains two kernels: `K1` uses no optional features and `K2` uses an optional
-feature that corresponds to aspect `A`.  Now consider that the application
-submits kernel `K1` to a device that does not support aspect `A`.  Since the
-two kernels are bundled together into one device image, the runtime really
-compiles both kernels for the device.  Currently, this will raise a JIT
-exception because the compilation of kernel `K2` will fail when compiled for a
-device that does not support aspect `A`.
-
-There are two ways to solve this problem.  One is to change the way kernels and
-device functions are bundled into device images such that we never bundled two
-kernels or device functions together unless they require exactly the same set
-of device aspects.  Doing this would avoid the error described above.  However,
-we have elected for a different solution.
-
-Instead, we will allow kernels and device functions to be bundled together as
-they currently are, but we will introduce extra decorations into the generated
-SPIR-V that allow the JIT compiler to discard kernels and device functions
-which require aspects that the device does not support.  Although this solution
-requires an extension to SPIR-V, we think it is the better direction because it
-is aligned with the [device-if][5] feature, which will also requires this same
-SPIR-V extension.
-
-[5]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceIf/device_if.asciidoc>
-
-The idea is to emit a SPIR-V specialization constant for each aspect that is
-required by a kernel or device function in the device image.  We then introduce
-a new SPIR-V "decoration" that tells the JIT compiler to discard a function if
-a specialization constant is `False`.  The DPC++ runtime will set the values of
-the specialization constants according to the target device, thus the JIT
-compiler discards (and does not compile) any kernels or device functions that
-use features which are not supported on that device.  This avoids errors due to
-speculative compilation of kernels or device functions.
-
-#### Representation in SPIR-V
-
-To illustrate how kernels using optional features are represented in SPIR-V,
-consider a kernel `K` that requires aspects `A1` and `A2`.  The SPIR-V module
-will contain three boolean specialization constants: one representing `A1`, one
-representing `A2`, and one representing the expression `A1 && A2`.  All of
-these can be represented without any extension to SPIR-V.
+These new metadata are named `!intel_allowed_aspects` and
+`!intel_used_aspects`.  In each case, the parameter is an (unnamed) metadata
+node, and the value of the metadata node is a list of `i32` constants, where
+each constant is a value from `enum class aspect`.  For example, the following
+illustrates the IR that corresponds to a function `foo` that is decorated with
+`[[sycl::requires()]]` where the required aspects have the numerical values
+`8` and `9`.  In addition, the function uses an optional feature that
+corresponds to an aspect with numerical value `8`.
 
 ```
-OpDecorate %11 SpecId 1                       ; External ID for spec const A1
-OpDecorate %12 SpecId 2                       ; External ID for spec const A2
-
-%10 = OpTypeBool
-%11 = OpSpecConstantFalse %10                 ; Represents A1
-%12 = OpSpecConstantFalse %10                 ; Represents A2
-%13 = OpSpecConstantOp %10 LogicalAnd %11 %12 ; Represents A1 && A2
+define void @foo() !intel_allowed_aspects !1 !intel_used_aspects !2 {}
+!1 = !{i32 8, i32 9}
+!2 = !{i32 8}
 ```
 
-In order to make it easy for the JIT compiler to discard all functions in a
-kernel, each function in the kernel's static call tree (including the function
-representing the kernel's entry point) is decorated with a new extended SPIR-V
-decoration `ConditionalINTEL` whose operand is the `<id>` of the specialization
-constant representing `A1 && A2`.  The semantic of this decoration is that the
-JIT compiler must discard the function unless the value of the specialization
-constant is `True`.  Augmenting the example from above:
+
+### Changes to the DPC++ front-end
+
+The front-end of the device compiler is responsible for parsing the
+`[[sycl::requires()]]` and `[[sycl_detail::uses_aspects()]]` attributes and
+transferring the information to the LLVM IR `!intel_allowed_aspects` and
+`!intel_used_aspects` metadata.  Processing the `[[sycl::requires()]]`
+attribute is straightforward.  When a device function is decorated with
+this attribute, the front-end emits an `!intel_allowed_aspects` metadata
+on the function definition with the numerical values of the aspects in
+the attribute.
+
+The front-end also emits an `!intel_uses_aspects` metadata for a function *F*
+listing all the aspects that the function "uses".  A function "uses" an aspect
+in the following cases:
+
+* The function *F* contains a potentially evaluated expression that makes a
+  direct call (i.e. not through a function pointer) to some other function *C*
+  that is decorated with the `[[sycl_detail::uses_aspects()]]` attribute, and
+  that expression is not in a statement that is discarded through
+  `constexpr if`.  In this case, the function *F* uses all of the aspects named
+  in that attribute.
+
+* The function *F* contains a potentially evaluated expression that does any of
+  the following with a type *T* that is decorated with the
+  `[[sycl_detail::uses_aspects()]]` attribute, and that expression is not in a
+  statement that is discarded through `constexpr if`.  In this case, the
+  function *F* uses all of the aspects named in that attribute:
+
+  - Defines an object (including a temporary object) of type *U*.
+  - Calls a "new expression" of type *U*.
+  - Throws an expression of type *U*.
+  - Contains a cast to type *U*.
+  - References a literal of type *T*.
+
+  Where the type *U* is any of the following:
+
+  - The type *T*.
+  - A cv-qualified version of type *T*.
+  - An array of, pointer to, or reference to type *T*.
+  - A type that derives from type *T*.
+  - A class type that contains a non-static member object of type *T*.
+  - Any type that applies these rules recursively to type *T* (e.g. array of
+    pointers to type *T*, etc.)
+
+  When applying these rules, the front-end treats any use of the `double` type
+  as though it was implicitly decorated with
+  `[[sycl_detail::uses_aspects(has(aspect::fp64))]]`.
+
+If the `[[sycl_detail::uses_aspects()]]` attribute decorates a base class
+member function and a derived class overrides the member function, the
+overriding member function does not automatically inherit the attribute.
+Therefore, when the front-end considers the set of aspects used by a call to a
+member function, it need not consider any `[[sycl_detail::uses_aspects()]]`
+attributes that decorate overridden versions of the function.
+
+As noted earlier, standard SYCL does not allow indirect function calls or
+virtual functions in device code, although a DPC++ extension that adds some
+limited form of indirect function call is being contemplated.  If this
+extension allows virtual functions, we expect that when
+`[[sycl_detail::uses_aspects()]]` decorates a virtual function, it applies only
+to the static type of the class.  Therefore, when the front-end considers the
+set of aspects used by a virtual function call like the following:
 
 ```
-OpDecorate %11 SpecId 1                       ; External ID for spec const A1
-OpDecorate %12 SpecId 2                       ; External ID for spec const A2
-OpDecorate %16 ConditionalINTEL %13           ; Says to discard the function
-                                              ; below when (A1 && A2) is False
-%10 = OpTypeBool
-%11 = OpSpecConstantFalse %10                 ; Represents A1
-%12 = OpSpecConstantFalse %10                 ; Represents A2
-%13 = OpSpecConstantOp %10 LogicalAnd %11 %12 ; Represents A1 && A2
-%14 = OpTypeVoid
-%15 = OpTypeFunction %14
-
-%16 = OpFunction %14 None %15                 ; Definition of function that is
-...                                           ; discarded when (A1 && A2) is False
-OpFunctionEnd
+void foo(Base *b) {
+  b->bar();
+}
 ```
 
-See the extension specification of [SpecConditional][6] for a full
-description of this new SPIR-V decoration.
+It considers only the `[[sycl_detail::uses_aspects()]]` attribute that may
+decorate the definition of `Base::foo()` even though the application may pass a
+pointer to a derived class which decorates `foo()` differently.
 
-[6]: <extensions/SPIRV/SPV_INTEL_spec_conditional.asciidoc>
 
-#### Representation in LLVM IR
+### Changes to other phases of clang
 
-**TODO**: I need some help here on how to represent the `[[sycl::requires()]]`
-attributes in LLVM IR.  I suspect there is already some mechanism for
-representing SYCL attributes in LLVM IR, so hopefully we can mostly reuse that
-mechanism.
+Any clang phases that do function inlining will need to be changed, so that the
+`!intel_allowed_aspects` and `!intel_uses_aspects` metadata are transferred
+from the inlined function to the function that receives the inlined function
+body.  Presumably, there is already similar logic for the existing
+`!reqd_work_group_size` metadata, which already decorates device functions.
 
-#### Modifications to the post-link tool
 
-The post-link tool must be modified to add the SPIR-V `ConditionalINTEL`
-decorations to the appropriate functions and to emit the specialization
-constants that these decorations reference.  This can be done with two passes
-over the static call tree for each kernel and each exported device function.
-When this phase computes the static call tree, it considers all code in any of
-the translation units that are being linked together.  This may not be the
-complete call tree, however, in cases where a kernel calls out to a device
-function that is defined in a different shared library.
+### Changes to the post-link tool
+
+As noted in the requirements section above, DPC++ currently bundles kernels
+together regardless of the optional features they use, and this can lead to
+problems resulting from speculative compilation.  To illustrate, consider
+kernel *K1* that uses no optional features and kernel *K2* that uses a feature
+corresponding to aspect *A*, and consider the case when *K1* and *K2* are
+bundled together in the same device image.  Now consider an application that
+submits *K1* to a device that does not have aspect *A*.  The application should
+expect this to work, but DPC++ currently fails because JIT-compiling *K1*
+causes the entire bundle to be compiled, and this fails when trying to compile
+*K2* for a device that does not have aspect *A*.
+
+We solve this problem by changing the post-link tool to bundle kernels
+according to the aspects that they use.
+
+The post-link tool is also a convenient place to issue a diagnostic when a
+function uses aspects that it is not allowed to use (i.e. the function is
+decorated with `[[sycl::requires()]]` and it uses some optional feature that
+corresponds to an aspect that is not in the `[[sycl::requires()]]` list).
+
+The post-link tool achieves this by examining the static call graph of each
+kernel and each exported device function.  When this tool computes the static
+call graph, it considers all code in any of the translation units that are
+being linked together.  This may not be the complete call graph, however, in
+cases where a kernel calls out to a device function that is defined in a
+different shared library.
 
 **NOTE**: In this context, "exported device function" means a device function
 that is exported from a shared library as defined by [Device Code Dynamic
-Linking][7].
+Linking][5].
 
-[7]: <https://github.com/intel/llvm/pull/3210>
+[5]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/SharedLibraries.md>
 
-The first pass operates on the static call tree for each kernel and each
-exported device function, propagating the aspects that are used up from the
-leaves of the call tree.  The result of this pass is that each function in
-the call tree is labeled with the union of all aspects that are used in that
-function or in any of the functions it calls.  We call this the `Used` set of
-aspects.
+#### Pass to identify aspects used by each device function
 
-The error checking in the front-end of the compiler has already verified that
-a function decorated with the `[[sycl::requires()]]` attribute does not use
-any optional features other than those listed in the attribute.  However, the
-static call tree constructed by the front-end may not be as complete as the
-call tree constructed by the post-link tool, for example when a kernel calls
-a `SYCL_EXTERNAL` device function that is defined in another translation unit.
-Since the effort is minimal, we do the error checking again in the post-link
-tool in order to catch more errors.
+This pass operates on the static call graph for each kernel and each exported
+device function, propagating the aspects from the `!intel_used_aspects` and
+`!intel_allowed_aspects` metadata from the leaves of the call graph up to their
+callers.  The result of this pass is that each device function is labeled with
+a *Used* set of aspects which is computed as the union of the following:
 
-If any of the device functions was annotated with the `[[sycl::requires()]]`
-attribute, we call the set of aspects in that attribute the `Allowed` set.
-If the `Used` set contains any aspects not in the `Allowed` set, we issue a
-diagnostic.  Note that we do this analysis for every device function, not
-just the ones that correspond to kernels or to exported device functions.
+* The aspects in the function's `!intel_used_aspects` metadata (if any).
+* The aspects in the function's `!intel_allowed_aspects` metadata (if any).
+* The aspects in the *Used* set of all functions called by this function.
 
-**TODO**: Can this diagnostic include the source position of the attribute and
-the source position of the code that uses optional feature?  It think this
-depends on the information in the LLVM IR, which is not defined yet.
+Once the *Used* set of aspects is known for each function, the post-link tool
+compares this set of aspects with the aspects from any `!intel_allowed_aspects`
+metadata.  If the function has this metadata and if the *Used* set contains
+aspects not in that set, it issues a warning indicating that the function uses
+aspects that are not in the `[[sycl::requires()]]` list.  Unfortunately, the
+post-link tool is unable to include the source position of the code that uses
+the aspect in question.  To compensate, the warning message must include
+instructions telling the user how to run the clang static analyzer which
+provides a better diagnostic.  This analysis phase is described in more detail
+below.
 
-After checking for diagnostics, we compute the union of the `Used` set and the
-`Allowed` set (if any) for each kernel and each exported device function.  We
-call this the function's `Required` set of aspects.  We then do the following
-for each kernel and each exported device function:
+#### Changes to the device code split algorithm
 
-* For each aspect in the `Required` set, emit an `OpSpecConstantFalse`
-  instruction to represent this requirement.  We maintain a set of "required
-  specialization constants" for each kernel or exported device function, which
-  is used later.  Add this specialization constant to that set.  In addition,
-  add an "aspect" entry to the device image's "SYCL/requirements" property set,
-  as described below.
+The algorithm for splitting device functions into images must be changed to
+account for the *Used* aspects of each kernel or exported device function.  The
+goal is to ensure that two kernels or exported device functions are only
+bundled together into the same device image if their *Used* sets are identical.
 
-* If the kernel function is decorated with the `[[reqd_work_group_size()]]`
-  attribute, emit an `OpSpecConstantFalse` op to represent this requirement and
-  add this also to the kernel's set of required specialization constants.  In
-  addition, add a "reqd\_work\_group\_size" entry to the device image's
-  "SYCL/requirements" property set.
+We must also split two kernels into different device images if they have
+different `[[sycl::reqd_sub_group_size()]]` or different
+`[[sycl::reqd_work_group_size()]]` values.  The reasoning is similar as the
+aspect case.  The JIT compiler currently raises an error if it tries to compile
+a kernel that has a required sub-group size if the size isn't supported by the
+target device.  The behavior for required work-group size is less clear.  The
+Intel implementation does not raise a JIT compilation error when compiling a
+kernel that uses an unsupported work-group size, but other backends might.
+Therefore, it seems safest to split device code based required work-group size
+also.
 
-* If the kernel function is decorated with the `[[reqd_sub_group_size()]]`
-  attribute, emit an `OpSpecConstantFalse` op to represent this requirement and
-  add this also to the kernel's set of required specialization constants.  In
-  addition, add a "reqd\_sub\_group\_size" entry to the device image's
-  "SYCL/requirements" property set.
+Therefore, two kernels or exported device functions are only bundled together
+into the same device image if all of the following are true:
 
-* If the kernel or exported device function's set of required specialization
-  constants is not empty, emit a series of `OpSpecConstantOp` ops with the
-  `OpLogicalAnd` opcode to compute the expression `S1 && S2 && ...`, where
-  `S1`, `S2`, etc. are the specialization constants in that set.  In addition,
-  emit a `ConditionalINTEL` decoration for the function which references the
-  `S1 && S2 && ...` specialization constant.
+* They share the same set of *Used* aspects,
+* They either both have no required sub-group size or both have the same
+  required sub-group size, and
+* They either both have no required work-group size or both have the same
+  required work-group size.
 
-The second pass propagates each kernel or exported device function's required
-specialization constants back down the static call tree.  This pass starts by
-assigning each each kernel entry function and each exported device function the
-set of required specialization constants that were computed above.  The set of
-required specialization constants for each remaining function `F` is computed
-as `P1 || P2 || ...`, where `P1`, `P2`, etc. are the parent functions of `F` in
-the static call tree.  (Obviously, a `Pn` term can be omitted if the parent
-function has no required specialization constants.)  Once we have this
-information, we do the following for each function `F` that has a non-empty set
-of required specialization constants:
+These criteria are an additional filter applied to the device code split
+algorithm after taking into account the `-fsycl-device-code-split` command line
+option.  If the user requests `per_kernel` device code split, then each kernel
+is already in its own device image, so no further splitting is required.  If
+the user requests any other option, device code is first split according to
+that option, and then another split is performed to ensure that each device
+image contains only kernels or exported device functions that meet the criteria
+listed above.
 
-* Emit a series of `OpSpecConstantOp` ops with the `OpLogicalAnd` and
-  `OpLogicalOr` opcodes to compute the expression `P1 || P2 || ...` described
-  above.
+#### Create the "SYCL/image-requirements" property set
 
-* Emit a `ConditionalINTEL` decoration for the function, referencing this
-  computed specialization constant.
+The DPC++ runtime needs some way to know about the *Used* aspects, required
+sub-group size, and required work-group size of an image.  Therefore, the
+post-link tool provides this information in a new property set named
+"SYCL/image-requirements".
 
-In all cases above, we should keep track of the specialization constants that
-are emitted and reuse them when possible, rather than emitting duplicates.
+The following table lists the properties that this set may contain and their
+types:
 
-#### New device image property set
+Property Name             | Property Type
+-------------             | -------------
+"aspect"                  | `PI_PROPERTY_TYPE_BYTE_ARRAY`
+"reqd\_sub\_group\_size"  | `PI_PROPERTY_TYPE_BYTE_ARRAY`
+"reqd\_work\_group\_size" | `PI_PROPERTY_TYPE_BYTE_ARRAY`
 
-A new device image property set is needed to inform the DPC++ runtime of the
-aspects that each kernel or exported device function requires and the
-work-group or sub-group sizes that each kernel requires.  This property set is
-named "SYCL/requirements".  The name of each property in the set is the name of
-a kernel or the name of an exported device function in the device image.  The
-value of each property is a `BYTE_ARRAY` that has the following form:
+There is an "aspect" property if the image's *Used* set is not empty.  The
+value of the property is an array of `uint32` values, where each `uint32` value
+is the numerical value of an aspect from `enum class aspect`.  The size of the
+property (which is always divisible by `4`) tells the number of aspects in the
+array.
 
-```
-[entry_count (uint32)]
-[entry_type (uint32)] <variable parameters>
-[entry_type (uint32)] <variable parameters>
-...
-[entry_type (uint32)] <variable parameters>
-```
+There is a "reqd\_sub\_group\_size" property if the image contains any kernels
+with a required sub-group size.  The value of the property is a `uint32` value
+that tells the required size.  (The device code split algorithm ensures that
+there are never two kernels with different required sub-group sizes in the same
+image.)
 
-Where `entry_count` tells the number of subsequent entries.  Each entry has a
-variable number of parameters according to its type.  The allowable types are:
+There is a "reqd\_work\_group\_size" property if the image contains any kernels
+with a required work-group size.  The value of the property is a `BYTE_ARRAY`
+with the following layout:
 
 ```
-enum {
-  aspect,
-  reqd_work_group_size,
-  reqd_sub_group_size
-};
+<dim_count (uint32)> <dim0 (uint32)> ...
 ```
 
-The format of each entry type is as follows:
+Where `dim_count` is the number of work group dimensions (i.e. 1, 2, or 3), and
+`dim0 ...` are the values of the dimensions from the
+`[[reqd_work_group_size()]]` attribute, in the same order as they appear in the
+attribute.
+
+**NOTE**: One may wonder why the type of the "reqd\_sub\_group\_size" property
+is not `PI_PROPERTY_TYPE_UINT32` since its value is always 32-bits.  The
+reason is that we may want to expand this property in the future to contain a
+list of required sub-group sizes.  Likewise, the "reqd\_work\_group\_size"
+property may be expanded in the future to contain a list of required work-group
+sizes.
+
+
+### Changes specific to AOT mode
+
+In AOT mode, DPC++ normally invokes either the `ocloc` command or the
+`opencl-aot` command on each SPIR-V device image to compile the SPIR-V into
+native code for the devices specified by the `-fsycl-targets` command line
+option.  This causes a problem, though, for device images that use optional
+features because these commands could fail if they attempt to compile SPIR-V
+using an optional feature that is not supported by the target device.  We
+therefore need some way to avoid calling these commands in these cases.
+
+The overall design is as follows.  The DPC++ installation includes a
+configuration file that has one entry for each device that we support.  Each
+entry lists the set of aspects that the device supports and a list of the
+sub-group sizes that it supports.  DPC++ then consults this configuration
+file to decide whether to invoke `ocloc` or `opencl-aot` on each SPIR-V device
+image, using the information from the device image's "SYCL/image-requirements"
+property set.
+
+#### Format of the configuration file
+
+The configuration file uses a simple YAML format where each top-level key is
+the name of a device.  There are sub-keys under each device for the supported
+aspects and sub-group sizes.  For example:
 
 ```
-[aspect (uint32)]               [aspect_id (uint32)] [spec_id (uint32)]
-[reqd_work_group_size (uint32)] [dim_count (uint32)] [dim0 (uint32)] ... [spec_id (uint32)]
-[reqd_sub_group_size (uint32)]  [dim (uint32)] [spec_id (uint32)]
+gen9:
+  aspects: [1, 2, 3]
+  sub-group-sizes: [8, 16]
+avx512:
+  aspects: [1, 2, 3, 9, 11]
+  sub-group-sizes: [8, 32]
 ```
 
-Where the parameter names have the following meaning:
+The values of the aspects in this configuration file are just the numerical
+values from the `enum class aspect` enumeration.
 
-Parameter   | Definition
----------   | ----------
-`aspect_id` | The value of the aspect from the `enum class aspect` enumeration.
-`dim_count` | The number of work group dimensions (1, 2, or 3).
-`dim0` ...  | The value of a dimension from the `[[reqd_work_group_size]]` attribute.
-`dim`       | The value of the sub-group size from the `[[reqd_sub_group_size]]` attribute.
-`spec_id`   | The SPIR-V `SpecId` decoration for the specialization constant that the post-link tool generated for this requirement.
+One advantage to encoding this information in a textual configuration file is
+that customers can update the file if necessary.  This could be useful, for
+example, if a new device is released before there is a new DPC++ release.  In
+fact, the DPC++ driver supports a command line option which allows the user
+to select an alternate configuration file.
 
-Note that the post-link tool will generate a series of `OpSpecConstantOp` ops
-when the kernel or exported device function has multiple requirements.
-However, each property list entry contains only the `SpecId` of the
-`OpSpecConstantFalse` op that is associated with a single requirement.
+**TODO**: Add more sections here describing the changes to the DPC++ driver
+and related tools.  Other things to describe are:
 
-#### Modifications to the DPC++ runtime
+* The names of the devices in the configuration file.
+* The name of the DPC++ driver option that selects an alternate configuration
+  file.
 
-Modifications are also required to the DPC++ runtime in order to set the values
-of the specialization constants that correspond to each kernel requirement.  In
-addition, the runtime needs to check if the target device supports each of the
-kernel's requirements, and it must raise an `errc::kernel_not_supported`
-exception if it does not.
 
-When a kernel is submitted to a device, the runtime finds the device image that
-contains the kernel and also finds the kernel's entry in the
-"SYCL/requirements" property set.  This entry tells the set of requirements for
-the kernel.  If the target device does not support all of these requirements,
-then the runtime raises `errc::kernel_not_supported`.  This check can be done
-before the device image is JIT compiled, so the exception can be thrown
-synchronously.
+### Changes to the DPC++ runtime
 
-If the kernel imports device function symbols from a shared library as defined
-in [Device Code Dynamic Linking][7], the runtime first identifies all the
-device images that define these exported device functions.  Before attempting
-to link them together, the runtime finds the entries for the exported device
-functions in their "SYCL/requirements" property sets and checks that the device
-supports all these requirements.  If it does not, the runtime throws
-`errc::kernel_not_supported`.
+The DPC++ runtime must be changed to check if a kernel uses any optional
+features that the device does not support.  If this happens, the runtime must
+raise a synchronous `errc::kernel_not_supported` exception.
 
-Whenever the runtime submits a SPIR-V image to the backend for online
-compilation, it must do the following additional steps:
+When the application submits a kernel to a device, the runtime identifies all
+the other device images that export device functions that are needed by the
+kernel as described in [Device Code Dynamic Linking][5].  Before the runtime
+actually links these images together, it compares each image's
+"SYCL/image-requirements" against the features provided by the target
+device.  If any of the following checks fail, the runtime throws
+`errc::kernel_not_supported`:
 
-* Compute the union of all requirements from all entries in the image's
-  "SYCL/requirements" property set.
+* The "aspect" property contains an aspect that is not provided by the device,
+  or
+* The "reqd\_sub\_group\_size" property contains a sub-group size that the
+  device does not support.
 
-* Query the target device to see whether it supports each of these
-  requirements, yielding either `True` or `False` for each one.
+There is no way currently for the runtime to query the work-group sizes that a
+device supports, so the "reqd\_work\_group\_size" property is not checked.  We
+include this property in the set nonetheless for possible future use.
 
-* Set the value of each associated specialization constant when JIT compiling
-  the device image for this target device.
+If the runtime throws an exception, it happens even before the runtime tries to
+access the contents of the device image.
 
-Note that the runtime's cache of compiled device images does not need any
-special modification because the cache already needs to know the values of all
-the specialization constants that were used to compile the device image.  We
-just need to make sure the cache is also aware of the specialization constants
-which correspond to the requirements from the "SYCL/requirements" property set.
 
-#### Modifications to the GEN compiler
+### Clang static analyzer to diagnose unexpected aspect usage
 
-The GEN compiler, of course, needs to be modified to implement the new
-`ConditionalINTEL` SPIR-V decoration.  It must discard any function with this
-decoration (unless the corresponding specialization constant is `True`), and it
-must not raise any sort of error due to compilation of these discarded
-functions.
+When a device function is decorated with the `[[sycl::requires()]]` attribute,
+it is an assertion that the function (and all of the functions it calls) do not
+use any optional features beyond those listed in the attribute.  The post-link
+tool diagnoses a warning if the function does use additional aspects, but this
+diagnostic is not user-friendly for two reasons:
 
-### AOT case
+* It does not contain the source position of the offending code, so it is
+  difficult for the user to identify the location of the problem.
 
-The AOT case uses exactly the same solution as the JIT case described above,
-but there is one extra steps.  For the AOT case, the post-link tool must set
-the values of the specialization constants that correspond to the requirements
-for the kernel or exported device function, using the device named in the
-"-fsycl-targets" command line option.  After doing this, the post-link tool
-calls the AOT compiler to generate native code from SPIR-V as it normally does.
-If more than one target device is specified, the post-link tool sets the
-specialization constants separately for each device before generating native
-code for that device.
+* The diagnostic happens at link time instead of compile-time, so the user
+  doesn't learn about it until late in the build process.
 
-Note that the native device image may not contain all kernels or all exported
-device functions if they use optional features.  Nevertheless, the
-"SYCL/requirements" property set still has entries for all kernel functions and
-all exported device functions.  If the application attempts to invoke one of
-the discarded kernels on a device (which does not support the kernel's
-features), the runtime will see that the kernel is not supported by using
-information from the "SYCL/requirements" property set, and the runtime will
-raise an exception.  Thus, the runtime will never attempt to invoke one of
-these discarded kernels.  Likewise, if a kernel imports a discarded device
-function, the runtime will see that the device function is unsupported and
-will raise an exception before attempting to perform the dynamic link.
+Ideally, we would diagnose these cases in the compiler front-end, but we
+believe this is contrary to the clang design principles because
+inter-procedural analysis is required to identify these cases, and the clang
+front-end does not normally do inter-procedural analysis.  Instead, clang
+normally uses a static analyzer phase to diagnose cases like this which require
+deeper analysis.
+
+The downside is that clang does not execute the static analyzer by default, so
+the user won't see these diagnostics unless they ask for the analysis.  This is
+one reason we issue these diagnostics in the post-link tool, which is always
+run for SYCL applications.
+
+If this static analyzer phase is enabled, it operates on a single translation
+unit, analyzing the static call graph of any device function that is decorated
+with `[[sycl::requires()]]`.
+
+**TODO**: More information here about how it works.  Presumably, the static
+analyzer operates on LLVM IR, but the IR we generate in the front end doesn't
+have information about source location of "used" aspects.
 
 
 ## Appendix: Adding an attribute to 8-byte `atomic_ref`
 
-As described above under ["Changes to DPC++ headers"][8], we need to decorate the
-`atomic_ref` type with the `[[sycl::requires()]]` attribute only when it is
-specialized with an 8-byte type.  This can be accomplished with some template
-partial specialization tricks.  The following code snippet demonstrates (best
-read from bottom to top):
+As described above under ["Changes to DPC++ headers"][6], we need to decorate
+any SYCL type representing an optional device feature with the
+`[[sycl_detail::uses_aspects()]]` attribute.  This is somewhat tricky for
+`atomic_ref`, though, because it is only an optional feature when specialized
+for a 8-byte type.  However, we can accomplish this by using partial
+specialization techniques.  The following code snippet demonstrates (best read
+from bottom to top):
 
-[8]: <#changes-to-dpc-headers>
+[6]: <#changes-to-dpc-headers>
 
 ```
 namespace sycl {
@@ -642,8 +635,8 @@ class atomic_ref_impl : public atomic_ref_impl_base<T> {
 // Explicit specialization for 8-byte types.  Only this specialization has the
 // attribute.
 template<typename T>
-class [[sycl::requires(has(aspect::atomic64))]] atomic_ref_impl<T, 8> :
-    public atomic_ref_impl_base<T> {
+class [[__sycl_detail__::__uses_aspects__(has(aspect::atomic64))]]
+    atomic_ref_impl<T, 8> : public atomic_ref_impl_base<T> {
  public:
   using atomic_ref_impl_base<T>::atomic_ref_impl_base;
 };
