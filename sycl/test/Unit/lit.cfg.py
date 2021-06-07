@@ -45,10 +45,6 @@ else:
     # Disable device library fallback for unit tests by default.
     config.environment['SYCL_DEVICELIB_NO_FALLBACK'] = "1"
 
-# Unconditionally enable persistent device code caching, as it is off
-# by default, and some unit tests depend on it.
-config.environment['SYCL_CACHE_PERSISTENT'] = "1"
-
 # Propagate path to symbolizer for ASan/MSan.
 for symbolizer in ['ASAN_SYMBOLIZER_PATH', 'MSAN_SYMBOLIZER_PATH']:
     if symbolizer in os.environ:
