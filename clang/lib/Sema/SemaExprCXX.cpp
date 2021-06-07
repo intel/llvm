@@ -5169,7 +5169,7 @@ static bool EvaluateUnaryTypeTrait(Sema &Self, TypeTrait UTT,
   case UTT_HasUniqueObjectRepresentations:
     return C.hasUniqueObjectRepresentations(T);
   case UTT_SYCLMarkKernelName:
-    Self.MarkSYCLKernel(KeyLoc, T);
+    Self.MarkSYCLKernel(KeyLoc, T, /*IsInstantiation*/ false);
     return true;
   }
 }

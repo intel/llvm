@@ -2451,7 +2451,7 @@ type before the instantiation.
 
 .. code-block:: c
 
-  // Computes a unique stable name for the given type.
+  // Marks a type as the name of a sycl kernel.
   constexpr bool  __builtin_sycl_mark_kernel_name( type-id );
 
 Multiprecision Arithmetic Builtins

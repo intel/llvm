@@ -5222,7 +5222,8 @@ static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
   return KernelParamTy;
 }
 
-void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty) {
+void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
+                          bool IsInstantiation) {
   auto MangleCallback = [](ASTContext &Ctx,
                            const NamedDecl *ND) -> llvm::Optional<unsigned> {
     if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
@@ -5242,7 +5243,8 @@ void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty) {
   for (auto &Itr : Context.SYCLUniqueStableNameEvaluatedValues) {
     const std::string &CurName = Itr.first->ComputeName(Context);
     if (Itr.second != CurName) {
-      Diag(NewLoc, diag::err_kernel_invalidates_sycl_unique_stable_name);
+      Diag(NewLoc, diag::err_kernel_invalidates_sycl_unique_stable_name)
+          << IsInstantiation;
       Diag(Itr.first->getLocation(),
            diag::note_sycl_unique_stable_name_evaluated_here);
       // Update this so future diagnostics work correctly.
@@ -5253,5 +5255,5 @@ void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty) {
 
 void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
   QualType Ty = GetSYCLKernelObjectType(FD);
-  MarkSYCLKernel(FD->getLocation(), Ty);
+  MarkSYCLKernel(FD->getLocation(), Ty, /*IsInstantiation*/ true);
 }
