@@ -462,6 +462,8 @@ public:
   bool hasWasmExceptions() const {
     return getExceptionHandling() == ExceptionHandlingKind::Wasm;
   }
+
+  bool isSYCL() const { return SYCLIsDevice || SYCLIsHost; }
 };
 
 /// Floating point control options

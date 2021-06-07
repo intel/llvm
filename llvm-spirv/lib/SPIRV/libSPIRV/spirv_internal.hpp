@@ -40,19 +40,25 @@ enum InternalOp {
   IOpAliasDomainDeclINTEL = 5911,
   IOpAliasScopeDeclINTEL = 5912,
   IOpAliasScopeListDeclINTEL = 5913,
+  IOpTypeTokenINTEL = 6113,
   IOpPrev = OpMax - 2,
   IOpForward
 };
 
 enum InternalDecoration {
   IDecAliasScopeINTEL = 5914,
-  IDecNoAliasINTEL = 5915
+  IDecNoAliasINTEL = 5915,
+  IDecInitiationIntervalINTEL = 5917,
+  IDecMaxConcurrencyINTEL = 5918,
+  IDecPipelineEnableINTEL = 5919
 };
 
 enum InternalCapability {
   ICapOptimizationHintsINTEL = 5629,
   ICapMemoryAccessAliasingINTEL = 5910,
-  ICapOptNoneINTEL = 6094
+  ICapFPGAInvocationPipeliningAttributesINTEL = 5916,
+  ICapOptNoneINTEL = 6094,
+  ICapTokenTypeINTEL = 6112
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
@@ -72,11 +78,18 @@ constexpr Op OpAliasDomainDeclINTEL = static_cast<Op>(IOpAliasDomainDeclINTEL);
 constexpr Op OpAliasScopeDeclINTEL = static_cast<Op>(IOpAliasScopeDeclINTEL);
 constexpr Op OpAliasScopeListDeclINTEL =
     static_cast<Op>(IOpAliasScopeListDeclINTEL);
+constexpr Op OpTypeTokenINTEL = static_cast<Op>(IOpTypeTokenINTEL);
 
 constexpr Decoration DecorationAliasScopeINTEL =
     static_cast<Decoration>(IDecAliasScopeINTEL );
 constexpr Decoration DecorationNoAliasINTEL =
     static_cast<Decoration>(IDecNoAliasINTEL);
+constexpr Decoration DecorationInitiationIntervalINTEL =
+    static_cast<Decoration>(IDecInitiationIntervalINTEL);
+constexpr Decoration DecorationMaxConcurrencyINTEL =
+    static_cast<Decoration>(IDecMaxConcurrencyINTEL);
+constexpr Decoration DecorationPipelineEnableINTEL =
+    static_cast<Decoration>(IDecPipelineEnableINTEL);
 
 constexpr Capability CapabilityOptimizationHintsINTEL =
     static_cast<Capability>(ICapOptimizationHintsINTEL);
@@ -84,6 +97,10 @@ constexpr Capability CapabilityOptNoneINTEL =
     static_cast<Capability>(ICapOptNoneINTEL);
 constexpr Capability CapabilityMemoryAccessAliasingINTEL =
     static_cast<Capability>(ICapMemoryAccessAliasingINTEL);
+constexpr Capability CapabilityFPGAInvocationPipeliningAttributesINTEL =
+    static_cast<Capability>(ICapFPGAInvocationPipeliningAttributesINTEL);
+constexpr Capability CapabilityTokenTypeINTEL =
+    static_cast<Capability>(ICapTokenTypeINTEL);
 
 constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
     static_cast<FunctionControlMask>(IFunctionControlOptNoneINTELMask);

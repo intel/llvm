@@ -157,6 +157,8 @@ static KeywordStatus getKeywordStatus(const LangOptions &LangOpts,
   if (LangOpts.CPlusPlus && (Flags & KEYALLCXX)) return KS_Future;
   if (LangOpts.CPlusPlus && !LangOpts.CPlusPlus20 && (Flags & CHAR8SUPPORT))
     return KS_Future;
+  if (LangOpts.isSYCL() && (Flags & KEYSYCL))
+    return KS_Enabled;
   return KS_Disabled;
 }
 
@@ -343,9 +345,11 @@ tok::PPKeywordKind IdentifierInfo::getPPKeywordID() const {
   CASE( 6, 'p', 'a', pragma);
 
   CASE( 7, 'd', 'f', defined);
+  CASE( 7, 'e', 'i', elifdef);
   CASE( 7, 'i', 'c', include);
   CASE( 7, 'w', 'r', warning);
 
+  CASE( 8, 'e', 'i', elifndef);
   CASE( 8, 'u', 'a', unassert);
   CASE(12, 'i', 'c', include_next);
 

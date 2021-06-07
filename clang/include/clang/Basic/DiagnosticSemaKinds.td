@@ -6394,6 +6394,11 @@ def warn_pointer_arith_null_ptr : Warning<
 def warn_gnu_null_ptr_arith : Warning<
   "arithmetic on a null pointer treated as a cast from integer to pointer is a GNU extension">,
   InGroup<NullPointerArithmetic>, DefaultIgnore;
+def err_kernel_invalidates_sycl_unique_stable_name
+    : Error<"kernel instantiation changes the result of an evaluated "
+            "'__builtin_sycl_unique_stable_name'">;
+def note_sycl_unique_stable_name_evaluated_here
+    : Note<"'__builtin_sycl_unique_stable_name' evaluated here">;
 
 def warn_floatingpoint_eq : Warning<
   "comparing floating point with == or != is unsafe">,
@@ -11346,6 +11351,21 @@ def warn_sycl_kernel_too_big_args : Warning<
 def err_sycl_virtual_types : Error<
   "no class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;
+def err_sycl_type_trait_requires_complete_type : Error<
+  "'%select{__builtin_num_fields|__builtin_field_type|__builtin_num_bases|"
+  "__builtin_base_type}0' requires a complete type">;
+def err_sycl_type_trait_requires_record_type : Error<
+  "'%select{__builtin_num_fields|__builtin_field_type|__builtin_num_bases|"
+  "__builtin_base_type}0' requires a structure "
+  "or lambda type">;
+def err_sycl_builtin_type_trait_index_out_of_range : Error<
+  "index %0 is greater than the number of %select{fields|bases}2 in type %1">;
+def err_sycl_type_trait_requires_nonnegative_index : Error<
+  "'%select{__builtin_field_type|__builtin_base_type}0' requires a "
+  "non-negative index">;
+def err_sycl_builtin_type_trait_evaluated : Error<
+  "'%select{__builtin_field_type|__builtin_base_type}0' cannot be used in an "
+  "evaluated context">;
 def err_sycl_non_trivially_copy_ctor_dtor_type
     : Error<"kernel parameter has non-trivially %select{copy "
             "constructible|destructible}0 class/struct type %1">;
@@ -11412,6 +11432,8 @@ def err_sycl_mismatch_group_size
             "have a sub group size that matches the size specified for the "
             "kernel">;
 def note_sycl_kernel_declared_here : Note<"kernel declared here">;
+def err_sycl_expected_finalize_method : Error<
+  "expected a 'finalize' method for the 'stream' class">;
 def ext_sycl_2020_attr_spelling : ExtWarn<
   "use of attribute %0 is a SYCL 2020 extension">,
   InGroup<Sycl2017Compat>;

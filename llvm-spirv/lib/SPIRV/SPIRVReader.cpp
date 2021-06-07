@@ -470,7 +470,7 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
 
   SPIRVDBG(spvdbgs() << "[transType] " << *T << " -> ";)
   T->validate();
-  switch (T->getOpCode()) {
+  switch (static_cast<SPIRVWord>(T->getOpCode())) {
   case OpTypeVoid:
     return mapType(T, Type::getVoidTy(*Context));
   case OpTypeBool:
@@ -482,6 +482,8 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
   case OpTypeArray:
     return mapType(T, ArrayType::get(transType(T->getArrayElementType()),
                                      T->getArrayLength()));
+  case internal::OpTypeTokenINTEL:
+    return mapType(T, Type::getTokenTy(*Context));
   case OpTypePointer:
     return mapType(
         T, PointerType::get(
@@ -1667,8 +1669,25 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     bool IsConst = BVar->isConstant();
     llvm::GlobalValue::LinkageTypes LinkageTy = transLinkageType(BVar);
     SPIRVStorageClassKind BS = BVar->getStorageClass();
-    Constant *Initializer = nullptr;
     SPIRVValue *Init = BVar->getInitializer();
+    if (BS == StorageClassFunction && !Init) {
+      assert(BB && "Invalid BB");
+      return mapValue(BV, new AllocaInst(Ty, 0, BV->getName(), BB));
+    }
+
+    SPIRAddressSpace AddrSpace;
+    bool IsVectorCompute =
+        BVar->hasDecorate(DecorationVectorComputeVariableINTEL);
+    Constant *Initializer = nullptr;
+    if (IsVectorCompute) {
+      AddrSpace = VectorComputeUtil::getVCGlobalVarAddressSpace(BS);
+      Initializer = UndefValue::get(Ty);
+    } else
+      AddrSpace = SPIRSPIRVAddrSpaceMap::rmap(BS);
+    auto LVar = new GlobalVariable(*M, Ty, IsConst, LinkageTy,
+                                   /*Initializer=*/nullptr, BV->getName(), 0,
+                                   GlobalVariable::NotThreadLocal, AddrSpace);
+    auto Res = mapValue(BV, LVar);
     if (Init)
       Initializer = dyn_cast<Constant>(transValue(Init, F, BB, false));
     else if (LinkageTy == GlobalValue::CommonLinkage)
@@ -1680,28 +1699,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
              (BS == SPIRVStorageClassKind::StorageClassCrossWorkgroup))
       Initializer = Constant::getNullValue(Ty);
 
-    if (BS == StorageClassFunction && !Init) {
-      assert(BB && "Invalid BB");
-      return mapValue(BV, new AllocaInst(Ty, 0, BV->getName(), BB));
-    }
-    SPIRAddressSpace AddrSpace;
-
-    bool IsVectorCompute =
-        BVar->hasDecorate(DecorationVectorComputeVariableINTEL);
-    if (IsVectorCompute) {
-      AddrSpace = VectorComputeUtil::getVCGlobalVarAddressSpace(BS);
-      if (!Initializer)
-        Initializer = UndefValue::get(Ty);
-    } else
-      AddrSpace = SPIRSPIRVAddrSpaceMap::rmap(BS);
-
-    auto LVar = new GlobalVariable(*M, Ty, IsConst, LinkageTy, Initializer,
-                                   BV->getName(), 0,
-                                   GlobalVariable::NotThreadLocal, AddrSpace);
     LVar->setUnnamedAddr((IsConst && Ty->isArrayTy() &&
                           Ty->getArrayElementType()->isIntegerTy(8))
                              ? GlobalValue::UnnamedAddr::Global
                              : GlobalValue::UnnamedAddr::None);
+    LVar->setInitializer(Initializer);
 
     if (IsVectorCompute) {
       LVar->addAttribute(kVCMetadata::VCGlobalVariable);
@@ -1715,7 +1717,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVBuiltinVariableKind BVKind;
     if (BVar->isBuiltin(&BVKind))
       BuiltinGVMap[LVar] = BVKind;
-    return mapValue(BV, LVar);
+    return Res;
   }
 
   case OpVariableLengthArrayINTEL: {
@@ -4284,6 +4286,32 @@ bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
     MetadataVec.push_back(ConstantAsMetadata::get(getUInt32(M, Literals[0])));
     MetadataVec.push_back(ConstantAsMetadata::get(getUInt32(M, Literals[1])));
     F->setMetadata(kSPIR2MD::LoopFuse, MDNode::get(*Context, MetadataVec));
+  }
+  if (BF->hasDecorate(internal::DecorationInitiationIntervalINTEL)) {
+    std::vector<Metadata *> MetadataVec;
+    auto Literals =
+        BF->getDecorationLiterals(internal::DecorationInitiationIntervalINTEL);
+    MetadataVec.push_back(ConstantAsMetadata::get(getUInt32(M, Literals[0])));
+    F->setMetadata(kSPIR2MD::InitiationInterval,
+                   MDNode::get(*Context, MetadataVec));
+  }
+  if (BF->hasDecorate(internal::DecorationMaxConcurrencyINTEL)) {
+    std::vector<Metadata *> MetadataVec;
+    auto Literals =
+        BF->getDecorationLiterals(internal::DecorationMaxConcurrencyINTEL);
+    MetadataVec.push_back(ConstantAsMetadata::get(getUInt32(M, Literals[0])));
+    F->setMetadata(kSPIR2MD::MaxConcurrency,
+                   MDNode::get(*Context, MetadataVec));
+  }
+  if (BF->hasDecorate(internal::DecorationPipelineEnableINTEL)) {
+    auto Literals =
+        BF->getDecorationLiterals(internal::DecorationPipelineEnableINTEL);
+    if (!Literals[0]) {
+      std::vector<Metadata *> MetadataVec;
+      MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, 1)));
+      F->setMetadata(kSPIR2MD::DisableLoopPipelining,
+                     MDNode::get(*Context, MetadataVec));
+    }
   }
   return true;
 }
