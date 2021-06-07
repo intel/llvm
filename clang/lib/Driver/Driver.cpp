@@ -5538,15 +5538,23 @@ Action *Driver::ConstructPhaseAction(
       assert(OutputTy != types::TY_INVALID &&
              "Cannot preprocess this input type!");
     }
-    if (Args.hasArg(options::OPT_fsycl) && OutputTy != types::TY_Dependencies &&
+    types::ID HostPPType = types::getPreprocessedType(Input->getType());
+    if (Args.hasArg(options::OPT_fsycl) && HostPPType != types::TY_INVALID &&
         Args.hasArg(options::OPT_fsycl_use_footer) &&
         TargetDeviceOffloadKind == Action::OFK_None) {
-      // Performing a host compilation with -fsycl.  Append the integrated
+      // Performing a host compilation with -fsycl.  Append the integration
       // footer to the preprocessed source file.  We then add another
       // preprocessed step to complete the action chain.
-      auto *Preprocess = C.MakeAction<PreprocessJobAction>(Input, OutputTy);
+      auto *Preprocess = C.MakeAction<PreprocessJobAction>(Input, HostPPType);
       auto *AppendFooter =
           C.MakeAction<AppendFooterJobAction>(Preprocess, types::TY_CXX);
+      // FIXME: There are 2 issues with dependency generation in regards to
+      // the integration footer that need to be addressed.
+      // 1) Input file referenced on the RHS of a dependency is based on the
+      //    input src, which is a temporary.  We want this to be the true
+      //    user input src file.
+      // 2) When generationg dependencies against a preprocessed file, header
+      //    file information (using -MD or-MMD) is not provided.
       return C.MakeAction<PreprocessJobAction>(AppendFooter, OutputTy);
     }
     return C.MakeAction<PreprocessJobAction>(Input, OutputTy);
