@@ -15,8 +15,6 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Pass.h"
 
-#include <memory>
-
 using namespace llvm;
 
 #define DEBUG_TYPE "LowerWGLocalMemory"
