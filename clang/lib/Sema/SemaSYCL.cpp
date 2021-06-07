@@ -5242,10 +5242,9 @@ void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty) {
   for (auto &Itr : Context.SYCLUniqueStableNameEvaluatedValues) {
     const std::string &CurName = Itr.first->ComputeName(Context);
     if (Itr.second != CurName) {
-      Diag(NewLoc,
-             diag::err_kernel_invalidates_sycl_unique_stable_name);
+      Diag(NewLoc, diag::err_kernel_invalidates_sycl_unique_stable_name);
       Diag(Itr.first->getLocation(),
-             diag::note_sycl_unique_stable_name_evaluated_here);
+           diag::note_sycl_unique_stable_name_evaluated_here);
       // Update this so future diagnostics work correctly.
       Itr.second = CurName;
     }
