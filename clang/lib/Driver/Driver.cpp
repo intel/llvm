@@ -5553,7 +5553,7 @@ Action *Driver::ConstructPhaseAction(
       // 1) Input file referenced on the RHS of a dependency is based on the
       //    input src, which is a temporary.  We want this to be the true
       //    user input src file.
-      // 2) When generationg dependencies against a preprocessed file, header
+      // 2) When generating dependencies against a preprocessed file, header
       //    file information (using -MD or-MMD) is not provided.
       return C.MakeAction<PreprocessJobAction>(AppendFooter, OutputTy);
     }
