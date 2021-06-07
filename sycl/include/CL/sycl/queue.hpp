@@ -62,7 +62,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-class AssertFlagCopier;
+class AssertInfoCopier;
 
 // Forward declaration
 class context;
@@ -241,7 +241,7 @@ private:
 
       auto Acc = Buffer->get_access<access::mode::write>(CGH);
 
-      CGH.single_task<AssertFlagCopier>([Acc] {
+      CGH.single_task<AssertInfoCopier>([Acc] {
 #ifdef __SYCL_DEVICE_ONLY__
         Acc[0].Flag = __devicelib_assert_read();
 #else
