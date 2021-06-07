@@ -2511,6 +2511,10 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     case ParameterABI::SwiftContext:
       Attrs.addAttribute(llvm::Attribute::SwiftSelf);
       break;
+
+    case ParameterABI::SwiftAsyncContext:
+      Attrs.addAttribute(llvm::Attribute::SwiftAsync);
+      break;
     }
 
     if (FI.getExtParameterInfo(ArgNo).isNoEscape())

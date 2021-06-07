@@ -2810,28 +2810,6 @@ LegalizerHelper::lowerLoad(MachineInstr &MI) {
     return Legalized;
   }
 
-  if (DstTy.isScalar()) {
-    Register TmpReg =
-      MRI.createGenericVirtualRegister(LLT::scalar(MMO.getSizeInBits()));
-    MIRBuilder.buildLoad(TmpReg, PtrReg, MMO);
-    switch (MI.getOpcode()) {
-    default:
-      llvm_unreachable("Unexpected opcode");
-    case TargetOpcode::G_LOAD:
-      MIRBuilder.buildAnyExtOrTrunc(DstReg, TmpReg);
-      break;
-    case TargetOpcode::G_SEXTLOAD:
-      MIRBuilder.buildSExt(DstReg, TmpReg);
-      break;
-    case TargetOpcode::G_ZEXTLOAD:
-      MIRBuilder.buildZExt(DstReg, TmpReg);
-      break;
-    }
-
-    MI.eraseFromParent();
-    return Legalized;
-  }
-
   return UnableToLegalize;
 }
 
@@ -3829,7 +3807,11 @@ LegalizerHelper::fewerElementsVectorExtractInsertVectorElt(MachineInstr &MI,
   // If the index is a constant, we can really break this down as you would
   // expect, and index into the target size pieces.
   int64_t IdxVal;
-  if (mi_match(Idx, MRI, m_ICst(IdxVal))) {
+  auto MaybeCst =
+      getConstantVRegValWithLookThrough(Idx, MRI, /*LookThroughInstrs*/ true,
+                                        /*HandleFConstants*/ false);
+  if (MaybeCst) {
+    IdxVal = MaybeCst->Value.getSExtValue();
     // Avoid out of bounds indexing the pieces.
     if (IdxVal >= VecTy.getNumElements()) {
       MIRBuilder.buildUndef(DstReg);
