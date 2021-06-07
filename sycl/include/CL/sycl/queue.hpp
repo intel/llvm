@@ -235,7 +235,7 @@ private:
     detail::AssertHappened *AH = new detail::AssertHappened;
     AHBufT *Buffer = new AHBufT{AH, range<1>{1}};
 
-    event CopierEv, CheckerEv;
+    event CopierEv, CheckerEv, PostCheckerEv;
     auto CopierCGF = [&](handler &CGH) {
       CGH.depends_on(Event);
 
@@ -255,7 +255,13 @@ private:
       CGH.codeplay_host_task([=] {
         if (AH->Flag)
           abort(); // no need to release memory as it's abort anyway
+      });
+    };
+    // Release memory in distinct host-task so that any dependency is eliminated
+    auto PostCheckerCGF = [&CheckerEv, AH, Buffer](handler &CGH) {
+      CGH.depends_on(CheckerEv);
 
+      CGH.codeplay_host_task([=] {
         delete Buffer;
         delete AH;
       });
@@ -264,9 +270,11 @@ private:
     if (SecondaryQueue) {
       CopierEv = submit_impl(CopierCGF, *SecondaryQueue, CodeLoc);
       CheckerEv = submit_impl(CheckerCGF, *SecondaryQueue, CodeLoc);
+      PostCheckerEv = submit_impl(PostCheckerCGF, *SecondaryQueue, CodeLoc);
     } else {
       CopierEv = submit_impl(CopierCGF, CodeLoc);
       CheckerEv = submit_impl(CheckerCGF, CodeLoc);
+      PostCheckerEv = submit_impl(PostCheckerCGF, CodeLoc);
     }
 
     return CheckerEv;
