@@ -384,10 +384,19 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
                                   transType(ET)));
       }
     } else {
+      SPIRVType *ElementType = transType(ET);
+      // ET, as a recursive type, may contain exactly the same pointer T, so it
+      // may happen that after translation of ET we already have translated T,
+      // added the translated pointer to the SPIR-V module and mapped T to this
+      // pointer. Now we have to check TypeMap again.
+      LLVMToSPIRVTypeMap::iterator Loc = TypeMap.find(T);
+      if (Loc != TypeMap.end()) {
+        return Loc->second;
+      }
       return mapType(
           T, BM->addPointerType(SPIRSPIRVAddrSpaceMap::map(
                                     static_cast<SPIRAddressSpace>(AddrSpc)),
-                                transType(ET)));
+                                ElementType));
     }
   }
 
