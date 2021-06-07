@@ -5109,7 +5109,7 @@ bool Util::isSyclSpecConstantType(const QualType Ty) {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
-   return matchQualifiedTypeName(Ty, Scopes);
+  return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isSyclSpecIdType(QualType Ty) {

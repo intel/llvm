@@ -28,4 +28,3 @@
 #define __SYCL_SPECIAL_CLASS(kind)
 #endif
 #endif
-
