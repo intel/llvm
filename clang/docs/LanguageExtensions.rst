@@ -2438,6 +2438,22 @@ their usual pattern without any special treatment.
   // Computes a unique stable name for the given type.
   constexpr const char * __builtin_sycl_unique_stable_name( type-id );
 
+``__builtin_sycl_mark_kernel_name``
+---------------------------------
+
+``__builtin_sycl_mark_kernel_name`` is a builtin that can be used with
+``__builtin_sycl_unique_stable_name`` to make sure a kernel is properly 'marked'
+as a kernel without having to instantiate a sycl_kernel function.  This is useful
+for cases where the library needs to do some work with KernelInfo on the kernel
+type before the instantiation.
+
+**Syntax**:
+
+.. code-block:: c
+
+  // Computes a unique stable name for the given type.
+  constexpr bool  __builtin_sycl_mark_kernel_name( type-id );
+
 Multiprecision Arithmetic Builtins
 ----------------------------------
 

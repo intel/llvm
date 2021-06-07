@@ -105,6 +105,8 @@ using make_index_sequence =
 
 template <typename T> struct KernelInfoImpl {
 private:
+  // TODO: Do we need to 'use' this to make sure it gets instantiated?
+  static constexpr bool b = __builtin_sycl_mark_kernel_name(T);
   static constexpr auto n = __builtin_sycl_unique_stable_name(T);
   template <unsigned long long... I>
   static KernelInfoData<n[I]...> impl(index_sequence<I...>) {
