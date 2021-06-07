@@ -203,9 +203,13 @@ event handler::finalize() {
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
   case detail::CG::NONE:
-    throw runtime_error("Command group submitted without a kernel or a "
-                        "explicit memory operation.",
-                        PI_INVALID_OPERATION);
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
+      std::cout << "WARNING: An empty command group is submitted." << std::endl;
+    }
+    detail::EventImplPtr Event =
+        std::make_shared<cl::sycl::detail::event_impl>();
+    MLastEvent = detail::createSyclObjFromImpl<event>(Event);
+    return MLastEvent;
   }
 
   if (!CommandGroup)

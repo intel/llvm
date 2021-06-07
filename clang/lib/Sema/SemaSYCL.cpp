@@ -22,6 +22,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/FileSystem.h"
@@ -158,6 +159,203 @@ public:
 };
 
 } // anonymous namespace
+
+ExprResult Sema::ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT) {
+  TypeSourceInfo *TInfo = nullptr;
+  QualType QT = GetTypeFromParser(PT, &TInfo);
+  assert(TInfo && "couldn't get type info from a type from the parser?");
+  SourceLocation TypeLoc = TInfo->getTypeLoc().getBeginLoc();
+
+  return BuildSYCLBuiltinNumFieldsExpr(TypeLoc, QT);
+}
+
+ExprResult Sema::BuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,
+                                               QualType SourceTy) {
+  if (!SourceTy->isDependentType()) {
+    if (RequireCompleteType(Loc, SourceTy,
+                            diag::err_sycl_type_trait_requires_complete_type,
+                            /*__builtin_num_fields*/ 0))
+      return ExprError();
+
+    if (!SourceTy->isRecordType()) {
+      Diag(Loc, diag::err_sycl_type_trait_requires_record_type)
+          << /*__builtin_num_fields*/ 0;
+      return ExprError();
+    }
+  }
+  return new (Context)
+      SYCLBuiltinNumFieldsExpr(Loc, SourceTy, Context.getSizeType());
+}
+
+ExprResult Sema::ActOnSYCLBuiltinFieldTypeExpr(ParsedType PT, Expr *Idx) {
+  TypeSourceInfo *TInfo = nullptr;
+  QualType QT = GetTypeFromParser(PT, &TInfo);
+  assert(TInfo && "couldn't get type info from a type from the parser?");
+  SourceLocation TypeLoc = TInfo->getTypeLoc().getBeginLoc();
+
+  return BuildSYCLBuiltinFieldTypeExpr(TypeLoc, QT, Idx);
+}
+
+ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
+                                               QualType SourceTy, Expr *Idx) {
+  // If the expression appears in an evaluated context, we want to give an
+  // error so that users don't attempt to use the value of this expression.
+  if (!isUnevaluatedContext()) {
+    Diag(Loc, diag::err_sycl_builtin_type_trait_evaluated)
+        << /*__builtin_field_type*/ 0;
+    return ExprError();
+  }
+
+  // We may not be able to calculate the field type (the source type may be a
+  // dependent type), so use the source type as a basic fallback. This will
+  // ensure that the AST node will have a dependent type that gets resolved
+  // later to the real type.
+  QualType FieldTy = SourceTy;
+  ExprValueKind ValueKind = VK_RValue;
+  if (!SourceTy->isDependentType()) {
+    if (RequireCompleteType(Loc, SourceTy,
+                            diag::err_sycl_type_trait_requires_complete_type,
+                            /*__builtin_field_type*/ 1))
+      return ExprError();
+
+    if (!SourceTy->isRecordType()) {
+      Diag(Loc, diag::err_sycl_type_trait_requires_record_type)
+          << /*__builtin_field_type*/ 1;
+      return ExprError();
+    }
+
+    if (!Idx->isValueDependent()) {
+      Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+      if (IdxVal) {
+        RecordDecl *RD = SourceTy->getAsRecordDecl();
+        assert(RD && "Record type but no record decl?");
+        int64_t Index = IdxVal->getExtValue();
+
+        if (Index < 0) {
+          Diag(Idx->getExprLoc(),
+               diag::err_sycl_type_trait_requires_nonnegative_index)
+              << /*fields*/ 0;
+          return ExprError();
+        }
+
+        // Ensure that the index is within range.
+        int64_t NumFields = std::distance(RD->field_begin(), RD->field_end());
+        if (Index >= NumFields) {
+          Diag(Idx->getExprLoc(),
+               diag::err_sycl_builtin_type_trait_index_out_of_range)
+              << IdxVal->toString(10) << SourceTy << /*fields*/ 0;
+          return ExprError();
+        }
+        const FieldDecl *FD = *std::next(RD->field_begin(), Index);
+        FieldTy = FD->getType();
+
+        // If the field type was a reference type, adjust it now.
+        if (FieldTy->isLValueReferenceType()) {
+          ValueKind = VK_LValue;
+          FieldTy = FieldTy.getNonReferenceType();
+        } else if (FieldTy->isRValueReferenceType()) {
+          ValueKind = VK_XValue;
+          FieldTy = FieldTy.getNonReferenceType();
+        }
+      }
+    }
+  }
+  return new (Context)
+      SYCLBuiltinFieldTypeExpr(Loc, SourceTy, Idx, FieldTy, ValueKind);
+}
+
+ExprResult Sema::ActOnSYCLBuiltinNumBasesExpr(ParsedType PT) {
+  TypeSourceInfo *TInfo = nullptr;
+  QualType QT = GetTypeFromParser(PT, &TInfo);
+  assert(TInfo && "couldn't get type info from a type from the parser?");
+  SourceLocation TypeLoc = TInfo->getTypeLoc().getBeginLoc();
+
+  return BuildSYCLBuiltinNumBasesExpr(TypeLoc, QT);
+}
+
+ExprResult Sema::BuildSYCLBuiltinNumBasesExpr(SourceLocation Loc,
+                                              QualType SourceTy) {
+  if (!SourceTy->isDependentType()) {
+    if (RequireCompleteType(Loc, SourceTy,
+                            diag::err_sycl_type_trait_requires_complete_type,
+                            /*__builtin_num_bases*/ 2))
+      return ExprError();
+
+    if (!SourceTy->isRecordType()) {
+      Diag(Loc, diag::err_sycl_type_trait_requires_record_type)
+          << /*__builtin_num_bases*/ 2;
+      return ExprError();
+    }
+  }
+  return new (Context)
+      SYCLBuiltinNumBasesExpr(Loc, SourceTy, Context.getSizeType());
+}
+
+ExprResult Sema::ActOnSYCLBuiltinBaseTypeExpr(ParsedType PT, Expr *Idx) {
+  TypeSourceInfo *TInfo = nullptr;
+  QualType QT = GetTypeFromParser(PT, &TInfo);
+  assert(TInfo && "couldn't get type info from a type from the parser?");
+  SourceLocation TypeLoc = TInfo->getTypeLoc().getBeginLoc();
+
+  return BuildSYCLBuiltinBaseTypeExpr(TypeLoc, QT, Idx);
+}
+
+ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
+                                              QualType SourceTy, Expr *Idx) {
+  // If the expression appears in an evaluated context, we want to give an
+  // error so that users don't attempt to use the value of this expression.
+  if (!isUnevaluatedContext()) {
+    Diag(Loc, diag::err_sycl_builtin_type_trait_evaluated)
+        << /*__builtin_base_type*/ 1;
+    return ExprError();
+  }
+
+  // We may not be able to calculate the base type (the source type may be a
+  // dependent type), so use the source type as a basic fallback. This will
+  // ensure that the AST node will have a dependent type that gets resolved
+  // later to the real type.
+  QualType BaseTy = SourceTy;
+  if (!SourceTy->isDependentType()) {
+    if (RequireCompleteType(Loc, SourceTy,
+                            diag::err_sycl_type_trait_requires_complete_type,
+                            /*__builtin_base_type*/ 3))
+      return ExprError();
+
+    if (!SourceTy->isRecordType()) {
+      Diag(Loc, diag::err_sycl_type_trait_requires_record_type)
+          << /*__builtin_base_type*/ 3;
+      return ExprError();
+    }
+
+    if (!Idx->isValueDependent()) {
+      Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+      if (IdxVal) {
+        CXXRecordDecl *RD = SourceTy->getAsCXXRecordDecl();
+        assert(RD && "Record type but no record decl?");
+        int64_t Index = IdxVal->getExtValue();
+
+        if (Index < 0) {
+          Diag(Idx->getExprLoc(),
+               diag::err_sycl_type_trait_requires_nonnegative_index)
+              << /*bases*/ 1;
+          return ExprError();
+        }
+
+        // Ensure that the index is within range.
+        if (Index >= RD->getNumBases()) {
+          Diag(Idx->getExprLoc(),
+               diag::err_sycl_builtin_type_trait_index_out_of_range)
+              << IdxVal->toString(10) << SourceTy << /*bases*/ 1;
+          return ExprError();
+        }
+
+        const CXXBaseSpecifier &Spec = *std::next(RD->bases_begin(), Index);
+        BaseTy = Spec.getType();
+      }
+    }
+  }
+  return new (Context) SYCLBuiltinBaseTypeExpr(Loc, SourceTy, Idx, BaseTy);
+}
 
 // This information is from Section 4.13 of the SYCL spec
 // https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf
@@ -905,10 +1103,8 @@ constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
 
   MC.mangleTypeName(KernelNameType, Out);
 
-  return {std::string(Out.str()),
-          PredefinedExpr::ComputeName(S.getASTContext(),
-                                      PredefinedExpr::UniqueStableNameType,
-                                      KernelNameType)};
+  return {std::string(Out.str()), SYCLUniqueStableNameExpr::ComputeName(
+                                      S.getASTContext(), KernelNameType)};
 }
 
 static bool isDefaultSPIRArch(ASTContext &Context) {
@@ -3212,9 +3408,8 @@ public:
     // Get specialization constant ID type, which is the second template
     // argument.
     QualType SpecConstIDTy = TemplateArgs.get(1).getAsType().getCanonicalType();
-    const std::string SpecConstName = PredefinedExpr::ComputeName(
-        SemaRef.getASTContext(), PredefinedExpr::UniqueStableNameType,
-        SpecConstIDTy);
+    const std::string SpecConstName = SYCLUniqueStableNameExpr::ComputeName(
+        SemaRef.getASTContext(), SpecConstIDTy);
     Header.addSpecConstant(SpecConstName, SpecConstIDTy);
     return true;
   }
@@ -3519,6 +3714,10 @@ public:
 
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                ArrayRef<const Expr *> Args) {
+  // FIXME: In place until the library works around its 'host' invocation
+  // issues.
+  if (!LangOpts.SYCLIsDevice)
+    return;
   const CXXRecordDecl *KernelObj = getKernelObjectType(KernelFunc);
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
@@ -4687,14 +4886,15 @@ bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
 void SYCLIntegrationFooter::emitSpecIDName(raw_ostream &O, const VarDecl *VD) {
   // FIXME: Figure out the spec-constant unique name here.
   // Note that this changes based on the linkage of the variable.
-  // We typically want to use the __builtin_unique_stable_name for the variable
-  // (or the newer-equivilent for values, see the JIRA), but we also have to
-  // figure out if this has internal or external linkage.  In external-case this
-  // should be the same as the the unique-name.  However, this isn't the case
-  // with local-linkage, where we want to put the driver-provided random-value
-  // ahead of it, so that we make sure it is unique across translation units.
-  // This name should come from the yet implemented__builtin_unique_stable_name
-  // feature that accepts variables and gives the mangling for that.
+  // We typically want to use the __builtin_sycl_unique_stable_name for the
+  // variable (or the newer-equivilent for values, see the JIRA), but we also
+  // have to figure out if this has internal or external linkage.  In
+  // external-case this should be the same as the the unique-name.  However,
+  // this isn't the case with local-linkage, where we want to put the
+  // driver-provided random-value ahead of it, so that we make sure it is unique
+  // across translation units. This name should come from the yet
+  // implemented __builtin_sycl_unique_stable_name feature that accepts
+  // variables and gives the mangling for that.
   O << "";
 }
 
@@ -5005,4 +5205,36 @@ bool Util::matchQualifiedTypeName(QualType Ty,
     return false; // only classes/structs supported
   const auto *Ctx = cast<DeclContext>(RecTy);
   return Util::matchContext(Ctx, Scopes);
+}
+
+// The SYCL kernel's 'object type' used for diagnostics and naming/mangling is
+// the first parameter to a sycl_kernel labeled function template. In SYCL1.2.1,
+// this was passed by value, and in SYCL2020, it is passed by reference.
+static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
+  assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
+  QualType KernelParamTy = KernelCaller->getParamDecl(0)->getType();
+
+  // SYCL 2020 kernels are passed by reference.
+  if (KernelParamTy->isReferenceType())
+    return KernelParamTy->getPointeeType();
+
+  // SYCL 1.2.1
+  return KernelParamTy;
+}
+
+void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
+  auto MangleCallback = [](ASTContext &Ctx,
+                           const NamedDecl *ND) -> llvm::Optional<unsigned> {
+    if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
+      Ctx.AddSYCLKernelNamingDecl(RD);
+    // We always want to go into the lambda mangling (skipping the unnamed
+    // struct version), so make sure we return a value here.
+    return 1;
+  };
+
+  QualType Ty = GetSYCLKernelObjectType(FD);
+  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
+      Context, Context.getDiagnostics(), MangleCallback)};
+  llvm::raw_null_ostream Out;
+  Ctx->mangleTypeName(Ty, Out);
 }

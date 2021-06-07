@@ -2359,6 +2359,20 @@ DEF_TRAVERSE_STMT(BuiltinBitCastExpr, {
   TRY_TO(TraverseTypeLoc(S->getTypeInfoAsWritten()->getTypeLoc()));
 })
 
+DEF_TRAVERSE_STMT(SYCLBuiltinFieldTypeExpr, {
+  TRY_TO(TraverseType(S->getSourceType()));
+})
+DEF_TRAVERSE_STMT(SYCLBuiltinBaseTypeExpr, {
+  TRY_TO(TraverseType(S->getSourceType()));
+})
+
+DEF_TRAVERSE_STMT(SYCLBuiltinNumFieldsExpr, {
+  TRY_TO(TraverseType(S->getSourceType()));
+})
+DEF_TRAVERSE_STMT(SYCLBuiltinNumBasesExpr, {
+  TRY_TO(TraverseType(S->getSourceType()));
+})
+
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::TraverseSynOrSemInitListExpr(
     InitListExpr *S, DataRecursionQueue *Queue) {
@@ -2651,6 +2665,9 @@ DEF_TRAVERSE_STMT(ObjCBridgedCastExpr, {
 DEF_TRAVERSE_STMT(ObjCAvailabilityCheckExpr, {})
 DEF_TRAVERSE_STMT(ParenExpr, {})
 DEF_TRAVERSE_STMT(ParenListExpr, {})
+DEF_TRAVERSE_STMT(SYCLUniqueStableNameExpr, {
+  TRY_TO(TraverseTypeLoc(S->getTypeSourceInfo()->getTypeLoc()));
+})
 DEF_TRAVERSE_STMT(PredefinedExpr, {})
 DEF_TRAVERSE_STMT(ShuffleVectorExpr, {})
 DEF_TRAVERSE_STMT(ConvertVectorExpr, {})

@@ -17,8 +17,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-using cl::sycl::detail::is_sgeninteger;
-
 template <typename T, class BinaryOperation>
 using IsReduPlus =
     bool_constant<std::is_same<BinaryOperation, sycl::plus<T>>::value ||
@@ -68,56 +66,36 @@ using IsReduBitAND =
                   std::is_same<BinaryOperation, ONEAPI::bit_and<T>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::bit_and<void>>::value>;
 
-template <typename T, class BinaryOperation>
-using IsReduOptForFastAtomicFetch =
-    bool_constant<is_sgeninteger<T>::value &&
-                  sycl::detail::IsValidAtomicType<T>::value &&
-                  (IsReduPlus<T, BinaryOperation>::value ||
-                   IsReduMinimum<T, BinaryOperation>::value ||
-                   IsReduMaximum<T, BinaryOperation>::value ||
-                   IsReduBitOR<T, BinaryOperation>::value ||
-                   IsReduBitXOR<T, BinaryOperation>::value ||
-                   IsReduBitAND<T, BinaryOperation>::value)>;
-
-template <typename T, class BinaryOperation>
-using IsReduOptForFastReduce =
-    bool_constant<((is_sgeninteger<T>::value &&
-                    (sizeof(T) == 4 || sizeof(T) == 8)) ||
-                   is_sgenfloat<T>::value) &&
-                  (IsReduPlus<T, BinaryOperation>::value ||
-                   IsReduMinimum<T, BinaryOperation>::value ||
-                   IsReduMaximum<T, BinaryOperation>::value)>;
-
 // Identity = 0
 template <typename T, class BinaryOperation>
 using IsZeroIdentityOp = bool_constant<
-    (is_sgeninteger<T>::value && (IsReduPlus<T, BinaryOperation>::value ||
-                                  IsReduBitOR<T, BinaryOperation>::value ||
-                                  IsReduBitXOR<T, BinaryOperation>::value)) ||
-    (is_sgenfloat<T>::value && IsReduPlus<T, BinaryOperation>::value)>;
+    (is_sgeninteger<T>::value &&
+     (IsPlus<T, BinaryOperation>::value || IsBitOR<T, BinaryOperation>::value ||
+      IsBitXOR<T, BinaryOperation>::value)) ||
+    (is_sgenfloat<T>::value && IsPlus<T, BinaryOperation>::value)>;
 
 // Identity = 1
 template <typename T, class BinaryOperation>
 using IsOneIdentityOp =
     bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
-                  IsReduMultiplies<T, BinaryOperation>::value>;
+                  IsMultiplies<T, BinaryOperation>::value>;
 
 // Identity = ~0
 template <typename T, class BinaryOperation>
 using IsOnesIdentityOp = bool_constant<is_sgeninteger<T>::value &&
-                                       IsReduBitAND<T, BinaryOperation>::value>;
+                                       IsBitAND<T, BinaryOperation>::value>;
 
 // Identity = <max possible value>
 template <typename T, class BinaryOperation>
 using IsMinimumIdentityOp =
     bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
-                  IsReduMinimum<T, BinaryOperation>::value>;
+                  IsMinimum<T, BinaryOperation>::value>;
 
 // Identity = <min possible value>
 template <typename T, class BinaryOperation>
 using IsMaximumIdentityOp =
     bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
-                  IsReduMaximum<T, BinaryOperation>::value>;
+                  IsMaximum<T, BinaryOperation>::value>;
 
 template <typename T, class BinaryOperation>
 using IsKnownIdentityOp =

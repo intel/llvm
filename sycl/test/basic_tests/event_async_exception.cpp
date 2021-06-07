@@ -28,12 +28,13 @@ int main() {
   queue q(asyncHandler);
 
   try {
-    // Submit a CG with no kernel or memory operation to trigger an async error
+    // Check that submitting a CG with no kernel or memory operation doesn't produce
+    // an async exception
     event e = q.submit([&](handler &cgh) {});
 
     e.wait_and_throw();
-    return 1;
-  } catch (runtime_error e) {
     return 0;
+  } catch (runtime_error e) {
+    return 1;
   }
 }

@@ -1069,6 +1069,10 @@ public:
     OpaqueParser = P;
   }
 
+  // Does the work necessary to deal with a SYCL kernel lambda. At the moment,
+  // this just marks the list of lambdas required to name the kernel.
+  void AddSYCLKernelLambda(const FunctionDecl *FD);
+
   class DelayedDiagnostics;
 
   class DelayedDiagnosticsState {
@@ -5421,14 +5425,14 @@ public:
   ExprResult ActOnPredefinedExpr(SourceLocation Loc, tok::TokenKind Kind);
   ExprResult ActOnIntegerConstant(SourceLocation Loc, uint64_t Val);
 
-  ExprResult BuildUniqueStableName(SourceLocation Loc, TypeSourceInfo *Operand);
-  ExprResult BuildUniqueStableName(SourceLocation Loc, Expr *E);
-  ExprResult ActOnUniqueStableNameExpr(SourceLocation OpLoc,
-                                       SourceLocation LParen,
-                                       SourceLocation RParen, ParsedType Ty);
-  ExprResult ActOnUniqueStableNameExpr(SourceLocation OpLoc,
-                                       SourceLocation LParen,
-                                       SourceLocation RParen, Expr *E);
+  ExprResult BuildSYCLUniqueStableNameExpr(SourceLocation OpLoc,
+                                           SourceLocation LParen,
+                                           SourceLocation RParen,
+                                           TypeSourceInfo *TSI);
+  ExprResult ActOnSYCLUniqueStableNameExpr(SourceLocation OpLoc,
+                                           SourceLocation LParen,
+                                           SourceLocation RParen,
+                                           ParsedType ParsedTy);
 
   bool CheckLoopHintExpr(Expr *E, SourceLocation Loc);
 
@@ -13245,6 +13249,28 @@ public:
   void copySYCLKernelAttrs(const CXXRecordDecl *KernelObj);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevices();
+
+  /// Get the number of fields or captures within the parsed type.
+  ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);
+  ExprResult BuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,
+                                           QualType SourceTy);
+
+  /// Get a value based on the type of the given field number so that callers
+  /// can wrap it in a decltype() to get the actual type of the field.
+  ExprResult ActOnSYCLBuiltinFieldTypeExpr(ParsedType PT, Expr *Idx);
+  ExprResult BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
+                                           QualType SourceTy, Expr *Idx);
+
+  /// Get the number of base classes within the parsed type.
+  ExprResult ActOnSYCLBuiltinNumBasesExpr(ParsedType PT);
+  ExprResult BuildSYCLBuiltinNumBasesExpr(SourceLocation Loc,
+                                          QualType SourceTy);
+
+  /// Get a value based on the type of the given base number so that callers
+  /// can wrap it in a decltype() to get the actual type of the base class.
+  ExprResult ActOnSYCLBuiltinBaseTypeExpr(ParsedType PT, Expr *Idx);
+  ExprResult BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc, QualType SourceTy,
+                                          Expr *Idx);
 
   /// Emit a diagnostic about the given attribute having a deprecated name, and
   /// also emit a fixit hint to generate the new attribute name.

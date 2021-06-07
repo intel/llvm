@@ -253,6 +253,7 @@ public:
   SPIRVTypeVmeImageINTEL *addVmeImageINTELType(SPIRVTypeImage *T) override;
   SPIRVTypeBufferSurfaceINTEL *
   addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) override;
+  SPIRVTypeTokenINTEL *addTokenTypeINTEL() override;
 
   // Constant creation functions
   SPIRVInstruction *addBranchInst(SPIRVLabel *, SPIRVBasicBlock *) override;
@@ -941,6 +942,10 @@ SPIRVModuleImpl::addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) {
 
 SPIRVType *SPIRVModuleImpl::addSubgroupAvcINTELType(Op TheOpCode) {
   return addType(new SPIRVTypeSubgroupAvcINTEL(TheOpCode, this, getId()));
+}
+
+SPIRVTypeTokenINTEL *SPIRVModuleImpl::addTokenTypeINTEL() {
+  return addType(new SPIRVTypeTokenINTEL(this, getId()));
 }
 
 SPIRVFunction *SPIRVModuleImpl::addFunction(SPIRVFunction *Func) {
