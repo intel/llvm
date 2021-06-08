@@ -4770,8 +4770,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   return PI_SUCCESS;
 }
 
-pi_result piextGetExtensionName(pi_extension_number ExtNumber, size_t *Size,
-                                char *Value) {
+pi_result cuda_piextGetExtensionName(pi_extension_number ExtNumber,
+                                     size_t *Size, char *Value) {
   pi_result Result = PI_SUCCESS;
   // TODO switch to map/unordered_map when have enough number of extensions
   switch (ExtNumber) {
