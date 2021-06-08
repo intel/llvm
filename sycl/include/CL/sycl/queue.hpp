@@ -249,7 +249,7 @@ private:
 #endif // __SYCL_DEVICE_ONLY__
       });
     };
-    auto CheckerCGF = [&CopierEv, AH, Buffer](handler &CGH) {
+    auto CheckerCGF = [&CopierEv, AH](handler &CGH) {
       CGH.depends_on(CopierEv);
 
       CGH.codeplay_host_task([=] {
