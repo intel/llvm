@@ -251,7 +251,12 @@ RocmInstallationDetector::getInstallationPathCandidates() {
   if (ParentPath != InstallDir)
     ROCmSearchDirs.emplace_back(DeduceROCmPath(ParentPath));
 
-  // Device library may be installed in clang resource directory.
+  // Device library may be installed in clang or resource directory.
+  auto ClangRoot = llvm::sys::path::parent_path(InstallDir);
+  auto RealClangRoot = llvm::sys::path::parent_path(ParentPath);
+  ROCmSearchDirs.emplace_back(ClangRoot.str(), /*StrictChecking=*/true);
+  if (RealClangRoot != ClangRoot)
+    ROCmSearchDirs.emplace_back(RealClangRoot.str(), /*StrictChecking=*/true);
   ROCmSearchDirs.emplace_back(D.ResourceDir,
                               /*StrictChecking=*/true);
 
@@ -409,10 +414,7 @@ void RocmInstallationDetector::detectDeviceLibrary() {
 
     // Make a path by appending sub-directories to InstallPath.
     auto MakePath = [&](const llvm::ArrayRef<const char *> &SubDirs) {
-      // Device library built by SPACK is installed to
-      // <rocm_root>/rocm-device-libs-<rocm_release_string>-<hash> directory.
-      auto SPACKPath = findSPACKPackage(Candidate, "rocm-device-libs");
-      auto Path = SPACKPath.empty() ? CandidatePath : SPACKPath;
+      auto Path = CandidatePath;
       for (auto SubDir : SubDirs)
         llvm::sys::path::append(Path, SubDir);
       return Path;
@@ -707,16 +709,26 @@ AMDGPUToolChain::getGPUArch(const llvm::opt::ArgList &DriverArgs) const {
       getTriple(), DriverArgs.getLastArgValue(options::OPT_mcpu_EQ));
 }
 
-void AMDGPUToolChain::checkTargetID(
-    const llvm::opt::ArgList &DriverArgs) const {
+AMDGPUToolChain::ParsedTargetIDType
+AMDGPUToolChain::getParsedTargetID(const llvm::opt::ArgList &DriverArgs) const {
   StringRef TargetID = DriverArgs.getLastArgValue(options::OPT_mcpu_EQ);
   if (TargetID.empty())
-    return;
+    return {None, None, None};
 
   llvm::StringMap<bool> FeatureMap;
   auto OptionalGpuArch = parseTargetID(getTriple(), TargetID, &FeatureMap);
-  if (!OptionalGpuArch) {
-    getDriver().Diag(clang::diag::err_drv_bad_target_id) << TargetID;
+  if (!OptionalGpuArch)
+    return {TargetID.str(), None, None};
+
+  return {TargetID.str(), OptionalGpuArch.getValue().str(), FeatureMap};
+}
+
+void AMDGPUToolChain::checkTargetID(
+    const llvm::opt::ArgList &DriverArgs) const {
+  auto PTID = getParsedTargetID(DriverArgs);
+  if (PTID.OptionalTargetID && !PTID.OptionalGPUArch) {
+    getDriver().Diag(clang::diag::err_drv_bad_target_id)
+        << PTID.OptionalTargetID.getValue();
   }
 }
 

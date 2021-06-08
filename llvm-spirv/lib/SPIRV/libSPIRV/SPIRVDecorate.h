@@ -190,8 +190,10 @@ public:
       return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
     case DecorationFuseLoopsInFunctionINTEL:
       return ExtensionID::SPV_INTEL_loop_fuse;
-    case DecorationCallableFunctionINTEL:
+    case internal::DecorationCallableFunctionINTEL:
       return ExtensionID::SPV_INTEL_fast_composite;
+    case internal::DecorationMathOpDSPModeINTEL:
+      return ExtensionID::SPV_INTEL_fpga_dsp_control;
     case internal::DecorationInitiationIntervalINTEL:
       return ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes;
     case internal::DecorationMaxConcurrencyINTEL:
@@ -679,6 +681,15 @@ public:
                                         SPIRVWord Independent)
       : SPIRVDecorate(spv::DecorationFuseLoopsInFunctionINTEL, TheTarget, Depth,
                       Independent){};
+};
+
+class SPIRVDecorateMathOpDSPModeINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecorateMathOpDSPModeINTEL
+  SPIRVDecorateMathOpDSPModeINTEL(SPIRVEntry *TheTarget, SPIRVWord Mode,
+                                  SPIRVWord Propagate)
+      : SPIRVDecorate(spv::internal::DecorationMathOpDSPModeINTEL, TheTarget,
+                      Mode, Propagate){};
 };
 
 class SPIRVDecorateAliasScopeINTEL : public SPIRVDecorateId {
