@@ -235,7 +235,7 @@ public:
     // Thus we employ read-lock of graph.
     {
       Scheduler &Sched = Scheduler::getInstance();
-      std::shared_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock);
+      Scheduler::ReadLockT Lock(Sched.MGraphLock);
 
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
 
@@ -481,7 +481,7 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
+Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   const QueueImplPtr &WorkerQueue = getWorkerQueue();
   const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
@@ -493,21 +493,25 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
     MPreparedHostDepsEvents.push_back(DepEvent);
-    return;
+    return nullptr;
   }
+
+  Command *ConnectionCmd = nullptr;
 
   // Do not add redundant event dependencies for in-order queues.
   if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
       WorkerQueue->has_property<property::queue::in_order>())
-    return;
+    return nullptr;
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
   if (DepEventContext != WorkerContext && !WorkerContext->is_host()) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
-    GB.connectDepEvent(this, DepEvent, Dep);
+    ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep);
   } else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
+
+  return ConnectionCmd;
 }
 
 const ContextImplPtr &Command::getWorkerContext() const {
@@ -516,9 +520,11 @@ const ContextImplPtr &Command::getWorkerContext() const {
 
 const QueueImplPtr &Command::getWorkerQueue() const { return MQueue; }
 
-void Command::addDep(DepDesc NewDep) {
+Command *Command::addDep(DepDesc NewDep) {
+  Command *ConnectionCmd = nullptr;
+
   if (NewDep.MDepCommand) {
-    processDepEvent(NewDep.MDepCommand->getEvent(), NewDep);
+    ConnectionCmd = processDepEvent(NewDep.MDepCommand->getEvent(), NewDep);
   }
   MDeps.push_back(NewDep);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -526,9 +532,11 @@ void Command::addDep(DepDesc NewDep) {
       NewDep.MDepCommand, (void *)NewDep.MDepRequirement->MSYCLMemObj,
       accessModeToString(NewDep.MDepRequirement->MAccessMode), true);
 #endif
+
+  return ConnectionCmd;
 }
 
-void Command::addDep(EventImplPtr Event) {
+Command *Command::addDep(EventImplPtr Event) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // We need this for just the instrumentation, so guarding it will prevent
   // unused variable warnings when instrumentation is turned off
@@ -538,7 +546,7 @@ void Command::addDep(EventImplPtr Event) {
   emitEdgeEventForEventDependence(Cmd, PiEventAddr);
 #endif
 
-  processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr});
+  return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr});
 }
 
 void Command::emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr) {
@@ -732,7 +740,10 @@ AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
   // Node event must be created before the dependent edge is added to this node,
   // so this call must be before the addDep() call.
   emitInstrumentationDataProxy();
-  addDep(DepDesc(nullptr, getRequirement(), this));
+  // "Nothing to depend on"
+  Command *ConnectionCmd = addDep(DepDesc(nullptr, getRequirement(), this));
+  assert(ConnectionCmd == nullptr);
+  (void)ConnectionCmd;
 }
 
 void AllocaCommand::emitInstrumentationData() {
@@ -795,7 +806,8 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
 }
 
 AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
-                                         AllocaCommandBase *ParentAlloca)
+                                         AllocaCommandBase *ParentAlloca,
+                                         std::vector<Command *> &ToEnqueue)
     : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue),
                         std::move(Req),
                         /*LinkedAllocaCmd*/ nullptr),
@@ -804,7 +816,10 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
   // is added to this node, so this call must be before
   // the addDep() call.
   emitInstrumentationDataProxy();
-  addDep(DepDesc(MParentAlloca, getRequirement(), MParentAlloca));
+  Command *ConnectionCmd =
+      addDep(DepDesc(MParentAlloca, getRequirement(), MParentAlloca));
+  if (ConnectionCmd)
+    ToEnqueue.push_back(ConnectionCmd);
 }
 
 void AllocaSubBufCommand::emitInstrumentationData() {
@@ -1329,7 +1344,10 @@ void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
   MRequirements.emplace_back(ReqRef);
   const Requirement *const StoredReq = &MRequirements.back();
 
-  addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
+  // EmptyCommand is always host one, so we believe that result of addDep is nil
+  Command *Cmd = addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
+  assert(Cmd == nullptr && "Conection command should be null for EmptyCommand");
+  (void)Cmd;
 }
 
 void EmptyCommand::emitInstrumentationData() {
