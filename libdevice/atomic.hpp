@@ -62,7 +62,9 @@ __spirv_AtomicCompareExchange(int __SYCL_GLOBAL__ *, __spv::Scope::Flag,
                               __spv::MemorySemanticsMask::Flag,
                               __spv::MemorySemanticsMask::Flag, int, int);
 
-inline void CAS(__SYCL_GLOBAL__ int *Ptr, int Expected, int Desired) {
+/// Atomically set the value in *Ptr with Desired if and only if it is Expected
+static inline void
+CompareAndSet(__SYCL_GLOBAL__ int *Ptr, int Expected, int Desired) {
   __spirv_AtomicCompareExchange(
       Ptr, __spv::Scope::Device,
       __spv::MemorySemanticsMask::SequentiallyConsistent,

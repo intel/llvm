@@ -56,7 +56,7 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
   //{
   //  int Expected = 0;
   //  int Desired = 1;
-  //  CAS(&__SYCL_AssertHappenedMem.Flag, Desired, Expected);
+  //  CompareAndSet(&__SYCL_AssertHappenedMem.Flag, Desired, Expected);
   //}
 
   // FIXME: call SPIR-V unreachable instead
