@@ -1,5 +1,8 @@
 ; RUN: opt -S -sycllowerwglocalmemory < %s | FileCheck %s
 
+; This test checks that debug info is generated for global variables that stores
+; work group's static local memory buffer.
+
 ; CHECK: @[[WGLOCALMEM:WGLocalMem.*]] = internal addrspace(3) global [128 x i8] undef, align 4, !dbg ![[DI_WGLOCMEM:[0-9]+]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

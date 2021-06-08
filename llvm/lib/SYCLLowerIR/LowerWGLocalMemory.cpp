@@ -49,15 +49,13 @@ class SYCLLowerWGLocalMemoryHelper {
   IRBuilder<> Builder;
   llvm::DIBuilder DBuilder;
 
-  SmallVector<CallInst *, 4> LoweredCalls = {};
+  // Cached debug info for type "uint8_t".
   DIType *Uint8DIT = nullptr;
 
 public:
   SYCLLowerWGLocalMemoryHelper(Module &SrcM)
       : M(SrcM), ALMFunc(SrcM.getFunction(SYCL_ALLOCLOCALMEM_CALL)),
         Builder(SrcM.getContext()), DBuilder(SrcM) {}
-
-  ~SYCLLowerWGLocalMemoryHelper();
 
   bool lowerAllocaLocalMemCalls();
 
@@ -74,24 +72,24 @@ bool SYCLLowerWGLocalMemoryHelper::lowerAllocaLocalMemCalls() {
 
   assert(ALMFunc->isDeclaration() && "should have declaration only");
 
-  for (User *U : ALMFunc->users())
-    lowerAllocaLocalMemCall(cast<CallInst>(U));
+  SmallVector<CallInst *, 4> LoweredCalls;
+  for (User *U : ALMFunc->users()) {
+    auto *CI = cast<CallInst>(U);
+    lowerAllocaLocalMemCall(CI);
+    LoweredCalls.push_back(CI);
+  }
 
-  assert(ALMFunc->use_empty() && "__sycl_allocateLocalMemory is still in use");
-
-  return true;
-}
-
-SYCLLowerWGLocalMemoryHelper::~SYCLLowerWGLocalMemoryHelper() {
   // Delete old calls of __sycl_allocateLocalMemory from IR.
-  for (auto *CI : LoweredCalls)
+  for (auto *CI : LoweredCalls) {
+    assert(CI->use_empty() && "removing live instruction");
     CI->eraseFromParent();
+  }
 
   // Remove __sycl_allocateLocalMemory declaration.
-  if (ALMFunc)
-    ALMFunc->eraseFromParent();
+  assert(ALMFunc->use_empty() && "__sycl_allocateLocalMemory is still in use");
+  ALMFunc->eraseFromParent();
 
-  Uint8DIT = nullptr;
+  return true;
 }
 
 // TODO: It should be checked that __sycl_allocateLocalMemory (or its source
@@ -113,9 +111,6 @@ void SYCLLowerWGLocalMemoryHelper::lowerAllocaLocalMemCall(CallInst *CI) {
   Value *GVPtr = Builder.CreatePointerCast(
       NewGV, Builder.getInt8PtrTy(LocalMemParams.LocalMemAS));
   CI->replaceAllUsesWith(GVPtr);
-
-  assert(CI->use_empty() && "removing live instruction");
-  LoweredCalls.push_back(CI);
 }
 
 // Make new global variable as storage for local memory.
@@ -146,6 +141,9 @@ void SYCLLowerWGLocalMemoryHelper::setGlobalVarDebugInfo(
     return;
 
   DILocation *DLoc = Params.LocalMemCallDLoc.getInlinedAt();
+  assert(DLoc &&
+         "inlinedAt debug info not found for __sycl_allocateLocalMemory call");
+
   llvm::DILocalScope *DScope = DLoc->getScope();
   DIType *DTy = getUInt8DITy(DScope->getSubprogram());
 
