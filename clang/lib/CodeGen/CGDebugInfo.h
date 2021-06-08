@@ -507,6 +507,9 @@ public:
   /// Emit the type even if it might not be used.
   void EmitAndRetainType(QualType Ty);
 
+  /// Emit a shadow decl brought in by a using or using-enum
+  void EmitUsingShadowDecl(const UsingShadowDecl &USD);
+
   /// Emit C++ using declaration.
   void EmitUsingDecl(const UsingDecl &UD);
 
