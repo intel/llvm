@@ -10,6 +10,8 @@ public:
   [[intel::use_stall_enable_clusters]] void operator()() const {}
 };
 
+[[intel::use_stall_enable_clusters]] void foo() {}
+
 int main() {
   q.submit([&](handler &h) {
     Foo f;
@@ -17,10 +19,15 @@ int main() {
 
     h.single_task<class test_kernel2>(
         []() [[intel::use_stall_enable_clusters]]{});
+
+    // Test attribute is presented on function metadata.
+    h.single_task<class test_kernel3>(
+        []() { foo(); });
   });
   return 0;
 }
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel1() #0 {{.*}}!stall_enable ![[NUM5:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel2() #0 {{.*}}!stall_enable ![[NUM5]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel3() #0 {{.*}}!stall_enable ![[NUM5]]
 // CHECK: ![[NUM5]] = !{i32 1}

@@ -6,7 +6,7 @@
 using namespace cl::sycl;
 queue q;
 
-[[intel::use_stall_enable_clusters]] void test() {} // expected-warning{{'use_stall_enable_clusters' attribute allowed only on a function directly called from a SYCL kernel}}
+[[intel::use_stall_enable_clusters]] void test() {}
 
 #ifdef TRIGGER_ERROR
 [[intel::use_stall_enable_clusters(1)]] void bar1() {} // expected-error{{'use_stall_enable_clusters' attribute takes no arguments}}
@@ -29,8 +29,9 @@ int main() {
     h.single_task<class test_kernel2>(
         []() [[intel::use_stall_enable_clusters]]{});
 
+    // Test attribute is propagated and presented on function AST.
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-    // CHECK-NOT:   SYCLIntelUseStallEnableClustersAttr {{.*}}
+    // CHECK:       SYCLIntelUseStallEnableClustersAttr {{.*}}
     h.single_task<class test_kernel3>(
         []() { test(); });
   });
