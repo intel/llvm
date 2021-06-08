@@ -9,7 +9,7 @@
 // so it should follow kernel naming (that is, using the E10000 naming).  Note
 // that the top level kernel lambda (the E10000 in common) is automatically part
 // of a kernel name, since it is passed to the kernel function (which is
-// necessary sot hat the 'device' build actually emits the builtins.
+// necessary so that the 'device' build actually emits the builtins.
 
 int main() {
 

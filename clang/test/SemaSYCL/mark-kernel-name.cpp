@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -std=c++17 -triple x86_64-linux-gnu -Wno-sycl-2020-compat -fsycl-is-device -verify -fsyntax-only -Wno-unused
+// RUN: %clang_cc1 %s -std=c++17 -triple x86_64-linux-gnu -fsycl-is-device -verify -fsyntax-only
 
 #include "Inputs/sycl.hpp"
 
@@ -37,7 +37,7 @@ int main() {
     constexpr const char *C = __builtin_sycl_unique_stable_name(KernelName1);
     // expected-error@+2 {{kernel naming changes the result of an evaluated '__builtin_sycl_unique_stable_name'}}
     // expected-note@-2 {{'__builtin_sycl_unique_stable_name' evaluated here}}
-    __builtin_sycl_mark_kernel_name(KernelName1);
+    (void)__builtin_sycl_mark_kernel_name(KernelName1);
   }();
 
   []() {
