@@ -842,10 +842,11 @@ template <> struct group_barrier_scope<sycl::sub_group> {
 template <int D> struct group_barrier_scope<sycl::group<D>> {
   constexpr static auto scope = __spv::Scope::Workgroup;
 };
-}
+} // namespace detail
 
 template <typename Group>
-typename std::enable_if<is_group_v<Group>>::type group_barrier(Group, memory_scope FenceScope = Group::fence_scope) {
+typename std::enable_if<is_group_v<Group>>::type
+group_barrier(Group, memory_scope FenceScope = Group::fence_scope) {
   (void)FenceScope;
 #ifdef __SYCL_DEVICE_ONLY__
   // Per SYCL spec, group_barrier must perform both control barrier and memory
@@ -863,7 +864,6 @@ typename std::enable_if<is_group_v<Group>>::type group_barrier(Group, memory_sco
                             PI_INVALID_DEVICE);
 #endif
 }
-
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
