@@ -52,7 +52,11 @@ int main() {
                                             sycl::id<1>(1), sycl::write_only);
 #endif
 
+#if defined(accessor_new_api_test) || defined(buffer_new_api_test)
+      cgh.host_task([=]() {
+#else
       cgh.codeplay_host_task([=]() {
+#endif
         acc_7[6] = acc_1[0];
         acc_8[7] = acc_2[1];
         acc_9[7] = acc_3[1];
@@ -109,7 +113,11 @@ int main() {
                                    sycl::write_only, sycl::noinit);
 #endif
 
+#if defined(accessor_new_api_test) || defined(buffer_new_api_test)
+      cgh.host_task([=]() {
+#else
       cgh.codeplay_host_task([=]() {
+#endif
         acc_7[6] = acc_1[0];
         acc_8[7] = acc_2[1];
         acc_9[7] = acc_3[1];

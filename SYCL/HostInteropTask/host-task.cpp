@@ -27,44 +27,48 @@ static auto EH = [](exception_list EL) {
   }
 };
 
-// Check that a single host-task with a buffer will work
-void test1() {
-  buffer<int, 1> Buffer{BUFFER_SIZE};
+template <typename T, bool B> class NameGen;
 
-  queue Q(EH);
+// Check that a single host-task with a buffer will work
+template <bool UseSYCL2020HostTask> void test1(queue &Q) {
+  buffer<int, 1> Buffer{BUFFER_SIZE};
 
   Q.submit([&](handler &CGH) {
     auto Acc = Buffer.get_access<mode::write>(CGH);
-    CGH.codeplay_host_task([=] {
-      // A no-op
-    });
+    if constexpr (UseSYCL2020HostTask)
+      CGH.host_task([=] { /* A no-op */ });
+    else
+      CGH.codeplay_host_task([=] { /* A no-op */ });
   });
 
   Q.wait_and_throw();
 }
 
 // Check that a host task after the kernel (deps via buffer) will work
-void test2() {
+template <bool UseSYCL2020HostTask> void test2(queue &Q) {
   buffer<int, 1> Buffer1{BUFFER_SIZE};
   buffer<int, 1> Buffer2{BUFFER_SIZE};
-
-  queue Q(EH);
 
   Q.submit([&](handler &CGH) {
     auto Acc = Buffer1.template get_access<mode::write>(CGH);
 
     auto Kernel = [=](item<1> Id) { Acc[Id] = 123; };
-    CGH.parallel_for<class Test6Init>(Acc.get_count(), Kernel);
+    CGH.parallel_for<NameGen<class Test6Init, UseSYCL2020HostTask>>(
+        Acc.get_count(), Kernel);
   });
 
   Q.submit([&](handler &CGH) {
     auto AccSrc = Buffer1.template get_access<mode::read>(CGH);
     auto AccDst = Buffer2.template get_access<mode::write>(CGH);
 
-    CGH.codeplay_host_task([=] {
+    auto Func = [=] {
       for (size_t Idx = 0; Idx < AccDst.get_count(); ++Idx)
         AccDst[Idx] = AccSrc[Idx];
-    });
+    };
+    if constexpr (UseSYCL2020HostTask)
+      CGH.host_task(Func);
+    else
+      CGH.codeplay_host_task(Func);
   });
 
   {
@@ -81,9 +85,7 @@ void test2() {
 
 // Host-task depending on another host-task via both buffers and
 // handler::depends_on() should not hang
-void test3() {
-  queue Q(EH);
-
+template <bool UseSYCL2020HostTask> void test3(queue &Q) {
   static constexpr size_t BufferSize = 10 * 1024;
 
   buffer<int, 1> B0{range<1>{BufferSize}};
@@ -119,9 +121,8 @@ void test3() {
       auto Acc8 = B8.get_access<mode::read_write, target::host_buffer>(CGH);
       auto Acc9 = B9.get_access<mode::read_write, target::host_buffer>(CGH);
 
-      CGH.codeplay_host_task([=] {
+      auto Func = [=] {
         uint64_t X = 0;
-
         X ^= reinterpret_cast<uint64_t>(&Acc0[Idx + 0]);
         X ^= reinterpret_cast<uint64_t>(&Acc1[Idx + 1]);
         X ^= reinterpret_cast<uint64_t>(&Acc2[Idx + 2]);
@@ -132,7 +133,11 @@ void test3() {
         X ^= reinterpret_cast<uint64_t>(&Acc7[Idx + 7]);
         X ^= reinterpret_cast<uint64_t>(&Acc8[Idx + 8]);
         X ^= reinterpret_cast<uint64_t>(&Acc9[Idx + 9]);
-      });
+      };
+      if constexpr (UseSYCL2020HostTask)
+        CGH.host_task(Func);
+      else
+        CGH.codeplay_host_task(Func);
     });
 
     Deps = {E};
@@ -153,15 +158,19 @@ int main(int Argc, const char *Argv[]) {
 
   int TestIdx = std::stoi(Argv[1]);
 
+  queue Q(EH);
   switch (TestIdx) {
   case 1:
-    test1();
+    test1<true>(Q);
+    test1<false>(Q);
     break;
   case 2:
-    test2();
+    test2<true>(Q);
+    test2<false>(Q);
     break;
   case 3:
-    test3();
+    test3<true>(Q);
+    test3<false>(Q);
     break;
   default:
     return 1;

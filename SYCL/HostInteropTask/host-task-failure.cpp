@@ -20,7 +20,7 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
     auto SrcA = Src.template get_access<mode::read>(CGH);
     auto DstA = Dst.template get_access<mode::write>(CGH);
 
-    CGH.codeplay_host_task([=]() {
+    CGH.host_task([=]() {
       for (size_t Idx = 0; Idx < SrcA.get_count(); ++Idx)
         DstA[Idx] = SrcA[Idx];
     });

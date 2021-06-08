@@ -6,15 +6,19 @@
 // TODO: Behaviour is unstable for level zero on Windows. Enable when fixed.
 // UNSUPPORTED: windows && level_zero
 
+#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
+
+#include <CL/sycl.hpp>
+
 #include <atomic>
 #include <condition_variable>
 #include <future>
 #include <mutex>
 #include <thread>
 
-#include <CL/sycl.hpp>
-
 namespace S = cl::sycl;
+
+template <typename T, bool B> class NameGen;
 
 struct Context {
   std::atomic_bool Flag;
@@ -26,7 +30,37 @@ struct Context {
   std::condition_variable CV;
 };
 
-void Thread1Fn(Context *Ctx) {
+template <bool UseSYCL2020HostTask>
+S::event HostTask_CopyBuf1ToBuf2(Context *Ctx) {
+  S::event Event = Ctx->Queue.submit([&](S::handler &CGH) {
+    S::accessor<int, 1, S::access::mode::read, S::access::target::host_buffer>
+        CopierSrcAcc(Ctx->Buf1, CGH);
+    S::accessor<int, 1, S::access::mode::write, S::access::target::host_buffer>
+        CopierDstAcc(Ctx->Buf2, CGH);
+
+    auto CopierHostTask = [=] {
+      for (size_t Idx = 0; Idx < CopierDstAcc.get_count(); ++Idx)
+        CopierDstAcc[Idx] = CopierSrcAcc[Idx];
+
+      bool Expected = false;
+      bool Desired = true;
+      assert(Ctx->Flag.compare_exchange_strong(Expected, Desired));
+
+      {
+        std::lock_guard<std::mutex> Lock(Ctx->Mutex);
+        Ctx->CV.notify_all();
+      }
+    };
+
+    if constexpr (UseSYCL2020HostTask)
+      CGH.host_task(CopierHostTask);
+    else
+      CGH.codeplay_host_task(CopierHostTask);
+  });
+  return Event;
+}
+
+template <bool UseSYCL2020HostTask> void Thread1Fn(Context *Ctx) {
   // 0. initialize resulting buffer with apriori wrong result
   {
     S::accessor<int, 1, S::access::mode::write, S::access::target::host_buffer>
@@ -63,32 +97,11 @@ void Thread1Fn(Context *Ctx) {
         GeneratorAcc[Idx] = Idx;
     };
 
-    CGH.single_task<class GeneratorTask>(GeneratorKernel);
+    CGH.single_task<NameGen<class Gen, UseSYCL2020HostTask>>(GeneratorKernel);
   });
 
   // 2. submit host task writing from buf 1 to buf 2
-  auto HostTaskEvent = Ctx->Queue.submit([&](S::handler &CGH) {
-    S::accessor<int, 1, S::access::mode::read, S::access::target::host_buffer>
-        CopierSrcAcc(Ctx->Buf1, CGH);
-    S::accessor<int, 1, S::access::mode::write, S::access::target::host_buffer>
-        CopierDstAcc(Ctx->Buf2, CGH);
-
-    auto CopierHostTask = [CopierSrcAcc, CopierDstAcc, &Ctx] {
-      for (size_t Idx = 0; Idx < CopierDstAcc.get_count(); ++Idx)
-        CopierDstAcc[Idx] = CopierSrcAcc[Idx];
-
-      bool Expected = false;
-      bool Desired = true;
-      assert(Ctx->Flag.compare_exchange_strong(Expected, Desired));
-
-      {
-        std::lock_guard<std::mutex> Lock(Ctx->Mutex);
-        Ctx->CV.notify_all();
-      }
-    };
-
-    CGH.codeplay_host_task(CopierHostTask);
-  });
+  S::event HostTaskEvent = HostTask_CopyBuf1ToBuf2<UseSYCL2020HostTask>(Ctx);
 
   // 3. submit simple task to move data between two buffers
   Ctx->Queue.submit([&](S::handler &CGH) {
@@ -105,7 +118,7 @@ void Thread1Fn(Context *Ctx) {
         DstAcc[Idx] = SrcAcc[Idx];
     };
 
-    CGH.single_task<class CopierTask>(CopierKernel);
+    CGH.single_task<NameGen<class Copier, UseSYCL2020HostTask>>(CopierKernel);
   });
 
   // 4. check data in buffer #3
@@ -134,7 +147,7 @@ void Thread2Fn(Context *Ctx) {
   assert(Ctx->Flag.load());
 }
 
-void test() {
+template <bool UseSYCL2020HostTask> void test() {
   auto EH = [](S::exception_list EL) {
     for (const std::exception_ptr &E : EL) {
       throw E;
@@ -146,7 +159,8 @@ void test() {
   Context Ctx{{false}, Queue, {10}, {10}, {10}, {}, {}};
 
   // 0. setup: thread 1 T1: exec smth; thread 2 T2: waits; init flag F = false
-  auto A1 = std::async(std::launch::async, Thread1Fn, &Ctx);
+  auto A1 =
+      std::async(std::launch::async, Thread1Fn<UseSYCL2020HostTask>, &Ctx);
   auto A2 = std::async(std::launch::async, Thread2Fn, &Ctx);
 
   A1.get();
@@ -171,21 +185,33 @@ void test() {
 }
 
 int main() {
-  test();
+  test<true>();
+  test<false>();
 
   return 0;
 }
 
-// launch of GeneratorTask kernel
+// launch of Gen kernel
 // CHECK:---> piKernelCreate(
-// CHECK: GeneratorTask
+// CHECK: NameGen
 // CHECK:---> piEnqueueKernelLaunch(
 // prepare for host task
 // CHECK:---> piEnqueueMemBuffer{{Map|Read}}(
-// launch of CopierTask kernel
+// launch of Copier kernel
 // CHECK:---> piKernelCreate(
-// CHECK: CopierTask
+// CHECK: Copier
 // CHECK:---> piEnqueueKernelLaunch(
+
+// CHECK:---> piKernelCreate(
+// CHECK: NameGen
+// CHECK:---> piEnqueueKernelLaunch(
+// prepare for host task
+// CHECK:---> piEnqueueMemBuffer{{Map|Read}}(
+// launch of Copier kernel
+// CHECK:---> piKernelCreate(
+// CHECK: Copier
+// CHECK:---> piEnqueueKernelLaunch(
+
 // TODO need to check for piEventsWait as "wait on dependencies of host task".
 // At the same time this piEventsWait may occur anywhere after
 // piEnqueueMemBufferMap ("prepare for host task").

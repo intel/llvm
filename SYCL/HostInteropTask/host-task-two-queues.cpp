@@ -49,7 +49,7 @@ void test() {
     auto AccB = BufB.get_access<sycl::access::mode::read>(CGH);
     auto AccC = BufC.get_access<sycl::access::mode::read_write>(CGH);
 
-    CGH.codeplay_host_task([=] {
+    CGH.host_task([=] {
       for (size_t I = 0; I < WIDTH; ++I)
         for (size_t J = 0; J < HEIGHT; ++J) {
           std::cout << "C[" << I << "][" << J << "] = " << AccC[I][J]

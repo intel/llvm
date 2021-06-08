@@ -49,7 +49,7 @@ void test(size_t Count) {
 
       auto Acc0 = B0.get_access<mode::read_write, target::host_buffer>(CGH);
 
-      CGH.codeplay_host_task([=] {
+      CGH.host_task([=] {
         std::this_thread::sleep_for(SleepFor);
         Acc0[0] = 1 * Idx;
       });
@@ -76,7 +76,7 @@ void test(size_t Count) {
 
       auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
 
-      CGH.codeplay_host_task([=] {
+      CGH.host_task([=] {
         std::this_thread::sleep_for(SleepFor);
         Acc2[3] = 1 * Idx;
       });
@@ -91,7 +91,7 @@ void test(size_t Count) {
       auto Acc1 = B1.get_access<mode::read_write, target::host_buffer>(CGH);
       auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
 
-      CGH.codeplay_host_task([=] {
+      CGH.host_task([=] {
         std::this_thread::sleep_for(SleepFor);
         Acc0[4] = 1 * Idx;
         Acc1[4] = 2 * Idx;
@@ -109,7 +109,7 @@ void test(size_t Count) {
 
       auto Acc5 = B5.get_access<mode::read_write, target::host_buffer>(CGH);
 
-      CGH.codeplay_host_task([=] { Acc5[5] = 1 * Idx; });
+      CGH.host_task([=] { Acc5[5] = 1 * Idx; });
     });
   }
 

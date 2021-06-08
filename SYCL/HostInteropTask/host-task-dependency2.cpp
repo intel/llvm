@@ -24,9 +24,7 @@ static auto EH = [](exception_list EL) {
 
 // Host-task depending on another host-task via handler::depends_on() only
 // should not hang
-void test(size_t Count) {
-  queue Q(EH);
-
+template <bool UseSYCL2020HostTask> void test(queue &Q, size_t Count) {
   static constexpr size_t BufferSize = 10 * 1024;
 
   buffer<int, 1> B0{range<1>{BufferSize}};
@@ -45,11 +43,15 @@ void test(size_t Count) {
       auto Acc1 = B1.get_access<mode::read_write, target::host_buffer>(CGH);
       auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
 
-      CGH.codeplay_host_task([=] {
+      auto Func = [=] {
         Acc0[0] = 1 * Idx;
         Acc1[0] = 2 * Idx;
         Acc2[0] = 3 * Idx;
-      });
+      };
+      if constexpr (UseSYCL2020HostTask)
+        CGH.host_task(Func);
+      else
+        CGH.codeplay_host_task(Func);
     });
 
     // This host task is going to depend on blocked empty node of the first
@@ -60,10 +62,14 @@ void test(size_t Count) {
       auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
       auto Acc3 = B3.get_access<mode::read_write, target::host_buffer>(CGH);
 
-      CGH.codeplay_host_task([=] {
+      auto Func = [=] {
         Acc2[1] = 1 * Idx;
         Acc3[1] = 2 * Idx;
-      });
+      };
+      if constexpr (UseSYCL2020HostTask)
+        CGH.host_task(Func);
+      else
+        CGH.codeplay_host_task(Func);
     });
 
     // This host-task only depends on the second host-task via
@@ -77,10 +83,14 @@ void test(size_t Count) {
       auto Acc4 = B4.get_access<mode::read_write, target::host_buffer>(CGH);
       auto Acc5 = B5.get_access<mode::read_write, target::host_buffer>(CGH);
 
-      CGH.codeplay_host_task([=] {
+      auto Func = [=] {
         Acc4[2] = 1 * Idx;
         Acc5[2] = 2 * Idx;
-      });
+      };
+      if constexpr (UseSYCL2020HostTask)
+        CGH.host_task(Func);
+      else
+        CGH.codeplay_host_task(Func);
     });
   }
 
@@ -92,6 +102,8 @@ int main(int Argc, const char *Argv[]) {
   if (Argc > 1)
     Count = std::stoi(Argv[1]);
 
-  test(Count);
+  queue Q(EH);
+  test<true>(Q, Count);
+  test<false>(Q, Count);
   return 0;
 }

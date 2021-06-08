@@ -9,7 +9,7 @@
 cl::sycl::event submit(cl::sycl::queue &Q, cl::sycl::buffer<int> &B) {
   return Q.submit([&](cl::sycl::handler &CGH) {
     auto A = B.template get_access<cl::sycl::access::mode::read_write>(CGH);
-    CGH.codeplay_host_task([=]() { (void)A; });
+    CGH.host_task([=]() { (void)A; });
   });
 }
 
@@ -23,7 +23,7 @@ int main() {
   Events.push_back(submit(Q, A));
   Q.submit([&](sycl::handler &CGH) {
      CGH.depends_on(Events);
-     CGH.codeplay_host_task([&] { printf("all done\n"); });
+     CGH.host_task([&] { printf("all done\n"); });
    }).wait_and_throw();
 
   return 0;
