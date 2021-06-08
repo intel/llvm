@@ -11,7 +11,7 @@
 // Use cache
 // RUN: env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_PI_TRACE=-1 %t.out | FileCheck %s --check-prefixes=CHECK-CACHE
 // Ignore cache because of environment variable
-// RUN: env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_PI_TRACE=-1 SYCL_CACHE_DISABLE_PERSISTENT=1 %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
+// RUN: env SYCL_CACHE_PERSISTENT=0 SYCL_CACHE_DIR=%t/cache_dir SYCL_PI_TRACE=-1 %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
 //
 // The test checks environment variables which may disable caching.
 // Also it can be used for benchmarking cache:
