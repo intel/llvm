@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -fdeclare-spirv-builtins -emit-llvm %s -o - | FileCheck %s
-// RUN: %clang_cc1 -triple spir64-sycldevice -aux-triple x86_64-linux-pc  -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64 -aux-triple x86_64-linux-pc  -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 #include "Inputs/sycl.hpp"
 
@@ -26,4 +26,3 @@ int main() {
     // CHECK: [40 x i8] c"_ZTSZZ4mainENKUlvE10000_clEvEUlvE10000_\00"
   });
 }
-
