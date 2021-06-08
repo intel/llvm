@@ -17,10 +17,14 @@ macro(add_sycl_unittest test_dirname link_variant)
   if ("${link_variant}" MATCHES "SHARED")
     set(SYCL_LINK_LIBS ${sycl_so_target})
     add_unittest(SYCLUnitTests ${test_dirname} ${ARGN})
+    target_compile_definitions(${test_dirname}
+                               PRIVATE SYCL_DISABLE_FALLBACK_ASSERT)
   else()
     add_unittest(SYCLUnitTests ${test_dirname}
                 $<TARGET_OBJECTS:${sycl_obj_target}> ${ARGN})
-    target_compile_definitions(${test_dirname} PRIVATE __SYCL_BUILD_SYCL_DLL)
+    target_compile_definitions(${test_dirname}
+                               PRIVATE __SYCL_BUILD_SYCL_DLL
+                                       SYCL_DISABLE_FALLBACK_ASSERT)
 
     get_target_property(SYCL_LINK_LIBS ${sycl_so_target} LINK_LIBRARIES)
   endif()
