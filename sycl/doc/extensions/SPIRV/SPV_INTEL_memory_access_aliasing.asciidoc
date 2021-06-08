@@ -222,7 +222,6 @@ in which memory access instruction is assumed to be not aliased with any other
 memory instructions with intersecting aliasing scopes in case if these
 accesses are decorated with _NoAliasINTEL_ decoration or have _NoAliasINTELMask_
 memory operand.
-This decoration is mutually exclusive with _NoAliasINTEL_ decoration.
 2+| <id> _Aliasing Scopes List_ | *MemoryAccessAliasingINTEL*
 | 5915 | *NoAliasINTEL* +
 Can only be applied to _OpFunctionCall_ and _Atomic_ instructions. Has
@@ -232,7 +231,6 @@ in which memory access instruction is assumed to be not aliased with any other
 memory instructions with intersecting aliasing scopes in case if these
 accesses are decorated with _AliasScopeINTEL_ decoration or have
 _AliasScopeINTELMask_ memory operand.
-This decoration is mutually exclusive with _AliasScopeINTEL_ decoration.
 2+| <id> _Aliasing Scopes List_ | *MemoryAccessAliasingINTEL*
 |====
 --
@@ -252,7 +250,6 @@ Assume that the memory access doesn't alias with any other memory accesses with
 aliasing scopes in _Aliasing Scopes List_ intersecting with the current one in
 case if these accesses have _NoAliasINTELMask_ memory operand or are
 decorated with _NoAliasINTEL_ decoration.
-This mask is mutually exclusive with _NoAliasINTELMask_.
 | <id> _Aliasing Scopes List_ |
 *MemoryAccessAliasingINTEL*
 | 0x20000 | *NoAliasINTELMask* +
@@ -261,7 +258,6 @@ Assume that the memory access doesn't alias with any other memory accesses with
 aliasing scopes in _Aliasing Scopes List_ intersecting with the current one in
 case if these accesses have _AliasScopeINTELMask_ memory operand or are
 decorated with _AliasScopeINTEL_ decoration.
-This mask is mutually exclusive with _AliasScopeINTELMask_.
 | <id> _Aliasing Scopes List_ |
 *MemoryAccessAliasingINTEL*
 --
