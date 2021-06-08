@@ -771,8 +771,9 @@ private:
 ///
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-    typename PropertyListT > class accessor :
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+class accessor :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::AccessorBaseHost,
 #endif
