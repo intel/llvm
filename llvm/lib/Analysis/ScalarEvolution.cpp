@@ -1025,16 +1025,23 @@ static const SCEV *BinomialCoefficient(const SCEV *It, unsigned K,
 /// where BC(It, k) stands for binomial coefficient.
 const SCEV *SCEVAddRecExpr::evaluateAtIteration(const SCEV *It,
                                                 ScalarEvolution &SE) const {
-  const SCEV *Result = getStart();
-  for (unsigned i = 1, e = getNumOperands(); i != e; ++i) {
+  return evaluateAtIteration(makeArrayRef(op_begin(), op_end()), It, SE);
+}
+
+const SCEV *
+SCEVAddRecExpr::evaluateAtIteration(ArrayRef<const SCEV *> Operands,
+                                    const SCEV *It, ScalarEvolution &SE) {
+  assert(Operands.size() > 0);
+  const SCEV *Result = Operands[0];
+  for (unsigned i = 1, e = Operands.size(); i != e; ++i) {
     // The computation is correct in the face of overflow provided that the
     // multiplication is performed _after_ the evaluation of the binomial
     // coefficient.
-    const SCEV *Coeff = BinomialCoefficient(It, i, SE, getType());
+    const SCEV *Coeff = BinomialCoefficient(It, i, SE, Result->getType());
     if (isa<SCEVCouldNotCompute>(Coeff))
       return Coeff;
 
-    Result = SE.getAddExpr(Result, SE.getMulExpr(getOperand(i), Coeff));
+    Result = SE.getAddExpr(Result, SE.getMulExpr(Operands[i], Coeff));
   }
   return Result;
 }
@@ -2235,6 +2242,81 @@ CollectAddOperandsWithScales(DenseMap<const SCEV *, APInt> &M,
   }
 
   return Interesting;
+}
+
+bool ScalarEvolution::willNotOverflow(Instruction::BinaryOps BinOp, bool Signed,
+                                      const SCEV *LHS, const SCEV *RHS) {
+  const SCEV *(ScalarEvolution::*Operation)(const SCEV *, const SCEV *,
+                                            SCEV::NoWrapFlags, unsigned);
+  switch (BinOp) {
+  default:
+    llvm_unreachable("Unsupported binary op");
+  case Instruction::Add:
+    Operation = &ScalarEvolution::getAddExpr;
+    break;
+  case Instruction::Sub:
+    Operation = &ScalarEvolution::getMinusSCEV;
+    break;
+  case Instruction::Mul:
+    Operation = &ScalarEvolution::getMulExpr;
+    break;
+  }
+
+  const SCEV *(ScalarEvolution::*Extension)(const SCEV *, Type *, unsigned) =
+      Signed ? &ScalarEvolution::getSignExtendExpr
+             : &ScalarEvolution::getZeroExtendExpr;
+
+  // Check ext(LHS op RHS) == ext(LHS) op ext(RHS)
+  auto *NarrowTy = cast<IntegerType>(LHS->getType());
+  auto *WideTy =
+      IntegerType::get(NarrowTy->getContext(), NarrowTy->getBitWidth() * 2);
+
+  const SCEV *A = (this->*Extension)(
+      (this->*Operation)(LHS, RHS, SCEV::FlagAnyWrap, 0), WideTy, 0);
+  const SCEV *B = (this->*Operation)((this->*Extension)(LHS, WideTy, 0),
+                                     (this->*Extension)(RHS, WideTy, 0),
+                                     SCEV::FlagAnyWrap, 0);
+  return A == B;
+}
+
+std::pair<SCEV::NoWrapFlags, bool /*Deduced*/>
+ScalarEvolution::getStrengthenedNoWrapFlagsFromBinOp(
+    const OverflowingBinaryOperator *OBO) {
+  SCEV::NoWrapFlags Flags = SCEV::NoWrapFlags::FlagAnyWrap;
+
+  if (OBO->hasNoUnsignedWrap())
+    Flags = ScalarEvolution::setFlags(Flags, SCEV::FlagNUW);
+  if (OBO->hasNoSignedWrap())
+    Flags = ScalarEvolution::setFlags(Flags, SCEV::FlagNSW);
+
+  bool Deduced = false;
+
+  if (OBO->hasNoUnsignedWrap() && OBO->hasNoSignedWrap())
+    return {Flags, Deduced};
+
+  if (OBO->getOpcode() != Instruction::Add &&
+      OBO->getOpcode() != Instruction::Sub &&
+      OBO->getOpcode() != Instruction::Mul)
+    return {Flags, Deduced};
+
+  const SCEV *LHS = getSCEV(OBO->getOperand(0));
+  const SCEV *RHS = getSCEV(OBO->getOperand(1));
+
+  if (!OBO->hasNoUnsignedWrap() &&
+      willNotOverflow((Instruction::BinaryOps)OBO->getOpcode(),
+                      /* Signed */ false, LHS, RHS)) {
+    Flags = ScalarEvolution::setFlags(Flags, SCEV::FlagNUW);
+    Deduced = true;
+  }
+
+  if (!OBO->hasNoSignedWrap() &&
+      willNotOverflow((Instruction::BinaryOps)OBO->getOpcode(),
+                      /* Signed */ true, LHS, RHS)) {
+    Flags = ScalarEvolution::setFlags(Flags, SCEV::FlagNSW);
+    Deduced = true;
+  }
+
+  return {Flags, Deduced};
 }
 
 // We're trying to construct a SCEV of type `Type' with `Ops' as operands and
@@ -3832,7 +3914,7 @@ static std::pair<const SCEV *, ConstantInt *> splitAddExpr(const SCEV *S) {
 
 /// Return the ValueOffsetPair set for \p S. \p S can be represented
 /// by the value and offset from any ValueOffsetPair in the set.
-SetVector<ScalarEvolution::ValueOffsetPair> *
+ScalarEvolution::ValueOffsetPairSetVector *
 ScalarEvolution::getSCEVValues(const SCEV *S) {
   ExprValueMapType::iterator SI = ExprValueMap.find_as(S);
   if (SI == ExprValueMap.end())
@@ -3855,7 +3937,7 @@ void ScalarEvolution::eraseValueFromMap(Value *V) {
   if (I != ValueExprMap.end()) {
     const SCEV *S = I->second;
     // Remove {V, 0} from the set of ExprValueMap[S]
-    if (SetVector<ValueOffsetPair> *SV = getSCEVValues(S))
+    if (auto *SV = getSCEVValues(S))
       SV->remove({V, nullptr});
 
     // Remove {V, Offset} from the set of ExprValueMap[Stripped]
@@ -3863,7 +3945,7 @@ void ScalarEvolution::eraseValueFromMap(Value *V) {
     ConstantInt *Offset;
     std::tie(Stripped, Offset) = splitAddExpr(S);
     if (Offset != nullptr) {
-      if (SetVector<ValueOffsetPair> *SV = getSCEVValues(Stripped))
+      if (auto *SV = getSCEVValues(Stripped))
         SV->remove({V, Offset});
     }
     ValueExprMap.erase(V);

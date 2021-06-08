@@ -8966,6 +8966,18 @@ checkOpenMPLoop(OpenMPDirectiveKind DKind, Expr *CollapseLoopCountExpr,
               }
             }
             return false;
+          },
+          [&SemaRef, &Captures](OMPLoopBasedDirective *Transform) {
+            Stmt *DependentPreInits =
+                cast<OMPTileDirective>(Transform)->getPreInits();
+            if (!DependentPreInits)
+              return;
+            for (Decl *C : cast<DeclStmt>(DependentPreInits)->getDeclGroup()) {
+              auto *D = cast<VarDecl>(C);
+              DeclRefExpr *Ref = buildDeclRefExpr(SemaRef, D, D->getType(),
+                                                  Transform->getBeginLoc());
+              Captures[Ref] = Ref;
+            }
           }))
     return 0;
 
@@ -10111,14 +10123,14 @@ Sema::ActOnOpenMPParallelSectionsDirective(ArrayRef<OMPClause *> Clauses,
       DSAStack->getTaskgroupReductionRef(), DSAStack->isCancelRegion());
 }
 
-/// detach and mergeable clauses are mutially exclusive, check for it.
-static bool checkDetachMergeableClauses(Sema &S,
-                                        ArrayRef<OMPClause *> Clauses) {
+/// Find and diagnose mutually exclusive clause kinds.
+static bool checkMutuallyExclusiveClauses(
+    Sema &S, ArrayRef<OMPClause *> Clauses,
+    ArrayRef<OpenMPClauseKind> MutuallyExclusiveClauses) {
   const OMPClause *PrevClause = nullptr;
   bool ErrorFound = false;
   for (const OMPClause *C : Clauses) {
-    if (C->getClauseKind() == OMPC_detach ||
-        C->getClauseKind() == OMPC_mergeable) {
+    if (llvm::is_contained(MutuallyExclusiveClauses, C->getClauseKind())) {
       if (!PrevClause) {
         PrevClause = C;
       } else if (PrevClause->getClauseKind() != C->getClauseKind()) {
@@ -10143,7 +10155,8 @@ StmtResult Sema::ActOnOpenMPTaskDirective(ArrayRef<OMPClause *> Clauses,
   // OpenMP 5.0, 2.10.1 task Construct
   // If a detach clause appears on the directive, then a mergeable clause cannot
   // appear on the same directive.
-  if (checkDetachMergeableClauses(*this, Clauses))
+  if (checkMutuallyExclusiveClauses(*this, Clauses,
+                                    {OMPC_detach, OMPC_mergeable}))
     return StmtError();
 
   auto *CS = cast<CapturedStmt>(AStmt);
@@ -11447,28 +11460,6 @@ StmtResult Sema::ActOnOpenMPCancelDirective(ArrayRef<OMPClause *> Clauses,
                                     CancelRegion);
 }
 
-static bool checkGrainsizeNumTasksClauses(Sema &S,
-                                          ArrayRef<OMPClause *> Clauses) {
-  const OMPClause *PrevClause = nullptr;
-  bool ErrorFound = false;
-  for (const OMPClause *C : Clauses) {
-    if (C->getClauseKind() == OMPC_grainsize ||
-        C->getClauseKind() == OMPC_num_tasks) {
-      if (!PrevClause)
-        PrevClause = C;
-      else if (PrevClause->getClauseKind() != C->getClauseKind()) {
-        S.Diag(C->getBeginLoc(), diag::err_omp_clauses_mutually_exclusive)
-            << getOpenMPClauseName(C->getClauseKind())
-            << getOpenMPClauseName(PrevClause->getClauseKind());
-        S.Diag(PrevClause->getBeginLoc(), diag::note_omp_previous_clause)
-            << getOpenMPClauseName(PrevClause->getClauseKind());
-        ErrorFound = true;
-      }
-    }
-  }
-  return ErrorFound;
-}
-
 static bool checkReductionClauseWithNogroup(Sema &S,
                                             ArrayRef<OMPClause *> Clauses) {
   const OMPClause *ReductionClause = nullptr;
@@ -11519,7 +11510,8 @@ StmtResult Sema::ActOnOpenMPTaskLoopDirective(
   // OpenMP, [2.9.2 taskloop Construct, Restrictions]
   // The grainsize clause and num_tasks clause are mutually exclusive and may
   // not appear on the same taskloop directive.
-  if (checkGrainsizeNumTasksClauses(*this, Clauses))
+  if (checkMutuallyExclusiveClauses(*this, Clauses,
+                                    {OMPC_grainsize, OMPC_num_tasks}))
     return StmtError();
   // OpenMP, [2.9.2 taskloop Construct, Restrictions]
   // If a reduction clause is present on the taskloop directive, the nogroup
@@ -11567,7 +11559,8 @@ StmtResult Sema::ActOnOpenMPTaskLoopSimdDirective(
   // OpenMP, [2.9.2 taskloop Construct, Restrictions]
   // The grainsize clause and num_tasks clause are mutually exclusive and may
   // not appear on the same taskloop directive.
-  if (checkGrainsizeNumTasksClauses(*this, Clauses))
+  if (checkMutuallyExclusiveClauses(*this, Clauses,
+                                    {OMPC_grainsize, OMPC_num_tasks}))
     return StmtError();
   // OpenMP, [2.9.2 taskloop Construct, Restrictions]
   // If a reduction clause is present on the taskloop directive, the nogroup
@@ -11605,7 +11598,8 @@ StmtResult Sema::ActOnOpenMPMasterTaskLoopDirective(
   // OpenMP, [2.9.2 taskloop Construct, Restrictions]
   // The grainsize clause and num_tasks clause are mutually exclusive and may
   // not appear on the same taskloop directive.
-  if (checkGrainsizeNumTasksClauses(*this, Clauses))
+  if (checkMutuallyExclusiveClauses(*this, Clauses,
+                                    {OMPC_grainsize, OMPC_num_tasks}))
     return StmtError();
   // OpenMP, [2.9.2 taskloop Construct, Restrictions]
   // If a reduction clause is present on the taskloop directive, the nogroup
@@ -11653,7 +11647,8 @@ StmtResult Sema::ActOnOpenMPMasterTaskLoopSimdDirective(
   // OpenMP, [2.9.2 taskloop Construct, Restrictions]
   // The grainsize clause and num_tasks clause are mutually exclusive and may
   // not appear on the same taskloop directive.
-  if (checkGrainsizeNumTasksClauses(*this, Clauses))
+  if (checkMutuallyExclusiveClauses(*this, Clauses,
+                                    {OMPC_grainsize, OMPC_num_tasks}))
     return StmtError();
   // OpenMP, [2.9.2 taskloop Construct, Restrictions]
   // If a reduction clause is present on the taskloop directive, the nogroup
@@ -11710,7 +11705,8 @@ StmtResult Sema::ActOnOpenMPParallelMasterTaskLoopDirective(
   // OpenMP, [2.9.2 taskloop Construct, Restrictions]
   // The grainsize clause and num_tasks clause are mutually exclusive and may
   // not appear on the same taskloop directive.
-  if (checkGrainsizeNumTasksClauses(*this, Clauses))
+  if (checkMutuallyExclusiveClauses(*this, Clauses,
+                                    {OMPC_grainsize, OMPC_num_tasks}))
     return StmtError();
   // OpenMP, [2.9.2 taskloop Construct, Restrictions]
   // If a reduction clause is present on the taskloop directive, the nogroup
@@ -11777,7 +11773,8 @@ StmtResult Sema::ActOnOpenMPParallelMasterTaskLoopSimdDirective(
   // OpenMP, [2.9.2 taskloop Construct, Restrictions]
   // The grainsize clause and num_tasks clause are mutually exclusive and may
   // not appear on the same taskloop directive.
-  if (checkGrainsizeNumTasksClauses(*this, Clauses))
+  if (checkMutuallyExclusiveClauses(*this, Clauses,
+                                    {OMPC_grainsize, OMPC_num_tasks}))
     return StmtError();
   // OpenMP, [2.9.2 taskloop Construct, Restrictions]
   // If a reduction clause is present on the taskloop directive, the nogroup
@@ -12566,7 +12563,8 @@ StmtResult Sema::ActOnOpenMPTileDirective(ArrayRef<OMPClause *> Clauses,
   // Verify and diagnose loop nest.
   SmallVector<OMPLoopBasedDirective::HelperExprs, 4> LoopHelpers(NumLoops);
   Stmt *Body = nullptr;
-  SmallVector<Stmt *, 4> OriginalInits;
+  SmallVector<SmallVector<llvm::PointerUnion<Stmt *, Decl *>, 0>, 4>
+      OriginalInits(1);
   if (!OMPLoopBasedDirective::doForAllLoops(
           AStmt->IgnoreContainers(), /*TryImperfectlyNestedLoops=*/false,
           NumLoops,
@@ -12580,16 +12578,23 @@ StmtResult Sema::ActOnOpenMPTileDirective(ArrayRef<OMPClause *> Clauses,
               return true;
             assert(SingleNumLoops == 1 && "Expect single loop iteration space");
             if (auto *For = dyn_cast<ForStmt>(CurStmt)) {
-              OriginalInits.push_back(For->getInit());
+              OriginalInits.back().push_back(For->getInit());
               Body = For->getBody();
             } else {
               assert(isa<CXXForRangeStmt>(CurStmt) &&
                      "Expected canonical for or range-based for loops.");
               auto *CXXFor = cast<CXXForRangeStmt>(CurStmt);
-              OriginalInits.push_back(CXXFor->getBeginStmt());
+              OriginalInits.back().push_back(CXXFor->getBeginStmt());
               Body = CXXFor->getBody();
             }
+            OriginalInits.emplace_back();
             return false;
+          },
+          [&OriginalInits](OMPLoopBasedDirective *Transform) {
+            Stmt *DependentPreInits =
+                cast<OMPTileDirective>(Transform)->getPreInits();
+            for (Decl *C : cast<DeclStmt>(DependentPreInits)->getDeclGroup())
+              OriginalInits.back().push_back(C);
           }))
     return StmtError();
 
@@ -12598,7 +12603,6 @@ StmtResult Sema::ActOnOpenMPTileDirective(ArrayRef<OMPClause *> Clauses,
     return OMPTileDirective::Create(Context, StartLoc, EndLoc, Clauses,
                                     NumLoops, AStmt, nullptr, nullptr);
 
-  // Collection of generated variable declaration.
   SmallVector<Decl *, 4> PreInits;
 
   // Create iteration variables for the generated loops.
@@ -12608,8 +12612,7 @@ StmtResult Sema::ActOnOpenMPTileDirective(ArrayRef<OMPClause *> Clauses,
   TileIndVars.resize(NumLoops);
   for (unsigned I = 0; I < NumLoops; ++I) {
     OMPLoopBasedDirective::HelperExprs &LoopHelper = LoopHelpers[I];
-    if (auto *PI = cast_or_null<DeclStmt>(LoopHelper.PreInits))
-      PreInits.append(PI->decl_begin(), PI->decl_end());
+
     assert(LoopHelper.Counters.size() == 1 &&
            "Expect single-dimensional loop iteration space");
     auto *OrigCntVar = cast<DeclRefExpr>(LoopHelper.Counters.front());
@@ -12638,7 +12641,13 @@ StmtResult Sema::ActOnOpenMPTileDirective(ArrayRef<OMPClause *> Clauses,
       TileCntDecl->setDeclName(&PP.getIdentifierTable().get(TileCntName));
       TileIndVars[I] = TileCntDecl;
     }
-    if (auto *PI = dyn_cast_or_null<DeclStmt>(OriginalInits[I]))
+    for (auto &P : OriginalInits[I]) {
+      if (auto *D = P.dyn_cast<Decl *>())
+        PreInits.push_back(D);
+      else if (auto *PI = dyn_cast_or_null<DeclStmt>(P.dyn_cast<Stmt *>()))
+        PreInits.append(PI->decl_begin(), PI->decl_end());
+    }
+    if (auto *PI = cast_or_null<DeclStmt>(LoopHelper.PreInits))
       PreInits.append(PI->decl_begin(), PI->decl_end());
     // Gather declarations for the data members used as counters.
     for (Expr *CounterRef : LoopHelper.Counters) {
@@ -19659,8 +19668,13 @@ Sema::ActOnOpenMPDeclareMapperDirectiveVarDecl(Scope *S, QualType MapperType,
 bool Sema::isOpenMPDeclareMapperVarDeclAllowed(const VarDecl *VD) const {
   assert(LangOpts.OpenMP && "Expected OpenMP mode.");
   const Expr *Ref = DSAStack->getDeclareMapperVarRef();
-  if (const auto *DRE = cast_or_null<DeclRefExpr>(Ref))
-    return VD->getCanonicalDecl() == DRE->getDecl()->getCanonicalDecl();
+  if (const auto *DRE = cast_or_null<DeclRefExpr>(Ref)) {
+    if (VD->getCanonicalDecl() == DRE->getDecl()->getCanonicalDecl())
+      return true;
+    if (VD->isUsableInConstantExpressions(Context))
+      return true;
+    return false;
+  }
   return true;
 }
 

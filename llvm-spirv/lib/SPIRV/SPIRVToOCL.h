@@ -182,6 +182,9 @@ public:
   /// using separate maps for OpenCL 1.2 and OpenCL 2.0
   virtual Instruction *mutateAtomicName(CallInst *CI, Op OC) = 0;
 
+  // Transform FP atomic opcode to corresponding OpenCL function name
+  virtual std::string mapFPAtomicName(Op OC) = 0;
+
   /// Transform uniform group opcode to corresponding OpenCL function name,
   /// example: GroupIAdd(Reduce) => group_iadd => work_group_reduce_add |
   /// sub_group_reduce_add
@@ -261,6 +264,9 @@ public:
   /// Transform atomic builtin name into correct ocl-dependent name
   Instruction *mutateAtomicName(CallInst *CI, Op OC) override;
 
+  // Transform FP atomic opcode to corresponding OpenCL function name
+  std::string mapFPAtomicName(Op OC) override;
+
   /// Transform SPIR-V atomic instruction opcode into OpenCL 1.2 builtin name.
   /// Depending on the type, the return name starts with "atomic_" for 32-bit
   /// types or with "atom_" for 64-bit types, as specified by
@@ -320,6 +326,9 @@ public:
 
   /// Transform atomic builtin name into correct ocl-dependent name
   Instruction *mutateAtomicName(CallInst *CI, Op OC) override;
+
+  // Transform FP atomic opcode to corresponding OpenCL function name
+  std::string mapFPAtomicName(Op OC) override;
 
   /// Transform __spirv_OpAtomicCompareExchange/Weak into
   /// compare_exchange_strong/weak_explicit

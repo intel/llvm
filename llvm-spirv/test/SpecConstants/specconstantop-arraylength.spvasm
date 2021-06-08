@@ -1,0 +1,34 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+; Verify that an OpTypeArray with an OpSpecConstantOp length is supported.
+
+; CHECK: @var = common addrspace(1) global [8 x i32] zeroinitializer, align 4
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %15 "foo"
+               OpName %var "var"
+               OpName %entry "entry"
+               OpDecorate %var LinkageAttributes "var" Export
+               OpDecorate %var Alignment 4
+       %void = OpTypeVoid
+         %14 = OpTypeFunction %void
+       %uint = OpTypeInt 32 0
+     %uint_4 = OpConstant %uint 4
+     %uint_8 = OpSpecConstantOp %uint IAdd %uint_4 %uint_4
+        %arr = OpTypeArray %uint %uint_8
+    %ptr_arr = OpTypePointer CrossWorkgroup %arr
+
+        %var = OpVariable %ptr_arr CrossWorkgroup
+
+         %15 = OpFunction %void Pure %14
+      %entry = OpLabel
+               OpReturn
+               OpFunctionEnd
