@@ -1,9 +1,13 @@
 // RUN: %clang_cc1 %s -std=c++17 -triple x86_64-linux-gnu -Wno-sycl-2020-compat -fsycl-is-device -verify -fsyntax-only -Wno-unused
 
-template <typename KernelName, typename KernelType>
-[[clang::sycl_kernel]] void kernel_single_task(const KernelType &kernelFunc) { // #kernelSingleTask
-  kernelFunc();
-}
+#include "Inputs/sycl.hpp"
+
+// Test to validate that __builtin_sycl_mark_kernel_name properly updates the
+// constexpr checking for __builtin_sycl_unique_stable_name. We need to make
+// sure that the KernelInfo change in the library both still stays broken, and
+// is then 'fixed', so the definitions below help ensure that is the case.
+// We also validate that this works in the event that we have a wrapper that
+// first calls for the KernelInfo type, then instantiates a kernel.
 
 template <typename KN>
 struct KernelInfo {
@@ -24,7 +28,7 @@ template <template <typename> class KI,
           typename KernelType>
 void wrapper(KernelType KernelFunc) {
   (void)KI<KernelName>::c;
-  kernel_single_task<KernelName>(KernelFunc); // #SingleTaskInst
+  cl::sycl::kernel_single_task<KernelName>(KernelFunc); // #SingleTaskInst
 }
 
 int main() {
@@ -37,7 +41,7 @@ int main() {
   }();
 
   []() {
-    // expected-error@#kernelSingleTask {{kernel instantiation changes the result of an evaluated '__builtin_sycl_unique_stable_name'}}
+    // expected-error@#KernelSingleTaskFunc {{kernel instantiation changes the result of an evaluated '__builtin_sycl_unique_stable_name'}}
     // expected-note@#SingleTaskInst {{in instantiation of function template}}
     // expected-note@+2 {{in instantiation of function template}}
     // expected-note@#KI_USN {{'__builtin_sycl_unique_stable_name' evaluated here}}
