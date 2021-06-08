@@ -2587,7 +2587,7 @@ clusters handle stalls using a stall-enable signal to freeze computation
 within the cluster. This attribute is ignored on the host.
 
 If ``intel::use_stall_enable_clusters`` is applied to a function called from a device
-kernel, the attribute is ignored and it is not propagated to the kernel.
+kernel, the attribute is not ignored and it is propagated to the kernel.
 
 The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an effect
 when applied to a function, and no effect otherwise.
