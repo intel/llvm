@@ -359,12 +359,6 @@ private:
   StringRef path;
 };
 
-static uint32_t encodeVersion(const VersionTuple &version) {
-  return ((version.getMajor() << 020) |
-          (version.getMinor().getValueOr(0) << 010) |
-          version.getSubminor().getValueOr(0));
-}
-
 class LCMinVersion : public LoadCommand {
 public:
   explicit LCMinVersion(const PlatformInfo &platformInfo)
@@ -723,7 +717,7 @@ template <class LP> void Writer::createLoadCommands() {
       //   files.
       // In the first case, *semantically distinct* DylibFiles will have the
       // same installName.
-      int64_t &ordinal = ordinalForInstallName[dylibFile->dylibName];
+      int64_t &ordinal = ordinalForInstallName[dylibFile->installName];
       if (ordinal) {
         dylibFile->ordinal = ordinal;
         continue;
@@ -734,13 +728,13 @@ template <class LP> void Writer::createLoadCommands() {
           dylibFile->forceWeakImport || dylibFile->refState == RefState::Weak
               ? LC_LOAD_WEAK_DYLIB
               : LC_LOAD_DYLIB;
-      in.header->addLoadCommand(make<LCDylib>(lcType, dylibFile->dylibName,
+      in.header->addLoadCommand(make<LCDylib>(lcType, dylibFile->installName,
                                               dylibFile->compatibilityVersion,
                                               dylibFile->currentVersion));
 
       if (dylibFile->reexport)
         in.header->addLoadCommand(
-            make<LCDylib>(LC_REEXPORT_DYLIB, dylibFile->dylibName));
+            make<LCDylib>(LC_REEXPORT_DYLIB, dylibFile->installName));
     }
   }
 

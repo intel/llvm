@@ -18,6 +18,23 @@
 #include <llvm/Support/FileSystem.h>
 #include <vector>
 
+// TODO: Introduce common unit tests header and move it there
+static void set_env(const char *name, const char *value) {
+#ifdef _WIN32
+  (void)_putenv_s(name, value);
+#else
+  (void)setenv(name, value, /*overwrite*/ 1);
+#endif
+}
+
+static void unset_env(const char *name) {
+#ifdef _WIN32
+  (void)_putenv_s(name, "");
+#else
+  unsetenv(name);
+#endif
+}
+
 namespace {
 constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
 using namespace cl::sycl;
@@ -98,6 +115,10 @@ public:
     if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
       return;
     }
+
+    set_env("SYCL_CACHE_PERSISTENT", "1");
+    sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+
     std::string BuildOptions{"--concurrent-access=" +
                              std::to_string(ThreadCount)};
     DeviceCodeID = ProgramID;
@@ -151,6 +172,10 @@ TEST_F(PersistenDeviceCodeCache, KeysWithNullTermSymbol) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
+
+  set_env("SYCL_CACHE_PERSISTENT", "1");
+  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
@@ -204,6 +229,10 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
+
+  set_env("SYCL_CACHE_PERSISTENT", "1");
+  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+
   std::string BuildOptions{"--corrupted-file"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);
@@ -267,6 +296,10 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
+
+  set_env("SYCL_CACHE_PERSISTENT", "1");
+  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+
   std::string BuildOptions{"--obsolete-lock"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);
@@ -318,6 +351,10 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
+
+  set_env("SYCL_CACHE_PERSISTENT", "1");
+  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+
   std::string BuildOptions{"--build-options"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);

@@ -138,24 +138,24 @@ int main() {
   std::iota(input.begin(), input.end(), 0);
   std::fill(output.begin(), output.end(), 0);
 
-  test<class KernelNamePlusV>(q, input, output, std::plus<>(), 0);
-  test<class KernelNameMinimumV>(q, input, output, sycl::ONEAPI::minimum<>(),
+  test<class KernelNamePlusV>(q, input, output, sycl::plus<>(), 0);
+  test<class KernelNameMinimumV>(q, input, output, sycl::minimum<>(),
                                  std::numeric_limits<int>::max());
-  test<class KernelNameMaximumV>(q, input, output, sycl::ONEAPI::maximum<>(),
+  test<class KernelNameMaximumV>(q, input, output, sycl::maximum<>(),
                                  std::numeric_limits<int>::lowest());
 
-  test<class KernelNamePlusI>(q, input, output, std::plus<int>(), 0);
-  test<class KernelNameMinimumI>(q, input, output, sycl::ONEAPI::minimum<int>(),
+  test<class KernelNamePlusI>(q, input, output, sycl::plus<int>(), 0);
+  test<class KernelNameMinimumI>(q, input, output, sycl::minimum<int>(),
                                  std::numeric_limits<int>::max());
-  test<class KernelNameMaximumI>(q, input, output, sycl::ONEAPI::maximum<int>(),
+  test<class KernelNameMaximumI>(q, input, output, sycl::maximum<int>(),
                                  std::numeric_limits<int>::lowest());
 
 #ifdef SPIRV_1_3
-  test<class KernelName_VzAPutpBRRJrQPB>(q, input, output, multiplies<int>(),
+  test<class KernelName_VzAPutpBRRJrQPB>(q, input, output, sycl::multiplies<int>(),
                                          1);
-  test<class KernelName_UXdGbr>(q, input, output, bit_or<int>(), 0);
-  test<class KernelName_saYaodNyJknrPW>(q, input, output, bit_xor<int>(), 0);
-  test<class KernelName_GPcuAlvAOjrDyP>(q, input, output, bit_and<int>(), ~0);
+  test<class KernelName_UXdGbr>(q, input, output, sycl::bit_or<int>(), 0);
+  test<class KernelName_saYaodNyJknrPW>(q, input, output, sycl::bit_xor<int>(), 0);
+  test<class KernelName_GPcuAlvAOjrDyP>(q, input, output, sycl::bit_and<int>(), ~0);
 #endif // SPIRV_1_3
 
   std::cout << "Test passed." << std::endl;

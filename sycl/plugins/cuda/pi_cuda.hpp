@@ -34,7 +34,7 @@
 
 extern "C" {
 
-/// \cond INGORE_BLOCK_IN_DOXYGEN
+/// \cond IGNORE_BLOCK_IN_DOXYGEN
 pi_result cuda_piContextRetain(pi_context );
 pi_result cuda_piContextRelease(pi_context );
 pi_result cuda_piDeviceRelease(pi_device );

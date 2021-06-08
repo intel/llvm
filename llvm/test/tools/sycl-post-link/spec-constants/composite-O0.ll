@@ -1,5 +1,5 @@
 ; RUN: sycl-post-link -spec-const=rt --ir-output-only %s -S -o - \
-; RUN: | FileCheck %s --implicit-check-not __sycl_getCompositeSpecConstantValue
+; RUN: | FileCheck %s --implicit-check-not "call {{.*}} __sycl_getCompositeSpecConstantValue"
 ;
 ; This test is intended to check that sycl-post-link tool is capable of handling
 ; composite specialization constants by lowering them into a set of SPIR-V
