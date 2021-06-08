@@ -99,6 +99,9 @@ public:
   static constexpr int dimensions = Dimensions;
 #endif // __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
 
+  static constexpr sycl::memory_scope fence_scope =
+      sycl::memory_scope::work_group;
+
   group() = delete;
 
   id<Dimensions> get_id() const { return index; }
@@ -430,30 +433,6 @@ template <int Dims> group<Dims> this_group() {
   return detail::Builder::getElement(detail::declptr<group<Dims>>());
 #else
   return detail::store_group<Dims>(nullptr);
-#endif
-}
-
-template <typename Group>
-void group_barrier(Group G, memory_scope FenceScope = Group::fence_scope);
-
-template <typename Group>
-inline typename std::enable_if<detail::is_group<Group>::value>::type
-group_barrier(Group, memory_scope FenceScope) {
-  (void)FenceScope;
-#ifdef __SYCL_DEVICE_ONLY__
-  // Per SYCL spec, group_barrier must perform both control barrier and memory
-  // fence operations. All work-items execute release a release fence prior to
-  // barrier and acquire fence afterwards. The rest of semantics flags specify
-  // which type of memory this behavior is applied to.
-  __spirv_ControlBarrier(__spv::Scope::Workgroup,
-                         sycl::detail::spirv::getScope(FenceScope),
-                         __spv::MemorySemanticsMask::AcquireRelease |
-                             __spv::MemorySemanticsMask::SubgroupMemory |
-                             __spv::MemorySemanticsMask::WorkgroupMemory |
-                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
-#else
-  throw sycl::runtime_error("Barriers are not supported on host device",
-                            PI_INVALID_DEVICE);
 #endif
 }
 } // namespace sycl
