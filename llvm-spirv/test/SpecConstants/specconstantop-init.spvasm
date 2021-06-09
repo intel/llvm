@@ -22,7 +22,7 @@
 ; CHECK: @var_sdiv0 = addrspace(1) global i32 poison
 ; CHECK: @var_umod = addrspace(1) global i32 1
 ; CHECK: @var_srem = addrspace(1) global i32 1
-; TODO: smod
+; CHECK: @var_smod = addrspace(1) global i32 -3
 ; CHECK: @var_srl = addrspace(1) global i32 268435455
 ; CHECK: @var_sra = addrspace(1) global i32 -1
 ; CHECK: @var_sll = addrspace(1) global i32 848
@@ -67,6 +67,7 @@
                OpDecorate %var_sdiv0 LinkageAttributes "var_sdiv0" Export
                OpDecorate %var_umod LinkageAttributes "var_umod" Export
                OpDecorate %var_srem LinkageAttributes "var_srem" Export
+               OpDecorate %var_smod LinkageAttributes "var_smod" Export
                OpDecorate %var_srl LinkageAttributes "var_srl" Export
                OpDecorate %var_sra LinkageAttributes "var_sra" Export
                OpDecorate %var_sll LinkageAttributes "var_sll" Export
@@ -114,6 +115,7 @@
       %sdiv0 = OpSpecConstantOp %uint SDiv %uint_53 %uint_0
        %umod = OpSpecConstantOp %uint UMod %uint_53 %uint_4
        %srem = OpSpecConstantOp %uint SRem %uint_53 %uint_min4
+       %smod = OpSpecConstantOp %uint SMod %uint_53 %uint_min4
         %srl = OpSpecConstantOp %uint ShiftRightLogical %uint_min4 %uint_4
         %sra = OpSpecConstantOp %uint ShiftRightArithmetic %uint_min4 %uint_4
         %sll = OpSpecConstantOp %uint ShiftLeftLogical %uint_53 %uint_4
@@ -156,6 +158,7 @@
   %var_sdiv0 = OpVariable %_ptr_uint CrossWorkgroup %sdiv0
    %var_umod = OpVariable %_ptr_uint CrossWorkgroup %umod
    %var_srem = OpVariable %_ptr_uint CrossWorkgroup %srem
+   %var_smod = OpVariable %_ptr_uint CrossWorkgroup %smod
     %var_srl = OpVariable %_ptr_uint CrossWorkgroup %srl
     %var_sra = OpVariable %_ptr_uint CrossWorkgroup %sra
     %var_sll = OpVariable %_ptr_uint CrossWorkgroup %sll
