@@ -1063,7 +1063,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       if (FD->hasAttr<SYCLIntelUseStallEnableClustersAttr>()) {
         llvm::Metadata *AttrMDArgs[] = {
             llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
-	Fn->setMetadata("stall_enable",
+        Fn->setMetadata("stall_enable",
                         llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
       }
     }
