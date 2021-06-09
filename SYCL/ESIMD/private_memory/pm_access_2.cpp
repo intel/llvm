@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: gpu
-// Sporadic failure in GPU RT 21.16.19610
-// UNSUPPORTED: cuda || (level_zero && linux) || (opencl && linux)
-// RUN: %clangxx -fsycl -I%S/.. %S/Inputs/pm_common.cpp -o %t.out
+// UNSUPPORTED: cuda
+// RUN: %clangxx -fsycl -Xs "-stateless-stack-mem-size=131072" -I%S/.. %S/Inputs/pm_common.cpp -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 2
