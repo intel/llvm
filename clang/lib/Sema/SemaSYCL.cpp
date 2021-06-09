@@ -5029,6 +5029,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.SuppressUnwrittenScope = true;
 
   OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
+  OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
 
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
@@ -5051,7 +5052,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     OS << ">() {\n";
     OS << "  return "
-          "__builtin_unique_stable_name(specialization_id_name_generator<";
+          "__builtin_sycl_unique_stable_name(specialization_id_name_generator<";
     emitSpecIDName(OS, VD);
     OS << ">);\n";
     OS << "}\n";
@@ -5059,8 +5060,6 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "} // namespace sycl\n";
     OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
   }
-
-  OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
   return true;
 }
 
