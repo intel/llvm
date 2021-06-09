@@ -20,15 +20,19 @@
 @id_compos = dso_local global %class.specialization_id.1 { %struct.ComposConst { i32 1, double 2.000000e+00, %struct.myConst { i32 13, float 0x4020666660000000 } } }, align 8
 @id_compos2 = dso_local global %class.specialization_id.2 { %struct.ComposConst2 { i8 1, %struct.myConst { i32 52, float 0x40479999A0000000 }, double 2.000000e+00 } }, align 8
 
-; check that no longer used globals are removed:
+; check that the following globals are preserved: even though they are won't be
+; used in the module anymore, they could still be referenced by debug info
+; metadata (specialization_id objects are used as template arguments in SYCL
+; specialization constant APIs)
+; CHECK: @id_double
+; CHECK: @id_int
+; CHECK: @id_compos
+; CHECK: @id_compos2
+
 @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z9id_doubleE17specialization_idIdEdET1_v = private unnamed_addr constant [37 x i8] c"_ZTS14name_generatorIL_Z9id_doubleEE\00", align 1
-; CHECK-NOT: @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z9id_doubleE17specialization_idIdEdET1_v
 @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z6id_intE17specialization_idIiEiET1_v = private unnamed_addr constant [34 x i8] c"_ZTS14name_generatorIL_Z6id_intEE\00", align 1
-; CHECK-NOT: @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z6id_intE17specialization_idIiEiET1_v
 @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z9id_composE17specialization_idI11ComposConstES1_ET1_v = private unnamed_addr constant [37 x i8] c"_ZTS14name_generatorIL_Z9id_composEE\00", align 1
-; CHECK-NOT: @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z9id_composE17specialization_idI11ComposConstES1_ET1_v
 @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_compos2E17specialization_idI12ComposConst2ES1_ET1_v = private unnamed_addr constant [39 x i8] c"_ZTS14name_generatorIL_Z10id_compos2EE\00", align 1
-; CHECK-NOT: @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_compos2E17specialization_idI12ComposConst2ES1_ET1_v
 
 ; CHECK-LABEL: define dso_local void @_Z4testv
 define dso_local void @_Z4testv() local_unnamed_addr #0 {
@@ -132,6 +136,9 @@ attributes #3 = { nounwind }
 
 ; CHECK: !sycl.specialization-constants = !{![[#ID0:]], ![[#ID1:]], ![[#ID2:]], ![[#ID3:]]}
 ;
+; CHECK-DEF: !sycl.specialization-constants-default-values = !{![[#ID4:]], ![[#ID5:]], ![[#ID6:]], ![[#ID7:]]}
+; CHECK-RT-NOT: !sycl.specialization-constants-default-values
+;
 ; CHECK: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_doubleEE", i32 0, i32 0, i32 8}
 ; CHECK: ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}
 ;
@@ -148,3 +155,8 @@ attributes #3 = { nounwind }
 ; CHECK-RT-SAME: i32 [[#SCID7]], i32 4, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID8]], i32 8, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID9]], i32 16, i32 8}
+;
+; CHECK-DEF: ![[#ID4]] = !{double 3.140000e+00}
+; CHECK-DEF: ![[#ID5]] = !{i32 42}
+; CHECK-DEF: ![[#ID6]] = !{%struct.ComposConst { i32 1, double 2.000000e+00, %struct.myConst { i32 13, float 0x4020666660000000 } }}
+; CHECK-DEF: ![[#ID7]] = !{%struct.ComposConst2 { i8 1, %struct.myConst { i32 52, float 0x40479999A0000000 }, double 2.000000e+00 }}

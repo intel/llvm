@@ -1829,7 +1829,14 @@ struct FormatStyle {
     ///        Base2
     ///    {};
     /// \endcode
-    BILS_AfterColon
+    BILS_AfterColon,
+    /// Break inheritance list only after the commas.
+    /// \code
+    ///    class Foo : Base1,
+    ///                Base2
+    ///    {};
+    /// \endcode
+    BILS_AfterComma,
   };
 
   /// The inheritance list style to use.
@@ -1973,7 +1980,9 @@ struct FormatStyle {
     ELAAMS_Always,
   };
 
-  /// Defines in which cases to put empty line after access modifiers.
+  /// Defines when to put an empty line after access modifiers.
+  /// ``EmptyLineBeforeAccessModifier`` configuration handles the number of
+  /// empty lines between two access modifiers.
   EmptyLineAfterAccessModifierStyle EmptyLineAfterAccessModifier;
 
   /// Different styles for empty line before access modifiers.
@@ -2656,6 +2665,20 @@ struct FormatStyle {
 
   /// Pointer and reference alignment style.
   PointerAlignmentStyle PointerAlignment;
+
+  /// The number of columns to use for indentation of preprocessor statements.
+  /// When set to -1 (default) ``IndentWidth`` is used also for preprocessor
+  /// statements.
+  /// \code
+  ///    PPIndentWidth: 1
+  ///
+  ///    #ifdef __linux__
+  ///    # define FOO
+  ///    #else
+  ///    # define BAR
+  ///    #endif
+  /// \endcode
+  int PPIndentWidth;
 
   /// See documentation of ``RawStringFormats``.
   struct RawStringFormat {

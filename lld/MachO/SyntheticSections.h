@@ -16,7 +16,7 @@
 #include "OutputSegment.h"
 #include "Target.h"
 
-#include "llvm/ADT/PointerUnion.h"
+#include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
@@ -220,7 +220,7 @@ struct WeakBindingEntry {
 //   other dylibs should coalesce to.
 //
 //   2) Weak bindings: These tell dyld that a given symbol reference should
-//   coalesce to a non-weak definition if one is found. Note that unlike in the
+//   coalesce to a non-weak definition if one is found. Note that unlike the
 //   entries in the BindingSection, the bindings here only refer to these
 //   symbols by name, but do not specify which dylib to load them from.
 class WeakBindingSection : public LinkEditSection {
@@ -296,7 +296,7 @@ public:
   // have a corresponding entry in the LazyPointerSection.
   bool addEntry(Symbol *);
   uint64_t getVA(uint32_t stubsIndex) const {
-    // MergedOutputSection::finalize() can seek the address of a
+    // ConcatOutputSection::finalize() can seek the address of a
     // stub before its address is assigned. Before __stubs is
     // finalized, return a contrived out-of-range address.
     return isFinal ? addr + stubsIndex * target->stubSize
@@ -514,9 +514,6 @@ private:
   llvm::SmallString<261> xarPath;
   uint64_t xarSize;
 };
-
-static_assert((CodeSignatureSection::blobHeadersSize % 8) == 0, "");
-static_assert((CodeSignatureSection::fixedHeadersSize % 8) == 0, "");
 
 struct InStruct {
   MachHeaderSection *header = nullptr;

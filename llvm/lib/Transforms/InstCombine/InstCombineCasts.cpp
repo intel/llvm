@@ -277,13 +277,13 @@ InstCombinerImpl::isEliminableCastPair(const CastInst *CI1,
 /// Implement the transforms common to all CastInst visitors.
 Instruction *InstCombinerImpl::commonCastTransforms(CastInst &CI) {
   Value *Src = CI.getOperand(0);
+  Type *Ty = CI.getType();
 
   // Try to eliminate a cast of a cast.
   if (auto *CSrc = dyn_cast<CastInst>(Src)) {   // A->B->C cast
     if (Instruction::CastOps NewOpc = isEliminableCastPair(CSrc, &CI)) {
       // The first cast (CSrc) is eliminable so we need to fix up or replace
       // the second cast (CI). CSrc will then have a good chance of being dead.
-      auto *Ty = CI.getType();
       auto *Res = CastInst::Create(NewOpc, CSrc->getOperand(0), Ty);
       // Point debug users of the dying cast to the new one.
       if (CSrc->hasOneUse())
@@ -317,6 +317,24 @@ Instruction *InstCombinerImpl::commonCastTransforms(CastInst &CI) {
         shouldChangeType(CI.getSrcTy(), CI.getType()))
       if (Instruction *NV = foldOpIntoPhi(CI, PN))
         return NV;
+  }
+
+  // Canonicalize a unary shuffle after the cast if neither operation changes
+  // the size or element size of the input vector.
+  // TODO: We could allow size-changing ops if that doesn't harm codegen.
+  // cast (shuffle X, Mask) --> shuffle (cast X), Mask
+  Value *X;
+  ArrayRef<int> Mask;
+  if (match(Src, m_OneUse(m_Shuffle(m_Value(X), m_Undef(), m_Mask(Mask))))) {
+    // TODO: Allow scalable vectors?
+    auto *SrcTy = dyn_cast<FixedVectorType>(X->getType());
+    auto *DestTy = dyn_cast<FixedVectorType>(Ty);
+    if (SrcTy && DestTy &&
+        SrcTy->getNumElements() == DestTy->getNumElements() &&
+        SrcTy->getPrimitiveSizeInBits() == DestTy->getPrimitiveSizeInBits()) {
+      Value *CastX = Builder.CreateCast(CI.getOpcode(), X, DestTy);
+      return new ShuffleVectorInst(CastX, UndefValue::get(DestTy), Mask);
+    }
   }
 
   return nullptr;
@@ -1027,10 +1045,24 @@ Instruction *InstCombinerImpl::transformZExtICmp(ICmpInst *Cmp, ZExtInst &Zext,
     }
   }
 
-  // icmp ne A, B is equal to xor A, B when A and B only really have one bit.
-  // It is also profitable to transform icmp eq into not(xor(A, B)) because that
-  // may lead to additional simplifications.
   if (Cmp->isEquality() && Zext.getType() == Cmp->getOperand(0)->getType()) {
+    // Test if a bit is clear/set using a shifted-one mask:
+    // zext (icmp eq (and X, (1 << ShAmt)), 0) --> and (lshr (not X), ShAmt), 1
+    // zext (icmp ne (and X, (1 << ShAmt)), 0) --> and (lshr X, ShAmt), 1
+    Value *X, *ShAmt;
+    if (Cmp->hasOneUse() && match(Cmp->getOperand(1), m_ZeroInt()) &&
+        match(Cmp->getOperand(0),
+              m_OneUse(m_c_And(m_Shl(m_One(), m_Value(ShAmt)), m_Value(X))))) {
+      if (Cmp->getPredicate() == ICmpInst::ICMP_EQ)
+        X = Builder.CreateNot(X);
+      Value *Lshr = Builder.CreateLShr(X, ShAmt);
+      Value *And1 = Builder.CreateAnd(Lshr, ConstantInt::get(X->getType(), 1));
+      return replaceInstUsesWith(Zext, And1);
+    }
+
+    // icmp ne A, B is equal to xor A, B when A and B only really have one bit.
+    // It is also profitable to transform icmp eq into not(xor(A, B)) because
+    // that may lead to additional simplifications.
     if (IntegerType *ITy = dyn_cast<IntegerType>(Zext.getType())) {
       Value *LHS = Cmp->getOperand(0);
       Value *RHS = Cmp->getOperand(1);
@@ -1478,6 +1510,8 @@ Instruction *InstCombinerImpl::visitSExt(SExtInst &CI) {
 
   Value *Src = CI.getOperand(0);
   Type *SrcTy = Src->getType(), *DestTy = CI.getType();
+  unsigned SrcBitSize = SrcTy->getScalarSizeInBits();
+  unsigned DestBitSize = DestTy->getScalarSizeInBits();
 
   // If we know that the value being extended is positive, we can use a zext
   // instead.
@@ -1495,9 +1529,6 @@ Instruction *InstCombinerImpl::visitSExt(SExtInst &CI) {
     Value *Res = EvaluateInDifferentType(Src, DestTy, true);
     assert(Res->getType() == DestTy);
 
-    uint32_t SrcBitSize = SrcTy->getScalarSizeInBits();
-    uint32_t DestBitSize = DestTy->getScalarSizeInBits();
-
     // If the high bits are already filled with sign bit, just replace this
     // cast with the result.
     if (ComputeNumSignBits(Res, 0, &CI) > DestBitSize - SrcBitSize)
@@ -1509,15 +1540,32 @@ Instruction *InstCombinerImpl::visitSExt(SExtInst &CI) {
                                       ShAmt);
   }
 
-  // If the input is a trunc from the destination type, then turn sext(trunc(x))
-  // into shifts.
   Value *X;
-  if (match(Src, m_OneUse(m_Trunc(m_Value(X)))) && X->getType() == DestTy) {
-    // sext(trunc(X)) --> ashr(shl(X, C), C)
-    unsigned SrcBitSize = SrcTy->getScalarSizeInBits();
-    unsigned DestBitSize = DestTy->getScalarSizeInBits();
-    Constant *ShAmt = ConstantInt::get(DestTy, DestBitSize - SrcBitSize);
-    return BinaryOperator::CreateAShr(Builder.CreateShl(X, ShAmt), ShAmt);
+  if (match(Src, m_Trunc(m_Value(X)))) {
+    // If the input has more sign bits than bits truncated, then convert
+    // directly to final type.
+    unsigned XBitSize = X->getType()->getScalarSizeInBits();
+    if (ComputeNumSignBits(X, 0, &CI) > XBitSize - SrcBitSize)
+      return CastInst::CreateIntegerCast(X, DestTy, /* isSigned */ true);
+
+    // If input is a trunc from the destination type, then convert into shifts.
+    if (Src->hasOneUse() && X->getType() == DestTy) {
+      // sext (trunc X) --> ashr (shl X, C), C
+      Constant *ShAmt = ConstantInt::get(DestTy, DestBitSize - SrcBitSize);
+      return BinaryOperator::CreateAShr(Builder.CreateShl(X, ShAmt), ShAmt);
+    }
+
+    // If we are replacing shifted-in high zero bits with sign bits, convert
+    // the logic shift to arithmetic shift and eliminate the cast to
+    // intermediate type:
+    // sext (trunc (lshr Y, C)) --> sext/trunc (ashr Y, C)
+    Value *Y;
+    if (Src->hasOneUse() &&
+        match(X, m_LShr(m_Value(Y),
+                        m_SpecificIntAllowUndef(XBitSize - SrcBitSize)))) {
+      Value *Ashr = Builder.CreateAShr(Y, XBitSize - SrcBitSize);
+      return CastInst::CreateIntegerCast(Ashr, DestTy, /* isSigned */ true);
+    }
   }
 
   if (ICmpInst *ICI = dyn_cast<ICmpInst>(Src))
@@ -2638,7 +2686,7 @@ Instruction *InstCombinerImpl::visitBitCast(BitCastInst &CI) {
     // Beware: messing with this target-specific oddity may cause trouble.
     if (DestVTy->getNumElements() == 1 && SrcTy->isX86_MMXTy()) {
       Value *Elem = Builder.CreateBitCast(Src, DestVTy->getElementType());
-      return InsertElementInst::Create(UndefValue::get(DestTy), Elem,
+      return InsertElementInst::Create(PoisonValue::get(DestTy), Elem,
                      Constant::getNullValue(Type::getInt32Ty(CI.getContext())));
     }
 

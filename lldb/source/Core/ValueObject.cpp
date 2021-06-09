@@ -57,10 +57,10 @@
 #include <memory>
 #include <tuple>
 
-#include <assert.h>
-#include <inttypes.h>
-#include <stdio.h>
-#include <string.h>
+#include <cassert>
+#include <cinttypes>
+#include <cstdio>
+#include <cstring>
 
 #include <lldb/Core/ValueObject.h>
 
@@ -1577,7 +1577,7 @@ bool ValueObject::IsRuntimeSupportValue() {
   if (!process)
     return false;
 
-  // We trust the the compiler did the right thing and marked runtime support
+  // We trust that the compiler did the right thing and marked runtime support
   // values as artificial.
   if (!GetVariable() || !GetVariable()->IsArtificial())
     return false;

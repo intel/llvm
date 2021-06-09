@@ -1142,7 +1142,7 @@ Instruction *InstCombinerImpl::foldSelectValueEquivalence(SelectInst &Sel,
   Value *CmpLHS = Cmp.getOperand(0), *CmpRHS = Cmp.getOperand(1);
   if (TrueVal != CmpLHS &&
       isGuaranteedNotToBeUndefOrPoison(CmpRHS, SQ.AC, &Sel, &DT)) {
-    if (Value *V = SimplifyWithOpReplaced(TrueVal, CmpLHS, CmpRHS, SQ,
+    if (Value *V = simplifyWithOpReplaced(TrueVal, CmpLHS, CmpRHS, SQ,
                                           /* AllowRefinement */ true))
       return replaceOperand(Sel, Swapped ? 2 : 1, V);
 
@@ -1164,7 +1164,7 @@ Instruction *InstCombinerImpl::foldSelectValueEquivalence(SelectInst &Sel,
   }
   if (TrueVal != CmpRHS &&
       isGuaranteedNotToBeUndefOrPoison(CmpLHS, SQ.AC, &Sel, &DT))
-    if (Value *V = SimplifyWithOpReplaced(TrueVal, CmpRHS, CmpLHS, SQ,
+    if (Value *V = simplifyWithOpReplaced(TrueVal, CmpRHS, CmpLHS, SQ,
                                           /* AllowRefinement */ true))
       return replaceOperand(Sel, Swapped ? 2 : 1, V);
 
@@ -1195,9 +1195,9 @@ Instruction *InstCombinerImpl::foldSelectValueEquivalence(SelectInst &Sel,
   // We have an 'EQ' comparison, so the select's false value will propagate.
   // Example:
   // (X == 42) ? 43 : (X + 1) --> (X == 42) ? (X + 1) : (X + 1) --> X + 1
-  if (SimplifyWithOpReplaced(FalseVal, CmpLHS, CmpRHS, SQ,
+  if (simplifyWithOpReplaced(FalseVal, CmpLHS, CmpRHS, SQ,
                              /* AllowRefinement */ false) == TrueVal ||
-      SimplifyWithOpReplaced(FalseVal, CmpRHS, CmpLHS, SQ,
+      simplifyWithOpReplaced(FalseVal, CmpRHS, CmpLHS, SQ,
                              /* AllowRefinement */ false) == TrueVal) {
     return replaceInstUsesWith(Sel, FalseVal);
   }
@@ -2657,7 +2657,10 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
 
   CmpInst::Predicate Pred;
 
-  if (SelType->isIntOrIntVectorTy(1) &&
+  // Avoid potential infinite loops by checking for non-constant condition.
+  // TODO: Can we assert instead by improving canonicalizeSelectToShuffle()?
+  //       Scalar select must have simplified?
+  if (SelType->isIntOrIntVectorTy(1) && !isa<Constant>(CondVal) &&
       TrueVal->getType() == CondVal->getType()) {
     // Folding select to and/or i1 isn't poison safe in general. impliesPoison
     // checks whether folding it does not convert a well-defined value into
@@ -2711,12 +2714,14 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
         match(TrueVal, m_Specific(B)) && match(FalseVal, m_Zero()))
       return replaceOperand(SI, 0, A);
 
-    if (Value *S = SimplifyWithOpReplaced(TrueVal, CondVal, One, SQ,
-                                          /* AllowRefinement */ true))
-      return replaceOperand(SI, 1, S);
-    if (Value *S = SimplifyWithOpReplaced(FalseVal, CondVal, Zero, SQ,
-                                          /* AllowRefinement */ true))
-      return replaceOperand(SI, 2, S);
+    if (!SelType->isVectorTy()) {
+      if (Value *S = simplifyWithOpReplaced(TrueVal, CondVal, One, SQ,
+                                            /* AllowRefinement */ true))
+        return replaceOperand(SI, 1, S);
+      if (Value *S = simplifyWithOpReplaced(FalseVal, CondVal, Zero, SQ,
+                                            /* AllowRefinement */ true))
+        return replaceOperand(SI, 2, S);
+    }
 
     if (match(FalseVal, m_Zero()) || match(TrueVal, m_One())) {
       Use *Y = nullptr;

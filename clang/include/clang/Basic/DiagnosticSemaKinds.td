@@ -344,8 +344,12 @@ def note_riscv_repeated_interrupt_attribute : Note<
   "repeated RISC-V 'interrupt' attribute is here">;
 def warn_unused_parameter : Warning<"unused parameter %0">,
   InGroup<UnusedParameter>, DefaultIgnore;
+def warn_unused_but_set_parameter : Warning<"parameter %0 set but not used">,
+  InGroup<UnusedButSetParameter>, DefaultIgnore;
 def warn_unused_variable : Warning<"unused variable %0">,
   InGroup<UnusedVariable>, DefaultIgnore;
+def warn_unused_but_set_variable : Warning<"variable %0 set but not used">,
+  InGroup<UnusedButSetVariable>, DefaultIgnore;
 def warn_unused_local_typedef : Warning<
   "unused %select{typedef|type alias}0 %1">,
   InGroup<UnusedLocalTypedef>, DefaultIgnore;
@@ -603,6 +607,12 @@ def err_using_decl_conflict_reverse : Error<
 def note_using_decl : Note<"%select{|previous }0using declaration">;
 def err_using_decl_redeclaration_expansion : Error<
   "using declaration pack expansion at block scope produces multiple values">;
+def err_use_of_empty_using_if_exists : Error<
+  "reference to unresolved using declaration">;
+def note_empty_using_if_exists_here : Note<
+  "using declaration annotated with 'using_if_exists' here">;
+def err_using_if_exists_on_ctor : Error<
+  "'using_if_exists' attribute cannot be applied to an inheriting constructor">;
 
 def warn_access_decl_deprecated : Warning<
   "access declarations are deprecated; use using declarations instead">,
@@ -3999,6 +4009,9 @@ def warn_attribute_sentinel_named_arguments : Warning<
 def warn_attribute_sentinel_not_variadic : Warning<
   "'sentinel' attribute only supported for variadic %select{functions|blocks}0">,
   InGroup<IgnoredAttributes>;
+def warn_deprecated_ignored_on_using : Warning<
+  "%0 currently has no effect on a using declaration">,
+  InGroup<IgnoredAttributes>;
 def err_attribute_sentinel_less_than_zero : Error<
   "'sentinel' parameter 1 less than zero">;
 def err_attribute_sentinel_not_zero_or_one : Error<
@@ -6394,6 +6407,11 @@ def warn_pointer_arith_null_ptr : Warning<
 def warn_gnu_null_ptr_arith : Warning<
   "arithmetic on a null pointer treated as a cast from integer to pointer is a GNU extension">,
   InGroup<NullPointerArithmetic>, DefaultIgnore;
+def err_kernel_invalidates_sycl_unique_stable_name
+    : Error<"kernel %select{naming|instantiation}0 changes the result of an "
+            "evaluated '__builtin_sycl_unique_stable_name'">;
+def note_sycl_unique_stable_name_evaluated_here
+    : Note<"'__builtin_sycl_unique_stable_name' evaluated here">;
 
 def warn_floatingpoint_eq : Warning<
   "comparing floating point with == or != is unsafe">,
@@ -8360,6 +8378,10 @@ def err_global_call_not_config : Error<
 def err_ref_bad_target : Error<
   "reference to %select{__device__|__global__|__host__|__host__ __device__}0 "
   "%select{function|variable}1 %2 in %select{__device__|__global__|__host__|__host__ __device__}3 function">;
+def note_cuda_const_var_unpromoted : Note<
+  "const variable cannot be emitted on device side due to dynamic initialization">;
+def note_cuda_host_var : Note<
+  "host variable declared here">;
 def err_ref_bad_target_global_initializer : Error<
   "reference to %select{__device__|__global__|__host__|__host__ __device__}0 "
   "function %1 in global initializer">;
@@ -11346,6 +11368,21 @@ def warn_sycl_kernel_too_big_args : Warning<
 def err_sycl_virtual_types : Error<
   "no class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;
+def err_sycl_type_trait_requires_complete_type : Error<
+  "'%select{__builtin_num_fields|__builtin_field_type|__builtin_num_bases|"
+  "__builtin_base_type}0' requires a complete type">;
+def err_sycl_type_trait_requires_record_type : Error<
+  "'%select{__builtin_num_fields|__builtin_field_type|__builtin_num_bases|"
+  "__builtin_base_type}0' requires a structure "
+  "or lambda type">;
+def err_sycl_builtin_type_trait_index_out_of_range : Error<
+  "index %0 is greater than the number of %select{fields|bases}2 in type %1">;
+def err_sycl_type_trait_requires_nonnegative_index : Error<
+  "'%select{__builtin_field_type|__builtin_base_type}0' requires a "
+  "non-negative index">;
+def err_sycl_builtin_type_trait_evaluated : Error<
+  "'%select{__builtin_field_type|__builtin_base_type}0' cannot be used in an "
+  "evaluated context">;
 def err_sycl_non_trivially_copy_ctor_dtor_type
     : Error<"kernel parameter has non-trivially %select{copy "
             "constructible|destructible}0 class/struct type %1">;
@@ -11360,7 +11397,7 @@ def err_conflicting_sycl_function_attributes : Error<
 def err_sycl_function_attribute_mismatch : Error<
   "SYCL kernel without %0 attribute can't call a function with this attribute">;
 def err_sycl_x_y_z_arguments_must_be_one : Error<
-  "%0 X-, Y- and Z- sizes must be 1 when %1 attribute is used with value 0">;
+  "all %0 attribute arguments must be '1' when the %1 attribute argument is '0'">;
 def err_sycl_attribute_internal_function
     : Error<"%0 attribute cannot be applied to a "
             "static function or function in an anonymous namespace">;
@@ -11412,6 +11449,8 @@ def err_sycl_mismatch_group_size
             "have a sub group size that matches the size specified for the "
             "kernel">;
 def note_sycl_kernel_declared_here : Note<"kernel declared here">;
+def err_sycl_expected_finalize_method : Error<
+  "expected a 'finalize' method for the 'stream' class">;
 def ext_sycl_2020_attr_spelling : ExtWarn<
   "use of attribute %0 is a SYCL 2020 extension">,
   InGroup<Sycl2017Compat>;

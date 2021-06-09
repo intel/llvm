@@ -2457,6 +2457,8 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
   for (const Arg *A :
        Args.filtered(options::OPT_Wa_COMMA, options::OPT_Xassembler,
                      options::OPT_mimplicit_it_EQ)) {
+    A->claim();
+
     if (A->getOption().getID() == options::OPT_mimplicit_it_EQ) {
       switch (C.getDefaultToolChain().getArch()) {
       case llvm::Triple::arm:
@@ -2473,8 +2475,6 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
         break;
       }
     }
-
-    A->claim();
 
     for (StringRef Value : A->getValues()) {
       if (TakeNextArg) {
@@ -4703,7 +4703,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         if (AuxT.isWindowsMSVCEnvironment()) {
           CmdArgs.push_back("-D_MT");
           CmdArgs.push_back("-D_DLL");
-          CmdArgs.push_back("--dependent-lib=msvcrt");
         }
       }
     }
@@ -5423,10 +5422,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Enable -mconstructor-aliases except on darwin, where we have to work around
   // a linker bug (see <rdar://problem/7651567>), and CUDA/AMDGPU device code,
-  // where aliases aren't supported. Similarly, aliases aren't yet supported
-  // for AIX.
-  if (!RawTriple.isOSDarwin() && !RawTriple.isNVPTX() &&
-      !RawTriple.isAMDGPU() && !RawTriple.isOSAIX())
+  // where aliases aren't supported.
+  if (!RawTriple.isOSDarwin() && !RawTriple.isNVPTX() && !RawTriple.isAMDGPU())
     CmdArgs.push_back("-mconstructor-aliases");
 
   // Darwin's kernel doesn't support guard variables; just die if we
@@ -5787,6 +5784,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_fcxx_abi_EQ))
     A->render(Args, CmdArgs);
 
+  Args.AddLastArg(CmdArgs, options::OPT_fexperimental_relative_cxx_abi_vtables,
+                  options::OPT_fno_experimental_relative_cxx_abi_vtables);
+
   // Handle -{std, ansi, trigraphs} -- take the last of -{std, ansi}
   // (-ansi is equivalent to -std=c89 or -std=c++98).
   //
@@ -6057,7 +6057,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           << A->getAsString(Args) << TripleStr;
   }
 
-  Args.AddLastArg(CmdArgs, options::OPT_fvisibility_inlines_hidden);
+
+  if (Args.hasFlag(options::OPT_fvisibility_inlines_hidden,
+                    options::OPT_fno_visibility_inlines_hidden, false))
+    CmdArgs.push_back("-fvisibility-inlines-hidden");
+
   Args.AddLastArg(CmdArgs, options::OPT_fvisibility_inlines_hidden_static_local_var,
                            options::OPT_fno_visibility_inlines_hidden_static_local_var);
   Args.AddLastArg(CmdArgs, options::OPT_fvisibility_global_new_delete_hidden);
@@ -6505,7 +6509,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       LanguageStandard = llvm::StringSwitch<StringRef>(StdArg->getValue())
                              .Case("c++14", "-std=c++14")
                              .Case("c++17", "-std=c++17")
-                             .Case("c++latest", "-std=c++20")
+                             .Case("c++20", "-std=c++20")
+                             .Case("c++latest", "-std=c++2b")
                              .Default("");
       if (LanguageStandard.empty())
         D.Diag(clang::diag::warn_drv_unused_argument)
@@ -7087,11 +7092,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (WholeProgramVTables) {
-    if (!IsUsingLTO)
+    // Propagate -fwhole-program-vtables if this is an LTO compile.
+    if (IsUsingLTO)
+      CmdArgs.push_back("-fwhole-program-vtables");
+    // Check if we passed LTO options but they were suppressed because this is a
+    // device offloading action, or we passed device offload LTO options which
+    // were suppressed because this is not the device offload action.
+    // Otherwise, issue an error.
+    else if (!D.isUsingLTO(!IsDeviceOffloadAction))
       D.Diag(diag::err_drv_argument_only_allowed_with)
           << "-fwhole-program-vtables"
           << "-flto";
-    CmdArgs.push_back("-fwhole-program-vtables");
   }
 
   bool DefaultsSplitLTOUnit =
@@ -7610,8 +7621,6 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     if (types::isCXX(InputType))
       CmdArgs.push_back("-fcxx-exceptions");
     CmdArgs.push_back("-fexceptions");
-    if (EH.Asynch)
-      CmdArgs.push_back("-fasync-exceptions");
   }
   if (types::isCXX(InputType) && EH.Synch && EH.NoUnwindC)
     CmdArgs.push_back("-fexternc-nounwind");

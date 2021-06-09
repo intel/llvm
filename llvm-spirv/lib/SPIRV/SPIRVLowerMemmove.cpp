@@ -61,6 +61,9 @@ public:
     Builder.SetInsertPoint(&I);
     auto *Dest = I.getRawDest();
     auto *Src = I.getRawSource();
+    if (isa<PHINode>(Src))
+      report_fatal_error("llvm.memmove of PHI instruction result not supported",
+                         false);
     auto *SrcTy = Src->getType();
     if (!isa<ConstantInt>(I.getLength()))
       // ToDo: for non-constant length, could use a loop to copy a

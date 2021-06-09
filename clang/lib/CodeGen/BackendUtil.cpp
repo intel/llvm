@@ -729,9 +729,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
                            addBoundsCheckingPass);
   }
 
-  if (CodeGenOpts.SanitizeCoverageType ||
-      CodeGenOpts.SanitizeCoverageIndirectCalls ||
-      CodeGenOpts.SanitizeCoverageTraceCmp) {
+  if (CodeGenOpts.hasSanitizeCoverage()) {
     PMBuilder.addExtension(PassManagerBuilder::EP_OptimizerLast,
                            addSanitizerCoveragePass);
     PMBuilder.addExtension(PassManagerBuilder::EP_EnabledOnOptLevel0,
@@ -1127,9 +1125,7 @@ static void addSanitizers(const Triple &TargetTriple,
                           const LangOptions &LangOpts, PassBuilder &PB) {
   PB.registerOptimizerLastEPCallback([&](ModulePassManager &MPM,
                                          PassBuilder::OptimizationLevel Level) {
-    if (CodeGenOpts.SanitizeCoverageType ||
-        CodeGenOpts.SanitizeCoverageIndirectCalls ||
-        CodeGenOpts.SanitizeCoverageTraceCmp) {
+    if (CodeGenOpts.hasSanitizeCoverage()) {
       auto SancovOpts = getSancovOptsFromCGOpts(CodeGenOpts);
       MPM.addPass(ModuleSanitizerCoveragePass(
           SancovOpts, CodeGenOpts.SanitizeCoverageAllowlistFiles,

@@ -581,6 +581,16 @@ void ASTStmtReader::VisitConstantExpr(ConstantExpr *E) {
   E->setSubExpr(Record.readSubExpr());
 }
 
+void ASTStmtReader::VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E) {
+  VisitExpr(E);
+
+  E->setLocation(readSourceLocation());
+  E->setLParenLocation(readSourceLocation());
+  E->setRParenLocation(readSourceLocation());
+
+  E->setTypeSourceInfo(Record.readTypeSourceInfo());
+}
+
 void ASTStmtReader::VisitPredefinedExpr(PredefinedExpr *E) {
   VisitExpr(E);
   bool HasFunctionName = Record.readInt();
@@ -1789,6 +1799,28 @@ void ASTStmtReader::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *E) {
   E->RParenLoc = readSourceLocation();
 }
 
+void ASTStmtReader::VisitSYCLBuiltinNumFieldsExpr(SYCLBuiltinNumFieldsExpr *E) {
+  E->setLocation(readSourceLocation());
+  E->SourceTy = Record.readType();
+}
+
+void ASTStmtReader::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {
+  E->setLocation(readSourceLocation());
+  E->SourceTy = Record.readType();
+  E->Index = Record.readExpr();
+}
+
+void ASTStmtReader::VisitSYCLBuiltinNumBasesExpr(SYCLBuiltinNumBasesExpr *E) {
+  E->setLocation(readSourceLocation());
+  E->SourceTy = Record.readType();
+}
+
+void ASTStmtReader::VisitSYCLBuiltinBaseTypeExpr(SYCLBuiltinBaseTypeExpr *E) {
+  E->setLocation(readSourceLocation());
+  E->SourceTy = Record.readType();
+  E->Index = Record.readExpr();
+}
+
 void ASTStmtReader::VisitUserDefinedLiteral(UserDefinedLiteral *E) {
   VisitCallExpr(E);
   E->UDSuffixLoc = readSourceLocation();
@@ -2802,6 +2834,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
                        /*StorageKind=*/Record[ASTStmtReader::NumExprFields]));
       break;
 
+    case EXPR_SYCL_UNIQUE_STABLE_NAME:
+      S = SYCLUniqueStableNameExpr::CreateEmpty(Context);
+      break;
+
     case EXPR_PREDEFINED:
       S = PredefinedExpr::CreateEmpty(
           Context,
@@ -3602,6 +3638,22 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
     case EXPR_BUILTIN_BIT_CAST:
       assert(Record[ASTStmtReader::NumExprFields] == 0 && "Wrong PathSize!");
       S = new (Context) BuiltinBitCastExpr(Empty);
+      break;
+
+    case EXPR_SYCL_BUILTIN_NUM_FIELDS:
+      S = new (Context) SYCLBuiltinNumFieldsExpr(Empty);
+      break;
+
+    case EXPR_SYCL_BUILTIN_FIELD_TYPE:
+      S = new (Context) SYCLBuiltinFieldTypeExpr(Empty);
+      break;
+
+    case EXPR_SYCL_BUILTIN_NUM_BASES:
+      S = new (Context) SYCLBuiltinNumBasesExpr(Empty);
+      break;
+
+    case EXPR_SYCL_BUILTIN_BASE_TYPE:
+      S = new (Context) SYCLBuiltinBaseTypeExpr(Empty);
       break;
 
     case EXPR_USER_DEFINED_LITERAL:

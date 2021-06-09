@@ -316,7 +316,8 @@ public:
     kind_sampler,
     kind_pointer,
     kind_specialization_constants_buffer,
-    kind_last = kind_specialization_constants_buffer
+    kind_stream,
+    kind_last = kind_stream
   };
 
 public:
@@ -1068,6 +1069,15 @@ public:
     OpaqueParser = P;
   }
 
+  // Marks a type as a SYCL Kernel without necessarily adding it.  Additionally,
+  // it diagnoses if this causes any of the evaluated
+  // __builtin_sycl_unique_stable_name values to change.
+  void MarkSYCLKernel(SourceLocation NewLoc, QualType Ty, bool IsInstantiation);
+  // Does the work necessary to deal with a SYCL kernel lambda. At the moment,
+  // this just marks the list of lambdas required to name the kernel. It does
+  // this by dispatching to MarkSYCLKernel, so it also does the diagnostics.
+  void AddSYCLKernelLambda(const FunctionDecl *FD);
+
   class DelayedDiagnostics;
 
   class DelayedDiagnosticsState {
@@ -1670,6 +1680,11 @@ public:
   void addImplicitTypedef(StringRef Name, QualType T);
 
   bool WarnedStackExhausted = false;
+
+  /// Increment when we find a reference; decrement when we find an ignored
+  /// assignment.  Ultimately the value is 0 if every reference is an ignored
+  /// assignment.
+  llvm::DenseMap<const VarDecl *, int> RefsMinusAssignments;
 
 public:
   Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
@@ -3371,6 +3386,7 @@ public:
   void ActOnStartCXXMemberDeclarations(Scope *S, Decl *TagDecl,
                                        SourceLocation FinalLoc,
                                        bool IsFinalSpelledSealed,
+                                       bool IsAbstract,
                                        SourceLocation LBraceLoc);
 
   /// ActOnTagFinishDefinition - Invoked once we have finished parsing
@@ -5095,6 +5111,10 @@ public:
   void DiagnoseUnusedNestedTypedefs(const RecordDecl *D);
   void DiagnoseUnusedDecl(const NamedDecl *ND);
 
+  /// If VD is set but not otherwise used, diagnose, for a parameter or a
+  /// variable.
+  void DiagnoseUnusedButSetDecl(const VarDecl *VD);
+
   /// Emit \p DiagID if statement located on \p StmtLoc has a suspicious null
   /// statement as a \p Body, and it is located on the same line.
   ///
@@ -5420,14 +5440,14 @@ public:
   ExprResult ActOnPredefinedExpr(SourceLocation Loc, tok::TokenKind Kind);
   ExprResult ActOnIntegerConstant(SourceLocation Loc, uint64_t Val);
 
-  ExprResult BuildUniqueStableName(SourceLocation Loc, TypeSourceInfo *Operand);
-  ExprResult BuildUniqueStableName(SourceLocation Loc, Expr *E);
-  ExprResult ActOnUniqueStableNameExpr(SourceLocation OpLoc,
-                                       SourceLocation LParen,
-                                       SourceLocation RParen, ParsedType Ty);
-  ExprResult ActOnUniqueStableNameExpr(SourceLocation OpLoc,
-                                       SourceLocation LParen,
-                                       SourceLocation RParen, Expr *E);
+  ExprResult BuildSYCLUniqueStableNameExpr(SourceLocation OpLoc,
+                                           SourceLocation LParen,
+                                           SourceLocation RParen,
+                                           TypeSourceInfo *TSI);
+  ExprResult ActOnSYCLUniqueStableNameExpr(SourceLocation OpLoc,
+                                           SourceLocation LParen,
+                                           SourceLocation RParen,
+                                           ParsedType ParsedTy);
 
   bool CheckLoopHintExpr(Expr *E, SourceLocation Loc);
 
@@ -5936,11 +5956,14 @@ public:
                                const DeclarationNameInfo &NameInfo,
                                SourceLocation NameLoc);
 
-  NamedDecl *BuildUsingDeclaration(
-      Scope *S, AccessSpecifier AS, SourceLocation UsingLoc,
-      bool HasTypenameKeyword, SourceLocation TypenameLoc, CXXScopeSpec &SS,
-      DeclarationNameInfo NameInfo, SourceLocation EllipsisLoc,
-      const ParsedAttributesView &AttrList, bool IsInstantiation);
+  NamedDecl *BuildUsingDeclaration(Scope *S, AccessSpecifier AS,
+                                   SourceLocation UsingLoc,
+                                   bool HasTypenameKeyword,
+                                   SourceLocation TypenameLoc, CXXScopeSpec &SS,
+                                   DeclarationNameInfo NameInfo,
+                                   SourceLocation EllipsisLoc,
+                                   const ParsedAttributesView &AttrList,
+                                   bool IsInstantiation, bool IsUsingIfExists);
   NamedDecl *BuildUsingPackDecl(NamedDecl *InstantiatedFrom,
                                 ArrayRef<NamedDecl *> Expansions);
 
@@ -10316,8 +10339,6 @@ public:
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
   template <typename AttrType>
-  void addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E);
-  template <typename AttrType>
   void addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
                              Expr *XDimExpr, Expr *YDimExpr, Expr *ZDimExpr);
   void AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
@@ -10373,7 +10394,11 @@ public:
 
   SYCLIntelFPGAMaxConcurrencyAttr *MergeSYCLIntelFPGAMaxConcurrencyAttr(
       Decl *D, const SYCLIntelFPGAMaxConcurrencyAttr &A);
-
+  void AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *E);
+  SYCLIntelMaxGlobalWorkDimAttr *
+  MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
+                                     const SYCLIntelMaxGlobalWorkDimAttr &A);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -13243,6 +13268,28 @@ public:
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevices();
 
+  /// Get the number of fields or captures within the parsed type.
+  ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);
+  ExprResult BuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,
+                                           QualType SourceTy);
+
+  /// Get a value based on the type of the given field number so that callers
+  /// can wrap it in a decltype() to get the actual type of the field.
+  ExprResult ActOnSYCLBuiltinFieldTypeExpr(ParsedType PT, Expr *Idx);
+  ExprResult BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
+                                           QualType SourceTy, Expr *Idx);
+
+  /// Get the number of base classes within the parsed type.
+  ExprResult ActOnSYCLBuiltinNumBasesExpr(ParsedType PT);
+  ExprResult BuildSYCLBuiltinNumBasesExpr(SourceLocation Loc,
+                                          QualType SourceTy);
+
+  /// Get a value based on the type of the given base number so that callers
+  /// can wrap it in a decltype() to get the actual type of the base class.
+  ExprResult ActOnSYCLBuiltinBaseTypeExpr(ParsedType PT, Expr *Idx);
+  ExprResult BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc, QualType SourceTy,
+                                          Expr *Idx);
+
   /// Emit a diagnostic about the given attribute having a deprecated name, and
   /// also emit a fixit hint to generate the new attribute name.
   void DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
@@ -13306,37 +13353,6 @@ public:
            (VDecl->getType().getAddressSpace() == LangAS::sycl_private);
   }
 };
-
-template <typename AttrType>
-void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
-                                 Expr *E) {
-  assert(E && "Attribute must have an argument.");
-
-  if (!E->isInstantiationDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult ICE = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (ICE.isInvalid())
-      return;
-    E = ICE.get();
-    int32_t ArgInt = ArgVal.getSExtValue();
-    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
-      if (ArgInt < 0) {
-        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI << /*non-negative*/ 1;
-        return;
-      }
-    }
-    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
-      if (ArgInt > 3) {
-        Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
-            << CI << 0 << 3 << E->getSourceRange();
-        return;
-      }
-    }
-  }
-
-  D->addAttr(::new (Context) AttrType(Context, CI, E));
-}
 
 inline Expr *checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
                                       Expr *E) {

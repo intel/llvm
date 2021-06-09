@@ -56,8 +56,9 @@ bool test_simd_view_assign3() __attribute__((sycl_device)) {
   auto mask = (v0.select<16, 1>(0) > v1.select<16, 1>(0));
   auto mask2 = (v0 > v1);
   simd<ushort, 64> s = 0;
-  auto g4 = s.format<ushort, 4, 16>();
+  auto g4 = s.bit_cast_view<ushort, 4, 16>();
   simd<ushort, 16> val = (g4.row(2) & mask);
-  simd<ushort, 16> val1 = (g4.row(2) & mask2.format<ushort, 4, 16>().row(0));
+  simd<ushort, 16> val1 =
+      (g4.row(2) & mask2.bit_cast_view<ushort, 4, 16>().row(0));
   return val[0] == 0 && val1[0] == 0;
 }

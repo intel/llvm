@@ -113,11 +113,29 @@ void SPIRVToOCL20Base::visitCallSPIRVControlBarrier(CallInst *CI) {
       &Attrs);
 }
 
+std::string SPIRVToOCL20Base::mapFPAtomicName(Op OC) {
+  assert(isFPAtomicOpCode(OC) && "Not intended to handle other opcodes than "
+                                 "AtomicF{Add/Min/Max}EXT!");
+  switch (OC) {
+  case OpAtomicFAddEXT:
+    return "atomic_fetch_add_explicit";
+  case OpAtomicFMinEXT:
+    return "atomic_fetch_min_explicit";
+  case OpAtomicFMaxEXT:
+    return "atomic_fetch_max_explicit";
+  default:
+    llvm_unreachable("Unsupported opcode!");
+  }
+}
+
 Instruction *SPIRVToOCL20Base::mutateAtomicName(CallInst *CI, Op OC) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
+        // Map fp atomic instructions to regular OpenCL built-ins.
+        if (isFPAtomicOpCode(OC))
+          return mapFPAtomicName(OC);
         return OCLSPIRVBuiltinMap::rmap(OC);
       },
       &Attrs);
@@ -185,7 +203,12 @@ CallInst *SPIRVToOCL20Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
           }
         }
         auto Ptr = findFirstPtr(Args);
-        auto Name = OCLSPIRVBuiltinMap::rmap(OC);
+        std::string Name;
+        // Map fp atomic instructions to regular OpenCL built-ins.
+        if (isFPAtomicOpCode(OC))
+          Name = mapFPAtomicName(OC);
+        else
+          Name = OCLSPIRVBuiltinMap::rmap(OC);
         auto NumOrder = getSPIRVAtomicBuiltinNumMemoryOrderArgs(OC);
         auto ScopeIdx = Ptr + 1;
         auto OrderIdx = Ptr + 2;
