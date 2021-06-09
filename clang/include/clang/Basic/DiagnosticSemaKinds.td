@@ -6408,8 +6408,8 @@ def warn_gnu_null_ptr_arith : Warning<
   "arithmetic on a null pointer treated as a cast from integer to pointer is a GNU extension">,
   InGroup<NullPointerArithmetic>, DefaultIgnore;
 def err_kernel_invalidates_sycl_unique_stable_name
-    : Error<"kernel instantiation changes the result of an evaluated "
-            "'__builtin_sycl_unique_stable_name'">;
+    : Error<"kernel %select{naming|instantiation}0 changes the result of an "
+            "evaluated '__builtin_sycl_unique_stable_name'">;
 def note_sycl_unique_stable_name_evaluated_here
     : Note<"'__builtin_sycl_unique_stable_name' evaluated here">;
 

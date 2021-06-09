@@ -120,7 +120,7 @@ public:
   /// @}
 
   /// View this object in a different element type.
-  template <typename EltTy> auto format() {
+  template <typename EltTy> auto bit_cast_view() {
     using TopRegionTy = detail::compute_format_type_t<simd_view, EltTy>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
     using RetTy = simd_view<BaseTy, NewRegionTy>;
@@ -128,14 +128,26 @@ public:
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
   }
 
+  template <typename EltTy>
+  __SYCL_DEPRECATED("use simd_view::bit_cast_view.")
+  auto format() {
+    return bit_cast_view<EltTy>();
+  }
+
   /// View as a 2-dimensional simd_view.
-  template <typename EltTy, int Height, int Width> auto format() {
+  template <typename EltTy, int Height, int Width> auto bit_cast_view() {
     using TopRegionTy =
         detail::compute_format_type_2d_t<simd_view, EltTy, Height, Width>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
     using RetTy = simd_view<BaseTy, NewRegionTy>;
     TopRegionTy TopReg(0, 0);
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
+  }
+
+  template <typename EltTy, int Height, int Width>
+  __SYCL_DEPRECATED("use simd_view::bit_cast_view.")
+  auto format() {
+    return bit_cast_view<EltTy, Height, Width>();
   }
 
   /// 1D region select, apply a region on top of this object.
@@ -320,7 +332,8 @@ public:
   template <typename T = simd_view,
             typename = sycl::detail::enable_if_t<T::is2D()>>
   auto row(int i) {
-    return select<1, 0, getSizeX(), 1>(i, 0).template format<element_type>();
+    return select<1, 0, getSizeX(), 1>(i, 0)
+        .template bit_cast_view<element_type>();
   }
 
   /// Reference a column from a 2D region.

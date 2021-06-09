@@ -18,6 +18,9 @@
 // CHECK-DAG: sycl-spir64.bar
 // CHECK-NOT: undefined_func
 // CHECK-NOT: static_func
+// CHECK-NOT: static_used
+// CHECK-NOT: sycl-spir64.llvm.used
+// CHECK-NOT: sycl-spir64.llvm.compiler.used
 
 extern void undefined_func(void);
 
@@ -31,3 +34,6 @@ static void static_func(void) {}
 void bar(void) {
   static_func();
 }
+
+static void static_used(void) __attribute__((used));
+static void static_used() {}
