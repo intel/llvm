@@ -300,7 +300,7 @@ bool platform_impl::has(aspect Aspect) const {
 context platform_impl::getDefaultContext() {
   const std::lock_guard<std::mutex> Guard(MDefaultContextMutex);
 
-  if (!MDefaultContext)
+  if (MDefaultContext)
     return *MDefaultContext;
 
   // Lazily instantiate default context
