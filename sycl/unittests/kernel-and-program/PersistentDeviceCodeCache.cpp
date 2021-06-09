@@ -27,14 +27,6 @@ static void set_env(const char *name, const char *value) {
 #endif
 }
 
-static void unset_env(const char *name) {
-#ifdef _WIN32
-  (void)_putenv_s(name, "");
-#else
-  unsetenv(name);
-#endif
-}
-
 namespace {
 constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
 using namespace cl::sycl;
