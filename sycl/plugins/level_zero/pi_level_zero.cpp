@@ -5189,7 +5189,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
-      if (!(MapFlags & PI_MAP_WRITE_INVALIDATE_REGION))
+      if (!Buffer->getHostPtrImported() &&
+          !(MapFlags & PI_MAP_WRITE_INVALIDATE_REGION))
         memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
     } else {
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
