@@ -644,11 +644,19 @@ class ObjectFileHandler final : public FileHandler {
         if (Undefined || !Global)
           continue;
 
-        // Add symbol name with the target prefix to the buffer.
-        SymbolsOS << TargetNames[I] << ".";
-        if (Error Err = Symbol.printName(SymbolsOS))
+        // Get symbol name.
+        std::string Name;
+        raw_string_ostream NameOS(Name);
+        if (Error Err = Symbol.printName(NameOS))
           return std::move(Err);
-        SymbolsOS << '\0';
+
+        // If we are dealing with a bitcode file do not add special globals
+        // llvm.used and llvm.compiler.used to the list of defined symbols.
+        if (SF->isIR() && (Name == "llvm.used" || Name == "llvm.compiler.used"))
+          continue;
+
+        // Add symbol name with the target prefix to the buffer.
+        SymbolsOS << TargetNames[I] << "." << Name << '\0';
       }
     }
     return SymbolsBuf;
