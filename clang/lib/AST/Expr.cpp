@@ -600,7 +600,7 @@ std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context) const {
   assert(!isInstantiationDependent() &&
          "Can't compute name of uninstantiated value");
 
-  auto *DR = cast<DeclRefExpr>(getExpr());
+  auto *DR = cast<DeclRefExpr>(getExpr()->IgnoreUnlessSpelledInSource());
   auto *VD = cast<VarDecl>(DR->getDecl());
 
   return ComputeName(Context, VD);

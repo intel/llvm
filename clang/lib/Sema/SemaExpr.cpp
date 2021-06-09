@@ -3585,7 +3585,7 @@ ExprResult Sema::BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
                                              SourceLocation LParen,
                                              SourceLocation RParen, Expr *E) {
   if (!E->isInstantiationDependent()) {
-    auto *DRE = dyn_cast<DeclRefExpr>(E);
+    auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreUnlessSpelledInSource());
 
     if (!DRE || !DRE->getDecl() || !isa<VarDecl>(DRE->getDecl())) {
       Diag(E->getExprLoc(), diag::err_unique_stable_id_expected_var);
