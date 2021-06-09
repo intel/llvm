@@ -98,6 +98,7 @@ namespace {
     void VisitUnresolvedUsingTypenameDecl(UnresolvedUsingTypenameDecl *D);
     void VisitUnresolvedUsingValueDecl(UnresolvedUsingValueDecl *D);
     void VisitUsingDecl(UsingDecl *D);
+    void VisitUsingEnumDecl(UsingEnumDecl *D);
     void VisitUsingShadowDecl(UsingShadowDecl *D);
     void VisitOMPThreadPrivateDecl(OMPThreadPrivateDecl *D);
     void VisitOMPAllocateDecl(OMPAllocateDecl *D);
@@ -1613,6 +1614,10 @@ void DeclPrinter::VisitUsingDecl(UsingDecl *D) {
     }
   }
   Out << *D;
+}
+
+void DeclPrinter::VisitUsingEnumDecl(UsingEnumDecl *D) {
+  Out << "using enum " << D->getEnumDecl();
 }
 
 void

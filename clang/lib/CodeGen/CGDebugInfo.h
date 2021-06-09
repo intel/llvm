@@ -513,6 +513,9 @@ public:
   /// Emit C++ using declaration.
   void EmitUsingDecl(const UsingDecl &UD);
 
+  /// Emit C++ using-enum declaration.
+  void EmitUsingEnumDecl(const UsingEnumDecl &UD);
+
   /// Emit an @import declaration.
   void EmitImportDecl(const ImportDecl &ID);
 
