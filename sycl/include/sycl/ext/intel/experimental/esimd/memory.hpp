@@ -785,8 +785,8 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
 
   if constexpr (Width < RoundedWidth) {
     simd<T, m * n1> temp;
-    auto temp_ref = temp.template format<T, m, n1>();
-    auto vals_ref = vals.template format<T, m, n>();
+    auto temp_ref = temp.template bit_cast_view<T, m, n1>();
+    auto vals_ref = vals.template bit_cast_view<T, m, n>();
     temp_ref.template select<m, 1, n, 1>() = vals_ref;
     __esimd_media_block_store<T, m, n1>(
         0, detail::AccessorPrivateProxy::getNativeImageObj(acc), plane,

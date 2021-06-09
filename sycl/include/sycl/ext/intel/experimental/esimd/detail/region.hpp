@@ -69,7 +69,8 @@ template <typename BaseTy, typename RegionTy> class simd_view;
 // This is a recursive definition to capture the following rvalue region stack:
 //
 // simd<int 16> v;
-// v.format<int, 4, 4>().select<1, 0, 4, 1>(0, 0).format<short>() = 0;
+// v.bit_cast_view<int, 4, 4>().select<1, 0, 4, 1>(0, 0).bit_cast_view<short>()
+// = 0;
 //
 // The LHS will be represented as a rvalue
 //

@@ -34,9 +34,9 @@ bool test_1d_select() SYCL_ESIMD_FUNCTION {
 
 bool test_simd_format() SYCL_ESIMD_FUNCTION {
   simd<int, 16> v{0, 1, 2, 3, 4, 5, 6, 7};
-  auto ref1 = v.format<short>();
-  auto ref2 = v.format<double>();
-  auto ref3 = v.format<short, 8, 4>();
+  auto ref1 = v.bit_cast_view<short>();
+  auto ref2 = v.bit_cast_view<double>();
+  auto ref3 = v.bit_cast_view<short, 8, 4>();
   return (decltype(ref1)::length == 32) && (decltype(ref2)::length == 8) &&
          (decltype(ref3)::getSizeX() == 4) && (decltype(ref3)::getSizeY() == 8);
 }
@@ -44,10 +44,10 @@ bool test_simd_format() SYCL_ESIMD_FUNCTION {
 bool test_simd_select() SYCL_ESIMD_FUNCTION {
   simd<int, 16> v(0, 1);
   auto ref0 = v.select<4, 2>(1);     // r{1, 3, 5, 7}
-  auto ref1 = v.format<int, 4, 4>(); // 0,1,2,3;
-                                     // 4,5,6,7;
-                                     // 8,9,10,11;
-                                     // 12,13,14,15
+  auto ref1 = v.bit_cast_view<int, 4, 4>(); // 0,1,2,3;
+                                            // 4,5,6,7;
+                                            // 8,9,10,11;
+                                            // 12,13,14,15
   auto ref2 = ref1.select<2, 1, 2, 2>(0, 1);
   return ref0[0] == 1 && decltype(ref2)::getSizeX() == 2 &&
          decltype(ref2)::getStrideY() == 1;
@@ -55,7 +55,7 @@ bool test_simd_select() SYCL_ESIMD_FUNCTION {
 
 bool test_2d_offset() SYCL_ESIMD_FUNCTION {
   simd<int, 16> v = 0;
-  auto ref = v.format<short, 8, 4>();
+  auto ref = v.bit_cast_view<short, 8, 4>();
   return ref.select<2, 2, 2, 2>(2, 1).getOffsetX() == 1 &&
          ref.select<2, 2, 2, 2>(2, 1).getOffsetY() == 2;
 }
@@ -105,18 +105,18 @@ bool test_nested_1d_select() SYCL_ESIMD_FUNCTION {
 
 bool test_format_1d_read() SYCL_ESIMD_FUNCTION {
   simd<int, 8> r = 0x0FF00F0F;
-  auto rl = r.format<short>();
+  auto rl = r.bit_cast_view<short>();
   auto rl2 = rl.select<8, 2>(0); // 0F0F
-  auto rh = r.format<short>();
+  auto rh = r.bit_cast_view<short>();
   auto rh2 = rh.select<8, 2>(1); // 0FF0
   return rl2[0] == 0x0F0F && rh2[0] == 0x0FF0;
 }
 
 bool test_format_1d_write() SYCL_ESIMD_FUNCTION {
   simd<int, 8> r;
-  auto rl = r.format<short>();
+  auto rl = r.bit_cast_view<short>();
   auto rl2 = rl.select<8, 2>(0);
-  auto rh = r.format<short>();
+  auto rh = r.bit_cast_view<short>();
   auto rh2 = rh.select<8, 2>(1);
   rh2 = 0x0F, rl2 = 0xF0;
   return r[0] == 0x0FF0;
@@ -124,26 +124,26 @@ bool test_format_1d_write() SYCL_ESIMD_FUNCTION {
 
 bool test_format_1d_read_write_nested() SYCL_ESIMD_FUNCTION {
   simd<int, 8> v = 0;
-  auto r1 = v.format<short>();
+  auto r1 = v.bit_cast_view<short>();
   auto r11 = r1.select<8, 1>(0);
-  auto r12 = r11.format<int>();
-  auto r2 = v.format<short>();
+  auto r12 = r11.bit_cast_view<int>();
+  auto r2 = v.bit_cast_view<short>();
   auto r21 = r2.select<8, 1>(8);
-  auto r22 = r21.format<int>();
+  auto r22 = r21.bit_cast_view<int>();
   r12 += 1, r22 += 2;
   return v[0] == 1 && v[4] == 2;
 }
 
 bool test_format_2d_read() SYCL_ESIMD_FUNCTION {
   simd<int, 8> v0(0, 1);
-  auto r1 = v0.format<int, 2, 4>();
+  auto r1 = v0.bit_cast_view<int, 2, 4>();
   simd<int, 4> v1 = r1.select<1, 0, 4, 1>(1, 0).read(); // second row
   return v1[0] == 4;
 }
 
 bool test_format_2d_write() SYCL_ESIMD_FUNCTION {
   simd<int, 8> v0(0, 1);
-  auto r1 = v0.format<int, 2, 4>();
+  auto r1 = v0.bit_cast_view<int, 2, 4>();
   r1.select<1, 0, 4, 1>(1, 0) = 37;
   return v0[4] == 37;
 }
@@ -156,28 +156,28 @@ bool test_select_rvalue() SYCL_ESIMD_FUNCTION {
 
 auto test_format_1d_write_rvalue() SYCL_ESIMD_FUNCTION {
   simd<int, 8> v0 = 0x0F0F0F0F;
-  v0.format<short>().select<8, 2>(0) = 0x0E0E;
+  v0.bit_cast_view<short>().select<8, 2>(0) = 0x0E0E;
   return v0[2] == 0x0E0E0E0E;
 }
 
 bool test_format_2d_write_rvalue() SYCL_ESIMD_FUNCTION {
   simd<int, 8> v0(0, 1);
-  v0.format<int, 2, 4>().select<1, 0, 4, 1>(0, 0) = 37;
+  v0.bit_cast_view<int, 2, 4>().select<1, 0, 4, 1>(0, 0) = 37;
   return v0[3] == 37;
 }
 
 auto test_format_2d_read_rvalue() SYCL_ESIMD_FUNCTION {
   simd<int, 8> v0(0, 1);
-  auto r1 = v0.format<int, 2, 4>()
+  auto r1 = v0.bit_cast_view<int, 2, 4>()
                 .select<1, 0, 4, 1>(1, 0)
-                .format<int>()
+                .bit_cast_view<int>()
                 .select<2, 2>(1);
   return r1[0] == 5;
 }
 
 bool test_row_read_write() SYCL_ESIMD_FUNCTION {
   simd<int, 16> v0(0, 1);
-  auto m = v0.format<int, 4, 4>();
+  auto m = v0.bit_cast_view<int, 4, 4>();
 
   auto r0 = m.row(0); // 0 1 2 3
   auto r1 = m.row(1); // 4 5 6 7
@@ -192,7 +192,7 @@ bool test_row_read_write() SYCL_ESIMD_FUNCTION {
 
 bool test_column_read_write() SYCL_ESIMD_FUNCTION {
   simd<int, 4> v0(0, 1);
-  auto m = v0.format<int, 2, 2>();
+  auto m = v0.bit_cast_view<int, 2, 2>();
 
   auto c0 = m.column(0); // 0 2
   auto c1 = m.column(1); // 1 3
@@ -212,21 +212,21 @@ bool test_replicate() SYCL_ESIMD_FUNCTION {
 
 bool test_replicate1() SYCL_ESIMD_FUNCTION {
   simd<int, 8> v0(0, 1);
-  auto v0_rep = v0.replicate<4, 2>(2);
+  auto v0_rep = v0.replicate_w<4, 2>(2);
 
   return v0[2] == v0_rep[2] && v0[3] == v0_rep[5];
 }
 
 bool test_replicate2() SYCL_ESIMD_FUNCTION {
   simd<int, 8> v0(0, 1);
-  auto v0_rep = v0.replicate<2, 4, 2>(1);
+  auto v0_rep = v0.replicate_vs_w<2, 4, 2>(1);
 
   return v0_rep[0] == v0[1] && v0_rep[1] == v0[2] && v0_rep[2] == v0[5];
 }
 
 bool test_replicate3() SYCL_ESIMD_FUNCTION {
   simd<int, 8> v0(0, 1);
-  auto v0_rep = v0.replicate<2, 4, 2, 2>(1);
+  auto v0_rep = v0.replicate_vs_w_hs<2, 4, 2, 2>(1);
 
   return v0_rep[0] == v0[1] && v0_rep[1] == v0[3] && v0_rep[2] == v0[5];
 }
