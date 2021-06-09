@@ -3904,13 +3904,11 @@ class OffloadingActionBuilder final {
       // Device compilation generates LLVM BC.
       if (CurPhase == phases::Compile) {
         for (Action *&A : SYCLDeviceActions) {
-          types::ID OutputType = (Args.hasArg(options::OPT_S) &&
-                                  Args.hasArg(options::OPT_emit_llvm))
-                                     ? types::TY_LLVM_IR
-                                     : types::TY_LLVM_BC;
+          types::ID OutputType = types::TY_LLVM_BC;
+          if ((SYCLDeviceOnly || Args.hasArg(options::OPT_emit_llvm)) &&
+              Args.hasArg(options::OPT_S))
+            OutputType = types::TY_LLVM_IR;
           if (SYCLDeviceOnly) {
-            if (Args.hasArg(options::OPT_S))
-              OutputType = types::TY_LLVM_IR;
             if (Args.hasFlag(options::OPT_fno_sycl_use_bitcode,
                              options::OPT_fsycl_use_bitcode, false)) {
               auto *CompileAction =
