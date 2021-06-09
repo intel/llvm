@@ -565,8 +565,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
                SYCLIntelNumSimdWorkItemsAttr,
                SYCLIntelSchedulerTargetFmaxMhzAttr,
                SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-               SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr,
-               SYCLIntelUseStallEnableClustersAttr>(A);
+               SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
   });
 
   // Attributes that should not be propagated from device functions to a kernel.

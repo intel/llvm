@@ -2587,25 +2587,27 @@ clusters handle stalls using a stall-enable signal to freeze computation
 within the cluster. This attribute is ignored on the host.
 
 If ``intel::use_stall_enable_clusters`` is applied to a function called from a device
-kernel, the attribute is not ignored and it is propagated to the kernel.
+kernel, the attribute is ignored and it is not propagated to the kernel.
+
+``intel::use_stall_enable_clusters]`` is a function attribute, not a kernel one.
+The metadata to be attached to the FunctionDecl/IR function that the attribute is
+applied to, not collected and applied to callers/the kernel.
 
 The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an effect
 when applied to a function, and no effect otherwise.
 
 .. code-block:: c++
 
-  class Functor
-  {
-      [[intel::use_stall_enable_clusters]] void operator()(item<1> item)
-      {
-          /* kernel code */
-      }
-  }
+  [[intel::use_stall_enable_clusters]] void test() {}
 
-  kernel<class kernel_name>(
-  []() [[intel::use_stall_enable_clusters]] {
-       /* kernel code */
-  });
+  struct FuncObj {
+    [[intel::use_stall_enable_clusters]] void operator()() const {}
+  };
+
+  void test1() {
+    auto lambda = []() [[intel::use_stall_enable_clusters]]{};
+    lambda();
+  }
 
   }];
 }
