@@ -45,13 +45,13 @@ static pi_result redefinedProgramGetInfo(pi_program program,
 
   if (param_name == PI_PROGRAM_INFO_BINARY_SIZES) {
     auto value = reinterpret_cast<size_t *>(param_value);
-    for (int i = 0; i < Progs[DeviceCodeID].size(); ++i)
+    for (size_t i = 0; i < Progs[DeviceCodeID].size(); ++i)
       value[i] = Progs[DeviceCodeID][i];
   }
 
   if (param_name == PI_PROGRAM_INFO_BINARIES) {
     auto value = reinterpret_cast<unsigned char **>(param_value);
-    for (int i = 0; i < Progs[DeviceCodeID].size(); ++i)
+    for (size_t i = 0; i < Progs[DeviceCodeID].size(); ++i)
       for (int j = 0; j < Progs[DeviceCodeID][i]; ++j)
         value[i][j] = i;
   }
@@ -120,9 +120,9 @@ public:
             sycl::vector_class<unsigned char>(
                 {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}),
             BuildOptions);
-        for (int i = 0; i < Res.size(); ++i) {
-          for (int j = 0; j < Res[i].size(); ++j) {
-            assert(Res[i][j] == i &&
+        for (size_t i = 0; i < Res.size(); ++i) {
+          for (size_t j = 0; j < Res[i].size(); ++j) {
+            assert(Res[i][j] == static_cast<char>(i) &&
                    "Corrupted image loaded from persistent cache");
           }
         }
@@ -162,10 +162,11 @@ TEST_F(PersistenDeviceCodeCache, KeysWithNullTermSymbol) {
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img,
                                                                 SpecConst, Key);
   assert(Res.size() != 0 && "Failed to load cache item");
-  for (int i = 0; i < Res.size(); ++i) {
+  for (size_t i = 0; i < Res.size(); ++i) {
     assert(Res[i].size() != 0 && "Failed to device image");
-    for (int j = 0; j < Res[i].size(); ++j) {
-      assert(Res[i][j] == i && "Corrupted image loaded from persistent cache");
+    for (size_t j = 0; j < Res[i].size(); ++j) {
+      assert(Res[i][j] == static_cast<char>(i) &&
+             "Corrupted image loaded from persistent cache");
     }
   }
 
@@ -302,9 +303,10 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
   std::remove(LockFile.c_str());
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                            BuildOptions);
-  for (int i = 0; i < Res.size(); ++i) {
-    for (int j = 0; j < Res[i].size(); ++j) {
-      assert(Res[i][j] == i && "Corrupted image loaded from persistent cache");
+  for (size_t i = 0; i < Res.size(); ++i) {
+    for (size_t j = 0; j < Res[i].size(); ++j) {
+      assert(Res[i][j] == static_cast<char>(i) &&
+             "Corrupted image loaded from persistent cache");
     }
   }
   llvm::sys::fs::remove_directories(ItemDir);
@@ -344,9 +346,10 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                            BuildOptions);
   // Image should be successfully read
-  for (int i = 0; i < Res.size(); ++i) {
-    for (int j = 0; j < Res[i].size(); ++j) {
-      assert(Res[i][j] == i && "Corrupted image loaded from persistent cache");
+  for (size_t i = 0; i < Res.size(); ++i) {
+    for (size_t j = 0; j < Res[i].size(); ++j) {
+      assert(Res[i][j] == static_cast<char>(i) &&
+             "Corrupted image loaded from persistent cache");
     }
   }
   llvm::sys::fs::remove_directories(ItemDir);
