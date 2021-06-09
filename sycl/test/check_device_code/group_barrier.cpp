@@ -17,7 +17,9 @@ int main() {
     CGH.parallel_for(sycl::nd_range{sycl::range{1}, sycl::range{1}},
                      [](sycl::nd_item<1> item) {
                        auto G = item.get_group();
+                       auto SG = item.get_sub_group();
                        TestLambda(G);
+                       TestLambda(SG);
                      });
   });
   Q.submit([](sycl::handler &CGH) {
@@ -42,6 +44,12 @@ int main() {
 // CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 904) #2
 // CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 1, i32 904) #2
 // CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 0, i32 904) #2
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 3, i32 904) #2
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 4, i32 904) #2
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 3, i32 904) #2
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 2, i32 904) #2
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 1, i32 904) #2
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 0, i32 904) #2
 
 // CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 904) #2
 // CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 4, i32 904) #2
