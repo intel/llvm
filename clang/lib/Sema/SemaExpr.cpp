@@ -3585,6 +3585,15 @@ ExprResult Sema::BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
                                              SourceLocation LParen,
                                              SourceLocation RParen, Expr *E) {
   if (!E->isInstantiationDependent()) {
+    // Special handling to get us better error messages for a member variable.
+    if (auto *ME = dyn_cast<MemberExpr>(E->IgnoreUnlessSpelledInSource())) {
+      if (isa<FieldDecl>(ME->getMemberDecl()))
+        Diag(E->getExprLoc(), diag::err_unique_stable_id_global_storage);
+      else
+        Diag(E->getExprLoc(), diag::err_unique_stable_id_expected_var);
+      return ExprError();
+    }
+
     auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreUnlessSpelledInSource());
 
     if (!DRE || !DRE->getDecl() || !isa<VarDecl>(DRE->getDecl())) {
