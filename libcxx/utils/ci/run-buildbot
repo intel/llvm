@@ -270,6 +270,13 @@ generic-gcc)
     generate-cmake
     check-cxx-cxxabi
 ;;
+generic-gcc-next)
+    export CC=gcc-11
+    export CXX=g++-11
+    clean
+    generate-cmake
+    check-cxx-cxxabi
+;;
 generic-asan)
     export CC=clang
     export CXX=clang++
@@ -546,6 +553,14 @@ windows-static)
     echo "+++ Running the libc++ tests"
     ${NINJA} -vC "${BUILD_DIR}" check-cxx
 ;;
+#################################################################
+# Insert vendor-specific internal configurations below.
+#
+# This allows vendors to extend this file with their own internal
+# configurations without running into merge conflicts with upstream.
+#################################################################
+
+#################################################################
 *)
     echo "${BUILDER} is not a known configuration"
     exit 1

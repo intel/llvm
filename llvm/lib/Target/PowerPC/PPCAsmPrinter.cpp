@@ -846,6 +846,10 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
           "This pseudo should only be selected for 32-bit small code model.");
       Exp = getTOCEntryLoadingExprForXCOFF(MOSymbol, Exp, VK);
       TmpInst.getOperand(1) = MCOperand::createExpr(Exp);
+
+      // Print MO for better readability
+      if (isVerbose())
+        OutStreamer->GetCommentOS() << MO << '\n';
       EmitToStreamer(*OutStreamer, TmpInst);
       return;
     }
@@ -912,6 +916,10 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
     const MCExpr *Exp = MCSymbolRefExpr::create(TOCEntry, VKExpr, OutContext);
     TmpInst.getOperand(1) = MCOperand::createExpr(
         IsAIX ? getTOCEntryLoadingExprForXCOFF(MOSymbol, Exp, VK) : Exp);
+
+    // Print MO for better readability
+    if (isVerbose() && IsAIX)
+      OutStreamer->GetCommentOS() << MO << '\n';
     EmitToStreamer(*OutStreamer, TmpInst);
     return;
   }
@@ -1351,6 +1359,16 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
     }
     // Now process the instruction normally.
     break;
+  }
+  case PPC::PseudoEIEIO: {
+    EmitToStreamer(
+        *OutStreamer,
+        MCInstBuilder(PPC::ORI).addReg(PPC::X2).addReg(PPC::X2).addImm(0));
+    EmitToStreamer(
+        *OutStreamer,
+        MCInstBuilder(PPC::ORI).addReg(PPC::X2).addReg(PPC::X2).addImm(0));
+    EmitToStreamer(*OutStreamer, MCInstBuilder(PPC::EnforceIEIO));
+    return;
   }
   }
 

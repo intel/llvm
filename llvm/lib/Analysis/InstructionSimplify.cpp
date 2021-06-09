@@ -923,8 +923,11 @@ Value *llvm::SimplifyMulInst(Value *Op0, Value *Op1, const SimplifyQuery &Q) {
 
 /// Check for common or similar folds of integer division or integer remainder.
 /// This applies to all 4 opcodes (sdiv/udiv/srem/urem).
-static Value *simplifyDivRem(Value *Op0, Value *Op1, bool IsDiv,
-                             const SimplifyQuery &Q) {
+static Value *simplifyDivRem(Instruction::BinaryOps Opcode, Value *Op0,
+                             Value *Op1, const SimplifyQuery &Q) {
+  bool IsDiv = (Opcode == Instruction::SDiv || Opcode == Instruction::UDiv);
+  bool IsSigned = (Opcode == Instruction::SDiv || Opcode == Instruction::SRem);
+
   Type *Ty = Op0->getType();
 
   // X / undef -> poison
@@ -975,6 +978,21 @@ static Value *simplifyDivRem(Value *Op0, Value *Op1, bool IsDiv,
   if (match(Op1, m_One()) || Ty->isIntOrIntVectorTy(1) ||
       (match(Op1, m_ZExt(m_Value(X))) && X->getType()->isIntOrIntVectorTy(1)))
     return IsDiv ? Op0 : Constant::getNullValue(Ty);
+
+  // If X * Y does not overflow, then:
+  //   X * Y / Y -> X
+  //   X * Y % Y -> 0
+  if (match(Op0, m_c_Mul(m_Value(X), m_Specific(Op1)))) {
+    auto *Mul = cast<OverflowingBinaryOperator>(Op0);
+    // The multiplication can't overflow if it is defined not to, or if
+    // X == A / Y for some A.
+    if ((IsSigned && Q.IIQ.hasNoSignedWrap(Mul)) ||
+        (!IsSigned && Q.IIQ.hasNoUnsignedWrap(Mul)) ||
+        (IsSigned && match(X, m_SDiv(m_Value(), m_Specific(Op1)))) ||
+        (!IsSigned && match(X, m_UDiv(m_Value(), m_Specific(Op1))))) {
+      return IsDiv ? X : Constant::getNullValue(Op0->getType());
+    }
+  }
 
   return nullptr;
 }
@@ -1047,24 +1065,10 @@ static Value *simplifyDiv(Instruction::BinaryOps Opcode, Value *Op0, Value *Op1,
   if (Constant *C = foldOrCommuteConstant(Opcode, Op0, Op1, Q))
     return C;
 
-  if (Value *V = simplifyDivRem(Op0, Op1, true, Q))
+  if (Value *V = simplifyDivRem(Opcode, Op0, Op1, Q))
     return V;
 
   bool IsSigned = Opcode == Instruction::SDiv;
-
-  // (X * Y) / Y -> X if the multiplication does not overflow.
-  Value *X;
-  if (match(Op0, m_c_Mul(m_Value(X), m_Specific(Op1)))) {
-    auto *Mul = cast<OverflowingBinaryOperator>(Op0);
-    // If the Mul does not overflow, then we are good to go.
-    if ((IsSigned && Q.IIQ.hasNoSignedWrap(Mul)) ||
-        (!IsSigned && Q.IIQ.hasNoUnsignedWrap(Mul)))
-      return X;
-    // If X has the form X = A / Y, then X * Y cannot overflow.
-    if ((IsSigned && match(X, m_SDiv(m_Value(), m_Specific(Op1)))) ||
-        (!IsSigned && match(X, m_UDiv(m_Value(), m_Specific(Op1)))))
-      return X;
-  }
 
   // (X rem Y) / Y -> 0
   if ((IsSigned && match(Op0, m_SRem(m_Value(), m_Specific(Op1)))) ||
@@ -1073,7 +1077,7 @@ static Value *simplifyDiv(Instruction::BinaryOps Opcode, Value *Op0, Value *Op1,
 
   // (X /u C1) /u C2 -> 0 if C1 * C2 overflow
   ConstantInt *C1, *C2;
-  if (!IsSigned && match(Op0, m_UDiv(m_Value(X), m_ConstantInt(C1))) &&
+  if (!IsSigned && match(Op0, m_UDiv(m_Value(), m_ConstantInt(C1))) &&
       match(Op1, m_ConstantInt(C2))) {
     bool Overflow;
     (void)C1->getValue().umul_ov(C2->getValue(), Overflow);
@@ -1105,7 +1109,7 @@ static Value *simplifyRem(Instruction::BinaryOps Opcode, Value *Op0, Value *Op1,
   if (Constant *C = foldOrCommuteConstant(Opcode, Op0, Op1, Q))
     return C;
 
-  if (Value *V = simplifyDivRem(Op0, Op1, false, Q))
+  if (Value *V = simplifyDivRem(Opcode, Op0, Op1, Q))
     return V;
 
   // (X % Y) % Y -> X % Y
@@ -3848,10 +3852,12 @@ Value *llvm::SimplifyFCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
   return ::SimplifyFCmpInst(Predicate, LHS, RHS, FMF, Q, RecursionLimit);
 }
 
-static Value *SimplifyWithOpReplaced(Value *V, Value *Op, Value *RepOp,
+static Value *simplifyWithOpReplaced(Value *V, Value *Op, Value *RepOp,
                                      const SimplifyQuery &Q,
                                      bool AllowRefinement,
                                      unsigned MaxRecurse) {
+  assert(!Op->getType()->isVectorTy() && "This is not safe for vectors");
+
   // Trivial replacement.
   if (V == Op)
     return RepOp;
@@ -3961,10 +3967,10 @@ static Value *SimplifyWithOpReplaced(Value *V, Value *Op, Value *RepOp,
   return ConstantFoldInstOperands(I, ConstOps, Q.DL, Q.TLI);
 }
 
-Value *llvm::SimplifyWithOpReplaced(Value *V, Value *Op, Value *RepOp,
+Value *llvm::simplifyWithOpReplaced(Value *V, Value *Op, Value *RepOp,
                                     const SimplifyQuery &Q,
                                     bool AllowRefinement) {
-  return ::SimplifyWithOpReplaced(V, Op, RepOp, Q, AllowRefinement,
+  return ::simplifyWithOpReplaced(V, Op, RepOp, Q, AllowRefinement,
                                   RecursionLimit);
 }
 
@@ -4086,17 +4092,17 @@ static Value *simplifySelectWithICmpCond(Value *CondVal, Value *TrueVal,
   // Note that the equivalence/replacement opportunity does not hold for vectors
   // because each element of a vector select is chosen independently.
   if (Pred == ICmpInst::ICMP_EQ && !CondVal->getType()->isVectorTy()) {
-    if (SimplifyWithOpReplaced(FalseVal, CmpLHS, CmpRHS, Q,
+    if (simplifyWithOpReplaced(FalseVal, CmpLHS, CmpRHS, Q,
                                /* AllowRefinement */ false, MaxRecurse) ==
             TrueVal ||
-        SimplifyWithOpReplaced(FalseVal, CmpRHS, CmpLHS, Q,
+        simplifyWithOpReplaced(FalseVal, CmpRHS, CmpLHS, Q,
                                /* AllowRefinement */ false, MaxRecurse) ==
             TrueVal)
       return FalseVal;
-    if (SimplifyWithOpReplaced(TrueVal, CmpLHS, CmpRHS, Q,
+    if (simplifyWithOpReplaced(TrueVal, CmpLHS, CmpRHS, Q,
                                /* AllowRefinement */ true, MaxRecurse) ==
             FalseVal ||
-        SimplifyWithOpReplaced(TrueVal, CmpRHS, CmpLHS, Q,
+        simplifyWithOpReplaced(TrueVal, CmpRHS, CmpLHS, Q,
                                /* AllowRefinement */ true, MaxRecurse) ==
             FalseVal)
       return FalseVal;
@@ -4149,13 +4155,13 @@ static Value *SimplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
     if (Q.isUndefValue(CondC))
       return isa<Constant>(FalseVal) ? FalseVal : TrueVal;
 
-    // TODO: Vector constants with undef elements don't simplify.
-
-    // select true, X, Y  -> X
-    if (CondC->isAllOnesValue())
+    // select true,  X, Y --> X
+    // select false, X, Y --> Y
+    // For vectors, allow undef/poison elements in the condition to match the
+    // defined elements, so we can eliminate the select.
+    if (match(CondC, m_One()))
       return TrueVal;
-    // select false, X, Y -> Y
-    if (CondC->isNullValue())
+    if (match(CondC, m_Zero()))
       return FalseVal;
   }
 
@@ -5813,6 +5819,74 @@ Value *llvm::SimplifyFreezeInst(Value *Op0, const SimplifyQuery &Q) {
   return ::SimplifyFreezeInst(Op0, Q);
 }
 
+static Constant *ConstructLoadOperandConstant(Value *Op) {
+  SmallVector<Value *, 4> Worklist;
+  Worklist.push_back(Op);
+  while (true) {
+    Value *CurOp = Worklist.back();
+    if (isa<Constant>(CurOp))
+      break;
+    if (auto *BC = dyn_cast<BitCastOperator>(CurOp)) {
+      Worklist.push_back(BC->getOperand(0));
+    } else if (auto *GEP = dyn_cast<GEPOperator>(CurOp)) {
+      for (unsigned I = 1; I != GEP->getNumOperands(); ++I) {
+        if (!isa<Constant>(GEP->getOperand(I)))
+          return nullptr;
+      }
+      Worklist.push_back(GEP->getOperand(0));
+    } else if (auto *II = dyn_cast<IntrinsicInst>(CurOp)) {
+      if (II->isLaunderOrStripInvariantGroup())
+        Worklist.push_back(II->getOperand(0));
+      else
+        return nullptr;
+    } else {
+      return nullptr;
+    }
+  }
+
+  Constant *NewOp = cast<Constant>(Worklist.pop_back_val());
+  while (!Worklist.empty()) {
+    Value *CurOp = Worklist.pop_back_val();
+    if (isa<BitCastOperator>(CurOp)) {
+      NewOp = ConstantExpr::getBitCast(NewOp, CurOp->getType());
+    } else if (auto *GEP = dyn_cast<GEPOperator>(CurOp)) {
+      SmallVector<Constant *> Idxs;
+      Idxs.reserve(GEP->getNumOperands() - 1);
+      for (unsigned I = 1, E = GEP->getNumOperands(); I != E; ++I) {
+        Idxs.push_back(cast<Constant>(GEP->getOperand(I)));
+      }
+      NewOp = ConstantExpr::getGetElementPtr(GEP->getSourceElementType(), NewOp,
+                                             Idxs, GEP->isInBounds(),
+                                             GEP->getInRangeIndex());
+    } else {
+      assert(isa<IntrinsicInst>(CurOp) &&
+             cast<IntrinsicInst>(CurOp)->isLaunderOrStripInvariantGroup() &&
+             "expected invariant group intrinsic");
+      NewOp = ConstantExpr::getBitCast(NewOp, CurOp->getType());
+    }
+  }
+  return NewOp;
+}
+
+static Value *SimplifyLoadInst(LoadInst *LI, const SimplifyQuery &Q) {
+  if (LI->isVolatile())
+    return nullptr;
+
+  if (auto *C = ConstantFoldInstruction(LI, Q.DL))
+    return C;
+
+  // The following only catches more cases than ConstantFoldInstruction() if the
+  // load operand wasn't a constant. Specifically, invariant.group intrinsics.
+  if (isa<Constant>(LI->getPointerOperand()))
+    return nullptr;
+
+  if (auto *C = dyn_cast_or_null<Constant>(
+          ConstructLoadOperandConstant(LI->getPointerOperand())))
+    return ConstantFoldLoadFromConstPtr(C, LI->getType(), Q.DL);
+
+  return nullptr;
+}
+
 /// See if we can compute a simplified version of this instruction.
 /// If not, this returns null.
 
@@ -5968,6 +6042,9 @@ Value *llvm::SimplifyInstruction(Instruction *I, const SimplifyQuery &SQ,
   case Instruction::Alloca:
     // No simplifications for Alloca and it can't be constant folded.
     Result = nullptr;
+    break;
+  case Instruction::Load:
+    Result = SimplifyLoadInst(cast<LoadInst>(I), Q);
     break;
   }
 

@@ -420,6 +420,17 @@ static string_vector saveDeviceImageProperty(
         PropSet.add(
             llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
             TmpSpecIDMap);
+
+        // Add property with the default values of spec constants only in native
+        // (default) mode.
+        if (!ImgPSInfo.SetSpecConstAtRT) {
+          std::vector<char> DefaultValues;
+          SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
+              *ResultModules[I].get(), DefaultValues);
+          PropSet.add(llvm::util::PropertySetRegistry::
+                          SYCL_SPEC_CONSTANTS_DEFAULT_VALUES,
+                      "all", DefaultValues);
+        }
       }
     }
     if (ImgPSInfo.EmitKernelParamInfo) {
@@ -562,8 +573,6 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     // Register required analysis
     MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
     RunSpecConst.addPass(SCP);
-    // This pass deletes unreachable globals.
-    RunSpecConst.addPass(GlobalDCEPass());
 
     for (auto &MPtr : ResultModules) {
       // perform the spec constant intrinsics transformation on each resulting

@@ -621,6 +621,8 @@ void ModuleSanitizerCoverage::instrumentFunction(
     return;
   if (Blocklist && Blocklist->inSection("coverage", "fun", F.getName()))
     return;
+  if (F.hasFnAttribute(Attribute::NoSanitizeCoverage))
+    return;
   if (Options.CoverageType >= SanitizerCoverageOptions::SCK_Edge)
     SplitAllCriticalEdges(F, CriticalEdgeSplittingOptions().setIgnoreUnreachableDests());
   SmallVector<Instruction *, 8> IndirCalls;
@@ -838,8 +840,9 @@ void ModuleSanitizerCoverage::InjectTraceForDiv(
         TypeSize == 64 ? 1 : -1;
     if (CallbackIdx < 0) continue;
     auto Ty = Type::getIntNTy(*C, TypeSize);
-    IRB.CreateCall(SanCovTraceDivFunction[CallbackIdx],
-                   {IRB.CreateIntCast(A1, Ty, true)});
+    auto *CB = IRB.CreateCall(SanCovTraceDivFunction[CallbackIdx],
+                              {IRB.CreateIntCast(A1, Ty, true)});
+    CB->setAttributes(CB->getCalledFunction()->getAttributes());
   }
 }
 
@@ -883,8 +886,10 @@ void ModuleSanitizerCoverage::InjectTraceForCmp(
       }
 
       auto Ty = Type::getIntNTy(*C, TypeSize);
-      IRB.CreateCall(CallbackFunc, {IRB.CreateIntCast(A0, Ty, true),
-              IRB.CreateIntCast(A1, Ty, true)});
+      auto *CB =
+          IRB.CreateCall(CallbackFunc, {IRB.CreateIntCast(A0, Ty, true),
+                                        IRB.CreateIntCast(A1, Ty, true)});
+      CB->setAttributes(CB->getCalledFunction()->getAttributes());
     }
   }
 }

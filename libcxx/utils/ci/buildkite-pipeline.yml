@@ -135,6 +135,19 @@ steps:
         - exit_status: -1  # Agent was lost
           limit: 2
 
+  - label: "GCC-next/C++20"
+    command: "libcxx/utils/ci/run-buildbot generic-gcc-next"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+    soft_fail:
+      - exit_status: 1
+
   #
   # All other supported configurations of libc++.
   #
@@ -356,6 +369,17 @@ steps:
       - "**/test-results.xml"
     agents:
       queue: "windows"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "32 bit"
+    command: "libcxx/utils/ci/run-buildbot generic-32bit"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
     retry:
       automatic:
         - exit_status: -1  # Agent was lost

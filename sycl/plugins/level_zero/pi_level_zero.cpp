@@ -940,9 +940,8 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
 
       auto &Contexts = Device->Platform->Contexts;
       for (auto &Ctx : Contexts) {
-        for (auto It = Ctx->MemAllocs.begin(); It != Ctx->MemAllocs.end();
-             It++) {
-          const auto &Pair = Kernel->MemAllocs.insert(It);
+        for (auto &Elem : Ctx->MemAllocs) {
+          const auto &Pair = Kernel->MemAllocs.insert(&Elem);
           // Kernel is referencing this memory allocation from now.
           // If this memory allocation was already captured for this kernel, it
           // means that kernel is submitted several times. Increase reference
@@ -950,7 +949,7 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
           // SubmissionsCount turns to 0. We don't want to know how many times
           // allocation was retained by each submission.
           if (Pair.second)
-            It->second.RefCount++;
+            Elem.second.RefCount++;
         }
       }
       Kernel->SubmissionsCount++;
@@ -5756,6 +5755,15 @@ static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
   ze_device_mem_alloc_desc_t ZeDesc = {};
   ZeDesc.flags = 0;
   ZeDesc.ordinal = 0;
+
+  ze_relaxed_allocation_limits_exp_desc_t RelaxedDesc = {};
+  if (Size > Device->ZeDeviceProperties.maxMemAllocSize) {
+    // Tell Level-Zero to accept Size > maxMemAllocSize
+    RelaxedDesc.stype = ZE_STRUCTURE_TYPE_RELAXED_ALLOCATION_LIMITS_EXP_DESC;
+    RelaxedDesc.flags = ZE_RELAXED_ALLOCATION_LIMITS_EXP_FLAG_MAX_SIZE;
+    ZeDesc.pNext = &RelaxedDesc;
+  }
+
   ZE_CALL(zeMemAllocDevice, (Context->ZeContext, &ZeDesc, Size, Alignment,
                              Device->ZeDevice, ResultPtr));
 
@@ -5783,6 +5791,15 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
   ze_device_mem_alloc_desc_t ZeDevDesc = {};
   ZeDevDesc.flags = 0;
   ZeDevDesc.ordinal = 0;
+
+  ze_relaxed_allocation_limits_exp_desc_t RelaxedDesc = {};
+  if (Size > Device->ZeDeviceProperties.maxMemAllocSize) {
+    // Tell Level-Zero to accept Size > maxMemAllocSize
+    RelaxedDesc.stype = ZE_STRUCTURE_TYPE_RELAXED_ALLOCATION_LIMITS_EXP_DESC;
+    RelaxedDesc.flags = ZE_RELAXED_ALLOCATION_LIMITS_EXP_FLAG_MAX_SIZE;
+    ZeDevDesc.pNext = &RelaxedDesc;
+  }
+
   ZE_CALL(zeMemAllocShared, (Context->ZeContext, &ZeDevDesc, &ZeHostDesc, Size,
                              Alignment, Device->ZeDevice, ResultPtr));
 
@@ -6462,6 +6479,11 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 #include <CL/sycl/detail/pi.def>
 
   return PI_SUCCESS;
+}
+
+pi_result piextPluginGetOpaqueData(void *opaque_data_param,
+                                   void **opaque_data_return) {
+  return PI_ERROR_UNKNOWN;
 }
 
 // SYCL RT calls this api to notify the end of plugin lifetime.

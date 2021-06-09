@@ -1033,7 +1033,7 @@ define <vscale x 8 x i1> @icmp_uge_vi_nxv8i16_5(<vscale x 8 x i16> %va) {
 define <vscale x 8 x i1> @icmp_uge_vi_nxv8i8_6(<vscale x 8 x i8> %va, i32 %vl) {
 ; CHECK-LABEL: icmp_uge_vi_nxv8i8_6:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli a0, a0, e8,m1,ta,mu
+; CHECK-NEXT:    vsetvli zero, a0, e8,m1,ta,mu
 ; CHECK-NEXT:    vmv.v.i v25, 0
 ; CHECK-NEXT:    vsetvli a0, zero, e8,m1,ta,mu
 ; CHECK-NEXT:    vmsleu.vv v0, v25, v8
@@ -3077,8 +3077,7 @@ define <vscale x 8 x i1> @icmp_eq_ii_nxv8i8() {
 ; CHECK-LABEL: icmp_eq_ii_nxv8i8:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetvli a0, zero, e8,m1,ta,mu
-; CHECK-NEXT:    vmv.v.i v25, 5
-; CHECK-NEXT:    vmseq.vi v0, v25, 2
+; CHECK-NEXT:    vmclr.m v0
 ; CHECK-NEXT:    ret
   %heada = insertelement <vscale x 8 x i8> undef, i8 5, i32 0
   %splata = shufflevector <vscale x 8 x i8> %heada, <vscale x 8 x i8> undef, <vscale x 8 x i32> zeroinitializer

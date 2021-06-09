@@ -50,7 +50,7 @@ public:
   typename sycl::detail::enable_if_t<std::is_arithmetic<V>::value, V>
   get() const { // explicit access.
 #ifdef __SYCL_DEVICE_ONLY__
-    const char *TName = __builtin_unique_stable_name(ID);
+    const char *TName = __builtin_sycl_unique_stable_name(ID);
     return __sycl_getScalarSpecConstantValue<T>(TName);
 #else
     return Val;
@@ -63,7 +63,7 @@ public:
                                      V>
   get() const { // explicit access.
 #ifdef __SYCL_DEVICE_ONLY__
-    const char *TName = __builtin_unique_stable_name(ID);
+    const char *TName = __builtin_sycl_unique_stable_name(ID);
     return __sycl_getCompositeSpecConstantValue<T>(TName);
 #else
     return Val;

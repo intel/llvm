@@ -682,15 +682,14 @@ static void instantiateSYCLIntelNoGlobalWorkOffsetAttr(
     S.AddSYCLIntelNoGlobalWorkOffsetAttr(New, *A, Result.getAs<Expr>());
 }
 
-template <typename AttrName>
-static void instantiateIntelSYCLFunctionAttr(
+static void instantiateSYCLIntelMaxGlobalWorkDimAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const AttrName *Attr, Decl *New) {
+    const SYCLIntelMaxGlobalWorkDimAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.addIntelSingleArgAttr<AttrName>(New, *Attr, Result.getAs<Expr>());
+    S.AddSYCLIntelMaxGlobalWorkDimAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelFPGAMaxConcurrencyAttr(
@@ -760,6 +759,21 @@ static void instantiateWorkGroupSizeHintAttr(
 
   S.AddWorkGroupSizeHintAttr(New, *A, XResult.get(), YResult.get(),
                              ZResult.get());
+}
+
+// This doesn't take any template parameters, but we have a custom action that
+// needs to happen when the kernel itself is instantiated. We need to run the
+// ItaniumMangler to mark the names required to name this kernel.
+static void instantiateDependentSYCLKernelAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLKernelAttr &Attr, Decl *New) {
+  // Functions cannot be partially specialized, so if we are being instantiated,
+  // we are obviously a complete specialization. Since this attribute is only
+  // valid on function template declarations, we know that this is a full
+  // instantiation of a kernel.
+  S.AddSYCLKernelLambda(cast<FunctionDecl>(New));
+
+  New->addAttr(Attr.clone(S.getASTContext()));
 }
 
 /// Determine whether the attribute A might be relevent to the declaration D.
@@ -960,8 +974,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *SYCLIntelMaxGlobalWorkDim =
             dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(TmplAttr)) {
-      instantiateIntelSYCLFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(
-          *this, TemplateArgs, SYCLIntelMaxGlobalWorkDim, New);
+      instantiateSYCLIntelMaxGlobalWorkDimAttr(*this, TemplateArgs,
+                                               SYCLIntelMaxGlobalWorkDim, New);
       continue;
     }
     if (const auto *SYCLIntelLoopFuse =
@@ -1038,6 +1052,11 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     if (auto *A = dyn_cast<OwnerAttr>(TmplAttr)) {
       if (!New->hasAttr<OwnerAttr>())
         New->addAttr(A->clone(Context));
+      continue;
+    }
+
+    if (auto *A = dyn_cast<SYCLKernelAttr>(TmplAttr)) {
+      instantiateDependentSYCLKernelAttr(*this, TemplateArgs, *A, New);
       continue;
     }
 
@@ -3378,9 +3397,15 @@ Decl *TemplateDeclInstantiator::VisitUsingDecl(UsingDecl *D) {
       if (auto *BaseShadow = CUSD->getNominatedBaseClassShadowDecl())
         OldTarget = BaseShadow;
 
-    NamedDecl *InstTarget =
-        cast_or_null<NamedDecl>(SemaRef.FindInstantiatedDecl(
-            Shadow->getLocation(), OldTarget, TemplateArgs));
+    NamedDecl *InstTarget = nullptr;
+    if (auto *EmptyD =
+            dyn_cast<UnresolvedUsingIfExistsDecl>(Shadow->getTargetDecl())) {
+      InstTarget = UnresolvedUsingIfExistsDecl::Create(
+          SemaRef.Context, Owner, EmptyD->getLocation(), EmptyD->getDeclName());
+    } else {
+      InstTarget = cast_or_null<NamedDecl>(SemaRef.FindInstantiatedDecl(
+          Shadow->getLocation(), OldTarget, TemplateArgs));
+    }
     if (!InstTarget)
       return nullptr;
 
@@ -3503,13 +3528,16 @@ Decl *TemplateDeclInstantiator::instantiateUnresolvedUsingDecl(
   SourceLocation EllipsisLoc =
       InstantiatingSlice ? SourceLocation() : D->getEllipsisLoc();
 
+  bool IsUsingIfExists = D->template hasAttr<UsingIfExistsAttr>();
   NamedDecl *UD = SemaRef.BuildUsingDeclaration(
       /*Scope*/ nullptr, D->getAccess(), D->getUsingLoc(),
       /*HasTypename*/ TD, TypenameLoc, SS, NameInfo, EllipsisLoc,
       ParsedAttributesView(),
-      /*IsInstantiation*/ true);
-  if (UD)
+      /*IsInstantiation*/ true, IsUsingIfExists);
+  if (UD) {
+    SemaRef.InstantiateAttrs(TemplateArgs, D, UD);
     SemaRef.Context.setInstantiatedFromUsingDecl(UD, D);
+  }
 
   return UD;
 }
@@ -3522,6 +3550,11 @@ Decl *TemplateDeclInstantiator::VisitUnresolvedUsingTypenameDecl(
 Decl *TemplateDeclInstantiator::VisitUnresolvedUsingValueDecl(
     UnresolvedUsingValueDecl *D) {
   return instantiateUnresolvedUsingDecl(D);
+}
+
+Decl *TemplateDeclInstantiator::VisitUnresolvedUsingIfExistsDecl(
+    UnresolvedUsingIfExistsDecl *D) {
+  llvm_unreachable("referring to unresolved decl out of UsingShadowDecl");
 }
 
 Decl *TemplateDeclInstantiator::VisitUsingPackDecl(UsingPackDecl *D) {
@@ -5319,7 +5352,6 @@ void Sema::BuildVariableInstantiation(
   NewVar->setCXXForRangeDecl(OldVar->isCXXForRangeDecl());
   NewVar->setObjCForDecl(OldVar->isObjCForDecl());
   NewVar->setConstexpr(OldVar->isConstexpr());
-  MaybeAddCUDAConstantAttr(NewVar);
   NewVar->setInitCapture(OldVar->isInitCapture());
   NewVar->setPreviousDeclInSameBlockScope(
       OldVar->isPreviousDeclInSameBlockScope());

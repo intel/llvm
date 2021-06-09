@@ -12,4 +12,4 @@ void foo() {
 
 // CHECK-SPIRV: Undef [[#]] [[#Undef:]]
 // CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugDeclare [[#]] [[#Undef]] [[#]]
-// CHECK-LLVM: call void @llvm.dbg.declare(metadata i32* undef, metadata ![[#]], metadata !DIExpression())
+// CHECK-LLVM: call void @llvm.dbg.declare(metadata i32* undef, metadata ![[#]], metadata !DIExpression({{.*}}))

@@ -2059,10 +2059,6 @@ static bool SinkCommonCodeFromPredecessors(BasicBlock *BB,
     return NumPHIInsts <= 1;
   };
 
-  // If no instructions can be sunk, early-return.
-  if (ScanIdx == 0)
-    return false;
-
   // We've determined that we are going to sink last ScanIdx instructions,
   // and recorded them in InstructionsToSink. Now, some instructions may be
   // unprofitable to sink. But that determination depends on the instructions
@@ -4500,9 +4496,7 @@ static bool removeEmptyCleanup(CleanupReturnInst *RI, DomTreeUpdater *DTU) {
 
     // Sink any remaining PHI nodes directly into UnwindDest.
     Instruction *InsertPt = DestEHPad;
-    for (PHINode &PN : BB->phis()) {
-      // The iterator must be incremented here because the instructions are
-      // being moved to another block.
+    for (PHINode &PN : make_early_inc_range(BB->phis())) {
       if (PN.use_empty() || !PN.isUsedOutsideOfBlock(BB))
         // If the PHI node has no uses or all of its uses are in this basic
         // block (meaning they are debug or lifetime intrinsics), just leave
