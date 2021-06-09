@@ -35,23 +35,24 @@ define void @buildvec_no_vid_v4f32(<4 x float>* %x) {
 define <4 x float> @hang_when_merging_stores_after_legalization(<8 x float> %x, <8 x float> %y) optsize {
 ; LMULMAX1-LABEL: hang_when_merging_stores_after_legalization:
 ; LMULMAX1:       # %bb.0:
-; LMULMAX1-NEXT:    addi sp, sp, -16
-; LMULMAX1-NEXT:    .cfi_def_cfa_offset 16
+; LMULMAX1-NEXT:    addi sp, sp, -32
+; LMULMAX1-NEXT:    .cfi_def_cfa_offset 32
 ; LMULMAX1-NEXT:    vsetvli zero, zero, e32,m2,ta,mu
 ; LMULMAX1-NEXT:    vfmv.f.s ft0, v10
-; LMULMAX1-NEXT:    fsw ft0, 8(sp)
+; LMULMAX1-NEXT:    fsw ft0, 24(sp)
 ; LMULMAX1-NEXT:    vfmv.f.s ft0, v8
-; LMULMAX1-NEXT:    fsw ft0, 0(sp)
+; LMULMAX1-NEXT:    fsw ft0, 16(sp)
 ; LMULMAX1-NEXT:    vsetivli zero, 1, e32,m2,ta,mu
 ; LMULMAX1-NEXT:    vslidedown.vi v26, v10, 7
 ; LMULMAX1-NEXT:    vfmv.f.s ft0, v26
-; LMULMAX1-NEXT:    fsw ft0, 12(sp)
+; LMULMAX1-NEXT:    fsw ft0, 28(sp)
 ; LMULMAX1-NEXT:    vslidedown.vi v26, v8, 7
 ; LMULMAX1-NEXT:    vfmv.f.s ft0, v26
-; LMULMAX1-NEXT:    fsw ft0, 4(sp)
+; LMULMAX1-NEXT:    fsw ft0, 20(sp)
 ; LMULMAX1-NEXT:    vsetivli zero, 4, e32,m1,ta,mu
-; LMULMAX1-NEXT:    vle32.v v8, (sp)
-; LMULMAX1-NEXT:    addi sp, sp, 16
+; LMULMAX1-NEXT:    addi a0, sp, 16
+; LMULMAX1-NEXT:    vle32.v v8, (a0)
+; LMULMAX1-NEXT:    addi sp, sp, 32
 ; LMULMAX1-NEXT:    ret
 ;
 ; LMULMAX2-LABEL: hang_when_merging_stores_after_legalization:
@@ -66,9 +67,9 @@ define <4 x float> @hang_when_merging_stores_after_legalization(<8 x float> %x, 
 ; LMULMAX2-NEXT:    addi a0, a0, %lo(.LCPI1_0)
 ; LMULMAX2-NEXT:    vsetivli zero, 4, e32,m1,ta,mu
 ; LMULMAX2-NEXT:    vle32.v v27, (a0)
-; LMULMAX2-NEXT:    vsetivli zero, 4, e32,m1,tu,mu
+; LMULMAX2-NEXT:    vsetvli zero, zero, e32,m1,tu,mu
 ; LMULMAX2-NEXT:    vrgather.vv v26, v9, v27, v0.t
-; LMULMAX2-NEXT:    vsetivli zero, 4, e32,m1,ta,mu
+; LMULMAX2-NEXT:    vsetvli zero, zero, e32,m1,ta,mu
 ; LMULMAX2-NEXT:    vrgather.vv v27, v10, v25
 ; LMULMAX2-NEXT:    addi a0, zero, 8
 ; LMULMAX2-NEXT:    vsetivli zero, 1, e8,mf8,ta,mu
@@ -77,7 +78,7 @@ define <4 x float> @hang_when_merging_stores_after_legalization(<8 x float> %x, 
 ; LMULMAX2-NEXT:    addi a0, a0, %lo(.LCPI1_1)
 ; LMULMAX2-NEXT:    vsetivli zero, 4, e32,m1,ta,mu
 ; LMULMAX2-NEXT:    vle32.v v25, (a0)
-; LMULMAX2-NEXT:    vsetivli zero, 4, e32,m1,tu,mu
+; LMULMAX2-NEXT:    vsetvli zero, zero, e32,m1,tu,mu
 ; LMULMAX2-NEXT:    vrgather.vv v27, v11, v25, v0.t
 ; LMULMAX2-NEXT:    addi a0, zero, 3
 ; LMULMAX2-NEXT:    vsetivli zero, 1, e8,mf8,ta,mu

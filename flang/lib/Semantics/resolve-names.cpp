@@ -749,8 +749,8 @@ private:
   // Edits an existing symbol created for earlier calls to a subprogram or ENTRY
   // so that it can be replaced by a later definition.
   bool HandlePreviousCalls(const parser::Name &, Symbol &, Symbol::Flag);
-  // Create a subprogram symbol in the current scope and push a new scope.
   void CheckExtantProc(const parser::Name &, Symbol::Flag);
+  // Create a subprogram symbol in the current scope and push a new scope.
   Symbol &PushSubprogramScope(const parser::Name &, Symbol::Flag);
   Symbol *GetSpecificFromGeneric(const parser::Name &);
   SubprogramDetails &PostSubprogramStmt(const parser::Name &);
@@ -3206,7 +3206,11 @@ bool SubprogramVisitor::HandlePreviousCalls(
 void SubprogramVisitor::CheckExtantProc(
     const parser::Name &name, Symbol::Flag subpFlag) {
   if (auto *prev{FindSymbol(name)}) {
-    if (!IsDummy(*prev) && !HandlePreviousCalls(name, *prev, subpFlag)) {
+    if (IsDummy(*prev)) {
+    } else if (inInterfaceBlock() && currScope() != prev->owner()) {
+      // Procedures in an INTERFACE block do not resolve to symbols
+      // in scopes between the global scope and the current scope.
+    } else if (!HandlePreviousCalls(name, *prev, subpFlag)) {
       SayAlreadyDeclared(name, *prev);
     }
   }
@@ -3953,6 +3957,7 @@ bool DeclarationVisitor::Pre(const parser::DerivedTypeDef &x) {
   CHECK(scope.symbol());
   CHECK(scope.symbol()->scope() == &scope);
   auto &details{scope.symbol()->get<DerivedTypeDetails>()};
+  details.set_isForwardReferenced(false);
   std::set<SourceName> paramNames;
   for (auto &paramName : std::get<std::list<parser::Name>>(stmt.statement.t)) {
     details.add_paramName(paramName.source);
@@ -5023,7 +5028,7 @@ std::optional<DerivedTypeSpec> DeclarationVisitor::ResolveDerivedType(
         Resolve(name, *symbol);
       };
       DerivedTypeDetails details;
-      details.set_isForwardReferenced();
+      details.set_isForwardReferenced(true);
       symbol->set_details(std::move(details));
     } else { // C732
       Say(name, "Derived type '%s' not found"_err_en_US);
@@ -5625,10 +5630,10 @@ ConstructVisitor::Selector ConstructVisitor::ResolveSelector(
     const parser::Selector &x) {
   return std::visit(common::visitors{
                         [&](const parser::Expr &expr) {
-                          return Selector{expr.source, EvaluateExpr(expr)};
+                          return Selector{expr.source, EvaluateExpr(x)};
                         },
                         [&](const parser::Variable &var) {
-                          return Selector{var.GetSource(), EvaluateExpr(var)};
+                          return Selector{var.GetSource(), EvaluateExpr(x)};
                         },
                     },
       x.u);

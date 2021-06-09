@@ -2405,12 +2405,6 @@ public:
 
   ExprResult RebuildSYCLUniqueStableNameExpr(SourceLocation OpLoc,
                                              SourceLocation LParen,
-                                             SourceLocation RParen, Expr *E) {
-    return getSema().BuildSYCLUniqueStableNameExpr(OpLoc, LParen, RParen, E);
-  }
-
-  ExprResult RebuildSYCLUniqueStableNameExpr(SourceLocation OpLoc,
-                                             SourceLocation LParen,
                                              SourceLocation RParen,
                                              TypeSourceInfo *TSI) {
     return getSema().BuildSYCLUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
@@ -3003,6 +2997,26 @@ public:
                                        TypeSourceInfo *TSI, Expr *Sub,
                                        SourceLocation RParenLoc) {
     return getSema().BuildBuiltinBitCastExpr(KWLoc, TSI, Sub, RParenLoc);
+  }
+
+  ExprResult RebuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,
+                                             QualType SourceTy) {
+    return getSema().BuildSYCLBuiltinNumFieldsExpr(Loc, SourceTy);
+  }
+
+  ExprResult RebuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
+                                             QualType SourceTy, Expr *Idx) {
+    return getSema().BuildSYCLBuiltinFieldTypeExpr(Loc, SourceTy, Idx);
+  }
+
+  ExprResult RebuildSYCLBuiltinNumBasesExpr(SourceLocation Loc,
+                                            QualType SourceTy) {
+    return getSema().BuildSYCLBuiltinNumBasesExpr(Loc, SourceTy);
+  }
+
+  ExprResult RebuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
+                                            QualType SourceTy, Expr *Idx) {
+    return getSema().BuildSYCLBuiltinBaseTypeExpr(Loc, SourceTy, Idx);
   }
 
   /// Build a new C++ typeid(type) expression.
@@ -11555,6 +11569,64 @@ TreeTransform<Derived>::TransformBuiltinBitCastExpr(BuiltinBitCastExpr *BCE) {
                                                 Sub.get(), BCE->getEndLoc());
 }
 
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLBuiltinNumFieldsExpr(
+    SYCLBuiltinNumFieldsExpr *SBNFE) {
+  QualType QT = getDerived().TransformType(SBNFE->getSourceType());
+  if (QT.isNull())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && QT == SBNFE->getSourceType())
+    return SBNFE;
+  return getDerived().RebuildSYCLBuiltinNumFieldsExpr(SBNFE->getLocation(), QT);
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLBuiltinFieldTypeExpr(
+    SYCLBuiltinFieldTypeExpr *SBFTE) {
+  QualType QT = getDerived().TransformType(SBFTE->getSourceType());
+  if (QT.isNull())
+    return ExprError();
+  ExprResult Idx = getDerived().TransformExpr(SBFTE->getIndex());
+  if (Idx.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && QT == SBFTE->getSourceType() &&
+      Idx.get() == SBFTE->getIndex())
+    return SBFTE;
+  return getDerived().RebuildSYCLBuiltinFieldTypeExpr(SBFTE->getLocation(), QT,
+                                                      Idx.get());
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLBuiltinNumBasesExpr(
+    SYCLBuiltinNumBasesExpr *SBNBE) {
+  QualType QT = getDerived().TransformType(SBNBE->getSourceType());
+  if (QT.isNull())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && QT == SBNBE->getSourceType())
+    return SBNBE;
+  return getDerived().RebuildSYCLBuiltinNumBasesExpr(SBNBE->getLocation(), QT);
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLBuiltinBaseTypeExpr(
+    SYCLBuiltinBaseTypeExpr *SBBTE) {
+  QualType QT = getDerived().TransformType(SBBTE->getSourceType());
+  if (QT.isNull())
+    return ExprError();
+  ExprResult Idx = getDerived().TransformExpr(SBBTE->getIndex());
+  if (Idx.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && QT == SBBTE->getSourceType() &&
+      Idx.get() == SBBTE->getIndex())
+    return SBBTE;
+  return getDerived().RebuildSYCLBuiltinBaseTypeExpr(SBBTE->getLocation(), QT,
+                                                     Idx.get());
+}
+
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXStaticCastExpr(CXXStaticCastExpr *E) {
@@ -11629,15 +11701,20 @@ TreeTransform<Derived>::TransformCXXTypeidExpr(CXXTypeidExpr *E) {
                                              TInfo, E->getEndLoc());
   }
 
-  // We don't know whether the subexpression is potentially evaluated until
-  // after we perform semantic analysis.  We speculatively assume it is
-  // unevaluated; it will get fixed later if the subexpression is in fact
-  // potentially evaluated.
-  EnterExpressionEvaluationContext Unevaluated(
-      SemaRef, Sema::ExpressionEvaluationContext::Unevaluated,
-      Sema::ReuseLambdaContextDecl);
+  // Typeid's operand is an unevaluated context, unless it's a polymorphic
+  // type.  We must not unilaterally enter unevaluated context here, as then
+  // semantic processing can re-transform an already transformed operand.
+  Expr *Op = E->getExprOperand();
+  auto EvalCtx = Sema::ExpressionEvaluationContext::Unevaluated;
+  if (E->isGLValue())
+    if (auto *RecordT = Op->getType()->getAs<RecordType>())
+      if (cast<CXXRecordDecl>(RecordT->getDecl())->isPolymorphic())
+        EvalCtx = SemaRef.ExprEvalContexts.back().Context;
 
-  ExprResult SubExpr = getDerived().TransformExpr(E->getExprOperand());
+  EnterExpressionEvaluationContext Unevaluated(SemaRef, EvalCtx,
+                                               Sema::ReuseLambdaContextDecl);
+
+  ExprResult SubExpr = getDerived().TransformExpr(Op);
   if (SubExpr.isInvalid())
     return ExprError();
 
@@ -14426,7 +14503,11 @@ QualType TreeTransform<Derived>::RebuildUnresolvedUsingType(SourceLocation Loc,
 
     // A valid resolved using typename decl points to exactly one type decl.
     assert(++Using->shadow_begin() == Using->shadow_end());
-    Ty = cast<TypeDecl>((*Using->shadow_begin())->getTargetDecl());
+
+    NamedDecl *Target = Using->shadow_begin()->getTargetDecl();
+    if (SemaRef.DiagnoseUseOfDecl(Target, Loc))
+      return QualType();
+    Ty = cast<TypeDecl>(Target);
   } else {
     assert(isa<UnresolvedUsingTypenameDecl>(D) &&
            "UnresolvedUsingTypenameDecl transformed to non-using decl");

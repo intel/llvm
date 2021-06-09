@@ -158,9 +158,9 @@ __esimd_bfext(__SEIEED::vector_type_t<T0, SZ> src0,
               __SEIEED::vector_type_t<T0, SZ> src1,
               __SEIEED::vector_type_t<T0, SZ> src2);
 
-template <int SZ>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<uint32_t, SZ>
-__esimd_fbl(__SEIEED::vector_type_t<uint32_t, SZ> src0);
+template <typename T0, int SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T0, SZ>
+__esimd_fbl(__SEIEED::vector_type_t<T0, SZ> src0);
 
 template <typename T0, int SZ>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<int, SZ>
@@ -833,12 +833,12 @@ __esimd_bfext(__SEIEED::vector_type_t<T0, SZ> width,
   return retv;
 };
 
-template <int SZ>
-inline __SEIEED::vector_type_t<uint32_t, SZ>
-__esimd_fbl(__SEIEED::vector_type_t<uint32_t, SZ> src0) {
+template <typename T0, int SZ>
+inline __SEIEED::vector_type_t<T0, SZ>
+__esimd_fbl(__SEIEED::vector_type_t<T0, SZ> src0) {
   int i;
-  uint32_t ret;
-  __SEIEED::vector_type_t<uint32_t, SZ> retv;
+  T0 ret;
+  __SEIEED::vector_type_t<T0, SZ> retv;
 
   for (i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);

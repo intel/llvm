@@ -773,26 +773,6 @@ static void instantiateDependentSYCLKernelAttr(
   // instantiation of a kernel.
   S.AddSYCLKernelLambda(cast<FunctionDecl>(New));
 
-  // Evaluate whether this would change any of the already evaluated
-  // __builtin_sycl_unique_stable_name/id values.
-  for (auto &Itr : S.Context.SYCLUniqueStableNameEvaluatedValues) {
-    const auto *NameExpr = dyn_cast<SYCLUniqueStableNameExpr>(Itr.first);
-    const auto *IdExpr = dyn_cast<SYCLUniqueStableIdExpr>(Itr.first);
-
-    const std::string &CurName = NameExpr ? NameExpr->ComputeName(S.Context)
-                                          : IdExpr->ComputeName(S.Context);
-    if (Itr.second != CurName) {
-      S.Diag(New->getLocation(),
-             diag::err_kernel_invalidates_sycl_unique_stable_name)
-          << (IdExpr != nullptr);
-      S.Diag(Itr.first->getExprLoc(),
-             diag::note_sycl_unique_stable_name_evaluated_here)
-          << (IdExpr != nullptr);
-      // Update this so future diagnostics work correctly.
-      Itr.second = CurName;
-    }
-  }
-
   New->addAttr(Attr.clone(S.getASTContext()));
 }
 
@@ -3417,9 +3397,15 @@ Decl *TemplateDeclInstantiator::VisitUsingDecl(UsingDecl *D) {
       if (auto *BaseShadow = CUSD->getNominatedBaseClassShadowDecl())
         OldTarget = BaseShadow;
 
-    NamedDecl *InstTarget =
-        cast_or_null<NamedDecl>(SemaRef.FindInstantiatedDecl(
-            Shadow->getLocation(), OldTarget, TemplateArgs));
+    NamedDecl *InstTarget = nullptr;
+    if (auto *EmptyD =
+            dyn_cast<UnresolvedUsingIfExistsDecl>(Shadow->getTargetDecl())) {
+      InstTarget = UnresolvedUsingIfExistsDecl::Create(
+          SemaRef.Context, Owner, EmptyD->getLocation(), EmptyD->getDeclName());
+    } else {
+      InstTarget = cast_or_null<NamedDecl>(SemaRef.FindInstantiatedDecl(
+          Shadow->getLocation(), OldTarget, TemplateArgs));
+    }
     if (!InstTarget)
       return nullptr;
 
@@ -3542,13 +3528,16 @@ Decl *TemplateDeclInstantiator::instantiateUnresolvedUsingDecl(
   SourceLocation EllipsisLoc =
       InstantiatingSlice ? SourceLocation() : D->getEllipsisLoc();
 
+  bool IsUsingIfExists = D->template hasAttr<UsingIfExistsAttr>();
   NamedDecl *UD = SemaRef.BuildUsingDeclaration(
       /*Scope*/ nullptr, D->getAccess(), D->getUsingLoc(),
       /*HasTypename*/ TD, TypenameLoc, SS, NameInfo, EllipsisLoc,
       ParsedAttributesView(),
-      /*IsInstantiation*/ true);
-  if (UD)
+      /*IsInstantiation*/ true, IsUsingIfExists);
+  if (UD) {
+    SemaRef.InstantiateAttrs(TemplateArgs, D, UD);
     SemaRef.Context.setInstantiatedFromUsingDecl(UD, D);
+  }
 
   return UD;
 }
@@ -3561,6 +3550,11 @@ Decl *TemplateDeclInstantiator::VisitUnresolvedUsingTypenameDecl(
 Decl *TemplateDeclInstantiator::VisitUnresolvedUsingValueDecl(
     UnresolvedUsingValueDecl *D) {
   return instantiateUnresolvedUsingDecl(D);
+}
+
+Decl *TemplateDeclInstantiator::VisitUnresolvedUsingIfExistsDecl(
+    UnresolvedUsingIfExistsDecl *D) {
+  llvm_unreachable("referring to unresolved decl out of UsingShadowDecl");
 }
 
 Decl *TemplateDeclInstantiator::VisitUsingPackDecl(UsingPackDecl *D) {
@@ -5358,7 +5352,6 @@ void Sema::BuildVariableInstantiation(
   NewVar->setCXXForRangeDecl(OldVar->isCXXForRangeDecl());
   NewVar->setObjCForDecl(OldVar->isObjCForDecl());
   NewVar->setConstexpr(OldVar->isConstexpr());
-  MaybeAddCUDAConstantAttr(NewVar);
   NewVar->setInitCapture(OldVar->isInitCapture());
   NewVar->setPreviousDeclInSameBlockScope(
       OldVar->isPreviousDeclInSameBlockScope());

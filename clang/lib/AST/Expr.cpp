@@ -3517,6 +3517,10 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case SourceLocExprClass:
   case ConceptSpecializationExprClass:
   case RequiresExprClass:
+  case SYCLBuiltinNumFieldsExprClass:
+  case SYCLBuiltinFieldTypeExprClass:
+  case SYCLBuiltinNumBasesExprClass:
+  case SYCLBuiltinBaseTypeExprClass:
   case SYCLUniqueStableNameExprClass:
   case SYCLUniqueStableIdExprClass:
     // These never have a side-effect.
