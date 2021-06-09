@@ -2463,8 +2463,8 @@ provides the name for that.  In the case of names with internal linkage, it
 prepends an optional value if provided by ``-fsycl-unique-prefix`` on the command
 line, which the driver will do for SYCL invocations.
 
-This builtin should produce demangle-able strings, except when they have internal
-linkage and a unique prefix is specified.
+This builtin should produce demangle-able strings, except when the parameter has
+internal linkage.
 
 **Syntax**:
 
