@@ -259,15 +259,13 @@ static bool ParseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
       columns = -1;
     }
     if (columns < 0) {
-      diags.Report(clang::diag::err_drv_invalid_value_with_suggestion)
-          << arg->getOption().getName() << arg->getValue()
-          << "value must be 'none' or a non-negative integer";
+      diags.Report(clang::diag::err_drv_negative_columns)
+          << arg->getOption().getName() << arg->getValue();
     } else if (columns == 0) {
       opts.fixedFormColumns_ = 1000000;
     } else if (columns < 7) {
-      diags.Report(clang::diag::err_drv_invalid_value_with_suggestion)
-          << arg->getOption().getName() << arg->getValue()
-          << "value must be at least seven";
+      diags.Report(clang::diag::err_drv_small_columns)
+          << arg->getOption().getName() << arg->getValue() << "7";
     } else {
       opts.fixedFormColumns_ = columns;
     }
@@ -394,6 +392,12 @@ static bool parseSemaArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
     res.SetDebugModuleDir(true);
   }
 
+  // -module-suffix
+  if (const auto *moduleSuffix =
+          args.getLastArg(clang::driver::options::OPT_module_suffix)) {
+    res.SetModuleFileSuffix(moduleSuffix->getValue());
+  }
+
   return diags.getNumErrors() == numErrorsBefore;
 }
 
@@ -496,6 +500,13 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &res,
   unsigned missingArgIndex, missingArgCount;
   llvm::opt::InputArgList args = opts.ParseArgs(
       commandLineArgs, missingArgIndex, missingArgCount, includedFlagsBitmask);
+
+  // Check for missing argument error.
+  if (missingArgCount) {
+    diags.Report(clang::diag::err_drv_missing_argument)
+        << args.getArgString(missingArgIndex) << missingArgCount;
+    success = false;
+  }
 
   // Issue errors on unknown arguments
   for (const auto *a : args.filtered(clang::driver::options::OPT_UNKNOWN)) {
@@ -641,5 +652,6 @@ void CompilerInvocation::setSemanticsOpts(
   semanticsContext_->set_moduleDirectory(moduleDir())
       .set_searchDirectories(fortranOptions.searchDirectories)
       .set_warnOnNonstandardUsage(enableConformanceChecks())
-      .set_warningsAreErrors(warnAsErr());
+      .set_warningsAreErrors(warnAsErr())
+      .set_moduleFileSuffix(moduleFileSuffix());
 }

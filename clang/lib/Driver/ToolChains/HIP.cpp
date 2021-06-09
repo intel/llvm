@@ -49,8 +49,8 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
   auto &TC = getToolChain();
   auto &D = TC.getDriver();
   assert(!Inputs.empty() && "Must have at least one input.");
-  addLTOOptions(TC, Args, LldArgs, Output, Inputs[0],
-                D.getLTOMode() == LTOK_Thin);
+  bool IsThinLTO = D.getLTOMode(/*IsOffload=*/true) == LTOK_Thin;
+  addLTOOptions(TC, Args, LldArgs, Output, Inputs[0], IsThinLTO);
 
   // Extract all the -m options
   std::vector<llvm::StringRef> Features;
@@ -65,6 +65,12 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
   }
   if (!Features.empty())
     LldArgs.push_back(Args.MakeArgString(MAttrString));
+
+  // ToDo: Remove this option after AMDGPU backend supports ISA-level linking.
+  // Since AMDGPU backend currently does not support ISA-level linking, all
+  // called functions need to be imported.
+  if (IsThinLTO)
+    LldArgs.push_back(Args.MakeArgString("-plugin-opt=-force-import-all"));
 
   for (const Arg *A : Args.filtered(options::OPT_mllvm)) {
     LldArgs.push_back(
@@ -404,11 +410,17 @@ HIPToolChain::getHIPDeviceLibs(const llvm::opt::ArgList &DriverArgs) const {
     bool DAZ = DriverArgs.hasFlag(options::OPT_fgpu_flush_denormals_to_zero,
                                   options::OPT_fno_gpu_flush_denormals_to_zero,
                                   getDefaultDenormsAreZeroForTarget(Kind));
-    // TODO: Check standard C++ flags?
-    bool FiniteOnly = false;
-    bool UnsafeMathOpt = false;
-    bool FastRelaxedMath = false;
-    bool CorrectSqrt = true;
+    bool FiniteOnly =
+        DriverArgs.hasFlag(options::OPT_ffinite_math_only,
+                           options::OPT_fno_finite_math_only, false);
+    bool UnsafeMathOpt =
+        DriverArgs.hasFlag(options::OPT_funsafe_math_optimizations,
+                           options::OPT_fno_unsafe_math_optimizations, false);
+    bool FastRelaxedMath = DriverArgs.hasFlag(
+        options::OPT_ffast_math, options::OPT_fno_fast_math, false);
+    bool CorrectSqrt = DriverArgs.hasFlag(
+        options::OPT_fhip_fp32_correctly_rounded_divide_sqrt,
+        options::OPT_fno_hip_fp32_correctly_rounded_divide_sqrt);
     bool Wave64 = isWave64(DriverArgs, Kind);
 
     if (DriverArgs.hasFlag(options::OPT_fgpu_sanitize,
@@ -446,4 +458,29 @@ HIPToolChain::getHIPDeviceLibs(const llvm::opt::ArgList &DriverArgs) const {
   }
 
   return BCLibs;
+}
+
+void HIPToolChain::checkTargetID(const llvm::opt::ArgList &DriverArgs) const {
+  auto PTID = getParsedTargetID(DriverArgs);
+  if (PTID.OptionalTargetID && !PTID.OptionalGPUArch) {
+    getDriver().Diag(clang::diag::err_drv_bad_target_id)
+        << PTID.OptionalTargetID.getValue();
+    return;
+  }
+
+  assert(PTID.OptionalFeatures && "Invalid return from getParsedTargetID");
+  auto &FeatureMap = PTID.OptionalFeatures.getValue();
+  // Sanitizer is not supported with xnack-.
+  if (DriverArgs.hasFlag(options::OPT_fgpu_sanitize,
+                         options::OPT_fno_gpu_sanitize, false)) {
+    auto Loc = FeatureMap.find("xnack");
+    if (Loc != FeatureMap.end() && !Loc->second) {
+      auto &Diags = getDriver().getDiags();
+      auto DiagID = Diags.getCustomDiagID(
+          DiagnosticsEngine::Error,
+          "'-fgpu-sanitize' is not compatible with offload arch '%0'. "
+          "Use an offload arch without 'xnack-' instead");
+      Diags.Report(DiagID) << PTID.OptionalTargetID.getValue();
+    }
+  }
 }

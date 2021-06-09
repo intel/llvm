@@ -447,6 +447,18 @@ define void @f75() vscale_range(0,0)
   ret void
 }
 
+; CHECK: define void @f76(i8* swiftasync %0)
+define void @f76(i8* swiftasync %0)
+{
+  ret void;
+}
+
+; CHECK: define void @f77() #48
+define void @f77() nosanitize_coverage
+{
+        ret void;
+}
+
 ; CHECK: attributes #0 = { noreturn }
 ; CHECK: attributes #1 = { nounwind }
 ; CHECK: attributes #2 = { readnone }
@@ -495,4 +507,5 @@ define void @f75() vscale_range(0,0)
 ; CHECK: attributes #45 = { vscale_range(8,8) }
 ; CHECK: attributes #46 = { vscale_range(1,8) }
 ; CHECK: attributes #47 = { vscale_range(1,0) }
+; CHECK: attributes #48 = { nosanitize_coverage }
 ; CHECK: attributes #[[NOBUILTIN]] = { nobuiltin }

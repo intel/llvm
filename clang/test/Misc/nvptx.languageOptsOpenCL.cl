@@ -28,6 +28,16 @@
 #endif
 #pragma OPENCL EXTENSION __cl_clang_variadic_functions : enable
 
+#ifndef __cl_clang_non_portable_kernel_param_types
+#error "Missing __cl_clang_non_portable_kernel_param_types define"
+#endif
+#pragma OPENCL EXTENSION __cl_clang_non_portable_kernel_param_types : enable
+
+#ifndef __cl_clang_bitfields
+#error "Missing __cl_clang_bitfields define"
+#endif
+#pragma OPENCL EXTENSION __cl_clang_bitfields : enable
+
 // TODO: Temporarily disabling the following test as a work around for the
 // SYCL codepath until the cl_khr_fp16 is restricted to only the sycldevice triple.
 // link to issue https://github.com/intel/llvm/issues/1814

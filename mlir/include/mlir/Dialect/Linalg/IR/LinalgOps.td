@@ -315,67 +315,81 @@ class Linalg_ReshapeLikeOp<string mnemonic, list<OpTrait> traits = []> :
     // Builders for a contracting reshape whose result type is computed from
     // `src` and `reassociation`.
     OpBuilder<(ins "Value":$src,
-      "ArrayRef<ReassociationExprs>":$reassociation,
+      "ArrayRef<ReassociationIndices>":$reassociation,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     OpBuilder<(ins "Value":$src,
-      "ArrayRef<ReassociationIndices>":$reassociation,
+      "ArrayRef<ReassociationExprs>":$reassociation,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
     [{
       auto reassociationMaps =
-          convertReassociationIndicesToMaps($_builder, reassociation);
+          convertReassociationMapsToIndices($_builder, reassociation);
       build($_builder, $_state, src, reassociationMaps, attrs);
     }]>,
 
     // Builders for a reshape whose result type is passed explicitly. This may
     // be either a contracting or expanding reshape.
     OpBuilder<(ins "Type":$resultType, "Value":$src,
-      "ArrayRef<ReassociationExprs>":$reassociation,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
-    OpBuilder<(ins "Type":$resultType, "Value":$src,
       "ArrayRef<ReassociationIndices>":$reassociation,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
     [{
+      build($_builder, $_state, resultType, src, attrs);
+      $_state.addAttribute("reassociation",
+                          getReassociationIndicesAttribute($_builder, reassociation));
+    }]>,
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
       auto reassociationMaps =
-          convertReassociationIndicesToMaps($_builder, reassociation);
+          convertReassociationMapsToIndices($_builder, reassociation);
       build($_builder, $_state, resultType, src, reassociationMaps, attrs);
     }]>
   ];
 
   code commonExtraClassDeclaration = [{
     static StringRef getReassociationAttrName() { return "reassociation"; }
-    SmallVector<AffineMap, 4> getReassociationMaps() {
-      return llvm::to_vector<4>(llvm::map_range(reassociation(), [
-      ](Attribute a) { return a.cast<AffineMapAttr>().getValue(); }));
-    }
-    SmallVector<ReassociationExprs, 4> getReassociationExprs() {
-      return
-        llvm::to_vector<4>(llvm::map_range(reassociation(),
-          [](Attribute a) {
-            return llvm::to_vector<2>(
-              a.cast<AffineMapAttr>().getValue().getResults());
-          }));
-    }
+    SmallVector<AffineMap, 4> getReassociationMaps();
+    SmallVector<ReassociationExprs, 4> getReassociationExprs();
+    SmallVector<ReassociationIndices, 4> getReassociationIndices() {
+      SmallVector<ReassociationIndices, 4> reassociationIndices;
+      for (auto attr : reassociation())
+        reassociationIndices.push_back(llvm::to_vector<2>(
+            llvm::map_range(attr.cast<ArrayAttr>(), [&](Attribute indexAttr) {
+              return indexAttr.cast<IntegerAttr>().getInt();
+            })));
+      return reassociationIndices;
+    };
   }];
-  let assemblyFormat = [{
-    $src $reassociation attr-dict `:` type($src) `into` type(results)
-  }];
+
+  let parser = [{ return ::parseReshapeLikeOp(parser, result); }];
 }
 
-def Linalg_ReshapeOp : Linalg_ReshapeLikeOp<"reshape",
+def IndexListArrayAttr :
+  TypedArrayAttrBase<I64ArrayAttr, "Array of 64-bit integer array attributes">;
+
+class Linalg_ReshapeOp<string mnemonic> : Linalg_ReshapeLikeOp<mnemonic,
     [DeclareOpInterfaceMethods<ViewLikeOpInterface>]>,
-    Arguments<(ins AnyStridedMemRef:$src, AffineMapArrayAttr:$reassociation)>,
+    Arguments<(ins AnyStridedMemRef:$src, IndexListArrayAttr:$reassociation)>,
     Results<(outs AnyStridedMemRef:$result)> {
-  let summary = "linalg.reshape produces a new view into the operand view";
+  let extraClassDeclaration = commonExtraClassDeclaration # [{
+    MemRefType getSrcType() { return src().getType().cast<MemRefType>(); }
+    MemRefType getResultType() { return result().getType().cast<MemRefType>(); }
+  }];
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+  let printer = [{ return ::print(p, *this); }];
+}
+
+def Linalg_ExpandShapeOp : Linalg_ReshapeOp<"expand_shape"> {
+  let summary = "operation to produce a memref with a higher rank.";
   let description = [{
-    The `linalg.reshape` op produces a new view whose sizes are a reassociation
-    of the original `view`. Depending on whether or not the reassociated
-    MemRefType is contiguous, the resulting memref may require explicit alloc
-    and copies.
+    The `linalg.expand_shape` op produces a new view with a higher rank whose
+    sizes are a reassociation of the original `view`. Depending on whether or
+    not the reassociated MemRefType is contiguous, the resulting memref may
+    require explicit alloc and copies.
 
     A reassociation is defined as a continuous grouping of dimensions and is
-    represented with an affine map array attribute. In the future,
-    non-continuous groupings may be allowed (i.e. permutations, reindexings
-    etc).
+    represented with an array of I64ArrayAttr attribute.
 
     For now, it is assumed that either:
       1. a reassociation produces and consumes contiguous MemRefType or,
@@ -384,85 +398,67 @@ def Linalg_ReshapeOp : Linalg_ReshapeLikeOp<"reshape",
     All other cases are undefined behavior and a reshape op may not lower to
     LLVM if it cannot be proven statically that it does not require alloc+copy.
 
-    A reshape may either collapse or expand dimensions, depending on the
-    relationship between source and target memref ranks. The verification rule
-    is that the reassociation maps are applied to the memref with the larger
-    rank to obtain the memref with the smaller rank. In the case of a dimension
-    expansion, the reassociation maps can be interpreted as inverse maps.
+    The operand memref type when dimensions can be zero-ranked if the result
+    memref type is statically shaped with all dimensions being unit extent. In
+    such case the reassociation map is empty.
 
-    The result memref type of a reshape when dimensions are collapsed
-    (operand memref type when dimensions are expanded) can be
-    zero-ranked if the operand memref type (or the result memref type
-    when dimensions are expanded) is statically shaped with all
-    dimensions being unit extent. In such cases the reassociation map
-    is empty.
+    The verification rule is that the reassociation maps are applied to the
+    result memref with the larger rank to obtain the operand memref with the
+    smaller rank.
 
-    Examples:
-
-    ```mlir
-    // Dimension collapse (i, j) -> i' and k -> k'
-    %1 = linalg.reshape %0 [(i, j, k) -> (i, j), (i, j, k) -> (k)] :
-      memref<?x?x?xf32, stride_spec> into memref<?x?xf32, stride_spec_2>
-    ```
+    Example:
 
     ```mlir
     // Dimension expansion i -> (i', j') and (k) -> (k')
-    %1 = linalg.reshape %0 [(i, j, k) -> (i, j), (i, j, k) -> (k)] :
+    %1 = linalg.expand_shape %0 [[0, 1], [2]] :
       memref<?x?xf32, stride_spec> into memref<?x?x?xf32, stride_spec_2>
     ```
   }];
-  let extraClassDeclaration = commonExtraClassDeclaration # [{
-    MemRefType getSrcType() { return src().getType().cast<MemRefType>(); }
-    MemRefType getResultType() { return result().getType().cast<MemRefType>(); }
-  }];
-  let hasFolder = 1;
-  let hasCanonicalizer = 1;
 }
 
-def Linalg_TensorReshapeOp : Linalg_ReshapeLikeOp<
-    "tensor_reshape",
-    [DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-      ["reifyReturnTypeShapesPerResultDim"]>]>,
-    Arguments<(ins AnyTensor:$src,
-                   AffineMapArrayAttr:$reassociation)>,
-    Results<(outs AnyTensor:$result)> {
-  let summary = "linalg.tensor_reshape produces a new reshaped tensor.";
+def Linalg_CollapseShapeOp : Linalg_ReshapeOp<"collapse_shape"> {
+  let summary = "operation to produce a memref with a smaller rank.";
   let description = [{
-    The `linalg.reshape` op produces a new tensor whose sizes are a
-    reassociation of the original `src`.
+    The `linalg.collapse_shape` op produces a new view with a smaller rank
+    whose sizes are a reassociation of the original `view`. Depending on
+    whether or not the reassociated MemRefType is contiguous, the resulting
+    memref may require explicit alloc and copies.
 
     A reassociation is defined as a continuous grouping of dimensions and is
-    represented with an affine map array attribute. In the future,
-    non-continuous groupings may be allowed (i.e. permutations, reindexings
-    etc).
+    represented with an array of I64ArrayAttr attribute.
 
-    A reshape may either collapse or expand dimensions, depending on the
-    relationship between source and target tensor ranks. The verification rule
-    is that the reassociation maps are applied to the tensor with the larger
-    rank to obtain the tensor with the smaller rank. In the case of a dimension
-    expansion, the reassociation maps can be interpreted as inverse maps.
+    For now, it is assumed that either:
+      1. a reassociation produces and consumes contiguous MemRefType or,
+      2. the reshape op will be folded into its consumers (by changing the shape
+         of the computations).
+    All other cases are undefined behavior and a reshape op may not lower to
+    LLVM if it cannot be proven statically that it does not require alloc+copy.
 
-    The result tensor type of a reshape when dimensions are collapsed
-    (operand tensor type when dimensions are expanded) can be
-    zero-ranked if the operand tensor type (or the result tensor type
-    when dimensions are expanded) is statically shaped with all
-    dimensions being unit extent. In such cases the reassociation map
-    is empty.
+    The result memref type of a reshape can be zero-ranked if the operand
+    memref type is statically shaped with all dimensions being unit extent. In
+    such case the reassociation map is empty.
+
+    The verification rule is that the reassociation maps are applied to the
+    operand memref with the larger rank to obtain the result memref with the
+    smaller rank.
 
     Examples:
 
     ```mlir
     // Dimension collapse (i, j) -> i' and k -> k'
-    %b = linalg.tensor_reshape %a [(i, j, k) -> (i, j), (i, j, k) -> (k)] :
-      tensor<?x?x?xf32> into tensor<?x?xf32>
-    ```
-
-    ```mlir
-    // Dimension expansion i -> (i', j') and (k) -> (k')
-    %b = linalg.tensor_reshape %a [(i, j, k) -> (i, j), (i, j, k) -> (k)] :
-      tensor<?x?xf32> into tensor<?x?x?xf32>
+    %1 = linalg.collapse_shape %0 [[0, 1], [2]] :
+      memref<?x?x?xf32, stride_spec> into memref<?x?xf32, stride_spec_2>
     ```
   }];
+}
+
+class Linalg_TensorReshapeOp<string mnemonic> : Linalg_ReshapeLikeOp<
+    mnemonic,
+    [DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
+      ["reifyReturnTypeShapesPerResultDim"]>]>,
+    Arguments<(ins AnyTensor:$src,
+                   IndexListArrayAttr:$reassociation)>,
+    Results<(outs AnyTensor:$result)> {
   let extraClassDeclaration = commonExtraClassDeclaration # [{
     RankedTensorType getSrcType() {
       return src().getType().cast<RankedTensorType>();
@@ -473,6 +469,62 @@ def Linalg_TensorReshapeOp : Linalg_ReshapeLikeOp<
   }];
   let hasFolder = 1;
   let hasCanonicalizer = 1;
+  let printer = [{ return ::print(p, *this); }];
+  let parser = [{ return ::parseReshapeLikeOp(parser, result); }];
+}
+
+def Linalg_TensorExpandShapeOp : Linalg_TensorReshapeOp<"tensor_expand_shape"> {
+  let summary = "operation to produce a tensor with a higher rank";
+  let description = [{
+    The `linalg.tensor_expand_shape` op produces a new tensor with a higher
+    rank whose sizes are a reassociation of the original `src`.
+
+    A reassociation is defined as a continuous grouping of dimensions and is
+    represented with an array of I64ArrayAttr attribute.
+
+    The verification rule is that the reassociation maps are applied to the
+    result tensor with the higher rank to obtain the operand tensor with the
+    smaller rank.
+
+    The operand tensor type of a reshape can be zero-ranked if the result
+    tensor type is statically shaped with all dimensions being unit extent. In
+    such cases the reassociation map is empty.
+
+    Examples:
+
+    ```mlir
+    // Dimension expansion i -> (i', j') and (k) -> (k')
+    %b = linalg.tensor_expand_shape %a [[0, 1], [2]]
+        : tensor<?x?xf32> into tensor<?x?x?xf32>
+    ```
+  }];
+}
+
+def Linalg_TensorCollapseShapeOp : Linalg_TensorReshapeOp<"tensor_collapse_shape"> {
+  let summary = "operation to produce a tensor with a smaller rank";
+  let description = [{
+    The `linalg.tensor_collapse_shape` op produces a new tensor with a smaller
+    rank whose sizes are a reassociation of the original `src`.
+
+    A reassociation is defined as a continuous grouping of dimensions and is
+    represented with an array of I64ArrayAttr attribute.
+
+    The verification rule is that the reassociation maps are applied to the
+    operand tensor with the higher rank to obtain the result tensor with the
+    smaller rank.
+
+    The result tensor type of a reshape can be zero-ranked if the operand
+    tensor type is statically shaped with all dimensions being unit extent. In
+    such case the reassociation map is empty.
+
+    Examples:
+
+    ```mlir
+    // Dimension collapse (i, j) -> i' and k -> k'
+    %b = linalg.tensor_collapse_shape %a [[0, 1], [2]]
+        : tensor<?x?x?xf32> into tensor<?x?xf32>
+    ```
+  }];
 }
 
 def Linalg_YieldOp : Linalg_Op<"yield", [NoSideEffect, ReturnLike, Terminator]>,
@@ -522,7 +574,8 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
     %0 = linalg.tiled_loop (%i) = (%c0) to (%c24) step (%c4)
         ins(%lhs, %rhs : tensor<24x64xi8>, tensor<24x64xi8>)
         outs(%out : tensor<24x64xi8>)
-        iterators("parallel") {
+        iterators("parallel")
+        distribution("block_x") {
       %lhs_sub = subtensor %lhs[%i, 0] [%c4, %c64] [1, 1]
           : tensor<24x64xi8> to tensor<?x?xi8>
       %rhs_sub = subtensor %rhs[%i, 0] [%c4, %c64] [1, 1]
@@ -552,7 +605,8 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
     linalg.tiled_loop (%i) = (%c0) to (%c24) step (%c4)
         ins(%lhs, %rhs : memref<24x64xi8>, memref<24x64xi8>)
         outs(%out : memref<24x64xi8>)
-        iterators("parallel") {
+        iterators("parallel")
+        distribution("block_x") {
       %lhs_sub = subview %lhs[%i, 0] [%c4, %c64] [1, 1]
           : memref<24x64xi8> to memref<?x?xi8>
       %rhs_sub = subview %rhs[%i, 0] [%c4, %c64] [1, 1]
@@ -571,11 +625,18 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
                        Variadic<Index>:$step,
                        Variadic<LinalgOperand>:$inputs,
                        Variadic<LinalgOperand>:$outputs,
-                       ArrayAttr:$iterator_types);
+                       ArrayAttr:$iterator_types,
+                       OptionalAttr<ArrayAttr>:$distribution_types);
   let results = (outs Variadic<AnyRankedTensor>:$results);
   let regions = (region SizedRegion<1>:$region);
 
   let builders = [
+    OpBuilder<(ins "ValueRange":$lowerBounds, "ValueRange":$upperBounds,
+      "ValueRange":$steps, "ValueRange":$inputs, "ValueRange":$outputs,
+      "ArrayAttr":$iteratorTypes, "Optional<ArrayAttr>":$distributionTypes,
+      CArg<"function_ref<void (OpBuilder &, Location, /*ivs=*/ValueRange,"
+        "/*inputs=*/ValueRange, /*outputs=*/ValueRange)>",
+        "nullptr">:$bodyBuilderFn)>,
     OpBuilder<(ins "ValueRange":$lowerBounds, "ValueRange":$upperBounds,
       "ValueRange":$steps, "ValueRange":$inputs, "ValueRange":$outputs,
       "ArrayAttr":$iteratorTypes,
@@ -585,6 +646,15 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
   ];
 
   let extraClassDeclaration = [{
+    /// Number of loops
+    unsigned getNumLoops() { return step().size(); }
+
+    /// Number of input operands
+    unsigned getNumInputs() { return inputs().size(); }
+
+    /// Number of output operands
+    unsigned getNumOutputs() { return outputs().size(); }
+
     /// Number of operands controlling the loop: lbs, ubs, steps
     unsigned getNumControlOperands() { return 3 * getNumLoops(); }
 
@@ -598,6 +668,11 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
       return getBody()->getArguments().take_back(outputs().size());
     }
 
+    void setDistributionTypes(Builder& b, ArrayRef<StringRef> types) {
+      assert(types.size() == getNumLoops() &&
+             "expected distribution type for every dimension");
+      distribution_typesAttr(b.getStrArrayAttr(types));
+    }
 
     void setLowerBounds(ValueRange lowerBounds) {
       unsigned numLoops = getNumLoops();
@@ -623,6 +698,16 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
         setOperand(pos, steps[i]);
     }
 
+    /// Block argument that corresponds to the `input` or `output` operand.
+    BlockArgument getTiedBlockArgument(OpOperand& operand) {
+      auto operandIndex = operand.getOperandNumber();
+      assert(
+          operandIndex >= getNumControlOperands() &&
+          operandIndex < getNumOperands() &&
+          "tied block arg is defined only for `input` and `output` arguments");
+      return getBody()->getArgument(operandIndex - 2 * getNumLoops());
+    }
+
    /// Result that corresponds to the `outputs` argument of tensor type.
    OpResult getTiedOpResult(OpOperand& opOperand) {
       // No result can correspond to a memref argument.
@@ -643,7 +728,76 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
       return getOperation()->getResult(tensorId);
     }
 
-    unsigned getNumLoops() { return step().size(); }
+    /// Append `operand` to the `input` arguments.
+    OpOperand& appendInputOperand(OpBuilder& builder, Value operand) {
+      int numLoops = getNumLoops();
+      int numInputs = getNumInputs();
+      int numOutputs = getNumOutputs();
+
+      getOperation()->insertOperands(getNumControlOperands() + numInputs,
+                                     operand);
+      getBody()->insertArgument(numLoops + numInputs, operand.getType());
+      getOperation()->setAttr(
+          TiledLoopOp::getOperandSegmentSizeAttr(),
+          builder.getI32VectorAttr(
+              {numLoops, numLoops, numLoops, numInputs + 1, numOutputs}));
+      return getOperation()->getOpOperand(getNumControlOperands() + numInputs);
+    }
+
+    /// Append `operand` to the `output` arguments.
+    OpOperand& appendOutputOperand(OpBuilder& builder, Value operand) {
+      int numLoops = getNumLoops();
+      int numInputs = getNumInputs();
+      int numOutputs = getNumOutputs();
+
+      getOperation()->insertOperands(
+          getNumControlOperands() + numInputs + numOutputs, operand);
+      getBody()->insertArgument(numLoops + numInputs + numOutputs,
+                                operand.getType());
+      getOperation()->setAttr(
+          TiledLoopOp::getOperandSegmentSizeAttr(),
+          builder.getI32VectorAttr(
+              {numLoops, numLoops, numLoops, numInputs, numOutputs + 1}));
+      return getOperation()->getOpOperand(getNumControlOperands() + numInputs +
+                                          numOutputs);
+    }
+
+    /// Erase `operand` from the `input` or `output` arguments.
+    void eraseOperand(OpBuilder& builder, OpOperand& operand) {
+      int numInputs = getNumInputs();
+      int numLoops = getNumLoops();
+      int numOutputs = getNumOutputs();
+      int numControlOperands = getNumControlOperands();
+
+      int operandIndex = operand.getOperandNumber();
+      assert(operandIndex >= numControlOperands &&
+             operandIndex < static_cast<int>(getNumOperands()) &&
+             "Can erase only `input` or `output` operand");
+
+      if (operandIndex >= numControlOperands + numInputs)
+        --numOutputs;
+      else
+        --numInputs;
+
+      getOperation()->eraseOperand(operandIndex);
+      getBody()->eraseArgument(operandIndex - 2 * numLoops);
+      getOperation()->setAttr(
+          TiledLoopOp::getOperandSegmentSizeAttr(),
+          builder.getI32VectorAttr(
+              {numLoops, numLoops, numLoops, numInputs, numOutputs}));
+    }
+
+    OpOperand* findInputOperand(Value value) {
+      OperandRange::iterator it = llvm::find(inputs(), value);
+      if (it == inputs().end()) return nullptr;
+      return it.getBase();
+    }
+
+    OpOperand* findOutputOperand(Value value) {
+      OperandRange::iterator it = llvm::find(outputs(), value);
+      if (it == outputs().end()) return nullptr;
+      return it.getBase();
+    }
   }];
 
   let hasCanonicalizer = 1;
@@ -689,10 +843,6 @@ def Linalg_IndexOp : Linalg_Op<"index", [NoSideEffect]>,
     }
     ```
   }];
-  let builders = [
-    OpBuilder<(ins "int64_t":$dim),
-      [{ build($_builder, $_state, $_builder.getIndexType(), dim); }]>
-  ];
 
   let assemblyFormat = [{ $dim attr-dict `:` type($result) }];
 }

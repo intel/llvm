@@ -1474,6 +1474,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::NoCfCheck;
   case bitc::ATTR_KIND_NO_UNWIND:
     return Attribute::NoUnwind;
+  case bitc::ATTR_KIND_NO_SANITIZE_COVERAGE:
+    return Attribute::NoSanitizeCoverage;
   case bitc::ATTR_KIND_NULL_POINTER_IS_VALID:
     return Attribute::NullPointerIsValid;
   case bitc::ATTR_KIND_OPT_FOR_FUZZING:
@@ -1524,6 +1526,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::SwiftError;
   case bitc::ATTR_KIND_SWIFT_SELF:
     return Attribute::SwiftSelf;
+  case bitc::ATTR_KIND_SWIFT_ASYNC:
+    return Attribute::SwiftAsync;
   case bitc::ATTR_KIND_UW_TABLE:
     return Attribute::UWTable;
   case bitc::ATTR_KIND_VSCALE_RANGE:
@@ -1805,6 +1809,13 @@ Error BitcodeReader::parseTypeTableBody() {
           !PointerType::isValidElementType(ResultTy))
         return error("Invalid type");
       ResultTy = PointerType::get(ResultTy, AddressSpace);
+      break;
+    }
+    case bitc::TYPE_CODE_OPAQUE_POINTER: { // OPAQUE_POINTER: [addrspace]
+      if (Record.size() != 1)
+        return error("Invalid record");
+      unsigned AddressSpace = Record[0];
+      ResultTy = PointerType::get(Context, AddressSpace);
       break;
     }
     case bitc::TYPE_CODE_FUNCTION_OLD: {
@@ -2830,7 +2841,7 @@ Error BitcodeReader::parseConstants() {
     }
     // This version adds support for the asm dialect keywords (e.g.,
     // inteldialect).
-    case bitc::CST_CODE_INLINEASM: {
+    case bitc::CST_CODE_INLINEASM_OLD2: {
       if (Record.size() < 2)
         return error("Invalid record");
       std::string AsmStr, ConstrStr;
@@ -2853,6 +2864,33 @@ Error BitcodeReader::parseConstants() {
           cast<FunctionType>(getPointerElementFlatType(CurFullTy)), AsmStr,
           ConstrStr, HasSideEffects, IsAlignStack,
           InlineAsm::AsmDialect(AsmDialect));
+      break;
+    }
+    // This version adds support for the unwind keyword.
+    case bitc::CST_CODE_INLINEASM: {
+      if (Record.size() < 2)
+        return error("Invalid record");
+      std::string AsmStr, ConstrStr;
+      bool HasSideEffects = Record[0] & 1;
+      bool IsAlignStack = (Record[0] >> 1) & 1;
+      unsigned AsmDialect = (Record[0] >> 2) & 1;
+      bool CanThrow = (Record[0] >> 3) & 1;
+      unsigned AsmStrSize = Record[1];
+      if (2 + AsmStrSize >= Record.size())
+        return error("Invalid record");
+      unsigned ConstStrSize = Record[2 + AsmStrSize];
+      if (3 + AsmStrSize + ConstStrSize > Record.size())
+        return error("Invalid record");
+
+      for (unsigned i = 0; i != AsmStrSize; ++i)
+        AsmStr += (char)Record[2 + i];
+      for (unsigned i = 0; i != ConstStrSize; ++i)
+        ConstrStr += (char)Record[3 + AsmStrSize + i];
+      UpgradeInlineAsmString(&AsmStr);
+      V = InlineAsm::get(
+          cast<FunctionType>(getPointerElementFlatType(CurFullTy)), AsmStr,
+          ConstrStr, HasSideEffects, IsAlignStack,
+          InlineAsm::AsmDialect(AsmDialect), CanThrow);
       break;
     }
     case bitc::CST_CODE_BLOCKADDRESS:{
@@ -3808,12 +3846,11 @@ Error BitcodeReader::parseBitcodeInto(Module *M, bool ShouldLazyLoadMetadata,
 Error BitcodeReader::typeCheckLoadStoreInst(Type *ValType, Type *PtrType) {
   if (!isa<PointerType>(PtrType))
     return error("Load/Store operand is not a pointer type");
-  Type *ElemType = cast<PointerType>(PtrType)->getElementType();
 
-  if (ValType && ValType != ElemType)
+  if (!cast<PointerType>(PtrType)->isOpaqueOrPointeeTypeMatches(ValType))
     return error("Explicit load/store type does not match pointee "
                  "type of pointer operand");
-  if (!PointerType::isLoadableOrStorableType(ElemType))
+  if (!PointerType::isLoadableOrStorableType(ValType))
     return error("Cannot load/store from pointer");
   return Error::success();
 }
@@ -4133,7 +4170,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       if (!Ty) {
         std::tie(FullTy, Ty) =
             getPointerElementTypes(FullBaseTy->getScalarType());
-      } else if (Ty != getPointerElementFlatType(FullBaseTy->getScalarType()))
+      } else if (!cast<PointerType>(FullBaseTy->getScalarType())
+                      ->isOpaqueOrPointeeTypeMatches(Ty))
         return error(
             "Explicit gep type does not match pointee type of pointer operand");
 
@@ -5107,6 +5145,10 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
               ? AtomicCmpXchgInst::getStrongestFailureOrdering(SuccessOrdering)
               : getDecodedOrdering(Record[OpNum + 3]);
 
+      if (FailureOrdering == AtomicOrdering::NotAtomic ||
+          FailureOrdering == AtomicOrdering::Unordered)
+        return error("Invalid record");
+
       const Align Alignment(
           TheModule->getDataLayout().getTypeStoreSize(Cmp->getType()));
 
@@ -5156,9 +5198,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
 
       const AtomicOrdering SuccessOrdering =
           getDecodedOrdering(Record[OpNum + 1]);
-      if (SuccessOrdering == AtomicOrdering::NotAtomic ||
-          SuccessOrdering == AtomicOrdering::Unordered)
-        return error("Invalid record");
+      if (!AtomicCmpXchgInst::isValidSuccessOrdering(SuccessOrdering))
+        return error("Invalid cmpxchg success ordering");
 
       const SyncScope::ID SSID = getDecodedSyncScopeID(Record[OpNum + 2]);
 
@@ -5167,6 +5208,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
 
       const AtomicOrdering FailureOrdering =
           getDecodedOrdering(Record[OpNum + 3]);
+      if (!AtomicCmpXchgInst::isValidFailureOrdering(FailureOrdering))
+        return error("Invalid cmpxchg failure ordering");
 
       const bool IsWeak = Record[OpNum + 4];
 
@@ -5189,8 +5232,10 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       InstructionList.push_back(I);
       break;
     }
+    case bitc::FUNC_CODE_INST_ATOMICRMW_OLD:
     case bitc::FUNC_CODE_INST_ATOMICRMW: {
-      // ATOMICRMW:[ptrty, ptr, val, op, vol, ordering, ssid, align?]
+      // ATOMICRMW_OLD: [ptrty, ptr, val, op, vol, ordering, ssid, align?]
+      // ATOMICRMW: [ptrty, ptr, valty, val, op, vol, ordering, ssid, align?]
       const size_t NumRecords = Record.size();
       unsigned OpNum = 0;
 
@@ -5202,9 +5247,16 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         return error("Invalid record");
 
       Value *Val = nullptr;
-      if (popValue(Record, OpNum, NextValueNo,
-                   getPointerElementFlatType(FullTy), Val))
-        return error("Invalid record");
+      if (BitCode == bitc::FUNC_CODE_INST_ATOMICRMW_OLD) {
+        if (popValue(Record, OpNum, NextValueNo,
+                     getPointerElementFlatType(FullTy), Val))
+          return error("Invalid record");
+        FullTy = getPointerElementFlatType(FullTy);
+      } else {
+        if (getValueTypePair(Record, OpNum, NextValueNo, Val))
+          return error("Invalid record");
+        FullTy = Val->getType();
+      }
 
       if (!(NumRecords == (OpNum + 4) || NumRecords == (OpNum + 5)))
         return error("Invalid record");
@@ -5236,7 +5288,6 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
             Align(TheModule->getDataLayout().getTypeStoreSize(Val->getType()));
 
       I = new AtomicRMWInst(Operation, Ptr, Val, *Alignment, Ordering, SSID);
-      FullTy = getPointerElementFlatType(FullTy);
       cast<AtomicRMWInst>(I)->setVolatile(IsVol);
 
       InstructionList.push_back(I);
@@ -5562,8 +5613,8 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
     }
   }
 
-  // "Upgrade" older incorrect branch weights by dropping them.
   for (auto &I : instructions(F)) {
+    // "Upgrade" older incorrect branch weights by dropping them.
     if (auto *MD = I.getMetadata(LLVMContext::MD_prof)) {
       if (MD->getOperand(0) != nullptr && isa<MDString>(MD->getOperand(0))) {
         MDString *MDS = cast<MDString>(MD->getOperand(0));
@@ -5589,6 +5640,17 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
         if (MD->getNumOperands() != 1 + ExpectedNumOperands)
           I.setMetadata(LLVMContext::MD_prof, nullptr);
       }
+    }
+
+    // Remove incompatible attributes on function calls.
+    if (auto *CI = dyn_cast<CallBase>(&I)) {
+      CI->removeAttributes(AttributeList::ReturnIndex,
+                           AttributeFuncs::typeIncompatible(
+                               CI->getFunctionType()->getReturnType()));
+
+      for (unsigned ArgNo = 0; ArgNo < CI->arg_size(); ++ArgNo)
+        CI->removeParamAttrs(ArgNo, AttributeFuncs::typeIncompatible(
+                                        CI->getArgOperand(ArgNo)->getType()));
     }
   }
 

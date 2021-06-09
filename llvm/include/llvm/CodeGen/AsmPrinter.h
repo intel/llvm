@@ -182,6 +182,9 @@ private:
   /// Emit comments in assembly output if this is true.
   bool VerboseAsm;
 
+  /// Output stream for the stack usage file (i.e., .su file).
+  std::unique_ptr<raw_fd_ostream> StackUsageStream;
+
   static char ID;
 
 protected:
@@ -358,6 +361,8 @@ public:
 
   void emitStackSizeSection(const MachineFunction &MF);
 
+  void emitStackUsage(const MachineFunction &MF);
+
   void emitBBAddrMapSection(const MachineFunction &MF);
 
   void emitPseudoProbe(const MachineInstr &MI);
@@ -374,6 +379,12 @@ public:
   CFISection getModuleCFISectionType() const { return ModuleCFISection; }
 
   bool needsSEHMoves();
+
+  /// Since emitting CFI unwind information is entangled with supporting the
+  /// exceptions, this returns true for platforms which use CFI unwind
+  /// information for debugging purpose when
+  /// `MCAsmInfo::ExceptionsType == ExceptionHandling::None`.
+  bool needsCFIForDebug() const;
 
   /// Print to the current output stream assembly representations of the
   /// constants in the constant pool MCP. This is used to print out constants

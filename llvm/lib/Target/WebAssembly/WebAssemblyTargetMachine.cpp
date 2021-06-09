@@ -77,6 +77,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyMemIntrinsicResultsPass(PR);
   initializeWebAssemblyRegStackifyPass(PR);
   initializeWebAssemblyRegColoringPass(PR);
+  initializeWebAssemblyNullifyDebugValueListsPass(PR);
   initializeWebAssemblyFixIrreducibleControlFlowPass(PR);
   initializeWebAssemblyLateEHPreparePass(PR);
   initializeWebAssemblyExceptionInfoPass(PR);
@@ -119,8 +120,9 @@ WebAssemblyTargetMachine::WebAssemblyTargetMachine(
     const TargetOptions &Options, Optional<Reloc::Model> RM,
     Optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT)
     : LLVMTargetMachine(T,
-                        TT.isArch64Bit() ? "e-m:e-p:64:64-i64:64-n32:64-S128"
-                                         : "e-m:e-p:32:32-i64:64-n32:64-S128",
+                        TT.isArch64Bit()
+                            ? "e-m:e-p:64:64-i64:64-n32:64-S128-ni:1"
+                            : "e-m:e-p:32:32-i64:64-n32:64-S128-ni:1",
                         TT, CPU, FS, Options, getEffectiveRelocModel(RM, TT),
                         getEffectiveCodeModel(CM, CodeModel::Large), OL),
       TLOF(new WebAssemblyTargetObjectFile()) {
@@ -440,6 +442,9 @@ void WebAssemblyPassConfig::addPostRegAlloc() {
 
 void WebAssemblyPassConfig::addPreEmitPass() {
   TargetPassConfig::addPreEmitPass();
+
+  // Nullify DBG_VALUE_LISTs that we cannot handle.
+  addPass(createWebAssemblyNullifyDebugValueLists());
 
   // Eliminate multiple-entry loops.
   addPass(createWebAssemblyFixIrreducibleControlFlow());

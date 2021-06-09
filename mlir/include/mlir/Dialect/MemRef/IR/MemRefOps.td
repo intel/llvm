@@ -165,7 +165,7 @@ def MemRef_AllocaOp : AllocLikeOp<"alloca", AutomaticAllocationScopeResource> {
     The `alloca` operation allocates memory on the stack, to be automatically
     released when control transfers back from the region of its closest
     surrounding operation with an
-    [`AutomaticAllocationScope`](../Traits.md#automaticallocationscope) trait.
+    [`AutomaticAllocationScope`](../Traits.md/#automaticallocationscope) trait.
     The amount of memory allocated is specified by its memref and additional
     operands. For example:
 
@@ -203,7 +203,7 @@ def MemRef_AllocaOp : AllocLikeOp<"alloca", AutomaticAllocationScopeResource> {
 //===----------------------------------------------------------------------===//
 
 def MemRef_BufferCastOp : MemRef_Op<"buffer_cast",
-    [SameOperandsAndResultShape, SameOperandsAndResultElementType,
+    [SameOperandsAndResultShape, SameOperandsAndResultElementType, NoSideEffect,
      TypesMatchWith<"type of 'tensor' is the tensor equivalent of 'memref'",
                     "memref", "tensor",
                     "getTensorTypeFromMemRefType($_self)">]> {
@@ -218,6 +218,10 @@ def MemRef_BufferCastOp : MemRef_Op<"buffer_cast",
 
     Note, that mutating the result of the buffer cast operation leads to
     undefined behavior.
+
+    This operation is a specialized variant of the built-in
+    unrealized_conversion_cast and is intended for use in the context of
+    gradual bufferization.
   }];
 
   let arguments = (ins AnyTensor:$tensor);
@@ -238,7 +242,8 @@ def MemRef_BufferCastOp : MemRef_Op<"buffer_cast",
 def MemRef_CastOp : MemRef_Op<"cast", [
       NoSideEffect, SameOperandsAndResultShape,
       DeclareOpInterfaceMethods<CastOpInterface>,
-      ViewLikeOpInterface
+      ViewLikeOpInterface,
+      MemRefsNormalizable
     ]> {
   let summary = "memref cast operation";
   let description = [{
@@ -342,8 +347,8 @@ def CloneOp : MemRef_Op<"clone", [
     undefined behavior.
   }];
 
-  let arguments = (ins Arg<AnyMemRef, "", []>:$input);
-  let results = (outs Arg<AnyMemRef, "", []>:$output);
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "", []>:$input);
+  let results = (outs Arg<AnyRankedOrUnrankedMemRef, "", []>:$output);
 
   let extraClassDeclaration = [{
     Value getSource() { return input();}
@@ -353,6 +358,7 @@ def CloneOp : MemRef_Op<"clone", [
   let assemblyFormat = "$input attr-dict `:` type($input) `to` type($output)";
 
   let hasFolder = 1;
+  let verifier = ?;
   let hasCanonicalizer = 1;
 }
 
@@ -376,9 +382,10 @@ def MemRef_DeallocOp : MemRef_Op<"dealloc", [MemRefsNormalizable]> {
     ```
   }];
 
-  let arguments = (ins Arg<AnyMemRef, "", [MemFree]>:$memref);
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "", [MemFree]>:$memref);
 
   let hasFolder = 1;
+  let verifier = ?;
   let assemblyFormat = "$memref attr-dict `:` type($memref)";
 }
 
@@ -386,7 +393,7 @@ def MemRef_DeallocOp : MemRef_Op<"dealloc", [MemRefsNormalizable]> {
 // DimOp
 //===----------------------------------------------------------------------===//
 
-def DimOp : MemRef_Op<"dim", [NoSideEffect]> {
+def DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
   let summary = "dimension index operation";
   let description = [{
     The `dim` operation takes a memref and a dimension operand of type `index`.
@@ -546,8 +553,8 @@ def LoadOp : MemRef_Op<"load",
 
     In an `affine.if` or `affine.for` body, the indices of a load are restricted
     to SSA values bound to surrounding loop induction variables,
-    [symbols](Affine.md#dimensions-and-symbols), results of a
-    [`constant` operation](#stdconstant-constantop), or the result of an
+    [symbols](Affine.md/#dimensions-and-symbols), results of a
+    [`constant` operation](Standard.md/#stdconstant-constantop), or the result of an
     `affine.apply` operation that can in turn take as arguments all of the
     aforementioned SSA values or the recursively result of such an
     `affine.apply` operation.
@@ -567,10 +574,10 @@ def LoadOp : MemRef_Op<"load",
     **Context:** The `load` and `store` operations are specifically crafted to
     fully resolve a reference to an element of a memref, and (in affine
     `affine.if` and `affine.for` operations) the compiler can follow use-def
-    chains (e.g. through [`affine.apply`](Affine.md#affineapply-affineapplyop)
+    chains (e.g. through [`affine.apply`](Affine.md/#affineapply-affineapplyop)
     operations) to precisely analyze references at compile-time using polyhedral
     techniques. This is possible because of the
-    [restrictions on dimensions and symbols](Affine.md#restrictions-on-dimensions-and-symbols)
+    [restrictions on dimensions and symbols](Affine.md/#restrictions-on-dimensions-and-symbols)
     in these contexts.
   }];
 
@@ -819,9 +826,9 @@ def MemRef_StoreOp : MemRef_Op<"store",
 
     In an affine context, the indices of a store are restricted to SSA values
     bound to surrounding loop induction variables,
-    [symbols](Affine.md#restrictions-on-dimensions-and-symbols), results of a
-    [`constant` operation](#stdconstant-constantop), or the result of an
-    [`affine.apply`](Affine.md#affineapply-affineapplyop) operation that can in
+    [symbols](Affine.md/#restrictions-on-dimensions-and-symbols), results of a
+    [`constant` operation](Standard.md/#stdconstant-constantop), or the result of an
+    [`affine.apply`](Affine.md/#affineapply-affineapplyop) operation that can in
     turn take as arguments all of the aforementioned SSA values or the
     recursively result of such an `affine.apply` operation.
 
@@ -834,10 +841,10 @@ def MemRef_StoreOp : MemRef_Op<"store",
     **Context:** The `load` and `store` operations are specifically crafted to
     fully resolve a reference to an element of a memref, and (in polyhedral
     `affine.if` and `affine.for` operations) the compiler can follow use-def
-    chains (e.g. through [`affine.apply`](Affine.md#affineapply-affineapplyop)
+    chains (e.g. through [`affine.apply`](Affine.md/#affineapply-affineapplyop)
     operations) to precisely analyze references at compile-time using polyhedral
     techniques. This is possible because of the
-    [restrictions on dimensions and symbols](Affine.md#restrictions-on-dimensions-and-symbols)
+    [restrictions on dimensions and symbols](Affine.md/#restrictions-on-dimensions-and-symbols)
     in these contexts.
   }];
 

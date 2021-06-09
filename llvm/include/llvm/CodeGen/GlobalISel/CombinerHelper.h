@@ -163,8 +163,8 @@ public:
 
   /// If a brcond's true block is not the fallthrough, make it so by inverting
   /// the condition and swapping operands.
-  bool matchOptBrCondByInvertingCond(MachineInstr &MI);
-  void applyOptBrCondByInvertingCond(MachineInstr &MI);
+  bool matchOptBrCondByInvertingCond(MachineInstr &MI, MachineInstr *&BrCond);
+  void applyOptBrCondByInvertingCond(MachineInstr &MI, MachineInstr *&BrCond);
 
   /// If \p MI is G_CONCAT_VECTORS, try to combine it.
   /// Returns true if MI changed.
@@ -512,6 +512,14 @@ public:
   void applyFunnelShiftToRotate(MachineInstr &MI);
   bool matchRotateOutOfRange(MachineInstr &MI);
   void applyRotateOutOfRange(MachineInstr &MI);
+
+  /// \returns true if a G_ICMP instruction \p MI can be replaced with a true
+  /// or false constant based off of KnownBits information.
+  bool matchICmpToTrueFalseKnownBits(MachineInstr &MI, int64_t &MatchInfo);
+
+  /// Match: and (lshr x, cst), mask -> ubfx x, cst, width
+  bool matchBitfieldExtractFromAnd(
+      MachineInstr &MI, std::function<void(MachineIRBuilder &)> &MatchInfo);
 
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.

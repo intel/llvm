@@ -9,13 +9,9 @@
 #ifndef MLIR_DIALECT_LINALG_UTILS_H_
 #define MLIR_DIALECT_LINALG_UTILS_H_
 
-#include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
-#include "mlir/Dialect/Linalg/EDSC/Builders.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
-#include "mlir/Dialect/MemRef/EDSC/Intrinsics.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
@@ -24,7 +20,6 @@ namespace mlir {
 class AffineExpr;
 class AffineForOp;
 class AffineMap;
-class OperationFolder;
 class PatternRewriter;
 
 namespace linalg {
@@ -189,6 +184,8 @@ struct ProcInfo {
 };
 using ProcInfoCallBackFn = std::function<SmallVector<ProcInfo, 2>(
     OpBuilder &b, Location loc, ArrayRef<Range> parallelLoopRanges)>;
+using OneDimProcInfoCallBackFn =
+    std::function<ProcInfo(OpBuilder &b, Location loc)>;
 
 /// Options that allow distribution of loops generated in Linalg transforms to
 /// processors while generating the loops.
@@ -206,6 +203,11 @@ struct LinalgLoopDistributionOptions {
   /// applied. If the vector is less than the number of `scf.parallel` loops
   /// generated, then no distribution is applied.
   SmallVector<DistributionMethod, 0> distributionMethod = {};
+
+  /// The map keyed by the distribution type that contains callback functions
+  /// that return the Values for processor ID (`procId`), and number of
+  /// processors (`nprocs`) used to execute the parallel loops.
+  DenseMap<StringRef, OneDimProcInfoCallBackFn> procInfoMap;
 };
 
 /// Update the `lb`, `ub` and `step` to get per processor `lb`, `ub` and `step`.
@@ -244,19 +246,16 @@ struct RegionMatcher {
 /// Utility class used to generate nested loops with ranges described by
 /// `loopRanges` and loop type described by the `iteratorTypes`. `bodyBuilderFn`
 /// is used to generate the body of the innermost loop. It is passed a range
-/// of loop induction variables.
+/// of loop induction variables and a range of iterArgs.
 template <typename LoopTy>
 struct GenerateLoopNest {
-  using IndexedValueTy =
-      typename std::conditional<std::is_same<LoopTy, AffineForOp>::value,
-                                edsc::intrinsics::AffineIndexedValue,
-                                edsc::intrinsics::MemRefIndexedValue>::type;
-
-  static void
-  doit(ArrayRef<Range> loopRanges, LinalgOp linalgOp,
-       ArrayRef<Attribute> iteratorTypes,
-       function_ref<scf::ValueVector(ValueRange, ValueRange)> bodyBuilderFn,
-       Optional<LinalgLoopDistributionOptions> = None);
+  static void doit(OpBuilder &b, Location loc, ArrayRef<Range> loopRanges,
+                   LinalgOp linalgOp, ArrayRef<Attribute> iteratorTypes,
+                   function_ref<scf::ValueVector(OpBuilder &, Location,
+                                                 ValueRange, ValueRange)>
+                       bodyBuilderFn,
+                   Optional<LinalgLoopDistributionOptions> = None,
+                   ArrayRef<StringRef> distributionTypes = {});
 };
 
 } // namespace linalg

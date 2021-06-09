@@ -205,7 +205,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 sycl::unittest::PiImage Img = generateDefaultImage();
 sycl::unittest::PiImageArray ImgArray{Img};
 
-TEST(DefaultValues, DefaultValuesAreSet) {
+TEST(DefaultValues, DISABLED_DefaultValuesAreSet) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -238,7 +238,7 @@ TEST(DefaultValues, DefaultValuesAreSet) {
   EXPECT_EQ(SpecConstVal1, 8);
 }
 
-TEST(DefaultValues, DefaultValuesAreOverriden) {
+TEST(DefaultValues, DISABLED_DefaultValuesAreOverriden) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";

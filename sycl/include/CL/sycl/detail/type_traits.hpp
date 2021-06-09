@@ -22,6 +22,21 @@ namespace ONEAPI {
 struct sub_group;
 } // namespace ONEAPI
 namespace detail {
+
+template <typename T> struct is_group : std::false_type {};
+
+template <int Dimensions>
+struct is_group<group<Dimensions>> : std::true_type {};
+
+template <typename T> struct is_sub_group : std::false_type {};
+
+template <> struct is_sub_group<ONEAPI::sub_group> : std::true_type {};
+
+template <typename T>
+struct is_generic_group
+    : std::integral_constant<bool,
+                             is_group<T>::value || is_sub_group<T>::value> {};
+
 namespace half_impl {
 class half;
 }
@@ -30,6 +45,10 @@ using half = detail::half_impl::half;
 
 // Forward declaration
 template <typename ElementType, access::address_space Space> class multi_ptr;
+
+template <class T>
+__SYCL_INLINE_CONSTEXPR bool is_group_v =
+    detail::is_group<T>::value || detail::is_sub_group<T>::value;
 
 namespace detail {
 template <typename T, typename R> struct copy_cv_qualifiers;
@@ -319,19 +338,6 @@ template <access::address_space AS, class DataT>
 using const_if_const_AS = DataT;
 #endif
 
-template <typename T> struct is_group : std::false_type {};
-
-template <int Dimensions>
-struct is_group<group<Dimensions>> : std::true_type {};
-
-template <typename T> struct is_sub_group : std::false_type {};
-
-template <> struct is_sub_group<ONEAPI::sub_group> : std::true_type {};
-
-template <typename T>
-struct is_generic_group
-    : std::integral_constant<bool,
-                             is_group<T>::value || is_sub_group<T>::value> {};
 
 } // namespace detail
 } // namespace sycl

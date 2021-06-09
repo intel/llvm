@@ -20,65 +20,61 @@ using core::TaskImpl;
 extern ATLMachine g_atl_machine;
 
 namespace core {
-void allow_access_to_all_gpu_agents(void *ptr);
 
-const char *getPlaceStr(atmi_devtype_t type) {
-  switch (type) {
+namespace {
+ATLProcessor &get_processor_by_mem_place(int DeviceId,
+                                         atmi_devtype_t DeviceType) {
+  switch (DeviceType) {
   case ATMI_DEVTYPE_CPU:
-    return "CPU";
+    return g_atl_machine.processors<ATLCPUProcessor>()[DeviceId];
   case ATMI_DEVTYPE_GPU:
-    return "GPU";
-  default:
-    return NULL;
+    return g_atl_machine.processors<ATLGPUProcessor>()[DeviceId];
   }
 }
 
-ATLProcessor &get_processor_by_mem_place(atmi_mem_place_t place) {
-  int dev_id = place.dev_id;
-  switch (place.dev_type) {
-  case ATMI_DEVTYPE_CPU:
-    return g_atl_machine.processors<ATLCPUProcessor>()[dev_id];
-  case ATMI_DEVTYPE_GPU:
-    return g_atl_machine.processors<ATLGPUProcessor>()[dev_id];
-  }
+hsa_amd_memory_pool_t get_memory_pool_by_mem_place(int DeviceId,
+                                                   atmi_devtype_t DeviceType) {
+  ATLProcessor &proc = get_processor_by_mem_place(DeviceId, DeviceType);
+  return get_memory_pool(proc, 0 /*Memory Type (always zero) */);
+}
+} // namespace
+
+hsa_status_t register_allocation(void *ptr, size_t size,
+                                 atmi_devtype_t DeviceType) {
+  if (DeviceType == ATMI_DEVTYPE_CPU)
+    return allow_access_to_all_gpu_agents(ptr);
+  else
+    return HSA_STATUS_SUCCESS;
 }
 
-hsa_amd_memory_pool_t get_memory_pool_by_mem_place(atmi_mem_place_t place) {
-  ATLProcessor &proc = get_processor_by_mem_place(place);
-  return get_memory_pool(proc, place.mem_id);
+hsa_status_t Runtime::DeviceMalloc(void **ptr, size_t size, int DeviceId) {
+  return Runtime::Malloc(ptr, size, DeviceId, ATMI_DEVTYPE_GPU);
 }
 
-void register_allocation(void *ptr, size_t size, atmi_mem_place_t place) {
-  if (place.dev_type == ATMI_DEVTYPE_CPU)
-    allow_access_to_all_gpu_agents(ptr);
+hsa_status_t Runtime::HostMalloc(void **ptr, size_t size) {
+  return Runtime::Malloc(ptr, size, 0, ATMI_DEVTYPE_CPU);
 }
 
-atmi_status_t Runtime::Malloc(void **ptr, size_t size, atmi_mem_place_t place) {
-  atmi_status_t ret = ATMI_STATUS_SUCCESS;
-  hsa_amd_memory_pool_t pool = get_memory_pool_by_mem_place(place);
+hsa_status_t Runtime::Malloc(void **ptr, size_t size, int DeviceId,
+                             atmi_devtype_t DeviceType) {
+  hsa_amd_memory_pool_t pool =
+      get_memory_pool_by_mem_place(DeviceId, DeviceType);
   hsa_status_t err = hsa_amd_memory_pool_allocate(pool, size, 0, ptr);
-  ErrorCheck(atmi_malloc, err);
   DEBUG_PRINT("Malloced [%s %d] %p\n",
-              place.dev_type == ATMI_DEVTYPE_CPU ? "CPU" : "GPU", place.dev_id,
-              *ptr);
-  if (err != HSA_STATUS_SUCCESS)
-    ret = ATMI_STATUS_ERROR;
+              DeviceType == ATMI_DEVTYPE_CPU ? "CPU" : "GPU", DeviceId, *ptr);
 
-  register_allocation(*ptr, size, place);
+  if (err == HSA_STATUS_SUCCESS) {
+    err = register_allocation(*ptr, size, DeviceType);
+  }
 
-  return ret;
+  return (err == HSA_STATUS_SUCCESS) ? HSA_STATUS_SUCCESS : HSA_STATUS_ERROR;
 }
 
-atmi_status_t Runtime::Memfree(void *ptr) {
-  atmi_status_t ret = ATMI_STATUS_SUCCESS;
-  hsa_status_t err;
-  err = hsa_amd_memory_pool_free(ptr);
-  ErrorCheck(atmi_free, err);
+hsa_status_t Runtime::Memfree(void *ptr) {
+  hsa_status_t err = hsa_amd_memory_pool_free(ptr);
   DEBUG_PRINT("Freed %p\n", ptr);
 
-  if (err != HSA_STATUS_SUCCESS)
-    ret = ATMI_STATUS_ERROR;
-  return ret;
+  return (err == HSA_STATUS_SUCCESS) ? HSA_STATUS_SUCCESS : HSA_STATUS_ERROR;
 }
 
 } // namespace core

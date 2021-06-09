@@ -8,12 +8,110 @@
 
 #include "mlir/Parser/AsmParserState.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/SymbolTable.h"
 
 using namespace mlir;
 
-/// Given a SMLoc corresponding to an identifier location, return a location
-/// representing the full range of the identifier.
-static llvm::SMRange convertIdLocToRange(llvm::SMLoc loc) {
+//===----------------------------------------------------------------------===//
+// AsmParserState::Impl
+//===----------------------------------------------------------------------===//
+
+struct AsmParserState::Impl {
+  /// A map from a SymbolRefAttr to a range of uses.
+  using SymbolUseMap = DenseMap<Attribute, SmallVector<llvm::SMRange>>;
+
+  struct PartialOpDef {
+    explicit PartialOpDef(const OperationName &opName) {
+      const auto *abstractOp = opName.getAbstractOperation();
+      if (abstractOp && abstractOp->hasTrait<OpTrait::SymbolTable>())
+        symbolTable = std::make_unique<SymbolUseMap>();
+    }
+
+    /// Return if this operation is a symbol table.
+    bool isSymbolTable() const { return symbolTable.get(); }
+
+    /// If this operation is a symbol table, the following contains symbol uses
+    /// within this operation.
+    std::unique_ptr<SymbolUseMap> symbolTable;
+  };
+
+  /// Resolve any symbol table uses under the given partial operation.
+  void resolveSymbolUses(Operation *op, PartialOpDef &opDef);
+
+  /// A mapping from operations in the input source file to their parser state.
+  SmallVector<std::unique_ptr<OperationDefinition>> operations;
+  DenseMap<Operation *, unsigned> operationToIdx;
+
+  /// A mapping from blocks in the input source file to their parser state.
+  SmallVector<std::unique_ptr<BlockDefinition>> blocks;
+  DenseMap<Block *, unsigned> blocksToIdx;
+
+  /// A set of value definitions that are placeholders for forward references.
+  /// This map should be empty if the parser finishes successfully.
+  DenseMap<Value, SmallVector<llvm::SMLoc>> placeholderValueUses;
+
+  /// A stack of partial operation definitions that have been started but not
+  /// yet finalized.
+  SmallVector<PartialOpDef> partialOperations;
+
+  /// A stack of symbol use scopes. This is used when collecting symbol table
+  /// uses during parsing.
+  SmallVector<SymbolUseMap *> symbolUseScopes;
+
+  /// A symbol table containing all of the symbol table operations in the IR.
+  SymbolTableCollection symbolTable;
+};
+
+void AsmParserState::Impl::resolveSymbolUses(Operation *op,
+                                             PartialOpDef &opDef) {
+  assert(opDef.isSymbolTable() && "expected op to be a symbol table");
+
+  SmallVector<Operation *> symbolOps;
+  for (auto &it : *opDef.symbolTable) {
+    symbolOps.clear();
+    if (failed(symbolTable.lookupSymbolIn(op, it.first.cast<SymbolRefAttr>(),
+                                          symbolOps)))
+      continue;
+
+    for (const auto &symIt : llvm::zip(symbolOps, it.second)) {
+      auto opIt = operationToIdx.find(std::get<0>(symIt));
+      if (opIt != operationToIdx.end())
+        operations[opIt->second]->symbolUses.push_back(std::get<1>(symIt));
+    }
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// AsmParserState
+//===----------------------------------------------------------------------===//
+
+AsmParserState::AsmParserState() : impl(std::make_unique<Impl>()) {}
+AsmParserState::~AsmParserState() {}
+AsmParserState &AsmParserState::operator=(AsmParserState &&other) {
+  impl = std::move(other.impl);
+  return *this;
+}
+
+//===----------------------------------------------------------------------===//
+// Access State
+
+auto AsmParserState::getBlockDefs() const -> iterator_range<BlockDefIterator> {
+  return llvm::make_pointee_range(llvm::makeArrayRef(impl->blocks));
+}
+
+auto AsmParserState::getBlockDef(Block *block) const
+    -> const BlockDefinition * {
+  auto it = impl->blocksToIdx.find(block);
+  return it == impl->blocksToIdx.end() ? nullptr : &*impl->blocks[it->second];
+}
+
+auto AsmParserState::getOpDefs() const -> iterator_range<OperationDefIterator> {
+  return llvm::make_pointee_range(llvm::makeArrayRef(impl->operations));
+}
+
+/// Returns (heuristically) the range of an identifier given a SMLoc
+/// corresponding to the start of an identifier location.
+llvm::SMRange AsmParserState::convertIdLocToRange(llvm::SMLoc loc) {
   if (!loc.isValid())
     return llvm::SMRange();
 
@@ -29,55 +127,72 @@ static llvm::SMRange convertIdLocToRange(llvm::SMLoc loc) {
 }
 
 //===----------------------------------------------------------------------===//
-// AsmParserState::Impl
-//===----------------------------------------------------------------------===//
-
-struct AsmParserState::Impl {
-  /// A mapping from operations in the input source file to their parser state.
-  SmallVector<std::unique_ptr<OperationDefinition>> operations;
-  DenseMap<Operation *, unsigned> operationToIdx;
-
-  /// A mapping from blocks in the input source file to their parser state.
-  SmallVector<std::unique_ptr<BlockDefinition>> blocks;
-  DenseMap<Block *, unsigned> blocksToIdx;
-
-  /// A set of value definitions that are placeholders for forward references.
-  /// This map should be empty if the parser finishes successfully.
-  DenseMap<Value, SmallVector<llvm::SMLoc>> placeholderValueUses;
-};
-
-//===----------------------------------------------------------------------===//
-// AsmParserState
-//===----------------------------------------------------------------------===//
-
-AsmParserState::AsmParserState() : impl(std::make_unique<Impl>()) {}
-AsmParserState::~AsmParserState() {}
-
-//===----------------------------------------------------------------------===//
-// Access State
-
-auto AsmParserState::getBlockDefs() const -> iterator_range<BlockDefIterator> {
-  return llvm::make_pointee_range(llvm::makeArrayRef(impl->blocks));
-}
-
-auto AsmParserState::getOpDefs() const -> iterator_range<OperationDefIterator> {
-  return llvm::make_pointee_range(llvm::makeArrayRef(impl->operations));
-}
-
-//===----------------------------------------------------------------------===//
 // Populate State
 
-void AsmParserState::addDefinition(
-    Operation *op, llvm::SMRange location,
+void AsmParserState::initialize(Operation *topLevelOp) {
+  startOperationDefinition(topLevelOp->getName());
+
+  // If the top-level operation is a symbol table, push a new symbol scope.
+  Impl::PartialOpDef &partialOpDef = impl->partialOperations.back();
+  if (partialOpDef.isSymbolTable())
+    impl->symbolUseScopes.push_back(partialOpDef.symbolTable.get());
+}
+
+void AsmParserState::finalize(Operation *topLevelOp) {
+  assert(!impl->partialOperations.empty() &&
+         "expected valid partial operation definition");
+  Impl::PartialOpDef partialOpDef = impl->partialOperations.pop_back_val();
+
+  // If this operation is a symbol table, resolve any symbol uses.
+  if (partialOpDef.isSymbolTable())
+    impl->resolveSymbolUses(topLevelOp, partialOpDef);
+}
+
+void AsmParserState::startOperationDefinition(const OperationName &opName) {
+  impl->partialOperations.emplace_back(opName);
+}
+
+void AsmParserState::finalizeOperationDefinition(
+    Operation *op, llvm::SMRange nameLoc,
     ArrayRef<std::pair<unsigned, llvm::SMLoc>> resultGroups) {
+  assert(!impl->partialOperations.empty() &&
+         "expected valid partial operation definition");
+  Impl::PartialOpDef partialOpDef = impl->partialOperations.pop_back_val();
+
+  // Build the full operation definition.
   std::unique_ptr<OperationDefinition> def =
-      std::make_unique<OperationDefinition>(op, location);
+      std::make_unique<OperationDefinition>(op, nameLoc);
   for (auto &resultGroup : resultGroups)
     def->resultGroups.emplace_back(resultGroup.first,
                                    convertIdLocToRange(resultGroup.second));
-
   impl->operationToIdx.try_emplace(op, impl->operations.size());
   impl->operations.emplace_back(std::move(def));
+
+  // If this operation is a symbol table, resolve any symbol uses.
+  if (partialOpDef.isSymbolTable())
+    impl->resolveSymbolUses(op, partialOpDef);
+}
+
+void AsmParserState::startRegionDefinition() {
+  assert(!impl->partialOperations.empty() &&
+         "expected valid partial operation definition");
+
+  // If the parent operation of this region is a symbol table, we also push a
+  // new symbol scope.
+  Impl::PartialOpDef &partialOpDef = impl->partialOperations.back();
+  if (partialOpDef.isSymbolTable())
+    impl->symbolUseScopes.push_back(partialOpDef.symbolTable.get());
+}
+
+void AsmParserState::finalizeRegionDefinition() {
+  assert(!impl->partialOperations.empty() &&
+         "expected valid partial operation definition");
+
+  // If the parent operation of this region is a symbol table, pop the symbol
+  // scope for this region.
+  Impl::PartialOpDef &partialOpDef = impl->partialOperations.back();
+  if (partialOpDef.isSymbolTable())
+    impl->symbolUseScopes.pop_back();
 }
 
 void AsmParserState::addDefinition(Block *block, llvm::SMLoc location) {
@@ -157,6 +272,18 @@ void AsmParserState::addUses(Block *block, ArrayRef<llvm::SMLoc> locations) {
   BlockDefinition &def = *impl->blocks[it->second];
   for (llvm::SMLoc loc : locations)
     def.definition.uses.push_back(convertIdLocToRange(loc));
+}
+
+void AsmParserState::addUses(SymbolRefAttr refAttr,
+                             ArrayRef<llvm::SMRange> locations) {
+  // Ignore this symbol if no scopes are active.
+  if (impl->symbolUseScopes.empty())
+    return;
+
+  assert((refAttr.getNestedReferences().size() + 1) == locations.size() &&
+         "expected the same number of references as provided locations");
+  (*impl->symbolUseScopes.back())[refAttr].append(locations.begin(),
+                                                  locations.end());
 }
 
 void AsmParserState::refineDefinition(Value oldValue, Value newValue) {

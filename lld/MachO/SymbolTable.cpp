@@ -45,19 +45,36 @@ std::pair<Symbol *, bool> SymbolTable::insert(StringRef name,
 Defined *SymbolTable::addDefined(StringRef name, InputFile *file,
                                  InputSection *isec, uint64_t value,
                                  uint64_t size, bool isWeakDef,
-                                 bool isPrivateExtern, bool isThumb) {
+                                 bool isPrivateExtern, bool isThumb,
+                                 bool isReferencedDynamically,
+                                 bool noDeadStrip) {
   Symbol *s;
   bool wasInserted;
   bool overridesWeakDef = false;
   std::tie(s, wasInserted) = insert(name, file);
 
+  assert(!isWeakDef || (isa<BitcodeFile>(file) && !isec) ||
+         (isa<ObjFile>(file) && file == isec->file));
+
   if (!wasInserted) {
     if (auto *defined = dyn_cast<Defined>(s)) {
       if (isWeakDef) {
-        // Both old and new symbol weak (e.g. inline function in two TUs):
-        // If one of them isn't private extern, the merged symbol isn't.
-        if (defined->isWeakDef())
+        if (defined->isWeakDef()) {
+          // Both old and new symbol weak (e.g. inline function in two TUs):
+          // If one of them isn't private extern, the merged symbol isn't.
           defined->privateExtern &= isPrivateExtern;
+          defined->referencedDynamically |= isReferencedDynamically;
+          defined->noDeadStrip |= noDeadStrip;
+
+          // FIXME: Handle this for bitcode files.
+          // FIXME: We currently only do this if both symbols are weak.
+          //        We could do this if either is weak (but getting the
+          //        case where !isWeakDef && defined->isWeakDef() right
+          //        requires some care and testing).
+          if (isec)
+            isec->wasCoalesced = true;
+        }
+
         return defined;
       }
       if (!defined->isWeakDef())
@@ -66,14 +83,15 @@ Defined *SymbolTable::addDefined(StringRef name, InputFile *file,
               toString(file));
     } else if (auto *dysym = dyn_cast<DylibSymbol>(s)) {
       overridesWeakDef = !isWeakDef && dysym->isWeakDef();
+      dysym->unreference();
     }
     // Defined symbols take priority over other types of symbols, so in case
     // of a name conflict, we fall through to the replaceSymbol() call below.
   }
 
-  Defined *defined =
-      replaceSymbol<Defined>(s, name, file, isec, value, size, isWeakDef,
-                             /*isExternal=*/true, isPrivateExtern, isThumb);
+  Defined *defined = replaceSymbol<Defined>(
+      s, name, file, isec, value, size, isWeakDef, /*isExternal=*/true,
+      isPrivateExtern, isThumb, isReferencedDynamically, noDeadStrip);
   defined->overridesWeakDef = overridesWeakDef;
   return defined;
 }
@@ -91,7 +109,7 @@ Symbol *SymbolTable::addUndefined(StringRef name, InputFile *file,
   else if (auto *lazy = dyn_cast<LazySymbol>(s))
     lazy->fetchArchiveMember();
   else if (auto *dynsym = dyn_cast<DylibSymbol>(s))
-    dynsym->refState = std::max(dynsym->refState, refState);
+    dynsym->reference(refState);
   else if (auto *undefined = dyn_cast<Undefined>(s))
     undefined->refState = std::max(undefined->refState, refState);
   return s;
@@ -132,7 +150,7 @@ Symbol *SymbolTable::addDylib(StringRef name, DylibFile *file, bool isWeakDef,
     } else if (auto *undefined = dyn_cast<Undefined>(s)) {
       refState = undefined->refState;
     } else if (auto *dysym = dyn_cast<DylibSymbol>(s)) {
-      refState = dysym->refState;
+      refState = dysym->getRefState();
     }
   }
 
@@ -140,8 +158,11 @@ Symbol *SymbolTable::addDylib(StringRef name, DylibFile *file, bool isWeakDef,
   if (wasInserted || isa<Undefined>(s) ||
       (isa<DylibSymbol>(s) &&
        ((!isWeakDef && s->isWeakDef()) ||
-        (!isDynamicLookup && cast<DylibSymbol>(s)->isDynamicLookup()))))
+        (!isDynamicLookup && cast<DylibSymbol>(s)->isDynamicLookup())))) {
+    if (auto *dynsym = dyn_cast<DylibSymbol>(s))
+      dynsym->unreference();
     replaceSymbol<DylibSymbol>(s, file, name, isWeakDef, refState, isTlv);
+  }
 
   return s;
 }
@@ -165,28 +186,31 @@ Symbol *SymbolTable::addLazy(StringRef name, ArchiveFile *file,
 
 Defined *SymbolTable::addSynthetic(StringRef name, InputSection *isec,
                                    uint64_t value, bool isPrivateExtern,
-                                   bool includeInSymtab) {
+                                   bool includeInSymtab,
+                                   bool referencedDynamically) {
   Defined *s = addDefined(name, nullptr, isec, value, /*size=*/0,
                           /*isWeakDef=*/false, isPrivateExtern,
-                          /*isThumb=*/false);
+                          /*isThumb=*/false, referencedDynamically,
+                          /*noDeadStrip=*/false);
   s->includeInSymtab = includeInSymtab;
   return s;
 }
 
-void lld::macho::treatUndefinedSymbol(const Undefined &sym) {
-  auto message = [](const Undefined &sym) {
+void lld::macho::treatUndefinedSymbol(const Undefined &sym, StringRef source) {
+  auto message = [source, &sym]() {
     std::string message = "undefined symbol: " + toString(sym);
-    std::string fileName = toString(sym.getFile());
-    if (!fileName.empty())
-      message += "\n>>> referenced by " + fileName;
+    if (!source.empty())
+      message += "\n>>> referenced by " + source.str();
+    else
+      message += "\n>>> referenced by " + toString(sym.getFile());
     return message;
   };
   switch (config->undefinedSymbolTreatment) {
   case UndefinedSymbolTreatment::error:
-    error(message(sym));
+    error(message());
     break;
   case UndefinedSymbolTreatment::warning:
-    warn(message(sym));
+    warn(message());
     LLVM_FALLTHROUGH;
   case UndefinedSymbolTreatment::dynamic_lookup:
   case UndefinedSymbolTreatment::suppress:

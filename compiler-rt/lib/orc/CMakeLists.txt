@@ -2,7 +2,7 @@
 
 # ORC runtime library implementation files.
 set(ORC_SOURCES
-  placeholder.cpp
+  extensible_rtti.cpp
   )
 
 # Implementation files for all ORC architectures.
@@ -12,6 +12,15 @@ set(x86_64_SOURCES
 
 set(ORC_IMPL_HEADERS
 # Implementation headers will go here.
+  adt.h
+  c_api.h
+  common.h
+  compiler.h
+  endian.h
+  error.h
+  extensible_rtti.h
+  stl_extras.h
+  wrapper_function_utils.h
 )
 
 # Create list of all source files for
@@ -70,7 +79,7 @@ else() # not Apple
       ARCHS ${arch}
       SOURCES ${ORC_SOURCES} ${${arch}_SOURCES}
       ADDITIONAL_HEADERS ${ORC_IMPL_HEADERS}
-      CFLAGS $ORC_CFLAGS}
+      CFLAGS ${ORC_CFLAGS}
       DEPS ${ORC_DEPS})
 
     # Common ORC archive for instrumented binaries.
@@ -82,3 +91,7 @@ else() # not Apple
      PARENT_TARGET orc)
   endforeach()
 endif() # not Apple
+
+if(COMPILER_RT_INCLUDE_TESTS)
+  add_subdirectory(unittests)
+endif()

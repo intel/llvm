@@ -9,7 +9,7 @@
 // UNSUPPORTED: c++03
 
 // This test requires the dylib support introduced in D92769.
-// XFAIL: with_system_cxx_lib=macosx10.15
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.15
 
 // <filesystem>
 
@@ -136,6 +136,18 @@ TEST_CASE(dest_final_part_is_file)
     TEST_CHECK(ErrorIs(ec, std::errc::not_a_directory));
     TEST_CHECK(is_regular_file(file));
     TEST_CHECK(!exists(dir));
+}
+
+TEST_CASE(dest_is_empty_path)
+{
+    std::error_code ec = GetTestEC();
+    TEST_CHECK(fs::create_directories(fs::path{}, ec) == false);
+    TEST_CHECK(ec);
+    TEST_CHECK(ErrorIs(ec, std::errc::no_such_file_or_directory));
+    ExceptionChecker Checker(path{}, std::errc::no_such_file_or_directory,
+                             "create_directories");
+    TEST_CHECK_THROW_RESULT(filesystem_error, Checker,
+                            fs::create_directories(path{}));
 }
 
 #ifdef _WIN32

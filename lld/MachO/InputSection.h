@@ -9,6 +9,7 @@
 #ifndef LLD_MACHO_INPUT_SECTION_H
 #define LLD_MACHO_INPUT_SECTION_H
 
+#include "Config.h"
 #include "Relocations.h"
 
 #include "lld/Common/LLVM.h"
@@ -19,20 +20,17 @@ namespace lld {
 namespace macho {
 
 class InputFile;
-class InputSection;
 class OutputSection;
-class Symbol;
-class Defined;
 
 class InputSection {
 public:
   virtual ~InputSection() = default;
   virtual uint64_t getSize() const { return data.size(); }
-  virtual uint64_t getFileSize() const;
+  uint64_t getFileSize() const;
   uint64_t getFileOffset() const;
   uint64_t getVA() const;
 
-  virtual void writeTo(uint8_t *buf);
+  void writeTo(uint8_t *buf);
 
   InputFile *file = nullptr;
   StringRef name;
@@ -44,6 +42,23 @@ public:
 
   uint32_t align = 1;
   uint32_t flags = 0;
+  uint32_t callSiteCount = 0;
+  bool isFinal = false; // is address assigned?
+
+  // How many symbols refer to this InputSection.
+  uint32_t numRefs = 0;
+
+  // With subsections_via_symbols, most symbols have their own InputSection,
+  // and for weak symbols (e.g. from inline functions), only the
+  // InputSection from one translation unit will make it to the output,
+  // while all copies in other translation units are coalesced into the
+  // first and not copied to the output.
+  bool wasCoalesced = false;
+
+  bool isCoalescedWeak() const { return wasCoalesced && numRefs == 0; }
+  bool shouldOmitFromOutput() const { return !live || isCoalescedWeak(); }
+
+  bool live = !config->deadStrip;
 
   ArrayRef<uint8_t> data;
   std::vector<Reloc> relocs;
@@ -72,7 +87,7 @@ inline bool isDebugSection(uint32_t flags) {
          llvm::MachO::S_ATTR_DEBUG;
 }
 
-bool isCodeSection(InputSection *);
+bool isCodeSection(const InputSection *);
 
 extern std::vector<InputSection *> inputSections;
 

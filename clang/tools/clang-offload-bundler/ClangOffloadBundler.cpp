@@ -644,11 +644,19 @@ class ObjectFileHandler final : public FileHandler {
         if (Undefined || !Global)
           continue;
 
-        // Add symbol name with the target prefix to the buffer.
-        SymbolsOS << TargetNames[I] << ".";
-        if (Error Err = Symbol.printName(SymbolsOS))
+        // Get symbol name.
+        std::string Name;
+        raw_string_ostream NameOS(Name);
+        if (Error Err = Symbol.printName(NameOS))
           return std::move(Err);
-        SymbolsOS << '\0';
+
+        // If we are dealing with a bitcode file do not add special globals
+        // llvm.used and llvm.compiler.used to the list of defined symbols.
+        if (SF->isIR() && (Name == "llvm.used" || Name == "llvm.compiler.used"))
+          continue;
+
+        // Add symbol name with the target prefix to the buffer.
+        SymbolsOS << TargetNames[I] << "." << Name << '\0';
       }
     }
     return SymbolsBuf;
@@ -723,11 +731,7 @@ public:
     // We will use llvm-objcopy to add target objects sections to the output
     // fat object. These sections should have 'exclude' flag set which tells
     // link editor to remove them from linker inputs when linking executable or
-    // shared library. llvm-objcopy currently does not support adding new
-    // section and changing flags for the added section in one invocation, and
-    // because of that we have to run it two times. First run adds sections and
-    // the second changes flags.
-    // TODO: change it to one run once llvm-objcopy starts supporting that.
+    // shared library.
 
     // Find llvm-objcopy in order to create the bundle binary.
     ErrorOr<std::string> Objcopy = sys::findProgramByName(
@@ -745,14 +749,8 @@ public:
     // Temporary files that need to be removed.
     TempFileHandlerRAII TempFiles;
 
-    // Create an intermediate temporary file to save object after the first
-    // llvm-objcopy run.
-    Expected<StringRef> IntermediateObjOrErr = TempFiles.Create(None);
-    if (!IntermediateObjOrErr)
-      return IntermediateObjOrErr.takeError();
-    StringRef IntermediateObj = *IntermediateObjOrErr;
-
-    // Compose llvm-objcopy command line for add target objects' sections.
+    // Compose llvm-objcopy command line for add target objects' sections with
+    // appropriate flags.
     BumpPtrAllocator Alloc;
     StringSaver SS{Alloc};
     SmallVector<StringRef, 8u> ObjcopyArgs{"llvm-objcopy"};
@@ -772,8 +770,10 @@ public:
       ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
                                     OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
                                     "=" + InputFile));
+      ObjcopyArgs.push_back(SS.save(Twine("--set-section-flags=") +
+                                    OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
+                                    "=readonly,exclude"));
     }
-
     // Add a section with symbol names that are defined in target objects to the
     // output fat object.
     Expected<SmallVector<char, 0>> SymbolsOrErr = makeTargetSymbolTable();
@@ -791,20 +791,8 @@ public:
                                     SYMBOLS_SECTION_NAME + "=" +
                                     *SymbolsFileOrErr));
     }
-
+    ObjcopyArgs.push_back("--");
     ObjcopyArgs.push_back(InputFileNames[HostInputIndex]);
-    ObjcopyArgs.push_back(IntermediateObj);
-
-    if (Error Err = executeObjcopy(*Objcopy, ObjcopyArgs))
-      return Err;
-
-    // And run llvm-objcopy for the second time to update section flags.
-    ObjcopyArgs.resize(1);
-    for (unsigned I = 0; I < NumberOfInputs; ++I)
-      ObjcopyArgs.push_back(SS.save(Twine("--set-section-flags=") +
-                                    OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
-                                    "=readonly,exclude"));
-    ObjcopyArgs.push_back(IntermediateObj);
     ObjcopyArgs.push_back(OutputFileNames.front());
 
     if (Error Err = executeObjcopy(*Objcopy, ObjcopyArgs))

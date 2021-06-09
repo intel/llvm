@@ -7,12 +7,6 @@ template <typename T>
 void clang_analyzer_dump(const T *);
 void clang_analyzer_warnIfReached();
 
-void builtin_unique_stable_name_of_lambda() {
-  auto y = [] {};
-  clang_analyzer_dump(__builtin_unique_stable_name(y));
-  // expected-warning@-1 {{&Element{"_ZTSZ36builtin_unique_stable_name_of_lambdavEUlvE11_12",0 S64b,char}}}
-}
-
 template <typename T, auto Value, typename U>
 void func(U param) {
   clang_analyzer_dump(__func__);
@@ -20,7 +14,7 @@ void func(U param) {
   clang_analyzer_dump(__PRETTY_FUNCTION__);
   // expected-warning@-3 {{&Element{"func",0 S64b,char}}}
   // expected-warning@-3 {{&Element{"func",0 S64b,char}}}
-  // expected-warning@-3 {{&Element{"void func(U) [T = Class, Value = 42, U = char]",0 S64b,char}}}
+  // expected-warning@-3 {{&Element{"void func(U) [T = Class, Value = 42ULL, U = char]",0 S64b,char}}}
 
 #ifdef ANALYZER_MS
   clang_analyzer_dump(__FUNCDNAME__);
@@ -29,8 +23,8 @@ void func(U param) {
   clang_analyzer_dump(L__FUNCSIG__);
   // expected-warning@-4 {{&Element{"??$func@UClass@?1??foo@@YAXXZ@$0CK@D@@YAXD@Z",0 S64b,char}}}
   // expected-warning@-4 {{&Element{L"func",0 S64b,wchar_t}}}
-  // expected-warning@-4 {{&Element{"void __cdecl func(U) [T = Class, Value = 42, U = char]",0 S64b,char}}}
-  // expected-warning@-4 {{&Element{L"void __cdecl func(U) [T = Class, Value = 42, U = char]",0 S64b,wchar_t}}}
+  // expected-warning@-4 {{&Element{"void __cdecl func(U) [T = Class, Value = 42ULL, U = char]",0 S64b,char}}}
+  // expected-warning@-4 {{&Element{L"void __cdecl func(U) [T = Class, Value = 42ULL, U = char]",0 S64b,wchar_t}}}
 #endif
 }
 
@@ -54,11 +48,6 @@ void foo() {
 #endif
 
   func<struct Class, 42ull>('b'); // instantiate template
-}
-
-void test_builtin_unique_stable_name(int a) {
-  clang_analyzer_dump(__builtin_unique_stable_name(a));
-  // expected-warning@-1 {{&Element{"_ZTSi",0 S64b,char}}}
 }
 
 struct A {

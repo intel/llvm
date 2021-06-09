@@ -11,12 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "DNB.h"
-#include <inttypes.h>
+#include <cinttypes>
+#include <csignal>
+#include <cstdio>
+#include <cstdlib>
 #include <libproc.h>
 #include <map>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
@@ -1811,4 +1811,12 @@ nub_bool_t DNBSetArchitecture(const char *arch) {
                                               CPU_SUBTYPE_ARM_ALL);
   }
   return false;
+}
+
+bool DNBDebugserverIsTranslated() {
+  int ret = 0;
+  size_t size = sizeof(ret);
+  if (sysctlbyname("sysctl.proc_translated", &ret, &size, NULL, 0) == -1)
+    return false;
+  return ret == 1;
 }

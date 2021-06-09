@@ -154,6 +154,9 @@ def NoProfile : EnumAttr<"noprofile">;
 /// Function doesn't unwind stack.
 def NoUnwind : EnumAttr<"nounwind">;
 
+/// No SanitizeCoverage instrumentation.
+def NoSanitizeCoverage : EnumAttr<"nosanitize_coverage">;
+
 /// Null pointer in address space zero is valid.
 def NullPointerIsValid : EnumAttr<"null_pointer_is_valid">;
 
@@ -243,6 +246,9 @@ def SwiftError : EnumAttr<"swifterror">;
 
 /// Argument is swift self/context.
 def SwiftSelf : EnumAttr<"swiftself">;
+
+/// Argument is swift async context.
+def SwiftAsync : EnumAttr<"swiftasync">;
 
 /// Function must be in a unwind table.
 def UWTable : EnumAttr<"uwtable">;

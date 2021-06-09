@@ -236,6 +236,7 @@
 #include "llvm/ProfileData/GCOV.h"
 #include "llvm/ProfileData/SampleProf.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Discriminator.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SymbolRemappingReader.h"
@@ -350,6 +351,22 @@ public:
   /// Read and validate the file header.
   virtual std::error_code readHeader() = 0;
 
+  /// Set the bits for FS discriminators. Parameter Pass specify the sequence
+  /// number, Pass == i is for the i-th round of adding FS discriminators.
+  /// Pass == 0 is for using base discriminators.
+  void setDiscriminatorMaskedBitFrom(FSDiscriminatorPass P) {
+    MaskedBitFrom = getFSPassBitEnd(P);
+  }
+
+  /// Get the bitmask the discriminators: For FS profiles, return the bit
+  /// mask for this pass. For non FS profiles, return (unsigned) -1.
+  uint32_t getDiscriminatorMask() const {
+    if (!ProfileIsFS)
+      return 0xFFFFFFFF;
+    assert((MaskedBitFrom != 0) && "MaskedBitFrom is not set properly");
+    return getN1Bits(MaskedBitFrom);
+  }
+
   /// The interface to read sample profiles from the associated file.
   std::error_code read() {
     if (std::error_code EC = readImpl())
@@ -422,14 +439,18 @@ public:
 
   /// Create a sample profile reader appropriate to the file format.
   /// Create a remapper underlying if RemapFilename is not empty.
+  /// Parameter P specifies the FSDiscriminatorPass.
   static ErrorOr<std::unique_ptr<SampleProfileReader>>
   create(const std::string Filename, LLVMContext &C,
+         FSDiscriminatorPass P = FSDiscriminatorPass::Base,
          const std::string RemapFilename = "");
 
   /// Create a sample profile reader from the supplied memory buffer.
   /// Create a remapper underlying if RemapFilename is not empty.
+  /// Parameter P specifies the FSDiscriminatorPass.
   static ErrorOr<std::unique_ptr<SampleProfileReader>>
   create(std::unique_ptr<MemoryBuffer> &B, LLVMContext &C,
+         FSDiscriminatorPass P = FSDiscriminatorPass::Base,
          const std::string RemapFilename = "");
 
   /// Return the profile summary.
@@ -505,6 +526,9 @@ protected:
   /// Number of context-sensitive profiles.
   uint32_t CSProfileCount = 0;
 
+  /// Whether the function profiles use FS discriminators.
+  bool ProfileIsFS = false;
+
   /// \brief The format of sample.
   SampleProfileFormat Format = SPF_None;
 
@@ -512,6 +536,10 @@ protected:
   /// is used by compiler. If SampleProfileReader is used by other
   /// tools which are not compiler, M is usually nullptr.
   const Module *M = nullptr;
+
+  /// Zero out the discriminator bits higher than bit MaskedBitFrom (0 based).
+  /// The default is to keep all the bits.
+  uint32_t MaskedBitFrom = 31;
 };
 
 class SampleProfileReaderText : public SampleProfileReader {

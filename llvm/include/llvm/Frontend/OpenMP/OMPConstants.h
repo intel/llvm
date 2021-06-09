@@ -111,11 +111,18 @@ inline std::string getAllAssumeClauseOptions() {
 /// Todo: Update kmp.h to include this file, and remove the enums in kmp.h
 ///       To complete this, more enum values will need to be moved here.
 enum class OMPScheduleType {
-  Static = 34, /**< static unspecialized */
+  Static = 34, // static unspecialized
   DynamicChunked = 35,
+  GuidedChunked = 36, // guided unspecialized
+  Runtime = 37,
+  Auto = 38, // auto
+
+  ModifierMonotonic =
+      (1 << 29), // Set if the monotonic schedule modifier was present
   ModifierNonmonotonic =
-      (1 << 30), /**< Set if the nonmonotonic schedule modifier was present */
-  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue */ ModifierNonmonotonic)
+      (1 << 30), // Set if the nonmonotonic schedule modifier was present
+  ModifierMask = ModifierMonotonic | ModifierNonmonotonic,
+  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue */ ModifierMask)
 };
 
 } // end namespace omp

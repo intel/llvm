@@ -30,11 +30,18 @@ std::unique_ptr<OperationPass<FuncOp>>
 createLinalgTilingToParallelLoopsPass(ArrayRef<int64_t> tileSizes = {});
 
 std::unique_ptr<OperationPass<FuncOp>>
-createLinalgTilingToTiledLoopPass(ArrayRef<int64_t> tileSizes = {});
+createLinalgTilingToTiledLoopPass(ArrayRef<int64_t> tileSizes = {},
+                                  ArrayRef<StringRef> distributionTypes = {});
 
 std::unique_ptr<OperationPass<FuncOp>>
 createLinalgPromotionPass(bool dynamicBuffers, bool useAlloca);
 std::unique_ptr<OperationPass<FuncOp>> createLinalgPromotionPass();
+
+std::unique_ptr<OperationPass<FuncOp>> createLinalgInlineScalarOperandsPass();
+
+/// Create a pass to convert Linalg tiled loops to `scf.for` and `scf.parallel`
+/// loops and memref.load/memref.store accesses.
+std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgTiledLoopsToSCFPass();
 
 /// Create a pass to convert Linalg operations to scf.for loops and
 /// memref.load/memref.store accesses.
@@ -48,6 +55,12 @@ std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToParallelLoopsPass();
 /// affine_load/affine_store accesses.
 /// Placeholder for now, this is NYI.
 std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToAffineLoopsPass();
+
+/// Create a pass that bufferizes the body of a FuncOp and tries to reuse the
+/// buffers for those arguments that:
+///   a) have been annotated 'inplaceable' and
+///   b) whose buffer uses would be free of memory hazards.
+std::unique_ptr<Pass> createLinalgComprehensiveFuncBufferizePass();
 
 /// Create a pass to convert Linalg operations which work on tensors to use
 /// buffers instead.

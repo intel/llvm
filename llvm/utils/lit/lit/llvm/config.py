@@ -401,19 +401,27 @@ class LLVMConfig(object):
 
         self.add_err_msg_substitutions()
 
-    def use_llvm_tool(self, name, search_env=None, required=False, quiet=False):
+    def use_llvm_tool(self, name, search_env=None, required=False, quiet=False,
+                      search_paths=None, use_installed=False):
         """Find the executable program 'name', optionally using the specified
-        environment variable as an override before searching the
-        configuration's PATH."""
+        environment variable as an override before searching the build directory
+        and then optionally the configuration's PATH."""
         # If the override is specified in the environment, use it without
         # validation.
+        tool = None
         if search_env:
             tool = self.config.environment.get(search_env)
-            if tool:
-                return tool
 
-        # Otherwise look in the path.
-        tool = lit.util.which(name, self.config.environment['PATH'])
+        if not tool:
+            if search_paths is None:
+                search_paths = [self.config.llvm_tools_dir]
+            # Use the specified search paths.
+            path = os.pathsep.join(search_paths)
+            tool = lit.util.which(name, path)
+
+        if not tool and use_installed:
+            # Otherwise look in the path, if enabled.
+            tool = lit.util.which(name, self.config.environment['PATH'])
 
         if required and not tool:
             message = "couldn't find '{}' program".format(name)
@@ -429,11 +437,11 @@ class LLVMConfig(object):
         return tool
 
     def use_clang(self, additional_tool_dirs=[], additional_flags=[],
-                  required=True):
+                  required=True, use_installed=False):
         """Configure the test suite to be able to invoke clang.
 
         Sets up some environment variables important to clang, locates a
-        just-built or installed clang, and add a set of standard
+        just-built or optionally an installed clang, and add a set of standard
         substitutions useful to any test suite that makes use of clang.
 
         """
@@ -483,10 +491,10 @@ class LLVMConfig(object):
             'llvm_shlib_dir',
             'llvm_libs_dir',
             ]
-        paths = [getattr(self.config, pp) for pp in lib_dir_props
-                 if getattr(self.config, pp, None)]
+        lib_paths = [getattr(self.config, pp) for pp in lib_dir_props
+                     if getattr(self.config, pp, None)]
 
-        self.with_environment('LD_LIBRARY_PATH', paths, append_path=True)
+        self.with_environment('LD_LIBRARY_PATH', lib_paths, append_path=True)
 
         shl = getattr(self.config, 'llvm_shlib_dir', None)
         pext = getattr(self.config, 'llvm_plugin_ext', None)
@@ -497,7 +505,8 @@ class LLVMConfig(object):
 
         # Discover the 'clang' and 'clangcc' to use.
         self.config.clang = self.use_llvm_tool(
-            'clang', search_env='CLANG', required=required)
+            'clang', search_env='CLANG', required=required,
+            search_paths=paths, use_installed=use_installed)
         if self.config.clang:
           self.config.available_features.add('clang')
           builtin_include_dir = self.get_clang_builtin_include_dir(
@@ -569,11 +578,12 @@ class LLVMConfig(object):
             (' %clang-cl ',
              '''\"*** invalid substitution, use '%clang_cl'. ***\"'''))
 
-    def use_lld(self, additional_tool_dirs=[], required=True):
+    def use_lld(self, additional_tool_dirs=[], required=True,
+                use_installed=False):
         """Configure the test suite to be able to invoke lld.
 
         Sets up some environment variables important to lld, locates a
-        just-built or installed lld, and add a set of standard
+        just-built or optionally an installed lld, and add a set of standard
         substitutions useful to any test suite that makes use of lld.
 
         """
@@ -588,27 +598,40 @@ class LLVMConfig(object):
 
         lib_dir_props = [self.config.name.lower() + '_libs_dir',
                          'lld_libs_dir', 'llvm_libs_dir']
-        paths = [getattr(self.config, pp) for pp in lib_dir_props
-                 if getattr(self.config, pp, None)]
+        lib_paths = [getattr(self.config, pp) for pp in lib_dir_props
+                     if getattr(self.config, pp, None)]
 
-        self.with_environment('LD_LIBRARY_PATH', paths, append_path=True)
+        self.with_environment('LD_LIBRARY_PATH', lib_paths, append_path=True)
 
-        # Discover the 'clang' and 'clangcc' to use.
+        # Discover the LLD executables to use.
 
-        ld_lld = self.use_llvm_tool('ld.lld', required=required)
-        lld_link = self.use_llvm_tool('lld-link', required=required)
-        ld64_lld = self.use_llvm_tool('ld64.lld', required=required)
-        wasm_ld = self.use_llvm_tool('wasm-ld', required=required)
+        ld_lld = self.use_llvm_tool('ld.lld', required=required,
+                                    search_paths=paths,
+                                    use_installed=use_installed)
+        lld_link = self.use_llvm_tool('lld-link', required=required,
+                                      search_paths=paths,
+                                      use_installed=use_installed)
+        ld64_lld = self.use_llvm_tool('ld64.lld', required=required,
+                                      search_paths=paths,
+                                      use_installed=use_installed)
+        wasm_ld = self.use_llvm_tool('wasm-ld', required=required,
+                                     search_paths=paths,
+                                     use_installed=use_installed)
 
         was_found = ld_lld and lld_link and ld64_lld and wasm_ld
         tool_substitutions = []
         if ld_lld:
             tool_substitutions.append(ToolSubst(r'ld\.lld', command=ld_lld))
+            self.config.available_features.add('ld.lld')
         if lld_link:
             tool_substitutions.append(ToolSubst('lld-link', command=lld_link))
+            self.config.available_features.add('lld-link')
         if ld64_lld:
             tool_substitutions.append(ToolSubst(r'ld64\.lld', command=ld64_lld))
+            self.config.available_features.add('ld64.lld')
         if wasm_ld:
             tool_substitutions.append(ToolSubst('wasm-ld', command=wasm_ld))
+            self.config.available_features.add('wasm-ld')
         self.add_tool_substitutions(tool_substitutions)
+
         return was_found
