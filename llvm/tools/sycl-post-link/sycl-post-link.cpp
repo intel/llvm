@@ -169,7 +169,6 @@ struct ImagePropSaveInfo {
   bool SpecConstsMet;
   bool EmitKernelParamInfo;
   bool IsEsimdKernel;
-  bool IsAssertEnabled;
 };
 
 static void error(const Twine &Msg) {
@@ -485,10 +484,12 @@ static string_vector saveDeviceImageProperty(
           {"isEsimdImage", true});
     }
 
-    if (ImgPSInfo.IsAssertEnabled) {
+    {
       Module *M = ResultModules[I].get();
       std::vector<Function *> SyclKernels;
       for (auto &F : M->functions()) {
+        // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
+        // TODO: handle function pointers.
         if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
           if (hasAssertInFunctionCallGraph(&F)) {
             SyclKernels.push_back(&F);
@@ -645,8 +646,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   {
     ImagePropSaveInfo ImgPSInfo = {
         true,          DoSpecConst,         SetSpecConstAtRT,
-        SpecConstsMet, EmitKernelParamInfo, IsEsimd,
-        true};
+        SpecConstsMet, EmitKernelParamInfo, IsEsimd};
     string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_PROPS]));

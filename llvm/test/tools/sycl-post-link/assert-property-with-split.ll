@@ -1,3 +1,7 @@
+; This test checks that the post-link tool properly generates "assert used"
+; property in split mode - it should include only kernels that call assertions
+; in their call graph.
+
 ; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop
 
@@ -13,11 +17,8 @@ target triple = "spir64-unknown-linux-sycldevice"
 @_ZL10assert_fmt = internal addrspace(2) constant [85 x i8] c"%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] Assertion `%s` failed.\0A\00", align 1
 
 ; CHECK: [SYCL/assert used]
-; CHECK-NOT: _ZTSZ4mainE11TU0_kernel1
-; CHECK-DAG: _ZTSZ4mainE11TU0_kernel0
-; CHECK-DAG: _ZTSZ4mainE10TU1_kernel
-; CHECK-NOT: _ZTSZ4mainE11TU0_kernel1
 
+; CHECK: _ZTSZ4mainE11TU0_kernel0
 define dso_local spir_kernel void @_ZTSZ4mainE11TU0_kernel0() #0 {
 entry:
   call spir_func void @_Z3foov()
@@ -35,6 +36,7 @@ entry:
   ret void
 }
 
+; CHECK-NOT: _ZTSZ4mainE11TU0_kernel1
 define dso_local spir_kernel void @_ZTSZ4mainE11TU0_kernel1() #0 {
 entry:
   call spir_func void @_Z4foo1v()
@@ -49,6 +51,7 @@ entry:
   ret void
 }
 
+; CHECK: _ZTSZ4mainE10TU1_kernel
 define dso_local spir_kernel void @_ZTSZ4mainE10TU1_kernel() #1 {
 entry:
   call spir_func void @_Z4foo2v()
@@ -80,52 +83,22 @@ entry:
 }
 
 ; Function Attrs: inlinehint norecurse mustprogress
-define weak dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv() local_unnamed_addr {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 0
-  ret i64 %1
-}
+declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv() local_unnamed_addr
 
 ; Function Attrs: inlinehint norecurse mustprogress
-define weak dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_yv() local_unnamed_addr {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 1
-  ret i64 %1
-}
+declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_yv() local_unnamed_addr
 
 ; Function Attrs: inlinehint norecurse mustprogress
-define weak dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_zv() local_unnamed_addr {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 2
-  ret i64 %1
-}
+declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_zv() local_unnamed_addr
 
 ; Function Attrs: inlinehint norecurse mustprogress
-define weak dso_local spir_func i64 @_Z27__spirv_LocalInvocationId_xv() local_unnamed_addr {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInLocalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 0
-  ret i64 %1
-}
+declare dso_local spir_func i64 @_Z27__spirv_LocalInvocationId_xv() local_unnamed_addr
 
 ; Function Attrs: inlinehint norecurse mustprogress
-define weak dso_local spir_func i64 @_Z27__spirv_LocalInvocationId_yv() local_unnamed_addr {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInLocalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 1
-  ret i64 %1
-}
+declare dso_local spir_func i64 @_Z27__spirv_LocalInvocationId_yv() local_unnamed_addr
 
 ; Function Attrs: inlinehint norecurse mustprogress
-define weak dso_local spir_func i64 @_Z27__spirv_LocalInvocationId_zv() local_unnamed_addr {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInLocalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 2
-  ret i64 %1
-}
+declare dso_local spir_func i64 @_Z27__spirv_LocalInvocationId_zv() local_unnamed_addr
 
 ; Function Attrs: convergent norecurse mustprogress
 define weak dso_local spir_func void @__devicelib_assert_fail(i8 addrspace(4)* %expr, i8 addrspace(4)* %file, i32 %line, i8 addrspace(4)* %func, i64 %gid0, i64 %gid1, i64 %gid2, i64 %lid0, i64 %lid1, i64 %lid2) local_unnamed_addr {

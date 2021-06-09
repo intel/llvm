@@ -1,3 +1,6 @@
+; This test checks that the post-link tool properly generates "assert used"
+; property - it should include only kernels that call assertions in their call
+; graph.
 
 ; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop
@@ -46,13 +49,8 @@ target triple = "spir64_x86_64-unknown-unknown-sycldevice"
 @_ZL10assert_fmt = internal addrspace(2) constant [85 x i8] c"%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] Assertion `%s` failed.\0A\00", align 1
 
 ; CHECK: [SYCL/assert used]
-; CHECK-DAG: _ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE9TeKernelEE
-; CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel
-; CHECK-DAG: _ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE10TheKernel3EE
-; CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3
-; CHECK-NOT: _ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE10TheKernel2EE
-; CHECK-NOT: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel2
 
+; CHECK: _ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE9TeKernelEE
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE9TeKernelEE"(%"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range") align 8 %_arg_, %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlNS1_4itemILi2ELb1EEEE_.anon"* byval(%"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlNS1_4itemILi2ELb1EEEE_.anon") align 1 %_arg_1) #0 {
 entry:
@@ -84,6 +82,7 @@ entry:
   ret void
 }
 
+; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel"() #0 {
 entry:
@@ -91,6 +90,7 @@ entry:
   ret void
 }
 
+; CHECK-NOT: _ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE10TheKernel2EE
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE10TheKernel2EE"(%"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range") align 8 %_arg_, %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlNS1_4itemILi2ELb1EEEE_.anon"* byval(%"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlNS1_4itemILi2ELb1EEEE_.anon") align 1 %_arg_1) #1 {
 entry:
@@ -107,12 +107,14 @@ entry:
   ret void
 }
 
+; CHECK-NOT: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel2
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel2"() #1 {
 entry:
   ret void
 }
 
+; CHECK: _ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE10TheKernel3EE
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE10TheKernel3EE"(%"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range") align 8 %_arg_, %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlNS1_4itemILi2ELb1EEEE_.anon"* byval(%"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlNS1_4itemILi2ELb1EEEE_.anon") align 1 %_arg_1) #0 {
 entry:
@@ -141,6 +143,7 @@ entry:
   ret void
 }
 
+; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3"() #0 {
 entry:
@@ -162,52 +165,22 @@ entry:
 }
 
 ; Function Attrs: inlinehint norecurse mustprogress
-define weak dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv() {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 0
-  ret i64 %1
-}
+declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv() local_unnamed_addr
 
 ; Function Attrs: inlinehint norecurse mustprogress
-define weak dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_yv() {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 1
-  ret i64 %1
-}
+declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_yv() local_unnamed_addr
 
 ; Function Attrs: inlinehint norecurse mustprogress
-define weak dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_zv() {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 2
-  ret i64 %1
-}
+declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_zv() local_unnamed_addr
 
 ; Function Attrs: inlinehint norecurse mustprogress
-define weak dso_local spir_func i64 @_Z27__spirv_LocalInvocationId_xv() {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInLocalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 0
-  ret i64 %1
-}
+declare dso_local spir_func i64 @_Z27__spirv_LocalInvocationId_xv() local_unnamed_addr
 
 ; Function Attrs: inlinehint norecurse mustprogress
-define weak dso_local spir_func i64 @_Z27__spirv_LocalInvocationId_yv() {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInLocalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 1
-  ret i64 %1
-}
+declare dso_local spir_func i64 @_Z27__spirv_LocalInvocationId_yv() local_unnamed_addr
 
 ; Function Attrs: inlinehint norecurse mustprogress
-define weak dso_local spir_func i64 @_Z27__spirv_LocalInvocationId_zv() {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInLocalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 2
-  ret i64 %1
-}
+declare dso_local spir_func i64 @_Z27__spirv_LocalInvocationId_zv() local_unnamed_addr
 
 ; Function Attrs: convergent norecurse mustprogress
 define weak dso_local spir_func void @__devicelib_assert_fail(i8 addrspace(4)* %expr, i8 addrspace(4)* %file, i32 %line, i8 addrspace(4)* %func, i64 %gid0, i64 %gid1, i64 %gid2, i64 %lid0, i64 %lid1, i64 %lid2) {
