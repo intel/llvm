@@ -3445,6 +3445,8 @@ def warn_attribute_wrong_decl_type_str : Warning<
   "%0 attribute only applies to %1">, InGroup<IgnoredAttributes>;
 def err_attribute_wrong_decl_type_str : Error<
   warn_attribute_wrong_decl_type_str.Text>;
+def err_attribute_only_system_header : Error<
+  "%0 attribute only supported within a system header">;
 def warn_attribute_wrong_decl_type : Warning<
   "%0 attribute only applies to %select{"
   "functions"
