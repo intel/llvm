@@ -568,6 +568,14 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
                SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
   });
 
+  // Allow the function attribute "use_stall_enable_clusters" only on lambda
+  // functions and function objects called directly from a kernel.
+  if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
+    if (DirectlyCalled) {
+      Attrs.push_back(A);
+    }
+  }
+
   // Attributes that should not be propagated from device functions to a kernel.
   if (DirectlyCalled) {
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
