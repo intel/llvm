@@ -304,8 +304,7 @@ context platform_impl::getDefaultContext() {
     return *MDefaultContext;
 
   // Lazily instantiate default context
-  auto Devices = get_devices();
-  MDefaultContext = std::make_shared<context>(Devices);
+  MDefaultContext = std::make_shared<context>(get_devices());
 
   return *MDefaultContext;
 }
