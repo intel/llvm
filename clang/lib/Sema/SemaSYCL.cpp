@@ -5023,7 +5023,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
 
-  llvm::SmallVector<const VarDecl*> VisitedSpecConstants;
+  llvm::SmallVector<const VarDecl *> VisitedSpecConstants;
 
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
