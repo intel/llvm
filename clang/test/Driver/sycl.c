@@ -3,6 +3,7 @@
 // RUN: %clang -### -fsycl -sycl-std=1.2.1 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fsycl -sycl-std=121 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fsycl -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
+// RUN: %clang -### -fsycl -sycl-std=2020 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fsycl -sycl-std=sycl-1.2.1 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fno-sycl -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
@@ -39,16 +40,16 @@
 // RUN: %clangxx -### -fsycl-device-only -fsycl-unnamed-lambda %s 2>&1 | FileCheck %s --check-prefix=CHECK-LAMBDA
 // RUN: %clang_cl -### -fsycl-device-only -fsycl-unnamed-lambda %s 2>&1 | FileCheck %s --check-prefix=CHECK-LAMBDA
 
-// DEFAULT: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-sycl-std=2020"{{.*}} "-emit-llvm-bc"
+// DEFAULT: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-sycl-std=2020"{{.*}} "-emit-llvm-bc"
 // DEFAULT: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
 // DEFAULT: "-internal-isystem" "{{.*lib.*clang.*include}}"
 // DEFAULT: "-std=c++17"
-// DEFAULT-NOT: "{{.*}}llvm-spirv"{{.*}} "-spirv-max-version=1.3"{{.*}} "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes,-SPV_INTEL_optnone"
+// DEFAULT-NOT: "{{.*}}llvm-spirv"{{.*}}
 // DEFAULT-NOT: "-std=c++11"
 // DEFAULT-NOT: "-std=c++14"
 // NO-BITCODE: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
-// NO-BITCODE: "{{.*}}llvm-spirv"{{.*}} "-spirv-max-version=1.3"{{.*}} "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes,-SPV_INTEL_optnone"
-// TARGET: "-triple" "spir64-unknown-linux-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
+// NO-BITCODE: "{{.*}}llvm-spirv"{{.*}}
+// TARGET: "-triple" "spir64-unknown-linux-sycldevice"{{.*}} "-emit-llvm-bc"
 // COMBINED: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // TEXTUAL: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm"
 // CHECK-LAMBDA: "-fsycl-unnamed-lambda"
@@ -58,13 +59,13 @@
 // RUN:  | FileCheck --check-prefix=DEVICE-64 %s
 // RUN: %clang_cl -fsycl-device-only --target=x86_64-unknown-linux-gnu -### %s 2>&1 \
 // RUN:  | FileCheck --check-prefix=DEVICE-64 %s
-// DEVICE-64: clang{{.*}} "-triple" "spir64-unknown-unknown-sycldevice" {{.*}} "-aux-triple" "x86_64-unknown-linux-gnu"
+// DEVICE-64: clang{{.*}} "-triple" "spir64-unknown-unknown-sycldevice" "-aux-triple" "x86_64-unknown-linux-gnu"
 
 // RUN: %clang -fsycl-device-only -target i386-unknown-linux-gnu -### %s 2>&1 \
 // RUN:  | FileCheck --check-prefix=DEVICE-32 %s
 // RUN: %clang_cl -fsycl-device-only --target=i386-unknown-linux-gnu -### %s 2>&1 \
 // RUN:  | FileCheck --check-prefix=DEVICE-32 %s
-// DEVICE-32: clang{{.*}} "-triple" "spir-unknown-unknown-sycldevice" {{.*}} "-aux-triple" "i386-unknown-linux-gnu"
+// DEVICE-32: clang{{.*}} "-triple" "spir-unknown-unknown-sycldevice" "-aux-triple" "i386-unknown-linux-gnu"
 
 /// Verify that the sycl header directory is before /usr/include
 // RUN: %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=HEADER_ORDER
@@ -109,3 +110,9 @@
 // RUN: %clang_cl -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=NO_ID_QUERIES
 // ID_QUERIES: "-fsycl-id-queries-fit-in-int"
 // NO_ID_QUERIES: "-fno-sycl-id-queries-fit-in-int"
+
+// RUN: %clang -### -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
+// RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
+// RUN: %clang_cl -### -fsycl -- %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
+
+// DEFAULT_STD: "-sycl-std=2020"

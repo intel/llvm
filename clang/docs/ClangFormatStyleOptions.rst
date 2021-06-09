@@ -37,7 +37,7 @@ The configuration file can consist of several sections each having different
 ``Language:`` parameter denoting the programming language this section of the
 configuration is targeted at. See the description of the **Language** option
 below for the list of supported languages. The first section may have no
-language set, it will set the default style options for all lanugages.
+language set, it will set the default style options for all languages.
 Configuration sections for specific language will override options set in the
 default section.
 
@@ -773,7 +773,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 **AllowShortIfStatementsOnASingleLine** (``ShortIfStyle``)
-  If ``true``, ``if (a) return;`` can be put on a single line.
+  Dependent on the value, ``if (a) return;`` can be put on a single line.
 
   Possible values:
 
@@ -783,28 +783,67 @@ the configuration (without a prefix: ``Auto``).
     .. code-block:: c++
 
       if (a)
-        return ;
+        return;
+
+      if (b)
+        return;
+      else
+        return;
+
+      if (c)
+        return;
       else {
         return;
       }
 
   * ``SIS_WithoutElse`` (in configuration: ``WithoutElse``)
-    Without else put short ifs on the same line only if
-    the else is not a compound statement.
+    Put short ifs on the same line only if there is no else statement.
 
     .. code-block:: c++
 
       if (a) return;
+
+      if (b)
+        return;
       else
         return;
 
-  * ``SIS_Always`` (in configuration: ``Always``)
-    Always put short ifs on the same line if
-    the else is not a compound statement or not.
+      if (c)
+        return;
+      else {
+        return;
+      }
+
+  * ``SIS_OnlyFirstIf`` (in configuration: ``OnlyFirstIf``)
+    Put short ifs, but not else ifs nor else statements, on the same line.
 
     .. code-block:: c++
 
       if (a) return;
+
+      if (b) return;
+      else if (b)
+        return;
+      else
+        return;
+
+      if (c) return;
+      else {
+        return;
+      }
+
+  * ``SIS_AllIfsAndElse`` (in configuration: ``AllIfsAndElse``)
+    Always put short ifs, else ifs and else statements on the same
+    line.
+
+    .. code-block:: c++
+
+      if (a) return;
+
+      if (b) return;
+      else return;
+
+      if (c) return;
       else {
         return;
       }
@@ -1999,6 +2038,15 @@ the configuration (without a prefix: ``Auto``).
            Base2
        {};
 
+  * ``BILS_AfterComma`` (in configuration: ``AfterComma``)
+    Break inheritance list only after the commas.
+
+    .. code-block:: c++
+
+       class Foo : Base1,
+                   Base2
+       {};
+
 
 
 **BreakStringLiterals** (``bool``)
@@ -2128,6 +2176,59 @@ the configuration (without a prefix: ``Auto``).
 **DisableFormat** (``bool``)
   Disables formatting completely.
 
+**EmptyLineAfterAccessModifier** (``EmptyLineAfterAccessModifierStyle``)
+  Defines when to put an empty line after access modifiers.
+  ``EmptyLineBeforeAccessModifier`` configuration handles the number of
+  empty lines between two access modifiers.
+
+  Possible values:
+
+  * ``ELAAMS_Never`` (in configuration: ``Never``)
+    Remove all empty lines after access modifiers.
+
+    .. code-block:: c++
+
+      struct foo {
+      private:
+        int i;
+      protected:
+        int j;
+        /* comment */
+      public:
+        foo() {}
+      private:
+      protected:
+      };
+
+  * ``ELAAMS_Leave`` (in configuration: ``Leave``)
+    Keep existing empty lines after access modifiers.
+    MaxEmptyLinesToKeep is applied instead.
+
+  * ``ELAAMS_Always`` (in configuration: ``Always``)
+    Always add empty line after access modifiers if there are none.
+    MaxEmptyLinesToKeep is applied also.
+
+    .. code-block:: c++
+
+      struct foo {
+      private:
+
+        int i;
+      protected:
+
+        int j;
+        /* comment */
+      public:
+
+        foo() {}
+      private:
+
+      protected:
+
+      };
+
+
+
 **EmptyLineBeforeAccessModifier** (``EmptyLineBeforeAccessModifierStyle``)
   Defines in which cases to put empty line before access modifiers.
 
@@ -2210,14 +2311,16 @@ the configuration (without a prefix: ``Auto``).
   not use this in config files, etc. Use at your own risk.
 
 **FixNamespaceComments** (``bool``)
-  If ``true``, clang-format adds missing namespace end comments and
-  fixes invalid existing ones.
+  If ``true``, clang-format adds missing namespace end comments for
+  short namespaces and fixes invalid existing ones. Short ones are
+  controlled by "ShortNamespaceLines".
 
   .. code-block:: c++
 
      true:                                  false:
      namespace a {                  vs.     namespace a {
      foo();                                 foo();
+     bar();                                 bar();
      } // namespace a                       }
 
 **ForEachMacros** (``std::vector<std::string>``)
@@ -2359,6 +2462,33 @@ the configuration (without a prefix: ``Auto``).
   also being respected in later phase). Without this option set,
   ``ClassImpl.hpp`` would not have the main include file put on top
   before any other include.
+
+**IndentAccessModifiers** (``bool``)
+  Specify whether access modifiers should have their own indentation level.
+
+  When ``false``, access modifiers are indented (or outdented) relative to
+  the record members, respecting the ``AccessModifierOffset``. Record
+  members are indented one level below the record.
+  When ``true``, access modifiers get their own indentation level. As a
+  consequence, record members are always indented 2 levels below the record,
+  regardless of the access modifier presence. Value of the
+  ``AccessModifierOffset`` is ignored.
+
+  .. code-block:: c++
+
+     false:                                 true:
+     class C {                      vs.     class C {
+       class D {                                class D {
+         void bar();                                void bar();
+       protected:                                 protected:
+         D();                                       D();
+       };                                       };
+     public:                                  public:
+       C();                                     C();
+     };                                     };
+     void foo() {                           void foo() {
+       return 1;                              return 1;
+     }                                      }
 
 **IndentCaseBlocks** (``bool``)
   Indent case label blocks one level from the case label.
@@ -2903,6 +3033,21 @@ the configuration (without a prefix: ``Auto``).
   Add a space in front of an Objective-C protocol list, i.e. use
   ``Foo <Protocol>`` instead of ``Foo<Protocol>``.
 
+**PPIndentWidth** (``int``)
+  The number of columns to use for indentation of preprocessor statements.
+  When set to -1 (default) ``IndentWidth`` is used also for preprocessor
+  statements.
+
+  .. code-block:: c++
+
+     PPIndentWidth: 1
+
+     #ifdef __linux__
+     # define FOO
+     #else
+     # define BAR
+     #endif
+
 **PenaltyBreakAssignment** (``unsigned``)
   The penalty for breaking around an assignment operator.
 
@@ -3013,43 +3158,72 @@ the configuration (without a prefix: ``Auto``).
      /* second veryVeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongComment with plenty of
       * information */
 
+**ShortNamespaceLines** (``unsigned``)
+  The maximal number of unwrapped lines that a short namespace spans.
+  Defaults to 1.
+
+  This determines the maximum length of short namespaces by counting
+  unwrapped lines (i.e. containing neither opening nor closing
+  namespace brace) and makes "FixNamespaceComments" omit adding
+  end comments for those.
+
+  .. code-block:: c++
+
+     ShortNamespaceLines: 1     vs.     ShortNamespaceLines: 0
+     namespace a {                      namespace a {
+       int foo;                           int foo;
+     }                                  } // namespace a
+
+     ShortNamespaceLines: 1     vs.     ShortNamespaceLines: 0
+     namespace b {                      namespace b {
+       int foo;                           int foo;
+       int bar;                           int bar;
+     } // namespace b                   } // namespace b
+
 **SortIncludes** (``SortIncludesOptions``)
   Controls if and how clang-format will sort ``#includes``.
+  If ``Never``, includes are never sorted.
+  If ``CaseInsensitive``, includes are sorted in an ASCIIbetical or case
+  insensitive fashion.
+  If ``CaseSensitive``, includes are sorted in an alphabetical or case
+  sensitive fashion.
 
-  Possible Values:
+  Possible values:
 
-  * ``SI_Never`` (in configuration ``Never``)
+  * ``SI_Never`` (in configuration: ``Never``)
     Includes are never sorted.
 
     .. code-block:: c++
 
-      #include "B/A.h"
-      #include "A/B.h"
-      #include "a/b.h"
-      #include "A/b.h"
-      #include "B/a.h"
+       #include "B/A.h"
+       #include "A/B.h"
+       #include "a/b.h"
+       #include "A/b.h"
+       #include "B/a.h"
 
-  * ``SI_CaseInsensitive`` (in configuration ``CaseInsensitive``)
-    Includes are sorted in an ASCIIbetical or case insensitive fashion.
-
-    .. code-block:: c++
-
-      #include "A/B.h"
-      #include "A/b.h"
-      #include "B/A.h"
-      #include "B/a.h"
-      #include "a/b.h"
-
-  * ``SI_CaseSensitive`` (in configuration ``CaseSensitive``)
-    Includes are sorted in an alphabetical or case sensitive fashion.
+  * ``SI_CaseSensitive`` (in configuration: ``CaseSensitive``)
+    Includes are sorted in an ASCIIbetical or case sensitive fashion.
 
     .. code-block:: c++
 
-      #include "A/B.h"
-      #include "A/b.h"
-      #include "a/b.h"
-      #include "B/A.h"
-      #include "B/a.h"
+       #include "A/B.h"
+       #include "A/b.h"
+       #include "B/A.h"
+       #include "B/a.h"
+       #include "a/b.h"
+
+  * ``SI_CaseInsensitive`` (in configuration: ``CaseInsensitive``)
+    Includes are sorted in an alphabetical or case insensitive fashion.
+
+    .. code-block:: c++
+
+       #include "A/B.h"
+       #include "A/b.h"
+       #include "a/b.h"
+       #include "B/A.h"
+       #include "B/a.h"
+
+
 
 **SortJavaStaticImport** (``SortJavaStaticImportOptions``)
   When sorting Java imports, by default static imports are placed before
@@ -3335,15 +3509,32 @@ the configuration (without a prefix: ``Auto``).
        }             // foo
      }
 
-**SpacesInAngles** (``bool``)
-  If ``true``, spaces will be inserted after ``<`` and before ``>``
-  in template argument lists.
+**SpacesInAngles** (``SpacesInAnglesStyle``)
+  The SpacesInAnglesStyle to use for template argument lists.
 
-  .. code-block:: c++
+  Possible values:
 
-     true:                                  false:
-     static_cast< int >(arg);       vs.     static_cast<int>(arg);
-     std::function< void(int) > fct;        std::function<void(int)> fct;
+  * ``SIAS_Never`` (in configuration: ``Never``)
+    Remove spaces after ``<`` and before ``>``.
+
+    .. code-block:: c++
+
+       static_cast<int>(arg);
+       std::function<void(int)> fct;
+
+  * ``SIAS_Always`` (in configuration: ``Always``)
+    Add spaces after ``<`` and before ``>``.
+
+    .. code-block:: c++
+
+       static_cast< int >(arg);
+       std::function< void(int) > fct;
+
+  * ``SIAS_Leave`` (in configuration: ``Leave``)
+    Keep a single space after ``<`` and before ``>`` if any spaces were
+    present. Option ``Standard: Cpp03`` takes precedence.
+
+
 
 **SpacesInCStyleCastParentheses** (``bool``)
   If ``true``, spaces may be inserted into C style casts.
@@ -3655,7 +3846,7 @@ The result is:
           break;
       }
       if (condition)
-          do_somthing_completely_different();
+          do_something_completely_different();
 
       if (x == y)
       {

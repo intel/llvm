@@ -81,9 +81,8 @@ QuantizedConstRewrite::matchAndRewrite(QuantizeCastOp qbarrier,
 
   // When creating the new const op, use a fused location that combines the
   // original const and the qbarrier that led to the quantization.
-  auto fusedLoc = FusedLoc::get(
-      {qbarrier.arg().getDefiningOp()->getLoc(), qbarrier.getLoc()},
-      rewriter.getContext());
+  auto fusedLoc = rewriter.getFusedLoc(
+      {qbarrier.arg().getDefiningOp()->getLoc(), qbarrier.getLoc()});
   auto newConstOp =
       rewriter.create<ConstantOp>(fusedLoc, newConstValueType, newConstValue);
   rewriter.replaceOpWithNewOp<StorageCastOp>(qbarrier, qbarrier.getType(),
@@ -92,10 +91,10 @@ QuantizedConstRewrite::matchAndRewrite(QuantizeCastOp qbarrier,
 }
 
 void ConvertConstPass::runOnFunction() {
-  OwningRewritePatternList patterns;
+  RewritePatternSet patterns(&getContext());
   auto func = getFunction();
   auto *context = &getContext();
-  patterns.insert<QuantizedConstRewrite>(context);
+  patterns.add<QuantizedConstRewrite>(context);
   (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
 }
 

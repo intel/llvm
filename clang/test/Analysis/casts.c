@@ -245,3 +245,15 @@ double no_crash_reinterpret_double_as_sym_ptr(double a, void * b) {
   return a * a;
 }
 
+void no_crash_reinterpret_char_as_uchar(char ***a, int *b) {
+  *(unsigned char **)a = (unsigned char *)b;
+  if (**a == 0) // no-crash
+    ;
+}
+
+// PR50179.
+struct S {};
+void symbolic_offset(struct S *ptr, int i) {
+  const struct S *pS = ptr + i;
+  struct S s = *pS; // no-crash
+}

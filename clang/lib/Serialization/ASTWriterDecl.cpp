@@ -13,7 +13,6 @@
 #include "ASTCommon.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/DeclCXX.h"
-#include "clang/AST/DeclContextInternals.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclVisitor.h"
 #include "clang/AST/Expr.h"
@@ -69,6 +68,7 @@ namespace clang {
     void VisitTypedefDecl(TypedefDecl *D);
     void VisitTypeAliasDecl(TypeAliasDecl *D);
     void VisitUnresolvedUsingTypenameDecl(UnresolvedUsingTypenameDecl *D);
+    void VisitUnresolvedUsingIfExistsDecl(UnresolvedUsingIfExistsDecl *D);
     void VisitTagDecl(TagDecl *D);
     void VisitEnumDecl(EnumDecl *D);
     void VisitRecordDecl(RecordDecl *D);
@@ -673,6 +673,7 @@ static void addExplicitSpecifier(ExplicitSpecifier ES,
 
 void ASTDeclWriter::VisitCXXDeductionGuideDecl(CXXDeductionGuideDecl *D) {
   addExplicitSpecifier(D->getExplicitSpecifier(), Record);
+  Record.AddDeclRef(D->Ctor);
   VisitFunctionDecl(D);
   Record.push_back(D->isCopyDeductionCandidate());
   Code = serialization::DECL_CXX_DEDUCTION_GUIDE;
@@ -1333,6 +1334,12 @@ void ASTDeclWriter::VisitUnresolvedUsingTypenameDecl(
   Code = serialization::DECL_UNRESOLVED_USING_TYPENAME;
 }
 
+void ASTDeclWriter::VisitUnresolvedUsingIfExistsDecl(
+    UnresolvedUsingIfExistsDecl *D) {
+  VisitNamedDecl(D);
+  Code = serialization::DECL_UNRESOLVED_USING_IF_EXISTS;
+}
+
 void ASTDeclWriter::VisitCXXRecordDecl(CXXRecordDecl *D) {
   VisitRecordDecl(D);
 
@@ -1390,7 +1397,7 @@ void ASTDeclWriter::VisitCXXMethodDecl(CXXMethodDecl *D) {
 }
 
 void ASTDeclWriter::VisitCXXConstructorDecl(CXXConstructorDecl *D) {
-  Record.push_back(D->getTraillingAllocKind());
+  Record.push_back(D->getTrailingAllocKind());
   addExplicitSpecifier(D->getExplicitSpecifier(), Record);
   if (auto Inherited = D->getInheritedConstructor()) {
     Record.AddDeclRef(Inherited.getShadowDecl());

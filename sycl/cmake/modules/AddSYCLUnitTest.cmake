@@ -45,13 +45,6 @@ macro(add_sycl_unittest test_dirname link_variant)
         -Wno-inconsistent-missing-override
     )
   endif()
-  # LLVM gtest uses LLVM utilities that require C++-14
-  # CXX_STANDARD_REQUIRED makes CXX_STANDARD a hard requirement.
-  set_target_properties(${test_dirname}
-    PROPERTIES
-      CXX_STANDARD 14
-      CXX_STANDARD_REQUIRED ON
-    )
 endmacro()
 
 macro(add_sycl_unittest_with_device test_dirname link_variant)

@@ -40,6 +40,24 @@ func @extract(%arg0 : vector<2xf32>) {
 
 // -----
 
+module attributes { spv.target_env = #spv.target_env<#spv.vce<v1.0, [Float16], []>, {}> } {
+
+// CHECK-LABEL: func @extract_scalar
+//  CHECK-SAME: %[[ARG0:.+]]: vector<2xf16>
+//  CHECK-SAME: %[[ARG1:.+]]: vector<4xf32>
+//       CHECK:   %[[S:.+]] = spv.Bitcast %[[ARG0]] : vector<2xf16> to f32
+//       CHECK:   spv.CompositeInsert %[[S]], %[[ARG1]][0 : i32] : f32 into vector<4xf32>
+func @extract_scalar(%arg0 : vector<2xf16>, %arg1 : vector<4xf32>) {
+  %0 = vector.bitcast %arg0 : vector<2xf16> to vector<1xf32>
+  %1 = vector.extract %0[0] : vector<1xf32>
+  %2 = vector.insert %1, %arg1[0] : f32 into vector<4xf32>
+  spv.Return
+}
+
+} // end module
+
+// -----
+
 // CHECK-LABEL: extract_insert
 //  CHECK-SAME: %[[V:.*]]: vector<4xf32>
 //       CHECK:   %[[S:.*]] = spv.CompositeExtract %[[V]][1 : i32] : vector<4xf32>
@@ -73,8 +91,10 @@ func @extract_element_negative(%arg0 : vector<5xf32>, %id : i32) {
 // CHECK-LABEL: func @extract_strided_slice
 //  CHECK-SAME: %[[ARG:.+]]: vector<4xf32>
 //       CHECK: %{{.+}} = spv.VectorShuffle [1 : i32, 2 : i32] %[[ARG]] : vector<4xf32>, %[[ARG]] : vector<4xf32> -> vector<2xf32>
+//       CHECK: %{{.+}} = spv.CompositeExtract %[[ARG]][1 : i32] : vector<4xf32>
 func @extract_strided_slice(%arg0: vector<4xf32>) {
   %0 = vector.extract_strided_slice %arg0 {offsets = [1], sizes = [2], strides = [1]} : vector<4xf32> to vector<2xf32>
+  %1 = vector.extract_strided_slice %arg0 {offsets = [1], sizes = [1], strides = [1]} : vector<4xf32> to vector<1xf32>
   spv.Return
 }
 

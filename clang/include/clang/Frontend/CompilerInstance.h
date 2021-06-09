@@ -22,6 +22,7 @@
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/BuryPointer.h"
+#include "llvm/Support/FileSystem.h"
 #include <cassert>
 #include <list>
 #include <memory>
@@ -150,7 +151,7 @@ class CompilerInstance : public ModuleLoader {
   bool HaveFullGlobalModuleIndex = false;
 
   /// One or more modules failed to build.
-  bool ModuleBuildFailed = false;
+  bool DisableGeneratingGlobalModuleIndex = false;
 
   /// The stream for verbose output if owned, otherwise nullptr.
   std::unique_ptr<raw_ostream> OwnedVerboseOutputStream;
@@ -165,11 +166,10 @@ class CompilerInstance : public ModuleLoader {
   /// failed.
   struct OutputFile {
     std::string Filename;
-    std::string TempFilename;
+    Optional<llvm::sys::fs::TempFile> File;
 
-    OutputFile(std::string filename, std::string tempFilename)
-        : Filename(std::move(filename)), TempFilename(std::move(tempFilename)) {
-    }
+    OutputFile(std::string filename, Optional<llvm::sys::fs::TempFile> file)
+        : Filename(std::move(filename)), File(std::move(file)) {}
   };
 
   /// The list of active output files.
@@ -381,6 +381,9 @@ public:
 
   /// Replace the current AuxTarget.
   void setAuxTarget(TargetInfo *Value);
+
+  // Create Target and AuxTarget based on current options
+  bool createTarget();
 
   /// }
   /// @name Virtual File System

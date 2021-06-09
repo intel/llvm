@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/GCMetadata.h"
-#include "llvm/CodeGen/GCStrategy.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -317,8 +316,8 @@ bool GCMachineCodeAnalysis::runOnMachineFunction(MachineFunction &MF) {
   // size, we use UINT64_MAX to represent this.
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo *RegInfo = MF.getSubtarget().getRegisterInfo();
-  const bool DynamicFrameSize = MFI.hasVarSizedObjects() ||
-    RegInfo->needsStackRealignment(MF);
+  const bool DynamicFrameSize =
+      MFI.hasVarSizedObjects() || RegInfo->hasStackRealignment(MF);
   FI->setFrameSize(DynamicFrameSize ? UINT64_MAX : MFI.getStackSize());
 
   // Find all safe points.

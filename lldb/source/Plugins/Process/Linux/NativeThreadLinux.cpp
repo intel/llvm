@@ -8,7 +8,7 @@
 
 #include "NativeThreadLinux.h"
 
-#include <signal.h>
+#include <csignal>
 #include <sstream>
 
 #include "NativeProcessLinux.h"
@@ -76,6 +76,9 @@ void LogThreadStopInfo(Log &log, const ThreadStopInfo &stop_info,
     return;
   case eStopReasonInstrumentation:
     log.Printf("%s: %s instrumentation", __FUNCTION__, header);
+    return;
+  case eStopReasonProcessorTrace:
+    log.Printf("%s: %s processor trace", __FUNCTION__, header);
     return;
   default:
     log.Printf("%s: %s invalid stop reason %" PRIu32, __FUNCTION__, header,
@@ -391,11 +394,35 @@ void NativeThreadLinux::SetStoppedByTrace() {
   m_stop_info.details.signal.signo = SIGTRAP;
 }
 
+void NativeThreadLinux::SetStoppedByFork(bool is_vfork, lldb::pid_t child_pid) {
+  SetStopped();
+
+  m_stop_info.reason =
+      is_vfork ? StopReason::eStopReasonVFork : StopReason::eStopReasonFork;
+  m_stop_info.details.fork.child_pid = child_pid;
+  m_stop_info.details.fork.child_tid = child_pid;
+}
+
+void NativeThreadLinux::SetStoppedByVForkDone() {
+  SetStopped();
+
+  m_stop_info.reason = StopReason::eStopReasonVForkDone;
+}
+
 void NativeThreadLinux::SetStoppedWithNoReason() {
   SetStopped();
 
   m_stop_info.reason = StopReason::eStopReasonNone;
   m_stop_info.details.signal.signo = 0;
+}
+
+void NativeThreadLinux::SetStoppedByProcessorTrace(
+    llvm::StringRef description) {
+  SetStopped();
+
+  m_stop_info.reason = StopReason::eStopReasonProcessorTrace;
+  m_stop_info.details.signal.signo = 0;
+  m_stop_description = description.str();
 }
 
 void NativeThreadLinux::SetExited() {

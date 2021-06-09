@@ -14,8 +14,8 @@ on:
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
       - '**.md'   # README
-      - '**/check-code-style.xml' # check-code-style workflow
-      - '**/check-in-tree-build.xml' # check-in-tree-build workflow
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-in-tree-build.yml' # check-in-tree-build workflow
   pull_request:
     branches:
       - master
@@ -23,8 +23,8 @@ on:
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
       - '**.md'   # README
-      - '**/check-code-style.xml' # check-code-style workflow
-      - '**/check-in-tree-build.xml' # check-in-tree-build workflow
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-in-tree-build.yml' # check-in-tree-build workflow
   schedule:
     - cron: 0 0 * * *
 
@@ -47,15 +47,14 @@ jobs:
           echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a /etc/apt/sources.list
           echo "deb https://packages.lunarg.com/vulkan bionic main" | sudo tee -a /etc/apt/sources.list
           sudo apt-get update
-          # Linux systems in GitHub Actions already have a pre-installed clang
-          # that is not needed for the translator as we rely on newer version
-          sudo apt-get --purge remove clang-8 clang-9
           sudo apt-get -yq --no-install-suggests --no-install-recommends install \
             clang-${{ env.LLVM_VERSION }} \
             llvm-${{ env.LLVM_VERSION }}-dev \
             libomp-${{ env.LLVM_VERSION }}-dev \
             llvm-${{ env.LLVM_VERSION }}-tools \
             spirv-tools
+          # Linux systems in GitHub Actions already have older versions of clang
+          # pre-installed. Make sure to override these with the relevant version.
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ env.LLVM_VERSION }} 1000
       - name:  Checkout the translator sources
         uses: actions/checkout@v2

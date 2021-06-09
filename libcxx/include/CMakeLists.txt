@@ -1,32 +1,140 @@
 set(files
+  __algorithm/adjacent_find.h
+  __algorithm/all_of.h
+  __algorithm/any_of.h
+  __algorithm/binary_search.h
+  __algorithm/clamp.h
+  __algorithm/comp.h
+  __algorithm/comp_ref_type.h
+  __algorithm/copy.h
+  __algorithm/count.h
+  __algorithm/count_if.h
+  __algorithm/equal.h
+  __algorithm/equal_range.h
+  __algorithm/fill.h
+  __algorithm/find.h
+  __algorithm/find_end.h
+  __algorithm/find_first_of.h
+  __algorithm/find_if.h
+  __algorithm/find_if_not.h
+  __algorithm/for_each.h
+  __algorithm/for_each_n.h
+  __algorithm/generate.h
+  __algorithm/half_positive.h
+  __algorithm/includes.h
+  __algorithm/inplace_merge.h
+  __algorithm/is_heap.h
+  __algorithm/is_heap_until.h
+  __algorithm/is_partitioned.h
+  __algorithm/is_permutation.h
+  __algorithm/is_sorted.h
+  __algorithm/lexicographical_compare.h
+  __algorithm/lower_bound.h
+  __algorithm/make_heap.h
+  __algorithm/max.h
+  __algorithm/max_element.h
+  __algorithm/merge.h
+  __algorithm/min.h
+  __algorithm/min_element.h
+  __algorithm/minmax.h
+  __algorithm/minmax_element.h
+  __algorithm/mismatch.h
+  __algorithm/move.h
+  __algorithm/next_permutation.h
+  __algorithm/none_of.h
+  __algorithm/nth_element.h
+  __algorithm/partial_sort.h
+  __algorithm/partition.h
+  __algorithm/partition_point.h
+  __algorithm/pop_heap.h
+  __algorithm/prev_permutation.h
+  __algorithm/push_heap.h
+  __algorithm/remove.h
+  __algorithm/replace.h
+  __algorithm/reverse.h
+  __algorithm/rotate.h
+  __algorithm/sample.h
+  __algorithm/search.h
+  __algorithm/search_n.h
+  __algorithm/set_difference.h
+  __algorithm/set_intersection.h
+  __algorithm/set_symmetric_difference.h
+  __algorithm/set_union.h
+  __algorithm/shift.h
+  __algorithm/shuffle.h
+  __algorithm/sift_down.h
+  __algorithm/sort.h
+  __algorithm/sort_heap.h
+  __algorithm/stable_partition.h
+  __algorithm/stable_sort.h
+  __algorithm/transform.h
+  __algorithm/uniform_int_distribution.h
+  __algorithm/unique.h
+  __algorithm/unwrap_iter.h
+  __algorithm/upper_bound.h
   __availability
   __bit_reference
   __bits
   __bsd_locale_defaults.h
   __bsd_locale_fallbacks.h
+  __config
   __debug
   __errc
+  __format/format_error.h
+  __format/format_parse_context.h
+  __function_like.h
+  __functional/search.h
   __functional_03
   __functional_base
   __functional_base_03
   __hash_table
+  __iterator/advance.h
+  __iterator/concepts.h
+  __iterator/default_sentinel.h
+  __iterator/incrementable_traits.h
+  __iterator/indirect_concepts.h
+  __iterator/iter_move.h
+  __iterator/iterator_traits.h
+  __iterator/next.h
+  __iterator/prev.h
+  __iterator/projected.h
+  __iterator/readable_traits.h
   __libcpp_version
   __locale
+  __memory/addressof.h
+  __memory/allocation_guard.h
+  __memory/allocator.h
   __memory/allocator_traits.h
-  __memory/base.h
+  __memory/auto_ptr.h
+  __memory/compressed_pair.h
+  __memory/construct_at.h
+  __memory/pointer_safety.h
   __memory/pointer_traits.h
-  __memory/utilities.h
+  __memory/raw_storage_iterator.h
+  __memory/shared_ptr.h
+  __memory/temporary_buffer.h
+  __memory/uninitialized_algorithms.h
+  __memory/unique_ptr.h
   __mutex_base
   __node_handle
   __nullptr
+  __ranges/access.h
+  __ranges/concepts.h
+  __ranges/data.h
+  __ranges/empty.h
+  __ranges/empty_view.h
+  __ranges/enable_borrowed_range.h
+  __ranges/view_interface.h
+  __ranges/view.h
+  __ranges/size.h
   __split_buffer
-  __sso_allocator
   __std_stream
   __string
   __threading_support
   __tree
   __tuple
   __undef_macros
+  __utility/to_underlying.h
   algorithm
   any
   array
@@ -130,7 +238,9 @@ set(files
   ostream
   queue
   random
+  ranges
   ratio
+  ranges
   regex
   scoped_allocator
   semaphore
@@ -156,6 +266,7 @@ set(files
   __support/ibm/gettod_zos.h
   __support/ibm/limits.h
   __support/ibm/locale_mgmt_aix.h
+  __support/ibm/locale_mgmt_zos.h
   __support/ibm/nanosleep.h
   __support/ibm/support.h
   __support/ibm/xlocale.h
@@ -189,87 +300,51 @@ set(files
   wctype.h
   )
 
-configure_file("__config_site.in"
-               "${LIBCXX_BINARY_DIR}/__config_site"
-               @ONLY)
+configure_file("__config_site.in" "${LIBCXX_GENERATED_INCLUDE_TARGET_DIR}/__config_site" @ONLY)
 
-# Generate a custom __config header. The new header is created
-# by prepending __config_site to the current __config header.
-add_custom_command(OUTPUT ${LIBCXX_BINARY_DIR}/__generated_config
-  COMMAND ${Python3_EXECUTABLE} ${LIBCXX_SOURCE_DIR}/utils/cat_files.py
-    ${LIBCXX_BINARY_DIR}/__config_site
-    ${LIBCXX_SOURCE_DIR}/include/__config
-    -o ${LIBCXX_BINARY_DIR}/__generated_config
-  DEPENDS ${LIBCXX_SOURCE_DIR}/include/__config
-          ${LIBCXX_BINARY_DIR}/__config_site
-)
-# Add a target that executes the generation commands.
-add_custom_target(cxx-generated-config ALL
-  DEPENDS ${LIBCXX_BINARY_DIR}/__generated_config)
-
-if(LIBCXX_HEADER_DIR)
-  set(output_dir ${LIBCXX_HEADER_DIR}/include/c++/v1)
-
-  set(out_files)
-  foreach(f ${files})
-    set(src ${CMAKE_CURRENT_SOURCE_DIR}/${f})
-    set(dst ${output_dir}/${f})
-    add_custom_command(OUTPUT ${dst}
-      DEPENDS ${src}
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different ${src} ${dst}
-      COMMENT "Copying CXX header ${f}")
-    list(APPEND out_files ${dst})
-  endforeach()
-
-  # Copy the generated header as __config into build directory.
-  set(src ${LIBCXX_BINARY_DIR}/__generated_config)
-  set(dst ${output_dir}/__config)
+set(_all_includes "${LIBCXX_GENERATED_INCLUDE_TARGET_DIR}/__config_site")
+foreach(f ${files})
+  set(src "${CMAKE_CURRENT_SOURCE_DIR}/${f}")
+  set(dst "${LIBCXX_GENERATED_INCLUDE_DIR}/${f}")
   add_custom_command(OUTPUT ${dst}
-      DEPENDS ${src} cxx-generated-config
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different ${src} ${dst}
-      COMMENT "Copying CXX __config")
-  list(APPEND out_files ${dst})
-  add_custom_target(generate-cxx-headers ALL DEPENDS ${out_files})
+    DEPENDS ${src}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${src} ${dst}
+    COMMENT "Copying CXX header ${f}")
+  list(APPEND _all_includes "${dst}")
+endforeach()
 
-  add_library(cxx-headers INTERFACE)
-  add_dependencies(cxx-headers generate-cxx-headers ${LIBCXX_CXX_ABI_HEADER_TARGET})
-  # TODO: Use target_include_directories once we figure out why that breaks the runtimes build
-  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC" OR "${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
-    target_compile_options(cxx-headers INTERFACE /I "${output_dir}")
-  else()
-    target_compile_options(cxx-headers INTERFACE -I "${output_dir}")
-  endif()
+add_custom_target(generate-cxx-headers ALL DEPENDS ${_all_includes})
 
-  # Make sure the generated __config_site header is included when we build the library.
-  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC" OR "${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
-    target_compile_options(cxx-headers INTERFACE /FI "${LIBCXX_BINARY_DIR}/__config_site")
-  else()
-    target_compile_options(cxx-headers INTERFACE -include "${LIBCXX_BINARY_DIR}/__config_site")
-  endif()
+add_library(cxx-headers INTERFACE)
+add_dependencies(cxx-headers generate-cxx-headers ${LIBCXX_CXX_ABI_HEADER_TARGET})
+# TODO: Use target_include_directories once we figure out why that breaks the runtimes build
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC" OR "${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
+  target_compile_options(cxx-headers INTERFACE /I${LIBCXX_GENERATED_INCLUDE_DIR}
+                                     INTERFACE /I${LIBCXX_GENERATED_INCLUDE_TARGET_DIR})
 else()
-  add_library(cxx-headers INTERFACE)
+  target_compile_options(cxx-headers INTERFACE -I${LIBCXX_GENERATED_INCLUDE_DIR}
+                                     INTERFACE -I${LIBCXX_GENERATED_INCLUDE_TARGET_DIR})
 endif()
 
 if (LIBCXX_INSTALL_HEADERS)
   foreach(file ${files})
     get_filename_component(dir ${file} DIRECTORY)
     install(FILES ${file}
-      DESTINATION ${LIBCXX_INSTALL_HEADER_PREFIX}include/c++/v1/${dir}
+      DESTINATION ${LIBCXX_INSTALL_INCLUDE_DIR}/${dir}
       COMPONENT cxx-headers
       PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
     )
   endforeach()
 
-  # Install the generated header as __config.
-  install(FILES ${LIBCXX_BINARY_DIR}/__generated_config
-    DESTINATION ${LIBCXX_INSTALL_HEADER_PREFIX}include/c++/v1
+  # Install the generated __config_site.
+  install(FILES ${LIBCXX_GENERATED_INCLUDE_TARGET_DIR}/__config_site
+    DESTINATION ${LIBCXX_INSTALL_INCLUDE_TARGET_DIR}
     PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
-    RENAME __config
     COMPONENT cxx-headers)
 
   if (NOT CMAKE_CONFIGURATION_TYPES)
     add_custom_target(install-cxx-headers
-                      DEPENDS cxx-headers cxx-generated-config
+                      DEPENDS cxx-headers
                       COMMAND "${CMAKE_COMMAND}"
                               -DCMAKE_INSTALL_COMPONENT=cxx-headers
                               -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")

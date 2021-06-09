@@ -41,7 +41,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <tgmath.h>
+// The clang-shipped tgmath.h header doesn't work with MSVC/UCRT's complex
+// headers in C mode, see PR46207.
+#ifndef _MSC_VER
+#    include <tgmath.h>
+#endif
 #include <wchar.h>
 #include <wctype.h>
 

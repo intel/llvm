@@ -127,13 +127,25 @@ Attribute Dialect::parseAttribute(DialectAsmParser &parser, Type type) const {
 Type Dialect::parseType(DialectAsmParser &parser) const {
   // If this dialect allows unknown types, then represent this with OpaqueType.
   if (allowsUnknownTypes()) {
-    auto ns = Identifier::get(getNamespace(), getContext());
-    return OpaqueType::get(getContext(), ns, parser.getFullSymbolSpec());
+    Identifier ns = Identifier::get(getNamespace(), getContext());
+    return OpaqueType::get(ns, parser.getFullSymbolSpec());
   }
 
   parser.emitError(parser.getNameLoc())
       << "dialect '" << getNamespace() << "' provides no type parsing hook";
   return Type();
+}
+
+Optional<Dialect::ParseOpHook>
+Dialect::getParseOperationHook(StringRef opName) const {
+  return None;
+}
+
+LogicalResult Dialect::printOperation(Operation *op,
+                                      OpAsmPrinter &printer) const {
+  assert(op->getDialect() == this &&
+         "Dialect hook invoked on non-dialect owned operation");
+  return failure();
 }
 
 /// Utility function that returns if the given string is a valid dialect

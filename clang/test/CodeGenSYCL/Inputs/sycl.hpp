@@ -104,6 +104,15 @@ struct buffer_location {
 } // namespace INTEL
 
 namespace ONEAPI {
+namespace property {
+// Compile time known accessor property
+struct no_alias {
+  template <bool> class instance {};
+};
+} // namespace property
+} // namespace ONEAPI
+
+namespace ONEAPI {
 template <typename... properties>
 class accessor_property_list {};
 } // namespace ONEAPI
@@ -172,11 +181,13 @@ private:
   void __init(__attribute__((opencl_global)) dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
   void __init_esimd(__attribute__((opencl_global)) dataT *Ptr) {}
+  friend class stream;
 };
 
 template <int dimensions, access::mode accessmode, access::target accesstarget>
 struct opencl_image_type;
 
+#ifdef __SYCL_DEVICE_ONLY__
 #define IMAGETY_DEFINE(dim, accessmode, amsuffix, Target, ifarray_) \
   template <>                                                       \
   struct opencl_image_type<dim, access::mode::accessmode,           \
@@ -207,6 +218,8 @@ IMAGETY_WRITE_3_DIM_IMAGE
 
 IMAGETY_READ_2_DIM_IARRAY
 IMAGETY_WRITE_2_DIM_IARRAY
+
+#endif
 
 template <int dim, access::mode accessmode, access::target accesstarget>
 struct _ImageImplT {
@@ -291,14 +304,44 @@ public:
 } // namespace experimental
 } // namespace ONEAPI
 
+class kernel_handler {
+  void __init_specialization_constants_buffer(char *specialization_constants_buffer) {}
+};
+
+template <typename T> class specialization_id {
+public:
+  using value_type = T;
+
+  template <class... Args>
+  explicit constexpr specialization_id(Args &&...args)
+      : MDefaultValue(args...) {}
+
+  specialization_id(const specialization_id &rhs) = delete;
+  specialization_id(specialization_id &&rhs) = delete;
+  specialization_id &operator=(const specialization_id &rhs) = delete;
+  specialization_id &operator=(specialization_id &&rhs) = delete;
+
+private:
+  T MDefaultValue;
+};
+
+#if __cplusplus >= 201703L
+template<typename T> specialization_id(T) -> specialization_id<T>;
+#endif // C++17.
+
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
-ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) {
+ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) { // #KernelSingleTask
   kernelFunc();
 }
 
 template <typename KernelName = auto_name, typename KernelType>
-ATTR_SYCL_KERNEL void kernel_single_task_2017(KernelType kernelFunc) {
+ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc, kernel_handler kh) {
+  kernelFunc(kh);
+}
+
+template <typename KernelName = auto_name, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_single_task_2017(KernelType kernelFunc) { // #KernelSingleTask2017
   kernelFunc();
 }
 
@@ -348,6 +391,16 @@ public:
   }
 
   template <typename KernelName = auto_name, typename KernelType>
+  void single_task(const KernelType &kernelFunc, kernel_handler kh) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_single_task<NameT>(kernelFunc, kh);
+#else
+    kernelFunc(kh);
+#endif
+  }
+
+  template <typename KernelName = auto_name, typename KernelType>
   void single_task_2017(KernelType kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
@@ -362,10 +415,22 @@ class stream {
 public:
   stream(unsigned long BufferSize, unsigned long MaxStatementSize,
          handler &CGH) {}
+#ifdef __SYCL_DEVICE_ONLY__
+  // Default constructor for objects later initialized with __init member.
+  stream() = default;
+#endif
 
-  void __init() {}
+  void __init(__attribute((opencl_global)) char *Ptr, range<1> AccessRange,
+              range<1> MemRange, id<1> Offset, int _FlushBufferSize) {
+    Acc.__init(Ptr, AccessRange, MemRange, Offset);
+    FlushBufferSize = _FlushBufferSize;
+  }
 
   void __finalize() {}
+
+private:
+  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write> Acc;
+  int FlushBufferSize;
 };
 
 template <typename T>

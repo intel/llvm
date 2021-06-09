@@ -56,7 +56,7 @@
 ; CHECK-NEXT:       Constant Hoisting
 ; CHECK-NEXT:       Replace intrinsics with calls to vector library
 ; CHECK-NEXT:       Partially inline calls to library functions
-; CHECK-NEXT:       Instrument function entry/exit with calls to e.g. mcount() (post inlining)
+; CHECK-NEXT:       Expand vector predication intrinsics
 ; CHECK-NEXT:       Scalarize Masked Memory Intrinsics
 ; CHECK-NEXT:       Expand reduction intrinsics
 ; CHECK-NEXT:     Stack Safety Analysis
@@ -77,8 +77,6 @@
 ; CHECK-NEXT:       Interleaved Access Pass
 ; CHECK-NEXT:       Natural Loop Information
 ; CHECK-NEXT:       CodeGen Prepare
-; CHECK-NEXT:     Rewrite Symbols
-; CHECK-NEXT:     FunctionPass Manager
 ; CHECK-NEXT:       Dominator Tree Construction
 ; CHECK-NEXT:       Exception handling preparation
 ; CHECK-NEXT:     AArch64 Promote Constant

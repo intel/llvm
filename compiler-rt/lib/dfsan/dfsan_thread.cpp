@@ -3,17 +3,20 @@
 #include <pthread.h>
 
 #include "dfsan.h"
+#include "sanitizer_common/sanitizer_tls_get_addr.h"
 
 namespace __dfsan {
 
 DFsanThread *DFsanThread::Create(void *start_routine_trampoline,
-                                 thread_callback_t start_routine, void *arg) {
+                                 thread_callback_t start_routine, void *arg,
+                                 bool track_origins) {
   uptr PageSize = GetPageSizeCached();
   uptr size = RoundUpTo(sizeof(DFsanThread), PageSize);
   DFsanThread *thread = (DFsanThread *)MmapOrDie(size, __func__);
   thread->start_routine_trampoline_ = start_routine_trampoline;
   thread->start_routine_ = start_routine;
   thread->arg_ = arg;
+  thread->track_origins_ = track_origins;
   thread->destructor_iterations_ = GetPthreadDestructorIterations();
 
   return thread;
@@ -22,16 +25,30 @@ DFsanThread *DFsanThread::Create(void *start_routine_trampoline,
 void DFsanThread::SetThreadStackAndTls() {
   uptr tls_size = 0;
   uptr stack_size = 0;
-  uptr tls_begin;
-  GetThreadStackAndTls(IsMainThread(), &stack_.bottom, &stack_size, &tls_begin,
+  GetThreadStackAndTls(IsMainThread(), &stack_.bottom, &stack_size, &tls_begin_,
                        &tls_size);
   stack_.top = stack_.bottom + stack_size;
+  tls_end_ = tls_begin_ + tls_size;
 
   int local;
   CHECK(AddrIsInStack((uptr)&local));
 }
 
-void DFsanThread::Init() { SetThreadStackAndTls(); }
+void DFsanThread::ClearShadowForThreadStackAndTLS() {
+  dfsan_set_label(0, (void *)stack_.bottom, stack_.top - stack_.bottom);
+  if (tls_begin_ != tls_end_)
+    dfsan_set_label(0, (void *)tls_begin_, tls_end_ - tls_begin_);
+  DTLS *dtls = DTLS_Get();
+  CHECK_NE(dtls, 0);
+  ForEachDVT(dtls, [](const DTLS::DTV &dtv, int id) {
+    dfsan_set_label(0, (void *)(dtv.beg), dtv.size);
+  });
+}
+
+void DFsanThread::Init() {
+  SetThreadStackAndTls();
+  ClearShadowForThreadStackAndTLS();
+}
 
 void DFsanThread::TSDDtor(void *tsd) {
   DFsanThread *t = (DFsanThread *)tsd;
@@ -39,8 +56,14 @@ void DFsanThread::TSDDtor(void *tsd) {
 }
 
 void DFsanThread::Destroy() {
+  malloc_storage().CommitBack();
+  // We also clear the shadow on thread destruction because
+  // some code may still be executing in later TSD destructors
+  // and we don't want it to have any poisoned stack.
+  ClearShadowForThreadStackAndTLS();
   uptr size = RoundUpTo(sizeof(DFsanThread), GetPageSizeCached());
   UnmapOrDie(this, size);
+  DTLS_Destroy();
 }
 
 thread_return_t DFsanThread::ThreadStart() {
@@ -57,11 +80,19 @@ thread_return_t DFsanThread::ThreadStart() {
 
   typedef void *(*thread_callback_trampoline_t)(void *, void *, dfsan_label,
                                                 dfsan_label *);
+  typedef void *(*thread_callback_origin_trampoline_t)(
+      void *, void *, dfsan_label, dfsan_label *, dfsan_origin, dfsan_origin *);
 
   dfsan_label ret_label;
-  return ((thread_callback_trampoline_t)
+  if (!track_origins_)
+    return ((thread_callback_trampoline_t)
+                start_routine_trampoline_)((void *)start_routine_, arg_, 0,
+                                           &ret_label);
+
+  dfsan_origin ret_origin;
+  return ((thread_callback_origin_trampoline_t)
               start_routine_trampoline_)((void *)start_routine_, arg_, 0,
-                                         &ret_label);
+                                         &ret_label, 0, &ret_origin);
 }
 
 DFsanThread::StackBounds DFsanThread::GetStackBounds() const {

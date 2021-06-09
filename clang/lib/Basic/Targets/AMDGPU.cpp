@@ -18,7 +18,6 @@
 #include "clang/Basic/TargetBuiltins.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Frontend/OpenMP/OMPGridValues.h"
-#include "llvm/IR/DataLayout.h"
 
 using namespace clang;
 using namespace clang::targets;
@@ -51,6 +50,11 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsGenMap = {
     Global,   // cuda_device
     Constant, // cuda_constant
     Local,    // cuda_shared
+    Global,   // sycl_global
+    Global,   // sycl_global_device
+    Global,   // sycl_global_host
+    Local,    // sycl_local
+    Private,  // sycl_private
     Generic,  // ptr32_sptr
     Generic,  // ptr32_uptr
     Generic   // ptr64
@@ -68,9 +72,16 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsPrivMap = {
     Global,   // cuda_device
     Constant, // cuda_constant
     Local,    // cuda_shared
+    // SYCL address space values for this map are dummy
+    Generic,  // sycl_global
+    Generic,  // sycl_global_device
+    Generic,  // sycl_global_host
+    Generic,  // sycl_local
+    Generic,  // sycl_private
     Generic,  // ptr32_sptr
     Generic,  // ptr32_uptr
     Generic   // ptr64
+
 };
 } // namespace targets
 } // namespace clang
@@ -173,6 +184,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
   // XXX - What does the member GPU mean if device name string passed here?
   if (isAMDGCN(getTriple())) {
     switch (llvm::AMDGPU::parseArchAMDGCN(CPU)) {
+    case GK_GFX1034:
     case GK_GFX1033:
     case GK_GFX1032:
     case GK_GFX1031:
@@ -182,6 +194,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["dot2-insts"] = true;
       Features["dot5-insts"] = true;
       Features["dot6-insts"] = true;
+      Features["dot7-insts"] = true;
       Features["dl-insts"] = true;
       Features["flat-address-space"] = true;
       Features["16-bit-insts"] = true;
@@ -191,6 +204,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["gfx10-insts"] = true;
       Features["gfx10-3-insts"] = true;
       Features["s-memrealtime"] = true;
+      Features["s-memtime-inst"] = true;
       break;
     case GK_GFX1012:
     case GK_GFX1011:
@@ -198,6 +212,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["dot2-insts"] = true;
       Features["dot5-insts"] = true;
       Features["dot6-insts"] = true;
+      Features["dot7-insts"] = true;
       LLVM_FALLTHROUGH;
     case GK_GFX1010:
       Features["dl-insts"] = true;
@@ -211,6 +226,9 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["s-memrealtime"] = true;
       Features["s-memtime-inst"] = true;
       break;
+    case GK_GFX90A:
+      Features["gfx90a-insts"] = true;
+      LLVM_FALLTHROUGH;
     case GK_GFX908:
       Features["dot3-insts"] = true;
       Features["dot4-insts"] = true;
@@ -222,6 +240,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["dl-insts"] = true;
       Features["dot1-insts"] = true;
       Features["dot2-insts"] = true;
+      Features["dot7-insts"] = true;
       LLVM_FALLTHROUGH;
     case GK_GFX90C:
     case GK_GFX909:
@@ -314,7 +333,6 @@ AMDGPUTargetInfo::AMDGPUTargetInfo(const llvm::Triple &Triple,
                   llvm::AMDGPU::getArchAttrR600(GPUKind)) {
   resetDataLayout(isAMDGCN(getTriple()) ? DataLayoutStringAMDGCN
                                         : DataLayoutStringR600);
-  assert(DataLayout->getAllocaAddrSpace() == Private);
   GridValues = llvm::omp::AMDGPUGpuGridValues;
 
   setAddressSpaceMap(Triple.getOS() == llvm::Triple::Mesa3D ||
@@ -327,7 +345,7 @@ AMDGPUTargetInfo::AMDGPUTargetInfo(const llvm::Triple &Triple,
   AllowAMDGPUUnsafeFPAtomics = Opts.AllowAMDGPUUnsafeFPAtomics;
 
   // Set pointer width and alignment for target address space 0.
-  PointerWidth = PointerAlign = DataLayout->getPointerSizeInBits();
+  PointerWidth = PointerAlign = getPointerWidthV(Generic);
   if (getMaxPointerWidth() == 64) {
     LongWidth = LongAlign = 64;
     SizeType = UnsignedLong;

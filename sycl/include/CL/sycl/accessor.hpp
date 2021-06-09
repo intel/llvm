@@ -203,17 +203,19 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+class stream;
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
+namespace detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
-} // namespace gpu
-} // namespace INTEL
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
-
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+} // namespace detail
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 
 template <typename DataT, int Dimensions = 1,
           access::mode AccessMode = access::mode::read_write,
@@ -286,6 +288,8 @@ protected:
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
 
+  constexpr static bool IsAccessAtomic = AccessMode == access::mode::atomic;
+
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using ConstRefType = const DataT &;
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
@@ -321,6 +325,14 @@ protected:
     template <int CurDims = SubDims,
               typename = detail::enable_if_t<CurDims == 1 && IsAccessAnyWrite>>
     RefType operator[](size_t Index) const {
+      MIDs[Dims - CurDims] = Index;
+      return MAccessor[MIDs];
+    }
+
+    template <int CurDims = SubDims>
+    typename detail::enable_if_t<CurDims == 1 && IsAccessAtomic,
+                                 atomic<DataT, AS>>
+    operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
     }
@@ -459,11 +471,12 @@ private:
 #endif
 
 private:
-  friend class sycl::INTEL::gpu::AccessorPrivateProxy;
+  friend class sycl::ext::intel::experimental::esimd::detail::
+      AccessorPrivateProxy;
 
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+#ifdef __SYCL_DEVICE_ONLY__
   const OCLImageTy getNativeImageObj() const { return MImageObj; }
-#endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
+#endif // __SYCL_DEVICE_ONLY__
 
 public:
   using value_type = DataT;
@@ -825,7 +838,8 @@ protected:
   static access::mode getAdjustedMode(const PropertyListT &PropertyList) {
     access::mode AdjustedMode = AccessMode;
 
-    if (PropertyList.template has_property<property::noinit>()) {
+    if (PropertyList.template has_property<property::no_init>() ||
+        PropertyList.template has_property<property::noinit>()) {
       if (AdjustedMode == access::mode::write) {
         AdjustedMode = access::mode::discard_write;
       } else if (AdjustedMode == access::mode::read_write) {
@@ -858,19 +872,8 @@ protected:
 
   detail::AccessorImplDevice<AdjustedDim> impl;
 
-#ifdef __SYCL_EXPLICIT_SIMD__
-  // TODO all the Image1dBuffer* stuff, including the union with MData field
-  // below is not used anymore and is left temporarily to avoid ABI breaking
-  // changes.
-  using OCLImage1dBufferTy =
-      typename detail::opencl_image1d_buffer_type<AccessMode>::type;
-#endif // __SYCL_EXPLICIT_SIMD__
-
   union {
     ConcreteASPtrType MData;
-#ifdef __SYCL_EXPLICIT_SIMD__
-    OCLImage1dBufferTy ImageBuffer;
-#endif // __SYCL_EXPLICIT_SIMD__
   };
 
   // TODO replace usages with getQualifiedPtr
@@ -927,7 +930,9 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
-  friend class sycl::INTEL::gpu::AccessorPrivateProxy;
+  friend class sycl::stream;
+  friend class sycl::ext::intel::experimental::esimd::detail::
+      AccessorPrivateProxy;
 
 public:
   using value_type = DataT;

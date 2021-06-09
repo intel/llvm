@@ -42,8 +42,8 @@ int main() {
 // CHECK: [[MEM_ARG1]].addr{{[0-9]*}} = alloca i32 addrspace(1)*, align 8
 
 // Check lambda object alloca
-// CHECK: [[LOCAL_OBJECTA:%0]] = alloca %"class{{.*}}.anon", align 4
-// CHECK: [[LOCAL_OBJECT:%.*]] = addrspacecast %"class{{.*}}.anon"* %0 to %"class{{.*}}.anon" addrspace(4)*
+// CHECK: [[LOCAL_OBJECTA:%0]] = alloca %class{{.*}}.anon, align 4
+// CHECK: [[LOCAL_OBJECT:%.*]] = addrspacecast %class{{.*}}.anon* %0 to %class{{.*}}.anon addrspace(4)*
 
 // Check allocas for ranges
 // CHECK: [[ACC_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::range"
@@ -60,7 +60,7 @@ int main() {
 // CHECK: [[OFFSET2AS:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::id"* [[OFFSET2A]] to %"struct.{{.*}}.cl::sycl::id" addrspace(4)*
 
 // CHECK accessor array default inits
-// CHECK: [[ACCESSOR_WRAPPER:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class{{.*}}.anon", %"class{{.*}}.anon" addrspace(4)* [[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: [[ACCESSOR_WRAPPER:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class{{.*}}.anon, %class{{.*}}.anon addrspace(4)* [[LOCAL_OBJECT]], i32 0, i32 0
 // CHECK: [[ACCESSOR_ARRAY1:%[a-zA-Z0-9_.]+]] = getelementptr inbounds %struct{{.*}}.struct_acc_t, %struct{{.*}}.struct_acc_t addrspace(4)* [[ACCESSOR_WRAPPER]], i32 0, i32 0
 // CHECK: [[BEGIN:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x [[ACCESSOR:.*]]], [2 x [[ACCESSOR]]] addrspace(4)* [[ACCESSOR_ARRAY1]], i64 0, i64 0
 // CTOR Call #1
@@ -70,7 +70,7 @@ int main() {
 // CHECK: call spir_func void @{{.+}}([[ACCESSOR]] addrspace(4)* {{[^,]*}} [[ELEM2_GEP]])
 
 // Check acc[0] __init method call
-// CHECK: [[GEP_LAMBDA1:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class{{.*}}.anon", %"class{{.*}}.anon" addrspace(4)* [[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: [[GEP_LAMBDA1:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class{{.*}}.anon, %class{{.*}}.anon addrspace(4)* [[LOCAL_OBJECT]], i32 0, i32 0
 // CHECK: [[GEP_MEMBER_ACC1:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}.struct_acc_t, %struct{{.*}}.struct_acc_t addrspace(4)* [[GEP_LAMBDA1]], i32 0, i32 0
 // CHECK: [[ARRAY_IDX1:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x [[ACCESSOR]]], [2 x [[ACCESSOR]]] addrspace(4)* [[GEP_MEMBER_ACC1]], i64 0, i64 0
 // CHECK: [[MEM_LOAD1:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)* addrspace(4)* [[MEM_ARG1]].addr
@@ -80,7 +80,7 @@ int main() {
 // CHECK: call spir_func void @{{.*}}__init{{.*}}([[ACCESSOR]] addrspace(4)* {{[^,]*}} [[ARRAY_IDX1]], i32 addrspace(1)* [[MEM_LOAD1]], %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE1]], %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE1]], %"struct{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET1]])
 
 // Check acc[1] __init method call
-// CHECK: [[GEP_LAMBDA2:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class{{.*}}.anon", %"class{{.*}}.anon" addrspace(4)* [[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: [[GEP_LAMBDA2:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class{{.*}}.anon, %class{{.*}}.anon addrspace(4)* [[LOCAL_OBJECT]], i32 0, i32 0
 // CHECK: [[GEP_MEMBER_ACC2:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}.struct_acc_t, %struct{{.*}}.struct_acc_t addrspace(4)* [[GEP_LAMBDA2]], i32 0, i32 0
 // CHECK: [[ARRAY_IDX2:%[a-zA-Z0-9_]*]] = getelementptr inbounds [2 x [[ACCESSOR]]], [2 x [[ACCESSOR]]] addrspace(4)* [[GEP_MEMBER_ACC2]], i64 0, i64 1
 // CHECK: [[MEM_LOAD2:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)* addrspace(4)* [[MEM_ARG1]].addr

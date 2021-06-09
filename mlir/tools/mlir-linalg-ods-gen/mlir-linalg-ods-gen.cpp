@@ -32,9 +32,12 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
 #include <map>
+#include <set>
 
 #define DEBUG_TYPE "linalg-ods-gen"
 
@@ -63,12 +66,35 @@ static llvm::cl::opt<bool> testEmitIncludeTdHeader(
                    "tblgen testing."),
     llvm::cl::init(false), llvm::cl::cat(ODSGenCat));
 
-using llvm::SetVector;
 using llvm::SMLoc;
 using llvm::StringRef;
 using llvm::Twine;
 
 using namespace mlir;
+
+//===----------------------------------------------------------------------===//
+// Special "op aliases" substitutions.
+//===----------------------------------------------------------------------===//
+
+/// Perform substitutions of known special ops.
+/// This is a poor man's way of achieving "op aliases": i.e. giving an op a
+/// name.
+/// This is hacky and temporary until migration to the python opdsl is complete.
+static void substituteOpAliases(std::string &expressionsStr) {
+  for (auto kvp : SmallVector<std::pair<std::string, std::string>>{
+           {"b.create<CmpIOpSGT>(", "b.create<CmpIOp>(CmpIPredicate::sgt, "},
+           {"b.create<CmpFOpOGT>(", "b.create<CmpFOp>(CmpFPredicate::OGT, "},
+           {"b.create<CmpFOpOLT>(", "b.create<CmpFOp>(CmpFPredicate::OLT, "},
+           {"b.create<SignExtendIOp32>(",
+            "b.create<SignExtendIOp>(b.getI32Type(), "},
+       }) {
+    size_t pos = 0;
+    while ((pos = expressionsStr.find(kvp.first, pos)) != std::string::npos) {
+      expressionsStr.replace(pos, kvp.first.size(), kvp.second);
+      pos += kvp.second.size();
+    }
+  }
+}
 
 //===----------------------------------------------------------------------===//
 // Lexer
@@ -997,7 +1023,6 @@ struct TensorUse : public Expression {
   TensorUse() : TensorUse("", AffineMap()) {}
   TensorUse(StringRef name, AffineMap map)
       : Expression(Kind::TensorUse), tensorId(name), indexingMap(map) {}
-  TensorUse(const TensorUse &use) = default;
 
   static bool classof(const Expression *e) {
     return e->kind == Kind::TensorUse;
@@ -1009,8 +1034,7 @@ struct TensorUse : public Expression {
 
   /// Visitation function. Performs preorder or postorder traversal depending on
   /// `PreOrder` and applies `callback` on each node.
-  template <typename Lambda, bool PreOrder>
-  void visit(Lambda callback) const;
+  template <typename Lambda, bool PreOrder> void visit(Lambda callback) const;
 
   StringRef tensorId;
   AffineMap indexingMap;
@@ -1054,8 +1078,7 @@ struct TensorExpr : public Expression {
 
   /// Visitation function. Performs preorder or postorder traversal depending on
   /// `PreOrder` and applies `callback` on each node.
-  template <typename Lambda, bool PreOrder>
-  void visit(Lambda callback) const;
+  template <typename Lambda, bool PreOrder> void visit(Lambda callback) const;
 
   StringRef operationName;
   SmallVector<std::unique_ptr<Expression>, 4> expressions;
@@ -1087,6 +1110,9 @@ public:
 
   /// Parses a tensor use.
   struct ComprehensionParsingState {
+    /// The number of operands (which includes inputs and outputs) in a
+    /// comprehension.
+    size_t numArgs;
     AffineDimList dims;
     SmallVector<std::unique_ptr<Expression>, 4> expressions;
     llvm::DenseMap<TensorUse, unsigned> orderedTensorArgs;
@@ -1170,7 +1196,7 @@ private:
 
     // Returns the function to get values at the given indices from this
     // attribute.
-    std::string getValueFn(ArrayRef<uint64_t> indices) const;
+    llvm::Optional<std::string> getValueFn(ArrayRef<uint64_t> indices) const;
   };
 
   //===--------------------------------------------------------------------===//
@@ -1189,6 +1215,9 @@ private:
   /// Attributes are per TC def.
   std::map<std::string, RegisteredAttr> registeredAttrs;
 
+  /// A map from AttrUse to AffineExpr symbol.
+  llvm::StringMap<AffineExpr> registeredAttrUseToSymbol;
+
   StringRef docString;
 
   Parser &parser;
@@ -1197,8 +1226,7 @@ private:
 
 namespace llvm {
 
-template <>
-struct DenseMapInfo<TensorUse> {
+template <> struct DenseMapInfo<TensorUse> {
   static TensorUse getEmptyKey() { return TensorUse("", AffineMap()); }
   static TensorUse getTombstoneKey() {
     return TensorUse(DenseMapInfo<StringRef>::getTombstoneKey(),
@@ -1295,14 +1323,15 @@ TCParser::parseAffineExprs(EagerDiscoveryMode discoveryMode,
     if (failed(parseAttrUse(result)))
       return llvm::None;
 
-    // We create a new symbol for each attribute usage without reuse. This is
-    // fine given these symbols will be replaced with constants and folded away
-    // for concrete op instances.
-    result.symbol = getAffineSymbolExpr(symbols.size(), parser.context);
-    // Merely for taking the index. We don't reuse anyway.
-    symbols.emplace_back("<attr-use>", result.symbol);
-
-    attrUses.push_back(result);
+    auto symbolIt = registeredAttrUseToSymbol.find(result.getKey());
+    if (symbolIt == registeredAttrUseToSymbol.end()) {
+      result.symbol = getAffineSymbolExpr(symbols.size(), parser.context);
+      symbols.emplace_back("<attr-use>", result.symbol);
+      registeredAttrUseToSymbol[result.getKey()] = result.symbol;
+      attrUses.push_back(result);
+    } else {
+      result.symbol = symbolIt->second;
+    }
 
     return result.symbol;
   };
@@ -1510,12 +1539,6 @@ LogicalResult TCParser::parseExpression(TensorUse currentDefinition,
       reductionDims.push_back(iter.cast<AffineDimExpr>().getPosition());
   }
 
-  // If this op is a reduction, it's first argument is the `currentDefinition`
-  // tensor use.
-  if (!reductionDims.empty())
-    expressions.push_back(std::make_unique<TensorUse>(currentDefinition));
-  LLVM_DEBUG(llvm::dbgs() << "op: " << opOrTensor << "\n");
-
   auto parseExpr = [&]() -> LogicalResult {
     std::unique_ptr<Expression> e;
     if (failed(parseExpression(currentDefinition, e, state)))
@@ -1619,7 +1642,8 @@ TCParser::parseOneComprehension(StringRef cppOpName, StringRef linalgOpName,
       auto tensorIter = registeredTensors.find(use.tensorId);
       assert(tensorIter != registeredTensors.end() && "unregistered tensor");
       auto &tensor = tensorIter->getValue();
-      if (tensor.indexingMap && state.orderedTensorArgs.count(use) == 0) {
+      if (tensor.indexingMap && state.orderedTensorArgs.count(use) == 0 &&
+          tensor.indexingMap.getResults() != use.indexingMap.getResults()) {
         LLVM_DEBUG(llvm::dbgs() << "\nexisting: " << tensor.indexingMap);
         (void)parser.emitError(
             "Unexpected multi-read of a tensor with different accesses");
@@ -1630,6 +1654,26 @@ TCParser::parseOneComprehension(StringRef cppOpName, StringRef linalgOpName,
       tensor.indexingMap = use.indexingMap;
       state.orderedTensorArgs[use] = tensor.index;
     });
+  // If more than one definitions are less. They are shaped-only operand, which
+  // are used to define reduction loops. For now, only accept exactly one
+  // shaped-only operand.
+  if (state.numArgs > seenDefs.size() + 1) {
+    failed = true;
+  } else if (state.numArgs == seenDefs.size() + 1) {
+    for (auto &tensorIter : registeredTensors) {
+      auto &tensor = tensorIter.getValue();
+      if (tensor.indexingMap)
+        continue;
+      if (auto *pTensorExpr =
+              dyn_cast<TensorExpr>(state.expressions[0].get())) {
+        SmallVector<AffineExpr, 4> exprs;
+        for (auto dim : pTensorExpr->reductionDimensions)
+          exprs.push_back(getAffineDimExpr(dim, parser.context));
+        tensor.indexingMap = AffineMap::get(state.dims.size(), symbols.size(),
+                                            exprs, parser.context);
+      }
+    }
+  }
   if (failed)
     return failure();
 
@@ -1757,6 +1801,7 @@ LogicalResult TCParser::parseAndEmitODSDef(llvm::raw_ostream &os) {
   SmallVector<ComprehensionParsingState, 4> perComprehensionStates;
   while (parser.curToken.isNot(Token::Kind::r_brace)) {
     perComprehensionStates.push_back(ComprehensionParsingState());
+    perComprehensionStates.back().numArgs = registeredTensors.size();
     if (failed(parseOneComprehension(cppOpName, tcName,
                                      perComprehensionStates.back())))
       return failure();
@@ -1816,16 +1861,19 @@ void TCParser::printODS(llvm::raw_ostream &os, StringRef cppOpName,
 
     const auto &dims = attr.second.vectorDims;
     if (!dims.empty()) {
+      // Vector case
       SmallVector<std::string, 4> dimStrs;
       for (uint64_t dim : dims)
         dimStrs.push_back(std::to_string(dim));
       odsType = llvm::formatv("Ranked{0}ElementsAttr<[{1}]>", odsType,
                               llvm::join(dimStrs, ", "));
-    }
-
-    assert(dims.empty() || !attr.second.isArray);
-    if (attr.second.isArray)
+    } else if (attr.second.isArray) {
+      // Array case
       odsType = llvm::formatv("{0}ArrayAttr", odsType);
+    } else {
+      // Scalar case
+      odsType = llvm::formatv("{0}Attr", odsType);
+    }
 
     if (attr.second.isOptional)
       odsType = llvm::formatv("OptionalAttr<{0}>", odsType);
@@ -1861,7 +1909,7 @@ void TCParser::printODS(llvm::raw_ostream &os, StringRef cppOpName,
 
       let skipDefaultBuilders = 1;
       let builders = [
-        OpBuilderDAG<
+        OpBuilder<
         (ins "ValueRange":$inputs, "ValueRange":$outputs),
         [{{
           $_state.addOperands(inputs);
@@ -1877,7 +1925,7 @@ void TCParser::printODS(llvm::raw_ostream &os, StringRef cppOpName,
             TypeRange(inputs),
             TypeRange(outputs)/*, TODO: support captures*/);
         }]>,
-        OpBuilderDAG<
+        OpBuilder<
         (ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
              "ValueRange":$outputs),
         [{{
@@ -1895,7 +1943,7 @@ void TCParser::printODS(llvm::raw_ostream &os, StringRef cppOpName,
             TypeRange(inputs),
             TypeRange(outputs)/*, TODO: support captures*/);
         }]>,
-        OpBuilderDAG<
+        OpBuilder<
         (ins "TypeRange":$resultTensorTypes, "ValueRange":$operands,
              CArg<"ArrayRef<NamedAttribute>", "{{}">:$attributes),
         [{{
@@ -1917,8 +1965,10 @@ void TCParser::printODS(llvm::raw_ostream &os, StringRef cppOpName,
         // Auto-generated.
         ArrayAttr iterator_types();
         ArrayAttr indexing_maps();
-        static void regionBuilder(Block &block, ValueRange captures);
-        static std::function<void(Block &, ValueRange)> getRegionBuilder() {{
+        static void regionBuilder(ImplicitLocOpBuilder &b,
+                                  Block &block, ValueRange captures);
+        static std::function<void(ImplicitLocOpBuilder &b,
+                                  Block &, ValueRange)> getRegionBuilder() {{
           return regionBuilder;
         }
 
@@ -1970,7 +2020,7 @@ void TCParser::printODS(llvm::raw_ostream &os, StringRef cppOpName,
     std::string attrStmtsList = llvm::join(attrStmts, "\n");
 
     const char *builderFmt = R"FMT(
-      , OpBuilderDAG<
+      , OpBuilder<
       (ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
            "ValueRange":$outputs, {1}),
       [{{
@@ -2004,8 +2054,7 @@ void TCParser::printODS(llvm::raw_ostream &os, StringRef cppOpName,
 
   // Finally put everything together.
   os << llvm::formatv(header, cppOpName, linalgOpName, interfaceNameList, doc,
-                      attrList, state.orderedTensorArgs.size(), attrBuilder,
-                      attrMethods);
+                      attrList, state.numArgs, attrBuilder, attrMethods);
 }
 
 /// Print the C++ StructuredOpsInterface impl of `iterator_types`.
@@ -2047,10 +2096,10 @@ void TCParser::printCanonicalizersAndFolders(llvm::raw_ostream &os,
                                              StringRef cppOpName) {
   const char *canonicalizersAndFoldersFmt = R"FMT(
     void {0}::getCanonicalizationPatterns(
-        OwningRewritePatternList &results,
+        RewritePatternSet &results,
         MLIRContext *context) {{
-      results.insert<EraseDeadLinalgOp>();
-      results.insert<FoldTensorCastOp>();
+      results.add<EraseDeadLinalgOp>(context);
+      results.add<FoldTensorCastOp>(context);
     }
     LogicalResult {0}::fold(ArrayRef<Attribute>,
                             SmallVectorImpl<OpFoldResult> &) {{
@@ -2058,8 +2107,10 @@ void TCParser::printCanonicalizersAndFolders(llvm::raw_ostream &os,
     }
     void {0}::getEffects(SmallVectorImpl<
         SideEffects::EffectInstance<MemoryEffects::Effect> >&effects) {{
+      SmallVector<Value> inputBuffers = getInputBufferOperands();
+      SmallVector<Value> outputBuffers = getOutputBufferOperands();
       getGenericEffectsImpl(effects,
-        getOperation()->getResults(), getInputBuffers(), getOutputBuffers());
+        getOperation()->getResults(), inputBuffers, outputBuffers);
     })FMT";
   os << llvm::formatv(canonicalizersAndFoldersFmt, cppOpName);
 }
@@ -2203,10 +2254,6 @@ void TCParser::printReferenceIndexingMaps(llvm::raw_ostream &os,
   std::string mapsStr;
   llvm::raw_string_ostream mapsStringStream(mapsStr);
 
-  SmallVector<TensorUse, 4> orderedUses(state.orderedTensorArgs.size());
-  for (const auto &it : state.orderedTensorArgs)
-    orderedUses[it.second] = it.first;
-
   // Create a list of all symbols.
   SmallVector<std::string, 4> symbolReplacements;
   symbolReplacements.reserve(symbols.size());
@@ -2222,13 +2269,14 @@ void TCParser::printReferenceIndexingMaps(llvm::raw_ostream &os,
     StringRef attrName = attrUse.value().attrName;
     auto it = registeredAttrs.find(attrName.str());
     assert(it != registeredAttrs.end() && "uses should point to valid attr!");
-    std::string getValueFn = it->second.getValueFn(attrUse.value().indices);
-    if (getValueFn.empty()) {
+    llvm::Optional<std::string> getValueFn =
+        it->second.getValueFn(attrUse.value().indices);
+    if (!getValueFn) {
       (void)parser.emitError("unimplemented getValueFn for attribute: " +
                              attrName);
       return;
     }
-    std::string cstVal = llvm::formatv("{0}().{1}", attrName, getValueFn);
+    std::string cstVal = llvm::formatv("{0}(){1}", attrName, *getValueFn);
     const char *cstFmt =
         "\n\tauto cst{0} = getAffineConstantExpr({1}, context);";
     mapsStringStream << llvm::formatv(cstFmt, attrUse.index(), cstVal);
@@ -2238,10 +2286,11 @@ void TCParser::printReferenceIndexingMaps(llvm::raw_ostream &os,
     symbolReplacements[position] = llvm::formatv("cst{0}", attrUse.index());
   }
 
-  // For each tensor use, construct the affine map, replace symbols by the
-  // corresponding attribute values, and simplify the affine map.
-  for (auto tensorUse : llvm::enumerate(orderedUses)) {
-    auto indexingMap = tensorUse.value().indexingMap;
+  // For each registered tensor, construct the affine map, replace symbols by
+  // the corresponding attribute values, and simplify the affine map.
+  for (auto &tensorIter : registeredTensors) {
+    auto &tensor = tensorIter.getValue();
+    auto indexingMap = tensor.indexingMap;
     const char *mapFmt =
         "\n\tauto map{0} = AffineMap::get({1}, {2}, {3}, context);";
 
@@ -2251,8 +2300,7 @@ void TCParser::printReferenceIndexingMaps(llvm::raw_ostream &os,
     llvm::interleaveComma(indexingMap.getResults(), exprsStringStream);
     exprsStringStream << "}";
     exprsStringStream.flush();
-    mapsStringStream << llvm::formatv(mapFmt, tensorUse.index(),
-                                      state.dims.size(),
+    mapsStringStream << llvm::formatv(mapFmt, tensor.index, state.dims.size(),
                                       indexingMap.getNumSymbols(), exprsStr);
 
     std::string replaceSymbolList =
@@ -2265,17 +2313,17 @@ void TCParser::printReferenceIndexingMaps(llvm::raw_ostream &os,
     // need that.
     const char *replaceFmt =
         "\n\tmap{0} = map{0}.replaceDimsAndSymbols({{}, {1}, {2}, 0);";
-    mapsStringStream << llvm::formatv(replaceFmt, tensorUse.index(),
+    mapsStringStream << llvm::formatv(replaceFmt, tensor.index,
                                       replaceSymbolList, state.dims.size());
     const char *simplifyFmt = "\n\tmap{0} = simplifyAffineMap(map{0});";
-    mapsStringStream << llvm::formatv(simplifyFmt, tensorUse.index());
+    mapsStringStream << llvm::formatv(simplifyFmt, tensor.index);
   }
 
   mapsStringStream.flush();
 
   SmallVector<std::string, 4> mapList;
-  mapList.reserve(orderedUses.size());
-  for (unsigned i = 0; i < orderedUses.size(); ++i)
+  mapList.reserve(state.numArgs);
+  for (auto i : llvm::seq<unsigned>(0, state.numArgs))
     mapList.push_back(llvm::formatv("map{0}", i));
 
   // 4. Apply format to 1. using 2. and 3.
@@ -2286,7 +2334,7 @@ void TCParser::printReferenceIndexingMaps(llvm::raw_ostream &os,
 /// Print the C++ StructuredOpsInterface impl of `regionBuilder`.
 void TCParser::printRegionBuilder(llvm::raw_ostream &os, StringRef cppOpName,
                                   ComprehensionParsingState &state) {
-  unsigned count = state.orderedTensorArgs.size();
+  unsigned count = state.numArgs;
   llvm::DenseMap<const TensorExpr *, unsigned> subExprsMap;
   std::function<void(llvm::raw_ostream & os, const Expression &)> printExpr;
   printExpr = [&](llvm::raw_ostream &os, const Expression &e) -> void {
@@ -2305,7 +2353,7 @@ void TCParser::printRegionBuilder(llvm::raw_ostream &os, StringRef cppOpName,
                               printExpr(subExprsStringStream, *e);
                             });
       subExprsStringStream.flush();
-      const char *tensorExprFmt = "\n    Value _{0} = {1}({2});";
+      const char *tensorExprFmt = "\n    Value _{0} = b.create<{1}>({2});";
       os << llvm::formatv(tensorExprFmt, ++count, pTensorExpr->operationName,
                           subExprs);
       subExprsMap[pTensorExpr] = count;
@@ -2313,23 +2361,22 @@ void TCParser::printRegionBuilder(llvm::raw_ostream &os, StringRef cppOpName,
   };
 
   const char *regionBuilderFmt = R"FMT(
-  void {0}::regionBuilder(Block &block, ValueRange captures) {
-    using namespace edsc;
-    using namespace intrinsics;
+  void {0}::regionBuilder(ImplicitLocOpBuilder &b,
+                          Block &block, ValueRange captures) {
     auto args = block.getArguments();
     Value {1};
     {2}
-    (linalg_yield(ValueRange{ {3} }));
+    b.create<linalg::YieldOp>(ValueRange{ {3} });
   })FMT";
 
-  unsigned idx = 0;
   std::string valueHandleStr;
   llvm::raw_string_ostream valueHandleStringStream(valueHandleStr);
-  llvm::interleaveComma(
-      state.orderedTensorArgs, valueHandleStringStream, [&](auto) {
-        valueHandleStringStream << "_" << idx << "(args[" << idx << "])";
-        idx++;
-      });
+  std::set<unsigned> usedTensorId;
+  for (const auto &iter : state.orderedTensorArgs)
+    usedTensorId.insert(iter.second);
+  llvm::interleaveComma(usedTensorId, valueHandleStringStream, [&](auto idx) {
+    valueHandleStringStream << "_" << idx << "(args[" << idx << "])";
+  });
 
   std::string expressionsStr;
   llvm::raw_string_ostream expressionStringStream(expressionsStr);
@@ -2338,6 +2385,8 @@ void TCParser::printRegionBuilder(llvm::raw_ostream &os, StringRef cppOpName,
       if (e.kind == Expression::Kind::TensorExpr)
         printExpr(expressionStringStream, e);
     });
+  expressionStringStream.flush();
+  substituteOpAliases(expressionsStr);
 
   std::string yieldStr;
   llvm::raw_string_ostream yieldStringStream(yieldStr);
@@ -2347,17 +2396,16 @@ void TCParser::printRegionBuilder(llvm::raw_ostream &os, StringRef cppOpName,
                         });
 
   valueHandleStringStream.flush();
-  expressionStringStream.flush();
   yieldStringStream.flush();
 
   os << llvm::formatv(regionBuilderFmt, cppOpName, valueHandleStr,
                       expressionsStr, yieldStr);
 }
 
-std::string
+llvm::Optional<std::string>
 TCParser::RegisteredAttr::getValueFn(ArrayRef<uint64_t> indices) const {
   if (isArray)
-    return "";
+    return llvm::None;
 
   if (!vectorDims.empty()) {
     SmallVector<std::string, 4> indexStrs;
@@ -2365,20 +2413,20 @@ TCParser::RegisteredAttr::getValueFn(ArrayRef<uint64_t> indices) const {
       indexStrs.push_back(std::to_string(index));
     std::string indexList = llvm::join(indexStrs, ", ");
     if (elementType == "f32")
-      return llvm::formatv("getValue<float>({ {0} })", indexList);
+      return llvm::formatv(".getValue<float>({ {0} })", indexList).str();
     if (elementType == "i32")
-      return llvm::formatv("getValue<int>({ {0} })", indexList);
+      return llvm::formatv(".getValue<int>({ {0} })", indexList).str();
     if (elementType == "i64")
-      return llvm::formatv("getValue<int64_t>({ {0} })", indexList);
+      return llvm::formatv(".getValue<int64_t>({ {0} })", indexList).str();
 
-    return "";
+    return llvm::None;
   }
 
   if (elementType == "f32")
-    return "getValue().convertToFloat()";
+    return std::string(".convertToFloat()");
   if (elementType == "i32" || elementType == "i64")
-    return "getInt()";
-  return "";
+    return std::string("");
+  return llvm::None;
 }
 
 /// Iterate over each Tensor Comprehension def.

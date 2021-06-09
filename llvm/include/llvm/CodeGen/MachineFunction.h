@@ -124,11 +124,14 @@ public:
   // NoPHIs: The machine function does not contain any PHI instruction.
   // TracksLiveness: True when tracking register liveness accurately.
   //  While this property is set, register liveness information in basic block
-  //  live-in lists and machine instruction operands (e.g. kill flags, implicit
-  //  defs) is accurate. This means it can be used to change the code in ways
-  //  that affect the values in registers, for example by the register
-  //  scavenger.
-  //  When this property is clear, liveness is no longer reliable.
+  //  live-in lists and machine instruction operands (e.g. implicit defs) is
+  //  accurate, kill flags are conservatively accurate (kill flag correctly
+  //  indicates the last use of a register, an operand without kill flag may or
+  //  may not be the last use of a register). This means it can be used to
+  //  change the code in ways that affect the values in registers, for example
+  //  by the register scavenger.
+  //  When this property is cleared at a very late time, liveness is no longer
+  //  reliable.
   // NoVRegs: The machine function does not use any virtual registers.
   // Legalized: In GlobalISel: the MachineLegalizer ran and all pre-isel generic
   //  instructions have been legalized; i.e., all instructions are now one of:
@@ -453,6 +456,24 @@ public:
   /// locations can find it later.
   std::map<DebugInstrOperandPair, DebugInstrOperandPair>
       DebugValueSubstitutions;
+
+  /// Location of a PHI instruction that is also a debug-info variable value,
+  /// for the duration of register allocation. Loaded by the PHI-elimination
+  /// pass, and emitted as DBG_PHI instructions during VirtRegRewriter, with
+  /// maintenance applied by intermediate passes that edit registers (such as
+  /// coalescing and the allocator passes).
+  class DebugPHIRegallocPos {
+  public:
+    MachineBasicBlock *MBB; ///< Block where this PHI was originally located.
+    Register Reg;           ///< VReg where the control-flow-merge happens.
+    unsigned SubReg;        ///< Optional subreg qualifier within Reg.
+    DebugPHIRegallocPos(MachineBasicBlock *MBB, Register Reg, unsigned SubReg)
+        : MBB(MBB), Reg(Reg), SubReg(SubReg) {}
+  };
+
+  /// Map of debug instruction numbers to the position of their PHI instructions
+  /// during register allocation. See DebugPHIRegallocPos.
+  DenseMap<unsigned, DebugPHIRegallocPos> DebugPHIPositions;
 
   /// Create a substitution between one <instr,operand> value to a different,
   /// new value.

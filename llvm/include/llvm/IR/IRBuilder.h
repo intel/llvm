@@ -850,9 +850,20 @@ public:
                              Type *ResultType,
                              const Twine &Name = "");
 
+  /// Create a call to the experimental.gc.pointer.base intrinsic to get the
+  /// base pointer for the specified derived pointer.
+  CallInst *CreateGCGetPointerBase(Value *DerivedPtr, const Twine &Name = "");
+
+  /// Create a call to the experimental.gc.get.pointer.offset intrinsic to get
+  /// the offset of the specified derived pointer from its base.
+  CallInst *CreateGCGetPointerOffset(Value *DerivedPtr, const Twine &Name = "");
+
   /// Create a call to llvm.vscale, multiplied by \p Scaling. The type of VScale
   /// will be the same type as that of \p Scaling.
   Value *CreateVScale(Constant *Scaling, const Twine &Name = "");
+
+  /// Creates a vector of type \p DstType with the linear sequence <0, 1, ...>
+  Value *CreateStepVector(Type *DstType, const Twine &Name = "");
 
   /// Create a call to intrinsic \p ID with 1 operand which is mangled on its
   /// type.
@@ -1534,6 +1545,18 @@ public:
     return Insert(BinOp, Name);
   }
 
+  Value *CreateLogicalAnd(Value *Cond1, Value *Cond2, const Twine &Name = "") {
+    assert(Cond2->getType()->isIntOrIntVectorTy(1));
+    return CreateSelect(Cond1, Cond2,
+                        ConstantInt::getNullValue(Cond2->getType()), Name);
+  }
+
+  Value *CreateLogicalOr(Value *Cond1, Value *Cond2, const Twine &Name = "") {
+    assert(Cond2->getType()->isIntOrIntVectorTy(1));
+    return CreateSelect(Cond1, ConstantInt::getAllOnesValue(Cond2->getType()),
+                        Cond2, Name);
+  }
+
   CallInst *CreateConstrainedFPBinOp(
       Intrinsic::ID ID, Value *L, Value *R, Instruction *FMFSource = nullptr,
       const Twine &Name = "", MDNode *FPMathTag = nullptr,
@@ -1634,17 +1657,27 @@ public:
   }
 
   // Deprecated [opaque pointer types]
-  LoadInst *CreateLoad(Value *Ptr, const char *Name) {
+  LLVM_ATTRIBUTE_DEPRECATED(LoadInst *CreateLoad(Value *Ptr,
+                                                 const char *Name),
+                            "Use the version that explicitly specifies the "
+                            "loaded type instead") {
     return CreateLoad(Ptr->getType()->getPointerElementType(), Ptr, Name);
   }
 
   // Deprecated [opaque pointer types]
-  LoadInst *CreateLoad(Value *Ptr, const Twine &Name = "") {
+  LLVM_ATTRIBUTE_DEPRECATED(LoadInst *CreateLoad(Value *Ptr,
+                                                 const Twine &Name = ""),
+                            "Use the version that explicitly specifies the "
+                            "loaded type instead") {
     return CreateLoad(Ptr->getType()->getPointerElementType(), Ptr, Name);
   }
 
   // Deprecated [opaque pointer types]
-  LoadInst *CreateLoad(Value *Ptr, bool isVolatile, const Twine &Name = "") {
+  LLVM_ATTRIBUTE_DEPRECATED(LoadInst *CreateLoad(Value *Ptr,
+                                                 bool isVolatile,
+                                                 const Twine &Name = ""),
+                            "Use the version that explicitly specifies the "
+                            "loaded type instead") {
     return CreateLoad(Ptr->getType()->getPointerElementType(), Ptr, isVolatile,
                       Name);
   }
@@ -1673,19 +1706,30 @@ public:
   }
 
   // Deprecated [opaque pointer types]
-  LoadInst *CreateAlignedLoad(Value *Ptr, MaybeAlign Align, const char *Name) {
+  LLVM_ATTRIBUTE_DEPRECATED(LoadInst *CreateAlignedLoad(Value *Ptr,
+                                                        MaybeAlign Align,
+                                                        const char *Name),
+                            "Use the version that explicitly specifies the "
+                            "loaded type instead") {
     return CreateAlignedLoad(Ptr->getType()->getPointerElementType(), Ptr,
                              Align, Name);
   }
   // Deprecated [opaque pointer types]
-  LoadInst *CreateAlignedLoad(Value *Ptr, MaybeAlign Align,
-                              const Twine &Name = "") {
+  LLVM_ATTRIBUTE_DEPRECATED(LoadInst *CreateAlignedLoad(Value *Ptr,
+                                                        MaybeAlign Align,
+                                                        const Twine &Name = ""),
+                            "Use the version that explicitly specifies the "
+                            "loaded type instead") {
     return CreateAlignedLoad(Ptr->getType()->getPointerElementType(), Ptr,
                              Align, Name);
   }
   // Deprecated [opaque pointer types]
-  LoadInst *CreateAlignedLoad(Value *Ptr, MaybeAlign Align, bool isVolatile,
-                              const Twine &Name = "") {
+  LLVM_ATTRIBUTE_DEPRECATED(LoadInst *CreateAlignedLoad(Value *Ptr,
+                                                        MaybeAlign Align,
+                                                        bool isVolatile,
+                                                        const Twine &Name = ""),
+                            "Use the version that explicitly specifies the "
+                            "loaded type instead") {
     return CreateAlignedLoad(Ptr->getType()->getPointerElementType(), Ptr,
                              Align, isVolatile, Name);
   }
@@ -1704,21 +1748,30 @@ public:
     return Insert(new FenceInst(Context, Ordering, SSID), Name);
   }
 
-  AtomicCmpXchgInst *CreateAtomicCmpXchg(
-      Value *Ptr, Value *Cmp, Value *New, AtomicOrdering SuccessOrdering,
-      AtomicOrdering FailureOrdering, SyncScope::ID SSID = SyncScope::System) {
-    const DataLayout &DL = BB->getModule()->getDataLayout();
-    Align Alignment(DL.getTypeStoreSize(New->getType()));
-    return Insert(new AtomicCmpXchgInst(
-        Ptr, Cmp, New, Alignment, SuccessOrdering, FailureOrdering, SSID));
+  AtomicCmpXchgInst *
+  CreateAtomicCmpXchg(Value *Ptr, Value *Cmp, Value *New, MaybeAlign Align,
+                      AtomicOrdering SuccessOrdering,
+                      AtomicOrdering FailureOrdering,
+                      SyncScope::ID SSID = SyncScope::System) {
+    if (!Align) {
+      const DataLayout &DL = BB->getModule()->getDataLayout();
+      Align = llvm::Align(DL.getTypeStoreSize(New->getType()));
+    }
+
+    return Insert(new AtomicCmpXchgInst(Ptr, Cmp, New, *Align, SuccessOrdering,
+                                        FailureOrdering, SSID));
   }
 
-  AtomicRMWInst *CreateAtomicRMW(AtomicRMWInst::BinOp Op, Value *Ptr, Value *Val,
+  AtomicRMWInst *CreateAtomicRMW(AtomicRMWInst::BinOp Op, Value *Ptr,
+                                 Value *Val, MaybeAlign Align,
                                  AtomicOrdering Ordering,
                                  SyncScope::ID SSID = SyncScope::System) {
-    const DataLayout &DL = BB->getModule()->getDataLayout();
-    Align Alignment(DL.getTypeStoreSize(Val->getType()));
-    return Insert(new AtomicRMWInst(Op, Ptr, Val, Alignment, Ordering, SSID));
+    if (!Align) {
+      const DataLayout &DL = BB->getModule()->getDataLayout();
+      Align = llvm::Align(DL.getTypeStoreSize(Val->getType()));
+    }
+
+    return Insert(new AtomicRMWInst(Op, Ptr, Val, *Align, Ordering, SSID));
   }
 
   Value *CreateGEP(Value *Ptr, ArrayRef<Value *> IdxList,
@@ -2461,6 +2514,19 @@ public:
   /// different from pointer to i8, it's casted to pointer to i8 in the same
   /// address space before call and casted back to Ptr type after call.
   Value *CreateStripInvariantGroup(Value *Ptr);
+
+  /// Return a vector value that contains the vector V reversed
+  Value *CreateVectorReverse(Value *V, const Twine &Name = "");
+
+  /// Return a vector splice intrinsic if using scalable vectors, otherwise
+  /// return a shufflevector. If the immediate is positive, a vector is
+  /// extracted from concat(V1, V2), starting at Imm. If the immediate
+  /// is negative, we extract -Imm elements from V1 and the remaining
+  /// elements from V2. Imm is a signed integer in the range
+  /// -VL <= Imm < VL (where VL is the runtime vector length of the
+  /// source/result vector)
+  Value *CreateVectorSplice(Value *V1, Value *V2, int64_t Imm,
+                            const Twine &Name = "");
 
   /// Return a vector value that contains \arg V broadcasted to \p
   /// NumElts elements.

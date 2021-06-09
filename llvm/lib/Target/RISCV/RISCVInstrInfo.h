@@ -15,6 +15,7 @@
 
 #include "RISCVRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/IR/DiagnosticInfo.h"
 
 #define GET_INSTRINFO_HEADER
 #include "RISCVGenInstrInfo.inc"
@@ -27,6 +28,8 @@ class RISCVInstrInfo : public RISCVGenInstrInfo {
 
 public:
   explicit RISCVInstrInfo(RISCVSubtarget &STI);
+
+  MCInst getNop() const override;
 
   unsigned isLoadFromStackSlot(const MachineInstr &MI,
                                int &FrameIndex) const override;
@@ -139,6 +142,18 @@ public:
   MachineInstr *commuteInstructionImpl(MachineInstr &MI, bool NewMI,
                                        unsigned OpIdx1,
                                        unsigned OpIdx2) const override;
+
+  Register getVLENFactoredAmount(MachineFunction &MF, MachineBasicBlock &MBB,
+                                 MachineBasicBlock::iterator II,
+                                 const DebugLoc &DL, int64_t Amount) const;
+
+  // Returns true if the given MI is an RVV instruction opcode for which we may
+  // expect to see a FrameIndex operand. When CheckFIs is true, the instruction
+  // must contain at least one FrameIndex operand.
+  bool isRVVSpill(const MachineInstr &MI, bool CheckFIs) const;
+
+  Optional<std::pair<unsigned, unsigned>>
+  isRVVSpillForZvlsseg(unsigned Opcode) const;
 
 protected:
   const RISCVSubtarget &STI;

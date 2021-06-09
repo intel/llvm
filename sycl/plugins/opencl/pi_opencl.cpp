@@ -481,6 +481,14 @@ pi_result piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
                      sizeof(cl_sampler), cast<const cl_sampler *>(arg_value)));
 }
 
+pi_result piextKernelCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                            pi_context, bool,
+                                            pi_kernel *piKernel) {
+  assert(piKernel != nullptr);
+  *piKernel = reinterpret_cast<pi_kernel>(nativeHandle);
+  return PI_SUCCESS;
+}
+
 pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                         const char *func_name,
                                         pi_uint64 *function_pointer_ret) {
@@ -746,9 +754,11 @@ pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
-  assert(alignment == 0 ||
-         (RetVal == PI_SUCCESS &&
-          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
+  // ensure we aligned the allocation correctly
+  if (RetVal == PI_SUCCESS && alignment != 0)
+    assert(reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0 &&
+           "allocation not aligned correctly");
+
   return RetVal;
 }
 
@@ -782,9 +792,11 @@ pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
-  assert(alignment == 0 ||
-         (RetVal == PI_SUCCESS &&
-          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
+  // ensure we aligned the allocation correctly
+  if (RetVal == PI_SUCCESS && alignment != 0)
+    assert(reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0 &&
+           "allocation not aligned correctly");
+
   return RetVal;
 }
 
@@ -1181,6 +1193,11 @@ pi_result piextProgramGetNativeHandle(pi_program program,
   return piextGetNativeHandle(program, nativeHandle);
 }
 
+pi_result piextKernelGetNativeHandle(pi_kernel kernel,
+                                     pi_native_handle *nativeHandle) {
+  return piextGetNativeHandle(kernel, nativeHandle);
+}
+
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
@@ -1269,6 +1286,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRelease, clReleaseKernel)
   _PI_CL(piKernelSetExecInfo, piKernelSetExecInfo)
   _PI_CL(piextKernelSetArgPointer, piextKernelSetArgPointer)
+  _PI_CL(piextKernelCreateWithNativeHandle, piextKernelCreateWithNativeHandle)
+  _PI_CL(piextKernelGetNativeHandle, piextKernelGetNativeHandle)
   // Event
   _PI_CL(piEventCreate, piEventCreate)
   _PI_CL(piEventGetInfo, clGetEventInfo)

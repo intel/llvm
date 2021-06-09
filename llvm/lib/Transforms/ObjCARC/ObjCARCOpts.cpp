@@ -1229,7 +1229,6 @@ static void CheckForUseCFGHazard(const Sequence SuccSSeq,
     SomeSuccHasSame = true;
     break;
   case S_Stop:
-  case S_Release:
   case S_MovableRelease:
     if (!S.IsKnownSafe() && !SuccSRRIKnownSafe)
       AllSuccsHaveSame = false;
@@ -1257,7 +1256,6 @@ static void CheckForCanReleaseCFGHazard(const Sequence SuccSSeq,
     SomeSuccHasSame = true;
     break;
   case S_Stop:
-  case S_Release:
   case S_MovableRelease:
   case S_Use:
     if (!S.IsKnownSafe() && !SuccSRRIKnownSafe)
@@ -1343,7 +1341,6 @@ ObjCARCOpt::CheckForCFGHazards(const BasicBlock *BB,
       case S_Retain:
       case S_None:
       case S_Stop:
-      case S_Release:
       case S_MovableRelease:
         break;
       }
@@ -2104,7 +2101,7 @@ void ObjCARCOpt::OptimizeWeakCalls(Function &F) {
         Value *Arg = Call->getArgOperand(0);
         Value *EarlierArg = EarlierCall->getArgOperand(0);
         switch (PA.getAA()->alias(Arg, EarlierArg)) {
-        case MustAlias:
+        case AliasResult::MustAlias:
           Changed = true;
           // If the load has a builtin retain, insert a plain retain for it.
           if (Class == ARCInstKind::LoadWeakRetained) {
@@ -2116,10 +2113,10 @@ void ObjCARCOpt::OptimizeWeakCalls(Function &F) {
           Call->replaceAllUsesWith(EarlierCall);
           Call->eraseFromParent();
           goto clobbered;
-        case MayAlias:
-        case PartialAlias:
+        case AliasResult::MayAlias:
+        case AliasResult::PartialAlias:
           goto clobbered;
-        case NoAlias:
+        case AliasResult::NoAlias:
           break;
         }
         break;
@@ -2133,7 +2130,7 @@ void ObjCARCOpt::OptimizeWeakCalls(Function &F) {
         Value *Arg = Call->getArgOperand(0);
         Value *EarlierArg = EarlierCall->getArgOperand(0);
         switch (PA.getAA()->alias(Arg, EarlierArg)) {
-        case MustAlias:
+        case AliasResult::MustAlias:
           Changed = true;
           // If the load has a builtin retain, insert a plain retain for it.
           if (Class == ARCInstKind::LoadWeakRetained) {
@@ -2145,10 +2142,10 @@ void ObjCARCOpt::OptimizeWeakCalls(Function &F) {
           Call->replaceAllUsesWith(EarlierCall->getArgOperand(1));
           Call->eraseFromParent();
           goto clobbered;
-        case MayAlias:
-        case PartialAlias:
+        case AliasResult::MayAlias:
+        case AliasResult::PartialAlias:
           goto clobbered;
-        case NoAlias:
+        case AliasResult::NoAlias:
           break;
         }
         break;

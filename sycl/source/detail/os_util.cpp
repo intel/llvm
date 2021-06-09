@@ -24,11 +24,13 @@
 #include <libgen.h> // for dirname
 #include <link.h>
 #include <linux/limits.h> // for PATH_MAX
+#include <sys/stat.h>
 #include <sys/sysinfo.h>
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
 
 #include <Windows.h>
+#include <direct.h>
 #include <malloc.h>
 #include <shlwapi.h>
 
@@ -211,6 +213,19 @@ std::string OSUtil::getCurrentDSODir() {
   return Path;
 }
 
+std::string OSUtil::getDirName(const char *Path) {
+  std::string Tmp(Path);
+  // Remove trailing directory separators
+  Tmp.erase(Tmp.find_last_not_of("/\\") + 1, std::string::npos);
+
+  size_t pos = Tmp.find_last_of("/\\");
+  if (pos != std::string::npos)
+    return Tmp.substr(0, pos);
+
+  // If no directory separator is present return initial path like dirname does
+  return Tmp;
+}
+
 #elif defined(__SYCL_RT_OS_DARWIN)
 OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
   Dl_info Res;
@@ -256,6 +271,32 @@ void OSUtil::alignedFree(void *Ptr) {
 #elif defined(__SYCL_RT_OS_WINDOWS)
   _aligned_free(Ptr);
 #endif
+}
+
+/* This is temporary solution until std::filesystem is available when SYCL RT
+ * is moved to c++17 standard*/
+
+/* Create directory recursively and return non zero code on success*/
+int OSUtil::makeDir(const char *Dir) {
+  assert((Dir != nullptr) && "Passed null-pointer as directory name.");
+  if (isPathPresent(Dir))
+    return 0;
+
+  std::string Path{Dir}, CurPath;
+  size_t pos = 0;
+
+  do {
+    pos = Path.find_first_of("/\\", ++pos);
+    CurPath = Path.substr(0, pos);
+#if defined(__SYCL_RT_OS_LINUX)
+    auto Res = mkdir(CurPath.c_str(), 0777);
+#else
+    auto Res = _mkdir(CurPath.c_str());
+#endif
+    if (Res && errno != EEXIST)
+      return Res;
+  } while (pos != std::string::npos);
+  return 0;
 }
 
 } // namespace detail

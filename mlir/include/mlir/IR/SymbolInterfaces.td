@@ -24,7 +24,7 @@ def Symbol : OpInterface<"SymbolOpInterface"> {
   let description = [{
     This interface describes an operation that may define a `Symbol`. A `Symbol`
     operation resides immediately within a region that defines a `SymbolTable`.
-    See [Symbols and SymbolTables](SymbolsAndSymbolTables.md) for more details
+    See [Symbols and SymbolTables](../SymbolsAndSymbolTables.md) for more details
     and constraints on `Symbol` operations.
   }];
   let cppNamespace = "::mlir";
@@ -178,10 +178,10 @@ def Symbol : OpInterface<"SymbolOpInterface"> {
   let extraClassDeclaration = [{
     /// Custom classof that handles the case where the symbol is optional.
     static bool classof(Operation *op) {
-      auto *concept = getInterfaceFor(op);
-      if (!concept)
+      auto *opConcept = getInterfaceFor(op);
+      if (!opConcept)
         return false;
-      return !concept->isOptionalSymbol(op) ||
+      return !opConcept->isOptionalSymbol(opConcept, op) ||
              op->getAttr(::mlir::SymbolTable::getSymbolAttrName());
     }
   }];

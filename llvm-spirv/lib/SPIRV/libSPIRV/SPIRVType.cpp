@@ -53,9 +53,10 @@ SPIRVType *SPIRVType::getArrayElementType() const {
 
 uint64_t SPIRVType::getArrayLength() const {
   assert(OpCode == OpTypeArray && "Not array type");
-  return static_cast<const SPIRVTypeArray *>(this)
-      ->getLength()
-      ->getZExtIntValue();
+  const SPIRVTypeArray *AsArray = static_cast<const SPIRVTypeArray *>(this);
+  assert(AsArray->getLength()->getOpCode() == OpConstant &&
+         "getArrayLength can only be called with constant array lengths");
+  return AsArray->getLength()->getZExtIntValue();
 }
 
 SPIRVWord SPIRVType::getBitWidth() const {
@@ -116,12 +117,12 @@ SPIRVType *SPIRVType::getVectorComponentType() const {
 
 SPIRVWord SPIRVType::getMatrixColumnCount() const {
   assert(OpCode == OpTypeMatrix && "Not matrix type");
-  return static_cast<const SPIRVTypeMatrix *const>(this)->getColumnCount();
+  return static_cast<const SPIRVTypeMatrix *>(this)->getColumnCount();
 }
 
 SPIRVType *SPIRVType::getMatrixColumnType() const {
   assert(OpCode == OpTypeMatrix && "Not matrix type");
-  return static_cast<const SPIRVTypeMatrix *const>(this)->getColumnType();
+  return static_cast<const SPIRVTypeMatrix *>(this)->getColumnType();
 }
 
 SPIRVType *SPIRVType::getScalarType() const {
@@ -246,8 +247,7 @@ SPIRVTypeArray::SPIRVTypeArray(SPIRVModule *M, SPIRVId TheId,
 void SPIRVTypeArray::validate() const {
   SPIRVEntry::validate();
   ElemType->validate();
-  assert(getValue(Length)->getType()->isTypeInt() &&
-         get<SPIRVConstant>(Length)->getZExtIntValue() > 0);
+  assert(getValue(Length)->getType()->isTypeInt());
 }
 
 SPIRVConstant *SPIRVTypeArray::getLength() const {

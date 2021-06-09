@@ -1,4 +1,4 @@
-; RUN: opt -S -loop-vectorize -force-vector-interleave=1 -instcombine -mattr=+sve -mtriple aarch64-unknown-linux-gnu < %s | FileCheck %s
+; RUN: opt -S -loop-vectorize -force-vector-interleave=1 -instcombine -mattr=+sve -mtriple aarch64-unknown-linux-gnu -scalable-vectorization=on < %s | FileCheck %s
 
 define void @vec_load(i64 %N, double* nocapture %a, double* nocapture readonly %b) {
 ; CHECK-LABEL: @vec_load
@@ -86,6 +86,7 @@ for.body:
   %0 = load double, double* %arrayidx, align 8
   %1 = call fast double @llvm.sin.f64(double %0) #2
   %add = fadd fast double %1, 1.000000e+00
+  store double %add, double* %arrayidx, align 8
   %iv.next = add nuw nsw i64 %iv, 1
   %exitcond = icmp eq i64 %iv.next, %N
   br i1 %exitcond, label %for.end, label %for.body, !llvm.loop !1

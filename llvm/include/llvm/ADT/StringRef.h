@@ -35,6 +35,7 @@ namespace llvm {
   class APInt;
   class hash_code;
   template <typename T> class SmallVectorImpl;
+  template <typename T> struct DenseMapInfo;
   class StringRef;
 
   /// Helper functions for StringRef::getAsInteger.
@@ -119,10 +120,6 @@ namespace llvm {
     /*implicit*/ constexpr StringRef(std::string_view Str)
         : Data(Str.data()), Length(Str.size()) {}
 #endif
-
-    static StringRef withNullAsEmpty(const char *data) {
-      return StringRef(data ? data : "");
-    }
 
     /// @}
     /// @name Iterators
@@ -928,6 +925,35 @@ namespace llvm {
   /// Compute a hash_code for a StringRef.
   LLVM_NODISCARD
   hash_code hash_value(StringRef S);
+
+  // Provide DenseMapInfo for StringRefs.
+  template <> struct DenseMapInfo<StringRef> {
+    static inline StringRef getEmptyKey() {
+      return StringRef(
+          reinterpret_cast<const char *>(~static_cast<uintptr_t>(0)), 0);
+    }
+
+    static inline StringRef getTombstoneKey() {
+      return StringRef(
+          reinterpret_cast<const char *>(~static_cast<uintptr_t>(1)), 0);
+    }
+
+    static unsigned getHashValue(StringRef Val) {
+      assert(Val.data() != getEmptyKey().data() &&
+             "Cannot hash the empty key!");
+      assert(Val.data() != getTombstoneKey().data() &&
+             "Cannot hash the tombstone key!");
+      return (unsigned)(hash_value(Val));
+    }
+
+    static bool isEqual(StringRef LHS, StringRef RHS) {
+      if (RHS.data() == getEmptyKey().data())
+        return LHS.data() == getEmptyKey().data();
+      if (RHS.data() == getTombstoneKey().data())
+        return LHS.data() == getTombstoneKey().data();
+      return LHS == RHS;
+    }
+  };
 
 } // end namespace llvm
 

@@ -108,8 +108,11 @@ namespace {
 
   /// Given a CallExpr, try to get the alloc_size attribute. May return null.
   static const AllocSizeAttr *getAllocSizeAttr(const CallExpr *CE) {
-    const FunctionDecl *Callee = CE->getDirectCallee();
-    return Callee ? Callee->getAttr<AllocSizeAttr>() : nullptr;
+    if (const FunctionDecl *DirectCallee = CE->getDirectCallee())
+      return DirectCallee->getAttr<AllocSizeAttr>();
+    if (const Decl *IndirectCallee = CE->getCalleeDecl())
+      return IndirectCallee->getAttr<AllocSizeAttr>();
+    return nullptr;
   }
 
   /// Attempts to unwrap a CallExpr (with an alloc_size attribute) from an Expr.
@@ -926,6 +929,9 @@ namespace {
     /// Whether we're checking for an expression that has undefined behavior.
     /// If so, we will produce warnings if we encounter an operation that is
     /// always undefined.
+    ///
+    /// Note that we still need to evaluate the expression normally when this
+    /// is set; this is used when evaluating ICEs in C.
     bool CheckingForUndefinedBehavior = false;
 
     enum EvaluationMode {
@@ -2715,8 +2721,7 @@ static bool CheckedIntArithmetic(EvalInfo &Info, const Expr *E,
       Info.Ctx.getDiagnostics().Report(E->getExprLoc(),
                                        diag::warn_integer_constant_overflow)
           << Result.toString(10) << E->getType();
-    else
-      return HandleOverflow(Info, E, Value, E->getType());
+    return HandleOverflow(Info, E, Value, E->getType());
   }
   return true;
 }
@@ -6710,9 +6715,12 @@ bool HandleOperatorDeleteCall(EvalInfo &Info, const CallExpr *E) {
   if (Pointer.Designator.Invalid)
     return false;
 
-  // Deleting a null pointer has no effect.
-  if (Pointer.isNullPointer())
+  // Deleting a null pointer would have no effect, but it's not permitted by
+  // std::allocator<T>::deallocate's contract.
+  if (Pointer.isNullPointer()) {
+    Info.CCEDiag(E->getExprLoc(), diag::note_constexpr_deallocate_null);
     return true;
+  }
 
   if (!CheckDeleteKind(Info, E, Pointer, DynAlloc::StdAllocator))
     return false;
@@ -7846,8 +7854,8 @@ public:
   bool VisitStmtExpr(const StmtExpr *E) {
     // We will have checked the full-expressions inside the statement expression
     // when they were completed, and don't need to check them again now.
-    if (Info.checkingForUndefinedBehavior())
-      return Error(E);
+    llvm::SaveAndRestore<bool> NotCheckingForUB(
+        Info.CheckingForUndefinedBehavior, false);
 
     const CompoundStmt *CS = E->getSubStmt();
     if (CS->body_empty())
@@ -8658,6 +8666,26 @@ public:
     APValue LValResult = E->EvaluateInContext(
         Info.Ctx, Info.CurrentCall->CurSourceLocExprScope.getDefaultExpr());
     Result.setFrom(Info.Ctx, LValResult);
+    return true;
+  }
+
+  bool VisitSYCLUniqueStableNameExpr(const SYCLUniqueStableNameExpr *E) {
+    std::string ResultStr = E->ComputeName(Info.Ctx);
+
+    Info.Ctx.SYCLUniqueStableNameEvaluatedValues[E] = ResultStr;
+
+    QualType CharTy = Info.Ctx.CharTy.withConst();
+    APInt Size(Info.Ctx.getTypeSize(Info.Ctx.getSizeType()),
+               ResultStr.size() + 1);
+    QualType ArrayTy = Info.Ctx.getConstantArrayType(CharTy, Size, nullptr,
+                                                     ArrayType::Normal, 0);
+
+    StringLiteral *SL =
+        StringLiteral::Create(Info.Ctx, ResultStr, StringLiteral::Ascii,
+                              /*Pascal*/ false, ArrayTy, E->getLocation());
+
+    evaluateLValue(SL, Result);
+    Result.addArray(Info, E, cast<ConstantArrayType>(ArrayTy));
     return true;
   }
 
@@ -10302,10 +10330,10 @@ bool VectorExprEvaluator::VisitBinaryOperator(const BinaryOperator *E) {
          "Must both be vector types");
   // Checking JUST the types are the same would be fine, except shifts don't
   // need to have their types be the same (since you always shift by an int).
-  assert(LHS->getType()->getAs<VectorType>()->getNumElements() ==
-             E->getType()->getAs<VectorType>()->getNumElements() &&
-         RHS->getType()->getAs<VectorType>()->getNumElements() ==
-             E->getType()->getAs<VectorType>()->getNumElements() &&
+  assert(LHS->getType()->castAs<VectorType>()->getNumElements() ==
+             E->getType()->castAs<VectorType>()->getNumElements() &&
+         RHS->getType()->castAs<VectorType>()->getNumElements() ==
+             E->getType()->castAs<VectorType>()->getNumElements() &&
          "All operands must be the same size.");
 
   APValue LHSValue;
@@ -10359,7 +10387,8 @@ namespace {
 
       Result = APValue(APValue::UninitArray(), 0,
                        CAT->getSize().getZExtValue());
-      if (!Result.hasArrayFiller()) return true;
+      if (!Result.hasArrayFiller())
+        return true;
 
       // Zero-initialize all elements.
       LValue Subobject = This;
@@ -10729,6 +10758,13 @@ public:
   bool VisitConceptSpecializationExpr(const ConceptSpecializationExpr *E);
   bool VisitRequiresExpr(const RequiresExpr *E);
   // FIXME: Missing: array subscript of vector, member of vector
+
+  bool VisitSYCLBuiltinNumFieldsExpr(const SYCLBuiltinNumFieldsExpr *E) {
+    return Success(E->getNumFields(), E);
+  }
+  bool VisitSYCLBuiltinNumBasesExpr(const SYCLBuiltinNumBasesExpr *E) {
+    return Success(E->getNumBases(), E);
+  }
 };
 
 class FixedPointExprEvaluator
@@ -10989,6 +11025,8 @@ EvaluateBuiltinClassifyType(QualType T, const LangOptions &LangOpts) {
 #define PPC_VECTOR_TYPE(Name, Id, Size) \
     case BuiltinType::Id:
 #include "clang/Basic/PPCTypes.def"
+#define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/RISCVVTypes.def"
       return GCCTypeClass::None;
 
     case BuiltinType::Dependent:
@@ -12008,9 +12046,6 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     return BuiltinOp == Builtin::BI__atomic_always_lock_free ?
         Success(0, E) : Error(E);
   }
-  case Builtin::BIomp_is_initial_device:
-    // We can decide statically which value the runtime would return if called.
-    return Success(Info.getLangOpts().OpenMPIsDevice ? 0 : 1, E);
   case Builtin::BI__builtin_add_overflow:
   case Builtin::BI__builtin_sub_overflow:
   case Builtin::BI__builtin_mul_overflow:
@@ -12470,25 +12505,6 @@ void DataRecursiveIntBinOpEvaluator::process(EvalResult &Result) {
 }
 
 namespace {
-/// Used when we determine that we should fail, but can keep evaluating prior to
-/// noting that we had a failure.
-class DelayedNoteFailureRAII {
-  EvalInfo &Info;
-  bool NoteFailure;
-
-public:
-  DelayedNoteFailureRAII(EvalInfo &Info, bool NoteFailure = true)
-      : Info(Info), NoteFailure(NoteFailure) {}
-  ~DelayedNoteFailureRAII() {
-    if (NoteFailure) {
-      bool ContinueAfterFailure = Info.noteFailure();
-      (void)ContinueAfterFailure;
-      assert(ContinueAfterFailure &&
-             "Shouldn't have kept evaluating on failure.");
-    }
-  }
-};
-
 enum class CmpResult {
   Unequal,
   Less,
@@ -12856,12 +12872,14 @@ bool RecordExprEvaluator::VisitBinCmp(const BinaryOperator *E) {
 }
 
 bool IntExprEvaluator::VisitBinaryOperator(const BinaryOperator *E) {
-  // We don't call noteFailure immediately because the assignment happens after
-  // we evaluate LHS and RHS.
-  if (!Info.keepEvaluatingAfterFailure() && E->isAssignmentOp())
-    return Error(E);
+  // We don't support assignment in C. C++ assignments don't get here because
+  // assignment is an lvalue in C++.
+  if (E->isAssignmentOp()) {
+    Error(E);
+    if (!Info.noteFailure())
+      return false;
+  }
 
-  DelayedNoteFailureRAII MaybeNoteFailureLater(Info, E->isAssignmentOp());
   if (DataRecursiveIntBinOpEvaluator::shouldEnqueue(E))
     return DataRecursiveIntBinOpEvaluator(*this, Result).Traverse(E);
 
@@ -13198,6 +13216,7 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
   case CK_FixedPointToFloating:
   case CK_FixedPointCast:
   case CK_IntegralToFixedPoint:
+  case CK_MatrixCast:
     llvm_unreachable("invalid cast kind for integral value");
 
   case CK_BitCast:
@@ -13415,7 +13434,7 @@ bool FixedPointExprEvaluator::VisitCastExpr(const CastExpr *E) {
         Info.Ctx.getDiagnostics().Report(E->getExprLoc(),
                                          diag::warn_fixedpoint_constant_overflow)
           << Result.toString() << E->getType();
-      else if (!HandleOverflow(Info, E, Result, E->getType()))
+      if (!HandleOverflow(Info, E, Result, E->getType()))
         return false;
     }
     return Success(Result, E);
@@ -13434,7 +13453,7 @@ bool FixedPointExprEvaluator::VisitCastExpr(const CastExpr *E) {
         Info.Ctx.getDiagnostics().Report(E->getExprLoc(),
                                          diag::warn_fixedpoint_constant_overflow)
           << IntResult.toString() << E->getType();
-      else if (!HandleOverflow(Info, E, IntResult, E->getType()))
+      if (!HandleOverflow(Info, E, IntResult, E->getType()))
         return false;
     }
 
@@ -13454,7 +13473,7 @@ bool FixedPointExprEvaluator::VisitCastExpr(const CastExpr *E) {
         Info.Ctx.getDiagnostics().Report(E->getExprLoc(),
                                          diag::warn_fixedpoint_constant_overflow)
           << Result.toString() << E->getType();
-      else if (!HandleOverflow(Info, E, Result, E->getType()))
+      if (!HandleOverflow(Info, E, Result, E->getType()))
         return false;
     }
 
@@ -13542,7 +13561,7 @@ bool FixedPointExprEvaluator::VisitBinaryOperator(const BinaryOperator *E) {
       Info.Ctx.getDiagnostics().Report(E->getExprLoc(),
                                        diag::warn_fixedpoint_constant_overflow)
         << Result.toString() << E->getType();
-    else if (!HandleOverflow(Info, E, Result, E->getType()))
+    if (!HandleOverflow(Info, E, Result, E->getType()))
       return false;
   }
   return Success(Result, E);
@@ -13938,6 +13957,7 @@ bool ComplexExprEvaluator::VisitCastExpr(const CastExpr *E) {
   case CK_FixedPointToBoolean:
   case CK_FixedPointToIntegral:
   case CK_IntegralToFixedPoint:
+  case CK_MatrixCast:
     llvm_unreachable("invalid cast kind for complex value");
 
   case CK_LValueToRValue:
@@ -15167,6 +15187,9 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CoawaitExprClass:
   case Expr::DependentCoawaitExprClass:
   case Expr::CoyieldExprClass:
+  case Expr::SYCLBuiltinFieldTypeExprClass:
+  case Expr::SYCLBuiltinBaseTypeExprClass:
+  case Expr::SYCLUniqueStableNameExprClass:
     return ICEDiag(IK_NotICE, E->getBeginLoc());
 
   case Expr::InitListExprClass: {
@@ -15208,6 +15231,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ArrayTypeTraitExprClass:
   case Expr::ExpressionTraitExprClass:
   case Expr::CXXNoexceptExprClass:
+  case Expr::SYCLBuiltinNumFieldsExprClass:
+  case Expr::SYCLBuiltinNumBasesExprClass:
     return NoDiag();
   case Expr::CallExprClass:
   case Expr::CXXOperatorCallExprClass: {

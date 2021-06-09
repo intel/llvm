@@ -335,6 +335,8 @@ private:
                     unsigned Abbrev);
   void writeDIMacroFile(const DIMacroFile *N, SmallVectorImpl<uint64_t> &Record,
                         unsigned Abbrev);
+  void writeDIArgList(const DIArgList *N, SmallVectorImpl<uint64_t> &Record,
+                      unsigned Abbrev);
   void writeDIModule(const DIModule *N, SmallVectorImpl<uint64_t> &Record,
                      unsigned Abbrev);
   void writeDITemplateTypeParameter(const DITemplateTypeParameter *N,
@@ -684,6 +686,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_NO_PROFILE;
   case Attribute::NoUnwind:
     return bitc::ATTR_KIND_NO_UNWIND;
+  case Attribute::NoSanitizeCoverage:
+    return bitc::ATTR_KIND_NO_SANITIZE_COVERAGE;
   case Attribute::NullPointerIsValid:
     return bitc::ATTR_KIND_NULL_POINTER_IS_VALID;
   case Attribute::OptForFuzzing:
@@ -734,8 +738,12 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_SWIFT_ERROR;
   case Attribute::SwiftSelf:
     return bitc::ATTR_KIND_SWIFT_SELF;
+  case Attribute::SwiftAsync:
+    return bitc::ATTR_KIND_SWIFT_ASYNC;
   case Attribute::UWTable:
     return bitc::ATTR_KIND_UW_TABLE;
+  case Attribute::VScaleRange:
+    return bitc::ATTR_KIND_VSCALE_RANGE;
   case Attribute::WillReturn:
     return bitc::ATTR_KIND_WILLRETURN;
   case Attribute::WriteOnly:
@@ -854,6 +862,12 @@ void ModuleBitcodeWriter::writeTypeTable() {
   Abbv->Add(BitCodeAbbrevOp(0));  // Addrspace = 0
   unsigned PtrAbbrev = Stream.EmitAbbrev(std::move(Abbv));
 
+  // Abbrev for TYPE_CODE_OPAQUE_POINTER.
+  Abbv = std::make_shared<BitCodeAbbrev>();
+  Abbv->Add(BitCodeAbbrevOp(bitc::TYPE_CODE_OPAQUE_POINTER));
+  Abbv->Add(BitCodeAbbrevOp(0)); // Addrspace = 0
+  unsigned OpaquePtrAbbrev = Stream.EmitAbbrev(std::move(Abbv));
+
   // Abbrev for TYPE_CODE_FUNCTION.
   Abbv = std::make_shared<BitCodeAbbrev>();
   Abbv->Add(BitCodeAbbrevOp(bitc::TYPE_CODE_FUNCTION));
@@ -924,12 +938,21 @@ void ModuleBitcodeWriter::writeTypeTable() {
       break;
     case Type::PointerTyID: {
       PointerType *PTy = cast<PointerType>(T);
-      // POINTER: [pointee type, address space]
-      Code = bitc::TYPE_CODE_POINTER;
-      TypeVals.push_back(VE.getTypeID(PTy->getElementType()));
       unsigned AddressSpace = PTy->getAddressSpace();
-      TypeVals.push_back(AddressSpace);
-      if (AddressSpace == 0) AbbrevToUse = PtrAbbrev;
+      if (PTy->isOpaque()) {
+        // OPAQUE_POINTER: [address space]
+        Code = bitc::TYPE_CODE_OPAQUE_POINTER;
+        TypeVals.push_back(AddressSpace);
+        if (AddressSpace == 0)
+          AbbrevToUse = OpaquePtrAbbrev;
+      } else {
+        // POINTER: [pointee type, address space]
+        Code = bitc::TYPE_CODE_POINTER;
+        TypeVals.push_back(VE.getTypeID(PTy->getElementType()));
+        TypeVals.push_back(AddressSpace);
+        if (AddressSpace == 0)
+          AbbrevToUse = PtrAbbrev;
+      }
       break;
     }
     case Type::FunctionTyID: {
@@ -1867,6 +1890,17 @@ void ModuleBitcodeWriter::writeDIMacroFile(const DIMacroFile *N,
   Record.clear();
 }
 
+void ModuleBitcodeWriter::writeDIArgList(const DIArgList *N,
+                                         SmallVectorImpl<uint64_t> &Record,
+                                         unsigned Abbrev) {
+  Record.reserve(N->getArgs().size());
+  for (ValueAsMetadata *MD : N->getArgs())
+    Record.push_back(VE.getMetadataID(MD));
+
+  Stream.EmitRecord(bitc::METADATA_ARG_LIST, Record, Abbrev);
+  Record.clear();
+}
+
 void ModuleBitcodeWriter::writeDIModule(const DIModule *N,
                                         SmallVectorImpl<uint64_t> &Record,
                                         unsigned Abbrev) {
@@ -2414,9 +2448,9 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
     }
 
     if (const InlineAsm *IA = dyn_cast<InlineAsm>(V)) {
-      Record.push_back(unsigned(IA->hasSideEffects()) |
-                       unsigned(IA->isAlignStack()) << 1 |
-                       unsigned(IA->getDialect()&1) << 2);
+      Record.push_back(
+          unsigned(IA->hasSideEffects()) | unsigned(IA->isAlignStack()) << 1 |
+          unsigned(IA->getDialect() & 1) << 2 | unsigned(IA->canThrow()) << 3);
 
       // Add the asm string.
       const std::string &AsmStr = IA->getAsmString();
@@ -2609,6 +2643,10 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
       Record.push_back(VE.getTypeID(BA->getFunction()->getType()));
       Record.push_back(VE.getValueID(BA->getFunction()));
       Record.push_back(VE.getGlobalBasicBlockID(BA->getBasicBlock()));
+    } else if (const auto *Equiv = dyn_cast<DSOLocalEquivalent>(C)) {
+      Code = bitc::CST_CODE_DSO_LOCAL_EQUIVALENT;
+      Record.push_back(VE.getTypeID(Equiv->getGlobalValue()->getType()));
+      Record.push_back(VE.getValueID(Equiv->getGlobalValue()));
     } else {
 #ifndef NDEBUG
       C->dump();
@@ -3065,7 +3103,7 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
   case Instruction::AtomicRMW:
     Code = bitc::FUNC_CODE_INST_ATOMICRMW;
     pushValueAndType(I.getOperand(0), InstID, Vals); // ptrty + ptr
-    pushValue(I.getOperand(1), InstID, Vals);        // val.
+    pushValueAndType(I.getOperand(1), InstID, Vals); // valty + val
     Vals.push_back(
         getEncodedRMWOperation(cast<AtomicRMWInst>(I).getOperation()));
     Vals.push_back(cast<AtomicRMWInst>(I).isVolatile());
@@ -4851,7 +4889,7 @@ void llvm::EmbedBitcodeInModule(llvm::Module &M, llvm::MemoryBufferRef Buf,
                                 const std::vector<uint8_t> &CmdArgs) {
   // Save llvm.compiler.used and remove it.
   SmallVector<Constant *, 2> UsedArray;
-  SmallPtrSet<GlobalValue *, 4> UsedGlobals;
+  SmallVector<GlobalValue *, 4> UsedGlobals;
   Type *UsedElementType = Type::getInt8Ty(M.getContext())->getPointerTo(0);
   GlobalVariable *Used = collectUsedGlobalVariables(M, UsedGlobals, true);
   for (auto *GV : UsedGlobals) {

@@ -12,6 +12,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Support/MathExtras.h"
+#include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
@@ -106,8 +107,98 @@ AffineMap AffineMap::getMinorIdentityMap(unsigned dims, unsigned results,
 }
 
 bool AffineMap::isMinorIdentity() const {
-  return *this ==
-         getMinorIdentityMap(getNumDims(), getNumResults(), getContext());
+  return getNumDims() >= getNumResults() &&
+         *this ==
+             getMinorIdentityMap(getNumDims(), getNumResults(), getContext());
+}
+
+/// Returns true if this affine map is a minor identity up to broadcasted
+/// dimensions which are indicated by value 0 in the result.
+bool AffineMap::isMinorIdentityWithBroadcasting(
+    SmallVectorImpl<unsigned> *broadcastedDims) const {
+  if (broadcastedDims)
+    broadcastedDims->clear();
+  if (getNumDims() < getNumResults())
+    return false;
+  unsigned suffixStart = getNumDims() - getNumResults();
+  for (auto idxAndExpr : llvm::enumerate(getResults())) {
+    unsigned resIdx = idxAndExpr.index();
+    AffineExpr expr = idxAndExpr.value();
+    if (auto constExpr = expr.dyn_cast<AffineConstantExpr>()) {
+      // Each result may be either a constant 0 (broadcasted dimension).
+      if (constExpr.getValue() != 0)
+        return false;
+      if (broadcastedDims)
+        broadcastedDims->push_back(resIdx);
+    } else if (auto dimExpr = expr.dyn_cast<AffineDimExpr>()) {
+      // Or it may be the input dimension corresponding to this result position.
+      if (dimExpr.getPosition() != suffixStart + resIdx)
+        return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
+/// Return true if this affine map can be converted to a minor identity with
+/// broadcast by doing a permute. Return a permutation (there may be
+/// several) to apply to get to a minor identity with broadcasts.
+/// Ex:
+///  * (d0, d1, d2) -> (0, d1) maps to minor identity (d1, 0 = d2) with
+///  perm = [1, 0] and broadcast d2
+///  * (d0, d1, d2) -> (d0, 0) cannot be mapped to a minor identity by
+///  permutation + broadcast
+///  * (d0, d1, d2, d3) -> (0, d1, d3) maps to minor identity (d1, 0 = d2, d3)
+///  with perm = [1, 0, 2] and broadcast d2
+///  * (d0, d1) -> (d1, 0, 0, d0) maps to minor identity (d0, d1) with extra
+///  leading broadcat dimensions. The map returned would be (0, 0, d0, d1) with
+///  perm = [3, 0, 1, 2]
+bool AffineMap::isPermutationOfMinorIdentityWithBroadcasting(
+    SmallVectorImpl<unsigned> &permutedDims) const {
+  unsigned projectionStart =
+      getNumResults() < getNumInputs() ? getNumInputs() - getNumResults() : 0;
+  permutedDims.clear();
+  SmallVector<unsigned> broadcastDims;
+  permutedDims.resize(getNumResults(), 0);
+  // If there are more results than input dimensions we want the new map to
+  // start with broadcast dimensions in order to be a minor identity with
+  // broadcasting.
+  unsigned leadingBroadcast =
+      getNumResults() > getNumInputs() ? getNumResults() - getNumInputs() : 0;
+  llvm::SmallBitVector dimFound(std::max(getNumInputs(), getNumResults()),
+                                false);
+  for (auto idxAndExpr : llvm::enumerate(getResults())) {
+    unsigned resIdx = idxAndExpr.index();
+    AffineExpr expr = idxAndExpr.value();
+    // Each result may be either a constant 0 (broadcast dimension) or a
+    // dimension.
+    if (auto constExpr = expr.dyn_cast<AffineConstantExpr>()) {
+      if (constExpr.getValue() != 0)
+        return false;
+      broadcastDims.push_back(resIdx);
+    } else if (auto dimExpr = expr.dyn_cast<AffineDimExpr>()) {
+      if (dimExpr.getPosition() < projectionStart)
+        return false;
+      unsigned newPosition =
+          dimExpr.getPosition() - projectionStart + leadingBroadcast;
+      permutedDims[resIdx] = newPosition;
+      dimFound[newPosition] = true;
+    } else {
+      return false;
+    }
+  }
+  // Find a permuation for the broadcast dimension. Since they are broadcasted
+  // any valid permutation is acceptable. We just permute the dim into a slot
+  // without an existing dimension.
+  unsigned pos = 0;
+  for (auto dim : broadcastDims) {
+    while (pos < dimFound.size() && dimFound[pos]) {
+      pos++;
+    }
+    permutedDims[dim] = pos++;
+  }
+  return true;
 }
 
 /// Returns an AffineMap representing a permutation.
@@ -196,9 +287,23 @@ bool AffineMap::isSingleConstant() const {
   return getNumResults() == 1 && getResult(0).isa<AffineConstantExpr>();
 }
 
+bool AffineMap::isConstant() const {
+  return llvm::all_of(getResults(), [](AffineExpr expr) {
+    return expr.isa<AffineConstantExpr>();
+  });
+}
+
 int64_t AffineMap::getSingleConstantResult() const {
   assert(isSingleConstant() && "map must have a single constant result");
   return getResult(0).cast<AffineConstantExpr>().getValue();
+}
+
+SmallVector<int64_t> AffineMap::getConstantResults() const {
+  assert(isConstant() && "map must have only constant results");
+  SmallVector<int64_t> result;
+  for (auto expr : getResults())
+    result.emplace_back(expr.cast<AffineConstantExpr>().getValue());
+  return result;
 }
 
 unsigned AffineMap::getNumDims() const {
@@ -403,6 +508,11 @@ AffineMap AffineMap::getSubMap(ArrayRef<unsigned> resultPos) const {
   return AffineMap::get(getNumDims(), getNumSymbols(), exprs, getContext());
 }
 
+AffineMap AffineMap::getSliceMap(unsigned start, unsigned length) const {
+  return AffineMap::get(getNumDims(), getNumSymbols(),
+                        getResults().slice(start, length), getContext());
+}
+
 AffineMap AffineMap::getMajorSubMap(unsigned numResults) const {
   if (numResults == 0)
     return AffineMap();
@@ -452,6 +562,41 @@ AffineMap mlir::compressUnusedDims(AffineMap map) {
   return compressDims(map, unusedDims);
 }
 
+static SmallVector<AffineMap>
+compressUnusedImpl(ArrayRef<AffineMap> maps,
+                   llvm::function_ref<AffineMap(AffineMap)> compressionFun) {
+  if (maps.empty())
+    return SmallVector<AffineMap>();
+  SmallVector<AffineExpr> allExprs;
+  allExprs.reserve(maps.size() * maps.front().getNumResults());
+  unsigned numDims = maps.front().getNumDims(),
+           numSymbols = maps.front().getNumSymbols();
+  for (auto m : maps) {
+    assert(numDims == m.getNumDims() && numSymbols == m.getNumSymbols() &&
+           "expected maps with same num dims and symbols");
+    llvm::append_range(allExprs, m.getResults());
+  }
+  AffineMap unifiedMap = compressionFun(
+      AffineMap::get(numDims, numSymbols, allExprs, maps.front().getContext()));
+  unsigned unifiedNumDims = unifiedMap.getNumDims(),
+           unifiedNumSymbols = unifiedMap.getNumSymbols();
+  ArrayRef<AffineExpr> unifiedResults = unifiedMap.getResults();
+  SmallVector<AffineMap> res;
+  res.reserve(maps.size());
+  for (auto m : maps) {
+    res.push_back(AffineMap::get(unifiedNumDims, unifiedNumSymbols,
+                                 unifiedResults.take_front(m.getNumResults()),
+                                 m.getContext()));
+    unifiedResults = unifiedResults.drop_front(m.getNumResults());
+  }
+  return res;
+}
+
+SmallVector<AffineMap> mlir::compressUnusedDims(ArrayRef<AffineMap> maps) {
+  return compressUnusedImpl(maps,
+                            [](AffineMap m) { return compressUnusedDims(m); });
+}
+
 AffineMap
 mlir::compressSymbols(AffineMap map,
                       const llvm::SmallDenseSet<unsigned> &unusedSymbols) {
@@ -483,6 +628,11 @@ AffineMap mlir::compressUnusedSymbols(AffineMap map) {
     if (!usedSymbols.contains(d))
       unusedSymbols.insert(d);
   return compressSymbols(map, unusedSymbols);
+}
+
+SmallVector<AffineMap> mlir::compressUnusedSymbols(ArrayRef<AffineMap> maps) {
+  return compressUnusedImpl(
+      maps, [](AffineMap m) { return compressUnusedSymbols(m); });
 }
 
 AffineMap mlir::simplifyAffineMap(AffineMap map) {
@@ -526,6 +676,19 @@ AffineMap mlir::inversePermutation(AffineMap map) {
   if (seenExprs.size() != map.getNumInputs())
     return AffineMap();
   return AffineMap::get(map.getNumResults(), 0, seenExprs, map.getContext());
+}
+
+AffineMap mlir::inverseAndBroadcastProjectedPermuation(AffineMap map) {
+  assert(map.isProjectedPermutation());
+  MLIRContext *context = map.getContext();
+  AffineExpr zero = mlir::getAffineConstantExpr(0, context);
+  // Start with all the results as 0.
+  SmallVector<AffineExpr, 4> exprs(map.getNumInputs(), zero);
+  for (unsigned i : llvm::seq(unsigned(0), map.getNumResults())) {
+    // Reverse each dimension existing in the oringal map result.
+    exprs[map.getDimPosition(i)] = getAffineDimExpr(i, context);
+  }
+  return AffineMap::get(map.getNumResults(), /*symbolCount=*/0, exprs, context);
 }
 
 AffineMap mlir::concatAffineMaps(ArrayRef<AffineMap> maps) {

@@ -28,7 +28,7 @@ class PassRegistry;
 namespace polly {
 llvm::Pass *createCodePreparationPass();
 llvm::Pass *createScopInlinerPass();
-llvm::Pass *createDeadCodeElimPass();
+llvm::Pass *createDeadCodeElimWrapperPass();
 llvm::Pass *createDependenceInfoPass();
 llvm::Pass *createDependenceInfoWrapperPassPass();
 llvm::Pass *createDOTOnlyPrinterPass();
@@ -42,7 +42,7 @@ llvm::Pass *createPolyhedralInfoPass();
 llvm::Pass *createScopDetectionWrapperPassPass();
 llvm::Pass *createScopInfoRegionPassPass();
 llvm::Pass *createScopInfoWrapperPassPass();
-llvm::Pass *createRewriteByrefParamsPass();
+llvm::Pass *createRewriteByrefParamsWrapperPass();
 llvm::Pass *createIslAstInfoWrapperPassPass();
 llvm::Pass *createCodeGenerationPass();
 #ifdef GPU_CODEGEN
@@ -75,7 +75,7 @@ struct PollyForcePassLinking {
       return;
 
     polly::createCodePreparationPass();
-    polly::createDeadCodeElimPass();
+    polly::createDeadCodeElimWrapperPass();
     polly::createDependenceInfoPass();
     polly::createDOTOnlyPrinterPass();
     polly::createDOTOnlyViewerPass();
@@ -87,6 +87,7 @@ struct PollyForcePassLinking {
     polly::createScopInfoRegionPassPass();
     polly::createPollyCanonicalizePass();
     polly::createPolyhedralInfoPass();
+    polly::createRewriteByrefParamsWrapperPass();
     polly::createIslAstInfoWrapperPassPass();
     polly::createCodeGenerationPass();
 #ifdef GPU_CODEGEN
@@ -98,7 +99,7 @@ struct PollyForcePassLinking {
     polly::createFlattenSchedulePass();
     polly::createForwardOpTreeWrapperPass();
     polly::createDeLICMWrapperPass();
-    polly::createDumpModulePass("", true);
+    polly::createDumpModuleWrapperPass("", true);
     polly::createSimplifyWrapperPass(0);
     polly::createPruneUnprofitableWrapperPass();
   }
@@ -109,12 +110,12 @@ namespace llvm {
 class PassRegistry;
 void initializeCodePreparationPass(llvm::PassRegistry &);
 void initializeScopInlinerPass(llvm::PassRegistry &);
-void initializeDeadCodeElimPass(llvm::PassRegistry &);
+void initializeDeadCodeElimWrapperPassPass(llvm::PassRegistry &);
 void initializeJSONExporterPass(llvm::PassRegistry &);
 void initializeJSONImporterPass(llvm::PassRegistry &);
 void initializeIslAstInfoWrapperPassPass(llvm::PassRegistry &);
 void initializeCodeGenerationPass(llvm::PassRegistry &);
-void initializeRewriteByrefParamsPass(llvm::PassRegistry &);
+void initializeRewriteByrefParamsWrapperPassPass(llvm::PassRegistry &);
 #ifdef GPU_CODEGEN
 void initializePPCGCodeGenerationPass(llvm::PassRegistry &);
 void initializeManagedMemoryRewritePassPass(llvm::PassRegistry &);

@@ -10,6 +10,15 @@
 
 // UNSUPPORTED: no-exceptions, c++03
 
+// These tests fail on previously released dylibs, investigation needed.
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.15
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.14
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.13
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.12
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.11
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.10
+// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.9
+
 #include <exception>
 #include <stdlib.h>
 #include <stdio.h>

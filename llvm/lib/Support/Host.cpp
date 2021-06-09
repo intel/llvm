@@ -18,6 +18,7 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/Support/BCD.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -296,6 +297,22 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
   return "generic";
 }
 
+namespace {
+StringRef getCPUNameFromS390Model(unsigned int Id, bool HaveVectorSupport) {
+  if (Id >= 8561 && HaveVectorSupport)
+    return "z15";
+  if (Id >= 3906 && HaveVectorSupport)
+    return "z14";
+  if (Id >= 2964 && HaveVectorSupport)
+    return "z13";
+  if (Id >= 2827)
+    return "zEC12";
+  if (Id >= 2817)
+    return "z196";
+  return "generic";
+}
+} // end anonymous namespace
+
 StringRef sys::detail::getHostCPUNameForS390x(StringRef ProcCpuinfoContent) {
   // STIDP is a privileged operation, so use /proc/cpuinfo instead.
 
@@ -331,18 +348,8 @@ StringRef sys::detail::getHostCPUNameForS390x(StringRef ProcCpuinfoContent) {
       if (Pos != StringRef::npos) {
         Pos += sizeof("machine = ") - 1;
         unsigned int Id;
-        if (!Lines[I].drop_front(Pos).getAsInteger(10, Id)) {
-          if (Id >= 8561 && HaveVectorSupport)
-            return "z15";
-          if (Id >= 3906 && HaveVectorSupport)
-            return "z14";
-          if (Id >= 2964 && HaveVectorSupport)
-            return "z13";
-          if (Id >= 2827)
-            return "zEC12";
-          if (Id >= 2817)
-            return "z196";
-        }
+        if (!Lines[I].drop_front(Pos).getAsInteger(10, Id))
+          return getCPUNameFromS390Model(Id, HaveVectorSupport);
       }
       break;
     }
@@ -420,11 +427,6 @@ StringRef sys::detail::getHostCPUNameForBPF() {
 #if defined(__i386__) || defined(_M_IX86) || \
     defined(__x86_64__) || defined(_M_X64)
 
-enum VendorSignatures {
-  SIG_INTEL = 0x756e6547 /* Genu */,
-  SIG_AMD = 0x68747541 /* Auth */
-};
-
 // The check below for i386 was copied from clang's cpuid.h (__get_cpuid_max).
 // Check motivated by bug reports for OpenSSL crashing on CPUs without CPUID
 // support. Consequently, for i386, the presence of CPUID is checked first
@@ -497,6 +499,42 @@ static bool getX86CpuIDAndInfo(unsigned value, unsigned *rEAX, unsigned *rEBX,
   return true;
 #endif
 }
+
+namespace llvm {
+namespace sys {
+namespace detail {
+namespace x86 {
+
+VendorSignatures getVendorSignature(unsigned *MaxLeaf) {
+  unsigned EAX = 0, EBX = 0, ECX = 0, EDX = 0;
+  if (MaxLeaf == nullptr)
+    MaxLeaf = &EAX;
+  else
+    *MaxLeaf = 0;
+
+  if (!isCpuIdSupported())
+    return VendorSignatures::UNKNOWN;
+
+  if (getX86CpuIDAndInfo(0, MaxLeaf, &EBX, &ECX, &EDX) || *MaxLeaf < 1)
+    return VendorSignatures::UNKNOWN;
+
+  // "Genu ineI ntel"
+  if (EBX == 0x756e6547 && EDX == 0x49656e69 && ECX == 0x6c65746e)
+    return VendorSignatures::GENUINE_INTEL;
+
+  // "Auth enti cAMD"
+  if (EBX == 0x68747541 && EDX == 0x69746e65 && ECX == 0x444d4163)
+    return VendorSignatures::AUTHENTIC_AMD;
+
+  return VendorSignatures::UNKNOWN;
+}
+
+} // namespace x86
+} // namespace detail
+} // namespace sys
+} // namespace llvm
+
+using namespace llvm::sys::detail::x86;
 
 /// getX86CpuIDAndInfoEx - Execute the specified cpuid with subleaf and return
 /// the 4 values in the specified arguments.  If we can't run cpuid on the host,
@@ -675,6 +713,13 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
       CPU = "skylake";
       *Type = X86::INTEL_COREI7;
       *Subtype = X86::INTEL_COREI7_SKYLAKE;
+      break;
+
+    // Rocketlake:
+    case 0xa7:
+      CPU = "rocketlake";
+      *Type = X86::INTEL_COREI7;
+      *Subtype = X86::INTEL_COREI7_ROCKETLAKE;
       break;
 
     // Skylake Xeon:
@@ -1095,14 +1140,12 @@ static void getAvailableFeatures(unsigned ECX, unsigned EDX, unsigned MaxLeaf,
 }
 
 StringRef sys::getHostCPUName() {
+  unsigned MaxLeaf = 0;
+  const VendorSignatures Vendor = getVendorSignature(&MaxLeaf);
+  if (Vendor == VendorSignatures::UNKNOWN)
+    return "generic";
+
   unsigned EAX = 0, EBX = 0, ECX = 0, EDX = 0;
-  unsigned MaxLeaf, Vendor;
-
-  if (!isCpuIdSupported())
-    return "generic";
-
-  if (getX86CpuIDAndInfo(0, &MaxLeaf, &Vendor, &ECX, &EDX) || MaxLeaf < 1)
-    return "generic";
   getX86CpuIDAndInfo(0x1, &EAX, &EBX, &ECX, &EDX);
 
   unsigned Family = 0, Model = 0;
@@ -1117,10 +1160,10 @@ StringRef sys::getHostCPUName() {
 
   StringRef CPU;
 
-  if (Vendor == SIG_INTEL) {
+  if (Vendor == VendorSignatures::GENUINE_INTEL) {
     CPU = getIntelProcessorTypeAndSubtype(Family, Model, Features, &Type,
                                           &Subtype);
-  } else if (Vendor == SIG_AMD) {
+  } else if (Vendor == VendorSignatures::AUTHENTIC_AMD) {
     CPU = getAMDProcessorTypeAndSubtype(Family, Model, Features, &Type,
                                         &Subtype);
   }
@@ -1193,6 +1236,29 @@ StringRef sys::getHostCPUName() {
   StringRef Content = P ? P->getBuffer() : "";
   return detail::getHostCPUNameForS390x(Content);
 }
+#elif defined(__MVS__)
+StringRef sys::getHostCPUName() {
+  // Get pointer to Communications Vector Table (CVT).
+  // The pointer is located at offset 16 of the Prefixed Save Area (PSA).
+  // It is stored as 31 bit pointer and will be zero-extended to 64 bit.
+  int *StartToCVTOffset = reinterpret_cast<int *>(0x10);
+  // Since its stored as a 31-bit pointer, get the 4 bytes from the start
+  // of address.
+  int ReadValue = *StartToCVTOffset;
+  // Explicitly clear the high order bit.
+  ReadValue = (ReadValue & 0x7FFFFFFF);
+  char *CVT = reinterpret_cast<char *>(ReadValue);
+  // The model number is located in the CVT prefix at offset -6 and stored as
+  // signless packed decimal.
+  uint16_t Id = *(uint16_t *)&CVT[-6];
+  // Convert number to integer.
+  Id = decodePackedBCD<uint16_t>(Id, false);
+  // Check for vector support. It's stored in field CVTFLAG5 (offset 244),
+  // bit CVTVEF (X'80'). The facilities list is part of the PSA but the vector
+  // extension can only be used if bit CVTVEF is on.
+  bool HaveVectorSupport = CVT[244] & 0x80;
+  return getCPUNameFromS390Model(Id, HaveVectorSupport);
+}
 #elif defined(__APPLE__) && defined(__aarch64__)
 StringRef sys::getHostCPUName() {
   return "cyclone";
@@ -1254,6 +1320,19 @@ StringRef sys::getHostCPUName() {
 }
 #else
 StringRef sys::getHostCPUName() { return "generic"; }
+namespace llvm {
+namespace sys {
+namespace detail {
+namespace x86 {
+
+VendorSignatures getVendorSignature(unsigned *MaxLeaf) {
+  return VendorSignatures::UNKNOWN;
+}
+
+} // namespace x86
+} // namespace detail
+} // namespace sys
+} // namespace llvm
 #endif
 
 #if defined(__linux__) && (defined(__i386__) || defined(__x86_64__))

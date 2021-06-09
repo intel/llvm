@@ -16,7 +16,7 @@ lowered all but one of the `toy` operations, with the last being `toy.print`.
 Before going over the conversion to LLVM, let's lower the `toy.print` operation.
 We will lower this operation to a non-affine loop nest that invokes `printf` for
 each element. Note that, because the dialect conversion framework supports
-[transitive lowering](../../../getting_started/Glossary.md#transitive-lowering), we don't need to
+[transitive lowering](../../../getting_started/Glossary.md/#transitive-lowering), we don't need to
 directly emit operations in the LLVM dialect. By transitive lowering, we mean
 that the conversion framework may apply multiple patterns to fully legalize an
 operation. In this example, we are generating a structured loop nest instead of
@@ -63,7 +63,7 @@ everything to the LLVM dialect.
 ```c++
   mlir::ConversionTarget target(getContext());
   target.addLegalDialect<mlir::LLVMDialect>();
-  target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp>();
+  target.addLegalOp<mlir::ModuleOp>();
 ```
 
 ### Type Converter
@@ -87,17 +87,17 @@ used for lowering. At this point in the compilation process, we have a
 combination of `toy`, `affine`, and `std` operations. Luckily, the `std` and
 `affine` dialects already provide the set of patterns needed to transform them
 into LLVM dialect. These patterns allow for lowering the IR in multiple stages
-by relying on [transitive lowering](../../../getting_started/Glossary.md#transitive-lowering).
+by relying on [transitive lowering](../../../getting_started/Glossary.md/#transitive-lowering).
 
 ```c++
-  mlir::OwningRewritePatternList patterns;
+  mlir::RewritePatternSet patterns(&getContext());
   mlir::populateAffineToStdConversionPatterns(patterns, &getContext());
   mlir::populateLoopToStdConversionPatterns(patterns, &getContext());
   mlir::populateStdToLLVMConversionPatterns(typeConverter, patterns);
 
   // The only remaining operation, to lower from the `toy` dialect, is the
   // PrintOp.
-  patterns.insert<PrintOpLowering>(&getContext());
+  patterns.add<PrintOpLowering>(&getContext());
 ```
 
 ### Full Lowering
@@ -318,7 +318,7 @@ $ echo 'def main() { print([[1, 2], [3, 4]]); }' | ./bin/toyc-ch6 -emit=jit
 
 You can also play with `-emit=mlir`, `-emit=mlir-affine`, `-emit=mlir-llvm`, and
 `-emit=llvm` to compare the various levels of IR involved. Also try options like
-[`--print-ir-after-all`](../../PassManagement.md#ir-printing) to track the
+[`--print-ir-after-all`](../../PassManagement.md/#ir-printing) to track the
 evolution of the IR throughout the pipeline.
 
 The example code used throughout this section can be found in 

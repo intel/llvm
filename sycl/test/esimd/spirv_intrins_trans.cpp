@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-explicit-simd -fsycl-device-only -S -emit-llvm -x c++ %s -o %t
+// RUN: %clangxx -fsycl -fsycl-device-only -S -emit-llvm -x c++ %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
@@ -7,7 +7,7 @@
 // LowerESIMD.cpp)
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {

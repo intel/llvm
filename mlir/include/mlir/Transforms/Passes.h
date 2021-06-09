@@ -23,6 +23,7 @@
 namespace mlir {
 
 class AffineForOp;
+class GreedyRewriteConfig;
 
 //===----------------------------------------------------------------------===//
 // Passes
@@ -54,17 +55,19 @@ std::unique_ptr<Pass>
 createPromoteBuffersToStackPass(std::function<bool(Value)> isSmallAlloc);
 
 /// Creates a pass that finalizes a partial bufferization by removing remaining
-/// tensor_load and tensor_to_memref operations.
+/// tensor_load and buffer_cast operations.
 std::unique_ptr<FunctionPass> createFinalizingBufferizePass();
 
 /// Creates a pass that converts memref function results to out-params.
 std::unique_ptr<Pass> createBufferResultsToOutParamsPass();
 
-/// Creates an instance of the Canonicalizer pass.
+/// Creates an instance of the Canonicalizer pass, configured with default
+/// settings (which can be overridden by pass options on the command line).
 std::unique_ptr<Pass> createCanonicalizerPass();
 
-/// Create a pass that removes unnecessary Copy operations.
-std::unique_ptr<Pass> createCopyRemovalPass();
+/// Creates an instance of the Canonicalizer pass with the specified config.
+std::unique_ptr<Pass>
+createCanonicalizerPass(const GreedyRewriteConfig &config);
 
 /// Creates a pass to perform common sub expression elimination.
 std::unique_ptr<Pass> createCSEPass();
@@ -84,11 +87,6 @@ std::unique_ptr<Pass> createLoopInvariantCodeMotionPass();
 /// Creates a pass to pipeline explicit movement of data across levels of the
 /// memory hierarchy.
 std::unique_ptr<OperationPass<FuncOp>> createPipelineDataTransferPass();
-
-/// Lowers affine control flow operations (ForStmt, IfStmt and AffineApplyOp)
-/// to equivalent lower-level constructs (flow of basic blocks and arithmetic
-/// primitives).
-std::unique_ptr<Pass> createLowerAffinePass();
 
 /// Creates a pass that transforms perfectly nested loops with independent
 /// bounds into a single loop.

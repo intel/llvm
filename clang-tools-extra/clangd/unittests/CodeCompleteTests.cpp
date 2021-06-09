@@ -647,13 +647,13 @@ TEST(CompletionTest, ScopedWithFilter) {
 }
 
 TEST(CompletionTest, ReferencesAffectRanking) {
-  auto Results = completions("int main() { abs^ }", {ns("absl"), func("absb")});
-  EXPECT_THAT(Results.Completions,
-              HasSubsequence(Named("absb"), Named("absl")));
-  Results = completions("int main() { abs^ }",
-                        {withReferences(10000, ns("absl")), func("absb")});
-  EXPECT_THAT(Results.Completions,
-              HasSubsequence(Named("absl"), Named("absb")));
+  EXPECT_THAT(completions("int main() { abs^ }", {func("absA"), func("absB")})
+                  .Completions,
+              HasSubsequence(Named("absA"), Named("absB")));
+  EXPECT_THAT(completions("int main() { abs^ }",
+                          {func("absA"), withReferences(1000, func("absB"))})
+                  .Completions,
+              HasSubsequence(Named("absB"), Named("absA")));
 }
 
 TEST(CompletionTest, ContextWords) {
@@ -1251,6 +1251,19 @@ TEST(SignatureHelpTest, Overloads) {
   // We always prefer the first signature.
   EXPECT_EQ(0, Results.activeSignature);
   EXPECT_EQ(0, Results.activeParameter);
+}
+
+TEST(SignatureHelpTest, OverloadInitListRegression) {
+  auto Results = signatures(R"cpp(
+    struct A {int x;};
+    struct B {B(A);};
+    void f();
+    int main() {
+      B b({1});
+      f(^);
+    }
+  )cpp");
+  EXPECT_THAT(Results.signatures, UnorderedElementsAre(Sig("f() -> void")));
 }
 
 TEST(SignatureHelpTest, DefaultArgs) {
@@ -2783,6 +2796,79 @@ TEST(CompletionTest, ObjectiveCMethodTwoArgumentsFromMiddle) {
   EXPECT_THAT(C, ElementsAre(SnippetSuffix("${1:(unsigned int)}")));
 }
 
+TEST(CompletionTest, ObjectiveCSimpleMethodDeclaration) {
+  auto Results = completions(R"objc(
+      @interface Foo
+      - (void)foo;
+      @end
+      @implementation Foo
+      fo^
+      @end
+    )objc",
+                             /*IndexSymbols=*/{},
+                             /*Opts=*/{}, "Foo.m");
+
+  auto C = Results.Completions;
+  EXPECT_THAT(C, ElementsAre(Named("foo")));
+  EXPECT_THAT(C, ElementsAre(Kind(CompletionItemKind::Method)));
+  EXPECT_THAT(C, ElementsAre(Qualifier("- (void)")));
+}
+
+TEST(CompletionTest, ObjectiveCMethodDeclaration) {
+  auto Results = completions(R"objc(
+      @interface Foo
+      - (int)valueForCharacter:(char)c secondArgument:(id)object;
+      @end
+      @implementation Foo
+      valueFor^
+      @end
+    )objc",
+                             /*IndexSymbols=*/{},
+                             /*Opts=*/{}, "Foo.m");
+
+  auto C = Results.Completions;
+  EXPECT_THAT(C, ElementsAre(Named("valueForCharacter:")));
+  EXPECT_THAT(C, ElementsAre(Kind(CompletionItemKind::Method)));
+  EXPECT_THAT(C, ElementsAre(Qualifier("- (int)")));
+  EXPECT_THAT(C, ElementsAre(Signature("(char)c secondArgument:(id)object")));
+}
+
+TEST(CompletionTest, ObjectiveCMethodDeclarationPrefixTyped) {
+  auto Results = completions(R"objc(
+      @interface Foo
+      - (int)valueForCharacter:(char)c;
+      @end
+      @implementation Foo
+      - (int)valueFor^
+      @end
+    )objc",
+                             /*IndexSymbols=*/{},
+                             /*Opts=*/{}, "Foo.m");
+
+  auto C = Results.Completions;
+  EXPECT_THAT(C, ElementsAre(Named("valueForCharacter:")));
+  EXPECT_THAT(C, ElementsAre(Kind(CompletionItemKind::Method)));
+  EXPECT_THAT(C, ElementsAre(Signature("(char)c")));
+}
+
+TEST(CompletionTest, ObjectiveCMethodDeclarationFromMiddle) {
+  auto Results = completions(R"objc(
+      @interface Foo
+      - (int)valueForCharacter:(char)c secondArgument:(id)object;
+      @end
+      @implementation Foo
+      - (int)valueForCharacter:(char)c second^
+      @end
+    )objc",
+                             /*IndexSymbols=*/{},
+                             /*Opts=*/{}, "Foo.m");
+
+  auto C = Results.Completions;
+  EXPECT_THAT(C, ElementsAre(Named("secondArgument:")));
+  EXPECT_THAT(C, ElementsAre(Kind(CompletionItemKind::Method)));
+  EXPECT_THAT(C, ElementsAre(Signature("(id)object")));
+}
+
 TEST(CompletionTest, CursorInSnippets) {
   clangd::CodeCompleteOptions Options;
   Options.EnableSnippets = true;
@@ -3114,13 +3200,25 @@ TEST(CompletionTest, FunctionArgsExist) {
       Contains(AllOf(Labeled("Container<typename T>(int Size)"),
                      SnippetSuffix("<${1:typename T}>(${2:int Size})"),
                      Kind(CompletionItemKind::Constructor))));
-  // FIXME(kirillbobyrev): It would be nice to still produce the template
-  // snippet part: in this case it should be "<${1:typename T}>".
   EXPECT_THAT(
       completions(Context + "Container c = Cont^()", {}, Opts).Completions,
       Contains(AllOf(Labeled("Container<typename T>(int Size)"),
+                     SnippetSuffix("<${1:typename T}>"),
+                     Kind(CompletionItemKind::Constructor))));
+  EXPECT_THAT(
+      completions(Context + "Container c = Cont^<int>()", {}, Opts).Completions,
+      Contains(AllOf(Labeled("Container<typename T>(int Size)"),
                      SnippetSuffix(""),
                      Kind(CompletionItemKind::Constructor))));
+}
+
+TEST(CompletionTest, NoCrashDueToMacroOrdering) {
+  EXPECT_THAT(completions(R"cpp(
+    #define ECHO(X) X
+    #define ECHO2(X) ECHO(X)
+    int finish_preamble = EC^HO(2);)cpp")
+                  .Completions,
+              UnorderedElementsAre(Labeled("ECHO(X)"), Labeled("ECHO2(X)")));
 }
 
 } // namespace

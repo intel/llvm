@@ -13,9 +13,10 @@
 
 #include "MCTargetDesc/WebAssemblyInstPrinter.h"
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
+#include "Utils/WebAssemblyTypeUtilities.h"
+#include "Utils/WebAssemblyUtilities.h"
 #include "WebAssembly.h"
 #include "WebAssemblyMachineFunctionInfo.h"
-#include "WebAssemblyUtilities.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
@@ -48,8 +49,35 @@ void WebAssemblyInstPrinter::printInst(const MCInst *MI, uint64_t Address,
                                        StringRef Annot,
                                        const MCSubtargetInfo &STI,
                                        raw_ostream &OS) {
-  // Print the instruction (this uses the AsmStrings from the .td files).
-  printInstruction(MI, Address, OS);
+  switch (MI->getOpcode()) {
+  case WebAssembly::CALL_INDIRECT_S:
+  case WebAssembly::RET_CALL_INDIRECT_S: {
+    // A special case for call_indirect (and ret_call_indirect), if the table
+    // operand is a symbol: the order of the type and table operands is inverted
+    // in the text format relative to the binary format.  Otherwise if table the
+    // operand isn't a symbol, then we have an MVP compilation unit, and the
+    // table shouldn't appear in the output.
+    OS << "\t";
+    OS << getMnemonic(MI).first;
+    OS << " ";
+
+    assert(MI->getNumOperands() == 2);
+    const unsigned TypeOperand = 0;
+    const unsigned TableOperand = 1;
+    if (MI->getOperand(TableOperand).isExpr()) {
+      printOperand(MI, TableOperand, OS);
+      OS << ", ";
+    } else {
+      assert(MI->getOperand(TableOperand).getImm() == 0);
+    }
+    printOperand(MI, TypeOperand, OS);
+    break;
+  }
+  default:
+    // Print the instruction (this uses the AsmStrings from the .td files).
+    printInstruction(MI, Address, OS);
+    break;
+  }
 
   // Print any additional variadic operands.
   const MCInstrDesc &Desc = MII.get(MI->getOpcode());
@@ -68,7 +96,7 @@ void WebAssemblyInstPrinter::printInst(const MCInst *MI, uint64_t Address,
     for (auto I = Start, E = MI->getNumOperands(); I < E; ++I) {
       if (MI->getOpcode() == WebAssembly::CALL_INDIRECT &&
           I - Start == NumVariadicDefs) {
-        // Skip type and flags arguments when printing for tests
+        // Skip type and table arguments when printing for tests.
         ++I;
         continue;
       }
@@ -281,9 +309,9 @@ void WebAssemblyInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
   } else if (Op.isImm()) {
     O << Op.getImm();
   } else if (Op.isSFPImm()) {
-    O << ::toString(APFloat(bit_cast<float>(Op.getSFPImm())));
+    O << ::toString(APFloat(APFloat::IEEEsingle(), APInt(32, Op.getSFPImm())));
   } else if (Op.isDFPImm()) {
-    O << ::toString(APFloat(bit_cast<double>(Op.getDFPImm())));
+    O << ::toString(APFloat(APFloat::IEEEdouble(), APInt(64, Op.getDFPImm())));
   } else {
     assert(Op.isExpr() && "unknown operand kind in printOperand");
     // call_indirect instructions have a TYPEINDEX operand that we print
@@ -360,53 +388,4 @@ void WebAssemblyInstPrinter::printWebAssemblyHeapTypeOperand(const MCInst *MI,
     // currently unimplemented.
     O << "unsupported_heap_type_operand";
   }
-}
-
-// We have various enums representing a subset of these types, use this
-// function to convert any of them to text.
-const char *WebAssembly::anyTypeToString(unsigned Ty) {
-  switch (Ty) {
-  case wasm::WASM_TYPE_I32:
-    return "i32";
-  case wasm::WASM_TYPE_I64:
-    return "i64";
-  case wasm::WASM_TYPE_F32:
-    return "f32";
-  case wasm::WASM_TYPE_F64:
-    return "f64";
-  case wasm::WASM_TYPE_V128:
-    return "v128";
-  case wasm::WASM_TYPE_FUNCREF:
-    return "funcref";
-  case wasm::WASM_TYPE_EXTERNREF:
-    return "externref";
-  case wasm::WASM_TYPE_FUNC:
-    return "func";
-  case wasm::WASM_TYPE_NORESULT:
-    return "void";
-  default:
-    return "invalid_type";
-  }
-}
-
-const char *WebAssembly::typeToString(wasm::ValType Ty) {
-  return anyTypeToString(static_cast<unsigned>(Ty));
-}
-
-std::string WebAssembly::typeListToString(ArrayRef<wasm::ValType> List) {
-  std::string S;
-  for (auto &Ty : List) {
-    if (&Ty != &List[0]) S += ", ";
-    S += WebAssembly::typeToString(Ty);
-  }
-  return S;
-}
-
-std::string WebAssembly::signatureToString(const wasm::WasmSignature *Sig) {
-  std::string S("(");
-  S += typeListToString(Sig->Params);
-  S += ") -> (";
-  S += typeListToString(Sig->Returns);
-  S += ")";
-  return S;
 }

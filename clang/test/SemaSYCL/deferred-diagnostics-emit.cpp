@@ -64,7 +64,7 @@ template <typename T>
 void setup_sycl_operation(const T VA[]) {
 
   deviceQueue.submit([&](sycl::handler &h) {
-    // expected-note@Inputs/sycl.hpp:221 {{called by 'kernel_single_task<AName, (lambda}}
+    // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<AName, (lambda}}
     h.single_task<class AName>([]() {
       // ======= Zero Length Arrays Not Allowed in Kernel ==========
       // expected-error@+1 {{zero-length arrays are not permitted in C++}}
@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 
   // --- direct lambda testing ---
   deviceQueue.submit([&](sycl::handler &h) {
-    // expected-note@Inputs/sycl.hpp:221 2 {{called by 'kernel_single_task<AName, (lambda}}
+    // expected-note@#KernelSingleTaskKernelFuncCall 2 {{called by 'kernel_single_task<AName, (lambda}}
     h.single_task<class AName>([]() {
       // expected-error@+1 {{zero-length arrays are not permitted in C++}}
       int BadArray[0];

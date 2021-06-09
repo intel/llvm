@@ -225,6 +225,11 @@ LLVM-specific variables
   targets. Case-sensitive. Defaults to *all*. Example:
   ``-DLLVM_TARGETS_TO_BUILD="X86;PowerPC"``.
 
+**LLVM_EXPERIMENTAL_TARGETS_TO_BUILD**:STRING
+  Semicolon-separated list of experimental targets to build and linked into 
+  llvm. This will build the experimental target without needing it to add to the 
+  list of all the targets available in the LLVM's main CMakeLists.txt.
+
 **LLVM_BUILD_TOOLS**:BOOL
   Build LLVM tools. Defaults to ON. Targets for building each tool are generated
   in any case. You can build a tool separately by invoking its target. For
@@ -765,7 +770,8 @@ and uses them to build a simple application ``simple-tool``.
   # for your compiler.
 
   include_directories(${LLVM_INCLUDE_DIRS})
-  add_definitions(${LLVM_DEFINITIONS})
+  separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
+  add_definitions(${LLVM_DEFINITIONS_LIST})
 
   # Now build our tools
   add_executable(simple-tool tool.cpp)
@@ -865,7 +871,8 @@ Contents of ``<project dir>/CMakeLists.txt``:
 
   find_package(LLVM REQUIRED CONFIG)
 
-  add_definitions(${LLVM_DEFINITIONS})
+  separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
+  add_definitions(${LLVM_DEFINITIONS_LIST})
   include_directories(${LLVM_INCLUDE_DIRS})
 
   add_subdirectory(<pass name>)

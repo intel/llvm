@@ -18,19 +18,6 @@ namespace sycl {
 namespace detail {
 
 device_filter::device_filter(const std::string &FilterString) {
-  const std::array<std::pair<std::string, info::device_type>, 5>
-      SyclDeviceTypeMap = {{{"host", info::device_type::host},
-                            {"cpu", info::device_type::cpu},
-                            {"gpu", info::device_type::gpu},
-                            {"acc", info::device_type::accelerator},
-                            {"*", info::device_type::all}}};
-  const std::array<std::pair<std::string, backend>, 5> SyclBeMap = {
-      {{"host", backend::host},
-       {"opencl", backend::opencl},
-       {"level_zero", backend::level_zero},
-       {"cuda", backend::cuda},
-       {"*", backend::all}}};
-
   size_t Cursor = 0;
   size_t ColonPos = 0;
   auto findElement = [&](auto Element) {
@@ -122,6 +109,49 @@ device_filter_list::device_filter_list(device_filter &Filter) {
 
 void device_filter_list::addFilter(device_filter &Filter) {
   FilterList.push_back(Filter);
+}
+
+// Backend is compatible with the SYCL_DEVICE_FILTER in the following cases.
+// 1. Filter backend is '*' which means ANY backend.
+// 2. Filter backend match exactly with the given 'Backend'
+bool device_filter_list::backendCompatible(backend Backend) {
+  for (const device_filter &Filter : FilterList) {
+    backend FilterBackend = Filter.Backend;
+    if (FilterBackend == Backend || FilterBackend == backend::all)
+      return true;
+  }
+  return false;
+}
+
+bool device_filter_list::deviceTypeCompatible(info::device_type DeviceType) {
+  for (const device_filter &Filter : FilterList) {
+    info::device_type FilterDevType = Filter.DeviceType;
+    if (FilterDevType == DeviceType || FilterDevType == info::device_type::all)
+      return true;
+  }
+  return false;
+}
+
+bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
+  for (const device_filter &Filter : FilterList) {
+    int FilterDevNum = Filter.DeviceNum;
+    if (!Filter.HasDeviceNum || FilterDevNum == DeviceNum)
+      return true;
+  }
+  return false;
+}
+
+bool device_filter_list::containsHost() {
+  for (const device_filter &Filter : FilterList) {
+    if (Filter.Backend == backend::host || Filter.Backend == backend::all)
+      if (Filter.DeviceType == info::device_type::host ||
+          Filter.DeviceType == info::device_type::all)
+        // SYCL RT never creates more than one HOST device.
+        // All device numbers other than 0 are rejected.
+        if (!Filter.HasDeviceNum || Filter.DeviceNum == 0)
+          return true;
+  }
+  return false;
 }
 
 } // namespace detail

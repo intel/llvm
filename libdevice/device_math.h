@@ -14,6 +14,15 @@
 #include <cstdlib>
 
 DEVICE_EXTERN_C
+int __devicelib_abs(int x);
+
+DEVICE_EXTERN_C
+long int __devicelib_labs(long int x);
+
+DEVICE_EXTERN_C
+long long int __devicelib_llabs(long long int x);
+
+DEVICE_EXTERN_C
 div_t __devicelib_div(int x, int y);
 
 DEVICE_EXTERN_C

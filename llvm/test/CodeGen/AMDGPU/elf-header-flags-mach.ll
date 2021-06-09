@@ -52,6 +52,7 @@
 ; RUN: llc -filetype=obj -march=amdgcn -mcpu=gfx906 < %s | llvm-readobj -file-headers - | FileCheck --check-prefixes=ALL,ARCH-GCN,GFX906 %s
 ; RUN: llc -filetype=obj -march=amdgcn -mcpu=gfx908 < %s | llvm-readobj -file-headers - | FileCheck --check-prefixes=ALL,ARCH-GCN,GFX908 %s
 ; RUN: llc -filetype=obj -march=amdgcn -mcpu=gfx909 < %s | llvm-readobj -file-headers - | FileCheck --check-prefixes=ALL,ARCH-GCN,GFX909 %s
+; RUN: llc -filetype=obj -march=amdgcn -mcpu=gfx90a < %s | llvm-readobj -file-headers - | FileCheck --check-prefixes=ALL,ARCH-GCN,GFX90A %s
 ; RUN: llc -filetype=obj -march=amdgcn -mcpu=gfx90c < %s | llvm-readobj -file-headers - | FileCheck --check-prefixes=ALL,ARCH-GCN,GFX90C %s
 ; RUN: llc -filetype=obj -march=amdgcn -mcpu=gfx1010 < %s | llvm-readobj -file-headers - | FileCheck --check-prefixes=ALL,ARCH-GCN,GFX1010 %s
 ; RUN: llc -filetype=obj -march=amdgcn -mcpu=gfx1011 < %s | llvm-readobj -file-headers - | FileCheck --check-prefixes=ALL,ARCH-GCN,GFX1011 %s
@@ -60,6 +61,7 @@
 ; RUN: llc -filetype=obj -march=amdgcn -mcpu=gfx1031 < %s | llvm-readobj -file-headers - | FileCheck --check-prefixes=ALL,ARCH-GCN,GFX1031 %s
 ; RUN: llc -filetype=obj -march=amdgcn -mcpu=gfx1032 < %s | llvm-readobj -file-headers - | FileCheck --check-prefixes=ALL,ARCH-GCN,GFX1032 %s
 ; RUN: llc -filetype=obj -march=amdgcn -mcpu=gfx1033 < %s | llvm-readobj -file-headers - | FileCheck --check-prefixes=ALL,ARCH-GCN,GFX1033 %s
+; RUN: llc -filetype=obj -march=amdgcn -mcpu=gfx1034 < %s | llvm-readobj -file-headers - | FileCheck --check-prefixes=ALL,ARCH-GCN,GFX1034 %s
 
 ; FIXME: With the default attributes the eflags are not accurate for
 ; xnack and sramecc. Subsequent Target-ID patches will address this.
@@ -109,6 +111,7 @@
 ; GFX906:        EF_AMDGPU_MACH_AMDGCN_GFX906 (0x2F)
 ; GFX908:        EF_AMDGPU_MACH_AMDGCN_GFX908 (0x30)
 ; GFX909:        EF_AMDGPU_MACH_AMDGCN_GFX909 (0x31)
+; GFX90A:        EF_AMDGPU_MACH_AMDGCN_GFX90A (0x3F)
 ; GFX90C:        EF_AMDGPU_MACH_AMDGCN_GFX90C (0x32)
 ; GFX1010:       EF_AMDGPU_MACH_AMDGCN_GFX1010 (0x33)
 ; GFX1011:       EF_AMDGPU_MACH_AMDGCN_GFX1011 (0x34)
@@ -117,6 +120,7 @@
 ; GFX1031:       EF_AMDGPU_MACH_AMDGCN_GFX1031 (0x37)
 ; GFX1032:       EF_AMDGPU_MACH_AMDGCN_GFX1032 (0x38)
 ; GFX1033:       EF_AMDGPU_MACH_AMDGCN_GFX1033 (0x39)
+; GFX1034:       EF_AMDGPU_MACH_AMDGCN_GFX1034 (0x3E)
 ; ALL:         ]
 
 define amdgpu_kernel void @elf_header() {

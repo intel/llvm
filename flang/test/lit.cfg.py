@@ -39,12 +39,11 @@ llvm_config.use_default_substitutions()
 config.excludes = ['Inputs', 'CMakeLists.txt', 'README.txt', 'LICENSE.txt']
 
 # If the new Flang driver is enabled, add the corresponding feature to
-# config. Otherwise, exclude the corresponding test directory.
+# config.
 if config.include_flang_new_driver_test:
   config.available_features.add('new-flang-driver')
 else:
-  config.excludes.append('Flang-Driver')
-  config.excludes.append('Frontend')
+  config.available_features.add('old-flang-driver')
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
@@ -65,18 +64,15 @@ if config.flang_standalone_build:
 
 # For each occurrence of a flang tool name, replace it with the full path to
 # the build directory holding that tool.
-tools = [
-  ToolSubst('%f18', command=FindTool('f18'),
-    extra_args=["-intrinsic-module-directory "+config.flang_intrinsic_modules_dir],
-    unresolved='fatal')
-]
-
+tools = []
 if config.include_flang_new_driver_test:
-   tools.append(ToolSubst('%flang-new', command=FindTool('flang-new'), unresolved='fatal'))
    tools.append(ToolSubst('%flang', command=FindTool('flang-new'), unresolved='fatal'))
+   tools.append(ToolSubst('%flang_fc1', command=FindTool('flang-new'),
+    extra_args=['-fc1'], unresolved='fatal'))
 else:
    tools.append(ToolSubst('%flang', command=FindTool('f18'),
-    extra_args=["-intrinsic-module-directory "+config.flang_intrinsic_modules_dir],
+    unresolved='fatal'))
+   tools.append(ToolSubst('%flang_fc1', command=FindTool('f18'),
     unresolved='fatal'))
 
 if config.flang_standalone_build:

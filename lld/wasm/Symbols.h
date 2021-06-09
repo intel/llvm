@@ -110,6 +110,7 @@ public:
 
   WasmSymbolType getWasmType() const;
   bool isExported() const;
+  bool isExportedExplicit() const;
 
   // Indicates that the symbol is used in an __attribute__((used)) directive
   // or similar.
@@ -253,14 +254,14 @@ public:
 
 class SectionSymbol : public Symbol {
 public:
-  SectionSymbol(uint32_t flags, const InputSection *s, InputFile *f = nullptr)
+  SectionSymbol(uint32_t flags, const InputChunk *s, InputFile *f = nullptr)
       : Symbol("", SectionKind, flags, f), section(s) {}
 
   static bool classof(const Symbol *s) { return s->kind() == SectionKind; }
 
   const OutputSectionSymbol *getOutputSectionSymbol() const;
 
-  const InputSection *section;
+  const InputChunk *section;
 };
 
 class DataSymbol : public Symbol {
@@ -277,10 +278,10 @@ protected:
 class DefinedData : public DataSymbol {
 public:
   // Constructor for regular data symbols originating from input files.
-  DefinedData(StringRef name, uint32_t flags, InputFile *f,
-              InputSegment *segment, uint64_t offset, uint64_t size)
+  DefinedData(StringRef name, uint32_t flags, InputFile *f, InputChunk *segment,
+              uint64_t value, uint64_t size)
       : DataSymbol(name, DefinedDataKind, flags, f), segment(segment),
-        offset(offset), size(size) {}
+        value(value), size(size) {}
 
   // Constructor for linker synthetic data symbols.
   DefinedData(StringRef name, uint32_t flags)
@@ -289,16 +290,16 @@ public:
   static bool classof(const Symbol *s) { return s->kind() == DefinedDataKind; }
 
   // Returns the output virtual address of a defined data symbol.
-  uint64_t getVirtualAddress() const;
-  void setVirtualAddress(uint64_t va);
+  uint64_t getVA() const;
+  void setVA(uint64_t va);
 
   // Returns the offset of a defined data symbol within its OutputSegment.
   uint64_t getOutputSegmentOffset() const;
   uint64_t getOutputSegmentIndex() const;
   uint64_t getSize() const { return size; }
 
-  InputSegment *segment = nullptr;
-  uint32_t offset = 0;
+  InputChunk *segment = nullptr;
+  uint64_t value = 0;
 
 protected:
   uint64_t size = 0;
@@ -563,6 +564,11 @@ struct WasmSym {
   // Used in PIC code for offset of indirect function table
   static UndefinedGlobal *tableBase;
   static DefinedData *definedTableBase;
+  // 32-bit copy in wasm64 to work around init expr limitations.
+  // These can potentially be removed again once we have
+  // https://github.com/WebAssembly/extended-const 
+  static UndefinedGlobal *tableBase32;
+  static DefinedData *definedTableBase32;
 
   // __memory_base
   // Used in PIC code for offset of global data

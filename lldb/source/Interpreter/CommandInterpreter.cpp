@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cstdlib>
 #include <limits>
 #include <memory>
-#include <stdlib.h>
 #include <string>
 #include <vector>
 
@@ -122,9 +122,8 @@ CommandInterpreter::CommandInterpreter(Debugger &debugger,
       IOHandlerDelegate(IOHandlerDelegate::Completion::LLDBCommand),
       m_debugger(debugger), m_synchronous_execution(true),
       m_skip_lldbinit_files(false), m_skip_app_init_files(false),
-      m_command_io_handler_sp(), m_comment_char('#'),
-      m_batch_command_mode(false), m_truncation_warning(eNoTruncation),
-      m_command_source_depth(0), m_result(), m_transcript_stream() {
+      m_comment_char('#'), m_batch_command_mode(false),
+      m_truncation_warning(eNoTruncation), m_command_source_depth(0) {
   SetEventName(eBroadcastBitThreadShouldExit, "thread-should-exit");
   SetEventName(eBroadcastBitResetPrompt, "reset-prompt");
   SetEventName(eBroadcastBitQuitCommandReceived, "quit");
@@ -220,6 +219,12 @@ bool CommandInterpreter::GetStopCmdSourceOnError() const {
 
 bool CommandInterpreter::GetSpaceReplPrompts() const {
   const uint32_t idx = ePropertySpaceReplPrompts;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+}
+
+bool CommandInterpreter::GetRepeatPreviousCommand() const {
+  const uint32_t idx = ePropertyRepeatPreviousCommand;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
       nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
@@ -1696,6 +1701,11 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
   }
 
   if (empty_command) {
+    if (!GetRepeatPreviousCommand()) {
+      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      return true;
+    }
+
     if (m_command_history.IsEmpty()) {
       result.AppendError("empty command");
       result.SetStatus(eReturnStatusFailed);
@@ -2234,7 +2244,9 @@ bool CommandInterpreter::DidProcessStopAbnormally() const {
       return false;
 
     const StopReason reason = stop_info->GetStopReason();
-    if (reason == eStopReasonException || reason == eStopReasonInstrumentation)
+    if (reason == eStopReasonException ||
+        reason == eStopReasonInstrumentation ||
+        reason == eStopReasonProcessorTrace)
       return true;
 
     if (reason == eStopReasonSignal) {
@@ -2974,9 +2986,9 @@ void CommandInterpreter::GetLLDBCommandsFromIOHandler(
   IOHandlerSP io_handler_sp(
       new IOHandlerEditline(debugger, IOHandler::Type::CommandList,
                             "lldb", // Name of input reader for history
-                            llvm::StringRef::withNullAsEmpty(prompt), // Prompt
-                            llvm::StringRef(), // Continuation prompt
-                            true,              // Get multiple lines
+                            llvm::StringRef(prompt), // Prompt
+                            llvm::StringRef(),       // Continuation prompt
+                            true,                    // Get multiple lines
                             debugger.GetUseColor(),
                             0,         // Don't show line numbers
                             delegate,  // IOHandlerDelegate
@@ -2994,9 +3006,9 @@ void CommandInterpreter::GetPythonCommandsFromIOHandler(
   IOHandlerSP io_handler_sp(
       new IOHandlerEditline(debugger, IOHandler::Type::PythonCode,
                             "lldb-python", // Name of input reader for history
-                            llvm::StringRef::withNullAsEmpty(prompt), // Prompt
-                            llvm::StringRef(), // Continuation prompt
-                            true,              // Get multiple lines
+                            llvm::StringRef(prompt), // Prompt
+                            llvm::StringRef(),       // Continuation prompt
+                            true,                    // Get multiple lines
                             debugger.GetUseColor(),
                             0,         // Don't show line numbers
                             delegate,  // IOHandlerDelegate
@@ -3089,7 +3101,6 @@ CommandInterpreter::ResolveCommandImpl(std::string &command_line,
   CommandObject *cmd_obj = nullptr;
   StreamString revised_command_line;
   bool wants_raw_input = false;
-  size_t actual_cmd_name_len = 0;
   std::string next_word;
   StringList matches;
   bool done = false;
@@ -3111,12 +3122,10 @@ CommandInterpreter::ResolveCommandImpl(std::string &command_line,
         revised_command_line.Printf("%s", alias_result.c_str());
         if (cmd_obj) {
           wants_raw_input = cmd_obj->WantsRawCommandString();
-          actual_cmd_name_len = cmd_obj->GetCommandName().size();
         }
       } else {
         if (cmd_obj) {
           llvm::StringRef cmd_name = cmd_obj->GetCommandName();
-          actual_cmd_name_len += cmd_name.size();
           revised_command_line.Printf("%s", cmd_name.str().c_str());
           wants_raw_input = cmd_obj->WantsRawCommandString();
         } else {
@@ -3131,7 +3140,6 @@ CommandInterpreter::ResolveCommandImpl(std::string &command_line,
           // The subcommand's name includes the parent command's name, so
           // restart rather than append to the revised_command_line.
           llvm::StringRef sub_cmd_name = sub_cmd_obj->GetCommandName();
-          actual_cmd_name_len = sub_cmd_name.size() + 1;
           revised_command_line.Clear();
           revised_command_line.Printf("%s", sub_cmd_name.str().c_str());
           cmd_obj = sub_cmd_obj;

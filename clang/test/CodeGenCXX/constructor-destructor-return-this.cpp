@@ -70,33 +70,33 @@ C::~C() { }
 // CHECKGEN-LABEL: define{{.*}} void @_ZN1CC1EPiPc(%class.C* {{[^,]*}} %this, i32* %i, i8* %c)
 // CHECKGEN-LABEL: define{{.*}} void @_ZN1CD2Ev(%class.C* {{[^,]*}} %this)
 // CHECKGEN-LABEL: define{{.*}} void @_ZN1CD1Ev(%class.C* {{[^,]*}} %this)
-// CHECKGEN-LABEL: define{{.*}} void @_ZThn8_N1CD1Ev(%class.C* {{[^,]*}} %this)
+// CHECKGEN-LABEL: define{{.*}} void @_ZThn8_N1CD1Ev(%class.C* %this)
 // CHECKGEN-LABEL: define{{.*}} void @_ZN1CD0Ev(%class.C* {{[^,]*}} %this)
-// CHECKGEN-LABEL: define{{.*}} void @_ZThn8_N1CD0Ev(%class.C* {{[^,]*}} %this)
+// CHECKGEN-LABEL: define{{.*}} void @_ZThn8_N1CD0Ev(%class.C* %this)
 
 // CHECKARM-LABEL: define{{.*}} %class.C* @_ZN1CC2EPiPc(%class.C* {{[^,]*}} returned {{[^,]*}} %this, i32* %i, i8* %c)
 // CHECKARM-LABEL: define{{.*}} %class.C* @_ZN1CC1EPiPc(%class.C* {{[^,]*}} returned {{[^,]*}} %this, i32* %i, i8* %c)
 // CHECKARM-LABEL: define{{.*}} %class.C* @_ZN1CD2Ev(%class.C* {{[^,]*}} returned {{[^,]*}} %this)
 // CHECKARM-LABEL: define{{.*}} %class.C* @_ZN1CD1Ev(%class.C* {{[^,]*}} returned {{[^,]*}} %this)
-// CHECKARM-LABEL: define{{.*}} %class.C* @_ZThn8_N1CD1Ev(%class.C* {{[^,]*}} %this)
+// CHECKARM-LABEL: define{{.*}} %class.C* @_ZThn8_N1CD1Ev(%class.C* %this)
 // CHECKARM-LABEL: define{{.*}} void @_ZN1CD0Ev(%class.C* {{[^,]*}} %this)
-// CHECKARM-LABEL: define{{.*}} void @_ZThn8_N1CD0Ev(%class.C* {{[^,]*}} %this)
+// CHECKARM-LABEL: define{{.*}} void @_ZThn8_N1CD0Ev(%class.C* %this)
 
 // CHECKIOS5-LABEL: define{{.*}} %class.C* @_ZN1CC2EPiPc(%class.C* {{[^,]*}} %this, i32* %i, i8* %c)
 // CHECKIOS5-LABEL: define{{.*}} %class.C* @_ZN1CC1EPiPc(%class.C* {{[^,]*}} %this, i32* %i, i8* %c)
 // CHECKIOS5-LABEL: define{{.*}} %class.C* @_ZN1CD2Ev(%class.C* {{[^,]*}} %this)
 // CHECKIOS5-LABEL: define{{.*}} %class.C* @_ZN1CD1Ev(%class.C* {{[^,]*}} %this)
-// CHECKIOS5-LABEL: define{{.*}} %class.C* @_ZThn8_N1CD1Ev(%class.C* {{[^,]*}} %this)
+// CHECKIOS5-LABEL: define{{.*}} %class.C* @_ZThn8_N1CD1Ev(%class.C* %this)
 // CHECKIOS5-LABEL: define{{.*}} void @_ZN1CD0Ev(%class.C* {{[^,]*}} %this)
-// CHECKIOS5-LABEL: define{{.*}} void @_ZThn8_N1CD0Ev(%class.C* {{[^,]*}} %this)
+// CHECKIOS5-LABEL: define{{.*}} void @_ZThn8_N1CD0Ev(%class.C* %this)
 
 // CHECKFUCHSIA-LABEL: define{{.*}} %class.C* @_ZN1CC2EPiPc(%class.C* {{[^,]*}} returned {{[^,]*}} %this, i32* %i, i8* %c)
 // CHECKFUCHSIA-LABEL: define{{.*}} %class.C* @_ZN1CC1EPiPc(%class.C* {{[^,]*}} returned {{[^,]*}} %this, i32* %i, i8* %c)
 // CHECKFUCHSIA-LABEL: define{{.*}} %class.C* @_ZN1CD2Ev(%class.C* {{[^,]*}} returned {{[^,]*}} %this)
 // CHECKFUCHSIA-LABEL: define{{.*}} %class.C* @_ZN1CD1Ev(%class.C* {{[^,]*}} returned {{[^,]*}} %this)
-// CHECKFUCHSIA-LABEL: define{{.*}} %class.C* @_ZThn16_N1CD1Ev(%class.C* {{[^,]*}} %this)
+// CHECKFUCHSIA-LABEL: define{{.*}} %class.C* @_ZThn16_N1CD1Ev(%class.C* %this)
 // CHECKFUCHSIA-LABEL: define{{.*}} void @_ZN1CD0Ev(%class.C* {{[^,]*}} %this)
-// CHECKFUCHSIA-LABEL: define{{.*}} void @_ZThn16_N1CD0Ev(%class.C* {{[^,]*}} %this)
+// CHECKFUCHSIA-LABEL: define{{.*}} void @_ZThn16_N1CD0Ev(%class.C* %this)
 
 // CHECKMS-LABEL: define dso_local x86_thiscallcc %class.C* @"??0C@@QAE@PAHPAD@Z"(%class.C* {{[^,]*}} returned {{[^,]*}} %this, i32* %i, i8* %c)
 // CHECKMS-LABEL: define dso_local x86_thiscallcc void @"??1C@@UAE@XZ"(%class.C* {{[^,]*}} %this)
@@ -151,8 +151,10 @@ void test_destructor() {
 
 // Verify that virtual calls to destructors are not marked with a 'returned'
 // this parameter at the call site...
-// CHECKARM,CHECKFUCHSIA: [[VFN:%.*]] = getelementptr inbounds %class.E* (%class.E*)*, %class.E* (%class.E*)**
-// CHECKARM,CHECKFUCHSIA: [[THUNK:%.*]] = load %class.E* (%class.E*)*, %class.E* (%class.E*)** [[VFN]]
+// CHECKARM: [[VFN:%.*]] = getelementptr inbounds %class.E* (%class.E*)*, %class.E* (%class.E*)**
+// CHECKARM: [[THUNK:%.*]] = load %class.E* (%class.E*)*, %class.E* (%class.E*)** [[VFN]]
+// CHECKFUCHSIA: [[THUNK_I8:%.*]] = call i8* @llvm.load.relative.i32(i8* {{.*}}, i32 0)
+// CHECKFUCHSIA: [[THUNK:%.*]] = bitcast i8* [[THUNK_I8]] to %class.E* (%class.E*)*
 // CHECKARM,CHECKFUCHSIA: call %class.E* [[THUNK]](%class.E* {{[^,]*}} %
 
 // ...but static calls create declarations with 'returned' this

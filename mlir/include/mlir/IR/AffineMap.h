@@ -104,15 +104,47 @@ public:
   /// affine map (d0, ..., dn) -> (dp, ..., dn) on the most minor dimensions.
   bool isMinorIdentity() const;
 
+  /// Returns true if this affine map is a minor identity up to broadcasted
+  /// dimensions which are indicated by value 0 in the result. If
+  /// `broadcastedDims` is not null, it will be populated with the indices of
+  /// the broadcasted dimensions in the result array.
+  /// Example: affine_map<(d0, d1, d2, d3, d4) -> (0, d2, 0, d4)>
+  ///          (`broadcastedDims` will contain [0, 2])
+  bool isMinorIdentityWithBroadcasting(
+      SmallVectorImpl<unsigned> *broadcastedDims = nullptr) const;
+
+  /// Return true if this affine map can be converted to a minor identity with
+  /// broadcast by doing a permute. Return a permutation (there may be
+  /// several) to apply to get to a minor identity with broadcasts.
+  /// Ex:
+  ///  * (d0, d1, d2) -> (0, d1) maps to minor identity (d1, 0 = d2) with
+  ///  perm = [1, 0] and broadcast d2
+  ///  * (d0, d1, d2) -> (d0, 0) cannot be mapped to a minor identity by
+  ///  permutation + broadcast
+  ///  * (d0, d1, d2, d3) -> (0, d1, d3) maps to minor identity (d1, 0 = d2, d3)
+  ///  with perm = [1, 0, 2] and broadcast d2
+  ///  * (d0, d1) -> (d1, 0, 0, d0) maps to minor identity (d0, d1) with extra
+  ///  leading broadcat dimensions. The map returned would be (0, 0, d0, d1)
+  ///  with perm = [3, 0, 1, 2]
+  bool isPermutationOfMinorIdentityWithBroadcasting(
+      SmallVectorImpl<unsigned> &permutedDims) const;
+
   /// Returns true if this affine map is an empty map, i.e., () -> ().
   bool isEmpty() const;
 
   /// Returns true if this affine map is a single result constant function.
   bool isSingleConstant() const;
 
+  /// Returns true if this affine map has only constant results.
+  bool isConstant() const;
+
   /// Returns the constant result of this map. This methods asserts that the map
   /// has a single constant result.
   int64_t getSingleConstantResult() const;
+
+  /// Returns the constant results of this map. This method asserts that the map
+  /// has all constant results.
+  SmallVector<int64_t> getConstantResults() const;
 
   // Prints affine map to 'os'.
   void print(raw_ostream &os) const;
@@ -237,6 +269,9 @@ public:
   /// Returns the map consisting of the `resultPos` subset.
   AffineMap getSubMap(ArrayRef<unsigned> resultPos) const;
 
+  /// Returns the map consisting of `length` expressions starting from `start`.
+  AffineMap getSliceMap(unsigned start, unsigned length) const;
+
   /// Returns the map consisting of the most major `numResults` results.
   /// Returns the null AffineMap if `numResults` == 0.
   /// Returns `*this` if `numResults` >= `this->getNumResults()`.
@@ -315,12 +350,22 @@ AffineMap simplifyAffineMap(AffineMap map);
 /// Drop the dims that are not used.
 AffineMap compressUnusedDims(AffineMap map);
 
+/// Drop the dims that are not used by any of the individual maps in `maps`.
+/// Asserts that all maps in `maps` are normalized to the same number of
+/// dims and symbols.
+SmallVector<AffineMap> compressUnusedDims(ArrayRef<AffineMap> maps);
+
 /// Drop the dims that are not listed in `unusedDims`.
 AffineMap compressDims(AffineMap map,
                        const llvm::SmallDenseSet<unsigned> &unusedDims);
 
 /// Drop the symbols that are not used.
 AffineMap compressUnusedSymbols(AffineMap map);
+
+/// Drop the symbols that are not used by any of the individual maps in `maps`.
+/// Asserts that all maps in `maps` are normalized to the same number of
+/// dims and symbols.
+SmallVector<AffineMap> compressUnusedSymbols(ArrayRef<AffineMap> maps);
 
 /// Drop the symbols that are not listed in `unusedSymbols`.
 AffineMap compressSymbols(AffineMap map,
@@ -365,6 +410,48 @@ AffineMap removeDuplicateExprs(AffineMap map);
 ///    (d0, d1, d2, d3, d4, d5, d6, d7) -> (d2, d0, d3)
 /// ```
 AffineMap inversePermutation(AffineMap map);
+
+/// Return the reverse map of a projected permutation where the projected
+/// dimensions are transformed into 0s.
+///
+/// Prerequisites: `map` must be a projected permuation.
+///
+/// Example 1:
+///
+/// ```mlir
+///    affine_map<(d0, d1, d2, d3) -> (d2, d0)>
+/// ```
+///
+/// returns:
+///
+/// ```mlir
+///    affine_map<(d0, d1) -> (d1, 0, d0, 0)>
+/// ```
+///
+/// Example 2:
+///
+/// ```mlir
+///    affine_map<(d0, d1, d2, d3) -> (d0, d3)>
+/// ```
+///
+/// returns:
+///
+/// ```mlir
+///    affine_map<(d0, d1) -> (d0, 0, 0, d1)>
+/// ```
+///
+/// Example 3:
+///
+/// ```mlir
+///    affine_map<(d0, d1, d2, d3) -> (d2)>
+/// ```
+///
+/// returns:
+///
+/// ```mlir
+///    affine_map<(d0) -> (0, 0, d0, 0)>
+/// ```
+AffineMap inverseAndBroadcastProjectedPermuation(AffineMap map);
 
 /// Concatenates a list of `maps` into a single AffineMap, stepping over
 /// potentially empty maps. Assumes each of the underlying map has 0 symbols.

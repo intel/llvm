@@ -71,7 +71,7 @@ int main() {
   __float128 CapturedToDevice = 1;
   host_ok();
   deviceQueue.submit([&](sycl::handler &h) {
-    // expected-note@Inputs/sycl.hpp:221 {{called by 'kernel_single_task<variables, (lambda}}
+    // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<variables, (lambda}}
     h.single_task<class variables>([=]() {
       // expected-error@+1 {{'__float128' is not supported on this target}}
       decltype(CapturedToDevice) D;
@@ -88,7 +88,7 @@ int main() {
   });
 
   deviceQueue.submit([&](sycl::handler &h) {
-    // expected-note@Inputs/sycl.hpp:221 4{{called by 'kernel_single_task<functions, (lambda}}
+    // expected-note@#KernelSingleTaskKernelFuncCall 4{{called by 'kernel_single_task<functions, (lambda}}
     h.single_task<class functions>([=]() {
       // expected-note@+1 2{{called by 'operator()'}}
       usage();
@@ -104,7 +104,7 @@ int main() {
   });
 
   deviceQueue.submit([&](sycl::handler &h) {
-    // expected-note@Inputs/sycl.hpp:221 {{called by 'kernel_single_task<ok, (lambda}}
+    // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<ok, (lambda}}
     h.single_task<class ok>([=]() {
       // expected-note@+1 3{{used here}}
       Z<__float128> S;

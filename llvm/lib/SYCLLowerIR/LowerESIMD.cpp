@@ -28,6 +28,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -345,6 +346,10 @@ public:
         {"uushl_sat", {"uushl.sat", {a(0), a(1)}}},
         {"rol", {"rol", {a(0), a(1)}}},
         {"ror", {"ror", {a(0), a(1)}}},
+        {"rndd", {"rndd", {a(0)}}},
+        {"rnde", {"rnde", {a(0)}}},
+        {"rndu", {"rndu", {a(0)}}},
+        {"rndz", {"rndz", {a(0)}}},
         {"umulh", {"umulh", {a(0), a(1)}}},
         {"smulh", {"smulh", {a(0), a(1)}}},
         {"frc", {"frc", {a(0)}}},
@@ -382,7 +387,7 @@ public:
         {"ssdp4a_sat", {"ssdp4a.sat", {a(0), a(1), a(2)}}},
         {"any", {"any", {ai1(0)}}},
         {"all", {"all", {ai1(0)}}},
-    };
+        {"lane_id", {"lane.id", {}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -729,7 +734,7 @@ static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
   if (GVTS.find(CI.getType()) != GVTS.end())
     return false;
   IRBuilder<> Builder(&CI);
-  auto LI = Builder.CreateLoad(CI.getArgOperand(0), CI.getName());
+  auto LI = Builder.CreateLoad(CI.getType(), CI.getArgOperand(0), CI.getName());
   LI->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(LI);
   return true;
@@ -812,6 +817,12 @@ static Instruction *generateVectorGenXForSpirv(ExtractElementInst *EEI,
   Instruction *ExtrI = ExtractElementInst::Create(
       IntrI, ConstantInt::get(I32Ty, ExtractIndex), ExtractName, EEI);
   Instruction *CastI = addCastInstIfNeeded(EEI, ExtrI);
+  if (EEI->getDebugLoc()) {
+    IntrI->setDebugLoc(EEI->getDebugLoc());
+    ExtrI->setDebugLoc(EEI->getDebugLoc());
+    // It's OK if ExtrI and CastI is the same instruction
+    CastI->setDebugLoc(EEI->getDebugLoc());
+  }
   return CastI;
 }
 
@@ -838,6 +849,11 @@ static Instruction *generateGenXForSpirv(ExtractElementInst *EEI,
   Instruction *IntrI =
       IntrinsicInst::Create(NewFDecl, {}, IntrinName + Suff.str(), EEI);
   Instruction *CastI = addCastInstIfNeeded(EEI, IntrI);
+  if (EEI->getDebugLoc()) {
+    IntrI->setDebugLoc(EEI->getDebugLoc());
+    // It's OK if IntrI and CastI is the same instruction
+    CastI->setDebugLoc(EEI->getDebugLoc());
+  }
   return CastI;
 }
 
@@ -1092,6 +1108,8 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
       &CI);
+  if (CI.getDebugLoc())
+    NewCI->setDebugLoc(CI.getDebugLoc());
   NewCI = addCastInstIfNeeded(&CI, NewCI);
   CI.replaceAllUsesWith(NewCI);
   CI.eraseFromParent();
@@ -1229,7 +1247,9 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
     if (!PTy)
       continue;
     auto GTy = dyn_cast<StructType>(PTy->getPointerElementType());
-    if (!GTy || !GTy->getName().endswith("cl::sycl::INTEL::gpu::simd"))
+    // TODO FIXME relying on type name in LLVM IR is fragile, needs rework
+    if (!GTy || !GTy->getName().endswith(
+                    "cl::sycl::ext::intel::experimental::esimd::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
@@ -1263,6 +1283,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   // limitation, mark every function called from ESIMD kernel with
   // 'alwaysinline' attribute.
   if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
+      !F.hasFnAttribute(Attribute::NoInline) &&
       !F.hasFnAttribute(Attribute::AlwaysInline))
     F.addFnAttr(Attribute::AlwaysInline);
 
@@ -1295,7 +1316,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
     auto *CI = dyn_cast<CallInst>(&I);
     Function *Callee = nullptr;
     if (CI && (Callee = CI->getCalledFunction())) {
-
+      // TODO workaround for ESIMD BE until it starts supporting @llvm.assume
+      if (match(&I, PatternMatch::m_Intrinsic<Intrinsic::assume>())) {
+        ESIMDToErases.push_back(CI);
+        continue;
+      }
       StringRef Name = Callee->getName();
 
       // See if the Name represents an ESIMD intrinsic and demangle only if it
@@ -1307,7 +1332,8 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
 
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
-      if (Name.startswith("N2cl4sycl5INTEL3gpu8slm_init")) {
+      // TODO FIXME slm_init should be made top-level __esimd_slm_init
+      if (Name.startswith("N2cl4sycl3ext5intel12experimental5esimd8slm_init")) {
         // tag the kernel with meta-data SLMSize, and remove this builtin
         translateSLMInit(*CI);
         ESIMDToErases.push_back(CI);

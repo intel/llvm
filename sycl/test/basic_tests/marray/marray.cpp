@@ -1,5 +1,6 @@
-// RUN: %clangxx %s -o %t.out -lsycl -I %sycl_include
-// RUN: %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %RUN_ON_HOST %t.out
+
 //==--------------- marray.cpp - SYCL marray test --------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

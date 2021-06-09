@@ -1178,9 +1178,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       FunctionCallee Fn = MS.MaybeStoreOriginFn[SizeIndex];
       Value *ConvertedShadow2 =
           IRB.CreateZExt(ConvertedShadow, IRB.getIntNTy(8 * (1 << SizeIndex)));
-      IRB.CreateCall(Fn,
-                     {ConvertedShadow2,
-                      IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()), Origin});
+      CallBase *CB = IRB.CreateCall(
+          Fn, {ConvertedShadow2,
+               IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()), Origin});
+      CB->addParamAttr(0, Attribute::ZExt);
+      CB->addParamAttr(2, Attribute::ZExt);
     } else {
       Value *Cmp = convertToBool(ConvertedShadow, IRB, "_mscmp");
       Instruction *CheckTerm = SplitBlockAndInsertIfThen(
@@ -1250,9 +1252,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       FunctionCallee Fn = MS.MaybeWarningFn[SizeIndex];
       Value *ConvertedShadow2 =
           IRB.CreateZExt(ConvertedShadow, IRB.getIntNTy(8 * (1 << SizeIndex)));
-      IRB.CreateCall(Fn, {ConvertedShadow2, MS.TrackOrigins && Origin
-                                                ? Origin
-                                                : (Value *)IRB.getInt32(0)});
+      CallBase *CB = IRB.CreateCall(
+          Fn, {ConvertedShadow2,
+               MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)});
+      CB->addParamAttr(0, Attribute::ZExt);
+      CB->addParamAttr(1, Attribute::ZExt);
     } else {
       Value *Cmp = convertToBool(ConvertedShadow, IRB, "_mscmp");
       Instruction *CheckTerm = SplitBlockAndInsertIfThen(
@@ -1948,7 +1952,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     IRBuilder<> IRB(&I);
     Value *Addr = I.getOperand(0);
-    Value *ShadowPtr = getShadowOriginPtr(Addr, IRB, I.getType(), Align(1),
+    Value *Val = I.getOperand(1);
+    Value *ShadowPtr = getShadowOriginPtr(Addr, IRB, Val->getType(), Align(1),
                                           /*isStore*/ true)
                            .first;
 
@@ -1959,9 +1964,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // The other argument can potentially be uninitialized, but we can not
     // detect this situation reliably without possible false positives.
     if (isa<AtomicCmpXchgInst>(I))
-      insertShadowCheck(I.getOperand(1), &I);
+      insertShadowCheck(Val, &I);
 
-    IRB.CreateStore(getCleanShadow(&I), ShadowPtr);
+    IRB.CreateStore(getCleanShadow(Val), ShadowPtr);
 
     setShadow(&I, getCleanShadow(&I));
     setOrigin(&I, getCleanOrigin());
@@ -5027,7 +5032,7 @@ struct VarArgSystemZHelper : public VarArgHelper {
   void visitCallBase(CallBase &CB, IRBuilder<> &IRB) override {
     bool IsSoftFloatABI = CB.getCalledFunction()
                               ->getFnAttribute("use-soft-float")
-                              .getValueAsString() == "true";
+                              .getValueAsBool();
     unsigned GpOffset = SystemZGpOffset;
     unsigned FpOffset = SystemZFpOffset;
     unsigned VrIndex = 0;

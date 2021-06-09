@@ -69,12 +69,16 @@ void checkHighlightings(llvm::StringRef Code,
                         std::vector<std::pair</*FileName*/ llvm::StringRef,
                                               /*FileContent*/ llvm::StringRef>>
                             AdditionalFiles = {},
-                        uint32_t ModifierMask = -1) {
+                        uint32_t ModifierMask = -1,
+                        std::vector<std::string> AdditionalArgs = {}) {
   Annotations Test(Code);
   TestTU TU;
   TU.Code = std::string(Test.code());
 
   TU.ExtraArgs.push_back("-std=c++20");
+  TU.ExtraArgs.push_back("-xobjective-c++");
+  TU.ExtraArgs.insert(std::end(TU.ExtraArgs), std::begin(AdditionalArgs),
+                      std::end(AdditionalArgs));
 
   for (auto File : AdditionalFiles)
     TU.AdditionalFiles.insert({File.first, std::string(File.second)});
@@ -101,9 +105,9 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       struct {
       } $Variable_decl[[S]];
       void $Function_decl[[foo]](int $Parameter_decl[[A]], $Class[[AS]] $Parameter_decl[[As]]) {
-        $Primitive_deduced[[auto]] $LocalVariable_decl[[VeryLongVariableName]] = 12312;
+        $Primitive_deduced_defaultLibrary[[auto]] $LocalVariable_decl[[VeryLongVariableName]] = 12312;
         $Class[[AS]]     $LocalVariable_decl[[AA]];
-        $Primitive_deduced[[auto]] $LocalVariable_decl[[L]] = $LocalVariable[[AA]].$Field[[SomeMember]] + $Parameter[[A]];
+        $Primitive_deduced_defaultLibrary[[auto]] $LocalVariable_decl[[L]] = $LocalVariable[[AA]].$Field[[SomeMember]] + $Parameter[[A]];
         auto $LocalVariable_decl[[FN]] = [ $LocalVariable[[AA]]](int $Parameter_decl[[A]]) -> void {};
         $LocalVariable[[FN]](12312);
       }
@@ -319,8 +323,8 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       $Class_deduced[[decltype]](auto) $Variable_decl[[AF2]] = $Class[[Foo]]();
       $Class_deduced[[auto]] *$Variable_decl[[AFP]] = &$Variable[[AF]];
       $Enum_deduced[[auto]] &$Variable_decl[[AER]] = $Variable[[AE]];
-      $Primitive_deduced[[auto]] $Variable_decl[[Form]] = 10.2 + 2 * 4;
-      $Primitive_deduced[[decltype]]($Variable[[Form]]) $Variable_decl[[F]] = 10;
+      $Primitive_deduced_defaultLibrary[[auto]] $Variable_decl[[Form]] = 10.2 + 2 * 4;
+      $Primitive_deduced_defaultLibrary[[decltype]]($Variable[[Form]]) $Variable_decl[[F]] = 10;
       auto $Variable_decl[[Fun]] = []()->void{};
     )cpp",
       R"cpp(
@@ -645,6 +649,76 @@ sizeof...($TemplateParameter[[Elements]]);
       R"cpp(
       <:[deprecated]:> int $Variable_decl_deprecated[[x]];
       )cpp",
+      R"cpp(
+        // ObjC: Classes and methods
+        @class $Class_decl[[Forward]];
+
+        @interface $Class_decl[[Foo]]
+        @end
+        @interface $Class_decl[[Bar]] : $Class[[Foo]]
+        -($Class[[id]]) $Method_decl[[x]]:(int)$Parameter_decl[[a]] $Method_decl[[y]]:(int)$Parameter_decl[[b]];
+        +(void) $StaticMethod_decl_static[[explode]];
+        @end
+        @implementation $Class_decl[[Bar]]
+        -($Class[[id]]) $Method_decl[[x]]:(int)$Parameter_decl[[a]] $Method_decl[[y]]:(int)$Parameter_decl[[b]] {
+          return self;
+        }
+        +(void) $StaticMethod_decl_static[[explode]] {}
+        @end
+
+        void $Function_decl[[m]]($Class[[Bar]] *$Parameter_decl[[b]]) {
+          [$Parameter[[b]] $Method[[x]]:1 $Method[[y]]:2];
+          [$Class[[Bar]] $StaticMethod_static[[explode]]];
+        }
+      )cpp",
+      R"cpp(
+        // ObjC: Protocols
+        @protocol $Interface_decl[[Protocol]]
+        @end
+        @protocol $Interface_decl[[Protocol2]] <$Interface[[Protocol]]>
+        @end
+        @interface $Class_decl[[Klass]] <$Interface[[Protocol]]>
+        @end
+        id<$Interface[[Protocol]]> $Variable_decl[[x]];
+      )cpp",
+      R"cpp(
+        // ObjC: Categories
+        @interface $Class_decl[[Foo]]
+        @end
+        @interface $Class[[Foo]]($Namespace_decl[[Bar]])
+        @end
+        @implementation $Class[[Foo]]($Namespace_decl[[Bar]])
+        @end
+      )cpp",
+      R"cpp(
+        // ObjC: Properties and Ivars.
+        @interface $Class_decl[[Foo]] {
+          int $Field_decl[[_someProperty]];
+        }
+        @property(nonatomic, assign) int $Field_decl[[someProperty]];
+        @end
+        @implementation $Class_decl[[Foo]]
+        @synthesize someProperty = _someProperty;
+        - (int)$Method_decl[[doSomething]] {
+          self.$Field[[someProperty]] = self.$Field[[someProperty]] + 1;
+          self->$Field[[_someProperty]] = $Field[[_someProperty]] + 1;
+        }
+        @end
+      )cpp",
+      // Member imported from dependent base
+      R"cpp(
+        template <typename> struct $Class_decl[[Base]] {
+          int $Field_decl[[member]];
+        };
+        template <typename $TemplateParameter_decl[[T]]>
+        struct $Class_decl[[Derived]] : $Class[[Base]]<$TemplateParameter[[T]]> {
+          using $Class[[Base]]<$TemplateParameter[[T]]>::$Field_dependentName[[member]];
+
+          void $Method_decl[[method]]() {
+            (void)$Field_dependentName[[member]];
+          }
+        };
+      )cpp",
   };
   for (const auto &TestCase : TestCases)
     // Mask off scope modifiers to keep the tests manageable.
@@ -675,6 +749,24 @@ sizeof...($TemplateParameter[[Elements]]);
     #define DEFINE_Y DEFINE(Y)
   )cpp"}},
                      ~ScopeModifierMask);
+
+  checkHighlightings(R"cpp(
+    #include "SYSObject.h"
+    @interface $Class_defaultLibrary[[SYSObject]] ($Namespace_decl[[UserCategory]])
+    @property(nonatomic, readonly) int $Field_decl_readonly[[user_property]];
+    @end
+    int $Function_decl[[somethingUsingSystemSymbols]]() {
+      $Class_defaultLibrary[[SYSObject]] *$LocalVariable_decl[[obj]] = [$Class_defaultLibrary[[SYSObject]] $StaticMethod_static_defaultLibrary[[new]]];
+      return $LocalVariable[[obj]].$Field_defaultLibrary[[value]] + $LocalVariable[[obj]].$Field_readonly[[user_property]];
+    }
+  )cpp",
+                     {{"SystemSDK/SYSObject.h", R"cpp(
+    @interface SYSObject
+    @property(nonatomic, assign) int value;
+    + (instancetype)new;
+    @end
+  )cpp"}},
+                     ~ScopeModifierMask, {"-isystemSystemSDK/"});
 }
 
 TEST(SemanticHighlighting, ScopeModifiers) {

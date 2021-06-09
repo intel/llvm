@@ -80,7 +80,7 @@ def InaccessibleMemOnly : EnumAttr<"inaccessiblememonly">;
 def InaccessibleMemOrArgMemOnly : EnumAttr<"inaccessiblemem_or_argmemonly">;
 
 /// Pass structure in an alloca.
-def InAlloca : EnumAttr<"inalloca">;
+def InAlloca : TypeAttr<"inalloca">;
 
 /// Source said inlining was desirable.
 def InlineHint : EnumAttr<"inlinehint">;
@@ -153,6 +153,9 @@ def NoProfile : EnumAttr<"noprofile">;
 
 /// Function doesn't unwind stack.
 def NoUnwind : EnumAttr<"nounwind">;
+
+/// No SanitizeCoverage instrumentation.
+def NoSanitizeCoverage : EnumAttr<"nosanitize_coverage">;
 
 /// Null pointer in address space zero is valid.
 def NullPointerIsValid : EnumAttr<"null_pointer_is_valid">;
@@ -244,8 +247,14 @@ def SwiftError : EnumAttr<"swifterror">;
 /// Argument is swift self/context.
 def SwiftSelf : EnumAttr<"swiftself">;
 
+/// Argument is swift async context.
+def SwiftAsync : EnumAttr<"swiftasync">;
+
 /// Function must be in a unwind table.
 def UWTable : EnumAttr<"uwtable">;
+
+/// Minimum/Maximum vscale value for function.
+def VScaleRange : IntAttr<"vscale_range">;
 
 /// Function always comes back to callsite.
 def WillReturn : EnumAttr<"willreturn">;

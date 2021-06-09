@@ -14,8 +14,8 @@ on:
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
       - '**.md'   # README
-      - '**/check-code-style.xml' # check-code-style workflow
-      - '**/check-out-of-tree-build.xml' # check-out-of-tree-build workflow
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
   pull_request:
     branches:
       - master
@@ -23,8 +23,8 @@ on:
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
       - '**.md'   # README
-      - '**/check-code-style.xml' # check-code-style workflow
-      - '**/check-out-of-tree-build.xml' # check-out-of-tree-build workflow
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
   schedule:
     # Ideally, we might want to simplify our regular nightly build as we
     # probably don't need every configuration to be built every day: most of
@@ -54,12 +54,11 @@ jobs:
           echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a /etc/apt/sources.list
           echo "deb https://packages.lunarg.com/vulkan bionic main" | sudo tee -a /etc/apt/sources.list
           sudo apt-get update
-          # Linux systems in GitHub Actions already have a pre-installed clang
-          # that is not needed for the translator as we rely on newer version
-          sudo apt-get --purge remove clang-8 clang-9
           sudo apt-get -yq --no-install-suggests --no-install-recommends install \
             clang-${{ env.LLVM_VERSION }} \
             spirv-tools
+          # Linux systems in GitHub Actions already have older versions of clang
+          # pre-installed. Make sure to override these with the relevant version.
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ env.LLVM_VERSION }} 1000
       - name: Checkout LLVM sources
         uses: actions/checkout@v2

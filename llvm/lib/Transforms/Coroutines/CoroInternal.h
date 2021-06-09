@@ -54,7 +54,7 @@ void updateCallGraph(Function &Caller, ArrayRef<Function *> Funcs,
 /// holding a pointer to the coroutine frame.
 void salvageDebugInfo(
     SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> &DbgPtrAllocaCache,
-    DbgDeclareInst *DDI);
+    DbgVariableIntrinsic *DVI, bool ReuseFrameSlot);
 
 // Keeps data and helper functions for lowering coroutine intrinsics.
 struct LowererBase {
@@ -125,6 +125,7 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
   Instruction *FramePtr;
   BasicBlock *AllocaSpillBlock;
 
+  /// This would only be true if optimization are enabled.
   bool ReuseFrameSlot;
 
   struct SwitchLoweringStorage {
@@ -132,6 +133,8 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
     AllocaInst *PromiseAlloca;
     BasicBlock *ResumeEntryBlock;
     unsigned IndexField;
+    unsigned IndexAlign;
+    unsigned IndexOffset;
     bool HasFinalSuspend;
   };
 

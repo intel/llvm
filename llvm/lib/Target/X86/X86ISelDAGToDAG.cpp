@@ -30,7 +30,8 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
-#include <stdint.h>
+#include <cstdint>
+
 using namespace llvm;
 
 #define DEBUG_TYPE "x86-isel"
@@ -3844,23 +3845,42 @@ bool X86DAGToDAGISel::tryShiftAmountMod(SDNode *N) {
   if (ShiftAmt->getOpcode() == ISD::ADD || ShiftAmt->getOpcode() == ISD::SUB) {
     SDValue Add0 = ShiftAmt->getOperand(0);
     SDValue Add1 = ShiftAmt->getOperand(1);
+    auto *Add0C = dyn_cast<ConstantSDNode>(Add0);
+    auto *Add1C = dyn_cast<ConstantSDNode>(Add1);
     // If we are shifting by X+/-N where N == 0 mod Size, then just shift by X
     // to avoid the ADD/SUB.
-    if (isa<ConstantSDNode>(Add1) &&
-        cast<ConstantSDNode>(Add1)->getZExtValue() % Size == 0) {
+    if (Add1C && Add1C->getAPIntValue().urem(Size) == 0) {
       NewShiftAmt = Add0;
-    // If we are shifting by N-X where N == 0 mod Size, then just shift by -X to
-    // generate a NEG instead of a SUB of a constant.
-    } else if (ShiftAmt->getOpcode() == ISD::SUB &&
-               isa<ConstantSDNode>(Add0) &&
-               cast<ConstantSDNode>(Add0)->getZExtValue() != 0 &&
-               cast<ConstantSDNode>(Add0)->getZExtValue() % Size == 0) {
+      // If we are shifting by N-X where N == 0 mod Size, then just shift by -X
+      // to generate a NEG instead of a SUB of a constant.
+    } else if (ShiftAmt->getOpcode() == ISD::SUB && Add0C &&
+               Add0C->getZExtValue() != 0) {
+      EVT SubVT = ShiftAmt.getValueType();
+      SDValue X;
+      if (Add0C->getZExtValue() % Size == 0)
+        X = Add1;
+      else if (ShiftAmt.hasOneUse() && Size == 64 &&
+               Add0C->getZExtValue() % 32 == 0) {
+        // We have a 64-bit shift by (n*32-x), turn it into -(x+n*32).
+        // This is mainly beneficial if we already compute (x+n*32).
+        if (Add1.getOpcode() == ISD::TRUNCATE) {
+          Add1 = Add1.getOperand(0);
+          SubVT = Add1.getValueType();
+        }
+        if (Add0.getValueType() != SubVT) {
+          Add0 = CurDAG->getZExtOrTrunc(Add0, DL, SubVT);
+          insertDAGNode(*CurDAG, OrigShiftAmt, Add0);
+        }
+
+        X = CurDAG->getNode(ISD::ADD, DL, SubVT, Add1, Add0);
+        insertDAGNode(*CurDAG, OrigShiftAmt, X);
+      } else
+        return false;
       // Insert a negate op.
       // TODO: This isn't guaranteed to replace the sub if there is a logic cone
       // that uses it that's not a shift.
-      EVT SubVT = ShiftAmt.getValueType();
       SDValue Zero = CurDAG->getConstant(0, DL, SubVT);
-      SDValue Neg = CurDAG->getNode(ISD::SUB, DL, SubVT, Zero, Add1);
+      SDValue Neg = CurDAG->getNode(ISD::SUB, DL, SubVT, Zero, X);
       NewShiftAmt = Neg;
 
       // Insert these operands into a valid topological order so they can
@@ -4621,34 +4641,6 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
       ReplaceNode(Node, CNode);
       return;
     }
-    case Intrinsic::x86_tdpbssd_internal: {
-      if (!Subtarget->hasAMXTILE())
-        break;
-      SDValue Chain = Node->getOperand(0);
-      unsigned Opc = X86::PTDPBSSDV;
-      SDValue Ops[] = {Node->getOperand(2),
-                       Node->getOperand(3),
-                       Node->getOperand(4),
-                       Node->getOperand(5),
-                       Node->getOperand(6),
-                       Node->getOperand(7),
-                       Chain};
-      MachineSDNode *CNode =
-          CurDAG->getMachineNode(Opc, dl, {MVT::x86amx, MVT::Other}, Ops);
-      ReplaceNode(Node, CNode);
-      return;
-    }
-    case Intrinsic::x86_tilezero_internal: {
-      if (!Subtarget->hasAMXTILE())
-        break;
-      unsigned Opc = X86::PTILEZEROV;
-      SDValue Chain = Node->getOperand(0);
-      SDValue Ops[] = {Node->getOperand(2), Node->getOperand(3), Chain};
-      MachineSDNode *CNode =
-          CurDAG->getMachineNode(Opc, dl, {MVT::x86amx, MVT::Other}, Ops);
-      ReplaceNode(Node, CNode);
-      return;
-    }
     }
     break;
   }
@@ -4764,7 +4756,8 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
     }
     break;
   }
-  case ISD::BRIND: {
+  case ISD::BRIND:
+  case X86ISD::NT_BRIND: {
     if (Subtarget->isTargetNaCl())
       // NaCl has its own pass where jmp %r32 are converted to jmp %r64. We
       // leave the instruction alone.
@@ -4776,7 +4769,7 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
       SDValue Target = Node->getOperand(1);
       assert(Target.getValueType() == MVT::i32 && "Unexpected VT!");
       SDValue ZextTarget = CurDAG->getZExtOrTrunc(Target, dl, MVT::i64);
-      SDValue Brind = CurDAG->getNode(ISD::BRIND, dl, MVT::Other,
+      SDValue Brind = CurDAG->getNode(Opcode, dl, MVT::Other,
                                       Node->getOperand(0), ZextTarget);
       ReplaceNode(Node, Brind.getNode());
       SelectCode(ZextTarget.getNode());
@@ -5543,11 +5536,9 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
         if (auto *LoadN = dyn_cast<LoadSDNode>(N0.getOperand(0).getNode())) {
           if (!LoadN->isSimple()) {
             unsigned NumVolBits = LoadN->getValueType(0).getSizeInBits();
-            if (MOpc == X86::TEST8mi && NumVolBits != 8)
-              break;
-            else if (MOpc == X86::TEST16mi && NumVolBits != 16)
-              break;
-            else if (MOpc == X86::TEST32mi && NumVolBits != 32)
+            if ((MOpc == X86::TEST8mi && NumVolBits != 8) ||
+                (MOpc == X86::TEST16mi && NumVolBits != 16) ||
+                (MOpc == X86::TEST32mi && NumVolBits != 32))
               break;
           }
         }

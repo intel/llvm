@@ -348,14 +348,22 @@ static Constant *ExtractConstantBytes(Constant *C, unsigned ByteStart,
   }
 }
 
+/// Wrapper around getFoldedSizeOfImpl() that adds caching.
+static Constant *getFoldedSizeOf(Type *Ty, Type *DestTy, bool Folded,
+                                 DenseMap<Type *, Constant *> &Cache);
+
 /// Return a ConstantExpr with type DestTy for sizeof on Ty, with any known
 /// factors factored out. If Folded is false, return null if no factoring was
 /// possible, to avoid endlessly bouncing an unfoldable expression back into the
 /// top-level folder.
-static Constant *getFoldedSizeOf(Type *Ty, Type *DestTy, bool Folded) {
+static Constant *getFoldedSizeOfImpl(Type *Ty, Type *DestTy, bool Folded,
+                                     DenseMap<Type *, Constant *> &Cache) {
+  // This is the actual implementation of getFoldedSizeOf(). To get the caching
+  // behavior, we need to call getFoldedSizeOf() when we recurse.
+
   if (ArrayType *ATy = dyn_cast<ArrayType>(Ty)) {
     Constant *N = ConstantInt::get(DestTy, ATy->getNumElements());
-    Constant *E = getFoldedSizeOf(ATy->getElementType(), DestTy, true);
+    Constant *E = getFoldedSizeOf(ATy->getElementType(), DestTy, true, Cache);
     return ConstantExpr::getNUWMul(E, N);
   }
 
@@ -367,11 +375,11 @@ static Constant *getFoldedSizeOf(Type *Ty, Type *DestTy, bool Folded) {
         return ConstantExpr::getNullValue(DestTy);
       // Check for a struct with all members having the same size.
       Constant *MemberSize =
-        getFoldedSizeOf(STy->getElementType(0), DestTy, true);
+          getFoldedSizeOf(STy->getElementType(0), DestTy, true, Cache);
       bool AllSame = true;
       for (unsigned i = 1; i != NumElems; ++i)
         if (MemberSize !=
-            getFoldedSizeOf(STy->getElementType(i), DestTy, true)) {
+            getFoldedSizeOf(STy->getElementType(i), DestTy, true, Cache)) {
           AllSame = false;
           break;
         }
@@ -385,10 +393,10 @@ static Constant *getFoldedSizeOf(Type *Ty, Type *DestTy, bool Folded) {
   // to an arbitrary pointee.
   if (PointerType *PTy = dyn_cast<PointerType>(Ty))
     if (!PTy->getElementType()->isIntegerTy(1))
-      return
-        getFoldedSizeOf(PointerType::get(IntegerType::get(PTy->getContext(), 1),
-                                         PTy->getAddressSpace()),
-                        DestTy, true);
+      return getFoldedSizeOf(
+          PointerType::get(IntegerType::get(PTy->getContext(), 1),
+                           PTy->getAddressSpace()),
+          DestTy, true, Cache);
 
   // If there's no interesting folding happening, bail so that we don't create
   // a constant that looks like it needs folding but really doesn't.
@@ -401,6 +409,20 @@ static Constant *getFoldedSizeOf(Type *Ty, Type *DestTy, bool Folded) {
                                                     DestTy, false),
                             C, DestTy);
   return C;
+}
+
+static Constant *getFoldedSizeOf(Type *Ty, Type *DestTy, bool Folded,
+                                 DenseMap<Type *, Constant *> &Cache) {
+  // Check for previously generated folded size constant.
+  auto It = Cache.find(Ty);
+  if (It != Cache.end())
+    return It->second;
+  return Cache[Ty] = getFoldedSizeOfImpl(Ty, DestTy, Folded, Cache);
+}
+
+static Constant *getFoldedSizeOf(Type *Ty, Type *DestTy, bool Folded) {
+  DenseMap<Type *, Constant *> Cache;
+  return getFoldedSizeOf(Ty, DestTy, Folded, Cache);
 }
 
 /// Return a ConstantExpr with type DestTy for alignof on Ty, with any known
@@ -630,7 +652,7 @@ Constant *llvm::ConstantFoldCastInstruction(unsigned opc, Constant *V,
           V.convertToInteger(IntVal, APFloat::rmTowardZero, &ignored)) {
         // Undefined behavior invoked - the destination type can't represent
         // the input constant.
-        return UndefValue::get(DestTy);
+        return PoisonValue::get(DestTy);
       }
       return ConstantInt::get(FPC->getContext(), IntVal);
     }
@@ -858,7 +880,7 @@ Constant *llvm::ConstantFoldExtractElementInstruction(Constant *Val,
 
   // ee (gep (ptr, idx0, ...), idx) -> gep (ee (ptr, idx), ee (idx0, idx), ...)
   if (auto *CE = dyn_cast<ConstantExpr>(Val)) {
-    if (CE->getOpcode() == Instruction::GetElementPtr) {
+    if (auto *GEP = dyn_cast<GEPOperator>(CE)) {
       SmallVector<Constant *, 8> Ops;
       Ops.reserve(CE->getNumOperands());
       for (unsigned i = 0, e = CE->getNumOperands(); i != e; ++i) {
@@ -872,7 +894,7 @@ Constant *llvm::ConstantFoldExtractElementInstruction(Constant *Val,
           Ops.push_back(Op);
       }
       return CE->getWithOperands(Ops, ValVTy->getElementType(), false,
-                                 Ops[0]->getType()->getPointerElementType());
+                                 GEP->getSourceElementType());
     } else if (CE->getOpcode() == Instruction::InsertElement) {
       if (const auto *IEIdx = dyn_cast<ConstantInt>(CE->getOperand(2))) {
         if (APSInt::isSameValue(APSInt(IEIdx->getValue()),
@@ -916,7 +938,7 @@ Constant *llvm::ConstantFoldInsertElementInstruction(Constant *Val,
 
   unsigned NumElts = ValTy->getNumElements();
   if (CIdx->uge(NumElts))
-    return UndefValue::get(Val->getType());
+    return PoisonValue::get(Val->getType());
 
   SmallVector<Constant*, 16> Result;
   Result.reserve(NumElts);
@@ -1151,23 +1173,21 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
     }
     case Instruction::SDiv:
     case Instruction::UDiv:
-      // X / undef -> undef
-      if (isa<UndefValue>(C2))
-        return C2;
-      // undef / 0 -> undef
+      // X / undef -> poison
+      // X / 0 -> poison
+      if (match(C2, m_CombineOr(m_Undef(), m_Zero())))
+        return PoisonValue::get(C2->getType());
       // undef / 1 -> undef
-      if (match(C2, m_Zero()) || match(C2, m_One()))
+      if (match(C2, m_One()))
         return C1;
       // undef / X -> 0       otherwise
       return Constant::getNullValue(C1->getType());
     case Instruction::URem:
     case Instruction::SRem:
-      // X % undef -> undef
-      if (match(C2, m_Undef()))
-        return C2;
-      // undef % 0 -> undef
-      if (match(C2, m_Zero()))
-        return C1;
+      // X % undef -> poison
+      // X % 0 -> poison
+      if (match(C2, m_CombineOr(m_Undef(), m_Zero())))
+        return PoisonValue::get(C2->getType());
       // undef % X -> 0       otherwise
       return Constant::getNullValue(C1->getType());
     case Instruction::Or:                          // X | undef -> -1
@@ -1175,28 +1195,28 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
         return C1;
       return Constant::getAllOnesValue(C1->getType()); // undef | X -> ~0
     case Instruction::LShr:
-      // X >>l undef -> undef
+      // X >>l undef -> poison
       if (isa<UndefValue>(C2))
-        return C2;
+        return PoisonValue::get(C2->getType());
       // undef >>l 0 -> undef
       if (match(C2, m_Zero()))
         return C1;
       // undef >>l X -> 0
       return Constant::getNullValue(C1->getType());
     case Instruction::AShr:
-      // X >>a undef -> undef
+      // X >>a undef -> poison
       if (isa<UndefValue>(C2))
-        return C2;
+        return PoisonValue::get(C2->getType());
       // undef >>a 0 -> undef
       if (match(C2, m_Zero()))
         return C1;
-      // TODO: undef >>a X -> undef if the shift is exact
+      // TODO: undef >>a X -> poison if the shift is exact
       // undef >>a X -> 0
       return Constant::getNullValue(C1->getType());
     case Instruction::Shl:
       // X << undef -> undef
       if (isa<UndefValue>(C2))
-        return C2;
+        return PoisonValue::get(C2->getType());
       // undef << 0 -> undef
       if (match(C2, m_Zero()))
         return C1;
@@ -1249,14 +1269,14 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
       if (CI2->isOne())
         return C1;                                            // X / 1 == X
       if (CI2->isZero())
-        return UndefValue::get(CI2->getType());               // X / 0 == undef
+        return PoisonValue::get(CI2->getType());              // X / 0 == poison
       break;
     case Instruction::URem:
     case Instruction::SRem:
       if (CI2->isOne())
         return Constant::getNullValue(CI2->getType());        // X % 1 == 0
       if (CI2->isZero())
-        return UndefValue::get(CI2->getType());               // X % 0 == undef
+        return PoisonValue::get(CI2->getType());              // X % 0 == poison
       break;
     case Instruction::And:
       if (CI2->isZero()) return C2;                           // X & 0 == 0
@@ -1370,7 +1390,7 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
       case Instruction::SDiv:
         assert(!CI2->isZero() && "Div by zero handled above");
         if (C2V.isAllOnesValue() && C1V.isMinSignedValue())
-          return UndefValue::get(CI1->getType());   // MIN_INT / -1 -> undef
+          return PoisonValue::get(CI1->getType());   // MIN_INT / -1 -> poison
         return ConstantInt::get(CI1->getContext(), C1V.sdiv(C2V));
       case Instruction::URem:
         assert(!CI2->isZero() && "Div by zero handled above");
@@ -1378,7 +1398,7 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
       case Instruction::SRem:
         assert(!CI2->isZero() && "Div by zero handled above");
         if (C2V.isAllOnesValue() && C1V.isMinSignedValue())
-          return UndefValue::get(CI1->getType());   // MIN_INT % -1 -> undef
+          return PoisonValue::get(CI1->getType());   // MIN_INT % -1 -> poison
         return ConstantInt::get(CI1->getContext(), C1V.srem(C2V));
       case Instruction::And:
         return ConstantInt::get(CI1->getContext(), C1V & C2V);
@@ -1389,15 +1409,15 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
       case Instruction::Shl:
         if (C2V.ult(C1V.getBitWidth()))
           return ConstantInt::get(CI1->getContext(), C1V.shl(C2V));
-        return UndefValue::get(C1->getType()); // too big shift is undef
+        return PoisonValue::get(C1->getType()); // too big shift is poison
       case Instruction::LShr:
         if (C2V.ult(C1V.getBitWidth()))
           return ConstantInt::get(CI1->getContext(), C1V.lshr(C2V));
-        return UndefValue::get(C1->getType()); // too big shift is undef
+        return PoisonValue::get(C1->getType()); // too big shift is poison
       case Instruction::AShr:
         if (C2V.ult(C1V.getBitWidth()))
           return ConstantInt::get(CI1->getContext(), C1V.ashr(C2V));
-        return UndefValue::get(C1->getType()); // too big shift is undef
+        return PoisonValue::get(C1->getType()); // too big shift is poison
       }
     }
 
@@ -1443,7 +1463,7 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
     // Fast path for splatted constants.
     if (Constant *C2Splat = C2->getSplatValue()) {
       if (Instruction::isIntDivRem(Opcode) && C2Splat->isNullValue())
-        return UndefValue::get(VTy);
+        return PoisonValue::get(VTy);
       if (Constant *C1Splat = C1->getSplatValue()) {
         return ConstantVector::getSplat(
             VTy->getElementCount(),
@@ -1460,9 +1480,9 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
         Constant *LHS = ConstantExpr::getExtractElement(C1, ExtractIdx);
         Constant *RHS = ConstantExpr::getExtractElement(C2, ExtractIdx);
 
-        // If any element of a divisor vector is zero, the whole op is undef.
+        // If any element of a divisor vector is zero, the whole op is poison.
         if (Instruction::isIntDivRem(Opcode) && RHS->isNullValue())
-          return UndefValue::get(VTy);
+          return PoisonValue::get(VTy);
 
         Result.push_back(ConstantExpr::get(Opcode, LHS, RHS));
       }
@@ -1742,7 +1762,7 @@ static ICmpInst::Predicate evaluateICmpRelation(Constant *V1, Constant *V2,
       if (!GV->hasExternalWeakLinkage() && !isa<GlobalAlias>(GV) &&
           !NullPointerIsDefined(nullptr /* F */,
                                 GV->getType()->getAddressSpace()))
-        return ICmpInst::ICMP_NE;
+        return ICmpInst::ICMP_UGT;
     }
   } else if (const BlockAddress *BA = dyn_cast<BlockAddress>(V1)) {
     if (isa<ConstantExpr>(V2)) {  // Swap as necessary.
@@ -1816,35 +1836,27 @@ static ICmpInst::Predicate evaluateICmpRelation(Constant *V1, Constant *V2,
         // If we are comparing a GEP to a null pointer, check to see if the base
         // of the GEP equals the null pointer.
         if (const GlobalValue *GV = dyn_cast<GlobalValue>(CE1Op0)) {
-          if (GV->hasExternalWeakLinkage())
-            // Weak linkage GVals could be zero or not. We're comparing that
-            // to null pointer so its greater-or-equal
-            return isSigned ? ICmpInst::ICMP_SGE : ICmpInst::ICMP_UGE;
-          else
-            // If its not weak linkage, the GVal must have a non-zero address
-            // so the result is greater-than
-            return isSigned ? ICmpInst::ICMP_SGT : ICmpInst::ICMP_UGT;
+          // If its not weak linkage, the GVal must have a non-zero address
+          // so the result is greater-than
+          if (!GV->hasExternalWeakLinkage())
+            return ICmpInst::ICMP_UGT;
         } else if (isa<ConstantPointerNull>(CE1Op0)) {
           // If we are indexing from a null pointer, check to see if we have any
           // non-zero indices.
           for (unsigned i = 1, e = CE1->getNumOperands(); i != e; ++i)
             if (!CE1->getOperand(i)->isNullValue())
               // Offsetting from null, must not be equal.
-              return isSigned ? ICmpInst::ICMP_SGT : ICmpInst::ICMP_UGT;
+              return ICmpInst::ICMP_UGT;
           // Only zero indexes from null, must still be zero.
           return ICmpInst::ICMP_EQ;
         }
         // Otherwise, we can't really say if the first operand is null or not.
       } else if (const GlobalValue *GV2 = dyn_cast<GlobalValue>(V2)) {
         if (isa<ConstantPointerNull>(CE1Op0)) {
-          if (GV2->hasExternalWeakLinkage())
-            // Weak linkage GVals could be zero or not. We're comparing it to
-            // a null pointer, so its less-or-equal
-            return isSigned ? ICmpInst::ICMP_SLE : ICmpInst::ICMP_ULE;
-          else
-            // If its not weak linkage, the GVal must have a non-zero address
-            // so the result is less-than
-            return isSigned ? ICmpInst::ICMP_SLT : ICmpInst::ICMP_ULT;
+          // If its not weak linkage, the GVal must have a non-zero address
+          // so the result is less-than
+          if (!GV2->hasExternalWeakLinkage())
+            return ICmpInst::ICMP_ULT;
         } else if (const GlobalValue *GV = dyn_cast<GlobalValue>(CE1Op0)) {
           if (GV == GV2) {
             // If this is a getelementptr of the same global, then it must be
@@ -1854,7 +1866,7 @@ static ICmpInst::Predicate evaluateICmpRelation(Constant *V1, Constant *V2,
             assert(CE1->getNumOperands() == 2 &&
                    !CE1->getOperand(1)->isNullValue() &&
                    "Surprising getelementptr!");
-            return isSigned ? ICmpInst::ICMP_SGT : ICmpInst::ICMP_UGT;
+            return ICmpInst::ICMP_UGT;
           } else {
             if (CE1GEP->hasAllZeroIndices())
               return areGlobalsPotentiallyEqual(GV, GV2);
@@ -1989,7 +2001,7 @@ Constant *llvm::ConstantFoldCompareInstruction(unsigned short pred,
       }
   // icmp eq/ne(GV,null) -> false/true
   } else if (C2->isNullValue()) {
-    if (const GlobalValue *GV = dyn_cast<GlobalValue>(C1))
+    if (const GlobalValue *GV = dyn_cast<GlobalValue>(C1)) {
       // Don't try to evaluate aliases.  External weak GV can be null.
       if (!isa<GlobalAlias>(GV) && !GV->hasExternalWeakLinkage() &&
           !NullPointerIsDefined(nullptr /* F */,
@@ -1999,6 +2011,16 @@ Constant *llvm::ConstantFoldCompareInstruction(unsigned short pred,
         else if (pred == ICmpInst::ICMP_NE)
           return ConstantInt::getTrue(C1->getContext());
       }
+    }
+
+    // The caller is expected to commute the operands if the constant expression
+    // is C2.
+    // C1 >= 0 --> true
+    if (pred == ICmpInst::ICMP_UGE)
+      return Constant::getAllOnesValue(ResultTy);
+    // C1 < 0 --> false
+    if (pred == ICmpInst::ICMP_ULT)
+      return Constant::getNullValue(ResultTy);
   }
 
   // If the comparison is a comparison between two i1's, simplify it.
@@ -2345,7 +2367,8 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
     return PoisonValue::get(GEPTy);
 
   if (isa<UndefValue>(C))
-    return UndefValue::get(GEPTy);
+    // If inbounds, we can choose an out-of-bounds pointer as a base pointer.
+    return InBounds ? PoisonValue::get(GEPTy) : UndefValue::get(GEPTy);
 
   Constant *Idx0 = cast<Constant>(Idxs[0]);
   if (Idxs.size() == 1 && (Idx0->isNullValue() || isa<UndefValue>(Idx0)))

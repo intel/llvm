@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include "PerfReader.h"
 #include "ProfileGenerator.h"
+#include "llvm/Support/FileSystem.h"
 
 static cl::opt<bool> ShowMmapEvents("show-mmap-events", cl::ReallyHidden,
                                     cl::init(false), cl::ZeroOrMore,
@@ -92,7 +93,8 @@ void VirtualUnwinder::unwindBranchWithinFrame(UnwindState &State) {
 std::shared_ptr<StringBasedCtxKey> FrameStack::getContextKey() {
   std::shared_ptr<StringBasedCtxKey> KeyStr =
       std::make_shared<StringBasedCtxKey>();
-  KeyStr->Context = Binary->getExpandedContextStr(Stack);
+  KeyStr->Context =
+      Binary->getExpandedContextStr(Stack, KeyStr->WasLeafInlined);
   if (KeyStr->Context.empty())
     return nullptr;
   KeyStr->genHashCode();
@@ -141,9 +143,11 @@ void VirtualUnwinder::collectSamplesFromFrameTrie(
   if (!Cur->isDummyRoot()) {
     if (!Stack.pushFrame(Cur)) {
       // Process truncated context
+      // Start a new traversal ignoring its bottom context
+      T EmptyStack(Binary);
+      collectSamplesFromFrame(Cur, EmptyStack);
       for (const auto &Item : Cur->Children) {
-        // Start a new traversal ignoring its bottom context
-        collectSamplesFromFrameTrie(Item.second.get());
+        collectSamplesFromFrameTrie(Item.second.get(), EmptyStack);
       }
       return;
     }

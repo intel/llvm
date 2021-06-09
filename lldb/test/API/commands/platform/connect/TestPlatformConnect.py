@@ -11,9 +11,8 @@ class TestPlatformProcessConnect(TestBase):
 
     @skipIfRemote
     @expectedFailureAll(hostoslist=["windows"], triple='.*-android')
-    @skipIfWindows # lldb-server does not terminate correctly
     @skipIfDarwin # lldb-server not found correctly
-    @skipIf(oslist=["linux"], archs=["arm", "aarch64"])  # Fails randomly
+    @expectedFailureAll(oslist=["windows"]) # process modules not loaded
     @add_test_categories(["lldb-server"])
     def test_platform_process_connect(self):
         self.build()

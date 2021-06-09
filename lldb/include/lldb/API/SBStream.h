@@ -9,7 +9,7 @@
 #ifndef LLDB_API_SBSTREAM_H
 #define LLDB_API_SBSTREAM_H
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "lldb/API/SBDefines.h"
 
@@ -72,6 +72,7 @@ protected:
   friend class SBFunction;
   friend class SBInstruction;
   friend class SBInstructionList;
+  friend class SBLaunchInfo;
   friend class SBLineEntry;
   friend class SBMemoryRegionInfo;
   friend class SBModule;

@@ -78,6 +78,7 @@ enum class CudaArch {
   GFX906,
   GFX908,
   GFX909,
+  GFX90a,
   GFX90c,
   GFX1010,
   GFX1011,
@@ -86,6 +87,7 @@ enum class CudaArch {
   GFX1031,
   GFX1032,
   GFX1033,
+  GFX1034,
   LAST,
 };
 

@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CGCUDARuntime.h"
 #include "CGCXXABI.h"
 #include "CGCall.h"
 #include "CGCleanup.h"
@@ -38,6 +39,7 @@
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
 
 #include <string>
@@ -403,24 +405,22 @@ static Address createReferenceTemporary(CodeGenFunction &CGF,
         (Ty->isArrayType() || Ty->isRecordType()) &&
         CGF.CGM.isTypeConstant(Ty, true))
       if (auto Init = ConstantEmitter(CGF).tryEmitAbstract(Inner, Ty)) {
-        if (auto AddrSpace = CGF.getTarget().getConstantAddressSpace()) {
-          auto AS = AddrSpace.getValue();
-          auto *GV = new llvm::GlobalVariable(
-              CGF.CGM.getModule(), Init->getType(), /*isConstant=*/true,
-              llvm::GlobalValue::PrivateLinkage, Init, ".ref.tmp", nullptr,
-              llvm::GlobalValue::NotThreadLocal,
-              CGF.getContext().getTargetAddressSpace(AS));
-          CharUnits alignment = CGF.getContext().getTypeAlignInChars(Ty);
-          GV->setAlignment(alignment.getAsAlign());
-          llvm::Constant *C = GV;
-          if (AS != LangAS::Default)
-            C = TCG.performAddrSpaceCast(
-                CGF.CGM, GV, AS, LangAS::Default,
-                GV->getValueType()->getPointerTo(
-                    CGF.getContext().getTargetAddressSpace(LangAS::Default)));
-          // FIXME: Should we put the new global into a COMDAT?
-          return Address(C, alignment);
-        }
+        auto AS = CGF.CGM.GetGlobalConstantAddressSpace();
+        auto *GV = new llvm::GlobalVariable(
+            CGF.CGM.getModule(), Init->getType(), /*isConstant=*/true,
+            llvm::GlobalValue::PrivateLinkage, Init, ".ref.tmp", nullptr,
+            llvm::GlobalValue::NotThreadLocal,
+            CGF.getContext().getTargetAddressSpace(AS));
+        CharUnits alignment = CGF.getContext().getTypeAlignInChars(Ty);
+        GV->setAlignment(alignment.getAsAlign());
+        llvm::Constant *C = GV;
+        if (AS != LangAS::Default)
+          C = TCG.performAddrSpaceCast(
+              CGF.CGM, GV, AS, LangAS::Default,
+              GV->getValueType()->getPointerTo(
+                  CGF.getContext().getTargetAddressSpace(LangAS::Default)));
+        // FIXME: Should we put the new global into a COMDAT?
+        return Address(C, alignment);
       }
     return CGF.CreateMemTemp(Ty, "ref.tmp", Alloca);
   }
@@ -827,9 +827,9 @@ void CodeGenFunction::EmitTypeCheck(TypeCheckKind TCK, SourceLocation Loc,
     CGM.getCXXABI().getMangleContext().mangleCXXRTTI(Ty.getUnqualifiedType(),
                                                      Out);
 
-    // Blacklist based on the mangled type.
-    if (!CGM.getContext().getSanitizerBlacklist().isBlacklistedType(
-            SanitizerKind::Vptr, Out.str())) {
+    // Contained in NoSanitizeList based on the mangled type.
+    if (!CGM.getContext().getNoSanitizeList().containsType(SanitizerKind::Vptr,
+                                                           Out.str())) {
       llvm::hash_code TypeHash = hash_value(Out.str());
 
       // Load the vptr, and compute hash_16_bytes(TypeHash, vptr).
@@ -851,9 +851,9 @@ void CodeGenFunction::EmitTypeCheck(TypeCheckKind TCK, SourceLocation Loc,
                                             llvm::ConstantInt::get(IntPtrTy,
                                                                    CacheSize-1));
       llvm::Value *Indices[] = { Builder.getInt32(0), Slot };
-      llvm::Value *CacheVal =
-        Builder.CreateAlignedLoad(Builder.CreateInBoundsGEP(Cache, Indices),
-                                  getPointerAlign());
+      llvm::Value *CacheVal = Builder.CreateAlignedLoad(
+          IntPtrTy, Builder.CreateInBoundsGEP(HashTable, Cache, Indices),
+          getPointerAlign());
 
       // If the hash isn't in the cache, call a runtime handler to perform the
       // hard work of checking whether the vptr is for an object of the right
@@ -2833,8 +2833,21 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
     return LV;
   }
 
-  if (const auto *FD = dyn_cast<FunctionDecl>(ND))
-    return EmitFunctionDeclLValue(*this, E, FD);
+  if (const auto *FD = dyn_cast<FunctionDecl>(ND)) {
+    LValue LV = EmitFunctionDeclLValue(*this, E, FD);
+
+    // Emit debuginfo for the function declaration if the target wants to.
+    if (getContext().getTargetInfo().allowDebugInfoForExternalRef()) {
+      if (CGDebugInfo *DI = CGM.getModuleDebugInfo()) {
+        auto *Fn =
+            cast<llvm::Function>(LV.getPointer(*this)->stripPointerCasts());
+        if (!Fn->getSubprogram())
+          DI->EmitFunctionDecl(FD, FD->getLocation(), T, Fn);
+      }
+    }
+
+    return LV;
+  }
 
   // FIXME: While we're emitting a binding from an enclosing scope, all other
   // DeclRefExprs we see should be implicitly treated as if they also refer to
@@ -3383,14 +3396,14 @@ void CodeGenFunction::EmitCfiCheckFail() {
       llvm::FunctionType::get(VoidTy, {VoidPtrTy, VoidPtrTy}, false),
       llvm::GlobalValue::WeakODRLinkage, "__cfi_check_fail", &CGM.getModule());
 
-  CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, F);
+  CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, F, /*IsThunk=*/false);
   CGM.SetLLVMFunctionAttributesForDefinition(nullptr, F);
   F->setVisibility(llvm::GlobalValue::HiddenVisibility);
 
   StartFunction(GlobalDecl(), CGM.getContext().VoidTy, F, FI, Args,
                 SourceLocation());
 
-  // This function should not be affected by blacklist. This function does
+  // This function is not affected by NoSanitizeList. This function does
   // not have a source location, but "src:*" would still apply. Revert any
   // changes to SanOpts made in StartFunction.
   SanOpts = CGM.getLangOpts().Sanitize;
@@ -3568,6 +3581,7 @@ static const Expr *isSimpleArrayDecayOperand(const Expr *E) {
 }
 
 static llvm::Value *emitArraySubscriptGEP(CodeGenFunction &CGF,
+                                          llvm::Type *elemType,
                                           llvm::Value *ptr,
                                           ArrayRef<llvm::Value*> indices,
                                           bool inbounds,
@@ -3579,7 +3593,7 @@ static llvm::Value *emitArraySubscriptGEP(CodeGenFunction &CGF,
                                       CodeGenFunction::NotSubtraction, loc,
                                       name);
   } else {
-    return CGF.Builder.CreateGEP(ptr, indices, name);
+    return CGF.Builder.CreateGEP(elemType, ptr, indices, name);
   }
 }
 
@@ -3684,8 +3698,8 @@ static Address emitArraySubscriptGEP(CodeGenFunction &CGF, Address addr,
   if (!LastIndex ||
       (!CGF.IsInPreservedAIRegion && !IsPreserveAIArrayBase(CGF, Base))) {
     eltPtr = emitArraySubscriptGEP(
-        CGF, addr.getPointer(), indices, inbounds, signedIndices,
-        loc, name);
+        CGF, addr.getElementType(), addr.getPointer(), indices, inbounds,
+        signedIndices, loc, name);
     AddIVDepMetadata(CGF, arrayDecl, eltPtr);
   } else {
     // Remember the original array subscript for bpf target
@@ -3811,8 +3825,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     CharUnits EltAlign =
       getArrayElementAlign(Addr.getAlignment(), Idx, InterfaceSize);
     llvm::Value *EltPtr =
-        emitArraySubscriptGEP(*this, Addr.getPointer(), ScaledIdx, false,
-                              SignedIndices, E->getExprLoc());
+        emitArraySubscriptGEP(*this, Addr.getElementType(), Addr.getPointer(),
+                              ScaledIdx, false, SignedIndices, E->getExprLoc());
     Addr = Address(EltPtr, EltAlign);
 
     // Cast back.
@@ -3864,7 +3878,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     Addr = emitArraySubscriptGEP(*this, Addr, Idx, E->getType(),
                                  !getLangOpts().isSignedOverflowDefined(),
                                  SignedIndices, E->getExprLoc(), &ptrType,
-                                 E->getBase(), "ptridx", PtrDecl);
+                                 E->getBase(), "arrayidx", PtrDecl);
   }
 
   LValue LV = MakeAddrLValue(Addr, E->getType(), EltBaseInfo, EltTBAAInfo);
@@ -4199,8 +4213,10 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
 /// Given that we are currently emitting a lambda, emit an l-value for
 /// one of its members.
 LValue CodeGenFunction::EmitLValueForLambdaField(const FieldDecl *Field) {
-  assert(cast<CXXMethodDecl>(CurCodeDecl)->getParent()->isLambda());
-  assert(cast<CXXMethodDecl>(CurCodeDecl)->getParent() == Field->getParent());
+  if (CurCodeDecl) {
+    assert(cast<CXXMethodDecl>(CurCodeDecl)->getParent()->isLambda());
+    assert(cast<CXXMethodDecl>(CurCodeDecl)->getParent() == Field->getParent());
+  }
   QualType LambdaTagType =
     getContext().getTagDeclType(Field->getParent());
   LValue LambdaLV = MakeNaturalAlignAddrLValue(CXXABIThisValue, LambdaTagType);
@@ -4679,6 +4695,7 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
   case CK_FixedPointToBoolean:
   case CK_FixedPointToIntegral:
   case CK_IntegralToFixedPoint:
+  case CK_MatrixCast:
     return EmitUnsupportedLValue(E, "unexpected cast lvalue");
 
   case CK_Dependent:
@@ -4907,8 +4924,12 @@ static CGCallee EmitDirectCallee(CodeGenFunction &CGF, GlobalDecl GD) {
       return CGCallee::forBuiltin(builtinID, FD);
   }
 
-  llvm::Constant *calleePtr = EmitFunctionDeclPointer(CGF.CGM, GD);
-  return CGCallee::forDirect(calleePtr, GD);
+  llvm::Constant *CalleePtr = EmitFunctionDeclPointer(CGF.CGM, GD);
+  if (CGF.CGM.getLangOpts().CUDA && !CGF.CGM.getLangOpts().CUDAIsDevice &&
+      FD->hasAttr<CUDAGlobalAttr>())
+    CalleePtr = CGF.CGM.getCUDARuntime().getKernelStub(
+        cast<llvm::GlobalValue>(CalleePtr->stripPointerCasts()));
+  return CGCallee::forDirect(CalleePtr, GD);
 }
 
 CGCallee CodeGenFunction::EmitCallee(const Expr *E) {
@@ -5159,9 +5180,9 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
         getContext().getFunctionTypeWithExceptionSpec(PointeeType, EST_None);
       llvm::Constant *FTRTTIConst =
           CGM.GetAddrOfRTTIDescriptor(ProtoTy, /*ForEH=*/true);
-      llvm::Type *PrefixStructTyElems[] = {PrefixSig->getType(), Int32Ty};
+      llvm::Type *PrefixSigType = PrefixSig->getType();
       llvm::StructType *PrefixStructTy = llvm::StructType::get(
-          CGM.getLLVMContext(), PrefixStructTyElems, /*isPacked=*/true);
+          CGM.getLLVMContext(), {PrefixSigType, Int32Ty}, /*isPacked=*/true);
 
       llvm::Value *CalleePtr = Callee.getFunctionPointer();
 
@@ -5170,7 +5191,7 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
       llvm::Value *CalleeSigPtr =
           Builder.CreateConstGEP2_32(PrefixStructTy, CalleePrefixStruct, 0, 0);
       llvm::Value *CalleeSig =
-          Builder.CreateAlignedLoad(CalleeSigPtr, getIntAlign());
+          Builder.CreateAlignedLoad(PrefixSigType, CalleeSigPtr, getIntAlign());
       llvm::Value *CalleeSigMatch = Builder.CreateICmpEQ(CalleeSig, PrefixSig);
 
       llvm::BasicBlock *Cont = createBasicBlock("cont");
@@ -5181,7 +5202,7 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
       llvm::Value *CalleeRTTIPtr =
           Builder.CreateConstGEP2_32(PrefixStructTy, CalleePrefixStruct, 0, 1);
       llvm::Value *CalleeRTTIEncoded =
-          Builder.CreateAlignedLoad(CalleeRTTIPtr, getPointerAlign());
+          Builder.CreateAlignedLoad(Int32Ty, CalleeRTTIPtr, getPointerAlign());
       llvm::Value *CalleeRTTI =
           DecodeAddrUsedInPrologue(CalleePtr, CalleeRTTIEncoded);
       llvm::Value *CalleeRTTIMatch =
@@ -5302,9 +5323,21 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
     Callee.setFunctionPointer(CalleePtr);
   }
 
+  // HIP function pointer contains kernel handle when it is used in triple
+  // chevron. The kernel stub needs to be loaded from kernel handle and used
+  // as callee.
+  if (CGM.getLangOpts().HIP && !CGM.getLangOpts().CUDAIsDevice &&
+      isa<CUDAKernelCallExpr>(E) &&
+      (!TargetDecl || !isa<FunctionDecl>(TargetDecl))) {
+    llvm::Value *Handle = Callee.getFunctionPointer();
+    auto *Cast =
+        Builder.CreateBitCast(Handle, Handle->getType()->getPointerTo());
+    auto *Stub = Builder.CreateLoad(Address(Cast, CGM.getPointerAlign()));
+    Callee.setFunctionPointer(Stub);
+  }
   llvm::CallBase *CallOrInvoke = nullptr;
   RValue Call = EmitCall(FnInfo, Callee, ReturnValue, Args, &CallOrInvoke,
-                         E->getExprLoc());
+                         E == MustTailCall, E->getExprLoc());
 
   // Generate function declaration DISuprogram in order to be used
   // in debug info about call sites.

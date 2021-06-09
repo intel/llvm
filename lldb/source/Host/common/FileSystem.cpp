@@ -19,11 +19,11 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Threading.h"
 
-#include <errno.h>
+#include <cerrno>
+#include <climits>
+#include <cstdarg>
+#include <cstdio>
 #include <fcntl.h>
-#include <limits.h>
-#include <stdarg.h>
-#include <stdio.h>
 
 #ifdef _WIN32
 #include "lldb/Host/windows/windows.h"
@@ -307,7 +307,7 @@ FileSystem::CreateDataBuffer(const llvm::Twine &path, uint64_t size,
   std::unique_ptr<llvm::WritableMemoryBuffer> buffer;
   if (size == 0) {
     auto buffer_or_error =
-        llvm::WritableMemoryBuffer::getFile(*external_path, -1, is_volatile);
+        llvm::WritableMemoryBuffer::getFile(*external_path, is_volatile);
     if (!buffer_or_error)
       return nullptr;
     buffer = std::move(*buffer_or_error);

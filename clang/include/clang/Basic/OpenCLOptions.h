@@ -51,28 +51,32 @@ static inline OpenCLVersionID encodeOpenCLVersion(unsigned OpenCLVersion) {
   }
 }
 
-// Simple helper to check if OpenCL C version is contained in a given encoded
-// OpenCL C version mask
-static inline bool isOpenCLVersionIsContainedInMask(const LangOptions &LO,
-                                                    unsigned Mask) {
+// Check if OpenCL C version is contained in a given encoded OpenCL C version
+// mask.
+static inline bool isOpenCLVersionContainedInMask(const LangOptions &LO,
+                                                  unsigned Mask) {
   auto CLVer = LO.OpenCLCPlusPlus ? 200 : LO.OpenCLVersion;
   OpenCLVersionID Code = encodeOpenCLVersion(CLVer);
   return Mask & Code;
 }
+
 } // end anonymous namespace
 
 /// OpenCL supported extensions and optional core features
 class OpenCLOptions {
 public:
   struct OpenCLOptionInfo {
+    // Does this option have pragma.
+    bool WithPragma = false;
+
     // Option starts to be available in this OpenCL version
-    unsigned Avail;
+    unsigned Avail = 100U;
 
     // Option becomes core feature in this OpenCL versions
-    unsigned Core;
+    unsigned Core = 0U;
 
     // Option becomes optional core feature in this OpenCL versions
-    unsigned Opt;
+    unsigned Opt = 0U;
 
     // Is this option supported
     bool Supported = false;
@@ -80,8 +84,10 @@ public:
     // Is this option enabled
     bool Enabled = false;
 
-    OpenCLOptionInfo(unsigned A = 100, unsigned C = 0U, unsigned O = 0U)
-        : Avail(A), Core(C), Opt(O) {}
+    OpenCLOptionInfo() = default;
+    OpenCLOptionInfo(bool Pragma, unsigned AvailV, unsigned CoreV,
+                     unsigned OptV)
+        : WithPragma(Pragma), Avail(AvailV), Core(CoreV), Opt(OptV) {}
 
     bool isCore() const { return Core != 0U; }
 
@@ -96,18 +102,23 @@ public:
 
     // Is core option in OpenCL version \p LO.
     bool isCoreIn(const LangOptions &LO) const {
-      return isAvailableIn(LO) && isOpenCLVersionIsContainedInMask(LO, Core);
+      return isAvailableIn(LO) && isOpenCLVersionContainedInMask(LO, Core);
     }
 
     // Is optional core option in OpenCL version \p LO.
     bool isOptionalCoreIn(const LangOptions &LO) const {
-      return isAvailableIn(LO) && isOpenCLVersionIsContainedInMask(LO, Opt);
+      return isAvailableIn(LO) && isOpenCLVersionContainedInMask(LO, Opt);
     }
   };
 
   bool isKnown(llvm::StringRef Ext) const;
 
-  bool isEnabled(llvm::StringRef Ext) const;
+  // For core or optional core feature check that it is supported
+  // by a target, for any other option (extension) check that it is
+  // enabled via pragma
+  bool isAvailableOption(llvm::StringRef Ext, const LangOptions &LO) const;
+
+  bool isWithPragma(llvm::StringRef Ext) const;
 
   // Is supported as either an extension or an (optional) core feature for
   // OpenCL version \p LO.
@@ -131,6 +142,11 @@ public:
   // For supported core or optional core feature, return false.
   bool isSupportedExtension(llvm::StringRef Ext, const LangOptions &LO) const;
 
+  // FIXME: Whether extension should accept pragma should not
+  // be reset dynamically. But it currently required when
+  // registering new extensions via pragmas.
+  void acceptsPragma(llvm::StringRef Ext, bool V = true);
+
   void enable(llvm::StringRef Ext, bool V = true);
 
   /// Enable or disable support for OpenCL extensions
@@ -139,7 +155,6 @@ public:
   void support(llvm::StringRef Ext, bool V = true);
 
   OpenCLOptions();
-  OpenCLOptions(const OpenCLOptions &) = default;
 
   // Set supported options based on target settings and language version
   void addSupport(const llvm::StringMap<bool> &FeaturesMap,
@@ -148,15 +163,26 @@ public:
   // Disable all extensions
   void disableAll();
 
-  // Enable supported core and optional core features
-  void enableSupportedCore(const LangOptions &LO);
-
   friend class ASTWriter;
   friend class ASTReader;
 
   using OpenCLOptionInfoMap = llvm::StringMap<OpenCLOptionInfo>;
 
+  template <typename... Args>
+  static bool isOpenCLOptionCoreIn(const LangOptions &LO, Args &&... args) {
+    return OpenCLOptionInfo(std::forward<Args>(args)...).isCoreIn(LO);
+  }
+
+  template <typename... Args>
+  static bool isOpenCLOptionAvailableIn(const LangOptions &LO,
+                                        Args &&... args) {
+    return OpenCLOptionInfo(std::forward<Args>(args)...).isAvailableIn(LO);
+  }
+
 private:
+  // Option is enabled via pragma
+  bool isEnabled(llvm::StringRef Ext) const;
+
   OpenCLOptionInfoMap OptMap;
 };
 

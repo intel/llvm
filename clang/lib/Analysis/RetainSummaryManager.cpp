@@ -145,13 +145,19 @@ static bool isSubclass(const Decl *D,
   return !(match(SubclassM, *D, D->getASTContext()).empty());
 }
 
-static bool isOSObjectSubclass(const Decl *D) {
-  return D && isSubclass(D, "OSMetaClassBase");
+static bool isExactClass(const Decl *D, StringRef ClassName) {
+  using namespace ast_matchers;
+  DeclarationMatcher sameClassM =
+      cxxRecordDecl(hasName(std::string(ClassName)));
+  return !(match(sameClassM, *D, D->getASTContext()).empty());
 }
 
-static bool isOSObjectDynamicCast(StringRef S) {
-  return S == "safeMetaCast";
+static bool isOSObjectSubclass(const Decl *D) {
+  return D && isSubclass(D, "OSMetaClassBase") &&
+         !isExactClass(D, "OSMetaClass");
 }
+
+static bool isOSObjectDynamicCast(StringRef S) { return S == "safeMetaCast"; }
 
 static bool isOSObjectRequiredCast(StringRef S) {
   return S == "requiredMetaCast";
@@ -881,8 +887,8 @@ RetainSummaryManager::getRetEffectFromAnnotations(QualType RetTy,
   return None;
 }
 
-/// \return Whether the chain of typedefs starting from {@code QT}
-/// has a typedef with a given name {@code Name}.
+/// \return Whether the chain of typedefs starting from @c QT
+/// has a typedef with a given name @c Name.
 static bool hasTypedefNamed(QualType QT,
                             StringRef Name) {
   while (auto *T = dyn_cast<TypedefType>(QT)) {

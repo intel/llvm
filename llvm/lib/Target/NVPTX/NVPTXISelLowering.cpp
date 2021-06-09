@@ -1175,7 +1175,8 @@ const char *NVPTXTargetLowering::getTargetNodeName(unsigned Opcode) const {
 
 TargetLoweringBase::LegalizeTypeAction
 NVPTXTargetLowering::getPreferredVectorAction(MVT VT) const {
-  if (VT.getVectorNumElements() != 1 && VT.getScalarType() == MVT::i1)
+  if (!VT.isScalableVector() && VT.getVectorNumElements() != 1 &&
+      VT.getScalarType() == MVT::i1)
     return TypeSplitVector;
   if (VT == MVT::v2f16)
     return TypeLegal;
@@ -4304,14 +4305,7 @@ bool NVPTXTargetLowering::allowUnsafeFPMath(MachineFunction &MF) const {
 
   // Allow unsafe math if unsafe-fp-math attribute explicitly says so.
   const Function &F = MF.getFunction();
-  if (F.hasFnAttribute("unsafe-fp-math")) {
-    Attribute Attr = F.getFnAttribute("unsafe-fp-math");
-    StringRef Val = Attr.getValueAsString();
-    if (Val == "true")
-      return true;
-  }
-
-  return false;
+  return F.getFnAttribute("unsafe-fp-math").getValueAsBool();
 }
 
 /// PerformADDCombineWithOperands - Try DAG combinations for an ADD with

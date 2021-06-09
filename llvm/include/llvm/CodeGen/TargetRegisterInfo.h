@@ -283,12 +283,6 @@ public:
 
   /// Return the minimum required alignment in bytes for a spill slot for
   /// a register of this class.
-  unsigned getSpillAlignment(const TargetRegisterClass &RC) const {
-    return getRegClassInfo(RC).SpillAlignment / 8;
-  }
-
-  /// Return the minimum required alignment in bytes for a spill slot for
-  /// a register of this class.
   Align getSpillAlign(const TargetRegisterClass &RC) const {
     return Align(getRegClassInfo(RC).SpillAlignment / 8);
   }
@@ -298,6 +292,19 @@ public:
     for (auto I = legalclasstypes_begin(RC); *I != MVT::Other; ++I)
       if (MVT(*I) == T)
         return true;
+    return false;
+  }
+
+  /// Return true if the given TargetRegisterClass is compatible with LLT T.
+  bool isTypeLegalForClass(const TargetRegisterClass &RC, LLT T) const {
+    for (auto I = legalclasstypes_begin(RC); *I != MVT::Other; ++I) {
+      MVT VT(*I);
+      if (VT == MVT::Untyped)
+        return true;
+
+      if (LLT(VT) == T)
+        return true;
+    }
     return false;
   }
 
@@ -319,6 +326,13 @@ public:
   /// physreg.
   const TargetRegisterClass *getMinimalPhysRegClass(MCRegister Reg,
                                                     MVT VT = MVT::Other) const;
+
+  /// Returns the Register Class of a physical register of the given type,
+  /// picking the most sub register class of the right type that contains this
+  /// physreg. If there is no register class compatible with the given type,
+  /// returns nullptr.
+  const TargetRegisterClass *getMinimalPhysRegClassLLT(MCRegister Reg,
+                                                       LLT Ty = LLT()) const;
 
   /// Return the maximal subclass of the given register class that is
   /// allocatable or NULL.
@@ -362,6 +376,15 @@ public:
     assert(SubIdx < getNumSubRegIndices() && "This is not a subregister index");
     return SubRegIndexLaneMasks[SubIdx];
   }
+
+  /// Try to find one or more subregister indexes to cover \p LaneMask.
+  ///
+  /// If this is possible, returns true and appends the best matching set of
+  /// indexes to \p Indexes. If this is not possible, returns false.
+  bool getCoveringSubRegIndexes(const MachineRegisterInfo &MRI,
+                                const TargetRegisterClass *RC,
+                                LaneBitmask LaneMask,
+                                SmallVectorImpl<unsigned> &Indexes) const;
 
   /// The lane masks returned by getSubRegIndexLaneMask() above can only be
   /// used to determine if sub-registers overlap - they can't be used to
@@ -905,9 +928,12 @@ public:
 
   /// True if storage within the function requires the stack pointer to be
   /// aligned more than the normal calling convention calls for.
-  /// This cannot be overriden by the target, but canRealignStack can be
-  /// overridden.
-  bool needsStackRealignment(const MachineFunction &MF) const;
+  virtual bool shouldRealignStack(const MachineFunction &MF) const;
+
+  /// True if stack realignment is required and still possible.
+  bool hasStackRealignment(const MachineFunction &MF) const {
+    return shouldRealignStack(MF) && canRealignStack(MF);
+  }
 
   /// Get the offset from the referenced frame index in the instruction,
   /// if there is one.

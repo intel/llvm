@@ -29,6 +29,11 @@ class Accessor:
     def index(self, arg):
         if arg.type.code == gdb.TYPE_CODE_INT:
             return int(arg)
+        # unwrap if inside item
+        try:
+            arg = arg['MImpl']['MIndex']
+        except:
+            pass
         # https://github.com/intel/llvm/blob/97272b7ebd569bfa13811913a31e30f926559217/sycl/include/CL/sycl/accessor.hpp#L678-L690
         result = 0
         for dim in range(self.depth):
@@ -126,6 +131,17 @@ class AccessorOpIndex1D(AccessorOpIndex):
         assert self.depth == 1
         return gdb.lookup_type('size_t')
 
+class AccessorOpIndexItemTrue(AccessorOpIndex):
+    """Introduces an extra overload for item wrapper"""
+
+    def get_arg_types(self):
+        return gdb.lookup_type("cl::sycl::item<%s, true>" % self.depth)
+
+class AccessorOpIndexItemFalse(AccessorOpIndex):
+    """Introduces an extra overload for item wrapper"""
+
+    def get_arg_types(self):
+        return gdb.lookup_type("cl::sycl::item<%s, false>" % self.depth)
 
 class AccessorMatcher(gdb.xmethod.XMethodMatcher):
     """Entry point for cl::sycl::accessor"""
@@ -146,6 +162,18 @@ class AccessorMatcher(gdb.xmethod.XMethodMatcher):
         methods = [
             AccessorOpIndex(class_type, result_type, depth)
         ]
+        try:
+            method = AccessorOpIndexItemTrue(class_type, result_type, depth)
+            method.get_arg_types()
+            methods.append(method)
+        except:
+            pass
+        try:
+            method = AccessorOpIndexItemFalse(class_type, result_type, depth)
+            method.get_arg_types()
+            methods.append(method)
+        except:
+            pass
         if depth == 1:
             methods.append(AccessorOpIndex1D(class_type, result_type, depth))
         return methods

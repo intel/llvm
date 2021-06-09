@@ -402,6 +402,8 @@ void ProTypeMemberInitCheck::checkMissingMemberInitializer(
   // Gather all fields (direct and indirect) that need to be initialized.
   SmallPtrSet<const FieldDecl *, 16> FieldsToInit;
   forEachField(ClassDecl, ClassDecl.fields(), [&](const FieldDecl *F) {
+    if (IgnoreArrays && F->getType()->isArrayType())
+      return;
     if (!F->hasInClassInitializer() &&
         utils::type_traits::isTriviallyDefaultConstructible(F->getType(),
                                                             Context) &&
@@ -439,10 +441,9 @@ void ProTypeMemberInitCheck::checkMissingMemberInitializer(
 
   DiagnosticBuilder Diag =
       diag(Ctor ? Ctor->getBeginLoc() : ClassDecl.getLocation(),
-           IsUnion
-               ? "union constructor should initialize one of these fields: %0"
-               : "constructor does not initialize these fields: %0")
-      << toCommaSeparatedString(OrderedFields, AllFieldsToInit);
+           "%select{|union }0constructor %select{does not|should}0 initialize "
+           "%select{|one of }0these fields: %1")
+      << IsUnion << toCommaSeparatedString(OrderedFields, AllFieldsToInit);
 
   // Do not propose fixes for constructors in macros since we cannot place them
   // correctly.

@@ -202,8 +202,11 @@ void FTN_STDCALL FTN_SET_DISP_NUM_BUFFERS(int KMP_DEREF arg) {
 #else
   // ignore after initialization because some teams have already
   // allocated dispatch buffers
-  if (__kmp_init_serial == 0 && (KMP_DEREF arg) > 0)
-    __kmp_dispatch_num_buffers = KMP_DEREF arg;
+  int num_buffers = KMP_DEREF arg;
+  if (__kmp_init_serial == FALSE && num_buffers >= KMP_MIN_DISP_NUM_BUFF &&
+      num_buffers <= KMP_MAX_DISP_NUM_BUFF) {
+    __kmp_dispatch_num_buffers = num_buffers;
+  }
 #endif
 }
 
@@ -432,7 +435,7 @@ public:
 /*
  * Set the value of the affinity-format-var ICV on the current device to the
  * format specified in the argument.
-*/
+ */
 void FTN_STDCALL FTN_SET_AFFINITY_FORMAT(char const *format, size_t size) {
 #ifdef KMP_STUB
   return;
@@ -453,7 +456,7 @@ void FTN_STDCALL FTN_SET_AFFINITY_FORMAT(char const *format, size_t size) {
  * specification (not including null byte character) and writes the value of the
  * affinity-format-var ICV on the current device to buffer. If the return value
  * is larger than size, the affinity format specification is truncated.
-*/
+ */
 size_t FTN_STDCALL FTN_GET_AFFINITY_FORMAT(char *buffer, size_t size) {
 #ifdef KMP_STUB
   return 0;
@@ -475,7 +478,7 @@ size_t FTN_STDCALL FTN_GET_AFFINITY_FORMAT(char *buffer, size_t size) {
  * Prints the thread affinity information of the current thread in the format
  * specified by the format argument. If the format is NULL or a zero-length
  * string, the value of the affinity-format-var ICV is used.
-*/
+ */
 void FTN_STDCALL FTN_DISPLAY_AFFINITY(char const *format, size_t size) {
 #ifdef KMP_STUB
   return;
@@ -499,7 +502,7 @@ void FTN_STDCALL FTN_DISPLAY_AFFINITY(char const *format, size_t size) {
  * used. The buffer must be allocated prior to calling the routine. If the
  * return value is larger than size, the affinity format specification is
  * truncated.
-*/
+ */
 size_t FTN_STDCALL FTN_CAPTURE_AFFINITY(char *buffer, char const *format,
                                         size_t buf_size, size_t for_size) {
 #if defined(KMP_STUB)
@@ -531,7 +534,7 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_THREAD_NUM)(void) {
   int gtid;
 
 #if KMP_OS_DARWIN || KMP_OS_DRAGONFLY || KMP_OS_FREEBSD || KMP_OS_NETBSD ||    \
-        KMP_OS_HURD|| KMP_OS_OPENBSD
+    KMP_OS_HURD || KMP_OS_OPENBSD
   gtid = __kmp_entry_gtid();
 #elif KMP_OS_WINDOWS
   if (!__kmp_init_parallel ||
@@ -592,13 +595,13 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NUM_PROCS)(void) {
 }
 
 void FTN_STDCALL KMP_EXPAND_NAME(FTN_SET_NESTED)(int KMP_DEREF flag) {
-  KMP_INFORM(APIDeprecated, "omp_set_nested", "omp_set_max_active_levels");
 #ifdef KMP_STUB
   __kmps_set_nested(KMP_DEREF flag);
 #else
   kmp_info_t *thread;
   /* For the thread-private internal controls implementation */
   thread = __kmp_entry_thread();
+  KMP_INFORM(APIDeprecated, "omp_set_nested", "omp_set_max_active_levels");
   __kmp_save_internal_controls(thread);
   // Somewhat arbitrarily decide where to get a value for max_active_levels
   int max_active_levels = get__max_active_levels(thread);
@@ -609,12 +612,12 @@ void FTN_STDCALL KMP_EXPAND_NAME(FTN_SET_NESTED)(int KMP_DEREF flag) {
 }
 
 int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NESTED)(void) {
-  KMP_INFORM(APIDeprecated, "omp_get_nested", "omp_get_max_active_levels");
 #ifdef KMP_STUB
   return __kmps_get_nested();
 #else
   kmp_info_t *thread;
   thread = __kmp_entry_thread();
+  KMP_INFORM(APIDeprecated, "omp_get_nested", "omp_get_max_active_levels");
   return get__max_active_levels(thread) > 1;
 #endif
 }
@@ -692,6 +695,9 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_MAX_ACTIVE_LEVELS)(void) {
   return 0;
 #else
   /* TO DO: We want per-task implementation of this internal control */
+  if (!TCR_4(__kmp_init_middle)) {
+    __kmp_middle_initialize();
+  }
   return __kmp_get_max_active_levels(__kmp_entry_gtid());
 #endif
 }
@@ -715,7 +721,7 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_LEVEL)(void) {
 }
 
 int FTN_STDCALL
-    KMP_EXPAND_NAME(FTN_GET_ANCESTOR_THREAD_NUM)(int KMP_DEREF level) {
+KMP_EXPAND_NAME(FTN_GET_ANCESTOR_THREAD_NUM)(int KMP_DEREF level) {
 #ifdef KMP_STUB
   return (KMP_DEREF level) ? (-1) : (0);
 #else
@@ -873,8 +879,8 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_PARTITION_NUM_PLACES)(void) {
 #endif
 }
 
-void
-    FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_PARTITION_PLACE_NUMS)(int *place_nums) {
+void FTN_STDCALL
+KMP_EXPAND_NAME(FTN_GET_PARTITION_PLACE_NUMS)(int *place_nums) {
 #if defined(KMP_STUB) || !KMP_AFFINITY_SUPPORTED
 // Nothing.
 #else
@@ -939,7 +945,8 @@ void FTN_STDCALL KMP_EXPAND_NAME(FTN_SET_DEFAULT_DEVICE)(int KMP_DEREF arg) {
 
 // Get number of NON-HOST devices.
 // libomptarget, if loaded, provides this function in api.cpp.
-int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NUM_DEVICES)(void) KMP_WEAK_ATTRIBUTE_EXTERNAL;
+int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NUM_DEVICES)(void)
+    KMP_WEAK_ATTRIBUTE_EXTERNAL;
 int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NUM_DEVICES)(void) {
 #if KMP_MIC || KMP_OS_DARWIN || defined(KMP_STUB)
   return 0;
@@ -959,7 +966,8 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NUM_DEVICES)(void) {
 
 // This function always returns true when called on host device.
 // Compiler/libomptarget should handle when it is called inside target region.
-int FTN_STDCALL KMP_EXPAND_NAME(FTN_IS_INITIAL_DEVICE)(void) KMP_WEAK_ATTRIBUTE_EXTERNAL;
+int FTN_STDCALL KMP_EXPAND_NAME(FTN_IS_INITIAL_DEVICE)(void)
+    KMP_WEAK_ATTRIBUTE_EXTERNAL;
 int FTN_STDCALL KMP_EXPAND_NAME(FTN_IS_INITIAL_DEVICE)(void) {
   return 1; // This is the host
 }
@@ -1266,7 +1274,7 @@ void FTN_STDCALL FTN_SET_DEFAULTS(char const *str
                                   ,
                                   int len
 #endif
-                                  ) {
+) {
 #ifndef KMP_STUB
 #ifdef PASS_ARGS_BY_VALUE
   int len = (int)KMP_STRLEN(str);

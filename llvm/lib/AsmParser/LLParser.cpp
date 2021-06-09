@@ -10,13 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "LLParser.h"
-#include "LLToken.h"
+#include "llvm/AsmParser/LLParser.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/AsmParser/LLToken.h"
 #include "llvm/AsmParser/SlotMapping.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Argument.h"
@@ -32,6 +32,7 @@
 #include "llvm/IR/GlobalIFunc.h"
 #include "llvm/IR/GlobalObject.h"
 #include "llvm/IR/InlineAsm.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
@@ -776,6 +777,11 @@ bool LLParser::parseNamedMetadata() {
           Lex.getStrVal() == "DIExpression") {
         if (parseDIExpression(N, /*IsDistinct=*/false))
           return true;
+        // DIArgLists should only appear inline in a function, as they may
+        // contain LocalAsMetadata arguments which require a function context.
+      } else if (Lex.getKind() == lltok::MetadataVar &&
+                 Lex.getStrVal() == "DIArgList") {
+        return tokError("found DIArgList outside of function");
       } else if (parseToken(lltok::exclaim, "Expected '!' here") ||
                  parseMDNodeID(N)) {
         return true;
@@ -926,6 +932,14 @@ static void maybeSetDSOLocal(bool DSOLocal, GlobalValue &GV) {
     GV.setDSOLocal(true);
 }
 
+static std::string typeComparisonErrorMessage(StringRef Message, Type *Ty1,
+                                              Type *Ty2) {
+  std::string ErrString;
+  raw_string_ostream ErrOS(ErrString);
+  ErrOS << Message << " (" << *Ty1 << " vs " << *Ty2 << ")";
+  return ErrOS.str();
+}
+
 /// parseIndirectSymbol:
 ///   ::= GlobalVar '=' OptionalLinkage OptionalPreemptionSpecifier
 ///                     OptionalVisibility OptionalDLLStorageClass
@@ -993,13 +1007,18 @@ bool LLParser::parseIndirectSymbol(const std::string &Name, LocTy NameLoc,
     return error(AliaseeLoc, "An alias or ifunc must have pointer type");
   unsigned AddrSpace = PTy->getAddressSpace();
 
-  if (IsAlias && Ty != PTy->getElementType())
-    return error(ExplicitTypeLoc,
-                 "explicit pointee type doesn't match operand's pointee type");
+  if (IsAlias && Ty != PTy->getElementType()) {
+    return error(
+        ExplicitTypeLoc,
+        typeComparisonErrorMessage(
+            "explicit pointee type doesn't match operand's pointee type", Ty,
+            PTy->getElementType()));
+  }
 
-  if (!IsAlias && !PTy->getElementType()->isFunctionTy())
+  if (!IsAlias && !PTy->getElementType()->isFunctionTy()) {
     return error(ExplicitTypeLoc,
                  "explicit pointee type should be a function type");
+  }
 
   GlobalValue *GVal = nullptr;
 
@@ -1336,6 +1355,14 @@ bool LLParser::parseFnAttributeValuePairs(AttrBuilder &B,
       B.addAllocSizeAttr(ElemSizeArg, NumElemsArg);
       continue;
     }
+    case lltok::kw_vscale_range: {
+      unsigned MinValue, MaxValue;
+      // inAttrGrp doesn't matter; we only support vscale_range(a[, b])
+      if (parseVScaleRangeArguments(MinValue, MaxValue))
+        return true;
+      B.addVScaleRangeAttr(MinValue, MaxValue);
+      continue;
+    }
     case lltok::kw_alwaysinline: B.addAttribute(Attribute::AlwaysInline); break;
     case lltok::kw_argmemonly: B.addAttribute(Attribute::ArgMemOnly); break;
     case lltok::kw_builtin: B.addAttribute(Attribute::Builtin); break;
@@ -1371,6 +1398,9 @@ bool LLParser::parseFnAttributeValuePairs(AttrBuilder &B,
     case lltok::kw_noprofile: B.addAttribute(Attribute::NoProfile); break;
     case lltok::kw_norecurse: B.addAttribute(Attribute::NoRecurse); break;
     case lltok::kw_nounwind: B.addAttribute(Attribute::NoUnwind); break;
+    case lltok::kw_nosanitize_coverage:
+      B.addAttribute(Attribute::NoSanitizeCoverage);
+      break;
     case lltok::kw_null_pointer_is_valid:
       B.addAttribute(Attribute::NullPointerIsValid); break;
     case lltok::kw_optforfuzzing:
@@ -1434,6 +1464,7 @@ bool LLParser::parseFnAttributeValuePairs(AttrBuilder &B,
     case lltok::kw_sret:
     case lltok::kw_swifterror:
     case lltok::kw_swiftself:
+    case lltok::kw_swiftasync:
     case lltok::kw_immarg:
     case lltok::kw_byref:
       HaveError |=
@@ -1702,6 +1733,13 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
       B.addAlignmentAttr(Alignment);
       continue;
     }
+    case lltok::kw_alignstack: {
+      unsigned Alignment;
+      if (parseOptionalStackAlignment(Alignment))
+        return true;
+      B.addStackAlignmentAttr(Alignment);
+      continue;
+    }
     case lltok::kw_byval: {
       Type *Ty;
       if (parseRequiredTypeAttr(Ty, lltok::kw_byval))
@@ -1721,6 +1759,13 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
       if (parsePreallocated(Ty))
         return true;
       B.addPreallocatedAttr(Ty);
+      continue;
+    }
+    case lltok::kw_inalloca: {
+      Type *Ty;
+      if (parseInalloca(Ty))
+        return true;
+      B.addInAllocaAttr(Ty);
       continue;
     }
     case lltok::kw_dereferenceable: {
@@ -1744,7 +1789,6 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
       B.addByRefAttr(Ty);
       continue;
     }
-    case lltok::kw_inalloca:        B.addAttribute(Attribute::InAlloca); break;
     case lltok::kw_inreg:           B.addAttribute(Attribute::InReg); break;
     case lltok::kw_nest:            B.addAttribute(Attribute::Nest); break;
     case lltok::kw_noundef:
@@ -1760,11 +1804,11 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_signext:         B.addAttribute(Attribute::SExt); break;
     case lltok::kw_swifterror:      B.addAttribute(Attribute::SwiftError); break;
     case lltok::kw_swiftself:       B.addAttribute(Attribute::SwiftSelf); break;
+    case lltok::kw_swiftasync:      B.addAttribute(Attribute::SwiftAsync); break;
     case lltok::kw_writeonly:       B.addAttribute(Attribute::WriteOnly); break;
     case lltok::kw_zeroext:         B.addAttribute(Attribute::ZExt); break;
     case lltok::kw_immarg:          B.addAttribute(Attribute::ImmArg); break;
 
-    case lltok::kw_alignstack:
     case lltok::kw_alwaysinline:
     case lltok::kw_argmemonly:
     case lltok::kw_builtin:
@@ -1784,6 +1828,7 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_noreturn:
     case lltok::kw_nocf_check:
     case lltok::kw_nounwind:
+    case lltok::kw_nosanitize_coverage:
     case lltok::kw_optforfuzzing:
     case lltok::kw_optnone:
     case lltok::kw_optsize:
@@ -1801,6 +1846,7 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_shadowcallstack:
     case lltok::kw_strictfp:
     case lltok::kw_uwtable:
+    case lltok::kw_vscale_range:
       HaveError |=
           error(Lex.getLoc(), "invalid use of function-only attribute");
       break;
@@ -1866,6 +1912,7 @@ bool LLParser::parseOptionalReturnAttrs(AttrBuilder &B) {
     case lltok::kw_sret:
     case lltok::kw_swifterror:
     case lltok::kw_swiftself:
+    case lltok::kw_swiftasync:
     case lltok::kw_immarg:
     case lltok::kw_byref:
       HaveError |=
@@ -1893,6 +1940,7 @@ bool LLParser::parseOptionalReturnAttrs(AttrBuilder &B) {
     case lltok::kw_noreturn:
     case lltok::kw_nocf_check:
     case lltok::kw_nounwind:
+    case lltok::kw_nosanitize_coverage:
     case lltok::kw_optforfuzzing:
     case lltok::kw_optnone:
     case lltok::kw_optsize:
@@ -1910,6 +1958,7 @@ bool LLParser::parseOptionalReturnAttrs(AttrBuilder &B) {
     case lltok::kw_shadowcallstack:
     case lltok::kw_strictfp:
     case lltok::kw_uwtable:
+    case lltok::kw_vscale_range:
       HaveError |=
           error(Lex.getLoc(), "invalid use of function-only attribute");
       break;
@@ -2081,6 +2130,7 @@ void LLParser::parseOptionalDLLStorageClass(unsigned &Res) {
 ///   ::= 'preserve_allcc'
 ///   ::= 'ghccc'
 ///   ::= 'swiftcc'
+///   ::= 'swifttailcc'
 ///   ::= 'x86_intrcc'
 ///   ::= 'hhvmcc'
 ///   ::= 'hhvm_ccc'
@@ -2131,6 +2181,7 @@ bool LLParser::parseOptionalCallingConv(unsigned &CC) {
   case lltok::kw_preserve_allcc: CC = CallingConv::PreserveAll; break;
   case lltok::kw_ghccc:          CC = CallingConv::GHC; break;
   case lltok::kw_swiftcc:        CC = CallingConv::Swift; break;
+  case lltok::kw_swifttailcc:    CC = CallingConv::SwiftTail; break;
   case lltok::kw_x86_intrcc:     CC = CallingConv::X86_INTR; break;
   case lltok::kw_hhvmcc:         CC = CallingConv::HHVM; break;
   case lltok::kw_hhvm_ccc:       CC = CallingConv::HHVM_C; break;
@@ -2350,6 +2401,29 @@ bool LLParser::parseAllocSizeArguments(unsigned &BaseSizeArg,
   return false;
 }
 
+bool LLParser::parseVScaleRangeArguments(unsigned &MinValue,
+                                         unsigned &MaxValue) {
+  Lex.Lex();
+
+  auto StartParen = Lex.getLoc();
+  if (!EatIfPresent(lltok::lparen))
+    return error(StartParen, "expected '('");
+
+  if (parseUInt32(MinValue))
+    return true;
+
+  if (EatIfPresent(lltok::comma)) {
+    if (parseUInt32(MaxValue))
+      return true;
+  } else
+    MaxValue = MinValue;
+
+  auto EndParen = Lex.getLoc();
+  if (!EatIfPresent(lltok::rparen))
+    return error(EndParen, "expected ')'");
+  return false;
+}
+
 /// parseScopeAndOrdering
 ///   if isAtomic: ::= SyncScope? AtomicOrdering
 ///   else: ::=
@@ -2532,6 +2606,13 @@ bool LLParser::parseType(Type *&Result, const Twine &Msg, bool AllowVoid) {
   }
   }
 
+  if (Result->isPointerTy() && cast<PointerType>(Result)->isOpaque()) {
+    unsigned AddrSpace;
+    if (parseOptionalAddrSpace(AddrSpace))
+      return true;
+    Result = PointerType::get(getContext(), AddrSpace);
+  }
+
   // parse the type suffixes.
   while (true) {
     switch (Lex.getKind()) {
@@ -2654,6 +2735,12 @@ bool LLParser::parseRequiredTypeAttr(Type *&Result, lltok::Kind AttrName) {
 ///   ::= preallocated(<ty>)
 bool LLParser::parsePreallocated(Type *&Result) {
   return parseRequiredTypeAttr(Result, lltok::kw_preallocated);
+}
+
+/// parseInalloca
+///   ::= inalloca(<ty>)
+bool LLParser::parseInalloca(Type *&Result) {
+  return parseRequiredTypeAttr(Result, lltok::kw_inalloca);
 }
 
 /// parseByRef
@@ -3389,18 +3476,19 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS) {
   case lltok::kw_asm: {
     // ValID ::= 'asm' SideEffect? AlignStack? IntelDialect? STRINGCONSTANT ','
     //             STRINGCONSTANT
-    bool HasSideEffect, AlignStack, AsmDialect;
+    bool HasSideEffect, AlignStack, AsmDialect, CanThrow;
     Lex.Lex();
     if (parseOptionalToken(lltok::kw_sideeffect, HasSideEffect) ||
         parseOptionalToken(lltok::kw_alignstack, AlignStack) ||
         parseOptionalToken(lltok::kw_inteldialect, AsmDialect) ||
+        parseOptionalToken(lltok::kw_unwind, CanThrow) ||
         parseStringConstant(ID.StrVal) ||
         parseToken(lltok::comma, "expected comma in inline asm expression") ||
         parseToken(lltok::StringConstant, "expected constraint string"))
       return true;
     ID.StrVal2 = Lex.getStrVal();
-    ID.UIntVal = unsigned(HasSideEffect) | (unsigned(AlignStack)<<1) |
-      (unsigned(AsmDialect)<<2);
+    ID.UIntVal = unsigned(HasSideEffect) | (unsigned(AlignStack) << 1) |
+                 (unsigned(AsmDialect) << 2) | (unsigned(CanThrow) << 3);
     ID.Kind = ValID::t_InlineAsm;
     return false;
   }
@@ -3788,10 +3876,13 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS) {
 
       Type *BaseType = Elts[0]->getType();
       auto *BasePointerType = cast<PointerType>(BaseType->getScalarType());
-      if (Ty != BasePointerType->getElementType())
+      if (Ty != BasePointerType->getElementType()) {
         return error(
             ExplicitTypeLoc,
-            "explicit pointee type doesn't match operand's pointee type");
+            typeComparisonErrorMessage(
+                "explicit pointee type doesn't match operand's pointee type",
+                Ty, BasePointerType->getElementType()));
+      }
 
       unsigned GEPWidth =
           BaseType->isVectorTy()
@@ -4666,11 +4757,6 @@ bool LLParser::parseDISubrange(MDNode *&Result, bool IsDistinct) {
   Metadata *LowerBound = nullptr;
   Metadata *UpperBound = nullptr;
   Metadata *Stride = nullptr;
-  if (count.isMDSignedField())
-    Count = ConstantAsMetadata::get(ConstantInt::getSigned(
-        Type::getInt64Ty(Context), count.getMDSignedValue()));
-  else if (count.isMDField())
-    Count = count.getMDFieldValue();
 
   auto convToMetadata = [&](MDSignedOrMDField Bound) -> Metadata * {
     if (Bound.isMDSignedField())
@@ -4681,6 +4767,7 @@ bool LLParser::parseDISubrange(MDNode *&Result, bool IsDistinct) {
     return nullptr;
   };
 
+  Count = convToMetadata(count);
   LowerBound = convToMetadata(lowerBound);
   UpperBound = convToMetadata(upperBound);
   Stride = convToMetadata(stride);
@@ -5297,6 +5384,36 @@ bool LLParser::parseDIExpression(MDNode *&Result, bool IsDistinct) {
   return false;
 }
 
+bool LLParser::parseDIArgList(MDNode *&Result, bool IsDistinct) {
+  return parseDIArgList(Result, IsDistinct, nullptr);
+}
+/// ParseDIArgList:
+///   ::= !DIArgList(i32 7, i64 %0)
+bool LLParser::parseDIArgList(MDNode *&Result, bool IsDistinct,
+                              PerFunctionState *PFS) {
+  assert(PFS && "Expected valid function state");
+  assert(Lex.getKind() == lltok::MetadataVar && "Expected metadata type name");
+  Lex.Lex();
+
+  if (parseToken(lltok::lparen, "expected '(' here"))
+    return true;
+
+  SmallVector<ValueAsMetadata *, 4> Args;
+  if (Lex.getKind() != lltok::rparen)
+    do {
+      Metadata *MD;
+      if (parseValueAsMetadata(MD, "expected value-as-metadata operand", PFS))
+        return true;
+      Args.push_back(dyn_cast<ValueAsMetadata>(MD));
+    } while (EatIfPresent(lltok::comma));
+
+  if (parseToken(lltok::rparen, "expected ')' here"))
+    return true;
+
+  Result = GET_OR_DISTINCT(DIArgList, (Context, Args));
+  return false;
+}
+
 /// parseDIGlobalVariableExpression:
 ///   ::= !DIGlobalVariableExpression(var: !0, expr: !1)
 bool LLParser::parseDIGlobalVariableExpression(MDNode *&Result,
@@ -5407,8 +5524,14 @@ bool LLParser::parseValueAsMetadata(Metadata *&MD, const Twine &TypeMsg,
 bool LLParser::parseMetadata(Metadata *&MD, PerFunctionState *PFS) {
   if (Lex.getKind() == lltok::MetadataVar) {
     MDNode *N;
-    if (parseSpecializedMDNode(N))
+    // DIArgLists are a special case, as they are a list of ValueAsMetadata and
+    // so parsing this requires a Function State.
+    if (Lex.getStrVal() == "DIArgList") {
+      if (parseDIArgList(N, false, PFS))
+        return true;
+    } else if (parseSpecializedMDNode(N)) {
       return true;
+    }
     MD = N;
     return false;
   }
@@ -5465,9 +5588,9 @@ bool LLParser::convertValIDToValue(Type *Ty, ValID &ID, Value *&V,
   case ValID::t_InlineAsm: {
     if (!ID.FTy || !InlineAsm::Verify(ID.FTy, ID.StrVal2))
       return error(ID.Loc, "invalid type for inline asm constraint string");
-    V = InlineAsm::get(ID.FTy, ID.StrVal, ID.StrVal2, ID.UIntVal & 1,
-                       (ID.UIntVal >> 1) & 1,
-                       (InlineAsm::AsmDialect(ID.UIntVal >> 2)));
+    V = InlineAsm::get(
+        ID.FTy, ID.StrVal, ID.StrVal2, ID.UIntVal & 1, (ID.UIntVal >> 1) & 1,
+        InlineAsm::AsmDialect((ID.UIntVal >> 2) & 1), (ID.UIntVal >> 3) & 1);
     return false;
   }
   case ValID::t_GlobalName:
@@ -7366,9 +7489,13 @@ int LLParser::parseLoad(Instruction *&Inst, PerFunctionState &PFS) {
       Ordering == AtomicOrdering::AcquireRelease)
     return error(Loc, "atomic load cannot use Release ordering");
 
-  if (Ty != cast<PointerType>(Val->getType())->getElementType())
-    return error(ExplicitTypeLoc,
-                 "explicit pointee type doesn't match operand's pointee type");
+  if (!cast<PointerType>(Val->getType())->isOpaqueOrPointeeTypeMatches(Ty)) {
+    return error(
+        ExplicitTypeLoc,
+        typeComparisonErrorMessage(
+            "explicit pointee type doesn't match operand's pointee type", Ty,
+            cast<PointerType>(Val->getType())->getElementType()));
+  }
   SmallPtrSet<Type *, 4> Visited;
   if (!Alignment && !Ty->isSized(&Visited))
     return error(ExplicitTypeLoc, "loading unsized types is not allowed");
@@ -7413,7 +7540,8 @@ int LLParser::parseStore(Instruction *&Inst, PerFunctionState &PFS) {
     return error(PtrLoc, "store operand must be a pointer");
   if (!Val->getType()->isFirstClassType())
     return error(Loc, "store operand must be a first class value");
-  if (cast<PointerType>(Ptr->getType())->getElementType() != Val->getType())
+  if (!cast<PointerType>(Ptr->getType())
+           ->isOpaqueOrPointeeTypeMatches(Val->getType()))
     return error(Loc, "stored value and pointer type do not match");
   if (isAtomic && !Alignment)
     return error(Loc, "atomic store must have explicit non-zero alignment");
@@ -7460,22 +7588,20 @@ int LLParser::parseCmpXchg(Instruction *&Inst, PerFunctionState &PFS) {
       parseOptionalCommaAlign(Alignment, AteExtraComma))
     return true;
 
-  if (SuccessOrdering == AtomicOrdering::Unordered ||
-      FailureOrdering == AtomicOrdering::Unordered)
-    return tokError("cmpxchg cannot be unordered");
-  if (isStrongerThan(FailureOrdering, SuccessOrdering))
-    return tokError("cmpxchg failure argument shall be no stronger than the "
-                    "success argument");
-  if (FailureOrdering == AtomicOrdering::Release ||
-      FailureOrdering == AtomicOrdering::AcquireRelease)
-    return tokError(
-        "cmpxchg failure ordering cannot include release semantics");
+  if (!AtomicCmpXchgInst::isValidSuccessOrdering(SuccessOrdering))
+    return tokError("invalid cmpxchg success ordering");
+  if (!AtomicCmpXchgInst::isValidFailureOrdering(FailureOrdering))
+    return tokError("invalid cmpxchg failure ordering");
   if (!Ptr->getType()->isPointerTy())
     return error(PtrLoc, "cmpxchg operand must be a pointer");
-  if (cast<PointerType>(Ptr->getType())->getElementType() != Cmp->getType())
+  if (!cast<PointerType>(Ptr->getType())
+           ->isOpaqueOrPointeeTypeMatches(Cmp->getType()))
     return error(CmpLoc, "compare value and pointer type do not match");
-  if (cast<PointerType>(Ptr->getType())->getElementType() != New->getType())
+  if (!cast<PointerType>(Ptr->getType())
+           ->isOpaqueOrPointeeTypeMatches(New->getType()))
     return error(NewLoc, "new value and pointer type do not match");
+  if (Cmp->getType() != New->getType())
+    return error(NewLoc, "compare value and new value type do not match");
   if (!New->getType()->isFirstClassType())
     return error(NewLoc, "cmpxchg operand must be a first class value");
 
@@ -7545,7 +7671,8 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
     return tokError("atomicrmw cannot be unordered");
   if (!Ptr->getType()->isPointerTy())
     return error(PtrLoc, "atomicrmw operand must be a pointer");
-  if (cast<PointerType>(Ptr->getType())->getElementType() != Val->getType())
+  if (!cast<PointerType>(Ptr->getType())
+           ->isOpaqueOrPointeeTypeMatches(Val->getType()))
     return error(ValLoc, "atomicrmw value and pointer type do not match");
 
   if (Operation == AtomicRMWInst::Xchg) {
@@ -7622,9 +7749,13 @@ int LLParser::parseGetElementPtr(Instruction *&Inst, PerFunctionState &PFS) {
   if (!BasePointerType)
     return error(Loc, "base of getelementptr must be a pointer");
 
-  if (Ty != BasePointerType->getElementType())
-    return error(ExplicitTypeLoc,
-                 "explicit pointee type doesn't match operand's pointee type");
+  if (!BasePointerType->isOpaqueOrPointeeTypeMatches(Ty)) {
+    return error(
+        ExplicitTypeLoc,
+        typeComparisonErrorMessage(
+            "explicit pointee type doesn't match operand's pointee type", Ty,
+            BasePointerType->getElementType()));
+  }
 
   SmallVector<Value*, 16> Indices;
   bool AteExtraComma = false;
@@ -9046,6 +9177,7 @@ bool LLParser::parseOptionalParamAccesses(
       return true;
     CallsNum += ParamAccess.Calls.size();
     assert(VContexts.size() == CallsNum);
+    (void)CallsNum;
     Params.emplace_back(std::move(ParamAccess));
   } while (EatIfPresent(lltok::comma));
 

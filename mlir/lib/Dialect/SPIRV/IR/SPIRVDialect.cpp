@@ -60,8 +60,8 @@ struct SPIRVInlinerInterface : public DialectInlinerInterface {
   /// 'dest' that is attached to an operation registered to the current dialect.
   bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
                        BlockAndValueMapping &) const final {
-    // Return true here when inlining into spv.func, spv.selection, and
-    // spv.loop operations.
+    // Return true here when inlining into spv.func, spv.mlir.selection, and
+    // spv.mlir.loop operations.
     auto *op = dest->getParentOp();
     return isa<spirv::FuncOp, spirv::SelectionOp, spirv::LoopOp>(op);
   }
@@ -115,10 +115,8 @@ struct SPIRVInlinerInterface : public DialectInlinerInterface {
 //===----------------------------------------------------------------------===//
 
 void SPIRVDialect::initialize() {
-  addTypes<ArrayType, CooperativeMatrixNVType, ImageType, MatrixType,
-           PointerType, RuntimeArrayType, SampledImageType, StructType>();
-
-  addAttributes<InterfaceVarABIAttr, TargetEnvAttr, VerCapExtAttr>();
+  registerAttributes();
+  registerTypes();
 
   // Add SPIR-V ops.
   addOperations<
@@ -483,8 +481,7 @@ namespace {
 // parseAndVerify does the actual parsing and verification of individual
 // elements. This is a functor since parsing the last element of the list
 // (termination condition) needs partial specialization.
-template <typename ParseType, typename... Args>
-struct ParseCommaSeparatedList {
+template <typename ParseType, typename... Args> struct ParseCommaSeparatedList {
   Optional<std::tuple<ParseType, Args...>>
   operator()(SPIRVDialect const &dialect, DialectAsmParser &parser) const {
     auto parseVal = parseAndVerify<ParseType>(dialect, parser);
@@ -504,8 +501,7 @@ struct ParseCommaSeparatedList {
 
 // Partial specialization of the function to parse a comma separated list of
 // specs to parse the last element of the list.
-template <typename ParseType>
-struct ParseCommaSeparatedList<ParseType> {
+template <typename ParseType> struct ParseCommaSeparatedList<ParseType> {
   Optional<std::tuple<ParseType>> operator()(SPIRVDialect const &dialect,
                                              DialectAsmParser &parser) const {
     if (auto value = parseAndVerify<ParseType>(dialect, parser))
@@ -638,15 +634,15 @@ static Type parseStructType(SPIRVDialect const &dialect,
   //
   // Note: This has to be thread_local to enable multiple threads to safely
   // parse concurrently.
-  thread_local llvm::SetVector<StringRef> structContext;
+  thread_local SetVector<StringRef> structContext;
 
-  static auto removeIdentifierAndFail =
-      [](llvm::SetVector<StringRef> &structContext, StringRef identifier) {
-        if (!identifier.empty())
-          structContext.remove(identifier);
+  static auto removeIdentifierAndFail = [](SetVector<StringRef> &structContext,
+                                           StringRef identifier) {
+    if (!identifier.empty())
+      structContext.remove(identifier);
 
-        return Type();
-      };
+    return Type();
+  };
 
   if (parser.parseLess())
     return Type();
@@ -803,7 +799,7 @@ static void print(SampledImageType type, DialectAsmPrinter &os) {
 }
 
 static void print(StructType type, DialectAsmPrinter &os) {
-  thread_local llvm::SetVector<StringRef> structContext;
+  thread_local SetVector<StringRef> structContext;
 
   os << "struct<";
 

@@ -74,14 +74,13 @@ struct SetExprHelper {
     x.Reset(new GenericExprWrapper{std::move(expr_)},
         evaluate::GenericExprWrapper::Deleter);
   }
-  void Set(const parser::Expr &x) { Set(x.typedExpr); }
-  void Set(const parser::Variable &x) { Set(x.typedExpr); }
-  void Set(const parser::DataStmtConstant &x) { Set(x.typedExpr); }
   template <typename T> void Set(const common::Indirection<T> &x) {
     Set(x.value());
   }
   template <typename T> void Set(const T &x) {
-    if constexpr (ConstraintTrait<T>) {
+    if constexpr (parser::HasTypedExpr<T>::value) {
+      Set(x.typedExpr);
+    } else if constexpr (ConstraintTrait<T>) {
       Set(x.thing);
     } else if constexpr (WrapperTrait<T>) {
       Set(x.v);
@@ -155,8 +154,11 @@ public:
 
   MaybeExpr Analyze(const parser::Expr &);
   MaybeExpr Analyze(const parser::Variable &);
+  MaybeExpr Analyze(const parser::Selector &);
   MaybeExpr Analyze(const parser::Designator &);
   MaybeExpr Analyze(const parser::DataStmtValue &);
+  MaybeExpr Analyze(const parser::AllocateObject &);
+  MaybeExpr Analyze(const parser::PointerObject &);
 
   template <typename A> MaybeExpr Analyze(const common::Indirection<A> &x) {
     return Analyze(x.value());
@@ -294,30 +296,6 @@ private:
   template <typename... As> MaybeExpr Analyze(const std::variant<As...> &u) {
     return std::visit(
         [&](const auto &x) {
-          using Ty = std::decay_t<decltype(x)>;
-          // Function references might turn out to be misparsed structure
-          // constructors; we have to try generic procedure resolution
-          // first to be sure.
-          if constexpr (common::IsTypeInList<parser::StructureConstructor,
-                            As...>) {
-            std::optional<parser::StructureConstructor> ctor;
-            MaybeExpr result;
-            if constexpr (std::is_same_v<Ty,
-                              common::Indirection<parser::FunctionReference>>) {
-              result = Analyze(x.value(), &ctor);
-            } else if constexpr (std::is_same_v<Ty,
-                                     parser::FunctionReference>) {
-              result = Analyze(x, &ctor);
-            } else {
-              return Analyze(x);
-            }
-            if (ctor) {
-              // A misparsed function reference is really a structure
-              // constructor.  Repair the parse tree in situ.
-              const_cast<std::variant<As...> &>(u) = std::move(*ctor);
-            }
-            return result;
-          }
           return Analyze(x);
         },
         u);
@@ -371,7 +349,7 @@ private:
   std::optional<CalleeAndArguments> GetCalleeAndArguments(
       const parser::ProcedureDesignator &, ActualArguments &&,
       bool isSubroutine, bool mightBeStructureConstructor = false);
-
+  void CheckBadExplicitType(const SpecificCall &, const Symbol &);
   void CheckForBadRecursion(parser::CharBlock, const semantics::Symbol &);
   bool EnforceTypeConstraint(parser::CharBlock, const MaybeExpr &, TypeCategory,
       bool defaultKind = false);
@@ -381,6 +359,7 @@ private:
   template <typename T> T Fold(T &&expr) {
     return evaluate::Fold(foldingContext_, std::move(expr));
   }
+  bool CheckIsValidForwardReference(const semantics::DerivedTypeSpec &);
 
   semantics::SemanticsContext &context_;
   FoldingContext &foldingContext_{context_.foldingContext()};
@@ -411,7 +390,7 @@ void ConformabilityCheck(
 
 namespace Fortran::semantics {
 
-// Semantic analysis of one expression, variable, or designator.
+// Semantic analysis of one expression, variable, selector, designator, &c.
 template <typename A>
 std::optional<evaluate::Expr<evaluate::SomeType>> AnalyzeExpr(
     SemanticsContext &context, const A &expr) {
@@ -447,7 +426,19 @@ public:
     exprAnalyzer_.Analyze(x);
     return false;
   }
+  bool Pre(const parser::Selector &x) {
+    exprAnalyzer_.Analyze(x);
+    return false;
+  }
   bool Pre(const parser::DataStmtValue &x) {
+    exprAnalyzer_.Analyze(x);
+    return false;
+  }
+  bool Pre(const parser::AllocateObject &x) {
+    exprAnalyzer_.Analyze(x);
+    return false;
+  }
+  bool Pre(const parser::PointerObject &x) {
     exprAnalyzer_.Analyze(x);
     return false;
   }

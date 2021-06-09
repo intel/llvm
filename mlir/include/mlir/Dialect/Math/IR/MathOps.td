@@ -13,14 +13,13 @@ include "mlir/Dialect/Math/IR/MathBase.td"
 include "mlir/Interfaces/VectorInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
-class MathOp<string mnemonic, list<OpTrait> traits = []>
+class Math_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<Math_Dialect, mnemonic, traits # [NoSideEffect]>;
 
-class FloatUnaryOp<string mnemonic, list<OpTrait> traits = []> :
-    MathOp<mnemonic,
-      traits # [DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
-                ElementwiseMappable,
-                SameOperandsAndResultType]> {
+class Math_FloatUnaryOp<string mnemonic, list<OpTrait> traits = []> :
+    Math_Op<mnemonic, traits #
+    [DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
+    SameOperandsAndResultType] # ElementwiseMappable.traits> {
   let arguments = (ins FloatLike:$operand);
 
   let results = (outs FloatLike:$result);
@@ -28,11 +27,10 @@ class FloatUnaryOp<string mnemonic, list<OpTrait> traits = []> :
   let assemblyFormat = "$operand attr-dict `:` type($result)";
 }
 
-class FloatBinaryOp<string mnemonic, list<OpTrait> traits = []> :
-    MathOp<mnemonic,
-      traits # [DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
-                ElementwiseMappable,
-                SameOperandsAndResultType]> {
+class Math_FloatBinaryOp<string mnemonic, list<OpTrait> traits = []> :
+    Math_Op<mnemonic, traits # [
+    DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
+    SameOperandsAndResultType] # ElementwiseMappable.traits> {
   let arguments = (ins FloatLike:$lhs, FloatLike:$rhs);
   let results = (outs FloatLike:$result);
 
@@ -43,7 +41,7 @@ class FloatBinaryOp<string mnemonic, list<OpTrait> traits = []> :
 // AtanOp
 //===----------------------------------------------------------------------===//
 
-def AtanOp : FloatUnaryOp<"atan">{
+def Math_AtanOp : Math_FloatUnaryOp<"atan">{
   let summary = "arcus tangent of the given value";
   let description = [{
     Syntax:
@@ -76,7 +74,7 @@ def AtanOp : FloatUnaryOp<"atan">{
 // Atan2Op
 //===----------------------------------------------------------------------===//
 
-def Atan2Op : FloatBinaryOp<"atan2">{
+def Math_Atan2Op : Math_FloatBinaryOp<"atan2">{
   let summary = "2-argument arcus tangent of the given values";
   let description = [{
     Syntax:
@@ -116,7 +114,7 @@ def Atan2Op : FloatBinaryOp<"atan2">{
 // CosOp
 //===----------------------------------------------------------------------===//
 
-def CosOp : FloatUnaryOp<"cos"> {
+def Math_CosOp : Math_FloatUnaryOp<"cos"> {
   let summary = "cosine of the specified value";
   let description = [{
     Syntax:
@@ -149,7 +147,7 @@ def CosOp : FloatUnaryOp<"cos"> {
 // SinOp
 //===----------------------------------------------------------------------===//
 
-def SinOp : FloatUnaryOp<"sin"> {
+def Math_SinOp : Math_FloatUnaryOp<"sin"> {
   let summary = "sine of the specified value";
   let description = [{
     Syntax:
@@ -183,7 +181,7 @@ def SinOp : FloatUnaryOp<"sin"> {
 // ExpOp
 //===----------------------------------------------------------------------===//
 
-def ExpOp : FloatUnaryOp<"exp"> {
+def Math_ExpOp : Math_FloatUnaryOp<"exp"> {
   let summary = "base-e exponential of the specified value";
   let description = [{
     Syntax:
@@ -215,7 +213,7 @@ def ExpOp : FloatUnaryOp<"exp"> {
 // Exp2Op
 //===----------------------------------------------------------------------===//
 
-def Exp2Op : FloatUnaryOp<"exp2"> {
+def Math_Exp2Op : Math_FloatUnaryOp<"exp2"> {
   let summary = "base-2 exponential of the specified value";
 
   let description = [{
@@ -245,10 +243,44 @@ def Exp2Op : FloatUnaryOp<"exp2"> {
 }
 
 //===----------------------------------------------------------------------===//
+// ExpM1Op
+//===----------------------------------------------------------------------===//
+
+def Math_ExpM1Op : Math_FloatUnaryOp<"expm1"> {
+  let summary = "base-e exponential of the specified value minus 1";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `math.expm1` ssa-use `:` type
+    ```
+
+    expm1(x) := exp(x) - 1
+
+    The `expm1` operation takes one operand and returns one result of the same
+    type. This type may be a float scalar type, a vector whose element type is
+    float, or a tensor of floats. It has no standard attributes.
+
+    Example:
+
+    ```mlir
+    // Scalar natural exponential minus 1.
+    %a = math.expm1 %b : f64
+
+    // SIMD vector element-wise natural exponential minus 1.
+    %f = math.expm1 %g : vector<4xf32>
+
+    // Tensor element-wise natural exponential minus 1.
+    %x = math.expm1 %y : tensor<4x?xf8>
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
 // LogOp
 //===----------------------------------------------------------------------===//
 
-def LogOp : FloatUnaryOp<"log"> {
+def Math_LogOp : Math_FloatUnaryOp<"log"> {
   let summary = "base-e logarithm of the specified value";
 
   let description = [{
@@ -267,7 +299,7 @@ def LogOp : FloatUnaryOp<"log"> {
 // Log10Op
 //===----------------------------------------------------------------------===//
 
-def Log10Op : FloatUnaryOp<"log10"> {
+def Math_Log10Op : Math_FloatUnaryOp<"log10"> {
   let summary = "base-10 logarithm of the specified value";
 
   let description = [{
@@ -286,7 +318,7 @@ def Log10Op : FloatUnaryOp<"log10"> {
 // Log1pOp
 //===----------------------------------------------------------------------===//
 
-def Log1pOp : FloatUnaryOp<"log1p"> {
+def Math_Log1pOp : Math_FloatUnaryOp<"log1p"> {
   let summary = "Computes the natural logarithm of one plus the given value";
 
   let description = [{
@@ -307,7 +339,7 @@ def Log1pOp : FloatUnaryOp<"log1p"> {
 // Log2Op
 //===----------------------------------------------------------------------===//
 
-def Log2Op : FloatUnaryOp<"log2"> {
+def Math_Log2Op : Math_FloatUnaryOp<"log2"> {
   let summary = "base-2 logarithm of the specified value";
 
   let description = [{
@@ -326,7 +358,7 @@ def Log2Op : FloatUnaryOp<"log2"> {
 // PowFOp
 //===----------------------------------------------------------------------===//
 
-def PowFOp : FloatBinaryOp<"powf"> {
+def Math_PowFOp : Math_FloatBinaryOp<"powf"> {
   let summary = "floating point raised to the power of operation";
   let description = [{
     Syntax:
@@ -359,7 +391,7 @@ def PowFOp : FloatBinaryOp<"powf"> {
 // RsqrtOp
 //===----------------------------------------------------------------------===//
 
-def RsqrtOp : FloatUnaryOp<"rsqrt"> {
+def Math_RsqrtOp : Math_FloatUnaryOp<"rsqrt"> {
   let summary = "reciprocal of sqrt (1 / sqrt of the specified value)";
   let description = [{
     The `rsqrt` operation computes the reciprocal of the square root. It takes
@@ -373,7 +405,7 @@ def RsqrtOp : FloatUnaryOp<"rsqrt"> {
 // SqrtOp
 //===----------------------------------------------------------------------===//
 
-def SqrtOp : FloatUnaryOp<"sqrt"> {
+def Math_SqrtOp : Math_FloatUnaryOp<"sqrt"> {
   let summary = "sqrt of the specified value";
   let description = [{
     The `sqrt` operation computes the square root. It takes one operand and
@@ -398,7 +430,7 @@ def SqrtOp : FloatUnaryOp<"sqrt"> {
 // TanhOp
 //===----------------------------------------------------------------------===//
 
-def TanhOp : FloatUnaryOp<"tanh"> {
+def Math_TanhOp : Math_FloatUnaryOp<"tanh"> {
   let summary = "hyperbolic tangent of the specified value";
   let description = [{
     Syntax:

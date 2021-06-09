@@ -96,7 +96,8 @@ private:
                           unsigned Opcode) const;
 
   void splitScalar64BitUnaryOp(SetVectorType &Worklist,
-                               MachineInstr &Inst, unsigned Opcode) const;
+                               MachineInstr &Inst, unsigned Opcode,
+                               bool Swap = false) const;
 
   void splitScalar64BitAddSub(SetVectorType &Worklist, MachineInstr &Inst,
                               MachineDominatorTree *MDT = nullptr) const;
@@ -122,6 +123,8 @@ private:
   void addSCCDefUsersToVALUWorklist(MachineOperand &Op,
                                     MachineInstr &SCCDefInst,
                                     SetVectorType &Worklist) const;
+  void addSCCDefsToVALUWorklist(MachineOperand &Op,
+                                SetVectorType &Worklist) const;
 
   const TargetRegisterClass *
   getDestEquivalentVGPRClass(const MachineInstr &Inst) const;
@@ -169,6 +172,10 @@ public:
 
   const SIRegisterInfo &getRegisterInfo() const {
     return RI;
+  }
+
+  const GCNSubtarget &getSubtarget() const {
+    return ST;
   }
 
   bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
@@ -501,28 +508,28 @@ public:
   // i.e. global_* or scratch_*.
   static bool isSegmentSpecificFLAT(const MachineInstr &MI) {
     auto Flags = MI.getDesc().TSFlags;
-    return Flags & (SIInstrFlags::IsFlatGlobal | SIInstrFlags::IsFlatScratch);
+    return Flags & (SIInstrFlags::FlatGlobal | SIInstrFlags::FlatScratch);
   }
 
   bool isSegmentSpecificFLAT(uint16_t Opcode) const {
     auto Flags = get(Opcode).TSFlags;
-    return Flags & (SIInstrFlags::IsFlatGlobal | SIInstrFlags::IsFlatScratch);
+    return Flags & (SIInstrFlags::FlatGlobal | SIInstrFlags::FlatScratch);
   }
 
   static bool isFLATGlobal(const MachineInstr &MI) {
-    return MI.getDesc().TSFlags & SIInstrFlags::IsFlatGlobal;
+    return MI.getDesc().TSFlags & SIInstrFlags::FlatGlobal;
   }
 
   bool isFLATGlobal(uint16_t Opcode) const {
-    return get(Opcode).TSFlags & SIInstrFlags::IsFlatGlobal;
+    return get(Opcode).TSFlags & SIInstrFlags::FlatGlobal;
   }
 
   static bool isFLATScratch(const MachineInstr &MI) {
-    return MI.getDesc().TSFlags & SIInstrFlags::IsFlatScratch;
+    return MI.getDesc().TSFlags & SIInstrFlags::FlatScratch;
   }
 
   bool isFLATScratch(uint16_t Opcode) const {
-    return get(Opcode).TSFlags & SIInstrFlags::IsFlatScratch;
+    return get(Opcode).TSFlags & SIInstrFlags::FlatScratch;
   }
 
   // Any FLAT encoded instruction, including global_* and scratch_*.
@@ -941,6 +948,10 @@ public:
   MachineBasicBlock *
   legalizeOperands(MachineInstr &MI, MachineDominatorTree *MDT = nullptr) const;
 
+  /// Change SADDR form of a FLAT \p Inst to its VADDR form if saddr operand
+  /// was moved to VGPR. \returns true if succeeded.
+  bool moveFlatAddrToVGPR(MachineInstr &Inst) const;
+
   /// Replace this instruction's opcode with the equivalent VALU
   /// opcode.  This function will also move the users of \p MI to the
   /// VALU if necessary. If present, \p MDT is updated.
@@ -1065,13 +1076,13 @@ public:
   /// encoded instruction. If \p Signed, this is for an instruction that
   /// interprets the offset as signed.
   bool isLegalFLATOffset(int64_t Offset, unsigned AddrSpace,
-                         bool Signed) const;
+                         uint64_t FlatVariant) const;
 
   /// Split \p COffsetVal into {immediate offset field, remainder offset}
   /// values.
   std::pair<int64_t, int64_t> splitFlatOffset(int64_t COffsetVal,
                                               unsigned AddrSpace,
-                                              bool IsSigned) const;
+                                              uint64_t FlatVariant) const;
 
   /// \brief Return a target-specific opcode if Opcode is a pseudo instruction.
   /// Return -1 if the target-specific opcode for the pseudo instruction does
@@ -1085,11 +1096,7 @@ public:
   const TargetRegisterClass *getRegClass(const MCInstrDesc &TID, unsigned OpNum,
                                          const TargetRegisterInfo *TRI,
                                          const MachineFunction &MF)
-    const override {
-    if (OpNum >= TID.getNumOperands())
-      return nullptr;
-    return RI.getRegClass(TID.OpInfo[OpNum].RegClass);
-  }
+    const override;
 
   void fixImplicitOperands(MachineInstr &MI) const;
 
@@ -1197,17 +1204,33 @@ namespace AMDGPU {
   LLVM_READONLY
   int getSOPKOp(uint16_t Opcode);
 
+  /// \returns SADDR form of a FLAT Global instruction given an \p Opcode
+  /// of a VADDR form.
   LLVM_READONLY
   int getGlobalSaddrOp(uint16_t Opcode);
+
+  /// \returns VADDR form of a FLAT Global instruction given an \p Opcode
+  /// of a SADDR form.
+  LLVM_READONLY
+  int getGlobalVaddrOp(uint16_t Opcode);
 
   LLVM_READONLY
   int getVCMPXNoSDstOp(uint16_t Opcode);
 
+  /// \returns ST form with only immediate offset of a FLAT Scratch instruction
+  /// given an \p Opcode of an SS (SADDR) form.
   LLVM_READONLY
   int getFlatScratchInstSTfromSS(uint16_t Opcode);
 
+  /// \returns SS (SADDR) form of a FLAT Scratch instruction given an \p Opcode
+  /// of an SV (VADDR) form.
   LLVM_READONLY
   int getFlatScratchInstSSfromSV(uint16_t Opcode);
+
+  /// \returns SV (VADDR) form of a FLAT Scratch instruction given an \p Opcode
+  /// of an SS (SADDR) form.
+  LLVM_READONLY
+  int getFlatScratchInstSVfromSS(uint16_t Opcode);
 
   const uint64_t RSRC_DATA_FORMAT = 0xf00000000000LL;
   const uint64_t RSRC_ELEMENT_SIZE_SHIFT = (32 + 19);

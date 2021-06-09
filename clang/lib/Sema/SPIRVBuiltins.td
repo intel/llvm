@@ -35,10 +35,10 @@ class AddressSpace<string _AS> {
 // the one it will be lowered to.
 // This file assumes it will get lowered to generic or private.
 def DefaultAS    : AddressSpace<"clang::LangAS::Default">;
-def PrivateAS    : AddressSpace<"clang::LangAS::opencl_private">;
-def GlobalAS     : AddressSpace<"clang::LangAS::opencl_global">;
+def PrivateAS    : AddressSpace<"clang::LangAS::sycl_private">;
+def GlobalAS     : AddressSpace<"clang::LangAS::sycl_global">;
 def ConstantAS   : AddressSpace<"clang::LangAS::opencl_constant">;
-def LocalAS      : AddressSpace<"clang::LangAS::opencl_local">;
+def LocalAS      : AddressSpace<"clang::LangAS::sycl_local">;
 def GenericAS    : AddressSpace<"clang::LangAS::opencl_generic">;
 
 // TODO: Manage capabilities. Unused for now.
@@ -51,6 +51,16 @@ class FunctionExtension<string _Ext> : AbstractExtension<_Ext>;
 
 // FunctionExtension definitions.
 def FuncExtNone                          : FunctionExtension<"">;
+
+// Extension associated to a type.  This enables implicit conditionalization of
+// builtin function overloads containing a type that depends on an extension.
+// During overload resolution, when a builtin function overload contains a type
+// with a TypeExtension, those overloads are skipped when the extension is
+// disabled.
+class TypeExtension<string _Ext> : AbstractExtension<_Ext>;
+
+// TypeExtension definitions.
+def NoTypeExt   : TypeExtension<"">;
 
 // Qualified Type.  These map to ASTContext::QualType.
 // TODO: Create a QualTypeFromASTContext.
@@ -115,6 +125,8 @@ class Type<string _Name, QualType _QTExpr> {
   string AccessQualifier = "";
   // Address space.
   string AddrSpace = DefaultAS.Name;
+  // Extension that needs to be enabled to expose a builtin that uses this type.
+  TypeExtension Extension = NoTypeExt;
 }
 
 class FundamentalType<string _Name, QualType _QTName, int _Size> : Type<_Name, _QTName> {
@@ -154,6 +166,7 @@ class CompoundType<Type _Ty> : Type<_Ty.Name, _Ty.QTExpr> {
   let IsVolatile = _Ty.IsVolatile;
   let AccessQualifier = _Ty.AccessQualifier;
   let AddrSpace = _Ty.AddrSpace;
+  let Extension = _Ty.Extension;
 
   Type ElementType = _Ty;
 }
@@ -172,6 +185,7 @@ class VectorType<Type _Ty, int _VecWidth> : Type<_Ty.Name, _Ty.QTExpr> {
   let IsVolatile = _Ty.IsVolatile;
   let AccessQualifier = _Ty.AccessQualifier;
   let AddrSpace = _Ty.AddrSpace;
+  let Extension = _Ty.Extension;
 }
 
 // Pointer types (e.g. int*, float*, ...).
@@ -180,18 +194,21 @@ class PointerType<Type _Ty, AddressSpace _AS = DefaultAS> :
   // Inherited fields
   let IsPointer = 1;
   let AddrSpace = _AS.Name;
+  let Extension = _Ty.Extension;
 }
 
 // Const types (e.g. const int).
 class ConstType<Type _Ty> : CompoundType<_Ty> {
   // Inherited fields
   let IsConst = 1;
+  let Extension = _Ty.Extension;
 }
 
 // Volatile types (e.g. volatile int).
 class VolatileType<Type _Ty> : CompoundType<_Ty> {
   // Inherited fields
   let IsVolatile = 1;
+  let Extension = _Ty.Extension;
 }
 
 // Image types (e.g. image2d).
@@ -208,6 +225,7 @@ class ImageType<Type _Ty, string _AccessQualifier> :
   let IsConst = _Ty.IsConst;
   let IsVolatile = _Ty.IsVolatile;
   let AddrSpace = _Ty.AddrSpace;
+  let Extension = _Ty.Extension;
 }
 
 // List of Types.

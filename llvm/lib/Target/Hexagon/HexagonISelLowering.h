@@ -278,13 +278,6 @@ public:
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
 
-  unsigned
-  getInlineAsmMemConstraint(StringRef ConstraintCode) const override {
-    if (ConstraintCode == "o")
-      return InlineAsm::Constraint_o;
-    return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
-  }
-
   // Intrinsics
   SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
@@ -330,10 +323,10 @@ public:
                              EVT NewVT) const override;
 
   // Handling of atomic RMW instructions.
-  Value *emitLoadLinked(IRBuilder<> &Builder, Value *Addr,
-      AtomicOrdering Ord) const override;
-  Value *emitStoreConditional(IRBuilder<> &Builder, Value *Val,
-      Value *Addr, AtomicOrdering Ord) const override;
+  Value *emitLoadLinked(IRBuilderBase &Builder, Value *Addr,
+                        AtomicOrdering Ord) const override;
+  Value *emitStoreConditional(IRBuilderBase &Builder, Value *Val, Value *Addr,
+                              AtomicOrdering Ord) const override;
   AtomicExpansionKind shouldExpandAtomicLoadInIR(LoadInst *LI) const override;
   bool shouldExpandAtomicStoreInIR(StoreInst *SI) const override;
   AtomicExpansionKind

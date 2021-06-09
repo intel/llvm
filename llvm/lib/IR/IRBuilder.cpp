@@ -81,14 +81,33 @@ static CallInst *createCallHelper(Function *Callee, ArrayRef<Value *> Ops,
 }
 
 Value *IRBuilderBase::CreateVScale(Constant *Scaling, const Twine &Name) {
-  Module *M = GetInsertBlock()->getParent()->getParent();
   assert(isa<ConstantInt>(Scaling) && "Expected constant integer");
+  if (cast<ConstantInt>(Scaling)->isZero())
+    return Scaling;
+  Module *M = GetInsertBlock()->getParent()->getParent();
   Function *TheFn =
       Intrinsic::getDeclaration(M, Intrinsic::vscale, {Scaling->getType()});
   CallInst *CI = createCallHelper(TheFn, {}, this, Name);
   return cast<ConstantInt>(Scaling)->getSExtValue() == 1
              ? CI
              : CreateMul(CI, Scaling);
+}
+
+Value *IRBuilderBase::CreateStepVector(Type *DstType, const Twine &Name) {
+  if (isa<ScalableVectorType>(DstType))
+    return CreateIntrinsic(Intrinsic::experimental_stepvector, {DstType}, {},
+                           nullptr, Name);
+
+  Type *STy = DstType->getScalarType();
+  unsigned NumEls = cast<FixedVectorType>(DstType)->getNumElements();
+
+  // Create a vector of consecutive numbers from zero to VF.
+  SmallVector<Constant *, 8> Indices;
+  for (unsigned i = 0; i < NumEls; ++i)
+    Indices.push_back(ConstantInt::get(STy, i));
+
+  // Add the consecutive indices to the vector value.
+  return ConstantVector::get(Indices);
 }
 
 CallInst *IRBuilderBase::CreateMemSet(Value *Ptr, Value *Val, Value *Size,
@@ -761,6 +780,24 @@ CallInst *IRBuilderBase::CreateGCRelocate(Instruction *Statepoint,
  return createCallHelper(FnGCRelocate, Args, this, Name);
 }
 
+CallInst *IRBuilderBase::CreateGCGetPointerBase(Value *DerivedPtr,
+                                                const Twine &Name) {
+  Module *M = BB->getParent()->getParent();
+  Type *PtrTy = DerivedPtr->getType();
+  Function *FnGCFindBase = Intrinsic::getDeclaration(
+      M, Intrinsic::experimental_gc_get_pointer_base, {PtrTy, PtrTy});
+  return createCallHelper(FnGCFindBase, {DerivedPtr}, this, Name);
+}
+
+CallInst *IRBuilderBase::CreateGCGetPointerOffset(Value *DerivedPtr,
+                                                  const Twine &Name) {
+  Module *M = BB->getParent()->getParent();
+  Type *PtrTy = DerivedPtr->getType();
+  Function *FnGCGetOffset = Intrinsic::getDeclaration(
+      M, Intrinsic::experimental_gc_get_pointer_offset, {PtrTy});
+  return createCallHelper(FnGCGetOffset, {DerivedPtr}, this, Name);
+}
+
 CallInst *IRBuilderBase::CreateUnaryIntrinsic(Intrinsic::ID ID, Value *V,
                                               Instruction *FMFSource,
                                               const Twine &Name) {
@@ -990,6 +1027,50 @@ Value *IRBuilderBase::CreateStripInvariantGroup(Value *Ptr) {
   if (PtrType != Int8PtrTy)
     return CreateBitCast(Fn, PtrType);
   return Fn;
+}
+
+Value *IRBuilderBase::CreateVectorReverse(Value *V, const Twine &Name) {
+  auto *Ty = cast<VectorType>(V->getType());
+  if (isa<ScalableVectorType>(Ty)) {
+    Module *M = BB->getParent()->getParent();
+    Function *F = Intrinsic::getDeclaration(
+        M, Intrinsic::experimental_vector_reverse, Ty);
+    return Insert(CallInst::Create(F, V), Name);
+  }
+  // Keep the original behaviour for fixed vector
+  SmallVector<int, 8> ShuffleMask;
+  int NumElts = Ty->getElementCount().getKnownMinValue();
+  for (int i = 0; i < NumElts; ++i)
+    ShuffleMask.push_back(NumElts - i - 1);
+  return CreateShuffleVector(V, ShuffleMask, Name);
+}
+
+Value *IRBuilderBase::CreateVectorSplice(Value *V1, Value *V2, int64_t Imm,
+                                         const Twine &Name) {
+  assert(isa<VectorType>(V1->getType()) && "Unexpected type");
+  assert(V1->getType() == V2->getType() &&
+         "Splice expects matching operand types!");
+
+  if (auto *VTy = dyn_cast<ScalableVectorType>(V1->getType())) {
+    Module *M = BB->getParent()->getParent();
+    Function *F = Intrinsic::getDeclaration(
+        M, Intrinsic::experimental_vector_splice, VTy);
+
+    Value *Ops[] = {V1, V2, getInt32(Imm)};
+    return Insert(CallInst::Create(F, Ops), Name);
+  }
+
+  unsigned NumElts = cast<FixedVectorType>(V1->getType())->getNumElements();
+  assert(((-Imm <= NumElts) || (Imm < NumElts)) &&
+         "Invalid immediate for vector splice!");
+
+  // Keep the original behaviour for fixed vector
+  unsigned Idx = (NumElts + Imm) % NumElts;
+  SmallVector<int, 8> Mask;
+  for (unsigned I = 0; I < NumElts; ++I)
+    Mask.push_back(Idx + I);
+
+  return CreateShuffleVector(V1, V2, Mask);
 }
 
 Value *IRBuilderBase::CreateVectorSplat(unsigned NumElts, Value *V,

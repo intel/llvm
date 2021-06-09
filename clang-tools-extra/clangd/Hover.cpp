@@ -43,6 +43,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 #include <string>
 
@@ -222,7 +223,8 @@ fetchTemplateParameters(const TemplateParameterList *Params,
       if (TTPD->hasDefaultArgument()) {
         P.Default.emplace();
         llvm::raw_string_ostream Out(*P.Default);
-        TTPD->getDefaultArgument().getArgument().print(PP, Out);
+        TTPD->getDefaultArgument().getArgument().print(PP, Out,
+                                                       /*IncludeType*/ false);
       }
     }
     TempParameters.push_back(std::move(P));
@@ -347,6 +349,19 @@ void fillFunctionTypeAndParams(HoverInfo &HI, const Decl *D,
   // FIXME: handle variadics.
 }
 
+// Non-negative numbers are printed using min digits
+// 0     => 0x0
+// 100   => 0x64
+// Negative numbers are sign-extended to 32/64 bits
+// -2    => 0xfffffffe
+// -2^32 => 0xfffffffeffffffff
+static llvm::FormattedNumber printHex(const llvm::APSInt &V) {
+  uint64_t Bits = V.getExtValue();
+  if (V.isNegative() && V.getMinSignedBits() <= 32)
+    return llvm::format_hex(uint32_t(Bits), 0);
+  return llvm::format_hex(Bits, 0);
+}
+
 llvm::Optional<std::string> printExprValue(const Expr *E,
                                            const ASTContext &Ctx) {
   // InitListExpr has two forms, syntactic and semantic. They are the same thing
@@ -381,8 +396,17 @@ llvm::Optional<std::string> printExprValue(const Expr *E,
     for (const EnumConstantDecl *ECD :
          T->castAs<EnumType>()->getDecl()->enumerators())
       if (ECD->getInitVal() == Val)
-        return llvm::formatv("{0} ({1})", ECD->getNameAsString(), Val).str();
+        return llvm::formatv("{0} ({1})", ECD->getNameAsString(),
+                             printHex(Constant.Val.getInt()))
+            .str();
   }
+  // Show hex value of integers if they're at least 10 (or negative!)
+  if (T->isIntegralOrEnumerationType() &&
+      Constant.Val.getInt().getMinSignedBits() <= 64 &&
+      Constant.Val.getInt().uge(10))
+    return llvm::formatv("{0} ({1})", Constant.Val.getAsString(Ctx, T),
+                         printHex(Constant.Val.getInt()))
+        .str();
   return Constant.Val.getAsString(Ctx, T);
 }
 
@@ -482,7 +506,7 @@ llvm::Optional<StringRef> setterVariableName(const CXXMethodDecl *CMD) {
   if (auto *CE = llvm::dyn_cast<CallExpr>(RHS->IgnoreCasts())) {
     if (CE->getNumArgs() != 1)
       return llvm::None;
-    auto *ND = llvm::dyn_cast<NamedDecl>(CE->getCalleeDecl());
+    auto *ND = llvm::dyn_cast_or_null<NamedDecl>(CE->getCalleeDecl());
     if (!ND || !ND->getIdentifier() || ND->getName() != "move" ||
         !ND->isInStdNamespace())
       return llvm::None;
@@ -902,7 +926,8 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
     std::vector<const Decl *> Result;
     if (const SelectionTree::Node *N = ST.commonAncestor()) {
       // FIXME: Fill in HighlightRange with range coming from N->ASTNode.
-      auto Decls = explicitReferenceTargets(N->ASTNode, DeclRelation::Alias);
+      auto Decls = explicitReferenceTargets(N->ASTNode, DeclRelation::Alias,
+                                            AST.getHeuristicResolver());
       if (!Decls.empty()) {
         HI = getHoverContents(Decls.front(), PP, Index);
         // Layout info only shown when hovering on the field/class itself.

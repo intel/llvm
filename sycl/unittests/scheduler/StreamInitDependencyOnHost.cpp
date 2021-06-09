@@ -22,6 +22,18 @@ public:
     static_cast<sycl::handler *>(this)->MCGType = Type;
   }
 
+  template <typename KernelType, typename ArgType, int Dims,
+            typename KernelName>
+  void setHostKernel(KernelType Kernel) {
+    static_cast<sycl::handler *>(this)->MHostKernel.reset(
+        new sycl::detail::HostKernel<KernelType, ArgType, Dims, KernelName>(
+            Kernel));
+  }
+
+  template <int Dims> void setNDRangeDesc(sycl::nd_range<Dims> Range) {
+    static_cast<sycl::handler *>(this)->MNDRDesc.set(std::move(Range));
+  }
+
   void addStream(const detail::StreamImplPtr &Stream) {
     sycl::handler::addStream(Stream);
   }
@@ -86,6 +98,13 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   // Emulating processing of command group function
   MockHandler MockCGH(HQueueImpl, true);
   MockCGH.setType(detail::CG::KERNEL);
+
+  auto EmptyKernel = [](sycl::nd_item<1>) {};
+  MockCGH
+      .setHostKernel<decltype(EmptyKernel), sycl::nd_item<1>, 1, class Empty>(
+          EmptyKernel);
+  MockCGH.setNDRangeDesc(
+      sycl::nd_range<1>{sycl::range<1>{1}, sycl::range<1>{1}});
 
   // Emulating construction of stream object inside command group
   detail::StreamImplPtr StreamImpl =

@@ -47,11 +47,37 @@
 
 namespace SPIRV {
 
-void SPIRVToOCL::visitCallInst(CallInst &CI) {
+void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
   LLVM_DEBUG(dbgs() << "[visistCallInst] " << CI << '\n');
   auto F = CI.getCalledFunction();
   if (!F)
     return;
+
+  OCLExtOpKind ExtOp;
+  if (isSPIRVOCLExtInst(&CI, &ExtOp)) {
+    switch (ExtOp) {
+    case OpenCLLIB::Vloadn:
+    case OpenCLLIB::Vloada_halfn:
+    case OpenCLLIB::Vload_halfn:
+      visitCallSPIRVVLoadn(&CI, ExtOp);
+      break;
+    case OpenCLLIB::Vstoren:
+    case OpenCLLIB::Vstore_halfn:
+    case OpenCLLIB::Vstorea_halfn:
+    case OpenCLLIB::Vstore_half_r:
+    case OpenCLLIB::Vstore_halfn_r:
+    case OpenCLLIB::Vstorea_halfn_r:
+      visitCallSPIRVVStore(&CI, ExtOp);
+      break;
+    case OpenCLLIB::Printf:
+      visitCallSPIRVPrintf(&CI, ExtOp);
+      break;
+    default:
+      visitCallSPIRVOCLExt(&CI, ExtOp);
+      break;
+    }
+    return;
+  }
 
   auto MangledName = F->getName();
   StringRef DemangledName;
@@ -89,15 +115,35 @@ void SPIRVToOCL::visitCallInst(CallInst &CI) {
     visitCallSPIRVImageMediaBlockBuiltin(&CI, OC);
     return;
   }
+  if (OC == OpGenericCastToPtrExplicit) {
+    visitCallGenericCastToPtrExplicitBuiltIn(&CI, OC);
+    return;
+  }
   if (isCvtOpCode(OC)) {
     visitCallSPIRVCvtBuiltin(&CI, OC, DemangledName);
+    return;
+  }
+  if (OC == OpGroupAsyncCopy) {
+    visitCallAsyncWorkGroupCopy(&CI, OC);
+    return;
+  }
+  if (OC == OpGroupWaitEvents) {
+    visitCallGroupWaitEvents(&CI, OC);
+    return;
+  }
+  if (OC == OpImageSampleExplicitLod) {
+    visitCallSPIRVImageSampleExplicitLodBuiltIn(&CI, OC);
+    return;
+  }
+  if (OC == OpImageWrite) {
+    visitCallSPIRVImageWriteBuiltIn(&CI, OC);
     return;
   }
   if (OCLSPIRVBuiltinMap::rfind(OC))
     visitCallSPIRVBuiltin(&CI, OC);
 }
 
-void SPIRVToOCL::visitCastInst(CastInst &Cast) {
+void SPIRVToOCLBase::visitCastInst(CastInst &Cast) {
   if (!isa<ZExtInst>(Cast) && !isa<SExtInst>(Cast) && !isa<TruncInst>(Cast) &&
       !isa<FPTruncInst>(Cast) && !isa<FPExtInst>(Cast) &&
       !isa<FPToUIInst>(Cast) && !isa<FPToSIInst>(Cast) &&
@@ -132,7 +178,7 @@ void SPIRVToOCL::visitCastInst(CastInst &Cast) {
   Cast.eraseFromParent();
 }
 
-void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
+void SPIRVToOCLBase::visitCallSPRIVImageQuerySize(CallInst *CI) {
   Function *Func = CI->getCalledFunction();
   // Get image type
   Type *ArgTy = Func->getFunctionType()->getParamType(0);
@@ -251,7 +297,8 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
   CI->eraseFromParent();
 }
 
-std::string SPIRVToOCL::getUniformArithmeticBuiltinName(CallInst *CI, Op OC) {
+std::string SPIRVToOCLBase::getUniformArithmeticBuiltinName(CallInst *CI,
+                                                            Op OC) {
   assert(isUniformArithmeticOpCode(OC) &&
          "Not intended to handle other than uniform arithmetic opcodes!");
   auto FuncName = OCLSPIRVBuiltinMap::rmap(OC);
@@ -283,8 +330,8 @@ std::string SPIRVToOCL::getUniformArithmeticBuiltinName(CallInst *CI, Op OC) {
   return Prefix + kSPIRVName::GroupPrefix + GroupOp + "_" + Op;
 }
 
-std::string SPIRVToOCL::getNonUniformArithmeticBuiltinName(CallInst *CI,
-                                                           Op OC) {
+std::string SPIRVToOCLBase::getNonUniformArithmeticBuiltinName(CallInst *CI,
+                                                               Op OC) {
   assert(isNonUniformArithmeticOpCode(OC) &&
          "Not intended to handle other than non uniform arithmetic opcodes!");
   std::string Prefix = getGroupBuiltinPrefix(CI);
@@ -337,7 +384,7 @@ std::string SPIRVToOCL::getNonUniformArithmeticBuiltinName(CallInst *CI,
   return Prefix + GroupPrefix + GroupOp + "_" + Op;
 }
 
-std::string SPIRVToOCL::getBallotBuiltinName(CallInst *CI, Op OC) {
+std::string SPIRVToOCLBase::getBallotBuiltinName(CallInst *CI, Op OC) {
   assert((OC == OpGroupNonUniformBallotBitCount) &&
          "Not inteded to handle other opcodes than "
          "OpGroupNonUniformBallotBitCount!");
@@ -364,7 +411,7 @@ std::string SPIRVToOCL::getBallotBuiltinName(CallInst *CI, Op OC) {
   return Prefix + kSPIRVName::GroupPrefix + "ballot_" + GroupOp;
 }
 
-std::string SPIRVToOCL::groupOCToOCLBuiltinName(CallInst *CI, Op OC) {
+std::string SPIRVToOCLBase::groupOCToOCLBuiltinName(CallInst *CI, Op OC) {
   auto FuncName = OCLSPIRVBuiltinMap::rmap(OC);
   assert(FuncName.find(kSPIRVName::GroupPrefix) == 0);
 
@@ -394,7 +441,7 @@ static bool needsInt32RetTy(Op OC) {
          OC == OpGroupNonUniformBallotBitExtract || isGroupLogicalOpCode(OC);
 }
 
-void SPIRVToOCL::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
+void SPIRVToOCLBase::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
   auto FuncName = groupOCToOCLBuiltinName(CI, OC);
   auto ModifyArguments = [=](CallInst *, std::vector<Value *> &Args,
                              llvm::Type *&RetTy) {
@@ -434,7 +481,7 @@ void SPIRVToOCL::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
   mutateCallInstOCL(M, CI, ModifyArguments, ModifyRetTy, &Attrs);
 }
 
-void SPIRVToOCL::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
+void SPIRVToOCLBase::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
   auto DemangledName = OCLSPIRVBuiltinMap::rmap(OC);
   bool HasScope = DemangledName.find(kSPIRVName::GroupPrefix) == 0;
   if (HasScope)
@@ -467,7 +514,7 @@ void SPIRVToOCL::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
       &Attrs);
 }
 
-void SPIRVToOCL::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
+void SPIRVToOCLBase::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -502,8 +549,34 @@ void SPIRVToOCL::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
       &Attrs);
 }
 
-void SPIRVToOCL::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
-                                          StringRef DemangledName) {
+void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
+                                                              Op OC) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *Call, std::vector<Value *> &Args) {
+        auto AddrSpace = static_cast<SPIRAddressSpace>(
+            CI->getType()->getPointerAddressSpace());
+        // The instruction has two arguments, whereas ocl built-in has only one
+        // argument.
+        Args.pop_back();
+        switch (AddrSpace) {
+        case SPIRAS_Global:
+          return std::string(kOCLBuiltinName::ToGlobal);
+        case SPIRAS_Local:
+          return std::string(kOCLBuiltinName::ToLocal);
+        case SPIRAS_Private:
+          return std::string(kOCLBuiltinName::ToPrivate);
+        default:
+          llvm_unreachable("Invalid address space");
+          return std::string();
+        }
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
+                                              StringRef DemangledName) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -529,7 +602,128 @@ void SPIRVToOCL::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
       &Attrs);
 }
 
-void SPIRVToOCL::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {
+void SPIRVToOCLBase::visitCallAsyncWorkGroupCopy(CallInst *CI, Op OC) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        // First argument of AsyncWorkGroupCopy instruction is Scope, OCL
+        // built-in async_work_group_strided_copy doesn't have this argument
+        Args.erase(Args.begin());
+        return OCLSPIRVBuiltinMap::rmap(OC);
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallGroupWaitEvents(CallInst *CI, Op OC) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        // First argument of GroupWaitEvents instruction is Scope, OCL
+        // built-in wait_group_events doesn't have this argument
+        Args.erase(Args.begin());
+        return OCLSPIRVBuiltinMap::rmap(OC);
+      },
+      &Attrs);
+}
+
+static char getTypeSuffix(Type *T) {
+  char Suffix;
+
+  Type *ST = T->getScalarType();
+  if (ST->isHalfTy())
+    Suffix = 'h';
+  else if (ST->isFloatTy())
+    Suffix = 'f';
+  else
+    Suffix = 'i';
+
+  return Suffix;
+}
+
+// TODO: Handle unsigned integer return type. May need spec change.
+void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
+                                                                 Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  StringRef ImageTypeName;
+  bool IsDepthImage = false;
+  if (isOCLImageType(
+          (cast<CallInst>(CI->getOperand(0)))->getArgOperand(0)->getType(),
+          &ImageTypeName))
+    IsDepthImage = ImageTypeName.contains("_depth_");
+
+  auto ModifyArguments = [=](CallInst *, std::vector<Value *> &Args,
+                             llvm::Type *&RetTy) {
+    CallInst *CallSampledImg = cast<CallInst>(Args[0]);
+    auto Img = CallSampledImg->getArgOperand(0);
+    assert(isOCLImageType(Img->getType()));
+    auto Sampler = CallSampledImg->getArgOperand(1);
+    Args[0] = Img;
+    Args.insert(Args.begin() + 1, Sampler);
+    if (Args.size() > 4) {
+      ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[3]);
+      ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[4]);
+      // Drop "Image Operands" argument.
+      Args.erase(Args.begin() + 3, Args.begin() + 4);
+      // If the image operand is LOD and its value is zero, drop it too.
+      if (ImOp && LodVal && LodVal->isNullValue() &&
+          ImOp->getZExtValue() == ImageOperandsMask::ImageOperandsLodMask)
+        Args.erase(Args.begin() + 3, Args.end());
+    }
+    if (CallSampledImg->hasOneUse()) {
+      CallSampledImg->replaceAllUsesWith(
+          UndefValue::get(CallSampledImg->getType()));
+      CallSampledImg->dropAllReferences();
+      CallSampledImg->eraseFromParent();
+    }
+    Type *T = CI->getType();
+    if (auto VT = dyn_cast<VectorType>(T))
+      T = VT->getElementType();
+    RetTy = IsDepthImage ? T : CI->getType();
+    return std::string(kOCLBuiltinName::SampledReadImage) + getTypeSuffix(T);
+  };
+
+  auto ModifyRetTy = [=](CallInst *NewCI) -> Instruction * {
+    if (IsDepthImage) {
+      auto Ins = InsertElementInst::Create(
+          UndefValue::get(FixedVectorType::get(NewCI->getType(), 4)), NewCI,
+          getSizet(M, 0));
+      Ins->insertAfter(NewCI);
+      return Ins;
+    }
+    return NewCI;
+  };
+
+  mutateCallInstOCL(M, CI, ModifyArguments, ModifyRetTy, &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVImageWriteBuiltIn(CallInst *CI, Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        llvm::Type *T = Args[2]->getType();
+        if (Args.size() > 4) {
+          ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[3]);
+          ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[4]);
+          // Drop "Image Operands" argument.
+          Args.erase(Args.begin() + 3, Args.begin() + 4);
+          // If the image operand is LOD and its value is zero, drop it too.
+          if (ImOp && LodVal && LodVal->isNullValue() &&
+              ImOp->getZExtValue() == ImageOperandsMask::ImageOperandsLodMask)
+            Args.erase(Args.begin() + 3, Args.end());
+          else
+            std::swap(Args[2], Args[3]);
+        }
+        return std::string(kOCLBuiltinName::WriteImage) + getTypeSuffix(T);
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -539,7 +733,90 @@ void SPIRVToOCL::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {
       &Attrs);
 }
 
-std::string SPIRVToOCL::getGroupBuiltinPrefix(CallInst *CI) {
+void SPIRVToOCLBase::visitCallSPIRVOCLExt(CallInst *CI, OCLExtOpKind Kind) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        return OCLExtOpMap::map(Kind);
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVVLoadn(CallInst *CI, OCLExtOpKind Kind) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        std::string Name = OCLExtOpMap::map(Kind);
+        if (ConstantInt *C = dyn_cast<ConstantInt>(Args.back())) {
+          uint64_t NumComponents = C->getZExtValue();
+          std::stringstream SS;
+          SS << NumComponents;
+          Name.replace(Name.find("n"), 1, SS.str());
+        }
+        Args.pop_back();
+        return Name;
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVVStore(CallInst *CI, OCLExtOpKind Kind) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        std::string Name = OCLExtOpMap::map(Kind);
+        if (Kind == OpenCLLIB::Vstore_half_r ||
+            Kind == OpenCLLIB::Vstore_halfn_r ||
+            Kind == OpenCLLIB::Vstorea_halfn_r) {
+          auto C = cast<ConstantInt>(Args.back());
+          auto RoundingMode =
+              static_cast<SPIRVFPRoundingModeKind>(C->getZExtValue());
+          Name.replace(Name.find("_r"), 2,
+                       std::string("_") +
+                           SPIRSPIRVFPRoundingModeMap::rmap(RoundingMode));
+          Args.pop_back();
+        }
+
+        if (Kind == OpenCLLIB::Vstore_halfn ||
+            Kind == OpenCLLIB::Vstore_halfn_r ||
+            Kind == OpenCLLIB::Vstorea_halfn ||
+            Kind == OpenCLLIB::Vstorea_halfn_r || Kind == OpenCLLIB::Vstoren) {
+          if (auto DataType = dyn_cast<VectorType>(Args[0]->getType())) {
+            uint64_t NumElements = DataType->getElementCount().getValue();
+            assert((NumElements == 2 || NumElements == 3 || NumElements == 4 ||
+                    NumElements == 8 || NumElements == 16) &&
+                   "Unsupported vector size for vstore instruction!");
+            std::stringstream SS;
+            SS << NumElements;
+            Name.replace(Name.find("n"), 1, SS.str());
+          }
+        }
+
+        return Name;
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVPrintf(CallInst *CI, OCLExtOpKind Kind) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  CallInst *NewCI = mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        return OCLExtOpMap::map(OpenCLLIB::Printf);
+      },
+      &Attrs);
+
+  // Clang represents printf function without mangling
+  std::string TargetName = "printf";
+  if (Function *F = M->getFunction(TargetName))
+    NewCI->setCalledFunction(F);
+  else
+    NewCI->getCalledFunction()->setName(TargetName);
+}
+
+std::string SPIRVToOCLBase::getGroupBuiltinPrefix(CallInst *CI) {
   std::string Prefix;
   auto ES = getArgAsScope(CI, 0);
   switch (ES) {
@@ -562,9 +839,9 @@ llvm::createSPIRVBIsLoweringPass(Module &M,
                                  SPIRV::BIsRepresentation BIsRepresentation) {
   switch (BIsRepresentation) {
   case SPIRV::BIsRepresentation::OpenCL12:
-    return createSPIRVToOCL12();
+    return createSPIRVToOCL12Legacy();
   case SPIRV::BIsRepresentation::OpenCL20:
-    return createSPIRVToOCL20();
+    return createSPIRVToOCL20Legacy();
   case SPIRV::BIsRepresentation::SPIRVFriendlyIR:
     // nothing to do, already done
     return nullptr;

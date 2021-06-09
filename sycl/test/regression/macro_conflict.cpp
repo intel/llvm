@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsyntax-only -I %sycl_include -Xclang -verify %s -o %t.out -Xclang -verify-ignore-unexpected=note,warning
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -o %t.out -Xclang -verify-ignore-unexpected=note,warning
 // expected-no-diagnostics
 //
 //===----------------------------------------------------------------------===//

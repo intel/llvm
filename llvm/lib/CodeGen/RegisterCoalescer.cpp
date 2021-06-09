@@ -133,6 +133,20 @@ namespace {
     AliasAnalysis *AA = nullptr;
     RegisterClassInfo RegClassInfo;
 
+    /// Position and VReg of a PHI instruction during coalescing.
+    struct PHIValPos {
+      SlotIndex SI;    ///< Slot where this PHI occurs.
+      Register Reg;    ///< VReg the PHI occurs in.
+      unsigned SubReg; ///< Qualifying subregister for Reg.
+    };
+
+    /// Map from debug instruction number to PHI position during coalescing.
+    DenseMap<unsigned, PHIValPos> PHIValToPos;
+    /// Index of, for each VReg, which debug instruction numbers and
+    /// corresponding PHIs are sensitive to coalescing. Each VReg may have
+    /// multiple PHI defs, at different positions.
+    DenseMap<Register, SmallVector<unsigned, 2>> RegToPHIIdx;
+
     /// Debug variable location tracking -- for each VReg, maintain an
     /// ordered-by-slot-index set of DBG_VALUEs, to help quick
     /// identification of whether coalescing may change location validity.
@@ -2962,7 +2976,7 @@ taintExtent(unsigned ValNo, LaneBitmask TaintedLanes, JoinVals &Other,
 
 bool JoinVals::usesLanes(const MachineInstr &MI, Register Reg, unsigned SubIdx,
                          LaneBitmask Lanes) const {
-  if (MI.isDebugInstr())
+  if (MI.isDebugOrPseudoInstr())
     return false;
   for (const MachineOperand &MO : MI.operands()) {
     if (!MO.isReg() || MO.isDef() || MO.getReg() != Reg)
@@ -3546,6 +3560,64 @@ bool RegisterCoalescer::joinVirtRegs(CoalescerPair &CP) {
   // Scan and mark undef any DBG_VALUEs that would refer to a different value.
   checkMergingChangesDbgValues(CP, LHS, LHSVals, RHS, RHSVals);
 
+  // If the RHS covers any PHI locations that were tracked for debug-info, we
+  // must update tracking information to reflect the join.
+  auto RegIt = RegToPHIIdx.find(CP.getSrcReg());
+  if (RegIt != RegToPHIIdx.end()) {
+    // Iterate over all the debug instruction numbers assigned this register.
+    for (unsigned InstID : RegIt->second) {
+      auto PHIIt = PHIValToPos.find(InstID);
+      assert(PHIIt != PHIValToPos.end());
+      const SlotIndex &SI = PHIIt->second.SI;
+
+      // Does the RHS cover the position of this PHI?
+      auto LII = RHS.find(SI);
+      if (LII == RHS.end() || LII->start > SI)
+        continue;
+
+      // Accept two kinds of subregister movement:
+      //  * When we merge from one register class into a larger register:
+      //        %1:gr16 = some-inst
+      //                ->
+      //        %2:gr32.sub_16bit = some-inst
+      //  * When the PHI is already in a subregister, and the larger class
+      //    is coalesced:
+      //        %2:gr32.sub_16bit = some-inst
+      //        %3:gr32 = COPY %2
+      //                ->
+      //        %3:gr32.sub_16bit = some-inst
+      // Test for subregister move:
+      if (CP.getSrcIdx() != 0 || CP.getDstIdx() != 0)
+        // If we're moving between different subregisters, ignore this join.
+        // The PHI will not get a location, dropping variable locations.
+        if (PHIIt->second.SubReg && PHIIt->second.SubReg != CP.getSrcIdx())
+          continue;
+
+      // Update our tracking of where the PHI is.
+      PHIIt->second.Reg = CP.getDstReg();
+
+      // If we merge into a sub-register of a larger class (test above),
+      // update SubReg.
+      if (CP.getSrcIdx() != 0)
+        PHIIt->second.SubReg = CP.getSrcIdx();
+    }
+
+    // Rebuild the register index in RegToPHIIdx to account for PHIs tracking
+    // different VRegs now. Copy old collection of debug instruction numbers and
+    // erase the old one:
+    auto InstrNums = RegIt->second;
+    RegToPHIIdx.erase(RegIt);
+
+    // There might already be PHIs being tracked in the destination VReg. Insert
+    // into an existing tracking collection, or insert a new one.
+    RegIt = RegToPHIIdx.find(CP.getDstReg());
+    if (RegIt != RegToPHIIdx.end())
+      RegIt->second.insert(RegIt->second.end(), InstrNums.begin(),
+                           InstrNums.end());
+    else
+      RegToPHIIdx.insert({CP.getDstReg(), InstrNums});
+  }
+
   // Join RHS into LHS.
   LHS.join(RHS, LHSVals.getAssignments(), RHSVals.getAssignments(), NewVNInfo);
 
@@ -3585,8 +3657,12 @@ void RegisterCoalescer::buildVRegToDbgValueMap(MachineFunction &MF)
   // After collecting a block of DBG_VALUEs into ToInsert, enter them into the
   // vreg => DbgValueLoc map.
   auto CloseNewDVRange = [this, &ToInsert](SlotIndex Slot) {
-    for (auto *X : ToInsert)
-      DbgVRegToValues[X->getDebugOperand(0).getReg()].push_back({Slot, X});
+    for (auto *X : ToInsert) {
+      for (auto Op : X->debug_operands()) {
+        if (Op.isReg() && Op.getReg().isVirtual())
+          DbgVRegToValues[Op.getReg()].push_back({Slot, X});
+      }
+    }
 
     ToInsert.clear();
   };
@@ -3598,10 +3674,12 @@ void RegisterCoalescer::buildVRegToDbgValueMap(MachineFunction &MF)
     SlotIndex CurrentSlot = Slots.getMBBStartIdx(&MBB);
 
     for (auto &MI : MBB) {
-      if (MI.isDebugValue() && MI.getDebugOperand(0).isReg() &&
-          MI.getDebugOperand(0).getReg().isVirtual()) {
-        ToInsert.push_back(&MI);
-      } else if (!MI.isDebugInstr()) {
+      if (MI.isDebugValue()) {
+        if (any_of(MI.debug_operands(), [](const MachineOperand &MO) {
+              return MO.isReg() && MO.getReg().isVirtual();
+            }))
+          ToInsert.push_back(&MI);
+      } else if (!MI.isDebugOrPseudoInstr()) {
         CurrentSlot = Slots.getInstructionIndex(MI);
         CloseNewDVRange(CurrentSlot);
       }
@@ -3697,12 +3775,14 @@ void RegisterCoalescer::checkMergingChangesDbgValuesImpl(Register Reg,
     if (DbgValueSetIt->first < SegmentIt->end) {
       // "Other" is live and there is a DBG_VALUE of Reg: test if we should
       // set it undef.
-      if (DbgValueSetIt->first >= SegmentIt->start &&
-          DbgValueSetIt->second->getDebugOperand(0).getReg() != 0 &&
-          ShouldUndef(DbgValueSetIt->first)) {
-        // Mark undef, erase record of this DBG_VALUE to avoid revisiting.
-        DbgValueSetIt->second->setDebugValueUndef();
-        continue;
+      if (DbgValueSetIt->first >= SegmentIt->start) {
+        bool HasReg = DbgValueSetIt->second->hasDebugOperandForReg(Reg);
+        bool ShouldUndefReg = ShouldUndef(DbgValueSetIt->first);
+        if (HasReg && ShouldUndefReg) {
+          // Mark undef, erase record of this DBG_VALUE to avoid revisiting.
+          DbgValueSetIt->second->setDebugValueUndef();
+          continue;
+        }
       }
       ++DbgValueSetIt;
     } else {
@@ -3877,21 +3957,20 @@ RegisterCoalescer::copyCoalesceInMBB(MachineBasicBlock *MBB) {
     // are not inherently easier to resolve, but slightly preferable until we
     // have local live range splitting. In particular this is required by
     // cmp+jmp macro fusion.
-    for (MachineBasicBlock::iterator MII = MBB->begin(), E = MBB->end();
-         MII != E; ++MII) {
-      if (!MII->isCopyLike())
+    for (MachineInstr &MI : *MBB) {
+      if (!MI.isCopyLike())
         continue;
-      bool ApplyTerminalRule = applyTerminalRule(*MII);
-      if (isLocalCopy(&(*MII), LIS)) {
+      bool ApplyTerminalRule = applyTerminalRule(MI);
+      if (isLocalCopy(&MI, LIS)) {
         if (ApplyTerminalRule)
-          LocalTerminals.push_back(&(*MII));
+          LocalTerminals.push_back(&MI);
         else
-          LocalWorkList.push_back(&(*MII));
+          LocalWorkList.push_back(&MI);
       } else {
         if (ApplyTerminalRule)
-          GlobalTerminals.push_back(&(*MII));
+          GlobalTerminals.push_back(&MI);
         else
-          WorkList.push_back(&(*MII));
+          WorkList.push_back(&MI);
       }
     }
     // Append the copies evicted by the terminal rule at the end of the list.
@@ -3935,10 +4014,9 @@ void RegisterCoalescer::joinAllIntervals() {
 
   std::vector<MBBPriorityInfo> MBBs;
   MBBs.reserve(MF->size());
-  for (MachineFunction::iterator I = MF->begin(), E = MF->end(); I != E; ++I) {
-    MachineBasicBlock *MBB = &*I;
-    MBBs.push_back(MBBPriorityInfo(MBB, Loops->getLoopDepth(MBB),
-                                   JoinSplitEdges && isSplitEdge(MBB)));
+  for (MachineBasicBlock &MBB : *MF) {
+    MBBs.push_back(MBBPriorityInfo(&MBB, Loops->getLoopDepth(&MBB),
+                                   JoinSplitEdges && isSplitEdge(&MBB)));
   }
   array_pod_sort(MBBs.begin(), MBBs.end(), compareMBBPriority);
 
@@ -4001,6 +4079,19 @@ bool RegisterCoalescer::runOnMachineFunction(MachineFunction &fn) {
   else
     JoinGlobalCopies = (EnableGlobalCopies == cl::BOU_TRUE);
 
+  // If there are PHIs tracked by debug-info, they will need updating during
+  // coalescing. Build an index of those PHIs to ease updating.
+  SlotIndexes *Slots = LIS->getSlotIndexes();
+  for (const auto &DebugPHI : MF->DebugPHIPositions) {
+    MachineBasicBlock *MBB = DebugPHI.second.MBB;
+    Register Reg = DebugPHI.second.Reg;
+    unsigned SubReg = DebugPHI.second.SubReg;
+    SlotIndex SI = Slots->getMBBStartIdx(MBB);
+    PHIValPos P = {SI, Reg, SubReg};
+    PHIValToPos.insert(std::make_pair(DebugPHI.first, P));
+    RegToPHIIdx[Reg].push_back(DebugPHI.first);
+  }
+
   // The MachineScheduler does not currently require JoinSplitEdges. This will
   // either be enabled unconditionally or replaced by a more general live range
   // splitting optimization.
@@ -4055,6 +4146,18 @@ bool RegisterCoalescer::runOnMachineFunction(MachineFunction &fn) {
       }
     }
   }
+
+  // After coalescing, update any PHIs that are being tracked by debug-info
+  // with their new VReg locations.
+  for (auto &p : MF->DebugPHIPositions) {
+    auto it = PHIValToPos.find(p.first);
+    assert(it != PHIValToPos.end());
+    p.second.Reg = it->second.Reg;
+    p.second.SubReg = it->second.SubReg;
+  }
+
+  PHIValToPos.clear();
+  RegToPHIIdx.clear();
 
   LLVM_DEBUG(dump());
   if (VerifyCoalescing)

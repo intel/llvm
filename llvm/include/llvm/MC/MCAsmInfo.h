@@ -118,13 +118,37 @@ protected:
   /// the current PC.  Defaults to false.
   bool DollarIsPC = false;
 
+  /// Allow '.' token, when not referencing an identifier or constant, to refer
+  /// to the current PC. Defaults to true.
+  bool DotIsPC = true;
+
+  /// Whether the '*' token refers to the current PC. This is used for the
+  /// HLASM dialect.
+  bool StarIsPC = false;
+
   /// This string, if specified, is used to separate instructions from each
   /// other when on the same line.  Defaults to ';'
   const char *SeparatorString;
 
-  /// This indicates the comment character used by the assembler.  Defaults to
+  /// This indicates the comment string used by the assembler.  Defaults to
   /// "#"
   StringRef CommentString;
+
+  /// This indicates whether the comment string is only accepted as a comment
+  /// at the beginning of statements. Defaults to false.
+  bool RestrictCommentStringToStartOfStatement = false;
+
+  /// This indicates whether to allow additional "comment strings" to be lexed
+  /// as a comment. Setting this attribute to true, will ensure that C-style
+  /// line comments (// ..), C-style block comments (/* .. */), and "#" are
+  /// all treated as comments in addition to the string specified by the
+  /// CommentString attribute.
+  /// Default is true.
+  bool AllowAdditionalComments = true;
+
+  /// Should we emit the '\t' as the starting indentation marker for GNU inline
+  /// asm statements. Defaults to true.
+  bool EmitGNUAsmStartIndentationMarker = true;
 
   /// This is appended to emitted labels.  Defaults to ":"
   const char *LabelSuffix;
@@ -169,9 +193,33 @@ protected:
   /// Defaults to false.
   bool AllowAtInName = false;
 
-  /// This is true if the assembler allows $ @ ? characters at the start of
-  /// symbol names. Defaults to false.
-  bool AllowSymbolAtNameStart = false;
+  /// This is true if the assembler allows the "?" character at the start of
+  /// of a string to be lexed as an AsmToken::Identifier.
+  /// If the AsmLexer determines that the string can be lexed as a possible
+  /// comment, setting this option will have no effect, and the string will
+  /// still be lexed as a comment.
+  bool AllowQuestionAtStartOfIdentifier = false;
+
+  /// This is true if the assembler allows the "$" character at the start of
+  /// of a string to be lexed as an AsmToken::Identifier.
+  /// If the AsmLexer determines that the string can be lexed as a possible
+  /// comment, setting this option will have no effect, and the string will
+  /// still be lexed as a comment.
+  bool AllowDollarAtStartOfIdentifier = false;
+
+  /// This is true if the assembler allows the "@" character at the start of
+  /// a string to be lexed as an AsmToken::Identifier.
+  /// If the AsmLexer determines that the string can be lexed as a possible
+  /// comment, setting this option will have no effect, and the string will
+  /// still be lexed as a comment.
+  bool AllowAtAtStartOfIdentifier = false;
+
+  /// This is true if the assembler allows the "#" character at the start of
+  /// a string to be lexed as an AsmToken::Identifier.
+  /// If the AsmLexer determines that the string can be lexed as a possible
+  /// comment, setting this option will have no effect, and the string will
+  /// still be lexed as a comment.
+  bool AllowHashAtStartOfIdentifier = false;
 
   /// If this is true, symbol names with invalid characters will be printed in
   /// quotes.
@@ -216,6 +264,11 @@ protected:
   /// string of bytes.  For targets that do not support this, it shall be set to
   /// null.  Defaults to null.
   const char *ByteListDirective = nullptr;
+
+  /// This directive allows emission of a zero-terminated ascii string without
+  /// the standard C escape characters embedded into it.  If a target doesn't
+  /// support this, it can be set to null. Defaults to null.
+  const char *PlainStringDirective = nullptr;
 
   /// Form used for character literals in the assembly syntax.  Useful for
   /// producing strings as byte lists.  If a target does not use or support
@@ -312,6 +365,16 @@ protected:
   /// argument and how it is interpreted.  Defaults to NoAlignment.
   LCOMM::LCOMMType LCOMMDirectiveAlignmentType = LCOMM::NoAlignment;
 
+  /// True if the target only has basename for .file directive. False if the
+  /// target also needs the directory along with the basename. Defaults to true.
+  bool HasBasenameOnlyForFileDirective = true;
+
+  /// True if the target represents string constants as mostly raw characters in
+  /// paired double quotation with paired double quotation marks as the escape
+  /// mechanism to represent a double quotation mark within the string. Defaults
+  /// to false.
+  bool HasPairedDoubleQuoteStringConstants = false;
+
   // True if the target allows .align directives on functions. This is true for
   // most targets, so defaults to true.
   bool HasFunctionAlignment = true;
@@ -377,6 +440,10 @@ protected:
   /// Exception handling format for the target.  Defaults to None.
   ExceptionHandling ExceptionsType = ExceptionHandling::None;
 
+  /// True if target uses CFI unwind information for debugging purpose when
+  /// `ExceptionsType == ExceptionHandling::None`.
+  bool UsesCFIForDebug = false;
+
   /// Windows exception handling data (.pdata) encoding.  Defaults to Invalid.
   WinEH::EncodingType WinEHEncodingType = WinEH::EncodingType::Invalid;
 
@@ -387,6 +454,14 @@ protected:
   /// True if DWARF FDE symbol reference relocations should be replaced by an
   /// absolute difference.
   bool DwarfFDESymbolsUseAbsDiff = false;
+
+  /// True if the target supports generating the DWARF line table through using
+  /// the .loc/.file directives. Defaults to true.
+  bool UsesDwarfFileAndLocDirectives = true;
+
+  /// True if the target needs the DWARF section length in the header (if any)
+  /// of the DWARF section in the assembly file. Defaults to true.
+  bool DwarfSectionSizeRequired = true;
 
   /// True if dwarf register numbers are printed instead of symbolic register
   /// names in .cfi_* directives.  Defaults to false.
@@ -436,6 +511,9 @@ protected:
   // If true, then the lexer and expression parser will support %neg(),
   // %hi(), and similar unary operators.
   bool HasMipsExpressions = false;
+
+  // If true, use Motorola-style integers in Assembly (ex. $0ac).
+  bool UseMotorolaIntegers = false;
 
   // If true, emit function descriptor symbol on AIX.
   bool NeedsFunctionDescriptors = false;
@@ -542,6 +620,8 @@ public:
 
   unsigned getMinInstAlignment() const { return MinInstAlignment; }
   bool getDollarIsPC() const { return DollarIsPC; }
+  bool getDotIsPC() const { return DotIsPC; }
+  bool getStarIsPC() const { return StarIsPC; }
   const char *getSeparatorString() const { return SeparatorString; }
 
   /// This indicates the column (zero-based) at which asm comments should be
@@ -549,6 +629,13 @@ public:
   unsigned getCommentColumn() const { return 40; }
 
   StringRef getCommentString() const { return CommentString; }
+  bool getRestrictCommentStringToStartOfStatement() const {
+    return RestrictCommentStringToStartOfStatement;
+  }
+  bool shouldAllowAdditionalComments() const { return AllowAdditionalComments; }
+  bool getEmitGNUAsmStartIndentationMarker() const {
+    return EmitGNUAsmStartIndentationMarker;
+  }
   const char *getLabelSuffix() const { return LabelSuffix; }
 
   bool useAssignmentForEHBegin() const { return UseAssignmentForEHBegin; }
@@ -573,7 +660,18 @@ public:
   const char *getCode64Directive() const { return Code64Directive; }
   unsigned getAssemblerDialect() const { return AssemblerDialect; }
   bool doesAllowAtInName() const { return AllowAtInName; }
-  bool doesAllowSymbolAtNameStart() const { return AllowSymbolAtNameStart; }
+  bool doesAllowQuestionAtStartOfIdentifier() const {
+    return AllowQuestionAtStartOfIdentifier;
+  }
+  bool doesAllowAtAtStartOfIdentifier() const {
+    return AllowAtAtStartOfIdentifier;
+  }
+  bool doesAllowDollarAtStartOfIdentifier() const {
+    return AllowDollarAtStartOfIdentifier;
+  }
+  bool doesAllowHashAtStartOfIdentifier() const {
+    return AllowHashAtStartOfIdentifier;
+  }
   bool supportsNameQuoting() const { return SupportsQuotedNames; }
 
   bool doesSupportDataRegionDirectives() const {
@@ -593,6 +691,7 @@ public:
   const char *getAsciiDirective() const { return AsciiDirective; }
   const char *getAscizDirective() const { return AscizDirective; }
   const char *getByteListDirective() const { return ByteListDirective; }
+  const char *getPlainStringDirective() const { return PlainStringDirective; }
   AsmCharLiteralSyntax characterLiteralSyntax() const {
     return CharacterLiteralSyntax;
   }
@@ -614,6 +713,12 @@ public:
     return LCOMMDirectiveAlignmentType;
   }
 
+  bool hasBasenameOnlyForFileDirective() const {
+    return HasBasenameOnlyForFileDirective;
+  }
+  bool hasPairedDoubleQuoteStringConstants() const {
+    return HasPairedDoubleQuoteStringConstants;
+  }
   bool hasFunctionAlignment() const { return HasFunctionAlignment; }
   bool hasDotTypeDotSizeDirective() const { return HasDotTypeDotSizeDirective; }
   bool hasSingleParameterDotFile() const { return HasSingleParameterDotFile; }
@@ -649,6 +754,8 @@ public:
     ExceptionsType = EH;
   }
 
+  bool doesUseCFIForDebug() const { return UsesCFIForDebug; }
+
   /// Returns true if the exception handling method for the platform uses call
   /// frame information to unwind.
   bool usesCFIForEH() const {
@@ -671,6 +778,14 @@ public:
   bool useParensForSymbolVariant() const { return UseParensForSymbolVariant; }
   bool supportsExtendedDwarfLocDirective() const {
     return SupportsExtendedDwarfLocDirective;
+  }
+
+  bool usesDwarfFileAndLocDirectives() const {
+    return UsesDwarfFileAndLocDirectives;
+  }
+
+  bool needsDwarfSectionSizeInHeader() const {
+    return DwarfSectionSizeRequired;
   }
 
   void addInitialFrameState(const MCCFIInstruction &Inst);
@@ -717,6 +832,7 @@ public:
   void setRelaxELFRelocations(bool V) { RelaxELFRelocations = V; }
   bool hasMipsExpressions() const { return HasMipsExpressions; }
   bool needsFunctionDescriptors() const { return NeedsFunctionDescriptors; }
+  bool shouldUseMotorolaIntegers() const { return UseMotorolaIntegers; }
 };
 
 } // end namespace llvm

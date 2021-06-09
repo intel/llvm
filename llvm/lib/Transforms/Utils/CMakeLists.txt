@@ -47,16 +47,20 @@ add_llvm_component_library(LLVMTransformUtils
   LowerMemIntrinsics.cpp
   LowerSwitch.cpp
   MatrixUtils.cpp
+  MemoryOpRemark.cpp
   Mem2Reg.cpp
   MetaRenamer.cpp
   ModuleUtils.cpp
   NameAnonGlobals.cpp
   PredicateInfo.cpp
   PromoteMemoryToRegister.cpp
+  RelLookupTableConverter.cpp
   ScalarEvolutionExpander.cpp
+  SCCPSolver.cpp
   StripGCRelocates.cpp
   SSAUpdater.cpp
   SSAUpdaterBulk.cpp
+  SampleProfileLoaderBaseUtil.cpp
   SanitizerStats.cpp
   SimplifyCFG.cpp
   SimplifyIndVar.cpp
@@ -67,7 +71,6 @@ add_llvm_component_library(LLVMTransformUtils
   SymbolRewriter.cpp
   UnifyFunctionExitNodes.cpp
   UnifyLoopExits.cpp
-  UniqueInternalLinkageNames.cpp
   Utils.cpp
   ValueMapper.cpp
   VNCoercion.cpp

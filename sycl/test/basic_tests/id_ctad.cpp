@@ -1,4 +1,4 @@
-// RUN: %clangxx -std=c++17 -fsyntax-only -Xclang -verify %s -I %sycl_include -Xclang -verify-ignore-unexpected=note,warning
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
 // expected-no-diagnostics
 //==--------------- id_ctad.cpp - SYCL id CTAD test ----------------------==//
 //

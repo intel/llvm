@@ -43,16 +43,23 @@
 #include "LLVMSPIRVOpts.h"
 #include "SPIRVOpCode.h"
 #include "spirv.hpp"
+#include "spirv_internal.hpp"
 #include <cstdint>
 using namespace spv;
 
 namespace SPIRV {
 
+// SPIR-V specification p2.2.1. "Instructions":
+//   - SPIR-V Word size is 32 bits.
+//   - an <id> always consumes one word.
 typedef uint32_t SPIRVWord;
 typedef uint32_t SPIRVId;
 #define SPIRVID_MAX ~0U
 #define SPIRVID_INVALID ~0U
 #define SPIRVWORD_MAX ~0U
+static constexpr unsigned SpirvWordSize =
+    static_cast<unsigned>(sizeof(SPIRVWord));
+static constexpr unsigned SpirvWordBitWidth = 32;
 
 inline bool isValidId(SPIRVId Id) { return Id != SPIRVID_INVALID && Id != 0; }
 
@@ -252,8 +259,8 @@ template <> inline void SPIRVMap<SPIRVExecutionModeKind, SPIRVCapVec>::init() {
                {CapabilityFloatingPointModeINTEL});
   ADD_VEC_INIT(ExecutionModeSharedLocalMemorySizeINTEL,
                {CapabilityVectorComputeINTEL});
-  ADD_VEC_INIT(ExecutionModeFastCompositeKernelINTEL,
-               {CapabilityFastCompositeINTEL});
+  ADD_VEC_INIT(internal::ExecutionModeFastCompositeKernelINTEL,
+               {internal::CapabilityFastCompositeINTEL});
 }
 
 template <> inline void SPIRVMap<SPIRVMemoryModelKind, SPIRVCapVec>::init() {
@@ -416,10 +423,23 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {CapabilityFunctionFloatControlINTEL});
   ADD_VEC_INIT(DecorationSingleElementVectorINTEL,
                {CapabilityVectorComputeINTEL});
-  ADD_VEC_INIT(DecorationCallableFunctionINTEL, {CapabilityFastCompositeINTEL});
+  ADD_VEC_INIT(internal::DecorationCallableFunctionINTEL,
+               {internal::CapabilityFastCompositeINTEL});
   ADD_VEC_INIT(DecorationStallEnableINTEL,
                {CapabilityFPGAClusterAttributesINTEL});
   ADD_VEC_INIT(DecorationFuseLoopsInFunctionINTEL, {CapabilityLoopFuseINTEL});
+  ADD_VEC_INIT(internal::DecorationMathOpDSPModeINTEL,
+               {internal::CapabilityFPGADSPControlINTEL});
+  ADD_VEC_INIT(internal::DecorationAliasScopeINTEL,
+               {internal::CapabilityMemoryAccessAliasingINTEL});
+  ADD_VEC_INIT(internal::DecorationNoAliasINTEL,
+               {internal::CapabilityMemoryAccessAliasingINTEL});
+  ADD_VEC_INIT(internal::DecorationInitiationIntervalINTEL,
+               {internal::CapabilityFPGAInvocationPipeliningAttributesINTEL});
+  ADD_VEC_INIT(internal::DecorationMaxConcurrencyINTEL,
+               {internal::CapabilityFPGAInvocationPipeliningAttributesINTEL});
+  ADD_VEC_INIT(internal::DecorationPipelineEnableINTEL,
+               {internal::CapabilityFPGAInvocationPipeliningAttributesINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir -cl-std=cl2.0 %s -finclude-default-header -emit-llvm-bc -o %t.bc
+// RUN: %clang_cc1 -triple spir -cl-std=cl2.0 %s -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc -o %t.bc
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM

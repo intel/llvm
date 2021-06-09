@@ -40,7 +40,6 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -49,6 +48,7 @@
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/InstructionCost.h"
 #include "llvm/Support/MachineValueType.h"
 #include <algorithm>
 #include <cassert>
@@ -71,6 +71,7 @@ class FunctionLoweringInfo;
 class GlobalValue;
 class GISelKnownBits;
 class IntrinsicInst;
+class IRBuilderBase;
 struct KnownBits;
 class LegacyDivergenceAnalysis;
 class LLVMContext;
@@ -93,14 +94,16 @@ class Value;
 
 namespace Sched {
 
-  enum Preference {
-    None,             // No preference
-    Source,           // Follow source order.
-    RegPressure,      // Scheduling for lowest register pressure.
-    Hybrid,           // Scheduling for both latency and register pressure.
-    ILP,              // Scheduling for ILP in low register pressure mode.
-    VLIW              // Scheduling for VLIW targets.
-  };
+enum Preference {
+  None,        // No preference
+  Source,      // Follow source order.
+  RegPressure, // Scheduling for lowest register pressure.
+  Hybrid,      // Scheduling for both latency and register pressure.
+  ILP,         // Scheduling for ILP in low register pressure mode.
+  VLIW,        // Scheduling for VLIW targets.
+  Fast,        // Fast suboptimal list scheduling
+  Linearize    // Linearize DAG, no scheduling
+};
 
 } // end namespace Sched
 
@@ -283,6 +286,7 @@ public:
     bool IsPreallocated : 1;
     bool IsReturned : 1;
     bool IsSwiftSelf : 1;
+    bool IsSwiftAsync : 1;
     bool IsSwiftError : 1;
     bool IsCFGuardTarget : 1;
     MaybeAlign Alignment = None;
@@ -293,7 +297,7 @@ public:
         : IsSExt(false), IsZExt(false), IsInReg(false), IsSRet(false),
           IsNest(false), IsByVal(false), IsByRef(false), IsInAlloca(false),
           IsPreallocated(false), IsReturned(false), IsSwiftSelf(false),
-          IsSwiftError(false), IsCFGuardTarget(false) {}
+          IsSwiftAsync(false), IsSwiftError(false), IsCFGuardTarget(false) {}
 
     void setAttributes(const CallBase *Call, unsigned ArgIdx);
   };
@@ -388,6 +392,12 @@ public:
   virtual MVT getVectorIdxTy(const DataLayout &DL) const {
     return getPointerTy(DL);
   }
+
+  /// Returns the type to be used for the EVL/AVL operand of VP nodes:
+  /// ISD::VP_ADD, ISD::VP_SUB, etc. It must be a legal scalar integer type,
+  /// and must be at least as large as i32. The EVL is implicitly zero-extended
+  /// to any larger type.
+  virtual MVT getVPExplicitVectorLengthTy() const { return MVT::i32; }
 
   /// This callback is used to inspect load/store instructions and add
   /// target-specific MachineMemOperand flags to them.  The default
@@ -528,10 +538,6 @@ public:
     return false;
   }
 
-  /// If a branch or a select condition is skewed in one direction by more than
-  /// this factor, it is very likely to be predicted correctly.
-  virtual BranchProbability getPredictableBranchThreshold() const;
-
   /// Return true if the following transform is beneficial:
   /// fold (conv (load x)) -> (load (conv*)x)
   /// On architectures that don't natively support some vector loads
@@ -614,6 +620,10 @@ public:
   /// Return true if instruction generated for equality comparison is folded
   /// with instruction generated for signed comparison.
   virtual bool isEqualityCmpFoldedWithSignedCmp() const { return true; }
+
+  /// Return true if the heuristic to prefer icmp eq zero should be used in code
+  /// gen prepare.
+  virtual bool preferZeroCompareBranch() const { return false; }
 
   /// Return true if it is safe to transform an integer-domain bitwise operation
   /// into the equivalent floating-point operation. This should be set to true
@@ -785,7 +795,7 @@ public:
     return false;
   }
 
-  /// Return true if target always beneficiates from combining into FMA for a
+  /// Return true if target always benefits from combining into FMA for a
   /// given value type. This must typically return false on targets where FMA
   /// takes more cycles to execute than FADD.
   virtual bool enableAggressiveFMAFusion(EVT VT) const {
@@ -1148,7 +1158,7 @@ public:
 
   /// Return true if lowering to a jump table is allowed.
   virtual bool areJTsAllowed(const Function *Fn) const {
-    if (Fn->getFnAttribute("no-jump-tables").getValueAsString() == "true")
+    if (Fn->getFnAttribute("no-jump-tables").getValueAsBool())
       return false;
 
     return isOperationLegalOrCustom(ISD::BR_JT, MVT::Other) ||
@@ -1468,7 +1478,12 @@ public:
   /// like i140, which are first promoted then expanded, it is the number of
   /// registers needed to hold all the bits of the original type.  For an i140
   /// on a 32 bit machine this means 5 registers.
-  unsigned getNumRegisters(LLVMContext &Context, EVT VT) const {
+  ///
+  /// RegisterVT may be passed as a way to override the default settings, for
+  /// instance with i128 inline assembly operands on SystemZ.
+  virtual unsigned
+  getNumRegisters(LLVMContext &Context, EVT VT,
+                  Optional<MVT> RegisterVT = None) const {
     if (VT.isSimple()) {
       assert((unsigned)VT.getSimpleVT().SimpleTy <
                 array_lengthof(NumRegistersForVT));
@@ -1755,7 +1770,7 @@ public:
   /// returns the address of that location. Otherwise, returns nullptr.
   /// DEPRECATED: please override useLoadStackGuardNode and customize
   ///             LOAD_STACK_GUARD, or customize \@llvm.stackguard().
-  virtual Value *getIRStackGuard(IRBuilder<> &IRB) const;
+  virtual Value *getIRStackGuard(IRBuilderBase &IRB) const;
 
   /// Inserts necessary declarations for SSP (stack protection) purpose.
   /// Should be used only when getIRStackGuard returns nullptr.
@@ -1778,13 +1793,19 @@ public:
   /// Should be used only when getIRStackGuard returns nullptr.
   virtual Function *getSSPStackGuardCheck(const Module &M) const;
 
+  /// \returns true if a constant G_UBFX is legal on the target.
+  virtual bool isConstantUnsignedBitfieldExtactLegal(unsigned Opc, LLT Ty1,
+                                                     LLT Ty2) const {
+    return false;
+  }
+
 protected:
-  Value *getDefaultSafeStackPointerLocation(IRBuilder<> &IRB,
+  Value *getDefaultSafeStackPointerLocation(IRBuilderBase &IRB,
                                             bool UseTLS) const;
 
 public:
   /// Returns the target-specific address of the unsafe stack pointer.
-  virtual Value *getSafeStackPointerLocation(IRBuilder<> &IRB) const;
+  virtual Value *getSafeStackPointerLocation(IRBuilderBase &IRB) const;
 
   /// Returns the name of the symbol used to emit stack probes or the empty
   /// string if not applicable.
@@ -1818,8 +1839,8 @@ public:
   int InstructionOpcodeToISD(unsigned Opcode) const;
 
   /// Estimate the cost of type-legalization and the legalized type.
-  std::pair<int, MVT> getTypeLegalizationCost(const DataLayout &DL,
-                                              Type *Ty) const;
+  std::pair<InstructionCost, MVT> getTypeLegalizationCost(const DataLayout &DL,
+                                                          Type *Ty) const;
 
   /// @}
 
@@ -1858,14 +1879,14 @@ public:
   /// corresponding pointee type. This may entail some non-trivial operations to
   /// truncate or reconstruct types that will be illegal in the backend. See
   /// ARMISelLowering for an example implementation.
-  virtual Value *emitLoadLinked(IRBuilder<> &Builder, Value *Addr,
+  virtual Value *emitLoadLinked(IRBuilderBase &Builder, Value *Addr,
                                 AtomicOrdering Ord) const {
     llvm_unreachable("Load linked unimplemented on this target");
   }
 
   /// Perform a store-conditional operation to Addr. Return the status of the
   /// store. This should be 0 if the store succeeded, non-zero otherwise.
-  virtual Value *emitStoreConditional(IRBuilder<> &Builder, Value *Val,
+  virtual Value *emitStoreConditional(IRBuilderBase &Builder, Value *Val,
                                       Value *Addr, AtomicOrdering Ord) const {
     llvm_unreachable("Store conditional unimplemented on this target");
   }
@@ -1873,7 +1894,7 @@ public:
   /// Perform a masked atomicrmw using a target-specific intrinsic. This
   /// represents the core LL/SC loop which will be lowered at a late stage by
   /// the backend.
-  virtual Value *emitMaskedAtomicRMWIntrinsic(IRBuilder<> &Builder,
+  virtual Value *emitMaskedAtomicRMWIntrinsic(IRBuilderBase &Builder,
                                               AtomicRMWInst *AI,
                                               Value *AlignedAddr, Value *Incr,
                                               Value *Mask, Value *ShiftAmt,
@@ -1885,7 +1906,7 @@ public:
   /// represents the core LL/SC loop which will be lowered at a late stage by
   /// the backend.
   virtual Value *emitMaskedAtomicCmpXchgIntrinsic(
-      IRBuilder<> &Builder, AtomicCmpXchgInst *CI, Value *AlignedAddr,
+      IRBuilderBase &Builder, AtomicCmpXchgInst *CI, Value *AlignedAddr,
       Value *CmpVal, Value *NewVal, Value *Mask, AtomicOrdering Ord) const {
     llvm_unreachable("Masked cmpxchg expansion unimplemented on this target");
   }
@@ -1923,22 +1944,13 @@ public:
   ///  seq_cst. But if they are lowered to monotonic accesses, no amount of
   ///  IR-level fences can prevent it.
   /// @{
-  virtual Instruction *emitLeadingFence(IRBuilder<> &Builder, Instruction *Inst,
-                                        AtomicOrdering Ord) const {
-    if (isReleaseOrStronger(Ord) && Inst->hasAtomicStore())
-      return Builder.CreateFence(Ord);
-    else
-      return nullptr;
-  }
+  virtual Instruction *emitLeadingFence(IRBuilderBase &Builder,
+                                        Instruction *Inst,
+                                        AtomicOrdering Ord) const;
 
-  virtual Instruction *emitTrailingFence(IRBuilder<> &Builder,
+  virtual Instruction *emitTrailingFence(IRBuilderBase &Builder,
                                          Instruction *Inst,
-                                         AtomicOrdering Ord) const {
-    if (isAcquireOrStronger(Ord))
-      return Builder.CreateFence(Ord);
-    else
-      return nullptr;
-  }
+                                         AtomicOrdering Ord) const;
   /// @}
 
   // Emits code that executes when the comparison result in the ll/sc
@@ -1947,7 +1959,7 @@ public:
   // a dedicated instruction, if desired.
   // E.g., on ARM, if ldrex isn't followed by strex, the exclusive monitor would
   // be unnecessarily held, except if clrex, inserted by this hook, is executed.
-  virtual void emitAtomicCmpXchgNoStoreLLBalance(IRBuilder<> &Builder) const {}
+  virtual void emitAtomicCmpXchgNoStoreLLBalance(IRBuilderBase &Builder) const {}
 
   /// Returns true if the given (atomic) store should be expanded by the
   /// IR-level AtomicExpand pass into an "atomic xchg" which ignores its input.
@@ -2351,8 +2363,9 @@ public:
   /// If the AM is not supported, it returns a negative value.
   /// TODO: Handle pre/postinc as well.
   /// TODO: Remove default argument
-  virtual int getScalingFactorCost(const DataLayout &DL, const AddrMode &AM,
-                                   Type *Ty, unsigned AS = 0) const {
+  virtual InstructionCost getScalingFactorCost(const DataLayout &DL,
+                                               const AddrMode &AM, Type *Ty,
+                                               unsigned AS = 0) const {
     // Default: assume that any scaling factor used in a legal AM is free.
     if (isLegalAddressingMode(DL, AM, Ty, AS))
       return 0;
@@ -2458,6 +2471,8 @@ public:
     case ISD::UDIV:
     case ISD::SREM:
     case ISD::UREM:
+    case ISD::SSUBSAT:
+    case ISD::USUBSAT:
     case ISD::FSUB:
     case ISD::FDIV:
     case ISD::FREM:
@@ -2709,6 +2724,13 @@ public:
             N->getOpcode() == ISD::FMUL) &&
            "unexpected node in FMAD forming combine");
     return isOperationLegal(ISD::FMAD, N->getValueType(0));
+  }
+
+  // Return true when the decision to generate FMA's (or FMS, FMLA etc) rather
+  // than FMUL and ADD is delegated to the machine combiner.
+  virtual bool generateFMAsInMachineCombiner(EVT VT,
+                                             CodeGenOpt::Level OptLevel) const {
+    return false;
   }
 
   /// Return true if it's profitable to narrow operations of type VT1 to
@@ -4197,6 +4219,10 @@ public:
   virtual unsigned getInlineAsmMemConstraint(StringRef ConstraintCode) const {
     if (ConstraintCode == "m")
       return InlineAsm::Constraint_m;
+    if (ConstraintCode == "o")
+      return InlineAsm::Constraint_o;
+    if (ConstraintCode == "X")
+      return InlineAsm::Constraint_X;
     return InlineAsm::Constraint_Unknown;
   }
 
@@ -4343,6 +4369,13 @@ public:
   bool expandROT(SDNode *N, bool AllowVectorOps, SDValue &Result,
                  SelectionDAG &DAG) const;
 
+  /// Expand shift-by-parts.
+  /// \param N Node to expand
+  /// \param Lo lower-output-part after conversion
+  /// \param Hi upper-output-part after conversion
+  void expandShiftParts(SDNode *N, SDValue &Lo, SDValue &Hi,
+                        SelectionDAG &DAG) const;
+
   /// Expand float(f32) to SINT(i64) conversion
   /// \param N Node to expand
   /// \param Result output after conversion
@@ -4409,6 +4442,12 @@ public:
   /// \param N Node to expand
   /// \returns The expansion result or SDValue() if it fails.
   SDValue expandBSWAP(SDNode *N, SelectionDAG &DAG) const;
+
+  /// Expand BITREVERSE nodes. Expands scalar/vector BITREVERSE nodes.
+  /// Returns SDValue() if expand fails.
+  /// \param N Node to expand
+  /// \returns The expansion result or SDValue() if it fails.
+  SDValue expandBITREVERSE(SDNode *N, SelectionDAG &DAG) const;
 
   /// Turn load of vector type into a load of the individual elements.
   /// \param LD load to expand
@@ -4497,6 +4536,33 @@ public:
   /// Expand an SREM or UREM using SDIV/UDIV or SDIVREM/UDIVREM, if legal.
   /// Returns true if the expansion was successful.
   bool expandREM(SDNode *Node, SDValue &Result, SelectionDAG &DAG) const;
+
+  /// Method for building the DAG expansion of ISD::VECTOR_SPLICE. This
+  /// method accepts vectors as its arguments.
+  SDValue expandVectorSplice(SDNode *Node, SelectionDAG &DAG) const;
+
+  /// Legalize a SETCC with given LHS and RHS and condition code CC on the
+  /// current target.
+  ///
+  /// If the SETCC has been legalized using AND / OR, then the legalized node
+  /// will be stored in LHS. RHS and CC will be set to SDValue(). NeedInvert
+  /// will be set to false.
+  ///
+  /// If the SETCC has been legalized by using getSetCCSwappedOperands(),
+  /// then the values of LHS and RHS will be swapped, CC will be set to the
+  /// new condition, and NeedInvert will be set to false.
+  ///
+  /// If the SETCC has been legalized using the inverse condcode, then LHS and
+  /// RHS will be unchanged, CC will set to the inverted condcode, and
+  /// NeedInvert will be set to true. The caller must invert the result of the
+  /// SETCC with SelectionDAG::getLogicalNOT() or take equivalent action to swap
+  /// the effect of a true/false result.
+  ///
+  /// \returns true if the SetCC has been legalized, false if it hasn't.
+  bool LegalizeSetCCCondCode(SelectionDAG &DAG, EVT VT, SDValue &LHS,
+                             SDValue &RHS, SDValue &CC, bool &NeedInvert,
+                             const SDLoc &dl, SDValue &Chain,
+                             bool IsSignaling = false) const;
 
   //===--------------------------------------------------------------------===//
   // Instruction Emitting Hooks

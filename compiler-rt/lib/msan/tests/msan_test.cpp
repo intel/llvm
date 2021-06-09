@@ -976,8 +976,8 @@ std::vector<int> GetAvailableIpSocketFamilies() {
   return result;
 }
 
-INSTANTIATE_TEST_CASE_P(IpTests, MemorySanitizerIpTest,
-                        ::testing::ValuesIn(GetAvailableIpSocketFamilies()));
+INSTANTIATE_TEST_SUITE_P(IpTests, MemorySanitizerIpTest,
+                         ::testing::ValuesIn(GetAvailableIpSocketFamilies()));
 
 TEST_P(MemorySanitizerIpTest, accept) {
   int listen_socket = CreateSocket(SOCK_STREAM);
@@ -1873,20 +1873,20 @@ TEST_STRTO_FLOAT_LOC(__wcstold_l, wchar_t, L)
 #endif  // __GLIBC__
 
 TEST(MemorySanitizer, modf) {
-  double x, y;
-  x = modf(2.1, &y);
+  double y;
+  modf(2.1, &y);
   EXPECT_NOT_POISONED(y);
 }
 
 TEST(MemorySanitizer, modff) {
-  float x, y;
-  x = modff(2.1, &y);
+  float y;
+  modff(2.1, &y);
   EXPECT_NOT_POISONED(y);
 }
 
 TEST(MemorySanitizer, modfl) {
-  long double x, y;
-  x = modfl(2.1, &y);
+  long double y;
+  modfl(2.1, &y);
   EXPECT_NOT_POISONED(y);
 }
 
@@ -3608,8 +3608,7 @@ TEST(MemorySanitizer, getpwnam_r_positive) {
   strncpy(s, "abcd", 5);
   __msan_poison(s, 5);
   char buf[10000];
-  int res;
-  EXPECT_UMR(res = getpwnam_r(s, &pwd, buf, sizeof(buf), &pwdres));
+  EXPECT_UMR(getpwnam_r(s, &pwd, buf, sizeof(buf), &pwdres));
 }
 
 TEST(MemorySanitizer, getgrnam_r) {
@@ -4833,7 +4832,7 @@ TEST(MemorySanitizer, throw_catch) {
     // __gxx_personality_v0 is instrumented, libgcc_s is not; as a result,
     // __msan_param_tls is not updated and __gxx_personality_v0 can find
     // leftover poison from the previous call.
-    // A suppression in msan_blacklist.txt makes it work.
+    // A suppression in msan_ignorelist.txt makes it work.
     throw_stuff();
   } catch (const int &e) {
     // pass

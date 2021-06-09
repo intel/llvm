@@ -187,6 +187,7 @@ public:
                                  const Twine &Suffix = "");
 
 private:
+  void annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI);
   bool shouldChangeType(unsigned FromBitWidth, unsigned ToBitWidth) const;
   bool shouldChangeType(Type *From, Type *To) const;
   Value *dyn_castNegVal(Value *V) const;
@@ -349,12 +350,20 @@ private:
   Value *foldLogicOfFCmps(FCmpInst *LHS, FCmpInst *RHS, bool IsAnd);
 
   Value *foldAndOrOfICmpsOfAndWithPow2(ICmpInst *LHS, ICmpInst *RHS,
-                                       BinaryOperator &Logic);
+                                       Instruction *CxtI, bool IsAnd,
+                                       bool IsLogical = false);
   Value *matchSelectFromAndOr(Value *A, Value *B, Value *C, Value *D);
   Value *getSelectCondition(Value *A, Value *B);
 
   Instruction *foldIntrinsicWithOverflowCommon(IntrinsicInst *II);
   Instruction *foldFPSignBitOps(BinaryOperator &I);
+
+  // Optimize one of these forms:
+  //   and i1 Op, SI / select i1 Op, i1 SI, i1 false (if IsAnd = true)
+  //   or i1 Op, SI  / select i1 Op, i1 true, i1 SI  (if IsAnd = false)
+  // into simplier select instruction using isImpliedCondition.
+  Instruction *foldAndOrOfSelectUsingImpliedCond(Value *Op, SelectInst &SI,
+                                                 bool IsAnd);
 
 public:
   /// Inserts an instruction \p New before instruction \p Old
@@ -715,10 +724,10 @@ public:
   Instruction *PromoteCastOfAllocation(BitCastInst &CI, AllocaInst &AI);
   bool mergeStoreIntoSuccessor(StoreInst &SI);
 
-  /// Given an 'or' instruction, check to see if it is part of a
+  /// Given an initial instruction, check to see if it is the root of a
   /// bswap/bitreverse idiom. If so, return the equivalent bswap/bitreverse
   /// intrinsic.
-  Instruction *matchBSwapOrBitReverse(BinaryOperator &Or, bool MatchBSwaps,
+  Instruction *matchBSwapOrBitReverse(Instruction &I, bool MatchBSwaps,
                                       bool MatchBitReversals);
 
   Instruction *SimplifyAnyMemTransfer(AnyMemTransferInst *MI);

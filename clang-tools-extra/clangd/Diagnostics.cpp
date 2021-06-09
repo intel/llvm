@@ -372,8 +372,7 @@ CodeAction toCodeAction(const Fix &F, const URIForFile &File) {
   Action.title = F.Message;
   Action.kind = std::string(CodeAction::QUICKFIX_KIND);
   Action.edit.emplace();
-  Action.edit->changes.emplace();
-  (*Action.edit->changes)[File.uri()] = {F.Edits.begin(), F.Edits.end()};
+  Action.edit->changes[File.uri()] = {F.Edits.begin(), F.Edits.end()};
   return Action;
 }
 
@@ -476,6 +475,10 @@ void toLSPDiags(
       Res.message = noteMessage(D, Note, Opts);
       OutFn(std::move(Res), llvm::ArrayRef<Fix>());
     }
+
+  // FIXME: Get rid of the copies here by taking in a mutable clangd::Diag.
+  for (auto &Entry : D.OpaqueData)
+    Main.data.insert({Entry.first, Entry.second});
 }
 
 int getSeverity(DiagnosticsEngine::Level L) {
@@ -744,6 +747,8 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
       LastDiag->Fixes.insert(LastDiag->Fixes.end(), ExtraFixes.begin(),
                              ExtraFixes.end());
     }
+    if (DiagCB)
+      DiagCB(Info, *LastDiag);
   } else {
     // Handle a note to an existing diagnostic.
 

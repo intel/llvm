@@ -10,11 +10,12 @@
 #ifndef _LIBCPP_THREADING_SUPPORT
 #define _LIBCPP_THREADING_SUPPORT
 
-#include <__config>
 #include <__availability>
+#include <__config>
 #include <chrono>
-#include <iosfwd>
 #include <errno.h>
+#include <iosfwd>
+#include <limits>
 
 #ifdef __MVS__
 # include <__support/ibm/nanosleep.h>
@@ -28,14 +29,15 @@
 # include <__external_threading>
 #elif !defined(_LIBCPP_HAS_NO_THREADS)
 
+#if defined(__APPLE__) || defined(__MVS__)
+# define _LIBCPP_NO_NATIVE_SEMAPHORES
+#endif
+
 #if defined(_LIBCPP_HAS_THREAD_API_PTHREAD)
 # include <pthread.h>
 # include <sched.h>
-# if defined(__APPLE__) || defined(__MVS__)
-#  define _LIBCPP_NO_NATIVE_SEMAPHORES
-# endif
 # ifndef _LIBCPP_NO_NATIVE_SEMAPHORES
-# include <semaphore.h>
+#   include <semaphore.h>
 # endif
 #elif defined(_LIBCPP_HAS_THREAD_API_C11)
 # include <threads.h>
@@ -149,6 +151,9 @@ typedef void* __libcpp_condvar_t;
 
 // Semaphore
 typedef void* __libcpp_semaphore_t;
+#if defined(_LIBCPP_HAS_THREAD_API_WIN32)
+# define _LIBCPP_SEMAPHORE_MAX (::std::numeric_limits<long>::max())
+#endif
 
 // Execute Once
 typedef void* __libcpp_exec_once_flag;

@@ -176,6 +176,7 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
 
 AMDGPUSubtarget::AMDGPUSubtarget(const Triple &TT) :
   TargetTriple(TT),
+  GCN3Encoding(false),
   Has16BitInsts(false),
   HasMadMixInsts(false),
   HasMadMacF32Insts(false),
@@ -194,7 +195,8 @@ AMDGPUSubtarget::AMDGPUSubtarget(const Triple &TT) :
   { }
 
 GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
-                           const GCNTargetMachine &TM) :
+                           const GCNTargetMachine &TM)
+    : // clang-format off
     AMDGPUGenSubtargetInfo(TT, GPU, /*TuneCPU*/ GPU, FS),
     AMDGPUSubtarget(TT),
     TargetTriple(TT),
@@ -207,6 +209,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     FastFMAF32(false),
     FastDenormalF32(false),
     HalfRate64Ops(false),
+    FullRate64Ops(false),
 
     FlatForGlobal(false),
     AutoWaitcntBeforeBarrier(false),
@@ -216,6 +219,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasApertureRegs(false),
     SupportsXNACK(false),
     EnableXNACK(false),
+    EnableTgSplit(false),
     EnableCuMode(false),
     TrapHandler(false),
 
@@ -227,14 +231,16 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     DumpCode(false),
 
     FP64(false),
-    GCN3Encoding(false),
     CIInsts(false),
     GFX8Insts(false),
     GFX9Insts(false),
+    GFX90AInsts(false),
     GFX10Insts(false),
     GFX10_3Insts(false),
     GFX7GFX8GFX9Insts(false),
     SGPRInitBug(false),
+    NegativeScratchOffsetBug(false),
+    NegativeUnalignedScratchOffsetBug(false),
     HasSMemRealTime(false),
     HasIntClamp(false),
     HasFmaMixInsts(false),
@@ -249,6 +255,9 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasSDWAOutModsVOPC(false),
     HasDPP(false),
     HasDPP8(false),
+    Has64BitDPP(false),
+    HasPackedFP32Ops(false),
+    HasExtendedImageInsts(false),
     HasR128A16(false),
     HasGFX10A16(false),
     HasG16(false),
@@ -261,6 +270,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasDot4Insts(false),
     HasDot5Insts(false),
     HasDot6Insts(false),
+    HasDot7Insts(false),
     HasMAIInsts(false),
     HasPkFmacF16Inst(false),
     HasAtomicFaddInsts(false),
@@ -270,6 +280,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasVscnt(false),
     HasGetWaveIdInst(false),
     HasSMemTimeInst(false),
+    HasShaderCyclesRegister(false),
     HasRegisterBanking(false),
     HasVOP3Literal(false),
     HasNoDataDepHazard(false),
@@ -278,12 +289,14 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     FlatGlobalInsts(false),
     FlatScratchInsts(false),
     ScalarFlatScratchInsts(false),
+    HasArchitectedFlatScratch(false),
     AddNoCarryInsts(false),
     HasUnpackedD16VMem(false),
     LDSMisalignedBug(false),
     HasMFMAInlineLiteralBug(false),
     UnalignedBufferAccess(false),
     UnalignedDSAccess(false),
+    HasPackedTID(false),
 
     ScalarizeGlobal(false),
 
@@ -294,6 +307,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasVcmpxExecWARHazard(false),
     HasLdsBranchVmemWARHazard(false),
     HasNSAtoVMEMBug(false),
+    HasNSAClauseBug(false),
     HasOffset3fBug(false),
     HasFlatSegmentOffsetBug(false),
     HasImageStoreD16Bug(false),
@@ -303,6 +317,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     InstrInfo(initializeSubtargetDependencies(TT, GPU, FS)),
     TLInfo(TM, *this),
     FrameLowering(TargetFrameLowering::StackGrowsUp, getStackAlignment(), 0) {
+  // clang-format on
   MaxWavesPerEU = AMDGPU::IsaInfo::getMaxWavesPerEU(this);
   CallLoweringInfo.reset(new AMDGPUCallLowering(*getTargetLowering()));
   InlineAsmLoweringInfo.reset(new InlineAsmLowering(getTargetLowering()));
@@ -313,7 +328,8 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
 }
 
 bool GCNSubtarget::enableFlatScratch() const {
-  return EnableFlatScratch && hasFlatScratchInsts();
+  return flatScratchIsArchitected() ||
+         (EnableFlatScratch && hasFlatScratchInsts());
 }
 
 unsigned GCNSubtarget::getConstantBusLimit(unsigned Opcode) const {
@@ -775,6 +791,9 @@ unsigned GCNSubtarget::getMaxNumVGPRs(const MachineFunction &MF) const {
   if (F.hasFnAttribute("amdgpu-num-vgpr")) {
     unsigned Requested = AMDGPU::getIntegerAttribute(
       F, "amdgpu-num-vgpr", MaxNumVGPRs);
+
+    if (hasGFX90AInsts())
+      Requested *= 2;
 
     // Make sure requested value is compatible with values implied by
     // default/requested minimum/maximum number of waves per execution unit.

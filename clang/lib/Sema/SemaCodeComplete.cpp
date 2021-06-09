@@ -381,6 +381,8 @@ public:
 } // namespace
 
 void PreferredTypeBuilder::enterReturn(Sema &S, SourceLocation Tok) {
+  if (!Enabled)
+    return;
   if (isa<BlockDecl>(S.CurContext)) {
     if (sema::BlockScopeInfo *BSI = S.getCurBlock()) {
       ComputeType = nullptr;
@@ -399,6 +401,8 @@ void PreferredTypeBuilder::enterReturn(Sema &S, SourceLocation Tok) {
 }
 
 void PreferredTypeBuilder::enterVariableInit(SourceLocation Tok, Decl *D) {
+  if (!Enabled)
+    return;
   auto *VD = llvm::dyn_cast_or_null<ValueDecl>(D);
   ComputeType = nullptr;
   Type = VD ? VD->getType() : QualType();
@@ -410,6 +414,8 @@ static QualType getDesignatedType(QualType BaseType, const Designation &Desig);
 void PreferredTypeBuilder::enterDesignatedInitializer(SourceLocation Tok,
                                                       QualType BaseType,
                                                       const Designation &D) {
+  if (!Enabled)
+    return;
   ComputeType = nullptr;
   Type = getDesignatedType(BaseType, D);
   ExpectedLoc = Tok;
@@ -417,6 +423,8 @@ void PreferredTypeBuilder::enterDesignatedInitializer(SourceLocation Tok,
 
 void PreferredTypeBuilder::enterFunctionArgument(
     SourceLocation Tok, llvm::function_ref<QualType()> ComputeType) {
+  if (!Enabled)
+    return;
   this->ComputeType = ComputeType;
   Type = QualType();
   ExpectedLoc = Tok;
@@ -424,6 +432,8 @@ void PreferredTypeBuilder::enterFunctionArgument(
 
 void PreferredTypeBuilder::enterParenExpr(SourceLocation Tok,
                                           SourceLocation LParLoc) {
+  if (!Enabled)
+    return;
   // expected type for parenthesized expression does not change.
   if (ExpectedLoc == LParLoc)
     ExpectedLoc = Tok;
@@ -541,6 +551,8 @@ static QualType getPreferredTypeOfUnaryArg(Sema &S, QualType ContextType,
 
 void PreferredTypeBuilder::enterBinary(Sema &S, SourceLocation Tok, Expr *LHS,
                                        tok::TokenKind Op) {
+  if (!Enabled)
+    return;
   ComputeType = nullptr;
   Type = getPreferredTypeOfBinaryRHS(S, LHS, Op);
   ExpectedLoc = Tok;
@@ -548,7 +560,7 @@ void PreferredTypeBuilder::enterBinary(Sema &S, SourceLocation Tok, Expr *LHS,
 
 void PreferredTypeBuilder::enterMemAccess(Sema &S, SourceLocation Tok,
                                           Expr *Base) {
-  if (!Base)
+  if (!Enabled || !Base)
     return;
   // Do we have expected type for Base?
   if (ExpectedLoc != Base->getBeginLoc())
@@ -561,6 +573,8 @@ void PreferredTypeBuilder::enterMemAccess(Sema &S, SourceLocation Tok,
 void PreferredTypeBuilder::enterUnary(Sema &S, SourceLocation Tok,
                                       tok::TokenKind OpKind,
                                       SourceLocation OpLoc) {
+  if (!Enabled)
+    return;
   ComputeType = nullptr;
   Type = getPreferredTypeOfUnaryArg(S, this->get(OpLoc), OpKind);
   ExpectedLoc = Tok;
@@ -568,6 +582,8 @@ void PreferredTypeBuilder::enterUnary(Sema &S, SourceLocation Tok,
 
 void PreferredTypeBuilder::enterSubscript(Sema &S, SourceLocation Tok,
                                           Expr *LHS) {
+  if (!Enabled)
+    return;
   ComputeType = nullptr;
   Type = S.getASTContext().IntTy;
   ExpectedLoc = Tok;
@@ -575,12 +591,16 @@ void PreferredTypeBuilder::enterSubscript(Sema &S, SourceLocation Tok,
 
 void PreferredTypeBuilder::enterTypeCast(SourceLocation Tok,
                                          QualType CastType) {
+  if (!Enabled)
+    return;
   ComputeType = nullptr;
   Type = !CastType.isNull() ? CastType.getCanonicalType() : QualType();
   ExpectedLoc = Tok;
 }
 
 void PreferredTypeBuilder::enterCondition(Sema &S, SourceLocation Tok) {
+  if (!Enabled)
+    return;
   ComputeType = nullptr;
   Type = S.getASTContext().BoolTy;
   ExpectedLoc = Tok;
@@ -719,18 +739,17 @@ getRequiredQualification(ASTContext &Context, const DeclContext *CurContext,
 // Filter out names reserved for the implementation if they come from a
 // system header.
 static bool shouldIgnoreDueToReservedName(const NamedDecl *ND, Sema &SemaRef) {
-  const IdentifierInfo *Id = ND->getIdentifier();
-  if (!Id)
-    return false;
-
+  ReservedIdentifierStatus Status = ND->isReserved(SemaRef.getLangOpts());
   // Ignore reserved names for compiler provided decls.
-  if (Id->isReservedName() && ND->getLocation().isInvalid())
+  if ((Status != ReservedIdentifierStatus::NotReserved) &&
+      (Status != ReservedIdentifierStatus::StartsWithUnderscoreAtGlobalScope) &&
+      ND->getLocation().isInvalid())
     return true;
 
   // For system headers ignore only double-underscore names.
   // This allows for system headers providing private symbols with a single
   // underscore.
-  if (Id->isReservedName(/*doubleUnderscoreOnly=*/true) &&
+  if (Status == ReservedIdentifierStatus::StartsWithDoubleUnderscore &&
       SemaRef.SourceMgr.isInSystemHeader(
           SemaRef.SourceMgr.getSpellingLoc(ND->getLocation())))
     return true;
@@ -5237,12 +5256,25 @@ QualType getApproximateType(const Expr *E) {
       Base = Base->getPointeeType(); // could handle unique_ptr etc here?
     RecordDecl *RD = Base.isNull() ? nullptr : getAsRecordDecl(Base);
     if (RD && RD->isCompleteDefinition()) {
-      for (const auto &Member : RD->lookup(CDSME->getMember()))
+      for (const auto *Member : RD->lookup(CDSME->getMember()))
         if (const ValueDecl *VD = llvm::dyn_cast<ValueDecl>(Member))
           return VD->getType().getNonReferenceType();
     }
   }
   return Unresolved;
+}
+
+// If \p Base is ParenListExpr, assume a chain of comma operators and pick the
+// last expr. We expect other ParenListExprs to be resolved to e.g. constructor
+// calls before here. (So the ParenListExpr should be nonempty, but check just
+// in case)
+Expr *unwrapParenList(Expr *Base) {
+  if (auto *PLE = llvm::dyn_cast_or_null<ParenListExpr>(Base)) {
+    if (PLE->getNumExprs() == 0)
+      return nullptr;
+    Base = PLE->getExpr(PLE->getNumExprs() - 1);
+  }
+  return Base;
 }
 
 } // namespace
@@ -5252,17 +5284,10 @@ void Sema::CodeCompleteMemberReferenceExpr(Scope *S, Expr *Base,
                                            SourceLocation OpLoc, bool IsArrow,
                                            bool IsBaseExprStatement,
                                            QualType PreferredType) {
+  Base = unwrapParenList(Base);
+  OtherOpBase = unwrapParenList(OtherOpBase);
   if (!Base || !CodeCompleter)
     return;
-
-  // Peel off the ParenListExpr by chosing the last one, as they don't have a
-  // predefined type.
-  if (auto *PLE = llvm::dyn_cast<ParenListExpr>(Base))
-    Base = PLE->getExpr(PLE->getNumExprs() - 1);
-  if (OtherOpBase) {
-    if (auto *PLE = llvm::dyn_cast<ParenListExpr>(OtherOpBase))
-      OtherOpBase = PLE->getExpr(PLE->getNumExprs() - 1);
-  }
 
   ExprResult ConvertedBase = PerformMemberExprBaseConversion(Base, IsArrow);
   if (ConvertedBase.isInvalid())
@@ -5685,21 +5710,18 @@ ProduceSignatureHelp(Sema &SemaRef, Scope *S,
                      unsigned CurrentArg, SourceLocation OpenParLoc) {
   if (Candidates.empty())
     return QualType();
-  SemaRef.CodeCompleter->ProcessOverloadCandidates(
-      SemaRef, CurrentArg, Candidates.data(), Candidates.size(), OpenParLoc);
+  if (SemaRef.getPreprocessor().isCodeCompletionReached())
+    SemaRef.CodeCompleter->ProcessOverloadCandidates(
+        SemaRef, CurrentArg, Candidates.data(), Candidates.size(), OpenParLoc);
   return getParamType(SemaRef, Candidates, CurrentArg);
 }
 
 QualType Sema::ProduceCallSignatureHelp(Scope *S, Expr *Fn,
                                         ArrayRef<Expr *> Args,
                                         SourceLocation OpenParLoc) {
+  Fn = unwrapParenList(Fn);
   if (!CodeCompleter || !Fn)
     return QualType();
-
-  // If we have a ParenListExpr for LHS, peel it off by chosing the last expr.
-  // As ParenListExprs don't have a predefined type.
-  if (auto *PLE = llvm::dyn_cast<ParenListExpr>(Fn))
-    Fn = PLE->getExpr(PLE->getNumExprs() - 1);
 
   // FIXME: Provide support for variadic template functions.
   // Ignore type-dependent call expressions entirely.
@@ -5868,7 +5890,7 @@ static QualType getDesignatedType(QualType BaseType, const Designation &Desig) {
       assert(D.isFieldDesignator());
       auto *RD = getAsRecordDecl(BaseType);
       if (RD && RD->isCompleteDefinition()) {
-        for (const auto &Member : RD->lookup(D.getField()))
+        for (const auto *Member : RD->lookup(D.getField()))
           if (const FieldDecl *FD = llvm::dyn_cast<FieldDecl>(Member)) {
             NextType = FD->getType();
             break;
@@ -9174,6 +9196,18 @@ void Sema::CodeCompletePreprocessorDirective(bool InConditional) {
     Builder.AddTypedTextChunk("elif");
     Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
     Builder.AddPlaceholderChunk("condition");
+    Results.AddResult(Builder.TakeString());
+
+    // #elifdef <macro>
+    Builder.AddTypedTextChunk("elifdef");
+    Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
+    Builder.AddPlaceholderChunk("macro");
+    Results.AddResult(Builder.TakeString());
+
+    // #elifndef <macro>
+    Builder.AddTypedTextChunk("elifndef");
+    Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
+    Builder.AddPlaceholderChunk("macro");
     Results.AddResult(Builder.TakeString());
 
     // #else

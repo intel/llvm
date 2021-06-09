@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -emit-llvm -o %t.ll
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -sycl-std=2020 -fsycl-int-header=%t.h %s -emit-llvm -o %t.ll
 // RUN: FileCheck -input-file=%t.h %s
 //
 // CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
@@ -7,9 +7,6 @@
 // CHECK-NEXT: namespace second_namespace {
 // CHECK-NEXT: template <typename T> class second_kernel;
 // CHECK-NEXT: }
-// CHECK-NEXT: struct X;
-// CHECK-NEXT: template <typename T> struct point;
-// CHECK-NEXT: template <int a, typename T1, typename T2> class third_kernel;
 // CHECK-NEXT: namespace template_arg_ns {
 // CHECK-NEXT: template <int DimX> struct namespaced_arg;
 // CHECK-NEXT: }
@@ -19,7 +16,6 @@
 // CHECK-NEXT: const char* const kernel_names[] = {
 // CHECK-NEXT:   "_ZTSZ4mainE12first_kernel",
 // CHECK-NEXT:   "_ZTSN16second_namespace13second_kernelIcEE",
-// CHECK-NEXT:   "_ZTS12third_kernelILi1Ei5pointIZ4mainE1XEE"
 // CHECK-NEXT:   "_ZTS13fourth_kernelIJN15template_arg_ns14namespaced_argILi1EEEEE"
 // CHECK-NEXT:   "_ZTSZ4mainE16accessor_in_base"
 // CHECK-NEXT: };
@@ -34,11 +30,6 @@
 // CHECK-NEXT:   { kernel_param_kind_t::kind_sampler, 8, 40 },
 // CHECK-EMPTY:
 // CHECK-NEXT:   //--- _ZTSN16second_namespace13second_kernelIcEE
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 4 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_sampler, 8, 16 },
-// CHECK-EMPTY:
-// CHECK-NEXT:   //--- _ZTS12third_kernelILi1Ei5pointIZ4mainE1XEE
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 4 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_sampler, 8, 16 },
@@ -61,7 +52,6 @@
 //
 // CHECK: template <> struct KernelInfo<class first_kernel> {
 // CHECK: template <> struct KernelInfo<::second_namespace::second_kernel<char>> {
-// CHECK: template <> struct KernelInfo<::third_kernel<1, int, ::point<X>>> {
 // CHECK: template <> struct KernelInfo<::fourth_kernel<::template_arg_ns::namespaced_arg<1>>> {
 
 #include "Inputs/sycl.hpp"
@@ -135,12 +125,6 @@ int main() {
   });
 
   kernel_single_task<class second_namespace::second_kernel<char>>([=]() {
-    if (i == 13) {
-      acc2.use();
-      smplr.use();
-    }
-  });
-  kernel_single_task<class third_kernel<1, int,point<struct X>>>([=]() {
     if (i == 13) {
       acc2.use();
       smplr.use();

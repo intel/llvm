@@ -13,7 +13,9 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/Types.h"
+#include "llvm/ADT/StringMap.h"
 
 #include "mlir/Dialect/Linalg/IR/LinalgOpsDialect.h.inc"
 

@@ -207,13 +207,52 @@ if (ExampleOpInterface example = dyn_cast<ExampleOpInterface>(op))
   llvm::errs() << "hook returned = " << example.exampleInterfaceHook() << "\n";
 ```
 
+#### Dialect Fallback for OpInterface
+
+Some dialects have an open ecosystem and don't register all of the possible
+operations. In such cases it is still possible to provide support for
+implementing an `OpInterface` for these operation. When an operation isn't
+registered or does not provide an implementation for an interface, the query
+will fallback to the dialect itself.
+
+A second model is used for such cases and automatically generated when
+using ODS (see below) with the name `FallbackModel`. This model can be implemented
+for a particular dialect:
+
+```c++
+// This is the implementation of a dialect fallback for `ExampleOpInterface`.
+struct FallbackExampleOpInterface
+    : public ExampleOpInterface::FallbackModel<
+          FallbackExampleOpInterface> {
+  static bool classof(Operation *op) { return true; }
+
+  unsigned exampleInterfaceHook(Operation *op) const;
+  unsigned exampleStaticInterfaceHook() const;
+};
+```
+
+A dialect can then instantiate this implementation and returns it on specific
+operations by overriding the `getRegisteredInterfaceForOp` method :
+
+```c++
+void *TestDialect::getRegisteredInterfaceForOp(TypeID typeID,
+                                               Identifier opName) {
+  if (typeID == TypeID::get<ExampleOpInterface>()) {
+    if (isSupported(opName))
+      return fallbackExampleOpInterface;
+    return nullptr;
+  }
+  return nullptr;
+}
+```
+
 #### Utilizing the ODS Framework
 
 Note: Before reading this section, the reader should have some familiarity with
 the concepts described in the
 [`Operation Definition Specification`](OpDefinitions.md) documentation.
 
-As detailed above, [Interfaces](attribute-operation-type-interfaces) allow for
+As detailed above, [Interfaces](#attributeoperationtype-interfaces) allow for
 attributes, operations, and types to expose method calls without requiring that
 the caller know the specific derived type. The downside to this infrastructure,
 is that it requires a bit of boiler plate to connect all of the pieces together.
@@ -515,7 +554,7 @@ interface section goes as follows:
         -   RegionKind::Graph - represents a graph region without control flow
             semantics
         -   RegionKind::SSACFG - represents an
-            [SSA-style control flow](LangRef.md#modeling-control-flow) region
+            [SSA-style control flow](LangRef.md/#control-flow-and-ssacfg-regions) region
             with basic blocks and reachability
     -   `hasSSADominance(unsigned index)` - Return true if the region with the
         given index inside this operation requires dominance.
@@ -523,11 +562,11 @@ interface section goes as follows:
 ##### SymbolInterfaces
 
 *   `SymbolOpInterface` - Used to represent
-    [`Symbol`](SymbolsAndSymbolTables.md#symbol) operations which reside
+    [`Symbol`](SymbolsAndSymbolTables.md/#symbol) operations which reside
     immediately within a region that defines a
-    [`SymbolTable`](SymbolsAndSymbolTables.md#symbol-table).
+    [`SymbolTable`](SymbolsAndSymbolTables.md/#symbol-table).
 
 *   `SymbolUserOpInterface` - Used to represent operations that reference
-    [`Symbol`](SymbolsAndSymbolTables.md#symbol) operations. This provides the
+    [`Symbol`](SymbolsAndSymbolTables.md/#symbol) operations. This provides the
     ability to perform safe and efficient verification of symbol uses, as well
     as additional functionality.

@@ -59,7 +59,7 @@ multiple file formats.
 
  Remove most local symbols from the output. Different file formats may limit
  this to a subset of the local symbols. For example, file and section symbols in
- ELF objects will not be discarded.
+ ELF objects will not be discarded. Additionally, remove all debug sections.
 
 .. option:: --dump-section <section>=<file>
 
@@ -469,6 +469,13 @@ them.
 .. option:: --weaken
 
  Mark all defined global symbols as weak in the output.
+
+MACH-O-SPECIFIC OPTIONS
+-----------------------
+
+.. option:: --keep-undefined
+
+ Keep undefined symbols, even if they would otherwise be stripped.
 
 SUPPORTED FORMATS
 -----------------

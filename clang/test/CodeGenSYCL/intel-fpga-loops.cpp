@@ -3,6 +3,8 @@
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_DLP:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_II:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_II_2:[0-9]+]]
+// CHECK: br label %for.cond,   !llvm.loop ![[MD_INITI:[0-9]+]]
+// CHECK: br label %for.cond2,  !llvm.loop ![[MD_INITI_2:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_MC:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_MC_2:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_LC:[0-9]+]]
@@ -12,6 +14,9 @@
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_MI_2:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_SI:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_SI_2:[0-9]+]]
+// CHECK: br label %for.cond, !llvm.loop ![[MD_LCA:[0-9]+]]
+// CHECK: br label %for.cond2, !llvm.loop ![[MD_LCA_1:[0-9]+]]
+// CHECK: br label %for.cond13, !llvm.loop ![[MD_LCA_2:[0-9]+]]
 
 void disable_loop_pipelining() {
   int a[10];
@@ -22,6 +27,7 @@ void disable_loop_pipelining() {
       a[i] = 0;
 }
 
+// Test templated and nontemplated use of [[intel::ii]] on a for loop.
 template <int A>
 void ii() {
   int a[10];
@@ -32,6 +38,21 @@ void ii() {
   // CHECK: ![[MD_II_2]] = distinct !{![[MD_II_2]], ![[MP]], ![[MD_ii_count_2:[0-9]+]]}
   // CHECK-NEXT: ![[MD_ii_count_2]] = !{!"llvm.loop.ii.count", i32 8}
   [[intel::ii(8)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
+// Test templated and nontemplated use of [[intel::initiation_interval]] on a
+// for loop. This shows that the behavior is the same as with [[intel::ii]].
+template <int A>
+void initiation_interval() {
+  int a[10];
+  // CHECK: ![[MD_INITI]] = distinct !{![[MD_INITI]], ![[MP]], ![[MD_initi_count:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_initi_count]] = !{!"llvm.loop.ii.count", i32 6}
+  [[intel::initiation_interval(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // CHECK: ![[MD_INITI_2]] = distinct !{![[MD_INITI_2]], ![[MP]], ![[MD_initi_count_2:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_initi_count_2]] = !{!"llvm.loop.ii.count", i32 10}
+  [[intel::initiation_interval(10)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -91,6 +112,25 @@ void speculated_iterations() {
       a[i] = 0;
 }
 
+template <int A>
+void loop_count_control() {
+  int a[10];
+  // CHECK: ![[MD_LCA]] = distinct !{![[MD_LCA]], ![[MP:[0-9]+]], ![[MD_loop_count_avg:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_loop_count_avg]] = !{!"llvm.loop.intel.loopcount_avg", i32 12}
+  [[intel::loop_count_avg(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // CHECK: ![[MD_LCA_1]] = distinct !{![[MD_LCA_1]], ![[MP:[0-9]+]], ![[MD_loop_count_max:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_loop_count_max]] = !{!"llvm.loop.intel.loopcount_max", i32 4}
+  [[intel::loop_count_max(4)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // CHECK: ![[MD_LCA_2]] = distinct !{![[MD_LCA_2]], ![[MP:[0-9]+]], ![[MD_loop_count_min:[0-9]+]], ![[MD_loop_count_max_1:[0-9]+]], ![[MD_loop_count_avg_1:[0-9]+]]}
+  // CHECK: ![[MD_loop_count_min]] = !{!"llvm.loop.intel.loopcount_min", i32 4}
+  // CHECK: ![[MD_loop_count_max_1]] = !{!"llvm.loop.intel.loopcount_max", i32 40}
+  // CHECK-NEXT: ![[MD_loop_count_avg_1]] = !{!"llvm.loop.intel.loopcount_avg", i32 21}
+  [[intel::loop_count_min(4)]] [[intel::loop_count_max(40)]] [[intel::loop_count_avg(21)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
@@ -100,10 +140,12 @@ int main() {
   kernel_single_task<class kernel_function>([]() {
     disable_loop_pipelining();
     ii<4>();
+    initiation_interval<6>();
     max_concurrency<0>();
     loop_coalesce<2>();
     max_interleaving<3>();
     speculated_iterations<4>();
+    loop_count_control<12>();
   });
   return 0;
 }

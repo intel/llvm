@@ -98,6 +98,8 @@ add_llvm_pass_plugin(Polly
   Transform/MaximalStaticExpansion.cpp
   Transform/RewriteByReferenceParameters.cpp
   Transform/ScopInliner.cpp
+  Transform/ManualOptimizer.cpp
+  Transform/MatmulOptimizer.cpp
   ${POLLY_HEADER_FILES}
 
   LINK_COMPONENTS

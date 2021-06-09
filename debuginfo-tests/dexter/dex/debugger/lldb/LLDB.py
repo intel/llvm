@@ -26,6 +26,9 @@ class LLDB(DebuggerBase):
         self._target = None
         self._process = None
         self._thread = None
+        # Map {id (int): condition (str)} for breakpoints which have a
+        # condition. See get_triggered_breakpoint_ids usage for more info.
+        self._breakpoint_conditions = {}
         super(LLDB, self).__init__(context, *args)
 
     def _custom_init(self):
@@ -104,48 +107,67 @@ class LLDB(DebuggerBase):
         self._target.DeleteAllBreakpoints()
 
     def _add_breakpoint(self, file_, line):
-        if not self._target.BreakpointCreateByLocation(file_, line):
-            raise DebuggerException(
-                'could not add breakpoint [{}:{}]'.format(file_, line))
+        return self._add_conditional_breakpoint(file_, line, None)
 
     def _add_conditional_breakpoint(self, file_, line, condition):
         bp = self._target.BreakpointCreateByLocation(file_, line)
-        if bp:
-            bp.SetCondition(condition)
-        else:
+        if not bp:
             raise DebuggerException(
                   'could not add breakpoint [{}:{}]'.format(file_, line))
+        id = bp.GetID()
+        if condition:
+            bp.SetCondition(condition)
+            assert id not in self._breakpoint_conditions
+            self._breakpoint_conditions[id] = condition
+        return id
 
-    def _delete_conditional_breakpoint(self, file_, line, condition):
-        bp_count = self._target.GetNumBreakpoints()
-        bps = [self._target.GetBreakpointAtIndex(ix) for ix in range(0, bp_count)]
+    def _evaulate_breakpoint_condition(self, id):
+        """Evaluate the breakpoint condition and return the result.
 
-        for bp in bps:
-            bp_cond = bp.GetCondition()
-            bp_cond = bp_cond if bp_cond is not None else ''
+        Returns True if a conditional breakpoint with the specified id cannot
+        be found (i.e. assume it is an unconditional breakpoint).
+        """
+        try:
+            condition = self._breakpoint_conditions[id]
+        except KeyError:
+            # This must be an unconditional breakpoint.
+            return True
+        valueIR = self.evaluate_expression(condition)
+        return valueIR.type_name == 'bool' and valueIR.value == 'true'
 
-            if bp_cond != condition:
-                continue
+    def get_triggered_breakpoint_ids(self):
+        # Breakpoints can only have been triggered if we've hit one.
+        stop_reason = self._translate_stop_reason(self._thread.GetStopReason())
+        if stop_reason != StopReason.BREAKPOINT:
+            return []
+        breakpoint_ids = set()
+        # When the stop reason is eStopReasonBreakpoint, GetStopReasonDataCount
+        # counts all breakpoints associated with the location that lldb has
+        # stopped at, regardless of their condition. I.e. Even if we have two
+        # breakpoints at the same source location that have mutually exclusive
+        # conditions, both will be counted by GetStopReasonDataCount when
+        # either condition is true. Check each breakpoint condition manually to
+        # filter the list down to breakpoints that have caused this stop.
+        #
+        # Breakpoints have two data parts: Breakpoint ID, Location ID. We're
+        # only interested in the Breakpoint ID so we skip every other item.
+        for i in range(0, self._thread.GetStopReasonDataCount(), 2):
+            id = self._thread.GetStopReasonDataAtIndex(i)
+            if self._evaulate_breakpoint_condition(id):
+                breakpoint_ids.add(id)
+        return breakpoint_ids
 
-            # If one of the bound bp locations for this bp is bound to the same
-            # line in file_ above, then delete the entire parent bp and all
-            # bp locs.
-            # https://lldb.llvm.org/python_reference/lldb.SBBreakpoint-class.html
-            for breakpoint_location in bp:
-                sb_address = breakpoint_location.GetAddress()
-
-                sb_line_entry = sb_address.GetLineEntry()
-                bl_line = sb_line_entry.GetLine()
-
-                sb_file_entry = sb_line_entry.GetFileSpec()
-                bl_dir = sb_file_entry.GetDirectory()
-                bl_file_name = sb_file_entry.GetFilename()
-
-                bl_file_path = os.path.join(bl_dir, bl_file_name)
-
-                if bl_file_path == file_ and bl_line == line:
-                    self._target.BreakpointDelete(bp.GetID())
-                    break
+    def delete_breakpoint(self, id):
+        bp = self._target.FindBreakpointByID(id)
+        if not bp:
+            # The ID is not valid.
+            raise KeyError
+        try:
+            del self._breakpoint_conditions[id]
+        except KeyError:
+            # This must be an unconditional breakpoint.
+            pass
+        self._target.BreakpointDelete(id)
 
     def launch(self):
         self._process = self._target.LaunchSimple(None, None, os.getcwd())

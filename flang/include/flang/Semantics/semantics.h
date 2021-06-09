@@ -198,18 +198,18 @@ private:
     parser::CharBlock location;
     IndexVarKind kind;
   };
-  std::map<SymbolRef, const IndexVarInfo> activeIndexVars_;
-  std::set<SymbolRef> errorSymbols_;
+  std::map<SymbolRef, const IndexVarInfo, SymbolAddressCompare>
+      activeIndexVars_;
+  UnorderedSymbolSet errorSymbols_;
   std::set<std::string> tempNames_;
 };
 
 class Semantics {
 public:
   explicit Semantics(SemanticsContext &context, parser::Program &program,
-      parser::CharBlock charBlock, bool debugModuleWriter = false)
+      bool debugModuleWriter = false)
       : context_{context}, program_{program} {
     context.set_debugModuleWriter(debugModuleWriter);
-    context.globalScope().AddSourceRange(charBlock);
   }
 
   SemanticsContext &context() const { return context_; }

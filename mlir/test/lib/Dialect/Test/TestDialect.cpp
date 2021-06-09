@@ -7,12 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestDialect.h"
+#include "TestAttributes.h"
+#include "TestInterfaces.h"
 #include "TestTypes.h"
+#include "mlir/Dialect/DLTI/DLTI.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "mlir/Reducer/ReductionPatternInterface.h"
 #include "mlir/Transforms/FoldUtils.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -29,6 +34,16 @@ void mlir::test::registerTestDialect(DialectRegistry &registry) {
 //===----------------------------------------------------------------------===//
 
 namespace {
+
+/// Testing the correctness of some traits.
+static_assert(
+    llvm::is_detected<OpTrait::has_implicit_terminator_t,
+                      SingleBlockImplicitTerminatorOp>::value,
+    "has_implicit_terminator_t does not match SingleBlockImplicitTerminatorOp");
+static_assert(OpTrait::hasSingleBlockImplicitTerminator<
+                  SingleBlockImplicitTerminatorOp>::value,
+              "hasSingleBlockImplicitTerminator does not match "
+              "SingleBlockImplicitTerminatorOp");
 
 // Test support for interacting with the AsmPrinter.
 struct TestOpAsmInterface : public OpAsmDialectInterface {
@@ -157,29 +172,78 @@ struct TestInlinerInterface : public DialectInlinerInterface {
     return builder.create<TestCastOp>(conversionLoc, resultType, input);
   }
 };
+
+struct TestReductionPatternInterface : public DialectReductionPatternInterface {
+public:
+  TestReductionPatternInterface(Dialect *dialect)
+      : DialectReductionPatternInterface(dialect) {}
+
+  virtual void
+  populateReductionPatterns(RewritePatternSet &patterns) const final {
+    populateTestReductionPatterns(patterns);
+  }
+};
+
 } // end anonymous namespace
 
 //===----------------------------------------------------------------------===//
 // TestDialect
 //===----------------------------------------------------------------------===//
 
+static void testSideEffectOpGetEffect(
+    Operation *op,
+    SmallVectorImpl<SideEffects::EffectInstance<TestEffects::Effect>> &effects);
+
+// This is the implementation of a dialect fallback for `TestEffectOpInterface`.
+struct TestOpEffectInterfaceFallback
+    : public TestEffectOpInterface::FallbackModel<
+          TestOpEffectInterfaceFallback> {
+  static bool classof(Operation *op) {
+    bool isSupportedOp =
+        op->getName().getStringRef() == "test.unregistered_side_effect_op";
+    assert(isSupportedOp && "Unexpected dispatch");
+    return isSupportedOp;
+  }
+
+  void
+  getEffects(Operation *op,
+             SmallVectorImpl<SideEffects::EffectInstance<TestEffects::Effect>>
+                 &effects) const {
+    testSideEffectOpGetEffect(op, effects);
+  }
+};
+
 void TestDialect::initialize() {
+  registerAttributes();
+  registerTypes();
   addOperations<
 #define GET_OP_LIST
 #include "TestOps.cpp.inc"
       >();
   addInterfaces<TestOpAsmInterface, TestDialectFoldInterface,
-                TestInlinerInterface>();
-  addTypes<TestType, TestRecursiveType,
-#define GET_TYPEDEF_LIST
-#include "TestTypeDefs.cpp.inc"
-           >();
+                TestInlinerInterface, TestReductionPatternInterface>();
   allowUnknownOperations();
+
+  // Instantiate our fallback op interface that we'll use on specific
+  // unregistered op.
+  fallbackEffectOpInterfaces = new TestOpEffectInterfaceFallback;
+}
+TestDialect::~TestDialect() {
+  delete static_cast<TestOpEffectInterfaceFallback *>(
+      fallbackEffectOpInterfaces);
 }
 
 Operation *TestDialect::materializeConstant(OpBuilder &builder, Attribute value,
                                             Type type, Location loc) {
   return builder.create<TestOpConstant>(loc, type, value);
+}
+
+void *TestDialect::getRegisteredInterfaceForOp(TypeID typeID,
+                                               OperationName opName) {
+  if (opName.getIdentifier() == "test.unregistered_side_effect_op" &&
+      typeID == TypeID::get<TestEffectOpInterface>())
+    return fallbackEffectOpInterfaces;
+  return nullptr;
 }
 
 LogicalResult TestDialect::verifyOperationAttribute(Operation *op,
@@ -207,6 +271,26 @@ TestDialect::verifyRegionResultAttribute(Operation *op, unsigned regionIndex,
   return success();
 }
 
+Optional<Dialect::ParseOpHook>
+TestDialect::getParseOperationHook(StringRef opName) const {
+  if (opName == "test.dialect_custom_printer") {
+    return ParseOpHook{[](OpAsmParser &parser, OperationState &state) {
+      return parser.parseKeyword("custom_format");
+    }};
+  }
+  return None;
+}
+
+LogicalResult TestDialect::printOperation(Operation *op,
+                                          OpAsmPrinter &printer) const {
+  StringRef opName = op->getName().getStringRef();
+  if (opName == "test.dialect_custom_printer") {
+    printer.getStream() << opName << " custom_format";
+    return success();
+  }
+  return failure();
+}
+
 //===----------------------------------------------------------------------===//
 // TestBranchOp
 //===----------------------------------------------------------------------===//
@@ -215,6 +299,23 @@ Optional<MutableOperandRange>
 TestBranchOp::getMutableSuccessorOperands(unsigned index) {
   assert(index == 0 && "invalid successor index");
   return targetOperandsMutable();
+}
+
+//===----------------------------------------------------------------------===//
+// TestDialectCanonicalizerOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult
+dialectCanonicalizationPattern(TestDialectCanonicalizerOp op,
+                               PatternRewriter &rewriter) {
+  rewriter.replaceOpWithNewOp<ConstantOp>(op, rewriter.getI32Type(),
+                                          rewriter.getI32IntegerAttr(42));
+  return success();
+}
+
+void TestDialect::getCanonicalizationPatterns(
+    RewritePatternSet &results) const {
+  results.add(&dialectCanonicalizationPattern);
 }
 
 //===----------------------------------------------------------------------===//
@@ -234,9 +335,9 @@ struct FoldToCallOpPattern : public OpRewritePattern<FoldToCallOp> {
 };
 } // end anonymous namespace
 
-void FoldToCallOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<FoldToCallOpPattern>(context);
+void FoldToCallOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                               MLIRContext *context) {
+  results.add<FoldToCallOpPattern>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -605,6 +706,8 @@ struct TestRemoveOpWithInnerOps
     : public OpRewritePattern<TestOpWithRegionPattern> {
   using OpRewritePattern<TestOpWithRegionPattern>::OpRewritePattern;
 
+  void initialize() { setDebugName("TestRemoveOpWithInnerOps"); }
+
   LogicalResult matchAndRewrite(TestOpWithRegionPattern op,
                                 PatternRewriter &rewriter) const override {
     rewriter.eraseOp(op);
@@ -614,8 +717,8 @@ struct TestRemoveOpWithInnerOps
 } // end anonymous namespace
 
 void TestOpWithRegionPattern::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<TestRemoveOpWithInnerOps>(context);
+    RewritePatternSet &results, MLIRContext *context) {
+  results.add<TestRemoveOpWithInnerOps>(context);
 }
 
 OpFoldResult TestOpWithRegionFold::fold(ArrayRef<Attribute> operands) {
@@ -678,9 +781,29 @@ LogicalResult OpWithShapedTypeInferTypeInterfaceOp::inferReturnTypeComponents(
 }
 
 LogicalResult OpWithShapedTypeInferTypeInterfaceOp::reifyReturnTypeShapes(
-    OpBuilder &builder, llvm::SmallVectorImpl<Value> &shapes) {
+    OpBuilder &builder, ValueRange operands,
+    llvm::SmallVectorImpl<Value> &shapes) {
   shapes = SmallVector<Value, 1>{
-      builder.createOrFold<DimOp>(getLoc(), getOperand(0), 0)};
+      builder.createOrFold<memref::DimOp>(getLoc(), operands.front(), 0)};
+  return success();
+}
+
+LogicalResult
+OpWithResultShapePerDimInterfaceOp ::reifyReturnTypeShapesPerResultDim(
+    OpBuilder &builder,
+    llvm::SmallVectorImpl<llvm::SmallVector<Value>> &shapes) {
+  SmallVector<Value> operand1Shape, operand2Shape;
+  Location loc = getLoc();
+  for (auto i :
+       llvm::seq<int>(0, operand1().getType().cast<ShapedType>().getRank())) {
+    operand1Shape.push_back(builder.create<memref::DimOp>(loc, operand1(), i));
+  }
+  for (auto i :
+       llvm::seq<int>(0, operand2().getType().cast<ShapedType>().getRank())) {
+    operand2Shape.push_back(builder.create<memref::DimOp>(loc, operand2(), i));
+  }
+  shapes.emplace_back(std::move(operand2Shape));
+  shapes.emplace_back(std::move(operand1Shape));
   return success();
 }
 
@@ -694,6 +817,17 @@ struct TestResource : public SideEffects::Resource::Base<TestResource> {
   StringRef getName() final { return "<Test>"; }
 };
 } // end anonymous namespace
+
+static void testSideEffectOpGetEffect(
+    Operation *op,
+    SmallVectorImpl<SideEffects::EffectInstance<TestEffects::Effect>>
+        &effects) {
+  auto effectsAttr = op->getAttrOfType<AffineMapAttr>("effect_parameter");
+  if (!effectsAttr)
+    return;
+
+  effects.emplace_back(TestEffects::Concrete::get(), effectsAttr);
+}
 
 void SideEffectOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
@@ -733,11 +867,7 @@ void SideEffectOp::getEffects(
 
 void SideEffectOp::getEffects(
     SmallVectorImpl<TestEffects::EffectInstance> &effects) {
-  auto effectsAttr = (*this)->getAttrOfType<AffineMapAttr>("effect_parameter");
-  if (!effectsAttr)
-    return;
-
-  effects.emplace_back(TestEffects::Concrete::get(), effectsAttr);
+  testSideEffectOpGetEffect(getOperation(), effects);
 }
 
 //===----------------------------------------------------------------------===//
@@ -804,9 +934,9 @@ static void print(OpAsmPrinter &p, StringAttrPrettyNameOp op) {
   }
 
   if (namesDisagree)
-    p.printOptionalAttrDictWithKeyword(op.getAttrs());
+    p.printOptionalAttrDictWithKeyword(op->getAttrs());
   else
-    p.printOptionalAttrDictWithKeyword(op.getAttrs(), {"names"});
+    p.printOptionalAttrDictWithKeyword(op->getAttrs(), {"names"});
 }
 
 // We set the SSA name in the asm syntax to the contents of the name
@@ -890,6 +1020,27 @@ void RegionIfOp::getSuccessorRegions(
   // The then and else regions are the entry regions of this op.
   regions.push_back(RegionSuccessor(&thenRegion(), getThenArgs()));
   regions.push_back(RegionSuccessor(&elseRegion(), getElseArgs()));
+}
+
+//===----------------------------------------------------------------------===//
+// SingleNoTerminatorCustomAsmOp
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseSingleNoTerminatorCustomAsmOp(OpAsmParser &parser,
+                                                      OperationState &state) {
+  Region *body = state.addRegion();
+  if (parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{}))
+    return failure();
+  return success();
+}
+
+static void print(SingleNoTerminatorCustomAsmOp op, OpAsmPrinter &printer) {
+  printer << op.getOperationName();
+  printer.printRegion(
+      op.getRegion(), /*printEntryBlockArgs=*/false,
+      // This op has a single block without terminators. But explicitly mark
+      // as not printing block terminators for testing.
+      /*printBlockTerminators=*/false);
 }
 
 #include "TestOpEnums.cpp.inc"

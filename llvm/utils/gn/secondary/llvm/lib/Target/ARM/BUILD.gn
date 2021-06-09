@@ -59,6 +59,7 @@ static_library("LLVMARMCodeGen") {
     "//llvm/lib/Target",
     "//llvm/lib/Transforms/CFGuard",
     "//llvm/lib/Transforms/Utils",
+    "//llvm/lib/Transforms/IPO",
   ]
   include_dirs = [ "." ]
   sources = [
@@ -98,9 +99,10 @@ static_library("LLVMARMCodeGen") {
     "ARMTargetTransformInfo.cpp",
     "MLxExpansionPass.cpp",
     "MVEGatherScatterLowering.cpp",
+    "MVELaneInterleavingPass.cpp",
+    "MVETPAndVPTOptimisationsPass.cpp",
     "MVETailPredication.cpp",
     "MVEVPTBlockPass.cpp",
-    "MVEVPTOptimisationsPass.cpp",
     "Thumb1FrameLowering.cpp",
     "Thumb1InstrInfo.cpp",
     "Thumb2ITBlockPass.cpp",

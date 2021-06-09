@@ -17,19 +17,10 @@
 # The environment variables in `secrets.env` must be replaced by the actual
 # tokens for this to work. These should obviously never be checked in.
 #
-# To start a shell in the Docker image, use:
-#   $ docker run -it --volume "$(git rev-parse --show-toplevel):/llvm" --workdir "/llvm" $(docker build -q .) bash
+# If you're only looking to run the Docker image locally for debugging a
+# build bot, see the `run-buildbot-container` script located in this directory.
 #
-# This will fire up the Docker container and mount the root of the monorepo
-# as /llvm in the container. Be careful, the state in /llvm is shared between
-# the container and the host machine.
-#
-# Finally, a pre-built version of this image is available on DockerHub as
-# ldionne/libcxx-builder. To use the pre-built version of the image, use
-#
-#   $ docker pull ldionne/libcxx-builder
-#   $ docker run -it <options> ldionne/libcxx-builder
-#
+# A pre-built version of this image is maintained on DockerHub as ldionne/libcxx-builder.
 # To update the image, rebuild it and push it to ldionne/libcxx-builder (which
 # will obviously only work if you have permission to do so).
 #
@@ -69,7 +60,7 @@ RUN ln -s $(find /usr/bin -regex '^.+/git-clang-format-[0-9.]+$') /usr/bin/git-c
 
 # Install a recent GCC
 RUN add-apt-repository ppa:ubuntu-toolchain-r/test
-RUN apt-get update && apt install -y gcc-10 g++-10
+RUN apt-get update && apt install -y gcc-10 g++-10 gcc-11 g++-11
 RUN ln -f -s /usr/bin/g++-10 /usr/bin/g++ && [ -e $(readlink /usr/bin/g++) ]
 RUN ln -f -s /usr/bin/gcc-10 /usr/bin/gcc && [ -e $(readlink /usr/bin/gcc) ]
 

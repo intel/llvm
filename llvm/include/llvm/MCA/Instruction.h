@@ -346,7 +346,7 @@ struct ResourceUsage {
 
 /// An instruction descriptor
 struct InstrDesc {
-  SmallVector<WriteDescriptor, 4> Writes; // Implicit writes are at the end.
+  SmallVector<WriteDescriptor, 2> Writes; // Implicit writes are at the end.
   SmallVector<ReadDescriptor, 4> Reads;   // Implicit reads are at the end.
 
   // For every resource used by an instruction of this kind, this vector
@@ -370,15 +370,16 @@ struct InstrDesc {
   // subtarget when computing the reciprocal throughput.
   unsigned SchedClassID;
 
-  bool MayLoad;
-  bool MayStore;
-  bool HasSideEffects;
-  bool BeginGroup;
-  bool EndGroup;
+  unsigned MayLoad : 1;
+  unsigned MayStore : 1;
+  unsigned HasSideEffects : 1;
+  unsigned BeginGroup : 1;
+  unsigned EndGroup : 1;
+  unsigned RetireOOO : 1;
 
   // True if all buffered resources are in-order, and there is at least one
   // buffer which is a dispatch hazard (BufferSize = 0).
-  bool MustIssueImmediately;
+  unsigned MustIssueImmediately : 1;
 
   // A zero latency instruction doesn't consume any scheduler resources.
   bool isZeroLatency() const { return !MaxLatency && Resources.empty(); }
@@ -402,7 +403,7 @@ class InstructionBase {
 
   // Output dependencies.
   // One entry per each implicit and explicit register definition.
-  SmallVector<WriteState, 4> Defs;
+  SmallVector<WriteState, 2> Defs;
 
   // Input dependencies.
   // One entry per each implicit and explicit register use.
@@ -593,45 +594,6 @@ inline raw_ostream &operator<<(raw_ostream &OS, const InstRef &IR) {
   return OS;
 }
 #endif
-
-/// A reference to a register write.
-///
-/// This class is mainly used by the register file to describe register
-/// mappings. It correlates a register write to the source index of the
-/// defining instruction.
-class WriteRef {
-  std::pair<unsigned, WriteState *> Data;
-  static const unsigned INVALID_IID;
-
-public:
-  WriteRef() : Data(INVALID_IID, nullptr) {}
-  WriteRef(unsigned SourceIndex, WriteState *WS) : Data(SourceIndex, WS) {}
-
-  unsigned getSourceIndex() const { return Data.first; }
-  const WriteState *getWriteState() const { return Data.second; }
-  WriteState *getWriteState() { return Data.second; }
-  void invalidate() { Data.second = nullptr; }
-  bool isWriteZero() const {
-    assert(isValid() && "Invalid null WriteState found!");
-    return getWriteState()->isWriteZero();
-  }
-
-  /// Returns true if this register write has been executed, and the new
-  /// register value is therefore available to users.
-  bool isAvailable() const {
-    if (getSourceIndex() == INVALID_IID)
-      return false;
-    const WriteState *WS = getWriteState();
-    return !WS || WS->isExecuted();
-  }
-
-  bool isValid() const { return Data.second && Data.first != INVALID_IID; }
-  bool operator==(const WriteRef &Other) const { return Data == Other.Data; }
-
-#ifndef NDEBUG
-  void dump() const;
-#endif
-};
 
 } // namespace mca
 } // namespace llvm

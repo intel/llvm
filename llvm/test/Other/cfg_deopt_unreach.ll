@@ -9,9 +9,6 @@
 ; RUN: opt < %s -dot-cfg -cfg-hide-unreachable-paths -cfg-hide-deoptimize-paths -cfg-dot-filename-prefix=%t/both-flags 2>/dev/null
 ; RUN: FileCheck %s -input-file=%t/both-flags.callee.dot -check-prefix=BOTH-FLAGS
 
-; TODO: Investigate why this test doesn't work with dynamically linked libraries
-; REQUIRES: static-libs
-
 declare i8 @llvm.experimental.deoptimize.i8(...)
 
 define i8 @callee(i1* %c) alwaysinline {

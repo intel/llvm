@@ -28,6 +28,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <level_zero/ze_api.h>
@@ -63,11 +64,25 @@ struct _pi_object {
   std::atomic<pi_uint32> RefCount;
 };
 
+// Record for a memory allocation. This structure is used to keep information
+// for each memory allocation.
+struct MemAllocRecord : _pi_object {
+  MemAllocRecord(pi_context Context) : Context(Context) {}
+  // Currently kernel can reference memory allocations from different contexts
+  // and we need to know the context of a memory allocation when we release it
+  // in piKernelRelease.
+  // TODO: this should go away when memory isolation issue is fixed in the Level
+  // Zero runtime.
+  pi_context Context;
+};
+
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
 // plugin
 
 struct _pi_platform {
   _pi_platform(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
+  // Performs initialization of a newly constructed PI platform.
+  pi_result initialize();
 
   // Level Zero lacks the notion of a platform, but there is a driver, which is
   // a pretty good fit to keep here.
@@ -77,21 +92,32 @@ struct _pi_platform {
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
 
+  // Cache driver extensions
+  std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
+
   // Cache pi_devices for reuse
   std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;
   std::mutex PiDevicesCacheMutex;
-  pi_device getDeviceFromNativeHandle(ze_device_handle_t);
   bool DeviceCachePopulated = false;
 
-  // Maximum Number of Command Lists that can be created.
-  // This Value is initialized to 20000, but can be changed by the user
-  // thru the environment variable SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE
-  // ie SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE =10000.
-  int ZeMaxCommandListCache = 0;
+  // Check the device cache and load it if necessary.
+  pi_result populateDeviceCacheIfNeeded();
+
+  // Return the PI device from cache that represents given native device.
+  // If not found, then nullptr is returned.
+  pi_device getDeviceFromNativeHandle(ze_device_handle_t);
 
   // Current number of L0 Command Lists created on this platform.
   // this number must not exceed ZeMaxCommandListCache.
   std::atomic<int> ZeGlobalCommandListCount{0};
+
+  // Keep track of all contexts in the platform. This is needed to manage
+  // a lifetime of memory allocations in each context when there are kernels
+  // with indirect access.
+  // TODO: should be deleted when memory isolation in the context is implemented
+  // in the driver.
+  std::list<pi_context> Contexts;
+  std::mutex ContextsMutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
@@ -134,21 +160,39 @@ public:
       : USMMemoryAllocBase(Ctx, Dev) {}
 };
 
+// Allocation routines for host memory type
+class USMHostMemoryAlloc : public USMMemoryAllocBase {
+protected:
+  pi_result allocateImpl(void **ResultPtr, size_t Size,
+                         pi_uint32 Alignment) override;
+
+public:
+  USMHostMemoryAlloc(pi_context Ctx) : USMMemoryAllocBase(Ctx, nullptr) {}
+};
+
 struct _pi_device : _pi_object {
   _pi_device(ze_device_handle_t Device, pi_platform Plt,
-             bool isSubDevice = false)
-      : ZeDevice{Device}, Platform{Plt}, IsSubDevice{isSubDevice},
+             pi_device ParentDevice = nullptr)
+      : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
         ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
 
   // Keep the ordinal of a "compute" commands group, where we send all
-  // commands currently.
-  // TODO[1.0]: discover "copy" command group as well to use for memory
-  // copying operations exclusively.
-  //
-  uint32_t ZeComputeQueueGroupIndex;
+  // compute commands and some copy commands, and the ordinal of the
+  // "copy" commands group, where we can send only copy commands.
+  // A value of "-1" means that there is no such queue group available
+  // in the level zero backend.
+  int32_t ZeComputeQueueGroupIndex;
+  int32_t ZeCopyQueueGroupIndex;
+
+  // Cache the properties of the compute/copy queue groups.
+  ze_command_queue_group_properties_t ZeComputeQueueGroupProperties = {};
+  ze_command_queue_group_properties_t ZeCopyQueueGroupProperties = {};
+
+  // This returns "true" if a copy engine is available for use.
+  bool hasCopyEngine() const { return ZeCopyQueueGroupIndex >= 0; }
 
   // Initialize the entire PI device.
   pi_result initialize();
@@ -165,10 +209,9 @@ struct _pi_device : _pi_object {
   // PI platform to which this device belongs.
   pi_platform Platform;
 
-  // Indicates if this is a root-device or a sub-device.
-  // Technically this information can be queried from a device handle, but it
-  // seems better to just keep it here.
-  bool IsSubDevice;
+  // Root-device of a sub-device, null if this is not a sub-device.
+  pi_device RootDevice;
+  bool isSubDevice() { return RootDevice != nullptr; }
 
   // Cache of the immutable device properties.
   ze_device_properties_t ZeDeviceProperties;
@@ -196,6 +239,28 @@ struct _pi_context : _pi_object {
       // NOTE: one must additionally call initialize() to complete
       // PI context creation.
     }
+    // Create USM allocator context for host. Device and Shared USM allocations
+    // are device-specific. Host allocations are not device-dependent therefore
+    // we don't need a map with device as key.
+    HostMemAllocContext = std::make_unique<USMAllocContext>(
+        std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
+
+    if (NumDevices == 1) {
+      SingleRootDevice = Devices[0];
+      return;
+    }
+
+    // Check if we have context with subdevices of the same device (context may
+    // include root device itself as well)
+    SingleRootDevice =
+        Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
+    for (auto &Device : Devices) {
+      if ((!Device->RootDevice && Device != SingleRootDevice) ||
+          (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {
+        SingleRootDevice = nullptr;
+        break;
+      }
+    }
   }
 
   // Initialize the PI context.
@@ -215,6 +280,10 @@ struct _pi_context : _pi_object {
   // Keep the PI devices this PI context was created for.
   std::vector<pi_device> Devices;
 
+  // If context contains one device or sub-devices of the same device, we want
+  // to save this device.
+  pi_device SingleRootDevice = nullptr;
+
   // Immediate Level Zero command list for the device in this context, to be
   // used for initializations. To be created as:
   // - Immediate command list: So any command appended to it is immediately
@@ -225,11 +294,13 @@ struct _pi_context : _pi_object {
   // support of the multiple devices per context will be added.
   ze_command_list_handle_t ZeCommandListInit;
 
-  // Mutex Lock for the Command List Cache
+  // Mutex Lock for the Command List Cache. This lock is used to control both
+  // compute and copy command list caches.
   std::mutex ZeCommandListCacheMutex;
-
   // Cache of all currently Available Command Lists for use by PI APIs
-  std::list<ze_command_list_handle_t> ZeCommandListCache;
+  std::list<ze_command_list_handle_t> ZeComputeCommandListCache;
+  // Cache of all currently Available Copy Command Lists for use by PI APIs
+  std::list<ze_command_list_handle_t> ZeCopyCommandListCache;
 
   // Retrieves a command list for executing on this device along with
   // a fence to be used in tracking the execution of this command list.
@@ -246,6 +317,7 @@ struct _pi_context : _pi_object {
   pi_result getAvailableCommandList(pi_queue Queue,
                                     ze_command_list_handle_t *ZeCommandList,
                                     ze_fence_handle_t *ZeFence,
+                                    bool PreferCopyCommandList = false,
                                     bool AllowBatching = false);
 
   // Get index of the free slot in the available pool. If there is no avialble
@@ -257,10 +329,19 @@ struct _pi_context : _pi_object {
   pi_result decrementAliveEventsInPool(ze_event_pool_handle_t pool);
 
   // Store USM allocator context(internal allocator structures)
-  // for USM shared/host and device allocations. There is 1 allocator context
+  // for USM shared and device allocations. There is 1 allocator context
   // per each pair of (context, device) per each memory type.
   std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
   std::unordered_map<pi_device, USMAllocContext> DeviceMemAllocContexts;
+  // Store the host allocator context. It does not depend on any device.
+  std::unique_ptr<USMAllocContext> HostMemAllocContext;
+
+  // We need to store all memory allocations in the context because there could
+  // be kernels with indirect access. Kernels with indirect access start to
+  // reference all existing memory allocations at the time when they are
+  // submitted to the device. Referenced memory allocations can be released only
+  // when kernel has finished execution.
+  std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
 private:
   // Following member variables are used to manage assignment of events
@@ -295,14 +376,21 @@ private:
 const pi_uint32 DynamicBatchStartSize = 4;
 
 struct _pi_queue : _pi_object {
-  _pi_queue(ze_command_queue_handle_t Queue, pi_context Context,
-            pi_device Device, pi_uint32 BatchSize)
-      : ZeCommandQueue{Queue}, Context{Context}, Device{Device},
+  _pi_queue(ze_command_queue_handle_t Queue,
+            ze_command_queue_handle_t CopyQueue, pi_context Context,
+            pi_device Device, pi_uint32 BatchSize,
+            pi_queue_properties PiQueueProperties = 0)
+      : ZeComputeCommandQueue{Queue},
+        ZeCopyCommandQueue{CopyQueue}, Context{Context}, Device{Device},
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
-        UseDynamicBatching{BatchSize == 0} {}
+        UseDynamicBatching{BatchSize == 0},
+        PiQueueProperties(PiQueueProperties) {}
 
-  // Level Zero command queue handle.
-  ze_command_queue_handle_t ZeCommandQueue;
+  // Level Zero compute command queue handle.
+  ze_command_queue_handle_t ZeComputeCommandQueue;
+  // Level Zero copy command command queue handle. This might not be available
+  // depending on user preference and/or target device.
+  ze_command_queue_handle_t ZeCopyCommandQueue;
 
   // Keeps the PI context to which this queue belongs.
   // This field is only set at _pi_queue creation time, and cannot change.
@@ -321,10 +409,24 @@ struct _pi_queue : _pi_object {
   // needed/used for the queue data structures.
   std::mutex PiQueueMutex;
 
+  // Keeps track of the event associated with the last enqueued command into
+  // this queue. this is used to add dependency with the last command to add
+  // in-order semantics and updated with the latest event each time a new
+  // command is enqueued.
+  pi_event LastCommandEvent = nullptr;
+
   // Open command list field for batching commands into this queue.
   ze_command_list_handle_t ZeOpenCommandList = {nullptr};
   ze_fence_handle_t ZeOpenCommandListFence = {nullptr};
   pi_uint32 ZeOpenCommandListSize = {0};
+
+  // Kernel is not necessarily submitted for execution during
+  // piEnqueueKernelLaunch, it may be batched. That's why we need to save the
+  // list of kernels which is going to be submitted but have not been submitted
+  // yet. This is needed to capture memory allocations for each kernel with
+  // indirect access in the list at the moment when kernel is really submitted
+  // for execution.
+  std::vector<pi_kernel> KernelsToBeSubmitted;
 
   // Approximate number of commands that are allowed to be batched for
   // this queue.
@@ -355,15 +457,25 @@ struct _pi_queue : _pi_object {
     // was not yet signaled at the time all events in that list were already
     // completed (we are polling the fence at events completion). The fence
     // may be still "in-use" due to sporadic delay in HW.
-    //
     bool InUse;
+    // Record if the associated command list (if any) is a "copy" command list.
+    bool IsCopyCommandList;
   } command_list_fence_t;
 
   // Map of all Command lists created with their associated Fence used for
   // tracking when the command list is available for use again.
-  typedef std::map<ze_command_list_handle_t, command_list_fence_t>
+  typedef std::unordered_map<ze_command_list_handle_t, command_list_fence_t>
       command_list_fence_map_t;
   command_list_fence_map_t ZeCommandListFenceMap;
+
+  // return 'true' if a command list is a "copy" command list
+  bool getZeCommandListIsCopyList(ze_command_list_handle_t ZeCommandList);
+
+  // Keeps the properties of this queue.
+  pi_queue_properties PiQueueProperties;
+
+  // Returns true if the queue is a in-order queue.
+  bool isInOrderQueue() const;
 
   // Returns true if any commands for this queue are allowed to
   // be batched together.
@@ -390,13 +502,15 @@ struct _pi_queue : _pi_object {
   // The "IsBlocking" tells if the wait for completion is required.
   // The "ZeFence" passed is used to track when the command list passed
   // has completed execution on the device and can be reused.
+  // The Event parameter is the pi_event that the last command in the command
+  // list will signal upon its completion.
   // If OKToBatchCommand is true, then this command list may be executed
   // immediately, or it may be left open for other future command to be
   // batched into.
   // If IsBlocking is true, then batching will not be allowed regardless
   // of the value of OKToBatchCommand
   pi_result executeCommandList(ze_command_list_handle_t ZeCommandList,
-                               ze_fence_handle_t ZeFence,
+                               ze_fence_handle_t ZeFence, pi_event Event,
                                bool IsBlocking = false,
                                bool OKToBatchCommand = false);
 
@@ -775,13 +889,55 @@ struct _pi_program : _pi_object {
 
 struct _pi_kernel : _pi_object {
   _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program)
-      : ZeKernel{Kernel}, Program{Program} {}
+      : ZeKernel{Kernel}, Program{Program}, MemAllocs{}, SubmissionsCount{0} {}
+
+  // Returns true if kernel has indirect access, false otherwise.
+  bool hasIndirectAccess() {
+    // Currently indirect access flag is set for all kernels and there is no API
+    // to check if kernel actually indirectly access smth.
+    return true;
+  }
 
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
 
   // Keep the program of the kernel.
   pi_program Program;
+
+  // Hash function object for the unordered_set below.
+  struct Hash {
+    size_t operator()(const std::pair<void *const, MemAllocRecord> *P) const {
+      return std::hash<void *>()(P->first);
+    }
+  };
+
+  // If kernel has indirect access we need to make a snapshot of all existing
+  // memory allocations to defer deletion of these memory allocations to the
+  // moment when kernel execution has finished.
+  // We store pointers to the elements because pointers are not invalidated by
+  // insert/delete for std::unordered_map (iterators are invalidated). We need
+  // to take a snapshot instead of just reference-counting the allocations,
+  // because picture of active allocations can change during kernel execution
+  // (new allocations can be added) and we need to know which memory allocations
+  // were retained by this kernel to release them (and don't touch new
+  // allocations) at kernel completion. Same kernel may be submitted several
+  // times and retained allocations may be different at each submission. That's
+  // why we have a set of memory allocations here and increase ref count only
+  // once even if kernel is submitted many times. We don't want to know how many
+  // times and which allocations were retained by each submission. We release
+  // all allocations in the set only when SubmissionsCount == 0.
+  std::unordered_set<std::pair<void *const, MemAllocRecord> *, Hash> MemAllocs;
+
+  // Counter to track the number of submissions of the kernel.
+  // When this value is zero, it means that kernel is not submitted for an
+  // execution - at this time we can release memory allocations referenced by
+  // this kernel. We can do this when RefCount turns to 0 but it is too late
+  // because kernels are cached in the context by SYCL RT and they are released
+  // only during context object destruction. Regular RefCount is not usable to
+  // track submissions because user/SYCL RT can retain kernel object any number
+  // of times. And that's why there is no value of RefCount which can mean zero
+  // submissions.
+  std::atomic<pi_uint32> SubmissionsCount;
 };
 
 struct _pi_sampler : _pi_object {

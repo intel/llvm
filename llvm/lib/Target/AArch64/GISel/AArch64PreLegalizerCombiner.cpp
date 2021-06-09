@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "AArch64GlobalISelUtils.h"
 #include "AArch64TargetMachine.h"
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
@@ -118,6 +119,8 @@ static bool matchFoldGlobalOffset(MachineInstr &MI, MachineRegisterInfo &MRI,
   MachineFunction &MF = *MI.getMF();
   auto &GlobalOp = MI.getOperand(1);
   auto *GV = GlobalOp.getGlobal();
+  if (GV->isThreadLocal())
+    return false;
 
   // Don't allow anything that could represent offsets etc.
   if (MF.getSubtarget<AArch64Subtarget>().ClassifyGlobalReference(
@@ -263,7 +266,8 @@ bool AArch64PreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
   if (Generated.tryCombineAll(Observer, MI, B))
     return true;
 
-  switch (MI.getOpcode()) {
+  unsigned Opc = MI.getOpcode();
+  switch (Opc) {
   case TargetOpcode::G_CONCAT_VECTORS:
     return Helper.tryCombineConcatVectors(MI);
   case TargetOpcode::G_SHUFFLE_VECTOR:
@@ -275,7 +279,11 @@ bool AArch64PreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
     // heuristics decide.
     unsigned MaxLen = EnableOpt ? 0 : 32;
     // Try to inline memcpy type calls if optimizations are enabled.
-    return !EnableMinSize ? Helper.tryCombineMemCpyFamily(MI, MaxLen) : false;
+    if (Helper.tryCombineMemCpyFamily(MI, MaxLen))
+      return true;
+    if (Opc == TargetOpcode::G_MEMSET)
+      return llvm::AArch64GISelUtils::tryEmitBZero(MI, B, EnableMinSize);
+    return false;
   }
   }
 
@@ -293,15 +301,13 @@ class AArch64PreLegalizerCombiner : public MachineFunctionPass {
 public:
   static char ID;
 
-  AArch64PreLegalizerCombiner(bool IsOptNone = false);
+  AArch64PreLegalizerCombiner();
 
   StringRef getPassName() const override { return "AArch64PreLegalizerCombiner"; }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
-private:
-  bool IsOptNone;
 };
 } // end anonymous namespace
 
@@ -311,17 +317,15 @@ void AArch64PreLegalizerCombiner::getAnalysisUsage(AnalysisUsage &AU) const {
   getSelectionDAGFallbackAnalysisUsage(AU);
   AU.addRequired<GISelKnownBitsAnalysis>();
   AU.addPreserved<GISelKnownBitsAnalysis>();
-  if (!IsOptNone) {
-    AU.addRequired<MachineDominatorTree>();
-    AU.addPreserved<MachineDominatorTree>();
-  }
+  AU.addRequired<MachineDominatorTree>();
+  AU.addPreserved<MachineDominatorTree>();
   AU.addRequired<GISelCSEAnalysisWrapperPass>();
   AU.addPreserved<GISelCSEAnalysisWrapperPass>();
   MachineFunctionPass::getAnalysisUsage(AU);
 }
 
-AArch64PreLegalizerCombiner::AArch64PreLegalizerCombiner(bool IsOptNone)
-    : MachineFunctionPass(ID), IsOptNone(IsOptNone) {
+AArch64PreLegalizerCombiner::AArch64PreLegalizerCombiner()
+    : MachineFunctionPass(ID) {
   initializeAArch64PreLegalizerCombinerPass(*PassRegistry::getPassRegistry());
 }
 
@@ -340,8 +344,7 @@ bool AArch64PreLegalizerCombiner::runOnMachineFunction(MachineFunction &MF) {
   bool EnableOpt =
       MF.getTarget().getOptLevel() != CodeGenOpt::None && !skipFunction(F);
   GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
-  MachineDominatorTree *MDT =
-      IsOptNone ? nullptr : &getAnalysis<MachineDominatorTree>();
+  MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTree>();
   AArch64PreLegalizerCombinerInfo PCInfo(EnableOpt, F.hasOptSize(),
                                          F.hasMinSize(), KB, MDT);
   Combiner C(PCInfo, &TPC);
@@ -361,7 +364,7 @@ INITIALIZE_PASS_END(AArch64PreLegalizerCombiner, DEBUG_TYPE,
 
 
 namespace llvm {
-FunctionPass *createAArch64PreLegalizerCombiner(bool IsOptNone) {
-  return new AArch64PreLegalizerCombiner(IsOptNone);
+FunctionPass *createAArch64PreLegalizerCombiner() {
+  return new AArch64PreLegalizerCombiner();
 }
 } // end namespace llvm

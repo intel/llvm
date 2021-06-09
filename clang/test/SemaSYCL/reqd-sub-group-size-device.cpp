@@ -10,11 +10,22 @@ queue q;
 // expected-note@-1 {{conflicting attribute is here}}
 [[intel::reqd_sub_group_size(32)]] void baz() {} // expected-note {{conflicting attribute is here}}
 
+// No diagnostic is emitted because the arguments match.
 [[intel::reqd_sub_group_size(12)]] void bar();
 [[intel::reqd_sub_group_size(12)]] void bar() {} // OK
 
+// No diagnostic because the attributes are synonyms with identical behavior.
+[[sycl::reqd_sub_group_size(12)]] void bar(); // OK
+
+// Diagnostic is emitted because the arguments mismatch.
 [[intel::reqd_sub_group_size(12)]] void quux(); // expected-note {{previous attribute is here}}
-[[intel::reqd_sub_group_size(100)]] void quux(); // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
+[[intel::reqd_sub_group_size(100)]] void quux(); // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
+[[sycl::reqd_sub_group_size(200)]] void quux(); // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
+
+#ifdef TRIGGER_ERROR
+// Make sure there's at least one argument passed.
+[[sycl::reqd_sub_group_size]] void quibble(); // expected-error {{'reqd_sub_group_size' attribute takes one argument}}
+#endif // TRIGGER_ERROR
 
 class Functor16 {
 public:

@@ -890,6 +890,12 @@ def imm0_63 : Operand<i64>, ImmLeaf<i64, [{
   let ParserMatchClass = Imm0_63Operand;
 }
 
+def timm0_63 : Operand<i64>, TImmLeaf<i64, [{
+  return ((uint64_t)Imm) < 64;
+}]> {
+  let ParserMatchClass = Imm0_63Operand;
+}
+
 // imm0_31 predicate - True if the immediate is in the range [0,31]
 def imm0_31 : Operand<i64>, ImmLeaf<i64, [{
   return ((uint64_t)Imm) < 32;
@@ -1149,36 +1155,44 @@ def gi_arith_extended_reg32to64_i64 :
     GIComplexPatternEquiv<arith_extended_reg32to64_i64>;
 
 // Floating-point immediate.
-def fpimm16 : Operand<f16>,
-              FPImmLeaf<f16, [{
-      return AArch64_AM::getFP16Imm(Imm) != -1;
-    }], SDNodeXForm<fpimm, [{
+
+def fpimm16XForm : SDNodeXForm<fpimm, [{
       APFloat InVal = N->getValueAPF();
       uint32_t enc = AArch64_AM::getFP16Imm(InVal);
       return CurDAG->getTargetConstant(enc, SDLoc(N), MVT::i32);
-    }]>> {
-  let ParserMatchClass = FPImmOperand;
-  let PrintMethod = "printFPImmOperand";
-}
-def fpimm32 : Operand<f32>,
-              FPImmLeaf<f32, [{
-      return AArch64_AM::getFP32Imm(Imm) != -1;
-    }], SDNodeXForm<fpimm, [{
+    }]>;
+
+def fpimm32XForm : SDNodeXForm<fpimm, [{
       APFloat InVal = N->getValueAPF();
       uint32_t enc = AArch64_AM::getFP32Imm(InVal);
       return CurDAG->getTargetConstant(enc, SDLoc(N), MVT::i32);
-    }]>> {
+    }]>;
+
+def fpimm64XForm : SDNodeXForm<fpimm, [{
+      APFloat InVal = N->getValueAPF();
+      uint32_t enc = AArch64_AM::getFP64Imm(InVal);
+      return CurDAG->getTargetConstant(enc, SDLoc(N), MVT::i32);
+    }]>;
+
+def fpimm16 : Operand<f16>,
+              FPImmLeaf<f16, [{
+      return AArch64_AM::getFP16Imm(Imm) != -1;
+    }], fpimm16XForm> {
+  let ParserMatchClass = FPImmOperand;
+  let PrintMethod = "printFPImmOperand";
+}
+
+def fpimm32 : Operand<f32>,
+              FPImmLeaf<f32, [{
+      return AArch64_AM::getFP32Imm(Imm) != -1;
+    }], fpimm32XForm> {
   let ParserMatchClass = FPImmOperand;
   let PrintMethod = "printFPImmOperand";
 }
 def fpimm64 : Operand<f64>,
               FPImmLeaf<f64, [{
       return AArch64_AM::getFP64Imm(Imm) != -1;
-    }], SDNodeXForm<fpimm, [{
-      APFloat InVal = N->getValueAPF();
-      uint32_t enc = AArch64_AM::getFP64Imm(InVal);
-      return CurDAG->getTargetConstant(enc, SDLoc(N), MVT::i32);
-    }]>> {
+    }], fpimm64XForm> {
   let ParserMatchClass = FPImmOperand;
   let PrintMethod = "printFPImmOperand";
 }
@@ -1191,6 +1205,13 @@ def fpimm8 : Operand<i32> {
 def fpimm0 : FPImmLeaf<fAny, [{
   return Imm.isExactlyValue(+0.0);
 }]>;
+
+def gi_fpimm16 : GICustomOperandRenderer<"renderFPImm16">,
+  GISDNodeXFormEquiv<fpimm16XForm>;
+def gi_fpimm32 : GICustomOperandRenderer<"renderFPImm32">,
+  GISDNodeXFormEquiv<fpimm32XForm>;
+def gi_fpimm64 : GICustomOperandRenderer<"renderFPImm64">,
+  GISDNodeXFormEquiv<fpimm64XForm>;
 
 // Vector lane operands
 class AsmVectorIndex<int Min, int Max, string NamePrefix=""> : AsmOperandClass {
@@ -1462,7 +1483,7 @@ def btihint_op : Operand<i32> {
     // "bti" is an alias to "hint" only for certain values of CRm:Op2 fields.
     if (!MCOp.isImm())
       return false;
-    return AArch64BTIHint::lookupBTIByEncoding((MCOp.getImm() ^ 32) >> 1) != nullptr;
+    return AArch64BTIHint::lookupBTIByEncoding(MCOp.getImm() ^ 32) != nullptr;
   }];
 }
 
@@ -1471,6 +1492,11 @@ class MRSI : RtSystemI<1, (outs GPR64:$Rt), (ins mrs_sysreg_op:$systemreg),
   bits<16> systemreg;
   let Inst{20-5} = systemreg;
   let DecoderNamespace = "Fallback";
+  // The MRS is set as a NZCV setting instruction. Not all MRS instructions
+  // require doing this. The alternative was to explicitly model each one, but
+  // it feels like it is unnecessary because it seems there are no negative
+  // consequences setting these flags for all.
+  let Defs = [NZCV];
 }
 
 // FIXME: Some of these def NZCV, others don't. Best way to model that?
@@ -1931,7 +1957,8 @@ class OneXRegData<bits<3> opc, string asm, SDPatternOperator node>
 }
 
 class SignAuthOneData<bits<3> opcode_prefix, bits<2> opcode, string asm>
-  : I<(outs GPR64:$Rd), (ins GPR64sp:$Rn), asm, "\t$Rd, $Rn", "",
+  : I<(outs GPR64:$Rd), (ins GPR64:$src, GPR64sp:$Rn), asm, "\t$Rd, $Rn",
+      "$Rd = $src",
       []>,
     Sched<[WriteI, ReadI]> {
   bits<5> Rd;
@@ -1944,7 +1971,8 @@ class SignAuthOneData<bits<3> opcode_prefix, bits<2> opcode, string asm>
 }
 
 class SignAuthZero<bits<3> opcode_prefix, bits<2> opcode, string asm>
-  : I<(outs GPR64:$Rd), (ins), asm, "\t$Rd", "", []>, Sched<[]> {
+  : I<(outs GPR64:$Rd), (ins GPR64:$src), asm, "\t$Rd", "$Rd = $src",
+      []>, Sched<[]> {
   bits<5> Rd;
   let Inst{31-15} = 0b11011010110000010;
   let Inst{14-12} = opcode_prefix;
@@ -8932,10 +8960,13 @@ multiclass SIMDScalarLShiftD<bit U, bits<5> opc, string asm,
                              SDPatternOperator OpNode> {
   def d : BaseSIMDScalarShift<U, opc, {1,?,?,?,?,?,?},
                               FPR64, FPR64, vecshiftL64, asm,
-    [(set (v1i64 FPR64:$Rd),
-       (OpNode (v1i64 FPR64:$Rn), (i32 vecshiftL64:$imm)))]> {
+    [(set (i64 FPR64:$Rd),
+       (OpNode (i64 FPR64:$Rn), (i32 vecshiftL64:$imm)))]> {
     let Inst{21-16} = imm{5-0};
   }
+
+  def : Pat<(v1i64 (OpNode (v1i64 FPR64:$Rn), (i32 vecshiftL64:$imm))),
+            (!cast<Instruction>(NAME # "d") FPR64:$Rn, vecshiftL64:$imm)>;
 }
 
 let mayStore = 0, mayLoad = 0, hasSideEffects = 0 in
@@ -10496,7 +10527,7 @@ multiclass SIMDIndexedSQRDMLxHSDTied<bit U, bits<4> opc, string asm,
                                                  (v2i32 (AArch64duplane32
                                                           (v4i32 V128:$Rm),
                                                           VectorIndexS:$idx)))),
-                                      (i32 0))),
+                                      (i64 0))),
                                (i64 0))))),
             (EXTRACT_SUBREG
                 (v2i32 (!cast<Instruction>(NAME # v2i32_indexed)

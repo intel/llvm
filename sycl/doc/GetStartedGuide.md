@@ -331,7 +331,7 @@ AOT compiler for each device type:
 #### CPU
 
 * CPU AOT compiler `opencl-aot` is enabled by default. For more, see
-[opencl-aot documentation](../../opencl-aot/README.md).
+[opencl-aot documentation](../../opencl/opencl-aot/README.md).
 
 #### Accelerator
 
@@ -639,8 +639,9 @@ which contains all the symbols required.
 
 ## C++ standard
 
-* DPC++ runtime and headers require C++14 at least.
-* DPC++ compiler is building apps as C++17 apps by default.
+* DPC++ runtime and headers require C++17 at least.
+* DPC++ compiler builds apps as C++17 apps by default. Higher versions of
+  standard are supported as well.
 
 ## Known Issues and Limitations
 
@@ -666,8 +667,8 @@ which contains all the symbols required.
 
 * DPC++ specification:
 [https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
-* SYCL\* 1.2.1 specification:
-[www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf](https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf)
+* SYCL\* 2020 specification:
+[https://www.khronos.org/registry/SYCL/](https://www.khronos.org/registry/SYCL/)
 * oneAPI Level Zero specification:
 [https://spec.oneapi.com/versions/latest/oneL0/index.html](https://spec.oneapi.com/versions/latest/oneL0/index.html)
 

@@ -30,7 +30,7 @@ static ThreadContextBase *CreateThreadContext(u32 tid) {
   return new (mem) ThreadContext(tid);
 }
 
-static const uptr kMaxThreads = 1 << 13;
+static const uptr kMaxThreads = 1 << 22;  // 4M
 static const uptr kThreadQuarantineSize = 64;
 
 void InitializeThreadRegistry() {
@@ -94,7 +94,7 @@ void ThreadJoin(u32 tid) {
 }
 
 void EnsureMainThreadIDIsCorrect() {
-  if (GetCurrentThread() == 0)
+  if (GetCurrentThread() == kMainTid)
     CurrentThreadContext()->os_id = GetTid();
 }
 

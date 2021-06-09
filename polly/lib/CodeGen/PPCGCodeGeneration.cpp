@@ -1317,12 +1317,13 @@ void GPUNodeBuilder::createKernelCopy(ppcg_kernel_stmt *KernelStmt) {
   isl_ast_expr *Index = isl_ast_expr_copy(KernelStmt->u.c.index);
   Index = isl_ast_expr_address_of(Index);
   Value *GlobalAddr = ExprBuilder.create(Index);
+  Type *IndexTy = cast<PointerType>(GlobalAddr->getType())->getElementType();
 
   if (KernelStmt->u.c.read) {
-    LoadInst *Load = Builder.CreateLoad(GlobalAddr, "shared.read");
+    LoadInst *Load = Builder.CreateLoad(IndexTy, GlobalAddr, "shared.read");
     Builder.CreateStore(Load, LocalAddr);
   } else {
-    LoadInst *Load = Builder.CreateLoad(LocalAddr, "shared.write");
+    LoadInst *Load = Builder.CreateLoad(IndexTy, LocalAddr, "shared.write");
     Builder.CreateStore(Load, GlobalAddr);
   }
 }
@@ -2177,7 +2178,7 @@ void GPUNodeBuilder::prepareKernelArguments(ppcg_kernel *Kernel, Function *FN) {
     if (!gpu_array_is_read_only_scalar(&Prog->array[i])) {
       Type *TypePtr = SAI->getElementType()->getPointerTo();
       Value *TypedArgPtr = Builder.CreatePointerCast(Val, TypePtr);
-      Val = Builder.CreateLoad(TypedArgPtr);
+      Val = Builder.CreateLoad(SAI->getElementType(), TypedArgPtr);
     }
 
     Value *Alloca = BlockGen.getOrCreateAlloca(SAI);
@@ -2214,7 +2215,7 @@ void GPUNodeBuilder::finalizeKernelArguments(ppcg_kernel *Kernel) {
     Value *ArgPtr = &*Arg;
     Type *TypePtr = SAI->getElementType()->getPointerTo();
     Value *TypedArgPtr = Builder.CreatePointerCast(ArgPtr, TypePtr);
-    Value *Val = Builder.CreateLoad(Alloca);
+    Value *Val = Builder.CreateLoad(SAI->getElementType(), Alloca);
     Builder.CreateStore(Val, TypedArgPtr);
     StoredScalar = true;
 
@@ -3505,9 +3506,11 @@ public:
     Builder.SetInsertPoint(SplitBlock->getTerminator());
 
     isl_ast_build *Build = isl_ast_build_alloc(S->getIslCtx().get());
-    isl_ast_expr *Condition = IslAst::buildRunCondition(*S, Build);
+    isl::ast_expr Condition =
+        IslAst::buildRunCondition(*S, isl::manage_copy(Build));
     isl_ast_expr *SufficientCompute = createSufficientComputeCheck(*S, Build);
-    Condition = isl_ast_expr_and(Condition, SufficientCompute);
+    Condition =
+        isl::manage(isl_ast_expr_and(Condition.release(), SufficientCompute));
     isl_ast_build_free(Build);
 
     // preload invariant loads. Note: This should happen before the RTC
@@ -3534,7 +3537,6 @@ public:
 
       DT->changeImmediateDominator(MergeBlock, ExitingBB);
       DT->eraseNode(ExitingBlock);
-      isl_ast_expr_free(Condition);
       isl_ast_node_free(Root);
     } else {
 
@@ -3555,7 +3557,7 @@ public:
       }
 
       NodeBuilder.addParameters(S->getContext().release());
-      Value *RTC = NodeBuilder.createRTC(Condition);
+      Value *RTC = NodeBuilder.createRTC(Condition.release());
       Builder.GetInsertBlock()->getTerminator()->setOperand(0, RTC);
 
       Builder.SetInsertPoint(&*StartBlock->begin());

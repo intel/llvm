@@ -18,19 +18,20 @@
 #if defined(_WIN32)
 #include "lldb/Host/windows/ConnectionGenericFileWindows.h"
 #endif
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string>
 
 using namespace lldb;
 using namespace lldb_private;
 
-ScriptInterpreter::ScriptInterpreter(Debugger &debugger,
-                                     lldb::ScriptLanguage script_lang)
-    : m_debugger(debugger), m_script_lang(script_lang) {}
-
-ScriptInterpreter::~ScriptInterpreter() {}
+ScriptInterpreter::ScriptInterpreter(
+    Debugger &debugger, lldb::ScriptLanguage script_lang,
+    lldb::ScriptedProcessInterfaceUP scripted_process_interface_up)
+    : m_debugger(debugger), m_script_lang(script_lang),
+      m_scripted_process_interface_up(
+          std::move(scripted_process_interface_up)) {}
 
 void ScriptInterpreter::CollectDataForBreakpointCommandCallback(
     std::vector<BreakpointOptions *> &bp_options_vec,
@@ -69,6 +70,19 @@ std::string ScriptInterpreter::LanguageToString(lldb::ScriptLanguage language) {
     return "Unknown";
   }
   llvm_unreachable("Unhandled ScriptInterpreter!");
+}
+
+lldb::DataExtractorSP
+ScriptInterpreter::GetDataExtractorFromSBData(const lldb::SBData &data) const {
+  return data.m_opaque_sp;
+}
+
+Status
+ScriptInterpreter::GetStatusFromSBError(const lldb::SBError &error) const {
+  if (error.m_opaque_up)
+    return *error.m_opaque_up.get();
+
+  return Status();
 }
 
 lldb::ScriptLanguage

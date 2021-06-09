@@ -12,9 +12,11 @@
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/FunctionCallUtils.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/Support/MathExtras.h"
 #include "mlir/Target/LLVMIR/TypeTranslation.h"
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -103,66 +105,6 @@ static SmallVector<int64_t, 4> getI64SubArray(ArrayAttr arrayAttr,
   return res;
 }
 
-static Value createCastToIndexLike(ConversionPatternRewriter &rewriter,
-                                   Location loc, Type targetType, Value value) {
-  if (targetType == value.getType())
-    return value;
-
-  bool targetIsIndex = targetType.isIndex();
-  bool valueIsIndex = value.getType().isIndex();
-  if (targetIsIndex ^ valueIsIndex)
-    return rewriter.create<IndexCastOp>(loc, targetType, value);
-
-  auto targetIntegerType = targetType.dyn_cast<IntegerType>();
-  auto valueIntegerType = value.getType().dyn_cast<IntegerType>();
-  assert(targetIntegerType && valueIntegerType &&
-         "unexpected cast between types other than integers and index");
-  assert(targetIntegerType.getSignedness() == valueIntegerType.getSignedness());
-
-  if (targetIntegerType.getWidth() > valueIntegerType.getWidth())
-    return rewriter.create<SignExtendIOp>(loc, targetIntegerType, value);
-  return rewriter.create<TruncateIOp>(loc, targetIntegerType, value);
-}
-
-// Helper that returns a vector comparison that constructs a mask:
-//     mask = [0,1,..,n-1] + [o,o,..,o] < [b,b,..,b]
-//
-// NOTE: The LLVM::GetActiveLaneMaskOp intrinsic would provide an alternative,
-//       much more compact, IR for this operation, but LLVM eventually
-//       generates more elaborate instructions for this intrinsic since it
-//       is very conservative on the boundary conditions.
-static Value buildVectorComparison(ConversionPatternRewriter &rewriter,
-                                   Operation *op, bool enableIndexOptimizations,
-                                   int64_t dim, Value b, Value *off = nullptr) {
-  auto loc = op->getLoc();
-  // If we can assume all indices fit in 32-bit, we perform the vector
-  // comparison in 32-bit to get a higher degree of SIMD parallelism.
-  // Otherwise we perform the vector comparison using 64-bit indices.
-  Value indices;
-  Type idxType;
-  if (enableIndexOptimizations) {
-    indices = rewriter.create<ConstantOp>(
-        loc, rewriter.getI32VectorAttr(
-                 llvm::to_vector<4>(llvm::seq<int32_t>(0, dim))));
-    idxType = rewriter.getI32Type();
-  } else {
-    indices = rewriter.create<ConstantOp>(
-        loc, rewriter.getI64VectorAttr(
-                 llvm::to_vector<4>(llvm::seq<int64_t>(0, dim))));
-    idxType = rewriter.getI64Type();
-  }
-  // Add in an offset if requested.
-  if (off) {
-    Value o = createCastToIndexLike(rewriter, loc, idxType, *off);
-    Value ov = rewriter.create<SplatOp>(loc, indices.getType(), o);
-    indices = rewriter.create<AddIOp>(loc, ov, indices);
-  }
-  // Construct the vector comparison.
-  Value bound = createCastToIndexLike(rewriter, loc, idxType, b);
-  Value bounds = rewriter.create<SplatOp>(loc, indices.getType(), bound);
-  return rewriter.create<CmpIOp>(loc, CmpIPredicate::slt, indices, bounds);
-}
-
 // Helper that returns data layout alignment of a memref.
 LogicalResult getMemRefAlignment(LLVMTypeConverter &typeConverter,
                                  MemRefType memrefType, unsigned &align) {
@@ -178,46 +120,66 @@ LogicalResult getMemRefAlignment(LLVMTypeConverter &typeConverter,
   return success();
 }
 
-// Helper that returns the base address of a memref.
-static LogicalResult getBase(ConversionPatternRewriter &rewriter, Location loc,
-                             Value memref, MemRefType memRefType, Value &base) {
-  // Inspect stride and offset structure.
-  //
-  // TODO: flat memory only for now, generalize
-  //
+// Return the minimal alignment value that satisfies all the AssumeAlignment
+// uses of `value`. If no such uses exist, return 1.
+static unsigned getAssumedAlignment(Value value) {
+  unsigned align = 1;
+  for (auto &u : value.getUses()) {
+    Operation *owner = u.getOwner();
+    if (auto op = dyn_cast<memref::AssumeAlignmentOp>(owner))
+      align = mlir::lcm(align, op.alignment());
+  }
+  return align;
+}
+// Helper that returns data layout alignment of a memref associated with a
+// transfer op, including additional information from assume_alignment calls
+// on the source of the transfer
+LogicalResult getTransferOpAlignment(LLVMTypeConverter &typeConverter,
+                                     VectorTransferOpInterface xfer,
+                                     unsigned &align) {
+  if (failed(getMemRefAlignment(
+          typeConverter, xfer.getShapedType().cast<MemRefType>(), align)))
+    return failure();
+  align = std::max(align, getAssumedAlignment(xfer.source()));
+  return success();
+}
+
+// Helper that returns data layout alignment of a memref associated with a
+// load, store, scatter, or gather op, including additional information from
+// assume_alignment calls on the source of the transfer
+template <class OpAdaptor>
+LogicalResult getMemRefOpAlignment(LLVMTypeConverter &typeConverter,
+                                   OpAdaptor op, unsigned &align) {
+  if (failed(getMemRefAlignment(typeConverter, op.getMemRefType(), align)))
+    return failure();
+  align = std::max(align, getAssumedAlignment(op.base()));
+  return success();
+}
+
+// Add an index vector component to a base pointer. This almost always succeeds
+// unless the last stride is non-unit or the memory space is not zero.
+static LogicalResult getIndexedPtrs(ConversionPatternRewriter &rewriter,
+                                    Location loc, Value memref, Value base,
+                                    Value index, MemRefType memRefType,
+                                    VectorType vType, Value &ptrs) {
   int64_t offset;
   SmallVector<int64_t, 4> strides;
   auto successStrides = getStridesAndOffset(memRefType, strides, offset);
-  if (failed(successStrides) || strides.size() != 1 || strides[0] != 1 ||
-      offset != 0 || memRefType.getMemorySpace() != 0)
-    return failure();
-  base = MemRefDescriptor(memref).alignedPtr(rewriter, loc);
-  return success();
-}
-
-// Helper that returns vector of pointers given a memref base with index vector.
-static LogicalResult getIndexedPtrs(ConversionPatternRewriter &rewriter,
-                                    Location loc, Value memref, Value indices,
-                                    MemRefType memRefType, VectorType vType,
-                                    Type iType, Value &ptrs) {
-  Value base;
-  if (failed(getBase(rewriter, loc, memref, memRefType, base)))
+  if (failed(successStrides) || strides.back() != 1 ||
+      memRefType.getMemorySpaceAsInt() != 0)
     return failure();
   auto pType = MemRefDescriptor(memref).getElementPtrType();
   auto ptrsType = LLVM::getFixedVectorType(pType, vType.getDimSize(0));
-  ptrs = rewriter.create<LLVM::GEPOp>(loc, ptrsType, base, indices);
+  ptrs = rewriter.create<LLVM::GEPOp>(loc, ptrsType, base, index);
   return success();
 }
 
-// Casts a strided element pointer to a vector pointer. The vector pointer
-// would always be on address space 0, therefore addrspacecast shall be
-// used when source/dst memrefs are not on address space 0.
+// Casts a strided element pointer to a vector pointer.  The vector pointer
+// will be in the same address space as the incoming memref type.
 static Value castDataPtr(ConversionPatternRewriter &rewriter, Location loc,
                          Value ptr, MemRefType memRefType, Type vt) {
-  auto pType = LLVM::LLVMPointerType::get(vt);
-  if (memRefType.getMemorySpace() == 0)
-    return rewriter.create<LLVM::BitcastOp>(loc, pType, ptr);
-  return rewriter.create<LLVM::AddrSpaceCastOp>(loc, pType, ptr);
+  auto pType = LLVM::LLVMPointerType::get(vt, memRefType.getMemorySpaceAsInt());
+  return rewriter.create<LLVM::BitcastOp>(loc, pType, ptr);
 }
 
 static LogicalResult
@@ -226,8 +188,7 @@ replaceTransferOpWithLoadOrStore(ConversionPatternRewriter &rewriter,
                                  TransferReadOp xferOp,
                                  ArrayRef<Value> operands, Value dataPtr) {
   unsigned align;
-  if (failed(getMemRefAlignment(
-          typeConverter, xferOp.getShapedType().cast<MemRefType>(), align)))
+  if (failed(getTransferOpAlignment(typeConverter, xferOp, align)))
     return failure();
   rewriter.replaceOpWithNewOp<LLVM::LoadOp>(xferOp, dataPtr, align);
   return success();
@@ -238,18 +199,16 @@ replaceTransferOpWithMasked(ConversionPatternRewriter &rewriter,
                             LLVMTypeConverter &typeConverter, Location loc,
                             TransferReadOp xferOp, ArrayRef<Value> operands,
                             Value dataPtr, Value mask) {
-  VectorType fillType = xferOp.getVectorType();
-  Value fill = rewriter.create<SplatOp>(loc, fillType, xferOp.padding());
-
   Type vecTy = typeConverter.convertType(xferOp.getVectorType());
   if (!vecTy)
     return failure();
 
-  unsigned align;
-  if (failed(getMemRefAlignment(
-          typeConverter, xferOp.getShapedType().cast<MemRefType>(), align)))
-    return failure();
+  auto adaptor = TransferReadOpAdaptor(operands, xferOp->getAttrDictionary());
+  Value fill = rewriter.create<SplatOp>(loc, vecTy, adaptor.padding());
 
+  unsigned align;
+  if (failed(getTransferOpAlignment(typeConverter, xferOp, align)))
+    return failure();
   rewriter.replaceOpWithNewOp<LLVM::MaskedLoadOp>(
       xferOp, vecTy, dataPtr, mask, ValueRange{fill},
       rewriter.getI32IntegerAttr(align));
@@ -262,10 +221,9 @@ replaceTransferOpWithLoadOrStore(ConversionPatternRewriter &rewriter,
                                  TransferWriteOp xferOp,
                                  ArrayRef<Value> operands, Value dataPtr) {
   unsigned align;
-  if (failed(getMemRefAlignment(
-          typeConverter, xferOp.getShapedType().cast<MemRefType>(), align)))
+  if (failed(getTransferOpAlignment(typeConverter, xferOp, align)))
     return failure();
-  auto adaptor = TransferWriteOpAdaptor(operands);
+  auto adaptor = TransferWriteOpAdaptor(operands, xferOp->getAttrDictionary());
   rewriter.replaceOpWithNewOp<LLVM::StoreOp>(xferOp, adaptor.vector(), dataPtr,
                                              align);
   return success();
@@ -277,11 +235,10 @@ replaceTransferOpWithMasked(ConversionPatternRewriter &rewriter,
                             TransferWriteOp xferOp, ArrayRef<Value> operands,
                             Value dataPtr, Value mask) {
   unsigned align;
-  if (failed(getMemRefAlignment(
-          typeConverter, xferOp.getShapedType().cast<MemRefType>(), align)))
+  if (failed(getTransferOpAlignment(typeConverter, xferOp, align)))
     return failure();
 
-  auto adaptor = TransferWriteOpAdaptor(operands);
+  auto adaptor = TransferWriteOpAdaptor(operands, xferOp->getAttrDictionary());
   rewriter.replaceOpWithNewOp<LLVM::MaskedStoreOp>(
       xferOp, adaptor.vector(), dataPtr, mask,
       rewriter.getI32IntegerAttr(align));
@@ -290,12 +247,12 @@ replaceTransferOpWithMasked(ConversionPatternRewriter &rewriter,
 
 static TransferReadOpAdaptor getTransferOpAdapter(TransferReadOp xferOp,
                                                   ArrayRef<Value> operands) {
-  return TransferReadOpAdaptor(operands);
+  return TransferReadOpAdaptor(operands, xferOp->getAttrDictionary());
 }
 
 static TransferWriteOpAdaptor getTransferOpAdapter(TransferWriteOp xferOp,
                                                    ArrayRef<Value> operands) {
-  return TransferWriteOpAdaptor(operands);
+  return TransferWriteOpAdaptor(operands, xferOp->getAttrDictionary());
 }
 
 namespace {
@@ -412,7 +369,8 @@ public:
 
     // Resolve alignment.
     unsigned align;
-    if (failed(getMemRefAlignment(*this->getTypeConverter(), memRefTy, align)))
+    if (failed(getMemRefOpAlignment(*this->getTypeConverter(), loadOrStoreOp,
+                                    align)))
       return failure();
 
     // Resolve address.
@@ -438,19 +396,20 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = gather->getLoc();
     auto adaptor = vector::GatherOpAdaptor(operands);
+    MemRefType memRefType = gather.getMemRefType();
 
     // Resolve alignment.
     unsigned align;
-    if (failed(getMemRefAlignment(*getTypeConverter(), gather.getMemRefType(),
-                                  align)))
+    if (failed(getMemRefOpAlignment(*getTypeConverter(), gather, align)))
       return failure();
 
-    // Get index ptrs.
-    VectorType vType = gather.getVectorType();
-    Type iType = gather.getIndicesVectorType().getElementType();
+    // Resolve address.
     Value ptrs;
-    if (failed(getIndexedPtrs(rewriter, loc, adaptor.base(), adaptor.indices(),
-                              gather.getMemRefType(), vType, iType, ptrs)))
+    VectorType vType = gather.getVectorType();
+    Value ptr = getStridedElementPtr(loc, memRefType, adaptor.base(),
+                                     adaptor.indices(), rewriter);
+    if (failed(getIndexedPtrs(rewriter, loc, adaptor.base(), ptr,
+                              adaptor.index_vec(), memRefType, vType, ptrs)))
       return failure();
 
     // Replace with the gather intrinsic.
@@ -472,19 +431,20 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = scatter->getLoc();
     auto adaptor = vector::ScatterOpAdaptor(operands);
+    MemRefType memRefType = scatter.getMemRefType();
 
     // Resolve alignment.
     unsigned align;
-    if (failed(getMemRefAlignment(*getTypeConverter(), scatter.getMemRefType(),
-                                  align)))
+    if (failed(getMemRefOpAlignment(*getTypeConverter(), scatter, align)))
       return failure();
 
-    // Get index ptrs.
-    VectorType vType = scatter.getVectorType();
-    Type iType = scatter.getIndicesVectorType().getElementType();
+    // Resolve address.
     Value ptrs;
-    if (failed(getIndexedPtrs(rewriter, loc, adaptor.base(), adaptor.indices(),
-                              scatter.getMemRefType(), vType, iType, ptrs)))
+    VectorType vType = scatter.getVectorType();
+    Value ptr = getStridedElementPtr(loc, memRefType, adaptor.base(),
+                                     adaptor.indices(), rewriter);
+    if (failed(getIndexedPtrs(rewriter, loc, adaptor.base(), ptr,
+                              adaptor.index_vec(), memRefType, vType, ptrs)))
       return failure();
 
     // Replace with the scatter intrinsic.
@@ -510,8 +470,8 @@ public:
 
     // Resolve address.
     auto vtype = typeConverter->convertType(expand.getVectorType());
-    Value ptr = this->getStridedElementPtr(loc, memRefType, adaptor.base(),
-                                           adaptor.indices(), rewriter);
+    Value ptr = getStridedElementPtr(loc, memRefType, adaptor.base(),
+                                     adaptor.indices(), rewriter);
 
     rewriter.replaceOpWithNewOp<LLVM::masked_expandload>(
         expand, vtype, ptr, adaptor.mask(), adaptor.pass_thru());
@@ -533,8 +493,8 @@ public:
     MemRefType memRefType = compress.getMemRefType();
 
     // Resolve address.
-    Value ptr = this->getStridedElementPtr(loc, memRefType, adaptor.base(),
-                                           adaptor.indices(), rewriter);
+    Value ptr = getStridedElementPtr(loc, memRefType, adaptor.base(),
+                                     adaptor.indices(), rewriter);
 
     rewriter.replaceOpWithNewOp<LLVM::masked_compressstore>(
         compress, adaptor.valueToStore(), ptr, adaptor.mask());
@@ -629,33 +589,6 @@ public:
 
 private:
   const bool reassociateFPReductions;
-};
-
-/// Conversion pattern for a vector.create_mask (1-D only).
-class VectorCreateMaskOpConversion
-    : public ConvertOpToLLVMPattern<vector::CreateMaskOp> {
-public:
-  explicit VectorCreateMaskOpConversion(LLVMTypeConverter &typeConv,
-                                        bool enableIndexOpt)
-      : ConvertOpToLLVMPattern<vector::CreateMaskOp>(typeConv),
-        enableIndexOptimizations(enableIndexOpt) {}
-
-  LogicalResult
-  matchAndRewrite(vector::CreateMaskOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto dstType = op.getType();
-    int64_t rank = dstType.getRank();
-    if (rank == 1) {
-      rewriter.replaceOp(
-          op, buildVectorComparison(rewriter, op, enableIndexOptimizations,
-                                    dstType.getDimSize(0), operands[0]));
-      return success();
-    }
-    return failure();
-  }
-
-private:
-  const bool enableIndexOptimizations;
 };
 
 class VectorShuffleOpConversion
@@ -755,6 +688,12 @@ public:
     // Bail if result type cannot be lowered.
     if (!llvmResultType)
       return failure();
+
+    // Extract entire vector. Should be handled by folder, but just to be safe.
+    if (positionArrayAttr.empty()) {
+      rewriter.replaceOp(extractOp, adaptor.vector());
+      return success();
+    }
 
     // One-shot extraction of vector from array (only requires extractvalue).
     if (resultType.isa<VectorType>()) {
@@ -861,6 +800,13 @@ public:
     // Bail if result type cannot be lowered.
     if (!llvmResultType)
       return failure();
+
+    // Overwrite entire vector with value. Should be handled by folder, but
+    // just to be safe.
+    if (positionArrayAttr.empty()) {
+      rewriter.replaceOp(insertOp, adaptor.source());
+      return success();
+    }
 
     // One-shot insertion of a vector into an array (only requires insertvalue).
     if (sourceType.isa<VectorType>()) {
@@ -1022,8 +968,9 @@ public:
 class VectorInsertStridedSliceOpSameRankRewritePattern
     : public OpRewritePattern<InsertStridedSliceOp> {
 public:
-  VectorInsertStridedSliceOpSameRankRewritePattern(MLIRContext *ctx)
-      : OpRewritePattern<InsertStridedSliceOp>(ctx) {
+  using OpRewritePattern<InsertStridedSliceOp>::OpRewritePattern;
+
+  void initialize() {
     // This pattern creates recursive InsertStridedSliceOp, but the recursion is
     // bounded as the rank is strictly decreasing.
     setHasBoundedRewriteRecursion();
@@ -1080,6 +1027,15 @@ public:
   }
 };
 
+/// Return true if the last dimension of the MemRefType has unit stride. Also
+/// return true for memrefs with no strides.
+static bool isLastMemrefDimUnitStride(MemRefType type) {
+  int64_t offset;
+  SmallVector<int64_t> strides;
+  auto successStrides = getStridesAndOffset(type, strides, offset);
+  return succeeded(successStrides) && (strides.empty() || strides.back() == 1);
+}
+
 /// Returns the strides if the memory underlying `memRefType` has a contiguous
 /// static layout.
 static llvm::Optional<SmallVector<int64_t, 4>>
@@ -1100,7 +1056,7 @@ computeContiguousStrides(MemRefType memRefType) {
   // contiguous dynamic shapes in other ways than with just empty/identity
   // layout.
   auto sizes = memRefType.getShape();
-  for (int index = 0, e = strides.size() - 2; index < e; ++index) {
+  for (int index = 0, e = strides.size() - 1; index < e; ++index) {
     if (ShapedType::isDynamic(sizes[index + 1]) ||
         ShapedType::isDynamicStrideOrOffset(strides[index]) ||
         ShapedType::isDynamicStrideOrOffset(strides[index + 1]))
@@ -1190,28 +1146,19 @@ public:
   }
 };
 
-/// Conversion pattern that converts a 1-D vector transfer read/write op in a
-/// sequence of:
-/// 1. Get the source/dst address as an LLVM vector pointer.
-/// 2. Create a vector with linear indices [ 0 .. vector_length - 1 ].
-/// 3. Create an offsetVector = [ offset + 0 .. offset + vector_length - 1 ].
-/// 4. Create a mask where offsetVector is compared against memref upper bound.
-/// 5. Rewrite op as a masked read or write.
+/// Conversion pattern that converts a 1-D vector transfer read/write op into a
+/// a masked or unmasked read/write.
 template <typename ConcreteOp>
 class VectorTransferConversion : public ConvertOpToLLVMPattern<ConcreteOp> {
 public:
-  explicit VectorTransferConversion(LLVMTypeConverter &typeConv,
-                                    bool enableIndexOpt)
-      : ConvertOpToLLVMPattern<ConcreteOp>(typeConv),
-        enableIndexOptimizations(enableIndexOpt) {}
+  using ConvertOpToLLVMPattern<ConcreteOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
   matchAndRewrite(ConcreteOp xferOp, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto adaptor = getTransferOpAdapter(xferOp, operands);
 
-    if (xferOp.getVectorType().getRank() > 1 ||
-        llvm::size(xferOp.indices()) == 0)
+    if (xferOp.getVectorType().getRank() > 1 || xferOp.indices().empty())
       return failure();
     if (xferOp.permutation_map() !=
         AffineMap::getMinorIdentityMap(xferOp.permutation_map().getNumInputs(),
@@ -1221,9 +1168,11 @@ public:
     auto memRefType = xferOp.getShapedType().template dyn_cast<MemRefType>();
     if (!memRefType)
       return failure();
-    // Only contiguous source tensors supported atm.
-    auto strides = computeContiguousStrides(memRefType);
-    if (!strides)
+    // Last dimension must be contiguous. (Otherwise: Use VectorToSCF.)
+    if (!isLastMemrefDimUnitStride(memRefType))
+      return failure();
+    // Out-of-bounds dims are handled by MaterializeTransferMask.
+    if (xferOp.hasOutOfBoundsDim())
       return failure();
 
     auto toLLVMTy = [&](Type t) {
@@ -1254,39 +1203,24 @@ public:
 #endif // ifndef NDEBUG
     }
 
-    // 1. Get the source/dst address as an LLVM vector pointer.
+    // Get the source/dst address as an LLVM vector pointer.
     VectorType vtp = xferOp.getVectorType();
     Value dataPtr = this->getStridedElementPtr(
         loc, memRefType, adaptor.source(), adaptor.indices(), rewriter);
     Value vectorDataPtr =
         castDataPtr(rewriter, loc, dataPtr, memRefType, toLLVMTy(vtp));
 
-    if (!xferOp.isMaskedDim(0))
+    // Rewrite as an unmasked masked read / write.
+    if (!xferOp.mask())
       return replaceTransferOpWithLoadOrStore(rewriter,
                                               *this->getTypeConverter(), loc,
                                               xferOp, operands, vectorDataPtr);
 
-    // 2. Create a vector with linear indices [ 0 .. vector_length - 1 ].
-    // 3. Create offsetVector = [ offset + 0 .. offset + vector_length - 1 ].
-    // 4. Let dim the memref dimension, compute the vector comparison mask:
-    //   [ offset + 0 .. offset + vector_length - 1 ] < [ dim .. dim ]
-    //
-    // TODO: when the leaf transfer rank is k > 1, we need the last `k`
-    //       dimensions here.
-    unsigned vecWidth = LLVM::getVectorNumElements(vtp).getFixedValue();
-    unsigned lastIndex = llvm::size(xferOp.indices()) - 1;
-    Value off = xferOp.indices()[lastIndex];
-    Value dim = rewriter.create<DimOp>(loc, xferOp.source(), lastIndex);
-    Value mask = buildVectorComparison(
-        rewriter, xferOp, enableIndexOptimizations, vecWidth, dim, &off);
-
-    // 5. Rewrite as a masked read / write.
+    // Rewrite as a masked read / write.
     return replaceTransferOpWithMasked(rewriter, *this->getTypeConverter(), loc,
-                                       xferOp, operands, vectorDataPtr, mask);
+                                       xferOp, operands, vectorDataPtr,
+                                       xferOp.mask());
   }
-
-private:
-  const bool enableIndexOptimizations;
 };
 
 class VectorPrintOpConversion : public ConvertOpToLLVMPattern<vector::PrintOp> {
@@ -1437,8 +1371,9 @@ private:
 class VectorExtractStridedSliceOpConversion
     : public OpRewritePattern<ExtractStridedSliceOp> {
 public:
-  VectorExtractStridedSliceOpConversion(MLIRContext *ctx)
-      : OpRewritePattern<ExtractStridedSliceOp>(ctx) {
+  using OpRewritePattern<ExtractStridedSliceOp>::OpRewritePattern;
+
+  void initialize() {
     // This pattern creates recursive ExtractStridedSliceOp, but the recursion
     // is bounded as the rank is strictly decreasing.
     setHasBoundedRewriteRecursion();
@@ -1495,47 +1430,34 @@ public:
 
 /// Populate the given list with patterns that convert from Vector to LLVM.
 void mlir::populateVectorToLLVMConversionPatterns(
-    LLVMTypeConverter &converter, OwningRewritePatternList &patterns,
-    bool reassociateFPReductions, bool enableIndexOptimizations) {
+    LLVMTypeConverter &converter, RewritePatternSet &patterns,
+    bool reassociateFPReductions) {
   MLIRContext *ctx = converter.getDialect()->getContext();
-  // clang-format off
-  patterns.insert<VectorFMAOpNDRewritePattern,
-                  VectorInsertStridedSliceOpDifferentRankRewritePattern,
-                  VectorInsertStridedSliceOpSameRankRewritePattern,
-                  VectorExtractStridedSliceOpConversion>(ctx);
-  patterns.insert<VectorReductionOpConversion>(
-      converter, reassociateFPReductions);
-  patterns.insert<VectorCreateMaskOpConversion,
-                  VectorTransferConversion<TransferReadOp>,
-                  VectorTransferConversion<TransferWriteOp>>(
-      converter, enableIndexOptimizations);
+  patterns.add<VectorFMAOpNDRewritePattern,
+               VectorInsertStridedSliceOpDifferentRankRewritePattern,
+               VectorInsertStridedSliceOpSameRankRewritePattern,
+               VectorExtractStridedSliceOpConversion>(ctx);
+  patterns.add<VectorReductionOpConversion>(converter, reassociateFPReductions);
   patterns
-      .insert<VectorBitCastOpConversion,
-              VectorShuffleOpConversion,
-              VectorExtractElementOpConversion,
-              VectorExtractOpConversion,
-              VectorFMAOp1DConversion,
-              VectorInsertElementOpConversion,
-              VectorInsertOpConversion,
-              VectorPrintOpConversion,
-              VectorTypeCastOpConversion,
-              VectorLoadStoreConversion<vector::LoadOp,
-                                        vector::LoadOpAdaptor>,
-              VectorLoadStoreConversion<vector::MaskedLoadOp,
-                                        vector::MaskedLoadOpAdaptor>,
-              VectorLoadStoreConversion<vector::StoreOp,
-                                        vector::StoreOpAdaptor>,
-              VectorLoadStoreConversion<vector::MaskedStoreOp,
-                                        vector::MaskedStoreOpAdaptor>,
-              VectorGatherOpConversion,
-              VectorScatterOpConversion,
-              VectorExpandLoadOpConversion,
-              VectorCompressStoreOpConversion>(converter);
-  // clang-format on
+      .add<VectorBitCastOpConversion, VectorShuffleOpConversion,
+           VectorExtractElementOpConversion, VectorExtractOpConversion,
+           VectorFMAOp1DConversion, VectorInsertElementOpConversion,
+           VectorInsertOpConversion, VectorPrintOpConversion,
+           VectorTypeCastOpConversion,
+           VectorLoadStoreConversion<vector::LoadOp, vector::LoadOpAdaptor>,
+           VectorLoadStoreConversion<vector::MaskedLoadOp,
+                                     vector::MaskedLoadOpAdaptor>,
+           VectorLoadStoreConversion<vector::StoreOp, vector::StoreOpAdaptor>,
+           VectorLoadStoreConversion<vector::MaskedStoreOp,
+                                     vector::MaskedStoreOpAdaptor>,
+           VectorGatherOpConversion, VectorScatterOpConversion,
+           VectorExpandLoadOpConversion, VectorCompressStoreOpConversion,
+           VectorTransferConversion<TransferReadOp>,
+           VectorTransferConversion<TransferWriteOp>>(converter);
 }
 
 void mlir::populateVectorToLLVMMatrixConversionPatterns(
-    LLVMTypeConverter &converter, OwningRewritePatternList &patterns) {
-  patterns.insert<VectorMatmulOpConversion>(converter);
-  patterns.insert<VectorFlatTransposeOpConversion>(converter);
+    LLVMTypeConverter &converter, RewritePatternSet &patterns) {
+  patterns.add<VectorMatmulOpConversion>(converter);
+  patterns.add<VectorFlatTransposeOpConversion>(converter);
 }

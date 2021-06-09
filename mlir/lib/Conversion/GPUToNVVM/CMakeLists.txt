@@ -4,6 +4,7 @@ add_public_tablegen_target(MLIRGPUToNVVMIncGen)
 
 add_mlir_conversion_library(MLIRGPUToNVVMTransforms
   LowerGpuOpsToNVVMOps.cpp
+  WmmaOpsToNvvm.cpp
 
   DEPENDS
   MLIRConversionPassIncGen
@@ -13,6 +14,7 @@ add_mlir_conversion_library(MLIRGPUToNVVMTransforms
   MLIRGPU
   MLIRGPUToGPURuntimeTransforms
   MLIRLLVMIR
+  MLIRMemRef
   MLIRNVVMIR
   MLIRPass
   MLIRStandardToLLVM

@@ -77,9 +77,9 @@ SlabTuple indexSymbols(ASTContext &AST, std::shared_ptr<Preprocessor> PP,
 
   SymbolCollector Collector(std::move(CollectorOpts));
   Collector.setPreprocessor(PP);
+  index::indexTopLevelDecls(AST, *PP, DeclsToIndex, Collector, IndexOpts);
   if (MacroRefsToIndex)
     Collector.handleMacros(*MacroRefsToIndex);
-  index::indexTopLevelDecls(AST, *PP, DeclsToIndex, Collector, IndexOpts);
 
   const auto &SM = AST.getSourceManager();
   const auto *MainFileEntry = SM.getFileEntryForID(SM.getMainFileID());
@@ -280,11 +280,14 @@ FileSymbols::buildIndex(IndexType Type, DuplicateHandling DuplicateHandle,
     }
     for (const auto &FileAndRefs : RefsSnapshot) {
       RefSlabs.push_back(FileAndRefs.second.Slab);
+      Files.insert(FileAndRefs.first());
       if (FileAndRefs.second.CountReferences)
         MainFileRefs.push_back(RefSlabs.back().get());
     }
-    for (const auto &FileAndRelations : RelationsSnapshot)
+    for (const auto &FileAndRelations : RelationsSnapshot) {
+      Files.insert(FileAndRelations.first());
       RelationSlabs.push_back(FileAndRelations.second);
+    }
 
     if (Version)
       *Version = this->Version;
@@ -460,7 +463,8 @@ void FileIndex::updatePreamble(PathRef Path, llvm::StringRef Version,
 void FileIndex::updateMain(PathRef Path, ParsedAST &AST) {
   auto Contents = indexMainDecls(AST);
   MainFileSymbols.update(
-      Path, std::make_unique<SymbolSlab>(std::move(std::get<0>(Contents))),
+      URI::create(Path).toString(),
+      std::make_unique<SymbolSlab>(std::move(std::get<0>(Contents))),
       std::make_unique<RefSlab>(std::move(std::get<1>(Contents))),
       std::make_unique<RelationSlab>(std::move(std::get<2>(Contents))),
       /*CountReferences=*/true);

@@ -13,6 +13,7 @@
 #include "NVPTXTargetMachine.h"
 #include "NVPTX.h"
 #include "NVPTXAllocaHoisting.h"
+#include "NVPTXAtomicLower.h"
 #include "NVPTXLowerAggrCopies.h"
 #include "NVPTXTargetObjectFile.h"
 #include "NVPTXTargetTransformInfo.h"
@@ -67,6 +68,7 @@ void initializeNVVMIntrRangePass(PassRegistry&);
 void initializeNVVMReflectPass(PassRegistry&);
 void initializeGenericToNVVMPass(PassRegistry&);
 void initializeNVPTXAllocaHoistingPass(PassRegistry &);
+void initializeNVPTXAtomicLowerPass(PassRegistry &);
 void initializeNVPTXAssignValidGlobalNamesPass(PassRegistry&);
 void initializeNVPTXLowerAggrCopiesPass(PassRegistry &);
 void initializeNVPTXLowerArgsPass(PassRegistry &);
@@ -91,6 +93,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeGenericToNVVMPass(PR);
   initializeNVPTXAllocaHoistingPass(PR);
   initializeNVPTXAssignValidGlobalNamesPass(PR);
+  initializeNVPTXAtomicLowerPass(PR);
   initializeNVPTXLowerArgsPass(PR);
   initializeNVPTXLowerAllocaPass(PR);
   initializeNVPTXLowerAggrCopiesPass(PR);
@@ -215,8 +218,7 @@ void NVPTXTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
     });
 }
 
-void NVPTXTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB,
-                                                      bool DebugPassManager) {
+void NVPTXTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
   PB.registerPipelineParsingCallback(
       [](StringRef PassName, FunctionPassManager &PM,
          ArrayRef<PassBuilder::PipelineElement>) {
@@ -232,9 +234,8 @@ void NVPTXTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB,
       });
 
   PB.registerPipelineStartEPCallback(
-      [this, DebugPassManager](ModulePassManager &PM,
-                               PassBuilder::OptimizationLevel Level) {
-        FunctionPassManager FPM(DebugPassManager);
+      [this](ModulePassManager &PM, PassBuilder::OptimizationLevel Level) {
+        FunctionPassManager FPM;
         FPM.addPass(NVVMReflectPass(Subtarget.getSmVersion()));
         // FIXME: NVVMIntrRangePass is causing numerical discrepancies,
         // investigate and re-enable.
@@ -261,6 +262,7 @@ void NVPTXPassConfig::addAddressSpaceInferencePasses() {
   addPass(createSROAPass());
   addPass(createNVPTXLowerAllocaPass());
   addPass(createInferAddressSpacesPass());
+  addPass(createNVPTXAtomicLowerPass());
 }
 
 void NVPTXPassConfig::addStraightLineScalarOptimizationPasses() {
@@ -304,8 +306,9 @@ void NVPTXPassConfig::addIRPasses() {
   const NVPTXSubtarget &ST = *getTM<NVPTXTargetMachine>().getSubtargetImpl();
   addPass(createNVVMReflectPass(ST.getSmVersion()));
 
-  if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA &&
-      getTM<NVPTXTargetMachine>().getTargetTriple().getEnvironment() == Triple::SYCLDevice) {
+  // FIXME: should the target triple check be done by the pass itself?
+  // See createNVPTXLowerArgsPass as an example
+  if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA) {
     addPass(createGlobalOffsetPass());
     addPass(createLocalAccessorToSharedMemoryPass());
   }

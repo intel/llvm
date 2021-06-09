@@ -220,9 +220,6 @@
 /* Define if the setupterm() function is supported this platform. */
 #cmakedefine LLVM_ENABLE_TERMINFO ${LLVM_ENABLE_TERMINFO}
 
-/* Define if the xar_open() function is supported this platform. */
-#cmakedefine HAVE_LIBXAR ${HAVE_LIBXAR}
-
 /* Define to 1 if you have the <termios.h> header file. */
 #cmakedefine HAVE_TERMIOS_H ${HAVE_TERMIOS_H}
 
@@ -316,6 +313,9 @@
 
 /* Define to the extension used for shared libraries, say, ".so". */
 #cmakedefine LTDL_SHLIB_EXT "${LTDL_SHLIB_EXT}"
+
+/* Define to the extension used for plugin libraries, say, ".so". */
+#cmakedefine LLVM_PLUGIN_EXT "${LLVM_PLUGIN_EXT}"
 
 /* Define to the address where bug reports for this package should be sent. */
 #cmakedefine PACKAGE_BUGREPORT "${PACKAGE_BUGREPORT}"

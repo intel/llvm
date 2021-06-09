@@ -32,7 +32,7 @@
 
 //#define ENABLE_DEBUG_PRINTF // COMMENT THIS LINE OUT PRIOR TO CHECKIN
 #ifdef ENABLE_DEBUG_PRINTF
-#include <stdio.h>
+#include <cstdio>
 #define DEBUG_PRINTF(fmt, ...) printf(fmt, ##__VA_ARGS__)
 #else
 #define DEBUG_PRINTF(fmt, ...)
@@ -1111,6 +1111,12 @@ bool DynamicLoaderMacOSXDYLD::GetSharedCacheInformation(
       // it.
     }
   }
+  return false;
+}
+
+bool DynamicLoaderMacOSXDYLD::IsFullyInitialized() {
+  if (ReadAllImageInfosStructure())
+    return m_dyld_all_image_infos.libSystemInitialized;
   return false;
 }
 

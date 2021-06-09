@@ -99,6 +99,25 @@ TEST_F(ConfigCompileTests, Condition) {
   Frag.If.PathMatch.emplace_back("ba*r");
   EXPECT_FALSE(compileAndApply());
   EXPECT_THAT(Diags.Diagnostics, IsEmpty());
+
+  // Only matches case-insensitively.
+  Frag = {};
+  Frag.If.PathMatch.emplace_back("B.*R");
+  EXPECT_THAT(Diags.Diagnostics, IsEmpty());
+#ifdef CLANGD_PATH_CASE_INSENSITIVE
+  EXPECT_TRUE(compileAndApply());
+#else
+  EXPECT_FALSE(compileAndApply());
+#endif
+
+  Frag = {};
+  Frag.If.PathExclude.emplace_back("B.*R");
+  EXPECT_THAT(Diags.Diagnostics, IsEmpty());
+#ifdef CLANGD_PATH_CASE_INSENSITIVE
+  EXPECT_FALSE(compileAndApply());
+#else
+  EXPECT_TRUE(compileAndApply());
+#endif
 }
 
 TEST_F(ConfigCompileTests, CompileCommands) {
@@ -299,21 +318,47 @@ TEST_F(ConfigCompileTests, TidyBadChecks) {
               DiagKind(llvm::SourceMgr::DK_Warning))));
 }
 
+TEST_F(ConfigCompileTests, ExternalServerNeedsTrusted) {
+  Fragment::IndexBlock::ExternalBlock External;
+  External.Server.emplace("xxx");
+  Frag.Index.External = std::move(External);
+  compileAndApply();
+  EXPECT_THAT(
+      Diags.Diagnostics,
+      ElementsAre(DiagMessage(
+          "Remote index may not be specified by untrusted configuration. "
+          "Copy this into user config to use it.")));
+  EXPECT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::None);
+}
+
 TEST_F(ConfigCompileTests, ExternalBlockWarnOnMultipleSource) {
+  Frag.Source.Trusted = true;
   Fragment::IndexBlock::ExternalBlock External;
   External.File.emplace("");
   External.Server.emplace("");
   Frag.Index.External = std::move(External);
   compileAndApply();
-  llvm::StringLiteral ExpectedDiag =
 #ifdef CLANGD_ENABLE_REMOTE
-      "Exactly one of File or Server must be set.";
+  EXPECT_THAT(
+      Diags.Diagnostics,
+      Contains(
+          AllOf(DiagMessage("Exactly one of File, Server or None must be set."),
+                DiagKind(llvm::SourceMgr::DK_Error))));
 #else
-      "Clangd isn't compiled with remote index support, ignoring Server.";
+  ASSERT_TRUE(Conf.Index.External.hasValue());
+  EXPECT_EQ(Conf.Index.External->Kind, Config::ExternalIndexSpec::File);
 #endif
-  EXPECT_THAT(Diags.Diagnostics,
-              Contains(AllOf(DiagMessage(ExpectedDiag),
-                             DiagKind(llvm::SourceMgr::DK_Error))));
+}
+
+TEST_F(ConfigCompileTests, ExternalBlockDisableWithNone) {
+  compileAndApply();
+  EXPECT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::None);
+
+  Fragment::IndexBlock::ExternalBlock External;
+  External.IsNone = true;
+  Frag.Index.External = std::move(External);
+  compileAndApply();
+  EXPECT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::None);
 }
 
 TEST_F(ConfigCompileTests, ExternalBlockErrOnNoSource) {
@@ -321,8 +366,9 @@ TEST_F(ConfigCompileTests, ExternalBlockErrOnNoSource) {
   compileAndApply();
   EXPECT_THAT(
       Diags.Diagnostics,
-      Contains(AllOf(DiagMessage("Exactly one of File or Server must be set."),
-                     DiagKind(llvm::SourceMgr::DK_Error))));
+      Contains(
+          AllOf(DiagMessage("Exactly one of File, Server or None must be set."),
+                DiagKind(llvm::SourceMgr::DK_Error))));
 }
 
 TEST_F(ConfigCompileTests, ExternalBlockDisablesBackgroundIndex) {
@@ -363,7 +409,7 @@ TEST_F(ConfigCompileTests, ExternalBlockMountPoint) {
           AllOf(DiagMessage("MountPoint must be an absolute path, because this "
                             "fragment is not associated with any directory."),
                 DiagKind(llvm::SourceMgr::DK_Error))));
-  ASSERT_FALSE(Conf.Index.External);
+  EXPECT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::None);
 
   auto FooPath = testPath("foo/", llvm::sys::path::Style::posix);
   FooPath = llvm::sys::path::convert_to_slash(FooPath);
@@ -371,22 +417,22 @@ TEST_F(ConfigCompileTests, ExternalBlockMountPoint) {
   Frag = GetFrag(testRoot(), "foo/");
   compileAndApply();
   ASSERT_THAT(Diags.Diagnostics, IsEmpty());
-  ASSERT_TRUE(Conf.Index.External);
-  EXPECT_THAT(Conf.Index.External->MountPoint, FooPath);
+  ASSERT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::File);
+  EXPECT_THAT(Conf.Index.External.MountPoint, FooPath);
 
   // None defaults to ".".
   Frag = GetFrag(FooPath, llvm::None);
   compileAndApply();
   ASSERT_THAT(Diags.Diagnostics, IsEmpty());
-  ASSERT_TRUE(Conf.Index.External);
-  EXPECT_THAT(Conf.Index.External->MountPoint, FooPath);
+  ASSERT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::File);
+  EXPECT_THAT(Conf.Index.External.MountPoint, FooPath);
 
   // Without a file, external index is empty.
   Parm.Path = "";
   Frag = GetFrag("", FooPath.c_str());
   compileAndApply();
   ASSERT_THAT(Diags.Diagnostics, IsEmpty());
-  ASSERT_FALSE(Conf.Index.External);
+  ASSERT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::None);
 
   // File outside MountPoint, no index.
   auto BazPath = testPath("bar/baz.h", llvm::sys::path::Style::posix);
@@ -395,7 +441,7 @@ TEST_F(ConfigCompileTests, ExternalBlockMountPoint) {
   Frag = GetFrag("", FooPath.c_str());
   compileAndApply();
   ASSERT_THAT(Diags.Diagnostics, IsEmpty());
-  ASSERT_FALSE(Conf.Index.External);
+  ASSERT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::None);
 
   // File under MountPoint, index should be set.
   BazPath = testPath("foo/baz.h", llvm::sys::path::Style::posix);
@@ -404,8 +450,41 @@ TEST_F(ConfigCompileTests, ExternalBlockMountPoint) {
   Frag = GetFrag("", FooPath.c_str());
   compileAndApply();
   ASSERT_THAT(Diags.Diagnostics, IsEmpty());
-  ASSERT_TRUE(Conf.Index.External);
-  EXPECT_THAT(Conf.Index.External->MountPoint, FooPath);
+  ASSERT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::File);
+  EXPECT_THAT(Conf.Index.External.MountPoint, FooPath);
+
+  // Only matches case-insensitively.
+  BazPath = testPath("fOo/baz.h", llvm::sys::path::Style::posix);
+  BazPath = llvm::sys::path::convert_to_slash(BazPath);
+  Parm.Path = BazPath;
+
+  FooPath = testPath("FOO/", llvm::sys::path::Style::posix);
+  FooPath = llvm::sys::path::convert_to_slash(FooPath);
+  Frag = GetFrag("", FooPath.c_str());
+  compileAndApply();
+  ASSERT_THAT(Diags.Diagnostics, IsEmpty());
+#ifdef CLANGD_PATH_CASE_INSENSITIVE
+  ASSERT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::File);
+  EXPECT_THAT(Conf.Index.External.MountPoint, FooPath);
+#else
+  ASSERT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::None);
+#endif
+}
+
+TEST_F(ConfigCompileTests, AllScopes) {
+  // Defaults to true.
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_TRUE(Conf.Completion.AllScopes);
+
+  Frag = {};
+  Frag.Completion.AllScopes = false;
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_FALSE(Conf.Completion.AllScopes);
+
+  Frag = {};
+  Frag.Completion.AllScopes = true;
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_TRUE(Conf.Completion.AllScopes);
 }
 } // namespace
 } // namespace config

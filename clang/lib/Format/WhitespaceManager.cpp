@@ -262,7 +262,8 @@ void WhitespaceManager::calculateLineBreakInformation() {
 // Align a single sequence of tokens, see AlignTokens below.
 template <typename F>
 static void
-AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
+AlignTokenSequence(const FormatStyle &Style, unsigned Start, unsigned End,
+                   unsigned Column, F &&Matches,
                    SmallVector<WhitespaceManager::Change, 16> &Changes) {
   bool FoundMatchOnLine = false;
   int Shift = 0;
@@ -278,6 +279,14 @@ AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
   //          double z);
   // In the above example, we need to take special care to ensure that
   // 'double z' is indented along with it's owning function 'b'.
+  // The same holds for calling a function:
+  //   double a = foo(x);
+  //   int    b = bar(foo(y),
+  //            foor(z));
+  // Similar for broken string literals:
+  //   double x = 3.14;
+  //   auto s   = "Hello"
+  //          "World";
   // Special handling is required for 'nested' ternary operators.
   SmallVector<unsigned, 16> ScopeStack;
 
@@ -298,8 +307,12 @@ AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
       ScopeStack.push_back(i);
 
     bool InsideNestedScope = ScopeStack.size() != 0;
+    bool ContinuedStringLiteral = i > Start &&
+                                  Changes[i].Tok->is(tok::string_literal) &&
+                                  Changes[i - 1].Tok->is(tok::string_literal);
+    bool SkipMatchCheck = InsideNestedScope || ContinuedStringLiteral;
 
-    if (Changes[i].NewlinesBefore > 0 && !InsideNestedScope) {
+    if (Changes[i].NewlinesBefore > 0 && !SkipMatchCheck) {
       Shift = 0;
       FoundMatchOnLine = false;
     }
@@ -307,7 +320,7 @@ AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
     // If this is the first matching token to be aligned, remember by how many
     // spaces it has to be shifted, so the rest of the changes on the line are
     // shifted by the same amount
-    if (!FoundMatchOnLine && !InsideNestedScope && Matches(Changes[i])) {
+    if (!FoundMatchOnLine && !SkipMatchCheck && Matches(Changes[i])) {
       FoundMatchOnLine = true;
       Shift = Column - Changes[i].StartOfTokenColumn;
       Changes[i].Spaces += Shift;
@@ -317,19 +330,58 @@ AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
     // as mentioned in the ScopeStack comment.
     if (InsideNestedScope && Changes[i].NewlinesBefore > 0) {
       unsigned ScopeStart = ScopeStack.back();
-      if (Changes[ScopeStart - 1].Tok->is(TT_FunctionDeclarationName) ||
-          (ScopeStart > Start + 1 &&
-           Changes[ScopeStart - 2].Tok->is(TT_FunctionDeclarationName)) ||
-          Changes[i].Tok->is(TT_ConditionalExpr) ||
-          (Changes[i].Tok->Previous &&
-           Changes[i].Tok->Previous->is(TT_ConditionalExpr)))
+      auto ShouldShiftBeAdded = [&] {
+        // Function declaration
+        if (Changes[ScopeStart - 1].Tok->is(TT_FunctionDeclarationName))
+          return true;
+
+        // Continued function declaration
+        if (ScopeStart > Start + 1 &&
+            Changes[ScopeStart - 2].Tok->is(TT_FunctionDeclarationName))
+          return true;
+
+        // Continued function call
+        if (ScopeStart > Start + 1 &&
+            Changes[ScopeStart - 2].Tok->is(tok::identifier) &&
+            Changes[ScopeStart - 1].Tok->is(tok::l_paren))
+          return true;
+
+        // Ternary operator
+        if (Changes[i].Tok->is(TT_ConditionalExpr))
+          return true;
+
+        // Continued ternary operator
+        if (Changes[i].Tok->Previous &&
+            Changes[i].Tok->Previous->is(TT_ConditionalExpr))
+          return true;
+
+        return false;
+      };
+
+      if (ShouldShiftBeAdded())
         Changes[i].Spaces += Shift;
     }
 
+    if (ContinuedStringLiteral)
+      Changes[i].Spaces += Shift;
+
     assert(Shift >= 0);
+
     Changes[i].StartOfTokenColumn += Shift;
     if (i + 1 != Changes.size())
       Changes[i + 1].PreviousEndOfTokenColumn += Shift;
+
+    // If PointerAlignment is PAS_Right, keep *s or &s next to the token
+    if (Style.PointerAlignment == FormatStyle::PAS_Right &&
+        Changes[i].Spaces != 0) {
+      for (int Previous = i - 1;
+           Previous >= 0 &&
+           Changes[Previous].Tok->getType() == TT_PointerOrReference;
+           --Previous) {
+        Changes[Previous + 1].Spaces -= Shift;
+        Changes[Previous].Spaces += Shift;
+      }
+    }
   }
 }
 
@@ -399,8 +451,8 @@ static unsigned AlignTokens(
   // containing any matching token to be aligned and located after such token.
   auto AlignCurrentSequence = [&] {
     if (StartOfSequence > 0 && StartOfSequence < EndOfSequence)
-      AlignTokenSequence(StartOfSequence, EndOfSequence, MinColumn, Matches,
-                         Changes);
+      AlignTokenSequence(Style, StartOfSequence, EndOfSequence, MinColumn,
+                         Matches, Changes);
     MinColumn = 0;
     MaxColumn = UINT_MAX;
     StartOfSequence = 0;
@@ -434,7 +486,10 @@ static unsigned AlignTokens(
         AlignCurrentSequence();
 
       // A new line starts, re-initialize line status tracking bools.
-      FoundMatchOnLine = false;
+      // Keep the match state if a string literal is continued on this line.
+      if (i == 0 || !Changes[i].Tok->is(tok::string_literal) ||
+          !Changes[i - 1].Tok->is(tok::string_literal))
+        FoundMatchOnLine = false;
       LineIsComment = true;
     }
 
@@ -687,12 +742,6 @@ void WhitespaceManager::alignConsecutiveDeclarations() {
   if (Style.AlignConsecutiveDeclarations == FormatStyle::ACS_None)
     return;
 
-  // FIXME: Currently we don't handle properly the PointerAlignment: Right
-  // The * and & are not aligned and are left dangling. Something has to be done
-  // about it, but it raises the question of alignment of code like:
-  //   const char* const* v1;
-  //   float const* v2;
-  //   SomeVeryLongType const& v3;
   AlignTokens(
       Style,
       [](Change const &C) {
@@ -709,6 +758,8 @@ void WhitespaceManager::alignConsecutiveDeclarations() {
         for (FormatToken *Next = C.Tok->Next; Next; Next = Next->Next) {
           if (Next->is(tok::comment))
             continue;
+          if (Next->is(TT_PointerOrReference))
+            return false;
           if (!Next->Tok.getIdentifierInfo())
             break;
           if (Next->isOneOf(TT_StartOfName, TT_FunctionDeclarationName,
@@ -735,12 +786,11 @@ void WhitespaceManager::alignChainedConditionals() {
         Changes, /*StartAt=*/0);
   } else {
     static auto AlignWrappedOperand = [](Change const &C) {
-      auto Previous = C.Tok->getPreviousNonComment(); // Previous;
+      FormatToken *Previous = C.Tok->getPreviousNonComment();
       return C.NewlinesBefore && Previous && Previous->is(TT_ConditionalExpr) &&
-             (Previous->is(tok::question) ||
-              (Previous->is(tok::colon) &&
-               (C.Tok->FakeLParens.size() == 0 ||
-                C.Tok->FakeLParens.back() != prec::Conditional)));
+             (Previous->is(tok::colon) &&
+              (C.Tok->FakeLParens.size() == 0 ||
+               C.Tok->FakeLParens.back() != prec::Conditional));
     };
     // Ensure we keep alignment of wrapped operands with non-wrapped operands
     // Since we actually align the operators, the wrapped operands need the

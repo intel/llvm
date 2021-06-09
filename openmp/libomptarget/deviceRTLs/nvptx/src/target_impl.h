@@ -18,8 +18,7 @@
 
 #include "nvptx_interface.h"
 
-#define DEVICE
-#define INLINE inline __attribute__((always_inline)) DEVICE
+#define INLINE inline __attribute__((always_inline))
 #define NOINLINE __attribute__((noinline))
 #define ALIGN(N) __attribute__((aligned(N)))
 
@@ -34,8 +33,8 @@
 
 #define WARPSIZE 32
 
-// Maximum number of preallocated arguments to an outlined parallel/simd function.
-// Anything more requires dynamic memory allocation.
+// Maximum number of preallocated arguments to an outlined parallel/simd
+// function. Anything more requires dynamic memory allocation.
 #define MAX_SHARED_ARGS 20
 
 // Maximum number of omp state objects per SM allocated statically in global

@@ -54,8 +54,7 @@ public:
   Symbol *addDefinedFunction(StringRef name, uint32_t flags, InputFile *file,
                              InputFunction *function);
   Symbol *addDefinedData(StringRef name, uint32_t flags, InputFile *file,
-                         InputSegment *segment, uint64_t address,
-                         uint64_t size);
+                         InputChunk *segment, uint64_t address, uint64_t size);
   Symbol *addDefinedGlobal(StringRef name, uint32_t flags, InputFile *file,
                            InputGlobal *g);
   Symbol *addDefinedEvent(StringRef name, uint32_t flags, InputFile *file,
@@ -80,6 +79,8 @@ public:
                             llvm::Optional<StringRef> importModule,
                             uint32_t flags, InputFile *file,
                             const WasmTableType *type);
+
+  TableSymbol *resolveIndirectFunctionTable(bool required);
 
   void addLazy(ArchiveFile *f, const llvm::object::Archive::Symbol *sym);
 
@@ -115,6 +116,9 @@ private:
   InputFunction *replaceWithUnreachable(Symbol *sym, const WasmSignature &sig,
                                         StringRef debugName);
   void replaceWithUndefined(Symbol *sym);
+
+  TableSymbol *createDefinedIndirectFunctionTable(StringRef name);
+  TableSymbol *createUndefinedIndirectFunctionTable(StringRef name);
 
   // Maps symbol names to index into the symVector.  -1 means that symbols
   // is to not yet in the vector but it should have tracing enabled if it is

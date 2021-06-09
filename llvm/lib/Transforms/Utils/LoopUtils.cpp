@@ -298,7 +298,7 @@ bool llvm::getBooleanLoopAttribute(const Loop *TheLoop, StringRef Name) {
 }
 
 Optional<ElementCount>
-llvm::getOptionalElementCountLoopAttribute(Loop *TheLoop) {
+llvm::getOptionalElementCountLoopAttribute(const Loop *TheLoop) {
   Optional<int> Width =
       getOptionalIntLoopAttribute(TheLoop, "llvm.loop.vectorize.width");
 
@@ -311,7 +311,7 @@ llvm::getOptionalElementCountLoopAttribute(Loop *TheLoop) {
   return None;
 }
 
-llvm::Optional<int> llvm::getOptionalIntLoopAttribute(Loop *TheLoop,
+llvm::Optional<int> llvm::getOptionalIntLoopAttribute(const Loop *TheLoop,
                                                       StringRef Name) {
   const MDOperand *AttrMD =
       findStringMetadataForLoop(TheLoop, Name).getValueOr(nullptr);
@@ -418,7 +418,7 @@ bool llvm::hasMustProgress(const Loop *L) {
   return getBooleanLoopAttribute(L, LLVMLoopMustProgress);
 }
 
-TransformationMode llvm::hasUnrollTransformation(Loop *L) {
+TransformationMode llvm::hasUnrollTransformation(const Loop *L) {
   if (getBooleanLoopAttribute(L, "llvm.loop.unroll.disable"))
     return TM_SuppressedByUser;
 
@@ -439,7 +439,7 @@ TransformationMode llvm::hasUnrollTransformation(Loop *L) {
   return TM_Unspecified;
 }
 
-TransformationMode llvm::hasUnrollAndJamTransformation(Loop *L) {
+TransformationMode llvm::hasUnrollAndJamTransformation(const Loop *L) {
   if (getBooleanLoopAttribute(L, "llvm.loop.unroll_and_jam.disable"))
     return TM_SuppressedByUser;
 
@@ -457,7 +457,7 @@ TransformationMode llvm::hasUnrollAndJamTransformation(Loop *L) {
   return TM_Unspecified;
 }
 
-TransformationMode llvm::hasVectorizeTransformation(Loop *L) {
+TransformationMode llvm::hasVectorizeTransformation(const Loop *L) {
   Optional<bool> Enable =
       getOptionalBoolLoopAttribute(L, "llvm.loop.vectorize.enable");
 
@@ -493,7 +493,7 @@ TransformationMode llvm::hasVectorizeTransformation(Loop *L) {
   return TM_Unspecified;
 }
 
-TransformationMode llvm::hasDistributeTransformation(Loop *L) {
+TransformationMode llvm::hasDistributeTransformation(const Loop *L) {
   if (getBooleanLoopAttribute(L, "llvm.loop.distribute.enable"))
     return TM_ForcedByUser;
 
@@ -503,7 +503,7 @@ TransformationMode llvm::hasDistributeTransformation(Loop *L) {
   return TM_Unspecified;
 }
 
-TransformationMode llvm::hasLICMVersioningTransformation(Loop *L) {
+TransformationMode llvm::hasLICMVersioningTransformation(const Loop *L) {
   if (getBooleanLoopAttribute(L, "llvm.loop.licm_versioning.disable"))
     return TM_SuppressedByUser;
 
@@ -1068,6 +1068,17 @@ Value *llvm::createTargetReduction(IRBuilderBase &B,
   IRBuilderBase::FastMathFlagGuard FMFGuard(B);
   B.setFastMathFlags(Desc.getFastMathFlags());
   return createSimpleTargetReduction(B, TTI, Src, Desc.getRecurrenceKind());
+}
+
+Value *llvm::createOrderedReduction(IRBuilderBase &B,
+                                    RecurrenceDescriptor &Desc, Value *Src,
+                                    Value *Start) {
+  assert(Desc.getRecurrenceKind() == RecurKind::FAdd &&
+         "Unexpected reduction kind");
+  assert(Src->getType()->isVectorTy() && "Expected a vector type");
+  assert(!Start->getType()->isVectorTy() && "Expected a scalar type");
+
+  return B.CreateFAddReduce(Start, Src);
 }
 
 void llvm::propagateIRFlags(Value *I, ArrayRef<Value *> VL, Value *OpValue) {
@@ -1704,4 +1715,179 @@ std::pair<Instruction *, Instruction *> llvm::addRuntimeChecks(
   ChkBuilder.Insert(Check, "memcheck.conflict");
   FirstInst = GetFirstInst(FirstInst, Check, Loc);
   return std::make_pair(FirstInst, Check);
+}
+
+Optional<IVConditionInfo> llvm::hasPartialIVCondition(Loop &L,
+                                                      unsigned MSSAThreshold,
+                                                      MemorySSA &MSSA,
+                                                      AAResults &AA) {
+  auto *TI = dyn_cast<BranchInst>(L.getHeader()->getTerminator());
+  if (!TI || !TI->isConditional())
+    return {};
+
+  auto *CondI = dyn_cast<CmpInst>(TI->getCondition());
+  // The case with the condition outside the loop should already be handled
+  // earlier.
+  if (!CondI || !L.contains(CondI))
+    return {};
+
+  SmallVector<Instruction *> InstToDuplicate;
+  InstToDuplicate.push_back(CondI);
+
+  SmallVector<Value *, 4> WorkList;
+  WorkList.append(CondI->op_begin(), CondI->op_end());
+
+  SmallVector<MemoryAccess *, 4> AccessesToCheck;
+  SmallVector<MemoryLocation, 4> AccessedLocs;
+  while (!WorkList.empty()) {
+    Instruction *I = dyn_cast<Instruction>(WorkList.pop_back_val());
+    if (!I || !L.contains(I))
+      continue;
+
+    // TODO: support additional instructions.
+    if (!isa<LoadInst>(I) && !isa<GetElementPtrInst>(I))
+      return {};
+
+    // Do not duplicate volatile and atomic loads.
+    if (auto *LI = dyn_cast<LoadInst>(I))
+      if (LI->isVolatile() || LI->isAtomic())
+        return {};
+
+    InstToDuplicate.push_back(I);
+    if (MemoryAccess *MA = MSSA.getMemoryAccess(I)) {
+      if (auto *MemUse = dyn_cast_or_null<MemoryUse>(MA)) {
+        // Queue the defining access to check for alias checks.
+        AccessesToCheck.push_back(MemUse->getDefiningAccess());
+        AccessedLocs.push_back(MemoryLocation::get(I));
+      } else {
+        // MemoryDefs may clobber the location or may be atomic memory
+        // operations. Bail out.
+        return {};
+      }
+    }
+    WorkList.append(I->op_begin(), I->op_end());
+  }
+
+  if (InstToDuplicate.empty())
+    return {};
+
+  SmallVector<BasicBlock *, 4> ExitingBlocks;
+  L.getExitingBlocks(ExitingBlocks);
+  auto HasNoClobbersOnPath =
+      [&L, &AA, &AccessedLocs, &ExitingBlocks, &InstToDuplicate,
+       MSSAThreshold](BasicBlock *Succ, BasicBlock *Header,
+                      SmallVector<MemoryAccess *, 4> AccessesToCheck)
+      -> Optional<IVConditionInfo> {
+    IVConditionInfo Info;
+    // First, collect all blocks in the loop that are on a patch from Succ
+    // to the header.
+    SmallVector<BasicBlock *, 4> WorkList;
+    WorkList.push_back(Succ);
+    WorkList.push_back(Header);
+    SmallPtrSet<BasicBlock *, 4> Seen;
+    Seen.insert(Header);
+    Info.PathIsNoop &=
+        all_of(*Header, [](Instruction &I) { return !I.mayHaveSideEffects(); });
+
+    while (!WorkList.empty()) {
+      BasicBlock *Current = WorkList.pop_back_val();
+      if (!L.contains(Current))
+        continue;
+      const auto &SeenIns = Seen.insert(Current);
+      if (!SeenIns.second)
+        continue;
+
+      Info.PathIsNoop &= all_of(
+          *Current, [](Instruction &I) { return !I.mayHaveSideEffects(); });
+      WorkList.append(succ_begin(Current), succ_end(Current));
+    }
+
+    // Require at least 2 blocks on a path through the loop. This skips
+    // paths that directly exit the loop.
+    if (Seen.size() < 2)
+      return {};
+
+    // Next, check if there are any MemoryDefs that are on the path through
+    // the loop (in the Seen set) and they may-alias any of the locations in
+    // AccessedLocs. If that is the case, they may modify the condition and
+    // partial unswitching is not possible.
+    SmallPtrSet<MemoryAccess *, 4> SeenAccesses;
+    while (!AccessesToCheck.empty()) {
+      MemoryAccess *Current = AccessesToCheck.pop_back_val();
+      auto SeenI = SeenAccesses.insert(Current);
+      if (!SeenI.second || !Seen.contains(Current->getBlock()))
+        continue;
+
+      // Bail out if exceeded the threshold.
+      if (SeenAccesses.size() >= MSSAThreshold)
+        return {};
+
+      // MemoryUse are read-only accesses.
+      if (isa<MemoryUse>(Current))
+        continue;
+
+      // For a MemoryDef, check if is aliases any of the location feeding
+      // the original condition.
+      if (auto *CurrentDef = dyn_cast<MemoryDef>(Current)) {
+        if (any_of(AccessedLocs, [&AA, CurrentDef](MemoryLocation &Loc) {
+              return isModSet(
+                  AA.getModRefInfo(CurrentDef->getMemoryInst(), Loc));
+            }))
+          return {};
+      }
+
+      for (Use &U : Current->uses())
+        AccessesToCheck.push_back(cast<MemoryAccess>(U.getUser()));
+    }
+
+    // We could also allow loops with known trip counts without mustprogress,
+    // but ScalarEvolution may not be available.
+    Info.PathIsNoop &=
+        L.getHeader()->getParent()->mustProgress() || hasMustProgress(&L);
+
+    // If the path is considered a no-op so far, check if it reaches a
+    // single exit block without any phis. This ensures no values from the
+    // loop are used outside of the loop.
+    if (Info.PathIsNoop) {
+      for (auto *Exiting : ExitingBlocks) {
+        if (!Seen.contains(Exiting))
+          continue;
+        for (auto *Succ : successors(Exiting)) {
+          if (L.contains(Succ))
+            continue;
+
+          Info.PathIsNoop &= llvm::empty(Succ->phis()) &&
+                             (!Info.ExitForPath || Info.ExitForPath == Succ);
+          if (!Info.PathIsNoop)
+            break;
+          assert((!Info.ExitForPath || Info.ExitForPath == Succ) &&
+                 "cannot have multiple exit blocks");
+          Info.ExitForPath = Succ;
+        }
+      }
+    }
+    if (!Info.ExitForPath)
+      Info.PathIsNoop = false;
+
+    Info.InstToDuplicate = InstToDuplicate;
+    return Info;
+  };
+
+  // If we branch to the same successor, partial unswitching will not be
+  // beneficial.
+  if (TI->getSuccessor(0) == TI->getSuccessor(1))
+    return {};
+
+  if (auto Info = HasNoClobbersOnPath(TI->getSuccessor(0), L.getHeader(),
+                                      AccessesToCheck)) {
+    Info->KnownValue = ConstantInt::getTrue(TI->getContext());
+    return Info;
+  }
+  if (auto Info = HasNoClobbersOnPath(TI->getSuccessor(1), L.getHeader(),
+                                      AccessesToCheck)) {
+    Info->KnownValue = ConstantInt::getFalse(TI->getContext());
+    return Info;
+  }
+
+  return {};
 }

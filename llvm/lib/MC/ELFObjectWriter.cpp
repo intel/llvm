@@ -222,6 +222,7 @@ class ELFObjectWriter : public MCObjectWriter {
 
   DenseMap<const MCSymbolELF *, const MCSymbolELF *> Renames;
 
+  bool SeenGnuAbi = false;
   bool EmitAddrsigSection = false;
   std::vector<const MCSymbol *> AddrsigSyms;
 
@@ -237,6 +238,7 @@ public:
       : TargetObjectWriter(std::move(MOTW)) {}
 
   void reset() override {
+    SeenGnuAbi = false;
     Relocations.clear();
     Renames.clear();
     MCObjectWriter::reset();
@@ -260,6 +262,8 @@ public:
   void executePostLayoutBinding(MCAssembler &Asm,
                                 const MCAsmLayout &Layout) override;
 
+  void markGnuAbi() override { SeenGnuAbi = true; }
+  bool seenGnuAbi() const { return SeenGnuAbi; }
   void emitAddrsigSection() override { EmitAddrsigSection = true; }
   void addAddrsigSymbol(const MCSymbol *Sym) override {
     AddrsigSyms.push_back(Sym);
@@ -412,7 +416,10 @@ void ELFWriter::writeHeader(const MCAssembler &Asm) {
 
   W.OS << char(ELF::EV_CURRENT);        // e_ident[EI_VERSION]
   // e_ident[EI_OSABI]
-  W.OS << char(OWriter.TargetObjectWriter->getOSABI());
+  uint8_t OSABI = OWriter.TargetObjectWriter->getOSABI();
+  W.OS << char(OSABI == ELF::ELFOSABI_NONE && OWriter.seenGnuAbi()
+                   ? int(ELF::ELFOSABI_GNU)
+                   : OSABI);
   // e_ident[EI_ABIVERSION]
   W.OS << char(OWriter.TargetObjectWriter->getABIVersion());
 
@@ -601,7 +608,7 @@ void ELFWriter::computeSymbolTable(
   // Symbol table
   unsigned EntrySize = is64Bit() ? ELF::SYMENTRY_SIZE64 : ELF::SYMENTRY_SIZE32;
   MCSectionELF *SymtabSection =
-      Ctx.getELFSection(".symtab", ELF::SHT_SYMTAB, 0, EntrySize, "");
+      Ctx.getELFSection(".symtab", ELF::SHT_SYMTAB, 0, EntrySize);
   SymtabSection->setAlignment(is64Bit() ? Align(8) : Align(4));
   SymbolTableIndex = addToSectionTable(SymtabSection);
 
@@ -702,7 +709,7 @@ void ELFWriter::computeSymbolTable(
 
   if (HasLargeSectionIndex) {
     MCSectionELF *SymtabShndxSection =
-        Ctx.getELFSection(".symtab_shndx", ELF::SHT_SYMTAB_SHNDX, 0, 4, "");
+        Ctx.getELFSection(".symtab_shndx", ELF::SHT_SYMTAB_SHNDX, 0, 4);
     SymtabShndxSectionIndex = addToSectionTable(SymtabShndxSection);
     SymtabShndxSection->setAlignment(Align(4));
   }
@@ -1098,7 +1105,8 @@ uint64_t ELFWriter::writeObject(MCAssembler &Asm, const MCAsmLayout &Layout) {
     if (SignatureSymbol) {
       unsigned &GroupIdx = RevGroupMap[SignatureSymbol];
       if (!GroupIdx) {
-        MCSectionELF *Group = Ctx.createELFGroupSection(SignatureSymbol);
+        MCSectionELF *Group =
+            Ctx.createELFGroupSection(SignatureSymbol, Section.isComdat());
         GroupIdx = addToSectionTable(Group);
         Group->setAlignment(Align(4));
         Groups.push_back(Group);
@@ -1123,7 +1131,7 @@ uint64_t ELFWriter::writeObject(MCAssembler &Asm, const MCAsmLayout &Layout) {
   if (!Asm.CGProfile.empty()) {
     CGProfileSection = Ctx.getELFSection(".llvm.call-graph-profile",
                                          ELF::SHT_LLVM_CALL_GRAPH_PROFILE,
-                                         ELF::SHF_EXCLUDE, 16, "");
+                                         ELF::SHF_EXCLUDE, 16);
     SectionIndexMap[CGProfileSection] = addToSectionTable(CGProfileSection);
   }
 
@@ -1133,7 +1141,7 @@ uint64_t ELFWriter::writeObject(MCAssembler &Asm, const MCAsmLayout &Layout) {
 
     const MCSymbol *SignatureSymbol = Group->getGroup();
     assert(SignatureSymbol);
-    write(uint32_t(ELF::GRP_COMDAT));
+    write(uint32_t(Group->isComdat() ? unsigned(ELF::GRP_COMDAT) : 0));
     for (const MCSectionELF *Member : GroupMembers[SignatureSymbol]) {
       uint32_t SecIndex = SectionIndexMap.lookup(Member);
       write(SecIndex);
@@ -1258,7 +1266,7 @@ void ELFObjectWriter::executePostLayoutBinding(MCAssembler &Asm,
     Alias->setVisibility(Symbol.getVisibility());
     Alias->setOther(Symbol.getOther());
 
-    if (!Symbol.isUndefined() && !Rest.startswith("@@@"))
+    if (!Symbol.isUndefined() && S.KeepOriginalSym)
       continue;
 
     if (Symbol.isUndefined() && Rest.startswith("@@") &&
@@ -1372,6 +1380,17 @@ bool ELFObjectWriter::shouldRelocateWithSymbol(const MCAssembler &Asm,
       // (http://sourceware.org/PR16794).
       if (TargetObjectWriter->getEMachine() == ELF::EM_386 &&
           Type == ELF::R_386_GOTOFF)
+        return true;
+
+      // ld.lld handles R_MIPS_HI16/R_MIPS_LO16 separately, not as a whole, so
+      // it doesn't know that an R_MIPS_HI16 with implicit addend 1 and an
+      // R_MIPS_LO16 with implicit addend -32768 represents 32768, which is in
+      // range of a MergeInputSection. We could introduce a new RelExpr member
+      // (like R_RISCV_PC_INDIRECT for R_RISCV_PCREL_HI20 / R_RISCV_PCREL_LO12)
+      // but the complexity is unnecessary given that GNU as keeps the original
+      // symbol for this case as well.
+      if (TargetObjectWriter->getEMachine() == ELF::EM_MIPS &&
+          !hasRelocationAddend())
         return true;
     }
 

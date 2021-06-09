@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SPIRV/IR/SPIRVGLSLCanonicalization.h"
-#include "mlir/Dialect/SPIRV/IR/SPIRVModule.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
@@ -25,8 +24,8 @@ public:
 } // namespace
 
 void TestGLSLCanonicalizationPass::runOnOperation() {
-  OwningRewritePatternList patterns;
-  spirv::populateSPIRVGLSLCanonicalizationPatterns(patterns, &getContext());
+  RewritePatternSet patterns(&getContext());
+  spirv::populateSPIRVGLSLCanonicalizationPatterns(patterns);
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
 }
 

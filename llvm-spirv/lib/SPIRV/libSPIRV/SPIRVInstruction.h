@@ -298,35 +298,23 @@ public:
                                : getValue(Ops[I]);
   }
 
-  // Get the offset of operands.
-  // Some instructions skip literals when returning operands.
-  size_t getOperandOffset() const {
-    if (hasExecScope() && !isGroupOpCode(OpCode) && !isPipeOpCode(OpCode))
-      return 1;
-    return 0;
-  }
-
-  // Get operands which are values.
-  // Drop execution scope and group operation literals.
-  // Return other literals as uint32 constants.
   std::vector<SPIRVValue *> getOperands() override {
     std::vector<SPIRVValue *> VOps;
-    auto Offset = getOperandOffset();
-    for (size_t I = 0, E = Ops.size() - Offset; I != E; ++I)
+    for (size_t I = 0, E = Ops.size(); I != E; ++I)
       VOps.push_back(getOperand(I));
     return VOps;
   }
 
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     std::vector<SPIRVEntry *> Operands;
-    for (size_t I = getOperandOffset(), E = Ops.size(); I < E; ++I)
+    for (size_t I = 0, E = Ops.size(); I < E; ++I)
       if (!isOperandLiteral(I))
         Operands.push_back(getEntry(Ops[I]));
     return Operands;
   }
 
   virtual SPIRVValue *getOperand(unsigned I) {
-    return getOpValue(I + getOperandOffset());
+    return getOpValue(I);
   }
 
   bool hasExecScope() const { return SPIRV::hasExecScope(OpCode); }
@@ -389,21 +377,33 @@ public:
 class SPIRVMemoryAccess {
 public:
   SPIRVMemoryAccess(const std::vector<SPIRVWord> &TheMemoryAccess)
-      : TheMemoryAccessMask(0), Alignment(0) {
+      : TheMemoryAccessMask(0), Alignment(0), AliasInstID(0) {
     memoryAccessUpdate(TheMemoryAccess);
   }
 
-  SPIRVMemoryAccess() : TheMemoryAccessMask(0), Alignment(0) {}
+  SPIRVMemoryAccess() : TheMemoryAccessMask(0), Alignment(0), AliasInstID(0) {}
 
   void memoryAccessUpdate(const std::vector<SPIRVWord> &MemoryAccess) {
     if (!MemoryAccess.size())
       return;
-    assert((MemoryAccess.size() == 1 || MemoryAccess.size() == 2) &&
-           "Invalid memory access operand size");
+    assert((MemoryAccess.size() == 1 || MemoryAccess.size() == 2 ||
+            MemoryAccess.size() == 3) && "Invalid memory access operand size");
     TheMemoryAccessMask = MemoryAccess[0];
+    size_t MemAccessNumParam = 1;
     if (MemoryAccess[0] & MemoryAccessAlignedMask) {
-      assert(MemoryAccess.size() == 2 && "Alignment operand is missing");
-      Alignment = MemoryAccess[1];
+      assert(MemoryAccess.size() > 1 && "Alignment operand is missing");
+      Alignment = MemoryAccess[MemAccessNumParam++];
+    }
+    if (MemoryAccess[0] & internal::MemoryAccessAliasScopeINTELMask) {
+      assert(MemoryAccess.size() > MemAccessNumParam &&
+          "Aliasing operand is missing");
+      assert(!(MemoryAccess[0] & internal::MemoryAccessNoAliasINTELMask) &&
+          "AliasScopeINTELMask and NoAliasINTELMask are mutually exclusive");
+      AliasInstID = MemoryAccess[MemAccessNumParam];
+    } else if (MemoryAccess[0] & internal::MemoryAccessNoAliasINTELMask) {
+      assert(MemoryAccess.size() > MemAccessNumParam &&
+          "Aliasing operand is missing");
+      AliasInstID = MemoryAccess[MemAccessNumParam];
     }
   }
   SPIRVWord isVolatile() const {
@@ -412,12 +412,20 @@ public:
   SPIRVWord isNonTemporal() const {
     return getMemoryAccessMask() & MemoryAccessNontemporalMask;
   }
+  SPIRVWord isAliasScope() const {
+    return getMemoryAccessMask() & internal::MemoryAccessAliasScopeINTELMask;
+  }
+  SPIRVWord isNoAlias() const {
+    return getMemoryAccessMask() & internal::MemoryAccessNoAliasINTELMask;
+  }
   SPIRVWord getMemoryAccessMask() const { return TheMemoryAccessMask; }
   SPIRVWord getAlignment() const { return Alignment; }
+  SPIRVWord getAliasing() const { return AliasInstID; }
 
 protected:
   SPIRVWord TheMemoryAccessMask;
   SPIRVWord Alignment;
+  SPIRVId AliasInstID;
 };
 
 class SPIRVVariable : public SPIRVInstruction {
@@ -646,7 +654,6 @@ template <Op OC>
 class SPIRVBinaryInst
     : public SPIRVInstTemplate<SPIRVBinary, OC, true, 5, false> {};
 
-/* ToDo: SMod and FMod to be added */
 #define _SPIRV_OP(x) typedef SPIRVBinaryInst<Op##x> SPIRV##x;
 _SPIRV_OP(IAdd)
 _SPIRV_OP(FAdd)
@@ -658,7 +665,9 @@ _SPIRV_OP(UDiv)
 _SPIRV_OP(SDiv)
 _SPIRV_OP(FDiv)
 _SPIRV_OP(SRem)
+_SPIRV_OP(SMod)
 _SPIRV_OP(FRem)
+_SPIRV_OP(FMod)
 _SPIRV_OP(UMod)
 _SPIRV_OP(ShiftLeftLogical)
 _SPIRV_OP(ShiftRightLogical)
@@ -1149,69 +1158,6 @@ protected:
   SPIRVId Select;
   SPIRVId Default;
   std::vector<SPIRVWord> Pairs;
-};
-
-class SPIRVFSMod : public SPIRVInstruction {
-public:
-  static const SPIRVWord FixedWordCount = 4;
-  SPIRVFSMod(Op OC, SPIRVType *TheType, SPIRVId TheId, SPIRVId TheDividend,
-             SPIRVId TheDivisor, SPIRVBasicBlock *BB)
-      : SPIRVInstruction(5, OC, TheType, TheId, BB), Dividend(TheDividend),
-        Divisor(TheDivisor) {
-    validate();
-    assert(BB && "Invalid BB");
-  }
-  // Incomplete constructor
-  SPIRVFSMod(Op OC)
-      : SPIRVInstruction(OC), Dividend(SPIRVID_INVALID),
-        Divisor(SPIRVID_INVALID) {}
-
-  SPIRVValue *getDividend() const { return getValue(Dividend); }
-  SPIRVValue *getDivisor() const { return getValue(Divisor); }
-
-  std::vector<SPIRVValue *> getOperands() override {
-    std::vector<SPIRVId> Operands;
-    Operands.push_back(Dividend);
-    Operands.push_back(Divisor);
-    return getValues(Operands);
-  }
-
-  void setWordCount(SPIRVWord FixedWordCount) override {
-    SPIRVEntry::setWordCount(FixedWordCount);
-  }
-  _SPIRV_DEF_ENCDEC4(Type, Id, Dividend, Divisor)
-  void validate() const override {
-    SPIRVInstruction::validate();
-    if (getValue(Dividend)->isForward() || getValue(Divisor)->isForward())
-      return;
-    SPIRVInstruction::validate();
-  }
-
-protected:
-  SPIRVId Dividend;
-  SPIRVId Divisor;
-};
-
-class SPIRVFMod : public SPIRVFSMod {
-public:
-  static const Op OC = OpFMod;
-  // Complete constructor
-  SPIRVFMod(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheDividend,
-            SPIRVId TheDivisor, SPIRVBasicBlock *BB)
-      : SPIRVFSMod(OC, TheType, TheId, TheDividend, TheDivisor, BB) {}
-  // Incomplete constructor
-  SPIRVFMod() : SPIRVFSMod(OC) {}
-};
-
-class SPIRVSMod : public SPIRVFSMod {
-public:
-  static const Op OC = OpSMod;
-  // Complete constructor
-  SPIRVSMod(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheDividend,
-            SPIRVId TheDivisor, SPIRVBasicBlock *BB)
-      : SPIRVFSMod(OC, TheType, TheId, TheDividend, TheDivisor, BB) {}
-  // Incomplete constructor
-  SPIRVSMod() : SPIRVFSMod(OC) {}
 };
 
 class SPIRVVectorTimesScalar : public SPIRVInstruction {
@@ -1877,6 +1823,23 @@ public:
       return Index == 3;
     }
   }
+  std::vector<SPIRVValue *> getArgValues() {
+    std::vector<SPIRVValue *> VArgs;
+    for (size_t I = 0; I < Args.size(); ++I) {
+      if (isOperandLiteral(I))
+        VArgs.push_back(Module->getLiteralAsConstant(Args[I]));
+      else
+        VArgs.push_back(getValue(Args[I]));
+    }
+    return VArgs;
+  }
+  std::vector<SPIRVType *> getArgTypes() {
+    std::vector<SPIRVType *> ArgTypes;
+    auto VArgs = getArgValues();
+    for (auto VArg : VArgs)
+      ArgTypes.push_back(VArg->getType());
+    return ArgTypes;
+  }
 
 protected:
   SPIRVExtInstSetKind ExtSetKind;
@@ -2379,6 +2342,7 @@ public:
   SPIRVValue *getEvent() const { return getValue(Event); }
   std::vector<SPIRVValue *> getOperands() override {
     std::vector<SPIRVId> Operands;
+    Operands.push_back(ExecScope);
     Operands.push_back(Destination);
     Operands.push_back(Source);
     Operands.push_back(NumElements);
@@ -2677,8 +2641,8 @@ protected:
                             OpArbitraryFloat##x##INTEL, __VA_ARGS__>           \
       SPIRVArbitraryFloat##x##INTEL;
 _SPIRV_OP(Cast, true, 9)
-_SPIRV_OP(CastFromInt, true, 8)
-_SPIRV_OP(CastToInt, true, 8)
+_SPIRV_OP(CastFromInt, true, 9)
+_SPIRV_OP(CastToInt, true, 9)
 _SPIRV_OP(Add, true, 11)
 _SPIRV_OP(Sub, true, 11)
 _SPIRV_OP(Mul, true, 11)

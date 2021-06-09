@@ -24,7 +24,7 @@
 # RUN: %lld -dylib -lSystem %t/libunused.o -o %t/usr/lib/libunused.dylib -install_name /usr/lib/libunused.dylib
 
 ## Bar.framework is nested within Foo.framework.
-# RUN: %lld -dylib -lSystem %t/framework-baz.o -o %t/System/Library/Frameworks/Foo.framework/Frameworks/Bar.framework/Versions/A/Bar \
+# RUN: %lld -dylib -lSystem %t/framework-bar.o -o %t/System/Library/Frameworks/Foo.framework/Frameworks/Bar.framework/Versions/A/Bar \
 # RUN:   -install_name /System/Library/Frameworks/Foo.framework/Frameworks/Bar.framework/Versions/A/Bar
 # RUN: ln -sf %t/System/Library/Frameworks/Foo.framework/Frameworks/Bar.framework/Versions/A/Bar \
 # RUN:   %t/System/Library/Frameworks/Foo.framework/Frameworks/Bar.framework/Bar
@@ -35,7 +35,7 @@
 # RUN:   -install_name /System/Library/Frameworks/Foo.framework/Versions/A/Foo
 # RUN: ln -sf %t/System/Library/Frameworks/Foo.framework/Versions/A/Foo %t/System/Library/Frameworks/Foo.framework/Foo
 
-# RUN: %lld -dylib -lSystem %t/framework-bar.o -o %t/Baz.framework/Versions/A/Baz \
+# RUN: %lld -dylib -lSystem %t/framework-baz.o -o %t/Baz.framework/Versions/A/Baz \
 # RUN:   -install_name %t/Baz.framework/Versions/A/Baz
 # RUN: ln -sf %t/Baz.framework/Versions/A/Baz %t/Baz.framework/Baz
 
@@ -54,20 +54,20 @@
 # CHECK-DAG: __DATA __data {{.*}} pointer 0 libtoplevel   _toplevel
 # CHECK-DAG: __DATA __data {{.*}} pointer 0 libreexporter _sublevel
 # CHECK-DAG: __DATA __data {{.*}} pointer 0 Foo           _framework_foo
-# CHECK-DAG: __DATA __data {{.*}} pointer 0 libreexporter _framework_bar
+# CHECK-DAG: __DATA __data {{.*}} pointer 0 Foo           _framework_bar
 # CHECK-DAG: __DATA __data {{.*}} pointer 0 libreexporter _framework_baz
 # CHECK-DAG: __DATA __data {{.*}} pointer 0 libc++abi     ___gxx_personality_v0
 
-# RUN: llvm-objdump --macho --all-headers %t/test | FileCheck %s \
+# RUN: llvm-otool -l %t/test | FileCheck %s \
 # RUN:   --check-prefix=LOAD -DDIR=%t --implicit-check-not LC_LOAD_DYLIB
 ## Check that we don't create duplicate LC_LOAD_DYLIBs.
 # RUN: %lld -syslibroot %t -o %t/test -lSystem -L%t -lreexporter -ltoplevel %t/test.o
-# RUN: llvm-objdump --macho --all-headers %t/test | FileCheck %s \
+# RUN: llvm-otool -l %t/test | FileCheck %s \
 # RUN:   --check-prefix=LOAD -DDIR=%t --implicit-check-not LC_LOAD_DYLIB
 
 # LOAD:          cmd LC_LOAD_DYLIB
 # LOAD-NEXT: cmdsize
-# LOAD-NEXT:    name /usr/lib/libSystem.B.dylib
+# LOAD-NEXT:    name /usr/lib/libSystem.dylib
 # LOAD:          cmd LC_LOAD_DYLIB
 # LOAD-NEXT: cmdsize
 # LOAD-NEXT:    name /System/Library/Frameworks/Foo.framework/Versions/A/Foo
@@ -76,13 +76,7 @@
 # LOAD-NEXT:    name /usr/lib/libc++abi.dylib
 # LOAD:          cmd LC_LOAD_DYLIB
 # LOAD-NEXT: cmdsize
-# LOAD-NEXT:    name /usr/lib/libc++.dylib
-# LOAD:          cmd LC_LOAD_DYLIB
-# LOAD-NEXT: cmdsize
 # LOAD-NEXT:    name /usr/lib/libtoplevel.dylib
-# LOAD:          cmd LC_LOAD_DYLIB
-# LOAD-NEXT: cmdsize
-# LOAD-NEXT:    name /usr/lib/libunused.dylib
 # LOAD:          cmd LC_LOAD_DYLIB
 # LOAD-NEXT: cmdsize
 # LOAD-NEXT:    name [[DIR]]/libreexporter.dylib

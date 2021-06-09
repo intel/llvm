@@ -37,7 +37,7 @@ Linalg IR and that have influenced its design:
 ## High-Level Description of Linalg Ops<a name="linalg_ops"></a>
 
 Linalg takes at least some inspiration from all previously
-[listed prior art](#prior_art). The design enables the definition of
+[listed prior art](../Rationale/RationaleLinalgDialect.md/#prior-art). The design enables the definition of
 ***CustomOps*** with generic properties that enable
 [key transformations](#key_transformations), including lowering to scalar
 load/store and other operations or to external library calls and intrinsics.
@@ -64,15 +64,14 @@ flavors and are always associated with a corresponding op result:
 
 ### Payload-Carrying Ops<a name="payload_ops"></a>
 
-Linalg defines two payload carrying operations that implement the
-[structured ops](https://docs.google.com/presentation/d/1P-j1GrH6Q5gLBjao0afQ-GfvcAeF-QU4GXXeSy0eJ9I/edit#slide=id.p)
-abstraction on tensors and buffers. This is architected as two generic
-operations `linalg.generic` (resp. `linalg.indexed_generic`) that can express
-custom operations with *index-free semantics* (resp. *indexing semantics*). The
-properties of these generic ops are the result of applying the guiding
-principles described in the
-[Rationale Document](../Rationale/RationaleLinalgDialect.md). They are listed
-next, with a brief example and discussion for each.
+Linalg defines a payload carrying operation that implements the
+[structured op](https://docs.google.com/presentation/d/1P-j1GrH6Q5gLBjao0afQ-GfvcAeF-QU4GXXeSy0eJ9I/edit#slide=id.p)
+abstraction on tensors and buffers. This `linalg.generic` operation can express
+custom operations that optionally have *indexing semantics* (by accessing the
+iteration indices using the `linalg.index` operation). The properties of
+`linalg.generic` are the result of applying the guiding principles described in
+the [Rationale Document](../Rationale/RationaleLinalgDialect.md). They are
+listed next, with a brief example and discussion for each.
 
 #### Property 1: Input and Output Operands Define The Iteration Space<a name="prop1"></a>
 
@@ -406,9 +405,9 @@ into a form that will resemble:
 #map0 = affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>
 
 func @example(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>, %arg2: memref<?x?xf32>) {
-  %0 = memref_cast %arg0 : memref<?x?xf32> to memref<?x?xf32, #map0>
-  %1 = memref_cast %arg1 : memref<?x?xf32> to memref<?x?xf32, #map0>
-  %2 = memref_cast %arg2 : memref<?x?xf32> to memref<?x?xf32, #map0>
+  %0 = memref.cast %arg0 : memref<?x?xf32> to memref<?x?xf32, #map0>
+  %1 = memref.cast %arg1 : memref<?x?xf32> to memref<?x?xf32, #map0>
+  %2 = memref.cast %arg2 : memref<?x?xf32> to memref<?x?xf32, #map0>
   call @pointwise_add(%0, %1, %2) : (memref<?x?xf32, #map0>, memref<?x?xf32, #map0>, memref<?x?xf32, #map0>) -> ()
   return
 }
@@ -493,7 +492,7 @@ As it stands, the six properties above define the semantics of a
 `linalg.generic` op. It is an open question whether all of these semantics are
 strictly necessary in practice and whether some should or could be derived
 automatically while still maintaining the
-[core guiding principles](#guiding_principles).
+[core guiding principles](../Rationale/RationaleLinalgDialect.md/#core-guiding-principlesa-nameguiding_principlesa).
 
 For the time being, we have settled on the combination of these properties
 because of empirical evidence building and working on multiple high-level
@@ -518,9 +517,9 @@ A set of ops that manipulate metadata but do not move memory. These ops take
 generally alias the operand `view`. At the moment the existing ops are:
 
 ```
-* `std.view`,
+* `memref.view`,
 * `std.subview`,
-* `std.transpose`.
+* `memref.transpose`.
 * `linalg.range`,
 * `linalg.slice`,
 * `linalg.reshape`,
@@ -582,8 +581,9 @@ better adapt to Linalg:
     resorting to more general MLIR parsing.
 1.  Reduction dimensions are specified with angle bracket notation on the
     operation they apply to (e.g. `std_add<k>` specifies that `k` is a reduction
-    dimension). In TC, a reduction is specified with `op=` operator and the
-    reduction dimensions are inferred.
+    dimension). In TC, the reduction dimensions are inferred. If one of the
+    operand is not used in any expressions, it will be considered a shape-only
+    operand, and the result of the indexing_map will be reduction dimensions.
 1.  The parallel and reduction dimension are ordered by the textual program
     order. For instance, in the comprehension `O(i, j) = std_add<k, l>(...)`,
     `i` (resp. `j`) is a parallel iterator encoded by affine dimension of
@@ -661,6 +661,18 @@ void batchmatmul::regionBuilder(ArrayRef<BlockArgument> args) {
   (linalg_yield(ValueRange{ _5 }));
 }
 ```
+
+### YAML Based Named Structured Ops
+
+Linalg provides a declarative generation tool (`mlir-linalg-ods-yaml-gen`) to
+automatically produce named ops from a YAML-based op description format intended
+to capture the structure of the named ops and be generated from a higher level
+"mathy" DSL syntax. This facility is currently in flight and is intended to
+subsume the above when ready. See the C++ class to YAML mapping traits in
+`mlir-mlinalg-ods-yaml-gen.cpp` as the source of truth for the schema.
+
+Most of the above documentation roughly applies to this path and will be ported
+as migration continues.
 
 ## Open Issues and Design Alternatives<a name="open_issues"></a>
 

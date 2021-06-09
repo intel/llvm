@@ -111,6 +111,26 @@ void foo() {
     // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 1
     h.single_task<class kernel_name_3>(
         []() [[intel::loop_fuse_independent]]{});
+
+    // Ignore duplicate attribute.
+    h.single_task<class kernel_name_4>(
+    // CHECK: FunctionDecl {{.*}}kernel_name_4
+    // CHECK: SYCLIntelLoopFuseAttr {{.*}} loop_fuse
+    // CHECK-NEXT: ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT: value: Int 3
+    // CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
+        []() [[intel::loop_fuse(3),
+               intel::loop_fuse(3)]]{});
+
+    // Ignore duplicate attribute.
+    h.single_task<class kernel_name_5>(
+    // CHECK: FunctionDecl {{.*}}kernel_name_5
+    // CHECK: SYCLIntelLoopFuseAttr {{.*}} loop_fuse_independent
+    // CHECK-NEXT: ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT: value: Int 1
+    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+        []() [[intel::loop_fuse_independent,
+               intel::loop_fuse_independent]]{});
   });
 
   func5<1>();

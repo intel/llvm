@@ -79,6 +79,11 @@ ARMBaseRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
     return CSR_NoRegs_SaveList;
   } else if (F.getCallingConv() == CallingConv::CFGuard_Check) {
     return CSR_Win_AAPCS_CFGuard_Check_SaveList;
+  } else if (F.getCallingConv() == CallingConv::SwiftTail) {
+    return STI.isTargetDarwin()
+               ? CSR_iOS_SwiftTail_SaveList
+               : (UseSplitPush ? CSR_AAPCS_SplitPush_SwiftTail_SaveList
+                               : CSR_AAPCS_SwiftTail_SaveList);
   } else if (F.hasFnAttribute("interrupt")) {
     if (STI.isMClass()) {
       // M-class CPUs have hardware which saves the registers needed to allow a
@@ -129,6 +134,10 @@ ARMBaseRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
     return CSR_NoRegs_RegMask;
   if (CC == CallingConv::CFGuard_Check)
     return CSR_Win_AAPCS_CFGuard_Check_RegMask;
+  if (CC == CallingConv::SwiftTail) {
+    return STI.isTargetDarwin() ? CSR_iOS_SwiftTail_RegMask
+                                : CSR_AAPCS_SwiftTail_RegMask;
+  }
   if (STI.getTargetLowering()->supportSwiftError() &&
       MF.getFunction().getAttributes().hasAttrSomewhere(Attribute::SwiftError))
     return STI.isTargetDarwin() ? CSR_iOS_SwiftError_RegMask
@@ -403,7 +412,7 @@ bool ARMBaseRegisterInfo::hasBasePointer(const MachineFunction &MF) const {
   // If we have stack realignment and VLAs, we have no pointer to use to
   // access the stack. If we have stack realignment, and a large call frame,
   // we have no place to allocate the emergency spill slot.
-  if (needsStackRealignment(MF) && !TFI->hasReservedCallFrame(MF))
+  if (hasStackRealignment(MF) && !TFI->hasReservedCallFrame(MF))
     return true;
 
   // Thumb has trouble with negative offsets from the FP. Thumb2 has a limited
@@ -458,8 +467,8 @@ cannotEliminateFrame(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   if (MF.getTarget().Options.DisableFramePointerElim(MF) && MFI.adjustsStack())
     return true;
-  return MFI.hasVarSizedObjects() || MFI.isFrameAddressTaken()
-    || needsStackRealignment(MF);
+  return MFI.hasVarSizedObjects() || MFI.isFrameAddressTaken() ||
+         hasStackRealignment(MF);
 }
 
 Register
@@ -908,4 +917,18 @@ bool ARMBaseRegisterInfo::shouldCoalesce(MachineInstr *MI,
     return true;
   }
   return false;
+}
+
+bool ARMBaseRegisterInfo::shouldRewriteCopySrc(const TargetRegisterClass *DefRC,
+                                               unsigned DefSubReg,
+                                               const TargetRegisterClass *SrcRC,
+                                               unsigned SrcSubReg) const {
+  // We can't extract an SPR from an arbitary DPR (as opposed to a DPR_VFP2).
+  if (DefRC == &ARM::SPRRegClass && DefSubReg == 0 &&
+      SrcRC == &ARM::DPRRegClass &&
+      (SrcSubReg == ARM::ssub_0 || SrcSubReg == ARM::ssub_1))
+    return false;
+
+  return TargetRegisterInfo::shouldRewriteCopySrc(DefRC, DefSubReg,
+                                                  SrcRC, SrcSubReg);
 }

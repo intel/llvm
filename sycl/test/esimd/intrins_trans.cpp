@@ -1,4 +1,4 @@
-// RUN: %clangxx -O0 -fsycl -fsycl-explicit-simd -fsycl-device-only -Xclang -emit-llvm %s -o %t
+// RUN: %clangxx -O0 -fsycl -fsycl-device-only -Xclang -emit-llvm %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
@@ -6,12 +6,13 @@
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <CL/sycl/detail/image_ocl_types.hpp>
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
-ESIMD_PRIVATE vector_type_t<int, 32> vc;
+ESIMD_PRIVATE
+detail::vector_type_t<int, 32> vc;
 ESIMD_PRIVATE ESIMD_REGISTER(192) simd<int, 16> vg;
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo();
@@ -109,7 +110,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   // CHECK: %[[SI2:[0-9a-zA-Z_.]+]] = ptrtoint %opencl.image2d_wo_t addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
   // CHECK: call void @llvm.genx.media.st.v32i32(i32 0, i32 %[[SI2]], i32 0, i32 32, i32 %{{[0-9a-zA-Z_.]+}}, i32 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
 
-  auto ee = __esimd_vload<int, 16>((vector_type_t<int, 16> *)(&vg));
+  auto ee = __esimd_vload<int, 16>((detail::vector_type_t<int, 16> *)(&vg));
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x i32> @llvm.genx.vload.v16i32.p0v16i32(<16 x i32>* {{.*}})
   __esimd_vstore<int, 32>(&vc, va.data());
   // CHECK: store <32 x i32>  %{{[0-9a-zA-Z_.]+}}, <32 x i32> addrspace(4)* {{.*}}

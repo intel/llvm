@@ -52,9 +52,17 @@ cl::opt<std::string>
                    cl::value_desc("filename"));
 } // namespace llvm
 
-static cl::opt<bool>
-    DebugPM("debug-pass-manager", cl::Hidden,
-            cl::desc("Print pass management debugging information"));
+enum class DebugLogging { None, Normal, Verbose };
+
+static cl::opt<DebugLogging> DebugPM(
+    "debug-pass-manager", cl::Hidden, cl::ValueOptional,
+    cl::desc("Print pass management debugging information"),
+    cl::init(DebugLogging::None),
+    cl::values(
+        clEnumValN(DebugLogging::Normal, "", ""),
+        clEnumValN(
+            DebugLogging::Verbose, "verbose",
+            "Print extra information about adaptors and pass managers")));
 
 static cl::list<std::string>
     PassPlugins("load-pass-plugin",
@@ -121,11 +129,13 @@ static cl::opt<std::string> OptimizerLastEPPipeline(
 // Individual pipeline tuning options.
 extern cl::opt<bool> DisableLoopUnrolling;
 
+namespace llvm {
 extern cl::opt<PGOKind> PGOKindFlag;
 extern cl::opt<std::string> ProfileFile;
 extern cl::opt<CSPGOKind> CSPGOKindFlag;
 extern cl::opt<std::string> CSProfileGenFile;
 extern cl::opt<bool> DisableBasicAA;
+} // namespace llvm
 
 static cl::opt<std::string>
     ProfileRemappingFile("profile-remapping-file",
@@ -137,10 +147,6 @@ static cl::opt<bool> DebugInfoForProfiling(
 static cl::opt<bool> PseudoProbeForProfiling(
     "new-pm-pseudo-probe-for-profiling", cl::init(false), cl::Hidden,
     cl::desc("Emit pseudo probes to enable PGO profile generation."));
-static cl::opt<bool> UniqueInternalLinkageNames(
-    "new-pm-unique-internal-linkage-names", cl::init(false), cl::Hidden,
-    cl::desc("Uniqueify Internal Linkage Symbol Names by appending the MD5 "
-             "hash of the module path."));
 /// @}}
 
 template <typename PassManagerT>
@@ -279,9 +285,17 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
       P->CSAction = PGOOptions::CSIRUse;
     }
   }
+  LoopAnalysisManager LAM;
+  FunctionAnalysisManager FAM;
+  CGSCCAnalysisManager CGAM;
+  ModuleAnalysisManager MAM;
+
   PassInstrumentationCallbacks PIC;
-  StandardInstrumentations SI(DebugPM, VerifyEachPass);
-  SI.registerCallbacks(PIC);
+  PrintPassOptions PrintPassOpts;
+  PrintPassOpts.Verbose = DebugPM == DebugLogging::Verbose;
+  StandardInstrumentations SI(DebugPM != DebugLogging::None, VerifyEachPass,
+                              PrintPassOpts);
+  SI.registerCallbacks(PIC, &FAM);
   DebugifyEachInstrumentation Debugify;
   if (DebugifyEach)
     Debugify.registerCallbacks(PIC);
@@ -292,8 +306,7 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
   // option has been enabled.
   PTO.LoopUnrolling = !DisableLoopUnrolling;
   PTO.Coroutines = Coroutines;
-  PTO.UniqueLinkageNames = UniqueInternalLinkageNames;
-  PassBuilder PB(DebugPM, TM, PTO, P, &PIC);
+  PassBuilder PB(TM, PTO, P, &PIC);
   registerEPCallbacks(PB);
 
   // Load requested pass plugins and let them register pass builder callbacks
@@ -378,11 +391,6 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
     }
   }
 
-  LoopAnalysisManager LAM(DebugPM);
-  FunctionAnalysisManager FAM(DebugPM);
-  CGSCCAnalysisManager CGAM(DebugPM);
-  ModuleAnalysisManager MAM(DebugPM);
-
   // Register the AA manager first so that our version is the one used.
   FAM.registerPass([&] { return std::move(AA); });
   // Register our TargetLibraryInfoImpl.
@@ -395,7 +403,7 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
   PB.registerLoopAnalyses(LAM);
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
-  ModulePassManager MPM(DebugPM);
+  ModulePassManager MPM;
   if (VK > VK_NoVerifier)
     MPM.addPass(VerifierPass());
   if (EnableDebugify)

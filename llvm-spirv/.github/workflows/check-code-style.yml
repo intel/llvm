@@ -18,7 +18,7 @@ on:
       - 'test/**' # tests
       - '**.md'   # README
       - '**.txt'  # CMakeLists.txt
-      - '**/check-**-build.xml' # Other workflows
+      - '**/check-**-build.yml' # Other workflows
 
 env:
   # We need compile command database in order to perform clang-tidy check. So,
@@ -29,7 +29,7 @@ env:
 jobs:
   clang-format-and-tidy:
     name: clang-format & clang-tidy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps:
     - name: Checkout sources
       uses: actions/checkout@v2
@@ -43,7 +43,7 @@ jobs:
     - name: Gather list of changes
       id: gather-list-of-changes
       run: |
-        git diff -U0 --no-color ${{ github.sha }}^ -- include lib > diff-to-inspect.txt
+        git diff -U0 --no-color ${{ github.sha }}^ -- include lib ':(exclude)lib/SPIRV/libSPIRV/spirv.hpp' > diff-to-inspect.txt
         if [ -s diff-to-inspect.txt ]; then
           # Here we set an output of our step, which is used later to either
           # perform or skip further steps, i.e. there is no sense to install

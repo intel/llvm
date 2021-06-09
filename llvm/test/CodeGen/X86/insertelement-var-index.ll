@@ -461,7 +461,7 @@ define <4 x i64> @arg_i64_v4i64_undef(i64 %x, i32 %y) nounwind {
 ; AVX1-LABEL: arg_i64_v4i64_undef:
 ; AVX1:       # %bb.0:
 ; AVX1-NEXT:    vmovq %rdi, %xmm0
-; AVX1-NEXT:    vmovddup {{.*#+}} xmm0 = xmm0[0,0]
+; AVX1-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[0,1,0,1]
 ; AVX1-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm0
 ; AVX1-NEXT:    retq
 ;
@@ -1380,7 +1380,7 @@ define <8 x float> @arg_f32_v8f32(<8 x float> %v, float %x, i32 %y) nounwind {
 ; AVX1-NEXT:    vmovd %edi, %xmm2
 ; AVX1-NEXT:    vpshufd {{.*#+}} xmm2 = xmm2[0,0,0,0]
 ; AVX1-NEXT:    vpcmpeqd {{.*}}(%rip), %xmm2, %xmm3
-; AVX1-NEXT:    vpcmpeqd {{\.LCPI.*}}+{{.*}}(%rip), %xmm2, %xmm2
+; AVX1-NEXT:    vpcmpeqd {{\.LCPI[0-9]+_[0-9]+}}+{{.*}}(%rip), %xmm2, %xmm2
 ; AVX1-NEXT:    vinsertf128 $1, %xmm2, %ymm3, %ymm2
 ; AVX1-NEXT:    vblendvps %ymm2, %ymm1, %ymm0, %ymm0
 ; AVX1-NEXT:    retq
@@ -1422,9 +1422,9 @@ define <4 x double> @arg_f64_v4f64(<4 x double> %v, double %x, i32 %y) nounwind 
 ; AVX1-NEXT:    vinsertf128 $1, %xmm1, %ymm1, %ymm1
 ; AVX1-NEXT:    movslq %edi, %rax
 ; AVX1-NEXT:    vmovq %rax, %xmm2
-; AVX1-NEXT:    vmovddup {{.*#+}} xmm2 = xmm2[0,0]
+; AVX1-NEXT:    vpshufd {{.*#+}} xmm2 = xmm2[0,1,0,1]
 ; AVX1-NEXT:    vpcmpeqq {{.*}}(%rip), %xmm2, %xmm3
-; AVX1-NEXT:    vpcmpeqq {{\.LCPI.*}}+{{.*}}(%rip), %xmm2, %xmm2
+; AVX1-NEXT:    vpcmpeqq {{\.LCPI[0-9]+_[0-9]+}}+{{.*}}(%rip), %xmm2, %xmm2
 ; AVX1-NEXT:    vinsertf128 $1, %xmm2, %ymm3, %ymm2
 ; AVX1-NEXT:    vblendvpd %ymm2, %ymm1, %ymm0, %ymm0
 ; AVX1-NEXT:    retq
@@ -1661,7 +1661,7 @@ define <8 x float> @load_f32_v8f32(<8 x float> %v, float* %p, i32 %y) nounwind {
 ; AVX1-NEXT:    vmovd %esi, %xmm1
 ; AVX1-NEXT:    vpshufd {{.*#+}} xmm1 = xmm1[0,0,0,0]
 ; AVX1-NEXT:    vpcmpeqd {{.*}}(%rip), %xmm1, %xmm2
-; AVX1-NEXT:    vpcmpeqd {{\.LCPI.*}}+{{.*}}(%rip), %xmm1, %xmm1
+; AVX1-NEXT:    vpcmpeqd {{\.LCPI[0-9]+_[0-9]+}}+{{.*}}(%rip), %xmm1, %xmm1
 ; AVX1-NEXT:    vinsertf128 $1, %xmm1, %ymm2, %ymm1
 ; AVX1-NEXT:    vbroadcastss (%rdi), %ymm2
 ; AVX1-NEXT:    vblendvps %ymm1, %ymm2, %ymm0, %ymm0
@@ -1704,9 +1704,9 @@ define <4 x double> @load_f64_v4f64(<4 x double> %v, double* %p, i32 %y) nounwin
 ; AVX1:       # %bb.0:
 ; AVX1-NEXT:    movslq %esi, %rax
 ; AVX1-NEXT:    vmovq %rax, %xmm1
-; AVX1-NEXT:    vmovddup {{.*#+}} xmm1 = xmm1[0,0]
+; AVX1-NEXT:    vpshufd {{.*#+}} xmm1 = xmm1[0,1,0,1]
 ; AVX1-NEXT:    vpcmpeqq {{.*}}(%rip), %xmm1, %xmm2
-; AVX1-NEXT:    vpcmpeqq {{\.LCPI.*}}+{{.*}}(%rip), %xmm1, %xmm1
+; AVX1-NEXT:    vpcmpeqq {{\.LCPI[0-9]+_[0-9]+}}+{{.*}}(%rip), %xmm1, %xmm1
 ; AVX1-NEXT:    vinsertf128 $1, %xmm1, %ymm2, %ymm1
 ; AVX1-NEXT:    vbroadcastsd (%rdi), %ymm2
 ; AVX1-NEXT:    vblendvpd %ymm1, %ymm2, %ymm0, %ymm0

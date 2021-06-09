@@ -55,7 +55,6 @@
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/LowerInvoke.h"
 #include <cassert>
-#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -160,7 +159,7 @@ protected:
   class AddIRPass {
   public:
     AddIRPass(ModulePassManager &MPM, bool DebugPM, bool Check = true)
-        : MPM(MPM), FPM(DebugPM) {
+        : MPM(MPM), FPM() {
       if (Check)
         AddingFunctionPasses = false;
     }

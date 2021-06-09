@@ -32,7 +32,7 @@ define i128 @ABIi128(i128 %arg1) {
   ret i128 %res
 }
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: G_STORE %1:_(<7 x s32>), %0:_(p0) :: (store 28 into %ir.addr, align 32) (in function: odd_vector)
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: G_STORE %3:_(<3 x s32>), %4:_(p0) :: (store 12 into %ir.addr + 16, align 16, basealign 32) (in function: odd_vector)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for odd_vector
 ; FALLBACK-WITH-REPORT-OUT-LABEL: odd_vector:
 define void @odd_vector(<7 x i32>* %addr) {
@@ -116,7 +116,7 @@ define void @nonpow2_load_narrowing() {
 ; Currently can't handle vector lengths that aren't an exact multiple of
 ; natively supported vector lengths. Test that the fall-back works for those.
 ; FALLBACK-WITH-REPORT-ERR-G_IMPLICIT_DEF-LEGALIZABLE: (FIXME: this is what is expected once we can legalize non-pow-of-2 G_IMPLICIT_DEF) remark: <unknown>:0:0: unable to legalize instruction: %1:_(<7 x s64>) = G_ADD %0, %0 (in function: nonpow2_vector_add_fewerelements
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %{{[0-9]+}}:_(s64) = G_EXTRACT_VECTOR_ELT %{{[0-9]+}}:_(<7 x s64>), %{{[0-9]+}}:_(s64) (in function: nonpow2_vector_add_fewerelements)
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %47:_(<14 x s64>) = G_CONCAT_VECTORS %41:_(<2 x s64>), %42:_(<2 x s64>), %43:_(<2 x s64>), %44:_(<2 x s64>), %29:_(<2 x s64>), %29:_(<2 x s64>), %29:_(<2 x s64>) (in function: nonpow2_vector_add_fewerelements)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for nonpow2_vector_add_fewerelements
 ; FALLBACK-WITH-REPORT-OUT-LABEL: nonpow2_vector_add_fewerelements:
 define void @nonpow2_vector_add_fewerelements() {
@@ -124,17 +124,6 @@ define void @nonpow2_vector_add_fewerelements() {
   %ex = extractelement <7 x i64> %dummy, i64 0
   store i64 %ex, i64* undef
   ret void
-}
-
-; Currently can't handle dealing with a split type (s128 -> 2 x s64) on the stack yet.
-declare void @use_s128(i128 %a, i128 %b)
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to lower arguments: i32 (i32, i128, i32, i32, i32, i128, i32)* (in function: fn1)
-; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for fn1
-; FALLBACK-WITH-REPORT-OUT-LABEL: fn1:
-define i32 @fn1(i32 %p1, i128 %p2, i32 %p3, i32 %p4, i32 %p5, i128 %p6, i32 %p7) {
-entry:
-  call void @use_s128(i128 %p2, i128 %p6)
-  ret i32 0
 }
 
 ; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: cannot select: RET_ReallyLR implicit $x0 (in function: strict_align_feature)

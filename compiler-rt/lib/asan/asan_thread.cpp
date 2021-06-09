@@ -228,7 +228,7 @@ FakeStack *AsanThread::AsyncSignalSafeLazyInitFakeStack() {
 }
 
 void AsanThread::Init(const InitOptions *options) {
-  DCHECK_NE(tid(), ThreadRegistry::kUnknownTid);
+  DCHECK_NE(tid(), kInvalidTid);
   next_stack_top_ = next_stack_bottom_ = 0;
   atomic_store(&stack_switching_, false, memory_order_release);
   CHECK_EQ(this->stack_size(), 0U);
@@ -291,7 +291,7 @@ thread_return_t AsanThread::ThreadStart(tid_t os_id) {
 
 AsanThread *CreateMainThread() {
   AsanThread *main_thread = AsanThread::Create(
-      /* start_routine */ nullptr, /* arg */ nullptr, /* parent_tid */ 0,
+      /* start_routine */ nullptr, /* arg */ nullptr, /* parent_tid */ kMainTid,
       /* stack */ nullptr, /* detached */ true);
   SetCurrentThread(main_thread);
   main_thread->ThreadStart(internal_getpid());
@@ -305,9 +305,9 @@ void AsanThread::SetThreadStackAndTls(const InitOptions *options) {
   DCHECK_EQ(options, nullptr);
   uptr tls_size = 0;
   uptr stack_size = 0;
-  GetThreadStackAndTls(tid() == 0, &stack_bottom_, &stack_size, &tls_begin_,
-                       &tls_size);
-  stack_top_ = stack_bottom_ + stack_size;
+  GetThreadStackAndTls(tid() == kMainTid, &stack_bottom_, &stack_size,
+                       &tls_begin_, &tls_size);
+  stack_top_ = RoundDownTo(stack_bottom_ + stack_size, SHADOW_GRANULARITY);
   tls_end_ = tls_begin_ + tls_size;
   dtls_ = DTLS_Get();
 
@@ -339,8 +339,8 @@ bool AsanThread::GetStackFrameAccessByAddr(uptr addr,
   uptr bottom = 0;
   if (AddrIsInStack(addr)) {
     bottom = stack_bottom();
-  } else if (has_fake_stack()) {
-    bottom = fake_stack()->AddrIsInFakeStack(addr);
+  } else if (FakeStack *fake_stack = get_fake_stack()) {
+    bottom = fake_stack->AddrIsInFakeStack(addr);
     CHECK(bottom);
     access->offset = addr - bottom;
     access->frame_pc = ((uptr*)bottom)[2];
@@ -380,8 +380,8 @@ uptr AsanThread::GetStackVariableShadowStart(uptr addr) {
   uptr bottom = 0;
   if (AddrIsInStack(addr)) {
     bottom = stack_bottom();
-  } else if (has_fake_stack()) {
-    bottom = fake_stack()->AddrIsInFakeStack(addr);
+  } else if (FakeStack *fake_stack = get_fake_stack()) {
+    bottom = fake_stack->AddrIsInFakeStack(addr);
     if (bottom == 0) {
       return 0;
     }
@@ -409,13 +409,16 @@ bool AsanThread::AddrIsInStack(uptr addr) {
 
 static bool ThreadStackContainsAddress(ThreadContextBase *tctx_base,
                                        void *addr) {
-  AsanThreadContext *tctx = static_cast<AsanThreadContext*>(tctx_base);
+  AsanThreadContext *tctx = static_cast<AsanThreadContext *>(tctx_base);
   AsanThread *t = tctx->thread;
-  if (!t) return false;
-  if (t->AddrIsInStack((uptr)addr)) return true;
-  if (t->has_fake_stack() && t->fake_stack()->AddrIsInFakeStack((uptr)addr))
+  if (!t)
+    return false;
+  if (t->AddrIsInStack((uptr)addr))
     return true;
-  return false;
+  FakeStack *fake_stack = t->get_fake_stack();
+  if (!fake_stack)
+    return false;
+  return fake_stack->AddrIsInFakeStack((uptr)addr);
 }
 
 AsanThread *GetCurrentThread() {
@@ -431,7 +434,7 @@ AsanThread *GetCurrentThread() {
       // address. We are not entirely sure that we have correct main thread
       // limits, so only do this magic on Android, and only if the found thread
       // is the main thread.
-      AsanThreadContext *tctx = GetThreadContextByTidLocked(0);
+      AsanThreadContext *tctx = GetThreadContextByTidLocked(kMainTid);
       if (tctx && ThreadStackContainsAddress(tctx, &context)) {
         SetCurrentThread(tctx->thread);
         return tctx->thread;
@@ -468,7 +471,7 @@ AsanThread *FindThreadByStackAddress(uptr addr) {
 void EnsureMainThreadIDIsCorrect() {
   AsanThreadContext *context =
       reinterpret_cast<AsanThreadContext *>(AsanTSDGet());
-  if (context && (context->tid == 0))
+  if (context && (context->tid == kMainTid))
     context->os_id = GetTid();
 }
 
@@ -503,8 +506,12 @@ void GetAllThreadAllocatorCachesLocked(InternalMmapVector<uptr> *caches) {}
 void ForEachExtraStackRange(tid_t os_id, RangeIteratorCallback callback,
                             void *arg) {
   __asan::AsanThread *t = __asan::GetAsanThreadByOsIDLocked(os_id);
-  if (t && t->has_fake_stack())
-    t->fake_stack()->ForEachFakeFrame(callback, arg);
+  if (!t)
+    return;
+  __asan::FakeStack *fake_stack = t->get_fake_stack();
+  if (!fake_stack)
+    return;
+  fake_stack->ForEachFakeFrame(callback, arg);
 }
 
 void LockThreadRegistry() {

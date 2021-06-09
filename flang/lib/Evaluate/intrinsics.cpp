@@ -772,6 +772,12 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
             {"back", AnyLogical, Rank::elemental, Optionality::optional},
             DefaultingKIND},
         KINDInt},
+    {"__builtin_ieee_is_nan", {{"a", AnyFloating}}, DefaultLogical},
+    {"__builtin_ieee_selected_real_kind", // alias for selected_real_kind
+        {{"p", AnyInt, Rank::scalar},
+            {"r", AnyInt, Rank::scalar, Optionality::optional},
+            {"radix", AnyInt, Rank::scalar, Optionality::optional}},
+        DefaultInt, Rank::scalar, IntrinsicClass::transformationalFunction},
     {"__builtin_ieee_support_datatype",
         {{"x", AnyReal, Rank::elemental, Optionality::optional}},
         DefaultLogical},
@@ -1255,7 +1261,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         }
       } else {
         // NULL(), procedure, or procedure pointer
-        CHECK(IsProcedurePointer(expr));
+        CHECK(IsProcedurePointerTarget(expr));
         if (d.typePattern.kindCode == KindCode::addressable ||
             d.rank == Rank::reduceOperation) {
           continue;
@@ -1475,12 +1481,6 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       CHECK(FloatingType.test(*category));
       resultType = DynamicType{*category, defaults.doublePrecisionKind()};
       break;
-    case KindCode::defaultCharKind:
-      CHECK(result.categorySet == CharType);
-      CHECK(*category == TypeCategory::Character);
-      resultType = DynamicType{TypeCategory::Character,
-          defaults.GetDefaultKind(TypeCategory::Character)};
-      break;
     case KindCode::defaultLogicalKind:
       CHECK(result.categorySet == LogicalType);
       CHECK(*category == TypeCategory::Logical);
@@ -1510,7 +1510,11 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
           CHECK(expr->Rank() == 0);
           if (auto code{ToInt64(*expr)}) {
             if (IsValidKindOfIntrinsicType(*category, *code)) {
-              resultType = DynamicType{*category, static_cast<int>(*code)};
+              if (*category == TypeCategory::Character) { // ACHAR & CHAR
+                resultType = DynamicType{static_cast<int>(*code), 1};
+              } else {
+                resultType = DynamicType{*category, static_cast<int>(*code)};
+              }
               break;
             }
           }
@@ -1529,7 +1533,12 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       } else {
         CHECK(kindDummyArg->optionality ==
             Optionality::defaultsToDefaultForResult);
-        resultType = DynamicType{*category, defaults.GetDefaultKind(*category)};
+        int kind{defaults.GetDefaultKind(*category)};
+        if (*category == TypeCategory::Character) { // ACHAR & CHAR
+          resultType = DynamicType{kind, 1};
+        } else {
+          resultType = DynamicType{*category, kind};
+        }
       }
       break;
     case KindCode::likeMultiply:
@@ -1551,6 +1560,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       resultType =
           DynamicType{TypeCategory::Integer, defaults.sizeIntegerKind()};
       break;
+    case KindCode::defaultCharKind:
     case KindCode::typeless:
     case KindCode::teamType:
     case KindCode::any:
@@ -1851,7 +1861,7 @@ SpecificCall IntrinsicProcTable::Implementation::HandleNull(
       if (IsAllocatableOrPointer(*mold)) {
         characteristics::DummyArguments args;
         std::optional<characteristics::FunctionResult> fResult;
-        if (IsProcedurePointer(*mold)) {
+        if (IsProcedurePointerTarget(*mold)) {
           // MOLD= procedure pointer
           const Symbol *last{GetLastSymbol(*mold)};
           CHECK(last);

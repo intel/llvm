@@ -16,7 +16,7 @@
 
 ; GFX9-FLATSCR: s_mov_b32 [[SOFF1:s[0-9]+]], 4{{$}}
 ; GFX9-FLATSCR: scratch_store_dwordx4 off, v[{{[0-9:]+}}], [[SOFF1]] ; 16-byte Folded Spill
-; GFX9-FLATSCR: s_movk_i32 [[SOFF2:s[0-9]+]], 0x{{[0-9a-f]+}}{{$}}
+; GFX9-FLATSCR: s_movk_i32 [[SOFF2:s[0-9]+]], 0x1{{[0-9a-f]+}}{{$}}
 ; GFX9-FLATSCR: scratch_load_dwordx4 v[{{[0-9:]+}}], off, [[SOFF2]] ; 16-byte Folded Reload
 
 ; GFX10-FLATSCR: scratch_store_dwordx4 off, v[{{[0-9:]+}}], off offset:{{[0-9]+}} ; 16-byte Folded Spill
@@ -46,6 +46,8 @@ entry:
 
 ; CHECK-LABEL: test_limited_sgpr
 ; GFX6: s_add_u32 s32, s32, 0x[[OFFSET:[0-9a-f]+]]
+; GFX6: s_add_u32 s32, s32, 0x[[OFFSET:[0-9a-f]+]]
+; GFX6-NEXT: s_waitcnt expcnt(0)
 ; GFX6-NEXT: buffer_load_dword v{{[0-9]+}}, off, s[{{[0-9:]+}}], s32
 ; GFX6-NEXT: s_sub_u32 s32, s32, 0x[[OFFSET:[0-9a-f]+]]
 ; GFX6: NumSgprs: 48

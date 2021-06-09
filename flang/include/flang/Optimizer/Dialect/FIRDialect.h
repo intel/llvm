@@ -32,6 +32,22 @@ public:
                                  mlir::Type type) const override;
   void printAttribute(mlir::Attribute attr,
                       mlir::DialectAsmPrinter &p) const override;
+
+private:
+  // Register the Attributes of this dialect.
+  void registerAttributes();
+  // Register the Types of this dialect.
+  void registerTypes();
+};
+
+/// The FIR codegen dialect is a dialect containing a small set of transient
+/// operations used exclusively during code generation.
+class FIRCodeGenDialect final : public mlir::Dialect {
+public:
+  explicit FIRCodeGenDialect(mlir::MLIRContext *ctx);
+  virtual ~FIRCodeGenDialect();
+
+  static llvm::StringRef getDialectNamespace() { return "fircg"; }
 };
 
 } // namespace fir

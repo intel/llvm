@@ -11,7 +11,11 @@
 
 #include "CL/__spirv/spirv_ops.hpp"
 
-constexpr int32_t Subnorm = 0, RndMode = 2, RndAcc = 1;
+constexpr int32_t Subnorm = 0;
+constexpr int32_t RndMode = 2;
+constexpr int32_t RndAcc = 1;
+constexpr bool FromSign = false;
+constexpr bool ToSign = true;
 
 template <int EA, int MA, int Eout, int Mout>
 void ap_float_cast() {
@@ -27,8 +31,8 @@ void ap_float_cast_from_int() {
   ap_int<WA> A;
   ap_int<1 + Eout + Mout> cast_from_int_res =
       __spirv_ArbitraryFloatCastFromIntINTEL<WA, 1 + Eout + Mout>(
-          A, Mout, Subnorm, RndMode, RndAcc);
-  // CHECK: call spir_func signext i25 @_Z{{[0-9]+}}__spirv_ArbitraryFloatCastFromIntINTEL{{.*}}(i43 {{[%a-z0-9.]+}}, i32 16, i32 0, i32 2, i32 1)
+          A, Mout, FromSign, Subnorm, RndMode, RndAcc);
+  // CHECK: call spir_func signext i25 @_Z{{[0-9]+}}__spirv_ArbitraryFloatCastFromIntINTEL{{.*}}(i43 {{[%a-z0-9.]+}}, i32 16, i1 zeroext false, i32 0, i32 2, i32 1)
 }
 
 template <int EA, int MA, int Wout>
@@ -36,8 +40,8 @@ void ap_float_cast_to_int() {
   ap_int<1 + EA + MA> A;
   ap_int<Wout> cast_to_int_res =
       __spirv_ArbitraryFloatCastToIntINTEL<1 + EA + MA, Wout>(
-          A, MA, Subnorm, RndMode, RndAcc);
-  // CHECK: call spir_func signext i30 @_Z{{[0-9]+}}__spirv_ArbitraryFloatCastToIntINTEL{{.*}}(i23 signext {{[%a-z0-9.]+}}, i32 15, i32 0, i32 2, i32 1)
+          A, MA, ToSign, Subnorm, RndMode, RndAcc);
+  // CHECK: call spir_func signext i30 @_Z{{[0-9]+}}__spirv_ArbitraryFloatCastToIntINTEL{{.*}}(i23 signext {{[%a-z0-9.]+}}, i32 15, i1 zeroext true, i32 0, i32 2, i32 1)
 }
 
 template <int EA, int MA, int EB, int MB, int Eout, int Mout>

@@ -88,8 +88,8 @@ private:
   }
 };
 
-INSTANTIATE_TEST_CASE_P(SyntaxTreeTests, BuildSyntaxTreeTest,
-                        testing::ValuesIn(allTestClangConfigs()), );
+INSTANTIATE_TEST_SUITE_P(SyntaxTreeTests, BuildSyntaxTreeTest,
+                        testing::ValuesIn(allTestClangConfigs()) );
 
 TEST_P(BuildSyntaxTreeTest, Simple) {
   EXPECT_TRUE(treeDumpEqual(
@@ -510,6 +510,25 @@ TranslationUnit Detached
     |   `-';'
     `-'}' CloseParen
 )txt"));
+}
+
+TEST_P(BuildSyntaxTreeTest, ConditionalOperator) {
+  // FIXME: conditional expression is not modeled yet.
+  EXPECT_TRUE(treeDumpEqualOnAnnotations(
+      R"cpp(
+void test() {
+  [[1?:2]];
+}
+)cpp",
+      {R"txt(
+UnknownExpression Expression
+|-IntegerLiteralExpression
+| `-'1' LiteralToken
+|-'?'
+|-':'
+`-IntegerLiteralExpression
+  `-'2' LiteralToken
+)txt"}));
 }
 
 TEST_P(BuildSyntaxTreeTest, UnqualifiedId_Identifier) {

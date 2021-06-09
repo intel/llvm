@@ -17,6 +17,7 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
+#include "lldb/Core/Progress.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Host/Host.h"
@@ -43,6 +44,8 @@
 
 #include "lldb/Host/SafeMachO.h"
 
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include "ObjectFileMachO.h"
@@ -1330,7 +1333,7 @@ void ObjectFileMachO::SanitizeSegmentCommand(segment_command_64 &seg_cmd,
 
   if ((m_header.flags & MH_DYLIB_IN_CACHE) && !IsInMemory()) {
     // In shared cache images, the load commands are relative to the
-    // shared cache file, and not the the specific image we are
+    // shared cache file, and not the specific image we are
     // examining. Let's fix this up so that it looks like a normal
     // image.
     if (strncmp(seg_cmd.segname, "__TEXT", sizeof(seg_cmd.segname)) == 0)
@@ -1893,9 +1896,9 @@ public:
             filename = first_section_sp->GetObjectFile()->GetFileSpec().GetPath();
 
           Host::SystemLog(Host::eSystemLogError,
-                          "error: unable to find section %d for a symbol in %s, corrupt file?\n",
-                          n_sect, 
-                          filename.c_str());
+                          "error: unable to find section %d for a symbol in "
+                          "%s, corrupt file?\n",
+                          n_sect, filename.c_str());
         }
       }
       if (m_section_infos[n_sect].vm_range.Contains(file_addr)) {
@@ -2167,6 +2170,9 @@ size_t ObjectFileMachO::ParseSymtab() {
   if (!module_sp)
     return 0;
 
+  Progress progress(llvm::formatv("Parsing symbol table for {0}",
+                                  m_file.GetFilename().AsCString("<Unknown>")));
+
   struct symtab_command symtab_load_command = {0, 0, 0, 0, 0, 0};
   struct linkedit_data_command function_starts_load_command = {0, 0, 0, 0};
   struct dyld_info_command dyld_info = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -2178,7 +2184,16 @@ size_t ObjectFileMachO::ParseSymtab() {
   // We add symbols to the table in the order of most information (nlist
   // records) to least (function starts), and avoid duplicating symbols
   // via this set.
-  std::set<addr_t> symbols_added;
+  llvm::DenseSet<addr_t> symbols_added;
+
+  // We are using a llvm::DenseSet for "symbols_added" so we must be sure we
+  // do not add the tombstone or empty keys to the set.
+  auto add_symbol_addr = [&symbols_added](lldb::addr_t file_addr) {
+    // Don't add the tombstone or empty keys.
+    if (file_addr == UINT64_MAX || file_addr == UINT64_MAX - 1)
+      return;
+    symbols_added.insert(file_addr);
+  };
   FunctionStarts function_starts;
   lldb::offset_t offset = MachHeaderSizeFromMagic(m_header.magic);
   uint32_t i;
@@ -3635,9 +3650,9 @@ size_t ObjectFileMachO::ParseSymtab() {
                                     symbol_section);
                                 sym[GSYM_sym_idx].GetAddressRef().SetOffset(
                                     symbol_value);
-                                symbols_added.insert(sym[GSYM_sym_idx]
-                                                         .GetAddress()
-                                                         .GetFileAddress());
+                                add_symbol_addr(sym[GSYM_sym_idx]
+                                                    .GetAddress()
+                                                    .GetFileAddress());
                                 // We just need the flags from the linker
                                 // symbol, so put these flags
                                 // into the N_GSYM flags to avoid duplicate
@@ -3657,7 +3672,7 @@ size_t ObjectFileMachO::ParseSymtab() {
                       if (set_value) {
                         sym[sym_idx].GetAddressRef().SetSection(symbol_section);
                         sym[sym_idx].GetAddressRef().SetOffset(symbol_value);
-                        symbols_added.insert(
+                        add_symbol_addr(
                             sym[sym_idx].GetAddress().GetFileAddress());
                       }
                       sym[sym_idx].SetFlags(nlist.n_type << 16 | nlist.n_desc);
@@ -4470,7 +4485,7 @@ size_t ObjectFileMachO::ParseSymtab() {
                 // invalid address of zero when the global is a common symbol.
                 sym[GSYM_sym_idx].GetAddressRef().SetSection(symbol_section);
                 sym[GSYM_sym_idx].GetAddressRef().SetOffset(symbol_value);
-                symbols_added.insert(
+                add_symbol_addr(
                     sym[GSYM_sym_idx].GetAddress().GetFileAddress());
                 // We just need the flags from the linker symbol, so put these
                 // flags into the N_GSYM flags to avoid duplicate symbols in
@@ -4489,7 +4504,8 @@ size_t ObjectFileMachO::ParseSymtab() {
       if (set_value) {
         sym[sym_idx].GetAddressRef().SetSection(symbol_section);
         sym[sym_idx].GetAddressRef().SetOffset(symbol_value);
-        symbols_added.insert(sym[sym_idx].GetAddress().GetFileAddress());
+        if (symbol_section)
+          add_symbol_addr(sym[sym_idx].GetAddress().GetFileAddress());
       }
       sym[sym_idx].SetFlags(nlist.n_type << 16 | nlist.n_desc);
       if (nlist.n_desc & N_WEAK_REF)
@@ -4585,7 +4601,7 @@ size_t ObjectFileMachO::ParseSymtab() {
         sym[sym_idx].SetIsSynthetic(true);
         sym[sym_idx].SetExternal(true);
         sym[sym_idx].GetAddressRef() = symbol_addr;
-        symbols_added.insert(symbol_addr.GetFileAddress());
+        add_symbol_addr(symbol_addr.GetFileAddress());
         if (e.entry.flags & TRIE_SYMBOL_IS_THUMB)
           sym[sym_idx].SetFlags(MACHO_NLIST_ARM_SYMBOL_IS_THUMB);
         ++sym_idx;
@@ -4640,7 +4656,7 @@ size_t ObjectFileMachO::ParseSymtab() {
               sym[sym_idx].SetType(eSymbolTypeCode);
               sym[sym_idx].SetIsSynthetic(true);
               sym[sym_idx].GetAddressRef() = symbol_addr;
-              symbols_added.insert(symbol_addr.GetFileAddress());
+              add_symbol_addr(symbol_addr.GetFileAddress());
               if (symbol_flags)
                 sym[sym_idx].SetFlags(symbol_flags);
               if (symbol_byte_size)
@@ -4741,7 +4757,7 @@ size_t ObjectFileMachO::ParseSymtab() {
                     sym[sym_idx].SetType(eSymbolTypeResolver);
                   sym[sym_idx].SetIsSynthetic(true);
                   sym[sym_idx].GetAddressRef() = so_addr;
-                  symbols_added.insert(so_addr.GetFileAddress());
+                  add_symbol_addr(so_addr.GetFileAddress());
                   sym[sym_idx].SetByteSize(symbol_stub_byte_size);
                   ++sym_idx;
                 }

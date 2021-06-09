@@ -51,6 +51,9 @@ public:
   // Returns the dialects extra class declaration code.
   llvm::Optional<StringRef> getExtraClassDeclaration() const;
 
+  /// Returns true if this dialect has a canonicalizer.
+  bool hasCanonicalizer() const;
+
   // Returns true if this dialect has a constant materializer.
   bool hasConstantMaterializer() const;
 
@@ -62,6 +65,9 @@ public:
 
   /// Returns true if this dialect has a region result attribute verifier.
   bool hasRegionResultAttrVerify() const;
+
+  /// Returns true if this dialect has fallback interfaces for its operations.
+  bool hasOperationInterfaceFallback() const;
 
   // Returns whether two dialects are equal by checking the equality of the
   // underlying record.

@@ -131,7 +131,7 @@ void ImportSection::writeBody() {
     import.Field = "memory";
     import.Kind = WASM_EXTERNAL_MEMORY;
     import.Memory.Flags = 0;
-    import.Memory.Initial = out.memorySec->numMemoryPages;
+    import.Memory.Minimum = out.memorySec->numMemoryPages;
     if (out.memorySec->maxMemoryPages != 0 || config->sharedMemory) {
       import.Memory.Flags |= WASM_LIMITS_FLAG_HAS_MAX;
       import.Memory.Maximum = out.memorySec->maxMemoryPages;
@@ -230,7 +230,8 @@ void TableSection::addTable(InputTable *table) {
         if (isa<UndefinedTable>(culprit)) {
           error("object file not built with 'reference-types' feature "
                 "conflicts with import of table " +
-                culprit->getName() + "by file " + toString(culprit->getFile()));
+                culprit->getName() + " by file " +
+                toString(culprit->getFile()));
           return;
         }
       }
@@ -296,6 +297,12 @@ void GlobalSection::assignIndexes() {
   isSealed = true;
 }
 
+static void ensureIndirectFunctionTable() {
+  if (!WasmSym::indirectFunctionTable)
+    WasmSym::indirectFunctionTable =
+        symtab->resolveIndirectFunctionTable(/*required =*/true);
+}
+
 void GlobalSection::addInternalGOTEntry(Symbol *sym) {
   assert(!isSealed);
   if (sym->requiresGOT)
@@ -303,8 +310,10 @@ void GlobalSection::addInternalGOTEntry(Symbol *sym) {
   LLVM_DEBUG(dbgs() << "addInternalGOTEntry: " << sym->getName() << " "
                     << toString(sym->kind()) << "\n");
   sym->requiresGOT = true;
-  if (auto *F = dyn_cast<FunctionSymbol>(sym))
+  if (auto *F = dyn_cast<FunctionSymbol>(sym)) {
+    ensureIndirectFunctionTable();
     out.elemSec->addEntry(F);
+  }
   internalGotSymbols.push_back(sym);
 }
 
@@ -324,7 +333,7 @@ void GlobalSection::generateRelocationCode(raw_ostream &os) const {
 
       // Add the virtual address of the data symbol
       writeU8(os, opcode_ptr_const, "CONST");
-      writeSleb128(os, d->getVirtualAddress(), "offset");
+      writeSleb128(os, d->getVA(), "offset");
     } else if (auto *f = dyn_cast<FunctionSymbol>(sym)) {
       if (f->isStub)
         continue;
@@ -353,33 +362,30 @@ void GlobalSection::writeBody() {
     writeGlobalType(os, g->getType());
     writeInitExpr(os, g->getInitExpr());
   }
-  // TODO(wvo): when do these need I64_CONST?
+  bool is64 = config->is64.getValueOr(false);
+  uint8_t itype = is64 ? WASM_TYPE_I64 : WASM_TYPE_I32;
   for (const Symbol *sym : internalGotSymbols) {
     // In the case of dynamic linking, internal GOT entries
     // need to be mutable since they get updated to the correct
     // runtime value during `__wasm_apply_global_relocs`.
     bool mutable_ = config->isPic & !sym->isStub;
-    WasmGlobalType type{WASM_TYPE_I32, mutable_};
+    WasmGlobalType type{itype, mutable_};
     WasmInitExpr initExpr;
-    initExpr.Opcode = WASM_OPCODE_I32_CONST;
     if (auto *d = dyn_cast<DefinedData>(sym))
-      initExpr.Value.Int32 = d->getVirtualAddress();
+      initExpr = intConst(d->getVA(), is64);
     else if (auto *f = dyn_cast<FunctionSymbol>(sym))
-      initExpr.Value.Int32 = f->isStub ? 0 : f->getTableIndex();
+      initExpr = intConst(f->isStub ? 0 : f->getTableIndex(), is64);
     else {
       assert(isa<UndefinedData>(sym));
-      initExpr.Value.Int32 = 0;
+      initExpr = intConst(0, is64);
     }
     writeGlobalType(os, type);
     writeInitExpr(os, initExpr);
   }
   for (const DefinedData *sym : dataAddressGlobals) {
-    WasmGlobalType type{WASM_TYPE_I32, false};
-    WasmInitExpr initExpr;
-    initExpr.Opcode = WASM_OPCODE_I32_CONST;
-    initExpr.Value.Int32 = sym->getVirtualAddress();
+    WasmGlobalType type{itype, false};
     writeGlobalType(os, type);
-    writeInitExpr(os, initExpr);
+    writeInitExpr(os, intConst(sym->getVA(), is64));
   }
 }
 
@@ -421,19 +427,37 @@ void ElemSection::addEntry(FunctionSymbol *sym) {
 void ElemSection::writeBody() {
   raw_ostream &os = bodyOutputStream;
 
+  assert(WasmSym::indirectFunctionTable);
   writeUleb128(os, 1, "segment count");
-  writeUleb128(os, 0, "table index");
+  uint32_t tableNumber = WasmSym::indirectFunctionTable->getTableNumber();
+  uint32_t flags = 0;
+  if (tableNumber)
+    flags |= WASM_ELEM_SEGMENT_HAS_TABLE_NUMBER;
+  writeUleb128(os, flags, "elem segment flags");
+  if (flags & WASM_ELEM_SEGMENT_HAS_TABLE_NUMBER)
+    writeUleb128(os, tableNumber, "table number");
+
   WasmInitExpr initExpr;
   if (config->isPic) {
     initExpr.Opcode = WASM_OPCODE_GLOBAL_GET;
-    initExpr.Value.Global = WasmSym::tableBase->getGlobalIndex();
+    initExpr.Value.Global =
+        (config->is64.getValueOr(false) ? WasmSym::tableBase32
+                                        : WasmSym::tableBase)
+            ->getGlobalIndex();
   } else {
     initExpr.Opcode = WASM_OPCODE_I32_CONST;
     initExpr.Value.Int32 = config->tableBase;
   }
   writeInitExpr(os, initExpr);
-  writeUleb128(os, indirectFunctions.size(), "elem count");
 
+  if (flags & WASM_ELEM_SEGMENT_MASK_HAS_ELEM_KIND) {
+    // We only write active function table initializers, for which the elem kind
+    // is specified to be written as 0x00 and interpreted to mean "funcref".
+    const uint8_t elemKind = 0;
+    writeU8(os, elemKind, "elem kind");
+  }
+
+  writeUleb128(os, indirectFunctions.size(), "elem count");
   uint32_t tableIndex = config->tableBase;
   for (const FunctionSymbol *sym : indirectFunctions) {
     assert(sym->getTableIndex() == tableIndex);
@@ -512,7 +536,7 @@ void LinkingSection::writeBody() {
     for (const OutputSegment *s : dataSegments) {
       writeStr(sub.os, s->name, "segment name");
       writeUleb128(sub.os, s->alignment, "alignment");
-      writeUleb128(sub.os, 0, "flags");
+      writeUleb128(sub.os, s->linkingFlags, "flags");
     }
     sub.writeTo(os);
   }
@@ -545,7 +569,7 @@ void LinkingSection::writeBody() {
       continue;
     StringRef comdat = inputSegments[0]->getComdatName();
 #ifndef NDEBUG
-    for (const InputSegment *isec : inputSegments)
+    for (const InputChunk *isec : inputSegments)
       assert(isec->getComdatName() == comdat);
 #endif
     if (!comdat.empty())

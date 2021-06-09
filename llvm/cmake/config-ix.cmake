@@ -189,8 +189,8 @@ else()
   set(LLVM_ENABLE_TERMINFO 0)
 endif()
 
-check_library_exists(xar xar_open "" HAVE_LIBXAR)
-if(HAVE_LIBXAR)
+check_library_exists(xar xar_open "" LLVM_HAVE_LIBXAR)
+if(LLVM_HAVE_LIBXAR)
   set(XAR_LIB xar)
 endif()
 
@@ -280,8 +280,14 @@ endif()
 
 CHECK_STRUCT_HAS_MEMBER("struct stat" st_mtimespec.tv_nsec
     "sys/types.h;sys/stat.h" HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC)
-CHECK_STRUCT_HAS_MEMBER("struct stat" st_mtim.tv_nsec
-    "sys/types.h;sys/stat.h" HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC)
+if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+# The st_mtim.tv_nsec member of a `stat` structure is not reliable on some AIX
+# environments.
+  set(HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC 0)
+else()
+  CHECK_STRUCT_HAS_MEMBER("struct stat" st_mtim.tv_nsec
+      "sys/types.h;sys/stat.h" HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC)
+endif()
 
 check_symbol_exists(__GLIBC__ stdio.h LLVM_USING_GLIBC)
 if( LLVM_USING_GLIBC )
@@ -351,6 +357,8 @@ else()
   unset(HAVE_FFI_H CACHE)
   unset(HAVE_FFI_CALL CACHE)
 endif( LLVM_ENABLE_FFI )
+
+check_symbol_exists(proc_pid_rusage "libproc.h" HAVE_PROC_PID_RUSAGE)
 
 # Whether we can use std::is_trivially_copyable to verify llvm::is_trivially_copyable.
 CHECK_CXX_SOURCE_COMPILES("
@@ -450,6 +458,8 @@ elseif (LLVM_NATIVE_ARCH MATCHES "riscv32")
   set(LLVM_NATIVE_ARCH RISCV)
 elseif (LLVM_NATIVE_ARCH MATCHES "riscv64")
   set(LLVM_NATIVE_ARCH RISCV)
+elseif (LLVM_NATIVE_ARCH STREQUAL "m68k")
+  set(LLVM_NATIVE_ARCH M68k)
 else ()
   message(FATAL_ERROR "Unknown architecture ${LLVM_NATIVE_ARCH}")
 endif ()

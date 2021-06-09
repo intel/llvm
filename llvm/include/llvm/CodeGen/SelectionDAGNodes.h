@@ -462,7 +462,7 @@ protected:
   // SubclassData.  These are designed to fit within a uint16_t so they pack
   // with NodeType.
 
-#if defined(_AIX) && (!defined(__GNUC__) || defined(__ibmxl__))
+#if defined(_AIX) && (!defined(__GNUC__) || defined(__clang__))
 // Except for GCC; by default, AIX compilers store bit-fields in 4-byte words
 // and give the `pack` pragma push semantics.
 #define BEGIN_TWO_BYTE_PACK() _Pragma("pack(2)")
@@ -716,8 +716,7 @@ public:
 
   /// This class provides iterator support for SDUse
   /// operands that use a specific SDNode.
-  class use_iterator
-    : public std::iterator<std::forward_iterator_tag, SDUse, ptrdiff_t> {
+  class use_iterator {
     friend class SDNode;
 
     SDUse *Op = nullptr;
@@ -725,10 +724,11 @@ public:
     explicit use_iterator(SDUse *op) : Op(op) {}
 
   public:
-    using reference = std::iterator<std::forward_iterator_tag,
-                                    SDUse, ptrdiff_t>::reference;
-    using pointer = std::iterator<std::forward_iterator_tag,
-                                  SDUse, ptrdiff_t>::pointer;
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = SDUse;
+    using difference_type = std::ptrdiff_t;
+    using pointer = value_type *;
+    using reference = value_type &;
 
     use_iterator() = default;
     use_iterator(const use_iterator &I) : Op(I.Op) {}
@@ -1262,10 +1262,6 @@ public:
   /// Returns alignment and volatility of the memory access
   Align getOriginalAlign() const { return MMO->getBaseAlign(); }
   Align getAlign() const { return MMO->getAlign(); }
-  LLVM_ATTRIBUTE_DEPRECATED(unsigned getOriginalAlignment() const,
-                            "Use getOriginalAlign() instead") {
-    return MMO->getBaseAlign().value();
-  }
   // FIXME: Remove once transition to getAlign is over.
   unsigned getAlignment() const { return MMO->getAlign().value(); }
 
@@ -1309,6 +1305,11 @@ public:
   /// cmpxchg atomic operations, return the atomic ordering requirements when
   /// store occurs.
   AtomicOrdering getOrdering() const { return MMO->getOrdering(); }
+
+  /// Return a single atomic ordering that is at least as strong as both the
+  /// success and failure orderings for an atomic operation.  (For operations
+  /// other than cmpxchg, this is equivalent to getOrdering().)
+  AtomicOrdering getMergedOrdering() const { return MMO->getMergedOrdering(); }
 
   /// Return true if the memory operation ordering is Unordered or higher.
   bool isAtomic() const { return MMO->isAtomic(); }
@@ -1677,12 +1678,17 @@ bool isNullOrNullSplat(SDValue V, bool AllowUndefs = false);
 /// Return true if the value is a constant 1 integer or a splatted vector of a
 /// constant 1 integer (with no undefs).
 /// Does not permit build vector implicit truncation.
-bool isOneOrOneSplat(SDValue V);
+bool isOneOrOneSplat(SDValue V, bool AllowUndefs = false);
 
 /// Return true if the value is a constant -1 integer or a splatted vector of a
 /// constant -1 integer (with no undefs).
 /// Does not permit build vector implicit truncation.
-bool isAllOnesOrAllOnesSplat(SDValue V);
+bool isAllOnesOrAllOnesSplat(SDValue V, bool AllowUndefs = false);
+
+/// Return true if \p V is either a integer or FP constant.
+inline bool isIntOrFPConstant(SDValue V) {
+  return isa<ConstantSDNode>(V) || isa<ConstantFPSDNode>(V);
+}
 
 class GlobalAddressSDNode : public SDNode {
   friend class SelectionDAG;
@@ -2587,14 +2593,19 @@ public:
   }
 };
 
-class SDNodeIterator : public std::iterator<std::forward_iterator_tag,
-                                            SDNode, ptrdiff_t> {
+class SDNodeIterator {
   const SDNode *Node;
   unsigned Operand;
 
   SDNodeIterator(const SDNode *N, unsigned Op) : Node(N), Operand(Op) {}
 
 public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = SDNode;
+  using difference_type = std::ptrdiff_t;
+  using pointer = value_type *;
+  using reference = value_type &;
+
   bool operator==(const SDNodeIterator& x) const {
     return Operand == x.Operand;
   }

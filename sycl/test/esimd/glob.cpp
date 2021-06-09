@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-explicit-simd -c -fsycl-device-only -Xclang -emit-llvm %s -o %t
+// RUN: %clangxx -fsycl -c -fsycl-device-only -Xclang -emit-llvm %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -O2 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
@@ -7,10 +7,10 @@
 // (including translation of the register attribute)
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <iostream>
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 constexpr unsigned VL = 16;
 

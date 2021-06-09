@@ -141,7 +141,18 @@ void DependencyCollector::maybeAddDependency(StringRef Filename,
 }
 
 bool DependencyCollector::addDependency(StringRef Filename) {
-  if (Seen.insert(Filename).second) {
+  StringRef SearchPath;
+#ifdef _WIN32
+  // Make the search insensitive to case and separators.
+  llvm::SmallString<256> TmpPath = Filename;
+  llvm::sys::path::native(TmpPath);
+  std::transform(TmpPath.begin(), TmpPath.end(), TmpPath.begin(), ::tolower);
+  SearchPath = TmpPath.str();
+#else
+  SearchPath = Filename;
+#endif
+
+  if (Seen.insert(SearchPath).second) {
     Dependencies.push_back(std::string(Filename));
     return true;
   }
@@ -314,7 +325,7 @@ void DependencyFileGenerator::outputDependencyFile(DiagnosticsEngine &Diags) {
   }
 
   std::error_code EC;
-  llvm::raw_fd_ostream OS(OutputFile, EC, llvm::sys::fs::OF_Text);
+  llvm::raw_fd_ostream OS(OutputFile, EC, llvm::sys::fs::OF_TextWithCRLF);
   if (EC) {
     Diags.Report(diag::err_fe_error_opening) << OutputFile << EC.message();
     return;

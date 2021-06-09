@@ -18,6 +18,7 @@
 #include <CL/sycl/sampler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/kernel_info.hpp>
 #include <detail/program_impl.hpp>
@@ -496,14 +497,9 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   }
 
   // Do not add redundant event dependencies for in-order queues.
-  // TODO temporarily disabled with Level Zero since the enqueued operations
-  // that are implemented directly in the plugin (e.g. map/unmap) do not satisfy
-  // in-order queue requirements.
-  if (WorkerQueue->is_host() ||
-      WorkerQueue->getPlugin().getBackend() != backend::level_zero)
-    if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
-        WorkerQueue->has_property<property::queue::in_order>())
-      return;
+  if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
+      WorkerQueue->has_property<property::queue::in_order>())
+    return;
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
@@ -1640,8 +1636,9 @@ static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
 }
 
 pi_result ExecCGCommand::SetKernelParamsAndLaunch(
-    CGExecKernel *ExecKernel, RT::PiKernel Kernel, NDRDescT &NDRDesc,
-    std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
+    CGExecKernel *ExecKernel,
+    std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
+    NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
     ProgramManager::KernelArgMask EliminatedArgMask) {
   vector_class<ArgDesc> &Args = ExecKernel->MArgs;
   // TODO this is not necessary as long as we can guarantee that the arguments
@@ -1664,6 +1661,8 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     if (!EliminatedArgMask.empty() && EliminatedArgMask[Arg.MIndex])
       continue;
     switch (Arg.MType) {
+    case kernel_param_kind_t::kind_stream:
+      break;
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
@@ -1693,6 +1692,24 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     case kernel_param_kind_t::kind_pointer: {
       Plugin.call<PiApiKind::piextKernelSetArgPointer>(Kernel, NextTrueIndex,
                                                        Arg.MSize, Arg.MPtr);
+      break;
+    }
+    case kernel_param_kind_t::kind_specialization_constants_buffer: {
+      if (MQueue->is_host()) {
+        throw cl::sycl::feature_not_supported(
+            "SYCL2020 specialization constants are not yet supported on host "
+            "device",
+            PI_INVALID_OPERATION);
+      }
+      if (DeviceImageImpl != nullptr) {
+        RT::PiMem SpecConstsBuffer =
+            DeviceImageImpl->get_spec_const_buffer_ref();
+        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                        &SpecConstsBuffer);
+      } else {
+        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                        nullptr);
+      }
       break;
     }
     }
@@ -1903,6 +1920,9 @@ cl_int ExecCGCommand::enqueueImp() {
       return CL_SUCCESS;
     }
 
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr =
+        ExecKernel->getKernelBundle();
+
     // Run OpenCL kernel
     sycl::context Context = MQueue->get_context();
     RT::PiKernel Kernel = nullptr;
@@ -1910,7 +1930,31 @@ cl_int ExecCGCommand::enqueueImp() {
     RT::PiProgram Program = nullptr;
     bool KnownProgram = true;
 
-    if (nullptr != ExecKernel->MSyclKernel) {
+    std::shared_ptr<kernel_impl> SyclKernelImpl;
+    std::shared_ptr<device_image_impl> DeviceImageImpl;
+
+    // Use kernel_bundle is available
+    if (KernelBundleImplPtr) {
+
+      std::shared_ptr<kernel_id_impl> KernelIDImpl =
+          std::make_shared<kernel_id_impl>(ExecKernel->MKernelName);
+
+      kernel SyclKernel = KernelBundleImplPtr->get_kernel(
+          detail::createSyclObjFromImpl<kernel_id>(KernelIDImpl),
+          KernelBundleImplPtr);
+
+      SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
+
+      Kernel = SyclKernelImpl->getHandleRef();
+      DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+
+      Program = DeviceImageImpl->get_program_ref();
+
+      std::tie(Kernel, KernelMutex) =
+          detail::ProgramManager::getInstance().getOrCreateKernel(
+              KernelBundleImplPtr->get_context(), ExecKernel->MKernelName,
+              /*PropList=*/{}, Program);
+    } else if (nullptr != ExecKernel->MSyclKernel) {
       assert(ExecKernel->MSyclKernel->get_info<info::kernel::context>() ==
              Context);
       Kernel = ExecKernel->MSyclKernel->getHandleRef();
@@ -1950,11 +1994,13 @@ cl_int ExecCGCommand::enqueueImp() {
     if (KernelMutex != nullptr) {
       // For cacheable kernels, we use per-kernel mutex
       std::lock_guard<std::mutex> Lock(*KernelMutex);
-      Error = SetKernelParamsAndLaunch(ExecKernel, Kernel, NDRDesc, RawEvents,
-                                       Event, EliminatedArgMask);
+      Error =
+          SetKernelParamsAndLaunch(ExecKernel, DeviceImageImpl, Kernel, NDRDesc,
+                                   RawEvents, Event, EliminatedArgMask);
     } else {
-      Error = SetKernelParamsAndLaunch(ExecKernel, Kernel, NDRDesc, RawEvents,
-                                       Event, EliminatedArgMask);
+      Error =
+          SetKernelParamsAndLaunch(ExecKernel, DeviceImageImpl, Kernel, NDRDesc,
+                                   RawEvents, Event, EliminatedArgMask);
     }
 
     if (PI_SUCCESS != Error) {

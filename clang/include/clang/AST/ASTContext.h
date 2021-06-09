@@ -34,12 +34,13 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Linkage.h"
+#include "clang/Basic/NoSanitizeList.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/ProfileList.h"
-#include "clang/Basic/SanitizerBlacklist.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/TargetCXXABI.h"
 #include "clang/Basic/XRayLists.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -102,6 +103,7 @@ class DynTypedNode;
 class DynTypedNodeList;
 class Expr;
 class GlobalDecl;
+class ItaniumMangleContext;
 class MangleContext;
 class MangleNumberingContext;
 class MaterializeTemporaryExpr;
@@ -298,6 +300,10 @@ class ASTContext : public RefCountedBase<ASTContext> {
   ///
   /// This is lazily created.  This is intentionally not serialized.
   mutable llvm::StringMap<StringLiteral *> StringLiteralCache;
+
+  /// MD5 hash of CUID. It is calculated when first used and cached by this
+  /// data member.
+  mutable std::string CUIDHash;
 
   /// Representation of a "canonical" template template parameter that
   /// is used in canonical template names.
@@ -562,9 +568,9 @@ private:
   ///  this ASTContext object.
   LangOptions &LangOpts;
 
-  /// Blacklist object that is used by sanitizers to decide which
+  /// NoSanitizeList object that is used by sanitizers to decide which
   /// entities should not be instrumented.
-  std::unique_ptr<SanitizerBlacklist> SanitizerBL;
+  std::unique_ptr<NoSanitizeList> NoSanitizeL;
 
   /// Function filtering mechanism to determine whether a given function
   /// should be imbued with the XRay "always" or "never" attributes.
@@ -599,6 +605,9 @@ private:
   clang::PrintingPolicy PrintingPolicy;
   std::unique_ptr<interp::Context> InterpContext;
   std::unique_ptr<ParentMapContext> ParentMapCtx;
+
+  /// Keeps track of the deallocated DeclListNodes for future reuse.
+  DeclListNode *ListNodeFreeList = nullptr;
 
 public:
   IdentifierTable &Idents;
@@ -651,6 +660,24 @@ public:
   }
   void Deallocate(void *Ptr) const {}
 
+  /// Allocates a \c DeclListNode or returns one from the \c ListNodeFreeList
+  /// pool.
+  DeclListNode *AllocateDeclListNode(clang::NamedDecl *ND) {
+    if (DeclListNode *Alloc = ListNodeFreeList) {
+      ListNodeFreeList = Alloc->Rest.dyn_cast<DeclListNode*>();
+      Alloc->D = ND;
+      Alloc->Rest = nullptr;
+      return Alloc;
+    }
+    return new (*this) DeclListNode(ND);
+  }
+  /// Deallcates a \c DeclListNode by returning it to the \c ListNodeFreeList
+  /// pool.
+  void DeallocateDeclListNode(DeclListNode *N) {
+    N->Rest = ListNodeFreeList;
+    ListNodeFreeList = N;
+  }
+
   /// Return the total amount of physical memory allocated for representing
   /// AST nodes and type information.
   size_t getASTAllocatedMemory() const {
@@ -691,9 +718,7 @@ public:
     return LangOpts.CPlusPlus || LangOpts.RecoveryAST;
   }
 
-  const SanitizerBlacklist &getSanitizerBlacklist() const {
-    return *SanitizerBL;
-  }
+  const NoSanitizeList &getNoSanitizeList() const { return *NoSanitizeL; }
 
   const XRayFunctionFilter &getXRayFilter() const {
     return *XRayFilter;
@@ -706,6 +731,11 @@ public:
   FullSourceLoc getFullLoc(SourceLocation Loc) const {
     return FullSourceLoc(Loc,SourceMgr);
   }
+
+  /// Return the C++ ABI kind that should be used. The C++ ABI can be overriden
+  /// at compile time with `-fc++-abi=`. If this is not provided, we instead use
+  /// the default ABI set by the target.
+  TargetCXXABI::Kind getCXXABIKind() const;
 
   /// All comments in this translation unit.
   RawCommentList Comments;
@@ -1025,6 +1055,9 @@ public:
 #define PPC_VECTOR_TYPE(Name, Id, Size) \
   CanQualType Id##Ty;
 #include "clang/Basic/PPCTypes.def"
+#define RVV_TYPE(Name, Id, SingletonId) \
+  CanQualType SingletonId;
+#include "clang/Basic/RISCVVTypes.def"
 
   // Types for deductions in C++0x [stmt.ranged]'s desugaring. Built on demand.
   mutable QualType AutoDeductTy;     // Deduction against 'auto'.
@@ -1037,8 +1070,8 @@ public:
   // Implicitly-declared type 'struct _GUID'.
   mutable TagDecl *MSGuidTagDecl = nullptr;
 
-  /// Keep track of CUDA/HIP static device variables referenced by host code.
-  llvm::DenseSet<const VarDecl *> CUDAStaticDeviceVarReferencedByHost;
+  /// Keep track of CUDA/HIP device-side variables ODR-used by host code.
+  llvm::DenseSet<const VarDecl *> CUDADeviceVarODRUsedByHost;
 
   ASTContext(LangOptions &LOpts, SourceManager &SM, IdentifierTable &idents,
              SelectorTable &sels, Builtin::Context &builtins);
@@ -2328,6 +2361,12 @@ public:
   /// If \p T is null pointer, assume the target in ASTContext.
   MangleContext *createMangleContext(const TargetInfo *T = nullptr);
 
+  /// Creates a device mangle context to correctly mangle lambdas in a mixed
+  /// architecture compile by setting the lambda mangling number source to the
+  /// DeviceLambdaManglingNumber. Currently this asserts that the TargetInfo
+  /// (from the AuxTargetInfo) is a an itanium target.
+  MangleContext *createDeviceMangleContext(const TargetInfo &T);
+
   void DeepCollectObjCIvars(const ObjCInterfaceDecl *OI, bool leafClass,
                             SmallVectorImpl<const ObjCIvarDecl*> &Ivars) const;
 
@@ -2428,7 +2467,7 @@ public:
                            const ObjCMethodDecl *MethodImp);
 
   bool UnwrapSimilarTypes(QualType &T1, QualType &T2);
-  bool UnwrapSimilarArrayTypes(QualType &T1, QualType &T2);
+  void UnwrapSimilarArrayTypes(QualType &T1, QualType &T2);
 
   /// Determine if two types are similar, according to the C++ rules. That is,
   /// determine if they are the same other than qualifiers on the initial
@@ -2726,6 +2765,14 @@ public:
   // accepts fixed point types and returns the corresponding unsigned type for
   // a given fixed point type.
   QualType getCorrespondingUnsignedType(QualType T) const;
+
+  // Per C99 6.2.5p6, for every signed integer type, there is a corresponding
+  // unsigned integer type.  This method takes an unsigned type, and returns the
+  // corresponding signed integer type.
+  // With the introduction of fixed point types in ISO N1169, this method also
+  // accepts fixed point types and returns the corresponding signed type for
+  // a given fixed point type.
+  QualType getCorrespondingSignedType(QualType T) const;
 
   // Per ISO N1169, this method accepts fixed point types and returns the
   // corresponding saturated type for a given fixed point type.
@@ -3121,10 +3168,33 @@ public:
   /// Whether a C++ static variable should be externalized.
   bool shouldExternalizeStaticVar(const Decl *D) const;
 
+  StringRef getCUIDHash() const;
+
+  void AddSYCLKernelNamingDecl(const CXXRecordDecl *RD);
+  bool IsSYCLKernelNamingDecl(const NamedDecl *RD) const;
+  unsigned GetSYCLKernelNamingIndex(const NamedDecl *RD);
+  /// A SourceLocation to store whether we have evaluated a kernel name already,
+  /// and where it happened.  If so, we need to diagnose an illegal use of the
+  /// builtin.
+  llvm::MapVector<const SYCLUniqueStableNameExpr *, std::string>
+      SYCLUniqueStableNameEvaluatedValues;
+
 private:
   /// All OMPTraitInfo objects live in this collection, one per
   /// `pragma omp [begin] declare variant` directive.
   SmallVector<std::unique_ptr<OMPTraitInfo>, 4> OMPTraitInfoVector;
+
+  /// A list of the (right now just lambda decls) declarations required to
+  /// name all the SYCL kernels in the translation unit, so that we can get the
+  /// correct kernel name, as well as implement
+  /// __builtin_sycl_unique_stable_name.
+  llvm::DenseMap<const DeclContext *,
+                 llvm::SmallPtrSet<const CXXRecordDecl *, 4>>
+      SYCLKernelNamingTypes;
+  std::unique_ptr<ItaniumMangleContext> SYCLKernelFilterContext;
+  void FilterSYCLKernelNamingDecls(
+      const CXXRecordDecl *RD,
+      llvm::SmallVectorImpl<const CXXRecordDecl *> &Decls);
 };
 
 /// Insertion operator for diagnostics.

@@ -610,7 +610,8 @@ ArrayType *ArrayType::get(Type *ElementType, uint64_t NumElements) {
 bool ArrayType::isValidElementType(Type *ElemTy) {
   return !ElemTy->isVoidTy() && !ElemTy->isLabelTy() &&
          !ElemTy->isMetadataTy() && !ElemTy->isFunctionTy() &&
-         !ElemTy->isTokenTy() && !isa<ScalableVectorType>(ElemTy);
+         !ElemTy->isTokenTy() && !ElemTy->isX86_AMXTy() &&
+         !isa<ScalableVectorType>(ElemTy);
 }
 
 //===----------------------------------------------------------------------===//
@@ -698,10 +699,29 @@ PointerType *PointerType::get(Type *EltTy, unsigned AddressSpace) {
   return Entry;
 }
 
+PointerType *PointerType::get(LLVMContext &C, unsigned AddressSpace) {
+  LLVMContextImpl *CImpl = C.pImpl;
+
+  // Since AddressSpace #0 is the common case, we special case it.
+  PointerType *&Entry =
+      AddressSpace == 0
+          ? CImpl->PointerTypes[nullptr]
+          : CImpl->ASPointerTypes[std::make_pair(nullptr, AddressSpace)];
+
+  if (!Entry)
+    Entry = new (CImpl->Alloc) PointerType(C, AddressSpace);
+  return Entry;
+}
+
 PointerType::PointerType(Type *E, unsigned AddrSpace)
   : Type(E->getContext(), PointerTyID), PointeeTy(E) {
   ContainedTys = &PointeeTy;
   NumContainedTys = 1;
+  setSubclassData(AddrSpace);
+}
+
+PointerType::PointerType(LLVMContext &C, unsigned AddrSpace)
+    : Type(C, PointerTyID), PointeeTy(nullptr) {
   setSubclassData(AddrSpace);
 }
 
@@ -711,7 +731,9 @@ PointerType *Type::getPointerTo(unsigned addrs) const {
 
 bool PointerType::isValidElementType(Type *ElemTy) {
   return !ElemTy->isVoidTy() && !ElemTy->isLabelTy() &&
-         !ElemTy->isMetadataTy() && !ElemTy->isTokenTy();
+         !ElemTy->isMetadataTy() && !ElemTy->isTokenTy() &&
+         !ElemTy->isX86_AMXTy() &&
+         !(ElemTy->isPointerTy() && cast<PointerType>(ElemTy)->isOpaque());
 }
 
 bool PointerType::isLoadableOrStorableType(Type *ElemTy) {

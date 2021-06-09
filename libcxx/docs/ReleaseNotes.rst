@@ -43,4 +43,25 @@ New Features
 API Changes
 -----------
 
-- ...
+- There has been several changes in the tuple constructors provided by libc++.
+  Those changes were made as part of an effort to regularize libc++'s tuple
+  implementation, which contained several subtle bugs due to these extensions.
+  If you notice a build breakage when initializing a tuple, make sure you
+  properly initialize all the tuple elements - this is probably the culprit.
+
+  In particular, the extension allowing tuples to be constructed from fewer
+  elements than the number of elements in the tuple (in which case the remaining
+  elements would be default-constructed) has been removed. See https://godbolt.org/z/sqozjd.
+
+  Also, the extension allowing a tuple to be constructed from an array has been
+  removed. See https://godbolt.org/z/5esqbW.
+
+- The ``std::pointer_safety`` utility and related functions are not available
+  in C++03 anymore. Furthermore, in other standard modes, it has changed from
+  a struct to a scoped enumeration, which is an ABI break. Finally, the
+  ``std::get_pointer_safety`` function was previously in the dylib, but it
+  is now defined as inline in the headers.
+
+  While this is technically both an API and an ABI break, we do not expect
+  ``std::pointer_safety`` to have been used at all in real code, since we
+  never implemented the underlying support for garbage collection.

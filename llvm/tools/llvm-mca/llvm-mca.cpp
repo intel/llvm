@@ -236,6 +236,9 @@ const Target *getTarget(const char *ProgName) {
     return nullptr;
   }
 
+  // Update TripleName with the updated triple from the target lookup.
+  TripleName = TheTriple.str();
+
   // Return the found target.
   return TheTarget;
 }
@@ -244,8 +247,8 @@ ErrorOr<std::unique_ptr<ToolOutputFile>> getOutputStream() {
   if (OutputFilename == "")
     OutputFilename = "-";
   std::error_code EC;
-  auto Out =
-      std::make_unique<ToolOutputFile>(OutputFilename, EC, sys::fs::OF_Text);
+  auto Out = std::make_unique<ToolOutputFile>(OutputFilename, EC,
+                                              sys::fs::OF_TextWithCRLF);
   if (!EC)
     return std::move(Out);
   return EC;
@@ -257,14 +260,15 @@ static void processOptionImpl(cl::opt<bool> &O, const cl::opt<bool> &Default) {
     O = Default.getValue();
 }
 
-static void processViewOptions() {
+static void processViewOptions(bool IsOutOfOrder) {
   if (!EnableAllViews.getNumOccurrences() &&
       !EnableAllStats.getNumOccurrences())
     return;
 
   if (EnableAllViews.getNumOccurrences()) {
     processOptionImpl(PrintSummaryView, EnableAllViews);
-    processOptionImpl(EnableBottleneckAnalysis, EnableAllViews);
+    if (IsOutOfOrder)
+      processOptionImpl(EnableBottleneckAnalysis, EnableAllViews);
     processOptionImpl(PrintResourcePressureView, EnableAllViews);
     processOptionImpl(PrintTimelineView, EnableAllViews);
     processOptionImpl(PrintInstructionInfoView, EnableAllViews);
@@ -277,7 +281,8 @@ static void processViewOptions() {
   processOptionImpl(PrintRegisterFileStats, Default);
   processOptionImpl(PrintDispatchStats, Default);
   processOptionImpl(PrintSchedulerStats, Default);
-  processOptionImpl(PrintRetireStats, Default);
+  if (IsOutOfOrder)
+    processOptionImpl(PrintRetireStats, Default);
 }
 
 // Returns true on success.
@@ -327,9 +332,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // Apply overrides to llvm-mca specific options.
-  processViewOptions();
-
   if (MCPU == "native")
     MCPU = std::string(llvm::sys::getHostCPUName());
 
@@ -339,10 +341,10 @@ int main(int argc, char **argv) {
   if (!STI->isCPUStringValid(MCPU))
     return 1;
 
-  if (!PrintInstructionTables && !STI->getSchedModel().isOutOfOrder()) {
-    WithColor::error() << "please specify an out-of-order cpu. '" << MCPU
-                       << "' is an in-order cpu.\n";
-    return 1;
+  bool IsOutOfOrder = STI->getSchedModel().isOutOfOrder();
+  if (!PrintInstructionTables && !IsOutOfOrder) {
+    WithColor::warning() << "support for in-order CPU '" << MCPU
+                         << "' is experimental.\n";
   }
 
   if (!STI->getSchedModel().hasInstrSchedModel()) {
@@ -358,6 +360,9 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  // Apply overrides to llvm-mca specific options.
+  processViewOptions(IsOutOfOrder);
+
   std::unique_ptr<MCRegisterInfo> MRI(TheTarget->createMCRegInfo(TripleName));
   assert(MRI && "Unable to create target register info!");
 
@@ -366,15 +371,15 @@ int main(int argc, char **argv) {
       TheTarget->createMCAsmInfo(*MRI, TripleName, MCOptions));
   assert(MAI && "Unable to create target asm info!");
 
-  MCObjectFileInfo MOFI;
   SourceMgr SrcMgr;
 
   // Tell SrcMgr about this buffer, which is what the parser will pick up.
   SrcMgr.AddNewSourceBuffer(std::move(*BufferPtr), SMLoc());
 
-  MCContext Ctx(MAI.get(), MRI.get(), &MOFI, &SrcMgr);
-
-  MOFI.InitMCObjectFileInfo(TheTriple, /* PIC= */ false, Ctx);
+  MCContext Ctx(TheTriple, MAI.get(), MRI.get(), STI.get(), &SrcMgr);
+  std::unique_ptr<MCObjectFileInfo> MOFI(
+      TheTarget->createMCObjectFileInfo(Ctx, /*PIC=*/false));
+  Ctx.setObjectFileInfo(MOFI.get());
 
   std::unique_ptr<buffer_ostream> BOS;
 
@@ -384,9 +389,28 @@ int main(int argc, char **argv) {
   std::unique_ptr<MCInstrAnalysis> MCIA(
       TheTarget->createMCInstrAnalysis(MCII.get()));
 
+  // Need to initialize an MCInstPrinter as it is
+  // required for initializing the MCTargetStreamer
+  // which needs to happen within the CRG.parseCodeRegions() call below.
+  // Without an MCTargetStreamer, certain assembly directives can trigger a
+  // segfault. (For example, the .cv_fpo_proc directive on x86 will segfault if
+  // we don't initialize the MCTargetStreamer.)
+  unsigned IPtempOutputAsmVariant =
+      OutputAsmVariant == -1 ? 0 : OutputAsmVariant;
+  std::unique_ptr<MCInstPrinter> IPtemp(TheTarget->createMCInstPrinter(
+      Triple(TripleName), IPtempOutputAsmVariant, *MAI, *MCII, *MRI));
+  if (!IPtemp) {
+    WithColor::error()
+        << "unable to create instruction printer for target triple '"
+        << TheTriple.normalize() << "' with assembly variant "
+        << IPtempOutputAsmVariant << ".\n";
+    return 1;
+  }
+
   // Parse the input and create CodeRegions that llvm-mca can analyze.
   mca::AsmCodeRegionGenerator CRG(*TheTarget, SrcMgr, Ctx, *MAI, *STI, *MCII);
-  Expected<const mca::CodeRegions &> RegionsOrErr = CRG.parseCodeRegions();
+  Expected<const mca::CodeRegions &> RegionsOrErr =
+      CRG.parseCodeRegions(std::move(IPtemp));
   if (!RegionsOrErr) {
     if (auto Err =
             handleErrors(RegionsOrErr.takeError(), [](const StringError &E) {
@@ -539,6 +563,11 @@ int main(int argc, char **argv) {
           std::make_unique<mca::SummaryView>(SM, Insts, DispatchWidth));
 
     if (EnableBottleneckAnalysis) {
+      if (!IsOutOfOrder) {
+        WithColor::warning()
+            << "bottleneck analysis is not supported for in-order CPU '" << MCPU
+            << "'.\n";
+      }
       Printer.addView(std::make_unique<mca::BottleneckAnalysis>(
           *STI, *IP, Insts, S.getNumIterations()));
     }

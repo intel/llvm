@@ -810,7 +810,7 @@ void ClangExpressionDeclMap::LookUpLldbClass(NameSearchContext &context) {
     LLDB_LOG(log, "  CEDM::FEVD Adding type for $__lldb_class: {1}",
              class_qual_type.getAsString());
 
-    AddContextClassType(context, class_user_type);
+    AddContextClassType(context, class_user_type, method_decl);
 
     if (method_decl->isInstance()) {
       // self is a pointer to the object
@@ -1021,7 +1021,8 @@ void ClangExpressionDeclMap::LookupInModulesDeclVendor(
   if (!m_target)
     return;
 
-  auto *modules_decl_vendor = m_target->GetClangModulesDeclVendor();
+  std::shared_ptr<ClangModulesDeclVendor> modules_decl_vendor =
+      GetClangModulesDeclVendor();
   if (!modules_decl_vendor)
     return;
 
@@ -1213,8 +1214,8 @@ void ClangExpressionDeclMap::LookupFunction(
   std::vector<clang::NamedDecl *> decls_from_modules;
 
   if (target) {
-    if (ClangModulesDeclVendor *decl_vendor =
-            target->GetClangModulesDeclVendor()) {
+    if (std::shared_ptr<ClangModulesDeclVendor> decl_vendor =
+            GetClangModulesDeclVendor()) {
       decl_vendor->FindDecls(name, false, UINT32_MAX, decls_from_modules);
     }
   }
@@ -1889,8 +1890,9 @@ void ClangExpressionDeclMap::AddOneFunction(NameSearchContext &context,
   }
 }
 
-void ClangExpressionDeclMap::AddContextClassType(NameSearchContext &context,
-                                                 const TypeFromUser &ut) {
+void ClangExpressionDeclMap::AddContextClassType(
+    NameSearchContext &context, const TypeFromUser &ut,
+    CXXMethodDecl *context_method) {
   CompilerType copied_clang_type = GuardedCopyType(ut);
 
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
@@ -1912,7 +1914,12 @@ void ClangExpressionDeclMap::AddContextClassType(NameSearchContext &context,
         void_clang_type, &void_ptr_clang_type, 1, false, 0);
 
     const bool is_virtual = false;
-    const bool is_static = false;
+    // If we evaluate an expression inside a static method, we also need to
+    // make our lldb_expr method static so that Clang denies access to
+    // non-static members.
+    // If we don't have a context_method we are evaluating within a context
+    // object and we can allow access to non-static members.
+    const bool is_static = context_method ? context_method->isStatic() : false;
     const bool is_inline = false;
     const bool is_explicit = false;
     const bool is_attr_used = true;
