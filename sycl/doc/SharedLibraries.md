@@ -22,7 +22,7 @@ CGH.parallel_for<KernelName>(/* ... */ [=](sycl::item i) {
 std::cout << out[i] << “ “;
 
 // lib.cpp
-int SYCL_EXTERNAL LibDeviceFunc(int i) {
+SYCL_EXTERNAL int LibDeviceFunc(int i) {
   return i * 2;
 }
 
@@ -30,7 +30,7 @@ int SYCL_EXTERNAL LibDeviceFunc(int i) {
 clang++ -fsycl lib.cpp -shared -o helpers.so
 clang++ -fsycl app.cpp -lhelpers -o a.out
 ./a.out
-Output: 0 2 4 6…
+Output: 0 2 4 6 ...
 
 ```
 The first invocation of `clang++` driver will create a "fat" shared library
@@ -68,13 +68,12 @@ The main purpose of this feature is to provide a user-friendly mechanism which
 allows to link device code dynamically at runtime, such as in the scenarios
 above.
 
-## Requirements:
-User's device code that consists of some device API (`SYCL_EXTERNAL` functions),
-is compiled into some form and it is not linked statically with device code of
-application. It can be a shared library with embedded device image or a
-separate device image supplied with properties attached. This code is linked
-dynamically at run time with device image of a user's application in order to
-resolve dependencies.
+## Requirements
+User's device code can be compiled into some form and not linked statically with
+device code of application. It can be embedded as a device image into a shared
+library or supplied as a separate device image with attached properties. This
+code is linked dynamically at run time with device image of a user's application
+in order to resolve dependencies.
 For this combination the following statements must be true:
 
 The presented dynamic device code linkage mechanism must:
@@ -139,8 +138,8 @@ For this purpose DPC++ front-end generates `module-id` attribute on each
 
 ### sycl-post-link changes
 
-To support dynamic linking of device code , `sycl-post-link` performs 2 main
-tasks:
+In order to support dynamic linking of device code, `sycl-post-link` performs
+2 main tasks:
 - Supplies device images containing exports with an information about exported
   symbols
 - Supplies device images with an information about imported symbols
@@ -274,10 +273,10 @@ returned by `piDeviceGetInfo` call with query `PI_DEVICE_INFO_EXTENSIONS`.
 Mapping of extension strings and formats that can be linked:
 | Device image format | Extension string | Meaning |
 |---------------------|------------------|---------|
-| __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64 | "pi_ext_spirv64_linking" | Linking of SPIR-V 64-bit programs is supported|
-| __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 | "pi_ext_spirv64_x86_64_linking" | Linking of 64-bit programs that were AOT compiled for CPU device is supported|
-| __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN | "pi_ext_spirv64_gen_linking" | Linking of 64-bit programs that were AOT compiled for GPU device is supported|
-| __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA | "pi_ext_spirv64_fpga_linking" | Linking of 64-bit programs that were AOT compiled for FPGA device is supported|
+| `__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64` | "pi_ext_spirv64_linking" | Linking of SPIR-V 64-bit programs is supported|
+| `__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64` | "pi_ext_spirv64_x86_64_linking" | Linking of 64-bit programs that were AOT compiled for CPU device is supported|
+| `__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN` | "pi_ext_spirv64_gen_linking" | Linking of 64-bit programs that were AOT compiled for GPU device is supported|
+| `__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA` | "pi_ext_spirv64_fpga_linking" | Linking of 64-bit programs that were AOT compiled for FPGA device is supported|
 
 To link several device images together `piProgramLink` API will be used.
 Depending on concrete plugin implementation and set of device image formats that
@@ -300,7 +299,7 @@ device images in different formats as inputs (including SPIR-V and native code).
   - AOT compilers must allow to compile SPIR-V modules with unresolved symbols
   and produce device code in format that can be linked in run time and allows
   to reduce JIT overhead
-  - OpenCL program binary type CL_PROGRAM_BINARY_TYPE_[COMPILED_OBJECT/LIBRARY]
+  - OpenCL program binary type `CL_PROGRAM_BINARY_TYPE_[COMPILED_OBJECT/LIBRARY]`
   should have native code format or any other format that can be emitted by AOT
   compiler and allows to reduce JIT overhead
 
@@ -356,12 +355,12 @@ dynamically linked code:
 SYCL_EXTERNAL void LibFunc();
 
 Q.submit([&](cl::sycl::handler &CGH) {
-CGH.parallel_for<InternalKernel>( ... )
+  CGH.parallel_for<InternalKernel>( ... )
 }); // 1. Program is compiled, linked and saved in cache
     // 2. Prepared program is used to enqueue kernel
 
 Q.submit([&](cl::sycl::handler &CGH) {
-handler.parallel_for([] { LibFunc(); }); // Prepared program is used to enqueue kernel
+  handler.parallel_for([] { LibFunc(); }); // Prepared program is used to enqueue kernel
 });
 
 // Library
@@ -414,12 +413,12 @@ involved in this program. The new mapping structure is:
 ```
 I.e. each kernel name is mapped to a set of tuples that consists of OS module,
 spec constant values, JIT compiler options and device. Then concrete tuple is
-mapped to a program object. Several tuples can be mapped to a same program
-object, they are created during process of compilation and symbols resolution
-for concrete device image. When some program is made through linking of several
-programs created from device images that come from different OS modules,
-for each OS module in cache will be created a tuple with corresponding OS module
-id.
+mapped to a program object. Several tuples can be mapped to the same program
+object. These tuples are created during process of compilation and symbols
+resolution for concrete device image.
+When some program is a result of linking several programs from device images
+with different OS modules, a tuple is created for each OS module ID.
+These tuples are used as nested cache entries after kernel name.
 Example of modified cache structure when dynamic linking is involved:
 ```
 // Application
@@ -477,6 +476,11 @@ In case when "main" image have imports information, device image hash should be
 created from all device images that are necessary to build it, i.e. hash out
 of "main" device image and set of images that define all
 symbols imported by "main" device image.
+The hash string is a result of appending device images. To make order of device
+images defined and persistent across runs of the same application, device images
+are sorted before they are used to create hash string.
+A string made out of names of defined symbols defined by a device image is used
+to compare device images during sorting process.
 
 ## Corner cases and limitations
 
