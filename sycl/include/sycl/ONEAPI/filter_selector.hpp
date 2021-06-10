@@ -15,8 +15,8 @@
 
 // 4.6.1 Device selection class
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Forward declarations
 class device;
@@ -39,4 +39,4 @@ private:
 };
 } // namespace ONEAPI
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal

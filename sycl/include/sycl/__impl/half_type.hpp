@@ -33,12 +33,12 @@
 #define __SYCL_CONSTEXPR_HALF
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 inline __SYCL_CONSTEXPR_HALF uint16_t float2Half(const float &Val) {
-  const uint32_t Bits = sycl::bit_cast<uint32_t>(Val);
+  const uint32_t Bits = __sycl_internal::bit_cast<uint32_t>(Val);
 
   // Extract the sign from the float value
   const uint16_t Sign = (Bits & 0x80000000) >> 16;
@@ -119,7 +119,7 @@ inline __SYCL_CONSTEXPR_HALF float half2Float(const uint16_t &Val) {
   Bits |= Sign;
   Bits |= (Exp32 << 23);
   Bits |= Frac32;
-  const float Result = sycl::bit_cast<float>(Bits);
+  const float Result = __sycl_internal::bit_cast<float>(Bits);
   return Result;
 }
 
@@ -266,7 +266,7 @@ class half;
 
 // Several aliases are defined below:
 // - StorageT: actual representation of half data type. It is used by scalar
-//   half values and by 'sycl::vec' class. On device side, it points to some
+//   half values and by '__sycl_internal::vec' class. On device side, it points to some
 //   native half data type, while on host some custom data type is used to
 //   emulate operations of 16-bit floating-point values
 //
@@ -403,20 +403,20 @@ inline float cast_if_host_half(half_impl::half val) {
 } // namespace detail
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
 
 // Partial specialization of some functions in namespace `std`
 namespace std {
 
-// Partial specialization of `std::hash<sycl::half>`
-template <> struct hash<sycl::half> {
-  size_t operator()(sycl::half const &Key) const noexcept {
+// Partial specialization of `std::hash<__sycl_internal::half>`
+template <> struct hash<__sycl_internal::half> {
+  size_t operator()(__sycl_internal::half const &Key) const noexcept {
     return hash<uint16_t>{}(reinterpret_cast<const uint16_t &>(Key));
   }
 };
 
-// Partial specialization of `std::numeric<sycl::half>`
-template <> struct numeric_limits<sycl::half> {
+// Partial specialization of `std::numeric<__sycl_internal::half>`
+template <> struct numeric_limits<__sycl_internal::half> {
   // All following values are either calculated based on description of each
   // function/value on https://en.cppreference.com/w/cpp/types/numeric_limits,
   // or cl_platform.h.
@@ -444,56 +444,56 @@ template <> struct numeric_limits<sycl::half> {
   static constexpr bool is_iec559 = true;
   static constexpr float_round_style round_style = round_to_nearest;
 
-  static __SYCL_CONSTEXPR_HALF const sycl::half(min)() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_internal::half(min)() noexcept {
     return 6.103515625e-05f; // half minimum value
   }
 
-  static __SYCL_CONSTEXPR_HALF const sycl::half(max)() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_internal::half(max)() noexcept {
     return 65504.0f; // half maximum value
   }
 
-  static __SYCL_CONSTEXPR_HALF const sycl::half lowest() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_internal::half lowest() noexcept {
     return -65504.0f; // -1*(half maximum value)
   }
 
-  static __SYCL_CONSTEXPR_HALF const sycl::half epsilon() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_internal::half epsilon() noexcept {
     return 9.765625e-04f; // half epsilon
   }
 
-  static __SYCL_CONSTEXPR_HALF const sycl::half round_error() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_internal::half round_error() noexcept {
     return 0.5f;
   }
 
-  static constexpr const sycl::half infinity() noexcept {
+  static constexpr const __sycl_internal::half infinity() noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_huge_valf();
 #else
-    return sycl::detail::host_half_impl::half_v2(
+    return __sycl_internal::detail::host_half_impl::half_v2(
         static_cast<uint16_t>(0x7C00));
 #endif
   }
 
-  static __SYCL_CONSTEXPR_HALF const sycl::half quiet_NaN() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_internal::half quiet_NaN() noexcept {
     return __builtin_nanf("");
   }
 
-  static __SYCL_CONSTEXPR_HALF const sycl::half signaling_NaN() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_internal::half signaling_NaN() noexcept {
     return __builtin_nansf("");
   }
 
-  static __SYCL_CONSTEXPR_HALF const sycl::half denorm_min() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_internal::half denorm_min() noexcept {
     return 5.96046e-08f;
   }
 };
 
 } // namespace std
 
-inline std::ostream &operator<<(std::ostream &O, sycl::half const &rhs) {
+inline std::ostream &operator<<(std::ostream &O, __sycl_internal::half const &rhs) {
   O << static_cast<float>(rhs);
   return O;
 }
 
-inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
+inline std::istream &operator>>(std::istream &I, __sycl_internal::half &rhs) {
   float ValFloat = 0.0f;
   I >> ValFloat;
   rhs = ValFloat;
@@ -502,3 +502,7 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 
 #undef __SYCL_CONSTEXPR_HALF
 #undef _CPP14_CONSTEXPR
+
+namespace sycl {
+  using __sycl_internal::__v1::half;
+}

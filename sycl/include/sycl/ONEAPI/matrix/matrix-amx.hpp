@@ -35,8 +35,8 @@
 #include <sycl/__impl/detail/defines_elementary.hpp>
 #include <immintrin.h>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ext {
 namespace intel {
 namespace detail {
@@ -46,7 +46,7 @@ public:
   short rows, cols;
 };
 
-// TODO: we are adding it this way until sycl::dynamic_extent gets implemented.
+// TODO: we are adding it this way until __sycl_internal::dynamic_extent gets implemented.
 constexpr size_t dynamic_extent = std::numeric_limits<size_t>::max();
 
 template <typename T> struct elems_per_dword {
@@ -445,4 +445,4 @@ joint_matrix_mad(Group sg,
 } // namespace intel
 } // namespace ext
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal

@@ -15,8 +15,8 @@
 
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 template <int Dimensions> class group;
 namespace ONEAPI {
 struct sub_group;
@@ -197,7 +197,7 @@ using is_gen_based_on_type_sizeof =
 
 template <typename> struct is_vec : std::false_type {};
 template <typename T, std::size_t N>
-struct is_vec<sycl::vec<T, N>> : std::true_type {};
+struct is_vec<__sycl_internal::vec<T, N>> : std::true_type {};
 
 // is_integral
 template <typename T>
@@ -341,4 +341,4 @@ using const_if_const_AS = DataT;
 
 } // namespace detail
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal

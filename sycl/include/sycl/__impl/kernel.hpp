@@ -16,8 +16,8 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 // Forward declaration
 class program;
 class context;
@@ -195,13 +195,17 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
 
 namespace std {
-template <> struct hash<sycl::kernel> {
-  size_t operator()(const sycl::kernel &Kernel) const {
-    return hash<std::shared_ptr<sycl::detail::kernel_impl>>()(
-        sycl::detail::getSyclObjImpl(Kernel));
+template <> struct hash<__sycl_internal::kernel> {
+  size_t operator()(const __sycl_internal::kernel &Kernel) const {
+    return hash<std::shared_ptr<__sycl_internal::detail::kernel_impl>>()(
+        __sycl_internal::detail::getSyclObjImpl(Kernel));
   }
 };
 } // namespace std
+
+namespace sycl {
+    using __sycl_internal::__v1::kernel;
+}

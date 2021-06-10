@@ -14,8 +14,8 @@
 #include <sycl/__impl/detail/type_traits.hpp>
 #include <sycl/__impl/range.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 template <int dimensions> class range;
 template <int dimensions, bool with_offset> class item;
 
@@ -279,4 +279,8 @@ template <int Dims> id<Dims> this_id() {
 }
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
+
+namespace sycl {
+    using __sycl_internal::__v1::id;
+}

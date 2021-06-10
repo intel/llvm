@@ -23,8 +23,8 @@
 #include <stdexcept>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 class Builder;
 
@@ -436,4 +436,9 @@ template <typename Group>
 void group_barrier(Group G, memory_scope FenceScope = Group::fence_scope);
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
+
+namespace sycl {
+  using __sycl_internal::__v1::group;
+  using __sycl_internal::__v1::group_barrier;
+}

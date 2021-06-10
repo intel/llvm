@@ -14,8 +14,8 @@
 
 // 4.6.2 Platform class
 #include <utility>
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 // TODO: make code thread-safe
 
 // Forward declaration
@@ -142,13 +142,13 @@ private:
 
 }; // class platform
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
 
 namespace std {
-template <> struct hash<sycl::platform> {
-  size_t operator()(const sycl::platform &p) const {
-    return hash<syshared_ptr_class<sycl::detail::platform_impl>>()(
-        sycl::detail::getSyclObjImpl(p));
+template <> struct hash<__sycl_internal::platform> {
+  size_t operator()(const __sycl_internal::platform &p) const {
+    return hash<syshared_ptr_class<__sycl_internal::detail::platform_impl>>()(
+        __sycl_internal::detail::getSyclObjImpl(p));
   }
 };
 } // namespace std

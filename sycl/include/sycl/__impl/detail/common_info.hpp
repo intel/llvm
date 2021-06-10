@@ -10,8 +10,8 @@
 #include <sycl/__impl/detail/export.hpp>
 #include <sycl/__impl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 vector_class<string_class> __SYCL_EXPORT split_string(const string_class &str,
@@ -19,4 +19,4 @@ vector_class<string_class> __SYCL_EXPORT split_string(const string_class &str,
 
 } // namespace detail
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal

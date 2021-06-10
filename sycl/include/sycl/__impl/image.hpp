@@ -17,8 +17,14 @@
 #include <sycl/__impl/types.hpp>
 #include <cstddef>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+using byte = unsigned char;
+
+using image_allocator = __sycl_internal::detail::aligned_allocator<byte>;
+}
+
+namespace __sycl_internal {
+inline namespace __v1 {
 
 enum class image_channel_order : unsigned int {
   a = 0,
@@ -55,10 +61,6 @@ enum class image_channel_type : unsigned int {
   fp32 = 14
 };
 
-using byte = unsigned char;
-
-using image_allocator = detail::aligned_allocator<byte>;
-
 /// Defines a shared image data.
 ///
 /// Images can be 1-, 2-, and 3-dimensional. They have to be accessed using the
@@ -68,7 +70,7 @@ using image_allocator = detail::aligned_allocator<byte>;
 /// \sa sampler
 ///
 /// \ingroup sycl_api
-template <int Dimensions = 1, typename AllocatorT = sycl::image_allocator>
+template <int Dimensions = 1, typename AllocatorT = __sycl_internal::image_allocator>
 class image {
 public:
   image(image_channel_order Order, image_channel_type Type,
@@ -310,14 +312,20 @@ private:
 };
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
 
 namespace std {
 template <int Dimensions, typename AllocatorT>
-struct hash<sycl::image<Dimensions, AllocatorT>> {
-  size_t operator()(const sycl::image<Dimensions, AllocatorT> &I) const {
-    return hash<std::shared_ptr<sycl::detail::image_impl<Dimensions>>>()(
-        sycl::detail::getSyclObjImpl(I));
+struct hash<__sycl_internal::image<Dimensions, AllocatorT>> {
+  size_t operator()(const __sycl_internal::image<Dimensions, AllocatorT> &I) const {
+    return hash<std::shared_ptr<__sycl_internal::detail::image_impl<Dimensions>>>()(
+        __sycl_internal::detail::getSyclObjImpl(I));
   }
 };
 } // namespace std
+
+namespace sycl {
+  using __sycl_internal::__v1::image_channel_order;
+  using __sycl_internal::__v1::image_channel_type;
+  using __sycl_internal::__v1::image;
+}

@@ -18,8 +18,8 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 namespace detail {
 class AccessorBaseHost;
@@ -46,7 +46,7 @@ public:
   /// command group, and returns the underlying OpenCL memory object that is
   /// used by the SYCL runtime. If the accessor passed as parameter is not part
   /// of the command group requirements (e.g. it is an unregistered placeholder
-  /// accessor), the exception `sycl::invalid_object` is thrown
+  /// accessor), the exception `__sycl_internal::invalid_object` is thrown
   /// asynchronously.
   template <backend Backend = backend::opencl, typename DataT, int Dims,
             access::mode Mode, access::target Target, access::placeholder IsPlh>
@@ -192,4 +192,4 @@ private:
 };
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal

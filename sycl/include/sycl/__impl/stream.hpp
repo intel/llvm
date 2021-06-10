@@ -13,8 +13,8 @@
 #include <sycl/__impl/detail/export.hpp>
 #include <sycl/__impl/handler.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 namespace detail {
 
@@ -64,23 +64,23 @@ using EnableIfFP =
                                      std::is_same<F, half>::value,
                                  T>;
 
-using GlobalBufAccessorT = accessor<char, 1, sycl::access::mode::read_write,
-                                    sycl::access::target::global_buffer,
-                                    sycl::access::placeholder::false_t>;
+using GlobalBufAccessorT = accessor<char, 1, __sycl_internal::access::mode::read_write,
+                                    __sycl_internal::access::target::global_buffer,
+                                    __sycl_internal::access::placeholder::false_t>;
 
 constexpr static access::address_space GlobalBufAS =
-    TargetToAS<sycl::access::target::global_buffer>::AS;
+    TargetToAS<__sycl_internal::access::target::global_buffer>::AS;
 using GlobalBufPtrType =
     typename detail::DecoratedType<char, GlobalBufAS>::type *;
 constexpr static int GlobalBufDim = 1;
 
 using GlobalOffsetAccessorT =
-    accessor<unsigned, 1, sycl::access::mode::atomic,
-             sycl::access::target::global_buffer,
-             sycl::access::placeholder::false_t>;
+    accessor<unsigned, 1, __sycl_internal::access::mode::atomic,
+             __sycl_internal::access::target::global_buffer,
+             __sycl_internal::access::placeholder::false_t>;
 
 constexpr static access::address_space GlobalOffsetAS =
-    TargetToAS<sycl::access::target::global_buffer>::AS;
+    TargetToAS<__sycl_internal::access::target::global_buffer>::AS;
 using GlobalOffsetPtrType =
     typename detail::DecoratedType<unsigned, GlobalBufAS>::type *;
 constexpr static int GlobalOffsetDim = 1;
@@ -645,11 +645,11 @@ template <typename> struct IsSwizzleOp : std::false_type {};
 
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
-struct IsSwizzleOp<sycl::detail::SwizzleOp<
+struct IsSwizzleOp<__sycl_internal::detail::SwizzleOp<
     VecT, OperationLeftT, OperationRightT, OperationCurrentT, Indexes...>>
     : std::true_type {
   using T = typename VecT::element_type;
-  using Type = typename sycl::vec<T, (sizeof...(Indexes))>;
+  using Type = typename __sycl_internal::vec<T, (sizeof...(Indexes))>;
 };
 
 template <typename T>
@@ -1141,7 +1141,7 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
 }
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
 namespace std {
 template <> struct hash<systream> {
   size_t operator()(const systream &S) const {
@@ -1149,8 +1149,8 @@ template <> struct hash<systream> {
     (void)S;
     return 0;
 #else
-    return hash<std::shared_ptr<sycl::detail::stream_impl>>()(
-        sycl::detail::getSyclObjImpl(S));
+    return hash<std::shared_ptr<__sycl_internal::detail::stream_impl>>()(
+        __sycl_internal::detail::getSyclObjImpl(S));
 #endif
   }
 };

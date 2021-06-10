@@ -19,8 +19,8 @@
 
 // 4.6.2 Context class
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 // Forward declarations
 class device;
 class platform;
@@ -240,13 +240,17 @@ private:
 };
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
 
 namespace std {
-template <> struct hash<sycl::context> {
-  size_t operator()(const sycl::context &Context) const {
-    return hash<syshared_ptr_class<sycl::detail::context_impl>>()(
-        sycl::detail::getSyclObjImpl(Context));
+template <> struct hash<__sycl_internal::context> {
+  size_t operator()(const __sycl_internal::context &Context) const {
+    return hash<syshared_ptr_class<__sycl_internal::detail::context_impl>>()(
+        __sycl_internal::detail::getSyclObjImpl(Context));
   }
 };
 } // namespace std
+
+namespace sycl {
+    using __sycl_internal::__v1::context;
+}

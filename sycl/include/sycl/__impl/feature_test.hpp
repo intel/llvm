@@ -7,8 +7,8 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Feature test macro definitions
 
@@ -17,4 +17,4 @@ namespace sycl {
 #define SYCL_EXT_ONEAPI_MATRIX 1
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal

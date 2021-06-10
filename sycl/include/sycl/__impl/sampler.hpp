@@ -14,8 +14,8 @@
 #include <sycl/__impl/detail/export.hpp>
 #include <sycl/__impl/property_list.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 enum class addressing_mode : unsigned int {
   mirrored_repeat = CL_ADDRESS_MIRRORED_REPEAT,
   repeat = CL_ADDRESS_REPEAT,
@@ -117,12 +117,12 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
-  template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
-            sycl::access::target AccessTarget, access::placeholder IsPlaceholder>
+  template <typename DataT, int Dimensions, __sycl_internal::access::mode AccessMode,
+            __sycl_internal::access::target AccessTarget, access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
 };
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
 
 namespace std {
 template <> struct hash<sysampler> {
@@ -131,8 +131,8 @@ template <> struct hash<sysampler> {
     (void)s;
     return 0;
 #else
-    return hash<std::shared_ptr<sycl::detail::sampler_impl>>()(
-        sycl::detail::getSyclObjImpl(s));
+    return hash<std::shared_ptr<__sycl_internal::detail::sampler_impl>>()(
+        __sycl_internal::detail::getSyclObjImpl(s));
 #endif
   }
 };

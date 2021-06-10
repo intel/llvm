@@ -1,4 +1,4 @@
-//==----- group_local_memory.hpp --- SYCL group local memory extension -----==//
+//==----- group_local_memory.hpp --- SYCL group locAL MEMORY EXTENsion -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,8 +19,8 @@
 #include <type_traits>
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 template <typename T, typename Group>
 std::enable_if_t<std::is_trivially_destructible<T>::value &&
@@ -64,4 +64,9 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
 #endif
 }
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
+
+namespace sycl {
+    using __sycl_internal::__v1::group_local_memory;
+    using __sycl_internal::__v1::group_local_memory_for_overwrite;
+}

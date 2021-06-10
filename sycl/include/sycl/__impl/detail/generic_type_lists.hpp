@@ -16,8 +16,8 @@
 // types of parameters to kernel functions
 
 // Forward declarations
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 template <typename T, int N> class vec;
 namespace detail {
 namespace half_impl {
@@ -26,10 +26,10 @@ class half;
 } // namespace detail
 using half = detail::half_impl::half;
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 namespace gtl {
 // floating point types
@@ -383,4 +383,4 @@ using nonlocal_address_space_list =
 } // namespace gvl
 } // namespace detail
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal

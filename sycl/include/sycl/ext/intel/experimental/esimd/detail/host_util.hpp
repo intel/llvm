@@ -16,18 +16,18 @@
 
 #define SIMDCF_ELEMENT_SKIP(i)
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 namespace half_impl {
 class half;
 } // namespace half_impl
 } // namespace detail
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -35,7 +35,7 @@ namespace esimd {
 namespace emu {
 namespace detail {
 
-using half = sycl::detail::half_impl::half;
+using half = __sycl_internal::detail::half_impl::half;
 constexpr int sat_is_on = 1;
 
 static long long abs(long long a) {
@@ -479,6 +479,6 @@ template <> struct dwordtype<unsigned int> { static const bool value = true; };
 } // namespace intel
 } // namespace ext
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
 
 #endif // #ifndef __SYCL_DEVICE_ONLY__

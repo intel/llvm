@@ -9,8 +9,8 @@
 #pragma once
 #include <functional>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 template <typename T = void> using plus = std::plus<T>;
 template <typename T = void> using multiplies = std::multiplies<T>;
@@ -54,4 +54,9 @@ template <> struct maximum<void> {
 };
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
+
+namespace sycl {
+  using __sycl_internal::__v1::minimum;
+  using __sycl_internal::__v1::maximum;
+}

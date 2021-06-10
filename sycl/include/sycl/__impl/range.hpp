@@ -13,8 +13,8 @@
 #include <stdexcept>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 template <int dimensions> class id;
 
 /// Defines the iteration domain of either a single work-group in a parallel
@@ -158,4 +158,4 @@ range(size_t, size_t, size_t)->range<3>;
 #endif
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal

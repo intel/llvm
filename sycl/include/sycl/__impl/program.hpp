@@ -18,8 +18,8 @@
 #include <sycl/__impl/property_list.hpp>
 #include <sycl/__impl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Forward declarations
 class context;
@@ -419,13 +419,13 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
 
 namespace std {
-template <> struct hash<sycl::program> {
-  size_t operator()(const sycl::program &prg) const {
-    return hash<syshared_ptr_class<sycl::detail::program_impl>>()(
-        sycl::detail::getSyclObjImpl(prg));
+template <> struct hash<__sycl_internal::program> {
+  size_t operator()(const __sycl_internal::program &prg) const {
+    return hash<syshared_ptr_class<__sycl_internal::detail::program_impl>>()(
+        __sycl_internal::detail::getSyclObjImpl(prg));
   }
 };
 } // namespace std

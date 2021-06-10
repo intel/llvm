@@ -10,8 +10,8 @@
 
 #include <sycl/__impl/detail/property_helper.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace property {
 namespace queue {
 class in_order : public detail::DataLessProperty<detail::InOrder> {};
@@ -20,4 +20,4 @@ class enable_profiling
 } // namespace queue
 } // namespace property
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal

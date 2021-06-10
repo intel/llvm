@@ -20,8 +20,8 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 // Forward declaration
 template <backend Backend> class backend_traits;
 
@@ -99,7 +99,7 @@ protected:
 } // namespace detail
 
 /// Objects of the class represents an instance of an image in a specific state.
-template <sycl::bundle_state State>
+template <__sycl_internal::bundle_state State>
 class device_image : public detail::device_image_plain {
 public:
   device_image() = delete;
@@ -346,8 +346,8 @@ private:
 
 /// \returns the kernel_id associated with the KernelName
 template <typename KernelName> kernel_id get_kernel_id() {
-  using KI = sycl::detail::KernelInfo<KernelName>;
-  return sycl::kernel_id(KI::getName());
+  using KI = __sycl_internal::detail::KernelInfo<KernelName>;
+  return __sycl_internal::kernel_id(KI::getName());
 }
 
 /// \returns a vector with all kernel_id's defined in the application
@@ -451,13 +451,13 @@ kernel_bundle<State> get_kernel_bundle(const context &Ctx,
   detail::DevImgSelectorImpl SelectorWrapper =
       [Selector](const detail::DeviceImageImplPtr &DevImg) {
         return Selector(
-            detail::createSyclObjFromImpl<sycl::device_image<State>>(DevImg));
+            detail::createSyclObjFromImpl<__sycl_internal::device_image<State>>(DevImg));
       };
 
   detail::KernelBundleImplPtr Impl =
       detail::get_kernel_bundle_impl(Ctx, Devs, State, SelectorWrapper);
 
-  return detail::createSyclObjFromImpl<sycl::kernel_bundle<State>>(Impl);
+  return detail::createSyclObjFromImpl<__sycl_internal::kernel_bundle<State>>(Impl);
 }
 
 template <bundle_state State, typename SelectorT>
@@ -546,13 +546,13 @@ join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
 
 /// \returns a new kernel bundle that represents the union of all the device
 /// images in the input bundles with duplicates removed.
-template <sycl::bundle_state State>
-sycl::kernel_bundle<State>
-join(const std::vector<sycl::kernel_bundle<State>> &Bundles) {
+template <__sycl_internal::bundle_state State>
+__sycl_internal::kernel_bundle<State>
+join(const std::vector<__sycl_internal::kernel_bundle<State>> &Bundles) {
   // Convert kernel_bundle<State> to impls to abstract template parameter away
   std::vector<detail::KernelBundleImplPtr> KernelBundleImpls;
   KernelBundleImpls.reserve(Bundles.size());
-  for (const sycl::kernel_bundle<State> &Bundle : Bundles)
+  for (const __sycl_internal::kernel_bundle<State> &Bundle : Bundles)
     KernelBundleImpls.push_back(detail::getSyclObjImpl(Bundle));
 
   std::shared_ptr<detail::kernel_bundle_impl> Impl =
@@ -581,7 +581,7 @@ compile(const kernel_bundle<bundle_state::input> &InputBundle,
   detail::KernelBundleImplPtr Impl =
       detail::compile_impl(InputBundle, Devs, PropList);
   return detail::createSyclObjFromImpl<
-      kernel_bundle<sycl::bundle_state::object>>(Impl);
+      kernel_bundle<__sycl_internal::bundle_state::object>>(Impl);
 }
 
 inline kernel_bundle<bundle_state::object>
@@ -595,7 +595,7 @@ compile(const kernel_bundle<bundle_state::input> &InputBundle,
 /////////////////////////
 
 namespace detail {
-__SYCL_EXPORT std::vector<sycl::device> find_device_intersection(
+__SYCL_EXPORT std::vector<__sycl_internal::device> find_device_intersection(
     const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles);
 
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
@@ -614,7 +614,7 @@ link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
   detail::KernelBundleImplPtr Impl =
       detail::link_impl(ObjectBundles, Devs, PropList);
   return detail::createSyclObjFromImpl<
-      kernel_bundle<sycl::bundle_state::executable>>(Impl);
+      kernel_bundle<__sycl_internal::bundle_state::executable>>(Impl);
 }
 
 inline kernel_bundle<bundle_state::executable>
@@ -627,7 +627,7 @@ link(const kernel_bundle<bundle_state::object> &ObjectBundle,
 inline kernel_bundle<bundle_state::executable>
 link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
      const property_list &PropList = {}) {
-  std::vector<sycl::device> IntersectDevices =
+  std::vector<__sycl_internal::device> IntersectDevices =
       find_device_intersection(ObjectBundles);
   return link(ObjectBundles, IntersectDevices, PropList);
 }
@@ -659,7 +659,7 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
   detail::KernelBundleImplPtr Impl =
       detail::build_impl(InputBundle, Devs, PropList);
   return detail::createSyclObjFromImpl<
-      kernel_bundle<sycl::bundle_state::executable>>(Impl);
+      kernel_bundle<__sycl_internal::bundle_state::executable>>(Impl);
 }
 
 inline kernel_bundle<bundle_state::executable>
@@ -669,31 +669,47 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
 }
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
 
 namespace std {
-template <> struct hash<sycl::kernel_id> {
-  size_t operator()(const sycl::kernel_id &KernelID) const {
-    return hash<syshared_ptr_class<sycl::detail::kernel_id_impl>>()(
-        sycl::detail::getSyclObjImpl(KernelID));
+template <> struct hash<__sycl_internal::kernel_id> {
+  size_t operator()(const __sycl_internal::kernel_id &KernelID) const {
+    return hash<syshared_ptr_class<__sycl_internal::detail::kernel_id_impl>>()(
+        __sycl_internal::detail::getSyclObjImpl(KernelID));
   }
 };
 
-template <sycl::bundle_state State>
-struct hash<sycl::device_image<State>> {
-  size_t operator()(const sycl::device_image<State> &DeviceImage) const {
+template <__sycl_internal::bundle_state State>
+struct hash<__sycl_internal::device_image<State>> {
+  size_t operator()(const __sycl_internal::device_image<State> &DeviceImage) const {
     return hash<
-        syshared_ptr_class<sycl::detail::device_image_impl>>()(
-        sycl::detail::getSyclObjImpl(DeviceImage));
+        syshared_ptr_class<__sycl_internal::detail::device_image_impl>>()(
+        __sycl_internal::detail::getSyclObjImpl(DeviceImage));
   }
 };
 
-template <sycl::bundle_state State>
-struct hash<sycl::kernel_bundle<State>> {
-  size_t operator()(const sycl::kernel_bundle<State> &KernelBundle) const {
+template <__sycl_internal::bundle_state State>
+struct hash<__sycl_internal::kernel_bundle<State>> {
+  size_t operator()(const __sycl_internal::kernel_bundle<State> &KernelBundle) const {
     return hash<
-        syshared_ptr_class<sycl::detail::kernel_bundle_impl>>()(
-        sycl::detail::getSyclObjImpl(KernelBundle));
+        syshared_ptr_class<__sycl_internal::detail::kernel_bundle_impl>>()(
+        __sycl_internal::detail::getSyclObjImpl(KernelBundle));
   }
 };
 } // namespace std
+
+namespace sycl {
+    using __sycl_internal::__v1::bundle_state;
+    using __sycl_internal::__v1::kernel_id;
+    using __sycl_internal::__v1::device_image;
+    using __sycl_internal::__v1::kernel_bundle;
+    using __sycl_internal::__v1::build;
+    using __sycl_internal::__v1::compile;
+    using __sycl_internal::__v1::link;
+    using __sycl_internal::__v1::join;
+    using __sycl_internal::__v1::is_compatible;
+    using __sycl_internal::__v1::has_kernel_bundle;
+    using __sycl_internal::__v1::get_kernel_bundle;
+    using __sycl_internal::__v1::get_kernel_id;
+    using __sycl_internal::__v1::get_kernel_ids;
+}

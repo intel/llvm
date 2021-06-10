@@ -17,8 +17,8 @@
 #include <cstdlib>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Forward declarations.
 __SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size,
@@ -114,4 +114,4 @@ private:
 };
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal

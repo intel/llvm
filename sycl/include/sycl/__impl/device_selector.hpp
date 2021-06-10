@@ -13,8 +13,8 @@
 
 // 4.6.1 Device selection class
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Forward declarations
 class device;
@@ -88,4 +88,12 @@ public:
   int operator()(const device &dev) const override;
 };
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
+
+namespace sycl {
+    using __sycl_internal::__v1::device_selector;
+    using __sycl_internal::__v1::gpu_selector;
+    using __sycl_internal::__v1::cpu_selector;
+    using __sycl_internal::__v1::accelerator_selector;
+    using __sycl_internal::__v1::host_selector;
+}

@@ -18,8 +18,8 @@
 
 #include <cstdint>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -31,9 +31,9 @@ template <typename BaseTy, typename RegionTy> class simd_view;
 
 namespace detail {
 
-namespace csd = sycl::detail;
+namespace csd = __sycl_internal::detail;
 
-using half = sycl::detail::half_impl::StorageT;
+using half = __sycl_internal::detail::half_impl::StorageT;
 
 template <typename T>
 using remove_cvref_t = csd::remove_cv_t<csd::remove_reference_t<T>>;
@@ -266,4 +266,4 @@ using mask_type_t = typename detail::vector_type<uint16_t, N>::type;
 } // namespace intel
 } // namespace ext
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace __sycl_internal
