@@ -2355,8 +2355,8 @@ template <typename T> struct CheckBasesAreDeviceCopyable<T, 0> {};
 // Fields are captures of lambda/functors and bases are possible base classes
 // of functors also allowed by SYCL.
 // The SYCL-2020 implementation must check each of the fields & bases of the
-// type FuncT, only one level deep, to see if they are all device copyable
-// by using the result of is_device_copyable returned for them.
+// type FuncT, only one level deep, which is enough to see if they are all
+// device copyable by using the result of is_device_copyable returned for them.
 // At this moment though the check also allowes using types for which
 // (is_trivially_copy_constructible && is_trivially_destructible) returns true
 // and (is_device_copyable) returns false. That is the deprecated behavior and
