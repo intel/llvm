@@ -17,7 +17,7 @@ static constexpr double global_double = 0;
 
 template<typename T>
 void usage_templ(T &t) {
-  // expected-error@+2{{'__builtin_sycl_unique_stable_id' variable must have global storage}}
+  // expected-error@+2{{argument passed to '__builtin_sycl_unique_stable_id' must have global storage}}
   // expected-note@#usage_templ_instantiation{{in instantiation of function template specialization}}
   __builtin_sycl_unique_stable_id(t);
 }
@@ -36,7 +36,7 @@ void usage(S s) {
   // Needs to work.
   wrapper<global_double>();
 
-  // expected-error@+1{{'__builtin_sycl_unique_stable_id' variable must have global storage}}
+  // expected-error@+1{{argument passed to '__builtin_sycl_unique_stable_id' must have global storage}}
   __builtin_sycl_unique_stable_id(s);
 }
 
@@ -47,7 +47,7 @@ struct InAStruct {
   template<typename T>
   void templ_mem_func() {
     __builtin_sycl_unique_stable_id(static_member_double);
-    // expected-error@+1{{'__builtin_sycl_unique_stable_id' variable must have global storage}}
+    // expected-error@+1{{argument passed to '__builtin_sycl_unique_stable_id' must have global storage}}
     __builtin_sycl_unique_stable_id(member_double);
   }
 
@@ -56,7 +56,7 @@ struct InAStruct {
     __builtin_sycl_unique_stable_id(T::static_member_double);
 
     T t{};
-    // expected-error@+2{{'__builtin_sycl_unique_stable_id' variable must have global storage}}
+    // expected-error@+2{{argument passed to '__builtin_sycl_unique_stable_id' must have global storage}}
     // expected-note@#mem_func2_instantiation{{in instantiation of function template specialization}}
     __builtin_sycl_unique_stable_id(t.member_double);
   }
@@ -65,7 +65,7 @@ struct InAStruct {
     templ_mem_func<int>();
     templ_mem_func2<InAStruct>(); // #mem_func2_instantiation
     __builtin_sycl_unique_stable_id(static_member_double);
-    // expected-error@+1{{'__builtin_sycl_unique_stable_id' variable must have global storage}}
+    // expected-error@+1{{argument passed to '__builtin_sycl_unique_stable_id' must have global storage}}
     __builtin_sycl_unique_stable_id(member_double);
   }
 };
@@ -77,7 +77,7 @@ struct DependentMembers {
 
   void test() {
     __builtin_sycl_unique_stable_id(static_member);
-    // expected-error@+2{{'__builtin_sycl_unique_stable_id' variable must have global storage}}
+    // expected-error@+2{{argument passed to '__builtin_sycl_unique_stable_id' must have global storage}}
     // expected-note@#test_instantiation{{in instantiation of member function}}
     __builtin_sycl_unique_stable_id(member);
   }
@@ -88,7 +88,7 @@ void useDependentMembers() {
   d.test(); // #test_instantiation
 
   __builtin_sycl_unique_stable_id(decltype(d)::static_member);
-  // expected-error@+1{{'__builtin_sycl_unique_stable_id' variable must have global storage}}
+  // expected-error@+1{{argument passed to '__builtin_sycl_unique_stable_id' must have global storage}}
   __builtin_sycl_unique_stable_id(d.member);
 }
 
