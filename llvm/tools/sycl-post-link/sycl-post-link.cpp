@@ -273,20 +273,55 @@ static void collectKernelModuleMap(
 
 // Go through function call graph searching for assert call.
 static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
+  // Map holds the info about assertions in already examined functions:
+  // true  - if there is an assertion in underlying functions,
+  // false - if there are definetely no assertions in underlying functions.
+  static std::map<llvm::Function *, bool> hasAssertionInCallGraphMap;
+  std::vector<llvm::Function *> FuncList;
+
   std::vector<llvm::Function *> Workqueue;
   Workqueue.push_back(Func);
 
   while (!Workqueue.empty()) {
     Function *F = Workqueue.back();
     Workqueue.pop_back();
+    if (F != Func)
+      FuncList.push_back(F);
+
+    bool IsVertex = true;
     for (auto &I : instructions(F)) {
       if (CallBase *CB = dyn_cast<CallBase>(&I))
         if (Function *CF = CB->getCalledFunction()) {
-          if (CF->getName().startswith("__devicelib_assert_fail"))
+          // Return if we've already discovered if there are asserts in the
+          // function call graph.
+          if (hasAssertionInCallGraphMap.count(CF)) {
+            return hasAssertionInCallGraphMap[CF];
+          }
+
+          if (CF->getName().startswith("__devicelib_assert_fail")) {
+            // Mark all the functions above in call graph as ones that can call
+            // assert.
+            for (auto *It : FuncList)
+              hasAssertionInCallGraphMap[It] = true;
+
+            hasAssertionInCallGraphMap[Func] = true;
+            hasAssertionInCallGraphMap[CF] = true;
+
             return true;
-          if (!CF->isDeclaration())
+          }
+
+          if (!CF->isDeclaration()) {
             Workqueue.push_back(CF);
+            IsVertex = false;
+          }
         }
+    }
+
+    if (IsVertex) {
+      // Mark the above functions as ones that definetely do not call assert.
+      for (auto *It : FuncList)
+        hasAssertionInCallGraphMap[It] = false;
+      FuncList.clear();
     }
   }
   return false;
