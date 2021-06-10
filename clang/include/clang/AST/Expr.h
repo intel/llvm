@@ -2116,7 +2116,6 @@ class SYCLUniqueStableIdExpr final : public Expr {
 
 public:
   Expr *getExpr() { return cast<Expr>(DRE); }
-
   const Expr *getExpr() const { return cast<Expr>(DRE); }
 
   static SYCLUniqueStableIdExpr *Create(const ASTContext &Ctx,
@@ -2138,7 +2137,6 @@ public:
 
   // Iterators
   child_range children() { return child_range(&DRE, &DRE + 1); }
-
   const_child_range children() const {
     return const_child_range(&DRE, &DRE + 1);
   }

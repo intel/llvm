@@ -2452,8 +2452,6 @@ ExprResult Parser::ParseSYCLUniqueStableIdExpression() {
   if (T.consumeClose())
     return ExprError();
 
-  // BuildSYCLUniqueStableIdExpr will do the Expr checking to make sure we are
-  // referencing a variable declaration.
   return Actions.ActOnSYCLUniqueStableIdExpr(
       OpLoc, T.getOpenLocation(), T.getCloseLocation(), VarExpr.get());
 }

@@ -6414,8 +6414,8 @@ def note_sycl_unique_stable_name_evaluated_here
     : Note<"'__builtin_sycl_unique_stable_%select{name|id}0' evaluated here">;
 def err_unique_stable_id_expected_var : Error<"expected variable name">;
 def err_unique_stable_id_global_storage
-    : Error<"'__builtin_sycl_unique_stable_id' variable must have global "
-            "storage">;
+    : Error<"argument passed to '__builtin_sycl_unique_stable_id' must have "
+            "global storage">;
 
 def warn_floatingpoint_eq : Warning<
   "comparing floating point with == or != is unsafe">,

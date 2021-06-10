@@ -2463,14 +2463,14 @@ provides the name for that.  In the case of names with internal linkage, it
 prepends an optional value if provided by ``-fsycl-unique-prefix`` on the command
 line, which the driver will do for SYCL invocations.
 
-This builtin should produce demangle-able strings, except when the parameter has
+This builtin produces a string that can be demangled, except when its argument has
 internal linkage.
 
 **Syntax**:
 
 .. code-block:: c++
 
-  // Marks a type as the name of a sycl kernel.
+  // Computes a unique stable name for a given variable.
   constexpr bool  __builtin_sycl_unique_stable_id( expr );
 
 ``__builtin_sycl_mark_kernel_name``
