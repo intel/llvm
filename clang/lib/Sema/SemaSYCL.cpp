@@ -5023,7 +5023,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
 
-  llvm::SmallVector<const VarDecl *> VisitedSpecConstants;
+  llvm::SmallSet<const VarDecl *, 8> VisitedSpecConstants;
 
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
@@ -5031,16 +5031,15 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   for (const VarDecl *VD : SpecConstants) {
     VD = VD->getCanonicalDecl();
 
-    // Skip if we've already visited this.
-    if (llvm::find(VisitedSpecConstants, VD) != VisitedSpecConstants.end())
-      continue;
-
     // Skip if this isn't a SpecIdType.  This can happen if it was a deduced
     // type.
     if (!Util::isSyclSpecIdType(VD->getType().getCanonicalType()))
       continue;
 
-    // TODO: skip if visited.
+    // Skip if we've already visited this.
+    if (llvm::find(VisitedSpecConstants, VD) != VisitedSpecConstants.end())
+      continue;
+
     VisitedSpecConstants.push_back(VD);
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
     OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
