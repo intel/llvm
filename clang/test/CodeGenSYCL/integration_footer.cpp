@@ -159,6 +159,4 @@ struct container {
 // CHECK-NOT: ::GetThing
 // CHECK-NOT: ::container::Thing
 
-
-
 // CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>
