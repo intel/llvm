@@ -1,0 +1,180 @@
+SPV_INTEL_arithmetic_fence
+==========================
+
+Name Strings
+------------
+
+SPV_INTEL_arithmetic_fence
+
+Contact
+-------
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+Contributors
+------------
+
+- Dmitry Sidorov, Intel
+
+Notice
+------
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+Status
+------
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+Version
+-------
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2021-05-26
+| Revision           | A
+|========================================
+
+Dependencies
+------------
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 5.
+
+This extension requires SPIR-V 1.0.
+
+Overview
+--------
+
+For fast FP model a compiler can perform expression transformations, for
+example:
+
+[source,C]
+(a + b) + c
+
+can be transformed into:
+
+[source,C]
+a + (b + c)
+
+which isn't always correct for floating point math.
+
+This extension adds an instruction *OpArithmeticFenceINTEL*, which forces the
+compiler to always honor the parentheses implied by *OpArithmeticFenceINTEL*,
+so:
+
+[source,C]
+OpArithmeticFenceINTEL(a + b) + c
+
+can be transformed into:
+
+[source,C]
+c + OpArithmeticFenceINTEL(a + b)
+
+but not into:
+
+[source,C]
+a + OpArithmeticFenceINTEL(b + c)
+
+There is an existing decoration *NoContraction* that serves the same purpose,
+but as decorations aren't directly used in arithmetic expressions it's
+problematic to use it in SSA based IR, for example in some cases this decoration
+should be applied to a result of *OpCopyObject*, whilst currently it's not
+allowed by SPIR-V specification.
+
+Extension Name
+--------------
+
+To use this extension within a SPIR-V module, the following *OpExtension* must
+be present in the module:
+
+----
+OpExtension "SPV_INTEL_arithmetic_fence"
+----
+
+New Capabilities
+----------------
+This extension introduces a new capability:
+
+----
+FPArithmeticFenceINTEL
+----
+
+New Instructions
+----------------
+Instructions added under the *FPArithmeticFenceINTEL* capability:
+
+----
+OpArithmeticFenceINTEL
+----
+
+Token Number Assignments
+------------------------
+[width="45%",cols="30,15"]
+|===============================
+| FPArithmeticFenceINTEL | 6144
+| OpArithmeticFenceINTEL | 6145
+|===============================
+
+Modifications to the SPIR-V Specification, Version 1.5
+------------------------------------------------------
+
+Capabilities
+~~~~~~~~~~~~
+
+Modify Section 3.31, "Capability", adding these rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Depends On
+| 6144 | *FPArithmeticFenceINTEL* +
+Allow to use _OpArithmeticFenceINTEL_ instruction |
+|====
+--
+
+Instructions
+~~~~~~~~~~~~
+
+In section 3.37.6 Type-Declaration Instructions, add a new instruction:
+
+[cols="5", width="100%"]
+|=====
+4+^|*OpArithmeticFenceINTEL* +
+Indicates the _Target_ operation cannot be combined with another instruction to
+form a single operation. +
+ +
+_Target_ must be a result id of an *arithmetic instruction*. +
+ +
+_Result Type_ must be the same as the return type of the _Target_ instruction. +
+ +
+| Capability:
+*FPArithmeticFenceINTEL*
+
+| 4 | 6145 | Result Type <id> | Result <id> | Target <id>
+|=====
+
+Issues
+------
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|A|2021-05-26|Dmitry Sidorov|Initial revision
+|========================================
+
