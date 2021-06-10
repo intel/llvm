@@ -25,6 +25,7 @@ class device;
 enum class aspect;
 
 namespace detail {
+class context_impl;
 class device_impl;
 
 // TODO: implement extension management for host device
@@ -190,7 +191,7 @@ private:
   std::shared_ptr<plugin> MPlugin;
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
-  std::shared_ptr<context> MDefaultContext;
+  std::shared_ptr<detail::context_impl> MDefaultContext;
   std::mutex MDefaultContextMutex;
 };
 

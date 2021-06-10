@@ -9,6 +9,7 @@
 #include <CL/sycl/device.hpp>
 #include <detail/allowlist.hpp>
 #include <detail/config.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>
@@ -301,12 +302,15 @@ context platform_impl::getDefaultContext() {
   const std::lock_guard<std::mutex> Guard(MDefaultContextMutex);
 
   if (MDefaultContext)
-    return *MDefaultContext;
+    return detail::createSyclObjFromImpl<context>(MDefaultContext);
 
   // Lazily instantiate default context
-  MDefaultContext = std::make_shared<context>(get_devices());
+  // using context constructor b/c there's lots of logic there that isn't in
+  // the context_impl constructor
+  context NewDefaultContext(get_devices());
+  MDefaultContext = detail::getSyclObjImpl(NewDefaultContext);
 
-  return *MDefaultContext;
+  return NewDefaultContext;
 }
 
 } // namespace detail
