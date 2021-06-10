@@ -5040,7 +5040,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     if (llvm::find(VisitedSpecConstants, VD) != VisitedSpecConstants.end())
       continue;
 
-    VisitedSpecConstants.push_back(VD);
+    VisitedSpecConstants.insert(VD);
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
     OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
     OS << "namespace sycl {\n";
