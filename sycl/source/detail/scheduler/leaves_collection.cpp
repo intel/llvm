@@ -49,7 +49,7 @@ size_t LeavesCollection::remove(value_type Cmd) {
   return eraseHostAccessorCommand(static_cast<EmptyCommand *>(Cmd));
 }
 
-bool LeavesCollection::push_back(value_type Cmd, EnqueueListT *ToEnqueue) {
+bool LeavesCollection::push_back(value_type Cmd, EnqueueListT &ToEnqueue) {
   bool Result = false;
 
   if (isHostAccessorCmd(Cmd))
@@ -74,7 +74,7 @@ std::vector<LeavesCollection::value_type> LeavesCollection::toVector() const {
 }
 
 bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
-                                              EnqueueListT *ToEnqueue) {
+                                              EnqueueListT &ToEnqueue) {
   // 1. find the oldest command with doOverlap() = true amongst the List
   //      => OldCmd
   HostAccessorCommandSingleXRefT OldCmdIt;
@@ -112,7 +112,7 @@ bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
 }
 
 bool LeavesCollection::addGenericCommand(Command *Cmd,
-                                         EnqueueListT *ToEnqueue) {
+                                         EnqueueListT &ToEnqueue) {
   if (MGenericCommands.full()) {
     Command *OldLeaf = MGenericCommands.front();
 

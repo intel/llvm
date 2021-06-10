@@ -459,8 +459,7 @@ protected:
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock
   /// avoidance
   ///
-  /// \param Lock is an instance of WriteLockT
-  /// class
+  /// \param Lock is an instance of WriteLockT, created with \c std::defer_lock
   void acquireWriteLock(WriteLockT &Lock);
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req);
@@ -739,6 +738,14 @@ protected:
                                BlockingT Blocking = NON_BLOCKING);
   };
 
+  /// This function waits on all of the graph leaves which somehow use the
+  /// memory object which is represented by \c Record. The function is called
+  /// upon destruction of memory buffer.
+  /// \param Record memory record to await graph leaves of to finish
+  /// \param GraphReadLock locked graph read lock
+  ///
+  /// GraphReadLock will be unlocked/locked as needed. Upon return from the
+  /// function, GraphReadLock will be left in locked state.
   void waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock);
 
   GraphBuilder MGraphBuilder;
