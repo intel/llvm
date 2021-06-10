@@ -4846,7 +4846,6 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
     return;
   // Step 1: ensure that this is of the correct type-spec-constant template
   // specialization).
-  QualType Ty = VD->getType().getCanonicalType();
   if (!Util::isSyclSpecIdType(Ty)) {
     // Handle the case where this could be a deduced type, such as a deduction
     // guide. We have to do this here since this function, unlike most of the
