@@ -1220,8 +1220,7 @@ pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
   return PI_SUCCESS;
 }
 
-pi_result piextPluginGetOpaqueData(void *,
-                                   void **opaque_data_return) {
+pi_result piextPluginGetOpaqueData(void *, void **opaque_data_return) {
   *opaque_data_return = reinterpret_cast<void *>(PiESimdDeviceAccess);
   return PI_SUCCESS;
 }
