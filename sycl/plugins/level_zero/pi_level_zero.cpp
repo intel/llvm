@@ -6408,6 +6408,13 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   return PI_SUCCESS;
 }
 
+pi_result piextPluginGetOpaqueData(void *opaque_data_param,
+                                   void **opaque_data_return) {
+  (void)opaque_data_param;
+  (void)opaque_data_return;
+  return PI_ERROR_UNKNOWN;
+}
+
 // SYCL RT calls this api to notify the end of plugin lifetime.
 // It can include all the jobs to tear down resources before
 // the plugin is unloaded from memory.
