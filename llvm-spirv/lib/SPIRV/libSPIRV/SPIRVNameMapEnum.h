@@ -166,9 +166,10 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationFunctionFloatingPointModeINTEL,
       "FunctionFloatingPointModeINTEL");
   add(DecorationSingleElementVectorINTEL, "SingleElementVectorINTEL");
-  add(DecorationCallableFunctionINTEL, "CallableFunctionINTEL");
+  add(internal::DecorationCallableFunctionINTEL, "CallableFunctionINTEL");
   add(DecorationStallEnableINTEL, "StallEnableINTEL");
   add(DecorationFuseLoopsInFunctionINTEL, "FuseLoopsInFunctionINTEL");
+  add(internal::DecorationMathOpDSPModeINTEL, "MathOpDSPModeINTEL");
   add(internal::DecorationAliasScopeINTEL, "AliasScopeINTEL");
   add(internal::DecorationNoAliasINTEL, "NoAliasINTEL");
   add(internal::DecorationInitiationIntervalINTEL, "InitiationIntervalINTEL");
@@ -520,8 +521,9 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFPGAClusterAttributesINTEL, "FPGAClusterAttributesINTEL");
   add(CapabilityLoopFuseINTEL, "LoopFuseINTEL");
   add(CapabilityMax, "Max");
+  add(internal::CapabilityFPGADSPControlINTEL, "FPGADSPControlINTEL");
   add(CapabilityLongConstantCompositeINTEL, "LongConstantCompositeINTEL");
-  add(CapabilityFastCompositeINTEL, "FastCompositeINTEL");
+  add(internal::CapabilityFastCompositeINTEL, "FastCompositeINTEL");
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(internal::CapabilityMemoryAccessAliasingINTEL,
       "MemoryAccessAliasingINTEL");

@@ -13,6 +13,7 @@
 #include <CL/sycl/ONEAPI/functional.hpp>
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
+#include <CL/sycl/functional.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/known_identity.hpp>
 #include <CL/sycl/nd_item.hpp>
@@ -86,7 +87,9 @@ template <typename T>
 using native_op_list =
     type_list<ONEAPI::plus<T>, ONEAPI::bit_or<T>, ONEAPI::bit_xor<T>,
               ONEAPI::bit_and<T>, ONEAPI::maximum<T>, ONEAPI::minimum<T>,
-              ONEAPI::multiplies<T>>;
+              ONEAPI::multiplies<T>, sycl::plus<T>, sycl::bit_or<T>,
+              sycl::bit_xor<T>, sycl::bit_and<T>, sycl::maximum<T>,
+              sycl::minimum<T>, sycl::multiplies<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =

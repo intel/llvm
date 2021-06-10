@@ -250,6 +250,21 @@ Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicBuiltin(CallInst *CI,
   return NewCI;
 }
 
+std::string SPIRVToOCL12Base::mapFPAtomicName(Op OC) {
+  assert(isFPAtomicOpCode(OC) && "Not intended to handle other opcodes than "
+                                 "AtomicF{Add/Min/Max}EXT!");
+  switch (OC) {
+  case OpAtomicFAddEXT:
+    return "atomic_add";
+  case OpAtomicFMinEXT:
+    return "atomic_min";
+  case OpAtomicFMaxEXT:
+    return "atomic_max";
+  default:
+    llvm_unreachable("Unsupported opcode!");
+  }
+}
+
 Instruction *SPIRVToOCL12Base::mutateAtomicName(CallInst *CI, Op OC) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(
@@ -263,6 +278,9 @@ Instruction *SPIRVToOCL12Base::mutateAtomicName(CallInst *CI, Op OC) {
 std::string SPIRVToOCL12Base::mapAtomicName(Op OC, Type *Ty) {
   std::string Prefix = Ty->isIntegerTy(64) ? kOCLBuiltinName::AtomPrefix
                                            : kOCLBuiltinName::AtomicPrefix;
+  // Map fp atomic instructions to regular OpenCL built-ins.
+  if (isFPAtomicOpCode(OC))
+    return mapFPAtomicName(OC);
   return Prefix += OCL12SPIRVBuiltinMap::rmap(OC);
 }
 
