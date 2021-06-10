@@ -109,6 +109,13 @@ public:
   operator const vector_type &() const & { return M_data; }
   operator vector_type &() & { return M_data; }
 
+  /// Implicit conversion for simd<T, 1> into T.
+  template <typename T = simd,
+            typename = sycl::detail::enable_if_t<T::length == 1>>
+  operator element_type() const {
+    return data()[0];
+  }
+
   vector_type data() const {
 #ifndef __SYCL_DEVICE_ONLY__
     return M_data;
@@ -190,16 +197,13 @@ public:
                                                                  Offset);
   }
 
-  // TODO
-  // @rolandschulz
-  // {quote}
-  // - There is no point in having this non-const overload.
-  // - Actually why does this overload not return simd_view.
-  //   This would allow you to use the subscript operator to write to an
-  //   element.
-  // {/quote}
   /// Read single element, return value only (not reference).
   Ty operator[](int i) const { return data()[i]; }
+
+  /// Return writable view of a single element.
+  simd_view<simd, region1d_t<Ty, 1, 0>> operator[](int i) {
+    return select<1, 0>(i);
+  }
 
   // TODO ESIMD_EXPERIMENTAL
   /// Read multiple elements by their indices in vector
@@ -238,6 +242,11 @@ public:
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
+  template <typename T = simd,                                                 \
+            typename = sycl::detail::enable_if_t<T::length == 1>>              \
+  ESIMD_INLINE friend auto operator BINOP(const simd &X, const Ty &Y) {        \
+    return X BINOP simd(Y);                                                    \
+  }                                                                            \
   ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const simd &RHS) {    \
     using ComputeTy = detail::compute_type_t<simd>;                            \
     auto V0 = detail::convert<typename ComputeTy::vector_type>(LHS.data());    \
@@ -271,6 +280,11 @@ public:
     auto R = X.data() RELOP Y.data();                                          \
     mask_type_t<N> M(1);                                                       \
     return M & detail::convert<mask_type_t<N>>(R);                             \
+  }                                                                            \
+  template <typename T = simd,                                                 \
+            typename = sycl::detail::enable_if_t<T::length == 1>>              \
+  ESIMD_INLINE friend bool operator RELOP(const simd &X, const Ty &Y) {        \
+    return (Ty)X RELOP Y;                                                      \
   }
 
   DEF_RELOP(>)

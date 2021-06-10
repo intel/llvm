@@ -27,7 +27,7 @@ namespace esimd {
 
 // simd and simd_view forward declarations
 template <typename Ty, int N> class simd;
-template <typename BaseTy, typename RegionTy> class simd_view;
+template <typename BaseTy, typename RegionTy> class simd_view_impl;
 
 namespace detail {
 
@@ -88,7 +88,7 @@ struct compute_format_type<simd<Ty, N>, EltTy> {
 };
 
 template <typename BaseTy, typename RegionTy, typename EltTy>
-struct compute_format_type<simd_view<BaseTy, RegionTy>, EltTy> {
+struct compute_format_type<simd_view_impl<BaseTy, RegionTy>, EltTy> {
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int Size = ShapeTy::Size_in_bytes / sizeof(EltTy);
   static constexpr int Stride = 1;
@@ -116,7 +116,7 @@ struct compute_format_type_2d<simd<Ty, N>, EltTy, Height, Width> {
 
 template <typename BaseTy, typename RegionTy, typename EltTy, int Height,
           int Width>
-struct compute_format_type_2d<simd_view<BaseTy, RegionTy>, EltTy, Height,
+struct compute_format_type_2d<simd_view_impl<BaseTy, RegionTy>, EltTy, Height,
                               Width> {
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int Prod = ShapeTy::Size_in_bytes / sizeof(EltTy);
@@ -137,7 +137,7 @@ using compute_format_type_2d_t =
 template <typename Ty> struct is_simd_view_type : std::false_type {};
 
 template <typename BaseTy, typename RegionTy>
-struct is_simd_view_type<simd_view<BaseTy, RegionTy>> : std::true_type {};
+struct is_simd_view_type<simd_view_impl<BaseTy, RegionTy>> : std::true_type {};
 
 template <typename Ty>
 struct is_simd_view_v
@@ -151,7 +151,7 @@ template <typename Ty, int N>
 struct is_simd_type<simd<Ty, N>> : std::true_type {};
 
 template <typename BaseTy, typename RegionTy>
-struct is_simd_type<simd_view<BaseTy, RegionTy>> : std::true_type {};
+struct is_simd_type<simd_view_impl<BaseTy, RegionTy>> : std::true_type {};
 
 template <typename Ty>
 struct is_simd_v
@@ -163,7 +163,7 @@ template <typename Ty, int N> struct element_type<simd<Ty, N>> {
   using type = Ty;
 };
 template <typename BaseTy, typename RegionTy>
-struct element_type<simd_view<BaseTy, RegionTy>> {
+struct element_type<simd_view_impl<BaseTy, RegionTy>> {
   using type = typename RegionTy::element_type;
 };
 
