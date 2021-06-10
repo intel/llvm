@@ -4846,11 +4846,12 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
     return;
   // Step 1: ensure that this is of the correct type-spec-constant template
   // specialization).
-  if (!Util::isSyclSpecIdType(Ty)) {
+  if (!Util::isSyclSpecIdType(VD->getType())) {
     // Handle the case where this could be a deduced type, such as a deduction
     // guide. We have to do this here since this function, unlike most of the
     // rest of this file, is called during Sema instead of after it. We will
     // also have to filter out after deduction later.
+    QualType Ty = VD->getType().getCanonicalType();
     if (!Ty->isUndeducedType())
       return;
   }
