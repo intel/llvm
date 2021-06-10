@@ -5033,7 +5033,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     // Skip if this isn't a SpecIdType.  This can happen if it was a deduced
     // type.
-    if (!Util::isSyclSpecIdType(VD->getType().getCanonicalType()))
+    if (!Util::isSyclSpecIdType(VD->getType()))
       continue;
 
     // Skip if we've already visited this.
