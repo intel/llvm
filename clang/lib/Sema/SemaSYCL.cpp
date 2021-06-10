@@ -5199,7 +5199,7 @@ bool Util::matchContext(const DeclContext *Ctx,
 
 bool Util::matchQualifiedTypeName(QualType Ty,
                                   ArrayRef<Util::DeclContextDesc> Scopes) {
-  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+  const CXXRecordDecl *RecTy = Ty.getCanonicalType()->getAsCXXRecordDecl();
 
   if (!RecTy)
     return false; // only classes/structs supported
