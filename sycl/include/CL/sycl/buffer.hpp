@@ -63,7 +63,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
+        size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
 
@@ -71,7 +71,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
+        size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
   }
@@ -80,7 +80,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
@@ -89,7 +89,7 @@ public:
          AllocatorT allocator, const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
@@ -101,7 +101,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
@@ -112,7 +112,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
@@ -123,7 +123,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
@@ -134,7 +134,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
@@ -145,7 +145,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
@@ -155,7 +155,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
@@ -167,8 +167,8 @@ public:
          const property_list &propList = {})
       : Range(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl>(
-        first, last, get_count() * sizeof(T),
-        detail::getNextPowerOfTwo(sizeof(T)), propList,
+        first, last, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
   }
@@ -180,8 +180,8 @@ public:
          const property_list &propList = {})
       : Range(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl>(
-        first, last, get_count() * sizeof(T),
-        detail::getNextPowerOfTwo(sizeof(T)), propList,
+        first, last, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
 
@@ -193,7 +193,7 @@ public:
          const property_list &propList = {})
       : Range(range<1>(container.size())) {
     impl = std::make_shared<detail::buffer_impl>(
-        container.data(), get_count() * sizeof(T),
+        container.data(), size() * sizeof(T),
         detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
@@ -259,9 +259,11 @@ public:
 
   range<dimensions> get_range() const { return Range; }
 
-  size_t get_count() const { return Range.size(); }
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); }
+  size_t size() const noexcept { return Range.size(); }
 
-  size_t get_size() const { return get_count() * sizeof(T); }
+  size_t get_size() const { return size() * sizeof(T); }
 
   AllocatorT get_allocator() const {
     return impl->template get_allocator<AllocatorT>();

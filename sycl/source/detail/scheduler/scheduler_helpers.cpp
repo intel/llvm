@@ -35,7 +35,7 @@ void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
 
   // Real size of full flush buffer is saved only in buffer_impl field of
   // FlushBuf object.
-  size_t FlushBufSize = getSyclObjImpl(StrBufs->FlushBuf)->get_count();
+  size_t FlushBufSize = getSyclObjImpl(StrBufs->FlushBuf)->size();
 
   auto Q = createSyclObjFromImpl<queue>(Queue);
   Q.submit([&](handler &cgh) {
