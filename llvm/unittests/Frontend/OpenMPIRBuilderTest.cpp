@@ -231,7 +231,7 @@ TEST_F(OpenMPIRBuilderTest, CreateCancel) {
   auto NewIP = OMPBuilder.createCancel(Loc, nullptr, OMPD_parallel);
   Builder.restoreIP(NewIP);
   EXPECT_FALSE(M->global_empty());
-  EXPECT_EQ(M->size(), 3U);
+  EXPECT_EQ(M->size(), 4U);
   EXPECT_EQ(F->size(), 4U);
   EXPECT_EQ(BB->size(), 4U);
 
@@ -252,7 +252,20 @@ TEST_F(OpenMPIRBuilderTest, CreateCancel) {
   Instruction *CancelBBTI = Cancel->getParent()->getTerminator();
   EXPECT_EQ(CancelBBTI->getNumSuccessors(), 2U);
   EXPECT_EQ(CancelBBTI->getSuccessor(0), NewIP.getBlock());
-  EXPECT_EQ(CancelBBTI->getSuccessor(1)->size(), 1U);
+  EXPECT_EQ(CancelBBTI->getSuccessor(1)->size(), 3U);
+  CallInst *GTID1 = dyn_cast<CallInst>(&CancelBBTI->getSuccessor(1)->front());
+  EXPECT_NE(GTID1, nullptr);
+  EXPECT_EQ(GTID1->getNumArgOperands(), 1U);
+  EXPECT_EQ(GTID1->getCalledFunction()->getName(), "__kmpc_global_thread_num");
+  EXPECT_FALSE(GTID1->getCalledFunction()->doesNotAccessMemory());
+  EXPECT_FALSE(GTID1->getCalledFunction()->doesNotFreeMemory());
+  CallInst *Barrier = dyn_cast<CallInst>(GTID1->getNextNode());
+  EXPECT_NE(Barrier, nullptr);
+  EXPECT_EQ(Barrier->getNumArgOperands(), 2U);
+  EXPECT_EQ(Barrier->getCalledFunction()->getName(), "__kmpc_cancel_barrier");
+  EXPECT_FALSE(Barrier->getCalledFunction()->doesNotAccessMemory());
+  EXPECT_FALSE(Barrier->getCalledFunction()->doesNotFreeMemory());
+  EXPECT_EQ(Barrier->getNumUses(), 0U);
   EXPECT_EQ(CancelBBTI->getSuccessor(1)->getTerminator()->getNumSuccessors(),
             1U);
   EXPECT_EQ(CancelBBTI->getSuccessor(1)->getTerminator()->getSuccessor(0),
@@ -286,7 +299,7 @@ TEST_F(OpenMPIRBuilderTest, CreateCancelIfCond) {
   auto NewIP = OMPBuilder.createCancel(Loc, Builder.getTrue(), OMPD_parallel);
   Builder.restoreIP(NewIP);
   EXPECT_FALSE(M->global_empty());
-  EXPECT_EQ(M->size(), 3U);
+  EXPECT_EQ(M->size(), 4U);
   EXPECT_EQ(F->size(), 7U);
   EXPECT_EQ(BB->size(), 1U);
   ASSERT_TRUE(isa<BranchInst>(BB->getTerminator()));
@@ -313,7 +326,20 @@ TEST_F(OpenMPIRBuilderTest, CreateCancelIfCond) {
   EXPECT_EQ(CancelBBTI->getNumSuccessors(), 2U);
   EXPECT_EQ(CancelBBTI->getSuccessor(0)->size(), 1U);
   EXPECT_EQ(CancelBBTI->getSuccessor(0)->getUniqueSuccessor(), NewIP.getBlock());
-  EXPECT_EQ(CancelBBTI->getSuccessor(1)->size(), 1U);
+  EXPECT_EQ(CancelBBTI->getSuccessor(1)->size(), 3U);
+  CallInst *GTID1 = dyn_cast<CallInst>(&CancelBBTI->getSuccessor(1)->front());
+  EXPECT_NE(GTID1, nullptr);
+  EXPECT_EQ(GTID1->getNumArgOperands(), 1U);
+  EXPECT_EQ(GTID1->getCalledFunction()->getName(), "__kmpc_global_thread_num");
+  EXPECT_FALSE(GTID1->getCalledFunction()->doesNotAccessMemory());
+  EXPECT_FALSE(GTID1->getCalledFunction()->doesNotFreeMemory());
+  CallInst *Barrier = dyn_cast<CallInst>(GTID1->getNextNode());
+  EXPECT_NE(Barrier, nullptr);
+  EXPECT_EQ(Barrier->getNumArgOperands(), 2U);
+  EXPECT_EQ(Barrier->getCalledFunction()->getName(), "__kmpc_cancel_barrier");
+  EXPECT_FALSE(Barrier->getCalledFunction()->doesNotAccessMemory());
+  EXPECT_FALSE(Barrier->getCalledFunction()->doesNotFreeMemory());
+  EXPECT_EQ(Barrier->getNumUses(), 0U);
   EXPECT_EQ(CancelBBTI->getSuccessor(1)->getTerminator()->getNumSuccessors(),
             1U);
   EXPECT_EQ(CancelBBTI->getSuccessor(1)->getTerminator()->getSuccessor(0),
@@ -1721,7 +1747,7 @@ TEST_P(OpenMPIRBuilderTestWithParams, DynamicWorkShareLoop) {
 
   omp::OMPScheduleType SchedType = GetParam();
   uint32_t ChunkSize = 1;
-  switch (SchedType) {
+  switch (SchedType & ~omp::OMPScheduleType::ModifierMask) {
   case omp::OMPScheduleType::DynamicChunked:
   case omp::OMPScheduleType::GuidedChunked:
     ChunkSize = 7;
@@ -1794,8 +1820,9 @@ TEST_P(OpenMPIRBuilderTestWithParams, DynamicWorkShareLoop) {
   EXPECT_EQ(InitCall->getCalledFunction()->getName(),
             "__kmpc_dispatch_init_4u");
   EXPECT_EQ(InitCall->getNumArgOperands(), 7U);
-  EXPECT_EQ(InitCall->getArgOperand(6),
-            ConstantInt::get(Type::getInt32Ty(Ctx), ChunkSize));
+  EXPECT_EQ(InitCall->getArgOperand(6), ConstantInt::get(LCTy, ChunkSize));
+  ConstantInt *SchedVal = cast<ConstantInt>(InitCall->getArgOperand(2));
+  EXPECT_EQ(SchedVal->getValue(), static_cast<uint64_t>(SchedType));
 
   ConstantInt *OrigLowerBound =
       dyn_cast<ConstantInt>(LowerBoundStore->getValueOperand());
@@ -1827,12 +1854,23 @@ TEST_P(OpenMPIRBuilderTestWithParams, DynamicWorkShareLoop) {
   EXPECT_FALSE(verifyModule(*M, &errs()));
 }
 
-INSTANTIATE_TEST_SUITE_P(OpenMPWSLoopSchedulingTypes,
-                        OpenMPIRBuilderTestWithParams,
-                        ::testing::Values(omp::OMPScheduleType::DynamicChunked,
-                                          omp::OMPScheduleType::GuidedChunked,
-                                          omp::OMPScheduleType::Auto,
-                                          omp::OMPScheduleType::Runtime));
+INSTANTIATE_TEST_SUITE_P(
+    OpenMPWSLoopSchedulingTypes, OpenMPIRBuilderTestWithParams,
+    ::testing::Values(omp::OMPScheduleType::DynamicChunked,
+                      omp::OMPScheduleType::GuidedChunked,
+                      omp::OMPScheduleType::Auto, omp::OMPScheduleType::Runtime,
+                      omp::OMPScheduleType::DynamicChunked |
+                          omp::OMPScheduleType::ModifierMonotonic,
+                      omp::OMPScheduleType::DynamicChunked |
+                          omp::OMPScheduleType::ModifierNonmonotonic,
+                      omp::OMPScheduleType::GuidedChunked |
+                          omp::OMPScheduleType::ModifierMonotonic,
+                      omp::OMPScheduleType::GuidedChunked |
+                          omp::OMPScheduleType::ModifierNonmonotonic,
+                      omp::OMPScheduleType::Auto |
+                          omp::OMPScheduleType::ModifierMonotonic,
+                      omp::OMPScheduleType::Runtime |
+                          omp::OMPScheduleType::ModifierMonotonic));
 
 TEST_F(OpenMPIRBuilderTest, MasterDirective) {
   using InsertPointTy = OpenMPIRBuilder::InsertPointTy;

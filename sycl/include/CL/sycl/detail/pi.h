@@ -1634,6 +1634,15 @@ __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
     pi_context context, const void *ptr, pi_mem_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
+/// API to get Plugin internal data, opaque to SYCL RT. Some devices whose
+/// device code is compiled by the host compiler (e.g. CPU emulators) may use it
+/// to access some device code functionality implemented in/behind the plugin.
+/// \param opaque_data_param - unspecified argument, interpretation is specific
+/// to a plugin \param opaque_data_return - placeholder for the returned opaque
+/// data.
+__SYCL_EXPORT pi_result piextPluginGetOpaqueData(void *opaque_data_param,
+                                                 void **opaque_data_return);
+
 /// API to notify that the plugin should clean up its resources.
 /// No PI calls should be made until the next piPluginInit call.
 /// \param PluginParameter placeholder for future use, currenly not used.

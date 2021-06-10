@@ -1,5 +1,5 @@
 ; RUN: sycl-post-link -spec-const=rt --ir-output-only %s -S -o - \
-; RUN: | FileCheck %s --implicit-check-not __sycl_getCompositeSpecConstantValue --implicit-check-not __sycl_getComposite2020SpecConstantValue
+; RUN: | FileCheck %s --implicit-check-not "call {{.*}} __sycl_getCompositeSpecConstantValue" --implicit-check-not "call {{.*}} __sycl_getComposite2020SpecConstantValue"
 
 ; CHECK: %[[#NS0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID:]], i32
 ; CHECK: %[[#NS1:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 1]], i32 42)

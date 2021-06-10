@@ -672,13 +672,13 @@ public:
   using EnableIfNotHostHalf = typename detail::enable_if_t<
       !std::is_same<DataT, cl::sycl::detail::half_impl::half>::value ||
           !std::is_same<cl::sycl::detail::half_impl::StorageT,
-                        cl::sycl::detail::host_half_impl::half>::value,
+                        cl::sycl::detail::host_half_impl::half_v2>::value,
       T>;
   template <typename T = void>
   using EnableIfHostHalf = typename detail::enable_if_t<
       std::is_same<DataT, cl::sycl::detail::half_impl::half>::value &&
           std::is_same<cl::sycl::detail::half_impl::StorageT,
-                       cl::sycl::detail::host_half_impl::half>::value,
+                       cl::sycl::detail::host_half_impl::half_v2>::value,
       T>;
 
   template <typename Ty = DataT>
