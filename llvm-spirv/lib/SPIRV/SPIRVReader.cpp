@@ -1962,11 +1962,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpSelect: {
     SPIRVSelect *BS = static_cast<SPIRVSelect *>(BV);
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     return mapValue(BV,
-                    SelectInst::Create(transValue(BS->getCondition(), F, BB),
-                                       transValue(BS->getTrueValue(), F, BB),
-                                       transValue(BS->getFalseValue(), F, BB),
-                                       BV->getName(), BB));
+                    Builder.CreateSelect(transValue(BS->getCondition(), F, BB),
+                                         transValue(BS->getTrueValue(), F, BB),
+                                         transValue(BS->getFalseValue(), F, BB),
+                                         BV->getName()));
   }
 
   case OpVmeImageINTEL:

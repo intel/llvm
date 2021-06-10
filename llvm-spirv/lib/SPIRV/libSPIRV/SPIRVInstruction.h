@@ -970,13 +970,12 @@ _SPIRV_OP(Unordered)
 class SPIRVSelect : public SPIRVInstruction {
 public:
   // Complete constructor
-  SPIRVSelect(SPIRVId TheId, SPIRVId TheCondition, SPIRVId TheOp1,
-              SPIRVId TheOp2, SPIRVBasicBlock *TheBB)
-      : SPIRVInstruction(6, OpSelect, TheBB->getValueType(TheOp1), TheId,
-                         TheBB),
+  SPIRVSelect(SPIRVId TheId, SPIRVType *TheType, SPIRVId TheCondition,
+              SPIRVId TheOp1, SPIRVId TheOp2, SPIRVBasicBlock *TheBB,
+              SPIRVModule *TheM)
+      : SPIRVInstruction(6, OpSelect, TheType, TheId, TheBB, TheM),
         Condition(TheCondition), Op1(TheOp1), Op2(TheOp2) {
     validate();
-    assert(TheBB && "Invalid BB");
   }
   // Incomplete constructor
   SPIRVSelect()

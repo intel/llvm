@@ -35,6 +35,7 @@
 ; CHECK: @var_lognot = addrspace(1) global i1 false
 ; CHECK: @var_logeq = addrspace(1) global i1 false
 ; CHECK: @var_logne = addrspace(1) global i1 true
+; CHECK: @var_select = addrspace(1) global i32 53
 ; CHECK: @var_icmpeq = addrspace(1) global i1 false
 ; CHECK: @var_icmpne = addrspace(1) global i1 true
 ; CHECK: @var_icmpult = addrspace(1) global i1 true
@@ -80,6 +81,7 @@
                OpDecorate %var_lognot LinkageAttributes "var_lognot" Export
                OpDecorate %var_logeq LinkageAttributes "var_logeq" Export
                OpDecorate %var_logne LinkageAttributes "var_logne" Export
+               OpDecorate %var_select LinkageAttributes "var_select" Export
                OpDecorate %var_icmpeq LinkageAttributes "var_icmpeq" Export
                OpDecorate %var_icmpne LinkageAttributes "var_icmpne" Export
                OpDecorate %var_icmpult LinkageAttributes "var_icmpult" Export
@@ -128,6 +130,7 @@
      %lognot = OpSpecConstantOp %bool LogicalNot %true
       %logeq = OpSpecConstantOp %bool LogicalEqual %true %false
       %logne = OpSpecConstantOp %bool LogicalNotEqual %true %false
+     %select = OpSpecConstantOp %uint Select %logeq %uint_4 %uint_53
      %icmpeq = OpSpecConstantOp %bool IEqual %uint_53 %uint_min4
      %icmpne = OpSpecConstantOp %bool INotEqual %uint_53 %uint_min4
     %icmpult = OpSpecConstantOp %bool ULessThan %uint_53 %uint_min4
@@ -171,6 +174,7 @@
  %var_lognot = OpVariable %_ptr_bool CrossWorkgroup %lognot
   %var_logeq = OpVariable %_ptr_bool CrossWorkgroup %logeq
   %var_logne = OpVariable %_ptr_bool CrossWorkgroup %logne
+ %var_select = OpVariable %_ptr_uint CrossWorkgroup %select
  %var_icmpeq = OpVariable %_ptr_bool CrossWorkgroup %icmpeq
  %var_icmpne = OpVariable %_ptr_bool CrossWorkgroup %icmpne
 %var_icmpult = OpVariable %_ptr_bool CrossWorkgroup %icmpult
