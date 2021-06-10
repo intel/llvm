@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/buffer_impl.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
+#include <sycl/__impl/detail/buffer_impl.hpp>
+#include <sycl/__impl/detail/memory_manager.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 

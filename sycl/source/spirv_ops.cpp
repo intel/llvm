@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/__impl/exception.hpp>
 #include <detail/platform_util.hpp>
 
 #include <atomic>

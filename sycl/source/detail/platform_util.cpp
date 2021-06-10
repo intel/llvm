@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/__impl/detail/os_util.hpp>
+#include <sycl/__impl/exception.hpp>
 #include <detail/platform_util.hpp>
 
 #if defined(__SYCL_RT_OS_LINUX)

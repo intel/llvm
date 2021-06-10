@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/buffer_impl.hpp>
+#include <sycl/__impl/detail/accessor_impl.hpp>
+#include <sycl/__impl/detail/buffer_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 

@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/property_list.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/kernel_desc.hpp>
+#include <sycl/__impl/detail/pi.h>
+#include <sycl/__impl/kernel.hpp>
+#include <sycl/__impl/property_list.hpp>
 #include <detail/config.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_impl.hpp>

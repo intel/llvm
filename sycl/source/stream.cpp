@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/stream.hpp>
+#include <sycl/__impl/stream.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
 

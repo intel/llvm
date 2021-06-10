@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/program.hpp>
-#include <CL/sycl/properties/all_properties.hpp>
-#include <CL/sycl/property_list.hpp>
+#include <sycl/__impl/program.hpp>
+#include <sycl/__impl/properties/all_properties.hpp>
+#include <sycl/__impl/property_list.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/program_impl.hpp>
 
@@ -110,7 +110,7 @@ program::get_info() const {
   template __SYCL_EXPORT ret_type program::get_info<info::param_type::param>() \
       const;
 
-#include <CL/sycl/info/program_traits.def>
+#include <sycl/__impl/info/program_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -118,7 +118,7 @@ program::get_info() const {
   template <> __SYCL_EXPORT bool program::has_property<param_type>() const {   \
     return impl->has_property<param_type>();                                   \
   }
-#include <CL/sycl/detail/properties_traits.def>
+#include <sycl/__impl/detail/properties_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -127,7 +127,7 @@ program::get_info() const {
   __SYCL_EXPORT param_type program::get_property<param_type>() const {         \
     return impl->get_property<param_type>();                                   \
   }
-#include <CL/sycl/detail/properties_traits.def>
+#include <sycl/__impl/detail/properties_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

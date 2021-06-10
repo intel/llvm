@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/info/info_desc.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/info/info_desc.hpp>
 #include <detail/context_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

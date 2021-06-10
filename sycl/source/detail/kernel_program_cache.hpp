@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/locked.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/util.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/locked.hpp>
+#include <sycl/__impl/detail/os_util.hpp>
+#include <sycl/__impl/detail/pi.hpp>
+#include <sycl/__impl/detail/util.hpp>
 #include <detail/platform_impl.hpp>
 
 #include <atomic>

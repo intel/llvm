@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp>
+#include <sycl/__impl/detail/defines_elementary.hpp>
 
 #include <memory>
 

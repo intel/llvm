@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/info/info_desc.hpp>
+#include <sycl/__impl/detail/device_filter.hpp>
+#include <sycl/__impl/info/info_desc.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 

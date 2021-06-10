@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/os_util.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/os_util.hpp>
 #include <detail/config.hpp>
 
 #include <cstring>

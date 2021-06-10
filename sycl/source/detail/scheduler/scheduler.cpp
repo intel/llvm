@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CL/sycl/detail/sycl_mem_obj_i.hpp"
-#include <CL/sycl/device_selector.hpp>
+#include "sycl/__impl/detail/sycl_mem_obj_i.hpp"
+#include <sycl/__impl/device_selector.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>

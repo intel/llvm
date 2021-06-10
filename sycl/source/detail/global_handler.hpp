@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/spinlock.hpp>
-#include <CL/sycl/detail/util.hpp>
+#include <sycl/__impl/detail/spinlock.hpp>
+#include <sycl/__impl/detail/util.hpp>
 
 #include <memory>
 

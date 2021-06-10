@@ -16,9 +16,9 @@
 #include <unordered_set>
 #include <vector>
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/cg.hpp>
+#include <sycl/__impl/access/access.hpp>
+#include <sycl/__impl/detail/accessor_impl.hpp>
+#include <sycl/__impl/detail/cg.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/platform.hpp>
-#include <CL/sycl/properties/all_properties.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/__impl/context.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/device.hpp>
+#include <sycl/__impl/device_selector.hpp>
+#include <sycl/__impl/exception.hpp>
+#include <sycl/__impl/exception_list.hpp>
+#include <sycl/__impl/platform.hpp>
+#include <sycl/__impl/properties/all_properties.hpp>
+#include <sycl/__impl/stl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
 
@@ -93,7 +93,7 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
     return impl->get_info<info::param_type::param>();                          \
   }
 
-#include <CL/sycl/info/context_traits.def>
+#include <sycl/__impl/info/context_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -101,7 +101,7 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
   template <> __SYCL_EXPORT bool context::has_property<param_type>() const {   \
     return impl->has_property<param_type>();                                   \
   }
-#include <CL/sycl/detail/properties_traits.def>
+#include <sycl/__impl/detail/properties_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -110,7 +110,7 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
   __SYCL_EXPORT param_type context::get_property<param_type>() const {         \
     return impl->get_property<param_type>();                                   \
   }
-#include <CL/sycl/detail/properties_traits.def>
+#include <sycl/__impl/detail/properties_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

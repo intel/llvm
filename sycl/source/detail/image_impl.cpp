@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/image_impl.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/image.hpp>
+#include <sycl/__impl/detail/image_impl.hpp>
+#include <sycl/__impl/detail/memory_manager.hpp>
+#include <sycl/__impl/image.hpp>
 #include <detail/context_impl.hpp>
 
 #include <algorithm>

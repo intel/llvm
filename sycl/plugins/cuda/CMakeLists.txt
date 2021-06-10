@@ -16,8 +16,6 @@ set_target_properties(
 )
 
 add_library(pi_cuda SHARED
-  "${sycl_inc_dir}/CL/sycl/detail/pi.h"
-  "${sycl_inc_dir}/CL/sycl/detail/pi.hpp"
   "pi_cuda.hpp"
   "pi_cuda.cpp"
 )

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/sycl_mem_obj_t.hpp>
+#include <sycl/__impl/detail/memory_manager.hpp>
+#include <sycl/__impl/detail/sycl_mem_obj_t.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/plugin.hpp>

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/__impl/info/info_desc.hpp>
+#include <sycl/__impl/stl.hpp>
 #include <detail/force_device.hpp>
 
 #include <algorithm>

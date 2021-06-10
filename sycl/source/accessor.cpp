@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/accessor.hpp>
+#include <sycl/__impl/accessor.hpp>
 #include <detail/queue_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

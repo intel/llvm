@@ -16,7 +16,7 @@
 #define _USE_MATH_DEFINES
 
 #include "builtins_helper.hpp"
-#include <CL/sycl/detail/export.hpp>
+#include <sycl/__impl/detail/export.hpp>
 
 #include <cmath>
 

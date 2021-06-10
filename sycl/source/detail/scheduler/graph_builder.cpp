@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "detail/config.hpp"
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/__impl/access/access.hpp>
+#include <sycl/__impl/detail/memory_manager.hpp>
+#include <sycl/__impl/exception.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>

@@ -6,16 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/ONEAPI/experimental/spec_constant.hpp>
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/__impl/ONEAPI/experimental/spec_constant.hpp>
+#include <sycl/__impl/backend_types.hpp>
+#include <sycl/__impl/context.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/os_util.hpp>
+#include <sycl/__impl/detail/type_traits.hpp>
+#include <sycl/__impl/detail/util.hpp>
+#include <sycl/__impl/device.hpp>
+#include <sycl/__impl/exception.hpp>
+#include <sycl/__impl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_image_impl.hpp>

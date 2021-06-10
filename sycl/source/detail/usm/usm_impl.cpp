@@ -6,12 +6,12 @@
 //
 // ===--------------------------------------------------------------------=== //
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/aligned_allocator.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/usm.hpp>
+#include <sycl/__impl/context.hpp>
+#include <sycl/__impl/detail/aligned_allocator.hpp>
+#include <sycl/__impl/detail/os_util.hpp>
+#include <sycl/__impl/detail/pi.hpp>
+#include <sycl/__impl/device.hpp>
+#include <sycl/__impl/usm.hpp>
 #include <detail/queue_impl.hpp>
 
 #include <cstdlib>

@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/device_selector.hpp>
+#include <sycl/__impl/detail/device_filter.hpp>
+#include <sycl/__impl/device_selector.hpp>
 
 #include <vector>
 

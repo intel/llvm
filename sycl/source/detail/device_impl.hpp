@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/aspects.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/__impl/aspects.hpp>
+#include <sycl/__impl/detail/pi.hpp>
+#include <sycl/__impl/stl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
 
