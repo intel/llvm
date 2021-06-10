@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <CL/sycl/half_type.hpp>
+#include <sycl/__impl/half_type.hpp>
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
@@ -465,9 +465,9 @@ constexpr bool check_atomic() {
       static_assert(NumSrc == 1, "One source operand is expected");
       return false;
     }
-    if constexpr (!is_type<T, float, cl::sycl::detail::half_impl::StorageT>()) {
+    if constexpr (!is_type<T, float, sycl::detail::half_impl::StorageT>()) {
       static_assert(
-          (is_type<T, float, cl::sycl::detail::half_impl::StorageT>()),
+          (is_type<T, float, sycl::detail::half_impl::StorageT>()),
           "Type F or HF is expected");
       return false;
     }
@@ -487,9 +487,9 @@ constexpr bool check_atomic() {
       return false;
     }
     if constexpr (Op == atomic_op::fcmpwr &&
-                  !is_type<T, float, cl::sycl::detail::half_impl::StorageT>()) {
+                  !is_type<T, float, sycl::detail::half_impl::StorageT>()) {
       static_assert(
-          (is_type<T, float, cl::sycl::detail::half_impl::StorageT>()),
+          (is_type<T, float, sycl::detail::half_impl::StorageT>()),
           "Type F or HF is expected");
       return false;
     }

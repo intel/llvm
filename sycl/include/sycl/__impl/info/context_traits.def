@@ -1,0 +1,3 @@
+__SYCL_PARAM_TRAITS_SPEC(context, reference_count, cl_uint)
+__SYCL_PARAM_TRAITS_SPEC(context, platform, sycl::platform)
+__SYCL_PARAM_TRAITS_SPEC(context, devices, vector_class<sycl::device>)

@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/__impl/detail/type_traits.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 
 #include <type_traits>
@@ -84,7 +84,7 @@ struct is_esimd_vector<simd<T, N>> : public std::true_type {};
 
 template <typename T>
 using is_esimd_scalar =
-    typename std::bool_constant<cl::sycl::detail::is_arithmetic<T>::value>;
+    typename std::bool_constant<sycl::detail::is_arithmetic<T>::value>;
 
 template <typename T, int N>
 using is_hw_int_type =
