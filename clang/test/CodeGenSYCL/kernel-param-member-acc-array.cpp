@@ -46,18 +46,18 @@ int main() {
 // CHECK: [[LOCAL_OBJECT:%.*]] = addrspacecast %class{{.*}}.anon* %0 to %class{{.*}}.anon addrspace(4)*
 
 // Check allocas for ranges
-// CHECK: [[ACC_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::range"
-// CHECK: [[ACC_RANGE1AS:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::range"* [[ACC_RANGE1A]] to %"struct.{{.*}}.cl::sycl::range" addrspace(4)*
-// CHECK: [[MEM_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::range"
-// CHECK: [[MEM_RANGE1AS:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::range"* [[MEM_RANGE1A]] to %"struct.{{.*}}.cl::sycl::range" addrspace(4)*
-// CHECK: [[OFFSET1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::id"
-// CHECK: [[OFFSET1AS:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::id"* [[OFFSET1A]] to %"struct.{{.*}}.cl::sycl::id" addrspace(4)*
-// CHECK: [[ACC_RANGE2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::range"
-// CHECK: [[ACC_RANGE2AS:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::range"* [[ACC_RANGE2A]] to %"struct.{{.*}}.cl::sycl::range" addrspace(4)*
-// CHECK: [[MEM_RANGE2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::range"
-// CHECK: [[MEM_RANGE2AS:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::range"* [[MEM_RANGE2A]] to %"struct.{{.*}}.cl::sycl::range" addrspace(4)*
-// CHECK: [[OFFSET2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::id"
-// CHECK: [[OFFSET2AS:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::id"* [[OFFSET2A]] to %"struct.{{.*}}.cl::sycl::id" addrspace(4)*
+// CHECK: [[ACC_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
+// CHECK: [[ACC_RANGE1AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[ACC_RANGE1A]] to %"struct.cl::sycl::range" addrspace(4)*
+// CHECK: [[MEM_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
+// CHECK: [[MEM_RANGE1AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[MEM_RANGE1A]] to %"struct.cl::sycl::range" addrspace(4)*
+// CHECK: [[OFFSET1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::id"
+// CHECK: [[OFFSET1AS:%.*]] = addrspacecast %"struct.cl::sycl::id"* [[OFFSET1A]] to %"struct.cl::sycl::id" addrspace(4)*
+// CHECK: [[ACC_RANGE2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
+// CHECK: [[ACC_RANGE2AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[ACC_RANGE2A]] to %"struct.cl::sycl::range" addrspace(4)*
+// CHECK: [[MEM_RANGE2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
+// CHECK: [[MEM_RANGE2AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[MEM_RANGE2A]] to %"struct.cl::sycl::range" addrspace(4)*
+// CHECK: [[OFFSET2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::id"
+// CHECK: [[OFFSET2AS:%.*]] = addrspacecast %"struct.cl::sycl::id"* [[OFFSET2A]] to %"struct.cl::sycl::id" addrspace(4)*
 
 // CHECK accessor array default inits
 // CHECK: [[ACCESSOR_WRAPPER:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class{{.*}}.anon, %class{{.*}}.anon addrspace(4)* [[LOCAL_OBJECT]], i32 0, i32 0
@@ -74,9 +74,9 @@ int main() {
 // CHECK: [[GEP_MEMBER_ACC1:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}.struct_acc_t, %struct{{.*}}.struct_acc_t addrspace(4)* [[GEP_LAMBDA1]], i32 0, i32 0
 // CHECK: [[ARRAY_IDX1:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x [[ACCESSOR]]], [2 x [[ACCESSOR]]] addrspace(4)* [[GEP_MEMBER_ACC1]], i64 0, i64 0
 // CHECK: [[MEM_LOAD1:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)* addrspace(4)* [[MEM_ARG1]].addr
-// CHECK: [[ACC_RANGE1:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::range" addrspace(4)* [[ACC_RANGE1AS]] to %"struct.{{.*}}.cl::sycl::range"*
-// CHECK: [[MEM_RANGE1:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::range" addrspace(4)* [[MEM_RANGE1AS]] to %"struct.{{.*}}.cl::sycl::range"*
-// CHECK: [[OFFSET1:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::id" addrspace(4)* [[OFFSET1AS]] to %"struct.{{.*}}.cl::sycl::id"*
+// CHECK: [[ACC_RANGE1:%.*]] = addrspacecast %"struct.cl::sycl::range" addrspace(4)* [[ACC_RANGE1AS]] to %"struct.cl::sycl::range"*
+// CHECK: [[MEM_RANGE1:%.*]] = addrspacecast %"struct.cl::sycl::range" addrspace(4)* [[MEM_RANGE1AS]] to %"struct.cl::sycl::range"*
+// CHECK: [[OFFSET1:%.*]] = addrspacecast %"struct.cl::sycl::id" addrspace(4)* [[OFFSET1AS]] to %"struct.cl::sycl::id"*
 // CHECK: call spir_func void @{{.*}}__init{{.*}}([[ACCESSOR]] addrspace(4)* {{[^,]*}} [[ARRAY_IDX1]], i32 addrspace(1)* [[MEM_LOAD1]], %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE1]], %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE1]], %"struct{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET1]])
 
 // Check acc[1] __init method call
@@ -84,7 +84,7 @@ int main() {
 // CHECK: [[GEP_MEMBER_ACC2:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}.struct_acc_t, %struct{{.*}}.struct_acc_t addrspace(4)* [[GEP_LAMBDA2]], i32 0, i32 0
 // CHECK: [[ARRAY_IDX2:%[a-zA-Z0-9_]*]] = getelementptr inbounds [2 x [[ACCESSOR]]], [2 x [[ACCESSOR]]] addrspace(4)* [[GEP_MEMBER_ACC2]], i64 0, i64 1
 // CHECK: [[MEM_LOAD2:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)* addrspace(4)* [[MEM_ARG1]].addr
-// CHECK: [[ACC_RANGE2:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::range" addrspace(4)* [[ACC_RANGE2AS]] to %"struct.{{.*}}.cl::sycl::range"*
-// CHECK: [[MEM_RANGE2:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::range" addrspace(4)* [[MEM_RANGE2AS]] to %"struct.{{.*}}.cl::sycl::range"*
-// CHECK: [[OFFSET2:%.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::id" addrspace(4)* [[OFFSET2AS]] to %"struct.{{.*}}.cl::sycl::id"*
+// CHECK: [[ACC_RANGE2:%.*]] = addrspacecast %"struct.cl::sycl::range" addrspace(4)* [[ACC_RANGE2AS]] to %"struct.cl::sycl::range"*
+// CHECK: [[MEM_RANGE2:%.*]] = addrspacecast %"struct.cl::sycl::range" addrspace(4)* [[MEM_RANGE2AS]] to %"struct.cl::sycl::range"*
+// CHECK: [[OFFSET2:%.*]] = addrspacecast %"struct.cl::sycl::id" addrspace(4)* [[OFFSET2AS]] to %"struct.cl::sycl::id"*
 // CHECK: call spir_func void @{{.*}}__init{{.*}}([[ACCESSOR]] addrspace(4)* {{[^,]*}} [[ARRAY_IDX2]], i32 addrspace(1)* [[MEM_LOAD2]], %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE2]], %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE2]], %"struct{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET2]])

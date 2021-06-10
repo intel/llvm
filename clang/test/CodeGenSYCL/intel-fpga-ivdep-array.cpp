@@ -155,16 +155,16 @@ void ivdep_struct() {
     int *ptr;
     int arr[10];
   } s;
-  // CHECK: %[[STRUCT:[0-9a-z]+]] = alloca %struct.{{.+}}.S
+  // CHECK: %[[STRUCT:[0-9a-z]+]] = alloca %struct.S
   [[intel::ivdep(s.arr, 5)]] for (int i = 0; i != 10; ++i)
       s.arr[i] = 0;
-  // CHECK: %[[STRUCT_ARR:[0-9a-z]+]] = getelementptr inbounds %struct.{{.+}}.S, %struct.{{.+}}.S addrspace(4)* %[[STRUCT]].ascast, i32 0, i32 1
+  // CHECK: %[[STRUCT_ARR:[0-9a-z]+]] = getelementptr inbounds %struct.S, %struct.S addrspace(4)* %[[STRUCT]].ascast, i32 0, i32 1
   // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[STRUCT_ARR]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_STRUCT_ARR:[0-9]+]]
   // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_STRUCT_ARR:[0-9]+]]
 
   [[intel::ivdep(s.ptr, 5)]] for (int i = 0; i != 10; ++i)
       s.ptr[i] = 0;
-  // CHECK: %[[STRUCT_PTR:[0-9a-z]+]] = getelementptr inbounds %struct.{{.+}}.S, %struct.{{.+}}.S addrspace(4)* %[[STRUCT]].ascast, i32 0, i32 0
+  // CHECK: %[[STRUCT_PTR:[0-9a-z]+]] = getelementptr inbounds %struct.S, %struct.S addrspace(4)* %[[STRUCT]].ascast, i32 0, i32 0
   // CHECK: %[[LOAD_STRUCT_PTR:[0-9a-z]+]] = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %[[STRUCT_PTR]]
   // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds i32, i32 addrspace(4)* %[[LOAD_STRUCT_PTR]], i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_STRUCT_PTR:[0-9]+]]
   // CHECK: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_LOOP_STRUCT_PTR:[0-9]+]]
