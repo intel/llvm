@@ -2635,12 +2635,14 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   bool AllowImport = std::getenv("SYCL_DISABLE_USM_IMPORT") == nullptr;
   bool ForceImport = std::getenv("SYCL_ENABLE_USM_IMPORT") != nullptr;
 
-  // std::cerr << "ImportPossible=" << ImportPossible << std::endl;
-  // std::cerr << "AllowImport=" << AllowImport << std::endl;
-  // std::cerr << "ForceImport=" << ForceImport << std::endl;
+  std::cerr << "ImportPossible=" << ImportPossible << std::endl;
+  std::cerr << "AllowImport=" << AllowImport << std::endl;
+  std::cerr << "ForceImport=" << ForceImport << std::endl;
 
   // Check if a host ptr is supplied and it could be imported into USM
   bool ImportableMemory = false;
+  std::cerr << "HostPtr=" << HostPtr << std::endl;
+  std::cerr << "Flags=" << (Flags & PI_MEM_FLAGS_HOST_PTR_USE) << std::endl;
   if (HostPtr != nullptr && (Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
     // Query memory type of the host pointer
     ze_device_handle_t ZeDeviceHandle;
@@ -2653,10 +2655,11 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     ImportableMemory =
         (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN);
   }
+  std::cerr << "ImportableMemory=" << ImportableMemory << std::endl;
 
   bool HostPtrImported = false;
   if (ForceImport || (ImportPossible && ImportableMemory && AllowImport)) {
-    // std::cout << "Doing import\n";
+    std::cout << "Doing import\n";
 
     // Promote the host ptr to USM host memory
 
@@ -2677,7 +2680,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                nullptr));
     }
   } else {
-    // std::cout << "NOT doing import\n";
+    std::cout << "NOT doing import\n";
     if (DeviceIsIntegrated) {
       Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
     } else if (Context->SingleRootDevice) {
