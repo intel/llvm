@@ -50,8 +50,10 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
     // TODO: Reschedule commands.
     throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
 
+  assert(Cmd->getEvent() == Event);
+
   GraphReadLock.unlock();
-  Cmd->getEvent()->waitInternal();
+  Event->waitInternal();
   GraphReadLock.lock();
 }
 
