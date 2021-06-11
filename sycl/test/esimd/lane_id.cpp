@@ -20,11 +20,11 @@ using namespace sycl::ext::intel::experimental::esimd;
   ();
 
 // CHECK-LABEL: define dso_local spir_func void @_Z3fooi
-//CHECK:  call spir_func void @"_ZZ3fooiENK3$_0clEv"(
+//CHECK:  call spir_func void @_ZZ3fooiENKUlvE_clEv(
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<int, 16> foo(int x) {
   simd<int, 16> v = 0;
   SIMT_BEGIN(16, lane)
-  //CHECK: define internal spir_func void @"_ZZ3fooiENK3$_0clEv"({{.*}}) {{.*}} #[[ATTR:[0-9]+]]
+  //CHECK: define internal spir_func void @_ZZ3fooiENKUlvE_clEv({{.*}}) {{.*}} #[[ATTR:[0-9]+]]
   //CHECK: %{{[0-9a-zA-Z_.]+}} = tail call spir_func i32 @_Z15__esimd_lane_idv()
   v.select<1, 0>(lane) = x++;
   SIMT_END

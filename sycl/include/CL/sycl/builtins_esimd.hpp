@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/INTEL/esimd/detail/esimd_math_intrin.hpp>
 #include <CL/sycl/detail/boolean.hpp>
 #include <CL/sycl/detail/builtins.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/types.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
