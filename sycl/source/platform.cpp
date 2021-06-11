@@ -65,7 +65,7 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-context platform::get_default_context() const {
+context platform::ext_oneapi_get_default_context() const {
   return impl->getDefaultContext();
 }
 

@@ -19,7 +19,7 @@ The platform class gains one new method:
 |
 [source,c++]
 ----
-context get_default_context()
+context ext_oneapi_get_default_context()
 ----
 
 | Returns the current default context for this `platform`
@@ -27,3 +27,8 @@ context get_default_context()
 |===
 
 This extension also modifies the behavior of `queue` constructors. Queues will no longer create a new `context` upon construction. Instead, they will use the default context from the device's platform.
+
+== Feature Test Macro
+
+This extension defines the macro `SYCL_EXT_ONEAPI_DEFAULT_CONTEXT` to `1` to indicate that it is enabled.
+
