@@ -4852,7 +4852,6 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
     // rest of this file, is called during Sema instead of after it. We will
     // also have to filter out after deduction later.
     QualType Ty = VD->getType().getCanonicalType();
-
     if (!Ty->isUndeducedType())
       return;
   }
@@ -5024,11 +5023,24 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
 
+  llvm::SmallSet<const VarDecl *, 8> VisitedSpecConstants;
+
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
   unsigned ShimCounter = 0;
   for (const VarDecl *VD : SpecConstants) {
     VD = VD->getCanonicalDecl();
+
+    // Skip if this isn't a SpecIdType.  This can happen if it was a deduced
+    // type.
+    if (!Util::isSyclSpecIdType(VD->getType()))
+      continue;
+
+    // Skip if we've already visited this.
+    if (llvm::find(VisitedSpecConstants, VD) != VisitedSpecConstants.end())
+      continue;
+
+    VisitedSpecConstants.insert(VD);
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
     OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
     OS << "namespace sycl {\n";
