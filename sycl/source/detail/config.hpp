@@ -106,6 +106,8 @@ public:
 
   static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
 
+  static const char *getName() { return BaseT::MConfigName; }
+
 private:
   static const char *getCachedValue(bool ResetCache = false) {
     static const char *ValStr = BaseT::getRawValue();

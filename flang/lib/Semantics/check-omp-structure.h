@@ -201,6 +201,7 @@ private:
   void CheckDependList(const parser::DataRef &);
   void CheckDependArraySection(
       const common::Indirection<parser::ArrayElement> &, const parser::Name &);
+  bool IsDataRefTypeParamInquiry(const parser::DataRef *dataRef);
   void CheckIsVarPartOfAnotherVar(
       const parser::CharBlock &source, const parser::OmpObjectList &objList);
   void CheckIntentInPointer(
@@ -218,6 +219,7 @@ private:
   void CheckLoopItrVariableIsInt(const parser::OpenMPLoopConstruct &x);
   void CheckDoWhile(const parser::OpenMPLoopConstruct &x);
   void CheckCycleConstraints(const parser::OpenMPLoopConstruct &x);
+  void CheckDistLinear(const parser::OpenMPLoopConstruct &x);
   void CheckSIMDNest(const parser::OpenMPConstruct &x);
   std::int64_t GetOrdCollapseLevel(const parser::OpenMPLoopConstruct &x);
   void CheckIfDoOrderedClause(const parser::OmpBlockDirective &blkDirectiv);

@@ -8,26 +8,12 @@
 
 #include "atomic.hpp"
 #include "wrapper.h"
+#include "include/assert-happened.hpp"
 
 #ifdef __SPIR__
 
-struct AssertHappened {
-  int Flag = 0;
-};
-
-#ifndef __SYCL_GLOBAL_VAR__
-// FIXME uncomment after CFE changes
-#define __SYCL_GLOBAL_VAR__ /*__attribute__((sycl_global_var))*/
-#endif
-
-// FIXME remove const after CFE changes
-// declaration
-extern __SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ const AssertHappened
-    __SYCL_AssertHappenedMem;
-
 // definition
-__SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ const AssertHappened
-    __SYCL_AssertHappenedMem;
+__SYCL_GLOBAL__ AssertHappened __SYCL_AssertHappenedMem;
 
 static const __attribute__((opencl_constant)) char assert_fmt[] =
     "%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] "
@@ -52,12 +38,11 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
                      // (func) ? func : "<unknown function>",
                      func, gid0, gid1, gid2, lid0, lid1, lid2, expr);
 
-  // FIXME uncomment the following lines after clang changes
-  //{
-  //  int Expected = 0;
-  //  int Desired = 1;
-  //  CompareAndSet(&__SYCL_AssertHappenedMem.Flag, Desired, Expected);
-  //}
+  {
+    int Expected = 0;
+    int Desired = 1;
+    CompareAndSet(&__SYCL_AssertHappenedMem.Flag, Desired, Expected);
+  }
 
   // FIXME: call SPIR-V unreachable instead
   // volatile int *die = (int *)0x0;

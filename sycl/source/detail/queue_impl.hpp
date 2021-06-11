@@ -387,9 +387,6 @@ private:
   /// \param Self is a pointer to this queue.
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event representing submitted command group.
-  ///
-  /// KernelName is null if the caller doesn't want the kernel name. The object
-  /// is modified if and only if there was a kernel submit.
   event submit_impl(const function_class<void(handler &)> &CGF, bool *IsKernel,
                     const shared_ptr_class<queue_impl> &Self,
                     const detail::code_location &Loc) {
