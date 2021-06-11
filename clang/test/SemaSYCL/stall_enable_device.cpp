@@ -39,15 +39,15 @@ void test3() {
 
 int main() {
   q.submit([&](handler &h) {
-    // Test attribute is propagated to the kernel.
+    // Test attribute is not propagated to the kernel.
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
-    // CHECK:       SYCLIntelUseStallEnableClustersAttr {{.*}}
+    // CHECK-NOT:   SYCLIntelUseStallEnableClustersAttr {{.*}}
     h.single_task<class test_kernel1>(
         FuncObj());
 
-    // Test attribute is applied on lambda.
+    // Test attribute does not present on kernel.
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
-    // CHECK:       SYCLIntelUseStallEnableClustersAttr {{.*}}
+    // CHECK-NOT:   SYCLIntelUseStallEnableClustersAttr {{.*}}
     h.single_task<class test_kernel2>(
         []() [[intel::use_stall_enable_clusters]]{});
 

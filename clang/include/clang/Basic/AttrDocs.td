@@ -2587,26 +2587,15 @@ extent possible, that statically-scheduled clusters handle stalls using a
 stall-enable signal to freeze computation within the cluster. This attribute
 is not ignored on the host.
 
-If ``intel::use_stall_enable_clusters`` is applied to a function called from a
-device kernel, the attribute is ignored and it is not propagated to the kernel.
-
 The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an
 effect when applied to a function, and no effect otherwise.
 
 .. code-block:: c++
 
-  class Functor
-  {
-      [[intel::use_stall_enable_clusters]] void operator()(item<1> item)
-      {
-          /* kernel code */
-      }
-  }
-
-  kernel<class kernel_name>(
-  []() [[intel::use_stall_enable_clusters]] {
-       /* kernel code */
-  });
+  class Foo {
+  public:
+    [[intel::use_stall_enable_clusters]] void operator()() const {}
+  };
 
   [[intel::use_stall_enable_clusters]] void test() {}
 
