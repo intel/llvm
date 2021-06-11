@@ -310,11 +310,10 @@ bool device_impl::isAssertFailSupported() const {
 
   const plugin &Plugin = getPlugin();
 
-  // Return false for CUDA even though, it has native support for assert.
-  // Change to return true when devicelib issue is fixed.
+  // Eliminate error from ptxas for undefined ref to __devicelib_assert_read
   // See https://github.com/intel/llvm/issues/3385
   if (Plugin.getBackend() == backend::cuda)
-    return false;
+    return true;
 
   size_t ExtNameSize = 0;
   Plugin.call<PiApiKind::piextGetExtensionName>(PI_INTEL_DEVICELIB_CASSERT,
