@@ -33,7 +33,7 @@ The extension supports this query in version 2 and later.
 
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-| info\:\:device\:\:ext\_intel\_device\_info\_uuid | std\:\:array\<std\:\:byte\, 16\> | Returns the device UUID|
+| info\:\:device\:\:ext\_intel\_device\_info\_uuid | unsigned char | Returns the device UUID|
 
 
 ## Aspects ##

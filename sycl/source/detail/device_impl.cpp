@@ -305,10 +305,10 @@ bool device_impl::has(aspect Aspect) const {
     }
 
     assert(return_size <= 16);
-    std::byte UUID[16];
+    unsigned char UUID[16];
 
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_UUID, 16 * sizeof(std::byte), UUID,
+               MDevice, PI_DEVICE_INFO_UUID, 16 * sizeof(unsigned char), UUID,
                nullptr) == PI_SUCCESS;
   }
   case aspect::ext_intel_max_mem_bandwidth:
