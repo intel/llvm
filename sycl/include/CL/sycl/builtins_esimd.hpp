@@ -21,8 +21,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-#define __ESIMD_NS ext::intel::experimental::esimd
-
 // cos
 template <int SZ>
 ESIMD_NODEBUG ESIMD_INLINE __ESIMD_NS::simd<float, SZ>
@@ -32,11 +30,6 @@ cos(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 #else
   return __esimd_cos<SZ>(x.data());
 #endif // __SYCL_DEVICE_ONLY__
-}
-
-ESIMD_NODEBUG ESIMD_INLINE __ESIMD_NS::simd<float, 1>
-cos(__ESIMD_NS::simd<float, 1> x) __NOEXC {
-  return cos(x[0]);
 }
 
 // sin
@@ -50,11 +43,6 @@ sin(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-ESIMD_NODEBUG ESIMD_INLINE __ESIMD_NS::simd<float, 1>
-sin(__ESIMD_NS::simd<float, 1> x) __NOEXC {
-  return sin(x[0]);
-}
-
 // exp
 template <int SZ>
 ESIMD_NODEBUG ESIMD_INLINE __ESIMD_NS::simd<float, SZ>
@@ -64,11 +52,6 @@ exp(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 #else
   return __esimd_exp<SZ>(x.data());
 #endif // __SYCL_DEVICE_ONLY__
-}
-
-ESIMD_NODEBUG ESIMD_INLINE __ESIMD_NS::simd<float, 1>
-exp(__ESIMD_NS::simd<float, 1> x) __NOEXC {
-  return exp(x[0]);
 }
 
 // log
@@ -81,13 +64,6 @@ log(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
   return __esimd_log<SZ>(x.data());
 #endif // __SYCL_DEVICE_ONLY__
 }
-
-ESIMD_NODEBUG ESIMD_INLINE __ESIMD_NS::simd<float, 1>
-log(__ESIMD_NS::simd<float, 1> x) __NOEXC {
-  return log(x[0]);
-}
-
-#undef __ESIMD_NS
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
