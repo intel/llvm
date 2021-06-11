@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "atomic.hpp"
-#include "wrapper.h"
 #include "include/assert-happened.hpp"
+#include "wrapper.h"
 
 #ifdef __SPIR__
 
