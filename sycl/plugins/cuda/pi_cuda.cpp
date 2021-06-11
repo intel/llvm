@@ -4629,6 +4629,7 @@ pi_result cuda_piextGetExtensionName(pi_extension_number ExtNumber,
   // TODO switch to map/unordered_map when have enough number of extensions
   switch (ExtNumber) {
   case PI_INTEL_DEVICELIB_CASSERT: {
+    // FIXME set name after backend support
     static const std::string Name = "N/A";
     if (Size)
       *Size = Name.length();
