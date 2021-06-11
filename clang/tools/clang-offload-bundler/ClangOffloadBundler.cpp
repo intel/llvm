@@ -1658,6 +1658,15 @@ int main(int argc, const char **argv) {
     ++Index;
   }
 
+  if (CheckSection) {
+    Expected<bool> Res = CheckBundledSection();
+    if (!Res) {
+      reportError(Res.takeError());
+      return 1;
+    }
+    return !*Res;
+  }
+
   // HIP uses clang-offload-bundler to bundle device-only compilation results
   // for multiple GPU archs, therefore allow no host target if all entries
   // are for HIP.
