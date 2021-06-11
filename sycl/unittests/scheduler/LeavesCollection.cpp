@@ -55,7 +55,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
 
   LeavesCollection::AllocateDependencyF AllocateDependency =
       [&](Command *, Command *, MemObjRecord *,
-          std::vector<cl::sycl::detail::Command *> *) {
+          std::vector<cl::sycl::detail::Command *> &) {
         ++TimesGenericWasFull;
       };
 
@@ -70,7 +70,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 2; ++Idx) {
       Cmds.push_back(createGenericCommand(getSyclObjImpl(MQueue)));
 
-      LE.push_back(Cmds.back().get(), &ToEnqueue);
+      LE.push_back(Cmds.back().get(), ToEnqueue);
     }
 
     ASSERT_EQ(TimesGenericWasFull, GenericCmdsCapacity)
@@ -100,7 +100,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
                          : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
       Cmds.push_back(Cmd);
 
-      LE.push_back(Cmds.back().get(), &ToEnqueue);
+      LE.push_back(Cmds.back().get(), ToEnqueue);
     }
 
     ASSERT_EQ(TimesGenericWasFull, GenericCmdsCapacity)
@@ -121,7 +121,7 @@ TEST_F(LeavesCollectionTest, Remove) {
 
   LeavesCollection::AllocateDependencyF AllocateDependency =
       [](Command *, Command *Old, MemObjRecord *,
-         std::vector<cl::sycl::detail::Command *> *) { --Old->MLeafCounter; };
+         std::vector<cl::sycl::detail::Command *> &) { --Old->MLeafCounter; };
 
   {
     cl::sycl::buffer<int, 1> Buf(cl::sycl::range<1>(1));
@@ -137,7 +137,7 @@ TEST_F(LeavesCollectionTest, Remove) {
                          : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
       Cmds.push_back(Cmd);
 
-      if (LE.push_back(Cmds.back().get(), &ToEnqueue))
+      if (LE.push_back(Cmds.back().get(), ToEnqueue))
         ++Cmd->MLeafCounter;
     }
 
