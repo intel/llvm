@@ -1172,12 +1172,11 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_C);
   Args.AddLastArg(CmdArgs, options::OPT_CC);
 
-  // When generating the using the integration footer, add the comments
+  // When preprocessing using the integration footer, add the comments
   // to the first preprocessing step.
-  if (!Args.hasArg(options::OPT_C) && JA.isOffloading(Action::OFK_SYCL) &&
+  if (JA.isOffloading(Action::OFK_SYCL) && !ContainsAppendFooterAction(&JA) &&
       Args.hasArg(options::OPT_fsycl_use_footer) &&
-      JA.isDeviceOffloading(Action::OFK_None) &&
-      !ContainsAppendFooterAction(&JA))
+      JA.isDeviceOffloading(Action::OFK_None))
     CmdArgs.push_back("-C");
 
   // Handle dependency file generation.
