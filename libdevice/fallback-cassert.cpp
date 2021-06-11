@@ -8,24 +8,12 @@
 
 #include "atomic.hpp"
 #include "wrapper.h"
+#include "include/assert-happened.hpp"
 
 #ifdef __SPIR__
 
-struct AssertHappened {
-  int Flag = 0;
-};
-
-#ifndef __SYCL_GLOBAL_VAR__
-#define __SYCL_GLOBAL_VAR__ __attribute__((sycl_global_var))
-#endif
-
-// declaration
-extern __SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ const AssertHappened
-    __SYCL_AssertHappenedMem;
-
 // definition
-__SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ const AssertHappened
-    __SYCL_AssertHappenedMem;
+__SYCL_GLOBAL__ AssertHappened __SYCL_AssertHappenedMem;
 
 static const __attribute__((opencl_constant)) char assert_fmt[] =
     "%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] "
