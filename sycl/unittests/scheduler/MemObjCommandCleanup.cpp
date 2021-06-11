@@ -17,8 +17,9 @@ TEST_F(SchedulerTest, MemObjCommandCleanup) {
   buffer<int, 1> BufB(range<1>(1));
   detail::Requirement MockReqA = getMockRequirement(BufA);
   detail::Requirement MockReqB = getMockRequirement(BufB);
-  detail::MemObjRecord *RecA =
-      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(MQueue), &MockReqA);
+  std::vector<detail::Command *> AuxCmds;
+  detail::MemObjRecord *RecA = MS.getOrInsertMemObjRecord(
+      detail::getSyclObjImpl(MQueue), &MockReqA, AuxCmds);
 
   // Create 2 fake allocas, one of which will be cleaned up
   detail::AllocaCommand *MockAllocaA =
