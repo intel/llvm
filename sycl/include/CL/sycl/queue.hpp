@@ -243,7 +243,8 @@ private:
 
       CGH.single_task<AssertInfoCopier>([Acc] {
 #ifdef __SYCL_DEVICE_ONLY__
-        Acc[0].Flag = __devicelib_assert_read();
+        //Acc[0].Flag =
+        __devicelib_assert_read(&Acc[0]);
 #else
         (void)Acc;
 #endif // __SYCL_DEVICE_ONLY__
@@ -253,8 +254,21 @@ private:
       CGH.depends_on(CopierEv);
 
       CGH.codeplay_host_task([=] {
-        if (AH->Flag)
+        assert(AH->Flag != 1 && "Invalid value");
+
+        if (AH->Flag) {
+          const char *Expr = AH->Expr[0] ? AH->Expr : "<unknown expr>";
+          const char *File = AH->File[0] ? AH->File : "<unknown file>";
+          const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
+
+          fprintf(stderr,
+                  "%s:%d: %s: global id: [%lu, %lu, %lu], "
+                  "local id: [%lu,%lu,%lu] "
+                  "Assertion `%s` failed",
+                  File, AH->Line, Func, AH->GID0, AH->GID1, AH->GID2, AH->LID0,
+                  AH->LID1, AH->LID2, Expr);
           abort(); // no need to release memory as it's abort anyway
+        }
       });
     };
     // Release memory in distinct host-task so that any dependency is eliminated
