@@ -56,7 +56,7 @@ void test_simd_select() SYCL_ESIMD_FUNCTION {
 // simd::replicate can accept simd_view of size 1 as Offset argument
 void test_simd_replicate() SYCL_ESIMD_FUNCTION {
   simd<int, 4> v = 1;
-  v.replicate<2, 1>(v[0]);
+  v.replicate_w<2, 1>(v[0]);
 }
 
 void test_simd_writable_subscript() SYCL_ESIMD_FUNCTION {
