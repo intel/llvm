@@ -9447,7 +9447,7 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
 
     llvm::APSInt Value = Result.Val.getInt();
     LLVMContext &Context = CGM.getLLVMContext();
-    std::string Reg = Value == 31 ? "sp" : "x" + Value.toString(10);
+    std::string Reg = Value == 31 ? "sp" : "x" + toString(Value, 10);
 
     llvm::Metadata *Ops[] = {llvm::MDString::get(Context, Reg)};
     llvm::MDNode *RegName = llvm::MDNode::get(Context, Ops);
@@ -17905,12 +17905,12 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   Optional<llvm::APSInt> Params =
       E->getArg(1)->getIntegerConstantExpr(getContext());
   assert(Params.hasValue() && "Constant arg isn't actually constant?");
-  Out << "{params:" << Params->toString(10) << "}";
+  Out << "{params:" << toString(*Params, 10) << "}";
 
   Optional<llvm::APSInt> CacheSize =
       E->getArg(2)->getIntegerConstantExpr(getContext());
   assert(CacheSize.hasValue() && "Constant arg isn't actually constant?");
-  Out << "{cache-size:" << CacheSize->toString(10) << "}";
+  Out << "{cache-size:" << toString(*CacheSize, 10) << "}";
 
   llvm::Value *Ann = EmitAnnotationCall(F, PtrVal, AnnotStr, SourceLocation());
 

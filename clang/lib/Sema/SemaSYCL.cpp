@@ -243,7 +243,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
         if (Index >= NumFields) {
           Diag(Idx->getExprLoc(),
                diag::err_sycl_builtin_type_trait_index_out_of_range)
-              << IdxVal->toString(10) << SourceTy << /*fields*/ 0;
+              << toString(*IdxVal, 10) << SourceTy << /*fields*/ 0;
           return ExprError();
         }
         const FieldDecl *FD = *std::next(RD->field_begin(), Index);
@@ -345,7 +345,7 @@ ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
         if (Index >= RD->getNumBases()) {
           Diag(Idx->getExprLoc(),
                diag::err_sycl_builtin_type_trait_index_out_of_range)
-              << IdxVal->toString(10) << SourceTy << /*bases*/ 1;
+              << toString(*IdxVal, 10) << SourceTy << /*bases*/ 1;
           return ExprError();
         }
 
