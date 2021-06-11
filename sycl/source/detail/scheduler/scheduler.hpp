@@ -459,8 +459,7 @@ protected:
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock
   /// avoidance
   ///
-  /// \param Lock is an instance of WriteLockT
-  /// class
+  /// \param Lock is an instance of WriteLockT, created with \c std::defer_lock
   void acquireWriteLock(WriteLockT &Lock);
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req);
@@ -728,17 +727,33 @@ protected:
 
     /// Waits for the command, associated with Event passed, is completed.
     /// \param GraphReadLock read-lock which is already acquired for reading
-    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock);
+    /// \param LockTheLock selects if graph lock should be locked upon return
+    ///
+    /// The function may unlock and lock GraphReadLock as needed. Upon return
+    /// the lock is left in locked state if and only if LockTheLock is true.
+    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock,
+                             bool LockTheLock = true);
 
     /// Enqueues the command and all its dependencies.
     ///
     /// \param EnqueueResult is set to specific status if enqueue failed.
     /// \param GraphReadLock read-lock which is already acquired for reading
     /// \return true if the command is successfully enqueued.
+    ///
+    /// The function may unlock and lock GraphReadLock as needed. Upon return
+    /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
                                BlockingT Blocking = NON_BLOCKING);
   };
 
+  /// This function waits on all of the graph leaves which somehow use the
+  /// memory object which is represented by \c Record. The function is called
+  /// upon destruction of memory buffer.
+  /// \param Record memory record to await graph leaves of to finish
+  /// \param GraphReadLock locked graph read lock
+  ///
+  /// GraphReadLock will be unlocked/locked as needed. Upon return from the
+  /// function, GraphReadLock will be left in locked state.
   void waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock);
 
   GraphBuilder MGraphBuilder;

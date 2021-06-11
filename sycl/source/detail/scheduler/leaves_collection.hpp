@@ -43,7 +43,7 @@ public:
 
   // Make first command depend on the second
   using AllocateDependencyF =
-      std::function<void(Command *, Command *, MemObjRecord *, EnqueueListT *)>;
+      std::function<void(Command *, Command *, MemObjRecord *, EnqueueListT &)>;
 
   template <bool IsConst> class IteratorT;
 
@@ -82,7 +82,7 @@ public:
   }
 
   /// Returns true if insertion took place. Returns false otherwise.
-  bool push_back(value_type Cmd, EnqueueListT *ToEnqueue);
+  bool push_back(value_type Cmd, EnqueueListT &ToEnqueue);
 
   /// Replacement for std::remove with subsequent call to erase(newEnd, end()).
   /// This function is introduced here due to complexity of iterator.
@@ -126,8 +126,8 @@ private:
 
   AllocateDependencyF MAllocateDependency;
 
-  bool addGenericCommand(value_type Cmd, EnqueueListT *ToEnqueue);
-  bool addHostAccessorCommand(EmptyCommand *Cmd, EnqueueListT *ToEnqueue);
+  bool addGenericCommand(value_type Cmd, EnqueueListT &ToEnqueue);
+  bool addHostAccessorCommand(EmptyCommand *Cmd, EnqueueListT &ToEnqueue);
 
   // inserts a command to the end of list for its mem object
   void insertHostAccessorCommand(EmptyCommand *Cmd);

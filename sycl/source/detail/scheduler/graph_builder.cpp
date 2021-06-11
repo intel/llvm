@@ -184,13 +184,13 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
   const size_t LeafLimit = 8;
   LeavesCollection::AllocateDependencyF AllocateDependency =
       [this](Command *Dependant, Command *Dependency, MemObjRecord *Record,
-             LeavesCollection::EnqueueListT *ToEnqueue) {
+             LeavesCollection::EnqueueListT &ToEnqueue) {
         // Add the old leaf as a dependency for the new one by duplicating one
         // of the requirements for the current record
         DepDesc Dep = findDepForRecord(Dependant, Record);
         Dep.MDepCommand = Dependency;
         if (Command *ConnectionCmd = Dependant->addDep(Dep))
-          ToEnqueue->push_back(ConnectionCmd);
+          ToEnqueue.push_back(ConnectionCmd);
         Dependency->addUser(Dependant);
         --(Dependency->MLeafCounter);
       };
@@ -244,7 +244,7 @@ void Scheduler::GraphBuilder::addNodeToLeaves(
   LeavesCollection &Leaves{AccessMode == access::mode::read
                                ? Record->MReadLeaves
                                : Record->MWriteLeaves};
-  if (Leaves.push_back(Cmd, &ToEnqueue))
+  if (Leaves.push_back(Cmd, ToEnqueue))
     ++Cmd->MLeafCounter;
 }
 
@@ -700,7 +700,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                 DefaultHostQueue, FullReq, true /* InitFromUserData */,
                 nullptr /* LinkedAllocaCmd */);
             Record->MAllocaCommands.push_back(HostAllocaCmd);
-            Record->MWriteLeaves.push_back(HostAllocaCmd, &ToEnqueue);
+            Record->MWriteLeaves.push_back(HostAllocaCmd, ToEnqueue);
             ++(HostAllocaCmd->MLeafCounter);
             Record->MCurContext = DefaultHostQueue->getContextImplPtr();
           }
@@ -787,7 +787,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     }
 
     Record->MAllocaCommands.push_back(AllocaCmd);
-    Record->MWriteLeaves.push_back(AllocaCmd, &ToEnqueue);
+    Record->MWriteLeaves.push_back(AllocaCmd, ToEnqueue);
     ++(AllocaCmd->MLeafCounter);
   }
   return AllocaCmd;
@@ -1261,18 +1261,6 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
   ConnectCmd->MEmptyCmd = EmptyCmd;
 
   return ConnectCmd;
-#if 0
-  // FIXME graph builder shouldn't really enqueue commands. We're in the middle
-  // of enqueue process for some command Cmd. We're going to add a dependency
-  // for it. Need some nice and cute solution to enqueue ConnectCmd via standard
-  // scheduler/graph processor mechanisms.
-  // Though, we need this call to enqueue to launch ConnectCmd.
-  EnqueueResultT Res;
-  bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(ConnectCmd, Res);
-  if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-    throw runtime_error("Failed to enqueue a sync event between two contexts",
-                        PI_INVALID_OPERATION);
-#endif
 }
 
 } // namespace detail
