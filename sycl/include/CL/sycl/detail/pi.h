@@ -1685,8 +1685,6 @@ struct _pi_plugin {
   } PiFunctionTable;
 };
 
-extern const char PI_INTEL_DEVICELIB_CASSERT_EXTENSION_NAME[];
-
 #ifdef __cplusplus
 } // extern "C"
 #endif // __cplusplus
