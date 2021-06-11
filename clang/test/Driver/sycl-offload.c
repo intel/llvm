@@ -961,3 +961,8 @@
 // RUN: %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl" "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-host"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl" "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"{{.*}}
+
+/// Check for an incompatibility error when -fsycl and -ffreestanding used
+// RUN:   %clang -### -fsycl -ffreestanding %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s
+// CHK-INCOMPATIBILITY: error: The option -fsycl conflicts with -ffreestanding
