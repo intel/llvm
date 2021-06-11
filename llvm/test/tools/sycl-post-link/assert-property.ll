@@ -26,8 +26,8 @@
 ;       bar();
 ;     });
 ;     CGH.parallel_for<class TheKernel3>(range<2>{2, 10}, [=](item<2> It) {
-;       bar();
 ;       baz();
+;       bar();
 ;     });
 ;   });
 ;   Q.wait();
@@ -50,31 +50,6 @@ target triple = "spir64_x86_64-unknown-unknown-sycldevice"
 
 ; CHECK: [SYCL/assert used]
 
-; CHECK: _ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE9TeKernelEE
-; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @"_ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE9TeKernelEE"(%"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range") align 8 %_arg_, %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlNS1_4itemILi2ELb1EEEE_.anon"* byval(%"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlNS1_4itemILi2ELb1EEEE_.anon") align 1 %_arg_1) #0 {
-entry:
-  %0 = getelementptr inbounds %"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range", %"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range"* %_arg_, i64 0, i32 0, i32 0, i64 0
-  %.sroa.0.0..sroa_cast9 = addrspacecast i64* %0 to i64 addrspace(4)*
-  %.sroa.0.0.copyload10 = load i64, i64 addrspace(4)* %.sroa.0.0..sroa_cast9, align 8
-  %1 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %2 = extractelement <3 x i64> %1, i64 1
-  %cmp.i.i = icmp ult i64 %2, 2147483648
-  tail call void @llvm.assume(i1 %cmp.i.i)
-  %cmp.not.i = icmp ult i64 %2, %.sroa.0.0.copyload10
-  br i1 %cmp.not.i, label %if.end.i, label %"_ZZN2cl4sycl7handler27getRangeRoundedKernelLambdaINS0_4itemILi2ELb1EEELi2EZZ4mainENK3$_0clERS1_EUlS4_E_LPv0EEEDaT1_NS0_5rangeIXT0_EEEENKUlS4_E_clES4_.exit"
-
-if.end.i:                                         ; preds = %entry
-  tail call spir_func void @__assert_fail(i8 addrspace(4)* getelementptr inbounds ([2 x i8], [2 x i8] addrspace(4)* addrspacecast ([2 x i8] addrspace(1)* @.str to [2 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(4)* addrspacecast ([11 x i8] addrspace(1)* @.str.1 to [11 x i8] addrspace(4)*), i64 0, i64 0), i32 8, i8 addrspace(4)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(4)* addrspacecast ([11 x i8] addrspace(1)* @__PRETTY_FUNCTION__._Z3foov to [11 x i8] addrspace(4)*), i64 0, i64 0))
-  br label %"_ZZN2cl4sycl7handler27getRangeRoundedKernelLambdaINS0_4itemILi2ELb1EEELi2EZZ4mainENK3$_0clERS1_EUlS4_E_LPv0EEEDaT1_NS0_5rangeIXT0_EEEENKUlS4_E_clES4_.exit"
-
-"_ZZN2cl4sycl7handler27getRangeRoundedKernelLambdaINS0_4itemILi2ELb1EEELi2EZZ4mainENK3$_0clERS1_EUlS4_E_LPv0EEEDaT1_NS0_5rangeIXT0_EEEENKUlS4_E_clES4_.exit": ; preds = %entry, %if.end.i
-  ret void
-}
-
-; Function Attrs: inaccessiblememonly nofree nosync nounwind willreturn
-declare void @llvm.assume(i1 noundef) #1
-
 ; Function Attrs: convergent norecurse nounwind mustprogress
 define dso_local spir_func void @_Z3foov() {
 entry:
@@ -86,18 +61,7 @@ entry:
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel"() #0 {
 entry:
-  tail call spir_func void @__assert_fail(i8 addrspace(4)* getelementptr inbounds ([2 x i8], [2 x i8] addrspace(4)* addrspacecast ([2 x i8] addrspace(1)* @.str to [2 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(4)* addrspacecast ([11 x i8] addrspace(1)* @.str.1 to [11 x i8] addrspace(4)*), i64 0, i64 0), i32 8, i8 addrspace(4)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(4)* addrspacecast ([11 x i8] addrspace(1)* @__PRETTY_FUNCTION__._Z3foov to [11 x i8] addrspace(4)*), i64 0, i64 0))
-  ret void
-}
-
-; CHECK-NOT: _ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE10TheKernel2EE
-; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @"_ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE10TheKernel2EE"(%"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range") align 8 %_arg_, %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlNS1_4itemILi2ELb1EEEE_.anon"* byval(%"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlNS1_4itemILi2ELb1EEEE_.anon") align 1 %_arg_1) #1 {
-entry:
-  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %1 = extractelement <3 x i64> %0, i64 1
-  %cmp.i.i = icmp ult i64 %1, 2147483648
-  tail call void @llvm.assume(i1 %cmp.i.i)
+  call spir_func void @_Z3foov()
   ret void
 }
 
@@ -111,28 +75,15 @@ entry:
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel2"() #1 {
 entry:
+  call spir_func void @_Z3barv()
   ret void
 }
 
-; CHECK: _ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE10TheKernel3EE
-; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @"_ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE10TheKernel3EE"(%"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range") align 8 %_arg_, %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlNS1_4itemILi2ELb1EEEE_.anon"* byval(%"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlNS1_4itemILi2ELb1EEEE_.anon") align 1 %_arg_1) #0 {
+; Function Attrs: convergent inlinehint norecurse nounwind mustprogress
+define internal spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_4itemILi2ELb1EEEE1_clES5_"() unnamed_addr #8 align 2 {
 entry:
-  %0 = getelementptr inbounds %"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range", %"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range"* %_arg_, i64 0, i32 0, i32 0, i64 0
-  %.sroa.0.0..sroa_cast9 = addrspacecast i64* %0 to i64 addrspace(4)*
-  %.sroa.0.0.copyload10 = load i64, i64 addrspace(4)* %.sroa.0.0..sroa_cast9, align 8
-  %1 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
-  %2 = extractelement <3 x i64> %1, i64 1
-  %cmp.i.i = icmp ult i64 %2, 2147483648
-  tail call void @llvm.assume(i1 %cmp.i.i)
-  %cmp.not.i = icmp ult i64 %2, %.sroa.0.0.copyload10
-  br i1 %cmp.not.i, label %if.end.i, label %"_ZZN2cl4sycl7handler27getRangeRoundedKernelLambdaINS0_4itemILi2ELb1EEELi2EZZ4mainENK3$_0clERS1_EUlS4_E1_LPv0EEEDaT1_NS0_5rangeIXT0_EEEENKUlS4_E_clES4_.exit"
-
-if.end.i:                                         ; preds = %entry
-  tail call spir_func void @__assert_fail(i8 addrspace(4)* getelementptr inbounds ([2 x i8], [2 x i8] addrspace(4)* addrspacecast ([2 x i8] addrspace(1)* @.str to [2 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(4)* addrspacecast ([11 x i8] addrspace(1)* @.str.1 to [11 x i8] addrspace(4)*), i64 0, i64 0), i32 8, i8 addrspace(4)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(4)* addrspacecast ([11 x i8] addrspace(1)* @__PRETTY_FUNCTION__._Z3foov to [11 x i8] addrspace(4)*), i64 0, i64 0))
-  br label %"_ZZN2cl4sycl7handler27getRangeRoundedKernelLambdaINS0_4itemILi2ELb1EEELi2EZZ4mainENK3$_0clERS1_EUlS4_E1_LPv0EEEDaT1_NS0_5rangeIXT0_EEEENKUlS4_E_clES4_.exit"
-
-"_ZZN2cl4sycl7handler27getRangeRoundedKernelLambdaINS0_4itemILi2ELb1EEELi2EZZ4mainENK3$_0clERS1_EUlS4_E1_LPv0EEEDaT1_NS0_5rangeIXT0_EEEENKUlS4_E_clES4_.exit": ; preds = %entry, %if.end.i
+  call spir_func void @_Z3bazv()
+  call spir_func void @_Z3barv()
   ret void
 }
 
@@ -147,7 +98,7 @@ entry:
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3"() #0 {
 entry:
-  tail call spir_func void @__assert_fail(i8 addrspace(4)* getelementptr inbounds ([2 x i8], [2 x i8] addrspace(4)* addrspacecast ([2 x i8] addrspace(1)* @.str to [2 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(4)* addrspacecast ([11 x i8] addrspace(1)* @.str.1 to [11 x i8] addrspace(4)*), i64 0, i64 0), i32 8, i8 addrspace(4)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(4)* addrspacecast ([11 x i8] addrspace(1)* @__PRETTY_FUNCTION__._Z3foov to [11 x i8] addrspace(4)*), i64 0, i64 0))
+  call spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_4itemILi2ELb1EEEE1_clES5_"()
   ret void
 }
 
