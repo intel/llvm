@@ -727,6 +727,9 @@ protected:
 
     /// Waits for the command, associated with Event passed, is completed.
     /// \param GraphReadLock read-lock which is already acquired for reading
+    ///
+    /// The function may unlock and lock GraphReadLock as needed. Upon return
+    /// the lock is left in locked state.
     static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock);
 
     /// Enqueues the command and all its dependencies.
@@ -734,6 +737,9 @@ protected:
     /// \param EnqueueResult is set to specific status if enqueue failed.
     /// \param GraphReadLock read-lock which is already acquired for reading
     /// \return true if the command is successfully enqueued.
+    ///
+    /// The function may unlock and lock GraphReadLock as needed. Upon return
+    /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
                                BlockingT Blocking = NON_BLOCKING);
   };
