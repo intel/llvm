@@ -1,4 +1,4 @@
-//==-------------- KernelInfo.cpp --- kernel info unit test ----------------==//
+//==-------------- DeviceInfo.cpp --- device info unit test ----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,8 +25,10 @@ struct TestCtx {
 
 static std::unique_ptr<TestCtx> TestContext;
 
-static pi_result redefinedDeviceGetInfo(pi_device device, pi_device_info param_name,
-                                        size_t param_value_size, void *param_value,
+static pi_result redefinedDeviceGetInfo(pi_device device,
+                                        pi_device_info param_name,
+                                        size_t param_value_size,
+                                        void *param_value,
                                         size_t *param_value_size_ret) {
   return PI_SUCCESS;
 }
@@ -46,8 +48,7 @@ protected:
 
     Mock = std::make_unique<unittest::PiMock>(Plt);
 
-    Mock->redefine<detail::PiApiKind::piDeviceGetInfo>(
-        redefinedDeviceGetInfo);
+    Mock->redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   }
 
 protected:
@@ -66,7 +67,8 @@ TEST_F(DeviceInfoTest, GetDeviceUUID) {
   device Dev = Ctx.get_devices()[0];
 
   if (!Dev.has(aspect::ext_intel_device_info_uuid)) {
-    std::clog << "This test is only for the devices with UUID extension support.\n";
+    std::clog
+        << "This test is only for the devices with UUID extension support.\n";
     return;
   }
 
