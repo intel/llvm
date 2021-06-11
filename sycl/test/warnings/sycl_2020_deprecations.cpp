@@ -59,5 +59,10 @@ int main() {
   // expected-warning@+1 {{'program' is deprecated: program class is deprecated, use kernel_bundle instead}}
   sycl::program Prog{Ctx};
 
+  sycl::buffer<int, 1> Buffer(4);
+  // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}
+  size_t BufferGetCount = Buffer.get_count();
+  size_t BufferSize = Buffer.size();
+
   return 0;
 }
