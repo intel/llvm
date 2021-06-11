@@ -37,7 +37,8 @@ Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
 }
 
 void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
-                                             ReadLockT &GraphReadLock) {
+                                             ReadLockT &GraphReadLock,
+                                             bool LockTheLock) {
   Command *Cmd = getCommand(Event);
   // Command can be nullptr if user creates cl::sycl::event explicitly or the
   // event has been waited on by another thread
@@ -54,7 +55,9 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
 
   GraphReadLock.unlock();
   Event->waitInternal();
-  GraphReadLock.lock();
+
+  if (LockTheLock)
+    GraphReadLock.lock();
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,

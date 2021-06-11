@@ -727,10 +727,12 @@ protected:
 
     /// Waits for the command, associated with Event passed, is completed.
     /// \param GraphReadLock read-lock which is already acquired for reading
+    /// \param LockTheLock selects if graph lock should be locked upon return
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
-    /// the lock is left in locked state.
-    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock);
+    /// the lock is left in locked state if and only if LockTheLock is true.
+    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock,
+                             bool LockTheLock = true);
 
     /// Enqueues the command and all its dependencies.
     ///

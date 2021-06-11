@@ -214,7 +214,9 @@ std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
 
 void Scheduler::waitForEvent(EventImplPtr Event) {
   ReadLockT Lock(MGraphLock);
-  GraphProcessor::waitForEvent(std::move(Event), Lock);
+  // It's fine to leave the lock unlocked upon return from waitForEvent as
+  // there's no more actions to do here with graph
+  GraphProcessor::waitForEvent(std::move(Event), Lock, /*LockTheLock=*/ false);
 }
 
 static void deallocateStreams(
