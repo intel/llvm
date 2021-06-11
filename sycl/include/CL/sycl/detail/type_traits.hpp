@@ -16,7 +16,6 @@
 #include <type_traits>
 
 #include <array>
-#include <cstddef>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
