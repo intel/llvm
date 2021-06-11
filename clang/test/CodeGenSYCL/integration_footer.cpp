@@ -144,4 +144,19 @@ specialization_id<int> AnonNSSpecID;
 
 } // namespace Foo
 
+// make sure we don't emit a deduced type that isn't a spec constant.
+enum SomeEnum { SE_A };
+enum AnotherEnum : unsigned int { AE_A };
+
+template<SomeEnum E> struct GetThing{};
+template<> struct GetThing<SE_A>{
+  static constexpr auto thing = AE_A;
+};
+
+struct container {
+  static constexpr auto Thing = GetThing<SE_A>::thing;
+};
+// CHECK-NOT: ::GetThing
+// CHECK-NOT: ::container::Thing
+
 // CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>
