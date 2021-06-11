@@ -1725,14 +1725,14 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
   ReverseRangeDimensionsForKernel(NDRDesc);
 
   size_t RequiredWGSize[3] = {0, 0, 0};
-  Plugin.call<PiApiKind::piKernelGetGroupInfo>(Kernel,
-      detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
+  Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+      Kernel, detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
       PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
       RequiredWGSize, /* param_value_size_ret = */ nullptr);
 
-  const bool EnforcedLocalSize = (RequiredWGSize[0] != 0 ||
-                                  RequiredWGSize[1] != 0 ||
-                                  RequiredWGSize[2] != 0);
+  const bool EnforcedLocalSize =
+      (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
+       RequiredWGSize[2] != 0);
   size_t *LocalSize = nullptr;
 
   if (EnforcedLocalSize)
