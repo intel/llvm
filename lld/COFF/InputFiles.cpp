@@ -503,14 +503,9 @@ void ObjFile::handleComdatSelection(
   SectionChunk *leaderChunk = nullptr;
   COMDATType leaderSelection = IMAGE_COMDAT_SELECT_ANY;
 
-  if (leader->data) {
-    leaderChunk = leader->getChunk();
-    leaderSelection = leaderChunk->selection;
-  } else {
-    // FIXME: comdats from LTO files don't know their selection; treat them
-    // as "any".
-    selection = leaderSelection;
-  }
+  assert(leader->data && "Comdat leader without SectionChunk?");
+  leaderChunk = leader->getChunk();
+  leaderSelection = leaderChunk->selection;
 
   if ((selection == IMAGE_COMDAT_SELECT_ANY &&
        leaderSelection == IMAGE_COMDAT_SELECT_LARGEST) ||
@@ -1042,6 +1037,33 @@ BitcodeFile::BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
 
 BitcodeFile::~BitcodeFile() = default;
 
+namespace {
+// Convenience class for initializing a coff_section with specific flags.
+class FakeSection {
+public:
+  FakeSection(int c) { section.Characteristics = c; }
+
+  coff_section section;
+};
+
+// Convenience class for initializing a SectionChunk with specific flags.
+class FakeSectionChunk {
+public:
+  FakeSectionChunk(const coff_section *section) : chunk(nullptr, section) {
+    // FIXME: comdats from LTO files don't know their selection; treat them
+    // as "any".
+    chunk.selection = IMAGE_COMDAT_SELECT_ANY;
+  }
+
+  SectionChunk chunk;
+};
+
+FakeSection ltoTextSection(IMAGE_SCN_MEM_EXECUTE);
+FakeSection ltoDataSection(IMAGE_SCN_CNT_INITIALIZED_DATA);
+FakeSectionChunk ltoTextSectionChunk(&ltoTextSection.section);
+FakeSectionChunk ltoDataSectionChunk(&ltoDataSection.section);
+} // namespace
+
 void BitcodeFile::parse() {
   std::vector<std::pair<Symbol *, bool>> comdat(obj->getComdatTable().size());
   for (size_t i = 0; i != obj->getComdatTable().size(); ++i)
@@ -1052,6 +1074,11 @@ void BitcodeFile::parse() {
     StringRef symName = saver.save(objSym.getName());
     int comdatIndex = objSym.getComdatIndex();
     Symbol *sym;
+    SectionChunk *fakeSC = nullptr;
+    if (objSym.isExecutable())
+      fakeSC = &ltoTextSectionChunk.chunk;
+    else
+      fakeSC = &ltoDataSectionChunk.chunk;
     if (objSym.isUndefined()) {
       sym = symtab->addUndefined(symName, this, false);
     } else if (objSym.isCommon()) {
@@ -1063,14 +1090,17 @@ void BitcodeFile::parse() {
       Symbol *alias = symtab->addUndefined(saver.save(fallback));
       checkAndSetWeakAlias(symtab, this, sym, alias);
     } else if (comdatIndex != -1) {
-      if (symName == obj->getComdatTable()[comdatIndex])
+      if (symName == obj->getComdatTable()[comdatIndex]) {
         sym = comdat[comdatIndex].first;
-      else if (comdat[comdatIndex].second)
-        sym = symtab->addRegular(this, symName);
-      else
+        if (cast<DefinedRegular>(sym)->data == nullptr)
+          cast<DefinedRegular>(sym)->data = &fakeSC->repl;
+      } else if (comdat[comdatIndex].second) {
+        sym = symtab->addRegular(this, symName, nullptr, fakeSC);
+      } else {
         sym = symtab->addUndefined(symName, this, false);
+      }
     } else {
-      sym = symtab->addRegular(this, symName);
+      sym = symtab->addRegular(this, symName, nullptr, fakeSC);
     }
     symbols.push_back(sym);
     if (objSym.isUsed())

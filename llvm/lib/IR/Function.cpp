@@ -60,6 +60,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/IR/ValueSymbolTable.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
@@ -75,6 +76,10 @@ using ProfileCount = Function::ProfileCount;
 // Explicit instantiations of SymbolTableListTraits since some of the methods
 // are not in the public header file...
 template class llvm::SymbolTableListTraits<BasicBlock>;
+
+static cl::opt<unsigned> NonGlobalValueMaxNameSize(
+    "non-global-value-max-name-size", cl::Hidden, cl::init(1024),
+    cl::desc("Maximum size for the name of non-global values."));
 
 //===----------------------------------------------------------------------===//
 // Argument Implementation
@@ -301,6 +306,12 @@ void Argument::removeAttr(Attribute::AttrKind Kind) {
   getParent()->removeParamAttr(getArgNo(), Kind);
 }
 
+void Argument::removeAttrs(const AttrBuilder &B) {
+  AttributeList AL = getParent()->getAttributes();
+  AL = AL.removeParamAttributes(Parent->getContext(), getArgNo(), B);
+  getParent()->setAttributes(AL);
+}
+
 bool Argument::hasAttribute(Attribute::AttrKind Kind) const {
   return getParent()->hasParamAttribute(getArgNo(), Kind);
 }
@@ -385,7 +396,7 @@ Function::Function(FunctionType *Ty, LinkageTypes Linkage, unsigned AddrSpace,
 
   // We only need a symbol table for a function if the context keeps value names
   if (!getContext().shouldDiscardValueNames())
-    SymTab = std::make_unique<ValueSymbolTable>();
+    SymTab = std::make_unique<ValueSymbolTable>(NonGlobalValueMaxNameSize);
 
   // If the function has arguments, mark them as lazily built.
   if (Ty->getNumParams())

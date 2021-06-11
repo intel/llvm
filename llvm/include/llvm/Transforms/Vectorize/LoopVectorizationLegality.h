@@ -96,6 +96,20 @@ public:
     FK_Enabled = 1,    ///< Forcing enabled.
   };
 
+  enum ScalableForceKind {
+    /// Not selected.
+    SK_Unspecified = -1,
+    /// Disables vectorization with scalable vectors.
+    SK_FixedWidthOnly = 0,
+    /// Vectorize loops using scalable vectors or fixed-width vectors, but favor
+    /// scalable vectors when the cost-model is inconclusive. This is the
+    /// default when the scalable.enable hint is enabled through a pragma.
+    SK_PreferScalable = 1,
+    /// Vectorize loops using scalable vectors or fixed-width  vectors, but
+    /// favor fixed-width vectors when the cost is inconclusive.
+    SK_PreferFixedWidth = 2,
+  };
+
   LoopVectorizeHints(const Loop *L, bool InterleaveOnlyWhenForced,
                      OptimizationRemarkEmitter &ORE);
 
@@ -109,7 +123,8 @@ public:
   void emitRemarkWithHints() const;
 
   ElementCount getWidth() const {
-    return ElementCount::get(Width.Value, isScalable());
+    return ElementCount::get(Width.Value,
+                             isScalableVectorizationExplicitlyEnabled());
   }
   unsigned getInterleave() const {
     if (Interleave.Value)
@@ -129,22 +144,34 @@ public:
     return (ForceKind)Force.Value;
   }
 
-  bool isScalable() const { return Scalable.Value; }
+  /// \return true if the cost-model for scalable vectorization should
+  /// favor vectorization with scalable vectors over fixed-width vectors when
+  /// the cost-model is inconclusive.
+  bool isScalableVectorizationPreferred() const {
+    return Scalable.Value == SK_PreferScalable;
+  }
+
+  /// \return true if scalable vectorization has been explicitly enabled.
+  bool isScalableVectorizationExplicitlyEnabled() const {
+    return Scalable.Value == SK_PreferFixedWidth ||
+           Scalable.Value == SK_PreferScalable;
+  }
+
+  /// \return true if scalable vectorization has been explicitly disabled.
+  bool isScalableVectorizationDisabled() const {
+    return Scalable.Value == SK_FixedWidthOnly;
+  }
 
   /// If hints are provided that force vectorization, use the AlwaysPrint
   /// pass name to force the frontend to print the diagnostic.
   const char *vectorizeAnalysisPassName() const;
 
-  bool allowReordering() const {
-    // When enabling loop hints are provided we allow the vectorizer to change
-    // the order of operations that is given by the scalar loop. This is not
-    // enabled by default because can be unsafe or inefficient. For example,
-    // reordering floating-point operations will change the way round-off
-    // error accumulates in the loop.
-    ElementCount EC = getWidth();
-    return getForce() == LoopVectorizeHints::FK_Enabled ||
-           EC.getKnownMinValue() > 1;
-  }
+  /// When enabling loop hints are provided we allow the vectorizer to change
+  /// the order of operations that is given by the scalar loop. This is not
+  /// enabled by default because can be unsafe or inefficient. For example,
+  /// reordering floating-point operations will change the way round-off
+  /// error accumulates in the loop.
+  bool allowReordering() const;
 
   bool isPotentiallyUnsafe() const {
     // Avoid FP vectorization if the target is unsure about proper support.
@@ -195,9 +222,6 @@ public:
 
 
   Instruction *getExactFPInst() { return ExactFPMathInst; }
-  bool canVectorizeFPMath(const LoopVectorizeHints &Hints) const {
-    return !ExactFPMathInst || Hints.allowReordering();
-  }
 
   unsigned getNumRuntimePointerChecks() const {
     return NumRuntimePointerChecks;
@@ -255,6 +279,11 @@ public:
   /// If false, good old LV code.
   bool canVectorize(bool UseVPlanNativePath);
 
+  /// Returns true if it is legal to vectorize the FP math operations in this
+  /// loop. Vectorizing is legal if we allow reordering of FP operations, or if
+  /// we can use in-order reductions.
+  bool canVectorizeFPMath(bool EnableStrictReductions);
+
   /// Return true if we can vectorize this loop while folding its tail by
   /// masking, and mark all respective loads/stores for masking.
   /// This object's state is only modified iff this function returns true.
@@ -273,7 +302,7 @@ public:
   RecurrenceSet &getFirstOrderRecurrences() { return FirstOrderRecurrences; }
 
   /// Return the set of instructions to sink to handle first-order recurrences.
-  DenseMap<Instruction *, Instruction *> &getSinkAfter() { return SinkAfter; }
+  MapVector<Instruction *, Instruction *> &getSinkAfter() { return SinkAfter; }
 
   /// Returns the widest induction type.
   Type *getWidestInductionType() { return WidestIndTy; }
@@ -299,7 +328,7 @@ public:
 
   /// Return true if the block BB needs to be predicated in order for the loop
   /// to be vectorized.
-  bool blockNeedsPredication(BasicBlock *BB);
+  bool blockNeedsPredication(BasicBlock *BB) const;
 
   /// Check if this pointer is consecutive when vectorizing. This happens
   /// when the last index of the GEP is the induction variable, or that the
@@ -311,7 +340,7 @@ public:
   /// -1 - Address is consecutive, and decreasing.
   /// NOTE: This method must only be used before modifying the original scalar
   /// loop. Do not use after invoking 'createVectorizedLoopSkeleton' (PR34965).
-  int isConsecutivePtr(Value *Ptr);
+  int isConsecutivePtr(Value *Ptr) const;
 
   /// Returns true if the value V is uniform within the loop.
   bool isUniform(Value *V);
@@ -350,7 +379,9 @@ public:
 
   /// Returns true if vector representation of the instruction \p I
   /// requires mask.
-  bool isMaskRequired(const Instruction *I) { return MaskedOp.contains(I); }
+  bool isMaskRequired(const Instruction *I) const {
+    return MaskedOp.contains(I);
+  }
 
   unsigned getNumStores() const { return LAI->getNumStores(); }
   unsigned getNumLoads() const { return LAI->getNumLoads(); }
@@ -429,7 +460,7 @@ private:
 
   /// If an access has a symbolic strides, this maps the pointer value to
   /// the stride symbol.
-  const ValueToValueMap *getSymbolicStrides() {
+  const ValueToValueMap *getSymbolicStrides() const {
     // FIXME: Currently, the set of symbolic strides is sometimes queried before
     // it's collected.  This happens from canVectorizeWithIfConvert, when the
     // pointer is checked to reference consecutive elements suitable for a
@@ -494,7 +525,7 @@ private:
 
   /// Holds instructions that need to sink past other instructions to handle
   /// first-order recurrences.
-  DenseMap<Instruction *, Instruction *> SinkAfter;
+  MapVector<Instruction *, Instruction *> SinkAfter;
 
   /// Holds the widest induction type encountered.
   Type *WidestIndTy = nullptr;

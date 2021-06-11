@@ -14,6 +14,7 @@
 #define MLIR_TRANSFORMS_PASSES
 
 include "mlir/Pass/PassBase.td"
+include "mlir/Rewrite/PassUtil.td"
 
 def AffineLoopFusion : FunctionPass<"affine-loop-fusion"> {
   let summary = "Fuse affine loop nests";
@@ -136,6 +137,7 @@ def AffineLoopFusion : FunctionPass<"affine-loop-fusion"> {
     Option<"maximalFusion", "fusion-maximal", "bool", /*default=*/"false",
            "Enables maximal loop fusion">,
   ];
+  let dependentDialects = ["memref::MemRefDialect"];
 }
 
 def AffinePipelineDataTransfer
@@ -361,7 +363,17 @@ def Canonicalizer : Pass<"canonicalize"> {
     details.
   }];
   let constructor = "mlir::createCanonicalizerPass()";
-  let dependentDialects = ["memref::MemRefDialect"];
+  let options = [
+    Option<"topDownProcessingEnabled", "top-down", "bool",
+           /*default=*/"true",
+           "Seed the worklist in general top-down order">,
+    Option<"enableRegionSimplification", "region-simplify", "bool",
+           /*default=*/"true",
+           "Seed the worklist in general top-down order">,
+    Option<"maxIterations", "max-iterations", "unsigned",
+           /*default=*/"10",
+           "Seed the worklist in general top-down order">
+  ] # RewritePassUtils.options;
 }
 
 def CSE : Pass<"cse"> {
@@ -626,6 +638,7 @@ def NormalizeMemRefs : Pass<"normalize-memrefs", "ModuleOp"> {
   ```
   }];
   let constructor = "mlir::createNormalizeMemRefsPass()";
+  let dependentDialects = ["AffineDialect"];
 }
 
 def ParallelLoopCollapsing : Pass<"parallel-loop-collapsing"> {

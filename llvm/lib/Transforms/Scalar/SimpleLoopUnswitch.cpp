@@ -2734,7 +2734,8 @@ static bool unswitchBestCondition(
   }
 
   Instruction *PartialIVCondBranch = nullptr;
-  if (MSSAU && !any_of(UnswitchCandidates, [&L](auto &TerminatorAndInvariants) {
+  if (MSSAU && !findOptionMDForLoop(&L, "llvm.loop.unswitch.partial.disable") &&
+      !any_of(UnswitchCandidates, [&L](auto &TerminatorAndInvariants) {
         return TerminatorAndInvariants.first == L.getHeader()->getTerminator();
       })) {
     MemorySSA *MSSA = MSSAU->getMemorySSA();
@@ -3062,7 +3063,18 @@ PreservedAnalyses SimpleLoopUnswitchPass::run(Loop &L, LoopAnalysisManager &AM,
     // If the current loop remains valid, we should revisit it to catch any
     // other unswitch opportunities. Otherwise, we need to mark it as deleted.
     if (CurrentLoopValid) {
-      if (!PartiallyInvariant)
+      if (PartiallyInvariant) {
+        // Mark the new loop as partially unswitched, to avoid unswitching on
+        // the same condition again.
+        auto &Context = L.getHeader()->getContext();
+        MDNode *DisableUnswitchMD = MDNode::get(
+            Context,
+            MDString::get(Context, "llvm.loop.unswitch.partial.disable"));
+        MDNode *NewLoopID = makePostTransformationMetadata(
+            Context, L.getLoopID(), {"llvm.loop.unswitch.partial"},
+            {DisableUnswitchMD});
+        L.setLoopID(NewLoopID);
+      } else
         U.revisitCurrentLoop();
     } else
       U.markLoopAsDeleted(L, LoopName);

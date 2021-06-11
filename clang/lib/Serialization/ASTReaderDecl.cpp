@@ -328,6 +328,7 @@ namespace clang {
     void VisitTypedefDecl(TypedefDecl *TD);
     void VisitTypeAliasDecl(TypeAliasDecl *TD);
     void VisitUnresolvedUsingTypenameDecl(UnresolvedUsingTypenameDecl *D);
+    void VisitUnresolvedUsingIfExistsDecl(UnresolvedUsingIfExistsDecl *D);
     RedeclarableResult VisitTagDecl(TagDecl *TD);
     void VisitEnumDecl(EnumDecl *ED);
     RedeclarableResult VisitRecordDeclImpl(RecordDecl *RD);
@@ -1707,6 +1708,11 @@ void ASTDeclReader::VisitUnresolvedUsingTypenameDecl(
   mergeMergeable(D);
 }
 
+void ASTDeclReader::VisitUnresolvedUsingIfExistsDecl(
+    UnresolvedUsingIfExistsDecl *D) {
+  VisitNamedDecl(D);
+}
+
 void ASTDeclReader::ReadCXXDefinitionData(
     struct CXXRecordDecl::DefinitionData &Data, const CXXRecordDecl *D) {
   #define FIELD(Name, Width, Merge) \
@@ -1954,6 +1960,7 @@ ASTDeclReader::VisitCXXRecordDeclImpl(CXXRecordDecl *D) {
 
 void ASTDeclReader::VisitCXXDeductionGuideDecl(CXXDeductionGuideDecl *D) {
   D->setExplicitSpecifier(Record.readExplicitSpec());
+  D->Ctor = readDeclAs<CXXConstructorDecl>();
   VisitFunctionDecl(D);
   D->setIsCopyDeductionCandidate(Record.readInt());
 }
@@ -3848,6 +3855,9 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
     break;
   case DECL_UNRESOLVED_USING_TYPENAME:
     D = UnresolvedUsingTypenameDecl::CreateDeserialized(Context, ID);
+    break;
+  case DECL_UNRESOLVED_USING_IF_EXISTS:
+    D = UnresolvedUsingIfExistsDecl::CreateDeserialized(Context, ID);
     break;
   case DECL_CXX_RECORD:
     D = CXXRecordDecl::CreateDeserialized(Context, ID);

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <stdlib.h>
+#include <cstdlib>
 
 #include "DWARFASTParserClang.h"
 #include "DWARFDebugInfo.h"
@@ -49,7 +49,7 @@
 //#define ENABLE_DEBUG_PRINTF // COMMENT OUT THIS LINE PRIOR TO CHECKIN
 
 #ifdef ENABLE_DEBUG_PRINTF
-#include <stdio.h>
+#include <cstdio>
 #define DEBUG_PRINTF(fmt, ...) printf(fmt, __VA_ARGS__)
 #else
 #define DEBUG_PRINTF(fmt, ...)
@@ -2671,7 +2671,7 @@ void DWARFASTParserClang::ParseSingleMember(
           last_field_info.bit_offset = field_bit_offset;
 
           if (llvm::Optional<uint64_t> clang_type_size =
-                  member_clang_type.GetByteSize(nullptr)) {
+                  member_type->GetByteSize(nullptr)) {
             last_field_info.bit_size = *clang_type_size * character_width;
           }
 

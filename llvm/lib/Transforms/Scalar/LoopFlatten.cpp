@@ -658,10 +658,10 @@ static bool FlattenLoopPair(FlattenInfo &FI, DominatorTree *DT, LoopInfo *LI,
   return DoFlattenLoopPair(FI, DT, LI, SE, AC, TTI);
 }
 
-bool Flatten(DominatorTree *DT, LoopInfo *LI, ScalarEvolution *SE,
+bool Flatten(LoopNest &LN, DominatorTree *DT, LoopInfo *LI, ScalarEvolution *SE,
              AssumptionCache *AC, TargetTransformInfo *TTI) {
   bool Changed = false;
-  for (auto *InnerLoop : LI->getLoopsInPreorder()) {
+  for (Loop *InnerLoop : LN.getLoops()) {
     auto *OuterLoop = InnerLoop->getParentLoop();
     if (!OuterLoop)
       continue;
@@ -671,15 +671,19 @@ bool Flatten(DominatorTree *DT, LoopInfo *LI, ScalarEvolution *SE,
   return Changed;
 }
 
-PreservedAnalyses LoopFlattenPass::run(Function &F,
-                                       FunctionAnalysisManager &AM) {
-  auto *DT = &AM.getResult<DominatorTreeAnalysis>(F);
-  auto *LI = &AM.getResult<LoopAnalysis>(F);
-  auto *SE = &AM.getResult<ScalarEvolutionAnalysis>(F);
-  auto *AC = &AM.getResult<AssumptionAnalysis>(F);
-  auto *TTI = &AM.getResult<TargetIRAnalysis>(F);
+PreservedAnalyses LoopFlattenPass::run(LoopNest &LN, LoopAnalysisManager &LAM,
+                                       LoopStandardAnalysisResults &AR,
+                                       LPMUpdater &U) {
 
-  if (!Flatten(DT, LI, SE, AC, TTI))
+  bool Changed = false;
+
+  // The loop flattening pass requires loops to be
+  // in simplified form, and also needs LCSSA. Running
+  // this pass will simplify all loops that contain inner loops,
+  // regardless of whether anything ends up being flattened.
+  Changed |= Flatten(LN, &AR.DT, &AR.LI, &AR.SE, &AR.AC, &AR.TTI);
+
+  if (!Changed)
     return PreservedAnalyses::all();
 
   return PreservedAnalyses::none();
@@ -724,5 +728,10 @@ bool LoopFlattenLegacyPass::runOnFunction(Function &F) {
   auto &TTIP = getAnalysis<TargetTransformInfoWrapperPass>();
   auto *TTI = &TTIP.getTTI(F);
   auto *AC = &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
-  return Flatten(DT, LI, SE, AC, TTI);
+  bool Changed = false;
+  for (Loop *L : *LI) {
+    auto LN = LoopNest::getLoopNest(*L, *SE);
+    Changed |= Flatten(*LN, DT, LI, SE, AC, TTI);
+  }
+  return Changed;
 }

@@ -51,6 +51,8 @@ public:
     return {nameData, nameSize};
   }
 
+  bool isLive() const;
+
   virtual uint64_t getVA() const { return 0; }
 
   virtual uint64_t getFileOffset() const {
@@ -72,6 +74,16 @@ public:
   // Whether this symbol is in the StubsSection.
   bool isInStubs() const { return stubsIndex != UINT32_MAX; }
 
+  uint64_t getStubVA() const;
+  uint64_t getGotVA() const;
+  uint64_t getTlvVA() const;
+  uint64_t resolveBranchVA() const {
+    assert(isa<Defined>(this) || isa<DylibSymbol>(this));
+    return isInStubs() ? getStubVA() : getVA();
+  }
+  uint64_t resolveGotVA() const { return isInGot() ? getGotVA() : getVA(); }
+  uint64_t resolveTlvVA() const { return isInGot() ? getTlvVA() : getVA(); }
+
   // The index of this symbol in the GOT or the TLVPointer section, depending
   // on whether it is a thread-local. A given symbol cannot be referenced by
   // both these sections at once.
@@ -86,7 +98,8 @@ public:
 protected:
   Symbol(Kind k, StringRefZ name, InputFile *file)
       : symbolKind(k), nameData(name.data), nameSize(name.size), file(file),
-        isUsedInRegularObj(!file || isa<ObjFile>(file)) {}
+        isUsedInRegularObj(!file || isa<ObjFile>(file)),
+        used(!config->deadStrip) {}
 
   Kind symbolKind;
   const char *nameData;
@@ -95,18 +108,25 @@ protected:
 
 public:
   // True if this symbol was referenced by a regular (non-bitcode) object.
-  bool isUsedInRegularObj;
+  bool isUsedInRegularObj : 1;
+
+  // True if an undefined or dylib symbol is used from a live section.
+  bool used : 1;
 };
 
 class Defined : public Symbol {
 public:
   Defined(StringRefZ name, InputFile *file, InputSection *isec, uint64_t value,
           uint64_t size, bool isWeakDef, bool isExternal, bool isPrivateExtern,
-          bool isThumb)
+          bool isThumb, bool isReferencedDynamically, bool noDeadStrip)
       : Symbol(DefinedKind, name, file), isec(isec), value(value), size(size),
         overridesWeakDef(false), privateExtern(isPrivateExtern),
-        includeInSymtab(true), thumb(isThumb), weakDef(isWeakDef),
-        external(isExternal) {}
+        includeInSymtab(true), thumb(isThumb),
+        referencedDynamically(isReferencedDynamically),
+        noDeadStrip(noDeadStrip), weakDef(isWeakDef), external(isExternal) {
+    if (isec)
+      isec->numRefs++;
+  }
 
   bool isWeakDef() const override { return weakDef; }
   bool isExternalWeakDef() const {
@@ -138,6 +158,18 @@ public:
   bool includeInSymtab : 1;
   // Only relevant when compiling for Thumb-supporting arm32 archs.
   bool thumb : 1;
+  // Symbols marked referencedDynamically won't be removed from the output's
+  // symbol table by tools like strip. In theory, this could be set on arbitrary
+  // symbols in input object files. In practice, it's used solely for the
+  // synthetic __mh_execute_header symbol.
+  // This is information for the static linker, and it's also written to the
+  // output file's symbol table for tools running later (such as `strip`).
+  bool referencedDynamically : 1;
+  // Set on symbols that should not be removed by dead code stripping.
+  // Set for example on `__attribute__((used))` globals, or on some Objective-C
+  // metadata. This is information only for the static linker and not written
+  // to the output.
+  bool noDeadStrip : 1;
 
 private:
   const bool weakDef : 1;
@@ -202,8 +234,12 @@ public:
   DylibSymbol(DylibFile *file, StringRefZ name, bool isWeakDef,
               RefState refState, bool isTlv)
       : Symbol(DylibKind, name, file), refState(refState), weakDef(isWeakDef),
-        tlv(isTlv) {}
+        tlv(isTlv) {
+    if (file && refState > RefState::Unreferenced)
+      file->numReferencedSymbols++;
+  }
 
+  uint64_t getVA() const override;
   bool isWeakDef() const override { return weakDef; }
   bool isWeakRef() const override { return refState == RefState::Weak; }
   bool isReferenced() const { return refState != RefState::Unreferenced; }
@@ -221,9 +257,25 @@ public:
   uint32_t stubsHelperIndex = UINT32_MAX;
   uint32_t lazyBindOffset = UINT32_MAX;
 
-  RefState refState : 2;
+  RefState getRefState() const { return refState; }
+
+  void reference(RefState newState) {
+    assert(newState > RefState::Unreferenced);
+    if (refState == RefState::Unreferenced && file)
+      getFile()->numReferencedSymbols++;
+    refState = std::max(refState, newState);
+  }
+
+  void unreference() {
+    // dynamic_lookup symbols have no file.
+    if (refState > RefState::Unreferenced && file) {
+      assert(getFile()->numReferencedSymbols > 0);
+      getFile()->numReferencedSymbols--;
+    }
+  }
 
 private:
+  RefState refState : 2;
   const bool weakDef : 1;
   const bool tlv : 1;
 };

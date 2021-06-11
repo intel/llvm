@@ -1048,6 +1048,8 @@ bool FastISel::lowerCallTo(CallLoweringInfo &CLI) {
       Flags.setSRet();
     if (Arg.IsSwiftSelf)
       Flags.setSwiftSelf();
+    if (Arg.IsSwiftAsync)
+      Flags.setSwiftAsync();
     if (Arg.IsSwiftError)
       Flags.setSwiftError();
     if (Arg.IsCFGuardTarget)
@@ -1275,9 +1277,9 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
     const Value *V = DI->getValue();
     assert(DI->getVariable()->isValidLocationForIntrinsic(DbgLoc) &&
            "Expected inlined-at fields to agree");
-    if (!V || isa<UndefValue>(V)) {
-      // Currently the optimizer can produce this; insert an undef to
-      // help debugging.
+    if (!V || isa<UndefValue>(V) || DI->hasArgList()) {
+      // DI is either undef or cannot produce a valid DBG_VALUE, so produce an
+      // undef DBG_VALUE to terminate any prior location.
       BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, II, false, 0U,
               DI->getVariable(), DI->getExpression());
     } else if (const auto *CI = dyn_cast<ConstantInt>(V)) {

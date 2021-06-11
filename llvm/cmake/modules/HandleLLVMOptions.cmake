@@ -305,6 +305,17 @@ if( LLVM_ENABLE_PIC )
     # On Windows all code is PIC. MinGW warns if -fPIC is used.
   else()
     add_flag_or_print_warning("-fPIC" FPIC)
+    # Enable interprocedural optimizations for non-inline functions which would
+    # otherwise be disabled due to GCC -fPIC's default.
+    #
+    # Note: Clang allows IPO for -fPIC so this optimization is less effective.
+    # Older Clang may support -fno-semantic-interposition but it used local
+    # aliases to optimize global variables, which is incompatible with copy
+    # relocations due to -fno-pic.
+    if (CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND
+        CMAKE_CXX_COMPILER_VERSION GREATER_EQUAL 13))
+      add_flag_if_supported("-fno-semantic-interposition" FNO_SEMANTIC_INTERPOSITION)
+    endif()
   endif()
   # GCC for MIPS can miscompile LLVM due to PR37701.
   if(CMAKE_COMPILER_IS_GNUCXX AND LLVM_NATIVE_ARCH STREQUAL "Mips" AND
@@ -411,10 +422,8 @@ if(MSVC)
 elseif(MINGW) # FIXME: Also cygwin?
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--stack,16777216")
 
-  # Pass -mbig-obj to mingw gas on Win64. COFF has a 2**16 section limit, and
-  # on Win64, every COMDAT function creates at least 3 sections: .text, .pdata,
-  # and .xdata.
-  if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+  # Pass -mbig-obj to mingw gas to avoid COFF 2**16 section limit.
+  if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     append("-Wa,-mbig-obj" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   endif()
 endif()
@@ -476,6 +485,23 @@ if( MSVC )
           CMAKE_SHARED_LINKER_FLAGS)
   endif()
 
+  # Get all linker flags in upper case form so we can search them.
+  set(all_linker_flags_uppercase
+    "${CMAKE_EXE_LINKER_FLAGS} ${CMAKE_MODULE_LINKER_FLAGS} ${CMAKE_SHARED_LINKER_FLAGS}")
+  string(TOUPPER "${all_linker_flags_uppercase}" all_linker_flags_uppercase)
+
+  if (CLANG_CL AND LINKER_IS_LLD)
+    # If we are using clang-cl with lld-link and /debug is present in any of the
+    # linker flag variables, pass -gcodeview-ghash to the compiler to speed up
+    # linking. This flag is orthogonal from /Zi, /Z7, and other flags that
+    # enable debug info emission, and only has an effect if those are also in
+    # use.
+    string(FIND "${all_linker_flags_uppercase}" "/DEBUG" linker_flag_idx)
+    if (${linker_flag_idx} GREATER -1)
+      add_flag_if_supported("-gcodeview-ghash" GCODEVIEW_GHASH)
+    endif()
+  endif()
+
   # Disable string literal const->non-const type conversion.
   # "When specified, the compiler requires strict const-qualification
   # conformance for pointers initialized by using string literals."
@@ -501,13 +527,7 @@ if( MSVC )
     if (SUPPORTS_BREPRO)
       # Check if /INCREMENTAL is passed to the linker and complain that it
       # won't work with /Brepro.
-      string(TOUPPER "${CMAKE_EXE_LINKER_FLAGS}" upper_exe_flags)
-      string(TOUPPER "${CMAKE_MODULE_LINKER_FLAGS}" upper_module_flags)
-      string(TOUPPER "${CMAKE_SHARED_LINKER_FLAGS}" upper_shared_flags)
-
-      string(FIND "${upper_exe_flags} ${upper_module_flags} ${upper_shared_flags}"
-        "/INCREMENTAL" linker_flag_idx)
-
+      string(FIND "${all_linker_flags_uppercase}" "/INCREMENTAL" linker_flag_idx)
       if (${linker_flag_idx} GREATER -1)
         message(WARNING "/Brepro not compatible with /INCREMENTAL linking - builds will be non-deterministic")
       else()
@@ -759,6 +779,9 @@ if (LLVM_ENABLE_WARNINGS AND (LLVM_COMPILER_IS_GCC_COMPATIBLE OR CLANG_CL))
 
   # Enable -Wstring-conversion to catch misuse of string literals.
   add_flag_if_supported("-Wstring-conversion" STRING_CONVERSION_FLAG)
+
+  # Prevent bugs that can happen with llvm's brace style.
+  add_flag_if_supported("-Wmisleading-indentation" MISLEADING_INDENTATION_FLAG)
 endif (LLVM_ENABLE_WARNINGS AND (LLVM_COMPILER_IS_GCC_COMPATIBLE OR CLANG_CL))
 
 if (LLVM_COMPILER_IS_GCC_COMPATIBLE AND NOT LLVM_ENABLE_WARNINGS)

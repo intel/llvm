@@ -114,6 +114,7 @@ private:
   using PtrType = typename DeviceValueType<dataT, accessTarget>::type *;
   void __init(PtrType Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
+  friend class stream;
 };
 
 template <int dimensions, access::mode accessmode, access::target accesstarget>
@@ -227,7 +228,7 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
-ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) {
+ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) { // #KernelSingleTaskFunc
   kernelFunc(); // #KernelSingleTaskKernelFuncCall
 }
 template <typename KernelName = auto_name, typename KernelType>
@@ -291,11 +292,24 @@ class stream {
 public:
   stream(unsigned long BufferSize, unsigned long MaxStatementSize,
          handler &CGH) {}
+#ifdef __SYCL_DEVICE_ONLY__
+  // Default constructor for objects later initialized with __init member.
+  stream() = default;
+#endif
 
-  void __init() {}
+  void __init(__attribute((opencl_global)) char *Ptr, range<1> AccessRange,
+              range<1> MemRange, id<1> Offset, int _FlushBufferSize) {
+    Acc.__init(Ptr, AccessRange, MemRange, Offset);
+    FlushBufferSize = _FlushBufferSize;
+  }
+
   void use() const {}
 
   void __finalize() {}
+
+private:
+  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write> Acc;
+  int FlushBufferSize;
 };
 
 namespace ONEAPI {

@@ -537,6 +537,7 @@ private:
 
   void verifySwiftErrorCall(CallBase &Call, const Value *SwiftErrorVal);
   void verifySwiftErrorValue(const Value *SwiftErrorVal);
+  void verifyTailCCMustTailAttrs(AttrBuilder Attrs, StringRef Context);
   void verifyMustTailCall(CallInst &CI);
   bool verifyAttributeCount(AttributeList Attrs, unsigned Params);
   void verifyAttributeTypes(AttributeSet Attrs, bool IsFunction,
@@ -1661,6 +1662,7 @@ static bool isFuncOnlyAttr(Attribute::AttrKind Kind) {
   case Attribute::NoCfCheck:
   case Attribute::NoUnwind:
   case Attribute::NoInline:
+  case Attribute::NoSanitizeCoverage:
   case Attribute::AlwaysInline:
   case Attribute::OptimizeForSize:
   case Attribute::StackProtect:
@@ -1910,6 +1912,7 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
   bool SawReturned = false;
   bool SawSRet = false;
   bool SawSwiftSelf = false;
+  bool SawSwiftAsync = false;
   bool SawSwiftError = false;
 
   // Verify return value attributes.
@@ -1924,11 +1927,12 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
           !RetAttrs.hasAttribute(Attribute::Preallocated) &&
           !RetAttrs.hasAttribute(Attribute::ByRef) &&
           !RetAttrs.hasAttribute(Attribute::SwiftSelf) &&
+          !RetAttrs.hasAttribute(Attribute::SwiftAsync) &&
           !RetAttrs.hasAttribute(Attribute::SwiftError)),
          "Attributes 'byval', 'inalloca', 'preallocated', 'byref', "
          "'nest', 'sret', 'nocapture', 'nofree', "
-         "'returned', 'swiftself', and 'swifterror' do not apply to return "
-         "values!",
+         "'returned', 'swiftself', 'swiftasync', and 'swifterror'"
+         " do not apply to return values!",
          V);
   Assert((!RetAttrs.hasAttribute(Attribute::ReadOnly) &&
           !RetAttrs.hasAttribute(Attribute::WriteOnly) &&
@@ -1974,6 +1978,11 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
     if (ArgAttrs.hasAttribute(Attribute::SwiftSelf)) {
       Assert(!SawSwiftSelf, "Cannot have multiple 'swiftself' parameters!", V);
       SawSwiftSelf = true;
+    }
+
+    if (ArgAttrs.hasAttribute(Attribute::SwiftAsync)) {
+      Assert(!SawSwiftAsync, "Cannot have multiple 'swiftasync' parameters!", V);
+      SawSwiftAsync = true;
     }
 
     if (ArgAttrs.hasAttribute(Attribute::SwiftError)) {
@@ -2609,6 +2618,29 @@ void Verifier::visitFunction(const Function &F) {
       Assert(false, "Invalid user of intrinsic instruction!", U);
   }
 
+  // Check intrinsics' signatures.
+  switch (F.getIntrinsicID()) {
+  case Intrinsic::experimental_gc_get_pointer_base: {
+    FunctionType *FT = F.getFunctionType();
+    Assert(FT->getNumParams() == 1, "wrong number of parameters", F);
+    Assert(isa<PointerType>(F.getReturnType()),
+           "gc.get.pointer.base must return a pointer", F);
+    Assert(FT->getParamType(0) == F.getReturnType(),
+           "gc.get.pointer.base operand and result must be of the same type",
+           F);
+    break;
+  }
+  case Intrinsic::experimental_gc_get_pointer_offset: {
+    FunctionType *FT = F.getFunctionType();
+    Assert(FT->getNumParams() == 1, "wrong number of parameters", F);
+    Assert(isa<PointerType>(FT->getParamType(0)),
+           "gc.get.pointer.offset operand must be a pointer", F);
+    Assert(F.getReturnType()->isIntegerTy(),
+           "gc.get.pointer.offset must return integer", F);
+    break;
+  }
+  }
+
   auto *N = F.getSubprogram();
   HasDebugInfo = (N != nullptr);
   if (!HasDebugInfo)
@@ -2779,6 +2811,8 @@ void Verifier::visitIndirectBrInst(IndirectBrInst &BI) {
 void Verifier::visitCallBrInst(CallBrInst &CBI) {
   Assert(CBI.isInlineAsm(), "Callbr is currently only used for asm-goto!",
          &CBI);
+  const InlineAsm *IA = cast<InlineAsm>(CBI.getCalledOperand());
+  Assert(!IA->canThrow(), "Unwinding from Callbr is not allowed");
   for (unsigned i = 0, e = CBI.getNumSuccessors(); i != e; ++i)
     Assert(CBI.getSuccessor(i)->getType()->isLabelTy(),
            "Callbr successors must all have pointer type!", &CBI);
@@ -3354,6 +3388,20 @@ void Verifier::visitCallBase(CallBase &Call) {
   visitInstruction(Call);
 }
 
+void Verifier::verifyTailCCMustTailAttrs(AttrBuilder Attrs,
+                                         StringRef Context) {
+  Assert(!Attrs.contains(Attribute::InAlloca),
+         Twine("inalloca attribute not allowed in ") + Context);
+  Assert(!Attrs.contains(Attribute::InReg),
+         Twine("inreg attribute not allowed in ") + Context);
+  Assert(!Attrs.contains(Attribute::SwiftError),
+         Twine("swifterror attribute not allowed in ") + Context);
+  Assert(!Attrs.contains(Attribute::Preallocated),
+         Twine("preallocated attribute not allowed in ") + Context);
+  Assert(!Attrs.contains(Attribute::ByRef),
+         Twine("byref attribute not allowed in ") + Context);
+}
+
 /// Two types are "congruent" if they are identical, or if they are both pointer
 /// types with different pointee types and the same address space.
 static bool isTypeCongruent(Type *L, Type *R) {
@@ -3368,9 +3416,10 @@ static bool isTypeCongruent(Type *L, Type *R) {
 
 static AttrBuilder getParameterABIAttributes(int I, AttributeList Attrs) {
   static const Attribute::AttrKind ABIAttrs[] = {
-      Attribute::StructRet,    Attribute::ByVal,     Attribute::InAlloca,
-      Attribute::InReg,        Attribute::SwiftSelf, Attribute::SwiftError,
-      Attribute::Preallocated, Attribute::ByRef,     Attribute::StackAlignment};
+      Attribute::StructRet,  Attribute::ByVal,          Attribute::InAlloca,
+      Attribute::InReg,      Attribute::StackAlignment, Attribute::SwiftSelf,
+      Attribute::SwiftAsync, Attribute::SwiftError,     Attribute::Preallocated,
+      Attribute::ByRef};
   AttrBuilder Copy;
   for (auto AK : ABIAttrs) {
     if (Attrs.hasParamAttribute(I, AK))
@@ -3388,22 +3437,9 @@ static AttrBuilder getParameterABIAttributes(int I, AttributeList Attrs) {
 void Verifier::verifyMustTailCall(CallInst &CI) {
   Assert(!CI.isInlineAsm(), "cannot use musttail call with inline asm", &CI);
 
-  // - The caller and callee prototypes must match.  Pointer types of
-  //   parameters or return types may differ in pointee type, but not
-  //   address space.
   Function *F = CI.getParent()->getParent();
   FunctionType *CallerTy = F->getFunctionType();
   FunctionType *CalleeTy = CI.getFunctionType();
-  if (!CI.getCalledFunction() || !CI.getCalledFunction()->isIntrinsic()) {
-    Assert(CallerTy->getNumParams() == CalleeTy->getNumParams(),
-           "cannot guarantee tail call due to mismatched parameter counts",
-           &CI);
-    for (int I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
-      Assert(
-          isTypeCongruent(CallerTy->getParamType(I), CalleeTy->getParamType(I)),
-          "cannot guarantee tail call due to mismatched parameter types", &CI);
-    }
-  }
   Assert(CallerTy->isVarArg() == CalleeTy->isVarArg(),
          "cannot guarantee tail call due to mismatched varargs", &CI);
   Assert(isTypeCongruent(CallerTy->getReturnType(), CalleeTy->getReturnType()),
@@ -3412,19 +3448,6 @@ void Verifier::verifyMustTailCall(CallInst &CI) {
   // - The calling conventions of the caller and callee must match.
   Assert(F->getCallingConv() == CI.getCallingConv(),
          "cannot guarantee tail call due to mismatched calling conv", &CI);
-
-  // - All ABI-impacting function attributes, such as sret, byval, inreg,
-  //   returned, preallocated, and inalloca, must match.
-  AttributeList CallerAttrs = F->getAttributes();
-  AttributeList CalleeAttrs = CI.getAttributes();
-  for (int I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
-    AttrBuilder CallerABIAttrs = getParameterABIAttributes(I, CallerAttrs);
-    AttrBuilder CalleeABIAttrs = getParameterABIAttributes(I, CalleeAttrs);
-    Assert(CallerABIAttrs == CalleeABIAttrs,
-           "cannot guarantee tail call due to mismatched ABI impacting "
-           "function attributes",
-           &CI, CI.getOperand(I));
-  }
 
   // - The call must immediately precede a :ref:`ret <i_ret>` instruction,
   //   or a pointer bitcast followed by a ret instruction.
@@ -3445,8 +3468,59 @@ void Verifier::verifyMustTailCall(CallInst &CI) {
   ReturnInst *Ret = dyn_cast_or_null<ReturnInst>(Next);
   Assert(Ret, "musttail call must precede a ret with an optional bitcast",
          &CI);
-  Assert(!Ret->getReturnValue() || Ret->getReturnValue() == RetVal,
+  Assert(!Ret->getReturnValue() || Ret->getReturnValue() == RetVal ||
+             isa<UndefValue>(Ret->getReturnValue()),
          "musttail call result must be returned", Ret);
+
+  AttributeList CallerAttrs = F->getAttributes();
+  AttributeList CalleeAttrs = CI.getAttributes();
+  if (CI.getCallingConv() == CallingConv::SwiftTail ||
+      CI.getCallingConv() == CallingConv::Tail) {
+    StringRef CCName =
+        CI.getCallingConv() == CallingConv::Tail ? "tailcc" : "swifttailcc";
+
+    // - Only sret, byval, swiftself, and swiftasync ABI-impacting attributes
+    //   are allowed in swifttailcc call
+    for (int I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
+      AttrBuilder ABIAttrs = getParameterABIAttributes(I, CallerAttrs);
+      SmallString<32> Context{CCName, StringRef(" musttail caller")};
+      verifyTailCCMustTailAttrs(ABIAttrs, Context);
+    }
+    for (int I = 0, E = CalleeTy->getNumParams(); I != E; ++I) {
+      AttrBuilder ABIAttrs = getParameterABIAttributes(I, CalleeAttrs);
+      SmallString<32> Context{CCName, StringRef(" musttail callee")};
+      verifyTailCCMustTailAttrs(ABIAttrs, Context);
+    }
+    // - Varargs functions are not allowed
+    Assert(!CallerTy->isVarArg(), Twine("cannot guarantee ") + CCName +
+                                      " tail call for varargs function");
+    return;
+  }
+
+  // - The caller and callee prototypes must match.  Pointer types of
+  //   parameters or return types may differ in pointee type, but not
+  //   address space.
+  if (!CI.getCalledFunction() || !CI.getCalledFunction()->isIntrinsic()) {
+    Assert(CallerTy->getNumParams() == CalleeTy->getNumParams(),
+           "cannot guarantee tail call due to mismatched parameter counts",
+           &CI);
+    for (int I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
+      Assert(
+          isTypeCongruent(CallerTy->getParamType(I), CalleeTy->getParamType(I)),
+          "cannot guarantee tail call due to mismatched parameter types", &CI);
+    }
+  }
+
+  // - All ABI-impacting function attributes, such as sret, byval, inreg,
+  //   returned, preallocated, and inalloca, must match.
+  for (int I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
+    AttrBuilder CallerABIAttrs = getParameterABIAttributes(I, CallerAttrs);
+    AttrBuilder CalleeABIAttrs = getParameterABIAttributes(I, CalleeAttrs);
+    Assert(CallerABIAttrs == CalleeABIAttrs,
+           "cannot guarantee tail call due to mismatched ABI impacting "
+           "function attributes",
+           &CI, CI.getOperand(I));
+  }
 }
 
 void Verifier::visitCallInst(CallInst &CI) {
@@ -3743,8 +3817,8 @@ void Verifier::visitLoadInst(LoadInst &LI) {
 void Verifier::visitStoreInst(StoreInst &SI) {
   PointerType *PTy = dyn_cast<PointerType>(SI.getOperand(1)->getType());
   Assert(PTy, "Store operand must be a pointer.", &SI);
-  Type *ElTy = PTy->getElementType();
-  Assert(ElTy == SI.getOperand(0)->getType(),
+  Type *ElTy = SI.getOperand(0)->getType();
+  Assert(PTy->isOpaqueOrPointeeTypeMatches(ElTy),
          "Stored value type does not match pointer operand type!", &SI, ElTy);
   Assert(SI.getAlignment() <= Value::MaximumAlignment,
          "huge alignment values are unsupported", &SI);
@@ -3801,11 +3875,6 @@ void Verifier::verifySwiftErrorValue(const Value *SwiftErrorVal) {
 
 void Verifier::visitAllocaInst(AllocaInst &AI) {
   SmallPtrSet<Type*, 4> Visited;
-  PointerType *PTy = AI.getType();
-  // TODO: Relax this restriction?
-  Assert(PTy->getAddressSpace() == DL.getAllocaAddrSpace(),
-         "Allocation instruction pointer not in the stack address space!",
-         &AI);
   Assert(AI.getAllocatedType()->isSized(&Visited),
          "Cannot allocate unsized type", &AI);
   Assert(AI.getArraySize()->getType()->isIntegerTy(),
@@ -3821,47 +3890,18 @@ void Verifier::visitAllocaInst(AllocaInst &AI) {
 }
 
 void Verifier::visitAtomicCmpXchgInst(AtomicCmpXchgInst &CXI) {
-
-  // FIXME: more conditions???
-  Assert(CXI.getSuccessOrdering() != AtomicOrdering::NotAtomic,
-         "cmpxchg instructions must be atomic.", &CXI);
-  Assert(CXI.getFailureOrdering() != AtomicOrdering::NotAtomic,
-         "cmpxchg instructions must be atomic.", &CXI);
-  Assert(CXI.getSuccessOrdering() != AtomicOrdering::Unordered,
-         "cmpxchg instructions cannot be unordered.", &CXI);
-  Assert(CXI.getFailureOrdering() != AtomicOrdering::Unordered,
-         "cmpxchg instructions cannot be unordered.", &CXI);
-  Assert(!isStrongerThan(CXI.getFailureOrdering(), CXI.getSuccessOrdering()),
-         "cmpxchg instructions failure argument shall be no stronger than the "
-         "success argument",
-         &CXI);
-  Assert(CXI.getFailureOrdering() != AtomicOrdering::Release &&
-             CXI.getFailureOrdering() != AtomicOrdering::AcquireRelease,
-         "cmpxchg failure ordering cannot include release semantics", &CXI);
-
-  PointerType *PTy = dyn_cast<PointerType>(CXI.getOperand(0)->getType());
-  Assert(PTy, "First cmpxchg operand must be a pointer.", &CXI);
-  Type *ElTy = PTy->getElementType();
+  Type *ElTy = CXI.getOperand(1)->getType();
   Assert(ElTy->isIntOrPtrTy(),
          "cmpxchg operand must have integer or pointer type", ElTy, &CXI);
   checkAtomicMemAccessSize(ElTy, &CXI);
-  Assert(ElTy == CXI.getOperand(1)->getType(),
-         "Expected value type does not match pointer operand type!", &CXI,
-         ElTy);
-  Assert(ElTy == CXI.getOperand(2)->getType(),
-         "Stored value type does not match pointer operand type!", &CXI, ElTy);
   visitInstruction(CXI);
 }
 
 void Verifier::visitAtomicRMWInst(AtomicRMWInst &RMWI) {
-  Assert(RMWI.getOrdering() != AtomicOrdering::NotAtomic,
-         "atomicrmw instructions must be atomic.", &RMWI);
   Assert(RMWI.getOrdering() != AtomicOrdering::Unordered,
          "atomicrmw instructions cannot be unordered.", &RMWI);
   auto Op = RMWI.getOperation();
-  PointerType *PTy = dyn_cast<PointerType>(RMWI.getOperand(0)->getType());
-  Assert(PTy, "First atomicrmw operand must be a pointer.", &RMWI);
-  Type *ElTy = PTy->getElementType();
+  Type *ElTy = RMWI.getOperand(1)->getType();
   if (Op == AtomicRMWInst::Xchg) {
     Assert(ElTy->isIntegerTy() || ElTy->isFloatingPointTy(), "atomicrmw " +
            AtomicRMWInst::getOperationName(Op) +
@@ -3879,9 +3919,6 @@ void Verifier::visitAtomicRMWInst(AtomicRMWInst &RMWI) {
            &RMWI, ElTy);
   }
   checkAtomicMemAccessSize(ElTy, &RMWI);
-  Assert(ElTy == RMWI.getOperand(1)->getType(),
-         "Argument value type does not match pointer operand type!", &RMWI,
-         ElTy);
   Assert(AtomicRMWInst::FIRST_BINOP <= Op && Op <= AtomicRMWInst::LAST_BINOP,
          "Invalid binary operation!", &RMWI);
   visitInstruction(RMWI);
@@ -4472,6 +4509,10 @@ void Verifier::visitInstruction(Instruction &I) {
       Assert(
           !F->isIntrinsic() || isa<CallInst>(I) ||
               F->getIntrinsicID() == Intrinsic::donothing ||
+              F->getIntrinsicID() == Intrinsic::seh_try_begin ||
+              F->getIntrinsicID() == Intrinsic::seh_try_end ||
+              F->getIntrinsicID() == Intrinsic::seh_scope_begin ||
+              F->getIntrinsicID() == Intrinsic::seh_scope_end ||
               F->getIntrinsicID() == Intrinsic::coro_resume ||
               F->getIntrinsicID() == Intrinsic::coro_destroy ||
               F->getIntrinsicID() == Intrinsic::experimental_patchpoint_void ||

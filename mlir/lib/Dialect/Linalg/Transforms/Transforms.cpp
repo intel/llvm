@@ -16,9 +16,7 @@
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
-#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
-#include "mlir/Dialect/Vector/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Matchers.h"
@@ -33,8 +31,6 @@
 #define DEBUG_TYPE "linalg-transforms"
 
 using namespace mlir;
-using namespace mlir::edsc;
-using namespace mlir::edsc::intrinsics;
 using namespace mlir::linalg;
 
 #define DBGS() (llvm::dbgs() << "[" DEBUG_TYPE << "]: ")
@@ -171,9 +167,9 @@ static LogicalResult rewriteAsPaddedOp(PatternRewriter &rewriter,
 
   // If the op is fully static, it does not need padding.
   // TODO: there are cases where we may still want to pad to larger sizes.
-  if (llvm::all_of(opToPad.getShapedOperands(), [](Value v) {
-        return v.getType().cast<RankedTensorType>().hasStaticShape();
-      }))
+  assert(opToPad.hasTensorSemantics() &&
+         "expected operation to have tensor semantics");
+  if (!opToPad.hasDynamicShape())
     return success();
 
   OpBuilder::InsertionGuard g(rewriter);
@@ -181,16 +177,16 @@ static LogicalResult rewriteAsPaddedOp(PatternRewriter &rewriter,
   rewriter.setInsertionPointAfter(opToPad);
   // Make a copy of the shaped operands and update it.
   SmallVector<Value> newOperands;
-  newOperands.reserve(opToPad.getNumShapedOperands());
-  for (OpOperand &operand : opToPad.getShapedOpOperands()) {
+  newOperands.reserve(opToPad.getNumInputsAndOutputs());
+  for (OpOperand *opOperand : opToPad.getInputAndOutputOperands()) {
     Value paddedOperand;
     // If padding was requested but the shape cannot be bounded statically then
     // the pattern fails to apply.
-    if (failed(padOperandToSmallestStaticBoundingBox(rewriter, opToPad, operand,
-                                                     options, paddedOperand))) {
+    if (failed(padOperandToSmallestStaticBoundingBox(
+            rewriter, opToPad, *opOperand, options, paddedOperand))) {
       return failure();
     }
-    newOperands.push_back(paddedOperand ? paddedOperand : operand.get());
+    newOperands.push_back(paddedOperand ? paddedOperand : opOperand->get());
   }
 
   // Clone `opToPad` to operate on the statically padded shapes.
@@ -393,30 +389,26 @@ LogicalResult mlir::linalg::LinalgBaseTileAndFusePattern::matchAndRewrite(
   return success();
 }
 
-/// Linalg base interchange pattern.
-mlir::linalg::LinalgBaseInterchangePattern::LinalgBaseInterchangePattern(
-    StringRef opName, MLIRContext *context,
-    ArrayRef<unsigned> interchangeVector, LinalgTransformationFilter filter,
-    PatternBenefit benefit)
-    : RewritePattern(opName, benefit, context, {}), filter(filter),
+/// Linalg generic interchange pattern.
+mlir::linalg::GenericOpInterchangePattern::GenericOpInterchangePattern(
+    MLIRContext *context, ArrayRef<unsigned> interchangeVector,
+    LinalgTransformationFilter filter, PatternBenefit benefit)
+    : OpRewritePattern(context, benefit), filter(filter),
       interchangeVector(interchangeVector.begin(), interchangeVector.end()) {}
 
-LogicalResult mlir::linalg::LinalgBaseInterchangePattern::matchAndRewrite(
-    Operation *op, PatternRewriter &rewriter) const {
-  LinalgOp linalgOp = dyn_cast<LinalgOp>(op);
-  if (!linalgOp)
+LogicalResult mlir::linalg::GenericOpInterchangePattern::matchAndRewrite(
+    GenericOp genericOp, PatternRewriter &rewriter) const {
+  if (failed(filter.checkAndNotify(rewriter, genericOp)))
     return failure();
-  if (failed(filter.checkAndNotify(rewriter, linalgOp)))
-    return failure();
-  if (failed(interchangeGenericLinalgOpPrecondition(op, interchangeVector)))
+  if (failed(interchangeGenericOpPrecondition(genericOp, interchangeVector)))
     return failure();
 
   // TODO: figure out how this interplays with named ops. In particular this
   // should break the named op property.
-  rewriter.updateRootInPlace(op, [&]() {
-    interchange(rewriter, linalgOp, interchangeVector);
+  rewriter.updateRootInPlace(genericOp, [&]() {
+    interchangeGenericOp(rewriter, genericOp, interchangeVector);
     // New filter if specified.
-    filter.replaceLinalgTransformationFilter(rewriter, op);
+    filter.replaceLinalgTransformationFilter(rewriter, genericOp);
   });
   return success();
 }
@@ -644,4 +636,69 @@ LogicalResult AffineMinRangeCanonicalizationPattern::matchAndRewrite(
   }
 
   return failure();
+}
+
+static SmallVector<StringRef> getNParallelLoopsAttrs(unsigned nParallelLoops) {
+  return SmallVector<StringRef>(nParallelLoops, getParallelIteratorTypeName());
+}
+
+/// Rewrite a PadTensorOp into a sequence of InitTensorOp, FillOp (to initialize
+/// with pad_val) and GenericOp (to copy contents).
+LogicalResult PadTensorOpTransformationPattern::matchAndRewrite(
+    linalg::PadTensorOp padOp, PatternRewriter &rewriter) const {
+
+  auto inputShapedType = padOp.source().getType().cast<ShapedType>();
+  auto resultShapedType = padOp.result().getType().cast<ShapedType>();
+
+  // Bail on non-static shapes.
+  if (!inputShapedType.hasStaticShape())
+    return failure();
+  if (!resultShapedType.hasStaticShape())
+    return failure();
+
+  // Only support padding with a constant for now, i.e. either:
+  //   1. A BBarg from a different block.
+  //   2. A value defined outside of the current block.
+  Block &block = padOp.region().front();
+  auto yieldOp = cast<YieldOp>(block.getTerminator());
+  assert(yieldOp.getNumOperands() == 1 && "expected single operand yield");
+  Value padValue = yieldOp.values().front();
+  Operation *definingOp = padValue.getDefiningOp();
+  if (definingOp && definingOp->getBlock() == &block)
+    return failure();
+  if (!definingOp && padValue.cast<BlockArgument>().getOwner() == &block)
+    return failure();
+
+  // Create tensor with the padded shape
+  Location loc = padOp.getLoc();
+  SmallVector<Value> indices(resultShapedType.getRank(),
+                             rewriter.create<ConstantIndexOp>(loc, 0));
+  Value initTensor = rewriter.create<InitTensorOp>(
+      loc, resultShapedType.getShape(), resultShapedType.getElementType());
+
+  // Initialize tensor with the pad value
+  Value tmpTensor =
+      rewriter.create<linalg::FillOp>(loc, initTensor, padValue).result();
+
+  // Copy original contents into new tensor
+  // Uses linalg.generic, but could be done with std.subtensor_insert
+  SmallVector<AffineExpr, 4> outputExprs;
+  for (unsigned i = 0; i < resultShapedType.getRank(); ++i) {
+    outputExprs.push_back(getAffineDimExpr(i, rewriter.getContext()) +
+                          padOp.static_low()[i].cast<IntegerAttr>().getInt());
+  }
+
+  SmallVector<AffineMap, 2> transferMaps = {
+      rewriter.getMultiDimIdentityMap(inputShapedType.getRank()),
+      AffineMap::get(resultShapedType.getRank(),
+                     /*symbolCount=*/0, outputExprs, rewriter.getContext())};
+
+  rewriter.replaceOpWithNewOp<linalg::GenericOp>(
+      padOp, resultShapedType, padOp.source(), tmpTensor, transferMaps,
+      getNParallelLoopsAttrs(resultShapedType.getRank()),
+      [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange args) {
+        nestedBuilder.create<linalg::YieldOp>(nestedLoc, args[0]);
+      });
+
+  return success();
 }

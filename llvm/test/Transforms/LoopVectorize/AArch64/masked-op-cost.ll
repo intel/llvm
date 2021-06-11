@@ -1,5 +1,5 @@
 ; REQUIRES: asserts
-; RUN: opt -loop-vectorize -force-vector-interleave=1 -S -debug < %s 2>%t | FileCheck %s
+; RUN: opt -loop-vectorize -scalable-vectorization=on -force-vector-interleave=1 -S -debug-only=loop-vectorize < %s 2>%t | FileCheck %s
 ; RUN: cat %t | FileCheck %s --check-prefix=CHECK-COST
 
 target triple = "aarch64-unknown-linux-gnu"
@@ -41,7 +41,7 @@ if.then:                                          ; preds = %for.body
 for.inc:                                          ; preds = %for.body, %if.then
   %inc = add nuw nsw i64 %i.07, 1
   %exitcond.not = icmp eq i64 %inc, %n
-  br i1 %exitcond.not, label %for.cond.cleanup.loopexit, label %for.body
+  br i1 %exitcond.not, label %for.cond.cleanup.loopexit, label %for.body, !llvm.loop !5
 }
 
 
@@ -90,3 +90,5 @@ attributes #0 = { "target-features"="+neon,+sve" }
 !2 = !{!"llvm.loop.vectorize.width", i32 4}
 !3 = !{!"llvm.loop.vectorize.scalable.enable", i1 true}
 !4 = !{!"llvm.loop.vectorize.enable", i1 true}
+!5 = distinct !{!5, !6}
+!6 = !{!"llvm.loop.vectorize.scalable.enable", i1 false}

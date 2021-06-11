@@ -1,17 +1,17 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=cpu %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=gpu %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=acc %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=host %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=CPU %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=GPU %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=ACC %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=Cpu %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=Gpu %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=Acc %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=Host %t.out
-// RUN: env SYCL_BE=%sycl_be SYCL_DEVICE_TYPE=XPU %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=cpu %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=gpu %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=acc %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=host %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=CPU %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=GPU %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=ACC %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=Cpu %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=Gpu %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=Acc %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=Host %t.out
+// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=XPU %t.out
 
 //==------------------- device-check.cpp --------------------------==//
 // This is a diagnostic test which ensures that
@@ -24,7 +24,6 @@
 
 using namespace cl::sycl;
 
-
 int main() {
   try {
     queue q = queue();
@@ -34,9 +33,11 @@ int main() {
   }
 
   catch (runtime_error &E) {
-    if (std::string(E.what()).find(
-        "SYCL_DEVICE_TYPE is not recognized.  Must be GPU, CPU, ACC or HOST.") ==
-        std::string::npos) {
+    if (std::string(E.what()).find("SYCL_DEVICE_TYPE is not recognized.  Must "
+                                   "be GPU, CPU, ACC or HOST.") ==
+            std::string::npos &&
+        std::string(E.what()).find("No device of requested type available.") ==
+            std::string::npos) {
       std::cout << "Test failed: received error is incorrect." << std::endl;
       return 1;
     } else {

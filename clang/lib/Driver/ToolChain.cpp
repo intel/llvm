@@ -361,6 +361,12 @@ Tool *ToolChain::getBackendCompiler() const {
   return BackendCompiler.get();
 }
 
+Tool *ToolChain::getAppendFooter() const {
+  if (!AppendFooter)
+    AppendFooter.reset(new tools::AppendFooter(*this));
+  return AppendFooter.get();
+}
+
 Tool *ToolChain::getTableTform() const {
   if (!FileTableTform)
     FileTableTform.reset(new tools::FileTableTform(*this));
@@ -421,6 +427,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::BackendCompileJobClass:
     return getBackendCompiler();
 
+  case Action::AppendFooterJobClass:
+    return getAppendFooter();
+
   case Action::FileTableTformJobClass:
     return getTableTform();
   }
@@ -446,6 +455,9 @@ static StringRef getArchNameForCompilerRTLib(const ToolChain &TC,
 }
 
 StringRef ToolChain::getOSLibName() const {
+  if (Triple.isOSDarwin())
+    return "darwin";
+
   switch (Triple.getOS()) {
   case llvm::Triple::FreeBSD:
     return "freebsd";
@@ -844,7 +856,7 @@ ToolChain::UnwindLibType ToolChain::GetUnwindLibType(
   else if (LibName == "platform" || LibName == "") {
     ToolChain::RuntimeLibType RtLibType = GetRuntimeLibType(Args);
     if (RtLibType == ToolChain::RLT_CompilerRT) {
-      if (getTriple().isAndroid())
+      if (getTriple().isAndroid() || getTriple().isOSAIX())
         unwindLibType = ToolChain::UNW_CompilerRT;
       else
         unwindLibType = ToolChain::UNW_None;

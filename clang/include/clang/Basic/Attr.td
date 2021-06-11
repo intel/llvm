@@ -1206,6 +1206,19 @@ def SYCLDevice : InheritableAttr {
   let Documentation = [SYCLDeviceDocs];
 }
 
+def GlobalStorageNonLocalVar : SubsetSubject<Var,
+                                             [{S->hasGlobalStorage() &&
+                                               !S->isLocalVarDeclOrParm()}],
+                                             "global variables">;
+
+def SYCLGlobalVar : InheritableAttr {
+  let Spellings = [GNU<"sycl_global_var">];
+  let Subjects = SubjectList<[GlobalStorageNonLocalVar], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice];
+  // Only used internally by the SYCL implementation
+  let Documentation = [Undocumented];
+}
+
 def SYCLKernel : InheritableAttr {
   let Spellings = [Clang<"sycl_kernel">];
   let Subjects = SubjectList<[FunctionTmpl]>;
@@ -2975,10 +2988,27 @@ def ReqdWorkGroupSize : InheritableAttr {
 def WorkGroupSizeHint :  InheritableAttr {
   let Spellings = [GNU<"work_group_size_hint">,
                    CXX11<"sycl", "work_group_size_hint">];
-  let Args = [UnsignedArgument<"XDim">,
-              UnsignedArgument<"YDim">,
-              UnsignedArgument<"ZDim">];
+  let Args = [ExprArgument<"XDim">,
+              ExprArgument<"YDim">,
+              ExprArgument<"ZDim">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
+  let AdditionalMembers = [{
+    Optional<llvm::APSInt> getXDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))
+        return CE->getResultAsAPSInt();
+      return None;
+    }
+    Optional<llvm::APSInt> getYDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getYDim()))
+        return CE->getResultAsAPSInt();
+      return None;
+    }
+    Optional<llvm::APSInt> getZDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getZDim()))
+        return CE->getResultAsAPSInt();
+      return None;
+    }
+  }];
   let Documentation = [WorkGroupSizeHintAttrDocs];
 }
 
@@ -3077,6 +3107,11 @@ def SwiftCall : DeclOrTypeAttr {
 def SwiftContext : ParameterABIAttr {
   let Spellings = [Clang<"swift_context">];
   let Documentation = [SwiftContextDocs];
+}
+
+def SwiftAsyncContext : ParameterABIAttr {
+  let Spellings = [Clang<"swift_async_context">];
+  let Documentation = [SwiftAsyncContextDocs];
 }
 
 def SwiftErrorResult : ParameterABIAttr {
@@ -3517,6 +3552,10 @@ def NoSanitize : InheritableAttr {
         Mask |= expandSanitizerGroups(ParsedMask);
       }
       return Mask;
+    }
+
+    bool hasCoverage() const {
+      return llvm::is_contained(sanitizers(), "coverage");
     }
   }];
 }
@@ -4227,6 +4266,7 @@ def OMPDeclareTargetDecl : InheritableAttr {
     void printPrettyPragma(raw_ostream &OS, const PrintingPolicy &Policy) const;
     static llvm::Optional<MapTypeTy>
     isDeclareTargetDeclaration(const ValueDecl *VD);
+    static llvm::Optional<OMPDeclareTargetDeclAttr*> getActiveAttr(const ValueDecl *VD);
     static llvm::Optional<DevTypeTy> getDeviceType(const ValueDecl *VD);
     static llvm::Optional<SourceLocation> getLocation(const ValueDecl *VD);
   }];
@@ -4359,6 +4399,14 @@ def NoBuiltin : Attr {
   let Args = [VariadicStringArgument<"BuiltinNames">];
   let Subjects = SubjectList<[Function]>;
   let Documentation = [NoBuiltinDocs];
+}
+
+def UsingIfExists : InheritableAttr {
+  let Spellings = [Clang<"using_if_exists", 0>];
+  let Subjects = SubjectList<[Using,
+                              UnresolvedUsingTypename,
+                              UnresolvedUsingValue], ErrorDiag>;
+  let Documentation = [UsingIfExistsDocs];
 }
 
 // FIXME: This attribute is not inheritable, it will not be propagated to

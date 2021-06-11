@@ -51,6 +51,14 @@ AArch64AppleInstPrinter::AArch64AppleInstPrinter(const MCAsmInfo &MAI,
                                                  const MCRegisterInfo &MRI)
     : AArch64InstPrinter(MAI, MII, MRI) {}
 
+bool AArch64InstPrinter::applyTargetSpecificCLOption(StringRef Opt) {
+  if (Opt == "no-aliases") {
+    PrintAliases = false;
+    return true;
+  }
+  return false;
+}
+
 void AArch64InstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
   // This is for .cfi directives.
   OS << getRegisterName(RegNo);
@@ -296,7 +304,7 @@ void AArch64InstPrinter::printInst(const MCInst *MI, uint64_t Address,
     return;
   }
 
-  if (!printAliasInstr(MI, Address, STI, O))
+  if (!PrintAliases || !printAliasInstr(MI, Address, STI, O))
     printInstruction(MI, Address, STI, O);
 
   printAnnotation(O, Annot);
@@ -1152,7 +1160,7 @@ void AArch64InstPrinter::printPSBHintOp(const MCInst *MI, unsigned OpNum,
 void AArch64InstPrinter::printBTIHintOp(const MCInst *MI, unsigned OpNum,
                                         const MCSubtargetInfo &STI,
                                         raw_ostream &O) {
-  unsigned btihintop = (MI->getOperand(OpNum).getImm() ^ 32) >> 1;
+  unsigned btihintop = MI->getOperand(OpNum).getImm() ^ 32;
   auto BTI = AArch64BTIHint::lookupBTIByEncoding(btihintop);
   if (BTI)
     O << BTI->Name;

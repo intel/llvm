@@ -57,6 +57,7 @@ def CoreturnStmt : StmtNode<Stmt>;
 // Expressions
 def Expr : StmtNode<ValueStmt, 1>;
 def PredefinedExpr : StmtNode<Expr>;
+def SYCLUniqueStableNameExpr : StmtNode<Expr>;
 def DeclRefExpr : StmtNode<Expr>;
 def IntegerLiteral : StmtNode<Expr>;
 def FixedPointLiteral : StmtNode<Expr>;
@@ -192,6 +193,12 @@ def ObjCBridgedCastExpr : StmtNode<ExplicitCastExpr>;
 
 // CUDA Expressions.
 def CUDAKernelCallExpr : StmtNode<CallExpr>;
+
+// SYCL Extensions.
+def SYCLBuiltinNumFieldsExpr : StmtNode<Expr>;
+def SYCLBuiltinFieldTypeExpr : StmtNode<Expr>;
+def SYCLBuiltinNumBasesExpr : StmtNode<Expr>;
+def SYCLBuiltinBaseTypeExpr : StmtNode<Expr>;
 
 // Clang Extensions.
 def ShuffleVectorExpr : StmtNode<Expr>;

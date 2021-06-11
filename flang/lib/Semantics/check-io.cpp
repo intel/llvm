@@ -831,9 +831,18 @@ void IoChecker::CheckStringValue(IoSpecKind specKind, const std::string &value,
       {IoSpecKind::Convert, {"BIG_ENDIAN", "LITTLE_ENDIAN", "NATIVE"}},
       {IoSpecKind::Dispose, {"DELETE", "KEEP"}},
   };
-  if (!specValues.at(specKind).count(parser::ToUpperCaseLetters(value))) {
-    context_.Say(source, "Invalid %s value '%s'"_err_en_US,
-        parser::ToUpperCaseLetters(common::EnumToString(specKind)), value);
+  auto upper{parser::ToUpperCaseLetters(value)};
+  if (specValues.at(specKind).count(upper) == 0) {
+    if (specKind == IoSpecKind::Access && upper == "APPEND") {
+      if (context_.languageFeatures().ShouldWarn(
+              common::LanguageFeature::OpenAccessAppend)) {
+        context_.Say(source, "ACCESS='%s' interpreted as POSITION='%s'"_en_US,
+            value, upper);
+      }
+    } else {
+      context_.Say(source, "Invalid %s value '%s'"_err_en_US,
+          parser::ToUpperCaseLetters(common::EnumToString(specKind)), value);
+    }
   }
 }
 
@@ -944,8 +953,12 @@ void IoChecker::CheckForDefinableVariable(
 
 void IoChecker::CheckForPureSubprogram() const { // C1597
   CHECK(context_.location());
-  if (FindPureProcedureContaining(context_.FindScope(*context_.location()))) {
-    context_.Say("External I/O is not allowed in a pure subprogram"_err_en_US);
+  if (const Scope *
+      scope{context_.globalScope().FindScope(*context_.location())}) {
+    if (FindPureProcedureContaining(*scope)) {
+      context_.Say(
+          "External I/O is not allowed in a pure subprogram"_err_en_US);
+    }
   }
 }
 

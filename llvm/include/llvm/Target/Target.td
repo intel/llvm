@@ -18,8 +18,6 @@ include "llvm/IR/Intrinsics.td"
 // Register file description - These classes are used to fill in the target
 // description classes.
 
-class RegisterClass; // Forward def
-
 class HwMode<string FS> {
   // A string representing subtarget features that turn on this HW mode.
   // For example, "+feat1,-feat2" will indicate that the mode is active
@@ -1126,6 +1124,12 @@ def DBG_INSTR_REF : StandardPseudoInstruction {
   let InOperandList = (ins variable_ops);
   let AsmString = "DBG_INSTR_REF";
   let hasSideEffects = false;
+}
+def DBG_PHI : StandardPseudoInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins variable_ops);
+  let AsmString = "DBG_PHI";
+  let hasSideEffects = 0;
 }
 def DBG_LABEL : StandardPseudoInstruction {
   let OutOperandList = (outs);

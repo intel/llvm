@@ -78,7 +78,7 @@ public:
                                          TTI::TargetCostKind CostKind,
                                          const Instruction *I);
 
-  bool isLegalElementTypeForRVV(Type *ScalarTy) {
+  bool isLegalElementTypeForRVV(Type *ScalarTy) const {
     if (ScalarTy->isPointerTy())
       return true;
 
@@ -104,6 +104,10 @@ public:
     if (isa<FixedVectorType>(DataType) && ST->getMinRVVVectorSizeInBits() == 0)
       return false;
 
+    if (Alignment <
+        DL.getTypeStoreSize(DataType->getScalarType()).getFixedSize())
+      return false;
+
     return isLegalElementTypeForRVV(DataType->getScalarType());
   }
 
@@ -122,6 +126,10 @@ public:
     if (isa<FixedVectorType>(DataType) && ST->getMinRVVVectorSizeInBits() == 0)
       return false;
 
+    if (Alignment <
+        DL.getTypeStoreSize(DataType->getScalarType()).getFixedSize())
+      return false;
+
     return isLegalElementTypeForRVV(DataType->getScalarType());
   }
 
@@ -130,6 +138,49 @@ public:
   }
   bool isLegalMaskedScatter(Type *DataType, Align Alignment) {
     return isLegalMaskedGatherScatter(DataType, Alignment);
+  }
+
+  /// \returns How the target needs this vector-predicated operation to be
+  /// transformed.
+  TargetTransformInfo::VPLegalization
+  getVPLegalizationStrategy(const VPIntrinsic &PI) const {
+    using VPLegalization = TargetTransformInfo::VPLegalization;
+    return VPLegalization(VPLegalization::Legal, VPLegalization::Legal);
+  }
+
+  bool isLegalToVectorizeReduction(RecurrenceDescriptor RdxDesc,
+                                   ElementCount VF) const {
+    if (!ST->hasStdExtV())
+      return false;
+
+    if (!VF.isScalable())
+      return true;
+
+    Type *Ty = RdxDesc.getRecurrenceType();
+    if (!isLegalElementTypeForRVV(Ty))
+      return false;
+
+    switch (RdxDesc.getRecurrenceKind()) {
+    case RecurKind::Add:
+    case RecurKind::FAdd:
+    case RecurKind::And:
+    case RecurKind::Or:
+    case RecurKind::Xor:
+    case RecurKind::SMin:
+    case RecurKind::SMax:
+    case RecurKind::UMin:
+    case RecurKind::UMax:
+    case RecurKind::FMin:
+    case RecurKind::FMax:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  bool enableInterleavedAccessVectorization() { return true; }
+  unsigned getMaxInterleaveFactor(unsigned VF) {
+    return ST->getMaxInterleaveFactor();
   }
 };
 

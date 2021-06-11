@@ -514,26 +514,26 @@ basic_string<char32_t> operator "" s( const char32_t *str, size_t len ); // C++1
 */
 
 #include <__config>
-#include <compare>
-#include <string_view>
-#include <iosfwd>
-#include <cstring>
-#include <cstdio>  // For EOF.
-#include <cwchar>
+#include <__debug>
+#include <__functional_base>
 #include <algorithm>
+#include <compare>
+#include <cstdio>  // EOF
+#include <cstring>
+#include <cwchar>
+#include <initializer_list>
+#include <iosfwd>
 #include <iterator>
-#include <utility>
 #include <memory>
 #include <stdexcept>
+#include <string_view>
 #include <type_traits>
-#include <initializer_list>
-#include <__functional_base>
+#include <utility>
 #include <version>
-#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
-#include <cstdint>
-#endif
 
-#include <__debug>
+#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
+# include <cstdint>
+#endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
@@ -1763,11 +1763,7 @@ basic_string<_CharT, _Traits, _Allocator>::__invalidate_all_iterators()
 template <class _CharT, class _Traits, class _Allocator>
 inline
 void
-basic_string<_CharT, _Traits, _Allocator>::__invalidate_iterators_past(size_type
-#if _LIBCPP_DEBUG_LEVEL == 2
-                                                                        __pos
-#endif
-                                                                      )
+basic_string<_CharT, _Traits, _Allocator>::__invalidate_iterators_past(size_type __pos)
 {
 #if _LIBCPP_DEBUG_LEVEL == 2
     __c_node* __c = __get_db()->__find_c_and_lock(this);
@@ -1787,6 +1783,8 @@ basic_string<_CharT, _Traits, _Allocator>::__invalidate_iterators_past(size_type
         }
         __get_db()->unlock();
     }
+#else
+    (void)__pos;
 #endif // _LIBCPP_DEBUG_LEVEL == 2
 }
 
@@ -2361,12 +2359,11 @@ basic_string<_CharT, _Traits, _Allocator>::assign(size_type __n, value_type __c)
         size_type __sz = size();
         __grow_by(__cap, __n - __cap, __sz, 0, __sz);
     }
-    else
-        __invalidate_iterators_past(__n);
     value_type* __p = _VSTD::__to_address(__get_pointer());
     traits_type::assign(__p, __n, __c);
     traits_type::assign(__p[__n], value_type());
     __set_size(__n);
+    __invalidate_iterators_past(__n);
     return *this;
 }
 
@@ -2498,13 +2495,12 @@ basic_string<_CharT, _Traits, _Allocator>::assign(_ForwardIterator __first, _For
             size_type __sz = size();
             __grow_by(__cap, __n - __cap, __sz, 0, __sz);
         }
-        else
-            __invalidate_iterators_past(__n);
         pointer __p = __get_pointer();
         for (; __first != __last; ++__first, ++__p)
             traits_type::assign(*__p, *__first);
         traits_type::assign(*__p, value_type());
         __set_size(__n);
+        __invalidate_iterators_past(__n);
     }
     else
     {

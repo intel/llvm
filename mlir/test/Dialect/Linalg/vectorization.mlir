@@ -381,6 +381,43 @@ func @generic_vectorize_tensor(%arg0: tensor<4x256xf32>,
 
 // -----
 
+// CHECK-DAG: #[[$MAP0:.*]] = affine_map<(d0, d1) -> (d0, 0, 0, d1)>
+// CHECK-DAG: #[[$MAP1:.*]] = affine_map<(d0) -> (d0, 0, 0, 0)>
+// CHECK-DAG: #[[$MAP2:.*]] = affine_map<(d0) -> (0, 0, d0, 0)>
+// CHECK-DAG: #[[$MAP3:.*]] = affine_map<(d0, d1) -> (d1, 0, d0, 0)>
+//     CHECK: func @generic_vectorize_broadcast_transpose
+// CHECK-DAG:   %[[C0:.*]] = constant 0 : index
+// CHECK-DAG:   %[[CF:.*]] = constant 0.000000e+00 : f32
+//     CHECK:   %[[V0:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C0]]], %[[CF]] {in_bounds = [true, true, true, true], permutation_map = #[[$MAP0]]} : memref<4x4xf32>, vector<4x4x4x4xf32>
+//     CHECK:   %[[V1:.*]] = vector.transfer_read %{{.*}}[%[[C0]]], %[[CF]] {in_bounds = [true, true, true, true], permutation_map = #[[$MAP1]]} : memref<4xf32>, vector<4x4x4x4xf32>
+//     CHECK:   %[[V2:.*]] = vector.transfer_read %{{.*}}[%[[C0]]], %[[CF]] {in_bounds = [true, true, true, true], permutation_map = #[[$MAP2]]} : memref<4xf32>, vector<4x4x4x4xf32>
+//     CHECK:   %[[V3:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C0]]], %[[CF]] {in_bounds = [true, true, true, true], permutation_map = #[[$MAP3]]} : memref<4x4xf32>, vector<4x4x4x4xf32>
+//     CHECK:   %[[SUB:.*]] = subf %[[V0]], %[[V1]] : vector<4x4x4x4xf32>
+//     CHECK:   %[[ADD0:.*]] = addf %[[V2]], %[[SUB]] : vector<4x4x4x4xf32>
+//     CHECK:   %[[ADD1:.*]] = addf %[[V3]], %[[ADD0]] : vector<4x4x4x4xf32>
+//     CHECK: vector.transfer_write %[[ADD1]], {{.*}} : vector<4x4x4x4xf32>, memref<4x4x4x4xf32>
+func @generic_vectorize_broadcast_transpose(
+  %A: memref<4xf32>, %B: memref<4x4xf32>, %C: memref<4x4x4x4xf32>) {
+  linalg.generic {
+  indexing_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d3)>,
+                   affine_map<(d0, d1, d2, d3) -> (d0)>,
+                   affine_map<(d0, d1, d2, d3) -> (d2)>,
+                   affine_map<(d0, d1, d2, d3) -> (d2, d0)>,
+                   affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>],
+  iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
+  ins(%B, %A, %A, %B: memref<4x4xf32>, memref<4xf32>, memref<4xf32>, memref<4x4xf32>)
+  outs(%C : memref<4x4x4x4xf32>) {
+  ^bb0(%arg0: f32, %arg1: f32, %arg2: f32, %arg3: f32, %arg4: f32):  // no predecessors
+    %s = subf %arg0, %arg1 : f32
+    %a = addf %arg2, %s : f32
+    %b = addf %arg3, %a : f32
+    linalg.yield %b : f32
+  }
+  return
+}
+
+// -----
+
 // Test different input maps.
 #matmul_trait = {
   indexing_maps = [
@@ -396,9 +433,9 @@ func @generic_vectorize_tensor(%arg0: tensor<4x256xf32>,
 // CHECK-DAG: #[[MAP1:.*]] = affine_map<(d0, d1) -> (0, d1, 0, d0)>
 // CHECK-DAG: #[[MAP2:.*]] = affine_map<(d0, d1, d2, d3) -> (d2, d1, d3, d0)>
 //       CHECK: func @vectorization_transpose
-//       CHECK: vector.transfer_read {{.*}}{permutation_map = #[[MAP0]]} : memref<14x7xf32>, vector<7x14x8x16xf32>
-//       CHECK: vector.transfer_read {{.*}}{permutation_map = #[[MAP1]]} : memref<16x14xf32>, vector<7x14x8x16xf32>
-//       CHECK: vector.transfer_read {{.*}}{permutation_map = #[[MAP2]]} : memref<16x14x7x8xf32>, vector<7x14x8x16xf32>
+//       CHECK: vector.transfer_read {{.*}}{in_bounds = [true, true, true, true], permutation_map = #[[MAP0]]} : memref<14x7xf32>, vector<7x14x8x16xf32>
+//       CHECK: vector.transfer_read {{.*}}{in_bounds = [true, true, true, true], permutation_map = #[[MAP1]]} : memref<16x14xf32>, vector<7x14x8x16xf32>
+//       CHECK: vector.transfer_read {{.*}}{in_bounds = [true, true, true, true], permutation_map = #[[MAP2]]} : memref<16x14x7x8xf32>, vector<7x14x8x16xf32>
 //       CHECK: addf {{.*}} : vector<7x14x8x16xf32>
 //       CHECK: addf {{.*}} : vector<7x14x8x16xf32>
 //       CHECK: vector.transfer_write {{.*}} : vector<7x14x8x16xf32>, memref<7x14x8x16xf32>
@@ -528,7 +565,7 @@ func @sum_exp(%input: tensor<4x16x8xf32>, %output: tensor<4x16xf32>)
   -> tensor<4x16xf32>
 {
   // CHECK: vector.transfer_read {{.*}} : tensor<4x16x8xf32>, vector<4x16x8xf32>
-  // CHECK: vector.transfer_read {{.*}} {permutation_map = #[[$M0]]} : tensor<4x16xf32>, vector<4x16x8xf32>
+  // CHECK: vector.transfer_read {{.*}} {in_bounds = [true, true, true], permutation_map = #[[$M0]]} : tensor<4x16xf32>, vector<4x16x8xf32>
   // CHECK: math.exp {{.*}} : vector<4x16x8xf32>
   // CHECK: addf {{.*}} : vector<4x16x8xf32>
   // CHECK: vector.multi_reduction #vector.kind<add>, %{{.*}} [2] : vector<4x16x8xf32> to vector<4x16xf32>
@@ -560,15 +597,15 @@ func @sum_exp(%input: tensor<4x16x8xf32>, %output: tensor<4x16xf32>)
 func @sum_exp_2(%input: tensor<3x2xf32>, %input_2: tensor<5x4xf32>, %output: tensor<5x2xf32>)
   -> tensor<5x2xf32>
 {
-  // CHECK: vector.transfer_read {{.*}} {permutation_map = #[[$M1]]} : tensor<3x2xf32>, vector<2x3x4x5xf32>
-  // CHECK: vector.transfer_read {{.*}} {permutation_map = #[[$M2]]} : tensor<5x4xf32>, vector<2x3x4x5xf32>
-  // CHECK: vector.transfer_read {{.*}} {permutation_map = #[[$M3]]} : tensor<5x2xf32>, vector<2x3x4x5xf32>
+  // CHECK: vector.transfer_read {{.*}} {in_bounds = [true, true, true, true], permutation_map = #[[$M1]]} : tensor<3x2xf32>, vector<2x3x4x5xf32>
+  // CHECK: vector.transfer_read {{.*}} {in_bounds = [true, true, true, true], permutation_map = #[[$M2]]} : tensor<5x4xf32>, vector<2x3x4x5xf32>
+  // CHECK: vector.transfer_read {{.*}} {in_bounds = [true, true, true, true], permutation_map = #[[$M3]]} : tensor<5x2xf32>, vector<2x3x4x5xf32>
   // CHECK: math.exp {{.*}} : vector<2x3x4x5xf32>
   // CHECK: math.exp {{.*}} : vector<2x3x4x5xf32>
   // CHECK: addf {{.*}} : vector<2x3x4x5xf32>
   // CHECK: addf {{.*}} : vector<2x3x4x5xf32>
   // CHECK: vector.multi_reduction #vector.kind<add>, {{.*}}  [1, 2] : vector<2x3x4x5xf32> to vector<2x5xf32>
-  // CHECK: vector.transfer_write {{.*}} {permutation_map = #[[$M4]]} : vector<2x5xf32>, tensor<5x2xf32>
+  // CHECK: vector.transfer_write {{.*}} {in_bounds = [true, true], permutation_map = #[[$M4]]} : vector<2x5xf32>, tensor<5x2xf32>
   // CHECK: return {{.*}} : tensor<5x2xf32>
   %0 = linalg.generic {
       indexing_maps = [

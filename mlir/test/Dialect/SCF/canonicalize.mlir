@@ -99,6 +99,41 @@ func @single_iteration_reduce(%A: index, %B: index) -> (index, index) {
 
 // -----
 
+func @nested_parallel(%0: memref<?x?x?xf64>) -> memref<?x?x?xf64> {
+  %c0 = constant 0 : index
+  %c1 = constant 1 : index
+  %c2 = constant 2 : index
+  %1 = memref.dim %0, %c0 : memref<?x?x?xf64>
+  %2 = memref.dim %0, %c1 : memref<?x?x?xf64>
+  %3 = memref.dim %0, %c2 : memref<?x?x?xf64>
+  %4 = memref.alloc(%1, %2, %3) : memref<?x?x?xf64>
+  scf.parallel (%arg1) = (%c0) to (%1) step (%c1) {
+    scf.parallel (%arg2) = (%c0) to (%2) step (%c1) {
+      scf.parallel (%arg3) = (%c0) to (%3) step (%c1) {
+        %5 = memref.load %0[%arg1, %arg2, %arg3] : memref<?x?x?xf64>
+        memref.store %5, %4[%arg1, %arg2, %arg3] : memref<?x?x?xf64>
+        scf.yield
+      }
+      scf.yield
+    }
+    scf.yield
+  }
+  return %4 : memref<?x?x?xf64>
+}
+
+// CHECK-LABEL:   func @nested_parallel(
+// CHECK-DAG:       [[C0:%.*]] = constant 0 : index
+// CHECK-DAG:       [[C1:%.*]] = constant 1 : index
+// CHECK-DAG:       [[C2:%.*]] = constant 2 : index
+// CHECK:           [[B0:%.*]] = memref.dim {{.*}}, [[C0]]
+// CHECK:           [[B1:%.*]] = memref.dim {{.*}}, [[C1]]
+// CHECK:           [[B2:%.*]] = memref.dim {{.*}}, [[C2]]
+// CHECK:           scf.parallel ([[V0:%.*]], [[V1:%.*]], [[V2:%.*]]) = ([[C0]], [[C0]], [[C0]]) to ([[B0]], [[B1]], [[B2]]) step ([[C1]], [[C1]], [[C1]])
+// CHECK:           memref.load {{.*}}{{\[}}[[V0]], [[V1]], [[V2]]]
+// CHECK:           memref.store {{.*}}{{\[}}[[V0]], [[V1]], [[V2]]]
+
+// -----
+
 func private @side_effect()
 func @one_unused(%cond: i1) -> (index) {
   %c0 = constant 0 : index
@@ -115,8 +150,8 @@ func @one_unused(%cond: i1) -> (index) {
 }
 
 // CHECK-LABEL:   func @one_unused
-// CHECK:           [[C0:%.*]] = constant 1 : index
-// CHECK:           [[C3:%.*]] = constant 3 : index
+// CHECK-DAG:       [[C0:%.*]] = constant 1 : index
+// CHECK-DAG:       [[C3:%.*]] = constant 3 : index
 // CHECK:           [[V0:%.*]] = scf.if %{{.*}} -> (index) {
 // CHECK:             call @side_effect() : () -> ()
 // CHECK:             scf.yield [[C0]] : index
@@ -148,8 +183,8 @@ func @nested_unused(%cond1: i1, %cond2: i1) -> (index) {
 }
 
 // CHECK-LABEL:   func @nested_unused
-// CHECK:           [[C0:%.*]] = constant 1 : index
-// CHECK:           [[C3:%.*]] = constant 3 : index
+// CHECK-DAG:       [[C0:%.*]] = constant 1 : index
+// CHECK-DAG:       [[C3:%.*]] = constant 3 : index
 // CHECK:           [[V0:%.*]] = scf.if {{.*}} -> (index) {
 // CHECK:             [[V1:%.*]] = scf.if {{.*}} -> (index) {
 // CHECK:               call @side_effect() : () -> ()
@@ -229,8 +264,8 @@ func @to_select1(%cond: i1) -> index {
 }
 
 // CHECK-LABEL:   func @to_select1
-// CHECK:           [[C0:%.*]] = constant 0 : index
-// CHECK:           [[C1:%.*]] = constant 1 : index
+// CHECK-DAG:       [[C0:%.*]] = constant 0 : index
+// CHECK-DAG:       [[C1:%.*]] = constant 1 : index
 // CHECK:           [[V0:%.*]] = select {{.*}}, [[C0]], [[C1]]
 // CHECK:           return [[V0]] : index
 
@@ -248,8 +283,8 @@ func @to_select_same_val(%cond: i1) -> (index, index) {
 }
 
 // CHECK-LABEL:   func @to_select_same_val
-// CHECK:           [[C0:%.*]] = constant 0 : index
-// CHECK:           [[C1:%.*]] = constant 1 : index
+// CHECK-DAG:       [[C0:%.*]] = constant 0 : index
+// CHECK-DAG:       [[C1:%.*]] = constant 1 : index
 // CHECK:           [[V0:%.*]] = select {{.*}}, [[C0]], [[C1]]
 // CHECK:           return [[V0]], [[C1]] : index, index
 
@@ -269,10 +304,10 @@ func @to_select2(%cond: i1) -> (index, index) {
 }
 
 // CHECK-LABEL:   func @to_select2
-// CHECK:           [[C0:%.*]] = constant 0 : index
-// CHECK:           [[C1:%.*]] = constant 1 : index
-// CHECK:           [[C2:%.*]] = constant 2 : index
-// CHECK:           [[C3:%.*]] = constant 3 : index
+// CHECK-DAG:       [[C0:%.*]] = constant 0 : index
+// CHECK-DAG:       [[C1:%.*]] = constant 1 : index
+// CHECK-DAG:       [[C2:%.*]] = constant 2 : index
+// CHECK-DAG:       [[C3:%.*]] = constant 3 : index
 // CHECK:           [[V0:%.*]] = select {{.*}}, [[C0]], [[C2]]
 // CHECK:           [[V1:%.*]] = select {{.*}}, [[C1]], [[C3]]
 // CHECK:           return [[V0]], [[V1]] : index
@@ -632,7 +667,7 @@ func @cond_prop(%arg0 : i1) -> index {
     } else {
       %v2 = "test.get_some_value"() : () -> i32
       scf.yield %c2 : index
-    } 
+    }
     scf.yield %res1 : index
   } else {
     %res2 = scf.if %arg0 -> index {
@@ -641,7 +676,7 @@ func @cond_prop(%arg0 : i1) -> index {
     } else {
       %v4 = "test.get_some_value"() : () -> i32
       scf.yield %c4 : index
-    } 
+    }
     scf.yield %res2 : index
   }
   return %res : index
@@ -724,3 +759,127 @@ func @replace_if_with_cond3(%arg0 : i1, %arg2: i64) -> (i32, i64) {
 // CHECK-NEXT:       scf.yield %[[sv2]] : i32
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %[[if]], %arg1 : i32, i64
+
+
+// CHECK-LABEL: @while_cond_true
+func @while_cond_true() {
+  %0 = scf.while () : () -> i1 {
+    %condition = "test.condition"() : () -> i1
+    scf.condition(%condition) %condition : i1
+  } do {
+  ^bb0(%arg0: i1):
+    "test.use"(%arg0) : (i1) -> ()
+    scf.yield
+  }
+  return
+}
+// CHECK-NEXT:         %[[true:.+]] = constant true
+// CHECK-NEXT:         %{{.+}} = scf.while : () -> i1 {
+// CHECK-NEXT:           %[[cmp:.+]] = "test.condition"() : () -> i1
+// CHECK-NEXT:           scf.condition(%[[cmp]]) %[[cmp]] : i1
+// CHECK-NEXT:         } do {
+// CHECK-NEXT:         ^bb0(%arg0: i1):  // no predecessors
+// CHECK-NEXT:           "test.use"(%[[true]]) : (i1) -> ()
+// CHECK-NEXT:           scf.yield
+// CHECK-NEXT:         }
+
+// -----
+
+// CHECK-LABEL: @combineIfs
+func @combineIfs(%arg0 : i1, %arg2: i64) -> (i32, i32) {
+  %res = scf.if %arg0 -> i32 {
+    %v = "test.firstCodeTrue"() : () -> i32
+    scf.yield %v : i32
+  } else {
+    %v2 = "test.firstCodeFalse"() : () -> i32
+    scf.yield %v2 : i32
+  }
+  %res2 = scf.if %arg0 -> i32 {
+    %v = "test.secondCodeTrue"() : () -> i32
+    scf.yield %v : i32
+  } else {
+    %v2 = "test.secondCodeFalse"() : () -> i32
+    scf.yield %v2 : i32
+  }
+  return %res, %res2 : i32, i32
+}
+// CHECK-NEXT:     %[[res:.+]]:2 = scf.if %arg0 -> (i32, i32) {
+// CHECK-NEXT:       %[[tval0:.+]] = "test.firstCodeTrue"() : () -> i32
+// CHECK-NEXT:       %[[tval:.+]] = "test.secondCodeTrue"() : () -> i32
+// CHECK-NEXT:       scf.yield %[[tval0]], %[[tval]] : i32, i32
+// CHECK-NEXT:     } else {
+// CHECK-NEXT:       %[[fval0:.+]] = "test.firstCodeFalse"() : () -> i32
+// CHECK-NEXT:       %[[fval:.+]] = "test.secondCodeFalse"() : () -> i32
+// CHECK-NEXT:       scf.yield %[[fval0]], %[[fval]] : i32, i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return %[[res]]#0, %[[res]]#1 : i32, i32
+
+
+// CHECK-LABEL: @combineIfs2
+func @combineIfs2(%arg0 : i1, %arg2: i64) -> i32 {
+  scf.if %arg0 {
+    "test.firstCodeTrue"() : () -> ()
+    scf.yield
+  }
+  %res = scf.if %arg0 -> i32 {
+    %v = "test.secondCodeTrue"() : () -> i32
+    scf.yield %v : i32
+  } else {
+    %v2 = "test.secondCodeFalse"() : () -> i32
+    scf.yield %v2 : i32
+  }
+  return %res : i32
+}
+// CHECK-NEXT:     %[[res:.+]] = scf.if %arg0 -> (i32) {
+// CHECK-NEXT:       "test.firstCodeTrue"() : () -> ()
+// CHECK-NEXT:       %[[tval:.+]] = "test.secondCodeTrue"() : () -> i32
+// CHECK-NEXT:       scf.yield %[[tval]] : i32
+// CHECK-NEXT:     } else {
+// CHECK-NEXT:       %[[fval:.+]] = "test.secondCodeFalse"() : () -> i32
+// CHECK-NEXT:       scf.yield %[[fval]] : i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return %[[res]] : i32
+
+
+// CHECK-LABEL: @combineIfs3
+func @combineIfs3(%arg0 : i1, %arg2: i64) -> i32 {
+  %res = scf.if %arg0 -> i32 {
+    %v = "test.firstCodeTrue"() : () -> i32
+    scf.yield %v : i32
+  } else {
+    %v2 = "test.firstCodeFalse"() : () -> i32
+    scf.yield %v2 : i32
+  }
+  scf.if %arg0 {
+    "test.secondCodeTrue"() : () -> ()
+    scf.yield
+  }
+  return %res : i32
+}
+// CHECK-NEXT:     %[[res:.+]] = scf.if %arg0 -> (i32) {
+// CHECK-NEXT:       %[[tval:.+]] = "test.firstCodeTrue"() : () -> i32
+// CHECK-NEXT:       "test.secondCodeTrue"() : () -> ()
+// CHECK-NEXT:       scf.yield %[[tval]] : i32
+// CHECK-NEXT:     } else {
+// CHECK-NEXT:       %[[fval:.+]] = "test.firstCodeFalse"() : () -> i32
+// CHECK-NEXT:       scf.yield %[[fval]] : i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return %[[res]] : i32
+
+// CHECK-LABEL: @combineIfs4
+func @combineIfs4(%arg0 : i1, %arg2: i64) {
+  scf.if %arg0 {
+    "test.firstCodeTrue"() : () -> ()
+    scf.yield
+  }
+  scf.if %arg0 {
+    "test.secondCodeTrue"() : () -> ()
+    scf.yield
+  }
+  return
+}
+
+// CHECK-NEXT:     scf.if %arg0 {
+// CHECK-NEXT:       "test.firstCodeTrue"() : () -> ()
+// CHECK-NEXT:       "test.secondCodeTrue"() : () -> ()
+// CHECK-NEXT:     }

@@ -41,7 +41,9 @@ config.test_exec_root = os.path.join(config.test_run_dir, 'test_output')
 
 llvm_config.use_default_substitutions()
 
-llvm_config.use_clang()
+# Explicitly set `use_installed` to alleviate downstream CI pipelines of
+# any additional environment setup for pre-installed Clang usage.
+llvm_config.use_clang(use_installed=True)
 
 config.substitutions.append(('%PATH%', config.environment['PATH']))
 

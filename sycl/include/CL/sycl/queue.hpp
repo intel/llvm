@@ -276,7 +276,7 @@ public:
   /// Synchronous errors will be reported through SYCL exceptions.
   /// @param CodeLoc is the code location of the submit call (default argument)
   void wait(_CODELOCONLYPARAM(&CodeLoc)) {
-    _CODELOCARG(&CodeLoc)
+    _CODELOCARG(&CodeLoc);
 
     wait_proxy(CodeLoc);
   }

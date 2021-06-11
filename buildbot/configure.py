@@ -25,11 +25,13 @@ def do_configure(args):
     llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
     sycl_build_pi_cuda = 'OFF'
+    sycl_build_pi_esimd_cpu = 'ON'
     sycl_werror = 'ON'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
     llvm_enable_sphinx = 'OFF'
     llvm_build_shared_libs = 'OFF'
+    llvm_enable_lld = 'OFF'
 
     sycl_enable_xpti_tracing = 'ON'
 
@@ -43,6 +45,9 @@ def do_configure(args):
         libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
         sycl_build_pi_cuda = 'ON'
 
+    if args.disable_esimd_cpu:
+        sycl_build_pi_esimd_cpu = 'OFF'
+
     if args.no_werror:
         sycl_werror = 'OFF'
 
@@ -55,6 +60,9 @@ def do_configure(args):
 
     if args.shared_libs:
         llvm_build_shared_libs = 'ON'
+
+    if args.use_lld:
+      llvm_enable_lld = 'ON'
 
     install_dir = os.path.join(abs_obj_dir, "install")
 
@@ -81,7 +89,9 @@ def do_configure(args):
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
         "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
-        "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing)
+        "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
+        "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
+        "-DSYCL_BUILD_PI_ESIMD_CPU={}".format(sycl_build_pi_esimd_cpu)
     ]
 
     if args.l0_headers and args.l0_loader:
@@ -142,6 +152,7 @@ def main():
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
+    parser.add_argument("--disable-esimd-cpu", action='store_true', help="build without ESIMD_CPU support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--no-werror", action='store_true', help="Don't treat warnings as errors")
@@ -151,6 +162,7 @@ def main():
     parser.add_argument("--use-libcxx", action="store_true", help="build sycl runtime with libcxx")
     parser.add_argument("--libcxx-include", metavar="LIBCXX_INCLUDE_PATH", help="libcxx include path")
     parser.add_argument("--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path")
+    parser.add_argument("--use-lld", action="store_true", help="Use LLD linker for build")
     args = parser.parse_args()
 
     print("args:{}".format(args))

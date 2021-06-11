@@ -12,7 +12,9 @@
 
 using namespace llvm;
 
+namespace llvm {
 extern cl::opt<cl::boolOrDefault> UseLEB128Directives;
+}
 
 void MCAsmInfoXCOFF::anchor() {}
 
@@ -20,6 +22,11 @@ MCAsmInfoXCOFF::MCAsmInfoXCOFF() {
   IsLittleEndian = false;
   HasVisibilityOnlyWithLinkage = true;
   HasBasenameOnlyForFileDirective = false;
+
+  // For XCOFF, string constant consists of any number of characters enclosed in
+  // "" (double quotation marks).
+  HasPairedDoubleQuoteStringConstants = true;
+
   PrivateGlobalPrefix = "L..";
   PrivateLabelPrefix = "L..";
   SupportsQuotedNames = false;
@@ -33,6 +40,7 @@ MCAsmInfoXCOFF::MCAsmInfoXCOFF() {
   AsciiDirective = nullptr; // not supported
   AscizDirective = nullptr; // not supported
   ByteListDirective = "\t.byte\t";
+  PlainStringDirective = "\t.string\t";
   CharacterLiteralSyntax = ACLS_SingleQuotePrefix;
 
   // Use .vbyte for data definition to avoid directives that apply an implicit

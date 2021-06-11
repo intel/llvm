@@ -382,6 +382,8 @@ declare preserve_mostcc void @f.preserve_mostcc()
 ; CHECK: declare preserve_mostcc void @f.preserve_mostcc()
 declare preserve_allcc void @f.preserve_allcc()
 ; CHECK: declare preserve_allcc void @f.preserve_allcc()
+declare swifttailcc void @f.swifttailcc()
+; CHECK: declare swifttailcc void @f.swifttailcc()
 declare cc64 void @f.cc64()
 ; CHECK: declare x86_stdcallcc void @f.cc64()
 declare x86_stdcallcc void @f.x86_stdcallcc()
@@ -552,6 +554,12 @@ declare void @f.param.dereferenceable_or_null(i8* dereferenceable_or_null(4))
 ; CHECK: declare void @f.param.dereferenceable_or_null(i8* dereferenceable_or_null(4))
 declare void @f.param.stack_align([2 x double] alignstack(16))
 ; CHECK: declare void @f.param.stack_align([2 x double] alignstack(16))
+declare void @f.param.swiftself(i8* swiftself)
+; CHECK: declare void @f.param.swiftself(i8* swiftself)
+declare void @f.param.swiftasync(i8* swiftasync)
+; CHECK: declare void @f.param.swiftasync(i8* swiftasync)
+declare void @f.param.swifterror(i8** swifterror)
+; CHECK: declare void @f.param.swifterror(i8** swifterror)
 
 ; Functions -- unnamed_addr and local_unnamed_addr
 declare void @f.unnamed_addr() unnamed_addr
@@ -1502,7 +1510,7 @@ exit:
   ; CHECK: select <2 x i1> <i1 true, i1 false>, <2 x i8> <i8 2, i8 3>, <2 x i8> <i8 3, i8 2>
 
   call void @f.nobuiltin() builtin
-  ; CHECK: call void @f.nobuiltin() #44
+  ; CHECK: call void @f.nobuiltin() #45
 
   call fastcc noalias i32* @f.noalias() noinline
   ; CHECK: call fastcc noalias i32* @f.noalias() #12
@@ -1896,6 +1904,9 @@ define void @instructions.strictfp() strictfp {
   ret void
 }
 
+declare void @f.nosanitize_coverage() nosanitize_coverage
+; CHECK: declare void @f.nosanitize_coverage() #44
+
 ; immarg attribute
 declare void @llvm.test.immarg.intrinsic(i32 immarg)
 ; CHECK: declare void @llvm.test.immarg.intrinsic(i32 immarg)
@@ -1953,7 +1964,8 @@ declare void @byval_named_type(%named_type* byval(%named_type))
 ; CHECK: attributes #41 = { writeonly }
 ; CHECK: attributes #42 = { speculatable }
 ; CHECK: attributes #43 = { strictfp }
-; CHECK: attributes #44 = { builtin }
+; CHECK: attributes #44 = { nosanitize_coverage }
+; CHECK: attributes #45 = { builtin }
 
 ;; Metadata
 
