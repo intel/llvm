@@ -7,7 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 /// Currently, this is the compilation command line needed to invoke AMX unit of
 /// Sapphire Rapids CPU: clang++ -fsycl -march=sapphirerapids
-/// fsycl-targets="spir64_x86_64-uknown-linux-sycldevice" -O2 main.cpp
+/// fsycl-targets="spir64_x86_64-uknown-linux" -O2 main.cpp
 ///
 ///
 // ===--------------------------------------------------------------------=== //

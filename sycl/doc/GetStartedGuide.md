@@ -543,14 +543,14 @@ clang++ -fsycl simple-sycl-app.cpp -o simple-sycl-app.exe
 When building for CUDA or NVIDIA ROCm, use the CUDA target triple as follows:
 
 ```bash
-clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
+clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
 When building for ROCm, please note that the option `mcpu` must be specified, use the ROCm target triple as follows:
 
 ```bash
-clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycldevice \
+clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa \
   -mcpu=gfx906 simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
@@ -599,7 +599,7 @@ If there are no OpenCL or CUDA devices available, the SYCL host device is used.
 The SYCL host device executes the SYCL application directly in the host,
 without using any low-level API.
 
-**NOTE**: `nvptx64-nvidia-cuda-sycldevice` is usable with `-fsycl-targets`
+**NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
 if clang was built with the cmake option `SYCL_BUILD_PI_CUDA=ON`.
 
 **Linux & Windows (64-bit)**:
