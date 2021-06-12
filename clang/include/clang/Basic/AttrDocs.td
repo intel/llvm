@@ -2526,14 +2526,14 @@ of the kernel the attribute is applied to.
   // argument to the attribute is the one which increments fastest.
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(7, 4, 64)]]
+    [[sycl::reqd_work_group_size(7, 4, 64)]]
     void operator()() const {}
   };
 
   // Note, '8' is evenly divisible by '8'; in SYCL, the last
   // argument to the attribute is the one which increments fastest.
   struct bar {
-    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[sycl::reqd_work_group_size(1, 1, 8)]]
     [[intel::num_simd_work_items(8)]]
     void operator()() const {}
   };
@@ -2671,30 +2671,6 @@ In OpenCL C, this attribute is available with the GNU spelling
 
   __kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
 
-  }];
-}
-
-def WorkGroupSizeHintAttrDocs : Documentation {
-  let Category = DocCatFunction;
-  let Content = [{
-Applies to a device function/lambda function. Hint to the compiler on the work-
-group size most likely to be used when launching the kernel at runtime. Each
-argument must be a nonzero integral constant expression whose value is
-unsigned. The number of dimensional values defined provide additional
-information to the compiler on the dimensionality most likely to be used when
-launching the kernel at runtime.
-
-The GNU spelling is deprecated in SYCL mode.
-
-.. code-block:: c++
-
-  [[sycl::work_group_size_hint(4, 4, 4)]] void foo() {}
-
-  class Foo {
-  public:
-    [[sycl::work_group_size_hint(2, 2, 2)]] void operator()() const {}
-  };
-
 The arguments to ``reqd_work_group_size`` are ordered based on which index
 increments the fastest. In OpenCL, the first argument is the index that
 increments the fastest, and in SYCL, the last argument is the index that
@@ -2718,14 +2694,14 @@ in the ``reqd_work_group_size`` attribute.
   // argument to the attribute is the one which increments fastest.
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(7, 4, 64)]]
+    [[sycl::reqd_work_group_size(7, 4, 64)]]
     void operator()() const {}
   };
 
   // Note, '8' is evenly divisible by '8'; in SYCL, the last
   // argument to the attribute is the one which increments fastest.
   struct bar {
-    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[sycl::reqd_work_group_size(1, 1, 8)]]
     [[intel::num_simd_work_items(8)]]
     void operator()() const {}
   };
@@ -2765,6 +2741,30 @@ in the ``reqd_work_group_size`` attribute.
   // argument to the attribute is the one which increments fastest.
   __attribute__((reqd_work_group_size(3, 2, 8)))
   [intel::num_simd_work_items(2)]] void test();
+
+  }];
+}
+
+def WorkGroupSizeHintAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Applies to a device function/lambda function. Hint to the compiler on the work-
+group size most likely to be used when launching the kernel at runtime. Each
+argument must be a nonzero integral constant expression whose value is
+unsigned. The number of dimensional values defined provide additional
+information to the compiler on the dimensionality most likely to be used when
+launching the kernel at runtime.
+
+The GNU spelling is deprecated in SYCL mode.
+
+.. code-block:: c++
+
+  [[sycl::work_group_size_hint(4, 4, 4)]] void foo() {}
+
+  class Foo {
+  public:
+    [[sycl::work_group_size_hint(2, 2, 2)]] void operator()() const {}
+  };
 
   }];
 }
