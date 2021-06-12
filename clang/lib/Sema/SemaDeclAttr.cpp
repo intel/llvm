@@ -337,6 +337,15 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
       return;
     }
 
+    // Deprecate [[intel::reqd_work_group_size]] attribute spelling in favor
+    // of SYCL 2020 attribute spelling [[sycl::reqd_work_group_size]].
+    if (A.hasScope() && A.getScopeName()->isStr("intel")) {
+      if (A.getKind() == ParsedAttr::AT_ReqdWorkGroupSize) {
+        DiagnoseDeprecatedAttribute(A, "sycl", NewName);
+        return;
+      }
+    }
+
     // All GNU-style spellings are deprecated in favor of a C++-style spelling.
     if (A.getSyntax() == ParsedAttr::AS_GNU) {
       // Note: we cannot suggest an automatic fix-it because GNU-style

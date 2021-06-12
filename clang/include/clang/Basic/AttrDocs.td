@@ -2659,6 +2659,10 @@ As an Intel extension, the ``[[intel::reqd_work_group_size(X, Y, Z)]]``
 spelling is supported with the same semantics as the
 ``[[sycl::reqd_work_group_size(X, Y, Z)]]`` spelling.
 
+The ``[[intel::reqd_work_group_size(X, Y, Z)]]`` attribute spelling
+is deprecated in favor of SYCL 2020 attribute spelling
+``[[sycl::reqd_work_group_size]]``.
+
 In OpenCL C, this attribute is available with the GNU spelling
 (``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
 6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification for details.

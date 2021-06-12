@@ -17,7 +17,7 @@ queue q;
 [[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
 // No diagnostic because the attributes are synonyms with identical behavior.
-[[intel::reqd_work_group_size(4, 4, 4)]] void four();
+[[sycl::reqd_work_group_size(4, 4, 4)]] void four();
 [[sycl::reqd_work_group_size(4, 4, 4)]] void four(); // OK
 
 // Same for the default values.
@@ -27,11 +27,11 @@ queue q;
 // kernel, so the one, two, and three arg forms of the attribute are actually
 // *different* attributes. This means that you should not be able to redeclare
 // the function with a different dimensionality.
-[[intel::reqd_work_group_size(4)]] void four_again();
+[[sycl::reqd_work_group_size(4)]] void four_again();
 [[sycl::reqd_work_group_size(4)]] void four_again(); // OK
-[[intel::reqd_work_group_size(4, 1)]] void four_again(); // OK
 [[sycl::reqd_work_group_size(4, 1)]] void four_again(); // OK
-[[intel::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
+[[sycl::reqd_work_group_size(4, 1)]] void four_again(); // OK
+[[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
 [[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
 
 // The GNU and [[cl::reqd_work_group_size]] spellings are deprecated in SYCL

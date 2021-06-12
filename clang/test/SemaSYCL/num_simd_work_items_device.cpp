@@ -48,13 +48,13 @@ struct FuncObj {
 // can be evenly divided by the [[intel::num_simd_work_items()]] attribute.
 struct TRIFuncObjBad1 {
   [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[intel::reqd_work_group_size(3, 6, 5)]] // expected-note{{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(3, 6, 5)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad2 {
-  [[intel::reqd_work_group_size(3, 6, 5)]] // expected-note{{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(3, 6, 5)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
@@ -70,7 +70,7 @@ struct TRIFuncObjBad2 {
 // values. This will prevent to redeclare the function with a different dimensionality.
 struct TRIFuncObjBad3 {
   [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[intel::reqd_work_group_size(3)]] //expected-note{{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(3)]] //expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
@@ -82,7 +82,7 @@ struct TRIFuncObjBad3 {
 // (one, two, and three argument) can be used instead of assuming default
 // values. This will prevent to redeclare the function with a different dimensionality.
 struct TRIFuncObjBad4 {
-  [[intel::reqd_work_group_size(3)]] // expected-note{{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(3)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
@@ -96,7 +96,7 @@ struct TRIFuncObjBad4 {
 // values. This will prevent to redeclare the function with a different dimensionality.
 struct TRIFuncObjBad5 {
   [[intel::num_simd_work_items(4)]]      // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[intel::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
@@ -108,7 +108,7 @@ struct TRIFuncObjBad5 {
 // (one, two, and three argument) can be used instead of assuming default
 // values. This will prevent to redeclare the function with a different dimensionality.
 struct TRIFuncObjBad6 {
-  [[intel::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(4)]]      // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
@@ -129,9 +129,11 @@ struct TRIFuncObjBad8 {
 };
 
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-[[intel::reqd_work_group_size(4, 2, 3)]] void func1(); // expected-note{{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(4, 2, 3)]] void func1(); // expected-note{{conflicting attribute is here}}
 
-[[intel::reqd_work_group_size(4, 2, 3)]] // expected-note{{conflicting attribute is here}}
+[[intel::reqd_work_group_size(4, 2, 3)]] // expected-note{{conflicting attribute is here}} \
+                                         // expected-warning {{attribute 'intel::reqd_work_group_size' is deprecated}} \
+                                         // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 [[intel::num_simd_work_items(2)]] void func2(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
@@ -149,62 +151,62 @@ __attribute__((reqd_work_group_size(4, 2, 5))) void func5(); // expected-note{{c
 
 // Tests for incorrect argument values for Intel FPGA num_simd_work_items and reqd_work_group_size function attributes
 struct TRIFuncObjBad9 {
-  [[intel::reqd_work_group_size(5, 5, 5)]]
+  [[sycl::reqd_work_group_size(5, 5, 5)]]
   [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   void operator()() const {}
 };
 
 struct TRIFuncObjBad10 {
   [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
-  [[intel::reqd_work_group_size(5, 5, 5)]] void
+  [[sycl::reqd_work_group_size(5, 5, 5)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjBad11 {
   [[intel::num_simd_work_items(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
-  [[intel::reqd_work_group_size(64, 64, 64)]]
+  [[sycl::reqd_work_group_size(64, 64, 64)]]
   void operator()() const {}
 };
 
 struct TRIFuncObjBad12 {
-  [[intel::reqd_work_group_size(64, 64, 64)]]
+  [[sycl::reqd_work_group_size(64, 64, 64)]]
   [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   void operator()() const {}
 };
 
 struct TRIFuncObjBad13 {
-  [[intel::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
+  [[sycl::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
   [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   void operator()() const {}
 };
 
 struct TRIFuncObjBad14 {
   [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
-  [[intel::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
+  [[sycl::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
   void operator()() const {}
 };
 
 struct TRIFuncObjBad15 {
   [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
-  [[intel::reqd_work_group_size(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[sycl::reqd_work_group_size(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   void operator()() const {}
 };
 
 struct TRIFuncObjBad16 {
-  [[intel::reqd_work_group_size(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[sycl::reqd_work_group_size(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   void operator()() const {}
 };
 
 struct TRIFuncObjBad17 {
   [[intel::num_simd_work_items(3)]]
-  [[intel::reqd_work_group_size(3, 3, 3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[sycl::reqd_work_group_size(3, 3, 3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   void operator()() const {}
 };
 
 struct TRIFuncObjBad18 {
   [[intel::num_simd_work_items(-1)]]  // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
-  [[intel::reqd_work_group_size(-1)]] // expected-warning{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
+  [[sycl::reqd_work_group_size(-1)]] // expected-warning{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
   void operator()() const {}
 };
 
@@ -216,12 +218,12 @@ struct TRIFuncObjBad18 {
 // [[intel::num_simd_work_items()]] attribute.
 struct TRIFuncObjGood1 {
   [[intel::num_simd_work_items(4)]]
-  [[intel::reqd_work_group_size(3, 64, 4)]] void
+  [[sycl::reqd_work_group_size(3, 64, 4)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood2 {
-  [[intel::reqd_work_group_size(3, 64, 4)]]
+  [[sycl::reqd_work_group_size(3, 64, 4)]]
   [[intel::num_simd_work_items(4)]] void
   operator()() const {}
 };
