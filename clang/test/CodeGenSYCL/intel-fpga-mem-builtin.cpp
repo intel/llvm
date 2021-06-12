@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux-sycldevice -std=c++11 -disable-llvm-passes -S -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux -std=c++11 -disable-llvm-passes -S -emit-llvm -x c++ %s -o - | FileCheck %s
 
 #define PARAM_1 1U << 7
 #define PARAM_2 1U << 8

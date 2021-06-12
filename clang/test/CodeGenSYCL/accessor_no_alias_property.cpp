@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
 // check that noalias parameter attribute is emitted when no_alias accessor property is used
 // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE16kernel_function1({{.*}} noalias {{.*}} %_arg_, {{.*}})
 
