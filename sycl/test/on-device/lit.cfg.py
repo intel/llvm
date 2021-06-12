@@ -262,9 +262,9 @@ if not cuda and not level_zero and found_at_least_one_device:
     config.available_features.add('opencl')
 
 if cuda:
-    config.substitutions.append( ('%sycl_triple',  "nvptx64-nvidia-cuda-sycldevice" ) )
+    config.substitutions.append( ('%sycl_triple',  "nvptx64-nvidia-cuda" ) )
 else:
-    config.substitutions.append( ('%sycl_triple',  "spir64-unknown-unknown-sycldevice" ) )
+    config.substitutions.append( ('%sycl_triple',  "spir64-unknown-unknown" ) )
 
 if "opencl-aot" in config.llvm_enable_projects:
     lit_config.note("Using opencl-aot version which is built as part of the project")
