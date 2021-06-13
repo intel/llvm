@@ -123,11 +123,11 @@ TEST(GetNativeTest, GetNativeHandle) {
   unsigned char *HostAlloc = (unsigned char *)malloc_host(1, Context);
   auto Event = Queue.memset(HostAlloc, 42, 1);
 
-  auto c_g = get_native<backend::opencl>(Context);
-  auto q_g = get_native<backend::opencl>(Queue);
-  auto p_g = get_native<backend::opencl>(Program);
-  auto d_g = get_native<backend::opencl>(Device);
-  auto e_g = get_native<backend::opencl>(Event);
+  get_native<backend::opencl>(Context);
+  get_native<backend::opencl>(Queue);
+  get_native<backend::opencl>(Program);
+  get_native<backend::opencl>(Device);
+  get_native<backend::opencl>(Event);
 
   // When creating a context, the piDeviceRetain is called so here is the 6
   // retain calls

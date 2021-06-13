@@ -4838,7 +4838,6 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
     // rest of this file, is called during Sema instead of after it. We will
     // also have to filter out after deduction later.
     QualType Ty = VD->getType().getCanonicalType();
-
     if (!Ty->isUndeducedType())
       return;
   }
@@ -5010,11 +5009,24 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
 
+  llvm::SmallSet<const VarDecl *, 8> VisitedSpecConstants;
+
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
   unsigned ShimCounter = 0;
   for (const VarDecl *VD : SpecConstants) {
     VD = VD->getCanonicalDecl();
+
+    // Skip if this isn't a SpecIdType.  This can happen if it was a deduced
+    // type.
+    if (!Util::isSyclSpecIdType(VD->getType()))
+      continue;
+
+    // Skip if we've already visited this.
+    if (llvm::find(VisitedSpecConstants, VD) != VisitedSpecConstants.end())
+      continue;
+
+    VisitedSpecConstants.insert(VD);
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
     OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
     OS << "namespace sycl {\n";
@@ -5208,7 +5220,8 @@ static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
   return KernelParamTy;
 }
 
-void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
+void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
+                          bool IsInstantiation) {
   auto MangleCallback = [](ASTContext &Ctx,
                            const NamedDecl *ND) -> llvm::Optional<unsigned> {
     if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
@@ -5218,9 +5231,27 @@ void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
     return 1;
   };
 
-  QualType Ty = GetSYCLKernelObjectType(FD);
   std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
       Context, Context.getDiagnostics(), MangleCallback)};
   llvm::raw_null_ostream Out;
   Ctx->mangleTypeName(Ty, Out);
+
+  // Evaluate whether this would change any of the already evaluated
+  // __builtin_sycl_unique_stable_name values.
+  for (auto &Itr : Context.SYCLUniqueStableNameEvaluatedValues) {
+    const std::string &CurName = Itr.first->ComputeName(Context);
+    if (Itr.second != CurName) {
+      Diag(NewLoc, diag::err_kernel_invalidates_sycl_unique_stable_name)
+          << IsInstantiation;
+      Diag(Itr.first->getLocation(),
+           diag::note_sycl_unique_stable_name_evaluated_here);
+      // Update this so future diagnostics work correctly.
+      Itr.second = CurName;
+    }
+  }
+}
+
+void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
+  QualType Ty = GetSYCLKernelObjectType(FD);
+  MarkSYCLKernel(FD->getLocation(), Ty, /*IsInstantiation*/ true);
 }

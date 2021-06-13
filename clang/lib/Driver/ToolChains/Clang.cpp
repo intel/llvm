@@ -1148,6 +1148,17 @@ static void handleAMDGPUCodeObjectVersionOptions(const Driver &D,
   }
 }
 
+/// Check whether the given input tree contains any append footer actions
+static bool ContainsAppendFooterAction(const Action *A) {
+  if (isa<AppendFooterJobAction>(A))
+    return true;
+  for (const auto &AI : A->inputs())
+    if (ContainsAppendFooterAction(AI))
+      return true;
+
+  return false;
+}
+
 void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
                                     const Driver &D, const ArgList &Args,
                                     ArgStringList &CmdArgs,
@@ -1160,6 +1171,13 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_C);
   Args.AddLastArg(CmdArgs, options::OPT_CC);
+
+  // When preprocessing using the integration footer, add the comments
+  // to the first preprocessing step.
+  if (JA.isOffloading(Action::OFK_SYCL) && !ContainsAppendFooterAction(&JA) &&
+      Args.hasArg(options::OPT_fsycl_use_footer) &&
+      JA.isDeviceOffloading(Action::OFK_None))
+    CmdArgs.push_back("-C");
 
   // Handle dependency file generation.
   Arg *ArgM = Args.getLastArg(options::OPT_MM);
@@ -4227,17 +4245,6 @@ static bool ContainsWrapperAction(const Action *A) {
     return true;
   for (const auto &AI : A->inputs())
     if (ContainsWrapperAction(AI))
-      return true;
-
-  return false;
-}
-
-/// Check whether the given input tree contains any append footer actions
-static bool ContainsAppendFooterAction(const Action *A) {
-  if (isa<AppendFooterJobAction>(A))
-    return true;
-  for (const auto &AI : A->inputs())
-    if (ContainsAppendFooterAction(AI))
       return true;
 
   return false;
