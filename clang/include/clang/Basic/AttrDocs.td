@@ -2584,8 +2584,7 @@ def SYCLIntelUseStallEnableClustersAttrDocs : Documentation {
 When applied to a lambda function, function definition, or function call
 operator (of a function object) on device or host, this requests, to the
 extent possible, that statically-scheduled clusters handle stalls using a
-stall-enable signal to freeze computation within the cluster. This attribute
-is not ignored on the host.
+stall-enable signal to freeze computation within the cluster.
 
 The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an
 effect when applied to a function, and no effect otherwise.
