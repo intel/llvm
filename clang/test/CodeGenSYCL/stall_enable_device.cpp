@@ -1,6 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
 
 // Tests for IR of Intel FPGA [[intel::use_stall_enable_clusters]] function attribute on Device.
+// The metadata to be attached to the functionDecl that the attribute is applied to.
+// The attributes do not get propagated to kernel metadata i.e. spir_kernel.
 
 #include "sycl.hpp"
 

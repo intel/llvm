@@ -2,8 +2,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -ast-dump -Wno-sycl-2017-compat %s | FileCheck %s
 
 // Test that checks [[intel::use_stall_enable_clusters]] attribute support on function.
-// The metadata to be attached to the functionDecl that the attribute is applied to and
-// the attributes do not get propagated to kernel metadata i.e. spir_kernel.
 
 #include "sycl.hpp"
 
