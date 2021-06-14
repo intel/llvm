@@ -4114,7 +4114,6 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
   case attr::Kind::SYCLIntelMaxGlobalWorkDim:
   case attr::Kind::SYCLIntelNoGlobalWorkOffset:
-  case attr::Kind::SYCLIntelUseStallEnableClusters:
   case attr::Kind::SYCLIntelLoopFuse:
   case attr::Kind::SYCLIntelFPGAMaxConcurrency:
   case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
