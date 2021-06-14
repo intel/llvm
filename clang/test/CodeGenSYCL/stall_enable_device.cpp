@@ -25,25 +25,21 @@ public:
 
 int main() {
   q.submit([&](handler &h) {
-    // Test attribute is presented on function metadata.
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel1() #0 !kernel_arg_buffer_location ![[NUM4:[0-9]+]]
     // CHECK: define {{.*}}spir_func void @{{.*}}FuncObjclEv(%struct.{{.*}}FuncObj addrspace(4)* align 1 dereferenceable_or_null(1) %this) #3 comdat align 2 !stall_enable ![[NUM5:[0-9]+]]
     h.single_task<class test_kernel1>(
         FuncObj());
 
-    // Test attribute is presented on function metadata.
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel2() #0 !kernel_arg_buffer_location ![[NUM4]]
     // CHECK define {{.*}}spir_func void @{{.*}}FooclEv(%class._ZTS3Foo.Foo addrspace(4)* align 1 dereferenceable_or_null(1) %this) #3 comdat align 2 !stall_enable ![[NUM5]]
     Foo f;
     h.single_task<class test_kernel2>(f);
 
-    // Test attribute is not propagated to the kernel and presented on function metadata.
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel3() #0 !kernel_arg_buffer_location ![[NUM4]]
     // CHECK: define {{.*}}spir_func void @_Z4testv() #3 !stall_enable ![[NUM5]]
     h.single_task<class test_kernel3>(
         []() { test(); });
 
-    // Test attribute is not propagated to the kernel and presented on lambda function metadata.
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel4() #0 !kernel_arg_buffer_location ![[NUM4]]
     // CHECK: define {{.*}}spir_func void @{{.*}}test1vENKUlvE_clEv(%class.{{.*}}test1{{.*}}.anon addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 !stall_enable ![[NUM5]]
     h.single_task<class test_kernel4>(
