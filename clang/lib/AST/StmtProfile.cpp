@@ -1207,6 +1207,11 @@ void StmtProfiler::VisitSYCLUniqueStableNameExpr(
   VisitType(S->getTypeSourceInfo()->getType());
 }
 
+void StmtProfiler::VisitSYCLUniqueStableIdExpr(
+    const SYCLUniqueStableIdExpr *S) {
+  VisitExpr(S);
+}
+
 void StmtProfiler::VisitPredefinedExpr(const PredefinedExpr *S) {
   VisitExpr(S);
   ID.AddInteger(S->getIdentKind());

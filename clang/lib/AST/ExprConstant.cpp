@@ -8689,6 +8689,26 @@ public:
     return true;
   }
 
+  bool VisitSYCLUniqueStableIdExpr(const SYCLUniqueStableIdExpr *E) {
+    std::string ResultStr = E->ComputeName(Info.Ctx);
+
+    Info.Ctx.SYCLUniqueStableNameEvaluatedValues[E] = ResultStr;
+
+    QualType CharTy = Info.Ctx.CharTy.withConst();
+    APInt Size(Info.Ctx.getTypeSize(Info.Ctx.getSizeType()),
+               ResultStr.size() + 1);
+    QualType ArrayTy = Info.Ctx.getConstantArrayType(CharTy, Size, nullptr,
+                                                     ArrayType::Normal, 0);
+
+    StringLiteral *SL =
+        StringLiteral::Create(Info.Ctx, ResultStr, StringLiteral::Ascii,
+                              /*Pascal*/ false, ArrayTy, E->getLocation());
+
+    evaluateLValue(SL, Result);
+    Result.addArray(Info, E, cast<ConstantArrayType>(ArrayTy));
+    return true;
+  }
+
   // FIXME: Missing: @protocol, @selector
 };
 } // end anonymous namespace
@@ -15192,6 +15212,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::SYCLBuiltinFieldTypeExprClass:
   case Expr::SYCLBuiltinBaseTypeExprClass:
   case Expr::SYCLUniqueStableNameExprClass:
+  case Expr::SYCLUniqueStableIdExprClass:
     return ICEDiag(IK_NotICE, E->getBeginLoc());
 
   case Expr::InitListExprClass: {

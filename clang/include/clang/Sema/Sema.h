@@ -5446,6 +5446,13 @@ public:
                                            SourceLocation RParen,
                                            ParsedType ParsedTy);
 
+  ExprResult BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                         SourceLocation LParen,
+                                         SourceLocation RParen, Expr *E);
+  ExprResult ActOnSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                         SourceLocation LParen,
+                                         SourceLocation RParen, Expr *E);
+
   bool CheckLoopHintExpr(Expr *E, SourceLocation Loc);
 
   ExprResult ActOnNumericConstant(const Token &Tok, Scope *UDLScope = nullptr);

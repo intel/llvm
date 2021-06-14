@@ -440,6 +440,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::CoyieldExprClass:
     return ClassifyInternal(Ctx, cast<CoroutineSuspendExpr>(E)->getResumeExpr());
   case Expr::SYCLUniqueStableNameExprClass:
+  case Expr::SYCLUniqueStableIdExprClass:
     return Cl::CL_PRValue;
     break;
   }

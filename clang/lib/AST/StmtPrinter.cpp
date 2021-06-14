@@ -1094,6 +1094,12 @@ void StmtPrinter::VisitSYCLUniqueStableNameExpr(
   OS << ")";
 }
 
+void StmtPrinter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *Node) {
+  OS << "__builtin_sycl_unique_stable_id(";
+  PrintExpr(Node->getExpr());
+  OS << ")";
+}
+
 void StmtPrinter::VisitPredefinedExpr(PredefinedExpr *Node) {
   OS << PredefinedExpr::getIdentKindName(Node->getIdentKind());
 }

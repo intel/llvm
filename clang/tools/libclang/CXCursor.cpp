@@ -341,6 +341,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::SYCLBuiltinNumBasesExprClass:
   case Stmt::SYCLBuiltinBaseTypeExprClass:
   case Stmt::SYCLUniqueStableNameExprClass:
+  case Stmt::SYCLUniqueStableIdExprClass:
     K = CXCursor_UnexposedExpr;
     break;
 

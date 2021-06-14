@@ -3205,8 +3205,9 @@ public:
   unsigned GetSYCLKernelNamingIndex(const NamedDecl *RD);
   /// A SourceLocation to store whether we have evaluated a kernel name already,
   /// and where it happened.  If so, we need to diagnose an illegal use of the
-  /// builtin.
-  llvm::MapVector<const SYCLUniqueStableNameExpr *, std::string>
+  /// builtin. This should only contain SYCLUniqueStableNameExprs and
+  /// SYCLUniqueStableIdExprs.
+  llvm::MapVector<const Expr *, std::string>
       SYCLUniqueStableNameEvaluatedValues;
 
 private:

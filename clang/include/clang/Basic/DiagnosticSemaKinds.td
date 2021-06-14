@@ -6432,9 +6432,13 @@ def warn_gnu_null_ptr_arith : Warning<
   InGroup<NullPointerArithmetic>, DefaultIgnore;
 def err_kernel_invalidates_sycl_unique_stable_name
     : Error<"kernel %select{naming|instantiation}0 changes the result of an "
-            "evaluated '__builtin_sycl_unique_stable_name'">;
+            "evaluated '__builtin_sycl_unique_stable_%select{name|id}1'">;
 def note_sycl_unique_stable_name_evaluated_here
-    : Note<"'__builtin_sycl_unique_stable_name' evaluated here">;
+    : Note<"'__builtin_sycl_unique_stable_%select{name|id}0' evaluated here">;
+def err_unique_stable_id_expected_var : Error<"expected variable name">;
+def err_unique_stable_id_global_storage
+    : Error<"argument passed to '__builtin_sycl_unique_stable_id' must have "
+            "global storage">;
 
 def warn_floatingpoint_eq : Warning<
   "comparing floating point with == or != is unsafe">,
