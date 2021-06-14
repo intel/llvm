@@ -2660,7 +2660,7 @@ spelling is supported with the same semantics as the
 ``[[sycl::reqd_work_group_size(X, Y, Z)]]`` spelling.
 
 The ``[[intel::reqd_work_group_size(X, Y, Z)]]`` attribute spelling
-is deprecated in favor of SYCL 2020 attribute spelling
+is deprecated in favor of the SYCL 2020 attribute spelling
 ``[[sycl::reqd_work_group_size]]``.
 
 In OpenCL C, this attribute is available with the GNU spelling
