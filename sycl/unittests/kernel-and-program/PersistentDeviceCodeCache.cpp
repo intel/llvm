@@ -28,7 +28,6 @@ static void set_env(const char *name, const char *value) {
 }
 
 namespace {
-constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
 using namespace cl::sycl;
 
 /* Vector of programs which can be used for testing
@@ -150,8 +149,20 @@ protected:
   detail::OSModuleHandle ModuleHandle = detail::OSUtil::ExeModuleHandle;
   platform Plt;
   device Dev;
-  pi_device_binary_struct BinStruct{/*Version*/ 1, /*Kind*/ 4,
-                                    /*Format*/ PI_DEVICE_BINARY_TYPE_SPIRV};
+  pi_device_binary_struct BinStruct{/*Version*/ 1,
+                                    /*Kind*/ 4,
+                                    /*Format*/ PI_DEVICE_BINARY_TYPE_SPIRV,
+                                    /*DeviceTargetSpec*/ nullptr,
+                                    /*CompileOptions*/ nullptr,
+                                    /*LinkOptions*/ nullptr,
+                                    /*ManifestStart*/ nullptr,
+                                    /*ManifestEnd*/ nullptr,
+                                    /*BinaryStart*/ nullptr,
+                                    /*BinaryEnd*/ nullptr,
+                                    /*EntriesBegin*/ nullptr,
+                                    /*EntriesEnd*/ nullptr,
+                                    /*PropertySetsBegin*/ nullptr,
+                                    /*PropertySetsEnd*/ nullptr};
   pi_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin, ModuleHandle};
   RT::PiProgram NativeProg;

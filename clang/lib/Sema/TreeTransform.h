@@ -2410,6 +2410,12 @@ public:
     return getSema().BuildSYCLUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
   }
 
+  ExprResult RebuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                           SourceLocation LParen,
+                                           SourceLocation RParen, Expr *E) {
+    return getSema().BuildSYCLUniqueStableIdExpr(OpLoc, LParen, RParen, E);
+  }
+
   /// Build a new predefined expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -10222,6 +10228,30 @@ ExprResult TreeTransform<Derived>::TransformSYCLUniqueStableNameExpr(
 
   return getDerived().RebuildSYCLUniqueStableNameExpr(
       E->getLocation(), E->getLParenLocation(), E->getRParenLocation(), NewT);
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLUniqueStableIdExpr(
+    SYCLUniqueStableIdExpr *E) {
+  if (!E->isTypeDependent())
+    return E;
+
+  ExprResult NewExpr = getDerived().TransformExpr(E->getExpr());
+
+  if (NewExpr.isInvalid())
+    return ExprError();
+
+  NewExpr = getSema().CheckPlaceholderExpr(NewExpr.get());
+
+  if (NewExpr.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && E->getExpr() == NewExpr.get())
+    return E;
+
+  return getDerived().RebuildSYCLUniqueStableIdExpr(
+      E->getLocation(), E->getLParenLocation(), E->getRParenLocation(),
+      NewExpr.get());
 }
 
 template<typename Derived>
