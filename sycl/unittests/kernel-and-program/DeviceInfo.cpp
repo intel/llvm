@@ -20,6 +20,7 @@ struct TestCtx {
   TestCtx(context &Ctx) : Ctx{Ctx} {};
 
   context &Ctx;
+  bool UUIDInfoCalled = false;
 };
 } // namespace
 
@@ -30,6 +31,10 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
                                         size_t param_value_size,
                                         void *param_value,
                                         size_t *param_value_size_ret) {
+  if (param_name == PI_DEVICE_INFO_UUID) {
+    TestContext->UUIDInfoCalled = true;
+  }
+
   return PI_SUCCESS;
 }
 
@@ -74,7 +79,11 @@ TEST_F(DeviceInfoTest, GetDeviceUUID) {
 
   auto UUID = Dev.get_info<info::device::ext_intel_device_info_uuid>();
 
-  EXPECT_EQ(sizeof(UUID), 16 * sizeof(unsigned char))
+  EXPECT_EQ(TestContext->UUIDInfoCalled, true)
       << "Expect piDeviceGetInfo to be "
       << "called with PI_DEVICE_INFO_UUID";
+
+  EXPECT_EQ(sizeof(UUID), 16 * sizeof(unsigned char))
+      << "Expect device UUID to be "
+      << "of 16 bytes";
 }
