@@ -2603,6 +2603,11 @@ effect when applied to a function, and no effect otherwise.
     [[intel::use_stall_enable_clusters]] void operator()() const {}
   };
 
+The ``intel::use_stall_enable_clusters`` attribute supports a nonconforming
+behavior when applied to a lambda in the type position.
+
+.. code-block:: c++
+
   void test1() {
     auto lambda = []() [[intel::use_stall_enable_clusters]]{};
     lambda();

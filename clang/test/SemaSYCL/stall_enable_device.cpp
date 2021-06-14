@@ -27,7 +27,7 @@ struct FuncObj {
   // CHECK-NEXT-NEXT:SYCLIntelUseStallEnableClustersAttr
 };
 
-// Test attribute is presented on lambda function.
+// Test attribute is presented on lambda function(applied to a function type for the lambda's call operator).
 void test3() {
   auto lambda = []() [[intel::use_stall_enable_clusters]]{};
   lambda();

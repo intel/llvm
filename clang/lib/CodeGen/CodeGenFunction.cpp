@@ -1058,13 +1058,12 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     }
   }
 
-  if (getLangOpts().SYCLIsDevice && D) {
-    if (D->hasAttr<SYCLIntelUseStallEnableClustersAttr>()) {
-      llvm::Metadata *AttrMDArgs[] = {
-          llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
-      Fn->setMetadata("stall_enable",
-                      llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
-    }
+  if (getLangOpts().SYCLIsDevice && D &&
+      D->hasAttr<SYCLIntelUseStallEnableClustersAttr>()) {
+    llvm::Metadata *AttrMDArgs[] = {
+        llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
+    Fn->setMetadata("stall_enable",
+                    llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
   }
 
   if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
