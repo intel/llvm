@@ -2452,6 +2452,27 @@ their usual pattern without any special treatment.
   // Computes a unique stable name for the given type.
   constexpr const char * __builtin_sycl_unique_stable_name( type-id );
 
+``__builtin_sycl_unique_stable_id``
+----------------------------------
+
+Like ``__builtin_sycl_unique_stable_name``, this builtin generates a unique and
+stable name as a string literal to support sharing it across split compliations.
+
+However, this builtin takes the name of a variable with global storage and
+provides the name for that.  In the case of names with internal linkage, it
+prepends an optional value if provided by ``-fsycl-unique-prefix`` on the command
+line, which the driver will do for SYCL invocations.
+
+This builtin produces a string that can be demangled, except when its argument has
+internal linkage.
+
+**Syntax**:
+
+.. code-block:: c++
+
+  // Computes a unique stable name for a given variable.
+  constexpr bool  __builtin_sycl_unique_stable_id( expr );
+
 ``__builtin_sycl_mark_kernel_name``
 -----------------------------------
 
