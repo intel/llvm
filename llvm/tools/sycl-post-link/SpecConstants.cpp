@@ -174,6 +174,8 @@ std::string manglePrimitiveType(const Type *T) {
     return "f";
   if (T->isDoubleTy())
     return "d";
+  if (T->isHalfTy())
+    return "Dh";
   if (T->isIntegerTy()) {
     switch (T->getIntegerBitWidth()) {
     case 1:
