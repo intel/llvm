@@ -591,6 +591,16 @@ void ASTStmtReader::VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E) {
   E->setTypeSourceInfo(Record.readTypeSourceInfo());
 }
 
+void ASTStmtReader::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
+  VisitExpr(E);
+
+  E->setLocation(readSourceLocation());
+  E->setLParenLocation(readSourceLocation());
+  E->setRParenLocation(readSourceLocation());
+
+  E->setExpr(Record.readSubExpr());
+}
+
 void ASTStmtReader::VisitPredefinedExpr(PredefinedExpr *E) {
   VisitExpr(E);
   bool HasFunctionName = Record.readInt();
@@ -2836,6 +2846,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_SYCL_UNIQUE_STABLE_NAME:
       S = SYCLUniqueStableNameExpr::CreateEmpty(Context);
+      break;
+
+    case EXPR_SYCL_UNIQUE_STABLE_ID:
+      S = SYCLUniqueStableIdExpr::CreateEmpty(Context);
       break;
 
     case EXPR_PREDEFINED:

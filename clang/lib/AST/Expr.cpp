@@ -539,26 +539,27 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context) const {
                                                getTypeSourceInfo()->getType());
 }
 
+static llvm::Optional<unsigned> SYCLMangleCallback(ASTContext &Ctx,
+                                                   const NamedDecl *ND) {
+  // This replaces the 'lambda number' in the mangling with a unique number
+  // based on its order in the declaration.  To provide some level of visual
+  // notability (actual uniqueness from normal lambdas isn't necessary, as
+  // these are used differently), we add 10,000 to the number.
+  // For example:
+  // _ZTSZ3foovEUlvE10005_
+  // Demangles to: typeinfo name for foo()::'lambda10005'()
+  // Note that the mangler subtracts 2, since with normal lambdas the lambda
+  // mangling number '0' is an anonymous struct mangle, and '1' is omitted.
+  // So 10,002 results in the first number being 10,000.
+  if (Ctx.IsSYCLKernelNamingDecl(ND))
+    return 10'002 + Ctx.GetSYCLKernelNamingIndex(ND);
+  return llvm::None;
+}
+
 std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
                                                   QualType Ty) {
-  auto MangleCallback = [](ASTContext &Ctx,
-                           const NamedDecl *ND) -> llvm::Optional<unsigned> {
-    // This replaces the 'lambda number' in the mangling with a unique number
-    // based on its order in the declaration.  To provide some level of visual
-    // notability (actual uniqueness from normal lambdas isn't necessary, as
-    // these are used differently), we add 10,000 to the number.
-    // For example:
-    // _ZTSZ3foovEUlvE10005_
-    // Demangles to: typeinfo name for foo()::'lambda10005'()
-    // Note that the mangler subtracts 2, since with normal lambdas the lambda
-    // mangling number '0' is an anonymous struct mangle, and '1' is omitted.
-    // So 10,002 results in the first number being 10,000.
-    if (Ctx.IsSYCLKernelNamingDecl(ND))
-      return 10'002 + Ctx.GetSYCLKernelNamingIndex(ND);
-    return llvm::None;
-  };
   std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
-      Context, Context.getDiagnostics(), MangleCallback)};
+      Context, Context.getDiagnostics(), SYCLMangleCallback)};
 
   std::string Buffer;
   Buffer.reserve(128);
@@ -566,6 +567,60 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
   Ctx->mangleTypeName(Ty, Out);
 
   return Out.str();
+}
+
+SYCLUniqueStableIdExpr::SYCLUniqueStableIdExpr(EmptyShell Empty,
+                                               QualType ResultTy)
+    : Expr(SYCLUniqueStableIdExprClass, ResultTy, VK_RValue, OK_Ordinary) {}
+
+SYCLUniqueStableIdExpr::SYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                               SourceLocation LParen,
+                                               SourceLocation RParen,
+                                               QualType ResultTy, Expr *E)
+    : Expr(SYCLUniqueStableIdExprClass, ResultTy, VK_RValue, OK_Ordinary),
+      OpLoc(OpLoc), LParen(LParen), RParen(RParen), DRE(E) {
+  setDependence(computeDependence(this));
+}
+
+SYCLUniqueStableIdExpr *SYCLUniqueStableIdExpr::Create(const ASTContext &Ctx,
+                                                       SourceLocation OpLoc,
+                                                       SourceLocation LParen,
+                                                       SourceLocation RParen,
+                                                       Expr *E) {
+  QualType ResultTy = Ctx.getPointerType(Ctx.CharTy.withConst());
+  return new (Ctx) SYCLUniqueStableIdExpr(OpLoc, LParen, RParen, ResultTy, E);
+}
+
+SYCLUniqueStableIdExpr *
+SYCLUniqueStableIdExpr::CreateEmpty(const ASTContext &Ctx) {
+  QualType ResultTy = Ctx.getPointerType(Ctx.CharTy.withConst());
+  return new (Ctx) SYCLUniqueStableIdExpr(EmptyShell(), ResultTy);
+}
+
+std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context) const {
+  assert(!isInstantiationDependent() &&
+         "Can't compute name of uninstantiated value");
+
+  auto *DR = cast<DeclRefExpr>(getExpr()->IgnoreUnlessSpelledInSource());
+  auto *VD = cast<VarDecl>(DR->getDecl());
+
+  return ComputeName(Context, VD);
+}
+
+std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context,
+                                                const VarDecl *VD) {
+  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
+      Context, Context.getDiagnostics(), SYCLMangleCallback)};
+
+  std::string Buffer;
+  Buffer.reserve(128);
+  llvm::raw_string_ostream Out(Buffer);
+  Ctx->mangleName(GlobalDecl{VD}, Out);
+
+  if (VD->isExternallyVisible())
+    return Out.str();
+
+  return Context.getLangOpts().SYCLUniquePrefix + "___" + Out.str();
 }
 
 PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
@@ -3450,6 +3505,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case SYCLBuiltinNumBasesExprClass:
   case SYCLBuiltinBaseTypeExprClass:
   case SYCLUniqueStableNameExprClass:
+  case SYCLUniqueStableIdExprClass:
     // These never have a side-effect.
     return false;
 
