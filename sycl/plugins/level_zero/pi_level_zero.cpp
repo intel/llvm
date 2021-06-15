@@ -1330,16 +1330,16 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     auto Platform = PiPlatformsCache->front();
     ze_driver_handle_t driverHandle = Platform->ZeDriver;
     ImportPossible =
-      zeDriverGetExtensionFunctionAddress(
-        driverHandle, "zexDriverImportExternalPointer",
-        reinterpret_cast<void**>(&zexDriverImportExternalPointer)) == 0;
+        zeDriverGetExtensionFunctionAddress(
+            driverHandle, "zexDriverImportExternalPointer",
+            reinterpret_cast<void **>(&zexDriverImportExternalPointer)) == 0;
     if (ImportPossible)
       zeDriverGetExtensionFunctionAddress(
-        driverHandle, "zexDriverReleaseImportedPointer",
-        reinterpret_cast<void**>(&zexDriverReleaseImportedPointer));
+          driverHandle, "zexDriverReleaseImportedPointer",
+          reinterpret_cast<void **>(&zexDriverReleaseImportedPointer));
     AllowImport = std::getenv("SYCL_DISABLE_USM_IMPORT") == nullptr;
-    //std::cerr << "ImportPossible=" << ImportPossible << std::endl;
-    //std::cerr << "AllowImport=" << AllowImport << std::endl;
+    // std::cerr << "ImportPossible=" << ImportPossible << std::endl;
+    // std::cerr << "AllowImport=" << AllowImport << std::endl;
   }
 
   return PI_SUCCESS;
