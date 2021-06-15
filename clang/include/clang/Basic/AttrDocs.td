@@ -2581,6 +2581,7 @@ def SYCLIntelUseStallEnableClustersAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::use_stall_enable_clusters";
   let Content = [{
+The ``intel::use_stall_enable_clusters`` attribute requires SYCL.
 When applied to a lambda function, function definition, or function call
 operator (of a function object) on device, this requests, to the
 extent possible, that statically-scheduled clusters handle stalls using a
