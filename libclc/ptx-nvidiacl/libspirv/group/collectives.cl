@@ -12,6 +12,8 @@
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
+int __nvvm_reflect(const char __constant*);
+
 // CLC helpers
 __local bool *
 __clc__get_group_scratch_bool() __asm("__clc__get_group_scratch_bool");
@@ -150,9 +152,7 @@ __clc__SubgroupBitwiseAny(uint op, bool predicate, bool *carry) {
 #define __CLC_OR(x, y) (x | y)
 #define __CLC_AND(x, y) (x & y)
 
-#define __CLC_SUBGROUP_COLLECTIVE(NAME, OP, TYPE, IDENTITY)                    \
-  _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
-      __clc__Subgroup, NAME)(uint op, TYPE x, TYPE * carry) {                  \
+#define __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)                     \
     uint sg_lid = __spirv_SubgroupLocalInvocationId();                         \
     /* Can't use XOR/butterfly shuffles; some lanes may be inactive */         \
     for (int o = 1; o < __spirv_SubgroupMaxSize(); o *= 2) {                   \
@@ -178,15 +178,32 @@ __clc__SubgroupBitwiseAny(uint op, bool predicate, bool *carry) {
         result = IDENTITY;                                                     \
       }                                                                        \
     }                                                                          \
-    return result;                                                             \
+    return result;
+
+#define __CLC_SUBGROUP_COLLECTIVE(NAME, OP, TYPE, IDENTITY)                    \
+  _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
+      __clc__Subgroup, NAME)(uint op, TYPE x, TYPE * carry) {                  \
+      __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)                       \
+  }
+
+#define __CLC_SUBGROUP_COLLECTIVE_REDUX(NAME, OP, REDUX_OP, TYPE, IDENTITY)    \
+  _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
+      __clc__Subgroup, NAME)(uint op, TYPE x, TYPE * carry) {                  \
+    /* Fast path for warp reductions for sm_80+ */                             \
+    if (__nvvm_reflect("__CUDA_ARCH") >= 800 && op == Reduce) {                \
+      TYPE result = __nvvm_redux_sync_##REDUX_OP(x, __clc__membermask());      \
+      *carry = result;                                                         \
+      return result;                                                           \
+    }                                                                          \
+    __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)                         \
   }
 
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, char, 0)
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, uchar, 0)
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, short, 0)
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, ushort, 0)
-__CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, int, 0)
-__CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, uint, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(IAdd, __CLC_ADD, add, int, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(IAdd, __CLC_ADD, add, uint, 0)
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, long, 0)
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, ulong, 0)
 __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, half, 0)
@@ -197,8 +214,8 @@ __CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, char, CHAR_MAX)
 __CLC_SUBGROUP_COLLECTIVE(UMin, __CLC_MIN, uchar, UCHAR_MAX)
 __CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, short, SHRT_MAX)
 __CLC_SUBGROUP_COLLECTIVE(UMin, __CLC_MIN, ushort, USHRT_MAX)
-__CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, int, INT_MAX)
-__CLC_SUBGROUP_COLLECTIVE(UMin, __CLC_MIN, uint, UINT_MAX)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(SMin, __CLC_MIN, min, int, INT_MAX)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(UMin, __CLC_MIN, umin, uint, UINT_MAX)
 __CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, long, LONG_MAX)
 __CLC_SUBGROUP_COLLECTIVE(UMin, __CLC_MIN, ulong, ULONG_MAX)
 __CLC_SUBGROUP_COLLECTIVE(FMin, __CLC_MIN, half, HALF_MAX)
@@ -209,15 +226,17 @@ __CLC_SUBGROUP_COLLECTIVE(SMax, __CLC_MAX, char, CHAR_MIN)
 __CLC_SUBGROUP_COLLECTIVE(UMax, __CLC_MAX, uchar, 0)
 __CLC_SUBGROUP_COLLECTIVE(SMax, __CLC_MAX, short, SHRT_MIN)
 __CLC_SUBGROUP_COLLECTIVE(UMax, __CLC_MAX, ushort, 0)
-__CLC_SUBGROUP_COLLECTIVE(SMax, __CLC_MAX, int, INT_MIN)
-__CLC_SUBGROUP_COLLECTIVE(UMax, __CLC_MAX, uint, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(SMax, __CLC_MAX, max, int, INT_MIN)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(UMax, __CLC_MAX, umax, uint, 0)
 __CLC_SUBGROUP_COLLECTIVE(SMax, __CLC_MAX, long, LONG_MIN)
 __CLC_SUBGROUP_COLLECTIVE(UMax, __CLC_MAX, ulong, 0)
 __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, half, -HALF_MAX)
 __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, float, -FLT_MAX)
 __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
 
+#undef __CLC_SUBGROUP_COLLECTIVE_BODY
 #undef __CLC_SUBGROUP_COLLECTIVE
+#undef __CLC_SUBGROUP_COLLECTIVE_REDUX
 
 #define __CLC_GROUP_COLLECTIVE(NAME, OP, TYPE, IDENTITY)                       \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
