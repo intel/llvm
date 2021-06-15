@@ -232,6 +232,17 @@ static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
   return Scope_PerModule;
 }
 
+// Return true if the function is a SPIRV or SYCL builtin, e.g.
+// _Z28__spirv_GlobalInvocationId_xv
+static bool funcIsSpirvSyclBuiltin(StringRef FName) {
+  if (!FName.consume_front("_Z"))
+    return false;
+  // now skip the digits
+  FName = FName.drop_while([](char C) { return std::isdigit(C); });
+
+  return FName.startswith("__spirv_") || FName.startswith("__sycl_");
+}
+
 // This function decides how kernels of the input module M will be distributed
 // ("split") into multiple modules based on the command options and IR
 // attributes. The decision is recorded in the output map parameter
@@ -244,9 +255,11 @@ static void collectKernelModuleMap(
 
   // Process module entry points: kernels and SYCL_EXTERNAL functions.
   // Only they have sycl-module-id attribute, so any other unrefenced
-  // functions are dropped.
+  // functions are dropped. SPIRV and SYCL builtin functions are not
+  // considered as module entry points.
   for (auto &F : M.functions()) {
-    if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID)) {
+    if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
+        !funcIsSpirvSyclBuiltin(F.getName())) {
       switch (EntryScope) {
       case Scope_PerKernel:
         ResKernelModuleMap[F.getName()].push_back(&F);
@@ -644,9 +657,11 @@ static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
   // Collect information about the SYCL and ESIMD functions in the module.
   // Process module entry points: kernels and SYCL_EXTERNAL functions.
   // Only they have sycl-module-id attribute, so any other unrefenced
-  // functions are dropped.
+  // functions are dropped. SPIRV and SYCL builtin functions are not
+  // considered as module entry points.
   for (auto &F : M->functions()) {
-    if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID)) {
+    if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
+        !funcIsSpirvSyclBuiltin(F.getName())) {
       if (F.getMetadata("sycl_explicit_simd"))
         EsimdFunctions.push_back(&F);
       else
