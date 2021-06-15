@@ -31,6 +31,14 @@
 
 namespace {
 
+// Pointers to functions that import/release host memory into USM
+static ze_result_t (*zexDriverImportExternalPointer)(ze_driver_handle_t hDriver,
+                                                     void *, size_t);
+static ze_result_t (*zexDriverReleaseImportedPointer)(ze_driver_handle_t,
+                                                      void *);
+static bool ImportPossible = false;
+static bool AllowImport = true;
+
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
 // ready. Recognized values (can be used as a bit mask):
 enum {
@@ -1316,6 +1324,24 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   if (NumPlatforms)
     *NumPlatforms = PiPlatformsCache->size();
 
+  if (NumPlatforms) {
+    // Check if the import user ptr into USM feature is available
+    // For now, just check the first Platform
+    auto Platform = PiPlatformsCache->front();
+    ze_driver_handle_t driverHandle = Platform->ZeDriver;
+    ImportPossible =
+      zeDriverGetExtensionFunctionAddress(
+        driverHandle, "zexDriverImportExternalPointer",
+        reinterpret_cast<void**>(&zexDriverImportExternalPointer)) == 0;
+    if (ImportPossible)
+      zeDriverGetExtensionFunctionAddress(
+        driverHandle, "zexDriverReleaseImportedPointer",
+        reinterpret_cast<void**>(&zexDriverReleaseImportedPointer));
+    AllowImport = std::getenv("SYCL_DISABLE_USM_IMPORT") == nullptr;
+    //std::cerr << "ImportPossible=" << ImportPossible << std::endl;
+    //std::cerr << "AllowImport=" << AllowImport << std::endl;
+  }
+
   return PI_SUCCESS;
 }
 
@@ -2560,11 +2586,6 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_SUCCESS;
 }
 
-static ze_result_t (*zexDriverImportExternalPointer)(ze_driver_handle_t hDriver,
-                                                     void *, size_t);
-static ze_result_t (*zexDriverReleaseImportedPointer)(ze_driver_handle_t,
-                                                      void *);
-
 pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             void *HostPtr, pi_mem *RetMem,
                             const pi_mem_properties *properties) {
@@ -2621,28 +2642,10 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
   pi_result Result;
 
-  // Check if the import user ptr into USM feature is available
-  ze_driver_handle_t driverHandle = Context->Devices[0]->Platform->ZeDriver;
-  bool ImportPossible =
-      zeDriverGetExtensionFunctionAddress(
-          driverHandle, "zexDriverImportExternalPointer",
-          reinterpret_cast<void **>(&zexDriverImportExternalPointer)) == 0;
-  if (ImportPossible)
-    zeDriverGetExtensionFunctionAddress(
-        driverHandle, "zexDriverReleaseImportedPointer",
-        reinterpret_cast<void **>(&zexDriverReleaseImportedPointer));
-
-  bool AllowImport = std::getenv("SYCL_DISABLE_USM_IMPORT") == nullptr;
-  bool ForceImport = std::getenv("SYCL_ENABLE_USM_IMPORT") != nullptr;
-
-  std::cerr << "ImportPossible=" << ImportPossible << std::endl;
-  std::cerr << "AllowImport=" << AllowImport << std::endl;
-  std::cerr << "ForceImport=" << ForceImport << std::endl;
-
   // Check if a host ptr is supplied and it could be imported into USM
   bool ImportableMemory = false;
-  std::cerr << "HostPtr=" << HostPtr << std::endl;
-  std::cerr << "Flags=" << (Flags & PI_MEM_FLAGS_HOST_PTR_USE) << std::endl;
+  //std::cerr << "HostPtr=" << HostPtr << std::endl;
+  //std::cerr << "Flags=" << (Flags & PI_MEM_FLAGS_HOST_PTR_USE) << std::endl;
   if (HostPtr != nullptr && (Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
     // Query memory type of the host pointer
     ze_device_handle_t ZeDeviceHandle;
@@ -2655,14 +2658,14 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     ImportableMemory =
         (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN);
   }
-  std::cerr << "ImportableMemory=" << ImportableMemory << std::endl;
+  //std::cerr << "MemBufferCreate: ImportableMemory=" << ImportableMemory << std::endl;
 
   bool HostPtrImported = false;
-  if (ForceImport || (ImportPossible && ImportableMemory && AllowImport)) {
-    std::cout << "Doing import\n";
+  if (ImportPossible && ImportableMemory && AllowImport) {
+    //std::cout << "Doing import\n";
 
     // Promote the host ptr to USM host memory
-
+    ze_driver_handle_t driverHandle = Context->Devices[0]->Platform->ZeDriver;
     ZE_CALL(zexDriverImportExternalPointer, (driverHandle, HostPtr, Size));
 
     // For integrated devices and when we have multiple discrete devices we
@@ -2680,7 +2683,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                nullptr));
     }
   } else {
-    std::cout << "NOT doing import\n";
+    //std::cout << "NOT doing import\n";
     if (DeviceIsIntegrated) {
       Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
     } else if (Context->SingleRootDevice) {
