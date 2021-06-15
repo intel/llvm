@@ -44,6 +44,8 @@ int main() {
 
   return 0;
 }
+// CHECK: FunctionDecl {{.*}} kernel_parallel_for_work_group {{.*}}
+// CHECK: CXXMethodDecl {{.*}} __finalize 'void ()'
 
 // Function Declaration
 // CHECK: FunctionDecl {{.*}}stream_test{{.*}}
@@ -51,43 +53,61 @@ int main() {
 // Initializers:
 
 // CHECK: InitListExpr {{.*}} '(lambda at
+// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream'
 // 'in_lambda'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // 'in_lambda_array'
-// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream [2]'
+// CHECK: InitListExpr {{.*}} 'sycl::stream [2]'
+// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream'
 // element 0
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // element 1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
-
+// CHECK: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // 'in_lambda_mdarray'
-// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream [2][2]'
+// CHECK: InitListExpr {{.*}} 'sycl::stream [2][2]'
 // sub-array 0
 // CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream [2]'
 // element 0
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // element 1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // sub-array 1
-// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream [2]'
+// CHECK: InitListExpr {{.*}} 'sycl::stream [2]'
 // element 0
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // element 1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 
 // HasStreams struct
 // CHECK: InitListExpr {{.*}} 'HasStreams'
 // HasStreams::s1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // HasStreams::s_array
-// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream [2]'
+// CHECK: InitListExpr {{.*}} 'sycl::stream [2]'
 // element 0
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream'
+// CHECK: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // element 1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
-
+// CHECK: InitListExpr {{.*}} 'sycl::stream'
+// CHECK: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // HasArrayOfHasStreams
-// CHECK-NEXT: InitListExpr {{.*}} 'HasArrayOfHasStreams'
+// CHECK: InitListExpr {{.*}} 'HasArrayOfHasStreams'
 // HasArrayOfHasStreams::i
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar
@@ -96,92 +116,88 @@ int main() {
 // HasStreams struct
 // CHECK-NEXT: InitListExpr {{.*}} 'HasStreams'
 // HasStreams::s1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // HasStreams::s_array
-// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream [2]'
+// CHECK: InitListExpr {{.*}} 'sycl::stream [2]'
 // element 0
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK-NEXT: InitListExpr {{.*}} <col:23> 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // element 1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // HasStreams struct
-// CHECK-NEXT: InitListExpr {{.*}} 'HasStreams'
+// CHECK: InitListExpr {{.*}} 'HasStreams'
 // HasStreams::s1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // HasStreams::s_array
-// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream [2]'
+// CHECK: InitListExpr {{.*}} 'sycl::stream [2]'
 // element 0
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // element 1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
-
-// HasArrayOfHasStreams Array
-// CHECK: InitListExpr {{.*}} 'HasArrayOfHasStreams [2]'
-// // HasArrayOfHasStreams Struct
-// CHECK-NEXT: InitListExpr {{.*}} 'HasArrayOfHasStreams'
-// HasArrayOfHasStreams::i
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar
-// HasArrayOfHasStreams::hs
-// CHECK-NEXT: InitListExpr {{.*}} 'HasStreams [2]'
-// HasStreams struct
-// CHECK-NEXT: InitListExpr {{.*}} 'HasStreams'
-// HasStreams::s1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
-// HasStreams::s_array
-// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream [2]'
-// element 0
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
-// element 1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
-// HasStreams struct
-// CHECK-NEXT: InitListExpr {{.*}} 'HasStreams'
-// HasStreams::s1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
-// HasStreams::s_array
-// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream [2]'
-// element 0
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
-// element 1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // HasArrayOfHasStreams Struct
-// CHECK-NEXT: InitListExpr {{.*}} 'HasArrayOfHasStreams'
+// CHECK: InitListExpr {{.*}} 'HasArrayOfHasStreams'
 // HasArrayOfHasStreams::i
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar
 // HasArrayOfHasStreams::hs
-// CHECK-NEXT: InitListExpr {{.*}} 'HasStreams [2]'
+// CHECK: InitListExpr {{.*}} 'HasStreams [2]'
 // HasStreams struct
-// CHECK-NEXT: InitListExpr {{.*}} 'HasStreams'
+// CHECK: InitListExpr {{.*}} 'HasStreams'
 // HasStreams::s1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // HasStreams::s_array
-// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream [2]'
+// CHECK: InitListExpr {{.*}} 'sycl::stream [2]'
 // element 0
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // element 1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // HasStreams struct
-// CHECK-NEXT: InitListExpr {{.*}} 'HasStreams'
+// CHECK: InitListExpr {{.*}} 'HasStreams'
 // HasStreams::s1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // HasStreams::s_array
-// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream [2]'
+// CHECK: InitListExpr {{.*}} 'sycl::stream [2]'
 // element 0
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK-NEXT: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 // element 1
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// CHECK: InitListExpr {{.*}} 'sycl::stream'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
 
 // Calls to init
 // in_lambda __init
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 
 // in_lambda_array
 // element 0
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .
@@ -190,17 +206,19 @@ int main() {
 
 // element 1
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'void (sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .Acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr  {{.*}} 'sycl::stream [2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
+// CHECK: IntegerLiteral {{.*}} '{{.*}}' 1
 
 // _in_lambda_mdarray
 // [0][0]
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream [2]' lvalue
@@ -211,7 +229,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // [0][1]
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'void (sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .Acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream [2]' lvalue
@@ -219,21 +238,23 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2][2]' lvalue
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
+// CHECK: IntegerLiteral {{.*}} '{{.*}}' 1
 // [1][0]
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'void (sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .Acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream [2]' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream (*)[2]' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2][2]' lvalue
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
+// CHECK: IntegerLiteral {{.*}} '{{.*}}' 1
+// CHECK: IntegerLiteral {{.*}} '{{.*}}' 0
 // [1][1]
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'void (sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .Acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream [2]' lvalue
@@ -241,17 +262,19 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2][2]' lvalue
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
+// CHEC: IntegerLiteral {{.*}} '{{.*}}' 1
 
 // HasStreams
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
+// CHECK-NEXT: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
+// CHECK: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // array:
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
@@ -260,18 +283,20 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // element 1
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'void (sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .Acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
+// CHECK: IntegerLiteral {{.*}} '{{.*}}' 1
 
 // HasArrayOfHasStreams
 // First element
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'void (sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
@@ -281,7 +306,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // array:
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
@@ -291,10 +317,11 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
+// CHECK: IntegerLiteral {{.*}} '{{.*}}' 0
 // element 1
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'void (sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .Acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
@@ -304,12 +331,12 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
+// CHECK: IntegerLiteral {{.*}} '{{.*}}' 1
 // second element
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
+// CHECK: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
@@ -317,7 +344,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // array:
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
@@ -330,7 +358,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // element 1
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .Acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
@@ -340,11 +369,12 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
+// CHECK: IntegerLiteral {{.*}} '{{.*}}' 1
 // HasArrayOfHasStreams array
 // First element
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
@@ -354,11 +384,12 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
+// CHECK: IntegerLiteral {{.*}} '{{.*}}' 0
 // array:
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .Acc
+// CHECK: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
@@ -373,7 +404,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // element 1
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
@@ -389,7 +421,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // second element
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
@@ -402,7 +435,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // array:
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
@@ -418,7 +452,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // element 1
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}  'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write>':'sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .Acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
@@ -431,10 +466,11 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
+// CHECK: IntegerLiteral {{.*}} '{{.*}}' 1
 // second element
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}  'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
@@ -447,7 +483,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // array:
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}  'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
@@ -463,359 +500,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // element 1
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}  'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// second element
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}  'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// array:
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}  'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// element 1
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}  'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-
-// Finalize
-// in_lambda __finalize
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-
-// _in_lambda_array
-// element 0
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// element 1
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-
-// _in_lambda_mdarray
-// [0][0]
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream [2]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream (*)[2]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2][2]' lvalue
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// [0][1]
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream [2]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream (*)[2]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2][2]' lvalue
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// [1][0]
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream [2]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream (*)[2]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2][2]' lvalue
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// [1][1]
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream [2]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream (*)[2]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2][2]' lvalue
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-
-// HasStreams
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// array:
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// element 1
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-
-// HasArrayOfHasStreams
-// First element
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// array:
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// element 1
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// second element
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// array:
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// element 1
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-
-// HasArrayOfHasStreams array
-// First element
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// array:
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// element 1
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// second element
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// array:
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// element 1
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// second element
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// array:
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams [2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams [2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
-// element 1
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
+// CHECK: MemberExpr {{.*}} 'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
@@ -831,7 +517,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // second element
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
+// CHECK: MemberExpr {{.*}}  'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
@@ -844,7 +531,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // array:
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
+// CHECK: MemberExpr {{.*}}  'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array
@@ -860,7 +548,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // element 1
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
+// CHECK MemberExpr {{.*}}  'void (sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK: MemberExpr {{.*}} 'accessor<int, 1, access::mode::read>':'sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .acc
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue .s_array

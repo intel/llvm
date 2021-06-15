@@ -1230,8 +1230,7 @@ def SYCLSpecialClass: InheritableAttr {
   let Spellings = [Clang<"sycl_special_class">];
   let Subjects = SubjectList<[CXXRecord]>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
-  // TODO: Add doc
-  let Documentation = [Undocumented];
+  let Documentation = [SYCLSpecialClassDocs];
   let Args = [
     EnumArgument<"SpecialClassKind", "SpecialClassKind",
                  [ "accessor", "sampler", "stream", "" ],
