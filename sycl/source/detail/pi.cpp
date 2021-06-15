@@ -439,10 +439,8 @@ template <backend BE> const plugin &getPlugin() {
                       PI_INVALID_OPERATION);
 }
 
-template const plugin &getPlugin<backend::opencl>();
-template const plugin &getPlugin<backend::level_zero>();
-// __SYCL_EXPORT for esimd_cpu backend to use 'getPlugin' from
-// getPluginOpaqueData()
+template __SYCL_EXPORT const plugin &getPlugin<backend::opencl>();
+template __SYCL_EXPORT const plugin &getPlugin<backend::level_zero>();
 template __SYCL_EXPORT const plugin &getPlugin<backend::esimd_cpu>();
 
 // Report error and no return (keeps compiler from printing warnings).

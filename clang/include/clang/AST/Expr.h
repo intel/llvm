@@ -2097,6 +2097,58 @@ public:
   static std::string ComputeName(ASTContext &Context, QualType Ty);
 };
 
+class SYCLUniqueStableIdExpr final : public Expr {
+  friend class ASTStmtReader;
+  SourceLocation OpLoc, LParen, RParen;
+  // A statement instead of an expression because otherwise implementing
+  // 'children' is awkward.
+  Stmt *DRE = nullptr;
+
+  SYCLUniqueStableIdExpr(EmptyShell Empty, QualType ResultTy);
+  SYCLUniqueStableIdExpr(SourceLocation OpLoc, SourceLocation LParen,
+                         SourceLocation RParen, QualType ResultTy, Expr *E);
+
+  void setExpr(Expr *E) { DRE = E; }
+
+  void setLocation(SourceLocation L) { OpLoc = L; }
+  void setLParenLocation(SourceLocation L) { LParen = L; }
+  void setRParenLocation(SourceLocation L) { RParen = L; }
+
+public:
+  Expr *getExpr() { return cast<Expr>(DRE); }
+  const Expr *getExpr() const { return cast<Expr>(DRE); }
+
+  static SYCLUniqueStableIdExpr *Create(const ASTContext &Ctx,
+                                        SourceLocation OpLoc,
+                                        SourceLocation LParen,
+                                        SourceLocation RParen, Expr *E);
+
+  static SYCLUniqueStableIdExpr *CreateEmpty(const ASTContext &Ctx);
+
+  SourceLocation getBeginLoc() const { return getLocation(); }
+  SourceLocation getEndLoc() const { return RParen; }
+  SourceLocation getLocation() const { return OpLoc; }
+  SourceLocation getLParenLocation() const { return LParen; }
+  SourceLocation getRParenLocation() const { return RParen; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == SYCLUniqueStableIdExprClass;
+  }
+
+  // Iterators
+  child_range children() { return child_range(&DRE, &DRE + 1); }
+  const_child_range children() const {
+    return const_child_range(&DRE, &DRE + 1);
+  }
+
+  // Convenience function to generate the name of the currently stored type.
+  std::string ComputeName(ASTContext &Context) const;
+
+  // Get the generated name of the type.  Note that this only works after all
+  // kernels have been instantiated.
+  static std::string ComputeName(ASTContext &Context, const VarDecl *VD);
+};
+
 /// ParenExpr - This represents a parethesized expression, e.g. "(1)".  This
 /// AST node is only formed if full location information is requested.
 class ParenExpr : public Expr {

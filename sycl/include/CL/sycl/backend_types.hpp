@@ -23,8 +23,8 @@ enum class backend : char {
   opencl = 1,
   level_zero = 2,
   cuda = 3,
-  esimd_cpu = 4,
-  all = 5
+  all = 4,
+  esimd_cpu = 5
 };
 
 template <backend Backend, typename SYCLObjectT> struct interop;
