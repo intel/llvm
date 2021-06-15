@@ -587,7 +587,7 @@ static void dumpDot(const Function &F, const Twine &Suff) {
   std::error_code EC;
   auto FName =
       ("PFWG_Kernel_" + Suff + "_" + Twine(F.getValueID()) + ".dot").str();
-  raw_fd_ostream File(FName, EC, sys::fs::F_Text);
+  raw_fd_ostream File(FName, EC, sys::fs::OF_Text);
 
   if (!EC)
     WriteGraph(File, (const Function *)&F, false);
@@ -599,7 +599,7 @@ static void dumpIR(const Function &F, const Twine &Suff) {
   std::error_code EC;
   auto FName =
       ("PFWG_Kernel_" + Suff + "_" + Twine(F.getValueID()) + ".ll").str();
-  raw_fd_ostream File(FName, EC, sys::fs::F_Text);
+  raw_fd_ostream File(FName, EC, sys::fs::OF_Text);
 
   if (!EC)
     F.print(File, 0, 1, 1);

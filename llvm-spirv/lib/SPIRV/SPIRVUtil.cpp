@@ -100,7 +100,7 @@ Value *removeCast(Value *V) {
 
 void saveLLVMModule(Module *M, const std::string &OutputFile) {
   std::error_code EC;
-  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::F_None);
+  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::OF_None);
   if (EC) {
     SPIRVDBG(errs() << "Fails to open output file: " << EC.message();)
     return;
