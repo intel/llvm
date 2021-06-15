@@ -530,16 +530,13 @@ static string_vector saveDeviceImageProperty(
 
     {
       Module *M = ResultModules[I].get();
-      std::vector<Function *> SyclKernels;
       for (auto &F : M->functions()) {
         // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
         // TODO: handle function pointers.
         if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-          if (hasAssertInFunctionCallGraph(&F)) {
-            SyclKernels.push_back(&F);
+          if (hasAssertInFunctionCallGraph(&F))
             PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
                 {F.getName(), true});
-          }
         }
       }
     }
