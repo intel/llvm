@@ -1367,9 +1367,11 @@ SPIRVInstruction *SPIRVModuleImpl::addVectorInsertDynamicInst(
 SPIRVValue *SPIRVModuleImpl::addVectorShuffleInst(
     SPIRVType *Type, SPIRVValue *Vec1, SPIRVValue *Vec2,
     const std::vector<SPIRVWord> &Components, SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVVectorShuffle(getId(), Type, Vec1->getId(),
-                                               Vec2->getId(), Components, BB,
-                                               this),
+  std::vector<SPIRVId> Ops{Vec1->getId(), Vec2->getId()};
+  Ops.insert(Ops.end(), Components.begin(), Components.end());
+
+  return addInstruction(SPIRVInstTemplateBase::create(OpVectorShuffle, Type,
+                                                      getId(), Ops, BB, this),
                         BB);
 }
 
@@ -1426,10 +1428,11 @@ SPIRVInstruction *SPIRVModuleImpl::addSelectInst(SPIRVValue *Condition,
                                                  SPIRVValue *Op1,
                                                  SPIRVValue *Op2,
                                                  SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVSelect(getId(), Op1->getType(),
-                                        Condition->getId(), Op1->getId(),
-                                        Op2->getId(), BB, this),
-                        BB);
+  return addInstruction(
+      SPIRVInstTemplateBase::create(
+          OpSelect, Op1->getType(), getId(),
+          getVec(Condition->getId(), Op1->getId(), Op2->getId()), BB, this),
+      BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addSelectionMergeInst(
@@ -1511,19 +1514,21 @@ SPIRVInstruction *
 SPIRVModuleImpl::addCompositeExtractInst(SPIRVType *Type, SPIRVValue *TheVector,
                                          const std::vector<SPIRVWord> &Indices,
                                          SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVCompositeExtract(Type, getId(),
-                                                  TheVector->getId(), Indices,
-                                                  BB, this),
+  return addInstruction(SPIRVInstTemplateBase::create(
+                            OpCompositeExtract, Type, getId(),
+                            getVec(TheVector->getId(), Indices), BB, this),
                         BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addCompositeInsertInst(
     SPIRVValue *Object, SPIRVValue *Composite,
     const std::vector<SPIRVWord> &Indices, SPIRVBasicBlock *BB) {
-  return addInstruction(
-      new SPIRVCompositeInsert(Composite->getType(), getId(), Object->getId(),
-                               Composite->getId(), Indices, BB, this),
-      BB);
+  std::vector<SPIRVId> Ops{Object->getId(), Composite->getId()};
+  Ops.insert(Ops.end(), Indices.begin(), Indices.end());
+  return addInstruction(SPIRVInstTemplateBase::create(OpCompositeInsert,
+                                                      Composite->getType(),
+                                                      getId(), Ops, BB, this),
+                        BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addCopyObjectInst(SPIRVType *TheType,
