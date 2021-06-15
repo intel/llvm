@@ -4,7 +4,8 @@
 // RUN: %ACC_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
 //
 // TODO: Behaviour is unstable for level zero on Windows. Enable when fixed.
-// UNSUPPORTED: windows && level_zero
+// TODO: The test is sporadically fails on CUDA. Enable when fixed.
+// UNSUPPORTED: (windows && level_zero) || cuda
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
