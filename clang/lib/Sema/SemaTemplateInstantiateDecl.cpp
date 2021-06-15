@@ -5280,9 +5280,13 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
 
   // TODO: Set LateAttrs and StartingScope ...
 
-  return cast_or_null<VarTemplateSpecializationDecl>(
+  auto *VD = cast_or_null<VarTemplateSpecializationDecl>(
       Instantiator.VisitVarTemplateSpecializationDecl(
           VarTemplate, FromVar, TemplateArgsInfo, Converted));
+
+  addSyclVarDecl(VD);
+
+  return VD;
 }
 
 /// Instantiates a variable template specialization by completing it
