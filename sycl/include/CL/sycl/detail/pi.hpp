@@ -225,7 +225,7 @@ public:
   public:
     using ValTy = std::remove_pointer<pi_device_binary_property>::type;
 
-   class ConstIterator {
+    class ConstIterator {
       pi_device_binary_property Cur;
 
     public:
