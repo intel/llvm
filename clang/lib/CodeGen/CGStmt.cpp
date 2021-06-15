@@ -646,6 +646,11 @@ void CodeGenFunction::LexicalScope::rescopeLabels() {
 
 void CodeGenFunction::EmitLabelStmt(const LabelStmt &S) {
   EmitLabel(S.getDecl());
+
+  // IsEHa - emit eha.scope.begin if it's a side entry of a scope
+  if (getLangOpts().EHAsynch && S.isSideEntry())
+    EmitSehCppScopeBegin();
+
   EmitStmt(S.getSubStmt());
 }
 
@@ -816,20 +821,14 @@ void CodeGenFunction::EmitWhileStmt(const WhileStmt &S,
 
   // while(1) is common, avoid extra exit blocks.  Be sure
   // to correctly handle break/continue though.
-  bool EmitBoolCondBranch = true;
-  bool LoopMustProgress = false;
-  if (llvm::ConstantInt *C = dyn_cast<llvm::ConstantInt>(BoolCondVal)) {
-    if (C->isOne()) {
-      EmitBoolCondBranch = false;
-      FnIsMustProgress = false;
-    }
-  } else if (LanguageRequiresProgress())
-    LoopMustProgress = true;
-
+  llvm::ConstantInt *C = dyn_cast<llvm::ConstantInt>(BoolCondVal);
+  bool CondIsConstInt = C != nullptr;
+  bool EmitBoolCondBranch = !CondIsConstInt || !C->isOne();
   const SourceRange &R = S.getSourceRange();
   LoopStack.push(LoopHeader.getBlock(), CGM.getContext(), CGM.getCodeGenOpts(),
                  WhileAttrs, SourceLocToDebugLoc(R.getBegin()),
-                 SourceLocToDebugLoc(R.getEnd()), LoopMustProgress);
+                 SourceLocToDebugLoc(R.getEnd()),
+                 checkIfLoopMustProgress(CondIsConstInt));
 
   // As long as the condition is true, go to the loop body.
   llvm::BasicBlock *LoopBody = createBasicBlock("while.body");
@@ -920,20 +919,15 @@ void CodeGenFunction::EmitDoStmt(const DoStmt &S,
 
   // "do {} while (0)" is common in macros, avoid extra blocks.  Be sure
   // to correctly handle break/continue though.
-  bool EmitBoolCondBranch = true;
-  bool LoopMustProgress = false;
-  if (llvm::ConstantInt *C = dyn_cast<llvm::ConstantInt>(BoolCondVal)) {
-    if (C->isZero())
-      EmitBoolCondBranch = false;
-    else if (C->isOne())
-      FnIsMustProgress = false;
-  } else if (LanguageRequiresProgress())
-    LoopMustProgress = true;
+  llvm::ConstantInt *C = dyn_cast<llvm::ConstantInt>(BoolCondVal);
+  bool CondIsConstInt = C;
+  bool EmitBoolCondBranch = !C || !C->isZero();
 
   const SourceRange &R = S.getSourceRange();
   LoopStack.push(LoopBody, CGM.getContext(), CGM.getCodeGenOpts(), DoAttrs,
                  SourceLocToDebugLoc(R.getBegin()),
-                 SourceLocToDebugLoc(R.getEnd()), LoopMustProgress);
+                 SourceLocToDebugLoc(R.getEnd()),
+                 checkIfLoopMustProgress(CondIsConstInt));
 
   // As long as the condition is true, iterate the loop.
   if (EmitBoolCondBranch) {
@@ -971,20 +965,15 @@ void CodeGenFunction::EmitForStmt(const ForStmt &S,
   llvm::BasicBlock *CondBlock = CondDest.getBlock();
   EmitBlock(CondBlock);
 
-  bool LoopMustProgress = false;
   Expr::EvalResult Result;
-  if (LanguageRequiresProgress()) {
-    if (!S.getCond()) {
-      FnIsMustProgress = false;
-    } else if (!S.getCond()->EvaluateAsInt(Result, getContext())) {
-      LoopMustProgress = true;
-    }
-  }
+  bool CondIsConstInt =
+      !S.getCond() || S.getCond()->EvaluateAsInt(Result, getContext());
 
   const SourceRange &R = S.getSourceRange();
   LoopStack.push(CondBlock, CGM.getContext(), CGM.getCodeGenOpts(), ForAttrs,
                  SourceLocToDebugLoc(R.getBegin()),
-                 SourceLocToDebugLoc(R.getEnd()), LoopMustProgress);
+                 SourceLocToDebugLoc(R.getEnd()),
+                 checkIfLoopMustProgress(CondIsConstInt));
 
   // Create a cleanup scope for the condition variable cleanups.
   LexicalScope ConditionScope(*this, S.getSourceRange());
@@ -1032,10 +1021,6 @@ void CodeGenFunction::EmitForStmt(const ForStmt &S,
     if (!Weights && CGM.getCodeGenOpts().OptimizationLevel)
       BoolCondVal = emitCondLikelihoodViaExpectIntrinsic(
           BoolCondVal, Stmt::getLikelihood(S.getBody()));
-
-    if (llvm::ConstantInt *C = dyn_cast<llvm::ConstantInt>(BoolCondVal))
-      if (C->isOne())
-        FnIsMustProgress = false;
 
     Builder.CreateCondBr(BoolCondVal, ForBody, ExitBlock, Weights);
 
@@ -2158,13 +2143,15 @@ static llvm::MDNode *getAsmSrcLocInfo(const StringLiteral *Str,
 }
 
 static void UpdateAsmCallInst(llvm::CallBase &Result, bool HasSideEffect,
-                              bool ReadOnly, bool ReadNone, bool NoMerge,
-                              const AsmStmt &S,
+                              bool HasUnwindClobber, bool ReadOnly,
+                              bool ReadNone, bool NoMerge, const AsmStmt &S,
                               const std::vector<llvm::Type *> &ResultRegTypes,
                               CodeGenFunction &CGF,
                               std::vector<llvm::Value *> &RegResults) {
-  Result.addAttribute(llvm::AttributeList::FunctionIndex,
-                      llvm::Attribute::NoUnwind);
+  if (!HasUnwindClobber)
+    Result.addAttribute(llvm::AttributeList::FunctionIndex,
+                        llvm::Attribute::NoUnwind);
+
   if (NoMerge)
     Result.addAttribute(llvm::AttributeList::FunctionIndex,
                         llvm::Attribute::NoMerge);
@@ -2511,13 +2498,18 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
   }
   Constraints += InOutConstraints;
 
+  bool HasUnwindClobber = false;
+
   // Clobbers
   for (unsigned i = 0, e = S.getNumClobbers(); i != e; i++) {
     StringRef Clobber = S.getClobber(i);
 
     if (Clobber == "memory")
       ReadOnly = ReadNone = false;
-    else if (Clobber != "cc") {
+    else if (Clobber == "unwind") {
+      HasUnwindClobber = true;
+      continue;
+    } else if (Clobber != "cc") {
       Clobber = getTarget().getNormalizedGCCRegisterName(Clobber);
       if (CGM.getCodeGenOpts().StackClashProtector &&
           getTarget().isSPRegName(Clobber)) {
@@ -2551,6 +2543,9 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
     Constraints += '}';
   }
 
+  assert(!(HasUnwindClobber && IsGCCAsmGoto) &&
+         "unwind clobber can't be used with asm goto");
+
   // Add machine specific clobbers
   std::string MachineClobbers = getTarget().getClobbers();
   if (!MachineClobbers.empty()) {
@@ -2573,23 +2568,28 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
   bool HasSideEffect = S.isVolatile() || S.getNumOutputs() == 0;
   llvm::InlineAsm::AsmDialect AsmDialect = isa<MSAsmStmt>(&S) ?
     llvm::InlineAsm::AD_Intel : llvm::InlineAsm::AD_ATT;
-  llvm::InlineAsm *IA =
-    llvm::InlineAsm::get(FTy, AsmString, Constraints, HasSideEffect,
-                         /* IsAlignStack */ false, AsmDialect);
+  llvm::InlineAsm *IA = llvm::InlineAsm::get(
+      FTy, AsmString, Constraints, HasSideEffect,
+      /* IsAlignStack */ false, AsmDialect, HasUnwindClobber);
   std::vector<llvm::Value*> RegResults;
   if (IsGCCAsmGoto) {
     llvm::CallBrInst *Result =
         Builder.CreateCallBr(IA, Fallthrough, Transfer, Args);
     EmitBlock(Fallthrough);
-    UpdateAsmCallInst(cast<llvm::CallBase>(*Result), HasSideEffect, ReadOnly,
-                      ReadNone, InNoMergeAttributedStmt, S, ResultRegTypes,
-                      *this, RegResults);
+    UpdateAsmCallInst(cast<llvm::CallBase>(*Result), HasSideEffect, false,
+                      ReadOnly, ReadNone, InNoMergeAttributedStmt, S,
+                      ResultRegTypes, *this, RegResults);
+  } else if (HasUnwindClobber) {
+    llvm::CallBase *Result = EmitCallOrInvoke(IA, Args, "");
+    UpdateAsmCallInst(*Result, HasSideEffect, true, ReadOnly, ReadNone,
+                      InNoMergeAttributedStmt, S, ResultRegTypes, *this,
+                      RegResults);
   } else {
     llvm::CallInst *Result =
         Builder.CreateCall(IA, Args, getBundlesForFunclet(IA));
-    UpdateAsmCallInst(cast<llvm::CallBase>(*Result), HasSideEffect, ReadOnly,
-                      ReadNone, InNoMergeAttributedStmt, S, ResultRegTypes,
-                      *this, RegResults);
+    UpdateAsmCallInst(cast<llvm::CallBase>(*Result), HasSideEffect, false,
+                      ReadOnly, ReadNone, InNoMergeAttributedStmt, S,
+                      ResultRegTypes, *this, RegResults);
   }
 
   assert(RegResults.size() == ResultRegTypes.size());

@@ -1921,10 +1921,9 @@ HeaderFileInfoTrait::ReadData(internal_key_ref key, const unsigned char *d,
     std::string Filename = std::string(key.Filename);
     if (key.Imported)
       Reader.ResolveImportedPath(M, Filename);
-    // FIXME: This is not always the right filename-as-written, but we're not
-    // going to use this information to rebuild the module, so it doesn't make
-    // a lot of difference.
-    Module::Header H = {std::string(key.Filename), *FileMgr.getFile(Filename)};
+    // FIXME: NameAsWritten
+    Module::Header H = {std::string(key.Filename), "",
+                        *FileMgr.getFile(Filename)};
     ModMap.addHeader(Mod, H, HeaderRole, /*Imported*/true);
     HFI.isModuleHeader |= !(HeaderRole & ModuleMap::TextualHeader);
   }
@@ -3636,30 +3635,6 @@ ASTReader::ReadASTBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
       }
       break;
 
-    case OPENCL_EXTENSION_TYPES:
-      for (unsigned I = 0, E = Record.size(); I != E;) {
-        auto TypeID = static_cast<::TypeID>(Record[I++]);
-        auto *Type = GetType(TypeID).getTypePtr();
-        auto NumExt = static_cast<unsigned>(Record[I++]);
-        for (unsigned II = 0; II != NumExt; ++II) {
-          auto Ext = ReadString(Record, I);
-          OpenCLTypeExtMap[Type].insert(Ext);
-        }
-      }
-      break;
-
-    case OPENCL_EXTENSION_DECLS:
-      for (unsigned I = 0, E = Record.size(); I != E;) {
-        auto DeclID = static_cast<::DeclID>(Record[I++]);
-        auto *Decl = GetDecl(DeclID);
-        auto NumExt = static_cast<unsigned>(Record[I++]);
-        for (unsigned II = 0; II != NumExt; ++II) {
-          auto Ext = ReadString(Record, I);
-          OpenCLDeclExtMap[Decl].insert(Ext);
-        }
-      }
-      break;
-
     case TENTATIVE_DEFINITIONS:
       for (unsigned I = 0, N = Record.size(); I != N; ++I)
         TentativeDefinitions.push_back(getGlobalDeclID(F, Record[I]));
@@ -3835,7 +3810,7 @@ ASTReader::ReadASTBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
 
     case DECLS_TO_CHECK_FOR_DEFERRED_DIAGS:
       for (unsigned I = 0, N = Record.size(); I != N; ++I)
-        DeclsToCheckForDeferredDiags.push_back(getGlobalDeclID(F, Record[I]));
+        DeclsToCheckForDeferredDiags.insert(getGlobalDeclID(F, Record[I]));
       break;
     }
   }
@@ -5618,7 +5593,8 @@ ASTReader::ReadSubmoduleBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
       ResolveImportedPath(F, Filename);
       if (auto Umbrella = PP.getFileManager().getFile(Filename)) {
         if (!CurrentModule->getUmbrellaHeader())
-          ModMap.setUmbrellaHeader(CurrentModule, *Umbrella, Blob);
+          // FIXME: NameAsWritten
+          ModMap.setUmbrellaHeader(CurrentModule, *Umbrella, Blob, "");
         else if (CurrentModule->getUmbrellaHeader().Entry != *Umbrella) {
           if ((ClientLoadCapabilities & ARR_OutOfDate) == 0)
             Error("mismatched umbrella headers in submodule");
@@ -5651,7 +5627,8 @@ ASTReader::ReadSubmoduleBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
       ResolveImportedPath(F, Dirname);
       if (auto Umbrella = PP.getFileManager().getDirectory(Dirname)) {
         if (!CurrentModule->getUmbrellaDir())
-          ModMap.setUmbrellaDir(CurrentModule, *Umbrella, Blob);
+          // FIXME: NameAsWritten
+          ModMap.setUmbrellaDir(CurrentModule, *Umbrella, Blob, "");
         else if (CurrentModule->getUmbrellaDir().Entry != *Umbrella) {
           if ((ClientLoadCapabilities & ARR_OutOfDate) == 0)
             Error("mismatched umbrella directories in submodule");
@@ -7900,8 +7877,6 @@ void ASTReader::InitializeSema(Sema &S) {
   }
 
   SemaObj->OpenCLFeatures = OpenCLExtensions;
-  SemaObj->OpenCLTypeExtMap = OpenCLTypeExtMap;
-  SemaObj->OpenCLDeclExtMap = OpenCLDeclExtMap;
 
   UpdateSema();
 }
@@ -8365,17 +8340,14 @@ void ASTReader::ReadUnusedLocalTypedefNameCandidates(
 }
 
 void ASTReader::ReadDeclsToCheckForDeferredDiags(
-    llvm::SmallVector<Decl *, 4> &Decls) {
-  for (unsigned I = 0, N = DeclsToCheckForDeferredDiags.size(); I != N;
-       ++I) {
-    auto *D = dyn_cast_or_null<Decl>(
-        GetDecl(DeclsToCheckForDeferredDiags[I]));
+    llvm::SmallSetVector<Decl *, 4> &Decls) {
+  for (auto I : DeclsToCheckForDeferredDiags) {
+    auto *D = dyn_cast_or_null<Decl>(GetDecl(I));
     if (D)
-      Decls.push_back(D);
+      Decls.insert(D);
   }
   DeclsToCheckForDeferredDiags.clear();
 }
-
 
 void ASTReader::ReadReferencedSelectors(
        SmallVectorImpl<std::pair<Selector, SourceLocation>> &Sels) {

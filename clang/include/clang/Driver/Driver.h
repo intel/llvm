@@ -84,6 +84,9 @@ class Driver {
   /// LTO mode selected via -f(no-)?lto(=.*)? options.
   LTOKind LTOMode;
 
+  /// LTO mode selected via -f(no-offload-)?lto(=.*)? options.
+  LTOKind OffloadLTOMode;
+
 public:
   enum OpenMPRuntimeKind {
     /// An unknown OpenMP runtime. We can't generate effective OpenMP code
@@ -571,10 +574,14 @@ public:
   bool ShouldEmitStaticLibrary(const llvm::opt::ArgList &Args) const;
 
   /// Returns true if we are performing any kind of LTO.
-  bool isUsingLTO() const { return LTOMode != LTOK_None; }
+  bool isUsingLTO(bool IsOffload = false) const {
+    return getLTOMode(IsOffload) != LTOK_None;
+  }
 
   /// Get the specific kind of LTO being performed.
-  LTOKind getLTOMode() const { return LTOMode; }
+  LTOKind getLTOMode(bool IsOffload = false) const {
+    return IsOffload ? OffloadLTOMode : LTOMode;
+  }
 
 private:
 
@@ -658,7 +665,13 @@ private:
   /// A list of inputs and their corresponding integration headers. These
   /// files are generated during the device compilation and are consumed
   /// by the host compilation.
-  mutable llvm::StringMap<StringRef> IntegrationFileList;
+  mutable llvm::StringMap<const std::pair<StringRef, StringRef>>
+      IntegrationFileList;
+
+  /// Unique ID used for SYCL compilations.  Each file will use a different
+  /// unique ID, but the same ID will be used for different compilation
+  /// targets.
+  mutable llvm::StringMap<StringRef> SYCLUniqueIDList;
 
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
@@ -703,12 +716,31 @@ public:
 
   /// addIntegrationFiles - Add the integration files that will be populated
   /// by the device compilation and used by the host compile.
-  void addIntegrationFiles(StringRef IntHeaderName, StringRef FileName) const {
-    IntegrationFileList.insert({FileName, IntHeaderName});
+  void addIntegrationFiles(StringRef IntHeaderName, StringRef IntFooterName,
+                           StringRef FileName) const {
+    IntegrationFileList.insert(
+        {FileName, std::make_pair(IntHeaderName, IntFooterName)});
   }
   /// getIntegrationHeader - Get the integration header file
   StringRef getIntegrationHeader(StringRef FileName) const {
-    return IntegrationFileList[FileName];
+    return IntegrationFileList[FileName].first;
+  }
+  /// getIntegrationFooter - Get the integration footer file
+  StringRef getIntegrationFooter(StringRef FileName) const {
+    return IntegrationFileList[FileName].second;
+  }
+  /// createAppendedFooterInput - Create new source file.
+  void createAppendedFooterInput(Action *&Input, Compilation &C,
+                                 const llvm::opt::ArgList &Args) const;
+
+  /// setSYCLUniqueID - set the Unique ID that is used for all FE invocations
+  /// when performing compilations for SYCL.
+  void addSYCLUniqueID(StringRef UniqueID, StringRef FileName) const {
+    SYCLUniqueIDList.insert({FileName, UniqueID});
+  }
+  /// getSYCLUniqueID - Get the Unique ID associated with the file.
+  StringRef getSYCLUniqueID(StringRef FileName) const {
+    return SYCLUniqueIDList[FileName];
   }
 };
 

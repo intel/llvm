@@ -13,6 +13,7 @@
 #define FORTRAN_EVALUATE_SHAPE_H_
 
 #include "expression.h"
+#include "fold.h"
 #include "traverse.h"
 #include "variable.h"
 #include "flang/Common/indirection.h"
@@ -180,6 +181,11 @@ private:
     for (const auto &value : values) {
       if (MaybeExtentExpr n{GetArrayConstructorValueExtent(value)}) {
         result = std::move(result) + std::move(*n);
+        if (context_) {
+          // Fold during expression creation to avoid creating an expression so
+          // large we can't evalute it without overflowing the stack.
+          result = Fold(*context_, std::move(result));
+        }
       } else {
         return std::nullopt;
       }
@@ -233,12 +239,30 @@ std::optional<ConstantSubscripts> GetConstantExtents(
 }
 
 // Compilation-time shape conformance checking, when corresponding extents
-// are known.
-bool CheckConformance(parser::ContextualMessages &, const Shape &left,
-    const Shape &right, const char *leftIs = "left operand",
-    const char *rightIs = "right operand", bool leftScalarExpandable = true,
-    bool rightScalarExpandable = true, bool leftIsDeferredShape = false,
-    bool rightIsDeferredShape = false);
+// are or should be known.  The result is an optional Boolean:
+//  - nullopt: no error found or reported, but conformance cannot
+//    be guaranteed during compilation; this result is possible only
+//    when one or both arrays are allowed to have deferred shape
+//  - true: no error found or reported, arrays conform
+//  - false: errors found and reported
+// Use "CheckConformance(...).value_or()" to specify a default result
+// when you don't care whether messages have been emitted.
+struct CheckConformanceFlags {
+  enum Flags {
+    None = 0,
+    LeftScalarExpandable = 1,
+    RightScalarExpandable = 2,
+    LeftIsDeferredShape = 4,
+    RightIsDeferredShape = 8,
+    EitherScalarExpandable = LeftScalarExpandable | RightScalarExpandable,
+    BothDeferredShape = LeftIsDeferredShape | RightIsDeferredShape,
+    RightIsExpandableDeferred = RightScalarExpandable | RightIsDeferredShape,
+  };
+};
+std::optional<bool> CheckConformance(parser::ContextualMessages &,
+    const Shape &left, const Shape &right,
+    CheckConformanceFlags::Flags flags = CheckConformanceFlags::None,
+    const char *leftIs = "left operand", const char *rightIs = "right operand");
 
 // Increments one-based subscripts in element order (first varies fastest)
 // and returns true when they remain in range; resets them all to one and

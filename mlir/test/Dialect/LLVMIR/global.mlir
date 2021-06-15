@@ -9,6 +9,12 @@ llvm.mlir.global constant @default_external_constant(42) : i64
 // CHECK: llvm.mlir.global internal @global(42 : i64) : i64
 llvm.mlir.global internal @global(42 : i64) : i64
 
+// CHECK: llvm.mlir.global private @aligned_global(42 : i64) {aligned = 64 : i64} : i64
+llvm.mlir.global private @aligned_global(42 : i64) {aligned = 64} : i64
+
+// CHECK: llvm.mlir.global private constant @aligned_global_const(42 : i64) {aligned = 32 : i64} : i64
+llvm.mlir.global private constant @aligned_global_const(42 : i64) {aligned = 32} : i64
+
 // CHECK: llvm.mlir.global internal constant @constant(3.700000e+01 : f64) : f32
 llvm.mlir.global internal constant @constant(37.0) : f32
 
@@ -68,6 +74,9 @@ llvm.mlir.global private local_unnamed_addr constant @local(42 : i64) : i64
 
 // CHECK: llvm.mlir.global private unnamed_addr constant @foo(42 : i64) : i64
 llvm.mlir.global private unnamed_addr constant @foo(42 : i64) : i64
+
+// CHECK: llvm.mlir.global internal constant @sectionvar("teststring")  {section = ".mysection"}
+llvm.mlir.global internal constant @sectionvar("teststring")  {section = ".mysection"}: !llvm.array<10 x i8>
 
 // -----
 

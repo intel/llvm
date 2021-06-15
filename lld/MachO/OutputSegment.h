@@ -12,19 +12,25 @@
 #include "OutputSection.h"
 #include "lld/Common/LLVM.h"
 
+#include <limits>
+#include <vector>
+
 namespace lld {
 namespace macho {
 
 namespace segment_names {
 
-constexpr const char pageZero[] = "__PAGEZERO";
-constexpr const char text[] = "__TEXT";
-constexpr const char data[] = "__DATA";
-constexpr const char linkEdit[] = "__LINKEDIT";
 constexpr const char dataConst[] = "__DATA_CONST";
-constexpr const char ld[] = "__LD"; // output only with -r
+constexpr const char dataDirty[] = "__DATA_DIRTY";
+constexpr const char data[] = "__DATA";
 constexpr const char dwarf[] = "__DWARF";
+constexpr const char import[] = "__IMPORT";
+constexpr const char ld[] = "__LD"; // output only with -r
+constexpr const char linkEdit[] = "__LINKEDIT";
 constexpr const char llvm[] = "__LLVM";
+constexpr const char pageZero[] = "__PAGEZERO";
+constexpr const char textExec[] = "__TEXT_EXEC";
+constexpr const char text[] = "__TEXT";
 
 } // namespace segment_names
 
@@ -37,10 +43,7 @@ public:
   const OutputSection *lastSection() const { return sections.back(); }
 
   void addOutputSection(OutputSection *os);
-  void sortOutputSections(
-      llvm::function_ref<bool(OutputSection *, OutputSection *)> comparator) {
-    llvm::stable_sort(sections, comparator);
-  }
+  void sortOutputSections();
 
   const std::vector<OutputSection *> &getSections() const { return sections; }
   size_t numNonHiddenSections() const;
@@ -48,6 +51,7 @@ public:
   uint64_t fileOff = 0;
   uint64_t fileSize = 0;
   uint64_t vmSize = 0;
+  int inputOrder = std::numeric_limits<int>::max();
   StringRef name;
   uint32_t maxProt = 0;
   uint32_t initProt = 0;
@@ -58,6 +62,8 @@ private:
 };
 
 extern std::vector<OutputSegment *> outputSegments;
+
+void sortOutputSegments();
 
 OutputSegment *getOrCreateOutputSegment(StringRef name);
 

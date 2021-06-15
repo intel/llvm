@@ -32,6 +32,7 @@
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/LiteralSupport.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cstring>
@@ -503,6 +504,125 @@ SourceLocation DeclRefExpr::getEndLoc() const {
   return getNameInfo().getEndLoc();
 }
 
+SYCLUniqueStableNameExpr::SYCLUniqueStableNameExpr(SourceLocation OpLoc,
+                                                   SourceLocation LParen,
+                                                   SourceLocation RParen,
+                                                   QualType ResultTy,
+                                                   TypeSourceInfo *TSI)
+    : Expr(SYCLUniqueStableNameExprClass, ResultTy, VK_RValue, OK_Ordinary),
+      OpLoc(OpLoc), LParen(LParen), RParen(RParen) {
+  setTypeSourceInfo(TSI);
+  setDependence(computeDependence(this));
+}
+
+SYCLUniqueStableNameExpr::SYCLUniqueStableNameExpr(EmptyShell Empty,
+                                                   QualType ResultTy)
+    : Expr(SYCLUniqueStableNameExprClass, ResultTy, VK_RValue, OK_Ordinary) {}
+
+SYCLUniqueStableNameExpr *
+SYCLUniqueStableNameExpr::Create(const ASTContext &Ctx, SourceLocation OpLoc,
+                                 SourceLocation LParen, SourceLocation RParen,
+                                 TypeSourceInfo *TSI) {
+  QualType ResultTy = Ctx.getPointerType(Ctx.CharTy.withConst());
+  return new (Ctx)
+      SYCLUniqueStableNameExpr(OpLoc, LParen, RParen, ResultTy, TSI);
+}
+
+SYCLUniqueStableNameExpr *
+SYCLUniqueStableNameExpr::CreateEmpty(const ASTContext &Ctx) {
+  QualType ResultTy = Ctx.getPointerType(Ctx.CharTy.withConst());
+  return new (Ctx) SYCLUniqueStableNameExpr(EmptyShell(), ResultTy);
+}
+
+std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context) const {
+  return SYCLUniqueStableNameExpr::ComputeName(Context,
+                                               getTypeSourceInfo()->getType());
+}
+
+static llvm::Optional<unsigned> SYCLMangleCallback(ASTContext &Ctx,
+                                                   const NamedDecl *ND) {
+  // This replaces the 'lambda number' in the mangling with a unique number
+  // based on its order in the declaration.  To provide some level of visual
+  // notability (actual uniqueness from normal lambdas isn't necessary, as
+  // these are used differently), we add 10,000 to the number.
+  // For example:
+  // _ZTSZ3foovEUlvE10005_
+  // Demangles to: typeinfo name for foo()::'lambda10005'()
+  // Note that the mangler subtracts 2, since with normal lambdas the lambda
+  // mangling number '0' is an anonymous struct mangle, and '1' is omitted.
+  // So 10,002 results in the first number being 10,000.
+  if (Ctx.IsSYCLKernelNamingDecl(ND))
+    return 10'002 + Ctx.GetSYCLKernelNamingIndex(ND);
+  return llvm::None;
+}
+
+std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
+                                                  QualType Ty) {
+  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
+      Context, Context.getDiagnostics(), SYCLMangleCallback)};
+
+  std::string Buffer;
+  Buffer.reserve(128);
+  llvm::raw_string_ostream Out(Buffer);
+  Ctx->mangleTypeName(Ty, Out);
+
+  return Out.str();
+}
+
+SYCLUniqueStableIdExpr::SYCLUniqueStableIdExpr(EmptyShell Empty,
+                                               QualType ResultTy)
+    : Expr(SYCLUniqueStableIdExprClass, ResultTy, VK_RValue, OK_Ordinary) {}
+
+SYCLUniqueStableIdExpr::SYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                               SourceLocation LParen,
+                                               SourceLocation RParen,
+                                               QualType ResultTy, Expr *E)
+    : Expr(SYCLUniqueStableIdExprClass, ResultTy, VK_RValue, OK_Ordinary),
+      OpLoc(OpLoc), LParen(LParen), RParen(RParen), DRE(E) {
+  setDependence(computeDependence(this));
+}
+
+SYCLUniqueStableIdExpr *SYCLUniqueStableIdExpr::Create(const ASTContext &Ctx,
+                                                       SourceLocation OpLoc,
+                                                       SourceLocation LParen,
+                                                       SourceLocation RParen,
+                                                       Expr *E) {
+  QualType ResultTy = Ctx.getPointerType(Ctx.CharTy.withConst());
+  return new (Ctx) SYCLUniqueStableIdExpr(OpLoc, LParen, RParen, ResultTy, E);
+}
+
+SYCLUniqueStableIdExpr *
+SYCLUniqueStableIdExpr::CreateEmpty(const ASTContext &Ctx) {
+  QualType ResultTy = Ctx.getPointerType(Ctx.CharTy.withConst());
+  return new (Ctx) SYCLUniqueStableIdExpr(EmptyShell(), ResultTy);
+}
+
+std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context) const {
+  assert(!isInstantiationDependent() &&
+         "Can't compute name of uninstantiated value");
+
+  auto *DR = cast<DeclRefExpr>(getExpr()->IgnoreUnlessSpelledInSource());
+  auto *VD = cast<VarDecl>(DR->getDecl());
+
+  return ComputeName(Context, VD);
+}
+
+std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context,
+                                                const VarDecl *VD) {
+  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
+      Context, Context.getDiagnostics(), SYCLMangleCallback)};
+
+  std::string Buffer;
+  Buffer.reserve(128);
+  llvm::raw_string_ostream Out(Buffer);
+  Ctx->mangleName(GlobalDecl{VD}, Out);
+
+  if (VD->isExternallyVisible())
+    return Out.str();
+
+  return Context.getLangOpts().SYCLUniquePrefix + "___" + Out.str();
+}
+
 PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
                                StringLiteral *SL)
     : Expr(PredefinedExprClass, FNTy, VK_LValue, OK_Ordinary) {
@@ -517,34 +637,6 @@ PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
   setDependence(computeDependence(this));
 }
 
-PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FnTy, IdentKind IK,
-                               TypeSourceInfo *Info)
-    : Expr(PredefinedExprClass, FnTy, VK_LValue, OK_Ordinary) {
-  PredefinedExprBits.Kind = IK;
-  assert((getIdentKind() == IK) &&
-         "IdentKind do not fit in PredefinedExprBitFields!");
-  assert(IK == UniqueStableNameType &&
-         "Constructor only valid with UniqueStableNameType");
-  PredefinedExprBits.HasFunctionName = false;
-  PredefinedExprBits.Loc = L;
-  setTypeSourceInfo(Info);
-  setDependence(computeDependence(this));
-}
-
-PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FnTy, IdentKind IK,
-                               Expr *E)
-    : Expr(PredefinedExprClass, FnTy, VK_LValue, OK_Ordinary) {
-  PredefinedExprBits.Kind = IK;
-  assert((getIdentKind() == IK) &&
-         "IdentKind do not fit in PredefinedExprBitFields!");
-  assert(IK == UniqueStableNameExpr &&
-         "Constructor only valid with UniqueStableNameExpr");
-  PredefinedExprBits.HasFunctionName = false;
-  PredefinedExprBits.Loc = L;
-  setExpr(E);
-  setDependence(computeDependence(this));
-}
-
 PredefinedExpr::PredefinedExpr(EmptyShell Empty, bool HasFunctionName)
     : Expr(PredefinedExprClass, Empty) {
   PredefinedExprBits.HasFunctionName = HasFunctionName;
@@ -554,44 +646,15 @@ PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
                                        QualType FNTy, IdentKind IK,
                                        StringLiteral *SL) {
   bool HasFunctionName = SL != nullptr;
-  void *Mem = Ctx.Allocate(
-      totalSizeToAlloc<Stmt *, Expr *, TypeSourceInfo *>(HasFunctionName, 0, 0),
-      alignof(PredefinedExpr));
+  void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *>(HasFunctionName),
+                           alignof(PredefinedExpr));
   return new (Mem) PredefinedExpr(L, FNTy, IK, SL);
-}
-
-PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
-                                       QualType FNTy, IdentKind IK,
-                                       StringLiteral *SL,
-                                       TypeSourceInfo *Info) {
-  assert(IK == UniqueStableNameType && "Only valid with UniqueStableNameType");
-  bool HasFunctionName = SL != nullptr;
-  void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *, Expr *, TypeSourceInfo *>(
-                               HasFunctionName, 0, !HasFunctionName),
-                           alignof(PredefinedExpr));
-  if (HasFunctionName)
-    return new (Mem) PredefinedExpr(L, FNTy, IK, SL);
-  return new (Mem) PredefinedExpr(L, FNTy, IK, Info);
-}
-
-PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
-                                       QualType FNTy, IdentKind IK,
-                                       StringLiteral *SL, Expr *E) {
-  assert(IK == UniqueStableNameExpr && "Only valid with UniqueStableNameExpr");
-  bool HasFunctionName = SL != nullptr;
-  void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *, Expr *, TypeSourceInfo *>(
-                               HasFunctionName, !HasFunctionName, 0),
-                           alignof(PredefinedExpr));
-  if (HasFunctionName)
-    return new (Mem) PredefinedExpr(L, FNTy, IK, SL);
-  return new (Mem) PredefinedExpr(L, FNTy, IK, E);
 }
 
 PredefinedExpr *PredefinedExpr::CreateEmpty(const ASTContext &Ctx,
                                             bool HasFunctionName) {
-  void *Mem = Ctx.Allocate(
-      totalSizeToAlloc<Stmt *, Expr *, TypeSourceInfo *>(HasFunctionName, 0, 0),
-      alignof(PredefinedExpr));
+  void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *>(HasFunctionName),
+                           alignof(PredefinedExpr));
   return new (Mem) PredefinedExpr(EmptyShell(), HasFunctionName);
 }
 
@@ -611,26 +674,10 @@ StringRef PredefinedExpr::getIdentKindName(PredefinedExpr::IdentKind IK) {
     return "__FUNCSIG__";
   case LFuncSig:
     return "L__FUNCSIG__";
-  case UniqueStableNameType:
-  case UniqueStableNameExpr:
-    return "__builtin_unique_stable_name";
   case PrettyFunctionNoVirtual:
     break;
   }
   llvm_unreachable("Unknown ident kind for PredefinedExpr");
-}
-
-std::string PredefinedExpr::ComputeName(ASTContext &Context, IdentKind IK,
-                                        QualType Ty) {
-  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
-      Context, Context.getDiagnostics(), /*IsUniqueNameMangler*/ true)};
-
-  Ty = Ty.getCanonicalType();
-
-  SmallString<256> Buffer;
-  llvm::raw_svector_ostream Out(Buffer);
-  Ctx->mangleTypeName(Ty, Out);
-  return std::string(Buffer.str());
 }
 
 // FIXME: Maybe this should use DeclPrinter with a special "print predefined
@@ -778,7 +825,9 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
         StringRef Param = Params->getParam(i)->getName();
         if (Param.empty()) continue;
         TOut << Param << " = ";
-        Args.get(i).print(Policy, TOut);
+        Args.get(i).print(
+            Policy, TOut,
+            TemplateParameterList::shouldIncludeTypeForArgument(Params, i));
         TOut << ", ";
       }
     }
@@ -794,7 +843,7 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
         StringRef Param = Params->getParam(i)->getName();
         if (Param.empty()) continue;
         TOut << Param << " = ";
-        Args->get(i).print(Policy, TOut);
+        Args->get(i).print(Policy, TOut, /*IncludeType*/ true);
         TOut << ", ";
       }
     }
@@ -936,6 +985,76 @@ std::string FixedPointLiteral::getValueAsString(unsigned Radix) const {
   FixedPointValueToString(
       S, llvm::APSInt::getUnsigned(getValue().getZExtValue()), Scale);
   return std::string(S.str());
+}
+
+void CharacterLiteral::print(unsigned Val, CharacterKind Kind,
+                             raw_ostream &OS) {
+  switch (Kind) {
+  case CharacterLiteral::Ascii:
+    break; // no prefix.
+  case CharacterLiteral::Wide:
+    OS << 'L';
+    break;
+  case CharacterLiteral::UTF8:
+    OS << "u8";
+    break;
+  case CharacterLiteral::UTF16:
+    OS << 'u';
+    break;
+  case CharacterLiteral::UTF32:
+    OS << 'U';
+    break;
+  }
+
+  switch (Val) {
+  case '\\':
+    OS << "'\\\\'";
+    break;
+  case '\'':
+    OS << "'\\''";
+    break;
+  case '\a':
+    // TODO: K&R: the meaning of '\\a' is different in traditional C
+    OS << "'\\a'";
+    break;
+  case '\b':
+    OS << "'\\b'";
+    break;
+  // Nonstandard escape sequence.
+  /*case '\e':
+    OS << "'\\e'";
+    break;*/
+  case '\f':
+    OS << "'\\f'";
+    break;
+  case '\n':
+    OS << "'\\n'";
+    break;
+  case '\r':
+    OS << "'\\r'";
+    break;
+  case '\t':
+    OS << "'\\t'";
+    break;
+  case '\v':
+    OS << "'\\v'";
+    break;
+  default:
+    // A character literal might be sign-extended, which
+    // would result in an invalid \U escape sequence.
+    // FIXME: multicharacter literals such as '\xFF\xFF\xFF\xFF'
+    // are not correctly handled.
+    if ((Val & ~0xFFu) == ~0xFFu && Kind == CharacterLiteral::Ascii)
+      Val &= 0xFFu;
+    if (Val < 256 && isPrintable((unsigned char)Val))
+      OS << "'" << (char)Val << "'";
+    else if (Val < 256)
+      OS << "'\\x" << llvm::format("%02x", Val) << "'";
+    else if (Val <= 0xFFFF)
+      OS << "'\\u" << llvm::format("%04x", Val) << "'";
+    else
+      OS << "'\\U" << llvm::format("%08x", Val) << "'";
+  }
 }
 
 FloatingLiteral::FloatingLiteral(const ASTContext &C, const llvm::APFloat &V,
@@ -3381,6 +3500,12 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case SourceLocExprClass:
   case ConceptSpecializationExprClass:
   case RequiresExprClass:
+  case SYCLBuiltinNumFieldsExprClass:
+  case SYCLBuiltinFieldTypeExprClass:
+  case SYCLBuiltinNumBasesExprClass:
+  case SYCLBuiltinBaseTypeExprClass:
+  case SYCLUniqueStableNameExprClass:
+  case SYCLUniqueStableIdExprClass:
     // These never have a side-effect.
     return false;
 

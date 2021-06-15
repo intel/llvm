@@ -459,6 +459,13 @@ public:
                                      unsigned &SrcOpIdx1,
                                      unsigned &SrcOpIdx2) const;
 
+  /// Returns true if the target has a preference on the operands order of
+  /// the given machine instruction. And specify if \p Commute is required to
+  /// get the desired operands order.
+  virtual bool hasCommutePreference(MachineInstr &MI, bool &Commute) const {
+    return false;
+  }
+
   /// A pair composed of a register and a sub-register index.
   /// Used to give some type checking when modeling Reg:SubReg.
   struct RegSubRegPair {
@@ -1973,6 +1980,11 @@ public:
   /// not provided.
   virtual unsigned getTailDuplicateSize(CodeGenOpt::Level OptLevel) const {
     return OptLevel >= CodeGenOpt::Aggressive ? 4 : 2;
+  }
+
+  /// Returns the callee operand from the given \p MI.
+  virtual const MachineOperand &getCalleeOperand(const MachineInstr &MI) const {
+    return MI.getOperand(0);
   }
 
 private:

@@ -6,7 +6,7 @@
 //   in place of the accessor argument
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <limits>
 #include <utility>
 
@@ -42,13 +42,13 @@ kernel3(accessor<int, 1, access::mode::read_write, access::target::local> &buf)
   simd<int, 32> v1(0, 1);
   simd<int, 32> v0;
   // expected-error@+3 {{no matching member function for call to 'copy_from'}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:499 {{}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:511 {{}}
+  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
+  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
   v0.copy_from(buf, 0);
   v0 = v0 + v1;
   // expected-error@+3 {{no matching member function for call to 'copy_to'}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:516 {{}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:527 {{}}
+  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
+  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
   v0.copy_to(buf, 0);
 }
 
@@ -58,8 +58,8 @@ SYCL_EXTERNAL void kernel4(
     SYCL_ESIMD_FUNCTION {
   simd<int, 32> v;
   // expected-error@+3 {{no matching member function for call to 'copy_from'}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:499 {{}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:511 {{}}
+  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
+  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
   v.copy_from(buf, 0);
 }
 
@@ -69,7 +69,7 @@ SYCL_EXTERNAL void kernel5(
     SYCL_ESIMD_FUNCTION {
   simd<int, 32> v(0, 1);
   // expected-error@+3 {{no matching member function for call to 'copy_to'}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:516 {{}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:527 {{}}
+  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
+  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
   v.copy_to(buf, 0);
 }

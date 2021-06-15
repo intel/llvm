@@ -50,7 +50,6 @@ bool PrescanAction::BeginSourceFileAction(CompilerInstance &c1) {
   std::string currentInputPath{GetCurrentFileOrBufferName()};
   Fortran::parser::Options parserOptions = ci.invocation().fortranOpts();
 
-
   // Prescan. In case of failure, report and return.
   ci.parsing().Prescan(currentInputPath, parserOptions);
 
@@ -159,7 +158,7 @@ bool PrescanAndSemaAction::BeginSourceFileAction(CompilerInstance &c1) {
   // Prepare semantics
   setSemantics(std::make_unique<Fortran::semantics::Semantics>(
       ci.invocation().semanticsContext(), parseTree,
-      ci.parsing().cooked().AsCharBlock(), ci.invocation().debugModuleDir()));
+      ci.invocation().debugModuleDir()));
   auto &semantics = this->semantics();
 
   // Run semantic checks
@@ -283,13 +282,27 @@ void DebugUnparseWithSymbolsAction::ExecuteAction() {
 }
 
 void DebugDumpSymbolsAction::ExecuteAction() {
+  CompilerInstance &ci = this->instance();
   auto &semantics = this->semantics();
+
+  auto tables{Fortran::semantics::BuildRuntimeDerivedTypeTables(
+      instance().invocation().semanticsContext())};
+  // The runtime derived type information table builder may find and report
+  // semantic errors. So it is important that we report them _after_
+  // BuildRuntimeDerivedTypeTables is run.
+  reportFatalSemanticErrors(
+      semantics, this->instance().diagnostics(), GetCurrentFileOrBufferName());
+
+  if (!tables.schemata) {
+    unsigned DiagID =
+        ci.diagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+            "could not find module file for __fortran_type_info");
+    ci.diagnostics().Report(DiagID);
+    llvm::errs() << "\n";
+  }
 
   // Dump symbols
   semantics.DumpSymbols(llvm::outs());
-  // Report fatal semantic errors
-  reportFatalSemanticErrors(
-      semantics, this->instance().diagnostics(), GetCurrentFileOrBufferName());
 }
 
 void DebugDumpParseTreeNoSemaAction::ExecuteAction() {

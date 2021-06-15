@@ -40,7 +40,6 @@
 
 namespace llvm {
 struct fltSemantics;
-class DataLayout;
 }
 
 namespace clang {
@@ -130,9 +129,9 @@ struct TransferrableTargetInfo {
     Float128
   };
 protected:
-  IntType SizeType, IntMaxType, PtrDiffType, IntPtrType, WCharType,
-          WIntType, Char16Type, Char32Type, Int64Type, SigAtomicType,
-          ProcessIDType;
+  IntType SizeType, IntMaxType, PtrDiffType, IntPtrType, WCharType, WIntType,
+      Char16Type, Char32Type, Int64Type, Int16Type, SigAtomicType,
+      ProcessIDType;
 
   /// Whether Objective-C's built-in boolean type should be signed char.
   ///
@@ -205,7 +204,8 @@ protected:
 
   unsigned char MaxAtomicPromoteWidth, MaxAtomicInlineWidth;
   unsigned short SimdDefaultAlign;
-  std::unique_ptr<llvm::DataLayout> DataLayout;
+  std::string DataLayoutString;
+  const char *UserLabelPrefix;
   const char *MCountName;
   unsigned char RegParmMax, SSERegParmMax;
   TargetCXXABI TheCXXABI;
@@ -238,7 +238,9 @@ protected:
   // TargetInfo Constructor.  Default initializes all fields.
   TargetInfo(const llvm::Triple &T);
 
-  void resetDataLayout(StringRef DL);
+  // UserLabelPrefix must match DL's getGlobalPrefix() when interpreted
+  // as a DataLayout object.
+  void resetDataLayout(StringRef DL, const char *UserLabelPrefix = "");
 
 public:
   /// Construct a target for the given options.
@@ -348,6 +350,10 @@ public:
   IntType getInt64Type() const { return Int64Type; }
   IntType getUInt64Type() const {
     return getCorrespondingUnsignedType(Int64Type);
+  }
+  IntType getInt16Type() const { return Int16Type; }
+  IntType getUInt16Type() const {
+    return getCorrespondingUnsignedType(Int16Type);
   }
   IntType getSigAtomicType() const { return SigAtomicType; }
   IntType getProcessIDType() const { return ProcessIDType; }
@@ -747,6 +753,12 @@ public:
     return PointerWidth;
   }
 
+  /// \brief Returns the default value of the __USER_LABEL_PREFIX__ macro,
+  /// which is the prefix given to user symbols by default.
+  ///
+  /// On most platforms this is "", but it is "_" on some.
+  const char *getUserLabelPrefix() const { return UserLabelPrefix; }
+
   /// Returns the name of the mcount instrumentation function.
   const char *getMCountName() const {
     return MCountName;
@@ -1079,6 +1091,12 @@ public:
     return std::string(1, *Constraint);
   }
 
+  /// Replace some escaped characters with another string based on
+  /// target-specific rules
+  virtual llvm::Optional<std::string> handleAsmEscapedChar(char C) const {
+    return llvm::None;
+  }
+
   /// Returns a string of target-specific clobbers, in LLVM format.
   virtual const char *getClobbers() const = 0;
 
@@ -1096,9 +1114,9 @@ public:
   /// Returns the target ID if supported.
   virtual llvm::Optional<std::string> getTargetID() const { return llvm::None; }
 
-  const llvm::DataLayout &getDataLayout() const {
-    assert(DataLayout && "Uninitialized DataLayout!");
-    return *DataLayout;
+  const char *getDataLayoutString() const {
+    assert(!DataLayoutString.empty() && "Uninitialized DataLayout!");
+    return DataLayoutString.c_str();
   }
 
   struct GCCRegAlias {
@@ -1137,21 +1155,6 @@ public:
            // dllimport/export handling on a Windows system.
            (getTriple().isWindowsItaniumEnvironment() &&
             getTriple().getVendor() == llvm::Triple::SCEI);
-  }
-
-  /// An optional hook that targets can implement to perform semantic
-  /// checking on attribute((section("foo"))) specifiers.
-  ///
-  /// In this case, "foo" is passed in to be checked.  If the section
-  /// specifier is invalid, the backend should return an Error that indicates
-  /// the problem.
-  ///
-  /// This hook is a simple quality of implementation feature to catch errors
-  /// and give good diagnostics in cases when the assembler or code generator
-  /// would otherwise reject the section specifier.
-  ///
-  virtual llvm::Error isValidSectionSpecifier(StringRef SR) const {
-    return llvm::Error::success();
   }
 
   /// Set forced language options.
@@ -1224,6 +1227,12 @@ public:
   /// \return False on error (invalid unit name).
   virtual bool setFPMath(StringRef Name) {
     return false;
+  }
+
+  /// Check if target has a given feature enabled
+  virtual bool hasFeatureEnabled(const llvm::StringMap<bool> &Features,
+                                 StringRef Name) const {
+    return Features.lookup(Name);
   }
 
   /// Enable or disable a specific target feature;
@@ -1412,6 +1421,9 @@ public:
   bool isBigEndian() const { return BigEndian; }
   bool isLittleEndian() const { return !BigEndian; }
 
+  /// Whether the option -fextend-arguments={32,64} is supported on the target.
+  virtual bool supportsExtendIntArgs() const { return false; }
+
   /// Gets the default calling convention for the given target and
   /// declaration context.
   virtual CallingConv getDefaultCallingConv() const {
@@ -1473,7 +1485,8 @@ public:
   virtual void setSupportedOpenCLOpts() {}
 
   virtual void supportAllOpenCLOpts(bool V = true) {
-#define OPENCLEXTNAME(Ext) getTargetOpts().OpenCLFeaturesMap[#Ext] = V;
+#define OPENCLEXTNAME(Ext)                                                     \
+  setFeatureEnabled(getTargetOpts().OpenCLFeaturesMap, #Ext, V);
 #include "clang/Basic/OpenCLExtensions.def"
   }
 
@@ -1492,10 +1505,6 @@ public:
       getTargetOpts().OpenCLFeaturesMap[Name] = V;
     }
   }
-
-  /// Define OpenCL macros based on target settings and language version
-  void getOpenCLFeatureDefines(const LangOptions &Opts,
-                               MacroBuilder &Builder) const;
 
   /// Get supported OpenCL extensions and optional core features.
   llvm::StringMap<bool> &getSupportedOpenCLOpts() {
@@ -1536,10 +1545,15 @@ public:
     return true;
   }
 
+  /// Check that OpenCL target has valid options setting based on OpenCL
+  /// version.
+  virtual bool validateOpenCLTarget(const LangOptions &Opts,
+                                    DiagnosticsEngine &Diags) const;
+
   virtual void setAuxTarget(const TargetInfo *Aux) {}
 
-  /// Whether target allows debuginfo types for decl only variables.
-  virtual bool allowDebugInfoForExternalVar() const { return false; }
+  /// Whether target allows debuginfo types for decl only variables/functions.
+  virtual bool allowDebugInfoForExternalRef() const { return false; }
 
 protected:
   /// Copy type and layout related info.

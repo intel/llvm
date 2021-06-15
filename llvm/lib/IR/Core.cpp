@@ -460,11 +460,11 @@ const char *LLVMGetModuleInlineAsm(LLVMModuleRef M, size_t *Len) {
   return Str.c_str();
 }
 
-LLVMValueRef LLVMGetInlineAsm(LLVMTypeRef Ty,
-                              char *AsmString, size_t AsmStringSize,
-                              char *Constraints, size_t ConstraintsSize,
-                              LLVMBool HasSideEffects, LLVMBool IsAlignStack,
-                              LLVMInlineAsmDialect Dialect) {
+LLVMValueRef LLVMGetInlineAsm(LLVMTypeRef Ty, char *AsmString,
+                              size_t AsmStringSize, char *Constraints,
+                              size_t ConstraintsSize, LLVMBool HasSideEffects,
+                              LLVMBool IsAlignStack,
+                              LLVMInlineAsmDialect Dialect, LLVMBool CanThrow) {
   InlineAsm::AsmDialect AD;
   switch (Dialect) {
   case LLVMInlineAsmDialectATT:
@@ -477,9 +477,8 @@ LLVMValueRef LLVMGetInlineAsm(LLVMTypeRef Ty,
   return wrap(InlineAsm::get(unwrap<FunctionType>(Ty),
                              StringRef(AsmString, AsmStringSize),
                              StringRef(Constraints, ConstraintsSize),
-                             HasSideEffects, IsAlignStack, AD));
+                             HasSideEffects, IsAlignStack, AD, CanThrow));
 }
-
 
 /*--.. Operations on module contexts ......................................--*/
 LLVMContextRef LLVMGetModuleContext(LLVMModuleRef M) {
@@ -1400,12 +1399,8 @@ double LLVMConstRealGetDouble(LLVMValueRef ConstantVal, LLVMBool *LosesInfo) {
   ConstantFP *cFP = unwrap<ConstantFP>(ConstantVal) ;
   Type *Ty = cFP->getType();
 
-  if (Ty->isFloatTy()) {
-    *LosesInfo = false;
-    return cFP->getValueAPF().convertToFloat();
-  }
-
-  if (Ty->isDoubleTy()) {
+  if (Ty->isHalfTy() || Ty->isBFloatTy() || Ty->isFloatTy() ||
+      Ty->isDoubleTy()) {
     *LosesInfo = false;
     return cFP->getValueAPF().convertToDouble();
   }

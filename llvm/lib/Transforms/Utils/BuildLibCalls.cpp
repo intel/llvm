@@ -11,8 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/BuildLibCalls.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
@@ -22,7 +24,6 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
-#include "llvm/Analysis/MemoryBuiltins.h"
 
 using namespace llvm;
 
@@ -44,7 +45,6 @@ STATISTIC(NumSExtArg, "Number of arguments inferred as signext");
 STATISTIC(NumReadOnlyArg, "Number of arguments inferred as readonly");
 STATISTIC(NumNoAlias, "Number of function returns inferred as noalias");
 STATISTIC(NumNoUndef, "Number of function returns inferred as noundef returns");
-STATISTIC(NumNonNull, "Number of function returns inferred as nonnull returns");
 STATISTIC(NumReturnedArg, "Number of arguments inferred as returned");
 STATISTIC(NumWillReturn, "Number of functions inferred as willreturn");
 
@@ -568,7 +568,6 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     return Changed;
   case LibFunc_calloc:
   case LibFunc_vec_calloc:
-    Changed |= setOnlyAccessesInaccessibleMemory(F);
     Changed |= setRetAndArgsNoUndef(F);
     Changed |= setDoesNotThrow(F);
     Changed |= setRetDoesNotAlias(F);
@@ -1500,9 +1499,15 @@ static Value *emitBinaryFloatFnCallHelper(Value *Op1, Value *Op2,
   // The incoming attribute set may have come from a speculatable intrinsic, but
   // is being replaced with a library call which is not allowed to be
   // speculatable.
-  CI->setAttributes(Attrs.removeAttribute(B.getContext(),
-                                          AttributeList::FunctionIndex,
-                                          Attribute::Speculatable));
+  // We also need to merge with the callee's attributes, which may contain ABI
+  // attributes.
+  AttributeList NewAttrs = AttributeList::get(
+      B.getContext(),
+      makeArrayRef(
+          {Attrs.removeAttribute(B.getContext(), AttributeList::FunctionIndex,
+                                 Attribute::Speculatable),
+           CI->getCalledFunction()->getAttributes()}));
+  CI->setAttributes(NewAttrs);
   if (const Function *F =
           dyn_cast<Function>(Callee.getCallee()->stripPointerCasts()))
     CI->setCallingConv(F->getCallingConv());

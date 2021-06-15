@@ -1,4 +1,4 @@
-; RUN: opt -enable-new-pm=0 -O3 -enable-matrix -debug-pass=Structure < %s -o /dev/null 2>&1 | FileCheck %s
+; RUN: opt -enable-new-pm=0 -O3 -enable-matrix -debug-pass=Structure %s -disable-output 2>&1 | FileCheck %s
 
 ; REQUIRES: asserts
 
@@ -167,8 +167,8 @@
 ; CHECK-NEXT:         Function Alias Analysis Results
 ; CHECK-NEXT:         Memory SSA
 ; CHECK-NEXT:         MemCpy Optimization
-; CHECK-NEXT:         Dead Store Elimination
 ; CHECK-NEXT:         Natural Loop Information
+; CHECK-NEXT:         Dead Store Elimination
 ; CHECK-NEXT:         Canonicalize natural loops
 ; CHECK-NEXT:         LCSSA Verifier
 ; CHECK-NEXT:         Loop-Closed SSA Form Pass
@@ -321,7 +321,6 @@
 ; CHECK-NEXT:       Simplify the CFG
 ; CHECK-NEXT:       Annotation Remarks
 ; CHECK-NEXT:       Module Verifier
-; CHECK-NEXT:     Bitcode Writer
 ; CHECK-NEXT: Pass Arguments:
 ; CHECK-NEXT:  FunctionPass Manager
 ; CHECK-NEXT:     Dominator Tree Construction
@@ -341,7 +340,6 @@
 ; CHECK-NEXT:     Post-Dominator Tree Construction
 ; CHECK-NEXT:     Branch Probability Analysis
 ; CHECK-NEXT:     Block Frequency Analysis
-
 define void @f() {
   ret void
 }

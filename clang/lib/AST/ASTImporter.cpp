@@ -3463,11 +3463,13 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   } else if (auto *Guide = dyn_cast<CXXDeductionGuideDecl>(D)) {
     ExplicitSpecifier ESpec =
         importExplicitSpecifier(Err, Guide->getExplicitSpecifier());
+    CXXConstructorDecl *Ctor =
+        importChecked(Err, Guide->getCorrespondingConstructor());
     if (Err)
       return std::move(Err);
     if (GetImportedOrCreateDecl<CXXDeductionGuideDecl>(
             ToFunction, D, Importer.getToContext(), DC, ToInnerLocStart, ESpec,
-            NameInfo, T, TInfo, ToEndLoc))
+            NameInfo, T, TInfo, ToEndLoc, Ctor))
       return ToFunction;
     cast<CXXDeductionGuideDecl>(ToFunction)
         ->setIsCopyDeductionCandidate(Guide->isCopyDeductionCandidate());
@@ -3507,6 +3509,8 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   for (auto *Param : Parameters) {
     Param->setOwningFunction(ToFunction);
     ToFunction->addDeclInternal(Param);
+    if (ASTImporterLookupTable *LT = Importer.SharedState->getLookupTable())
+      LT->update(Param, Importer.getToContext().getTranslationUnitDecl());
   }
   ToFunction->setParams(Parameters);
 
@@ -8389,7 +8393,11 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
       // traverse of the 'to' context).
       auto PosF = ImportedFromDecls.find(ToD);
       if (PosF != ImportedFromDecls.end()) {
-        SharedState->removeDeclFromLookup(ToD);
+        // In the case of TypedefNameDecl we create the Decl first and only
+        // then we import and set its DeclContext. So, the DC might not be set
+        // when we reach here.
+        if (ToD->getDeclContext())
+          SharedState->removeDeclFromLookup(ToD);
         ImportedFromDecls.erase(PosF);
       }
 

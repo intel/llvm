@@ -1,19 +1,19 @@
 add_subdirectory(generic)
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_MACHINE})
-  add_subdirectory(${LIBC_TARGET_MACHINE})
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_ARCHITECTURE})
+  add_subdirectory(${LIBC_TARGET_ARCHITECTURE})
 endif()
 
 function(add_math_entrypoint_object name)
   # We prefer machine specific implementation if available. Hence we check
   # that first and retrun early if we are able to add an alias target for the
   # machine specific implementation.
-  get_fq_target_name("${LIBC_TARGET_MACHINE}.${name}" fq_machine_specific_target_name)
+  get_fq_target_name("${LIBC_TARGET_ARCHITECTURE}.${name}" fq_machine_specific_target_name)
   if(TARGET ${fq_machine_specific_target_name})
     add_entrypoint_object(
       ${name}
       ALIAS
       DEPENDS
-        .${LIBC_TARGET_MACHINE}.${name}
+        .${LIBC_TARGET_ARCHITECTURE}.${name}
     )
     return()
   endif()
@@ -29,7 +29,15 @@ function(add_math_entrypoint_object name)
     return()
   endif()
 
-  message(FATAL_ERROR "No machine specific or generic implementation found for ${name}.")
+  # Add a dummy entrypoint object for missing implementations. They will be skipped
+  # anyway as there will be no entry for them in the target entrypoints list.
+  add_entrypoint_object(
+    ${name}
+    SRCS
+      dummy_srcs
+    HDRS
+      dummy_hdrs
+  )
 endfunction()
 
 add_entrypoint_object(
@@ -64,6 +72,7 @@ add_math_entrypoint_object(copysign)
 add_math_entrypoint_object(copysignf)
 add_math_entrypoint_object(copysignl)
 
+add_math_entrypoint_object(cos)
 add_math_entrypoint_object(cosf)
 
 add_math_entrypoint_object(expf)
@@ -155,11 +164,14 @@ add_math_entrypoint_object(roundl)
 
 add_math_entrypoint_object(sincosf)
 
+add_math_entrypoint_object(sin)
 add_math_entrypoint_object(sinf)
 
 add_math_entrypoint_object(sqrt)
 add_math_entrypoint_object(sqrtf)
 add_math_entrypoint_object(sqrtl)
+
+add_math_entrypoint_object(tan)
 
 add_math_entrypoint_object(trunc)
 add_math_entrypoint_object(truncf)

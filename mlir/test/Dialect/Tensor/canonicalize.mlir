@@ -207,9 +207,8 @@ func @extract_from_tensor.generate_2d(%idx0: index, %idx1: index, %tensor: tenso
 
 // CHECK-LABEL: func @extract_from_tensor.generate_sideeffects
 // CHECK-SAME: %[[IDX:.*]]: index
-func @extract_from_tensor.generate_sideeffects(%idx: index, %tensor: tensor<*xf32>) -> index {
+func @extract_from_tensor.generate_sideeffects(%idx: index, %tensor: tensor<*xf32>, %mem: memref<?xindex>) -> index {
   %size = rank %tensor : tensor<*xf32>
-  %mem = memref.alloc(%size) : memref<?xindex>
   // CHECK: %[[DTENSOR:.*]] = tensor.generate
   %0 = tensor.generate %size {
     ^bb0(%arg0: index):
@@ -238,4 +237,16 @@ func @static_tensor.generate(%size1: index, %size4: index) -> tensor<3x?x?x7x?xi
   } : tensor<3x?x?x7x?xindex>
   // CHECK: tensor.cast %{{.*}} : tensor<3x?x5x7x?xindex> to tensor<3x?x?x7x?xindex>
   return %0 : tensor<3x?x?x7x?xindex>
+}
+
+// -----
+
+// CHECK-LABEL: @from_elements.constant
+func @from_elements.constant() -> tensor<3xindex> {
+  // CHECK: %[[CST:.*]] = constant dense<[1, 2, 1]> : tensor<3xindex>
+  // CHECK: return %[[CST]]
+  %c1 = constant 1 : index
+  %c2 = constant 2 : index
+  %tensor = tensor.from_elements %c1, %c2, %c1 : tensor<3xindex>
+  return %tensor : tensor<3xindex>
 }

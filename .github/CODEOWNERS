@@ -79,6 +79,7 @@ xpti/ @tovinkere @andykaylor
 xptifw/ @tovinkere  @andykaylor
 
 # DPC++ tools
+llvm/**/append-file/ @mdtoguchi @AGindinson
 llvm/**/file-table-tform/ @mlychkov @AlexeySachkov @kbobrovs
 llvm/**/llvm-foreach/ @AlexeySachkov  @Fznamznon
 llvm/**/llvm-no-spir-kernel/ @AGindinson @AlexeySachkov
@@ -86,19 +87,24 @@ llvm/**/sycl-post-link/ @mlychkov @AlexeySachkov @kbobrovs
 llvm/include/llvm/Support/PropertySetIO.h @mlychkov @AlexeySachkov @kbobrovs
 llvm/lib/Support/PropertySetIO.cpp @mlychkov @AlexeySachkov @kbobrovs
 llvm/unittests/Support/PropertySetIOTest.cpp @mlychkov @AlexeySachkov @kbobrovs
+llvm/include/llvm/Support/SimpleTable.h @mlychkov @AlexeySachkov @kbobrovs
+llvm/lib/Support/SimpleTable.cpp @mlychkov @AlexeySachkov @kbobrovs
+llvm/unittests/Support/SimpleTableTest.cpp @mlychkov @AlexeySachkov @kbobrovs
 llvm/lib/Support/Base64.cpp @mlychkov @AlexeySachkov @kbobrovs
 
 # Clang offload tools
 clang/tools/clang-offload-bundler/ @mlychkov @sndmitriev @AlexeySachkov
 clang/tools/clang-offload-wrapper/ @mlychkov @sndmitriev @AlexeySachkov @kbobrovs
 clang/tools/clang-offload-deps/ @sndmitriev @mlychkov @AlexeySachkov
+clang/tools/clang-offload-extract/ @sndmitriev @mlychkov @AlexeySachkov
 
 # Explicit SIMD
 SYCLLowerIR/ @kbobrovs @DenisBakhvalov
 esimd/ @kbobrovs @DenisBakhvalov
-sycl/include/CL/sycl/INTEL/esimd.hpp @kbobrovs @DenisBakhvalov
+sycl/include/sycl/ext/intel/experimental/esimd.hpp @kbobrovs @DenisBakhvalov
 sycl/doc/extensions/ExplicitSIMD/ @kbobrovs
 
 # ITT annotations
-llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims
-llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @MrSidims
+llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims @vzakhari
+llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @MrSidims @vzakhari
+llvm/test/Transforms/SPIRITTAnnotations/* @MrSidims @vzakhari

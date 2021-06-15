@@ -40,6 +40,7 @@
 #include "clang/Basic/ProfileList.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/TargetCXXABI.h"
 #include "clang/Basic/XRayLists.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -102,6 +103,7 @@ class DynTypedNode;
 class DynTypedNodeList;
 class Expr;
 class GlobalDecl;
+class ItaniumMangleContext;
 class MangleContext;
 class MangleNumberingContext;
 class MaterializeTemporaryExpr;
@@ -730,6 +732,11 @@ public:
     return FullSourceLoc(Loc,SourceMgr);
   }
 
+  /// Return the C++ ABI kind that should be used. The C++ ABI can be overriden
+  /// at compile time with `-fc++-abi=`. If this is not provided, we instead use
+  /// the default ABI set by the target.
+  TargetCXXABI::Kind getCXXABIKind() const;
+
   /// All comments in this translation unit.
   RawCommentList Comments;
 
@@ -1063,8 +1070,8 @@ public:
   // Implicitly-declared type 'struct _GUID'.
   mutable TagDecl *MSGuidTagDecl = nullptr;
 
-  /// Keep track of CUDA/HIP static device variables referenced by host code.
-  llvm::DenseSet<const VarDecl *> CUDAStaticDeviceVarReferencedByHost;
+  /// Keep track of CUDA/HIP device-side variables ODR-used by host code.
+  llvm::DenseSet<const VarDecl *> CUDADeviceVarODRUsedByHost;
 
   ASTContext(LangOptions &LOpts, SourceManager &SM, IdentifierTable &idents,
              SelectorTable &sels, Builtin::Context &builtins);
@@ -2354,6 +2361,12 @@ public:
   /// If \p T is null pointer, assume the target in ASTContext.
   MangleContext *createMangleContext(const TargetInfo *T = nullptr);
 
+  /// Creates a device mangle context to correctly mangle lambdas in a mixed
+  /// architecture compile by setting the lambda mangling number source to the
+  /// DeviceLambdaManglingNumber. Currently this asserts that the TargetInfo
+  /// (from the AuxTargetInfo) is a an itanium target.
+  MangleContext *createDeviceMangleContext(const TargetInfo &T);
+
   void DeepCollectObjCIvars(const ObjCInterfaceDecl *OI, bool leafClass,
                             SmallVectorImpl<const ObjCIvarDecl*> &Ivars) const;
 
@@ -2454,7 +2467,7 @@ public:
                            const ObjCMethodDecl *MethodImp);
 
   bool UnwrapSimilarTypes(QualType &T1, QualType &T2);
-  bool UnwrapSimilarArrayTypes(QualType &T1, QualType &T2);
+  void UnwrapSimilarArrayTypes(QualType &T1, QualType &T2);
 
   /// Determine if two types are similar, according to the C++ rules. That is,
   /// determine if they are the same other than qualifiers on the initial
@@ -3157,10 +3170,32 @@ public:
 
   StringRef getCUIDHash() const;
 
+  void AddSYCLKernelNamingDecl(const CXXRecordDecl *RD);
+  bool IsSYCLKernelNamingDecl(const NamedDecl *RD) const;
+  unsigned GetSYCLKernelNamingIndex(const NamedDecl *RD);
+  /// A SourceLocation to store whether we have evaluated a kernel name already,
+  /// and where it happened.  If so, we need to diagnose an illegal use of the
+  /// builtin. This should only contain SYCLUniqueStableNameExprs and
+  /// SYCLUniqueStableIdExprs.
+  llvm::MapVector<const Expr *, std::string>
+      SYCLUniqueStableNameEvaluatedValues;
+
 private:
   /// All OMPTraitInfo objects live in this collection, one per
   /// `pragma omp [begin] declare variant` directive.
   SmallVector<std::unique_ptr<OMPTraitInfo>, 4> OMPTraitInfoVector;
+
+  /// A list of the (right now just lambda decls) declarations required to
+  /// name all the SYCL kernels in the translation unit, so that we can get the
+  /// correct kernel name, as well as implement
+  /// __builtin_sycl_unique_stable_name.
+  llvm::DenseMap<const DeclContext *,
+                 llvm::SmallPtrSet<const CXXRecordDecl *, 4>>
+      SYCLKernelNamingTypes;
+  std::unique_ptr<ItaniumMangleContext> SYCLKernelFilterContext;
+  void FilterSYCLKernelNamingDecls(
+      const CXXRecordDecl *RD,
+      llvm::SmallVectorImpl<const CXXRecordDecl *> &Decls);
 };
 
 /// Insertion operator for diagnostics.

@@ -36,7 +36,7 @@ int main(int, char**)
     {
         typedef std::unordered_map<int, std::string,
                                    test_hash<std::hash<int> >,
-                                   test_compare<std::equal_to<int> >,
+                                   test_equal_to<int>,
                                    test_allocator<std::pair<const int, std::string> >
                                    > C;
         typedef std::pair<int, std::string> P;
@@ -49,7 +49,7 @@ int main(int, char**)
             P(1, "four"),
             P(2, "four"),
         };
-        C c(input_iterator<P*>(a), input_iterator<P*>(a + sizeof(a)/sizeof(a[0])),
+        C c(cpp17_input_iterator<P*>(a), cpp17_input_iterator<P*>(a + sizeof(a)/sizeof(a[0])),
             7,
             test_hash<std::hash<int> >(8)
            );
@@ -60,7 +60,7 @@ int main(int, char**)
         assert(c.at(3) == "three");
         assert(c.at(4) == "four");
         assert(c.hash_function() == test_hash<std::hash<int> >(8));
-        assert(c.key_eq() == test_compare<std::equal_to<int> >());
+        assert(c.key_eq() == test_equal_to<int>());
         assert(c.get_allocator() ==
                (test_allocator<std::pair<const int, std::string> >()));
         assert(!c.empty());
@@ -73,7 +73,7 @@ int main(int, char**)
     {
         typedef std::unordered_map<int, std::string,
                                    test_hash<std::hash<int> >,
-                                   test_compare<std::equal_to<int> >,
+                                   test_equal_to<int>,
                                    min_allocator<std::pair<const int, std::string> >
                                    > C;
         typedef std::pair<int, std::string> P;
@@ -86,7 +86,7 @@ int main(int, char**)
             P(1, "four"),
             P(2, "four"),
         };
-        C c(input_iterator<P*>(a), input_iterator<P*>(a + sizeof(a)/sizeof(a[0])),
+        C c(cpp17_input_iterator<P*>(a), cpp17_input_iterator<P*>(a + sizeof(a)/sizeof(a[0])),
             7,
             test_hash<std::hash<int> >(8)
            );
@@ -97,7 +97,7 @@ int main(int, char**)
         assert(c.at(3) == "three");
         assert(c.at(4) == "four");
         assert(c.hash_function() == test_hash<std::hash<int> >(8));
-        assert(c.key_eq() == test_compare<std::equal_to<int> >());
+        assert(c.key_eq() == test_equal_to<int>());
         assert(c.get_allocator() ==
                (min_allocator<std::pair<const int, std::string> >()));
         assert(!c.empty());

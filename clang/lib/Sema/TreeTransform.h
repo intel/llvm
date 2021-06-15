@@ -2403,6 +2403,19 @@ public:
     return SEHFinallyStmt::Create(getSema().getASTContext(), Loc, Block);
   }
 
+  ExprResult RebuildSYCLUniqueStableNameExpr(SourceLocation OpLoc,
+                                             SourceLocation LParen,
+                                             SourceLocation RParen,
+                                             TypeSourceInfo *TSI) {
+    return getSema().BuildSYCLUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
+  }
+
+  ExprResult RebuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                           SourceLocation LParen,
+                                           SourceLocation RParen, Expr *E) {
+    return getSema().BuildSYCLUniqueStableIdExpr(OpLoc, LParen, RParen, E);
+  }
+
   /// Build a new predefined expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -2984,6 +2997,26 @@ public:
                                        TypeSourceInfo *TSI, Expr *Sub,
                                        SourceLocation RParenLoc) {
     return getSema().BuildBuiltinBitCastExpr(KWLoc, TSI, Sub, RParenLoc);
+  }
+
+  ExprResult RebuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,
+                                             QualType SourceTy) {
+    return getSema().BuildSYCLBuiltinNumFieldsExpr(Loc, SourceTy);
+  }
+
+  ExprResult RebuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
+                                             QualType SourceTy, Expr *Idx) {
+    return getSema().BuildSYCLBuiltinFieldTypeExpr(Loc, SourceTy, Idx);
+  }
+
+  ExprResult RebuildSYCLBuiltinNumBasesExpr(SourceLocation Loc,
+                                            QualType SourceTy) {
+    return getSema().BuildSYCLBuiltinNumBasesExpr(Loc, SourceTy);
+  }
+
+  ExprResult RebuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
+                                            QualType SourceTy, Expr *Idx) {
+    return getSema().BuildSYCLBuiltinBaseTypeExpr(Loc, SourceTy, Idx);
   }
 
   /// Build a new C++ typeid(type) expression.
@@ -4035,12 +4068,10 @@ Sema::ConditionResult TreeTransform<Derived>::TransformCondition(
   return Sema::ConditionResult();
 }
 
-template<typename Derived>
-NestedNameSpecifierLoc
-TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
-                                                    NestedNameSpecifierLoc NNS,
-                                                     QualType ObjectType,
-                                             NamedDecl *FirstQualifierInScope) {
+template <typename Derived>
+NestedNameSpecifierLoc TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
+    NestedNameSpecifierLoc NNS, QualType ObjectType,
+    NamedDecl *FirstQualifierInScope) {
   SmallVector<NestedNameSpecifierLoc, 4> Qualifiers;
   for (NestedNameSpecifierLoc Qualifier = NNS; Qualifier;
        Qualifier = Qualifier.getPrefix())
@@ -4054,28 +4085,26 @@ TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
     switch (QNNS->getKind()) {
     case NestedNameSpecifier::Identifier: {
       Sema::NestedNameSpecInfo IdInfo(QNNS->getAsIdentifier(),
-                          Q.getLocalBeginLoc(), Q.getLocalEndLoc(), ObjectType);
+                                      Q.getLocalBeginLoc(), Q.getLocalEndLoc(),
+                                      ObjectType);
       if (SemaRef.BuildCXXNestedNameSpecifier(/*Scope=*/nullptr, IdInfo, false,
                                               SS, FirstQualifierInScope, false))
         return NestedNameSpecifierLoc();
-    }
       break;
+    }
 
     case NestedNameSpecifier::Namespace: {
-      NamespaceDecl *NS
-        = cast_or_null<NamespaceDecl>(
-                                    getDerived().TransformDecl(
-                                                          Q.getLocalBeginLoc(),
-                                                       QNNS->getAsNamespace()));
+      NamespaceDecl *NS =
+          cast_or_null<NamespaceDecl>(getDerived().TransformDecl(
+              Q.getLocalBeginLoc(), QNNS->getAsNamespace()));
       SS.Extend(SemaRef.Context, NS, Q.getLocalBeginLoc(), Q.getLocalEndLoc());
       break;
     }
 
     case NestedNameSpecifier::NamespaceAlias: {
-      NamespaceAliasDecl *Alias
-        = cast_or_null<NamespaceAliasDecl>(
-                      getDerived().TransformDecl(Q.getLocalBeginLoc(),
-                                                 QNNS->getAsNamespaceAlias()));
+      NamespaceAliasDecl *Alias =
+          cast_or_null<NamespaceAliasDecl>(getDerived().TransformDecl(
+              Q.getLocalBeginLoc(), QNNS->getAsNamespaceAlias()));
       SS.Extend(SemaRef.Context, Alias, Q.getLocalBeginLoc(),
                 Q.getLocalEndLoc());
       break;
@@ -4111,7 +4140,7 @@ TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
         if (TL.getType()->isEnumeralType())
           SemaRef.Diag(TL.getBeginLoc(),
                        diag::warn_cxx98_compat_enum_nested_name_spec);
-        SS.Extend(SemaRef.Context, /*FIXME:*/SourceLocation(), TL,
+        SS.Extend(SemaRef.Context, /*FIXME:*/ SourceLocation(), TL,
                   Q.getLocalEndLoc());
         break;
       }
@@ -4120,7 +4149,7 @@ TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
       TypedefTypeLoc TTL = TL.getAs<TypedefTypeLoc>();
       if (!TTL || !TTL.getTypedefNameDecl()->isInvalidDecl()) {
         SemaRef.Diag(TL.getBeginLoc(), diag::err_nested_name_spec_non_tag)
-          << TL.getType() << SS.getRange();
+            << TL.getType() << SS.getRange();
       }
       return NestedNameSpecifierLoc();
     }
@@ -6519,11 +6548,9 @@ QualType TreeTransform<Derived>::TransformAutoType(TypeLocBuilder &TLB,
   ConceptDecl *NewCD = nullptr;
   TemplateArgumentListInfo NewTemplateArgs;
   NestedNameSpecifierLoc NewNestedNameSpec;
-  if (TL.getTypePtr()->isConstrained()) {
-    NewCD = cast_or_null<ConceptDecl>(
-        getDerived().TransformDecl(
-            TL.getConceptNameLoc(),
-            TL.getTypePtr()->getTypeConstraintConcept()));
+  if (T->isConstrained()) {
+    NewCD = cast_or_null<ConceptDecl>(getDerived().TransformDecl(
+        TL.getConceptNameLoc(), T->getTypeConstraintConcept()));
 
     NewTemplateArgs.setLAngleLoc(TL.getLAngleLoc());
     NewTemplateArgs.setRAngleLoc(TL.getRAngleLoc());
@@ -6545,7 +6572,8 @@ QualType TreeTransform<Derived>::TransformAutoType(TypeLocBuilder &TLB,
 
   QualType Result = TL.getType();
   if (getDerived().AlwaysRebuild() || NewDeduced != OldDeduced ||
-      T->isDependentType()) {
+      T->isDependentType() || T->isConstrained()) {
+    // FIXME: Maybe don't rebuild if all template arguments are the same.
     llvm::SmallVector<TemplateArgument, 4> NewArgList;
     NewArgList.reserve(NewArgList.size());
     for (const auto &ArgLoc : NewTemplateArgs.arguments())
@@ -10184,6 +10212,48 @@ TreeTransform<Derived>::TransformConstantExpr(ConstantExpr *E) {
   return TransformExpr(E->getSubExpr());
 }
 
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLUniqueStableNameExpr(
+    SYCLUniqueStableNameExpr *E) {
+  if (!E->isTypeDependent())
+    return E;
+
+  TypeSourceInfo *NewT = getDerived().TransformType(E->getTypeSourceInfo());
+
+  if (!NewT)
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && E->getTypeSourceInfo() == NewT)
+    return E;
+
+  return getDerived().RebuildSYCLUniqueStableNameExpr(
+      E->getLocation(), E->getLParenLocation(), E->getRParenLocation(), NewT);
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLUniqueStableIdExpr(
+    SYCLUniqueStableIdExpr *E) {
+  if (!E->isTypeDependent())
+    return E;
+
+  ExprResult NewExpr = getDerived().TransformExpr(E->getExpr());
+
+  if (NewExpr.isInvalid())
+    return ExprError();
+
+  NewExpr = getSema().CheckPlaceholderExpr(NewExpr.get());
+
+  if (NewExpr.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && E->getExpr() == NewExpr.get())
+    return E;
+
+  return getDerived().RebuildSYCLUniqueStableIdExpr(
+      E->getLocation(), E->getLParenLocation(), E->getRParenLocation(),
+      NewExpr.get());
+}
+
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformPredefinedExpr(PredefinedExpr *E) {
@@ -11499,6 +11569,64 @@ TreeTransform<Derived>::TransformBuiltinBitCastExpr(BuiltinBitCastExpr *BCE) {
                                                 Sub.get(), BCE->getEndLoc());
 }
 
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLBuiltinNumFieldsExpr(
+    SYCLBuiltinNumFieldsExpr *SBNFE) {
+  QualType QT = getDerived().TransformType(SBNFE->getSourceType());
+  if (QT.isNull())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && QT == SBNFE->getSourceType())
+    return SBNFE;
+  return getDerived().RebuildSYCLBuiltinNumFieldsExpr(SBNFE->getLocation(), QT);
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLBuiltinFieldTypeExpr(
+    SYCLBuiltinFieldTypeExpr *SBFTE) {
+  QualType QT = getDerived().TransformType(SBFTE->getSourceType());
+  if (QT.isNull())
+    return ExprError();
+  ExprResult Idx = getDerived().TransformExpr(SBFTE->getIndex());
+  if (Idx.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && QT == SBFTE->getSourceType() &&
+      Idx.get() == SBFTE->getIndex())
+    return SBFTE;
+  return getDerived().RebuildSYCLBuiltinFieldTypeExpr(SBFTE->getLocation(), QT,
+                                                      Idx.get());
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLBuiltinNumBasesExpr(
+    SYCLBuiltinNumBasesExpr *SBNBE) {
+  QualType QT = getDerived().TransformType(SBNBE->getSourceType());
+  if (QT.isNull())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && QT == SBNBE->getSourceType())
+    return SBNBE;
+  return getDerived().RebuildSYCLBuiltinNumBasesExpr(SBNBE->getLocation(), QT);
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLBuiltinBaseTypeExpr(
+    SYCLBuiltinBaseTypeExpr *SBBTE) {
+  QualType QT = getDerived().TransformType(SBBTE->getSourceType());
+  if (QT.isNull())
+    return ExprError();
+  ExprResult Idx = getDerived().TransformExpr(SBBTE->getIndex());
+  if (Idx.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && QT == SBBTE->getSourceType() &&
+      Idx.get() == SBBTE->getIndex())
+    return SBBTE;
+  return getDerived().RebuildSYCLBuiltinBaseTypeExpr(SBBTE->getLocation(), QT,
+                                                     Idx.get());
+}
+
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXStaticCastExpr(CXXStaticCastExpr *E) {
@@ -11573,15 +11701,20 @@ TreeTransform<Derived>::TransformCXXTypeidExpr(CXXTypeidExpr *E) {
                                              TInfo, E->getEndLoc());
   }
 
-  // We don't know whether the subexpression is potentially evaluated until
-  // after we perform semantic analysis.  We speculatively assume it is
-  // unevaluated; it will get fixed later if the subexpression is in fact
-  // potentially evaluated.
-  EnterExpressionEvaluationContext Unevaluated(
-      SemaRef, Sema::ExpressionEvaluationContext::Unevaluated,
-      Sema::ReuseLambdaContextDecl);
+  // Typeid's operand is an unevaluated context, unless it's a polymorphic
+  // type.  We must not unilaterally enter unevaluated context here, as then
+  // semantic processing can re-transform an already transformed operand.
+  Expr *Op = E->getExprOperand();
+  auto EvalCtx = Sema::ExpressionEvaluationContext::Unevaluated;
+  if (E->isGLValue())
+    if (auto *RecordT = Op->getType()->getAs<RecordType>())
+      if (cast<CXXRecordDecl>(RecordT->getDecl())->isPolymorphic())
+        EvalCtx = SemaRef.ExprEvalContexts.back().Context;
 
-  ExprResult SubExpr = getDerived().TransformExpr(E->getExprOperand());
+  EnterExpressionEvaluationContext Unevaluated(SemaRef, EvalCtx,
+                                               Sema::ReuseLambdaContextDecl);
+
+  ExprResult SubExpr = getDerived().TransformExpr(Op);
   if (SubExpr.isInvalid())
     return ExprError();
 
@@ -14370,7 +14503,11 @@ QualType TreeTransform<Derived>::RebuildUnresolvedUsingType(SourceLocation Loc,
 
     // A valid resolved using typename decl points to exactly one type decl.
     assert(++Using->shadow_begin() == Using->shadow_end());
-    Ty = cast<TypeDecl>((*Using->shadow_begin())->getTargetDecl());
+
+    NamedDecl *Target = Using->shadow_begin()->getTargetDecl();
+    if (SemaRef.DiagnoseUseOfDecl(Target, Loc))
+      return QualType();
+    Ty = cast<TypeDecl>(Target);
   } else {
     assert(isa<UnresolvedUsingTypenameDecl>(D) &&
            "UnresolvedUsingTypenameDecl transformed to non-using decl");

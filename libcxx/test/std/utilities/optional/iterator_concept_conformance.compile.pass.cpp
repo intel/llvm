@@ -18,3 +18,4 @@
 
 static_assert(!std::indirectly_readable<std::optional<int> >);
 static_assert(!std::indirectly_writable<std::optional<int>, int>);
+static_assert(!std::weakly_incrementable<std::optional<int> >);

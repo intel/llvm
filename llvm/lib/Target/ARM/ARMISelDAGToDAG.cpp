@@ -86,14 +86,18 @@ public:
                                bool CheckProfitability = true);
   bool SelectImmShifterOperand(SDValue N, SDValue &A,
                                SDValue &B, bool CheckProfitability = true);
-  bool SelectShiftRegShifterOperand(SDValue N, SDValue &A,
-                                    SDValue &B, SDValue &C) {
+  bool SelectShiftRegShifterOperand(SDValue N, SDValue &A, SDValue &B,
+                                    SDValue &C) {
     // Don't apply the profitability check
     return SelectRegShifterOperand(N, A, B, C, false);
   }
-  bool SelectShiftImmShifterOperand(SDValue N, SDValue &A,
-                                    SDValue &B) {
+  bool SelectShiftImmShifterOperand(SDValue N, SDValue &A, SDValue &B) {
     // Don't apply the profitability check
+    return SelectImmShifterOperand(N, A, B, false);
+  }
+  bool SelectShiftImmShifterOperandOneUse(SDValue N, SDValue &A, SDValue &B) {
+    if (!N.hasOneUse())
+      return false;
     return SelectImmShifterOperand(N, A, B, false);
   }
 
@@ -1941,7 +1945,13 @@ static bool isVLDfixed(unsigned Opc)
   case ARM::VLD1d64Qwb_fixed : return true;
   case ARM::VLD1d32wb_fixed : return true;
   case ARM::VLD1d64wb_fixed : return true;
+  case ARM::VLD1d8TPseudoWB_fixed : return true;
+  case ARM::VLD1d16TPseudoWB_fixed : return true;
+  case ARM::VLD1d32TPseudoWB_fixed : return true;
   case ARM::VLD1d64TPseudoWB_fixed : return true;
+  case ARM::VLD1d8QPseudoWB_fixed : return true;
+  case ARM::VLD1d16QPseudoWB_fixed : return true;
+  case ARM::VLD1d32QPseudoWB_fixed : return true;
   case ARM::VLD1d64QPseudoWB_fixed : return true;
   case ARM::VLD1q8wb_fixed : return true;
   case ARM::VLD1q16wb_fixed : return true;
@@ -1977,7 +1987,13 @@ static bool isVSTfixed(unsigned Opc)
   case ARM::VST1q16wb_fixed : return true;
   case ARM::VST1q32wb_fixed : return true;
   case ARM::VST1q64wb_fixed : return true;
+  case ARM::VST1d8TPseudoWB_fixed : return true;
+  case ARM::VST1d16TPseudoWB_fixed : return true;
+  case ARM::VST1d32TPseudoWB_fixed : return true;
   case ARM::VST1d64TPseudoWB_fixed : return true;
+  case ARM::VST1d8QPseudoWB_fixed : return true;
+  case ARM::VST1d16QPseudoWB_fixed : return true;
+  case ARM::VST1d32QPseudoWB_fixed : return true;
   case ARM::VST1d64QPseudoWB_fixed : return true;
   case ARM::VST2d8wb_fixed : return true;
   case ARM::VST2d16wb_fixed : return true;
@@ -2005,7 +2021,13 @@ static unsigned getVLDSTRegisterUpdateOpcode(unsigned Opc) {
   case ARM::VLD1q64wb_fixed: return ARM::VLD1q64wb_register;
   case ARM::VLD1d64Twb_fixed: return ARM::VLD1d64Twb_register;
   case ARM::VLD1d64Qwb_fixed: return ARM::VLD1d64Qwb_register;
+  case ARM::VLD1d8TPseudoWB_fixed: return ARM::VLD1d8TPseudoWB_register;
+  case ARM::VLD1d16TPseudoWB_fixed: return ARM::VLD1d16TPseudoWB_register;
+  case ARM::VLD1d32TPseudoWB_fixed: return ARM::VLD1d32TPseudoWB_register;
   case ARM::VLD1d64TPseudoWB_fixed: return ARM::VLD1d64TPseudoWB_register;
+  case ARM::VLD1d8QPseudoWB_fixed: return ARM::VLD1d8QPseudoWB_register;
+  case ARM::VLD1d16QPseudoWB_fixed: return ARM::VLD1d16QPseudoWB_register;
+  case ARM::VLD1d32QPseudoWB_fixed: return ARM::VLD1d32QPseudoWB_register;
   case ARM::VLD1d64QPseudoWB_fixed: return ARM::VLD1d64QPseudoWB_register;
   case ARM::VLD1DUPd8wb_fixed : return ARM::VLD1DUPd8wb_register;
   case ARM::VLD1DUPd16wb_fixed : return ARM::VLD1DUPd16wb_register;
@@ -2022,7 +2044,13 @@ static unsigned getVLDSTRegisterUpdateOpcode(unsigned Opc) {
   case ARM::VST1q16wb_fixed: return ARM::VST1q16wb_register;
   case ARM::VST1q32wb_fixed: return ARM::VST1q32wb_register;
   case ARM::VST1q64wb_fixed: return ARM::VST1q64wb_register;
+  case ARM::VST1d8TPseudoWB_fixed: return ARM::VST1d8TPseudoWB_register;
+  case ARM::VST1d16TPseudoWB_fixed: return ARM::VST1d16TPseudoWB_register;
+  case ARM::VST1d32TPseudoWB_fixed: return ARM::VST1d32TPseudoWB_register;
   case ARM::VST1d64TPseudoWB_fixed: return ARM::VST1d64TPseudoWB_register;
+  case ARM::VST1d8QPseudoWB_fixed: return ARM::VST1d8QPseudoWB_register;
+  case ARM::VST1d16QPseudoWB_fixed: return ARM::VST1d16QPseudoWB_register;
+  case ARM::VST1d32QPseudoWB_fixed: return ARM::VST1d32QPseudoWB_register;
   case ARM::VST1d64QPseudoWB_fixed: return ARM::VST1d64QPseudoWB_register;
 
   case ARM::VLD2d8wb_fixed: return ARM::VLD2d8wb_register;
@@ -2549,6 +2577,7 @@ void ARMDAGToDAGISel::SelectMVE_WB(SDNode *N, const uint16_t *Opcodes,
   ReplaceUses(SDValue(N, 0), SDValue(New, 1));
   ReplaceUses(SDValue(N, 1), SDValue(New, 0));
   ReplaceUses(SDValue(N, 2), SDValue(New, 2));
+  transferMemOperands(N, New);
   CurDAG->RemoveDeadNode(N);
 }
 
@@ -2764,6 +2793,7 @@ void ARMDAGToDAGISel::SelectMVE_VLD(SDNode *N, unsigned NumVecs,
         CurDAG->getMachineNode(OurOpcodes[Stage], Loc, ResultTys, Ops);
     Data = SDValue(LoadInst, 0);
     Chain = SDValue(LoadInst, 1);
+    transferMemOperands(N, LoadInst);
   }
   // The last may need a writeback on it
   if (HasWriteback)
@@ -2771,6 +2801,7 @@ void ARMDAGToDAGISel::SelectMVE_VLD(SDNode *N, unsigned NumVecs,
   SDValue Ops[] = {Data, N->getOperand(PtrOperand), Chain};
   auto LoadInst =
       CurDAG->getMachineNode(OurOpcodes[NumVecs - 1], Loc, ResultTys, Ops);
+  transferMemOperands(N, LoadInst);
 
   unsigned i;
   for (i = 0; i < NumVecs; i++)
@@ -3296,9 +3327,9 @@ void ARMDAGToDAGISel::SelectCMP_SWAP(SDNode *N) {
   unsigned Opcode;
   EVT MemTy = cast<MemSDNode>(N)->getMemoryVT();
   if (MemTy == MVT::i8)
-    Opcode = ARM::CMP_SWAP_8;
+    Opcode = Subtarget->isThumb() ? ARM::tCMP_SWAP_8 : ARM::CMP_SWAP_8;
   else if (MemTy == MVT::i16)
-    Opcode = ARM::CMP_SWAP_16;
+    Opcode = Subtarget->isThumb() ? ARM::tCMP_SWAP_16 : ARM::CMP_SWAP_16;
   else if (MemTy == MVT::i32)
     Opcode = ARM::CMP_SWAP_32;
   else
@@ -4262,6 +4293,54 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
     return;
   }
 
+  case ARMISD::VLD1x2_UPD: {
+    if (Subtarget->hasNEON()) {
+      static const uint16_t DOpcodes[] = {
+          ARM::VLD1q8wb_fixed, ARM::VLD1q16wb_fixed, ARM::VLD1q32wb_fixed,
+          ARM::VLD1q64wb_fixed};
+      static const uint16_t QOpcodes[] = {
+          ARM::VLD1d8QPseudoWB_fixed, ARM::VLD1d16QPseudoWB_fixed,
+          ARM::VLD1d32QPseudoWB_fixed, ARM::VLD1d64QPseudoWB_fixed};
+      SelectVLD(N, true, 2, DOpcodes, QOpcodes, nullptr);
+      return;
+    }
+    break;
+  }
+
+  case ARMISD::VLD1x3_UPD: {
+    if (Subtarget->hasNEON()) {
+      static const uint16_t DOpcodes[] = {
+          ARM::VLD1d8TPseudoWB_fixed, ARM::VLD1d16TPseudoWB_fixed,
+          ARM::VLD1d32TPseudoWB_fixed, ARM::VLD1d64TPseudoWB_fixed};
+      static const uint16_t QOpcodes0[] = {
+          ARM::VLD1q8LowTPseudo_UPD, ARM::VLD1q16LowTPseudo_UPD,
+          ARM::VLD1q32LowTPseudo_UPD, ARM::VLD1q64LowTPseudo_UPD};
+      static const uint16_t QOpcodes1[] = {
+          ARM::VLD1q8HighTPseudo_UPD, ARM::VLD1q16HighTPseudo_UPD,
+          ARM::VLD1q32HighTPseudo_UPD, ARM::VLD1q64HighTPseudo_UPD};
+      SelectVLD(N, true, 3, DOpcodes, QOpcodes0, QOpcodes1);
+      return;
+    }
+    break;
+  }
+
+  case ARMISD::VLD1x4_UPD: {
+    if (Subtarget->hasNEON()) {
+      static const uint16_t DOpcodes[] = {
+          ARM::VLD1d8QPseudoWB_fixed, ARM::VLD1d16QPseudoWB_fixed,
+          ARM::VLD1d32QPseudoWB_fixed, ARM::VLD1d64QPseudoWB_fixed};
+      static const uint16_t QOpcodes0[] = {
+          ARM::VLD1q8LowQPseudo_UPD, ARM::VLD1q16LowQPseudo_UPD,
+          ARM::VLD1q32LowQPseudo_UPD, ARM::VLD1q64LowQPseudo_UPD};
+      static const uint16_t QOpcodes1[] = {
+          ARM::VLD1q8HighQPseudo_UPD, ARM::VLD1q16HighQPseudo_UPD,
+          ARM::VLD1q32HighQPseudo_UPD, ARM::VLD1q64HighQPseudo_UPD};
+      SelectVLD(N, true, 4, DOpcodes, QOpcodes0, QOpcodes1);
+      return;
+    }
+    break;
+  }
+
   case ARMISD::VLD2LN_UPD: {
     static const uint16_t DOpcodes[] = { ARM::VLD2LNd8Pseudo_UPD,
                                          ARM::VLD2LNd16Pseudo_UPD,
@@ -4351,6 +4430,61 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
     break;
   }
 
+  case ARMISD::VST1x2_UPD: {
+    if (Subtarget->hasNEON()) {
+      static const uint16_t DOpcodes[] = { ARM::VST1q8wb_fixed,
+                                           ARM::VST1q16wb_fixed,
+                                           ARM::VST1q32wb_fixed,
+                                           ARM::VST1q64wb_fixed};
+      static const uint16_t QOpcodes[] = { ARM::VST1d8QPseudoWB_fixed,
+                                           ARM::VST1d16QPseudoWB_fixed,
+                                           ARM::VST1d32QPseudoWB_fixed,
+                                           ARM::VST1d64QPseudoWB_fixed };
+      SelectVST(N, true, 2, DOpcodes, QOpcodes, nullptr);
+      return;
+    }
+    break;
+  }
+
+  case ARMISD::VST1x3_UPD: {
+    if (Subtarget->hasNEON()) {
+      static const uint16_t DOpcodes[] = { ARM::VST1d8TPseudoWB_fixed,
+                                           ARM::VST1d16TPseudoWB_fixed,
+                                           ARM::VST1d32TPseudoWB_fixed,
+                                           ARM::VST1d64TPseudoWB_fixed };
+      static const uint16_t QOpcodes0[] = { ARM::VST1q8LowTPseudo_UPD,
+                                            ARM::VST1q16LowTPseudo_UPD,
+                                            ARM::VST1q32LowTPseudo_UPD,
+                                            ARM::VST1q64LowTPseudo_UPD };
+      static const uint16_t QOpcodes1[] = { ARM::VST1q8HighTPseudo_UPD,
+                                            ARM::VST1q16HighTPseudo_UPD,
+                                            ARM::VST1q32HighTPseudo_UPD,
+                                            ARM::VST1q64HighTPseudo_UPD };
+      SelectVST(N, true, 3, DOpcodes, QOpcodes0, QOpcodes1);
+      return;
+    }
+    break;
+  }
+
+  case ARMISD::VST1x4_UPD: {
+    if (Subtarget->hasNEON()) {
+      static const uint16_t DOpcodes[] = { ARM::VST1d8QPseudoWB_fixed,
+                                           ARM::VST1d16QPseudoWB_fixed,
+                                           ARM::VST1d32QPseudoWB_fixed,
+                                           ARM::VST1d64QPseudoWB_fixed };
+      static const uint16_t QOpcodes0[] = { ARM::VST1q8LowQPseudo_UPD,
+                                            ARM::VST1q16LowQPseudo_UPD,
+                                            ARM::VST1q32LowQPseudo_UPD,
+                                            ARM::VST1q64LowQPseudo_UPD };
+      static const uint16_t QOpcodes1[] = { ARM::VST1q8HighQPseudo_UPD,
+                                            ARM::VST1q16HighQPseudo_UPD,
+                                            ARM::VST1q32HighQPseudo_UPD,
+                                            ARM::VST1q64HighQPseudo_UPD };
+      SelectVST(N, true, 4, DOpcodes, QOpcodes0, QOpcodes1);
+      return;
+    }
+    break;
+  }
   case ARMISD::VST2LN_UPD: {
     static const uint16_t DOpcodes[] = { ARM::VST2LNd8Pseudo_UPD,
                                          ARM::VST2LNd16Pseudo_UPD,

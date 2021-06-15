@@ -18,6 +18,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "LegalizeTypes.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
@@ -1547,9 +1548,6 @@ bool DAGTypeLegalizer::PromoteIntegerOperand(SDNode *N, unsigned OpNo) {
 
   case ISD::FPOWI: Res = PromoteIntOp_FPOWI(N); break;
 
-  case ISD::FP_TO_SINT_SAT:
-  case ISD::FP_TO_UINT_SAT: PromoteIntOp_FP_TO_XINT_SAT(N); break;
-
   case ISD::VECREDUCE_ADD:
   case ISD::VECREDUCE_MUL:
   case ISD::VECREDUCE_AND:
@@ -1970,12 +1968,6 @@ SDValue DAGTypeLegalizer::PromoteIntOp_FIX(SDNode *N) {
       DAG.UpdateNodeOperands(N, N->getOperand(0), N->getOperand(1), Op2), 0);
 }
 
-SDValue DAGTypeLegalizer::PromoteIntOp_FP_TO_XINT_SAT(SDNode *N) {
-  SDValue Op1 = ZExtPromotedInteger(N->getOperand(1));
-  return SDValue(
-      DAG.UpdateNodeOperands(N, N->getOperand(0), Op1), 0);
-}
-
 SDValue DAGTypeLegalizer::PromoteIntOp_FRAMERETURNADDR(SDNode *N) {
   // Promote the RETURNADDR/FRAMEADDR argument to a supported integer width.
   SDValue Op = ZExtPromotedInteger(N->getOperand(0));
@@ -1995,8 +1987,37 @@ SDValue DAGTypeLegalizer::PromoteIntOp_PREFETCH(SDNode *N, unsigned OpNo) {
 }
 
 SDValue DAGTypeLegalizer::PromoteIntOp_FPOWI(SDNode *N) {
-  SDValue Op = SExtPromotedInteger(N->getOperand(1));
-  return SDValue(DAG.UpdateNodeOperands(N, N->getOperand(0), Op), 0);
+  // FIXME: Support for promotion of STRICT_FPOWI is not implemented yet.
+  assert(N->getOpcode() == ISD::FPOWI && "No STRICT_FPOWI support here yet.");
+
+  // The integer operand is the last operand in FPOWI (so the result and
+  // floating point operand is already type legalized).
+
+  // We can't just promote the exponent type in FPOWI, since we want to lower
+  // the node to a libcall and we if we promote to a type larger than
+  // sizeof(int) the libcall might not be according to the targets ABI. Instead
+  // we rewrite to a libcall here directly, letting makeLibCall handle promotion
+  // if the target accepts it according to shouldSignExtendTypeInLibCall.
+  RTLIB::Libcall LC = RTLIB::getPOWI(N->getValueType(0));
+  assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unexpected fpowi.");
+  if (!TLI.getLibcallName(LC)) {
+    // Some targets don't have a powi libcall; use pow instead.
+    // FIXME: Implement this if some target needs it.
+    DAG.getContext()->emitError("Don't know how to promote fpowi to fpow");
+    return DAG.getUNDEF(N->getValueType(0));
+  }
+  // The exponent should fit in a sizeof(int) type for the libcall to be valid.
+  assert(DAG.getLibInfo().getIntSize() ==
+         N->getOperand(1).getValueType().getSizeInBits() &&
+         "POWI exponent should match with sizeof(int) when doing the libcall.");
+  TargetLowering::MakeLibCallOptions CallOptions;
+  CallOptions.setSExt(true);
+  SDValue Ops[2] = { N->getOperand(0), N->getOperand(1) };
+  std::pair<SDValue, SDValue> Tmp =
+      TLI.makeLibCall(DAG, LC, N->getValueType(0), Ops,
+                      CallOptions, SDLoc(N), SDValue());
+  ReplaceValueWith(SDValue(N, 0), Tmp.first);
+  return SDValue();
 }
 
 SDValue DAGTypeLegalizer::PromoteIntOp_VECREDUCE(SDNode *N) {
@@ -2234,7 +2255,7 @@ void DAGTypeLegalizer::ExpandIntegerResult(SDNode *N, unsigned ResNo) {
 std::pair <SDValue, SDValue> DAGTypeLegalizer::ExpandAtomic(SDNode *Node) {
   unsigned Opc = Node->getOpcode();
   MVT VT = cast<AtomicSDNode>(Node)->getMemoryVT().getSimpleVT();
-  AtomicOrdering order = cast<AtomicSDNode>(Node)->getOrdering();
+  AtomicOrdering order = cast<AtomicSDNode>(Node)->getMergedOrdering();
   // Lower to outline atomic libcall if outline atomics enabled,
   // or to sync libcall otherwise
   RTLIB::Libcall LC = RTLIB::getOUTLINE_ATOMIC(Opc, order, VT);

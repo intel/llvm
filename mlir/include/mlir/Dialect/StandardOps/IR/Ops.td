@@ -25,8 +25,11 @@ include "mlir/Interfaces/ViewLikeInterface.td"
 
 def StandardOps_Dialect : Dialect {
   let name = "std";
-  let cppNamespace = "";
+  let cppNamespace = "::mlir";
   let hasConstantMaterializer = 1;
+  // TODO: This dependency is needed to handle memref ops in the
+  // canonicalize pass and should be resolved.
+  let dependentDialects = ["memref::MemRefDialect"];
 }
 
 // Base class for Standard dialect ops.
@@ -277,6 +280,7 @@ def AddIOp : IntBinaryOp<"addi", [Commutative]> {
     ```
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1091,7 +1095,10 @@ def ConstantOp : Std_Op<"constant",
 
   let builders = [
     OpBuilder<(ins "Attribute":$value),
-    [{ build($_builder, $_state, value.getType(), value); }]>];
+    [{ build($_builder, $_state, value.getType(), value); }]>,
+    OpBuilder<(ins "Attribute":$value, "Type":$type),
+    [{ build($_builder, $_state, type, value); }]>,
+  ];
 
   let extraClassDeclaration = [{
     Attribute getValue() { return (*this)->getAttr("value"); }
@@ -1249,6 +1256,7 @@ def IndexCastOp : ArithmeticCastOp<"index_cast">, Arguments<(ins AnyType:$in)> {
   }];
 
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1711,6 +1719,7 @@ def SignExtendIOp : Std_Op<"sexti", [NoSideEffect,
   let printer = [{
     return printStandardCastOp(this->getOperation(), p);
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1790,6 +1799,7 @@ def SubFOp : FloatBinaryOp<"subf"> {
 def SubIOp : IntBinaryOp<"subi"> {
   let summary = "integer subtraction operation";
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2288,6 +2298,7 @@ def XOrOp : IntBinaryOp<"xor", [Commutative]> {
     ```
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//

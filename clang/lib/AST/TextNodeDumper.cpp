@@ -923,6 +923,8 @@ void TextNodeDumper::VisitWhileStmt(const WhileStmt *Node) {
 
 void TextNodeDumper::VisitLabelStmt(const LabelStmt *Node) {
   OS << " '" << Node->getName() << "'";
+  if (Node->isSideEntry())
+    OS << " side_entry";
 }
 
 void TextNodeDumper::VisitGotoStmt(const GotoStmt *Node) {
@@ -1015,6 +1017,14 @@ void TextNodeDumper::VisitObjCIvarRefExpr(const ObjCIvarRefExpr *Node) {
   if (Node->isFreeIvar())
     OS << " isFreeIvar";
 }
+
+void TextNodeDumper::VisitSYCLUniqueStableNameExpr(
+    const SYCLUniqueStableNameExpr *Node) {
+  dumpType(Node->getTypeSourceInfo()->getType());
+}
+
+void TextNodeDumper::VisitSYCLUniqueStableIdExpr(
+    const SYCLUniqueStableIdExpr *Node) {}
 
 void TextNodeDumper::VisitPredefinedExpr(const PredefinedExpr *Node) {
   OS << " " << PredefinedExpr::getIdentKindName(Node->getIdentKind());

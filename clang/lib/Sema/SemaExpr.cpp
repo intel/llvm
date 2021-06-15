@@ -83,6 +83,9 @@ bool Sema::CanUseDecl(NamedDecl *D, bool TreatUnavailableAsInvalid) {
       cast<Decl>(CurContext)->getAvailability() != AR_Unavailable)
     return false;
 
+  if (isa<UnresolvedUsingIfExistsDecl>(D))
+    return false;
+
   return true;
 }
 
@@ -220,12 +223,15 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
           ExprEvalContexts.empty() ||
           (!isUnevaluatedContext() && !isConstantEvaluated());
       bool IsEsimdPrivateGlobal = isSYCLEsimdPrivateGlobal(VD);
-      if (IsRuntimeEvaluated && !IsConst && VD->getStorageClass() == SC_Static)
+      if (IsRuntimeEvaluated && !IsConst &&
+          VD->getStorageClass() == SC_Static &&
+          !VD->hasAttr<SYCLGlobalVarAttr>())
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelNonConstStaticDataVariable;
-      // Non-const globals are allowed for SYCL explicit SIMD.
+      // Non-const globals are allowed for SYCL explicit SIMD or with the
+      // SYCLGlobalVar attribute.
       else if (IsRuntimeEvaluated && !IsEsimdPrivateGlobal && !IsConst &&
-               VD->hasGlobalStorage())
+               VD->hasGlobalStorage() && !VD->hasAttr<SYCLGlobalVarAttr>())
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelGlobalVariable;
       // ESIMD globals cannot be used in a SYCL context.
@@ -388,6 +394,12 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
     Diag(Loc, diag::err_omp_declare_mapper_wrong_var)
         << getOpenMPDeclareMapperVarName();
     Diag(D->getLocation(), diag::note_entity_declared_at) << D;
+    return true;
+  }
+
+  if (const auto *EmptyD = dyn_cast<UnresolvedUsingIfExistsDecl>(D)) {
+    Diag(Loc, diag::err_use_of_empty_using_if_exists);
+    Diag(EmptyD->getLocation(), diag::note_empty_using_if_exists_here);
     return true;
   }
 
@@ -863,6 +875,19 @@ ExprResult Sema::DefaultArgumentPromotion(Expr *E) {
     } else {
       E = ImpCastExprToType(E, Context.DoubleTy, CK_FloatingCast).get();
     }
+  }
+  if (BTy &&
+      getLangOpts().getExtendIntArgs() ==
+          LangOptions::ExtendArgsKind::ExtendTo64 &&
+      Context.getTargetInfo().supportsExtendIntArgs() && Ty->isIntegerType() &&
+      Context.getTypeSizeInChars(BTy) <
+          Context.getTypeSizeInChars(Context.LongLongTy)) {
+    E = (Ty->isUnsignedIntegerType())
+            ? ImpCastExprToType(E, Context.UnsignedLongLongTy, CK_IntegralCast)
+                  .get()
+            : ImpCastExprToType(E, Context.LongLongTy, CK_IntegralCast).get();
+    assert(8 == Context.getTypeSizeInChars(Context.LongLongTy).getQuantity() &&
+           "Unexpected typesize for LongLongTy");
   }
 
   // C++ performs lvalue-to-rvalue conversion as a default argument
@@ -3238,8 +3263,7 @@ ExprResult Sema::BuildDeclarationNameExpr(
   }
 
   // Make sure that we're referring to a value.
-  ValueDecl *VD = dyn_cast<ValueDecl>(D);
-  if (!VD) {
+  if (!isa<ValueDecl, UnresolvedUsingIfExistsDecl>(D)) {
     Diag(Loc, diag::err_ref_non_value)
       << D << SS.getRange();
     Diag(D->getLocation(), diag::note_declared_at);
@@ -3250,8 +3274,10 @@ ExprResult Sema::BuildDeclarationNameExpr(
   // this check when we're going to perform argument-dependent lookup
   // on this function name, because this might not be the function
   // that overload resolution actually selects.
-  if (DiagnoseUseOfDecl(VD, Loc))
+  if (DiagnoseUseOfDecl(D, Loc))
     return ExprError();
+
+  auto *VD = cast<ValueDecl>(D);
 
   // Only create DeclRefExpr's for valid Decl's.
   if (VD->isInvalidDecl() && !AcceptInvalidDecl)
@@ -3536,68 +3562,63 @@ ExprResult Sema::BuildPredefinedExpr(SourceLocation Loc,
   return PredefinedExpr::Create(Context, Loc, ResTy, IK, SL);
 }
 
-static std::pair<QualType, StringLiteral *>
-GetUniqueStableNameInfo(ASTContext &Context, QualType OpType,
-                        SourceLocation OpLoc, PredefinedExpr::IdentKind K) {
-  std::pair<QualType, StringLiteral*> Result{{}, nullptr};
+ExprResult Sema::BuildSYCLUniqueStableNameExpr(SourceLocation OpLoc,
+                                               SourceLocation LParen,
+                                               SourceLocation RParen,
+                                               TypeSourceInfo *TSI) {
+  return SYCLUniqueStableNameExpr::Create(Context, OpLoc, LParen, RParen, TSI);
+}
 
-  if (OpType->isDependentType()) {
-      Result.first = Context.DependentTy;
-      return Result;
+ExprResult Sema::ActOnSYCLUniqueStableNameExpr(SourceLocation OpLoc,
+                                               SourceLocation LParen,
+                                               SourceLocation RParen,
+                                               ParsedType ParsedTy) {
+  TypeSourceInfo *TSI = nullptr;
+  QualType Ty = GetTypeFromParser(ParsedTy, &TSI);
+
+  if (Ty.isNull())
+    return ExprError();
+  if (!TSI)
+    TSI = Context.getTrivialTypeSourceInfo(Ty, LParen);
+
+  return BuildSYCLUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
+}
+
+ExprResult Sema::BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                             SourceLocation LParen,
+                                             SourceLocation RParen, Expr *E) {
+  if (!E->isInstantiationDependent()) {
+    // Special handling to get us better error messages for a member variable.
+    if (auto *ME = dyn_cast<MemberExpr>(E->IgnoreUnlessSpelledInSource())) {
+      if (isa<FieldDecl>(ME->getMemberDecl()))
+        Diag(E->getExprLoc(), diag::err_unique_stable_id_global_storage);
+      else
+        Diag(E->getExprLoc(), diag::err_unique_stable_id_expected_var);
+      return ExprError();
+    }
+
+    auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreUnlessSpelledInSource());
+
+    if (!DRE || !isa_and_nonnull<VarDecl>(DRE->getDecl())) {
+      Diag(E->getExprLoc(), diag::err_unique_stable_id_expected_var);
+      return ExprError();
+    }
+
+    auto *Var = cast<VarDecl>(DRE->getDecl());
+
+    if (!Var->hasGlobalStorage()) {
+      Diag(E->getExprLoc(), diag::err_unique_stable_id_global_storage);
+      return ExprError();
+    }
   }
 
-  std::string Str = PredefinedExpr::ComputeName(Context, K, OpType);
-  llvm::APInt Length(32, Str.length() + 1);
-  Result.first =
-      Context.adjustStringLiteralBaseType(Context.CharTy.withConst());
-  Result.first = Context.getConstantArrayType(
-      Result.first, Length, nullptr, ArrayType::Normal, /*IndexTypeQuals*/ 0);
-  Result.second = StringLiteral::Create(Context, Str, StringLiteral::Ascii,
-                                        /*Pascal*/ false, Result.first, OpLoc);
-  return Result;
+  return SYCLUniqueStableIdExpr::Create(Context, OpLoc, LParen, RParen, E);
 }
 
-ExprResult Sema::BuildUniqueStableName(SourceLocation OpLoc,
-                                       TypeSourceInfo *Operand) {
-  QualType ResultTy;
-  StringLiteral *SL;
-  std::tie(ResultTy, SL) = GetUniqueStableNameInfo(
-      Context, Operand->getType(), OpLoc, PredefinedExpr::UniqueStableNameType);
-
-  return PredefinedExpr::Create(Context, OpLoc, ResultTy,
-                                PredefinedExpr::UniqueStableNameType, SL,
-                                Operand);
-}
-
-ExprResult Sema::BuildUniqueStableName(SourceLocation OpLoc,
-                                       Expr *E) {
-  QualType ResultTy;
-  StringLiteral *SL;
-  std::tie(ResultTy, SL) = GetUniqueStableNameInfo(
-      Context, E->getType(), OpLoc, PredefinedExpr::UniqueStableNameExpr);
-
-  return PredefinedExpr::Create(Context, OpLoc, ResultTy,
-                                PredefinedExpr::UniqueStableNameExpr, SL, E);
-}
-
-ExprResult Sema::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
-                                           SourceLocation L, SourceLocation R,
-                                           ParsedType Ty) {
-  TypeSourceInfo *TInfo = nullptr;
-  QualType T = GetTypeFromParser(Ty, &TInfo);
-
-  if (T.isNull())
-    return ExprError();
-  if (!TInfo)
-    TInfo = Context.getTrivialTypeSourceInfo(T, OpLoc);
-
-  return BuildUniqueStableName(OpLoc, TInfo);
-}
-
-ExprResult Sema::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
-                                           SourceLocation L, SourceLocation R,
-                                           Expr *E) {
-  return BuildUniqueStableName(OpLoc, E);
+ExprResult Sema::ActOnSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                             SourceLocation LParen,
+                                             SourceLocation RParen, Expr *E) {
+  return BuildSYCLUniqueStableIdExpr(OpLoc, LParen, RParen, E);
 }
 
 ExprResult Sema::ActOnPredefinedExpr(SourceLocation Loc, tok::TokenKind Kind) {
@@ -3937,7 +3958,8 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
       } else if (getLangOpts().OpenCL && !getOpenCLOptions().isAvailableOption(
                                              "cl_khr_fp64", getLangOpts())) {
         // Impose single-precision float type when cl_khr_fp64 is not enabled.
-        Diag(Tok.getLocation(), diag::warn_double_const_requires_fp64);
+        Diag(Tok.getLocation(), diag::warn_double_const_requires_fp64)
+            << (getLangOpts().OpenCLVersion >= 300);
         Res = ImpCastExprToType(Res, Context.FloatTy, CK_FloatingCast).get();
       }
     }
@@ -6018,7 +6040,8 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
                (!Param || !Param->hasAttr<CFConsumedAttr>()))
         CFAudited = true;
 
-      if (Proto->getExtParameterInfo(i).isNoEscape())
+      if (Proto->getExtParameterInfo(i).isNoEscape() &&
+          ProtoArgType->isBlockPointerType())
         if (auto *BE = dyn_cast<BlockExpr>(Arg->IgnoreParenNoopCasts(Context)))
           BE->getBlockDecl()->setDoesNotEscape();
 
@@ -6597,9 +6620,6 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
   if (FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(NDecl)) {
     if (CallingNDeclIndirectly && !checkAddressOfFunctionIsAvailable(
                                       FD, /*Complain=*/true, Fn->getBeginLoc()))
-      return ExprError();
-
-    if (getLangOpts().OpenCL && checkOpenCLDisabledDecl(*FD, *Fn))
       return ExprError();
 
     checkDirectCallValidity(*this, Fn, FD, ArgExprs);
@@ -7455,6 +7475,25 @@ bool Sema::areMatrixTypesOfTheSameDimension(QualType srcTy, QualType destTy) {
          matSrcType->getNumColumns() == matDestType->getNumColumns();
 }
 
+bool Sema::areVectorTypesSameSize(QualType SrcTy, QualType DestTy) {
+  assert(DestTy->isVectorType() || SrcTy->isVectorType());
+
+  uint64_t SrcLen, DestLen;
+  QualType SrcEltTy, DestEltTy;
+  if (!breakDownVectorType(SrcTy, SrcLen, SrcEltTy))
+    return false;
+  if (!breakDownVectorType(DestTy, DestLen, DestEltTy))
+    return false;
+
+  // ASTContext::getTypeSize will return the size rounded up to a
+  // power of 2, so instead of using that, we need to use the raw
+  // element size multiplied by the element count.
+  uint64_t SrcEltSize = Context.getTypeSize(SrcEltTy);
+  uint64_t DestEltSize = Context.getTypeSize(DestEltTy);
+
+  return (SrcLen * SrcEltSize == DestLen * DestEltSize);
+}
+
 /// Are the two types lax-compatible vector types?  That is, given
 /// that one of them is a vector, do they have equal storage sizes,
 /// where the storage size is the number of elements times the element
@@ -7473,18 +7512,7 @@ bool Sema::areLaxCompatibleVectorTypes(QualType srcTy, QualType destTy) {
   if (srcTy->isScalarType() && destTy->isExtVectorType()) return false;
   if (destTy->isScalarType() && srcTy->isExtVectorType()) return false;
 
-  uint64_t srcLen, destLen;
-  QualType srcEltTy, destEltTy;
-  if (!breakDownVectorType(srcTy, srcLen, srcEltTy)) return false;
-  if (!breakDownVectorType(destTy, destLen, destEltTy)) return false;
-
-  // ASTContext::getTypeSize will return the size rounded up to a
-  // power of 2, so instead of using that, we need to use the raw
-  // element size multiplied by the element count.
-  uint64_t srcEltSize = Context.getTypeSize(srcEltTy);
-  uint64_t destEltSize = Context.getTypeSize(destEltTy);
-
-  return (srcLen * srcEltSize == destLen * destEltSize);
+  return areVectorTypesSameSize(srcTy, destTy);
 }
 
 /// Is this a legal conversion between two types, one of which is
@@ -8453,7 +8481,7 @@ QualType Sema::CheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
 
   // Allow ?: operations in which both operands have the same
   // built-in sizeless type.
-  if (LHSTy->isSizelessBuiltinType() && LHSTy == RHSTy)
+  if (LHSTy->isSizelessBuiltinType() && Context.hasSameType(LHSTy, RHSTy))
     return LHSTy;
 
   // Emit a better diagnostic if one of the expressions is a null pointer
@@ -17239,28 +17267,39 @@ MarkVarDeclODRUsed(VarDecl *Var, SourceLocation Loc, Sema &SemaRef,
     CaptureType, DeclRefType,
     FunctionScopeIndexToStopAt);
 
-  // Diagnose ODR-use of host global variables in device functions. Reference
-  // of device global variables in host functions is allowed through shadow
-  // variables therefore it is not diagnosed.
-  if (SemaRef.LangOpts.CUDA && SemaRef.LangOpts.CUDAIsDevice) {
+  if (SemaRef.LangOpts.CUDA && Var && Var->hasGlobalStorage()) {
     auto *FD = dyn_cast_or_null<FunctionDecl>(SemaRef.CurContext);
-    auto Target = SemaRef.IdentifyCUDATarget(FD);
-    auto IsEmittedOnDeviceSide = [](VarDecl *Var) {
-      if (Var->hasAttr<CUDADeviceAttr>() || Var->hasAttr<CUDAConstantAttr>() ||
-          Var->hasAttr<CUDASharedAttr>() ||
-          Var->getType()->isCUDADeviceBuiltinSurfaceType() ||
-          Var->getType()->isCUDADeviceBuiltinTextureType())
-        return true;
-      // Function-scope static variable in device functions or kernels are
-      // emitted on device side.
-      if (auto *FD = dyn_cast<FunctionDecl>(Var->getDeclContext())) {
-        return FD->hasAttr<CUDADeviceAttr>() || FD->hasAttr<CUDAGlobalAttr>();
+    auto VarTarget = SemaRef.IdentifyCUDATarget(Var);
+    auto UserTarget = SemaRef.IdentifyCUDATarget(FD);
+    if (VarTarget == Sema::CVT_Host &&
+        (UserTarget == Sema::CFT_Device || UserTarget == Sema::CFT_HostDevice ||
+         UserTarget == Sema::CFT_Global)) {
+      // Diagnose ODR-use of host global variables in device functions.
+      // Reference of device global variables in host functions is allowed
+      // through shadow variables therefore it is not diagnosed.
+      if (SemaRef.LangOpts.CUDAIsDevice) {
+        SemaRef.targetDiag(Loc, diag::err_ref_bad_target)
+            << /*host*/ 2 << /*variable*/ 1 << Var << UserTarget;
+        SemaRef.targetDiag(Var->getLocation(),
+                           Var->getType().isConstQualified()
+                               ? diag::note_cuda_const_var_unpromoted
+                               : diag::note_cuda_host_var);
       }
-      return false;
-    };
-    if (Var && Var->hasGlobalStorage() && !IsEmittedOnDeviceSide(Var)) {
-      SemaRef.targetDiag(Loc, diag::err_ref_bad_target)
-          << /*host*/ 2 << /*variable*/ 1 << Var << Target;
+    } else if (VarTarget == Sema::CVT_Device &&
+               (UserTarget == Sema::CFT_Host ||
+                UserTarget == Sema::CFT_HostDevice) &&
+               !Var->hasExternalStorage()) {
+      // Record a CUDA/HIP device side variable if it is ODR-used
+      // by host code. This is done conservatively, when the variable is
+      // referenced in any of the following contexts:
+      //   - a non-function context
+      //   - a host function
+      //   - a host device function
+      // This makes the ODR-use of the device side variable by host code to
+      // be visible in the device compilation for the compiler to be able to
+      // emit template variables instantiated by host code only and to
+      // externalize the static device side variable ODR-used by host code.
+      SemaRef.getASTContext().CUDADeviceVarODRUsedByHost.insert(Var);
     }
   }
 
@@ -18416,8 +18455,9 @@ void Sema::CleanupVarDeclMarking() {
          "MarkVarDeclODRUsed failed to cleanup MaybeODRUseExprs?");
 }
 
-static void DoMarkVarDeclReferenced(Sema &SemaRef, SourceLocation Loc,
-                                    VarDecl *Var, Expr *E) {
+static void DoMarkVarDeclReferenced(
+    Sema &SemaRef, SourceLocation Loc, VarDecl *Var, Expr *E,
+    llvm::DenseMap<const VarDecl *, int> &RefsMinusAssignments) {
   assert((!E || isa<DeclRefExpr>(E) || isa<MemberExpr>(E) ||
           isa<FunctionParmPackExpr>(E)) &&
          "Invalid Expr argument to DoMarkVarDeclReferenced");
@@ -18426,24 +18466,6 @@ static void DoMarkVarDeclReferenced(Sema &SemaRef, SourceLocation Loc,
   if (Var->isInvalidDecl())
     return;
 
-  // Record a CUDA/HIP static device/constant variable if it is referenced
-  // by host code. This is done conservatively, when the variable is referenced
-  // in any of the following contexts:
-  //   - a non-function context
-  //   - a host function
-  //   - a host device function
-  // This also requires the reference of the static device/constant variable by
-  // host code to be visible in the device compilation for the compiler to be
-  // able to externalize the static device/constant variable.
-  if (SemaRef.getASTContext().mayExternalizeStaticVar(Var)) {
-    auto *CurContext = SemaRef.CurContext;
-    if (!CurContext || !isa<FunctionDecl>(CurContext) ||
-        cast<FunctionDecl>(CurContext)->hasAttr<CUDAHostAttr>() ||
-        (!cast<FunctionDecl>(CurContext)->hasAttr<CUDADeviceAttr>() &&
-         !cast<FunctionDecl>(CurContext)->hasAttr<CUDAGlobalAttr>()))
-      SemaRef.getASTContext().CUDAStaticDeviceVarReferencedByHost.insert(Var);
-  }
-
   auto *MSI = Var->getMemberSpecializationInfo();
   TemplateSpecializationKind TSK = MSI ? MSI->getTemplateSpecializationKind()
                                        : Var->getTemplateSpecializationKind();
@@ -18451,6 +18473,10 @@ static void DoMarkVarDeclReferenced(Sema &SemaRef, SourceLocation Loc,
   OdrUseContext OdrUse = isOdrUseContext(SemaRef);
   bool UsableInConstantExpr =
       Var->mightBeUsableInConstantExpressions(SemaRef.Context);
+
+  if (Var->isLocalVarDeclOrParm() && !Var->hasExternalStorage()) {
+    RefsMinusAssignments.insert({Var, 0}).first->getSecond()++;
+  }
 
   // C++20 [expr.const]p12:
   //   A variable [...] is needed for constant evaluation if it is [...] a
@@ -18607,16 +18633,18 @@ static void DoMarkVarDeclReferenced(Sema &SemaRef, SourceLocation Loc,
 /// (C++ [basic.def.odr]p2, C99 6.9p3).  Note that this should not be
 /// used directly for normal expressions referring to VarDecl.
 void Sema::MarkVariableReferenced(SourceLocation Loc, VarDecl *Var) {
-  DoMarkVarDeclReferenced(*this, Loc, Var, nullptr);
+  DoMarkVarDeclReferenced(*this, Loc, Var, nullptr, RefsMinusAssignments);
 }
 
-static void MarkExprReferenced(Sema &SemaRef, SourceLocation Loc,
-                               Decl *D, Expr *E, bool MightBeOdrUse) {
+static void
+MarkExprReferenced(Sema &SemaRef, SourceLocation Loc, Decl *D, Expr *E,
+                   bool MightBeOdrUse,
+                   llvm::DenseMap<const VarDecl *, int> &RefsMinusAssignments) {
   if (SemaRef.isInOpenMPDeclareTargetContext())
     SemaRef.checkDeclIsAllowedInOpenMPTarget(E, D);
 
   if (VarDecl *Var = dyn_cast<VarDecl>(D)) {
-    DoMarkVarDeclReferenced(SemaRef, Loc, Var, E);
+    DoMarkVarDeclReferenced(SemaRef, Loc, Var, E, RefsMinusAssignments);
     return;
   }
 
@@ -18662,7 +18690,8 @@ void Sema::MarkDeclRefReferenced(DeclRefExpr *E, const Expr *Base) {
     if (!isConstantEvaluated() && FD->isConsteval() &&
         !RebuildingImmediateInvocation)
       ExprEvalContexts.back().ReferenceToConsteval.insert(E);
-  MarkExprReferenced(*this, E->getLocation(), E->getDecl(), E, OdrUse);
+  MarkExprReferenced(*this, E->getLocation(), E->getDecl(), E, OdrUse,
+                     RefsMinusAssignments);
 }
 
 /// Perform reference-marking and odr-use handling for a MemberExpr.
@@ -18681,13 +18710,15 @@ void Sema::MarkMemberReferenced(MemberExpr *E) {
   }
   SourceLocation Loc =
       E->getMemberLoc().isValid() ? E->getMemberLoc() : E->getBeginLoc();
-  MarkExprReferenced(*this, Loc, E->getMemberDecl(), E, MightBeOdrUse);
+  MarkExprReferenced(*this, Loc, E->getMemberDecl(), E, MightBeOdrUse,
+                     RefsMinusAssignments);
 }
 
 /// Perform reference-marking and odr-use handling for a FunctionParmPackExpr.
 void Sema::MarkFunctionParmPackReferenced(FunctionParmPackExpr *E) {
   for (VarDecl *VD : *E)
-    MarkExprReferenced(*this, E->getParameterPackLocation(), VD, E, true);
+    MarkExprReferenced(*this, E->getParameterPackLocation(), VD, E, true,
+                       RefsMinusAssignments);
 }
 
 /// Perform marking for a reference to an arbitrary declaration.  It
@@ -19761,12 +19792,10 @@ ExprResult Sema::ActOnObjCAvailabilityCheckExpr(
   if (Spec != AvailSpecs.end())
     Version = Spec->getVersion();
 
-  // The use of `@available` in the enclosing function should be analyzed to
+  // The use of `@available` in the enclosing context should be analyzed to
   // warn when it's used inappropriately (i.e. not if(@available)).
-  if (getCurFunctionOrMethodDecl())
-    getEnclosingFunction()->HasPotentialAvailabilityViolations = true;
-  else if (getCurBlock() || getCurLambda())
-    getCurFunction()->HasPotentialAvailabilityViolations = true;
+  if (FunctionScopeInfo *Context = getCurFunctionAvailabilityContext())
+    Context->HasPotentialAvailabilityViolations = true;
 
   return new (Context)
       ObjCAvailabilityCheckExpr(Version, AtLoc, RParen, Context.BoolTy);
@@ -19780,8 +19809,10 @@ ExprResult Sema::CreateRecoveryExpr(SourceLocation Begin, SourceLocation End,
   if (isSFINAEContext())
     return ExprError();
 
-  if (T.isNull() || !Context.getLangOpts().RecoveryASTType)
+  if (T.isNull() || T->isUndeducedType() ||
+      !Context.getLangOpts().RecoveryASTType)
     // We don't know the concrete type, fallback to dependent type.
     T = Context.DependentTy;
+
   return RecoveryExpr::Create(Context, T, Begin, End, SubExprs);
 }

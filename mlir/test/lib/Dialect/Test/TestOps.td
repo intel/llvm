@@ -25,6 +25,7 @@ include "TestInterfaces.td"
 def Test_Dialect : Dialect {
   let name = "test";
   let cppNamespace = "::mlir::test";
+  let hasCanonicalizer = 1;
   let hasConstantMaterializer = 1;
   let hasOperationAttrVerify = 1;
   let hasRegionArgAttrVerify = 1;
@@ -337,13 +338,22 @@ def SizedRegionOp : TEST_Op<"sized_region_op", []> {
 // NoTerminator Operation
 //===----------------------------------------------------------------------===//
 
-def SingleNoTerminatorOp : TEST_Op<"single_no_terminator_op", GraphRegionNoTerminator.traits> {
+def SingleNoTerminatorOp : TEST_Op<"single_no_terminator_op",
+                                   GraphRegionNoTerminator.traits> {
   let regions = (region SizedRegion<1>:$my_region);
 
   let assemblyFormat = "attr-dict `:` $my_region";
 }
 
-def VariadicNoTerminatorOp : TEST_Op<"variadic_no_terminator_op", GraphRegionNoTerminator.traits> {
+def SingleNoTerminatorCustomAsmOp : TEST_Op<"single_no_terminator_custom_asm_op",
+                                            [SingleBlock, NoTerminator]> {
+  let regions = (region SizedRegion<1>);
+  let parser = [{ return ::parseSingleNoTerminatorCustomAsmOp(parser, result); }];
+  let printer = [{ return ::print(*this, p); }];
+}
+
+def VariadicNoTerminatorOp : TEST_Op<"variadic_no_terminator_op",
+                                     GraphRegionNoTerminator.traits> {
   let regions = (region VariadicRegion<SizedRegion<1>>:$my_regions);
 
   let assemblyFormat = "attr-dict `:` $my_regions";
@@ -837,6 +847,20 @@ def : Pattern<(OpNativeCodeCall3 $input),
               [(NativeCodeCall<"createOpI($_builder, $_loc, $0)"> $input),
                (OpK)]>;
 
+def OpNativeCodeCall4 : TEST_Op<"native_code_call4"> {
+  let arguments = (ins AnyType:$input1);
+  let results = (outs I32:$output1, I32:$output2);
+}
+def OpNativeCodeCall5 : TEST_Op<"native_code_call5"> {
+  let arguments = (ins I32:$input1, I32:$input2);
+  let results = (outs I32:$output1, I32:$output2);
+}
+
+def GetFirstI32Result : NativeCodeCall<"success(getFirstI32Result($_self, $0))">;
+def BindNativeCodeCallResult : NativeCodeCall<"bindNativeCodeCallResult($0)">;
+def : Pat<(OpNativeCodeCall4 (GetFirstI32Result $ret)),
+          (OpNativeCodeCall5 (BindNativeCodeCallResult:$native $ret), $native)>;
+
 // Test AllAttrConstraintsOf.
 def OpAllAttrConstraint1 : TEST_Op<"all_attr_constraint_of1"> {
   let arguments = (ins I64ArrayAttr:$attr);
@@ -950,6 +974,11 @@ def TestPassthroughFold : TEST_Op<"passthrough_fold"> {
   let arguments = (ins AnyType:$op);
   let results = (outs AnyType);
   let hasFolder = 1;
+}
+
+def TestDialectCanonicalizerOp : TEST_Op<"dialect_canonicalizable"> {
+  let arguments = (ins);
+  let results = (outs I32);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1865,8 +1894,8 @@ def CopyOp : TEST_Op<"copy", [CopyOpInterface]> {
   let description = [{
     Represents a copy operation.
   }];
-  let arguments = (ins Res<AnyMemRef, "", [MemRead]>:$source,
-                   Res<AnyMemRef, "", [MemWrite]>:$target);
+  let arguments = (ins Res<AnyRankedOrUnrankedMemRef, "", [MemRead]>:$source,
+                   Res<AnyRankedOrUnrankedMemRef, "", [MemWrite]>:$target);
   let assemblyFormat = [{
     `(` $source `,` $target `)` `:` `(` type($source) `,` type($target) `)`
      attr-dict
@@ -1901,7 +1930,8 @@ class BufferBasedOpBase<string mnemonic, list<OpTrait> traits>
   let description = [{
     A buffer based operation, that uses memRefs as input and output.
   }];
-  let arguments = (ins AnyMemRef:$input, AnyMemRef:$output);
+  let arguments = (ins AnyRankedOrUnrankedMemRef:$input,
+                       AnyRankedOrUnrankedMemRef:$output);
 }
 
 def BufferBasedOp : BufferBasedOpBase<"buffer_based", []>{
@@ -2082,5 +2112,20 @@ def DataLayoutQueryOp : TEST_Op<"data_layout_query"> {
 
   let results = (outs AnyType:$res);
 }
+
+//===----------------------------------------------------------------------===//
+// Test Reducer Patterns
+//===----------------------------------------------------------------------===//
+
+def OpCrashLong : TEST_Op<"op_crash_long"> {
+  let arguments = (ins I32, I32, I32);
+  let results = (outs I32);
+}
+
+def OpCrashShort : TEST_Op<"op_crash_short"> {
+  let results = (outs I32);
+}
+
+def : Pat<(OpCrashLong $_, $_, $_), (OpCrashShort)>;
 
 #endif // TEST_OPS

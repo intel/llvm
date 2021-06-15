@@ -8,7 +8,6 @@
 
 #include "mlir-c/Dialect/Linalg.h"
 #include "mlir/CAPI/Registration.h"
-#include "mlir/Dialect/Linalg/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 
 using namespace mlir;
@@ -35,15 +34,14 @@ void mlirLinalgFillBuiltinNamedOpRegion(MlirDialect linalgDialect,
 
   SmallVector<Type, 8> argTypes;
   auto linalgOp = cast<LinalgOp>(op);
-  for (auto t : linalgOp.getShapedOperandTypes())
-    argTypes.push_back(getElementTypeOrSelf(t));
+  for (OpOperand *opOperand : linalgOp.getInputAndOutputOperands())
+    argTypes.push_back(getElementTypeOrSelf(opOperand->get().getType()));
 
-  OpBuilder b(op->getContext());
+  ImplicitLocOpBuilder b(op->getLoc(), op->getContext());
   Region &region = op->getRegion(0);
   Block *body = b.createBlock(&region, /*insertPt=*/{}, argTypes);
   b.setInsertionPointToStart(body);
-  mlir::edsc::ScopedContext scope(b, op->getLoc());
-  fun(*body, captures);
+  fun(b, *body, captures);
 }
 
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Linalg, linalg, LinalgDialect)

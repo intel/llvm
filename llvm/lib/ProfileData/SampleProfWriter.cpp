@@ -252,6 +252,8 @@ std::error_code SampleProfileWriterExtBinaryBase::writeOneSection(
     addSectionFlag(SecProfSummary, SecProfSummaryFlags::SecFlagFullContext);
   if (Type == SecFuncMetadata && FunctionSamples::ProfileIsCS)
     addSectionFlag(SecFuncMetadata, SecFuncMetadataFlags::SecFlagHasAttribute);
+  if (Type == SecProfSummary && FunctionSamples::ProfileIsFS)
+    addSectionFlag(SecProfSummary, SecProfSummaryFlags::SecFlagFSDiscriminator);
 
   uint64_t SectionStart = markSectionStart(Type, LayoutIdx);
   switch (Type) {
@@ -775,6 +777,11 @@ SampleProfileWriter::create(std::unique_ptr<raw_ostream> &OS,
                             SampleProfileFormat Format) {
   std::error_code EC;
   std::unique_ptr<SampleProfileWriter> Writer;
+
+  // Currently only Text and Extended Binary format are supported for CSSPGO.
+  if ((FunctionSamples::ProfileIsCS || FunctionSamples::ProfileIsProbeBased) &&
+      (Format == SPF_Binary || Format == SPF_Compact_Binary))
+    return sampleprof_error::unsupported_writing_format;
 
   if (Format == SPF_Binary)
     Writer.reset(new SampleProfileWriterRawBinary(OS));

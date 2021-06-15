@@ -42,6 +42,16 @@ struct ModuleID {
   /// Modules with the same name but a different \c ContextHash should be
   /// treated as separate modules for the purpose of a build.
   std::string ContextHash;
+
+  bool operator==(const ModuleID &Other) const {
+    return ModuleName == Other.ModuleName && ContextHash == Other.ContextHash;
+  }
+};
+
+struct ModuleIDHasher {
+  std::size_t operator()(const ModuleID &MID) const {
+    return llvm::hash_combine(MID.ModuleName, MID.ContextHash);
+  }
 };
 
 struct ModuleDeps {
@@ -75,22 +85,27 @@ struct ModuleDeps {
   // the primary TU.
   bool ImportedByMainFile = false;
 
-  /// The compiler invocation associated with the translation unit that imports
-  /// this module.
-  std::shared_ptr<CompilerInvocation> Invocation;
+  /// Compiler invocation that can be used to build this module (without paths).
+  CompilerInvocation Invocation;
 
-  /// Gets the full command line suitable for passing to clang.
+  /// Gets the canonical command line suitable for passing to clang.
   ///
-  /// \param LookupPCMPath This function is called to fill in `-fmodule-file=`
-  ///                      flags and for the `-o` flag. It needs to return a
-  ///                      path for where the PCM for the given module is to
+  /// \param LookupPCMPath This function is called to fill in "-fmodule-file="
+  ///                      arguments and the "-o" argument. It needs to return
+  ///                      a path for where the PCM for the given module is to
   ///                      be located.
   /// \param LookupModuleDeps This function is called to collect the full
   ///                         transitive set of dependencies for this
-  ///                         compilation.
-  std::vector<std::string> getFullCommandLine(
+  ///                         compilation and fill in "-fmodule-map-file="
+  ///                         arguments.
+  std::vector<std::string> getCanonicalCommandLine(
       std::function<StringRef(ModuleID)> LookupPCMPath,
       std::function<const ModuleDeps &(ModuleID)> LookupModuleDeps) const;
+
+  /// Gets the canonical command line suitable for passing to clang, excluding
+  /// arguments containing modules-related paths: "-fmodule-file=", "-o",
+  /// "-fmodule-map-file=".
+  std::vector<std::string> getCanonicalCommandLineWithoutModulePaths() const;
 };
 
 namespace detail {
@@ -141,7 +156,7 @@ private:
   /// Traverses the previously collected direct modular dependencies to discover
   /// transitive modular dependencies and fills the parent \c ModuleDepCollector
   /// with both.
-  void handleTopLevelModule(const Module *M);
+  ModuleID handleTopLevelModule(const Module *M);
   void addAllSubmoduleDeps(const Module *M, ModuleDeps &MD,
                            llvm::DenseSet<const Module *> &AddedModules);
   void addModuleDep(const Module *M, ModuleDeps &MD,
@@ -167,13 +182,13 @@ private:
   DependencyConsumer &Consumer;
   /// Path to the main source file.
   std::string MainFile;
-  /// The module hash identifying the compilation conditions.
+  /// Hash identifying the compilation conditions of the current TU.
   std::string ContextHash;
   /// Non-modular file dependencies. This includes the main source file and
   /// textually included header files.
   std::vector<std::string> FileDeps;
   /// Direct and transitive modular dependencies of the main source file.
-  std::unordered_map<std::string, ModuleDeps> ModularDeps;
+  std::unordered_map<const Module *, ModuleDeps> ModularDeps;
   /// Options that control the dependency output generation.
   std::unique_ptr<DependencyOutputOptions> Opts;
 };

@@ -632,6 +632,20 @@ Attributes on the ``enum`` declaration do not apply to individual enumerators.
 
 Query for this feature with ``__has_extension(enumerator_attributes)``.
 
+C++11 Attributes on using-declarations
+======================================
+
+Clang allows C++-style ``[[]]`` attributes to be written on using-declarations.
+For instance:
+
+.. code-block:: c++
+
+  [[clang::using_if_exists]] using foo::bar;
+  using foo::baz [[clang::using_if_exists]];
+
+You can test for support for this extension with
+``__has_extension(cxx_attributes_on_using_declarations)``.
+
 'User-Specified' System Frameworks
 ==================================
 
@@ -1741,6 +1755,34 @@ OpenCL Features
 
 Clang supports internal OpenCL extensions documented below.
 
+``__cl_clang_bitfields``
+--------------------------------
+
+With this extension it is possible to enable bitfields in structs
+or unions using the OpenCL extension pragma mechanism detailed in
+`the OpenCL Extension Specification, section 1.2
+<https://www.khronos.org/registry/OpenCL/specs/3.0-unified/html/OpenCL_Ext.html#extensions-overview>`_.
+
+Use of bitfields in OpenCL kernels can result in reduced portability as struct
+layout is not guaranteed to be consistent when compiled by different compilers.
+If structs with bitfields are used as kernel function parameters, it can result
+in incorrect functionality when the layout is different between the host and
+device code.
+
+**Example of Use**:
+
+.. code-block:: c++
+
+  #pragma OPENCL EXTENSION __cl_clang_bitfields : enable
+  struct with_bitfield {
+    unsigned int i : 5; // compiled - no diagnostic generated
+  };
+
+  #pragma OPENCL EXTENSION __cl_clang_bitfields : disable
+  struct without_bitfield {
+    unsigned int i : 5; // error - bitfields are not supported
+  };
+
 ``__cl_clang_function_pointers``
 --------------------------------
 
@@ -1766,7 +1808,7 @@ correctly in any circumstances. It can be used if:
   metaprogramming algorithms to be able to specify/detect types generically.
 
 - the generated kernel binary does not contain indirect calls because they
-  are eliminated using compiler optimizations e.g. devirtualization. 
+  are eliminated using compiler optimizations e.g. devirtualization.
 
 - the selected target supports the function pointer like functionality e.g.
   most CPU targets.
@@ -1812,6 +1854,71 @@ supporting the variadic arguments e.g. majority of CPU targets.
 
   #pragma OPENCL EXTENSION __cl_clang_variadic_functions : disable
   void bar(int a, ...); // error - variadic prototype is not allowed
+
+``__cl_clang_non_portable_kernel_param_types``
+----------------------------------------------
+
+With this extension it is possible to enable the use of some restricted types
+in kernel parameters specified in `C++ for OpenCL v1.0 s2.4
+<https://www.khronos.org/opencl/assets/CXX_for_OpenCL.html#kernel_function>`_.
+The restrictions can be relaxed using regular OpenCL extension pragma mechanism
+detailed in `the OpenCL Extension Specification, section 1.2
+<https://www.khronos.org/registry/OpenCL/specs/3.0-unified/html/OpenCL_Ext.html#extensions-overview>`_.
+
+This is not a conformant behavior and it can only be used when the
+kernel arguments are not accessed on the host side or the data layout/size
+between the host and device is known to be compatible.
+
+**Example of Use**:
+
+.. code-block:: c++
+
+  // Plain Old Data type.
+  struct Pod {
+    int a;
+    int b;
+  };
+
+  // Not POD type because of the constructor.
+  // Standard layout type because there is only one access control.
+  struct OnlySL {
+    int a;
+    int b;
+    NotPod() : a(0), b(0) {}
+  };
+
+  // Not standard layout type because of two different access controls.
+  struct NotSL {
+    int a;
+  private:
+    int b;
+  }
+
+  kernel void kernel_main(
+    Pod a,
+  #pragma OPENCL EXTENSION __cl_clang_non_portable_kernel_param_types : enable
+    OnlySL b,
+    global NotSL *c,
+  #pragma OPENCL EXTENSION __cl_clang_non_portable_kernel_param_types : disable
+    global OnlySL *d,
+  );
+
+Legacy 1.x atomics with generic address space
+---------------------------------------------
+
+Clang allows use of atomic functions from the OpenCL 1.x standards
+with the generic address space pointer in C++ for OpenCL mode.
+
+This is a non-portable feature and might not be supported by all
+targets.
+
+**Example of Use**:
+
+.. code-block:: c++
+
+  void foo(__generic volatile unsigned int* a) {
+    atomic_add(a, 1);
+  }
 
 Builtin Functions
 =================
@@ -2311,29 +2418,84 @@ argument.
   int *pb =__builtin_preserve_access_index(&v->c[3].b);
   __builtin_preserve_access_index(v->j);
 
-``__builtin_unique_stable_name``
---------------------------------
+``__builtin_sycl_unique_stable_name``
+-------------------------------------
 
-``__builtin_unique_stable_name()`` is a builtin that takes a type or expression and
-produces a string literal containing a unique name for the type (or type of the
-expression) that is stable across split compilations.
+``__builtin_sycl_unique_stable_name()`` is a builtin that takes a type and
+produces a string literal containing a unique name for the type that is stable
+across split compilations, mainly to support SYCL/Data Parallel C++ language.
 
 In cases where the split compilation needs to share a unique token for a type
 across the boundary (such as in an offloading situation), this name can be used
-for lookup purposes.
+for lookup purposes, such as in the SYCL Integration Header.
 
-This builtin is superior to RTTI for this purpose for two reasons.  First, this
-value is computed entirely at compile time, so it can be used in constant
-expressions. Second, this value encodes lambda functions based on line-number
-rather than the order in which it appears in a function. This is valuable
-because it is stable in cases where an unrelated lambda is introduced
-conditionally in the same function.
+The value of this builtin is computed entirely at compile time, so it can be
+used in constant expressions. This value encodes lambda functions based on a
+stable numbering order in which they appear in their local declaration contexts.
+Once this builtin is evaluated in a constexpr context, it is erroneous to use
+it in an instantiation which changes its value.
 
-The current implementation of this builtin uses a slightly modified Itanium
-Mangler to produce the unique name. The lambda ordinal is replaced with one or
-more line/column pairs in the format ``LINE->COL``, separated with a ``~``
-character. Typically, only one pair will be included, however in the case of
-macro expansions the entire macro expansion stack is expressed.
+In order to produce the unique name, the current implementation of the bultin
+uses Itanium mangling even if the host compilation uses a different name
+mangling scheme at runtime. The mangler marks all the lambdas required to name
+the SYCL kernel and emits a stable local ordering of the respective lambdas,
+starting from ``10000``. The initial value of ``10000`` serves as an obvious
+differentiator from ordinary lambda mangling numbers but does not serve any
+other purpose and may change in the future. The resulting pattern is
+demanglable. When non-lambda types are passed to the builtin, the mangler emits
+their usual pattern without any special treatment.
+
+**Syntax**:
+
+.. code-block:: c
+
+  // Computes a unique stable name for the given type.
+  constexpr const char * __builtin_sycl_unique_stable_name( type-id );
+
+``__builtin_sycl_unique_stable_id``
+----------------------------------
+
+Like ``__builtin_sycl_unique_stable_name``, this builtin generates a unique and
+stable name as a string literal to support sharing it across split compliations.
+
+However, this builtin takes the name of a variable with global storage and
+provides the name for that.  In the case of names with internal linkage, it
+prepends an optional value if provided by ``-fsycl-unique-prefix`` on the command
+line, which the driver will do for SYCL invocations.
+
+This builtin produces a string that can be demangled, except when its argument has
+internal linkage.
+
+**Syntax**:
+
+.. code-block:: c++
+
+  // Computes a unique stable name for a given variable.
+  constexpr bool  __builtin_sycl_unique_stable_id( expr );
+
+``__builtin_sycl_mark_kernel_name``
+-----------------------------------
+
+``__builtin_sycl_mark_kernel_name`` is a builtin that can be used with
+``__builtin_sycl_unique_stable_name`` to make sure a kernel is properly 'marked'
+as a kernel without having to instantiate a sycl_kernel function. Typically,
+``__builtin_sycl_unique_stable_name`` can only be called in a constant expression
+context after any kernels that would change the output have been instantiated.
+This is necessary, as changing the answer to the constant expression after
+evaluation isn't permitted.  However, in some cases it can be useful to query the
+result of ``__builtin_unique_stable_name`` after we know that the name is a kernel
+name, but before we are able to instantiate the kernel itself (such as when trying
+to decide between two signatures at compile time). In these cases,
+``__builtin_sycl_mark_kernel_name`` can be used to mark the type as a kernel name,
+ensuring that ``__builtin_unique_stable_name`` gives the correct result despite the
+kernel not yet being instantiated.
+
+**Syntax**:
+
+.. code-block:: c++
+
+  // Marks a type as the name of a sycl kernel.
+  constexpr bool  __builtin_sycl_mark_kernel_name( type-id );
 
 Multiprecision Arithmetic Builtins
 ----------------------------------
@@ -2529,7 +2691,7 @@ Guaranteed inlined copy
 ``__builtin_memcpy_inline`` has been designed as a building block for efficient
 ``memcpy`` implementations. It is identical to ``__builtin_memcpy`` but also
 guarantees not to call any external functions. See LLVM IR `llvm.memcpy.inline
-<https://llvm.org/docs/LangRef.html#llvm-memcpy-inline-intrinsic>`_ intrinsic 
+<https://llvm.org/docs/LangRef.html#llvm-memcpy-inline-intrinsic>`_ intrinsic
 for more information.
 
 This is useful to implement a custom version of ``memcpy``, implement a

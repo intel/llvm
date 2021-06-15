@@ -10,6 +10,7 @@
 #define LLD_MACHO_INPUT_FILES_H
 
 #include "MachOStructs.h"
+#include "Target.h"
 
 #include "lld/Common/LLVM.h"
 #include "lld/Common/Memory.h"
@@ -129,13 +130,6 @@ public:
 // .dylib file
 class DylibFile : public InputFile {
 public:
-  // Mach-O dylibs can re-export other dylibs as sub-libraries, meaning that the
-  // symbols in those sub-libraries will be available under the umbrella
-  // library's namespace. Those sub-libraries can also have their own
-  // re-exports. When loading a re-exported dylib, `umbrella` should be set to
-  // the root dylib to ensure symbols in the child library are correctly bound
-  // to the root. On the other hand, if a dylib is being directly loaded
-  // (through an -lfoo flag), then `umbrella` should be a nullptr.
   explicit DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
                      bool isBundleLoader = false);
 
@@ -143,15 +137,36 @@ public:
                      DylibFile *umbrella = nullptr,
                      bool isBundleLoader = false);
 
+  // Mach-O dylibs can re-export other dylibs as sub-libraries, meaning that the
+  // symbols in those sub-libraries will be available under the umbrella
+  // library's namespace. Those sub-libraries can also have their own
+  // re-exports. When loading a re-exported dylib, `umbrella` should be set to
+  // the root dylib to ensure symbols in the child library are correctly bound
+  // to the root. On the other hand, if a dylib is being directly loaded
+  // (through an -lfoo flag), then `umbrella` should be a nullptr.
+  void parseLoadCommands(MemoryBufferRef mb);
+  void parseReexports(const llvm::MachO::InterfaceFile &interface);
+
   static bool classof(const InputFile *f) { return f->kind() == DylibKind; }
 
-  StringRef dylibName;
+  StringRef installName;
+  DylibFile *exportingFile = nullptr;
+  DylibFile *umbrella;
   uint32_t compatibilityVersion = 0;
   uint32_t currentVersion = 0;
   int64_t ordinal = 0; // Ordinal numbering starts from 1, so 0 is a sentinel
   RefState refState;
   bool reexport = false;
+  bool forceNeeded = false;
   bool forceWeakImport = false;
+  bool deadStrippable = false;
+  bool explicitlyLinked = false;
+
+  unsigned numReferencedSymbols = 0;
+
+  bool isReferenced() const {
+    return numReferencedSymbols > 0;
+  }
 
   // An executable can be used as a bundle loader that will load the output
   // file being linked, and that contains symbols referenced, but not
@@ -160,7 +175,9 @@ public:
   bool isBundleLoader;
 
 private:
-  template <class LP> void parse(DylibFile *umbrella = nullptr);
+  bool handleLDSymbol(StringRef originalName);
+  void handleLDPreviousSymbol(StringRef name, StringRef originalName);
+  void handleLDInstallNameSymbol(StringRef name, StringRef originalName);
 };
 
 // .a file
@@ -189,19 +206,42 @@ extern llvm::SetVector<InputFile *> inputFiles;
 
 llvm::Optional<MemoryBufferRef> readFile(StringRef path);
 
-template <class CommandType = llvm::MachO::load_command, class Header,
-          class... Types>
-const CommandType *findCommand(const Header *hdr, Types... types) {
-  std::initializer_list<uint32_t> typesList{types...};
-  const uint8_t *p = reinterpret_cast<const uint8_t *>(hdr) + sizeof(Header);
+namespace detail {
 
+template <class CommandType, class... Types>
+std::vector<const CommandType *>
+findCommands(const void *anyHdr, size_t maxCommands, Types... types) {
+  std::vector<const CommandType *> cmds;
+  std::initializer_list<uint32_t> typesList{types...};
+  const auto *hdr = reinterpret_cast<const llvm::MachO::mach_header *>(anyHdr);
+  const uint8_t *p =
+      reinterpret_cast<const uint8_t *>(hdr) + target->headerSize;
   for (uint32_t i = 0, n = hdr->ncmds; i < n; ++i) {
     auto *cmd = reinterpret_cast<const CommandType *>(p);
-    if (llvm::is_contained(typesList, cmd->cmd))
-      return cmd;
+    if (llvm::is_contained(typesList, cmd->cmd)) {
+      cmds.push_back(cmd);
+      if (cmds.size() == maxCommands)
+        return cmds;
+    }
     p += cmd->cmdsize;
   }
-  return nullptr;
+  return cmds;
+}
+
+} // namespace detail
+
+// anyHdr should be a pointer to either mach_header or mach_header_64
+template <class CommandType = llvm::MachO::load_command, class... Types>
+const CommandType *findCommand(const void *anyHdr, Types... types) {
+  std::vector<const CommandType *> cmds =
+      detail::findCommands<CommandType>(anyHdr, 1, types...);
+  return cmds.size() ? cmds[0] : nullptr;
+}
+
+template <class CommandType = llvm::MachO::load_command, class... Types>
+std::vector<const CommandType *> findCommands(const void *anyHdr,
+                                              Types... types) {
+  return detail::findCommands<CommandType>(anyHdr, 0, types...);
 }
 
 } // namespace macho

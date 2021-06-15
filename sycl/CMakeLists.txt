@@ -176,10 +176,12 @@ endif()
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
 add_custom_target( sycl-toolchain
   DEPENDS ${SYCL_RT_LIBS}
+          append-file
           clang
           clang-offload-wrapper
           clang-offload-bundler
           clang-offload-deps
+          clang-offload-extract
           file-table-tform
           llc
           llvm-ar
@@ -222,10 +224,12 @@ endif()
 # Package deploy support
 # Listed here are component names contributing the package
 set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
+     append-file
      clang
      clang-offload-wrapper
      clang-offload-bundler
      clang-offload-deps
+     clang-offload-extract
      file-table-tform
      level-zero-loader
      level-zero-headers
@@ -246,6 +250,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl
      pi_opencl
      pi_level_zero
+     pi_esimd_cpu
      libsycldevice
      ${XPTIFW_LIBS}
 )

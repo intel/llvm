@@ -255,8 +255,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		LIB_DIR lib
 		DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
 		DEPS convert-clc.cl )
-	set( libspirv_files_base )
-	libclc_configure_lib_source(libspirv_files_base
+	set( libspirv_files )
+	libclc_configure_lib_source(libspirv_files
 		LIB_DIR libspirv
 		DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
 		DEPS convert-spirv.cl convert-core.cl)
@@ -319,17 +319,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			set( arch_suffix "${d}-${t}" )
 		endif()
 		message( "    DEVICE: ${d} ( ${${d}_aliases} )" )
-
-		# FIXME: this is a hack, remove once we can use sycldevice in the triple
-		#        without changing the language
-		# see issue: https://github.com/intel/llvm/issues/1814
-		set(libspirv_files ${libspirv_files_base})
-		if( ${ARCH} STREQUAL nvptx OR ${ARCH} STREQUAL nvptx64 )
-			add_libclc_sycl_binding(libspirv_files
-				TRIPLE ${t}
-				COMPILE_OPT ${flags}
-				FILES generic/libspirv/sycldevice-binding.cpp)
-		endif()
 
 		if ( ${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64" )
 			if( ${ARCH} STREQUAL "spirv" )

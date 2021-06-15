@@ -36,6 +36,7 @@ public:
     return SelectionDAGISel::runOnMachineFunction(MF);
   }
 
+  void PreprocessISelDAG() override;
   void PostprocessISelDAG() override;
 
   void Select(SDNode *Node) override;
@@ -57,8 +58,6 @@ public:
   bool selectSExti32(SDValue N, SDValue &Val);
   bool selectZExti32(SDValue N, SDValue &Val);
 
-  bool selectAddiPair(SDValue N, SDValue &Val);
-
   bool MatchSLLIUW(SDNode *N) const;
 
   bool selectVLOp(SDValue N, SDValue &VL);
@@ -72,11 +71,6 @@ public:
   bool selectRVVSimm5(SDValue N, unsigned Width, SDValue &Imm);
   template <unsigned Width> bool selectRVVSimm5(SDValue N, SDValue &Imm) {
     return selectRVVSimm5(N, Width, Imm);
-  }
-
-  bool selectRVVUimm5(SDValue N, unsigned Width, SDValue &Imm);
-  template <unsigned Width> bool selectRVVUimm5(SDValue N, SDValue &Imm) {
-    return selectRVVUimm5(N, Width, Imm);
   }
 
   void addVectorLoadStoreOperands(SDNode *Node, unsigned SEWImm,

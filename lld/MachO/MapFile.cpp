@@ -64,11 +64,12 @@ static std::vector<Defined *> getSymbols() {
   for (InputFile *file : inputFiles)
     if (isa<ObjFile>(file))
       for (Symbol *sym : file->symbols) {
-        if (sym == nullptr)
-          continue;
-        if (auto *d = dyn_cast<Defined>(sym))
-          if (d->isec && d->getFile() == file)
+        if (auto *d = dyn_cast_or_null<Defined>(sym))
+          if (d->isLive() && d->isec && d->getFile() == file) {
+            assert(!d->isec->isCoalescedWeak() &&
+                   "file->symbols should store resolved symbols");
             v.push_back(d);
+          }
       }
   return v;
 }
@@ -144,7 +145,11 @@ void macho::writeMapFile() {
   os << "# Symbols:\n";
   os << "# Address\t    File  Name\n";
   for (InputSection *isec : inputSections) {
-    for (Symbol *sym : sectionSyms[isec]) {
+    auto symsIt = sectionSyms.find(isec);
+    assert(!isec->shouldOmitFromOutput() || (symsIt == sectionSyms.end()));
+    if (symsIt == sectionSyms.end())
+      continue;
+    for (Symbol *sym : symsIt->second) {
       os << format("0x%08llX\t[%3u] %s\n", sym->getVA(),
                    readerToFileOrdinal[sym->getFile()], symStr[sym].c_str());
     }

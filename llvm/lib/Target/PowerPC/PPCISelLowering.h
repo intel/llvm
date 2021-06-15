@@ -671,6 +671,49 @@ namespace llvm {
     /// the number of bytes of each element [124] -> [bhw].
     SDValue get_VSPLTI_elt(SDNode *N, unsigned ByteSize, SelectionDAG &DAG);
 
+    // Flags for computing the optimal addressing mode for loads and stores.
+    enum MemOpFlags {
+      MOF_None = 0,
+
+      // Extension mode for integer loads.
+      MOF_SExt = 1,
+      MOF_ZExt = 1 << 1,
+      MOF_NoExt = 1 << 2,
+
+      // Address computation flags.
+      MOF_NotAddNorCst = 1 << 5,      // Not const. or sum of ptr and scalar.
+      MOF_RPlusSImm16 = 1 << 6,       // Reg plus signed 16-bit constant.
+      MOF_RPlusLo = 1 << 7,           // Reg plus signed 16-bit relocation
+      MOF_RPlusSImm16Mult4 = 1 << 8,  // Reg plus 16-bit signed multiple of 4.
+      MOF_RPlusSImm16Mult16 = 1 << 9, // Reg plus 16-bit signed multiple of 16.
+      MOF_RPlusSImm34 = 1 << 10,      // Reg plus 34-bit signed constant.
+      MOF_RPlusR = 1 << 11,           // Sum of two variables.
+      MOF_PCRel = 1 << 12,            // PC-Relative relocation.
+      MOF_AddrIsSImm32 = 1 << 13,     // A simple 32-bit constant.
+
+      // The in-memory type.
+      MOF_SubWordInt = 1 << 15,
+      MOF_WordInt = 1 << 16,
+      MOF_DoubleWordInt = 1 << 17,
+      MOF_ScalarFloat = 1 << 18, // Scalar single or double precision.
+      MOF_Vector = 1 << 19,      // Vector types and quad precision scalars.
+      MOF_Vector256 = 1 << 20,
+
+      // Subtarget features.
+      MOF_SubtargetBeforeP9 = 1 << 22,
+      MOF_SubtargetP9 = 1 << 23,
+      MOF_SubtargetP10 = 1 << 24,
+      MOF_SubtargetSPE = 1 << 25
+    };
+
+    // The addressing modes for loads and stores.
+    enum AddrMode {
+      AM_None,
+      AM_DForm,
+      AM_DSForm,
+      AM_DQForm,
+      AM_XForm,
+    };
   } // end namespace PPC
 
   class PPCTargetLowering : public TargetLowering {
@@ -699,7 +742,8 @@ namespace llvm {
     /// then the VPERM for the shuffle. All in all a very slow sequence.
     TargetLoweringBase::LegalizeTypeAction getPreferredVectorAction(MVT VT)
       const override {
-      if (VT.getVectorNumElements() != 1 && VT.getScalarSizeInBits() % 8 == 0)
+      if (!VT.isScalableVector() && VT.getVectorNumElements() != 1 &&
+          VT.getScalarSizeInBits() % 8 == 0)
         return TypeWidenVector;
       return TargetLoweringBase::getPreferredVectorAction(VT);
     }
@@ -827,9 +871,9 @@ namespace llvm {
       return true;
     }
 
-    Instruction *emitLeadingFence(IRBuilder<> &Builder, Instruction *Inst,
+    Instruction *emitLeadingFence(IRBuilderBase &Builder, Instruction *Inst,
                                   AtomicOrdering Ord) const override;
-    Instruction *emitTrailingFence(IRBuilder<> &Builder, Instruction *Inst,
+    Instruction *emitTrailingFence(IRBuilderBase &Builder, Instruction *Inst,
                                    AtomicOrdering Ord) const override;
 
     MachineBasicBlock *
@@ -1029,6 +1073,7 @@ namespace llvm {
     /// Override to support customized stack guard loading.
     bool useLoadStackGuardNode() const override;
     void insertSSPDeclarations(Module &M) const override;
+    Value *getSDagStackGuard(const Module &M) const override;
 
     bool isFPImmLegal(const APFloat &Imm, EVT VT,
                       bool ForCodeSize) const override;
@@ -1040,6 +1085,18 @@ namespace llvm {
     const MCExpr *getPICJumpTableRelocBaseExpr(const MachineFunction *MF,
                                                unsigned JTI,
                                                MCContext &Ctx) const override;
+
+    /// SelectOptimalAddrMode - Based on a node N and it's Parent (a MemSDNode),
+    /// compute the address flags of the node, get the optimal address mode
+    /// based on the flags, and set the Base and Disp based on the address mode.
+    PPC::AddrMode SelectOptimalAddrMode(const SDNode *Parent, SDValue N,
+                                        SDValue &Disp, SDValue &Base,
+                                        SelectionDAG &DAG,
+                                        MaybeAlign Align) const;
+    /// SelectForceXFormMode - Given the specified address, force it to be
+    /// represented as an indexed [r+r] operation (an XForm instruction).
+    PPC::AddrMode SelectForceXFormMode(SDValue N, SDValue &Disp, SDValue &Base,
+                                       SelectionDAG &DAG) const;
 
     /// Structure that collects some common arguments that get passed around
     /// between the functions for call lowering.
@@ -1058,6 +1115,9 @@ namespace llvm {
             IsPatchPoint(IsPatchPoint), IsIndirect(IsIndirect),
             HasNest(HasNest), NoMerge(NoMerge) {}
     };
+
+    CCAssignFn *ccAssignFnForCall(CallingConv::ID CC, bool Return,
+                                  bool IsVarArg) const;
 
   private:
     struct ReuseLoadInfo {
@@ -1082,6 +1142,10 @@ namespace llvm {
         return F;
       }
     };
+
+    // Map that relates a set of common address flags to PPC addressing modes.
+    std::map<PPC::AddrMode, SmallVector<unsigned, 16>> AddrModesMap;
+    void initializeAddrModeMap();
 
     bool canReuseLoadAddress(SDValue Op, EVT MemVT, ReuseLoadInfo &RLI,
                              SelectionDAG &DAG,
@@ -1137,6 +1201,7 @@ namespace llvm {
     SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINIT_TRAMPOLINE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerADJUST_TRAMPOLINE(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerINLINEASM(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerVAARG(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerVACOPY(SDValue Op, SelectionDAG &DAG) const;
@@ -1314,6 +1379,17 @@ namespace llvm {
     bool mayBeEmittedAsTailCall(const CallInst *CI) const override;
     bool hasBitPreservingFPLogic(EVT VT) const override;
     bool isMaskAndCmp0FoldingBeneficial(const Instruction &AndI) const override;
+
+    /// getAddrModeForFlags - Based on the set of address flags, select the most
+    /// optimal instruction format to match by.
+    PPC::AddrMode getAddrModeForFlags(unsigned Flags) const;
+
+    /// computeMOFlags - Given a node N and it's Parent (a MemSDNode), compute
+    /// the address flags of the load/store instruction that is to be matched.
+    /// The address flags are stored in a map, which is then searched
+    /// through to determine the optimal load/store instruction format.
+    unsigned computeMOFlags(const SDNode *Parent, SDValue N,
+                            SelectionDAG &DAG) const;
   }; // end class PPCTargetLowering
 
   namespace PPC {

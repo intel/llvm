@@ -2503,25 +2503,76 @@ device kernel, the attribute is not ignored and it is propagated to the kernel.
     [[intel::num_simd_work_items(N)]] void operator()() const {}
   };
 
-If the`` intel::reqd_work_group_size`` or ``cl::reqd_work_group_size``
-attribute is specified on a declaration along with a
-intel::num_simd_work_items attribute, the work group size attribute
-argument (the first argument) must be evenly divisible by the argument specified
-in the ``intel::num_simd_work_items`` attribute.
+If the ``reqd_work_group_size`` attribute is specified on a declaration along
+with ``num_simd_work_items``, the required work group size specified
+by ``num_simd_work_items`` attribute must evenly divide the index that
+increments fastest in the ``reqd_work_group_size`` attribute.
+
+The arguments to ``reqd_work_group_size`` are ordered based on which index
+increments the fastest. In OpenCL, the first argument is the index that
+increments the fastest, and in SYCL, the last argument is the index that
+increments the fastest.
+
+In OpenCL, all three arguments are required.
+
+In SYCL, the attribute accepts either one, two, or three arguments; in each
+form, the last (or only) argument is the index that increments fastest.
+The number of arguments passed to the attribute must match the dimensionality
+of the kernel the attribute is applied to.
 
 .. code-block:: c++
 
+  // Note, '64' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(64, 64, 64)]]
+    [[intel::reqd_work_group_size(7, 4, 64)]]
     void operator()() const {}
   };
 
+  // Note, '8' is evenly divisible by '8'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   struct bar {
-    [[intel::reqd_work_group_size(64, 64, 64)]]
+    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[intel::num_simd_work_items(8)]]
+    void operator()() const {}
+  };
+
+  // Note, '10' is evenly divisible by '5'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[cl::reqd_work_group_size(7, 5, 10)]]
+  [[intel::num_simd_work_items(5)]] void fun2() {}
+
+  // Note, '8' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[intel::num_simd_work_items(4)]]
+  [[cl::reqd_work_group_size(5, 4, 8)]] void fun3() {}
+
+  // Note, '8' is evenly divisible by '8'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  struct func1 {
+    [[intel::num_simd_work_items(8)]]
+    [[cl::reqd_work_group_size(1, 1, 8)]]
+    void operator()() const {}
+  };
+
+  // Note, '8' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  struct bar1 {
+    [[cl::reqd_work_group_size(7, 4, 8)]]
     [[intel::num_simd_work_items(4)]]
     void operator()() const {}
   };
+
+  // Note, '4' is evenly divisible by '2'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[intel::num_simd_work_items(2)]]
+  __attribute__((reqd_work_group_size(3, 2, 4))) void test();
+
+  // Note, '8' is evenly divisible by '2'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  __attribute__((reqd_work_group_size(3, 2, 8)))
+  [intel::num_simd_work_items(2)]] void test();
 
   }];
 }
@@ -2572,69 +2623,144 @@ generated code appropriately for the kernel to which attribute is applied.
 While semantic of this attribute is the same between OpenCL and SYCL,
 spelling is a bit different: 
 
-SYCL 1.2.1 describes ``[[cl::reqd_work_group_size(X, Y, Z)]]`` spelling: this
-attribute is legal on device functions and is propagated down to any caller of 
-those device functions, such that the kernel attributes are the sum of all 
-attributes of all device functions called in this kernel.
-See section 6.7 Attributes for more details.
+SYCL 2020 describes the ``[[sycl::reqd_work_group_size(X, Y, Z)]]`` spelling
+in detail. This attribute indicates that the kernel must be launched with the
+specified work-group size. The order of the arguments matches the constructor
+of the group class. Each argument to the attribute must be an integral constant
+expression. The dimensionality of the attribute variant used must match the
+dimensionality of the work-group used to invoke the kernel. This spelling
+allows the Y and Z arguments to be optional. If not provided by the user, the
+value of Y and Z defaults to 1. See section 5.8.1 Kernel Attributes for more
+details.
 
 .. code-block:: c++
 
-  [[cl::reqd_work_group_size(4, 4, 4)]] void foo() {}
+  [[sycl::reqd_work_group_size(4, 4, 4)]] void foo() {}
 
   class Foo {
   public:
-    [[cl::reqd_work_group_size(2, 2, 2)]] void operator()() const {}
+    [[sycl::reqd_work_group_size(2)]] void operator()() const {} // optional arguments default to 1
   };
 
   template <int N, int N1, int N2>
   class Functor {
   public:
-    [[cl::reqd_work_group_size(N, N1, N2)]] void operator()() const {}
+    [[sycl::reqd_work_group_size(N, N1, N2)]] void operator()() const {}
   };
 
   template <int N, int N1, int N2>
-  [[cl::reqd_work_group_size(N, N1, N2)]] void func() {}
+  [[sycl::reqd_work_group_size(N, N1, N2)]] void func() {}
+
+The ``[[cl::reqd_work_group_size(X, Y, Z)]]`` and
+``__attribute__((reqd_work_group_size(X, Y, Z)))`` spellings are both
+deprecated in SYCL 2020.
 
 As an Intel extension, the ``[[intel::reqd_work_group_size(X, Y, Z)]]``
-spelling is supported. This spelling allows the Y and Z arguments to be
-optional. If not provided by the user, the value of Y and Z defaults to 1.
-This simplifies usage of the attribute when a 1- or 2-dimensional ND-range
-is assumed.
+spelling is supported with the same semantics as the
+``[[sycl::reqd_work_group_size(X, Y, Z)]]`` spelling.
 
-.. code-block:: c++
-
-  [[intel::reqd_work_group_size(5)]]
-  // identical to [[intel::reqd_work_group_size(5, 1, 1)]]
-  void quux() {}
-
-  [[intel::reqd_work_group_size(5, 5)]]
-  // identical to [[intel::reqd_work_group_size(5, 5, 1)]]
-  void qux() {}
-
-  [[intel::reqd_work_group_size(4, 4, 4)]] void foo() {}
-
-  class Foo {
-  public:
-    [[intel::reqd_work_group_size(2, 2, 2)]] void operator()() const {}
-  };
-
-  template <int X, int Y, int Z>
-  class Functor {
-  public:
-    [[intel::reqd_work_group_size(X, Y, Z)]] void operator()() const {}
-  };
-
-  template <int X, int Y, int Z>
-  [[intel::reqd_work_group_size(X, Y, Z)]] void func() {}
-
-In OpenCL C, this attribute is available in GNU spelling
+In OpenCL C, this attribute is available with the GNU spelling
 (``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
 6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification for details.
 
 .. code-block:: c++
 
   __kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
+
+  }];
+}
+
+def WorkGroupSizeHintAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Applies to a device function/lambda function. Hint to the compiler on the work-
+group size most likely to be used when launching the kernel at runtime. Each
+argument must be a nonzero integral constant expression whose value is
+unsigned. The number of dimensional values defined provide additional
+information to the compiler on the dimensionality most likely to be used when
+launching the kernel at runtime.
+
+The GNU spelling is deprecated in SYCL mode.
+
+.. code-block:: c++
+
+  [[sycl::work_group_size_hint(4, 4, 4)]] void foo() {}
+
+  class Foo {
+  public:
+    [[sycl::work_group_size_hint(2, 2, 2)]] void operator()() const {}
+  };
+
+The arguments to ``reqd_work_group_size`` are ordered based on which index
+increments the fastest. In OpenCL, the first argument is the index that
+increments the fastest, and in SYCL, the last argument is the index that
+increments the fastest.
+
+In OpenCL, all three arguments are required.
+
+In SYCL, the attribute accepts either one, two, or three arguments; in each
+form, the last (or only) argument is the index that increments fastest. The
+number of arguments passed to the attribute must match the dimensionality of
+the kernel the attribute is applied to.
+
+If the ``reqd_work_group_size attribute`` is specified on a declaration along
+with ``num_simd_work_items``, the required work group size specified by
+``num_simd_work_items`` must evenly divide the index that increments fastest
+in the ``reqd_work_group_size`` attribute.
+
+.. code-block:: c++
+
+  // Note, '64' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  struct func {
+    [[intel::num_simd_work_items(4)]]
+    [[intel::reqd_work_group_size(7, 4, 64)]]
+    void operator()() const {}
+  };
+
+  // Note, '8' is evenly divisible by '8'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  struct bar {
+    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[intel::num_simd_work_items(8)]]
+    void operator()() const {}
+  };
+
+  // Note, '10' is evenly divisible by '5'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[cl::reqd_work_group_size(7, 5, 10)]]
+  [[intel::num_simd_work_items(5)]] void fun2() {}
+
+  // Note, '8' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[intel::num_simd_work_items(4)]]
+  [[cl::reqd_work_group_size(5, 4, 8)]] void fun3() {}
+
+  // Note, '8' is evenly divisible by '8'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  struct func1 {
+    [[intel::num_simd_work_items(8)]]
+    [[cl::reqd_work_group_size(1, 1, 8)]]
+    void operator()() const {}
+  };
+  
+  // Note, '8' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  struct bar1 {
+    [[cl::reqd_work_group_size(7, 4, 8)]]
+    [[intel::num_simd_work_items(4)]]
+    void operator()() const {}
+  };
+
+  // Note, '4' is evenly divisible by '2'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[intel::num_simd_work_items(2)]]
+  __attribute__((reqd_work_group_size(3, 2, 4))) void test();
+ 
+  // Note, '8' is evenly divisible by '2'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  __attribute__((reqd_work_group_size(3, 2, 8)))
+  [intel::num_simd_work_items(2)]] void test();
 
   }];
 }
@@ -3610,12 +3736,17 @@ def NoSanitizeDocs : Documentation {
   let Content = [{
 Use the ``no_sanitize`` attribute on a function or a global variable
 declaration to specify that a particular instrumentation or set of
-instrumentations should not be applied. The attribute takes a list of
-string literals, which have the same meaning as values accepted by the
-``-fno-sanitize=`` flag. For example,
-``__attribute__((no_sanitize("address", "thread")))`` specifies that
-AddressSanitizer and ThreadSanitizer should not be applied to the
-function or variable.
+instrumentations should not be applied.
+
+The attribute takes a list of string literals with the following accepted
+values:
+* all values accepted by ``-fno-sanitize=``;
+* ``coverage``, to disable SanitizerCoverage instrumentation.
+
+For example, ``__attribute__((no_sanitize("address", "thread")))`` specifies
+that AddressSanitizer and ThreadSanitizer should not be applied to the function
+or variable. Using ``__attribute__((no_sanitize("coverage")))`` specifies that
+SanitizerCoverage should not be applied to the function.
 
 See :ref:`Controlling Code Generation <controlling-code-generation>` for a
 full list of supported sanitizer flags.
@@ -4412,6 +4543,7 @@ used to specify full unrolling or partial unrolling by a specified amount.
 
 def IntelReqdSubGroupSizeDocs : Documentation {
   let Category = DocCatStmt;
+  let Heading = "intel_reqd_sub_group_size";
   let Content = [{
 This attribute can be used in both OpenCL and SYCL.
 
@@ -4432,7 +4564,7 @@ to a sub-group size supported by the device, or device compilation will fail.
 
 The ``[[intel::sub_group_size(n)]]`` attribute has the same effect as the other
 attribute spellings, except that it follows the SYCL 2020 Attribute Rules. See
- the ``[[intel::named_sub_group_size(NAME)]]`` documentation for clarification.
+the ``[[intel::named_sub_group_size(NAME)]]`` documentation for clarification.
 
 This attribute is mutually exclusive with ``[[intel::named_sub_group_size(NAME)]]``
 and ``[[intel::sycl_explicit_simd]]``.
@@ -4842,6 +4974,16 @@ parameter is undefined behavior, which the optimizer may take advantage of to,
 e.g., remove null checks. The ``_Nonnull`` type qualifier indicates that a
 pointer cannot be null in a more general manner (because it is part of the type
 system) and does not imply undefined behavior, making it more widely applicable.
+  }];
+}
+
+def RestrictDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "malloc";
+  let Content = [{
+The ``malloc`` attribute indicates that the function acts like a system memory
+allocation function, returning a pointer to allocated storage disjoint from the
+storage for any other object accessible to the caller.
   }];
 }
 
@@ -5647,6 +5789,19 @@ A context parameter must have pointer or reference type.
   }];
 }
 
+def SwiftAsyncContextDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+The ``swift_async_context`` attribute marks a parameter as having the
+special asynchronous context-parameter ABI treatment.
+
+This treatment generally passes the context value in a special register
+which is normally callee-preserved.
+
+A context parameter must have pointer or reference type.
+  }];
+}
+
 def SwiftErrorResultDocs : Documentation {
   let Category = DocCatVariable;
   let Content = [{
@@ -5819,6 +5974,26 @@ could have a different set of data members and thus have a different size. Using
 the ``abi_tag`` attribute, it is possible to have different mangled names for
 a global variable of the class type. Therefore, the old code could keep using
 the old mangled name and the new code will use the new mangled name with tags.
+  }];
+}
+
+def BuiltinAliasDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "clang::builtin_alias, clang_builtin_alias";
+  let Content = [{
+This attribute is used in the implementation of the C intrinsics.
+It allows the C intrinsic functions to be declared using the names defined
+in target builtins, and still be recognized as clang builtins equivalent to the
+underlying name. For example, ``riscv_vector.h`` declares the function ``vadd``
+with ``__attribute__((clang_builtin_alias(__builtin_rvv_vadd_vv_i8m1)))``.
+This ensures that both functions are recognized as that clang builtin,
+and in the latter case, the choice of which builtin to identify the
+function as can be deferred until after overload resolution.
+
+This attribute can only be used to set up the aliases for certain ARM/RISC-V
+C intrinsic functions; it is intended for use only inside ``arm_*.h`` and
+``riscv_*.h`` and is not a general mechanism for declaring arbitrary aliases
+for clang builtin functions.
   }];
 }
 
@@ -6816,6 +6991,10 @@ This attribute can only be used to set up the aliases for certain Arm
 intrinsic functions; it is intended for use only inside ``arm_*.h``
 and is not a general mechanism for declaring arbitrary aliases for
 clang builtin functions.
+
+In order to avoid duplicating the attribute definitions for similar
+purpose for other architecture, there is a general form for the
+attribute `clang_builtin_alias`.
   }];
 }
 
@@ -6853,6 +7032,31 @@ once.
     for (size_t i = 0; i < count; ++i)
       data[i] = 0xFE;
   }
+  }];
+}
+
+def UsingIfExistsDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+The ``using_if_exists`` attribute applies to a using-declaration. It allows
+programmers to import a declaration that potentially does not exist, instead
+deferring any errors to the point of use. For instance:
+
+.. code-block:: c++
+
+  namespace empty_namespace {};
+  __attribute__((using_if_exists))
+  using empty_namespace::does_not_exist; // no error!
+
+  does_not_exist x; // error: use of unresolved 'using_if_exists'
+
+The C++ spelling of the attribte (`[[clang::using_if_exists]]`) is also
+supported as a clang extension, since ISO C++ doesn't support attributes in this
+position. If the entity referred to by the using-declaration is found by name
+lookup, the attribute has no effect. This attribute is useful for libraries
+(primarily, libc++) that wish to redeclare a set of declarations in another
+namespace, when the availability of those declarations is difficult or
+impossible to detect at compile time with the preprocessor.
   }];
 }
 

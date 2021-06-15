@@ -16,6 +16,8 @@ namespace mlir {
 class DialectRegistry;
 
 namespace lsp {
+struct Diagnostic;
+struct Hover;
 struct Location;
 struct Position;
 class URIForFile;
@@ -29,11 +31,17 @@ public:
   MLIRServer(DialectRegistry &registry);
   ~MLIRServer();
 
-  /// Add or update the document at the given URI.
-  void addOrUpdateDocument(const URIForFile &uri, StringRef contents);
+  /// Add or update the document, with the provided `version`, at the given URI.
+  /// Any diagnostics emitted for this document should be added to
+  /// `diagnostics`.
+  void addOrUpdateDocument(const URIForFile &uri, StringRef contents,
+                           int64_t version,
+                           std::vector<Diagnostic> &diagnostics);
 
-  /// Remove the document with the given uri.
-  void removeDocument(const URIForFile &uri);
+  /// Remove the document with the given uri. Returns the version of the removed
+  /// document, or None if the uri did not have a corresponding document within
+  /// the server.
+  Optional<int64_t> removeDocument(const URIForFile &uri);
 
   /// Return the locations of the object pointed at by the given position.
   void getLocationsOf(const URIForFile &uri, const Position &defPos,
@@ -42,6 +50,10 @@ public:
   /// Find all references of the object pointed at by the given position.
   void findReferencesOf(const URIForFile &uri, const Position &pos,
                         std::vector<Location> &references);
+
+  /// Find a hover description for the given hover position, or None if one
+  /// couldn't be found.
+  Optional<Hover> findHover(const URIForFile &uri, const Position &hoverPos);
 
 private:
   struct Impl;

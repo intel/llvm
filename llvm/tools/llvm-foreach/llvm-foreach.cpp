@@ -53,7 +53,7 @@ static cl::opt<std::string> OutDirectory{
 
 static cl::opt<std::string> OutFilesExt{
     "out-ext",
-    cl::desc("Specify extenstion for output files; If unspecified, assume "
+    cl::desc("Specify extension for output files; If unspecified, assume "
              ".out"),
     cl::init("out"), cl::value_desc("R")};
 
@@ -61,6 +61,13 @@ static cl::opt<std::string> OutFilesExt{
 static cl::opt<std::string> OutputFileList{
     "out-file-list", cl::desc("Specify filename for list of outputs."),
     cl::value_desc("filename"), cl::init("")};
+
+static cl::opt<std::string> OutIncrement{
+    "out-increment",
+    cl::desc(
+        "Specify output file which should be incrementally named with each "
+        "pass."),
+    cl::init(""), cl::value_desc("R")};
 
 static void error(const Twine &Msg) {
   errs() << "llvm-foreach: " << Msg << '\n';
@@ -112,6 +119,7 @@ int main(int argc, char **argv) {
   // Find args to replace with filenames from input list.
   std::vector<ArgumentReplace> InReplaceArgs;
   ArgumentReplace OutReplaceArg;
+  ArgumentReplace OutIncrementArg;
   for (size_t i = 1; i < Args.size(); ++i) {
     for (auto &Replace : Replaces) {
       size_t ReplaceStart = Args[i].find(Replace);
@@ -123,6 +131,12 @@ int main(int argc, char **argv) {
       size_t ReplaceStart = Args[i].find(OutReplace);
       if (ReplaceStart != StringRef::npos)
         OutReplaceArg = {i, ReplaceStart, OutReplace.size()};
+    }
+
+    if (!OutIncrement.empty() && Args[i].contains(OutIncrement)) {
+      size_t IncrementStart = Args[i].find(OutIncrement);
+      if (IncrementStart != StringRef::npos)
+        OutIncrementArg = {i, IncrementStart, OutIncrement.size()};
     }
   }
 
@@ -152,6 +166,7 @@ int main(int argc, char **argv) {
     error(EC, "error opening the file '" + OutputFileList + "'");
 
   std::string ResOutArg;
+  std::string IncOutArg;
   std::vector<std::string> ResInArgs(InReplaceArgs.size());
   std::string ResFileList = "";
   for (size_t j = 0; j != FileLists[0].size(); ++j) {
@@ -195,6 +210,14 @@ int main(int argc, char **argv) {
 
       if (!OutputFileList.empty())
         OS << Path << "\n";
+    }
+
+    if (!OutIncrement.empty()) {
+      // Name the file by adding the current file list index to the name.
+      IncOutArg = InputCommandArgs[OutIncrementArg.ArgNum];
+      if (j > 0)
+        IncOutArg += ("_" + Twine(j)).str();
+      Args[OutIncrementArg.ArgNum] = IncOutArg;
     }
 
     std::string ErrMsg;

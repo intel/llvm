@@ -189,8 +189,10 @@ Value *InstrProfIncrementInst::getStep() const {
 
 Optional<RoundingMode> ConstrainedFPIntrinsic::getRoundingMode() const {
   unsigned NumOperands = getNumArgOperands();
-  Metadata *MD =
-      cast<MetadataAsValue>(getArgOperand(NumOperands - 2))->getMetadata();
+  Metadata *MD = nullptr;
+  auto *MAV = dyn_cast<MetadataAsValue>(getArgOperand(NumOperands - 2));
+  if (MAV)
+    MD = MAV->getMetadata();
   if (!MD || !isa<MDString>(MD))
     return None;
   return StrToRoundingMode(cast<MDString>(MD)->getString());
@@ -199,11 +201,29 @@ Optional<RoundingMode> ConstrainedFPIntrinsic::getRoundingMode() const {
 Optional<fp::ExceptionBehavior>
 ConstrainedFPIntrinsic::getExceptionBehavior() const {
   unsigned NumOperands = getNumArgOperands();
-  Metadata *MD =
-      cast<MetadataAsValue>(getArgOperand(NumOperands - 1))->getMetadata();
+  Metadata *MD = nullptr;
+  auto *MAV = dyn_cast<MetadataAsValue>(getArgOperand(NumOperands - 1));
+  if (MAV)
+    MD = MAV->getMetadata();
   if (!MD || !isa<MDString>(MD))
     return None;
   return StrToExceptionBehavior(cast<MDString>(MD)->getString());
+}
+
+bool ConstrainedFPIntrinsic::isDefaultFPEnvironment() const {
+  Optional<fp::ExceptionBehavior> Except = getExceptionBehavior();
+  if (Except) {
+    if (Except.getValue() != fp::ebIgnore)
+      return false;
+  }
+
+  Optional<RoundingMode> Rounding = getRoundingMode();
+  if (Rounding) {
+    if (Rounding.getValue() != RoundingMode::NearestTiesToEven)
+      return false;
+  }
+
+  return true;
 }
 
 FCmpInst::Predicate ConstrainedFPCmpIntrinsic::getPredicate() const {
@@ -268,25 +288,34 @@ ElementCount VPIntrinsic::getStaticVectorLength() const {
     return ElemCount;
   };
 
-  auto VPMask = getMaskParam();
+  Value *VPMask = getMaskParam();
+  assert(VPMask && "No mask param?");
   return GetVectorLengthOfType(VPMask->getType());
 }
 
 Value *VPIntrinsic::getMaskParam() const {
-  auto maskPos = GetMaskParamPos(getIntrinsicID());
-  if (maskPos)
-    return getArgOperand(maskPos.getValue());
+  if (auto MaskPos = getMaskParamPos(getIntrinsicID()))
+    return getArgOperand(MaskPos.getValue());
   return nullptr;
+}
+
+void VPIntrinsic::setMaskParam(Value *NewMask) {
+  auto MaskPos = getMaskParamPos(getIntrinsicID());
+  setArgOperand(*MaskPos, NewMask);
 }
 
 Value *VPIntrinsic::getVectorLengthParam() const {
-  auto vlenPos = GetVectorLengthParamPos(getIntrinsicID());
-  if (vlenPos)
-    return getArgOperand(vlenPos.getValue());
+  if (auto EVLPos = getVectorLengthParamPos(getIntrinsicID()))
+    return getArgOperand(EVLPos.getValue());
   return nullptr;
 }
 
-Optional<int> VPIntrinsic::GetMaskParamPos(Intrinsic::ID IntrinsicID) {
+void VPIntrinsic::setVectorLengthParam(Value *NewEVL) {
+  auto EVLPos = getVectorLengthParamPos(getIntrinsicID());
+  setArgOperand(*EVLPos, NewEVL);
+}
+
+Optional<unsigned> VPIntrinsic::getMaskParamPos(Intrinsic::ID IntrinsicID) {
   switch (IntrinsicID) {
   default:
     return None;
@@ -298,7 +327,8 @@ Optional<int> VPIntrinsic::GetMaskParamPos(Intrinsic::ID IntrinsicID) {
   }
 }
 
-Optional<int> VPIntrinsic::GetVectorLengthParamPos(Intrinsic::ID IntrinsicID) {
+Optional<unsigned>
+VPIntrinsic::getVectorLengthParamPos(Intrinsic::ID IntrinsicID) {
   switch (IntrinsicID) {
   default:
     return None;
@@ -310,7 +340,7 @@ Optional<int> VPIntrinsic::GetVectorLengthParamPos(Intrinsic::ID IntrinsicID) {
   }
 }
 
-bool VPIntrinsic::IsVPIntrinsic(Intrinsic::ID ID) {
+bool VPIntrinsic::isVPIntrinsic(Intrinsic::ID ID) {
   switch (ID) {
   default:
     return false;
@@ -324,8 +354,8 @@ bool VPIntrinsic::IsVPIntrinsic(Intrinsic::ID ID) {
 }
 
 // Equivalent non-predicated opcode
-unsigned VPIntrinsic::GetFunctionalOpcodeForVP(Intrinsic::ID ID) {
-  unsigned FunctionalOC = Instruction::Call;
+Optional<unsigned> VPIntrinsic::getFunctionalOpcodeForVP(Intrinsic::ID ID) {
+  Optional<unsigned> FunctionalOC;
   switch (ID) {
   default:
     break;
@@ -338,7 +368,7 @@ unsigned VPIntrinsic::GetFunctionalOpcodeForVP(Intrinsic::ID ID) {
   return FunctionalOC;
 }
 
-Intrinsic::ID VPIntrinsic::GetForOpcode(unsigned IROPC) {
+Intrinsic::ID VPIntrinsic::getForOpcode(unsigned IROPC) {
   switch (IROPC) {
   default:
     return Intrinsic::not_intrinsic;

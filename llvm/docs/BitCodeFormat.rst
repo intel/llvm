@@ -795,6 +795,8 @@ function. The operand fields are:
   * ``swiftcc`` : code 16
   * ``cxx_fast_tlscc``: code 17
   * ``tailcc`` : code 18
+  * ``cfguard_checkcc`` : code 19
+  * ``swifttailcc`` : code 20
   * ``x86_stdcallcc``: code 64
   * ``x86_fastcallcc``: code 65
   * ``arm_apcscc``: code 66
@@ -1071,6 +1073,8 @@ The integer codes are mapped to well-known attributes as follows.
 * code 69: ``byref``
 * code 70: ``mustprogress``
 * code 74: ``vscale_range(<Min>[, <Max>])``
+* code 75: ``swiftasync``
+* code 76: ``nosanitize_coverage``
 
 .. note::
   The ``allocsize`` attribute has a special encoding for its arguments. Its two

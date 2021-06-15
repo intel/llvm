@@ -13,6 +13,7 @@
 
 #include "asan_activation.h"
 #include "asan_allocator.h"
+#include "asan_fake_stack.h"
 #include "asan_interceptors.h"
 #include "asan_interface_internal.h"
 #include "asan_internal.h"
@@ -23,11 +24,11 @@
 #include "asan_stats.h"
 #include "asan_suppressions.h"
 #include "asan_thread.h"
+#include "lsan/lsan_common.h"
 #include "sanitizer_common/sanitizer_atomic.h"
 #include "sanitizer_common/sanitizer_flags.h"
 #include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_symbolizer.h"
-#include "lsan/lsan_common.h"
 #include "ubsan/ubsan_init.h"
 #include "ubsan/ubsan_platform.h"
 
@@ -62,19 +63,9 @@ static void AsanDie() {
   }
 }
 
-static void AsanCheckFailed(const char *file, int line, const char *cond,
-                            u64 v1, u64 v2) {
-  Report("AddressSanitizer CHECK failed: %s:%d \"%s\" (0x%zx, 0x%zx)\n", file,
-         line, cond, (uptr)v1, (uptr)v2);
-
-  // Print a stack trace the first time we come here. Otherwise, we probably
-  // failed a CHECK during symbolization.
-  static atomic_uint32_t num_calls;
-  if (atomic_fetch_add(&num_calls, 1, memory_order_relaxed) == 0) {
-    PRINT_CURRENT_STACK_CHECK();
-  }
-
-  Die();
+static void CheckUnwind() {
+  GET_STACK_TRACE(kStackTraceMax, common_flags()->fast_unwind_on_check);
+  stack.Print();
 }
 
 // -------------------------- Globals --------------------- {{{1
@@ -432,7 +423,7 @@ static void AsanInitInternal() {
 
   // Install tool-specific callbacks in sanitizer_common.
   AddDieCallback(AsanDie);
-  SetCheckFailedCallback(AsanCheckFailed);
+  SetCheckUnwindCallback(CheckUnwind);
   SetPrintfAndReportCallback(AppendToErrorMessageBuffer);
 
   __sanitizer_set_report_path(common_flags()->log_path);
@@ -596,8 +587,12 @@ static void UnpoisonDefaultStack() {
 
 static void UnpoisonFakeStack() {
   AsanThread *curr_thread = GetCurrentThread();
-  if (curr_thread && curr_thread->has_fake_stack())
-    curr_thread->fake_stack()->HandleNoReturn();
+  if (!curr_thread)
+    return;
+  FakeStack *stack = curr_thread->get_fake_stack();
+  if (!stack)
+    return;
+  stack->HandleNoReturn();
 }
 
 }  // namespace __asan

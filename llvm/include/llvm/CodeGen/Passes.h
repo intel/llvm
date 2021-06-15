@@ -15,6 +15,7 @@
 #define LLVM_CODEGEN_PASSES_H
 
 #include "llvm/Support/CodeGen.h"
+#include "llvm/Support/Discriminator.h"
 #include <functional>
 #include <string>
 
@@ -150,6 +151,7 @@ namespace llvm {
   /// VirtRegRewriter pass. Rewrite virtual registers to physical registers as
   /// assigned in VirtRegMap.
   extern char &VirtRegRewriterID;
+  FunctionPass *createVirtRegRewriter(bool ClearVirtRegs = true);
 
   /// UnreachableMachineBlockElimination - This pass removes unreachable
   /// machine basic blocks.
@@ -163,6 +165,9 @@ namespace llvm {
 
   /// This pass perform post-ra machine sink for COPY instructions.
   extern char &PostRAMachineSinkingID;
+
+  /// This pass adds flow sensitive discriminators.
+  extern char &MIRAddFSDiscriminatorsID;
 
   /// FastRegisterAllocation Pass - This pass register allocates as fast as
   /// possible. It is best suited for debug code where live ranges are short.
@@ -452,6 +457,11 @@ namespace llvm {
   // the corresponding function in a vector library (e.g., SVML, libmvec).
   FunctionPass *createReplaceWithVeclibLegacyPass();
 
+  /// This pass expands the vector predication intrinsics into unpredicated
+  /// instructions with selects or just the explicit vector length into the
+  /// predicate mask.
+  FunctionPass *createExpandVectorPredicationPass();
+
   // This pass expands memcmp() to load/stores.
   FunctionPass *createExpandMemCmpPass();
 
@@ -481,6 +491,11 @@ namespace llvm {
   /// Create IR Type Promotion pass. \see TypePromotion.cpp
   FunctionPass *createTypePromotionPass();
 
+  /// Add Flow Sensitive Discriminators. PassNum specifies the
+  /// sequence number of this pass (starting from 1).
+  FunctionPass *
+  createMIRAddFSDiscriminatorsPass(sampleprof::FSDiscriminatorPass P);
+
   /// Creates MIR Debugify pass. \see MachineDebugify.cpp
   ModulePass *createDebugifyMachineModulePass();
 
@@ -500,6 +515,9 @@ namespace llvm {
   /// The pass transforms load/store <256 x i32> to AMX load/store intrinsics
   /// or split the data to two <128 x i32>.
   FunctionPass *createX86LowerAMXTypePass();
+
+  /// The pass insert tile config intrinsics for AMX fast register allocation.
+  FunctionPass *createX86PreAMXConfigPass();
 
   /// The pass transforms amx intrinsics to scalar operation if the function has
   /// optnone attribute or it is O0.

@@ -456,9 +456,9 @@ static void CopyAndPad(
       to[j] = static_cast<TO>(' ');
     }
   } else if (toChars <= fromChars) {
-    std::memcpy(to, from, toChars * shift<TO>);
+    std::memcpy(to, from, toChars * sizeof(TO));
   } else {
-    std::memcpy(to, from, fromChars * shift<TO>);
+    std::memcpy(to, from, fromChars * sizeof(TO));
     for (std::size_t j{fromChars}; j < toChars; ++j) {
       to[j] = static_cast<TO>(' ');
     }
@@ -477,7 +477,7 @@ static void MaxMinHelper(Descriptor &accumulator, const Descriptor &x,
   std::size_t xChars{x.ElementBytes() >> shift<CHAR>};
   std::size_t chars{std::max(accumChars, xChars)};
   bool reallocate{accumulator.raw().base_addr == nullptr ||
-      accumChars != xChars || (accumulator.rank() == 0 && x.rank() > 0)};
+      accumChars != chars || (accumulator.rank() == 0 && x.rank() > 0)};
   int rank{std::max(accumulator.rank(), x.rank())};
   for (int j{0}; j < rank; ++j) {
     lb[j] = 1;
@@ -824,12 +824,12 @@ void RTNAME(CharacterPad1)(char *lhs, std::size_t bytes, std::size_t offset) {
 
 // Intrinsic function entry points
 
-void RTNAME(AdjustL)(Descriptor &result, const Descriptor &string,
+void RTNAME(Adjustl)(Descriptor &result, const Descriptor &string,
     const char *sourceFile, int sourceLine) {
   AdjustLR<false>(result, string, sourceFile, sourceLine);
 }
 
-void RTNAME(AdjustR)(Descriptor &result, const Descriptor &string,
+void RTNAME(Adjustr)(Descriptor &result, const Descriptor &string,
     const char *sourceFile, int sourceLine) {
   AdjustLR<true>(result, string, sourceFile, sourceLine);
 }
@@ -1024,8 +1024,5 @@ void RTNAME(CharacterMin)(Descriptor &accumulator, const Descriptor &x,
     const char *sourceFile, int sourceLine) {
   MaxMin<true>(accumulator, x, sourceFile, sourceLine);
 }
-
-// TODO: Character MAXVAL/MINVAL
-// TODO: Character MAXLOC/MINLOC
 }
 } // namespace Fortran::runtime

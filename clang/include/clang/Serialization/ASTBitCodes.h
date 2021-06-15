@@ -1431,6 +1431,9 @@ enum DeclCode {
   /// \brief A ConceptDecl record.
   DECL_CONCEPT,
 
+  /// An UnresolvedUsingIfExistsDecl record.
+  DECL_UNRESOLVED_USING_IF_EXISTS,
+
   /// \brief A StaticAssertDecl record.
   DECL_STATIC_ASSERT,
 
@@ -1965,6 +1968,15 @@ enum StmtCode {
 
   // FixedPointLiteral
   EXPR_FIXEDPOINT_LITERAL,
+
+  // SYCL
+  EXPR_SYCL_BUILTIN_NUM_FIELDS,
+  EXPR_SYCL_BUILTIN_FIELD_TYPE,
+  EXPR_SYCL_BUILTIN_NUM_BASES,
+  EXPR_SYCL_BUILTIN_BASE_TYPE,
+  EXPR_SYCL_UNIQUE_STABLE_NAME,
+  // SYCLUniqueStableIdExpr
+  EXPR_SYCL_UNIQUE_STABLE_ID,
 };
 
 /// The kinds of designators that can occur in a

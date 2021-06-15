@@ -486,6 +486,9 @@ public:
     return CGF.EmitPseudoObjectRValue(E).getScalarVal();
   }
 
+  Value *VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E);
+  Value *VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E);
+
   Value *VisitOpaqueValueExpr(OpaqueValueExpr *E) {
     if (E->isGLValue())
       return EmitLoadOfLValue(CGF.getOrCreateOpaqueLValueMapping(E),
@@ -1205,10 +1208,6 @@ Value *ScalarExprEmitter::EmitScalarCast(Value *Src, QualType SrcType,
   QualType SrcElementType;
   QualType DstElementType;
   if (SrcType->isMatrixType() && DstType->isMatrixType()) {
-    // Allow bitcast between matrixes of the same size.
-    if (SrcTy->getPrimitiveSizeInBits() == DstTy->getPrimitiveSizeInBits())
-      return Builder.CreateBitCast(Src, DstTy, "conv");
-
     SrcElementTy = cast<llvm::VectorType>(SrcTy)->getElementType();
     DstElementTy = cast<llvm::VectorType>(DstTy)->getElementType();
     SrcElementType = SrcType->castAs<MatrixType>()->getElementType();
@@ -1583,6 +1582,45 @@ Value *ScalarExprEmitter::VisitExpr(Expr *E) {
   if (E->getType()->isVoidType())
     return nullptr;
   return llvm::UndefValue::get(CGF.ConvertType(E->getType()));
+}
+
+Value *
+ScalarExprEmitter::VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E) {
+  ASTContext &Context = CGF.getContext();
+  llvm::Optional<LangAS> GlobalAS =
+      Context.getTargetInfo().getConstantAddressSpace();
+  llvm::Constant *GlobalConstStr = Builder.CreateGlobalStringPtr(
+      E->ComputeName(Context), "__usn_str",
+      static_cast<unsigned>(GlobalAS.getValueOr(LangAS::Default)));
+
+  unsigned ExprAS = Context.getTargetAddressSpace(E->getType());
+
+  if (GlobalConstStr->getType()->getPointerAddressSpace() == ExprAS)
+    return GlobalConstStr;
+
+  llvm::Type *EltTy = GlobalConstStr->getType()->getPointerElementType();
+  llvm::PointerType *NewPtrTy = llvm::PointerType::get(EltTy, ExprAS);
+  return Builder.CreateAddrSpaceCast(GlobalConstStr, NewPtrTy, "usn_addr_cast");
+}
+
+Value *
+ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
+  ASTContext &Context = CGF.getContext();
+  llvm::Optional<LangAS> GlobalAS =
+      Context.getTargetInfo().getConstantAddressSpace();
+  llvm::Constant *GlobalConstStr = Builder.CreateGlobalStringPtr(
+      E->ComputeName(Context), "__usid_str",
+      static_cast<unsigned>(GlobalAS.getValueOr(LangAS::Default)));
+
+  unsigned ExprAS = Context.getTargetAddressSpace(E->getType());
+
+  if (GlobalConstStr->getType()->getPointerAddressSpace() == ExprAS)
+    return GlobalConstStr;
+
+  llvm::Type *EltTy = GlobalConstStr->getType()->getPointerElementType();
+  llvm::PointerType *NewPtrTy = llvm::PointerType::get(EltTy, ExprAS);
+  return Builder.CreateAddrSpaceCast(GlobalConstStr, NewPtrTy,
+                                     "usid_addr_cast");
 }
 
 Value *ScalarExprEmitter::VisitShuffleVectorExpr(ShuffleVectorExpr *E) {
@@ -3216,8 +3254,10 @@ Value *ScalarExprEmitter::EmitDiv(const BinOpInfo &Ops) {
     llvm::Value *Val;
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, Ops.FPFeatures);
     Val = Builder.CreateFDiv(Ops.LHS, Ops.RHS, "div");
-    if (CGF.getLangOpts().OpenCL &&
-        !CGF.CGM.getCodeGenOpts().CorrectlyRoundedDivSqrt) {
+    if ((CGF.getLangOpts().OpenCL &&
+         !CGF.CGM.getCodeGenOpts().OpenCLCorrectlyRoundedDivSqrt) ||
+        (CGF.getLangOpts().HIP && CGF.getLangOpts().CUDAIsDevice &&
+         !CGF.CGM.getCodeGenOpts().HIPCorrectlyRoundedDivSqrt)) {
       // OpenCL v1.1 s7.4: minimum accuracy of single precision / is 2.5ulp
       // OpenCL v1.2 s5.6.4.2: The -cl-fp32-correctly-rounded-divide-sqrt
       // build option allows an application to specify that single precision

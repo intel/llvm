@@ -28,6 +28,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <level_zero/ze_api.h>
@@ -61,6 +62,18 @@ struct _pi_object {
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
   std::atomic<pi_uint32> RefCount;
+};
+
+// Record for a memory allocation. This structure is used to keep information
+// for each memory allocation.
+struct MemAllocRecord : _pi_object {
+  MemAllocRecord(pi_context Context) : Context(Context) {}
+  // Currently kernel can reference memory allocations from different contexts
+  // and we need to know the context of a memory allocation when we release it
+  // in piKernelRelease.
+  // TODO: this should go away when memory isolation issue is fixed in the Level
+  // Zero runtime.
+  pi_context Context;
 };
 
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
@@ -97,6 +110,14 @@ struct _pi_platform {
   // Current number of L0 Command Lists created on this platform.
   // this number must not exceed ZeMaxCommandListCache.
   std::atomic<int> ZeGlobalCommandListCount{0};
+
+  // Keep track of all contexts in the platform. This is needed to manage
+  // a lifetime of memory allocations in each context when there are kernels
+  // with indirect access.
+  // TODO: should be deleted when memory isolation in the context is implemented
+  // in the driver.
+  std::list<pi_context> Contexts;
+  std::mutex ContextsMutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
@@ -151,8 +172,8 @@ public:
 
 struct _pi_device : _pi_object {
   _pi_device(ze_device_handle_t Device, pi_platform Plt,
-             bool isSubDevice = false)
-      : ZeDevice{Device}, Platform{Plt}, IsSubDevice{isSubDevice},
+             pi_device ParentDevice = nullptr)
+      : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
         ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
@@ -166,8 +187,12 @@ struct _pi_device : _pi_object {
   int32_t ZeComputeQueueGroupIndex;
   int32_t ZeCopyQueueGroupIndex;
 
+  // Cache the properties of the compute/copy queue groups.
+  ze_command_queue_group_properties_t ZeComputeQueueGroupProperties = {};
+  ze_command_queue_group_properties_t ZeCopyQueueGroupProperties = {};
+
   // This returns "true" if a copy engine is available for use.
-  bool hasCopyEngine() { return (ZeCopyQueueGroupIndex >= 0); }
+  bool hasCopyEngine() const { return ZeCopyQueueGroupIndex >= 0; }
 
   // Initialize the entire PI device.
   pi_result initialize();
@@ -184,10 +209,9 @@ struct _pi_device : _pi_object {
   // PI platform to which this device belongs.
   pi_platform Platform;
 
-  // Indicates if this is a root-device or a sub-device.
-  // Technically this information can be queried from a device handle, but it
-  // seems better to just keep it here.
-  bool IsSubDevice;
+  // Root-device of a sub-device, null if this is not a sub-device.
+  pi_device RootDevice;
+  bool isSubDevice() { return RootDevice != nullptr; }
 
   // Cache of the immutable device properties.
   ze_device_properties_t ZeDeviceProperties;
@@ -218,8 +242,25 @@ struct _pi_context : _pi_object {
     // Create USM allocator context for host. Device and Shared USM allocations
     // are device-specific. Host allocations are not device-dependent therefore
     // we don't need a map with device as key.
-    HostMemAllocContext = new USMAllocContext(
+    HostMemAllocContext = std::make_unique<USMAllocContext>(
         std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
+
+    if (NumDevices == 1) {
+      SingleRootDevice = Devices[0];
+      return;
+    }
+
+    // Check if we have context with subdevices of the same device (context may
+    // include root device itself as well)
+    SingleRootDevice =
+        Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
+    for (auto &Device : Devices) {
+      if ((!Device->RootDevice && Device != SingleRootDevice) ||
+          (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {
+        SingleRootDevice = nullptr;
+        break;
+      }
+    }
   }
 
   // Initialize the PI context.
@@ -238,6 +279,10 @@ struct _pi_context : _pi_object {
 
   // Keep the PI devices this PI context was created for.
   std::vector<pi_device> Devices;
+
+  // If context contains one device or sub-devices of the same device, we want
+  // to save this device.
+  pi_device SingleRootDevice = nullptr;
 
   // Immediate Level Zero command list for the device in this context, to be
   // used for initializations. To be created as:
@@ -289,7 +334,14 @@ struct _pi_context : _pi_object {
   std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
   std::unordered_map<pi_device, USMAllocContext> DeviceMemAllocContexts;
   // Store the host allocator context. It does not depend on any device.
-  USMAllocContext *HostMemAllocContext;
+  std::unique_ptr<USMAllocContext> HostMemAllocContext;
+
+  // We need to store all memory allocations in the context because there could
+  // be kernels with indirect access. Kernels with indirect access start to
+  // reference all existing memory allocations at the time when they are
+  // submitted to the device. Referenced memory allocations can be released only
+  // when kernel has finished execution.
+  std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
 private:
   // Following member variables are used to manage assignment of events
@@ -367,6 +419,14 @@ struct _pi_queue : _pi_object {
   ze_command_list_handle_t ZeOpenCommandList = {nullptr};
   ze_fence_handle_t ZeOpenCommandListFence = {nullptr};
   pi_uint32 ZeOpenCommandListSize = {0};
+
+  // Kernel is not necessarily submitted for execution during
+  // piEnqueueKernelLaunch, it may be batched. That's why we need to save the
+  // list of kernels which is going to be submitted but have not been submitted
+  // yet. This is needed to capture memory allocations for each kernel with
+  // indirect access in the list at the moment when kernel is really submitted
+  // for execution.
+  std::vector<pi_kernel> KernelsToBeSubmitted;
 
   // Approximate number of commands that are allowed to be batched for
   // this queue.
@@ -829,13 +889,55 @@ struct _pi_program : _pi_object {
 
 struct _pi_kernel : _pi_object {
   _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program)
-      : ZeKernel{Kernel}, Program{Program} {}
+      : ZeKernel{Kernel}, Program{Program}, MemAllocs{}, SubmissionsCount{0} {}
+
+  // Returns true if kernel has indirect access, false otherwise.
+  bool hasIndirectAccess() {
+    // Currently indirect access flag is set for all kernels and there is no API
+    // to check if kernel actually indirectly access smth.
+    return true;
+  }
 
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
 
   // Keep the program of the kernel.
   pi_program Program;
+
+  // Hash function object for the unordered_set below.
+  struct Hash {
+    size_t operator()(const std::pair<void *const, MemAllocRecord> *P) const {
+      return std::hash<void *>()(P->first);
+    }
+  };
+
+  // If kernel has indirect access we need to make a snapshot of all existing
+  // memory allocations to defer deletion of these memory allocations to the
+  // moment when kernel execution has finished.
+  // We store pointers to the elements because pointers are not invalidated by
+  // insert/delete for std::unordered_map (iterators are invalidated). We need
+  // to take a snapshot instead of just reference-counting the allocations,
+  // because picture of active allocations can change during kernel execution
+  // (new allocations can be added) and we need to know which memory allocations
+  // were retained by this kernel to release them (and don't touch new
+  // allocations) at kernel completion. Same kernel may be submitted several
+  // times and retained allocations may be different at each submission. That's
+  // why we have a set of memory allocations here and increase ref count only
+  // once even if kernel is submitted many times. We don't want to know how many
+  // times and which allocations were retained by each submission. We release
+  // all allocations in the set only when SubmissionsCount == 0.
+  std::unordered_set<std::pair<void *const, MemAllocRecord> *, Hash> MemAllocs;
+
+  // Counter to track the number of submissions of the kernel.
+  // When this value is zero, it means that kernel is not submitted for an
+  // execution - at this time we can release memory allocations referenced by
+  // this kernel. We can do this when RefCount turns to 0 but it is too late
+  // because kernels are cached in the context by SYCL RT and they are released
+  // only during context object destruction. Regular RefCount is not usable to
+  // track submissions because user/SYCL RT can retain kernel object any number
+  // of times. And that's why there is no value of RefCount which can mean zero
+  // submissions.
+  std::atomic<pi_uint32> SubmissionsCount;
 };
 
 struct _pi_sampler : _pi_object {

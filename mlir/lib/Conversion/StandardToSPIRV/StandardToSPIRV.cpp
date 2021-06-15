@@ -317,6 +317,28 @@ public:
   }
 };
 
+/// Converts math.log1p to SPIR-V ops.
+///
+/// SPIR-V does not have a direct operations for log(1+x). Explicitly lower to
+/// these operations.
+class Log1pOpPattern final : public OpConversionPattern<math::Log1pOp> {
+public:
+  using OpConversionPattern<math::Log1pOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(math::Log1pOp operation, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    assert(operands.size() == 1);
+    Location loc = operation.getLoc();
+    auto type =
+        this->getTypeConverter()->convertType(operation.operand().getType());
+    auto one = spirv::ConstantOp::getOne(type, operation.getLoc(), rewriter);
+    auto onePlus = rewriter.create<spirv::FAddOp>(loc, one, operands[0]);
+    rewriter.replaceOpWithNewOp<spirv::GLSLLogOp>(operation, type, onePlus);
+    return success();
+  }
+};
+
 /// Converts std.remi_signed to SPIR-V ops.
 ///
 /// This cannot be merged into the template unary/binary pattern due to
@@ -467,6 +489,16 @@ public:
   using OpConversionPattern<SelectOp>::OpConversionPattern;
   LogicalResult
   matchAndRewrite(SelectOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override;
+};
+
+/// Converts std.splat to spv.CompositeConstruct.
+class SplatPattern final : public OpConversionPattern<SplatOp> {
+public:
+  using OpConversionPattern<SplatOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(SplatOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override;
 };
 
@@ -1128,6 +1160,23 @@ SelectOpPattern::matchAndRewrite(SelectOp op, ArrayRef<Value> operands,
 }
 
 //===----------------------------------------------------------------------===//
+// SplatOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult
+SplatPattern::matchAndRewrite(SplatOp op, ArrayRef<Value> operands,
+                              ConversionPatternRewriter &rewriter) const {
+  auto dstVecType = op.getType().dyn_cast<VectorType>();
+  if (!dstVecType || !spirv::CompositeType::isValid(dstVecType))
+    return failure();
+  SplatOp::Adaptor adaptor(operands);
+  SmallVector<Value, 4> source(dstVecType.getNumElements(), adaptor.input());
+  rewriter.replaceOpWithNewOp<spirv::CompositeConstructOp>(op, dstVecType,
+                                                           source);
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // StoreOp
 //===----------------------------------------------------------------------===//
 
@@ -1320,7 +1369,7 @@ void populateStandardToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
       UnaryAndBinaryOpPattern<UnsignedDivIOp, spirv::UDivOp>,
       UnaryAndBinaryOpPattern<UnsignedRemIOp, spirv::UModOp>,
       UnaryAndBinaryOpPattern<UnsignedShiftRightOp, spirv::ShiftRightLogicalOp>,
-      SignedRemIOpPattern, XOrOpPattern, BoolXOrOpPattern,
+      Log1pOpPattern, SignedRemIOpPattern, XOrOpPattern, BoolXOrOpPattern,
 
       // Comparison patterns
       BoolCmpIOpPattern, CmpFOpPattern, CmpFOpNanNonePattern, CmpIOpPattern,
@@ -1332,7 +1381,7 @@ void populateStandardToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
       AllocOpPattern, DeallocOpPattern, IntLoadOpPattern, IntStoreOpPattern,
       LoadOpPattern, StoreOpPattern,
 
-      ReturnOpPattern, SelectOpPattern,
+      ReturnOpPattern, SelectOpPattern, SplatPattern,
 
       // Type cast patterns
       UIToFPI1Pattern, ZeroExtendI1Pattern, TruncI1Pattern,

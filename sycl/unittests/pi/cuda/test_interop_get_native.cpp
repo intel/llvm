@@ -74,7 +74,7 @@ TEST_P(CudaInteropGetNativeTests, interopTaskGetMem) {
   });
 }
 
-TEST_P(CudaInteropGetNativeTests, interopTaskGetBufferMem) {
+TEST_P(CudaInteropGetNativeTests, interopTaskGetQueue) {
   CUstream cudaStream = get_native<backend::cuda>(*syclQueue_);
   syclQueue_->submit([&](handler &cgh) {
     cgh.interop_task([=](interop_handler ih) {
@@ -84,6 +84,45 @@ TEST_P(CudaInteropGetNativeTests, interopTaskGetBufferMem) {
   });
 }
 
+TEST_P(CudaInteropGetNativeTests, hostTaskGetNativeMem) {
+  buffer<int, 1> syclBuffer(range<1>{1});
+  syclQueue_->submit([&](handler &cgh) {
+    auto syclAccessor = syclBuffer.get_access<access::mode::read>(cgh);
+    cgh.codeplay_host_task([=](interop_handle ih) {
+      CUdeviceptr cudaPtr = ih.get_native_mem<backend::cuda>(syclAccessor);
+      CUdeviceptr cudaPtrBase;
+      size_t cudaPtrSize = 0;
+      CUcontext cudaContext =
+          get_native<backend::cuda>(syclQueue_->get_context());
+      ASSERT_EQ(CUDA_SUCCESS, cuCtxPushCurrent(cudaContext));
+      ASSERT_EQ(CUDA_SUCCESS,
+                cuMemGetAddressRange(&cudaPtrBase, &cudaPtrSize, cudaPtr));
+      ASSERT_EQ(CUDA_SUCCESS, cuCtxPopCurrent(nullptr));
+      ASSERT_EQ(sizeof(int), cudaPtrSize);
+    });
+  });
+}
+
+TEST_P(CudaInteropGetNativeTests, hostTaskGetNativeQueue) {
+  CUstream cudaStream = get_native<backend::cuda>(*syclQueue_);
+  syclQueue_->submit([&](handler &cgh) {
+    cgh.codeplay_host_task([=](interop_handle ih) {
+      CUstream cudaInteropStream = ih.get_native_queue<backend::cuda>();
+      ASSERT_EQ(cudaInteropStream, cudaStream);
+    });
+  });
+}
+
+TEST_P(CudaInteropGetNativeTests, hostTaskGetNativeContext) {
+  CUcontext cudaContext = get_native<backend::cuda>(syclQueue_->get_context());
+  syclQueue_->submit([&](handler &cgh) {
+    cgh.codeplay_host_task([=](interop_handle ih) {
+      CUcontext cudaInteropContext = ih.get_native_context<backend::cuda>();
+      ASSERT_EQ(cudaInteropContext, cudaContext);
+    });
+  });
+}
+
 INSTANTIATE_TEST_CASE_P(
     OnCudaPlatform, CudaInteropGetNativeTests,
-    ::testing::ValuesIn(pi::getPlatformsWithName("CUDA BACKEND")), );
+    ::testing::ValuesIn(pi::getPlatformsWithName("CUDA BACKEND")));

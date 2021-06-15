@@ -51,8 +51,14 @@ public:
 
 private:
   void updateNativeType() {
-    MNative = NativeType{const_cast<char *>(MName.c_str()),
-                         const_cast<char *>(MData.data()), MType, MData.size()};
+    if (MType == PI_PROPERTY_TYPE_UINT32) {
+      MNative = NativeType{const_cast<char *>(MName.c_str()), nullptr, MType,
+                           *((uint32_t *)MData.data())};
+    } else {
+      MNative =
+          NativeType{const_cast<char *>(MName.c_str()),
+                     const_cast<char *>(MData.data()), MType, MData.size()};
+    }
   }
   std::string MName;
   std::vector<char> MData;
@@ -364,6 +370,17 @@ void addSpecConstants(PiArray<PiProperty> SpecConstants,
 
   Props.insert(__SYCL_PI_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP,
                std::move(DefaultValues));
+}
+
+/// Utility function to add ESIMD kernel flag to property set.
+void addESIMDFlag(PiPropertySet &Props) {
+  std::vector<char> ValData(sizeof(uint32_t));
+  ValData[0] = 1;
+  PiProperty Prop{"isEsimdImage", ValData, PI_PROPERTY_TYPE_UINT32};
+
+  PiArray<PiProperty> Value{std::move(Prop)};
+
+  Props.insert(__SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP, std::move(Value));
 }
 
 /// Utility function to generate offload entries for kernels without arguments.

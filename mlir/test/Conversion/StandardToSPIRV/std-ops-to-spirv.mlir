@@ -53,6 +53,10 @@ func @float32_unary_scalar(%arg0: f32) {
   %3 = math.exp %arg0 : f32
   // CHECK: spv.GLSL.Log %{{.*}}: f32
   %4 = math.log %arg0 : f32
+  // CHECK: %[[ONE:.+]] = spv.Constant 1.000000e+00 : f32
+  // CHECK: %[[ADDONE:.+]] = spv.FAdd %[[ONE]], %{{.+}}
+  // CHECK: spv.GLSL.Log %[[ADDONE]]
+  %40 = math.log1p %arg0 : f32
   // CHECK: spv.FNegate %{{.*}}: f32
   %5 = negf %arg0 : f32
   // CHECK: spv.GLSL.InverseSqrt %{{.*}}: f32
@@ -1248,4 +1252,19 @@ func @tensor_extract_constant(%a : index, %b: index, %c: index) -> i32 {
   %extract = tensor.extract %cst[%a, %b, %c] : tensor<2x2x3xi32>
   // CHECK: spv.ReturnValue %[[VAL]]
   return %extract : i32
+}
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// splat
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: func @splat
+//  CHECK-SAME: (%[[A:.+]]: f32)
+//       CHECK:   %[[VAL:.+]] = spv.CompositeConstruct %[[A]], %[[A]], %[[A]], %[[A]] : vector<4xf32>
+//       CHECK:   spv.ReturnValue %[[VAL]]
+func @splat(%f : f32) -> vector<4xf32> {
+  %splat = splat %f : vector<4xf32>
+  return %splat : vector<4xf32>
 }

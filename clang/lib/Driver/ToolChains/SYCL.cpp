@@ -22,6 +22,31 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
+SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
+    : D(D), InstallationCandidates() {
+  InstallationCandidates.emplace_back(D.Dir + "/..");
+}
+
+void SYCLInstallationDetector::getSYCLDeviceLibPath(
+    llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
+  for (const auto &IC : InstallationCandidates) {
+    llvm::SmallString<128> InstallLibPath(IC.str());
+    InstallLibPath.append("/lib");
+    DeviceLibPaths.emplace_back(InstallLibPath);
+  }
+
+  DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
+}
+
+void SYCLInstallationDetector::print(llvm::raw_ostream &OS) const {
+  if (!InstallationCandidates.size())
+    return;
+  OS << "SYCL Installation Candidates: \n";
+  for (const auto &IC : InstallationCandidates) {
+    OS << IC << "\n";
+  }
+}
+
 const char *SYCL::Linker::constructLLVMSpirvCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     StringRef OutputFilePrefix, bool ToBc, const char *InputFileName) const {
@@ -61,6 +86,7 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                        std::unique_ptr<Command> InputCommand,
                                        const InputInfoList &InputFiles,
                                        const InputInfo &Output, const Tool *T,
+                                       StringRef Increment,
                                        StringRef Ext = "out") {
   // Construct llvm-foreach command.
   // The llvm-foreach command looks like this:
@@ -80,6 +106,9 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
       C.getArgs().MakeArgString("--out-file-list=" + OutputFileName));
   ForeachArgs.push_back(
       C.getArgs().MakeArgString("--out-replace=" + OutputFileName));
+  if (!Increment.empty())
+    ForeachArgs.push_back(
+        C.getArgs().MakeArgString("--out-increment=" + Increment));
   ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
   ForeachArgs.push_back(
       C.getArgs().MakeArgString(InputCommand->getExecutable()));
@@ -345,7 +374,7 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
                                        Exec, CmdArgs, None);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, ForeachExt);
+                                this, "", ForeachExt);
   else
     C.addCommand(std::move(Cmd));
 }
@@ -465,7 +494,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   if (Arg *FinalOutput = Args.getLastArg(options::OPT_o, options::OPT__SLASH_o,
                                          options::OPT__SLASH_Fe)) {
     SmallString<128> FN(FinalOutput->getValue());
-    llvm::sys::path::replace_extension(FN, "prj");
+    FN.append(".prj");
     const char *FolderName = Args.MakeArgString(FN);
     ReportOptArg += FolderName;
   } else {
@@ -498,7 +527,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
                                        Exec, CmdArgs, None);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, ForeachExt);
+                                this, ReportOptArg, ForeachExt);
   else
     C.addCommand(std::move(Cmd));
 }
@@ -537,7 +566,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                                        Exec, CmdArgs, None);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this);
+                                this, "");
   else
     C.addCommand(std::move(Cmd));
 }
@@ -570,14 +599,14 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
                                        Exec, CmdArgs, None);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this);
+                                this, "");
   else
     C.addCommand(std::move(Cmd));
 }
 
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
-    : ToolChain(D, Triple, Args), HostTC(HostTC) {
+    : ToolChain(D, Triple, Args), HostTC(HostTC), SYCLInstallation(D) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
   getProgramPaths().push_back(getDriver().Dir);

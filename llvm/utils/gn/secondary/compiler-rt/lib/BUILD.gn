@@ -1,8 +1,13 @@
 group("lib") {
-  deps = [
-    "//compiler-rt/lib/asan",
-    "//compiler-rt/lib/builtins",
-    "//compiler-rt/lib/profile",
-    "//compiler-rt/lib/tsan",
-  ]
+  deps = [ "//compiler-rt/lib/profile" ]
+  if (current_os == "linux") {
+    deps += [ "//compiler-rt/lib/msan" ]
+  }
+  if (current_os != "win") {
+    deps += [
+      "//compiler-rt/lib/asan",
+      "//compiler-rt/lib/builtins",
+      "//compiler-rt/lib/tsan",
+    ]
+  }
 }

@@ -57,7 +57,8 @@ public:
 
   static bool canAllocate(uptr Size) { return Size <= SizeClassMap::MaxSize; }
 
-  void initLinkerInitialized(s32 ReleaseToOsInterval) {
+  void init(s32 ReleaseToOsInterval) {
+    DCHECK_EQ(PrimaryBase, 0U);
     // Reserve the space required for the Primary.
     PrimaryBase = reinterpret_cast<uptr>(
         map(nullptr, PrimarySize, nullptr, MAP_NOACCESS, &Data));
@@ -77,13 +78,14 @@ public:
     }
     setOption(Option::ReleaseInterval, static_cast<sptr>(ReleaseToOsInterval));
   }
-  void init(s32 ReleaseToOsInterval) {
-    memset(this, 0, sizeof(*this));
-    initLinkerInitialized(ReleaseToOsInterval);
-  }
 
   void unmapTestOnly() {
+    for (uptr I = 0; I < NumClasses; I++) {
+      RegionInfo *Region = getRegionInfo(I);
+      *Region = {};
+    }
     unmap(reinterpret_cast<void *>(PrimaryBase), PrimarySize, UNMAP_ALL, &Data);
+    PrimaryBase = 0U;
   }
 
   TransferBatch *popBatch(CacheT *C, uptr ClassId) {
@@ -285,24 +287,24 @@ private:
   struct UnpaddedRegionInfo {
     HybridMutex Mutex;
     SinglyLinkedList<TransferBatch> FreeList;
-    uptr RegionBeg;
-    RegionStats Stats;
-    u32 RandState;
-    uptr MappedUser;    // Bytes mapped for user memory.
-    uptr AllocatedUser; // Bytes allocated for user memory.
-    MapPlatformData Data;
-    ReleaseToOsInfo ReleaseInfo;
-    bool Exhausted;
+    uptr RegionBeg = 0;
+    RegionStats Stats = {};
+    u32 RandState = 0;
+    uptr MappedUser = 0;    // Bytes mapped for user memory.
+    uptr AllocatedUser = 0; // Bytes allocated for user memory.
+    MapPlatformData Data = {};
+    ReleaseToOsInfo ReleaseInfo = {};
+    bool Exhausted = false;
   };
   struct RegionInfo : UnpaddedRegionInfo {
     char Padding[SCUDO_CACHE_LINE_SIZE -
-                 (sizeof(UnpaddedRegionInfo) % SCUDO_CACHE_LINE_SIZE)];
+                 (sizeof(UnpaddedRegionInfo) % SCUDO_CACHE_LINE_SIZE)] = {};
   };
   static_assert(sizeof(RegionInfo) % SCUDO_CACHE_LINE_SIZE == 0, "");
 
-  uptr PrimaryBase;
-  MapPlatformData Data;
-  atomic_s32 ReleaseToOsIntervalMs;
+  uptr PrimaryBase = 0;
+  MapPlatformData Data = {};
+  atomic_s32 ReleaseToOsIntervalMs = {};
   alignas(SCUDO_CACHE_LINE_SIZE) RegionInfo RegionInfoArray[NumClasses];
 
   RegionInfo *getRegionInfo(uptr ClassId) {
@@ -339,7 +341,7 @@ private:
       if (UNLIKELY(RegionBase + MappedUser + MapSize > RegionSize)) {
         if (!Region->Exhausted) {
           Region->Exhausted = true;
-          ScopedString Str(1024);
+          ScopedString Str;
           getStats(&Str);
           Str.append(
               "Scudo OOM: The process has exhausted %zuM for size class %zu.\n",

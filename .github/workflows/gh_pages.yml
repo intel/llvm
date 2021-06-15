@@ -24,7 +24,9 @@ jobs:
         python $GITHUB_WORKSPACE/repo/buildbot/configure.py -w $GITHUB_WORKSPACE \
         -s $GITHUB_WORKSPACE/repo -o $GITHUB_WORKSPACE/build -t Release --docs
         cmake --build . --target doxygen-sycl
+        cmake --build . --target doxygen-clang
         cmake --build . --target docs-sycl-html
+        cmake --build . --target docs-clang-html
     - name: Deploy
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
@@ -41,6 +43,10 @@ jobs:
         yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/html/* .
         mkdir doxygen
         yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html/* doxygen/
+        mkdir clang
+        yes | \cp -rf $GITHUB_WORKSPACE/build/tools/clang/docs/html/* clang/
+        mkdir clang_doxygen
+        yes | \cp -rf $GITHUB_WORKSPACE/build/tools/clang/docs/doxygen/html/* clang_doxygen/
         git config --global user.name "iclsrc"
         git config --global user.email "ia.compiler.tools.git@intel.com"
         git add .

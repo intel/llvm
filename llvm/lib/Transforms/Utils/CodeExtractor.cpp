@@ -929,6 +929,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::StructRet:
       case Attribute::SwiftError:
       case Attribute::SwiftSelf:
+      case Attribute::SwiftAsync:
       case Attribute::WillReturn:
       case Attribute::WriteOnly:
       case Attribute::ZExt:
@@ -953,6 +954,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::NonLazyBind:
       case Attribute::NoRedZone:
       case Attribute::NoUnwind:
+      case Attribute::NoSanitizeCoverage:
       case Attribute::NullPointerIsValid:
       case Attribute::OptForFuzzing:
       case Attribute::OptimizeNone:
@@ -1550,10 +1552,11 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
       I.setDebugLoc(DILocation::get(Ctx, DL.getLine(), DL.getCol(), NewSP));
 
     // Loop info metadata may contain line locations. Fix them up.
-    auto updateLoopInfoLoc = [&Ctx,
-                              NewSP](const DILocation &Loc) -> DILocation * {
-      return DILocation::get(Ctx, Loc.getLine(), Loc.getColumn(), NewSP,
-                             nullptr);
+    auto updateLoopInfoLoc = [&Ctx, NewSP](Metadata *MD) -> Metadata * {
+      if (auto *Loc = dyn_cast_or_null<DILocation>(MD))
+        return DILocation::get(Ctx, Loc->getLine(), Loc->getColumn(), NewSP,
+                               nullptr);
+      return MD;
     };
     updateLoopMetadataDebugLocations(I, updateLoopInfoLoc);
   }

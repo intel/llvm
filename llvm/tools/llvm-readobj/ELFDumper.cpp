@@ -298,6 +298,13 @@ protected:
 
   std::vector<GroupSection> getGroups();
 
+  // Returns the function symbol index for the given address. Matches the
+  // symbol's section with FunctionSec when specified.
+  // Returns None if no function symbol can be found for the address or in case
+  // it is not defined in the specified section.
+  Optional<uint32_t>
+  getSymbolIndexForFunctionAddress(uint64_t SymValue,
+                                   Optional<const Elf_Shdr *> FunctionSec);
   bool printFunctionStackSize(uint64_t SymValue,
                               Optional<const Elf_Shdr *> FunctionSec,
                               const Elf_Shdr &StackSizeSec, DataExtractor Data,
@@ -353,6 +360,7 @@ protected:
   const Elf_Shdr *DotAddrsigSec = nullptr;
   DenseMap<const Elf_Shdr *, ArrayRef<Elf_Word>> ShndxTables;
   Optional<uint64_t> SONameOffset;
+  Optional<DenseMap<uint64_t, std::vector<uint32_t>>> AddressToIndexMap;
 
   const Elf_Shdr *SymbolVersionSection = nullptr;   // .gnu.version
   const Elf_Shdr *SymbolVersionNeedSection = nullptr; // .gnu.version_r
@@ -1140,7 +1148,7 @@ static const EnumEntry<unsigned> ElfMachineType[] = {
   ENUM_ENT(EM_METAG,         "Imagination Technologies Meta processor architecture"),
   ENUM_ENT(EM_MCST_ELBRUS,   "MCST Elbrus general purpose hardware architecture"),
   ENUM_ENT(EM_ECOG16,        "Cyan Technology eCOG16 family"),
-  ENUM_ENT(EM_CR16,          "Xilinx MicroBlaze"),
+  ENUM_ENT(EM_CR16,          "National Semiconductor CompactRISC 16-bit processor"),
   ENUM_ENT(EM_ETPU,          "Freescale Extended Time Processing Unit"),
   ENUM_ENT(EM_SLE9X,         "Infineon Technologies SLE9X core"),
   ENUM_ENT(EM_L10M,          "EM_L10M"),
@@ -1150,6 +1158,7 @@ static const EnumEntry<unsigned> ElfMachineType[] = {
   ENUM_ENT(EM_STM8,          "STMicroeletronics STM8 8-bit microcontroller"),
   ENUM_ENT(EM_TILE64,        "Tilera TILE64 multicore architecture family"),
   ENUM_ENT(EM_TILEPRO,       "Tilera TILEPro multicore architecture family"),
+  ENUM_ENT(EM_MICROBLAZE,    "Xilinx MicroBlaze 32-bit RISC soft processor core"),
   ENUM_ENT(EM_CUDA,          "NVIDIA CUDA architecture"),
   ENUM_ENT(EM_TILEGX,        "Tilera TILE-Gx multicore architecture family"),
   ENUM_ENT(EM_CLOUDSHIELD,   "EM_CLOUDSHIELD"),
@@ -1477,6 +1486,7 @@ static const EnumEntry<unsigned> ElfHeaderAMDGPUFlagsABIVersion3[] = {
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1031),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1032),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1033),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1034),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_XNACK_V3),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_SRAMECC_V3)
 };
@@ -1528,6 +1538,7 @@ static const EnumEntry<unsigned> ElfHeaderAMDGPUFlagsABIVersion4[] = {
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1031),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1032),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1033),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1034),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_XNACK_ANY_V4),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_XNACK_OFF_V4),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_XNACK_ON_V4),
@@ -5055,9 +5066,10 @@ static AMDNote getAMDNote(uint32_t NoteType, ArrayRef<uint8_t> Desc) {
     raw_string_ostream StrOS(HSAILPropetiesString);
     StrOS << "[HSAIL Major: " << Properties->HSAILMajorVersion
           << ", HSAIL Minor: " << Properties->HSAILMinorVersion
-          << ", Profile: " << Properties->Profile
-          << ", Machine Model: " << Properties->MachineModel
-          << ", Default Float Round: " << Properties->DefaultFloatRound << "]";
+          << ", Profile: " << uint32_t(Properties->Profile)
+          << ", Machine Model: " << uint32_t(Properties->MachineModel)
+          << ", Default Float Round: "
+          << uint32_t(Properties->DefaultFloatRound) << "]";
     return {"AMD HSA HSAIL Properties", HSAILPropetiesString};
   }
   case ELF::NT_AMD_HSA_ISA_VERSION: {
@@ -5105,10 +5117,12 @@ static AMDNote getAMDNote(uint32_t NoteType, ArrayRef<uint8_t> Desc) {
       uint32_t Key;
       uint32_t Value;
     };
+    if (Desc.size() % sizeof(PALMetadata) != 0)
+      return {"AMD PAL Metadata", "Invalid AMD PAL Metadata"};
     auto Isa = reinterpret_cast<const PALMetadata *>(Desc.data());
     std::string MetadataString;
     raw_string_ostream StrOS(MetadataString);
-    for (size_t I = 0, E = Desc.size() / sizeof(PALMetadata); I < E; ++E) {
+    for (size_t I = 0, E = Desc.size() / sizeof(PALMetadata); I < E; ++I) {
       StrOS << "[" << Isa[I].Key << ": " << Isa[I].Value << "]";
     }
     return {"AMD PAL Metadata", MetadataString};
@@ -5697,64 +5711,82 @@ template <class ELFT> void GNUELFDumper<ELFT>::printDependentLibs() {
 }
 
 template <class ELFT>
-bool ELFDumper<ELFT>::printFunctionStackSize(
-    uint64_t SymValue, Optional<const Elf_Shdr *> FunctionSec,
-    const Elf_Shdr &StackSizeSec, DataExtractor Data, uint64_t *Offset) {
-  uint32_t FuncSymIndex = 0;
-  if (this->DotSymtabSec) {
-    if (Expected<Elf_Sym_Range> SymsOrError = Obj.symbols(this->DotSymtabSec)) {
-      uint32_t Index = (uint32_t)-1;
-      for (const Elf_Sym &Sym : *SymsOrError) {
-        ++Index;
+Optional<uint32_t> ELFDumper<ELFT>::getSymbolIndexForFunctionAddress(
+    uint64_t SymValue, Optional<const Elf_Shdr *> FunctionSec) {
+  if (!this->AddressToIndexMap.hasValue()) {
+    // Populate the address to index map upon the first invocation of this
+    // function.
+    this->AddressToIndexMap.emplace();
+    if (this->DotSymtabSec) {
+      if (Expected<Elf_Sym_Range> SymsOrError =
+              Obj.symbols(this->DotSymtabSec)) {
+        uint32_t Index = (uint32_t)-1;
+        for (const Elf_Sym &Sym : *SymsOrError) {
+          ++Index;
 
-        if (Sym.st_shndx == ELF::SHN_UNDEF || Sym.getType() != ELF::STT_FUNC)
-          continue;
-
-        if (Expected<uint64_t> SymAddrOrErr =
-                ObjF.toSymbolRef(this->DotSymtabSec, Index).getAddress()) {
-          if (SymValue != *SymAddrOrErr)
+          if (Sym.st_shndx == ELF::SHN_UNDEF || Sym.getType() != ELF::STT_FUNC)
             continue;
-        } else {
-          std::string Name = this->getStaticSymbolName(Index);
-          reportUniqueWarning("unable to get address of symbol '" + Name +
-                              "': " + toString(SymAddrOrErr.takeError()));
-          break;
-        }
 
-        // Check if the symbol is in the right section. FunctionSec == None
-        // means "any section".
-        if (FunctionSec) {
-          if (Expected<const Elf_Shdr *> SecOrErr =
-                  Obj.getSection(Sym, this->DotSymtabSec,
-                                 this->getShndxTable(this->DotSymtabSec))) {
-            if (*FunctionSec != *SecOrErr)
-              continue;
-          } else {
+          Expected<uint64_t> SymAddrOrErr =
+              ObjF.toSymbolRef(this->DotSymtabSec, Index).getAddress();
+          if (!SymAddrOrErr) {
             std::string Name = this->getStaticSymbolName(Index);
-            // Note: it is impossible to trigger this error currently, it is
-            // untested.
-            reportUniqueWarning("unable to get section of symbol '" + Name +
-                                "': " + toString(SecOrErr.takeError()));
-            break;
+            reportUniqueWarning("unable to get address of symbol '" + Name +
+                                "': " + toString(SymAddrOrErr.takeError()));
+            return None;
           }
-        }
 
-        FuncSymIndex = Index;
-        break;
+          (*this->AddressToIndexMap)[*SymAddrOrErr].push_back(Index);
+        }
+      } else {
+        reportUniqueWarning("unable to read the symbol table: " +
+                            toString(SymsOrError.takeError()));
       }
-    } else {
-      reportUniqueWarning("unable to read the symbol table: " +
-                          toString(SymsOrError.takeError()));
     }
   }
 
+  auto Symbols = this->AddressToIndexMap->find(SymValue);
+  if (Symbols == this->AddressToIndexMap->end())
+    return None;
+
+  for (uint32_t Index : Symbols->second) {
+    // Check if the symbol is in the right section. FunctionSec == None
+    // means "any section".
+    if (FunctionSec) {
+      const Elf_Sym &Sym = *cantFail(Obj.getSymbol(this->DotSymtabSec, Index));
+      if (Expected<const Elf_Shdr *> SecOrErr =
+              Obj.getSection(Sym, this->DotSymtabSec,
+                             this->getShndxTable(this->DotSymtabSec))) {
+        if (*FunctionSec != *SecOrErr)
+          continue;
+      } else {
+        std::string Name = this->getStaticSymbolName(Index);
+        // Note: it is impossible to trigger this error currently, it is
+        // untested.
+        reportUniqueWarning("unable to get section of symbol '" + Name +
+                            "': " + toString(SecOrErr.takeError()));
+        return None;
+      }
+    }
+
+    return Index;
+  }
+  return None;
+}
+
+template <class ELFT>
+bool ELFDumper<ELFT>::printFunctionStackSize(
+    uint64_t SymValue, Optional<const Elf_Shdr *> FunctionSec,
+    const Elf_Shdr &StackSizeSec, DataExtractor Data, uint64_t *Offset) {
+  Optional<uint32_t> FuncSymIndex =
+      this->getSymbolIndexForFunctionAddress(SymValue, FunctionSec);
   std::string FuncName = "?";
   if (!FuncSymIndex)
     reportUniqueWarning(
         "could not identify function symbol for stack size entry in " +
         describe(StackSizeSec));
   else
-    FuncName = this->getStaticSymbolName(FuncSymIndex);
+    FuncName = this->getStaticSymbolName(*FuncSymIndex);
 
   // Extract the size. The expectation is that Offset is pointing to the right
   // place, i.e. past the function address.
@@ -6690,9 +6722,14 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printCGProfile() {
 }
 
 template <class ELFT> void LLVMELFDumper<ELFT>::printBBAddrMaps() {
+  bool IsRelocatable = this->Obj.getHeader().e_type == ELF::ET_REL;
   for (const Elf_Shdr &Sec : cantFail(this->Obj.sections())) {
     if (Sec.sh_type != SHT_LLVM_BB_ADDR_MAP)
       continue;
+    Optional<const Elf_Shdr *> FunctionSec = None;
+    if (IsRelocatable)
+      FunctionSec =
+          unwrapOrError(this->FileName, this->Obj.getSection(Sec.sh_link));
     ListScope L(W, "BBAddrMap");
     Expected<std::vector<Elf_BBAddrMap>> BBAddrMapOrErr =
         this->Obj.decodeBBAddrMap(Sec);
@@ -6704,6 +6741,17 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printBBAddrMaps() {
     for (const Elf_BBAddrMap &AM : *BBAddrMapOrErr) {
       DictScope D(W, "Function");
       W.printHex("At", AM.Addr);
+      Optional<uint32_t> FuncSymIndex =
+          this->getSymbolIndexForFunctionAddress(AM.Addr, FunctionSec);
+      std::string FuncName = "<?>";
+      if (FuncSymIndex == None)
+        this->reportUniqueWarning(
+            "could not identify function symbol for address (0x" +
+            Twine::utohexstr(AM.Addr) + ") in " + this->describe(Sec));
+      else
+        FuncName = this->getStaticSymbolName(*FuncSymIndex);
+      W.printString("Name", FuncName);
+
       ListScope L(W, "BB entries");
       for (const typename Elf_BBAddrMap::BBEntry &BBE : AM.BBEntries) {
         DictScope L(W);

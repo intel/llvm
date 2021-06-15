@@ -1650,6 +1650,46 @@ spirv::ConstantOp spirv::ConstantOp::getOne(Type type, Location loc,
   llvm_unreachable("unimplemented types for ConstantOp::getOne()");
 }
 
+void mlir::spirv::ConstantOp::getAsmResultNames(
+    llvm::function_ref<void(mlir::Value, llvm::StringRef)> setNameFn) {
+  Type type = getType();
+
+  SmallString<32> specialNameBuffer;
+  llvm::raw_svector_ostream specialName(specialNameBuffer);
+  specialName << "cst";
+
+  IntegerType intTy = type.dyn_cast<IntegerType>();
+
+  if (IntegerAttr intCst = value().dyn_cast<IntegerAttr>()) {
+    if (intTy && intTy.getWidth() == 1) {
+      return setNameFn(getResult(), (intCst.getInt() ? "true" : "false"));
+    }
+
+    if (intTy.isSignless()) {
+      specialName << intCst.getInt();
+    } else {
+      specialName << intCst.getSInt();
+    }
+  }
+
+  if (intTy || type.isa<FloatType>()) {
+    specialName << '_' << type;
+  }
+
+  if (auto vecType = type.dyn_cast<VectorType>()) {
+    specialName << "_vec_";
+    specialName << vecType.getDimSize(0);
+
+    Type elementType = vecType.getElementType();
+
+    if (elementType.isa<IntegerType>() || elementType.isa<FloatType>()) {
+      specialName << "x" << elementType;
+    }
+  }
+
+  setNameFn(getResult(), specialName.str());
+}
+
 //===----------------------------------------------------------------------===//
 // spv.EntryPoint
 //===----------------------------------------------------------------------===//
@@ -1783,13 +1823,14 @@ static ParseResult parseFuncOp(OpAsmParser &parser, OperationState &state) {
 
   // Parse the function signature.
   bool isVariadic = false;
-  if (impl::parseFunctionSignature(parser, /*allowVariadic=*/false, entryArgs,
-                                   argTypes, argAttrs, isVariadic, resultTypes,
-                                   resultAttrs))
+  if (function_like_impl::parseFunctionSignature(
+          parser, /*allowVariadic=*/false, entryArgs, argTypes, argAttrs,
+          isVariadic, resultTypes, resultAttrs))
     return failure();
 
   auto fnType = builder.getFunctionType(argTypes, resultTypes);
-  state.addAttribute(impl::getTypeAttrName(), TypeAttr::get(fnType));
+  state.addAttribute(function_like_impl::getTypeAttrName(),
+                     TypeAttr::get(fnType));
 
   // Parse the optional function control keyword.
   spirv::FunctionControl fnControl;
@@ -1803,7 +1844,8 @@ static ParseResult parseFuncOp(OpAsmParser &parser, OperationState &state) {
   // Add the attributes to the function arguments.
   assert(argAttrs.size() == argTypes.size());
   assert(resultAttrs.size() == resultTypes.size());
-  impl::addArgAndResultAttrs(builder, state, argAttrs, resultAttrs);
+  function_like_impl::addArgAndResultAttrs(builder, state, argAttrs,
+                                           resultAttrs);
 
   // Parse the optional function body.
   auto *body = state.addRegion();
@@ -1817,11 +1859,12 @@ static void print(spirv::FuncOp fnOp, OpAsmPrinter &printer) {
   printer << spirv::FuncOp::getOperationName() << " ";
   printer.printSymbolName(fnOp.sym_name());
   auto fnType = fnOp.getType();
-  impl::printFunctionSignature(printer, fnOp, fnType.getInputs(),
-                               /*isVariadic=*/false, fnType.getResults());
+  function_like_impl::printFunctionSignature(printer, fnOp, fnType.getInputs(),
+                                             /*isVariadic=*/false,
+                                             fnType.getResults());
   printer << " \"" << spirv::stringifyFunctionControl(fnOp.function_control())
           << "\"";
-  impl::printFunctionAttributes(
+  function_like_impl::printFunctionAttributes(
       printer, fnOp, fnType.getNumInputs(), fnType.getNumResults(),
       {spirv::attributeName<spirv::FunctionControl>()});
 
@@ -3644,6 +3687,71 @@ static LogicalResult verify(spirv::ImageDrefGatherOp imageDrefGatherOp) {
   if (imageMS != spirv::ImageSamplingInfo::SingleSampled)
     return imageDrefGatherOp.emitOpError(
         "the MS operand of the underlying image type must be 0");
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// spv.ImageQuerySize
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(spirv::ImageQuerySizeOp imageQuerySizeOp) {
+  spirv::ImageType imageType =
+      imageQuerySizeOp.image().getType().cast<spirv::ImageType>();
+  Type resultType = imageQuerySizeOp.result().getType();
+
+  spirv::Dim dim = imageType.getDim();
+  spirv::ImageSamplingInfo samplingInfo = imageType.getSamplingInfo();
+  spirv::ImageSamplerUseInfo samplerInfo = imageType.getSamplerUseInfo();
+  switch (dim) {
+  case spirv::Dim::Dim1D:
+  case spirv::Dim::Dim2D:
+  case spirv::Dim::Dim3D:
+  case spirv::Dim::Cube:
+    if (!(samplingInfo == spirv::ImageSamplingInfo::MultiSampled ||
+          samplerInfo == spirv::ImageSamplerUseInfo::SamplerUnknown ||
+          samplerInfo == spirv::ImageSamplerUseInfo::NoSampler))
+      return imageQuerySizeOp.emitError(
+          "if Dim is 1D, 2D, 3D, or Cube, "
+          "it must also have either an MS of 1 or a Sampled of 0 or 2");
+    break;
+  case spirv::Dim::Buffer:
+  case spirv::Dim::Rect:
+    break;
+  default:
+    return imageQuerySizeOp.emitError("the Dim operand of the image type must "
+                                      "be 1D, 2D, 3D, Buffer, Cube, or Rect");
+  }
+
+  unsigned componentNumber = 0;
+  switch (dim) {
+  case spirv::Dim::Dim1D:
+  case spirv::Dim::Buffer:
+    componentNumber = 1;
+    break;
+  case spirv::Dim::Dim2D:
+  case spirv::Dim::Cube:
+  case spirv::Dim::Rect:
+    componentNumber = 2;
+    break;
+  case spirv::Dim::Dim3D:
+    componentNumber = 3;
+    break;
+  default:
+    break;
+  }
+
+  if (imageType.getArrayedInfo() == spirv::ImageArrayedInfo::Arrayed)
+    componentNumber += 1;
+
+  unsigned resultComponentNumber = 1;
+  if (auto resultVectorType = resultType.dyn_cast<VectorType>())
+    resultComponentNumber = resultVectorType.getNumElements();
+
+  if (componentNumber != resultComponentNumber)
+    return imageQuerySizeOp.emitError("expected the result to have ")
+           << componentNumber << " component(s), but found "
+           << resultComponentNumber << " component(s)";
 
   return success();
 }

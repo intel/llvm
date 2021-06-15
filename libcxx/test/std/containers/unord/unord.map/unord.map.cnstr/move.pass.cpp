@@ -34,19 +34,20 @@ int main(int, char**)
     {
         typedef std::unordered_map<int, std::string,
                                    test_hash<std::hash<int> >,
-                                   test_compare<std::equal_to<int> >,
+                                   test_equal_to<int>,
                                    test_allocator<std::pair<const int, std::string> >
                                    > C;
         C c0(7,
             test_hash<std::hash<int> >(8),
-            test_compare<std::equal_to<int> >(9),
+            test_equal_to<int>(9),
             test_allocator<std::pair<const int, std::string> >(10)
            );
+        C::iterator it0 = c0.begin();
         C c = std::move(c0);
         LIBCPP_ASSERT(c.bucket_count() == 7);
         assert(c.size() == 0);
         assert(c.hash_function() == test_hash<std::hash<int> >(8));
-        assert(c.key_eq() == test_compare<std::equal_to<int> >(9));
+        assert(c.key_eq() == test_equal_to<int>(9));
         assert(c.get_allocator() ==
                (test_allocator<std::pair<const int, std::string> >(10)));
         assert(c.empty());
@@ -54,13 +55,14 @@ int main(int, char**)
         assert(static_cast<std::size_t>(std::distance(c.cbegin(), c.cend())) == c.size());
         assert(c.load_factor() == 0);
         assert(c.max_load_factor() == 1);
+        assert(it0 == c.begin()); // Iterators remain valid
 
         assert(c0.empty());
     }
     {
         typedef std::unordered_map<int, std::string,
                                    test_hash<std::hash<int> >,
-                                   test_compare<std::equal_to<int> >,
+                                   test_equal_to<int>,
                                    test_allocator<std::pair<const int, std::string> >
                                    > C;
         typedef std::pair<int, std::string> P;
@@ -76,9 +78,10 @@ int main(int, char**)
         C c0(a, a + sizeof(a)/sizeof(a[0]),
             7,
             test_hash<std::hash<int> >(8),
-            test_compare<std::equal_to<int> >(9),
+            test_equal_to<int>(9),
             test_allocator<std::pair<const int, std::string> >(10)
            );
+        C::iterator it0 = c0.begin();
         C c = std::move(c0);
         LIBCPP_ASSERT(c.bucket_count() == 7);
         assert(c.size() == 4);
@@ -87,7 +90,7 @@ int main(int, char**)
         assert(c.at(3) == "three");
         assert(c.at(4) == "four");
         assert(c.hash_function() == test_hash<std::hash<int> >(8));
-        assert(c.key_eq() == test_compare<std::equal_to<int> >(9));
+        assert(c.key_eq() == test_equal_to<int>(9));
         assert(c.get_allocator() ==
                (test_allocator<std::pair<const int, std::string> >(10)));
         assert(!c.empty());
@@ -95,25 +98,27 @@ int main(int, char**)
         assert(static_cast<std::size_t>(std::distance(c.cbegin(), c.cend())) == c.size());
         assert(std::fabs(c.load_factor() - (float)c.size()/c.bucket_count()) < FLT_EPSILON);
         assert(c.max_load_factor() == 1);
+        assert(it0 == c.begin()); // Iterators remain valid
 
         assert(c0.empty());
     }
     {
         typedef std::unordered_map<int, std::string,
                                    test_hash<std::hash<int> >,
-                                   test_compare<std::equal_to<int> >,
+                                   test_equal_to<int>,
                                    min_allocator<std::pair<const int, std::string> >
                                    > C;
         C c0(7,
             test_hash<std::hash<int> >(8),
-            test_compare<std::equal_to<int> >(9),
+            test_equal_to<int>(9),
             min_allocator<std::pair<const int, std::string> >()
            );
+        C::iterator it0 = c0.begin();
         C c = std::move(c0);
         LIBCPP_ASSERT(c.bucket_count() == 7);
         assert(c.size() == 0);
         assert(c.hash_function() == test_hash<std::hash<int> >(8));
-        assert(c.key_eq() == test_compare<std::equal_to<int> >(9));
+        assert(c.key_eq() == test_equal_to<int>(9));
         assert(c.get_allocator() ==
                (min_allocator<std::pair<const int, std::string> >()));
         assert(c.empty());
@@ -121,13 +126,14 @@ int main(int, char**)
         assert(static_cast<std::size_t>(std::distance(c.cbegin(), c.cend())) == c.size());
         assert(c.load_factor() == 0);
         assert(c.max_load_factor() == 1);
+        assert(it0 == c.begin()); // Iterators remain valid
 
         assert(c0.empty());
     }
     {
         typedef std::unordered_map<int, std::string,
                                    test_hash<std::hash<int> >,
-                                   test_compare<std::equal_to<int> >,
+                                   test_equal_to<int>,
                                    min_allocator<std::pair<const int, std::string> >
                                    > C;
         typedef std::pair<int, std::string> P;
@@ -143,9 +149,10 @@ int main(int, char**)
         C c0(a, a + sizeof(a)/sizeof(a[0]),
             7,
             test_hash<std::hash<int> >(8),
-            test_compare<std::equal_to<int> >(9),
+            test_equal_to<int>(9),
             min_allocator<std::pair<const int, std::string> >()
            );
+        C::iterator it0 = c0.begin();
         C c = std::move(c0);
         LIBCPP_ASSERT(c.bucket_count() == 7);
         assert(c.size() == 4);
@@ -154,7 +161,7 @@ int main(int, char**)
         assert(c.at(3) == "three");
         assert(c.at(4) == "four");
         assert(c.hash_function() == test_hash<std::hash<int> >(8));
-        assert(c.key_eq() == test_compare<std::equal_to<int> >(9));
+        assert(c.key_eq() == test_equal_to<int>(9));
         assert(c.get_allocator() ==
                (min_allocator<std::pair<const int, std::string> >()));
         assert(!c.empty());
@@ -162,6 +169,7 @@ int main(int, char**)
         assert(static_cast<std::size_t>(std::distance(c.cbegin(), c.cend())) == c.size());
         assert(std::fabs(c.load_factor() - (float)c.size()/c.bucket_count()) < FLT_EPSILON);
         assert(c.max_load_factor() == 1);
+        assert(it0 == c.begin()); // Iterators remain valid
 
         assert(c0.empty());
     }

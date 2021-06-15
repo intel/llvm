@@ -287,7 +287,8 @@ bool mlir::lsp::fromJSON(const llvm::json::Value &value,
                          TextDocumentItem &result, llvm::json::Path path) {
   llvm::json::ObjectMapper o(value, path);
   return o && o.map("uri", result.uri) &&
-         o.map("languageId", result.languageId) && o.map("text", result.text);
+         o.map("languageId", result.languageId) && o.map("text", result.text) &&
+         o.map("version", result.version);
 }
 
 //===----------------------------------------------------------------------===//
@@ -303,6 +304,25 @@ bool mlir::lsp::fromJSON(const llvm::json::Value &value,
                          llvm::json::Path path) {
   llvm::json::ObjectMapper o(value, path);
   return o && o.map("uri", result.uri);
+}
+
+//===----------------------------------------------------------------------===//
+// VersionedTextDocumentIdentifier
+//===----------------------------------------------------------------------===//
+
+llvm::json::Value
+mlir::lsp::toJSON(const VersionedTextDocumentIdentifier &value) {
+  return llvm::json::Object{
+      {"uri", value.uri},
+      {"version", value.version},
+  };
+}
+
+bool mlir::lsp::fromJSON(const llvm::json::Value &value,
+                         VersionedTextDocumentIdentifier &result,
+                         llvm::json::Path path) {
+  llvm::json::ObjectMapper o(value, path);
+  return o && o.map("uri", result.uri) && o.map("version", result.version);
 }
 
 //===----------------------------------------------------------------------===//
@@ -433,4 +453,85 @@ bool mlir::lsp::fromJSON(const llvm::json::Value &value,
   llvm::json::ObjectMapper o(value, path);
   return o && o.map("textDocument", result.textDocument) &&
          o.map("contentChanges", result.contentChanges);
+}
+
+//===----------------------------------------------------------------------===//
+// MarkupContent
+//===----------------------------------------------------------------------===//
+
+static llvm::StringRef toTextKind(MarkupKind kind) {
+  switch (kind) {
+  case MarkupKind::PlainText:
+    return "plaintext";
+  case MarkupKind::Markdown:
+    return "markdown";
+  }
+  llvm_unreachable("Invalid MarkupKind");
+}
+
+raw_ostream &mlir::lsp::operator<<(raw_ostream &os, MarkupKind kind) {
+  return os << toTextKind(kind);
+}
+
+llvm::json::Value mlir::lsp::toJSON(const MarkupContent &mc) {
+  if (mc.value.empty())
+    return nullptr;
+
+  return llvm::json::Object{
+      {"kind", toTextKind(mc.kind)},
+      {"value", mc.value},
+  };
+}
+
+//===----------------------------------------------------------------------===//
+// Hover
+//===----------------------------------------------------------------------===//
+
+llvm::json::Value mlir::lsp::toJSON(const Hover &hover) {
+  llvm::json::Object result{{"contents", toJSON(hover.contents)}};
+  if (hover.range.hasValue())
+    result["range"] = toJSON(*hover.range);
+  return std::move(result);
+}
+
+//===----------------------------------------------------------------------===//
+// DiagnosticRelatedInformation
+//===----------------------------------------------------------------------===//
+
+llvm::json::Value mlir::lsp::toJSON(const DiagnosticRelatedInformation &info) {
+  return llvm::json::Object{
+      {"location", info.location},
+      {"message", info.message},
+  };
+}
+
+//===----------------------------------------------------------------------===//
+// Diagnostic
+//===----------------------------------------------------------------------===//
+
+llvm::json::Value mlir::lsp::toJSON(const Diagnostic &diag) {
+  llvm::json::Object result{
+      {"range", diag.range},
+      {"severity", (int)diag.severity},
+      {"message", diag.message},
+  };
+  if (diag.category)
+    result["category"] = *diag.category;
+  if (!diag.source.empty())
+    result["source"] = diag.source;
+  if (diag.relatedInformation)
+    result["relatedInformation"] = *diag.relatedInformation;
+  return std::move(result);
+}
+
+//===----------------------------------------------------------------------===//
+// PublishDiagnosticsParams
+//===----------------------------------------------------------------------===//
+
+llvm::json::Value mlir::lsp::toJSON(const PublishDiagnosticsParams &params) {
+  return llvm::json::Object{
+      {"uri", params.uri},
+      {"diagnostics", params.diagnostics},
+      {"version", params.version},
+  };
 }

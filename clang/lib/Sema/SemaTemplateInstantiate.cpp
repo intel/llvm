@@ -805,9 +805,10 @@ void Sema::PrintInstantiationStack() {
       SmallString<128> TemplateArgsStr;
       llvm::raw_svector_ostream OS(TemplateArgsStr);
       cast<NamedDecl>(Active->Entity)->printName(OS);
-      if (!isa<FunctionDecl>(Active->Entity))
+      if (!isa<FunctionDecl>(Active->Entity)) {
         printTemplateArgumentList(OS, Active->template_arguments(),
                                   getPrintingPolicy());
+      }
       Diags.Report(Active->PointOfInstantiation, DiagID) << OS.str()
         << Active->InstantiationRange;
       break;
@@ -1439,51 +1440,10 @@ TemplateName TemplateInstantiator::TransformTemplateName(
                                           AllowInjectedClassName);
 }
 
-static ExprResult TransformUniqueStableName(TemplateInstantiator &TI,
-                                            PredefinedExpr *E) {
-  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameType) {
-    TypeSourceInfo *Info =
-        TI.getDerived().TransformType(E->getTypeSourceInfo());
-
-    if (!Info)
-      return ExprError();
-
-    if (!TI.getDerived().AlwaysRebuild() && Info == E->getTypeSourceInfo())
-      return E;
-
-    return TI.getSema().BuildUniqueStableName(E->getLocation(), Info);
-  }
-
-  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameExpr) {
-    EnterExpressionEvaluationContext Unevaluated(
-        TI.getSema(), Sema::ExpressionEvaluationContext::Unevaluated);
-    ExprResult SubExpr = TI.getDerived().TransformExpr(E->getExpr());
-
-    if (SubExpr.isInvalid())
-      return ExprError();
-
-    SubExpr = TI.getSema().CheckPlaceholderExpr(SubExpr.get());
-
-    if (SubExpr.isInvalid())
-      return ExprError();
-
-    if (!TI.getDerived().AlwaysRebuild() && SubExpr.get() == E->getExpr())
-      return E;
-
-    return TI.getSema().BuildUniqueStableName(E->getLocation(), SubExpr.get());
-  }
-
-  llvm_unreachable("Only valid for UniqueStableNameType/Expr");
-}
-
 ExprResult
 TemplateInstantiator::TransformPredefinedExpr(PredefinedExpr *E) {
   if (!E->isTypeDependent())
     return E;
-
-  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameType ||
-      E->getIdentKind() == PredefinedExpr::UniqueStableNameExpr)
-    return TransformUniqueStableName(*this, E);
 
   return getSema().BuildPredefinedExpr(E->getLocation(), E->getIdentKind());
 }
@@ -2520,10 +2480,10 @@ ParmVarDecl *Sema::SubstParmVarDecl(ParmVarDecl *OldParm,
         }
         if (AttachTypeConstraint(
                 TC->getNestedNameSpecifierLoc(), TC->getConceptNameInfo(),
-                TC->getNamedConcept(), &InstArgs, Inst,
+                TC->getNamedConcept(), TemplArgInfo ? &InstArgs : nullptr, Inst,
                 TTP->isParameterPack()
                     ? cast<CXXFoldExpr>(TC->getImmediatelyDeclaredConstraint())
-                        ->getEllipsisLoc()
+                          ->getEllipsisLoc()
                     : SourceLocation()))
           return nullptr;
       }

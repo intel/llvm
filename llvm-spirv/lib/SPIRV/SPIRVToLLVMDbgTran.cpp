@@ -1006,8 +1006,11 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
          "DebugSource instruction is expected");
   SPIRVWordVec SourceArgs = Source->getArguments();
   assert(SourceArgs.size() == OperandCount && "Invalid number of operands");
-  StringRef Checksum(getString(SourceArgs[TextIdx]));
-  return getDIFile(getString(SourceArgs[FileIdx]), ParseChecksum(Checksum));
+  std::string ChecksumStr =
+      getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[TextIdx])
+          ? ""
+          : getString(SourceArgs[TextIdx]);
+  return getDIFile(getString(SourceArgs[FileIdx]), ParseChecksum(ChecksumStr));
 }
 
 SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const string &FileName) {

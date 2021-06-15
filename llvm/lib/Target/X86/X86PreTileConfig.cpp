@@ -71,9 +71,13 @@ struct MIRef {
   }
   bool operator!=(const MIRef &RHS) const { return !(*this == RHS); }
   bool operator<(const MIRef &RHS) const {
+    // Comparison between different BBs happens when inserting a MIRef into set.
+    // So we compare MBB first to make the insertion happy.
     return MBB < RHS.MBB || (MBB == RHS.MBB && Pos < RHS.Pos);
   }
   bool operator>(const MIRef &RHS) const {
+    // Comparison between different BBs happens when inserting a MIRef into set.
+    // So we compare MBB first to make the insertion happy.
     return MBB > RHS.MBB || (MBB == RHS.MBB && Pos > RHS.Pos);
   }
 };
@@ -121,19 +125,24 @@ class X86PreTileConfig : public MachineFunctionPass {
 
   /// Check if it is an edge from loop bottom to loop head.
   bool isLoopBackEdge(MachineBasicBlock *Header, MachineBasicBlock *Bottom) {
-    return MLI->isLoopHeader(Header) &&
-           MLI->getLoopFor(Header)->getBottomBlock() == Bottom;
+    if (!MLI->isLoopHeader(Header))
+      return false;
+    auto *ML = MLI->getLoopFor(Header);
+    if (ML->contains(Bottom) && ML->isLoopLatch(Bottom))
+      return true;
+
+    return false;
   }
 
   /// Collect the shape def information for later use.
   void collectShapeInfo(MachineInstr &MI);
 
   /// Try to hoist shapes definded below AMX instructions.
-  bool hoistShapesInBB(MachineBasicBlock *MBB) {
-    auto FirstShapeBelowAMX =
-        llvm::lower_bound(ShapeBBs[MBB], BBVisitedInfo[MBB].FirstAMX);
-    auto InsertPoint = BBVisitedInfo[MBB].FirstAMX.MI->getIterator();
-    for (auto I = FirstShapeBelowAMX, E = ShapeBBs[MBB].end(); I != E; ++I) {
+  bool hoistShapesInBB(MachineBasicBlock *MBB, SmallVectorImpl<MIRef> &Shapes) {
+    MIRef &FirstAMX = BBVisitedInfo[MBB].FirstAMX;
+    auto FirstShapeBelowAMX = llvm::lower_bound(Shapes, FirstAMX);
+    auto InsertPoint = FirstAMX.MI->getIterator();
+    for (auto I = FirstShapeBelowAMX, E = Shapes.end(); I != E; ++I) {
       // Do not hoist instructions that access memory.
       if (I->MI->mayLoadOrStore())
         return false;
@@ -142,16 +151,15 @@ class X86PreTileConfig : public MachineFunctionPass {
           continue;
         // Do not hoist instructions if the sources' def under AMX instruction.
         // TODO: We can handle isMoveImmediate MI here.
-        if (MO.isReg() &&
-            MIRef(MRI->getVRegDef(MO.getReg())) > BBVisitedInfo[MBB].FirstAMX)
+        if (MO.isReg() && MIRef(MRI->getVRegDef(MO.getReg())) > FirstAMX)
           return false;
         // TODO: Maybe need more checks here.
       }
       MBB->insert(InsertPoint, I->MI->removeFromParent());
     }
     // We only need to mark the last shape in the BB now.
-    ShapeBBs[MBB].clear();
-    ShapeBBs[MBB].push_back(MIRef(&*--InsertPoint, MBB));
+    Shapes.clear();
+    Shapes.push_back(MIRef(&*--InsertPoint, MBB));
     return true;
   }
 
@@ -197,7 +205,7 @@ void X86PreTileConfig::collectShapeInfo(MachineInstr &MI) {
   auto RecordShape = [&](MachineInstr *MI, MachineBasicBlock *MBB) {
     MIRef MIR(MI, MBB);
     auto I = llvm::lower_bound(ShapeBBs[MBB], MIR);
-    if (*I != MIR)
+    if (I == ShapeBBs[MBB].end() || *I != MIR)
       ShapeBBs[MBB].insert(I, MIR);
   };
 
@@ -206,8 +214,9 @@ void X86PreTileConfig::collectShapeInfo(MachineInstr &MI) {
   while (!WorkList.empty()) {
     Register R = WorkList.pop_back_val();
     MachineInstr *DefMI = MRI->getVRegDef(R);
+    assert(DefMI && "R must has one define instruction");
     MachineBasicBlock *DefMBB = DefMI->getParent();
-    if (!DefMI || DefMI->isMoveImmediate() || !DefVisited.insert(DefMI).second)
+    if (DefMI->isMoveImmediate() || !DefVisited.insert(DefMI).second)
       continue;
     if (DefMI->isPHI()) {
       for (unsigned I = 1; I < DefMI->getNumOperands(); I += 2)
@@ -293,8 +302,8 @@ bool X86PreTileConfig::runOnMachineFunction(MachineFunction &MF) {
     if (BBVisitedInfo[I.first].HasAMXRegLiveIn)
       REPORT_CONFIG_FAIL
     if (BBVisitedInfo[I.first].FirstAMX &&
-        BBVisitedInfo[I.first].FirstAMX < ShapeBBs[I.first].back() &&
-        !hoistShapesInBB(I.first))
+        BBVisitedInfo[I.first].FirstAMX < I.second.back() &&
+        !hoistShapesInBB(I.first, I.second))
       REPORT_CONFIG_FAIL
     WorkList.push_back(I.first);
   }

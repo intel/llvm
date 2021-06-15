@@ -68,10 +68,22 @@ using GlobalBufAccessorT = accessor<char, 1, cl::sycl::access::mode::read_write,
                                     cl::sycl::access::target::global_buffer,
                                     cl::sycl::access::placeholder::false_t>;
 
+constexpr static access::address_space GlobalBufAS =
+    TargetToAS<cl::sycl::access::target::global_buffer>::AS;
+using GlobalBufPtrType =
+    typename detail::DecoratedType<char, GlobalBufAS>::type *;
+constexpr static int GlobalBufDim = 1;
+
 using GlobalOffsetAccessorT =
     accessor<unsigned, 1, cl::sycl::access::mode::atomic,
              cl::sycl::access::target::global_buffer,
              cl::sycl::access::placeholder::false_t>;
+
+constexpr static access::address_space GlobalOffsetAS =
+    TargetToAS<cl::sycl::access::target::global_buffer>::AS;
+using GlobalOffsetPtrType =
+    typename detail::DecoratedType<unsigned, GlobalBufAS>::type *;
+constexpr static int GlobalOffsetDim = 1;
 
 // Read first 2 bytes of flush buffer to get buffer offset.
 // TODO: Should be optimized to the following:
@@ -102,7 +114,7 @@ inline void write(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
       GetFlushBufOffset(GlobalFlushBuf, WIOffset) + FLUSH_BUF_OFFSET_SIZE;
 
   if ((Offset + Len + Padding > FlushBufferSize) ||
-      (WIOffset + Offset + Len + Padding > GlobalFlushBuf.get_count()))
+      (WIOffset + Offset + Len + Padding > GlobalFlushBuf.size()))
     // TODO: flush here
     return;
 
@@ -729,6 +741,11 @@ inline __width_manipulator__ setw(int Width) {
 /// \ingroup sycl_api
 class __SYCL_EXPORT stream {
 public:
+#ifdef __SYCL_DEVICE_ONLY__
+  // Default constructor for objects later initialized with __init member.
+  stream() = default;
+#endif
+
   // Throws exception in case of invalid input parameters
   stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
 
@@ -845,7 +862,25 @@ private:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  void __init() {
+  void __init(detail::GlobalBufPtrType GlobalBufPtr,
+              range<detail::GlobalBufDim> GlobalBufAccRange,
+              range<detail::GlobalBufDim> GlobalBufMemRange,
+              id<detail::GlobalBufDim> GlobalBufId,
+              detail::GlobalOffsetPtrType GlobalOffsetPtr,
+              range<detail::GlobalOffsetDim> GlobalOffsetAccRange,
+              range<detail::GlobalOffsetDim> GlobalOffsetMemRange,
+              id<detail::GlobalOffsetDim> GlobalOffsetId,
+              detail::GlobalBufPtrType GlobalFlushPtr,
+              range<detail::GlobalBufDim> GlobalFlushAccRange,
+              range<detail::GlobalBufDim> GlobalFlushMemRange,
+              id<detail::GlobalBufDim> GlobalFlushId, size_t _FlushBufferSize) {
+    GlobalBuf.__init(GlobalBufPtr, GlobalBufAccRange, GlobalBufMemRange,
+                     GlobalBufId);
+    GlobalOffset.__init(GlobalOffsetPtr, GlobalOffsetAccRange,
+                        GlobalOffsetMemRange, GlobalOffsetId);
+    GlobalFlushBuf.__init(GlobalFlushPtr, GlobalFlushAccRange,
+                          GlobalFlushMemRange, GlobalFlushId);
+    FlushBufferSize = _FlushBufferSize;
     // Calculate offset in the flush buffer for each work item in the global
     // work space. We need to avoid calling intrinsics to get global id because
     // when stream is used in a single_task kernel this could cause some
@@ -870,6 +905,8 @@ private:
     flushBuffer(GlobalOffset, GlobalBuf, GlobalFlushBuf, WIOffset);
   }
 #endif
+
+  friend class handler;
 
   friend const stream &operator<<(const stream &, const char);
   friend const stream &operator<<(const stream &, const char *);
@@ -1118,4 +1155,3 @@ template <> struct hash<cl::sycl::stream> {
   }
 };
 } // namespace std
-

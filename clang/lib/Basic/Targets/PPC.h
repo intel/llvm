@@ -73,6 +73,7 @@ class LLVM_LIBRARY_VISIBILITY PPCTargetInfo : public TargetInfo {
   bool PairedVectorMemops = false;
   bool HasP10Vector = false;
   bool HasPCRelativeMemops = false;
+  bool HasPrefixInstrs = false;
 
 protected:
   std::string ABI;
@@ -349,6 +350,24 @@ public:
   bool isSPRegName(StringRef RegName) const override {
     return RegName.equals("r1") || RegName.equals("x1");
   }
+
+  void defineXLCompatMacros(MacroBuilder &Builder) const {
+    Builder.defineMacro("__popcntb", "__builtin_ppc_popcntb");
+    Builder.defineMacro("__eieio", "__builtin_ppc_eieio");
+    Builder.defineMacro("__iospace_eieio", "__builtin_ppc_iospace_eieio");
+    Builder.defineMacro("__isync", "__builtin_ppc_isync");
+    Builder.defineMacro("__lwsync", "__builtin_ppc_lwsync");
+    Builder.defineMacro("__iospace_lwsync", "__builtin_ppc_iospace_lwsync");
+    Builder.defineMacro("__sync", "__builtin_ppc_sync");
+    Builder.defineMacro("__iospace_sync", "__builtin_ppc_iospace_sync");
+    Builder.defineMacro("__dcbfl", "__builtin_ppc_dcbfl");
+    Builder.defineMacro("__dcbflp", "__builtin_ppc_dcbflp");
+    Builder.defineMacro("__dcbst", "__builtin_ppc_dcbst");
+    Builder.defineMacro("__dcbt", "__builtin_ppc_dcbt");
+    Builder.defineMacro("__dcbtst", "__builtin_ppc_dcbtst");
+    Builder.defineMacro("__dcbz", "__builtin_ppc_dcbz");
+    Builder.defineMacro("__icbt", "__builtin_ppc_icbt");
+  }
 };
 
 class LLVM_LIBRARY_VISIBILITY PPC32TargetInfo : public PPCTargetInfo {
@@ -468,7 +487,7 @@ public:
     BoolWidth = BoolAlign = 32; // XXX support -mone-byte-bool?
     PtrDiffType = SignedInt; // for http://llvm.org/bugs/show_bug.cgi?id=15726
     LongLongAlign = 32;
-    resetDataLayout("E-m:o-p:32:32-f64:32:64-n32");
+    resetDataLayout("E-m:o-p:32:32-f64:32:64-n32", "_");
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
@@ -482,7 +501,7 @@ public:
   DarwinPPC64TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : DarwinTargetInfo<PPC64TargetInfo>(Triple, Opts) {
     HasAlignMac68kSupport = true;
-    resetDataLayout("E-m:o-i64:64-n32:64");
+    resetDataLayout("E-m:o-i64:64-n32:64", "_");
   }
 };
 

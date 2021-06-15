@@ -201,6 +201,14 @@ static cl::opt<bool> ClCombinePointerLabelsOnStore(
              "storing in memory."),
     cl::Hidden, cl::init(false));
 
+// Controls whether the pass propagates labels of offsets in GEP instructions.
+static cl::opt<bool> ClCombineOffsetLabelsOnGEP(
+    "dfsan-combine-offset-labels-on-gep",
+    cl::desc(
+        "Combine the label of the offset with the label of the pointer when "
+        "doing pointer arithmetic."),
+    cl::Hidden, cl::init(true));
+
 static cl::opt<bool> ClDebugNonzeroLabels(
     "dfsan-debug-nonzero-labels",
     cl::desc("Insert calls to __dfsan_nonzero_label on observing a parameter, "
@@ -505,6 +513,11 @@ class DataFlowSanitizer {
 
   bool init(Module &M);
 
+  /// Advances \p OriginAddr to point to the next 32-bit origin and then loads
+  /// from it. Returns the origin's loaded value.
+  Value *loadNextOrigin(Instruction *Pos, Align OriginAlign,
+                        Value **OriginAddr);
+
   /// Returns whether fast8 or fast16 mode has been specified.
   bool hasFastLabelsEnabled();
 
@@ -766,6 +779,7 @@ public:
 
   void visitUnaryOperator(UnaryOperator &UO);
   void visitBinaryOperator(BinaryOperator &BO);
+  void visitBitCastInst(BitCastInst &BCI);
   void visitCastInst(CastInst &CI);
   void visitCmpInst(CmpInst &CI);
   void visitGetElementPtrInst(GetElementPtrInst &GEPI);
@@ -1227,6 +1241,7 @@ DataFlowSanitizer::buildWrapperFunction(Function *F, StringRef NewFName,
     std::vector<Value *> Args(ArgIt, ArgIt + FT->getNumParams());
 
     CallInst *CI = CallInst::Create(F, Args, "", BB);
+    CI->setAttributes(F->getAttributes());
     if (FT->getReturnType()->isVoidTy())
       ReturnInst::Create(*Ctx, BB);
     else
@@ -2094,6 +2109,14 @@ bool DFSanFunction::useCallbackLoadLabelAndOrigin(uint64_t Size,
   return Alignment < MinOriginAlignment || !DFS.hasLoadSizeForFastPath(Size);
 }
 
+Value *DataFlowSanitizer::loadNextOrigin(Instruction *Pos, Align OriginAlign,
+                                         Value **OriginAddr) {
+  IRBuilder<> IRB(Pos);
+  *OriginAddr =
+      IRB.CreateGEP(OriginTy, *OriginAddr, ConstantInt::get(IntptrTy, 1));
+  return IRB.CreateAlignedLoad(OriginTy, *OriginAddr, OriginAlign);
+}
+
 std::pair<Value *, Value *> DFSanFunction::loadFast16ShadowFast(
     Value *ShadowAddr, Value *OriginAddr, uint64_t Size, Align ShadowAlign,
     Align OriginAlign, Value *FirstOrigin, Instruction *Pos) {
@@ -2125,19 +2148,39 @@ std::pair<Value *, Value *> DFSanFunction::loadFast16ShadowFast(
   Value *CombinedWideShadow =
       IRB.CreateAlignedLoad(WideShadowTy, WideAddr, ShadowAlign);
 
-  if (ShouldTrackOrigins) {
-    Shadows.push_back(CombinedWideShadow);
-    Origins.push_back(FirstOrigin);
-  }
+  unsigned WideShadowBitWidth = WideShadowTy->getIntegerBitWidth();
+  const uint64_t BytesPerWideShadow = WideShadowBitWidth / DFS.ShadowWidthBits;
+
+  auto AppendWideShadowAndOrigin = [&](Value *WideShadow, Value *Origin) {
+    if (BytesPerWideShadow > 4) {
+      assert(BytesPerWideShadow == 8);
+      // The wide shadow relates to two origin pointers: one for the first four
+      // application bytes, and one for the latest four. We use a left shift to
+      // get just the shadow bytes that correspond to the first origin pointer,
+      // and then the entire shadow for the second origin pointer (which will be
+      // chosen by combineOrigins() iff the least-significant half of the wide
+      // shadow was empty but the other half was not).
+      Value *WideShadowLo = IRB.CreateShl(
+          WideShadow, ConstantInt::get(WideShadowTy, WideShadowBitWidth / 2));
+      Shadows.push_back(WideShadow);
+      Origins.push_back(DFS.loadNextOrigin(Pos, OriginAlign, &OriginAddr));
+
+      Shadows.push_back(WideShadowLo);
+      Origins.push_back(Origin);
+    } else {
+      Shadows.push_back(WideShadow);
+      Origins.push_back(Origin);
+    }
+  };
+
+  if (ShouldTrackOrigins)
+    AppendWideShadowAndOrigin(CombinedWideShadow, FirstOrigin);
 
   // First OR all the WideShadows (i.e., 64bit or 32bit shadow chunks) linearly;
   // then OR individual shadows within the combined WideShadow by binary ORing.
   // This is fewer instructions than ORing shadows individually, since it
   // needs logN shift/or instructions (N being the bytes of the combined wide
   // shadow).
-  unsigned WideShadowBitWidth = WideShadowTy->getIntegerBitWidth();
-  const uint64_t BytesPerWideShadow = WideShadowBitWidth / DFS.ShadowWidthBits;
-
   for (uint64_t ByteOfs = BytesPerWideShadow; ByteOfs < Size;
        ByteOfs += BytesPerWideShadow) {
     WideAddr = IRB.CreateGEP(WideShadowTy, WideAddr,
@@ -2146,11 +2189,8 @@ std::pair<Value *, Value *> DFSanFunction::loadFast16ShadowFast(
         IRB.CreateAlignedLoad(WideShadowTy, WideAddr, ShadowAlign);
     CombinedWideShadow = IRB.CreateOr(CombinedWideShadow, NextWideShadow);
     if (ShouldTrackOrigins) {
-      Shadows.push_back(NextWideShadow);
-      OriginAddr = IRB.CreateGEP(DFS.OriginTy, OriginAddr,
-                                 ConstantInt::get(DFS.IntptrTy, 1));
-      Origins.push_back(
-          IRB.CreateAlignedLoad(DFS.OriginTy, OriginAddr, OriginAlign));
+      Value *NextOrigin = DFS.loadNextOrigin(Pos, OriginAlign, &OriginAddr);
+      AppendWideShadowAndOrigin(NextWideShadow, NextOrigin);
     }
   }
   for (unsigned Width = WideShadowBitWidth / 2; Width >= DFS.ShadowWidthBits;
@@ -2441,13 +2481,17 @@ void DFSanVisitor::visitLoadInst(LoadInst &LI) {
 Value *DFSanFunction::updateOriginIfTainted(Value *Shadow, Value *Origin,
                                             IRBuilder<> &IRB) {
   assert(DFS.shouldTrackOrigins());
-  return IRB.CreateCall(DFS.DFSanChainOriginIfTaintedFn, {Shadow, Origin});
+  auto *CB = IRB.CreateCall(DFS.DFSanChainOriginIfTaintedFn, {Shadow, Origin});
+  CB->setAttributes(CB->getCalledFunction()->getAttributes());
+  return CB;
 }
 
 Value *DFSanFunction::updateOrigin(Value *V, IRBuilder<> &IRB) {
   if (!DFS.shouldTrackOrigins())
     return V;
-  return IRB.CreateCall(DFS.DFSanChainOriginFn, V);
+  auto *CB = IRB.CreateCall(DFS.DFSanChainOriginFn, V);
+  CB->setAttributes(CB->getCalledFunction()->getAttributes());
+  return CB;
 }
 
 Value *DFSanFunction::originToIntptr(IRBuilder<> &IRB, Value *Origin) {
@@ -2522,10 +2566,11 @@ void DFSanFunction::storeOrigin(Instruction *Pos, Value *Addr, uint64_t Size,
   }
 
   if (shouldInstrumentWithCall()) {
-    IRB.CreateCall(DFS.DFSanMaybeStoreOriginFn,
-                   {CollapsedShadow,
-                    IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()),
-                    ConstantInt::get(DFS.IntptrTy, Size), Origin});
+    auto *CB = IRB.CreateCall(DFS.DFSanMaybeStoreOriginFn,
+                              {CollapsedShadow,
+                               IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()),
+                               ConstantInt::get(DFS.IntptrTy, Size), Origin});
+    CB->setAttributes(CB->getCalledFunction()->getAttributes());
   } else {
     Value *Cmp = convertToBool(CollapsedShadow, IRB, "_dfscmp");
     Instruction *CheckTerm = SplitBlockAndInsertIfThen(
@@ -2736,6 +2781,19 @@ void DFSanVisitor::visitBinaryOperator(BinaryOperator &BO) {
   visitInstOperands(BO);
 }
 
+void DFSanVisitor::visitBitCastInst(BitCastInst &BCI) {
+  if (DFSF.DFS.getInstrumentedABI() == DataFlowSanitizer::IA_TLS) {
+    // Special case: if this is the bitcast (there is exactly 1 allowed) between
+    // a musttail call and a ret, don't instrument. New instructions are not
+    // allowed after a musttail call.
+    if (auto *CI = dyn_cast<CallInst>(BCI.getOperand(0)))
+      if (CI->isMustTailCall())
+        return;
+  }
+  // TODO: handle musttail call returns for IA_Args.
+  visitInstOperands(BCI);
+}
+
 void DFSanVisitor::visitCastInst(CastInst &CI) { visitInstOperands(CI); }
 
 void DFSanVisitor::visitCmpInst(CmpInst &CI) {
@@ -2748,7 +2806,17 @@ void DFSanVisitor::visitCmpInst(CmpInst &CI) {
 }
 
 void DFSanVisitor::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
-  visitInstOperands(GEPI);
+  if (ClCombineOffsetLabelsOnGEP) {
+    visitInstOperands(GEPI);
+    return;
+  }
+
+  // Only propagate shadow/origin of base pointer value but ignore those of
+  // offset operands.
+  Value *BasePointer = GEPI.getPointerOperand();
+  DFSF.setShadow(&GEPI, DFSF.getShadow(BasePointer));
+  if (DFSF.DFS.shouldTrackOrigins())
+    DFSF.setOrigin(&GEPI, DFSF.getOrigin(BasePointer));
 }
 
 void DFSanVisitor::visitExtractElementInst(ExtractElementInst &I) {
@@ -2875,11 +2943,12 @@ void DFSanVisitor::visitMemSetInst(MemSetInst &I) {
   Value *ValOrigin = DFSF.DFS.shouldTrackOrigins()
                          ? DFSF.getOrigin(I.getValue())
                          : DFSF.DFS.ZeroOrigin;
-  IRB.CreateCall(
+  auto *CB = IRB.CreateCall(
       DFSF.DFS.DFSanSetLabelFn,
       {ValShadow, ValOrigin,
        IRB.CreateBitCast(I.getDest(), Type::getInt8PtrTy(*DFSF.DFS.Ctx)),
        IRB.CreateZExtOrTrunc(I.getLength(), DFSF.DFS.IntptrTy)});
+  CB->setAttributes(CB->getCalledFunction()->getAttributes());
 }
 
 void DFSanVisitor::visitMemTransferInst(MemTransferInst &I) {
@@ -2920,10 +2989,25 @@ void DFSanVisitor::visitMemTransferInst(MemTransferInst &I) {
   }
 }
 
+static bool isAMustTailRetVal(Value *RetVal) {
+  // Tail call may have a bitcast between return.
+  if (auto *I = dyn_cast<BitCastInst>(RetVal)) {
+    RetVal = I->getOperand(0);
+  }
+  if (auto *I = dyn_cast<CallInst>(RetVal)) {
+    return I->isMustTailCall();
+  }
+  return false;
+}
+
 void DFSanVisitor::visitReturnInst(ReturnInst &RI) {
   if (!DFSF.IsNativeABI && RI.getReturnValue()) {
     switch (DFSF.IA) {
     case DataFlowSanitizer::IA_TLS: {
+      // Don't emit the instrumentation for musttail call returns.
+      if (isAMustTailRetVal(RI.getReturnValue()))
+        return;
+
       Value *S = DFSF.getShadow(RI.getReturnValue());
       IRBuilder<> IRB(&RI);
       Type *RT = DFSF.F->getFunctionType()->getReturnType();
@@ -2942,6 +3026,8 @@ void DFSanVisitor::visitReturnInst(ReturnInst &RI) {
       break;
     }
     case DataFlowSanitizer::IA_Args: {
+      // TODO: handle musttail call returns for IA_Args.
+
       IRBuilder<> IRB(&RI);
       Type *RT = DFSF.F->getFunctionType()->getReturnType();
       Value *InsVal =
@@ -3217,6 +3303,10 @@ void DFSanVisitor::visitCallBase(CallBase &CB) {
     }
 
     if (DFSF.DFS.getInstrumentedABI() == DataFlowSanitizer::IA_TLS) {
+      // Don't emit the epilogue for musttail call returns.
+      if (isa<CallInst>(CB) && cast<CallInst>(CB).isMustTailCall())
+        return;
+
       // Loads the return value shadow.
       IRBuilder<> NextIRB(Next);
       const DataLayout &DL = getDataLayout();
@@ -3245,6 +3335,8 @@ void DFSanVisitor::visitCallBase(CallBase &CB) {
   // Do all instrumentation for IA_Args down here to defer tampering with the
   // CFG in a way that SplitEdge may be able to detect.
   if (DFSF.DFS.getInstrumentedABI() == DataFlowSanitizer::IA_Args) {
+    // TODO: handle musttail call returns for IA_Args.
+
     FunctionType *NewFT = DFSF.DFS.getArgsFunctionType(FT);
     Value *Func =
         IRB.CreateBitCast(CB.getCalledOperand(), PointerType::getUnqual(NewFT));

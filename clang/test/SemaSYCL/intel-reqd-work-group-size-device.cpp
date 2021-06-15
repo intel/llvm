@@ -34,7 +34,9 @@ void bar() {
 #ifdef TRIGGER_ERROR
 class Functor32 {
 public:
-  [[cl::reqd_work_group_size(32)]] void operator()() const {} // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}}
+  [[cl::reqd_work_group_size(32)]] void operator()() const {} // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}} \
+                                                              // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
+                                                              // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 };
 #endif // TRIGGER_ERROR
 
@@ -81,7 +83,8 @@ public:
 
 class FunctorAttr {
 public:
-  __attribute__((reqd_work_group_size(128, 128, 128))) void operator()() const {}
+  __attribute__((reqd_work_group_size(128, 128, 128))) void operator()() const {} // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
+                                                                                  // expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
 };
 
 int main() {

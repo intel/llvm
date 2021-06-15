@@ -72,10 +72,10 @@ contains
   end
   module subroutine s9(x, y, z, w)
     character(len=4) :: x
-    !ERROR: Dummy argument 'y' has type CHARACTER(KIND=1,LEN=5_4); the corresponding argument in the interface body has type CHARACTER(KIND=1,LEN=4_4)
+    !ERROR: Dummy argument 'y' has type CHARACTER(KIND=1,LEN=5_8); the corresponding argument in the interface body has type CHARACTER(KIND=1,LEN=4_8)
     character(len=5) :: y
     character(len=*) :: z
-    !ERROR: Dummy argument 'w' has type CHARACTER(KIND=1,LEN=4_4); the corresponding argument in the interface body has type CHARACTER(KIND=1,LEN=*)
+    !ERROR: Dummy argument 'w' has type CHARACTER(KIND=1,LEN=4_8); the corresponding argument in the interface body has type CHARACTER(KIND=1,LEN=*)
     character(len=4) :: w
   end
 end
@@ -109,10 +109,10 @@ contains
     real, intent(out) :: y
     real :: z
   end
-  !ERROR: Dummy argument name 'z' does not match corresponding name 'y' in interface body
   module subroutine s2(x, z)
     real, intent(in) :: x
-    real, intent(out) :: y
+  !ERROR: Dummy argument name 'z' does not match corresponding name 'y' in interface body
+    real, intent(out) :: z
   end
   module subroutine s3(x, y)
     !ERROR: Dummy argument 'x' is a procedure; the corresponding argument in the interface body is not

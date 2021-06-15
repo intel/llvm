@@ -18,8 +18,16 @@
 #include <llvm/Support/FileSystem.h>
 #include <vector>
 
+// TODO: Introduce common unit tests header and move it there
+static void set_env(const char *name, const char *value) {
+#ifdef _WIN32
+  (void)_putenv_s(name, value);
+#else
+  (void)setenv(name, value, /*overwrite*/ 1);
+#endif
+}
+
 namespace {
-constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
 using namespace cl::sycl;
 
 /* Vector of programs which can be used for testing
@@ -45,13 +53,13 @@ static pi_result redefinedProgramGetInfo(pi_program program,
 
   if (param_name == PI_PROGRAM_INFO_BINARY_SIZES) {
     auto value = reinterpret_cast<size_t *>(param_value);
-    for (int i = 0; i < Progs[DeviceCodeID].size(); ++i)
+    for (size_t i = 0; i < Progs[DeviceCodeID].size(); ++i)
       value[i] = Progs[DeviceCodeID][i];
   }
 
   if (param_name == PI_PROGRAM_INFO_BINARIES) {
     auto value = reinterpret_cast<unsigned char **>(param_value);
-    for (int i = 0; i < Progs[DeviceCodeID].size(); ++i)
+    for (size_t i = 0; i < Progs[DeviceCodeID].size(); ++i)
       for (int j = 0; j < Progs[DeviceCodeID][i]; ++j)
         value[i][j] = i;
   }
@@ -98,6 +106,10 @@ public:
     if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
       return;
     }
+
+    set_env("SYCL_CACHE_PERSISTENT", "1");
+    sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+
     std::string BuildOptions{"--concurrent-access=" +
                              std::to_string(ThreadCount)};
     DeviceCodeID = ProgramID;
@@ -120,9 +132,9 @@ public:
             sycl::vector_class<unsigned char>(
                 {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}),
             BuildOptions);
-        for (int i = 0; i < Res.size(); ++i) {
-          for (int j = 0; j < Res[i].size(); ++j) {
-            assert(Res[i][j] == i &&
+        for (size_t i = 0; i < Res.size(); ++i) {
+          for (size_t j = 0; j < Res[i].size(); ++j) {
+            assert(Res[i][j] == static_cast<char>(i) &&
                    "Corrupted image loaded from persistent cache");
           }
         }
@@ -137,8 +149,20 @@ protected:
   detail::OSModuleHandle ModuleHandle = detail::OSUtil::ExeModuleHandle;
   platform Plt;
   device Dev;
-  pi_device_binary_struct BinStruct{/*Version*/ 1, /*Kind*/ 4,
-                                    /*Format*/ PI_DEVICE_BINARY_TYPE_SPIRV};
+  pi_device_binary_struct BinStruct{/*Version*/ 1,
+                                    /*Kind*/ 4,
+                                    /*Format*/ PI_DEVICE_BINARY_TYPE_SPIRV,
+                                    /*DeviceTargetSpec*/ nullptr,
+                                    /*CompileOptions*/ nullptr,
+                                    /*LinkOptions*/ nullptr,
+                                    /*ManifestStart*/ nullptr,
+                                    /*ManifestEnd*/ nullptr,
+                                    /*BinaryStart*/ nullptr,
+                                    /*BinaryEnd*/ nullptr,
+                                    /*EntriesBegin*/ nullptr,
+                                    /*EntriesEnd*/ nullptr,
+                                    /*PropertySetsBegin*/ nullptr,
+                                    /*PropertySetsEnd*/ nullptr};
   pi_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin, ModuleHandle};
   RT::PiProgram NativeProg;
@@ -151,6 +175,10 @@ TEST_F(PersistenDeviceCodeCache, KeysWithNullTermSymbol) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
+
+  set_env("SYCL_CACHE_PERSISTENT", "1");
+  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
@@ -162,10 +190,11 @@ TEST_F(PersistenDeviceCodeCache, KeysWithNullTermSymbol) {
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img,
                                                                 SpecConst, Key);
   assert(Res.size() != 0 && "Failed to load cache item");
-  for (int i = 0; i < Res.size(); ++i) {
+  for (size_t i = 0; i < Res.size(); ++i) {
     assert(Res[i].size() != 0 && "Failed to device image");
-    for (int j = 0; j < Res[i].size(); ++j) {
-      assert(Res[i][j] == i && "Corrupted image loaded from persistent cache");
+    for (size_t j = 0; j < Res[i].size(); ++j) {
+      assert(Res[i][j] == static_cast<char>(i) &&
+             "Corrupted image loaded from persistent cache");
     }
   }
 
@@ -204,6 +233,10 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
+
+  set_env("SYCL_CACHE_PERSISTENT", "1");
+  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+
   std::string BuildOptions{"--corrupted-file"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);
@@ -267,6 +300,10 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
+
+  set_env("SYCL_CACHE_PERSISTENT", "1");
+  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+
   std::string BuildOptions{"--obsolete-lock"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);
@@ -302,9 +339,10 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
   std::remove(LockFile.c_str());
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                            BuildOptions);
-  for (int i = 0; i < Res.size(); ++i) {
-    for (int j = 0; j < Res[i].size(); ++j) {
-      assert(Res[i][j] == i && "Corrupted image loaded from persistent cache");
+  for (size_t i = 0; i < Res.size(); ++i) {
+    for (size_t j = 0; j < Res[i].size(); ++j) {
+      assert(Res[i][j] == static_cast<char>(i) &&
+             "Corrupted image loaded from persistent cache");
     }
   }
   llvm::sys::fs::remove_directories(ItemDir);
@@ -318,6 +356,10 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
+
+  set_env("SYCL_CACHE_PERSISTENT", "1");
+  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+
   std::string BuildOptions{"--build-options"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);
@@ -344,9 +386,10 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                            BuildOptions);
   // Image should be successfully read
-  for (int i = 0; i < Res.size(); ++i) {
-    for (int j = 0; j < Res[i].size(); ++j) {
-      assert(Res[i][j] == i && "Corrupted image loaded from persistent cache");
+  for (size_t i = 0; i < Res.size(); ++i) {
+    for (size_t j = 0; j < Res[i].size(); ++j) {
+      assert(Res[i][j] == static_cast<char>(i) &&
+             "Corrupted image loaded from persistent cache");
     }
   }
   llvm::sys::fs::remove_directories(ItemDir);

@@ -1,14 +1,16 @@
-!RUN: %f18 -fdebug-dump-symbols %s | FileCheck %s
+!RUN: %flang_fc1 -fdebug-dump-symbols %s | FileCheck %s
 ! Tests for derived type runtime descriptions
 
 module m01
   type :: t1
     integer :: n
   end type
+!CHECK: Module scope: m01
 !CHECK: .c.t1, SAVE, TARGET: ObjectEntity type: TYPE(component) shape: 0_8:0_8 init:[component::component(name=.n.n,genre=1_1,category=0_1,kind=4_1,rank=0_1,offset=0_8,characterlen=value(genre=1_1,value=0_8),derived=NULL(),lenvalue=NULL(),bounds=NULL(),initialization=NULL())]
 !CHECK: .dt.t1, SAVE, TARGET: ObjectEntity type: TYPE(derivedtype) init:derivedtype(binding=NULL(),name=.n.t1,sizeinbytes=4_8,parent=NULL(),uninstantiated=NULL(),kindparameter=NULL(),lenparameterkind=NULL(),component=.c.t1,procptr=NULL(),special=NULL())
-!CHECK: .n.n, SAVE, TARGET: ObjectEntity type: CHARACTER(2_8,1) init:"n"
+!CHECK: .n.n, SAVE, TARGET: ObjectEntity type: CHARACTER(1_8,1) init:"n"
 !CHECK: .n.t1, SAVE, TARGET: ObjectEntity type: CHARACTER(2_8,1) init:"t1"
+!CHECK: DerivedType scope: t1
 end module
 
 module m02
@@ -235,4 +237,15 @@ module m11
 !CHECK: .lpk.t.1, SAVE, TARGET: ObjectEntity type: INTEGER(1) shape: 0_8:0_8 init:[INTEGER(1)::8_1]
     type(t(*)), intent(in) :: x
   end subroutine
+end module
+
+module m12
+  type :: t1
+    integer :: n
+    integer :: n2
+    integer :: n_3
+    ! CHECK: .n.n, SAVE, TARGET: ObjectEntity type: CHARACTER(1_8,1) init:"n"
+    ! CHECK: .n.n2, SAVE, TARGET: ObjectEntity type: CHARACTER(2_8,1) init:"n2"
+    ! CHECK: .n.n_3, SAVE, TARGET: ObjectEntity type: CHARACTER(3_8,1) init:"n_3"
+  end type
 end module

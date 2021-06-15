@@ -35,10 +35,12 @@ static const FunctionProtoType *GetUnderlyingFunction(QualType T)
   return T->getAs<FunctionProtoType>();
 }
 
-/// HACK: libstdc++ has a bug where it shadows std::swap with a member
-/// swap function then tries to call std::swap unqualified from the exception
-/// specification of that function. This function detects whether we're in
-/// such a case and turns off delay-parsing of exception specifications.
+/// HACK: 2014-11-14 libstdc++ had a bug where it shadows std::swap with a
+/// member swap function then tries to call std::swap unqualified from the
+/// exception specification of that function. This function detects whether
+/// we're in such a case and turns off delay-parsing of exception
+/// specifications. Libstdc++ 6.1 (released 2016-04-27) appears to have
+/// resolved it as side-effect of commit ddb63209a8d (2015-06-05).
 bool Sema::isLibstdcxxEagerExceptionSpecHack(const Declarator &D) {
   auto *RD = dyn_cast<CXXRecordDecl>(CurContext);
 
@@ -1397,6 +1399,10 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Expr::SourceLocExprClass:
   case Expr::ConceptSpecializationExprClass:
   case Expr::RequiresExprClass:
+  case Expr::SYCLBuiltinNumFieldsExprClass:
+  case Expr::SYCLBuiltinFieldTypeExprClass:
+  case Expr::SYCLBuiltinNumBasesExprClass:
+  case Expr::SYCLBuiltinBaseTypeExprClass:
     // These expressions can never throw.
     return CT_Cannot;
 
@@ -1573,6 +1579,9 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
     return mergeCanThrow(CT, canThrow(TS->getTryBody()));
   }
 
+  case Stmt::SYCLUniqueStableNameExprClass:
+  case Stmt::SYCLUniqueStableIdExprClass:
+    return CT_Cannot;
   case Stmt::NoStmtClass:
     llvm_unreachable("Invalid class for statement");
   }

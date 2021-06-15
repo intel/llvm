@@ -2670,6 +2670,58 @@ bool X86InstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   return false;
 }
 
+static bool isConvertibleLEA(MachineInstr *MI) {
+  unsigned Opcode = MI->getOpcode();
+  if (Opcode != X86::LEA32r && Opcode != X86::LEA64r &&
+      Opcode != X86::LEA64_32r)
+    return false;
+
+  const MachineOperand &Scale = MI->getOperand(1 + X86::AddrScaleAmt);
+  const MachineOperand &Disp = MI->getOperand(1 + X86::AddrDisp);
+  const MachineOperand &Segment = MI->getOperand(1 + X86::AddrSegmentReg);
+
+  if (Segment.getReg() != 0 || !Disp.isImm() || Disp.getImm() != 0 ||
+      Scale.getImm() > 1)
+    return false;
+
+  return true;
+}
+
+bool X86InstrInfo::hasCommutePreference(MachineInstr &MI, bool &Commute) const {
+  // Currently we're interested in following sequence only.
+  //   r3 = lea r1, r2
+  //   r5 = add r3, r4
+  // Both r3 and r4 are killed in add, we hope the add instruction has the
+  // operand order
+  //   r5 = add r4, r3
+  // So later in X86FixupLEAs the lea instruction can be rewritten as add.
+  unsigned Opcode = MI.getOpcode();
+  if (Opcode != X86::ADD32rr && Opcode != X86::ADD64rr)
+    return false;
+
+  const MachineRegisterInfo &MRI = MI.getParent()->getParent()->getRegInfo();
+  Register Reg1 = MI.getOperand(1).getReg();
+  Register Reg2 = MI.getOperand(2).getReg();
+
+  // Check if Reg1 comes from LEA in the same MBB.
+  if (MachineInstr *Inst = MRI.getUniqueVRegDef(Reg1)) {
+    if (isConvertibleLEA(Inst) && Inst->getParent() == MI.getParent()) {
+      Commute = true;
+      return true;
+    }
+  }
+
+  // Check if Reg2 comes from LEA in the same MBB.
+  if (MachineInstr *Inst = MRI.getUniqueVRegDef(Reg2)) {
+    if (isConvertibleLEA(Inst) && Inst->getParent() == MI.getParent()) {
+      Commute = false;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 X86::CondCode X86::getCondFromBranch(const MachineInstr &MI) {
   switch (MI.getOpcode()) {
   default: return X86::COND_INVALID;
@@ -4498,7 +4550,7 @@ static bool Expand2AddrKreg(MachineInstrBuilder &MIB, const MCInstrDesc &Desc,
 static bool expandMOV32r1(MachineInstrBuilder &MIB, const TargetInstrInfo &TII,
                           bool MinusOne) {
   MachineBasicBlock &MBB = *MIB->getParent();
-  DebugLoc DL = MIB->getDebugLoc();
+  const DebugLoc &DL = MIB->getDebugLoc();
   Register Reg = MIB.getReg(0);
 
   // Insert the XOR.
@@ -4517,7 +4569,7 @@ static bool ExpandMOVImmSExti8(MachineInstrBuilder &MIB,
                                const TargetInstrInfo &TII,
                                const X86Subtarget &Subtarget) {
   MachineBasicBlock &MBB = *MIB->getParent();
-  DebugLoc DL = MIB->getDebugLoc();
+  const DebugLoc &DL = MIB->getDebugLoc();
   int64_t Imm = MIB->getOperand(1).getImm();
   assert(Imm != 0 && "Using push/pop for 0 is not efficient.");
   MachineBasicBlock::iterator I = MIB.getInstr();
@@ -4574,7 +4626,7 @@ static bool ExpandMOVImmSExti8(MachineInstrBuilder &MIB,
 static void expandLoadStackGuard(MachineInstrBuilder &MIB,
                                  const TargetInstrInfo &TII) {
   MachineBasicBlock &MBB = *MIB->getParent();
-  DebugLoc DL = MIB->getDebugLoc();
+  const DebugLoc &DL = MIB->getDebugLoc();
   Register Reg = MIB.getReg(0);
   const GlobalValue *GV =
       cast<GlobalValue>((*MIB->memoperands_begin())->getValue());

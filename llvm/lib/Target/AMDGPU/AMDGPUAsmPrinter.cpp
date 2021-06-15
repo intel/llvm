@@ -723,7 +723,9 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
   const SIRegisterInfo &TRI = TII->getRegisterInfo();
 
   Info.UsesFlatScratch = MRI.isPhysRegUsed(AMDGPU::FLAT_SCR_LO) ||
-                         MRI.isPhysRegUsed(AMDGPU::FLAT_SCR_HI);
+                         MRI.isPhysRegUsed(AMDGPU::FLAT_SCR_HI) ||
+                         MRI.isLiveIn(MFI->getPreloadedReg(
+                             AMDGPUFunctionArgInfo::FLAT_SCRATCH_INIT));
 
   // Even if FLAT_SCRATCH is implicitly used, it has no effect if flat
   // instructions aren't used to access the scratch buffer. Inline assembly may
@@ -1090,7 +1092,7 @@ void AMDGPUAsmPrinter::getSIProgramInfo(SIProgramInfo &ProgInfo,
 
   const SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
 
-  // TODO(scott.linder): The calculations related to SGPR/VGPR blocks are
+  // The calculations related to SGPR/VGPR blocks are
   // duplicated in part in AMDGPUAsmParser::calculateGPRBlocks, and could be
   // unified.
   unsigned ExtraSGPRs = IsaInfo::getNumExtraSGPRs(

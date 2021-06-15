@@ -111,8 +111,8 @@ static cl::opt<unsigned> PHICSENumPHISmallSize(
         "perform a (faster!) exhaustive search instead of set-driven one."));
 
 // Max recursion depth for collectBitParts used when detecting bswap and
-// bitreverse idioms
-static const unsigned BitPartRecursionMaxDepth = 64;
+// bitreverse idioms.
+static const unsigned BitPartRecursionMaxDepth = 48;
 
 //===----------------------------------------------------------------------===//
 //  Local constant propagation.
@@ -148,7 +148,12 @@ bool llvm::ConstantFoldTerminator(BasicBlock *BB, bool DeleteDeadConditions,
       Dest1->removePredecessor(BI->getParent());
 
       // Replace the conditional branch with an unconditional one.
-      Builder.CreateBr(Dest1);
+      BranchInst *NewBI = Builder.CreateBr(Dest1);
+
+      // Transfer the metadata to the new branch instruction.
+      NewBI->copyMetadata(*BI, {LLVMContext::MD_loop, LLVMContext::MD_dbg,
+                                LLVMContext::MD_annotation});
+
       Value *Cond = BI->getCondition();
       BI->eraseFromParent();
       if (DeleteDeadConditions)
@@ -167,7 +172,12 @@ bool llvm::ConstantFoldTerminator(BasicBlock *BB, bool DeleteDeadConditions,
       OldDest->removePredecessor(BB);
 
       // Replace the conditional branch with an unconditional one.
-      Builder.CreateBr(Destination);
+      BranchInst *NewBI = Builder.CreateBr(Destination);
+
+      // Transfer the metadata to the new branch instruction.
+      NewBI->copyMetadata(*BI, {LLVMContext::MD_loop, LLVMContext::MD_dbg,
+                                LLVMContext::MD_annotation});
+
       BI->eraseFromParent();
       if (DTU)
         DTU->applyUpdates({{DominatorTree::Delete, BB, OldDest}});
@@ -728,9 +738,7 @@ void llvm::MergeBasicBlockIntoOnlyPred(BasicBlock *DestBB,
   BasicBlock *PredBB = DestBB->getSinglePredecessor();
   assert(PredBB && "Block doesn't have a single predecessor!");
 
-  bool ReplaceEntryBB = false;
-  if (PredBB == &DestBB->getParent()->getEntryBlock())
-    ReplaceEntryBB = true;
+  bool ReplaceEntryBB = PredBB->isEntryBlock();
 
   // DTU updates: Collect all the edges that enter
   // PredBB. These dominator edges will be redirected to DestBB.
@@ -1142,12 +1150,11 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
   assert(succ_empty(BB) && "The successor list of BB isn't empty before "
                            "applying corresponding DTU updates.");
 
-  if (DTU) {
+  if (DTU)
     DTU->applyUpdates(Updates);
-    DTU->deleteBB(BB);
-  } else {
-    BB->eraseFromParent(); // Delete the old basic block.
-  }
+
+  DeleteDeadBlock(BB, DTU);
+
   return true;
 }
 
@@ -1413,7 +1420,7 @@ static bool valueCoversEntireFragment(Type *ValTy, DbgVariableIntrinsic *DII) {
 /// case this DebugLoc leaks into any adjacent instructions.
 static DebugLoc getDebugValueLoc(DbgVariableIntrinsic *DII, Instruction *Src) {
   // Original dbg.declare must have a location.
-  DebugLoc DeclareLoc = DII->getDebugLoc();
+  const DebugLoc &DeclareLoc = DII->getDebugLoc();
   MDNode *Scope = DeclareLoc.getScope();
   DILocation *InlinedAt = DeclareLoc.getInlinedAt();
   // Produce an unknown location with the correct scope / inlinedAt fields.
@@ -1662,7 +1669,7 @@ bool llvm::replaceDbgDeclare(Value *Address, Value *NewAddress,
                              int Offset) {
   auto DbgAddrs = FindDbgAddrUses(Address);
   for (DbgVariableIntrinsic *DII : DbgAddrs) {
-    DebugLoc Loc = DII->getDebugLoc();
+    const DebugLoc &Loc = DII->getDebugLoc();
     auto *DIVar = DII->getVariable();
     auto *DIExpr = DII->getExpression();
     assert(DIVar && "Missing variable");
@@ -1677,7 +1684,7 @@ bool llvm::replaceDbgDeclare(Value *Address, Value *NewAddress,
 
 static void replaceOneDbgValueForAlloca(DbgValueInst *DVI, Value *NewAddress,
                                         DIBuilder &Builder, int Offset) {
-  DebugLoc Loc = DVI->getDebugLoc();
+  const DebugLoc &Loc = DVI->getDebugLoc();
   auto *DIVar = DVI->getVariable();
   auto *DIExpr = DVI->getExpression();
   assert(DIVar && "Missing variable");
@@ -1717,6 +1724,9 @@ void llvm::salvageDebugInfo(Instruction &I) {
 
 void llvm::salvageDebugInfoForDbgValues(
     Instruction &I, ArrayRef<DbgVariableIntrinsic *> DbgUsers) {
+  // This is an arbitrary chosen limit on the maximum number of values we can
+  // salvage up to in a DIArgList, used for performance reasons.
+  const unsigned MaxDebugArgs = 16;
   bool Salvaged = false;
 
   for (auto *DII : DbgUsers) {
@@ -1741,11 +1751,15 @@ void llvm::salvageDebugInfoForDbgValues(
     DII->replaceVariableLocationOp(&I, I.getOperand(0));
     if (AdditionalValues.empty()) {
       DII->setExpression(SalvagedExpr);
-    } else if (isa<DbgValueInst>(DII)) {
+    } else if (isa<DbgValueInst>(DII) &&
+               DII->getNumVariableLocationOps() + AdditionalValues.size() <=
+                   MaxDebugArgs) {
       DII->addVariableLocationOps(AdditionalValues, SalvagedExpr);
     } else {
       // Do not salvage using DIArgList for dbg.addr/dbg.declare, as it is
       // currently only valid for stack value expressions.
+      // Also do not salvage if the resulting DIArgList would contain an
+      // unreasonably large number of values.
       Value *Undef = UndefValue::get(I.getOperand(0)->getType());
       DII->replaceVariableLocationOp(I.getOperand(0), Undef);
     }
@@ -2458,44 +2472,7 @@ bool llvm::removeUnreachableBlocks(Function &F, DomTreeUpdater *DTU,
   if (MSSAU)
     MSSAU->removeBlocks(BlocksToRemove);
 
-  // Loop over all of the basic blocks that are up for removal, dropping all of
-  // their internal references. Update DTU if available.
-  std::vector<DominatorTree::UpdateType> Updates;
-  for (auto *BB : BlocksToRemove) {
-    SmallSet<BasicBlock *, 8> UniqueSuccessors;
-    for (BasicBlock *Successor : successors(BB)) {
-      // Only remove references to BB in reachable successors of BB.
-      if (Reachable.count(Successor))
-        Successor->removePredecessor(BB);
-      if (DTU)
-        UniqueSuccessors.insert(Successor);
-    }
-    BB->dropAllReferences();
-    if (DTU) {
-      Instruction *TI = BB->getTerminator();
-      assert(TI && "Basic block should have a terminator");
-      // Terminators like invoke can have users. We have to replace their users,
-      // before removing them.
-      if (!TI->use_empty())
-        TI->replaceAllUsesWith(UndefValue::get(TI->getType()));
-      TI->eraseFromParent();
-      new UnreachableInst(BB->getContext(), BB);
-      assert(succ_empty(BB) && "The successor list of BB isn't empty before "
-                               "applying corresponding DTU updates.");
-      Updates.reserve(Updates.size() + UniqueSuccessors.size());
-      for (auto *UniqueSuccessor : UniqueSuccessors)
-        Updates.push_back({DominatorTree::Delete, BB, UniqueSuccessor});
-    }
-  }
-
-  if (DTU) {
-    DTU->applyUpdates(Updates);
-    for (auto *BB : BlocksToRemove)
-      DTU->deleteBB(BB);
-  } else {
-    for (auto *BB : BlocksToRemove)
-      BB->eraseFromParent();
-  }
+  DeleteDeadBlocks(BlocksToRemove.takeVector(), DTU);
 
   return Changed;
 }
@@ -2909,7 +2886,8 @@ struct BitPart {
 /// does not invalidate internal references (std::map instead of DenseMap).
 static const Optional<BitPart> &
 collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
-                std::map<Value *, Optional<BitPart>> &BPS, int Depth) {
+                std::map<Value *, Optional<BitPart>> &BPS, int Depth,
+                bool &FoundRoot) {
   auto I = BPS.find(V);
   if (I != BPS.end())
     return I->second;
@@ -2933,17 +2911,18 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
 
     // If this is an or instruction, it may be an inner node of the bswap.
     if (match(V, m_Or(m_Value(X), m_Value(Y)))) {
-      const auto &A =
-          collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
-      const auto &B =
-          collectBitParts(Y, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
-      if (!A || !B)
+      // Check we have both sources and they are from the same provider.
+      const auto &A = collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS,
+                                      Depth + 1, FoundRoot);
+      if (!A || !A->Provider)
+        return Result;
+
+      const auto &B = collectBitParts(Y, MatchBSwaps, MatchBitReversals, BPS,
+                                      Depth + 1, FoundRoot);
+      if (!B || A->Provider != B->Provider)
         return Result;
 
       // Try and merge the two together.
-      if (!A->Provider || A->Provider != B->Provider)
-        return Result;
-
       Result = BitPart(A->Provider, BitWidth);
       for (unsigned BitIdx = 0; BitIdx < BitWidth; ++BitIdx) {
         if (A->Provenance[BitIdx] != BitPart::Unset &&
@@ -2968,8 +2947,12 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
       if (BitShift.uge(BitWidth))
         return Result;
 
-      const auto &Res =
-          collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
+      // For bswap-only, limit shift amounts to whole bytes, for an early exit.
+      if (!MatchBitReversals && (BitShift.getZExtValue() % 8) != 0)
+        return Result;
+
+      const auto &Res = collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS,
+                                        Depth + 1, FoundRoot);
       if (!Res)
         return Result;
       Result = Res;
@@ -2998,8 +2981,8 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
       if (!MatchBitReversals && (NumMaskedBits % 8) != 0)
         return Result;
 
-      const auto &Res =
-          collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
+      const auto &Res = collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS,
+                                        Depth + 1, FoundRoot);
       if (!Res)
         return Result;
       Result = Res;
@@ -3013,8 +2996,8 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
 
     // If this is a zext instruction zero extend the result.
     if (match(V, m_ZExt(m_Value(X)))) {
-      const auto &Res =
-          collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
+      const auto &Res = collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS,
+                                        Depth + 1, FoundRoot);
       if (!Res)
         return Result;
 
@@ -3029,8 +3012,8 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
 
     // If this is a truncate instruction, extract the lower bits.
     if (match(V, m_Trunc(m_Value(X)))) {
-      const auto &Res =
-          collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
+      const auto &Res = collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS,
+                                        Depth + 1, FoundRoot);
       if (!Res)
         return Result;
 
@@ -3043,8 +3026,8 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
     // BITREVERSE - most likely due to us previous matching a partial
     // bitreverse.
     if (match(V, m_BitReverse(m_Value(X)))) {
-      const auto &Res =
-          collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
+      const auto &Res = collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS,
+                                        Depth + 1, FoundRoot);
       if (!Res)
         return Result;
 
@@ -3056,8 +3039,8 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
 
     // BSWAP - most likely due to us previous matching a partial bswap.
     if (match(V, m_BSwap(m_Value(X)))) {
-      const auto &Res =
-          collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
+      const auto &Res = collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS,
+                                        Depth + 1, FoundRoot);
       if (!Res)
         return Result;
 
@@ -3083,13 +3066,19 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
       if (cast<IntrinsicInst>(I)->getIntrinsicID() == Intrinsic::fshr)
         ModAmt = BitWidth - ModAmt;
 
-      const auto &LHS =
-          collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
-      const auto &RHS =
-          collectBitParts(Y, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
+      // For bswap-only, limit shift amounts to whole bytes, for an early exit.
+      if (!MatchBitReversals && (ModAmt % 8) != 0)
+        return Result;
 
       // Check we have both sources and they are from the same provider.
-      if (!LHS || !RHS || !LHS->Provider || LHS->Provider != RHS->Provider)
+      const auto &LHS = collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS,
+                                        Depth + 1, FoundRoot);
+      if (!LHS || !LHS->Provider)
+        return Result;
+
+      const auto &RHS = collectBitParts(Y, MatchBSwaps, MatchBitReversals, BPS,
+                                        Depth + 1, FoundRoot);
+      if (!RHS || LHS->Provider != RHS->Provider)
         return Result;
 
       unsigned StartBitRHS = BitWidth - ModAmt;
@@ -3102,8 +3091,14 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
     }
   }
 
-  // Okay, we got to something that isn't a shift, 'or' or 'and'.  This must be
-  // the input value to the bswap/bitreverse.
+  // If we've already found a root input value then we're never going to merge
+  // these back together.
+  if (FoundRoot)
+    return Result;
+
+  // Okay, we got to something that isn't a shift, 'or', 'and', etc. This must
+  // be the root input value to the bswap/bitreverse.
+  FoundRoot = true;
   Result = BitPart(V, BitWidth);
   for (unsigned BitIdx = 0; BitIdx < BitWidth; ++BitIdx)
     Result->Provenance[BitIdx] = BitIdx;
@@ -3129,7 +3124,9 @@ static bool bitTransformIsCorrectForBitReverse(unsigned From, unsigned To,
 bool llvm::recognizeBSwapOrBitReverseIdiom(
     Instruction *I, bool MatchBSwaps, bool MatchBitReversals,
     SmallVectorImpl<Instruction *> &InsertedInsts) {
-  if (Operator::getOpcode(I) != Instruction::Or)
+  if (!match(I, m_Or(m_Value(), m_Value())) &&
+      !match(I, m_FShl(m_Value(), m_Value(), m_Value())) &&
+      !match(I, m_FShr(m_Value(), m_Value(), m_Value())))
     return false;
   if (!MatchBSwaps && !MatchBitReversals)
     return false;
@@ -3143,8 +3140,10 @@ bool llvm::recognizeBSwapOrBitReverseIdiom(
       DemandedTy = Trunc->getType();
 
   // Try to find all the pieces corresponding to the bswap.
+  bool FoundRoot = false;
   std::map<Value *, Optional<BitPart>> BPS;
-  auto Res = collectBitParts(I, MatchBSwaps, MatchBitReversals, BPS, 0);
+  const auto &Res =
+      collectBitParts(I, MatchBSwaps, MatchBitReversals, BPS, 0, FoundRoot);
   if (!Res)
     return false;
   ArrayRef<int8_t> BitProvenance = Res->Provenance;

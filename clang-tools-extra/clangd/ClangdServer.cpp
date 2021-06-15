@@ -75,8 +75,6 @@ struct UpdateIndexCallbacks : public ParsingCallbacks {
                      const CanonicalIncludes &CanonIncludes) override {
     if (FIndex)
       FIndex->updatePreamble(Path, Version, Ctx, std::move(PP), CanonIncludes);
-    if (ServerCallbacks)
-      ServerCallbacks->onSemanticsMaybeChanged(Path);
   }
 
   void onMainAST(PathRef Path, ParsedAST &AST, PublishFn Publish) override {
@@ -103,6 +101,11 @@ struct UpdateIndexCallbacks : public ParsingCallbacks {
   void onFileUpdated(PathRef File, const TUStatus &Status) override {
     if (ServerCallbacks)
       ServerCallbacks->onFileUpdated(File, Status);
+  }
+
+  void onPreamblePublished(PathRef File) override {
+    if (ServerCallbacks)
+      ServerCallbacks->onSemanticsMaybeChanged(File);
   }
 
 private:
@@ -575,8 +578,7 @@ void ClangdServer::enumerateTweaks(
   // Tracks number of times a tweak has been offered.
   static constexpr trace::Metric TweakAvailable(
       "tweak_available", trace::Metric::Counter, "tweak_id");
-  auto Action = [File = File.str(), Sel, CB = std::move(CB),
-                 Filter = std::move(Filter),
+  auto Action = [Sel, CB = std::move(CB), Filter = std::move(Filter),
                  FeatureModules(this->FeatureModules)](
                     Expected<InputsAndAST> InpAST) mutable {
     if (!InpAST)
@@ -756,8 +758,7 @@ void ClangdServer::incomingCalls(
 
 void ClangdServer::inlayHints(PathRef File,
                               Callback<std::vector<InlayHint>> CB) {
-  auto Action = [File = File.str(),
-                 CB = std::move(CB)](Expected<InputsAndAST> InpAST) mutable {
+  auto Action = [CB = std::move(CB)](Expected<InputsAndAST> InpAST) mutable {
     if (!InpAST)
       return CB(InpAST.takeError());
     CB(clangd::inlayHints(InpAST->AST));
@@ -884,22 +885,29 @@ void ClangdServer::semanticHighlights(
                             Transient);
 }
 
-void ClangdServer::getAST(PathRef File, Range R,
+void ClangdServer::getAST(PathRef File, llvm::Optional<Range> R,
                           Callback<llvm::Optional<ASTNode>> CB) {
   auto Action =
       [R, CB(std::move(CB))](llvm::Expected<InputsAndAST> Inputs) mutable {
         if (!Inputs)
           return CB(Inputs.takeError());
+        if (!R) {
+          // It's safe to pass in the TU, as dumpAST() does not
+          // deserialize the preamble.
+          auto Node = DynTypedNode::create(
+                *Inputs->AST.getASTContext().getTranslationUnitDecl());
+          return CB(dumpAST(Node, Inputs->AST.getTokens(),
+                            Inputs->AST.getASTContext()));
+        }
         unsigned Start, End;
-        if (auto Offset = positionToOffset(Inputs->Inputs.Contents, R.start))
+        if (auto Offset = positionToOffset(Inputs->Inputs.Contents, R->start))
           Start = *Offset;
         else
           return CB(Offset.takeError());
-        if (auto Offset = positionToOffset(Inputs->Inputs.Contents, R.end))
+        if (auto Offset = positionToOffset(Inputs->Inputs.Contents, R->end))
           End = *Offset;
         else
           return CB(Offset.takeError());
-
         bool Success = SelectionTree::createEach(
             Inputs->AST.getASTContext(), Inputs->AST.getTokens(), Start, End,
             [&](SelectionTree T) {

@@ -60,6 +60,13 @@ class MCAsmStreamer final : public MCStreamer {
   unsigned UseDwarfDirectory : 1;
 
   void EmitRegisterName(int64_t Register);
+  void PrintQuotedString(StringRef Data, raw_ostream &OS) const;
+  void printDwarfFileDirective(unsigned FileNo, StringRef Directory,
+                               StringRef Filename,
+                               Optional<MD5::MD5Result> Checksum,
+                               Optional<StringRef> Source,
+                               bool UseDwarfDirectory,
+                               raw_svector_ostream &OS) const;
   void emitCFIStartProcImpl(MCDwarfFrameInfo &Frame) override;
   void emitCFIEndProcImpl(MCDwarfFrameInfo &Frame) override;
 
@@ -484,9 +491,8 @@ void MCAsmStreamer::changeSection(MCSection *Section,
   if (MCTargetStreamer *TS = getTargetStreamer()) {
     TS->changeSection(getCurrentSectionOnly(), Section, Subsection, OS);
   } else {
-    Section->PrintSwitchToSection(
-        *MAI, getContext().getObjectFileInfo()->getTargetTriple(), OS,
-        Subsection);
+    Section->PrintSwitchToSection(*MAI, getContext().getTargetTriple(), OS,
+                                  Subsection);
   }
 }
 
@@ -997,6 +1003,15 @@ void MCAsmStreamer::emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
   EmitEOL();
 }
 
+static inline bool isPrintableString(StringRef Data) {
+  const auto BeginPtr = Data.begin(), EndPtr = Data.end();
+  for (const unsigned char C : make_range(BeginPtr, EndPtr - 1)) {
+    if (!isPrint(C))
+      return false;
+  }
+  return isPrint(Data.back()) || Data.back() == 0;
+}
+
 static inline char toOctal(int X) { return (X&7)+'0'; }
 
 static void PrintByteList(StringRef Data, raw_ostream &OS,
@@ -1040,33 +1055,53 @@ static void PrintByteList(StringRef Data, raw_ostream &OS,
   llvm_unreachable("Invalid AsmCharLiteralSyntax value!");
 }
 
-static void PrintQuotedString(StringRef Data, raw_ostream &OS) {
+void MCAsmStreamer::PrintQuotedString(StringRef Data, raw_ostream &OS) const {
   OS << '"';
 
-  for (unsigned i = 0, e = Data.size(); i != e; ++i) {
-    unsigned char C = Data[i];
-    if (C == '"' || C == '\\') {
-      OS << '\\' << (char)C;
-      continue;
+  if (MAI->hasPairedDoubleQuoteStringConstants()) {
+    for (unsigned i = 0, e = Data.size(); i != e; ++i) {
+      unsigned char C = Data[i];
+      if (C == '"')
+        OS << "\"\"";
+      else
+        OS << (char)C;
     }
+  } else {
+    for (unsigned i = 0, e = Data.size(); i != e; ++i) {
+      unsigned char C = Data[i];
+      if (C == '"' || C == '\\') {
+        OS << '\\' << (char)C;
+        continue;
+      }
 
-    if (isPrint((unsigned char)C)) {
-      OS << (char)C;
-      continue;
-    }
+      if (isPrint((unsigned char)C)) {
+        OS << (char)C;
+        continue;
+      }
 
-    switch (C) {
-      case '\b': OS << "\\b"; break;
-      case '\f': OS << "\\f"; break;
-      case '\n': OS << "\\n"; break;
-      case '\r': OS << "\\r"; break;
-      case '\t': OS << "\\t"; break;
+      switch (C) {
+      case '\b':
+        OS << "\\b";
+        break;
+      case '\f':
+        OS << "\\f";
+        break;
+      case '\n':
+        OS << "\\n";
+        break;
+      case '\r':
+        OS << "\\r";
+        break;
+      case '\t':
+        OS << "\\t";
+        break;
       default:
         OS << '\\';
         OS << toOctal(C >> 6);
         OS << toOctal(C >> 3);
         OS << toOctal(C >> 0);
         break;
+      }
     }
   }
 
@@ -1086,6 +1121,22 @@ void MCAsmStreamer::emitBytes(StringRef Data) {
       Data = Data.substr(0, Data.size() - 1);
     } else if (LLVM_LIKELY(MAI->getAsciiDirective())) {
       OS << MAI->getAsciiDirective();
+    } else if (MAI->hasPairedDoubleQuoteStringConstants() &&
+               isPrintableString(Data)) {
+      // For target with DoubleQuoteString constants, .string and .byte are used
+      // as replacement of .asciz and .ascii.
+      assert(MAI->getPlainStringDirective() &&
+             "hasPairedDoubleQuoteStringConstants target must support "
+             "PlainString Directive");
+      assert(MAI->getByteListDirective() &&
+             "hasPairedDoubleQuoteStringConstants target must support ByteList "
+             "Directive");
+      if (Data.back() == 0) {
+        OS << MAI->getPlainStringDirective();
+        Data = Data.substr(0, Data.size() - 1);
+      } else {
+        OS << MAI->getByteListDirective();
+      }
     } else if (MAI->getByteListDirective()) {
       OS << MAI->getByteListDirective();
       PrintByteList(Data, OS, MAI->characterLiteralSyntax());
@@ -1391,12 +1442,10 @@ void MCAsmStreamer::emitFileDirective(StringRef Filename) {
   EmitEOL();
 }
 
-static void printDwarfFileDirective(unsigned FileNo, StringRef Directory,
-                                    StringRef Filename,
-                                    Optional<MD5::MD5Result> Checksum,
-                                    Optional<StringRef> Source,
-                                    bool UseDwarfDirectory,
-                                    raw_svector_ostream &OS) {
+void MCAsmStreamer::printDwarfFileDirective(
+    unsigned FileNo, StringRef Directory, StringRef Filename,
+    Optional<MD5::MD5Result> Checksum, Optional<StringRef> Source,
+    bool UseDwarfDirectory, raw_svector_ostream &OS) const {
   SmallString<128> FullPathName;
 
   if (!UseDwarfDirectory && !Directory.empty()) {

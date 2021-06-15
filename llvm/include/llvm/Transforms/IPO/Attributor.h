@@ -131,6 +131,15 @@ class AAManager;
 class AAResults;
 class Function;
 
+/// Abstract Attribute helper functions.
+namespace AA {
+/// Try to convert \p V to type \p Ty without introducing new instructions. If
+/// this is not possible return `nullptr`. Note: this function basically knows
+/// how to cast various constants.
+Value *getWithType(Value &V, Type &Ty);
+
+} // namespace AA
+
 /// The value passed to the line option that defines the maximal initialization
 /// chain length.
 extern unsigned MaxInitializationChainLength;
@@ -1128,7 +1137,8 @@ struct Attributor {
     if (!shouldPropagateCallBaseContext(IRP))
       IRP = IRP.stripCallBaseContext();
 
-    if (AAType *AAPtr = lookupAAFor<AAType>(IRP, QueryingAA, DepClass)) {
+    if (AAType *AAPtr = lookupAAFor<AAType>(IRP, QueryingAA, DepClass,
+                                            /* AllowInvalidState */ true)) {
       if (ForceUpdate && Phase == AttributorPhase::UPDATE)
         updateAA(*AAPtr);
       return *AAPtr;
@@ -1209,12 +1219,13 @@ struct Attributor {
                                     DepClassTy::NONE);
   }
 
-  /// Return the attribute of \p AAType for \p IRP if existing. This also allows
-  /// non-AA users lookup.
+  /// Return the attribute of \p AAType for \p IRP if existing and valid. This
+  /// also allows non-AA users lookup.
   template <typename AAType>
   AAType *lookupAAFor(const IRPosition &IRP,
                       const AbstractAttribute *QueryingAA = nullptr,
-                      DepClassTy DepClass = DepClassTy::OPTIONAL) {
+                      DepClassTy DepClass = DepClassTy::OPTIONAL,
+                      bool AllowInvalidState = false) {
     static_assert(std::is_base_of<AbstractAttribute, AAType>::value,
                   "Cannot query an attribute with a type not derived from "
                   "'AbstractAttribute'!");
@@ -1231,6 +1242,10 @@ struct Attributor {
         AA->getState().isValidState())
       recordDependence(*AA, const_cast<AbstractAttribute &>(*QueryingAA),
                        DepClass);
+
+    // Return nullptr if this attribute has an invalid state.
+    if (!AllowInvalidState && !AA->getState().isValidState())
+      return nullptr;
     return AA;
   }
 
@@ -3208,10 +3223,10 @@ struct AAHeapToStack : public StateWrapper<BooleanState, AbstractAttribute> {
   AAHeapToStack(const IRPosition &IRP, Attributor &A) : Base(IRP) {}
 
   /// Returns true if HeapToStack conversion is assumed to be possible.
-  bool isAssumedHeapToStack() const { return getAssumed(); }
+  virtual bool isAssumedHeapToStack(CallBase &CB) const = 0;
 
   /// Returns true if HeapToStack conversion is known to be possible.
-  bool isKnownHeapToStack() const { return getKnown(); }
+  virtual bool isKnownHeapToStack(CallBase &CB) const = 0;
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAHeapToStack &createForPosition(const IRPosition &IRP, Attributor &A);
@@ -3672,6 +3687,8 @@ private:
   void checkAndInvalidate() {
     if (Set.size() >= MaxPotentialValues)
       indicatePessimisticFixpoint();
+    else
+      reduceUndefValue();
   }
 
   /// If this state contains both undef and not undef, we can reduce
@@ -3688,7 +3705,7 @@ private:
 
   /// Take union with R.
   void unionWith(const PotentialValuesState &R) {
-    /// If this is a full set, do nothing.;
+    /// If this is a full set, do nothing.
     if (!isValidState())
       return;
     /// If R is full set, change L to a full set.
@@ -3699,7 +3716,6 @@ private:
     for (const MemberTy &C : R.Set)
       Set.insert(C);
     UndefIsContained |= R.undefIsContained();
-    reduceUndefValue();
     checkAndInvalidate();
   }
 

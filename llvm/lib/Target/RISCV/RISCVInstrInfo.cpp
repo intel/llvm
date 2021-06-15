@@ -1356,6 +1356,7 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
 Register RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
                                                MachineBasicBlock &MBB,
                                                MachineBasicBlock::iterator II,
+                                               const DebugLoc &DL,
                                                int64_t Amount) const {
   assert(Amount > 0 && "There is no need to get VLEN scaled value.");
   assert(Amount % 8 == 0 &&
@@ -1363,7 +1364,6 @@ Register RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
 
   MachineRegisterInfo &MRI = MF.getRegInfo();
   const RISCVInstrInfo *TII = MF.getSubtarget<RISCVSubtarget>().getInstrInfo();
-  DebugLoc DL = II->getDebugLoc();
   int64_t NumOfVReg = Amount / 8;
 
   Register VL = MRI.createVirtualRegister(&RISCV::GPRRegClass);
@@ -1377,6 +1377,24 @@ Register RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
     BuildMI(MBB, II, DL, TII->get(RISCV::SLLI), VL)
         .addReg(VL, RegState::Kill)
         .addImm(ShiftAmount);
+  } else if (isPowerOf2_32(NumOfVReg - 1)) {
+    Register ScaledRegister = MRI.createVirtualRegister(&RISCV::GPRRegClass);
+    uint32_t ShiftAmount = Log2_32(NumOfVReg - 1);
+    BuildMI(MBB, II, DL, TII->get(RISCV::SLLI), ScaledRegister)
+        .addReg(VL)
+        .addImm(ShiftAmount);
+    BuildMI(MBB, II, DL, TII->get(RISCV::ADD), VL)
+        .addReg(ScaledRegister, RegState::Kill)
+        .addReg(VL, RegState::Kill);
+  } else if (isPowerOf2_32(NumOfVReg + 1)) {
+    Register ScaledRegister = MRI.createVirtualRegister(&RISCV::GPRRegClass);
+    uint32_t ShiftAmount = Log2_32(NumOfVReg + 1);
+    BuildMI(MBB, II, DL, TII->get(RISCV::SLLI), ScaledRegister)
+        .addReg(VL)
+        .addImm(ShiftAmount);
+    BuildMI(MBB, II, DL, TII->get(RISCV::SUB), VL)
+        .addReg(ScaledRegister, RegState::Kill)
+        .addReg(VL, RegState::Kill);
   } else {
     Register N = MRI.createVirtualRegister(&RISCV::GPRRegClass);
     BuildMI(MBB, II, DL, TII->get(RISCV::ADDI), N)
@@ -1392,6 +1410,46 @@ Register RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
   }
 
   return VL;
+}
+
+static bool isRVVWholeLoadStore(unsigned Opcode) {
+  switch (Opcode) {
+  default:
+    return false;
+  case RISCV::VS1R_V:
+  case RISCV::VS2R_V:
+  case RISCV::VS4R_V:
+  case RISCV::VS8R_V:
+  case RISCV::VL1RE8_V:
+  case RISCV::VL2RE8_V:
+  case RISCV::VL4RE8_V:
+  case RISCV::VL8RE8_V:
+  case RISCV::VL1RE16_V:
+  case RISCV::VL2RE16_V:
+  case RISCV::VL4RE16_V:
+  case RISCV::VL8RE16_V:
+  case RISCV::VL1RE32_V:
+  case RISCV::VL2RE32_V:
+  case RISCV::VL4RE32_V:
+  case RISCV::VL8RE32_V:
+  case RISCV::VL1RE64_V:
+  case RISCV::VL2RE64_V:
+  case RISCV::VL4RE64_V:
+  case RISCV::VL8RE64_V:
+    return true;
+  }
+}
+
+bool RISCVInstrInfo::isRVVSpill(const MachineInstr &MI, bool CheckFIs) const {
+  // RVV lacks any support for immediate addressing for stack addresses, so be
+  // conservative.
+  unsigned Opcode = MI.getOpcode();
+  if (!RISCVVPseudosTable::getPseudoInfo(Opcode) &&
+      !isRVVWholeLoadStore(Opcode) && !isRVVSpillForZvlsseg(Opcode))
+    return false;
+  return !CheckFIs || any_of(MI.operands(), [](const MachineOperand &MO) {
+    return MO.isFI();
+  });
 }
 
 Optional<std::pair<unsigned, unsigned>>

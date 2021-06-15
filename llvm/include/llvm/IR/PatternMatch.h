@@ -811,7 +811,12 @@ template <typename Class> struct deferredval_ty {
   template <typename ITy> bool match(ITy *const V) { return V == Val; }
 };
 
-/// A commutative-friendly version of m_Specific().
+/// Like m_Specific(), but works if the specific value to match is determined
+/// as part of the same match() expression. For example:
+/// m_Add(m_Value(X), m_Specific(X)) is incorrect, because m_Specific() will
+/// bind X before the pattern match starts.
+/// m_Add(m_Value(X), m_Deferred(X)) is correct, and will check against
+/// whichever value m_Value(X) populated.
 inline deferredval_ty<Value> m_Deferred(Value *const &V) { return V; }
 inline deferredval_ty<const Value> m_Deferred(const Value *const &V) {
   return V;
@@ -1163,10 +1168,10 @@ struct OverflowingBinaryOp_match {
     if (auto *Op = dyn_cast<OverflowingBinaryOperator>(V)) {
       if (Op->getOpcode() != Opcode)
         return false;
-      if (WrapFlags & OverflowingBinaryOperator::NoUnsignedWrap &&
+      if ((WrapFlags & OverflowingBinaryOperator::NoUnsignedWrap) &&
           !Op->hasNoUnsignedWrap())
         return false;
-      if (WrapFlags & OverflowingBinaryOperator::NoSignedWrap &&
+      if ((WrapFlags & OverflowingBinaryOperator::NoSignedWrap) &&
           !Op->hasNoSignedWrap())
         return false;
       return L.match(Op->getOperand(0)) && R.match(Op->getOperand(1));

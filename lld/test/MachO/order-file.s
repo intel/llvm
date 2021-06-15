@@ -127,7 +127,7 @@ x86_64:-[Foo doFoo:andBar:]
 _main
 
 #--- ord-arch-nomatch
-ppc:-[Foo doFoo:andBar:]
+arm64:-[Foo doFoo:andBar:]
 _main
 -[Foo doFoo:andBar:]
 
@@ -172,3 +172,7 @@ _bar:
 _main:
   callq "-[Foo doFoo:andBar:]"
   ret
+
+.section  __DWARF,__debug_aranges,regular,debug
+ltmp1:
+  .byte 0

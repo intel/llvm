@@ -1,3 +1,6 @@
+//-------------------------- Predicate definitions ---------------------------//
+def IsPPC32 : Predicate<"!Subtarget->isPPC64()">;
+
 // Mask immediates for MMA instructions (2, 4 and 8 bits).
 def Msk2Imm : ImmLeaf<i32, [{ return isUInt<2>(Imm); }]>;
 def Msk4Imm : ImmLeaf<i32, [{ return isUInt<4>(Imm); }]>;
@@ -2539,14 +2542,14 @@ let Predicates = [IsISA3_1] in {
   def : Pat<(i32 (int_ppc_vsx_xvtlsbb v16i8:$XB, 0)),
             (EXTRACT_SUBREG (XVTLSBB (COPY_TO_REGCLASS $XB, VSRC)), sub_eq)>;
 
-  def : Pat <(v1i128 (PPClxvrzx xoaddr:$src, 8)),
-             (v1i128 (COPY_TO_REGCLASS (LXVRBX xoaddr:$src), VRRC))>;
-  def : Pat <(v1i128 (PPClxvrzx xoaddr:$src, 16)),
-             (v1i128 (COPY_TO_REGCLASS (LXVRHX xoaddr:$src), VRRC))>;
-  def : Pat <(v1i128 (PPClxvrzx xoaddr:$src, 32)),
-             (v1i128 (COPY_TO_REGCLASS (LXVRWX xoaddr:$src), VRRC))>;
-  def : Pat <(v1i128 (PPClxvrzx xoaddr:$src, 64)),
-             (v1i128 (COPY_TO_REGCLASS (LXVRDX xoaddr:$src), VRRC))>;
+  def : Pat <(v1i128 (PPClxvrzx ForceXForm:$src, 8)),
+             (v1i128 (COPY_TO_REGCLASS (LXVRBX ForceXForm:$src), VRRC))>;
+  def : Pat <(v1i128 (PPClxvrzx ForceXForm:$src, 16)),
+             (v1i128 (COPY_TO_REGCLASS (LXVRHX ForceXForm:$src), VRRC))>;
+  def : Pat <(v1i128 (PPClxvrzx ForceXForm:$src, 32)),
+             (v1i128 (COPY_TO_REGCLASS (LXVRWX ForceXForm:$src), VRRC))>;
+  def : Pat <(v1i128 (PPClxvrzx ForceXForm:$src, 64)),
+             (v1i128 (COPY_TO_REGCLASS (LXVRDX ForceXForm:$src), VRRC))>;
 
   def : Pat<(v1i128 (rotl v1i128:$vA, v1i128:$vB)),
             (v1i128 (VRLQ v1i128:$vA, v1i128:$vB))>;
@@ -2564,23 +2567,23 @@ let Predicates = [IsISA3_1, HasVSX] in {
 
 let AddedComplexity = 400, Predicates = [IsISA3_1, IsLittleEndian] in {
   // Store element 0 of a VSX register to memory
-  def : Pat<(truncstorei8 (i32 (vector_extract v16i8:$src, 0)), xoaddr:$dst),
-            (STXVRBX (COPY_TO_REGCLASS v16i8:$src, VSRC), xoaddr:$dst)>;
-  def : Pat<(truncstorei16 (i32 (vector_extract v8i16:$src, 0)), xoaddr:$dst),
-            (STXVRHX (COPY_TO_REGCLASS v8i16:$src, VSRC), xoaddr:$dst)>;
-  def : Pat<(store (i32 (extractelt v4i32:$src, 0)), xoaddr:$dst),
-            (STXVRWX $src, xoaddr:$dst)>;
-  def : Pat<(store (f32 (extractelt v4f32:$src, 0)), xoaddr:$dst),
-            (STXVRWX $src, xoaddr:$dst)>;
-  def : Pat<(store (i64 (extractelt v2i64:$src, 0)), xoaddr:$dst),
-            (STXVRDX $src, xoaddr:$dst)>;
-  def : Pat<(store (f64 (extractelt v2f64:$src, 0)), xoaddr:$dst),
-            (STXVRDX $src, xoaddr:$dst)>;
+  def : Pat<(truncstorei8 (i32 (vector_extract v16i8:$src, 0)), ForceXForm:$dst),
+            (STXVRBX (COPY_TO_REGCLASS v16i8:$src, VSRC), ForceXForm:$dst)>;
+  def : Pat<(truncstorei16 (i32 (vector_extract v8i16:$src, 0)), ForceXForm:$dst),
+            (STXVRHX (COPY_TO_REGCLASS v8i16:$src, VSRC), ForceXForm:$dst)>;
+  def : Pat<(store (i32 (extractelt v4i32:$src, 0)), ForceXForm:$dst),
+            (STXVRWX $src, ForceXForm:$dst)>;
+  def : Pat<(store (f32 (extractelt v4f32:$src, 0)), ForceXForm:$dst),
+            (STXVRWX $src, ForceXForm:$dst)>;
+  def : Pat<(store (i64 (extractelt v2i64:$src, 0)), ForceXForm:$dst),
+            (STXVRDX $src, ForceXForm:$dst)>;
+  def : Pat<(store (f64 (extractelt v2f64:$src, 0)), ForceXForm:$dst),
+            (STXVRDX $src, ForceXForm:$dst)>;
   // Load element 0 of a VSX register to memory
-  def : Pat<(v8i16 (scalar_to_vector (i32 (extloadi16 xoaddr:$src)))),
-            (v8i16 (COPY_TO_REGCLASS (LXVRHX xoaddr:$src), VSRC))>;
-  def : Pat<(v16i8 (scalar_to_vector (i32 (extloadi8 xoaddr:$src)))),
-            (v16i8 (COPY_TO_REGCLASS (LXVRBX xoaddr:$src), VSRC))>;
+  def : Pat<(v8i16 (scalar_to_vector (i32 (extloadi16 ForceXForm:$src)))),
+            (v8i16 (COPY_TO_REGCLASS (LXVRHX ForceXForm:$src), VSRC))>;
+  def : Pat<(v16i8 (scalar_to_vector (i32 (extloadi8 ForceXForm:$src)))),
+            (v16i8 (COPY_TO_REGCLASS (LXVRBX ForceXForm:$src), VSRC))>;
  }
 
 // FIXME: The swap is overkill when the shift amount is a constant.
@@ -2752,7 +2755,44 @@ let Predicates = [IsISA3_1, HasVSX, IsLittleEndian] in {
               (VINSD $vDi, !mul(!sub(1, i), 8), $rA)>;
 }
 
-let Predicates = [IsISA3_1, HasVSX, IsBigEndian] in {
+let Predicates = [IsISA3_1, HasVSX, IsBigEndian, IsPPC32] in {
+  // Indexed vector insert element
+  def : Pat<(v16i8 (PPCvecinsertelt v16i8:$vDi, i32:$rA, i32:$rB)),
+            (VINSBLX $vDi, $rB, $rA)>;
+  def : Pat<(v8i16 (PPCvecinsertelt v8i16:$vDi, i32:$rA, i32:$rB)),
+            (VINSHLX $vDi, $rB, $rA)>;
+  def : Pat<(v4i32 (PPCvecinsertelt v4i32:$vDi, i32:$rA, i32:$rB)),
+            (VINSWLX $vDi, $rB, $rA)>;
+
+  def : Pat<(v4f32 (PPCvecinsertelt v4f32:$vDi,  f32:$A, i32:$rB)),
+            (VINSWLX $vDi, $rB, Bitcast.FltToInt)>;
+  def : Pat<(v4f32 (PPCvecinsertelt v4f32:$vDi, (f32 (load iaddr:$rA)),
+                                    i32:$rB)),
+            (VINSWLX $vDi, $rB, (LWZ memri:$rA))>;
+  def : Pat<(v4f32 (PPCvecinsertelt v4f32:$vDi, (f32 (load iaddrX34:$rA)),
+                                    i32:$rB)),
+            (VINSWLX $vDi, $rB, (PLWZ memri34:$rA))>;
+  def : Pat<(v4f32 (PPCvecinsertelt v4f32:$vDi, (f32 (load xaddr:$rA)),
+                                    i32:$rB)),
+            (VINSWLX $vDi, $rB, (LWZX memrr:$rA))>;
+
+  // Immediate vector insert element
+  foreach i = [0, 1, 2, 3] in {
+    def : Pat<(v4i32 (PPCvecinsertelt v4i32:$vDi, i32:$rA, (i32 i))),
+              (VINSW $vDi, !mul(i, 4), $rA)>;
+    def : Pat<(v4f32 (PPCvecinsertelt v4f32:$vDi, (f32 (load iaddr:$rA)),
+                                     (i32 i))),
+              (VINSW $vDi, !mul(i, 4), (LWZ memri:$rA))>;
+    def : Pat<(v4f32 (PPCvecinsertelt v4f32:$vDi, (f32 (load iaddrX34:$rA)),
+                                     (i32 i))),
+              (VINSW $vDi, !mul(i, 4), (PLWZ memri34:$rA))>;
+    def : Pat<(v4f32 (PPCvecinsertelt v4f32:$vDi, (f32 (load xaddr:$rA)),
+                                     (i32 i))),
+              (VINSW $vDi, !mul(i, 4), (LWZX memrr:$rA))>;
+  }
+}
+
+let Predicates = [IsISA3_1, HasVSX, IsBigEndian, IsPPC64] in {
   // Indexed vector insert element
   def : Pat<(v16i8 (PPCvecinsertelt v16i8:$vDi, i32:$rA, i64:$rB)),
             (VINSBLX $vDi, InsertEltShift.Sub32Left0, $rA)>;

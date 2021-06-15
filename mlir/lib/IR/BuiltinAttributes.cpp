@@ -15,6 +15,7 @@
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Interfaces/DecodeAttributesInterfaces.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Endian.h"
@@ -196,6 +197,10 @@ DictionaryAttr DictionaryAttr::getEmptyUnchecked(MLIRContext *context) {
   return Base::get(context, ArrayRef<NamedAttribute>());
 }
 
+StringAttr StringAttr::getEmptyStringAttrUnchecked(MLIRContext *context) {
+  return Base::get(context, "", NoneType::get(context));
+}
+
 //===----------------------------------------------------------------------===//
 // FloatAttr
 //===----------------------------------------------------------------------===//
@@ -257,6 +262,14 @@ int64_t IntegerAttr::getSInt() const {
 uint64_t IntegerAttr::getUInt() const {
   assert(getType().isUnsignedInteger() && "must be unsigned integer");
   return getValue().getZExtValue();
+}
+
+/// Return the value as an APSInt which carries the signed from the type of
+/// the attribute.  This traps on signless integers types!
+APSInt IntegerAttr::getAPSInt() const {
+  assert(!getType().isSignlessInteger() &&
+         "Signless integers don't carry a sign for APSInt");
+  return APSInt(getValue(), getType().isUnsignedInteger());
 }
 
 LogicalResult IntegerAttr::verify(function_ref<InFlightDiagnostic()> emitError,
@@ -577,6 +590,25 @@ Attribute DenseElementsAttr::AttributeElementIterator::operator*() const {
     IntElementIterator intIt(owner, index);
     FloatElementIterator floatIt(floatEltTy.getFloatSemantics(), intIt);
     return FloatAttr::get(eltTy, *floatIt);
+  }
+  if (auto complexTy = eltTy.dyn_cast<ComplexType>()) {
+    auto complexEltTy = complexTy.getElementType();
+    ComplexIntElementIterator complexIntIt(owner, index);
+    if (complexEltTy.isa<IntegerType>()) {
+      auto value = *complexIntIt;
+      auto real = IntegerAttr::get(complexEltTy, value.real());
+      auto imag = IntegerAttr::get(complexEltTy, value.imag());
+      return ArrayAttr::get(complexTy.getContext(),
+                            ArrayRef<Attribute>{real, imag});
+    }
+
+    ComplexFloatElementIterator complexFloatIt(
+        complexEltTy.cast<FloatType>().getFloatSemantics(), complexIntIt);
+    auto value = *complexFloatIt;
+    auto real = FloatAttr::get(complexEltTy, value.real());
+    auto imag = FloatAttr::get(complexEltTy, value.imag());
+    return ArrayAttr::get(complexTy.getContext(),
+                          ArrayRef<Attribute>{real, imag});
   }
   if (owner.isa<DenseStringElementsAttr>()) {
     ArrayRef<StringRef> vals = owner.getRawStringData();
