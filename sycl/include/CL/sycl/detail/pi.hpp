@@ -225,16 +225,16 @@ public:
   public:
     using ValTy = std::remove_pointer<pi_device_binary_property>::type;
 
-    class ConstIterator
-        : public std::iterator<std::input_iterator_tag, // iterator_category
-                               ValTy,                   // value_type
-                               ptrdiff_t,               // difference_type
-                               const pi_device_binary_property, // pointer
-                               pi_device_binary_property>       // reference
-    {
+   class ConstIterator {
       pi_device_binary_property Cur;
 
     public:
+      using iterator_category = std::input_iterator_tag;
+      using value_type = ValTy;
+      using difference_type = ptrdiff_t;
+      using pointer = const pi_device_binary_property;
+      using reference = pi_device_binary_property;
+
       ConstIterator(pi_device_binary_property Cur = nullptr) : Cur(Cur) {}
       ConstIterator &operator++() {
         Cur++;
