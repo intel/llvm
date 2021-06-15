@@ -4882,21 +4882,6 @@ bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
   return emit(Out);
 }
 
-void SYCLIntegrationFooter::emitSpecIDName(raw_ostream &O, const VarDecl *VD) {
-  // FIXME: Figure out the spec-constant unique name here.
-  // Note that this changes based on the linkage of the variable.
-  // We typically want to use the __builtin_sycl_unique_stable_name for the
-  // variable (or the newer-equivilent for values, see the JIRA), but we also
-  // have to figure out if this has internal or external linkage.  In
-  // external-case this should be the same as the the unique-name.  However,
-  // this isn't the case with local-linkage, where we want to put the
-  // driver-provided random-value ahead of it, so that we make sure it is unique
-  // across translation units. This name should come from the yet
-  // implemented __builtin_sycl_unique_stable_name feature that accepts
-  // variables and gives the mangling for that.
-  O << "";
-}
-
 template <typename BeforeFn, typename AfterFn>
 static void PrintNSHelper(BeforeFn Before, AfterFn After, raw_ostream &OS,
                           const DeclContext *DC) {
@@ -5057,7 +5042,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     OS << ">() {\n";
     OS << "  return \"";
-    emitSpecIDName(OS, VD);
+    OS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(), VD);
     OS << "\";\n";
     OS << "}\n";
     OS << "} // namespace detail\n";
@@ -5273,14 +5258,20 @@ void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
   Ctx->mangleTypeName(Ty, Out);
 
   // Evaluate whether this would change any of the already evaluated
-  // __builtin_sycl_unique_stable_name values.
+  // __builtin_sycl_unique_stable_name/id values.
   for (auto &Itr : Context.SYCLUniqueStableNameEvaluatedValues) {
-    const std::string &CurName = Itr.first->ComputeName(Context);
+    const auto *NameExpr = dyn_cast<SYCLUniqueStableNameExpr>(Itr.first);
+    const auto *IdExpr = dyn_cast<SYCLUniqueStableIdExpr>(Itr.first);
+    assert((NameExpr || IdExpr) && "Unknown expr type?");
+
+    const std::string &CurName = NameExpr ? NameExpr->ComputeName(Context)
+                                          : IdExpr->ComputeName(Context);
     if (Itr.second != CurName) {
       Diag(NewLoc, diag::err_kernel_invalidates_sycl_unique_stable_name)
-          << IsInstantiation;
-      Diag(Itr.first->getLocation(),
-           diag::note_sycl_unique_stable_name_evaluated_here);
+          << IsInstantiation << (IdExpr != nullptr);
+      Diag(Itr.first->getExprLoc(),
+           diag::note_sycl_unique_stable_name_evaluated_here)
+          << (IdExpr != nullptr);
       // Update this so future diagnostics work correctly.
       Itr.second = CurName;
     }
