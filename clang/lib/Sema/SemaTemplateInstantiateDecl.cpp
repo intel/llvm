@@ -24,7 +24,6 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
-#include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateInstCallback.h"
@@ -1389,30 +1388,11 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
 
   SemaRef.BuildVariableInstantiation(Var, D, TemplateArgs, LateAttrs, Owner,
                                      StartingScope, InstantiatingVarTemplate);
-  if (D->isNRVOVariable()) {
-    QualType RT;
-    if (auto *F = dyn_cast<FunctionDecl>(DC))
-      RT = F->getReturnType();
-    else if (isa<BlockDecl>(DC))
-      RT = cast<FunctionType>(SemaRef.getCurBlock()->FunctionType)
-               ->getReturnType();
-    else
-      llvm_unreachable("Unknown context type");
 
-    // This is the last chance we have of checking copy elision eligibility
-    // for functions in depdendent contexts. The sema actions for building
-    // the return statement during template instantiation will have no effect
-    // regarding copy elision, since NRVO propagation runs on the scope exit
-    // actions, and these are not run on instantiation.
-    // This might run through some VarDecls which were returned from non-taken
-    // 'if constexpr' branches, and these will end up being constructed on the
-    // return slot even if they will never be returned, as a sort of accidental
-    // 'optimization'. Notably, functions with 'auto' return types won't have it
-    // deduced by this point. Coupled with the limitation described
-    // previously, this makes it very hard to support copy elision for these.
-    Sema::NamedReturnInfo Info = SemaRef.getNamedReturnInfo(Var);
-    bool NRVO = SemaRef.getCopyElisionCandidate(Info, RT) != nullptr;
-    Var->setNRVOVariable(NRVO);
+  if (D->isNRVOVariable()) {
+    QualType ReturnType = cast<FunctionDecl>(DC)->getReturnType();
+    if (SemaRef.isCopyElisionCandidate(ReturnType, Var, Sema::CES_Strict))
+      Var->setNRVOVariable(true);
   }
 
   Var->setImplicit(D->isImplicit());
@@ -5214,10 +5194,13 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
   // Introduce a new scope where local variable instantiations will be
   // recorded, unless we're actually a member function within a local
   // class, in which case we need to merge our results with the parent
-  // scope (of the enclosing function).
+  // scope (of the enclosing function). The exception is instantiating
+  // a function template specialization, since the template to be
+  // instantiated already has references to locals properly substituted.
   bool MergeWithParentScope = false;
   if (CXXRecordDecl *Rec = dyn_cast<CXXRecordDecl>(Function->getDeclContext()))
-    MergeWithParentScope = Rec->isLocalClass();
+    MergeWithParentScope =
+        Rec->isLocalClass() && !Function->isFunctionTemplateSpecialization();
 
   LocalInstantiationScope Scope(*this, MergeWithParentScope);
 

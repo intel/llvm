@@ -32,11 +32,12 @@ public:
       : DependencyFileGenerator(*Opts), Opts(std::move(Opts)), C(C) {}
 
   void finishedMainFile(DiagnosticsEngine &Diags) override {
+    C.handleDependencyOutputOpts(*Opts);
     llvm::SmallString<256> CanonPath;
     for (const auto &File : getDependencies()) {
       CanonPath = File;
       llvm::sys::path::remove_dots(CanonPath, /*remove_dot_dot=*/true);
-      C.handleFileDependency(*Opts, CanonPath);
+      C.handleFileDependency(CanonPath);
     }
   }
 
@@ -170,8 +171,8 @@ public:
     // invocation to the collector. The options in the invocation are reset,
     // which ensures that the compiler won't create new dependency collectors,
     // and thus won't write out the extra '.d' files to disk.
-    auto Opts = std::make_unique<DependencyOutputOptions>(
-        std::move(Compiler.getInvocation().getDependencyOutputOpts()));
+    auto Opts = std::make_unique<DependencyOutputOptions>();
+    std::swap(*Opts, Compiler.getInvocation().getDependencyOutputOpts());
     // We need at least one -MT equivalent for the generator of make dependency
     // files to work.
     if (Opts->Targets.empty())
