@@ -22,7 +22,7 @@
 #include <type_traits>
 
 int main() {
-  constexpr std::size_t n = 10;
+  constexpr std::size_t n = 1030;
 
   int data[n]{};
   int counter{0};
