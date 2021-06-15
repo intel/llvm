@@ -21,6 +21,7 @@
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <inttypes.h>
 #include <utility>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
@@ -262,8 +263,8 @@ private:
           const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
 
           fprintf(stderr,
-                  "%s:%d: %s: global id: [%lu, %lu, %lu], "
-                  "local id: [%lu,%lu,%lu] "
+                  "%s:%d: %s: global id: [%" PRIu64 ", %" PRIu64 ", %" PRIu64
+                  "], local id: [%" PRIu64 ",%" PRIu64 ",%" PRIu64 "] "
                   "Assertion `%s` failed",
                   File, AH->Line, Func, AH->GID0, AH->GID1, AH->GID2, AH->LID0,
                   AH->LID1, AH->LID2, Expr);
