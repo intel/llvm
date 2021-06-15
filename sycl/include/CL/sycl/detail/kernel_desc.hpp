@@ -17,14 +17,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-// This guard is needed because the libsycl.so can be compiled with C++ <=14
-// while the code requires C++17. This code is not supposed to be used by the
-// libsycl.so so it should not be a problem.
-#if __cplusplus > 201402L
-// Definition is in spec_const_integration.hpp
-template <auto &S> struct specialization_id_name_generator;
-#endif
-
 #ifndef __SYCL_DEVICE_ONLY__
 #define _Bool bool
 #endif

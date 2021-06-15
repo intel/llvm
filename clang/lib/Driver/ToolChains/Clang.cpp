@@ -1175,7 +1175,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   // When preprocessing using the integration footer, add the comments
   // to the first preprocessing step.
   if (JA.isOffloading(Action::OFK_SYCL) && !ContainsAppendFooterAction(&JA) &&
-      Args.hasArg(options::OPT_fsycl_use_footer) &&
+      !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
       JA.isDeviceOffloading(Action::OFK_None))
     CmdArgs.push_back("-C");
 
