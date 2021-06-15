@@ -1735,7 +1735,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
        RequiredWGSize[2] != 0);
   size_t *LocalSize = nullptr;
 
-  if (EnforcedLocalSize)
+  if (!HasLocalSize && EnforcedLocalSize)
     LocalSize = RequiredWGSize;
   else if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
