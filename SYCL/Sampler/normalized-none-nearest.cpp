@@ -2,9 +2,7 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t.out %HOST_CHECK_PLACEHOLDER
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// UNSUPPORTED: level_zero && windows
 
-// LevelZero on Windows hangs with normalized coordinates. Waiting on fix.
 
 /*
     This file sets up an image, initializes it with data,
