@@ -4331,6 +4331,15 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
       }
     } else
       HostCompileArgs.push_back("-E");
+
+    // Add the integration header.
+    StringRef Header =
+        TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
+    if (types::getPreprocessedType(InputFile.getType()) != types::TY_INVALID &&
+        !Header.empty()) {
+      HostCompileArgs.push_back(IsMSVCHostCompiler ? "-FI" : "-include");
+      HostCompileArgs.push_back(TCArgs.MakeArgString(Header));
+    }
   } else if (isa<AssembleJobAction>(JA)) {
     HostCompileArgs.push_back("-c");
     if (IsMSVCHostCompiler)
@@ -4373,15 +4382,6 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
     // with the '-o' option that is used to designate the output file.
     HostCompileArgs.push_back("-o");
     HostCompileArgs.push_back(Output.getFilename());
-  }
-
-  // Add the integration header.
-  StringRef Header =
-      TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
-  if (types::getPreprocessedType(InputFile.getType()) != types::TY_INVALID &&
-      !Header.empty()) {
-    HostCompileArgs.push_back(IsMSVCHostCompiler ? "-FI" : "-include");
-    HostCompileArgs.push_back(TCArgs.MakeArgString(Header));
   }
 
   SmallString<128> ExecPath;

@@ -271,6 +271,71 @@ static void collectKernelModuleMap(
   }
 }
 
+// Go through function call graph searching for assert call.
+static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
+  // Map holds the info about assertions in already examined functions:
+  // true  - if there is an assertion in underlying functions,
+  // false - if there are definetely no assertions in underlying functions.
+  static std::map<llvm::Function *, bool> hasAssertionInCallGraphMap;
+  std::vector<llvm::Function *> FuncCallStack;
+
+  std::vector<llvm::Function *> Workstack;
+  Workstack.push_back(Func);
+
+  while (!Workstack.empty()) {
+    Function *F = Workstack.back();
+    Workstack.pop_back();
+    if (F != Func)
+      FuncCallStack.push_back(F);
+
+    bool IsLeaf = true;
+    for (auto &I : instructions(F)) {
+      if (!isa<CallBase>(&I))
+        continue;
+
+      Function *CF = cast<CallBase>(&I)->getCalledFunction();
+      if (!CF)
+        continue;
+
+      // Return if we've already discovered if there are asserts in the
+      // function call graph.
+      if (hasAssertionInCallGraphMap.count(CF)) {
+        // If we know, that this function does not contain assert, we still
+        // should investigate another instructions in the function.
+        if (!hasAssertionInCallGraphMap[CF])
+          continue;
+
+        return true;
+      }
+
+      if (CF->getName().startswith("__devicelib_assert_fail")) {
+        // Mark all the functions above in call graph as ones that can call
+        // assert.
+        for (auto *It : FuncCallStack)
+          hasAssertionInCallGraphMap[It] = true;
+
+        hasAssertionInCallGraphMap[Func] = true;
+        hasAssertionInCallGraphMap[CF] = true;
+
+        return true;
+      }
+
+      if (!CF->isDeclaration()) {
+        Workstack.push_back(CF);
+        IsLeaf = false;
+      }
+    }
+
+    if (IsLeaf) {
+      // Mark the above functions as ones that definetely do not call assert.
+      for (auto *It : FuncCallStack)
+        hasAssertionInCallGraphMap[It] = false;
+      FuncCallStack.clear();
+    }
+  }
+  return false;
+}
+
 // Input parameter KernelModuleMap is a map containing groups of kernels with
 // same values of the sycl-module-id attribute. ResSymbolsLists is a vector of
 // kernel name lists. Each vector element is a string with kernel names from the
@@ -461,6 +526,19 @@ static string_vector saveDeviceImageProperty(
     if (ImgPSInfo.IsEsimdKernel) {
       PropSet[llvm::util::PropertySetRegistry::SYCL_MISC_PROP].insert(
           {"isEsimdImage", true});
+    }
+
+    {
+      Module *M = ResultModules[I].get();
+      for (auto &F : M->functions()) {
+        // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
+        // TODO: handle function pointers.
+        if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+          if (hasAssertInFunctionCallGraph(&F))
+            PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
+                {F.getName(), true});
+        }
+      }
     }
 
     std::error_code EC;
