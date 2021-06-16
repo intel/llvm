@@ -424,7 +424,10 @@ public:
         {"ssdp4a_sat", {"ssdp4a.sat", {a(0), a(1), a(2)}}},
         {"any", {"any", {ai1(0)}}},
         {"all", {"all", {ai1(0)}}},
-        {"lane_id", {"lane.id", {}}}};
+        {"lane_id", {"lane.id", {}}},
+        {"test_src_tmpl_arg",
+         {"test.src.tmpl.arg", {t(0), t1(1), t8(2), t16(3), t32(4), c8(17)}}},
+    };
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -1081,6 +1084,21 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
   }
 }
 
+// Create a simple function declaration
+// This is used for testing purposes, when it is impossible to query
+// vc-intrinsics
+static Function *createTestESIMDDeclaration(const ESIMDIntrinDesc &Desc,
+                                            SmallVector<Value *, 16> &GenXArgs,
+                                            CallInst &CI) {
+  SmallVector<Type *, 16> ArgTypes;
+  for (unsigned i = 0; i < GenXArgs.size(); ++i)
+    ArgTypes.push_back(GenXArgs[i]->getType());
+  auto *FType = FunctionType::get(CI.getType(), ArgTypes, false);
+  auto Name = GenXIntrinsic::getGenXIntrinsicPrefix() + Desc.GenXSpelling;
+  return Function::Create(FType, GlobalVariable::ExternalLinkage, Name,
+                          CI.getModule());
+}
+
 // Demangles and translates given ESIMD intrinsic call instruction. Example
 //
 // ### Source-level intrinsic:
@@ -1164,21 +1182,26 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
 
   auto *FTy = F->getFunctionType();
   std::string Suffix = getESIMDIntrinSuffix(FE, FTy, Desc.SuffixRule);
-  auto ID = GenXIntrinsic::lookupGenXIntrinsicID(
-      GenXIntrinsic::getGenXIntrinsicPrefix() + Desc.GenXSpelling + Suffix);
-
   SmallVector<Value *, 16> GenXArgs;
   createESIMDIntrinsicArgs(Desc, GenXArgs, CI, FE);
+  Function *NewFDecl = nullptr;
+  if (Desc.GenXSpelling.rfind("test.src.", 0) == 0) {
+    // Special case for testing purposes
+    NewFDecl = createTestESIMDDeclaration(Desc, GenXArgs, CI);
+  } else {
+    auto ID = GenXIntrinsic::lookupGenXIntrinsicID(
+        GenXIntrinsic::getGenXIntrinsicPrefix() + Desc.GenXSpelling + Suffix);
 
-  SmallVector<Type *, 16> GenXOverloadedTypes;
-  if (GenXIntrinsic::isOverloadedRet(ID))
-    GenXOverloadedTypes.push_back(CI.getType());
-  for (unsigned i = 0; i < GenXArgs.size(); ++i)
-    if (GenXIntrinsic::isOverloadedArg(ID, i))
-      GenXOverloadedTypes.push_back(GenXArgs[i]->getType());
+    SmallVector<Type *, 16> GenXOverloadedTypes;
+    if (GenXIntrinsic::isOverloadedRet(ID))
+      GenXOverloadedTypes.push_back(CI.getType());
+    for (unsigned i = 0; i < GenXArgs.size(); ++i)
+      if (GenXIntrinsic::isOverloadedArg(ID, i))
+        GenXOverloadedTypes.push_back(GenXArgs[i]->getType());
 
-  Function *NewFDecl = GenXIntrinsic::getGenXDeclaration(CI.getModule(), ID,
-                                                         GenXOverloadedTypes);
+    NewFDecl = GenXIntrinsic::getGenXDeclaration(CI.getModule(), ID,
+                                                 GenXOverloadedTypes);
+  }
 
   Instruction *NewCI = IntrinsicInst::Create(
       NewFDecl, GenXArgs,
