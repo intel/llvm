@@ -213,11 +213,11 @@ public:
 private:
   template <typename, int, access::mode, access::target, access::placeholder,
             typename PropertyListT>
-  friend class sycl::accessor;
+  friend class __sycl_internal::accessor;
 
   template <typename... OtherProps> friend class accessor_property_list;
 
-  friend class sycl::property_list;
+  friend class __sycl_internal::property_list;
 
   // Helper method, used by accessor to restrict conversions to compatible
   // property lists.
@@ -232,7 +232,5 @@ private:
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace sycl {
-namespace ONEAPI {
-  using namespace __sycl_internal::__v1::ONEAPI;
-}
+  using namespace __sycl_internal::__v1;
 }

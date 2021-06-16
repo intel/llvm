@@ -16,7 +16,7 @@
 #include <iostream>
 #include <memory>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 namespace {
 struct TestCtx {

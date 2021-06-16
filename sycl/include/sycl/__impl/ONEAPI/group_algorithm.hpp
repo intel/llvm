@@ -543,7 +543,5 @@ leader(Group g) {
 #endif // __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__
 
 namespace sycl {
-namespace ONEAPI {
-  using namespace __sycl_internal::__v1::ONEAPI;
-}
+  using namespace __sycl_internal::__v1;
 }

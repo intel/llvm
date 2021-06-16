@@ -11,7 +11,7 @@
 
 #include <detail/scheduler/scheduler_helpers.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class MockHandler : public sycl::handler {
 public:
@@ -63,7 +63,7 @@ public:
   }
 };
 
-using CmdTypeTy = cl::sycl::detail::Command::CommandType;
+using CmdTypeTy = __sycl_internal::__v1::detail::Command::CommandType;
 
 // Function recursively checks that initial command has dependency on chain of
 // other commands that should have type DepCmdsTypes[Depth] (Depth is a distance
@@ -92,7 +92,7 @@ static bool ValidateDepCommandsTree(const detail::Command *Cmd,
 }
 
 TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
-  cl::sycl::queue HQueue(host_selector{});
+  sycl::queue HQueue(host_selector{});
   detail::QueueImplPtr HQueueImpl = detail::getSyclObjImpl(HQueue);
 
   // Emulating processing of command group function

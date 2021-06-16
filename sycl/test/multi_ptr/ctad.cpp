@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
 
-namespace sycl = cl::sycl;
+// namespace sycl = cl::sycl;
 
 int main() {
   using sycl::access::address_space;

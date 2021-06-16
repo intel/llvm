@@ -328,7 +328,5 @@ template <typename T, T param> struct compatibility_param_traits {};
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace sycl {
-namespace info {
-  using namespace __sycl_internal::__v1::info;
-}
+  using namespace __sycl_internal::__v1;
 }

@@ -448,7 +448,5 @@ joint_matrix_mad(Group sg,
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace sycl {
-namespace ext::intel::experimental::matrix {
-  using namespace __sycl_internal::__v1::ext::intel::experimental::matrix;
-}
+  using namespace __sycl_internal::__v1;
 }

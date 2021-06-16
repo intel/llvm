@@ -17,7 +17,7 @@
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct CudaTestQueue : public ::testing::Test {
 

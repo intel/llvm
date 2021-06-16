@@ -11,7 +11,7 @@
 #include <detail/plugin.hpp>
 #include <gtest/gtest.h>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 namespace {
 class EnqueueMemTest : public testing::TestWithParam<detail::plugin> {

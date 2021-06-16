@@ -40,7 +40,5 @@ static inline void atomic_fence(memory_order order, memory_scope scope) {
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace sycl {
-namespace ONEAPI {
-  using namespace __sycl_internal::__v1::ONEAPI;
-}
+  using namespace __sycl_internal::__v1;
 }

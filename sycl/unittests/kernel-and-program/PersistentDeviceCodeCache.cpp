@@ -28,7 +28,7 @@ static void set_env(const char *name, const char *value) {
 }
 
 namespace {
-using namespace cl::sycl;
+using namespace sycl;
 
 /* Vector of programs which can be used for testing
  */

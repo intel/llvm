@@ -148,7 +148,5 @@ T make(const context &Context,
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace sycl {
-namespace level_zero {
-  using namespace __sycl_internal::__v1::level_zero;
-}
+  using namespace __sycl_internal::__v1;
 }

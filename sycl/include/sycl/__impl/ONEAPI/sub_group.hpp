@@ -730,7 +730,7 @@ struct sub_group {
   }
 
 protected:
-  template <int dimensions> friend class sycl::nd_item;
+  template <int dimensions> friend class __sycl_internal::nd_item;
   friend sub_group this_sub_group();
   sub_group() = default;
 };
@@ -749,7 +749,5 @@ inline sub_group this_sub_group() {
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace sycl {
-namespace ONEAPI {
-  using namespace __sycl_internal::__v1::ONEAPI;
-}
+  using namespace __sycl_internal::__v1;
 }

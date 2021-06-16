@@ -13,23 +13,23 @@
 #include <gtest/gtest.h>
 #include <memory>
 
-using namespace cl::sycl::detail;
+using namespace __sycl_internal::__v1::detail;
 
 class LeavesCollectionTest : public ::testing::Test {
 protected:
-  cl::sycl::async_handler MAsyncHandler =
-      [](cl::sycl::exception_list ExceptionList) {
-        for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
+  sycl::async_handler MAsyncHandler =
+      [](sycl::exception_list ExceptionList) {
+        for (sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
           try {
             std::rethrow_exception(ExceptionPtr);
-          } catch (cl::sycl::exception &E) {
+          } catch (sycl::exception &E) {
             std::cerr << E.what();
           } catch (...) {
             std::cerr << "Unknown async exception was caught." << std::endl;
           }
         }
       };
-  cl::sycl::queue MQueue = cl::sycl::queue(cl::sycl::device(), MAsyncHandler);
+  sycl::queue MQueue = sycl::queue(sycl::device(), MAsyncHandler);
 };
 
 std::shared_ptr<Command>
@@ -80,7 +80,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
 
   // add mix of generic and empty commands
   {
-    cl::sycl::buffer<int, 1> Buf(cl::sycl::range<1>(1));
+    sycl::buffer<int, 1> Buf(sycl::range<1>(1));
 
     Requirement MockReq = getMockRequirement(Buf);
 
@@ -116,7 +116,7 @@ TEST_F(LeavesCollectionTest, Remove) {
       [](Command *, Command *Old, MemObjRecord *) { --Old->MLeafCounter; };
 
   {
-    cl::sycl::buffer<int, 1> Buf(cl::sycl::range<1>(1));
+    sycl::buffer<int, 1> Buf(sycl::range<1>(1));
 
     Requirement MockReq = getMockRequirement(Buf);
 

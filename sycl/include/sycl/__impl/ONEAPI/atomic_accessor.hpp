@@ -130,7 +130,5 @@ atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace sycl {
-namespace ONEAPI {
-  using namespace __sycl_internal::__v1::ONEAPI;
-}
+  using namespace __sycl_internal::__v1;
 }

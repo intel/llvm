@@ -219,7 +219,5 @@ online_compiler<source_language::cm>::compile(const std::string &src) {
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace sycl {
-namespace INTEL {
-  using namespace __sycl_internal::__v1::INTEL;
-}
+  using namespace __sycl_internal::__v1;
 }

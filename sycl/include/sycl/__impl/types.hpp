@@ -1893,7 +1893,7 @@ private:
   OperationRightT m_RightOperation;
 
   // friends
-  template <typename T1, int T2> friend class sycl::vec;
+  template <typename T1, int T2> friend class __sycl_internal::vec;
 
   template <typename T1, typename T2, typename T3, template <typename> class T4,
             int... T5>

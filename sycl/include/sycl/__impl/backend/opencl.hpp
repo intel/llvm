@@ -155,7 +155,5 @@ T make(const context &Context,
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace sycl {
-namespace opencl {
-  using namespace __sycl_internal::__v1::opencl;
-}
+  using namespace __sycl_internal::__v1;
 }

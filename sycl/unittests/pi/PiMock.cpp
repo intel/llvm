@@ -10,7 +10,7 @@
 #include <helpers/PiMock.hpp>
 #include <detail/queue_impl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 pi_result piProgramBuildRedefine(pi_program, pi_uint32, const pi_device *,
                                  const char *, void (*)(pi_program, void *),
@@ -65,7 +65,7 @@ TEST(PiMockTest, ConstructFromPlatform) {
 }
 
 TEST(PiMockTest, RedefineAPI) {
-  cl::sycl::default_selector Selector{};
+  sycl::default_selector Selector{};
   if (Selector.select_device().is_host()) {
     std::cerr << "Not run due to host-only environment\n";
     return;

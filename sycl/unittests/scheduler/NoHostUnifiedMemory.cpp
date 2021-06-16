@@ -14,7 +14,7 @@
 #include <iostream>
 #include <memory>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 static pi_result redefinedDeviceGetInfo(pi_device Device,
                                         pi_device_info ParamName,
@@ -76,7 +76,7 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferWriteRect>(
       redefinedEnqueueMemBufferWriteRect);
   Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
-  cl::sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
+  __sycl_internal::__v1::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
   device HostDevice;
   std::shared_ptr<detail::queue_impl> DefaultHostQueue{

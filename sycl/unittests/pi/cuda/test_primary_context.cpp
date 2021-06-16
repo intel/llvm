@@ -17,7 +17,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct CudaPrimaryContextTests : public ::testing::TestWithParam<platform> {
 

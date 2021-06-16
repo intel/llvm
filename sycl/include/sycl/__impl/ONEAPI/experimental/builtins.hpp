@@ -75,7 +75,5 @@ int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
 #undef __SYCL_CONSTANT_AS
 
 namespace sycl {
-namespace ONEAPI {
-  using namespace __sycl_internal::__v1::ONEAPI;
-}
+  using namespace __sycl_internal::__v1;
 }

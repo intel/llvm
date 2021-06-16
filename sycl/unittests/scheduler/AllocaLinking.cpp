@@ -60,7 +60,7 @@ TEST_F(SchedulerTest, AllocaLinking) {
   Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
-  cl::sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
+  __sycl_internal::__v1::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
   MockScheduler MS;
   // Should not be linked w/o host unified memory or pinned host memory
