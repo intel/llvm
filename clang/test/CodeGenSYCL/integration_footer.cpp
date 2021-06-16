@@ -7,6 +7,9 @@ int main() {
   cl::sycl::kernel_single_task<class first_kernel>([]() {});
 }
 
+// CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
+// CHECK-NEXT: #include <CL/sycl/detail/spec_const_integration.hpp>
+
 using namespace cl::sycl;
 
 cl::sycl::specialization_id<int> GlobalSpecID;
@@ -158,5 +161,3 @@ struct container {
 };
 // CHECK-NOT: ::GetThing
 // CHECK-NOT: ::container::Thing
-
-// CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>

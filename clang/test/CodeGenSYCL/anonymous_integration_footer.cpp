@@ -9,13 +9,16 @@ int main() {
   cl::sycl::kernel_single_task<class first_kernel>([]() {});
 }
 
+// CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
+// CHECK-NEXT: #include <CL/sycl/detail/spec_const_integration.hpp>
+
 using namespace cl;
+
 // Example ways in which the application can declare a "specialization_id"
 // variable.
 struct S1 {
   static constexpr sycl::specialization_id a{1};
-  // CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
-  // CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
+  // CHECK: __SYCL_INLINE_NAMESPACE(cl) {
   // CHECK-NEXT: namespace sycl {
   // CHECK-NEXT: namespace detail {
   // CHECK-NEXT: template<>
@@ -399,5 +402,3 @@ constexpr sycl::specialization_id same_name{17};
 // CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 }
 } // namespace outer
-
-// CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>

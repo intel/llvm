@@ -29,12 +29,16 @@
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -E %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_PREPROCESS %s
 // HOST_PREPROCESS: g++{{.*}} "-E"{{.*}} "-o" "[[PPOUT:.+\.ii]]"
-// HOST_PREPROCESS: clang-offload-bundler{{.*}} "-inputs={{.*}}.ii,[[PPOUT]]"
+// HOST_PREPROCESS: append-file{{.*}} "[[PPOUT]]"{{.*}} "--output=[[APPEND:.+\.cpp]]"
+// HOST_PREPROCESS: g++{{.*}} "[[APPEND]]"{{.*}} "-E"{{.*}} "-o" "[[PPOUT2:.+\.ii]]"
+// HOST_PREPROCESS: clang-offload-bundler{{.*}} "-inputs={{.*}}.ii,[[PPOUT2]]"
 
 // RUN: %clang_cl -fsycl -fsycl-host-compiler=cl -E %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_PREPROCESS_CL %s
 // HOST_PREPROCESS_CL: cl{{.*}} "-P"{{.*}} "-Fi[[PPOUT:.+\.ii]]"
-// HOST_PREPROCESS_CL: clang-offload-bundler{{.*}} "-inputs={{.*}}.ii,[[PPOUT]]"
+// HOST_PREPROCESS_CL: append-file{{.*}} "[[PPOUT]]"{{.*}} "--output=[[APPEND:.+\.cpp]]"
+// HOST_PREPROCESS_CL: cl{{.*}} "[[APPEND]]"{{.*}} "-P"{{.*}} "-Fi[[PPOUT2:.+\.ii]]"
+// HOST_PREPROCESS_CL: clang-offload-bundler{{.*}} "-inputs={{.*}}.ii,[[PPOUT2]]"
 
 /// obj output
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -c %s -### 2>&1 \

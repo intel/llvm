@@ -8,13 +8,16 @@
 int main() {
   cl::sycl::kernel_single_task<class first_kernel>([]() {});
 }
+
+// CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
+// CHECK-NEXT: #include <CL/sycl/detail/spec_const_integration.hpp>
+
 using namespace cl;
 
 struct S1 {
   static constexpr sycl::specialization_id a{1};
 };
-// CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
-// CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
+// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
@@ -152,5 +155,3 @@ constexpr sycl::specialization_id same_name{209};
 // CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 }
 }
-
-// CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>
