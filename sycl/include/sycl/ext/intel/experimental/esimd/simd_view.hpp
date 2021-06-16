@@ -20,10 +20,9 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
+namespace detail {
 /// The simd_view base class.
-///
-/// This class represents a region applied to a base object, which
-/// must be a simd object.
+/// It is an internal class implementing basic functionality of simd_view.
 ///
 /// \ingroup sycl_esimd
 template <typename BaseTy, typename RegionTy> class simd_view_impl {
@@ -36,7 +35,7 @@ public:
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
 
-  /// The simd type if reading this simd_view object.
+  /// The simd type if reading the object.
   using value_type = simd<typename ShapeTy::element_type, length>;
 
   /// The underlying builtin value type
@@ -60,7 +59,7 @@ protected:
       : M_base(Base), M_region(Region) {}
 
 public:
-  // Disallow copy and move constructors for simd_view.
+  // Disallow copy and move constructors.
   simd_view_impl(const simd_view_impl &Other) = delete;
   simd_view_impl(simd_view_impl &&Other) = delete;
   /// @}
@@ -97,14 +96,14 @@ public:
   }
   /// @}
 
-  /// Read this simd_view object.
+  /// Read the object.
   value_type read() const {
     using BT = typename BaseTy::element_type;
     constexpr int BN = BaseTy::length;
     return detail::readRegion<BT, BN>(M_base.data(), M_region);
   }
 
-  /// Write to this simd_view object.
+  /// Write to this object.
   simd_view_impl &write(const value_type &Val) {
     M_base.writeRegion(M_region, Val.data());
     return *this;
@@ -437,19 +436,20 @@ protected:
   RegionTy M_region;
 };
 
-/// The reference class.
-///
-/// This class represents a region applied to a base object, which
-/// must be a simd object.
+} // namespace detail
+
+/// This class represents a reference to a sub-region of a base simd object.
+/// The referenced sub-region of the base object can be read from and written to
+/// via an instance of this class.
 ///
 /// \ingroup sycl_esimd
 template <typename BaseTy, typename RegionTy>
-class simd_view : public simd_view_impl<BaseTy, RegionTy> {
+class simd_view : public detail::simd_view_impl<BaseTy, RegionTy> {
   template <typename, int> friend class simd;
   // template <typename, typename> friend class simd_view;
 
 public:
-  using BaseClass = simd_view_impl<BaseTy, RegionTy>;
+  using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
 
@@ -503,9 +503,6 @@ public:
   DEF_RELOP(!=)
 };
 
-template <bool Is2D, typename T, int StrideY, int StrideX>
-using region_base_1 = region_base<Is2D, T, 1, StrideY, 1, StrideX>;
-
 /// This is a specialization of simd_view class with a single element.
 /// We allow implicit convertion to underlying type, e.g.:
 ///   simd<int, 4> v = 1;
@@ -517,12 +514,13 @@ using region_base_1 = region_base<Is2D, T, 1, StrideY, 1, StrideX>;
 /// \ingroup sycl_esimd
 template <typename BaseTy, bool Is2D, typename T, int StrideY, int StrideX>
 class simd_view<BaseTy, region_base_1<Is2D, T, StrideY, StrideX>>
-    : public simd_view_impl<BaseTy, region_base_1<Is2D, T, StrideY, StrideX>> {
+    : public detail::simd_view_impl<BaseTy,
+                                    region_base_1<Is2D, T, StrideY, StrideX>> {
   template <typename, int> friend class simd;
 
 public:
   using RegionTy = region_base_1<Is2D, T, StrideY, StrideX>;
-  using BaseClass = simd_view_impl<BaseTy, RegionTy>;
+  using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
   static_assert(1 == length, "length of this view is not equal to 1");
@@ -532,9 +530,9 @@ public:
 
 private:
   simd_view(BaseTy &Base, RegionTy Region)
-      : simd_view_impl<BaseTy, RegionTy>(Base, Region) {}
+      : detail::simd_view_impl<BaseTy, RegionTy>(Base, Region) {}
   simd_view(BaseTy &&Base, RegionTy Region)
-      : simd_view_impl<BaseTy, RegionTy>(Base, Region) {}
+      : detail::simd_view_impl<BaseTy, RegionTy>(Base, Region) {}
 
 public:
   operator element_type() const { return (*this)[0]; }

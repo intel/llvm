@@ -1292,7 +1292,8 @@ esimd_cbit(T src) {
   return Result[0];
 }
 
-/// Scalar version of \c esimd_cbit.
+/// Scalar version of \c esimd_cbit, that takes simd_view object as an
+/// argument, e.g. `esimd_cbit(v[0])`.
 /// @param src0 input simd_view object of size 1.
 /// @return scalar number of bits set.
 template <typename BaseTy, typename RegionTy>
@@ -1334,7 +1335,8 @@ esimd_fbl(T src) {
   return Result[0];
 }
 
-/// Scalar version of \c esimd_fbl.
+/// Scalar version of \c esimd_fbl, that takes simd_view object as an
+/// argument, e.g. `esimd_fbl(v[0])`.
 /// @param src0 input simd_view object of size 1.
 /// @return scalar number of the first bit set starting from the least
 /// significant bit.
@@ -1405,7 +1407,8 @@ esimd_fbh(T src) {
   return Result[0];
 }
 
-/// Scalar version of \c esimd_fbh.
+/// Scalar version of \c esimd_fbh, that takes simd_view object as an
+/// argument, e.g. `esimd_fbh(v[0])`.
 /// @param src0 input simd_view object of size 1.
 /// @return scalar number of the first bit set starting from the most
 /// significant bit.
