@@ -3584,6 +3584,43 @@ ExprResult Sema::ActOnSYCLUniqueStableNameExpr(SourceLocation OpLoc,
   return BuildSYCLUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
 }
 
+ExprResult Sema::BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                             SourceLocation LParen,
+                                             SourceLocation RParen, Expr *E) {
+  if (!E->isInstantiationDependent()) {
+    // Special handling to get us better error messages for a member variable.
+    if (auto *ME = dyn_cast<MemberExpr>(E->IgnoreUnlessSpelledInSource())) {
+      if (isa<FieldDecl>(ME->getMemberDecl()))
+        Diag(E->getExprLoc(), diag::err_unique_stable_id_global_storage);
+      else
+        Diag(E->getExprLoc(), diag::err_unique_stable_id_expected_var);
+      return ExprError();
+    }
+
+    auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreUnlessSpelledInSource());
+
+    if (!DRE || !isa_and_nonnull<VarDecl>(DRE->getDecl())) {
+      Diag(E->getExprLoc(), diag::err_unique_stable_id_expected_var);
+      return ExprError();
+    }
+
+    auto *Var = cast<VarDecl>(DRE->getDecl());
+
+    if (!Var->hasGlobalStorage()) {
+      Diag(E->getExprLoc(), diag::err_unique_stable_id_global_storage);
+      return ExprError();
+    }
+  }
+
+  return SYCLUniqueStableIdExpr::Create(Context, OpLoc, LParen, RParen, E);
+}
+
+ExprResult Sema::ActOnSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                             SourceLocation LParen,
+                                             SourceLocation RParen, Expr *E) {
+  return BuildSYCLUniqueStableIdExpr(OpLoc, LParen, RParen, E);
+}
+
 ExprResult Sema::ActOnPredefinedExpr(SourceLocation Loc, tok::TokenKind Kind) {
   PredefinedExpr::IdentKind IK;
 
