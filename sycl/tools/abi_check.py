@@ -23,7 +23,7 @@ def match_symbol(sym_binding, sym_type, sym_section):
     return False
   if not (sym_binding.group() == "Global" or sym_binding.group() == "Weak"):
     return False
-  if not sym_section.group() == ".text":
+  if not sym_section.group().startswith(".text"):
     return False
   return True
 
