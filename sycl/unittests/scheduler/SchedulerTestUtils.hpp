@@ -22,13 +22,13 @@
 
 cl::sycl::detail::Requirement getMockRequirement();
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 class Command;
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 class MockCommand : public cl::sycl::detail::Command {
 public:
