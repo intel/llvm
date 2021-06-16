@@ -17,8 +17,8 @@
 
 #include <cstddef>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 class Builder;
 }
@@ -140,3 +140,7 @@ template <int Dims> item<Dims> this_item() {
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}

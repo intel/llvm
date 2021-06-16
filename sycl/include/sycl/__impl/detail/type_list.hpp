@@ -11,8 +11,8 @@
 #include <sycl/__impl/access/access.hpp>
 #include <sycl/__impl/detail/stl_type_traits.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 template <typename T> using head_t = typename T::head;

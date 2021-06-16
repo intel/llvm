@@ -17,12 +17,12 @@
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 #ifdef __SYCL_DEVICE_ONLY__
 #define __sycl_std
 #else
-namespace __sycl_std = __host_std;
+namespace __sycl_std = __sycl_internal::__v1::__host_std;
 #endif
 
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
@@ -1724,3 +1724,7 @@ extern SYCL_EXTERNAL void _wassert(const wchar_t *wexpr, const wchar_t *wfile,
 #endif // __SYCL_DEVICE_ONLY__
 
 #undef __NOEXC
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}

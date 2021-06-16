@@ -18,15 +18,15 @@
 #include <atomic>
 #include <cassert>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 class context;
 namespace detail {
 class plugin;
 class context_impl;
-using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
-using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
+using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 
 class event_impl {
 public:
@@ -62,7 +62,7 @@ public:
   /// Self is needed in order to pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait(std::shared_ptr<cl::sycl::detail::event_impl> Self) const;
+  void wait(std::shared_ptr<sycl::detail::event_impl> Self) const;
 
   /// Waits for the event.
   ///
@@ -72,7 +72,7 @@ public:
   /// pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait_and_throw(std::shared_ptr<cl::sycl::detail::event_impl> Self);
+  void wait_and_throw(std::shared_ptr<sycl::detail::event_impl> Self);
 
   /// Queries this event for profiling information.
   ///

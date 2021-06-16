@@ -16,8 +16,8 @@
 #include <sycl/__impl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 namespace enqueue_kernel_launch {
@@ -28,7 +28,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
 
   const plugin &Plugin = DeviceImpl.getPlugin();
   RT::PiDevice Device = DeviceImpl.getHandleRef();
-  cl::sycl::platform Platform = DeviceImpl.get_platform();
+  sycl::platform Platform = DeviceImpl.get_platform();
 
   if (HasLocalSize) {
     size_t MaxThreadsPerBlock[3] = {};
@@ -54,7 +54,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   bool IsOpenCL = false;    // Backend is any OpenCL version
   bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
   bool IsOpenCLV20 = false; // Backend is OpenCL 2.0
-  if (Platform.get_backend() == cl::sycl::backend::opencl) {
+  if (Platform.get_backend() == sycl::backend::opencl) {
     string_class VersionString = DeviceImpl.get_info<info::device::version>();
     IsOpenCL = true;
     IsOpenCLV1x = (VersionString.find("1.") == 0);

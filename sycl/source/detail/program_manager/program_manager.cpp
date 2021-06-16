@@ -37,11 +37,11 @@
 #include <sstream>
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
-using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 
 static constexpr int DbgProgMgr = 0;
 
@@ -769,7 +769,7 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   pi_uint32 ImgInd = 0;
   RTDeviceBinaryImage *Img = nullptr;
 
-  // TODO: There may be cases with cl::sycl::program class usage in source code
+  // TODO: There may be cases with sycl::program class usage in source code
   // that will result in a multi-device context. This case needs to be handled
   // here or at the program_impl class level
 
@@ -1721,7 +1721,7 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {
-  cl::sycl::detail::ProgramManager::getInstance().addImages(desc);
+  sycl::detail::ProgramManager::getInstance().addImages(desc);
 }
 
 // Executed as a part of current module's (.exe, .dll) static initialization

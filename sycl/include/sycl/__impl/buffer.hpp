@@ -16,8 +16,8 @@
 #include <sycl/__impl/property_list.hpp>
 #include <sycl/__impl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 class handler;
 class queue;
@@ -32,7 +32,7 @@ template <int dimensions> class range;
 ///
 /// \ingroup sycl_api
 template <typename T, int dimensions = 1,
-          typename AllocatorT = cl::sycl::buffer_allocator,
+          typename AllocatorT = sycl::buffer_allocator,
           typename = typename detail::enable_if_t<(dimensions > 0) &&
                                                   (dimensions <= 3)>>
 class buffer {
@@ -212,14 +212,14 @@ public:
         OffsetInBytes(getOffsetInBytes<T>(baseIndex, b.Range)),
         IsSubBuffer(true) {
     if (b.is_sub_buffer())
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "Cannot create sub buffer from sub buffer.", PI_INVALID_VALUE);
     if (isOutOfBounds(baseIndex, subRange, b.Range))
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "Requested sub-buffer size exceeds the size of the parent buffer",
           PI_INVALID_VALUE);
     if (!isContiguousRegion(baseIndex, subRange, b.Range))
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "Requested sub-buffer region is not contiguous", PI_INVALID_VALUE);
   }
 
@@ -344,7 +344,7 @@ public:
   buffer<ReinterpretT, ReinterpretDim, AllocatorT>
   reinterpret(range<ReinterpretDim> reinterpretRange) const {
     if (sizeof(ReinterpretT) * reinterpretRange.size() != get_size())
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "Total size in bytes represented by the type and range of the "
           "reinterpreted SYCL buffer does not equal the total size in bytes "
           "represented by the type and range of this SYCL buffer",
@@ -371,7 +371,7 @@ public:
   reinterpret() const {
     long sz = get_size(); // TODO: switch to byte_size() once implemented
     if (sz % sizeof(ReinterpretT) != 0)
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "Total byte size of buffer is not evenly divisible by the size of "
           "the reinterpreted type",
           PI_INVALID_VALUE);
@@ -487,13 +487,17 @@ buffer(const T *, const range<dimensions> &, const property_list & = {})
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}
+
 namespace std {
 template <typename T, int dimensions, typename AllocatorT>
-struct hash<cl::sycl::buffer<T, dimensions, AllocatorT>> {
+struct hash<sycl::buffer<T, dimensions, AllocatorT>> {
   size_t
-  operator()(const cl::sycl::buffer<T, dimensions, AllocatorT> &b) const {
-    return hash<std::shared_ptr<cl::sycl::detail::buffer_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(b));
+  operator()(const sycl::buffer<T, dimensions, AllocatorT> &b) const {
+    return hash<std::shared_ptr<sycl::detail::buffer_impl>>()(
+        sycl::detail::getSyclObjImpl(b));
   }
 };
 } // namespace std

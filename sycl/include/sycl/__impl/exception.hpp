@@ -17,8 +17,8 @@
 
 #include <exception>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Forward declaration
 class context;
@@ -150,6 +150,10 @@ public:
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}
 namespace std {
-template <> struct is_error_condition_enum<cl::sycl::errc> : true_type {};
+template <> struct is_error_condition_enum<sycl::errc> : true_type {};
 } // namespace std

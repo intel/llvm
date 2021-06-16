@@ -19,16 +19,16 @@
 
 #include <tuple>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ONEAPI {
 
 namespace detail {
 
-using cl::sycl::detail::bool_constant;
-using cl::sycl::detail::enable_if_t;
-using cl::sycl::detail::queue_impl;
-using cl::sycl::detail::remove_AS;
+using sycl::detail::bool_constant;
+using sycl::detail::enable_if_t;
+using sycl::detail::queue_impl;
+using sycl::detail::remove_AS;
 
 // This type trait is used to detect if the atomic operation BinaryOperation
 // used with operands of the type T is available for using in reduction.
@@ -1725,3 +1725,9 @@ __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
 } // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+namespace ONEAPI {
+  using namespace __sycl_internal::__v1::ONEAPI;
+}
+}

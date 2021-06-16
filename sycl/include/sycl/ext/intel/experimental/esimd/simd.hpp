@@ -17,8 +17,8 @@
 #include <sycl/ext/intel/experimental/esimd/detail/sycl_util.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ext {
 namespace intel {
 namespace experimental {

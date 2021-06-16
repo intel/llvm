@@ -21,8 +21,8 @@
 #include <cassert>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 // Forward declaration
 class program_impl;

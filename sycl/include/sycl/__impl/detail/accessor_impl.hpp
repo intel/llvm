@@ -15,8 +15,8 @@
 #include <sycl/__impl/range.hpp>
 #include <sycl/__impl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 namespace ext {
 namespace intel {

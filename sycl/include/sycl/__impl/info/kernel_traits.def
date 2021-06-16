@@ -2,6 +2,6 @@ __SYCL_PARAM_TRAITS_SPEC(kernel, function_name, string_class)
 __SYCL_PARAM_TRAITS_SPEC(kernel, num_args, cl_uint)
 __SYCL_PARAM_TRAITS_SPEC(kernel, reference_count, cl_uint)
 __SYCL_PARAM_TRAITS_SPEC(kernel, attributes, string_class)
-__SYCL_PARAM_TRAITS_SPEC(kernel, context, cl::sycl::context)
-__SYCL_PARAM_TRAITS_SPEC(kernel, program, cl::sycl::program)
+__SYCL_PARAM_TRAITS_SPEC(kernel, context, sycl::context)
+__SYCL_PARAM_TRAITS_SPEC(kernel, program, sycl::program)
 

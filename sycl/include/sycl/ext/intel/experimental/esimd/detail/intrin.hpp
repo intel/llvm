@@ -134,8 +134,8 @@ __esimd_wrindirect(__SEIEED::vector_type_t<T, N> OldVal,
                    __SEIEED::vector_type_t<uint16_t, M> Offset,
                    __SEIEE::mask_type_t<M> Mask = 1);
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ext {
 namespace intel {
 namespace experimental {

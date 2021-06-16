@@ -14,8 +14,8 @@
 #include <cassert>
 #include <cstddef>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 // Forward declaration
 template <typename dataT, int dimensions, access::mode accessMode,
           access::target accessTarget, access::placeholder isPlaceholder,
@@ -30,7 +30,7 @@ template <typename ElementType, access::address_space Space> class multi_ptr {
 public:
   using element_type =
       detail::conditional_t<std::is_same<ElementType, half>::value,
-                    cl::sycl::detail::half_impl::BIsRepresentationT,
+                    sycl::detail::half_impl::BIsRepresentationT,
                     ElementType>;
   using difference_type = std::ptrdiff_t;
 
@@ -693,3 +693,7 @@ bool operator<=(std::nullptr_t, const multi_ptr<ElementType, Space> &rhs) {
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}

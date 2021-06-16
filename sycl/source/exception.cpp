@@ -10,8 +10,8 @@
 #include <sycl/__impl/context.hpp>
 #include <sycl/__impl/exception.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 const char *exception::what() const noexcept { return MMsg.c_str(); }
 

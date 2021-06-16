@@ -10,8 +10,8 @@
 
 #include <sycl/__impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace INTEL {
 
 class platform_selector : public device_selector {
@@ -50,3 +50,9 @@ public:
 } // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+namespace INTEL {
+  using namespace __sycl_internal::__v1::INTEL;
+}
+}

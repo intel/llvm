@@ -13,8 +13,8 @@
 
 #include <cstddef>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 ///
 // Explicit USM
 ///
@@ -171,3 +171,7 @@ __SYCL_EXPORT device get_pointer_device(const void *ptr, const context &ctxt);
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}

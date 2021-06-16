@@ -14,11 +14,11 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
+namespace __sycl_internal {
+inline namespace __v1 {
+using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 namespace detail {
-std::vector<RT::PiEvent> getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
+std::vector<RT::PiEvent> getOrWaitEvents(std::vector<sycl::event> DepEvents,
                                          ContextImplPtr Context) {
   std::vector<RT::PiEvent> Events;
   for (auto SyclEvent : DepEvents) {
@@ -33,7 +33,7 @@ std::vector<RT::PiEvent> getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
   return Events;
 }
 
-void waitEvents(std::vector<cl::sycl::event> DepEvents) {
+void waitEvents(std::vector<sycl::event> DepEvents) {
   for (auto SyclEvent : DepEvents) {
     detail::getSyclObjImpl(SyclEvent)->waitInternal();
   }

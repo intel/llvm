@@ -13,8 +13,8 @@
 #include <sycl/__impl/item.hpp>
 #include <sycl/__impl/range.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 namespace detail {
 class Builder;
@@ -136,3 +136,7 @@ private:
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}

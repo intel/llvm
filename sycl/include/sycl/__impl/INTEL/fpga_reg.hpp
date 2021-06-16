@@ -10,8 +10,8 @@
 
 #include <sycl/__impl/detail/defines.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace INTEL {
 
 template <typename _T> _T fpga_reg(const _T &t) {
@@ -26,10 +26,16 @@ template <typename _T> _T fpga_reg(const _T &t) {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+namespace sycl {
+namespace INTEL {
+  using namespace __sycl_internal::__v1::INTEL;
+}
+}
+
 // Keep it consistent with FPGA attributes like intelfpga::memory()
 // Currently clang does not support nested namespace for attributes
 namespace intelfpga {
 template <typename _T> _T fpga_reg(const _T &t) {
-  return cl::sycl::INTEL::fpga_reg(t);
+  return sycl::INTEL::fpga_reg(t);
 }
 } // namespace intelfpga

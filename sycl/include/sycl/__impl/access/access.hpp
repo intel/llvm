@@ -10,8 +10,8 @@
 #include <sycl/__impl/detail/common.hpp>
 #include <sycl/__impl/detail/defines.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace access {
 
 enum class target {
@@ -257,3 +257,7 @@ template <class T> struct deduce_AS<__OPENCL_CONSTANT_AS__ T> {
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}

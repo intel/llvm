@@ -201,8 +201,8 @@
 /// accessor_common contains several helpers common for both accessor(1) and
 /// accessor(3)
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 class stream;
 namespace ext {
 namespace intel {
@@ -1619,7 +1619,7 @@ public:
 private:
   void checkDeviceAccessorBufferSize(const size_t elemInBuffer) {
     if (!IsHostBuf && elemInBuffer == 0)
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "SYCL buffer size is zero. To create a device accessor, SYCL "
           "buffer size must be greater than zero.",
           PI_INVALID_VALUE);
@@ -1988,7 +1988,7 @@ class accessor<DataT, Dimensions, AccessMode, access::target::image,
                                     access::target::image, IsPlaceholder> {
 public:
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image,
+  accessor(sycl::image<Dimensions, AllocatorT> &Image,
            handler &CommandGroupHandler)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::image, IsPlaceholder>(
@@ -2001,7 +2001,7 @@ public:
   }
 
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image,
+  accessor(sycl::image<Dimensions, AllocatorT> &Image,
            handler &CommandGroupHandler, const property_list &propList)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::image, IsPlaceholder>(
@@ -2047,13 +2047,13 @@ class accessor<DataT, Dimensions, AccessMode, access::target::host_image,
                                     access::target::host_image, IsPlaceholder> {
 public:
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image)
+  accessor(sycl::image<Dimensions, AllocatorT> &Image)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::host_image, IsPlaceholder>(
             Image, (detail::getSyclObjImpl(Image))->getElementSize()) {}
 
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image,
+  accessor(sycl::image<Dimensions, AllocatorT> &Image,
            const property_list &propList)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::host_image, IsPlaceholder>(
@@ -2095,7 +2095,7 @@ public:
 #endif
 public:
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions + 1, AllocatorT> &Image,
+  accessor(sycl::image<Dimensions + 1, AllocatorT> &Image,
            handler &CommandGroupHandler)
       : detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                access::target::image, IsPlaceholder>(
@@ -2108,7 +2108,7 @@ public:
   }
 
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions + 1, AllocatorT> &Image,
+  accessor(sycl::image<Dimensions + 1, AllocatorT> &Image,
            handler &CommandGroupHandler, const property_list &propList)
       : detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                access::target::image, IsPlaceholder>(
@@ -2347,12 +2347,12 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
-struct hash<cl::sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
+template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
+          sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
+struct hash<sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
                                IsPlaceholder>> {
-  using AccType = cl::sycl::accessor<DataT, Dimensions, AccessMode,
+  using AccType = sycl::accessor<DataT, Dimensions, AccessMode,
                                      AccessTarget, IsPlaceholder>;
 
   size_t operator()(const AccType &A) const {
@@ -2363,10 +2363,14 @@ struct hash<cl::sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
 #else
     // getSyclObjImpl() here returns a pointer to either AccessorImplHost
     // or LocalAccessorImplHost depending on the AccessTarget.
-    auto AccImplPtr = cl::sycl::detail::getSyclObjImpl(A);
+    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
     return hash<decltype(AccImplPtr)>()(AccImplPtr);
 #endif
   }
 };
 
 } // namespace std
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}

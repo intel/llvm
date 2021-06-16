@@ -12,8 +12,8 @@
 #include <sycl/__spirv/spirv_types.hpp>
 #include <sycl/__impl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace INTEL {
 
 template <class _name, class _dataT, int32_t _min_capacity = 0> class pipe {
@@ -201,3 +201,9 @@ private:
 } // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+namespace INTEL {
+  using namespace __sycl_internal::__v1::INTEL;
+}
+}

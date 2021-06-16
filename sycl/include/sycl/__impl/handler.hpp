@@ -40,38 +40,38 @@
 #define __SYCL_NONCONST_FUNCTOR__
 #endif
 
-template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
+template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
+          sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
 class __fill;
 
 template <typename T> class __usmfill;
 
 template <typename T_Src, typename T_Dst, int Dims,
-          cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
+          sycl::access::mode AccessMode,
+          sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
 class __copyAcc2Ptr;
 
 template <typename T_Src, typename T_Dst, int Dims,
-          cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
+          sycl::access::mode AccessMode,
+          sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
 class __copyPtr2Acc;
 
-template <typename T_Src, int Dims_Src, cl::sycl::access::mode AccessMode_Src,
-          cl::sycl::access::target AccessTarget_Src, typename T_Dst,
-          int Dims_Dst, cl::sycl::access::mode AccessMode_Dst,
-          cl::sycl::access::target AccessTarget_Dst,
-          cl::sycl::access::placeholder IsPlaceholder_Src,
-          cl::sycl::access::placeholder IsPlaceholder_Dst>
+template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
+          sycl::access::target AccessTarget_Src, typename T_Dst,
+          int Dims_Dst, sycl::access::mode AccessMode_Dst,
+          sycl::access::target AccessTarget_Dst,
+          sycl::access::placeholder IsPlaceholder_Src,
+          sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
 
 // For unit testing purposes
 class MockHandler;
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Forward declaration
 
@@ -207,8 +207,8 @@ template <typename T, class BinaryOperation, int Dims, bool IsUSM,
           access::placeholder IsPlaceholder>
 class reduction_impl;
 
-using cl::sycl::detail::enable_if_t;
-using cl::sycl::detail::queue_impl;
+using sycl::detail::enable_if_t;
+using sycl::detail::queue_impl;
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 enable_if_t<Reduction::has_fast_atomics>
@@ -526,7 +526,7 @@ private:
     if (detail::isKernelLambdaCallableWithKernelHandler<KernelType,
                                                         LambdaArgType>() &&
         MIsHost) {
-      throw cl::sycl::feature_not_supported(
+      throw sycl::feature_not_supported(
           "kernel_handler is not yet supported by host device.",
           PI_INVALID_OPERATION);
     }
@@ -2314,3 +2314,7 @@ private:
 };
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}

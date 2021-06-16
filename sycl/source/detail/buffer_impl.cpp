@@ -11,8 +11,8 @@
 #include <detail/context_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                   void *HostPtr, RT::PiEvent &OutEventToWait) {

@@ -11,8 +11,8 @@
 
 #include <functional>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ONEAPI {
 
 template <typename T = void> struct minimum {
@@ -134,3 +134,9 @@ static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+namespace ONEAPI {
+  using namespace __sycl_internal::__v1::ONEAPI;
+}
+}

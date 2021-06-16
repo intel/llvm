@@ -24,8 +24,8 @@
 #include <cctype>
 #include <regex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Utility function to check if device is of the preferred backend.
 // Currently preference is given to the level_zero backend.
@@ -121,7 +121,7 @@ device device_selector::select_device() const {
     return *res;
   }
 
-  throw cl::sycl::runtime_error("No device of requested type available.",
+  throw sycl::runtime_error("No device of requested type available.",
                                 PI_DEVICE_NOT_FOUND);
 }
 

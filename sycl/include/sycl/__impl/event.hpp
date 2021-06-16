@@ -16,8 +16,8 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 // Forward declaration
 class context;
 namespace detail {
@@ -151,11 +151,15 @@ private:
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}
+
 namespace std {
-template <> struct hash<cl::sycl::event> {
-  size_t operator()(const cl::sycl::event &e) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::event_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(e));
+template <> struct hash<sycl::event> {
+  size_t operator()(const sycl::event &e) const {
+    return hash<sycl::shared_ptr_class<sycl::detail::event_impl>>()(
+        sycl::detail::getSyclObjImpl(e));
   }
 };
 } // namespace std

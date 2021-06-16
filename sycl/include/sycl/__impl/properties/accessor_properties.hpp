@@ -13,8 +13,8 @@
 #include <sycl/__impl/detail/property_helper.hpp>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace property {
 
 class no_init : public detail::DataLessProperty<detail::NoInit> {};
@@ -117,3 +117,7 @@ struct IsCompileTimePropertyInstance<ONEAPI::property::no_offset::instance<>>
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}

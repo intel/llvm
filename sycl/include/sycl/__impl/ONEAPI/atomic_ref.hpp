@@ -20,8 +20,8 @@
 #endif
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Forward declaration
 template <typename pointerT, access::address_space AddressSpace>
@@ -31,16 +31,16 @@ namespace ONEAPI {
 namespace detail {
 
 // Import from detail:: into ONEAPI::detail:: to improve readability later
-using namespace ::cl::sycl::detail;
+using namespace ::sycl::detail;
 
-using memory_order = cl::sycl::ONEAPI::memory_order;
-using memory_scope = cl::sycl::ONEAPI::memory_scope;
+using memory_order = sycl::ONEAPI::memory_order;
+using memory_scope = sycl::ONEAPI::memory_scope;
 
 template <typename T>
 using IsValidAtomicType =
     bool_constant<std::is_arithmetic<T>::value || std::is_pointer<T>::value>;
 
-template <cl::sycl::access::address_space AS>
+template <sycl::access::address_space AS>
 using IsValidAtomicAddressSpace =
     bool_constant<AS == access::address_space::global_space ||
                   AS == access::address_space::local_space ||
@@ -669,3 +669,9 @@ public:
 } // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+namespace ONEAPI {
+  using namespace __sycl_internal::__v1::ONEAPI;
+}
+}

@@ -135,8 +135,8 @@ template<class Container>
 #define _SYCL_SPAN_TEMPLATE_VIS
 #define _SYCL_SPAN_INLINE_VISIBILITY inline
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // byte is unsigned char at sycl/image.hpp:58
 using byte = unsigned char;
@@ -623,6 +623,10 @@ span(const _Container &)->span<const typename _Container::value_type>;
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}
 
 #endif // _SYCL_SPAN
 

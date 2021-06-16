@@ -37,8 +37,8 @@ extern "C" __SYCL_EXPORT void __sycl_unregister_lib(pi_device_binaries desc);
 
 // +++ }
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 class context;
 namespace detail {
 

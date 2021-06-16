@@ -24,8 +24,8 @@
 
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 template <typename T, access::address_space Space> class multi_ptr;
 
 namespace detail {
@@ -730,7 +730,7 @@ struct sub_group {
   }
 
 protected:
-  template <int dimensions> friend class cl::sycl::nd_item;
+  template <int dimensions> friend class sycl::nd_item;
   friend sub_group this_sub_group();
   sub_group() = default;
 };
@@ -747,3 +747,9 @@ inline sub_group this_sub_group() {
 } // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+namespace ONEAPI {
+  using namespace __sycl_internal::__v1::ONEAPI;
+}
+}

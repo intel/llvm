@@ -19,8 +19,8 @@
 #include <memory>
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 // Forward declarations
 class device_selector;
 namespace detail {
@@ -216,11 +216,15 @@ private:
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}
+
 namespace std {
-template <> struct hash<cl::sycl::device> {
-  size_t operator()(const cl::sycl::device &Device) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::device_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Device));
+template <> struct hash<sycl::device> {
+  size_t operator()(const sycl::device &Device) const {
+    return hash<sycl::shared_ptr_class<sycl::detail::device_impl>>()(
+        sycl::detail::getSyclObjImpl(Device));
   }
 };
 } // namespace std

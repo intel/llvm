@@ -17,8 +17,8 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 template <typename T> class aligned_allocator {
 public:

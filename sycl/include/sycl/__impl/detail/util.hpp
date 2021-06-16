@@ -16,8 +16,8 @@
 #include <cstring>
 #include <mutex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 /// Groups and provides access to all the locks used the SYCL runtime.

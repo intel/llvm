@@ -11,8 +11,8 @@
 #include <sycl/__impl/sampler.hpp>
 #include <detail/sampler_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 sampler::sampler(coordinate_normalization_mode normalizationMode,
                  addressing_mode addressingMode, filtering_mode filteringMode,
                  const property_list &propList)

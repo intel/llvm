@@ -19,8 +19,8 @@
 #include <sycl/__impl/detail/sycl_fe_intrins.hpp>
 #include <sycl/__impl/exception.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 class program;
 
 namespace ONEAPI {
@@ -43,7 +43,7 @@ private:
 #else
   char padding[sizeof(T)];
 #endif // __SYCL_DEVICE_ONLY__
-  friend class cl::sycl::program;
+  friend class sycl::program;
 
 public:
   template <typename V = T>

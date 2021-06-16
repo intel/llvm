@@ -12,8 +12,8 @@
 #include <functional>
 #include <stdexcept>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 template <int dimensions> class id;
 template <int dimensions> class range;
 namespace detail {
@@ -48,16 +48,16 @@ public:
   array() : array(0, 0, 0) {}
 
   // Conversion operators to derived classes
-  operator cl::sycl::id<dimensions>() const {
-    cl::sycl::id<dimensions> result;
+  operator sycl::id<dimensions>() const {
+    sycl::id<dimensions> result;
     for (int i = 0; i < dimensions; ++i) {
       result[i] = common_array[i];
     }
     return result;
   }
 
-  operator cl::sycl::range<dimensions>() const {
-    cl::sycl::range<dimensions> result;
+  operator sycl::range<dimensions>() const {
+    sycl::range<dimensions> result;
     for (int i = 0; i < dimensions; ++i) {
       result[i] = common_array[i];
     }
@@ -111,7 +111,7 @@ protected:
   __SYCL_ALWAYS_INLINE void check_dimension(int dimension) const {
 #ifndef __SYCL_DEVICE_ONLY__
     if (dimension >= dimensions || dimension < 0) {
-      throw cl::sycl::invalid_parameter_error("Index out of range",
+      throw sycl::invalid_parameter_error("Index out of range",
                                               PI_INVALID_VALUE);
     }
 #endif

@@ -18,8 +18,8 @@ class TestKernel;
 class TestKernel2;
 const static sycl::specialization_id<int> SpecConst1{42};
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }

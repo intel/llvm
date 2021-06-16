@@ -27,8 +27,8 @@
 #include <mutex>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 // The class is impl counterpart for sycl::device_image

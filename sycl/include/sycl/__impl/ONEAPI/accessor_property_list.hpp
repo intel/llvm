@@ -13,8 +13,8 @@
 #include <sycl/__impl/detail/property_list_base.hpp>
 #include <sycl/__impl/property_list.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 // Forward declaration
 template <typename, int, access::mode, access::target, access::placeholder,
           typename PropertyListT>
@@ -230,3 +230,9 @@ private:
 } // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+namespace ONEAPI {
+  using namespace __sycl_internal::__v1::ONEAPI;
+}
+}

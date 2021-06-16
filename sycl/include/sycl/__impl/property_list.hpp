@@ -11,8 +11,8 @@
 #include <sycl/__impl/detail/common.hpp>
 #include <sycl/__impl/detail/property_list_base.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ONEAPI {
 template <typename... PropsT> class accessor_property_list;
 }
@@ -58,3 +58,7 @@ private:
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}
