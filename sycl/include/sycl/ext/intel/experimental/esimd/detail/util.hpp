@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/__impl/detail/type_traits.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 
 #include <type_traits>

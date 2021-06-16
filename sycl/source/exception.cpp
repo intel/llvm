@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // 4.9.2 Exception Class Interface
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/__impl/context.hpp>
+#include <sycl/__impl/exception.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -7,7 +7,7 @@ include_directories(${OpenCL_INCLUDE_DIR})
 include_directories(${LIBCMRT_INCLUDE})
 
 add_library(pi_esimd_cpu SHARED
-  "${sycl_inc_dir}/CL/sycl/detail/pi.h"
+  "${sycl_inc_dir}/sycl/__impl/detail/pi.h"
   "pi_esimd_cpu.cpp"
 )
 

@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/__impl/backend_types.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/pi.hpp>
+#include <sycl/__impl/stl.hpp>
 #include <detail/plugin_printers.hpp>
 #include <memory>
 #include <mutex>

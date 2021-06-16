@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
+#include <sycl/__impl/backend_types.hpp>
+#include <sycl/__impl/context.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/pi.h>
+#include <sycl/__impl/device.hpp>
+#include <sycl/__impl/kernel_bundle.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>

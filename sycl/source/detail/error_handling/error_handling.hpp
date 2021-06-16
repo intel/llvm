@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/cg.hpp>
-#include <CL/sycl/detail/pi.h>
+#include <sycl/__impl/detail/cg.hpp>
+#include <sycl/__impl/detail/pi.h>
 #include <detail/device_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

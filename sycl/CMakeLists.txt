@@ -96,7 +96,7 @@ set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
 set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
-set(version_header "${sycl_inc_dir}/CL/sycl/version.hpp")
+set(version_header "${sycl_inc_dir}/sycl/__impl/version.hpp")
 configure_file("${version_header}.in" "${version_header}")
 
 # Copy SYCL headers from sources to build directory

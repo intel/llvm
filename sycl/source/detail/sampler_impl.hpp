@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/property_list.hpp>
+#include <sycl/__spirv/spirv_types.hpp>
+#include <sycl/__impl/context.hpp>
+#include <sycl/__impl/detail/export.hpp>
+#include <sycl/__impl/property_list.hpp>
 
 #include <unordered_map>
 

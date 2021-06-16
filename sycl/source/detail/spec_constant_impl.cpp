@@ -8,10 +8,10 @@
 
 #include <detail/spec_constant_impl.hpp>
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/__impl/detail/defines.hpp>
+#include <sycl/__impl/detail/pi.h>
+#include <sycl/__impl/detail/util.hpp>
+#include <sycl/__impl/exception.hpp>
 
 #include <cstring>
 #include <iostream>

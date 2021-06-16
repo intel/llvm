@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/os_util.hpp>
+#include <sycl/__impl/detail/os_util.hpp>
 #include <gtest/gtest.h>
 
 #ifdef _WIN32

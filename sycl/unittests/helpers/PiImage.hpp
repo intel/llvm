@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/sycl.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/pi.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 

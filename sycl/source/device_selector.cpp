@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/ONEAPI/filter_selector.hpp>
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/__impl/ONEAPI/filter_selector.hpp>
+#include <sycl/__impl/backend_types.hpp>
+#include <sycl/__impl/detail/device_filter.hpp>
+#include <sycl/__impl/device.hpp>
+#include <sycl/__impl/device_selector.hpp>
+#include <sycl/__impl/exception.hpp>
+#include <sycl/__impl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/filter_selector_impl.hpp>

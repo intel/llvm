@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/host_profiling_info.hpp>
+#include <sycl/__impl/detail/pi.hpp>
+#include <sycl/__impl/info/info_desc.hpp>
+#include <sycl/__impl/stl.hpp>
 #include <detail/plugin.hpp>
 
 #include <atomic>

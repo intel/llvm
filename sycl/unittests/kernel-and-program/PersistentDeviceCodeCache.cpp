@@ -9,9 +9,9 @@
 // Detailed description of the tests cases can be seen per test function.
 #include "../thread_safety/ThreadUtils.h"
 #include "detail/persistent_device_code_cache.hpp"
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/device_binary_image.hpp>
-#include <CL/sycl/detail/os_util.hpp>
+#include <sycl/sycl.hpp>
+#include <sycl/__impl/detail/device_binary_image.hpp>
+#include <sycl/__impl/detail/os_util.hpp>
 #include <cstdio>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>

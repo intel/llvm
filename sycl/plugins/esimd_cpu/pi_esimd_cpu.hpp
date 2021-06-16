@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.h>
+#include <sycl/__impl/detail/pi.h>
 #include <atomic>
 #include <cassert>
 #include <iostream>
@@ -43,4 +43,4 @@ template <> uint32_t pi_cast(uint64_t Value) {
   std::terminate();
 }
 
-#include <CL/sycl/INTEL/esimd/detail/emu/esimdcpu_device_interface.hpp>
+#include <sycl/__impl/INTEL/esimd/detail/emu/esimdcpu_device_interface.hpp>

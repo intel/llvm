@@ -99,7 +99,7 @@ target_include_directories(LevelZeroLoader-Headers
 include_directories("${sycl_inc_dir}")
 
 add_library(pi_level_zero SHARED
-  "${sycl_inc_dir}/CL/sycl/detail/pi.h"
+  "${sycl_inc_dir}/sycl/__impl/detail/pi.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.hpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.cpp"

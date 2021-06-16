@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/info/info_desc.hpp>
+#include <sycl/__impl/backend_types.hpp>
+#include <sycl/__impl/detail/defines.hpp>
+#include <sycl/__impl/detail/device_filter.hpp>
+#include <sycl/__impl/detail/pi.hpp>
+#include <sycl/__impl/info/info_desc.hpp>
 #include <detail/global_handler.hpp>
 
 #include <algorithm>

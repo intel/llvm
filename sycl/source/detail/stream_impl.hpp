@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/buffer.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/range.hpp>
-#include <CL/sycl/stream.hpp>
+#include <sycl/__impl/accessor.hpp>
+#include <sycl/__impl/buffer.hpp>
+#include <sycl/__impl/detail/export.hpp>
+#include <sycl/__impl/handler.hpp>
+#include <sycl/__impl/range.hpp>
+#include <sycl/__impl/stream.hpp>
 
 #include <vector>
 

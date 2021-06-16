@@ -10,9 +10,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp> // to define C++14,17 extensions
-#include <CL/sycl/half_type.hpp>
+#include <sycl/__impl/detail/defines.hpp>
+#include <sycl/__impl/detail/stl_type_traits.hpp> // to define C++14,17 extensions
+#include <sycl/__impl/half_type.hpp>
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/region.hpp>
 

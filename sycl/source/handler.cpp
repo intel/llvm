@@ -8,13 +8,13 @@
 
 #include <algorithm>
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stream.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/helpers.hpp>
+#include <sycl/__impl/detail/kernel_desc.hpp>
+#include <sycl/__impl/event.hpp>
+#include <sycl/__impl/handler.hpp>
+#include <sycl/__impl/info/info_desc.hpp>
+#include <sycl/__impl/stream.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>

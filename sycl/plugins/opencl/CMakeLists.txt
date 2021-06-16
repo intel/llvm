@@ -11,7 +11,7 @@
 #This can be changed by copying the pi.h file in the plugins project.
 
 add_library(pi_opencl SHARED
-  "${sycl_inc_dir}/CL/sycl/detail/pi.h"
+  "${sycl_inc_dir}/sycl/__impl/detail/pi.h"
   "pi_opencl.cpp"
   )
 

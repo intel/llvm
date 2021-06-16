@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
+#include <sycl/__impl/detail/defines.hpp>
 
 #include <cstddef>
 #include <deque>

@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/__impl/context.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/pi.hpp>
+#include <sycl/__impl/event.hpp>
+#include <sycl/__impl/info/info_desc.hpp>
+#include <sycl/__impl/stl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -70,7 +70,7 @@ event::event(shared_ptr_class<detail::event_impl> event_impl)
     return impl->get_info<info::param_type::param>();                          \
   }
 
-#include <CL/sycl/info/event_traits.def>
+#include <sycl/__impl/info/event_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -82,7 +82,7 @@ event::event(shared_ptr_class<detail::event_impl> event_impl)
     return impl->get_profiling_info<info::param_type::param>();                \
   }
 
-#include <CL/sycl/info/event_profiling_traits.def>
+#include <sycl/__impl/info/event_profiling_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

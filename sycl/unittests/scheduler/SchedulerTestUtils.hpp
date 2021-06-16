@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/cl.h>
+#include <sycl/sycl.hpp>
+#include <sycl/__impl/detail/cl.h>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>

@@ -7,13 +7,13 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common_info.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/program.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/__impl/context.hpp>
+#include <sycl/__impl/detail/common_info.hpp>
+#include <sycl/__impl/detail/kernel_desc.hpp>
+#include <sycl/__impl/device.hpp>
+#include <sycl/__impl/program.hpp>
+#include <sycl/__impl/property_list.hpp>
+#include <sycl/__impl/stl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>

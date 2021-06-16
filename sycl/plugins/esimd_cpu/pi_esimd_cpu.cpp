@@ -14,19 +14,19 @@
 
 #include <stdint.h>
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/nd_item.hpp>
-#include <CL/sycl/range.hpp>
+#include <sycl/__impl/backend_types.hpp>
+#include <sycl/__impl/detail/accessor_impl.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/export.hpp>
+#include <sycl/__impl/detail/helpers.hpp>
+#include <sycl/__impl/detail/host_profiling_info.hpp>
+#include <sycl/__impl/detail/kernel_desc.hpp>
+#include <sycl/__impl/detail/type_traits.hpp>
+#include <sycl/__impl/group.hpp>
+#include <sycl/__impl/id.hpp>
+#include <sycl/__impl/kernel.hpp>
+#include <sycl/__impl/nd_item.hpp>
+#include <sycl/__impl/range.hpp>
 
 #include <cstdarg>
 #include <cstdio>
@@ -1247,7 +1247,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
-#include <CL/sycl/detail/pi.def>
+#include <sycl/__impl/detail/pi.def>
 
   return PI_SUCCESS;
 }

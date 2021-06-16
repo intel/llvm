@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/cg.hpp>
-#include <CL/sycl/detail/sycl_mem_obj_i.hpp>
+#include <sycl/__impl/detail/cg.hpp>
+#include <sycl/__impl/detail/sycl_mem_obj_i.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/leaves_collection.hpp>
 

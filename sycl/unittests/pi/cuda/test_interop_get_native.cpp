@@ -9,8 +9,8 @@
 #include "gtest/gtest.h"
 
 #include "TestGetPlatforms.hpp"
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/cuda.hpp>
+#include <sycl/sycl.hpp>
+#include <sycl/__impl/backend/cuda.hpp>
 #include <cuda.h>
 #include <iostream>
 

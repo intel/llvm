@@ -25,9 +25,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/sycl.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/pi.hpp>
 #include <detail/platform_impl.hpp>
 
 #include <functional>
@@ -53,7 +53,7 @@ namespace RT = detail::pi;
                                                  decltype(&::api) FuncPtr) {   \
     MPlugin->PiFunctionTable.api = FuncPtr;                                    \
   }
-#include <CL/sycl/detail/pi.def>
+#include <sycl/__impl/detail/pi.def>
 #undef _PI_API
 
 /// The PiMock class wraps an instance of a SYCL platform class,

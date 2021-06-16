@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/__impl/detail/pi.hpp>
 
 #include <memory>
 
-#include <CL/sycl/detail/device_binary_image.hpp>
+#include <sycl/__impl/detail/device_binary_image.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/program.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/pi.h>
+#include <sycl/__impl/detail/pi.hpp>
+#include <sycl/__impl/device.hpp>
+#include <sycl/__impl/info/info_desc.hpp>
+#include <sycl/__impl/program.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_info.hpp>

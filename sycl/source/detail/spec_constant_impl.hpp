@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/__impl/detail/defines.hpp>
+#include <sycl/__impl/detail/util.hpp>
+#include <sycl/__impl/stl.hpp>
 
 #include <iostream>
 #include <map>

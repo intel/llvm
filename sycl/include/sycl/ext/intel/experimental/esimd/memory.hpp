@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <CL/sycl/half_type.hpp>
+#include <sycl/__impl/half_type.hpp>
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>

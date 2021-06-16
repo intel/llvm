@@ -11,8 +11,8 @@
 #include <cuda.h>
 
 #include "TestGetPlatforms.hpp"
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/cuda.hpp>
+#include <sycl/sycl.hpp>
+#include <sycl/__impl/backend/cuda.hpp>
 #include <pi_cuda.hpp>
 
 #include <iostream>

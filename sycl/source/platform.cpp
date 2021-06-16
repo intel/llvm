@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/platform.hpp>
+#include <sycl/__impl/device.hpp>
+#include <sycl/__impl/device_selector.hpp>
+#include <sycl/__impl/info/info_desc.hpp>
+#include <sycl/__impl/platform.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/force_device.hpp>
 #include <detail/platform_impl.hpp>
@@ -61,7 +61,7 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
   template __SYCL_EXPORT ret_type                                              \
   platform::get_info<info::param_type::param>() const;
 
-#include <CL/sycl/info/platform_traits.def>
+#include <sycl/__impl/info/platform_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

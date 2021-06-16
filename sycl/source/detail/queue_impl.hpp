@@ -8,16 +8,16 @@
 
 #pragma once
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/properties/context_properties.hpp>
-#include <CL/sycl/properties/queue_properties.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/__impl/context.hpp>
+#include <sycl/__impl/device.hpp>
+#include <sycl/__impl/event.hpp>
+#include <sycl/__impl/exception.hpp>
+#include <sycl/__impl/exception_list.hpp>
+#include <sycl/__impl/handler.hpp>
+#include <sycl/__impl/properties/context_properties.hpp>
+#include <sycl/__impl/properties/queue_properties.hpp>
+#include <sycl/__impl/property_list.hpp>
+#include <sycl/__impl/stl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>

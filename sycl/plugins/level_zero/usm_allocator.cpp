@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "usm_allocator.hpp"
-#include <CL/sycl/detail/spinlock.hpp>
+#include <sycl/__impl/detail/spinlock.hpp>
 #include <iostream>
 
 // USM allocations are a mimimum of 64KB in size even when a smaller size is
