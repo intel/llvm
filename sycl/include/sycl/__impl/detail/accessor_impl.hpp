@@ -15,8 +15,8 @@
 #include <sycl/__impl/range.hpp>
 #include <sycl/__impl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 namespace ext {
 namespace intel {
@@ -36,7 +36,7 @@ namespace detail {
 class Command;
 
 // The class describes a requirement to access a SYCL memory object such as
-// sycl::buffer and sycl::image. For example, each accessor used in a kernel,
+// __sycl_internal::__v1::buffer and __sycl_internal::__v1::image. For example, each accessor used in a kernel,
 // except one with access target "local", adds such requirement for the command
 // group.
 
@@ -59,7 +59,7 @@ public:
 
 template <int Dims> class LocalAccessorBaseDevice {
 public:
-  LocalAccessorBaseDevice(sycl::range<Dims> Size)
+  LocalAccessorBaseDevice(__sycl_internal::__v1::range<Dims> Size)
       : AccessRange(Size),
         MemRange(InitializedVal<Dims, range>::template get<0>()) {}
   // TODO: Actually we need only one field here, but currently compiler requires
@@ -164,17 +164,17 @@ protected:
   AccessorImplPtr impl;
 
 private:
-  friend class sycl::ext::intel::experimental::esimd::detail::
+  friend class __sycl_internal::__v1::ext::intel::experimental::esimd::detail::
       AccessorPrivateProxy;
 };
 
 class __SYCL_EXPORT LocalAccessorImplHost {
 public:
-  LocalAccessorImplHost(sycl::range<3> Size, int Dims, int ElemSize)
+  LocalAccessorImplHost(__sycl_internal::__v1::range<3> Size, int Dims, int ElemSize)
       : MSize(Size), MDims(Dims), MElemSize(ElemSize),
         MMem(Size[0] * Size[1] * Size[2] * ElemSize) {}
 
-  sycl::range<3> MSize;
+  __sycl_internal::__v1::range<3> MSize;
   int MDims;
   int MElemSize;
   std::vector<char> MMem;
@@ -184,12 +184,12 @@ using LocalAccessorImplPtr = shared_ptr_class<LocalAccessorImplHost>;
 
 class LocalAccessorBaseHost {
 public:
-  LocalAccessorBaseHost(sycl::range<3> Size, int Dims, int ElemSize) {
+  LocalAccessorBaseHost(__sycl_internal::__v1::range<3> Size, int Dims, int ElemSize) {
     impl = shared_ptr_class<LocalAccessorImplHost>(
         new LocalAccessorImplHost(Size, Dims, ElemSize));
   }
-  sycl::range<3> &getSize() { return impl->MSize; }
-  const sycl::range<3> &getSize() const { return impl->MSize; }
+  __sycl_internal::__v1::range<3> &getSize() { return impl->MSize; }
+  const __sycl_internal::__v1::range<3> &getSize() const { return impl->MSize; }
   void *getPtr() { return impl->MMem.data(); }
   void *getPtr() const {
     return const_cast<void *>(reinterpret_cast<void *>(impl->MMem.data()));

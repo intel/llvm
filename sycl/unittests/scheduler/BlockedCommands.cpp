@@ -144,8 +144,8 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
   B.MIsBlockable = true;
   B.MRetVal = CL_SUCCESS;
 
-  cl::sycl::detail::EventImplPtr DepEvent{
-      new cl::sycl::detail::event_impl(detail::getSyclObjImpl(MQueue))};
+  __sycl_internal::__v1::detail::EventImplPtr DepEvent{
+      new __sycl_internal::__v1::detail::event_impl(detail::getSyclObjImpl(MQueue))};
   DepEvent->setCommand(&B);
 
   A.addDep(DepEvent);

@@ -20,8 +20,8 @@
 #endif
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Forward declaration
 template <typename pointerT, access::address_space AddressSpace>
@@ -31,16 +31,16 @@ namespace ONEAPI {
 namespace detail {
 
 // Import from detail:: into ONEAPI::detail:: to improve readability later
-using namespace ::cl::sycl::detail;
+using namespace ::__sycl_internal::__v1::detail;
 
-using memory_order = cl::sycl::ONEAPI::memory_order;
-using memory_scope = cl::sycl::ONEAPI::memory_scope;
+using memory_order = __sycl_internal::__v1::ONEAPI::memory_order;
+using memory_scope = __sycl_internal::__v1::ONEAPI::memory_scope;
 
 template <typename T>
 using IsValidAtomicType =
     bool_constant<std::is_arithmetic<T>::value || std::is_pointer<T>::value>;
 
-template <cl::sycl::access::address_space AS>
+template <__sycl_internal::__v1::access::address_space AS>
 using IsValidAtomicAddressSpace =
     bool_constant<AS == access::address_space::global_space ||
                   AS == access::address_space::local_space ||
@@ -94,16 +94,16 @@ struct bit_equal<T, typename detail::enable_if_t<std::is_integral<T>::value>> {
 
 template <> struct bit_equal<float> {
   bool operator()(const float &lhs, const float &rhs) {
-    auto LhsInt = sycl::bit_cast<uint32_t>(lhs);
-    auto RhsInt = sycl::bit_cast<uint32_t>(rhs);
+    auto LhsInt = __sycl_internal::__v1::bit_cast<uint32_t>(lhs);
+    auto RhsInt = __sycl_internal::__v1::bit_cast<uint32_t>(rhs);
     return LhsInt == RhsInt;
   }
 };
 
 template <> struct bit_equal<double> {
   bool operator()(const double &lhs, const double &rhs) {
-    auto LhsInt = sycl::bit_cast<uint64_t>(lhs);
-    auto RhsInt = sycl::bit_cast<uint64_t>(rhs);
+    auto LhsInt = __sycl_internal::__v1::bit_cast<uint64_t>(lhs);
+    auto RhsInt = __sycl_internal::__v1::bit_cast<uint64_t>(rhs);
     return LhsInt == RhsInt;
   }
 };

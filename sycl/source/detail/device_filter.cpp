@@ -13,8 +13,8 @@
 
 #include <cstring>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 device_filter::device_filter(const std::string &FilterString) {
@@ -78,7 +78,7 @@ device_filter::device_filter(const std::string &FilterString) {
           "\nPossible backend values are {host,opencl,level_zero,cuda,*}.\n"
           "Possible device types are {host,cpu,gpu,acc,*}.\n"
           "Device number should be an non-negative integer.\n";
-      throw cl::sycl::invalid_parameter_error(Message, PI_INVALID_VALUE);
+      throw __sycl_internal::__v1::invalid_parameter_error(Message, PI_INVALID_VALUE);
     }
   }
 }

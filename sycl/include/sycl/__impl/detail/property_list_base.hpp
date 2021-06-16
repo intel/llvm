@@ -16,8 +16,8 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 class PropertyListBase {
 protected:
@@ -92,14 +92,14 @@ protected:
   get_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind >= PropWithDataKind::PropWithDataKindSize)
-      throw sycl::invalid_object_error("The property is not found",
+      throw __sycl_internal::__v1::invalid_object_error("The property is not found",
                                        PI_INVALID_VALUE);
 
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
       if (Prop->isSame(PropKind))
         return *static_cast<PropT *>(Prop.get());
 
-    throw sycl::invalid_object_error("The property is not found",
+    throw __sycl_internal::__v1::invalid_object_error("The property is not found",
                                      PI_INVALID_VALUE);
   }
 

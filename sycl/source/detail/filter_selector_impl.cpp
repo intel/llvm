@@ -19,8 +19,8 @@
 #include <string>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ONEAPI {
 namespace detail {
 
@@ -58,7 +58,7 @@ filter create_filter(const std::string &Input) {
   // There should only be up to 3 tokens.
   // BE:Device Type:Device Num
   if (Tokens.size() > 3)
-    throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+    throw __sycl_internal::__v1::runtime_error(Error, PI_INVALID_VALUE);
 
   for (const std::string &Token : Tokens) {
     if (Token == "cpu" && !Result.HasDeviceType) {
@@ -85,7 +85,7 @@ filter create_filter(const std::string &Input) {
         Result.HasBackend = true;
       } else if (!Result.HasDeviceType && Result.Backend != backend::host) {
         // We already set everything earlier or it's an error.
-        throw sycl::runtime_error(
+        throw __sycl_internal::__v1::runtime_error(
             "Cannot specify host device with non-host backend.",
             PI_INVALID_VALUE);
       }
@@ -93,11 +93,11 @@ filter create_filter(const std::string &Input) {
       try {
         Result.DeviceNum = std::stoi(Token);
       } catch (std::logic_error &) {
-        throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+        throw __sycl_internal::__v1::runtime_error(Error, PI_INVALID_VALUE);
       }
       Result.HasDeviceNum = true;
     } else {
-      throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+      throw __sycl_internal::__v1::runtime_error(Error, PI_INVALID_VALUE);
     }
   }
 
@@ -129,7 +129,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
       if (Dev.is_host()) {
         BE = backend::host;
       } else {
-        BE = sycl::detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
+        BE = __sycl_internal::__v1::detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
       }
       // Backend is okay if the filter BE is set 'all'.
       if (Filter.Backend == backend::all)
@@ -163,7 +163,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
 
   mNumDevicesSeen++;
   if ((mNumDevicesSeen == mNumTotalDevices) && !mMatchFound) {
-    throw sycl::runtime_error(
+    throw __sycl_internal::__v1::runtime_error(
         "Could not find a device that matches the specified filter(s)!",
         PI_DEVICE_NOT_FOUND);
   }

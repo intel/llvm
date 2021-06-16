@@ -27,8 +27,8 @@
 
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
@@ -80,7 +80,7 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()) {
     if (!Context->hasDevice(Device))
-      throw cl::sycl::invalid_parameter_error(
+      throw __sycl_internal::__v1::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
           "as the context does not contain the given device.",
           PI_INVALID_DEVICE);

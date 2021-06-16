@@ -13,17 +13,17 @@
 
 class SchedulerTest : public ::testing::Test {
 protected:
-  cl::sycl::async_handler MAsyncHandler =
-      [](cl::sycl::exception_list ExceptionList) {
-        for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
+  __sycl_internal::__v1::async_handler MAsyncHandler =
+      [](__sycl_internal::__v1::exception_list ExceptionList) {
+        for (__sycl_internal::__v1::exception_ptr_class ExceptionPtr : ExceptionList) {
           try {
             std::rethrow_exception(ExceptionPtr);
-          } catch (cl::sycl::exception &E) {
+          } catch (__sycl_internal::__v1::exception &E) {
             std::cerr << E.what();
           } catch (...) {
             std::cerr << "Unknown async exception was caught." << std::endl;
           }
         }
       };
-  cl::sycl::queue MQueue = cl::sycl::queue(cl::sycl::device(), MAsyncHandler);
+  __sycl_internal::__v1::queue MQueue = __sycl_internal::__v1::queue(__sycl_internal::__v1::device(), MAsyncHandler);
 };

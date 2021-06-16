@@ -20,10 +20,11 @@
 
 #include <cmath>
 
-namespace s = cl::sycl;
+namespace s = __sycl_internal::__v1;
 namespace d = s::detail;
 
-__SYCL_INLINE_NAMESPACE(cl) {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace __host_std {
 
 namespace {
@@ -997,4 +998,5 @@ __SYCL_EXPORT s::cl_float half_tan(s::cl_float x) __NOEXC {
 MAKE_1V(half_tan, s::cl_float, s::cl_float)
 
 } // namespace __host_std
+}
 } // __SYCL_INLINE_NAMESPACE(cl)

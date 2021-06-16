@@ -17,7 +17,7 @@
 
 #include <cstdint>
 
-#define __SEIEED sycl::ext::intel::experimental::esimd::detail
+#define __SEIEED __sycl_internal::__v1::ext::intel::experimental::esimd::detail
 
 // saturation intrinsics
 template <typename T0, typename T1, int SZ>
@@ -333,7 +333,7 @@ inline T extract(const uint32_t &width, const uint32_t &offset, uint32_t src,
   return ret;
 }
 
-#define __SEIEEED sycl::ext::intel::experimental::esimd::emu::detail
+#define __SEIEEED __sycl_internal::__v1::ext::intel::experimental::esimd::emu::detail
 
 template <typename T0, typename T1, int SZ>
 inline __SEIEED::vector_type_t<T0, SZ>

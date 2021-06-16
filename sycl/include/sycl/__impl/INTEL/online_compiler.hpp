@@ -15,8 +15,8 @@
 #include <string>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace INTEL {
 
 using byte = unsigned char;
@@ -58,10 +58,10 @@ private:
 };
 
 /// Represents an error happend during online compilation.
-class online_compile_error : public sycl::exception {
+class online_compile_error : public __sycl_internal::__v1::exception {
 public:
   online_compile_error() = default;
-  online_compile_error(const string_class &Msg) : sycl::exception(Msg) {}
+  online_compile_error(const string_class &Msg) : __sycl_internal::__v1::exception(Msg) {}
 };
 
 /// Designates a source language for the online compiler.
@@ -77,7 +77,7 @@ public:
   /// device capabilities are supported by the target device(s).
   online_compiler(compiled_code_format fmt = compiled_code_format::spir_v)
       : OutputFormat(fmt), OutputFormatVersion({0, 0}),
-        DeviceType(sycl::info::device_type::all), DeviceArch(device_arch::any),
+        DeviceType(__sycl_internal::__v1::info::device_type::all), DeviceArch(device_arch::any),
         Is64Bit(true), DeviceStepping("") {}
 
   /// Constructs online compiler which targets given architecture and produces
@@ -85,7 +85,7 @@ public:
   /// Throws online_compile_error if values of constructor arguments are
   /// contradictory or not supported - e.g. if the source language is not
   /// supported for given device type.
-  online_compiler(sycl::info::device_type dev_type, device_arch arch,
+  online_compiler(__sycl_internal::__v1::info::device_type dev_type, device_arch arch,
                   compiled_code_format fmt = compiled_code_format::spir_v)
       : OutputFormat(fmt), OutputFormatVersion({0, 0}), DeviceType(dev_type),
         DeviceArch(arch), Is64Bit(true), DeviceStepping("") {}
@@ -94,9 +94,9 @@ public:
   // TODO: the initial version generates the generic code (SKL now), need
   // to do additional device::info calls to determine the device by it's
   // features.
-  online_compiler(const sycl::device &)
+  online_compiler(const __sycl_internal::__v1::device &)
       : OutputFormat(compiled_code_format::spir_v), OutputFormatVersion({0, 0}),
-        DeviceType(sycl::info::device_type::all), DeviceArch(device_arch::any),
+        DeviceType(__sycl_internal::__v1::info::device_type::all), DeviceArch(device_arch::any),
         Is64Bit(true), DeviceStepping("") {}
 
   /// Compiles given in-memory \c Lang source to a binary blob. Blob format,
@@ -122,7 +122,7 @@ public:
   }
 
   /// Sets the device type of the compilation target and returns *this.
-  online_compiler<Lang> &setTargetDeviceType(sycl::info::device_type type) {
+  online_compiler<Lang> &setTargetDeviceType(__sycl_internal::__v1::info::device_type type) {
     DeviceType = type;
     return *this;
   }
@@ -160,7 +160,7 @@ private:
   std::pair<int, int> OutputFormatVersion;
 
   /// Target device type
-  sycl::info::device_type DeviceType;
+  __sycl_internal::__v1::info::device_type DeviceType;
 
   /// Target device architecture
   device_arch DeviceArch;

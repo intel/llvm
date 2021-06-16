@@ -16,8 +16,8 @@
 #include <cstring>
 #include <mutex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 /// Groups and provides access to all the locks used the SYCL runtime.
@@ -53,7 +53,7 @@ struct CmpCStr {
   }
 };
 
-using SerializedObj = sycl::vector_class<unsigned char>;
+using SerializedObj = __sycl_internal::__v1::vector_class<unsigned char>;
 
 } // namespace detail
 } // namespace sycl

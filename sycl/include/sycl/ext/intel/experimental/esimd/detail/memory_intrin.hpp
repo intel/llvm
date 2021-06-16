@@ -19,8 +19,8 @@
 
 #include <cstdint>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -39,14 +39,14 @@ public:
   static auto getImageRange(const AccessorTy &Acc) {
     return Acc.getAccessRange();
   }
-  static auto getElemSize(const sycl::detail::AccessorBaseHost &Acc) {
+  static auto getElemSize(const __sycl_internal::__v1::detail::AccessorBaseHost &Acc) {
     return Acc.getElemSize();
   }
 #endif
 };
 
 template <int ElemsPerAddr,
-          typename = sycl::detail::enable_if_t<
+          typename = __sycl_internal::__v1::detail::enable_if_t<
               (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)>>
 constexpr unsigned int ElemsPerAddrEncoding() {
   // encoding requires log2 of ElemsPerAddr
@@ -74,8 +74,8 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#define __SEIEE sycl::ext::intel::experimental::esimd
-#define __SEIEED sycl::ext::intel::experimental::esimd::detail
+#define __SEIEE __sycl_internal::__v1::ext::intel::experimental::esimd
+#define __SEIEED __sycl_internal::__v1::ext::intel::experimental::esimd::detail
 
 // flat_read does flat-address gather
 template <typename Ty, int N, int NumBlk = 0,
@@ -173,7 +173,7 @@ __esimd_surf_read(int16_t scale, SurfIndAliasTy surf_ind,
   static_assert(N == 1 || N == 8 || N == 16);
   static_assert(TySizeLog2 <= 2);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
-  throw cl::sycl::feature_not_supported();
+  throw __sycl_internal::__v1::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -216,7 +216,7 @@ __esimd_surf_write(__SEIEED::vector_type_t<uint16_t, N> pred, int16_t scale,
   static_assert(N == 1 || N == 8 || N == 16);
   static_assert(TySizeLog2 <= 2);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
-  throw cl::sycl::feature_not_supported();
+  throw __sycl_internal::__v1::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -711,16 +711,16 @@ __esimd_media_block_load(unsigned modififer, TACC handle, unsigned plane,
     for (int col = 0; col < N; col += vpp) {
       unsigned int xoff = (i > xbound) ? xbound : i;
       unsigned int yoff = (j > ybound) ? ybound : j;
-      auto coords = cl::sycl::cl_int2(xoff, yoff);
-      cl::sycl::cl_uint4 data = handle.read(coords);
+      auto coords = __sycl_internal::__v1::cl_int2(xoff, yoff);
+      __sycl_internal::__v1::cl_uint4 data = handle.read(coords);
 
       __SEIEED::vector_type_t<unsigned int, 4> res;
       for (int idx = 0; idx < 4; idx++) {
         res[idx] = data[idx];
       }
 
-      constexpr int refN = sizeof(cl::sycl::cl_uint4) / sizeof(Ty);
-      unsigned int stride = sizeof(cl::sycl::cl_uint4) / bpp;
+      constexpr int refN = sizeof(__sycl_internal::__v1::cl_uint4) / sizeof(Ty);
+      unsigned int stride = sizeof(__sycl_internal::__v1::cl_uint4) / bpp;
       using refTy = __SEIEED::vector_type_t<Ty, refN>;
       auto ref = reinterpret_cast<refTy>(res);
 
@@ -755,12 +755,12 @@ inline void __esimd_media_block_store(unsigned modififer, TACC handle,
 
   for (int row = 0; row < M; row++) {
     for (int col = 0; col < N; col += vpp) {
-      constexpr int Sz = sizeof(cl::sycl::cl_uint4) / sizeof(Ty);
+      constexpr int Sz = sizeof(__sycl_internal::__v1::cl_uint4) / sizeof(Ty);
       __SEIEED::vector_type_t<Ty, Sz> res = 0;
 
       unsigned int offset1 = col + row * N;
       unsigned int offset2 = 0;
-      unsigned int stride = sizeof(cl::sycl::cl_uint4) / bpp;
+      unsigned int stride = sizeof(__sycl_internal::__v1::cl_uint4) / bpp;
       for (int idx = 0; idx < vpp; idx++) {
         res[offset2] = vals[offset1];
         offset1++;
@@ -770,13 +770,13 @@ inline void __esimd_media_block_store(unsigned modififer, TACC handle,
       using refTy = __SEIEED::vector_type_t<unsigned int, 4>;
       auto ref = reinterpret_cast<refTy>(res);
 
-      cl::sycl::cl_uint4 data;
+      __sycl_internal::__v1::cl_uint4 data;
       for (int idx = 0; idx < 4; idx++) {
         data[idx] = ref[idx];
       }
 
       if (i < range[0] && j < range[1]) {
-        auto coords = cl::sycl::cl_int2(i, j);
+        auto coords = __sycl_internal::__v1::cl_int2(i, j);
         handle.write(coords, data);
       }
       i++;
@@ -930,7 +930,7 @@ __esimd_flat_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
 template <typename Ty, int N, typename SurfIndAliasTy>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_block_read(SurfIndAliasTy surf_ind, uint32_t offset) {
-  throw cl::sycl::feature_not_supported();
+  throw __sycl_internal::__v1::feature_not_supported();
   return __SEIEED::vector_type_t<Ty, N>();
 }
 
@@ -938,7 +938,7 @@ template <typename Ty, int N, typename SurfIndAliasTy>
 inline void __esimd_block_write(SurfIndAliasTy surf_ind, uint32_t offset,
                                 __SEIEED::vector_type_t<Ty, N> vals) {
 
-  throw cl::sycl::feature_not_supported();
+  throw __sycl_internal::__v1::feature_not_supported();
 }
 
 /// \brief esimd_get_value
@@ -949,7 +949,7 @@ inline void __esimd_block_write(SurfIndAliasTy surf_ind, uint32_t offset,
 ///
 template <typename AccessorTy>
 inline uint32_t __esimd_get_value(AccessorTy acc) {
-  throw cl::sycl::feature_not_supported();
+  throw __sycl_internal::__v1::feature_not_supported();
   return 0;
 }
 
@@ -994,7 +994,7 @@ __esimd_raw_sends_load(uint8_t modifier, uint8_t execSize,
                        __SEIEED::vector_type_t<Ty2, N2> msgSrc0,
                        __SEIEED::vector_type_t<Ty3, N3> msgSrc1,
                        __SEIEED::vector_type_t<Ty1, N1> msgDst) {
-  throw cl::sycl::feature_not_supported();
+  throw __sycl_internal::__v1::feature_not_supported();
   return 0;
 }
 
@@ -1032,7 +1032,7 @@ __esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
                       uint32_t exDesc, uint32_t msgDesc,
                       __SEIEED::vector_type_t<Ty2, N2> msgSrc0,
                       __SEIEED::vector_type_t<Ty1, N1> msgDst) {
-  throw cl::sycl::feature_not_supported();
+  throw __sycl_internal::__v1::feature_not_supported();
   return 0;
 }
 
@@ -1068,7 +1068,7 @@ inline void __esimd_raw_sends_store(uint8_t modifier, uint8_t execSize,
                                     uint32_t msgDesc,
                                     __SEIEED::vector_type_t<Ty1, N1> msgSrc0,
                                     __SEIEED::vector_type_t<Ty2, N2> msgSrc1) {
-  throw cl::sycl::feature_not_supported();
+  throw __sycl_internal::__v1::feature_not_supported();
 }
 
 /// \brief Raw send store.
@@ -1096,7 +1096,7 @@ inline void __esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
                                    uint8_t numSrc0, uint8_t sfid,
                                    uint32_t exDesc, uint32_t msgDesc,
                                    __SEIEED::vector_type_t<Ty1, N1> msgSrc0) {
-  throw cl::sycl::feature_not_supported();
+  throw __sycl_internal::__v1::feature_not_supported();
 }
 
 #endif // __SYCL_DEVICE_ONLY__

@@ -14,10 +14,11 @@
 
 #include <cmath>
 
-namespace s = cl::sycl;
+namespace s = __sycl_internal::__v1;
 namespace d = s::detail;
 
-__SYCL_INLINE_NAMESPACE(cl) {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace __host_std {
 namespace {
 
@@ -77,7 +78,7 @@ template <typename T> inline T __sUnordered(T x, T y) {
 }
 
 template <typename T>
-inline typename sycl::detail::enable_if_t<d::is_sgeninteger<T>::value, T>
+inline typename __sycl_internal::__v1::detail::enable_if_t<d::is_sgeninteger<T>::value, T>
 __bitselect(T a, T b, T c) {
   return (a & ~c) | (b & c);
 }
@@ -108,7 +109,7 @@ template <> union databitset<s::cl_half> {
 };
 
 template <typename T>
-typename sycl::detail::enable_if_t<d::is_sgenfloat<T>::value,
+typename __sycl_internal::__v1::detail::enable_if_t<d::is_sgenfloat<T>::value,
                                    T> inline __bitselect(T a, T b, T c) {
   databitset<T> ba;
   ba.f = a;
@@ -476,4 +477,5 @@ MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_half, s::cl_half, s::cl_half,
 MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_half, s::cl_half, s::cl_half,
                         s::cl_ushort)
 } // namespace __host_std
+}
 } // __SYCL_INLINE_NAMESPACE(cl)

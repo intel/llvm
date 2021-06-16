@@ -16,102 +16,102 @@
 #define __NOEXC /*noexcept*/
 
 #define __MAKE_1V(Fun, Call, N, Ret, Arg1)                                     \
-  __SYCL_EXPORT sycl::vec<Ret, N> Fun __NOEXC(sycl::vec<Arg1, N> x) {          \
-    sycl::vec<Ret, N> r;                                                       \
+  __SYCL_EXPORT __sycl_internal::__v1::vec<Ret, N> Fun __NOEXC(__sycl_internal::__v1::vec<Arg1, N> x) {          \
+    __sycl_internal::__v1::vec<Ret, N> r;                                                       \
     detail::helper<N - 1>().run_1v(                                            \
-        r, [](Arg1 x) { return cl::__host_std::Call(x); }, x);                 \
+        r, [](Arg1 x) { return __sycl_internal::__v1::__host_std::Call(x); }, x);                 \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_2V(Fun, Call, N, Ret, Arg1, Arg2)                            \
-  __SYCL_EXPORT sycl::vec<Ret, N> Fun __NOEXC(sycl::vec<Arg1, N> x,            \
-                                              sycl::vec<Arg2, N> y) {          \
-    sycl::vec<Ret, N> r;                                                       \
+  __SYCL_EXPORT __sycl_internal::__v1::vec<Ret, N> Fun __NOEXC(__sycl_internal::__v1::vec<Arg1, N> x,            \
+                                              __sycl_internal::__v1::vec<Arg2, N> y) {          \
+    __sycl_internal::__v1::vec<Ret, N> r;                                                       \
     detail::helper<N - 1>().run_1v_2v(                                         \
-        r, [](Arg1 x, Arg2 y) { return cl::__host_std::Call(x, y); }, x, y);   \
+        r, [](Arg1 x, Arg2 y) { return __sycl_internal::__v1::__host_std::Call(x, y); }, x, y);   \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_2V_RS(Fun, Call, N, Ret, Arg1, Arg2)                         \
-  __SYCL_EXPORT Ret Fun __NOEXC(sycl::vec<Arg1, N> x, sycl::vec<Arg2, N> y) {  \
+  __SYCL_EXPORT Ret Fun __NOEXC(__sycl_internal::__v1::vec<Arg1, N> x, __sycl_internal::__v1::vec<Arg2, N> y) {  \
     Ret r = Ret();                                                             \
     detail::helper<N - 1>().run_1v_2v_rs(                                      \
         r,                                                                     \
-        [](Ret &r, Arg1 x, Arg2 y) { return cl::__host_std::Call(r, x, y); },  \
+        [](Ret &r, Arg1 x, Arg2 y) { return __sycl_internal::__v1::__host_std::Call(r, x, y); },  \
         x, y);                                                                 \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_RS(Fun, Call, N, Ret, Arg1)                                  \
-  __SYCL_EXPORT Ret Fun __NOEXC(sycl::vec<Arg1, N> x) {                        \
+  __SYCL_EXPORT Ret Fun __NOEXC(__sycl_internal::__v1::vec<Arg1, N> x) {                        \
     Ret r = Ret();                                                             \
     detail::helper<N - 1>().run_1v_rs(                                         \
-        r, [](Ret &r, Arg1 x) { return cl::__host_std::Call(r, x); }, x);      \
+        r, [](Ret &r, Arg1 x) { return __sycl_internal::__v1::__host_std::Call(r, x); }, x);      \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_2V_3V(Fun, Call, N, Ret, Arg1, Arg2, Arg3)                   \
-  __SYCL_EXPORT sycl::vec<Ret, N> Fun __NOEXC(                                 \
-      sycl::vec<Arg1, N> x, sycl::vec<Arg2, N> y, sycl::vec<Arg3, N> z) {      \
-    sycl::vec<Ret, N> r;                                                       \
+  __SYCL_EXPORT __sycl_internal::__v1::vec<Ret, N> Fun __NOEXC(                                 \
+      __sycl_internal::__v1::vec<Arg1, N> x, __sycl_internal::__v1::vec<Arg2, N> y, __sycl_internal::__v1::vec<Arg3, N> z) {      \
+    __sycl_internal::__v1::vec<Ret, N> r;                                                       \
     detail::helper<N - 1>().run_1v_2v_3v(                                      \
         r,                                                                     \
-        [](Arg1 x, Arg2 y, Arg3 z) { return cl::__host_std::Call(x, y, z); },  \
+        [](Arg1 x, Arg2 y, Arg3 z) { return __sycl_internal::__v1::__host_std::Call(x, y, z); },  \
         x, y, z);                                                              \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_2S_3S(Fun, N, Ret, Arg1, Arg2, Arg3)                         \
-  __SYCL_EXPORT sycl::vec<Ret, N> Fun __NOEXC(sycl::vec<Arg1, N> x, Arg2 y,    \
+  __SYCL_EXPORT __sycl_internal::__v1::vec<Ret, N> Fun __NOEXC(__sycl_internal::__v1::vec<Arg1, N> x, Arg2 y,    \
                                               Arg3 z) {                        \
-    sycl::vec<Ret, N> r;                                                       \
+    __sycl_internal::__v1::vec<Ret, N> r;                                                       \
     detail::helper<N - 1>().run_1v_2s_3s(                                      \
         r,                                                                     \
-        [](Arg1 x, Arg2 y, Arg3 z) { return cl::__host_std::Fun(x, y, z); },   \
+        [](Arg1 x, Arg2 y, Arg3 z) { return __sycl_internal::__v1::__host_std::Fun(x, y, z); },   \
         x, y, z);                                                              \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_2S(Fun, N, Ret, Arg1, Arg2)                                  \
-  __SYCL_EXPORT sycl::vec<Ret, N> Fun __NOEXC(sycl::vec<Arg1, N> x, Arg2 y) {  \
-    sycl::vec<Ret, N> r;                                                       \
+  __SYCL_EXPORT __sycl_internal::__v1::vec<Ret, N> Fun __NOEXC(__sycl_internal::__v1::vec<Arg1, N> x, Arg2 y) {  \
+    __sycl_internal::__v1::vec<Ret, N> r;                                                       \
     detail::helper<N - 1>().run_1v_2s(                                         \
-        r, [](Arg1 x, Arg2 y) { return cl::__host_std::Fun(x, y); }, x, y);    \
+        r, [](Arg1 x, Arg2 y) { return __sycl_internal::__v1::__host_std::Fun(x, y); }, x, y);    \
     return r;                                                                  \
   }
 
 #define __MAKE_SR_1V_AND(Fun, Call, N, Ret, Arg1)                              \
-  __SYCL_EXPORT Ret Fun __NOEXC(sycl::vec<Arg1, N> x) {                        \
+  __SYCL_EXPORT Ret Fun __NOEXC(__sycl_internal::__v1::vec<Arg1, N> x) {                        \
     Ret r;                                                                     \
     detail::helper<N - 1>().run_1v_sr_and(                                     \
-        r, [](Arg1 x) { return cl::__host_std::Call(x); }, x);                 \
+        r, [](Arg1 x) { return __sycl_internal::__v1::__host_std::Call(x); }, x);                 \
     return r;                                                                  \
   }
 
 #define __MAKE_SR_1V_OR(Fun, Call, N, Ret, Arg1)                               \
-  __SYCL_EXPORT Ret Fun __NOEXC(sycl::vec<Arg1, N> x) {                        \
+  __SYCL_EXPORT Ret Fun __NOEXC(__sycl_internal::__v1::vec<Arg1, N> x) {                        \
     Ret r;                                                                     \
     detail::helper<N - 1>().run_1v_sr_or(                                      \
-        r, [](Arg1 x) { return cl::__host_std::Call(x); }, x);                 \
+        r, [](Arg1 x) { return __sycl_internal::__v1::__host_std::Call(x); }, x);                 \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_2P(Fun, N, Ret, Arg1, Arg2)                                  \
-  __SYCL_EXPORT sycl::vec<Ret, N> Fun __NOEXC(sycl::vec<Arg1, N> x,            \
-                                              sycl::vec<Arg2, N> *y) {         \
-    sycl::vec<Ret, N> r;                                                       \
+  __SYCL_EXPORT __sycl_internal::__v1::vec<Ret, N> Fun __NOEXC(__sycl_internal::__v1::vec<Arg1, N> x,            \
+                                              __sycl_internal::__v1::vec<Arg2, N> *y) {         \
+    __sycl_internal::__v1::vec<Ret, N> r;                                                       \
     detail::helper<N - 1>().run_1v_2p(                                         \
-        r, [](Arg1 x, Arg2 *y) { return cl::__host_std::Fun(x, y); }, x, y);   \
+        r, [](Arg1 x, Arg2 *y) { return __sycl_internal::__v1::__host_std::Fun(x, y); }, x, y);   \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_2V_3P(Fun, N, Ret, Arg1, Arg2, Arg3)                         \
-  __SYCL_EXPORT sycl::vec<Ret, N> Fun __NOEXC(                                 \
-      sycl::vec<Arg1, N> x, sycl::vec<Arg2, N> y, sycl::vec<Arg3, N> *z) {     \
-    sycl::vec<Ret, N> r;                                                       \
+  __SYCL_EXPORT __sycl_internal::__v1::vec<Ret, N> Fun __NOEXC(                                 \
+      __sycl_internal::__v1::vec<Arg1, N> x, __sycl_internal::__v1::vec<Arg2, N> y, __sycl_internal::__v1::vec<Arg3, N> *z) {     \
+    __sycl_internal::__v1::vec<Ret, N> r;                                                       \
     detail::helper<N - 1>().run_1v_2v_3p(                                      \
         r,                                                                     \
-        [](Arg1 x, Arg2 y, Arg3 *z) { return cl::__host_std::Fun(x, y, z); },  \
+        [](Arg1 x, Arg2 y, Arg3 *z) { return __sycl_internal::__v1::__host_std::Fun(x, y, z); },  \
         x, y, z);                                                              \
     return r;                                                                  \
   }
@@ -217,7 +217,8 @@
   __MAKE_1V_2V_3P(Fun, 8, Ret, Arg1, Arg2, Arg3)                               \
   __MAKE_1V_2V_3P(Fun, 16, Ret, Arg1, Arg2, Arg3)
 
-__SYCL_INLINE_NAMESPACE(cl) {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace __host_std {
 namespace detail {
 
@@ -368,4 +369,5 @@ template <> struct helper<0> {
 
 } // namespace detail
 } // namespace __host_std
+}
 } // __SYCL_INLINE_NAMESPACE(cl)

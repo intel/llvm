@@ -16,8 +16,8 @@
 
 #include <cstddef>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Forward declaration
 namespace detail {
@@ -50,7 +50,7 @@ private:
   vector_class<exception_ptr_class> MList;
 };
 
-using async_handler = function_class<void(cl::sycl::exception_list)>;
+using async_handler = function_class<void(__sycl_internal::__v1::exception_list)>;
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

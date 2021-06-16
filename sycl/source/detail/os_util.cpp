@@ -42,8 +42,8 @@
 
 #endif // __SYCL_RT_OS
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 #if defined(__SYCL_RT_OS_LINUX)

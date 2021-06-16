@@ -11,8 +11,8 @@
 #include <sycl/__impl/context.hpp>
 #include <sycl/__impl/detail/property_helper.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace property {
 namespace image {
 class use_host_ptr : public detail::DataLessProperty<detail::ImageUseHostPtr> {
@@ -20,23 +20,23 @@ class use_host_ptr : public detail::DataLessProperty<detail::ImageUseHostPtr> {
 
 class use_mutex : public detail::PropertyWithData<detail::ImageUseMutex> {
 public:
-  use_mutex(sycl::mutex_class &MutexRef) : MMutex(MutexRef) {}
+  use_mutex(__sycl_internal::__v1::mutex_class &MutexRef) : MMutex(MutexRef) {}
 
-  sycl::mutex_class *get_mutex_ptr() const { return &MMutex; }
+  __sycl_internal::__v1::mutex_class *get_mutex_ptr() const { return &MMutex; }
 
 private:
-  sycl::mutex_class &MMutex;
+  __sycl_internal::__v1::mutex_class &MMutex;
 };
 
 class context_bound
     : public detail::PropertyWithData<detail::ImageContextBound> {
 public:
-  context_bound(sycl::context BoundContext) : MCtx(std::move(BoundContext)) {}
+  context_bound(__sycl_internal::__v1::context BoundContext) : MCtx(std::move(BoundContext)) {}
 
-  sycl::context get_context() const { return MCtx; }
+  __sycl_internal::__v1::context get_context() const { return MCtx; }
 
 private:
-  sycl::context MCtx;
+  __sycl_internal::__v1::context MCtx;
 };
 } // namespace image
 } // namespace property

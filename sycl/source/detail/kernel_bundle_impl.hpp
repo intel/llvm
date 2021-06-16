@@ -24,8 +24,8 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 template <class T> struct LessByHash {
@@ -50,8 +50,8 @@ static bool checkAllDevicesHaveAspect(const std::vector<device> &Devices,
                      [&Aspect](const device &Dev) { return Dev.has(Aspect); });
 }
 
-// The class is an impl counterpart of the sycl::kernel_bundle.
-// It provides an access and utilities to manage set of sycl::device_images
+// The class is an impl counterpart of the __sycl_internal::__v1::kernel_bundle.
+// It provides an access and utilities to manage set of __sycl_internal::__v1::device_images
 // objects.
 class kernel_bundle_impl {
 
@@ -61,19 +61,19 @@ class kernel_bundle_impl {
     const bool AllDevicesInTheContext =
         checkAllDevicesAreInContext(MDevices, MContext);
     if (MDevices.empty() || !AllDevicesInTheContext)
-      throw sycl::exception(
+      throw __sycl_internal::__v1::exception(
           make_error_code(errc::invalid),
           "Not all devices are associated with the context or "
           "vector of devices is empty");
 
     if (bundle_state::input == State &&
         !checkAllDevicesHaveAspect(MDevices, aspect::online_compiler))
-      throw sycl::exception(make_error_code(errc::invalid),
+      throw __sycl_internal::__v1::exception(make_error_code(errc::invalid),
                             "Not all devices have aspect::online_compiler");
 
     if (bundle_state::object == State &&
         !checkAllDevicesHaveAspect(MDevices, aspect::online_linker))
-      throw sycl::exception(make_error_code(errc::invalid),
+      throw __sycl_internal::__v1::exception(make_error_code(errc::invalid),
                             "Not all devices have aspect::online_linker");
   }
 
@@ -92,15 +92,15 @@ public:
                      device_image_plain &DevImage)
       : MContext(Ctx), MDevices(Devs) {
     if (!checkAllDevicesAreInContext(Devs, Ctx))
-      throw sycl::exception(
+      throw __sycl_internal::__v1::exception(
           make_error_code(errc::invalid),
           "Not all devices are associated with the context or "
           "vector of devices is empty");
     MDeviceImages.push_back(DevImage);
   }
 
-  // Matches sycl::build and sycl::compile
-  // Have one constructor because sycl::build and sycl::compile have the same
+  // Matches __sycl_internal::__v1::build and __sycl_internal::__v1::compile
+  // Have one constructor because __sycl_internal::__v1::build and __sycl_internal::__v1::compile have the same
   // signature
   kernel_bundle_impl(const kernel_bundle<bundle_state::input> &InputBundle,
                      std::vector<device> Devs, const property_list &PropList,
@@ -119,7 +119,7 @@ public:
                                        InputBundleDevices.end(), Dev);
                     });
     if (MDevices.empty() || !AllDevsAssociatedWithInputBundle)
-      throw sycl::exception(
+      throw __sycl_internal::__v1::exception(
           make_error_code(errc::invalid),
           "Not all devices are in the set of associated "
           "devices for input bundle or vector of devices is empty");
@@ -143,7 +143,7 @@ public:
             DeviceImage, MDevices, PropList));
         break;
       case bundle_state::input:
-        throw sycl::runtime_error(
+        throw __sycl_internal::__v1::runtime_error(
             "Internal error. The target state should not be input",
             PI_INVALID_OPERATION);
         break;
@@ -151,7 +151,7 @@ public:
     }
   }
 
-  // Matches sycl::link
+  // Matches __sycl_internal::__v1::link
   kernel_bundle_impl(
       const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
       std::vector<device> Devs, const property_list &PropList)
@@ -163,7 +163,7 @@ public:
     MContext = ObjectBundles[0].get_context();
     for (size_t I = 1; I < ObjectBundles.size(); ++I) {
       if (ObjectBundles[I].get_context() != MContext)
-        throw sycl::exception(
+        throw __sycl_internal::__v1::exception(
             make_error_code(errc::invalid),
             "Not all input bundles have the same associated context");
     }
@@ -184,13 +184,13 @@ public:
               });
         });
     if (MDevices.empty() || !AllDevsAssociatedWithInputBundles)
-      throw sycl::exception(
+      throw __sycl_internal::__v1::exception(
           make_error_code(errc::invalid),
           "Not all devices are in the set of associated "
           "devices for input bundles or vector of devices is empty");
 
-    // TODO: Unify with c'tor for sycl::comile and sycl::build by calling
-    // sycl::join on vector of kernel_bundles
+    // TODO: Unify with c'tor for __sycl_internal::__v1::comile and __sycl_internal::__v1::build by calling
+    // __sycl_internal::__v1::join on vector of kernel_bundles
 
     std::vector<device_image_plain> DeviceImages;
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
@@ -244,7 +244,7 @@ public:
         MContext, MDevices, Selector, State);
   }
 
-  // C'tor matches sycl::join API
+  // C'tor matches __sycl_internal::__v1::join API
   kernel_bundle_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
     if (Bundles.empty())
       return;
@@ -253,11 +253,11 @@ public:
     MDevices = Bundles[0]->MDevices;
     for (size_t I = 1; I < Bundles.size(); ++I) {
       if (Bundles[I]->MContext != MContext)
-        throw sycl::exception(
+        throw __sycl_internal::__v1::exception(
             make_error_code(errc::invalid),
             "Not all input bundles have the same associated context.");
       if (Bundles[I]->MDevices != MDevices)
-        throw sycl::exception(
+        throw __sycl_internal::__v1::exception(
             make_error_code(errc::invalid),
             "Not all input bundles have the same set of associated devices.");
     }
@@ -349,7 +349,7 @@ public:
                            });
 
     if (MDeviceImages.end() == It)
-      throw sycl::exception(make_error_code(errc::invalid),
+      throw __sycl_internal::__v1::exception(make_error_code(errc::invalid),
                             "The kernel bundle does not contain the kernel "
                             "identified by kernelId.");
 

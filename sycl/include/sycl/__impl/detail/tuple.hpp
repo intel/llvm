@@ -15,8 +15,8 @@
 #include <tuple>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 template <typename... T> struct tuple;
@@ -29,16 +29,16 @@ std::tuple<Ts...> get_tuple_tail_impl(const std::tuple<T, Ts...> &Tuple,
 
 template <typename T, typename... Ts>
 std::tuple<Ts...> get_tuple_tail(const std::tuple<T, Ts...> &Tuple) {
-  return sycl::detail::get_tuple_tail_impl(
+  return __sycl_internal::__v1::detail::get_tuple_tail_impl(
       Tuple, std::make_index_sequence<sizeof...(Ts)>());
 }
 
 template <typename... Ts> constexpr tuple<Ts...> make_tuple(Ts... Args) {
-  return sycl::detail::tuple<Ts...>{Args...};
+  return __sycl_internal::__v1::detail::tuple<Ts...>{Args...};
 }
 
 template <typename... Ts> auto tie(Ts &... Args) {
-  return sycl::detail::tuple<Ts &...>(Args...);
+  return __sycl_internal::__v1::detail::tuple<Ts &...>(Args...);
 }
 
 template <std::size_t N, typename T> struct tuple_element;
@@ -128,7 +128,7 @@ template <typename T, typename... Ts> struct tuple<T, Ts...> {
 
   // required to convert std::tuple to inner tuple in user-provided functor
   tuple(const std::tuple<T, Ts...> &RHS)
-      : holder(std::get<0>(RHS)), next(sycl::detail::get_tuple_tail(RHS)) {}
+      : holder(std::get<0>(RHS)), next(__sycl_internal::__v1::detail::get_tuple_tail(RHS)) {}
 
   // Convert to std::tuple with the same template arguments.
   operator std::tuple<T, Ts...>() const {
@@ -154,11 +154,11 @@ template <typename T, typename... Ts> struct tuple<T, Ts...> {
   // the deleted operator= has a preference during lookup
   tuple &operator=(const detail::tuple<T, Ts...> &) = default;
 
-  // Convert std::tuple to sycl::detail::tuple
+  // Convert std::tuple to __sycl_internal::__v1::detail::tuple
   template <typename UT, typename... UTs>
   tuple &operator=(const std::tuple<UT, UTs...> &RHS) {
     holder.value = std::get<0>(RHS);
-    next = sycl::detail::get_tuple_tail(RHS);
+    next = __sycl_internal::__v1::detail::get_tuple_tail(RHS);
     return *this;
   }
 
@@ -196,14 +196,14 @@ namespace std {
 
 template <size_t I, typename... Types>
 constexpr typename tuple_element<I, tuple<Types...>>::type &
-get(cl::sycl::detail::tuple<Types...> &Arg) noexcept {
-  return cl::sycl::detail::get<I>()(Arg);
+get(__sycl_internal::__v1::detail::tuple<Types...> &Arg) noexcept {
+  return __sycl_internal::__v1::detail::get<I>()(Arg);
 }
 
 template <size_t I, typename... Types>
 constexpr typename tuple_element<I, tuple<Types...>>::type const &
-get(const cl::sycl::detail::tuple<Types...> &Arg) noexcept {
-  return cl::sycl::detail::get<I>()(Arg);
+get(const __sycl_internal::__v1::detail::tuple<Types...> &Arg) noexcept {
+  return __sycl_internal::__v1::detail::get<I>()(Arg);
 }
 
 } // namespace std

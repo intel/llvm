@@ -40,7 +40,7 @@
 ///
 /// One of them is an accessor to a SYCL buffer object(Buffer accessor) which
 /// has the richest interface. It supports things like accessing only a part of
-/// buffer, multidimensional access using sycl::id, conversions to various
+/// buffer, multidimensional access using __sycl_internal::__v1::id, conversions to various
 /// multi_ptr and atomic classes.
 ///
 /// Second type is an accessor to a SYCL image object(Image accessor) which has
@@ -201,8 +201,8 @@
 /// accessor_common contains several helpers common for both accessor(1) and
 /// accessor(3)
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 class stream;
 namespace ext {
 namespace intel {
@@ -447,8 +447,8 @@ private:
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-  sycl::vec<int, Dimensions> getRangeInternal() const {
-    return __invoke_ImageQuerySize<sycl::vec<int, Dimensions>, OCLImageTy>(
+  __sycl_internal::__v1::vec<int, Dimensions> getRangeInternal() const {
+    return __invoke_ImageQuerySize<__sycl_internal::__v1::vec<int, Dimensions>, OCLImageTy>(
         MImageObj);
   }
 
@@ -461,17 +461,17 @@ private:
 
 #else
 
-  sycl::vec<int, Dimensions> getRangeInternal() const {
+  __sycl_internal::__v1::vec<int, Dimensions> getRangeInternal() const {
     // TODO: Implement for host.
     throw runtime_error("image::getRangeInternal() is not implemented for host",
                         PI_INVALID_OPERATION);
-    return sycl::vec<int, Dimensions>{1};
+    return __sycl_internal::__v1::vec<int, Dimensions>{1};
   }
 
 #endif
 
 private:
-  friend class sycl::ext::intel::experimental::esimd::detail::
+  friend class __sycl_internal::__v1::ext::intel::experimental::esimd::detail::
       AccessorPrivateProxy;
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -685,20 +685,20 @@ class __image_array_slice__ {
   template <typename CoordT,
             typename CoordElemType =
                 typename detail::TryToGetElementType<CoordT>::type>
-  sycl::vec<CoordElemType, AdjustedDims>
+  __sycl_internal::__v1::vec<CoordElemType, AdjustedDims>
   getAdjustedCoords(const CoordT &Coords) const {
     CoordElemType LastCoord = 0;
 
     if (std::is_same<float, CoordElemType>::value) {
-      sycl::vec<int, Dimensions + 1> Size = MBaseAcc.getRangeInternal();
+      __sycl_internal::__v1::vec<int, Dimensions + 1> Size = MBaseAcc.getRangeInternal();
       LastCoord =
           MIdx / static_cast<float>(Size.template swizzle<Dimensions>());
     } else {
       LastCoord = MIdx;
     }
 
-    sycl::vec<CoordElemType, Dimensions> LeftoverCoords{LastCoord};
-    sycl::vec<CoordElemType, AdjustedDims> AdjustedCoords{Coords,
+    __sycl_internal::__v1::vec<CoordElemType, Dimensions> LeftoverCoords{LastCoord};
+    __sycl_internal::__v1::vec<CoordElemType, AdjustedDims> AdjustedCoords{Coords,
                                                           LeftoverCoords};
     return AdjustedCoords;
   }
@@ -938,8 +938,8 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
-  friend class sycl::stream;
-  friend class sycl::ext::intel::experimental::esimd::detail::
+  friend class __sycl_internal::__v1::stream;
+  friend class __sycl_internal::__v1::ext::intel::experimental::esimd::detail::
       AccessorPrivateProxy;
 
 public:
@@ -1619,7 +1619,7 @@ public:
 private:
   void checkDeviceAccessorBufferSize(const size_t elemInBuffer) {
     if (!IsHostBuf && elemInBuffer == 0)
-      throw cl::sycl::invalid_object_error(
+      throw __sycl_internal::__v1::invalid_object_error(
           "SYCL buffer size is zero. To create a device accessor, SYCL "
           "buffer size must be greater than zero.",
           PI_INVALID_VALUE);
@@ -1815,8 +1815,8 @@ protected:
 #ifdef __SYCL_DEVICE_ONLY__
   detail::LocalAccessorBaseDevice<AdjustedDim> impl;
 
-  sycl::range<AdjustedDim> &getSize() { return impl.MemRange; }
-  const sycl::range<AdjustedDim> &getSize() const { return impl.MemRange; }
+  __sycl_internal::__v1::range<AdjustedDim> &getSize() { return impl.MemRange; }
+  const __sycl_internal::__v1::range<AdjustedDim> &getSize() const { return impl.MemRange; }
 
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim>, id<AdjustedDim>) {
@@ -1988,7 +1988,7 @@ class accessor<DataT, Dimensions, AccessMode, access::target::image,
                                     access::target::image, IsPlaceholder> {
 public:
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image,
+  accessor(__sycl_internal::__v1::image<Dimensions, AllocatorT> &Image,
            handler &CommandGroupHandler)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::image, IsPlaceholder>(
@@ -2001,7 +2001,7 @@ public:
   }
 
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image,
+  accessor(__sycl_internal::__v1::image<Dimensions, AllocatorT> &Image,
            handler &CommandGroupHandler, const property_list &propList)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::image, IsPlaceholder>(
@@ -2047,13 +2047,13 @@ class accessor<DataT, Dimensions, AccessMode, access::target::host_image,
                                     access::target::host_image, IsPlaceholder> {
 public:
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image)
+  accessor(__sycl_internal::__v1::image<Dimensions, AllocatorT> &Image)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::host_image, IsPlaceholder>(
             Image, (detail::getSyclObjImpl(Image))->getElementSize()) {}
 
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image,
+  accessor(__sycl_internal::__v1::image<Dimensions, AllocatorT> &Image,
            const property_list &propList)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::host_image, IsPlaceholder>(
@@ -2095,7 +2095,7 @@ public:
 #endif
 public:
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions + 1, AllocatorT> &Image,
+  accessor(__sycl_internal::__v1::image<Dimensions + 1, AllocatorT> &Image,
            handler &CommandGroupHandler)
       : detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                access::target::image, IsPlaceholder>(
@@ -2108,7 +2108,7 @@ public:
   }
 
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions + 1, AllocatorT> &Image,
+  accessor(__sycl_internal::__v1::image<Dimensions + 1, AllocatorT> &Image,
            handler &CommandGroupHandler, const property_list &propList)
       : detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                access::target::image, IsPlaceholder>(
@@ -2347,12 +2347,12 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
-struct hash<cl::sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
+template <typename DataT, int Dimensions, __sycl_internal::__v1::access::mode AccessMode,
+          __sycl_internal::__v1::access::target AccessTarget,
+          __sycl_internal::__v1::access::placeholder IsPlaceholder>
+struct hash<__sycl_internal::__v1::accessor<DataT, Dimensions, AccessMode, AccessTarget,
                                IsPlaceholder>> {
-  using AccType = cl::sycl::accessor<DataT, Dimensions, AccessMode,
+  using AccType = __sycl_internal::__v1::accessor<DataT, Dimensions, AccessMode,
                                      AccessTarget, IsPlaceholder>;
 
   size_t operator()(const AccType &A) const {
@@ -2363,7 +2363,7 @@ struct hash<cl::sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
 #else
     // getSyclObjImpl() here returns a pointer to either AccessorImplHost
     // or LocalAccessorImplHost depending on the AccessTarget.
-    auto AccImplPtr = cl::sycl::detail::getSyclObjImpl(A);
+    auto AccImplPtr = __sycl_internal::__v1::detail::getSyclObjImpl(A);
     return hash<decltype(AccImplPtr)>()(AccImplPtr);
 #endif
   }

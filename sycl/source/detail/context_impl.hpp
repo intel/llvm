@@ -22,8 +22,8 @@
 #include <map>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 // Forward declaration
 class device;
 namespace detail {
@@ -54,7 +54,7 @@ public:
   /// \param DeviceList is a list of SYCL device instances.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  context_impl(const vector_class<cl::sycl::device> DeviceList,
+  context_impl(const vector_class<__sycl_internal::__v1::device> DeviceList,
                async_handler AsyncHandler, const property_list &PropList);
 
   /// Construct a context_impl using plug-in interoperability handle.

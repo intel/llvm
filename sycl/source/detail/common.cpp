@@ -9,8 +9,8 @@
 #include <sycl/__impl/detail/common.hpp>
 #include <sycl/__impl/detail/common_info.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 const char *stringifyErrorCode(cl_int error) {

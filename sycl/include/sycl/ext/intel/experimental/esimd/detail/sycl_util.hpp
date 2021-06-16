@@ -13,8 +13,8 @@
 
 #include <sycl/__impl/accessor.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -26,20 +26,20 @@ namespace detail {
 // \c target static fields to the accessor type's access mode and access target
 // respectively. Otherwise they are set to -1.
 template <typename T> struct is_sycl_accessor : public std::false_type {
-  static constexpr sycl::access::mode mode =
-      static_cast<sycl::access::mode>(-1);
-  static constexpr sycl::access::target target =
-      static_cast<sycl::access::target>(-1);
+  static constexpr __sycl_internal::__v1::access::mode mode =
+      static_cast<__sycl_internal::__v1::access::mode>(-1);
+  static constexpr __sycl_internal::__v1::access::target target =
+      static_cast<__sycl_internal::__v1::access::target>(-1);
 };
 
-template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
-          sycl::access::target AccessTarget,
-          sycl::access::placeholder IsPlaceholder, typename PropertyListT>
-struct is_sycl_accessor<sycl::accessor<
+template <typename DataT, int Dimensions, __sycl_internal::__v1::access::mode AccessMode,
+          __sycl_internal::__v1::access::target AccessTarget,
+          __sycl_internal::__v1::access::placeholder IsPlaceholder, typename PropertyListT>
+struct is_sycl_accessor<__sycl_internal::__v1::accessor<
     DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>>
     : public std::true_type {
-  static constexpr sycl::access::mode mode = AccessMode;
-  static constexpr sycl::access::target target = AccessTarget;
+  static constexpr __sycl_internal::__v1::access::mode mode = AccessMode;
+  static constexpr __sycl_internal::__v1::access::target target = AccessTarget;
 };
 
 using accessor_mode_cap_val_t = bool;
@@ -50,25 +50,25 @@ struct accessor_mode_cap {
   static inline constexpr accessor_mode_cap_val_t can_write = true;
 };
 
-template <sycl::access::mode Mode, accessor_mode_cap_val_t Cap>
+template <__sycl_internal::__v1::access::mode Mode, accessor_mode_cap_val_t Cap>
 constexpr bool accessor_mode_has_capability() {
   static_assert(Cap == accessor_mode_cap::can_read ||
                     Cap == accessor_mode_cap::can_write,
                 "unsupported capability");
 
-  if constexpr (Mode == sycl::access::mode::atomic ||
-                Mode == sycl::access::mode::read_write ||
-                Mode == sycl::access::mode::discard_read_write)
+  if constexpr (Mode == __sycl_internal::__v1::access::mode::atomic ||
+                Mode == __sycl_internal::__v1::access::mode::read_write ||
+                Mode == __sycl_internal::__v1::access::mode::discard_read_write)
     return true; // atomic and *read_write accessors can read/write
 
   return (Cap == accessor_mode_cap::can_read) ==
-         (Mode == sycl::access::mode::read);
+         (Mode == __sycl_internal::__v1::access::mode::read);
 }
 
 // Checks that given type is a SYCL accessor type with given capability and
 // target.
 template <typename T, accessor_mode_cap_val_t Capability,
-          sycl::access::target AccessTarget>
+          __sycl_internal::__v1::access::target AccessTarget>
 struct is_sycl_accessor_with
     : public std::conditional_t<
           accessor_mode_has_capability<is_sycl_accessor<T>::mode,
@@ -77,8 +77,8 @@ struct is_sycl_accessor_with
           std::true_type, std::false_type> {};
 
 template <typename T, accessor_mode_cap_val_t Capability,
-          sycl::access::target AccessTarget, typename RetT>
-using EnableIfAccessor = sycl::detail::enable_if_t<
+          __sycl_internal::__v1::access::target AccessTarget, typename RetT>
+using EnableIfAccessor = __sycl_internal::__v1::detail::enable_if_t<
     detail::is_sycl_accessor_with<T, Capability, AccessTarget>::value, RetT>;
 
 } // namespace detail

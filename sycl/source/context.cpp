@@ -24,8 +24,8 @@
 
 // 4.6.2 Context class
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 context::context(const property_list &PropList)
     : context(default_selector().select_device(), PropList) {}
 

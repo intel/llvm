@@ -24,8 +24,8 @@
 #include <set>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 /// Checks whether two requirements overlap or not.
@@ -199,7 +199,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     // which means that there is already an allocation(cl_mem) in some context.
     // Registering this allocation in the SYCL graph.
 
-    sycl::vector_class<sycl::device> Devices =
+    __sycl_internal::__v1::vector_class<__sycl_internal::__v1::device> Devices =
         InteropCtxPtr->get_info<info::context::devices>();
     assert(Devices.size() != 0);
     DeviceImplPtr Dev = detail::getSyclObjImpl(Devices[0]);
@@ -696,7 +696,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
             // read/write from/to an artbitrary host pointer. Link such commands
             // regardless of host unified memory support.
             bool PinnedHostMemory = MemObj->has_property<
-                sycl::ext::oneapi::property::buffer::use_pinned_host_memory>();
+                __sycl_internal::__v1::ext::oneapi::property::buffer::use_pinned_host_memory>();
 
             bool HostUnifiedMemoryOnNonHostDevice =
                 Queue->is_host() ? checkHostUnifiedMemory(Record->MCurContext)

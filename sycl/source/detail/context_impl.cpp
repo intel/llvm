@@ -21,8 +21,8 @@
 #include <detail/context_info.hpp>
 #include <detail/platform_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
@@ -32,7 +32,7 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
   MKernelProgramCache.setContextPtr(this);
 }
 
-context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
+context_impl::context_impl(const vector_class<__sycl_internal::__v1::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
@@ -95,7 +95,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
   //
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
-  if (getPlugin().getBackend() == cl::sycl::backend::opencl) {
+  if (getPlugin().getBackend() == __sycl_internal::__v1::backend::opencl) {
     getPlugin().call<PiApiKind::piContextRetain>(MContext);
   }
   MKernelProgramCache.setContextPtr(this);
@@ -142,7 +142,7 @@ template <> platform context_impl::get_info<info::context::platform>() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
-vector_class<cl::sycl::device>
+vector_class<__sycl_internal::__v1::device>
 context_impl::get_info<info::context::devices>() const {
   return MDevices;
 }

@@ -21,13 +21,13 @@
 #include <mutex>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 class context_impl;
 class KernelProgramCache {
 public:
-  /// Denotes build error data. The data is filled in from cl::sycl::exception
+  /// Denotes build error data. The data is filled in from __sycl_internal::__v1::exception
   /// class instance.
   struct BuildError {
     std::string Msg;

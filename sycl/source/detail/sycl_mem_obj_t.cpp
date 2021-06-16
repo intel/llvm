@@ -13,8 +13,8 @@
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
                          const size_t SizeInBytes, event AvailableEvent,
@@ -27,7 +27,7 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
       MSharedPtrStorage(nullptr) {
   if (MInteropContext->is_host())
-    throw cl::sycl::invalid_parameter_error(
+    throw __sycl_internal::__v1::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
         "not allowed",
         PI_INVALID_CONTEXT);
@@ -39,7 +39,7 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
                                        &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
-    throw cl::sycl::invalid_parameter_error(
+    throw __sycl_internal::__v1::invalid_parameter_error(
         "Input context must be the same as the context of cl_mem",
         PI_INVALID_CONTEXT);
   Plugin.call<PiApiKind::piMemRetain>(Mem);

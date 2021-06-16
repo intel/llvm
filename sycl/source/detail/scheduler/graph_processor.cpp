@@ -13,8 +13,8 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 static Command *getCommand(const EventImplPtr &Event) {
@@ -24,7 +24,7 @@ static Command *getCommand(const EventImplPtr &Event) {
 std::vector<EventImplPtr>
 Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
   Command *Cmd = getCommand(Event);
-  // Command can be nullptr if user creates cl::sycl::event explicitly,
+  // Command can be nullptr if user creates __sycl_internal::__v1::event explicitly,
   // as such event is not mapped to any SYCL task.
   if (!Cmd)
     return {};
@@ -38,7 +38,7 @@ Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
 
 void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
   Command *Cmd = getCommand(Event);
-  // Command can be nullptr if user creates cl::sycl::event explicitly or the
+  // Command can be nullptr if user creates __sycl_internal::__v1::event explicitly or the
   // event has been waited on by another thread
   if (!Cmd)
     return;

@@ -9,8 +9,8 @@
 #include <sycl/__impl/ONEAPI/reduction.hpp>
 #include <detail/queue_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ONEAPI {
 namespace detail {
 
@@ -49,7 +49,7 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
 }
 
 __SYCL_EXPORT size_t
-reduGetMaxWGSize(shared_ptr_class<sycl::detail::queue_impl> Queue,
+reduGetMaxWGSize(shared_ptr_class<__sycl_internal::__v1::detail::queue_impl> Queue,
                  size_t LocalMemBytesPerWorkItem) {
   device Dev = Queue->get_device();
   size_t MaxWGSize = Dev.get_info<info::device::max_work_group_size>();

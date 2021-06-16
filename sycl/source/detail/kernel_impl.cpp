@@ -13,8 +13,8 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context)
@@ -44,7 +44,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
   getPlugin().call<PiApiKind::piKernelGetInfo>(
       MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
   if (ContextImpl->getHandleRef() != Context)
-    throw cl::sycl::invalid_parameter_error(
+    throw __sycl_internal::__v1::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
         PI_INVALID_CONTEXT);
 }

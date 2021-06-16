@@ -64,8 +64,8 @@
 /// \code{.cpp}
 /// {
 ///   // Creating SYCL CPU and GPU queues
-///   cl::sycl::queue CPU_Queue = ...;
-///   cl::sycl::queue GPU_Queue = ...;
+///   __sycl_internal::__v1::queue CPU_Queue = ...;
+///   __sycl_internal::__v1::queue GPU_Queue = ...;
 ///
 ///   // Creating 3 SYCL buffers
 ///   auto BufferA = ...; // Buffer is initialized with host memory.
@@ -171,8 +171,8 @@
 // For testing purposes
 class MockScheduler;
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 class queue_impl;
@@ -505,7 +505,7 @@ protected:
     /// (assuming that all its commands have been waited for).
     void cleanupFinishedCommands(
         Command *FinishedCmd,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
+        std::vector<std::shared_ptr<__sycl_internal::__v1::detail::stream_impl>> &);
 
     /// Reschedules the command passed using Queue provided.
     ///
@@ -530,7 +530,7 @@ protected:
     /// Removes commands that use the given MemObjRecord from the graph.
     void cleanupCommandsForRecord(
         MemObjRecord *Record,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
+        std::vector<std::shared_ptr<__sycl_internal::__v1::detail::stream_impl>> &);
 
     /// Removes the MemObjRecord for the memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
@@ -656,8 +656,8 @@ protected:
   ///
   /// \code{.cpp}
   ///   // The ContextA and ContextB are different OpenCL contexts
-  ///   sycl::queue Q1(ContextA);
-  ///   sycl::queue Q2(ContextB);
+  ///   __sycl_internal::__v1::queue Q1(ContextA);
+  ///   __sycl_internal::__v1::queue Q2(ContextB);
   ///
   ///   Q1.submit(Task1);
   ///

@@ -23,8 +23,8 @@
 #include <sstream>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
@@ -99,7 +99,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
       MOpenCLInterop(true), MHostEvent(false), MState(HES_Complete) {
 
   if (MContext->is_host()) {
-    throw cl::sycl::invalid_parameter_error(
+    throw __sycl_internal::__v1::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
         PI_INVALID_CONTEXT);
@@ -110,7 +110,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
                                               sizeof(RT::PiContext),
                                               &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
-    throw cl::sycl::invalid_parameter_error(
+    throw __sycl_internal::__v1::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
         PI_INVALID_CONTEXT);
@@ -185,7 +185,7 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 }
 
 void event_impl::wait(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+    std::shared_ptr<__sycl_internal::__v1::detail::event_impl> Self) const {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
   uint64_t IId;
@@ -209,7 +209,7 @@ void event_impl::wait(
 }
 
 void event_impl::wait_and_throw(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) {
+    std::shared_ptr<__sycl_internal::__v1::detail::event_impl> Self) {
   wait(Self);
   for (auto &EventImpl :
        detail::Scheduler::getInstance().getWaitList(std::move(Self))) {

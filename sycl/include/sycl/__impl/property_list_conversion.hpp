@@ -13,8 +13,8 @@
 #include <sycl/__impl/ONEAPI/accessor_property_list.hpp>
 #include <sycl/__impl/property_list.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 template <typename... T>
 inline property_list::operator ONEAPI::accessor_property_list<T...>() {
   return ONEAPI::accessor_property_list<T...>(MDataLessProps, MPropsWithData);

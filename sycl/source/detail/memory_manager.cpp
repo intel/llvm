@@ -16,8 +16,8 @@
 #include <cstring>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 static void waitForEvents(const std::vector<EventImplPtr> &Events) {
@@ -94,7 +94,7 @@ void *MemoryManager::wrapIntoImageBuffer(ContextImplPtr TargetContext,
 
 void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
                                         bool HostPtrReadOnly, size_t Size,
-                                        const sycl::property_list &) {
+                                        const __sycl_internal::__v1::property_list &) {
   // Can return user pointer directly if it points to writable memory.
   if (UserPtr && HostPtrReadOnly == false)
     return UserPtr;
@@ -111,7 +111,7 @@ void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
 void *MemoryManager::allocateInteropMemObject(
     ContextImplPtr TargetContext, void *UserPtr,
     const EventImplPtr &InteropEvent, const ContextImplPtr &InteropContext,
-    const sycl::property_list &, RT::PiEvent &OutEventToWait) {
+    const __sycl_internal::__v1::property_list &, RT::PiEvent &OutEventToWait) {
   (void)TargetContext;
   (void)InteropContext;
   // If memory object is created with interop c'tor return cl_mem as is.
@@ -140,7 +140,7 @@ void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
                                          void *UserPtr, bool HostPtrReadOnly,
                                          const RT::PiMemImageDesc &Desc,
                                          const RT::PiMemImageFormat &Format,
-                                         const sycl::property_list &) {
+                                         const __sycl_internal::__v1::property_list &) {
   RT::PiMemFlags CreationFlags =
       getMemObjCreationFlags(UserPtr, HostPtrReadOnly);
 
@@ -155,11 +155,11 @@ void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
 void *
 MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
                                     bool HostPtrReadOnly, const size_t Size,
-                                    const sycl::property_list &PropsList) {
+                                    const __sycl_internal::__v1::property_list &PropsList) {
   RT::PiMemFlags CreationFlags =
       getMemObjCreationFlags(UserPtr, HostPtrReadOnly);
   if (PropsList.has_property<
-          sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
+          __sycl_internal::__v1::ext::oneapi::property::buffer::use_pinned_host_memory>())
     CreationFlags |= PI_MEM_FLAGS_HOST_PTR_ALLOC;
 
   RT::PiMem NewMem = nullptr;
@@ -175,7 +175,7 @@ void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
                                        bool HostPtrReadOnly, size_t Size,
                                        const EventImplPtr &InteropEvent,
                                        const ContextImplPtr &InteropContext,
-                                       const sycl::property_list &PropsList,
+                                       const __sycl_internal::__v1::property_list &PropsList,
                                        RT::PiEvent &OutEventToWait) {
   if (TargetContext->is_host())
     return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size,
@@ -191,7 +191,7 @@ void *MemoryManager::allocateMemImage(
     ContextImplPtr TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
     bool HostPtrReadOnly, size_t Size, const RT::PiMemImageDesc &Desc,
     const RT::PiMemImageFormat &Format, const EventImplPtr &InteropEvent,
-    const ContextImplPtr &InteropContext, const sycl::property_list &PropsList,
+    const ContextImplPtr &InteropContext, const __sycl_internal::__v1::property_list &PropsList,
     RT::PiEvent &OutEventToWait) {
   if (TargetContext->is_host())
     return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size,
@@ -264,11 +264,11 @@ void prepTermPositions(TermPositions &pos, int Dimensions,
 }
 
 void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
-             unsigned int DimSrc, sycl::range<3> SrcSize,
-             sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
+             unsigned int DimSrc, __sycl_internal::__v1::range<3> SrcSize,
+             __sycl_internal::__v1::range<3> SrcAccessRange, __sycl_internal::__v1::id<3> SrcOffset,
              unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr TgtQueue,
-             unsigned int DimDst, sycl::range<3> DstSize,
-             sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+             unsigned int DimDst, __sycl_internal::__v1::range<3> DstSize,
+             __sycl_internal::__v1::range<3> DstAccessRange, __sycl_internal::__v1::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
              RT::PiEvent &OutEvent) {
   (void)SrcAccessRange;
@@ -336,11 +336,11 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
 }
 
 void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
-             unsigned int DimSrc, sycl::range<3> SrcSize,
-             sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
+             unsigned int DimSrc, __sycl_internal::__v1::range<3> SrcSize,
+             __sycl_internal::__v1::range<3> SrcAccessRange, __sycl_internal::__v1::id<3> SrcOffset,
              unsigned int SrcElemSize, char *DstMem, QueueImplPtr,
-             unsigned int DimDst, sycl::range<3> DstSize,
-             sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+             unsigned int DimDst, __sycl_internal::__v1::range<3> DstSize,
+             __sycl_internal::__v1::range<3> DstAccessRange, __sycl_internal::__v1::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
              RT::PiEvent &OutEvent) {
   (void)DstAccessRange;
@@ -413,11 +413,11 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 }
 
 void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
-             unsigned int DimSrc, sycl::range<3> SrcSize,
-             sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
+             unsigned int DimSrc, __sycl_internal::__v1::range<3> SrcSize,
+             __sycl_internal::__v1::range<3> SrcAccessRange, __sycl_internal::__v1::id<3> SrcOffset,
              unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr,
-             unsigned int DimDst, sycl::range<3> DstSize, sycl::range<3>,
-             sycl::id<3> DstOffset, unsigned int DstElemSize,
+             unsigned int DimDst, __sycl_internal::__v1::range<3> DstSize, __sycl_internal::__v1::range<3>,
+             __sycl_internal::__v1::id<3> DstOffset, unsigned int DstElemSize,
              std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
@@ -485,11 +485,11 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 }
 
 static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
-                    unsigned int DimSrc, sycl::range<3> SrcSize,
-                    sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
+                    unsigned int DimSrc, __sycl_internal::__v1::range<3> SrcSize,
+                    __sycl_internal::__v1::range<3> SrcAccessRange, __sycl_internal::__v1::id<3> SrcOffset,
                     unsigned int SrcElemSize, char *DstMem, QueueImplPtr,
-                    unsigned int DimDst, sycl::range<3> DstSize,
-                    sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+                    unsigned int DimDst, __sycl_internal::__v1::range<3> DstSize,
+                    __sycl_internal::__v1::range<3> DstAccessRange, __sycl_internal::__v1::id<3> DstOffset,
                     unsigned int DstElemSize, std::vector<RT::PiEvent>,
                     RT::PiEvent &) {
   if ((DimSrc != 1 || DimDst != 1) &&
@@ -514,11 +514,11 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
 // device and device if memory objects bound to the one context.
 void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
                          QueueImplPtr SrcQueue, unsigned int DimSrc,
-                         sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
-                         sycl::id<3> SrcOffset, unsigned int SrcElemSize,
+                         __sycl_internal::__v1::range<3> SrcSize, __sycl_internal::__v1::range<3> SrcAccessRange,
+                         __sycl_internal::__v1::id<3> SrcOffset, unsigned int SrcElemSize,
                          void *DstMem, QueueImplPtr TgtQueue,
-                         unsigned int DimDst, sycl::range<3> DstSize,
-                         sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+                         unsigned int DimDst, __sycl_internal::__v1::range<3> DstSize,
+                         __sycl_internal::__v1::range<3> DstAccessRange, __sycl_internal::__v1::id<3> DstOffset,
                          unsigned int DstElemSize,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent &OutEvent) {
@@ -554,8 +554,8 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
 
 void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          size_t PatternSize, const char *Pattern,
-                         unsigned int Dim, sycl::range<3>, sycl::range<3> Range,
-                         sycl::id<3> Offset, unsigned int ElementSize,
+                         unsigned int Dim, __sycl_internal::__v1::range<3>, __sycl_internal::__v1::range<3> Range,
+                         __sycl_internal::__v1::id<3> Offset, unsigned int ElementSize,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
@@ -579,8 +579,8 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
 }
 
 void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
-                         access::mode AccessMode, unsigned int, sycl::range<3>,
-                         sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
+                         access::mode AccessMode, unsigned int, __sycl_internal::__v1::range<3>,
+                         __sycl_internal::__v1::range<3> AccessRange, __sycl_internal::__v1::id<3> AccessOffset,
                          unsigned int ElementSize,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent &OutEvent) {
@@ -648,7 +648,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         PI_INVALID_VALUE);
 
-  sycl::context Context = SrcQueue->get_context();
+  __sycl_internal::__v1::context Context = SrcQueue->get_context();
 
   if (Context.is_host()) {
     std::memcpy(DstMem, SrcMem, Len);
@@ -670,7 +670,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
     throw runtime_error("NULL pointer argument in memory fill operation.",
                         PI_INVALID_VALUE);
 
-  sycl::context Context = Queue->get_context();
+  __sycl_internal::__v1::context Context = Queue->get_context();
 
   if (Context.is_host()) {
     std::memset(Mem, Pattern, Length);
@@ -685,7 +685,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
 void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                                  std::vector<RT::PiEvent> DepEvents,
                                  RT::PiEvent &OutEvent) {
-  sycl::context Context = Queue->get_context();
+  __sycl_internal::__v1::context Context = Queue->get_context();
 
   if (Context.is_host()) {
     // TODO: Potentially implement prefetch on the host.

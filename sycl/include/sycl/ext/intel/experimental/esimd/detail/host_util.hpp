@@ -16,8 +16,8 @@
 
 #define SIMDCF_ELEMENT_SKIP(i)
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 namespace half_impl {
 class half;
@@ -26,8 +26,8 @@ class half;
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -35,7 +35,7 @@ namespace esimd {
 namespace emu {
 namespace detail {
 
-using half = sycl::detail::half_impl::half;
+using half = __sycl_internal::__v1::detail::half_impl::half;
 constexpr int sat_is_on = 1;
 
 static long long abs(long long a) {

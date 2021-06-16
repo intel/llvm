@@ -22,8 +22,8 @@
 #include <memory>
 #include <mutex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 program_impl::program_impl(ContextImplPtr Context,
@@ -38,7 +38,7 @@ program_impl::program_impl(ContextImplPtr Context,
   if (Context->getDevices().size() > 1) {
     throw feature_not_supported(
         "multiple devices within a context are not supported with "
-        "sycl::program and sycl::kernel",
+        "__sycl_internal::__v1::program and __sycl_internal::__v1::kernel",
         PI_INVALID_OPERATION);
   }
 }
@@ -67,7 +67,7 @@ program_impl::program_impl(
   if (MContext->getDevices().size() > 1) {
     throw feature_not_supported(
         "multiple devices within a context are not supported with "
-        "sycl::program and sycl::kernel",
+        "__sycl_internal::__v1::program and __sycl_internal::__v1::kernel",
         PI_INVALID_OPERATION);
   }
   MDevices = ProgramList[0]->MDevices;
@@ -150,7 +150,7 @@ program_impl::program_impl(ContextImplPtr Context,
   // This is possible when clCreateProgramWithBinary is used.
   auto NewEnd = std::remove_if(
       SyclContextDevices.begin(), SyclContextDevices.end(),
-      [&PiDevices](const sycl::device &Dev) {
+      [&PiDevices](const __sycl_internal::__v1::device &Dev) {
         return PiDevices.end() ==
                std::find(PiDevices.begin(), PiDevices.end(),
                          detail::getSyclObjImpl(Dev)->getHandleRef());
@@ -518,7 +518,7 @@ vector_class<device> program_impl::get_info<info::program::devices>() const {
 void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
                                           size_t ValSize) {
   if (MState != program_state::none)
-    throw cl::sycl::ONEAPI::experimental::spec_const_error(
+    throw __sycl_internal::__v1::ONEAPI::experimental::spec_const_error(
         "Invalid program state", PI_INVALID_PROGRAM);
   // Reuse cached programs lock as opposed to introducing a new lock.
   auto LockGuard = MContext->getKernelProgramCache().acquireCachedPrograms();

@@ -27,11 +27,11 @@
 #include <mutex>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
-// The class is impl counterpart for sycl::device_image
+// The class is impl counterpart for __sycl_internal::__v1::device_image
 // It can represent a program in different states, kernel_id's it has and state
 // of specialization constants for it
 class device_image_impl {

@@ -19,8 +19,8 @@
 #include <memory>
 #include <unordered_set>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 event::event() : impl(std::make_shared<detail::event_impl>()) {}
 

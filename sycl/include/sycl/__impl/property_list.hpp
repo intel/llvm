@@ -11,8 +11,8 @@
 #include <sycl/__impl/detail/common.hpp>
 #include <sycl/__impl/detail/property_list_base.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ONEAPI {
 template <typename... PropsT> class accessor_property_list;
 }
@@ -40,7 +40,7 @@ public:
 
   template <typename PropT> PropT get_property() const {
     if (!has_property<PropT>())
-      throw sycl::invalid_object_error("The property is not found",
+      throw __sycl_internal::__v1::invalid_object_error("The property is not found",
                                        PI_INVALID_VALUE);
 
     return get_property_helper<PropT>();

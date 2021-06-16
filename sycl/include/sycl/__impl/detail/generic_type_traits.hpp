@@ -17,8 +17,8 @@
 
 #include <limits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 template <typename T> using is_floatn = is_contained<T, gtl::vector_float_list>;
@@ -367,18 +367,18 @@ using select_apply_cl_scalar_t =
 // Shortcuts for selecting scalar int/unsigned int/fp type.
 template <typename T>
 using select_cl_scalar_integral_signed_t =
-    select_apply_cl_scalar_t<T, sycl::cl_char, sycl::cl_short, sycl::cl_int,
-                             sycl::cl_long>;
+    select_apply_cl_scalar_t<T, __sycl_internal::__v1::cl_char, __sycl_internal::__v1::cl_short, __sycl_internal::__v1::cl_int,
+                             __sycl_internal::__v1::cl_long>;
 
 template <typename T>
 using select_cl_scalar_integral_unsigned_t =
-    select_apply_cl_scalar_t<T, sycl::cl_uchar, sycl::cl_ushort, sycl::cl_uint,
-                             sycl::cl_ulong>;
+    select_apply_cl_scalar_t<T, __sycl_internal::__v1::cl_uchar, __sycl_internal::__v1::cl_ushort, __sycl_internal::__v1::cl_uint,
+                             __sycl_internal::__v1::cl_ulong>;
 
 template <typename T>
 using select_cl_scalar_float_t =
-    select_apply_cl_scalar_t<T, std::false_type, sycl::cl_half, sycl::cl_float,
-                             sycl::cl_double>;
+    select_apply_cl_scalar_t<T, std::false_type, __sycl_internal::__v1::cl_half, __sycl_internal::__v1::cl_float,
+                             __sycl_internal::__v1::cl_double>;
 
 template <typename T>
 using select_cl_scalar_integral_t =
@@ -396,7 +396,7 @@ using select_cl_scalar_t = conditional_t<
         // half is a special case: it is implemented differently on host and
         // device and therefore, might lower to different types
         conditional_t<std::is_same<T, half>::value,
-                      cl::sycl::detail::half_impl::BIsRepresentationT, T>>>;
+                      __sycl_internal::__v1::detail::half_impl::BIsRepresentationT, T>>>;
 
 // select_cl_vector_or_scalar does cl_* type selection for element type of
 // a vector type T and does scalar type substitution.  If T is not

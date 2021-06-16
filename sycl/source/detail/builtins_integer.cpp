@@ -15,10 +15,11 @@
 #include <algorithm>
 #include <type_traits>
 
-namespace s = cl::sycl;
+namespace s = __sycl_internal::__v1;
 namespace d = s::detail;
 
-__SYCL_INLINE_NAMESPACE(cl) {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace __host_std {
 namespace {
 
@@ -858,4 +859,5 @@ __SYCL_EXPORT s::cl_int s_mul24(s::cl_int x, s::cl_int y) __NOEXC {
 MAKE_1V_2V(s_mul24, s::cl_int, s::cl_int, s::cl_int)
 
 } // namespace __host_std
+}
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -6,8 +6,8 @@
 #include <cassert>
 #include <iostream>
 
-namespace s = cl::sycl;
-namespace d = cl::sycl::detail;
+namespace s = __sycl_internal::__v1;
+namespace d = s::detail;
 
 using i_t = int;
 using f_t = float;

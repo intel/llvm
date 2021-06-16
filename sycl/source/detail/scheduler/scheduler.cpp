@@ -22,8 +22,8 @@
 #include <thread>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
@@ -311,7 +311,7 @@ void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
 }
 
 Scheduler::Scheduler() {
-  sycl::device HostDevice;
+  __sycl_internal::__v1::device HostDevice;
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
                      /*PropList=*/{}));

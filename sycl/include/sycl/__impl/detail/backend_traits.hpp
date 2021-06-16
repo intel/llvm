@@ -11,8 +11,8 @@
 #include <sycl/__impl/backend_types.hpp>
 #include <sycl/__impl/detail/common.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 template <backend Backend> struct InteropFeatureSupportMap {
   static constexpr bool MakePlatform = false;

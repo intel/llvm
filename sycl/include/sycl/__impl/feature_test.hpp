@@ -7,8 +7,8 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Feature test macro definitions
 

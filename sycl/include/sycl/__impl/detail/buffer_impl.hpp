@@ -23,8 +23,8 @@
 #include <memory>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 // Forward declarations
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
@@ -48,8 +48,8 @@ public:
               unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
-    if (Props.has_property<sycl::property::buffer::use_host_ptr>())
-      throw sycl::invalid_object_error(
+    if (Props.has_property<__sycl_internal::__v1::property::buffer::use_host_ptr>())
+      throw __sycl_internal::__v1::invalid_object_error(
           "The use_host_ptr property requires host pointer to be provided",
           PI_INVALID_OPERATION);
   }
@@ -60,8 +60,8 @@ public:
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<
-            sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
-      throw sycl::invalid_object_error(
+            __sycl_internal::__v1::ext::oneapi::property::buffer::use_pinned_host_memory>())
+      throw __sycl_internal::__v1::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
           PI_INVALID_OPERATION);
 
@@ -74,8 +74,8 @@ public:
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<
-            sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
-      throw sycl::invalid_object_error(
+            __sycl_internal::__v1::ext::oneapi::property::buffer::use_pinned_host_memory>())
+      throw __sycl_internal::__v1::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
           PI_INVALID_OPERATION);
 
@@ -89,8 +89,8 @@ public:
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<
-            sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
-      throw sycl::invalid_object_error(
+            __sycl_internal::__v1::ext::oneapi::property::buffer::use_pinned_host_memory>())
+      throw __sycl_internal::__v1::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
           PI_INVALID_OPERATION);
 
@@ -108,8 +108,8 @@ public:
               unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
-    if (Props.has_property<sycl::property::buffer::use_host_ptr>())
-      throw sycl::invalid_object_error(
+    if (Props.has_property<__sycl_internal::__v1::property::buffer::use_host_ptr>())
+      throw __sycl_internal::__v1::invalid_object_error(
           "Buffer constructor from a pair of iterator values cannot have the "
           "use_host_ptr property.",
           PI_INVALID_OPERATION);
@@ -128,8 +128,8 @@ public:
               unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
-    if (Props.has_property<sycl::property::buffer::use_host_ptr>())
-      throw sycl::invalid_object_error(
+    if (Props.has_property<__sycl_internal::__v1::property::buffer::use_host_ptr>())
+      throw __sycl_internal::__v1::invalid_object_error(
           "Buffer constructor from a pair of iterator values cannot have the "
           "use_host_ptr property.",
           PI_INVALID_OPERATION);

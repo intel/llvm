@@ -14,8 +14,8 @@
 #include <algorithm>
 #include <regex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 constexpr char BackendNameKeyName[] = "BackendName";
@@ -81,7 +81,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
     if (std::find(SupportedAllowListKeyNames.begin(),
                   SupportedAllowListKeyNames.end(),
                   Key) == SupportedAllowListKeyNames.end()) {
-      throw sycl::runtime_error(
+      throw __sycl_internal::__v1::runtime_error(
           "Unrecognized key in SYCL_DEVICE_ALLOWLIST. For details, please "
           "refer to "
           "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
@@ -128,7 +128,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                 break;
               }
             if (!ValueIsValid)
-              throw sycl::runtime_error(
+              throw __sycl_internal::__v1::runtime_error(
                   "Value " + Value + " for key " + Key +
                       " is not valid in "
                       "SYCL_DEVICE_ALLOWLIST. For details, please refer to "
@@ -147,7 +147,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
         if (Key == DeviceVendorIdKeyName) {
           // DeviceVendorId should have hex format
           if (!std::regex_match(Value, std::regex("0[xX][0-9a-fA-F]+"))) {
-            throw sycl::runtime_error(
+            throw __sycl_internal::__v1::runtime_error(
                 "Value " + Value + " for key " + Key +
                     " is not valid in "
                     "SYCL_DEVICE_ALLOWLIST. It should have the hex format. For "
@@ -166,7 +166,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
         // TODO: can be changed to string_view::starts_with after switching
         // DPC++ RT to C++20
         if (Prefix != AllowListRaw.substr(ValueStart, Prefix.length())) {
-          throw sycl::runtime_error("Key " + Key +
+          throw __sycl_internal::__v1::runtime_error("Key " + Key +
                                         " of SYCL_DEVICE_ALLOWLIST should have "
                                         "value which starts with " +
                                         Prefix,
@@ -184,7 +184,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
           // if it is the last iteration and next 2 symbols are not a postfix,
           // throw exception
           if (ValueEnd == AllowListRaw.length() - Postfix.length())
-            throw sycl::runtime_error(
+            throw __sycl_internal::__v1::runtime_error(
                 "Key " + Key +
                     " of SYCL_DEVICE_ALLOWLIST should have "
                     "value which ends with " +
@@ -198,7 +198,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
             (AllowListRaw[NextExpectedDelimeterPos] !=
              DelimeterBtwItemsInDeviceDesc) &&
             (AllowListRaw[NextExpectedDelimeterPos] != DelimeterBtwDeviceDescs))
-          throw sycl::runtime_error(
+          throw __sycl_internal::__v1::runtime_error(
               "Unexpected symbol on position " +
                   std::to_string(NextExpectedDelimeterPos) + ": " +
                   AllowListRaw[NextExpectedDelimeterPos] +
@@ -220,7 +220,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
       // add key and value to the map
       DeviceDescMap.emplace(Key, Value);
     } else
-      throw sycl::runtime_error("Re-definition of key " + Key +
+      throw __sycl_internal::__v1::runtime_error("Re-definition of key " + Key +
                                     " is not allowed in "
                                     "SYCL_DEVICE_ALLOWLIST",
                                 PI_INVALID_VALUE);
@@ -302,7 +302,7 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
   DeviceDescT DeviceDesc;
 
   // get BackendName value and put it to DeviceDesc
-  sycl::backend Backend = Plugin.getBackend();
+  __sycl_internal::__v1::backend Backend = Plugin.getBackend();
   for (const auto &SyclBe : SyclBeMap) {
     if (SyclBe.second == Backend) {
       DeviceDesc.emplace(BackendNameKeyName, SyclBe.first);
@@ -312,13 +312,13 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
   // get PlatformVersion value and put it to DeviceDesc
   DeviceDesc.emplace(
       PlatformVersionKeyName,
-      sycl::detail::get_platform_info<std::string,
+      __sycl_internal::__v1::detail::get_platform_info<std::string,
                                       info::platform::version>::get(PiPlatform,
                                                                     Plugin));
   // get PlatformName value and put it to DeviceDesc
   DeviceDesc.emplace(
       PlatformNameKeyName,
-      sycl::detail::get_platform_info<std::string, info::platform::name>::get(
+      __sycl_internal::__v1::detail::get_platform_info<std::string, info::platform::name>::get(
           PiPlatform, Plugin));
 
   int InsertIDx = 0;
@@ -328,7 +328,7 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
     Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
                                             sizeof(RT::PiDeviceType),
                                             &PiDevType, nullptr);
-    sycl::info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
+    __sycl_internal::__v1::info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
     for (const auto &SyclDeviceType : SyclDeviceTypeMap) {
       if (SyclDeviceType.second == DeviceType) {
         const auto &DeviceTypeValue = SyclDeviceType.first;
@@ -338,19 +338,19 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
     }
     // get DeviceVendorId value and put it to DeviceDesc
     uint32_t DeviceVendorIdUInt =
-        sycl::detail::get_device_info<uint32_t, info::device::vendor_id>::get(
+        __sycl_internal::__v1::detail::get_device_info<uint32_t, info::device::vendor_id>::get(
             Device, Plugin);
     std::stringstream DeviceVendorIdHexStringStream;
     DeviceVendorIdHexStringStream << "0x" << std::hex << DeviceVendorIdUInt;
     const auto &DeviceVendorIdValue = DeviceVendorIdHexStringStream.str();
     DeviceDesc[DeviceVendorIdKeyName] = DeviceVendorIdValue;
     // get DriverVersion value and put it to DeviceDesc
-    const auto &DriverVersionValue = sycl::detail::get_device_info<
+    const auto &DriverVersionValue = __sycl_internal::__v1::detail::get_device_info<
         std::string, info::device::driver_version>::get(Device, Plugin);
     DeviceDesc[DriverVersionKeyName] = DriverVersionValue;
     // get DeviceName value and put it to DeviceDesc
     const auto &DeviceNameValue =
-        sycl::detail::get_device_info<std::string, info::device::name>::get(
+        __sycl_internal::__v1::detail::get_device_info<std::string, info::device::name>::get(
             Device, Plugin);
     DeviceDesc[DeviceNameKeyName] = DeviceNameValue;
 

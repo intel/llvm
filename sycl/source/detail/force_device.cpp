@@ -13,8 +13,8 @@
 #include <algorithm>
 #include <cstdlib>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 bool match_types(const info::device_type &l, const info::device_type &r) {
@@ -38,7 +38,7 @@ info::device_type get_forced_type() {
     if (type == "host") {
       return info::device_type::host;
     }
-    throw cl::sycl::runtime_error("SYCL_DEVICE_TYPE is not recognized.  Must "
+    throw __sycl_internal::__v1::runtime_error("SYCL_DEVICE_TYPE is not recognized.  Must "
                                   "be GPU, CPU, ACC or HOST.",
                                   PI_INVALID_VALUE);
   }

@@ -8,26 +8,26 @@
 
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 // Used for sorting vector of kernel_id's
 struct LessByNameComp {
-  bool operator()(const sycl::kernel_id &LHS,
-                  const sycl::kernel_id &RHS) const {
+  bool operator()(const __sycl_internal::__v1::kernel_id &LHS,
+                  const __sycl_internal::__v1::kernel_id &RHS) const {
     return std::strcmp(LHS.get_name(), RHS.get_name()) < 0;
   }
 };
 
 struct EqualByNameComp {
-  bool operator()(const sycl::kernel_id &LHS,
-                  const sycl::kernel_id &RHS) const {
+  bool operator()(const __sycl_internal::__v1::kernel_id &LHS,
+                  const __sycl_internal::__v1::kernel_id &RHS) const {
     return strcmp(LHS.get_name(), RHS.get_name()) == 0;
   }
 };
 
-// The class is impl counterpart for sycl::kernel_id which represent a kernel
+// The class is impl counterpart for __sycl_internal::__v1::kernel_id which represent a kernel
 // identificator
 class kernel_id_impl {
 public:

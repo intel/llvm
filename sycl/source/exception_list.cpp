@@ -11,8 +11,8 @@
 
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 exception_list::size_type exception_list::size() const { return MList.size(); }
 

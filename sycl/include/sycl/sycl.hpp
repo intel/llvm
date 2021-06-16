@@ -58,3 +58,7 @@
 #include <sycl/__impl/types.hpp>
 #include <sycl/__impl/usm.hpp>
 #include <sycl/__impl/version.hpp>
+
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}

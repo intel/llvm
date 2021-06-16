@@ -13,56 +13,56 @@
 #include <limits>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 template <typename T, class BinaryOperation>
 using IsPlus =
-    bool_constant<std::is_same<BinaryOperation, sycl::plus<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::plus<void>>::value ||
+    bool_constant<std::is_same<BinaryOperation, __sycl_internal::__v1::plus<T>>::value ||
+                  std::is_same<BinaryOperation, __sycl_internal::__v1::plus<void>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::plus<T>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::plus<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsMultiplies = bool_constant<
-    std::is_same<BinaryOperation, sycl::multiplies<T>>::value ||
-    std::is_same<BinaryOperation, sycl::multiplies<void>>::value ||
+    std::is_same<BinaryOperation, __sycl_internal::__v1::multiplies<T>>::value ||
+    std::is_same<BinaryOperation, __sycl_internal::__v1::multiplies<void>>::value ||
     std::is_same<BinaryOperation, ONEAPI::multiplies<T>>::value ||
     std::is_same<BinaryOperation, ONEAPI::multiplies<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsMinimum =
-    bool_constant<std::is_same<BinaryOperation, sycl::minimum<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::minimum<void>>::value ||
+    bool_constant<std::is_same<BinaryOperation, __sycl_internal::__v1::minimum<T>>::value ||
+                  std::is_same<BinaryOperation, __sycl_internal::__v1::minimum<void>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::minimum<T>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::minimum<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsMaximum =
-    bool_constant<std::is_same<BinaryOperation, sycl::maximum<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::maximum<void>>::value ||
+    bool_constant<std::is_same<BinaryOperation, __sycl_internal::__v1::maximum<T>>::value ||
+                  std::is_same<BinaryOperation, __sycl_internal::__v1::maximum<void>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::maximum<T>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::maximum<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsBitOR =
-    bool_constant<std::is_same<BinaryOperation, sycl::bit_or<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::bit_or<void>>::value ||
+    bool_constant<std::is_same<BinaryOperation, __sycl_internal::__v1::bit_or<T>>::value ||
+                  std::is_same<BinaryOperation, __sycl_internal::__v1::bit_or<void>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::bit_or<T>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::bit_or<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsBitXOR =
-    bool_constant<std::is_same<BinaryOperation, sycl::bit_xor<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::bit_xor<void>>::value ||
+    bool_constant<std::is_same<BinaryOperation, __sycl_internal::__v1::bit_xor<T>>::value ||
+                  std::is_same<BinaryOperation, __sycl_internal::__v1::bit_xor<void>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::bit_xor<T>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::bit_xor<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsBitAND =
-    bool_constant<std::is_same<BinaryOperation, sycl::bit_and<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::bit_and<void>>::value ||
+    bool_constant<std::is_same<BinaryOperation, __sycl_internal::__v1::bit_and<T>>::value ||
+                  std::is_same<BinaryOperation, __sycl_internal::__v1::bit_and<void>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::bit_and<T>>::value ||
                   std::is_same<BinaryOperation, ONEAPI::bit_and<void>>::value>;
 
@@ -129,7 +129,7 @@ struct known_identity_impl<BinaryOperation, half,
 #ifdef __SYCL_DEVICE_ONLY__
       0;
 #else
-      cl::sycl::detail::host_half_impl::half_v2(static_cast<uint16_t>(0));
+      __sycl_internal::__v1::detail::host_half_impl::half_v2(static_cast<uint16_t>(0));
 #endif
 };
 
@@ -149,7 +149,7 @@ struct known_identity_impl<BinaryOperation, half,
 #ifdef __SYCL_DEVICE_ONLY__
       1;
 #else
-      cl::sycl::detail::host_half_impl::half_v2(static_cast<uint16_t>(0x3C00));
+      __sycl_internal::__v1::detail::host_half_impl::half_v2(static_cast<uint16_t>(0x3C00));
 #endif
 };
 
@@ -194,7 +194,7 @@ struct has_known_identity : detail::has_known_identity_impl<
 
 template <typename BinaryOperation, typename AccumulatorT>
 __SYCL_INLINE_CONSTEXPR bool has_known_identity_v =
-    sycl::has_known_identity<BinaryOperation, AccumulatorT>::value;
+    __sycl_internal::__v1::has_known_identity<BinaryOperation, AccumulatorT>::value;
 
 // ---- known_identity
 template <typename BinaryOperation, typename AccumulatorT>
@@ -204,7 +204,7 @@ struct known_identity
 
 template <typename BinaryOperation, typename AccumulatorT>
 __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
-    sycl::known_identity<BinaryOperation, AccumulatorT>::value;
+    __sycl_internal::__v1::known_identity<BinaryOperation, AccumulatorT>::value;
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

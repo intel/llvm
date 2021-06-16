@@ -9,8 +9,8 @@
 #include <sycl/__impl/accessor.hpp>
 #include <detail/queue_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 device getDeviceFromHandler(handler &CommandGroupHandlerRef) {
   return CommandGroupHandlerRef.MQueue->get_device();

@@ -24,8 +24,8 @@
 #include <stdexcept>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 class Builder;
 
@@ -99,8 +99,8 @@ public:
   static constexpr int dimensions = Dimensions;
 #endif // __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
 
-  static constexpr sycl::memory_scope fence_scope =
-      sycl::memory_scope::work_group;
+  static constexpr __sycl_internal::__v1::memory_scope fence_scope =
+      __sycl_internal::__v1::memory_scope::work_group;
 
   group() = delete;
 

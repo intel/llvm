@@ -17,8 +17,8 @@
 class TestKernel;
 
 static std::string BuildOpts;
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -165,8 +165,8 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
   return PI_SUCCESS;
 }
 
-static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
-  using namespace sycl::detail;
+static void setupDefaultMockAPIs(__sycl_internal::__v1::unittest::PiMock &Mock) {
+  using namespace __sycl_internal::__v1::detail;
   Mock.redefine<PiApiKind::piclProgramCreateWithSource>(
       redefinedProgramCreateWithSource);
   Mock.redefine<PiApiKind::piProgramCreateWithBinary>(
@@ -187,8 +187,8 @@ static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
   Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
 }
 
-static sycl::unittest::PiImage generateDefaultImage() {
-  using namespace sycl::unittest;
+static __sycl_internal::__v1::unittest::PiImage generateDefaultImage() {
+  using namespace __sycl_internal::__v1::unittest;
 
   PiPropertySet PropSet;
   addESIMDFlag(PropSet);
@@ -207,66 +207,66 @@ static sycl::unittest::PiImage generateDefaultImage() {
   return Img;
 }
 
-sycl::unittest::PiImage Img = generateDefaultImage();
-sycl::unittest::PiImageArray ImgArray{Img};
+__sycl_internal::__v1::unittest::PiImage Img = generateDefaultImage();
+__sycl_internal::__v1::unittest::PiImageArray ImgArray{Img};
 
 TEST(KernelBuildOptions, KernelBundleBasic) {
-  sycl::platform Plt{sycl::default_selector()};
+  __sycl_internal::__v1::platform Plt{__sycl_internal::__v1::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == __sycl_internal::__v1::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
+  __sycl_internal::__v1::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
-  const sycl::device Dev = Plt.get_devices()[0];
+  const __sycl_internal::__v1::device Dev = Plt.get_devices()[0];
 
-  sycl::queue Queue{Dev};
+  __sycl_internal::__v1::queue Queue{Dev};
 
-  const sycl::context Ctx = Queue.get_context();
+  const __sycl_internal::__v1::context Ctx = Queue.get_context();
 
-  sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
-  auto ExecBundle = sycl::build(KernelBundle);
+  __sycl_internal::__v1::kernel_bundle KernelBundle =
+      __sycl_internal::__v1::get_kernel_bundle<__sycl_internal::__v1::bundle_state::input>(Ctx, {Dev});
+  auto ExecBundle = __sycl_internal::__v1::build(KernelBundle);
   EXPECT_EQ(BuildOpts, "-compile-img -vc-codegen");
 
-  auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices());
+  auto ObjBundle = __sycl_internal::__v1::compile(KernelBundle, KernelBundle.get_devices());
   // TODO: uncomment when image options are passed to BE
   // EXPECT_EQ(BuildOpts, "-compile-img -vc-codegen");
 
-  auto LinkBundle = sycl::link(ObjBundle, ObjBundle.get_devices());
+  auto LinkBundle = __sycl_internal::__v1::link(ObjBundle, ObjBundle.get_devices());
   // TODO: uncomment when image options are passed to BE
   // EXPECT_EQ(BuildOpts, "-link-img -vc-codegen");
 }
 
 TEST(KernelBuildOptions, Program) {
-  sycl::platform Plt{sycl::default_selector()};
+  __sycl_internal::__v1::platform Plt{__sycl_internal::__v1::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == __sycl_internal::__v1::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
+  __sycl_internal::__v1::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
-  const sycl::device Dev = Plt.get_devices()[0];
+  const __sycl_internal::__v1::device Dev = Plt.get_devices()[0];
 
-  sycl::queue Queue{Dev};
+  __sycl_internal::__v1::queue Queue{Dev};
 
-  const sycl::context Ctx = Queue.get_context();
-  sycl::program Prg1(Ctx);
-  sycl::program Prg2(Ctx);
+  const __sycl_internal::__v1::context Ctx = Queue.get_context();
+  __sycl_internal::__v1::program Prg1(Ctx);
+  __sycl_internal::__v1::program Prg2(Ctx);
 
   Prg1.build_with_source("");
   EXPECT_TRUE(BuildOpts.size() == 0) << "Expect empty build options";

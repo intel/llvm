@@ -17,8 +17,8 @@
 
 #include <exception>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Forward declaration
 class context;
@@ -135,7 +135,7 @@ enum class errc : unsigned int {
 };
 
 /// Constructs an error code using e and sycl_category()
-__SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
+__SYCL_EXPORT std::error_code make_error_code(__sycl_internal::__v1::errc E) noexcept;
 
 __SYCL_EXPORT const std::error_category &sycl_category() noexcept;
 
@@ -151,5 +151,5 @@ public:
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct is_error_condition_enum<cl::sycl::errc> : true_type {};
+template <> struct is_error_condition_enum<__sycl_internal::__v1::errc> : true_type {};
 } // namespace std

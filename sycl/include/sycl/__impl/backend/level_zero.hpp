@@ -12,8 +12,8 @@
 // This header should be included by users.
 //#include <level_zero/ze_api.h>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 template <> struct interop<backend::level_zero, platform> {
   using type = ze_driver_handle_t;

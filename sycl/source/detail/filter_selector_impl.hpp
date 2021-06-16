@@ -13,8 +13,8 @@
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Forward declarations
 class device;
@@ -22,7 +22,7 @@ class device;
 namespace ONEAPI {
 namespace detail {
 
-typedef struct sycl::detail::device_filter filter;
+typedef struct __sycl_internal::__v1::detail::device_filter filter;
 
 class filter_selector_impl {
 public:

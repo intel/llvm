@@ -16,8 +16,8 @@
 #include <sycl/__impl/detail/cl.h>
 #include <sycl/__impl/kernel_bundle.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 template <> struct interop<backend::opencl, platform> {
   using type = cl_platform_id;

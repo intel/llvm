@@ -23,8 +23,8 @@
 // public methods as a default argument. If the end-user wants to disable the
 // code location information, they must compile the code with
 // -DDISABLE_SYCL_INSTRUMENTATION_METADATA flag
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 // We define a sycl stream name and this will be used by the instrumentation
 // framework
@@ -76,8 +76,8 @@ private:
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 __SYCL_EXPORT const char *stringifyErrorCode(cl_int error);
@@ -112,7 +112,7 @@ static inline std::string codeToString(cl_int code) {
     auto code = expr;                                                          \
     if (code != CL_SUCCESS) {                                                  \
       std::cerr << __SYCL_OCL_ERROR_REPORT                                     \
-                << cl::sycl::detail::codeToString(code) << std::endl;          \
+                << __sycl_internal::__v1::detail::codeToString(code) << std::endl;          \
     }                                                                          \
   }
 #endif
@@ -125,14 +125,14 @@ static inline std::string codeToString(cl_int code) {
     auto code = expr;                                                          \
     if (code != CL_SUCCESS) {                                                  \
       throw exc(__SYCL_OCL_ERROR_REPORT +                                      \
-                    cl::sycl::detail::codeToString(code),                      \
+                    __sycl_internal::__v1::detail::codeToString(code),                      \
                 code);                                                         \
     }                                                                          \
   }
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(code, exc)                          \
   __SYCL_REPORT_OCL_ERR_TO_EXC(code, exc)
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
-  __SYCL_REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error)
+  __SYCL_REPORT_OCL_ERR_TO_EXC(code, __sycl_internal::__v1::runtime_error)
 #else
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
   __SYCL_REPORT_OCL_ERR_TO_STREAM(code)
@@ -149,8 +149,8 @@ static inline std::string codeToString(cl_int code) {
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_OCL_ERR_TO_STREAM(X)
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 // Helper function for extracting implementation from SYCL's interface objects.

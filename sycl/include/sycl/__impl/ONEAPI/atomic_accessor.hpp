@@ -13,8 +13,8 @@
 #include <sycl/__impl/access/access.hpp>
 #include <sycl/__impl/accessor.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace ONEAPI {
 
 #if __cplusplus > 201402L

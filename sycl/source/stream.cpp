@@ -10,8 +10,8 @@
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 // Maximum possible size of a flush buffer statement in bytes
 static constexpr size_t MAX_STATEMENT_SIZE =
@@ -26,7 +26,7 @@ stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH)
       GlobalFlushBuf(impl->accessGlobalFlushBuf(CGH)),
       FlushBufferSize(MaxStatementSize + detail::FLUSH_BUF_OFFSET_SIZE) {
   if (MaxStatementSize > MAX_STATEMENT_SIZE) {
-    throw sycl::invalid_parameter_error(
+    throw __sycl_internal::__v1::invalid_parameter_error(
         "Maximum statement size exceeds limit of " +
             std::to_string(MAX_STATEMENT_SIZE) + " bytes.",
         PI_INVALID_VALUE);

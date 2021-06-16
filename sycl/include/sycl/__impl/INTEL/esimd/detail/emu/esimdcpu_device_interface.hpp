@@ -25,8 +25,8 @@
 // ESIMDDeviceInterface' definition.
 #include <cstdint>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace detail {
 
 /// This is the device interface version required (and used) by this
@@ -74,7 +74,7 @@ ESIMDDeviceInterface *getESIMDDeviceInterface() {
   // tight loop)
   void *PIOpaqueData = nullptr;
 
-  PIOpaqueData = getPluginOpaqueData<cl::sycl::backend::esimd_cpu>(nullptr);
+  PIOpaqueData = getPluginOpaqueData<__sycl_internal::__v1::backend::esimd_cpu>(nullptr);
 
   ESIMDEmuPluginOpaqueData *OpaqueData =
       reinterpret_cast<ESIMDEmuPluginOpaqueData *>(PIOpaqueData);
@@ -91,7 +91,7 @@ ESIMDDeviceInterface *getESIMDDeviceInterface() {
               << "Returned version : " << OpaqueData->version << std::endl
               << "Required version : " << ESIMD_EMU_PLUGIN_OPAQUE_DATA_VERSION
               << std::endl;
-    throw cl::sycl::feature_not_supported();
+    throw __sycl_internal::__v1::feature_not_supported();
   }
   // Opaque data version is OK, can cast the 'data' field.
   ESIMDDeviceInterface *Interface =
@@ -106,7 +106,7 @@ ESIMDDeviceInterface *getESIMDDeviceInterface() {
               << "Found version : " << Interface->version << std::endl
               << "Required version :" << ESIMD_DEVICE_INTERFACE_VERSION
               << std::endl;
-    throw cl::sycl::feature_not_supported();
+    throw __sycl_internal::__v1::feature_not_supported();
   }
   return Interface;
 }

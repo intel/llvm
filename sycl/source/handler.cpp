@@ -21,8 +21,8 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 
 handler::handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
     : MQueue(std::move(Queue)), MIsHost(IsHost) {
@@ -207,13 +207,13 @@ event handler::finalize() {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
     detail::EventImplPtr Event =
-        std::make_shared<cl::sycl::detail::event_impl>();
+        std::make_shared<__sycl_internal::__v1::detail::event_impl>();
     MLastEvent = detail::createSyclObjFromImpl<event>(Event);
     return MLastEvent;
   }
 
   if (!CommandGroup)
-    throw sycl::runtime_error(
+    throw __sycl_internal::__v1::runtime_error(
         "Internal Error. Command group cannot be constructed.",
         PI_INVALID_OPERATION);
 
@@ -377,7 +377,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     case access::target::host_image:
     case access::target::host_buffer: {
-      throw cl::sycl::invalid_parameter_error(
+      throw __sycl_internal::__v1::invalid_parameter_error(
           "Unsupported accessor target case.", PI_INVALID_OPERATION);
       break;
     }

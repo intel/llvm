@@ -13,8 +13,8 @@
 #include <sycl/__impl/detail/property_helper.hpp>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+namespace __sycl_internal {
+inline namespace __v1 {
 namespace property {
 
 class no_init : public detail::DataLessProperty<detail::NoInit> {};
@@ -36,10 +36,10 @@ __SYCL_INLINE_CONSTEXPR property::noinit noinit;
 namespace {
 
 constexpr const auto &no_init =
-    sycl::detail::InlineVariableHelper<property::no_init>::value;
+    __sycl_internal::__v1::detail::InlineVariableHelper<property::no_init>::value;
 
 constexpr const auto &noinit __SYCL2020_DEPRECATED("spelling is now: no_init") =
-    sycl::detail::InlineVariableHelper<property::noinit>::value;
+    __sycl_internal::__v1::detail::InlineVariableHelper<property::noinit>::value;
 }
 
 #endif

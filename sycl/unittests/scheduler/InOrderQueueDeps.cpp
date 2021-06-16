@@ -99,7 +99,7 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, Selector, property::queue::in_order()};
-  cl::sycl::detail::QueueImplPtr InOrderQueueImpl =
+  __sycl_internal::__v1::detail::QueueImplPtr InOrderQueueImpl =
       detail::getSyclObjImpl(InOrderQueue);
 
   device HostDevice;
