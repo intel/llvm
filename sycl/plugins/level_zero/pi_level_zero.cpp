@@ -4237,7 +4237,7 @@ static pi_result cleanupAfterEvent(pi_event Event) {
         // doing batching on the involved command-list. Today memcpy goes by
         // itself in a command list.
         //
-        // TODO: this will unnecesiraly(?) wait for non-USM memory buffers too,
+        // TODO: this will unnecessarily(?) wait for non-USM memory buffers too,
         // so we might need to add a new command type to differentiate.
         //
         if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_COPY) {
