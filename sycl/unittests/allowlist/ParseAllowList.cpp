@@ -256,7 +256,7 @@ TEST(ParseAllowListTests, CheckMultipleColonsBetweenKeyAndValue) {
 TEST(ParseAllowListTests, CheckExceptionIsThrownForValueWOColonDelim) {
   try {
     sycl::detail::AllowListParsedT ActualValue =
-        sycl::detail::parseAllowList("SomeValueWOColonDelimeter");
+        sycl::detail::parseAllowList("SomeValueWOColonDelimiter");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
     EXPECT_EQ(std::string("SYCL_DEVICE_ALLOWLIST has incorrect format. For "
