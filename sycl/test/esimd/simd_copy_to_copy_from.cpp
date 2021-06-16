@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 
-// This test checks that both host and device compilers can:
+// This test checks that device compiler can:
 // - successfully compile simd::copy_to and simd::copy_from APIs
 // - emit an error if argument of an incompatible type is used
 //   in place of the accessor argument
