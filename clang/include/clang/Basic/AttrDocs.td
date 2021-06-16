@@ -405,30 +405,6 @@ The SYCL kernel in the previous code sample meets these expectations.
   }];
 }
 
-def SYCLSpecialClassDocs : Documentation {
-  let Category = DocCatStmt;
-  let Content = [{
-    The ``__attribute__((sycl_special_class[KIND]))`` attribute is used in SYCL
-    headers to indicate that a class or a struct needs additional handling when
-    it is passed from host to device. KIND is an optional argument that can be
-    equal to ``accessor``, ``sampler``, or ``stream`` for sycl classes or equal
-    to ``generic`` for some generic class/struct.
-
-.. code-block:: c++
-  class __attribute__((sycl_special_class(accessor))) accessor {
-
-private:
-  void __init(PtrType Ptr, range<dimensions> AccessRange,
-              range<dimensions> MemRange, id<dimensions> Offset) {}
-  };
-  class __attribute__((sycl_special_class(generic))) myclass {
-  public:
-  myclass();
-  };
-
-  }];
-}
-
 def SYCLSimdDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{

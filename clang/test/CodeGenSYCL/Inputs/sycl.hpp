@@ -11,7 +11,7 @@ struct sampler_impl {
 #endif
 };
 
-class __attribute__((sycl_special_class(sampler))) sampler {
+__attribute__((sycl_special_class(sampler))) class sampler {
   struct sampler_impl impl;
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(__ocl_sampler_t Sampler) { impl.m_Sampler = Sampler; }
@@ -166,7 +166,7 @@ struct _ImplT {
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t>
-class __attribute__((sycl_special_class(accessor))) accessor {
+__attribute__((sycl_special_class(accessor))) class accessor {
 
 public:
   void use(void) const {}
@@ -232,7 +232,7 @@ struct _ImageImplT {
 };
 
 template <typename dataT, int dimensions, access::mode accessmode>
-class __attribute__((sycl_special_class(accessor))) accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
+__attribute__((sycl_special_class(accessor))) class accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
 public:
   void use(void) const {}
   template <typename... T>
@@ -410,7 +410,7 @@ public:
   }
 };
 
-class __attribute__((sycl_special_class(stream))) stream {
+__attribute__((sycl_special_class(stream))) class stream {
 public:
   stream(unsigned long BufferSize, unsigned long MaxStatementSize,
          handler &CGH) {}
