@@ -20,7 +20,7 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 namespace detail {
-  
+
 /// The simd_view base class.
 /// It is an internal class implementing basic functionality of simd_view.
 ///
