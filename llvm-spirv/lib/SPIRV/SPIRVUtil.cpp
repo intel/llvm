@@ -1667,6 +1667,69 @@ public:
       addUnsignedArg(0);
       addUnsignedArg(3);
       break;
+    case OpGroupUMax:
+      LLVM_FALLTHROUGH;
+    case OpGroupUMin:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformBroadcast:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformBallotBitCount:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformShuffle:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformShuffleXor:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformShuffleUp:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformShuffleDown:
+      addUnsignedArg(2);
+      break;
+    case OpGroupNonUniformInverseBallot:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformBallotFindLSB:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformBallotFindMSB:
+      addUnsignedArg(1);
+      break;
+    case OpGroupNonUniformBallotBitExtract:
+      addUnsignedArg(1);
+      addUnsignedArg(2);
+      break;
+    case OpGroupNonUniformIAdd:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformFAdd:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformIMul:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformFMul:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformSMin:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformFMin:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformSMax:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformFMax:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformBitwiseAnd:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformBitwiseOr:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformBitwiseXor:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformLogicalAnd:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformLogicalOr:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformLogicalXor:
+      addUnsignedArg(3);
+      break;
+    case OpGroupNonUniformUMax:
+      LLVM_FALLTHROUGH;
+    case OpGroupNonUniformUMin:
+      addUnsignedArg(2);
+      addUnsignedArg(3);
+      break;
     default:;
       // No special handling is needed
     }
