@@ -70,6 +70,13 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
   const char DelimeterBtwItemsInDeviceDesc = ',';
   const char DelimeterBtwDeviceDescs = '|';
 
+  if (AllowListRaw.find(DelimeterBtwKeyAndValue, KeyStart) == std::string::npos)
+    throw sycl::runtime_error("SYCL_DEVICE_ALLOWLIST has incorrect format. For "
+                              "details, please refer to "
+                              "https://github.com/intel/llvm/blob/sycl/sycl/"
+                              "doc/EnvironmentVariables.md",
+                              PI_INVALID_VALUE);
+
   while ((KeyEnd = AllowListRaw.find(DelimeterBtwKeyAndValue, KeyStart)) !=
          std::string::npos) {
     if ((ValueStart = AllowListRaw.find_first_not_of(
