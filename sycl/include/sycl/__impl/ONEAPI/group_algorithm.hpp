@@ -20,49 +20,49 @@
 #include <sycl/__impl/nd_item.hpp>
 
 #ifndef __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace ONEAPI {
 
 // EnableIf shorthands for algorithms that depend only on type
 template <typename T>
-using EnableIfIsScalarArithmetic = __sycl_internal::__v1::detail::enable_if_t<
-    __sycl_internal::__v1::detail::is_scalar_arithmetic<T>::value, T>;
+using EnableIfIsScalarArithmetic = cl::sycl::detail::enable_if_t<
+    cl::sycl::detail::is_scalar_arithmetic<T>::value, T>;
 
 template <typename T>
-using EnableIfIsVectorArithmetic = __sycl_internal::__v1::detail::enable_if_t<
-    __sycl_internal::__v1::detail::is_vector_arithmetic<T>::value, T>;
+using EnableIfIsVectorArithmetic = cl::sycl::detail::enable_if_t<
+    cl::sycl::detail::is_vector_arithmetic<T>::value, T>;
 
 template <typename Ptr, typename T>
 using EnableIfIsPointer =
-    __sycl_internal::__v1::detail::enable_if_t<__sycl_internal::__v1::detail::is_pointer<Ptr>::value, T>;
+    cl::sycl::detail::enable_if_t<cl::sycl::detail::is_pointer<Ptr>::value, T>;
 
 template <typename T>
-using EnableIfIsTriviallyCopyable = __sycl_internal::__v1::detail::enable_if_t<
+using EnableIfIsTriviallyCopyable = cl::sycl::detail::enable_if_t<
     std::is_trivially_copyable<T>::value &&
-        !__sycl_internal::__v1::detail::is_vector_arithmetic<T>::value,
+        !cl::sycl::detail::is_vector_arithmetic<T>::value,
     T>;
 
 // EnableIf shorthands for algorithms that depend on type and an operator
 template <typename T, typename BinaryOperation>
-using EnableIfIsScalarArithmeticNativeOp = __sycl_internal::__v1::detail::enable_if_t<
-    __sycl_internal::__v1::detail::is_scalar_arithmetic<T>::value &&
-        __sycl_internal::__v1::detail::is_native_op<T, BinaryOperation>::value,
+using EnableIfIsScalarArithmeticNativeOp = cl::sycl::detail::enable_if_t<
+    cl::sycl::detail::is_scalar_arithmetic<T>::value &&
+        cl::sycl::detail::is_native_op<T, BinaryOperation>::value,
     T>;
 
 template <typename T, typename BinaryOperation>
-using EnableIfIsVectorArithmeticNativeOp = __sycl_internal::__v1::detail::enable_if_t<
-    __sycl_internal::__v1::detail::is_vector_arithmetic<T>::value &&
-        __sycl_internal::__v1::detail::is_native_op<T, BinaryOperation>::value,
+using EnableIfIsVectorArithmeticNativeOp = cl::sycl::detail::enable_if_t<
+    cl::sycl::detail::is_vector_arithmetic<T>::value &&
+        cl::sycl::detail::is_native_op<T, BinaryOperation>::value,
     T>;
 
 // TODO: Lift TriviallyCopyable restriction eventually
 template <typename T, typename BinaryOperation>
-using EnableIfIsNonNativeOp = __sycl_internal::__v1::detail::enable_if_t<
-    (!__sycl_internal::__v1::detail::is_scalar_arithmetic<T>::value &&
-     !__sycl_internal::__v1::detail::is_vector_arithmetic<T>::value &&
+using EnableIfIsNonNativeOp = cl::sycl::detail::enable_if_t<
+    (!cl::sycl::detail::is_scalar_arithmetic<T>::value &&
+     !cl::sycl::detail::is_vector_arithmetic<T>::value &&
      std::is_trivially_copyable<T>::value) ||
-        !__sycl_internal::__v1::detail::is_native_op<T, BinaryOperation>::value,
+        !cl::sycl::detail::is_native_op<T, BinaryOperation>::value,
     T>;
 
 template <typename Group>
@@ -143,7 +143,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      !detail::is_vector_arithmetic<T>::value),
                     T> broadcast(Group, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return __sycl_internal::__v1::detail::spirv::GroupBroadcast<Group>(x, local_id);
+  return sycl::detail::spirv::GroupBroadcast<Group>(x, local_id);
 #else
   (void)x;
   (void)local_id;
@@ -186,7 +186,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 #ifdef __SYCL_DEVICE_ONLY__
   return broadcast(
       g, x,
-      __sycl_internal::__v1::detail::linear_id_to_id(g.get_local_range(), linear_local_id));
+      sycl::detail::linear_id_to_id(g.get_local_range(), linear_local_id));
 #else
   (void)g;
   (void)x;
@@ -528,7 +528,7 @@ detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
 leader(Group g) {
 #ifdef __SYCL_DEVICE_ONLY__
   typename Group::linear_id_type linear_id =
-      __sycl_internal::__v1::detail::get_local_linear_id(g);
+      sycl::detail::get_local_linear_id(g);
   return (linear_id == 0);
 #else
   (void)g;

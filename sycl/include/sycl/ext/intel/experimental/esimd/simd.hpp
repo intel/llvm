@@ -17,8 +17,8 @@
 #include <sycl/ext/intel/experimental/esimd/detail/sycl_util.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -419,7 +419,7 @@ public:
   /// \return 1 if any element is set, 0 otherwise.
   template <
       typename T1 = element_type, typename T2 = Ty,
-      typename = __sycl_internal::__v1::detail::enable_if_t<std::is_integral<T1>::value, T2>>
+      typename = sycl::detail::enable_if_t<std::is_integral<T1>::value, T2>>
   uint16_t any() {
     return __esimd_any<Ty, N>(data());
   }
@@ -429,7 +429,7 @@ public:
   /// \return 1 if all elements are set, 0 otherwise.
   template <
       typename T1 = element_type, typename T2 = Ty,
-      typename = __sycl_internal::__v1::detail::enable_if_t<std::is_integral<T1>::value, T2>>
+      typename = sycl::detail::enable_if_t<std::is_integral<T1>::value, T2>>
   uint16_t all() {
     return __esimd_all<Ty, N>(data());
   }
@@ -539,7 +539,7 @@ public:
   template <typename AccessorT>
   ESIMD_INLINE
       detail::EnableIfAccessor<AccessorT, detail::accessor_mode_cap::can_read,
-                               __sycl_internal::__v1::access::target::global_buffer, void>
+                               sycl::access::target::global_buffer, void>
       copy_from(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
 
   /// Copy all vector elements of this object into a contiguous block in memory.
@@ -555,7 +555,7 @@ public:
   template <typename AccessorT>
   ESIMD_INLINE
       detail::EnableIfAccessor<AccessorT, detail::accessor_mode_cap::can_write,
-                               __sycl_internal::__v1::access::target::global_buffer, void>
+                               sycl::access::target::global_buffer, void>
       copy_to(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
 
   /// @} // Memory operations
@@ -600,7 +600,7 @@ template <typename T, int N>
 template <typename AccessorT>
 ESIMD_INLINE
     detail::EnableIfAccessor<AccessorT, detail::accessor_mode_cap::can_read,
-                             __sycl_internal::__v1::access::target::global_buffer, void>
+                             sycl::access::target::global_buffer, void>
     simd<T, N>::copy_from(AccessorT acc, uint32_t offset) {
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
@@ -639,7 +639,7 @@ template <typename T, int N>
 template <typename AccessorT>
 ESIMD_INLINE
     detail::EnableIfAccessor<AccessorT, detail::accessor_mode_cap::can_write,
-                             __sycl_internal::__v1::access::target::global_buffer, void>
+                             sycl::access::target::global_buffer, void>
     simd<T, N>::copy_to(AccessorT acc, uint32_t offset) {
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
@@ -670,7 +670,7 @@ ESIMD_INLINE
 template <typename Ty, int N>
 std::ostream &
 operator<<(std::ostream &OS,
-           const __sycl_internal::__v1::ext::intel::experimental::esimd::simd<Ty, N> &V) {
+           const sycl::ext::intel::experimental::esimd::simd<Ty, N> &V) {
   OS << "{";
   for (int I = 0; I < N; I++) {
     OS << V[I];

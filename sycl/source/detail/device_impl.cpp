@@ -12,8 +12,8 @@
 
 #include <algorithm>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 device_impl::device_impl()
@@ -157,7 +157,7 @@ device_impl::create_sub_devices(size_t ComputeUnits) const {
         PI_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_equally)) {
-    throw __sycl_internal::__v1::feature_not_supported();
+    throw cl::sycl::feature_not_supported();
   }
   size_t SubDevicesCount =
       get_info<info::device::max_compute_units>() / ComputeUnits;
@@ -177,7 +177,7 @@ device_impl::create_sub_devices(const vector_class<size_t> &Counts) const {
         PI_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
-    throw __sycl_internal::__v1::feature_not_supported();
+    throw cl::sycl::feature_not_supported();
   }
   static const cl_device_partition_property P[] = {
       CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
@@ -198,7 +198,7 @@ vector_class<device> device_impl::create_sub_devices(
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain) ||
       !is_affinity_supported(AffinityDomain)) {
-    throw __sycl_internal::__v1::feature_not_supported();
+    throw cl::sycl::feature_not_supported();
   }
   const cl_device_partition_property Properties[3] = {
       CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,

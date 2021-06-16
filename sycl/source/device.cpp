@@ -16,14 +16,14 @@
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
     t = ft;
   } else if (ft != info::device_type::all && t != ft) {
-    throw __sycl_internal::__v1::invalid_parameter_error("No device of forced type.",
+    throw cl::sycl::invalid_parameter_error("No device of forced type.",
                                             PI_INVALID_OPERATION);
   }
 }

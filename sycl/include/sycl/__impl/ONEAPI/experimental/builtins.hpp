@@ -16,8 +16,8 @@
 #define __SYCL_CONSTANT_AS
 #endif
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace ONEAPI {
 namespace experimental {
 
@@ -50,7 +50,7 @@ namespace experimental {
 // argument has 'long' type which is 64-bit wide by the OpenCL C spec. However,
 // by C++ spec long is just at least 32-bit wide, so, you need to ensure (by
 // performing a cast, for example) that if you use %ld specifier, you pass
-// 64-bit argument to the __sycl_internal::__v1::experimental::printf
+// 64-bit argument to the cl::sycl::experimental::printf
 //
 // - OpenCL spec defines several additional features, like, for example, 'v'
 // modifier which allows to print OpenCL vectors: note that these features are

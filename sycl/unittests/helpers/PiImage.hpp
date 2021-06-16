@@ -14,8 +14,8 @@
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace unittest {
 /// Convinience wrapper around _pi_device_binary_property_struct.
 class PiProperty {

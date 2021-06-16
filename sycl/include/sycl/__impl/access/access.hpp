@@ -10,8 +10,8 @@
 #include <sycl/__impl/detail/common.hpp>
 #include <sycl/__impl/detail/defines.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace access {
 
 enum class target {
@@ -76,12 +76,12 @@ inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer>
 namespace {
 
 constexpr const auto &read_only =
-    __sycl_internal::__v1::detail::InlineVariableHelper<mode_tag_t<access_mode::read>>::value;
-constexpr const auto &read_write = __sycl_internal::__v1::detail::InlineVariableHelper<
+    sycl::detail::InlineVariableHelper<mode_tag_t<access_mode::read>>::value;
+constexpr const auto &read_write = sycl::detail::InlineVariableHelper<
     mode_tag_t<access_mode::read_write>>::value;
 constexpr const auto &write_only =
-    __sycl_internal::__v1::detail::InlineVariableHelper<mode_tag_t<access_mode::write>>::value;
-constexpr const auto &read_constant = __sycl_internal::__v1::detail::InlineVariableHelper<
+    sycl::detail::InlineVariableHelper<mode_tag_t<access_mode::write>>::value;
+constexpr const auto &read_constant = sycl::detail::InlineVariableHelper<
     mode_target_tag_t<access_mode::read, target::constant_buffer>>::value;
 
 } // namespace

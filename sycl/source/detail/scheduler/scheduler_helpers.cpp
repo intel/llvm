@@ -12,8 +12,8 @@
 #include <detail/scheduler/scheduler_helpers.hpp>
 #include <detail/stream_impl.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {

@@ -24,8 +24,8 @@
 
 #include <type_traits>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 template <typename T, access::address_space Space> class multi_ptr;
 
 namespace detail {
@@ -51,45 +51,45 @@ template <typename T, access::address_space Space>
 T load(const multi_ptr<T, Space> src) {
   using BlockT = SelectBlockT<T>;
   using PtrT =
-      __sycl_internal::__v1::detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
+      sycl::detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
 
   BlockT Ret =
       __spirv_SubgroupBlockReadINTEL<BlockT>(reinterpret_cast<PtrT>(src.get()));
 
-  return __sycl_internal::__v1::bit_cast<T>(Ret);
+  return sycl::bit_cast<T>(Ret);
 }
 
 template <int N, typename T, access::address_space Space>
 vec<T, N> load(const multi_ptr<T, Space> src) {
   using BlockT = SelectBlockT<T>;
-  using VecT = __sycl_internal::__v1::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
+  using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
   using PtrT =
-      __sycl_internal::__v1::detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
+      sycl::detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
 
   VecT Ret =
       __spirv_SubgroupBlockReadINTEL<VecT>(reinterpret_cast<PtrT>(src.get()));
 
-  return __sycl_internal::__v1::bit_cast<typename vec<T, N>::vector_t>(Ret);
+  return sycl::bit_cast<typename vec<T, N>::vector_t>(Ret);
 }
 
 template <typename T, access::address_space Space>
 void store(multi_ptr<T, Space> dst, const T &x) {
   using BlockT = SelectBlockT<T>;
-  using PtrT = __sycl_internal::__v1::detail::ConvertToOpenCLType_t<multi_ptr<BlockT, Space>>;
+  using PtrT = sycl::detail::ConvertToOpenCLType_t<multi_ptr<BlockT, Space>>;
 
   __spirv_SubgroupBlockWriteINTEL(reinterpret_cast<PtrT>(dst.get()),
-                                  __sycl_internal::__v1::bit_cast<BlockT>(x));
+                                  sycl::bit_cast<BlockT>(x));
 }
 
 template <int N, typename T, access::address_space Space>
 void store(multi_ptr<T, Space> dst, const vec<T, N> &x) {
   using BlockT = SelectBlockT<T>;
-  using VecT = __sycl_internal::__v1::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
+  using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
   using PtrT =
-      __sycl_internal::__v1::detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
+      sycl::detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
 
   __spirv_SubgroupBlockWriteINTEL(reinterpret_cast<PtrT>(dst.get()),
-                                  __sycl_internal::__v1::bit_cast<VecT>(x));
+                                  sycl::bit_cast<VecT>(x));
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -105,8 +105,8 @@ struct sub_group {
   using range_type = range<1>;
   using linear_id_type = uint32_t;
   static constexpr int dimensions = 1;
-  static constexpr __sycl_internal::__v1::memory_scope fence_scope =
-      __sycl_internal::__v1::memory_scope::sub_group;
+  static constexpr sycl::memory_scope fence_scope =
+      sycl::memory_scope::sub_group;
 
   /* --- common interface members --- */
 
@@ -175,7 +175,7 @@ struct sub_group {
 
   template <typename T>
   using EnableIfIsScalarArithmetic =
-      __sycl_internal::__v1::detail::enable_if_t<__sycl_internal::__v1::detail::is_scalar_arithmetic<T>::value,
+      sycl::detail::enable_if_t<sycl::detail::is_scalar_arithmetic<T>::value,
                                 T>;
 
   /* --- one-input shuffles --- */
@@ -183,7 +183,7 @@ struct sub_group {
 
   template <typename T> T shuffle(T x, id_type local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __sycl_internal::__v1::detail::spirv::SubgroupShuffle(x, local_id);
+    return sycl::detail::spirv::SubgroupShuffle(x, local_id);
 #else
     (void)x;
     (void)local_id;
@@ -194,7 +194,7 @@ struct sub_group {
 
   template <typename T> T shuffle_down(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __sycl_internal::__v1::detail::spirv::SubgroupShuffleDown(x, delta);
+    return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
 #else
     (void)x;
     (void)delta;
@@ -205,7 +205,7 @@ struct sub_group {
 
   template <typename T> T shuffle_up(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __sycl_internal::__v1::detail::spirv::SubgroupShuffleUp(x, delta);
+    return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
 #else
     (void)x;
     (void)delta;
@@ -216,7 +216,7 @@ struct sub_group {
 
   template <typename T> T shuffle_xor(T x, id_type value) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __sycl_internal::__v1::detail::spirv::SubgroupShuffleXor(x, value);
+    return sycl::detail::spirv::SubgroupShuffleXor(x, value);
 #else
     (void)x;
     (void)value;
@@ -234,8 +234,8 @@ struct sub_group {
       !std::is_same<typename detail::remove_AS<T>::type, T>::value, T>
   load(CVT *cv_src) const {
     T *src = const_cast<T *>(cv_src);
-    return load(__sycl_internal::__v1::multi_ptr<typename detail::remove_AS<T>::type,
-                                __sycl_internal::__v1::detail::deduce_AS<T>::value>(
+    return load(sycl::multi_ptr<typename detail::remove_AS<T>::type,
+                                sycl::detail::deduce_AS<T>::value>(
         (typename detail::remove_AS<T>::type *)src));
   }
 
@@ -272,15 +272,15 @@ struct sub_group {
 
   template <typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value, T>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value, T>
   load(const multi_ptr<CVT, Space> cv_src) const {
     multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef __NVPTX__
     return src.get()[get_local_id()[0]];
 #else
-    return __sycl_internal::__v1::detail::sub_group::load(src);
+    return sycl::detail::sub_group::load(src);
 #endif // __NVPTX__
 #else
     (void)src;
@@ -291,8 +291,8 @@ struct sub_group {
 
   template <typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value, T>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value, T>
   load(const multi_ptr<CVT, Space> cv_src) const {
     multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
 #ifdef __SYCL_DEVICE_ONLY__
@@ -307,8 +307,8 @@ struct sub_group {
 #ifdef __NVPTX__
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
       vec<T, N>>
   load(const multi_ptr<CVT, Space> cv_src) const {
     multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
@@ -321,57 +321,57 @@ struct sub_group {
 #else  // __NVPTX__
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N != 1 && N != 3 && N != 16,
       vec<T, N>>
   load(const multi_ptr<CVT, Space> cv_src) const {
     multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
-    return __sycl_internal::__v1::detail::sub_group::load<N, T>(src);
+    return sycl::detail::sub_group::load<N, T>(src);
   }
 
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 16,
       vec<T, 16>>
   load(const multi_ptr<CVT, Space> cv_src) const {
     multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
-    return {__sycl_internal::__v1::detail::sub_group::load<8, T>(src),
-            __sycl_internal::__v1::detail::sub_group::load<8, T>(src +
+    return {sycl::detail::sub_group::load<8, T>(src),
+            sycl::detail::sub_group::load<8, T>(src +
                                                 8 * get_max_local_range()[0])};
   }
 
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 3,
       vec<T, 3>>
   load(const multi_ptr<CVT, Space> cv_src) const {
     multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
     return {
-        __sycl_internal::__v1::detail::sub_group::load<1, T>(src),
-        __sycl_internal::__v1::detail::sub_group::load<2, T>(src + get_max_local_range()[0])};
+        sycl::detail::sub_group::load<1, T>(src),
+        sycl::detail::sub_group::load<2, T>(src + get_max_local_range()[0])};
   }
 
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 1,
       vec<T, 1>>
   load(const multi_ptr<CVT, Space> cv_src) const {
     multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
-    return __sycl_internal::__v1::detail::sub_group::load(src);
+    return sycl::detail::sub_group::load(src);
   }
 #endif // ___NVPTX___
 #else  // __SYCL_DEVICE_ONLY__
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
       vec<T, N>>
   load(const multi_ptr<CVT, Space> src) const {
     (void)src;
@@ -382,8 +382,8 @@ struct sub_group {
 
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value,
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value,
       vec<T, N>>
   load(const multi_ptr<CVT, Space> cv_src) const {
     multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
@@ -406,8 +406,8 @@ struct sub_group {
   detail::enable_if_t<
       !std::is_same<typename detail::remove_AS<T>::type, T>::value>
   store(T *dst, const typename detail::remove_AS<T>::type &x) const {
-    store(__sycl_internal::__v1::multi_ptr<typename detail::remove_AS<T>::type,
-                          __sycl_internal::__v1::detail::deduce_AS<T>::value>(
+    store(sycl::multi_ptr<typename detail::remove_AS<T>::type,
+                          sycl::detail::deduce_AS<T>::value>(
               (typename detail::remove_AS<T>::type *)dst),
           x);
   }
@@ -448,14 +448,14 @@ struct sub_group {
 #endif //__SYCL_DEVICE_ONLY__
 
   template <typename T, access::address_space Space>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const T &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef __NVPTX__
     dst.get()[get_local_id()[0]] = x;
 #else
-    __sycl_internal::__v1::detail::sub_group::store(dst, x);
+    sycl::detail::sub_group::store(dst, x);
 #endif // __NVPTX__
 #else
     (void)dst;
@@ -466,8 +466,8 @@ struct sub_group {
   }
 
   template <typename T, access::address_space Space>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const T &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
     dst.get()[get_local_id()[0]] = x;
@@ -482,8 +482,8 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef __NVPTX__
   template <int N, typename T, access::address_space Space>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
     for (int i = 0; i < N; ++i) {
       *(dst.get() + i * get_max_local_range()[0] + get_local_id()[0]) = x[i];
@@ -491,24 +491,24 @@ struct sub_group {
   }
 #else // __NVPTX__
   template <int N, typename T, access::address_space Space>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N != 1 && N != 3 && N != 16>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
-    __sycl_internal::__v1::detail::sub_group::store(dst, x);
+    sycl::detail::sub_group::store(dst, x);
   }
 
   template <int N, typename T, access::address_space Space>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 1>
   store(multi_ptr<T, Space> dst, const vec<T, 1> &x) const {
-    __sycl_internal::__v1::detail::sub_group::store(dst, x);
+    sycl::detail::sub_group::store(dst, x);
   }
 
   template <int N, typename T, access::address_space Space>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 3>
   store(multi_ptr<T, Space> dst, const vec<T, 3> &x) const {
     store<1, T, Space>(dst, x.s0());
@@ -516,8 +516,8 @@ struct sub_group {
   }
 
   template <int N, typename T, access::address_space Space>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 16>
   store(multi_ptr<T, Space> dst, const vec<T, 16> &x) const {
     store<8, T, Space>(dst, x.lo());
@@ -527,8 +527,8 @@ struct sub_group {
 #endif // __NVPTX__
 #else  // __SYCL_DEVICE_ONLY__
   template <int N, typename T, access::address_space Space>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
     (void)dst;
     (void)x;
@@ -538,8 +538,8 @@ struct sub_group {
 #endif // __SYCL_DEVICE_ONLY__
 
   template <int N, typename T, access::address_space Space>
-  __sycl_internal::__v1::detail::enable_if_t<
-      __sycl_internal::__v1::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
     for (int i = 0; i < N; ++i) {
@@ -572,7 +572,7 @@ struct sub_group {
                     "Use barrier() without a fence_space instead.")
   void barrier(access::fence_space accessSpace) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    int32_t flags = __sycl_internal::__v1::detail::getSPIRVMemorySemanticsMask(accessSpace);
+    int32_t flags = sycl::detail::getSPIRVMemorySemanticsMask(accessSpace);
     __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Subgroup,
                            flags);
 #else
@@ -585,10 +585,10 @@ struct sub_group {
   /* --- deprecated collective functions --- */
   template <typename T>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "__sycl_internal::__v1::ONEAPI::broadcast instead.")
+                    "sycl::ONEAPI::broadcast instead.")
   EnableIfIsScalarArithmetic<T> broadcast(T x, id<1> local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __sycl_internal::__v1::detail::spirv::GroupBroadcast<sub_group>(x, local_id);
+    return sycl::detail::spirv::GroupBroadcast<sub_group>(x, local_id);
 #else
     (void)x;
     (void)local_id;
@@ -599,12 +599,12 @@ struct sub_group {
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "__sycl_internal::__v1::ONEAPI::reduce instead.")
+                    "sycl::ONEAPI::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __sycl_internal::__v1::detail::calc<T, __spv::GroupOperation::Reduce,
+    return sycl::detail::calc<T, __spv::GroupOperation::Reduce,
                               __spv::Scope::Subgroup>(
-        typename __sycl_internal::__v1::detail::GroupOpTag<T>::type(), x, op);
+        typename sycl::detail::GroupOpTag<T>::type(), x, op);
 #else
     (void)x;
     (void)op;
@@ -615,7 +615,7 @@ struct sub_group {
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "__sycl_internal::__v1::ONEAPI::reduce instead.")
+                    "sycl::ONEAPI::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, T init, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return op(init, reduce(x, op));
@@ -630,12 +630,12 @@ struct sub_group {
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "__sycl_internal::__v1::ONEAPI::exclusive_scan instead.")
+                    "sycl::ONEAPI::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __sycl_internal::__v1::detail::calc<T, __spv::GroupOperation::ExclusiveScan,
+    return sycl::detail::calc<T, __spv::GroupOperation::ExclusiveScan,
                               __spv::Scope::Subgroup>(
-        typename __sycl_internal::__v1::detail::GroupOpTag<T>::type(), x, op);
+        typename sycl::detail::GroupOpTag<T>::type(), x, op);
 #else
     (void)x;
     (void)op;
@@ -646,7 +646,7 @@ struct sub_group {
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "__sycl_internal::__v1::ONEAPI::exclusive_scan instead.")
+                    "sycl::ONEAPI::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, T init,
                                                BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -669,12 +669,12 @@ struct sub_group {
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "__sycl_internal::__v1::ONEAPI::inclusive_scan instead.")
+                    "sycl::ONEAPI::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __sycl_internal::__v1::detail::calc<T, __spv::GroupOperation::InclusiveScan,
+    return sycl::detail::calc<T, __spv::GroupOperation::InclusiveScan,
                               __spv::Scope::Subgroup>(
-        typename __sycl_internal::__v1::detail::GroupOpTag<T>::type(), x, op);
+        typename sycl::detail::GroupOpTag<T>::type(), x, op);
 #else
     (void)x;
     (void)op;
@@ -685,7 +685,7 @@ struct sub_group {
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "__sycl_internal::__v1::ONEAPI::inclusive_scan instead.")
+                    "sycl::ONEAPI::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op,
                                                T init) const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -730,7 +730,7 @@ struct sub_group {
   }
 
 protected:
-  template <int dimensions> friend class __sycl_internal::__v1::nd_item;
+  template <int dimensions> friend class cl::sycl::nd_item;
   friend sub_group this_sub_group();
   sub_group() = default;
 };

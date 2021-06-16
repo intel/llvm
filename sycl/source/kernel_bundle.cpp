@@ -11,8 +11,8 @@
 
 #include <set>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 kernel_id::kernel_id(const char *Name)
     : impl(std::make_shared<detail::kernel_id_impl>(Name)) {}
@@ -145,7 +145,7 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
   // Check that all requested devices are associated with the context
   const bool AllDevicesInTheContext = checkAllDevicesAreInContext(Devs, Ctx);
   if (Devs.empty() || !AllDevicesInTheContext)
-    throw __sycl_internal::__v1::exception(make_error_code(errc::invalid),
+    throw sycl::exception(make_error_code(errc::invalid),
                           "Not all devices are associated with the context or "
                           "vector of devices is empty");
 
@@ -173,7 +173,7 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
   const bool AllDevicesInTheContext = checkAllDevicesAreInContext(Devs, Ctx);
 
   if (Devs.empty() || !AllDevicesInTheContext)
-    throw __sycl_internal::__v1::exception(make_error_code(errc::invalid),
+    throw sycl::exception(make_error_code(errc::invalid),
                           "Not all devices are associated with the context or "
                           "vector of devices is empty");
 
@@ -241,15 +241,15 @@ build_impl(const kernel_bundle<bundle_state::input> &InputBundle,
 
 // This function finds intersection of associated devices in common for all
 // bundles
-std::vector<__sycl_internal::__v1::device> find_device_intersection(
+std::vector<sycl::device> find_device_intersection(
     const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles) {
-  std::vector<__sycl_internal::__v1::device> IntersectDevices;
+  std::vector<sycl::device> IntersectDevices;
   std::vector<unsigned int> DevsCounters;
   std::map<device, unsigned int, LessByHash<device>> DevCounters;
-  for (const __sycl_internal::__v1::kernel_bundle<bundle_state::object> &ObjectBundle :
+  for (const sycl::kernel_bundle<bundle_state::object> &ObjectBundle :
        ObjectBundles)
     // Increment counter in "DevCounters" each time a device is seen
-    for (const __sycl_internal::__v1::device &Device : ObjectBundle.get_devices())
+    for (const sycl::device &Device : ObjectBundle.get_devices())
       DevCounters[Device]++;
 
   // If some device counter is less than ObjectBundles.size() then some bundle

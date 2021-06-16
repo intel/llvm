@@ -14,15 +14,15 @@
 #include <bit>
 #endif
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 // forward decl
 namespace detail {
 inline void memcpy(void *Dst, const void *Src, std::size_t Size);
 }
 
-// __sycl_internal::__v1::bit_cast ( no longer __sycl_internal::__v1::detail::bit_cast )
+// sycl::bit_cast ( no longer sycl::detail::bit_cast )
 template <typename To, typename From>
 #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
 constexpr
@@ -45,7 +45,7 @@ constexpr
   static_assert(std::is_trivially_default_constructible<To>::value,
                 "To must be trivially default constructible");
   To to;
-  __sycl_internal::__v1::detail::memcpy(&to, &from, sizeof(To));
+  sycl::detail::memcpy(&to, &from, sizeof(To));
   return to;
 #endif // __has_builtin(__builtin_bit_cast)
 
@@ -59,7 +59,7 @@ constexpr
 #endif
     To
     bit_cast(const From &from) noexcept {
-  return __sycl_internal::__v1::bit_cast<To>(from);
+  return sycl::bit_cast<To>(from);
 }
 } // namespace detail
 

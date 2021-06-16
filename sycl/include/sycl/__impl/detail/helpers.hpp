@@ -21,8 +21,8 @@
 #include <type_traits>
 #include <vector>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 class context;
 class event;
 template <int Dims, bool WithOffset> class item;
@@ -47,10 +47,10 @@ class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
 __SYCL_EXPORT std::vector<RT::PiEvent>
-getOrWaitEvents(std::vector<__sycl_internal::__v1::event> DepEvents,
-                std::shared_ptr<__sycl_internal::__v1::detail::context_impl> Context);
+getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
+                std::shared_ptr<cl::sycl::detail::context_impl> Context);
 
-__SYCL_EXPORT void waitEvents(std::vector<__sycl_internal::__v1::event> DepEvents);
+__SYCL_EXPORT void waitEvents(std::vector<cl::sycl::event> DepEvents);
 
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
@@ -116,7 +116,7 @@ public:
   }
 
   template <int Dims, bool WithOffset>
-  static void updateItemIndex(__sycl_internal::__v1::item<Dims, WithOffset> &Item,
+  static void updateItemIndex(cl::sycl::item<Dims, WithOffset> &Item,
                               const id<Dims> &NextIndex) {
     Item.MImpl.MIndex = NextIndex;
   }

@@ -10,18 +10,18 @@
 #include <sycl/__impl/detail/export.hpp>
 #include <sycl/__impl/usm/usm_enums.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 namespace usm {
 
 __SYCL_EXPORT void *alignedAlloc(size_t Alignment, size_t Bytes,
                                  const context &Ctxt, const device &Dev,
-                                 __sycl_internal::__v1::usm::alloc Kind);
+                                 cl::sycl::usm::alloc Kind);
 
 __SYCL_EXPORT void *alignedAllocHost(size_t Alignment, size_t Bytes,
                                      const context &Ctxt,
-                                     __sycl_internal::__v1::usm::alloc Kind);
+                                     cl::sycl::usm::alloc Kind);
 
 __SYCL_EXPORT void free(void *Ptr, const context &Ctxt);
 

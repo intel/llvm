@@ -19,8 +19,8 @@
 #include <io.h>
 #endif
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 /* Lock file suffix */
@@ -172,10 +172,10 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
 /* Returns string value which can be used to identify different device
  */
 std::string PersistentDeviceCodeCache::getDeviceIDString(const device &Device) {
-  return Device.get_platform().get_info<__sycl_internal::__v1::info::platform::name>() + "/" +
-         Device.get_info<__sycl_internal::__v1::info::device::name>() + "/" +
-         Device.get_info<__sycl_internal::__v1::info::device::version>() + "/" +
-         Device.get_info<__sycl_internal::__v1::info::device::driver_version>();
+  return Device.get_platform().get_info<sycl::info::platform::name>() + "/" +
+         Device.get_info<sycl::info::device::name>() + "/" +
+         Device.get_info<sycl::info::device::version>() + "/" +
+         Device.get_info<sycl::info::device::driver_version>();
 }
 
 /* Write built binary to persistent cache

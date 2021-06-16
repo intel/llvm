@@ -9,8 +9,8 @@
 #include <sycl/__impl/detail/util.hpp>
 #include <detail/global_handler.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 Sync &Sync::getInstance() { return GlobalHandler::instance().getSync(); }

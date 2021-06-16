@@ -32,7 +32,7 @@ constexpr char SyclDeviceAllowListOldStyle[] =
     "(19\\.[3-9][0-9]*|2[0-9]\\.[0-9]+).*}}|PlatformName:{{.*Intel.*Level-Zero."
     "*}},DeviceName:{{.*Intel.*Gen.*}},DriverVersion:{{.*}}";
 
-__sycl_internal::__v1::detail::DeviceDescT OpenCLGPUDeviceDesc{
+sycl::detail::DeviceDescT OpenCLGPUDeviceDesc{
     {"BackendName", "opencl"},
     {"DeviceType", "gpu"},
     {"DeviceVendorId", "0x8086"},
@@ -41,7 +41,7 @@ __sycl_internal::__v1::detail::DeviceDescT OpenCLGPUDeviceDesc{
     {"DeviceName", "Intel(R) HD Graphics 630 [0x5912]"},
     {"PlatformName", "Intel(R) OpenCL HD Graphics"}};
 
-__sycl_internal::__v1::detail::DeviceDescT OpenCLCPUDeviceDesc{
+sycl::detail::DeviceDescT OpenCLCPUDeviceDesc{
     {"BackendName", "opencl"},
     {"DeviceType", "cpu"},
     {"DeviceVendorId", "0x8086"},
@@ -50,7 +50,7 @@ __sycl_internal::__v1::detail::DeviceDescT OpenCLCPUDeviceDesc{
     {"DeviceName", "Intel(R) Core(TM) i7-8700K Processor @ 4.60GHz"},
     {"PlatformName", "Intel(R) OpenCL"}};
 
-__sycl_internal::__v1::detail::DeviceDescT OpenCLFPGAEmuDeviceDesc{
+sycl::detail::DeviceDescT OpenCLFPGAEmuDeviceDesc{
     {"BackendName", "opencl"},
     {"DeviceType", "acc"},
     {"DeviceVendorId", "0x1172"},
@@ -60,7 +60,7 @@ __sycl_internal::__v1::detail::DeviceDescT OpenCLFPGAEmuDeviceDesc{
     {"DeviceName", "Intel(R) FPGA Emulation Device"},
     {"PlatformName", "Intel(R) FPGA Emulation Platform for OpenCL(TM)"}};
 
-__sycl_internal::__v1::detail::DeviceDescT OpenCLFPGABoardDeviceDesc{
+sycl::detail::DeviceDescT OpenCLFPGABoardDeviceDesc{
     {"BackendName", "opencl"},
     {"DeviceType", "acc"},
     {"DeviceVendorId", "0x1172"},
@@ -70,7 +70,7 @@ __sycl_internal::__v1::detail::DeviceDescT OpenCLFPGABoardDeviceDesc{
     {"DeviceName", "Intel(R) Arria(R) 10 GX FPGA"},
     {"PlatformName", "Intel(R) FPGA SDK for OpenCL(TM)"}};
 
-__sycl_internal::__v1::detail::DeviceDescT LevelZeroGPUDeviceDesc{
+sycl::detail::DeviceDescT LevelZeroGPUDeviceDesc{
     {"BackendName", "level_zero"},
     {"DeviceType", "gpu"},
     {"DeviceVendorId", "0x8086"},
@@ -80,35 +80,35 @@ __sycl_internal::__v1::detail::DeviceDescT LevelZeroGPUDeviceDesc{
     {"PlatformName", "Intel(R) Level-Zero"}};
 
 TEST(DeviceIsAllowedTests, CheckSupportedOpenCLGPUDeviceIsAllowed) {
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
-      OpenCLGPUDeviceDesc, __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowList));
+  bool Actual = sycl::detail::deviceIsAllowed(
+      OpenCLGPUDeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowList));
   EXPECT_EQ(Actual, true);
 }
 
 TEST(DeviceIsAllowedTests, CheckSupportedOpenCLCPUDeviceIsAllowed) {
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
-      OpenCLCPUDeviceDesc, __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowList));
+  bool Actual = sycl::detail::deviceIsAllowed(
+      OpenCLCPUDeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowList));
   EXPECT_EQ(Actual, true);
 }
 
 TEST(DeviceIsAllowedTests, CheckSupportedOpenCLFPGAEmuDeviceIsAllowed) {
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
+  bool Actual = sycl::detail::deviceIsAllowed(
       OpenCLFPGAEmuDeviceDesc,
-      __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowList));
+      sycl::detail::parseAllowList(SyclDeviceAllowList));
   EXPECT_EQ(Actual, true);
 }
 
 TEST(DeviceIsAllowedTests, CheckSupportedOpenCLFPGABoardDeviceIsAllowed) {
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
+  bool Actual = sycl::detail::deviceIsAllowed(
       OpenCLFPGABoardDeviceDesc,
-      __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowList));
+      sycl::detail::parseAllowList(SyclDeviceAllowList));
   EXPECT_EQ(Actual, true);
 }
 
 TEST(DeviceIsAllowedTests, CheckSupportedLevelZeroGPUDeviceIsAllowed) {
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
+  bool Actual = sycl::detail::deviceIsAllowed(
       LevelZeroGPUDeviceDesc,
-      __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowList));
+      sycl::detail::parseAllowList(SyclDeviceAllowList));
   EXPECT_EQ(Actual, true);
 }
 
@@ -116,8 +116,8 @@ TEST(DeviceIsAllowedTests,
      CheckOpenCLGPUDeviceWithNotSupportedBackendNameIsNotAllowed) {
   auto DeviceDesc = OpenCLGPUDeviceDesc;
   DeviceDesc.at("BackendName") = "cuda";
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
-      DeviceDesc, __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowList));
+  bool Actual = sycl::detail::deviceIsAllowed(
+      DeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowList));
   EXPECT_EQ(Actual, false);
 }
 
@@ -125,8 +125,8 @@ TEST(DeviceIsAllowedTests,
      CheckOpenCLGPUDeviceWithNotSupportedDeviceTypeIsNotAllowed) {
   auto DeviceDesc = OpenCLGPUDeviceDesc;
   DeviceDesc.at("DeviceType") = "cpu";
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
-      DeviceDesc, __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowList));
+  bool Actual = sycl::detail::deviceIsAllowed(
+      DeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowList));
   EXPECT_EQ(Actual, false);
 }
 
@@ -134,8 +134,8 @@ TEST(DeviceIsAllowedTests,
      CheckOpenCLGPUDeviceWithNotSupportedDeviceVendorIdIsNotAllowed) {
   auto DeviceDesc = OpenCLGPUDeviceDesc;
   DeviceDesc.at("DeviceVendorId") = "0x0000";
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
-      DeviceDesc, __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowList));
+  bool Actual = sycl::detail::deviceIsAllowed(
+      DeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowList));
   EXPECT_EQ(Actual, false);
 }
 
@@ -143,8 +143,8 @@ TEST(DeviceIsAllowedTests,
      CheckOpenCLGPUDeviceWithNotSupportedDriverVersionIsNotAllowed) {
   auto DeviceDesc = OpenCLGPUDeviceDesc;
   DeviceDesc.at("DriverVersion") = "0.0.0.0";
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
-      DeviceDesc, __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowList));
+  bool Actual = sycl::detail::deviceIsAllowed(
+      DeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowList));
   EXPECT_EQ(Actual, false);
 }
 
@@ -152,56 +152,56 @@ TEST(DeviceIsAllowedTests,
      CheckOpenCLFPGABoardDeviceWithNotSupportedPlatformVersionIsNotAllowed) {
   auto DeviceDesc = OpenCLFPGABoardDeviceDesc;
   DeviceDesc.at("PlatformVersion") = "42";
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
-      DeviceDesc, __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowList));
+  bool Actual = sycl::detail::deviceIsAllowed(
+      DeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowList));
   EXPECT_EQ(Actual, false);
 }
 
 TEST(DeviceIsAllowedTests,
      DISABLED_CheckAssertHappensIfIncompleteDeviceDescIsPassedToTheFunc) {
-  __sycl_internal::__v1::detail::DeviceDescT IncompleteDeviceDesc{{"BackendName", "level_zero"}};
-  EXPECT_DEATH(__sycl_internal::__v1::detail::deviceIsAllowed(
+  sycl::detail::DeviceDescT IncompleteDeviceDesc{{"BackendName", "level_zero"}};
+  EXPECT_DEATH(sycl::detail::deviceIsAllowed(
                    IncompleteDeviceDesc,
-                   __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowList)),
+                   sycl::detail::parseAllowList(SyclDeviceAllowList)),
                ".*DeviceDesc map should have all supported keys for.*"
                "SYCL_DEVICE_ALLOWLIST..*");
 }
 
 TEST(DeviceIsAllowedTests, CheckSupportedOpenCLGPUDeviceIsAllowedInOldStyle) {
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
+  bool Actual = sycl::detail::deviceIsAllowed(
       OpenCLGPUDeviceDesc,
-      __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowListOldStyle));
+      sycl::detail::parseAllowList(SyclDeviceAllowListOldStyle));
   EXPECT_EQ(Actual, true);
 }
 
 TEST(DeviceIsAllowedTests, CheckSupportedOpenCLCPUDeviceIsAllowedInOldStyle) {
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
+  bool Actual = sycl::detail::deviceIsAllowed(
       OpenCLCPUDeviceDesc,
-      __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowListOldStyle));
+      sycl::detail::parseAllowList(SyclDeviceAllowListOldStyle));
   EXPECT_EQ(Actual, true);
 }
 
 TEST(DeviceIsAllowedTests,
      CheckSupportedOpenCLFPGAEmuDeviceIsAllowedInOldStyle) {
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
+  bool Actual = sycl::detail::deviceIsAllowed(
       OpenCLFPGAEmuDeviceDesc,
-      __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowListOldStyle));
+      sycl::detail::parseAllowList(SyclDeviceAllowListOldStyle));
   EXPECT_EQ(Actual, true);
 }
 
 TEST(DeviceIsAllowedTests,
      CheckSupportedOpenCLFPGABoardDeviceIsAllowedInOldStyle) {
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
+  bool Actual = sycl::detail::deviceIsAllowed(
       OpenCLFPGABoardDeviceDesc,
-      __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowListOldStyle));
+      sycl::detail::parseAllowList(SyclDeviceAllowListOldStyle));
   EXPECT_EQ(Actual, true);
 }
 
 TEST(DeviceIsAllowedTests,
      CheckSupportedLevelZeroGPUDeviceIsAllowedInOldStyle) {
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
+  bool Actual = sycl::detail::deviceIsAllowed(
       LevelZeroGPUDeviceDesc,
-      __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowListOldStyle));
+      sycl::detail::parseAllowList(SyclDeviceAllowListOldStyle));
   EXPECT_EQ(Actual, true);
 }
 
@@ -209,8 +209,8 @@ TEST(DeviceIsAllowedTests,
      CheckLevelZeroGPUDeviceWithNotSupportedDeviceNameIsNotAllowedInOldStyle) {
   auto DeviceDesc = OpenCLGPUDeviceDesc;
   DeviceDesc.at("DeviceName") = "ABCD";
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
-      DeviceDesc, __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowListOldStyle));
+  bool Actual = sycl::detail::deviceIsAllowed(
+      DeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowListOldStyle));
   EXPECT_EQ(Actual, false);
 }
 
@@ -219,7 +219,7 @@ TEST(
     CheckOpenCLFPGABoardDeviceWithNotSupportedPlatformNameIsNotAllowedInOldStyle) {
   auto DeviceDesc = OpenCLFPGABoardDeviceDesc;
   DeviceDesc.at("PlatformName") = "AABBCCDD";
-  bool Actual = __sycl_internal::__v1::detail::deviceIsAllowed(
-      DeviceDesc, __sycl_internal::__v1::detail::parseAllowList(SyclDeviceAllowListOldStyle));
+  bool Actual = sycl::detail::deviceIsAllowed(
+      DeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowListOldStyle));
   EXPECT_EQ(Actual, false);
 }

@@ -9,8 +9,8 @@
 
 #include <sycl/__impl/detail/defines.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 enum class aspect {
   host = 0,

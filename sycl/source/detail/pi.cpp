@@ -36,8 +36,8 @@
 #include "xpti_trace_framework.h"
 #endif
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global (to the SYCL runtime) graph handle that all command groups are a
@@ -53,20 +53,20 @@ constexpr uint32_t GMinVer = 0;
 constexpr const char *GVerStr = "sycl 1.0";
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
-template <__sycl_internal::__v1::backend BE>
+template <cl::sycl::backend BE>
 void *getPluginOpaqueData(void *OpaqueDataParam) {
   void *ReturnOpaqueData = nullptr;
-  const __sycl_internal::__v1::detail::plugin &Plugin =
-      __sycl_internal::__v1::detail::pi::getPlugin<BE>();
+  const cl::sycl::detail::plugin &Plugin =
+      cl::sycl::detail::pi::getPlugin<BE>();
 
-  Plugin.call<__sycl_internal::__v1::detail::PiApiKind::piextPluginGetOpaqueData>(
+  Plugin.call<cl::sycl::detail::PiApiKind::piextPluginGetOpaqueData>(
       OpaqueDataParam, &ReturnOpaqueData);
 
   return ReturnOpaqueData;
 }
 
 template __SYCL_EXPORT void *
-getPluginOpaqueData<__sycl_internal::__v1::backend::esimd_cpu>(void *);
+getPluginOpaqueData<cl::sycl::backend::esimd_cpu>(void *);
 
 namespace pi {
 
@@ -135,7 +135,7 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 #endif // XPTI_ENABLE_INSTRUMENTATION
 }
 
-void contextSetExtendedDeleter(const __sycl_internal::__v1::context &context,
+void contextSetExtendedDeleter(const cl::sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
@@ -159,7 +159,7 @@ std::string platformInfoToString(pi_platform_info info) {
     return "PI_PLATFORM_INFO_EXTENSIONS";
   }
   die("Unknown pi_platform_info value passed to "
-      "__sycl_internal::__v1::detail::pi::platformInfoToString");
+      "cl::sycl::detail::pi::platformInfoToString");
 }
 
 std::string memFlagToString(pi_mem_flags Flag) {
@@ -547,7 +547,7 @@ pi_uint32 DeviceBinaryProperty::asUint32() const {
   assert(Prop->Type == PI_PROPERTY_TYPE_UINT32 && "property type mismatch");
   // if type fits into the ValSize - it is used to store the property value
   assert(Prop->ValAddr == nullptr && "primitive types must be stored inline");
-  return __sycl_internal::__v1::detail::pi::asUint32(&Prop->ValSize);
+  return sycl::detail::pi::asUint32(&Prop->ValSize);
 }
 
 ByteArray DeviceBinaryProperty::asByteArray() const {

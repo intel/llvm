@@ -15,8 +15,8 @@
 #include <iostream>
 #include <limits>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 #ifndef SYCL_CONFIG_FILE_NAME
@@ -56,8 +56,8 @@ void readConfig() {
   if (const char *ConfigFile = getenv("SYCL_CONFIG_FILE_NAME"))
     File.open(ConfigFile, std::ios::in);
   else {
-    const std::string LibSYCLDir = __sycl_internal::__v1::detail::OSUtil::getCurrentDSODir();
-    File.open(LibSYCLDir + __sycl_internal::__v1::detail::OSUtil::DirSep + SYCL_CONFIG_FILE_NAME,
+    const std::string LibSYCLDir = sycl::detail::OSUtil::getCurrentDSODir();
+    File.open(LibSYCLDir + sycl::detail::OSUtil::DirSep + SYCL_CONFIG_FILE_NAME,
               std::ios::in);
   }
 

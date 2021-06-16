@@ -16,8 +16,8 @@
 
 #include <memory>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 // Forward declaration
 class platform;

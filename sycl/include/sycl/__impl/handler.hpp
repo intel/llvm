@@ -40,38 +40,38 @@
 #define __SYCL_NONCONST_FUNCTOR__
 #endif
 
-template <typename DataT, int Dimensions, __sycl_internal::__v1::access::mode AccessMode,
-          __sycl_internal::__v1::access::target AccessTarget,
-          __sycl_internal::__v1::access::placeholder IsPlaceholder>
+template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
+          cl::sycl::access::target AccessTarget,
+          cl::sycl::access::placeholder IsPlaceholder>
 class __fill;
 
 template <typename T> class __usmfill;
 
 template <typename T_Src, typename T_Dst, int Dims,
-          __sycl_internal::__v1::access::mode AccessMode,
-          __sycl_internal::__v1::access::target AccessTarget,
-          __sycl_internal::__v1::access::placeholder IsPlaceholder>
+          cl::sycl::access::mode AccessMode,
+          cl::sycl::access::target AccessTarget,
+          cl::sycl::access::placeholder IsPlaceholder>
 class __copyAcc2Ptr;
 
 template <typename T_Src, typename T_Dst, int Dims,
-          __sycl_internal::__v1::access::mode AccessMode,
-          __sycl_internal::__v1::access::target AccessTarget,
-          __sycl_internal::__v1::access::placeholder IsPlaceholder>
+          cl::sycl::access::mode AccessMode,
+          cl::sycl::access::target AccessTarget,
+          cl::sycl::access::placeholder IsPlaceholder>
 class __copyPtr2Acc;
 
-template <typename T_Src, int Dims_Src, __sycl_internal::__v1::access::mode AccessMode_Src,
-          __sycl_internal::__v1::access::target AccessTarget_Src, typename T_Dst,
-          int Dims_Dst, __sycl_internal::__v1::access::mode AccessMode_Dst,
-          __sycl_internal::__v1::access::target AccessTarget_Dst,
-          __sycl_internal::__v1::access::placeholder IsPlaceholder_Src,
-          __sycl_internal::__v1::access::placeholder IsPlaceholder_Dst>
+template <typename T_Src, int Dims_Src, cl::sycl::access::mode AccessMode_Src,
+          cl::sycl::access::target AccessTarget_Src, typename T_Dst,
+          int Dims_Dst, cl::sycl::access::mode AccessMode_Dst,
+          cl::sycl::access::target AccessTarget_Dst,
+          cl::sycl::access::placeholder IsPlaceholder_Src,
+          cl::sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
 
 // For unit testing purposes
 class MockHandler;
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 // Forward declaration
 
@@ -207,8 +207,8 @@ template <typename T, class BinaryOperation, int Dims, bool IsUSM,
           access::placeholder IsPlaceholder>
 class reduction_impl;
 
-using __sycl_internal::__v1::detail::enable_if_t;
-using __sycl_internal::__v1::detail::queue_impl;
+using cl::sycl::detail::enable_if_t;
+using cl::sycl::detail::queue_impl;
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 enable_if_t<Reduction::has_fast_atomics>
@@ -280,7 +280,7 @@ template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 /// as kernel, requirements to the memory, arguments for the kernel.
 ///
 /// \code{.cpp}
-/// __sycl_internal::__v1::queue::submit([](handler &CGH){
+/// sycl::queue::submit([](handler &CGH){
 ///   CGH.require(Accessor1);   // Adds a requirement to the memory object.
 ///   CGH.setArg(0, Accessor2); // Registers accessor given as an argument to
 ///                             // the kernel + adds a requirement to the memory
@@ -337,7 +337,7 @@ private:
 
   void throwIfActionIsCreated() {
     if (detail::CG::NONE != getType())
-      throw __sycl_internal::__v1::runtime_error("Attempt to set multiple actions for the "
+      throw sycl::runtime_error("Attempt to set multiple actions for the "
                                 "command group. Command group must consist of "
                                 "a single kernel or explicit memory operation.",
                                 CL_INVALID_OPERATION);
@@ -374,7 +374,7 @@ private:
 
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
-    // for parallel_for with __sycl_internal::__v1::kernel and lambda/functor together
+    // for parallel_for with sycl::kernel and lambda/functor together
     // Now if they are equal we extract argumets from lambda/functor for the
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
@@ -389,7 +389,7 @@ private:
   void saveCodeLoc(detail::code_location CodeLoc) { MCodeLoc = CodeLoc; }
 
   /// Constructs CG object of specific type, passes it to Scheduler and
-  /// returns __sycl_internal::__v1::event object representing the command group.
+  /// returns sycl::event object representing the command group.
   /// It's expected that the method is the latest method executed before
   /// object destruction.
   ///
@@ -526,7 +526,7 @@ private:
     if (detail::isKernelLambdaCallableWithKernelHandler<KernelType,
                                                         LambdaArgType>() &&
         MIsHost) {
-      throw __sycl_internal::__v1::feature_not_supported(
+      throw cl::sycl::feature_not_supported(
           "kernel_handler is not yet supported by host device.",
           PI_INVALID_OPERATION);
     }
@@ -534,7 +534,7 @@ private:
         new detail::HostKernel<KernelType, LambdaArgType, Dims, KernelName>(
             KernelFunc));
 
-    using KI = __sycl_internal::__v1::detail::KernelInfo<KernelName>;
+    using KI = sycl::detail::KernelInfo<KernelName>;
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
     if (KI::getName() != nullptr && KI::getName()[0] != '\0') {
@@ -735,9 +735,9 @@ private:
   void parallel_for_lambda_impl(range<Dims> NumWorkItems,
                                 KernelType KernelFunc) {
     throwIfActionIsCreated();
-    using LambdaArgType = __sycl_internal::__v1::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
 
-    // If 1D kernel argument is an integral type, convert it to __sycl_internal::__v1::item<1>
+    // If 1D kernel argument is an integral type, convert it to sycl::item<1>
     using TransformedArgType =
         typename std::conditional<std::is_integral<LambdaArgType>::value &&
                                       Dims == 1,
@@ -1299,7 +1299,7 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    using LambdaArgType = __sycl_internal::__v1::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)NumWorkItems;
     (void)WorkItemOffset;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
@@ -1331,7 +1331,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
-        __sycl_internal::__v1::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+        sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
     (void)ExecutionRange;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1343,7 +1343,7 @@ public:
   }
 
   /// Implements parallel_for() accepting nd_range \p Range and one reduction
-  /// object. This version uses fast __sycl_internal::__v1::atomic operations to update reduction
+  /// object. This version uses fast sycl::atomic operations to update reduction
   /// variable at the end of each work-group work.
   //
   // If the reduction variable must be initialized with the identity value
@@ -1420,7 +1420,7 @@ public:
     // for the device.
     size_t MaxWGSize = ONEAPI::detail::reduGetMaxWGSize(MQueue, OneElemSize);
     if (Range.get_local_range().size() > MaxWGSize)
-      throw __sycl_internal::__v1::runtime_error("The implementation handling parallel_for with"
+      throw sycl::runtime_error("The implementation handling parallel_for with"
                                 " reduction requires work group size not bigger"
                                 " than " +
                                     std::to_string(MaxWGSize),
@@ -1437,7 +1437,7 @@ public:
     // TODO: Create a special slow/sequential version of the kernel that would
     // handle the reduction instead of reporting an assert below.
     if (MaxWGSize <= 1)
-      throw __sycl_internal::__v1::runtime_error("The implementation handling parallel_for with "
+      throw sycl::runtime_error("The implementation handling parallel_for with "
                                 "reduction requires the maximal work group "
                                 "size to be greater than 1 to converge. "
                                 "The maximal work group size depends on the "
@@ -1517,7 +1517,7 @@ public:
     size_t MaxWGSize =
         ONEAPI::detail::reduGetMaxWGSize(MQueue, LocalMemPerWorkItem);
     if (Range.get_local_range().size() > MaxWGSize)
-      throw __sycl_internal::__v1::runtime_error("The implementation handling parallel_for with"
+      throw sycl::runtime_error("The implementation handling parallel_for with"
                                 " reduction requires work group size not bigger"
                                 " than " +
                                     std::to_string(MaxWGSize),
@@ -1563,7 +1563,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
-        __sycl_internal::__v1::detail::lambda_arg_type<KernelType, group<Dims>>;
+        sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)NumWorkGroups;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1595,7 +1595,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
-        __sycl_internal::__v1::detail::lambda_arg_type<KernelType, group<Dims>>;
+        sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)NumWorkGroups;
     (void)WorkGroupSize;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
@@ -1729,7 +1729,7 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    using LambdaArgType = __sycl_internal::__v1::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)Kernel;
     (void)NumWorkItems;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
@@ -1763,7 +1763,7 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    using LambdaArgType = __sycl_internal::__v1::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)Kernel;
     (void)NumWorkItems;
     (void)WorkItemOffset;
@@ -1799,7 +1799,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
-        __sycl_internal::__v1::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+        sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
     (void)Kernel;
     (void)NDRange;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
@@ -1838,7 +1838,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
-        __sycl_internal::__v1::detail::lambda_arg_type<KernelType, group<Dims>>;
+        sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)Kernel;
     (void)NumWorkGroups;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
@@ -1875,7 +1875,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
-        __sycl_internal::__v1::detail::lambda_arg_type<KernelType, group<Dims>>;
+        sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)Kernel;
     (void)NumWorkGroups;
     (void)WorkGroupSize;
@@ -2223,7 +2223,7 @@ private:
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
   string_class MKernelName;
-  /// Storage for a __sycl_internal::__v1::kernel object.
+  /// Storage for a sycl::kernel object.
   shared_ptr_class<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
   /// Use getType and setType methods to access this variable unless

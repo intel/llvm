@@ -10,8 +10,8 @@
 #include <sycl/__impl/context.hpp>
 #include <sycl/__impl/exception.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 const char *exception::what() const noexcept { return MMsg.c_str(); }
 
@@ -31,7 +31,7 @@ const std::error_category &sycl_category() noexcept {
   return SYCLCategoryObj;
 }
 
-std::error_code make_error_code(__sycl_internal::__v1::errc Err) noexcept {
+std::error_code make_error_code(sycl::errc Err) noexcept {
   return {static_cast<int>(Err), sycl_category()};
 }
 

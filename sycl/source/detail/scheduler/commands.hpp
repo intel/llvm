@@ -21,8 +21,8 @@
 #include <sycl/__impl/detail/cg.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 class queue_impl;

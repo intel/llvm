@@ -26,8 +26,8 @@
 
 #include <type_traits>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 namespace detail {
 template <backend Backend, typename T> struct BackendInput {

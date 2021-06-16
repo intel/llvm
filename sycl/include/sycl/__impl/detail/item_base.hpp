@@ -11,8 +11,8 @@
 #include <sycl/__impl/id.hpp>
 #include <sycl/__impl/range.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 template <int dimensions> class id;
 template <int dimensions> class range;
 

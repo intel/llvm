@@ -55,7 +55,7 @@
 // deallocate them automatically at the end of the main program.
 // The heap memory allocated for this global variable reclaimed only when
 // Sycl RT calls piTearDown().
-static __sycl_internal::__v1::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
+static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 
 // To be compared with ESIMD_EMU_PLUGIN_OPAQUE_DATA_VERSION in device
 // interface header file
@@ -65,7 +65,7 @@ static __sycl_internal::__v1::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAcc
 // interface header file
 #define ESIMDEmuPluginInterfaceVersion 1
 
-using IDBuilder = __sycl_internal::__v1::detail::Builder;
+using IDBuilder = sycl::detail::Builder;
 
 // Lambda-call interface definition.
 // 'extern "C"' is required as CM supports only C-style function calls
@@ -76,21 +76,21 @@ using IDBuilder = __sycl_internal::__v1::detail::Builder;
                                                                                \
   extern "C" struct LambdaWrapper_##TAG {                                      \
     LambdaFunction_##TAG Func;                                                 \
-    const __sycl_internal::__v1::range<DIMS> &LocalSize;                                        \
-    const __sycl_internal::__v1::range<DIMS> &GlobalSize;                                       \
-    const __sycl_internal::__v1::id<DIMS> &GlobalOffset;                                        \
+    const sycl::range<DIMS> &LocalSize;                                        \
+    const sycl::range<DIMS> &GlobalSize;                                       \
+    const sycl::id<DIMS> &GlobalOffset;                                        \
     LambdaWrapper_##TAG(LambdaFunction_##TAG ArgFunc,                          \
-                        const __sycl_internal::__v1::range<DIMS> &ArgLocalSize,                 \
-                        const __sycl_internal::__v1::range<DIMS> &ArgGlobalSize,                \
-                        const __sycl_internal::__v1::id<DIMS> &ArgGlobalOffset)                 \
+                        const sycl::range<DIMS> &ArgLocalSize,                 \
+                        const sycl::range<DIMS> &ArgGlobalSize,                \
+                        const sycl::id<DIMS> &ArgGlobalOffset)                 \
         : Func(ArgFunc), LocalSize(ArgLocalSize), GlobalSize(ArgGlobalSize),   \
           GlobalOffset(ArgGlobalOffset) {}                                     \
   };                                                                           \
                                                                                \
   template <typename LambdaTy>                                                 \
-  auto makeWrapper_##TAG(LambdaTy F, const __sycl_internal::__v1::range<DIMS> &LocalSize,       \
-                         const __sycl_internal::__v1::range<DIMS> &GlobalSize,                  \
-                         const __sycl_internal::__v1::id<DIMS> &GlobalOffset) {                 \
+  auto makeWrapper_##TAG(LambdaTy F, const sycl::range<DIMS> &LocalSize,       \
+                         const sycl::range<DIMS> &GlobalSize,                  \
+                         const sycl::id<DIMS> &GlobalOffset) {                 \
     std::unique_ptr<LambdaWrapper_##TAG> Wrapper =                             \
         std::make_unique<LambdaWrapper_##TAG>(LambdaWrapper_##TAG(             \
             LambdaFunction_##TAG(F), LocalSize, GlobalSize, GlobalOffset));    \
@@ -99,18 +99,18 @@ using IDBuilder = __sycl_internal::__v1::detail::Builder;
 
 #define _COMMA_ ,
 
-LAMBDA_WRAPPER_TMPL(__sycl_internal::__v1::id<1>, ID_1DIM, 1)
-LAMBDA_WRAPPER_TMPL(__sycl_internal::__v1::id<2>, ID_2DIM, 2)
-LAMBDA_WRAPPER_TMPL(__sycl_internal::__v1::id<3>, ID_3DIM, 3)
-LAMBDA_WRAPPER_TMPL(__sycl_internal::__v1::item<1 _COMMA_ false>, ITEM_1DIM, 1)
-LAMBDA_WRAPPER_TMPL(__sycl_internal::__v1::item<2 _COMMA_ false>, ITEM_2DIM, 2)
-LAMBDA_WRAPPER_TMPL(__sycl_internal::__v1::item<3 _COMMA_ false>, ITEM_3DIM, 3)
-LAMBDA_WRAPPER_TMPL(__sycl_internal::__v1::item<1 _COMMA_ true>, ITEM_OFFSET_1DIM, 1)
-LAMBDA_WRAPPER_TMPL(__sycl_internal::__v1::item<2 _COMMA_ true>, ITEM_OFFSET_2DIM, 2)
-LAMBDA_WRAPPER_TMPL(__sycl_internal::__v1::item<3 _COMMA_ true>, ITEM_OFFSET_3DIM, 3)
-LAMBDA_WRAPPER_TMPL(__sycl_internal::__v1::nd_item<1>, NDITEM_1DIM, 1)
-LAMBDA_WRAPPER_TMPL(__sycl_internal::__v1::nd_item<2>, NDITEM_2DIM, 2)
-LAMBDA_WRAPPER_TMPL(__sycl_internal::__v1::nd_item<3>, NDITEM_3DIM, 3)
+LAMBDA_WRAPPER_TMPL(sycl::id<1>, ID_1DIM, 1)
+LAMBDA_WRAPPER_TMPL(sycl::id<2>, ID_2DIM, 2)
+LAMBDA_WRAPPER_TMPL(sycl::id<3>, ID_3DIM, 3)
+LAMBDA_WRAPPER_TMPL(sycl::item<1 _COMMA_ false>, ITEM_1DIM, 1)
+LAMBDA_WRAPPER_TMPL(sycl::item<2 _COMMA_ false>, ITEM_2DIM, 2)
+LAMBDA_WRAPPER_TMPL(sycl::item<3 _COMMA_ false>, ITEM_3DIM, 3)
+LAMBDA_WRAPPER_TMPL(sycl::item<1 _COMMA_ true>, ITEM_OFFSET_1DIM, 1)
+LAMBDA_WRAPPER_TMPL(sycl::item<2 _COMMA_ true>, ITEM_OFFSET_2DIM, 2)
+LAMBDA_WRAPPER_TMPL(sycl::item<3 _COMMA_ true>, ITEM_OFFSET_3DIM, 3)
+LAMBDA_WRAPPER_TMPL(sycl::nd_item<1>, NDITEM_1DIM, 1)
+LAMBDA_WRAPPER_TMPL(sycl::nd_item<2>, NDITEM_2DIM, 2)
+LAMBDA_WRAPPER_TMPL(sycl::nd_item<3>, NDITEM_3DIM, 3)
 
 #undef _COMMA_
 #undef LAMBDA_WRAPPER_TMPL
@@ -119,7 +119,7 @@ extern "C" inline void invokeLambda_ID_1DIM(void *Wrapper) {
   auto *LambdaWrapper = reinterpret_cast<LambdaWrapper_ID_1DIM *>(Wrapper);
 
   PLACEHOLDER_UNUSED(LambdaWrapper);
-  // TODO : construct __sycl_internal::__v1::id<1> instance using thread ID info
+  // TODO : construct cl::sycl::id<1> instance using thread ID info
   // retrieved from CM and call Lambda function
   // LambdaWrapper->Func(id_1dim);
 }
@@ -128,7 +128,7 @@ extern "C" inline void invokeLambda_ID_2DIM(void *Wrapper) {
   auto *LambdaWrapper = reinterpret_cast<LambdaWrapper_ID_2DIM *>(Wrapper);
 
   PLACEHOLDER_UNUSED(LambdaWrapper);
-  // TODO : construct __sycl_internal::__v1::id<2> instance using thread ID info
+  // TODO : construct cl::sycl::id<2> instance using thread ID info
   // retrieved from CM and call Lambda function
   // LambdaWrapper->Func(id_2dim);
 }
@@ -137,7 +137,7 @@ extern "C" inline void invokeLambda_ID_3DIM(void *Wrapper) {
   auto *LambdaWrapper = reinterpret_cast<LambdaWrapper_ID_3DIM *>(Wrapper);
 
   PLACEHOLDER_UNUSED(LambdaWrapper);
-  // TODO : construct __sycl_internal::__v1::id<3> instance using thread ID info
+  // TODO : construct cl::sycl::id<3> instance using thread ID info
   // retrieved from CM and call Lambda function
   // LambdaWrapper->Func(id_3dim);
 }
@@ -146,7 +146,7 @@ extern "C" inline void invokeLambda_ITEM_1DIM(void *Wrapper) {
   auto *LambdaWrapper = reinterpret_cast<LambdaWrapper_ITEM_1DIM *>(Wrapper);
 
   PLACEHOLDER_UNUSED(LambdaWrapper);
-  // TODO : construct __sycl_internal::__v1::item<1, false> instance using thread
+  // TODO : construct cl::sycl::item<1, false> instance using thread
   // ID info retrieved from CM and call Lambda function
   // LambdaWrapper->Func(item_1dim);
 }
@@ -155,7 +155,7 @@ extern "C" inline void invokeLambda_ITEM_2DIM(void *Wrapper) {
   auto *LambdaWrapper = reinterpret_cast<LambdaWrapper_ITEM_2DIM *>(Wrapper);
 
   PLACEHOLDER_UNUSED(LambdaWrapper);
-  // TODO : construct __sycl_internal::__v1::item<2, false> instance using thread
+  // TODO : construct cl::sycl::item<2, false> instance using thread
   // ID info retrieved from CM and call Lambda function
   // LambdaWrapper->Func(item_2dim);
 }
@@ -164,7 +164,7 @@ extern "C" inline void invokeLambda_ITEM_3DIM(void *Wrapper) {
   auto *LambdaWrapper = reinterpret_cast<LambdaWrapper_ITEM_3DIM *>(Wrapper);
 
   PLACEHOLDER_UNUSED(LambdaWrapper);
-  // TODO : construct __sycl_internal::__v1::item<3, false> instance using thread
+  // TODO : construct cl::sycl::item<3, false> instance using thread
   // ID info retrieved from CM and call Lambda function
   // LambdaWrapper->Func(item_3dim);
 }
@@ -174,7 +174,7 @@ extern "C" inline void invokeLambda_ITEM_OFFSET_1DIM(void *Wrapper) {
       reinterpret_cast<LambdaWrapper_ITEM_OFFSET_1DIM *>(Wrapper);
 
   PLACEHOLDER_UNUSED(LambdaWrapper);
-  // TODO : construct __sycl_internal::__v1::item<1, true> instance using thread
+  // TODO : construct cl::sycl::item<1, true> instance using thread
   // ID info retrieved from CM with GlobalOffset info and call Lambda
   // function
   // LambdaWrapper->Func(item_offset_1dim);
@@ -185,7 +185,7 @@ extern "C" inline void invokeLambda_ITEM_OFFSET_2DIM(void *Wrapper) {
       reinterpret_cast<LambdaWrapper_ITEM_OFFSET_2DIM *>(Wrapper);
 
   PLACEHOLDER_UNUSED(LambdaWrapper);
-  // TODO : construct __sycl_internal::__v1::item<2, true> instance using thread
+  // TODO : construct cl::sycl::item<2, true> instance using thread
   // ID info retrieved from CM with GlobalOffset info and call Lambda
   // function
   // LambdaWrapper->Func(item_offset_2dim);
@@ -196,7 +196,7 @@ extern "C" inline void invokeLambda_ITEM_OFFSET_3DIM(void *Wrapper) {
       reinterpret_cast<LambdaWrapper_ITEM_OFFSET_3DIM *>(Wrapper);
 
   PLACEHOLDER_UNUSED(LambdaWrapper);
-  // TODO : construct __sycl_internal::__v1::item<3, true> instance using thread
+  // TODO : construct cl::sycl::item<3, true> instance using thread
   // ID info retrieved from CM with GlobalOffset info and call Lambda
   // function
   // LambdaWrapper->Func(item_offset_3dim);
@@ -206,7 +206,7 @@ extern "C" inline void invokeLambda_NDITEM_1DIM(void *Wrapper) {
   auto *LambdaWrapper = reinterpret_cast<LambdaWrapper_NDITEM_1DIM *>(Wrapper);
 
   PLACEHOLDER_UNUSED(LambdaWrapper);
-  // TODO : construct __sycl_internal::__v1::nd_item<1> instance using thread ID
+  // TODO : construct cl::sycl::nd_item<1> instance using thread ID
   // info retrieved from CM with GlobalOffset/GlobalSize/LocalSize
   // info and call Lambda function
   // LambdaWrapper->Func(nd_item_1dim);
@@ -216,7 +216,7 @@ extern "C" inline void invokeLambda_NDITEM_2DIM(void *Wrapper) {
   auto *LambdaWrapper = reinterpret_cast<LambdaWrapper_NDITEM_2DIM *>(Wrapper);
 
   PLACEHOLDER_UNUSED(LambdaWrapper);
-  // TODO : construct __sycl_internal::__v1::nd_item<2> instance using thread ID
+  // TODO : construct cl::sycl::nd_item<2> instance using thread ID
   // info retrieved from CM with GlobalOffset/GlobalSize/LocalSize
   // info and call Lambda function
   // LambdaWrapper->Func(nd_item_2dim);
@@ -226,7 +226,7 @@ extern "C" inline void invokeLambda_NDITEM_3DIM(void *Wrapper) {
   auto *LambdaWrapper = reinterpret_cast<LambdaWrapper_NDITEM_3DIM *>(Wrapper);
 
   PLACEHOLDER_UNUSED(LambdaWrapper);
-  // TODO : construct __sycl_internal::__v1::nd_item<3> instance using thread ID
+  // TODO : construct cl::sycl::nd_item<3> instance using thread ID
   // info retrieved from CM with GlobalOffset/GlobalSize/LocalSize
   // info and call Lambda function
   // LambdaWrapper->Func(nd_item_3dim);
@@ -246,11 +246,11 @@ private:
   // Number of threads for parallelization
   const uint32_t hwThreads = (uint32_t)std::thread::hardware_concurrency();
 
-  using IDBuilder = __sycl_internal::__v1::detail::Builder;
-  const __sycl_internal::__v1::id<DIMS> UnusedID =
-      __sycl_internal::__v1::detail::InitializedVal<DIMS, __sycl_internal::__v1::id>::template get<0>();
-  const __sycl_internal::__v1::range<DIMS> UnusedRange =
-      __sycl_internal::__v1::detail::InitializedVal<DIMS, __sycl_internal::__v1::range>::template get<0>();
+  using IDBuilder = sycl::detail::Builder;
+  const sycl::id<DIMS> UnusedID =
+      sycl::detail::InitializedVal<DIMS, sycl::id>::template get<0>();
+  const sycl::range<DIMS> UnusedRange =
+      sycl::detail::InitializedVal<DIMS, sycl::range>::template get<0>();
 
 public:
   libCMBatch(KernelType Kernel)
@@ -261,8 +261,8 @@ public:
   // ID_1DIM
   template <class ArgT = KernelArgType>
   typename std::enable_if<(DIMS == 1) &&
-                          (std::is_same<ArgT, __sycl_internal::__v1::id<1>>::value)>::type
-  runIterationSpace(const __sycl_internal::__v1::range<1> &Range) {
+                          (std::is_same<ArgT, sycl::id<1>>::value)>::type
+  runIterationSpace(const sycl::range<1> &Range) {
     auto WrappedLambda_ID_1DIM =
         makeWrapper_ID_1DIM(MKernel, UnusedRange, UnusedRange, UnusedID);
 
@@ -276,8 +276,8 @@ public:
   // ID_2DIM
   template <class ArgT = KernelArgType>
   typename std::enable_if<(DIMS == 2) &&
-                          (std::is_same<ArgT, __sycl_internal::__v1::id<2>>::value)>::type
-  runIterationSpace(const __sycl_internal::__v1::range<2> &Range) {
+                          (std::is_same<ArgT, sycl::id<2>>::value)>::type
+  runIterationSpace(const sycl::range<2> &Range) {
     auto WrappedLambda_ID_2DIM =
         makeWrapper_ID_2DIM(MKernel, UnusedRange, UnusedRange, UnusedID);
 
@@ -292,8 +292,8 @@ public:
   // ID_3DIM
   template <class ArgT = KernelArgType>
   typename std::enable_if<(DIMS == 3) &&
-                          (std::is_same<ArgT, __sycl_internal::__v1::id<3>>::value)>::type
-  runIterationSpace(const __sycl_internal::__v1::range<3> &Range) {
+                          (std::is_same<ArgT, sycl::id<3>>::value)>::type
+  runIterationSpace(const sycl::range<3> &Range) {
     auto WrappedLambda_ID_3DIM =
         makeWrapper_ID_3DIM(MKernel, UnusedRange, UnusedRange, UnusedID);
 
@@ -310,8 +310,8 @@ public:
   template <class ArgT = KernelArgType>
   typename std::enable_if<
       (DIMS == 1) &&
-      (std::is_same<ArgT, __sycl_internal::__v1::item<1, /*Offset=*/false>>::value)>::type
-  runIterationSpace(const __sycl_internal::__v1::range<1> &Range) {
+      (std::is_same<ArgT, sycl::item<1, /*Offset=*/false>>::value)>::type
+  runIterationSpace(const sycl::range<1> &Range) {
     auto WrappedLambda_ITEM_1DIM =
         makeWrapper_ITEM_1DIM(MKernel, UnusedRange, UnusedRange, UnusedID);
 
@@ -325,8 +325,8 @@ public:
   template <class ArgT = KernelArgType>
   typename std::enable_if<
       (DIMS == 2) &&
-      (std::is_same<ArgT, __sycl_internal::__v1::item<2, /*Offset=*/false>>::value)>::type
-  runIterationSpace(const __sycl_internal::__v1::range<2> &Range) {
+      (std::is_same<ArgT, sycl::item<2, /*Offset=*/false>>::value)>::type
+  runIterationSpace(const sycl::range<2> &Range) {
     auto WrappedLambda_ITEM_2DIM =
         makeWrapper_ITEM_2DIM(MKernel, UnusedRange, UnusedRange, UnusedID);
 
@@ -341,8 +341,8 @@ public:
   template <class ArgT = KernelArgType>
   typename std::enable_if<
       (DIMS == 3) &&
-      (std::is_same<ArgT, __sycl_internal::__v1::item<3, /*Offset=*/false>>::value)>::type
-  runIterationSpace(const __sycl_internal::__v1::range<3> &Range) {
+      (std::is_same<ArgT, sycl::item<3, /*Offset=*/false>>::value)>::type
+  runIterationSpace(const sycl::range<3> &Range) {
     auto WrappedLambda_ITEM_3DIM =
         makeWrapper_ITEM_3DIM(MKernel, UnusedRange, UnusedRange, UnusedID);
 
@@ -359,8 +359,8 @@ public:
   template <class ArgT = KernelArgType>
   typename std::enable_if<
       (DIMS == 1) &&
-      (std::is_same<ArgT, __sycl_internal::__v1::item<1, /*Offset=*/true>>::value)>::type
-  runIterationSpace(const __sycl_internal::__v1::range<1> &Range, const __sycl_internal::__v1::id<1> &Offset) {
+      (std::is_same<ArgT, sycl::item<1, /*Offset=*/true>>::value)>::type
+  runIterationSpace(const sycl::range<1> &Range, const sycl::id<1> &Offset) {
     auto WrappedLambda_ITEM_OFFSET_1DIM =
         makeWrapper_ITEM_OFFSET_1DIM(MKernel, UnusedRange, UnusedRange, Offset);
 
@@ -374,8 +374,8 @@ public:
   template <class ArgT = KernelArgType>
   typename std::enable_if<
       (DIMS == 2) &&
-      (std::is_same<ArgT, __sycl_internal::__v1::item<2, /*Offset=*/true>>::value)>::type
-  runIterationSpace(const __sycl_internal::__v1::range<2> &Range, const __sycl_internal::__v1::id<2> &Offset) {
+      (std::is_same<ArgT, sycl::item<2, /*Offset=*/true>>::value)>::type
+  runIterationSpace(const sycl::range<2> &Range, const sycl::id<2> &Offset) {
     auto WrappedLambda_ITEM_OFFSET_2DIM =
         makeWrapper_ITEM_OFFSET_2DIM(MKernel, UnusedRange, UnusedRange, Offset);
 
@@ -390,8 +390,8 @@ public:
   template <class ArgT = KernelArgType>
   typename std::enable_if<
       (DIMS == 3) &&
-      (std::is_same<ArgT, __sycl_internal::__v1::item<3, /*Offset=*/true>>::value)>::type
-  runIterationSpace(const __sycl_internal::__v1::range<3> &Range, const __sycl_internal::__v1::id<3> &Offset) {
+      (std::is_same<ArgT, sycl::item<3, /*Offset=*/true>>::value)>::type
+  runIterationSpace(const sycl::range<3> &Range, const sycl::id<3> &Offset) {
     auto WrappedLambda_ITEM_OFFSET_3DIM =
         makeWrapper_ITEM_OFFSET_3DIM(MKernel, UnusedRange, UnusedRange, Offset);
 
@@ -407,10 +407,10 @@ public:
   // NDItem_1DIM
   template <class ArgT = KernelArgType>
   typename std::enable_if<(DIMS == 1) &&
-                          (std::is_same<ArgT, __sycl_internal::__v1::nd_item<1>>::value)>::type
-  runIterationSpace(const __sycl_internal::__v1::range<1> &LocalSize,
-                    const __sycl_internal::__v1::range<1> &GlobalSize,
-                    const __sycl_internal::__v1::id<1> &GlobalOffset) {
+                          (std::is_same<ArgT, sycl::nd_item<1>>::value)>::type
+  runIterationSpace(const sycl::range<1> &LocalSize,
+                    const sycl::range<1> &GlobalSize,
+                    const sycl::id<1> &GlobalOffset) {
     auto WrappedLambda_NDITEM_1DIM =
         makeWrapper_NDITEM_1DIM(MKernel, LocalSize, GlobalSize, GlobalOffset);
 
@@ -426,10 +426,10 @@ public:
   // NDItem_2DIM
   template <class ArgT = KernelArgType>
   typename std::enable_if<(DIMS == 2) &&
-                          (std::is_same<ArgT, __sycl_internal::__v1::nd_item<2>>::value)>::type
-  runIterationSpace(const __sycl_internal::__v1::range<2> &LocalSize,
-                    const __sycl_internal::__v1::range<2> &GlobalSize,
-                    const __sycl_internal::__v1::id<2> &GlobalOffset) {
+                          (std::is_same<ArgT, sycl::nd_item<2>>::value)>::type
+  runIterationSpace(const sycl::range<2> &LocalSize,
+                    const sycl::range<2> &GlobalSize,
+                    const sycl::id<2> &GlobalOffset) {
     auto WrappedLambda_NDITEM_2DIM =
         makeWrapper_NDITEM_2DIM(MKernel, LocalSize, GlobalSize, GlobalOffset);
 
@@ -447,10 +447,10 @@ public:
   // NDItem_3DIM
   template <class ArgT = KernelArgType>
   typename std::enable_if<(DIMS == 3) &&
-                          (std::is_same<ArgT, __sycl_internal::__v1::nd_item<3>>::value)>::type
-  runIterationSpace(const __sycl_internal::__v1::range<3> &LocalSize,
-                    const __sycl_internal::__v1::range<3> &GlobalSize,
-                    const __sycl_internal::__v1::id<3> &GlobalOffset) {
+                          (std::is_same<ArgT, sycl::nd_item<3>>::value)>::type
+  runIterationSpace(const sycl::range<3> &LocalSize,
+                    const sycl::range<3> &GlobalSize,
+                    const sycl::id<3> &GlobalOffset) {
     auto WrappedLambda_NDITEM_3DIM =
         makeWrapper_NDITEM_3DIM(MKernel, LocalSize, GlobalSize, GlobalOffset);
 
@@ -469,7 +469,7 @@ public:
 };
 
 // Intrinsics
-__sycl_internal::__v1::detail::ESIMDDeviceInterface::ESIMDDeviceInterface() {
+sycl::detail::ESIMDDeviceInterface::ESIMDDeviceInterface() {
   reserved = nullptr;
   version = ESIMDEmuPluginInterfaceVersion;
 
@@ -1226,7 +1226,7 @@ pi_result piextPluginGetOpaqueData(void *, void **opaque_data_return) {
 }
 
 pi_result piTearDown(void *) {
-  delete reinterpret_cast<__sycl_internal::__v1::detail::ESIMDEmuPluginOpaqueData *>(
+  delete reinterpret_cast<sycl::detail::ESIMDEmuPluginOpaqueData *>(
       PiESimdDeviceAccess->data);
   delete PiESimdDeviceAccess;
   return PI_SUCCESS;
@@ -1238,12 +1238,12 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   assert(strlen(_PI_H_VERSION_STRING) < PluginVersionSize);
   strncpy(PluginInit->PluginVersion, _PI_H_VERSION_STRING, PluginVersionSize);
 
-  PiESimdDeviceAccess = new __sycl_internal::__v1::detail::ESIMDEmuPluginOpaqueData();
+  PiESimdDeviceAccess = new sycl::detail::ESIMDEmuPluginOpaqueData();
   // 'version' to be compared with 'ESIMD_CPU_DEVICE_REQUIRED_VER' defined in
   // device interface file
   PiESimdDeviceAccess->version = ESIMDEmuPluginDataVersion;
   PiESimdDeviceAccess->data =
-      reinterpret_cast<void *>(new __sycl_internal::__v1::detail::ESIMDDeviceInterface());
+      reinterpret_cast<void *>(new sycl::detail::ESIMDDeviceInterface());
 
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);

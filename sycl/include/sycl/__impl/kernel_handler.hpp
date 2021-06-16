@@ -13,8 +13,8 @@
 
 #include <type_traits>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 /// Reading the value of a specialization constant
 ///
 /// \ingroup sycl_api
@@ -28,7 +28,7 @@ public:
     return getSpecializationConstantOnDevice<S>();
 #else
     // TODO: add support of host device
-    throw __sycl_internal::__v1::feature_not_supported(
+    throw cl::sycl::feature_not_supported(
         "kernel_handler::get_specialization_constant() is not yet supported by "
         "host device.",
         PI_INVALID_OPERATION);

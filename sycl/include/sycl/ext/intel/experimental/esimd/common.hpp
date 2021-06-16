@@ -22,8 +22,8 @@
 #define SYCL_ESIMD_FUNCTION
 #endif
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -59,7 +59,7 @@ using uint = unsigned int;
 #define ESIMD_INLINE inline __attribute__((always_inline))
 
 // Macros for internal use
-#define __ESIMD_NS __sycl_internal::__v1::ext::intel::experimental::esimd
+#define __ESIMD_NS sycl::ext::intel::experimental::esimd
 #define __ESIMD_QUOTE1(m) #m
 #define __ESIMD_QUOTE(m) __ESIMD_QUOTE1(m)
 #define __ESIMD_NS_QUOTED __ESIMD_QUOTE(__ESIMD_NS)

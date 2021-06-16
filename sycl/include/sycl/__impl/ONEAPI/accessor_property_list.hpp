@@ -13,8 +13,8 @@
 #include <sycl/__impl/detail/property_list_base.hpp>
 #include <sycl/__impl/property_list.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 // Forward declaration
 template <typename, int, access::mode, access::target, access::placeholder,
           typename PropertyListT>
@@ -39,7 +39,7 @@ template <typename T> struct is_compile_time_property : std::false_type {};
 ///
 /// \ingroup sycl_api
 template <typename... PropsT>
-class accessor_property_list : protected __sycl_internal::__v1::detail::PropertyListBase {
+class accessor_property_list : protected sycl::detail::PropertyListBase {
   // These structures check if compile-time-constant property is present in
   // list. For runtime properties this check is always true.
   template <class T, class U> struct AreSameTemplate : std::is_same<T, U> {};
@@ -141,28 +141,28 @@ class accessor_property_list : protected __sycl_internal::__v1::detail::Property
   template <typename T, typename... Tail>
   struct AllProperties<T, Tail...>
       : detail::conditional_t<
-            std::is_base_of<__sycl_internal::__v1::detail::DataLessPropertyBase, T>::value ||
-                std::is_base_of<__sycl_internal::__v1::detail::PropertyWithDataBase, T>::value ||
-                __sycl_internal::__v1::detail::IsCompileTimePropertyInstance<T>::value,
+            std::is_base_of<sycl::detail::DataLessPropertyBase, T>::value ||
+                std::is_base_of<sycl::detail::PropertyWithDataBase, T>::value ||
+                sycl::detail::IsCompileTimePropertyInstance<T>::value,
             AllProperties<Tail...>, std::false_type> {};
 
   accessor_property_list(
-      std::bitset<__sycl_internal::__v1::detail::DataLessPropKind::DataLessPropKindSize>
+      std::bitset<sycl::detail::DataLessPropKind::DataLessPropKindSize>
           DataLessProps,
-      std::vector<std::shared_ptr<__sycl_internal::__v1::detail::PropertyWithDataBase>>
+      std::vector<std::shared_ptr<sycl::detail::PropertyWithDataBase>>
           PropsWithData)
-      : __sycl_internal::__v1::detail::PropertyListBase(DataLessProps, PropsWithData) {}
+      : sycl::detail::PropertyListBase(DataLessProps, PropsWithData) {}
 
 public:
   template <
       typename = typename detail::enable_if_t<AllProperties<PropsT...>::value>>
   accessor_property_list(PropsT... Props)
-      : __sycl_internal::__v1::detail::PropertyListBase(false) {
+      : sycl::detail::PropertyListBase(false) {
     ctorHelper(Props...);
   }
 
-  accessor_property_list(const __sycl_internal::__v1::property_list &Props)
-      : __sycl_internal::__v1::detail::PropertyListBase(Props.MDataLessProps,
+  accessor_property_list(const sycl::property_list &Props)
+      : sycl::detail::PropertyListBase(Props.MDataLessProps,
                                        Props.MPropsWithData) {}
 
   template <typename... OtherProps,
@@ -172,14 +172,14 @@ public:
                 ContainsSameProperties<PropertyContainer<OtherProps...>,
                                        PropsT...>::value>>
   accessor_property_list(const accessor_property_list<OtherProps...> &OtherList)
-      : __sycl_internal::__v1::detail::PropertyListBase(OtherList.MDataLessProps,
+      : sycl::detail::PropertyListBase(OtherList.MDataLessProps,
                                        OtherList.MPropsWithData) {}
 
   template <typename PropT, typename = typename detail::enable_if_t<
                                 !is_compile_time_property<PropT>::value>>
   PropT get_property() const {
     if (!has_property<PropT>())
-      throw __sycl_internal::__v1::invalid_object_error("The property is not found",
+      throw sycl::invalid_object_error("The property is not found",
                                        PI_INVALID_VALUE);
 
     return get_property_helper<PropT>();
@@ -213,11 +213,11 @@ public:
 private:
   template <typename, int, access::mode, access::target, access::placeholder,
             typename PropertyListT>
-  friend class __sycl_internal::__v1::accessor;
+  friend class sycl::accessor;
 
   template <typename... OtherProps> friend class accessor_property_list;
 
-  friend class __sycl_internal::__v1::property_list;
+  friend class sycl::property_list;
 
   // Helper method, used by accessor to restrict conversions to compatible
   // property lists.

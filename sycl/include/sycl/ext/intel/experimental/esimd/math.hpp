@@ -19,8 +19,8 @@
 
 #include <cstdint>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -62,12 +62,12 @@ __esimd_abs_common_internal(simd<T1, SZ> src0, int flag = saturation_off) {
 }
 
 template <typename T0, typename T1>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 __esimd_abs_common_internal(T1 src0, int flag = saturation_off) {
-  typedef typename __sycl_internal::__v1::detail::remove_const_t<T0> TT0;
-  typedef typename __sycl_internal::__v1::detail::remove_const_t<T1> TT1;
+  typedef typename sycl::detail::remove_const_t<T0> TT0;
+  typedef typename sycl::detail::remove_const_t<T1> TT1;
 
   simd<TT1, 1> Src0 = src0;
   simd<TT0, 1> Result = __esimd_abs_common_internal<TT0>(Src0, flag);
@@ -76,21 +76,21 @@ __esimd_abs_common_internal(T1 src0, int flag = saturation_off) {
 } // namespace detail
 
 template <typename T0, typename T1, int SZ>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
-    !std::is_same<typename __sycl_internal::__v1::detail::remove_const_t<T0>,
-                  typename __sycl_internal::__v1::detail::remove_const_t<T1>>::value,
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    !std::is_same<typename sycl::detail::remove_const_t<T0>,
+                  typename sycl::detail::remove_const_t<T1>>::value,
     simd<T0, SZ>>
 esimd_abs(simd<T1, SZ> src0, int flag = saturation_off) {
   return detail::__esimd_abs_common_internal<T0, T1, SZ>(src0, flag);
 }
 
 template <typename T0, typename T1>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
-    !std::is_same<typename __sycl_internal::__v1::detail::remove_const_t<T0>,
-                  typename __sycl_internal::__v1::detail::remove_const_t<T1>>::value &&
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    !std::is_same<typename sycl::detail::remove_const_t<T0>,
+                  typename sycl::detail::remove_const_t<T1>>::value &&
         detail::is_esimd_scalar<T0>::value &&
         detail::is_esimd_scalar<T1>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 esimd_abs(T1 src0, int flag = saturation_off) {
   return detail::__esimd_abs_common_internal<T0, T1>(src0, flag);
 }
@@ -102,9 +102,9 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T1, SZ> esimd_abs(simd<T1, SZ> src0,
 }
 
 template <typename T1>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T1>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T1>>
+    typename sycl::detail::remove_const_t<T1>>
 esimd_abs(T1 src0, int flag = saturation_off) {
   return detail::__esimd_abs_common_internal<T1, T1>(src0, flag);
 }
@@ -112,7 +112,7 @@ esimd_abs(T1 src0, int flag = saturation_off) {
 // esimd_shl
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_integral<T0>::value &&
+    typename sycl::detail::enable_if_t<std::is_integral<T0>::value &&
                                            std::is_integral<T1>::value &&
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
@@ -150,11 +150,11 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 
 template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
         detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 esimd_shl(T1 src0, T2 src1, int flag = saturation_off) {
   typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
@@ -166,7 +166,7 @@ esimd_shl(T1 src0, T2 src1, int flag = saturation_off) {
 // esimd_shr
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_integral<T0>::value &&
+    typename sycl::detail::enable_if_t<std::is_integral<T0>::value &&
                                            std::is_integral<T1>::value &&
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
@@ -185,11 +185,11 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 
 template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
         detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 esimd_shr(T1 src0, T2 src1, int flag = saturation_off) {
   typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
@@ -200,7 +200,7 @@ esimd_shr(T1 src0, T2 src1, int flag = saturation_off) {
 
 // esimd_rol
 template <typename T0, typename T1, int SZ>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T0>::value && std::is_integral<T1>::value, simd<T0, SZ>>
 esimd_rol(simd<T1, SZ> src0, simd<T1, SZ> src1) {
   return __esimd_rol<T0, T1, SZ>(src0, src1);
@@ -208,7 +208,7 @@ esimd_rol(simd<T1, SZ> src0, simd<T1, SZ> src1) {
 
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_integral<T0>::value &&
+    typename sycl::detail::enable_if_t<std::is_integral<T0>::value &&
                                            std::is_integral<T1>::value &&
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
@@ -221,11 +221,11 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 
 template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
         detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 esimd_rol(T1 src0, T2 src1) {
   typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
@@ -236,7 +236,7 @@ esimd_rol(T1 src0, T2 src1) {
 
 // esimd_ror
 template <typename T0, typename T1, int SZ>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T0>::value && std::is_integral<T1>::value, simd<T0, SZ>>
 esimd_ror(simd<T1, SZ> src0, simd<T1, SZ> src1) {
   return __esimd_ror<T0, T1, SZ>(src0, src1);
@@ -244,7 +244,7 @@ esimd_ror(simd<T1, SZ> src0, simd<T1, SZ> src1) {
 
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_integral<T0>::value &&
+    typename sycl::detail::enable_if_t<std::is_integral<T0>::value &&
                                            std::is_integral<T1>::value &&
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
@@ -257,11 +257,11 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 
 template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
         detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 esimd_ror(T1 src0, T2 src1) {
   typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
@@ -273,7 +273,7 @@ esimd_ror(T1 src0, T2 src1) {
 // esimd_lsr
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_integral<T0>::value &&
+    typename sycl::detail::enable_if_t<std::is_integral<T0>::value &&
                                            std::is_integral<T1>::value &&
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
@@ -290,11 +290,11 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 
 template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
         detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 esimd_lsr(T1 src0, T2 src1, int flag = saturation_off) {
   typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
@@ -304,7 +304,7 @@ esimd_lsr(T1 src0, T2 src1, int flag = saturation_off) {
 }
 
 template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T1>::value && detail::is_esimd_vector<T2>::value &&
         std::is_integral<T0>::value && std::is_integral<T1>::value &&
         std::is_integral<T2>::value,
@@ -316,7 +316,7 @@ esimd_lsr(T1 src0, T2 src1, int flag = saturation_off) {
 // esimd_asr
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_integral<T0>::value &&
+    typename sycl::detail::enable_if_t<std::is_integral<T0>::value &&
                                            std::is_integral<T1>::value &&
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
@@ -333,11 +333,11 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 
 template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
         detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 esimd_asr(T1 src0, T2 src1, int flag = saturation_off) {
   typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
@@ -347,7 +347,7 @@ esimd_asr(T1 src0, T2 src1, int flag = saturation_off) {
 }
 
 template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T1>::value && detail::is_esimd_vector<T2>::value &&
         std::is_integral<T0>::value && std::is_integral<T1>::value &&
         std::is_integral<T2>::value,
@@ -361,7 +361,7 @@ esimd_asr(T1 src0, T2 src1, int flag = saturation_off) {
 // use mulh instruction for high half
 template <typename T0, typename T1, typename U, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<detail::is_dword_type<T0>::value &&
+    typename sycl::detail::enable_if_t<detail::is_dword_type<T0>::value &&
                                            detail::is_dword_type<T1>::value &&
                                            detail::is_dword_type<U>::value,
                                        simd<T0, SZ>>
@@ -382,7 +382,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 // We need to special case SZ==1 to avoid "error: when select size is 1, the
 // stride must also be 1" on the selects.
 template <typename T0, typename T1, typename U, int SZ>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_dword_type<T0>::value && detail::is_dword_type<T1>::value &&
         detail::is_dword_type<U>::value && SZ == 1,
     simd<T0, SZ>>
@@ -396,7 +396,7 @@ esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
 }
 
 template <typename T0, typename T1, typename U, int SZ>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_dword_type<T0>::value && detail::is_dword_type<T1>::value &&
         detail::is_dword_type<U>::value && SZ != 1,
     simd<T0, SZ>>
@@ -414,7 +414,7 @@ esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
 
 template <typename T0, typename T1, typename U, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<detail::is_esimd_scalar<U>::value,
+    typename sycl::detail::enable_if_t<detail::is_esimd_scalar<U>::value,
                                        simd<T0, SZ>>
     esimd_imul(simd<T0, SZ> &rmd, U src0, simd<T1, SZ> src1) {
   return esimd_imul(rmd, src1, src0);
@@ -422,7 +422,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T0, typename T, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<detail::is_esimd_scalar<T>::value &&
+    typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value &&
                                            detail::is_esimd_scalar<U>::value &&
                                            detail::is_esimd_scalar<T0>::value,
                                        T0>
@@ -435,41 +435,41 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 // esimd_quot
 template <typename T, int SZ, typename U>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T>::value && std::is_integral<U>::value, simd<T, SZ>>
 esimd_quot(simd<T, SZ> src0, U src1) {
   return src0 / src1;
 }
 
 template <typename T0, typename T1>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
         std::is_integral<T0>::value && std::is_integral<T1>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 esimd_quot(T0 src0, T1 src1) {
   return src0 / src1;
 }
 
 // esimd_mod
 template <typename T, int SZ, typename U>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T>::value && std::is_integral<U>::value, simd<T, SZ>>
 esimd_mod(simd<T, SZ> src0, U src1) {
   return src0 % src1;
 }
 
 template <typename T0, typename T1>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
         std::is_integral<T0>::value && std::is_integral<T1>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 esimd_mod(T0 src0, T1 src1) {
   return src0 % src1;
 }
 
 // esimd_div, compute quotient and remainder of division.
 template <typename T, int SZ, typename U>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T>::value && std::is_integral<U>::value, simd<T, SZ>>
 esimd_div(simd<T, SZ> &remainder, simd<T, SZ> src0, U src1) {
   remainder = src0 % src1;
@@ -478,7 +478,7 @@ esimd_div(simd<T, SZ> &remainder, simd<T, SZ> src0, U src1) {
 
 template <typename T, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_integral<T>::value &&
+    typename sycl::detail::enable_if_t<std::is_integral<T>::value &&
                                            std::is_integral<U>::value &&
                                            detail::is_esimd_scalar<U>::value,
                                        simd<T, SZ>>
@@ -488,10 +488,10 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 
 template <typename RT, typename T0, typename T1>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<RT>::value && detail::is_esimd_scalar<T0>::value &&
         detail::is_esimd_scalar<T1>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<RT>>
+    typename sycl::detail::remove_const_t<RT>>
 esimd_div(simd<typename std::remove_const<RT>, 1> &remainder, T0 src0,
           T1 src1) {
   remainder[0] = src0 % src1;
@@ -523,7 +523,7 @@ esimd_max(simd<T, SZ> src0, simd<T, SZ> src1, int flag = saturation_off) {
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<detail::is_esimd_scalar<T>::value,
+    typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value,
                                        simd<T, SZ>>
     esimd_max(simd<T, SZ> src0, T src1, int flag = saturation_off) {
   simd<T, SZ> Src1 = src1;
@@ -533,7 +533,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<detail::is_esimd_scalar<T>::value,
+    typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value,
                                        simd<T, SZ>>
     esimd_max(T src0, simd<T, SZ> src1, int flag = saturation_off) {
   simd<T, SZ> Src0 = src0;
@@ -543,7 +543,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<detail::is_esimd_scalar<T>::value, T>
+    typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value, T>
     esimd_max(T src0, T src1, int flag = saturation_off) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Src1 = src1;
@@ -570,7 +570,7 @@ esimd_min(simd<T, SZ> src0, simd<T, SZ> src1, int flag = saturation_off) {
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<detail::is_esimd_scalar<T>::value,
+    typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value,
                                        simd<T, SZ>>
     esimd_min(simd<T, SZ> src0, T src1, int flag = saturation_off) {
   simd<T, SZ> Src1 = src1;
@@ -580,7 +580,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<detail::is_esimd_scalar<T>::value,
+    typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value,
                                        simd<T, SZ>>
     esimd_min(T src0, simd<T, SZ> src1, int flag = saturation_off) {
   simd<T, SZ> Src0 = src0;
@@ -589,7 +589,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<detail::is_esimd_scalar<T>::value, T>
+    typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value, T>
     esimd_min(T src0, T src1, int flag = saturation_off) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Src1 = src1;
@@ -690,7 +690,7 @@ esimd_line(float P, float Q, simd<T, SZ> src1, int flag = saturation_off) {
 // If the gen is not specified we warn the programmer that they are potentially
 // using a less efficient implementation if not on GEN10 or above.
 template <typename T0, typename T1, int SZ, typename U>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_fp_or_dword_type<T1>::value &&
         std::is_floating_point<T1>::value &&
         detail::is_fp_or_dword_type<U>::value &&
@@ -712,7 +712,7 @@ esimd_dp2(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
 }
 
 template <typename T0, typename T1, int SZ, typename U>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_fp_or_dword_type<T1>::value &&
         std::is_floating_point<T1>::value &&
         detail::is_fp_or_dword_type<U>::value &&
@@ -735,7 +735,7 @@ esimd_dp3(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
 }
 
 template <typename T0, typename T1, int SZ, typename U>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_fp_or_dword_type<T1>::value &&
         std::is_floating_point<T1>::value &&
         detail::is_fp_or_dword_type<U>::value &&
@@ -759,7 +759,7 @@ esimd_dp4(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
 }
 
 template <typename T, typename U, int SZ>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_fp_or_dword_type<T>::value && std::is_floating_point<T>::value &&
         detail::is_fp_or_dword_type<U>::value &&
         std::is_floating_point<U>::value,
@@ -782,7 +782,7 @@ esimd_dph(simd<T, SZ> src0, U src1, int flag = saturation_off) {
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<detail::is_fp_or_dword_type<T>::value &&
+    typename sycl::detail::enable_if_t<detail::is_fp_or_dword_type<T>::value &&
                                            std::is_floating_point<T>::value,
                                        simd<T, SZ>>
     esimd_line(simd<T, 4> src0, simd<T, SZ> src1, int flag = saturation_off) {
@@ -803,7 +803,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<detail::is_fp_or_dword_type<T>::value &&
+    typename sycl::detail::enable_if_t<detail::is_fp_or_dword_type<T>::value &&
                                            std::is_floating_point<T>::value,
                                        simd<T, SZ>>
     esimd_line(float P, float Q, simd<T, SZ> src1, int flag = saturation_off) {
@@ -836,9 +836,9 @@ ESIMD_NODEBUG ESIMD_INLINE simd<RT, SZ> esimd_lzd(simd<T0, SZ> src0,
 }
 
 template <typename RT, typename T0>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<RT>::value && detail::is_esimd_scalar<T0>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<RT>>
+    typename sycl::detail::remove_const_t<RT>>
 esimd_lzd(T0 src0, int flag = saturation_off) {
   simd<T0, 1> Src0 = src0;
   simd<RT, 1> Result = esimd_lzd<RT>(Src0);
@@ -876,7 +876,7 @@ esimd_lrp(simd<float, SZ> src0, U src1, V src2, int flag = saturation_off) {
 // If the gen is not specified we warn the programmer that they are potentially
 // using less efficient implementation.
 template <typename T, int SZ, typename U, typename V>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_fp_or_dword_type<T>::value && std::is_floating_point<T>::value &&
         detail::is_fp_or_dword_type<U>::value &&
         std::is_floating_point<U>::value,
@@ -930,9 +930,9 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_bf_reverse(simd<T1, SZ> src0) {
 }
 
 template <typename T0, typename T1>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 esimd_bf_reverse(T1 src0) {
   simd<T1, 1> Src0 = src0;
   simd<T0, 1> Result = esimd_bf_reverse<T0>(Src0);
@@ -942,7 +942,7 @@ esimd_bf_reverse(T1 src0) {
 // esimd_bf_insert
 template <typename T0, typename T1, int SZ, typename U, typename V, typename W>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_integral<T1>::value,
+    typename sycl::detail::enable_if_t<std::is_integral<T1>::value,
                                        simd<T0, SZ>>
     esimd_bf_insert(U src0, V src1, W src2, simd<T1, SZ> src3) {
   typedef typename detail::dword_type<T1> DT1;
@@ -957,9 +957,9 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T4>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 esimd_bf_insert(T1 src0, T2 src1, T3 src2, T4 src3) {
   simd<T4, 1> Src3 = src3;
   simd<T0, 1> Result = esimd_bf_insert<T0>(src0, src1, src2, Src3);
@@ -969,7 +969,7 @@ esimd_bf_insert(T1 src0, T2 src1, T3 src2, T4 src3) {
 // esimd_bf_extract
 template <typename T0, typename T1, int SZ, typename U, typename V>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_integral<T1>::value,
+    typename sycl::detail::enable_if_t<std::is_integral<T1>::value,
                                        simd<T0, SZ>>
     esimd_bf_extract(U src0, V src1, simd<T1, SZ> src2) {
   typedef typename detail::dword_type<T1> DT1;
@@ -983,9 +983,9 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 
 template <typename T0, typename T1, typename T2, typename T3>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T3>::value,
-    typename __sycl_internal::__v1::detail::remove_const_t<T0>>
+    typename sycl::detail::remove_const_t<T0>>
 esimd_bf_extract(T1 src0, T2 src1, T3 src2) {
   simd<T3, 1> Src2 = src2;
   simd<T0, 1> Result = esimd_bf_extract<T0>(src0, src1, Src2);
@@ -1069,7 +1069,7 @@ ESIMD_INTRINSIC_DEF(double, sqrt_ieee)
   }                                                                            \
   template <int SZ, typename U>                                                \
   ESIMD_NODEBUG ESIMD_INLINE                                                   \
-      typename __sycl_internal::__v1::detail::enable_if_t<detail::is_esimd_scalar<U>::value,    \
+      typename sycl::detail::enable_if_t<detail::is_esimd_scalar<U>::value,    \
                                          simd<ftype, SZ>>                      \
           esimd_##name(U src0, simd<ftype, SZ> src1,                           \
                        int flag = saturation_off) {                            \
@@ -1105,7 +1105,7 @@ esimd_sincos(simd<float, SZ> &dstcos, U src0, int flag = saturation_off) {
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_floating_point<T>::value,
+    typename sycl::detail::enable_if_t<std::is_floating_point<T>::value,
                                        simd<T, SZ>>
     esimd_atan(simd<T, SZ> src0, int flag = saturation_off) {
   simd<T, SZ> Src0 = esimd_abs(src0);
@@ -1137,7 +1137,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_floating_point<T>::value, T>
+    typename sycl::detail::enable_if_t<std::is_floating_point<T>::value, T>
     esimd_atan(T src0, int flag = saturation_off) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Result = esimd_atan(Src0, flag);
@@ -1148,7 +1148,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_floating_point<T>::value,
+    typename sycl::detail::enable_if_t<std::is_floating_point<T>::value,
                                        simd<T, SZ>>
     esimd_acos(simd<T, SZ> src0, int flag = saturation_off) {
   simd<T, SZ> Src0 = esimd_abs(src0);
@@ -1182,7 +1182,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_floating_point<T>::value, T>
+    typename sycl::detail::enable_if_t<std::is_floating_point<T>::value, T>
     esimd_acos(T src0, int flag = saturation_off) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Result = esimd_acos(Src0, flag);
@@ -1193,7 +1193,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_floating_point<T>::value,
+    typename sycl::detail::enable_if_t<std::is_floating_point<T>::value,
                                        simd<T, SZ>>
     esimd_asin(simd<T, SZ> src0, int flag = saturation_off) {
   simd<ushort, SZ> Neg = src0 < T(0.0);
@@ -1211,7 +1211,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<std::is_floating_point<T>::value, T>
+    typename sycl::detail::enable_if_t<std::is_floating_point<T>::value, T>
     esimd_asin(T src0, int flag = saturation_off) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Result = esimd_asin(Src0, flag);
@@ -1248,14 +1248,14 @@ ESIMD_INTRINSIC_DEF(rndz)
 
 template <int N>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<(N == 8 || N == 16 || N == 32), uint>
+    typename sycl::detail::enable_if_t<(N == 8 || N == 16 || N == 32), uint>
     esimd_pack_mask(simd<ushort, N> src0) {
   return __esimd_pack_mask<N>(src0.data());
 }
 
 template <int N>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<(N == 8 || N == 16 || N == 32),
+    typename sycl::detail::enable_if_t<(N == 8 || N == 16 || N == 32),
                                        simd<ushort, N>>
     esimd_unpack_mask(uint src0) {
   return __esimd_unpack_mask<N>(src0);
@@ -1263,7 +1263,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <int N>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename __sycl_internal::__v1::detail::enable_if_t<(N != 8 && N != 16 && N < 32), uint>
+    typename sycl::detail::enable_if_t<(N != 8 && N != 16 && N < 32), uint>
     esimd_pack_mask(simd<ushort, N> src0) {
   simd<ushort, (N < 8 ? 8 : N < 16 ? 16 : 32)> src_0 = 0;
   src_0.template select<N, 1>() = src0.template bit_cast_view<ushort>();
@@ -1275,7 +1275,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// @return a vector of \c uint32_t, where each element is set to bit count of
 ///     the corresponding element of the source operand.
 template <typename T, int N>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T>::value && sizeof(T) <= 4, simd<uint32_t, N>>
 esimd_cbit(simd<T, N> src) {
   return __esimd_cbit<T, N>(src.data());
@@ -1284,7 +1284,7 @@ esimd_cbit(simd<T, N> src) {
 /// Scalar version of \c esimd_cbit - both input and output are scalars rather
 /// than vectors.
 template <typename T>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T>::value && sizeof(T) <= 4, uint32_t>
 esimd_cbit(T src) {
   simd<T, 1> Src = src;
@@ -1300,7 +1300,7 @@ esimd_cbit(T src) {
 ///     source operand. \c 0xFFFFffff is returned for an element equal to \c 0.
 /// Find component-wise the first bit from LSB side
 template <typename T, int N>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T>::value && (sizeof(T) == 4), simd<T, N>>
 esimd_fbl(simd<T, N> src) {
   return __esimd_fbl<T, N>(src.data());
@@ -1309,7 +1309,7 @@ esimd_fbl(simd<T, N> src) {
 /// Scalar version of \c esimd_fbl - both input and output are scalars rather
 /// than vectors.
 template <typename T>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T>::value && (sizeof(T) == 4), T>
 esimd_fbl(T src) {
   simd<T, 1> Src = src;
@@ -1325,7 +1325,7 @@ esimd_fbl(T src) {
 ///     source operand. \c 0xFFFFffff is returned for an element equal to \c 0
 ///     or \c -1.
 template <typename T, int N>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T>::value && std::is_signed<T>::value && (sizeof(T) == 4),
     simd<T, N>>
 esimd_fbh(simd<T, N> src) {
@@ -1335,7 +1335,7 @@ esimd_fbh(simd<T, N> src) {
 /// Scalar version of \c esimd_fbh - both input and output are scalars rather
 /// than vectors.
 template <typename T>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T>::value && std::is_signed<T>::value && (sizeof(T) == 4),
     T>
 esimd_fbh(T src) {
@@ -1351,7 +1351,7 @@ esimd_fbh(T src) {
 ///     is set to the number first bit set in corresponding element of the
 ///     source operand. \c 0xFFFFffff is returned for an element equal to \c 0.
 template <typename T, int N>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T>::value && !std::is_signed<T>::value && (sizeof(T) == 4),
     simd<T, N>>
 esimd_fbh(simd<T, N> src) {
@@ -1361,7 +1361,7 @@ esimd_fbh(simd<T, N> src) {
 /// Scalar unsigned version of \c esimd_fbh - both input and output are unsigned
 /// scalars rather than vectors.
 template <typename T>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     std::is_integral<T>::value && !std::is_signed<T>::value && (sizeof(T) == 4),
     T>
 esimd_fbh(T src) {
@@ -1383,7 +1383,7 @@ esimd_fbh(T src) {
 /// Returns simd vector of the dp4a operation result.
 ///
 template <typename T1, typename T2, typename T3, typename T4, int N>
-ESIMD_NODEBUG ESIMD_INLINE typename __sycl_internal::__v1::detail::enable_if_t<
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_dword_type<T1>::value && detail::is_dword_type<T2>::value &&
         detail::is_dword_type<T3>::value && detail::is_dword_type<T4>::value,
     simd<T1, N>>

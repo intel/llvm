@@ -135,8 +135,8 @@ template<class Container>
 #define _SYCL_SPAN_TEMPLATE_VIS
 #define _SYCL_SPAN_INLINE_VISIBILITY inline
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 // byte is unsigned char at sycl/image.hpp:58
 using byte = unsigned char;

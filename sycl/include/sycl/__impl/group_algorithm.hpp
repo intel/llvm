@@ -19,8 +19,8 @@
 #include <sycl/__impl/nd_item.hpp>
 #include <sycl/__impl/sub_group.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 // ---- linear_id_to_id
@@ -67,7 +67,7 @@ typename Group::linear_id_type get_local_linear_id(Group g);
 #define __SYCL_GROUP_GET_LOCAL_LINEAR_ID(D)                                    \
   template <>                                                                  \
   group<D>::linear_id_type get_local_linear_id<group<D>>(group<D>) {           \
-    nd_item<D> it = __sycl_internal::__v1::detail::Builder::getNDItem<D>();                 \
+    nd_item<D> it = cl::sycl::detail::Builder::getNDItem<D>();                 \
     return it.get_local_linear_id();                                           \
   }
 __SYCL_GROUP_GET_LOCAL_LINEAR_ID(1);
@@ -87,9 +87,9 @@ template <typename T>
 using native_op_list =
     type_list<ONEAPI::plus<T>, ONEAPI::bit_or<T>, ONEAPI::bit_xor<T>,
               ONEAPI::bit_and<T>, ONEAPI::maximum<T>, ONEAPI::minimum<T>,
-              ONEAPI::multiplies<T>, __sycl_internal::__v1::plus<T>, __sycl_internal::__v1::bit_or<T>,
-              __sycl_internal::__v1::bit_xor<T>, __sycl_internal::__v1::bit_and<T>, __sycl_internal::__v1::maximum<T>,
-              __sycl_internal::__v1::minimum<T>, __sycl_internal::__v1::multiplies<T>>;
+              ONEAPI::multiplies<T>, sycl::plus<T>, sycl::bit_or<T>,
+              sycl::bit_xor<T>, sycl::bit_and<T>, sycl::maximum<T>,
+              sycl::minimum<T>, sycl::multiplies<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
@@ -101,8 +101,8 @@ template <typename T, typename BinaryOperation> struct is_native_op {
 template <typename Group, typename Ptr, class Function>
 Function for_each(Group g, Ptr first, Ptr last, Function f) {
 #ifdef __SYCL_DEVICE_ONLY__
-  ptrdiff_t offset = __sycl_internal::__v1::detail::get_local_linear_id(g);
-  ptrdiff_t stride = __sycl_internal::__v1::detail::get_local_linear_range(g);
+  ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
+  ptrdiff_t stride = sycl::detail::get_local_linear_range(g);
   for (Ptr p = first + offset; p < last; p += stride) {
     f(*p);
   }
@@ -132,9 +132,9 @@ reduce_over_group(Group, T x, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(x, x)), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return __sycl_internal::__v1::detail::calc<T, __spv::GroupOperation::Reduce,
-                            __sycl_internal::__v1::detail::spirv::group_scope<Group>::value>(
-      typename __sycl_internal::__v1::detail::GroupOpTag<T>::type(), x, binary_op);
+  return sycl::detail::calc<T, __spv::GroupOperation::Reduce,
+                            sycl::detail::spirv::group_scope<Group>::value>(
+      typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
@@ -227,8 +227,8 @@ joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  T partial = __sycl_internal::__v1::known_identity_v<BinaryOperation, T>;
-  __sycl_internal::__v1::detail::for_each(g, first, last,
+  T partial = sycl::known_identity_v<BinaryOperation, T>;
+  sycl::detail::for_each(g, first, last,
                          [&](const T &x) { partial = binary_op(partial, x); });
   return reduce_over_group(g, partial, binary_op);
 #else
@@ -257,8 +257,8 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(init, *first)), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  T partial = __sycl_internal::__v1::known_identity_v<BinaryOperation, T>;
-  __sycl_internal::__v1::detail::for_each(
+  T partial = sycl::known_identity_v<BinaryOperation, T>;
+  sycl::detail::for_each(
       g, first, last, [&](const typename detail::remove_pointer<Ptr>::type &x) {
         partial = binary_op(partial, x);
       });
@@ -276,7 +276,7 @@ template <typename Group>
 detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 any_of_group(Group, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return __sycl_internal::__v1::detail::spirv::GroupAny<Group>(pred);
+  return sycl::detail::spirv::GroupAny<Group>(pred);
 #else
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
@@ -298,7 +298,7 @@ joint_any_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   using T = typename detail::remove_pointer<Ptr>::type;
   bool partial = false;
-  __sycl_internal::__v1::detail::for_each(g, first, last, [&](T &x) { partial |= pred(x); });
+  sycl::detail::for_each(g, first, last, [&](T &x) { partial |= pred(x); });
   return any_of_group(g, partial);
 #else
   (void)g;
@@ -315,7 +315,7 @@ template <typename Group>
 detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 all_of_group(Group, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return __sycl_internal::__v1::detail::spirv::GroupAll<Group>(pred);
+  return sycl::detail::spirv::GroupAll<Group>(pred);
 #else
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
@@ -337,7 +337,7 @@ joint_all_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   using T = typename detail::remove_pointer<Ptr>::type;
   bool partial = true;
-  __sycl_internal::__v1::detail::for_each(g, first, last, [&](T &x) { partial &= pred(x); });
+  sycl::detail::for_each(g, first, last, [&](T &x) { partial &= pred(x); });
   return all_of_group(g, partial);
 #else
   (void)g;
@@ -354,7 +354,7 @@ template <typename Group>
 detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 none_of_group(Group, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return __sycl_internal::__v1::detail::spirv::GroupAll<Group>(!pred);
+  return sycl::detail::spirv::GroupAll<Group>(!pred);
 #else
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
@@ -392,7 +392,7 @@ detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
                     T>
 shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return __sycl_internal::__v1::detail::spirv::SubgroupShuffleDown(x, delta);
+  return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
 #else
   (void)x;
   (void)delta;
@@ -408,7 +408,7 @@ detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
                     T>
 shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return __sycl_internal::__v1::detail::spirv::SubgroupShuffleUp(x, delta);
+  return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
 #else
   (void)x;
   (void)delta;
@@ -424,7 +424,7 @@ detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
                     T>
 permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return __sycl_internal::__v1::detail::spirv::SubgroupShuffleXor(x, mask);
+  return sycl::detail::spirv::SubgroupShuffleXor(x, mask);
 #else
   (void)x;
   (void)mask;
@@ -440,7 +440,7 @@ detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
                     T>
 select_from_group(Group, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return __sycl_internal::__v1::detail::spirv::SubgroupShuffle(x, local_id);
+  return sycl::detail::spirv::SubgroupShuffle(x, local_id);
 #else
   (void)x;
   (void)local_id;
@@ -456,7 +456,7 @@ detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                     T>
 group_broadcast(Group, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return __sycl_internal::__v1::detail::spirv::GroupBroadcast<Group>(x, local_id);
+  return sycl::detail::spirv::GroupBroadcast<Group>(x, local_id);
 #else
   (void)x;
   (void)local_id;
@@ -473,7 +473,7 @@ group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
   return group_broadcast(
       g, x,
-      __sycl_internal::__v1::detail::linear_id_to_id(g.get_local_range(), linear_local_id));
+      sycl::detail::linear_id_to_id(g.get_local_range(), linear_local_id));
 #else
   (void)g;
   (void)x;
@@ -511,9 +511,9 @@ exclusive_scan_over_group(Group, T x, BinaryOperation binary_op) {
                      std::is_same<decltype(binary_op(x, x)), float>::value),
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return __sycl_internal::__v1::detail::calc<T, __spv::GroupOperation::ExclusiveScan,
-                            __sycl_internal::__v1::detail::spirv::group_scope<Group>::value>(
-      typename __sycl_internal::__v1::detail::GroupOpTag<T>::type(), x, binary_op);
+  return sycl::detail::calc<T, __spv::GroupOperation::ExclusiveScan,
+                            sycl::detail::spirv::group_scope<Group>::value>(
+      typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
@@ -577,7 +577,7 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   typename Group::linear_id_type local_linear_id =
-      __sycl_internal::__v1::detail::get_local_linear_id(g);
+      sycl::detail::get_local_linear_id(g);
   if (local_linear_id == 0) {
     x = binary_op(init, x);
   }
@@ -615,8 +615,8 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  ptrdiff_t offset = __sycl_internal::__v1::detail::get_local_linear_id(g);
-  ptrdiff_t stride = __sycl_internal::__v1::detail::get_local_linear_range(g);
+  ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
+  ptrdiff_t stride = sycl::detail::get_local_linear_range(g);
   ptrdiff_t N = last - first;
   auto roundup = [=](const ptrdiff_t &v,
                      const ptrdiff_t &divisor) -> ptrdiff_t {
@@ -668,7 +668,7 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
       "Result type of binary_op must match scan accumulation type.");
   return joint_exclusive_scan(
       g, first, last, result,
-      __sycl_internal::__v1::known_identity_v<BinaryOperation, typename OutPtr::element_type>,
+      sycl::known_identity_v<BinaryOperation, typename OutPtr::element_type>,
       binary_op);
 }
 
@@ -705,9 +705,9 @@ inclusive_scan_over_group(Group, T x, BinaryOperation binary_op) {
                      std::is_same<decltype(binary_op(x, x)), float>::value),
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return __sycl_internal::__v1::detail::calc<T, __spv::GroupOperation::InclusiveScan,
-                            __sycl_internal::__v1::detail::spirv::group_scope<Group>::value>(
-      typename __sycl_internal::__v1::detail::GroupOpTag<T>::type(), x, binary_op);
+  return sycl::detail::calc<T, __spv::GroupOperation::InclusiveScan,
+                            sycl::detail::spirv::group_scope<Group>::value>(
+      typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
@@ -728,7 +728,7 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
                      std::is_same<decltype(binary_op(init, x)), float>::value),
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  if (__sycl_internal::__v1::detail::get_local_linear_id(g) == 0) {
+  if (sycl::detail::get_local_linear_id(g) == 0) {
     x = binary_op(init, x);
   }
   return inclusive_scan_over_group(g, x, binary_op);
@@ -782,8 +782,8 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
            std::is_same<decltype(binary_op(init, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  ptrdiff_t offset = __sycl_internal::__v1::detail::get_local_linear_id(g);
-  ptrdiff_t stride = __sycl_internal::__v1::detail::get_local_linear_range(g);
+  ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
+  ptrdiff_t stride = sycl::detail::get_local_linear_range(g);
   ptrdiff_t N = last - first;
   auto roundup = [=](const ptrdiff_t &v,
                      const ptrdiff_t &divisor) -> ptrdiff_t {
@@ -834,15 +834,15 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
       "Result type of binary_op must match scan accumulation type.");
   return joint_inclusive_scan(
       g, first, last, result, binary_op,
-      __sycl_internal::__v1::known_identity_v<BinaryOperation, typename OutPtr::element_type>);
+      sycl::known_identity_v<BinaryOperation, typename OutPtr::element_type>);
 }
 
 namespace detail {
 template <typename G> struct group_barrier_scope {};
-template <> struct group_barrier_scope<__sycl_internal::__v1::sub_group> {
+template <> struct group_barrier_scope<sycl::sub_group> {
   constexpr static auto Scope = __spv::Scope::Subgroup;
 };
-template <int D> struct group_barrier_scope<__sycl_internal::__v1::group<D>> {
+template <int D> struct group_barrier_scope<sycl::group<D>> {
   constexpr static auto Scope = __spv::Scope::Workgroup;
 };
 } // namespace detail
@@ -857,13 +857,13 @@ group_barrier(Group, memory_scope FenceScope = Group::fence_scope) {
   // barrier and acquire fence afterwards. The rest of semantics flags specify
   // which type of memory this behavior is applied to.
   __spirv_ControlBarrier(detail::group_barrier_scope<Group>::Scope,
-                         __sycl_internal::__v1::detail::spirv::getScope(FenceScope),
+                         sycl::detail::spirv::getScope(FenceScope),
                          __spv::MemorySemanticsMask::AcquireRelease |
                              __spv::MemorySemanticsMask::SubgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 #else
-  throw __sycl_internal::__v1::runtime_error("Barriers are not supported on host device",
+  throw sycl::runtime_error("Barriers are not supported on host device",
                             PI_INVALID_DEVICE);
 #endif
 }

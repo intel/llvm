@@ -15,8 +15,8 @@
 
 #include <type_traits>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -84,7 +84,7 @@ struct is_esimd_vector<simd<T, N>> : public std::true_type {};
 
 template <typename T>
 using is_esimd_scalar =
-    typename std::bool_constant<__sycl_internal::__v1::detail::is_arithmetic<T>::value>;
+    typename std::bool_constant<cl::sycl::detail::is_arithmetic<T>::value>;
 
 template <typename T, int N>
 using is_hw_int_type =

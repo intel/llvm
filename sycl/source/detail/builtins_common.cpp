@@ -19,11 +19,10 @@
 
 #include <cmath>
 
-namespace s = __sycl_internal::__v1;
+namespace s = cl::sycl;
 namespace d = s::detail;
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 namespace {
 
@@ -196,5 +195,4 @@ MAKE_1V(sign, s::cl_double, s::cl_double)
 MAKE_1V(sign, s::cl_half, s::cl_half)
 
 } // namespace __host_std
-}
 } // __SYCL_INLINE_NAMESPACE(cl)

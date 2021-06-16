@@ -11,8 +11,8 @@
 #include <sycl/__impl/detail/defines.hpp>
 #include <sycl/__impl/info/info_desc.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 bool match_types(const info::device_type &l, const info::device_type &r);

@@ -17,8 +17,8 @@
 #include <sycl/__impl/types.hpp>
 #include <cstddef>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 enum class image_channel_order : unsigned int {
   a = 0,
@@ -68,7 +68,7 @@ using image_allocator = detail::aligned_allocator<byte>;
 /// \sa sampler
 ///
 /// \ingroup sycl_api
-template <int Dimensions = 1, typename AllocatorT = __sycl_internal::__v1::image_allocator>
+template <int Dimensions = 1, typename AllocatorT = cl::sycl::image_allocator>
 class image {
 public:
   image(image_channel_order Order, image_channel_type Type,
@@ -314,10 +314,10 @@ private:
 
 namespace std {
 template <int Dimensions, typename AllocatorT>
-struct hash<__sycl_internal::__v1::image<Dimensions, AllocatorT>> {
-  size_t operator()(const __sycl_internal::__v1::image<Dimensions, AllocatorT> &I) const {
-    return hash<std::shared_ptr<__sycl_internal::__v1::detail::image_impl<Dimensions>>>()(
-        __sycl_internal::__v1::detail::getSyclObjImpl(I));
+struct hash<cl::sycl::image<Dimensions, AllocatorT>> {
+  size_t operator()(const cl::sycl::image<Dimensions, AllocatorT> &I) const {
+    return hash<std::shared_ptr<cl::sycl::detail::image_impl<Dimensions>>>()(
+        cl::sycl::detail::getSyclObjImpl(I));
   }
 };
 } // namespace std

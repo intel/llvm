@@ -31,8 +31,8 @@
 #include <type_traits>
 #include <vector>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 // Forward declarations
 class queue;

@@ -17,8 +17,8 @@
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 #ifdef __SYCL_DEVICE_ONLY__
 #define __sycl_std
 #else
@@ -727,7 +727,7 @@ detail::enable_if_t<detail::is_geninteger<T>::value, T> clz(T x) __NOEXC {
 namespace intel {
 // geninteger ctz (geninteger x)
 template <typename T>
-__sycl_internal::__v1::detail::enable_if_t<__sycl_internal::__v1::detail::is_geninteger<T>::value, T>
+sycl::detail::enable_if_t<sycl::detail::is_geninteger<T>::value, T>
 ctz(T x) __NOEXC {
   return __sycl_std::__invoke_ctz<T>(x);
 }

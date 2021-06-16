@@ -58,8 +58,8 @@
 #define _KERNELFUNCPARAM(a) const KernelType &a
 #endif
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 // Forward declaration
 class context;
@@ -821,11 +821,11 @@ private:
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<__sycl_internal::__v1::queue> {
-  size_t operator()(const __sycl_internal::__v1::queue &Q) const {
+template <> struct hash<cl::sycl::queue> {
+  size_t operator()(const cl::sycl::queue &Q) const {
     return std::hash<
-        __sycl_internal::__v1::shared_ptr_class<__sycl_internal::__v1::detail::queue_impl>>()(
-        __sycl_internal::__v1::detail::getSyclObjImpl(Q));
+        cl::sycl::shared_ptr_class<cl::sycl::detail::queue_impl>>()(
+        cl::sycl::detail::getSyclObjImpl(Q));
   }
 };
 } // namespace std

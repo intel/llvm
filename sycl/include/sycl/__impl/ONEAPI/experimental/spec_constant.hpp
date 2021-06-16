@@ -19,8 +19,8 @@
 #include <sycl/__impl/detail/sycl_fe_intrins.hpp>
 #include <sycl/__impl/exception.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 class program;
 
 namespace ONEAPI {
@@ -43,11 +43,11 @@ private:
 #else
   char padding[sizeof(T)];
 #endif // __SYCL_DEVICE_ONLY__
-  friend class __sycl_internal::__v1::program;
+  friend class cl::sycl::program;
 
 public:
   template <typename V = T>
-  typename __sycl_internal::__v1::detail::enable_if_t<std::is_arithmetic<V>::value, V>
+  typename sycl::detail::enable_if_t<std::is_arithmetic<V>::value, V>
   get() const { // explicit access.
 #ifdef __SYCL_DEVICE_ONLY__
     const char *TName = __builtin_sycl_unique_stable_name(ID);
@@ -58,7 +58,7 @@ public:
   }
 
   template <typename V = T>
-  typename __sycl_internal::__v1::detail::enable_if_t<std::is_class<V>::value &&
+  typename sycl::detail::enable_if_t<std::is_class<V>::value &&
                                          std::is_pod<V>::value,
                                      V>
   get() const { // explicit access.

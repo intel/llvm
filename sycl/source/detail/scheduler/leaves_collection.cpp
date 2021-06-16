@@ -11,8 +11,8 @@
 
 #include <algorithm>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 // TODO merge with GraphBuilder's version of doOverlap (see graph_builder.cpp).
@@ -79,7 +79,7 @@ bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd) {
 
   // HACK we believe here that read accessors never overlap as it doesn't add
   // any real dependency (e.g. data copy to device) except for blocking.
-  if (Cmd->getRequirement()->MAccessMode == __sycl_internal::__v1::access::mode::read)
+  if (Cmd->getRequirement()->MAccessMode == cl::sycl::access::mode::read)
     OldCmdIt = MHostAccessorCommands.end();
   else
     OldCmdIt = std::find_if(

@@ -24,8 +24,8 @@
 #include <cctype>
 #include <regex>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 // Utility function to check if device is of the preferred backend.
 // Currently preference is given to the level_zero backend.
@@ -121,7 +121,7 @@ device device_selector::select_device() const {
     return *res;
   }
 
-  throw __sycl_internal::__v1::runtime_error("No device of requested type available.",
+  throw cl::sycl::runtime_error("No device of requested type available.",
                                 PI_DEVICE_NOT_FOUND);
 }
 
@@ -257,7 +257,7 @@ void filter_selector::reset() const { impl->reset(); }
 
 device filter_selector::select_device() const {
   std::lock_guard<std::mutex> Guard(
-      __sycl_internal::__v1::detail::GlobalHandler::instance().getFilterMutex());
+      sycl::detail::GlobalHandler::instance().getFilterMutex());
 
   device Result = device_selector::select_device();
 

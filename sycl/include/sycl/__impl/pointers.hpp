@@ -10,8 +10,8 @@
 #include <sycl/__impl/access/access.hpp>
 
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 template <typename ElementType, access::address_space Space> class multi_ptr;
 // Template specialization aliases for different pointer address spaces

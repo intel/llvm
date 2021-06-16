@@ -9,9 +9,3 @@
 #pragma once
 
 #include <sycl/sycl.hpp>
-
-namespace cl {
-namespace sycl {
-  using namespace ::sycl;
-}
-}

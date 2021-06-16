@@ -13,33 +13,33 @@
 
 using namespace cl::sycl;
 
-class MockHandler : public __sycl_internal::__v1::handler {
+class MockHandler : public sycl::handler {
 public:
   MockHandler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
-      : __sycl_internal::__v1::handler(Queue, IsHost) {}
+      : sycl::handler(Queue, IsHost) {}
 
   void setType(detail::CG::CGTYPE Type) {
-    static_cast<__sycl_internal::__v1::handler *>(this)->MCGType = Type;
+    static_cast<sycl::handler *>(this)->MCGType = Type;
   }
 
   template <typename KernelType, typename ArgType, int Dims,
             typename KernelName>
   void setHostKernel(KernelType Kernel) {
-    static_cast<__sycl_internal::__v1::handler *>(this)->MHostKernel.reset(
-        new __sycl_internal::__v1::detail::HostKernel<KernelType, ArgType, Dims, KernelName>(
+    static_cast<sycl::handler *>(this)->MHostKernel.reset(
+        new sycl::detail::HostKernel<KernelType, ArgType, Dims, KernelName>(
             Kernel));
   }
 
-  template <int Dims> void setNDRangeDesc(__sycl_internal::__v1::nd_range<Dims> Range) {
-    static_cast<__sycl_internal::__v1::handler *>(this)->MNDRDesc.set(std::move(Range));
+  template <int Dims> void setNDRangeDesc(sycl::nd_range<Dims> Range) {
+    static_cast<sycl::handler *>(this)->MNDRDesc.set(std::move(Range));
   }
 
   void addStream(const detail::StreamImplPtr &Stream) {
-    __sycl_internal::__v1::handler::addStream(Stream);
+    sycl::handler::addStream(Stream);
   }
 
   unique_ptr_class<detail::CG> finalize() {
-    auto CGH = static_cast<__sycl_internal::__v1::handler *>(this);
+    auto CGH = static_cast<sycl::handler *>(this);
     unique_ptr_class<detail::CG> CommandGroup;
     switch (CGH->MCGType) {
     case detail::CG::KERNEL:
@@ -55,7 +55,7 @@ public:
       break;
     }
     default:
-      throw __sycl_internal::__v1::runtime_error("Unhandled type of command group",
+      throw sycl::runtime_error("Unhandled type of command group",
                                 PI_INVALID_OPERATION);
     }
 
@@ -63,7 +63,7 @@ public:
   }
 };
 
-using CmdTypeTy = __sycl_internal::__v1::detail::Command::CommandType;
+using CmdTypeTy = cl::sycl::detail::Command::CommandType;
 
 // Function recursively checks that initial command has dependency on chain of
 // other commands that should have type DepCmdsTypes[Depth] (Depth is a distance
@@ -74,7 +74,7 @@ static bool ValidateDepCommandsTree(const detail::Command *Cmd,
                                     const detail::SYCLMemObjI *MemObj,
                                     size_t Depth = 0) {
   if (!Cmd || Depth >= DepCmdsTypes.size())
-    throw __sycl_internal::__v1::runtime_error("Command parameters are invalid",
+    throw sycl::runtime_error("Command parameters are invalid",
                               PI_INVALID_VALUE);
 
   for (const detail::DepDesc &Dep : Cmd->MDeps) {
@@ -92,19 +92,19 @@ static bool ValidateDepCommandsTree(const detail::Command *Cmd,
 }
 
 TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
-  __sycl_internal::__v1::queue HQueue(host_selector{});
+  cl::sycl::queue HQueue(host_selector{});
   detail::QueueImplPtr HQueueImpl = detail::getSyclObjImpl(HQueue);
 
   // Emulating processing of command group function
   MockHandler MockCGH(HQueueImpl, true);
   MockCGH.setType(detail::CG::KERNEL);
 
-  auto EmptyKernel = [](__sycl_internal::__v1::nd_item<1>) {};
+  auto EmptyKernel = [](sycl::nd_item<1>) {};
   MockCGH
-      .setHostKernel<decltype(EmptyKernel), __sycl_internal::__v1::nd_item<1>, 1, class Empty>(
+      .setHostKernel<decltype(EmptyKernel), sycl::nd_item<1>, 1, class Empty>(
           EmptyKernel);
   MockCGH.setNDRangeDesc(
-      __sycl_internal::__v1::nd_range<1>{__sycl_internal::__v1::range<1>{1}, __sycl_internal::__v1::range<1>{1}});
+      sycl::nd_range<1>{sycl::range<1>{1}, sycl::range<1>{1}});
 
   // Emulating construction of stream object inside command group
   detail::StreamImplPtr StreamImpl =

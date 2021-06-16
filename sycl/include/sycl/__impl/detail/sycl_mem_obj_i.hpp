@@ -11,8 +11,8 @@
 #include <sycl/__impl/detail/pi.hpp>
 #include <sycl/__impl/stl.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 namespace detail {
 

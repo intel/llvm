@@ -14,8 +14,8 @@
 
 #include <vector>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 program::program(const context &context, const property_list &PropList)
     : impl(std::make_shared<detail::program_impl>(

@@ -11,8 +11,8 @@
 #include <sycl/__impl/ONEAPI/sub_group.hpp>
 #include <sycl/__impl/group.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 using ONEAPI::sub_group;
 // TODO move the entire sub_group class implementation to this file once
 // breaking changes are allowed.

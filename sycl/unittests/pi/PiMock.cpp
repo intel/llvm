@@ -65,7 +65,7 @@ TEST(PiMockTest, ConstructFromPlatform) {
 }
 
 TEST(PiMockTest, RedefineAPI) {
-  __sycl_internal::__v1::default_selector Selector{};
+  cl::sycl::default_selector Selector{};
   if (Selector.select_device().is_host()) {
     std::cerr << "Not run due to host-only environment\n";
     return;

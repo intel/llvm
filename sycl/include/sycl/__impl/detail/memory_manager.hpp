@@ -18,8 +18,8 @@
 #include <memory>
 #include <vector>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 class queue_impl;
@@ -74,7 +74,7 @@ public:
                                  bool HostPtrReadOnly, size_t Size,
                                  const EventImplPtr &InteropEvent,
                                  const ContextImplPtr &InteropContext,
-                                 const __sycl_internal::__v1::property_list &PropsList,
+                                 const sycl::property_list &PropsList,
                                  RT::PiEvent &OutEventToWait);
 
   // Allocates images in specified context taking into account situations such
@@ -85,7 +85,7 @@ public:
       bool HostPtrReadOnly, size_t Size, const RT::PiMemImageDesc &Desc,
       const RT::PiMemImageFormat &Format, const EventImplPtr &InteropEvent,
       const ContextImplPtr &InteropContext,
-      const __sycl_internal::__v1::property_list &PropsList, RT::PiEvent &OutEventToWait);
+      const sycl::property_list &PropsList, RT::PiEvent &OutEventToWait);
 
   // Releases memory object(buffer or image). TargetContext should be device
   // one(not host).
@@ -94,46 +94,46 @@ public:
 
   static void *allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
                                   bool HostPtrReadOnly, size_t Size,
-                                  const __sycl_internal::__v1::property_list &PropsList);
+                                  const sycl::property_list &PropsList);
 
   static void *allocateInteropMemObject(ContextImplPtr TargetContext,
                                         void *UserPtr,
                                         const EventImplPtr &InteropEvent,
                                         const ContextImplPtr &InteropContext,
-                                        const __sycl_internal::__v1::property_list &PropsList,
+                                        const sycl::property_list &PropsList,
                                         RT::PiEvent &OutEventToWait);
 
   static void *allocateImageObject(ContextImplPtr TargetContext, void *UserPtr,
                                    bool HostPtrReadOnly,
                                    const RT::PiMemImageDesc &Desc,
                                    const RT::PiMemImageFormat &Format,
-                                   const __sycl_internal::__v1::property_list &PropsList);
+                                   const sycl::property_list &PropsList);
 
   static void *allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
                                     bool HostPtrReadOnly, const size_t Size,
-                                    const __sycl_internal::__v1::property_list &PropsList);
+                                    const sycl::property_list &PropsList);
 
   // Copies memory between: host and device, host and host,
   // device and device if memory objects bound to the one context.
   static void copy(SYCLMemObjI *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,
-                   unsigned int DimSrc, __sycl_internal::__v1::range<3> SrcSize,
-                   __sycl_internal::__v1::range<3> SrcAccessRange, __sycl_internal::__v1::id<3> SrcOffset,
+                   unsigned int DimSrc, sycl::range<3> SrcSize,
+                   sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
                    unsigned int SrcElemSize, void *DstMem,
                    QueueImplPtr TgtQueue, unsigned int DimDst,
-                   __sycl_internal::__v1::range<3> DstSize, __sycl_internal::__v1::range<3> DstAccessRange,
-                   __sycl_internal::__v1::id<3> DstOffset, unsigned int DstElemSize,
+                   sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
+                   sycl::id<3> DstOffset, unsigned int DstElemSize,
                    std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent);
 
   static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    size_t PatternSize, const char *Pattern, unsigned int Dim,
-                   __sycl_internal::__v1::range<3> Size, __sycl_internal::__v1::range<3> AccessRange,
-                   __sycl_internal::__v1::id<3> AccessOffset, unsigned int ElementSize,
+                   sycl::range<3> Size, sycl::range<3> AccessRange,
+                   sycl::id<3> AccessOffset, unsigned int ElementSize,
                    std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent);
 
   static void *map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    access::mode AccessMode, unsigned int Dim,
-                   __sycl_internal::__v1::range<3> Size, __sycl_internal::__v1::range<3> AccessRange,
-                   __sycl_internal::__v1::id<3> AccessOffset, unsigned int ElementSize,
+                   sycl::range<3> Size, sycl::range<3> AccessRange,
+                   sycl::id<3> AccessOffset, unsigned int ElementSize,
                    std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent);
 
   static void unmap(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,

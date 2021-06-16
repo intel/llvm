@@ -13,8 +13,8 @@
 #include <detail/event_impl.hpp>
 #include <detail/plugin.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 template <info::event_profiling Param> struct get_event_profiling_info {

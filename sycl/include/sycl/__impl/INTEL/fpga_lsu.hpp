@@ -11,8 +11,8 @@
 #include <sycl/__impl/detail/defines.hpp>
 #include <sycl/__impl/pointers.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace INTEL {
 constexpr uint8_t BURST_COALESCE = 0x1;
 constexpr uint8_t CACHE = 0x2;
@@ -48,7 +48,7 @@ public:
   lsu() = delete;
 
   template <typename _T, access::address_space _space>
-  static _T load(__sycl_internal::__v1::multi_ptr<_T, _space> Ptr) {
+  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
     check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
@@ -62,7 +62,7 @@ public:
   }
 
   template <typename _T, access::address_space _space>
-  static void store(__sycl_internal::__v1::multi_ptr<_T, _space> Ptr, _T Val) {
+  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
     check_space<_space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)

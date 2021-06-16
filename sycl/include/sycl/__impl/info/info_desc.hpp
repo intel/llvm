@@ -12,8 +12,8 @@
 #include <sycl/__impl/detail/pi.hpp>
 #include <sycl/__impl/id.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 class program;
 class device;

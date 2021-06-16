@@ -11,8 +11,8 @@
 #include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/__spirv/spirv_types.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 /// Encapsulates a single SYCL device event which is available only within SYCL
 /// kernel functions and can be used to wait for asynchronous operations within

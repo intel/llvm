@@ -18,8 +18,8 @@
 #endif
 #include <type_traits>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace ONEAPI {
 
 enum class memory_order : int {
@@ -62,7 +62,7 @@ __SYCL_INLINE_CONSTEXPR memory_scope memory_scope_system = memory_scope::system;
 namespace detail {
 
 static inline constexpr std::memory_order
-getStdMemoryOrder(::__sycl_internal::__v1::ONEAPI::memory_order order) {
+getStdMemoryOrder(::cl::sycl::ONEAPI::memory_order order) {
   switch (order) {
   case memory_order::relaxed:
     return std::memory_order_relaxed;

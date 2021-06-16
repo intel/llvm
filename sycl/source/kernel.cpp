@@ -12,8 +12,8 @@
 #include <sycl/__impl/program.hpp>
 #include <detail/kernel_impl.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(

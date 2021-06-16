@@ -30,8 +30,8 @@ typedef unsigned long long CUdeviceptr;
 typedef unsigned int CUdeviceptr;
 #endif
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 template <> struct interop<backend::cuda, device> { using type = CUdevice; };
 

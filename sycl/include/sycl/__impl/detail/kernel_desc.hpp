@@ -13,8 +13,8 @@
 #include <sycl/__impl/detail/defines_elementary.hpp>
 #include <sycl/__impl/detail/export.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 // This guard is needed because the libsycl.so can be compiled with C++ <=14

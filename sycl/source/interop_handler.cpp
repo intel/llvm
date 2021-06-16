@@ -11,8 +11,8 @@
 #include <sycl/__impl/interop_handler.hpp>
 #include <detail/queue_impl.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 pi_native_handle interop_handler::GetNativeQueue() const {
   return MQueue->getNative();

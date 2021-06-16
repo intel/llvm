@@ -37,11 +37,11 @@
 #include <sstream>
 #include <string>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
-using ContextImplPtr = std::shared_ptr<__sycl_internal::__v1::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 
 static constexpr int DbgProgMgr = 0;
 
@@ -769,7 +769,7 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   pi_uint32 ImgInd = 0;
   RTDeviceBinaryImage *Img = nullptr;
 
-  // TODO: There may be cases with __sycl_internal::__v1::program class usage in source code
+  // TODO: There may be cases with cl::sycl::program class usage in source code
   // that will result in a multi-device context. This case needs to be handled
   // here or at the program_impl class level
 
@@ -1112,7 +1112,7 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       auto It = NativePrograms.find(NativePrg);
       if (It == NativePrograms.end())
-        throw __sycl_internal::__v1::ONEAPI::experimental::spec_const_error(
+        throw sycl::ONEAPI::experimental::spec_const_error(
             "spec constant is set in a program w/o a binary image",
             PI_INVALID_OPERATION);
       Img = It->second;
@@ -1175,7 +1175,7 @@ ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
   KernelSetId KSId;
   try {
     KSId = getKernelSetId(M, KernelName);
-  } catch (__sycl_internal::__v1::runtime_error &e) {
+  } catch (sycl::runtime_error &e) {
     // If the kernel name wasn't found, assume that the program wasn't created
     // from one of our device binary images.
     if (e.get_cl_code() == PI_INVALID_KERNEL_NAME)
@@ -1206,7 +1206,7 @@ static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage) {
 
   const bool IsAOT = IsAOTBinary(BinImage->getRawData().DeviceTargetSpec);
 
-  return IsAOT ? __sycl_internal::__v1::bundle_state::executable : __sycl_internal::__v1::bundle_state::input;
+  return IsAOT ? sycl::bundle_state::executable : sycl::bundle_state::input;
 }
 
 static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
@@ -1271,12 +1271,12 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
   for (RTDeviceBinaryImage *BinImage : BinImages) {
     const bundle_state ImgState = getBinImageState(BinImage);
 
-    for (const __sycl_internal::__v1::device &Dev : Devs) {
+    for (const sycl::device &Dev : Devs) {
       if (!compatibleWithDevice(BinImage, Dev))
         continue;
 
       // TODO: Cache kernel_ids
-      std::vector<__sycl_internal::__v1::kernel_id> KernelIDs;
+      std::vector<sycl::kernel_id> KernelIDs;
       // Collect kernel names for the image
       pi_device_binary DevBin =
           const_cast<pi_device_binary>(&BinImage->getRawData());
@@ -1287,7 +1287,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
             std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
 
         KernelIDs.push_back(
-            detail::createSyclObjFromImpl<__sycl_internal::__v1::kernel_id>(KernelIDImpl));
+            detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl));
       }
       // device_image_impl expects kernel ids to be sorted for fast search
       std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
@@ -1394,7 +1394,7 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
                            [&KernelIDs](const device_image_plain &Image) {
                              return std::none_of(
                                  KernelIDs.begin(), KernelIDs.end(),
-                                 [&Image](const __sycl_internal::__v1::kernel_id &KernelID) {
+                                 [&Image](const sycl::kernel_id &KernelID) {
                                    return Image.has_kernel(KernelID);
                                  });
                            });
@@ -1425,7 +1425,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   if (InputImpl->get_bin_image_ref()->getFormat() !=
           PI_DEVICE_BINARY_TYPE_SPIRV &&
       Devs.size() > 1)
-    __sycl_internal::__v1::runtime_error(
+    sycl::runtime_error(
         "Creating a program from AOT binary for multiple device is not "
         "supported",
         PI_INVALID_OPERATION);
@@ -1461,7 +1461,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
       /*header_include_names=*/nullptr,
       /*pfn_notify=*/nullptr, /*user_data*/ nullptr);
   if (Error != PI_SUCCESS)
-    throw __sycl_internal::__v1::exception(
+    throw sycl::exception(
         make_error_code(errc::build),
         getProgramBuildLog(ObjectImpl->get_program_ref(),
                            getSyclObjImpl(ObjectImpl->get_context())));
@@ -1501,7 +1501,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
     const string_class ErrorMsg =
         LinkedProg ? getProgramBuildLog(LinkedProg, ContextImpl)
                    : "Online link operation failed";
-    throw __sycl_internal::__v1::exception(make_error_code(errc::build), ErrorMsg);
+    throw sycl::exception(make_error_code(errc::build), ErrorMsg);
   }
 
   std::vector<kernel_id> KernelIDs;
@@ -1570,7 +1570,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     if (InputImpl->get_bin_image_ref()->getFormat() !=
             PI_DEVICE_BINARY_TYPE_SPIRV &&
         Devs.size() > 1)
-      __sycl_internal::__v1::runtime_error(
+      sycl::runtime_error(
           "Creating a program from AOT binary for multiple device is not "
           "supported",
           PI_INVALID_OPERATION);
@@ -1721,7 +1721,7 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {
-  __sycl_internal::__v1::detail::ProgramManager::getInstance().addImages(desc);
+  cl::sycl::detail::ProgramManager::getInstance().addImages(desc);
 }
 
 // Executed as a part of current module's (.exe, .dll) static initialization

@@ -20,14 +20,14 @@
 // This header contains a few common classes/methods used in
 // execution graph testing.
 
-__sycl_internal::__v1::detail::Requirement getMockRequirement();
+cl::sycl::detail::Requirement getMockRequirement();
 
-class MockCommand : public __sycl_internal::__v1::detail::Command {
+class MockCommand : public cl::sycl::detail::Command {
 public:
-  MockCommand(__sycl_internal::__v1::detail::QueueImplPtr Queue,
-              __sycl_internal::__v1::detail::Requirement Req,
-              __sycl_internal::__v1::detail::Command::CommandType Type =
-                  __sycl_internal::__v1::detail::Command::RUN_CG)
+  MockCommand(cl::sycl::detail::QueueImplPtr Queue,
+              cl::sycl::detail::Requirement Req,
+              cl::sycl::detail::Command::CommandType Type =
+                  cl::sycl::detail::Command::RUN_CG)
       : Command{Type, Queue}, MRequirement{std::move(Req)} {
     using namespace testing;
     ON_CALL(*this, enqueue(_, _))
@@ -35,9 +35,9 @@ public:
     EXPECT_CALL(*this, enqueue(_, _)).Times(AnyNumber());
   }
 
-  MockCommand(__sycl_internal::__v1::detail::QueueImplPtr Queue,
-              __sycl_internal::__v1::detail::Command::CommandType Type =
-                  __sycl_internal::__v1::detail::Command::RUN_CG)
+  MockCommand(cl::sycl::detail::QueueImplPtr Queue,
+              cl::sycl::detail::Command::CommandType Type =
+                  cl::sycl::detail::Command::RUN_CG)
       : Command{Type, Queue}, MRequirement{std::move(getMockRequirement())} {
     using namespace testing;
     ON_CALL(*this, enqueue(_, _))
@@ -48,36 +48,36 @@ public:
   void printDot(std::ostream &) const override {}
   void emitInstrumentationData() override {}
 
-  const __sycl_internal::__v1::detail::Requirement *getRequirement() const final {
+  const cl::sycl::detail::Requirement *getRequirement() const final {
     return &MRequirement;
   };
 
   cl_int enqueueImp() override { return MRetVal; }
 
-  MOCK_METHOD2(enqueue, bool(__sycl_internal::__v1::detail::EnqueueResultT &,
-                             __sycl_internal::__v1::detail::BlockingT));
-  bool enqueueOrigin(__sycl_internal::__v1::detail::EnqueueResultT &EnqueueResult,
-                     __sycl_internal::__v1::detail::BlockingT Blocking) {
-    return __sycl_internal::__v1::detail::Command::enqueue(EnqueueResult, Blocking);
+  MOCK_METHOD2(enqueue, bool(cl::sycl::detail::EnqueueResultT &,
+                             cl::sycl::detail::BlockingT));
+  bool enqueueOrigin(cl::sycl::detail::EnqueueResultT &EnqueueResult,
+                     cl::sycl::detail::BlockingT Blocking) {
+    return cl::sycl::detail::Command::enqueue(EnqueueResult, Blocking);
   }
 
   cl_int MRetVal = CL_SUCCESS;
 
   void waitForEventsCall(
-      std::shared_ptr<__sycl_internal::__v1::detail::queue_impl> Queue,
-      std::vector<std::shared_ptr<__sycl_internal::__v1::detail::event_impl>> &RawEvents,
+      std::shared_ptr<cl::sycl::detail::queue_impl> Queue,
+      std::vector<std::shared_ptr<cl::sycl::detail::event_impl>> &RawEvents,
       pi_event &Event) {
     Command::waitForEvents(Queue, RawEvents, Event);
   }
 
 protected:
-  __sycl_internal::__v1::detail::Requirement MRequirement;
+  cl::sycl::detail::Requirement MRequirement;
 };
 
 class MockCommandWithCallback : public MockCommand {
 public:
-  MockCommandWithCallback(__sycl_internal::__v1::detail::QueueImplPtr Queue,
-                          __sycl_internal::__v1::detail::Requirement Req,
+  MockCommandWithCallback(cl::sycl::detail::QueueImplPtr Queue,
+                          cl::sycl::detail::Requirement Req,
                           std::function<void()> Callback)
       : MockCommand(Queue, Req), MCallback(std::move(Callback)) {}
 
@@ -87,67 +87,67 @@ protected:
   std::function<void()> MCallback;
 };
 
-class MockScheduler : public __sycl_internal::__v1::detail::Scheduler {
+class MockScheduler : public cl::sycl::detail::Scheduler {
 public:
-  __sycl_internal::__v1::detail::MemObjRecord *
-  getOrInsertMemObjRecord(const __sycl_internal::__v1::detail::QueueImplPtr &Queue,
-                          __sycl_internal::__v1::detail::Requirement *Req) {
+  cl::sycl::detail::MemObjRecord *
+  getOrInsertMemObjRecord(const cl::sycl::detail::QueueImplPtr &Queue,
+                          cl::sycl::detail::Requirement *Req) {
     return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req);
   }
 
-  void removeRecordForMemObj(__sycl_internal::__v1::detail::SYCLMemObjI *MemObj) {
+  void removeRecordForMemObj(cl::sycl::detail::SYCLMemObjI *MemObj) {
     MGraphBuilder.removeRecordForMemObj(MemObj);
   }
 
-  void cleanupCommandsForRecord(__sycl_internal::__v1::detail::MemObjRecord *Rec) {
-    std::vector<std::shared_ptr<__sycl_internal::__v1::detail::stream_impl>>
+  void cleanupCommandsForRecord(cl::sycl::detail::MemObjRecord *Rec) {
+    std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>>
         StreamsToDeallocate;
     MGraphBuilder.cleanupCommandsForRecord(Rec, StreamsToDeallocate);
   }
 
   void addNodeToLeaves(
-      __sycl_internal::__v1::detail::MemObjRecord *Rec, __sycl_internal::__v1::detail::Command *Cmd,
-      __sycl_internal::__v1::access::mode Mode = __sycl_internal::__v1::access::mode::read_write) {
+      cl::sycl::detail::MemObjRecord *Rec, cl::sycl::detail::Command *Cmd,
+      cl::sycl::access::mode Mode = cl::sycl::access::mode::read_write) {
     return MGraphBuilder.addNodeToLeaves(Rec, Cmd, Mode);
   }
 
-  static bool enqueueCommand(__sycl_internal::__v1::detail::Command *Cmd,
-                             __sycl_internal::__v1::detail::EnqueueResultT &EnqueueResult,
-                             __sycl_internal::__v1::detail::BlockingT Blocking) {
+  static bool enqueueCommand(cl::sycl::detail::Command *Cmd,
+                             cl::sycl::detail::EnqueueResultT &EnqueueResult,
+                             cl::sycl::detail::BlockingT Blocking) {
     return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, Blocking);
   }
 
-  __sycl_internal::__v1::detail::AllocaCommandBase *
-  getOrCreateAllocaForReq(__sycl_internal::__v1::detail::MemObjRecord *Record,
-                          const __sycl_internal::__v1::detail::Requirement *Req,
-                          __sycl_internal::__v1::detail::QueueImplPtr Queue) {
+  cl::sycl::detail::AllocaCommandBase *
+  getOrCreateAllocaForReq(cl::sycl::detail::MemObjRecord *Record,
+                          const cl::sycl::detail::Requirement *Req,
+                          cl::sycl::detail::QueueImplPtr Queue) {
     return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue);
   }
 
-  __sycl_internal::__v1::detail::Command *
-  insertMemoryMove(__sycl_internal::__v1::detail::MemObjRecord *Record,
-                   __sycl_internal::__v1::detail::Requirement *Req,
-                   const __sycl_internal::__v1::detail::QueueImplPtr &Queue) {
+  cl::sycl::detail::Command *
+  insertMemoryMove(cl::sycl::detail::MemObjRecord *Record,
+                   cl::sycl::detail::Requirement *Req,
+                   const cl::sycl::detail::QueueImplPtr &Queue) {
     return MGraphBuilder.insertMemoryMove(Record, Req, Queue);
   }
 
-  __sycl_internal::__v1::detail::Command *
-  addCG(std::unique_ptr<__sycl_internal::__v1::detail::CG> CommandGroup,
-        __sycl_internal::__v1::detail::QueueImplPtr Queue) {
+  cl::sycl::detail::Command *
+  addCG(std::unique_ptr<cl::sycl::detail::CG> CommandGroup,
+        cl::sycl::detail::QueueImplPtr Queue) {
     return MGraphBuilder.addCG(std::move(CommandGroup), Queue);
   }
 };
 
-void addEdge(__sycl_internal::__v1::detail::Command *User, __sycl_internal::__v1::detail::Command *Dep,
-             __sycl_internal::__v1::detail::AllocaCommandBase *Alloca);
+void addEdge(cl::sycl::detail::Command *User, cl::sycl::detail::Command *Dep,
+             cl::sycl::detail::AllocaCommandBase *Alloca);
 
 template <typename MemObjT>
-__sycl_internal::__v1::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
+cl::sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
   return {/*Offset*/ {0, 0, 0},
           /*AccessRange*/ {0, 0, 0},
           /*MemoryRange*/ {0, 0, 0},
-          /*AccessMode*/ __sycl_internal::__v1::access::mode::read_write,
-          /*SYCLMemObj*/ __sycl_internal::__v1::detail::getSyclObjImpl(MemObj).get(),
+          /*AccessMode*/ cl::sycl::access::mode::read_write,
+          /*SYCLMemObj*/ cl::sycl::detail::getSyclObjImpl(MemObj).get(),
           /*Dims*/ 0,
           /*ElementSize*/ 0};
 }

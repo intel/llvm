@@ -11,8 +11,8 @@
 
 #include <functional>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace ONEAPI {
 
 template <typename T = void> struct minimum {
@@ -93,12 +93,12 @@ struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
   }
 
 // calc for sycl minimum/maximum function objects
-__SYCL_CALC_OVERLOAD(GroupOpISigned, SMin, __sycl_internal::__v1::minimum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMin, __sycl_internal::__v1::minimum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FMin, __sycl_internal::__v1::minimum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, SMax, __sycl_internal::__v1::maximum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMax, __sycl_internal::__v1::maximum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FMax, __sycl_internal::__v1::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, SMin, sycl::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMin, sycl::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMin, sycl::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, SMax, sycl::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMax, sycl::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMax, sycl::maximum<T>)
 
 // calc for ONEAPI function objects
 __SYCL_CALC_OVERLOAD(GroupOpISigned, SMin, ONEAPI::minimum<T>)

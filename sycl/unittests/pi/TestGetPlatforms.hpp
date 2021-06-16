@@ -10,16 +10,16 @@
 #include <vector>
 
 namespace pi {
-inline std::vector<__sycl_internal::__v1::platform> getPlatformsWithName(const char *name) {
-  std::vector<__sycl_internal::__v1::platform> platforms =
-      __sycl_internal::__v1::platform::get_platforms();
+inline std::vector<cl::sycl::platform> getPlatformsWithName(const char *name) {
+  std::vector<cl::sycl::platform> platforms =
+      cl::sycl::platform::get_platforms();
 
   // Remove platforms that have no devices or doesn't contain the name
   auto end =
       std::remove_if(platforms.begin(), platforms.end(),
-                     [=](const __sycl_internal::__v1::platform &platform) -> bool {
+                     [=](const cl::sycl::platform &platform) -> bool {
                        const std::string platformName =
-                           platform.get_info<__sycl_internal::__v1::info::platform::name>();
+                           platform.get_info<cl::sycl::info::platform::name>();
                        return platformName.find(name) == std::string::npos ||
                               platform.get_devices().size() == 0;
                      });

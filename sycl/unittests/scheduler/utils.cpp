@@ -8,17 +8,17 @@
 
 #include "SchedulerTestUtils.hpp"
 
-void addEdge(__sycl_internal::__v1::detail::Command *User, __sycl_internal::__v1::detail::Command *Dep,
-             __sycl_internal::__v1::detail::AllocaCommandBase *Alloca) {
-  User->addDep(__sycl_internal::__v1::detail::DepDesc{Dep, User->getRequirement(), Alloca});
+void addEdge(cl::sycl::detail::Command *User, cl::sycl::detail::Command *Dep,
+             cl::sycl::detail::AllocaCommandBase *Alloca) {
+  User->addDep(cl::sycl::detail::DepDesc{Dep, User->getRequirement(), Alloca});
   Dep->addUser(User);
 }
 
-__sycl_internal::__v1::detail::Requirement getMockRequirement() {
+cl::sycl::detail::Requirement getMockRequirement() {
   return {/*Offset*/ {0, 0, 0},
           /*AccessRange*/ {0, 0, 0},
           /*MemoryRange*/ {0, 0, 0},
-          /*AccessMode*/ __sycl_internal::__v1::access::mode::read_write,
+          /*AccessMode*/ cl::sycl::access::mode::read_write,
           /*SYCLMemObj*/ nullptr,
           /*Dims*/ 0,
           /*ElementSize*/ 0};

@@ -14,8 +14,8 @@
 #include <sycl/__impl/program.hpp>
 #include <sycl/__impl/stl.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 __SYCL_EXPORT cl_ulong getDeviceFunctionPointerImpl(device &D, program &P,
                                                     const char *FuncName);
@@ -54,9 +54,9 @@ using enable_if_is_function_pointer_t = typename detail::enable_if_t<
 /// \param F - pointer to function to make it work for SYCL Host device
 /// \param FuncName - name of the function. Please note that by default names
 /// of functions are mangled since SYCL is a C++. To avoid the need ot
-/// specifying mangled name here, use `extern "C"` \param P - __sycl_internal::__v1::program
+/// specifying mangled name here, use `extern "C"` \param P - sycl::program
 /// object which will be used to extract device function pointer \param D -
-/// __sycl_internal::__v1::device object which will be used to extract device function pointer
+/// sycl::device object which will be used to extract device function pointer
 ///
 /// \returns device_func_ptr_holder_t object which can be used inside a device
 /// code. This object must be converted back to a function pointer using
@@ -80,7 +80,7 @@ device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
         PI_INVALID_OPERATION);
   }
 
-  return __sycl_internal::__v1::detail::getDeviceFunctionPointerImpl(D, P, FuncName);
+  return sycl::detail::getDeviceFunctionPointerImpl(D, P, FuncName);
 }
 } // namespace ONEAPI
 } // namespace sycl

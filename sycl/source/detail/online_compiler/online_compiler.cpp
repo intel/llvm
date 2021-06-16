@@ -14,18 +14,18 @@
 
 #include "ocloc_api.h"
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace INTEL {
 namespace detail {
 
 static std::vector<const char *>
-prepareOclocArgs(__sycl_internal::__v1::info::device_type DeviceType, device_arch DeviceArch,
+prepareOclocArgs(sycl::info::device_type DeviceType, device_arch DeviceArch,
                  bool Is64Bit, const std::string &DeviceStepping,
                  const std::string &UserArgs) {
   std::vector<const char *> Args = {"ocloc", "-q", "-spv_only", "-device"};
 
-  if (DeviceType == __sycl_internal::__v1::info::device_type::gpu) {
+  if (DeviceType == sycl::info::device_type::gpu) {
     switch (DeviceArch) {
     case device_arch::gpu_gen9_5:
       Args.push_back("cfl");
@@ -74,7 +74,7 @@ prepareOclocArgs(__sycl_internal::__v1::info::device_type DeviceType, device_arc
 ///                                 allocated during the compilation.
 /// @param UserArgs - User's options to ocloc compiler.
 static std::vector<byte>
-compileToSPIRV(const std::string &Source, __sycl_internal::__v1::info::device_type DeviceType,
+compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
                device_arch DeviceArch, bool Is64Bit,
                const std::string &DeviceStepping, void *&CompileToSPIRVHandle,
                void *&FreeSPIRVOutputsHandle,
@@ -86,12 +86,12 @@ compileToSPIRV(const std::string &Source, __sycl_internal::__v1::info::device_ty
 #else
     static const std::string OclocLibraryName = "libocloc.so";
 #endif
-    void *OclocLibrary = __sycl_internal::__v1::detail::pi::loadOsLibrary(OclocLibraryName);
+    void *OclocLibrary = sycl::detail::pi::loadOsLibrary(OclocLibraryName);
     if (!OclocLibrary)
       throw online_compile_error("Cannot load ocloc library: " +
                                  OclocLibraryName);
     void *OclocVersionHandle =
-        __sycl_internal::__v1::detail::pi::getOsLibraryFuncAddress(OclocLibrary, "oclocVersion");
+        sycl::detail::pi::getOsLibraryFuncAddress(OclocLibrary, "oclocVersion");
     // The initial versions of ocloc library did not have the oclocVersion()
     // function. Those versions had the same API as the first version of ocloc
     // library having that oclocVersion() function.
@@ -118,10 +118,10 @@ compileToSPIRV(const std::string &Source, __sycl_internal::__v1::info::device_ty
           ".N), where (N >= " + std::to_string(CurrentVersionMinor) + ").");
 
     CompileToSPIRVHandle =
-        __sycl_internal::__v1::detail::pi::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
+        sycl::detail::pi::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
     if (!CompileToSPIRVHandle)
       throw online_compile_error("Cannot load oclocInvoke() function");
-    FreeSPIRVOutputsHandle = __sycl_internal::__v1::detail::pi::getOsLibraryFuncAddress(
+    FreeSPIRVOutputsHandle = sycl::detail::pi::getOsLibraryFuncAddress(
         OclocLibrary, "oclocFreeOutput");
     if (!FreeSPIRVOutputsHandle)
       throw online_compile_error("Cannot load oclocFreeOutput() function");

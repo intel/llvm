@@ -19,8 +19,8 @@
 #include <type_traits>
 #include <utility>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 template <typename T, typename Group>
 std::enable_if_t<std::is_trivially_destructible<T>::value &&

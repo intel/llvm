@@ -13,8 +13,8 @@
 #include <sycl/__impl/info/info_desc.hpp>
 #include <detail/plugin.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 // The platform information methods

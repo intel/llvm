@@ -16,11 +16,11 @@
 #include <atomic>
 #endif
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace ONEAPI {
 namespace detail {
-using namespace __sycl_internal::__v1::detail;
+using namespace cl::sycl::detail;
 }
 
 static inline void atomic_fence(memory_order order, memory_scope scope) {

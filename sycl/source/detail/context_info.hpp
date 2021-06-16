@@ -12,8 +12,8 @@
 #include <sycl/__impl/info/info_desc.hpp>
 #include <detail/context_impl.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 template <info::context param> struct get_context_info {

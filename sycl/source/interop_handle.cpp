@@ -16,8 +16,8 @@
 
 #include <algorithm>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 backend interop_handle::get_backend() const noexcept {
   return detail::getImplBackend(MQueue);

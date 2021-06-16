@@ -12,8 +12,8 @@
 
 #include "sycl/__impl/ONEAPI/reduction.hpp"
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
 /// reduction operation \p Combiner, and optional reduction properties.

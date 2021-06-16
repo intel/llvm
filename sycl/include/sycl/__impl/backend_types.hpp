@@ -15,8 +15,8 @@
 #include <istream>
 #include <string>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 enum class backend : char {
   host = 0,

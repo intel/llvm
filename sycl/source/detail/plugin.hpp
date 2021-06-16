@@ -20,8 +20,8 @@
 #include "xpti_trace_framework.h"
 #endif
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GPICallEvent;
@@ -51,7 +51,7 @@ public:
   /// Checks return value from PI calls.
   ///
   /// \throw Exception if pi_result is not a PI_SUCCESS.
-  template <typename Exception = __sycl_internal::__v1::runtime_error>
+  template <typename Exception = cl::sycl::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
     __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
   }
@@ -99,7 +99,7 @@ public:
 
   /// Calls the API, traces the call, checks the result
   ///
-  /// \throw __sycl_internal::__v1::runtime_exception if the call was not successful.
+  /// \throw cl::sycl::runtime_exception if the call was not successful.
   template <PiApiKind PiApiOffset, typename... ArgsT>
   void call(ArgsT... Args) const {
     RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);

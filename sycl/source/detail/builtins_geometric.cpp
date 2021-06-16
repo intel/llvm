@@ -14,11 +14,10 @@
 
 #include <cmath>
 
-namespace s = __sycl_internal::__v1;
+namespace s = cl::sycl;
 namespace d = s::detail;
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 
 __SYCL_EXPORT s::cl_float Dot(s::vec<float, 1>, s::vec<float, 1>);
@@ -60,47 +59,47 @@ template <typename T> inline T __FMul(T p0, T p1) {
 }
 
 template <typename T>
-inline typename __sycl_internal::__v1::detail::enable_if_t<d::is_sgengeo<T>::value, T>
+inline typename sycl::detail::enable_if_t<d::is_sgengeo<T>::value, T>
 __length(T t) {
   return std::sqrt(__FMul(t, t));
 }
 
 template <typename T>
-inline typename __sycl_internal::__v1::detail::enable_if_t<d::is_vgengeo<T>::value,
+inline typename sycl::detail::enable_if_t<d::is_vgengeo<T>::value,
                                           typename T::element_type>
 __length(T t) {
   return std::sqrt(Dot(t, t));
 }
 
 template <typename T>
-inline typename __sycl_internal::__v1::detail::enable_if_t<d::is_sgengeo<T>::value, T>
+inline typename sycl::detail::enable_if_t<d::is_sgengeo<T>::value, T>
 __normalize(T t) {
   T r = __length(t);
   return t / T(r);
 }
 
 template <typename T>
-inline typename __sycl_internal::__v1::detail::enable_if_t<d::is_vgengeo<T>::value, T>
+inline typename sycl::detail::enable_if_t<d::is_vgengeo<T>::value, T>
 __normalize(T t) {
   typename T::element_type r = __length(t);
   return t / T(r);
 }
 
 template <typename T>
-inline typename __sycl_internal::__v1::detail::enable_if_t<d::is_sgengeo<T>::value, T>
+inline typename sycl::detail::enable_if_t<d::is_sgengeo<T>::value, T>
 __fast_length(T t) {
   return std::sqrt(__FMul(t, t));
 }
 
 template <typename T>
-inline typename __sycl_internal::__v1::detail::enable_if_t<d::is_vgengeo<T>::value,
+inline typename sycl::detail::enable_if_t<d::is_vgengeo<T>::value,
                                           typename T::element_type>
 __fast_length(T t) {
   return std::sqrt(Dot(t, t));
 }
 
 template <typename T>
-inline typename __sycl_internal::__v1::detail::enable_if_t<d::is_vgengeo<T>::value, T>
+inline typename sycl::detail::enable_if_t<d::is_vgengeo<T>::value, T>
 __fast_normalize(T t) {
   if (All(t == T(0.0f)))
     return t;
@@ -293,5 +292,4 @@ __SYCL_EXPORT s::cl_float fast_distance(s::cl_float4 p0, s::cl_float4 p1) {
 }
 
 } // namespace __host_std
-}
 } // __SYCL_INLINE_NAMESPACE(cl)

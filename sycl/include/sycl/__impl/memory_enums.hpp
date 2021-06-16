@@ -10,8 +10,8 @@
 
 #include <sycl/__impl/ONEAPI/atomic_enums.hpp>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 using ONEAPI::memory_scope;
 
 #if __cplusplus >= 201703L

@@ -39,8 +39,8 @@ static void unset_env(const char *name) {
 
 class TestKernel;
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -159,7 +159,7 @@ static pi_result
 redefinedProgramSetSpecializationConstant(pi_program prog, pi_uint32 spec_id,
                                           size_t spec_size,
                                           const void *spec_value) {
-  if (spec_id == __sycl_internal::__v1::detail::ITTSpecConstId)
+  if (spec_id == sycl::detail::ITTSpecConstId)
     HasITTEnabled = true;
 
   return PI_SUCCESS;
@@ -173,13 +173,13 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
 }
 
 static void reset() {
-  using namespace __sycl_internal::__v1::detail;
+  using namespace sycl::detail;
   HasITTEnabled = false;
   SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::reset();
 }
 
-static void setupDefaultMockAPIs(__sycl_internal::__v1::unittest::PiMock &Mock) {
-  using namespace __sycl_internal::__v1::detail;
+static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
+  using namespace sycl::detail;
   Mock.redefine<PiApiKind::piProgramCreate>(redefinedProgramCreate);
   Mock.redefine<PiApiKind::piProgramCompile>(redefinedProgramCompile);
   Mock.redefine<PiApiKind::piProgramLink>(redefinedProgramLink);
@@ -198,8 +198,8 @@ static void setupDefaultMockAPIs(__sycl_internal::__v1::unittest::PiMock &Mock) 
   Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
 }
 
-static __sycl_internal::__v1::unittest::PiImage generateDefaultImage() {
-  using namespace __sycl_internal::__v1::unittest;
+static sycl::unittest::PiImage generateDefaultImage() {
+  using namespace sycl::unittest;
 
   PiPropertySet PropSet;
 
@@ -218,38 +218,38 @@ static __sycl_internal::__v1::unittest::PiImage generateDefaultImage() {
   return Img;
 }
 
-__sycl_internal::__v1::unittest::PiImage Img = generateDefaultImage();
-__sycl_internal::__v1::unittest::PiImageArray ImgArray{Img};
+sycl::unittest::PiImage Img = generateDefaultImage();
+sycl::unittest::PiImageArray ImgArray{Img};
 
 TEST(ITTNotify, UseKernelBundle) {
   set_env(ITTProfileEnvVarName, "1");
 
   reset();
 
-  __sycl_internal::__v1::platform Plt{__sycl_internal::__v1::default_selector()};
+  sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == __sycl_internal::__v1::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  __sycl_internal::__v1::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
-  const __sycl_internal::__v1::device Dev = Plt.get_devices()[0];
+  const sycl::device Dev = Plt.get_devices()[0];
 
-  __sycl_internal::__v1::queue Queue{Dev};
+  sycl::queue Queue{Dev};
 
-  const __sycl_internal::__v1::context Ctx = Queue.get_context();
+  const sycl::context Ctx = Queue.get_context();
 
-  __sycl_internal::__v1::kernel_bundle KernelBundle =
-      __sycl_internal::__v1::get_kernel_bundle<__sycl_internal::__v1::bundle_state::input>(Ctx, {Dev});
-  auto ExecBundle = __sycl_internal::__v1::build(KernelBundle);
-  Queue.submit([&](__sycl_internal::__v1::handler &CGH) {
+  sycl::kernel_bundle KernelBundle =
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
+  auto ExecBundle = sycl::build(KernelBundle);
+  Queue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
     CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
   });
@@ -262,30 +262,30 @@ TEST(ITTNotify, VarNotSet) {
 
   reset();
 
-  __sycl_internal::__v1::platform Plt{__sycl_internal::__v1::default_selector()};
+  sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == __sycl_internal::__v1::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  __sycl_internal::__v1::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
-  const __sycl_internal::__v1::device Dev = Plt.get_devices()[0];
+  const sycl::device Dev = Plt.get_devices()[0];
 
-  __sycl_internal::__v1::queue Queue{Dev};
+  sycl::queue Queue{Dev};
 
-  const __sycl_internal::__v1::context Ctx = Queue.get_context();
+  const sycl::context Ctx = Queue.get_context();
 
-  __sycl_internal::__v1::kernel_bundle KernelBundle =
-      __sycl_internal::__v1::get_kernel_bundle<__sycl_internal::__v1::bundle_state::input>(Ctx, {Dev});
-  auto ExecBundle = __sycl_internal::__v1::build(KernelBundle);
-  Queue.submit([&](__sycl_internal::__v1::handler &CGH) {
+  sycl::kernel_bundle KernelBundle =
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
+  auto ExecBundle = sycl::build(KernelBundle);
+  Queue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
     CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
   });

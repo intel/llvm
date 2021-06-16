@@ -16,10 +16,10 @@
 
 #include <cstdlib>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
-using alloc = __sycl_internal::__v1::usm::alloc;
+using alloc = cl::sycl::usm::alloc;
 
 namespace detail {
 namespace usm {

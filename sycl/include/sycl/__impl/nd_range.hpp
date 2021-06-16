@@ -13,8 +13,8 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace __sycl_internal {
-inline namespace __v1 {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 /// Defines the iteration domain of both the work-groups and the overall
 /// dispatch.
