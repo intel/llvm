@@ -2453,7 +2453,7 @@ their usual pattern without any special treatment.
   constexpr const char * __builtin_sycl_unique_stable_name( type-id );
 
 ``__builtin_sycl_unique_stable_id``
-----------------------------------
+-----------------------------------
 
 Like ``__builtin_sycl_unique_stable_name``, this builtin generates a unique and
 stable name as a string literal to support sharing it across split compliations.
