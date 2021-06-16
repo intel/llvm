@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 
 // This test checks compilation of various ESIMD enum types. Those which are
 // deprecated must produce deprecation messages.
