@@ -6,11 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 // TODO enable on Windows
-// REQUIRES: linux && gpu
+// REQUIRES: linux && gpu-intel-dg1
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// TODO : Enable test for new GPU device
-// XFAIL: *
 
 #include "esimd_test_utils.hpp"
 
