@@ -267,7 +267,7 @@ detail::enable_if_t<detail::is_sgenfloat<T>::value, T> ldexp(T x,
 template <typename T>
 detail::enable_if_t<detail::is_vgenfloat<T>::value, T> ldexp(T x,
                                                              int k) __NOEXC {
-  return __sycl_std::__invoke_ldexp<T>(x, vec<int, T::get_count()>(k));
+  return __sycl_std::__invoke_ldexp<T>(x, vec<int, T::size()>(k));
 }
 
 // vgenfloat ldexp (vgenfloat x, genint k)

@@ -114,7 +114,7 @@ inline void write(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
       GetFlushBufOffset(GlobalFlushBuf, WIOffset) + FLUSH_BUF_OFFSET_SIZE;
 
   if ((Offset + Len + Padding > FlushBufferSize) ||
-      (WIOffset + Offset + Len + Padding > GlobalFlushBuf.get_count()))
+      (WIOffset + Offset + Len + Padding > GlobalFlushBuf.size()))
     // TODO: flush here
     return;
 

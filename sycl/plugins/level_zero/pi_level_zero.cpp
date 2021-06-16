@@ -6410,6 +6410,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
 pi_result piextPluginGetOpaqueData(void *opaque_data_param,
                                    void **opaque_data_return) {
+  (void)opaque_data_param;
+  (void)opaque_data_return;
   return PI_ERROR_UNKNOWN;
 }
 

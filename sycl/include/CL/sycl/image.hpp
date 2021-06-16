@@ -265,7 +265,9 @@ public:
   size_t get_size() const { return impl->getSize(); }
 
   // Returns the total number of elements in the image
-  size_t get_count() const { return impl->get_count(); }
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); }
+  size_t size() const noexcept { return impl->get_count(); }
 
   // Returns the allocator provided to the image
   AllocatorT get_allocator() const {
