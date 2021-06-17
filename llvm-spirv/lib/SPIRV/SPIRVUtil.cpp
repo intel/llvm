@@ -1633,20 +1633,16 @@ public:
     UnmangledName = UniqUnmangledName.str();
     switch (OC) {
     case OpConvertUToF:
-      LLVM_FALLTHROUGH;
     case OpUConvert:
-      LLVM_FALLTHROUGH;
     case OpSatConvertUToS:
       // Treat all arguments as unsigned
       addUnsignedArg(-1);
       break;
     case OpSubgroupShuffleINTEL:
-      LLVM_FALLTHROUGH;
     case OpSubgroupShuffleXorINTEL:
       addUnsignedArg(1);
       break;
     case OpSubgroupShuffleDownINTEL:
-      LLVM_FALLTHROUGH;
     case OpSubgroupShuffleUpINTEL:
       addUnsignedArg(2);
       break;
@@ -1662,32 +1658,22 @@ public:
       addUnsignedArg(0);
       break;
     case OpAtomicUMax:
-      LLVM_FALLTHROUGH;
     case OpAtomicUMin:
       addUnsignedArg(0);
       addUnsignedArg(3);
       break;
     case OpGroupUMax:
-      LLVM_FALLTHROUGH;
     case OpGroupUMin:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformBroadcast:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformBallotBitCount:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformShuffle:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformShuffleXor:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformShuffleUp:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformShuffleDown:
       addUnsignedArg(2);
       break;
     case OpGroupNonUniformInverseBallot:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformBallotFindLSB:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformBallotFindMSB:
       addUnsignedArg(1);
       break;
@@ -1696,36 +1682,22 @@ public:
       addUnsignedArg(2);
       break;
     case OpGroupNonUniformIAdd:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformFAdd:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformIMul:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformFMul:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformSMin:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformFMin:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformSMax:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformFMax:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformBitwiseAnd:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformBitwiseOr:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformBitwiseXor:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformLogicalAnd:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformLogicalOr:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformLogicalXor:
       addUnsignedArg(3);
       break;
     case OpGroupNonUniformUMax:
-      LLVM_FALLTHROUGH;
     case OpGroupNonUniformUMin:
       addUnsignedArg(2);
       addUnsignedArg(3);
@@ -1755,11 +1727,8 @@ public:
   bool needRetTypePostfix() {
     switch (ExtOpId) {
     case OpenCLLIB::Vload_half:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::Vload_halfn:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::Vloada_halfn:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::Vloadn:
       return true;
     default:
@@ -1770,33 +1739,19 @@ public:
   void init(StringRef) override {
     switch (ExtOpId) {
     case OpenCLLIB::UAbs:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::UAbs_diff:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::UAdd_sat:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::UHadd:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::URhadd:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::UClamp:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::UMad_hi:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::UMad_sat:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::UMax:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::UMin:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::UMul_hi:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::USub_sat:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::U_Upsample:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::UMad24:
-      LLVM_FALLTHROUGH;
     case OpenCLLIB::UMul24:
       // Treat all arguments as unsigned
       addUnsignedArg(-1);
