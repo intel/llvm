@@ -74,6 +74,12 @@ int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
 
 #undef __SYCL_CONSTANT_AS
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+#endif
 namespace sycl {
   using namespace __sycl_internal::__v1;
 }
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+}
+#endif

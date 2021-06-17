@@ -26,9 +26,15 @@ template <typename _T> _T fpga_reg(const _T &t) {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+#endif
 namespace sycl {
   using namespace __sycl_internal::__v1;
 }
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+}
+#endif
 
 // Keep it consistent with FPGA attributes like intelfpga::memory()
 // Currently clang does not support nested namespace for attributes

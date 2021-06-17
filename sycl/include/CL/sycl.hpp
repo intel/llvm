@@ -8,10 +8,11 @@
 
 #pragma once
 
+#ifdef __SYCL2020_HEADER_INCLUDED
+#error "Including both <CL/sycl.hpp> and <sycl/sycl.hpp> is not allowed"
+#endif
+
+#define __SYCL_ENABLE_SYCL121_NAMESPACE
+
 #include <sycl/sycl.hpp>
 
-namespace cl {
-namespace sycl {
-  using namespace ::sycl;
-}
-}

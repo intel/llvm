@@ -398,6 +398,12 @@ T atomic_fetch_max(atomic<T, addressSpace> Object, T Operand,
 
 #undef __SYCL_STATIC_ASSERT_NOT_FLOAT
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+#endif
 namespace sycl {
   using namespace __sycl_internal::__v1;
 }
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+}
+#endif

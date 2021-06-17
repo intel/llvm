@@ -58,3 +58,5 @@
 #include <sycl/__impl/types.hpp>
 #include <sycl/__impl/usm.hpp>
 #include <sycl/__impl/version.hpp>
+
+#define __SYCL2020_HEADER_INCLUDED

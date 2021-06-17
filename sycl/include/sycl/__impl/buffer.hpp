@@ -487,9 +487,15 @@ buffer(const T *, const range<dimensions> &, const property_list & = {})
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+#endif
 namespace sycl {
   using namespace __sycl_internal::__v1;
 }
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+}
+#endif
 
 namespace std {
 template <typename T, int dimensions, typename AllocatorT>

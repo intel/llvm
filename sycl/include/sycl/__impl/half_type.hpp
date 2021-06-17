@@ -503,6 +503,12 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 #undef __SYCL_CONSTEXPR_HALF
 #undef _CPP14_CONSTEXPR
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+#endif
 namespace sycl {
   using namespace __sycl_internal::__v1;
 }
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+}
+#endif

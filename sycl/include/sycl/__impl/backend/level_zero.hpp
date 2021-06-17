@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/__impl.hpp>
+#include <sycl/sycl.hpp>
 // This header should be included by users.
 //#include <level_zero/ze_api.h>
 
@@ -147,6 +147,12 @@ T make(const context &Context,
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+#endif
 namespace sycl {
   using namespace __sycl_internal::__v1;
 }
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+}
+#endif

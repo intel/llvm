@@ -542,6 +542,12 @@ leader(Group g) {
 } // __SYCL_INLINE_NAMESPACE(cl)
 #endif // __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+#endif
 namespace sycl {
   using namespace __sycl_internal::__v1;
 }
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+}
+#endif

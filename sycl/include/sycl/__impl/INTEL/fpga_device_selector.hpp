@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/__impl.hpp>
+#include <sycl/sycl.hpp>
 
 namespace __sycl_internal {
 inline namespace __v1 {
@@ -51,6 +51,12 @@ public:
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+#endif
 namespace sycl {
   using namespace __sycl_internal::__v1;
 }
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+}
+#endif
