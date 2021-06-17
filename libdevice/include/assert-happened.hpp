@@ -14,19 +14,19 @@
 
 struct AssertHappened {
   int Flag = 0;
-  char Expr[256 + 1];
-  char File[256 + 1];
-  char Func[128 + 1];
+  char Expr[256 + 1] = "";
+  char File[256 + 1] = "";
+  char Func[128 + 1] = "";
 
-  int32_t Line;
+  int32_t Line = 0;
 
-  uint64_t GID0;
-  uint64_t GID1;
-  uint64_t GID2;
+  uint64_t GID0 = 0;
+  uint64_t GID1 = 0;
+  uint64_t GID2 = 0;
 
-  uint64_t LID0;
-  uint64_t LID1;
-  uint64_t LID2;
+  uint64_t LID0 = 0;
+  uint64_t LID1 = 0;
+  uint64_t LID2 = 0;
 };
 
 #ifndef __SYCL_GLOBAL_VAR__
