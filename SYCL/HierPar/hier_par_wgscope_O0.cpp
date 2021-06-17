@@ -17,9 +17,6 @@
 // code and data in the work group scope, and when the test is compiled with
 // -O0 switch.
 
-// The test is failing on CUDA after intel/llvm#3779
-// XFAIL: cuda
-
 #include "Inputs/hier_par_wgscope_impl.hpp"
 
 int main() { return run(); }
