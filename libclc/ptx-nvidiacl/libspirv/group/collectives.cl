@@ -12,7 +12,7 @@
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-int __nvvm_reflect(const char __constant*);
+int __nvvm_reflect(const char __constant *);
 
 // CLC helpers
 __local bool *
@@ -153,37 +153,37 @@ __clc__SubgroupBitwiseAny(uint op, bool predicate, bool *carry) {
 #define __CLC_AND(x, y) (x & y)
 
 #define __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)                     \
-    uint sg_lid = __spirv_SubgroupLocalInvocationId();                         \
-    /* Can't use XOR/butterfly shuffles; some lanes may be inactive */         \
-    for (int o = 1; o < __spirv_SubgroupMaxSize(); o *= 2) {                   \
-      TYPE contribution = __clc__SubgroupShuffleUp(x, o);                      \
-      bool inactive = (sg_lid < o);                                            \
-      contribution = (inactive) ? IDENTITY : contribution;                     \
-      x = OP(x, contribution);                                                 \
+  uint sg_lid = __spirv_SubgroupLocalInvocationId();                           \
+  /* Can't use XOR/butterfly shuffles; some lanes may be inactive */           \
+  for (int o = 1; o < __spirv_SubgroupMaxSize(); o *= 2) {                     \
+    TYPE contribution = __clc__SubgroupShuffleUp(x, o);                        \
+    bool inactive = (sg_lid < o);                                              \
+    contribution = (inactive) ? IDENTITY : contribution;                       \
+    x = OP(x, contribution);                                                   \
+  }                                                                            \
+  /* For Reduce, broadcast result from highest active lane */                  \
+  TYPE result;                                                                 \
+  if (op == Reduce) {                                                          \
+    result = __clc__SubgroupShuffle(x, __spirv_SubgroupSize() - 1);            \
+    *carry = result;                                                           \
+  } /* For InclusiveScan, use results as computed */                           \
+  else if (op == InclusiveScan) {                                              \
+    result = x;                                                                \
+    *carry = result;                                                           \
+  } /* For ExclusiveScan, shift and prepend identity */                        \
+  else if (op == ExclusiveScan) {                                              \
+    *carry = x;                                                                \
+    result = __clc__SubgroupShuffleUp(x, 1);                                   \
+    if (sg_lid == 0) {                                                         \
+      result = IDENTITY;                                                       \
     }                                                                          \
-    /* For Reduce, broadcast result from highest active lane */                \
-    TYPE result;                                                               \
-    if (op == Reduce) {                                                        \
-      result = __clc__SubgroupShuffle(x, __spirv_SubgroupSize() - 1);          \
-      *carry = result;                                                         \
-    } /* For InclusiveScan, use results as computed */                         \
-    else if (op == InclusiveScan) {                                            \
-      result = x;                                                              \
-      *carry = result;                                                         \
-    } /* For ExclusiveScan, shift and prepend identity */                      \
-    else if (op == ExclusiveScan) {                                            \
-      *carry = x;                                                              \
-      result = __clc__SubgroupShuffleUp(x, 1);                                 \
-      if (sg_lid == 0) {                                                       \
-        result = IDENTITY;                                                     \
-      }                                                                        \
-    }                                                                          \
-    return result;
+  }                                                                            \
+  return result;
 
 #define __CLC_SUBGROUP_COLLECTIVE(NAME, OP, TYPE, IDENTITY)                    \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
       __clc__Subgroup, NAME)(uint op, TYPE x, TYPE * carry) {                  \
-      __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)                       \
+    __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)                         \
   }
 
 #define __CLC_SUBGROUP_COLLECTIVE_REDUX(NAME, OP, REDUX_OP, TYPE, IDENTITY)    \
