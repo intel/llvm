@@ -541,6 +541,9 @@ SPIRVModuleImpl::~SPIRVModuleImpl() {
 
   for (auto C : CapMap)
     delete C.second;
+
+  for (auto *M : ModuleProcessedVec)
+    delete M;
 }
 
 const std::shared_ptr<const SPIRVLine> &
