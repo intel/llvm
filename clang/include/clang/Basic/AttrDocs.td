@@ -2581,31 +2581,38 @@ def SYCLIntelUseStallEnableClustersAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::use_stall_enable_clusters";
   let Content = [{
-When applied to a lambda or function call operator (of a function object)
-on device, this requests, to the extent possible, that statically-scheduled
-clusters handle stalls using a stall-enable signal to freeze computation
-within the cluster. This attribute is ignored on the host.
+The ``intel::use_stall_enable_clusters`` attribute requires SYCL.
+When applied to a lambda function, function definition, or function call
+operator (of a function object) on device, this requests, to the
+extent possible, that statically-scheduled clusters handle stalls using a
+stall-enable signal to freeze computation within the cluster. This attribute
+is ignored on the host.
 
-If ``intel::use_stall_enable_clusters`` is applied to a function called from a device
-kernel, the attribute is ignored and it is not propagated to the kernel.
-
-The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an effect
-when applied to a function, and no effect otherwise.
+The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an
+effect when applied to a function, and no effect otherwise.
 
 .. code-block:: c++
 
-  class Functor
-  {
-      [[intel::use_stall_enable_clusters]] void operator()(item<1> item)
-      {
-          /* kernel code */
-      }
-  }
+  class Foo {
+  public:
+    [[intel::use_stall_enable_clusters]] void operator()() const {}
+  };
 
-  kernel<class kernel_name>(
-  []() [[intel::use_stall_enable_clusters]] {
-       /* kernel code */
-  });
+  [[intel::use_stall_enable_clusters]] void test() {}
+
+  struct FuncObj {
+    [[intel::use_stall_enable_clusters]] void operator()() const {}
+  };
+
+The ``intel::use_stall_enable_clusters`` attribute supports a nonconforming
+behavior when applied to a lambda in the type position.
+
+.. code-block:: c++
+
+  void test1() {
+    auto lambda = []() [[intel::use_stall_enable_clusters]]{};
+    lambda();
+  }
 
   }];
 }
