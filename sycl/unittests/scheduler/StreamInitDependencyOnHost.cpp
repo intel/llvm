@@ -26,7 +26,7 @@ public:
             typename KernelName>
   void setHostKernel(KernelType Kernel) {
     static_cast<sycl::handler *>(this)->MHostKernel.reset(
-        new sycl::detail::HostKernel<KernelType, ArgType, Dims, KernelName>(
+        new __sycl_internal::__v1::detail::HostKernel<KernelType, ArgType, Dims, KernelName>(
             Kernel));
   }
 

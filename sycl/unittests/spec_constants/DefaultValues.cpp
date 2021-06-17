@@ -158,7 +158,7 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
 }
 
 static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
-  using namespace sycl::detail;
+  using namespace __sycl_internal::__v1::detail;
   Mock.redefine<PiApiKind::piProgramCreate>(redefinedProgramCreate);
   Mock.redefine<PiApiKind::piProgramCompile>(redefinedProgramCompile);
   Mock.redefine<PiApiKind::piProgramLink>(redefinedProgramLink);

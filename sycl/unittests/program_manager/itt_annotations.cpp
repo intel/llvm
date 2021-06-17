@@ -159,7 +159,7 @@ static pi_result
 redefinedProgramSetSpecializationConstant(pi_program prog, pi_uint32 spec_id,
                                           size_t spec_size,
                                           const void *spec_value) {
-  if (spec_id == sycl::detail::ITTSpecConstId)
+  if (spec_id == __sycl_internal::__v1::detail::ITTSpecConstId)
     HasITTEnabled = true;
 
   return PI_SUCCESS;
@@ -173,13 +173,13 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
 }
 
 static void reset() {
-  using namespace sycl::detail;
+  using namespace __sycl_internal::__v1::detail;
   HasITTEnabled = false;
   SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::reset();
 }
 
 static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
-  using namespace sycl::detail;
+  using namespace __sycl_internal::__v1::detail;
   Mock.redefine<PiApiKind::piProgramCreate>(redefinedProgramCreate);
   Mock.redefine<PiApiKind::piProgramCompile>(redefinedProgramCompile);
   Mock.redefine<PiApiKind::piProgramLink>(redefinedProgramLink);

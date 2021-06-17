@@ -69,7 +69,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
 
   auto AllocaDep = [](__sycl_internal::__v1::detail::Command *, __sycl_internal::__v1::detail::Command *,
                       __sycl_internal::__v1::detail::MemObjRecord *,
-                      std::vector<cl::sycl::detail::Command *> &) {};
+                      std::vector<__sycl_internal::__v1::detail::Command *> &) {};
 
   std::shared_ptr<__sycl_internal::__v1::detail::MemObjRecord> Record{
       new __sycl_internal::__v1::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(),
@@ -85,7 +85,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   MockCommand DepDepCmd(DefaultHostQueue, Req);
   DepCmd.MDeps.push_back({&DepDepCmd, DepDepCmd.getRequirement(), &AllocaCmd1});
   DepDepCmd.MUsers.insert(&DepCmd);
-  std::vector<cl::sycl::detail::Command *> ToEnqueue;
+  std::vector<__sycl_internal::__v1::detail::Command *> ToEnqueue;
   Record->MWriteLeaves.push_back(&DepCmd, ToEnqueue);
 
   MockScheduler MS;

@@ -108,7 +108,7 @@ public:
     }
 
     set_env("SYCL_CACHE_PERSISTENT", "1");
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+    __sycl_internal::__v1::detail::SYCLConfig<__sycl_internal::__v1::detail::SYCL_CACHE_PERSISTENT>::reset();
 
     std::string BuildOptions{"--concurrent-access=" +
                              std::to_string(ThreadCount)};
@@ -177,7 +177,7 @@ TEST_F(PersistenDeviceCodeCache, KeysWithNullTermSymbol) {
   }
 
   set_env("SYCL_CACHE_PERSISTENT", "1");
-  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+  __sycl_internal::__v1::detail::SYCLConfig<__sycl_internal::__v1::detail::SYCL_CACHE_PERSISTENT>::reset();
 
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
@@ -235,7 +235,7 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
   }
 
   set_env("SYCL_CACHE_PERSISTENT", "1");
-  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+  __sycl_internal::__v1::detail::SYCLConfig<__sycl_internal::__v1::detail::SYCL_CACHE_PERSISTENT>::reset();
 
   std::string BuildOptions{"--corrupted-file"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
@@ -302,7 +302,7 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
   }
 
   set_env("SYCL_CACHE_PERSISTENT", "1");
-  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+  __sycl_internal::__v1::detail::SYCLConfig<__sycl_internal::__v1::detail::SYCL_CACHE_PERSISTENT>::reset();
 
   std::string BuildOptions{"--obsolete-lock"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
@@ -358,7 +358,7 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   }
 
   set_env("SYCL_CACHE_PERSISTENT", "1");
-  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+  __sycl_internal::__v1::detail::SYCLConfig<__sycl_internal::__v1::detail::SYCL_CACHE_PERSISTENT>::reset();
 
   std::string BuildOptions{"--build-options"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(

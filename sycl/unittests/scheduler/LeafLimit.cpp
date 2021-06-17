@@ -45,7 +45,7 @@ TEST_F(SchedulerTest, LeafLimit) {
     (void)Leaf->addDep(
         detail::DepDesc{MockDepCmd.get(), Leaf->getRequirement(), nullptr});
   }
-  std::vector<cl::sycl::detail::Command *> ToEnqueue;
+  std::vector<__sycl_internal::__v1::detail::Command *> ToEnqueue;
   // Add edges as leaves and exceed the leaf limit
   for (auto &LeafPtr : LeavesToAdd) {
     MS.addNodeToLeaves(Rec, LeafPtr.get(), access::mode::write, ToEnqueue);

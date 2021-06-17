@@ -12,26 +12,26 @@
 #include <gtest/gtest.h>
 
 TEST(ParseAllowListTests, CheckAllowListIsEmpty) {
-  sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList("");
-  sycl::detail::AllowListParsedT ExpectedValue{};
+  __sycl_internal::__v1::detail::AllowListParsedT ActualValue = __sycl_internal::__v1::detail::parseAllowList("");
+  __sycl_internal::__v1::detail::AllowListParsedT ExpectedValue{};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 
 TEST(ParseAllowListTests, CheckAllowListSingleDeviceDesc) {
-  sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
+  __sycl_internal::__v1::detail::AllowListParsedT ActualValue = __sycl_internal::__v1::detail::parseAllowList(
       "BackendName:level_zero,DeviceType:gpu,DeviceVendorId:0x0000");
-  sycl::detail::AllowListParsedT ExpectedValue{{{"BackendName", "level_zero"},
+  __sycl_internal::__v1::detail::AllowListParsedT ExpectedValue{{{"BackendName", "level_zero"},
                                                 {"DeviceType", "gpu"},
                                                 {"DeviceVendorId", "0x0000"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 
 TEST(ParseAllowListTests, CheckAllowListMultipleDeviceDesc) {
-  sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
+  __sycl_internal::__v1::detail::AllowListParsedT ActualValue = __sycl_internal::__v1::detail::parseAllowList(
       "BackendName:level_zero,DeviceType:gpu,DeviceVendorId:0x0000|BackendName:"
       "opencl,DeviceType:cpu,DeviceVendorId:0x1234|BackendName:opencl,"
       "DeviceType:acc,DeviceVendorId:0x4321");
-  sycl::detail::AllowListParsedT ExpectedValue{{{"BackendName", "level_zero"},
+  __sycl_internal::__v1::detail::AllowListParsedT ExpectedValue{{{"BackendName", "level_zero"},
                                                 {"DeviceType", "gpu"},
                                                 {"DeviceVendorId", "0x0000"}},
                                                {{"BackendName", "opencl"},
@@ -45,7 +45,7 @@ TEST(ParseAllowListTests, CheckAllowListMultipleDeviceDesc) {
 
 TEST(ParseAllowListTests, CheckUnsupportedKeyNameIsHandledInSingleDeviceDesc) {
   try {
-    sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
+    __sycl_internal::__v1::detail::AllowListParsedT ActualValue = __sycl_internal::__v1::detail::parseAllowList(
         "BackendName:level_zero,SomeUnsupportedKey:gpu");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
@@ -63,7 +63,7 @@ TEST(
     ParseAllowListTests,
     CheckUnsupportedKeyNameIsHandledInTwoDeviceDescsFirstContainingRegexValue) {
   try {
-    sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
+    __sycl_internal::__v1::detail::AllowListParsedT ActualValue = __sycl_internal::__v1::detail::parseAllowList(
         "DriverVersion:{{value}}|SomeUnsupportedKey:gpu");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
@@ -81,7 +81,7 @@ TEST(
     ParseAllowListTests,
     CheckUnsupportedKeyNameIsHandledInTwoDeviceDescsFirstContainingFixedValue) {
   try {
-    sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
+    __sycl_internal::__v1::detail::AllowListParsedT ActualValue = __sycl_internal::__v1::detail::parseAllowList(
         "BackendName:level_zero|SomeUnsupportedKey:gpu");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
@@ -98,7 +98,7 @@ TEST(
 TEST(ParseAllowListTests,
      CheckUnsupportedKeyNameIsHandledInTwoDeviceDescsBothContainingRegexValue) {
   try {
-    sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
+    __sycl_internal::__v1::detail::AllowListParsedT ActualValue = __sycl_internal::__v1::detail::parseAllowList(
         "DriverVersion:{{value1}}|SomeUnsupportedKey:{{value2}}");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
@@ -113,10 +113,10 @@ TEST(ParseAllowListTests,
 }
 
 TEST(ParseAllowListTests, CheckRegexIsProcessedCorrectly) {
-  sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
+  __sycl_internal::__v1::detail::AllowListParsedT ActualValue = __sycl_internal::__v1::detail::parseAllowList(
       "DeviceName:{{regex1}},DriverVersion:{{regex1|regex2}}|PlatformName:{{"
       "regex3}},PlatformVersion:{{regex4|regex5|regex6}}");
-  sycl::detail::AllowListParsedT ExpectedValue{
+  __sycl_internal::__v1::detail::AllowListParsedT ExpectedValue{
       {{"DeviceName", "regex1"}, {"DriverVersion", "regex1|regex2"}},
       {{"PlatformName", "regex3"},
        {"PlatformVersion", "regex4|regex5|regex6"}}};
@@ -125,7 +125,7 @@ TEST(ParseAllowListTests, CheckRegexIsProcessedCorrectly) {
 
 TEST(ParseAllowListTests, CheckMissingOpenDoubleCurlyBracesAreHandled) {
   try {
-    sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
+    __sycl_internal::__v1::detail::AllowListParsedT ActualValue = __sycl_internal::__v1::detail::parseAllowList(
         "DeviceName:regex1}},DriverVersion:{{regex1|regex2}}");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
@@ -141,7 +141,7 @@ TEST(ParseAllowListTests, CheckMissingOpenDoubleCurlyBracesAreHandled) {
 
 TEST(ParseAllowListTests, CheckMissingClosedDoubleCurlyBracesAreHandled) {
   try {
-    sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
+    __sycl_internal::__v1::detail::AllowListParsedT ActualValue = __sycl_internal::__v1::detail::parseAllowList(
         "DeviceName:{{regex1}},DriverVersion:{{regex1|regex2");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
@@ -157,14 +157,14 @@ TEST(ParseAllowListTests, CheckMissingClosedDoubleCurlyBracesAreHandled) {
 
 TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
   std::string AllowList;
-  for (const auto &SyclBe : sycl::detail::SyclBeMap) {
+  for (const auto &SyclBe : __sycl_internal::__v1::detail::SyclBeMap) {
     if (!AllowList.empty())
       AllowList += "|";
     AllowList += "BackendName:" + SyclBe.first;
   }
-  sycl::detail::AllowListParsedT ActualValue =
-      sycl::detail::parseAllowList(AllowList);
-  sycl::detail::AllowListParsedT ExpectedValue{{{"BackendName", "host"}},
+  __sycl_internal::__v1::detail::AllowListParsedT ActualValue =
+      __sycl_internal::__v1::detail::parseAllowList(AllowList);
+  __sycl_internal::__v1::detail::AllowListParsedT ExpectedValue{{{"BackendName", "host"}},
                                                {{"BackendName", "opencl"}},
                                                {{"BackendName", "level_zero"}},
                                                {{"BackendName", "cuda"}},
@@ -174,14 +174,14 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
 
 TEST(ParseAllowListTests, CheckAllValidDeviceTypeValuesAreProcessed) {
   std::string AllowList;
-  for (const auto &SyclDeviceType : sycl::detail::SyclDeviceTypeMap) {
+  for (const auto &SyclDeviceType : __sycl_internal::__v1::detail::SyclDeviceTypeMap) {
     if (!AllowList.empty())
       AllowList += "|";
     AllowList += "DeviceType:" + SyclDeviceType.first;
   }
-  sycl::detail::AllowListParsedT ActualValue =
-      sycl::detail::parseAllowList(AllowList);
-  sycl::detail::AllowListParsedT ExpectedValue{{{"DeviceType", "host"}},
+  __sycl_internal::__v1::detail::AllowListParsedT ActualValue =
+      __sycl_internal::__v1::detail::parseAllowList(AllowList);
+  __sycl_internal::__v1::detail::AllowListParsedT ExpectedValue{{{"DeviceType", "host"}},
                                                {{"DeviceType", "cpu"}},
                                                {{"DeviceType", "gpu"}},
                                                {{"DeviceType", "acc"}},
@@ -191,8 +191,8 @@ TEST(ParseAllowListTests, CheckAllValidDeviceTypeValuesAreProcessed) {
 
 TEST(ParseAllowListTests, CheckIncorrectBackendNameValueIsHandled) {
   try {
-    sycl::detail::AllowListParsedT ActualValue =
-        sycl::detail::parseAllowList("BackendName:blablabla");
+    __sycl_internal::__v1::detail::AllowListParsedT ActualValue =
+        __sycl_internal::__v1::detail::parseAllowList("BackendName:blablabla");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
     EXPECT_EQ(std::string("Value blablabla for key BackendName is not valid in "
@@ -207,8 +207,8 @@ TEST(ParseAllowListTests, CheckIncorrectBackendNameValueIsHandled) {
 
 TEST(ParseAllowListTests, CheckIncorrectDeviceTypeValueIsHandled) {
   try {
-    sycl::detail::AllowListParsedT ActualValue =
-        sycl::detail::parseAllowList("DeviceType:blablabla");
+    __sycl_internal::__v1::detail::AllowListParsedT ActualValue =
+        __sycl_internal::__v1::detail::parseAllowList("DeviceType:blablabla");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
     EXPECT_EQ(std::string("Value blablabla for key DeviceType is not valid in "
@@ -223,8 +223,8 @@ TEST(ParseAllowListTests, CheckIncorrectDeviceTypeValueIsHandled) {
 
 TEST(ParseAllowListTests, CheckIncorrectDeviceVendorIdValueIsHandled) {
   try {
-    sycl::detail::AllowListParsedT ActualValue =
-        sycl::detail::parseAllowList("DeviceVendorId:blablabla");
+    __sycl_internal::__v1::detail::AllowListParsedT ActualValue =
+        __sycl_internal::__v1::detail::parseAllowList("DeviceVendorId:blablabla");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
     EXPECT_EQ(
@@ -240,15 +240,15 @@ TEST(ParseAllowListTests, CheckIncorrectDeviceVendorIdValueIsHandled) {
 }
 
 TEST(ParseAllowListTests, CheckTwoColonsBetweenKeyAndValue) {
-  sycl::detail::AllowListParsedT ActualValue =
-      sycl::detail::parseAllowList("DeviceVendorId::0x1234");
-  sycl::detail::AllowListParsedT ExpectedValue{{{"DeviceVendorId", "0x1234"}}};
+  __sycl_internal::__v1::detail::AllowListParsedT ActualValue =
+      __sycl_internal::__v1::detail::parseAllowList("DeviceVendorId::0x1234");
+  __sycl_internal::__v1::detail::AllowListParsedT ExpectedValue{{{"DeviceVendorId", "0x1234"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 
 TEST(ParseAllowListTests, CheckMultipleColonsBetweenKeyAndValue) {
-  sycl::detail::AllowListParsedT ActualValue =
-      sycl::detail::parseAllowList("DeviceVendorId:::::0x1234");
-  sycl::detail::AllowListParsedT ExpectedValue{{{"DeviceVendorId", "0x1234"}}};
+  __sycl_internal::__v1::detail::AllowListParsedT ActualValue =
+      __sycl_internal::__v1::detail::parseAllowList("DeviceVendorId:::::0x1234");
+  __sycl_internal::__v1::detail::AllowListParsedT ExpectedValue{{{"DeviceVendorId", "0x1234"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }

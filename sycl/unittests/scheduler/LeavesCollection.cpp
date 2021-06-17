@@ -51,11 +51,11 @@ TEST_F(LeavesCollectionTest, PushBack) {
 
   size_t TimesGenericWasFull;
 
-  std::vector<cl::sycl::detail::Command *> ToEnqueue;
+  std::vector<__sycl_internal::__v1::detail::Command *> ToEnqueue;
 
   LeavesCollection::AllocateDependencyF AllocateDependency =
       [&](Command *, Command *, MemObjRecord *,
-          std::vector<cl::sycl::detail::Command *> &) {
+          std::vector<__sycl_internal::__v1::detail::Command *> &) {
         ++TimesGenericWasFull;
       };
 
@@ -117,11 +117,11 @@ TEST_F(LeavesCollectionTest, PushBack) {
 TEST_F(LeavesCollectionTest, Remove) {
   static constexpr size_t GenericCmdsCapacity = 8;
 
-  std::vector<cl::sycl::detail::Command *> ToEnqueue;
+  std::vector<__sycl_internal::__v1::detail::Command *> ToEnqueue;
 
   LeavesCollection::AllocateDependencyF AllocateDependency =
       [](Command *, Command *Old, MemObjRecord *,
-         std::vector<cl::sycl::detail::Command *> &) { --Old->MLeafCounter; };
+         std::vector<__sycl_internal::__v1::detail::Command *> &) { --Old->MLeafCounter; };
 
   {
     sycl::buffer<int, 1> Buf(sycl::range<1>(1));
