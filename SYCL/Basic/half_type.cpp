@@ -192,7 +192,52 @@ inline bool bitwise_comparison_fp32(const half val, const uint32_t exp) {
   return reinterpret_cast<const uint32_t &>(fp32) == exp;
 }
 
+constexpr void constexpr_verify_add() {
+  constexpr half a{5.0}, b{2.0}, ref{7.0};
+  constexpr half result = a + b;
+  constexpr half diff = result - ref;
+  constexpr auto sign = diff < 0 ? -1 : 1;
+  static_assert(sign * static_cast<float>(diff) <
+                    std::numeric_limits<cl::sycl::half>::epsilon(),
+                "Constexpr add is wrong");
+}
+
+constexpr void constexpr_verify_sub() {
+  constexpr half a{5.0f}, b{2.0}, ref{3.0};
+  constexpr half result = a - b;
+  constexpr half diff = result - ref;
+  constexpr auto sign = diff < 0 ? -1 : 1;
+  static_assert(sign * static_cast<float>(diff) <
+                    std::numeric_limits<cl::sycl::half>::epsilon(),
+                "Constexpr sub is wrong");
+}
+
+constexpr void constexpr_verify_mul() {
+  constexpr half a{5.0f}, b{2.0}, ref{10.0};
+  constexpr half result = a * b;
+  constexpr half diff = result - ref;
+  constexpr auto sign = diff < 0 ? -1 : 1;
+  static_assert(sign * static_cast<float>(diff) <
+                    std::numeric_limits<cl::sycl::half>::epsilon(),
+                "Constexpr mul is wrong");
+}
+
+constexpr void constexpr_verify_div() {
+  constexpr half a{5.0f}, b{2.0}, ref{2.5};
+  constexpr half result = a / b;
+  constexpr half diff = result - ref;
+  constexpr auto sign = diff < 0 ? -1 : 1;
+  static_assert(sign * static_cast<float>(diff) <
+                    std::numeric_limits<cl::sycl::half>::epsilon(),
+                "Constexpr div is wrong");
+}
+
 int main() {
+  constexpr_verify_add();
+  constexpr_verify_sub();
+  constexpr_verify_mul();
+  constexpr_verify_div();
+
   device dev{default_selector()};
   if (!dev.is_host() && !dev.has_extension("cl_khr_fp16")) {
     std::cout << "This device doesn't support the extension cl_khr_fp16"
