@@ -1,9 +1,3 @@
-SECTIONS
-{
-  .text :
-   {
-    *(.text.entry)
-    *(.text)
 _ZN2cl10__host_std10SignBitSetENS_4sycl3vecINS1_6detail9half_impl4halfELi16EEE = _ZN15__sycl_internal4__v110__host_std10SignBitSetENS0_3vecINS0_6detail9half_impl4halfELi16EEE;
 _ZN2cl10__host_std10SignBitSetENS_4sycl3vecINS1_6detail9half_impl4halfELi1EEE = _ZN15__sycl_internal4__v110__host_std10SignBitSetENS0_3vecINS0_6detail9half_impl4halfELi1EEE;
 _ZN2cl10__host_std10SignBitSetENS_4sycl3vecINS1_6detail9half_impl4halfELi2EEE = _ZN15__sycl_internal4__v110__host_std10SignBitSetENS0_3vecINS0_6detail9half_impl4halfELi2EEE;
@@ -4252,5 +4246,4 @@ _ZNK2cl4sycl9exception11get_contextEv = _ZNK15__sycl_internal4__v19exception11ge
 _ZNK2cl4sycl9exception11has_contextEv = _ZNK15__sycl_internal4__v19exception11has_contextEv;
 _ZNK2cl4sycl9exception4whatEv = _ZNK15__sycl_internal4__v19exception4whatEv;
 _ZNK2cl4sycl9kernel_id8get_nameEv = _ZNK15__sycl_internal4__v19kernel_id8get_nameEv;
-   }
-}
+

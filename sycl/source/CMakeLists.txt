@@ -51,8 +51,8 @@ function(add_sycl_rt_library LIB_NAME)
                            -fvisibility=hidden -fvisibility-inlines-hidden -ggdb -O0)
     set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
     set(abi_linker_script "${CMAKE_CURRENT_SOURCE_DIR}/abi-replacements.txt")
-    #target_link_libraries(
-    #  ${LIB_NAME} PRIVATE "-Wl,${abi_linker_script}")
+    target_link_libraries(
+      ${LIB_NAME} PRIVATE "-Wl,${abi_linker_script}")
     set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${abi_linker_script})
     target_link_libraries(
         ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
