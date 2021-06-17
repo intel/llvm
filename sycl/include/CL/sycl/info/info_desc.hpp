@@ -141,7 +141,9 @@ enum class device : cl_device_info {
   ext_intel_gpu_eu_count_per_subslice =
       PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
   ext_intel_max_mem_bandwidth = PI_DEVICE_INFO_MAX_MEM_BANDWIDTH,
-  ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL
+  ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL,
+  // currently only implemented for nvidia
+  atomic64 = PI_DEVICE_INFO_ATOMIC_64
 };
 
 enum class device_type : pi_uint64 {

@@ -54,6 +54,22 @@ using IsReduOptForFastAtomicFetch =
 #endif
 
 // This type trait is used to detect if the group algorithm reduce() used with
+// operands of the type T and the operation Plus is available
+// for using in reduction. Note that this type trait is a subset of
+// IsReduOptForFastReduce. The macro SYCL_REDUCTION_DETERMINISTIC prohibits
+// using the reduce() algorithm to produce stable results across same type
+// devices.
+template <typename T, class BinaryOperation>
+using IsReduOptForFastFloatAtomicAdd =
+#ifdef SYCL_REDUCTION_DETERMINISTIC
+    bool_constant<false>;
+#else
+    bool_constant<sycl::detail::IsPlus<T, BinaryOperation>::value &&
+                  sycl::detail::is_sgenfloat<T>::value &&
+                  (sizeof(T) == 4 || sizeof(T) == 8)>;
+#endif
+
+// This type trait is used to detect if the group algorithm reduce() used with
 // operands of the type T and the operation BinaryOperation is available
 // for using in reduction.
 // The macro SYCL_REDUCTION_DETERMINISTIC prohibits using the reduce() algorithm
@@ -288,6 +304,18 @@ public:
         .fetch_max(MValue);
   }
 
+  /// Atomic ADD operation: for floating point using atomic_ref
+  template <typename _T = T, class _BinaryOperation = BinaryOperation>
+  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+              IsReduOptForFastFloatAtomicAdd<T, _BinaryOperation>::value>
+  atomic_combine(_T *ReduVarPtr) const {
+
+    atomic_ref<T, sycl::ONEAPI::memory_order::relaxed,
+               sycl::ONEAPI::memory_scope::device,
+               access::address_space::global_space>(
+        *global_ptr<T>(ReduVarPtr)) += MValue;
+  }
+
   T MValue;
 };
 
@@ -330,6 +358,8 @@ public:
   using local_accessor_type =
       accessor<T, buffer_dim, access::mode::read_write, access::target::local>;
 
+  static constexpr bool has_atomic_add_float =
+      IsReduOptForFastFloatAtomicAdd<T, BinaryOperation>::value;
   static constexpr bool has_fast_atomics =
       IsReduOptForFastAtomicFetch<T, BinaryOperation>::value;
   static constexpr bool has_fast_reduce =
@@ -636,8 +666,9 @@ public:
   /// require initialization with identity value, then return user's read-write
   /// accessor. Otherwise, create 1-element global buffer initialized with
   /// identity value and return an accessor to that buffer.
+
   template <bool HasFastAtomics = has_fast_atomics>
-  std::enable_if_t<HasFastAtomics, rw_accessor_type>
+  std::enable_if_t<HasFastAtomics || has_atomic_add_float, rw_accessor_type>
   getReadWriteAccessorToInitializedMem(handler &CGH) {
     if (!is_usm && !initializeToIdentity())
       return *MRWAcc;
@@ -1465,6 +1496,42 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
       reduCGFuncImpl<KernelName, false, false>(CGH, KernelFunc, Range,
                                                ReduTuple, ReduIndices);
   }
+}
+
+// Specialization for devices with the atomic64 aspect, which guarantees 64 (and
+// 32) bit floating point support for atomic add.
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+std::enable_if_t<Reduction::has_atomic_add_float>
+reduCGFuncImplAtomic64(handler &CGH, KernelType KernelFunc,
+                       const nd_range<Dims> &Range, Reduction &,
+                       typename Reduction::rw_accessor_type Out) {
+  using Name = typename get_reduction_main_kernel_name_t<
+      KernelName, KernelType, Reduction::is_usm,
+      Reduction::has_atomic_add_float,
+      typename Reduction::rw_accessor_type>::name;
+  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+    // Call user's function. Reducer.MValue gets initialized there.
+    typename Reduction::reducer_type Reducer;
+    KernelFunc(NDIt, Reducer);
+
+    typename Reduction::binary_operation BOp;
+    Reducer.MValue = reduce_over_group(NDIt.get_group(), Reducer.MValue, BOp);
+    if (NDIt.get_local_linear_id() == 0) {
+      Reducer.atomic_combine(Reduction::getOutPointer(Out));
+    }
+  });
+}
+
+// Specialization for devices with the atomic64 aspect, which guarantees 64 (and
+// 32) bit floating point support for atomic add.
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<Reduction::has_atomic_add_float>
+reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
+                   const nd_range<Dims> &Range, Reduction &Redu) {
+
+  auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
+  reduCGFuncImplAtomic64<KernelName, KernelType, Dims, Reduction>(
+      CGH, KernelFunc, Range, Redu, Out);
 }
 
 inline void associateReduAccsWithHandlerHelper(handler &) {}

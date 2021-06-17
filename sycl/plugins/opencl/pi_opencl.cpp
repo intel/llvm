@@ -176,6 +176,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
+  case PI_DEVICE_INFO_ATOMIC_64:
     return PI_INVALID_VALUE;
 
   default:

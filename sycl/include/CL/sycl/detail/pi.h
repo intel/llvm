@@ -285,7 +285,9 @@ typedef enum {
   PI_DEVICE_INFO_GPU_SLICES = 0x10023,
   PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 0x10024,
   PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 0x10025,
-  PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026
+  PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026,
+  // These are extensions that are currently only implemented for nvidia.
+  PI_DEVICE_INFO_ATOMIC_64 = 0x10110
 } _pi_device_info;
 
 typedef enum {

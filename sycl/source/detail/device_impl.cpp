@@ -239,6 +239,8 @@ bool device_impl::has(aspect Aspect) const {
     return has_extension("cl_khr_int64_base_atomics");
   case aspect::int64_extended_atomics:
     return has_extension("cl_khr_int64_extended_atomics");
+  case aspect::atomic64:
+    return get_info<info::device::atomic64>();
   case aspect::image:
     return get_info<info::device::image_support>();
   case aspect::online_compiler:

@@ -233,6 +233,28 @@ template <> struct get_device_info<bool, info::device::queue_profiling> {
   }
 };
 
+// Specialization for atomic64 that is necessary because
+// PI_DEVICE_INFO_ATOMIC_64 isn't implemented for backend other than cuda.
+// TODO the if-statement can be removed when the other backends support
+// PI_DEVICE_INFO_ATOMIC_64.
+template <> struct get_device_info<bool, info::device::atomic64> {
+  static bool get(RT::PiDevice dev, const plugin &Plugin) {
+
+    bool result = false;
+
+    platform plt =
+        get_device_info<platform, info::device::platform>::get(dev, Plugin);
+
+    if (plt.get_backend() == backend::cuda) {
+      Plugin.call<PiApiKind::piDeviceGetInfo>(
+          dev, pi::cast<RT::PiDeviceInfo>(info::device::atomic64),
+          sizeof(result), &result, nullptr);
+    }
+
+    return (result);
+  }
+};
+
 // Specialization for exec_capabilities, OpenCL returns a bitfield
 template <>
 struct get_device_info<vector_class<info::execution_capability>,
@@ -611,6 +633,10 @@ inline cl_ulong get_device_info_host<info::device::max_mem_alloc_size>() {
 
 template <> inline bool get_device_info_host<info::device::image_support>() {
   return true;
+}
+
+template <> inline bool get_device_info_host<info::device::atomic64>() {
+  return false;
 }
 
 template <>
