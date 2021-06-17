@@ -45,25 +45,22 @@ public:
   /// The number of elements in this simd object.
   static constexpr int length = N;
 
-  // TODO @rolandschulz
-  // Provide examples why constexpr is needed here.
-  //
   /// @{
   /// Constructors.
-  constexpr simd() = default;
-  template <typename SrcTy> constexpr simd(const simd<SrcTy, N> &other) {
+  simd() = default;
+  template <typename SrcTy> simd(const simd<SrcTy, N> &other) {
     if constexpr (std::is_same<SrcTy, Ty>::value)
       set(other.data());
     else
       set(__builtin_convertvector(other.data(), detail::vector_type_t<Ty, N>));
   }
-  template <typename SrcTy> constexpr simd(simd<SrcTy, N> &&other) {
+  template <typename SrcTy> simd(simd<SrcTy, N> &&other) {
     if constexpr (std::is_same<SrcTy, Ty>::value)
       set(other.data());
     else
       set(__builtin_convertvector(other.data(), detail::vector_type_t<Ty, N>));
   }
-  constexpr simd(const vector_type &Val) { set(Val); }
+  simd(const vector_type &Val) { set(Val); }
 
   // TODO @rolandschulz
   // {quote}
@@ -84,7 +81,7 @@ public:
   // thought through seems to have only downsides.
   // {/quote}
 
-  constexpr simd(std::initializer_list<Ty> Ilist) noexcept {
+  simd(std::initializer_list<Ty> Ilist) noexcept {
     int i = 0;
     for (auto It = Ilist.begin(); It != Ilist.end() && i < N; ++It) {
       M_data[i++] = *It;
@@ -92,7 +89,7 @@ public:
   }
 
   /// Initialize a simd with an initial value and step.
-  constexpr simd(Ty Val, Ty Step = Ty()) noexcept {
+  simd(Ty Val, Ty Step = Ty()) noexcept {
     if (Step == Ty())
       M_data = Val;
     else {
