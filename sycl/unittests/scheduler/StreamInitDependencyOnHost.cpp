@@ -128,7 +128,8 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   initStream(Streams[0], HQueueImpl);
 
   MockScheduler MS;
-  detail::Command *NewCmd = MS.addCG(std::move(MainCG), HQueueImpl);
+  std::vector<detail::Command *> AuxCmds;
+  detail::Command *NewCmd = MS.addCG(std::move(MainCG), HQueueImpl, AuxCmds);
   ASSERT_TRUE(!!NewCmd) << "Failed to add command group into scheduler";
   ASSERT_GT(NewCmd->MDeps.size(), 0u)
       << "No deps appeared in the new exec kernel command";

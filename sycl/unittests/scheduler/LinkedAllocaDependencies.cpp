@@ -68,7 +68,8 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
       /*PropList=*/{}));
 
   auto AllocaDep = [](__sycl_internal::__v1::detail::Command *, __sycl_internal::__v1::detail::Command *,
-                      __sycl_internal::__v1::detail::MemObjRecord *) {};
+                      __sycl_internal::__v1::detail::MemObjRecord *,
+                      std::vector<cl::sycl::detail::Command *> &) {};
 
   std::shared_ptr<__sycl_internal::__v1::detail::MemObjRecord> Record{
       new __sycl_internal::__v1::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(),
@@ -84,11 +85,12 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   MockCommand DepDepCmd(DefaultHostQueue, Req);
   DepCmd.MDeps.push_back({&DepDepCmd, DepDepCmd.getRequirement(), &AllocaCmd1});
   DepDepCmd.MUsers.insert(&DepCmd);
-  Record->MWriteLeaves.push_back(&DepCmd);
+  std::vector<cl::sycl::detail::Command *> ToEnqueue;
+  Record->MWriteLeaves.push_back(&DepCmd, ToEnqueue);
 
   MockScheduler MS;
   __sycl_internal::__v1::detail::Command *AllocaCmd2 =
-      MS.getOrCreateAllocaForReq(Record.get(), &Req, Q1);
+      MS.getOrCreateAllocaForReq(Record.get(), &Req, Q1, ToEnqueue);
 
   ASSERT_TRUE(!!AllocaCmd1.MLinkedAllocaCmd)
       << "No link appeared in existing command";

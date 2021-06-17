@@ -2526,14 +2526,14 @@ of the kernel the attribute is applied to.
   // argument to the attribute is the one which increments fastest.
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(7, 4, 64)]]
+    [[sycl::reqd_work_group_size(7, 4, 64)]]
     void operator()() const {}
   };
 
   // Note, '8' is evenly divisible by '8'; in SYCL, the last
   // argument to the attribute is the one which increments fastest.
   struct bar {
-    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[sycl::reqd_work_group_size(1, 1, 8)]]
     [[intel::num_simd_work_items(8)]]
     void operator()() const {}
   };
@@ -2659,6 +2659,10 @@ As an Intel extension, the ``[[intel::reqd_work_group_size(X, Y, Z)]]``
 spelling is supported with the same semantics as the
 ``[[sycl::reqd_work_group_size(X, Y, Z)]]`` spelling.
 
+The ``[[intel::reqd_work_group_size(X, Y, Z)]]`` attribute spelling
+is deprecated in favor of the SYCL 2020 attribute spelling
+``[[sycl::reqd_work_group_size]]``.
+
 In OpenCL C, this attribute is available with the GNU spelling
 (``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
 6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification for details.
@@ -2714,14 +2718,14 @@ in the ``reqd_work_group_size`` attribute.
   // argument to the attribute is the one which increments fastest.
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(7, 4, 64)]]
+    [[sycl::reqd_work_group_size(7, 4, 64)]]
     void operator()() const {}
   };
 
   // Note, '8' is evenly divisible by '8'; in SYCL, the last
   // argument to the attribute is the one which increments fastest.
   struct bar {
-    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[sycl::reqd_work_group_size(1, 1, 8)]]
     [[intel::num_simd_work_items(8)]]
     void operator()() const {}
   };

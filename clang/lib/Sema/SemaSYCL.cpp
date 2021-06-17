@@ -211,7 +211,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
   // ensure that the AST node will have a dependent type that gets resolved
   // later to the real type.
   QualType FieldTy = SourceTy;
-  ExprValueKind ValueKind = VK_RValue;
+  ExprValueKind ValueKind = VK_PRValue;
   if (!SourceTy->isDependentType()) {
     if (RequireCompleteType(Loc, SourceTy,
                             diag::err_sycl_type_trait_requires_complete_type,
@@ -243,7 +243,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
         if (Index >= NumFields) {
           Diag(Idx->getExprLoc(),
                diag::err_sycl_builtin_type_trait_index_out_of_range)
-              << IdxVal->toString(10) << SourceTy << /*fields*/ 0;
+              << toString(*IdxVal, 10) << SourceTy << /*fields*/ 0;
           return ExprError();
         }
         const FieldDecl *FD = *std::next(RD->field_begin(), Index);
@@ -345,7 +345,7 @@ ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
         if (Index >= RD->getNumBases()) {
           Diag(Idx->getExprLoc(),
                diag::err_sycl_builtin_type_trait_index_out_of_range)
-              << IdxVal->toString(10) << SourceTy << /*bases*/ 1;
+              << toString(*IdxVal, 10) << SourceTy << /*bases*/ 1;
           return ExprError();
         }
 
@@ -2746,13 +2746,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     DRE = ImplicitCastExpr::Create(SemaRef.Context, ParamType,
                                    CK_LValueToRValue, DRE, /*BasePath=*/nullptr,
-                                   VK_RValue, FPOptionsOverride());
+                                   VK_PRValue, FPOptionsOverride());
 
     if (PointerTy->getPointeeType().getAddressSpace() !=
         ParamType->getPointeeType().getAddressSpace())
       DRE = ImplicitCastExpr::Create(SemaRef.Context, PointerTy,
                                      CK_AddressSpaceConversion, DRE, nullptr,
-                                     VK_RValue, FPOptionsOverride());
+                                     VK_PRValue, FPOptionsOverride());
 
     return DRE;
   }

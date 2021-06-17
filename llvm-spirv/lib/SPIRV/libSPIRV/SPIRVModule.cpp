@@ -1424,8 +1424,9 @@ SPIRVInstruction *SPIRVModuleImpl::addSelectInst(SPIRVValue *Condition,
                                                  SPIRVValue *Op1,
                                                  SPIRVValue *Op2,
                                                  SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVSelect(getId(), Condition->getId(),
-                                        Op1->getId(), Op2->getId(), BB),
+  return addInstruction(new SPIRVSelect(getId(), Op1->getType(),
+                                        Condition->getId(), Op1->getId(),
+                                        Op2->getId(), BB, this),
                         BB);
 }
 

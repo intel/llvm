@@ -10,7 +10,8 @@
 
 void addEdge(__sycl_internal::__v1::detail::Command *User, __sycl_internal::__v1::detail::Command *Dep,
              __sycl_internal::__v1::detail::AllocaCommandBase *Alloca) {
-  User->addDep(__sycl_internal::__v1::detail::DepDesc{Dep, User->getRequirement(), Alloca});
+  (void)User->addDep(
+      __sycl_internal::__v1::detail::DepDesc{Dep, User->getRequirement(), Alloca});
   Dep->addUser(User);
 }
 

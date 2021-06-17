@@ -22,6 +22,14 @@
 
 __sycl_internal::__v1::detail::Requirement getMockRequirement();
 
+namespace __sycl_internal {
+inline namespace __v1 {
+namespace detail {
+class Command;
+} // namespace detail
+} // namespace __v1
+} // namespace __sycl_internal
+
 class MockCommand : public __sycl_internal::__v1::detail::Command {
 public:
   MockCommand(__sycl_internal::__v1::detail::QueueImplPtr Queue,
@@ -90,9 +98,10 @@ protected:
 class MockScheduler : public __sycl_internal::__v1::detail::Scheduler {
 public:
   __sycl_internal::__v1::detail::MemObjRecord *
-  getOrInsertMemObjRecord(const __sycl_internal::__v1::detail::QueueImplPtr &Queue,
-                          __sycl_internal::__v1::detail::Requirement *Req) {
-    return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req);
+  getOrInsertMemObjRecord(const cl::sycl::detail::QueueImplPtr &Queue,
+                          cl::sycl::detail::Requirement *Req,
+                          std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
   }
 
   void removeRecordForMemObj(__sycl_internal::__v1::detail::SYCLMemObjI *MemObj) {
@@ -105,10 +114,11 @@ public:
     MGraphBuilder.cleanupCommandsForRecord(Rec, StreamsToDeallocate);
   }
 
-  void addNodeToLeaves(
-      __sycl_internal::__v1::detail::MemObjRecord *Rec, __sycl_internal::__v1::detail::Command *Cmd,
-      sycl::access::mode Mode = sycl::access::mode::read_write) {
-    return MGraphBuilder.addNodeToLeaves(Rec, Cmd, Mode);
+  void addNodeToLeaves(__sycl_internal::__v1::detail::MemObjRecord *Rec,
+                       __sycl_internal::__v1::detail::Command *Cmd,
+                       __sycl_internal::__v1::access::mode Mode,
+                       std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.addNodeToLeaves(Rec, Cmd, Mode, ToEnqueue);
   }
 
   static bool enqueueCommand(__sycl_internal::__v1::detail::Command *Cmd,
@@ -120,21 +130,26 @@ public:
   __sycl_internal::__v1::detail::AllocaCommandBase *
   getOrCreateAllocaForReq(__sycl_internal::__v1::detail::MemObjRecord *Record,
                           const __sycl_internal::__v1::detail::Requirement *Req,
-                          __sycl_internal::__v1::detail::QueueImplPtr Queue) {
-    return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue);
+                          __sycl_internal::__v1::detail::QueueImplPtr Queue,
+                          std::vector<__sycl_internal::__v1::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   }
 
-  __sycl_internal::__v1::detail::Command *
+  ReadLockT acquireGraphReadLock() { return ReadLockT{MGraphLock}; }
+
+  cl::sycl::detail::Command *
   insertMemoryMove(__sycl_internal::__v1::detail::MemObjRecord *Record,
                    __sycl_internal::__v1::detail::Requirement *Req,
-                   const __sycl_internal::__v1::detail::QueueImplPtr &Queue) {
-    return MGraphBuilder.insertMemoryMove(Record, Req, Queue);
+                   const __sycl_internal::__v1::detail::QueueImplPtr &Queue,
+                   std::vector<__sycl_internal::__v1::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.insertMemoryMove(Record, Req, Queue, ToEnqueue);
   }
 
   __sycl_internal::__v1::detail::Command *
   addCG(std::unique_ptr<__sycl_internal::__v1::detail::CG> CommandGroup,
-        __sycl_internal::__v1::detail::QueueImplPtr Queue) {
-    return MGraphBuilder.addCG(std::move(CommandGroup), Queue);
+        __sycl_internal::__v1::detail::QueueImplPtr Queue,
+        std::vector<__sycl_internal::__v1::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue);
   }
 };
 
