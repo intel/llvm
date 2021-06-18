@@ -74,7 +74,7 @@ using exception_ptr_class
     __SYCL2020_DEPRECATED("use STL classes directly") = std::exception_ptr;
 
 template <typename T, typename... ArgsT>
-std::unique_ptr<T> make_unique_ptr(ArgsT &&...Args) {
+std::unique_ptr<T> make_unique_ptr(ArgsT &&... Args) {
   return std::unique_ptr<T>(new T(std::forward<ArgsT>(Args)...));
 }
 
