@@ -583,7 +583,7 @@ private:
         IsCopyingRectRegionAvailable(Src.get_range(), Dst.get_range()))
       return false;
 
-    range<1> LinearizedRange(Src.get_count());
+    range<1> LinearizedRange(Src.size());
     parallel_for<class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc,
                                      TDst, DimDst, ModeDst, TargetDst,
                                      IsPHSrc, IsPHDst>>
@@ -885,6 +885,8 @@ private:
 #endif
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc();
+#else
+    (void)KernelFunc;
 #endif
   }
 
@@ -899,6 +901,9 @@ private:
 #endif
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(KH);
+#else
+    (void)KernelFunc;
+    (void)KH;
 #endif
   }
 
@@ -913,6 +918,8 @@ private:
 #endif
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+#else
+    (void)KernelFunc;
 #endif
   }
 
@@ -927,6 +934,9 @@ private:
 #endif
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
+#else
+    (void)KernelFunc;
+    (void)KH;
 #endif
   }
 
@@ -941,6 +951,8 @@ private:
 #endif
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+#else
+    (void)KernelFunc;
 #endif
   }
 
@@ -956,6 +968,9 @@ private:
 #endif
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
+#else
+    (void)KernelFunc;
+    (void)KH;
 #endif
   }
 

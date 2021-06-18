@@ -1959,7 +1959,6 @@ void TCParser::printODS(llvm::raw_ostream &os, StringRef cppOpName,
         return ::parseNamedStructuredOp<{0}>(parser, result/*TODO:, captures*/);
       }];
       let hasFolder = 1;
-      let hasCanonicalizer = 1;
 
       let extraClassDeclaration = structuredOpsBaseDecls # [{{
         // Auto-generated.
@@ -2094,23 +2093,19 @@ void TCParser::printReferenceIterators(llvm::raw_ostream &os,
 
 void TCParser::printCanonicalizersAndFolders(llvm::raw_ostream &os,
                                              StringRef cppOpName) {
-  const char *canonicalizersAndFoldersFmt = R"FMT(
-    void {0}::getCanonicalizationPatterns(
-        RewritePatternSet &results,
-        MLIRContext *context) {{
-      results.add<EraseDeadLinalgOp>(context);
-      results.add<FoldTensorCastOp>(context);
-    }
+  const char *foldersFmt = R"FMT(
     LogicalResult {0}::fold(ArrayRef<Attribute>,
                             SmallVectorImpl<OpFoldResult> &) {{
       return foldMemRefCast(*this);
     }
     void {0}::getEffects(SmallVectorImpl<
         SideEffects::EffectInstance<MemoryEffects::Effect> >&effects) {{
+      SmallVector<Value> inputBuffers = getInputBufferOperands();
+      SmallVector<Value> outputBuffers = getOutputBufferOperands();
       getGenericEffectsImpl(effects,
-        getOperation()->getResults(), getInputBuffers(), getOutputBuffers());
+        getOperation()->getResults(), inputBuffers, outputBuffers);
     })FMT";
-  os << llvm::formatv(canonicalizersAndFoldersFmt, cppOpName);
+  os << llvm::formatv(foldersFmt, cppOpName);
 }
 
 // Prints methods for querying whether the current named op has attributes that

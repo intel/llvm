@@ -3148,6 +3148,7 @@ CXXNameMangler::mangleExtParameterInfo(FunctionProtoType::ExtParameterInfo PI) {
 
   // All of these start with "swift", so they come before "ns_consumed".
   case ParameterABI::SwiftContext:
+  case ParameterABI::SwiftAsyncContext:
   case ParameterABI::SwiftErrorResult:
   case ParameterABI::SwiftIndirectResult:
     mangleVendorQualifier(getParameterABISpelling(PI.getABI()));
@@ -4224,6 +4225,10 @@ recurse:
   case Expr::AtomicExprClass:
   case Expr::SourceLocExprClass:
   case Expr::BuiltinBitCastExprClass:
+  case Expr::SYCLBuiltinNumFieldsExprClass:
+  case Expr::SYCLBuiltinFieldTypeExprClass:
+  case Expr::SYCLBuiltinNumBasesExprClass:
+  case Expr::SYCLBuiltinBaseTypeExprClass:
   {
     NotPrimaryExpr();
     if (!NullOut) {
@@ -5048,6 +5053,15 @@ recurse:
     Out << "u33__builtin_sycl_unique_stable_name";
     mangleType(USN->getTypeSourceInfo()->getType());
 
+    Out << "E";
+    break;
+  }
+  case Expr::SYCLUniqueStableIdExprClass: {
+    const auto *USID = cast<SYCLUniqueStableIdExpr>(E);
+    NotPrimaryExpr();
+
+    Out << "cl31__builtin_sycl_unique_stable_id";
+    mangleExpression(USID->getExpr());
     Out << "E";
     break;
   }

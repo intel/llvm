@@ -479,9 +479,14 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
     return mapType(T, Type::getIntNTy(*Context, T->getIntegerBitWidth()));
   case OpTypeFloat:
     return mapType(T, transFPType(T));
-  case OpTypeArray:
+  case OpTypeArray: {
+    // The length might be an OpSpecConstantOp, that needs to be specialized
+    // and evaluated before the LLVM ArrayType can be constructed.
+    auto *LenExpr = static_cast<const SPIRVTypeArray *>(T)->getLength();
+    auto *LenValue = cast<ConstantInt>(transValue(LenExpr, nullptr, nullptr));
     return mapType(T, ArrayType::get(transType(T->getArrayElementType()),
-                                     T->getArrayLength()));
+                                     LenValue->getZExtValue()));
+  }
   case internal::OpTypeTokenINTEL:
     return mapType(T, Type::getTokenTy(*Context));
   case OpTypePointer:
@@ -1155,42 +1160,52 @@ static void applyFPFastMathModeDecorations(const SPIRVValue *BV,
   }
 }
 
-BinaryOperator *SPIRVToLLVM::transShiftLogicalBitwiseInst(SPIRVValue *BV,
-                                                          BasicBlock *BB,
-                                                          Function *F) {
+Value *SPIRVToLLVM::transShiftLogicalBitwiseInst(SPIRVValue *BV, BasicBlock *BB,
+                                                 Function *F) {
   SPIRVBinary *BBN = static_cast<SPIRVBinary *>(BV);
-  assert(BB && "Invalid BB");
   Instruction::BinaryOps BO;
   auto OP = BBN->getOpCode();
   if (isLogicalOpCode(OP))
     OP = IntBoolOpMap::rmap(OP);
   BO = static_cast<Instruction::BinaryOps>(OpCodeMap::rmap(OP));
-  auto Inst = BinaryOperator::Create(BO, transValue(BBN->getOperand(0), F, BB),
-                                     transValue(BBN->getOperand(1), F, BB),
-                                     BV->getName(), BB);
-  applyNoIntegerWrapDecorations(BV, Inst);
-  applyFPFastMathModeDecorations(BV, Inst);
-  return Inst;
+
+  Value *Op0 = transValue(BBN->getOperand(0), F, BB);
+  Value *Op1 = transValue(BBN->getOperand(1), F, BB);
+
+  IRBuilder<> Builder(*Context);
+  if (BB) {
+    Builder.SetInsertPoint(BB);
+  }
+
+  Value *NewOp = Builder.CreateBinOp(BO, Op0, Op1, BV->getName());
+  if (auto *Inst = dyn_cast<Instruction>(NewOp)) {
+    applyNoIntegerWrapDecorations(BV, Inst);
+    applyFPFastMathModeDecorations(BV, Inst);
+  }
+  return NewOp;
 }
 
-Instruction *SPIRVToLLVM::transCmpInst(SPIRVValue *BV, BasicBlock *BB,
-                                       Function *F) {
+Value *SPIRVToLLVM::transCmpInst(SPIRVValue *BV, BasicBlock *BB, Function *F) {
   SPIRVCompare *BC = static_cast<SPIRVCompare *>(BV);
-  assert(BB && "Invalid BB");
   SPIRVType *BT = BC->getOperand(0)->getType();
-  Instruction *Inst = nullptr;
+  Value *Inst = nullptr;
   auto OP = BC->getOpCode();
   if (isLogicalOpCode(OP))
     OP = IntBoolOpMap::rmap(OP);
+
+  Value *Op0 = transValue(BC->getOperand(0), F, BB);
+  Value *Op1 = transValue(BC->getOperand(1), F, BB);
+
+  IRBuilder<> Builder(*Context);
+  if (BB) {
+    Builder.SetInsertPoint(BB);
+  }
+
   if (BT->isTypeVectorOrScalarInt() || BT->isTypeVectorOrScalarBool() ||
       BT->isTypePointer())
-    Inst = new ICmpInst(*BB, CmpMap::rmap(OP),
-                        transValue(BC->getOperand(0), F, BB),
-                        transValue(BC->getOperand(1), F, BB));
+    Inst = Builder.CreateICmp(CmpMap::rmap(OP), Op0, Op1);
   else if (BT->isTypeVectorOrScalarFloat())
-    Inst = new FCmpInst(*BB, CmpMap::rmap(OP),
-                        transValue(BC->getOperand(0), F, BB),
-                        transValue(BC->getOperand(1), F, BB));
+    Inst = Builder.CreateFCmp(CmpMap::rmap(OP), Op0, Op1);
   assert(Inst && "not implemented");
   return Inst;
 }
@@ -1947,11 +1962,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpSelect: {
     SPIRVSelect *BS = static_cast<SPIRVSelect *>(BV);
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     return mapValue(BV,
-                    SelectInst::Create(transValue(BS->getCondition(), F, BB),
-                                       transValue(BS->getTrueValue(), F, BB),
-                                       transValue(BS->getFalseValue(), F, BB),
-                                       BV->getName(), BB));
+                    Builder.CreateSelect(transValue(BS->getCondition(), F, BB),
+                                         transValue(BS->getTrueValue(), F, BB),
+                                         transValue(BS->getFalseValue(), F, BB),
+                                         BV->getName()));
   }
 
   case OpVmeImageINTEL:
@@ -2432,10 +2451,16 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   }
 
   case OpSNegate: {
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
-    auto Neg = BinaryOperator::CreateNeg(transValue(BC->getOperand(0), F, BB),
-                                         BV->getName(), BB);
-    applyNoIntegerWrapDecorations(BV, Neg);
+    auto Neg =
+        Builder.CreateNeg(transValue(BC->getOperand(0), F, BB), BV->getName());
+    if (auto *NegInst = dyn_cast<Instruction>(Neg)) {
+      applyNoIntegerWrapDecorations(BV, NegInst);
+    }
     return mapValue(BV, Neg);
   }
 
@@ -2447,8 +2472,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     //   result = needs_fixing ? r + b : c
     IRBuilder<> Builder(BB);
     SPIRVFMod *FMod = static_cast<SPIRVFMod *>(BV);
-    auto Dividend = transValue(FMod->getDividend(), F, BB);
-    auto Divisor = transValue(FMod->getDivisor(), F, BB);
+    auto Dividend = transValue(FMod->getOperand(0), F, BB);
+    auto Divisor = transValue(FMod->getOperand(1), F, BB);
     auto FRem = Builder.CreateFRem(Dividend, Divisor, "frem.res");
     auto CopySign = Builder.CreateBinaryIntrinsic(
         llvm::Intrinsic::copysign, FRem, Divisor, nullptr, "copysign.res");
@@ -2463,10 +2488,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     //   r = srem(a, b)
     //   needs_fixing = ((a < 0) != (b < 0) && r != 0)
     //   result = needs_fixing ? r + b : r
-    IRBuilder<> Builder(BB);
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     SPIRVSMod *SMod = static_cast<SPIRVSMod *>(BV);
-    auto Dividend = transValue(SMod->getDividend(), F, BB);
-    auto Divisor = transValue(SMod->getDivisor(), F, BB);
+    auto Dividend = transValue(SMod->getOperand(0), F, BB);
+    auto Divisor = transValue(SMod->getOperand(1), F, BB);
     auto SRem = Builder.CreateSRem(Dividend, Divisor, "srem.res");
     auto Xor = Builder.CreateXor(Dividend, Divisor, "xor.res");
     auto Zero = ConstantInt::getNullValue(Dividend->getType());
@@ -2488,10 +2516,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpNot:
   case OpLogicalNot: {
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
-    return mapValue(
-        BV, BinaryOperator::CreateNot(transValue(BC->getOperand(0), F, BB),
-                                      BV->getName(), BB));
+    return mapValue(BV, Builder.CreateNot(transValue(BC->getOperand(0), F, BB),
+                                          BV->getName()));
   }
 
   case OpAll:
@@ -3957,10 +3988,10 @@ bool SPIRVToLLVM::transMetadata() {
     transVectorComputeMetadata(BF);
     transFPGAFunctionMetadata(BF, F);
 
-    if (BF->hasDecorate(DecorationCallableFunctionINTEL))
+    if (BF->hasDecorate(internal::DecorationCallableFunctionINTEL))
       F->addFnAttr(kVCMetadata::VCCallable);
     if (isKernel(BF) &&
-        BF->getExecutionMode(ExecutionModeFastCompositeKernelINTEL))
+        BF->getExecutionMode(internal::ExecutionModeFastCompositeKernelINTEL))
       F->addFnAttr(kVCMetadata::VCFCEntry);
 
     if (F->getCallingConv() != CallingConv::SPIR_KERNEL)
@@ -4286,6 +4317,20 @@ bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
     MetadataVec.push_back(ConstantAsMetadata::get(getUInt32(M, Literals[0])));
     MetadataVec.push_back(ConstantAsMetadata::get(getUInt32(M, Literals[1])));
     F->setMetadata(kSPIR2MD::LoopFuse, MDNode::get(*Context, MetadataVec));
+  }
+  if (BF->hasDecorate(internal::DecorationMathOpDSPModeINTEL)) {
+    std::vector<SPIRVWord> Literals =
+        BF->getDecorationLiterals(internal::DecorationMathOpDSPModeINTEL);
+    assert(Literals.size() == 2 &&
+           "MathOpDSPModeINTEL decoration shall have 2 literals");
+    F->setMetadata(kSPIR2MD::PreferDSP,
+                   MDNode::get(*Context, ConstantAsMetadata::get(
+                                             getUInt32(M, Literals[0]))));
+    if (Literals[1] != 0) {
+      F->setMetadata(kSPIR2MD::PropDSPPref,
+                     MDNode::get(*Context, ConstantAsMetadata::get(
+                                               getUInt32(M, Literals[1]))));
+    }
   }
   if (BF->hasDecorate(internal::DecorationInitiationIntervalINTEL)) {
     std::vector<Metadata *> MetadataVec;

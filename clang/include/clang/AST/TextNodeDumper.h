@@ -250,6 +250,7 @@ public:
   void VisitImplicitCastExpr(const ImplicitCastExpr *Node);
   void VisitDeclRefExpr(const DeclRefExpr *Node);
   void VisitSYCLUniqueStableNameExpr(const SYCLUniqueStableNameExpr *Node);
+  void VisitSYCLUniqueStableIdExpr(const SYCLUniqueStableIdExpr *Node);
   void VisitPredefinedExpr(const PredefinedExpr *Node);
   void VisitCharacterLiteral(const CharacterLiteral *Node);
   void VisitIntegerLiteral(const IntegerLiteral *Node);
@@ -351,6 +352,7 @@ public:
   void VisitUsingDecl(const UsingDecl *D);
   void VisitUnresolvedUsingTypenameDecl(const UnresolvedUsingTypenameDecl *D);
   void VisitUnresolvedUsingValueDecl(const UnresolvedUsingValueDecl *D);
+  void VisitUsingEnumDecl(const UsingEnumDecl *D);
   void VisitUsingShadowDecl(const UsingShadowDecl *D);
   void VisitConstructorUsingShadowDecl(const ConstructorUsingShadowDecl *D);
   void VisitLinkageSpecDecl(const LinkageSpecDecl *D);

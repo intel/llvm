@@ -626,6 +626,20 @@ public:
     setSubclassData<FailureOrderingField>(Ordering);
   }
 
+  /// Returns a single ordering which is at least as strong as both the
+  /// success and failure orderings for this cmpxchg.
+  AtomicOrdering getMergedOrdering() const {
+    if (getFailureOrdering() == AtomicOrdering::SequentiallyConsistent)
+      return AtomicOrdering::SequentiallyConsistent;
+    if (getFailureOrdering() == AtomicOrdering::Acquire) {
+      if (getSuccessOrdering() == AtomicOrdering::Monotonic)
+        return AtomicOrdering::Acquire;
+      if (getSuccessOrdering() == AtomicOrdering::Release)
+        return AtomicOrdering::AcquireRelease;
+    }
+    return getSuccessOrdering();
+  }
+
   /// Returns the synchronization scope ID of this cmpxchg instruction.
   SyncScope::ID getSyncScopeID() const {
     return SSID;
@@ -1017,8 +1031,8 @@ public:
   void setResultElementType(Type *Ty) { ResultElementType = Ty; }
 
   Type *getResultElementType() const {
-    assert(ResultElementType ==
-           cast<PointerType>(getType()->getScalarType())->getElementType());
+    assert(cast<PointerType>(getType()->getScalarType())
+               ->isOpaqueOrPointeeTypeMatches(ResultElementType));
     return ResultElementType;
   }
 
@@ -1134,9 +1148,7 @@ public:
   /// must be at least as wide as the IntPtr type for the address space of
   /// the base GEP pointer.
   bool accumulateConstantOffset(const DataLayout &DL, APInt &Offset) const;
-  bool collectOffset(const DataLayout &DL, unsigned BitWidth,
-                     SmallDenseMap<Value *, APInt, 8> &VariableOffsets,
-                     APInt &ConstantOffset) const;
+
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::GetElementPtr);
@@ -1160,8 +1172,8 @@ GetElementPtrInst::GetElementPtrInst(Type *PointeeType, Value *Ptr,
                   Values, InsertBefore),
       SourceElementType(PointeeType),
       ResultElementType(getIndexedType(PointeeType, IdxList)) {
-  assert(ResultElementType ==
-         cast<PointerType>(getType()->getScalarType())->getElementType());
+  assert(cast<PointerType>(getType()->getScalarType())
+             ->isOpaqueOrPointeeTypeMatches(ResultElementType));
   init(Ptr, IdxList, NameStr);
 }
 
@@ -1174,8 +1186,8 @@ GetElementPtrInst::GetElementPtrInst(Type *PointeeType, Value *Ptr,
                   Values, InsertAtEnd),
       SourceElementType(PointeeType),
       ResultElementType(getIndexedType(PointeeType, IdxList)) {
-  assert(ResultElementType ==
-         cast<PointerType>(getType()->getScalarType())->getElementType());
+  assert(cast<PointerType>(getType()->getScalarType())
+             ->isOpaqueOrPointeeTypeMatches(ResultElementType));
   init(Ptr, IdxList, NameStr);
 }
 

@@ -66,8 +66,8 @@ public:
   }
 
   // The non-static version just calls static one.
-  ze_result_t doCall(ze_result_t ZeResult, std::string ZeName,
-                     std::string ZeArgs, bool TraceError = true);
+  ze_result_t doCall(ze_result_t ZeResult, const char *ZeName,
+                     const char *ZeArgs, bool TraceError = true);
 };
 std::mutex ZeCall::GlobalLock;
 
@@ -408,7 +408,7 @@ static pi_result enqueueMemCopyRectHelper(
     const pi_event *EventWaitList, pi_event *Event,
     bool PreferCopyEngine = false);
 
-inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
+inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   switch (ZeError) {
 #define ZE_ERRCASE(ERR)                                                        \
   case ERR:                                                                    \
@@ -456,18 +456,18 @@ inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
   } // switch
 }
 
-ze_result_t ZeCall::doCall(ze_result_t ZeResult, std::string ZeName,
-                           std::string ZeArgs, bool TraceError) {
-  zePrint("ZE ---> %s%s\n", ZeName.c_str(), ZeArgs.c_str());
+ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
+                           const char *ZeArgs, bool TraceError) {
+  zePrint("ZE ---> %s%s\n", ZeName, ZeArgs);
 
   if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
     ++(*ZeCallCount)[ZeName];
   }
 
   if (ZeResult && TraceError) {
-    std::string ErrorString;
+    const char *ErrorString = "Unknown";
     zeParseError(ZeResult, ErrorString);
-    zePrint("Error (%s) in %s\n", ErrorString.c_str(), ZeName.c_str());
+    zePrint("Error (%s) in %s\n", ErrorString, ZeName);
   }
   return ZeResult;
 }
@@ -6406,6 +6406,13 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 #include <CL/sycl/detail/pi.def>
 
   return PI_SUCCESS;
+}
+
+pi_result piextPluginGetOpaqueData(void *opaque_data_param,
+                                   void **opaque_data_return) {
+  (void)opaque_data_param;
+  (void)opaque_data_return;
+  return PI_ERROR_UNKNOWN;
 }
 
 // SYCL RT calls this api to notify the end of plugin lifetime.

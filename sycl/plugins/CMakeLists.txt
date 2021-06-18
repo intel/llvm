@@ -10,3 +10,7 @@ endif()
 
 add_subdirectory(opencl)
 add_subdirectory(level_zero)
+
+if (SYCL_BUILD_PI_ESIMD_CPU)
+  add_subdirectory(esimd_cpu)
+endif()

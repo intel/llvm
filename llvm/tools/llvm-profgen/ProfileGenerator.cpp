@@ -16,7 +16,7 @@ static cl::alias OutputA("o", cl::desc("Alias for --output"),
                          cl::aliasopt(OutputFilename));
 
 static cl::opt<SampleProfileFormat> OutputFormat(
-    "format", cl::desc("Format of output profile"), cl::init(SPF_Text),
+    "format", cl::desc("Format of output profile"), cl::init(SPF_Ext_Binary),
     cl::values(
         clEnumValN(SPF_Binary, "binary", "Binary encoding (default)"),
         clEnumValN(SPF_Compact_Binary, "compbinary", "Compact binary encoding"),
@@ -42,6 +42,11 @@ static cl::opt<bool> CSProfTrimColdContext(
     "csprof-trim-cold-context", cl::init(true), cl::ZeroOrMore,
     cl::desc("If the total count of the profile after all merge is done "
              "is still smaller than threshold, it will be trimmed."));
+
+static cl::opt<uint32_t> CSProfColdContextFrameDepth(
+    "csprof-frame-depth-for-cold-context", cl::init(1), cl::ZeroOrMore,
+    cl::desc("Keep the last K frames while merging cold profile. 1 means the "
+             "context-less base profile"));
 
 extern cl::opt<int> ProfileSummaryCutoffCold;
 
@@ -401,7 +406,8 @@ void CSProfileGenerator::postProcessProfiles() {
   // Trim and merge cold context profile using cold threshold above;
   SampleContextTrimmer(ProfileMap)
       .trimAndMergeColdContextProfiles(
-          ColdCountThreshold, CSProfTrimColdContext, CSProfMergeColdContext);
+          ColdCountThreshold, CSProfTrimColdContext, CSProfMergeColdContext,
+          CSProfColdContextFrameDepth);
 }
 
 void CSProfileGenerator::computeSummaryAndThreshold() {

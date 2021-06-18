@@ -109,6 +109,13 @@ public:
   operator const vector_type &() const & { return M_data; }
   operator vector_type &() & { return M_data; }
 
+  /// Implicit conversion for simd<T, 1> into T.
+  template <typename T = simd,
+            typename = sycl::detail::enable_if_t<T::length == 1>>
+  operator element_type() const {
+    return data()[0];
+  }
+
   vector_type data() const {
 #ifndef __SYCL_DEVICE_ONLY__
     return M_data;
@@ -137,22 +144,32 @@ public:
   }
 
   /// View this simd object in a different element type.
-  template <typename EltTy> auto format() & {
+  template <typename EltTy> auto bit_cast_view() & {
     using TopRegionTy = detail::compute_format_type_t<simd, EltTy>;
     using RetTy = simd_view<simd, TopRegionTy>;
     TopRegionTy R(0);
     return RetTy{*this, R};
   }
 
-  // TODO @Ruyk, @iburyl - should renamed to bit_cast similar to std::bit_cast.
-  //
+  template <typename EltTy>
+  __SYCL_DEPRECATED("use simd::bit_cast_view.")
+  auto format() & {
+    return bit_cast_view<EltTy>();
+  }
+
   /// View as a 2-dimensional simd_view.
-  template <typename EltTy, int Height, int Width> auto format() & {
+  template <typename EltTy, int Height, int Width> auto bit_cast_view() & {
     using TopRegionTy =
         detail::compute_format_type_2d_t<simd, EltTy, Height, Width>;
     using RetTy = simd_view<simd, TopRegionTy>;
     TopRegionTy R(0, 0);
     return RetTy{*this, R};
+  }
+
+  template <typename EltTy, int Height, int Width>
+  __SYCL_DEPRECATED("use simd::bit_cast_view.")
+  auto format() & {
+    return bit_cast_view<EltTy, Height, Width>();
   }
 
   /// 1D region select, apply a region on top of this LValue object.
@@ -180,16 +197,13 @@ public:
                                                                  Offset);
   }
 
-  // TODO
-  // @rolandschulz
-  // {quote}
-  // - There is no point in having this non-const overload.
-  // - Actually why does this overload not return simd_view.
-  //   This would allow you to use the subscript operator to write to an
-  //   element.
-  // {/quote}
   /// Read single element, return value only (not reference).
   Ty operator[](int i) const { return data()[i]; }
+
+  /// Return writable view of a single element.
+  simd_view<simd, region1d_t<Ty, 1, 0>> operator[](int i) {
+    return select<1, 0>(i);
+  }
 
   // TODO ESIMD_EXPERIMENTAL
   /// Read multiple elements by their indices in vector
@@ -228,6 +242,11 @@ public:
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
+  template <typename T = simd,                                                 \
+            typename = sycl::detail::enable_if_t<T::length == 1>>              \
+  ESIMD_INLINE friend auto operator BINOP(const simd &X, const Ty &Y) {        \
+    return X BINOP simd(Y);                                                    \
+  }                                                                            \
   ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const simd &RHS) {    \
     using ComputeTy = detail::compute_type_t<simd>;                            \
     auto V0 = detail::convert<typename ComputeTy::vector_type>(LHS.data());    \
@@ -261,6 +280,11 @@ public:
     auto R = X.data() RELOP Y.data();                                          \
     mask_type_t<N> M(1);                                                       \
     return M & detail::convert<mask_type_t<N>>(R);                             \
+  }                                                                            \
+  template <typename T = simd,                                                 \
+            typename = sycl::detail::enable_if_t<T::length == 1>>              \
+  ESIMD_INLINE friend bool operator RELOP(const simd &X, const Ty &Y) {        \
+    return (Ty)X RELOP Y;                                                      \
   }
 
   DEF_RELOP(>)
@@ -344,8 +368,18 @@ public:
   /// \tparam W is width of src region to replicate.
   /// \param Offset is offset in number of elements in src region.
   /// \return replicated simd instance.
-  template <int Rep, int W> simd<Ty, Rep * W> replicate(uint16_t Offset) {
-    return replicate<Rep, W, W, 1>(Offset);
+  template <int Rep, int W>
+  __SYCL_DEPRECATED("use simd::replicate_w")
+  simd<Ty, Rep * W> replicate(uint16_t Offset) {
+    return replicate_w<Rep, W>(Offset);
+  }
+
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \tparam W is width of src region to replicate.
+  /// \param Offset is offset in number of elements in src region.
+  /// \return replicated simd instance.
+  template <int Rep, int W> simd<Ty, Rep * W> replicate_w(uint16_t Offset) {
+    return replicate_vs_w_hs<Rep, W, W, 1>(Offset);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -354,23 +388,21 @@ public:
   /// \param Offset is offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W>
+  __SYCL_DEPRECATED("use simd::replicate_vs_w")
   simd<Ty, Rep * W> replicate(uint16_t Offset) {
-    return replicate<Rep, VS, W, 1>(Offset);
+    return replicate_vs_w<Rep, VS, W>(Offset);
   }
 
-  // TODO
-  // @rolandschulz
-  // {quote}
-  // - Template function with that many arguments are really ugly.
-  //   Are you sure there isn't a better interface? And that users won't
-  //   constantly forget what the correct order of the argument is?
-  //   Some kind of templated builder pattern would be a bit more verbose but
-  //   much more readable.
-  //   ...
-  //   The user would use (any of the extra method calls are optional)
-  //   s.replicate<R>(i).width<W>().vstride<VS>().hstride<HS>()
-  // {/quote}
-  // @jasonsewall-intel +1 for this
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \tparam VS vertical stride of src region to replicate.
+  /// \tparam W width of src region to replicate.
+  /// \param Offset offset in number of elements in src region.
+  /// \return replicated simd instance.
+  template <int Rep, int VS, int W>
+  simd<Ty, Rep * W> replicate_vs_w(uint16_t Offset) {
+    return replicate_vs_w_hs<Rep, VS, W, 1>(Offset);
+  }
+
   /// \tparam Rep is number of times region has to be replicated.
   /// \tparam VS vertical stride of src region to replicate.
   /// \tparam W is width of src region to replicate.
@@ -378,7 +410,19 @@ public:
   /// \param Offset is offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
+  __SYCL_DEPRECATED("use simd::replicate_vs_w_hs")
   simd<Ty, Rep * W> replicate(uint16_t Offset) {
+    return replicate_vs_w_hs<Rep, VS, W, HS>(Offset);
+  }
+
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \tparam VS vertical stride of src region to replicate.
+  /// \tparam W is width of src region to replicate.
+  /// \tparam HS horizontal stride of src region to replicate.
+  /// \param Offset is offset in number of elements in src region.
+  /// \return replicated simd instance.
+  template <int Rep, int VS, int W, int HS>
+  simd<Ty, Rep * W> replicate_vs_w_hs(uint16_t Offset) {
     return __esimd_rdregion<element_type, N, Rep * W, VS, W, HS, N>(
         data(), Offset * sizeof(Ty));
   }

@@ -880,7 +880,7 @@ Constant *llvm::ConstantFoldExtractElementInstruction(Constant *Val,
 
   // ee (gep (ptr, idx0, ...), idx) -> gep (ee (ptr, idx), ee (idx0, idx), ...)
   if (auto *CE = dyn_cast<ConstantExpr>(Val)) {
-    if (CE->getOpcode() == Instruction::GetElementPtr) {
+    if (auto *GEP = dyn_cast<GEPOperator>(CE)) {
       SmallVector<Constant *, 8> Ops;
       Ops.reserve(CE->getNumOperands());
       for (unsigned i = 0, e = CE->getNumOperands(); i != e; ++i) {
@@ -894,7 +894,7 @@ Constant *llvm::ConstantFoldExtractElementInstruction(Constant *Val,
           Ops.push_back(Op);
       }
       return CE->getWithOperands(Ops, ValVTy->getElementType(), false,
-                                 Ops[0]->getType()->getPointerElementType());
+                                 GEP->getSourceElementType());
     } else if (CE->getOpcode() == Instruction::InsertElement) {
       if (const auto *IEIdx = dyn_cast<ConstantInt>(CE->getOperand(2))) {
         if (APSInt::isSameValue(APSInt(IEIdx->getValue()),
@@ -907,14 +907,10 @@ Constant *llvm::ConstantFoldExtractElementInstruction(Constant *Val,
     }
   }
 
-  // CAZ of type ScalableVectorType and n < CAZ->getMinNumElements() =>
-  //   extractelt CAZ, n -> 0
-  if (auto *ValSVTy = dyn_cast<ScalableVectorType>(Val->getType())) {
-    if (!CIdx->uge(ValSVTy->getMinNumElements())) {
-      if (auto *CAZ = dyn_cast<ConstantAggregateZero>(Val))
-        return CAZ->getElementValue(CIdx->getZExtValue());
-    }
-    return nullptr;
+  // Lane < Splat minimum vector width => extractelt Splat(x), Lane -> x
+  if (CIdx->getValue().ult(ValVTy->getElementCount().getKnownMinValue())) {
+    if (Constant *SplatVal = Val->getSplatValue())
+      return SplatVal;
   }
 
   return Val->getAggregateElement(CIdx);

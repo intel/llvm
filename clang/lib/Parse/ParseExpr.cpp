@@ -893,6 +893,7 @@ class CastExpressionIdValidator final : public CorrectionCandidateCallback {
 /// [Clang] unary-type-trait:
 ///                   '__is_aggregate'
 ///                   '__trivially_copyable'
+///                   '__builtin_sycl_mark_kernel_name'
 ///
 ///       binary-type-trait:
 /// [GNU]             '__is_base_of'
@@ -1472,6 +1473,9 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw___builtin_sycl_unique_stable_name:
     Res = ParseSYCLUniqueStableNameExpression();
     break;
+  case tok::kw___builtin_sycl_unique_stable_id:
+    Res = ParseSYCLUniqueStableIdExpression();
+    break;
 
   case tok::annot_typename:
     if (isStartOfObjCClassMessageMissingOpenBracket()) {
@@ -1703,6 +1707,15 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     Res = ParseTypeTrait();
     break;
 
+  case tok::kw___builtin_num_fields:
+  case tok::kw___builtin_num_bases:
+    Res = ParseSYCLBuiltinNum();
+    break;
+  case tok::kw___builtin_field_type:
+  case tok::kw___builtin_base_type:
+    Res = ParseSYCLBuiltinType();
+    break;
+
   case tok::kw___array_rank:
   case tok::kw___array_extent:
     if (NotPrimaryExpression)
@@ -1823,6 +1836,63 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     }
 
   return Res;
+}
+
+/// __builtin_num_fields '(' type-id ')' or
+/// __builtin_num_bases '(' type-id ')'
+ExprResult Parser::ParseSYCLBuiltinNum() {
+  assert(
+      Tok.isOneOf(tok::kw___builtin_num_fields, tok::kw___builtin_num_bases));
+  bool IsNumFields = Tok.is(tok::kw___builtin_num_fields);
+  ConsumeToken(); // Eat the __builtin_num_* token
+
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+  if (T.expectAndConsume(diag::err_expected_lparen_after, Tok.getName()))
+    return ExprError();
+
+  TypeResult TR = ParseTypeName();
+  if (TR.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  T.consumeClose();
+
+  if (IsNumFields)
+    return Actions.ActOnSYCLBuiltinNumFieldsExpr(TR.get());
+  return Actions.ActOnSYCLBuiltinNumBasesExpr(TR.get());
+}
+
+/// __builtin_field_type '(' type-id ',' integer-constant ')' or
+/// __builtin_base_type '(' type-id ',' integer-constant ')'
+ExprResult Parser::ParseSYCLBuiltinType() {
+  assert(
+      Tok.isOneOf(tok::kw___builtin_field_type, tok::kw___builtin_base_type));
+  bool IsFieldType = Tok.is(tok::kw___builtin_field_type);
+  ConsumeToken(); // Eat the __builtin_*_type token
+
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+  if (T.expectAndConsume(diag::err_expected_lparen_after, Tok.getName()))
+    return ExprError();
+
+  TypeResult TR = ParseTypeName();
+  if (TR.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  if (ExpectAndConsume(tok::comma))
+    return ExprError();
+
+  ExprResult IdxRes = ParseConstantExpression();
+  if (IdxRes.isInvalid())
+    return ExprError();
+
+  T.consumeClose();
+
+  if (IsFieldType)
+    return Actions.ActOnSYCLBuiltinFieldTypeExpr(TR.get(), IdxRes.get());
+  return Actions.ActOnSYCLBuiltinBaseTypeExpr(TR.get(), IdxRes.get());
 }
 
 /// Once the leading part of a postfix-expression is parsed, this
@@ -2353,6 +2423,37 @@ ExprResult Parser::ParseSYCLUniqueStableNameExpression() {
 
   return Actions.ActOnSYCLUniqueStableNameExpr(OpLoc, T.getOpenLocation(),
                                                T.getCloseLocation(), Ty.get());
+}
+
+// Parse a __builtin_sycl_unique_stable_id expression. Accepts an expression,
+// but we later ensure that it MUST be a DeclRefExpr to a VarDecl of some form.
+ExprResult Parser::ParseSYCLUniqueStableIdExpression() {
+  assert(Tok.is(tok::kw___builtin_sycl_unique_stable_id) &&
+         "Not __bulitin_sycl_unique_stable_id");
+
+  SourceLocation OpLoc = ConsumeToken();
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+
+  if (T.expectAndConsume(diag::err_expected_lparen_after,
+                         "__builtin_sycl_unique_stable_id"))
+    return ExprError();
+
+  EnterExpressionEvaluationContext ConstantEvaluated(
+      Actions, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+  ExprResult VarExpr =
+      Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+
+  if (!VarExpr.isUsable()) {
+    T.skipToEnd();
+    return ExprError();
+  }
+
+  if (T.consumeClose())
+    return ExprError();
+
+  return Actions.ActOnSYCLUniqueStableIdExpr(
+      OpLoc, T.getOpenLocation(), T.getCloseLocation(), VarExpr.get());
 }
 
 /// Parse a sizeof or alignof expression.

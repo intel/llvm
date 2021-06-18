@@ -63,6 +63,11 @@
 using namespace llvm;
 
 namespace {
+Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
+                                  ArrayRef<Constant *> Ops,
+                                  const DataLayout &DL,
+                                  const TargetLibraryInfo *TLI,
+                                  bool ForLoadOperand);
 
 //===----------------------------------------------------------------------===//
 // Constant Folding internal helper functions
@@ -690,6 +695,33 @@ Constant *llvm::ConstantFoldLoadFromConstPtr(Constant *C, Type *Ty,
                 GV->getInitializer(), CE, Ty, DL))
           return V;
       }
+    } else {
+      // Try to simplify GEP if the pointer operand wasn't a GlobalVariable.
+      // SymbolicallyEvaluateGEP() with `ForLoadOperand = true` can potentially
+      // simplify the GEP more than it normally would have been, but should only
+      // be used for const folding loads.
+      SmallVector<Constant *> Ops;
+      for (unsigned I = 0, E = CE->getNumOperands(); I != E; ++I)
+        Ops.push_back(cast<Constant>(CE->getOperand(I)));
+      if (auto *Simplified = dyn_cast_or_null<ConstantExpr>(
+              SymbolicallyEvaluateGEP(cast<GEPOperator>(CE), Ops, DL, nullptr,
+                                      /*ForLoadOperand*/ true))) {
+        // If the symbolically evaluated GEP is another GEP, we can only const
+        // fold it if the resulting pointer operand is a GlobalValue. Otherwise
+        // there is nothing else to simplify since the GEP is already in the
+        // most simplified form.
+        if (isa<GEPOperator>(Simplified)) {
+          if (auto *GV = dyn_cast<GlobalVariable>(Simplified->getOperand(0))) {
+            if (GV->isConstant() && GV->hasDefinitiveInitializer()) {
+              if (Constant *V = ConstantFoldLoadThroughGEPConstantExpr(
+                      GV->getInitializer(), Simplified, Ty, DL))
+                return V;
+            }
+          }
+        } else {
+          return ConstantFoldLoadFromConstPtr(Simplified, Ty, DL);
+        }
+      }
     }
   }
 
@@ -835,18 +867,27 @@ Constant *CastGEPIndices(Type *SrcElemTy, ArrayRef<Constant *> Ops,
 }
 
 /// Strip the pointer casts, but preserve the address space information.
-Constant *StripPtrCastKeepAS(Constant *Ptr, Type *&ElemTy) {
+Constant *StripPtrCastKeepAS(Constant *Ptr, Type *&ElemTy,
+                             bool ForLoadOperand) {
   assert(Ptr->getType()->isPointerTy() && "Not a pointer type");
   auto *OldPtrTy = cast<PointerType>(Ptr->getType());
   Ptr = cast<Constant>(Ptr->stripPointerCasts());
+  if (ForLoadOperand) {
+    while (isa<GlobalAlias>(Ptr) && !cast<GlobalAlias>(Ptr)->isInterposable() &&
+           !cast<GlobalAlias>(Ptr)->getBaseObject()->isInterposable()) {
+      Ptr = cast<GlobalAlias>(Ptr)->getAliasee();
+    }
+  }
+
   auto *NewPtrTy = cast<PointerType>(Ptr->getType());
 
   ElemTy = NewPtrTy->getPointerElementType();
 
   // Preserve the address space number of the pointer.
   if (NewPtrTy->getAddressSpace() != OldPtrTy->getAddressSpace()) {
-    NewPtrTy = ElemTy->getPointerTo(OldPtrTy->getAddressSpace());
-    Ptr = ConstantExpr::getPointerCast(Ptr, NewPtrTy);
+    Ptr = ConstantExpr::getPointerCast(
+        Ptr, PointerType::getWithSamePointeeType(NewPtrTy,
+                                                 OldPtrTy->getAddressSpace()));
   }
   return Ptr;
 }
@@ -855,7 +896,8 @@ Constant *StripPtrCastKeepAS(Constant *Ptr, Type *&ElemTy) {
 Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
                                   ArrayRef<Constant *> Ops,
                                   const DataLayout &DL,
-                                  const TargetLibraryInfo *TLI) {
+                                  const TargetLibraryInfo *TLI,
+                                  bool ForLoadOperand) {
   const GEPOperator *InnermostGEP = GEP;
   bool InBounds = GEP->isInBounds();
 
@@ -903,7 +945,7 @@ Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
             DL.getIndexedOffsetInType(
                 SrcElemTy,
                 makeArrayRef((Value * const *)Ops.data() + 1, Ops.size() - 1)));
-  Ptr = StripPtrCastKeepAS(Ptr, SrcElemTy);
+  Ptr = StripPtrCastKeepAS(Ptr, SrcElemTy, ForLoadOperand);
 
   // If this is a GEP of a GEP, fold it all into a single GEP.
   while (auto *GEP = dyn_cast<GEPOperator>(Ptr)) {
@@ -925,7 +967,7 @@ Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
     Ptr = cast<Constant>(GEP->getOperand(0));
     SrcElemTy = GEP->getSourceElementType();
     Offset += APInt(BitWidth, DL.getIndexedOffsetInType(SrcElemTy, NestedOps));
-    Ptr = StripPtrCastKeepAS(Ptr, SrcElemTy);
+    Ptr = StripPtrCastKeepAS(Ptr, SrcElemTy, ForLoadOperand);
   }
 
   // If the base value for this address is a literal integer value, fold the
@@ -1062,7 +1104,8 @@ Constant *ConstantFoldInstOperandsImpl(const Value *InstOrCE, unsigned Opcode,
     return ConstantFoldCastOperand(Opcode, Ops[0], DestTy, DL);
 
   if (auto *GEP = dyn_cast<GEPOperator>(InstOrCE)) {
-    if (Constant *C = SymbolicallyEvaluateGEP(GEP, Ops, DL, TLI))
+    if (Constant *C = SymbolicallyEvaluateGEP(GEP, Ops, DL, TLI,
+                                              /*ForLoadOperand*/ false))
       return C;
 
     return ConstantExpr::getGetElementPtr(GEP->getSourceElementType(), Ops[0],
@@ -2319,7 +2362,7 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
   }
 
   if (auto *Op1 = dyn_cast<ConstantFP>(Operands[0])) {
-    if (!Ty->isHalfTy() && !Ty->isFloatTy() && !Ty->isDoubleTy())
+    if (!Ty->isFloatingPointTy())
       return nullptr;
     APFloat Op1V = Op1->getValueAPF();
 
@@ -2331,8 +2374,6 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
       switch (IntrinsicID) {
       default:
         break;
-      case Intrinsic::pow:
-        return ConstantFoldBinaryFP(pow, Op1V, Op2V, Ty);
       case Intrinsic::copysign:
         return ConstantFP::get(Ty->getContext(), APFloat::copySign(Op1V, Op2V));
       case Intrinsic::minnum:
@@ -2343,6 +2384,16 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
         return ConstantFP::get(Ty->getContext(), minimum(Op1V, Op2V));
       case Intrinsic::maximum:
         return ConstantFP::get(Ty->getContext(), maximum(Op1V, Op2V));
+      }
+
+      if (!Ty->isHalfTy() && !Ty->isFloatTy() && !Ty->isDoubleTy())
+        return nullptr;
+
+      switch (IntrinsicID) {
+      default:
+        break;
+      case Intrinsic::pow:
+        return ConstantFoldBinaryFP(pow, Op1V, Op2V, Ty);
       case Intrinsic::amdgcn_fmul_legacy:
         // The legacy behaviour is that multiplying +/- 0.0 by anything, even
         // NaN or infinity, gives +0.0.

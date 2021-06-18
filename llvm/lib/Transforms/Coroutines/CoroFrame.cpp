@@ -1713,7 +1713,7 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
       auto *FramePtrRaw =
           Builder.CreateBitCast(FramePtr, Type::getInt8PtrTy(C));
       auto *AliasPtr = Builder.CreateGEP(
-          FramePtrRaw,
+          Type::getInt8Ty(C), FramePtrRaw,
           ConstantInt::get(Type::getInt64Ty(C), Alias.second.getValue()));
       auto *AliasPtrTyped =
           Builder.CreateBitCast(AliasPtr, Alias.first->getType());
@@ -2467,15 +2467,10 @@ void coro::salvageDebugInfo(
     } else if (auto *StInst = dyn_cast<StoreInst>(Storage)) {
       Storage = StInst->getOperand(0);
     } else if (auto *GEPInst = dyn_cast<GetElementPtrInst>(Storage)) {
-      SmallVector<Value *> AdditionalValues;
-      DIExpression *SalvagedExpr = llvm::salvageDebugInfoImpl(
-          *GEPInst, Expr,
-          /*WithStackValue=*/false, 0, AdditionalValues);
-      // Debug declares cannot currently handle additional location
-      // operands.
-      if (!SalvagedExpr || !AdditionalValues.empty())
-        break;
-      Expr = SalvagedExpr;
+      Expr = llvm::salvageDebugInfoImpl(*GEPInst, Expr,
+                                        /*WithStackValue=*/false, 0);
+      if (!Expr)
+        return;
       Storage = GEPInst->getOperand(0);
     } else if (auto *BCInst = dyn_cast<llvm::BitCastInst>(Storage))
       Storage = BCInst->getOperand(0);

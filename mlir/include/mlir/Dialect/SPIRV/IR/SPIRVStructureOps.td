@@ -16,13 +16,15 @@
 #define MLIR_DIALECT_SPIRV_IR_STRUCTURE_OPS
 
 include "mlir/Dialect/SPIRV/IR/SPIRVBase.td"
+include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // -----
 
-def SPV_AddressOfOp : SPV_Op<"mlir.addressof", [InFunctionScope, NoSideEffect]> {
+def SPV_AddressOfOp : SPV_Op<"mlir.addressof",
+    [DeclareOpInterfaceMethods<OpAsmOpInterface>, InFunctionScope, NoSideEffect]> {
   let summary = "Get the address of a global variable.";
 
   let description = [{
@@ -67,7 +69,8 @@ def SPV_AddressOfOp : SPV_Op<"mlir.addressof", [InFunctionScope, NoSideEffect]> 
 
 // -----
 
-def SPV_ConstantOp : SPV_Op<"Constant", [ConstantLike, NoSideEffect]> {
+def SPV_ConstantOp : SPV_Op<"Constant",
+    [ConstantLike, DeclareOpInterfaceMethods<OpAsmOpInterface>, NoSideEffect]> {
   let summary = "The op that declares a SPIR-V normal constant";
 
   let description = [{
@@ -404,9 +407,8 @@ def SPV_GlobalVariableOp : SPV_Op<"GlobalVariable", [InModuleScope, Symbol]> {
 // -----
 
 def SPV_ModuleOp : SPV_Op<"module",
-                          [IsolatedFromAbove,
-                           SingleBlockImplicitTerminator<"ModuleEndOp">,
-                           SymbolTable, Symbol]> {
+    [IsolatedFromAbove, NoRegionArguments, NoTerminator,
+     SingleBlock, SymbolTable, Symbol]> {
   let summary = "The top-level op that defines a SPIR-V module";
 
   let description = [{
@@ -423,7 +425,7 @@ def SPV_ModuleOp : SPV_Op<"module",
     implicitly capture values from the enclosing environment.
 
     This op has only one region, which only contains one block. The block
-    must be terminated via the `spv.mlir.endmodule` op.
+    has no terminator.
 
     <!-- End of AutoGen section -->
 
@@ -460,7 +462,7 @@ def SPV_ModuleOp : SPV_Op<"module",
 
   let results = (outs);
 
-  let regions = (region SizedRegion<1>:$body);
+  let regions = (region AnyRegion);
 
   let builders = [
     OpBuilder<(ins CArg<"Optional<StringRef>", "llvm::None">:$name)>,
@@ -484,36 +486,7 @@ def SPV_ModuleOp : SPV_Op<"module",
     Optional<StringRef> getName() { return sym_name(); }
 
     static StringRef getVCETripleAttrName() { return "vce_triple"; }
-
-    Block& getBlock() {
-      return this->getOperation()->getRegion(0).front();
-    }
   }];
-}
-
-// -----
-
-def SPV_ModuleEndOp : SPV_Op<"mlir.endmodule", [InModuleScope, Terminator]> {
-  let summary = "The pseudo op that ends a SPIR-V module";
-
-  let description = [{
-    This op terminates the only block inside a `spv.module`'s only region.
-    This op does not have a corresponding SPIR-V instruction and thus will
-    not be serialized into the binary format; it is used solely to satisfy
-    the structual requirement that an block must be ended with a terminator.
-  }];
-
-  let arguments = (ins);
-
-  let results = (outs);
-
-  let assemblyFormat = "attr-dict";
-
-  let verifier = [{ return success(); }];
-
-  let hasOpcode = 0;
-
-  let autogenSerialization = 0;
 }
 
 // -----

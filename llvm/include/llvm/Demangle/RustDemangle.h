@@ -57,12 +57,17 @@ enum class InType {
   Yes,
 };
 
+enum class LeaveOpen {
+  No,
+  Yes,
+};
+
 class Demangler {
   // Maximum recursion level. Used to avoid stack overflow.
   size_t MaxRecursionLevel;
   // Current recursion level.
   size_t RecursionLevel;
-
+  size_t BoundLifetimes;
   // Input string that is being demangled with "_R" prefix removed.
   StringView Input;
   // Position in the input string.
@@ -84,15 +89,33 @@ public:
   bool demangle(StringView MangledName);
 
 private:
-  void demanglePath(InType InType);
+  bool demanglePath(InType InType, LeaveOpen LeaveOpen = LeaveOpen::No);
   void demangleImplPath(InType InType);
   void demangleGenericArg();
   void demangleType();
   void demangleFnSig();
+  void demangleDynBounds();
+  void demangleDynTrait();
+  void demangleOptionalBinder();
   void demangleConst();
   void demangleConstInt();
   void demangleConstBool();
   void demangleConstChar();
+
+  template <typename Callable> void demangleBackref(Callable Demangler) {
+    uint64_t Backref = parseBase62Number();
+    if (Error || Backref >= Position) {
+      Error = true;
+      return;
+    }
+
+    if (!Print)
+      return;
+
+    SwapAndRestore<size_t> SavePosition(Position, Position);
+    Position = Backref;
+    Demangler();
+  }
 
   Identifier parseIdentifier();
   uint64_t parseOptionalBase62Number(char Tag);
@@ -122,6 +145,7 @@ private:
   }
 
   void printBasicType(BasicType);
+  void printLifetime(uint64_t Index);
 
   char look() const {
     if (Error || Position >= Input.size())

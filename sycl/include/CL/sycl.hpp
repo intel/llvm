@@ -28,6 +28,7 @@
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/feature_test.hpp>
+#include <CL/sycl/functional.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/group_algorithm.hpp>
 #include <CL/sycl/group_local_memory.hpp>

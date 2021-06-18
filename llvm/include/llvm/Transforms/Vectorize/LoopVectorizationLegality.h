@@ -144,6 +144,13 @@ public:
     return (ForceKind)Force.Value;
   }
 
+  /// \return true if the cost-model for scalable vectorization should
+  /// favor vectorization with scalable vectors over fixed-width vectors when
+  /// the cost-model is inconclusive.
+  bool isScalableVectorizationPreferred() const {
+    return Scalable.Value == SK_PreferScalable;
+  }
+
   /// \return true if scalable vectorization has been explicitly enabled.
   bool isScalableVectorizationExplicitlyEnabled() const {
     return Scalable.Value == SK_PreferFixedWidth ||
@@ -295,7 +302,7 @@ public:
   RecurrenceSet &getFirstOrderRecurrences() { return FirstOrderRecurrences; }
 
   /// Return the set of instructions to sink to handle first-order recurrences.
-  DenseMap<Instruction *, Instruction *> &getSinkAfter() { return SinkAfter; }
+  MapVector<Instruction *, Instruction *> &getSinkAfter() { return SinkAfter; }
 
   /// Returns the widest induction type.
   Type *getWidestInductionType() { return WidestIndTy; }
@@ -428,22 +435,17 @@ private:
   bool canVectorizeOuterLoop();
 
   /// Return true if all of the instructions in the block can be speculatively
-  /// executed, and record the loads/stores that require masking. If's that
-  /// guard loads can be ignored under "assume safety" unless \p PreserveGuards
-  /// is true. This can happen when we introduces guards for which the original
-  /// "unguarded-loads are safe" assumption does not hold. For example, the
-  /// vectorizer's fold-tail transformation changes the loop to execute beyond
-  /// its original trip-count, under a proper guard, which should be preserved.
+  /// executed, and record the loads/stores that require masking.
   /// \p SafePtrs is a list of addresses that are known to be legal and we know
   /// that we can read from them without segfault.
   /// \p MaskedOp is a list of instructions that have to be transformed into
   /// calls to the appropriate masked intrinsic when the loop is vectorized.
   /// \p ConditionalAssumes is a list of assume instructions in predicated
   /// blocks that must be dropped if the CFG gets flattened.
-  bool blockCanBePredicated(BasicBlock *BB, SmallPtrSetImpl<Value *> &SafePtrs,
-                            SmallPtrSetImpl<const Instruction *> &MaskedOp,
-                            SmallPtrSetImpl<Instruction *> &ConditionalAssumes,
-                            bool PreserveGuards = false) const;
+  bool blockCanBePredicated(
+      BasicBlock *BB, SmallPtrSetImpl<Value *> &SafePtrs,
+      SmallPtrSetImpl<const Instruction *> &MaskedOp,
+      SmallPtrSetImpl<Instruction *> &ConditionalAssumes) const;
 
   /// Updates the vectorization state by adding \p Phi to the inductions list.
   /// This can set \p Phi as the main induction of the loop if \p Phi is a
@@ -518,7 +520,7 @@ private:
 
   /// Holds instructions that need to sink past other instructions to handle
   /// first-order recurrences.
-  DenseMap<Instruction *, Instruction *> SinkAfter;
+  MapVector<Instruction *, Instruction *> SinkAfter;
 
   /// Holds the widest induction type encountered.
   Type *WidestIndTy = nullptr;

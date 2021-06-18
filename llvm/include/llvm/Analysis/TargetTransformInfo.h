@@ -839,8 +839,8 @@ public:
   /// with another such as Thumb. This return value is used as a penalty when
   /// the total costs for a constant is calculated (the bigger the cost, the
   /// more beneficial constant hoisting is).
-  int getIntImmCodeSizeCost(unsigned Opc, unsigned Idx, const APInt &Imm,
-                            Type *Ty) const;
+  InstructionCost getIntImmCodeSizeCost(unsigned Opc, unsigned Idx,
+                                        const APInt &Imm, Type *Ty) const;
   /// @}
 
   /// \name Vector Target Information
@@ -1321,7 +1321,7 @@ public:
                                     unsigned AddrSpace) const;
 
   /// \returns True if it is legal to vectorize the given reduction kind.
-  bool isLegalToVectorizeReduction(RecurrenceDescriptor RdxDesc,
+  bool isLegalToVectorizeReduction(const RecurrenceDescriptor &RdxDesc,
                                    ElementCount VF) const;
 
   /// \returns The new vector factor value if the target doesn't support \p
@@ -1556,8 +1556,8 @@ public:
   virtual bool haveFastSqrt(Type *Ty) = 0;
   virtual bool isFCmpOrdCheaperThanFCmpZero(Type *Ty) = 0;
   virtual InstructionCost getFPOpCost(Type *Ty) = 0;
-  virtual int getIntImmCodeSizeCost(unsigned Opc, unsigned Idx,
-                                    const APInt &Imm, Type *Ty) = 0;
+  virtual InstructionCost getIntImmCodeSizeCost(unsigned Opc, unsigned Idx,
+                                                const APInt &Imm, Type *Ty) = 0;
   virtual InstructionCost getIntImmCost(const APInt &Imm, Type *Ty,
                                         TargetCostKind CostKind) = 0;
   virtual InstructionCost getIntImmCostInst(unsigned Opc, unsigned Idx,
@@ -1705,7 +1705,7 @@ public:
   virtual bool isLegalToVectorizeStoreChain(unsigned ChainSizeInBytes,
                                             Align Alignment,
                                             unsigned AddrSpace) const = 0;
-  virtual bool isLegalToVectorizeReduction(RecurrenceDescriptor RdxDesc,
+  virtual bool isLegalToVectorizeReduction(const RecurrenceDescriptor &RdxDesc,
                                            ElementCount VF) const = 0;
   virtual unsigned getLoadVectorFactor(unsigned VF, unsigned LoadSize,
                                        unsigned ChainSizeInBytes,
@@ -1988,8 +1988,8 @@ public:
     return Impl.getFPOpCost(Ty);
   }
 
-  int getIntImmCodeSizeCost(unsigned Opc, unsigned Idx, const APInt &Imm,
-                            Type *Ty) override {
+  InstructionCost getIntImmCodeSizeCost(unsigned Opc, unsigned Idx,
+                                        const APInt &Imm, Type *Ty) override {
     return Impl.getIntImmCodeSizeCost(Opc, Idx, Imm, Ty);
   }
   InstructionCost getIntImmCost(const APInt &Imm, Type *Ty,
@@ -2254,7 +2254,7 @@ public:
     return Impl.isLegalToVectorizeStoreChain(ChainSizeInBytes, Alignment,
                                              AddrSpace);
   }
-  bool isLegalToVectorizeReduction(RecurrenceDescriptor RdxDesc,
+  bool isLegalToVectorizeReduction(const RecurrenceDescriptor &RdxDesc,
                                    ElementCount VF) const override {
     return Impl.isLegalToVectorizeReduction(RdxDesc, VF);
   }

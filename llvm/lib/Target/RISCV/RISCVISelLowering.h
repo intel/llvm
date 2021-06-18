@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_RISCV_RISCVISELLOWERING_H
 
 #include "RISCV.h"
+#include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/TargetLowering.h"
 
@@ -368,9 +369,9 @@ public:
   bool shouldInsertFencesForAtomic(const Instruction *I) const override {
     return isa<LoadInst>(I) || isa<StoreInst>(I);
   }
-  Instruction *emitLeadingFence(IRBuilder<> &Builder, Instruction *Inst,
+  Instruction *emitLeadingFence(IRBuilderBase &Builder, Instruction *Inst,
                                 AtomicOrdering Ord) const override;
-  Instruction *emitTrailingFence(IRBuilder<> &Builder, Instruction *Inst,
+  Instruction *emitTrailingFence(IRBuilderBase &Builder, Instruction *Inst,
                                  AtomicOrdering Ord) const override;
 
   bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
@@ -441,13 +442,13 @@ public:
 
   TargetLowering::AtomicExpansionKind
   shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
-  Value *emitMaskedAtomicRMWIntrinsic(IRBuilder<> &Builder, AtomicRMWInst *AI,
+  Value *emitMaskedAtomicRMWIntrinsic(IRBuilderBase &Builder, AtomicRMWInst *AI,
                                       Value *AlignedAddr, Value *Incr,
                                       Value *Mask, Value *ShiftAmt,
                                       AtomicOrdering Ord) const override;
   TargetLowering::AtomicExpansionKind
   shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *CI) const override;
-  Value *emitMaskedAtomicCmpXchgIntrinsic(IRBuilder<> &Builder,
+  Value *emitMaskedAtomicCmpXchgIntrinsic(IRBuilderBase &Builder,
                                           AtomicCmpXchgInst *CI,
                                           Value *AlignedAddr, Value *CmpVal,
                                           Value *NewVal, Value *Mask,
@@ -484,12 +485,24 @@ public:
   bool shouldRemoveExtendFromGSIndex(EVT VT) const override;
 
 private:
+  /// RISCVCCAssignFn - This target-specific function extends the default
+  /// CCValAssign with additional information used to lower RISC-V calling
+  /// conventions.
+  typedef bool RISCVCCAssignFn(const DataLayout &DL, RISCVABI::ABI,
+                               unsigned ValNo, MVT ValVT, MVT LocVT,
+                               CCValAssign::LocInfo LocInfo,
+                               ISD::ArgFlagsTy ArgFlags, CCState &State,
+                               bool IsFixed, bool IsRet, Type *OrigTy,
+                               const RISCVTargetLowering &TLI,
+                               Optional<unsigned> FirstMaskArgument);
+
   void analyzeInputArgs(MachineFunction &MF, CCState &CCInfo,
-                        const SmallVectorImpl<ISD::InputArg> &Ins,
-                        bool IsRet) const;
+                        const SmallVectorImpl<ISD::InputArg> &Ins, bool IsRet,
+                        RISCVCCAssignFn Fn) const;
   void analyzeOutputArgs(MachineFunction &MF, CCState &CCInfo,
                          const SmallVectorImpl<ISD::OutputArg> &Outs,
-                         bool IsRet, CallLoweringInfo *CLI) const;
+                         bool IsRet, CallLoweringInfo *CLI,
+                         RISCVCCAssignFn Fn) const;
 
   template <class NodeTy>
   SDValue getAddr(NodeTy *N, SelectionDAG &DAG, bool IsLocal = true) const;
@@ -549,6 +562,9 @@ private:
   SDValue lowerGET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerSET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
 
+  SDValue expandUnalignedRVVLoad(SDValue Op, SelectionDAG &DAG) const;
+  SDValue expandUnalignedRVVStore(SDValue Op, SelectionDAG &DAG) const;
+
   bool isEligibleForTailCallOptimization(
       CCState &CCInfo, CallLoweringInfo &CLI, MachineFunction &MF,
       const SmallVector<CCValAssign, 16> &ArgLocs) const;
@@ -560,6 +576,8 @@ private:
       MachineFunction &MF) const;
 
   bool useRVVForFixedLengthVectorVT(MVT VT) const;
+
+  MVT getVPExplicitVectorLengthTy() const override;
 
   /// RVV code generation for fixed length vectors does not lower all
   /// BUILD_VECTORs. This makes BUILD_VECTOR legalisation a source of stores to

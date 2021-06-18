@@ -840,7 +840,7 @@ public:
   }
 
   llvm::Optional<ExtensionID> getRequiredExtension() const override {
-    switch (Kind) {
+    switch (static_cast<unsigned>(Kind)) {
     case CapabilityDenormPreserve:
     case CapabilityDenormFlushToZero:
     case CapabilitySignedZeroInfNanPreserve:
@@ -854,7 +854,7 @@ public:
     case CapabilityVectorComputeINTEL:
     case CapabilityVectorAnyINTEL:
       return ExtensionID::SPV_INTEL_vector_compute;
-    case CapabilityFastCompositeINTEL:
+    case internal::CapabilityFastCompositeINTEL:
       return ExtensionID::SPV_INTEL_fast_composite;
     default:
       return {};

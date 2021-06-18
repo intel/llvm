@@ -1344,6 +1344,9 @@ enum DeclCode {
   /// A UsingDecl record.
   DECL_USING,
 
+  /// A UsingEnumDecl record.
+  DECL_USING_ENUM,
+
   /// A UsingPackDecl record.
   DECL_USING_PACK,
 
@@ -1430,6 +1433,9 @@ enum DeclCode {
 
   /// \brief A ConceptDecl record.
   DECL_CONCEPT,
+
+  /// An UnresolvedUsingIfExistsDecl record.
+  DECL_UNRESOLVED_USING_IF_EXISTS,
 
   /// \brief A StaticAssertDecl record.
   DECL_STATIC_ASSERT,
@@ -1893,6 +1899,7 @@ enum StmtCode {
   STMT_OMP_PARALLEL_DIRECTIVE,
   STMT_OMP_SIMD_DIRECTIVE,
   STMT_OMP_TILE_DIRECTIVE,
+  STMT_OMP_UNROLL_DIRECTIVE,
   STMT_OMP_FOR_DIRECTIVE,
   STMT_OMP_FOR_SIMD_DIRECTIVE,
   STMT_OMP_SECTIONS_DIRECTIVE,
@@ -1966,8 +1973,14 @@ enum StmtCode {
   // FixedPointLiteral
   EXPR_FIXEDPOINT_LITERAL,
 
-  // SYCLUniqueStableNameExpr
+  // SYCL
+  EXPR_SYCL_BUILTIN_NUM_FIELDS,
+  EXPR_SYCL_BUILTIN_FIELD_TYPE,
+  EXPR_SYCL_BUILTIN_NUM_BASES,
+  EXPR_SYCL_BUILTIN_BASE_TYPE,
   EXPR_SYCL_UNIQUE_STABLE_NAME,
+  // SYCLUniqueStableIdExpr
+  EXPR_SYCL_UNIQUE_STABLE_ID,
 };
 
 /// The kinds of designators that can occur in a

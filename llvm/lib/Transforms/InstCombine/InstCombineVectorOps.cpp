@@ -347,6 +347,24 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
     ElementCount EC = EI.getVectorOperandType()->getElementCount();
     unsigned NumElts = EC.getKnownMinValue();
 
+    if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(SrcVec)) {
+      Intrinsic::ID IID = II->getIntrinsicID();
+      // Index needs to be lower than the minimum size of the vector, because
+      // for scalable vector, the vector size is known at run time.
+      if (IID == Intrinsic::experimental_stepvector &&
+          IndexC->getValue().ult(NumElts)) {
+        Type *Ty = EI.getType();
+        unsigned BitWidth = Ty->getIntegerBitWidth();
+        Value *Idx;
+        // Return index when its value does not exceed the allowed limit
+        // for the element type of the vector, otherwise return undefined.
+        if (IndexC->getValue().getActiveBits() <= BitWidth)
+          Idx = ConstantInt::get(Ty, IndexC->getValue().zextOrTrunc(BitWidth));
+        else
+          Idx = UndefValue::get(Ty);
+        return replaceInstUsesWith(EI, Idx);
+      }
+    }
     // InstSimplify should handle cases where the index is invalid.
     // For fixed-length vector, it's invalid to extract out-of-range element.
     if (!EC.isScalable() && IndexC->getValue().uge(NumElts))
@@ -595,9 +613,9 @@ static void replaceExtractElements(InsertElementInst *InsElt,
       NumExtElts >= NumInsElts)
     return;
 
-  // Create a shuffle mask to widen the extended-from vector using undefined
+  // Create a shuffle mask to widen the extended-from vector using poison
   // values. The mask selects all of the values of the original vector followed
-  // by as many undefined values as needed to create a vector of the same length
+  // by as many poison values as needed to create a vector of the same length
   // as the inserted-to vector.
   SmallVector<int, 16> ExtendMask;
   for (unsigned i = 0; i < NumExtElts; ++i)
@@ -632,7 +650,7 @@ static void replaceExtractElements(InsertElementInst *InsElt,
     return;
 
   auto *WideVec =
-      new ShuffleVectorInst(ExtVecOp, UndefValue::get(ExtVecType), ExtendMask);
+      new ShuffleVectorInst(ExtVecOp, PoisonValue::get(ExtVecType), ExtendMask);
 
   // Insert the new shuffle after the vector operand of the extract is defined
   // (as long as it's not a PHI) or at the start of the basic block of the
@@ -1091,7 +1109,7 @@ static bool isShuffleEquivalentToSelect(ShuffleVectorInst &Shuf) {
 
 /// Turn a chain of inserts that splats a value into an insert + shuffle:
 /// insertelt(insertelt(insertelt(insertelt X, %k, 0), %k, 1), %k, 2) ... ->
-/// shufflevector(insertelt(X, %k, 0), undef, zero)
+/// shufflevector(insertelt(X, %k, 0), poison, zero)
 static Instruction *foldInsSequenceIntoSplat(InsertElementInst &InsElt) {
   // We are interested in the last insert in a chain. So if this insert has a
   // single user and that user is an insert, bail.
@@ -1149,10 +1167,10 @@ static Instruction *foldInsSequenceIntoSplat(InsertElementInst &InsElt) {
 
   // Create the insert + shuffle.
   Type *Int32Ty = Type::getInt32Ty(InsElt.getContext());
-  UndefValue *UndefVec = UndefValue::get(VecTy);
+  PoisonValue *PoisonVec = PoisonValue::get(VecTy);
   Constant *Zero = ConstantInt::get(Int32Ty, 0);
   if (!cast<ConstantInt>(FirstIE->getOperand(2))->isZero())
-    FirstIE = InsertElementInst::Create(UndefVec, SplatVal, Zero, "", &InsElt);
+    FirstIE = InsertElementInst::Create(PoisonVec, SplatVal, Zero, "", &InsElt);
 
   // Splat from element 0, but replace absent elements with undef in the mask.
   SmallVector<int, 16> Mask(NumElements, 0);
@@ -1160,7 +1178,7 @@ static Instruction *foldInsSequenceIntoSplat(InsertElementInst &InsElt) {
     if (!ElementPresent[i])
       Mask[i] = -1;
 
-  return new ShuffleVectorInst(FirstIE, UndefVec, Mask);
+  return new ShuffleVectorInst(FirstIE, PoisonVec, Mask);
 }
 
 /// Try to fold an insert element into an existing splat shuffle by changing
@@ -1681,7 +1699,7 @@ static Value *evaluateInDifferentElementOrder(Value *V, ArrayRef<int> Mask) {
     return ConstantAggregateZero::get(FixedVectorType::get(EltTy, Mask.size()));
 
   if (Constant *C = dyn_cast<Constant>(V))
-    return ConstantExpr::getShuffleVector(C, UndefValue::get(C->getType()),
+    return ConstantExpr::getShuffleVector(C, PoisonValue::get(C->getType()),
                                           Mask);
 
   Instruction *I = cast<Instruction>(V);

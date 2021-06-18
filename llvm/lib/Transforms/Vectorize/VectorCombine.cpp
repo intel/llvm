@@ -788,6 +788,19 @@ static bool canScalarizeAccess(FixedVectorType *VecTy, Value *Idx,
   return ValidIndices.contains(IdxRange);
 }
 
+/// The memory operation on a vector of \p ScalarType had alignment of
+/// \p VectorAlignment. Compute the maximal, but conservatively correct,
+/// alignment that will be valid for the memory operation on a single scalar
+/// element of the same type with index \p Idx.
+static Align computeAlignmentAfterScalarization(Align VectorAlignment,
+                                                Type *ScalarType, Value *Idx,
+                                                const DataLayout &DL) {
+  if (auto *C = dyn_cast<ConstantInt>(Idx))
+    return commonAlignment(VectorAlignment,
+                           C->getZExtValue() * DL.getTypeStoreSize(ScalarType));
+  return commonAlignment(VectorAlignment, DL.getTypeStoreSize(ScalarType));
+}
+
 // Combine patterns like:
 //   %0 = load <4 x i32>, <4 x i32>* %a
 //   %1 = insertelement <4 x i32> %0, i32 %b, i32 1
@@ -831,8 +844,10 @@ bool VectorCombine::foldSingleElementStore(Instruction &I) {
     Builder.Insert(GEP);
     StoreInst *NSI = Builder.CreateStore(NewElement, GEP);
     NSI->copyMetadata(*SI);
-    if (SI->getAlign() < NSI->getAlign())
-      NSI->setAlignment(SI->getAlign());
+    Align ScalarOpAlignment = computeAlignmentAfterScalarization(
+        std::max(SI->getAlign(), Load->getAlign()), NewElement->getType(), Idx,
+        DL);
+    NSI->setAlignment(ScalarOpAlignment);
     replaceValue(I, *NSI);
     // Need erasing the store manually.
     I.eraseFromParent();
@@ -858,9 +873,6 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
   if (!FixedVT)
     return false;
 
-  if (!canScalarizeAccess(FixedVT, Idx, &I, AC))
-    return false;
-
   InstructionCost OriginalCost = TTI.getMemoryOpCost(
       Instruction::Load, LI->getType(), Align(LI->getAlignment()),
       LI->getPointerAddressSpace());
@@ -874,6 +886,9 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
   for (User *U : LI->users()) {
     auto *UI = dyn_cast<ExtractElementInst>(U);
     if (!UI || UI->getParent() != LI->getParent())
+      return false;
+
+    if (!isGuaranteedNotToBePoison(UI->getOperand(1), &AC, LI, &DT))
       return false;
 
     // Check if any instruction between the load and the extract may modify
@@ -894,6 +909,9 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
     else if (LastCheckedInst->comesBefore(UI))
       LastCheckedInst = UI;
 
+    if (!canScalarizeAccess(FixedVT, UI->getOperand(1), &I, AC))
+      return false;
+
     auto *Index = dyn_cast<ConstantInt>(UI->getOperand(1));
     OriginalCost +=
         TTI.getVectorInstrCost(Instruction::ExtractElement, LI->getType(),
@@ -911,20 +929,17 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
   for (User *U : LI->users()) {
     auto *EI = cast<ExtractElementInst>(U);
     Builder.SetInsertPoint(EI);
-    Value *GEP = Builder.CreateInBoundsGEP(
-        FixedVT, Ptr, {Builder.getInt32(0), EI->getOperand(1)});
+
+    Value *Idx = EI->getOperand(1);
+    Value *GEP =
+        Builder.CreateInBoundsGEP(FixedVT, Ptr, {Builder.getInt32(0), Idx});
     auto *NewLoad = cast<LoadInst>(Builder.CreateLoad(
         FixedVT->getElementType(), GEP, EI->getName() + ".scalar"));
 
-    // Set the alignment for the new load. For index 0, we can use the original
-    // alignment. Otherwise choose the common alignment of the load's align and
-    // the alignment for the scalar type.
-    auto *ConstIdx = dyn_cast<ConstantInt>(EI->getOperand(1));
-    if (ConstIdx && ConstIdx->isNullValue())
-      NewLoad->setAlignment(LI->getAlign());
-    else
-      NewLoad->setAlignment(commonAlignment(
-          DL.getABITypeAlign(NewLoad->getType()), LI->getAlign()));
+    Align ScalarOpAlignment = computeAlignmentAfterScalarization(
+        LI->getAlign(), FixedVT->getElementType(), Idx, DL);
+    NewLoad->setAlignment(ScalarOpAlignment);
+
     replaceValue(*EI, *NewLoad);
   }
 

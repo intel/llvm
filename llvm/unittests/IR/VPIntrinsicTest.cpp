@@ -41,6 +41,11 @@ protected:
       Str << " declare <8 x i32> @llvm.vp." << BinaryIntOpcode
           << ".v8i32(<8 x i32>, <8 x i32>, <8 x i1>, i32) ";
 
+    const char *BinaryFPOpcodes[] = {"fadd", "fsub", "fmul", "fdiv", "frem"};
+    for (const char *BinaryFPOpcode : BinaryFPOpcodes)
+      Str << " declare <8 x float> @llvm.vp." << BinaryFPOpcode
+          << ".v8f32(<8 x float>, <8 x float>, <8 x i1>, i32) ";
+
     return parseAssemblyString(Str.str(), Err, C);
   }
 };
@@ -81,7 +86,7 @@ TEST_F(VPIntrinsicTest, VPModuleComplete) {
   std::set<Intrinsic::ID> SeenIDs;
   for (const auto &VPDecl : *M) {
     ASSERT_TRUE(VPDecl.isIntrinsic());
-    ASSERT_TRUE(VPIntrinsic::IsVPIntrinsic(VPDecl.getIntrinsicID()));
+    ASSERT_TRUE(VPIntrinsic::isVPIntrinsic(VPDecl.getIntrinsicID()));
     SeenIDs.insert(VPDecl.getIntrinsicID());
   }
 
@@ -131,7 +136,8 @@ TEST_F(VPIntrinsicTest, CanIgnoreVectorLength) {
   assert(F);
 
   const int NumExpected = 12;
-  const bool Expected[] = {false, true, false, false, false, true, false, false, true, false, true, false};
+  const bool Expected[] = {false, true,  false, false, false, true,
+                           false, false, true,  false, true,  false};
   int i = 0;
   for (auto &I : F->getEntryBlock()) {
     VPIntrinsic *VPI = dyn_cast<VPIntrinsic>(&I);
@@ -145,23 +151,24 @@ TEST_F(VPIntrinsicTest, CanIgnoreVectorLength) {
 }
 
 /// Check that the argument returned by
-/// VPIntrinsic::Get<X>ParamPos(Intrinsic::ID) has the expected type.
+/// VPIntrinsic::get<X>ParamPos(Intrinsic::ID) has the expected type.
 TEST_F(VPIntrinsicTest, GetParamPos) {
   std::unique_ptr<Module> M = CreateVPDeclarationModule();
   assert(M);
 
   for (Function &F : *M) {
     ASSERT_TRUE(F.isIntrinsic());
-    Optional<int> MaskParamPos =
-        VPIntrinsic::GetMaskParamPos(F.getIntrinsicID());
+    Optional<unsigned> MaskParamPos =
+        VPIntrinsic::getMaskParamPos(F.getIntrinsicID());
     if (MaskParamPos.hasValue()) {
       Type *MaskParamType = F.getArg(MaskParamPos.getValue())->getType();
       ASSERT_TRUE(MaskParamType->isVectorTy());
-      ASSERT_TRUE(cast<VectorType>(MaskParamType)->getElementType()->isIntegerTy(1));
+      ASSERT_TRUE(
+          cast<VectorType>(MaskParamType)->getElementType()->isIntegerTy(1));
     }
 
-    Optional<int> VecLenParamPos =
-        VPIntrinsic::GetVectorLengthParamPos(F.getIntrinsicID());
+    Optional<unsigned> VecLenParamPos =
+        VPIntrinsic::getVectorLengthParamPos(F.getIntrinsicID());
     if (VecLenParamPos.hasValue()) {
       Type *VecLenParamType = F.getArg(VecLenParamPos.getValue())->getType();
       ASSERT_TRUE(VecLenParamType->isIntegerTy(32));
@@ -182,13 +189,13 @@ TEST_F(VPIntrinsicTest, OpcodeRoundTrip) {
 
   unsigned FullTripCounts = 0;
   for (unsigned OC : Opcodes) {
-    Intrinsic::ID VPID = VPIntrinsic::GetForOpcode(OC);
+    Intrinsic::ID VPID = VPIntrinsic::getForOpcode(OC);
     // No equivalent VP intrinsic available.
     if (VPID == Intrinsic::not_intrinsic)
       continue;
 
     Optional<unsigned> RoundTripOC =
-        VPIntrinsic::GetFunctionalOpcodeForVP(VPID);
+        VPIntrinsic::getFunctionalOpcodeForVP(VPID);
     // No equivalent Opcode available.
     if (!RoundTripOC)
       continue;
@@ -208,18 +215,65 @@ TEST_F(VPIntrinsicTest, IntrinsicIDRoundTrip) {
   unsigned FullTripCounts = 0;
   for (const auto &VPDecl : *M) {
     auto VPID = VPDecl.getIntrinsicID();
-    Optional<unsigned> OC = VPIntrinsic::GetFunctionalOpcodeForVP(VPID);
+    Optional<unsigned> OC = VPIntrinsic::getFunctionalOpcodeForVP(VPID);
 
     // no equivalent Opcode available
     if (!OC)
       continue;
 
-    Intrinsic::ID RoundTripVPID = VPIntrinsic::GetForOpcode(*OC);
+    Intrinsic::ID RoundTripVPID = VPIntrinsic::getForOpcode(*OC);
 
     ASSERT_EQ(RoundTripVPID, VPID);
     ++FullTripCounts;
   }
   ASSERT_NE(FullTripCounts, 0u);
+}
+
+/// Check that VPIntrinsic::getDeclarationForParams works.
+TEST_F(VPIntrinsicTest, VPIntrinsicDeclarationForParams) {
+  std::unique_ptr<Module> M = CreateVPDeclarationModule();
+  assert(M);
+
+  auto OutM = std::make_unique<Module>("", M->getContext());
+
+  for (auto &F : *M) {
+    auto *FuncTy = F.getFunctionType();
+
+    // Declare intrinsic anew with explicit types.
+    std::vector<Value *> Values;
+    for (auto *ParamTy : FuncTy->params())
+      Values.push_back(UndefValue::get(ParamTy));
+
+    ASSERT_NE(F.getIntrinsicID(), Intrinsic::not_intrinsic);
+    auto *NewDecl = VPIntrinsic::getDeclarationForParams(
+        OutM.get(), F.getIntrinsicID(), Values);
+    ASSERT_TRUE(NewDecl);
+
+    // Check that 'old decl' == 'new decl'.
+    ASSERT_EQ(F.getIntrinsicID(), NewDecl->getIntrinsicID());
+    auto ItNewParams = NewDecl->getFunctionType()->param_begin();
+    auto EndItNewParams = NewDecl->getFunctionType()->param_end();
+    for (auto *ParamTy : FuncTy->params()) {
+      ASSERT_NE(ItNewParams, EndItNewParams);
+      ASSERT_EQ(*ItNewParams, ParamTy);
+      ++ItNewParams;
+    }
+  }
+}
+
+/// Check that the HANDLE_VP_TO_CONSTRAINEDFP maps to an existing intrinsic with
+/// the right amount of metadata args.
+TEST_F(VPIntrinsicTest, HandleToConstrainedFP) {
+#define HANDLE_VP_TO_CONSTRAINEDFP(HASROUND, HASEXCEPT, CFPID)                 \
+  {                                                                            \
+    SmallVector<Intrinsic::IITDescriptor, 5> T;                                \
+    Intrinsic::getIntrinsicInfoTableEntries(Intrinsic::CFPID, T);              \
+    unsigned NumMetadataArgs = 0;                                              \
+    for (auto TD : T)                                                          \
+      NumMetadataArgs += (TD.Kind == Intrinsic::IITDescriptor::Metadata);      \
+    ASSERT_EQ(NumMetadataArgs, (unsigned)(HASROUND + HASEXCEPT));              \
+  }
+#include "llvm/IR/VPIntrinsics.def"
 }
 
 } // end anonymous namespace

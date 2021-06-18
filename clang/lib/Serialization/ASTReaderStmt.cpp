@@ -591,6 +591,16 @@ void ASTStmtReader::VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E) {
   E->setTypeSourceInfo(Record.readTypeSourceInfo());
 }
 
+void ASTStmtReader::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
+  VisitExpr(E);
+
+  E->setLocation(readSourceLocation());
+  E->setLParenLocation(readSourceLocation());
+  E->setRParenLocation(readSourceLocation());
+
+  E->setExpr(Record.readSubExpr());
+}
+
 void ASTStmtReader::VisitPredefinedExpr(PredefinedExpr *E) {
   VisitExpr(E);
   bool HasFunctionName = Record.readInt();
@@ -1799,6 +1809,28 @@ void ASTStmtReader::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *E) {
   E->RParenLoc = readSourceLocation();
 }
 
+void ASTStmtReader::VisitSYCLBuiltinNumFieldsExpr(SYCLBuiltinNumFieldsExpr *E) {
+  E->setLocation(readSourceLocation());
+  E->SourceTy = Record.readType();
+}
+
+void ASTStmtReader::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {
+  E->setLocation(readSourceLocation());
+  E->SourceTy = Record.readType();
+  E->Index = Record.readExpr();
+}
+
+void ASTStmtReader::VisitSYCLBuiltinNumBasesExpr(SYCLBuiltinNumBasesExpr *E) {
+  E->setLocation(readSourceLocation());
+  E->SourceTy = Record.readType();
+}
+
+void ASTStmtReader::VisitSYCLBuiltinBaseTypeExpr(SYCLBuiltinBaseTypeExpr *E) {
+  E->setLocation(readSourceLocation());
+  E->SourceTy = Record.readType();
+  E->Index = Record.readExpr();
+}
+
 void ASTStmtReader::VisitUserDefinedLiteral(UserDefinedLiteral *E) {
   VisitCallExpr(E);
   E->UDSuffixLoc = readSourceLocation();
@@ -2321,6 +2353,10 @@ void ASTStmtReader::VisitOMPTileDirective(OMPTileDirective *D) {
   VisitOMPLoopBasedDirective(D);
 }
 
+void ASTStmtReader::VisitOMPUnrollDirective(OMPUnrollDirective *D) {
+  VisitOMPLoopBasedDirective(D);
+}
+
 void ASTStmtReader::VisitOMPForDirective(OMPForDirective *D) {
   VisitOMPLoopDirective(D);
   D->setHasCancel(Record.readBool());
@@ -2816,6 +2852,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       S = SYCLUniqueStableNameExpr::CreateEmpty(Context);
       break;
 
+    case EXPR_SYCL_UNIQUE_STABLE_ID:
+      S = SYCLUniqueStableIdExpr::CreateEmpty(Context);
+      break;
+
     case EXPR_PREDEFINED:
       S = PredefinedExpr::CreateEmpty(
           Context,
@@ -3198,6 +3238,13 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       unsigned NumLoops = Record[ASTStmtReader::NumStmtFields];
       unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
       S = OMPTileDirective::CreateEmpty(Context, NumClauses, NumLoops);
+      break;
+    }
+
+    case STMT_OMP_UNROLL_DIRECTIVE: {
+      assert(Record[ASTStmtReader::NumStmtFields] == 1 && "Unroll directive accepts only a single loop");
+      unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
+      S = OMPUnrollDirective::CreateEmpty(Context, NumClauses);
       break;
     }
 
@@ -3616,6 +3663,22 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
     case EXPR_BUILTIN_BIT_CAST:
       assert(Record[ASTStmtReader::NumExprFields] == 0 && "Wrong PathSize!");
       S = new (Context) BuiltinBitCastExpr(Empty);
+      break;
+
+    case EXPR_SYCL_BUILTIN_NUM_FIELDS:
+      S = new (Context) SYCLBuiltinNumFieldsExpr(Empty);
+      break;
+
+    case EXPR_SYCL_BUILTIN_FIELD_TYPE:
+      S = new (Context) SYCLBuiltinFieldTypeExpr(Empty);
+      break;
+
+    case EXPR_SYCL_BUILTIN_NUM_BASES:
+      S = new (Context) SYCLBuiltinNumBasesExpr(Empty);
+      break;
+
+    case EXPR_SYCL_BUILTIN_BASE_TYPE:
+      S = new (Context) SYCLBuiltinBaseTypeExpr(Empty);
       break;
 
     case EXPR_USER_DEFINED_LITERAL:

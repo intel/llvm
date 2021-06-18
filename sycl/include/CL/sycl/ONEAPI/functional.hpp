@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <CL/sycl/functional.hpp>
+
 #include <functional>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -90,6 +92,15 @@ struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
     return Ret;                                                                \
   }
 
+// calc for sycl minimum/maximum function objects
+__SYCL_CALC_OVERLOAD(GroupOpISigned, SMin, sycl::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMin, sycl::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMin, sycl::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, SMax, sycl::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMax, sycl::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMax, sycl::maximum<T>)
+
+// calc for ONEAPI function objects
 __SYCL_CALC_OVERLOAD(GroupOpISigned, SMin, ONEAPI::minimum<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMin, ONEAPI::minimum<T>)
 __SYCL_CALC_OVERLOAD(GroupOpFP, FMin, ONEAPI::minimum<T>)

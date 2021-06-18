@@ -632,6 +632,20 @@ Attributes on the ``enum`` declaration do not apply to individual enumerators.
 
 Query for this feature with ``__has_extension(enumerator_attributes)``.
 
+C++11 Attributes on using-declarations
+======================================
+
+Clang allows C++-style ``[[]]`` attributes to be written on using-declarations.
+For instance:
+
+.. code-block:: c++
+
+  [[clang::using_if_exists]] using foo::bar;
+  using foo::baz [[clang::using_if_exists]];
+
+You can test for support for this extension with
+``__has_extension(cxx_attributes_on_using_declarations)``.
+
 'User-Specified' System Frameworks
 ==================================
 
@@ -2437,6 +2451,51 @@ their usual pattern without any special treatment.
 
   // Computes a unique stable name for the given type.
   constexpr const char * __builtin_sycl_unique_stable_name( type-id );
+
+``__builtin_sycl_unique_stable_id``
+-----------------------------------
+
+Like ``__builtin_sycl_unique_stable_name``, this builtin generates a unique and
+stable name as a string literal to support sharing it across split compliations.
+
+However, this builtin takes the name of a variable with global storage and
+provides the name for that.  In the case of names with internal linkage, it
+prepends an optional value if provided by ``-fsycl-unique-prefix`` on the command
+line, which the driver will do for SYCL invocations.
+
+This builtin produces a string that can be demangled, except when its argument has
+internal linkage.
+
+**Syntax**:
+
+.. code-block:: c++
+
+  // Computes a unique stable name for a given variable.
+  constexpr bool  __builtin_sycl_unique_stable_id( expr );
+
+``__builtin_sycl_mark_kernel_name``
+-----------------------------------
+
+``__builtin_sycl_mark_kernel_name`` is a builtin that can be used with
+``__builtin_sycl_unique_stable_name`` to make sure a kernel is properly 'marked'
+as a kernel without having to instantiate a sycl_kernel function. Typically,
+``__builtin_sycl_unique_stable_name`` can only be called in a constant expression
+context after any kernels that would change the output have been instantiated.
+This is necessary, as changing the answer to the constant expression after
+evaluation isn't permitted.  However, in some cases it can be useful to query the
+result of ``__builtin_unique_stable_name`` after we know that the name is a kernel
+name, but before we are able to instantiate the kernel itself (such as when trying
+to decide between two signatures at compile time). In these cases,
+``__builtin_sycl_mark_kernel_name`` can be used to mark the type as a kernel name,
+ensuring that ``__builtin_unique_stable_name`` gives the correct result despite the
+kernel not yet being instantiated.
+
+**Syntax**:
+
+.. code-block:: c++
+
+  // Marks a type as the name of a sycl kernel.
+  constexpr bool  __builtin_sycl_mark_kernel_name( type-id );
 
 Multiprecision Arithmetic Builtins
 ----------------------------------

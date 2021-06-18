@@ -49,6 +49,17 @@ enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
+/// This function enables ITT annotations in SPIR-V module by setting
+/// a specialization constant if INTEL_LIBITTNOTIFY64 env variable is set.
+static void enableITTAnnotationsIfNeeded(const RT::PiProgram &Prog,
+                                         const plugin &Plugin) {
+  if (SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::get() != nullptr) {
+    constexpr char SpecValue = 1;
+    Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
+        Prog, ITTSpecConstId, sizeof(char), &SpecValue);
+  }
+}
+
 ProgramManager &ProgramManager::getInstance() {
   return GlobalHandler::instance().getProgramManager();
 }
@@ -453,6 +464,9 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
       NativePrg = createPIProgram(Img, Context, Device);
       if (Prg)
         flushSpecConstants(*Prg, NativePrg, &Img);
+      if (Img.supportsSpecConstants())
+        enableITTAnnotationsIfNeeded(NativePrg,
+                                     getSyclObjImpl(Device)->getPlugin());
     }
 
     ProgramPtr ProgramManaged(
@@ -1421,6 +1435,10 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   RT::PiProgram Prog = createPIProgram(*InputImpl->get_bin_image_ref(),
                                        InputImpl->get_context(), Devs[0]);
 
+  for (const device &Dev : Devs)
+    if (InputImpl->get_bin_image_ref()->supportsSpecConstants())
+      enableITTAnnotationsIfNeeded(Prog, getSyclObjImpl(Dev)->getPlugin());
+
   DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
       bundle_state::object, InputImpl->get_kernel_ids_ref(), Prog,
@@ -1560,6 +1578,11 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     // Device is not used when creating program from SPIRV, so passing only one
     // device is OK.
     RT::PiProgram NativePrg = createPIProgram(Img, Context, Devs[0]);
+
+    for (const device &Dev : Devs)
+      if (InputImpl->get_bin_image_ref()->supportsSpecConstants())
+        enableITTAnnotationsIfNeeded(NativePrg,
+                                     getSyclObjImpl(Dev)->getPlugin());
 
     const std::vector<unsigned char> &SpecConstsBlob =
         InputImpl->get_spec_const_blob_ref();

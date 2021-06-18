@@ -402,9 +402,6 @@ public:
       SPIRVValue *, SPIRVBasicBlock *,
       const std::vector<std::pair<std::vector<SPIRVWord>, SPIRVBasicBlock *>> &,
       SPIRVBasicBlock *) = 0;
-  virtual SPIRVInstruction *addFModInst(SPIRVType *TheType, SPIRVId TheDividend,
-                                        SPIRVId TheDivisor,
-                                        SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addVectorTimesScalarInst(SPIRVType *TheType,
                                                      SPIRVId TheVector,
                                                      SPIRVId TheScalar,

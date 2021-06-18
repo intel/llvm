@@ -37,6 +37,7 @@
 
 #include "Debug.h"
 #include "get_elf_mach_gfx_name.h"
+#include "machine.h"
 #include "omptargetplugin.h"
 #include "print_tracing.h"
 
@@ -90,11 +91,22 @@ namespace core {
 hsa_status_t RegisterModuleFromMemory(
     std::map<std::string, atl_kernel_info_t> &KernelInfo,
     std::map<std::string, atl_symbol_info_t> &SymbolInfoTable, void *, size_t,
-    atmi_place_t,
+    hsa_agent_t agent,
     hsa_status_t (*on_deserialized_data)(void *data, size_t size,
                                          void *cb_state),
     void *cb_state, std::vector<hsa_executable_t> &HSAExecutables);
 }
+
+namespace hsa {
+template <typename C> hsa_status_t iterate_agents(C cb) {
+  auto L = [](hsa_agent_t agent, void *data) -> hsa_status_t {
+    C *unwrapped = static_cast<C *>(data);
+    return (*unwrapped)(agent);
+  };
+  return hsa_iterate_agents(L, static_cast<void *>(&cb));
+}
+
+} // namespace hsa
 
 /// Keep entries table per device
 struct FuncOrGblEntryTy {
@@ -136,15 +148,15 @@ public:
   KernelArgPool(const KernelArgPool &) = delete;
   KernelArgPool(KernelArgPool &&) = delete;
 
-  KernelArgPool(uint32_t kernarg_segment_size)
+  KernelArgPool(uint32_t kernarg_segment_size,
+                hsa_amd_memory_pool_t &memory_pool)
       : kernarg_segment_size(kernarg_segment_size) {
 
     // atmi uses one pool per kernel for all gpus, with a fixed upper size
     // preserving that exact scheme here, including the queue<int>
 
     hsa_status_t err = hsa_amd_memory_pool_allocate(
-        atl_gpu_kernarg_pools[0],
-        kernarg_size_including_implicit() * MAX_NUM_KERNELS, 0,
+        memory_pool, kernarg_size_including_implicit() * MAX_NUM_KERNELS, 0,
         &kernarg_region);
 
     if (err != HSA_STATUS_SUCCESS) {
@@ -224,7 +236,8 @@ struct KernelTy {
 
   KernelTy(int8_t _ExecutionMode, int16_t _ConstWGSize, int32_t _device_id,
            void *_CallStackAddr, const char *_Name,
-           uint32_t _kernarg_segment_size)
+           uint32_t _kernarg_segment_size,
+           hsa_amd_memory_pool_t &KernArgMemoryPool)
       : ExecutionMode(_ExecutionMode), ConstWGSize(_ConstWGSize),
         device_id(_device_id), CallStackAddr(_CallStackAddr), Name(_Name) {
     DP("Construct kernelinfo: ExecMode %d\n", ExecutionMode);
@@ -232,8 +245,8 @@ struct KernelTy {
     std::string N(_Name);
     if (KernelArgPoolMap.find(N) == KernelArgPoolMap.end()) {
       KernelArgPoolMap.insert(
-          std::make_pair(N, std::unique_ptr<KernelArgPool>(
-                                new KernelArgPool(_kernarg_segment_size))));
+          std::make_pair(N, std::unique_ptr<KernelArgPool>(new KernelArgPool(
+                                _kernarg_segment_size, KernArgMemoryPool))));
     }
   }
 };
@@ -242,19 +255,10 @@ struct KernelTy {
 /// FIXME: we may need this to be per device and per library.
 std::list<KernelTy> KernelsList;
 
-// ATMI API to get gpu and gpu memory place
-static atmi_place_t get_gpu_place(int device_id) {
-  return ATMI_PLACE_GPU(0, device_id);
-}
+template <typename Callback> static hsa_status_t FindAgents(Callback CB) {
 
-static std::vector<hsa_agent_t> find_gpu_agents() {
-  std::vector<hsa_agent_t> res;
-
-  hsa_status_t err = hsa_iterate_agents(
-      [](hsa_agent_t agent, void *data) -> hsa_status_t {
-        std::vector<hsa_agent_t> *res =
-            static_cast<std::vector<hsa_agent_t> *>(data);
-
+  hsa_status_t err =
+      hsa::iterate_agents([&](hsa_agent_t agent) -> hsa_status_t {
         hsa_device_type_t device_type;
         // get_info fails iff HSA runtime not yet initialized
         hsa_status_t err =
@@ -263,18 +267,16 @@ static std::vector<hsa_agent_t> find_gpu_agents() {
           printf("rtl.cpp: err %d\n", err);
         assert(err == HSA_STATUS_SUCCESS);
 
-        if (device_type == HSA_DEVICE_TYPE_GPU) {
-          res->push_back(agent);
-        }
+        CB(device_type, agent);
         return HSA_STATUS_SUCCESS;
-      },
-      &res);
+      });
 
   // iterate_agents fails iff HSA runtime not yet initialized
-  if (print_kernel_trace > 0 && err != HSA_STATUS_SUCCESS)
+  if (print_kernel_trace > 0 && err != HSA_STATUS_SUCCESS) {
     printf("rtl.cpp: err %d\n", err);
-  assert(err == HSA_STATUS_SUCCESS);
-  return res;
+  }
+
+  return err;
 }
 
 static void callbackQueue(hsa_status_t status, hsa_queue_t *source,
@@ -302,6 +304,72 @@ uint16_t create_header() {
   header |= HSA_FENCE_SCOPE_SYSTEM << HSA_PACKET_HEADER_RELEASE_FENCE_SCOPE;
   return header;
 }
+
+hsa_status_t addKernArgPool(hsa_amd_memory_pool_t MemoryPool, void *Data) {
+  std::vector<hsa_amd_memory_pool_t> *Result =
+      static_cast<std::vector<hsa_amd_memory_pool_t> *>(Data);
+  bool AllocAllowed = false;
+  hsa_status_t err = hsa_amd_memory_pool_get_info(
+      MemoryPool, HSA_AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALLOWED,
+      &AllocAllowed);
+  if (err != HSA_STATUS_SUCCESS) {
+    fprintf(stderr, "Alloc allowed in memory pool check failed: %s\n",
+            get_error_string(err));
+    return err;
+  }
+
+  if (!AllocAllowed) {
+    // nothing needs to be done here.
+    return HSA_STATUS_SUCCESS;
+  }
+
+  uint32_t GlobalFlags = 0;
+  err = hsa_amd_memory_pool_get_info(
+      MemoryPool, HSA_AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS, &GlobalFlags);
+  if (err != HSA_STATUS_SUCCESS) {
+    fprintf(stderr, "Get memory pool info failed: %s\n", get_error_string(err));
+    return err;
+  }
+
+  if ((GlobalFlags & HSA_AMD_MEMORY_POOL_GLOBAL_FLAG_FINE_GRAINED) &&
+      (GlobalFlags & HSA_AMD_MEMORY_POOL_GLOBAL_FLAG_KERNARG_INIT)) {
+    size_t size = 0;
+    err = hsa_amd_memory_pool_get_info(MemoryPool,
+                                       HSA_AMD_MEMORY_POOL_INFO_SIZE, &size);
+    if (err != HSA_STATUS_SUCCESS) {
+      fprintf(stderr, "Get memory pool size failed: %s\n",
+              get_error_string(err));
+      return err;
+    }
+    if (size > 0)
+      Result->push_back(MemoryPool);
+  }
+
+  return HSA_STATUS_SUCCESS;
+}
+
+std::pair<hsa_status_t, hsa_amd_memory_pool_t>
+FindKernargPool(const std::vector<hsa_agent_t> &HSAAgents) {
+  std::vector<hsa_amd_memory_pool_t> KernArgPools;
+  for (const auto &Agent : HSAAgents) {
+    hsa_status_t err = HSA_STATUS_SUCCESS;
+    err = hsa_amd_agent_iterate_memory_pools(
+        Agent, addKernArgPool, static_cast<void *>(&KernArgPools));
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Iterate all memory pools", get_error_string(err));
+      return {err, hsa_amd_memory_pool_t{}};
+    }
+  }
+
+  if (KernArgPools.empty()) {
+    fprintf(stderr, "Unable to find any valid kernarg pool\n");
+    return {HSA_STATUS_ERROR, hsa_amd_memory_pool_t{}};
+  }
+
+  return {HSA_STATUS_SUCCESS, KernArgPools[0]};
+}
+
 } // namespace
 } // namespace core
 
@@ -319,6 +387,9 @@ public:
   // GPU devices
   std::vector<hsa_agent_t> HSAAgents;
   std::vector<hsa_queue_t *> HSAQueues; // one per gpu
+
+  // CPUs
+  std::vector<hsa_agent_t> CPUAgents;
 
   // Device properties
   std::vector<int> ComputeUnits;
@@ -349,9 +420,11 @@ public:
   std::vector<std::map<std::string, atl_kernel_info_t>> KernelInfoTable;
   std::vector<std::map<std::string, atl_symbol_info_t>> SymbolInfoTable;
 
+  hsa_amd_memory_pool_t KernArgPool;
+
   struct atmiFreePtrDeletor {
     void operator()(void *p) {
-      atmi_free(p); // ignore failure to free
+      core::Runtime::Memfree(p); // ignore failure to free
     }
   };
 
@@ -472,7 +545,16 @@ public:
     // Init hostcall soon after initializing ATMI
     hostrpc_init();
 
-    HSAAgents = find_gpu_agents();
+    err = FindAgents([&](hsa_device_type_t DeviceType, hsa_agent_t Agent) {
+      if (DeviceType == HSA_DEVICE_TYPE_CPU) {
+        CPUAgents.push_back(Agent);
+      } else {
+        HSAAgents.push_back(Agent);
+      }
+    });
+    if (err != HSA_STATUS_SUCCESS)
+      return;
+
     NumberOfDevices = (int)HSAAgents.size();
 
     if (NumberOfDevices == 0) {
@@ -480,6 +562,11 @@ public:
       return;
     } else {
       DP("There are %d devices supporting HSA.\n", NumberOfDevices);
+    }
+    std::tie(err, KernArgPool) = core::FindKernargPool(CPUAgents);
+    if (err != HSA_STATUS_SUCCESS) {
+      DP("Error when reading memory pools\n");
+      return;
     }
 
     // Init the device info
@@ -1025,15 +1112,16 @@ template <typename C>
 hsa_status_t module_register_from_memory_to_place(
     std::map<std::string, atl_kernel_info_t> &KernelInfoTable,
     std::map<std::string, atl_symbol_info_t> &SymbolInfoTable,
-    void *module_bytes, size_t module_size, atmi_place_t place, C cb,
+    void *module_bytes, size_t module_size, int DeviceId, C cb,
     std::vector<hsa_executable_t> &HSAExecutables) {
   auto L = [](void *data, size_t size, void *cb_state) -> hsa_status_t {
     C *unwrapped = static_cast<C *>(cb_state);
     return (*unwrapped)(data, size);
   };
   return core::RegisterModuleFromMemory(
-      KernelInfoTable, SymbolInfoTable, module_bytes, module_size, place, L,
-      static_cast<void *>(&cb), HSAExecutables);
+      KernelInfoTable, SymbolInfoTable, module_bytes, module_size,
+      DeviceInfo.HSAAgents[DeviceId], L, static_cast<void *>(&cb),
+      HSAExecutables);
 }
 } // namespace
 
@@ -1175,7 +1263,7 @@ struct device_environment {
 static hsa_status_t atmi_calloc(void **ret_ptr, size_t size, int DeviceId) {
   uint64_t rounded = 4 * ((size + 3) / 4);
   void *ptr;
-  hsa_status_t err = atmi_malloc(&ptr, rounded, DeviceId, ATMI_DEVTYPE_GPU);
+  hsa_status_t err = core::Runtime::DeviceMalloc(&ptr, rounded, DeviceId);
   if (err != HSA_STATUS_SUCCESS) {
     return err;
   }
@@ -1183,7 +1271,7 @@ static hsa_status_t atmi_calloc(void **ret_ptr, size_t size, int DeviceId) {
   hsa_status_t rc = hsa_amd_memory_fill(ptr, 0, rounded / 4);
   if (rc != HSA_STATUS_SUCCESS) {
     fprintf(stderr, "zero fill device_state failed with %u\n", rc);
-    atmi_free(ptr);
+    core::Runtime::Memfree(ptr);
     return HSA_STATUS_ERROR;
   }
 
@@ -1239,8 +1327,7 @@ __tgt_target_table *__tgt_rtl_load_binary_locked(int32_t device_id,
     auto &KernelInfo = DeviceInfo.KernelInfoTable[device_id];
     auto &SymbolInfo = DeviceInfo.SymbolInfoTable[device_id];
     hsa_status_t err = module_register_from_memory_to_place(
-        KernelInfo, SymbolInfo, (void *)image->ImageStart, img_size,
-        get_gpu_place(device_id),
+        KernelInfo, SymbolInfo, (void *)image->ImageStart, img_size, device_id,
         [&](void *data, size_t size) {
           if (image_contains_symbol(data, size, "needs_hostcall_buffer")) {
             __atomic_store_n(&DeviceInfo.hostcall_required, true,
@@ -1549,8 +1636,8 @@ __tgt_target_table *__tgt_rtl_load_binary_locked(int32_t device_id,
     }
 
     KernelsList.push_back(KernelTy(ExecModeVal, WGSizeVal, device_id,
-                                   CallStackAddr, e->name,
-                                   kernarg_segment_size));
+                                   CallStackAddr, e->name, kernarg_segment_size,
+                                   DeviceInfo.KernArgPool));
     __tgt_offload_entry entry = *e;
     entry.addr = (void *)&KernelsList.back();
     DeviceInfo.addOffloadEntry(device_id, entry);
@@ -1570,7 +1657,7 @@ void *__tgt_rtl_data_alloc(int device_id, int64_t size, void *, int32_t kind) {
     return NULL;
   }
 
-  hsa_status_t err = atmi_malloc(&ptr, size, device_id, ATMI_DEVTYPE_GPU);
+  hsa_status_t err = core::Runtime::DeviceMalloc(&ptr, size, device_id);
   DP("Tgt alloc data %ld bytes, (tgt:%016llx).\n", size,
      (long long unsigned)(Elf64_Addr)ptr);
   ptr = (err == HSA_STATUS_SUCCESS) ? ptr : NULL;
@@ -1623,7 +1710,7 @@ int32_t __tgt_rtl_data_delete(int device_id, void *tgt_ptr) {
   assert(device_id < DeviceInfo.NumberOfDevices && "Device ID too large");
   hsa_status_t err;
   DP("Tgt free data (tgt:%016llx).\n", (long long unsigned)(Elf64_Addr)tgt_ptr);
-  err = atmi_free(tgt_ptr);
+  err = core::Runtime::Memfree(tgt_ptr);
   if (err != HSA_STATUS_SUCCESS) {
     DP("Error when freeing CUDA memory\n");
     return OFFLOAD_FAIL;

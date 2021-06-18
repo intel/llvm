@@ -13,6 +13,7 @@
 
 #include "asan_activation.h"
 #include "asan_allocator.h"
+#include "asan_fake_stack.h"
 #include "asan_interceptors.h"
 #include "asan_interface_internal.h"
 #include "asan_internal.h"
@@ -23,11 +24,11 @@
 #include "asan_stats.h"
 #include "asan_suppressions.h"
 #include "asan_thread.h"
+#include "lsan/lsan_common.h"
 #include "sanitizer_common/sanitizer_atomic.h"
 #include "sanitizer_common/sanitizer_flags.h"
 #include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_symbolizer.h"
-#include "lsan/lsan_common.h"
 #include "ubsan/ubsan_init.h"
 #include "ubsan/ubsan_platform.h"
 
@@ -137,24 +138,23 @@ ASAN_REPORT_ERROR_N(load, false)
 ASAN_REPORT_ERROR_N(store, true)
 
 #define ASAN_MEMORY_ACCESS_CALLBACK_BODY(type, is_write, size, exp_arg, fatal) \
-    if (SANITIZER_MYRIAD2 && !AddrIsInMem(addr) && !AddrIsInShadow(addr))      \
-      return;                                                                  \
-    uptr sp = MEM_TO_SHADOW(addr);                                             \
-    uptr s = size <= SHADOW_GRANULARITY ? *reinterpret_cast<u8 *>(sp)          \
-                                        : *reinterpret_cast<u16 *>(sp);        \
-    if (UNLIKELY(s)) {                                                         \
-      if (UNLIKELY(size >= SHADOW_GRANULARITY ||                               \
-                   ((s8)((addr & (SHADOW_GRANULARITY - 1)) + size - 1)) >=     \
-                       (s8)s)) {                                               \
-        if (__asan_test_only_reported_buggy_pointer) {                         \
-          *__asan_test_only_reported_buggy_pointer = addr;                     \
-        } else {                                                               \
-          GET_CALLER_PC_BP_SP;                                                 \
-          ReportGenericError(pc, bp, sp, addr, is_write, size, exp_arg,        \
-                              fatal);                                          \
-        }                                                                      \
+  if (SANITIZER_MYRIAD2 && !AddrIsInMem(addr) && !AddrIsInShadow(addr))        \
+    return;                                                                    \
+  uptr sp = MEM_TO_SHADOW(addr);                                               \
+  uptr s = size <= SHADOW_GRANULARITY ? *reinterpret_cast<u8 *>(sp)            \
+                                      : *reinterpret_cast<u16 *>(sp);          \
+  if (UNLIKELY(s)) {                                                           \
+    if (UNLIKELY(size >= SHADOW_GRANULARITY ||                                 \
+                 ((s8)((addr & (SHADOW_GRANULARITY - 1)) + size - 1)) >=       \
+                     (s8)s)) {                                                 \
+      if (__asan_test_only_reported_buggy_pointer) {                           \
+        *__asan_test_only_reported_buggy_pointer = addr;                       \
+      } else {                                                                 \
+        GET_CALLER_PC_BP_SP;                                                   \
+        ReportGenericError(pc, bp, sp, addr, is_write, size, exp_arg, fatal);  \
       }                                                                        \
-    }
+    }                                                                          \
+  }
 
 #define ASAN_MEMORY_ACCESS_CALLBACK(type, is_write, size)                      \
   extern "C" NOINLINE INTERFACE_ATTRIBUTE                                      \
@@ -306,7 +306,7 @@ static void asan_atexit() {
 
 static void InitializeHighMemEnd() {
 #if !SANITIZER_MYRIAD2
-#if !ASAN_FIXED_MAPPING
+#  if !ASAN_FIXED_MAPPING
   kHighMemEnd = GetMaxUserVirtualAddress();
   // Increase kHighMemEnd to make sure it's properly
   // aligned together with kHighMemBeg:
@@ -586,8 +586,12 @@ static void UnpoisonDefaultStack() {
 
 static void UnpoisonFakeStack() {
   AsanThread *curr_thread = GetCurrentThread();
-  if (curr_thread && curr_thread->has_fake_stack())
-    curr_thread->fake_stack()->HandleNoReturn();
+  if (!curr_thread)
+    return;
+  FakeStack *stack = curr_thread->get_fake_stack();
+  if (!stack)
+    return;
+  stack->HandleNoReturn();
 }
 
 }  // namespace __asan

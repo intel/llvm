@@ -635,6 +635,12 @@ def PPCRegG8RCAsmOperand : AsmOperandClass {
 def g8rc : RegisterOperand<G8RC> {
   let ParserMatchClass = PPCRegG8RCAsmOperand;
 }
+def PPCRegG8pRCAsmOperand : AsmOperandClass {
+  let Name = "RegG8pRC"; let PredicateMethod = "isEvenRegNumber";
+}
+def g8prc : RegisterOperand<G8pRC> {
+  let ParserMatchClass = PPCRegG8pRCAsmOperand;
+}
 def PPCRegGPRCNoR0AsmOperand : AsmOperandClass {
   let Name = "RegGPRCNoR0"; let PredicateMethod = "isRegNumber";
 }
@@ -2021,6 +2027,8 @@ def : Pat<(int_ppc_dcbtst xoaddr:$dst),
           (DCBTST 0, xoaddr:$dst)>;
 def : Pat<(int_ppc_dcbf xoaddr:$dst),
           (DCBF 0, xoaddr:$dst)>;
+def : Pat<(int_ppc_icbt xoaddr:$dst),
+          (ICBT 0, xoaddr:$dst)>;
 
 def : Pat<(prefetch xoaddr:$dst, (i32 0), imm, (i32 1)),
           (DCBT 0, xoaddr:$dst)>;   // data prefetch for loads
@@ -2542,11 +2550,19 @@ let isCodeGenOnly = 1 in {
 def EnforceIEIO : XForm_24_eieio<31, 854, (outs), (ins),
                                  "eieio", IIC_LdStLoad, []>;
 
+def PseudoEIEIO : PPCEmitTimePseudo<(outs), (ins), "#PPCEIEIO",
+                  [(int_ppc_eieio)]>;
+
 def : Pat<(int_ppc_sync),   (SYNC 0)>, Requires<[HasSYNC]>;
+def : Pat<(int_ppc_iospace_sync),   (SYNC 0)>, Requires<[HasSYNC]>;
 def : Pat<(int_ppc_lwsync), (SYNC 1)>, Requires<[HasSYNC]>;
+def : Pat<(int_ppc_iospace_lwsync), (SYNC 1)>, Requires<[HasSYNC]>;
 def : Pat<(int_ppc_sync),   (MSYNC)>, Requires<[HasOnlyMSYNC]>;
+def : Pat<(int_ppc_iospace_sync),   (MSYNC)>, Requires<[HasOnlyMSYNC]>;
 def : Pat<(int_ppc_lwsync), (MSYNC)>, Requires<[HasOnlyMSYNC]>;
-def : Pat<(int_ppc_eieio),  (EnforceIEIO)>;
+def : Pat<(int_ppc_iospace_lwsync), (MSYNC)>, Requires<[HasOnlyMSYNC]>;
+def : Pat<(int_ppc_eieio),  (PseudoEIEIO)>;
+def : Pat<(int_ppc_iospace_eieio),  (PseudoEIEIO)>;
 
 //===----------------------------------------------------------------------===//
 // PPC32 Arithmetic Instructions.

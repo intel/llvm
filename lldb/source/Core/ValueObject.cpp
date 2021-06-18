@@ -1577,7 +1577,7 @@ bool ValueObject::IsRuntimeSupportValue() {
   if (!process)
     return false;
 
-  // We trust the the compiler did the right thing and marked runtime support
+  // We trust that the compiler did the right thing and marked runtime support
   // values as artificial.
   if (!GetVariable() || !GetVariable()->IsArtificial())
     return false;
@@ -2796,8 +2796,7 @@ ValueObjectSP ValueObject::CastPointerType(const char *name, TypeSP &type_sp) {
   return valobj_sp;
 }
 
-ValueObject::EvaluationPoint::EvaluationPoint()
-    : m_mod_id(), m_exe_ctx_ref(), m_needs_update(true) {}
+ValueObject::EvaluationPoint::EvaluationPoint() : m_mod_id(), m_exe_ctx_ref() {}
 
 ValueObject::EvaluationPoint::EvaluationPoint(ExecutionContextScope *exe_scope,
                                               bool use_selected)

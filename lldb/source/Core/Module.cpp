@@ -257,9 +257,7 @@ Module::Module(const FileSpec &file_spec, const ArchSpec &arch,
               m_object_name.IsEmpty() ? "" : ")");
 }
 
-Module::Module()
-    : m_object_offset(0), m_file_has_changed(false),
-      m_first_file_changed_log(false) {
+Module::Module() : m_file_has_changed(false), m_first_file_changed_log(false) {
   std::lock_guard<std::recursive_mutex> guard(
       GetAllocationModuleCollectionMutex());
   GetModuleCollection().push_back(this);
@@ -440,8 +438,6 @@ CompUnitSP Module::GetCompileUnitAtIndex(size_t index) {
 
 bool Module::ResolveFileAddress(lldb::addr_t vm_addr, Address &so_addr) {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
-  LLDB_SCOPED_TIMERF("Module::ResolveFileAddress (vm_addr = 0x%" PRIx64 ")",
-                     vm_addr);
   SectionList *section_list = GetSectionList();
   if (section_list)
     return so_addr.ResolveAddressUsingFileSections(vm_addr, section_list);

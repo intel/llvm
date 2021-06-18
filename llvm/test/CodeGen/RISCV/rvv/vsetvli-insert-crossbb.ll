@@ -23,7 +23,7 @@ declare void @llvm.riscv.vse.nxv2f32(<vscale x 2 x float>, <vscale x 2 x float>*
 define <vscale x 1 x double> @test1(i64 %avl, i8 zeroext %cond, <vscale x 1 x double> %a, <vscale x 1 x double> %b) nounwind {
 ; CHECK-LABEL: test1:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vsetvli a0, a0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli a0, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    beqz a1, .LBB0_2
 ; CHECK-NEXT:  # %bb.1: # %if.then
 ; CHECK-NEXT:    vfadd.vv v8, v8, v9
@@ -54,7 +54,7 @@ if.end:                                           ; preds = %if.else, %if.then
 define <vscale x 1 x double> @test2(i64 %avl, i8 zeroext %cond, <vscale x 1 x double> %a, <vscale x 1 x double> %b) nounwind {
 ; CHECK-LABEL: test2:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vsetvli a0, a0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli a0, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    beqz a1, .LBB1_2
 ; CHECK-NEXT:  # %bb.1: # %if.then
 ; CHECK-NEXT:    vfadd.vv v25, v8, v9
@@ -83,21 +83,18 @@ if.end:                                           ; preds = %if.else, %if.then
   ret <vscale x 1 x double> %3
 }
 
-; FIXME: The last vsetvli is redundant, but we need to look through a phi to
-; prove it.
 define <vscale x 1 x double> @test3(i64 %avl, i8 zeroext %cond, <vscale x 1 x double> %a, <vscale x 1 x double> %b) nounwind {
 ; CHECK-LABEL: test3:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    beqz a1, .LBB2_2
 ; CHECK-NEXT:  # %bb.1: # %if.then
-; CHECK-NEXT:    vsetvli a0, a0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli a0, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    vfadd.vv v25, v8, v9
-; CHECK-NEXT:    j .LBB2_3
+; CHECK-NEXT:    vfmul.vv v8, v25, v8
+; CHECK-NEXT:    ret
 ; CHECK-NEXT:  .LBB2_2: # %if.else
-; CHECK-NEXT:    vsetvli a0, a0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli a0, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    vfsub.vv v25, v8, v9
-; CHECK-NEXT:  .LBB2_3: # %if.end
-; CHECK-NEXT:    vsetvli zero, a0, e64,m1,ta,mu
 ; CHECK-NEXT:    vfmul.vv v8, v25, v8
 ; CHECK-NEXT:    ret
 entry:
@@ -128,7 +125,7 @@ define <vscale x 1 x double> @test4(i64 %avl, i8 zeroext %cond, <vscale x 1 x do
 ; CHECK-NEXT:  # %bb.1: # %if.then
 ; CHECK-NEXT:    lui a1, %hi(.LCPI3_0)
 ; CHECK-NEXT:    addi a1, a1, %lo(.LCPI3_0)
-; CHECK-NEXT:    vsetvli zero, a0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli zero, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    vlse64.v v25, (a1), zero
 ; CHECK-NEXT:    lui a1, %hi(.LCPI3_1)
 ; CHECK-NEXT:    addi a1, a1, %lo(.LCPI3_1)
@@ -141,7 +138,7 @@ define <vscale x 1 x double> @test4(i64 %avl, i8 zeroext %cond, <vscale x 1 x do
 ; CHECK-NEXT:  .LBB3_2: # %if.else
 ; CHECK-NEXT:    lui a1, %hi(.LCPI3_2)
 ; CHECK-NEXT:    addi a1, a1, %lo(.LCPI3_2)
-; CHECK-NEXT:    vsetvli zero, a0, e32,m1,ta,mu
+; CHECK-NEXT:    vsetvli zero, a0, e32, m1, ta, mu
 ; CHECK-NEXT:    vlse32.v v25, (a1), zero
 ; CHECK-NEXT:    lui a1, %hi(.LCPI3_3)
 ; CHECK-NEXT:    addi a1, a1, %lo(.LCPI3_3)
@@ -151,7 +148,7 @@ define <vscale x 1 x double> @test4(i64 %avl, i8 zeroext %cond, <vscale x 1 x do
 ; CHECK-NEXT:    addi a1, a1, %lo(scratch)
 ; CHECK-NEXT:    vse32.v v25, (a1)
 ; CHECK-NEXT:  .LBB3_3: # %if.end
-; CHECK-NEXT:    vsetvli zero, a0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli zero, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    vfmul.vv v8, v8, v9
 ; CHECK-NEXT:    ret
 entry:
@@ -183,7 +180,7 @@ define <vscale x 1 x double> @test5(i64 %avl, i8 zeroext %cond, <vscale x 1 x do
 ; CHECK-LABEL: test5:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    andi a2, a1, 1
-; CHECK-NEXT:    vsetvli a0, a0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli a0, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    bnez a2, .LBB4_3
 ; CHECK-NEXT:  # %bb.1: # %if.else
 ; CHECK-NEXT:    vfsub.vv v25, v8, v9
@@ -240,14 +237,14 @@ define <vscale x 1 x double> @test6(i64 %avl, i8 zeroext %cond, <vscale x 1 x do
 ; CHECK-LABEL: test6:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    andi a3, a1, 1
-; CHECK-NEXT:    vsetvli a2, a0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli a2, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    bnez a3, .LBB5_3
 ; CHECK-NEXT:  # %bb.1: # %if.else
 ; CHECK-NEXT:    vfsub.vv v25, v8, v9
 ; CHECK-NEXT:    andi a1, a1, 2
 ; CHECK-NEXT:    beqz a1, .LBB5_4
 ; CHECK-NEXT:  .LBB5_2: # %if.then4
-; CHECK-NEXT:    vsetvli a0, a0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli a0, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    lui a0, %hi(.LCPI5_0)
 ; CHECK-NEXT:    addi a0, a0, %lo(.LCPI5_0)
 ; CHECK-NEXT:    vlse64.v v26, (a0), zero
@@ -264,7 +261,7 @@ define <vscale x 1 x double> @test6(i64 %avl, i8 zeroext %cond, <vscale x 1 x do
 ; CHECK-NEXT:    andi a1, a1, 2
 ; CHECK-NEXT:    bnez a1, .LBB5_2
 ; CHECK-NEXT:  .LBB5_4: # %if.else5
-; CHECK-NEXT:    vsetvli a0, a0, e32,m1,ta,mu
+; CHECK-NEXT:    vsetvli a0, a0, e32, m1, ta, mu
 ; CHECK-NEXT:    lui a0, %hi(.LCPI5_2)
 ; CHECK-NEXT:    addi a0, a0, %lo(.LCPI5_2)
 ; CHECK-NEXT:    vlse32.v v26, (a0), zero
@@ -276,7 +273,7 @@ define <vscale x 1 x double> @test6(i64 %avl, i8 zeroext %cond, <vscale x 1 x do
 ; CHECK-NEXT:    addi a0, a0, %lo(scratch)
 ; CHECK-NEXT:    vse32.v v26, (a0)
 ; CHECK-NEXT:  .LBB5_5: # %if.end10
-; CHECK-NEXT:    vsetvli zero, a2, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli zero, a2, e64, m1, ta, mu
 ; CHECK-NEXT:    vfmul.vv v8, v25, v25
 ; CHECK-NEXT:    ret
 entry:
@@ -336,7 +333,7 @@ define <vscale x 1 x double> @test8(i64 %avl, i8 zeroext %cond, <vscale x 1 x do
 ; CHECK-NEXT:    csrr a2, vlenb
 ; CHECK-NEXT:    slli a2, a2, 1
 ; CHECK-NEXT:    sub sp, sp, a2
-; CHECK-NEXT:    vsetvli s0, a0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli s0, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    beqz a1, .LBB6_2
 ; CHECK-NEXT:  # %bb.1: # %if.then
 ; CHECK-NEXT:    vfadd.vv v8, v8, v9
@@ -349,7 +346,7 @@ define <vscale x 1 x double> @test8(i64 %avl, i8 zeroext %cond, <vscale x 1 x do
 ; CHECK-NEXT:    addi a0, sp, 16
 ; CHECK-NEXT:    vs1r.v v8, (a0) # Unknown-size Folded Spill
 ; CHECK-NEXT:    call foo@plt
-; CHECK-NEXT:    vsetvli zero, s0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli zero, s0, e64, m1, ta, mu
 ; CHECK-NEXT:    csrr a0, vlenb
 ; CHECK-NEXT:    add a0, a0, sp
 ; CHECK-NEXT:    addi a0, a0, 16
@@ -395,7 +392,7 @@ define <vscale x 1 x double> @test9(i64 %avl, i8 zeroext %cond, <vscale x 1 x do
 ; CHECK-NEXT:    csrr a2, vlenb
 ; CHECK-NEXT:    slli a2, a2, 1
 ; CHECK-NEXT:    sub sp, sp, a2
-; CHECK-NEXT:    vsetvli s0, a0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli s0, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    beqz a1, .LBB7_2
 ; CHECK-NEXT:  # %bb.1: # %if.then
 ; CHECK-NEXT:    vfadd.vv v25, v8, v9
@@ -416,7 +413,7 @@ define <vscale x 1 x double> @test9(i64 %avl, i8 zeroext %cond, <vscale x 1 x do
 ; CHECK-NEXT:  .LBB7_2: # %if.else
 ; CHECK-NEXT:    vfsub.vv v25, v8, v9
 ; CHECK-NEXT:  .LBB7_3: # %if.end
-; CHECK-NEXT:    vsetvli zero, s0, e64,m1,ta,mu
+; CHECK-NEXT:    vsetvli zero, s0, e64, m1, ta, mu
 ; CHECK-NEXT:    vfmul.vv v8, v25, v8
 ; CHECK-NEXT:    csrr a0, vlenb
 ; CHECK-NEXT:    slli a0, a0, 1
@@ -445,3 +442,57 @@ if.end:                                           ; preds = %if.else, %if.then
   ret <vscale x 1 x double> %3
 }
 
+define void @saxpy_vec(i64 %n, float %a, float* nocapture readonly %x, float* nocapture %y) {
+; CHECK-LABEL: saxpy_vec:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    vsetvli a4, a0, e32, m8, ta, mu
+; CHECK-NEXT:    beqz a4, .LBB8_3
+; CHECK-NEXT:  # %bb.1: # %for.body.preheader
+; CHECK-NEXT:    fmv.w.x ft0, a1
+; CHECK-NEXT:  .LBB8_2: # %for.body
+; CHECK-NEXT:    # =>This Inner Loop Header: Depth=1
+; CHECK-NEXT:    vle32.v v8, (a2)
+; CHECK-NEXT:    vle32.v v16, (a3)
+; CHECK-NEXT:    slli a1, a4, 2
+; CHECK-NEXT:    add a2, a2, a1
+; CHECK-NEXT:    vsetvli zero, a4, e32, m8, tu, mu
+; CHECK-NEXT:    vfmacc.vf v16, ft0, v8
+; CHECK-NEXT:    vsetvli zero, zero, e32, m8, ta, mu
+; CHECK-NEXT:    vse32.v v16, (a3)
+; CHECK-NEXT:    sub a0, a0, a4
+; CHECK-NEXT:    vsetvli a4, a0, e32, m8, ta, mu
+; CHECK-NEXT:    add a3, a3, a1
+; CHECK-NEXT:    bnez a4, .LBB8_2
+; CHECK-NEXT:  .LBB8_3: # %for.end
+; CHECK-NEXT:    ret
+entry:
+  %0 = tail call i64 @llvm.riscv.vsetvli.i64(i64 %n, i64 2, i64 3)
+  %cmp.not13 = icmp eq i64 %0, 0
+  br i1 %cmp.not13, label %for.end, label %for.body
+
+for.body:                                         ; preds = %for.body, %entry
+  %1 = phi i64 [ %7, %for.body ], [ %0, %entry ]
+  %n.addr.016 = phi i64 [ %sub, %for.body ], [ %n, %entry ]
+  %x.addr.015 = phi float* [ %add.ptr, %for.body ], [ %x, %entry ]
+  %y.addr.014 = phi float* [ %add.ptr1, %for.body ], [ %y, %entry ]
+  %2 = bitcast float* %x.addr.015 to <vscale x 16 x float>*
+  %3 = tail call <vscale x 16 x float> @llvm.riscv.vle.nxv16f32.i64(<vscale x 16 x float>* %2, i64 %1)
+  %add.ptr = getelementptr inbounds float, float* %x.addr.015, i64 %1
+  %4 = bitcast float* %y.addr.014 to <vscale x 16 x float>*
+  %5 = tail call <vscale x 16 x float> @llvm.riscv.vle.nxv16f32.i64(<vscale x 16 x float>* %4, i64 %1)
+  %6 = tail call <vscale x 16 x float> @llvm.riscv.vfmacc.nxv16f32.f32.i64(<vscale x 16 x float> %5, float %a, <vscale x 16 x float> %3, i64 %1)
+  tail call void @llvm.riscv.vse.nxv16f32.i64(<vscale x 16 x float> %6, <vscale x 16 x float>* %4, i64 %1)
+  %add.ptr1 = getelementptr inbounds float, float* %y.addr.014, i64 %1
+  %sub = sub i64 %n.addr.016, %1
+  %7 = tail call i64 @llvm.riscv.vsetvli.i64(i64 %sub, i64 2, i64 3)
+  %cmp.not = icmp eq i64 %7, 0
+  br i1 %cmp.not, label %for.end, label %for.body
+
+for.end:                                          ; preds = %for.body, %entry
+  ret void
+}
+
+declare i64 @llvm.riscv.vsetvli.i64(i64, i64 immarg, i64 immarg)
+declare <vscale x 16 x float> @llvm.riscv.vle.nxv16f32.i64(<vscale x 16 x float>* nocapture, i64)
+declare <vscale x 16 x float> @llvm.riscv.vfmacc.nxv16f32.f32.i64(<vscale x 16 x float>, float, <vscale x 16 x float>, i64)
+declare void @llvm.riscv.vse.nxv16f32.i64(<vscale x 16 x float>, <vscale x 16 x float>* nocapture, i64)

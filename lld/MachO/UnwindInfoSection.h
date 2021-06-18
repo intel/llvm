@@ -20,11 +20,19 @@
 namespace lld {
 namespace macho {
 
+template <class Ptr> struct CompactUnwindEntry {
+  Ptr functionAddress;
+  uint32_t functionLength;
+  compact_unwind_encoding_t encoding;
+  Ptr personality;
+  Ptr lsda;
+};
+
 class UnwindInfoSection : public SyntheticSection {
 public:
   bool isNeeded() const override { return compactUnwindSection != nullptr; }
   uint64_t getSize() const override { return unwindInfoSize; }
-  virtual void prepareRelocations(InputSection *) = 0;
+  virtual void prepareRelocations(ConcatInputSection *) = 0;
 
   void setCompactUnwindSection(ConcatOutputSection *cuSection) {
     compactUnwindSection = cuSection;

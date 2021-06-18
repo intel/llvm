@@ -508,6 +508,12 @@ TYPE_TRAIT_1(__has_unique_object_representations,
              HasUniqueObjectRepresentations, KEYCXX)
 KEYWORD(__underlying_type           , KEYCXX)
 
+// SYCL Type Traits
+KEYWORD(__builtin_num_fields, KEYSYCL)
+KEYWORD(__builtin_field_type, KEYSYCL)
+KEYWORD(__builtin_num_bases, KEYSYCL)
+KEYWORD(__builtin_base_type, KEYSYCL)
+
 // Clang-only C++ Type Traits
 TYPE_TRAIT_2(__reference_binds_to_temporary, ReferenceBindsToTemporary, KEYCXX)
 
@@ -703,6 +709,9 @@ ALIAS("__char32_t"   , char32_t          , KEYCXX)
 KEYWORD(__builtin_bit_cast               , KEYALL)
 KEYWORD(__builtin_available              , KEYALL)
 KEYWORD(__builtin_sycl_unique_stable_name, KEYSYCL)
+KEYWORD(__builtin_sycl_unique_stable_id  , KEYSYCL)
+
+TYPE_TRAIT_1(__builtin_sycl_mark_kernel_name, SYCLMarkKernelName, KEYSYCL)
 
 // Clang-specific keywords enabled only in testing.
 TESTING_KEYWORD(__unknown_anytype , KEYALL)

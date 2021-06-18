@@ -271,6 +271,8 @@ def SDT_AArch64ITOF  : SDTypeProfile<1, 1, [SDTCisFP<0>, SDTCisSameAs<0,1>]>;
 def SDT_AArch64TLSDescCall : SDTypeProfile<0, -2, [SDTCisPtrTy<0>,
                                                  SDTCisPtrTy<1>]>;
 
+def SDT_AArch64uaddlp : SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>]>;
+
 def SDT_AArch64ldp : SDTypeProfile<2, 1, [SDTCisVT<0, i64>, SDTCisSameAs<0, 1>, SDTCisPtrTy<2>]>;
 def SDT_AArch64stp : SDTypeProfile<0, 3, [SDTCisVT<0, i64>, SDTCisSameAs<0, 1>, SDTCisPtrTy<2>]>;
 def SDT_AArch64stnp : SDTypeProfile<0, 3, [SDTCisVT<0, v4i32>, SDTCisSameAs<0, 1>, SDTCisPtrTy<2>]>;
@@ -532,8 +534,6 @@ def AArch64fcmltz: SDNode<"AArch64ISD::FCMLTz", SDT_AArch64fcmpz>;
 def AArch64bici: SDNode<"AArch64ISD::BICi", SDT_AArch64vecimm>;
 def AArch64orri: SDNode<"AArch64ISD::ORRi", SDT_AArch64vecimm>;
 
-def AArch64neg : SDNode<"AArch64ISD::NEG", SDT_AArch64unvec>;
-
 def AArch64tcret: SDNode<"AArch64ISD::TC_RETURN", SDT_AArch64TCRET,
                   [SDNPHasChain,  SDNPOptInGlue, SDNPVariadic]>;
 
@@ -588,6 +588,11 @@ def AArch64uabd     : PatFrags<(ops node:$lhs, node:$rhs),
 def AArch64sabd     : PatFrags<(ops node:$lhs, node:$rhs),
                                [(AArch64sabd_n node:$lhs, node:$rhs),
                                 (int_aarch64_neon_sabd node:$lhs, node:$rhs)]>;
+
+def AArch64uaddlp_n : SDNode<"AArch64ISD::UADDLP", SDT_AArch64uaddlp>;
+def AArch64uaddlp   : PatFrags<(ops node:$src),
+                               [(AArch64uaddlp_n node:$src),
+                                (int_aarch64_neon_uaddlp node:$src)]>;
 
 def SDT_AArch64SETTAG : SDTypeProfile<0, 2, [SDTCisPtrTy<0>, SDTCisPtrTy<1>]>;
 def AArch64stg : SDNode<"AArch64ISD::STG", SDT_AArch64SETTAG, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
@@ -4158,14 +4163,6 @@ def : InstAlias<"mvn{ $Vd.8b, $Vn.8b|.8b $Vd, $Vn}",
 def : InstAlias<"mvn{ $Vd.16b, $Vn.16b|.16b $Vd, $Vn}",
                 (NOTv16i8 V128:$Vd, V128:$Vn)>;
 
-def : Pat<(AArch64neg (v8i8  V64:$Rn)),  (NEGv8i8  V64:$Rn)>;
-def : Pat<(AArch64neg (v16i8 V128:$Rn)), (NEGv16i8 V128:$Rn)>;
-def : Pat<(AArch64neg (v4i16 V64:$Rn)),  (NEGv4i16 V64:$Rn)>;
-def : Pat<(AArch64neg (v8i16 V128:$Rn)), (NEGv8i16 V128:$Rn)>;
-def : Pat<(AArch64neg (v2i32 V64:$Rn)),  (NEGv2i32 V64:$Rn)>;
-def : Pat<(AArch64neg (v4i32 V128:$Rn)), (NEGv4i32 V128:$Rn)>;
-def : Pat<(AArch64neg (v2i64 V128:$Rn)), (NEGv2i64 V128:$Rn)>;
-
 def : Pat<(vnot (v4i16 V64:$Rn)),  (NOTv8i8  V64:$Rn)>;
 def : Pat<(vnot (v8i16 V128:$Rn)), (NOTv16i8 V128:$Rn)>;
 def : Pat<(vnot (v2i32 V64:$Rn)),  (NOTv8i8  V64:$Rn)>;
@@ -4188,9 +4185,8 @@ defm SQXTN  : SIMDMixedTwoVector<0, 0b10100, "sqxtn", int_aarch64_neon_sqxtn>;
 defm SQXTUN : SIMDMixedTwoVector<1, 0b10010, "sqxtun", int_aarch64_neon_sqxtun>;
 defm SUQADD : SIMDTwoVectorBHSDTied<0, 0b00011, "suqadd",int_aarch64_neon_suqadd>;
 defm UADALP : SIMDLongTwoVectorTied<1, 0b00110, "uadalp",
-       BinOpFrag<(add node:$LHS, (int_aarch64_neon_uaddlp node:$RHS))> >;
-defm UADDLP : SIMDLongTwoVector<1, 0b00010, "uaddlp",
-                    int_aarch64_neon_uaddlp>;
+       BinOpFrag<(add node:$LHS, (AArch64uaddlp node:$RHS))> >;
+defm UADDLP : SIMDLongTwoVector<1, 0b00010, "uaddlp", AArch64uaddlp>;
 defm UCVTF  : SIMDTwoVectorIntToFP<1, 0, 0b11101, "ucvtf", uint_to_fp>;
 defm UQXTN  : SIMDMixedTwoVector<1, 0b10100, "uqxtn", int_aarch64_neon_uqxtn>;
 defm URECPE : SIMDTwoVectorS<0, 1, 0b11100, "urecpe", int_aarch64_neon_urecpe>;
@@ -4692,8 +4688,6 @@ defm UCVTF  : SIMDFPTwoScalarCVT<   1, 0, 0b11101, "ucvtf", AArch64uitof>;
 defm UQXTN  : SIMDTwoScalarMixedBHS<1, 0b10100, "uqxtn", int_aarch64_neon_scalar_uqxtn>;
 defm USQADD : SIMDTwoScalarBHSDTied< 1, 0b00011, "usqadd",
                                     int_aarch64_neon_usqadd>;
-
-def : Pat<(AArch64neg (v1i64 V64:$Rn)), (NEGv1i64 V64:$Rn)>;
 
 def : Pat<(v1i64 (int_aarch64_neon_fcvtas (v1f64 FPR64:$Rn))),
           (FCVTASv1i64 FPR64:$Rn)>;

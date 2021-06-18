@@ -44,6 +44,10 @@ enum class PiApiKind {
 #include <CL/sycl/detail/pi.def>
 };
 class plugin;
+
+template <cl::sycl::backend BE>
+__SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
+
 namespace pi {
 
 // The SYCL_PI_TRACE sets what we will trace.
@@ -61,10 +65,12 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
+#define __SYCL_ESIMD_CPU_PLUGIN_NAME "pi_esimd_cpu.dll"
 #else
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.so"
+#define __SYCL_ESIMD_CPU_PLUGIN_NAME "libpi_esimd_cpu.so"
 #endif
 
 // Report error and no return (keeps compiler happy about no return statements).
@@ -149,7 +155,7 @@ extern std::shared_ptr<plugin> GlobalPlugin;
 const vector_class<plugin> &initialize();
 
 // Get the plugin serving given backend.
-template <backend BE> const plugin &getPlugin();
+template <backend BE> __SYCL_EXPORT const plugin &getPlugin();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};
@@ -219,16 +225,16 @@ public:
   public:
     using ValTy = std::remove_pointer<pi_device_binary_property>::type;
 
-    class ConstIterator
-        : public std::iterator<std::input_iterator_tag, // iterator_category
-                               ValTy,                   // value_type
-                               ptrdiff_t,               // difference_type
-                               const pi_device_binary_property, // pointer
-                               pi_device_binary_property>       // reference
-    {
+    class ConstIterator {
       pi_device_binary_property Cur;
 
     public:
+      using iterator_category = std::input_iterator_tag;
+      using value_type = ValTy;
+      using difference_type = ptrdiff_t;
+      using pointer = const pi_device_binary_property;
+      using reference = pi_device_binary_property;
+
       ConstIterator(pi_device_binary_property Cur = nullptr) : Cur(Cur) {}
       ConstIterator &operator++() {
         Cur++;

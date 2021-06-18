@@ -384,10 +384,19 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
                                   transType(ET)));
       }
     } else {
+      SPIRVType *ElementType = transType(ET);
+      // ET, as a recursive type, may contain exactly the same pointer T, so it
+      // may happen that after translation of ET we already have translated T,
+      // added the translated pointer to the SPIR-V module and mapped T to this
+      // pointer. Now we have to check TypeMap again.
+      LLVMToSPIRVTypeMap::iterator Loc = TypeMap.find(T);
+      if (Loc != TypeMap.end()) {
+        return Loc->second;
+      }
       return mapType(
           T, BM->addPointerType(SPIRSPIRVAddrSpaceMap::map(
                                     static_cast<SPIRAddressSpace>(AddrSpc)),
-                                transType(ET)));
+                                ElementType));
     }
   }
 
@@ -636,7 +645,7 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
 
   if (Attrs.hasFnAttribute(kVCMetadata::VCCallable) &&
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite)) {
-    BF->addDecorate(DecorationCallableFunctionINTEL);
+    BF->addDecorate(internal::DecorationCallableFunctionINTEL);
   }
 
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
@@ -753,6 +762,14 @@ void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
       size_t Independent = getMDOperandAsInt(LoopFuse, 1);
       BF->addDecorate(
           new SPIRVDecorateFuseLoopsInFunctionINTEL(BF, Depth, Independent));
+    }
+  }
+  if (MDNode *PreferDSP = F->getMetadata(kSPIR2MD::PreferDSP)) {
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_dsp_control)) {
+      size_t Mode = getMDOperandAsInt(PreferDSP, 0);
+      MDNode *PropDSPPref = F->getMetadata(kSPIR2MD::PropDSPPref);
+      size_t Propagate = PropDSPPref ? getMDOperandAsInt(PropDSPPref, 0) : 0;
+      BF->addDecorate(new SPIRVDecorateMathOpDSPModeINTEL(BF, Mode, Propagate));
     }
   }
   if (MDNode *InitiationInterval =
@@ -1827,10 +1844,11 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
 SPIRVType *LLVMToSPIRVBase::mapType(Type *T, SPIRVType *BT) {
   auto EmplaceStatus = TypeMap.try_emplace(T, BT);
-  (void)EmplaceStatus;
   // TODO: Uncomment the assertion, once the type mapping issue is resolved
   // assert(EmplaceStatus.second && "The type was already added to the map");
   SPIRVDBG(dbgs() << "[mapType] " << *T << " => "; spvdbgs() << *BT << '\n');
+  if (!EmplaceStatus.second)
+    return TypeMap[T];
   return BT;
 }
 
@@ -1900,6 +1918,15 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
     }
   }
   transMemAliasingINTELDecorations(V, BV);
+
+  if (auto *CI = dyn_cast<CallInst>(V)) {
+    auto OC = BV->getOpCode();
+    if (OC == OpSpecConstantTrue || OC == OpSpecConstantFalse ||
+        OC == OpSpecConstant) {
+      auto SpecId = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
+      BV->addDecorate(DecorationSpecId, SpecId);
+    }
+  }
 
   return true;
 }
@@ -3444,8 +3471,6 @@ SPIRVValue *LLVMToSPIRVBase::transBuiltinToConstant(StringRef DemangledName,
   else
     return nullptr;
   SPIRVValue *SC = BM->addSpecConstant(transType(Ty), Val);
-  uint64_t SpecId = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
-  SC->addDecorate(DecorationSpecId, SpecId);
   return SC;
 }
 
@@ -3595,7 +3620,7 @@ bool LLVMToSPIRVBase::transExecutionMode() {
         BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
             BF, static_cast<ExecutionMode>(EMode), TargetWidth)));
       } break;
-      case spv::ExecutionModeFastCompositeKernelINTEL: {
+      case spv::internal::ExecutionModeFastCompositeKernelINTEL: {
         if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite))
           BF->addExecutionMode(BM->add(
               new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));

@@ -4,11 +4,8 @@
 
 ; CHECK: Name [[#NAME:]] "struct._ZTS6Object.Object"
 ; CHECK-COUNT-1: TypeStruct [[#NAME]]
-; TODO add check count one and remove unused, when the type mapping bug is fixed
-; CHECK: TypePointer [[#UNUSED:]] {{.*}} [[#NAME]]
 ; CHECK: TypePointer [[#PTRTY:]] {{.*}} [[#NAME]]
 ; CHECK: FunctionParameter [[#PTRTY]]
-; CHECK-NOT: FunctionParameter [[#UNUSED]]
 
 ; ModuleID = 'sycl_test.bc'
 source_filename = "sycl_test.cpp"

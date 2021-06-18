@@ -391,8 +391,8 @@ esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
       ComputationTy;
   ComputationTy Product = convert<long long>(src0);
   Product *= src1;
-  rmd = Product.format<T0>().select<1, 1>[0];
-  return Product.format<T0>().select<1, 1>[1];
+  rmd = Product.bit_cast_view<T0>().select<1, 1>[0];
+  return Product.bit_cast_view<T0>().select<1, 1>[1];
 }
 
 template <typename T0, typename T1, typename U, int SZ>
@@ -405,8 +405,8 @@ esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
       ComputationTy;
   ComputationTy Product = convert<long long>(src0);
   Product *= src1;
-  rmd = Product.format<T0>().select<SZ, 2>(0);
-  return Product.format<T0>().select<SZ, 2>(1);
+  rmd = Product.bit_cast_view<T0>().select<SZ, 2>(0);
+  return Product.bit_cast_view<T0>().select<SZ, 2>(1);
 }
 #endif
 
@@ -907,12 +907,12 @@ esimd_pln(simd<float, 4> src0, simd<float, SZ> src1, simd<float, SZ> src2,
   // the next block of 8 from src1, then the next block of 8 from src2,
   // and so-on.)
   simd<float, (SZ >> 3) * 16> Src12v;
-  auto Src12 = Src12v.template format<float, (SZ >> 3), 16>();
+  auto Src12 = Src12v.template bit_cast_view<float, (SZ >> 3), 16>();
 
   Src12.select<(SZ >> 3), 1, 8, 1>(0, 0) =
-      src1.template format<float, (SZ >> 3), 8>();
+      src1.template bit_cast_view<float, (SZ >> 3), 8>();
   Src12.select<(SZ >> 3), 1, 8, 1>(0, 8) =
-      src2.template format<float, (SZ >> 3), 8>();
+      src2.template bit_cast_view<float, (SZ >> 3), 8>();
 
   simd<float, SZ> Result = __esimd_pln<SZ>(src0, Src12.read());
 
@@ -1266,63 +1266,152 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<(N != 8 && N != 16 && N < 32), uint>
     esimd_pack_mask(simd<ushort, N> src0) {
   simd<ushort, (N < 8 ? 8 : N < 16 ? 16 : 32)> src_0 = 0;
-  src_0.template select<N, 1>() = src0.template format<ushort>();
+  src_0.template select<N, 1>() = src0.template bit_cast_view<ushort>();
   return esimd_pack_mask(src_0);
 }
 
-/// Count component-wise the total bits set in source operand.
+/// Count number of bits set in the source operand per element.
+/// @param src0 the source operand to count bits in.
+/// @return a vector of \c uint32_t, where each element is set to bit count of
+///     the corresponding element of the source operand.
 template <typename T, int N>
-ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<std::is_integral<T>::value,
-                                       simd<uint, N>>
-    esimd_cbit(simd<T, N> src0) {
-  return __esimd_cbit<T, N>(src0.data());
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<T>::value && sizeof(T) <= 4, simd<uint32_t, N>>
+esimd_cbit(simd<T, N> src) {
+  return __esimd_cbit<T, N>(src.data());
 }
 
+/// Scalar version of \c esimd_cbit - both input and output are scalars rather
+/// than vectors.
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    std::is_integral<T>::value && detail::is_esimd_scalar<T>::value, uint>
+    std::is_integral<T>::value && sizeof(T) <= 4, uint32_t>
 esimd_cbit(T src) {
   simd<T, 1> Src = src;
-  simd<uint, 1> Result = esimd_cbit(Src);
+  simd<uint32_t, 1> Result = esimd_cbit(Src);
   return Result[0];
 }
 
+/// Scalar version of \c esimd_cbit, that takes simd_view object as an
+/// argument, e.g. `esimd_cbit(v[0])`.
+/// @param src0 input simd_view object of size 1.
+/// @return scalar number of bits set.
+template <typename BaseTy, typename RegionTy>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<
+        typename simd_view<BaseTy, RegionTy>::element_type>::value &&
+        (sizeof(typename simd_view<BaseTy, RegionTy>::element_type) <= 4) &&
+        (simd_view<BaseTy, RegionTy>::length == 1),
+    uint32_t>
+esimd_cbit(simd_view<BaseTy, RegionTy> src) {
+  using Ty = typename simd_view<BaseTy, RegionTy>::element_type;
+  simd<Ty, 1> Src = src;
+  simd<uint32_t, 1> Result = esimd_cbit(Src);
+  return Result[0];
+}
+
+/// Find the per element number of the first bit set in the source operand
+/// starting from the least significant bit.
+/// @param src0 the source operand to count bits in.
+/// @return a vector of the same type as the source operand, where each element
+///     is set to the number first bit set in corresponding element of the
+///     source operand. \c 0xFFFFffff is returned for an element equal to \c 0.
 /// Find component-wise the first bit from LSB side
-template <int N>
-ESIMD_NODEBUG ESIMD_INLINE simd<unsigned, N> esimd_fbl(simd<unsigned, N> src) {
-  return __esimd_fbl(src.data());
+template <typename T, int N>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<T>::value && (sizeof(T) == 4), simd<T, N>>
+esimd_fbl(simd<T, N> src) {
+  return __esimd_fbl<T, N>(src.data());
 }
 
-template <typename T = void>
-ESIMD_NODEBUG ESIMD_INLINE unsigned esimd_fbl(unsigned src) {
-  simd<unsigned, 1> Src = src;
-  simd<unsigned, 1> Result = esimd_fbl(Src);
-  return Result[0];
-}
-
-/// Find component-wise the first bit from MSB side.
-template <int N>
-ESIMD_NODEBUG ESIMD_INLINE simd<int, N> esimd_fbh(simd<int, N> src) {
-  return __esimd_sfbh(src.data());
-}
-
-template <int N>
-ESIMD_NODEBUG ESIMD_INLINE simd<unsigned int, N>
-esimd_fbh(simd<unsigned int, N> src) {
-  return __esimd_ufbh(src.data());
-}
-
+/// Scalar version of \c esimd_fbl - both input and output are scalars rather
+/// than vectors.
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    detail::is_dword_type<T>::value && detail::is_esimd_scalar<T>::value, T>
+    std::is_integral<T>::value && (sizeof(T) == 4), T>
+esimd_fbl(T src) {
+  simd<T, 1> Src = src;
+  simd<T, 1> Result = esimd_fbl(Src);
+  return Result[0];
+}
+
+/// Scalar version of \c esimd_fbl, that takes simd_view object as an
+/// argument, e.g. `esimd_fbl(v[0])`.
+/// @param src0 input simd_view object of size 1.
+/// @return scalar number of the first bit set starting from the least
+/// significant bit.
+template <typename BaseTy, typename RegionTy>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<
+        typename simd_view<BaseTy, RegionTy>::element_type>::value &&
+        (sizeof(typename simd_view<BaseTy, RegionTy>::element_type) == 4) &&
+        (simd_view<BaseTy, RegionTy>::length == 1),
+    typename simd_view<BaseTy, RegionTy>::element_type>
+esimd_fbl(simd_view<BaseTy, RegionTy> src) {
+  using Ty = typename simd_view<BaseTy, RegionTy>::element_type;
+  simd<Ty, 1> Src = src;
+  simd<Ty, 1> Result = esimd_fbl(Src);
+  return Result[0];
+}
+
+/// Find the per element number of the first bit set in the source operand
+/// starting from the most significant bit (sign bit is skipped).
+/// @param src0 the source operand to count bits in.
+/// @return a vector of the same type as the source operand, where each element
+///     is set to the number first bit set in corresponding element of the
+///     source operand. \c 0xFFFFffff is returned for an element equal to \c 0
+///     or \c -1.
+template <typename T, int N>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<T>::value && std::is_signed<T>::value && (sizeof(T) == 4),
+    simd<T, N>>
+esimd_fbh(simd<T, N> src) {
+  return __esimd_sfbh<T, N>(src.data());
+}
+
+/// Find the per element number of the first bit set in the source operand
+/// starting from the most significant bit (sign bit is counted).
+/// @param src0 the source operand to count bits in.
+/// @return a vector of the same type as the source operand, where each element
+///     is set to the number first bit set in corresponding element of the
+///     source operand. \c 0xFFFFffff is returned for an element equal to \c 0.
+template <typename T, int N>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<T>::value && !std::is_signed<T>::value && (sizeof(T) == 4),
+    simd<T, N>>
+esimd_fbh(simd<T, N> src) {
+  return __esimd_ufbh<T, N>(src.data());
+}
+
+/// Scalar version of \c esimd_fbh - both input and output are scalars rather
+/// than vectors.
+template <typename T>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<T>::value && (sizeof(T) == 4), T>
 esimd_fbh(T src) {
   simd<T, 1> Src = src;
   simd<T, 1> Result = esimd_fbh(Src);
   return Result[0];
 }
 
-template <typename T = void> simd<uint, 4> esimd_rdtsc();
+/// Scalar version of \c esimd_fbh, that takes simd_view object as an
+/// argument, e.g. `esimd_fbh(v[0])`.
+/// @param src0 input simd_view object of size 1.
+/// @return scalar number of the first bit set starting from the most
+/// significant bit.
+template <typename BaseTy, typename RegionTy>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<
+        typename simd_view<BaseTy, RegionTy>::element_type>::value &&
+        (sizeof(typename simd_view<BaseTy, RegionTy>::element_type) == 4) &&
+        (simd_view<BaseTy, RegionTy>::length == 1),
+    typename simd_view<BaseTy, RegionTy>::element_type>
+esimd_fbh(simd_view<BaseTy, RegionTy> src) {
+  using Ty = typename simd_view<BaseTy, RegionTy>::element_type;
+  simd<Ty, 1> Src = src;
+  simd<Ty, 1> Result = esimd_fbh(Src);
+  return Result[0];
+}
 
 /// \brief DP4A.
 ///
@@ -1644,7 +1733,7 @@ template <typename T> ESIMD_INLINE float esimd_sin_emu(T x0, const uint flags) {
 
   x1.merge(CmpI - x, x - CmpI, (x <= CMPI));
   x1.merge(x, (x <= CMPI * 0.5f));
-  x1.merge(CmpI * 2 - x, (x > CMPI * 1.5f));
+  x1.merge(CmpI * 2.0f - x, (x > CMPI * 1.5f));
 
   sign.merge(OneN, OneP, (x > CMPI));
 
@@ -1749,7 +1838,7 @@ ESIMD_INLINE simd<float, N> esimd_tanh_cody_waite_impl(simd<float, N> x) {
    *  |   x   | rational polynomial | 1 - 2/(1 + exp(2*x)) |  1
    *
    * rational polynomial for single precision = x + x * (g * (p[1] * g + p[0]) /
-   * (g + q[0]) g = x^2 p0 = −0.82377 28127 E+00 p1 = −0.38310 10665 E-02 q0 =
+   * (g + q[0]) g = x^2 p0 = -0.82377 28127 E+00 p1 = -0.38310 10665 E-02 q0 =
    * 0.24713 19654 E+01 q1 = 1.00000 00000 E+00
    *
    */
