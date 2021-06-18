@@ -512,6 +512,8 @@ namespace clang {
     ExpectedDecl VisitUsingDecl(UsingDecl *D);
     ExpectedDecl VisitUsingShadowDecl(UsingShadowDecl *D);
     ExpectedDecl VisitUsingDirectiveDecl(UsingDirectiveDecl *D);
+    ExpectedDecl ImportUsingShadowDecls(BaseUsingDecl *D, BaseUsingDecl *ToSI);
+    ExpectedDecl VisitUsingEnumDecl(UsingEnumDecl *D);
     ExpectedDecl VisitUnresolvedUsingValueDecl(UnresolvedUsingValueDecl *D);
     ExpectedDecl VisitUnresolvedUsingTypenameDecl(UnresolvedUsingTypenameDecl *D);
     ExpectedDecl VisitBuiltinTemplateDecl(BuiltinTemplateDecl *D);
@@ -4570,6 +4572,19 @@ ExpectedDecl ASTNodeImporter::VisitLinkageSpecDecl(LinkageSpecDecl *D) {
   return ToLinkageSpec;
 }
 
+ExpectedDecl ASTNodeImporter::ImportUsingShadowDecls(BaseUsingDecl *D,
+                                                     BaseUsingDecl *ToSI) {
+  for (UsingShadowDecl *FromShadow : D->shadows()) {
+    if (Expected<UsingShadowDecl *> ToShadowOrErr = import(FromShadow))
+      ToSI->addShadowDecl(*ToShadowOrErr);
+    else
+      // FIXME: We return error here but the definition is already created
+      // and available with lookups. How to fix this?..
+      return ToShadowOrErr.takeError();
+  }
+  return ToSI;
+}
+
 ExpectedDecl ASTNodeImporter::VisitUsingDecl(UsingDecl *D) {
   DeclContext *DC, *LexicalDC;
   DeclarationName Name;
@@ -4609,15 +4624,44 @@ ExpectedDecl ASTNodeImporter::VisitUsingDecl(UsingDecl *D) {
       return ToPatternOrErr.takeError();
   }
 
-  for (UsingShadowDecl *FromShadow : D->shadows()) {
-    if (Expected<UsingShadowDecl *> ToShadowOrErr = import(FromShadow))
-      ToUsing->addShadowDecl(*ToShadowOrErr);
+  return ImportUsingShadowDecls(D, ToUsing);
+}
+
+ExpectedDecl ASTNodeImporter::VisitUsingEnumDecl(UsingEnumDecl *D) {
+  DeclContext *DC, *LexicalDC;
+  DeclarationName Name;
+  SourceLocation Loc;
+  NamedDecl *ToD = nullptr;
+  if (Error Err = ImportDeclParts(D, DC, LexicalDC, Name, ToD, Loc))
+    return std::move(Err);
+  if (ToD)
+    return ToD;
+
+  Error Err = Error::success();
+  auto ToUsingLoc = importChecked(Err, D->getUsingLoc());
+  auto ToEnumLoc = importChecked(Err, D->getEnumLoc());
+  auto ToEnumDecl = importChecked(Err, D->getEnumDecl());
+  if (Err)
+    return std::move(Err);
+
+  UsingEnumDecl *ToUsingEnum;
+  if (GetImportedOrCreateDecl(ToUsingEnum, D, Importer.getToContext(), DC,
+                              ToUsingLoc, ToEnumLoc, Loc, ToEnumDecl))
+    return ToUsingEnum;
+
+  ToUsingEnum->setLexicalDeclContext(LexicalDC);
+  LexicalDC->addDeclInternal(ToUsingEnum);
+
+  if (UsingEnumDecl *FromPattern =
+          Importer.getFromContext().getInstantiatedFromUsingEnumDecl(D)) {
+    if (Expected<UsingEnumDecl *> ToPatternOrErr = import(FromPattern))
+      Importer.getToContext().setInstantiatedFromUsingEnumDecl(ToUsingEnum,
+                                                               *ToPatternOrErr);
     else
-      // FIXME: We return error here but the definition is already created
-      // and available with lookups. How to fix this?..
-      return ToShadowOrErr.takeError();
+      return ToPatternOrErr.takeError();
   }
-  return ToUsing;
+
+  return ImportUsingShadowDecls(D, ToUsingEnum);
 }
 
 ExpectedDecl ASTNodeImporter::VisitUsingShadowDecl(UsingShadowDecl *D) {
@@ -4630,9 +4674,9 @@ ExpectedDecl ASTNodeImporter::VisitUsingShadowDecl(UsingShadowDecl *D) {
   if (ToD)
     return ToD;
 
-  Expected<UsingDecl *> ToUsingOrErr = import(D->getUsingDecl());
-  if (!ToUsingOrErr)
-    return ToUsingOrErr.takeError();
+  Expected<BaseUsingDecl *> ToIntroducerOrErr = import(D->getIntroducer());
+  if (!ToIntroducerOrErr)
+    return ToIntroducerOrErr.takeError();
 
   Expected<NamedDecl *> ToTargetOrErr = import(D->getTargetDecl());
   if (!ToTargetOrErr)
@@ -4640,7 +4684,7 @@ ExpectedDecl ASTNodeImporter::VisitUsingShadowDecl(UsingShadowDecl *D) {
 
   UsingShadowDecl *ToShadow;
   if (GetImportedOrCreateDecl(ToShadow, D, Importer.getToContext(), DC, Loc,
-                              *ToUsingOrErr, *ToTargetOrErr))
+                              Name, *ToIntroducerOrErr, *ToTargetOrErr))
     return ToShadow;
 
   ToShadow->setLexicalDeclContext(LexicalDC);
