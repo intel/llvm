@@ -1,4 +1,4 @@
-// RUN: %clangxx %s -std=c++17 -fsyntax-only -Xclang -fsycl-is-host -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning -isystem %sycl_include -isystem %opencl_include_dir
+// RUN: %clangxx %s %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <cassert>
