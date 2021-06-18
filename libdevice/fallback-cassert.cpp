@@ -31,11 +31,10 @@ DEVICE_EXTERN_C void __devicelib_assert_read(void *_Dst) {
     Dst->Flag = Flag;
     return;
   }
-/*
+
   if (Flag != ASSERT_FINISH)
     while (ASSERT_START == Load(&__SYCL_AssertHappenedMem.Flag))
       ;
-*/
 
   *Dst = __SYCL_AssertHappenedMem;
 }
@@ -59,7 +58,7 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
     int Desired = ASSERT_START;
 
     if (CompareAndSet(&__SYCL_AssertHappenedMem.Flag, Desired, Expected) ==
-            Expected) {
+        Expected) {
       __SYCL_AssertHappenedMem.Line = line;
       __SYCL_AssertHappenedMem.GID0 = gid0;
       __SYCL_AssertHappenedMem.GID1 = gid1;
@@ -73,11 +72,14 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
       int FuncLength = 0;
 
       if (expr)
-        for (const char *C = expr; *C != '\0'; ++C, ++ExprLength);
+        for (const char *C = expr; *C != '\0'; ++C, ++ExprLength)
+          ;
       if (file)
-        for (const char *C = file; *C != '\0'; ++C, ++FileLength);
+        for (const char *C = file; *C != '\0'; ++C, ++FileLength)
+          ;
       if (func)
-        for (const char *C = func; *C != '\0'; ++C, ++FuncLength);
+        for (const char *C = func; *C != '\0'; ++C, ++FuncLength)
+          ;
 
       int MaxExprIdx = sizeof(__SYCL_AssertHappenedMem.Expr) - 1;
       int MaxFileIdx = sizeof(__SYCL_AssertHappenedMem.File) - 1;
