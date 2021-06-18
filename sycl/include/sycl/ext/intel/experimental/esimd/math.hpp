@@ -1369,18 +1369,6 @@ esimd_fbh(simd<T, N> src) {
   return __esimd_sfbh<T, N>(src.data());
 }
 
-/// Scalar version of \c esimd_fbh - both input and output are scalars rather
-/// than vectors.
-template <typename T>
-ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    std::is_integral<T>::value && std::is_signed<T>::value && (sizeof(T) == 4),
-    T>
-esimd_fbh(T src) {
-  simd<T, 1> Src = src;
-  simd<T, 1> Result = esimd_fbh(Src);
-  return Result[0];
-}
-
 /// Find the per element number of the first bit set in the source operand
 /// starting from the most significant bit (sign bit is counted).
 /// @param src0 the source operand to count bits in.
@@ -1395,12 +1383,11 @@ esimd_fbh(simd<T, N> src) {
   return __esimd_ufbh<T, N>(src.data());
 }
 
-/// Scalar unsigned version of \c esimd_fbh - both input and output are unsigned
-/// scalars rather than vectors.
+/// Scalar version of \c esimd_fbh - both input and output are scalars rather
+/// than vectors.
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    std::is_integral<T>::value && !std::is_signed<T>::value && (sizeof(T) == 4),
-    T>
+    std::is_integral<T>::value && (sizeof(T) == 4), T>
 esimd_fbh(T src) {
   simd<T, 1> Src = src;
   simd<T, 1> Result = esimd_fbh(Src);
