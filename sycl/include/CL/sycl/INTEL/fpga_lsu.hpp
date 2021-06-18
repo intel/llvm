@@ -20,7 +20,8 @@ constexpr uint8_t STATICALLY_COALESCE = 0x4;
 constexpr uint8_t PREFETCH = 0x8;
 
 struct burst_coalesce_impl_id;
-template <int32_t _N> struct burst_coalesce_impl : std::integral_constant<int32_t, _N> {
+template <int32_t _N>
+struct burst_coalesce_impl : std::integral_constant<int32_t, _N> {
   using type_id = burst_coalesce_impl_id;
 };
 
@@ -30,12 +31,14 @@ template <int32_t _N> struct cache : std::integral_constant<int32_t, _N> {
 };
 
 struct prefetch_impl_id;
-template <int32_t _N> struct prefetch_impl : std::integral_constant<int32_t, _N> {
+template <int32_t _N>
+struct prefetch_impl : std::integral_constant<int32_t, _N> {
   using type_id = prefetch_impl_id;
 };
 
 struct statically_coalesce_impl_id;
-template <int32_t _N> struct statically_coalesce_impl : std::integral_constant<int32_t, _N>{
+template <int32_t _N>
+struct statically_coalesce_impl : std::integral_constant<int32_t, _N> {
   using type_id = statically_coalesce_impl_id;
 };
 
