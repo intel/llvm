@@ -48,11 +48,9 @@ public:
   /// @{
   /// Constructors.
   simd() = default;
+  simd(const simd &other) { set(other.data()); }
   template <typename SrcTy> simd(const simd<SrcTy, N> &other) {
-    if constexpr (std::is_same<SrcTy, Ty>::value)
-      set(other.data());
-    else
-      set(__builtin_convertvector(other.data(), detail::vector_type_t<Ty, N>));
+    set(__builtin_convertvector(other.data(), detail::vector_type_t<Ty, N>));
   }
   template <typename SrcTy> simd(simd<SrcTy, N> &&other) {
     if constexpr (std::is_same<SrcTy, Ty>::value)
