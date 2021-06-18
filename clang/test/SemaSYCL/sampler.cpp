@@ -19,6 +19,18 @@ int main() {
   return 0;
 }
 
+// CHECK: ClassTemplateDecl {{.*}} accessor
+// CHECK: SYCLSpecialClassAttr {{.*}} Accessor
+// CHECK: CXXRecordDecl {{.*}} implicit class accessor
+// CHECK: AccessSpecDecl {{.*}} public
+// CHECK: CXXMethodDecl {{.*}} use 'void () const'
+// CHECK: ClassTemplateSpecializationDecl {{.*}} class accessor definition
+// CHECK: SYCLSpecialClassAttr {{.*}} Accessor
+// CHECK: CXXRecordDecl {{.*}} implicit class accessor
+// CHECK: AccessSpecDecl {{.*}} public
+// CHECK: CXXMethodDecl {{.*}} use 'void () const'
+// CHECK: CXXMethodDecl {{.*}} use 'void (void *) const'
+
 // Check declaration of the test kernel
 // CHECK: FunctionDecl {{.*}}SamplerLambda{{.*}} 'void (sampler_t)'
 //

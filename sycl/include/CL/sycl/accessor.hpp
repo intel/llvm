@@ -1787,7 +1787,7 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-__SYCL_SPECIAL_CLASS(accessor) class accessor<
+class __SYCL_SPECIAL_CLASS(accessor) accessor<
     DataT, Dimensions, AccessMode, access::target::local, IsPlaceholder> :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::LocalAccessorBaseHost,
@@ -1982,7 +1982,7 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-__SYCL_SPECIAL_CLASS(accessor) class accessor<
+class __SYCL_SPECIAL_CLASS(accessor) accessor<
     DataT, Dimensions, AccessMode, access::target::image, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::image, IsPlaceholder> {
@@ -2072,7 +2072,7 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-__SYCL_SPECIAL_CLASS(accessor) class accessor<
+class __SYCL_SPECIAL_CLASS(accessor) accessor<
     DataT, Dimensions, AccessMode, access::target::image_array, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                     access::target::image, IsPlaceholder> {
