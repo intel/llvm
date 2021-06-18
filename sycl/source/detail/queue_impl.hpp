@@ -32,7 +32,7 @@ namespace sycl {
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
-using DeviceImplPtr = shared_ptr_class<detail::device_impl>;
+using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
 
 /// Sets max number of queues supported by FPGA RT.
 static constexpr size_t MaxNumQueues = 256;
@@ -168,15 +168,15 @@ public:
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  event submit(const function_class<void(handler &)> &CGF,
-               const shared_ptr_class<queue_impl> &Self,
-               const shared_ptr_class<queue_impl> &SecondQueue,
+  event submit(const std::function<void(handler &)> &CGF,
+               const std::shared_ptr<queue_impl> &Self,
+               const std::shared_ptr<queue_impl> &SecondQueue,
                const detail::code_location &Loc) {
     try {
       return submit_impl(CGF, Self, Loc);
     } catch (...) {
       {
-        std::lock_guard<mutex_class> Lock(MMutex);
+        std::lock_guard<std::mutex> Lock(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
       return SecondQueue->submit(CGF, SecondQueue, Loc);
@@ -190,8 +190,8 @@ public:
   /// \param Self is a shared_ptr to this queue.
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
-  event submit(const function_class<void(handler &)> &CGF,
-               const shared_ptr_class<queue_impl> &Self,
+  event submit(const std::function<void(handler &)> &CGF,
+               const std::shared_ptr<queue_impl> &Self,
                const detail::code_location &Loc) {
     return submit_impl(CGF, Self, Loc);
   }
@@ -225,7 +225,7 @@ public:
 
     exception_list Exceptions;
     {
-      std::lock_guard<mutex_class> Lock(MMutex);
+      std::lock_guard<std::mutex> Lock(MMutex);
       std::swap(Exceptions, MExceptions);
     }
     // Unlock the mutex before calling user-provided handler to avoid
@@ -276,7 +276,7 @@ public:
     RT::PiQueue *PIQ = nullptr;
     bool ReuseQueue = false;
     {
-      std::lock_guard<mutex_class> Lock(MMutex);
+      std::lock_guard<std::mutex> Lock(MMutex);
 
       // To achieve parallelism for FPGA with in order execution model with
       // possibility of two kernels to share data with each other we shall
@@ -330,7 +330,7 @@ public:
   /// \param Value is a value to be set. Value is cast as an unsigned char.
   /// \param Count is a number of bytes to fill.
   /// \return an event representing fill operation.
-  event memset(const shared_ptr_class<queue_impl> &Self, void *Ptr, int Value,
+  event memset(const std::shared_ptr<queue_impl> &Self, void *Ptr, int Value,
                size_t Count);
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -339,7 +339,7 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
   /// \param Count is a number of bytes to copy.
-  event memcpy(const shared_ptr_class<queue_impl> &Self, void *Dest,
+  event memcpy(const std::shared_ptr<queue_impl> &Self, void *Dest,
                const void *Src, size_t Count);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
@@ -348,14 +348,14 @@ public:
   /// \param Ptr is a USM pointer to the allocation.
   /// \param Length is a number of bytes in the allocation.
   /// \param Advice is a device-defined advice for the specified allocation.
-  event mem_advise(const shared_ptr_class<queue_impl> &Self, const void *Ptr,
+  event mem_advise(const std::shared_ptr<queue_impl> &Self, const void *Ptr,
                    size_t Length, pi_mem_advice Advice);
 
   /// Puts exception to the list of asynchronous ecxeptions.
   ///
   /// \param ExceptionPtr is a pointer to exception to be put.
   void reportAsyncException(const std::exception_ptr &ExceptionPtr) {
-    std::lock_guard<mutex_class> Lock(MMutex);
+    std::lock_guard<std::mutex> Lock(MMutex);
     MExceptions.PushBack(ExceptionPtr);
   }
 
@@ -384,8 +384,8 @@ private:
   /// \param Self is a pointer to this queue.
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event representing submitted command group.
-  event submit_impl(const function_class<void(handler &)> &CGF,
-                    const shared_ptr_class<queue_impl> &Self,
+  event submit_impl(const std::function<void(handler &)> &CGF,
+                    const std::shared_ptr<queue_impl> &Self,
                     const detail::code_location &Loc) {
     handler Handler(Self, MHostQueue);
     Handler.saveCodeLoc(Loc);
@@ -398,10 +398,10 @@ private:
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait
   void *instrumentationProlog(const detail::code_location &CodeLoc,
-                              string_class &Name, int32_t StreamID,
+                              std::string &Name, int32_t StreamID,
                               uint64_t &iid);
   // Uses events generated by the Prolog and emits wait done event
-  void instrumentationEpilog(void *TelementryEvent, string_class &Name,
+  void instrumentationEpilog(void *TelementryEvent, std::string &Name,
                              int32_t StreamID, uint64_t IId);
 
   void initHostTaskAndEventCallbackThreadPool();
@@ -419,24 +419,24 @@ private:
   void addEvent(const event &Event);
 
   /// Protects all the fields that can be changed by class' methods.
-  mutex_class MMutex;
+  std::mutex MMutex;
 
   DeviceImplPtr MDevice;
   const ContextImplPtr MContext;
 
   /// These events are tracked, but not owned, by the queue.
-  vector_class<std::weak_ptr<event_impl>> MEventsWeak;
+  std::vector<std::weak_ptr<event_impl>> MEventsWeak;
 
   /// Events without data dependencies (such as USM) need an owner,
   /// additionally, USM operations are not added to the scheduler command graph,
   /// queue is the only owner on the runtime side.
-  vector_class<event> MEventsShared;
+  std::vector<event> MEventsShared;
   exception_list MExceptions;
   const async_handler MAsyncHandler;
   const property_list MPropList;
 
   /// List of queues created for FPGA device from a single SYCL queue.
-  vector_class<RT::PiQueue> MQueues;
+  std::vector<RT::PiQueue> MQueues;
   /// Iterator through MQueues.
   size_t MNextQueueIdx = 0;
 

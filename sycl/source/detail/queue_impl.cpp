@@ -42,7 +42,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
 }
 
 static event
-prepareUSMEvent(const shared_ptr_class<detail::queue_impl> &QueueImpl,
+prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
                 RT::PiEvent NativeEvent) {
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
   EventImpl->getHandleRef() = NativeEvent;
@@ -50,7 +50,7 @@ prepareUSMEvent(const shared_ptr_class<detail::queue_impl> &QueueImpl,
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }
 
-event queue_impl::memset(const shared_ptr_class<detail::queue_impl> &Self,
+event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count) {
   RT::PiEvent NativeEvent{};
   MemoryManager::fill_usm(Ptr, Self, Count, Value, /*DepEvents*/ {},
@@ -64,7 +64,7 @@ event queue_impl::memset(const shared_ptr_class<detail::queue_impl> &Self,
   return ResEvent;
 }
 
-event queue_impl::memcpy(const shared_ptr_class<detail::queue_impl> &Self,
+event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count) {
   RT::PiEvent NativeEvent{};
   MemoryManager::copy_usm(Src, Self, Count, Dest, /*DepEvents*/ {},
@@ -78,7 +78,7 @@ event queue_impl::memcpy(const shared_ptr_class<detail::queue_impl> &Self,
   return ResEvent;
 }
 
-event queue_impl::mem_advise(const shared_ptr_class<detail::queue_impl> &Self,
+event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice) {
   if (MContext->is_host()) {
@@ -105,7 +105,7 @@ void queue_impl::addEvent(const event &Event) {
     addSharedEvent(Event);
   } else {
     std::weak_ptr<event_impl> EventWeakPtr{Eimpl};
-    std::lock_guard<mutex_class> Lock{MMutex};
+    std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
   }
 }
@@ -114,7 +114,7 @@ void queue_impl::addEvent(const event &Event) {
 /// but some events have no other owner. In this case,
 /// addSharedEvent will have the queue track the events via a shared pointer.
 void queue_impl::addSharedEvent(const event &Event) {
-  std::lock_guard<mutex_class> Lock(MMutex);
+  std::lock_guard<std::mutex> Lock(MMutex);
   // Events stored in MEventsShared are not released anywhere else aside from
   // calls to queue::wait/wait_and_throw, which a user application might not
   // make, and ~queue_impl(). If the number of events grows large enough,
@@ -142,7 +142,7 @@ void queue_impl::addSharedEvent(const event &Event) {
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
-                                        string_class &Name, int32_t StreamID,
+                                        std::string &Name, int32_t StreamID,
                                         uint64_t &IId) {
   void *TraceEvent = nullptr;
   (void)CodeLoc;
@@ -207,7 +207,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   return TraceEvent;
 }
 
-void queue_impl::instrumentationEpilog(void *TelemetryEvent, string_class &Name,
+void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
                                        int32_t StreamID, uint64_t IId) {
   (void)TelemetryEvent;
   (void)Name;
@@ -234,10 +234,10 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
 #endif
 
-  vector_class<std::weak_ptr<event_impl>> Events;
-  vector_class<event> USMEvents;
+  std::vector<std::weak_ptr<event_impl>> Events;
+  std::vector<event> USMEvents;
   {
-    std::lock_guard<mutex_class> Lock(MMutex);
+    std::lock_guard<std::mutex> Lock(MMutex);
     Events.swap(MEventsWeak);
     USMEvents.swap(MEventsShared);
   }

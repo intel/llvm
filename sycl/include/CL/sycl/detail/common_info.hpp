@@ -14,7 +14,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-vector_class<string_class> __SYCL_EXPORT split_string(const string_class &str,
+std::vector<std::string> __SYCL_EXPORT split_string(const std::string &str,
                                                       char delimeter);
 
 } // namespace detail

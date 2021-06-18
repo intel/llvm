@@ -55,7 +55,7 @@ public:
   ///
   /// \param Context is a pointer to SYCL context impl.
   /// \param DeviceList is a list of SYCL devices.
-  program_impl(ContextImplPtr Context, vector_class<device> DeviceList,
+  program_impl(ContextImplPtr Context, std::vector<device> DeviceList,
                const property_list &PropList);
 
   /// Constructs an instance of SYCL program by linking together each SYCL
@@ -72,8 +72,8 @@ public:
   ///
   /// \param ProgramList is a list of program_impl instances.
   /// \param LinkOptions is a string containing valid OpenCL link options.
-  program_impl(vector_class<shared_ptr_class<program_impl>> ProgramList,
-               string_class LinkOptions, const property_list &PropList);
+  program_impl(std::vector<std::shared_ptr<program_impl>> ProgramList,
+               std::string LinkOptions, const property_list &PropList);
 
   /// Constructs a program instance from an interop raw BE program handle.
   /// TODO: BE generalization will change that to something better.
@@ -149,8 +149,8 @@ public:
   /// \param KernelName is a string containing SYCL kernel name.
   /// \param CompileOptions is a string of valid OpenCL compile options.
   /// \param Module is an OS handle to user code module.
-  void compile_with_kernel_name(string_class KernelName,
-                                string_class CompileOptions,
+  void compile_with_kernel_name(std::string KernelName,
+                                std::string CompileOptions,
                                 OSModuleHandle Module);
 
   /// Compiles the OpenCL C kernel function defined by source string.
@@ -166,8 +166,8 @@ public:
   ///
   /// \param KernelSource is a string containing OpenCL C kernel source code.
   /// \param CompileOptions is a string containing OpenCL compile options.
-  void compile_with_source(string_class KernelSource,
-                           string_class CompileOptions = "");
+  void compile_with_source(std::string KernelSource,
+                           std::string CompileOptions = "");
 
   /// Builds the SYCL kernel function into encapsulated raw program.
   ///
@@ -184,8 +184,8 @@ public:
   /// \param KernelName is a string containing SYCL kernel name.
   /// \param BuildOptions is a string containing OpenCL compile options.
   /// \param M is an OS handle to user code module.
-  void build_with_kernel_name(string_class KernelName,
-                              string_class BuildOptions, OSModuleHandle M);
+  void build_with_kernel_name(std::string KernelName,
+                              std::string BuildOptions, OSModuleHandle M);
 
   /// Builds the OpenCL C kernel function defined by source code.
   ///
@@ -200,8 +200,8 @@ public:
   ///
   /// \param KernelSource is a string containing OpenCL C kernel source code.
   /// \param BuildOptions is a string containing OpenCL build options.
-  void build_with_source(string_class KernelSource,
-                         string_class BuildOptions = "");
+  void build_with_source(std::string KernelSource,
+                         std::string BuildOptions = "");
 
   /// Links encapsulated raw program.
   ///
@@ -214,7 +214,7 @@ public:
   /// feature_not_supported exception is thrown.
   ///
   /// \param LinkOptions is a string containing OpenCL link options.
-  void link(string_class LinkOptions = "");
+  void link(std::string LinkOptions = "");
 
   /// Checks if kernel is available for this program.
   ///
@@ -222,7 +222,7 @@ public:
   /// program_state::none an invalid_object_error SYCL exception is thrown.
   ///
   /// \return true if the SYCL kernel is available.
-  bool has_kernel(string_class KernelName, bool IsCreatedFromSource) const;
+  bool has_kernel(std::string KernelName, bool IsCreatedFromSource) const;
 
   /// Returns a SYCL kernel for the SYCL kernel function defined by kernel
   /// name.
@@ -231,8 +231,8 @@ public:
   /// function is not available, an invalid_object_error exception is thrown.
   ///
   /// \return a valid instance of SYCL kernel.
-  kernel get_kernel(string_class KernelName,
-                    shared_ptr_class<program_impl> PtrToSelf,
+  kernel get_kernel(std::string KernelName,
+                    std::shared_ptr<program_impl> PtrToSelf,
                     bool IsCreatedFromSource) const;
 
   /// Queries this SYCL program for information.
@@ -250,7 +250,7 @@ public:
   ///
   /// \return a vector of vectors representing the compiled binaries for each
   /// associated SYCL device.
-  vector_class<vector_class<char>> get_binaries() const;
+  std::vector<std::vector<char>> get_binaries() const;
 
   /// \return the SYCL context that this program was constructed with.
   context get_context() const {
@@ -266,7 +266,7 @@ public:
   }
 
   /// \return a vector of devices that are associated with this program.
-  vector_class<device> get_devices() const { return MDevices; }
+  std::vector<device> get_devices() const { return MDevices; }
 
   /// Returns compile options that were provided when the encapsulated program
   /// was explicitly compiled.
@@ -278,7 +278,7 @@ public:
   /// used in the explicit compile are returned.
   ///
   /// \return a string of valid OpenCL compile options.
-  string_class get_compile_options() const { return MCompileOptions; }
+  std::string get_compile_options() const { return MCompileOptions; }
 
   /// Returns compile options that were provided to the most recent invocation
   /// of link member function.
@@ -294,7 +294,7 @@ public:
   /// constructor are returned.
   ///
   /// \return a string of valid OpenCL compile options.
-  string_class get_link_options() const { return MLinkOptions; }
+  std::string get_link_options() const { return MLinkOptions; }
 
   /// Returns the compile, link, or build options, from whichever of those
   /// operations was performed most recently on the encapsulated cl_program.
@@ -304,7 +304,7 @@ public:
   /// then an empty string is returned.
   ///
   /// \return a string of valid OpenCL build options.
-  string_class get_build_options() const { return MBuildOptions; }
+  std::string get_build_options() const { return MBuildOptions; }
 
   /// \return the current state of this SYCL program.
   program_state get_state() const { return MState; }
@@ -354,7 +354,7 @@ private:
   ///
   /// \param Devices is a vector of SYCL devices.
   template <info::device param>
-  void check_device_feature_support(const vector_class<device> &Devices) {
+  void check_device_feature_support(const std::vector<device> &Devices) {
     for (const auto &Device : Devices) {
       if (!Device.get_info<param>()) {
         throw feature_not_supported(
@@ -372,45 +372,45 @@ private:
   ///        add a check that kernel is compiled, otherwise don't add the check.
   void
   create_pi_program_with_kernel_name(OSModuleHandle Module,
-                                     const string_class &KernelName,
+                                     const std::string &KernelName,
                                      bool JITCompilationIsRequired = false);
 
   /// Creates an OpenCL program from OpenCL C source code.
   ///
   /// \param Source is a string containing OpenCL C source code.
-  void create_cl_program_with_source(const string_class &Source);
+  void create_cl_program_with_source(const std::string &Source);
 
   /// Compiles underlying plugin interface program.
   ///
   /// \param Options is a string containing OpenCL compile options.
-  void compile(const string_class &Options);
+  void compile(const std::string &Options);
 
   /// Builds underlying plugin interface program.
   ///
   /// \param Options is a string containing OpenCL build options.
-  void build(const string_class &Options);
+  void build(const std::string &Options);
 
   /// \return a vector of devices managed by the plugin.
-  vector_class<RT::PiDevice> get_pi_devices() const;
+  std::vector<RT::PiDevice> get_pi_devices() const;
 
   /// \param Options is a string containing OpenCL C build options.
   /// \return true if caching is allowed for this program and build options.
-  static bool is_cacheable_with_options(const string_class &Options) {
+  static bool is_cacheable_with_options(const std::string &Options) {
     return Options.empty();
   }
 
   /// \param KernelName is a string containing OpenCL kernel name.
   /// \return true if underlying OpenCL program has kernel with specific name.
-  bool has_cl_kernel(const string_class &KernelName) const;
+  bool has_cl_kernel(const std::string &KernelName) const;
 
   /// \param KernelName is a string containing PI kernel name.
   /// \return an instance of PI kernel with specific name. If kernel is
   /// unavailable, an invalid_object_error exception is thrown.
-  RT::PiKernel get_pi_kernel(const string_class &KernelName) const;
+  RT::PiKernel get_pi_kernel(const std::string &KernelName) const;
 
   /// \return a vector of sorted in ascending order SYCL devices.
-  vector_class<device>
-  sort_devices_by_cl_device_id(vector_class<device> Devices);
+  std::vector<device>
+  sort_devices_by_cl_device_id(std::vector<device> Devices);
 
   /// Throws an invalid_object_exception if state of this program is in the
   /// specified state.
@@ -429,11 +429,11 @@ private:
   std::mutex MMutex;
   ContextImplPtr MContext;
   bool MLinkable = false;
-  vector_class<device> MDevices;
+  std::vector<device> MDevices;
   property_list MPropList;
-  string_class MCompileOptions;
-  string_class MLinkOptions;
-  string_class MBuildOptions;
+  std::string MCompileOptions;
+  std::string MLinkOptions;
+  std::string MBuildOptions;
   OSModuleHandle MProgramModuleHandle = OSUtil::ExeModuleHandle;
 
   // Keeps specialization constant map for this program. Spec constant name
@@ -454,7 +454,7 @@ cl_uint program_impl::get_info<info::program::reference_count>() const;
 template <> context program_impl::get_info<info::program::context>() const;
 
 template <>
-vector_class<device> program_impl::get_info<info::program::devices>() const;
+std::vector<device> program_impl::get_info<info::program::devices>() const;
 
 } // namespace detail
 } // namespace sycl

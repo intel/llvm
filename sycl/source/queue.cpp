@@ -22,7 +22,7 @@ namespace sycl {
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
 
-  const vector_class<device> Devs = SyclContext.get_devices();
+  const std::vector<device> Devs = SyclContext.get_devices();
 
   auto Comp = [&DeviceSelector](const device &d1, const device &d2) {
     return DeviceSelector(d1) < DeviceSelector(d2);
@@ -90,12 +90,12 @@ event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice) {
   return impl->mem_advise(impl, Ptr, Length, Advice);
 }
 
-event queue::submit_impl(function_class<void(handler &)> CGH,
+event queue::submit_impl(std::function<void(handler &)> CGH,
                          const detail::code_location &CodeLoc) {
   return impl->submit(CGH, impl, CodeLoc);
 }
 
-event queue::submit_impl(function_class<void(handler &)> CGH, queue SecondQueue,
+event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
                          const detail::code_location &CodeLoc) {
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
 }

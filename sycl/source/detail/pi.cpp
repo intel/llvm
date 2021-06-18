@@ -70,7 +70,7 @@ getPluginOpaqueData<cl::sycl::backend::esimd_cpu>(void *);
 
 namespace pi {
 
-static void initializePlugins(vector_class<plugin> *Plugins);
+static void initializePlugins(std::vector<plugin> *Plugins);
 
 bool XPTIInitDone = false;
 
@@ -225,7 +225,7 @@ std::string memFlagsToString(pi_mem_flags Flags) {
 std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
-bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
+bool findPlugins(std::vector<std::pair<std::string, backend>> &PluginNames) {
   // TODO: Based on final design discussions, change the location where the
   // plugin must be searched; how to identify the plugins etc. Currently the
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
@@ -304,7 +304,7 @@ bool trace(TraceLevel Level) {
 }
 
 // Initializes all available Plugins.
-const vector_class<plugin> &initialize() {
+const std::vector<plugin> &initialize() {
   static std::once_flag PluginsInitDone;
 
   std::call_once(PluginsInitDone, []() {
@@ -314,8 +314,8 @@ const vector_class<plugin> &initialize() {
   return GlobalHandler::instance().getPlugins();
 }
 
-static void initializePlugins(vector_class<plugin> *Plugins) {
-  vector_class<std::pair<std::string, backend>> PluginNames;
+static void initializePlugins(std::vector<plugin> *Plugins) {
+  std::vector<std::pair<std::string, backend>> PluginNames;
   findPlugins(PluginNames);
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
@@ -428,7 +428,7 @@ template <backend BE> const plugin &getPlugin() {
   if (Plugin)
     return *Plugin;
 
-  const vector_class<plugin> &Plugins = pi::initialize();
+  const std::vector<plugin> &Plugins = pi::initialize();
   for (const auto &P : Plugins)
     if (P.getBackend() == BE) {
       Plugin = &P;

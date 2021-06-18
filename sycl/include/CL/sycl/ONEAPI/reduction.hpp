@@ -80,7 +80,7 @@ template <typename... Ts> ReduTupleT<Ts...> makeReduTupleT(Ts... Elements) {
   return sycl::detail::make_tuple(Elements...);
 }
 
-__SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
+__SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
 __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
                                        size_t &NWorkGroups);
@@ -698,10 +698,10 @@ private:
   const T MIdentity;
 
   /// User's accessor to where the reduction must be written.
-  shared_ptr_class<rw_accessor_type> MRWAcc;
-  shared_ptr_class<dw_accessor_type> MDWAcc;
+  std::shared_ptr<rw_accessor_type> MRWAcc;
+  std::shared_ptr<dw_accessor_type> MDWAcc;
 
-  shared_ptr_class<buffer<T, buffer_dim>> MOutBufPtr;
+  std::shared_ptr<buffer<T, buffer_dim>> MOutBufPtr;
 
   /// USM pointer referencing the memory to where the result of the reduction
   /// must be written. Applicable/used only for USM reductions.
@@ -1585,12 +1585,12 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
 }
 
 inline void reduSaveFinalResultToUserMemHelper(
-    std::vector<event> &, shared_ptr_class<detail::queue_impl>, bool) {}
+    std::vector<event> &, std::shared_ptr<detail::queue_impl>, bool) {}
 
 template <typename Reduction, typename... RestT>
 std::enable_if_t<Reduction::is_usm>
 reduSaveFinalResultToUserMemHelper(std::vector<event> &Events,
-                                   shared_ptr_class<detail::queue_impl> Queue,
+                                   std::shared_ptr<detail::queue_impl> Queue,
                                    bool IsHost, Reduction &, RestT... Rest) {
   // Reductions initialized with USM pointer currently do not require copying
   // because the last kernel write directly to USM memory.
@@ -1599,7 +1599,7 @@ reduSaveFinalResultToUserMemHelper(std::vector<event> &Events,
 
 template <typename Reduction, typename... RestT>
 std::enable_if_t<!Reduction::is_usm> reduSaveFinalResultToUserMemHelper(
-    std::vector<event> &Events, shared_ptr_class<detail::queue_impl> Queue,
+    std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
     bool IsHost, Reduction &Redu, RestT... Rest) {
   if (Redu.hasUserDiscardWriteAccessor()) {
     handler CopyHandler(Queue, IsHost);
@@ -1620,8 +1620,8 @@ std::enable_if_t<!Reduction::is_usm> reduSaveFinalResultToUserMemHelper(
 /// Returns the event to the last kernel copying data or nullptr if no
 /// additional kernels created.
 template <typename... Reduction, size_t... Is>
-shared_ptr_class<event>
-reduSaveFinalResultToUserMem(shared_ptr_class<detail::queue_impl> Queue,
+std::shared_ptr<event>
+reduSaveFinalResultToUserMem(std::shared_ptr<detail::queue_impl> Queue,
                              bool IsHost, std::tuple<Reduction...> &ReduTuple,
                              std::index_sequence<Is...>) {
   std::vector<event> Events;
@@ -1629,7 +1629,7 @@ reduSaveFinalResultToUserMem(shared_ptr_class<detail::queue_impl> Queue,
                                      std::get<Is>(ReduTuple)...);
   if (!Events.empty())
     return std::make_shared<event>(Events.back());
-  return shared_ptr_class<event>();
+  return std::shared_ptr<event>();
 }
 
 template <typename Reduction> size_t reduGetMemPerWorkItemHelper(Reduction &) {

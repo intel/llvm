@@ -71,7 +71,7 @@ public:
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M,
-                                      const string_class &KernelName,
+                                      const std::string &KernelName,
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
@@ -92,19 +92,19 @@ public:
   ///        add a check that kernel is compiled, otherwise don't add the check.
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const device &Device,
-                                  const string_class &KernelName,
+                                  const std::string &KernelName,
                                   const program_impl *Prg = nullptr,
                                   bool JITCompilationIsRequired = false);
 
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const device &Device,
-                                  const string_class &KernelName,
+                                  const std::string &KernelName,
                                   const property_list &PropList,
                                   bool JITCompilationIsRequired = false);
 
   std::pair<RT::PiKernel, std::mutex *>
   getOrCreateKernel(OSModuleHandle M, const context &Context,
-                    const device &Device, const string_class &KernelName,
+                    const device &Device, const std::string &KernelName,
                     const program_impl *Prg);
 
   RT::PiProgram getPiProgramFromPiKernel(RT::PiKernel Kernel,
@@ -112,7 +112,7 @@ public:
 
   void addImages(pi_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
-  static string_class getProgramBuildLog(const RT::PiProgram &Program,
+  static std::string getProgramBuildLog(const RT::PiProgram &Program,
                                          const ContextImplPtr Context);
 
   /// Resolves given program to a device binary image and requests the program
@@ -145,7 +145,7 @@ public:
   KernelArgMask
   getEliminatedKernelArgMask(OSModuleHandle M, const context &Context,
                              const device &Device, pi::PiProgram NativePrg,
-                             const string_class &KernelName, bool KnownProgram);
+                             const std::string &KernelName, bool KnownProgram);
 
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
@@ -200,7 +200,7 @@ public:
                            const property_list &PropList);
 
   std::pair<RT::PiKernel, std::mutex *>
-  getOrCreateKernel(const context &Context, const string_class &KernelName,
+  getOrCreateKernel(const context &Context, const std::string &KernelName,
                     const property_list &PropList, RT::PiProgram Program);
 
   ProgramManager();
@@ -214,11 +214,11 @@ private:
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
-  using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
+  using ProgramPtr = std::unique_ptr<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
-                   const string_class &CompileOptions,
-                   const string_class &LinkOptions, const RT::PiDevice &Device,
+                   const std::string &CompileOptions,
+                   const std::string &LinkOptions, const RT::PiDevice &Device,
                    std::map<std::pair<DeviceLibExt, RT::PiDevice>,
                             RT::PiProgram> &CachedLibPrograms,
                    uint32_t DeviceLibReqMask);
@@ -227,7 +227,7 @@ private:
   /// Returns the kernel set associated with the kernel, handles some special
   /// cases (when reading images from file or using images with no entry info)
   KernelSetId getKernelSetId(OSModuleHandle M,
-                             const string_class &KernelName) const;
+                             const std::string &KernelName) const;
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId) const;
 
@@ -255,7 +255,7 @@ private:
                      std::unique_ptr<std::vector<RTDeviceBinaryImageUPtr>>>
       m_DeviceImages;
 
-  using StrToKSIdMap = std::unordered_map<string_class, KernelSetId>;
+  using StrToKSIdMap = std::unordered_map<std::string, KernelSetId>;
   /// Maps names of kernels from a specific OS module (.exe .dll) to their set
   /// id (the sets are disjoint).
   /// Access must be guarded by the \ref Sync::getGlobalLock()
@@ -285,7 +285,7 @@ private:
   std::mutex MNativeProgramsMutex;
 
   using KernelNameToArgMaskMap =
-      std::unordered_map<string_class, KernelArgMask>;
+      std::unordered_map<std::string, KernelArgMask>;
   /// Maps binary image and kernel name pairs to kernel argument masks which
   /// specify which arguments were eliminated during device code optimization.
   std::unordered_map<const RTDeviceBinaryImage *, KernelNameToArgMaskMap>
