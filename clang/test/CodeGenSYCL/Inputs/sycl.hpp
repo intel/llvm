@@ -321,6 +321,8 @@ public:
   specialization_id &operator=(const specialization_id &rhs) = delete;
   specialization_id &operator=(specialization_id &&rhs) = delete;
 
+  T getDefaultValue() const { return MDefaultValue; }
+
 private:
   T MDefaultValue;
 };
