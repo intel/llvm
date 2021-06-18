@@ -1735,27 +1735,10 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
        RequiredWGSize[2] != 0);
   size_t *LocalSize = nullptr;
 
-  if (EnforcedLocalSize && HasLocalSize) {
-    if (NDRDesc.LocalSize[0] != RequiredWGSize[0] ||
-        NDRDesc.LocalSize[1] != RequiredWGSize[1] ||
-        NDRDesc.LocalSize[2] != RequiredWGSize[2]) {
-      std::stringstream Stream;
-      Stream << "The specified local size {" << NDRDesc.LocalSize[0] << ", "
-             << NDRDesc.LocalSize[1] << ", " << NDRDesc.LocalSize[2]
-             << "} doesn't match the required work-group "
-             << "size specified in the program source {" << RequiredWGSize[0]
-             << ", " << RequiredWGSize[1] << ", " << RequiredWGSize[2] << "}";
-      throw sycl::nd_range_error(Stream.str(), PI_INVALID_WORK_GROUP_SIZE);
-    }
-  } else if (!HasLocalSize && EnforcedLocalSize) {
-    throw sycl::nd_range_error("OpenCL 1.x and 2.0 requires to pass "
-                               "local size argument even if "
-                               "required work-group size was "
-                               "specified in the program source",
-                               PI_INVALID_WORK_GROUP_SIZE);
-  }
-
-  LocalSize = &NDRDesc.LocalSize[0];
+  if (EnforcedLocalSize && !HasLocalSize)
+    LocalSize = RequiredWGSize;
+  else if (HasLocalSize)
+    LocalSize = &NDRDesc.LocalSize[0];
 
   pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
