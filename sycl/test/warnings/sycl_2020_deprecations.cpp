@@ -76,8 +76,8 @@ int main() {
   (void)Mtx;
 
   Queue.submit([](sycl::handler &CGH) {
+    // expected-warning@+3{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
     // expected-warning@+2{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
-    // expected-warning@+1{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
     CGH.parallel_for<class Test>(
         sycl::nd_range<1>{sycl::range{10}, sycl::range{10}, sycl::range{1}},
         [](sycl::nd_item<1> it) {
