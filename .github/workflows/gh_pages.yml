@@ -41,12 +41,9 @@ jobs:
         git rm -rf .
         touch .nojekyll
         yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/html/* .
-        mkdir doxygen
-        yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html/* doxygen/
-        mkdir clang
-        yes | \cp -rf $GITHUB_WORKSPACE/build/tools/clang/docs/html/* clang/
-        mkdir clang_doxygen
-        yes | \cp -rf $GITHUB_WORKSPACE/build/tools/clang/docs/doxygen/html/* clang_doxygen/
+        mv $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html doxygen/
+        mv $GITHUB_WORKSPACE/build/tools/clang/docs/html clang/
+        mv $GITHUB_WORKSPACE/build/tools/clang/docs/doxygen/html clang_doxygen/
         git config --global user.name "iclsrc"
         git config --global user.email "ia.compiler.tools.git@intel.com"
         git add .

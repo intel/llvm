@@ -242,6 +242,9 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
         Type type, Value source, Value pad, ArrayRef<OpFoldResult> low,
         ArrayRef<OpFoldResult> high, Location loc, OpBuilder & builder);
 
+    // Return the pad value if it is a constant. Return null value otherwise.
+    Value getConstantPaddingValue();
+
     // Return a vector of all the static or dynamic values (low/high padding) of
     // the op.
     inline SmallVector<OpFoldResult> getMixedPadImpl(ArrayAttr staticAttrs,
@@ -263,6 +266,18 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
     SmallVector<OpFoldResult> getMixedHighPad() {
       return getMixedPadImpl(static_high(), high());
     }
+    // Return true if low padding is guaranteed to be 0.
+    bool hasZeroLowPad() {
+      return llvm::all_of(getMixedLowPad(), [](OpFoldResult ofr) {
+        return mlir::isEqualConstantInt(ofr, 0);
+      });
+    }
+    // Return true if high padding is guaranteed to be 0.
+    bool hasZeroHighPad() {
+      return llvm::all_of(getMixedHighPad(), [](OpFoldResult ofr) {
+        return mlir::isEqualConstantInt(ofr, 0);
+      });
+    }
   }];
 
   let builders = [
@@ -279,6 +294,8 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
       "ArrayRef<OpFoldResult>":$low, "ArrayRef<OpFoldResult>":$high,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
   ];
+
+  let hasCanonicalizer = 1;
 }
 
 def Linalg_RangeOp :
@@ -623,8 +640,8 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
   let arguments = (ins Variadic<Index>:$lowerBound,
                        Variadic<Index>:$upperBound,
                        Variadic<Index>:$step,
-                       Variadic<LinalgOperand>:$inputs,
-                       Variadic<LinalgOperand>:$outputs,
+                       Variadic<AnyType>:$inputs,
+                       Variadic<AnyShaped>:$outputs,
                        ArrayAttr:$iterator_types,
                        OptionalAttr<ArrayAttr>:$distribution_types);
   let results = (outs Variadic<AnyRankedTensor>:$results);

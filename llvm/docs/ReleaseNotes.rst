@@ -74,13 +74,6 @@ Changes to building LLVM
 Changes to TableGen
 -------------------
 
-Changes to Backend Code Generation
-----------------------------------
-
-* When lowering calls, only ABI attributes on the call itself are checked, not
-  the caller. Frontends need to make sure to properly set ABI attributes on
-  calls (and always should have).
-
 Changes to the ARM Backend
 --------------------------
 
@@ -128,6 +121,10 @@ Changes to the OCaml bindings
 Changes to the C API
 --------------------
 
+* The C API function ``LLVMIntrinsicCopyOverloadedName`` has been deprecated.
+  Please migrate to ``LLVMIntrinsicCopyOverloadedName2`` which takes an extra
+  module argument and which also handles unnamed types.
+  ('D99173' <https://reviews.llvm.org/D99173>'_)
 
 Changes to the Go bindings
 --------------------------

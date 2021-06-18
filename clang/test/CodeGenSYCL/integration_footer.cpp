@@ -159,4 +159,33 @@ struct container {
 // CHECK-NOT: ::GetThing
 // CHECK-NOT: ::container::Thing
 
+// Validate that variable templates work correctly.  Previously they printed
+// without their template arguments.
+namespace {
+struct HasVarTemplate {
+  constexpr HasVarTemplate(){}
+  template<typename T, int case_num>
+  static constexpr specialization_id<T> VarTempl{case_num};
+};
+}
+
+auto x = HasVarTemplate::VarTempl<int, 2>.getDefaultValue();
+// CHECK: namespace {
+// CHECK-NEXT: namespace __sycl_detail
+// CHECK-NEXT: static constexpr decltype(HasVarTemplate::VarTempl<int, 2>) &__spec_id_shim_[[SHIM1:[0-9]+]]() {
+// CHECK-NEXT: return HasVarTemplate::VarTempl<int, 2>;
+// CHECK-NEXT: }
+// CHECK-NEXT: } // namespace __sycl_detail
+// CHECK-NEXT: } // namespace
+// CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: namespace detail {
+// CHECK-NEXT: template<>
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM1]]()>() {
+// CHECK-NEXT: return "____ZN12_GLOBAL__N_114HasVarTemplate8VarTemplIiLi2EEE";
+// CHECK-NEXT: }
+// CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // namespace sycl
+// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
+
 // CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>
