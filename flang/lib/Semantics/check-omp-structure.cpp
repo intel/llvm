@@ -545,8 +545,9 @@ void OmpStructureChecker::CheckDistLinear(
     // Get collapse level, if given, to find which loops are "associated."
     std::int64_t collapseVal{GetOrdCollapseLevel(x)};
     // Include the top loop if no collapse is specified
-    if (collapseVal == 0)
+    if (collapseVal == 0) {
       collapseVal = 1;
+    }
 
     // Match the loop index variables with the collected symbols from linear
     // clauses.
@@ -560,8 +561,9 @@ void OmpStructureChecker::CheckDistLinear(
             indexVars.erase(*(itrVal.symbol));
           }
           collapseVal--;
-          if (collapseVal == 0)
+          if (collapseVal == 0) {
             break;
+          }
         }
         // Get the next DoConstruct if block is not empty.
         const auto &block{std::get<parser::Block>(loop->t)};
@@ -782,8 +784,9 @@ void OmpStructureChecker::Enter(const parser::OpenMPExecutableAllocate &x) {
   const auto &dir{std::get<parser::Verbatim>(x.t)};
   const auto &objectList{std::get<std::optional<parser::OmpObjectList>>(x.t)};
   PushContextAndClauseSets(dir.source, llvm::omp::Directive::OMPD_allocate);
-  if (objectList)
+  if (objectList) {
     CheckIsVarPartOfAnotherVar(dir.source, *objectList);
+  }
 }
 
 void OmpStructureChecker::Leave(const parser::OpenMPExecutableAllocate &x) {
@@ -794,10 +797,27 @@ void OmpStructureChecker::Leave(const parser::OpenMPExecutableAllocate &x) {
   dirContext_.pop_back();
 }
 
+void OmpStructureChecker::CheckBarrierNesting(
+    const parser::OpenMPSimpleStandaloneConstruct &x) {
+  // A barrier region may not be `closely nested` inside a worksharing, loop,
+  // task, taskloop, critical, ordered, atomic, or master region.
+  // TODO:  Expand the check to include `LOOP` construct as well when it is
+  // supported.
+  if (GetContext().directive == llvm::omp::Directive::OMPD_barrier) {
+    if (IsCloselyNestedRegion(llvm::omp::nestedBarrierErrSet)) {
+      context_.Say(parser::FindSourceLocation(x),
+          "`BARRIER` region may not be closely nested inside of `WORKSHARING`, "
+          "`LOOP`, `TASK`, `TASKLOOP`,"
+          "`CRITICAL`, `ORDERED`, `ATOMIC` or `MASTER` region."_err_en_US);
+    }
+  }
+}
+
 void OmpStructureChecker::Enter(
     const parser::OpenMPSimpleStandaloneConstruct &x) {
   const auto &dir{std::get<parser::OmpSimpleStandaloneDirective>(x.t)};
   PushContextAndClauseSets(dir.source, dir.v);
+  CheckBarrierNesting(x);
 }
 
 void OmpStructureChecker::Leave(

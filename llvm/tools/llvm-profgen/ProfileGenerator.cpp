@@ -48,6 +48,11 @@ static cl::opt<uint32_t> CSProfColdContextFrameDepth(
     cl::desc("Keep the last K frames while merging cold profile. 1 means the "
              "context-less base profile"));
 
+static cl::opt<bool> EnableCSPreInliner(
+    "csspgo-preinliner", cl::Hidden, cl::init(false),
+    cl::desc("Run a global pre-inliner to merge context profile based on "
+             "estimated global top-down inline decisions"));
+
 extern cl::opt<int> ProfileSummaryCutoffCold;
 
 using namespace llvm;
@@ -401,7 +406,8 @@ void CSProfileGenerator::postProcessProfiles() {
 
   // Run global pre-inliner to adjust/merge context profile based on estimated
   // inline decisions.
-  CSPreInliner(ProfileMap, HotCountThreshold, ColdCountThreshold).run();
+  if (EnableCSPreInliner)
+    CSPreInliner(ProfileMap, HotCountThreshold, ColdCountThreshold).run();
 
   // Trim and merge cold context profile using cold threshold above;
   SampleContextTrimmer(ProfileMap)
@@ -555,19 +561,14 @@ void PseudoProbeCSProfileGenerator::populateBodySamplesWithProbes(
       }
     }
 
-    // Report dangling probes for frames that have real samples collected.
-    // Dangling probes are the probes associated to an empty block. With this
-    // place holder, sample count on a dangling probe will not be trusted by the
-    // compiler and we will rely on the counts inference algorithm to get the
-    // probe a reasonable count. Use InvalidProbeCount to mark sample count for
-    // a dangling probe.
+    // Assign zero count for remaining probes without sample hits to
+    // differentiate from probes optimized away, of which the counts are unknown
+    // and will be inferred by the compiler.
     for (auto &I : FrameSamples) {
       auto *FunctionProfile = I.second;
       for (auto *Probe : I.first->getProbes()) {
-        if (Probe->isDangling()) {
-          FunctionProfile->addBodySamplesForProbe(
-              Probe->Index, FunctionSamples::InvalidProbeCount);
-        }
+        if (!Probe->isDangling())
+          FunctionProfile->addBodySamplesForProbe(Probe->Index, 0);
       }
     }
   }
