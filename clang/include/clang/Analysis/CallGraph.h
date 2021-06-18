@@ -145,7 +145,6 @@ public:
   bool shouldWalkTypesOfTypeLocs() const { return false; }
   bool shouldVisitTemplateInstantiations() const { return true; }
   bool shouldVisitImplicitCode() const { return true; }
-  bool shouldVisitConstantExpressions() const { return false; }
   bool shouldSkipConstantExpressions() const { return shouldSkipConstexpr; }
   void setSkipConstantExpressions(ASTContext &Context) {
     Ctx = &Context;
