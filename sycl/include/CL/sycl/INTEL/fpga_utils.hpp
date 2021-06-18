@@ -22,7 +22,8 @@ struct _MatchType : std::is_same<typename _D::type_id, typename _T::type_id> {};
 template <class _D, class... _T> struct _GetValue;
 
 template <class _D>
-struct _GetValue<_D> : std::integral_constant<decltype(_D::value), _D::value> {};
+struct _GetValue<_D> : std::integral_constant<decltype(_D::value), _D::value> {
+};
 
 template <class _D, class _T1, class... _T> struct _GetValue<_D, _T1, _T...> {
   template <class _D2, class _T12, class _Enable = void>
