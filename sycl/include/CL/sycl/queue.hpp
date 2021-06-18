@@ -244,7 +244,6 @@ private:
 
       CGH.single_task<AssertInfoCopier>([Acc] {
 #ifdef __SYCL_DEVICE_ONLY__
-        //Acc[0].Flag =
         __devicelib_assert_read(&Acc[0]);
 #else
         (void)Acc;
