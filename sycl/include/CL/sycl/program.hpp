@@ -75,8 +75,7 @@ public:
   ///
   /// \param ProgramList is a list of SYCL program instances.
   /// \param PropList is an instance of property_list.
-  program(std::vector<program> ProgramList,
-          const property_list &PropList = {});
+  program(std::vector<program> ProgramList, const property_list &PropList = {});
 
   /// Constructs an instance of SYCL program by linking together each SYCL
   /// program instance in ProgramList.
@@ -405,8 +404,7 @@ private:
   /// \param KernelName is a stringified kernel name.
   /// \param CompileOptions is a string of valid OpenCL compile options.
   /// \param M is a valid OS handle to the user executable or library.
-  void build_with_kernel_name(std::string KernelName,
-                              std::string buildOptions,
+  void build_with_kernel_name(std::string KernelName, std::string buildOptions,
                               detail::OSModuleHandle M);
 
   void set_spec_constant_impl(const char *Name, void *Data, size_t Size);

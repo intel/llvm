@@ -39,13 +39,12 @@ template <info::platform param> struct get_platform_info<std::string, param> {
 };
 
 template <>
-struct get_platform_info<std::vector<std::string>,
-                         info::platform::extensions> {
+struct get_platform_info<std::vector<std::string>, info::platform::extensions> {
   static std::vector<std::string> get(RT::PiPlatform plt,
-                                        const plugin &Plugin) {
+                                      const plugin &Plugin) {
     std::string result =
-        get_platform_info<std::string, info::platform::extensions>::get(
-            plt, Plugin);
+        get_platform_info<std::string, info::platform::extensions>::get(plt,
+                                                                        Plugin);
     return split_string(result, ' ');
   }
 };

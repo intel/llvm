@@ -1584,8 +1584,9 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
   return NWorkGroups;
 }
 
-inline void reduSaveFinalResultToUserMemHelper(
-    std::vector<event> &, std::shared_ptr<detail::queue_impl>, bool) {}
+inline void
+reduSaveFinalResultToUserMemHelper(std::vector<event> &,
+                                   std::shared_ptr<detail::queue_impl>, bool) {}
 
 template <typename Reduction, typename... RestT>
 std::enable_if_t<Reduction::is_usm>

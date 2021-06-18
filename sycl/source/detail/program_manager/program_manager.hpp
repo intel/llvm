@@ -113,7 +113,7 @@ public:
   void addImages(pi_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const RT::PiProgram &Program,
-                                         const ContextImplPtr Context);
+                                        const ContextImplPtr Context);
 
   /// Resolves given program to a device binary image and requests the program
   /// to flush constants the image depends on.
@@ -215,7 +215,7 @@ private:
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
   using ProgramPtr = std::unique_ptr<remove_pointer_t<RT::PiProgram>,
-                                      decltype(&::piProgramRelease)>;
+                                     decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const std::string &CompileOptions,
                    const std::string &LinkOptions, const RT::PiDevice &Device,
@@ -284,8 +284,7 @@ private:
   /// Protects NativePrograms that can be changed by class' methods.
   std::mutex MNativeProgramsMutex;
 
-  using KernelNameToArgMaskMap =
-      std::unordered_map<std::string, KernelArgMask>;
+  using KernelNameToArgMaskMap = std::unordered_map<std::string, KernelArgMask>;
   /// Maps binary image and kernel name pairs to kernel argument masks which
   /// specify which arguments were eliminated during device code optimization.
   std::unordered_map<const RTDeviceBinaryImage *, KernelNameToArgMaskMap>

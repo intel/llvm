@@ -184,8 +184,8 @@ public:
   /// \param KernelName is a string containing SYCL kernel name.
   /// \param BuildOptions is a string containing OpenCL compile options.
   /// \param M is an OS handle to user code module.
-  void build_with_kernel_name(std::string KernelName,
-                              std::string BuildOptions, OSModuleHandle M);
+  void build_with_kernel_name(std::string KernelName, std::string BuildOptions,
+                              OSModuleHandle M);
 
   /// Builds the OpenCL C kernel function defined by source code.
   ///
@@ -409,8 +409,7 @@ private:
   RT::PiKernel get_pi_kernel(const std::string &KernelName) const;
 
   /// \return a vector of sorted in ascending order SYCL devices.
-  std::vector<device>
-  sort_devices_by_cl_device_id(std::vector<device> Devices);
+  std::vector<device> sort_devices_by_cl_device_id(std::vector<device> Devices);
 
   /// Throws an invalid_object_exception if state of this program is in the
   /// specified state.

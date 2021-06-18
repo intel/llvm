@@ -34,7 +34,8 @@ public:
       : globalSize(globalSize), localSize(localSize), offset(offset) {}
 
   nd_range(range<dimensions> globalSize, range<dimensions> localSize)
-      : globalSize(globalSize), localSize(localSize), offset(id<dimensions>()) {}
+      : globalSize(globalSize), localSize(localSize), offset(id<dimensions>()) {
+  }
 
   range<dimensions> get_global_range() const { return globalSize; }
 

@@ -137,9 +137,7 @@ std::vector<std::vector<char>> program::get_binaries() const {
 
 context program::get_context() const { return impl->get_context(); }
 
-std::vector<device> program::get_devices() const {
-  return impl->get_devices();
-}
+std::vector<device> program::get_devices() const { return impl->get_devices(); }
 
 std::string program::get_compile_options() const {
   return impl->get_compile_options();

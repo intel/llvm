@@ -72,7 +72,7 @@ device device_selector::select_device() const {
 
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::string PlatformName = dev.get_info<info::device::platform>()
-                                      .get_info<info::platform::name>();
+                                     .get_info<info::platform::name>();
       std::string DeviceName = dev.get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
                 << "select_device(): -> score = " << dev_score
@@ -109,7 +109,7 @@ device device_selector::select_device() const {
   if (res != nullptr) {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
       std::string PlatformName = res->get_info<info::device::platform>()
-                                      .get_info<info::platform::name>();
+                                     .get_info<info::platform::name>();
       std::string DeviceName = res->get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
                 << "Selected device ->" << std::endl

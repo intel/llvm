@@ -513,8 +513,7 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(range<1> NumWorkItems,
-                     const std::vector<event> &DepEvents,
+  event parallel_for(range<1> NumWorkItems, const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
@@ -530,8 +529,7 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(range<2> NumWorkItems,
-                     const std::vector<event> &DepEvents,
+  event parallel_for(range<2> NumWorkItems, const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
@@ -547,8 +545,7 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(range<3> NumWorkItems,
-                     const std::vector<event> &DepEvents,
+  event parallel_for(range<3> NumWorkItems, const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
@@ -823,8 +820,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::queue> {
   size_t operator()(const cl::sycl::queue &Q) const {
-    return std::hash<
-        std::shared_ptr<cl::sycl::detail::queue_impl>>()(
+    return std::hash<std::shared_ptr<cl::sycl::detail::queue_impl>>()(
         cl::sycl::detail::getSyclObjImpl(Q));
   }
 };

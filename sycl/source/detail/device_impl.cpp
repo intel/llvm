@@ -147,8 +147,7 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   return res;
 }
 
-std::vector<device>
-device_impl::create_sub_devices(size_t ComputeUnits) const {
+std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
 
   if (MIsHostDevice)
     // TODO: implement host device partitioning

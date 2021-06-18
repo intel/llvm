@@ -75,8 +75,8 @@ public:
 
   template <bool has_offset = with_offset>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
-  detail::enable_if_t<has_offset, size_t>
-  __SYCL_ALWAYS_INLINE get_offset(int dimension) const {
+  detail::enable_if_t<has_offset, size_t> __SYCL_ALWAYS_INLINE
+      get_offset(int dimension) const {
     size_t Id = MImpl.MOffset[dimension];
     __SYCL_ASSUME_INT(Id);
     return Id;

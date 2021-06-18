@@ -569,7 +569,7 @@ ProgramManager::getPiProgramFromPiKernel(RT::PiKernel Kernel,
 }
 
 std::string ProgramManager::getProgramBuildLog(const RT::PiProgram &Program,
-                                                const ContextImplPtr Context) {
+                                               const ContextImplPtr Context) {
   size_t PIDevicesSize = 0;
   const detail::plugin &Plugin = Context->getPlugin();
   Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES, 0,
@@ -579,7 +579,7 @@ std::string ProgramManager::getProgramBuildLog(const RT::PiProgram &Program,
                                            PIDevicesSize, PIDevices.data(),
                                            nullptr);
   std::string Log = "The program was built for " +
-                     std::to_string(PIDevices.size()) + " devices";
+                    std::to_string(PIDevices.size()) + " devices";
   for (RT::PiDevice &Device : PIDevices) {
     std::string DeviceBuildInfoString;
     size_t DeviceBuildInfoStrSize = 0;
@@ -1147,8 +1147,7 @@ uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
 // header instead.
 ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
     OSModuleHandle M, const context &Context, const device &Device,
-    pi::PiProgram NativePrg, const std::string &KernelName,
-    bool KnownProgram) {
+    pi::PiProgram NativePrg, const std::string &KernelName, bool KnownProgram) {
   // If instructed to use a spv file, assume no eliminated arguments.
   if (m_UseSpvFile && M == OSUtil::ExeModuleHandle)
     return {};

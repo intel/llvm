@@ -78,13 +78,15 @@ int main() {
   Queue.submit([](sycl::handler &CGH) {
     // expected-warning@+2{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
     // expected-warning@+1{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
-    CGH.parallel_for<class Test>(sycl::nd_range<1>{sycl::range{10}, sycl::range{10}, sycl::range{1}}, [](sycl::nd_item<1> it) {
-        // expected-warning@+1{{'barrier' is deprecated: use sycl::group_barrier() free function instead}}
-        it.barrier();
-        // expected-warning@+2{{'mem_fence' is deprecated: use sycl::group_barrier() free function instead}}
-        // expected-warning@+1{{'mem_fence<sycl::access::mode::read_write>' is deprecated: use sycl::group_barrier() free function instead}}
-        it.mem_fence();
-    });
+    CGH.parallel_for<class Test>(
+        sycl::nd_range<1>{sycl::range{10}, sycl::range{10}, sycl::range{1}},
+        [](sycl::nd_item<1> it) {
+          // expected-warning@+1{{'barrier' is deprecated: use sycl::group_barrier() free function instead}}
+          it.barrier();
+          // expected-warning@+2{{'mem_fence' is deprecated: use sycl::group_barrier() free function instead}}
+          // expected-warning@+1{{'mem_fence<sycl::access::mode::read_write>' is deprecated: use sycl::group_barrier() free function instead}}
+          it.mem_fence();
+        });
   });
 
   // expected-warning@+1{{'byte' is deprecated: use std::byte instead}}

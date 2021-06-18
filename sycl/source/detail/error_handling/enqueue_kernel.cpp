@@ -187,8 +187,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           Plugin.call<PiApiKind::piProgramGetBuildInfo>(
               Program, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, OptsSize,
               &Opts.front(), nullptr);
-          const bool HasStd20 =
-              Opts.find("-cl-std=CL2.0") != std::string::npos;
+          const bool HasStd20 = Opts.find("-cl-std=CL2.0") != std::string::npos;
           const bool RequiresUniformWGSize =
               Opts.find("-cl-uniform-work-group-size") != std::string::npos;
           std::string LocalWGSize = std::to_string(NDRDesc.LocalSize[0]) +

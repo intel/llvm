@@ -15,7 +15,7 @@ namespace sycl {
 namespace detail {
 
 std::vector<std::string> __SYCL_EXPORT split_string(const std::string &str,
-                                                      char delimeter);
+                                                    char delimeter);
 
 } // namespace detail
 } // namespace sycl

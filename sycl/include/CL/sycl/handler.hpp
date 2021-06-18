@@ -2284,9 +2284,8 @@ private:
   template <typename Reduction, typename... RestT>
   std::enable_if_t<!Reduction::is_usm> friend ONEAPI::detail::
       reduSaveFinalResultToUserMemHelper(
-          std::vector<event> &Events,
-          std::shared_ptr<detail::queue_impl> Queue, bool IsHost, Reduction &,
-          RestT...);
+          std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
+          bool IsHost, Reduction &, RestT...);
 
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,

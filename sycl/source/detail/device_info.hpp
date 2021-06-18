@@ -26,8 +26,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-inline std::vector<info::fp_config>
-read_fp_bitfield(cl_device_fp_config bits) {
+inline std::vector<info::fp_config> read_fp_bitfield(cl_device_fp_config bits) {
   std::vector<info::fp_config> result;
   if (bits & CL_FP_DENORM)
     result.push_back(info::fp_config::denorm);
@@ -168,7 +167,7 @@ template <info::device param> struct get_device_info<id<3>, param> {
 template <info::device param>
 struct get_device_info<std::vector<info::fp_config>, param> {
   static std::vector<info::fp_config> get(RT::PiDevice dev,
-                                           const plugin &Plugin) {
+                                          const plugin &Plugin) {
     // Check if fp type is supported
     if (!get_device_info<
             typename info::param_traits<
@@ -213,7 +212,7 @@ template <>
 struct get_device_info<std::vector<info::fp_config>,
                        info::device::single_fp_config> {
   static std::vector<info::fp_config> get(RT::PiDevice dev,
-                                           const plugin &Plugin) {
+                                          const plugin &Plugin) {
     cl_device_fp_config result;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::single_fp_config),
@@ -238,7 +237,7 @@ template <>
 struct get_device_info<std::vector<info::execution_capability>,
                        info::device::execution_capabilities> {
   static std::vector<info::execution_capability> get(RT::PiDevice dev,
-                                                      const plugin &Plugin) {
+                                                     const plugin &Plugin) {
     cl_device_exec_capabilities result;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::execution_capabilities),
@@ -251,8 +250,7 @@ struct get_device_info<std::vector<info::execution_capability>,
 template <>
 struct get_device_info<std::vector<std::string>,
                        info::device::built_in_kernels> {
-  static std::vector<std::string> get(RT::PiDevice dev,
-                                        const plugin &Plugin) {
+  static std::vector<std::string> get(RT::PiDevice dev, const plugin &Plugin) {
     std::string result =
         get_device_info<std::string, info::device::built_in_kernels>::get(
             dev, Plugin);
@@ -263,11 +261,10 @@ struct get_device_info<std::vector<std::string>,
 // Specialization for extensions, splits the string returned by OpenCL
 template <>
 struct get_device_info<std::vector<std::string>, info::device::extensions> {
-  static std::vector<std::string> get(RT::PiDevice dev,
-                                        const plugin &Plugin) {
+  static std::vector<std::string> get(RT::PiDevice dev, const plugin &Plugin) {
     std::string result =
         get_device_info<std::string, info::device::extensions>::get(dev,
-                                                                     Plugin);
+                                                                    Plugin);
     return split_string(result, ' ');
   }
 };
@@ -288,7 +285,7 @@ template <>
 struct get_device_info<std::vector<info::partition_property>,
                        info::device::partition_properties> {
   static std::vector<info::partition_property> get(RT::PiDevice dev,
-                                                    const plugin &Plugin) {
+                                                   const plugin &Plugin) {
     auto info_partition =
         pi::cast<RT::PiDeviceInfo>(info::device::partition_properties);
 
@@ -1038,8 +1035,7 @@ template <> struct get_device_info<bool, info::device::ext_intel_mem_channel> {
 // Specializations for intel extensions for Level Zero low-level
 // detail device descriptors (not support on host).
 template <>
-inline std::string
-get_device_info_host<info::device::ext_intel_pci_address>() {
+inline std::string get_device_info_host<info::device::ext_intel_pci_address>() {
   throw runtime_error(
       "Obtaining the PCI address is not supported on HOST device",
       PI_INVALID_DEVICE);
