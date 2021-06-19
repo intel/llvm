@@ -487,39 +487,59 @@ sizes.
 
 ### Changes specific to AOT mode
 
-In AOT mode, DPC++ normally invokes either the `ocloc` command or the
-`opencl-aot` command on each SPIR-V device image to compile the SPIR-V into
-native code for the devices specified by the `-fsycl-targets` command line
-option.  This causes a problem, though, for device images that use optional
-features because these commands could fail if they attempt to compile SPIR-V
-using an optional feature that is not supported by the target device.  We
-therefore need some way to avoid calling these commands in these cases.
+In AOT mode, for each AOT target specified by the `-fsycl-targets` command
+line option, DPC++ normally invokes the AOT compiler for each device IR module
+resulting from the sycl-post-link tool. For example, this is `ocloc` command
+for Intel Gen AOT target and `opencl-aot` command for the x86 AOT target with
+SPIR-V as the input, or other specific tools for the PTX target with LLVMIR
+bitcode input. This causes a problem, though, for IR modules that use optional
+features because these commands could fail if they attempt to compile IR using
+an optional feature that is not supported by the target device.  We therefore
+need some way to avoid calling these commands in these cases.
 
 The overall design is as follows.  The DPC++ installation includes a
-configuration file that has one entry for each device that we support.  Each
+configuration file that has one entry for each device that it supports. Each
 entry lists the set of aspects that the device supports and a list of the
 sub-group sizes that it supports.  DPC++ then consults this configuration
-file to decide whether to invoke `ocloc` or `opencl-aot` on each SPIR-V device
-image, using the information from the device image's "SYCL/image-requirements"
+file to decide whether to invoke a particular AOT compiler on each device IR
+module, using the information from the module's "SYCL/image-requirements"
 property set.
 
-#### Format of the configuration file
+#### Device configuration file
 
 The configuration file uses a simple YAML format where each top-level key is
-the name of a device.  There are sub-keys under each device for the supported
-aspects and sub-group sizes.  For example:
+a name of a device architecture. These names correspond to SYCL aspect enum
+identifiers as defined in the [TBD] API header. There are sub-keys under each
+device for the supported aspects, sub-group sizes and AOT compiler ID.  For
+example:
 
 ```
-gen9:
+gen11_1:
   aspects: [1, 2, 3]
   sub-group-sizes: [8, 16]
-avx512:
+  aot-compiler-id: gen-spir64
+gen_icl:
+  aspects: [2, 3]
+  sub-group-sizes: [8, 16]
+  aot-compiler-id: gen-spir64
+x86_64_avx512:
   aspects: [1, 2, 3, 9, 11]
   sub-group-sizes: [8, 32]
+  aot-compiler-id: x86-spir64
 ```
 
-The values of the aspects in this configuration file are just the numerical
-values from the `enum class aspect` enumeration.
+The values of the aspects in this configuration file can be the numerical
+values from the `enum class aspect` enumeration or the enum identifer itself.
+For each valid AOT compiler ID the driver has a built-in rule how to construct
+an AOT compilation command line based on given architecture name. For example,
+for the `gen11_1` and `gen_icl` architectures, the driver sees `gen-spir64`
+as the AOT compiler ID, so it knows that the `ocloc` tool must be used, and it
+also knows how to translate the `gen11_1` or `gen_icl` to proper `ocloc`
+architecture specification option.
+
+*NOTE: new kinds of AOT compilers are expected to appear very rarely, so
+developing some kind of "AOT compiler plugin" mechanism is impractical, and
+hardcoding AOT compiler types in the driver is resonable.*
 
 One advantage to encoding this information in a textual configuration file is
 that customers can update the file if necessary.  This could be useful, for
@@ -533,7 +553,6 @@ and related tools.  Other things to describe are:
 * The names of the devices in the configuration file.
 * The name of the DPC++ driver option that selects an alternate configuration
   file.
-
 
 ### Changes to the DPC++ runtime
 
@@ -560,7 +579,6 @@ include this property in the set nonetheless for possible future use.
 
 If the runtime throws an exception, it happens even before the runtime tries to
 access the contents of the device image.
-
 
 ### Clang static analyzer to diagnose unexpected aspect usage
 
