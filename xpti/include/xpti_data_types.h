@@ -162,6 +162,13 @@ struct payload_t {
   }
 };
 
+struct function_with_args_t {
+  uint32_t function_id;
+  void *args_data;
+  void *ret_data;
+  void *user_data;
+};
+
 ///  @brief Enumerator defining the global/basic trace point types
 ///  @details The frame work defines the global/basic trace point types
 ///  that are necessary for modeling parallel runtimes. A helper macro
@@ -257,6 +264,8 @@ enum class trace_point_type_t : uint16_t {
   metadata = XPTI_TRACE_POINT_BEGIN(13),
   /// Indicates that the trace point is user defined and only the tool defined
   /// for a stream will be able to handle it
+  function_with_args_begin = XPTI_TRACE_POINT_BEGIN(14),
+  function_with_args_end = XPTI_TRACE_POINT_END(15),
   user_defined = 1 << 7
 };
 

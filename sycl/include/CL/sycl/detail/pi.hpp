@@ -391,3 +391,5 @@ namespace RT = cl::sycl::detail::pi;
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+#undef _PI_API

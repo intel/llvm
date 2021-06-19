@@ -10,6 +10,7 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_api_id.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/plugin_printers.hpp>
 #include <memory>
@@ -25,7 +26,76 @@ namespace sycl {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GPICallEvent;
+extern xpti::trace_event_data_t *GPIArgCallEvent;
 #endif
+
+template <typename... Args> struct total_size;
+
+template <typename T> struct total_size<T> {
+  static constexpr size_t value = sizeof(T);
+};
+
+template <typename T, typename... Args> struct total_size<T, Args...> {
+  static constexpr size_t value = sizeof(T) + total_size<Args...>::value;
+};
+
+template <typename... Args> struct array_fill_helper;
+
+template <typename T> struct array_fill_helper<T> {
+  static void fill(unsigned char *Dst, size_t Offset, T &Arg) {
+    auto *Begin = reinterpret_cast<unsigned char *>(&Arg);
+    auto *End = Begin + sizeof(T);
+    std::uninitialized_copy(Begin, End, Dst + Offset);
+  }
+};
+
+template <typename T, typename... Args> struct array_fill_helper<T, Args...> {
+  static void fill(unsigned char *Dst, size_t Offset, T &Arg, Args &...Rest) {
+    auto *Begin = reinterpret_cast<unsigned char *>(&Arg);
+    auto *End = Begin + sizeof(T);
+    std::uninitialized_copy(Begin, End, Dst + Offset);
+    array_fill_helper<Args...>::fill(Dst, Offset + sizeof(T), Rest...);
+  }
+};
+
+template <typename... ArgsT>
+uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, ArgsT &...Args) {
+  uint64_t CorrelationID = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    uint8_t StreamID = xptiRegisterStream(SYCL_PIARGCALL_STREAM_NAME);
+    CorrelationID = xptiGetUniqueId();
+
+    std::array<unsigned char, total_size<ArgsT...>::value> ArgsData;
+    array_fill_helper<ArgsT...>::fill(ArgsData.data(), 0, Args...);
+
+    xpti::function_with_args_t Payload{FuncID, ArgsData.data(), nullptr,
+                                       nullptr};
+
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
+        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
+  }
+#endif
+  return CorrelationID;
+}
+
+template <typename... ArgsT>
+void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
+                                  pi_result Result) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    uint8_t StreamID = xptiRegisterStream(SYCL_PIARGCALL_STREAM_NAME);
+
+    xpti::function_with_args_t Payload{FuncID, nullptr, &Result, nullptr};
+
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
+        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
+  }
+#endif
+}
+
 /// The plugin class provides a unified interface to the underlying low-level
 /// runtimes for the device-agnostic SYCL runtime.
 ///
@@ -75,6 +145,8 @@ public:
     // the per_instance_user_data field.
     std::string PIFnName = PiCallInfo.getFuncName();
     uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName.c_str());
+    uint64_t CorrelationIDWithArgs =
+        emitFunctionWithArgsBeginTrace(PiApiID<PiApiOffset>::id, Args...);
 #endif
     RT::PiResult R;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
@@ -93,6 +165,8 @@ public:
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Close the function begin with a call to function end
     pi::emitFunctionEndTrace(CorrelationID, PIFnName.c_str());
+    emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
+                                 PiApiID<PiApiOffset>::id, R);
 #endif
     return R;
   }
