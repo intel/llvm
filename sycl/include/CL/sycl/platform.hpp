@@ -73,7 +73,8 @@ public:
   ///
   /// \param ExtensionName is a string containing extension name.
   /// \return true if specified extension is supported by this SYCL platform.
-  __SYCL2020_DEPRECATED("use platform aspects APIs instead")
+  __SYCL2020_DEPRECATED(
+      "use platform::has() function with aspects APIs instead")
   bool has_extension(const std::string &ExtensionName) const;
 
   /// Checks if this SYCL platform is a host platform.
