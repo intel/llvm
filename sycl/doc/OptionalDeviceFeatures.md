@@ -629,11 +629,122 @@ example, if a new device is released before there is a new DPC++ release.  In
 fact, the DPC++ driver supports a command line option which allows the user
 to select an alternate configuration file.
 
-**TODO**: More information will be inserted here when we merge
-[this separate PR][7] into this design document.
+**TODO**: 
+* The names of the devices in the configuration file.
+* Location of the default device configuration file
 
-[7]: <https://github.com/gmlueck/llvm/pull/1>
+#### New features in clang compilation driver and tools
 
+NOTE: the term *device binary image* or *image* is used to refer to a device
+code form consumable by the SYCL runtime. Earlier device code forms are referred
+to as *device code module* or *device IR module*. In case of AOT, device binary
+image is a natively compiled binary, and IR module - either a SPIR-V or LLVMIR
+bitcode module.
+
+##### Overview
+After the `sycl-post-link` performs necessary aspect usage analysis and splits
+the incoming monolythic device code module into pieces - smaller device code
+modules - it outputs a file table as a result. Each row in the table corresponds
+to an individual output module, and each element of a row is a name of a file
+containing necessary information about the module, such as the code itself, its
+properties.
+
+At the action graph building stage for each requested AOT compilation target -
+SPIR-V-based (such as Gen targets) and/or non-SPIR-V-based (such as PTX) - the
+driver adds an `aspect-filter` action which filters out input file table rows
+with device code modules using features unsupported on current target. Then the
+output table goes as input into the AOT stage, and the prior filtering
+guarantees that the AOT compiler will not encounter device code it can't
+compile. In the extreme case when all device code
+modules use unsupported aspects, the input file table will be empty. The picture
+below illustrates the action graph built by the clang driver along with file
+lists and tables generated and consumed by various nodes of the graph. The
+example set of targets used for the illustration is 4 targets
+- spir64 (runtime JITted SPIR-V)
+- AOT targets
+    - non-SPIR-V based
+        - nvptx (PTX)
+    - SPIR-V based
+        - gen_11 (Intel Gen)
+        - x86_64_avx512 (AVX512)
+<br>
+<br>
+
+![Device SPIRV translation and AOT compilation](images/DeviceLinkAOTAndWrap.svg)
+
+##### Aspect filter tool
+
+This tool transforms an input file table by removing rows with device code files
+that use features unsupported for the target architecture given as tool's
+argument.
+
+*Name*:
+- `sycl-aspect-filter`, located next to other tools like `file-table-tform`
+
+*Input*:
+- file table, normally coming out of `sycl-post-link` or `file-table-tform`
+  tools
+
+*Command line arguments*
+- `-target=<target>` target device architecture to filter for
+- `-device-config-file=<path>` path to the device configuration file
+
+*Output*
+- the input file table filtered as needed
+
+In more details, the tool performs the following actions:
+1) Checks if the input file table contains "Properties" column. If not, copies
+   the input file table to output and exits without error.
+1) Reads in the device configuration file and finds some entry `E` corresponding
+   to the architecture given on the command line. If there is no such entry -
+   reports and error and exits.
+1) For each row in the input file table:
+   - loads the properties file from the "Properties" column
+   - checks if there is the `SYCL/image-requirements` property
+   - if no, copies current row to the output file table and goes to the next
+   - if yes, checks if all the requirements listed in the property are supported
+     by the target architecture as specified by entry `E` in the device configuration file
+       - if yes, copies current row to the output file table and goes to the
+         next
+       - otherwise skips this row
+
+##### Configuration file location and driver option
+
+A default device configuration file is supplied as a part of OneAPI SDK. It is
+located in the TBD directory. Users may override the defalt using the
+```
+-fsycl-device-config-file=<path>
+```
+option.
+
+##### AOT target identification
+
+There are several user-visible places in the SDK where SYCL device target
+architectures need to be identified:
+- `-fsycl-targets` option
+- a device configuration file entry
+- `-target` option of the `sycl-aspec-filter` tool
+- a SYCL aspect enum identifier
+
+In all such places architecture naming should be the same. In some cases aliases
+are allowed. Below is a list of target architectures supported by DPC++:
+
+| target/alias(es) | description |
+|-|-|
+| fpga   | Generic Intel FPGA accelerator architecture |
+| intel_gpu    | Generic Intel graphics architecture |
+| intel_gpu_skl, intel_gpu_9_0 | Intel Skylake (6th generation Core) integrated graphics architecture |
+| intel_gpu_kbl, intel_gpu_9_1 | Intel Kaby Lake (7th generation Core) integrated graphics architecture |
+| ptx64  | Generic 64-bit PTX target architecture |
+| spir64 | Generic 64-bit SPIR-V target |
+| x86_64 | Generic 64-bit x86 architecture |
+
+More targets TBD
+
+Example of clang compilation invocation with 3 AOT targets and generic SPIR-V:
+```
+clang++ -fsycl -fsycl-targets=spir64,intel_gpu_9_0,intel_gpu_kbl,ptx64 ...
+```
 
 ### Changes to the DPC++ runtime
 
