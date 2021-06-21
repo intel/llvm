@@ -844,7 +844,7 @@ ConstantInt *getSizet(Module *M, uint64_t Value) {
 // Functions for getting metadata
 //
 ///////////////////////////////////////////////////////////////////////////////
-int getMDOperandAsInt(MDNode *N, unsigned I) {
+int64_t getMDOperandAsInt(MDNode *N, unsigned I) {
   return mdconst::dyn_extract<ConstantInt>(N->getOperand(I))->getZExtValue();
 }
 
