@@ -1637,8 +1637,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     spv::LoopControlMask LoopControl = getLoopControl(Branch, Parameters);
 
     if (Branch->isUnconditional()) {
-      // Usually for "for" and "while" loops llvm.loop metadata is attached to
-      // an unconditional branch instruction.
+      // Usually, "for" and "while" loops llvm.loop metadata is attached to an
+      // unconditional branch instruction.
       if (LoopControl != spv::LoopControlMaskNone) {
         // SuccessorTrue is the loop header BB.
         const SPIRVInstruction *Term = SuccessorTrue->getTerminateInstr();
@@ -1659,8 +1659,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       }
       return mapValue(V, BM->addBranchInst(SuccessorTrue, BB));
     }
-    // For "do-while" and in some cases for "for" and "while" loops llvm.loop
-    // metadata is attached to a conditional branch instructions
+    // For "do-while" (and in some cases, for "for" and "while") loops,
+    // llvm.loop metadata is attached to a conditional branch instructions
     SPIRVLabel *SuccessorFalse =
         static_cast<SPIRVLabel *>(transValue(Branch->getSuccessor(1), BB));
     if (LoopControl != spv::LoopControlMaskNone) {
@@ -1668,7 +1668,14 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       DominatorTree DomTree(*Fun);
       LoopInfo LI(DomTree);
       for (const auto *LoopObj : LI.getLoopsInPreorder()) {
-        // Check whether SuccessorFalse or SuccessorTrue is the loop header BB
+        // Check whether SuccessorFalse or SuccessorTrue is the loop header BB.
+        // For example consider following LLVM IR:
+        // br i1 %compare, label %for.body, label %for.end
+        //   <- SuccessorTrue is 'for.body' aka successor(0)
+        // br i1 %compare.not, label %for.end, label %for.body
+        //   <- SuccessorTrue is 'for.end' aka successor(1)
+        // meanwhile the true successor (by definition) should be a loop header
+        // aka 'for.body'
         if (LoopObj->getHeader() == Branch->getSuccessor(1))
           // SuccessorFalse is the loop header BB.
           BM->addLoopMergeInst(SuccessorTrue->getId(), // Merge Block
