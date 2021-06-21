@@ -220,6 +220,8 @@ public:
 
 private:
 #ifndef SYCL_DISABLE_FALLBACK_ASSERT
+#define __SYCL_ASSERT_START 1
+
   /**
    * Submit copy task for assert failure flag and host-task to check the flag
    * \param Event kernel's event to depend on i.e. the event represents the
@@ -256,7 +258,8 @@ private:
 
       CGH.codeplay_host_task([=] {
         const detail::AssertHappened *AH = &Acc[0];
-        assert(AH->Flag != 1 && "Invalid value");
+
+        assert(AH->Flag != __SYCL_ASSERT_START && "Invalid value");
 
         if (AH->Flag) {
           const char *Expr = AH->Expr[0] ? AH->Expr : "<unknown expr>";
@@ -266,7 +269,7 @@ private:
           fprintf(stderr,
                   "%s:%d: %s: global id: [%" PRIu64 ", %" PRIu64 ", %" PRIu64
                   "], local id: [%" PRIu64 ",%" PRIu64 ",%" PRIu64 "] "
-                  "Assertion `%s` failed",
+                  "Assertion `%s` failed.\n",
                   File, AH->Line, Func, AH->GID0, AH->GID1, AH->GID2, AH->LID0,
                   AH->LID1, AH->LID2, Expr);
           abort(); // no need to release memory as it's abort anyway
@@ -294,6 +297,7 @@ private:
 
     return CheckerEv;
   }
+#undef __SYCL_ASSERT_START
 #endif
 
   // Check if kernel with the name provided in KernelName and which is being
