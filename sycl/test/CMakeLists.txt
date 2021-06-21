@@ -35,6 +35,7 @@ list(APPEND SYCL_TEST_DEPS
   llvm-config
   llvm-cxxdump
   llvm-readobj
+  llvm-dis
   )
 
 list(APPEND SYCL_DEPLOY_TEST_DEPS
