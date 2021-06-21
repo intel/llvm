@@ -36,7 +36,6 @@ template <class _D, class _T1, class... _T> struct _GetValue<_D, _T1, _T...> {
 
   static constexpr auto value = impl<_D, _T1>::value;
 };
-
 } // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
