@@ -18,6 +18,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <detail/config.hpp>
+#include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
 
@@ -26,6 +27,7 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <regex>
 #include <sstream>
 #include <stddef.h>
 #include <string>
@@ -303,6 +305,306 @@ bool trace(TraceLevel Level) {
   return (TraceLevelMask & Level) == Level;
 }
 
+static bool IsBannedPlatform(platform Platform) {
+  // The NVIDIA OpenCL platform is currently not compatible with DPC++
+  // since it is only 1.2 but gets selected by default in many systems
+  // There is also no support on the PTX backend for OpenCL consumption,
+  // and there have been some internal reports.
+  // To avoid problems on default users and deployment of DPC++ on platforms
+  // where CUDA is available, the OpenCL support is disabled.
+  //
+  auto IsNVIDIAOpenCL = [](platform Platform) {
+    if (Platform.is_host())
+      return false;
+
+    const bool HasCUDA = Platform.get_info<info::platform::name>().find(
+                             "NVIDIA CUDA") != std::string::npos;
+    const auto Backend =
+        detail::getSyclObjImpl(Platform)->getPlugin().getBackend();
+    const bool IsCUDAOCL = (HasCUDA && Backend == backend::opencl);
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) && IsCUDAOCL) {
+      std::cout << "SYCL_PI_TRACE[all]: "
+                << "NVIDIA CUDA OpenCL platform found but is not compatible."
+                << std::endl;
+    }
+    return IsCUDAOCL;
+  };
+  return IsNVIDIAOpenCL(Platform);
+}
+
+std::string getValue(const std::string &AllowList, size_t &Pos,
+                     unsigned long int Size) {
+  size_t Prev = Pos;
+  if ((Pos = AllowList.find("{{", Pos)) == std::string::npos) {
+    throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                              PI_INVALID_VALUE);
+  }
+  if (Pos > Prev + Size) {
+    throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                              PI_INVALID_VALUE);
+  }
+
+  Pos = Pos + 2;
+  size_t Start = Pos;
+  if ((Pos = AllowList.find("}}", Pos)) == std::string::npos) {
+    throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                              PI_INVALID_VALUE);
+  }
+  std::string Value = AllowList.substr(Start, Pos - Start);
+  Pos = Pos + 2;
+  return Value;
+}
+
+struct DevDescT {
+  std::string DevName;
+  std::string DevDriverVer;
+  std::string PlatName;
+  std::string PlatVer;
+};
+
+static std::vector<DevDescT> getAllowListDesc() {
+  std::string AllowList(SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get());
+  if (AllowList.empty())
+    return {};
+
+  std::string DeviceName("DeviceName:");
+  std::string DriverVersion("DriverVersion:");
+  std::string PlatformName("PlatformName:");
+  std::string PlatformVersion("PlatformVersion:");
+  std::vector<DevDescT> DecDescs;
+  DecDescs.emplace_back();
+
+  size_t Pos = 0;
+  while (Pos < AllowList.size()) {
+    if ((AllowList.compare(Pos, DeviceName.size(), DeviceName)) == 0) {
+      DecDescs.back().DevName = getValue(AllowList, Pos, DeviceName.size());
+      if (AllowList[Pos] == ',') {
+        Pos++;
+      }
+    }
+
+    else if ((AllowList.compare(Pos, DriverVersion.size(), DriverVersion)) ==
+             0) {
+      DecDescs.back().DevDriverVer =
+          getValue(AllowList, Pos, DriverVersion.size());
+      if (AllowList[Pos] == ',') {
+        Pos++;
+      }
+    }
+
+    else if ((AllowList.compare(Pos, PlatformName.size(), PlatformName)) == 0) {
+      DecDescs.back().PlatName = getValue(AllowList, Pos, PlatformName.size());
+      if (AllowList[Pos] == ',') {
+        Pos++;
+      }
+    }
+
+    else if ((AllowList.compare(Pos, PlatformVersion.size(),
+                                PlatformVersion)) == 0) {
+      DecDescs.back().PlatVer =
+          getValue(AllowList, Pos, PlatformVersion.size());
+    } else if (AllowList.find('|', Pos) != std::string::npos) {
+      Pos = AllowList.find('|') + 1;
+      while (AllowList[Pos] == ' ') {
+        Pos++;
+      }
+      DecDescs.emplace_back();
+    }
+
+    else {
+      throw sycl::runtime_error("Unrecognized key in device allowlist",
+                                PI_INVALID_VALUE);
+    }
+  } // while (Pos <= AllowList.size())
+  return DecDescs;
+}
+
+enum class FilterState { DENIED, ALLOWED };
+
+static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
+                            RT::PiPlatform PiPlatform, const plugin &Plugin) {
+  const std::vector<DevDescT> AllowList(getAllowListDesc());
+  if (AllowList.empty())
+    return;
+
+  FilterState DevNameState = FilterState::ALLOWED;
+  FilterState DevVerState = FilterState::ALLOWED;
+  FilterState PlatNameState = FilterState::ALLOWED;
+  FilterState PlatVerState = FilterState::ALLOWED;
+
+  const string_class PlatformName =
+      sycl::detail::get_platform_info<string_class, info::platform::name>::get(
+          PiPlatform, Plugin);
+
+  const string_class PlatformVer =
+      sycl::detail::get_platform_info<string_class,
+                                      info::platform::version>::get(PiPlatform,
+                                                                    Plugin);
+
+  int InsertIDx = 0;
+  for (RT::PiDevice Device : PiDevices) {
+    const string_class DeviceName =
+        sycl::detail::get_device_info<string_class, info::device::name>::get(
+            Device, Plugin);
+
+    const string_class DeviceDriverVer = sycl::detail::get_device_info<
+        string_class, info::device::driver_version>::get(Device, Plugin);
+
+    for (const DevDescT &Desc : AllowList) {
+      if (!Desc.PlatName.empty()) {
+        if (!std::regex_match(PlatformName, std::regex(Desc.PlatName))) {
+          PlatNameState = FilterState::DENIED;
+          continue;
+        }
+      }
+
+      if (!Desc.PlatVer.empty()) {
+        if (!std::regex_match(PlatformVer, std::regex(Desc.PlatVer))) {
+          PlatVerState = FilterState::DENIED;
+          continue;
+        }
+      }
+
+      if (!Desc.DevName.empty()) {
+        if (!std::regex_match(DeviceName, std::regex(Desc.DevName))) {
+          DevNameState = FilterState::DENIED;
+          continue;
+        }
+      }
+
+      if (!Desc.DevDriverVer.empty()) {
+        if (!std::regex_match(DeviceDriverVer, std::regex(Desc.DevDriverVer))) {
+          DevVerState = FilterState::DENIED;
+          continue;
+        }
+      }
+
+      if (DevNameState == FilterState::ALLOWED &&
+          DevVerState == FilterState::ALLOWED &&
+          PlatNameState == FilterState::ALLOWED &&
+          PlatVerState == FilterState::ALLOWED)
+        PiDevices[InsertIDx++] = Device;
+      break;
+    }
+  }
+  PiDevices.resize(InsertIDx);
+}
+
+// Filter out the devices that are not compatible with SYCL_DEVICE_FILTER.
+// All three entries (backend:device_type:device_num) are optional.
+// The missing entries are constructed using '*', which means 'any' | 'all'
+// by the device_filter constructor.
+// This function matches devices in the order of backend, device_type, and
+// device_num.
+static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
+                               RT::PiPlatform Platform, const plugin &Plugin,
+                               int DeviceNum) {
+  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
+  if (!FilterList)
+    return;
+
+  backend Backend = Plugin.getBackend();
+  int InsertIDx = 0;
+
+  for (RT::PiDevice Device : PiDevices) {
+    RT::PiDeviceType PiDevType;
+    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
+                                            sizeof(RT::PiDeviceType),
+                                            &PiDevType, nullptr);
+    // Assumption here is that there is 1-to-1 mapping between PiDevType and
+    // Sycl device type for GPU, CPU, and ACC.
+    info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
+
+    for (const device_filter &Filter : FilterList->get()) {
+      backend FilterBackend = Filter.Backend;
+      // First, match the backend entry
+      if (FilterBackend == Backend || FilterBackend == backend::all) {
+        info::device_type FilterDevType = Filter.DeviceType;
+        // Next, match the device_type entry
+        if (FilterDevType == info::device_type::all) {
+          // Last, match the device_num entry
+          if (!Filter.HasDeviceNum || DeviceNum == Filter.DeviceNum) {
+            PiDevices[InsertIDx++] = Device;
+            break;
+          }
+        } else if (FilterDevType == DeviceType) {
+          if (!Filter.HasDeviceNum || DeviceNum == Filter.DeviceNum) {
+            PiDevices[InsertIDx++] = Device;
+            break;
+          }
+        }
+      }
+    }
+    DeviceNum++;
+  }
+  PiDevices.resize(InsertIDx);
+}
+
+// Fill up the platform cache and device cache for the given Plugin.
+// Thi<s is a one time process when a plugin is constructed.
+void fillPlatformAndDeviceCache(plugin &Plugin) {
+  pi_uint32 NumPlatforms = 0;
+  // Move to the next plugin if the plugin fails to initialize.
+  // This way platforms from other plugins get a chance to be discovered.
+  if (Plugin.call_nocheck<PiApiKind::piPlatformsGet>(
+          0, nullptr, &NumPlatforms) != PI_SUCCESS)
+    return;
+
+  if (NumPlatforms) {
+    vector_class<RT::PiPlatform> PiPlatforms(NumPlatforms);
+    if (Plugin.call_nocheck<PiApiKind::piPlatformsGet>(
+            NumPlatforms, PiPlatforms.data(), nullptr) != PI_SUCCESS)
+      return;
+
+    std::vector<PlatformImplPtr> &PlatformCache =
+        GlobalHandler::instance().getPlatformCache();
+
+    int DeviceNum = 0;
+    for (const auto &PiPlatform : PiPlatforms) {
+      PlatformImplPtr PlatformImpl =
+          std::make_shared<platform_impl>(PiPlatform, Plugin);
+      {
+        const std::lock_guard<std::mutex> Guard(
+            GlobalHandler::instance().getPlatformMapMutex());
+
+        PlatformCache.emplace_back(PlatformImpl);
+      }
+      platform Platform = detail::createSyclObjFromImpl<platform>(PlatformImpl);
+
+      if (IsBannedPlatform(Platform))
+        continue;
+      // get devices
+      info::device_type DeviceType = info::device_type::all;
+      pi_uint32 NumDevices = 0;
+      Plugin.call<PiApiKind::piDevicesGet>(
+          PiPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,
+          pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
+
+      if (NumDevices == 0)
+        continue;
+
+      vector_class<RT::PiDevice> PiDevices(NumDevices);
+      Plugin.call<PiApiKind::piDevicesGet>(
+          PiPlatform, pi::cast<RT::PiDeviceType>(DeviceType), NumDevices,
+          PiDevices.data(), nullptr);
+
+      // Filter out devices that are not present in the allowlist
+      if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
+        filterAllowList(PiDevices, PiPlatform, Plugin);
+
+      int UnfilteredDeviceCount = PiDevices.size();
+      // Filter out devices that are not compatible with SYCL_DEVICE_FILTER
+      filterDeviceFilter(PiDevices, PiPlatform, Plugin, DeviceNum);
+
+      for (const RT::PiDevice& PiDevice : PiDevices) {
+        std::shared_ptr<device_impl> Device =
+            PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl);
+      }
+      DeviceNum += UnfilteredDeviceCount;
+    } // end of for
+  }   // end of if
+}
+
 // Initializes all available Plugins.
 const vector_class<plugin> &initialize() {
   static std::once_flag PluginsInitDone;
@@ -310,11 +612,6 @@ const vector_class<plugin> &initialize() {
   std::call_once(PluginsInitDone, []() {
     initializePlugins(&GlobalHandler::instance().getPlugins());
   });
-  // reset LastDeviceIds to zeros
-  vector_class<plugin> Plugins = GlobalHandler::instance().getPlugins();
-  for (plugin Plugin : Plugins) {
-    Plugin.resetLastDeviceIds();
-  }
   return GlobalHandler::instance().getPlugins();
 }
 
@@ -379,8 +676,21 @@ static void initializePlugins(vector_class<plugin> *Plugins) {
       std::cerr << "SYCL_PI_TRACE[basic]: "
                 << "Plugin found and successfully loaded: "
                 << PluginNames[I].first << std::endl;
-  }
 
+    fillPlatformAndDeviceCache(Plugins->back());
+  } // end of for
+
+  // The host platform should always be available unless not allowed by the
+  // SYCL_DEVICE_FILTER
+  detail::device_filter_list *FilterList =
+      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+  if (!FilterList || FilterList->containsHost()) {
+    std::vector<PlatformImplPtr> &PlatformCache =
+        GlobalHandler::instance().getPlatformCache();
+    PlatformImplPtr PlatformImpl = platform_impl::getHostPlatformImpl();
+    PlatformCache.emplace_back(PlatformImpl);
+    platform_impl::makeHostDevice();
+  }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!(xptiTraceEnabled() && !XPTIInitDone))
     return;

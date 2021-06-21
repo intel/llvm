@@ -18,6 +18,19 @@ namespace sycl {
 namespace detail {
 
 device_filter::device_filter(const std::string &FilterString) {
+  const std::array<std::pair<std::string, info::device_type>, 5>
+      SyclDeviceTypeMap = {{{"host", info::device_type::host},
+                            {"cpu", info::device_type::cpu},
+                            {"gpu", info::device_type::gpu},
+                            {"acc", info::device_type::accelerator},
+                            {"*", info::device_type::all}}};
+  const std::array<std::pair<std::string, backend>, 5> SyclBeMap = {
+      {{"opencl", backend::opencl},
+       {"level_zero", backend::level_zero},
+       {"cuda", backend::cuda},
+       {"host", backend::host},
+       {"*", backend::all}}};
+
   size_t Cursor = 0;
   size_t ColonPos = 0;
   auto findElement = [&](auto Element) {

@@ -110,49 +110,12 @@ public:
   void *getLibraryHandle() const { return MLibraryHandle; }
   void *getLibraryHandle() { return MLibraryHandle; }
   int unload() { return RT::unloadPlugin(MLibraryHandle); }
-  // return the index os PiPlatforms.
-  // If not found, add it and return its index.
-  int getPlatformId(RT::PiPlatform Platform) {
-    auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
-    if (It != PiPlatforms.end()) {
-      return It - PiPlatforms.begin();
-    } else {
-      PiPlatforms.push_back(Platform);
-      LastDeviceIds.push_back(0);
-      return PiPlatforms.size() - 1;
-    }
-  }
-  // Device ids are consecutive across platforms within a plugin.
-  // We need to return the same starting index for the given platform.
-  // So, instead of returing the last device id of the given platform,
-  // return the last device id of the predecessor platform.
-  int getStartingDeviceId(RT::PiPlatform Platform) {
-    int PlatformId = getPlatformId(Platform);
-    if (PlatformId == 0)
-      return 0;
-    else
-      return LastDeviceIds[PlatformId - 1];
-  }
-  // set the id of the last device for the given platform
-  void setLastDeviceId(RT::PiPlatform Platform, int Id) {
-    int PlatformId = getPlatformId(Platform);
-    LastDeviceIds[PlatformId] = Id;
-  }
-  // reset all last device ids to zeros
-  void resetLastDeviceIds() {
-    std::fill(LastDeviceIds.begin(), LastDeviceIds.end(), 0);
-  }
 
 private:
   RT::PiPlugin MPlugin;
   backend MBackend;
   void *MLibraryHandle; // the handle returned from dlopen
   std::shared_ptr<std::mutex> TracingMutex;
-  // vector of PiPlatforms that belong to this plugin
-  std::vector<RT::PiPlatform> PiPlatforms;
-  // represents the unique ids of the last device of each platform
-  // index of this vector corresponds to the index in PiPlatforms vector.
-  std::vector<int> LastDeviceIds;
 }; // class plugin
 } // namespace detail
 } // namespace sycl

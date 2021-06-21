@@ -50,6 +50,7 @@ device::device(const device_selector &deviceSelector) {
 
 vector_class<device> device::get_devices(info::device_type deviceType) {
   vector_class<device> devices;
+  /*
   detail::device_filter_list *FilterList =
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
   // Host device availability should depend on the forced type
@@ -65,6 +66,7 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
   } else {
     includeHost = detail::match_types(deviceType, info::device_type::host);
   }
+  */
   info::device_type forced_type = detail::get_forced_type();
   // Exclude devices which do not match requested device type
   if (detail::match_types(deviceType, forced_type)) {
@@ -76,6 +78,7 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
       if (ForcedBackend)
         if (!plt.is_host() && plt.get_backend() != *ForcedBackend)
           continue;
+      /*
       // If SYCL_DEVICE_FILTER is set, skip platforms that is incompatible
       // with the filter specification.
       if (FilterList && !FilterList->backendCompatible(plt.get_backend()))
@@ -86,12 +89,12 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
             plt.get_devices(info::device_type::host));
         if (!host_device.empty())
           devices.insert(devices.end(), host_device.begin(), host_device.end());
-      } else {
+      } else {*/
         vector_class<device> found_devices(plt.get_devices(deviceType));
         if (!found_devices.empty())
           devices.insert(devices.end(), found_devices.begin(),
                          found_devices.end());
-      }
+      //}
     }
   }
   return devices;

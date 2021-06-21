@@ -129,7 +129,5 @@ TEST(GetNativeTest, GetNativeHandle) {
   get_native<backend::opencl>(Device);
   get_native<backend::opencl>(Event);
 
-  // When creating a context, the piDeviceRetain is called so here is the 6
-  // retain calls
-  ASSERT_EQ(TestCounter, 6) << "Not all the retain methods was called";
+  ASSERT_EQ(TestCounter, 5) << "Not all the retain methods was called " << TestCounter;
 }

@@ -158,6 +158,9 @@ public:
   /// \return the host platform impl
   static std::shared_ptr<platform_impl> getHostPlatformImpl();
 
+  /// Add a Host device into the Host platform impl
+  static void makeHostDevice();
+
   /// Queries the cache to see if the specified PiPlatform has been seen
   /// before.  If so, return the cached platform_impl, otherwise create a new
   /// one and cache it.
@@ -184,7 +187,7 @@ private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
-  std::vector<std::weak_ptr<device_impl>> MDeviceCache;
+  std::vector<std::shared_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
 };
 
