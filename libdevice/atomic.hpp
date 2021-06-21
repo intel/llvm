@@ -72,7 +72,7 @@ extern DEVICE_EXTERNAL int __spirv_AtomicStore(int __SYCL_GLOBAL__ *,
                                                int);
 
 /// Atomically set the value in *Ptr with Desired if and only if it is Expected
-/// Return the which already was in *Ptr
+/// Return the value which already was in *Ptr
 static inline int atomicCompareAndSet(__SYCL_GLOBAL__ int *Ptr, int Desired,
                                       int Expected) {
   return __spirv_AtomicCompareExchange(
