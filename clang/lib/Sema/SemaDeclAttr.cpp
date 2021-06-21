@@ -9084,13 +9084,8 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 static void handleSYCLSpecialClassAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (S.LangOpts.SYCLIsHost)
-    return;
-
-  SYCLSpecialClassAttr::SpecialClassKind Kind;
-  if (AL.getNumArgs() == 0)
-    Kind = SYCLSpecialClassAttr::Generic;
-  else {
+  SYCLSpecialClassAttr::SpecialClassKind Kind = SYCLSpecialClassAttr::Generic;
+  if (AL.getNumArgs() != 0) {
     // Check the attribute arguments.
     if (!AL.isArgIdent(0)) {
       S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
