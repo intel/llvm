@@ -205,7 +205,8 @@ public:
   }
 
   // Returns the total number of elements in the image
-  size_t get_count() const { return MRange.size(); }
+  size_t get_count() const { return size(); }
+  size_t size() const noexcept { return MRange.size(); }
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &OutEventToWait) override;

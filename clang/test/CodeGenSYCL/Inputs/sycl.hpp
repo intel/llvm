@@ -187,6 +187,7 @@ private:
 template <int dimensions, access::mode accessmode, access::target accesstarget>
 struct opencl_image_type;
 
+#ifdef __SYCL_DEVICE_ONLY__
 #define IMAGETY_DEFINE(dim, accessmode, amsuffix, Target, ifarray_) \
   template <>                                                       \
   struct opencl_image_type<dim, access::mode::accessmode,           \
@@ -217,6 +218,8 @@ IMAGETY_WRITE_3_DIM_IMAGE
 
 IMAGETY_READ_2_DIM_IARRAY
 IMAGETY_WRITE_2_DIM_IARRAY
+
+#endif
 
 template <int dim, access::mode accessmode, access::target accesstarget>
 struct _ImageImplT {
@@ -317,6 +320,8 @@ public:
   specialization_id(specialization_id &&rhs) = delete;
   specialization_id &operator=(const specialization_id &rhs) = delete;
   specialization_id &operator=(specialization_id &&rhs) = delete;
+
+  T getDefaultValue() const { return MDefaultValue; }
 
 private:
   T MDefaultValue;
