@@ -639,6 +639,10 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
       }
     }
   }
+  // Strip out -O0 for FPGA Hardware device compilation.
+  if (!getDriver().isFPGAEmulationMode() &&
+      getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+    DAL->eraseArg(options::OPT_O0);
 
   const OptTable &Opts = getDriver().getOpts();
   if (!BoundArch.empty()) {
