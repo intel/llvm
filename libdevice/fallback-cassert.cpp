@@ -25,7 +25,7 @@ static const __attribute__((opencl_constant)) char assert_fmt[] =
 
 DEVICE_EXTERN_C void __devicelib_assert_read(void *_Dst) {
   AssertHappened *Dst = (AssertHappened *)_Dst;
-  int Flag = Load(&__SYCL_AssertHappenedMem.Flag);
+  int Flag = atomicLoad(&__SYCL_AssertHappenedMem.Flag);
 
   if (ASSERT_NONE == Flag) {
     Dst->Flag = Flag;
@@ -33,7 +33,7 @@ DEVICE_EXTERN_C void __devicelib_assert_read(void *_Dst) {
   }
 
   if (Flag != ASSERT_FINISH)
-    while (ASSERT_START == Load(&__SYCL_AssertHappenedMem.Flag))
+    while (ASSERT_START == atomicLoad(&__SYCL_AssertHappenedMem.Flag))
       ;
 
   *Dst = __SYCL_AssertHappenedMem;
@@ -47,7 +47,7 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
   int Expected = ASSERT_NONE;
   int Desired = ASSERT_START;
 
-  if (CompareAndSet(&__SYCL_AssertHappenedMem.Flag, Desired, Expected) ==
+  if (atomicCompareAndSet(&__SYCL_AssertHappenedMem.Flag, Desired, Expected) ==
       Expected) {
     __SYCL_AssertHappenedMem.Line = line;
     __SYCL_AssertHappenedMem.GID0 = gid0;
@@ -95,7 +95,7 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
     __SYCL_AssertHappenedMem.Func[MaxFuncIdx] = '\0';
 
     // Show we've done copying
-    Store(&__SYCL_AssertHappenedMem.Flag, ASSERT_FINISH);
+    atomicStore(&__SYCL_AssertHappenedMem.Flag, ASSERT_FINISH);
   }
 
   // FIXME: call SPIR-V unreachable instead

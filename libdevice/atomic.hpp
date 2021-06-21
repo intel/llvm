@@ -73,20 +73,20 @@ extern DEVICE_EXTERNAL int __spirv_AtomicStore(int __SYCL_GLOBAL__ *,
 
 /// Atomically set the value in *Ptr with Desired if and only if it is Expected
 /// Return the which already was in *Ptr
-static inline int CompareAndSet(__SYCL_GLOBAL__ int *Ptr, int Desired,
-                                int Expected) {
+static inline int atomicCompareAndSet(__SYCL_GLOBAL__ int *Ptr, int Desired,
+                                      int Expected) {
   return __spirv_AtomicCompareExchange(
       Ptr, __spv::Scope::Device,
       __spv::MemorySemanticsMask::SequentiallyConsistent,
       __spv::MemorySemanticsMask::SequentiallyConsistent, Desired, Expected);
 }
 
-static inline int Load(__SYCL_GLOBAL__ int *Ptr) {
+static inline int atomicLoad(__SYCL_GLOBAL__ int *Ptr) {
   return __spirv_AtomicLoad(Ptr, __spv::Scope::Device,
                             __spv::MemorySemanticsMask::SequentiallyConsistent);
 }
 
-static inline int Store(__SYCL_GLOBAL__ int *Ptr, int V) {
+static inline int atomicStore(__SYCL_GLOBAL__ int *Ptr, int V) {
   return __spirv_AtomicStore(Ptr, __spv::Scope::Device,
                              __spv::MemorySemanticsMask::SequentiallyConsistent,
                              V);
