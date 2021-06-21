@@ -320,7 +320,7 @@ void collectCompositeElementsDefaultValuesRecursive(
   } else { // Assume that we encountered some scalar element
     int NumBytes = Ty->getScalarSizeInBits() / CHAR_BIT +
                    (Ty->getScalarSizeInBits() % 8 != 0);
-    char *CharPtr;
+    char *CharPtr = nullptr;
 
     if (auto IntConst = dyn_cast<ConstantInt>(C)) {
       auto Val = IntConst->getValue().getZExtValue();
@@ -336,6 +336,7 @@ void collectCompositeElementsDefaultValuesRecursive(
         CharPtr = reinterpret_cast<char *>(&v);
       }
     }
+    assert(CharPtr != nullptr && "Unexpected constant type");
     std::copy_n(CharPtr, NumBytes, std::back_inserter(DefaultValues));
     Offset += NumBytes;
   }
