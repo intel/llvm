@@ -14,6 +14,8 @@
 ///
 /// \ingroup sycl_pi_ocl
 
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
+
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/pi.h>
 

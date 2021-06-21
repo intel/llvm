@@ -64,7 +64,8 @@ private:
 static void writeName(StringRef StrName, support::endian::Writer W) {
   char Name[XCOFF::NameSize];
   memset(Name, 0, XCOFF::NameSize);
-  memcpy(Name, StrName.data(), StrName.size());
+  char SrcName[] = "";
+  memcpy(Name, StrName.size() ? StrName.data() : SrcName, StrName.size());
   ArrayRef<char> NameRef(Name, XCOFF::NameSize);
   W.write(NameRef);
 }
@@ -157,8 +158,8 @@ bool XCOFFWriter::initFileHeader(uint64_t CurrentOffset) {
 
 bool XCOFFWriter::assignAddressesAndIndices() {
   uint64_t CurrentOffset =
-      sizeof(XCOFF::FileHeader32) /* TODO: + auxiliaryHeaderSize() */ +
-      InitSections.size() * sizeof(XCOFF::SectionHeader32);
+      XCOFF::FileHeaderSize32 /* TODO: + auxiliaryHeaderSize() */ +
+      InitSections.size() * XCOFF::SectionHeaderSize32;
 
   // Calculate section header info.
   if (!initSectionHeader(CurrentOffset))

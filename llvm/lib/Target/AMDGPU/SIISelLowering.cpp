@@ -5821,6 +5821,9 @@ static SDValue getBuildDwordsVector(SelectionDAG &DAG, SDLoc DL,
   } else if (Elts.size() <= 4) {
     Type = MVT::v4f32;
     NumElts = 4;
+  } else if (Elts.size() <= 5) {
+    Type = MVT::v5f32;
+    NumElts = 5;
   } else if (Elts.size() <= 8) {
     Type = MVT::v8f32;
     NumElts = 8;
@@ -7337,6 +7340,11 @@ SDValue SITargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
            NodePtr.getValueType() == MVT::i64);
     assert(RayDir.getValueType() == MVT::v4f16 ||
            RayDir.getValueType() == MVT::v4f32);
+
+    if (!Subtarget->hasGFX10_AEncoding()) {
+      emitRemovedIntrinsicError(DAG, DL, Op.getValueType());
+      return SDValue();
+    }
 
     bool IsA16 = RayDir.getValueType().getVectorElementType() == MVT::f16;
     bool Is64 = NodePtr.getValueType() == MVT::i64;

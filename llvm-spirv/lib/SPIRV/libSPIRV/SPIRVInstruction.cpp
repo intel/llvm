@@ -207,6 +207,7 @@ bool isSpecConstantOpAllowedOp(Op OC) {
       OpLogicalNotEqual,
       OpSelect,
       OpIEqual,
+      OpINotEqual,
       OpULessThan,
       OpSLessThan,
       OpUGreaterThan,
@@ -243,8 +244,14 @@ SPIRVInstruction *createInstFromSpecConstantOp(SPIRVSpecConstantOp *Inst) {
   assert(isSpecConstantOpAllowedOp(OC) &&
          "Op code not allowed for OpSpecConstantOp");
   Ops.erase(Ops.begin(), Ops.begin() + 1);
-  return SPIRVInstTemplateBase::create(OC, Inst->getType(), Inst->getId(), Ops,
-                                       nullptr, Inst->getModule());
+  switch (OC) {
+  case OpSelect:
+    return new SPIRVSelect(Inst->getId(), Inst->getType(), Ops[0], Ops[1],
+                           Ops[2], nullptr, Inst->getModule());
+  default:
+    return SPIRVInstTemplateBase::create(OC, Inst->getType(), Inst->getId(),
+                                         Ops, nullptr, Inst->getModule());
+  }
 }
 
 } // namespace SPIRV
