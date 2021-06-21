@@ -131,12 +131,12 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Stream1>([=]() { return t1.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Stream1{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}Stream1{{.*}} 'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int, StructNonDecomposed, int)'
     DerivedStruct<StructWithStream> t2;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Stream2>([=]() { return t2.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Stream2{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}Stream2{{.*}} 'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int, StructNonDecomposed, int)'
   }
 
   {

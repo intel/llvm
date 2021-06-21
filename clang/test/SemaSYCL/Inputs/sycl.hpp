@@ -101,7 +101,8 @@ struct DeviceValueType<dataT, access::target::local> {
 
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
-          access::placeholder isPlaceholder = access::placeholder::false_t>
+          access::placeholder isPlaceholder = access::placeholder::false_t,
+          typename propertyListT = ONEAPI::accessor_property_list<>>
 class __attribute__((sycl_special_class(accessor))) accessor {
 
 public:

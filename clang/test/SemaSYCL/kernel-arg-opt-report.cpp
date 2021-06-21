@@ -216,12 +216,12 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '7'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          '__global int *'
+// SPIR-NEXT: String:          '__global char *'
 // SPIR-NEXT: String:          ', '
 // SPIR-NEXT: String:          'Size: '
 // SPIR-NEXT: Argument:        '8'
@@ -237,8 +237,8 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '8'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
@@ -258,8 +258,8 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '9'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
@@ -279,8 +279,8 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '10'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
@@ -300,15 +300,15 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '11'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          Acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          '__global char *'
+// SPIR-NEXT: String:          int
 // SPIR-NEXT: String:          ', '
 // SPIR-NEXT: String:          'Size: '
-// SPIR-NEXT: Argument:        '8'
+// SPIR-NEXT: Argument:        '4'
 // SPIR-NEXT: String:          ')'
 
 // SPIR: --- !Passed
@@ -321,15 +321,15 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '12'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          Acc
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          A
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          'struct sycl::range<1>'
+// SPIR-NEXT: String:          int
 // SPIR-NEXT: String:          ', '
 // SPIR-NEXT: String:          'Size: '
-// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: Argument:        '4'
 // SPIR-NEXT: String:          ')'
 
 // SPIR: --- !Passed
@@ -341,91 +341,6 @@ int main() {
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '13'
-// SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          Acc
-// SPIR-NEXT: String:          '  ('
-// SPIR-NEXT: String:          ''
-// SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          'struct sycl::range<1>'
-// SPIR-NEXT: String:          ', '
-// SPIR-NEXT: String:          'Size: '
-// SPIR-NEXT: Argument:        '1'
-// SPIR-NEXT: String:          ')'
-
-// SPIR: --- !Passed
-// SPIR: Pass:{{.*}}sycl
-// SPIR: Name:{{.*}}Region
-// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 28, Column: 8 }
-// SPIR-NEXT: Function:        _ZTS13KernelFunctor
-// SPIR-NEXT: Args:
-// SPIR-NEXT: String:          'Arg '
-// SPIR-NEXT: Argument:        '14'
-// SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          Acc
-// SPIR-NEXT: String:          '  ('
-// SPIR-NEXT: String:          ''
-// SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          'struct sycl::id<1>'
-// SPIR-NEXT: String:          ', '
-// SPIR-NEXT: String:          'Size: '
-// SPIR-NEXT: Argument:        '1'
-// SPIR-NEXT: String:          ')'
-
-// SPIR: --- !Passed
-// SPIR: Pass:{{.*}}sycl
-// SPIR: Name:{{.*}}Region
-// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 28, Column: 8 }
-// SPIR-NEXT: Function:        _ZTS13KernelFunctor
-// SPIR-NEXT: Args:
-// SPIR-NEXT: String:          'Arg '
-// SPIR-NEXT: Argument:        '15'
-// SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          'Compiler generated argument for decomposed struct/class,'
-// SPIR-NEXT: String:          stream
-// SPIR-NEXT: String:          '  ('
-// SPIR-NEXT: String:          'Field:FlushBufferSize, '
-// SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          int
-// SPIR-NEXT: String:          ', '
-// SPIR-NEXT: String:          'Size: '
-// SPIR-NEXT: Argument:        '4'
-// SPIR-NEXT: String:          ')'
-
-// SPIR: --- !Passed
-// SPIR: Pass:{{.*}}sycl
-// SPIR: Name:{{.*}}Region
-// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp', 
-// SPIR-NEXT: Line: 28, Column: 8 }
-// SPIR-NEXT: Function:        _ZTS13KernelFunctor
-// SPIR-NEXT: Args:
-// SPIR-NEXT:   - String:          'Arg '
-// SPIR-NEXT:   - Argument:        '16'
-// SPIR-NEXT:   - String:          ':'
-// SPIR-NEXT:   - String:          ''
-// SPIR-NEXT:   - String:          A
-// SPIR-NEXT:   - String:          '  ('
-// SPIR-NEXT:   - String:          ''
-// SPIR-NEXT:   - String:          'Type:'
-// SPIR-NEXT:   - String:          int
-// SPIR-NEXT:   - String:          ', '
-// SPIR-NEXT:   - String:          'Size: '
-// SPIR-NEXT:   - Argument:        '4'
-// SPIR-NEXT:   - String:          ')'
-// SPIR-NEXT: ...
-
-// SPIR: --- !Passed
-// SPIR: Pass:{{.*}}sycl
-// SPIR: Name:{{.*}}Region
-// SPIR: DebugLoc:{{.*}}{ File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 28, Column: 8 }
-// SPIR-NEXT: Function:        _ZTS13KernelFunctor
-// SPIR-NEXT: Args:
-// SPIR-NEXT: String:          'Arg '
-// SPIR-NEXT: Argument:        '17'
 // SPIR-NEXT: String:          ':'
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          Ptr
@@ -439,14 +354,14 @@ int main() {
 // SPIR-NEXT: String:          ')'
 
 // SPIR: --- !Passed
-// SPIR: Pass:{{.*}} sycl
-// SPIR: Name:            Region
-// SPIR-NEXT: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // SPIR-NEXT: Line: 28, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
-// SPIR-NEXT: Argument:        '18'
+// SPIR-NEXT: Argument:        '14'
 // SPIR-NEXT: String:          ':'
 // SPIR-NEXT: String:          Compiler generated argument for array,
 // SPIR-NEXT: String:          Array
@@ -462,12 +377,12 @@ int main() {
 // SPIR: --- !Passed
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
-// SPIR: DebugLoc:{{.*}}{ File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // SPIR-NEXT: Line: 28, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
-// SPIR-NEXT: Argument:        '19'
+// SPIR-NEXT: Argument:        '15'
 // SPIR-NEXT: String:          ':'
 // SPIR-NEXT: String:          Compiler generated argument for sampler,
 // SPIR-NEXT: String:          Sampl
