@@ -253,8 +253,10 @@ private:
     };
     auto CheckerCGF = [&CopierEv, Buffer](handler &CGH) {
       CGH.depends_on(CopierEv);
+      using mode = access::mode;
+      using target = access::target;
 
-      auto Acc = Buffer->get_access<access::mode::read, access::target::host_buffer>(CGH);
+      auto Acc = Buffer->get_access<mode::read, target::host_buffer>(CGH);
 
       CGH.codeplay_host_task([=] {
         const detail::AssertHappened *AH = &Acc[0];
