@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
+// RUN: %clangxx -fsycl -fsyntax-only %s 2>&1 | FileCheck %s
 
 // This test checks compilation of various ESIMD enum types. Those which are
 // deprecated must produce deprecation messages.
@@ -8,20 +8,33 @@
 using namespace sycl::ext::intel::experimental::esimd;
 
 void foo() SYCL_ESIMD_FUNCTION {
-  // These should produce deprecation messages:
+  // These should produce deprecation messages for both device:
   int x;
-  // expected-warning@+2 {{deprecated}}
-  // expected-note@sycl/ext/intel/experimental/esimd/common.hpp:* {{}}
+  // CHECK: enums.cpp:15{{.*}}warning: 'WAIT' is deprecated
+  // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
   x = static_cast<int>(ESIMD_SBARRIER_WAIT);
-  // expected-warning@+2 {{deprecated}}
-  // expected-note@sycl/ext/intel/experimental/esimd/common.hpp:* {{}}
+  // CHECK: enums.cpp:18{{.*}}warning: 'ATOMIC_ADD' is deprecated
+  // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
   x = static_cast<int>(EsimdAtomicOpType::ATOMIC_ADD);
-  // expected-warning@+2 {{deprecated}}
-  // expected-note@sycl/ext/intel/experimental/esimd/common.hpp:* {{}}
+  // CHECK: enums.cpp:21{{.*}}warning: 'ESIMD_R_ENABLE' is deprecated
+  // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
   x = static_cast<int>(ChannelMaskType::ESIMD_R_ENABLE);
-  // expected-warning@+2 {{deprecated}}
-  // expected-note@sycl/ext/intel/experimental/esimd/common.hpp:* {{}}
+  // CHECK: enums.cpp:24{{.*}}warning: 'GENX_NOSAT' is deprecated
+  // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
   x = static_cast<int>(GENX_NOSAT);
+
+  // A "border" between host and device compilations
+  // CHECK-LABEL: 4 warnings generated
+
+  // And for host:
+  // CHECK: enums.cpp:15{{.*}}warning: 'WAIT' is deprecated
+  // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
+  // CHECK: enums.cpp:18{{.*}}warning: 'ATOMIC_ADD' is deprecated
+  // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
+  // CHECK: enums.cpp:21{{.*}}warning: 'ESIMD_R_ENABLE' is deprecated
+  // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
+  // CHECK: enums.cpp:24{{.*}}warning: 'GENX_NOSAT' is deprecated
+  // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
 
   // These should compile cleanly:
   x = static_cast<int>(split_barrier_action::wait);

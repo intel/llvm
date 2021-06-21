@@ -1,6 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
+// RUN: not %clangxx -fsycl -fsycl-device-only -fsyntax-only %s 2>&1 | FileCheck %s
+// RUN: not %clangxx %fsycl-host-only -fsyntax-only %s 2>&1 | FileCheck %s
 
-// This test checks that device compiler can:
+// This test checks that device and host compilers can:
 // - successfully compile simd::copy_to and simd::copy_from APIs
 // - emit an error if argument of an incompatible type is used
 //   in place of the accessor argument
@@ -41,14 +42,10 @@ kernel3(accessor<int, 1, access::mode::read_write, access::target::local> &buf)
     SYCL_ESIMD_FUNCTION {
   simd<int, 32> v1(0, 1);
   simd<int, 32> v0;
-  // expected-error@+3 {{no matching member function for call to 'copy_from'}}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
+  // CHECK: simd_copy_to_copy_from.cpp:46{{.*}}error: no matching member function for call to 'copy_from'
   v0.copy_from(buf, 0);
   v0 = v0 + v1;
-  // expected-error@+3 {{no matching member function for call to 'copy_to'}}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
+  // CHECK: simd_copy_to_copy_from.cpp:49{{.*}}error: no matching member function for call to 'copy_to'
   v0.copy_to(buf, 0);
 }
 
@@ -57,9 +54,7 @@ SYCL_EXTERNAL void kernel4(
     accessor<int, 1, access::mode::write, access::target::global_buffer> &buf)
     SYCL_ESIMD_FUNCTION {
   simd<int, 32> v;
-  // expected-error@+3 {{no matching member function for call to 'copy_from'}}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
+  // CHECK: simd_copy_to_copy_from.cpp:58{{.*}}error: no matching member function for call to 'copy_from'
   v.copy_from(buf, 0);
 }
 
@@ -68,8 +63,6 @@ SYCL_EXTERNAL void kernel5(
     accessor<int, 1, access::mode::read, access::target::global_buffer> &buf)
     SYCL_ESIMD_FUNCTION {
   simd<int, 32> v(0, 1);
-  // expected-error@+3 {{no matching member function for call to 'copy_to'}}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{}}
+  // CHECK: simd_copy_to_copy_from.cpp:67{{.*}}error: no matching member function for call to 'copy_to'
   v.copy_to(buf, 0);
 }
