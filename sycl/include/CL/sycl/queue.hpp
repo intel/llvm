@@ -233,8 +233,7 @@ private:
 
     using AHBufT = buffer<detail::AssertHappened, 1>;
 
-    detail::AssertHappened *AH = new detail::AssertHappened;
-    AHBufT *Buffer = new AHBufT{AH, range<1>{1}};
+    AHBufT *Buffer = new AHBufT{range<1>{1}};
 
     event CopierEv, CheckerEv, PostCheckerEv;
     auto CopierCGF = [&](handler &CGH) {
@@ -250,10 +249,13 @@ private:
 #endif // __SYCL_DEVICE_ONLY__
       });
     };
-    auto CheckerCGF = [&CopierEv, AH](handler &CGH) {
+    auto CheckerCGF = [&CopierEv, Buffer](handler &CGH) {
       CGH.depends_on(CopierEv);
 
+      auto Acc = Buffer->get_access<access::mode::read, access::target::host_buffer>(CGH);
+
       CGH.codeplay_host_task([=] {
+        const detail::AssertHappened *AH = &Acc[0];
         assert(AH->Flag != 1 && "Invalid value");
 
         if (AH->Flag) {
@@ -272,12 +274,11 @@ private:
       });
     };
     // Release memory in distinct host-task so that any dependency is eliminated
-    auto PostCheckerCGF = [&CheckerEv, AH, Buffer](handler &CGH) {
+    auto PostCheckerCGF = [&CheckerEv, Buffer](handler &CGH) {
       CGH.depends_on(CheckerEv);
 
       CGH.codeplay_host_task([=] {
         delete Buffer;
-        delete AH;
       });
     };
 
