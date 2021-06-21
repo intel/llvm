@@ -22,6 +22,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/SubElementInterfaces.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
@@ -408,14 +409,24 @@ private:
     // Consider the types of the block arguments for aliases if 'printBlockArgs'
     // is set to true.
     if (printBlockArgs) {
-      for (Type type : block->getArgumentTypes())
-        printType(type);
+      for (BlockArgument arg : block->getArguments()) {
+        printType(arg.getType());
+
+        // Visit the argument location.
+        if (printerFlags.shouldPrintDebugInfo())
+          // TODO: Allow deferring argument locations.
+          initializer.visit(arg.getLoc(), /*canBeDeferred=*/false);
+      }
     }
 
     // Consider the operations within this block, ignoring the terminator if
     // requested.
+    bool hasTerminator =
+        !block->empty() && block->back().hasTrait<OpTrait::IsTerminator>();
     auto range = llvm::make_range(
-        block->begin(), std::prev(block->end(), printBlockTerminator ? 0 : 1));
+        block->begin(),
+        std::prev(block->end(),
+                  (!hasTerminator || printBlockTerminator) ? 0 : 1));
     for (Operation &op : range)
       print(&op);
   }
@@ -431,6 +442,15 @@ private:
     print(entryBlock, printEntryBlockArgs, printBlockTerminators);
     for (Block &b : llvm::drop_begin(region, 1))
       print(&b);
+  }
+
+  void printRegionArgument(BlockArgument arg, ArrayRef<NamedAttribute> argAttrs,
+                           bool omitType) override {
+    printType(arg.getType());
+    // Visit the argument location.
+    if (printerFlags.shouldPrintDebugInfo())
+      // TODO: Allow deferring argument locations.
+      initializer.visit(arg.getLoc(), /*canBeDeferred=*/false);
   }
 
   /// Consider the given type to be printed for an alias.
@@ -607,14 +627,10 @@ void AliasInitializer::visit(Attribute attr, bool canBeDeferred) {
     return;
   }
 
-  if (auto arrayAttr = attr.dyn_cast<ArrayAttr>()) {
-    for (Attribute element : arrayAttr.getValue())
-      visit(element);
-  } else if (auto dictAttr = attr.dyn_cast<DictionaryAttr>()) {
-    for (const NamedAttribute &attr : dictAttr)
-      visit(attr.second);
-  } else if (auto typeAttr = attr.dyn_cast<TypeAttr>()) {
-    visit(typeAttr.getValue());
+  // Check for any sub elements.
+  if (auto subElementInterface = attr.dyn_cast<SubElementAttrInterface>()) {
+    subElementInterface.walkSubElements([&](Attribute attr) { visit(attr); },
+                                        [&](Type type) { visit(type); });
   }
 }
 
@@ -626,20 +642,10 @@ void AliasInitializer::visit(Type type) {
   if (succeeded(generateAlias(type, aliasToType)))
     return;
 
-  // Visit several subtypes that contain types or attributes.
-  if (auto funcType = type.dyn_cast<FunctionType>()) {
-    // Visit input and result types for functions.
-    for (auto input : funcType.getInputs())
-      visit(input);
-    for (auto result : funcType.getResults())
-      visit(result);
-  } else if (auto shapedType = type.dyn_cast<ShapedType>()) {
-    visit(shapedType.getElementType());
-
-    // Visit affine maps in memref type.
-    if (auto memref = type.dyn_cast<MemRefType>())
-      for (auto map : memref.getAffineMaps())
-        visit(AffineMapAttr::get(map));
+  // Check for any sub elements.
+  if (auto subElementInterface = type.dyn_cast<SubElementTypeInterface>()) {
+    subElementInterface.walkSubElements([&](Attribute attr) { visit(attr); },
+                                        [&](Type type) { visit(type); });
   }
 }
 
@@ -1241,7 +1247,7 @@ protected:
                              ArrayRef<StringRef> elidedAttrs = {},
                              bool withKeyword = false);
   void printNamedAttribute(NamedAttribute attr);
-  void printTrailingLocation(Location loc);
+  void printTrailingLocation(Location loc, bool allowAlias = true);
   void printLocationInternal(LocationAttr loc, bool pretty = false);
 
   /// Print a dense elements attribute. If 'allowHex' is true, a hex string is
@@ -1284,13 +1290,13 @@ protected:
 };
 } // end anonymous namespace
 
-void ModulePrinter::printTrailingLocation(Location loc) {
+void ModulePrinter::printTrailingLocation(Location loc, bool allowAlias) {
   // Check to see if we are printing debug information.
   if (!printerFlags.shouldPrintDebugInfo())
     return;
 
   os << " ";
-  printLocation(loc, /*allowAlias=*/true);
+  printLocation(loc, /*allowAlias=*/allowAlias);
 }
 
 void ModulePrinter::printLocationInternal(LocationAttr loc, bool pretty) {
@@ -2345,6 +2351,15 @@ public:
     ModulePrinter::printAttribute(attr, AttrTypeElision::Must);
   }
 
+  /// Print a block argument in the usual format of:
+  ///   %ssaName : type {attr1=42} loc("here")
+  /// where location printing is controlled by the standard internal option.
+  /// You may pass omitType=true to not print a type, and pass an empty
+  /// attribute list if you don't care for attributes.
+  void printRegionArgument(BlockArgument arg,
+                           ArrayRef<NamedAttribute> argAttrs = {},
+                           bool omitType = false) override;
+
   /// Print the ID for the given value.
   void printOperand(Value value) override { printValueID(value); }
   void printOperand(Value value, raw_ostream &os) override {
@@ -2417,6 +2432,24 @@ void OperationPrinter::printTopLevelOperation(Operation *op) {
 
   // Output the aliases at the top level that can be deferred.
   state->getAliasState().printDeferredAliases(os, newLine);
+}
+
+/// Print a block argument in the usual format of:
+///   %ssaName : type {attr1=42} loc("here")
+/// where location printing is controlled by the standard internal option.
+/// You may pass omitType=true to not print a type, and pass an empty
+/// attribute list if you don't care for attributes.
+void OperationPrinter::printRegionArgument(BlockArgument arg,
+                                           ArrayRef<NamedAttribute> argAttrs,
+                                           bool omitType) {
+  printOperand(arg);
+  if (!omitType) {
+    os << ": ";
+    printType(arg.getType());
+  }
+  printOptionalAttrDict(argAttrs);
+  // TODO: We should allow location aliases on block arguments.
+  printTrailingLocation(arg.getLoc(), /*allowAlias*/ false);
 }
 
 void OperationPrinter::print(Operation *op) {
@@ -2529,6 +2562,8 @@ void OperationPrinter::print(Block *block, bool printBlockArgs,
         printValueID(arg);
         os << ": ";
         printType(arg.getType());
+        // TODO: We should allow location aliases on block arguments.
+        printTrailingLocation(arg.getLoc(), /*allowAlias*/ false);
       });
       os << ')';
     }
@@ -2560,8 +2595,12 @@ void OperationPrinter::print(Block *block, bool printBlockArgs,
   }
 
   currentIndent += indentWidth;
+  bool hasTerminator =
+      !block->empty() && block->back().hasTrait<OpTrait::IsTerminator>();
   auto range = llvm::make_range(
-      block->begin(), std::prev(block->end(), printBlockTerminator ? 0 : 1));
+      block->begin(),
+      std::prev(block->end(),
+                (!hasTerminator || printBlockTerminator) ? 0 : 1));
   for (auto &op : range) {
     print(&op);
     os << newLine;
@@ -2700,7 +2739,7 @@ void IntegerSet::print(raw_ostream &os) const {
 void Value::print(raw_ostream &os) {
   if (auto *op = getDefiningOp())
     return op->print(os);
-  // TODO: Improve this.
+  // TODO: Improve BlockArgument print'ing.
   BlockArgument arg = this->cast<BlockArgument>();
   os << "<block argument> of type '" << arg.getType()
      << "' at index: " << arg.getArgNumber() << '\n';
@@ -2709,7 +2748,7 @@ void Value::print(raw_ostream &os, AsmState &state) {
   if (auto *op = getDefiningOp())
     return op->print(os, state);
 
-  // TODO: Improve this.
+  // TODO: Improve BlockArgument print'ing.
   BlockArgument arg = this->cast<BlockArgument>();
   os << "<block argument> of type '" << arg.getType()
      << "' at index: " << arg.getArgNumber() << '\n';

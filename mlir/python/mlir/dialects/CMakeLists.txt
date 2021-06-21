@@ -25,6 +25,11 @@ add_mlir_dialect_python_bindings(MLIRBindingsPythonLinalgOps
   DEPENDS LinalgOdsGen)
 add_dependencies(MLIRBindingsPythonSources MLIRBindingsPythonLinalgOps)
 
+add_mlir_dialect_python_bindings(MLIRBindingsPythonMathOps
+  TD_FILE MathOps.td
+  DIALECT_NAME math)
+add_dependencies(MLIRBindingsPythonSources MLIRBindingsPythonMathOps)
+
 add_mlir_dialect_python_bindings(MLIRBindingsPythonMemRefOps
   TD_FILE MemRefOps.td
   DIALECT_NAME memref)
@@ -44,6 +49,16 @@ add_mlir_dialect_python_bindings(MLIRBindingsPythonTensorOps
   TD_FILE TensorOps.td
   DIALECT_NAME tensor)
 add_dependencies(MLIRBindingsPythonSources MLIRBindingsPythonTensorOps)
+
+add_mlir_dialect_python_bindings(MLIRBindingsPythonTosaOps
+  TD_FILE TosaOps.td
+  DIALECT_NAME tosa)
+add_dependencies(MLIRBindingsPythonSources MLIRBindingsPythonTosaOps)
+
+add_mlir_dialect_python_bindings(MLIRBindingsPythonVectorOps
+  TD_FILE VectorOps.td
+  DIALECT_NAME vector)
+add_dependencies(MLIRBindingsPythonSources MLIRBindingsPythonVectorOps)
 
 ################################################################################
 # Installation.

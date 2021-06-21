@@ -871,9 +871,9 @@ namespace llvm {
       return true;
     }
 
-    Instruction *emitLeadingFence(IRBuilder<> &Builder, Instruction *Inst,
+    Instruction *emitLeadingFence(IRBuilderBase &Builder, Instruction *Inst,
                                   AtomicOrdering Ord) const override;
-    Instruction *emitTrailingFence(IRBuilder<> &Builder, Instruction *Inst,
+    Instruction *emitTrailingFence(IRBuilderBase &Builder, Instruction *Inst,
                                    AtomicOrdering Ord) const override;
 
     MachineBasicBlock *
@@ -1073,6 +1073,7 @@ namespace llvm {
     /// Override to support customized stack guard loading.
     bool useLoadStackGuardNode() const override;
     void insertSSPDeclarations(Module &M) const override;
+    Value *getSDagStackGuard(const Module &M) const override;
 
     bool isFPImmLegal(const APFloat &Imm, EVT VT,
                       bool ForCodeSize) const override;
@@ -1114,6 +1115,9 @@ namespace llvm {
             IsPatchPoint(IsPatchPoint), IsIndirect(IsIndirect),
             HasNest(HasNest), NoMerge(NoMerge) {}
     };
+
+    CCAssignFn *ccAssignFnForCall(CallingConv::ID CC, bool Return,
+                                  bool IsVarArg) const;
 
   private:
     struct ReuseLoadInfo {

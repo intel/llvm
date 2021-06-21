@@ -290,6 +290,9 @@ MachineInstr *MVETPAndVPTOptimisations::CheckForLRUseInPredecessors(
       MIB.add(LoopStart->getOperand(0));
       MIB.add(LoopStart->getOperand(1));
 
+      // Make sure to remove the kill flags, to prevent them from being invalid.
+      LoopStart->getOperand(1).setIsKill(false);
+
       // Revert the t2WhileLoopStartLR to a CMP and Br.
       RevertWhileLoopStartLR(LoopStart, TII, ARM::t2Bcc, true);
       return MIB;
@@ -426,7 +429,8 @@ bool MVETPAndVPTOptimisations::ConvertTailPredLoop(MachineLoop *ML,
   MachineInstr *LoopEnd, *LoopPhi, *LoopStart, *LoopDec;
   if (!findLoopComponents(ML, MRI, LoopStart, LoopPhi, LoopDec, LoopEnd))
     return false;
-  if (LoopDec != LoopEnd || LoopStart->getOpcode() != ARM::t2DoLoopStart)
+  if (LoopDec != LoopEnd || (LoopStart->getOpcode() != ARM::t2DoLoopStart &&
+                             LoopStart->getOpcode() != ARM::t2WhileLoopStartLR))
     return false;
 
   SmallVector<MachineInstr *, 4> VCTPs;
@@ -491,12 +495,16 @@ bool MVETPAndVPTOptimisations::ConvertTailPredLoop(MachineLoop *ML,
       return false;
     }
 
-  MachineInstrBuilder MI = BuildMI(*MBB, InsertPt, LoopStart->getDebugLoc(),
-                                   TII->get(ARM::t2DoLoopStartTP))
-                               .add(LoopStart->getOperand(0))
-                               .add(LoopStart->getOperand(1))
-                               .addReg(CountReg);
-  (void)MI;
+  unsigned NewOpc = LoopStart->getOpcode() == ARM::t2DoLoopStart
+                        ? ARM::t2DoLoopStartTP
+                        : ARM::t2WhileLoopStartTP;
+  MachineInstrBuilder MI =
+      BuildMI(*MBB, InsertPt, LoopStart->getDebugLoc(), TII->get(NewOpc))
+          .add(LoopStart->getOperand(0))
+          .add(LoopStart->getOperand(1))
+          .addReg(CountReg);
+  if (NewOpc == ARM::t2WhileLoopStartTP)
+    MI.add(LoopStart->getOperand(2));
   LLVM_DEBUG(dbgs() << "Replacing " << *LoopStart << "  with "
                     << *MI.getInstr());
   MRI->constrainRegClass(CountReg, &ARM::rGPRRegClass);

@@ -2,9 +2,9 @@
 // Failure is expected until fixed in LLORG upstream.
 // TODO: remove XFAIL once the test starts to pass.
 
-// RUN: %clang_cc1                                 -verify=host -Rpass=openmp -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc
-// RUN: %clang_cc1                                 -verify      -Rpass=openmp -fopenmp -O2 -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o %t.out
-// RUN: %clang_cc1 -fexperimental-new-pass-manager -verify      -Rpass=openmp -fopenmp -O2 -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o %t.out
+// RUN: %clang_cc1                                 -verify=host -Rpass=openmp -Rpass-analysis=openmp-opt -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc
+// RUN: %clang_cc1                                 -verify      -Rpass=openmp -Rpass-analysis=openmp-opt -fopenmp -O2 -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o %t.out
+// RUN: %clang_cc1 -fexperimental-new-pass-manager -verify      -Rpass=openmp -Rpass-analysis=openmp-opt -fopenmp -O2 -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o %t.out
 
 // host-no-diagnostics
 
@@ -47,5 +47,5 @@ void spmd(void) {
   }
 }
 
-// expected-remark@* {{OpenMP runtime call __kmpc_global_thread_num moved to}}
+// expected-remark@* {{OpenMP runtime call __kmpc_global_thread_num moved to beginning of OpenMP region}}
 // expected-remark@* 2 {{OpenMP runtime call __kmpc_global_thread_num deduplicated}}

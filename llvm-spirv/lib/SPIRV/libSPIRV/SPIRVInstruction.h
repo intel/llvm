@@ -654,7 +654,6 @@ template <Op OC>
 class SPIRVBinaryInst
     : public SPIRVInstTemplate<SPIRVBinary, OC, true, 5, false> {};
 
-/* ToDo: SMod and FMod to be added */
 #define _SPIRV_OP(x) typedef SPIRVBinaryInst<Op##x> SPIRV##x;
 _SPIRV_OP(IAdd)
 _SPIRV_OP(FAdd)
@@ -666,7 +665,9 @@ _SPIRV_OP(UDiv)
 _SPIRV_OP(SDiv)
 _SPIRV_OP(FDiv)
 _SPIRV_OP(SRem)
+_SPIRV_OP(SMod)
 _SPIRV_OP(FRem)
+_SPIRV_OP(FMod)
 _SPIRV_OP(UMod)
 _SPIRV_OP(ShiftLeftLogical)
 _SPIRV_OP(ShiftRightLogical)
@@ -969,13 +970,12 @@ _SPIRV_OP(Unordered)
 class SPIRVSelect : public SPIRVInstruction {
 public:
   // Complete constructor
-  SPIRVSelect(SPIRVId TheId, SPIRVId TheCondition, SPIRVId TheOp1,
-              SPIRVId TheOp2, SPIRVBasicBlock *TheBB)
-      : SPIRVInstruction(6, OpSelect, TheBB->getValueType(TheOp1), TheId,
-                         TheBB),
+  SPIRVSelect(SPIRVId TheId, SPIRVType *TheType, SPIRVId TheCondition,
+              SPIRVId TheOp1, SPIRVId TheOp2, SPIRVBasicBlock *TheBB,
+              SPIRVModule *TheM)
+      : SPIRVInstruction(6, OpSelect, TheType, TheId, TheBB, TheM),
         Condition(TheCondition), Op1(TheOp1), Op2(TheOp2) {
     validate();
-    assert(TheBB && "Invalid BB");
   }
   // Incomplete constructor
   SPIRVSelect()
@@ -1157,69 +1157,6 @@ protected:
   SPIRVId Select;
   SPIRVId Default;
   std::vector<SPIRVWord> Pairs;
-};
-
-class SPIRVFSMod : public SPIRVInstruction {
-public:
-  static const SPIRVWord FixedWordCount = 4;
-  SPIRVFSMod(Op OC, SPIRVType *TheType, SPIRVId TheId, SPIRVId TheDividend,
-             SPIRVId TheDivisor, SPIRVBasicBlock *BB)
-      : SPIRVInstruction(5, OC, TheType, TheId, BB), Dividend(TheDividend),
-        Divisor(TheDivisor) {
-    validate();
-    assert(BB && "Invalid BB");
-  }
-  // Incomplete constructor
-  SPIRVFSMod(Op OC)
-      : SPIRVInstruction(OC), Dividend(SPIRVID_INVALID),
-        Divisor(SPIRVID_INVALID) {}
-
-  SPIRVValue *getDividend() const { return getValue(Dividend); }
-  SPIRVValue *getDivisor() const { return getValue(Divisor); }
-
-  std::vector<SPIRVValue *> getOperands() override {
-    std::vector<SPIRVId> Operands;
-    Operands.push_back(Dividend);
-    Operands.push_back(Divisor);
-    return getValues(Operands);
-  }
-
-  void setWordCount(SPIRVWord FixedWordCount) override {
-    SPIRVEntry::setWordCount(FixedWordCount);
-  }
-  _SPIRV_DEF_ENCDEC4(Type, Id, Dividend, Divisor)
-  void validate() const override {
-    SPIRVInstruction::validate();
-    if (getValue(Dividend)->isForward() || getValue(Divisor)->isForward())
-      return;
-    SPIRVInstruction::validate();
-  }
-
-protected:
-  SPIRVId Dividend;
-  SPIRVId Divisor;
-};
-
-class SPIRVFMod : public SPIRVFSMod {
-public:
-  static const Op OC = OpFMod;
-  // Complete constructor
-  SPIRVFMod(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheDividend,
-            SPIRVId TheDivisor, SPIRVBasicBlock *BB)
-      : SPIRVFSMod(OC, TheType, TheId, TheDividend, TheDivisor, BB) {}
-  // Incomplete constructor
-  SPIRVFMod() : SPIRVFSMod(OC) {}
-};
-
-class SPIRVSMod : public SPIRVFSMod {
-public:
-  static const Op OC = OpSMod;
-  // Complete constructor
-  SPIRVSMod(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheDividend,
-            SPIRVId TheDivisor, SPIRVBasicBlock *BB)
-      : SPIRVFSMod(OC, TheType, TheId, TheDividend, TheDivisor, BB) {}
-  // Incomplete constructor
-  SPIRVSMod() : SPIRVFSMod(OC) {}
 };
 
 class SPIRVVectorTimesScalar : public SPIRVInstruction {

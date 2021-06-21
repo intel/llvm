@@ -15,8 +15,6 @@
 
 include "mlir/IR/OpBase.td"
 
-def LinalgOperand: AnyTypeOf<[AnyRankedTensor, AnyStridedMemRef]>;
-
 def Linalg_Dialect : Dialect {
   let name = "linalg";
   let description = [{
@@ -37,6 +35,7 @@ def Linalg_Dialect : Dialect {
   let dependentDialects = [
     "AffineDialect", "StandardOpsDialect", "tensor::TensorDialect"
   ];
+  let hasCanonicalizer = 1;
   let hasOperationAttrVerify = 1;
   let extraClassDeclaration = [{
     /// Attribute name used to to memoize indexing maps for named ops.
@@ -48,7 +47,8 @@ def Linalg_Dialect : Dialect {
     constexpr const static ::llvm::StringLiteral
       kInplaceableAttrName = "linalg.inplaceable";
 
-    using RegionBuilderFunType = llvm::function_ref<void(Block &, ValueRange)>;
+    using RegionBuilderFunType =
+      llvm::function_ref<void(ImplicitLocOpBuilder &b, Block &, ValueRange)>;
     RegionBuilderFunType getRegionBuilder(StringRef name) {
       return namedStructuredOpRegionBuilders.lookup(name);
     }

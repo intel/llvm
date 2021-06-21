@@ -384,14 +384,19 @@ public:
 /// This is the common base class for vector predication intrinsics.
 class VPIntrinsic : public IntrinsicInst {
 public:
-  static Optional<int> GetMaskParamPos(Intrinsic::ID IntrinsicID);
-  static Optional<int> GetVectorLengthParamPos(Intrinsic::ID IntrinsicID);
+  /// \brief Declares a llvm.vp.* intrinsic in \p M that matches the parameters
+  /// \p Params.
+  static Function *getDeclarationForParams(Module *M, Intrinsic::ID,
+                                           ArrayRef<Value *> Params);
+
+  static Optional<unsigned> getMaskParamPos(Intrinsic::ID IntrinsicID);
+  static Optional<unsigned> getVectorLengthParamPos(Intrinsic::ID IntrinsicID);
 
   /// The llvm.vp.* intrinsics for this instruction Opcode
-  static Intrinsic::ID GetForOpcode(unsigned OC);
+  static Intrinsic::ID getForOpcode(unsigned OC);
 
   // Whether \p ID is a VP intrinsic ID.
-  static bool IsVPIntrinsic(Intrinsic::ID);
+  static bool isVPIntrinsic(Intrinsic::ID);
 
   /// \return the mask parameter or nullptr.
   Value *getMaskParam() const;
@@ -410,19 +415,19 @@ public:
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const IntrinsicInst *I) {
-    return IsVPIntrinsic(I->getIntrinsicID());
+    return isVPIntrinsic(I->getIntrinsicID());
   }
   static bool classof(const Value *V) {
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
   }
 
   // Equivalent non-predicated opcode
-  unsigned getFunctionalOpcode() const {
-    return GetFunctionalOpcodeForVP(getIntrinsicID());
+  Optional<unsigned> getFunctionalOpcode() const {
+    return getFunctionalOpcodeForVP(getIntrinsicID());
   }
 
   // Equivalent non-predicated opcode
-  static unsigned GetFunctionalOpcodeForVP(Intrinsic::ID ID);
+  static Optional<unsigned> getFunctionalOpcodeForVP(Intrinsic::ID ID);
 };
 
 /// This is the common base class for constrained floating point intrinsics.
@@ -432,6 +437,7 @@ public:
   bool isTernaryOp() const;
   Optional<RoundingMode> getRoundingMode() const;
   Optional<fp::ExceptionBehavior> getExceptionBehavior() const;
+  bool isDefaultFPEnvironment() const;
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const IntrinsicInst *I);

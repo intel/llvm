@@ -57,6 +57,7 @@ cl::OptionCategory PostLinkCat{"sycl-post-link options"};
 static constexpr char COL_CODE[] = "Code";
 static constexpr char COL_SYM[] = "Symbols";
 static constexpr char COL_PROPS[] = "Properties";
+static constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
 
 // InputFilename - The filename to read from.
 static cl::opt<std::string> InputFilename{
@@ -231,6 +232,17 @@ static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
   return Scope_PerModule;
 }
 
+// Return true if the function is a SPIRV or SYCL builtin, e.g.
+// _Z28__spirv_GlobalInvocationId_xv
+static bool funcIsSpirvSyclBuiltin(StringRef FName) {
+  if (!FName.consume_front("_Z"))
+    return false;
+  // now skip the digits
+  FName = FName.drop_while([](char C) { return std::isdigit(C); });
+
+  return FName.startswith("__spirv_") || FName.startswith("__sycl_");
+}
+
 // This function decides how kernels of the input module M will be distributed
 // ("split") into multiple modules based on the command options and IR
 // attributes. The decision is recorded in the output map parameter
@@ -241,22 +253,18 @@ static void collectKernelModuleMap(
     Module &M, std::map<StringRef, std::vector<Function *>> &ResKernelModuleMap,
     KernelMapEntryScope EntryScope) {
 
+  // Process module entry points: kernels and SYCL_EXTERNAL functions.
+  // Only they have sycl-module-id attribute, so any other unrefenced
+  // functions are dropped. SPIRV and SYCL builtin functions are not
+  // considered as module entry points.
   for (auto &F : M.functions()) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
+        !funcIsSpirvSyclBuiltin(F.getName())) {
       switch (EntryScope) {
       case Scope_PerKernel:
         ResKernelModuleMap[F.getName()].push_back(&F);
         break;
       case Scope_PerModule: {
-        constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
-
-        // TODO It may make sense to group all kernels w/o the attribute into
-        // a separate module rather than issuing an error. Should probably be
-        // controlled by an option.
-        if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
-          error("no '" + Twine(ATTR_SYCL_MODULE_ID) +
-                "' attribute in kernel '" + F.getName() +
-                "', per-module split not possible");
         Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
         StringRef Val = Id.getValueAsString();
         ResKernelModuleMap[Val].push_back(&F);
@@ -267,8 +275,82 @@ static void collectKernelModuleMap(
         ResKernelModuleMap["<GLOBAL>"].push_back(&F);
         break;
       }
+    } else if (EntryScope == Scope_PerModule &&
+               F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+      // TODO It may make sense to group all kernels w/o the attribute into
+      // a separate module rather than issuing an error. Should probably be
+      // controlled by an option.
+      // Functions with spir_func calling convention are allowed to not have
+      // a sycl-module-id attribute.
+      error("no '" + Twine(ATTR_SYCL_MODULE_ID) + "' attribute in kernel '" +
+            F.getName() + "', per-module split not possible");
     }
   }
+}
+
+// Go through function call graph searching for assert call.
+static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
+  // Map holds the info about assertions in already examined functions:
+  // true  - if there is an assertion in underlying functions,
+  // false - if there are definetely no assertions in underlying functions.
+  static std::map<llvm::Function *, bool> hasAssertionInCallGraphMap;
+  std::vector<llvm::Function *> FuncCallStack;
+
+  std::vector<llvm::Function *> Workstack;
+  Workstack.push_back(Func);
+
+  while (!Workstack.empty()) {
+    Function *F = Workstack.back();
+    Workstack.pop_back();
+    if (F != Func)
+      FuncCallStack.push_back(F);
+
+    bool IsLeaf = true;
+    for (auto &I : instructions(F)) {
+      if (!isa<CallBase>(&I))
+        continue;
+
+      Function *CF = cast<CallBase>(&I)->getCalledFunction();
+      if (!CF)
+        continue;
+
+      // Return if we've already discovered if there are asserts in the
+      // function call graph.
+      if (hasAssertionInCallGraphMap.count(CF)) {
+        // If we know, that this function does not contain assert, we still
+        // should investigate another instructions in the function.
+        if (!hasAssertionInCallGraphMap[CF])
+          continue;
+
+        return true;
+      }
+
+      if (CF->getName().startswith("__devicelib_assert_fail")) {
+        // Mark all the functions above in call graph as ones that can call
+        // assert.
+        for (auto *It : FuncCallStack)
+          hasAssertionInCallGraphMap[It] = true;
+
+        hasAssertionInCallGraphMap[Func] = true;
+        hasAssertionInCallGraphMap[CF] = true;
+
+        return true;
+      }
+
+      if (!CF->isDeclaration()) {
+        Workstack.push_back(CF);
+        IsLeaf = false;
+      }
+    }
+
+    if (IsLeaf) {
+      // Mark the above functions as ones that definetely do not call assert.
+      for (auto *It : FuncCallStack)
+        hasAssertionInCallGraphMap[It] = false;
+      FuncCallStack.clear();
+    }
+  }
+  return false;
 }
 
 // Input parameter KernelModuleMap is a map containing groups of kernels with
@@ -420,6 +502,17 @@ static string_vector saveDeviceImageProperty(
         PropSet.add(
             llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
             TmpSpecIDMap);
+
+        // Add property with the default values of spec constants only in native
+        // (default) mode.
+        if (!ImgPSInfo.SetSpecConstAtRT) {
+          std::vector<char> DefaultValues;
+          SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
+              *ResultModules[I].get(), DefaultValues);
+          PropSet.add(llvm::util::PropertySetRegistry::
+                          SYCL_SPEC_CONSTANTS_DEFAULT_VALUES,
+                      "all", DefaultValues);
+        }
       }
     }
     if (ImgPSInfo.EmitKernelParamInfo) {
@@ -450,6 +543,19 @@ static string_vector saveDeviceImageProperty(
     if (ImgPSInfo.IsEsimdKernel) {
       PropSet[llvm::util::PropertySetRegistry::SYCL_MISC_PROP].insert(
           {"isEsimdImage", true});
+    }
+
+    {
+      Module *M = ResultModules[I].get();
+      for (auto &F : M->functions()) {
+        // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
+        // TODO: handle function pointers.
+        if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+          if (hasAssertInFunctionCallGraph(&F))
+            PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
+                {F.getName(), true});
+        }
+      }
     }
 
     std::error_code EC;
@@ -518,7 +624,7 @@ static void LowerEsimdConstructs(Module &M) {
 using TableFiles = std::map<StringRef, string_vector>;
 
 static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
-                                   bool SyclAndEsimdKernels) {
+                                   bool SyclAndEsimdCode) {
   TableFiles TblFiles;
   if (!M)
     return TblFiles;
@@ -562,8 +668,6 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     // Register required analysis
     MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
     RunSpecConst.addPass(SCP);
-    // This pass deletes unreachable globals.
-    RunSpecConst.addPass(GlobalDCEPass());
 
     for (auto &MPtr : ResultModules) {
       // perform the spec constant intrinsics transformation on each resulting
@@ -584,7 +688,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     // no spec constants and no splitting.
     // We cannot reuse input module for ESIMD code since it was transformed.
     bool CanReuseInputModule = !SpecConstsMet && (ResultModules.size() == 1) &&
-                               !SyclAndEsimdKernels && !IsEsimd;
+                               !SyclAndEsimdCode && !IsEsimd;
     string_vector Files =
         CanReuseInputModule
             ? string_vector{InputFilename}
@@ -624,23 +728,28 @@ using ModulePair = std::pair<std::unique_ptr<Module>, std::unique_ptr<Module>>;
 // This function splits a module with a mix of SYCL and ESIMD kernels
 // into two separate modules.
 static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
-  // Collect information about the SYCL and ESIMD kernels in the module.
-  std::vector<Function *> SyclKernels;
-  std::vector<Function *> EsimdKernels;
+  std::vector<Function *> SyclFunctions;
+  std::vector<Function *> EsimdFunctions;
+  // Collect information about the SYCL and ESIMD functions in the module.
+  // Process module entry points: kernels and SYCL_EXTERNAL functions.
+  // Only they have sycl-module-id attribute, so any other unrefenced
+  // functions are dropped. SPIRV and SYCL builtin functions are not
+  // considered as module entry points.
   for (auto &F : M->functions()) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
+        !funcIsSpirvSyclBuiltin(F.getName())) {
       if (F.getMetadata("sycl_explicit_simd"))
-        EsimdKernels.push_back(&F);
+        EsimdFunctions.push_back(&F);
       else
-        SyclKernels.push_back(&F);
+        SyclFunctions.push_back(&F);
     }
   }
 
   // If only SYCL kernels or only ESIMD kernels, no splitting needed.
-  if (EsimdKernels.empty())
+  if (EsimdFunctions.empty())
     return std::make_pair(std::move(M), std::unique_ptr<Module>(nullptr));
 
-  if (SyclKernels.empty())
+  if (SyclFunctions.empty())
     return std::make_pair(std::unique_ptr<Module>(nullptr), std::move(M));
 
   // Key values in KernelModuleMap are not significant, but they define the
@@ -648,7 +757,7 @@ static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
   // caller of the splitSyclEsimd function expects a pair of 1-Sycl and 2-Esimd
   // modules, hence the strings names below.
   std::map<StringRef, std::vector<Function *>> KernelModuleMap(
-      {{"1-SYCL", SyclKernels}, {"2-ESIMD", EsimdKernels}});
+      {{"1-SYCL", SyclFunctions}, {"2-ESIMD", EsimdFunctions}});
   std::vector<std::unique_ptr<Module>> ResultModules;
   splitModule(*M, KernelModuleMap, ResultModules);
   assert(ResultModules.size() == 2);
@@ -664,13 +773,13 @@ static TableFiles processInputModule(std::unique_ptr<Module> M) {
   std::unique_ptr<Module> EsimdModule;
   std::tie(SyclModule, EsimdModule) = splitSyclEsimd(std::move(M));
 
-  // Do we have both Sycl and Esimd kernels?
-  bool SyclAndEsimdKernels = SyclModule && EsimdModule;
+  // Do we have both Sycl and Esimd code?
+  bool SyclAndEsimdCode = SyclModule && EsimdModule;
 
   TableFiles SyclTblFiles =
-      processOneModule(std::move(SyclModule), false, SyclAndEsimdKernels);
+      processOneModule(std::move(SyclModule), false, SyclAndEsimdCode);
   TableFiles EsimdTblFiles =
-      processOneModule(std::move(EsimdModule), true, SyclAndEsimdKernels);
+      processOneModule(std::move(EsimdModule), true, SyclAndEsimdCode);
 
   // Merge the two resulting file maps
   TableFiles MergedTblFiles;
@@ -700,7 +809,8 @@ int main(int argc, char **argv) {
       "- SYCL and ESIMD kernels can be split into separate modules with\n"
       "  '-split-esimd' option. The option has no effect when there is only\n"
       "  one type of kernels in the input module. Functions unreachable from\n"
-      "  any kernel are dropped from the resulting module(s).\n"
+      "  any kernel or SYCL_EXTERNAL function are dropped from the resulting\n"
+      "  module(s)."
       "- Module splitter to split a big input module into smaller ones.\n"
       "  Groups kernels using function attribute 'sycl-module-id', i.e.\n"
       "  kernels with the same values of the 'sycl-module-id' attribute will\n"

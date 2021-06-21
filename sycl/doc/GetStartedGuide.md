@@ -450,7 +450,7 @@ int main() {
   cl::sycl::queue Queue;
 
   // Size of index space for kernel
-  cl::sycl::range<1> NumOfWorkItems{Buffer.get_count()};
+  cl::sycl::range<1> NumOfWorkItems{Buffer.size()};
 
   // Submitting command group(work) to queue
   Queue.submit([&](cl::sycl::handler &cgh) {
@@ -470,7 +470,7 @@ int main() {
 
   // Check the results
   bool MismatchFound = false;
-  for (size_t I = 0; I < Buffer.get_count(); ++I) {
+  for (size_t I = 0; I < Buffer.size(); ++I) {
     if (HostAccessor[I] != I) {
       std::cout << "The result is incorrect for element: " << I
                 << " , expected: " << I << " , got: " << HostAccessor[I]

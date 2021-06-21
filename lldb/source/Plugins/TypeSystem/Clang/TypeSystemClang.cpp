@@ -75,7 +75,7 @@
 #include "Plugins/SymbolFile/DWARF/DWARFASTParserClang.h"
 #include "Plugins/SymbolFile/PDB/PDBASTParser.h"
 
-#include <stdio.h>
+#include <cstdio>
 
 #include <mutex>
 
@@ -1867,8 +1867,8 @@ TypeSystemClang::CreateUsingDeclaration(clang::DeclContext *current_decl_ctx,
         clang::NestedNameSpecifierLoc(), clang::DeclarationNameInfo(), false);
     SetOwningModule(using_decl, owning_module);
     clang::UsingShadowDecl *shadow_decl = clang::UsingShadowDecl::Create(
-        getASTContext(), current_decl_ctx, clang::SourceLocation(), using_decl,
-        target);
+        getASTContext(), current_decl_ctx, clang::SourceLocation(),
+        target->getDeclName(), using_decl, target);
     SetOwningModule(shadow_decl, owning_module);
     using_decl->addShadowDecl(shadow_decl);
     current_decl_ctx->addDecl(using_decl);
@@ -6435,7 +6435,7 @@ CompilerType TypeSystemClang::GetChildCompilerTypeAtIndex(
   case clang::Type::RValueReference:
     if (idx_is_valid) {
       const clang::ReferenceType *reference_type =
-          llvm::cast<clang::ReferenceType>(parent_qual_type.getTypePtr());
+          llvm::cast<clang::ReferenceType>(GetQualType(type).getTypePtr());
       CompilerType pointee_clang_type =
           GetType(reference_type->getPointeeType());
       if (transparent_pointers && pointee_clang_type.IsAggregateType()) {
@@ -9653,7 +9653,8 @@ ScratchTypeSystemClang::ScratchTypeSystemClang(Target &target,
                                                llvm::Triple triple)
     : TypeSystemClang("scratch ASTContext", triple), m_triple(triple),
       m_target_wp(target.shared_from_this()),
-      m_persistent_variables(new ClangPersistentVariables) {
+      m_persistent_variables(
+          new ClangPersistentVariables(target.shared_from_this())) {
   m_scratch_ast_source_up = CreateASTSource();
   m_scratch_ast_source_up->InstallASTContext(*this);
   llvm::IntrusiveRefCntPtr<clang::ExternalASTSource> proxy_ast_source(

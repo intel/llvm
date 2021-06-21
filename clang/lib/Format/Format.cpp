@@ -143,6 +143,16 @@ template <> struct ScalarEnumerationTraits<FormatStyle::AlignConsecutiveStyle> {
   }
 };
 
+template <>
+struct ScalarEnumerationTraits<FormatStyle::ArrayInitializerAlignmentStyle> {
+  static void enumeration(IO &IO,
+                          FormatStyle::ArrayInitializerAlignmentStyle &Value) {
+    IO.enumCase(Value, "None", FormatStyle::AIAS_None);
+    IO.enumCase(Value, "Left", FormatStyle::AIAS_Left);
+    IO.enumCase(Value, "Right", FormatStyle::AIAS_Right);
+  }
+};
+
 template <> struct ScalarEnumerationTraits<FormatStyle::ShortIfStyle> {
   static void enumeration(IO &IO, FormatStyle::ShortIfStyle &Value) {
     IO.enumCase(Value, "Never", FormatStyle::SIS_Never);
@@ -240,6 +250,7 @@ struct ScalarEnumerationTraits<FormatStyle::BreakInheritanceListStyle> {
     IO.enumCase(Value, "BeforeColon", FormatStyle::BILS_BeforeColon);
     IO.enumCase(Value, "BeforeComma", FormatStyle::BILS_BeforeComma);
     IO.enumCase(Value, "AfterColon", FormatStyle::BILS_AfterColon);
+    IO.enumCase(Value, "AfterComma", FormatStyle::BILS_AfterComma);
   }
 };
 
@@ -506,6 +517,7 @@ template <> struct MappingTraits<FormatStyle> {
 
     IO.mapOptional("AccessModifierOffset", Style.AccessModifierOffset);
     IO.mapOptional("AlignAfterOpenBracket", Style.AlignAfterOpenBracket);
+    IO.mapOptional("AlignArrayOfStructures", Style.AlignArrayOfStructures);
     IO.mapOptional("AlignConsecutiveMacros", Style.AlignConsecutiveMacros);
     IO.mapOptional("AlignConsecutiveAssignments",
                    Style.AlignConsecutiveAssignments);
@@ -616,8 +628,6 @@ template <> struct MappingTraits<FormatStyle> {
                    Style.ExperimentalAutoDetectBinPacking);
     IO.mapOptional("FixNamespaceComments", Style.FixNamespaceComments);
     IO.mapOptional("ForEachMacros", Style.ForEachMacros);
-    IO.mapOptional("StatementAttributeLikeMacros",
-                   Style.StatementAttributeLikeMacros);
     IO.mapOptional("IncludeBlocks", Style.IncludeStyle.IncludeBlocks);
     IO.mapOptional("IncludeCategories", Style.IncludeStyle.IncludeCategories);
     IO.mapOptional("IncludeIsMainRegex", Style.IncludeStyle.IncludeIsMainRegex);
@@ -666,6 +676,7 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("PenaltyIndentedWhitespace",
                    Style.PenaltyIndentedWhitespace);
     IO.mapOptional("PointerAlignment", Style.PointerAlignment);
+    IO.mapOptional("PPIndentWidth", Style.PPIndentWidth);
     IO.mapOptional("RawStringFormats", Style.RawStringFormats);
     IO.mapOptional("ReflowComments", Style.ReflowComments);
     IO.mapOptional("ShortNamespaceLines", Style.ShortNamespaceLines);
@@ -709,6 +720,8 @@ template <> struct MappingTraits<FormatStyle> {
                    Style.SpaceBeforeSquareBrackets);
     IO.mapOptional("BitFieldColonSpacing", Style.BitFieldColonSpacing);
     IO.mapOptional("Standard", Style.Standard);
+    IO.mapOptional("StatementAttributeLikeMacros",
+                   Style.StatementAttributeLikeMacros);
     IO.mapOptional("StatementMacros", Style.StatementMacros);
     IO.mapOptional("TabWidth", Style.TabWidth);
     IO.mapOptional("TypenameMacros", Style.TypenameMacros);
@@ -941,6 +954,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.AccessModifierOffset = -2;
   LLVMStyle.AlignEscapedNewlines = FormatStyle::ENAS_Right;
   LLVMStyle.AlignAfterOpenBracket = FormatStyle::BAS_Align;
+  LLVMStyle.AlignArrayOfStructures = FormatStyle::AIAS_None;
   LLVMStyle.AlignOperands = FormatStyle::OAS_Align;
   LLVMStyle.AlignTrailingComments = true;
   LLVMStyle.AlignConsecutiveAssignments = FormatStyle::ACS_None;
@@ -1021,6 +1035,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.IndentRequires = false;
   LLVMStyle.IndentWrappedFunctionNames = false;
   LLVMStyle.IndentWidth = 2;
+  LLVMStyle.PPIndentWidth = -1;
   LLVMStyle.InsertTrailingCommas = FormatStyle::TCS_None;
   LLVMStyle.JavaScriptQuotes = FormatStyle::JSQS_Leave;
   LLVMStyle.JavaScriptWrapImports = true;

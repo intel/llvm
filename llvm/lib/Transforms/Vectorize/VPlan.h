@@ -640,6 +640,10 @@ public:
     print(O, "", SlotTracker);
   }
 
+  /// Print the successors of this block to \p O, prefixing all lines with \p
+  /// Indent.
+  void printSuccessors(raw_ostream &O, const Twine &Indent) const;
+
   /// Dump this VPBlockBase to dbgs().
   LLVM_DUMP_METHOD void dump() const { print(dbgs()); }
 #endif
@@ -728,6 +732,17 @@ public:
   bool isPhi() const {
     return getVPDefID() == VPWidenIntOrFpInductionSC || getVPDefID() == VPWidenPHISC ||
       getVPDefID() == VPPredInstPHISC || getVPDefID() == VPWidenCanonicalIVSC;
+  }
+
+  /// Returns true if the recipe may read from memory.
+  bool mayReadFromMemory() const;
+
+  /// Returns true if the recipe may write to memory.
+  bool mayWriteToMemory() const;
+
+  /// Returns true if the recipe may read from or write to memory.
+  bool mayReadOrWriteMemory() const {
+    return mayReadFromMemory() || mayWriteToMemory();
   }
 };
 

@@ -779,10 +779,9 @@ void tools::linkSanitizerRuntimeDeps(const ToolChain &TC,
   }
   CmdArgs.push_back("-lm");
   // There's no libdl on all OSes.
-  if (!TC.getTriple().isOSFreeBSD() &&
-      !TC.getTriple().isOSNetBSD() &&
+  if (!TC.getTriple().isOSFreeBSD() && !TC.getTriple().isOSNetBSD() &&
       !TC.getTriple().isOSOpenBSD() &&
-       TC.getTriple().getOS() != llvm::Triple::RTEMS)
+      TC.getTriple().getOS() != llvm::Triple::RTEMS)
     CmdArgs.push_back("-ldl");
   // Required for backtrace on some OSes
   if (TC.getTriple().isOSFreeBSD() ||
@@ -1452,17 +1451,23 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
     break;
   }
   case ToolChain::UNW_CompilerRT:
-    if (LGT == LibGccType::StaticLibGcc)
+    if (TC.getTriple().isOSAIX()) {
+      // AIX only has libunwind as a shared library. So do not pass
+      // anything in if -static is specified.
+      if (LGT != LibGccType::StaticLibGcc)
+        CmdArgs.push_back("-lunwind");
+    } else if (LGT == LibGccType::StaticLibGcc) {
       CmdArgs.push_back("-l:libunwind.a");
-    else if (TC.getTriple().isOSCygMing()) {
+    } else if (TC.getTriple().isOSCygMing()) {
       if (LGT == LibGccType::SharedLibGcc)
         CmdArgs.push_back("-l:libunwind.dll.a");
       else
         // Let the linker choose between libunwind.dll.a and libunwind.a
         // depending on what's available, and depending on the -static flag
         CmdArgs.push_back("-lunwind");
-    } else
+    } else {
       CmdArgs.push_back("-l:libunwind.so");
+    }
     break;
   }
 

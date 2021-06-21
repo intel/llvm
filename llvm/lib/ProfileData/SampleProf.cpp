@@ -42,6 +42,7 @@ bool FunctionSamples::ProfileIsProbeBased = false;
 bool FunctionSamples::ProfileIsCS = false;
 bool FunctionSamples::UseMD5 = false;
 bool FunctionSamples::HasUniqSuffix = true;
+bool FunctionSamples::ProfileIsFS = false;
 } // namespace sampleprof
 } // namespace llvm
 
@@ -232,9 +233,15 @@ const FunctionSamples *FunctionSamples::findFunctionSamples(
 
   const DILocation *PrevDIL = DIL;
   for (DIL = DIL->getInlinedAt(); DIL; DIL = DIL->getInlinedAt()) {
-    S.push_back(std::make_pair(
-        LineLocation(getOffset(DIL), DIL->getBaseDiscriminator()),
-        PrevDIL->getScope()->getSubprogram()->getLinkageName()));
+    unsigned Discriminator;
+    if (ProfileIsFS)
+      Discriminator = DIL->getDiscriminator();
+    else
+      Discriminator = DIL->getBaseDiscriminator();
+
+    S.push_back(
+        std::make_pair(LineLocation(getOffset(DIL), Discriminator),
+                       PrevDIL->getScope()->getSubprogram()->getLinkageName()));
     PrevDIL = DIL;
   }
   if (S.size() == 0)
@@ -317,7 +324,8 @@ std::error_code ProfileSymbolList::read(const uint8_t *Data,
 }
 
 void SampleContextTrimmer::trimAndMergeColdContextProfiles(
-    uint64_t ColdCountThreshold, bool TrimColdContext, bool MergeColdContext) {
+    uint64_t ColdCountThreshold, bool TrimColdContext, bool MergeColdContext,
+    uint32_t ColdContextFrameLength) {
   if (!TrimColdContext && !MergeColdContext)
     return;
 
@@ -335,21 +343,24 @@ void SampleContextTrimmer::trimAndMergeColdContextProfiles(
     ColdProfiles.emplace_back(I.getKey(), &I.second);
   }
 
-  // Remove the cold profile from ProfileMap and merge them into BaseProileMap
-  StringMap<FunctionSamples> BaseProfileMap;
+  // Remove the cold profile from ProfileMap and merge them into
+  // MergedProfileMap by the last K frames of context
+  StringMap<FunctionSamples> MergedProfileMap;
   for (const auto &I : ColdProfiles) {
     if (MergeColdContext) {
-      auto Ret = BaseProfileMap.try_emplace(
-          I.second->getContext().getNameWithoutContext(), FunctionSamples());
-      FunctionSamples &BaseProfile = Ret.first->second;
-      BaseProfile.merge(*I.second);
+      auto Ret = MergedProfileMap.try_emplace(
+          I.second->getContext().getContextWithLastKFrames(
+              ColdContextFrameLength),
+          FunctionSamples());
+      FunctionSamples &MergedProfile = Ret.first->second;
+      MergedProfile.merge(*I.second);
     }
     ProfileMap.erase(I.first);
   }
 
-  // Merge the base profiles into ProfileMap;
-  for (const auto &I : BaseProfileMap) {
-    // Filter the cold base profile
+  // Move the merged profiles into ProfileMap;
+  for (const auto &I : MergedProfileMap) {
+    // Filter the cold merged profile
     if (TrimColdContext && I.second.getTotalSamples() < ColdCountThreshold &&
         ProfileMap.find(I.getKey()) == ProfileMap.end())
       continue;

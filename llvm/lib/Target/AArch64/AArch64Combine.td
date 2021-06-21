@@ -174,7 +174,8 @@ def bitfield_extract_from_sext_inreg : GICombineRule<
     [{ return matchBitfieldExtractFromSExtInReg(*${root}, MRI, ${info}); }]),
   (apply [{ return Helper.applyBuildFn(*${root}, ${info}); }])>;
 
-def form_bitfield_extract : GICombineGroup<[bitfield_extract_from_sext_inreg]>;
+def form_bitfield_extract : GICombineGroup<[bitfield_extract_from_sext_inreg,
+                                            bitfield_extract_from_and]>;
 
 def lower_vector_fcmp : GICombineRule<
   (defs root:$root),
@@ -210,6 +211,7 @@ def AArch64PostLegalizerCombinerHelper
                         redundant_and, xor_of_and_with_same_reg,
                         extractvecelt_pairwise_add, redundant_or,
                         mul_const, redundant_sext_inreg,
-                        form_bitfield_extract, rotate_out_of_range]> {
+                        form_bitfield_extract, rotate_out_of_range,
+                        icmp_to_true_false_known_bits]> {
   let DisableRuleOption = "aarch64postlegalizercombiner-disable-rule";
 }

@@ -62,6 +62,11 @@ public:
   // metadata and builds "spec constant name" -> vector<"spec constant int ID">
   // map
   static bool collectSpecConstantMetadata(llvm::Module &M, SpecIDMapTy &IDMap);
+  // Searches given module for occurrences of specialization constant-specific
+  // metadata and builds vector of default values for every spec constant.
+  static bool
+  collectSpecConstantDefaultValuesMetadata(llvm::Module &M,
+                                           std::vector<char> &DefaultValues);
 
 private:
   bool SetValAtRT;

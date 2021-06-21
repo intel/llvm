@@ -3915,6 +3915,9 @@ CXCursorKind clang::getCursorKindForDecl(const Decl *D) {
   case Decl::UnresolvedUsingTypename:
     return CXCursor_UsingDeclaration;
 
+  case Decl::UsingEnum:
+    return CXCursor_EnumDecl;
+
   case Decl::ObjCPropertyImpl:
     switch (cast<ObjCPropertyImplDecl>(D)->getPropertyImplementation()) {
     case ObjCPropertyImplDecl::Dynamic:
@@ -9196,6 +9199,18 @@ void Sema::CodeCompletePreprocessorDirective(bool InConditional) {
     Builder.AddTypedTextChunk("elif");
     Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
     Builder.AddPlaceholderChunk("condition");
+    Results.AddResult(Builder.TakeString());
+
+    // #elifdef <macro>
+    Builder.AddTypedTextChunk("elifdef");
+    Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
+    Builder.AddPlaceholderChunk("macro");
+    Results.AddResult(Builder.TakeString());
+
+    // #elifndef <macro>
+    Builder.AddTypedTextChunk("elifndef");
+    Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
+    Builder.AddPlaceholderChunk("macro");
     Results.AddResult(Builder.TakeString());
 
     // #else

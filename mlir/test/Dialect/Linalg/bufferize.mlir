@@ -85,7 +85,7 @@ func @multiple_results(%arg0: tensor<4xf32>) -> (tensor<4xf32>, tensor<4xf32>) {
       ^bb0(%gen_arg1: f32, %out1: f32, %out2: f32):
         %tmp1 = math.exp %gen_arg1 : f32
         linalg.yield %tmp1, %tmp1 : f32, f32
-    } -> tensor<4xf32>, tensor<4xf32>
+    } -> (tensor<4xf32>, tensor<4xf32>)
     return %0, %1 : tensor<4xf32>, tensor<4xf32>
 }
 
@@ -98,8 +98,8 @@ func @multiple_results(%arg0: tensor<4xf32>) -> (tensor<4xf32>, tensor<4xf32>) {
 
 // CHECK-LABEL:   func @dynamic_results(
 // CHECK-SAME:                          %[[ARG:.*]]: tensor<?x?xf32>
-// CHECK:           %[[C0:.*]] = constant 0 : index
-// CHECK:           %[[C1:.*]] = constant 1 : index
+// CHECK-DAG:       %[[C0:.*]] = constant 0 : index
+// CHECK-DAG:       %[[C1:.*]] = constant 1 : index
 // CHECK:           %[[MEMREF_ARG:.*]] = memref.buffer_cast %[[ARG]] : memref<?x?xf32>
 // CHECK:           %[[DIM0:.*]] = memref.dim %[[ARG]], %[[C0]] : tensor<?x?xf32>
 // CHECK:           %[[DIM1:.*]] = memref.dim %[[ARG]], %[[C1]] : tensor<?x?xf32>
@@ -118,7 +118,7 @@ func @dynamic_results(%arg0: tensor<?x?xf32>)
       ^bb0(%gen_arg1: f32, %out1: f32, %out2: f32):
         %tmp1 = math.exp %gen_arg1 : f32
         linalg.yield %tmp1, %tmp1 : f32, f32
-    } -> tensor<?x?xf32>, tensor<?x?xf32>
+    } -> (tensor<?x?xf32>, tensor<?x?xf32>)
     return %0, %1 : tensor<?x?xf32>, tensor<?x?xf32>
 }
 
@@ -206,8 +206,8 @@ func @bufferize_subtensor_insert(%t : tensor<?x?xf32>, %st0 : tensor<2x3xf32>, %
     (tensor<?x?xf32>, tensor<?x?xf32>) {
   %c0 = constant 0 : index
   %c1 = constant 1 : index
-  // CHECK-NEXT: %[[C0:.*]] = constant 0 : index
-  // CHECK-NEXT: %[[C1:.*]] = constant 1 : index
+  // CHECK-DAG: %[[C0:.*]] = constant 0 : index
+  // CHECK-DAG: %[[C1:.*]] = constant 1 : index
   %i0 = call @make_index() : () -> index
   // CHECK: %[[IDX:.*]] = call @make_index() : () -> index
 
@@ -253,15 +253,15 @@ func @bufferize_fill(%arg0: tensor<?xf32>) -> tensor<?xf32> {
 
 // -----
 
-// CHECK-LABEL: func @bufferize_tensor_reshape(
+// CHECK-LABEL: func @bufferize_tensor_collapse_shape(
 // CHECK-SAME:    %[[IN:.*]]: tensor<4x5xf32>
-func @bufferize_tensor_reshape(%arg0: tensor<4x5xf32>) -> tensor<20xf32> {
-  %out = linalg.tensor_reshape %arg0 [[0, 1]] :
+func @bufferize_tensor_collapse_shape(%arg0: tensor<4x5xf32>) -> tensor<20xf32> {
+  %out = linalg.tensor_collapse_shape %arg0 [[0, 1]] :
      tensor<4x5xf32> into tensor<20xf32>
   return %out : tensor<20xf32>
 }
 // CHECK: %[[MEMREF:.*]] = memref.buffer_cast %[[IN]] : memref<4x5xf32>
-// CHECK: %[[RESHAPE:.*]] = linalg.reshape %[[MEMREF]] {{\[}}[0, 1]]
+// CHECK: %[[RESHAPE:.*]] = linalg.collapse_shape %[[MEMREF]] {{\[}}[0, 1]]
 // CHECK-SAME: : memref<4x5xf32> into memref<20xf32>
 // CHECK: %[[TENSOR:.*]] = memref.tensor_load %[[RESHAPE]] : memref<20xf32>
 // CHECK: return %[[TENSOR]]

@@ -1008,6 +1008,10 @@ def gpu_instrument_lib_EQ : Joined<["--"], "gpu-instrument-lib=">,
 def fgpu_sanitize : Flag<["-"], "fgpu-sanitize">, Group<f_Group>,
   HelpText<"Enable sanitizer for AMDGPU target">;
 def fno_gpu_sanitize : Flag<["-"], "fno-gpu-sanitize">, Group<f_Group>;
+def gpu_bundle_output : Flag<["--"], "gpu-bundle-output">,
+  Group<f_Group>, HelpText<"Bundle output files of HIP device compilation">;
+def no_gpu_bundle_output : Flag<["--"], "no-gpu-bundle-output">,
+  Group<f_Group>, HelpText<"Do not bundle output files of HIP device compilation">;
 def cuid_EQ : Joined<["-"], "cuid=">, Flags<[CC1Option]>,
   HelpText<"An ID for compilation unit, which should be the same for the same "
            "compilation unit but different for different compilation units. "
@@ -1504,6 +1508,9 @@ defm cxx_static_destructors : BoolFOption<"c++-static-destructors",
   PosFlag<SetTrue>>;
 def fsymbol_partition_EQ : Joined<["-"], "fsymbol-partition=">, Group<f_Group>,
   Flags<[CC1Option]>, MarshallingInfoString<CodeGenOpts<"SymbolPartition">>;
+def fwarn_stack_size_EQ : Joined<["-"], "fwarn-stack-size=">, Group<f_Group>,
+  Flags<[CC1Option]>,
+  MarshallingInfoInt<CodeGenOpts<"WarnStackSize">, "UINT_MAX">;
 
 defm memory_profile : OptInFFlag<"memory-profile", "Enable", "Disable", " heap memory profiling">;
 def fmemory_profile_EQ : Joined<["-"], "fmemory-profile=">,
@@ -1600,6 +1607,16 @@ defm sanitize_address_use_after_scope : BoolOption<"f", "sanitize-address-use-af
   PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [CoreOption, NoXarchOption], "Disable">,
   BothFlags<[], " use-after-scope detection in AddressSanitizer">>,
   Group<f_clang_Group>;
+def sanitize_address_use_after_return_EQ
+  : Joined<["-"], "fsanitize-address-use-after-return=">,
+    MetaVarName<"<mode>">,
+    Flags<[CC1Option]>,
+    HelpText<"Select the mode of detecting stack use-after-return in AddressSanitizer">,
+    Group<f_clang_Group>,
+    Values<"never,runtime,always">,
+    NormalizedValuesScope<"llvm::AsanDetectStackUseAfterReturnMode">,
+    NormalizedValues<["Never", "Runtime", "Always"]>,
+    MarshallingInfoEnum<CodeGenOpts<"SanitizeAddressUseAfterReturn">, "Runtime">;
 defm sanitize_address_poison_custom_array_cookie : BoolOption<"f", "sanitize-address-poison-custom-array-cookie",
   CodeGenOpts<"SanitizeAddressPoisonCustomArrayCookie">, DefaultFalse,
   PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [], "Disable">,
@@ -1952,10 +1969,14 @@ defm fine_grained_bitfield_accesses : BoolOption<"f", "fine-grained-bitfield-acc
   BothFlags<[CC1Option]>>,
   Group<f_clang_Group>;
 
-defm experimental_relative_cxx_abi_vtables : BoolFOption<"experimental-relative-c++-abi-vtables",
-  LangOpts<"RelativeCXXABIVTables">, DefaultFalse,
-  PosFlag<SetTrue, [], "Use">, NegFlag<SetFalse, [], "Do not use">,
-  BothFlags<[CC1Option], " the experimental C++ class ABI for classes with virtual tables">>;
+def fexperimental_relative_cxx_abi_vtables :
+  Flag<["-"], "fexperimental-relative-c++-abi-vtables">,
+  Group<f_clang_Group>, Flags<[CC1Option]>,
+  HelpText<"Use the experimental C++ class ABI for classes with virtual tables">;
+def fno_experimental_relative_cxx_abi_vtables :
+  Flag<["-"], "fno-experimental-relative-c++-abi-vtables">,
+  Group<f_clang_Group>, Flags<[CC1Option]>,
+  HelpText<"Do not use the experimental C++ class ABI for classes with virtual tables">;
 
 def fcxx_abi_EQ : Joined<["-"], "fc++-abi=">,
                   Group<f_clang_Group>, Flags<[CC1Option]>,
@@ -1978,10 +1999,18 @@ def fapple_link_rtlib : Flag<["-"], "fapple-link-rtlib">, Group<f_Group>,
   HelpText<"Force linking the clang builtins runtime library">;
 def flto_EQ : Joined<["-"], "flto=">, Flags<[CoreOption, CC1Option]>, Group<f_Group>,
   HelpText<"Set LTO mode to either 'full' or 'thin'">, Values<"thin,full">;
+def flto_EQ_jobserver : Flag<["-"], "flto=jobserver">, Group<f_Group>;
+def flto_EQ_auto : Flag<["-"], "flto=auto">, Group<f_Group>;
 def flto : Flag<["-"], "flto">, Flags<[CoreOption, CC1Option]>, Group<f_Group>,
   HelpText<"Enable LTO in 'full' mode">;
 def fno_lto : Flag<["-"], "fno-lto">, Flags<[CoreOption, CC1Option]>, Group<f_Group>,
   HelpText<"Disable LTO mode (default)">;
+def foffload_lto_EQ : Joined<["-"], "foffload-lto=">, Flags<[CoreOption]>, Group<f_Group>,
+  HelpText<"Set LTO mode to either 'full' or 'thin' for offload compilation">, Values<"thin,full">;
+def foffload_lto : Flag<["-"], "foffload-lto">, Flags<[CoreOption]>, Group<f_Group>,
+  HelpText<"Enable LTO in 'full' mode for offload compilation">;
+def fno_offload_lto : Flag<["-"], "fno-offload-lto">, Flags<[CoreOption]>, Group<f_Group>,
+  HelpText<"Disable LTO mode (default) for offload compilation">;
 def flto_jobs_EQ : Joined<["-"], "flto-jobs=">,
   Flags<[CC1Option]>, Group<f_Group>,
   HelpText<"Controls the backend parallelism of -flto=thin (default "
@@ -2225,9 +2254,10 @@ def fno_ms_compatibility : Flag<["-"], "fno-ms-compatibility">, Group<f_Group>,
 def fno_objc_legacy_dispatch : Flag<["-"], "fno-objc-legacy-dispatch">, Group<f_Group>;
 def fno_objc_weak : Flag<["-"], "fno-objc-weak">, Group<f_Group>, Flags<[CC1Option]>;
 def fno_omit_frame_pointer : Flag<["-"], "fno-omit-frame-pointer">, Group<f_Group>;
-def fno_operator_names : Flag<["-"], "fno-operator-names">, Group<f_Group>,
-  HelpText<"Do not treat C++ operator name keywords as synonyms for operators">,
-  Flags<[CC1Option]>, MarshallingInfoNegativeFlag<LangOpts<"CXXOperatorNames">, cplusplus.KeyPath>;
+defm operator_names : BoolFOption<"operator-names",
+  LangOpts<"CXXOperatorNames">, Default<cplusplus.KeyPath>,
+  NegFlag<SetFalse, [CC1Option], "Do not treat C++ operator name keywords as synonyms for operators">,
+  PosFlag<SetTrue>>;
 def fdiagnostics_absolute_paths : Flag<["-"], "fdiagnostics-absolute-paths">, Group<f_Group>,
   Flags<[CC1Option, CoreOption]>, HelpText<"Print absolute paths in diagnostics">,
   MarshallingInfoFlag<DiagnosticOpts<"AbsolutePath">>;
@@ -2750,9 +2780,10 @@ def fvisibility_externs_nodllstorageclass_EQ : Joined<["-"], "fvisibility-extern
   ShouldParseIf<fvisibility_from_dllstorageclass.KeyPath>;
 def fvisibility_EQ : Joined<["-"], "fvisibility=">, Group<f_Group>,
   HelpText<"Set the default symbol visibility for all global declarations">, Values<"hidden,default">;
-def fvisibility_inlines_hidden : Flag<["-"], "fvisibility-inlines-hidden">, Group<f_Group>,
-  HelpText<"Give inline C++ member functions hidden visibility by default">,
-  Flags<[CC1Option]>, MarshallingInfoFlag<LangOpts<"InlineVisibilityHidden">>;
+defm visibility_inlines_hidden : BoolFOption<"visibility-inlines-hidden",
+  LangOpts<"InlineVisibilityHidden">, DefaultFalse,
+  PosFlag<SetTrue, [CC1Option], "Give inline C++ member functions hidden visibility by default">,
+  NegFlag<SetFalse>>;
 defm visibility_inlines_hidden_static_local_var : BoolFOption<"visibility-inlines-hidden-static-local-var",
   LangOpts<"VisibilityInlinesHiddenStaticLocalVar">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "When -fvisibility-inlines-hidden is enabled, static variables in"
@@ -3104,6 +3135,7 @@ def mtls_size_EQ : Joined<["-"], "mtls-size=">, Group<m_Group>, Flags<[NoXarchOp
   HelpText<"Specify bit size of immediate TLS offsets (AArch64 ELF only): "
            "12 (for 4KB) | 24 (for 16MB, default) | 32 (for 4GB) | 48 (for 256TB, needs -mcmodel=large)">,
   MarshallingInfoInt<CodeGenOpts<"TLSSize">>;
+def mimplicit_it_EQ : Joined<["-"], "mimplicit-it=">, Group<m_Group>;
 def mdefault_build_attributes : Joined<["-"], "mdefault-build-attributes">, Group<m_Group>;
 def mno_default_build_attributes : Joined<["-"], "mno-default-build-attributes">, Group<m_Group>;
 def mconstant_cfstrings : Flag<["-"], "mconstant-cfstrings">, Group<clang_ignored_m_Group>;
@@ -3510,7 +3542,7 @@ def mstack_protector_guard_offset_EQ : Joined<["-"], "mstack-protector-guard-off
   MarshallingInfoInt<CodeGenOpts<"StackProtectorGuardOffset">, "INT_MAX", "int">;
 def mstack_protector_guard_reg_EQ : Joined<["-"], "mstack-protector-guard-reg=">, Group<m_Group>, Flags<[CC1Option]>,
   HelpText<"Use the given reg for addressing the stack-protector guard">,
-  MarshallingInfoString<CodeGenOpts<"StackProtectorGuardReg">, [{"none"}]>;
+  MarshallingInfoString<CodeGenOpts<"StackProtectorGuardReg">>;
 def mfentry : Flag<["-"], "mfentry">, HelpText<"Insert calls to fentry at function entry (x86/SystemZ only)">,
   Flags<[CC1Option]>, Group<m_Group>,
   MarshallingInfoFlag<CodeGenOpts<"CallFEntry">>;
@@ -4098,6 +4130,13 @@ def m68030 : Flag<["-"], "m68030">, Group<m_m68k_Features_Group>;
 def m68040 : Flag<["-"], "m68040">, Group<m_m68k_Features_Group>;
 def m68060 : Flag<["-"], "m68060">, Group<m_m68k_Features_Group>;
 
+foreach i = {0-6} in
+  def ffixed_a#i : Flag<["-"], "ffixed-a"#i>, Group<m_m68k_Features_Group>,
+    HelpText<"Reserve the a"#i#" register (M68k only)">;
+foreach i = {0-7} in
+  def ffixed_d#i : Flag<["-"], "ffixed-d"#i>, Group<m_m68k_Features_Group>,
+    HelpText<"Reserve the d"#i#" register (M68k only)">;
+
 // X86 feature flags
 def mx87 : Flag<["-"], "mx87">, Group<m_x86_Features_Group>;
 def mno_x87 : Flag<["-"], "mno-x87">, Group<m_x86_Features_Group>;
@@ -4340,8 +4379,6 @@ defm reorder_blocks : BooleanFFlag<"reorder-blocks">, Group<clang_ignored_gcc_op
 defm branch_count_reg : BooleanFFlag<"branch-count-reg">, Group<clang_ignored_gcc_optimization_f_Group>;
 defm default_inline : BooleanFFlag<"default-inline">, Group<clang_ignored_gcc_optimization_f_Group>;
 defm fat_lto_objects : BooleanFFlag<"fat-lto-objects">, Group<clang_ignored_gcc_optimization_f_Group>;
-def : Flag<["-"], "flto=auto">, Group<clang_ignored_gcc_optimization_f_Group>;
-def : Flag<["-"], "flto=jobserver">, Group<clang_ignored_gcc_optimization_f_Group>;
 defm float_store : BooleanFFlag<"float-store">, Group<clang_ignored_gcc_optimization_f_Group>;
 defm friend_injection : BooleanFFlag<"friend-injection">, Group<clang_ignored_f_Group>;
 defm function_attribute_list : BooleanFFlag<"function-attribute-list">, Group<clang_ignored_f_Group>;
@@ -4614,6 +4651,9 @@ def fdebug_module_writer : Flag<["-"],"fdebug-module-writer">,
   HelpText<"Enable debug messages while writing module files">;
 def fget_symbols_sources : Flag<["-"], "fget-symbols-sources">, Group<Action_Group>,
   HelpText<"Dump symbols and their source code locations">;
+
+def module_suffix : Separate<["-"], "module-suffix">,  Group<f_Group>, MetaVarName<"<suffix>">,
+  HelpText<"Use <suffix> as the suffix for module files (the default value is `.mod`)">;
 
 }
 
@@ -5366,8 +5406,6 @@ def analyze : Flag<["-"], "analyze">,
   HelpText<"Run static analysis engine">;
 def dump_tokens : Flag<["-"], "dump-tokens">,
   HelpText<"Run preprocessor, dump internal rep of tokens">;
-def init_only : Flag<["-"], "init-only">,
-  HelpText<"Only execute frontend initialization">;
 def fixit : Flag<["-"], "fixit">,
   HelpText<"Apply fix-it advice to the input source">;
 def fixit_EQ : Joined<["-"], "fixit=">,
@@ -5578,6 +5616,10 @@ def fallow_pch_with_errors : Flag<["-"], "fallow-pch-with-compiler-errors">,
   HelpText<"Accept a PCH file that was created with compiler errors">,
   MarshallingInfoFlag<PreprocessorOpts<"AllowPCHWithCompilerErrors">>,
   ImpliedByAnyOf<[fallow_pcm_with_errors.KeyPath]>;
+def fallow_pch_with_different_modules_cache_path :
+  Flag<["-"], "fallow-pch-with-different-modules-cache-path">,
+  HelpText<"Accept a PCH file that was created with a different modules cache path">,
+  MarshallingInfoFlag<PreprocessorOpts<"AllowPCHWithDifferentModulesCachePath">>;
 def dump_deserialized_pch_decls : Flag<["-"], "dump-deserialized-decls">,
   HelpText<"Dump declarations that are deserialized from PCH, for testing">,
   MarshallingInfoFlag<PreprocessorOpts<"DumpDeserializedPCHDecls">>;
@@ -5876,6 +5918,8 @@ let Group = Action_Group in {
 
 def emit_obj : Flag<["-"], "emit-obj">,
   HelpText<"Emit native object files">;
+def init_only : Flag<["-"], "init-only">,
+  HelpText<"Only execute frontend initialization">;
 
 } // let Group = Action_Group
 } // let Flags = [CC1Option, FC1Option, NoDriverOption]
@@ -6078,7 +6122,7 @@ def _SLASH_execution_charset : CLCompileJoined<"execution-charset:">,
   HelpText<"Set runtime encoding, supports only UTF-8">,
   Alias<fexec_charset_EQ>;
 def _SLASH_std : CLCompileJoined<"std:">,
-  HelpText<"Set language version (c++14,c++17,c++latest,c11,c17)">;
+  HelpText<"Set language version (c++14,c++17,c++20,c++latest,c11,c17)">;
 def _SLASH_U : CLJoinedOrSeparate<"U">, HelpText<"Undefine macro">,
   MetaVarName<"<macro>">, Alias<U>;
 def _SLASH_validate_charset : CLFlag<"validate-charset">,
@@ -6230,6 +6274,10 @@ def _SLASH_o : CLJoinedOrSeparate<"o">,
   HelpText<"Deprecated (set output file name); use /Fe or /Fe">,
   MetaVarName<"<file or dir/>">;
 def _SLASH_P : CLFlag<"P">, HelpText<"Preprocess to file">;
+def _SLASH_permissive : CLFlag<"permissive">,
+  HelpText<"Enable some non conforming code to compile">;
+def _SLASH_permissive_ : CLFlag<"permissive-">,
+  HelpText<"Disable non conforming code from compiling (default)">;
 def _SLASH_Tc : CLCompileJoinedOrSeparate<"Tc">,
   HelpText<"Treat <file> as C source file">, MetaVarName<"<file>">;
 def _SLASH_TC : CLCompileFlag<"TC">, HelpText<"Treat all source files as C">;
@@ -6311,7 +6359,6 @@ def _SLASH_FS : CLIgnoredFlag<"FS">;
 def _SLASH_JMC : CLIgnoredFlag<"JMC">;
 def _SLASH_kernel_ : CLIgnoredFlag<"kernel-">;
 def _SLASH_nologo : CLIgnoredFlag<"nologo">;
-def _SLASH_permissive_ : CLIgnoredFlag<"permissive-">;
 def _SLASH_RTC : CLIgnoredJoined<"RTC">;
 def _SLASH_sdl : CLIgnoredFlag<"sdl">;
 def _SLASH_sdl_ : CLIgnoredFlag<"sdl-">;
@@ -6336,6 +6383,7 @@ def _SLASH_Zo_ : CLIgnoredFlag<"Zo-">;
 // Unsupported:
 
 def _SLASH_await : CLFlag<"await">;
+def _SLASH_await_COLON : CLJoined<"await:">;
 def _SLASH_constexpr : CLJoined<"constexpr:">;
 def _SLASH_AI : CLJoinedOrSeparate<"AI">;
 def _SLASH_Bt : CLFlag<"Bt">;
@@ -6345,6 +6393,8 @@ def _SLASH_d2 : CLJoined<"d2">;
 def _SLASH_doc : CLJoined<"doc">;
 def _SLASH_experimental : CLJoined<"experimental:">;
 def _SLASH_exportHeader : CLFlag<"exportHeader">;
+def _SLASH_external : CLJoined<"external:">;
+def _SLASH_external_COLON_I : CLJoinedOrSeparate<"external:I">;
 def _SLASH_FA_joined : CLJoined<"FA">;
 def _SLASH_favor : CLJoined<"favor">;
 def _SLASH_fsanitize_address_use_after_return : CLJoined<"fsanitize-address-use-after-return">;

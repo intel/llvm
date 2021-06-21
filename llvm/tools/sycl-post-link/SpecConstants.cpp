@@ -46,6 +46,10 @@ constexpr char SPIRV_GET_SPEC_CONST_COMPOSITE[] =
 // Name of the metadata which holds a list of all specialization constants (with
 // associated information) encountered in the module
 constexpr char SPEC_CONST_MD_STRING[] = "sycl.specialization-constants";
+// Name of the metadata which holds a default value list of all specialization
+// constants encountered in the module
+constexpr char SPEC_CONST_DEFAULT_VAL_MD_STRING[] =
+    "sycl.specialization-constants-default-values";
 
 void AssertRelease(bool Cond, const char *Msg) {
   if (!Cond)
@@ -170,6 +174,8 @@ std::string manglePrimitiveType(const Type *T) {
     return "f";
   if (T->isDoubleTy())
     return "d";
+  if (T->isHalfTy())
+    return "Dh";
   if (T->isIntegerTy()) {
     switch (T->getIntegerBitWidth()) {
     case 1:
@@ -212,6 +218,11 @@ std::string mangleFuncItanium(StringRef BaseName, const FunctionType *FT) {
   for (unsigned I = 0; I < FT->getNumParams(); ++I)
     Res += manglePrimitiveType(FT->getParamType(I));
   return Res;
+}
+
+MDNode *generateSpecConstDefaultValueMetadata(StringRef SymID, Value *Default) {
+  LLVMContext &Ctx = Default->getContext();
+  return MDNode::get(Ctx, ConstantAsMetadata::get(cast<Constant>(Default)));
 }
 
 /// Recursively iterates over a composite type in order to collect information
@@ -261,6 +272,72 @@ void collectCompositeElementsInfoRecursive(
                 (Ty->getPrimitiveSizeInBits() % 8 != 0);
     Result[Index++] = Desc;
     Offset += Desc.Size;
+  }
+}
+
+/// Recursively iterates over a composite type in order to collect information
+/// about default values of its scalar elements.
+/// TODO: processing of composite spec constants here is similar to
+/// collectCompositeElementsInfoRecursive. Possible place for improvement -
+/// factor out the common code, e.g. using visitor pattern.
+void collectCompositeElementsDefaultValuesRecursive(
+    const Module &M, Constant *C, unsigned &Offset,
+    std::vector<char> &DefaultValues) {
+  Type *Ty = C->getType();
+  if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
+    for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
+      Constant *El = cast<Constant>(C->getOperand(I));
+      collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
+                                                     DefaultValues);
+    }
+  } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
+    const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
+    for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
+      Constant *El = cast<Constant>(C->getOperand(I));
+      // When handling elements of a structure, we do not use manually
+      // calculated offsets (which are sum of sizes of all previously
+      // encountered elements), but instead rely on data provided for us by
+      // DataLayout, because the structure can be unpacked, i.e. padded in
+      // order to ensure particular alignment of its elements.
+      unsigned LocalOffset = Offset + SL->getElementOffset(I);
+
+      // If there was some alignment, fill the data between values with zeros.
+      while (LocalOffset != DefaultValues.size())
+        DefaultValues.push_back(0);
+
+      collectCompositeElementsDefaultValuesRecursive(M, El, LocalOffset,
+                                                     DefaultValues);
+    }
+    // Update "global" offset according to the total size of a handled struct
+    // type.
+    Offset += SL->getSizeInBytes();
+  } else if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
+    for (size_t I = 0; I < VecTy->getNumElements(); ++I) {
+      Constant *El = cast<Constant>(C->getOperand(I));
+      collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
+                                                     DefaultValues);
+    }
+  } else { // Assume that we encountered some scalar element
+    int NumBytes = Ty->getScalarSizeInBits() / CHAR_BIT +
+                   (Ty->getScalarSizeInBits() % 8 != 0);
+    char *CharPtr;
+
+    if (auto IntConst = dyn_cast<ConstantInt>(C)) {
+      auto Val = IntConst->getValue().getZExtValue();
+      CharPtr = reinterpret_cast<char *>(&Val);
+    } else if (auto FPConst = dyn_cast<ConstantFP>(C)) {
+      auto Val = FPConst->getValue();
+
+      if (NumBytes == 4) {
+        float v = Val.convertToFloat();
+        CharPtr = reinterpret_cast<char *>(&v);
+      } else if (NumBytes == 8) {
+        double v = Val.convertToDouble();
+        CharPtr = reinterpret_cast<char *>(&v);
+      }
+    }
+    std::copy_n(CharPtr, NumBytes, std::back_inserter(DefaultValues));
+    Offset += NumBytes;
   }
 }
 
@@ -476,6 +553,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   StringMap<SmallVector<unsigned, 1>> IDMap;
   StringMap<unsigned> OffsetMap;
   MapVector<StringRef, MDNode *> SCMetadata;
+  SmallVector<MDNode *, 4> DefaultsMetadata;
 
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)
@@ -531,6 +609,26 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       StringRef SymID = getStringLiteralArg(CI, NameArgNo, DelInsts);
       Value *Replacement = nullptr;
 
+      Constant *DefaultValue = nullptr;
+      if (Is2020Intrinsic) {
+        // For SYCL 2020, there is a mechanism to specify the default value.
+        // It is stored as an initializer of a global variable referenced by
+        // the second argument of the intrinsic.
+        auto *GV = dyn_cast<GlobalVariable>(
+            CI->getArgOperand(NameArgNo + 1)->stripPointerCasts());
+        // Go through global variable if the second argument was not null.
+        if (GV) {
+          assert(GV->hasInitializer() && "expected initializer");
+          auto *Initializer = GV->getInitializer();
+          assert((isa<ConstantAggregate>(Initializer) ||
+                  Initializer->isZeroValue()) &&
+                 "expected specialization_id instance");
+          // specialization_id structure contains a single field which is the
+          // default value of corresponding specialization constant.
+          DefaultValue = Initializer->getAggregateElement(0u);
+        }
+      }
+
       if (SetValAtRT) {
         // 2. Spec constant value will be set at run time - then add the literal
         // to a "spec const string literal ID" -> "vector of integer IDs" map,
@@ -543,25 +641,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // For any spec constant type there will be always at least one ID
           // generated.
           IDs.push_back(NextID);
-        }
-
-        Constant *DefaultValue = nullptr;
-        if (Is2020Intrinsic) {
-          // For SYCL 2020, there is a mechanism to specify the default value.
-          // It is stored as an initializer of a global variable referenced by
-          // the second argument of the intrinsic.
-          auto *GV = dyn_cast<GlobalVariable>(
-              CI->getArgOperand(NameArgNo + 1)->stripPointerCasts());
-          if (GV) {
-            assert(GV->hasInitializer() && "expected initializer");
-            auto *Initializer = GV->getInitializer();
-            assert((isa<ConstantAggregate>(Initializer) ||
-                    Initializer->isZeroValue()) &&
-                   "expected specialization_id instance");
-            // specialization_id structure contains a single field which is the
-            // default value of corresponding specialization constant.
-            DefaultValue = Initializer->getAggregateElement(0u);
-          }
         }
 
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
@@ -630,6 +709,10 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               GEP, PointerType::get(SCTy, GEP->getAddressSpace()), "bc", CI);
 
           Replacement = new LoadInst(SCTy, BitCast, "load", CI);
+
+          if (IsNewSpecConstant && DefaultValue)
+            DefaultsMetadata.push_back(
+                generateSpecConstDefaultValueMetadata(SymID, DefaultValue));
         } else {
           // Replace the intrinsic with default C++ value for the spec constant
           // type.
@@ -667,12 +750,20 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   for (const auto &P : SCMetadata)
     MD->addOperand(P.second);
 
+  // Emit default values metadata only in native (default) spec constants mode.
+  if (!SetValAtRT) {
+    NamedMDNode *MDDefaults =
+        M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
+    for (const auto &P : DefaultsMetadata)
+      MDDefaults->addOperand(P);
+  }
+
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
 bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
                                                     SpecIDMapTy &IDMap) {
-  NamedMDNode *MD = M.getOrInsertNamedMetadata(SPEC_CONST_MD_STRING);
+  NamedMDNode *MD = M.getNamedMetadata(SPEC_CONST_MD_STRING);
   if (!MD)
     return false;
 
@@ -695,6 +786,22 @@ bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
     }
 
     IDMap[ID] = Descs;
+  }
+
+  return true;
+}
+
+bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
+    Module &M, std::vector<char> &DefaultValues) {
+  NamedMDNode *N = M.getNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
+  if (!N)
+    return false;
+
+  unsigned Offset = 0;
+  for (const auto *Node : N->operands()) {
+    auto *Constant = cast<ConstantAsMetadata>(Node->getOperand(0))->getValue();
+    collectCompositeElementsDefaultValuesRecursive(M, Constant, Offset,
+                                                   DefaultValues);
   }
 
   return true;

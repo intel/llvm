@@ -34,6 +34,11 @@ def LinalgComprehensiveFuncBufferize :
     same buffers. The analysis is performed on SSA use-def chains starting from
     function operands that are annotated with the 'inplaceable' attribute
   }];
+  let options = [
+    Option<"testAnalysisOnly", "test-analysis-only", "bool",
+            /*default=*/"false",
+           "Only runs inplaceability analysis (for testing purposes only)">
+  ];
   let constructor = "mlir::createLinalgComprehensiveFuncBufferizePass()";
 }
 
@@ -81,6 +86,14 @@ def LinalgLowerTiledLoopsToSCF
     "linalg::LinalgDialect",
     "scf::SCFDialect",
     "AffineDialect"
+  ];
+}
+
+def LinalgInlineScalarOperands : FunctionPass<"linalg-inline-scalar-operands"> {
+  let summary = "Inline scalar operands into linalg generic ops";
+  let constructor = "mlir::createLinalgInlineScalarOperandsPass()";
+  let dependentDialects = [
+    "linalg::LinalgDialect"
   ];
 }
 
@@ -174,6 +187,9 @@ def LinalgTilingToTiledLoops
   let constructor = "mlir::createLinalgTilingToTiledLoopPass()";
   let options = [
     ListOption<"tileSizes", "linalg-tile-sizes", "int64_t", "Tile sizes",
+               "llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated">,
+    ListOption<"distributionTypes", "linalg-distribution-types", "std::string",
+               "DistributionTypes",
                "llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated">
   ];
   let dependentDialects = [

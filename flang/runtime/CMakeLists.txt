@@ -35,6 +35,7 @@ add_flang_library(FortranRuntime
   allocatable.cpp
   buffer.cpp
   complex-reduction.c
+  copy.cpp
   character.cpp
   connection.cpp
   derived.cpp
@@ -65,6 +66,7 @@ add_flang_library(FortranRuntime
   stop.cpp
   sum.cpp
   terminator.cpp
+  time-intrinsic.cpp
   tools.cpp
   transformational.cpp
   type-code.cpp

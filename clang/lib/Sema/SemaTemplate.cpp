@@ -1256,8 +1256,8 @@ bool Sema::AttachTypeConstraint(AutoTypeLoc TL, NonTypeTemplateParmDecl *NTTP,
   }
   // FIXME: Concepts: This should be the type of the placeholder, but this is
   // unclear in the wording right now.
-  DeclRefExpr *Ref = BuildDeclRefExpr(NTTP, NTTP->getType(), VK_RValue,
-                                      NTTP->getLocation());
+  DeclRefExpr *Ref =
+      BuildDeclRefExpr(NTTP, NTTP->getType(), VK_PRValue, NTTP->getLocation());
   if (!Ref)
     return true;
   ExprResult ImmediatelyDeclaredConstraint =
@@ -1870,7 +1870,7 @@ DeclResult Sema::CheckClassTemplate(
       Diag(KWLoc, diag::err_using_decl_conflict_reverse);
       Diag(Shadow->getTargetDecl()->getLocation(),
            diag::note_using_decl_target);
-      Diag(Shadow->getUsingDecl()->getLocation(), diag::note_using_decl) << 0;
+      Diag(Shadow->getIntroducer()->getLocation(), diag::note_using_decl) << 0;
       // Recover by ignoring the old declaration.
       PrevDecl = PrevClassTemplate = nullptr;
     }
@@ -2217,7 +2217,7 @@ struct ConvertConstructorToDeductionGuideTransform {
       return nullptr;
     TypeSourceInfo *NewTInfo = TLB.getTypeSourceInfo(SemaRef.Context, NewType);
 
-    return buildDeductionGuide(TemplateParams, CD->getExplicitSpecifier(),
+    return buildDeductionGuide(TemplateParams, CD, CD->getExplicitSpecifier(),
                                NewTInfo, CD->getBeginLoc(), CD->getLocation(),
                                CD->getEndLoc(), MaterializedTypedefs);
   }
@@ -2247,7 +2247,7 @@ struct ConvertConstructorToDeductionGuideTransform {
       Params.push_back(NewParam);
     }
 
-    return buildDeductionGuide(Template->getTemplateParameters(),
+    return buildDeductionGuide(Template->getTemplateParameters(), nullptr,
                                ExplicitSpecifier(), TSI, Loc, Loc, Loc);
   }
 
@@ -2405,9 +2405,9 @@ private:
       NewDefArg = new (SemaRef.Context)
           OpaqueValueExpr(OldParam->getDefaultArg()->getBeginLoc(),
                           ParamTy.getNonLValueExprType(SemaRef.Context),
-                          ParamTy->isLValueReferenceType() ? VK_LValue :
-                          ParamTy->isRValueReferenceType() ? VK_XValue :
-                          VK_RValue);
+                          ParamTy->isLValueReferenceType()   ? VK_LValue
+                          : ParamTy->isRValueReferenceType() ? VK_XValue
+                                                             : VK_PRValue);
     }
 
     ParmVarDecl *NewParam = ParmVarDecl::Create(SemaRef.Context, DC,
@@ -2425,9 +2425,9 @@ private:
   }
 
   FunctionTemplateDecl *buildDeductionGuide(
-      TemplateParameterList *TemplateParams, ExplicitSpecifier ES,
-      TypeSourceInfo *TInfo, SourceLocation LocStart, SourceLocation Loc,
-      SourceLocation LocEnd,
+      TemplateParameterList *TemplateParams, CXXConstructorDecl *Ctor,
+      ExplicitSpecifier ES, TypeSourceInfo *TInfo, SourceLocation LocStart,
+      SourceLocation Loc, SourceLocation LocEnd,
       llvm::ArrayRef<TypedefNameDecl *> MaterializedTypedefs = {}) {
     DeclarationNameInfo Name(DeductionGuideName, Loc);
     ArrayRef<ParmVarDecl *> Params =
@@ -2436,7 +2436,7 @@ private:
     // Build the implicit deduction guide template.
     auto *Guide =
         CXXDeductionGuideDecl::Create(SemaRef.Context, DC, LocStart, ES, Name,
-                                      TInfo->getType(), TInfo, LocEnd);
+                                      TInfo->getType(), TInfo, LocEnd, Ctor);
     Guide->setImplicit();
     Guide->setParams(Params);
 
@@ -6903,8 +6903,9 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
       Arg = PE->getPattern();
     ExprResult E = ImpCastExprToType(
         Arg, ParamType.getNonLValueExprType(Context), CK_Dependent,
-        ParamType->isLValueReferenceType() ? VK_LValue :
-        ParamType->isRValueReferenceType() ? VK_XValue : VK_RValue);
+        ParamType->isLValueReferenceType()   ? VK_LValue
+        : ParamType->isRValueReferenceType() ? VK_XValue
+                                             : VK_PRValue);
     if (E.isInvalid())
       return ExprError();
     if (PE) {
@@ -7201,10 +7202,10 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
       Value.setIsSigned(IntegerType->isSignedIntegerOrEnumerationType());
 
       // Complain if an unsigned parameter received a negative value.
-      if (IntegerType->isUnsignedIntegerOrEnumerationType()
-               && (OldValue.isSigned() && OldValue.isNegative())) {
+      if (IntegerType->isUnsignedIntegerOrEnumerationType() &&
+          (OldValue.isSigned() && OldValue.isNegative())) {
         Diag(Arg->getBeginLoc(), diag::warn_template_arg_negative)
-            << OldValue.toString(10) << Value.toString(10) << Param->getType()
+            << toString(OldValue, 10) << toString(Value, 10) << Param->getType()
             << Arg->getSourceRange();
         Diag(Param->getLocation(), diag::note_template_param_here);
       }
@@ -7219,7 +7220,7 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
         RequiredBits = OldValue.getMinSignedBits();
       if (RequiredBits > AllowedBits) {
         Diag(Arg->getBeginLoc(), diag::warn_template_arg_too_large)
-            << OldValue.toString(10) << Value.toString(10) << Param->getType()
+            << toString(OldValue, 10) << toString(Value, 10) << Param->getType()
             << Arg->getSourceRange();
         Diag(Param->getLocation(), diag::note_template_param_here);
       }
@@ -7632,7 +7633,7 @@ Sema::BuildExpressionFromIntegralTemplateArgument(const TemplateArgument &Arg,
   if (OrigT->isEnumeralType()) {
     // FIXME: This is a hack. We need a better way to handle substituted
     // non-type template parameters.
-    E = CStyleCastExpr::Create(Context, OrigT, VK_RValue, CK_IntegralCast, E,
+    E = CStyleCastExpr::Create(Context, OrigT, VK_PRValue, CK_IntegralCast, E,
                                nullptr, CurFPFeatureOverrides(),
                                Context.getTrivialTypeSourceInfo(OrigT, Loc),
                                Loc, Loc);

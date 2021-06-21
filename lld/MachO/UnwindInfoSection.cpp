@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "UnwindInfoSection.h"
+#include "ConcatOutputSection.h"
 #include "Config.h"
 #include "InputSection.h"
-#include "MergedOutputSection.h"
 #include "OutputSection.h"
 #include "OutputSegment.h"
 #include "SymbolTable.h"
@@ -19,8 +19,8 @@
 
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/BinaryFormat/MachO.h"
 
 using namespace llvm;
@@ -89,18 +89,10 @@ using namespace lld::macho;
 // compact_unwind_encoding.h for an overview of the format we are encoding
 // here.
 
-// TODO(gkm): prune __eh_frame entries superseded by __unwind_info
+// TODO(gkm): prune __eh_frame entries superseded by __unwind_info, PR50410
 // TODO(gkm): how do we align the 2nd-level pages?
 
 using EncodingMap = llvm::DenseMap<compact_unwind_encoding_t, size_t>;
-
-template <class Ptr> struct CompactUnwindEntry {
-  Ptr functionAddress;
-  uint32_t functionLength;
-  compact_unwind_encoding_t encoding;
-  Ptr personality;
-  Ptr lsda;
-};
 
 struct SecondLevelPage {
   uint32_t kind;
@@ -113,7 +105,7 @@ struct SecondLevelPage {
 
 template <class Ptr> class UnwindInfoSectionImpl : public UnwindInfoSection {
 public:
-  void prepareRelocations(InputSection *) override;
+  void prepareRelocations(ConcatInputSection *) override;
   void finalize() override;
   void writeTo(uint8_t *buf) const override;
 
@@ -140,12 +132,17 @@ private:
 // actually end up in the final binary. Second, personality pointers always
 // reside in the GOT and must be treated specially.
 template <class Ptr>
-void UnwindInfoSectionImpl<Ptr>::prepareRelocations(InputSection *isec) {
+void UnwindInfoSectionImpl<Ptr>::prepareRelocations(ConcatInputSection *isec) {
   assert(isec->segname == segment_names::ld &&
          isec->name == section_names::compactUnwind);
   assert(!isec->shouldOmitFromOutput() &&
          "__compact_unwind section should not be omitted");
 
+  // FIXME: Make this skip relocations for CompactUnwindEntries that
+  // point to dead-stripped functions. That might save some amount of
+  // work. But since there are usually just few personality functions
+  // that are referenced from many places, at least some of them likely
+  // live, it wouldn't reduce number of got entries.
   for (Reloc &r : isec->relocs) {
     assert(target->hasAttr(r.type, RelocAttrBits::UNSIGNED));
     if (r.offset % sizeof(CompactUnwindEntry<Ptr>) !=
@@ -177,17 +174,18 @@ void UnwindInfoSectionImpl<Ptr>::prepareRelocations(InputSection *isec) {
     }
 
     if (auto *referentIsec = r.referent.dyn_cast<InputSection *>()) {
-      assert(!referentIsec->shouldOmitFromOutput());
-
       // Personality functions can be referenced via section relocations
       // if they live in the same object file. Create placeholder synthetic
       // symbols for them in the GOT.
       Symbol *&s = personalityTable[{referentIsec, r.addend}];
       if (s == nullptr) {
+        // This runs after dead stripping, so the noDeadStrip argument does not
+        // matter.
         s = make<Defined>("<internal>", /*file=*/nullptr, referentIsec,
                           r.addend, /*size=*/0, /*isWeakDef=*/false,
                           /*isExternal=*/false, /*isPrivateExtern=*/false,
-                          /*isThumb=*/false, /*isReferencedDynamically=*/false);
+                          /*isThumb=*/false, /*isReferencedDynamically=*/false,
+                          /*noDeadStrip=*/false);
         in.got->addEntry(s);
       }
       r.referent = s;
@@ -200,10 +198,12 @@ void UnwindInfoSectionImpl<Ptr>::prepareRelocations(InputSection *isec) {
 // finalization of __DATA. Moreover, the finalization of unwind info depends on
 // the exact addresses that it references. So it is safe for compact unwind to
 // reference addresses in __TEXT, but not addresses in any other segment.
-static void checkTextSegment(InputSection *isec) {
+static ConcatInputSection *checkTextSegment(InputSection *isec) {
   if (isec->segname != segment_names::text)
     error("compact unwind references address in " + toString(isec) +
           " which is not in segment __TEXT");
+  // __text should always be a ConcatInputSection.
+  return cast<ConcatInputSection>(isec);
 }
 
 // We need to apply the relocations to the pre-link compact unwind section
@@ -212,13 +212,13 @@ static void checkTextSegment(InputSection *isec) {
 // is no source address to make a relative location meaningful.
 template <class Ptr>
 static void
-relocateCompactUnwind(MergedOutputSection *compactUnwindSection,
+relocateCompactUnwind(ConcatOutputSection *compactUnwindSection,
                       std::vector<CompactUnwindEntry<Ptr>> &cuVector) {
-  for (const InputSection *isec : compactUnwindSection->inputs) {
+  for (const ConcatInputSection *isec : compactUnwindSection->inputs) {
     assert(isec->parent == compactUnwindSection);
 
     uint8_t *buf =
-        reinterpret_cast<uint8_t *>(cuVector.data()) + isec->outSecFileOff;
+        reinterpret_cast<uint8_t *>(cuVector.data()) + isec->outSecOff;
     memcpy(buf, isec->data.data(), isec->data.size());
 
     for (const Reloc &r : isec->relocs) {
@@ -234,11 +234,11 @@ relocateCompactUnwind(MergedOutputSection *compactUnwindSection,
           referentVA = referentSym->gotIndex + 1;
         }
       } else if (auto *referentIsec = r.referent.dyn_cast<InputSection *>()) {
-        checkTextSegment(referentIsec);
-        if (referentIsec->shouldOmitFromOutput())
+        ConcatInputSection *concatIsec = checkTextSegment(referentIsec);
+        if (concatIsec->shouldOmitFromOutput())
           referentVA = UINT64_MAX; // Tombstone value
         else
-          referentVA = referentIsec->getVA() + r.addend;
+          referentVA = referentIsec->getVA(r.addend);
       }
 
       writeAddress(buf + r.offset, referentVA, r.length);

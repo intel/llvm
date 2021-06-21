@@ -82,10 +82,6 @@ function(add_sycl_rt_library LIB_NAME)
       $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
   )
 
-  target_compile_definitions(${LIB_OBJ_NAME}
-    PUBLIC
-      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>)
-
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
 
   set_target_properties(${LIB_NAME} PROPERTIES
@@ -106,6 +102,7 @@ set(SYCL_SOURCES
     "backend/level_zero.cpp"
     "backend.cpp"
     "detail/accessor_impl.cpp"
+    "detail/allowlist.cpp"
     "detail/buffer_impl.cpp"
     "detail/builtins_common.cpp"
     "detail/builtins_geometric.cpp"

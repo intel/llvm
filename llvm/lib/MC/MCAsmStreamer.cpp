@@ -315,6 +315,8 @@ public:
   void emitCFIDefCfa(int64_t Register, int64_t Offset) override;
   void emitCFIDefCfaOffset(int64_t Offset) override;
   void emitCFIDefCfaRegister(int64_t Register) override;
+  void emitCFILLVMDefAspaceCfa(int64_t Register, int64_t Offset,
+                               int64_t AddressSpace) override;
   void emitCFIOffset(int64_t Register, int64_t Offset) override;
   void emitCFIPersonality(const MCSymbol *Sym, unsigned Encoding) override;
   void emitCFILsda(const MCSymbol *Sym, unsigned Encoding) override;
@@ -1003,6 +1005,15 @@ void MCAsmStreamer::emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
   EmitEOL();
 }
 
+static inline bool isPrintableString(StringRef Data) {
+  const auto BeginPtr = Data.begin(), EndPtr = Data.end();
+  for (const unsigned char C : make_range(BeginPtr, EndPtr - 1)) {
+    if (!isPrint(C))
+      return false;
+  }
+  return isPrint(Data.back()) || Data.back() == 0;
+}
+
 static inline char toOctal(int X) { return (X&7)+'0'; }
 
 static void PrintByteList(StringRef Data, raw_ostream &OS,
@@ -1112,6 +1123,22 @@ void MCAsmStreamer::emitBytes(StringRef Data) {
       Data = Data.substr(0, Data.size() - 1);
     } else if (LLVM_LIKELY(MAI->getAsciiDirective())) {
       OS << MAI->getAsciiDirective();
+    } else if (MAI->hasPairedDoubleQuoteStringConstants() &&
+               isPrintableString(Data)) {
+      // For target with DoubleQuoteString constants, .string and .byte are used
+      // as replacement of .asciz and .ascii.
+      assert(MAI->getPlainStringDirective() &&
+             "hasPairedDoubleQuoteStringConstants target must support "
+             "PlainString Directive");
+      assert(MAI->getByteListDirective() &&
+             "hasPairedDoubleQuoteStringConstants target must support ByteList "
+             "Directive");
+      if (Data.back() == 0) {
+        OS << MAI->getPlainStringDirective();
+        Data = Data.substr(0, Data.size() - 1);
+      } else {
+        OS << MAI->getByteListDirective();
+      }
     } else if (MAI->getByteListDirective()) {
       OS << MAI->getByteListDirective();
       PrintByteList(Data, OS, MAI->characterLiteralSyntax());
@@ -1782,6 +1809,16 @@ void MCAsmStreamer::emitCFIDefCfa(int64_t Register, int64_t Offset) {
 void MCAsmStreamer::emitCFIDefCfaOffset(int64_t Offset) {
   MCStreamer::emitCFIDefCfaOffset(Offset);
   OS << "\t.cfi_def_cfa_offset " << Offset;
+  EmitEOL();
+}
+
+void MCAsmStreamer::emitCFILLVMDefAspaceCfa(int64_t Register, int64_t Offset,
+                                            int64_t AddressSpace) {
+  MCStreamer::emitCFILLVMDefAspaceCfa(Register, Offset, AddressSpace);
+  OS << "\t.cfi_llvm_def_aspace_cfa ";
+  EmitRegisterName(Register);
+  OS << ", " << Offset;
+  OS << ", " << AddressSpace;
   EmitEOL();
 }
 

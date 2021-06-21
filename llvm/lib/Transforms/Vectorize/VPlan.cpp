@@ -397,6 +397,18 @@ VPBasicBlock *VPBasicBlock::splitAt(iterator SplitAt) {
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+void VPBlockBase::printSuccessors(raw_ostream &O, const Twine &Indent) const {
+  if (getSuccessors().empty()) {
+    O << Indent << "No successors\n";
+  } else {
+    O << Indent << "Successor(s): ";
+    ListSeparator LS;
+    for (auto *Succ : getSuccessors())
+      O << LS << Succ->getName();
+    O << '\n';
+  }
+}
+
 void VPBasicBlock::print(raw_ostream &O, const Twine &Indent,
                          VPSlotTracker &SlotTracker) const {
   O << Indent << getName() << ":\n";
@@ -414,15 +426,7 @@ void VPBasicBlock::print(raw_ostream &O, const Twine &Indent,
     O << '\n';
   }
 
-  if (getSuccessors().empty()) {
-    O << Indent << "No successors\n";
-  } else {
-    O << Indent << "Successor(s): ";
-    ListSeparator LS;
-    for (auto *Succ : getSuccessors())
-      O << LS << Succ->getName();
-    O << '\n';
-  }
+  printSuccessors(O, Indent);
 
   if (const VPValue *CBV = getCondBit()) {
     O << Indent << "CondBit: ";
@@ -500,13 +504,80 @@ void VPRegionBlock::print(raw_ostream &O, const Twine &Indent,
     BlockBase->print(O, NewIndent, SlotTracker);
   }
   O << Indent << "}\n";
+
+  printSuccessors(O, Indent);
 }
 #endif
+
+bool VPRecipeBase::mayWriteToMemory() const {
+  switch (getVPDefID()) {
+  case VPWidenMemoryInstructionSC: {
+    return cast<VPWidenMemoryInstructionRecipe>(this)->isStore();
+  }
+  case VPReplicateSC:
+  case VPWidenCallSC:
+    return cast<Instruction>(getVPValue()->getUnderlyingValue())
+        ->mayWriteToMemory();
+  case VPBranchOnMaskSC:
+    return false;
+  case VPWidenIntOrFpInductionSC:
+  case VPWidenCanonicalIVSC:
+  case VPWidenPHISC:
+  case VPBlendSC:
+  case VPWidenSC:
+  case VPWidenGEPSC:
+  case VPReductionSC:
+  case VPWidenSelectSC: {
+    const Instruction *I =
+        dyn_cast_or_null<Instruction>(getVPValue()->getUnderlyingValue());
+    (void)I;
+    assert((!I || !I->mayWriteToMemory()) &&
+           "underlying instruction may write to memory");
+    return false;
+  }
+  default:
+    return true;
+  }
+}
+
+bool VPRecipeBase::mayReadFromMemory() const {
+  switch (getVPDefID()) {
+  case VPWidenMemoryInstructionSC: {
+    return !cast<VPWidenMemoryInstructionRecipe>(this)->isStore();
+  }
+  case VPReplicateSC:
+  case VPWidenCallSC:
+    return cast<Instruction>(getVPValue()->getUnderlyingValue())
+        ->mayReadFromMemory();
+  case VPBranchOnMaskSC:
+    return false;
+  case VPWidenIntOrFpInductionSC:
+  case VPWidenCanonicalIVSC:
+  case VPWidenPHISC:
+  case VPBlendSC:
+  case VPWidenSC:
+  case VPWidenGEPSC:
+  case VPReductionSC:
+  case VPWidenSelectSC: {
+    const Instruction *I =
+        dyn_cast_or_null<Instruction>(getVPValue()->getUnderlyingValue());
+    (void)I;
+    assert((!I || !I->mayReadFromMemory()) &&
+           "underlying instruction may read from memory");
+    return false;
+  }
+  default:
+    return true;
+  }
+}
 
 bool VPRecipeBase::mayHaveSideEffects() const {
   switch (getVPDefID()) {
   case VPBranchOnMaskSC:
     return false;
+  case VPWidenIntOrFpInductionSC:
+  case VPWidenCanonicalIVSC:
+  case VPWidenPHISC:
   case VPBlendSC:
   case VPWidenSC:
   case VPWidenGEPSC:

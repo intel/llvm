@@ -419,6 +419,47 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
         return $_op.getOperand(getIndexOfDynamicStride(idx));
       }]
     >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return true if all `other`'s offsets, sizes and strides are the same.
+        Takes a custom `cmp` comparison function on OpFoldResult to avoid taking
+        a dialect dependence.
+      }],
+      /*retTy=*/"bool",
+      /*methodName=*/"isSameAs",
+      /*args=*/(ins "OffsetSizeAndStrideOpInterface":$other,
+                   "llvm::function_ref<bool(OpFoldResult, OpFoldResult)>":$cmp),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return detail::sameOffsetsSizesAndStrides(
+          ::mlir::cast<::mlir::OffsetSizeAndStrideOpInterface>(
+            $_op.getOperation()), other, cmp);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{ Return true if all strides are guaranteed to be 1. }],
+      /*retTy=*/"bool",
+      /*methodName=*/"hasUnitStride",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return ::llvm::all_of(getMixedStrides(), [](OpFoldResult ofr) {
+          return ::mlir::isEqualConstantInt(ofr, 1);
+        });
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{ Return true if all offsets are guaranteed to be 0. }],
+      /*retTy=*/"bool",
+      /*methodName=*/"hasZeroOffset",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return ::llvm::all_of(getMixedOffsets(), [](OpFoldResult ofr) {
+          return ::mlir::isEqualConstantInt(ofr, 0);
+        });
+      }]
+    >,
   ];
 
   let extraClassDeclaration = [{

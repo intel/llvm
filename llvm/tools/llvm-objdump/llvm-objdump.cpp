@@ -1581,10 +1581,11 @@ static void disassembleObject(const ObjectFile *Obj, bool InlineRelocs) {
   if (!MII)
     reportError(Obj->getFileName(),
                 "no instruction info for target " + TripleName);
-  MCObjectFileInfo MOFI;
-  MCContext Ctx(Triple(TripleName), AsmInfo.get(), MRI.get(), &MOFI, STI.get());
+  MCContext Ctx(Triple(TripleName), AsmInfo.get(), MRI.get(), STI.get());
   // FIXME: for now initialize MCObjectFileInfo with default values
-  MOFI.initMCObjectFileInfo(Ctx, /*PIC=*/false);
+  std::unique_ptr<MCObjectFileInfo> MOFI(
+      TheTarget->createMCObjectFileInfo(Ctx, /*PIC=*/false));
+  Ctx.setObjectFileInfo(MOFI.get());
 
   std::unique_ptr<MCDisassembler> DisAsm(
       TheTarget->createMCDisassembler(*STI, Ctx));
@@ -1763,9 +1764,11 @@ void objdump::printSectionHeaders(const ObjectFile *Obj) {
 
     std::string Type = Section.isText() ? "TEXT" : "";
     if (Section.isData())
-      Type += Type.empty() ? "DATA" : " DATA";
+      Type += Type.empty() ? "DATA" : ", DATA";
     if (Section.isBSS())
-      Type += Type.empty() ? "BSS" : " BSS";
+      Type += Type.empty() ? "BSS" : ", BSS";
+    if (Section.isDebugSection())
+      Type += Type.empty() ? "DEBUG" : ", DEBUG";
 
     if (HasLMAColumn)
       outs() << format("%3" PRIu64 " %-*s %08" PRIx64 " ", Idx, NameWidth,

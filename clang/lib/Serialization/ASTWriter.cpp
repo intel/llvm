@@ -4667,9 +4667,9 @@ ASTFileSignature ASTWriter::WriteASTCore(Sema &SemaRef, StringRef isysroot,
   }
 
   // Build a record containing all of the DeclsToCheckForDeferredDiags.
-  RecordData DeclsToCheckForDeferredDiags;
+  SmallVector<serialization::DeclID, 64> DeclsToCheckForDeferredDiags;
   for (auto *D : SemaRef.DeclsToCheckForDeferredDiags)
-    AddDeclRef(D, DeclsToCheckForDeferredDiags);
+    DeclsToCheckForDeferredDiags.push_back(GetDeclRef(D));
 
   RecordData DeclUpdatesOffsetsRecord;
 
@@ -6054,6 +6054,13 @@ void OMPClauseWriter::VisitOMPSizesClause(OMPSizesClause *C) {
   Record.push_back(C->getNumSizes());
   for (Expr *Size : C->getSizesRefs())
     Record.AddStmt(Size);
+  Record.AddSourceLocation(C->getLParenLoc());
+}
+
+void OMPClauseWriter::VisitOMPFullClause(OMPFullClause *C) {}
+
+void OMPClauseWriter::VisitOMPPartialClause(OMPPartialClause *C) {
+  Record.AddStmt(C->getFactor());
   Record.AddSourceLocation(C->getLParenLoc());
 }
 

@@ -800,6 +800,52 @@ define i64 @sbclri_i64_63(i64 %a) nounwind {
   ret i64 %and
 }
 
+define i64 @sbclri_i64_large0(i64 %a) nounwind {
+; RV64I-LABEL: sbclri_i64_large0:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    lui a1, 1044480
+; RV64I-NEXT:    addiw a1, a1, -256
+; RV64I-NEXT:    and a0, a0, a1
+; RV64I-NEXT:    ret
+;
+; RV64IB-LABEL: sbclri_i64_large0:
+; RV64IB:       # %bb.0:
+; RV64IB-NEXT:    andi a0, a0, -256
+; RV64IB-NEXT:    bclri a0, a0, 24
+; RV64IB-NEXT:    ret
+;
+; RV64IBS-LABEL: sbclri_i64_large0:
+; RV64IBS:       # %bb.0:
+; RV64IBS-NEXT:    andi a0, a0, -256
+; RV64IBS-NEXT:    bclri a0, a0, 24
+; RV64IBS-NEXT:    ret
+  %and = and i64 %a, -16777472
+  ret i64 %and
+}
+
+define i64 @sbclri_i64_large1(i64 %a) nounwind {
+; RV64I-LABEL: sbclri_i64_large1:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    lui a1, 1044464
+; RV64I-NEXT:    addiw a1, a1, -1
+; RV64I-NEXT:    and a0, a0, a1
+; RV64I-NEXT:    ret
+;
+; RV64IB-LABEL: sbclri_i64_large1:
+; RV64IB:       # %bb.0:
+; RV64IB-NEXT:    bclri a0, a0, 16
+; RV64IB-NEXT:    bclri a0, a0, 24
+; RV64IB-NEXT:    ret
+;
+; RV64IBS-LABEL: sbclri_i64_large1:
+; RV64IBS:       # %bb.0:
+; RV64IBS-NEXT:    bclri a0, a0, 16
+; RV64IBS-NEXT:    bclri a0, a0, 24
+; RV64IBS-NEXT:    ret
+  %and = and i64 %a, -16842753
+  ret i64 %and
+}
+
 define signext i32 @sbseti_i32_10(i32 signext %a) nounwind {
 ; RV64I-LABEL: sbseti_i32_10:
 ; RV64I:       # %bb.0:
@@ -1244,16 +1290,14 @@ define i64 @xor_i64_4099(i64 %a) nounwind {
 ;
 ; RV64IB-LABEL: xor_i64_4099:
 ; RV64IB:       # %bb.0:
-; RV64IB-NEXT:    lui a1, 1
-; RV64IB-NEXT:    addiw a1, a1, 3
-; RV64IB-NEXT:    xor a0, a0, a1
+; RV64IB-NEXT:    xori a0, a0, 3
+; RV64IB-NEXT:    binvi a0, a0, 12
 ; RV64IB-NEXT:    ret
 ;
 ; RV64IBS-LABEL: xor_i64_4099:
 ; RV64IBS:       # %bb.0:
-; RV64IBS-NEXT:    lui a1, 1
-; RV64IBS-NEXT:    addiw a1, a1, 3
-; RV64IBS-NEXT:    xor a0, a0, a1
+; RV64IBS-NEXT:    xori a0, a0, 3
+; RV64IBS-NEXT:    binvi a0, a0, 12
 ; RV64IBS-NEXT:    ret
   %xor = xor i64 %a, 4099
   ret i64 %xor
@@ -1312,16 +1356,14 @@ define i64 @xor_i64_66901(i64 %a) nounwind {
 ;
 ; RV64IB-LABEL: xor_i64_66901:
 ; RV64IB:       # %bb.0:
-; RV64IB-NEXT:    lui a1, 16
-; RV64IB-NEXT:    addiw a1, a1, 1365
-; RV64IB-NEXT:    xor a0, a0, a1
+; RV64IB-NEXT:    xori a0, a0, 1365
+; RV64IB-NEXT:    binvi a0, a0, 16
 ; RV64IB-NEXT:    ret
 ;
 ; RV64IBS-LABEL: xor_i64_66901:
 ; RV64IBS:       # %bb.0:
-; RV64IBS-NEXT:    lui a1, 16
-; RV64IBS-NEXT:    addiw a1, a1, 1365
-; RV64IBS-NEXT:    xor a0, a0, a1
+; RV64IBS-NEXT:    xori a0, a0, 1365
+; RV64IBS-NEXT:    binvi a0, a0, 16
 ; RV64IBS-NEXT:    ret
   %xor = xor i64 %a, 66901
   ret i64 %xor
@@ -1337,16 +1379,14 @@ define i64 @or_i64_4099(i64 %a) nounwind {
 ;
 ; RV64IB-LABEL: or_i64_4099:
 ; RV64IB:       # %bb.0:
-; RV64IB-NEXT:    lui a1, 1
-; RV64IB-NEXT:    addiw a1, a1, 3
-; RV64IB-NEXT:    or a0, a0, a1
+; RV64IB-NEXT:    ori a0, a0, 3
+; RV64IB-NEXT:    bseti a0, a0, 12
 ; RV64IB-NEXT:    ret
 ;
 ; RV64IBS-LABEL: or_i64_4099:
 ; RV64IBS:       # %bb.0:
-; RV64IBS-NEXT:    lui a1, 1
-; RV64IBS-NEXT:    addiw a1, a1, 3
-; RV64IBS-NEXT:    or a0, a0, a1
+; RV64IBS-NEXT:    ori a0, a0, 3
+; RV64IBS-NEXT:    bseti a0, a0, 12
 ; RV64IBS-NEXT:    ret
   %or = or i64 %a, 4099
   ret i64 %or
@@ -1381,16 +1421,14 @@ define i64 @or_i64_66901(i64 %a) nounwind {
 ;
 ; RV64IB-LABEL: or_i64_66901:
 ; RV64IB:       # %bb.0:
-; RV64IB-NEXT:    lui a1, 16
-; RV64IB-NEXT:    addiw a1, a1, 1365
-; RV64IB-NEXT:    or a0, a0, a1
+; RV64IB-NEXT:    ori a0, a0, 1365
+; RV64IB-NEXT:    bseti a0, a0, 16
 ; RV64IB-NEXT:    ret
 ;
 ; RV64IBS-LABEL: or_i64_66901:
 ; RV64IBS:       # %bb.0:
-; RV64IBS-NEXT:    lui a1, 16
-; RV64IBS-NEXT:    addiw a1, a1, 1365
-; RV64IBS-NEXT:    or a0, a0, a1
+; RV64IBS-NEXT:    ori a0, a0, 1365
+; RV64IBS-NEXT:    bseti a0, a0, 16
 ; RV64IBS-NEXT:    ret
   %or = or i64 %a, 66901
   ret i64 %or

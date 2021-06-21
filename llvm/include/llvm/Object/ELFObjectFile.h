@@ -289,7 +289,7 @@ protected:
   bool isSectionVirtual(DataRefImpl Sec) const override;
   bool isBerkeleyText(DataRefImpl Sec) const override;
   bool isBerkeleyData(DataRefImpl Sec) const override;
-  bool isDebugSection(StringRef SectionName) const override;
+  bool isDebugSection(DataRefImpl Sec) const override;
   relocation_iterator section_rel_begin(DataRefImpl Sec) const override;
   relocation_iterator section_rel_end(DataRefImpl Sec) const override;
   std::vector<SectionRef> dynamic_relocation_sections() const override;
@@ -928,7 +928,14 @@ bool ELFObjectFile<ELFT>::isBerkeleyData(DataRefImpl Sec) const {
 }
 
 template <class ELFT>
-bool ELFObjectFile<ELFT>::isDebugSection(StringRef SectionName) const {
+bool ELFObjectFile<ELFT>::isDebugSection(DataRefImpl Sec) const {
+  Expected<StringRef> SectionNameOrErr = getSectionName(Sec);
+  if (!SectionNameOrErr) {
+    // TODO: Report the error message properly.
+    consumeError(SectionNameOrErr.takeError());
+    return false;
+  }
+  StringRef SectionName = SectionNameOrErr.get();
   return SectionName.startswith(".debug") ||
          SectionName.startswith(".zdebug") || SectionName == ".gdb_index";
 }
@@ -968,9 +975,6 @@ ELFObjectFile<ELFT>::section_rel_end(DataRefImpl Sec) const {
 template <class ELFT>
 Expected<section_iterator>
 ELFObjectFile<ELFT>::getRelocatedSection(DataRefImpl Sec) const {
-  if (EF.getHeader().e_type != ELF::ET_REL)
-    return section_end();
-
   const Elf_Shdr *EShdr = getSection(Sec);
   uintX_t Type = EShdr->sh_type;
   if (Type != ELF::SHT_REL && Type != ELF::SHT_RELA)

@@ -783,9 +783,11 @@ static bool checkHeaderSearchOptions(const HeaderSearchOptions &HSOpts,
                                      StringRef SpecificModuleCachePath,
                                      StringRef ExistingModuleCachePath,
                                      DiagnosticsEngine *Diags,
-                                     const LangOptions &LangOpts) {
+                                     const LangOptions &LangOpts,
+                                     const PreprocessorOptions &PPOpts) {
   if (LangOpts.Modules) {
-    if (SpecificModuleCachePath != ExistingModuleCachePath) {
+    if (SpecificModuleCachePath != ExistingModuleCachePath &&
+        !PPOpts.AllowPCHWithDifferentModulesCachePath) {
       if (Diags)
         Diags->Report(diag::err_pch_modulecache_mismatch)
           << SpecificModuleCachePath << ExistingModuleCachePath;
@@ -802,7 +804,7 @@ bool PCHValidator::ReadHeaderSearchOptions(const HeaderSearchOptions &HSOpts,
   return checkHeaderSearchOptions(HSOpts, SpecificModuleCachePath,
                                   PP.getHeaderSearchInfo().getModuleCachePath(),
                                   Complain ? &Reader.Diags : nullptr,
-                                  PP.getLangOpts());
+                                  PP.getLangOpts(), PP.getPreprocessorOpts());
 }
 
 void PCHValidator::ReadCounter(const ModuleFile &M, unsigned Value) {
@@ -3810,7 +3812,7 @@ ASTReader::ReadASTBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
 
     case DECLS_TO_CHECK_FOR_DEFERRED_DIAGS:
       for (unsigned I = 0, N = Record.size(); I != N; ++I)
-        DeclsToCheckForDeferredDiags.push_back(getGlobalDeclID(F, Record[I]));
+        DeclsToCheckForDeferredDiags.insert(getGlobalDeclID(F, Record[I]));
       break;
     }
   }
@@ -5142,8 +5144,8 @@ namespace {
                                  StringRef SpecificModuleCachePath,
                                  bool Complain) override {
       return checkHeaderSearchOptions(HSOpts, SpecificModuleCachePath,
-                                      ExistingModuleCachePath,
-                                      nullptr, ExistingLangOpts);
+                                      ExistingModuleCachePath, nullptr,
+                                      ExistingLangOpts, ExistingPPOpts);
     }
 
     bool ReadPreprocessorOptions(const PreprocessorOptions &PPOpts,
@@ -8340,17 +8342,14 @@ void ASTReader::ReadUnusedLocalTypedefNameCandidates(
 }
 
 void ASTReader::ReadDeclsToCheckForDeferredDiags(
-    llvm::SmallVector<Decl *, 4> &Decls) {
-  for (unsigned I = 0, N = DeclsToCheckForDeferredDiags.size(); I != N;
-       ++I) {
-    auto *D = dyn_cast_or_null<Decl>(
-        GetDecl(DeclsToCheckForDeferredDiags[I]));
+    llvm::SmallSetVector<Decl *, 4> &Decls) {
+  for (auto I : DeclsToCheckForDeferredDiags) {
+    auto *D = dyn_cast_or_null<Decl>(GetDecl(I));
     if (D)
-      Decls.push_back(D);
+      Decls.insert(D);
   }
   DeclsToCheckForDeferredDiags.clear();
 }
-
 
 void ASTReader::ReadReferencedSelectors(
        SmallVectorImpl<std::pair<Selector, SourceLocation>> &Sels) {
@@ -11730,6 +11729,12 @@ OMPClause *OMPClauseReader::readClause() {
     C = OMPSizesClause::CreateEmpty(Context, NumSizes);
     break;
   }
+  case llvm::omp::OMPC_full:
+    C = OMPFullClause::CreateEmpty(Context);
+    break;
+  case llvm::omp::OMPC_partial:
+    C = OMPPartialClause::CreateEmpty(Context);
+    break;
   case llvm::omp::OMPC_allocator:
     C = new (Context) OMPAllocatorClause();
     break;
@@ -12039,6 +12044,13 @@ void OMPClauseReader::VisitOMPSimdlenClause(OMPSimdlenClause *C) {
 void OMPClauseReader::VisitOMPSizesClause(OMPSizesClause *C) {
   for (Expr *&E : C->getSizesRefs())
     E = Record.readSubExpr();
+  C->setLParenLoc(Record.readSourceLocation());
+}
+
+void OMPClauseReader::VisitOMPFullClause(OMPFullClause *C) {}
+
+void OMPClauseReader::VisitOMPPartialClause(OMPPartialClause *C) {
+  C->setFactor(Record.readSubExpr());
   C->setLParenLoc(Record.readSourceLocation());
 }
 

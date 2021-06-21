@@ -58,6 +58,8 @@ int main() {
   KernelBundle.set_specialization_constant<SpecConst2>(1);
   {
     auto ExecBundle = sycl::build(KernelBundle);
+    assert(ExecBundle.get_specialization_constant<SpecConst1>() == 1);
+    assert(ExecBundle.get_specialization_constant<SpecConst2>() == 1);
     sycl::buffer<int, 1> Buf{sycl::range{1}};
     Q.submit([&](sycl::handler &CGH) {
       CGH.use_kernel_bundle(ExecBundle);

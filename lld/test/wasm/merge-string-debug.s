@@ -4,12 +4,28 @@
 # RUN: wasm-ld %t.o %t2.o -o %t.wasm --no-entry
 # RUN: llvm-readobj -x .debug_str %t.wasm | FileCheck %s --check-prefixes CHECK,CHECK-O1
 
+# Check that we -r/--reclocatable can handle string merging too
+# RUN: wasm-ld --relocatable %t.o %t2.o -o %t3.o
+# RUN: wasm-ld -O1 %t3.o -o %t.wasm --no-entry
+# RUN: llvm-readobj -x .debug_str %t.wasm | FileCheck %s --check-prefixes CHECK,CHECK-O1
+
 # RUN: wasm-ld -O0 %t.o %t2.o -o %tO0.wasm --no-entry
 # RUN: llvm-readobj -x .debug_str %tO0.wasm | FileCheck %s --check-prefixes CHECK,CHECK-O0
+# RUN: llvm-readobj -x .debug_str_offsets %tO0.wasm | FileCheck %s --check-prefixes CHECK-OFFSETS
 
 .section .debug_str,"S",@
+.Linfo_string0:
   .asciz "clang version 13.0.0"
+.Linfo_string1:
   .asciz "foobar"
+
+.section .debug_other,"",@
+  .int32 .Linfo_string0
+
+.section .debug_str_offsets,"",@
+  .int32 .Linfo_string0
+  .int32 .Linfo_string0
+  .int32 .Linfo_string0
 
 # CHECK: Hex dump of section '.debug_str':
 
@@ -20,3 +36,6 @@
 
 # CHECK-O1: 0x00000000 666f6f62 61720066 6f6f0063 6c616e67 foobar.foo.clang
 # CHECK-O1: 0x00000010 20766572 73696f6e 2031332e 302e3000  version 13.0.0.
+
+# CHECK-OFFSETS: Hex dump of section '.debug_str_offsets':
+# CHECK-OFFSETS: 0x00000000 00000000 00000000 00000000          ............

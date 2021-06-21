@@ -73,8 +73,6 @@ namespace llvm {
     None    // Do not use Basic Block Sections.
   };
 
-  enum class StackProtectorGuards { None, TLS, Global, SysReg };
-
   enum class EABI {
     Unknown,
     Default, // Default means not specified
@@ -203,9 +201,6 @@ namespace llvm {
     /// as their parent function, etc.), using an alternate ABI if necessary.
     unsigned GuaranteedTailCallOpt : 1;
 
-    /// StackAlignmentOverride - Override default stack alignment for target.
-    unsigned StackAlignmentOverride = 0;
-
     /// StackSymbolOrdering - When true, this will allow CodeGen to order
     /// the local stack symbols (for code size, code locality, or any other
     /// heuristics). When false, the local symbols are left in whatever order
@@ -327,16 +322,6 @@ namespace llvm {
     /// When set to true, don't use DWARF extensions in later DWARF versions.
     /// By default, it is set to false.
     unsigned DebugStrictDwarf : 1;
-
-    /// Stack protector guard offset to use.
-    int StackProtectorGuardOffset = INT_MAX;
-
-    /// Stack protector guard mode to use, e.g. tls, global, sysreg.
-    StackProtectorGuards StackProtectorGuard =
-                                         StackProtectorGuards::None;
-
-    /// Stack protector guard reg to use, e.g. usually fs or gs in X86.
-    std::string StackProtectorGuardReg = "None";
 
     /// Name of the stack usage file (i.e., .su file) if user passes
     /// -fstack-usage. If empty, it can be implied that -fstack-usage is not

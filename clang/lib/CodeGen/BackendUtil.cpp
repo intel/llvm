@@ -66,6 +66,7 @@
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
+#include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
 #include "llvm/Transforms/Instrumentation/BoundsChecking.h"
 #include "llvm/Transforms/Instrumentation/DataFlowSanitizer.h"
 #include "llvm/Transforms/Instrumentation/GCOVProfiler.h"
@@ -290,8 +291,10 @@ static void addAddressSanitizerPasses(const PassManagerBuilder &Builder,
   bool UseOdrIndicator = CGOpts.SanitizeAddressUseOdrIndicator;
   bool UseGlobalsGC = asanUseGlobalsGC(T, CGOpts);
   llvm::AsanDtorKind DestructorKind = CGOpts.getSanitizeAddressDtor();
+  llvm::AsanDetectStackUseAfterReturnMode UseAfterReturn =
+      CGOpts.getSanitizeAddressUseAfterReturn();
   PM.add(createAddressSanitizerFunctionPass(/*CompileKernel*/ false, Recover,
-                                            UseAfterScope));
+                                            UseAfterScope, UseAfterReturn));
   PM.add(createModuleAddressSanitizerLegacyPassPass(
       /*CompileKernel*/ false, Recover, UseGlobalsGC, UseOdrIndicator,
       DestructorKind));
@@ -300,7 +303,8 @@ static void addAddressSanitizerPasses(const PassManagerBuilder &Builder,
 static void addKernelAddressSanitizerPasses(const PassManagerBuilder &Builder,
                                             legacy::PassManagerBase &PM) {
   PM.add(createAddressSanitizerFunctionPass(
-      /*CompileKernel*/ true, /*Recover*/ true, /*UseAfterScope*/ false));
+      /*CompileKernel*/ true, /*Recover*/ true, /*UseAfterScope*/ false,
+      /*UseAfterReturn*/ llvm::AsanDetectStackUseAfterReturnMode::Never));
   PM.add(createModuleAddressSanitizerLegacyPassPass(
       /*CompileKernel*/ true, /*Recover*/ true, /*UseGlobalsGC*/ true,
       /*UseOdrIndicator*/ false));
@@ -532,7 +536,6 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.NoNaNsFPMath = LangOpts.NoHonorNaNs;
   Options.NoZerosInBSS = CodeGenOpts.NoZeroInitializedInBSS;
   Options.UnsafeFPMath = LangOpts.UnsafeFPMath;
-  Options.StackAlignmentOverride = CodeGenOpts.StackAlignment;
 
   Options.BBSections =
       llvm::StringSwitch<llvm::BasicBlockSection>(CodeGenOpts.BBSections)
@@ -560,15 +563,6 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.UniqueSectionNames = CodeGenOpts.UniqueSectionNames;
   Options.UniqueBasicBlockSectionNames =
       CodeGenOpts.UniqueBasicBlockSectionNames;
-  Options.StackProtectorGuard =
-      llvm::StringSwitch<llvm::StackProtectorGuards>(
-          CodeGenOpts.StackProtectorGuard)
-          .Case("tls", llvm::StackProtectorGuards::TLS)
-          .Case("global", llvm::StackProtectorGuards::Global)
-          .Case("sysreg", llvm::StackProtectorGuards::SysReg)
-          .Default(llvm::StackProtectorGuards::None);
-  Options.StackProtectorGuardOffset = CodeGenOpts.StackProtectorGuardOffset;
-  Options.StackProtectorGuardReg = CodeGenOpts.StackProtectorGuardReg;
   Options.TLSSize = CodeGenOpts.TLSSize;
   Options.EmulatedTLS = CodeGenOpts.EmulatedTLS;
   Options.ExplicitEmulatedTLS = CodeGenOpts.ExplicitEmulatedTLS;
@@ -738,9 +732,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
                            addBoundsCheckingPass);
   }
 
-  if (CodeGenOpts.SanitizeCoverageType ||
-      CodeGenOpts.SanitizeCoverageIndirectCalls ||
-      CodeGenOpts.SanitizeCoverageTraceCmp) {
+  if (CodeGenOpts.hasSanitizeCoverage()) {
     PMBuilder.addExtension(PassManagerBuilder::EP_OptimizerLast,
                            addSanitizerCoveragePass);
     PMBuilder.addExtension(PassManagerBuilder::EP_EnabledOnOptLevel0,
@@ -1136,9 +1128,7 @@ static void addSanitizers(const Triple &TargetTriple,
                           const LangOptions &LangOpts, PassBuilder &PB) {
   PB.registerOptimizerLastEPCallback([&](ModulePassManager &MPM,
                                          PassBuilder::OptimizationLevel Level) {
-    if (CodeGenOpts.SanitizeCoverageType ||
-        CodeGenOpts.SanitizeCoverageIndirectCalls ||
-        CodeGenOpts.SanitizeCoverageTraceCmp) {
+    if (CodeGenOpts.hasSanitizeCoverage()) {
       auto SancovOpts = getSancovOptsFromCGOpts(CodeGenOpts);
       MPM.addPass(ModuleSanitizerCoveragePass(
           SancovOpts, CodeGenOpts.SanitizeCoverageAllowlistFiles,
@@ -1186,12 +1176,14 @@ static void addSanitizers(const Triple &TargetTriple,
         bool UseOdrIndicator = CodeGenOpts.SanitizeAddressUseOdrIndicator;
         llvm::AsanDtorKind DestructorKind =
             CodeGenOpts.getSanitizeAddressDtor();
+        llvm::AsanDetectStackUseAfterReturnMode UseAfterReturn =
+            CodeGenOpts.getSanitizeAddressUseAfterReturn();
         MPM.addPass(RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
         MPM.addPass(ModuleAddressSanitizerPass(
             CompileKernel, Recover, ModuleUseAfterScope, UseOdrIndicator,
             DestructorKind));
-        MPM.addPass(createModuleToFunctionPassAdaptor(
-            AddressSanitizerPass(CompileKernel, Recover, UseAfterScope)));
+        MPM.addPass(createModuleToFunctionPassAdaptor(AddressSanitizerPass(
+            CompileKernel, Recover, UseAfterScope, UseAfterReturn)));
       }
     };
     ASanPass(SanitizerKind::Address, false);

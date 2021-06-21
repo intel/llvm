@@ -45,10 +45,10 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatAdapters.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <mutex>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string>
 
 using namespace lldb;
@@ -236,8 +236,7 @@ namespace {
 // save off initial state at the beginning, and restore it at the end
 struct InitializePythonRAII {
 public:
-  InitializePythonRAII()
-      : m_gil_state(PyGILState_UNLOCKED), m_was_already_initialized(false) {
+  InitializePythonRAII() {
     InitializePythonHome();
 
 #ifdef LLDB_USE_LIBEDIT_READLINE_COMPAT_MODULE
@@ -357,8 +356,8 @@ private:
   }
 
   TerminalState m_stdin_tty_state;
-  PyGILState_STATE m_gil_state;
-  bool m_was_already_initialized;
+  PyGILState_STATE m_gil_state = PyGILState_UNLOCKED;
+  bool m_was_already_initialized = false;
 };
 } // namespace
 

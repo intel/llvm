@@ -1399,12 +1399,8 @@ double LLVMConstRealGetDouble(LLVMValueRef ConstantVal, LLVMBool *LosesInfo) {
   ConstantFP *cFP = unwrap<ConstantFP>(ConstantVal) ;
   Type *Ty = cFP->getType();
 
-  if (Ty->isFloatTy()) {
-    *LosesInfo = false;
-    return cFP->getValueAPF().convertToFloat();
-  }
-
-  if (Ty->isDoubleTy()) {
+  if (Ty->isHalfTy() || Ty->isBFloatTy() || Ty->isFloatTy() ||
+      Ty->isDoubleTy()) {
     *LosesInfo = false;
     return cFP->getValueAPF().convertToDouble();
   }
@@ -2415,7 +2411,18 @@ const char *LLVMIntrinsicCopyOverloadedName(unsigned ID,
                                             size_t *NameLength) {
   auto IID = llvm_map_to_intrinsic_id(ID);
   ArrayRef<Type*> Tys(unwrap(ParamTypes), ParamCount);
-  auto Str = llvm::Intrinsic::getName(IID, Tys);
+  auto Str = llvm::Intrinsic::getNameNoUnnamedTypes(IID, Tys);
+  *NameLength = Str.length();
+  return strdup(Str.c_str());
+}
+
+const char *LLVMIntrinsicCopyOverloadedName2(LLVMModuleRef Mod, unsigned ID,
+                                             LLVMTypeRef *ParamTypes,
+                                             size_t ParamCount,
+                                             size_t *NameLength) {
+  auto IID = llvm_map_to_intrinsic_id(ID);
+  ArrayRef<Type *> Tys(unwrap(ParamTypes), ParamCount);
+  auto Str = llvm::Intrinsic::getName(IID, Tys, unwrap(Mod));
   *NameLength = Str.length();
   return strdup(Str.c_str());
 }

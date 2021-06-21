@@ -17,20 +17,32 @@
 
 namespace llvm {
 
+class ConstantExpr;
+
 namespace AMDGPU {
 
-bool isKernelCC(Function *Func);
+bool isKernelCC(const Function *Func);
 
 Align getAlign(DataLayout const &DL, const GlobalVariable *GV);
 
-bool userRequiresLowering(const SmallPtrSetImpl<GlobalValue *> &UsedList,
-                          User *InitialUser);
+/// \returns true if a given global variable \p GV (or its global users) appear
+/// as an use within some instruction (either from kernel or from non-kernel).
+bool hasUserInstruction(const GlobalValue *GV);
 
-std::vector<GlobalVariable *>
-findVariablesToLower(Module &M, const SmallPtrSetImpl<GlobalValue *> &UsedList);
+/// \returns true if an LDS global requres lowering to a module LDS structure
+/// if \p F is not given. If \p F is given it must be a kernel and function
+/// \returns true if an LDS global is directly used from that kernel and it
+/// is safe to replace its uses with a kernel LDS structure member.
+bool shouldLowerLDSToStruct(const GlobalVariable &GV,
+                            const Function *F = nullptr);
+
+std::vector<GlobalVariable *> findVariablesToLower(Module &M,
+                                                   const Function *F = nullptr);
 
 SmallPtrSet<GlobalValue *, 32> getUsedList(Module &M);
 
+/// Replace all uses of constant \p C with instructions in \p F.
+void replaceConstantUsesInFunction(ConstantExpr *C, const Function *F);
 } // end namespace AMDGPU
 
 } // end namespace llvm

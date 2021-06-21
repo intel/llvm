@@ -1,6 +1,6 @@
 # See docs/CMake.html for instructions about how to build LLVM with CMake.
 
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.13.4)
 
 # CMP0116: Ninja generators transform `DEPFILE`s from `add_custom_command()`
 # New in CMake 3.20. https://cmake.org/cmake/help/latest/policy/CMP0116.html
@@ -931,6 +931,8 @@ set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
 include(AddLLVM)
 include(TableGen)
 
+include(LLVMDistributionSupport)
+
 if( MINGW AND NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" )
   # People report that -O3 is unreliable on MinGW. The traditional
   # build also uses -O2 for that reason:
@@ -1119,7 +1121,6 @@ endif()
 
 # This must be at the end of the LLVM root CMakeLists file because it must run
 # after all targets are created.
-include(LLVMDistributionSupport)
 llvm_distribution_add_targets()
 process_llvm_pass_plugins(GEN_CONFIG)
 

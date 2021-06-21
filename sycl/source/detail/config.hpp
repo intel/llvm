@@ -1,4 +1,4 @@
-//==---------------- config.hpp - SYCL context ------------------*- C++-*---==//
+//==---------------- config.hpp - SYCL config -------------------*- C++-*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -102,8 +102,17 @@ template <ConfigID Config> class SYCLConfig {
   using BaseT = SYCLConfigBase<Config>;
 
 public:
-  static const char *get() {
+  static const char *get() { return getCachedValue(); }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
     static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
     return ValStr;
   }
 };
@@ -166,6 +175,22 @@ public:
     return Level;
   }
 };
+
+// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
+static const std::array<std::pair<std::string, info::device_type>, 5>
+    SyclDeviceTypeMap = {{{"host", info::device_type::host},
+                          {"cpu", info::device_type::cpu},
+                          {"gpu", info::device_type::gpu},
+                          {"acc", info::device_type::accelerator},
+                          {"*", info::device_type::all}}};
+
+// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
+static const std::array<std::pair<std::string, backend>, 5> SyclBeMap = {
+    {{"host", backend::host},
+     {"opencl", backend::opencl},
+     {"level_zero", backend::level_zero},
+     {"cuda", backend::cuda},
+     {"*", backend::all}}};
 
 template <> class SYCLConfig<SYCL_DEVICE_FILTER> {
   using BaseT = SYCLConfigBase<SYCL_DEVICE_FILTER>;

@@ -1410,8 +1410,8 @@ VersionTuple MSVCToolChain::computeMSVCVersion(const Driver *D,
   if (MSVT.empty() &&
       Args.hasFlag(options::OPT_fms_extensions, options::OPT_fno_ms_extensions,
                    IsWindowsMSVC)) {
-    // -fms-compatibility-version=19.11 is default, aka 2017, 15.3
-    MSVT = VersionTuple(19, 11);
+    // -fms-compatibility-version=19.14 is default, aka 2017, 15.7
+    MSVT = VersionTuple(19, 14);
   }
   return MSVT;
 }
@@ -1562,6 +1562,20 @@ static void TranslateDArg(Arg *A, llvm::opt::DerivedArgList &DAL,
   DAL.AddJoinedArg(A, Opts.getOption(options::OPT_D), NewVal);
 }
 
+static void TranslatePermissive(Arg *A, llvm::opt::DerivedArgList &DAL,
+                                const OptTable &Opts) {
+  DAL.AddFlagArg(A, Opts.getOption(options::OPT__SLASH_Zc_twoPhase_));
+  DAL.AddFlagArg(A, Opts.getOption(options::OPT_fno_operator_names));
+  // There is currently no /Zc:strictStrings- in clang-cl
+}
+
+static void TranslatePermissiveMinus(Arg *A, llvm::opt::DerivedArgList &DAL,
+                                     const OptTable &Opts) {
+  DAL.AddFlagArg(A, Opts.getOption(options::OPT__SLASH_Zc_twoPhase));
+  DAL.AddFlagArg(A, Opts.getOption(options::OPT_foperator_names));
+  DAL.AddFlagArg(A, Opts.getOption(options::OPT__SLASH_Zc_strictStrings));
+}
+
 llvm::opt::DerivedArgList *
 MSVCToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
                              StringRef BoundArch,
@@ -1604,6 +1618,12 @@ MSVCToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     } else if (A->getOption().matches(options::OPT_D)) {
       // Translate -Dfoo#bar into -Dfoo=bar.
       TranslateDArg(A, *DAL, Opts);
+    } else if (A->getOption().matches(options::OPT__SLASH_permissive)) {
+      // Expand /permissive
+      TranslatePermissive(A, *DAL, Opts);
+    } else if (A->getOption().matches(options::OPT__SLASH_permissive_)) {
+      // Expand /permissive-
+      TranslatePermissiveMinus(A, *DAL, Opts);
     } else if (OFK != Action::OFK_HIP) {
       // HIP Toolchain translates input args by itself.
       DAL->append(A);
@@ -1611,4 +1631,14 @@ MSVCToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   }
 
   return DAL;
+}
+
+void MSVCToolChain::addClangTargetOptions(
+    const ArgList &DriverArgs, ArgStringList &CC1Args,
+    Action::OffloadKind DeviceOffloadKind) const {
+  // MSVC STL kindly allows removing all usages of typeid by defining
+  // _HAS_STATIC_RTTI to 0. Do so, when compiling with -fno-rtti
+  if (DriverArgs.hasArg(options::OPT_fno_rtti, options::OPT_frtti,
+                        /*Default=*/false))
+    CC1Args.push_back("-D_HAS_STATIC_RTTI=0");
 }

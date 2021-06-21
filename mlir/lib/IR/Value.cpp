@@ -27,10 +27,14 @@ Location Value::getLoc() const {
   if (auto *op = getDefiningOp())
     return op->getLoc();
 
-  // Use the location of the parent operation if this is a block argument.
-  // TODO: Should we just add locations to block arguments?
-  Operation *parentOp = cast<BlockArgument>().getOwner()->getParentOp();
-  return parentOp ? parentOp->getLoc() : UnknownLoc::get(getContext());
+  return cast<BlockArgument>().getLoc();
+}
+
+void Value::setLoc(Location loc) {
+  if (auto *op = getDefiningOp())
+    return op->setLoc(loc);
+
+  return cast<BlockArgument>().setLoc(loc);
 }
 
 /// Return the Region in which this Value is defined.
@@ -50,13 +54,6 @@ Block *Value::getParentBlock() {
 //===----------------------------------------------------------------------===//
 // Value::UseLists
 //===----------------------------------------------------------------------===//
-
-/// Replace all uses of 'this' value with the new value, updating anything in
-/// the IR that uses 'this' to use the other value instead.  When this returns
-/// there are zero uses of 'this'.
-void Value::replaceAllUsesWith(Value newValue) const {
-  return getUseList()->replaceAllUsesWith(newValue);
-}
 
 /// Replace all uses of 'this' value with the new value, updating anything in
 /// the IR that uses 'this' to use the other value instead except if the user is
@@ -211,34 +208,8 @@ unsigned BlockOperand::getOperandNumber() {
 // OpOperand
 //===----------------------------------------------------------------------===//
 
-/// Provide the use list that is attached to the given value.
-IRObjectWithUseList<OpOperand> *OpOperand::getUseList(Value value) {
-  return value.getUseList();
-}
-
-/// Return the current value being used by this operand.
-Value OpOperand::get() const {
-  return IROperand<OpOperand, OpaqueValue>::get();
-}
-
-/// Set the operand to the given value.
-void OpOperand::set(Value value) {
-  IROperand<OpOperand, OpaqueValue>::set(value);
-}
-
 /// Return which operand this is in the operand list.
 unsigned OpOperand::getOperandNumber() {
   return this - &getOwner()->getOpOperands()[0];
 }
 
-//===----------------------------------------------------------------------===//
-// OpaqueValue
-//===----------------------------------------------------------------------===//
-
-/// Implicit conversion from 'Value'.
-OpaqueValue::OpaqueValue(Value value) : impl(value.getAsOpaquePointer()) {}
-
-/// Implicit conversion back to 'Value'.
-OpaqueValue::operator Value() const {
-  return Value::getFromOpaquePointer(impl);
-}

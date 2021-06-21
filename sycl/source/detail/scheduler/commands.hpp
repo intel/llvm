@@ -107,9 +107,11 @@ public:
 
   Command(CommandType Type, QueueImplPtr Queue);
 
-  void addDep(DepDesc NewDep);
+  /// \return an optional connection cmd to enqueue
+  [[nodiscard]] Command *addDep(DepDesc NewDep);
 
-  void addDep(EventImplPtr Event);
+  /// \return an optional connection cmd to enqueue
+  [[nodiscard]] Command *addDep(EventImplPtr Event);
 
   void addUser(Command *NewUser) { MUsers.insert(NewUser); }
 
@@ -204,13 +206,15 @@ protected:
   /// Perform glueing of events from different contexts
   /// \param DepEvent event this commands should depend on
   /// \param Dep optional DepDesc to perform connection of events properly
+  /// \return returns an optional connection command to enqueue
   ///
   /// Glueing (i.e. connecting) will be performed if and only if DepEvent is
   /// not from host context and its context doesn't match to context of this
   /// command. Context of this command is fetched via getWorkerContext().
   ///
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
-  void processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep);
+  [[nodiscard]] Command *processDepEvent(EventImplPtr DepEvent,
+                                         const DepDesc &Dep);
 
   /// Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
@@ -387,7 +391,8 @@ private:
 class AllocaSubBufCommand : public AllocaCommandBase {
 public:
   AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
-                      AllocaCommandBase *ParentAlloca);
+                      AllocaCommandBase *ParentAlloca,
+                      std::vector<Command *> &ToEnqueue);
 
   void *getMemAllocation() const final;
   void printDot(std::ostream &Stream) const final;

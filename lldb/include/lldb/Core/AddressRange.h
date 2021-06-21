@@ -13,7 +13,7 @@
 #include "lldb/lldb-forward.h"
 #include "lldb/lldb-types.h"
 
-#include <stddef.h>
+#include <cstddef>
 
 namespace lldb_private {
 class SectionList;
@@ -239,7 +239,7 @@ public:
 protected:
   // Member variables
   Address m_base_addr;      ///< The section offset base address of this range.
-  lldb::addr_t m_byte_size; ///< The size in bytes of this address range.
+  lldb::addr_t m_byte_size = 0; ///< The size in bytes of this address range.
 };
 
 // bool operator== (const AddressRange& lhs, const AddressRange& rhs);

@@ -186,6 +186,22 @@ private:
   // Is alt macro mode enabled.
   bool AltMacroMode = false;
 
+protected:
+  virtual bool parseStatement(ParseStatementInfo &Info,
+                              MCAsmParserSemaCallback *SI);
+
+  /// This routine uses the target specific ParseInstruction function to
+  /// parse an instruction into Operands, and then call the target specific
+  /// MatchAndEmit function to match and emit the instruction.
+  bool parseAndMatchAndEmitTargetInstruction(ParseStatementInfo &Info,
+                                             StringRef IDVal, AsmToken ID,
+                                             SMLoc IDLoc);
+
+  /// Should we emit DWARF describing this assembler source?  (Returns false if
+  /// the source has .file directives, which means we don't want to generate
+  /// info describing the assembler source itself.)
+  bool enabledGenDwarfForAssembly();
+
 public:
   AsmParser(SourceMgr &SM, MCContext &Ctx, MCStreamer &Out,
             const MCAsmInfo &MAI, unsigned CB);
@@ -273,8 +289,6 @@ public:
   /// }
 
 private:
-  bool parseStatement(ParseStatementInfo &Info,
-                      MCAsmParserSemaCallback *SI);
   bool parseCurlyBlockScope(SmallVectorImpl<AsmRewrite>& AsmStrRewrites);
   bool parseCppHashLineFilenameComment(SMLoc L, bool SaveLocInfo = true);
 
@@ -316,11 +330,6 @@ private:
     SrcMgr.PrintMessage(Loc, Kind, Msg, Ranges);
   }
   static void DiagHandler(const SMDiagnostic &Diag, void *Context);
-
-  /// Should we emit DWARF describing this assembler source?  (Returns false if
-  /// the source has .file directives, which means we don't want to generate
-  /// info describing the assembler source itself.)
-  bool enabledGenDwarfForAssembly();
 
   /// Enter the specified file. This returns true on failure.
   bool enterIncludeFile(const std::string &Filename);
@@ -490,6 +499,7 @@ private:
     DK_CFI_DEF_CFA_OFFSET,
     DK_CFI_ADJUST_CFA_OFFSET,
     DK_CFI_DEF_CFA_REGISTER,
+    DK_CFI_LLVM_DEF_ASPACE_CFA,
     DK_CFI_OFFSET,
     DK_CFI_REL_OFFSET,
     DK_CFI_PERSONALITY,
@@ -591,6 +601,7 @@ private:
   bool parseDirectiveCFIDefCfa(SMLoc DirectiveLoc);
   bool parseDirectiveCFIAdjustCfaOffset();
   bool parseDirectiveCFIDefCfaRegister(SMLoc DirectiveLoc);
+  bool parseDirectiveCFILLVMDefAspaceCfa(SMLoc DirectiveLoc);
   bool parseDirectiveCFIOffset(SMLoc DirectiveLoc);
   bool parseDirectiveCFIRelOffset(SMLoc DirectiveLoc);
   bool parseDirectiveCFIPersonalityOrLsda(bool IsPersonality);
@@ -699,6 +710,36 @@ private:
 
   void initializeDirectiveKindMap();
   void initializeCVDefRangeTypeMap();
+};
+
+class HLASMAsmParser final : public AsmParser {
+private:
+  MCAsmLexer &Lexer;
+  MCStreamer &Out;
+
+  void lexLeadingSpaces() {
+    while (Lexer.is(AsmToken::Space))
+      Lexer.Lex();
+  }
+
+  bool parseAsHLASMLabel(ParseStatementInfo &Info, MCAsmParserSemaCallback *SI);
+  bool parseAsMachineInstruction(ParseStatementInfo &Info,
+                                 MCAsmParserSemaCallback *SI);
+
+public:
+  HLASMAsmParser(SourceMgr &SM, MCContext &Ctx, MCStreamer &Out,
+                 const MCAsmInfo &MAI, unsigned CB = 0)
+      : AsmParser(SM, Ctx, Out, MAI, CB), Lexer(getLexer()), Out(Out) {
+    Lexer.setSkipSpace(false);
+    Lexer.setAllowHashInIdentifier(true);
+    Lexer.setLexHLASMIntegers(true);
+    Lexer.setLexHLASMStrings(true);
+  }
+
+  ~HLASMAsmParser() { Lexer.setSkipSpace(true); }
+
+  bool parseStatement(ParseStatementInfo &Info,
+                      MCAsmParserSemaCallback *SI) override;
 };
 
 } // end anonymous namespace
@@ -2147,6 +2188,8 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
       return parseDirectiveCFIAdjustCfaOffset();
     case DK_CFI_DEF_CFA_REGISTER:
       return parseDirectiveCFIDefCfaRegister(IDLoc);
+    case DK_CFI_LLVM_DEF_ASPACE_CFA:
+      return parseDirectiveCFILLVMDefAspaceCfa(IDLoc);
     case DK_CFI_OFFSET:
       return parseDirectiveCFIOffset(IDLoc);
     case DK_CFI_REL_OFFSET:
@@ -2257,6 +2300,13 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
   if (checkForValidSection())
     return true;
 
+  return parseAndMatchAndEmitTargetInstruction(Info, IDVal, ID, IDLoc);
+}
+
+bool AsmParser::parseAndMatchAndEmitTargetInstruction(ParseStatementInfo &Info,
+                                                      StringRef IDVal,
+                                                      AsmToken ID,
+                                                      SMLoc IDLoc) {
   // Canonicalize the opcode to lower case.
   std::string OpcodeStr = IDVal.lower();
   ParseInstructionInfo IInfo(Info.AsmRewrites);
@@ -4214,6 +4264,19 @@ bool AsmParser::parseDirectiveCFIDefCfaRegister(SMLoc DirectiveLoc) {
   return false;
 }
 
+/// parseDirectiveCFILLVMDefAspaceCfa
+/// ::= .cfi_llvm_def_aspace_cfa register, offset, address_space
+bool AsmParser::parseDirectiveCFILLVMDefAspaceCfa(SMLoc DirectiveLoc) {
+  int64_t Register = 0, Offset = 0, AddressSpace = 0;
+  if (parseRegisterOrRegisterNumber(Register, DirectiveLoc) || parseComma() ||
+      parseAbsoluteExpression(Offset) || parseComma() ||
+      parseAbsoluteExpression(AddressSpace) || parseEOL())
+    return true;
+
+  getStreamer().emitCFILLVMDefAspaceCfa(Register, Offset, AddressSpace);
+  return false;
+}
+
 /// parseDirectiveCFIOffset
 /// ::= .cfi_offset register, offset
 bool AsmParser::parseDirectiveCFIOffset(SMLoc DirectiveLoc) {
@@ -5451,6 +5514,7 @@ void AsmParser::initializeDirectiveKindMap() {
   DirectiveKindMap[".cfi_def_cfa_offset"] = DK_CFI_DEF_CFA_OFFSET;
   DirectiveKindMap[".cfi_adjust_cfa_offset"] = DK_CFI_ADJUST_CFA_OFFSET;
   DirectiveKindMap[".cfi_def_cfa_register"] = DK_CFI_DEF_CFA_REGISTER;
+  DirectiveKindMap[".cfi_llvm_def_aspace_cfa"] = DK_CFI_LLVM_DEF_ASPACE_CFA;
   DirectiveKindMap[".cfi_offset"] = DK_CFI_OFFSET;
   DirectiveKindMap[".cfi_rel_offset"] = DK_CFI_REL_OFFSET;
   DirectiveKindMap[".cfi_personality"] = DK_CFI_PERSONALITY;
@@ -6124,6 +6188,123 @@ bool AsmParser::parseMSInlineAsm(
   return false;
 }
 
+bool HLASMAsmParser::parseAsHLASMLabel(ParseStatementInfo &Info,
+                                       MCAsmParserSemaCallback *SI) {
+  AsmToken LabelTok = getTok();
+  SMLoc LabelLoc = LabelTok.getLoc();
+  StringRef LabelVal;
+
+  if (parseIdentifier(LabelVal))
+    return Error(LabelLoc, "The HLASM Label has to be an Identifier");
+
+  // We have validated whether the token is an Identifier.
+  // Now we have to validate whether the token is a
+  // valid HLASM Label.
+  if (!getTargetParser().isLabel(LabelTok) || checkForValidSection())
+    return true;
+
+  // Lex leading spaces to get to the next operand.
+  lexLeadingSpaces();
+
+  // We shouldn't emit the label if there is nothing else after the label.
+  // i.e asm("<token>\n")
+  if (getTok().is(AsmToken::EndOfStatement))
+    return Error(LabelLoc,
+                 "Cannot have just a label for an HLASM inline asm statement");
+
+  // FIXME: Later on, ensure emitted labels are case-insensitive.
+  MCSymbol *Sym = getContext().getOrCreateSymbol(LabelVal);
+
+  getTargetParser().doBeforeLabelEmit(Sym);
+
+  // Emit the label.
+  Out.emitLabel(Sym, LabelLoc);
+
+  // If we are generating dwarf for assembly source files then gather the
+  // info to make a dwarf label entry for this label if needed.
+  if (enabledGenDwarfForAssembly())
+    MCGenDwarfLabelEntry::Make(Sym, &getStreamer(), getSourceManager(),
+                               LabelLoc);
+
+  getTargetParser().onLabelParsed(Sym);
+
+  return false;
+}
+
+bool HLASMAsmParser::parseAsMachineInstruction(ParseStatementInfo &Info,
+                                               MCAsmParserSemaCallback *SI) {
+  AsmToken OperationEntryTok = Lexer.getTok();
+  SMLoc OperationEntryLoc = OperationEntryTok.getLoc();
+  StringRef OperationEntryVal;
+
+  // Attempt to parse the first token as an Identifier
+  if (parseIdentifier(OperationEntryVal))
+    return Error(OperationEntryLoc, "unexpected token at start of statement");
+
+  // Once we've parsed the operation entry successfully, lex
+  // any spaces to get to the OperandEntries.
+  lexLeadingSpaces();
+
+  return parseAndMatchAndEmitTargetInstruction(
+      Info, OperationEntryVal, OperationEntryTok, OperationEntryLoc);
+}
+
+bool HLASMAsmParser::parseStatement(ParseStatementInfo &Info,
+                                    MCAsmParserSemaCallback *SI) {
+  assert(!hasPendingError() && "parseStatement started with pending error");
+
+  // Should the first token be interpreted as a HLASM Label.
+  bool ShouldParseAsHLASMLabel = false;
+
+  // If a Name Entry exists, it should occur at the very
+  // start of the string. In this case, we should parse the
+  // first non-space token as a Label.
+  // If the Name entry is missing (i.e. there's some other
+  // token), then we attempt to parse the first non-space
+  // token as a Machine Instruction.
+  if (getTok().isNot(AsmToken::Space))
+    ShouldParseAsHLASMLabel = true;
+
+  // If we have an EndOfStatement (which includes the target's comment
+  // string) we can appropriately lex it early on)
+  if (Lexer.is(AsmToken::EndOfStatement)) {
+    // if this is a line comment we can drop it safely
+    if (getTok().getString().empty() || getTok().getString().front() == '\r' ||
+        getTok().getString().front() == '\n')
+      Out.AddBlankLine();
+    Lex();
+    return false;
+  }
+
+  // We have established how to parse the inline asm statement.
+  // Now we can safely lex any leading spaces to get to the
+  // first token.
+  lexLeadingSpaces();
+
+  // If we see a new line or carriage return as the first operand,
+  // after lexing leading spaces, emit the new line and lex the
+  // EndOfStatement token.
+  if (Lexer.is(AsmToken::EndOfStatement)) {
+    if (getTok().getString().front() == '\n' ||
+        getTok().getString().front() == '\r') {
+      Out.AddBlankLine();
+      Lex();
+      return false;
+    }
+  }
+
+  // Handle the label first if we have to before processing the rest
+  // of the tokens as a machine instruction.
+  if (ShouldParseAsHLASMLabel) {
+    // If there were any errors while handling and emitting the label,
+    // early return.
+    if (parseAsHLASMLabel(Info, SI))
+      return true;
+  }
+
+  return parseAsMachineInstruction(Info, SI);
+}
+
 namespace llvm {
 namespace MCParserUtils {
 
@@ -6211,5 +6392,8 @@ bool parseAssignmentExpression(StringRef Name, bool allow_redef,
 MCAsmParser *llvm::createMCAsmParser(SourceMgr &SM, MCContext &C,
                                      MCStreamer &Out, const MCAsmInfo &MAI,
                                      unsigned CB) {
+  if (C.getTargetTriple().isSystemZ() && C.getTargetTriple().isOSzOS())
+    return new HLASMAsmParser(SM, C, Out, MAI, CB);
+
   return new AsmParser(SM, C, Out, MAI, CB);
 }

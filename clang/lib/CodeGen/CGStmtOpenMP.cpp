@@ -176,6 +176,8 @@ class OMPLoopScope : public CodeGenFunction::RunCleanupsScope {
       PreInits = cast_or_null<DeclStmt>(LD->getPreInits());
     } else if (const auto *Tile = dyn_cast<OMPTileDirective>(&S)) {
       PreInits = cast_or_null<DeclStmt>(Tile->getPreInits());
+    } else if (const auto *Unroll = dyn_cast<OMPUnrollDirective>(&S)) {
+      PreInits = cast_or_null<DeclStmt>(Unroll->getPreInits());
     } else {
       llvm_unreachable("Unknown loop-based directive kind.");
     }
@@ -1819,9 +1821,9 @@ static void emitBody(CodeGenFunction &CGF, const Stmt *S, const Stmt *NextLoop,
     return;
   }
   if (SimplifiedS == NextLoop) {
-    OMPTransformDirectiveScopeRAII PossiblyTransformDirectiveScope(CGF,
-                                                                   SimplifiedS);
     if (auto *Dir = dyn_cast<OMPTileDirective>(SimplifiedS))
+      SimplifiedS = Dir->getTransformedStmt();
+    if (auto *Dir = dyn_cast<OMPUnrollDirective>(SimplifiedS))
       SimplifiedS = Dir->getTransformedStmt();
     if (const auto *CanonLoop = dyn_cast<OMPCanonicalLoop>(SimplifiedS))
       SimplifiedS = CanonLoop->getLoopStmt();
@@ -2579,6 +2581,28 @@ void CodeGenFunction::EmitOMPTileDirective(const OMPTileDirective &S) {
   // Emit the de-sugared statement.
   OMPTransformDirectiveScopeRAII TileScope(*this, &S);
   EmitStmt(S.getTransformedStmt());
+}
+
+void CodeGenFunction::EmitOMPUnrollDirective(const OMPUnrollDirective &S) {
+  // This function is only called if the unrolled loop is not consumed by any
+  // other loop-associated construct. Such a loop-associated construct will have
+  // used the transformed AST.
+
+  // Set the unroll metadata for the next emitted loop.
+  LoopStack.setUnrollState(LoopAttributes::Enable);
+
+  if (S.hasClausesOfKind<OMPFullClause>()) {
+    LoopStack.setUnrollState(LoopAttributes::Full);
+  } else if (auto *PartialClause = S.getSingleClause<OMPPartialClause>()) {
+    if (Expr *FactorExpr = PartialClause->getFactor()) {
+      uint64_t Factor =
+          FactorExpr->EvaluateKnownConstInt(getContext()).getZExtValue();
+      assert(Factor >= 1 && "Only positive factors are valid");
+      LoopStack.setUnrollCount(Factor);
+    }
+  }
+
+  EmitStmt(S.getAssociatedStmt());
 }
 
 void CodeGenFunction::EmitOMPOuterLoop(
@@ -3675,11 +3699,11 @@ void CodeGenFunction::EmitSections(const OMPExecutableDirective &S) {
     CodeGenFunction::OpaqueValueMapping OpaqueUB(CGF, &UBRefExpr, UB);
     // Generate condition for loop.
     BinaryOperator *Cond = BinaryOperator::Create(
-        C, &IVRefExpr, &UBRefExpr, BO_LE, C.BoolTy, VK_RValue, OK_Ordinary,
+        C, &IVRefExpr, &UBRefExpr, BO_LE, C.BoolTy, VK_PRValue, OK_Ordinary,
         S.getBeginLoc(), FPOptionsOverride());
     // Increment for loop counter.
     UnaryOperator *Inc = UnaryOperator::Create(
-        C, &IVRefExpr, UO_PreInc, KmpInt32Ty, VK_RValue, OK_Ordinary,
+        C, &IVRefExpr, UO_PreInc, KmpInt32Ty, VK_PRValue, OK_Ordinary,
         S.getBeginLoc(), true, FPOptionsOverride());
     auto &&BodyGen = [CapturedStmt, CS, &S, &IV](CodeGenFunction &CGF) {
       // Iterate through all sections and emit a switch construct:
@@ -4573,7 +4597,7 @@ createImplicitFirstprivateForType(ASTContext &C, OMPTaskDataTy &Data,
   PrivateVD->setInitStyle(VarDecl::CInit);
   PrivateVD->setInit(ImplicitCastExpr::Create(C, ElemType, CK_LValueToRValue,
                                               InitRef, /*BasePath=*/nullptr,
-                                              VK_RValue, FPOptionsOverride()));
+                                              VK_PRValue, FPOptionsOverride()));
   Data.FirstprivateVars.emplace_back(OrigRef);
   Data.FirstprivateCopies.emplace_back(PrivateRef);
   Data.FirstprivateInits.emplace_back(InitRef);
@@ -5764,6 +5788,8 @@ static void emitOMPAtomicExpr(CodeGenFunction &CGF, OpenMPClauseKind Kind,
   case OMPC_safelen:
   case OMPC_simdlen:
   case OMPC_sizes:
+  case OMPC_full:
+  case OMPC_partial:
   case OMPC_allocator:
   case OMPC_allocate:
   case OMPC_collapse:

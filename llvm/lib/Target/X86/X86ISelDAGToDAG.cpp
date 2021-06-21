@@ -3867,8 +3867,12 @@ bool X86DAGToDAGISel::tryShiftAmountMod(SDNode *N) {
           Add1 = Add1.getOperand(0);
           SubVT = Add1.getValueType();
         }
-        X = CurDAG->getNode(ISD::ADD, DL, SubVT, Add1,
-                            CurDAG->getZExtOrTrunc(Add0, DL, SubVT));
+        if (Add0.getValueType() != SubVT) {
+          Add0 = CurDAG->getZExtOrTrunc(Add0, DL, SubVT);
+          insertDAGNode(*CurDAG, OrigShiftAmt, Add0);
+        }
+
+        X = CurDAG->getNode(ISD::ADD, DL, SubVT, Add1, Add0);
         insertDAGNode(*CurDAG, OrigShiftAmt, X);
       } else
         return false;
@@ -4613,10 +4617,13 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
       ReplaceNode(Node, Res);
       return;
     }
-    case Intrinsic::x86_tileloadd64_internal: {
+    case Intrinsic::x86_tileloadd64_internal:
+    case Intrinsic::x86_tileloaddt164_internal: {
       if (!Subtarget->hasAMXTILE())
         break;
-      unsigned Opc = X86::PTILELOADDV;
+      unsigned Opc = IntNo == Intrinsic::x86_tileloadd64_internal
+                         ? X86::PTILELOADDV
+                         : X86::PTILELOADDT1V;
       // _tile_loadd_internal(row, col, buf, STRIDE)
       SDValue Base = Node->getOperand(4);
       SDValue Scale = getI8Imm(1, dl);

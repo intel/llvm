@@ -156,14 +156,15 @@ uint64_t ObjFile::calcNewValue(const WasmRelocation &reloc, uint64_t tombstone,
   case R_WASM_TABLE_INDEX_I64:
   case R_WASM_TABLE_INDEX_SLEB:
   case R_WASM_TABLE_INDEX_SLEB64:
-  case R_WASM_TABLE_INDEX_REL_SLEB: {
+  case R_WASM_TABLE_INDEX_REL_SLEB:
+  case R_WASM_TABLE_INDEX_REL_SLEB64: {
     if (!getFunctionSymbol(reloc.Index)->hasTableIndex())
       return 0;
     uint32_t index = getFunctionSymbol(reloc.Index)->getTableIndex();
-    if (reloc.Type == R_WASM_TABLE_INDEX_REL_SLEB)
+    if (reloc.Type == R_WASM_TABLE_INDEX_REL_SLEB ||
+        reloc.Type == R_WASM_TABLE_INDEX_REL_SLEB64)
       index -= config->tableBase;
     return index;
-
   }
   case R_WASM_MEMORY_ADDR_LEB:
   case R_WASM_MEMORY_ADDR_LEB64:
@@ -367,8 +368,11 @@ static bool shouldMerge(const WasmSection &sec) {
   // currently go by the name alone.
   // TODO(sbc): Add ability for wasm sections to carry flags so we don't
   // need to use names here.
-  return sec.Name.startswith(".debug_str") ||
-         sec.Name.startswith(".debug_line_str");
+  // For now, keep in sync with uses of wasm::WASM_SEG_FLAG_STRINGS in
+  // MCObjectFileInfo::initWasmMCObjectFileInfo which creates these custom
+  // sections.
+  return sec.Name == ".debug_str" || sec.Name == ".debug_str.dwo" ||
+         sec.Name == ".debug_line_str";
 }
 
 static bool shouldMerge(const WasmSegment &seg) {

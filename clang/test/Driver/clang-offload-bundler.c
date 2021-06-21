@@ -289,7 +289,7 @@
 
 // RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -inputs=%t.o,%t.tgt1,%t.tgt2 -outputs=%t.bundle3.o -### 2>&1 \
 // RUN: | FileCheck %s -DHOST=%itanium_abi_triple -DINOBJ1=%t.o -DINOBJ2=%t.tgt1 -DINOBJ3=%t.tgt2 -DOUTOBJ=%t.bundle3.o --check-prefix CK-OBJ-CMD
-// CK-OBJ-CMD: llvm-objcopy{{(.exe)?}}" "--add-section=__CLANG_OFFLOAD_BUNDLE__host-[[HOST]]={{.*}}" "--set-section-flags=__CLANG_OFFLOAD_BUNDLE__host-[[HOST]]=readonly,exclude" "--add-section=__CLANG_OFFLOAD_BUNDLE__openmp-powerpc64le-ibm-linux-gnu=[[INOBJ2]]" "--set-section-flags=__CLANG_OFFLOAD_BUNDLE__openmp-powerpc64le-ibm-linux-gnu=readonly,exclude" "--add-section=__CLANG_OFFLOAD_BUNDLE__openmp-x86_64-pc-linux-gnu=[[INOBJ3]]" "--set-section-flags=__CLANG_OFFLOAD_BUNDLE__openmp-x86_64-pc-linux-gnu=readonly,exclude" "[[INOBJ1]]" "[[OUTOBJ]]"
+// CK-OBJ-CMD: llvm-objcopy{{(.exe)?}}" "--add-section=__CLANG_OFFLOAD_BUNDLE__host-[[HOST]]={{.*}}" "--set-section-flags=__CLANG_OFFLOAD_BUNDLE__host-[[HOST]]=readonly,exclude" "--add-section=__CLANG_OFFLOAD_BUNDLE__openmp-powerpc64le-ibm-linux-gnu=[[INOBJ2]]" "--set-section-flags=__CLANG_OFFLOAD_BUNDLE__openmp-powerpc64le-ibm-linux-gnu=readonly,exclude" "--add-section=__CLANG_OFFLOAD_BUNDLE__openmp-x86_64-pc-linux-gnu=[[INOBJ3]]" "--set-section-flags=__CLANG_OFFLOAD_BUNDLE__openmp-x86_64-pc-linux-gnu=readonly,exclude" "--" "[[INOBJ1]]" "[[OUTOBJ]]"
 
 // RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -inputs=%t.o,%t.tgt1,%t.tgt2 -outputs=%t.bundle3.o
 // RUN: clang-offload-bundler -type=o -inputs=%t.bundle3.o -list | FileCheck -check-prefix=CKLST %s
@@ -426,6 +426,21 @@
 // CKLST2-NOT: host-
 // CKLST2-NOT: openmp-powerpc64le-ibm-linux-gnu
 // CKLST2-NOT: openmp-x86_64-pc-linux-gnu
+
+//
+// Check bundling without host target is allowed for HIP.
+//
+// RUN: clang-offload-bundler -type=bc -targets=hip-amdgcn-amd-amdhsa-gfx900,hip-amdgcn-amd-amdhsa-gfx906 \
+// RUN:   -inputs=%t.tgt1,%t.tgt2 -outputs=%t.hip.bundle.bc
+// RUN: clang-offload-bundler -type=bc -list -inputs=%t.hip.bundle.bc | FileCheck -check-prefix=NOHOST %s
+// RUN: clang-offload-bundler -type=bc -targets=hip-amdgcn-amd-amdhsa-gfx900,hip-amdgcn-amd-amdhsa-gfx906 \
+// RUN:   -outputs=%t.res.tgt1,%t.res.tgt2 -inputs=%t.hip.bundle.bc -unbundle
+// RUN: diff %t.tgt1 %t.res.tgt1
+// RUN: diff %t.tgt2 %t.res.tgt2
+//
+// NOHOST-NOT: host-
+// NOHOST-DAG: hip-amdgcn-amd-amdhsa-gfx900
+// NOHOST-DAG: hip-amdgcn-amd-amdhsa-gfx906
 
 // Some code so that we can create a binary out of this file.
 int A = 0;

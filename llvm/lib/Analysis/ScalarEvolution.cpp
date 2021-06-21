@@ -1025,16 +1025,23 @@ static const SCEV *BinomialCoefficient(const SCEV *It, unsigned K,
 /// where BC(It, k) stands for binomial coefficient.
 const SCEV *SCEVAddRecExpr::evaluateAtIteration(const SCEV *It,
                                                 ScalarEvolution &SE) const {
-  const SCEV *Result = getStart();
-  for (unsigned i = 1, e = getNumOperands(); i != e; ++i) {
+  return evaluateAtIteration(makeArrayRef(op_begin(), op_end()), It, SE);
+}
+
+const SCEV *
+SCEVAddRecExpr::evaluateAtIteration(ArrayRef<const SCEV *> Operands,
+                                    const SCEV *It, ScalarEvolution &SE) {
+  assert(Operands.size() > 0);
+  const SCEV *Result = Operands[0];
+  for (unsigned i = 1, e = Operands.size(); i != e; ++i) {
     // The computation is correct in the face of overflow provided that the
     // multiplication is performed _after_ the evaluation of the binomial
     // coefficient.
-    const SCEV *Coeff = BinomialCoefficient(It, i, SE, getType());
+    const SCEV *Coeff = BinomialCoefficient(It, i, SE, Result->getType());
     if (isa<SCEVCouldNotCompute>(Coeff))
       return Coeff;
 
-    Result = SE.getAddExpr(Result, SE.getMulExpr(getOperand(i), Coeff));
+    Result = SE.getAddExpr(Result, SE.getMulExpr(Operands[i], Coeff));
   }
   return Result;
 }
@@ -2237,6 +2244,81 @@ CollectAddOperandsWithScales(DenseMap<const SCEV *, APInt> &M,
   return Interesting;
 }
 
+bool ScalarEvolution::willNotOverflow(Instruction::BinaryOps BinOp, bool Signed,
+                                      const SCEV *LHS, const SCEV *RHS) {
+  const SCEV *(ScalarEvolution::*Operation)(const SCEV *, const SCEV *,
+                                            SCEV::NoWrapFlags, unsigned);
+  switch (BinOp) {
+  default:
+    llvm_unreachable("Unsupported binary op");
+  case Instruction::Add:
+    Operation = &ScalarEvolution::getAddExpr;
+    break;
+  case Instruction::Sub:
+    Operation = &ScalarEvolution::getMinusSCEV;
+    break;
+  case Instruction::Mul:
+    Operation = &ScalarEvolution::getMulExpr;
+    break;
+  }
+
+  const SCEV *(ScalarEvolution::*Extension)(const SCEV *, Type *, unsigned) =
+      Signed ? &ScalarEvolution::getSignExtendExpr
+             : &ScalarEvolution::getZeroExtendExpr;
+
+  // Check ext(LHS op RHS) == ext(LHS) op ext(RHS)
+  auto *NarrowTy = cast<IntegerType>(LHS->getType());
+  auto *WideTy =
+      IntegerType::get(NarrowTy->getContext(), NarrowTy->getBitWidth() * 2);
+
+  const SCEV *A = (this->*Extension)(
+      (this->*Operation)(LHS, RHS, SCEV::FlagAnyWrap, 0), WideTy, 0);
+  const SCEV *B = (this->*Operation)((this->*Extension)(LHS, WideTy, 0),
+                                     (this->*Extension)(RHS, WideTy, 0),
+                                     SCEV::FlagAnyWrap, 0);
+  return A == B;
+}
+
+std::pair<SCEV::NoWrapFlags, bool /*Deduced*/>
+ScalarEvolution::getStrengthenedNoWrapFlagsFromBinOp(
+    const OverflowingBinaryOperator *OBO) {
+  SCEV::NoWrapFlags Flags = SCEV::NoWrapFlags::FlagAnyWrap;
+
+  if (OBO->hasNoUnsignedWrap())
+    Flags = ScalarEvolution::setFlags(Flags, SCEV::FlagNUW);
+  if (OBO->hasNoSignedWrap())
+    Flags = ScalarEvolution::setFlags(Flags, SCEV::FlagNSW);
+
+  bool Deduced = false;
+
+  if (OBO->hasNoUnsignedWrap() && OBO->hasNoSignedWrap())
+    return {Flags, Deduced};
+
+  if (OBO->getOpcode() != Instruction::Add &&
+      OBO->getOpcode() != Instruction::Sub &&
+      OBO->getOpcode() != Instruction::Mul)
+    return {Flags, Deduced};
+
+  const SCEV *LHS = getSCEV(OBO->getOperand(0));
+  const SCEV *RHS = getSCEV(OBO->getOperand(1));
+
+  if (!OBO->hasNoUnsignedWrap() &&
+      willNotOverflow((Instruction::BinaryOps)OBO->getOpcode(),
+                      /* Signed */ false, LHS, RHS)) {
+    Flags = ScalarEvolution::setFlags(Flags, SCEV::FlagNUW);
+    Deduced = true;
+  }
+
+  if (!OBO->hasNoSignedWrap() &&
+      willNotOverflow((Instruction::BinaryOps)OBO->getOpcode(),
+                      /* Signed */ true, LHS, RHS)) {
+    Flags = ScalarEvolution::setFlags(Flags, SCEV::FlagNSW);
+    Deduced = true;
+  }
+
+  return {Flags, Deduced};
+}
+
 // We're trying to construct a SCEV of type `Type' with `Ops' as operands and
 // `OldFlags' as can't-wrap behavior.  Infer a more aggressive set of
 // can't-overflow flags for the operation if possible.
@@ -2462,6 +2544,10 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
   // If there are add operands they would be next.
   if (Idx < Ops.size()) {
     bool DeletedAdd = false;
+    // If the original flags and all inlined SCEVAddExprs are NUW, use the
+    // common NUW flag for expression after inlining. Other flags cannot be
+    // preserved, because they may depend on the original order of operations.
+    SCEV::NoWrapFlags CommonFlags = maskFlags(OrigFlags, SCEV::FlagNUW);
     while (const SCEVAddExpr *Add = dyn_cast<SCEVAddExpr>(Ops[Idx])) {
       if (Ops.size() > AddOpsInlineThreshold ||
           Add->getNumOperands() > AddOpsInlineThreshold)
@@ -2471,13 +2557,14 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
       Ops.erase(Ops.begin()+Idx);
       Ops.append(Add->op_begin(), Add->op_end());
       DeletedAdd = true;
+      CommonFlags = maskFlags(CommonFlags, Add->getNoWrapFlags());
     }
 
     // If we deleted at least one add, we added operands to the end of the list,
     // and they are not necessarily sorted.  Recurse to resort and resimplify
     // any operands we just acquired.
     if (DeletedAdd)
-      return getAddExpr(Ops, SCEV::FlagAnyWrap, Depth + 1);
+      return getAddExpr(Ops, CommonFlags, Depth + 1);
   }
 
   // Skip over the add expression until we get to a multiply.
@@ -3832,7 +3919,7 @@ static std::pair<const SCEV *, ConstantInt *> splitAddExpr(const SCEV *S) {
 
 /// Return the ValueOffsetPair set for \p S. \p S can be represented
 /// by the value and offset from any ValueOffsetPair in the set.
-SetVector<ScalarEvolution::ValueOffsetPair> *
+ScalarEvolution::ValueOffsetPairSetVector *
 ScalarEvolution::getSCEVValues(const SCEV *S) {
   ExprValueMapType::iterator SI = ExprValueMap.find_as(S);
   if (SI == ExprValueMap.end())
@@ -3855,7 +3942,7 @@ void ScalarEvolution::eraseValueFromMap(Value *V) {
   if (I != ValueExprMap.end()) {
     const SCEV *S = I->second;
     // Remove {V, 0} from the set of ExprValueMap[S]
-    if (SetVector<ValueOffsetPair> *SV = getSCEVValues(S))
+    if (auto *SV = getSCEVValues(S))
       SV->remove({V, nullptr});
 
     // Remove {V, Offset} from the set of ExprValueMap[Stripped]
@@ -3863,7 +3950,7 @@ void ScalarEvolution::eraseValueFromMap(Value *V) {
     ConstantInt *Offset;
     std::tie(Stripped, Offset) = splitAddExpr(S);
     if (Offset != nullptr) {
-      if (SetVector<ValueOffsetPair> *SV = getSCEVValues(Stripped))
+      if (auto *SV = getSCEVValues(Stripped))
         SV->remove({V, Offset});
     }
     ValueExprMap.erase(V);
@@ -6491,6 +6578,13 @@ ScalarEvolution::getLoopProperties(const Loop *L) {
   return Itr->second;
 }
 
+bool ScalarEvolution::loopIsFiniteByAssumption(const Loop *L) {
+  // A mustprogress loop without side effects must be finite.
+  // TODO: The check used here is very conservative.  It's only *specific*
+  // side effects which are well defined in infinite loops.
+  return isMustProgress(L) && loopHasNoSideEffects(L);
+}
+
 const SCEV *ScalarEvolution::createSCEV(Value *V) {
   if (!isSCEVable(V->getType()))
     return getUnknown(V);
@@ -6927,6 +7021,12 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
 //                   Iteration Count Computation Code
 //
 
+const SCEV *ScalarEvolution::getTripCountFromExitCount(const SCEV *ExitCount) {
+  // Get the trip count from the BE count by adding 1.  Overflow, results
+  // in zero which means "unknown".
+  return getAddExpr(ExitCount, getOne(ExitCount->getType()));
+}
+
 static unsigned getConstantTripCount(const SCEVConstant *ExitCount) {
   if (!ExitCount)
     return 0;
@@ -6942,11 +7042,8 @@ static unsigned getConstantTripCount(const SCEVConstant *ExitCount) {
 }
 
 unsigned ScalarEvolution::getSmallConstantTripCount(const Loop *L) {
-  if (BasicBlock *ExitingBB = L->getExitingBlock())
-    return getSmallConstantTripCount(L, ExitingBB);
-
-  // No trip count information for multiple exits.
-  return 0;
+  auto *ExitCount = dyn_cast<SCEVConstant>(getBackedgeTakenCount(L, Exact));
+  return getConstantTripCount(ExitCount);
 }
 
 unsigned
@@ -6967,11 +7064,45 @@ unsigned ScalarEvolution::getSmallConstantMaxTripCount(const Loop *L) {
 }
 
 unsigned ScalarEvolution::getSmallConstantTripMultiple(const Loop *L) {
-  if (BasicBlock *ExitingBB = L->getExitingBlock())
-    return getSmallConstantTripMultiple(L, ExitingBB);
+  SmallVector<BasicBlock *, 8> ExitingBlocks;
+  L->getExitingBlocks(ExitingBlocks);
 
-  // No trip multiple information for multiple exits.
-  return 0;
+  Optional<unsigned> Res = None;
+  for (auto *ExitingBB : ExitingBlocks) {
+    unsigned Multiple = getSmallConstantTripMultiple(L, ExitingBB);
+    if (!Res)
+      Res = Multiple;
+    Res = (unsigned)GreatestCommonDivisor64(*Res, Multiple);
+  }
+  return Res.getValueOr(1);
+}
+
+unsigned ScalarEvolution::getSmallConstantTripMultiple(const Loop *L,
+                                                       const SCEV *ExitCount) {
+  if (ExitCount == getCouldNotCompute())
+    return 1;
+
+  // Get the trip count
+  const SCEV *TCExpr = getTripCountFromExitCount(ExitCount);
+
+  const SCEVConstant *TC = dyn_cast<SCEVConstant>(TCExpr);
+  if (!TC)
+    // Attempt to factor more general cases. Returns the greatest power of
+    // two divisor. If overflow happens, the trip count expression is still
+    // divisible by the greatest power of 2 divisor returned.
+    return 1U << std::min((uint32_t)31,
+                          GetMinTrailingZeros(applyLoopGuards(TCExpr, L)));
+
+  ConstantInt *Result = TC->getValue();
+
+  // Guard against huge trip counts (this requires checking
+  // for zero to handle the case where the trip count == -1 and the
+  // addition wraps).
+  if (!Result || Result->getValue().getActiveBits() > 32 ||
+      Result->getValue().getActiveBits() == 0)
+    return 1;
+
+  return (unsigned)Result->getZExtValue();
 }
 
 /// Returns the largest constant divisor of the trip count of this loop as a
@@ -6993,30 +7124,7 @@ ScalarEvolution::getSmallConstantTripMultiple(const Loop *L,
   assert(L->isLoopExiting(ExitingBlock) &&
          "Exiting block must actually branch out of the loop!");
   const SCEV *ExitCount = getExitCount(L, ExitingBlock);
-  if (ExitCount == getCouldNotCompute())
-    return 1;
-
-  // Get the trip count from the BE count by adding 1.
-  const SCEV *TCExpr = getAddExpr(ExitCount, getOne(ExitCount->getType()));
-
-  const SCEVConstant *TC = dyn_cast<SCEVConstant>(TCExpr);
-  if (!TC)
-    // Attempt to factor more general cases. Returns the greatest power of
-    // two divisor. If overflow happens, the trip count expression is still
-    // divisible by the greatest power of 2 divisor returned.
-    return 1U << std::min((uint32_t)31,
-                          GetMinTrailingZeros(applyLoopGuards(TCExpr, L)));
-
-  ConstantInt *Result = TC->getValue();
-
-  // Guard against huge trip counts (this requires checking
-  // for zero to handle the case where the trip count == -1 and the
-  // addition wraps).
-  if (!Result || Result->getValue().getActiveBits() > 32 ||
-      Result->getValue().getActiveBits() == 0)
-    return 1;
-
-  return (unsigned)Result->getZExtValue();
+  return getSmallConstantTripMultiple(L, ExitCount);
 }
 
 const SCEV *ScalarEvolution::getExitCount(const Loop *L,
@@ -7392,18 +7500,8 @@ bool ScalarEvolution::BackedgeTakenInfo::isConstantMaxOrZero(
   return MaxOrZero && !any_of(ExitNotTaken, PredicateNotAlwaysTrue);
 }
 
-bool ScalarEvolution::BackedgeTakenInfo::hasOperand(const SCEV *S,
-                                                    ScalarEvolution *SE) const {
-  if (getConstantMax() && getConstantMax() != SE->getCouldNotCompute() &&
-      SE->hasOperand(getConstantMax(), S))
-    return true;
-
-  for (auto &ENT : ExitNotTaken)
-    if (ENT.ExactNotTaken != SE->getCouldNotCompute() &&
-        SE->hasOperand(ENT.ExactNotTaken, S))
-      return true;
-
-  return false;
+bool ScalarEvolution::BackedgeTakenInfo::hasOperand(const SCEV *S) const {
+  return Operands.contains(S);
 }
 
 ScalarEvolution::ExitLimit::ExitLimit(const SCEV *E)
@@ -7445,6 +7543,19 @@ ScalarEvolution::ExitLimit::ExitLimit(const SCEV *E, const SCEV *M,
          "No point in having a non-constant max backedge taken count!");
 }
 
+class SCEVRecordOperands {
+  SmallPtrSetImpl<const SCEV *> &Operands;
+
+public:
+  SCEVRecordOperands(SmallPtrSetImpl<const SCEV *> &Operands)
+    : Operands(Operands) {}
+  bool follow(const SCEV *S) {
+    Operands.insert(S);
+    return true;
+  }
+  bool isDone() { return false; }
+};
+
 /// Allocate memory for BackedgeTakenInfo and copy the not-taken count of each
 /// computable exit into a persistent ExitNotTakenInfo array.
 ScalarEvolution::BackedgeTakenInfo::BackedgeTakenInfo(
@@ -7473,6 +7584,14 @@ ScalarEvolution::BackedgeTakenInfo::BackedgeTakenInfo(
   assert((isa<SCEVCouldNotCompute>(ConstantMax) ||
           isa<SCEVConstant>(ConstantMax)) &&
          "No point in having a non-constant max backedge taken count!");
+
+  SCEVRecordOperands RecordOperands(Operands);
+  SCEVTraversal<SCEVRecordOperands> ST(RecordOperands);
+  if (!isa<SCEVCouldNotCompute>(ConstantMax))
+    ST.visitAll(ConstantMax);
+  for (auto &ENT : ExitNotTaken)
+    if (!isa<SCEVCouldNotCompute>(ENT.ExactNotTaken))
+      ST.visitAll(ENT.ExactNotTaken);
 }
 
 /// Compute the number of times the backedge of the specified loop will execute.
@@ -11183,11 +11302,9 @@ bool ScalarEvolution::isImpliedCondOperandsViaRanges(ICmpInst::Predicate Pred,
   return LHSRange.icmp(Pred, ConstRHS);
 }
 
-bool ScalarEvolution::doesIVOverflowOnLT(const SCEV *RHS, const SCEV *Stride,
-                                         bool IsSigned, bool NoWrap) {
+bool ScalarEvolution::canIVOverflowOnLT(const SCEV *RHS, const SCEV *Stride,
+                                        bool IsSigned) {
   assert(isKnownPositive(Stride) && "Positive stride expected!");
-
-  if (NoWrap) return false;
 
   unsigned BitWidth = getTypeSizeInBits(RHS->getType());
   const SCEV *One = getOne(Stride->getType());
@@ -11209,10 +11326,9 @@ bool ScalarEvolution::doesIVOverflowOnLT(const SCEV *RHS, const SCEV *Stride,
   return (std::move(MaxValue) - MaxStrideMinusOne).ult(MaxRHS);
 }
 
-bool ScalarEvolution::doesIVOverflowOnGT(const SCEV *RHS, const SCEV *Stride,
-                                         bool IsSigned, bool NoWrap) {
-  if (NoWrap) return false;
-
+bool ScalarEvolution::canIVOverflowOnGT(const SCEV *RHS, const SCEV *Stride,
+                                        bool IsSigned) {
+  
   unsigned BitWidth = getTypeSizeInBits(RHS->getType());
   const SCEV *One = getOne(Stride->getType());
 
@@ -11233,11 +11349,10 @@ bool ScalarEvolution::doesIVOverflowOnGT(const SCEV *RHS, const SCEV *Stride,
   return (std::move(MinValue) + MaxStrideMinusOne).ugt(MinRHS);
 }
 
-const SCEV *ScalarEvolution::computeBECount(const SCEV *Delta, const SCEV *Step,
-                                            bool Equality) {
+const SCEV *ScalarEvolution::computeBECount(const SCEV *Delta,
+                                            const SCEV *Step) {
   const SCEV *One = getOne(Step->getType());
-  Delta = Equality ? getAddExpr(Delta, Step)
-                   : getAddExpr(Delta, getMinusSCEV(Step, One));
+  Delta = getAddExpr(Delta, getMinusSCEV(Step, One));
   return getUDivExpr(Delta, Step);
 }
 
@@ -11278,8 +11393,7 @@ const SCEV *ScalarEvolution::computeMaxBECountForLT(const SCEV *Start,
                           : APIntOps::umin(getUnsignedRangeMax(End), Limit);
 
   MaxBECount = computeBECount(getConstant(MaxEnd - MinStart) /* Delta */,
-                              getConstant(StrideForMaxBECount) /* Step */,
-                              false /* Equality */);
+                              getConstant(StrideForMaxBECount) /* Step */);
 
   return MaxBECount;
 }
@@ -11305,8 +11419,9 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
   if (!IV || IV->getLoop() != L || !IV->isAffine())
     return getCouldNotCompute();
 
-  bool NoWrap = ControlsExit &&
-                IV->getNoWrapFlags(IsSigned ? SCEV::FlagNSW : SCEV::FlagNUW);
+  auto WrapType = IsSigned ? SCEV::FlagNSW : SCEV::FlagNUW;
+  bool NoWrap = ControlsExit && IV->getNoWrapFlags(WrapType);
+  ICmpInst::Predicate Cond = IsSigned ? ICmpInst::ICMP_SLT : ICmpInst::ICMP_ULT;
 
   const SCEV *Stride = IV->getStepRecurrence(*this);
 
@@ -11357,18 +11472,51 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
     //   A[i] = i;
     //
     if (PredicatedIV || !NoWrap || isKnownNonPositive(Stride) ||
-        !loopHasNoSideEffects(L))
+        !loopIsFiniteByAssumption(L))
       return getCouldNotCompute();
-  } else if (!Stride->isOne() &&
-             doesIVOverflowOnLT(RHS, Stride, IsSigned, NoWrap))
+  } else if (!Stride->isOne() && !NoWrap) {
+    auto isUBOnWrap = [&]() {
+      // Can we prove this loop *must* be UB if overflow of IV occurs?
+      // Reasoning goes as follows:
+      // * Suppose the IV did self wrap.
+      // * If Stride evenly divides the iteration space, then once wrap
+      //   occurs, the loop must revisit the same values.
+      // * We know that RHS is invariant, and that none of those values
+      //   caused this exit to be taken previously.  Thus, this exit is
+      //   dynamically dead.
+      // * If this is the sole exit, then a dead exit implies the loop
+      //   must be infinite if there are no abnormal exits.
+      // * If the loop were infinite, then it must either not be mustprogress
+      //   or have side effects. Otherwise, it must be UB.
+      // * It can't (by assumption), be UB so we have contradicted our
+      //   premise and can conclude the IV did not in fact self-wrap.
+      // From no-self-wrap, we need to then prove no-(un)signed-wrap.  This
+      // follows trivially from the fact that every (un)signed-wrapped, but
+      // not self-wrapped value must be LT than the last value before
+      // (un)signed wrap.  Since we know that last value didn't exit, nor
+      // will any smaller one.
+
+      if (!isLoopInvariant(RHS, L))
+        return false;
+
+      auto *StrideC = dyn_cast<SCEVConstant>(Stride);
+      if (!StrideC || !StrideC->getAPInt().isPowerOf2())
+        return false;
+
+      if (!ControlsExit || !loopHasNoAbnormalExits(L))
+        return false;
+
+      return loopIsFiniteByAssumption(L);
+    };
+
     // Avoid proven overflow cases: this will ensure that the backedge taken
     // count will not generate any unsigned overflow. Relaxed no-overflow
     // conditions exploit NoWrapFlags, allowing to optimize in presence of
     // undefined behaviors like the case of C language.
-    return getCouldNotCompute();
+    if (canIVOverflowOnLT(RHS, Stride, IsSigned) && !isUBOnWrap())
+      return getCouldNotCompute();
+  }
 
-  ICmpInst::Predicate Cond = IsSigned ? ICmpInst::ICMP_SLT
-                                      : ICmpInst::ICMP_ULT;
   const SCEV *Start = IV->getStart();
   const SCEV *End = RHS;
   // When the RHS is not invariant, we do not know the end bound of the loop and
@@ -11387,7 +11535,7 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
   // is the LHS value of the less-than comparison the first time it is evaluated
   // and End is the RHS.
   const SCEV *BECountIfBackedgeTaken =
-    computeBECount(getMinusSCEV(End, Start), Stride, false);
+    computeBECount(getMinusSCEV(End, Start), Stride);
   // If the loop entry is guarded by the result of the backedge test of the
   // first loop iteration, then we know the backedge will be taken at least
   // once and so the backedge taken count is as above. If not then we use the
@@ -11406,7 +11554,7 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
       End = RHS;
     else
       End = IsSigned ? getSMaxExpr(RHS, Start) : getUMaxExpr(RHS, Start);
-    BECount = computeBECount(getMinusSCEV(End, Start), Stride, false);
+    BECount = computeBECount(getMinusSCEV(End, Start), Stride);
   }
 
   const SCEV *MaxBECount;
@@ -11451,8 +11599,9 @@ ScalarEvolution::howManyGreaterThans(const SCEV *LHS, const SCEV *RHS,
   if (!IV || IV->getLoop() != L || !IV->isAffine())
     return getCouldNotCompute();
 
-  bool NoWrap = ControlsExit &&
-                IV->getNoWrapFlags(IsSigned ? SCEV::FlagNSW : SCEV::FlagNUW);
+  auto WrapType = IsSigned ? SCEV::FlagNSW : SCEV::FlagNUW;
+  bool NoWrap = ControlsExit && IV->getNoWrapFlags(WrapType);
+  ICmpInst::Predicate Cond = IsSigned ? ICmpInst::ICMP_SGT : ICmpInst::ICMP_UGT;
 
   const SCEV *Stride = getNegativeSCEV(IV->getStepRecurrence(*this));
 
@@ -11464,11 +11613,9 @@ ScalarEvolution::howManyGreaterThans(const SCEV *LHS, const SCEV *RHS,
   // will not generate any unsigned overflow. Relaxed no-overflow conditions
   // exploit NoWrapFlags, allowing to optimize in presence of undefined
   // behaviors like the case of C language.
-  if (!Stride->isOne() && doesIVOverflowOnGT(RHS, Stride, IsSigned, NoWrap))
-    return getCouldNotCompute();
-
-  ICmpInst::Predicate Cond = IsSigned ? ICmpInst::ICMP_SGT
-                                      : ICmpInst::ICMP_UGT;
+  if (!Stride->isOne() && !NoWrap)
+    if (canIVOverflowOnGT(RHS, Stride, IsSigned))
+      return getCouldNotCompute();
 
   const SCEV *Start = IV->getStart();
   const SCEV *End = RHS;
@@ -11482,7 +11629,7 @@ ScalarEvolution::howManyGreaterThans(const SCEV *LHS, const SCEV *RHS,
       End = IsSigned ? getSMinExpr(RHS, Start) : getUMinExpr(RHS, Start);
   }
 
-  const SCEV *BECount = computeBECount(getMinusSCEV(Start, End), Stride, false);
+  const SCEV *BECount = computeBECount(getMinusSCEV(Start, End), Stride);
 
   APInt MaxStart = IsSigned ? getSignedRangeMax(Start)
                             : getUnsignedRangeMax(Start);
@@ -11504,7 +11651,7 @@ ScalarEvolution::howManyGreaterThans(const SCEV *LHS, const SCEV *RHS,
   const SCEV *MaxBECount = isa<SCEVConstant>(BECount)
                                ? BECount
                                : computeBECount(getConstant(MaxStart - MinEnd),
-                                                getConstant(MinStride), false);
+                                                getConstant(MinStride));
 
   if (isa<SCEVCouldNotCompute>(MaxBECount))
     MaxBECount = BECount;
@@ -12606,14 +12753,6 @@ bool ScalarEvolution::hasOperand(const SCEV *S, const SCEV *Op) const {
   return SCEVExprContains(S, [&](const SCEV *Expr) { return Expr == Op; });
 }
 
-bool ScalarEvolution::ExitLimit::hasOperand(const SCEV *S) const {
-  auto IsS = [&](const SCEV *X) { return S == X; };
-  auto ContainsS = [&](const SCEV *X) {
-    return !isa<SCEVCouldNotCompute>(X) && SCEVExprContains(X, IsS);
-  };
-  return ContainsS(ExactNotTaken) || ContainsS(MaxNotTaken);
-}
-
 void
 ScalarEvolution::forgetMemoizedResults(const SCEV *S) {
   ValuesAtScopes.erase(S);
@@ -12635,10 +12774,10 @@ ScalarEvolution::forgetMemoizedResults(const SCEV *S) {
   }
 
   auto RemoveSCEVFromBackedgeMap =
-      [S, this](DenseMap<const Loop *, BackedgeTakenInfo> &Map) {
+      [S](DenseMap<const Loop *, BackedgeTakenInfo> &Map) {
         for (auto I = Map.begin(), E = Map.end(); I != E;) {
           BackedgeTakenInfo &BEInfo = I->second;
-          if (BEInfo.hasOperand(S, this))
+          if (BEInfo.hasOperand(S))
             Map.erase(I++);
           else
             ++I;
