@@ -105,7 +105,7 @@ struct ResponseFileSupport {
 /// execute.
 class Command {
 public:
-  using ErrorCodeDiagMapTy = llvm::DenseMap<int, std::string>;
+  using ErrorCodeDiagMapTy = llvm::DenseMap<int, std::pair<std::string, bool>>;
 
 private:
   /// Source - The action which caused the creation of this job.
@@ -122,6 +122,8 @@ private:
 
   /// The container for custom driver-set diagnostic messages that are
   /// produced upon particular error codes returned by the command.
+  /// Given a custom diagnostic, also allow for logic to determine if the
+  /// compilation should continue, even with a non-zero return code.
   /// In order to add such a diagnostic for an external tool, consider the
   /// following criteria:
   /// 1) Does the command's executable return different codes upon different
@@ -194,14 +196,19 @@ public:
   virtual int Execute(ArrayRef<Optional<StringRef>> Redirects,
                       std::string *ErrMsg, bool *ExecutionFailed) const;
 
-  /// Store a custom driver diagnostic message upon a particular error code
-  /// returned by the command
-  void addDiagForErrorCode(int ErrorCode, StringRef CustomDiag);
+  /// Store a custom driver diagnostic message and if the compilation should
+  /// exit upon a particular error code returned by the command
+  void addDiagForErrorCode(int ErrorCode, StringRef CustomDiag,
+                           bool NoExit = false);
 
   /// Get the custom driver diagnostic message for a particular error code
   /// if such was stored. Returns an empty string if no diagnostic message
   /// was found for the given error code.
   StringRef getDiagForErrorCode(int ErrorCode) const;
+
+  /// Will the tool exit when a particular error code is encountered. Returns
+  /// false if not set (always exit)
+  bool getWillNotExitForErrorCode(int ErrorCode) const;
 
   /// getSource - Return the Action which caused the creation of this job.
   const Action &getSource() const { return Source; }

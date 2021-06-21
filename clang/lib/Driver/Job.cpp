@@ -158,15 +158,24 @@ void Command::buildArgvForResponseFile(
   }
 }
 
-void Command::addDiagForErrorCode(int ErrorCode, StringRef CustomDiag) {
-  ErrorCodeDiagMap[ErrorCode] = CustomDiag.str();
+void Command::addDiagForErrorCode(int ErrorCode, StringRef CustomDiag,
+                                  bool NoExit) {
+  ErrorCodeDiagMap[ErrorCode].first = CustomDiag.str();
+  ErrorCodeDiagMap[ErrorCode].second = NoExit;
 }
 
 StringRef Command::getDiagForErrorCode(int ErrorCode) const {
   auto ErrorCodeDiagIt = ErrorCodeDiagMap.find(ErrorCode);
   if (ErrorCodeDiagIt != ErrorCodeDiagMap.end())
-    return ErrorCodeDiagIt->second;
+    return ErrorCodeDiagIt->second.first;
   return StringRef();
+}
+
+bool Command::getWillNotExitForErrorCode(int ErrorCode) const {
+  auto ErrorCodeDiagIt = ErrorCodeDiagMap.find(ErrorCode);
+  if (ErrorCodeDiagIt != ErrorCodeDiagMap.end())
+    return ErrorCodeDiagIt->second.second;
+  return false;
 }
 
 /// Rewrite relative include-like flag paths to absolute ones.
