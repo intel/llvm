@@ -75,7 +75,7 @@ vector_class<platform> platform_impl::get_platforms() {
   RT::initialize();
   std::vector<PlatformImplPtr> &PlatformCache =
       GlobalHandler::instance().getPlatformCache();
-  for (const PlatformImplPtr& PlatformImpl : PlatformCache) {
+  for (const PlatformImplPtr &PlatformImpl : PlatformCache) {
     platform Platform = detail::createSyclObjFromImpl<platform>(PlatformImpl);
     Platforms.push_back(Platform);
   }
@@ -104,28 +104,15 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
 vector_class<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   vector_class<device> Res;
-  /*if (is_host() && (DeviceType == info::device_type::host ||
-                    DeviceType == info::device_type::all)) {
-    // If SYCL_DEVICE_FILTER is set, check if filter contains host.
-    device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-    if (!FilterList || FilterList->containsHost()) {
-      Res.push_back(device());
-    }
-  }
-
-  // If any DeviceType other than host was requested for host platform,
-  // an empty vector will be returned.
-  if (is_host() || DeviceType == info::device_type::host)
-    return Res;
-    */
   for (const std::shared_ptr<device_impl> &Device : MDeviceCache) {
     // Assumption here is that there is 1-to-1 mapping between PiDevType and
     // Sycl device type for GPU, CPU, and ACC.
-    info::device_type PiDeviceType = pi::cast<info::device_type>(Device->get_device_type());
+    info::device_type PiDeviceType =
+        pi::cast<info::device_type>(Device->get_device_type());
     if (DeviceType == info::device_type::all || DeviceType == PiDeviceType)
       Res.push_back(detail::createSyclObjFromImpl<device>(Device));
   }
-  
+
   return Res;
 }
 

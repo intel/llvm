@@ -129,5 +129,6 @@ TEST(GetNativeTest, GetNativeHandle) {
   get_native<backend::opencl>(Device);
   get_native<backend::opencl>(Event);
 
-  ASSERT_EQ(TestCounter, 5) << "Not all the retain methods was called " << TestCounter;
+  ASSERT_EQ(TestCounter, 5)
+      << "Not all the retain methods was called " << TestCounter;
 }

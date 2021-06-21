@@ -596,7 +596,7 @@ void fillPlatformAndDeviceCache(plugin &Plugin) {
       // Filter out devices that are not compatible with SYCL_DEVICE_FILTER
       filterDeviceFilter(PiDevices, PiPlatform, Plugin, DeviceNum);
 
-      for (const RT::PiDevice& PiDevice : PiDevices) {
+      for (const RT::PiDevice &PiDevice : PiDevices) {
         std::shared_ptr<device_impl> Device =
             PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl);
       }
