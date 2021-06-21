@@ -55,7 +55,7 @@ class CallGraph : public RecursiveASTVisitor<CallGraph> {
   /// A setting to determine whether this should include calls that are done in
   /// a constant expression's context. This DOES require the ASTContext object
   /// for constexpr-if, so setting it requires a valid ASTContext.
-  bool shouldSkipConstexpr = false;
+  bool ShouldSkipConstexpr = false;
   ASTContext *Ctx;
 
 public:
@@ -145,10 +145,10 @@ public:
   bool shouldWalkTypesOfTypeLocs() const { return false; }
   bool shouldVisitTemplateInstantiations() const { return true; }
   bool shouldVisitImplicitCode() const { return true; }
-  bool shouldSkipConstantExpressions() const { return shouldSkipConstexpr; }
+  bool shouldSkipConstantExpressions() const { return ShouldSkipConstexpr; }
   void setSkipConstantExpressions(ASTContext &Context) {
     Ctx = &Context;
-    shouldSkipConstexpr = true;
+    ShouldSkipConstexpr = true;
   }
   ASTContext &getASTContext() {
     assert(Ctx);
