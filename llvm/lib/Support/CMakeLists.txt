@@ -93,6 +93,7 @@ add_llvm_component_library(LLVMSupport
   ARMAttributeParser.cpp
   ARMWinEH.cpp
   Allocator.cpp
+  AutoConvert.cpp
   Base64.cpp
   BinaryStreamError.cpp
   BinaryStreamReader.cpp

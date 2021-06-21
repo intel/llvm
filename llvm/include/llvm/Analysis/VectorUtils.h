@@ -127,12 +127,6 @@ struct VFInfo {
   std::string ScalarName; /// Scalar Function Name.
   std::string VectorName; /// Vector Function Name associated to this VFInfo.
   VFISAKind ISA;          /// Instruction Set Architecture.
-
-  // Comparison operator.
-  bool operator==(const VFInfo &Other) const {
-    return std::tie(Shape, ScalarName, VectorName, ISA) ==
-           std::tie(Shape, Other.ScalarName, Other.VectorName, Other.ISA);
-  }
 };
 
 namespace VFABI {
@@ -602,10 +596,6 @@ public:
 
   bool isReverse() const { return Reverse; }
   uint32_t getFactor() const { return Factor; }
-  LLVM_ATTRIBUTE_DEPRECATED(uint32_t getAlignment() const,
-                            "Use getAlign instead.") {
-    return Alignment.value();
-  }
   Align getAlign() const { return Alignment; }
   uint32_t getNumMembers() const { return Members.size(); }
 

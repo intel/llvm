@@ -550,6 +550,98 @@ define i32 @sbclri_i32_31(i32 %a) nounwind {
   ret i32 %and
 }
 
+define i32 @sbclri_i32_large0(i32 %a) nounwind {
+; RV32I-LABEL: sbclri_i32_large0:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 1044480
+; RV32I-NEXT:    addi a1, a1, -256
+; RV32I-NEXT:    and a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: sbclri_i32_large0:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    andi a0, a0, -256
+; RV32IB-NEXT:    bclri a0, a0, 24
+; RV32IB-NEXT:    ret
+;
+; RV32IBS-LABEL: sbclri_i32_large0:
+; RV32IBS:       # %bb.0:
+; RV32IBS-NEXT:    andi a0, a0, -256
+; RV32IBS-NEXT:    bclri a0, a0, 24
+; RV32IBS-NEXT:    ret
+  %and = and i32 %a, -16777472
+  ret i32 %and
+}
+
+define i32 @sbclri_i32_large1(i32 %a) nounwind {
+; RV32I-LABEL: sbclri_i32_large1:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 1044464
+; RV32I-NEXT:    addi a1, a1, -1
+; RV32I-NEXT:    and a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: sbclri_i32_large1:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    bclri a0, a0, 16
+; RV32IB-NEXT:    bclri a0, a0, 24
+; RV32IB-NEXT:    ret
+;
+; RV32IBS-LABEL: sbclri_i32_large1:
+; RV32IBS:       # %bb.0:
+; RV32IBS-NEXT:    bclri a0, a0, 16
+; RV32IBS-NEXT:    bclri a0, a0, 24
+; RV32IBS-NEXT:    ret
+  %and = and i32 %a, -16842753
+  ret i32 %and
+}
+
+define i32 @sbclri_i32_large2(i32 %0) {
+; RV32I-LABEL: sbclri_i32_large2:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 524288
+; RV32I-NEXT:    addi a1, a1, -5
+; RV32I-NEXT:    and a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: sbclri_i32_large2:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    bclri a0, a0, 2
+; RV32IB-NEXT:    bclri a0, a0, 31
+; RV32IB-NEXT:    ret
+;
+; RV32IBS-LABEL: sbclri_i32_large2:
+; RV32IBS:       # %bb.0:
+; RV32IBS-NEXT:    bclri a0, a0, 2
+; RV32IBS-NEXT:    bclri a0, a0, 31
+; RV32IBS-NEXT:    ret
+  %2 = and i32 %0, 2147483643
+  ret i32 %2
+}
+
+define i32 @sbclri_i32_large3(i32 %0) {
+; RV32I-LABEL: sbclri_i32_large3:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 524288
+; RV32I-NEXT:    addi a1, a1, -6
+; RV32I-NEXT:    and a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: sbclri_i32_large3:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    andi a0, a0, -6
+; RV32IB-NEXT:    bclri a0, a0, 31
+; RV32IB-NEXT:    ret
+;
+; RV32IBS-LABEL: sbclri_i32_large3:
+; RV32IBS:       # %bb.0:
+; RV32IBS-NEXT:    andi a0, a0, -6
+; RV32IBS-NEXT:    bclri a0, a0, 31
+; RV32IBS-NEXT:    ret
+  %2 = and i32 %0, 2147483642
+  ret i32 %2
+}
+
 define i32 @sbseti_i32_10(i32 %a) nounwind {
 ; RV32I-LABEL: sbseti_i32_10:
 ; RV32I:       # %bb.0:
@@ -708,4 +800,180 @@ define i32 @sbinvi_i32_31(i32 %a) nounwind {
 ; RV32IBS-NEXT:    ret
   %xor = xor i32 %a, 2147483648
   ret i32 %xor
+}
+
+define i32 @xor_i32_4098(i32 %a) nounwind {
+; RV32I-LABEL: xor_i32_4098:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 1
+; RV32I-NEXT:    addi a1, a1, 2
+; RV32I-NEXT:    xor a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: xor_i32_4098:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    binvi a0, a0, 1
+; RV32IB-NEXT:    binvi a0, a0, 12
+; RV32IB-NEXT:    ret
+;
+; RV32IBS-LABEL: xor_i32_4098:
+; RV32IBS:       # %bb.0:
+; RV32IBS-NEXT:    binvi a0, a0, 1
+; RV32IBS-NEXT:    binvi a0, a0, 12
+; RV32IBS-NEXT:    ret
+  %xor = xor i32 %a, 4098
+  ret i32 %xor
+}
+
+define i32 @xor_i32_4099(i32 %a) nounwind {
+; RV32I-LABEL: xor_i32_4099:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 1
+; RV32I-NEXT:    addi a1, a1, 3
+; RV32I-NEXT:    xor a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: xor_i32_4099:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    xori a0, a0, 3
+; RV32IB-NEXT:    binvi a0, a0, 12
+; RV32IB-NEXT:    ret
+;
+; RV32IBS-LABEL: xor_i32_4099:
+; RV32IBS:       # %bb.0:
+; RV32IBS-NEXT:    xori a0, a0, 3
+; RV32IBS-NEXT:    binvi a0, a0, 12
+; RV32IBS-NEXT:    ret
+  %xor = xor i32 %a, 4099
+  ret i32 %xor
+}
+
+define i32 @xor_i32_96(i32 %a) nounwind {
+; RV32I-LABEL: xor_i32_96:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    xori a0, a0, 96
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: xor_i32_96:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    xori a0, a0, 96
+; RV32IB-NEXT:    ret
+;
+; RV32IBS-LABEL: xor_i32_96:
+; RV32IBS:       # %bb.0:
+; RV32IBS-NEXT:    xori a0, a0, 96
+; RV32IBS-NEXT:    ret
+  %xor = xor i32 %a, 96
+  ret i32 %xor
+}
+
+define i32 @xor_i32_66901(i32 %a) nounwind {
+; RV32I-LABEL: xor_i32_66901:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 16
+; RV32I-NEXT:    addi a1, a1, 1365
+; RV32I-NEXT:    xor a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: xor_i32_66901:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    xori a0, a0, 1365
+; RV32IB-NEXT:    binvi a0, a0, 16
+; RV32IB-NEXT:    ret
+;
+; RV32IBS-LABEL: xor_i32_66901:
+; RV32IBS:       # %bb.0:
+; RV32IBS-NEXT:    xori a0, a0, 1365
+; RV32IBS-NEXT:    binvi a0, a0, 16
+; RV32IBS-NEXT:    ret
+  %xor = xor i32 %a, 66901
+  ret i32 %xor
+}
+
+define i32 @or_i32_4098(i32 %a) nounwind {
+; RV32I-LABEL: or_i32_4098:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 1
+; RV32I-NEXT:    addi a1, a1, 2
+; RV32I-NEXT:    or a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: or_i32_4098:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    bseti a0, a0, 1
+; RV32IB-NEXT:    bseti a0, a0, 12
+; RV32IB-NEXT:    ret
+;
+; RV32IBS-LABEL: or_i32_4098:
+; RV32IBS:       # %bb.0:
+; RV32IBS-NEXT:    bseti a0, a0, 1
+; RV32IBS-NEXT:    bseti a0, a0, 12
+; RV32IBS-NEXT:    ret
+  %or = or i32 %a, 4098
+  ret i32 %or
+}
+
+define i32 @or_i32_4099(i32 %a) nounwind {
+; RV32I-LABEL: or_i32_4099:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 1
+; RV32I-NEXT:    addi a1, a1, 3
+; RV32I-NEXT:    or a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: or_i32_4099:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    ori a0, a0, 3
+; RV32IB-NEXT:    bseti a0, a0, 12
+; RV32IB-NEXT:    ret
+;
+; RV32IBS-LABEL: or_i32_4099:
+; RV32IBS:       # %bb.0:
+; RV32IBS-NEXT:    ori a0, a0, 3
+; RV32IBS-NEXT:    bseti a0, a0, 12
+; RV32IBS-NEXT:    ret
+  %or = or i32 %a, 4099
+  ret i32 %or
+}
+
+define i32 @or_i32_96(i32 %a) nounwind {
+; RV32I-LABEL: or_i32_96:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    ori a0, a0, 96
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: or_i32_96:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    ori a0, a0, 96
+; RV32IB-NEXT:    ret
+;
+; RV32IBS-LABEL: or_i32_96:
+; RV32IBS:       # %bb.0:
+; RV32IBS-NEXT:    ori a0, a0, 96
+; RV32IBS-NEXT:    ret
+  %or = or i32 %a, 96
+  ret i32 %or
+}
+
+define i32 @or_i32_66901(i32 %a) nounwind {
+; RV32I-LABEL: or_i32_66901:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 16
+; RV32I-NEXT:    addi a1, a1, 1365
+; RV32I-NEXT:    or a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: or_i32_66901:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    ori a0, a0, 1365
+; RV32IB-NEXT:    bseti a0, a0, 16
+; RV32IB-NEXT:    ret
+;
+; RV32IBS-LABEL: or_i32_66901:
+; RV32IBS:       # %bb.0:
+; RV32IBS-NEXT:    ori a0, a0, 1365
+; RV32IBS-NEXT:    bseti a0, a0, 16
+; RV32IBS-NEXT:    ret
+  %or = or i32 %a, 66901
+  ret i32 %or
 }

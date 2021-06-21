@@ -15,6 +15,7 @@
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Interfaces/DecodeAttributesInterfaces.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Endian.h"
@@ -39,6 +40,17 @@ void BuiltinDialect::registerAttributes() {
                 SymbolRefAttr, IntegerAttr, IntegerSetAttr, OpaqueAttr,
                 OpaqueElementsAttr, SparseElementsAttr, StringAttr, TypeAttr,
                 UnitAttr>();
+}
+
+//===----------------------------------------------------------------------===//
+// ArrayAttr
+//===----------------------------------------------------------------------===//
+
+void ArrayAttr::walkImmediateSubElements(
+    function_ref<void(Attribute)> walkAttrsFn,
+    function_ref<void(Type)> walkTypesFn) const {
+  for (Attribute attr : getValue())
+    walkAttrsFn(attr);
 }
 
 //===----------------------------------------------------------------------===//
@@ -196,6 +208,36 @@ DictionaryAttr DictionaryAttr::getEmptyUnchecked(MLIRContext *context) {
   return Base::get(context, ArrayRef<NamedAttribute>());
 }
 
+void DictionaryAttr::walkImmediateSubElements(
+    function_ref<void(Attribute)> walkAttrsFn,
+    function_ref<void(Type)> walkTypesFn) const {
+  for (Attribute attr : llvm::make_second_range(getValue()))
+    walkAttrsFn(attr);
+}
+
+//===----------------------------------------------------------------------===//
+// StringAttr
+//===----------------------------------------------------------------------===//
+
+StringAttr StringAttr::getEmptyStringAttrUnchecked(MLIRContext *context) {
+  return Base::get(context, "", NoneType::get(context));
+}
+
+/// Twine support for StringAttr.
+StringAttr StringAttr::get(MLIRContext *context, const Twine &twine) {
+  // Fast-path empty twine.
+  if (twine.isTriviallyEmpty())
+    return get(context);
+  SmallVector<char, 32> tempStr;
+  return Base::get(context, twine.toStringRef(tempStr), NoneType::get(context));
+}
+
+/// Twine support for StringAttr.
+StringAttr StringAttr::get(const Twine &twine, Type type) {
+  SmallVector<char, 32> tempStr;
+  return Base::get(type.getContext(), twine.toStringRef(tempStr), type);
+}
+
 //===----------------------------------------------------------------------===//
 // FloatAttr
 //===----------------------------------------------------------------------===//
@@ -257,6 +299,14 @@ int64_t IntegerAttr::getSInt() const {
 uint64_t IntegerAttr::getUInt() const {
   assert(getType().isUnsignedInteger() && "must be unsigned integer");
   return getValue().getZExtValue();
+}
+
+/// Return the value as an APSInt which carries the signed from the type of
+/// the attribute.  This traps on signless integers types!
+APSInt IntegerAttr::getAPSInt() const {
+  assert(!getType().isSignlessInteger() &&
+         "Signless integers don't carry a sign for APSInt");
+  return APSInt(getValue(), getType().isUnsignedInteger());
 }
 
 LogicalResult IntegerAttr::verify(function_ref<InFlightDiagnostic()> emitError,
@@ -577,6 +627,25 @@ Attribute DenseElementsAttr::AttributeElementIterator::operator*() const {
     IntElementIterator intIt(owner, index);
     FloatElementIterator floatIt(floatEltTy.getFloatSemantics(), intIt);
     return FloatAttr::get(eltTy, *floatIt);
+  }
+  if (auto complexTy = eltTy.dyn_cast<ComplexType>()) {
+    auto complexEltTy = complexTy.getElementType();
+    ComplexIntElementIterator complexIntIt(owner, index);
+    if (complexEltTy.isa<IntegerType>()) {
+      auto value = *complexIntIt;
+      auto real = IntegerAttr::get(complexEltTy, value.real());
+      auto imag = IntegerAttr::get(complexEltTy, value.imag());
+      return ArrayAttr::get(complexTy.getContext(),
+                            ArrayRef<Attribute>{real, imag});
+    }
+
+    ComplexFloatElementIterator complexFloatIt(
+        complexEltTy.cast<FloatType>().getFloatSemantics(), complexIntIt);
+    auto value = *complexFloatIt;
+    auto real = FloatAttr::get(complexEltTy, value.real());
+    auto imag = FloatAttr::get(complexEltTy, value.imag());
+    return ArrayAttr::get(complexTy.getContext(),
+                          ArrayRef<Attribute>{real, imag});
   }
   if (owner.isa<DenseStringElementsAttr>()) {
     ArrayRef<StringRef> vals = owner.getRawStringData();
@@ -1318,4 +1387,14 @@ std::vector<ptrdiff_t> SparseElementsAttr::getFlattenedSparseIndices() const {
     flatSparseIndices.push_back(getFlattenedIndex(
         {&*std::next(sparseIndexValues.begin(), i * rank), rank}));
   return flatSparseIndices;
+}
+
+//===----------------------------------------------------------------------===//
+// TypeAttr
+//===----------------------------------------------------------------------===//
+
+void TypeAttr::walkImmediateSubElements(
+    function_ref<void(Attribute)> walkAttrsFn,
+    function_ref<void(Type)> walkTypesFn) const {
+  walkTypesFn(getValue());
 }

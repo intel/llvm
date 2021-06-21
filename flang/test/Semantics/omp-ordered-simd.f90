@@ -1,4 +1,5 @@
 ! RUN: %S/test_errors.sh %s %t %flang -fopenmp
+! REQUIRES: shell
 ! OpenMP Version 4.5
 ! Various checks with the ordered construct
 
@@ -25,6 +26,7 @@ SUBROUTINE ORDERED_BAD(N)
   !$OMP DO SIMD
   DO I = 1,N
     IF (I <= 10) THEN
+      !ERROR: The only OpenMP constructs that can be encountered during execution of a 'SIMD' region are the `ATOMIC` construct, the `LOOP` construct, the `SIMD` construct and the `ORDERED` construct with the `SIMD` clause.
       !ERROR: The ORDERED clause must be present on the loop construct if any ORDERED region ever binds to a loop region arising from the loop construct.
       !$OMP ORDERED 
       CALL WORK(I)
@@ -118,6 +120,7 @@ SUBROUTINE ORDERED_BAD(N)
 
   !$OMP TASK  
     C =  C - A * B
+    !ERROR: `MASTER` region may not be closely nested inside of `WORKSHARING`, `LOOP`, `TASK`, `TASKLOOP`, or `ATOMIC` region.
     !$OMP MASTER
     DO I = 1,N
       !ERROR: `ORDERED` region may not be closely nested inside of `CRITICAL`, `ORDERED`, explicit `TASK` or `TASKLOOP` region.
@@ -131,6 +134,7 @@ SUBROUTINE ORDERED_BAD(N)
   !$OMP TASKLOOP
   DO J= 1,N  
     C =  C - A * B
+    !ERROR: `MASTER` region may not be closely nested inside of `WORKSHARING`, `LOOP`, `TASK`, `TASKLOOP`, or `ATOMIC` region.
     !$OMP MASTER
     DO I = 1,N
       !ERROR: `ORDERED` region may not be closely nested inside of `CRITICAL`, `ORDERED`, explicit `TASK` or `TASKLOOP` region.

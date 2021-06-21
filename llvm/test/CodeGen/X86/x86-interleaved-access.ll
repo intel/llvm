@@ -521,7 +521,7 @@ define <16 x i1> @interleaved_load_vf16_i8_stride4(<64 x i8>* %ptr) {
 ; AVX1-NEXT:    vpblendw {{.*#+}} xmm0 = xmm0[0,1,2,3],xmm3[4,5,6,7]
 ; AVX1-NEXT:    vpcmpeqb %xmm0, %xmm5, %xmm0
 ; AVX1-NEXT:    vpxor %xmm0, %xmm2, %xmm0
-; AVX1-NEXT:    vpxor {{.*}}(%rip), %xmm0, %xmm0
+; AVX1-NEXT:    vpxor {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; AVX1-NEXT:    retq
 ;
 ; AVX2-LABEL: interleaved_load_vf16_i8_stride4:
@@ -569,7 +569,7 @@ define <16 x i1> @interleaved_load_vf16_i8_stride4(<64 x i8>* %ptr) {
 ; AVX2-NEXT:    vpblendd {{.*#+}} xmm0 = xmm0[0,1],xmm2[2,3]
 ; AVX2-NEXT:    vpcmpeqb %xmm0, %xmm5, %xmm0
 ; AVX2-NEXT:    vpxor %xmm0, %xmm4, %xmm0
-; AVX2-NEXT:    vpxor {{.*}}(%rip), %xmm0, %xmm0
+; AVX2-NEXT:    vpxor {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; AVX2-NEXT:    retq
 ;
 ; AVX512-LABEL: interleaved_load_vf16_i8_stride4:
@@ -711,7 +711,7 @@ define <32 x i1> @interleaved_load_vf32_i8_stride4(<128 x i8>* %ptr) {
 ; AVX1-NEXT:    vinsertf128 $1, %xmm9, %ymm2, %ymm2
 ; AVX1-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
 ; AVX1-NEXT:    vxorps %ymm0, %ymm2, %ymm0
-; AVX1-NEXT:    vxorps {{.*}}(%rip), %ymm0, %ymm0
+; AVX1-NEXT:    vxorps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %ymm0, %ymm0
 ; AVX1-NEXT:    retq
 ;
 ; AVX2-LABEL: interleaved_load_vf32_i8_stride4:
@@ -803,7 +803,7 @@ define <32 x i1> @interleaved_load_vf32_i8_stride4(<128 x i8>* %ptr) {
 ; AVX2-NEXT:    vpblendd {{.*#+}} ymm1 = ymm1[0,1,2,3],ymm2[4,5,6,7]
 ; AVX2-NEXT:    vpcmpeqb %ymm1, %ymm0, %ymm0
 ; AVX2-NEXT:    vpxor %ymm0, %ymm8, %ymm0
-; AVX2-NEXT:    vpxor {{.*}}(%rip), %ymm0, %ymm0
+; AVX2-NEXT:    vpxor {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %ymm0, %ymm0
 ; AVX2-NEXT:    retq
 ;
 ; AVX512-LABEL: interleaved_load_vf32_i8_stride4:
@@ -1929,4 +1929,23 @@ define void @splat4_v4i64_load_store(<4 x i64>* %s, <16 x i64>* %d) {
   %r = shufflevector <16 x i64> %x4, <16 x i64> undef, <16 x i32> <i32 0, i32 4, i32 8, i32 12, i32 1, i32 5, i32 9, i32 13, i32 2, i32 6, i32 10, i32 14, i32 3, i32 7, i32 11, i32 15>
   store <16 x i64> %r, <16 x i64>* %d, align 8
   ret void
+}
+
+define <2 x i64> @PR37616(<16 x i64>* %a0) {
+; AVX1-LABEL: PR37616:
+; AVX1:       # %bb.0:
+; AVX1-NEXT:    vmovaps 16(%rdi), %xmm0
+; AVX1-NEXT:    vunpcklpd {{.*#+}} xmm0 = xmm0[0],mem[0]
+; AVX1-NEXT:    retq
+;
+; AVX2OR512-LABEL: PR37616:
+; AVX2OR512:       # %bb.0:
+; AVX2OR512-NEXT:    vmovaps (%rdi), %ymm0
+; AVX2OR512-NEXT:    vunpcklpd {{.*#+}} ymm0 = ymm0[0],mem[0],ymm0[2],mem[2]
+; AVX2OR512-NEXT:    vextractf128 $1, %ymm0, %xmm0
+; AVX2OR512-NEXT:    vzeroupper
+; AVX2OR512-NEXT:    retq
+  %load = load <16 x i64>, <16 x i64>* %a0, align 128
+  %shuffle = shufflevector <16 x i64> %load, <16 x i64> undef, <2 x i32> <i32 2, i32 6>
+  ret <2 x i64> %shuffle
 }

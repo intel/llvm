@@ -202,6 +202,7 @@ namespace {
       (void) llvm::createMergeFunctionsPass();
       (void) llvm::createMergeICmpsLegacyPass();
       (void) llvm::createExpandMemCmpPass();
+      (void) llvm::createExpandVectorPredicationPass();
       (void)llvm::createSYCLLowerWGScopePass();
       (void)llvm::createSYCLLowerESIMDPass();
       (void)llvm::createESIMDLowerLoadStorePass();
@@ -241,6 +242,7 @@ namespace {
       (void) llvm::createInjectTLIMappingsLegacyPass();
       (void) llvm::createUnifyLoopExitsPass();
       (void) llvm::createFixIrreduciblePass();
+      (void)llvm::createFunctionSpecializationPass();
 
       (void)new llvm::IntervalPartition();
       (void)new llvm::ScalarEvolutionWrapperPass();

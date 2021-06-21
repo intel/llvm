@@ -14,8 +14,10 @@
 #ifndef LLVM_DEBUGINFO_SYMBOLIZE_DIPRINTER_H
 #define LLVM_DEBUGINFO_SYMBOLIZE_DIPRINTER_H
 
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
-#include <string>
+#include "llvm/Support/JSON.h"
+#include <memory>
 #include <vector>
 
 namespace llvm {
@@ -28,15 +30,17 @@ class raw_ostream;
 
 namespace symbolize {
 
+class SourceCode;
+
 struct Request {
   StringRef ModuleName;
-  uint64_t Address = 0;
+  Optional<uint64_t> Address;
 };
 
 class DIPrinter {
 public:
-  DIPrinter(){};
-  virtual ~DIPrinter(){};
+  DIPrinter() {}
+  virtual ~DIPrinter() {}
 
   virtual void print(const Request &Request, const DILineInfo &Info) = 0;
   virtual void print(const Request &Request, const DIInliningInfo &Info) = 0;
@@ -45,11 +49,14 @@ public:
                      const std::vector<DILocal> &Locals) = 0;
 
   virtual void printInvalidCommand(const Request &Request,
-                                   const ErrorInfoBase &ErrorInfo) = 0;
+                                   StringRef Command) = 0;
 
   virtual bool printError(const Request &Request,
                           const ErrorInfoBase &ErrorInfo,
                           StringRef ErrorBanner) = 0;
+
+  virtual void listBegin() = 0;
+  virtual void listEnd() = 0;
 };
 
 struct PrinterConfig {
@@ -70,8 +77,9 @@ protected:
   void printFunctionName(StringRef FunctionName, bool Inlined);
   virtual void printSimpleLocation(StringRef Filename,
                                    const DILineInfo &Info) = 0;
-  void printContext(StringRef FileName, int64_t Line);
+  void printContext(SourceCode SourceCode);
   void printVerbose(StringRef Filename, const DILineInfo &Info);
+  virtual void printStartAddress(const DILineInfo &Info) {}
   virtual void printFooter() {}
 
 private:
@@ -87,16 +95,19 @@ public:
   void print(const Request &Request,
              const std::vector<DILocal> &Locals) override;
 
-  void printInvalidCommand(const Request &Request,
-                           const ErrorInfoBase &ErrorInfo) override;
+  void printInvalidCommand(const Request &Request, StringRef Command) override;
 
   bool printError(const Request &Request, const ErrorInfoBase &ErrorInfo,
                   StringRef ErrorBanner) override;
+
+  void listBegin() override {}
+  void listEnd() override {}
 };
 
 class LLVMPrinter : public PlainPrinterBase {
 private:
   void printSimpleLocation(StringRef Filename, const DILineInfo &Info) override;
+  void printStartAddress(const DILineInfo &Info) override;
   void printFooter() override;
 
 public:
@@ -111,6 +122,37 @@ private:
 public:
   GNUPrinter(raw_ostream &OS, raw_ostream &ES, PrinterConfig &Config)
       : PlainPrinterBase(OS, ES, Config) {}
+};
+
+class JSONPrinter : public DIPrinter {
+private:
+  raw_ostream &OS;
+  PrinterConfig Config;
+  std::unique_ptr<json::Array> ObjectList;
+
+  void printJSON(const json::Value &V) {
+    json::OStream JOS(OS, Config.Pretty ? 2 : 0);
+    JOS.value(V);
+    OS << '\n';
+  }
+
+public:
+  JSONPrinter(raw_ostream &OS, PrinterConfig &Config)
+      : DIPrinter(), OS(OS), Config(Config) {}
+
+  void print(const Request &Request, const DILineInfo &Info) override;
+  void print(const Request &Request, const DIInliningInfo &Info) override;
+  void print(const Request &Request, const DIGlobal &Global) override;
+  void print(const Request &Request,
+             const std::vector<DILocal> &Locals) override;
+
+  void printInvalidCommand(const Request &Request, StringRef Command) override;
+
+  bool printError(const Request &Request, const ErrorInfoBase &ErrorInfo,
+                  StringRef ErrorBanner) override;
+
+  void listBegin() override;
+  void listEnd() override;
 };
 } // namespace symbolize
 } // namespace llvm

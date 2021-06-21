@@ -39,7 +39,8 @@ class SymbolTable {
 public:
   Defined *addDefined(StringRef name, InputFile *, InputSection *,
                       uint64_t value, uint64_t size, bool isWeakDef,
-                      bool isPrivateExtern, bool isThumb);
+                      bool isPrivateExtern, bool isThumb,
+                      bool isReferencedDynamically, bool noDeadStrip);
 
   Symbol *addUndefined(StringRef name, InputFile *, bool isWeakRef);
 
@@ -53,7 +54,8 @@ public:
                   const llvm::object::Archive::Symbol &sym);
 
   Defined *addSynthetic(StringRef name, InputSection *, uint64_t value,
-                        bool isPrivateExtern, bool includeInSymtab);
+                        bool isPrivateExtern, bool includeInSymtab,
+                        bool referencedDynamically);
 
   ArrayRef<Symbol *> getSymbols() const { return symVector; }
   Symbol *find(llvm::CachedHashStringRef name);
@@ -65,7 +67,7 @@ private:
   std::vector<Symbol *> symVector;
 };
 
-void treatUndefinedSymbol(const Undefined &);
+void treatUndefinedSymbol(const Undefined &, StringRef source = "");
 
 extern SymbolTable *symtab;
 

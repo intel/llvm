@@ -122,14 +122,21 @@ void queue_impl::addSharedEvent(const event &Event) {
   // of them can be released.
   const size_t EventThreshold = 128;
   if (MEventsShared.size() >= EventThreshold) {
+    // Generally, the vector is ordered so that the oldest events are in the
+    // front and the newer events are in the end.  So, search to find the first
+    // event that isn't yet complete.  All the events prior to that can be
+    // erased. This could leave some few events further on that have completed
+    // not yet erased, but that is OK.  This cleanup doesn't have to be perfect.
+    // This also keeps the algorithm linear rather than quadratic because it
+    // doesn't continually recheck things towards the back of the list that
+    // really haven't had time to complete.
     MEventsShared.erase(
-        std::remove_if(
-            MEventsShared.begin(), MEventsShared.end(),
-            [](const event &E) {
-              return E.get_info<info::event::command_execution_status>() ==
+        MEventsShared.begin(),
+        std::find_if(
+            MEventsShared.begin(), MEventsShared.end(), [](const event &E) {
+              return E.get_info<info::event::command_execution_status>() !=
                      info::event_command_status::complete;
-            }),
-        MEventsShared.end());
+            }));
   }
   MEventsShared.push_back(Event);
 }

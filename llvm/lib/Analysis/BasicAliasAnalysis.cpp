@@ -129,6 +129,14 @@ static bool isEscapeSource(const Value *V) {
   if (isa<LoadInst>(V))
     return true;
 
+  // The inttoptr case works because isNonEscapingLocalObject considers all
+  // means of converting or equating a pointer to an int (ptrtoint, ptr store
+  // which could be followed by an integer load, ptr<->int compare) as
+  // escaping, and objects located at well-known addresses via platform-specific
+  // means cannot be considered non-escaping local objects.
+  if (isa<IntToPtrInst>(V))
+    return true;
+
   return false;
 }
 
@@ -1285,6 +1293,8 @@ BasicAAResult::aliasSelect(const SelectInst *SI, LocationSize SISize,
 AliasResult BasicAAResult::aliasPHI(const PHINode *PN, LocationSize PNSize,
                                     const Value *V2, LocationSize V2Size,
                                     AAQueryInfo &AAQI) {
+  if (!PN->getNumIncomingValues())
+    return AliasResult::NoAlias;
   // If the values are PHIs in the same block, we can do a more precise
   // as well as efficient check: just check for aliases between the values
   // on corresponding edges.

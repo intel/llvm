@@ -77,7 +77,7 @@ bool CompilerInstance::shouldBuildGlobalModuleIndex() const {
   return (BuildGlobalModuleIndex ||
           (TheASTReader && TheASTReader->isGlobalIndexUnavailable() &&
            getFrontendOpts().GenerateGlobalModuleIndex)) &&
-         !ModuleBuildFailed;
+         !DisableGeneratingGlobalModuleIndex;
 }
 
 void CompilerInstance::setDiagnostics(DiagnosticsEngine *Value) {
@@ -135,8 +135,9 @@ bool CompilerInstance::createTarget() {
 
   // We should do it here because target knows nothing about
   // language options when it's being created.
-  if (getLangOpts().OpenCL)
-    getTarget().validateOpenCLTarget(getLangOpts(), getDiagnostics());
+  if (getLangOpts().OpenCL &&
+      !getTarget().validateOpenCLTarget(getLangOpts(), getDiagnostics()))
+    return false;
 
   // Inform the target of the language options.
   //
@@ -705,31 +706,37 @@ void CompilerInstance::createSema(TranslationUnitKind TUKind,
 // Output Files
 
 void CompilerInstance::clearOutputFiles(bool EraseFiles) {
+  // Ignore errors that occur when trying to discard the temp file.
   for (OutputFile &OF : OutputFiles) {
     if (EraseFiles) {
-      if (!OF.TempFilename.empty()) {
-        llvm::sys::fs::remove(OF.TempFilename);
-        continue;
-      }
+      if (OF.File)
+        consumeError(OF.File->discard());
       if (!OF.Filename.empty())
         llvm::sys::fs::remove(OF.Filename);
       continue;
     }
 
-    if (OF.TempFilename.empty())
+    if (!OF.File)
       continue;
+
+    if (OF.File->TmpName.empty()) {
+      consumeError(OF.File->discard());
+      continue;
+    }
 
     // If '-working-directory' was passed, the output filename should be
     // relative to that.
     SmallString<128> NewOutFile(OF.Filename);
     FileMgr->FixupRelativePath(NewOutFile);
-    std::error_code EC = llvm::sys::fs::rename(OF.TempFilename, NewOutFile);
-    if (!EC)
-      continue;
-    getDiagnostics().Report(diag::err_unable_to_rename_temp)
-        << OF.TempFilename << OF.Filename << EC.message();
 
-    llvm::sys::fs::remove(OF.TempFilename);
+    llvm::Error E = OF.File->keep(NewOutFile);
+    if (!E)
+      continue;
+
+    getDiagnostics().Report(diag::err_unable_to_rename_temp)
+        << OF.File->TmpName << OF.Filename << std::move(E);
+
+    llvm::sys::fs::remove(OF.File->TmpName);
   }
   OutputFiles.clear();
   if (DeleteBuiltModules) {
@@ -811,7 +818,7 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
     }
   }
 
-  std::string TempFile;
+  Optional<llvm::sys::fs::TempFile> Temp;
   if (UseTemporary) {
     // Create a temporary file.
     // Insert -%%%%%%%% before the extension (if any), and because some tools
@@ -823,25 +830,34 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
     TempPath += "-%%%%%%%%";
     TempPath += OutputExtension;
     TempPath += ".tmp";
-    int fd;
-    std::error_code EC = llvm::sys::fs::createUniqueFile(
-        TempPath, fd, TempPath,
-        Binary ? llvm::sys::fs::OF_None : llvm::sys::fs::OF_Text);
+    Expected<llvm::sys::fs::TempFile> ExpectedFile =
+        llvm::sys::fs::TempFile::create(
+            TempPath, llvm::sys::fs::all_read | llvm::sys::fs::all_write,
+            Binary ? llvm::sys::fs::OF_None : llvm::sys::fs::OF_Text);
 
-    if (CreateMissingDirectories &&
-        EC == llvm::errc::no_such_file_or_directory) {
-      StringRef Parent = llvm::sys::path::parent_path(OutputPath);
-      EC = llvm::sys::fs::create_directories(Parent);
-      if (!EC) {
-        EC = llvm::sys::fs::createUniqueFile(TempPath, fd, TempPath,
-                                             Binary ? llvm::sys::fs::OF_None
-                                                    : llvm::sys::fs::OF_Text);
-      }
-    }
+    llvm::Error E = handleErrors(
+        ExpectedFile.takeError(), [&](const llvm::ECError &E) -> llvm::Error {
+          std::error_code EC = E.convertToErrorCode();
+          if (CreateMissingDirectories &&
+              EC == llvm::errc::no_such_file_or_directory) {
+            StringRef Parent = llvm::sys::path::parent_path(OutputPath);
+            EC = llvm::sys::fs::create_directories(Parent);
+            if (!EC) {
+              ExpectedFile = llvm::sys::fs::TempFile::create(TempPath);
+              if (!ExpectedFile)
+                return llvm::errorCodeToError(
+                    llvm::errc::no_such_file_or_directory);
+            }
+          }
+          return llvm::errorCodeToError(EC);
+        });
 
-    if (!EC) {
-      OS.reset(new llvm::raw_fd_ostream(fd, /*shouldClose=*/true));
-      OSFile = TempFile = std::string(TempPath.str());
+    if (E) {
+      consumeError(std::move(E));
+    } else {
+      Temp = std::move(ExpectedFile.get());
+      OS.reset(new llvm::raw_fd_ostream(Temp->FD, /*shouldClose=*/false));
+      OSFile = Temp->TmpName;
     }
     // If we failed to create the temporary, fallback to writing to the file
     // directly. This handles the corner case where we cannot write to the
@@ -858,14 +874,10 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
       return llvm::errorCodeToError(EC);
   }
 
-  // Make sure the out stream file gets removed if we crash.
-  if (RemoveFileOnSignal)
-    llvm::sys::RemoveFileOnSignal(*OSFile);
-
   // Add the output file -- but don't try to remove "-", since this means we are
   // using stdin.
   OutputFiles.emplace_back(((OutputPath != "-") ? OutputPath : "").str(),
-                           std::move(TempFile));
+                           std::move(Temp));
 
   if (!Binary || OS->supportsSeeking())
     return std::move(OS);
@@ -1686,9 +1698,7 @@ ModuleLoadResult CompilerInstance::findOrCompileModuleAndReadAST(
     // We can't find a module, error out here.
     getDiagnostics().Report(ModuleNameLoc, diag::err_module_not_found)
         << ModuleName << SourceRange(ImportLoc, ModuleNameLoc);
-    ModuleBuildFailed = true;
-    // FIXME: Why is this not cached?
-    return ModuleLoadResult::OtherUncachedFailure;
+    return nullptr;
   }
   if (ModuleFilename.empty()) {
     if (M && M->HasIncompatibleModuleFile) {
@@ -1699,9 +1709,7 @@ ModuleLoadResult CompilerInstance::findOrCompileModuleAndReadAST(
 
     getDiagnostics().Report(ModuleNameLoc, diag::err_module_build_disabled)
         << ModuleName;
-    ModuleBuildFailed = true;
-    // FIXME: Why is this not cached?
-    return ModuleLoadResult::OtherUncachedFailure;
+    return nullptr;
   }
 
   // Create an ASTReader on demand.
@@ -1747,7 +1755,6 @@ ModuleLoadResult CompilerInstance::findOrCompileModuleAndReadAST(
         if (*ModuleFile == M->getASTFile())
           return M;
 
-    ModuleBuildFailed = true;
     getDiagnostics().Report(ModuleNameLoc, diag::err_module_prebuilt)
         << ModuleName;
     return ModuleLoadResult();
@@ -1769,14 +1776,12 @@ ModuleLoadResult CompilerInstance::findOrCompileModuleAndReadAST(
     LLVM_FALLTHROUGH;
   case ASTReader::VersionMismatch:
   case ASTReader::HadErrors:
-    // FIXME: Should this set ModuleBuildFailed = true?
     ModuleLoader::HadFatalFailure = true;
     // FIXME: The ASTReader will already have complained, but can we shoehorn
     // that diagnostic information into a more useful form?
     return ModuleLoadResult();
 
   case ASTReader::Failure:
-    // FIXME: Should this set ModuleBuildFailed = true?
     ModuleLoader::HadFatalFailure = true;
     return ModuleLoadResult();
   }
@@ -1786,7 +1791,6 @@ ModuleLoadResult CompilerInstance::findOrCompileModuleAndReadAST(
     // We don't know the desired configuration for this module and don't
     // necessarily even have a module map. Since ReadAST already produces
     // diagnostics for these two cases, we simply error out here.
-    ModuleBuildFailed = true;
     return ModuleLoadResult();
   }
 
@@ -1811,9 +1815,7 @@ ModuleLoadResult CompilerInstance::findOrCompileModuleAndReadAST(
 
     getDiagnostics().Report(ModuleNameLoc, diag::err_module_cycle)
         << ModuleName << CyclePath;
-    // FIXME: Should this set ModuleBuildFailed = true?
-    // FIXME: Why is this not cached?
-    return ModuleLoadResult::OtherUncachedFailure;
+    return nullptr;
   }
 
   // Check whether we have already attempted to build this module (but
@@ -1822,9 +1824,7 @@ ModuleLoadResult CompilerInstance::findOrCompileModuleAndReadAST(
       getPreprocessorOpts().FailedModules->hasAlreadyFailed(ModuleName)) {
     getDiagnostics().Report(ModuleNameLoc, diag::err_module_not_built)
         << ModuleName << SourceRange(ImportLoc, ModuleNameLoc);
-    ModuleBuildFailed = true;
-    // FIXME: Why is this not cached?
-    return ModuleLoadResult::OtherUncachedFailure;
+    return nullptr;
   }
 
   // Try to compile and then read the AST.
@@ -1834,9 +1834,7 @@ ModuleLoadResult CompilerInstance::findOrCompileModuleAndReadAST(
            "undiagnosed error in compileModuleAndReadAST");
     if (getPreprocessorOpts().FailedModules)
       getPreprocessorOpts().FailedModules->addFailed(ModuleName);
-    ModuleBuildFailed = true;
-    // FIXME: Why is this not cached?
-    return ModuleLoadResult::OtherUncachedFailure;
+    return nullptr;
   }
 
   // Okay, we've rebuilt and now loaded the module.
@@ -1879,22 +1877,19 @@ CompilerInstance::loadModule(SourceLocation ImportLoc,
     //if (Module == nullptr) {
     //  getDiagnostics().Report(ModuleNameLoc, diag::err_module_not_found)
     //    << ModuleName;
-    //  ModuleBuildFailed = true;
+    //  DisableGeneratingGlobalModuleIndex = true;
     //  return ModuleLoadResult();
     //}
     MM.cacheModuleLoad(*Path[0].first, Module);
   } else {
     ModuleLoadResult Result = findOrCompileModuleAndReadAST(
         ModuleName, ImportLoc, ModuleNameLoc, IsInclusionDirective);
-    // FIXME: Can we pull 'ModuleBuildFailed = true' out of the return
-    // sequences for findOrCompileModuleAndReadAST and do it here (as long as
-    // the result is not a config mismatch)?  See FIXMEs there.
     if (!Result.isNormal())
       return Result;
+    if (!Result)
+      DisableGeneratingGlobalModuleIndex = true;
     Module = Result;
     MM.cacheModuleLoad(*Path[0].first, Module);
-    if (!Module)
-      return Module;
   }
 
   // If we never found the module, fail.  Otherwise, verify the module and link

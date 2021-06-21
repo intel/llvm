@@ -56,6 +56,9 @@
 // fpstrict-NOT: -menable-unsafe-fp-math
 // fpstrict-NOT: -ffast-math
 
+// RUN: %clang_cl /fsanitize=address -### -- %s 2>&1 | FileCheck -check-prefix=fsanitize_address %s
+// fsanitize_address: -fsanitize=address
+
 // RUN: %clang_cl -### /FA -fprofile-instr-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE %s
 // RUN: %clang_cl -### /FA -fprofile-instr-generate=/tmp/somefile.profraw -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE-FILE %s
 // CHECK-PROFILE-INSTR-GENERATE: "-fprofile-instrument=clang" "--dependent-lib=clang_rt.profile{{[^"]*}}.lib"
@@ -417,6 +420,7 @@
 // (/Zs is for syntax-only)
 // RUN: %clang_cl /Zs \
 // RUN:     /await \
+// RUN:     /await:strict \
 // RUN:     /constexpr:depth1000 /constexpr:backtrace1000 /constexpr:steps1000 \
 // RUN:     /AIfoo \
 // RUN:     /AI foo_does_not_exist \
@@ -425,6 +429,21 @@
 // RUN:     /clr:pure \
 // RUN:     /d2FH4 \
 // RUN:     /docname \
+// RUN:     /experimental:external \
+// RUN:     /experimental:module \
+// RUN:     /experimental:preprocessor \
+// RUN:     /exportHeader /headerName:foo \
+// RUN:     /external:anglebrackets \
+// RUN:     /external:Ipath \
+// RUN:     /external:I path \
+// RUN:     /external:env:var \
+// RUN:     /external:W0 \
+// RUN:     /external:W1 \
+// RUN:     /external:W2 \
+// RUN:     /external:W3 \
+// RUN:     /external:W4 \
+// RUN:     /external:templates- \
+// RUN:     /headerUnit foo.h=foo.ifc /headerUnit:quote foo.h=foo.ifc /headerUnit:angle foo.h=foo.ifc \
 // RUN:     /EHsc \
 // RUN:     /F 42 \
 // RUN:     /FA \
@@ -433,6 +452,7 @@
 // RUN:     /FAs \
 // RUN:     /FAu \
 // RUN:     /favor:blend \
+// RUN:     /fno-sanitize-address-vcasan-lib \
 // RUN:     /Fifoo \
 // RUN:     /Fmfoo \
 // RUN:     /FpDebug\main.pch \
@@ -479,6 +499,10 @@
 // RUN:     /Qspectre-load \
 // RUN:     /Qspectre-load-cf \
 // RUN:     /Qvec-report:2 \
+// RUN:     /reference foo=foo.ifc /reference foo.ifc \
+// RUN:     /sourceDependencies foo.json \
+// RUN:     /sourceDependencies:directives foo.json \
+// RUN:     /translateInclude \
 // RUN:     /u \
 // RUN:     /V \
 // RUN:     /volatile:ms \
@@ -581,8 +605,11 @@
 // RUN: %clang_cl -fmsc-version=1900 -TP -std:c++17 -### -- %s 2>&1 | FileCheck -check-prefix=STDCXX17 %s
 // STDCXX17: -std=c++17
 
+// RUN: %clang_cl -fmsc-version=1900 -TP -std:c++20 -### -- %s 2>&1 | FileCheck -check-prefix=STDCXX20 %s
+// STDCXX20: -std=c++20
+
 // RUN: %clang_cl -fmsc-version=1900 -TP -std:c++latest -### -- %s 2>&1 | FileCheck -check-prefix=STDCXXLATEST %s
-// STDCXXLATEST: -std=c++20
+// STDCXXLATEST: -std=c++2b
 
 // RUN: env CL="/Gy" %clang_cl -### -- %s 2>&1 | FileCheck -check-prefix=ENV-CL %s
 // ENV-CL: "-ffunction-sections"
@@ -708,7 +735,7 @@
 
 // Validate that the default triple is used when run an empty tools dir is specified
 // RUN: %clang_cl -vctoolsdir "" -### -- %s 2>&1 | FileCheck %s --check-prefix VCTOOLSDIR
-// VCTOOLSDIR: "-triple" "{{[a-zA-Z0-9_-]*}}-pc-windows-msvc19.11.0"
+// VCTOOLSDIR: "-triple" "{{[a-zA-Z0-9_-]*}}-pc-windows-msvc19.14.0"
 
 // Validate that built-in include paths are based on the supplied path
 // RUN: %clang_cl --target=aarch64-pc-windows-msvc -vctoolsdir "/fake" -winsdkdir "/foo" -winsdkversion 10.0.12345.0 -### -- %s 2>&1 | FileCheck %s --check-prefix FAKEDIR

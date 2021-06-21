@@ -455,6 +455,9 @@ static StringRef getArchNameForCompilerRTLib(const ToolChain &TC,
 }
 
 StringRef ToolChain::getOSLibName() const {
+  if (Triple.isOSDarwin())
+    return "darwin";
+
   switch (Triple.getOS()) {
   case llvm::Triple::FreeBSD:
     return "freebsd";
@@ -853,7 +856,7 @@ ToolChain::UnwindLibType ToolChain::GetUnwindLibType(
   else if (LibName == "platform" || LibName == "") {
     ToolChain::RuntimeLibType RtLibType = GetRuntimeLibType(Args);
     if (RtLibType == ToolChain::RLT_CompilerRT) {
-      if (getTriple().isAndroid())
+      if (getTriple().isAndroid() || getTriple().isOSAIX())
         unwindLibType = ToolChain::UNW_CompilerRT;
       else
         unwindLibType = ToolChain::UNW_None;

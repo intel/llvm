@@ -1692,7 +1692,7 @@ llvm::Function *CodeGenFunction::generateBuiltinOSLogHelperFunction(
   llvm::Function *Fn = llvm::Function::Create(
       FuncTy, llvm::GlobalValue::LinkOnceODRLinkage, Name, &CGM.getModule());
   Fn->setVisibility(llvm::GlobalValue::HiddenVisibility);
-  CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, Fn);
+  CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, Fn, /*IsThunk=*/false);
   CGM.SetLLVMFunctionAttributesForDefinition(nullptr, Fn);
   Fn->setDoesNotThrow();
 
@@ -9067,33 +9067,32 @@ Value *CodeGenFunction::EmitAArch64SVEBuiltinExpr(unsigned BuiltinID,
     if (IsBoolTy)
       EltTy = IntegerType::get(getLLVMContext(), SVEBitsPerBlock / NumOpnds);
 
-    Address Alloca = CreateTempAlloca(llvm::ArrayType::get(EltTy, NumOpnds),
-                                     CharUnits::fromQuantity(16));
+    SmallVector<llvm::Value *, 16> VecOps;
     for (unsigned I = 0; I < NumOpnds; ++I)
-      Builder.CreateDefaultAlignedStore(
-          IsBoolTy ? Builder.CreateZExt(Ops[I], EltTy) : Ops[I],
-          Builder.CreateGEP(Alloca.getElementType(), Alloca.getPointer(),
-                            {Builder.getInt64(0), Builder.getInt64(I)}));
+        VecOps.push_back(Builder.CreateZExt(Ops[I], EltTy));
+    Value *Vec = BuildVector(VecOps);
 
     SVETypeFlags TypeFlags(Builtin->TypeModifier);
     Value *Pred = EmitSVEAllTruePred(TypeFlags);
 
     llvm::Type *OverloadedTy = getSVEVectorForElementType(EltTy);
-    Function *F = CGM.getIntrinsic(Intrinsic::aarch64_sve_ld1rq, OverloadedTy);
-    Value *Alloca0 = Builder.CreateGEP(
-        Alloca.getElementType(), Alloca.getPointer(),
-        {Builder.getInt64(0), Builder.getInt64(0)});
-    Value *LD1RQ = Builder.CreateCall(F, {Pred, Alloca0});
+    Value *InsertSubVec = Builder.CreateInsertVector(
+        OverloadedTy, UndefValue::get(OverloadedTy), Vec, Builder.getInt64(0));
+
+    Function *F =
+        CGM.getIntrinsic(Intrinsic::aarch64_sve_dupq_lane, OverloadedTy);
+    Value *DupQLane =
+        Builder.CreateCall(F, {InsertSubVec, Builder.getInt64(0)});
 
     if (!IsBoolTy)
-      return LD1RQ;
+      return DupQLane;
 
     // For svdupq_n_b* we need to add an additional 'cmpne' with '0'.
     F = CGM.getIntrinsic(NumOpnds == 2 ? Intrinsic::aarch64_sve_cmpne
                                        : Intrinsic::aarch64_sve_cmpne_wide,
                          OverloadedTy);
-    Value *Call =
-        Builder.CreateCall(F, {Pred, LD1RQ, EmitSVEDupX(Builder.getInt64(0))});
+    Value *Call = Builder.CreateCall(
+        F, {Pred, DupQLane, EmitSVEDupX(Builder.getInt64(0))});
     return EmitSVEPredicateCast(Call, cast<llvm::ScalableVectorType>(Ty));
   }
 
@@ -9448,7 +9447,7 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
 
     llvm::APSInt Value = Result.Val.getInt();
     LLVMContext &Context = CGM.getLLVMContext();
-    std::string Reg = Value == 31 ? "sp" : "x" + Value.toString(10);
+    std::string Reg = Value == 31 ? "sp" : "x" + toString(Value, 10);
 
     llvm::Metadata *Ops[] = {llvm::MDString::get(Context, Reg)};
     llvm::MDNode *RegName = llvm::MDNode::get(Context, Ops);
@@ -10885,7 +10884,7 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   }
   case NEON::BI__builtin_neon_vrbit_v:
   case NEON::BI__builtin_neon_vrbitq_v: {
-    Int = Intrinsic::aarch64_neon_rbit;
+    Int = Intrinsic::bitreverse;
     return EmitNeonCall(CGM.getIntrinsic(Int, Ty), Ops, "vrbit");
   }
   case NEON::BI__builtin_neon_vaddv_u8:
@@ -15355,7 +15354,7 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
   // use custom code generation to expand a builtin call with a pointer to a
   // load (if the corresponding instruction accumulates its result) followed by
   // the call to the intrinsic and a store of the result.
-#define CUSTOM_BUILTIN(Name, Types, Accumulate) \
+#define CUSTOM_BUILTIN(Name, Intr, Types, Accumulate) \
   case PPC::BI__builtin_##Name:
 #include "clang/Basic/BuiltinsPPC.def"
   {
@@ -15364,7 +15363,8 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
     // return values. So, here we emit code extracting these values from the
     // intrinsic results and storing them using that pointer.
     if (BuiltinID == PPC::BI__builtin_mma_disassemble_acc ||
-        BuiltinID == PPC::BI__builtin_vsx_disassemble_pair) {
+        BuiltinID == PPC::BI__builtin_vsx_disassemble_pair ||
+        BuiltinID == PPC::BI__builtin_mma_disassemble_pair) {
       unsigned NumVecs = 2;
       auto Intrinsic = Intrinsic::ppc_vsx_disassemble_pair;
       if (BuiltinID == PPC::BI__builtin_mma_disassemble_acc) {
@@ -15387,16 +15387,19 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
     }
     bool Accumulate;
     switch (BuiltinID) {
-  #define CUSTOM_BUILTIN(Name, Types, Acc) \
+  #define CUSTOM_BUILTIN(Name, Intr, Types, Acc) \
     case PPC::BI__builtin_##Name: \
-      ID = Intrinsic::ppc_##Name; \
+      ID = Intrinsic::ppc_##Intr; \
       Accumulate = Acc; \
       break;
   #include "clang/Basic/BuiltinsPPC.def"
     }
     if (BuiltinID == PPC::BI__builtin_vsx_lxvp ||
-        BuiltinID == PPC::BI__builtin_vsx_stxvp) {
-      if (BuiltinID == PPC::BI__builtin_vsx_lxvp) {
+        BuiltinID == PPC::BI__builtin_vsx_stxvp ||
+        BuiltinID == PPC::BI__builtin_mma_lxvp ||
+        BuiltinID == PPC::BI__builtin_mma_stxvp) {
+      if (BuiltinID == PPC::BI__builtin_vsx_lxvp ||
+          BuiltinID == PPC::BI__builtin_mma_lxvp) {
         Ops[1] = Builder.CreateBitCast(Ops[1], Int8PtrTy);
         Ops[0] = Builder.CreateGEP(Ops[1], Ops[0]);
       } else {
@@ -17902,12 +17905,12 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   Optional<llvm::APSInt> Params =
       E->getArg(1)->getIntegerConstantExpr(getContext());
   assert(Params.hasValue() && "Constant arg isn't actually constant?");
-  Out << "{params:" << Params->toString(10) << "}";
+  Out << "{params:" << toString(*Params, 10) << "}";
 
   Optional<llvm::APSInt> CacheSize =
       E->getArg(2)->getIntegerConstantExpr(getContext());
   assert(CacheSize.hasValue() && "Constant arg isn't actually constant?");
-  Out << "{cache-size:" << CacheSize->toString(10) << "}";
+  Out << "{cache-size:" << toString(*CacheSize, 10) << "}";
 
   llvm::Value *Ann = EmitAnnotationCall(F, PtrVal, AnnotStr, SourceLocation());
 

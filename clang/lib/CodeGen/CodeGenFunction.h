@@ -2867,7 +2867,12 @@ public:
   void EmitCXXTemporary(const CXXTemporary *Temporary, QualType TempType,
                         Address Ptr);
 
-  llvm::Value *EmitLifetimeStart(uint64_t Size, llvm::Value *Addr);
+  void EmitSehCppScopeBegin();
+  void EmitSehCppScopeEnd();
+  void EmitSehTryScopeBegin();
+  void EmitSehTryScopeEnd();
+
+  llvm::Value *EmitLifetimeStart(llvm::TypeSize Size, llvm::Value *Addr);
   void EmitLifetimeEnd(llvm::Value *Size, llvm::Value *Addr);
 
   llvm::Value *EmitCXXNewExpr(const CXXNewExpr *E);
@@ -3217,6 +3222,8 @@ public:
   void EmitSEHLeaveStmt(const SEHLeaveStmt &S);
   void EnterSEHTryStmt(const SEHTryStmt &S);
   void ExitSEHTryStmt(const SEHTryStmt &S);
+  void VolatilizeTryBlocks(llvm::BasicBlock *BB,
+                           llvm::SmallPtrSet<llvm::BasicBlock *, 10> &V);
 
   void pushSEHCleanup(CleanupKind kind,
                       llvm::Function *FinallyFunc);
@@ -3434,6 +3441,7 @@ public:
   void EmitOMPParallelDirective(const OMPParallelDirective &S);
   void EmitOMPSimdDirective(const OMPSimdDirective &S);
   void EmitOMPTileDirective(const OMPTileDirective &S);
+  void EmitOMPUnrollDirective(const OMPUnrollDirective &S);
   void EmitOMPForDirective(const OMPForDirective &S);
   void EmitOMPForSimdDirective(const OMPForSimdDirective &S);
   void EmitOMPSectionsDirective(const OMPSectionsDirective &S);

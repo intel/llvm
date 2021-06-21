@@ -77,6 +77,7 @@ CodeGenFunction::CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext)
           shouldEmitLifetimeMarkers(CGM.getCodeGenOpts(), CGM.getLangOpts())) {
   if (!suppressNewContext)
     CGM.getCXXABI().getMangleContext().startNewFunction();
+  EHStack.setCGF(this);
 
   SetFastMathFlags(CurFPFeatures);
   SetFPModel();
@@ -622,9 +623,9 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   if (const WorkGroupSizeHintAttr *A = FD->getAttr<WorkGroupSizeHintAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
+        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getXDimVal())),
+        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
+        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getZDimVal()))};
     Fn->setMetadata("work_group_size_hint", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
@@ -760,12 +761,6 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
 
-  if (FD->hasAttr<SYCLIntelUseStallEnableClustersAttr>()) {
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
-    Fn->setMetadata("stall_enable", llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
   if (const auto *A = FD->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getNThreadsExpr());
     llvm::APSInt ArgVal = CE->getResultAsAPSInt();
@@ -887,8 +882,10 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   } while (0);
 
   if (D) {
-    // Apply the no_sanitize* attributes to SanOpts.
+    bool NoSanitizeCoverage = false;
+
     for (auto Attr : D->specific_attrs<NoSanitizeAttr>()) {
+      // Apply the no_sanitize* attributes to SanOpts.
       SanitizerMask mask = Attr->getMask();
       SanOpts.Mask &= ~mask;
       if (mask & SanitizerKind::Address)
@@ -899,7 +896,14 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         SanOpts.set(SanitizerKind::KernelHWAddress, false);
       if (mask & SanitizerKind::KernelHWAddress)
         SanOpts.set(SanitizerKind::HWAddress, false);
+
+      // SanitizeCoverage is not handled by SanOpts.
+      if (Attr->hasCoverage())
+        NoSanitizeCoverage = true;
     }
+
+    if (NoSanitizeCoverage && CGM.getCodeGenOpts().hasSanitizeCoverage())
+      Fn->addFnAttr(llvm::Attribute::NoSanitizeCoverage);
   }
 
   // Apply sanitizer attributes to the function.
@@ -1052,6 +1056,14 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       Fn->setMetadata("loop_fuse",
                       llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
     }
+  }
+
+  if (getLangOpts().SYCLIsDevice && D &&
+      D->hasAttr<SYCLIntelUseStallEnableClustersAttr>()) {
+    llvm::Metadata *AttrMDArgs[] = {
+        llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
+    Fn->setMetadata("stall_enable",
+                    llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
   }
 
   if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {

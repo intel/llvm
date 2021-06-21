@@ -57,10 +57,9 @@ void MCTargetStreamer::changeSection(const MCSection *CurSection,
                                      MCSection *Section,
                                      const MCExpr *Subsection,
                                      raw_ostream &OS) {
-  Section->PrintSwitchToSection(
-      *Streamer.getContext().getAsmInfo(),
-      Streamer.getContext().getObjectFileInfo()->getTargetTriple(), OS,
-      Subsection);
+  Section->PrintSwitchToSection(*Streamer.getContext().getAsmInfo(),
+                                Streamer.getContext().getTargetTriple(), OS,
+                                Subsection);
 }
 
 void MCTargetStreamer::emitDwarfFileDirective(StringRef Directive) {
@@ -445,7 +444,8 @@ void MCStreamer::emitCFIStartProc(bool IsSimple, SMLoc Loc) {
   if (MAI) {
     for (const MCCFIInstruction& Inst : MAI->getInitialFrameState()) {
       if (Inst.getOperation() == MCCFIInstruction::OpDefCfa ||
-          Inst.getOperation() == MCCFIInstruction::OpDefCfaRegister) {
+          Inst.getOperation() == MCCFIInstruction::OpDefCfaRegister ||
+          Inst.getOperation() == MCCFIInstruction::OpLLVMDefAspaceCfa) {
         Frame.CurrentCfaRegister = Inst.getRegister();
       }
     }
@@ -511,6 +511,18 @@ void MCStreamer::emitCFIDefCfaRegister(int64_t Register) {
   MCSymbol *Label = emitCFILabel();
   MCCFIInstruction Instruction =
     MCCFIInstruction::createDefCfaRegister(Label, Register);
+  MCDwarfFrameInfo *CurFrame = getCurrentDwarfFrameInfo();
+  if (!CurFrame)
+    return;
+  CurFrame->Instructions.push_back(Instruction);
+  CurFrame->CurrentCfaRegister = static_cast<unsigned>(Register);
+}
+
+void MCStreamer::emitCFILLVMDefAspaceCfa(int64_t Register, int64_t Offset,
+                                         int64_t AddressSpace) {
+  MCSymbol *Label = emitCFILabel();
+  MCCFIInstruction Instruction = MCCFIInstruction::createLLVMDefAspaceCfa(
+      Label, Register, Offset, AddressSpace);
   MCDwarfFrameInfo *CurFrame = getCurrentDwarfFrameInfo();
   if (!CurFrame)
     return;

@@ -37,7 +37,7 @@ define i32 @partial_unswitch_true_successor(i32* %ptr, i32 %N) {
 ; CHECK:       loop.latch:
 ; CHECK-NEXT:    [[C:%.*]] = icmp ult i32 [[IV]], [[N]]
 ; CHECK-NEXT:    [[IV_NEXT]] = add i32 [[IV]], 1
-; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]]
+; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]], !llvm.loop [[LOOP0:![0-9]+]]
 ; CHECK:       exit.split:
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:
@@ -102,7 +102,7 @@ define i32 @partial_unswitch_false_successor(i32* %ptr, i32 %N) {
 ; CHECK:       loop.latch:
 ; CHECK-NEXT:    [[C:%.*]] = icmp ult i32 [[IV]], [[N]]
 ; CHECK-NEXT:    [[IV_NEXT]] = add i32 [[IV]], 1
-; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]]
+; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]], !llvm.loop [[LOOP2:![0-9]+]]
 ; CHECK:       exit.split:
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:
@@ -171,7 +171,7 @@ define i32 @partial_unswtich_gep_load_icmp(i32** %ptr, i32 %N) {
 ; CHECK:       loop.latch:
 ; CHECK-NEXT:    [[C:%.*]] = icmp ult i32 [[IV]], [[N]]
 ; CHECK-NEXT:    [[IV_NEXT]] = add i32 [[IV]], 1
-; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]]
+; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]], !llvm.loop [[LOOP3:![0-9]+]]
 ; CHECK:       exit.split:
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:
@@ -246,7 +246,7 @@ define i32 @partial_unswitch_reduction_phi(i32* %ptr, i32 %N) {
 ; CHECK-NEXT:    [[RED_NEXT]] = phi i32 [ [[ADD_5]], [[CLOBBER]] ], [ [[ADD_10]], [[NOCLOBBER]] ]
 ; CHECK-NEXT:    [[C:%.*]] = icmp ult i32 [[IV]], [[N]]
 ; CHECK-NEXT:    [[IV_NEXT]] = add i32 [[IV]], 1
-; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]]
+; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]], !llvm.loop [[LOOP4:![0-9]+]]
 ; CHECK:       exit.split:
 ; CHECK-NEXT:    [[RED_NEXT_LCSSA:%.*]] = phi i32 [ [[RED_NEXT]], [[LOOP_LATCH]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -325,7 +325,7 @@ define i32 @partial_unswitch_true_successor_noclobber(i32* noalias %ptr.1, i32* 
 ; CHECK:       loop.latch:
 ; CHECK-NEXT:    [[C:%.*]] = icmp ult i32 [[IV]], [[N]]
 ; CHECK-NEXT:    [[IV_NEXT]] = add i32 [[IV]], 1
-; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]]
+; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]], !llvm.loop [[LOOP5:![0-9]+]]
 ; CHECK:       exit.split:
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:
@@ -637,7 +637,7 @@ define i32 @partial_unswitch_true_successor_preheader_insertion(i32* %ptr, i32 %
 ; CHECK:       loop.latch:
 ; CHECK-NEXT:    [[C:%.*]] = icmp ult i32 [[IV]], [[N]]
 ; CHECK-NEXT:    [[IV_NEXT]] = add i32 [[IV]], 1
-; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_LOOPEXIT_SPLIT:%.*]]
+; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_LOOPEXIT_SPLIT:%.*]], !llvm.loop [[LOOP6:![0-9]+]]
 ; CHECK:       exit.loopexit.split:
 ; CHECK-NEXT:    br label [[EXIT_LOOPEXIT]]
 ; CHECK:       exit.loopexit:
@@ -713,7 +713,7 @@ define i32 @partial_unswitch_true_successor_insert_point(i32* %ptr, i32 %N) {
 ; CHECK:       loop.latch:
 ; CHECK-NEXT:    [[C:%.*]] = icmp ult i32 [[IV]], [[N]]
 ; CHECK-NEXT:    [[IV_NEXT]] = add i32 [[IV]], 1
-; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]]
+; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]], !llvm.loop [[LOOP7:![0-9]+]]
 ; CHECK:       exit.split:
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:
@@ -784,7 +784,7 @@ define i32 @partial_unswitch_true_successor_hoist_invariant(i32* %ptr, i32 %N) {
 ; CHECK:       loop.latch:
 ; CHECK-NEXT:    [[C:%.*]] = icmp ult i32 [[IV]], [[N]]
 ; CHECK-NEXT:    [[IV_NEXT]] = add i32 [[IV]], 1
-; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]]
+; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]], !llvm.loop [[LOOP8:![0-9]+]]
 ; CHECK:       exit.split:
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:
@@ -1073,7 +1073,7 @@ define i32 @partial_unswitch_true_to_latch(i32* %ptr, i32 %N) {
 ; CHECK:       loop.latch:
 ; CHECK-NEXT:    [[C:%.*]] = icmp ult i32 [[IV]], [[N]]
 ; CHECK-NEXT:    [[IV_NEXT]] = add i32 [[IV]], 1
-; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]]
+; CHECK-NEXT:    br i1 [[C]], label [[LOOP_HEADER]], label [[EXIT_SPLIT:%.*]], !llvm.loop [[LOOP9:![0-9]+]]
 ; CHECK:       exit.split:
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:
@@ -1129,7 +1129,7 @@ define i32 @partial_unswitch_exiting_block_with_multiple_unswitch_candidates(i32
 ; CHECK-NEXT:    store i32 [[TMP1:%.*]], i32* [[PTR]], align 16
 ; CHECK-NEXT:    br label [[EXITING_US]]
 ; CHECK:       exiting.us:
-; CHECK-NEXT:    br label [[LOOP_US]]
+; CHECK-NEXT:    br label [[LOOP_US]], !llvm.loop [[LOOP10:![0-9]+]]
 ; CHECK:       entry.split:
 ; CHECK-NEXT:    br label [[LOOP:%.*]]
 ; CHECK:       loop:
@@ -1165,3 +1165,15 @@ exit:
   %ret.val = phi i32 [ 1, %exiting ]
   ret i32 %ret.val
 }
+
+; CHECK: [[LOOP0]] = distinct !{[[LOOP0]], [[UNSWITCH_PARTIAL_DISABLE:![0-9]+]]}
+; CHECK: [[UNSWITCH_PARTIAL_DISABLE]] = !{!"llvm.loop.unswitch.partial.disable"}
+; CHECK: [[LOOP2]] = distinct !{[[LOOP2]], [[UNSWITCH_PARTIAL_DISABLE]]}
+; CHECK: [[LOOP3]] = distinct !{[[LOOP3]], [[UNSWITCH_PARTIAL_DISABLE]]}
+; CHECK: [[LOOP4]] = distinct !{[[LOOP4]], [[UNSWITCH_PARTIAL_DISABLE]]}
+; CHECK: [[LOOP5]] = distinct !{[[LOOP5]], [[UNSWITCH_PARTIAL_DISABLE]]}
+; CHECK: [[LOOP6]] = distinct !{[[LOOP6]], [[UNSWITCH_PARTIAL_DISABLE]]}
+; CHECK: [[LOOP7]] = distinct !{[[LOOP7]], [[UNSWITCH_PARTIAL_DISABLE]]}
+; CHECK: [[LOOP8]] = distinct !{[[LOOP8]], [[UNSWITCH_PARTIAL_DISABLE]]}
+; CHECK: [[LOOP9]] = distinct !{[[LOOP9]], [[UNSWITCH_PARTIAL_DISABLE]]}
+; CHECK: [[LOOP10]] = distinct !{[[LOOP10]], [[UNSWITCH_PARTIAL_DISABLE]]}

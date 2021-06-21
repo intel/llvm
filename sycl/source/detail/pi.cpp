@@ -53,6 +53,21 @@ constexpr uint32_t GMinVer = 0;
 constexpr const char *GVerStr = "sycl 1.0";
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
+template <cl::sycl::backend BE>
+void *getPluginOpaqueData(void *OpaqueDataParam) {
+  void *ReturnOpaqueData = nullptr;
+  const cl::sycl::detail::plugin &Plugin =
+      cl::sycl::detail::pi::getPlugin<BE>();
+
+  Plugin.call<cl::sycl::detail::PiApiKind::piextPluginGetOpaqueData>(
+      OpaqueDataParam, &ReturnOpaqueData);
+
+  return ReturnOpaqueData;
+}
+
+template __SYCL_EXPORT void *
+getPluginOpaqueData<cl::sycl::backend::esimd_cpu>(void *);
+
 namespace pi {
 
 static void initializePlugins(vector_class<plugin> *Plugins);
@@ -428,8 +443,9 @@ template <backend BE> const plugin &getPlugin() {
                       PI_INVALID_OPERATION);
 }
 
-template const plugin &getPlugin<backend::opencl>();
-template const plugin &getPlugin<backend::level_zero>();
+template __SYCL_EXPORT const plugin &getPlugin<backend::opencl>();
+template __SYCL_EXPORT const plugin &getPlugin<backend::level_zero>();
+template __SYCL_EXPORT const plugin &getPlugin<backend::esimd_cpu>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,

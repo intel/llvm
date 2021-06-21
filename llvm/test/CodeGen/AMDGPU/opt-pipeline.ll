@@ -65,6 +65,7 @@
 ; GCN-O1-NEXT:     AMDGPU Printf lowering
 ; GCN-O1-NEXT:       FunctionPass Manager
 ; GCN-O1-NEXT:         Dominator Tree Construction
+; GCN-O1-NEXT:     CallGraph Construction
 ; GCN-O1-NEXT:     Late propagate attributes from kernels to functions
 ; GCN-O1-NEXT:     Interprocedural Sparse Conditional Constant Propagation
 ; GCN-O1-NEXT:       FunctionPass Manager
@@ -248,9 +249,9 @@
 ; GCN-O1-NEXT:       Combine redundant instructions
 ; GCN-O1-NEXT:       Simplify the CFG
 ; GCN-O1-NEXT:       Dominator Tree Construction
-; GCN-O1-NEXT:       Optimize scalar/vector ops
 ; GCN-O1-NEXT:       Basic Alias Analysis (stateless AA impl)
 ; GCN-O1-NEXT:       Function Alias Analysis Results
+; GCN-O1-NEXT:       Optimize scalar/vector ops
 ; GCN-O1-NEXT:       Natural Loop Information
 ; GCN-O1-NEXT:       Lazy Branch Probability Analysis
 ; GCN-O1-NEXT:       Lazy Block Frequency Analysis
@@ -374,6 +375,7 @@
 ; GCN-O2-NEXT:     AMDGPU Printf lowering
 ; GCN-O2-NEXT:       FunctionPass Manager
 ; GCN-O2-NEXT:         Dominator Tree Construction
+; GCN-O2-NEXT:     CallGraph Construction
 ; GCN-O2-NEXT:     Late propagate attributes from kernels to functions
 ; GCN-O2-NEXT:     Interprocedural Sparse Conditional Constant Propagation
 ; GCN-O2-NEXT:       FunctionPass Manager
@@ -728,6 +730,7 @@
 ; GCN-O3-NEXT:     AMDGPU Printf lowering
 ; GCN-O3-NEXT:       FunctionPass Manager
 ; GCN-O3-NEXT:         Dominator Tree Construction
+; GCN-O3-NEXT:     CallGraph Construction
 ; GCN-O3-NEXT:     Late propagate attributes from kernels to functions
 ; GCN-O3-NEXT:     FunctionPass Manager
 ; GCN-O3-NEXT:       Dominator Tree Construction

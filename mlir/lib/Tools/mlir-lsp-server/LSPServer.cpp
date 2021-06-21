@@ -50,8 +50,28 @@ struct LSPServer::Impl {
   void onReference(const ReferenceParams &params,
                    Callback<std::vector<Location>> reply);
 
+  //===--------------------------------------------------------------------===//
+  // Hover
+
+  void onHover(const TextDocumentPositionParams &params,
+               Callback<Optional<Hover>> reply);
+
+  //===--------------------------------------------------------------------===//
+  // Document Symbols
+
+  void onDocumentSymbol(const DocumentSymbolParams &params,
+                        Callback<std::vector<DocumentSymbol>> reply);
+
+  //===--------------------------------------------------------------------===//
+  // Fields
+  //===--------------------------------------------------------------------===//
+
   MLIRServer &server;
   JSONTransport &transport;
+
+  /// An outgoing notification used to send diagnostics to the client when they
+  /// are ready to be processed.
+  OutgoingNotification<PublishDiagnosticsParams> publishDiagnostics;
 
   /// Used to indicate that the 'shutdown' request was received from the
   /// Language Server client.
@@ -63,6 +83,7 @@ struct LSPServer::Impl {
 
 void LSPServer::Impl::onInitialize(const InitializeParams &params,
                                    Callback<llvm::json::Value> reply) {
+  // Send a response with the capabilities of this server.
   llvm::json::Object serverCaps{
       {"textDocumentSync",
        llvm::json::Object{
@@ -72,6 +93,12 @@ void LSPServer::Impl::onInitialize(const InitializeParams &params,
        }},
       {"definitionProvider", true},
       {"referencesProvider", true},
+      {"hoverProvider", true},
+
+      // For now we only support documenting symbols when the client supports
+      // hierarchical symbols.
+      {"documentSymbolProvider",
+       params.capabilities.hierarchicalDocumentSymbol},
   };
 
   llvm::json::Object result{
@@ -92,11 +119,26 @@ void LSPServer::Impl::onShutdown(const NoParams &,
 
 void LSPServer::Impl::onDocumentDidOpen(
     const DidOpenTextDocumentParams &params) {
-  server.addOrUpdateDocument(params.textDocument.uri, params.textDocument.text);
+  PublishDiagnosticsParams diagParams(params.textDocument.uri,
+                                      params.textDocument.version);
+  server.addOrUpdateDocument(params.textDocument.uri, params.textDocument.text,
+                             params.textDocument.version,
+                             diagParams.diagnostics);
+
+  // Publish any recorded diagnostics.
+  publishDiagnostics(diagParams);
 }
 void LSPServer::Impl::onDocumentDidClose(
     const DidCloseTextDocumentParams &params) {
-  server.removeDocument(params.textDocument.uri);
+  Optional<int64_t> version = server.removeDocument(params.textDocument.uri);
+  if (!version)
+    return;
+
+  // Empty out the diagnostics shown for this document. This will clear out
+  // anything currently displayed by the client for this document (e.g. in the
+  // "Problems" pane of VSCode).
+  publishDiagnostics(
+      PublishDiagnosticsParams(params.textDocument.uri, *version));
 }
 void LSPServer::Impl::onDocumentDidChange(
     const DidChangeTextDocumentParams &params) {
@@ -104,8 +146,14 @@ void LSPServer::Impl::onDocumentDidChange(
   // to avoid this.
   if (params.contentChanges.size() != 1)
     return;
-  server.addOrUpdateDocument(params.textDocument.uri,
-                             params.contentChanges.front().text);
+  PublishDiagnosticsParams diagParams(params.textDocument.uri,
+                                      params.textDocument.version);
+  server.addOrUpdateDocument(
+      params.textDocument.uri, params.contentChanges.front().text,
+      params.textDocument.version, diagParams.diagnostics);
+
+  // Publish any recorded diagnostics.
+  publishDiagnostics(diagParams);
 }
 
 //===----------------------------------------------------------------------===//
@@ -123,6 +171,25 @@ void LSPServer::Impl::onReference(const ReferenceParams &params,
   std::vector<Location> locations;
   server.findReferencesOf(params.textDocument.uri, params.position, locations);
   reply(std::move(locations));
+}
+
+//===----------------------------------------------------------------------===//
+// Hover
+
+void LSPServer::Impl::onHover(const TextDocumentPositionParams &params,
+                              Callback<Optional<Hover>> reply) {
+  reply(server.findHover(params.textDocument.uri, params.position));
+}
+
+//===----------------------------------------------------------------------===//
+// Document Symbols
+
+void LSPServer::Impl::onDocumentSymbol(
+    const DocumentSymbolParams &params,
+    Callback<std::vector<DocumentSymbol>> reply) {
+  std::vector<DocumentSymbol> symbols;
+  server.findDocumentSymbols(params.textDocument.uri, symbols);
+  reply(std::move(symbols));
 }
 
 //===----------------------------------------------------------------------===//
@@ -155,6 +222,19 @@ LogicalResult LSPServer::run() {
   messageHandler.method("textDocument/references", impl.get(),
                         &Impl::onReference);
 
+  // Hover
+  messageHandler.method("textDocument/hover", impl.get(), &Impl::onHover);
+
+  // Document Symbols
+  messageHandler.method("textDocument/documentSymbol", impl.get(),
+                        &Impl::onDocumentSymbol);
+
+  // Diagnostics
+  impl->publishDiagnostics =
+      messageHandler.outgoingNotification<PublishDiagnosticsParams>(
+          "textDocument/publishDiagnostics");
+
+  // Run the main loop of the transport.
   LogicalResult result = success();
   if (llvm::Error error = impl->transport.run(messageHandler)) {
     Logger::error("Transport error: {0}", error);

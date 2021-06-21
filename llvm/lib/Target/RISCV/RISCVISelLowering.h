@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_RISCV_RISCVISELLOWERING_H
 
 #include "RISCV.h"
+#include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/TargetLowering.h"
 
@@ -124,14 +125,14 @@ enum NodeType : unsigned {
   // Splats an i64 scalar to a vector type (with element type i64) where the
   // scalar is a sign-extended i32.
   SPLAT_VECTOR_I64,
+  // Splats an 64-bit value that has been split into two i32 parts. This is
+  // expanded late to two scalar stores and a stride 0 vector load.
+  SPLAT_VECTOR_SPLIT_I64_VL,
   // Read VLENB CSR
   READ_VLENB,
   // Truncates a RVV integer vector by one power-of-two. Carries both an extra
   // mask and VL operand.
   TRUNCATE_VECTOR_VL,
-  // Unit-stride fault-only-first load
-  VLEFF,
-  VLEFF_MASK,
   // Matches the semantics of vslideup/vslidedown. The first operand is the
   // pass-thru operand, the second is the source vector, the third is the
   // XLenVT index (either constant or non-constant), the fourth is the mask
@@ -172,6 +173,8 @@ enum NodeType : unsigned {
   VECREDUCE_XOR_VL,
   VECREDUCE_FADD_VL,
   VECREDUCE_SEQ_FADD_VL,
+  VECREDUCE_FMIN_VL,
+  VECREDUCE_FMAX_VL,
 
   // Vector binary and unary ops with a mask as a third operand, and VL as a
   // fourth operand.
@@ -366,9 +369,9 @@ public:
   bool shouldInsertFencesForAtomic(const Instruction *I) const override {
     return isa<LoadInst>(I) || isa<StoreInst>(I);
   }
-  Instruction *emitLeadingFence(IRBuilder<> &Builder, Instruction *Inst,
+  Instruction *emitLeadingFence(IRBuilderBase &Builder, Instruction *Inst,
                                 AtomicOrdering Ord) const override;
-  Instruction *emitTrailingFence(IRBuilder<> &Builder, Instruction *Inst,
+  Instruction *emitTrailingFence(IRBuilderBase &Builder, Instruction *Inst,
                                  AtomicOrdering Ord) const override;
 
   bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
@@ -439,13 +442,13 @@ public:
 
   TargetLowering::AtomicExpansionKind
   shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
-  Value *emitMaskedAtomicRMWIntrinsic(IRBuilder<> &Builder, AtomicRMWInst *AI,
+  Value *emitMaskedAtomicRMWIntrinsic(IRBuilderBase &Builder, AtomicRMWInst *AI,
                                       Value *AlignedAddr, Value *Incr,
                                       Value *Mask, Value *ShiftAmt,
                                       AtomicOrdering Ord) const override;
   TargetLowering::AtomicExpansionKind
   shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *CI) const override;
-  Value *emitMaskedAtomicCmpXchgIntrinsic(IRBuilder<> &Builder,
+  Value *emitMaskedAtomicCmpXchgIntrinsic(IRBuilderBase &Builder,
                                           AtomicCmpXchgInst *CI,
                                           Value *AlignedAddr, Value *CmpVal,
                                           Value *NewVal, Value *Mask,
@@ -469,8 +472,8 @@ public:
                              MVT PartVT, EVT ValueVT,
                              Optional<CallingConv::ID> CC) const override;
 
-  static RISCVVLMUL getLMUL(MVT VT);
-  static unsigned getRegClassIDForLMUL(RISCVVLMUL LMul);
+  static RISCVII::VLMUL getLMUL(MVT VT);
+  static unsigned getRegClassIDForLMUL(RISCVII::VLMUL LMul);
   static unsigned getSubregIndexByMVT(MVT VT, unsigned Index);
   static unsigned getRegClassIDForVecVT(MVT VT);
   static std::pair<unsigned, unsigned>
@@ -482,12 +485,24 @@ public:
   bool shouldRemoveExtendFromGSIndex(EVT VT) const override;
 
 private:
+  /// RISCVCCAssignFn - This target-specific function extends the default
+  /// CCValAssign with additional information used to lower RISC-V calling
+  /// conventions.
+  typedef bool RISCVCCAssignFn(const DataLayout &DL, RISCVABI::ABI,
+                               unsigned ValNo, MVT ValVT, MVT LocVT,
+                               CCValAssign::LocInfo LocInfo,
+                               ISD::ArgFlagsTy ArgFlags, CCState &State,
+                               bool IsFixed, bool IsRet, Type *OrigTy,
+                               const RISCVTargetLowering &TLI,
+                               Optional<unsigned> FirstMaskArgument);
+
   void analyzeInputArgs(MachineFunction &MF, CCState &CCInfo,
-                        const SmallVectorImpl<ISD::InputArg> &Ins,
-                        bool IsRet) const;
+                        const SmallVectorImpl<ISD::InputArg> &Ins, bool IsRet,
+                        RISCVCCAssignFn Fn) const;
   void analyzeOutputArgs(MachineFunction &MF, CCState &CCInfo,
                          const SmallVectorImpl<ISD::OutputArg> &Outs,
-                         bool IsRet, CallLoweringInfo *CLI) const;
+                         bool IsRet, CallLoweringInfo *CLI,
+                         RISCVCCAssignFn Fn) const;
 
   template <class NodeTy>
   SDValue getAddr(NodeTy *N, SelectionDAG &DAG, bool IsLocal = true) const;
@@ -509,6 +524,7 @@ private:
   SDValue lowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerShiftRightParts(SDValue Op, SelectionDAG &DAG, bool IsSRA) const;
   SDValue lowerSPLAT_VECTOR_PARTS(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerVectorMaskSplat(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVectorMaskExt(SDValue Op, SelectionDAG &DAG,
                              int64_t ExtTrueVal) const;
   SDValue lowerVectorMaskTrunc(SDValue Op, SelectionDAG &DAG) const;
@@ -540,10 +556,14 @@ private:
                                             SelectionDAG &DAG) const;
   SDValue lowerToScalableOp(SDValue Op, SelectionDAG &DAG, unsigned NewOpc,
                             bool HasMask = true) const;
+  SDValue lowerVPOp(SDValue Op, SelectionDAG &DAG, unsigned RISCVISDOpc) const;
   SDValue lowerFixedLengthVectorExtendToRVV(SDValue Op, SelectionDAG &DAG,
                                             unsigned ExtendOpc) const;
   SDValue lowerGET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerSET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue expandUnalignedRVVLoad(SDValue Op, SelectionDAG &DAG) const;
+  SDValue expandUnalignedRVVStore(SDValue Op, SelectionDAG &DAG) const;
 
   bool isEligibleForTailCallOptimization(
       CCState &CCInfo, CallLoweringInfo &CLI, MachineFunction &MF,
@@ -556,6 +576,16 @@ private:
       MachineFunction &MF) const;
 
   bool useRVVForFixedLengthVectorVT(MVT VT) const;
+
+  MVT getVPExplicitVectorLengthTy() const override;
+
+  /// RVV code generation for fixed length vectors does not lower all
+  /// BUILD_VECTORs. This makes BUILD_VECTOR legalisation a source of stores to
+  /// merge. However, merging them creates a BUILD_VECTOR that is just as
+  /// illegal as the original, thus leading to an infinite legalisation loop.
+  /// NOTE: Once BUILD_VECTOR can be custom lowered for all legal vector types,
+  /// this override can be removed.
+  bool mergeStoresAfterLegalization(EVT VT) const override;
 };
 
 namespace RISCV {

@@ -162,9 +162,9 @@ write_lit_config("lit_site_cfg") {
   }
 
   if (llvm_enable_libxar) {
-    extra_values += [ "HAVE_LIBXAR=1" ]
+    extra_values += [ "LLVM_HAVE_LIBXAR=1" ]
   } else {
-    extra_values += [ "HAVE_LIBXAR=0" ]  # Must be 0.
+    extra_values += [ "LLVM_HAVE_LIBXAR=0" ]  # Must be 0.
   }
 
   if (llvm_enable_dia_sdk) {
@@ -273,6 +273,7 @@ group("test") {
     "//llvm/tools/llvm-split",
     "//llvm/tools/llvm-strings",
     "//llvm/tools/llvm-symbolizer:symlinks",
+    "//llvm/tools/llvm-tapi-diff",
     "//llvm/tools/llvm-undname",
     "//llvm/tools/llvm-xray",
     "//llvm/tools/lto",

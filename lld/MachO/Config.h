@@ -38,6 +38,12 @@ struct PlatformInfo {
   llvm::VersionTuple sdk;
 };
 
+inline uint32_t encodeVersion(const llvm::VersionTuple &version) {
+  return ((version.getMajor() << 020) |
+          (version.getMinor().getValueOr(0) << 010) |
+          version.getSubminor().getValueOr(0));
+}
+
 enum class NamespaceKind {
   twolevel,
   flat,
@@ -49,6 +55,12 @@ enum class UndefinedSymbolTreatment {
   warning,
   suppress,
   dynamic_lookup,
+};
+
+struct SectionAlign {
+  llvm::StringRef segName;
+  llvm::StringRef sectName;
+  uint32_t align;
 };
 
 struct SegmentProtection {
@@ -73,16 +85,18 @@ public:
 };
 
 struct Configuration {
-  Symbol *entry;
+  Symbol *entry = nullptr;
   bool hasReexports = false;
   bool allLoad = false;
   bool forceLoadObjC = false;
+  bool forceLoadSwift = false;
   bool staticLink = false;
   bool implicitDylibs = false;
   bool isPic = false;
   bool headerPadMaxInstallNames = false;
   bool ltoNewPassManager = LLVM_ENABLE_NEW_PASS_MANAGER;
   bool markDeadStrippableDylib = false;
+  bool printDylibSearch = false;
   bool printEachFile = false;
   bool printWhyLoad = false;
   bool searchDylibsFirst = false;
@@ -92,6 +106,8 @@ struct Configuration {
   bool emitBitcodeBundle = false;
   bool emitEncryptionInfo = false;
   bool timeTraceEnabled = false;
+  bool dataConst = false;
+  bool dedupLiterals = true;
   uint32_t headerPad;
   uint32_t dylibCompatibilityVersion = 0;
   uint32_t dylibCurrentVersion = 0;
@@ -102,7 +118,9 @@ struct Configuration {
   llvm::StringRef outputFile;
   llvm::StringRef ltoObjPath;
   llvm::StringRef thinLTOJobs;
+  bool deadStripDylibs = false;
   bool demangle = false;
+  bool deadStrip = false;
   PlatformInfo platformInfo;
   NamespaceKind namespaceKind = NamespaceKind::twolevel;
   UndefinedSymbolTreatment undefinedSymbolTreatment =
@@ -114,8 +132,9 @@ struct Configuration {
   std::vector<llvm::StringRef> runtimePaths;
   std::vector<std::string> astPaths;
   std::vector<Symbol *> explicitUndefineds;
-  // There are typically very few custom segmentProtections, so use a vector
-  // instead of a map.
+  // There are typically few custom sectionAlignments or segmentProtections,
+  // so use a vector instead of a map.
+  std::vector<SectionAlign> sectionAlignments;
   std::vector<SegmentProtection> segmentProtections;
 
   llvm::DenseMap<llvm::StringRef, SymbolPriorityEntry> priorities;
@@ -124,6 +143,8 @@ struct Configuration {
 
   SymbolPatterns exportedSymbols;
   SymbolPatterns unexportedSymbols;
+
+  bool zeroModTime = false;
 
   llvm::MachO::Architecture arch() const { return platformInfo.target.Arch; }
 

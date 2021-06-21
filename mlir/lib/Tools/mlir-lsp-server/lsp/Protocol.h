@@ -128,10 +128,25 @@ private:
   std::string uriStr;
 };
 
+/// Add support for JSON serialization.
 llvm::json::Value toJSON(const URIForFile &value);
 bool fromJSON(const llvm::json::Value &value, URIForFile &result,
               llvm::json::Path path);
 raw_ostream &operator<<(raw_ostream &os, const URIForFile &value);
+
+//===----------------------------------------------------------------------===//
+// ClientCapabilities
+//===----------------------------------------------------------------------===//
+
+struct ClientCapabilities {
+  /// Client supports hierarchical document symbols.
+  /// textDocument.documentSymbol.hierarchicalDocumentSymbolSupport
+  bool hierarchicalDocumentSymbol = false;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, ClientCapabilities &result,
+              llvm::json::Path path);
 
 //===----------------------------------------------------------------------===//
 // InitializeParams
@@ -142,13 +157,20 @@ enum class TraceLevel {
   Messages = 1,
   Verbose = 2,
 };
+
+/// Add support for JSON serialization.
 bool fromJSON(const llvm::json::Value &value, TraceLevel &result,
               llvm::json::Path path);
 
 struct InitializeParams {
+  /// The capabilities provided by the client (editor or tool).
+  ClientCapabilities capabilities;
+
   /// The initial trace setting. If omitted trace is disabled ('off').
   Optional<TraceLevel> trace;
 };
+
+/// Add support for JSON serialization.
 bool fromJSON(const llvm::json::Value &value, InitializeParams &result,
               llvm::json::Path path);
 
@@ -175,7 +197,12 @@ struct TextDocumentItem {
 
   /// The content of the opened text document.
   std::string text;
+
+  /// The version number of this document.
+  int64_t version;
 };
+
+/// Add support for JSON serialization.
 bool fromJSON(const llvm::json::Value &value, TextDocumentItem &result,
               llvm::json::Path path);
 
@@ -187,15 +214,36 @@ struct TextDocumentIdentifier {
   /// The text document's URI.
   URIForFile uri;
 };
+
+/// Add support for JSON serialization.
 llvm::json::Value toJSON(const TextDocumentIdentifier &value);
 bool fromJSON(const llvm::json::Value &value, TextDocumentIdentifier &result,
               llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// VersionedTextDocumentIdentifier
+//===----------------------------------------------------------------------===//
+
+struct VersionedTextDocumentIdentifier {
+  /// The text document's URI.
+  URIForFile uri;
+  /// The version number of this document.
+  int64_t version;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const VersionedTextDocumentIdentifier &value);
+bool fromJSON(const llvm::json::Value &value,
+              VersionedTextDocumentIdentifier &result, llvm::json::Path path);
 
 //===----------------------------------------------------------------------===//
 // Position
 //===----------------------------------------------------------------------===//
 
 struct Position {
+  Position(int line = 0, int character = 0)
+      : line(line), character(character) {}
+
   /// Line position in a document (zero-based).
   int line = 0;
 
@@ -218,6 +266,8 @@ struct Position {
            std::tie(rhs.line, rhs.character);
   }
 };
+
+/// Add support for JSON serialization.
 bool fromJSON(const llvm::json::Value &value, Position &result,
               llvm::json::Path path);
 llvm::json::Value toJSON(const Position &value);
@@ -228,6 +278,10 @@ raw_ostream &operator<<(raw_ostream &os, const Position &value);
 //===----------------------------------------------------------------------===//
 
 struct Range {
+  Range() = default;
+  Range(Position start, Position end) : start(start), end(end) {}
+  Range(Position loc) : Range(loc, loc) {}
+
   /// The range's start position.
   Position start;
 
@@ -249,6 +303,8 @@ struct Range {
     return start <= range.start && range.end <= end;
   }
 };
+
+/// Add support for JSON serialization.
 bool fromJSON(const llvm::json::Value &value, Range &result,
               llvm::json::Path path);
 llvm::json::Value toJSON(const Range &value);
@@ -275,6 +331,8 @@ struct Location {
     return std::tie(lhs.uri, lhs.range) < std::tie(rhs.uri, rhs.range);
   }
 };
+
+/// Add support for JSON serialization.
 llvm::json::Value toJSON(const Location &value);
 raw_ostream &operator<<(raw_ostream &os, const Location &value);
 
@@ -289,6 +347,8 @@ struct TextDocumentPositionParams {
   /// The position inside the text document.
   Position position;
 };
+
+/// Add support for JSON serialization.
 bool fromJSON(const llvm::json::Value &value,
               TextDocumentPositionParams &result, llvm::json::Path path);
 
@@ -300,12 +360,16 @@ struct ReferenceContext {
   /// Include the declaration of the current symbol.
   bool includeDeclaration = false;
 };
+
+/// Add support for JSON serialization.
 bool fromJSON(const llvm::json::Value &value, ReferenceContext &result,
               llvm::json::Path path);
 
 struct ReferenceParams : public TextDocumentPositionParams {
   ReferenceContext context;
 };
+
+/// Add support for JSON serialization.
 bool fromJSON(const llvm::json::Value &value, ReferenceParams &result,
               llvm::json::Path path);
 
@@ -317,6 +381,8 @@ struct DidOpenTextDocumentParams {
   /// The document that was opened.
   TextDocumentItem textDocument;
 };
+
+/// Add support for JSON serialization.
 bool fromJSON(const llvm::json::Value &value, DidOpenTextDocumentParams &result,
               llvm::json::Path path);
 
@@ -328,6 +394,8 @@ struct DidCloseTextDocumentParams {
   /// The document that was closed.
   TextDocumentIdentifier textDocument;
 };
+
+/// Add support for JSON serialization.
 bool fromJSON(const llvm::json::Value &value,
               DidCloseTextDocumentParams &result, llvm::json::Path path);
 
@@ -345,18 +413,231 @@ struct TextDocumentContentChangeEvent {
   /// The new text of the range/document.
   std::string text;
 };
+
+/// Add support for JSON serialization.
 bool fromJSON(const llvm::json::Value &value,
               TextDocumentContentChangeEvent &result, llvm::json::Path path);
 
 struct DidChangeTextDocumentParams {
   /// The document that changed.
-  TextDocumentIdentifier textDocument;
+  VersionedTextDocumentIdentifier textDocument;
 
   /// The actual content changes.
   std::vector<TextDocumentContentChangeEvent> contentChanges;
 };
+
+/// Add support for JSON serialization.
 bool fromJSON(const llvm::json::Value &value,
               DidChangeTextDocumentParams &result, llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// MarkupContent
+//===----------------------------------------------------------------------===//
+
+/// Describes the content type that a client supports in various result literals
+/// like `Hover`.
+enum class MarkupKind {
+  PlainText,
+  Markdown,
+};
+raw_ostream &operator<<(raw_ostream &os, MarkupKind kind);
+
+struct MarkupContent {
+  MarkupKind kind = MarkupKind::PlainText;
+  std::string value;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const MarkupContent &mc);
+
+//===----------------------------------------------------------------------===//
+// Hover
+//===----------------------------------------------------------------------===//
+
+struct Hover {
+  /// Construct a default hover with the given range that uses Markdown content.
+  Hover(Range range) : contents{MarkupKind::Markdown, ""}, range(range) {}
+
+  /// The hover's content.
+  MarkupContent contents;
+
+  /// An optional range is a range inside a text document that is used to
+  /// visualize a hover, e.g. by changing the background color.
+  Optional<Range> range;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const Hover &hover);
+
+//===----------------------------------------------------------------------===//
+// SymbolKind
+//===----------------------------------------------------------------------===//
+
+enum class SymbolKind {
+  File = 1,
+  Module = 2,
+  Namespace = 3,
+  Package = 4,
+  Class = 5,
+  Method = 6,
+  Property = 7,
+  Field = 8,
+  Constructor = 9,
+  Enum = 10,
+  Interface = 11,
+  Function = 12,
+  Variable = 13,
+  Constant = 14,
+  String = 15,
+  Number = 16,
+  Boolean = 17,
+  Array = 18,
+  Object = 19,
+  Key = 20,
+  Null = 21,
+  EnumMember = 22,
+  Struct = 23,
+  Event = 24,
+  Operator = 25,
+  TypeParameter = 26
+};
+
+//===----------------------------------------------------------------------===//
+// DocumentSymbol
+//===----------------------------------------------------------------------===//
+
+/// Represents programming constructs like variables, classes, interfaces etc.
+/// that appear in a document. Document symbols can be hierarchical and they
+/// have two ranges: one that encloses its definition and one that points to its
+/// most interesting range, e.g. the range of an identifier.
+struct DocumentSymbol {
+  DocumentSymbol() = default;
+  DocumentSymbol(DocumentSymbol &&) = default;
+  DocumentSymbol(const Twine &name, SymbolKind kind, Range range,
+                 Range selectionRange)
+      : name(name.str()), kind(kind), range(range),
+        selectionRange(selectionRange) {}
+
+  /// The name of this symbol.
+  std::string name;
+
+  /// More detail for this symbol, e.g the signature of a function.
+  std::string detail;
+
+  /// The kind of this symbol.
+  SymbolKind kind;
+
+  /// The range enclosing this symbol not including leading/trailing whitespace
+  /// but everything else like comments. This information is typically used to
+  /// determine if the clients cursor is inside the symbol to reveal in the
+  /// symbol in the UI.
+  Range range;
+
+  /// The range that should be selected and revealed when this symbol is being
+  /// picked, e.g the name of a function. Must be contained by the `range`.
+  Range selectionRange;
+
+  /// Children of this symbol, e.g. properties of a class.
+  std::vector<DocumentSymbol> children;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const DocumentSymbol &symbol);
+
+//===----------------------------------------------------------------------===//
+// DocumentSymbolParams
+//===----------------------------------------------------------------------===//
+
+struct DocumentSymbolParams {
+  // The text document to find symbols in.
+  TextDocumentIdentifier textDocument;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, DocumentSymbolParams &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// DiagnosticRelatedInformation
+//===----------------------------------------------------------------------===//
+
+/// Represents a related message and source code location for a diagnostic.
+/// This should be used to point to code locations that cause or related to a
+/// diagnostics, e.g. when duplicating a symbol in a scope.
+struct DiagnosticRelatedInformation {
+  DiagnosticRelatedInformation(Location location, std::string message)
+      : location(location), message(std::move(message)) {}
+
+  /// The location of this related diagnostic information.
+  Location location;
+  /// The message of this related diagnostic information.
+  std::string message;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const DiagnosticRelatedInformation &info);
+
+//===----------------------------------------------------------------------===//
+// Diagnostic
+//===----------------------------------------------------------------------===//
+
+enum class DiagnosticSeverity {
+  /// It is up to the client to interpret diagnostics as error, warning, info or
+  /// hint.
+  Undetermined = 0,
+  Error = 1,
+  Warning = 2,
+  Information = 3,
+  Hint = 4
+};
+
+struct Diagnostic {
+  /// The source range where the message applies.
+  Range range;
+
+  /// The diagnostic's severity. Can be omitted. If omitted it is up to the
+  /// client to interpret diagnostics as error, warning, info or hint.
+  DiagnosticSeverity severity = DiagnosticSeverity::Undetermined;
+
+  /// A human-readable string describing the source of this diagnostic, e.g.
+  /// 'typescript' or 'super lint'.
+  std::string source;
+
+  /// The diagnostic's message.
+  std::string message;
+
+  /// An array of related diagnostic information, e.g. when symbol-names within
+  /// a scope collide all definitions can be marked via this property.
+  Optional<std::vector<DiagnosticRelatedInformation>> relatedInformation;
+
+  /// The diagnostic's category. Can be omitted.
+  /// An LSP extension that's used to send the name of the category over to the
+  /// client. The category typically describes the compilation stage during
+  /// which the issue was produced, e.g. "Semantic Issue" or "Parse Issue".
+  Optional<std::string> category;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const Diagnostic &diag);
+
+//===----------------------------------------------------------------------===//
+// PublishDiagnosticsParams
+//===----------------------------------------------------------------------===//
+
+struct PublishDiagnosticsParams {
+  PublishDiagnosticsParams(URIForFile uri, int64_t version)
+      : uri(uri), version(version) {}
+
+  /// The URI for which diagnostic information is reported.
+  URIForFile uri;
+  /// The list of reported diagnostics.
+  std::vector<Diagnostic> diagnostics;
+  /// The version number of the document the diagnostics are published for.
+  int64_t version;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const PublishDiagnosticsParams &params);
 
 } // namespace lsp
 } // namespace mlir

@@ -138,6 +138,10 @@ typedef unsigned int kmp_hwloc_depth_t;
 #include "ompt-internal.h"
 #endif
 
+#if OMPD_SUPPORT
+#include "ompd-specific.h"
+#endif
+
 #ifndef UNLIKELY
 #define UNLIKELY(x) (x)
 #endif
@@ -597,11 +601,11 @@ typedef int PACKED_REDUCTION_METHOD_T;
 
 enum kmp_hw_t : int {
   KMP_HW_UNKNOWN = -1,
-  KMP_HW_MACHINE = 0,
-  KMP_HW_SOCKET,
+  KMP_HW_SOCKET = 0,
   KMP_HW_PROC_GROUP,
   KMP_HW_NUMA,
   KMP_HW_DIE,
+  KMP_HW_LLC,
   KMP_HW_L3,
   KMP_HW_TILE,
   KMP_HW_MODULE,
@@ -612,13 +616,16 @@ enum kmp_hw_t : int {
   KMP_HW_LAST
 };
 
-#define KMP_ASSERT_VALID_HW_TYPE(type)                                         \
+#define KMP_DEBUG_ASSERT_VALID_HW_TYPE(type)                                   \
   KMP_DEBUG_ASSERT(type >= (kmp_hw_t)0 && type < KMP_HW_LAST)
+#define KMP_ASSERT_VALID_HW_TYPE(type)                                         \
+  KMP_ASSERT(type >= (kmp_hw_t)0 && type < KMP_HW_LAST)
 
 #define KMP_FOREACH_HW_TYPE(type)                                              \
   for (kmp_hw_t type = (kmp_hw_t)0; type < KMP_HW_LAST;                        \
        type = (kmp_hw_t)((int)type + 1))
 
+const char *__kmp_hw_get_keyword(kmp_hw_t type, bool plural = false);
 const char *__kmp_hw_get_catalog_string(kmp_hw_t type, bool plural = false);
 
 /* Only Linux* OS and Windows* OS support thread affinity. */
@@ -655,8 +662,6 @@ extern kmp_SetThreadGroupAffinity_t __kmp_SetThreadGroupAffinity;
 #if KMP_USE_HWLOC
 extern hwloc_topology_t __kmp_hwloc_topology;
 extern int __kmp_hwloc_error;
-extern int __kmp_numa_detected;
-extern int __kmp_tile_depth;
 #endif
 
 extern size_t __kmp_affin_mask_size;
@@ -784,23 +789,6 @@ enum affinity_type {
   affinity_default
 };
 
-enum affinity_gran {
-  affinity_gran_fine = 0,
-  affinity_gran_thread,
-  affinity_gran_core,
-  affinity_gran_tile,
-  affinity_gran_die,
-  affinity_gran_numa,
-  affinity_gran_package,
-  affinity_gran_node,
-#if KMP_GROUP_AFFINITY
-  // The "group" granularity isn't necesssarily coarser than all of the
-  // other levels, but we put it last in the enum.
-  affinity_gran_group,
-#endif /* KMP_GROUP_AFFINITY */
-  affinity_gran_default
-};
-
 enum affinity_top_method {
   affinity_top_method_all = 0, // try all (supported) methods, in order
 #if KMP_ARCH_X86 || KMP_ARCH_X86_64
@@ -822,7 +810,7 @@ enum affinity_top_method {
 #define affinity_respect_mask_default (-1)
 
 extern enum affinity_type __kmp_affinity_type; /* Affinity type */
-extern enum affinity_gran __kmp_affinity_gran; /* Affinity granularity */
+extern kmp_hw_t __kmp_affinity_gran; /* Affinity granularity */
 extern int __kmp_affinity_gran_levels; /* corresponding int value */
 extern int __kmp_affinity_dups; /* Affinity duplicate masks */
 extern enum affinity_top_method __kmp_affinity_top_method;
@@ -863,6 +851,10 @@ extern kmp_nested_proc_bind_t __kmp_nested_proc_bind;
 extern int __kmp_display_affinity;
 extern char *__kmp_affinity_format;
 static const size_t KMP_AFFINITY_FORMAT_SIZE = 512;
+#if OMPT_SUPPORT
+extern int __kmp_tool;
+extern char *__kmp_tool_libraries;
+#endif // OMPT_SUPPORT
 
 #if KMP_AFFINITY_SUPPORTED
 #define KMP_PLACE_ALL (-1)
@@ -3473,7 +3465,7 @@ extern void __kmp_check_stack_overlap(kmp_info_t *thr);
 extern void __kmp_expand_host_name(char *buffer, size_t size);
 extern void __kmp_expand_file_name(char *result, size_t rlen, char *pattern);
 
-#if KMP_ARCH_X86 || KMP_ARCH_X86_64
+#if KMP_ARCH_X86 || KMP_ARCH_X86_64 || (KMP_OS_WINDOWS && KMP_ARCH_AARCH64)
 extern void
 __kmp_initialize_system_tick(void); /* Initialize timer tick value */
 #endif
@@ -4083,10 +4075,25 @@ extern void __kmp_hidden_helper_main_thread_release();
 #define KMP_HIDDEN_HELPER_WORKER_THREAD(gtid)                                  \
   ((gtid) > 1 && (gtid) <= __kmp_hidden_helper_threads_num)
 
+#define KMP_HIDDEN_HELPER_TEAM(team)                                           \
+  (team->t.t_threads[0] == __kmp_hidden_helper_main_thread)
+
 // Map a gtid to a hidden helper thread. The first hidden helper thread, a.k.a
 // main thread, is skipped.
 #define KMP_GTID_TO_SHADOW_GTID(gtid)                                          \
   ((gtid) % (__kmp_hidden_helper_threads_num - 1) + 2)
+
+// Return the adjusted gtid value by subtracting from gtid the number
+// of hidden helper threads. This adjusted value is the gtid the thread would
+// have received if there were no hidden helper threads.
+static inline int __kmp_adjust_gtid_for_hidden_helpers(int gtid) {
+  int adjusted_gtid = gtid;
+  if (__kmp_hidden_helper_threads_num > 0 && gtid > 0 &&
+      gtid - __kmp_hidden_helper_threads_num >= 0) {
+    adjusted_gtid -= __kmp_hidden_helper_threads_num;
+  }
+  return adjusted_gtid;
+}
 
 // Support for error directive
 typedef enum kmp_severity_t {
@@ -4140,6 +4147,12 @@ int __kmp_execute_tasks_oncore(kmp_info_t *thread, kmp_int32 gtid,
                                void *itt_sync_obj,
 #endif /* USE_ITT_BUILD */
                                kmp_int32 is_constrained);
+
+extern int __kmp_nesting_mode;
+extern int __kmp_nesting_mode_nlevels;
+extern int *__kmp_nesting_nth_level;
+extern void __kmp_init_nesting_mode();
+extern void __kmp_set_nesting_mode_threads();
 
 /// This class safely opens and closes a C-style FILE* object using RAII
 /// semantics. There are also methods which allow using stdout or stderr as

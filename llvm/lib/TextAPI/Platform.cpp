@@ -12,6 +12,7 @@
 
 #include "llvm/TextAPI/Platform.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 
 namespace llvm {
@@ -28,7 +29,7 @@ PlatformKind mapToPlatformKind(PlatformKind Platform, bool WantSim) {
   case PlatformKind::watchOS:
     return WantSim ? PlatformKind::watchOSSimulator : PlatformKind::watchOS;
   }
-  llvm_unreachable("Unknown llvm.MachO.PlatformKind enum");
+  llvm_unreachable("Unknown llvm::MachO::PlatformKind enum");
 }
 
 PlatformKind mapToPlatformKind(const Triple &Target) {
@@ -86,7 +87,51 @@ StringRef getPlatformName(PlatformKind Platform) {
   case PlatformKind::driverKit:
     return "DriverKit";
   }
-  llvm_unreachable("Unknown llvm.MachO.PlatformKind enum");
+  llvm_unreachable("Unknown llvm::MachO::PlatformKind enum");
+}
+
+PlatformKind getPlatformFromName(StringRef Name) {
+  return StringSwitch<PlatformKind>(Name)
+      .Case("macos", PlatformKind::macOS)
+      .Case("ios", PlatformKind::iOS)
+      .Case("tvos", PlatformKind::tvOS)
+      .Case("watchos", PlatformKind::watchOS)
+      .Case("bridgeos", PlatformKind::macOS)
+      .Case("ios-macabi", PlatformKind::macCatalyst)
+      .Case("ios-simulator", PlatformKind::iOSSimulator)
+      .Case("tvos-simulator", PlatformKind::tvOSSimulator)
+      .Case("watchos-simulator", PlatformKind::watchOSSimulator)
+      .Case("driverkit", PlatformKind::driverKit)
+      .Default(PlatformKind::unknown);
+}
+
+std::string getOSAndEnvironmentName(PlatformKind Platform,
+                                    std::string Version) {
+  switch (Platform) {
+  case PlatformKind::unknown:
+    return "darwin" + Version;
+  case PlatformKind::macOS:
+    return "macos" + Version;
+  case PlatformKind::iOS:
+    return "ios" + Version;
+  case PlatformKind::tvOS:
+    return "tvos" + Version;
+  case PlatformKind::watchOS:
+    return "watchos" + Version;
+  case PlatformKind::bridgeOS:
+    return "bridgeos" + Version;
+  case PlatformKind::macCatalyst:
+    return "ios" + Version + "-macabi";
+  case PlatformKind::iOSSimulator:
+    return "ios" + Version + "-simulator";
+  case PlatformKind::tvOSSimulator:
+    return "tvos" + Version + "-simulator";
+  case PlatformKind::watchOSSimulator:
+    return "watchos" + Version + "-simulator";
+  case PlatformKind::driverKit:
+    return "driverkit" + Version;
+  }
+  llvm_unreachable("Unknown llvm::MachO::PlatformKind enum");
 }
 
 } // end namespace MachO.

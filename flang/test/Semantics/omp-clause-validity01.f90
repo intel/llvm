@@ -1,4 +1,5 @@
 ! RUN: %S/test_errors.sh %s %t %flang_fc1 -fopenmp
+! REQUIRES: shell
 use omp_lib
 ! Check OpenMP clause validity for the following directives:
 !
@@ -215,7 +216,6 @@ use omp_lib
      a = 3.14
   enddo
 
-  !ERROR: Clause LINEAR is not allowed if clause ORDERED appears on the DO directive
   !ERROR: Clause LINEAR is not allowed if clause ORDERED appears on the DO directive
   !ERROR: The parameter of the ORDERED clause must be a constant positive integer expression
   !$omp do ordered(1-1) private(b) linear(b) linear(a)

@@ -3843,9 +3843,7 @@ thread_result_t Process::RunPrivateStateThread(bool is_secondary_thread) {
 
 // Process Event Data
 
-Process::ProcessEventData::ProcessEventData()
-    : EventData(), m_process_wp(), m_state(eStateInvalid), m_restarted(false),
-      m_update_state(0), m_interrupted(false) {}
+Process::ProcessEventData::ProcessEventData() : EventData(), m_process_wp() {}
 
 Process::ProcessEventData::ProcessEventData(const ProcessSP &process_sp,
                                             StateType state)
@@ -5635,6 +5633,8 @@ addr_t Process::ResolveIndirectFunction(const Address *address, Status &error) {
           symbol ? symbol->GetName().AsCString() : "<UNKNOWN>");
       function_addr = LLDB_INVALID_ADDRESS;
     } else {
+      if (ABISP abi_sp = GetABI())
+        function_addr = abi_sp->FixCodeAddress(function_addr);
       m_resolved_indirect_addresses.insert(
           std::pair<addr_t, addr_t>(addr, function_addr));
     }
@@ -5733,7 +5733,7 @@ void Process::PrintWarningUnsupportedLanguage(const SymbolContext &sc) {
   if (!plugins[language]) {
     PrintWarning(Process::Warnings::eWarningsUnsupportedLanguage,
                  sc.module_sp.get(),
-                 "This version of LLDB has no plugin for the %s language. "
+                 "This version of LLDB has no plugin for the language \"%s\". "
                  "Inspection of frame variables will be limited.\n",
                  Language::GetNameForLanguageType(language));
   }

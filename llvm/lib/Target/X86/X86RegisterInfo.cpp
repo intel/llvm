@@ -62,7 +62,7 @@ X86RegisterInfo::X86RegisterInfo(const Triple &TT)
     // This matches the simplified 32-bit pointer code in the data layout
     // computation.
     // FIXME: Should use the data layout?
-    bool Use64BitReg = TT.getEnvironment() != Triple::GNUX32;
+    bool Use64BitReg = !TT.isX32();
     StackPtr = Use64BitReg ? X86::RSP : X86::ESP;
     FramePtr = Use64BitReg ? X86::RBP : X86::EBP;
     BasePtr = Use64BitReg ? X86::RBX : X86::EBX;
@@ -354,6 +354,10 @@ X86RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
     if (!HasSSE)
       return CSR_Win64_NoSSE_SaveList;
     return CSR_Win64_SaveList;
+  case CallingConv::SwiftTail:
+    if (!Is64Bit)
+      return CSR_32_SaveList;
+    return IsWin64 ? CSR_Win64_SwiftTail_SaveList : CSR_64_SwiftTail_SaveList;
   case CallingConv::X86_64_SysV:
     if (CallsEHReturn)
       return CSR_64EHRet_SaveList;
@@ -470,6 +474,10 @@ X86RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
     break;
   case CallingConv::Win64:
     return CSR_Win64_RegMask;
+  case CallingConv::SwiftTail:
+    if (!Is64Bit)
+      return CSR_32_RegMask;
+    return IsWin64 ? CSR_Win64_SwiftTail_RegMask : CSR_64_SwiftTail_RegMask;
   case CallingConv::X86_64_SysV:
     return CSR_64_RegMask;
   case CallingConv::X86_INTR:
@@ -502,6 +510,7 @@ X86RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
                      F.getAttributes().hasAttrSomewhere(Attribute::SwiftError);
     if (IsSwiftCC)
       return IsWin64 ? CSR_Win64_SwiftError_RegMask : CSR_64_SwiftError_RegMask;
+
     return IsWin64 ? CSR_Win64_RegMask : CSR_64_RegMask;
   }
 
@@ -883,6 +892,7 @@ static ShapeT getTileShape(Register VirtReg, VirtRegMap *VRM,
   }
   // We only collect the tile shape that is defined.
   case X86::PTILELOADDV:
+  case X86::PTILELOADDT1V:
   case X86::PTDPBSSDV:
   case X86::PTDPBSUDV:
   case X86::PTDPBUSDV:

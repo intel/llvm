@@ -12,8 +12,8 @@
 #include "lldb/Host/PosixApi.h"
 #include "llvm/ADT/STLExtras.h"
 
+#include <csignal>
 #include <fcntl.h>
-#include <signal.h>
 
 #if LLDB_ENABLE_TERMIOS
 #include <termios.h>
@@ -83,11 +83,12 @@ bool Terminal::SetCanonical(bool enabled) {
 
 // Default constructor
 TerminalState::TerminalState()
-    : m_tty(), m_tflags(-1),
+    : m_tty()
 #if LLDB_ENABLE_TERMIOS
-      m_termios_up(),
+      ,
+      m_termios_up()
 #endif
-      m_process_group(-1) {
+{
 }
 
 // Destructor
@@ -189,7 +190,7 @@ bool TerminalState::ProcessGroupIsValid() const {
 }
 
 // Constructor
-TerminalStateSwitcher::TerminalStateSwitcher() : m_currentState(UINT32_MAX) {}
+TerminalStateSwitcher::TerminalStateSwitcher() {}
 
 // Destructor
 TerminalStateSwitcher::~TerminalStateSwitcher() {}

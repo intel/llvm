@@ -238,6 +238,12 @@ void FromElementsOp::build(OpBuilder &builder, OperationState &result,
   build(builder, result, elements.front().getType(), elements);
 }
 
+OpFoldResult FromElementsOp::fold(ArrayRef<Attribute> operands) {
+  if (!llvm::is_contained(operands, nullptr))
+    return DenseElementsAttr::get(getType(), operands);
+  return {};
+}
+
 namespace {
 
 // Canonicalizes the pattern of the form
@@ -278,6 +284,28 @@ struct ExtractElementFromTensorFromElements
 void FromElementsOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                  MLIRContext *context) {
   results.add<ExtractElementFromTensorFromElements>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// InsertOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(InsertOp op) {
+  // Verify the # indices match if we have a ranked type.
+  if (auto destType = op.dest().getType().dyn_cast<RankedTensorType>())
+    if (destType.getRank() != static_cast<int64_t>(op.indices().size()))
+      return op.emitOpError("incorrect number of indices");
+  return success();
+}
+
+OpFoldResult InsertOp::fold(ArrayRef<Attribute> operands) {
+  Attribute scalar = operands[0];
+  Attribute dest = operands[1];
+  if (scalar && dest)
+    if (auto splatDest = dest.dyn_cast<SplatElementsAttr>())
+      if (scalar == splatDest.getSplatValue())
+        return dest;
+  return {};
 }
 
 //===----------------------------------------------------------------------===//

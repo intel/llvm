@@ -43,63 +43,6 @@
 
 namespace SPIRV {
 
-class SPIRVToOCL20Base : public SPIRVToOCLBase {
-public:
-  bool runSPIRVToOCL(Module &M) override;
-
-  /// Transform __spirv_MemoryBarrier to atomic_work_item_fence.
-  ///   __spirv_MemoryBarrier(scope, sema) =>
-  ///       atomic_work_item_fence(flag(sema), order(sema), map(scope))
-  void visitCallSPIRVMemoryBarrier(CallInst *CI) override;
-
-  /// Transform __spirv_ControlBarrier to work_group_barrier/sub_group_barrier.
-  /// If execution scope is ScopeWorkgroup:
-  ///    __spirv_ControlBarrier(execScope, memScope, sema) =>
-  ///         work_group_barrier(flag(sema), map(memScope))
-  /// Otherwise:
-  ///    __spirv_ControlBarrier(execScope, memScope, sema) =>
-  ///         sub_group_barrier(flag(sema), map(memScope))
-  void visitCallSPIRVControlBarrier(CallInst *CI) override;
-
-  /// Transform __spirv_Atomic* to atomic_*.
-  ///   __spirv_Atomic*(atomic_op, scope, sema, ops, ...) =>
-  ///      atomic_*(generic atomic_op, ops, ..., order(sema), map(scope))
-  Instruction *visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) override;
-
-  /// Transform __spirv_OpAtomicIIncrement / OpAtomicIDecrement to
-  /// atomic_fetch_add_explicit / atomic_fetch_sub_explicit
-  Instruction *visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) override;
-
-  /// Conduct generic mutations for all atomic builtins
-  CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) override;
-
-  /// Transform atomic builtin name into correct ocl-dependent name
-  Instruction *mutateAtomicName(CallInst *CI, Op OC) override;
-
-  /// Transform __spirv_OpAtomicCompareExchange/Weak into
-  /// compare_exchange_strong/weak_explicit
-  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) override;
-};
-
-class SPIRVToOCL20Pass : public llvm::PassInfoMixin<SPIRVToOCL20Pass>,
-                         public SPIRVToOCL20Base {
-public:
-  llvm::PreservedAnalyses run(llvm::Module &M,
-                              llvm::ModuleAnalysisManager &MAM) {
-    return runSPIRVToOCL(M) ? llvm::PreservedAnalyses::none()
-                            : llvm::PreservedAnalyses::all();
-  }
-};
-
-class SPIRVToOCL20Legacy : public SPIRVToOCLLegacy, public SPIRVToOCL20Base {
-public:
-  SPIRVToOCL20Legacy() : SPIRVToOCLLegacy(ID) {
-    initializeSPIRVToOCL20LegacyPass(*PassRegistry::getPassRegistry());
-  }
-  bool runOnModule(Module &M) override;
-  static char ID;
-};
-
 char SPIRVToOCL20Legacy::ID = 0;
 
 bool SPIRVToOCL20Legacy::runOnModule(Module &Module) {
@@ -170,11 +113,29 @@ void SPIRVToOCL20Base::visitCallSPIRVControlBarrier(CallInst *CI) {
       &Attrs);
 }
 
+std::string SPIRVToOCL20Base::mapFPAtomicName(Op OC) {
+  assert(isFPAtomicOpCode(OC) && "Not intended to handle other opcodes than "
+                                 "AtomicF{Add/Min/Max}EXT!");
+  switch (OC) {
+  case OpAtomicFAddEXT:
+    return "atomic_fetch_add_explicit";
+  case OpAtomicFMinEXT:
+    return "atomic_fetch_min_explicit";
+  case OpAtomicFMaxEXT:
+    return "atomic_fetch_max_explicit";
+  default:
+    llvm_unreachable("Unsupported opcode!");
+  }
+}
+
 Instruction *SPIRVToOCL20Base::mutateAtomicName(CallInst *CI, Op OC) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
+        // Map fp atomic instructions to regular OpenCL built-ins.
+        if (isFPAtomicOpCode(OC))
+          return mapFPAtomicName(OC);
         return OCLSPIRVBuiltinMap::rmap(OC);
       },
       &Attrs);
@@ -242,7 +203,12 @@ CallInst *SPIRVToOCL20Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
           }
         }
         auto Ptr = findFirstPtr(Args);
-        auto Name = OCLSPIRVBuiltinMap::rmap(OC);
+        std::string Name;
+        // Map fp atomic instructions to regular OpenCL built-ins.
+        if (isFPAtomicOpCode(OC))
+          Name = mapFPAtomicName(OC);
+        else
+          Name = OCLSPIRVBuiltinMap::rmap(OC);
         auto NumOrder = getSPIRVAtomicBuiltinNumMemoryOrderArgs(OC);
         auto ScopeIdx = Ptr + 1;
         auto OrderIdx = Ptr + 2;

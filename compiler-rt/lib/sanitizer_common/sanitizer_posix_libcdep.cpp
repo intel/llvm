@@ -143,7 +143,7 @@ void Abort() {
   if (GetHandleSignalMode(SIGABRT) != kHandleSignalNo) {
     struct sigaction sigact;
     internal_memset(&sigact, 0, sizeof(sigact));
-    sigact.sa_sigaction = (sa_sigaction_t)SIG_DFL;
+    sigact.sa_handler = SIG_DFL;
     internal_sigaction(SIGABRT, &sigact, nullptr);
   }
 #endif
@@ -166,9 +166,10 @@ bool SupportsColoredOutput(fd_t fd) {
 #if !SANITIZER_GO
 // TODO(glider): different tools may require different altstack size.
 static uptr GetAltStackSize() {
-  // SIGSTKSZ is not enough.
-  static const uptr kAltStackSize = SIGSTKSZ * 4;
-  return kAltStackSize;
+  // Note: since GLIBC_2.31, SIGSTKSZ may be a function call, so this may be
+  // more costly that you think. However GetAltStackSize is only call 2-3 times
+  // per thread so don't cache the evaluation.
+  return SIGSTKSZ * 4;
 }
 
 void SetAlternateSignalStack() {

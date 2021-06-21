@@ -62,6 +62,27 @@ InitOnlyAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
 void InitOnlyAction::ExecuteAction() {
 }
 
+// Basically PreprocessOnlyAction::ExecuteAction.
+void ReadPCHAndPreprocessAction::ExecuteAction() {
+  Preprocessor &PP = getCompilerInstance().getPreprocessor();
+
+  // Ignore unknown pragmas.
+  PP.IgnorePragmas();
+
+  Token Tok;
+  // Start parsing the specified input file.
+  PP.EnterMainSourceFile();
+  do {
+    PP.Lex(Tok);
+  } while (Tok.isNot(tok::eof));
+}
+
+std::unique_ptr<ASTConsumer>
+ReadPCHAndPreprocessAction::CreateASTConsumer(CompilerInstance &CI,
+                                              StringRef InFile) {
+  return std::make_unique<ASTConsumer>();
+}
+
 //===----------------------------------------------------------------------===//
 // AST Consumer Actions
 //===----------------------------------------------------------------------===//
@@ -297,7 +318,8 @@ bool GenerateHeaderModuleAction::BeginSourceFileAction(
         << Name;
       continue;
     }
-    Headers.push_back({std::string(Name), &FE->getFileEntry()});
+    Headers.push_back(
+        {std::string(Name), std::string(Name), &FE->getFileEntry()});
   }
   HS.getModuleMap().createHeaderModule(CI.getLangOpts().CurrentModule, Headers);
 

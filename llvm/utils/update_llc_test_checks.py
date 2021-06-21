@@ -33,7 +33,7 @@ def main():
   parser.add_argument(
       '--no_x86_scrub_sp', action='store_false', dest='x86_scrub_sp')
   parser.add_argument(
-      '--x86_scrub_rip', action='store_true', default=True,
+      '--x86_scrub_rip', action='store_true', default=False,
       help='Use more regex for x86 rip matching to reduce diffs between various subtargets')
   parser.add_argument(
       '--no_x86_scrub_rip', action='store_false', dest='x86_scrub_rip')
@@ -108,12 +108,12 @@ def main():
       check_indent = ''
 
     builder = common.FunctionTestBuilder(
-        run_list=run_list, 
+        run_list=run_list,
         flags=type('', (object,), {
             'verbose': ti.args.verbose,
             'function_signature': False,
             'check_attributes': False,
-            'replace_function_regex': []}),
+            'replace_value_regex': []}),
         scrubber_args=[ti.args])
 
     for prefixes, llc_tool, llc_args, preprocess_cmd, triple_in_cmd, march_in_cmd in run_list:

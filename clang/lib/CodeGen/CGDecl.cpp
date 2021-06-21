@@ -100,6 +100,7 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::ConstructorUsingShadow:
   case Decl::ObjCTypeParam:
   case Decl::Binding:
+  case Decl::UnresolvedUsingIfExists:
     llvm_unreachable("Declaration should not be in declstmts!");
   case Decl::Record:    // struct/union/class X;
   case Decl::CXXRecord: // struct/union/class X; [C++]
@@ -137,6 +138,10 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::Using:          // using X; [C++]
     if (CGDebugInfo *DI = getDebugInfo())
         DI->EmitUsingDecl(cast<UsingDecl>(D));
+    return;
+  case Decl::UsingEnum: // using enum X; [C++]
+    if (CGDebugInfo *DI = getDebugInfo())
+      DI->EmitUsingEnumDecl(cast<UsingEnumDecl>(D));
     return;
   case Decl::UsingPack:
     for (auto *Using : cast<UsingPackDecl>(D).expansions())
@@ -1349,7 +1354,7 @@ void CodeGenFunction::EmitAutoVarDecl(const VarDecl &D) {
 /// Emit a lifetime.begin marker if some criteria are satisfied.
 /// \return a pointer to the temporary size Value if a marker was emitted, null
 /// otherwise
-llvm::Value *CodeGenFunction::EmitLifetimeStart(uint64_t Size,
+llvm::Value *CodeGenFunction::EmitLifetimeStart(llvm::TypeSize Size,
                                                 llvm::Value *Addr) {
   if (!ShouldEmitLifetimeMarkers)
     return nullptr;
@@ -1357,7 +1362,8 @@ llvm::Value *CodeGenFunction::EmitLifetimeStart(uint64_t Size,
   assert(Addr->getType()->getPointerAddressSpace() ==
              CGM.getDataLayout().getAllocaAddrSpace() &&
          "Pointer should be in alloca address space");
-  llvm::Value *SizeV = llvm::ConstantInt::get(Int64Ty, Size);
+  llvm::Value *SizeV = llvm::ConstantInt::get(
+      Int64Ty, Size.isScalable() ? -1 : Size.getFixedValue());
   Addr = Builder.CreateBitCast(Addr, AllocaInt8PtrTy);
   llvm::CallInst *C =
       Builder.CreateCall(CGM.getLLVMLifetimeStartFn(), {SizeV, Addr});
@@ -1580,12 +1586,9 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
         // is rare.
         if (!Bypasses.IsBypassed(&D) &&
             !(!getLangOpts().CPlusPlus && hasLabelBeenSeenInCurrentScope())) {
-          llvm::TypeSize size =
-              CGM.getDataLayout().getTypeAllocSize(allocaTy);
+          llvm::TypeSize Size = CGM.getDataLayout().getTypeAllocSize(allocaTy);
           emission.SizeForLifetimeMarkers =
-              size.isScalable() ? EmitLifetimeStart(-1, AllocaAddr.getPointer())
-                                : EmitLifetimeStart(size.getFixedSize(),
-                                                    AllocaAddr.getPointer());
+              EmitLifetimeStart(Size, AllocaAddr.getPointer());
         }
       } else {
         assert(!emission.useLifetimeMarkers());
@@ -2521,7 +2524,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
     // Push a destructor cleanup for this parameter if the ABI requires it.
     // Don't push a cleanup in a thunk for a method that will also emit a
     // cleanup.
-    if (hasAggregateEvaluationKind(Ty) && !CurFuncIsThunk &&
+    if (Ty->isRecordType() && !CurFuncIsThunk &&
         Ty->castAs<RecordType>()->getDecl()->isParamDestroyedInCallee()) {
       if (QualType::DestructionKind DtorKind =
               D.needsDestruction(getContext())) {
@@ -2660,4 +2663,58 @@ void CodeGenModule::EmitOMPDeclareMapper(const OMPDeclareMapperDecl *D,
 
 void CodeGenModule::EmitOMPRequiresDecl(const OMPRequiresDecl *D) {
   getOpenMPRuntime().processRequiresDirective(D);
+}
+
+void CodeGenModule::EmitOMPAllocateDecl(const OMPAllocateDecl *D) {
+  for (const Expr *E : D->varlists()) {
+    const auto *DE = cast<DeclRefExpr>(E);
+    const auto *VD = cast<VarDecl>(DE->getDecl());
+
+    // Skip all but globals.
+    if (!VD->hasGlobalStorage())
+      continue;
+
+    // Check if the global has been materialized yet or not. If not, we are done
+    // as any later generation will utilize the OMPAllocateDeclAttr. However, if
+    // we already emitted the global we might have done so before the
+    // OMPAllocateDeclAttr was attached, leading to the wrong address space
+    // (potentially). While not pretty, common practise is to remove the old IR
+    // global and generate a new one, so we do that here too. Uses are replaced
+    // properly.
+    StringRef MangledName = getMangledName(VD);
+    llvm::GlobalValue *Entry = GetGlobalValue(MangledName);
+    if (!Entry)
+      continue;
+
+    // We can also keep the existing global if the address space is what we
+    // expect it to be, if not, it is replaced.
+    QualType ASTTy = VD->getType();
+    clang::LangAS GVAS = GetGlobalVarAddressSpace(VD);
+    auto TargetAS = getContext().getTargetAddressSpace(GVAS);
+    if (Entry->getType()->getAddressSpace() == TargetAS)
+      continue;
+
+    // Make a new global with the correct type / address space.
+    llvm::Type *Ty = getTypes().ConvertTypeForMem(ASTTy);
+    llvm::PointerType *PTy = llvm::PointerType::get(Ty, TargetAS);
+
+    // Replace all uses of the old global with a cast. Since we mutate the type
+    // in place we neeed an intermediate that takes the spot of the old entry
+    // until we can create the cast.
+    llvm::GlobalVariable *DummyGV = new llvm::GlobalVariable(
+        getModule(), Entry->getValueType(), false,
+        llvm::GlobalValue::CommonLinkage, nullptr, "dummy", nullptr,
+        llvm::GlobalVariable::NotThreadLocal, Entry->getAddressSpace());
+    Entry->replaceAllUsesWith(DummyGV);
+
+    Entry->mutateType(PTy);
+    llvm::Constant *NewPtrForOldDecl =
+        llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+            Entry, DummyGV->getType());
+
+    // Now we have a casted version of the changed global, the dummy can be
+    // replaced and deleted.
+    DummyGV->replaceAllUsesWith(NewPtrForOldDecl);
+    DummyGV->eraseFromParent();
+  }
 }

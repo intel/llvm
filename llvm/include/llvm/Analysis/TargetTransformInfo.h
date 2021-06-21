@@ -61,6 +61,7 @@ class TargetLibraryInfo;
 class Type;
 class User;
 class Value;
+class VPIntrinsic;
 struct KnownBits;
 template <typename T> class Optional;
 
@@ -708,7 +709,7 @@ public:
   bool isTypeLegal(Type *Ty) const;
 
   /// Returns the estimated number of registers required to represent \p Ty.
-  unsigned getRegUsageForType(Type *Ty) const;
+  InstructionCost getRegUsageForType(Type *Ty) const;
 
   /// Return true if switches should be turned into lookup tables for the
   /// target.
@@ -838,8 +839,8 @@ public:
   /// with another such as Thumb. This return value is used as a penalty when
   /// the total costs for a constant is calculated (the bigger the cost, the
   /// more beneficial constant hoisting is).
-  int getIntImmCodeSizeCost(unsigned Opc, unsigned Idx, const APInt &Imm,
-                            Type *Ty) const;
+  InstructionCost getIntImmCodeSizeCost(unsigned Opc, unsigned Idx,
+                                        const APInt &Imm, Type *Ty) const;
   /// @}
 
   /// \name Vector Target Information
@@ -1238,7 +1239,7 @@ public:
   ///
   /// Some types may require the use of register classes that do not have
   /// any callee-saved registers, so would require a spill and fill.
-  unsigned getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) const;
+  InstructionCost getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) const;
 
   /// \returns True if the intrinsic is a supported memory intrinsic.  Info
   /// will contain additional information - whether the intrinsic may write
@@ -1320,7 +1321,7 @@ public:
                                     unsigned AddrSpace) const;
 
   /// \returns True if it is legal to vectorize the given reduction kind.
-  bool isLegalToVectorizeReduction(RecurrenceDescriptor RdxDesc,
+  bool isLegalToVectorizeReduction(const RecurrenceDescriptor &RdxDesc,
                                    ElementCount VF) const;
 
   /// \returns The new vector factor value if the target doesn't support \p
@@ -1379,6 +1380,38 @@ public:
   /// Intrinsics") Use of %evl is discouraged when that is not the case.
   bool hasActiveVectorLength() const;
 
+  struct VPLegalization {
+    enum VPTransform {
+      // keep the predicating parameter
+      Legal = 0,
+      // where legal, discard the predicate parameter
+      Discard = 1,
+      // transform into something else that is also predicating
+      Convert = 2
+    };
+
+    // How to transform the EVL parameter.
+    // Legal:   keep the EVL parameter as it is.
+    // Discard: Ignore the EVL parameter where it is safe to do so.
+    // Convert: Fold the EVL into the mask parameter.
+    VPTransform EVLParamStrategy;
+
+    // How to transform the operator.
+    // Legal:   The target supports this operator.
+    // Convert: Convert this to a non-VP operation.
+    // The 'Discard' strategy is invalid.
+    VPTransform OpStrategy;
+
+    bool shouldDoNothing() const {
+      return (EVLParamStrategy == Legal) && (OpStrategy == Legal);
+    }
+    VPLegalization(VPTransform EVLParamStrategy, VPTransform OpStrategy)
+        : EVLParamStrategy(EVLParamStrategy), OpStrategy(OpStrategy) {}
+  };
+
+  /// \returns How the target needs this vector-predicated operation to be
+  /// transformed.
+  VPLegalization getVPLegalizationStrategy(const VPIntrinsic &PI) const;
   /// @}
 
   /// @}
@@ -1495,7 +1528,7 @@ public:
   virtual bool isProfitableToHoist(Instruction *I) = 0;
   virtual bool useAA() = 0;
   virtual bool isTypeLegal(Type *Ty) = 0;
-  virtual unsigned getRegUsageForType(Type *Ty) = 0;
+  virtual InstructionCost getRegUsageForType(Type *Ty) = 0;
   virtual bool shouldBuildLookupTables() = 0;
   virtual bool shouldBuildLookupTablesForConstant(Constant *C) = 0;
   virtual bool shouldBuildRelLookupTables() = 0;
@@ -1523,8 +1556,8 @@ public:
   virtual bool haveFastSqrt(Type *Ty) = 0;
   virtual bool isFCmpOrdCheaperThanFCmpZero(Type *Ty) = 0;
   virtual InstructionCost getFPOpCost(Type *Ty) = 0;
-  virtual int getIntImmCodeSizeCost(unsigned Opc, unsigned Idx,
-                                    const APInt &Imm, Type *Ty) = 0;
+  virtual InstructionCost getIntImmCodeSizeCost(unsigned Opc, unsigned Idx,
+                                                const APInt &Imm, Type *Ty) = 0;
   virtual InstructionCost getIntImmCost(const APInt &Imm, Type *Ty,
                                         TargetCostKind CostKind) = 0;
   virtual InstructionCost getIntImmCostInst(unsigned Opc, unsigned Idx,
@@ -1640,7 +1673,8 @@ public:
   virtual unsigned getNumberOfParts(Type *Tp) = 0;
   virtual InstructionCost
   getAddressComputationCost(Type *Ty, ScalarEvolution *SE, const SCEV *Ptr) = 0;
-  virtual unsigned getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) = 0;
+  virtual InstructionCost
+  getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) = 0;
   virtual bool getTgtMemIntrinsic(IntrinsicInst *Inst,
                                   MemIntrinsicInfo &Info) = 0;
   virtual unsigned getAtomicMemIntrinsicMaxElementSize() const = 0;
@@ -1671,7 +1705,7 @@ public:
   virtual bool isLegalToVectorizeStoreChain(unsigned ChainSizeInBytes,
                                             Align Alignment,
                                             unsigned AddrSpace) const = 0;
-  virtual bool isLegalToVectorizeReduction(RecurrenceDescriptor RdxDesc,
+  virtual bool isLegalToVectorizeReduction(const RecurrenceDescriptor &RdxDesc,
                                            ElementCount VF) const = 0;
   virtual unsigned getLoadVectorFactor(unsigned VF, unsigned LoadSize,
                                        unsigned ChainSizeInBytes,
@@ -1688,6 +1722,8 @@ public:
   virtual bool supportsScalableVectors() const = 0;
   virtual bool hasActiveVectorLength() const = 0;
   virtual InstructionCost getInstructionLatency(const Instruction *I) = 0;
+  virtual VPLegalization
+  getVPLegalizationStrategy(const VPIntrinsic &PI) const = 0;
 };
 
 template <typename T>
@@ -1886,7 +1922,7 @@ public:
   }
   bool useAA() override { return Impl.useAA(); }
   bool isTypeLegal(Type *Ty) override { return Impl.isTypeLegal(Ty); }
-  unsigned getRegUsageForType(Type *Ty) override {
+  InstructionCost getRegUsageForType(Type *Ty) override {
     return Impl.getRegUsageForType(Ty);
   }
   bool shouldBuildLookupTables() override {
@@ -1952,8 +1988,8 @@ public:
     return Impl.getFPOpCost(Ty);
   }
 
-  int getIntImmCodeSizeCost(unsigned Opc, unsigned Idx, const APInt &Imm,
-                            Type *Ty) override {
+  InstructionCost getIntImmCodeSizeCost(unsigned Opc, unsigned Idx,
+                                        const APInt &Imm, Type *Ty) override {
     return Impl.getIntImmCodeSizeCost(Opc, Idx, Imm, Ty);
   }
   InstructionCost getIntImmCost(const APInt &Imm, Type *Ty,
@@ -2155,7 +2191,7 @@ public:
                                             const SCEV *Ptr) override {
     return Impl.getAddressComputationCost(Ty, SE, Ptr);
   }
-  unsigned getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) override {
+  InstructionCost getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) override {
     return Impl.getCostOfKeepingLiveOverCall(Tys);
   }
   bool getTgtMemIntrinsic(IntrinsicInst *Inst,
@@ -2218,7 +2254,7 @@ public:
     return Impl.isLegalToVectorizeStoreChain(ChainSizeInBytes, Alignment,
                                              AddrSpace);
   }
-  bool isLegalToVectorizeReduction(RecurrenceDescriptor RdxDesc,
+  bool isLegalToVectorizeReduction(const RecurrenceDescriptor &RdxDesc,
                                    ElementCount VF) const override {
     return Impl.isLegalToVectorizeReduction(RdxDesc, VF);
   }
@@ -2258,6 +2294,11 @@ public:
 
   InstructionCost getInstructionLatency(const Instruction *I) override {
     return Impl.getInstructionLatency(I);
+  }
+
+  VPLegalization
+  getVPLegalizationStrategy(const VPIntrinsic &PI) const override {
+    return Impl.getVPLegalizationStrategy(PI);
   }
 };
 

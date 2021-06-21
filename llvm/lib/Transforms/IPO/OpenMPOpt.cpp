@@ -15,6 +15,7 @@
 #include "llvm/Transforms/IPO/OpenMPOpt.h"
 
 #include "llvm/ADT/EnumeratedArray.h"
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
@@ -22,6 +23,9 @@
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/IPO.h"
@@ -77,6 +81,36 @@ static constexpr auto TAG = "[" DEBUG_TYPE "]";
 #endif
 
 namespace {
+
+struct AAExecutionDomain
+    : public StateWrapper<BooleanState, AbstractAttribute> {
+  using Base = StateWrapper<BooleanState, AbstractAttribute>;
+  AAExecutionDomain(const IRPosition &IRP, Attributor &A) : Base(IRP) {}
+
+  /// Create an abstract attribute view for the position \p IRP.
+  static AAExecutionDomain &createForPosition(const IRPosition &IRP,
+                                              Attributor &A);
+
+  /// See AbstractAttribute::getName().
+  const std::string getName() const override { return "AAExecutionDomain"; }
+
+  /// See AbstractAttribute::getIdAddr().
+  const char *getIdAddr() const override { return &ID; }
+
+  /// Check if an instruction is executed by a single thread.
+  virtual bool isSingleThreadExecution(const Instruction &) const = 0;
+
+  virtual bool isSingleThreadExecution(const BasicBlock &) const = 0;
+
+  /// This function should return true if the type of the \p AA is
+  /// AAExecutionDomain.
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
+  /// Unique ID (due to the unique address)
+  static const char ID;
+};
 
 struct AAICVTracker;
 
@@ -506,6 +540,8 @@ struct OpenMPOpt {
                       << OMPInfoCache.ModuleSlice.size() << " functions\n");
 
     if (IsModulePass) {
+      Changed |= runAttributor();
+
       if (remarksEnabled())
         analysisGlobalization();
     } else {
@@ -545,15 +581,15 @@ struct OpenMPOpt {
     for (Function *F : OMPInfoCache.ModuleSlice) {
       for (auto ICV : ICVs) {
         auto ICVInfo = OMPInfoCache.ICVs[ICV];
-        auto Remark = [&](OptimizationRemark OR) {
-          return OR << "OpenMP ICV " << ore::NV("OpenMPICV", ICVInfo.Name)
-                    << " Value: "
-                    << (ICVInfo.InitValue
-                            ? ICVInfo.InitValue->getValue().toString(10, true)
-                            : "IMPLEMENTATION_DEFINED");
+        auto Remark = [&](OptimizationRemarkAnalysis ORA) {
+          return ORA << "OpenMP ICV " << ore::NV("OpenMPICV", ICVInfo.Name)
+                     << " Value: "
+                     << (ICVInfo.InitValue
+                             ? toString(ICVInfo.InitValue->getValue(), 10, true)
+                             : "IMPLEMENTATION_DEFINED");
         };
 
-        emitRemarkOnFunction(F, "OpenMPICVTracker", Remark);
+        emitRemark<OptimizationRemarkAnalysis>(F, "OpenMPICVTracker", Remark);
       }
     }
   }
@@ -564,12 +600,12 @@ struct OpenMPOpt {
       if (!OMPInfoCache.Kernels.count(F))
         continue;
 
-      auto Remark = [&](OptimizationRemark OR) {
-        return OR << "OpenMP GPU kernel "
-                  << ore::NV("OpenMPGPUKernel", F->getName()) << "\n";
+      auto Remark = [&](OptimizationRemarkAnalysis ORA) {
+        return ORA << "OpenMP GPU kernel "
+                   << ore::NV("OpenMPGPUKernel", F->getName()) << "\n";
       };
 
-      emitRemarkOnFunction(F, "OpenMPGPU", Remark);
+      emitRemark<OptimizationRemarkAnalysis>(F, "OpenMPGPU", Remark);
     }
   }
 
@@ -1383,12 +1419,11 @@ private:
             continue;
 
           auto Remark = [&](OptimizationRemark OR) {
-            auto newLoc = &*F.getEntryBlock().getFirstInsertionPt();
             return OR << "OpenMP runtime call "
-                      << ore::NV("OpenMPOptRuntime", RFI.Name) << " moved to "
-                      << ore::NV("OpenMPRuntimeMoves", newLoc->getDebugLoc());
+                      << ore::NV("OpenMPOptRuntime", RFI.Name)
+                      << " moved to beginning of OpenMP region";
           };
-          emitRemark<OptimizationRemark>(CI, "OpenMPRuntimeCodeMotion", Remark);
+          emitRemark<OptimizationRemark>(&F, "OpenMPRuntimeCodeMotion", Remark);
 
           CI->moveBefore(&*F.getEntryBlock().getFirstInsertionPt());
           ReplVal = CI;
@@ -1421,7 +1456,7 @@ private:
         return OR << "OpenMP runtime call "
                   << ore::NV("OpenMPOptRuntime", RFI.Name) << " deduplicated";
       };
-      emitRemark<OptimizationRemark>(CI, "OpenMPRuntimeDeduplicated", Remark);
+      emitRemark<OptimizationRemark>(&F, "OpenMPRuntimeDeduplicated", Remark);
 
       CGUpdater.removeCallSite(*CI);
       CI->replaceAllUsesWith(ReplVal);
@@ -1522,28 +1557,22 @@ private:
   ///
   /// The remark is built using a callback function provided by the caller that
   /// takes a RemarkKind as input and returns a RemarkKind.
-  template <typename RemarkKind,
-            typename RemarkCallBack = function_ref<RemarkKind(RemarkKind &&)>>
-  void emitRemark(Instruction *Inst, StringRef RemarkName,
+  template <typename RemarkKind, typename RemarkCallBack>
+  void emitRemark(Instruction *I, StringRef RemarkName,
                   RemarkCallBack &&RemarkCB) const {
-    Function *F = Inst->getParent()->getParent();
+    Function *F = I->getParent()->getParent();
     auto &ORE = OREGetter(F);
 
-    ORE.emit(
-        [&]() { return RemarkCB(RemarkKind(DEBUG_TYPE, RemarkName, Inst)); });
+    ORE.emit([&]() { return RemarkCB(RemarkKind(DEBUG_TYPE, RemarkName, I)); });
   }
 
-  /// Emit a remark on a function. Since only OptimizationRemark is supporting
-  /// this, it can't be made generic.
-  void
-  emitRemarkOnFunction(Function *F, StringRef RemarkName,
-                       function_ref<OptimizationRemark(OptimizationRemark &&)>
-                           &&RemarkCB) const {
+  /// Emit a remark on a function.
+  template <typename RemarkKind, typename RemarkCallBack>
+  void emitRemark(Function *F, StringRef RemarkName,
+                  RemarkCallBack &&RemarkCB) const {
     auto &ORE = OREGetter(F);
 
-    ORE.emit([&]() {
-      return RemarkCB(OptimizationRemark(DEBUG_TYPE, RemarkName, F));
-    });
+    ORE.emit([&]() { return RemarkCB(RemarkKind(DEBUG_TYPE, RemarkName, F)); });
   }
 
   /// The underlying module.
@@ -1606,6 +1635,11 @@ private:
 
       GetterRFI.foreachUse(SCC, CreateAA);
     }
+
+    for (auto &F : M) {
+      if (!F.isDeclaration())
+        A.getOrCreateAAFor<AAExecutionDomain>(IRPosition::function(F));
+    }
   }
 };
 
@@ -1631,10 +1665,11 @@ Kernel OpenMPOpt::getUniqueKernelFor(Function &F) {
     if (!F.hasLocalLinkage()) {
 
       // See https://openmp.llvm.org/remarks/OptimizationRemarks.html
-      auto Remark = [&](OptimizationRemark OR) {
-        return OR << "[OMP100] Potentially unknown OpenMP target region caller";
+      auto Remark = [&](OptimizationRemarkAnalysis ORA) {
+        return ORA
+               << "[OMP100] Potentially unknown OpenMP target region caller";
       };
-      emitRemarkOnFunction(&F, "OMP100", Remark);
+      emitRemark<OptimizationRemarkAnalysis>(&F, "OMP100", Remark);
 
       return nullptr;
     }
@@ -1727,15 +1762,16 @@ bool OpenMPOpt::rewriteDeviceCodeStateMachine() {
       continue;
 
     {
-      auto Remark = [&](OptimizationRemark OR) {
-        return OR << "Found a parallel region that is called in a target "
-                     "region but not part of a combined target construct nor "
-                     "nested inside a target construct without intermediate "
-                     "code. This can lead to excessive register usage for "
-                     "unrelated target regions in the same translation unit "
-                     "due to spurious call edges assumed by ptxas.";
+      auto Remark = [&](OptimizationRemarkAnalysis ORA) {
+        return ORA << "Found a parallel region that is called in a target "
+                      "region but not part of a combined target construct nor "
+                      "nested inside a target construct without intermediate "
+                      "code. This can lead to excessive register usage for "
+                      "unrelated target regions in the same translation unit "
+                      "due to spurious call edges assumed by ptxas.";
       };
-      emitRemarkOnFunction(F, "OpenMPParallelRegionInNonSPMD", Remark);
+      emitRemark<OptimizationRemarkAnalysis>(F, "OpenMPParallelRegionInNonSPMD",
+                                             Remark);
     }
 
     // If this ever hits, we should investigate.
@@ -1744,12 +1780,13 @@ bool OpenMPOpt::rewriteDeviceCodeStateMachine() {
     if (UnknownUse || NumDirectCalls != 1 ||
         ToBeReplacedStateMachineUses.size() != 2) {
       {
-        auto Remark = [&](OptimizationRemark OR) {
-          return OR << "Parallel region is used in "
-                    << (UnknownUse ? "unknown" : "unexpected")
-                    << " ways; will not attempt to rewrite the state machine.";
+        auto Remark = [&](OptimizationRemarkAnalysis ORA) {
+          return ORA << "Parallel region is used in "
+                     << (UnknownUse ? "unknown" : "unexpected")
+                     << " ways; will not attempt to rewrite the state machine.";
         };
-        emitRemarkOnFunction(F, "OpenMPParallelRegionInNonSPMD", Remark);
+        emitRemark<OptimizationRemarkAnalysis>(
+            F, "OpenMPParallelRegionInNonSPMD", Remark);
       }
       continue;
     }
@@ -1759,14 +1796,14 @@ bool OpenMPOpt::rewriteDeviceCodeStateMachine() {
     Kernel K = getUniqueKernelFor(*F);
     if (!K) {
       {
-        auto Remark = [&](OptimizationRemark OR) {
-          return OR << "Parallel region is not known to be called from a "
-                       "unique single target region, maybe the surrounding "
-                       "function has external linkage?; will not attempt to "
-                       "rewrite the state machine use.";
+        auto Remark = [&](OptimizationRemarkAnalysis ORA) {
+          return ORA << "Parallel region is not known to be called from a "
+                        "unique single target region, maybe the surrounding "
+                        "function has external linkage?; will not attempt to "
+                        "rewrite the state machine use.";
         };
-        emitRemarkOnFunction(F, "OpenMPParallelRegionInMultipleKernesl",
-                             Remark);
+        emitRemark<OptimizationRemarkAnalysis>(
+            F, "OpenMPParallelRegionInMultipleKernesl", Remark);
       }
       continue;
     }
@@ -1777,25 +1814,26 @@ bool OpenMPOpt::rewriteDeviceCodeStateMachine() {
     // ensures only direct calls to the function are left.
 
     {
-      auto RemarkParalleRegion = [&](OptimizationRemark OR) {
-        return OR << "Specialize parallel region that is only reached from a "
-                     "single target region to avoid spurious call edges and "
-                     "excessive register usage in other target regions. "
-                     "(parallel region ID: "
-                  << ore::NV("OpenMPParallelRegion", F->getName())
-                  << ", kernel ID: "
-                  << ore::NV("OpenMPTargetRegion", K->getName()) << ")";
+      auto RemarkParalleRegion = [&](OptimizationRemarkAnalysis ORA) {
+        return ORA << "Specialize parallel region that is only reached from a "
+                      "single target region to avoid spurious call edges and "
+                      "excessive register usage in other target regions. "
+                      "(parallel region ID: "
+                   << ore::NV("OpenMPParallelRegion", F->getName())
+                   << ", kernel ID: "
+                   << ore::NV("OpenMPTargetRegion", K->getName()) << ")";
       };
-      emitRemarkOnFunction(F, "OpenMPParallelRegionInNonSPMD",
-                           RemarkParalleRegion);
-      auto RemarkKernel = [&](OptimizationRemark OR) {
-        return OR << "Target region containing the parallel region that is "
-                     "specialized. (parallel region ID: "
-                  << ore::NV("OpenMPParallelRegion", F->getName())
-                  << ", kernel ID: "
-                  << ore::NV("OpenMPTargetRegion", K->getName()) << ")";
+      emitRemark<OptimizationRemarkAnalysis>(F, "OpenMPParallelRegionInNonSPMD",
+                                             RemarkParalleRegion);
+      auto RemarkKernel = [&](OptimizationRemarkAnalysis ORA) {
+        return ORA << "Target region containing the parallel region that is "
+                      "specialized. (parallel region ID: "
+                   << ore::NV("OpenMPParallelRegion", F->getName())
+                   << ", kernel ID: "
+                   << ore::NV("OpenMPTargetRegion", K->getName()) << ")";
       };
-      emitRemarkOnFunction(K, "OpenMPParallelRegionInNonSPMD", RemarkKernel);
+      emitRemark<OptimizationRemarkAnalysis>(K, "OpenMPParallelRegionInNonSPMD",
+                                             RemarkKernel);
     }
 
     Module &M = *F->getParent();
@@ -2244,9 +2282,130 @@ struct AAICVTrackerCallSiteReturned : AAICVTracker {
     return Changed;
   }
 };
+
+struct AAExecutionDomainFunction : public AAExecutionDomain {
+  AAExecutionDomainFunction(const IRPosition &IRP, Attributor &A)
+      : AAExecutionDomain(IRP, A) {}
+
+  const std::string getAsStr() const override {
+    return "[AAExecutionDomain] " + std::to_string(SingleThreadedBBs.size()) +
+           "/" + std::to_string(NumBBs) + " BBs thread 0 only.";
+  }
+
+  /// See AbstractAttribute::trackStatistics().
+  void trackStatistics() const override {}
+
+  void initialize(Attributor &A) override {
+    Function *F = getAnchorScope();
+    for (const auto &BB : *F)
+      SingleThreadedBBs.insert(&BB);
+    NumBBs = SingleThreadedBBs.size();
+  }
+
+  ChangeStatus manifest(Attributor &A) override {
+    LLVM_DEBUG({
+      for (const BasicBlock *BB : SingleThreadedBBs)
+        dbgs() << TAG << " Basic block @" << getAnchorScope()->getName() << " "
+               << BB->getName() << " is executed by a single thread.\n";
+    });
+    return ChangeStatus::UNCHANGED;
+  }
+
+  ChangeStatus updateImpl(Attributor &A) override;
+
+  /// Check if an instruction is executed by a single thread.
+  bool isSingleThreadExecution(const Instruction &I) const override {
+    return isSingleThreadExecution(*I.getParent());
+  }
+
+  bool isSingleThreadExecution(const BasicBlock &BB) const override {
+    return SingleThreadedBBs.contains(&BB);
+  }
+
+  /// Set of basic blocks that are executed by a single thread.
+  DenseSet<const BasicBlock *> SingleThreadedBBs;
+
+  /// Total number of basic blocks in this function.
+  long unsigned NumBBs;
+};
+
+ChangeStatus AAExecutionDomainFunction::updateImpl(Attributor &A) {
+  Function *F = getAnchorScope();
+  ReversePostOrderTraversal<Function *> RPOT(F);
+  auto NumSingleThreadedBBs = SingleThreadedBBs.size();
+
+  bool AllCallSitesKnown;
+  auto PredForCallSite = [&](AbstractCallSite ACS) {
+    const auto &ExecutionDomainAA = A.getAAFor<AAExecutionDomain>(
+        *this, IRPosition::function(*ACS.getInstruction()->getFunction()),
+        DepClassTy::REQUIRED);
+    return ExecutionDomainAA.isSingleThreadExecution(*ACS.getInstruction());
+  };
+
+  if (!A.checkForAllCallSites(PredForCallSite, *this,
+                              /* RequiresAllCallSites */ true,
+                              AllCallSitesKnown))
+    SingleThreadedBBs.erase(&F->getEntryBlock());
+
+  // Check if the edge into the successor block compares a thread-id function to
+  // a constant zero.
+  // TODO: Use AAValueSimplify to simplify and propogate constants.
+  // TODO: Check more than a single use for thread ID's.
+  auto IsSingleThreadOnly = [&](BranchInst *Edge, BasicBlock *SuccessorBB) {
+    if (!Edge || !Edge->isConditional())
+      return false;
+    if (Edge->getSuccessor(0) != SuccessorBB)
+      return false;
+
+    auto *Cmp = dyn_cast<CmpInst>(Edge->getCondition());
+    if (!Cmp || !Cmp->isTrueWhenEqual() || !Cmp->isEquality())
+      return false;
+
+    ConstantInt *C = dyn_cast<ConstantInt>(Cmp->getOperand(1));
+    if (!C || !C->isZero())
+      return false;
+
+    if (auto *II = dyn_cast<IntrinsicInst>(Cmp->getOperand(0)))
+      if (II->getIntrinsicID() == Intrinsic::nvvm_read_ptx_sreg_tid_x)
+        return true;
+    if (auto *II = dyn_cast<IntrinsicInst>(Cmp->getOperand(0)))
+      if (II->getIntrinsicID() == Intrinsic::amdgcn_workitem_id_x)
+        return true;
+
+    return false;
+  };
+
+  // Merge all the predecessor states into the current basic block. A basic
+  // block is executed by a single thread if all of its predecessors are.
+  auto MergePredecessorStates = [&](BasicBlock *BB) {
+    if (pred_begin(BB) == pred_end(BB))
+      return SingleThreadedBBs.contains(BB);
+
+    bool IsSingleThreaded = true;
+    for (auto PredBB = pred_begin(BB), PredEndBB = pred_end(BB);
+         PredBB != PredEndBB; ++PredBB) {
+      if (!IsSingleThreadOnly(dyn_cast<BranchInst>((*PredBB)->getTerminator()),
+                              BB))
+        IsSingleThreaded &= SingleThreadedBBs.contains(*PredBB);
+    }
+
+    return IsSingleThreaded;
+  };
+
+  for (auto *BB : RPOT) {
+    if (!MergePredecessorStates(BB))
+      SingleThreadedBBs.erase(BB);
+  }
+
+  return (NumSingleThreadedBBs == SingleThreadedBBs.size())
+             ? ChangeStatus::UNCHANGED
+             : ChangeStatus::CHANGED;
+}
+
 } // namespace
 
 const char AAICVTracker::ID = 0;
+const char AAExecutionDomain::ID = 0;
 
 AAICVTracker &AAICVTracker::createForPosition(const IRPosition &IRP,
                                               Attributor &A) {
@@ -2268,6 +2427,27 @@ AAICVTracker &AAICVTracker::createForPosition(const IRPosition &IRP,
     break;
   case IRPosition::IRP_FUNCTION:
     AA = new (A.Allocator) AAICVTrackerFunction(IRP, A);
+    break;
+  }
+
+  return *AA;
+}
+
+AAExecutionDomain &AAExecutionDomain::createForPosition(const IRPosition &IRP,
+                                                        Attributor &A) {
+  AAExecutionDomainFunction *AA = nullptr;
+  switch (IRP.getPositionKind()) {
+  case IRPosition::IRP_INVALID:
+  case IRPosition::IRP_FLOAT:
+  case IRPosition::IRP_ARGUMENT:
+  case IRPosition::IRP_CALL_SITE_ARGUMENT:
+  case IRPosition::IRP_RETURNED:
+  case IRPosition::IRP_CALL_SITE_RETURNED:
+  case IRPosition::IRP_CALL_SITE:
+    llvm_unreachable(
+        "AAExecutionDomain can only be created for function position!");
+  case IRPosition::IRP_FUNCTION:
+    AA = new (A.Allocator) AAExecutionDomainFunction(IRP, A);
     break;
   }
 
@@ -2361,7 +2541,7 @@ PreservedAnalyses OpenMPOptCGSCCPass::run(LazyCallGraph::SCC &C,
   OMPInformationCache InfoCache(*(Functions.back()->getParent()), AG, Allocator,
                                 /*CGSCC*/ Functions, OMPInModule.getKernels());
 
-  Attributor A(Functions, InfoCache, CGUpdater);
+  Attributor A(Functions, InfoCache, CGUpdater, nullptr, false);
 
   OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
   bool Changed = OMPOpt.run(false);
@@ -2370,6 +2550,7 @@ PreservedAnalyses OpenMPOptCGSCCPass::run(LazyCallGraph::SCC &C,
 
   return PreservedAnalyses::all();
 }
+
 namespace {
 
 struct OpenMPOptCGSCCLegacyPass : public CallGraphSCCPass {
@@ -2436,7 +2617,7 @@ struct OpenMPOptCGSCCLegacyPass : public CallGraphSCCPass {
         *(Functions.back()->getParent()), AG, Allocator,
         /*CGSCC*/ Functions, OMPInModule.getKernels());
 
-    Attributor A(Functions, InfoCache, CGUpdater);
+    Attributor A(Functions, InfoCache, CGUpdater, nullptr, false);
 
     OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
     return OMPOpt.run(false);

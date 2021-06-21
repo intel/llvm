@@ -957,7 +957,8 @@ define i32 @load_load_partial_alias(i8* %P) nounwind ssp {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[TMP0:%.*]] = bitcast i8* [[P:%.*]] to i32*
 ; CHECK-NEXT:    [[TTMP2:%.*]] = load i32, i32* [[TMP0]], align 4
-; CHECK-NEXT:    [[TMP1:%.*]] = lshr i32 [[TTMP2]], {{8|16}}
+; LE-NEXT:       [[TMP1:%.*]] = lshr i32 [[TTMP2]], 8
+; BE-NEXT:       [[TMP1:%.*]] = lshr i32 [[TTMP2]], 16
 ; CHECK-NEXT:    [[TMP2:%.*]] = trunc i32 [[TMP1]] to i8
 ; CHECK-NEXT:    [[CONV:%.*]] = zext i8 [[TMP2]] to i32
 ; CHECK-NEXT:    [[ADD:%.*]] = add nsw i32 [[TTMP2]], [[CONV]]
@@ -981,7 +982,8 @@ define i32 @load_load_partial_alias_cross_block(i8* %P) nounwind ssp {
 ; CHECK-NEXT:    [[XX:%.*]] = bitcast i8* [[P:%.*]] to i32*
 ; CHECK-NEXT:    [[X1:%.*]] = load i32, i32* [[XX]], align 4
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[X1]], 127
-; CHECK-NEXT:    [[TMP0:%.*]] = lshr i32 [[X1]], {{8|16}}
+; LE-NEXT:       [[TMP0:%.*]] = lshr i32 [[X1]], 8
+; BE-NEXT:       [[TMP0:%.*]] = lshr i32 [[X1]], 16
 ; CHECK-NEXT:    [[TMP1:%.*]] = trunc i32 [[TMP0]] to i8
 ; CHECK-NEXT:    br i1 [[CMP]], label [[LAND_LHS_TRUE:%.*]], label [[IF_END:%.*]]
 ; CHECK:       land.lhs.true:
@@ -1012,9 +1014,11 @@ define i32 @load_load_partial_alias_cross_block_phi_trans(i8* %P) nounwind {
 ; CHECK-NEXT:    [[XX:%.*]] = bitcast i8* [[P:%.*]] to i32*
 ; CHECK-NEXT:    [[X1:%.*]] = load i32, i32* [[XX]], align 4
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[X1]], 127
-; CHECK-NEXT:    [[TMP0:%.*]] = lshr i32 [[X1]], {{16|8}}
+; LE-NEXT:       [[TMP0:%.*]] = lshr i32 [[X1]], 16
+; BE-NEXT:       [[TMP0:%.*]] = lshr i32 [[X1]], 8
 ; CHECK-NEXT:    [[TMP1:%.*]] = trunc i32 [[TMP0]] to i8
-; CHECK-NEXT:    [[TMP2:%.*]] = lshr i32 [[X1]], {{8|16}}
+; LE-NEXT:       [[TMP2:%.*]] = lshr i32 [[X1]], 8
+; BE-NEXT:       [[TMP2:%.*]] = lshr i32 [[X1]], 16
 ; CHECK-NEXT:    [[TMP3:%.*]] = trunc i32 [[TMP2]] to i8
 ; CHECK-NEXT:    br i1 [[CMP]], label [[IF:%.*]], label [[ELSE:%.*]]
 ; CHECK:       if:
@@ -1138,6 +1142,46 @@ exit:
 
 declare void @use.i8(i8) readnone
 declare void @use.i32(i32) readnone
+
+@global = external local_unnamed_addr global i8, align 4
+
+define void @load_load_partial_alias_atomic(i8* %arg) {
+; CHECK-LABEL: @load_load_partial_alias_atomic(
+; CHECK-NEXT:  bb:
+; CHECK-NEXT:    [[TMP2_1:%.*]] = getelementptr inbounds i8, i8* [[ARG:%.*]], i64 1
+; CHECK-NEXT:    [[TMP2_2:%.*]] = bitcast i8* [[TMP2_1]] to i64*
+; CHECK-NEXT:    [[TMP2_3:%.*]] = load i64, i64* [[TMP2_2]], align 4
+; CHECK-NEXT:    [[TMP3_1:%.*]] = getelementptr inbounds i8, i8* [[ARG]], i64 2
+; LE-NEXT:       [[TMP0:%.*]] = lshr i64 [[TMP2_3]], 8
+; BE-NEXT:       [[TMP0:%.*]] = lshr i64 [[TMP2_3]], 48
+; CHECK-NEXT:    [[TMP1:%.*]] = trunc i64 [[TMP0]] to i8
+; CHECK-NEXT:    br label [[BB5:%.*]]
+; CHECK:       bb5:
+; CHECK-NEXT:    [[TMP4_1:%.*]] = phi i8 [ [[TMP4_1_PRE:%.*]], [[BB5]] ], [ [[TMP1]], [[BB:%.*]] ]
+; CHECK-NEXT:    [[TMP6_1:%.*]] = load atomic i8, i8* @global acquire, align 4
+; CHECK-NEXT:    [[TMP7_1:%.*]] = add i8 [[TMP6_1]], [[TMP4_1]]
+; CHECK-NEXT:    store i8 [[TMP7_1]], i8* [[ARG]], align 1
+; CHECK-NEXT:    [[TMP4_1_PRE]] = load i8, i8* [[TMP3_1]], align 4
+; CHECK-NEXT:    br label [[BB5]]
+;
+bb:
+  %tmp1.1 = getelementptr inbounds i8, i8* %arg, i64 0
+  %tmp2.1 = getelementptr inbounds i8, i8* %arg, i64 1
+  %tmp2.2 = bitcast i8* %tmp2.1 to i64*
+  %tmp2.3 = load i64, i64* %tmp2.2, align 4
+  %tmp2.4 = icmp ugt i64 %tmp2.3, 1
+
+  %tmp3.1 = getelementptr inbounds i8, i8* %arg, i64 2
+  br label %bb5
+
+bb5:                                              ; preds = %bb14, %bb
+  %tmp4.1 = load i8, i8* %tmp3.1, align 4
+  %tmp6.1 = load atomic i8, i8* getelementptr inbounds (i8, i8* @global, i64 0) acquire, align 4
+  %tmp7.1 = add i8 %tmp6.1, %tmp4.1
+  store i8 %tmp7.1, i8* %tmp1.1
+  br label %bb5
+
+}
 
 ;;===----------------------------------------------------------------------===;;
 ;; Load Widening

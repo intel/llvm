@@ -139,6 +139,12 @@ public:
     return result;
   }
 
+  MPFRNumber expm1() const {
+    MPFRNumber result;
+    mpfr_expm1(result.value, value, MPFR_RNDN);
+    return result;
+  }
+
   MPFRNumber floor() const {
     MPFRNumber result;
     mpfr_floor(result.value, value);
@@ -204,6 +210,12 @@ public:
   MPFRNumber sqrt() const {
     MPFRNumber result;
     mpfr_sqrt(result.value, value, MPFR_RNDN);
+    return result;
+  }
+
+  MPFRNumber tan() const {
+    MPFRNumber result;
+    mpfr_tan(result.value, value, MPFR_RNDN);
     return result;
   }
 
@@ -303,6 +315,8 @@ unaryOperation(Operation op, InputType input) {
     return mpfrInput.exp();
   case Operation::Exp2:
     return mpfrInput.exp2();
+  case Operation::Expm1:
+    return mpfrInput.expm1();
   case Operation::Floor:
     return mpfrInput.floor();
   case Operation::Round:
@@ -311,6 +325,8 @@ unaryOperation(Operation op, InputType input) {
     return mpfrInput.sin();
   case Operation::Sqrt:
     return mpfrInput.sqrt();
+  case Operation::Tan:
+    return mpfrInput.tan();
   case Operation::Trunc:
     return mpfrInput.trunc();
   default:

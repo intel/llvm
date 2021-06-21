@@ -90,6 +90,35 @@ struct FormatStyle {
   /// brackets.
   BracketAlignmentStyle AlignAfterOpenBracket;
 
+  /// Different style for aligning array initializers.
+  enum ArrayInitializerAlignmentStyle {
+    /// Align array column and left justify the columns e.g.:
+    /// \code
+    ///   struct test demo[] =
+    ///   {
+    ///       {56, 23,    "hello"},
+    ///       {-1, 93463, "world"},
+    ///       {7,  5,     "!!"   }
+    ///   };
+    /// \endcode
+    AIAS_Left,
+    /// Align array column and right justify the columns e.g.:
+    /// \code
+    ///   struct test demo[] =
+    ///   {
+    ///       {56,    23, "hello"},
+    ///       {-1, 93463, "world"},
+    ///       { 7,     5,    "!!"}
+    ///   };
+    /// \endcode
+    AIAS_Right,
+    /// Don't align array initializer columns.
+    AIAS_None
+  };
+  /// if not ``None``, when using initialization for an array of structs
+  /// aligns the fields into columns.
+  ArrayInitializerAlignmentStyle AlignArrayOfStructures;
+
   /// Styles for alignment of consecutive tokens. Tokens can be assignment signs
   /// (see
   /// ``AlignConsecutiveAssignments``), bitfield member separators (see
@@ -620,37 +649,74 @@ struct FormatStyle {
   /// single line.
   ShortFunctionStyle AllowShortFunctionsOnASingleLine;
 
-  /// Different styles for handling short if lines
+  /// Different styles for handling short if statements.
   enum ShortIfStyle : unsigned char {
     /// Never put short ifs on the same line.
     /// \code
     ///   if (a)
-    ///     return ;
+    ///     return;
+    ///
+    ///   if (b)
+    ///     return;
+    ///   else
+    ///     return;
+    ///
+    ///   if (c)
+    ///     return;
     ///   else {
     ///     return;
     ///   }
     /// \endcode
     SIS_Never,
-    /// Without else put short ifs on the same line only if
-    /// the else is not a compound statement.
+    /// Put short ifs on the same line only if there is no else statement.
     /// \code
     ///   if (a) return;
+    ///
+    ///   if (b)
+    ///     return;
     ///   else
     ///     return;
-    /// \endcode
-    SIS_WithoutElse,
-    /// Always put short ifs on the same line if
-    /// the else is not a compound statement or not.
-    /// \code
-    ///   if (a) return;
+    ///
+    ///   if (c)
+    ///     return;
     ///   else {
     ///     return;
     ///   }
     /// \endcode
-    SIS_Always,
+    SIS_WithoutElse,
+    /// Put short ifs, but not else ifs nor else statements, on the same line.
+    /// \code
+    ///   if (a) return;
+    ///
+    ///   if (b) return;
+    ///   else if (b)
+    ///     return;
+    ///   else
+    ///     return;
+    ///
+    ///   if (c) return;
+    ///   else {
+    ///     return;
+    ///   }
+    /// \endcode
+    SIS_OnlyFirstIf,
+    /// Always put short ifs, else ifs and else statements on the same
+    /// line.
+    /// \code
+    ///   if (a) return;
+    ///
+    ///   if (b) return;
+    ///   else return;
+    ///
+    ///   if (c) return;
+    ///   else {
+    ///     return;
+    ///   }
+    /// \endcode
+    SIS_AllIfsAndElse,
   };
 
-  /// If ``true``, ``if (a) return;`` can be put on a single line.
+  /// Dependent on the value, ``if (a) return;`` can be put on a single line.
   ShortIfStyle AllowShortIfStatementsOnASingleLine;
 
   /// Different styles for merging short lambdas containing at most one
@@ -1792,7 +1858,14 @@ struct FormatStyle {
     ///        Base2
     ///    {};
     /// \endcode
-    BILS_AfterColon
+    BILS_AfterColon,
+    /// Break inheritance list only after the commas.
+    /// \code
+    ///    class Foo : Base1,
+    ///                Base2
+    ///    {};
+    /// \endcode
+    BILS_AfterComma,
   };
 
   /// The inheritance list style to use.
@@ -1936,7 +2009,9 @@ struct FormatStyle {
     ELAAMS_Always,
   };
 
-  /// Defines in which cases to put empty line after access modifiers.
+  /// Defines when to put an empty line after access modifiers.
+  /// ``EmptyLineBeforeAccessModifier`` configuration handles the number of
+  /// empty lines between two access modifiers.
   EmptyLineAfterAccessModifierStyle EmptyLineAfterAccessModifier;
 
   /// Different styles for empty line before access modifiers.
@@ -2620,6 +2695,20 @@ struct FormatStyle {
   /// Pointer and reference alignment style.
   PointerAlignmentStyle PointerAlignment;
 
+  /// The number of columns to use for indentation of preprocessor statements.
+  /// When set to -1 (default) ``IndentWidth`` is used also for preprocessor
+  /// statements.
+  /// \code
+  ///    PPIndentWidth: 1
+  ///
+  ///    #ifdef __linux__
+  ///    # define FOO
+  ///    #else
+  ///    # define BAR
+  ///    #endif
+  /// \endcode
+  int PPIndentWidth;
+
   /// See documentation of ``RawStringFormats``.
   struct RawStringFormat {
     /// The language of this raw string.
@@ -3212,6 +3301,7 @@ struct FormatStyle {
   bool operator==(const FormatStyle &R) const {
     return AccessModifierOffset == R.AccessModifierOffset &&
            AlignAfterOpenBracket == R.AlignAfterOpenBracket &&
+           AlignArrayOfStructures == R.AlignArrayOfStructures &&
            AlignConsecutiveAssignments == R.AlignConsecutiveAssignments &&
            AlignConsecutiveBitFields == R.AlignConsecutiveBitFields &&
            AlignConsecutiveDeclarations == R.AlignConsecutiveDeclarations &&

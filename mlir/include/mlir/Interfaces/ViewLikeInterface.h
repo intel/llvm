@@ -29,7 +29,16 @@ struct Range {
 };
 
 class OffsetSizeAndStrideOpInterface;
-LogicalResult verify(OffsetSizeAndStrideOpInterface op);
+
+bool isEqualConstantInt(OpFoldResult ofr, int64_t value);
+
+namespace detail {
+LogicalResult verifyOffsetSizeAndStrideOp(OffsetSizeAndStrideOpInterface op);
+
+bool sameOffsetsSizesAndStrides(
+    OffsetSizeAndStrideOpInterface a, OffsetSizeAndStrideOpInterface b,
+    llvm::function_ref<bool(OpFoldResult, OpFoldResult)> cmp);
+} // namespace detail
 } // namespace mlir
 
 /// Include the generated interface declarations.

@@ -10,17 +10,10 @@
 
 #pragma once
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define SYCL_ESIMD_KERNEL __attribute__((sycl_explicit_simd))
-#define SYCL_ESIMD_FUNCTION __attribute__((sycl_explicit_simd))
-#else
-#define SYCL_ESIMD_KERNEL
-#define SYCL_ESIMD_FUNCTION
-#endif
-
 /// \defgroup sycl_esimd DPC++ Explicit SIMD API
 
-#include <sycl/ext/intel/experimental/esimd/esimd.hpp>
-#include <sycl/ext/intel/experimental/esimd/esimd_math.hpp>
-#include <sycl/ext/intel/experimental/esimd/esimd_memory.hpp>
-#include <sycl/ext/intel/experimental/esimd/esimd_view.hpp>
+#include <sycl/ext/intel/experimental/esimd/common.hpp>
+#include <sycl/ext/intel/experimental/esimd/math.hpp>
+#include <sycl/ext/intel/experimental/esimd/memory.hpp>
+#include <sycl/ext/intel/experimental/esimd/simd.hpp>
+#include <sycl/ext/intel/experimental/esimd/simd_view.hpp>

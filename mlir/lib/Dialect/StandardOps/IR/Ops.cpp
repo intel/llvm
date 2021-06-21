@@ -60,24 +60,35 @@ static void dispatchIndexOpFoldResults(ArrayRef<OpFoldResult> ofrs,
     dispatchIndexOpFoldResult(ofr, dynamicVec, staticVec, sentinel);
 }
 
+/// If ofr is a constant integer, i.e., an IntegerAttr or a ConstantOp with an
+/// IntegerAttr, return the integer.
+llvm::Optional<int64_t> mlir::getConstantIntValue(OpFoldResult ofr) {
+  Attribute attr = ofr.dyn_cast<Attribute>();
+  // Note: isa+cast-like pattern allows writing the condition below as 1 line.
+  if (!attr && ofr.get<Value>().getDefiningOp<ConstantOp>())
+    attr = ofr.get<Value>().getDefiningOp<ConstantOp>().getValue();
+  if (auto intAttr = attr.dyn_cast_or_null<IntegerAttr>())
+    return intAttr.getValue().getSExtValue();
+  return llvm::None;
+}
+
+/// Return true if ofr and value are the same integer.
+/// Ignore integer bitwidth and type mismatch that come from the fact there is
+/// no IndexAttr and that IndexType has no bitwidth.
+bool mlir::isEqualConstantInt(OpFoldResult ofr, int64_t value) {
+  auto ofrValue = getConstantIntValue(ofr);
+  return ofrValue && *ofrValue == value;
+}
+
 /// Return true if ofr1 and ofr2 are the same integer constant attribute values
 /// or the same SSA value.
-/// Ignore integer bitwitdh and type mismatch that come from the fact there is
-/// no IndexAttr and that IndexType have no bitwidth.
-bool mlir::isEqualConstantIntOrValue(OpFoldResult op1, OpFoldResult op2) {
-  auto getConstantIntValue = [](OpFoldResult ofr) -> llvm::Optional<int64_t> {
-    Attribute attr = ofr.dyn_cast<Attribute>();
-    // Note: isa+cast-like pattern allows writing the condition below as 1 line.
-    if (!attr && ofr.get<Value>().getDefiningOp<ConstantOp>())
-      attr = ofr.get<Value>().getDefiningOp<ConstantOp>().getValue();
-    if (auto intAttr = attr.dyn_cast_or_null<IntegerAttr>())
-      return intAttr.getValue().getSExtValue();
-    return llvm::None;
-  };
-  auto cst1 = getConstantIntValue(op1), cst2 = getConstantIntValue(op2);
+/// Ignore integer bitwidth and type mismatch that come from the fact there is
+/// no IndexAttr and that IndexType has no bitwidth.
+bool mlir::isEqualConstantIntOrValue(OpFoldResult ofr1, OpFoldResult ofr2) {
+  auto cst1 = getConstantIntValue(ofr1), cst2 = getConstantIntValue(ofr2);
   if (cst1 && cst2 && *cst1 == *cst2)
     return true;
-  auto v1 = op1.dyn_cast<Value>(), v2 = op2.dyn_cast<Value>();
+  auto v1 = ofr1.dyn_cast<Value>(), v2 = ofr2.dyn_cast<Value>();
   return v1 && v2 && v1 == v2;
 }
 
@@ -283,6 +294,62 @@ static SmallVector<int64_t, 4> extractFromI64ArrayAttr(Attribute attr) {
       }));
 }
 
+/// Canonicalize a sum of a constant and (constant - something) to simply be
+/// a sum of constants minus something. This transformation does similar
+/// transformations for additions of a constant with a subtract/add of
+/// a constant. This may result in some operations being reordered (but should
+/// remain equivalent).
+struct AddConstantReorder : public OpRewritePattern<AddIOp> {
+  using OpRewritePattern<AddIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AddIOp addop,
+                                PatternRewriter &rewriter) const override {
+    for (int i = 0; i < 2; i++) {
+      APInt origConst;
+      APInt midConst;
+      if (matchPattern(addop.getOperand(i), m_ConstantInt(&origConst))) {
+        if (auto midAddOp = addop.getOperand(1 - i).getDefiningOp<AddIOp>()) {
+          for (int j = 0; j < 2; j++) {
+            if (matchPattern(midAddOp.getOperand(j),
+                             m_ConstantInt(&midConst))) {
+              auto nextConstant = rewriter.create<ConstantOp>(
+                  addop.getLoc(), rewriter.getIntegerAttr(
+                                      addop.getType(), origConst + midConst));
+              rewriter.replaceOpWithNewOp<AddIOp>(addop, nextConstant,
+                                                  midAddOp.getOperand(1 - j));
+              return success();
+            }
+          }
+        }
+        if (auto midSubOp = addop.getOperand(1 - i).getDefiningOp<SubIOp>()) {
+          if (matchPattern(midSubOp.getOperand(0), m_ConstantInt(&midConst))) {
+            auto nextConstant = rewriter.create<ConstantOp>(
+                addop.getLoc(),
+                rewriter.getIntegerAttr(addop.getType(), origConst + midConst));
+            rewriter.replaceOpWithNewOp<SubIOp>(addop, nextConstant,
+                                                midSubOp.getOperand(1));
+            return success();
+          }
+          if (matchPattern(midSubOp.getOperand(1), m_ConstantInt(&midConst))) {
+            auto nextConstant = rewriter.create<ConstantOp>(
+                addop.getLoc(),
+                rewriter.getIntegerAttr(addop.getType(), origConst - midConst));
+            rewriter.replaceOpWithNewOp<AddIOp>(addop, nextConstant,
+                                                midSubOp.getOperand(0));
+            return success();
+          }
+        }
+      }
+    }
+    return failure();
+  }
+};
+
+void AddIOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                         MLIRContext *context) {
+  results.insert<AddConstantReorder>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // AndOp
 //===----------------------------------------------------------------------===//
@@ -350,6 +417,53 @@ static LogicalResult verify(AtomicRMWOp op) {
     break;
   }
   return success();
+}
+
+/// Returns the identity value attribute associated with an AtomicRMWKind op.
+Attribute mlir::getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
+                                     OpBuilder &builder, Location loc) {
+  switch (kind) {
+  case AtomicRMWKind::addf:
+  case AtomicRMWKind::addi:
+    return builder.getZeroAttr(resultType);
+  case AtomicRMWKind::muli:
+    return builder.getIntegerAttr(resultType, 1);
+  case AtomicRMWKind::mulf:
+    return builder.getFloatAttr(resultType, 1);
+  // TODO: Add remaining reduction operations.
+  default:
+    (void)emitOptionalError(loc, "Reduction operation type not supported");
+    break;
+  }
+  return nullptr;
+}
+
+/// Returns the identity value associated with an AtomicRMWKind op.
+Value mlir::getIdentityValue(AtomicRMWKind op, Type resultType,
+                             OpBuilder &builder, Location loc) {
+  Attribute attr = getIdentityValueAttr(op, resultType, builder, loc);
+  return builder.create<ConstantOp>(loc, attr);
+}
+
+/// Return the value obtained by applying the reduction operation kind
+/// associated with a binary AtomicRMWKind op to `lhs` and `rhs`.
+Value mlir::getReductionOp(AtomicRMWKind op, OpBuilder &builder, Location loc,
+                           Value lhs, Value rhs) {
+  switch (op) {
+  case AtomicRMWKind::addf:
+    return builder.create<AddFOp>(loc, lhs, rhs);
+  case AtomicRMWKind::addi:
+    return builder.create<AddIOp>(loc, lhs, rhs);
+  case AtomicRMWKind::mulf:
+    return builder.create<MulFOp>(loc, lhs, rhs);
+  case AtomicRMWKind::muli:
+    return builder.create<MulIOp>(loc, lhs, rhs);
+  // TODO: Add remaining reduction operations.
+  default:
+    (void)emitOptionalError(loc, "Reduction operation type not supported");
+    break;
+  }
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -930,13 +1044,87 @@ struct SimplifyCondBranchFromCondBranchOnSameCondition
     return success();
   }
 };
+
+///   cond_br %arg0, ^trueB, ^falseB
+///
+/// ^trueB:
+///   "test.consumer1"(%arg0) : (i1) -> ()
+///    ...
+///
+/// ^falseB:
+///   "test.consumer2"(%arg0) : (i1) -> ()
+///   ...
+///
+/// ->
+///
+///   cond_br %arg0, ^trueB, ^falseB
+/// ^trueB:
+///   "test.consumer1"(%true) : (i1) -> ()
+///   ...
+///
+/// ^falseB:
+///   "test.consumer2"(%false) : (i1) -> ()
+///   ...
+struct CondBranchTruthPropagation : public OpRewritePattern<CondBranchOp> {
+  using OpRewritePattern<CondBranchOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CondBranchOp condbr,
+                                PatternRewriter &rewriter) const override {
+    // Check that we have a single distinct predecessor.
+    bool replaced = false;
+    Type ty = rewriter.getI1Type();
+
+    // These variables serve to prevent creating duplicate constants
+    // and hold constant true or false values.
+    Value constantTrue = nullptr;
+    Value constantFalse = nullptr;
+
+    // TODO These checks can be expanded to encompas any use with only
+    // either the true of false edge as a predecessor. For now, we fall
+    // back to checking the single predecessor is given by the true/fasle
+    // destination, thereby ensuring that only that edge can reach the
+    // op.
+    if (condbr.getTrueDest()->getSinglePredecessor()) {
+      for (OpOperand &use :
+           llvm::make_early_inc_range(condbr.condition().getUses())) {
+        if (use.getOwner()->getBlock() == condbr.getTrueDest()) {
+          replaced = true;
+
+          if (!constantTrue)
+            constantTrue = rewriter.create<mlir::ConstantOp>(
+                condbr.getLoc(), ty, rewriter.getBoolAttr(true));
+
+          rewriter.updateRootInPlace(use.getOwner(),
+                                     [&] { use.set(constantTrue); });
+        }
+      }
+    }
+    if (condbr.getFalseDest()->getSinglePredecessor()) {
+      for (OpOperand &use :
+           llvm::make_early_inc_range(condbr.condition().getUses())) {
+        if (use.getOwner()->getBlock() == condbr.getFalseDest()) {
+          replaced = true;
+
+          if (!constantFalse)
+            constantFalse = rewriter.create<mlir::ConstantOp>(
+                condbr.getLoc(), ty, rewriter.getBoolAttr(false));
+
+          rewriter.updateRootInPlace(use.getOwner(),
+                                     [&] { use.set(constantFalse); });
+        }
+      }
+    }
+    return success(replaced);
+  }
+};
 } // end anonymous namespace
 
 void CondBranchOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                MLIRContext *context) {
   results.add<SimplifyConstCondBranchPred, SimplifyPassThroughCondBranch,
               SimplifyCondBranchIdenticalSuccessors,
-              SimplifyCondBranchFromCondBranchOnSameCondition>(context);
+              SimplifyCondBranchFromCondBranchOnSameCondition,
+              CondBranchTruthPropagation>(context);
 }
 
 Optional<MutableOperandRange>
@@ -964,8 +1152,8 @@ static void print(OpAsmPrinter &p, ConstantOp &op) {
     p << ' ';
   p << op.getValue();
 
-  // If the value is a symbol reference, print a trailing type.
-  if (op.getValue().isa<SymbolRefAttr>())
+  // If the value is a symbol reference or Array, print a trailing type.
+  if (op.getValue().isa<SymbolRefAttr, ArrayAttr>())
     p << " : " << op.getType();
 }
 
@@ -976,9 +1164,10 @@ static ParseResult parseConstantOp(OpAsmParser &parser,
       parser.parseAttribute(valueAttr, "value", result.attributes))
     return failure();
 
-  // If the attribute is a symbol reference, then we expect a trailing type.
+  // If the attribute is a symbol reference or array, then we expect a trailing
+  // type.
   Type type;
-  if (!valueAttr.isa<SymbolRefAttr>())
+  if (!valueAttr.isa<SymbolRefAttr, ArrayAttr>())
     type = valueAttr.getType();
   else if (parser.parseColonType(type))
     return failure();
@@ -1013,6 +1202,24 @@ static LogicalResult verify(ConstantOp &op) {
     if (!intVal.isSignedIntN(bitwidth) && !intVal.isIntN(bitwidth))
       return op.emitOpError("requires 'value' to be an integer within the "
                             "range of the integer result type");
+    return success();
+  }
+
+  if (auto complexTy = type.dyn_cast<ComplexType>()) {
+    auto arrayAttr = value.dyn_cast<ArrayAttr>();
+    if (!complexTy || arrayAttr.size() != 2)
+      return op.emitOpError(
+          "requires 'value' to be a complex constant, represented as array of "
+          "two values");
+    auto complexEltTy = complexTy.getElementType();
+    if (complexEltTy != arrayAttr[0].getType() ||
+        complexEltTy != arrayAttr[1].getType()) {
+      return op.emitOpError()
+             << "requires attribute's element types (" << arrayAttr[0].getType()
+             << ", " << arrayAttr[1].getType()
+             << ") to match the element type of the op's return type ("
+             << complexEltTy << ")";
+    }
     return success();
   }
 
@@ -1090,13 +1297,21 @@ bool ConstantOp::isBuildableWith(Attribute value, Type type) {
   if (value.isa<SymbolRefAttr>())
     return type.isa<FunctionType>();
   // The attribute must have the same type as 'type'.
-  if (value.getType() != type)
+  if (!value.getType().isa<NoneType>() && value.getType() != type)
     return false;
   // If the type is an integer type, it must be signless.
   if (IntegerType integerTy = type.dyn_cast<IntegerType>())
     if (!integerTy.isSignless())
       return false;
   // Finally, check that the attribute kind is handled.
+  if (auto arrAttr = value.dyn_cast<ArrayAttr>()) {
+    auto complexTy = type.dyn_cast<ComplexType>();
+    if (!complexTy)
+      return false;
+    auto complexEltTy = complexTy.getElementType();
+    return arrAttr.size() == 2 && arrAttr[0].getType() == complexEltTy &&
+           arrAttr[1].getType() == complexEltTy;
+  }
   return value.isa<IntegerAttr, FloatAttr, ElementsAttr, UnitAttr>();
 }
 
@@ -1239,6 +1454,29 @@ OpFoldResult IndexCastOp::fold(ArrayRef<Attribute> cstOperands) {
     return IntegerAttr::get(getType(), value.getInt());
 
   return {};
+}
+
+namespace {
+///  index_cast(sign_extend x) => index_cast(x)
+struct IndexCastOfSExt : public OpRewritePattern<IndexCastOp> {
+  using OpRewritePattern<IndexCastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(IndexCastOp op,
+                                PatternRewriter &rewriter) const override {
+
+    if (auto extop = op.getOperand().getDefiningOp<SignExtendIOp>()) {
+      op.setOperand(extop.getOperand());
+      return success();
+    }
+    return failure();
+  }
+};
+
+} // namespace
+
+void IndexCastOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                              MLIRContext *context) {
+  results.insert<IndexCastOfSExt>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1437,6 +1675,20 @@ static LogicalResult verify(SignExtendIOp op) {
            << dstType << " must be wider than operand type " << srcType;
 
   return success();
+}
+
+OpFoldResult SignExtendIOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 1 && "unary operation takes one operand");
+
+  if (!operands[0])
+    return {};
+
+  if (auto lhs = operands[0].dyn_cast<IntegerAttr>()) {
+    return IntegerAttr::get(
+        getType(), lhs.getValue().sext(getType().getIntOrFloatBitWidth()));
+  }
+
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
@@ -1667,6 +1919,153 @@ OpFoldResult SubIOp::fold(ArrayRef<Attribute> operands) {
 
   return constFoldBinaryOp<IntegerAttr>(operands,
                                         [](APInt a, APInt b) { return a - b; });
+}
+
+/// Canonicalize a sub of a constant and (constant +/- something) to simply be
+/// a single operation that merges the two constants.
+struct SubConstantReorder : public OpRewritePattern<SubIOp> {
+  using OpRewritePattern<SubIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SubIOp subOp,
+                                PatternRewriter &rewriter) const override {
+    APInt origConst;
+    APInt midConst;
+
+    if (matchPattern(subOp.getOperand(0), m_ConstantInt(&origConst))) {
+      if (auto midAddOp = subOp.getOperand(1).getDefiningOp<AddIOp>()) {
+        // origConst - (midConst + something) == (origConst - midConst) -
+        // something
+        for (int j = 0; j < 2; j++) {
+          if (matchPattern(midAddOp.getOperand(j), m_ConstantInt(&midConst))) {
+            auto nextConstant = rewriter.create<ConstantOp>(
+                subOp.getLoc(),
+                rewriter.getIntegerAttr(subOp.getType(), origConst - midConst));
+            rewriter.replaceOpWithNewOp<SubIOp>(subOp, nextConstant,
+                                                midAddOp.getOperand(1 - j));
+            return success();
+          }
+        }
+      }
+
+      if (auto midSubOp = subOp.getOperand(0).getDefiningOp<SubIOp>()) {
+        if (matchPattern(midSubOp.getOperand(0), m_ConstantInt(&midConst))) {
+          // (midConst - something) - origConst == (midConst - origConst) -
+          // something
+          auto nextConstant = rewriter.create<ConstantOp>(
+              subOp.getLoc(),
+              rewriter.getIntegerAttr(subOp.getType(), midConst - origConst));
+          rewriter.replaceOpWithNewOp<SubIOp>(subOp, nextConstant,
+                                              midSubOp.getOperand(1));
+          return success();
+        }
+
+        if (matchPattern(midSubOp.getOperand(1), m_ConstantInt(&midConst))) {
+          // (something - midConst) - origConst == something - (origConst +
+          // midConst)
+          auto nextConstant = rewriter.create<ConstantOp>(
+              subOp.getLoc(),
+              rewriter.getIntegerAttr(subOp.getType(), origConst + midConst));
+          rewriter.replaceOpWithNewOp<SubIOp>(subOp, midSubOp.getOperand(0),
+                                              nextConstant);
+          return success();
+        }
+      }
+
+      if (auto midSubOp = subOp.getOperand(1).getDefiningOp<SubIOp>()) {
+        if (matchPattern(midSubOp.getOperand(0), m_ConstantInt(&midConst))) {
+          // origConst - (midConst - something) == (origConst - midConst) +
+          // something
+          auto nextConstant = rewriter.create<ConstantOp>(
+              subOp.getLoc(),
+              rewriter.getIntegerAttr(subOp.getType(), origConst - midConst));
+          rewriter.replaceOpWithNewOp<AddIOp>(subOp, nextConstant,
+                                              midSubOp.getOperand(1));
+          return success();
+        }
+
+        if (matchPattern(midSubOp.getOperand(1), m_ConstantInt(&midConst))) {
+          // origConst - (something - midConst) == (origConst + midConst) -
+          // something
+          auto nextConstant = rewriter.create<ConstantOp>(
+              subOp.getLoc(),
+              rewriter.getIntegerAttr(subOp.getType(), origConst + midConst));
+          rewriter.replaceOpWithNewOp<SubIOp>(subOp, nextConstant,
+                                              midSubOp.getOperand(0));
+          return success();
+        }
+      }
+    }
+
+    if (matchPattern(subOp.getOperand(1), m_ConstantInt(&origConst))) {
+      if (auto midAddOp = subOp.getOperand(0).getDefiningOp<AddIOp>()) {
+        // (midConst + something) - origConst == (midConst - origConst) +
+        // something
+        for (int j = 0; j < 2; j++) {
+          if (matchPattern(midAddOp.getOperand(j), m_ConstantInt(&midConst))) {
+            auto nextConstant = rewriter.create<ConstantOp>(
+                subOp.getLoc(),
+                rewriter.getIntegerAttr(subOp.getType(), midConst - origConst));
+            rewriter.replaceOpWithNewOp<AddIOp>(subOp, nextConstant,
+                                                midAddOp.getOperand(1 - j));
+            return success();
+          }
+        }
+      }
+
+      if (auto midSubOp = subOp.getOperand(0).getDefiningOp<SubIOp>()) {
+        if (matchPattern(midSubOp.getOperand(0), m_ConstantInt(&midConst))) {
+          // (midConst - something) - origConst == (midConst - origConst) -
+          // something
+          auto nextConstant = rewriter.create<ConstantOp>(
+              subOp.getLoc(),
+              rewriter.getIntegerAttr(subOp.getType(), midConst - origConst));
+          rewriter.replaceOpWithNewOp<SubIOp>(subOp, nextConstant,
+                                              midSubOp.getOperand(1));
+          return success();
+        }
+
+        if (matchPattern(midSubOp.getOperand(1), m_ConstantInt(&midConst))) {
+          // (something - midConst) - origConst == something - (midConst +
+          // origConst)
+          auto nextConstant = rewriter.create<ConstantOp>(
+              subOp.getLoc(),
+              rewriter.getIntegerAttr(subOp.getType(), midConst + origConst));
+          rewriter.replaceOpWithNewOp<SubIOp>(subOp, midSubOp.getOperand(0),
+                                              nextConstant);
+          return success();
+        }
+      }
+
+      if (auto midSubOp = subOp.getOperand(1).getDefiningOp<SubIOp>()) {
+        if (matchPattern(midSubOp.getOperand(0), m_ConstantInt(&midConst))) {
+          // origConst - (midConst - something) == (origConst - midConst) +
+          // something
+          auto nextConstant = rewriter.create<ConstantOp>(
+              subOp.getLoc(),
+              rewriter.getIntegerAttr(subOp.getType(), origConst - midConst));
+          rewriter.replaceOpWithNewOp<AddIOp>(subOp, nextConstant,
+                                              midSubOp.getOperand(1));
+          return success();
+        }
+        if (matchPattern(midSubOp.getOperand(1), m_ConstantInt(&midConst))) {
+          // origConst - (something - midConst) == (origConst - midConst) -
+          // something
+          auto nextConstant = rewriter.create<ConstantOp>(
+              subOp.getLoc(),
+              rewriter.getIntegerAttr(subOp.getType(), origConst - midConst));
+          rewriter.replaceOpWithNewOp<SubIOp>(subOp, nextConstant,
+                                              midSubOp.getOperand(0));
+          return success();
+        }
+      }
+    }
+    return failure();
+  }
+};
+
+void SubIOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                         MLIRContext *context) {
+  results.insert<SubConstantReorder>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2686,7 +3085,18 @@ OpFoldResult TruncateIOp::fold(ArrayRef<Attribute> operands) {
       matchPattern(getOperand(), m_Op<SignExtendIOp>()))
     return getOperand().getDefiningOp()->getOperand(0);
 
-  return nullptr;
+  assert(operands.size() == 1 && "unary operation takes one operand");
+
+  if (!operands[0])
+    return {};
+
+  if (auto lhs = operands[0].dyn_cast<IntegerAttr>()) {
+
+    return IntegerAttr::get(
+        getType(), lhs.getValue().trunc(getType().getIntOrFloatBitWidth()));
+  }
+
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
@@ -2758,6 +3168,82 @@ OpFoldResult XOrOp::fold(ArrayRef<Attribute> operands) {
 
   return constFoldBinaryOp<IntegerAttr>(operands,
                                         [](APInt a, APInt b) { return a ^ b; });
+}
+
+namespace {
+/// Replace a not of a comparison operation, for example: not(cmp eq A, B) =>
+/// cmp ne A, B. Note that a logical not is implemented as xor 1, val.
+struct NotICmp : public OpRewritePattern<XOrOp> {
+  using OpRewritePattern<XOrOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(XOrOp op,
+                                PatternRewriter &rewriter) const override {
+    // Commutative ops (such as xor) have the constant appear second, which
+    // we assume here.
+
+    APInt constValue;
+    if (!matchPattern(op.getOperand(1), m_ConstantInt(&constValue)))
+      return failure();
+
+    if (constValue != 1)
+      return failure();
+
+    auto prev = op.getOperand(0).getDefiningOp<CmpIOp>();
+    if (!prev)
+      return failure();
+
+    switch (prev.predicate()) {
+    case CmpIPredicate::eq:
+      rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::ne, prev.lhs(),
+                                          prev.rhs());
+      return success();
+    case CmpIPredicate::ne:
+      rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::eq, prev.lhs(),
+                                          prev.rhs());
+      return success();
+
+    case CmpIPredicate::slt:
+      rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::sge, prev.lhs(),
+                                          prev.rhs());
+      return success();
+    case CmpIPredicate::sle:
+      rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::sgt, prev.lhs(),
+                                          prev.rhs());
+      return success();
+    case CmpIPredicate::sgt:
+      rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::sle, prev.lhs(),
+                                          prev.rhs());
+      return success();
+    case CmpIPredicate::sge:
+      rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::slt, prev.lhs(),
+                                          prev.rhs());
+      return success();
+
+    case CmpIPredicate::ult:
+      rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::uge, prev.lhs(),
+                                          prev.rhs());
+      return success();
+    case CmpIPredicate::ule:
+      rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::ugt, prev.lhs(),
+                                          prev.rhs());
+      return success();
+    case CmpIPredicate::ugt:
+      rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::ule, prev.lhs(),
+                                          prev.rhs());
+      return success();
+    case CmpIPredicate::uge:
+      rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::ult, prev.lhs(),
+                                          prev.rhs());
+      return success();
+    }
+    return failure();
+  }
+};
+} // namespace
+
+void XOrOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                        MLIRContext *context) {
+  results.insert<NotICmp>(context);
 }
 
 //===----------------------------------------------------------------------===//

@@ -1080,8 +1080,7 @@ protected:
 
     if (argc == 1) {
       const char *arg = command.GetArgumentAtIndex(0);
-      formatter_regex = std::make_unique<RegularExpression>(
-          llvm::StringRef::withNullAsEmpty(arg));
+      formatter_regex = std::make_unique<RegularExpression>(arg);
       if (!formatter_regex->IsValid()) {
         result.AppendErrorWithFormat("syntax error in regular expression '%s'",
                                      arg);
@@ -1167,9 +1166,7 @@ protected:
               bool escape = true;
               if (category->GetName() == category_regex->GetText()) {
                 escape = false;
-              } else if (category_regex->Execute(
-                             llvm::StringRef::withNullAsEmpty(
-                                 category->GetName()))) {
+              } else if (category_regex->Execute(category->GetName())) {
                 escape = false;
               }
 
@@ -2175,8 +2172,7 @@ protected:
 
     if (argc == 1) {
       const char *arg = command.GetArgumentAtIndex(0);
-      regex = std::make_unique<RegularExpression>(
-          llvm::StringRef::withNullAsEmpty(arg));
+      regex = std::make_unique<RegularExpression>(arg);
       if (!regex->IsValid()) {
         result.AppendErrorWithFormat(
             "syntax error in category regular expression '%s'", arg);
@@ -2196,8 +2192,7 @@ protected:
             bool escape = true;
             if (regex->GetText() == category_sp->GetName()) {
               escape = false;
-            } else if (regex->Execute(llvm::StringRef::withNullAsEmpty(
-                           category_sp->GetName()))) {
+            } else if (regex->Execute(category_sp->GetName())) {
               escape = false;
             }
 
@@ -2717,8 +2712,7 @@ protected:
 
   class CommandOptions : public OptionGroup {
   public:
-    CommandOptions()
-        : OptionGroup(), m_show_help(false), m_language(eLanguageTypeUnknown) {}
+    CommandOptions() : OptionGroup() {}
 
     ~CommandOptions() override = default;
 
@@ -2755,8 +2749,8 @@ protected:
 
     // Options table: Required for subclasses of Options.
 
-    bool m_show_help;
-    lldb::LanguageType m_language;
+    bool m_show_help = false;
+    lldb::LanguageType m_language = eLanguageTypeUnknown;
   };
 
   OptionGroupOptions m_option_group;

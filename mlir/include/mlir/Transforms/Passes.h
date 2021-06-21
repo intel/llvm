@@ -23,6 +23,7 @@
 namespace mlir {
 
 class AffineForOp;
+class GreedyRewriteConfig;
 
 //===----------------------------------------------------------------------===//
 // Passes
@@ -60,8 +61,13 @@ std::unique_ptr<FunctionPass> createFinalizingBufferizePass();
 /// Creates a pass that converts memref function results to out-params.
 std::unique_ptr<Pass> createBufferResultsToOutParamsPass();
 
-/// Creates an instance of the Canonicalizer pass.
+/// Creates an instance of the Canonicalizer pass, configured with default
+/// settings (which can be overridden by pass options on the command line).
 std::unique_ptr<Pass> createCanonicalizerPass();
+
+/// Creates an instance of the Canonicalizer pass with the specified config.
+std::unique_ptr<Pass>
+createCanonicalizerPass(const GreedyRewriteConfig &config);
 
 /// Creates a pass to perform common sub expression elimination.
 std::unique_ptr<Pass> createCSEPass();
@@ -82,11 +88,6 @@ std::unique_ptr<Pass> createLoopInvariantCodeMotionPass();
 /// memory hierarchy.
 std::unique_ptr<OperationPass<FuncOp>> createPipelineDataTransferPass();
 
-/// Lowers affine control flow operations (ForStmt, IfStmt and AffineApplyOp)
-/// to equivalent lower-level constructs (flow of basic blocks and arithmetic
-/// primitives).
-std::unique_ptr<Pass> createLowerAffinePass();
-
 /// Creates a pass that transforms perfectly nested loops with independent
 /// bounds into a single loop.
 std::unique_ptr<OperationPass<FuncOp>> createLoopCoalescingPass();
@@ -94,10 +95,6 @@ std::unique_ptr<OperationPass<FuncOp>> createLoopCoalescingPass();
 /// Creates a pass that transforms a single ParallelLoop over N induction
 /// variables into another ParallelLoop over less than N induction variables.
 std::unique_ptr<Pass> createParallelLoopCollapsingPass();
-
-/// Creates a pass to perform optimizations relying on memref dataflow such as
-/// store to load forwarding, elimination of dead stores, and dead allocs.
-std::unique_ptr<OperationPass<FuncOp>> createMemRefDataFlowOptPass();
 
 /// Creates a pass to strip debug information from a function.
 std::unique_ptr<Pass> createStripDebugInfoPass();

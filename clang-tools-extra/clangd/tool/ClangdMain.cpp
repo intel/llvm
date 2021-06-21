@@ -62,7 +62,8 @@ namespace clangd {
 // Implemented in Check.cpp.
 bool check(const llvm::StringRef File,
            llvm::function_ref<bool(const Position &)> ShouldCheckLine,
-           const ThreadsafeFS &TFS, const ClangdLSPServer::Options &Opts);
+           const ThreadsafeFS &TFS, const ClangdLSPServer::Options &Opts,
+           bool EnableCodeCompletion);
 
 namespace {
 
@@ -292,6 +293,14 @@ opt<int> LimitResults{
     init(100),
 };
 
+opt<int> ReferencesLimit{
+    "limit-references",
+    cat(Features),
+    desc("Limit the number of references returned by clangd. "
+         "0 means no limit (default=1000)"),
+    init(1000),
+};
+
 list<std::string> TweakList{
     "tweaks",
     cat(Features),
@@ -307,6 +316,9 @@ opt<bool> FoldingRanges{
     init(false),
     Hidden,
 };
+
+opt<bool> InlayHints{"inlay-hints", cat(Features),
+                     desc("Enable preview of InlayHints feature"), init(false)};
 
 opt<unsigned> WorkerThreadsCount{
     "j",
@@ -818,6 +830,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   }
 #endif
   Opts.BackgroundIndex = EnableBackgroundIndex;
+  Opts.ReferencesLimit = ReferencesLimit;
   auto PAI = createProjectAwareIndex(loadExternalIndex, Sync);
   if (StaticIdx) {
     IdxStack.emplace_back(std::move(StaticIdx));
@@ -829,6 +842,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   }
   Opts.AsyncThreadsCount = WorkerThreadsCount;
   Opts.FoldingRanges = FoldingRanges;
+  Opts.InlayHints = InlayHints;
   Opts.MemoryCleanup = getMemoryCleanupFunction();
 
   Opts.CodeComplete.IncludeIneligibleResults = IncludeIneligibleResults;
@@ -916,7 +930,11 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
       uint32_t Line = Pos.line + 1; // Position::line is 0-based.
       return Line >= Begin && Line <= End;
     };
-    return check(Path, ShouldCheckLine, TFS, Opts)
+    // For now code completion is enabled any time the range is limited via
+    // --check-lines. If it turns out to be to slow, we can introduce a
+    // dedicated flag for that instead.
+    return check(Path, ShouldCheckLine, TFS, Opts,
+                 /*EnableCodeCompletion=*/!CheckFileLines.empty())
                ? 0
                : static_cast<int>(ErrorResultCode::CheckFailed);
   }

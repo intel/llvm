@@ -449,7 +449,7 @@ bool TargetTransformInfo::isTypeLegal(Type *Ty) const {
   return TTIImpl->isTypeLegal(Ty);
 }
 
-unsigned TargetTransformInfo::getRegUsageForType(Type *Ty) const {
+InstructionCost TargetTransformInfo::getRegUsageForType(Type *Ty) const {
   return TTIImpl->getRegUsageForType(Ty);
 }
 
@@ -536,10 +536,11 @@ InstructionCost TargetTransformInfo::getFPOpCost(Type *Ty) const {
   return Cost;
 }
 
-int TargetTransformInfo::getIntImmCodeSizeCost(unsigned Opcode, unsigned Idx,
-                                               const APInt &Imm,
-                                               Type *Ty) const {
-  int Cost = TTIImpl->getIntImmCodeSizeCost(Opcode, Idx, Imm, Ty);
+InstructionCost TargetTransformInfo::getIntImmCodeSizeCost(unsigned Opcode,
+                                                           unsigned Idx,
+                                                           const APInt &Imm,
+                                                           Type *Ty) const {
+  InstructionCost Cost = TTIImpl->getIntImmCodeSizeCost(Opcode, Idx, Imm, Ty);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
@@ -917,7 +918,7 @@ InstructionCost TargetTransformInfo::getExtendedAddReductionCost(
                                               CostKind);
 }
 
-unsigned
+InstructionCost
 TargetTransformInfo::getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) const {
   return TTIImpl->getCostOfKeepingLiveOverCall(Tys);
 }
@@ -998,7 +999,7 @@ bool TargetTransformInfo::isLegalToVectorizeStoreChain(
 }
 
 bool TargetTransformInfo::isLegalToVectorizeReduction(
-    RecurrenceDescriptor RdxDesc, ElementCount VF) const {
+    const RecurrenceDescriptor &RdxDesc, ElementCount VF) const {
   return TTIImpl->isLegalToVectorizeReduction(RdxDesc, VF);
 }
 
@@ -1024,6 +1025,11 @@ bool TargetTransformInfo::preferInLoopReduction(unsigned Opcode, Type *Ty,
 bool TargetTransformInfo::preferPredicatedReductionSelect(
     unsigned Opcode, Type *Ty, ReductionFlags Flags) const {
   return TTIImpl->preferPredicatedReductionSelect(Opcode, Ty, Flags);
+}
+
+TargetTransformInfo::VPLegalization
+TargetTransformInfo::getVPLegalizationStrategy(const VPIntrinsic &VPI) const {
+  return TTIImpl->getVPLegalizationStrategy(VPI);
 }
 
 bool TargetTransformInfo::shouldExpandReduction(const IntrinsicInst *II) const {

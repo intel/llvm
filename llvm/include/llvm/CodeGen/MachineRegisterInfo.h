@@ -823,12 +823,27 @@ public:
 
   /// updateDbgUsersToReg - Update a collection of DBG_VALUE instructions
   /// to refer to the designated register.
-  void updateDbgUsersToReg(Register Reg,
-                           ArrayRef<MachineInstr*> Users) const {
+  void updateDbgUsersToReg(MCRegister OldReg, MCRegister NewReg,
+                           ArrayRef<MachineInstr *> Users) const {
+    SmallSet<MCRegister, 4> OldRegUnits;
+    for (MCRegUnitIterator RUI(OldReg, getTargetRegisterInfo()); RUI.isValid();
+         ++RUI)
+      OldRegUnits.insert(*RUI);
     for (MachineInstr *MI : Users) {
-      assert(MI->isDebugInstr());
-      assert(MI->getOperand(0).isReg());
-      MI->getOperand(0).setReg(Reg);
+      assert(MI->isDebugValue());
+      for (auto &Op : MI->debug_operands()) {
+        if (Op.isReg()) {
+          for (MCRegUnitIterator RUI(OldReg, getTargetRegisterInfo());
+               RUI.isValid(); ++RUI) {
+            if (OldRegUnits.contains(*RUI)) {
+              Op.setReg(NewReg);
+              break;
+            }
+          }
+        }
+      }
+      assert(MI->hasDebugOperandForReg(NewReg) &&
+             "Expected debug value to have some overlap with OldReg");
     }
   }
 
@@ -842,9 +857,9 @@ public:
 
   /// Return true if the specified register is modified or read in this
   /// function. This checks that no machine operands exist for the register or
-  /// any of its aliases. The register is also considered used when it is set
-  /// in the UsedPhysRegMask.
-  bool isPhysRegUsed(MCRegister PhysReg) const;
+  /// any of its aliases. If SkipRegMaskTest is false, the register is
+  /// considered used when it is set in the UsedPhysRegMask.
+  bool isPhysRegUsed(MCRegister PhysReg, bool SkipRegMaskTest = false) const;
 
   /// addPhysRegsUsedFromRegMask - Mark any registers not in RegMask as used.
   /// This corresponds to the bit mask attached to register mask operands.

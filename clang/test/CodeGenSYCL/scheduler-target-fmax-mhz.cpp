@@ -46,11 +46,11 @@ int main() {
   return 0;
 }
 
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1"() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM5:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2"() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM42:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3"() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM7:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4"() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM2:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5"() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM75:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM5:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM42:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM7:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM2:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM75:[0-9]+]]
 // CHECK: ![[NUM5]] = !{i32 5}
 // CHECK: ![[NUM42]] = !{i32 42}
 // CHECK: ![[NUM7]] = !{i32 7}

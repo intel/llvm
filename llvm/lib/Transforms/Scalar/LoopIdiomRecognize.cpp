@@ -112,6 +112,8 @@ STATISTIC(NumMemCpy, "Number of memcpy's formed from loop load+stores");
 STATISTIC(
     NumShiftUntilBitTest,
     "Number of uncountable loops recognized as 'shift until bitttest' idiom");
+STATISTIC(NumShiftUntilZero,
+          "Number of uncountable loops recognized as 'shift until zero' idiom");
 
 bool DisableLIRP::All;
 static cl::opt<bool, true>
@@ -205,6 +207,13 @@ private:
   enum class ForMemset { No, Yes };
   bool processLoopStores(SmallVectorImpl<StoreInst *> &SL, const SCEV *BECount,
                          ForMemset For);
+
+  template <typename MemInst>
+  bool processLoopMemIntrinsic(
+      BasicBlock *BB,
+      bool (LoopIdiomRecognize::*Processor)(MemInst *, const SCEV *),
+      const SCEV *BECount);
+  bool processLoopMemCpy(MemCpyInst *MCI, const SCEV *BECount);
   bool processLoopMemSet(MemSetInst *MSI, const SCEV *BECount);
 
   bool processLoopStridedStore(Value *DestPtr, unsigned StoreSize,
@@ -241,6 +250,7 @@ private:
                                 bool IsCntPhiUsedOutsideLoop);
 
   bool recognizeShiftUntilBitTest();
+  bool recognizeShiftUntilZero();
 
   /// @}
 };
@@ -635,22 +645,10 @@ bool LoopIdiomRecognize::runOnLoopBlock(
   for (auto &SI : StoreRefsForMemcpy)
     MadeChange |= processLoopStoreOfLoopLoad(SI, BECount);
 
-  for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E;) {
-    Instruction *Inst = &*I++;
-    // Look for memset instructions, which may be optimized to a larger memset.
-    if (MemSetInst *MSI = dyn_cast<MemSetInst>(Inst)) {
-      WeakTrackingVH InstPtr(&*I);
-      if (!processLoopMemSet(MSI, BECount))
-        continue;
-      MadeChange = true;
-
-      // If processing the memset invalidated our iterator, start over from the
-      // top of the block.
-      if (!InstPtr)
-        I = BB->begin();
-      continue;
-    }
-  }
+  MadeChange |= processLoopMemIntrinsic<MemCpyInst>(
+      BB, &LoopIdiomRecognize::processLoopMemCpy, BECount);
+  MadeChange |= processLoopMemIntrinsic<MemSetInst>(
+      BB, &LoopIdiomRecognize::processLoopMemSet, BECount);
 
   return MadeChange;
 }
@@ -799,6 +797,100 @@ bool LoopIdiomRecognize::processLoopStores(SmallVectorImpl<StoreInst *> &SL,
   return Changed;
 }
 
+/// processLoopMemIntrinsic - Template function for calling different processor
+/// functions based on mem instrinsic type.
+template <typename MemInst>
+bool LoopIdiomRecognize::processLoopMemIntrinsic(
+    BasicBlock *BB,
+    bool (LoopIdiomRecognize::*Processor)(MemInst *, const SCEV *),
+    const SCEV *BECount) {
+  bool MadeChange = false;
+  for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E;) {
+    Instruction *Inst = &*I++;
+    // Look for memory instructions, which may be optimized to a larger one.
+    if (MemInst *MI = dyn_cast<MemInst>(Inst)) {
+      WeakTrackingVH InstPtr(&*I);
+      if (!(this->*Processor)(MI, BECount))
+        continue;
+      MadeChange = true;
+
+      // If processing the instruction invalidated our iterator, start over from
+      // the top of the block.
+      if (!InstPtr)
+        I = BB->begin();
+    }
+  }
+  return MadeChange;
+}
+
+/// processLoopMemCpy - See if this memcpy can be promoted to a large memcpy
+bool LoopIdiomRecognize::processLoopMemCpy(MemCpyInst *MCI,
+                                           const SCEV *BECount) {
+  // We can only handle non-volatile memcpys with a constant size.
+  if (MCI->isVolatile() || !isa<ConstantInt>(MCI->getLength()))
+    return false;
+
+  // If we're not allowed to hack on memcpy, we fail.
+  if (!HasMemcpy || DisableLIRP::Memcpy)
+    return false;
+
+  Value *Dest = MCI->getDest();
+  Value *Source = MCI->getSource();
+  if (!Dest || !Source)
+    return false;
+
+  // See if the load and store pointer expressions are AddRec like {base,+,1} on
+  // the current loop, which indicates a strided load and store.  If we have
+  // something else, it's a random load or store we can't handle.
+  const SCEVAddRecExpr *StoreEv = dyn_cast<SCEVAddRecExpr>(SE->getSCEV(Dest));
+  if (!StoreEv || StoreEv->getLoop() != CurLoop || !StoreEv->isAffine())
+    return false;
+  const SCEVAddRecExpr *LoadEv = dyn_cast<SCEVAddRecExpr>(SE->getSCEV(Source));
+  if (!LoadEv || LoadEv->getLoop() != CurLoop || !LoadEv->isAffine())
+    return false;
+
+  // Reject memcpys that are so large that they overflow an unsigned.
+  uint64_t SizeInBytes = cast<ConstantInt>(MCI->getLength())->getZExtValue();
+  if ((SizeInBytes >> 32) != 0)
+    return false;
+
+  // Check if the stride matches the size of the memcpy. If so, then we know
+  // that every byte is touched in the loop.
+  const SCEVConstant *StoreStride =
+      dyn_cast<SCEVConstant>(StoreEv->getOperand(1));
+  const SCEVConstant *LoadStride =
+      dyn_cast<SCEVConstant>(LoadEv->getOperand(1));
+  if (!StoreStride || !LoadStride)
+    return false;
+
+  APInt StoreStrideValue = StoreStride->getAPInt();
+  APInt LoadStrideValue = LoadStride->getAPInt();
+  // Huge stride value - give up
+  if (StoreStrideValue.getBitWidth() > 64 || LoadStrideValue.getBitWidth() > 64)
+    return false;
+
+  if (SizeInBytes != StoreStrideValue && SizeInBytes != -StoreStrideValue) {
+    ORE.emit([&]() {
+      return OptimizationRemarkMissed(DEBUG_TYPE, "SizeStrideUnequal", MCI)
+             << ore::NV("Inst", "memcpy") << " in "
+             << ore::NV("Function", MCI->getFunction())
+             << " function will not be hoised: "
+             << ore::NV("Reason", "memcpy size is not equal to stride");
+    });
+    return false;
+  }
+
+  int64_t StoreStrideInt = StoreStrideValue.getSExtValue();
+  int64_t LoadStrideInt = LoadStrideValue.getSExtValue();
+  // Check if the load stride matches the store stride.
+  if (StoreStrideInt != LoadStrideInt)
+    return false;
+
+  return processLoopStoreOfLoopLoad(Dest, Source, (unsigned)SizeInBytes,
+                                    MCI->getDestAlign(), MCI->getSourceAlign(),
+                                    MCI, MCI, StoreEv, LoadEv, BECount);
+}
+
 /// processLoopMemSet - See if this memset can be promoted to a large memset.
 bool LoopIdiomRecognize::processLoopMemSet(MemSetInst *MSI,
                                            const SCEV *BECount) {
@@ -807,7 +899,7 @@ bool LoopIdiomRecognize::processLoopMemSet(MemSetInst *MSI,
     return false;
 
   // If we're not allowed to hack on memset, we fail.
-  if (!HasMemset)
+  if (!HasMemset || DisableLIRP::Memset)
     return false;
 
   Value *Pointer = MSI->getDest();
@@ -1047,9 +1139,11 @@ bool LoopIdiomRecognize::processLoopStridedStore(
   ORE.emit([&]() {
     return OptimizationRemark(DEBUG_TYPE, "ProcessLoopStridedStore",
                               NewCall->getDebugLoc(), Preheader)
-           << "Transformed loop-strided store into a call to "
+           << "Transformed loop-strided store in "
+           << ore::NV("Function", TheStore->getFunction())
+           << " function into a call to "
            << ore::NV("NewFunction", NewCall->getCalledFunction())
-           << "() function";
+           << "() intrinsic";
   });
 
   // Okay, the memset has been formed.  Zap the original store and anything that
@@ -1137,9 +1231,22 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
 
   SmallPtrSet<Instruction *, 1> Stores;
   Stores.insert(TheStore);
+
+  bool IsMemCpy = isa<MemCpyInst>(TheStore);
+  const StringRef InstRemark = IsMemCpy ? "memcpy" : "load and store";
+
   if (mayLoopAccessLocation(StoreBasePtr, ModRefInfo::ModRef, CurLoop, BECount,
-                            StoreSize, *AA, Stores))
+                            StoreSize, *AA, Stores)) {
+    ORE.emit([&]() {
+      return OptimizationRemarkMissed(DEBUG_TYPE, "LoopMayAccessStore",
+                                      TheStore)
+             << ore::NV("Inst", InstRemark) << " in "
+             << ore::NV("Function", TheStore->getFunction())
+             << " function will not be hoisted: "
+             << ore::NV("Reason", "The loop may access store location");
+    });
     return Changed;
+  }
 
   const SCEV *LdStart = LoadEv->getStart();
   unsigned LdAS = SourcePtr->getType()->getPointerAddressSpace();
@@ -1153,9 +1260,21 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
   Value *LoadBasePtr = Expander.expandCodeFor(
       LdStart, Builder.getInt8PtrTy(LdAS), Preheader->getTerminator());
 
+  // If the store is a memcpy instruction, we must check if it will write to
+  // the load memory locations. So remove it from the ignored stores.
+  if (IsMemCpy)
+    Stores.erase(TheStore);
   if (mayLoopAccessLocation(LoadBasePtr, ModRefInfo::Mod, CurLoop, BECount,
-                            StoreSize, *AA, Stores))
+                            StoreSize, *AA, Stores)) {
+    ORE.emit([&]() {
+      return OptimizationRemarkMissed(DEBUG_TYPE, "LoopMayAccessLoad", TheLoad)
+             << ore::NV("Inst", InstRemark) << " in "
+             << ore::NV("Function", TheStore->getFunction())
+             << " function will not be hoisted: "
+             << ore::NV("Reason", "The loop may access load location");
+    });
     return Changed;
+  }
 
   if (avoidLIRForMultiBlockLoop())
     return Changed;
@@ -1216,7 +1335,9 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
                               NewCall->getDebugLoc(), Preheader)
            << "Formed a call to "
            << ore::NV("NewFunction", NewCall->getCalledFunction())
-           << "() function";
+           << "() intrinsic from " << ore::NV("Inst", InstRemark)
+           << " instruction in " << ore::NV("Function", TheStore->getFunction())
+           << " function";
   });
 
   // Okay, the memcpy has been formed.  Zap the original store and anything that
@@ -1255,7 +1376,7 @@ bool LoopIdiomRecognize::runOnNoncountableLoop() {
                     << CurLoop->getHeader()->getName() << "\n");
 
   return recognizePopcount() || recognizeAndInsertFFS() ||
-         recognizeShiftUntilBitTest();
+         recognizeShiftUntilBitTest() || recognizeShiftUntilZero();
 }
 
 /// Check if the given conditional branch is based on the comparison between
@@ -2045,6 +2166,9 @@ static bool detectShiftUntilBitTestIdiom(Loop *CurLoop, Value *&BaseX,
   NextX =
       dyn_cast<Instruction>(CurrXPN->getIncomingValueForBlock(LoopHeaderBB));
 
+  assert(CurLoop->isLoopInvariant(BaseX) &&
+         "Expected BaseX to be avaliable in the preheader!");
+
   if (!NextX || !match(NextX, m_Shl(m_Specific(CurrX), m_One()))) {
     // FIXME: support right-shift?
     LLVM_DEBUG(dbgs() << DEBUG_TYPE " Bad recurrence.\n");
@@ -2144,7 +2268,7 @@ bool LoopIdiomRecognize::recognizeShiftUntilBitTest() {
   assert(LoopPreheaderBB && "There is always a loop preheader.");
 
   BasicBlock *SuccessorBB = CurLoop->getExitBlock();
-  assert(LoopPreheaderBB && "There is only a single successor.");
+  assert(SuccessorBB && "There is only a single successor.");
 
   IRBuilder<> Builder(LoopPreheaderBB->getTerminator());
   Builder.SetCurrentDebugLocation(cast<Instruction>(XCurr)->getDebugLoc());
@@ -2275,5 +2399,348 @@ bool LoopIdiomRecognize::recognizeShiftUntilBitTest() {
   LLVM_DEBUG(dbgs() << DEBUG_TYPE " shift-until-bittest idiom optimized!\n");
 
   ++NumShiftUntilBitTest;
+  return MadeChange;
+}
+
+/// Return true if the idiom is detected in the loop.
+///
+/// The core idiom we are trying to detect is:
+/// \code
+///   entry:
+///     <...>
+///     %start = <...>
+///     %extraoffset = <...>
+///     <...>
+///     br label %for.cond
+///
+///   loop:
+///     %iv = phi i8 [ %start, %entry ], [ %iv.next, %for.cond ]
+///     %nbits = add nsw i8 %iv, %extraoffset
+///     %val.shifted = {{l,a}shr,shl} i8 %val, %nbits
+///     %val.shifted.iszero = icmp eq i8 %val.shifted, 0
+///     %iv.next = add i8 %iv, 1
+///     <...>
+///     br i1 %val.shifted.iszero, label %end, label %loop
+///
+///   end:
+///     %iv.res = phi i8 [ %iv, %loop ] <...>
+///     %nbits.res = phi i8 [ %nbits, %loop ] <...>
+///     %val.shifted.res = phi i8 [ %val.shifted, %loop ] <...>
+///     %val.shifted.iszero.res = phi i1 [ %val.shifted.iszero, %loop ] <...>
+///     %iv.next.res = phi i8 [ %iv.next, %loop ] <...>
+///     <...>
+/// \endcode
+static bool detectShiftUntilZeroIdiom(Loop *CurLoop, ScalarEvolution *SE,
+                                      Instruction *&ValShiftedIsZero,
+                                      Intrinsic::ID &IntrinID, Instruction *&IV,
+                                      Value *&Start, Value *&Val,
+                                      const SCEV *&ExtraOffsetExpr,
+                                      bool &InvertedCond) {
+  LLVM_DEBUG(dbgs() << DEBUG_TYPE
+             " Performing shift-until-zero idiom detection.\n");
+
+  // Give up if the loop has multiple blocks or multiple backedges.
+  if (CurLoop->getNumBlocks() != 1 || CurLoop->getNumBackEdges() != 1) {
+    LLVM_DEBUG(dbgs() << DEBUG_TYPE " Bad block/backedge count.\n");
+    return false;
+  }
+
+  Instruction *ValShifted, *NBits, *IVNext;
+  Value *ExtraOffset;
+
+  BasicBlock *LoopHeaderBB = CurLoop->getHeader();
+  BasicBlock *LoopPreheaderBB = CurLoop->getLoopPreheader();
+  assert(LoopPreheaderBB && "There is always a loop preheader.");
+
+  using namespace PatternMatch;
+
+  // Step 1: Check if the loop backedge, condition is in desirable form.
+
+  ICmpInst::Predicate Pred;
+  BasicBlock *TrueBB, *FalseBB;
+  if (!match(LoopHeaderBB->getTerminator(),
+             m_Br(m_Instruction(ValShiftedIsZero), m_BasicBlock(TrueBB),
+                  m_BasicBlock(FalseBB))) ||
+      !match(ValShiftedIsZero,
+             m_ICmp(Pred, m_Instruction(ValShifted), m_Zero())) ||
+      !ICmpInst::isEquality(Pred)) {
+    LLVM_DEBUG(dbgs() << DEBUG_TYPE " Bad backedge structure.\n");
+    return false;
+  }
+
+  // Step 2: Check if the comparison's operand is in desirable form.
+  // FIXME: Val could be a one-input PHI node, which we should look past.
+  if (!match(ValShifted, m_Shift(m_LoopInvariant(m_Value(Val), CurLoop),
+                                 m_Instruction(NBits)))) {
+    LLVM_DEBUG(dbgs() << DEBUG_TYPE " Bad comparisons value computation.\n");
+    return false;
+  }
+  IntrinID = ValShifted->getOpcode() == Instruction::Shl ? Intrinsic::cttz
+                                                         : Intrinsic::ctlz;
+
+  // Step 3: Check if the shift amount is in desirable form.
+
+  if (match(NBits, m_c_Add(m_Instruction(IV),
+                           m_LoopInvariant(m_Value(ExtraOffset), CurLoop))) &&
+      (NBits->hasNoSignedWrap() || NBits->hasNoUnsignedWrap()))
+    ExtraOffsetExpr = SE->getNegativeSCEV(SE->getSCEV(ExtraOffset));
+  else if (match(NBits,
+                 m_Sub(m_Instruction(IV),
+                       m_LoopInvariant(m_Value(ExtraOffset), CurLoop))) &&
+           NBits->hasNoSignedWrap())
+    ExtraOffsetExpr = SE->getSCEV(ExtraOffset);
+  else {
+    IV = NBits;
+    ExtraOffsetExpr = SE->getZero(NBits->getType());
+  }
+
+  // Step 4: Check if the recurrence is in desirable form.
+  auto *IVPN = dyn_cast<PHINode>(IV);
+  if (!IVPN || IVPN->getParent() != LoopHeaderBB) {
+    LLVM_DEBUG(dbgs() << DEBUG_TYPE " Not an expected PHI node.\n");
+    return false;
+  }
+
+  Start = IVPN->getIncomingValueForBlock(LoopPreheaderBB);
+  IVNext = dyn_cast<Instruction>(IVPN->getIncomingValueForBlock(LoopHeaderBB));
+
+  if (!IVNext || !match(IVNext, m_Add(m_Specific(IVPN), m_One()))) {
+    LLVM_DEBUG(dbgs() << DEBUG_TYPE " Bad recurrence.\n");
+    return false;
+  }
+
+  // Step 4: Check if the backedge's destinations are in desirable form.
+
+  assert(ICmpInst::isEquality(Pred) &&
+         "Should only get equality predicates here.");
+
+  // cmp-br is commutative, so canonicalize to a single variant.
+  InvertedCond = Pred != ICmpInst::Predicate::ICMP_EQ;
+  if (InvertedCond) {
+    Pred = ICmpInst::getInversePredicate(Pred);
+    std::swap(TrueBB, FalseBB);
+  }
+
+  // We expect to exit loop when comparison yields true,
+  // so when it yields false we should branch back to loop header.
+  if (FalseBB != LoopHeaderBB) {
+    LLVM_DEBUG(dbgs() << DEBUG_TYPE " Bad backedge flow.\n");
+    return false;
+  }
+
+  // The new, countable, loop will certainly only run a known number of
+  // iterations, It won't be infinite. But the old loop might be infinite
+  // under certain conditions. For logical shifts, the value will become zero
+  // after at most bitwidth(%Val) loop iterations. However, for arithmetic
+  // right-shift, iff the sign bit was set, the value will never become zero,
+  // and the loop may never finish.
+  if (ValShifted->getOpcode() == Instruction::AShr &&
+      !isMustProgress(CurLoop) && !SE->isKnownNonNegative(SE->getSCEV(Val))) {
+    LLVM_DEBUG(dbgs() << DEBUG_TYPE " Can not prove the loop is finite.\n");
+    return false;
+  }
+
+  // Okay, idiom checks out.
+  return true;
+}
+
+/// Look for the following loop:
+/// \code
+///   entry:
+///     <...>
+///     %start = <...>
+///     %extraoffset = <...>
+///     <...>
+///     br label %for.cond
+///
+///   loop:
+///     %iv = phi i8 [ %start, %entry ], [ %iv.next, %for.cond ]
+///     %nbits = add nsw i8 %iv, %extraoffset
+///     %val.shifted = {{l,a}shr,shl} i8 %val, %nbits
+///     %val.shifted.iszero = icmp eq i8 %val.shifted, 0
+///     %iv.next = add i8 %iv, 1
+///     <...>
+///     br i1 %val.shifted.iszero, label %end, label %loop
+///
+///   end:
+///     %iv.res = phi i8 [ %iv, %loop ] <...>
+///     %nbits.res = phi i8 [ %nbits, %loop ] <...>
+///     %val.shifted.res = phi i8 [ %val.shifted, %loop ] <...>
+///     %val.shifted.iszero.res = phi i1 [ %val.shifted.iszero, %loop ] <...>
+///     %iv.next.res = phi i8 [ %iv.next, %loop ] <...>
+///     <...>
+/// \endcode
+///
+/// And transform it into:
+/// \code
+///   entry:
+///     <...>
+///     %start = <...>
+///     %extraoffset = <...>
+///     <...>
+///     %val.numleadingzeros = call i8 @llvm.ct{l,t}z.i8(i8 %val, i1 0)
+///     %val.numactivebits = sub i8 8, %val.numleadingzeros
+///     %extraoffset.neg = sub i8 0, %extraoffset
+///     %tmp = add i8 %val.numactivebits, %extraoffset.neg
+///     %iv.final = call i8 @llvm.smax.i8(i8 %tmp, i8 %start)
+///     %loop.tripcount = sub i8 %iv.final, %start
+///     br label %loop
+///
+///   loop:
+///     %loop.iv = phi i8 [ 0, %entry ], [ %loop.iv.next, %loop ]
+///     %loop.iv.next = add i8 %loop.iv, 1
+///     %loop.ivcheck = icmp eq i8 %loop.iv.next, %loop.tripcount
+///     %iv = add i8 %loop.iv, %start
+///     <...>
+///     br i1 %loop.ivcheck, label %end, label %loop
+///
+///   end:
+///     %iv.res = phi i8 [ %iv.final, %loop ] <...>
+///     <...>
+/// \endcode
+bool LoopIdiomRecognize::recognizeShiftUntilZero() {
+  bool MadeChange = false;
+
+  Instruction *ValShiftedIsZero;
+  Intrinsic::ID IntrID;
+  Instruction *IV;
+  Value *Start, *Val;
+  const SCEV *ExtraOffsetExpr;
+  bool InvertedCond;
+  if (!detectShiftUntilZeroIdiom(CurLoop, SE, ValShiftedIsZero, IntrID, IV,
+                                 Start, Val, ExtraOffsetExpr, InvertedCond)) {
+    LLVM_DEBUG(dbgs() << DEBUG_TYPE
+               " shift-until-zero idiom detection failed.\n");
+    return MadeChange;
+  }
+  LLVM_DEBUG(dbgs() << DEBUG_TYPE " shift-until-zero idiom detected!\n");
+
+  // Ok, it is the idiom we were looking for, we *could* transform this loop,
+  // but is it profitable to transform?
+
+  BasicBlock *LoopHeaderBB = CurLoop->getHeader();
+  BasicBlock *LoopPreheaderBB = CurLoop->getLoopPreheader();
+  assert(LoopPreheaderBB && "There is always a loop preheader.");
+
+  BasicBlock *SuccessorBB = CurLoop->getExitBlock();
+  assert(SuccessorBB && "There is only a single successor.");
+
+  IRBuilder<> Builder(LoopPreheaderBB->getTerminator());
+  Builder.SetCurrentDebugLocation(IV->getDebugLoc());
+
+  Type *Ty = Val->getType();
+  unsigned Bitwidth = Ty->getScalarSizeInBits();
+
+  TargetTransformInfo::TargetCostKind CostKind =
+      TargetTransformInfo::TCK_SizeAndLatency;
+
+  // The rewrite is considered to be unprofitable iff and only iff the
+  // intrinsic we'll use are not cheap. Note that we are okay with *just*
+  // making the loop countable, even if nothing else changes.
+  IntrinsicCostAttributes Attrs(
+      IntrID, Ty, {UndefValue::get(Ty), /*is_zero_undef=*/Builder.getFalse()});
+  InstructionCost Cost = TTI->getIntrinsicInstrCost(Attrs, CostKind);
+  if (Cost > TargetTransformInfo::TCC_Basic) {
+    LLVM_DEBUG(dbgs() << DEBUG_TYPE
+               " Intrinsic is too costly, not beneficial\n");
+    return MadeChange;
+  }
+
+  // Ok, transform appears worthwhile.
+  MadeChange = true;
+
+  bool OffsetIsZero = false;
+  if (auto *ExtraOffsetExprC = dyn_cast<SCEVConstant>(ExtraOffsetExpr))
+    OffsetIsZero = ExtraOffsetExprC->isZero();
+
+  // Step 1: Compute the loop's final IV value / trip count.
+
+  CallInst *ValNumLeadingZeros = Builder.CreateIntrinsic(
+      IntrID, Ty, {Val, /*is_zero_undef=*/Builder.getFalse()},
+      /*FMFSource=*/nullptr, Val->getName() + ".numleadingzeros");
+  Value *ValNumActiveBits = Builder.CreateSub(
+      ConstantInt::get(Ty, Ty->getScalarSizeInBits()), ValNumLeadingZeros,
+      Val->getName() + ".numactivebits", /*HasNUW=*/true,
+      /*HasNSW=*/Bitwidth != 2);
+
+  SCEVExpander Expander(*SE, *DL, "loop-idiom");
+  Expander.setInsertPoint(&*Builder.GetInsertPoint());
+  Value *ExtraOffset = Expander.expandCodeFor(ExtraOffsetExpr);
+
+  Value *ValNumActiveBitsOffset = Builder.CreateAdd(
+      ValNumActiveBits, ExtraOffset, ValNumActiveBits->getName() + ".offset",
+      /*HasNUW=*/OffsetIsZero, /*HasNSW=*/true);
+  Value *IVFinal = Builder.CreateIntrinsic(Intrinsic::smax, {Ty},
+                                           {ValNumActiveBitsOffset, Start},
+                                           /*FMFSource=*/nullptr, "iv.final");
+
+  auto *LoopBackedgeTakenCount = cast<Instruction>(Builder.CreateSub(
+      IVFinal, Start, CurLoop->getName() + ".backedgetakencount",
+      /*HasNUW=*/OffsetIsZero, /*HasNSW=*/true));
+  // FIXME: or when the offset was `add nuw`
+
+  // We know loop's backedge-taken count, but what's loop's trip count?
+  Value *LoopTripCount =
+      Builder.CreateAdd(LoopBackedgeTakenCount, ConstantInt::get(Ty, 1),
+                        CurLoop->getName() + ".tripcount", /*HasNUW=*/true,
+                        /*HasNSW=*/Bitwidth != 2);
+
+  // Step 2: Adjust the successor basic block to recieve the original
+  //         induction variable's final value instead of the orig. IV itself.
+
+  IV->replaceUsesOutsideBlock(IVFinal, LoopHeaderBB);
+
+  // Step 3: Rewrite the loop into a countable form, with canonical IV.
+
+  // The new canonical induction variable.
+  Builder.SetInsertPoint(&LoopHeaderBB->front());
+  auto *CIV = Builder.CreatePHI(Ty, 2, CurLoop->getName() + ".iv");
+
+  // The induction itself.
+  Builder.SetInsertPoint(LoopHeaderBB->getFirstNonPHI());
+  auto *CIVNext =
+      Builder.CreateAdd(CIV, ConstantInt::get(Ty, 1), CIV->getName() + ".next",
+                        /*HasNUW=*/true, /*HasNSW=*/Bitwidth != 2);
+
+  // The loop trip count check.
+  auto *CIVCheck = Builder.CreateICmpEQ(CIVNext, LoopTripCount,
+                                        CurLoop->getName() + ".ivcheck");
+  auto *NewIVCheck = CIVCheck;
+  if (InvertedCond) {
+    NewIVCheck = Builder.CreateNot(CIVCheck);
+    NewIVCheck->takeName(ValShiftedIsZero);
+  }
+
+  // The original IV, but rebased to be an offset to the CIV.
+  auto *IVDePHId = Builder.CreateAdd(CIV, Start, "", /*HasNUW=*/false,
+                                     /*HasNSW=*/true); // FIXME: what about NUW?
+  IVDePHId->takeName(IV);
+
+  // The loop terminator.
+  Builder.SetInsertPoint(LoopHeaderBB->getTerminator());
+  Builder.CreateCondBr(CIVCheck, SuccessorBB, LoopHeaderBB);
+  LoopHeaderBB->getTerminator()->eraseFromParent();
+
+  // Populate the IV PHI.
+  CIV->addIncoming(ConstantInt::get(Ty, 0), LoopPreheaderBB);
+  CIV->addIncoming(CIVNext, LoopHeaderBB);
+
+  // Step 4: Forget the "non-computable" trip-count SCEV associated with the
+  //   loop. The loop would otherwise not be deleted even if it becomes empty.
+
+  SE->forgetLoop(CurLoop);
+
+  // Step 5: Try to cleanup the loop's body somewhat.
+  IV->replaceAllUsesWith(IVDePHId);
+  IV->eraseFromParent();
+
+  ValShiftedIsZero->replaceAllUsesWith(NewIVCheck);
+  ValShiftedIsZero->eraseFromParent();
+
+  // Other passes will take care of actually deleting the loop if possible.
+
+  LLVM_DEBUG(dbgs() << DEBUG_TYPE " shift-until-zero idiom optimized!\n");
+
+  ++NumShiftUntilZero;
   return MadeChange;
 }

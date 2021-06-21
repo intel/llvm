@@ -1,9 +1,9 @@
 # Built-in Function and MemRef Calling Convention
 
 This documents describes the calling convention implemented in the conversion of
-built-in [function operation](LangRef.md#functions), standard
-[`call`](Dialects/Standard.md#stdcall-callop) operations and the handling of
-[`memref`](LangRef.md#memref-type) type equivalents in the
+built-in [function operation](Dialects/Builtin.md/#func-mlirfuncop), standard
+[`call`](Dialects/Standard.md/#stdcall-callop) operations and the handling of
+[`memref`](Dialects/Builtin.md#memreftype) type equivalents in the
 [LLVM dialect](Dialects/LLVM.md). The conversion assumes the _default_
 convention was used when converting
 [built-in to the LLVM dialect types](ConversionToLLVMDialect.md).
@@ -395,6 +395,7 @@ llvm.func @_mlir_ciface_foo(%arg0: !llvm.memref_2d_ptr, %arg1: !llvm.memref_2d_p
   llvm.store %8, %arg0 : !llvm.memref_2d_ptr
   llvm.return
 }
+```
 
 Rationale: Introducing auxiliary functions for C-compatible interfaces is
 preferred to modifying the calling convention since it will minimize the effect

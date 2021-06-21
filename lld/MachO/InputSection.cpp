@@ -15,6 +15,7 @@
 #include "Writer.h"
 #include "lld/Common/Memory.h"
 #include "llvm/Support/Endian.h"
+#include "llvm/Support/xxhash.h"
 
 using namespace llvm;
 using namespace llvm::MachO;
@@ -24,33 +25,28 @@ using namespace lld::macho;
 
 std::vector<InputSection *> macho::inputSections;
 
-uint64_t InputSection::getFileOffset() const {
-  return parent->fileOff + outSecFileOff;
-}
-
 uint64_t InputSection::getFileSize() const {
   return isZeroFill(flags) ? 0 : getSize();
 }
 
-uint64_t InputSection::getVA() const { return parent->addr + outSecOff; }
-
-static uint64_t resolveSymbolVA(uint8_t *loc, const Symbol &sym, uint8_t type) {
-  const RelocAttrs &relocAttrs = target->getRelocAttrs(type);
-  if (relocAttrs.hasAttr(RelocAttrBits::BRANCH)) {
-    if (sym.isInStubs())
-      return in.stubs->addr + sym.stubsIndex * target->stubSize;
-  } else if (relocAttrs.hasAttr(RelocAttrBits::GOT)) {
-    if (sym.isInGot())
-      return in.got->addr + sym.gotIndex * target->wordSize;
-  } else if (relocAttrs.hasAttr(RelocAttrBits::TLV)) {
-    if (sym.isInGot())
-      return in.tlvPointers->addr + sym.gotIndex * target->wordSize;
-    assert(isa<Defined>(&sym));
-  }
-  return sym.getVA();
+uint64_t InputSection::getVA(uint64_t off) const {
+  return parent->addr + getOffset(off);
 }
 
-void InputSection::writeTo(uint8_t *buf) {
+static uint64_t resolveSymbolVA(const Symbol *sym, uint8_t type) {
+  const RelocAttrs &relocAttrs = target->getRelocAttrs(type);
+  if (relocAttrs.hasAttr(RelocAttrBits::BRANCH))
+    return sym->resolveBranchVA();
+  else if (relocAttrs.hasAttr(RelocAttrBits::GOT))
+    return sym->resolveGotVA();
+  else if (relocAttrs.hasAttr(RelocAttrBits::TLV))
+    return sym->resolveTlvVA();
+  return sym->getVA();
+}
+
+void ConcatInputSection::writeTo(uint8_t *buf) {
+  assert(!shouldOmitFromOutput());
+
   if (getFileSize() == 0)
     return;
 
@@ -65,15 +61,17 @@ void InputSection::writeTo(uint8_t *buf) {
       const Reloc &minuend = relocs[++i];
       uint64_t minuendVA;
       if (const Symbol *toSym = minuend.referent.dyn_cast<Symbol *>())
-        minuendVA = toSym->getVA();
-      else
-        minuendVA = minuend.referent.get<InputSection *>()->getVA();
-      referentVA = minuendVA - fromSym->getVA() + minuend.addend;
+        minuendVA = toSym->getVA() + minuend.addend;
+      else {
+        auto *referentIsec = minuend.referent.get<InputSection *>();
+        minuendVA = referentIsec->getVA(minuend.addend);
+      }
+      referentVA = minuendVA - fromSym->getVA();
     } else if (auto *referentSym = r.referent.dyn_cast<Symbol *>()) {
       if (target->hasAttr(r.type, RelocAttrBits::LOAD) &&
           !referentSym->isInGot())
         target->relaxGotLoad(loc, r.type);
-      referentVA = resolveSymbolVA(loc, *referentSym, r.type);
+      referentVA = resolveSymbolVA(referentSym, r.type) + r.addend;
 
       if (isThreadLocalVariables(flags)) {
         // References from thread-local variable sections are treated as offsets
@@ -84,14 +82,85 @@ void InputSection::writeTo(uint8_t *buf) {
           referentVA -= firstTLVDataSection->addr;
       }
     } else if (auto *referentIsec = r.referent.dyn_cast<InputSection *>()) {
-      referentVA = referentIsec->getVA();
+      referentVA = referentIsec->getVA(r.addend);
     }
-    target->relocateOne(loc, r, referentVA + r.addend, getVA() + r.offset);
+    target->relocateOne(loc, r, referentVA, getVA() + r.offset);
   }
 }
 
-bool macho::isCodeSection(InputSection *isec) {
-  uint32_t type = isec->flags & SECTION_TYPE;
+void CStringInputSection::splitIntoPieces() {
+  size_t off = 0;
+  StringRef s = toStringRef(data);
+  while (!s.empty()) {
+    size_t end = s.find(0);
+    if (end == StringRef::npos)
+      fatal(toString(this) + ": string is not null terminated");
+    size_t size = end + 1;
+    pieces.emplace_back(off, xxHash64(s.substr(0, size)));
+    s = s.substr(size);
+    off += size;
+  }
+}
+
+StringPiece &CStringInputSection::getStringPiece(uint64_t off) {
+  if (off >= data.size())
+    fatal(toString(this) + ": offset is outside the section");
+
+  auto it =
+      partition_point(pieces, [=](StringPiece p) { return p.inSecOff <= off; });
+  return it[-1];
+}
+
+const StringPiece &CStringInputSection::getStringPiece(uint64_t off) const {
+  return const_cast<CStringInputSection *>(this)->getStringPiece(off);
+}
+
+uint64_t CStringInputSection::getOffset(uint64_t off) const {
+  const StringPiece &piece = getStringPiece(off);
+  uint64_t addend = off - piece.inSecOff;
+  return piece.outSecOff + addend;
+}
+
+WordLiteralInputSection::WordLiteralInputSection(StringRef segname,
+                                                 StringRef name,
+                                                 InputFile *file,
+                                                 ArrayRef<uint8_t> data,
+                                                 uint32_t align, uint32_t flags)
+    : InputSection(WordLiteralKind, segname, name, file, data, align, flags) {
+  switch (sectionType(flags)) {
+  case S_4BYTE_LITERALS:
+    power2LiteralSize = 2;
+    break;
+  case S_8BYTE_LITERALS:
+    power2LiteralSize = 3;
+    break;
+  case S_16BYTE_LITERALS:
+    power2LiteralSize = 4;
+    break;
+  default:
+    llvm_unreachable("invalid literal section type");
+  }
+
+  live.resize(data.size() >> power2LiteralSize, !config->deadStrip);
+}
+
+uint64_t WordLiteralInputSection::getOffset(uint64_t off) const {
+  auto *osec = cast<WordLiteralSection>(parent);
+  const uint8_t *buf = data.data();
+  switch (sectionType(flags)) {
+  case S_4BYTE_LITERALS:
+    return osec->getLiteral4Offset(buf + off);
+  case S_8BYTE_LITERALS:
+    return osec->getLiteral8Offset(buf + off);
+  case S_16BYTE_LITERALS:
+    return osec->getLiteral16Offset(buf + off);
+  default:
+    llvm_unreachable("invalid literal section type");
+  }
+}
+
+bool macho::isCodeSection(const InputSection *isec) {
+  uint32_t type = sectionType(isec->flags);
   if (type != S_REGULAR && type != S_COALESCED)
     return false;
 

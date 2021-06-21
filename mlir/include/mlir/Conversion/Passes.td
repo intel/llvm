@@ -256,6 +256,26 @@ def ConvertMathToLibm : Pass<"convert-math-to-libm", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// OpenACCToSCF
+//===----------------------------------------------------------------------===//
+
+def ConvertOpenACCToSCF : Pass<"convert-openacc-to-scf", "ModuleOp"> {
+  let summary = "Convert the OpenACC ops to OpenACC with SCF dialect";
+  let constructor = "mlir::createConvertOpenACCToSCFPass()";
+  let dependentDialects = ["scf::SCFDialect", "acc::OpenACCDialect"];
+}
+
+//===----------------------------------------------------------------------===//
+// OpenACCToLLVM
+//===----------------------------------------------------------------------===//
+
+def ConvertOpenACCToLLVM : Pass<"convert-openacc-to-llvm", "ModuleOp"> {
+  let summary = "Convert the OpenACC ops to LLVM dialect";
+  let constructor = "mlir::createConvertOpenACCToLLVMPass()";
+  let dependentDialects = ["LLVM::LLVMDialect"];
+}
+
+//===----------------------------------------------------------------------===//
 // OpenMPToLLVM
 //===----------------------------------------------------------------------===//
 
@@ -494,6 +514,20 @@ def TosaToStandard : Pass<"tosa-to-standard"> {
 }
 
 //===----------------------------------------------------------------------===//
+// VectorToGPU
+//===----------------------------------------------------------------------===//
+
+def ConvertVectorToGPU : FunctionPass<"convert-vector-to-gpu"> {
+  let summary = "Lower the operations from the vector dialect into the GPU "
+                "dialect";
+  let constructor = "mlir::createConvertVectorToGPUPass()";
+  let dependentDialects = [
+    "memref::MemRefDialect",
+    "gpu::GPUDialect"
+  ];
+}
+
+//===----------------------------------------------------------------------===//
 // VectorToSCF
 //===----------------------------------------------------------------------===//
 
@@ -509,6 +543,13 @@ def ConvertVectorToSCF : FunctionPass<"convert-vector-to-scf"> {
   let options = [
     Option<"fullUnroll", "full-unroll", "bool", /*default=*/"false",
            "Perform full unrolling when converting vector transfers to SCF">,
+    Option<"targetRank", "target-rank", "unsigned", /*default=*/"1",
+           "Target vector rank to which transfer ops should be lowered">,
+    Option<"lowerPermutationMaps", "lower-permutation-maps", "bool",
+           /*default=*/"false", "Replace permutation maps with vector "
+           "transposes/broadcasts before lowering transfer ops">,
+    Option<"lowerTensors", "lower-tensors", "bool", /*default=*/"false",
+           "Lower transfer ops that operate on tensors">
   ];
 }
 
@@ -579,5 +620,16 @@ def ConvertVectorToSPIRV : Pass<"convert-vector-to-spirv", "ModuleOp"> {
   let constructor = "mlir::createConvertVectorToSPIRVPass()";
   let dependentDialects = ["spirv::SPIRVDialect"];
 }
+
+//===----------------------------------------------------------------------===//
+// ArmNeon2dToIntr
+//===----------------------------------------------------------------------===//
+
+def ConvertArmNeon2dToIntr : Pass<"arm-neon-2d-to-intr", "FuncOp"> {
+  let summary = "Convert Arm NEON structured ops to intrinsics";
+  let constructor = "mlir::createConvertArmNeon2dToIntrPass()";
+  let dependentDialects = ["arm_neon::ArmNeonDialect", "vector::VectorDialect"];
+}
+
 
 #endif // MLIR_CONVERSION_PASSES

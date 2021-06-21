@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ENABLE_CXX20_REMOVED_RAW_STORAGE_ITERATOR
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 // raw_storage_iterator
 
 #include <memory>

@@ -168,7 +168,7 @@ static void DefineTypeSize(const Twine &MacroName, unsigned TypeWidth,
                            MacroBuilder &Builder) {
   llvm::APInt MaxVal = isSigned ? llvm::APInt::getSignedMaxValue(TypeWidth)
                                 : llvm::APInt::getMaxValue(TypeWidth);
-  Builder.defineMacro(MacroName, MaxVal.toString(10, isSigned) + ValSuffix);
+  Builder.defineMacro(MacroName, toString(MaxVal, 10, isSigned) + ValSuffix);
 }
 
 /// DefineTypeSize - An overloaded helper that uses TargetInfo to determine
@@ -215,6 +215,11 @@ static void DefineExactWidthIntType(TargetInfo::IntType Ty,
   // ends up being defined in terms of the correct type.
   if (TypeWidth == 64)
     Ty = IsSigned ? TI.getInt64Type() : TI.getUInt64Type();
+
+  // Use the target specified int16 type when appropriate. Some MCU targets
+  // (such as AVR) have definition of [u]int16_t to [un]signed int.
+  if (TypeWidth == 16)
+    Ty = IsSigned ? TI.getInt16Type() : TI.getUInt16Type();
 
   const char *Prefix = IsSigned ? "__INT" : "__UINT";
 
@@ -479,9 +484,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017) {
       Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "121");
       Builder.defineMacro("SYCL_LANGUAGE_VERSION", "201707");
-    } else if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020) {
+    } else if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020)
       Builder.defineMacro("SYCL_LANGUAGE_VERSION", "202001");
-    }
 
     if (LangOpts.SYCLValueFitInMaxInt)
       Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__", "1");
@@ -604,7 +608,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_designated_initializers", "201707L");
     Builder.defineMacro("__cpp_impl_three_way_comparison", "201907L");
     //Builder.defineMacro("__cpp_modules", "201907L");
-    //Builder.defineMacro("__cpp_using_enum", "201907L");
+    Builder.defineMacro("__cpp_using_enum", "201907L");
   }
   // C++2b features.
   if (LangOpts.CPlusPlus2b)

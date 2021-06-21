@@ -28,7 +28,7 @@ template <class RangeOrSet> static std::string toString(const RangeOrSet &Obj) {
   return SS.str();
 }
 LLVM_ATTRIBUTE_UNUSED static std::string toString(const llvm::APSInt &Point) {
-  return Point.toString(10);
+  return toString(Point, 10);
 }
 // We need it here for better fail diagnostics from gtest.
 LLVM_ATTRIBUTE_UNUSED static std::ostream &operator<<(std::ostream &OS,
@@ -188,7 +188,7 @@ llvm::APSInt RangeSetTest<BaseType>::Base{sizeof(BaseType) * 8, !isSigned()};
 
 using IntTypes = ::testing::Types<int8_t, uint8_t, int16_t, uint16_t, int32_t,
                                   uint32_t, int64_t, uint64_t>;
-TYPED_TEST_CASE(RangeSetTest, IntTypes);
+TYPED_TEST_SUITE(RangeSetTest, IntTypes, );
 
 TYPED_TEST(RangeSetTest, RangeSetNegateTest) {
   // Use next values of the range {MIN, A, B, MID, C, D, MAX}.

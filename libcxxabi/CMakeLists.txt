@@ -82,7 +82,6 @@ option(LIBCXXABI_ENABLE_EXCEPTIONS
   When disabled, libc++abi does not support stack unwinding and other exceptions-related features." ON)
 option(LIBCXXABI_ENABLE_ASSERTIONS "Enable assertions independent of build mode." ON)
 option(LIBCXXABI_ENABLE_PEDANTIC "Compile with pedantic enabled." ON)
-option(LIBCXXABI_ENABLE_PIC "Build Position-Independent Code, even in static library" ON)
 option(LIBCXXABI_ENABLE_WERROR "Fail and stop if a warning is triggered." OFF)
 option(LIBCXXABI_USE_LLVM_UNWINDER "Build and use the LLVM unwinder." OFF)
 option(LIBCXXABI_ENABLE_STATIC_UNWINDER "Statically link the LLVM unwinder." OFF)
@@ -476,10 +475,6 @@ endif()
 
 # Prevent libc++abi from having library dependencies on libc++
 add_definitions(-D_LIBCPP_DISABLE_EXTERN_TEMPLATE)
-
-# Bring back `std::unexpected`, which is removed in C++17, to support
-# pre-C++17.
-add_definitions(-D_LIBCPP_ENABLE_CXX17_REMOVED_UNEXPECTED_FUNCTIONS)
 
 if (MSVC)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)

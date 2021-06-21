@@ -9,6 +9,7 @@
 #include "lldb/Core/ValueObject.h"
 
 #include "lldb/Core/Address.h"
+#include "lldb/Core/Declaration.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ValueObjectCast.h"
 #include "lldb/Core/ValueObjectChild.h"
@@ -27,7 +28,6 @@
 #include "lldb/Host/Config.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/CompilerType.h"
-#include "lldb/Symbol/Declaration.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/Variable.h"
@@ -57,10 +57,10 @@
 #include <memory>
 #include <tuple>
 
-#include <assert.h>
-#include <inttypes.h>
-#include <stdio.h>
-#include <string.h>
+#include <cassert>
+#include <cinttypes>
+#include <cstdio>
+#include <cstring>
 
 #include <lldb/Core/ValueObject.h>
 
@@ -1577,7 +1577,7 @@ bool ValueObject::IsRuntimeSupportValue() {
   if (!process)
     return false;
 
-  // We trust the the compiler did the right thing and marked runtime support
+  // We trust that the compiler did the right thing and marked runtime support
   // values as artificial.
   if (!GetVariable() || !GetVariable()->IsArtificial())
     return false;
@@ -2796,8 +2796,7 @@ ValueObjectSP ValueObject::CastPointerType(const char *name, TypeSP &type_sp) {
   return valobj_sp;
 }
 
-ValueObject::EvaluationPoint::EvaluationPoint()
-    : m_mod_id(), m_exe_ctx_ref(), m_needs_update(true) {}
+ValueObject::EvaluationPoint::EvaluationPoint() : m_mod_id(), m_exe_ctx_ref() {}
 
 ValueObject::EvaluationPoint::EvaluationPoint(ExecutionContextScope *exe_scope,
                                               bool use_selected)

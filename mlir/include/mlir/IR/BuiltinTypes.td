@@ -15,14 +15,17 @@
 #define BUILTIN_TYPES
 
 include "mlir/IR/BuiltinDialect.td"
+include "mlir/IR/BuiltinTypeInterfaces.td"
+include "mlir/IR/SubElementInterfaces.td"
 
 // TODO: Currently the types defined in this file are prefixed with `Builtin_`.
 // This is to differentiate the types here with the ones in OpBase.td. We should
 // remove the definitions in OpBase.td, and repoint users to this file instead.
 
 // Base class for Builtin dialect types.
-class Builtin_Type<string name, string baseCppClass = "::mlir::Type">
-    : TypeDef<Builtin_Dialect, name, [], baseCppClass> {
+class Builtin_Type<string name, list<Trait> traits = [],
+                   string baseCppClass = "::mlir::Type">
+    : TypeDef<Builtin_Dialect, name, traits, baseCppClass> {
   let mnemonic = ?;
 }
 
@@ -65,7 +68,8 @@ def Builtin_Complex : Builtin_Type<"Complex"> {
 //===----------------------------------------------------------------------===//
 
 // Base class for Builtin dialect float types.
-class Builtin_FloatType<string name> : Builtin_Type<name, "::mlir::FloatType"> {
+class Builtin_FloatType<string name>
+    : Builtin_Type<name, /*traits=*/[], "::mlir::FloatType"> {
   let extraClassDeclaration = [{
     static }] # name # [{Type get(MLIRContext *context);
   }];
@@ -117,7 +121,9 @@ def Builtin_Float128 : Builtin_FloatType<"Float128"> {
 // FunctionType
 //===----------------------------------------------------------------------===//
 
-def Builtin_Function : Builtin_Type<"Function"> {
+def Builtin_Function : Builtin_Type<"Function", [
+    DeclareTypeInterfaceMethods<SubElementTypeInterface>
+  ]> {
   let summary = "Map from a list of inputs to a list of results";
   let description = [{
     Syntax:
@@ -170,8 +176,7 @@ def Builtin_Index : Builtin_Type<"Index"> {
 
     The index type is a signless integer whose size is equal to the natural
     machine word of the target ( [rationale](https://mlir.llvm.org/docs/Rationale/Rationale/#integer-signedness-semantics) )
-    and is used by the affine constructs in MLIR. Unlike fixed-size integers,
-    it cannot be used as an element of vector ( [rationale](https://mlir.llvm.org/docs/Rationale/Rationale/#index-type-disallowed-in-vector-types) ).
+    and is used by the affine constructs in MLIR.
 
     **Rationale:** integers of platform-specific bit widths are practical to
     express sizes, dimensionalities and subscripts.
@@ -253,7 +258,9 @@ def Builtin_Integer : Builtin_Type<"Integer"> {
 // MemRefType
 //===----------------------------------------------------------------------===//
 
-def Builtin_MemRef : Builtin_Type<"MemRef", "BaseMemRefType"> {
+def Builtin_MemRef : Builtin_Type<"MemRef", [
+    DeclareTypeInterfaceMethods<SubElementTypeInterface>
+  ], "BaseMemRefType"> {
   let summary = "Shaped reference to a region of memory";
   let description = [{
     Syntax:
@@ -282,6 +289,15 @@ def Builtin_MemRef : Builtin_Type<"MemRef", "BaseMemRefType"> {
     receive memref arguments of any rank without versioning the functions based
     on the rank. Other uses of this type are disallowed or will have undefined
     behavior.
+
+    Are accepted as elements:
+
+    - built-in integer types;
+    - built-in index type;
+    - built-in floating point types;
+    - built-in vector types with elements of the above types;
+    - another memref type;
+    - any other type implementing `MemRefElementTypeInterface`.
 
     ##### Codegen of Unranked Memref
 
@@ -328,7 +344,7 @@ def Builtin_MemRef : Builtin_Type<"MemRef", "BaseMemRefType"> {
     ```
 
     The core syntax and representation of a layout specification is a
-    [semi-affine map](Dialects/Affine.md#semi-affine-maps). Additionally,
+    [semi-affine map](Affine.md/#semi-affine-maps). Additionally,
     syntactic sugar is supported to make certain layout specifications more
     intuitive to read. For the moment, a `memref` supports parsing a strided
     form which is converted to a semi-affine map automatically.
@@ -423,7 +439,7 @@ def Builtin_MemRef : Builtin_Type<"MemRef", "BaseMemRefType"> {
     ##### Index Map
 
     An index map is a one-to-one
-    [semi-affine map](Dialects/Affine.md#semi-affine-maps) that transforms a
+    [semi-affine map](Affine.md/#semi-affine-maps) that transforms a
     multidimensional index from one index space to another. For example, the
     following figure shows an index map which maps a 2-dimensional index from a
     2x2 index space to a 3x3 index space, using symbols `S0` and `S1` as
@@ -441,7 +457,7 @@ def Builtin_MemRef : Builtin_Type<"MemRef", "BaseMemRefType"> {
 
     ##### Layout Map
 
-    A layout map is a [semi-affine map](Dialects/Affine.md#semi-affine-maps)
+    A layout map is a [semi-affine map](Affine.md/#semi-affine-maps)
     which encodes logical to physical index space mapping, by mapping input
     dimensions to their ordering from most-major (slowest varying) to most-minor
     (fastest varying). Therefore, an identity layout map corresponds to a
@@ -475,7 +491,7 @@ def Builtin_MemRef : Builtin_Type<"MemRef", "BaseMemRefType"> {
     The semi-affine map composition specified in the memref type, maps from
     accesses used to index the memref in load/store operations to other index
     spaces (i.e. logical to physical index mapping). Each of the
-    [semi-affine maps](Affine.md) and thus its composition is required
+    [semi-affine maps](Affine.md/#semi-affine-maps) and thus its composition is required
     to be one-to-one.
 
     The semi-affine map composition can be used in dependence analysis, memory
@@ -629,7 +645,9 @@ def Builtin_Opaque : Builtin_Type<"Opaque"> {
 // RankedTensorType
 //===----------------------------------------------------------------------===//
 
-def Builtin_RankedTensor : Builtin_Type<"RankedTensor", "TensorType"> {
+def Builtin_RankedTensor : Builtin_Type<"RankedTensor", [
+    DeclareTypeInterfaceMethods<SubElementTypeInterface>
+  ], "TensorType"> {
   let summary = "Multi-dimensional array with a fixed number of dimensions";
   let description = [{
     Syntax:
@@ -651,7 +669,7 @@ def Builtin_RankedTensor : Builtin_Type<"RankedTensor", "TensorType"> {
     low level buffer access, MLIR has a [`memref` type](#memref-type). This
     abstracted runtime representation holds both the tensor data values as well
     as information about the (potentially dynamic) shape of the tensor. The
-    [`dim` operation](Dialects/Standard.md#dim-operation) returns the size of a
+    [`dim` operation](MemRef.md/#memrefdim-mlirmemrefdimop) returns the size of a
     dimension from a value of tensor type.
 
     The `encoding` attribute provides additional information on the tensor.
@@ -717,7 +735,9 @@ def Builtin_RankedTensor : Builtin_Type<"RankedTensor", "TensorType"> {
 // TupleType
 //===----------------------------------------------------------------------===//
 
-def Builtin_Tuple : Builtin_Type<"Tuple"> {
+def Builtin_Tuple : Builtin_Type<"Tuple", [
+    DeclareTypeInterfaceMethods<SubElementTypeInterface>
+  ]> {
   let summary = "Fixed-sized collection of other types";
   let description = [{
     Syntax:
@@ -731,7 +751,7 @@ def Builtin_Tuple : Builtin_Type<"Tuple"> {
 
     **Rationale:** Though this type is first class in the type system, MLIR
     provides no standard operations for operating on `tuple` types
-    ([rationale](Rationale/Rationale.md#tuple-types)).
+    ([rationale](Rationale/Rationale.md/#tuple-types)).
 
     Examples:
 
@@ -784,7 +804,9 @@ def Builtin_Tuple : Builtin_Type<"Tuple"> {
 // UnrankedMemRefType
 //===----------------------------------------------------------------------===//
 
-def Builtin_UnrankedMemRef : Builtin_Type<"UnrankedMemRef", "BaseMemRefType"> {
+def Builtin_UnrankedMemRef : Builtin_Type<"UnrankedMemRef", [
+    DeclareTypeInterfaceMethods<SubElementTypeInterface>
+  ], "BaseMemRefType"> {
   let summary = "Shaped reference, with unknown rank, to a region of memory";
   let description = [{
     Syntax:
@@ -844,7 +866,9 @@ def Builtin_UnrankedMemRef : Builtin_Type<"UnrankedMemRef", "BaseMemRefType"> {
 // UnrankedTensorType
 //===----------------------------------------------------------------------===//
 
-def Builtin_UnrankedTensor : Builtin_Type<"UnrankedTensor", "TensorType"> {
+def Builtin_UnrankedTensor : Builtin_Type<"UnrankedTensor", [
+    DeclareTypeInterfaceMethods<SubElementTypeInterface>
+  ], "TensorType"> {
   let summary = "Multi-dimensional array with unknown dimensions";
   let description = [{
     Syntax:
@@ -881,7 +905,9 @@ def Builtin_UnrankedTensor : Builtin_Type<"UnrankedTensor", "TensorType"> {
 // VectorType
 //===----------------------------------------------------------------------===//
 
-def Builtin_Vector : Builtin_Type<"Vector", "ShapedType"> {
+def Builtin_Vector : Builtin_Type<"Vector", [
+    DeclareTypeInterfaceMethods<SubElementTypeInterface>
+  ], "ShapedType"> {
   let summary = "Multi-dimensional SIMD vector type";
   let description = [{
     Syntax:

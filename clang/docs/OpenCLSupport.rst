@@ -2,12 +2,12 @@
 
   <style type="text/css">
     .none { background-color: #FFCCCC }
-    .partial { background-color: #FFFF99 }
+    .part { background-color: #FFFF99 }
     .good { background-color: #CCFF99 }
   </style>
 
 .. role:: none
-.. role:: partial
+.. role:: part
 .. role:: good
 
 .. contents::
@@ -327,7 +327,7 @@ Limited support of experimental C++ libraries is described in the :ref:`experime
 
 Bugzilla bugs for this functionality are typically prefixed
 with '[C++4OpenCL]' - click `here
-<https://bugs.llvm.org/buglist.cgi?component=OpenCL&list_id=204139&product=clang&query_format=advanced&resolution=---&sh    ort_desc=%5BC%2B%2B4OpenCL%5D&short_desc_type=allwordssubstr>`_
+<https://bugs.llvm.org/buglist.cgi?component=OpenCL&list_id=204139&product=clang&query_format=advanced&resolution=---&short_desc=%5BC%2B%2B4OpenCL%5D&short_desc_type=allwordssubstr>`__
 to view the full bug list.
 
 
@@ -339,8 +339,25 @@ Missing features or with limited support
 
 .. _opencl_300:
 
-OpenCL 3.0 Implementation Status
-================================
+OpenCL C 3.0 Usage
+==================
+
+OpenCL C 3.0 language standard makes most OpenCL C 2.0 features optional. Optional
+functionality in OpenCL C 3.0 is indicated with the presence of feature-test macros
+(list of feature-test macros is `here <https://www.khronos.org/registry/OpenCL/specs/3.0-unified/html/OpenCL_C.html#features>`__).
+Command-line flag :ref:`-cl-ext <opencl_cl_ext>` can be used to override features supported by a target.
+
+For cases when there is an associated extension for a specific feature (fp64 and 3d image writes)
+user should specify both (extension and feature) in command-line flag:
+
+   .. code-block:: console
+
+     $ clang -cc1 -cl-std=CL3.0 -cl-ext=+cl_khr_fp64,+__opencl_c_fp64 ...
+     $ clang -cc1 -cl-std=CL3.0 -cl-ext=-cl_khr_fp64,-__opencl_c_fp64 ...
+
+
+OpenCL C 3.0 Implementation Status
+----------------------------------
 
 The following table provides an overview of features in OpenCL C 3.0 and their
 implementation status.
@@ -354,7 +371,7 @@ implementation status.
 +------------------------------+--------------------------------------------------------------+----------------------+---------------------------------------------------------------------------+
 | Predefined macros            | Feature macros                                               | :good:`done`         | https://reviews.llvm.org/D95776                                           |
 +------------------------------+--------------------------------------------------------------+----------------------+---------------------------------------------------------------------------+
-| Feature optionality          | Generic address space                                        | :none:`unclaimed`    |                                                                           |
+| Feature optionality          | Generic address space                                        | :none:`worked on`    | https://reviews.llvm.org/D95778 (partial frontend)                        |
 +------------------------------+--------------------------------------------------------------+----------------------+---------------------------------------------------------------------------+
 | Feature optionality          | Builtin function overloads with generic address space        | :part:`worked on`    | https://reviews.llvm.org/D92004                                           |
 +------------------------------+--------------------------------------------------------------+----------------------+---------------------------------------------------------------------------+
@@ -371,6 +388,8 @@ implementation status.
 | Feature optionality          | Pipes including builtin functions                            | :part:`worked on`    | https://reviews.llvm.org/D92004 (functions only)                          |
 +------------------------------+--------------------------------------------------------------+----------------------+---------------------------------------------------------------------------+
 | Feature optionality          | Work group collective functions                              | :part:`worked on`    | https://reviews.llvm.org/D92004                                           |
++------------------------------+--------------------------------------------------------------+----------------------+---------------------------------------------------------------------------+
+| Feature optionality          | Image types                                                  | :part:`unclaimed`    |                                                                           |
 +------------------------------+--------------------------------------------------------------+----------------------+---------------------------------------------------------------------------+
 | New functionality            | RGBA vector components                                       | :good:`done`         | https://reviews.llvm.org/D99969                                           |
 +------------------------------+--------------------------------------------------------------+----------------------+---------------------------------------------------------------------------+
@@ -432,7 +451,7 @@ The possible clang invocation to compile the example is as follows:
 
    .. code-block:: console
 
-     $ clang -cl-std=clc++  -I<path to libcxx checkout or installation>/include test.cl
+     $ clang -I<path to libcxx checkout or installation>/include test.clcpp
 
 Note that `type_traits` is a header only library and therefore no extra
 linking step against the standard libraries is required. See full example

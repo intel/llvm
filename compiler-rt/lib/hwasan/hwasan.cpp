@@ -128,12 +128,9 @@ static void InitializeFlags() {
   if (common_flags()->help) parser.PrintFlagDescriptions();
 }
 
-static void HWAsanCheckFailed(const char *file, int line, const char *cond,
-                              u64 v1, u64 v2) {
-  Report("HWAddressSanitizer CHECK failed: %s:%d \"%s\" (0x%zx, 0x%zx)\n", file,
-         line, cond, (uptr)v1, (uptr)v2);
-  PRINT_CURRENT_STACK_CHECK();
-  Die();
+static void CheckUnwind() {
+  GET_FATAL_STACK_TRACE_PC_BP(StackTrace::GetCurrentPc(), GET_CURRENT_FRAME());
+  stack.Print();
 }
 
 static void HwasanFormatMemoryUsage(InternalScopedString &s) {
@@ -179,6 +176,57 @@ void UpdateMemoryUsage() {
 #else
 void UpdateMemoryUsage() {}
 #endif
+
+void HwasanAtExit() {
+  if (common_flags()->print_module_map)
+    DumpProcessMap();
+  if (flags()->print_stats && (flags()->atexit || hwasan_report_count > 0))
+    ReportStats();
+  if (hwasan_report_count > 0) {
+    // ReportAtExitStatistics();
+    if (common_flags()->exitcode)
+      internal__exit(common_flags()->exitcode);
+  }
+}
+
+void HandleTagMismatch(AccessInfo ai, uptr pc, uptr frame, void *uc,
+                       uptr *registers_frame) {
+  InternalMmapVector<BufferedStackTrace> stack_buffer(1);
+  BufferedStackTrace *stack = stack_buffer.data();
+  stack->Reset();
+  stack->Unwind(pc, frame, uc, common_flags()->fast_unwind_on_fatal);
+
+  // The second stack frame contains the failure __hwasan_check function, as
+  // we have a stack frame for the registers saved in __hwasan_tag_mismatch that
+  // we wish to ignore. This (currently) only occurs on AArch64, as x64
+  // implementations use SIGTRAP to implement the failure, and thus do not go
+  // through the stack saver.
+  if (registers_frame && stack->trace && stack->size > 0) {
+    stack->trace++;
+    stack->size--;
+  }
+
+  bool fatal = flags()->halt_on_error || !ai.recover;
+  ReportTagMismatch(stack, ai.addr, ai.size, ai.is_store, fatal,
+                    registers_frame);
+}
+
+void HwasanTagMismatch(uptr addr, uptr access_info, uptr *registers_frame,
+                       size_t outsize) {
+  __hwasan::AccessInfo ai;
+  ai.is_store = access_info & 0x10;
+  ai.is_load = !ai.is_store;
+  ai.recover = access_info & 0x20;
+  ai.addr = addr;
+  if ((access_info & 0xf) == 0xf)
+    ai.size = outsize;
+  else
+    ai.size = 1 << (access_info & 0xf);
+
+  HandleTagMismatch(ai, (uptr)__builtin_return_address(0),
+                    (uptr)__builtin_frame_address(0), nullptr, registers_frame);
+  __builtin_unreachable();
+}
 
 } // namespace __hwasan
 
@@ -271,7 +319,7 @@ void __hwasan_init() {
   InitializeFlags();
 
   // Install tool-specific callbacks in sanitizer_common.
-  SetCheckFailedCallback(HWAsanCheckFailed);
+  SetCheckUnwindCallback(CheckUnwind);
 
   __sanitizer_set_report_path(common_flags()->log_path);
 

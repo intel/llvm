@@ -20,7 +20,7 @@
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
-#include <assert.h>
+#include <cassert>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -38,11 +38,11 @@ typedef bool (*PluginInitCallback)();
 typedef void (*PluginTermCallback)();
 
 struct PluginInfo {
-  PluginInfo() : plugin_init_callback(nullptr), plugin_term_callback(nullptr) {}
+  PluginInfo() {}
 
   llvm::sys::DynamicLibrary library;
-  PluginInitCallback plugin_init_callback;
-  PluginTermCallback plugin_term_callback;
+  PluginInitCallback plugin_init_callback = nullptr;
+  PluginTermCallback plugin_term_callback = nullptr;
 };
 
 typedef std::map<FileSpec, PluginInfo> PluginTerminateMap;

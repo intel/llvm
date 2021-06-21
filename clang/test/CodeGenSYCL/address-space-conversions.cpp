@@ -66,6 +66,15 @@ __attribute__((sycl_device)) void usages() {
   // CHECK-DAG: [[NoAS_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(4)* [[NoAS_LOAD]] to i32*
   // CHECK-DAG: store i32* [[NoAS_CAST]], i32* addrspace(4)* [[PRIV]].ascast
   PRIV = (__attribute__((opencl_private)) int *)NoAS;
+  // From opencl_global_[host/device] address spaces to opencl_global
+  // CHECK-DAG: [[GLOBDEVICE_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(5)*, i32 addrspace(5)* addrspace(4)* [[GLOB_DEVICE]].ascast
+  // CHECK-DAG: [[GLOBDEVICE_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(5)* [[GLOBDEVICE_LOAD]] to i32 addrspace(1)*
+  // CHECK-DAG: store i32 addrspace(1)* [[GLOBDEVICE_CAST]], i32 addrspace(1)* addrspace(4)* [[GLOB]].ascast
+  GLOB = (__attribute__((opencl_global)) int *)GLOBDEVICE;
+  // CHECK-DAG: [[GLOBHOST_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(6)*, i32 addrspace(6)* addrspace(4)* [[GLOB_HOST]].ascast
+  // CHECK-DAG: [[GLOBHOST_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(6)* [[GLOBHOST_LOAD]] to i32 addrspace(1)*
+  // CHECK-DAG: store i32 addrspace(1)* [[GLOBHOST_CAST]], i32 addrspace(1)* addrspace(4)* [[GLOB]].ascast
+  GLOB = (__attribute__((opencl_global)) int *)GLOBHOST;
 
   bar(*GLOB);
   // CHECK-DAG: [[GLOB_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(1)*, i32 addrspace(1)* addrspace(4)* [[GLOB]].ascast

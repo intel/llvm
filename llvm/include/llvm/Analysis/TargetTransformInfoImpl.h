@@ -291,7 +291,7 @@ public:
 
   bool isTypeLegal(Type *Ty) const { return false; }
 
-  unsigned getRegUsageForType(Type *Ty) const { return 1; }
+  InstructionCost getRegUsageForType(Type *Ty) const { return 1; }
 
   bool shouldBuildLookupTables() const { return true; }
 
@@ -347,8 +347,8 @@ public:
     return TargetTransformInfo::TCC_Basic;
   }
 
-  int getIntImmCodeSizeCost(unsigned Opcode, unsigned Idx, const APInt &Imm,
-                            Type *Ty) const {
+  InstructionCost getIntImmCodeSizeCost(unsigned Opcode, unsigned Idx,
+                                        const APInt &Imm, Type *Ty) const {
     return 0;
   }
 
@@ -636,7 +636,7 @@ public:
     return 1;
   }
 
-  unsigned getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) const {
+  InstructionCost getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) const {
     return 0;
   }
 
@@ -715,7 +715,7 @@ public:
     return true;
   }
 
-  bool isLegalToVectorizeReduction(RecurrenceDescriptor RdxDesc,
+  bool isLegalToVectorizeReduction(const RecurrenceDescriptor &RdxDesc,
                                    ElementCount VF) const {
     return true;
   }
@@ -749,6 +749,13 @@ public:
   bool supportsScalableVectors() const { return false; }
 
   bool hasActiveVectorLength() const { return false; }
+
+  TargetTransformInfo::VPLegalization
+  getVPLegalizationStrategy(const VPIntrinsic &PI) const {
+    return TargetTransformInfo::VPLegalization(
+        /* EVLParamStrategy */ TargetTransformInfo::VPLegalization::Discard,
+        /* OperatorStrategy */ TargetTransformInfo::VPLegalization::Convert);
+  }
 
 protected:
   // Obtain the minimum required size to hold the value (without the sign)

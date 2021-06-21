@@ -270,6 +270,10 @@ namespace llvm {
       return createHybridListDAGScheduler(IS, OptLevel);
     if (TLI->getSchedulingPreference() == Sched::VLIW)
       return createVLIWDAGScheduler(IS, OptLevel);
+    if (TLI->getSchedulingPreference() == Sched::Fast)
+      return createFastDAGScheduler(IS, OptLevel);
+    if (TLI->getSchedulingPreference() == Sched::Linearize)
+      return createDAGLinearizer(IS, OptLevel);
     assert(TLI->getSchedulingPreference() == Sched::ILP &&
            "Unknown sched type!");
     return createILPListDAGScheduler(IS, OptLevel);
@@ -3280,12 +3284,15 @@ void SelectionDAGISel::SelectCodeCommon(SDNode *NodeToMatch,
 
       continue;
     }
-    case OPC_EmitInteger: {
+    case OPC_EmitInteger:
+    case OPC_EmitStringInteger: {
       MVT::SimpleValueType VT =
         (MVT::SimpleValueType)MatcherTable[MatcherIndex++];
       int64_t Val = MatcherTable[MatcherIndex++];
       if (Val & 128)
         Val = GetVBR(Val, MatcherTable, MatcherIndex);
+      if (Opcode == OPC_EmitInteger)
+        Val = decodeSignRotatedValue(Val);
       RecordedNodes.push_back(std::pair<SDValue, SDNode*>(
                               CurDAG->getTargetConstant(Val, SDLoc(NodeToMatch),
                                                         VT), nullptr));
@@ -3770,7 +3777,7 @@ void SelectionDAGISel::CannotYetSelect(SDNode *N) {
     unsigned iid =
       cast<ConstantSDNode>(N->getOperand(HasInputChain))->getZExtValue();
     if (iid < Intrinsic::num_intrinsics)
-      Msg << "intrinsic %" << Intrinsic::getName((Intrinsic::ID)iid, None);
+      Msg << "intrinsic %" << Intrinsic::getBaseName((Intrinsic::ID)iid);
     else if (const TargetIntrinsicInfo *TII = TM.getIntrinsicInfo())
       Msg << "target intrinsic %" << TII->getName(iid);
     else

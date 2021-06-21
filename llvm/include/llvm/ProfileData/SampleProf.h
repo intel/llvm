@@ -190,7 +190,10 @@ enum class SecProfSummaryFlags : uint32_t {
   SecFlagPartial = (1 << 0),
   /// SecFlagContext means this is context-sensitive profile for
   /// CSSPGO
-  SecFlagFullContext = (1 << 1)
+  SecFlagFullContext = (1 << 1),
+  /// SecFlagFSDiscriminator means this profile uses flow-sensitive
+  /// discriminators.
+  SecFlagFSDiscriminator = (1 << 2)
 };
 
 enum class SecFuncMetadataFlags : uint32_t {
@@ -425,6 +428,22 @@ public:
   static std::pair<StringRef, StringRef>
   splitContextString(StringRef ContextStr) {
     return ContextStr.split(" @ ");
+  }
+
+  // Reconstruct a new context with the last k frames, return the context-less
+  // name if K = 1
+  StringRef getContextWithLastKFrames(uint32_t K) {
+    if (K == 1)
+      return getNameWithoutContext();
+
+    size_t I = FullContext.size();
+    while (K--) {
+      I = FullContext.find_last_of(" @ ", I);
+      if (I == StringRef::npos)
+        return FullContext;
+      I -= 2;
+    }
+    return FullContext.slice(I + 3, StringRef::npos);
   }
 
   // Decode context string for a frame to get function name and location.
@@ -842,7 +861,7 @@ public:
     if (!UseMD5)
       return Name;
 
-    assert(GUIDToFuncNameMap && "GUIDToFuncNameMap needs to be popluated first");
+    assert(GUIDToFuncNameMap && "GUIDToFuncNameMap needs to be populated first");
     return GUIDToFuncNameMap->lookup(std::stoull(Name.data()));
   }
 
@@ -890,6 +909,9 @@ public:
 
   /// Whether the profile contains any ".__uniq." suffix in a name.
   static bool HasUniqSuffix;
+
+  /// If this profile uses flow sensitive discriminators.
+  static bool ProfileIsFS;
 
   /// GUIDToFuncNameMap saves the mapping from GUID to the symbol name, for
   /// all the function symbols defined or declared in current module.
@@ -987,8 +1009,9 @@ public:
       : ProfileMap(Profiles){};
   // Trim and merge cold context profile when requested.
   void trimAndMergeColdContextProfiles(uint64_t ColdCountThreshold,
-                                       bool TrimColdContext = true,
-                                       bool MergeColdContext = true);
+                                       bool TrimColdContext,
+                                       bool MergeColdContext,
+                                       uint32_t ColdContextFrameLength);
   // Canonicalize context profile name and attributes.
   void canonicalizeContextProfiles();
 

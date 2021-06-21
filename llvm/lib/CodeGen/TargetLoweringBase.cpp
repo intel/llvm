@@ -211,6 +211,23 @@ void TargetLoweringBase::InitLibcalls(const Triple &TT) {
   }
 }
 
+/// GetFPLibCall - Helper to return the right libcall for the given floating
+/// point type, or UNKNOWN_LIBCALL if there is none.
+RTLIB::Libcall RTLIB::getFPLibCall(EVT VT,
+                                   RTLIB::Libcall Call_F32,
+                                   RTLIB::Libcall Call_F64,
+                                   RTLIB::Libcall Call_F80,
+                                   RTLIB::Libcall Call_F128,
+                                   RTLIB::Libcall Call_PPCF128) {
+  return
+    VT == MVT::f32 ? Call_F32 :
+    VT == MVT::f64 ? Call_F64 :
+    VT == MVT::f80 ? Call_F80 :
+    VT == MVT::f128 ? Call_F128 :
+    VT == MVT::ppcf128 ? Call_PPCF128 :
+    RTLIB::UNKNOWN_LIBCALL;
+}
+
 /// getFPEXT - Return the FPEXT_*_* value for the given types, or
 /// UNKNOWN_LIBCALL if there is none.
 RTLIB::Libcall RTLIB::getFPEXT(EVT OpVT, EVT RetVT) {
@@ -467,6 +484,11 @@ RTLIB::Libcall RTLIB::getUINTTOFP(EVT OpVT, EVT RetVT) {
       return UINTTOFP_I128_PPCF128;
   }
   return UNKNOWN_LIBCALL;
+}
+
+RTLIB::Libcall RTLIB::getPOWI(EVT RetVT) {
+  return getFPLibCall(RetVT, POWI_F32, POWI_F64, POWI_F80, POWI_F128,
+                      POWI_PPCF128);
 }
 
 RTLIB::Libcall RTLIB::getOUTLINE_ATOMIC(unsigned Opc, AtomicOrdering Order,
@@ -976,9 +998,6 @@ TargetLoweringBase::getTypeConversion(LLVMContext &Context, EVT VT) const {
   if (NumElts.isScalar())
     return LegalizeKind(TypeScalarizeVector, EltVT);
 
-  if (VT.getVectorElementCount() == ElementCount::getScalable(1))
-    report_fatal_error("Cannot legalize this vector");
-
   // Try to widen vector elements until the element type is a power of two and
   // promote it to a legal type later on, for example:
   // <3 x i8> -> <4 x i8> -> <4 x i32>
@@ -996,9 +1015,12 @@ TargetLoweringBase::getTypeConversion(LLVMContext &Context, EVT VT) const {
 
     // If type is to be expanded, split the vector.
     //  <4 x i140> -> <2 x i140>
-    if (LK.first == TypeExpandInteger)
+    if (LK.first == TypeExpandInteger) {
+      if (VT.getVectorElementCount().isScalable())
+        return LegalizeKind(TypeScalarizeScalableVector, EltVT);
       return LegalizeKind(TypeSplitVector,
                           VT.getHalfNumVectorElementsVT(Context));
+    }
 
     // Promote the integer element types until a legal vector type is found
     // or until the element integer type is too big. If a legal type was not
@@ -1056,6 +1078,9 @@ TargetLoweringBase::getTypeConversion(LLVMContext &Context, EVT VT) const {
     EVT NVT = VT.getPow2VectorType(Context);
     return LegalizeKind(TypeWidenVector, NVT);
   }
+
+  if (VT.getVectorElementCount() == ElementCount::getScalable(1))
+    return LegalizeKind(TypeScalarizeScalableVector, EltVT);
 
   // Vectors with illegal element types are expanded.
   EVT NVT = EVT::getVectorVT(Context, EltVT,
@@ -1254,11 +1279,11 @@ TargetLoweringBase::findRepresentativeClass(const TargetRegisterInfo *TRI,
 /// this allows us to compute derived properties we expose.
 void TargetLoweringBase::computeRegisterProperties(
     const TargetRegisterInfo *TRI) {
-  static_assert(MVT::LAST_VALUETYPE <= MVT::MAX_ALLOWED_VALUETYPE,
+  static_assert(MVT::VALUETYPE_SIZE <= MVT::MAX_ALLOWED_VALUETYPE,
                 "Too many value types for ValueTypeActions to hold!");
 
   // Everything defaults to needing one register.
-  for (unsigned i = 0; i != MVT::LAST_VALUETYPE; ++i) {
+  for (unsigned i = 0; i != MVT::VALUETYPE_SIZE; ++i) {
     NumRegistersForVT[i] = 1;
     RegisterTypeForVT[i] = TransformToType[i] = (MVT::SimpleValueType)i;
   }
@@ -1470,7 +1495,7 @@ void TargetLoweringBase::computeRegisterProperties(
   // not a sub-register class / subreg register class) legal register class for
   // a group of value types. For example, on i386, i8, i16, and i32
   // representative would be GR32; while on x86_64 it's GR64.
-  for (unsigned i = 0; i != MVT::LAST_VALUETYPE; ++i) {
+  for (unsigned i = 0; i != MVT::VALUETYPE_SIZE; ++i) {
     const TargetRegisterClass* RRC;
     uint8_t Cost;
     std::tie(RRC, Cost) = findRepresentativeClass(TRI, (MVT::SimpleValueType)i);
@@ -1497,10 +1522,10 @@ MVT::SimpleValueType TargetLoweringBase::getCmpLibcallReturnType() const {
 /// This method returns the number of registers needed, and the VT for each
 /// register.  It also returns the VT and quantity of the intermediate values
 /// before they are promoted/expanded.
-unsigned TargetLoweringBase::getVectorTypeBreakdown(LLVMContext &Context, EVT VT,
-                                                EVT &IntermediateVT,
-                                                unsigned &NumIntermediates,
-                                                MVT &RegisterVT) const {
+unsigned TargetLoweringBase::getVectorTypeBreakdown(LLVMContext &Context,
+                                                    EVT VT, EVT &IntermediateVT,
+                                                    unsigned &NumIntermediates,
+                                                    MVT &RegisterVT) const {
   ElementCount EltCnt = VT.getVectorElementCount();
 
   // If there is a wider vector type with the same element type as this one,
@@ -1509,7 +1534,7 @@ unsigned TargetLoweringBase::getVectorTypeBreakdown(LLVMContext &Context, EVT VT
   // This handles things like <2 x float> -> <4 x float> and
   // <4 x i1> -> <4 x i32>.
   LegalizeTypeAction TA = getTypeAction(Context, VT);
-  if (EltCnt.getKnownMinValue() != 1 &&
+  if (!EltCnt.isScalar() &&
       (TA == TypeWidenVector || TA == TypePromoteInteger)) {
     EVT RegisterEVT = getTypeToTransformTo(Context, VT);
     if (isTypeLegal(RegisterEVT)) {
@@ -1820,6 +1845,9 @@ TargetLoweringBase::getTypeLegalizationCost(const DataLayout &DL,
   while (true) {
     LegalizeKind LK = getTypeConversion(C, MTy);
 
+    if (LK.first == TypeScalarizeScalableVector)
+      return std::make_pair(InstructionCost::getInvalid(), MVT::getVT(Ty));
+
     if (LK.first == TypeLegal)
       return std::make_pair(Cost, MTy.getSimpleVT());
 
@@ -1835,8 +1863,9 @@ TargetLoweringBase::getTypeLegalizationCost(const DataLayout &DL,
   }
 }
 
-Value *TargetLoweringBase::getDefaultSafeStackPointerLocation(IRBuilder<> &IRB,
-                                                              bool UseTLS) const {
+Value *
+TargetLoweringBase::getDefaultSafeStackPointerLocation(IRBuilderBase &IRB,
+                                                       bool UseTLS) const {
   // compiler-rt provides a variable with a magic name.  Targets that do not
   // link with compiler-rt may also provide such a variable.
   Module *M = IRB.GetInsertBlock()->getParent()->getParent();
@@ -1867,7 +1896,8 @@ Value *TargetLoweringBase::getDefaultSafeStackPointerLocation(IRBuilder<> &IRB,
   return UnsafeStackPtr;
 }
 
-Value *TargetLoweringBase::getSafeStackPointerLocation(IRBuilder<> &IRB) const {
+Value *
+TargetLoweringBase::getSafeStackPointerLocation(IRBuilderBase &IRB) const {
   if (!TM.getTargetTriple().isAndroid())
     return getDefaultSafeStackPointerLocation(IRB, true);
 
@@ -1927,7 +1957,7 @@ bool TargetLoweringBase::isLegalAddressingMode(const DataLayout &DL,
 
 // For OpenBSD return its special guard variable. Otherwise return nullptr,
 // so that SelectionDAG handle SSP.
-Value *TargetLoweringBase::getIRStackGuard(IRBuilder<> &IRB) const {
+Value *TargetLoweringBase::getIRStackGuard(IRBuilderBase &IRB) const {
   if (getTargetMachine().getTargetTriple().isOSOpenBSD()) {
     Module &M = *IRB.GetInsertBlock()->getParent()->getParent();
     PointerType *PtrTy = Type::getInt8PtrTy(M.getContext());
@@ -2227,6 +2257,24 @@ TargetLoweringBase::getAtomicMemOperandFlags(const Instruction &AI,
   // FIXME: Not preserving dereferenceable
   Flags |= getTargetMMOFlags(AI);
   return Flags;
+}
+
+Instruction *TargetLoweringBase::emitLeadingFence(IRBuilderBase &Builder,
+                                                  Instruction *Inst,
+                                                  AtomicOrdering Ord) const {
+  if (isReleaseOrStronger(Ord) && Inst->hasAtomicStore())
+    return Builder.CreateFence(Ord);
+  else
+    return nullptr;
+}
+
+Instruction *TargetLoweringBase::emitTrailingFence(IRBuilderBase &Builder,
+                                                   Instruction *Inst,
+                                                   AtomicOrdering Ord) const {
+  if (isAcquireOrStronger(Ord))
+    return Builder.CreateFence(Ord);
+  else
+    return nullptr;
 }
 
 //===----------------------------------------------------------------------===//

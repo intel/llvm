@@ -176,6 +176,8 @@ class OMPLoopScope : public CodeGenFunction::RunCleanupsScope {
       PreInits = cast_or_null<DeclStmt>(LD->getPreInits());
     } else if (const auto *Tile = dyn_cast<OMPTileDirective>(&S)) {
       PreInits = cast_or_null<DeclStmt>(Tile->getPreInits());
+    } else if (const auto *Unroll = dyn_cast<OMPUnrollDirective>(&S)) {
+      PreInits = cast_or_null<DeclStmt>(Unroll->getPreInits());
     } else {
       llvm_unreachable("Unknown loop-based directive kind.");
     }
@@ -1006,12 +1008,14 @@ bool CodeGenFunction::EmitOMPCopyinClause(const OMPExecutableDirective &D) {
           // need to copy data.
           CopyBegin = createBasicBlock("copyin.not.master");
           CopyEnd = createBasicBlock("copyin.not.master.end");
+          // TODO: Avoid ptrtoint conversion.
+          auto *MasterAddrInt =
+              Builder.CreatePtrToInt(MasterAddr.getPointer(), CGM.IntPtrTy);
+          auto *PrivateAddrInt =
+              Builder.CreatePtrToInt(PrivateAddr.getPointer(), CGM.IntPtrTy);
           Builder.CreateCondBr(
-              Builder.CreateICmpNE(
-                  Builder.CreatePtrToInt(MasterAddr.getPointer(), CGM.IntPtrTy),
-                  Builder.CreatePtrToInt(PrivateAddr.getPointer(),
-                                         CGM.IntPtrTy)),
-              CopyBegin, CopyEnd);
+              Builder.CreateICmpNE(MasterAddrInt, PrivateAddrInt), CopyBegin,
+              CopyEnd);
           EmitBlock(CopyBegin);
         }
         const auto *SrcVD =
@@ -1817,9 +1821,9 @@ static void emitBody(CodeGenFunction &CGF, const Stmt *S, const Stmt *NextLoop,
     return;
   }
   if (SimplifiedS == NextLoop) {
-    OMPTransformDirectiveScopeRAII PossiblyTransformDirectiveScope(CGF,
-                                                                   SimplifiedS);
     if (auto *Dir = dyn_cast<OMPTileDirective>(SimplifiedS))
+      SimplifiedS = Dir->getTransformedStmt();
+    if (auto *Dir = dyn_cast<OMPUnrollDirective>(SimplifiedS))
       SimplifiedS = Dir->getTransformedStmt();
     if (const auto *CanonLoop = dyn_cast<OMPCanonicalLoop>(SimplifiedS))
       SimplifiedS = CanonLoop->getLoopStmt();
@@ -2577,6 +2581,28 @@ void CodeGenFunction::EmitOMPTileDirective(const OMPTileDirective &S) {
   // Emit the de-sugared statement.
   OMPTransformDirectiveScopeRAII TileScope(*this, &S);
   EmitStmt(S.getTransformedStmt());
+}
+
+void CodeGenFunction::EmitOMPUnrollDirective(const OMPUnrollDirective &S) {
+  // This function is only called if the unrolled loop is not consumed by any
+  // other loop-associated construct. Such a loop-associated construct will have
+  // used the transformed AST.
+
+  // Set the unroll metadata for the next emitted loop.
+  LoopStack.setUnrollState(LoopAttributes::Enable);
+
+  if (S.hasClausesOfKind<OMPFullClause>()) {
+    LoopStack.setUnrollState(LoopAttributes::Full);
+  } else if (auto *PartialClause = S.getSingleClause<OMPPartialClause>()) {
+    if (Expr *FactorExpr = PartialClause->getFactor()) {
+      uint64_t Factor =
+          FactorExpr->EvaluateKnownConstInt(getContext()).getZExtValue();
+      assert(Factor >= 1 && "Only positive factors are valid");
+      LoopStack.setUnrollCount(Factor);
+    }
+  }
+
+  EmitStmt(S.getAssociatedStmt());
 }
 
 void CodeGenFunction::EmitOMPOuterLoop(
@@ -3673,11 +3699,11 @@ void CodeGenFunction::EmitSections(const OMPExecutableDirective &S) {
     CodeGenFunction::OpaqueValueMapping OpaqueUB(CGF, &UBRefExpr, UB);
     // Generate condition for loop.
     BinaryOperator *Cond = BinaryOperator::Create(
-        C, &IVRefExpr, &UBRefExpr, BO_LE, C.BoolTy, VK_RValue, OK_Ordinary,
+        C, &IVRefExpr, &UBRefExpr, BO_LE, C.BoolTy, VK_PRValue, OK_Ordinary,
         S.getBeginLoc(), FPOptionsOverride());
     // Increment for loop counter.
     UnaryOperator *Inc = UnaryOperator::Create(
-        C, &IVRefExpr, UO_PreInc, KmpInt32Ty, VK_RValue, OK_Ordinary,
+        C, &IVRefExpr, UO_PreInc, KmpInt32Ty, VK_PRValue, OK_Ordinary,
         S.getBeginLoc(), true, FPOptionsOverride());
     auto &&BodyGen = [CapturedStmt, CS, &S, &IV](CodeGenFunction &CGF) {
       // Iterate through all sections and emit a switch construct:
@@ -4293,7 +4319,7 @@ void CodeGenFunction::EmitOMPTaskBasedDirective(
     }
   }
   // Get list of lastprivate variables (for taskloops).
-  llvm::DenseMap<const VarDecl *, const DeclRefExpr *> LastprivateDstsOrigs;
+  llvm::MapVector<const VarDecl *, const DeclRefExpr *> LastprivateDstsOrigs;
   for (const auto *C : S.getClausesOfKind<OMPLastprivateClause>()) {
     auto IRef = C->varlist_begin();
     auto ID = C->destination_exprs().begin();
@@ -4304,8 +4330,8 @@ void CodeGenFunction::EmitOMPTaskBasedDirective(
         Data.LastprivateCopies.push_back(IInit);
       }
       LastprivateDstsOrigs.insert(
-          {cast<VarDecl>(cast<DeclRefExpr>(*ID)->getDecl()),
-           cast<DeclRefExpr>(*IRef)});
+          std::make_pair(cast<VarDecl>(cast<DeclRefExpr>(*ID)->getDecl()),
+                         cast<DeclRefExpr>(*IRef)));
       ++IRef;
       ++ID;
     }
@@ -4339,7 +4365,8 @@ void CodeGenFunction::EmitOMPTaskBasedDirective(
   auto &&CodeGen = [&Data, &S, CS, &BodyGen, &LastprivateDstsOrigs,
                     CapturedRegion](CodeGenFunction &CGF,
                                     PrePostActionTy &Action) {
-    llvm::DenseMap<CanonicalDeclPtr<const VarDecl>, std::pair<Address, Address>>
+    llvm::MapVector<CanonicalDeclPtr<const VarDecl>,
+                    std::pair<Address, Address>>
         UntiedLocalVars;
     // Set proper addresses for generated private copies.
     OMPPrivateScope Scope(CGF);
@@ -4392,7 +4419,12 @@ void CodeGenFunction::EmitOMPTaskBasedDirective(
           Ty = CGF.getContext().getPointerType(Ty);
         Address PrivatePtr = CGF.CreateMemTemp(
             CGF.getContext().getPointerType(Ty), ".local.ptr.addr");
-        UntiedLocalVars.try_emplace(VD, PrivatePtr, Address::invalid());
+        auto Result = UntiedLocalVars.insert(
+            std::make_pair(VD, std::make_pair(PrivatePtr, Address::invalid())));
+        // If key exists update in place.
+        if (Result.second == false)
+          *Result.first = std::make_pair(
+              VD, std::make_pair(PrivatePtr, Address::invalid()));
         CallArgs.push_back(PrivatePtr.getPointer());
         ParamTypes.push_back(PrivatePtr.getType());
       }
@@ -4424,14 +4456,14 @@ void CodeGenFunction::EmitOMPTaskBasedDirective(
         if (isAllocatableDecl(Pair.first)) {
           llvm::Value *Ptr = CGF.Builder.CreateLoad(Pair.second.first);
           Address Replacement(Ptr, CGF.getPointerAlign());
-          Pair.getSecond().first = Replacement;
+          Pair.second.first = Replacement;
           Ptr = CGF.Builder.CreateLoad(Replacement);
           Replacement = Address(Ptr, CGF.getContext().getDeclAlign(Pair.first));
-          Pair.getSecond().second = Replacement;
+          Pair.second.second = Replacement;
         } else {
           llvm::Value *Ptr = CGF.Builder.CreateLoad(Pair.second.first);
           Address Replacement(Ptr, CGF.getContext().getDeclAlign(Pair.first));
-          Pair.getSecond().first = Replacement;
+          Pair.second.first = Replacement;
         }
       }
     }
@@ -4565,7 +4597,7 @@ createImplicitFirstprivateForType(ASTContext &C, OMPTaskDataTy &Data,
   PrivateVD->setInitStyle(VarDecl::CInit);
   PrivateVD->setInit(ImplicitCastExpr::Create(C, ElemType, CK_LValueToRValue,
                                               InitRef, /*BasePath=*/nullptr,
-                                              VK_RValue, FPOptionsOverride()));
+                                              VK_PRValue, FPOptionsOverride()));
   Data.FirstprivateVars.emplace_back(OrigRef);
   Data.FirstprivateCopies.emplace_back(PrivateRef);
   Data.FirstprivateInits.emplace_back(InitRef);
@@ -5756,6 +5788,8 @@ static void emitOMPAtomicExpr(CodeGenFunction &CGF, OpenMPClauseKind Kind,
   case OMPC_safelen:
   case OMPC_simdlen:
   case OMPC_sizes:
+  case OMPC_full:
+  case OMPC_partial:
   case OMPC_allocator:
   case OMPC_allocate:
   case OMPC_collapse:

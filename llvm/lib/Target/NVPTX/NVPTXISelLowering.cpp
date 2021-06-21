@@ -1175,7 +1175,8 @@ const char *NVPTXTargetLowering::getTargetNodeName(unsigned Opcode) const {
 
 TargetLoweringBase::LegalizeTypeAction
 NVPTXTargetLowering::getPreferredVectorAction(MVT VT) const {
-  if (VT.getVectorNumElements() != 1 && VT.getScalarType() == MVT::i1)
+  if (!VT.isScalableVector() && VT.getVectorNumElements() != 1 &&
+      VT.getScalarType() == MVT::i1)
     return TypeSplitVector;
   if (VT == MVT::v2f16)
     return TypeLegal;
@@ -2652,7 +2653,7 @@ NVPTXTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
   if (!isABI)
     return Chain;
 
-  const DataLayout DL = DAG.getDataLayout();
+  const DataLayout &DL = DAG.getDataLayout();
   SmallVector<EVT, 16> VTs;
   SmallVector<uint64_t, 16> Offsets;
   ComputePTXValueVTs(*this, DL, RetTy, VTs, &Offsets);

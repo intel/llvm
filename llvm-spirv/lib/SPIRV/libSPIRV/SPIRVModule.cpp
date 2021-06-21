@@ -253,6 +253,7 @@ public:
   SPIRVTypeVmeImageINTEL *addVmeImageINTELType(SPIRVTypeImage *T) override;
   SPIRVTypeBufferSurfaceINTEL *
   addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) override;
+  SPIRVTypeTokenINTEL *addTokenTypeINTEL() override;
 
   // Constant creation functions
   SPIRVInstruction *addBranchInst(SPIRVLabel *, SPIRVBasicBlock *) override;
@@ -395,9 +396,6 @@ public:
       SPIRVValue *, SPIRVBasicBlock *,
       const std::vector<std::pair<std::vector<SPIRVWord>, SPIRVBasicBlock *>> &,
       SPIRVBasicBlock *) override;
-  SPIRVInstruction *addFModInst(SPIRVType *TheType, SPIRVId TheDividend,
-                                SPIRVId TheDivisor,
-                                SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addVectorTimesScalarInst(SPIRVType *TheType,
                                              SPIRVId TheVector,
                                              SPIRVId TheScalar,
@@ -943,6 +941,10 @@ SPIRVType *SPIRVModuleImpl::addSubgroupAvcINTELType(Op TheOpCode) {
   return addType(new SPIRVTypeSubgroupAvcINTEL(TheOpCode, this, getId()));
 }
 
+SPIRVTypeTokenINTEL *SPIRVModuleImpl::addTokenTypeINTEL() {
+  return addType(new SPIRVTypeTokenINTEL(this, getId()));
+}
+
 SPIRVFunction *SPIRVModuleImpl::addFunction(SPIRVFunction *Func) {
   FuncVec.push_back(add(Func));
   return Func;
@@ -1162,13 +1164,6 @@ SPIRVInstruction *SPIRVModuleImpl::addSwitchInst(
         &Pairs,
     SPIRVBasicBlock *BB) {
   return BB->addInstruction(new SPIRVSwitch(Select, Default, Pairs, BB));
-}
-SPIRVInstruction *SPIRVModuleImpl::addFModInst(SPIRVType *TheType,
-                                               SPIRVId TheDividend,
-                                               SPIRVId TheDivisor,
-                                               SPIRVBasicBlock *BB) {
-  return BB->addInstruction(
-      new SPIRVFMod(TheType, getId(), TheDividend, TheDivisor, BB));
 }
 
 SPIRVInstruction *
@@ -1429,8 +1424,9 @@ SPIRVInstruction *SPIRVModuleImpl::addSelectInst(SPIRVValue *Condition,
                                                  SPIRVValue *Op1,
                                                  SPIRVValue *Op2,
                                                  SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVSelect(getId(), Condition->getId(),
-                                        Op1->getId(), Op2->getId(), BB),
+  return addInstruction(new SPIRVSelect(getId(), Op1->getType(),
+                                        Condition->getId(), Op1->getId(),
+                                        Op2->getId(), BB, this),
                         BB);
 }
 
@@ -1678,28 +1674,33 @@ class TopologicalSort {
   // container after visiting all dependent entries(post-order traversal)
   // guarantees that the entry's operands will appear in the container before
   // the entry itslef.
-  void visit(SPIRVEntry *E) {
+  // Returns true if cyclic dependency detected.
+  bool visit(SPIRVEntry *E) {
     DFSState &State = EntryStateMap[E];
-    if (E->getOpCode() == OpTypePointer) {
-      SPIRVTypePointer *Ptr = static_cast<SPIRVTypePointer *>(E);
-      if (EntryStateMap[Ptr->getElementType()] == Discovered) {
-        // We've found a recursive data type, e.g. a structure having a member
-        // which is a pointer to the same structure. In this, case we can break
-        // such cyclic dependency by inserting a forward declaration of that
-        // pointer.
-        ForwardPointerSet.insert(new SPIRVTypeForwardPointer(
-            E->getModule(), Ptr, Ptr->getPointerStorageClass()));
-        return;
-      }
-    }
-    assert(State != Discovered && "Cyclic dependency detected");
     if (State == Visited)
-      return;
+      return false;
+    if (State == Discovered) // Cyclic dependency detected
+      return true;
     State = Discovered;
     for (SPIRVEntry *Op : E->getNonLiteralOperands()) {
-      visit(Op);
+      if (EntryStateMap[Op] == Visited)
+        continue;
+      if (visit(Op)) {
+        // We've found a recursive data type, e.g. a structure having a member
+        // which is a pointer to the same structure.
+        State = Unvisited; // Forget about it
+        if (E->getOpCode() == OpTypePointer) {
+          // If we have a pointer in the recursive chain, we can break the
+          // cyclic dependency by inserting a forward declaration of that
+          // pointer.
+          SPIRVTypePointer *Ptr = static_cast<SPIRVTypePointer *>(E);
+          ForwardPointerSet.insert(new SPIRVTypeForwardPointer(
+              E->getModule(), Ptr, Ptr->getPointerStorageClass()));
+          return false;
+        }
+        return true;
+      }
     }
-    State = Visited;
     Op OC = E->getOpCode();
     if (OC == OpTypeInt)
       TypeIntVec.push_back(static_cast<SPIRVType *>(E));
@@ -1713,6 +1714,8 @@ class TopologicalSort {
       TypeVec.push_back(static_cast<SPIRVType *>(E));
     else
       ConstAndVarVec.push_back(E);
+    State = Visited;
+    return false;
   }
 
 public:
@@ -1740,8 +1743,10 @@ public:
     for (auto *V : VariableVec)
       EntryStateMap[V] = DFSState::Unvisited;
     // Run topoligical sort
-    for (auto ES : EntryStateMap)
-      visit(ES.first);
+    for (auto ES : EntryStateMap) {
+      if (visit(ES.first))
+        llvm_unreachable("Cyclic dependency for types detected");
+    }
     // Append forward pointers vector
     ForwardPointerVec.insert(ForwardPointerVec.end(), ForwardPointerSet.begin(),
                              ForwardPointerSet.end());

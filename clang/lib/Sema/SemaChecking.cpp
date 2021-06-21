@@ -253,7 +253,7 @@ static bool SemaBuiltinAlignment(Sema &S, CallExpr *TheCall, unsigned ID) {
     }
     if (llvm::APSInt::compareValues(AlignValue, MaxValue) > 0) {
       S.Diag(AlignOp->getExprLoc(), diag::err_alignment_too_big)
-          << MaxValue.toString(10);
+          << toString(MaxValue, 10);
       return true;
     }
     if (!AlignValue.isPowerOf2()) {
@@ -772,8 +772,8 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
 
   DiagRuntimeBehavior(TheCall->getBeginLoc(), TheCall,
                       PDiag(DiagID)
-                          << FunctionName << ObjectSize.toString(/*Radix=*/10)
-                          << UsedSize.getValue().toString(/*Radix=*/10));
+                          << FunctionName << toString(ObjectSize, /*Radix=*/10)
+                          << toString(UsedSize.getValue(), /*Radix=*/10));
 }
 
 static bool SemaBuiltinSEHScopeCheck(Sema &SemaRef, CallExpr *TheCall,
@@ -838,8 +838,7 @@ static bool checkOpenCLBlockArgs(Sema &S, Expr *BlockArg) {
 }
 
 static bool checkOpenCLSubgroupExt(Sema &S, CallExpr *Call) {
-  if (!S.getOpenCLOptions().isAvailableOption("cl_khr_subgroups",
-                                              S.getLangOpts())) {
+  if (!S.getOpenCLOptions().isSupported("cl_khr_subgroups", S.getLangOpts())) {
     S.Diag(Call->getBeginLoc(), diag::err_opencl_requires_extension)
         << 1 << Call->getDirectCallee() << "cl_khr_subgroups";
     return true;
@@ -3357,7 +3356,7 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
      return SemaBuiltinConstantArgRange(TheCall, 2, 0, 7);
   case PPC::BI__builtin_vsx_xxpermx:
      return SemaBuiltinConstantArgRange(TheCall, 3, 0, 7);
-#define CUSTOM_BUILTIN(Name, Types, Acc) \
+#define CUSTOM_BUILTIN(Name, Intr, Types, Acc) \
   case PPC::BI__builtin_##Name: \
     return SemaBuiltinPPCMMACall(TheCall, Types);
 #include "clang/Basic/BuiltinsPPC.def"
@@ -3443,6 +3442,26 @@ bool Sema::CheckAMDGCNBuiltinFunctionCall(unsigned BuiltinID,
   return false;
 }
 
+bool Sema::CheckRISCVLMUL(CallExpr *TheCall, unsigned ArgNum) {
+  llvm::APSInt Result;
+
+  // We can't check the value of a dependent argument.
+  Expr *Arg = TheCall->getArg(ArgNum);
+  if (Arg->isTypeDependent() || Arg->isValueDependent())
+    return false;
+
+  // Check constant-ness first.
+  if (SemaBuiltinConstantArg(TheCall, ArgNum, Result))
+    return true;
+
+  int64_t Val = Result.getSExtValue();
+  if ((Val >= 0 && Val <= 3) || (Val >= 5 && Val <= 7))
+    return false;
+
+  return Diag(TheCall->getBeginLoc(), diag::err_riscv_builtin_invalid_lmul)
+         << Arg->getSourceRange();
+}
+
 bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
                                          unsigned BuiltinID,
                                          CallExpr *TheCall) {
@@ -3474,7 +3493,19 @@ bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
         << TheCall->getSourceRange() << StringRef(FeatureStr);
   }
 
-  return FeatureMissing;
+  if (FeatureMissing)
+    return true;
+
+  switch (BuiltinID) {
+  case RISCV::BI__builtin_rvv_vsetvli:
+    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 3) ||
+           CheckRISCVLMUL(TheCall, 2);
+  case RISCV::BI__builtin_rvv_vsetvlimax:
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 3) ||
+           CheckRISCVLMUL(TheCall, 1);
+  }
+
+  return false;
 }
 
 bool Sema::CheckSystemZBuiltinFunctionCall(unsigned BuiltinID,
@@ -4670,7 +4701,9 @@ void Sema::CheckArgAlignment(SourceLocation Loc, NamedDecl *FDecl,
 
   // Find expected alignment, and the actual alignment of the passed object.
   // getTypeAlignInChars requires complete types
-  if (ParamTy->isIncompleteType() || ArgTy->isIncompleteType())
+  if (ArgTy.isNull() || ParamTy->isIncompleteType() ||
+      ArgTy->isIncompleteType() || ParamTy->isUndeducedType() ||
+      ArgTy->isUndeducedType())
     return;
 
   CharUnits ParamAlign = Context.getTypeAlignInChars(ParamTy);
@@ -4752,6 +4785,9 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
     for (unsigned ArgIdx = 0; ArgIdx < N; ++ArgIdx) {
       // Args[ArgIdx] can be null in malformed code.
       if (const Expr *Arg = Args[ArgIdx]) {
+        if (Arg->containsErrors())
+          continue;
+
         QualType ParamTy = Proto->getParamType(ArgIdx);
         QualType ArgTy = Arg->getType();
         CheckArgAlignment(Arg->getExprLoc(), FDecl, std::to_string(ArgIdx + 1),
@@ -6470,7 +6506,7 @@ ExprResult Sema::SemaBuiltinShuffleVector(CallExpr *TheCall) {
 ExprResult Sema::SemaConvertVectorExpr(Expr *E, TypeSourceInfo *TInfo,
                                        SourceLocation BuiltinLoc,
                                        SourceLocation RParenLoc) {
-  ExprValueKind VK = VK_RValue;
+  ExprValueKind VK = VK_PRValue;
   ExprObjectKind OK = OK_Ordinary;
   QualType DstTy = TInfo->getType();
   QualType SrcTy = E->getType();
@@ -6723,13 +6759,13 @@ bool Sema::SemaBuiltinConstantArgRange(CallExpr *TheCall, int ArgNum,
   if (Result.getSExtValue() < Low || Result.getSExtValue() > High) {
     if (RangeIsError)
       return Diag(TheCall->getBeginLoc(), diag::err_argument_invalid_range)
-             << Result.toString(10) << Low << High << Arg->getSourceRange();
+             << toString(Result, 10) << Low << High << Arg->getSourceRange();
     else
       // Defer the warning until we know if the code will be emitted so that
       // dead code can ignore this.
       DiagRuntimeBehavior(TheCall->getBeginLoc(), TheCall,
                           PDiag(diag::warn_argument_invalid_range)
-                              << Result.toString(10) << Low << High
+                              << toString(Result, 10) << Low << High
                               << Arg->getSourceRange());
   }
 
@@ -11846,8 +11882,8 @@ static bool AnalyzeBitFieldAssignment(Sema &S, FieldDecl *Bitfield, Expr *Init,
   if (FieldWidth == 1 && Value == 1)
     return false;
 
-  std::string PrettyValue = Value.toString(10);
-  std::string PrettyTrunc = TruncatedValue.toString(10);
+  std::string PrettyValue = toString(Value, 10);
+  std::string PrettyTrunc = toString(TruncatedValue, 10);
 
   S.Diag(InitLoc, diag::warn_impcast_bitfield_precision_constant)
     << PrettyValue << PrettyTrunc << OriginalInit->getType()
@@ -12083,7 +12119,7 @@ static std::string PrettyPrintInRange(const llvm::APSInt &Value,
   llvm::APSInt ValueInRange = Value;
   ValueInRange.setIsSigned(!Range.NonNegative);
   ValueInRange = ValueInRange.trunc(Range.Width);
-  return ValueInRange.toString(10);
+  return toString(ValueInRange, 10);
 }
 
 static bool IsImplicitBoolFloatConversion(Sema &S, Expr *Ex, bool ToBool) {
@@ -12399,7 +12435,7 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
         adornObjCBoolConversionDiagWithTernaryFixit(
             S, E,
             S.Diag(CC, diag::warn_impcast_constant_value_to_objc_bool)
-                << Result.Val.getInt().toString(10));
+                << toString(Result.Val.getInt(), 10));
       }
       return;
     }
@@ -12583,7 +12619,7 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
         if (Overflowed) {
           S.DiagRuntimeBehavior(E->getExprLoc(), E,
                                 S.PDiag(diag::warn_impcast_fixed_point_range)
-                                    << Value.toString(/*Radix=*/10) << T
+                                    << toString(Value, /*Radix=*/10) << T
                                     << E->getSourceRange()
                                     << clang::SourceRange(CC));
           return;
@@ -12623,7 +12659,8 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
                 llvm::APFloat::rmNearestTiesToEven);
 
         if (ConversionStatus != llvm::APFloat::opOK) {
-          std::string PrettySourceValue = SourceInt->toString(10);
+          SmallString<32> PrettySourceValue;
+          SourceInt->toString(PrettySourceValue, 10);
           SmallString<32> PrettyTargetValue;
           TargetFloatValue.toString(PrettyTargetValue, TargetPrecision);
 
@@ -12682,7 +12719,7 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
       if (S.SourceMgr.isInSystemMacro(CC))
         return;
 
-      std::string PrettySourceValue = Value.toString(10);
+      std::string PrettySourceValue = toString(Value, 10);
       std::string PrettyTargetValue = PrettyPrintInRange(Value, TargetRange);
 
       S.DiagRuntimeBehavior(
@@ -12728,7 +12765,7 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
         !S.SourceMgr.isInSystemMacro(CC)) {
       llvm::APSInt Value = Result.Val.getInt();
       if (isSameWidthConstantConversion(S, E, T, CC)) {
-        std::string PrettySourceValue = Value.toString(10);
+        std::string PrettySourceValue = toString(Value, 10);
         std::string PrettyTargetValue = PrettyPrintInRange(Value, TargetRange);
 
         S.DiagRuntimeBehavior(
@@ -14638,11 +14675,11 @@ void Sema::CheckArrayAccess(const Expr *BaseExpr, const Expr *IndexExpr,
   const ConstantArrayType *ArrayTy =
       Context.getAsConstantArrayType(BaseExpr->getType());
 
-  if (!ArrayTy)
-    return;
-
-  const Type *BaseType = ArrayTy->getElementType().getTypePtr();
-  if (EffectiveType->isDependentType() || BaseType->isDependentType())
+  const Type *BaseType =
+      ArrayTy == nullptr ? nullptr : ArrayTy->getElementType().getTypePtr();
+  bool IsUnboundedArray = (BaseType == nullptr);
+  if (EffectiveType->isDependentType() ||
+      (!IsUnboundedArray && BaseType->isDependentType()))
     return;
 
   Expr::EvalResult Result;
@@ -14650,14 +14687,79 @@ void Sema::CheckArrayAccess(const Expr *BaseExpr, const Expr *IndexExpr,
     return;
 
   llvm::APSInt index = Result.Val.getInt();
-  if (IndexNegated)
+  if (IndexNegated) {
+    index.setIsUnsigned(false);
     index = -index;
+  }
 
   const NamedDecl *ND = nullptr;
   if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(BaseExpr))
     ND = DRE->getDecl();
   if (const MemberExpr *ME = dyn_cast<MemberExpr>(BaseExpr))
     ND = ME->getMemberDecl();
+
+  if (IsUnboundedArray) {
+    if (index.isUnsigned() || !index.isNegative()) {
+      const auto &ASTC = getASTContext();
+      unsigned AddrBits =
+          ASTC.getTargetInfo().getPointerWidth(ASTC.getTargetAddressSpace(
+              EffectiveType->getCanonicalTypeInternal()));
+      if (index.getBitWidth() < AddrBits)
+        index = index.zext(AddrBits);
+      CharUnits ElemCharUnits = ASTC.getTypeSizeInChars(EffectiveType);
+      llvm::APInt ElemBytes(index.getBitWidth(), ElemCharUnits.getQuantity());
+      // If index has more active bits than address space, we already know
+      // we have a bounds violation to warn about.  Otherwise, compute
+      // address of (index + 1)th element, and warn about bounds violation
+      // only if that address exceeds address space.
+      if (index.getActiveBits() <= AddrBits) {
+        bool Overflow;
+        llvm::APInt Product(index);
+        Product += 1;
+        Product = Product.umul_ov(ElemBytes, Overflow);
+        if (!Overflow && Product.getActiveBits() <= AddrBits)
+          return;
+      }
+
+      // Need to compute max possible elements in address space, since that
+      // is included in diag message.
+      llvm::APInt MaxElems = llvm::APInt::getMaxValue(AddrBits);
+      MaxElems = MaxElems.zext(std::max(AddrBits + 1, ElemBytes.getBitWidth()));
+      MaxElems += 1;
+      ElemBytes = ElemBytes.zextOrTrunc(MaxElems.getBitWidth());
+      MaxElems = MaxElems.udiv(ElemBytes);
+
+      unsigned DiagID =
+          ASE ? diag::warn_array_index_exceeds_max_addressable_bounds
+              : diag::warn_ptr_arith_exceeds_max_addressable_bounds;
+
+      // Diag message shows element size in bits and in "bytes" (platform-
+      // dependent CharUnits)
+      DiagRuntimeBehavior(BaseExpr->getBeginLoc(), BaseExpr,
+                          PDiag(DiagID)
+                              << toString(index, 10, true) << AddrBits
+                              << (unsigned)ASTC.toBits(ElemCharUnits)
+                              << toString(ElemBytes, 10, false)
+                              << toString(MaxElems, 10, false)
+                              << (unsigned)MaxElems.getLimitedValue(~0U)
+                              << IndexExpr->getSourceRange());
+
+      if (!ND) {
+        // Try harder to find a NamedDecl to point at in the note.
+        while (const auto *ASE = dyn_cast<ArraySubscriptExpr>(BaseExpr))
+          BaseExpr = ASE->getBase()->IgnoreParenCasts();
+        if (const auto *DRE = dyn_cast<DeclRefExpr>(BaseExpr))
+          ND = DRE->getDecl();
+        if (const auto *ME = dyn_cast<MemberExpr>(BaseExpr))
+          ND = ME->getMemberDecl();
+      }
+
+      if (ND)
+        DiagRuntimeBehavior(ND->getBeginLoc(), BaseExpr,
+                            PDiag(diag::note_array_declared_here) << ND);
+    }
+    return;
+  }
 
   if (index.isUnsigned() || !index.isNegative()) {
     // It is possible that the type of the base expression after
@@ -14721,13 +14823,12 @@ void Sema::CheckArrayAccess(const Expr *BaseExpr, const Expr *IndexExpr,
       }
     }
 
-    unsigned DiagID = diag::warn_ptr_arith_exceeds_bounds;
-    if (ASE)
-      DiagID = diag::warn_array_index_exceeds_bounds;
+    unsigned DiagID = ASE ? diag::warn_array_index_exceeds_bounds
+                          : diag::warn_ptr_arith_exceeds_bounds;
 
     DiagRuntimeBehavior(BaseExpr->getBeginLoc(), BaseExpr,
-                        PDiag(DiagID) << index.toString(10, true)
-                                      << size.toString(10, true)
+                        PDiag(DiagID) << toString(index, 10, true)
+                                      << toString(size, 10, true)
                                       << (unsigned)size.getLimitedValue(~0U)
                                       << IndexExpr->getSourceRange());
   } else {
@@ -14738,18 +14839,17 @@ void Sema::CheckArrayAccess(const Expr *BaseExpr, const Expr *IndexExpr,
     }
 
     DiagRuntimeBehavior(BaseExpr->getBeginLoc(), BaseExpr,
-                        PDiag(DiagID) << index.toString(10, true)
+                        PDiag(DiagID) << toString(index, 10, true)
                                       << IndexExpr->getSourceRange());
   }
 
   if (!ND) {
     // Try harder to find a NamedDecl to point at in the note.
-    while (const ArraySubscriptExpr *ASE =
-           dyn_cast<ArraySubscriptExpr>(BaseExpr))
+    while (const auto *ASE = dyn_cast<ArraySubscriptExpr>(BaseExpr))
       BaseExpr = ASE->getBase()->IgnoreParenCasts();
-    if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(BaseExpr))
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(BaseExpr))
       ND = DRE->getDecl();
-    if (const MemberExpr *ME = dyn_cast<MemberExpr>(BaseExpr))
+    if (const auto *ME = dyn_cast<MemberExpr>(BaseExpr))
       ND = ME->getMemberDecl();
   }
 

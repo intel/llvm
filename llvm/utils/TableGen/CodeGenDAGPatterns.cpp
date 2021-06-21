@@ -630,7 +630,7 @@ bool TypeInfer::EnforceVectorSubVectorTypeIs(TypeSetByHwMode &Vec,
       return false;
     if (B.getVectorElementType() != P.getVectorElementType())
       return false;
-    return B.getVectorNumElements() < P.getVectorNumElements();
+    return B.getVectorMinNumElements() < P.getVectorMinNumElements();
   };
 
   /// Return true if S has no element (vector type) that T is a sub-vector of,
@@ -696,8 +696,10 @@ bool TypeInfer::EnforceSameNumElts(TypeSetByHwMode &V, TypeSetByHwMode &W) {
   // An actual vector type cannot have 0 elements, so we can treat scalars
   // as zero-length vectors. This way both vectors and scalars can be
   // processed identically.
-  auto NoLength = [](const SmallSet<unsigned,2> &Lengths, MVT T) -> bool {
-    return !Lengths.count(T.isVector() ? T.getVectorNumElements() : 0);
+  auto NoLength = [](const SmallDenseSet<ElementCount> &Lengths,
+                     MVT T) -> bool {
+    return !Lengths.count(T.isVector() ? T.getVectorElementCount()
+                                       : ElementCount::getNull());
   };
 
   SmallVector<unsigned, 4> Modes;
@@ -706,11 +708,13 @@ bool TypeInfer::EnforceSameNumElts(TypeSetByHwMode &V, TypeSetByHwMode &W) {
     TypeSetByHwMode::SetType &VS = V.get(M);
     TypeSetByHwMode::SetType &WS = W.get(M);
 
-    SmallSet<unsigned,2> VN, WN;
+    SmallDenseSet<ElementCount> VN, WN;
     for (MVT T : VS)
-      VN.insert(T.isVector() ? T.getVectorNumElements() : 0);
+      VN.insert(T.isVector() ? T.getVectorElementCount()
+                             : ElementCount::getNull());
     for (MVT T : WS)
-      WN.insert(T.isVector() ? T.getVectorNumElements() : 0);
+      WN.insert(T.isVector() ? T.getVectorElementCount()
+                             : ElementCount::getNull());
 
     Changed |= berase_if(VS, std::bind(NoLength, WN, std::placeholders::_1));
     Changed |= berase_if(WS, std::bind(NoLength, VN, std::placeholders::_1));
@@ -1031,33 +1035,33 @@ std::string TreePredicateFn::getPredCode() const {
   }
 
   if (isAtomic() && isAtomicOrderingMonotonic())
-    Code += "if (cast<AtomicSDNode>(N)->getOrdering() != "
+    Code += "if (cast<AtomicSDNode>(N)->getMergedOrdering() != "
             "AtomicOrdering::Monotonic) return false;\n";
   if (isAtomic() && isAtomicOrderingAcquire())
-    Code += "if (cast<AtomicSDNode>(N)->getOrdering() != "
+    Code += "if (cast<AtomicSDNode>(N)->getMergedOrdering() != "
             "AtomicOrdering::Acquire) return false;\n";
   if (isAtomic() && isAtomicOrderingRelease())
-    Code += "if (cast<AtomicSDNode>(N)->getOrdering() != "
+    Code += "if (cast<AtomicSDNode>(N)->getMergedOrdering() != "
             "AtomicOrdering::Release) return false;\n";
   if (isAtomic() && isAtomicOrderingAcquireRelease())
-    Code += "if (cast<AtomicSDNode>(N)->getOrdering() != "
+    Code += "if (cast<AtomicSDNode>(N)->getMergedOrdering() != "
             "AtomicOrdering::AcquireRelease) return false;\n";
   if (isAtomic() && isAtomicOrderingSequentiallyConsistent())
-    Code += "if (cast<AtomicSDNode>(N)->getOrdering() != "
+    Code += "if (cast<AtomicSDNode>(N)->getMergedOrdering() != "
             "AtomicOrdering::SequentiallyConsistent) return false;\n";
 
   if (isAtomic() && isAtomicOrderingAcquireOrStronger())
-    Code += "if (!isAcquireOrStronger(cast<AtomicSDNode>(N)->getOrdering())) "
+    Code += "if (!isAcquireOrStronger(cast<AtomicSDNode>(N)->getMergedOrdering())) "
             "return false;\n";
   if (isAtomic() && isAtomicOrderingWeakerThanAcquire())
-    Code += "if (isAcquireOrStronger(cast<AtomicSDNode>(N)->getOrdering())) "
+    Code += "if (isAcquireOrStronger(cast<AtomicSDNode>(N)->getMergedOrdering())) "
             "return false;\n";
 
   if (isAtomic() && isAtomicOrderingReleaseOrStronger())
-    Code += "if (!isReleaseOrStronger(cast<AtomicSDNode>(N)->getOrdering())) "
+    Code += "if (!isReleaseOrStronger(cast<AtomicSDNode>(N)->getMergedOrdering())) "
             "return false;\n";
   if (isAtomic() && isAtomicOrderingWeakerThanRelease())
-    Code += "if (isReleaseOrStronger(cast<AtomicSDNode>(N)->getOrdering())) "
+    Code += "if (isReleaseOrStronger(cast<AtomicSDNode>(N)->getMergedOrdering())) "
             "return false;\n";
 
   if (isLoad() || isStore()) {
@@ -2849,7 +2853,8 @@ TreePatternNodePtr TreePattern::ParseTreePattern(Init *TheInit,
         ParseTreePattern(Dag->getArg(0), Dag->getArgNameStr(0));
 
     // Apply the type cast.
-    assert(New->getNumTypes() == 1 && "FIXME: Unhandled");
+    if (New->getNumTypes() != 1)
+      error("Type cast can only have one type!");
     const CodeGenHwModes &CGH = getDAGPatterns().getTargetInfo().getHwModes();
     New->UpdateNodeType(0, getValueTypeByHwMode(Operator, CGH), *this);
 

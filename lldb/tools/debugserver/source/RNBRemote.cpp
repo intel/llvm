@@ -14,13 +14,13 @@
 
 #include <bsm/audit.h>
 #include <bsm/audit_session.h>
-#include <errno.h>
+#include <cerrno>
+#include <csignal>
 #include <libproc.h>
 #include <mach-o/loader.h>
 #include <mach/exception_types.h>
 #include <mach/task_info.h>
 #include <pwd.h>
-#include <signal.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
@@ -3919,6 +3919,17 @@ rnb_err_t RNBRemote::HandlePacket_v(const char *p) {
         INVALID_NUB_PROCESS; // pid_attaching_to is the original pid specified
     char err_str[1024] = {'\0'};
     std::string attach_name;
+
+    if (DNBDebugserverIsTranslated()) {
+      DNBLogError("debugserver is x86_64 binary running in translation, attach "
+                  "failed.");
+      std::string return_message = "E96;";
+      return_message +=
+          cstring_to_asciihex_string("debugserver is x86_64 binary running in "
+                                     "translation, attached failed.");
+      SendPacket(return_message.c_str());
+      return rnb_err;
+    }
 
     if (strstr(p, "vAttachWait;") == p) {
       p += strlen("vAttachWait;");

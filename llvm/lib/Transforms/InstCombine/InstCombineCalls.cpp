@@ -39,6 +39,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -90,9 +91,11 @@ static cl::opt<unsigned> GuardWideningWindow(
     cl::desc("How wide an instruction window to bypass looking for "
              "another guard"));
 
+namespace llvm {
 /// enable preservation of attributes in assume like:
 /// call void @llvm.assume(i1 true) [ "nonnull"(i32* %PTR) ]
 extern cl::opt<bool> EnableKnowledgeRetention;
+} // namespace llvm
 
 /// Return the specified type promoted as it would be to pass though a va_arg
 /// area.
@@ -288,16 +291,20 @@ Value *InstCombinerImpl::simplifyMaskedLoad(IntrinsicInst &II) {
 
   // If the mask is all ones or undefs, this is a plain vector load of the 1st
   // argument.
-  if (maskIsAllOneOrUndef(II.getArgOperand(2)))
-    return Builder.CreateAlignedLoad(II.getType(), LoadPtr, Alignment,
-                                     "unmaskedload");
+  if (maskIsAllOneOrUndef(II.getArgOperand(2))) {
+    LoadInst *L = Builder.CreateAlignedLoad(II.getType(), LoadPtr, Alignment,
+                                            "unmaskedload");
+    L->copyMetadata(II);
+    return L;
+  }
 
   // If we can unconditionally load from this address, replace with a
   // load/select idiom. TODO: use DT for context sensitive query
   if (isDereferenceablePointer(LoadPtr, II.getType(),
                                II.getModule()->getDataLayout(), &II, nullptr)) {
-    Value *LI = Builder.CreateAlignedLoad(II.getType(), LoadPtr, Alignment,
-                                         "unmaskedload");
+    LoadInst *LI = Builder.CreateAlignedLoad(II.getType(), LoadPtr, Alignment,
+                                             "unmaskedload");
+    LI->copyMetadata(II);
     return Builder.CreateSelect(II.getArgOperand(2), LI, II.getArgOperand(3));
   }
 
@@ -320,7 +327,10 @@ Instruction *InstCombinerImpl::simplifyMaskedStore(IntrinsicInst &II) {
   if (ConstMask->isAllOnesValue()) {
     Value *StorePtr = II.getArgOperand(1);
     Align Alignment = cast<ConstantInt>(II.getArgOperand(2))->getAlignValue();
-    return new StoreInst(II.getArgOperand(0), StorePtr, false, Alignment);
+    StoreInst *S =
+        new StoreInst(II.getArgOperand(0), StorePtr, false, Alignment);
+    S->copyMetadata(II);
+    return S;
   }
 
   if (isa<ScalableVectorType>(ConstMask->getType()))
@@ -424,6 +434,7 @@ static Instruction *foldCttzCtlz(IntrinsicInst &II, InstCombinerImpl &IC) {
          "Expected cttz or ctlz intrinsic");
   bool IsTZ = II.getIntrinsicID() == Intrinsic::cttz;
   Value *Op0 = II.getArgOperand(0);
+  Value *Op1 = II.getArgOperand(1);
   Value *X;
   // ctlz(bitreverse(x)) -> cttz(x)
   // cttz(bitreverse(x)) -> ctlz(x)
@@ -433,10 +444,37 @@ static Instruction *foldCttzCtlz(IntrinsicInst &II, InstCombinerImpl &IC) {
     return CallInst::Create(F, {X, II.getArgOperand(1)});
   }
 
+  if (II.getType()->isIntOrIntVectorTy(1)) {
+    // ctlz/cttz i1 Op0 --> not Op0
+    if (match(Op1, m_Zero()))
+      return BinaryOperator::CreateNot(Op0);
+    // If zero is undef, then the input can be assumed to be "true", so the
+    // instruction simplifies to "false".
+    assert(match(Op1, m_One()) && "Expected ctlz/cttz operand to be 0 or 1");
+    return IC.replaceInstUsesWith(II, ConstantInt::getNullValue(II.getType()));
+  }
+
   if (IsTZ) {
     // cttz(-x) -> cttz(x)
     if (match(Op0, m_Neg(m_Value(X))))
       return IC.replaceOperand(II, 0, X);
+
+    // cttz(sext(x)) -> cttz(zext(x))
+    if (match(Op0, m_OneUse(m_SExt(m_Value(X))))) {
+      auto *Zext = IC.Builder.CreateZExt(X, II.getType());
+      auto *CttzZext =
+          IC.Builder.CreateBinaryIntrinsic(Intrinsic::cttz, Zext, Op1);
+      return IC.replaceInstUsesWith(II, CttzZext);
+    }
+
+    // Zext doesn't change the number of trailing zeros, so narrow:
+    // cttz(zext(x)) -> zext(cttz(x)) if the 'ZeroIsUndef' parameter is 'true'.
+    if (match(Op0, m_OneUse(m_ZExt(m_Value(X)))) && match(Op1, m_One())) {
+      auto *Cttz = IC.Builder.CreateBinaryIntrinsic(Intrinsic::cttz, X,
+                                                    IC.Builder.getTrue());
+      auto *ZextCttz = IC.Builder.CreateZExt(Cttz, II.getType());
+      return IC.replaceInstUsesWith(II, ZextCttz);
+    }
 
     // cttz(abs(x)) -> cttz(x)
     // cttz(nabs(x)) -> cttz(x)
@@ -1907,8 +1945,7 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
       for (unsigned i = 0; i != DstNumElts; ++i)
         Mask.push_back(IdxN + i);
 
-      Value *Shuffle =
-          Builder.CreateShuffleVector(Vec, UndefValue::get(VecTy), Mask);
+      Value *Shuffle = Builder.CreateShuffleVector(Vec, Mask);
       replaceInstUsesWith(CI, Shuffle);
       return eraseInstFromFunction(CI);
     }
@@ -2296,9 +2333,13 @@ Instruction *InstCombinerImpl::visitCallBase(CallBase &Call) {
   }
 
   if (isa<InlineAsm>(Callee) && !Call.doesNotThrow()) {
-    // Inline asm calls cannot throw - mark them 'nounwind'.
-    Call.setDoesNotThrow();
-    Changed = true;
+    InlineAsm *IA = cast<InlineAsm>(Callee);
+    if (!IA->canThrow()) {
+      // Normal inline asm calls cannot throw - mark them
+      // 'nounwind'.
+      Call.setDoesNotThrow();
+      Changed = true;
+    }
   }
 
   // Try to optimize the call if possible, we require DataLayout for most of

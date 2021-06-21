@@ -157,15 +157,17 @@ Instruction *emitCall(Module &M, Type *RetTy, StringRef FunctionName,
 // Insert instrumental annotation calls, that has no arguments (for example
 // work items start/finish/resume and barrier annotation.
 void insertSimpleInstrumentationCall(Module &M, StringRef Name,
-                                     Instruction *Position) {
+                                     Instruction *Position,
+                                     const DebugLoc &DL) {
   Type *VoidTy = Type::getVoidTy(M.getContext());
   ArrayRef<Value *> Args;
   Instruction *InstrumentationCall = emitCall(M, VoidTy, Name, Args, Position);
   assert(InstrumentationCall && "Instrumentation call creation failed");
+  InstrumentationCall->setDebugLoc(DL);
 }
 
 // Insert instrumental annotation calls for SPIR-V atomics.
-void insertAtomicInstrumentationCall(Module &M, StringRef Name,
+bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
                                      CallInst *AtomicFun, Instruction *Position,
                                      StringRef AtomicName) {
   LLVMContext &Ctx = M.getContext();
@@ -208,7 +210,7 @@ void insertAtomicInstrumentationCall(Module &M, StringRef Name,
   auto *MemFlag = dyn_cast<ConstantInt>(AtomicFun->getArgOperand(2));
   // TODO: add non-constant memory order processing
   if (!MemFlag)
-    return;
+    return false;
   uint64_t IntMemFlag = MemFlag->getValue().getZExtValue();
   uint64_t Order;
   if (IntMemFlag & 0x2)
@@ -219,10 +221,15 @@ void insertAtomicInstrumentationCall(Module &M, StringRef Name,
     Order = 3;
   else
     Order = 0;
+  PointerType *Int8PtrAS4Ty = PointerType::get(IntegerType::get(Ctx, 8), 4);
+  Ptr = CastInst::CreatePointerBitCastOrAddrSpaceCast(Ptr, Int8PtrAS4Ty, "",
+                                                      Position);
   Value *MemOrder = ConstantInt::get(Int32Ty, Order);
   Value *Args[] = {Ptr, AtomicOp, MemOrder};
   Instruction *InstrumentationCall = emitCall(M, VoidTy, Name, Args, Position);
   assert(InstrumentationCall && "Instrumentation call creation failed");
+  InstrumentationCall->setDebugLoc(AtomicFun->getDebugLoc());
+  return true;
 }
 
 } // namespace
@@ -245,15 +252,24 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
 
     // At the beggining of a kernel insert work item start annotation
     // instruction.
-    if (IsSPIRKernel)
-      insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_START,
-                                      &*inst_begin(F));
+    if (IsSPIRKernel) {
+      Instruction *InsertPt = &*inst_begin(F);
+      if (InsertPt->isDebugOrPseudoInst())
+        InsertPt = InsertPt->getNextNonDebugInstruction();
+      assert(InsertPt && "Function does not have any real instructions.");
+      insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_START, InsertPt,
+                                      InsertPt->getDebugLoc());
+      IRModified = true;
+    }
 
     for (BasicBlock &BB : F) {
       // Insert Finish instruction before return instruction
       if (IsSPIRKernel)
-        if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator()))
-          insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_FINISH, RI);
+        if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator())) {
+          insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_FINISH, RI,
+                                          RI->getDebugLoc());
+          IRModified = true;
+        }
       for (Instruction &I : BB) {
         CallInst *CI = dyn_cast<CallInst>(&I);
         if (!CI)
@@ -275,15 +291,17 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
                           return CalleeName.startswith(Name);
                         })) {
           Instruction *InstAfterBarrier = CI->getNextNode();
-          insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WG_BARRIER, CI);
+          const DebugLoc &DL = CI->getDebugLoc();
+          insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WG_BARRIER, CI, DL);
           insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_RESUME,
-                                          InstAfterBarrier);
+                                          InstAfterBarrier, DL);
+          IRModified = true;
         } else if (CalleeName.startswith(SPIRV_ATOMIC_INST)) {
           Instruction *InstAfterAtomic = CI->getNextNode();
-          insertAtomicInstrumentationCall(M, ITT_ANNOTATION_ATOMIC_START, CI,
-                                          CI, CalleeName);
-          insertAtomicInstrumentationCall(M, ITT_ANNOTATION_ATOMIC_FINISH, CI,
-                                          InstAfterAtomic, CalleeName);
+          IRModified |= insertAtomicInstrumentationCall(
+              M, ITT_ANNOTATION_ATOMIC_START, CI, CI, CalleeName);
+          IRModified |= insertAtomicInstrumentationCall(
+              M, ITT_ANNOTATION_ATOMIC_FINISH, CI, InstAfterAtomic, CalleeName);
         }
       }
     }

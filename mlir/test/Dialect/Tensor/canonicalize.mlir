@@ -96,6 +96,19 @@ func @fold_extract(%arg0 : index) -> (f32, f16, f16, i32) {
 
 // -----
 
+// CHECK-LABEL: func @fold_insert
+func @fold_insert(%arg0 : index) -> (tensor<4xf32>) {
+  // Fold an insert into a splat.
+  // CHECK-DAG: %[[C4:.+]] = constant dense<4.{{0*}}e+00> : tensor<4xf32>
+  %0 = constant dense<4.0> : tensor<4xf32>
+  %1 = constant 4.0 : f32
+  %ins_1 = tensor.insert %1 into %0[%arg0] : tensor<4xf32>
+  // CHECK-NEXT: return %[[C4]]
+  return %ins_1 : tensor<4xf32>
+}
+
+// -----
+
 // CHECK-LABEL: func @extract_from_tensor.cast
 // CHECK-SAME: %[[TENSOR:.*]]: tensor<*xf32>
 func @extract_from_tensor.cast(%tensor: tensor<*xf32>) -> f32 {
@@ -237,4 +250,16 @@ func @static_tensor.generate(%size1: index, %size4: index) -> tensor<3x?x?x7x?xi
   } : tensor<3x?x?x7x?xindex>
   // CHECK: tensor.cast %{{.*}} : tensor<3x?x5x7x?xindex> to tensor<3x?x?x7x?xindex>
   return %0 : tensor<3x?x?x7x?xindex>
+}
+
+// -----
+
+// CHECK-LABEL: @from_elements.constant
+func @from_elements.constant() -> tensor<3xindex> {
+  // CHECK: %[[CST:.*]] = constant dense<[1, 2, 1]> : tensor<3xindex>
+  // CHECK: return %[[CST]]
+  %c1 = constant 1 : index
+  %c2 = constant 2 : index
+  %tensor = tensor.from_elements %c1, %c2, %c1 : tensor<3xindex>
+  return %tensor : tensor<3xindex>
 }

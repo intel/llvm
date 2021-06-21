@@ -408,6 +408,10 @@ void LinkerDriver::parseDirectives(InputFile *file) {
     case OPT_section:
       parseSection(arg->getValue());
       break;
+    case OPT_stack:
+      parseNumbers(arg->getValue(), &config->stackReserve,
+                   &config->stackCommit);
+      break;
     case OPT_subsystem: {
       bool gotVersion = false;
       parseSubsystem(arg->getValue(), &config->subsystem,
@@ -689,7 +693,16 @@ static std::string createResponseFile(const opt::InputArgList &args,
   return std::string(data.str());
 }
 
-enum class DebugKind { Unknown, None, Full, FastLink, GHash, Dwarf, Symtab };
+enum class DebugKind {
+  Unknown,
+  None,
+  Full,
+  FastLink,
+  GHash,
+  NoGHash,
+  Dwarf,
+  Symtab
+};
 
 static DebugKind parseDebugKind(const opt::InputArgList &args) {
   auto *a = args.getLastArg(OPT_debug, OPT_debug_opt);
@@ -699,14 +712,15 @@ static DebugKind parseDebugKind(const opt::InputArgList &args) {
     return DebugKind::Full;
 
   DebugKind debug = StringSwitch<DebugKind>(a->getValue())
-                     .CaseLower("none", DebugKind::None)
-                     .CaseLower("full", DebugKind::Full)
-                     .CaseLower("fastlink", DebugKind::FastLink)
-                     // LLD extensions
-                     .CaseLower("ghash", DebugKind::GHash)
-                     .CaseLower("dwarf", DebugKind::Dwarf)
-                     .CaseLower("symtab", DebugKind::Symtab)
-                     .Default(DebugKind::Unknown);
+                        .CaseLower("none", DebugKind::None)
+                        .CaseLower("full", DebugKind::Full)
+                        .CaseLower("fastlink", DebugKind::FastLink)
+                        // LLD extensions
+                        .CaseLower("ghash", DebugKind::GHash)
+                        .CaseLower("noghash", DebugKind::NoGHash)
+                        .CaseLower("dwarf", DebugKind::Dwarf)
+                        .CaseLower("symtab", DebugKind::Symtab)
+                        .Default(DebugKind::Unknown);
 
   if (debug == DebugKind::FastLink) {
     warn("/debug:fastlink unsupported; using /debug:full");
@@ -1205,12 +1219,18 @@ void LinkerDriver::maybeExportMinGWSymbols(const opt::InputArgList &args) {
     if (!exporter.shouldExport(def))
       return;
 
+    if (!def->isGCRoot) {
+      def->isGCRoot = true;
+      config->gcroot.push_back(def);
+    }
+
     Export e;
     e.name = def->getName();
     e.sym = def;
     if (Chunk *c = def->getChunk())
       if (!(c->getOutputCharacteristics() & IMAGE_SCN_MEM_EXECUTE))
         e.data = true;
+    s->isUsedInRegularObj = true;
     config->exports.push_back(e);
   });
 }
@@ -1383,7 +1403,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   // Handle /debug
   DebugKind debug = parseDebugKind(args);
   if (debug == DebugKind::Full || debug == DebugKind::Dwarf ||
-      debug == DebugKind::GHash) {
+      debug == DebugKind::GHash || debug == DebugKind::NoGHash) {
     config->debug = true;
     config->incremental = true;
   }
@@ -1406,7 +1426,8 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
 
   // Handle /pdb
   bool shouldCreatePDB =
-      (debug == DebugKind::Full || debug == DebugKind::GHash);
+      (debug == DebugKind::Full || debug == DebugKind::GHash ||
+       debug == DebugKind::NoGHash);
   if (shouldCreatePDB) {
     if (auto *arg = args.getLastArg(OPT_pdb))
       config->pdbPath = arg->getValue();
@@ -1739,7 +1760,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   config->terminalServerAware =
       !config->dll && args.hasFlag(OPT_tsaware, OPT_tsaware_no, true);
   config->debugDwarf = debug == DebugKind::Dwarf;
-  config->debugGHashes = debug == DebugKind::GHash;
+  config->debugGHashes = debug == DebugKind::GHash || debug == DebugKind::Full;
   config->debugSymtab = debug == DebugKind::Symtab;
   config->autoImport =
       args.hasFlag(OPT_auto_import, OPT_auto_import_no, config->mingw);
@@ -2108,6 +2129,13 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   if (errorCount())
     return;
 
+  config->hadExplicitExports = !config->exports.empty();
+  if (config->mingw) {
+    // In MinGW, all symbols are automatically exported if no symbols
+    // are chosen to be exported.
+    maybeExportMinGWSymbols(args);
+  }
+
   // Do LTO by compiling bitcode input files to a set of native COFF files then
   // link those files (unless -thinlto-index-only was given, in which case we
   // resolve symbols and write indices, but don't generate native code or link).
@@ -2132,12 +2160,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   if (errorCount())
     return;
 
-  config->hadExplicitExports = !config->exports.empty();
   if (config->mingw) {
-    // In MinGW, all symbols are automatically exported if no symbols
-    // are chosen to be exported.
-    maybeExportMinGWSymbols(args);
-
     // Make sure the crtend.o object is the last object file. This object
     // file can contain terminating section chunks that need to be placed
     // last. GNU ld processes files and static libraries explicitly in the
@@ -2217,8 +2240,25 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
     config->printSymbolOrder = arg->getValue();
 
   // Identify unreferenced COMDAT sections.
-  if (config->doGC)
+  if (config->doGC) {
+    if (config->mingw) {
+      // markLive doesn't traverse .eh_frame, but the personality function is
+      // only reached that way. The proper solution would be to parse and
+      // traverse the .eh_frame section, like the ELF linker does.
+      // For now, just manually try to retain the known possible personality
+      // functions. This doesn't bring in more object files, but only marks
+      // functions that already have been included to be retained.
+      for (const char *n : {"__gxx_personality_v0", "__gcc_personality_v0"}) {
+        Defined *d = dyn_cast_or_null<Defined>(symtab->findUnderscore(n));
+        if (d && !d->isGCRoot) {
+          d->isGCRoot = true;
+          config->gcroot.push_back(d);
+        }
+      }
+    }
+
     markLive(symtab->getChunks());
+  }
 
   // Needs to happen after the last call to addFile().
   convertResources();

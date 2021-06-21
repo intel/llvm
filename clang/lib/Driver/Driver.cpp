@@ -537,14 +537,21 @@ static llvm::Triple computeTargetTriple(const Driver &D,
       AT = Target.get64BitArchVariant().getArch();
       if (Target.getEnvironment() == llvm::Triple::GNUX32)
         Target.setEnvironment(llvm::Triple::GNU);
+      else if (Target.getEnvironment() == llvm::Triple::MuslX32)
+        Target.setEnvironment(llvm::Triple::Musl);
     } else if (A->getOption().matches(options::OPT_mx32) &&
                Target.get64BitArchVariant().getArch() == llvm::Triple::x86_64) {
       AT = llvm::Triple::x86_64;
-      Target.setEnvironment(llvm::Triple::GNUX32);
+      if (Target.getEnvironment() == llvm::Triple::Musl)
+        Target.setEnvironment(llvm::Triple::MuslX32);
+      else
+        Target.setEnvironment(llvm::Triple::GNUX32);
     } else if (A->getOption().matches(options::OPT_m32)) {
       AT = Target.get32BitArchVariant().getArch();
       if (Target.getEnvironment() == llvm::Triple::GNUX32)
         Target.setEnvironment(llvm::Triple::GNU);
+      else if (Target.getEnvironment() == llvm::Triple::MuslX32)
+        Target.setEnvironment(llvm::Triple::Musl);
     } else if (A->getOption().matches(options::OPT_m16) &&
                Target.get32BitArchVariant().getArch() == llvm::Triple::x86) {
       AT = llvm::Triple::x86;
@@ -612,16 +619,24 @@ static llvm::Triple computeTargetTriple(const Driver &D,
 }
 
 // Parse the LTO options and record the type of LTO compilation
-// based on which -f(no-)?lto(=.*)? option occurs last.
-void Driver::setLTOMode(const llvm::opt::ArgList &Args) {
-  LTOMode = LTOK_None;
-  if (!Args.hasFlag(options::OPT_flto, options::OPT_flto_EQ,
-                    options::OPT_fno_lto, false))
-    return;
+// based on which -f(no-)?lto(=.*)? or -f(no-)?offload-lto(=.*)?
+// option occurs last.
+static llvm::Optional<driver::LTOKind>
+parseLTOMode(Driver &D, const llvm::opt::ArgList &Args, OptSpecifier OptPos,
+             OptSpecifier OptNeg, OptSpecifier OptEq, bool IsOffload) {
+  driver::LTOKind LTOMode = LTOK_None;
+  // Non-offload LTO allows -flto=auto and -flto=jobserver. Offload LTO does
+  // not support those options.
+  if (!Args.hasFlag(OptPos, OptEq, OptNeg, false) &&
+      (IsOffload ||
+       (!Args.hasFlag(options::OPT_flto_EQ_auto, options::OPT_fno_lto, false) &&
+        !Args.hasFlag(options::OPT_flto_EQ_jobserver, options::OPT_fno_lto,
+                      false))))
+    return None;
 
   StringRef LTOName("full");
 
-  const Arg *A = Args.getLastArg(options::OPT_flto_EQ);
+  const Arg *A = Args.getLastArg(OptEq);
   if (A)
     LTOName = A->getValue();
 
@@ -632,9 +647,27 @@ void Driver::setLTOMode(const llvm::opt::ArgList &Args) {
 
   if (LTOMode == LTOK_Unknown) {
     assert(A);
-    Diag(diag::err_drv_unsupported_option_argument) << A->getOption().getName()
-                                                    << A->getValue();
+    D.Diag(diag::err_drv_unsupported_option_argument)
+        << A->getOption().getName() << A->getValue();
+    return None;
   }
+  return LTOMode;
+}
+
+// Parse the LTO options.
+void Driver::setLTOMode(const llvm::opt::ArgList &Args) {
+  LTOMode = LTOK_None;
+  if (auto M = parseLTOMode(*this, Args, options::OPT_flto,
+                            options::OPT_fno_lto, options::OPT_flto_EQ,
+                            /*IsOffload=*/false))
+    LTOMode = M.getValue();
+
+  OffloadLTOMode = LTOK_None;
+  if (auto M = parseLTOMode(*this, Args, options::OPT_foffload_lto,
+                            options::OPT_fno_offload_lto,
+                            options::OPT_foffload_lto_EQ,
+                            /*IsOffload=*/true))
+    OffloadLTOMode = M.getValue();
 }
 
 /// Compute the desired OpenMP runtime from the flags provided.
@@ -854,6 +887,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   if (SYCLTargets && SYCLfpga)
     Diag(clang::diag::err_drv_option_conflict)
         << SYCLTargets->getSpelling() << SYCLfpga->getSpelling();
+  // -ffreestanding cannot be used with -fsycl
+  if (HasValidSYCLRuntime &&
+      C.getInputArgs().hasArg(options::OPT_ffreestanding)) {
+    Diag(clang::diag::err_drv_option_conflict) << "-fsycl"
+                                               << "-ffreestanding";
+  }
 
   bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
@@ -3396,6 +3435,12 @@ class OffloadingActionBuilder final {
     /// The linker inputs obtained for each device arch.
     SmallVector<ActionList, 8> DeviceLinkerInputs;
     bool GPUSanitize;
+    // The default bundling behavior depends on the type of output, therefore
+    // BundleOutput needs to be tri-value: None, true, or false.
+    // Bundle code objects except --no-gpu-output is specified for device
+    // only compilation. Bundle other type of output files only if
+    // --gpu-bundle-output is specified for device only compilation.
+    Optional<bool> BundleOutput;
 
   public:
     HIPActionBuilder(Compilation &C, DerivedArgList &Args,
@@ -3404,6 +3449,10 @@ class OffloadingActionBuilder final {
       DefaultCudaArch = CudaArch::GFX803;
       GPUSanitize = Args.hasFlag(options::OPT_fgpu_sanitize,
                                  options::OPT_fno_gpu_sanitize, false);
+      if (Args.hasArg(options::OPT_gpu_bundle_output,
+                      options::OPT_no_gpu_bundle_output))
+        BundleOutput = Args.hasFlag(options::OPT_gpu_bundle_output,
+                                    options::OPT_no_gpu_bundle_output);
     }
 
     bool canUseBundlerUnbundler() const override { return true; }
@@ -3452,11 +3501,12 @@ class OffloadingActionBuilder final {
         // a fat binary containing all the code objects for different GPU's.
         // The fat binary is then an input to the host action.
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
-          if (GPUSanitize) {
+          if (GPUSanitize || C.getDriver().isUsingLTO(/*IsOffload=*/true)) {
             // When GPU sanitizer is enabled, since we need to link in the
             // the sanitizer runtime library after the sanitize pass, we have
             // to skip the backend and assemble phases and use lld to link
-            // the bitcode.
+            // the bitcode. The same happens if users request to use LTO
+            // explicitly.
             ActionList AL;
             AL.push_back(CudaDeviceActions[I]);
             // Create a link action to link device IR with device library
@@ -3492,22 +3542,25 @@ class OffloadingActionBuilder final {
           CudaDeviceActions[I] = C.MakeAction<OffloadAction>(
               DDep, CudaDeviceActions[I]->getType());
         }
-        // Create HIP fat binary with a special "link" action.
-        CudaFatBinary =
-            C.MakeAction<LinkJobAction>(CudaDeviceActions,
-                types::TY_HIP_FATBIN);
 
-        if (!CompileDeviceOnly) {
-          DA.add(*CudaFatBinary, *ToolChains.front(), /*BoundArch=*/nullptr,
-                 AssociatedOffloadKind);
-          // Clear the fat binary, it is already a dependence to an host
-          // action.
-          CudaFatBinary = nullptr;
+        if (!CompileDeviceOnly || !BundleOutput.hasValue() ||
+            BundleOutput.getValue()) {
+          // Create HIP fat binary with a special "link" action.
+          CudaFatBinary = C.MakeAction<LinkJobAction>(CudaDeviceActions,
+                                                      types::TY_HIP_FATBIN);
+
+          if (!CompileDeviceOnly) {
+            DA.add(*CudaFatBinary, *ToolChains.front(), /*BoundArch=*/nullptr,
+                   AssociatedOffloadKind);
+            // Clear the fat binary, it is already a dependence to an host
+            // action.
+            CudaFatBinary = nullptr;
+          }
+
+          // Remove the CUDA actions as they are already connected to an host
+          // action or fat binary.
+          CudaDeviceActions.clear();
         }
-
-        // Remove the CUDA actions as they are already connected to an host
-        // action or fat binary.
-        CudaDeviceActions.clear();
 
         return CompileDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
       } else if (CurPhase == phases::Link) {
@@ -3533,6 +3586,20 @@ class OffloadingActionBuilder final {
       for (Action *&A : CudaDeviceActions)
         A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                AssociatedOffloadKind);
+
+      if (CompileDeviceOnly && CurPhase == FinalPhase &&
+          BundleOutput.hasValue() && BundleOutput.getValue()) {
+        for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
+          OffloadAction::DeviceDependences DDep;
+          DDep.add(*CudaDeviceActions[I], *ToolChains.front(), GpuArchList[I],
+                   AssociatedOffloadKind);
+          CudaDeviceActions[I] = C.MakeAction<OffloadAction>(
+              DDep, CudaDeviceActions[I]->getType());
+        }
+        CudaFatBinary =
+            C.MakeAction<OffloadBundlingJobAction>(CudaDeviceActions);
+        CudaDeviceActions.clear();
+      }
 
       return (CompileDeviceOnly && CurPhase == FinalPhase) ? ABRT_Ignore_Host
                                                            : ABRT_Success;
@@ -3622,16 +3689,8 @@ class OffloadingActionBuilder final {
       }
 
       // By default, we produce an action for each device arch.
-      for (unsigned I = 0; I < ToolChains.size(); ++I) {
-        Action *&A = OpenMPDeviceActions[I];
-        // AMDGPU does not support linking of object files, so we skip
-        // assemble and backend actions to produce LLVM IR.
-        if (ToolChains[I]->getTriple().isAMDGCN() &&
-            (CurPhase == phases::Assemble || CurPhase == phases::Backend))
-          continue;
-
+      for (Action *&A : OpenMPDeviceActions)
         A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A);
-      }
 
       return ABRT_Success;
     }
@@ -3886,9 +3945,10 @@ class OffloadingActionBuilder final {
       if (CurPhase == phases::Compile) {
         for (Action *&A : SYCLDeviceActions) {
           types::ID OutputType = types::TY_LLVM_BC;
+          if ((SYCLDeviceOnly || Args.hasArg(options::OPT_emit_llvm)) &&
+              Args.hasArg(options::OPT_S))
+            OutputType = types::TY_LLVM_IR;
           if (SYCLDeviceOnly) {
-            if (Args.hasArg(options::OPT_S))
-              OutputType = types::TY_LLVM_IR;
             if (Args.hasFlag(options::OPT_fno_sycl_use_bitcode,
                              options::OPT_fsycl_use_bitcode, false)) {
               auto *CompileAction =
@@ -5518,6 +5578,25 @@ Action *Driver::ConstructPhaseAction(
       assert(OutputTy != types::TY_INVALID &&
              "Cannot preprocess this input type!");
     }
+    types::ID HostPPType = types::getPreprocessedType(Input->getType());
+    if (Args.hasArg(options::OPT_fsycl) && HostPPType != types::TY_INVALID &&
+        Args.hasArg(options::OPT_fsycl_use_footer) &&
+        TargetDeviceOffloadKind == Action::OFK_None) {
+      // Performing a host compilation with -fsycl.  Append the integration
+      // footer to the preprocessed source file.  We then add another
+      // preprocessed step to complete the action chain.
+      auto *Preprocess = C.MakeAction<PreprocessJobAction>(Input, HostPPType);
+      auto *AppendFooter =
+          C.MakeAction<AppendFooterJobAction>(Preprocess, types::TY_CXX);
+      // FIXME: There are 2 issues with dependency generation in regards to
+      // the integration footer that need to be addressed.
+      // 1) Input file referenced on the RHS of a dependency is based on the
+      //    input src, which is a temporary.  We want this to be the true
+      //    user input src file.
+      // 2) When generating dependencies against a preprocessed file, header
+      //    file information (using -MD or-MMD) is not provided.
+      return C.MakeAction<PreprocessJobAction>(AppendFooter, OutputTy);
+    }
     return C.MakeAction<PreprocessJobAction>(Input, OutputTy);
   }
   case phases::Precompile: {
@@ -5563,18 +5642,6 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<CompileJobAction>(Input, types::TY_ModuleFile);
     if (Args.hasArg(options::OPT_verify_pch))
       return C.MakeAction<VerifyPCHJobAction>(Input, types::TY_Nothing);
-    if (Args.hasArg(options::OPT_fsycl) &&
-        Args.hasArg(options::OPT_fsycl_use_footer) &&
-        TargetDeviceOffloadKind == Action::OFK_None) {
-      // Performing a host compilation with -fsycl.  Append the integrated
-      // footer to the preprocessed source file.  We then add another
-      // preprocessed step so the new file is considered a full compilation.
-      auto *AppendFooter =
-          C.MakeAction<AppendFooterJobAction>(Input, types::TY_CXX);
-      auto *Preprocess =
-          C.MakeAction<PreprocessJobAction>(AppendFooter, Input->getType());
-      return C.MakeAction<CompileJobAction>(Preprocess, types::TY_LLVM_BC);
-    }
     return C.MakeAction<CompileJobAction>(Input, types::TY_LLVM_BC);
   }
   case phases::Backend: {
@@ -6230,6 +6297,25 @@ InputInfo Driver::BuildJobsForActionNoCache(
   if (!T)
     return InputInfo();
 
+  if (BuildingForOffloadDevice &&
+      A->getOffloadingDeviceKind() == Action::OFK_OpenMP) {
+    if (TC->getTriple().isAMDGCN()) {
+      // AMDGCN treats backend and assemble actions as no-op because
+      // linker does not support object files.
+      if (const BackendJobAction *BA = dyn_cast<BackendJobAction>(A)) {
+        return BuildJobsForAction(C, *BA->input_begin(), TC, BoundArch,
+                                  AtTopLevel, MultipleArchs, LinkingOutput,
+                                  CachedResults, TargetDeviceOffloadKind);
+      }
+
+      if (const AssembleJobAction *AA = dyn_cast<AssembleJobAction>(A)) {
+        return BuildJobsForAction(C, *AA->input_begin(), TC, BoundArch,
+                                  AtTopLevel, MultipleArchs, LinkingOutput,
+                                  CachedResults, TargetDeviceOffloadKind);
+      }
+    }
+  }
+
   // If we've collapsed action list that contained OffloadAction we
   // need to build jobs for host/device-side inputs it may have held.
   for (const auto *OA : CollapsedOffloadActions)
@@ -6616,6 +6702,11 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
 
   // Default to writing to stdout?
   if (AtTopLevel && !CCGenDiagnostics && HasPreprocessOutput(JA)) {
+    return "-";
+  }
+
+  if (JA.getType() == types::TY_ModuleFile &&
+      C.getArgs().getLastArg(options::OPT_module_file_info)) {
     return "-";
   }
 

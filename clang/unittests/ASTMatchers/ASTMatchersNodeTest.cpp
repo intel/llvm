@@ -1428,6 +1428,22 @@ TEST_P(ASTMatchersTest, UsingDecl_MatchesShadowUsingDelcarations) {
                       usingDecl(hasAnyUsingShadowDecl(hasName("a")))));
 }
 
+TEST_P(ASTMatchersTest, UsingEnumDecl_MatchesUsingEnumDeclarations) {
+  if (!GetParam().isCXX20OrLater()) {
+    return;
+  }
+  EXPECT_TRUE(
+      matches("namespace X { enum x {}; } using enum X::x;", usingEnumDecl()));
+}
+
+TEST_P(ASTMatchersTest, UsingEnumDecl_MatchesShadowUsingDeclarations) {
+  if (!GetParam().isCXX20OrLater()) {
+    return;
+  }
+  EXPECT_TRUE(matches("namespace f { enum a {b}; } using enum f::a;",
+                      usingEnumDecl(hasAnyUsingShadowDecl(hasName("b")))));
+}
+
 TEST_P(ASTMatchersTest, UsingDirectiveDecl_MatchesUsingNamespace) {
   if (!GetParam().isCXX()) {
     return;
@@ -2302,8 +2318,8 @@ static std::vector<TestClangConfig> allTestClangConfigs() {
   return all_configs;
 }
 
-INSTANTIATE_TEST_CASE_P(ASTMatchersTests, ASTMatchersTest,
-                        testing::ValuesIn(allTestClangConfigs()), );
+INSTANTIATE_TEST_SUITE_P(ASTMatchersTests, ASTMatchersTest,
+                         testing::ValuesIn(allTestClangConfigs()));
 
 } // namespace ast_matchers
 } // namespace clang

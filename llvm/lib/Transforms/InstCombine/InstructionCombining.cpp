@@ -924,6 +924,12 @@ Value *InstCombinerImpl::dyn_castNegVal(Value *V) const {
     return ConstantExpr::getNeg(CV);
   }
 
+  // Negate integer vector splats.
+  if (auto *CV = dyn_cast<Constant>(V))
+    if (CV->getType()->isVectorTy() &&
+        CV->getType()->getScalarType()->isIntegerTy() && CV->getSplatValue())
+      return ConstantExpr::getNeg(CV);
+
   return nullptr;
 }
 
@@ -1098,7 +1104,7 @@ Instruction *InstCombinerImpl::foldOpIntoPhi(Instruction &I, PHINode *PN) {
     // If the incoming non-constant value is in I's block, we will remove one
     // instruction, but insert another equivalent one, leading to infinite
     // instcombine.
-    if (isPotentiallyReachable(I.getParent(), NonConstBB, &DT, LI))
+    if (isPotentiallyReachable(I.getParent(), NonConstBB, nullptr, &DT, LI))
       return nullptr;
   }
 
@@ -4045,9 +4051,6 @@ PreservedAnalyses InstCombinePass::run(Function &F,
   // Mark all the analyses that instcombine updates as preserved.
   PreservedAnalyses PA;
   PA.preserveSet<CFGAnalyses>();
-  PA.preserve<AAManager>();
-  PA.preserve<BasicAA>();
-  PA.preserve<GlobalsAA>();
   return PA;
 }
 

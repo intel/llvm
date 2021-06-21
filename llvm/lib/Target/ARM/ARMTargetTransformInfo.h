@@ -48,6 +48,11 @@ namespace TailPredication {
   };
 }
 
+// For controlling conversion of memcpy into Tail Predicated loop.
+namespace TPLoop {
+enum MemTransfer { ForceDisabled = 0, ForceEnabled, Allow };
+}
+
 class ARMTTIImpl : public BasicTTIImplBase<ARMTTIImpl> {
   using BaseT = BasicTTIImplBase<ARMTTIImpl>;
   using TTI = TargetTransformInfo;
@@ -119,8 +124,8 @@ public:
   /// \name Scalar TTI Implementations
   /// @{
 
-  int getIntImmCodeSizeCost(unsigned Opcode, unsigned Idx, const APInt &Imm,
-                            Type *Ty);
+  InstructionCost getIntImmCodeSizeCost(unsigned Opcode, unsigned Idx,
+                                        const APInt &Imm, Type *Ty);
 
   using BaseT::getIntImmCost;
   InstructionCost getIntImmCost(const APInt &Imm, Type *Ty,

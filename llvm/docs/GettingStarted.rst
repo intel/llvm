@@ -814,10 +814,36 @@ One useful source of information about the LLVM source base is the LLVM `doxygen
 `<https://llvm.org/doxygen/>`_.  The following is a brief introduction to code
 layout:
 
+``llvm/cmake``
+--------------
+Genereates system build files.
+
+``llvm/cmake/modules``
+  Build configuration for llvm user defined options. Checks compiler version and 
+  linker flags.
+
+``llvm/cmake/platforms``
+  Toolchain configuration for Android NDK, iOS systems and non-Windows hosts to
+  target MSVC.
+
 ``llvm/examples``
 -----------------
 
-Simple examples using the LLVM IR and JIT.
+- Some simple examples showing how to use LLVM as a compiler for a custom 
+  language - including lowering, optimization, and code generation.
+
+- Kaleidoscope Tutorial: Kaleidoscope language tutorial run through the 
+  implementation of a nice little compiler for a non-trivial language 
+  including a hand-written lexer, parser, AST, as well as code generation 
+  support using LLVM- both static (ahead of time) and various approaches to 
+  Just In Time (JIT) compilation. 
+  `Kaleidoscope Tutorial for complete beginner 
+  <https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/index.html>`_.
+
+- BuildingAJIT: Examples of the `BuildingAJIT tutorial 
+  <https://llvm.org/docs/tutorial/BuildingAJIT1.html>`_ that shows how LLVM’s 
+  ORC JIT APIs interact with other parts of LLVM. It also, teaches how to 
+  recombine them to build a custom JIT that is suited to your use-case.
 
 ``llvm/include``
 ----------------
@@ -884,7 +910,8 @@ share code among the `tools`_.
 
 ``llvm/lib/MC/``
 
-  (FIXME: T.B.D.)  ....?
+  The libraries represent and process code at machine code level. Handles 
+  assembly and object-file emission. 
 
 ``llvm/lib/ExecutionEngine/``
 

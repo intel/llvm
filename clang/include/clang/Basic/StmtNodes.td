@@ -57,6 +57,8 @@ def CoreturnStmt : StmtNode<Stmt>;
 // Expressions
 def Expr : StmtNode<ValueStmt, 1>;
 def PredefinedExpr : StmtNode<Expr>;
+def SYCLUniqueStableNameExpr : StmtNode<Expr>;
+def SYCLUniqueStableIdExpr : StmtNode<Expr>;
 def DeclRefExpr : StmtNode<Expr>;
 def IntegerLiteral : StmtNode<Expr>;
 def FixedPointLiteral : StmtNode<Expr>;
@@ -193,6 +195,12 @@ def ObjCBridgedCastExpr : StmtNode<ExplicitCastExpr>;
 // CUDA Expressions.
 def CUDAKernelCallExpr : StmtNode<CallExpr>;
 
+// SYCL Extensions.
+def SYCLBuiltinNumFieldsExpr : StmtNode<Expr>;
+def SYCLBuiltinFieldTypeExpr : StmtNode<Expr>;
+def SYCLBuiltinNumBasesExpr : StmtNode<Expr>;
+def SYCLBuiltinBaseTypeExpr : StmtNode<Expr>;
+
 // Clang Extensions.
 def ShuffleVectorExpr : StmtNode<Expr>;
 def ConvertVectorExpr : StmtNode<Expr>;
@@ -223,6 +231,7 @@ def OMPLoopDirective : StmtNode<OMPLoopBasedDirective, 1>;
 def OMPParallelDirective : StmtNode<OMPExecutableDirective>;
 def OMPSimdDirective : StmtNode<OMPLoopDirective>;
 def OMPTileDirective : StmtNode<OMPLoopBasedDirective>;
+def OMPUnrollDirective : StmtNode<OMPLoopBasedDirective>;
 def OMPForDirective : StmtNode<OMPLoopDirective>;
 def OMPForSimdDirective : StmtNode<OMPLoopDirective>;
 def OMPSectionsDirective : StmtNode<OMPExecutableDirective>;

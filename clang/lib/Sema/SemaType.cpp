@@ -1533,6 +1533,14 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     break;
   case DeclSpec::TST_float:   Result = Context.FloatTy; break;
   case DeclSpec::TST_double:
+    if (S.getLangOpts().OpenCL) {
+      if (!S.getOpenCLOptions().isSupported("cl_khr_fp64", S.getLangOpts()))
+        S.Diag(DS.getTypeSpecTypeLoc(),
+               diag::err_opencl_double_requires_extension)
+            << (S.getLangOpts().OpenCLVersion >= 300);
+      else if (!S.getOpenCLOptions().isAvailableOption("cl_khr_fp64", S.getLangOpts()))
+        S.Diag(DS.getTypeSpecTypeLoc(), diag::ext_opencl_double_without_pragma);
+    }
     if (DS.getTypeSpecWidth() == TypeSpecifierWidth::Long)
       Result = Context.LongDoubleTy;
     else
@@ -1722,9 +1730,12 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   if (Result->containsErrors())
     declarator.setInvalidType();
 
-  if (S.getLangOpts().OpenCL &&
-      S.checkOpenCLDisabledTypeDeclSpec(DS, Result))
-    declarator.setInvalidType(true);
+  if (S.getLangOpts().OpenCL && Result->isOCLImage3dWOType() &&
+      !S.getOpenCLOptions().isSupported("cl_khr_3d_image_writes", S.getLangOpts())) {
+        S.Diag(DS.getTypeSpecTypeLoc(), diag::err_opencl_requires_extension)
+        << 0 << Result << "cl_khr_3d_image_writes";
+        declarator.setInvalidType();
+  }
 
   bool IsFixedPointType = DS.getTypeSpecType() == DeclSpec::TST_accum ||
                           DS.getTypeSpecType() == DeclSpec::TST_fract;
@@ -2395,7 +2406,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
   }
 
   // Do lvalue-to-rvalue conversions on the array size expression.
-  if (ArraySize && !ArraySize->isRValue()) {
+  if (ArraySize && !ArraySize->isPRValue()) {
     ExprResult Result = DefaultLvalueConversion(ArraySize);
     if (Result.isInvalid())
       return QualType();
@@ -2496,7 +2507,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
               : ConstVal.getActiveBits();
       if (ActiveSizeBits > ConstantArrayType::getMaxSizeBits(Context)) {
         Diag(ArraySize->getBeginLoc(), diag::err_array_too_large)
-            << ConstVal.toString(10) << ArraySize->getSourceRange();
+            << toString(ConstVal, 10) << ArraySize->getSourceRange();
         return QualType();
       }
 
@@ -2797,6 +2808,10 @@ static void checkExtParameterInfos(Sema &S, ArrayRef<QualType> paramTypes,
 
     case ParameterABI::SwiftContext:
       checkForSwiftCC(paramIndex);
+      continue;
+
+    case ParameterABI::SwiftAsyncContext:
+      // FIXME: might want to require swiftasynccc when it exists
       continue;
 
     // swift_error parameters must be preceded by a swift_context parameter.
@@ -3220,31 +3235,52 @@ InventTemplateParameter(TypeProcessingState &state, QualType T,
       // extract its type constraints to attach to the template parameter.
       AutoTypeLoc AutoLoc = TrailingTSI->getTypeLoc().getContainedAutoTypeLoc();
       TemplateArgumentListInfo TAL(AutoLoc.getLAngleLoc(), AutoLoc.getRAngleLoc());
-      for (unsigned Idx = 0; Idx < AutoLoc.getNumArgs(); ++Idx)
+      bool Invalid = false;
+      for (unsigned Idx = 0; Idx < AutoLoc.getNumArgs(); ++Idx) {
+        if (D.getEllipsisLoc().isInvalid() && !Invalid &&
+            S.DiagnoseUnexpandedParameterPack(AutoLoc.getArgLoc(Idx),
+                                              Sema::UPPC_TypeConstraint))
+          Invalid = true;
         TAL.addArgument(AutoLoc.getArgLoc(Idx));
+      }
 
-      S.AttachTypeConstraint(AutoLoc.getNestedNameSpecifierLoc(),
-                             AutoLoc.getConceptNameInfo(),
-                             AutoLoc.getNamedConcept(),
-                             AutoLoc.hasExplicitTemplateArgs() ? &TAL : nullptr,
-                             InventedTemplateParam, D.getEllipsisLoc());
+      if (!Invalid) {
+        S.AttachTypeConstraint(
+            AutoLoc.getNestedNameSpecifierLoc(), AutoLoc.getConceptNameInfo(),
+            AutoLoc.getNamedConcept(),
+            AutoLoc.hasExplicitTemplateArgs() ? &TAL : nullptr,
+            InventedTemplateParam, D.getEllipsisLoc());
+      }
     } else {
       // The 'auto' appears in the decl-specifiers; we've not finished forming
       // TypeSourceInfo for it yet.
       TemplateIdAnnotation *TemplateId = D.getDeclSpec().getRepAsTemplateId();
       TemplateArgumentListInfo TemplateArgsInfo;
+      bool Invalid = false;
       if (TemplateId->LAngleLoc.isValid()) {
         ASTTemplateArgsPtr TemplateArgsPtr(TemplateId->getTemplateArgs(),
                                            TemplateId->NumArgs);
         S.translateTemplateArguments(TemplateArgsPtr, TemplateArgsInfo);
+
+        if (D.getEllipsisLoc().isInvalid()) {
+          for (TemplateArgumentLoc Arg : TemplateArgsInfo.arguments()) {
+            if (S.DiagnoseUnexpandedParameterPack(Arg,
+                                                  Sema::UPPC_TypeConstraint)) {
+              Invalid = true;
+              break;
+            }
+          }
+        }
       }
-      S.AttachTypeConstraint(
-          D.getDeclSpec().getTypeSpecScope().getWithLocInContext(S.Context),
-          DeclarationNameInfo(DeclarationName(TemplateId->Name),
-                              TemplateId->TemplateNameLoc),
-          cast<ConceptDecl>(TemplateId->Template.get().getAsTemplateDecl()),
-          TemplateId->LAngleLoc.isValid() ? &TemplateArgsInfo : nullptr,
-          InventedTemplateParam, D.getEllipsisLoc());
+      if (!Invalid) {
+        S.AttachTypeConstraint(
+            D.getDeclSpec().getTypeSpecScope().getWithLocInContext(S.Context),
+            DeclarationNameInfo(DeclarationName(TemplateId->Name),
+                                TemplateId->TemplateNameLoc),
+            cast<ConceptDecl>(TemplateId->Template.get().getAsTemplateDecl()),
+            TemplateId->LAngleLoc.isValid() ? &TemplateArgsInfo : nullptr,
+            InventedTemplateParam, D.getEllipsisLoc());
+      }
     }
   }
 
@@ -8939,7 +8975,7 @@ QualType Sema::getDecltypeForParenthesizedExpr(Expr *E) {
   case VK_LValue:
     return Context.getLValueReferenceType(T);
   //  - otherwise, decltype(e) is the type of e.
-  case VK_RValue:
+  case VK_PRValue:
     return T;
   }
   llvm_unreachable("Unknown value kind");

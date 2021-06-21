@@ -35,6 +35,15 @@ static void handleNoResultOp(PatternRewriter &rewriter,
                                     op.operand());
 }
 
+static bool getFirstI32Result(Operation *op, Value &value) {
+  if (!Type(op->getResult(0).getType()).isSignlessInteger(32))
+    return false;
+  value = op->getResult(0);
+  return true;
+}
+
+static Value bindNativeCodeCallResult(Value value) { return value; }
+
 // Test that natives calls are only called once during rewrites.
 // OpM_Test will return Pi, increased by 1 for each subsequent calls.
 // This let us check the number of times OpM_Test was called by inspecting
@@ -48,6 +57,14 @@ static Attribute OpMTest(PatternRewriter &rewriter, Value val) {
 namespace {
 #include "TestPatterns.inc"
 } // end anonymous namespace
+
+//===----------------------------------------------------------------------===//
+// Test Reduce Pattern Interface
+//===----------------------------------------------------------------------===//
+
+void mlir::test::populateTestReductionPatterns(RewritePatternSet &patterns) {
+  populateWithGenerated(patterns);
+}
 
 //===----------------------------------------------------------------------===//
 // Canonicalizer Driver.
@@ -128,7 +145,7 @@ static void reifyReturnShape(Operation *op) {
   // Use permutations of 2 args as operands.
   auto shapedOp = cast<OpWithShapedTypeInferTypeInterfaceOp>(op);
   SmallVector<Value, 2> shapes;
-  if (failed(shapedOp.reifyReturnTypeShapes(b, shapes)) ||
+  if (failed(shapedOp.reifyReturnTypeShapes(b, op->getOperands(), shapes)) ||
       !llvm::hasSingleElement(shapes))
     return;
   for (auto it : llvm::enumerate(shapes)) {
@@ -464,8 +481,9 @@ struct TestNonRootReplacement : public RewritePattern {
 /// bounded recursion.
 struct TestBoundedRecursiveRewrite
     : public OpRewritePattern<TestRecursiveRewriteOp> {
-  TestBoundedRecursiveRewrite(MLIRContext *ctx)
-      : OpRewritePattern<TestRecursiveRewriteOp>(ctx) {
+  using OpRewritePattern<TestRecursiveRewriteOp>::OpRewritePattern;
+
+  void initialize() {
     // The conversion target handles bounding the recursion of this pattern.
     setHasBoundedRewriteRecursion();
   }

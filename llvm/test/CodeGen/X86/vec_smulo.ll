@@ -4,8 +4,10 @@
 ; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+sse4.1 | FileCheck %s --check-prefixes=CHECK,SSE41
 ; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx | FileCheck %s --check-prefixes=CHECK,AVX,AVX1
 ; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx2 | FileCheck %s --check-prefixes=CHECK,AVX,AVX2
-; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx512f,+avx512vl,+fast-variable-shuffle | FileCheck %s --check-prefixes=CHECK,AVX512,AVX512F
-; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx512bw,+avx512vl,+fast-variable-shuffle | FileCheck %s --check-prefixes=CHECK,AVX512,AVX512BW
+; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx512f,+avx512vl,+fast-variable-crosslane-shuffle,+fast-variable-perlane-shuffle | FileCheck %s --check-prefixes=CHECK,AVX512,AVX512F
+; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx512f,+avx512vl,+fast-variable-perlane-shuffle | FileCheck %s --check-prefixes=CHECK,AVX512,AVX512F
+; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx512bw,+avx512vl,+fast-variable-crosslane-shuffle,+fast-variable-perlane-shuffle | FileCheck %s --check-prefixes=CHECK,AVX512,AVX512BW
+; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx512bw,+avx512vl,+fast-variable-perlane-shuffle | FileCheck %s --check-prefixes=CHECK,AVX512,AVX512BW
 
 declare {<1 x i32>, <1 x i1>} @llvm.smul.with.overflow.v1i32(<1 x i32>, <1 x i32>)
 declare {<2 x i32>, <2 x i1>} @llvm.smul.with.overflow.v2i32(<2 x i32>, <2 x i32>)
@@ -1432,7 +1434,7 @@ define <16 x i32> @smulo_v16i8(<16 x i8> %a0, <16 x i8> %a1, <16 x i8>* %p2) nou
 ; AVX2-NEXT:    vpsrlw $8, %ymm0, %ymm1
 ; AVX2-NEXT:    vextracti128 $1, %ymm1, %xmm2
 ; AVX2-NEXT:    vpackuswb %xmm2, %xmm1, %xmm1
-; AVX2-NEXT:    vpand {{.*}}(%rip), %ymm0, %ymm0
+; AVX2-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %ymm0, %ymm0
 ; AVX2-NEXT:    vextracti128 $1, %ymm0, %xmm2
 ; AVX2-NEXT:    vpackuswb %xmm2, %xmm0, %xmm2
 ; AVX2-NEXT:    vpxor %xmm0, %xmm0, %xmm0

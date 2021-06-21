@@ -181,6 +181,10 @@ MlirOperation mlirModuleGetOperation(MlirModule module) {
   return wrap(unwrap(module).getOperation());
 }
 
+MlirModule mlirModuleFromOperation(MlirOperation op) {
+  return wrap(dyn_cast<ModuleOp>(unwrap(op)));
+}
+
 //===----------------------------------------------------------------------===//
 // Operation state API.
 //===----------------------------------------------------------------------===//
@@ -307,6 +311,10 @@ MlirOperation mlirOperationCreate(MlirOperationState *state) {
 
   MlirOperation result = wrap(Operation::create(cppState));
   return result;
+}
+
+MlirOperation mlirOperationClone(MlirOperation op) {
+  return wrap(unwrap(op)->clone());
 }
 
 void mlirOperationDestroy(MlirOperation op) { unwrap(op)->erase(); }

@@ -92,8 +92,8 @@ The SPIR-V dialect adopts the following conventions for IR:
     (de)serialization.
 *   Ops with `mlir.snake_case` names are those that have no corresponding
     instructions (or concepts) in the binary format. They are introduced to
-    satisfy MLIR structural requirements. For example, `spv.mlir.endmodule` and
-    `spv.mlir.merge`. They map to no instructions during (de)serialization.
+    satisfy MLIR structural requirements. For example, `spv.mlir.merge`. They
+    map to no instructions during (de)serialization.
 
 (TODO: consider merging the last two cases and adopting `spv.mlir.` prefix for
 them.)
@@ -1388,20 +1388,19 @@ dialect.
 [MlirDialectConversion]: ../DialectConversion.md
 [StructType]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#Structure
 [SpirvTools]: https://github.com/KhronosGroup/SPIRV-Tools
-[Rationale]: ../Rationale/#block-arguments-vs-phi-nodes
+[Rationale]: ../Rationale/Rationale.md/#block-arguments-vs-phi-nodes
 [ODS]: ../OpDefinitions.md
 [GreedyPatternRewriter]: https://github.com/llvm/llvm-project/blob/main/mlir/lib/Transforms/Utils/GreedyPatternRewriteDriver.cpp
-[MlirDialectConversionTypeConversion]: ../DialectConversion.md#type-converter
-[MlirDialectConversionRewritePattern]: ../DialectConversion.md#conversion-patterns
-[MlirDialectConversionSignatureConversion]: ../DialectConversion.md#region-signature-conversion
+[MlirDialectConversionTypeConversion]: ../DialectConversion.md/#type-converter
+[MlirDialectConversionRewritePattern]: ../DialectConversion.md/#conversion-patterns
+[MlirDialectConversionSignatureConversion]: ../DialectConversion.md/#region-signature-conversion
 [MlirOpInterface]: ../Interfaces/#operation-interfaces
-[MlirIntegerType]: ../LangRef.md#integer-type
-[MlirFloatType]: ../LangRef.md#floating-point-types
-[MlirVectorType]: ../LangRef.md#vector-type
-[MlirMemrefType]: ../LangRef.md#memref-type
-[MlirIndexType]: ../LangRef.md#index-type
-[MlirGpuDialect]: ../Dialects/GPU.md
-[MlirStandardDialect]: ../Dialects/Standard.md
+[MlirIntegerType]: Builtin.md/#integertype
+[MlirVectorType]: Builtin.md/#vectortype
+[MlirMemrefType]: Builtin.md/#memreftype
+[MlirIndexType]: Builtin.md/#indextype
+[MlirGpuDialect]: GPU.md
+[MlirStandardDialect]: Standard.md
 [MlirSpirvHeaders]: https://github.com/llvm/llvm-project/tree/main/mlir/include/mlir/Dialect/SPIRV
 [MlirSpirvLibs]: https://github.com/llvm/llvm-project/tree/main/mlir/lib/Dialect/SPIRV
 [MlirSpirvTests]: https://github.com/llvm/llvm-project/tree/main/mlir/test/Dialect/SPIRV

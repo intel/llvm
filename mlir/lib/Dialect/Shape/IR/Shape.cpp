@@ -15,6 +15,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -27,8 +28,8 @@ namespace {
 #include "ShapeCanonicalization.inc"
 }
 
-RankedTensorType shape::getExtentTensorType(MLIRContext *ctx) {
-  return RankedTensorType::get({ShapedType::kDynamicSize}, IndexType::get(ctx));
+RankedTensorType shape::getExtentTensorType(MLIRContext *ctx, int64_t rank) {
+  return RankedTensorType::get({rank}, IndexType::get(ctx));
 }
 
 bool shape::isExtentTensorType(Type type) {
@@ -428,11 +429,36 @@ struct AssumingAllToCstrEqCanonicalization
     return success();
   }
 };
+
+template <typename OpTy>
+struct RemoveDuplicateOperandsPattern : public OpRewritePattern<OpTy> {
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    // Find unique operands.
+    SmallVector<Value, 2> unique;
+    for (Value v : op.getOperands()) {
+      if (!llvm::is_contained(unique, v))
+        unique.push_back(v);
+    }
+
+    // Reduce op to equivalent with unique operands.
+    if (unique.size() < op.getNumOperands()) {
+      rewriter.replaceOpWithNewOp<OpTy>(op, op->getResultTypes(), unique,
+                                        op->getAttrs());
+      return success();
+    }
+
+    return failure();
+  }
+};
 } // namespace
 
 void AssumingAllOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                 MLIRContext *context) {
-  patterns.add<AssumingAllOneOp, AssumingAllToCstrEqCanonicalization>(context);
+  patterns.add<AssumingAllOneOp, AssumingAllToCstrEqCanonicalization,
+               RemoveDuplicateOperandsPattern<AssumingAllOp>>(context);
 }
 
 OpFoldResult AssumingAllOp::fold(ArrayRef<Attribute> operands) {
@@ -507,30 +533,6 @@ static LogicalResult verify(BroadcastOp op) {
 }
 
 namespace {
-template <typename OpTy>
-struct RemoveDuplicateOperandsPattern : public OpRewritePattern<OpTy> {
-  using OpRewritePattern<OpTy>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(OpTy op,
-                                PatternRewriter &rewriter) const override {
-    // Find unique operands.
-    SmallVector<Value, 2> unique;
-    for (Value v : op.getOperands()) {
-      if (!llvm::is_contained(unique, v))
-        unique.push_back(v);
-    }
-
-    // Reduce op to equivalent with unique operands.
-    if (unique.size() < op.getNumOperands()) {
-      rewriter.replaceOpWithNewOp<OpTy>(op, op->getResultTypes(), unique,
-                                        op->getAttrs());
-      return success();
-    }
-
-    return failure();
-  }
-};
-
 template <typename OpTy>
 struct RemoveEmptyShapeOperandsPattern : public OpRewritePattern<OpTy> {
   using OpRewritePattern<OpTy>::OpRewritePattern;
@@ -660,11 +662,42 @@ struct CanonicalizeCastExtentTensorOperandsPattern
     return success();
   }
 };
+
+struct BroadcastConcretizeResultTypePattern
+    : public OpRewritePattern<BroadcastOp> {
+  using OpRewritePattern<BroadcastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BroadcastOp op,
+                                PatternRewriter &rewriter) const override {
+    // Only concretize dynamic extent tensor result types.
+    auto resultTy = op.getType().dyn_cast<RankedTensorType>();
+    if (!resultTy || !resultTy.isDynamicDim(0))
+      return failure();
+
+    // Infer resulting shape rank if possible.
+    int64_t maxRank = 0;
+    for (Value shape : op.shapes()) {
+      if (auto extentTensorTy = shape.getType().dyn_cast<RankedTensorType>()) {
+        // Cannot infer resulting shape rank if any operand is dynamically
+        // ranked.
+        if (extentTensorTy.isDynamicDim(0))
+          return failure();
+        maxRank = std::max(maxRank, extentTensorTy.getDimSize(0));
+      }
+    }
+
+    auto newOp = rewriter.create<BroadcastOp>(
+        op.getLoc(), getExtentTensorType(getContext(), maxRank), op.shapes());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, op.getType(), newOp);
+    return success();
+  }
+};
 } // namespace
 
 void BroadcastOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                               MLIRContext *context) {
-  patterns.add<BroadcastFoldConstantOperandsPattern,
+  patterns.add<BroadcastConcretizeResultTypePattern,
+               BroadcastFoldConstantOperandsPattern,
                BroadcastForwardSingleOperandPattern,
                CanonicalizeCastExtentTensorOperandsPattern<BroadcastOp>,
                RemoveDuplicateOperandsPattern<BroadcastOp>,
@@ -738,6 +771,37 @@ OpFoldResult ConstShapeOp::fold(ArrayRef<Attribute>) { return shapeAttr(); }
 void ConstShapeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                MLIRContext *context) {
   patterns.add<TensorCastConstShape>(context);
+}
+
+LogicalResult mlir::shape::ConstShapeOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  Builder b(context);
+  auto shape = attributes.getAs<DenseIntElementsAttr>("shape");
+  if (!shape)
+    return emitOptionalError(location, "missing shape attribute");
+  inferredReturnTypes.assign({RankedTensorType::get(
+      {static_cast<int64_t>(shape.size())}, b.getIndexType())});
+  return success();
+}
+
+bool mlir::shape::ConstShapeOp::isCompatibleReturnTypes(TypeRange l,
+                                                        TypeRange r) {
+  if (l.size() != 1 || r.size() != 1)
+    return false;
+
+  Type lhs = l.front();
+  Type rhs = r.front();
+
+  if (lhs == rhs)
+    return true;
+
+  if (lhs.isa<ShapeType>() || rhs.isa<ShapeType>())
+    // Shape type is compatible with all other valid return types.
+    return true;
+
+  return succeeded(verifyCompatibleShapes(lhs, rhs));
 }
 
 //===----------------------------------------------------------------------===//

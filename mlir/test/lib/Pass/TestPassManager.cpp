@@ -16,9 +16,11 @@ namespace {
 struct TestModulePass
     : public PassWrapper<TestModulePass, OperationPass<ModuleOp>> {
   void runOnOperation() final {}
+  StringRef getArgument() const final { return "test-module-pass"; }
 };
 struct TestFunctionPass : public PassWrapper<TestFunctionPass, FunctionPass> {
   void runOnFunction() final {}
+  StringRef getArgument() const final { return "test-function-pass"; }
 };
 class TestOptionsPass : public PassWrapper<TestOptionsPass, FunctionPass> {
 public:
@@ -41,6 +43,7 @@ public:
   }
 
   void runOnFunction() final {}
+  StringRef getArgument() const final { return "test-options-pass"; }
 
   ListOption<int> listOption{*this, "list", llvm::cl::MiscFlags::CommaSeparated,
                              llvm::cl::desc("Example list option")};
@@ -56,6 +59,13 @@ public:
 class TestCrashRecoveryPass
     : public PassWrapper<TestCrashRecoveryPass, OperationPass<>> {
   void runOnOperation() final { abort(); }
+  StringRef getArgument() const final { return "test-pass-crash"; }
+};
+
+/// A test pass that always fails to enable testing the failure recovery
+/// mechanisms of the pass manager.
+class TestFailurePass : public PassWrapper<TestFailurePass, OperationPass<>> {
+  void runOnOperation() final { signalPassFailure(); }
 };
 
 /// A test pass that contains a statistic.
@@ -103,6 +113,8 @@ void registerPassManagerTestPass() {
 
   PassRegistration<TestCrashRecoveryPass>(
       "test-pass-crash", "Test a pass in the pass manager that always crashes");
+  PassRegistration<TestFailurePass>(
+      "test-pass-failure", "Test a pass in the pass manager that always fails");
 
   PassRegistration<TestStatisticPass> unusedStatP("test-stats-pass",
                                                   "Test pass statistics");

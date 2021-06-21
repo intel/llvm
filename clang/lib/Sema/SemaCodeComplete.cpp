@@ -739,18 +739,17 @@ getRequiredQualification(ASTContext &Context, const DeclContext *CurContext,
 // Filter out names reserved for the implementation if they come from a
 // system header.
 static bool shouldIgnoreDueToReservedName(const NamedDecl *ND, Sema &SemaRef) {
-  const IdentifierInfo *Id = ND->getIdentifier();
-  if (!Id)
-    return false;
-
+  ReservedIdentifierStatus Status = ND->isReserved(SemaRef.getLangOpts());
   // Ignore reserved names for compiler provided decls.
-  if (Id->isReservedName() && ND->getLocation().isInvalid())
+  if ((Status != ReservedIdentifierStatus::NotReserved) &&
+      (Status != ReservedIdentifierStatus::StartsWithUnderscoreAtGlobalScope) &&
+      ND->getLocation().isInvalid())
     return true;
 
   // For system headers ignore only double-underscore names.
   // This allows for system headers providing private symbols with a single
   // underscore.
-  if (Id->isReservedName(/*doubleUnderscoreOnly=*/true) &&
+  if (Status == ReservedIdentifierStatus::StartsWithDoubleUnderscore &&
       SemaRef.SourceMgr.isInSystemHeader(
           SemaRef.SourceMgr.getSpellingLoc(ND->getLocation())))
     return true;
@@ -3915,6 +3914,9 @@ CXCursorKind clang::getCursorKindForDecl(const Decl *D) {
   case Decl::UnresolvedUsingValue:
   case Decl::UnresolvedUsingTypename:
     return CXCursor_UsingDeclaration;
+
+  case Decl::UsingEnum:
+    return CXCursor_EnumDecl;
 
   case Decl::ObjCPropertyImpl:
     switch (cast<ObjCPropertyImplDecl>(D)->getPropertyImplementation()) {
@@ -9197,6 +9199,18 @@ void Sema::CodeCompletePreprocessorDirective(bool InConditional) {
     Builder.AddTypedTextChunk("elif");
     Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
     Builder.AddPlaceholderChunk("condition");
+    Results.AddResult(Builder.TakeString());
+
+    // #elifdef <macro>
+    Builder.AddTypedTextChunk("elifdef");
+    Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
+    Builder.AddPlaceholderChunk("macro");
+    Results.AddResult(Builder.TakeString());
+
+    // #elifndef <macro>
+    Builder.AddTypedTextChunk("elifndef");
+    Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
+    Builder.AddPlaceholderChunk("macro");
     Results.AddResult(Builder.TakeString());
 
     // #else

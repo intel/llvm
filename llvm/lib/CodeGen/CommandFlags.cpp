@@ -69,7 +69,6 @@ CGOPT(bool, DontPlaceZerosInBSS)
 CGOPT(bool, EnableGuaranteedTailCallOpt)
 CGOPT(bool, DisableTailCalls)
 CGOPT(bool, StackSymbolOrdering)
-CGOPT(unsigned, OverrideStackAlignment)
 CGOPT(bool, StackRealign)
 CGOPT(std::string, TrapFuncName)
 CGOPT(bool, UseCtors)
@@ -79,9 +78,6 @@ CGOPT_EXP(bool, FunctionSections)
 CGOPT(bool, IgnoreXCOFFVisibility)
 CGOPT(bool, XCOFFTracebackTable)
 CGOPT(std::string, BBSections)
-CGOPT(std::string, StackProtectorGuard)
-CGOPT(int, StackProtectorGuardOffset)
-CGOPT(std::string, StackProtectorGuardReg)
 CGOPT(unsigned, TLSSize)
 CGOPT(bool, EmulatedTLS)
 CGOPT(bool, UniqueSectionNames)
@@ -97,6 +93,7 @@ CGOPT(bool, PseudoProbeForProfiling)
 CGOPT(bool, ValueTrackingVariableLocations)
 CGOPT(bool, ForceDwarfFrameSection)
 CGOPT(bool, XRayOmitFunctionIndex)
+CGOPT(bool, DebugStrictDwarf)
 
 codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
 #define CGBINDOPT(NAME)                                                        \
@@ -307,11 +304,6 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::init(true));
   CGBINDOPT(StackSymbolOrdering);
 
-  static cl::opt<unsigned> OverrideStackAlignment(
-      "stack-alignment", cl::desc("Override default stack alignment"),
-      cl::init(0));
-  CGBINDOPT(OverrideStackAlignment);
-
   static cl::opt<bool> StackRealign(
       "stackrealign",
       cl::desc("Force align the stack to the minimum alignment"),
@@ -364,21 +356,6 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::value_desc("all | <function list (file)> | labels | none"),
       cl::init("none"));
   CGBINDOPT(BBSections);
-
-  static cl::opt<std::string> StackProtectorGuard(
-      "stack-protector-guard", cl::desc("Stack protector guard mode"),
-      cl::init("none"));
-  CGBINDOPT(StackProtectorGuard);
-
-  static cl::opt<std::string> StackProtectorGuardReg(
-      "stack-protector-guard-reg", cl::desc("Stack protector guard register"),
-      cl::init("none"));
-  CGBINDOPT(StackProtectorGuardReg);
-
-  static cl::opt<int> StackProtectorGuardOffset(
-      "stack-protector-guard-offset", cl::desc("Stack protector guard offset"),
-      cl::init(INT_MAX));
-  CGBINDOPT(StackProtectorGuardOffset);
 
   static cl::opt<unsigned> TLSSize(
       "tls-size", cl::desc("Bit size of immediate TLS offsets"), cl::init(0));
@@ -471,6 +448,10 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::init(false));
   CGBINDOPT(XRayOmitFunctionIndex);
 
+  static cl::opt<bool> DebugStrictDwarf(
+      "strict-dwarf", cl::desc("use strict dwarf"), cl::init(false));
+  CGBINDOPT(DebugStrictDwarf);
+
 #undef CGBINDOPT
 
   mc::RegisterMCTargetOptionsFlags();
@@ -497,24 +478,6 @@ codegen::getBBSectionsMode(llvm::TargetOptions &Options) {
   }
 }
 
-llvm::StackProtectorGuards
-codegen::getStackProtectorGuardMode(llvm::TargetOptions &Options) {
-  if (getStackProtectorGuard() == "tls")
-    return StackProtectorGuards::TLS;
-  if (getStackProtectorGuard() == "global")
-    return StackProtectorGuards::Global;
-  if (getStackProtectorGuard() != "none") {
-    ErrorOr<std::unique_ptr<MemoryBuffer>> MBOrErr =
-        MemoryBuffer::getFile(getStackProtectorGuard());
-    if (!MBOrErr)
-      errs() << "error illegal stack protector guard mode: "
-             << MBOrErr.getError().message() << "\n";
-    else
-      Options.BBSectionsFuncListBuf = std::move(*MBOrErr);
-  }
-  return StackProtectorGuards::None;
-}
-
 // Common utility function tightly tied to the options listed here. Initializes
 // a TargetOptions object with CodeGen flags and returns it.
 TargetOptions
@@ -539,7 +502,6 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.EnableAIXExtendedAltivecABI = getEnableAIXExtendedAltivecABI();
   Options.NoZerosInBSS = getDontPlaceZerosInBSS();
   Options.GuaranteedTailCallOpt = getEnableGuaranteedTailCallOpt();
-  Options.StackAlignmentOverride = getOverrideStackAlignment();
   Options.StackSymbolOrdering = getStackSymbolOrdering();
   Options.UseInitArray = !getUseCtors();
   Options.RelaxELFRelocations = getRelaxELFRelocations();
@@ -551,9 +513,6 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.BBSections = getBBSectionsMode(Options);
   Options.UniqueSectionNames = getUniqueSectionNames();
   Options.UniqueBasicBlockSectionNames = getUniqueBasicBlockSectionNames();
-  Options.StackProtectorGuard = getStackProtectorGuardMode(Options);
-  Options.StackProtectorGuardOffset = getStackProtectorGuardOffset();
-  Options.StackProtectorGuardReg = getStackProtectorGuardReg();
   Options.TLSSize = getTLSSize();
   Options.EmulatedTLS = getEmulatedTLS();
   Options.ExplicitEmulatedTLS = EmulatedTLSView->getNumOccurrences() > 0;
@@ -567,6 +526,7 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.ValueTrackingVariableLocations = getValueTrackingVariableLocations();
   Options.ForceDwarfFrameSection = getForceDwarfFrameSection();
   Options.XRayOmitFunctionIndex = getXRayOmitFunctionIndex();
+  Options.DebugStrictDwarf = getDebugStrictDwarf();
 
   Options.MCOptions = mc::InitMCTargetOptionsFromFlags();
 

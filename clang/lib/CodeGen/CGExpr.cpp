@@ -201,7 +201,7 @@ llvm::Value *CodeGenFunction::EvaluateExprAsBool(const Expr *E) {
 /// EmitIgnoredExpr - Emit code to compute the specified expression,
 /// ignoring the result.
 void CodeGenFunction::EmitIgnoredExpr(const Expr *E) {
-  if (E->isRValue())
+  if (E->isPRValue())
     return (void) EmitAnyExpr(E, AggValueSlot::ignored(), true);
 
   // Just emit it as an l-value and drop the result.
@@ -3396,7 +3396,7 @@ void CodeGenFunction::EmitCfiCheckFail() {
       llvm::FunctionType::get(VoidTy, {VoidPtrTy, VoidPtrTy}, false),
       llvm::GlobalValue::WeakODRLinkage, "__cfi_check_fail", &CGM.getModule());
 
-  CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, F);
+  CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, F, /*IsThunk=*/false);
   CGM.SetLLVMFunctionAttributesForDefinition(nullptr, F);
   F->setVisibility(llvm::GlobalValue::HiddenVisibility);
 
@@ -3878,7 +3878,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     Addr = emitArraySubscriptGEP(*this, Addr, Idx, E->getType(),
                                  !getLangOpts().isSignedOverflowDefined(),
                                  SignedIndices, E->getExprLoc(), &ptrType,
-                                 E->getBase(), "ptridx", PtrDecl);
+                                 E->getBase(), "arrayidx", PtrDecl);
   }
 
   LValue LV = MakeAddrLValue(Addr, E->getType(), EltBaseInfo, EltTBAAInfo);
@@ -4213,8 +4213,10 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
 /// Given that we are currently emitting a lambda, emit an l-value for
 /// one of its members.
 LValue CodeGenFunction::EmitLValueForLambdaField(const FieldDecl *Field) {
-  assert(cast<CXXMethodDecl>(CurCodeDecl)->getParent()->isLambda());
-  assert(cast<CXXMethodDecl>(CurCodeDecl)->getParent() == Field->getParent());
+  if (CurCodeDecl) {
+    assert(cast<CXXMethodDecl>(CurCodeDecl)->getParent()->isLambda());
+    assert(cast<CXXMethodDecl>(CurCodeDecl)->getParent() == Field->getParent());
+  }
   QualType LambdaTagType =
     getContext().getTagDeclType(Field->getParent());
   LValue LambdaLV = MakeNaturalAlignAddrLValue(CXXABIThisValue, LambdaTagType);
@@ -5432,7 +5434,7 @@ static LValueOrRValue emitPseudoObjectExpr(CodeGenFunction &CGF,
       // directly into the slot.
       typedef CodeGenFunction::OpaqueValueMappingData OVMA;
       OVMA opaqueData;
-      if (ov == resultExpr && ov->isRValue() && !forLValue &&
+      if (ov == resultExpr && ov->isPRValue() && !forLValue &&
           CodeGenFunction::hasAggregateEvaluationKind(ov->getType())) {
         CGF.EmitAggExpr(ov->getSourceExpr(), slot);
         LValue LV = CGF.MakeAddrLValue(slot.getAddress(), ov->getType(),

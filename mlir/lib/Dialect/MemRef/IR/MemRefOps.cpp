@@ -18,6 +18,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 #include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
@@ -72,11 +73,12 @@ static void dispatchIndexOpFoldResults(ArrayRef<OpFoldResult> ofrs,
 /// This is a common class used for patterns of the form
 /// "someop(memrefcast) -> someop".  It folds the source of any memref.cast
 /// into the root operation directly.
-static LogicalResult foldMemRefCast(Operation *op) {
+static LogicalResult foldMemRefCast(Operation *op, Value inner = nullptr) {
   bool folded = false;
   for (OpOperand &operand : op->getOpOperands()) {
     auto cast = operand.get().getDefiningOp<CastOp>();
-    if (cast && !cast.getOperand().getType().isa<UnrankedMemRefType>()) {
+    if (cast && operand.get() != inner &&
+        !cast.getOperand().getType().isa<UnrankedMemRefType>()) {
       operand.set(cast.getOperand());
       folded = true;
     }
@@ -225,6 +227,65 @@ void AllocaOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                            MLIRContext *context) {
   results.add<SimplifyAllocConst<AllocaOp>, SimplifyDeadAlloc<AllocaOp>>(
       context);
+}
+
+//===----------------------------------------------------------------------===//
+// AllocaScopeOp
+//===----------------------------------------------------------------------===//
+
+static void print(OpAsmPrinter &p, AllocaScopeOp &op) {
+  bool printBlockTerminators = false;
+
+  p << AllocaScopeOp::getOperationName() << " ";
+  if (!op.results().empty()) {
+    p << " -> (" << op.getResultTypes() << ")";
+    printBlockTerminators = true;
+  }
+  p.printRegion(op.bodyRegion(),
+                /*printEntryBlockArgs=*/false,
+                /*printBlockTerminators=*/printBlockTerminators);
+  p.printOptionalAttrDict(op->getAttrs());
+}
+
+static ParseResult parseAllocaScopeOp(OpAsmParser &parser,
+                                      OperationState &result) {
+  // Create a region for the body.
+  result.regions.reserve(1);
+  Region *bodyRegion = result.addRegion();
+
+  // Parse optional results type list.
+  if (parser.parseOptionalArrowTypeList(result.types))
+    return failure();
+
+  // Parse the body region.
+  if (parser.parseRegion(*bodyRegion, /*arguments=*/{}, /*argTypes=*/{}))
+    return failure();
+  AllocaScopeOp::ensureTerminator(*bodyRegion, parser.getBuilder(),
+                                  result.location);
+
+  // Parse the optional attribute list.
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+
+  return success();
+}
+
+static LogicalResult verify(AllocaScopeOp op) {
+  if (failed(RegionBranchOpInterface::verifyTypes(op)))
+    return failure();
+
+  return success();
+}
+
+void AllocaScopeOp::getSuccessorRegions(
+    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  if (index.hasValue()) {
+    regions.push_back(RegionSuccessor(getResults()));
+    return;
+  }
+
+  regions.push_back(RegionSuccessor(&bodyRegion()));
 }
 
 //===----------------------------------------------------------------------===//
@@ -474,8 +535,6 @@ OpFoldResult CastOp::fold(ArrayRef<Attribute> operands) {
 // CloneOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(CloneOp op) { return success(); }
-
 void CloneOp::getEffects(
     SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
         &effects) {
@@ -500,32 +559,47 @@ struct SimplifyClones : public OpRewritePattern<CloneOp> {
 
     Value source = cloneOp.input();
 
-    // Removes the clone operation and the corresponding dealloc and alloc
-    // operation (if any).
-    auto tryRemoveClone = [&](Operation *sourceOp, Operation *dealloc,
-                              Operation *alloc) {
-      if (!sourceOp || !dealloc || !alloc ||
-          alloc->getBlock() != dealloc->getBlock())
-        return false;
-      rewriter.replaceOp(cloneOp, source);
-      rewriter.eraseOp(dealloc);
-      return true;
-    };
+    // This only finds dealloc operations for the immediate value. It should
+    // also consider aliases. That would also make the safety check below
+    // redundant.
+    Operation *cloneDeallocOp = findDealloc(cloneOp.output());
+    Operation *sourceDeallocOp = findDealloc(source);
 
-    // Removes unnecessary clones that are derived from the result of the clone
-    // op.
-    Operation *deallocOp = findDealloc(cloneOp.output());
-    Operation *sourceOp = source.getDefiningOp();
-    if (tryRemoveClone(sourceOp, deallocOp, sourceOp))
-      return success();
+    // If both are deallocated in the same block, their in-block lifetimes
+    // might not fully overlap, so we cannot decide which one to drop.
+    if (cloneDeallocOp && sourceDeallocOp &&
+        cloneDeallocOp->getBlock() == sourceDeallocOp->getBlock())
+      return failure();
 
-    // Removes unnecessary clones that are derived from the source of the clone
-    // op.
-    deallocOp = findDealloc(source);
-    if (tryRemoveClone(sourceOp, deallocOp, cloneOp))
-      return success();
+    Block *currentBlock = cloneOp->getBlock();
+    Operation *redundantDealloc = nullptr;
+    if (cloneDeallocOp && cloneDeallocOp->getBlock() == currentBlock) {
+      redundantDealloc = cloneDeallocOp;
+    } else if (sourceDeallocOp && sourceDeallocOp->getBlock() == currentBlock) {
+      redundantDealloc = sourceDeallocOp;
+    }
 
-    return failure();
+    if (!redundantDealloc)
+      return failure();
+
+    // Safety check that there are no other deallocations inbetween
+    // cloneOp and redundantDealloc, as otherwise we might deallocate an alias
+    // of source before the uses of the clone. With alias information, we could
+    // restrict this to only fail of the dealloc's operand is an alias
+    // of the source.
+    for (Operation *pos = cloneOp->getNextNode(); pos != redundantDealloc;
+         pos = pos->getNextNode()) {
+      auto effectInterface = dyn_cast<MemoryEffectOpInterface>(pos);
+      if (!effectInterface)
+        continue;
+      if (effectInterface.hasEffect<MemoryEffects::Free>())
+        return failure();
+    }
+
+    rewriter.replaceOpWithNewOp<memref::CastOp>(cloneOp, cloneOp.getType(),
+                                                source);
+    rewriter.eraseOp(redundantDealloc);
+    return success();
   }
 };
 
@@ -543,12 +617,6 @@ OpFoldResult CloneOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 // DeallocOp
 //===----------------------------------------------------------------------===//
-
-static LogicalResult verify(DeallocOp op) {
-  if (!op.memref().getType().isa<MemRefType>())
-    return op.emitOpError("operand must be a memref");
-  return success();
-}
 
 LogicalResult DeallocOp::fold(ArrayRef<Attribute> cstOperands,
                               SmallVectorImpl<OpFoldResult> &results) {
@@ -672,10 +740,11 @@ OpFoldResult DimOp::fold(ArrayRef<Attribute> operands) {
     return *(view.getDynamicSizes().begin() +
              memrefType.getDynamicDimIndex(unsignedIndex));
 
-  if (auto subview = dyn_cast_or_null<SubViewOp>(definingOp)) {
-    assert(subview.isDynamicSize(unsignedIndex) &&
+  if (auto sizeInterface =
+          dyn_cast_or_null<OffsetSizeAndStrideOpInterface>(definingOp)) {
+    assert(sizeInterface.isDynamicSize(unsignedIndex) &&
            "Expected dynamic subview size");
-    return subview.getDynamicSize(unsignedIndex);
+    return sizeInterface.getDynamicSize(unsignedIndex);
   }
 
   // dim(memrefcast) -> dim
@@ -742,8 +811,8 @@ static Value getResultDimFromShapeInterface(OpBuilder &builder, OpResult result,
   // check if the op implements the first interface method or the second, and
   // get the value to use appropriately.
   SmallVector<Value> reifiedResultShapes;
-  if (succeeded(
-          shapedTypeOp.reifyReturnTypeShapes(builder, reifiedResultShapes))) {
+  if (succeeded(shapedTypeOp.reifyReturnTypeShapes(
+          builder, result.getOwner()->getOperands(), reifiedResultShapes))) {
     if (reifiedResultShapes.size() <= resultNumber)
       return nullptr;
     Value resultShape = reifiedResultShapes[resultNumber];
@@ -950,10 +1019,6 @@ LogicalResult DmaStartOp::verify() {
       !llvm::all_of(getTagIndices().getTypes(),
                     [](Type t) { return t.isIndex(); }))
     return emitOpError("expected tag indices to be of index type");
-
-  // DMAs from different memory spaces supported.
-  if (getSrcMemorySpace() == getDstMemorySpace())
-    return emitOpError("DMA should be between different memory spaces");
 
   // Optional stride-related operands must be either both present or both
   // absent.
@@ -1420,7 +1485,7 @@ static LogicalResult verify(StoreOp op) {
 LogicalResult StoreOp::fold(ArrayRef<Attribute> cstOperands,
                             SmallVectorImpl<OpFoldResult> &results) {
   /// store(memrefcast) -> store
-  return foldMemRefCast(*this);
+  return foldMemRefCast(*this, getValueToStore());
 }
 
 //===----------------------------------------------------------------------===//

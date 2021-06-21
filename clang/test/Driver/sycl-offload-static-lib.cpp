@@ -54,12 +54,12 @@
 // FOFFLOAD_STATIC_LIB_SRC: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 3: input, "[[INPUTC]]", c++, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 5: compiler, {4}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-unknown-sycldevice)" {5}, c++-cpp-output
-// FOFFLOAD_STATIC_LIB_SRC: 7: append-footer, {6}, c++, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 8: preprocessor, {7}, c++-cpp-output, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 3: append-footer, {2}, c++, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 4: preprocessor, {3}, c++-cpp-output, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 5: input, "[[INPUTC]]", c++, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 6: preprocessor, {5}, c++-cpp-output, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 7: compiler, {6}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 8: offload, "host-sycl (x86_64-unknown-linux-gnu)" {4}, "device-sycl (spir64-unknown-unknown-sycldevice)" {7}, c++-cpp-output
 // FOFFLOAD_STATIC_LIB_SRC: 9: compiler, {8}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 10: backend, {9}, assembler, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 11: assembler, {10}, object, (host-sycl)
@@ -68,7 +68,7 @@
 // FOFFLOAD_STATIC_LIB_SRC: 14: clang-offload-deps, {13}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 15: input, "[[INPUTA]]", archive
 // FOFFLOAD_STATIC_LIB_SRC: 16: clang-offload-unbundler, {15}, archive
-// FOFFLOAD_STATIC_LIB_SRC: 17: linker, {5, 14, 16}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 17: linker, {7, 14, 16}, ir, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 19: file-table-tform, {18}, tempfilelist, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 20: llvm-spirv, {19}, tempfilelist, (device-sycl)

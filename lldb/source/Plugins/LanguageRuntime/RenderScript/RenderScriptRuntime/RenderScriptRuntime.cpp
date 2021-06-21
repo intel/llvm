@@ -61,7 +61,7 @@ namespace {
 template <typename type_t> class empirical_type {
 public:
   // Ctor. Contents is invalid when constructed.
-  empirical_type() : valid(false) {}
+  empirical_type() {}
 
   // Return true and copy contents to out if valid, else return false.
   bool get(type_t &out) const {
@@ -99,7 +99,7 @@ public:
   }
 
 protected:
-  bool valid;
+  bool valid = false;
   type_t data;
 };
 
@@ -2228,7 +2228,7 @@ bool RenderScriptRuntime::RefreshAllocation(AllocationDetails *alloc,
   return JITAllocationSize(alloc, frame_ptr);
 }
 
-// Function attempts to set the type_name member of the paramaterised Element
+// Function attempts to set the type_name member of the parameterised Element
 // object. This string should be the name of the struct type the Element
 // represents. We need this string for pretty printing the Element to users.
 void RenderScriptRuntime::FindStructTypeName(Element &elem,
@@ -4087,9 +4087,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions()
-        : Options(),
-          m_kernel_types(RSReduceBreakpointResolver::eKernelTypeAll) {}
+    CommandOptions() : Options() {}
 
     ~CommandOptions() override = default;
 
@@ -4175,7 +4173,7 @@ public:
       return true;
     }
 
-    int m_kernel_types;
+    int m_kernel_types = RSReduceBreakpointResolver::eKernelTypeAll;
     llvm::StringRef m_reduce_name;
     RSCoordinate m_coord;
     bool m_have_coord;
@@ -4653,7 +4651,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options(), m_id(0) {}
+    CommandOptions() : Options() {}
 
     ~CommandOptions() override = default;
 
@@ -4681,7 +4679,7 @@ public:
       return llvm::makeArrayRef(g_renderscript_runtime_alloc_list_options);
     }
 
-    uint32_t m_id;
+    uint32_t m_id = 0;
   };
 
   bool DoExecute(Args &command, CommandReturnObject &result) override {
