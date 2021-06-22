@@ -34,12 +34,20 @@ class auto_name {};
 /// types: if \c Name is undefined (is a \c auto_name) then \c Type becomes
 /// the \c Name.
 template <typename Name, typename Type> struct get_kernel_name_t {
+#ifndef __SYCL_UNNAMED_LAMBDA__
   using name = Name;
-};
-
-/// Specialization for the case when \c Name is undefined.
-template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
+#else
   using name = Type;
+  // When range rounding functionality is involved, it is possible that
+  // __builtin_sycl_unique_stable_name for a particular kernel will be evaluated
+  // before the actual kernel instantiation, so the first evaluation wasn't
+  // aware yet that it is a kernel and subsequent evaluations cause the name
+  // to be altered and change the result of constant expression.
+  // In order to avoid that, we use one more built-in to mark a type as a kernel
+  // name in advance so we get the correct result out of
+  // __builtin_sycl_uniqie_stable_name.
+  static constexpr bool b = __builtin_sycl_mark_kernel_name(Type);
+#endif // __SYCL_UNNAMED_LAMBDA__
 };
 
 } // namespace detail

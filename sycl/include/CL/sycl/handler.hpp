@@ -2296,19 +2296,27 @@ private:
                                    range<Dims> NumWorkItems) {
     if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
                       KernelType, TransformedArgType>()) {
-      return [=](TransformedArgType Arg, kernel_handler KH) {
+      auto Wrapper = [=](TransformedArgType Arg, kernel_handler KH) {
         if (Arg[0] >= NumWorkItems[0])
           return;
         Arg.set_allowed_range(NumWorkItems);
         KernelFunc(Arg, KH);
       };
+#ifdef __SYCL_UNNAMED_LAMBDA__
+      __builtin_sycl_mark_kernel_name(decltype(Wrapper));
+#endif
+      return Wrapper;
     } else {
-      return [=](TransformedArgType Arg) {
+      auto Wrapper = [=](TransformedArgType Arg) {
         if (Arg[0] >= NumWorkItems[0])
           return;
         Arg.set_allowed_range(NumWorkItems);
         KernelFunc(Arg);
       };
+#ifdef __SYCL_UNNAMED_LAMBDA__
+      __builtin_sycl_mark_kernel_name(decltype(Wrapper));
+#endif
+      return Wrapper;
     }
   }
 };
