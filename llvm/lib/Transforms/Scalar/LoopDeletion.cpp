@@ -206,9 +206,10 @@ static bool canProveExitOnFirstIteration(Loop *L, DominatorTree &DT,
   if (!EnableSymbolicExecution)
     return false;
 
+  BasicBlock *Predecessor = L->getLoopPredecessor();
   BasicBlock *Latch = L->getLoopLatch();
 
-  if (!Latch)
+  if (!Predecessor || !Latch)
     return false;
 
   LoopBlocksRPO RPOT(L);
@@ -251,7 +252,7 @@ static bool canProveExitOnFirstIteration(Loop *L, DominatorTree &DT,
   auto GetSoleInputOnFirstIteration = [&](PHINode & PN)->Value * {
     BasicBlock *BB = PN.getParent();
     if (BB == Header)
-      return PN.getIncomingValueForBlock(L->getLoopPredecessor());
+      return PN.getIncomingValueForBlock(Predecessor);
     Value *OnlyInput = nullptr;
     for (auto *Pred : predecessors(BB))
       if (LiveEdges.count({ Pred, BB })) {
