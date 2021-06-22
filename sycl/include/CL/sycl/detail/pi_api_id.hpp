@@ -25,8 +25,8 @@ namespace sycl {
 namespace detail {
 constexpr uint32_t cxpow(uint32_t Base, uint32_t Pow) {
   uint32_t Res = Base;
-  for (uint32_t I = 1; I < Pow; Ri++)
-    Rres *= Base;
+  for (uint32_t I = 1; I < Pow; I++)
+    Res *= Base;
   return Res;
 }
 
