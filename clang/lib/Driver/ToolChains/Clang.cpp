@@ -4676,20 +4676,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (HasFPGA)
       CmdArgs.push_back("-fsycl-disable-range-rounding");
 
-    const auto &DeviceTriple = getToolChain().getTriple();
-    const auto &DeviceSubArch = DeviceTriple.getSubArch();
     // Enable generation of USM address spaces for FPGA.
     // __ENABLE_USM_ADDR_SPACE__ will be used during compilation of SYCL headers
-    if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga)
+    if (getToolChain().getTriple().getSubArch() ==
+        llvm::Triple::SPIRSubArch_fpga)
       CmdArgs.push_back("-D__ENABLE_USM_ADDR_SPACE__");
-
-    // Use native FP atomics on supported targets by default.
-    // TODO: Currently, only OpenCL CPU and Intel GPU support the functions.
-    // Allow other targets through check once/if support for
-    // SPV_EXT_shader_atomic_float* extensions lands there.
-    if (DeviceTriple.isSPIR() &&
-        DeviceSubArch != llvm::Triple::SPIRSubArch_fpga)
-      CmdArgs.push_back("-DSYCL_USE_NATIVE_FP_ATOMICS");
 
     // Add any options that are needed specific to SYCL offload while
     // performing the host side compilation.
