@@ -61,7 +61,9 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     return event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
-  addSharedEvent(ResEvent);
+  // Track only if we won't be able to handle it with piQueueFinish.
+  if (!MSupportOOO)
+    addSharedEvent(ResEvent);
   return ResEvent;
 }
 
@@ -76,7 +78,9 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     return event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
-  addSharedEvent(ResEvent);
+  // Track only if we won't be able to handle it with piQueueFinish.
+  if (!MSupportOOO)
+    addSharedEvent(ResEvent);
   return ResEvent;
 }
 
@@ -92,7 +96,9 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     return event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
-  addSharedEvent(ResEvent);
+  // Track only if we won't be able to handle it with piQueueFinish.
+  if (!MSupportOOO)
+    addSharedEvent(ResEvent);
   return ResEvent;
 }
 
@@ -101,8 +107,10 @@ void queue_impl::addEvent(const event &Event) {
   Command *Cmd = (Command *)(Eimpl->getCommand());
   if (!Cmd) {
     // if there is no command on the event, we cannot track it with MEventsWeak
-    // as that will leave it with no owner. Track in MEventsShared
-    addSharedEvent(Event);
+    // as that will leave it with no owner. Track in MEventsShared only if we're
+    // unable to call piQueueFinish during wait.
+    if (is_host() || !MSupportOOO)
+      addSharedEvent(Event);
   } else {
     std::weak_ptr<event_impl> EventWeakPtr{Eimpl};
     std::lock_guard<std::mutex> Lock{MMutex};
@@ -234,21 +242,42 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
 #endif
 
-  std::vector<std::weak_ptr<event_impl>> Events;
-  std::vector<event> USMEvents;
+  std::vector<std::weak_ptr<event_impl>> WeakEvents;
+  std::vector<event> SharedEvents;
   {
-    std::lock_guard<std::mutex> Lock(MMutex);
-    Events.swap(MEventsWeak);
-    USMEvents.swap(MEventsShared);
+    std::lock_guard<mutex_class> Lock(MMutex);
+    WeakEvents.swap(MEventsWeak);
+    SharedEvents.swap(MEventsShared);
   }
-
-  for (std::weak_ptr<event_impl> &EventImplWeakPtr : Events)
-    if (std::shared_ptr<event_impl> EventImplPtr = EventImplWeakPtr.lock())
-      EventImplPtr->wait(EventImplPtr);
-
-  for (event &Event : USMEvents)
-    Event.wait();
-
+  // If the queue is either a host one or does not support OOO (and we use
+  // multiple in-order queues as a result of that), wait for each event
+  // directly. Otherwise, only wait for unenqueued or host task events, starting
+  // from the latest submitted task in order to minimize total amount of calls,
+  // then handle the rest with piQueueFinish.
+  for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
+       EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
+    if (std::shared_ptr<event_impl> EventImplSharedPtr =
+            EventImplWeakPtrIt->lock()) {
+      // A nullptr PI event indicates that piQueueFinish will not cover it,
+      // either because it's a host task event or an unenqueued one.
+      if (is_host() || !MSupportOOO ||
+          nullptr == EventImplSharedPtr->getHandleRef()) {
+        EventImplSharedPtr->wait(EventImplSharedPtr);
+      }
+    }
+  }
+  if (!is_host() && MSupportOOO) {
+    const detail::plugin &Plugin = getPlugin();
+    Plugin.call<detail::PiApiKind::piQueueFinish>(getHandleRef());
+    for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
+      if (std::shared_ptr<event_impl> EventImplSharedPtr =
+              EventImplWeakPtr.lock())
+        EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
+    assert(SharedEvents.empty());
+  } else {
+    for (event &Event : SharedEvents)
+      Event.wait();
+  }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif
