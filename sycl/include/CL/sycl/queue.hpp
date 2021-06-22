@@ -219,7 +219,8 @@ public:
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
 private:
-#ifndef SYCL_DISABLE_FALLBACK_ASSERT
+// FIXME remove __NVPTX__ condition once devicelib supports CUDA
+#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
 #define __SYCL_ASSERT_START 1
 
   /**
@@ -300,7 +301,7 @@ private:
     return CheckerEv;
   }
 #undef __SYCL_ASSERT_START
-#endif
+#endif // !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
 
   // Check if kernel with the name provided in KernelName and which is being
   // enqueued and can be waited on by Event uses assert
@@ -318,7 +319,7 @@ public:
 
     event Event;
 
-#ifndef SYCL_DISABLE_FALLBACK_ASSERT
+#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
     bool IsKernel = false;
     Event = submit_impl(CGF, IsKernel, CodeLoc);
 
@@ -338,7 +339,7 @@ public:
     }
 #else
     Event = submit_impl(CGF, CodeLoc);
-#endif
+#endif // !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
 
     return Event;
   }
@@ -360,7 +361,7 @@ public:
 
     event Event;
 
-#ifndef SYCL_DISABLE_FALLBACK_ASSERT
+#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
     bool IsKernel = false;
     Event = submit_impl(CGF, IsKernel, SecondaryQueue, CodeLoc);
 
@@ -374,7 +375,7 @@ public:
     }
 #else
     Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
-#endif
+#endif // !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
 
     return Event;
   }
