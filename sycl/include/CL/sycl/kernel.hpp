@@ -38,7 +38,7 @@ template <typename Name, typename Type> struct get_kernel_name_t {
 };
 
 // Helper for the auto_name specialization to ensure that the 'B' is evaluted.
-template<typename Type, bool B> struct get_kernel_name_t_helper {
+template <typename Type, bool B> struct get_kernel_name_t_helper {
   using type = Type;
 };
 
