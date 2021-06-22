@@ -3,6 +3,7 @@
 #include <CL/sycl/detail/common.hpp>
 
 #include <functional>
+#include <tuple>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -23,15 +24,23 @@ struct tuple_view_element<0, tuple_view<Head, Rest...>> {
 
 template <size_t I, typename T> struct tuple_view_offset;
 
+/*
 template <size_t I, typename Head, typename... Rest>
 struct tuple_view_offset<I, tuple_view<Head, Rest...>> {
   static constexpr size_t value =
-      sizeof(typename tuple_view_element<I - 1, tuple_view<Rest...>>::type) +
-      tuple_view_offset<I - 1, tuple_view<Rest...>>::value;
+      sizeof(typename tuple_view_element<0, tuple_view<Rest...>>::type) +
+      tuple_view_offset<I - 1, tuple_view<Head, Rest...>>::value;
+};
+*/
+
+template <size_t I, typename... Ts>
+struct tuple_view_offset<I, tuple_view<Ts...>> {
+  static constexpr size_t value =
+      sizeof(typename tuple_view_element<I - 1, tuple_view<Ts...>>::type) +
+      tuple_view_offset<I - 1, tuple_view<Ts...>>::value;
 };
 
-template <typename Head, typename... Rest>
-struct tuple_view_offset<0, tuple_view<Head, Rest...>> {
+template <typename... Ts> struct tuple_view_offset<0, tuple_view<Ts...>> {
   static constexpr size_t value = 0;
 };
 
@@ -64,8 +73,14 @@ template <typename F, typename Tuple> decltype(auto) apply(F &&f, Tuple &&t) {
 
 template <typename R, typename T> struct as_function;
 
-template <typename R, typename... Ts> struct as_function<R, tuple_view<Ts...>> {
+template <typename R, typename... Ts> struct as_function<R, std::tuple<Ts...>> {
   using type = std::function<R(Ts...)>;
+};
+
+template <typename T> struct as_tuple_view;
+
+template <typename... Ts> struct as_tuple_view<std::tuple<Ts...>> {
+  using type = tuple_view<Ts...>;
 };
 
 } // namespace xpti_helpers

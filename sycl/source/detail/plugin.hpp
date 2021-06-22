@@ -11,10 +11,12 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/pi_api_id.hpp>
+#include <CL/sycl/detail/pi_args_helper.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/plugin_printers.hpp>
 #include <memory>
 #include <mutex>
+#include <thread>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework
@@ -39,35 +41,56 @@ template <typename T, typename... Args> struct total_size<T, Args...> {
   static constexpr size_t value = sizeof(T) + total_size<Args...>::value;
 };
 
-template <typename... Args> struct array_fill_helper;
+template <PiApiKind Kind, size_t Idx, typename... Args>
+struct array_fill_helper;
 
-template <typename T> struct array_fill_helper<T> {
-  static void fill(unsigned char *Dst, size_t Offset, T &Arg) {
-    auto *Begin = reinterpret_cast<unsigned char *>(&Arg);
-    auto *End = Begin + sizeof(T);
+template <PiApiKind Kind, size_t Idx, typename T>
+struct array_fill_helper<Kind, Idx, T> {
+  static void fill(unsigned char *Dst, size_t Offset, T &&Arg) {
+    using ArgsTuple = typename PiApiArgTuple<Kind>::type;
+    // C-style cast is required here.
+    auto RealArg = (typename std::tuple_element<Idx, ArgsTuple>::type)(Arg);
+    auto *Begin = reinterpret_cast<const unsigned char *>(&RealArg);
+    auto *End = Begin + sizeof(decltype(RealArg));
     std::uninitialized_copy(Begin, End, Dst + Offset);
   }
 };
 
-template <typename T, typename... Args> struct array_fill_helper<T, Args...> {
-  static void fill(unsigned char *Dst, size_t Offset, T &Arg, Args &...Rest) {
-    auto *Begin = reinterpret_cast<unsigned char *>(&Arg);
-    auto *End = Begin + sizeof(T);
+template <PiApiKind Kind, size_t Idx, typename T, typename... Args>
+struct array_fill_helper<Kind, Idx, T, Args...> {
+  static void fill(unsigned char *Dst, size_t Offset, const T &&Arg,
+                   Args &&...Rest) {
+    using ArgsTuple = typename PiApiArgTuple<Kind>::type;
+    // C-style cast is required here.
+    auto RealArg = (typename std::tuple_element<Idx, ArgsTuple>::type)(Arg);
+    auto *Begin = reinterpret_cast<const unsigned char *>(&RealArg);
+    auto *End = Begin + sizeof(decltype(RealArg));
     std::uninitialized_copy(Begin, End, Dst + Offset);
-    array_fill_helper<Args...>::fill(Dst, Offset + sizeof(T), Rest...);
+    array_fill_helper<Kind, Idx + 1, Args...>::fill(
+        Dst, Offset + sizeof(decltype(RealArg)), std::forward<Args>(Rest)...);
   }
 };
 
-template <typename... ArgsT>
-uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, ArgsT &...Args) {
+template <typename... Ts>
+constexpr size_t totalSize(const std::tuple<Ts...> &) {
+  return (sizeof(Ts) + ...);
+}
+
+template <PiApiKind Kind, typename... ArgsT>
+uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, ArgsT &&...Args) {
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     uint8_t StreamID = xptiRegisterStream(SYCL_PIARGCALL_STREAM_NAME);
     CorrelationID = xptiGetUniqueId();
 
-    std::array<unsigned char, total_size<ArgsT...>::value> ArgsData;
-    array_fill_helper<ArgsT...>::fill(ArgsData.data(), 0, Args...);
+    using ArgsTuple = typename PiApiArgTuple<Kind>::type;
+
+    constexpr size_t TotalSize = totalSize(ArgsTuple{});
+
+    std::array<unsigned char, TotalSize> ArgsData;
+    array_fill_helper<Kind, 0, ArgsT...>::fill(ArgsData.data(), 0,
+                                               std::forward<ArgsT>(Args)...);
 
     xpti::function_with_args_t Payload{FuncID, ArgsData.data(), nullptr,
                                        nullptr};
@@ -146,7 +169,8 @@ public:
     std::string PIFnName = PiCallInfo.getFuncName();
     uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName.c_str());
     uint64_t CorrelationIDWithArgs =
-        emitFunctionWithArgsBeginTrace(PiApiID<PiApiOffset>::id, Args...);
+        emitFunctionWithArgsBeginTrace<PiApiOffset>(
+            PiApiID<PiApiOffset>::id, std::forward<ArgsT>(Args)...);
 #endif
     RT::PiResult R;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {

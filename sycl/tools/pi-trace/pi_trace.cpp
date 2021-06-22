@@ -8,6 +8,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 
 static uint8_t GStreamID = 0;
 std::mutex GIOMutex;
@@ -46,9 +47,6 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
   });
 #include <CL/sycl/detail/pi.def>
 #undef _PI_API
-    ArgHandler.set_piProgramBuild([](auto &&...) {});
-    ArgHandler.set_piEnqueueMemBufferRead([](auto &&...) {});
-    ArgHandler.set_piEventsWait([](auto &&...) {});
   }
 }
 
