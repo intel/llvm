@@ -45,8 +45,8 @@ template <typename Type, bool B> struct get_kernel_name_t_helper {
 /// Specialization for the case when \c Name is undefined.
 template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
   using name =
-      get_kernel_name_t_helper<Type,
-                               __builtin_sycl_mark_kernel_name(Type)>::type;
+      typename get_kernel_name_t_helper<Type, __builtin_sycl_mark_kernel_name(
+                                                  Type)>::type;
 };
 
 } // namespace detail
