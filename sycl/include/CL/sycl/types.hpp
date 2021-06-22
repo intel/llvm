@@ -2290,8 +2290,7 @@ __SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 /// devices.
 /// Specializing is_device_copyable such a way that
 /// is_device_copyable_v<T> == true on a T that does not satisfy all
-/// the requirements of a device copyable type may result into undefined
-/// behavior.
+/// the requirements of a device copyable type is undefined behavior.
 template <typename T, typename = void>
 struct is_device_copyable : std::false_type {};
 
@@ -2319,7 +2318,7 @@ namespace detail {
 template <typename T, typename = void>
 struct IsDeprecatedDeviceCopyable : std::false_type {};
 
-// TODO: using C++ attrubute [[deprecated]] or the macro __SYCL2020_DEPRECATED
+// TODO: using C++ attribute [[deprecated]] or the macro __SYCL2020_DEPRECATED
 // does not produce expected warning message for the type 'T'.
 template <typename T>
 struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
