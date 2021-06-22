@@ -88,7 +88,13 @@ joint_matrix<sub_group, int8_t, tM, tN> tA(sg);
 ```
 
 
-AMX hardware requires A and B to be in VNNI or 32 bits packed layout. If users did not specify these layouts, transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A and/or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
+AMX hardware requires both A and B to be in VNNI or 32 bits packed layout.
+If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed size for B is different. Let's take an example of bf16 type. The size of packed B is (K/2, N*2). For maximum performance, the allocation of B tile has to be done at the declaration of B matrix point using these VNNIed sizes. This motivate the choice of adding layout argument to the matrix type. 
+
+Same applies to matrix A. But in the case where the memory layout (where the matrices will be loaded from) is column major.
+Here, we multiply matrices A (K, M) and B (N, K) into a matrix C (N, M). The packed size for A is different. For bf16 type, the size of packed A is (K/2, M*2). 
+
+//If users did not specify these layouts, transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A and/or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
 	
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
@@ -107,7 +113,10 @@ enum class matrix_layout {
 ## Matrix Operations and their Execution Scope
 We define three new functions needed to perform the main and common operations on matrices namely, load, store, and the actual multiply and add operation. This set of functions can be easily extended if the tensor hardware implements new features.
 
-The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data are being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed_a`, `packed_b`). 
+The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data are being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed_a`, `packed_b`).
+
+Note that for getting maximum performance on AMX, prepacking data in the memory is necessary. If users did not specify the packed layouts (`packed_a` in column major case, `packed_b` in row major case), transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A and/or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
+	
 
 Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a sub-group. These functions will be called once by each work item in the group.
 
@@ -117,6 +126,7 @@ To be aligned with the SYCL 2020 group algorithms, an additional group argument 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout,
           access::address_space Space>
   void joint_matrix_load(Group sg, joint_matrix<Group, T, NumRows, NumCols> &res,
 		    multi_ptr<T, Space> src, size_t stride, matrix_layout layout = matrix_layout::row_major);
@@ -129,7 +139,8 @@ This function loads data from memory to the 2d tiles of AMX that is a 2d storage
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          access::address_space Space>
+          matrix_layout Layout,
+          access::address_space Space>	  
   void joint_matrix_store(Group sg, matrix<Group, T, NumRows, NumCols> &res,
 		     multi_ptr<T, Space> src, size_t stride, matrix_layout layout = matrix_layout::row_major);
 }
@@ -141,7 +152,9 @@ This function stores the data from the 2d tiles back to memory.
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
   template <typename Group, typename T1, typename T2, std::size_t M,
-          std::size_t K, std::size_t N>
+          std::size_t K, std::size_t N,
+	  matrix_layout LayoutA, matrix_layout LayoutB,
+          matrix_layout LayoutC>
   joint_matrix<Group, T2, M, N> joint_matrix_mad(Group sg, joint_matrix<Group, T1, M, K> A,
                joint_matrix<Group, T1, K, N> B, joint_matrix<Group, T2, M, N> C);
 }
@@ -255,6 +268,7 @@ We did not utilize this extension for this matrix API version because sub-group 
 - Besides row, col major and packed (VNNI) layout, what are the additional layouts that should absolutely be added?
 - Are there alternative names for the `packed_a` and `packed_b` layouts that would be clearer to distinguish between the VNNI Layout in matrix A and VNNI layout in matrix B of a matrix multiply and add operation on AMX?
 - Ronan Keryell: "It would be interesting to investigate whether providing also member functions would simplify the API. Provide both so it is possible to use the best one for each use case, while waiting for https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax to land into C++?"
+- What should the API description include: (1) only features that are implemented, (2) features that are actually part of the API: currently implemented and the ones that we expect implementing them in the future. Specifically, should the document include things like dynamic_ extent and Group? These are part of the API but are not currently implemented.
 
 ## TODO List
 - Handle sub group sizes that are bigger than one.

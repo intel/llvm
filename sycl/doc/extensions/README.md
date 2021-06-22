@@ -38,6 +38,11 @@ DPC++ extensions status:
 | [Level-Zero backend specification](LevelZeroBackend/LevelZeroBackend.md)                                           	      | Supported                                 | |
 | [ITT annotations support](ITTAnnotations/ITTAnnotations.rst) | Supported | |
 | [SYCL_EXT_ONEAPI_DEVICE_IF](DeviceIf/device_if.asciidoc) | Proposal | |
+| [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Proposal                                  | |
+| [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
+| [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
+| [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc) | Proposal | |
+| [Matrix](Matrix/dpcpp-joint-matrix.asciidoc)                                                                        | Partially supported(AMX AOT)               | Not supported: dynamic-extent, wg and wi scopes, layouts other than packed|
 
 Legend:
 
