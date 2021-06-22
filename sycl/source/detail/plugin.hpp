@@ -48,7 +48,7 @@ struct array_fill_helper<Kind, Idx, T> {
 template <PiApiKind Kind, size_t Idx, typename T, typename... Args>
 struct array_fill_helper<Kind, Idx, T, Args...> {
   static void fill(unsigned char *Dst, size_t Offset, const T &&Arg,
-                   Args &&...Rest) {
+                   Args &&... Rest) {
     using ArgsTuple = typename PiApiArgTuple<Kind>::type;
     // C-style cast is required here.
     auto RealArg = (typename std::tuple_element<Idx, ArgsTuple>::type)(Arg);
@@ -67,7 +67,7 @@ constexpr size_t totalSize(const std::tuple<Ts...> &) {
 
 /// Notifies XPTI subscribers about PI function calls and packs call arguments.
 template <PiApiKind Kind, typename... ArgsT>
-uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, ArgsT &&...Args) {
+uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, ArgsT &&... Args) {
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
