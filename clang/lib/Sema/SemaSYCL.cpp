@@ -5080,8 +5080,8 @@ bool Util::isSyclStreamType(const QualType Ty) {
   if (!RecTy)
     return false; // only classes/structs supported
   if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
-       return (A->getClassType()->getName() == "stream" &&
-               getMethodByName(RecTy, "__finalize"));
+    return (A->getClassType()->getName() == "stream" &&
+            getMethodByName(RecTy, "__finalize"));
   return false;
 }
 
