@@ -65,49 +65,17 @@ constexpr size_t totalSize(const std::tuple<Ts...> &) {
   return (sizeof(Ts) + ...);
 }
 
-/// Notifies XPTI subscribers about PI function calls and packs call arguments.
 template <PiApiKind Kind, typename... ArgsT>
-uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, ArgsT &&... Args) {
-  uint64_t CorrelationID = 0;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
-    uint8_t StreamID = xptiRegisterStream(SYCL_PIARGCALL_STREAM_NAME);
-    CorrelationID = xptiGetUniqueId();
+auto packCallArguments(ArgsT &&...Args) {
+  using ArgsTuple = typename PiApiArgTuple<Kind>::type;
 
-    using ArgsTuple = typename PiApiArgTuple<Kind>::type;
+  constexpr size_t TotalSize = totalSize(ArgsTuple{});
 
-    constexpr size_t TotalSize = totalSize(ArgsTuple{});
+  std::array<unsigned char, TotalSize> ArgsData;
+  array_fill_helper<Kind, 0, ArgsT...>::fill(ArgsData.data(), 0,
+                                             std::forward<ArgsT>(Args)...);
 
-    std::array<unsigned char, TotalSize> ArgsData;
-    array_fill_helper<Kind, 0, ArgsT...>::fill(ArgsData.data(), 0,
-                                               std::forward<ArgsT>(Args)...);
-
-    xpti::function_with_args_t Payload{FuncID, ArgsData.data(), nullptr,
-                                       nullptr};
-
-    xptiNotifySubscribers(
-        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
-        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
-  }
-#endif
-  return CorrelationID;
-}
-
-/// Notifies XPTI subscribers about PI function call result.
-template <typename... ArgsT>
-void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
-                                  pi_result Result) {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
-    uint8_t StreamID = xptiRegisterStream(SYCL_PIARGCALL_STREAM_NAME);
-
-    xpti::function_with_args_t Payload{FuncID, nullptr, &Result, nullptr};
-
-    xptiNotifySubscribers(
-        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
-        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
-  }
-#endif
+  return ArgsData;
 }
 
 /// The plugin class provides a unified interface to the underlying low-level
@@ -159,9 +127,10 @@ public:
     // the per_instance_user_data field.
     std::string PIFnName = PiCallInfo.getFuncName();
     uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName.c_str());
-    uint64_t CorrelationIDWithArgs =
-        emitFunctionWithArgsBeginTrace<PiApiOffset>(
-            PiApiID<PiApiOffset>::id, std::forward<ArgsT>(Args)...);
+    auto ArgsData =
+        packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...);
+    uint64_t CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
+        PiApiID<PiApiOffset>::id, ArgsData.data());
 #endif
     RT::PiResult R;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
@@ -180,8 +149,8 @@ public:
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Close the function begin with a call to function end
     pi::emitFunctionEndTrace(CorrelationID, PIFnName.c_str());
-    emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
-                                 PiApiID<PiApiOffset>::id, R);
+    pi::emitFunctionWithArgsEndTrace(
+        CorrelationIDWithArgs, PiApiID<PiApiOffset>::id, ArgsData.data(), R);
 #endif
     return R;
   }

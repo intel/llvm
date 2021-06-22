@@ -51,11 +51,11 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
         tpCallback);
 
 #define _PI_API(api)                                                           \
-  ArgHandler.set##_##api([](auto &&... Args) {                                 \
-    std::cout << "--->" << #api << "("                                         \
+  ArgHandler.set##_##api([](auto &&...Args) {                                  \
+    std::cout << "---> " << #api << "("                                        \
               << "\n";                                                         \
     sycl::detail::pi::printArgs(Args...);                                      \
-    std::cout << ")\n";                                                        \
+    std::cout << ") ---> ";                                                    \
   });
 #include <CL/sycl/detail/pi.def>
 #undef _PI_API
@@ -71,7 +71,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *Event,
                                   uint64_t Instance, const void *UserData) {
   auto Type = static_cast<xpti::trace_point_type_t>(TraceType);
-  if (Type == xpti::trace_point_type_t::function_with_args_begin) {
+  if (Type == xpti::trace_point_type_t::function_with_args_end) {
     // Lock while we print information
     std::lock_guard<std::mutex> Lock(GIOMutex);
 
@@ -79,5 +79,6 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
         static_cast<const xpti::function_with_args_t *>(UserData);
 
     ArgHandler.handle(Data->function_id, Data->args_data);
+    std::cout << *static_cast<pi_result *>(Data->ret_data) << "\n";
   }
 }

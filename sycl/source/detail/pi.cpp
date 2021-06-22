@@ -137,6 +137,39 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 #endif // XPTI_ENABLE_INSTRUMENTATION
 }
 
+uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID,
+                                        unsigned char *ArgsData) {
+  uint64_t CorrelationID = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    uint8_t StreamID = xptiRegisterStream(SYCL_PIARGCALL_STREAM_NAME);
+    CorrelationID = xptiGetUniqueId();
+
+    xpti::function_with_args_t Payload{FuncID, ArgsData, nullptr, nullptr};
+
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
+        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
+  }
+#endif
+  return CorrelationID;
+}
+
+void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
+                                  unsigned char *ArgsData, pi_result Result) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    uint8_t StreamID = xptiRegisterStream(SYCL_PIARGCALL_STREAM_NAME);
+
+    xpti::function_with_args_t Payload{FuncID, ArgsData, &Result, nullptr};
+
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
+        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
+  }
+#endif
+}
+
 void contextSetExtendedDeleter(const cl::sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
