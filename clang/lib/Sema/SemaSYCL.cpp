@@ -211,7 +211,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
   // ensure that the AST node will have a dependent type that gets resolved
   // later to the real type.
   QualType FieldTy = SourceTy;
-  ExprValueKind ValueKind = VK_RValue;
+  ExprValueKind ValueKind = VK_PRValue;
   if (!SourceTy->isDependentType()) {
     if (RequireCompleteType(Loc, SourceTy,
                             diag::err_sycl_type_trait_requires_complete_type,
@@ -243,7 +243,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
         if (Index >= NumFields) {
           Diag(Idx->getExprLoc(),
                diag::err_sycl_builtin_type_trait_index_out_of_range)
-              << IdxVal->toString(10) << SourceTy << /*fields*/ 0;
+              << toString(*IdxVal, 10) << SourceTy << /*fields*/ 0;
           return ExprError();
         }
         const FieldDecl *FD = *std::next(RD->field_begin(), Index);
@@ -345,7 +345,7 @@ ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
         if (Index >= RD->getNumBases()) {
           Diag(Idx->getExprLoc(),
                diag::err_sycl_builtin_type_trait_index_out_of_range)
-              << IdxVal->toString(10) << SourceTy << /*bases*/ 1;
+              << toString(*IdxVal, 10) << SourceTy << /*bases*/ 1;
           return ExprError();
         }
 
@@ -567,20 +567,6 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
                SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
                SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
   });
-
-  // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
-  // functions and function objects called directly from a kernel.
-  // For all other cases, emit a warning and ignore.
-  if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
-    if (DirectlyCalled) {
-      Attrs.push_back(A);
-    } else {
-      S.Diag(A->getLocation(),
-             diag::warn_attribute_on_direct_kernel_callee_only)
-          << A;
-      FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
-    }
-  }
 
   // Attributes that should not be propagated from device functions to a kernel.
   if (DirectlyCalled) {
@@ -2726,13 +2712,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     DRE = ImplicitCastExpr::Create(SemaRef.Context, ParamType,
                                    CK_LValueToRValue, DRE, /*BasePath=*/nullptr,
-                                   VK_RValue, FPOptionsOverride());
+                                   VK_PRValue, FPOptionsOverride());
 
     if (PointerTy->getPointeeType().getAddressSpace() !=
         ParamType->getPointeeType().getAddressSpace())
       DRE = ImplicitCastExpr::Create(SemaRef.Context, PointerTy,
                                      CK_AddressSpaceConversion, DRE, nullptr,
-                                     VK_RValue, FPOptionsOverride());
+                                     VK_PRValue, FPOptionsOverride());
 
     return DRE;
   }
@@ -4108,7 +4094,6 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
   case attr::Kind::SYCLIntelMaxGlobalWorkDim:
   case attr::Kind::SYCLIntelNoGlobalWorkOffset:
-  case attr::Kind::SYCLIntelUseStallEnableClusters:
   case attr::Kind::SYCLIntelLoopFuse:
   case attr::Kind::SYCLIntelFPGAMaxConcurrency:
   case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
@@ -4820,9 +4805,18 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(bool _UnnamedLambdaSupport,
     : UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
 
 void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
+  // Variable template declaration can result in an error case of 'nullptr'
+  // here.
+  if (!VD)
+    return;
   // Skip the dependent version of these variables, we only care about them
   // after instantiation.
   if (VD->getDeclContext()->isDependentContext())
+    return;
+
+  // Skip partial specializations of a variable template, treat other variable
+  // template instantiations as a VarDecl.
+  if (isa<VarTemplatePartialSpecializationDecl>(VD))
     return;
   // Step 1: ensure that this is of the correct type-spec-constant template
   // specialization).
@@ -4974,10 +4968,14 @@ static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
 // Returns a string containing the FQN of the 'top most' shim, including its
 // function call parameters.
 static std::string EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
-                                   const VarDecl *VD) {
+                                   PrintingPolicy &Policy, const VarDecl *VD) {
   if (!VD->isInAnonymousNamespace())
     return "";
-  std::string RelativeName = VD->getNameAsString();
+  std::string RelativeName;
+  llvm::raw_string_ostream stream(RelativeName);
+  VD->getNameForDiagnostic(stream, Policy, false);
+  stream.flush();
+
   EmitSpecIdShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
   return RelativeName;
 }
@@ -5006,7 +5004,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       continue;
 
     VisitedSpecConstants.insert(VD);
-    std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
+    std::string TopShim = EmitSpecIdShims(OS, ShimCounter, Policy, VD);
     OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
     OS << "namespace sycl {\n";
     OS << "namespace detail {\n";
@@ -5017,7 +5015,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       OS << TopShim;
     } else {
       OS << "::";
-      VD->printQualifiedName(OS, Policy);
+      VD->getNameForDiagnostic(OS, Policy, true);
     }
 
     OS << ">() {\n";

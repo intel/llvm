@@ -714,7 +714,7 @@ func @init_tensor_dim_of_linalg_result(%arg_0 : tensor<?xf32>,
     outs(%arg_0, %arg_1 : tensor<?xf32>, tensor<?xf32>) {
   ^bb0(%in: f32, %out_0: f32, %out_1: f32):
     linalg.yield %in, %in : f32, f32
-  } -> tensor<?xf32>, tensor<?xf32>
+  } -> (tensor<?xf32>, tensor<?xf32>)
 
   %c0 = constant 0 : index
   %num_elem_0 = memref.dim %0, %c0 : tensor<?xf32>
@@ -778,7 +778,7 @@ func @remove_no_op(%arg0 : tensor<?x?x?xf32>, %arg1 : tensor<?x?x?xf32>)
     outs(%3, %3 : tensor<?x?x?xf32>, tensor<?x?x?xf32>) {
   ^bb0(%arg2 : f32, %arg3 : f32, %arg4 : f32, %arg5 : f32):
     linalg.yield %arg3, %arg2 : f32, f32
-  } -> tensor<?x?x?xf32>, tensor<?x?x?xf32>
+  } -> (tensor<?x?x?xf32>, tensor<?x?x?xf32>)
   return %4, %5 : tensor<?x?x?xf32>, tensor<?x?x?xf32>
 }
 // CHECK-LABEL: func @remove_no_op
@@ -832,7 +832,7 @@ func @keep_not_noop(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>)
     outs(%2, %2 : tensor<?x?xf32>, tensor<?x?xf32>) {
     ^bb0(%arg3: f32, %arg4 : f32, %arg5 : f32, %arg6 : f32):
       linalg.yield %arg2, %arg4 : f32, f32
-    } -> tensor<?x?xf32>, tensor<?x?xf32>
+    } -> (tensor<?x?xf32>, tensor<?x?xf32>)
   return %3#0, %3#1 : tensor<?x?xf32>, tensor<?x?xf32>
 }
 // CHECK-LABEL: func @keep_not_noop
@@ -1132,3 +1132,37 @@ func @indexed_generic(%arg0: memref<?x?xindex>, %arg1: memref<?x?xindex>) {
 // CHECK-NEXT:     %[[SUM1:.+]] = addi %[[SUM0]], %[[ARG2]] : index
 // CHECK-NEXT:     %[[SUM2:.+]] = addi %[[SUM1]], %[[ARG3]] : index
 // CHECK-NEXT:     linalg.yield %[[SUM2]] : index
+
+// -----
+
+func @tensor_pad_cast_fold(%arg0: tensor<4x4xf32>) -> tensor<4x4xf32> {
+  %c0 = constant 0 : index
+  %cst = constant 0.0 : f32
+  %0 = tensor.cast %arg0 : tensor<4x4xf32> to tensor<?x?xf32>
+  %1 = linalg.pad_tensor %0 low[%c0, %c0] high[%c0, %c0]  {
+    ^bb0(%arg1: index, %arg2: index):  // no predecessors
+      linalg.yield %cst : f32
+  } : tensor<?x?xf32> to tensor<4x4xf32>
+  return %1 : tensor<4x4xf32>
+}
+// CHECK-LABEL: @tensor_pad_cast
+// CHECK-SAME: %[[ARG0:.+]]: tensor<4x4xf32>
+// CHECK: return %[[ARG0]]
+
+// -----
+
+// CHECK-LABEL: func @pad_static_zero_cast(
+//  CHECK-SAME:                  %[[ARG0:.*]]: tensor<?x?x?xf32>
+//   CHECK-NOT:   linalg.pad_tensor
+//       CHECK:   %[[RESULT:.*]] = tensor.cast %[[ARG0]] : tensor<?x?x?xf32> to tensor<2x3x4xf32>
+//       CHECK:   return %[[RESULT]]
+func @pad_static_zero_cast(%arg0: tensor<?x?x?xf32>, %pad_value: f32) -> tensor<2x3x4xf32> {
+  %c0 = constant 0 : index
+  %0 = linalg.pad_tensor %arg0 low[0, %c0, 0] high[0, 0, %c0] {
+    ^bb0(%arg1: index, %arg2: index, %arg3: index):
+      linalg.yield %pad_value : f32
+    } : tensor<?x?x?xf32> to tensor<2x3x4xf32>
+
+  return %0 : tensor<2x3x4xf32>
+}
+

@@ -39,7 +39,7 @@ namespace lld {
 namespace macho {
 
 struct PlatformInfo;
-class InputSection;
+class ConcatInputSection;
 class Symbol;
 struct Reloc;
 enum class RefState : uint8_t;
@@ -96,14 +96,15 @@ private:
 };
 
 // .o file
-class ObjFile : public InputFile {
+class ObjFile final : public InputFile {
 public:
   ObjFile(MemoryBufferRef mb, uint32_t modTime, StringRef archiveName);
   static bool classof(const InputFile *f) { return f->kind() == ObjKind; }
 
   llvm::DWARFUnit *compileUnit = nullptr;
   const uint32_t modTime;
-  std::vector<InputSection *> debugSections;
+  std::vector<ConcatInputSection *> debugSections;
+  ArrayRef<llvm::MachO::data_in_code_entry> dataInCodeEntries;
 
 private:
   template <class LP> void parse();
@@ -118,25 +119,19 @@ private:
   void parseRelocations(ArrayRef<Section> sectionHeaders, const Section &,
                         SubsectionMap &);
   void parseDebugInfo();
+  void parseDataInCode();
 };
 
 // command-line -sectcreate file
-class OpaqueFile : public InputFile {
+class OpaqueFile final : public InputFile {
 public:
   OpaqueFile(MemoryBufferRef mb, StringRef segName, StringRef sectName);
   static bool classof(const InputFile *f) { return f->kind() == OpaqueKind; }
 };
 
-// .dylib file
-class DylibFile : public InputFile {
+// .dylib or .tbd file
+class DylibFile final : public InputFile {
 public:
-  explicit DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
-                     bool isBundleLoader = false);
-
-  explicit DylibFile(const llvm::MachO::InterfaceFile &interface,
-                     DylibFile *umbrella = nullptr,
-                     bool isBundleLoader = false);
-
   // Mach-O dylibs can re-export other dylibs as sub-libraries, meaning that the
   // symbols in those sub-libraries will be available under the umbrella
   // library's namespace. Those sub-libraries can also have their own
@@ -144,6 +139,12 @@ public:
   // the root dylib to ensure symbols in the child library are correctly bound
   // to the root. On the other hand, if a dylib is being directly loaded
   // (through an -lfoo flag), then `umbrella` should be a nullptr.
+  explicit DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
+                     bool isBundleLoader = false);
+  explicit DylibFile(const llvm::MachO::InterfaceFile &interface,
+                     DylibFile *umbrella = nullptr,
+                     bool isBundleLoader = false);
+
   void parseLoadCommands(MemoryBufferRef mb);
   void parseReexports(const llvm::MachO::InterfaceFile &interface);
 
@@ -152,6 +153,7 @@ public:
   StringRef installName;
   DylibFile *exportingFile = nullptr;
   DylibFile *umbrella;
+  SmallVector<StringRef, 2> rpaths;
   uint32_t compatibilityVersion = 0;
   uint32_t currentVersion = 0;
   int64_t ordinal = 0; // Ordinal numbering starts from 1, so 0 is a sentinel
@@ -181,7 +183,7 @@ private:
 };
 
 // .a file
-class ArchiveFile : public InputFile {
+class ArchiveFile final : public InputFile {
 public:
   explicit ArchiveFile(std::unique_ptr<llvm::object::Archive> &&file);
   static bool classof(const InputFile *f) { return f->kind() == ArchiveKind; }
@@ -194,7 +196,7 @@ private:
   llvm::DenseSet<uint64_t> seen;
 };
 
-class BitcodeFile : public InputFile {
+class BitcodeFile final : public InputFile {
 public:
   explicit BitcodeFile(MemoryBufferRef mb);
   static bool classof(const InputFile *f) { return f->kind() == BitcodeKind; }
