@@ -24,15 +24,6 @@ struct tuple_view_element<0, tuple_view<Head, Rest...>> {
 
 template <size_t I, typename T> struct tuple_view_offset;
 
-/*
-template <size_t I, typename Head, typename... Rest>
-struct tuple_view_offset<I, tuple_view<Head, Rest...>> {
-  static constexpr size_t value =
-      sizeof(typename tuple_view_element<0, tuple_view<Rest...>>::type) +
-      tuple_view_offset<I - 1, tuple_view<Head, Rest...>>::value;
-};
-*/
-
 template <size_t I, typename... Ts>
 struct tuple_view_offset<I, tuple_view<Ts...>> {
   static constexpr size_t value =

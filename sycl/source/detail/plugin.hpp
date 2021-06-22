@@ -31,16 +31,6 @@ extern xpti::trace_event_data_t *GPICallEvent;
 extern xpti::trace_event_data_t *GPIArgCallEvent;
 #endif
 
-template <typename... Args> struct total_size;
-
-template <typename T> struct total_size<T> {
-  static constexpr size_t value = sizeof(T);
-};
-
-template <typename T, typename... Args> struct total_size<T, Args...> {
-  static constexpr size_t value = sizeof(T) + total_size<Args...>::value;
-};
-
 template <PiApiKind Kind, size_t Idx, typename... Args>
 struct array_fill_helper;
 
@@ -76,6 +66,7 @@ constexpr size_t totalSize(const std::tuple<Ts...> &) {
   return (sizeof(Ts) + ...);
 }
 
+/// Notifies XPTI subscribers about PI function calls and packs call arguments.
 template <PiApiKind Kind, typename... ArgsT>
 uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, ArgsT &&...Args) {
   uint64_t CorrelationID = 0;
@@ -103,6 +94,7 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, ArgsT &&...Args) {
   return CorrelationID;
 }
 
+/// Notifies XPTI subscribers about PI function call result.
 template <typename... ArgsT>
 void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
                                   pi_result Result) {
