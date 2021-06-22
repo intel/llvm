@@ -336,7 +336,7 @@ void collectCompositeElementsDefaultValuesRecursive(
         CharPtr = reinterpret_cast<char *>(&v);
       }
     }
-    assert(CharPtr != nullptr && "Unexpected constant type");
+    assert(CharPtr && "Unexpected constant type");
     std::copy_n(CharPtr, NumBytes, std::back_inserter(DefaultValues));
     Offset += NumBytes;
   }
