@@ -265,73 +265,68 @@ define void @foo() !intel_allowed_aspects !1 !intel_used_aspects !2 {}
 The front-end of the device compiler is responsible for parsing the
 `[[sycl::requires()]]` and `[[sycl_detail::uses_aspects()]]` attributes and
 transferring the information to the LLVM IR `!intel_allowed_aspects` and
-`!intel_used_aspects` metadata.  Processing the `[[sycl::requires()]]`
-attribute is straightforward.  When a device function is decorated with
-this attribute, the front-end emits an `!intel_allowed_aspects` metadata
-on the function definition with the numerical values of the aspects in
-the attribute.
+`!intel_used_aspects` metadata according to the following rules:
+
+* If a function is decorated with the `[[sycl::requires()]]` attribute, the
+  front-end emits an `!intel_allowed_aspects` metadata on the function's LLVM
+  IR definition with the numerical values of the aspects listed in the
+  attribute.
+
+* If a function is decorated with the `[[sycl_detail::uses_aspects()]]`
+  attribute, the front-end emits an `!intel_uses_aspects` metadata on the
+  function's LLVM IR definition with the numerical values of the aspects
+  listed in the attribute.
+
+In both of these cases, if the attribute decorates a base class member function
+and a derived class overrides the member function, the overriding member
+function does not automatically inherit the attribute.  Therefore, the
+front-end need not consider any overridden base class functions when generating
+these metadata.
 
 The front-end also emits an `!intel_uses_aspects` metadata for a function *F*
-listing all the aspects that the function "uses".  A function "uses" an aspect
-in the following cases:
+(or augments the existing `!intel_uses_aspects` metadata for function *F*) if
+the function's body "uses" a type *T* that is decorated with the
+`[[sycl_detail::uses_aspects()]]` attribute.  When such a type is "used", the
+function *F* uses all the aspects in the attribute that decorates the type.  A
+function "uses" a type *T* if it contains a potentially evaluated expression
+that is not discarded through `constexpr if` and if that expression does any of
+the following:
 
-* The function *F* contains a potentially evaluated expression that makes a
-  direct call (i.e. not through a function pointer) to some other function *C*
-  that is decorated with the `[[sycl_detail::uses_aspects()]]` attribute, and
-  that expression is not in a statement that is discarded through
-  `constexpr if`.  In this case, the function *F* uses all of the aspects named
-  in that attribute.
+* Creates an object of type *U* (including a temporary object).
+* Contains a cast to type *U*.
+* References a literal of type *T*.
 
-* The function *F* contains a potentially evaluated expression that does any of
-  the following with a type *T* that is decorated with the
-  `[[sycl_detail::uses_aspects()]]` attribute, and that expression is not in a
-  statement that is discarded through `constexpr if`.  In this case, the
-  function *F* uses all of the aspects named in that attribute:
+Where the type *U* is any of the following:
 
-  - Defines an object (including a temporary object) of type *U*.
-  - Calls a "new expression" of type *U*.
-  - Throws an expression of type *U*.
-  - Contains a cast to type *U*.
-  - References a literal of type *T*.
+* The type *T*.
+* A cv-qualified version of type *T*.
+* An array of, pointer to, or reference to type *T*.
+* A type that derives from type *T*.
+* A class type that contains a non-static member object of type *T*.
+* Any type that applies these rules recursively to type *T* (e.g. array of
+  pointers to type *T*, etc.)
 
-  Where the type *U* is any of the following:
+When applying these rules, the front-end treats any use of the `double` type as
+though it was implicitly decorated with
+`[[sycl_detail::uses_aspects(has(aspect::fp64))]]`.
 
-  - The type *T*.
-  - A cv-qualified version of type *T*.
-  - An array of, pointer to, or reference to type *T*.
-  - A type that derives from type *T*.
-  - A class type that contains a non-static member object of type *T*.
-  - Any type that applies these rules recursively to type *T* (e.g. array of
-    pointers to type *T*, etc.)
+**TODO**: We are still discussing this section with the front-end team.  One of
+their main concerns is that they want to avoid adding a new pass over the AST.
+However, it's difficult to construct the `!intel_uses_aspects` metadata as the
+source is parsed for two reasons.  One challenge comes from the fact that we
+only consider types that are used in *potentially evaluated* expressions.  This
+means that the front-end must ignore types used in unevaluated expressions such
+as `sizeof`.  However, the parser doesn't know whether an expression is
+potentially evaluated when it encounters the expression.  The other challenge
+is that we must not consider types used in statements that are discarded
+through `constexpr if`.  Again, the parser doesn't know whether a statement is
+discarded at the time it encounters the statement.
 
-  When applying these rules, the front-end treats any use of the `double` type
-  as though it was implicitly decorated with
-  `[[sycl_detail::uses_aspects(has(aspect::fp64))]]`.
-
-If the `[[sycl_detail::uses_aspects()]]` attribute decorates a base class
-member function and a derived class overrides the member function, the
-overriding member function does not automatically inherit the attribute.
-Therefore, when the front-end considers the set of aspects used by a call to a
-member function, it need not consider any `[[sycl_detail::uses_aspects()]]`
-attributes that decorate overridden versions of the function.
-
-As noted earlier, standard SYCL does not allow indirect function calls or
-virtual functions in device code, although a DPC++ extension that adds some
-limited form of indirect function call is being contemplated.  If this
-extension allows virtual functions, we expect that when
-`[[sycl_detail::uses_aspects()]]` decorates a virtual function, it applies only
-to the static type of the class.  Therefore, when the front-end considers the
-set of aspects used by a virtual function call like the following:
-
-```
-void foo(Base *b) {
-  b->bar();
-}
-```
-
-It considers only the `[[sycl_detail::uses_aspects()]]` attribute that may
-decorate the definition of `Base::foo()` even though the application may pass a
-pointer to a derived class which decorates `foo()` differently.
+We think we can solve both of these problems by generating the
+`!intel_uses_aspects` metadata during the front-end's code generation phase
+(the point at which the front-end converts the AST into LLVM IR).  At this
+point we have already discarded statements due to `constexpr if`, and we
+already know whether an expression is potentially evaluated.
 
 
 ### Changes to other phases of clang
