@@ -1180,14 +1180,12 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
     const llvm::Triple &DeviceTriple = TI.getTriple();
-    if (DeviceTriple.isNVPTX()) {
+    if (DeviceTriple.isNVPTX())
       Builder.defineMacro("__SYCL_NVPTX__", "1");
-    }
     const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
     if (DeviceTriple.isSPIR() &&
-        DeviceSubArch != llvm::Triple::SPIRSubArch_fpga) {
+        DeviceSubArch != llvm::Triple::SPIRSubArch_fpga)
       Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
-    }
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");
