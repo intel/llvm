@@ -6156,7 +6156,7 @@ pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
 
   // Device to Device copies are found to execute slower on copy engine
   // (versus compute engine).
-  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, SrcPtr) &&
+  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, SrcPtr) ||
                           !IsDevicePointer(Queue->Context, DstPtr);
   return enqueueMemCopyHelper(
       // TODO: do we need a new command type for this?
