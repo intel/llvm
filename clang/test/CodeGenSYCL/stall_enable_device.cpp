@@ -43,7 +43,7 @@ int main() {
         []() { test(); });
 
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel4() #0 !kernel_arg_buffer_location ![[NUM4]]
-    // CHECK: define {{.*}}spir_func void @{{.*}}test1vENKUlvE_clEv(%class.{{.*}}test1{{.*}}.anon addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 !stall_enable ![[NUM5]]
+    // CHECK: define {{.*}}spir_func void @{{.*}}test1vENKUlvE_clEv(%class.anon{{.*}} addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 !stall_enable ![[NUM5]]
     h.single_task<class test_kernel4>(
         []() { test1(); });
   });
