@@ -5055,13 +5055,13 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 // -----------------------------------------------------------------------------
 // Utility class methods
 // -----------------------------------------------------------------------------
-
 bool Util::isSyclAccessorType(const QualType Ty) {
   const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
   if (!RecTy)
     return false; // only classes/structs supported
   if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
-    return A->getSpecialClassKind() == SYCLSpecialClassAttr::Accessor;
+    return (A->getClassType()->getName() == "accessor" &&
+            getMethodByName(RecTy, "__init"));
   return false;
 }
 
@@ -5070,7 +5070,8 @@ bool Util::isSyclSamplerType(const QualType Ty) {
   if (!RecTy)
     return false; // only classes/structs supported
   if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
-    return A->getSpecialClassKind() == SYCLSpecialClassAttr::Sampler;
+    return (A->getClassType()->getName() == "sampler" &&
+            getMethodByName(RecTy, "__init"));
   return false;
 }
 
@@ -5079,13 +5080,13 @@ bool Util::isSyclStreamType(const QualType Ty) {
   if (!RecTy)
     return false; // only classes/structs supported
   if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
-    return A->getSpecialClassKind() == SYCLSpecialClassAttr::Stream;
+       return (A->getClassType()->getName() == "stream" &&
+               getMethodByName(RecTy, "__finalize"));
   return false;
 }
 
 // TODO: Remove this once structs decomposing is optimized
 bool Util::isSyclHalfType(const QualType Ty) {
-  const StringRef &Name = "half";
   std::array<DeclContextDesc, 5> Scopes = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),

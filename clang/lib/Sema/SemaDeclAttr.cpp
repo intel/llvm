@@ -9084,23 +9084,15 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 static void handleSYCLSpecialClassAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  SYCLSpecialClassAttr::SpecialClassKind Kind = SYCLSpecialClassAttr::Generic;
-  if (AL.getNumArgs() != 0) {
-    // Check the attribute arguments.
-    if (!AL.isArgIdent(0)) {
-      S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
-          << AL << 0 << AANT_ArgumentIdentifier;
-      return;
-    }
-
-    IdentifierInfo *II = AL.getArgAsIdent(0)->Ident;
-    if (!SYCLSpecialClassAttr::ConvertStrToSpecialClassKind(II->getName(),
-                                                            Kind)) {
-      S.Diag(AL.getLoc(), diag::warn_attribute_type_not_supported) << AL << II;
-      return;
-    }
+  if (!AL.isArgIdent(0)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
+        << AL << AANT_ArgumentIdentifier;
+    return;
   }
-  D->addAttr(::new (S.Context) SYCLSpecialClassAttr(S.Context, AL, Kind));
+
+  IdentifierInfo *ClassKind = AL.getArgAsIdent(0)->Ident;
+
+  D->addAttr(::new (S.Context) SYCLSpecialClassAttr(S.Context, AL, ClassKind));
 }
 
 static void handleDestroyAttr(Sema &S, Decl *D, const ParsedAttr &A) {

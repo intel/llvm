@@ -67,21 +67,21 @@ int main() {
 
 // CHECK: ClassTemplateDecl {{.*}} accessor
 // CHECK: CXXRecordDecl {{.*}} class accessor definition
-// CHECK: SYCLSpecialClassAttr {{.*}} Accessor
+// CHECK: SYCLSpecialClassAttr {{.*}} accessor
 // CHECK: CXXRecordDecl {{.*}} implicit class accessor
 
 // CHECK: ClassTemplateSpecializationDecl {{.*}} class accessor definition
-// CHECK: SYCLSpecialClassAttr{{.*}} Accessor
+// CHECK: SYCLSpecialClassAttr{{.*}} accessor
 // CHECK: CXXRecordDecl {{.*}} prev {{.*}} implicit class accessor
 
 // CHECK: ClassTemplateSpecializationDecl {{.*}} class accessor definition
-// CHECK: SYCLSpecialClassAttr{{.*}} Accessor
+// CHECK: SYCLSpecialClassAttr{{.*}} accessor
 // CHECK: CXXRecordDecl {{.*}} prev {{.*}} implicit class accessor
 
 // CHECK: CXXRecordDecl {{.*}} referenced class sampler definition
-// CHECK: SYCLSpecialClassAttr {{.*}} Sampler
+// CHECK: SYCLSpecialClassAttr {{.*}} sampler
 // CHECK: CXXRecordDecl {{.*}} implicit class sampler
 
 // CHECK: CXXRecordDecl {{.*}} prev {{.*}} referenced class stream definition
-// CHECK: SYCLSpecialClassAttr {{.*}} Stream
+// CHECK: SYCLSpecialClassAttr {{.*}} stream
 // CHECK: CXXRecordDecl {{.*}} implicit referenced class stream

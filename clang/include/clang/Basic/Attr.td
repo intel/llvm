@@ -1231,9 +1231,7 @@ def SYCLSpecialClass: InheritableAttr {
   let Subjects = SubjectList<[CXXRecord]>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [Undocumented];
-  let Args = [EnumArgument<"SpecialClassKind", "SpecialClassKind",
-                           ["accessor", "sampler", "stream", ""],
-                           ["Accessor", "Sampler", "Stream", "Generic"], 1>];
+  let Args = [IdentifierArgument<"ClassType">];
 }
 
 // Marks functions which must not be vectorized via horizontal SIMT widening,
