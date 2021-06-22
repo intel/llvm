@@ -45,12 +45,14 @@ template <typename Type, bool B> struct get_kernel_name_t_helper {
 /// Specialization for the case when \c Name is undefined.
 template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 #ifdef __SYCL_UNNAMED_LAMBDA__
-  // This specialization is only legal with our compiler with the unnamed lambda
+  // This is only legal with our compiler with the unnamed lambda
   // extension, so make sure that 'name' isn't available in that case.  This
   // also allows us to use the builtin here.
   using name =
       typename get_kernel_name_t_helper<Type, __builtin_sycl_mark_kernel_name(
                                                   Type)>::type;
+#else
+  using name = Type;
 #endif
 };
 
