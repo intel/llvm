@@ -40,6 +40,14 @@ and *checker host-task* are not enqueued. Also, DPCPP RT won't perform check if
 user's kernel uses `__devicelib_assert_fail`. Refer to [the document](Assert.md)
 for function behind *copier kernel* and *checker host-task*.
 
+### `SYCL_ENFORCE_FALLBACK_ASSERT`
+
+The macro has effect only when `SYCL_DISABLE_FALLBACK_ASSERT` isn't defined.
+This macro is used for making DPCPP RT "think" that every kernel in application
+is using assert feature. If the macro isn't set, DPCPP RT detects if kernel is
+using assert feature via device image property set as described in
+[the document](Assert.md).
+
 ### Version macros
 
 - `__LIBSYCL_MAJOR_VERSION` is set to SYCL runtime library major version.
