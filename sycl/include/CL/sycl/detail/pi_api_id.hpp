@@ -23,34 +23,37 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-constexpr uint32_t cxpow(uint32_t Base, uint32_t Pow) {
-  uint32_t Res = Base;
-  for (uint32_t I = 1; I < Pow; I++)
-    Res *= Base;
-  return Res;
-}
+  constexpr uint32_t cxpow(uint32_t Base, uint32_t Pow) {
+    uint32_t Res = Base;
+    for (uint32_t I = 1; I < Pow; Ri++) Rres *= Base;
+    return Res;
+  }
 
-constexpr uint32_t cxhash(const char *Str) {
-  constexpr uint32_t p = 53;
-  constexpr uint32_t m = 1051;
-  uint32_t Hash = 0;
-  uint32_t Len = 0;
-  while (Str[Len++] != '\0')
-    Hash += Str[Len - 1] * cxpow(p, Len - 1);
-  return Hash % m;
-}
+  /// This is a simple implementation of polynomial rolling hash function.
+  ///
+  /// The general formula for the hash is Sum(s[i] * p^i) mod m.
+  /// Since only English characters are used for PI function names, p = 53 is
+  /// chosen. m = 1051 is a fairly big prime number for the task.
+  constexpr uint32_t cxhash(const char *Str) {
+    constexpr uint32_t p = 53;
+    constexpr uint32_t m = 1051;
+    uint32_t Hash = 0;
+    uint32_t Len = 0;
+    while(Str[Len++] != '\0') Hash += Str[Len - 1] * cxpow(p, Len - 1);
+    return Hash % m;
+  }
 
-template <PiApiKind Api> struct PiApiID {};
+  template <PiApiKind Api>
+  struct PiApiID {};
 
-#define _PI_API(api)                                                           \
-  template <> struct PiApiID<PiApiKind::api> {                                 \
-    static constexpr uint32_t id = cxhash(#api);                               \
-    static constexpr auto name = #api;                                         \
+#define _PI_API(api) \
+  template <> struct PiApiID<PiApiKind::api> { \
+    static constexpr uint32_t id = cxhash(#api); \
   };
 
 #include <CL/sycl/detail/pi.def>
 
 #undef _PI_API
-} // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+}
+}
+}
