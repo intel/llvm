@@ -16,7 +16,6 @@
 #include <detail/plugin_printers.hpp>
 #include <memory>
 #include <mutex>
-#include <thread>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework
