@@ -6129,9 +6129,8 @@ pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
       Count, NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
-// Helper function to check if a pointer is a host pointer.
-static bool IsHostPointer(pi_context Context, const void *Ptr) {
-  // Query the device of the allocation
+// Helper function to check if a pointer is a device pointer.
+static bool IsDevicePointer(pi_context Context, const void *Ptr) {
   ze_device_handle_t ZeDeviceHandle;
   ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
 
@@ -6140,7 +6139,7 @@ static bool IsHostPointer(pi_context Context, const void *Ptr) {
           (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
            &ZeDeviceHandle));
 
-  return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_HOST);
+  return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_DEVICE);
 }
 
 pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
@@ -6154,8 +6153,11 @@ pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
   }
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  bool PreferCopyEngine = IsHostPointer(Queue->Context, SrcPtr) ||
-                          IsHostPointer(Queue->Context, DstPtr);
+
+  // Device to Device copies are found to execute slower on copy engine
+  // (versus compute engine).
+  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, SrcPtr) &&
+                          !IsDevicePointer(Queue->Context, DstPtr);
   return enqueueMemCopyHelper(
       // TODO: do we need a new command type for this?
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue, DstPtr, Blocking, Size, SrcPtr,
