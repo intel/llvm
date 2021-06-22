@@ -283,9 +283,7 @@ private:
     auto PostCheckerCGF = [&CheckerEv, Buffer](handler &CGH) {
       CGH.depends_on(CheckerEv);
 
-      CGH.codeplay_host_task([=] {
-        delete Buffer;
-      });
+      CGH.codeplay_host_task([=] { delete Buffer; });
     };
 
     if (SecondaryQueue) {
