@@ -1,3 +1,11 @@
+//==---------- tuple_view.hpp - Tuple View ---------------------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
@@ -9,6 +17,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace xpti_helpers {
+/// A helper class to provide tuple-like access to a contiguous chunk of memory.
 template <typename... Ts> struct tuple_view { unsigned char *data; };
 
 template <size_t I, typename T> struct tuple_view_element;
