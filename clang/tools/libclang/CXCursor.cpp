@@ -341,6 +341,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::SYCLBuiltinNumBasesExprClass:
   case Stmt::SYCLBuiltinBaseTypeExprClass:
   case Stmt::SYCLUniqueStableNameExprClass:
+  case Stmt::SYCLUniqueStableIdExprClass:
     K = CXCursor_UnexposedExpr;
     break;
 
@@ -655,6 +656,9 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     break;
   case Stmt::OMPTileDirectiveClass:
     K = CXCursor_OMPTileDirective;
+    break;
+  case Stmt::OMPUnrollDirectiveClass:
+    K = CXCursor_OMPUnrollDirective;
     break;
   case Stmt::OMPForDirectiveClass:
     K = CXCursor_OMPForDirective;

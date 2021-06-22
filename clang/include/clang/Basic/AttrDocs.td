@@ -2526,14 +2526,14 @@ of the kernel the attribute is applied to.
   // argument to the attribute is the one which increments fastest.
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(7, 4, 64)]]
+    [[sycl::reqd_work_group_size(7, 4, 64)]]
     void operator()() const {}
   };
 
   // Note, '8' is evenly divisible by '8'; in SYCL, the last
   // argument to the attribute is the one which increments fastest.
   struct bar {
-    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[sycl::reqd_work_group_size(1, 1, 8)]]
     [[intel::num_simd_work_items(8)]]
     void operator()() const {}
   };
@@ -2581,31 +2581,38 @@ def SYCLIntelUseStallEnableClustersAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::use_stall_enable_clusters";
   let Content = [{
-When applied to a lambda or function call operator (of a function object)
-on device, this requests, to the extent possible, that statically-scheduled
-clusters handle stalls using a stall-enable signal to freeze computation
-within the cluster. This attribute is ignored on the host.
+The ``intel::use_stall_enable_clusters`` attribute requires SYCL.
+When applied to a lambda function, function definition, or function call
+operator (of a function object) on device, this requests, to the
+extent possible, that statically-scheduled clusters handle stalls using a
+stall-enable signal to freeze computation within the cluster. This attribute
+is ignored on the host.
 
-If ``intel::use_stall_enable_clusters`` is applied to a function called from a device
-kernel, the attribute is ignored and it is not propagated to the kernel.
-
-The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an effect
-when applied to a function, and no effect otherwise.
+The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an
+effect when applied to a function, and no effect otherwise.
 
 .. code-block:: c++
 
-  class Functor
-  {
-      [[intel::use_stall_enable_clusters]] void operator()(item<1> item)
-      {
-          /* kernel code */
-      }
-  }
+  class Foo {
+  public:
+    [[intel::use_stall_enable_clusters]] void operator()() const {}
+  };
 
-  kernel<class kernel_name>(
-  []() [[intel::use_stall_enable_clusters]] {
-       /* kernel code */
-  });
+  [[intel::use_stall_enable_clusters]] void test() {}
+
+  struct FuncObj {
+    [[intel::use_stall_enable_clusters]] void operator()() const {}
+  };
+
+The ``intel::use_stall_enable_clusters`` attribute supports a nonconforming
+behavior when applied to a lambda in the type position.
+
+.. code-block:: c++
+
+  void test1() {
+    auto lambda = []() [[intel::use_stall_enable_clusters]]{};
+    lambda();
+  }
 
   }];
 }
@@ -2658,6 +2665,10 @@ deprecated in SYCL 2020.
 As an Intel extension, the ``[[intel::reqd_work_group_size(X, Y, Z)]]``
 spelling is supported with the same semantics as the
 ``[[sycl::reqd_work_group_size(X, Y, Z)]]`` spelling.
+
+The ``[[intel::reqd_work_group_size(X, Y, Z)]]`` attribute spelling
+is deprecated in favor of the SYCL 2020 attribute spelling
+``[[sycl::reqd_work_group_size]]``.
 
 In OpenCL C, this attribute is available with the GNU spelling
 (``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
@@ -2714,14 +2725,14 @@ in the ``reqd_work_group_size`` attribute.
   // argument to the attribute is the one which increments fastest.
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(7, 4, 64)]]
+    [[sycl::reqd_work_group_size(7, 4, 64)]]
     void operator()() const {}
   };
 
   // Note, '8' is evenly divisible by '8'; in SYCL, the last
   // argument to the attribute is the one which increments fastest.
   struct bar {
-    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[sycl::reqd_work_group_size(1, 1, 8)]]
     [[intel::num_simd_work_items(8)]]
     void operator()() const {}
   };
@@ -4543,6 +4554,7 @@ used to specify full unrolling or partial unrolling by a specified amount.
 
 def IntelReqdSubGroupSizeDocs : Documentation {
   let Category = DocCatStmt;
+  let Heading = "intel_reqd_sub_group_size";
   let Content = [{
 This attribute can be used in both OpenCL and SYCL.
 
@@ -4563,7 +4575,7 @@ to a sub-group size supported by the device, or device compilation will fail.
 
 The ``[[intel::sub_group_size(n)]]`` attribute has the same effect as the other
 attribute spellings, except that it follows the SYCL 2020 Attribute Rules. See
- the ``[[intel::named_sub_group_size(NAME)]]`` documentation for clarification.
+the ``[[intel::named_sub_group_size(NAME)]]`` documentation for clarification.
 
 This attribute is mutually exclusive with ``[[intel::named_sub_group_size(NAME)]]``
 and ``[[intel::sycl_explicit_simd]]``.

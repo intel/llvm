@@ -1919,6 +1919,15 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
   }
   transMemAliasingINTELDecorations(V, BV);
 
+  if (auto *CI = dyn_cast<CallInst>(V)) {
+    auto OC = BV->getOpCode();
+    if (OC == OpSpecConstantTrue || OC == OpSpecConstantFalse ||
+        OC == OpSpecConstant) {
+      auto SpecId = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
+      BV->addDecorate(DecorationSpecId, SpecId);
+    }
+  }
+
   return true;
 }
 
@@ -3462,8 +3471,6 @@ SPIRVValue *LLVMToSPIRVBase::transBuiltinToConstant(StringRef DemangledName,
   else
     return nullptr;
   SPIRVValue *SC = BM->addSpecConstant(transType(Ty), Val);
-  uint64_t SpecId = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
-  SC->addDecorate(DecorationSpecId, SpecId);
   return SC;
 }
 

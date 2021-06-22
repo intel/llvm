@@ -1016,8 +1016,8 @@ TargetLoweringBase::getTypeConversion(LLVMContext &Context, EVT VT) const {
     // If type is to be expanded, split the vector.
     //  <4 x i140> -> <2 x i140>
     if (LK.first == TypeExpandInteger) {
-      if (VT.getVectorElementCount() == ElementCount::getScalable(1))
-        report_fatal_error("Cannot legalize this scalable vector");
+      if (VT.getVectorElementCount().isScalable())
+        return LegalizeKind(TypeScalarizeScalableVector, EltVT);
       return LegalizeKind(TypeSplitVector,
                           VT.getHalfNumVectorElementsVT(Context));
     }
@@ -1080,7 +1080,7 @@ TargetLoweringBase::getTypeConversion(LLVMContext &Context, EVT VT) const {
   }
 
   if (VT.getVectorElementCount() == ElementCount::getScalable(1))
-    report_fatal_error("Cannot legalize this vector");
+    return LegalizeKind(TypeScalarizeScalableVector, EltVT);
 
   // Vectors with illegal element types are expanded.
   EVT NVT = EVT::getVectorVT(Context, EltVT,
@@ -1279,11 +1279,11 @@ TargetLoweringBase::findRepresentativeClass(const TargetRegisterInfo *TRI,
 /// this allows us to compute derived properties we expose.
 void TargetLoweringBase::computeRegisterProperties(
     const TargetRegisterInfo *TRI) {
-  static_assert(MVT::LAST_VALUETYPE <= MVT::MAX_ALLOWED_VALUETYPE,
+  static_assert(MVT::VALUETYPE_SIZE <= MVT::MAX_ALLOWED_VALUETYPE,
                 "Too many value types for ValueTypeActions to hold!");
 
   // Everything defaults to needing one register.
-  for (unsigned i = 0; i != MVT::LAST_VALUETYPE; ++i) {
+  for (unsigned i = 0; i != MVT::VALUETYPE_SIZE; ++i) {
     NumRegistersForVT[i] = 1;
     RegisterTypeForVT[i] = TransformToType[i] = (MVT::SimpleValueType)i;
   }
@@ -1495,7 +1495,7 @@ void TargetLoweringBase::computeRegisterProperties(
   // not a sub-register class / subreg register class) legal register class for
   // a group of value types. For example, on i386, i8, i16, and i32
   // representative would be GR32; while on x86_64 it's GR64.
-  for (unsigned i = 0; i != MVT::LAST_VALUETYPE; ++i) {
+  for (unsigned i = 0; i != MVT::VALUETYPE_SIZE; ++i) {
     const TargetRegisterClass* RRC;
     uint8_t Cost;
     std::tie(RRC, Cost) = findRepresentativeClass(TRI, (MVT::SimpleValueType)i);
@@ -1844,6 +1844,9 @@ TargetLoweringBase::getTypeLegalizationCost(const DataLayout &DL,
   // we need to handle two types.
   while (true) {
     LegalizeKind LK = getTypeConversion(C, MTy);
+
+    if (LK.first == TypeScalarizeScalableVector)
+      return std::make_pair(InstructionCost::getInvalid(), MVT::getVT(Ty));
 
     if (LK.first == TypeLegal)
       return std::make_pair(Cost, MTy.getSimpleVT());
