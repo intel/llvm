@@ -54,7 +54,8 @@ The following should be implemented:
 
 8. `SYCL_EXT_ONEAPI_GROUP_SORT` feature macro.
 
-Data types that should be supported by backends: arithmetic types (https://en.cppreference.com/w/c/language/arithmetic_types), `sycl::half`.
+Data types that should be supported by backends: arithmetic types
+(https://en.cppreference.com/w/c/language/arithmetic_types), `sycl::half`.
 
 Comparators that should be supported by backends: `std::less`, `std::greater`.
 
@@ -78,7 +79,8 @@ Sections below describe each component in more details.
 
 DPC++ Headers contain the following:
 - required definitions of `joint_sort`, `sort_over_group` functions, `radix_order` enum class,
-`default_sorter`, `radix_sorter` classes with corresponding `operator()` as well as other classes and methods.
+`default_sorter`, `radix_sorter` classes with corresponding `operator()`
+as well as other classes and methods.
 
 - Checks if radix sort is applicable for provided data types.
 
@@ -86,7 +88,7 @@ DPC++ Headers contain the following:
 
 - Fallback solution for user's types, user's comparators and/or user's sorters.
 
-### Fallback library
+### Fallback SPIR-V library
 
 If backend compilers can generate optimized implementations based on low-level instructions,
 we need a function that they can take and optimize.
@@ -109,14 +111,16 @@ void __devicelib_default_work_group_sort(T* keys_first, T* keys_last,
                                          U* values_first, U* values_last, bool is_ascending_or_descending);
 void __devicelib_default_sub_group_sort(T* keys_first, T* keys_last,
                                         U* values_first, U* values_last, bool is_ascending_or_descending);
-
 ```
 
 Notes:
 - `T`, `U` are arithmetic types or `sycl::half`.
 - `first`, `last` describe the range of actual data for sorting.
-- `is_ascending_or_descending` equals `1` when ascending sort is requested, equals `0` when descending sort is requested.
-- `keys_first`, `keys_last` describe the range of "keys" for key-value sorting. "Keys" are comparing and moving during the sorting.
-- `values_first`, `values_last` describe the range of "values" for key-value sorting. "Keys" are only moving corresponding the "keys" order during the sorting.
+- `is_ascending_or_descending` equals `1` when ascending sort is requested, equals `0`
+when descending sort is requested.
+- `keys_first`, `keys_last` describe the range of "keys" for key-value sorting. "Keys" are comparing
+and moving during the sorting.
+- `values_first`, `values_last` describe the range of "values" for key-value sorting. "Keys" are
+only moving corresponding the "keys" order during the sorting.
 - `BitsPerPass` describes how much bits of the value are taken into account
 - `radix_iter` describes the iteration for radix sorting.
