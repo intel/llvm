@@ -321,15 +321,9 @@ public:
     bool IsKernel = false;
     Event = submit_impl(CGF, IsKernel, CodeLoc);
 
-    bool KernelUsesAssert = true;
-
-#ifndef SYCL_ENFORCE_FALLBACK_ASSERT
-    KernelUsesAssert = kernelUsesAssert(Event);
-#endif
-
     // assert required
     if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
-        KernelUsesAssert) {
+        kernelUsesAssert(Event)) {
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
       // by program manager class
