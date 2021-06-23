@@ -8,8 +8,8 @@
 // RUN: | FileCheck --check-prefix=CHECK-NVPTX-NEG %s
 // RUN: %clang_cc1 %s -fsycl-is-device -triple spir64_fpga-unknown-unknown-sycldevice -E -dM \
 // RUN: | FileCheck --check-prefix=CHECK-NVPTX-NEG %s
-// CHECK-NVPTX: #define __SYCL_NVPTX__
-// CHECK-NVPTX-NEG-NOT: #define __SYCL_NVPTX__
+// CHECK-NVPTX: #define __NVPTX__
+// CHECK-NVPTX-NEG-NOT: #define __NVPTX__
 
 // RUN: %clang_cc1 %s -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -E -dM \
 // RUN: | FileCheck --check-prefix=CHECK-SYCL-FP-ATOMICS %s

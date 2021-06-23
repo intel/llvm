@@ -549,9 +549,9 @@ is then passed to the offload wrapper tool.
 ##### Checking if the compiler is targeting NVPTX
 
 When the SYCL compiler is in device mode and targeting the NVPTX backend,
-compiler defines the macro `__SYCL_NVPTX__`.
-This macro can safely be used to enable NVPTX specific code path in SYCL
-kernels.
+compiler defines the macro `__NVPTX__` alongside the
+`__SYCL_DEVICE_ONLY` macro. This macro combination can safely be used
+to enable NVPTX specific code path in SYCL kernels.
 
 *Note: this macro is defined only during the device compilation phase.*
 
@@ -567,7 +567,7 @@ Example:
 
 ```cpp
 double my_min(double x, double y) {
-#ifdef __SYCL_NVPTX__
+#if defined(__NVPTX__) && defined(__SYCL_DEVICE_ONLY__)
   // Only available if in device mode and
   // while compiling for the NVPTX target.
   return __nvvm_fmin_d(x, y);

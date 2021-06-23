@@ -1180,8 +1180,6 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
     const llvm::Triple &DeviceTriple = TI.getTriple();
-    if (DeviceTriple.isNVPTX())
-      Builder.defineMacro("__SYCL_NVPTX__");
     const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
     if (DeviceTriple.isSPIR() &&
         DeviceSubArch != llvm::Triple::SPIRSubArch_fpga)
