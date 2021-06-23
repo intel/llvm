@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -c %s -o %t.temp
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -sycl-std=1.2.1 -c %s -o %t.temp
 
 #include "CL/sycl.hpp"
 
