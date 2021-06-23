@@ -438,7 +438,7 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   // FIXME: re-association increases variables liveness and therefore register
   // pressure.
   if (!SYCLOptimizationMode)
-    MPM.add(createReassociatePass());           // Reassociate expressions
+    MPM.add(createReassociatePass()); // Reassociate expressions
 
   // Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
   // optimizations rely on TTI, which is not accurate for SPIR target.
