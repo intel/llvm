@@ -32,11 +32,11 @@ template class marray<double, 7>;
 template class marray<short, 3>;
 
 template class kernel_bundle<bundle_state::input>;
-template class kernel_bundle<bundle_state::objectj>;
+template class kernel_bundle<bundle_state::object>;
 template class kernel_bundle<bundle_state::executable>;
 
 template class device_image<bundle_state::input>;
-template class device_image<bundle_state::objectj>;
+template class device_image<bundle_state::object>;
 template class device_image<bundle_state::executable>;
 
 }
