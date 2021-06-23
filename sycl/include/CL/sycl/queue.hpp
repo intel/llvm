@@ -68,8 +68,13 @@ class AssertInfoCopier;
 // Forward declaration
 class context;
 class device;
+class queue;
+
 namespace detail {
 class queue_impl;
+static
+event submitAssertCapture(queue &, event &, queue *,
+                          const detail::code_location &);
 }
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
@@ -219,88 +224,6 @@ public:
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
 private:
-// FIXME remove __NVPTX__ condition once devicelib supports CUDA
-#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
-#define __SYCL_ASSERT_START 1
-
-  /**
-   * Submit copy task for assert failure flag and host-task to check the flag
-   * \param Event kernel's event to depend on i.e. the event represents the
-   *              kernel to check for assertion failure
-   * \param SecondaryQueue secondary queue for submit process, null if not used
-   * \returns host tasks event
-   */
-  event submitAssertCapture(event &Event, queue *SecondaryQueue,
-                            const detail::code_location &CodeLoc) {
-    _CODELOCARG(&CodeLoc);
-
-    using AHBufT = buffer<detail::AssertHappened, 1>;
-
-    AHBufT *Buffer = new AHBufT{range<1>{1}};
-
-    event CopierEv, CheckerEv, PostCheckerEv;
-    auto CopierCGF = [&](handler &CGH) {
-      CGH.depends_on(Event);
-
-      auto Acc = Buffer->get_access<access::mode::write>(CGH);
-
-      CGH.single_task<AssertInfoCopier>([Acc] {
-#ifdef __SYCL_DEVICE_ONLY__
-        __devicelib_assert_read(&Acc[0]);
-#else
-        (void)Acc;
-#endif // __SYCL_DEVICE_ONLY__
-      });
-    };
-    auto CheckerCGF = [&CopierEv, Buffer](handler &CGH) {
-      CGH.depends_on(CopierEv);
-      using mode = access::mode;
-      using target = access::target;
-
-      auto Acc = Buffer->get_access<mode::read, target::host_buffer>(CGH);
-
-      CGH.codeplay_host_task([=] {
-        const detail::AssertHappened *AH = &Acc[0];
-
-        assert(AH->Flag != __SYCL_ASSERT_START && "Invalid value");
-
-        if (AH->Flag) {
-          const char *Expr = AH->Expr[0] ? AH->Expr : "<unknown expr>";
-          const char *File = AH->File[0] ? AH->File : "<unknown file>";
-          const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
-
-          fprintf(stderr,
-                  "%s:%d: %s: global id: [%" PRIu64 ", %" PRIu64 ", %" PRIu64
-                  "], local id: [%" PRIu64 ",%" PRIu64 ",%" PRIu64 "] "
-                  "Assertion `%s` failed.\n",
-                  File, AH->Line, Func, AH->GID0, AH->GID1, AH->GID2, AH->LID0,
-                  AH->LID1, AH->LID2, Expr);
-          abort(); // no need to release memory as it's abort anyway
-        }
-      });
-    };
-    // Release memory in distinct host-task so that any dependency is eliminated
-    auto PostCheckerCGF = [&CheckerEv, Buffer](handler &CGH) {
-      CGH.depends_on(CheckerEv);
-
-      CGH.codeplay_host_task([=] { delete Buffer; });
-    };
-
-    if (SecondaryQueue) {
-      CopierEv = submit_impl(CopierCGF, *SecondaryQueue, CodeLoc);
-      CheckerEv = submit_impl(CheckerCGF, *SecondaryQueue, CodeLoc);
-      PostCheckerEv = submit_impl(PostCheckerCGF, *SecondaryQueue, CodeLoc);
-    } else {
-      CopierEv = submit_impl(CopierCGF, CodeLoc);
-      CheckerEv = submit_impl(CheckerCGF, CodeLoc);
-      PostCheckerEv = submit_impl(PostCheckerCGF, CodeLoc);
-    }
-
-    return CheckerEv;
-  }
-#undef __SYCL_ASSERT_START
-#endif // !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
-
   // Check if kernel with the name provided in KernelName and which is being
   // enqueued and can be waited on by Event uses assert
   bool kernelUsesAssert(event &Event) const;
@@ -327,7 +250,8 @@ public:
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
       // by program manager class
-      submitAssertCapture(Event, /* SecondaryQueue = */ nullptr, CodeLoc);
+      submitAssertCapture(*this, Event, /* SecondaryQueue = */ nullptr,
+                          CodeLoc);
     }
 #else
     Event = submit_impl(CGF, CodeLoc);
@@ -363,7 +287,7 @@ public:
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
       // by program manager class
-      submitAssertCapture(Event, &SecondaryQueue, CodeLoc);
+      submitAssertCapture(*this, Event, &SecondaryQueue, CodeLoc);
     }
 #else
     Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
@@ -874,6 +798,9 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
+  friend event detail::submitAssertCapture(queue &, event &, queue *,
+                                           const detail::code_location &);
+
   /// A template-free version of submit.
   event submit_impl(function_class<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
@@ -960,6 +887,90 @@ private:
         CodeLoc);
   }
 };
+
+namespace detail {
+// FIXME remove __NVPTX__ condition once devicelib supports CUDA
+#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+#define __SYCL_ASSERT_START 1
+/**
+ * Submit copy task for assert failure flag and host-task to check the flag
+ * \param Event kernel's event to depend on i.e. the event represents the
+ *              kernel to check for assertion failure
+ * \param SecondaryQueue secondary queue for submit process, null if not used
+ * \returns host tasks event
+ * This method doesn't belong to queue class to overcome msvc behaviour due to
+ * which it gets compiled and exported without any integration header and, thus,
+ * with no proper KernelInfo instance.
+ */
+event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
+                          const detail::code_location &CodeLoc) {
+  using AHBufT = buffer<detail::AssertHappened, 1>;
+
+  AHBufT *Buffer = new AHBufT{range<1>{1}};
+
+  event CopierEv, CheckerEv, PostCheckerEv;
+  auto CopierCGF = [&](handler &CGH) {
+    CGH.depends_on(Event);
+
+    auto Acc = Buffer->get_access<access::mode::write>(CGH);
+
+    CGH.single_task<AssertInfoCopier>([Acc] {
+#ifdef __SYCL_DEVICE_ONLY__
+      __devicelib_assert_read(&Acc[0]);
+#else
+      (void)Acc;
+#endif // __SYCL_DEVICE_ONLY__
+    });
+  };
+  auto CheckerCGF = [&CopierEv, Buffer](handler &CGH) {
+    CGH.depends_on(CopierEv);
+    using mode = access::mode;
+    using target = access::target;
+
+    auto Acc = Buffer->get_access<mode::read, target::host_buffer>(CGH);
+
+    CGH.codeplay_host_task([=] {
+      const detail::AssertHappened *AH = &Acc[0];
+
+      assert(AH->Flag != __SYCL_ASSERT_START && "Invalid value");
+
+      if (AH->Flag) {
+        const char *Expr = AH->Expr[0] ? AH->Expr : "<unknown expr>";
+        const char *File = AH->File[0] ? AH->File : "<unknown file>";
+        const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
+
+        fprintf(stderr,
+                "%s:%d: %s: global id: [%" PRIu64 ", %" PRIu64 ", %" PRIu64
+                "], local id: [%" PRIu64 ",%" PRIu64 ",%" PRIu64 "] "
+                "Assertion `%s` failed.\n",
+                File, AH->Line, Func, AH->GID0, AH->GID1, AH->GID2, AH->LID0,
+                AH->LID1, AH->LID2, Expr);
+        abort(); // no need to release memory as it's abort anyway
+      }
+    });
+  };
+  // Release memory in distinct host-task so that any dependency is eliminated
+  auto PostCheckerCGF = [&CheckerEv, Buffer](handler &CGH) {
+    CGH.depends_on(CheckerEv);
+
+    CGH.codeplay_host_task([=] { delete Buffer; });
+  };
+
+  if (SecondaryQueue) {
+    CopierEv = Self.submit_impl(CopierCGF, *SecondaryQueue, CodeLoc);
+    CheckerEv = Self.submit_impl(CheckerCGF, *SecondaryQueue, CodeLoc);
+    PostCheckerEv = Self.submit_impl(PostCheckerCGF, *SecondaryQueue, CodeLoc);
+  } else {
+    CopierEv = Self.submit_impl(CopierCGF, CodeLoc);
+    CheckerEv = Self.submit_impl(CheckerCGF, CodeLoc);
+    PostCheckerEv = Self.submit_impl(PostCheckerCGF, CodeLoc);
+  }
+
+  return CheckerEv;
+}
+#undef __SYCL_ASSERT_START
+#endif // !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+} // namespace detail
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
