@@ -43,7 +43,7 @@ macro(add_libclc_builtin_set arch_suffix)
   cmake_parse_arguments(ARG
     ""
     "TRIPLE;TARGET_ENV;LIB_DEP;PARENT_TARGET"
-    "FILES;ALIASES;GENERATE_TARGET;COMPILE_OPT"
+    "FILES;ALIASES;GENERATE_TARGET;COMPILE_OPT;OPT_FLAGS"
     ${ARGN})
 
   if (DEFINED ${ARG_LIB_DEP})
@@ -76,7 +76,7 @@ macro(add_libclc_builtin_set arch_suffix)
   # Add opt target
   set( builtins_opt_path "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.opt.${obj_suffix}" )
   add_custom_command( OUTPUT "${builtins_opt_path}"
-    COMMAND ${LLVM_OPT} -O3 -o
+    COMMAND ${LLVM_OPT} ${ARG_OPT_FLAGS} -o
     "${builtins_opt_path}"
     "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.link.${obj_suffix}"
     DEPENDS opt "builtins.link.${arch_suffix}" )
