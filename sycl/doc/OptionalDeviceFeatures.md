@@ -524,7 +524,7 @@ x86_64_avx512:
 ```
 
 The values of the aspects in this configuration file can be the numerical
-values from the `enum class aspect` enumeration or the enum identifer itself.
+values from the `enum class aspect` enumeration or the enum identifier itself.
 For each valid AOT compiler ID the driver has a built-in rule how to construct
 an AOT compilation command line based on given architecture name. For example,
 for the `gen11_1` and `gen_icl` architectures, the driver sees `gen-spir64`
@@ -532,9 +532,9 @@ as the AOT compiler ID, so it knows that the `ocloc` tool must be used, and it
 also knows how to translate the `gen11_1` or `gen_icl` to proper `ocloc`
 architecture specification option.
 
-*NOTE: new kinds of AOT compilers are expected to appear very rarely, so
+**NOTE**: New kinds of AOT compilers are expected to appear very rarely, so
 developing some kind of "AOT compiler plugin" mechanism is impractical, and
-hardcoding AOT compiler types in the driver is resonable.*
+hard coding AOT compiler types in the driver is reasonable.
 
 One advantage to encoding this information in a textual configuration file is
 that customers can update the file if necessary.  This could be useful, for
@@ -542,12 +542,10 @@ example, if a new device is released before there is a new DPC++ release.  In
 fact, the DPC++ driver supports a command line option which allows the user
 to select an alternate configuration file.
 
-**TODO**: Add more sections here describing the changes to the DPC++ driver
-and related tools.  Other things to describe are:
+**TODO**: More information will be inserted here when we merge
+[this separate PR][6] into this design document.
 
-* The names of the devices in the configuration file.
-* The name of the DPC++ driver option that selects an alternate configuration
-  file.
+[6]: <https://github.com/gmlueck/llvm/pull/1>
 
 ### Changes to the DPC++ runtime
 
@@ -612,7 +610,7 @@ have information about source location of "used" aspects.
 
 ## Appendix: Adding an attribute to 8-byte `atomic_ref`
 
-As described above under ["Changes to DPC++ headers"][6], we need to decorate
+As described above under ["Changes to DPC++ headers"][7], we need to decorate
 any SYCL type representing an optional device feature with the
 `[[sycl_detail::uses_aspects()]]` attribute.  This is somewhat tricky for
 `atomic_ref`, though, because it is only an optional feature when specialized
@@ -620,7 +618,7 @@ for a 8-byte type.  However, we can accomplish this by using partial
 specialization techniques.  The following code snippet demonstrates (best read
 from bottom to top):
 
-[6]: <#changes-to-dpc-headers>
+[7]: <#changes-to-dpc-headers>
 
 ```
 namespace sycl {
