@@ -1371,26 +1371,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
   }
   case PI_DEVICE_INFO_EXTENSIONS: {
-
-    std::string SupportedExtensions = "cl_khr_fp64 ";
-    int major = 0;
-    int minor = 0;
-
-    cl::sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             device->get()) == CUDA_SUCCESS);
-    cl::sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&minor,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
-                             device->get()) == CUDA_SUCCESS);
-
-    if ((major >= 6) || ((major == 5) && (minor >= 3))) {
-      SupportedExtensions += "cl_khr_fp16 ";
-    }
-
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   SupportedExtensions.c_str());
+    return getInfo(param_value_size, param_value, param_value_size_ret, "");
   }
   case PI_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
     // The minimum value for the FULL profile is 1 MB.
