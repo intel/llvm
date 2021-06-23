@@ -72,9 +72,8 @@ class queue;
 
 namespace detail {
 class queue_impl;
-static
-event submitAssertCapture(queue &, event &, queue *,
-                          const detail::code_location &);
+static event submitAssertCapture(queue &, event &, queue *,
+                                 const detail::code_location &);
 }
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
