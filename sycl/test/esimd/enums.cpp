@@ -8,32 +8,33 @@
 using namespace sycl::ext::intel::experimental::esimd;
 
 void foo() SYCL_ESIMD_FUNCTION {
-  // These should produce deprecation messages for both device:
+  // These should produce deprecation messages for both host and device
+  // compilations:
   int x;
-  // CHECK: enums.cpp:15{{.*}}warning: 'WAIT' is deprecated
+  // CHECK: enums.cpp:16{{.*}}warning: 'WAIT' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
   x = static_cast<int>(ESIMD_SBARRIER_WAIT);
-  // CHECK: enums.cpp:18{{.*}}warning: 'ATOMIC_ADD' is deprecated
+  // CHECK: enums.cpp:19{{.*}}warning: 'ATOMIC_ADD' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
   x = static_cast<int>(EsimdAtomicOpType::ATOMIC_ADD);
-  // CHECK: enums.cpp:21{{.*}}warning: 'ESIMD_R_ENABLE' is deprecated
+  // CHECK: enums.cpp:22{{.*}}warning: 'ESIMD_R_ENABLE' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
   x = static_cast<int>(ChannelMaskType::ESIMD_R_ENABLE);
-  // CHECK: enums.cpp:24{{.*}}warning: 'GENX_NOSAT' is deprecated
+  // CHECK: enums.cpp:25{{.*}}warning: 'GENX_NOSAT' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
   x = static_cast<int>(GENX_NOSAT);
 
   // A "border" between host and device compilations
   // CHECK-LABEL: 4 warnings generated
 
-  // And for host:
-  // CHECK: enums.cpp:15{{.*}}warning: 'WAIT' is deprecated
+  // For host:
+  // CHECK: enums.cpp:16{{.*}}warning: 'WAIT' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
-  // CHECK: enums.cpp:18{{.*}}warning: 'ATOMIC_ADD' is deprecated
+  // CHECK: enums.cpp:19{{.*}}warning: 'ATOMIC_ADD' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
-  // CHECK: enums.cpp:21{{.*}}warning: 'ESIMD_R_ENABLE' is deprecated
+  // CHECK: enums.cpp:22{{.*}}warning: 'ESIMD_R_ENABLE' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
-  // CHECK: enums.cpp:24{{.*}}warning: 'GENX_NOSAT' is deprecated
+  // CHECK: enums.cpp:25{{.*}}warning: 'GENX_NOSAT' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
 
   // These should compile cleanly:
