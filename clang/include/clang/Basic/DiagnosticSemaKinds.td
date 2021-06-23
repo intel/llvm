@@ -6440,6 +6440,12 @@ def err_unique_stable_id_global_storage
     : Error<"argument passed to '__builtin_sycl_unique_stable_id' must have "
             "global storage">;
 
+def remark_unique_stable_name_evaluated
+    : Remark<"'__builtin_sycl_unique_stable_%select{name|id}0' being evaluated "
+             "here">,
+      ShowInSystemHeader,
+      InGroup<DiagGroup<"unique-stable-remark">>;
+
 def warn_floatingpoint_eq : Warning<
   "comparing floating point with == or != is unsafe">,
   InGroup<DiagGroup<"float-equal">>, DefaultIgnore;

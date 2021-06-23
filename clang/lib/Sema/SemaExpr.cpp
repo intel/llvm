@@ -3568,6 +3568,9 @@ ExprResult Sema::BuildSYCLUniqueStableNameExpr(SourceLocation OpLoc,
                                                SourceLocation LParen,
                                                SourceLocation RParen,
                                                TypeSourceInfo *TSI) {
+  if (!TSI->getType()->isInstantiationDependentType())
+    Diag(OpLoc, diag::remark_unique_stable_name_evaluated) << 0;
+
   return SYCLUniqueStableNameExpr::Create(Context, OpLoc, LParen, RParen, TSI);
 }
 
@@ -3612,6 +3615,8 @@ ExprResult Sema::BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
       Diag(E->getExprLoc(), diag::err_unique_stable_id_global_storage);
       return ExprError();
     }
+
+    Diag(OpLoc, diag::remark_unique_stable_name_evaluated) << 0;
   }
 
   return SYCLUniqueStableIdExpr::Create(Context, OpLoc, LParen, RParen, E);
