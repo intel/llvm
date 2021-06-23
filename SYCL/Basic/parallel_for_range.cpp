@@ -78,42 +78,6 @@ int main() {
             << std::endl;
         return 1;
       }
-
-      // parallel_for, (16, 16, 16) global, null local, reqd_wg_size(4, 4, 4) //
-      // -> fail
-      try {
-        Q.submit([&](handler &CGH) {
-          CGH.parallel_for<class ReqdWGSizeNegativeB>(
-              range<3>(16, 16, 16), [=](item<3>) { reqd_wg_size_helper(); });
-        });
-        Q.wait_and_throw();
-        std::cerr
-            << "Test case ReqdWGSizeNegativeB failed: no exception has been "
-               "thrown\n";
-        return 1; // We shouldn't be here, exception is expected
-      } catch (nd_range_error &E) {
-        if (string_class(E.what()).find("OpenCL 1.x and 2.0 requires to pass "
-                                        "local size argument even if "
-                                        "required work-group size was "
-                                        "specified in the program source") ==
-            string_class::npos) {
-          std::cerr
-              << "Test case ReqdWGSizeNegativeB failed: unexpected exception: "
-              << E.what() << std::endl;
-          return 1;
-        }
-      } catch (runtime_error &E) {
-        std::cerr
-            << "Test case ReqdWGSizeNegativeB failed: unexpected exception: "
-            << E.what() << std::endl;
-        return 1;
-      } catch (...) {
-        std::cerr
-            << "Test case ReqdWGSizeNegativeB failed: something unexpected "
-               "has been caught"
-            << std::endl;
-        return 1;
-      }
     }
 
     // Positive test-cases that should pass on any underlying OpenCL runtime
