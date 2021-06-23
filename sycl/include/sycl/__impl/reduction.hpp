@@ -12,8 +12,13 @@
 
 #include "sycl/__impl/ONEAPI/reduction.hpp"
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
 /// reduction operation \p Combiner, and optional reduction properties.
@@ -101,12 +106,8 @@ reduction(T *Var, const T &Identity, BinaryOperation Combiner,
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

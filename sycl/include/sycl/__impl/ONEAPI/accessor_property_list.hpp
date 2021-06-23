@@ -13,8 +13,13 @@
 #include <sycl/__impl/detail/property_list_base.hpp>
 #include <sycl/__impl/property_list.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 // Forward declaration
 template <typename, int, access::mode, access::target, access::placeholder,
           typename PropertyListT>
@@ -213,11 +218,19 @@ public:
 private:
   template <typename, int, access::mode, access::target, access::placeholder,
             typename PropertyListT>
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+  friend class sycl::accessor;
+#else
   friend class __sycl_internal::accessor;
+#endif
 
   template <typename... OtherProps> friend class accessor_property_list;
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+  friend class sycl::property_list;
+#else
   friend class __sycl_internal::property_list;
+#endif
 
   // Helper method, used by accessor to restrict conversions to compatible
   // property lists.
@@ -231,12 +244,8 @@ private:
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

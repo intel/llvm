@@ -20,8 +20,13 @@
 #include <sycl/__impl/nd_item.hpp>
 
 #ifndef __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace ONEAPI {
 
 // EnableIf shorthands for algorithms that depend only on type
@@ -542,12 +547,8 @@ leader(Group g) {
 } // __SYCL_INLINE_NAMESPACE(cl)
 #endif // __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

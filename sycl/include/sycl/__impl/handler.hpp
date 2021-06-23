@@ -70,8 +70,13 @@ class __copyAcc2Acc;
 // For unit testing purposes
 class MockHandler;
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 
 // Forward declaration
 
@@ -348,24 +353,24 @@ private:
   /// TODO replace with the version below once ABI breaking changes are allowed.
   void
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
-                               const detail::kernel_param_desc_t *KernelArgs);
+                               const __sycl_internal::__v1::detail::kernel_param_desc_t *KernelArgs);
 
   /// Extracts and prepares kernel arguments from the lambda using integration
   /// header.
   void
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
-                               const detail::kernel_param_desc_t *KernelArgs,
+                               const __sycl_internal::__v1::detail::kernel_param_desc_t *KernelArgs,
                                bool IsESIMD);
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
 
   /// TODO replace with the version below once ABI breaking changes are allowed.
-  void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
+  void processArg(void *Ptr, const __sycl_internal::__v1::detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
                   bool IsKernelCreatedFromSource);
 
-  void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
+  void processArg(void *Ptr, const __sycl_internal::__v1::detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
                   bool IsKernelCreatedFromSource, bool IsESIMD);
 
@@ -379,7 +384,7 @@ private:
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
-    const string_class LambdaName = detail::KernelInfo<LambdaNameT>::getName();
+    const string_class LambdaName = __sycl_internal::__v1::detail::KernelInfo<LambdaNameT>::getName();
     const string_class KernelName = getKernelName();
     return LambdaName == KernelName;
   }
@@ -444,7 +449,7 @@ private:
         detail::getSyclObjImpl(*LocalAccBase);
     detail::LocalAccessorImplHost *Req = LocalAccImpl.get();
     MLocalAccStorage.push_back(std::move(LocalAccImpl));
-    MArgs.emplace_back(detail::kernel_param_kind_t::kind_accessor, Req,
+    MArgs.emplace_back(__sycl_internal::__v1::detail::kernel_param_kind_t::kind_accessor, Req,
                        static_cast<int>(access::target::local), ArgIndex);
   }
 
@@ -463,7 +468,7 @@ private:
     // Store copy of the accessor.
     MAccStorage.push_back(std::move(AccImpl));
     // Add accessor to the list of arguments.
-    MArgs.emplace_back(detail::kernel_param_kind_t::kind_accessor, Req,
+    MArgs.emplace_back(__sycl_internal::__v1::detail::kernel_param_kind_t::kind_accessor, Req,
                        static_cast<int>(AccessTarget), ArgIndex);
   }
 
@@ -471,17 +476,17 @@ private:
     auto StoredArg = static_cast<void *>(storePlainArg(Arg));
 
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
-      MArgs.emplace_back(detail::kernel_param_kind_t::kind_pointer, StoredArg,
+      MArgs.emplace_back(__sycl_internal::__v1::detail::kernel_param_kind_t::kind_pointer, StoredArg,
                          sizeof(T), ArgIndex);
     } else {
-      MArgs.emplace_back(detail::kernel_param_kind_t::kind_std_layout,
+      MArgs.emplace_back(__sycl_internal::__v1::detail::kernel_param_kind_t::kind_std_layout,
                          StoredArg, sizeof(T), ArgIndex);
     }
   }
 
   void setArgHelper(int ArgIndex, sampler &&Arg) {
     auto StoredArg = static_cast<void *>(storePlainArg(Arg));
-    MArgs.emplace_back(detail::kernel_param_kind_t::kind_sampler, StoredArg,
+    MArgs.emplace_back(__sycl_internal::__v1::detail::kernel_param_kind_t::kind_sampler, StoredArg,
                        sizeof(sampler), ArgIndex);
   }
 
@@ -534,7 +539,7 @@ private:
         new detail::HostKernel<KernelType, LambdaArgType, Dims, KernelName>(
             KernelFunc));
 
-    using KI = sycl::detail::KernelInfo<KernelName>;
+    using KI = __sycl_internal::__v1::detail::KernelInfo<KernelName>;
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
     if (KI::getName() != nullptr && KI::getName()[0] != '\0') {
@@ -796,7 +801,7 @@ private:
 
     // Get the kernal name to check condition 3.
     std::string KName = typeid(NameT *).name();
-    using KI = detail::KernelInfo<KernelName>;
+    using KI = __sycl_internal::__v1::detail::KernelInfo<KernelName>;
     bool DisableRounding =
         (getenv("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") != nullptr) ||
         (KName.find("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") !=
@@ -2315,12 +2320,8 @@ private:
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

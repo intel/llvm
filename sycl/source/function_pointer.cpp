@@ -10,8 +10,13 @@
 #include <detail/device_impl.hpp>
 #include <detail/program_impl.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 ONEAPI::device_func_ptr_holder_t
 getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {

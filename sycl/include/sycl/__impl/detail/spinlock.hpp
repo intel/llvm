@@ -13,8 +13,13 @@
 #include <atomic>
 #include <thread>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 /// SpinLock is a synchronization primitive, that uses atomic variable and
 /// causes thread trying acquire lock wait in loop while repeatedly check if

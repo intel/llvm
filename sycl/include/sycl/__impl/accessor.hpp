@@ -201,8 +201,13 @@
 /// accessor_common contains several helpers common for both accessor(1) and
 /// accessor(3)
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 class stream;
 namespace ext {
 namespace intel {
@@ -2371,12 +2376,8 @@ struct hash<sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
 
 } // namespace std
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

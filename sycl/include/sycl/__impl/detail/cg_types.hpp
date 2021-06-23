@@ -19,18 +19,23 @@
 #include <sycl/__impl/nd_item.hpp>
 #include <sycl/__impl/range.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 // The structure represents kernel argument.
 class ArgDesc {
 public:
-  ArgDesc(sycl::detail::kernel_param_kind_t Type, void *Ptr, int Size,
+  ArgDesc(__sycl_internal::__v1::detail::kernel_param_kind_t Type, void *Ptr, int Size,
           int Index)
       : MType(Type), MPtr(Ptr), MSize(Size), MIndex(Index) {}
 
-  sycl::detail::kernel_param_kind_t MType;
+  __sycl_internal::__v1::detail::kernel_param_kind_t MType;
   void *MPtr;
   int MSize;
   int MIndex;
@@ -285,7 +290,7 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, sycl::id<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using KI = detail::KernelInfo<KernelName>;
+    using KI = __sycl_internal::__v1::detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
@@ -318,7 +323,7 @@ public:
   typename detail::enable_if_t<
       std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using KI = detail::KernelInfo<KernelName>;
+    using KI = __sycl_internal::__v1::detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
     sycl::id<Dims> ID;
@@ -343,7 +348,7 @@ public:
   typename detail::enable_if_t<
       std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using KI = detail::KernelInfo<KernelName>;
+    using KI = __sycl_internal::__v1::detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
@@ -375,7 +380,7 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, nd_item<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using KI = detail::KernelInfo<KernelName>;
+    using KI = __sycl_internal::__v1::detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
     sycl::range<Dims> GroupSize(InitializedVal<Dims, range>::template get<0>());

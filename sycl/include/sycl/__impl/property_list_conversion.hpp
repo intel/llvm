@@ -13,8 +13,13 @@
 #include <sycl/__impl/ONEAPI/accessor_property_list.hpp>
 #include <sycl/__impl/property_list.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 template <typename... T>
 inline property_list::operator ONEAPI::accessor_property_list<T...>() {
   return ONEAPI::accessor_property_list<T...>(MDataLessProps, MPropsWithData);
@@ -22,12 +27,8 @@ inline property_list::operator ONEAPI::accessor_property_list<T...>() {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

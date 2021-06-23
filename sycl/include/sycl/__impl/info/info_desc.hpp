@@ -12,8 +12,13 @@
 #include <sycl/__impl/detail/pi.hpp>
 #include <sycl/__impl/id.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 
 class program;
 class device;
@@ -327,12 +332,8 @@ template <typename T, T param> struct compatibility_param_traits {};
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

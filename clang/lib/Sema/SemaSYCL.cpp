@@ -4625,8 +4625,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
 
-  O << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
-  O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
+  O << "#include <sycl/__impl/detail/defines_elementary.hpp>\n";
+  O << "#include <sycl/__impl/detail/kernel_desc.hpp>\n";
 
   O << "\n";
 
@@ -4675,9 +4675,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       FwdDeclEmitter.Visit(K.NameType);
   }
   O << "\n";
-
-  O << "__SYCL_INLINE_NAMESPACE(cl) {\n";
-  O << "namespace sycl {\n";
+  O << "namespace __sycl_internal {\n";
+  O << "inline namespace __v1 {\n";
   O << "namespace detail {\n";
 
   O << "\n";
@@ -4760,6 +4759,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "} // namespace detail\n";
   O << "} // namespace sycl\n";
   O << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
+  O << "\n";
+
+  O << "namespace sycl {\n";
+  O << "  using namespace __sycl_internal::__v1;\n";
+  O << "}\n";
   O << "\n";
 }
 

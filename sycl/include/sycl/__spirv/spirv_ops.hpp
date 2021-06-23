@@ -149,6 +149,32 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
 
 // Helper atomic operations which select correct signed/unsigned version
 // of atomic min/max based on the type
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+#define __SPIRV_ATOMIC_MINMAX(AS, Op)                                          \
+  template <typename T>                                                        \
+  typename sycl::detail::enable_if_t<                         \
+      std::is_integral<T>::value && std::is_signed<T>::value, T>               \
+      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
+                         __spv::MemorySemanticsMask::Flag Semantics,           \
+                         T Value) {                                            \
+    return __spirv_AtomicS##Op(Ptr, Memory, Semantics, Value);                 \
+  }                                                                            \
+  template <typename T>                                                        \
+  typename sycl::detail::enable_if_t<                         \
+      std::is_integral<T>::value && !std::is_signed<T>::value, T>              \
+      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
+                         __spv::MemorySemanticsMask::Flag Semantics,           \
+                         T Value) {                                            \
+    return __spirv_AtomicU##Op(Ptr, Memory, Semantics, Value);                 \
+  }                                                                            \
+  template <typename T>                                                        \
+  typename sycl::detail::enable_if_t<std::is_floating_point<T>::value, T>  \
+      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
+                         __spv::MemorySemanticsMask::Flag Semantics,           \
+                         T Value) {                                            \
+    return __spirv_AtomicF##Op##EXT(Ptr, Memory, Semantics, Value);            \
+  }
+#else
 #define __SPIRV_ATOMIC_MINMAX(AS, Op)                                          \
   template <typename T>                                                        \
   typename __sycl_internal::__v1::detail::enable_if_t<                         \
@@ -173,6 +199,7 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
                          T Value) {                                            \
     return __spirv_AtomicF##Op##EXT(Ptr, Memory, Semantics, Value);            \
   }
+#endif
 
 #define __SPIRV_ATOMICS(macro, Arg)                                            \
   macro(__attribute__((opencl_global)), Arg)                                   \

@@ -15,8 +15,13 @@
 #include <iostream>
 #include <limits>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 #ifndef SYCL_CONFIG_FILE_NAME

@@ -14,8 +14,13 @@
 #include <detail/force_device.hpp>
 #include <detail/platform_impl.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 
 platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
 

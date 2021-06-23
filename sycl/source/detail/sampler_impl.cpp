@@ -10,8 +10,13 @@
 #include <detail/context_impl.hpp>
 #include <detail/sampler_impl.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,

@@ -103,8 +103,13 @@
   }
 
 #ifndef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace __host_std {
 #endif // __SYCL_DEVICE_ONLY__
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/

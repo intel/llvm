@@ -13,8 +13,13 @@
 #include <cstddef>
 #include <cstdint>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 template <typename T, int N> class vec;
 namespace detail {
 namespace half_impl {
@@ -69,8 +74,13 @@ using half = sycl::detail::half_impl::half;
   __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                               \
   __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 using byte = std::uint8_t;
 using schar = signed char;
 using uchar = unsigned char;
@@ -107,12 +117,8 @@ __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
 #undef __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES
 #undef __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

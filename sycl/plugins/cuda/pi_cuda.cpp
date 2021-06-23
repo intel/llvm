@@ -272,8 +272,13 @@ void guessLocalWorkSize(int *threadsPerBlock, const size_t *global_work_size,
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 namespace pi {
 

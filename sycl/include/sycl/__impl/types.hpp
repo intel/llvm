@@ -64,8 +64,13 @@
 // 4.10.1: Scalar data types
 // 4.10.2: SYCL vector types
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 struct elem {
@@ -1893,7 +1898,11 @@ private:
   OperationRightT m_RightOperation;
 
   // friends
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+  template <typename T1, int T2> friend class sycl::vec;
+#else
   template <typename T1, int T2> friend class __sycl_internal::vec;
+#endif
 
   template <typename T1, typename T2, typename T3, template <typename> class T4,
             int... T5>
@@ -2075,8 +2084,13 @@ using __half8_vec_t = sycl::detail::half_impl::Vec8StorageT;
 using __half16_vec_t = sycl::detail::half_impl::Vec16StorageT;
 #define __SYCL_GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 // select_apply_cl_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types in IN.
@@ -2284,12 +2298,8 @@ __SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 
 #undef __SYCL_ALIGNAS
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

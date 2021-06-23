@@ -10,8 +10,13 @@
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 
 // Maximum possible size of a flush buffer statement in bytes
 static constexpr size_t MAX_STATEMENT_SIZE =

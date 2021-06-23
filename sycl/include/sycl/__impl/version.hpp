@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define __SYCL_COMPILER_VERSION 20210620
+#define __SYCL_COMPILER_VERSION 20210623
 #define __LIBSYCL_MAJOR_VERSION 5
 #define __LIBSYCL_MINOR_VERSION 2
 #define __LIBSYCL_PATCH_VERSION 0

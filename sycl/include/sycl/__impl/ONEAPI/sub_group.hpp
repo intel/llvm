@@ -24,8 +24,13 @@
 
 #include <type_traits>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 template <typename T, access::address_space Space> class multi_ptr;
 
 namespace detail {
@@ -730,7 +735,11 @@ struct sub_group {
   }
 
 protected:
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+  template <int dimensions> friend class sycl::nd_item;
+#else
   template <int dimensions> friend class __sycl_internal::nd_item;
+#endif
   friend sub_group this_sub_group();
   sub_group() = default;
 };
@@ -748,12 +757,8 @@ inline sub_group this_sub_group() {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

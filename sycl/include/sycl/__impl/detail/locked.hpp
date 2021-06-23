@@ -13,8 +13,13 @@
 #include <functional>
 #include <mutex>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
   /// Represents a reference to value with appropriate lock acquired.
   /// Employed for acquire/release logic. Acquire action is construction

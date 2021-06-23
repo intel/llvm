@@ -21,8 +21,13 @@
 #include <detail/context_info.hpp>
 #include <detail/platform_impl.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,

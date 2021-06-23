@@ -33,8 +33,13 @@
 
 #include <sycl/__spirv/spirv_ops.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 // Type trait to get the associated sampled image type for a given image type.
@@ -113,8 +118,13 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
   return sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
 }
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 // Function to return the number of channels for Image Channel Order returned by

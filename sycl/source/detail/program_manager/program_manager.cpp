@@ -37,8 +37,13 @@
 #include <sstream>
 #include <string>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;

@@ -10,8 +10,13 @@
 #include <sycl/__impl/detail/export.hpp>
 #include <sycl/__impl/stl.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 vector_class<string_class> __SYCL_EXPORT split_string(const string_class &str,

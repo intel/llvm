@@ -14,8 +14,13 @@
 #include <sycl/__impl/detail/type_traits.hpp>
 #include <sycl/__impl/half_type.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 
 /// Provides a cross-patform math array class template that works on
 /// SYCL devices as well as in host C++ code.
@@ -348,12 +353,8 @@ __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH(16)
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

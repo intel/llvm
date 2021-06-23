@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <CL/sycl/builtins.hpp>
+#include <sycl/__impl/builtins.hpp>
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/host_util.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>

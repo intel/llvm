@@ -16,8 +16,13 @@
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {

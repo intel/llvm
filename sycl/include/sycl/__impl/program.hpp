@@ -18,8 +18,13 @@
 #include <sycl/__impl/property_list.hpp>
 #include <sycl/__impl/stl.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 
 // Forward declarations
 class context;
@@ -159,9 +164,10 @@ public:
   template <typename KernelT>
   void compile_with_kernel_type(string_class CompileOptions = "") {
     detail::OSModuleHandle M = detail::OSUtil::getOSModuleHandle(
-        detail::KernelInfo<KernelT>::getName());
-    compile_with_kernel_name(detail::KernelInfo<KernelT>::getName(),
-                             CompileOptions, M);
+        __sycl_internal::__v1::detail::KernelInfo<KernelT>::getName());
+    compile_with_kernel_name(
+        __sycl_internal::__v1::detail::KernelInfo<KernelT>::getName(),
+        CompileOptions, M);
   }
 
   /// Compiles the OpenCL C kernel function defined by source string.
@@ -196,8 +202,8 @@ public:
   template <typename KernelT>
   void build_with_kernel_type(string_class BuildOptions = "") {
     detail::OSModuleHandle M = detail::OSUtil::getOSModuleHandle(
-        detail::KernelInfo<KernelT>::getName());
-    build_with_kernel_name(detail::KernelInfo<KernelT>::getName(), BuildOptions,
+        __sycl_internal::__v1::detail::KernelInfo<KernelT>::getName());
+    build_with_kernel_name(__sycl_internal::__v1::detail::KernelInfo<KernelT>::getName(), BuildOptions,
                            M);
   }
 
@@ -237,7 +243,7 @@ public:
   ///
   /// \return true if the SYCL kernel is available.
   template <typename KernelT> bool has_kernel() const {
-    return has_kernel(detail::KernelInfo<KernelT>::getName(),
+    return has_kernel(__sycl_internal::__v1::detail::KernelInfo<KernelT>::getName(),
                       /*IsCreatedFromSource*/ false);
   }
 
@@ -259,7 +265,7 @@ public:
   ///
   /// \return a valid instance of SYCL kernel.
   template <typename KernelT> kernel get_kernel() const {
-    return get_kernel(detail::KernelInfo<KernelT>::getName(),
+    return get_kernel(__sycl_internal::__v1::detail::KernelInfo<KernelT>::getName(),
                       /*IsCreatedFromSource*/ false);
   }
 
@@ -343,7 +349,7 @@ public:
   ///         passed as a template parameter
   template <typename ID, typename T>
   ONEAPI::experimental::spec_constant<T, ID> set_spec_constant(T Cst) {
-    constexpr const char *Name = detail::SpecConstantInfo<ID>::getName();
+    constexpr const char *Name = __sycl_internal::__v1::detail::SpecConstantInfo<ID>::getName();
     static_assert(std::is_arithmetic<T>::value ||
                       (std::is_class<T>::value && std::is_pod<T>::value),
                   "unsupported specialization constant type");
@@ -421,13 +427,9 @@ private:
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif
 

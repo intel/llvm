@@ -24,8 +24,13 @@
 #include <set>
 #include <vector>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 /// Checks whether two requirements overlap or not.
@@ -175,13 +180,17 @@ MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
 MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
     const QueueImplPtr &Queue, const Requirement *Req,
     std::vector<Command *> &ToEnqueue) {
+  std::cout << ">> getOrInsertMemObjRecord\n";
   SYCLMemObjI *MemObject = Req->MSYCLMemObj;
+  std::cout << ">> 1\n";
   MemObjRecord *Record = getMemObjRecord(MemObject);
+  std::cout << ">> 2\n";
 
   if (nullptr != Record)
     return Record;
 
   const size_t LeafLimit = 8;
+  std::cout << ">> 3\n";
   LeavesCollection::AllocateDependencyF AllocateDependency =
       [this](Command *Dependant, Command *Dependency, MemObjRecord *Record,
              LeavesCollection::EnqueueListT &ToEnqueue) {
@@ -194,34 +203,39 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
         Dependency->addUser(Dependant);
         --(Dependency->MLeafCounter);
       };
-
+  std::cout << ">> 4\n";
   const ContextImplPtr &InteropCtxPtr = Req->MSYCLMemObj->getInteropContext();
   if (InteropCtxPtr) {
     // The memory object has been constructed using interoperability constructor
     // which means that there is already an allocation(cl_mem) in some context.
     // Registering this allocation in the SYCL graph.
-
+    std::cout << ">> 5\n";
     sycl::vector_class<sycl::device> Devices =
         InteropCtxPtr->get_info<info::context::devices>();
     assert(Devices.size() != 0);
     DeviceImplPtr Dev = detail::getSyclObjImpl(Devices[0]);
-
+    std::cout << ">> 6\n";
     // Since all the Scheduler commands require queue but we have only context
     // here, we need to create a dummy queue bound to the context and one of the
     // devices from the context.
     QueueImplPtr InteropQueuePtr{new detail::queue_impl{
         Dev, InteropCtxPtr, /*AsyncHandler=*/{}, /*PropertyList=*/{}}};
-
+    std::cout << ">> 7\n";
     MemObject->MRecord.reset(
         new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});
     getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr,
                             ToEnqueue);
-  } else
+  } else {
+    std::cout << ">> 7\n";
     MemObject->MRecord.reset(new MemObjRecord{Queue->getContextImplPtr(),
                                               LeafLimit, AllocateDependency});
-
+  }
+  std::cout << ">> 8\n";
   MMemObjs.push_back(MemObject);
-  return MemObject->MRecord.get();
+  std::cout << ">> 9\n";
+  auto a = MemObject->MRecord.get();
+  std::cout << ">> getOrInsertMemObjRecord - END\n";
+  return a;
 }
 
 void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,

@@ -105,7 +105,11 @@ static_assert((SlabMinSize & (SlabMinSize - 1)) == 0,
               "SlabMinSize must be a power of 2");
 
 // Protects the capacity checking of the pool.
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+static sycl::detail::SpinLock PoolLock;
+#else
 static __sycl_internal::__v1::detail::SpinLock PoolLock;
+#endif
 
 static class SetLimits {
 public:
@@ -580,7 +584,11 @@ void Bucket::onFreeChunk(Slab &Slab) {
 }
 
 bool Bucket::CanPool() {
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+  std::lock_guard<sycl::detail::SpinLock> Lock{settings::PoolLock};
+#else
   std::lock_guard<__sycl_internal::__v1::detail::SpinLock> Lock{settings::PoolLock};
+#endif
   size_t NewFreeSlabsInBucket = AvailableSlabs.size() + 1;
   if (settings::USMPoolSettings.Capacity >= NewFreeSlabsInBucket) {
     size_t NewPoolSize = settings::USMPoolSettings.CurPoolSize + Size;

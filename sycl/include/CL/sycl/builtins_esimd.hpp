@@ -8,18 +8,23 @@
 
 #pragma once
 
-#include <CL/sycl/detail/boolean.hpp>
-#include <CL/sycl/detail/builtins.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/generic_type_traits.hpp>
-#include <CL/sycl/types.hpp>
+#include <sycl/__impl/detail/boolean.hpp>
+#include <sycl/__impl/detail/builtins.hpp>
+#include <sycl/__impl/detail/common.hpp>
+#include <sycl/__impl/detail/generic_type_traits.hpp>
+#include <sycl/__impl/types.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+#else
+namespace __sycl_internal {
+inline namespace __v1 {
+#endif
 
 // cos
 template <int SZ>
@@ -69,3 +74,9 @@ log(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef __NOEXC
+
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
+namespace sycl {
+  using namespace __sycl_internal::__v1;
+}
+#endif

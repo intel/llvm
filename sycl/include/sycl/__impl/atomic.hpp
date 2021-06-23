@@ -23,8 +23,13 @@
   static_assert(!std::is_same<T, float>::value,                                \
                 "SYCL atomic function not available for float type")
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 
 enum class memory_order : int { relaxed = 0 };
 
@@ -72,8 +77,13 @@ template <> struct GetSpirvMemoryScope<access::address_space::local_space> {
 
 #ifndef __SYCL_DEVICE_ONLY__
 // host implementation of SYCL atomics
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 // Translate sycl::memory_order or __spv::MemorySemanticsMask::Flag
 // into std::memory_order
@@ -167,8 +177,13 @@ extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope::Flag,
 
 #endif // !defined(__SYCL_DEVICE_ONLY__)
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 
 template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
@@ -398,12 +413,8 @@ T atomic_fetch_max(atomic<T, addressSpace> Object, T Operand,
 
 #undef __SYCL_STATIC_ASSERT_NOT_FLOAT
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

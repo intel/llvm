@@ -23,8 +23,13 @@
 // public methods as a default argument. If the end-user wants to disable the
 // code location information, they must compile the code with
 // -DDISABLE_SYCL_INSTRUMENTATION_METADATA flag
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 // We define a sycl stream name and this will be used by the instrumentation
 // framework
@@ -76,8 +81,13 @@ private:
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 __SYCL_EXPORT const char *stringifyErrorCode(cl_int error);
@@ -149,8 +159,13 @@ static inline std::string codeToString(cl_int code) {
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_OCL_ERR_TO_STREAM(X)
 #endif
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 // Helper function for extracting implementation from SYCL's interface objects.

@@ -14,8 +14,13 @@
 #include <cassert>
 #include <cstddef>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 // Forward declaration
 template <typename dataT, int dimensions, access::mode accessMode,
           access::target accessTarget, access::placeholder isPlaceholder,
@@ -694,12 +699,8 @@ bool operator<=(std::nullptr_t, const multi_ptr<ElementType, Space> &rhs) {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

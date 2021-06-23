@@ -20,8 +20,13 @@
 #include <memory>
 #include <vector>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 // Forward declaration
 template <backend Backend> class backend_traits;
 
@@ -263,7 +268,7 @@ public:
   /// \returns true if any device image in the kernel_bundle uses specialization
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
-    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    const char *SpecSymName = __sycl_internal::__v1::detail::get_spec_constant_symbolic_ID<SpecName>();
     return has_specialization_constant_impl(SpecSymName);
   }
 
@@ -274,7 +279,7 @@ public:
             typename = detail::enable_if_t<_State == bundle_state::input>>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
-    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    const char *SpecSymName = __sycl_internal::__v1::detail::get_spec_constant_symbolic_ID<SpecName>();
     set_specialization_constant_impl(SpecSymName, &Value,
                                      sizeof(decltype(Value)));
   }
@@ -284,7 +289,7 @@ public:
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
-    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    const char *SpecSymName = __sycl_internal::__v1::detail::get_spec_constant_symbolic_ID<SpecName>();
     if (!is_specialization_constant_set(SpecSymName))
       return SpecName.getDefaultValue();
 
@@ -346,7 +351,7 @@ private:
 
 /// \returns the kernel_id associated with the KernelName
 template <typename KernelName> kernel_id get_kernel_id() {
-  using KI = sycl::detail::KernelInfo<KernelName>;
+  using KI = __sycl_internal::__v1::detail::KernelInfo<KernelName>;
   return sycl::kernel_id(KI::getName());
 }
 
@@ -671,13 +676,9 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif
 

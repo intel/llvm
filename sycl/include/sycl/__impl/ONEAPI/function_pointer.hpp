@@ -14,8 +14,13 @@
 #include <sycl/__impl/program.hpp>
 #include <sycl/__impl/stl.hpp>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 __SYCL_EXPORT cl_ulong getDeviceFunctionPointerImpl(device &D, program &P,
                                                     const char *FuncName);
@@ -86,12 +91,8 @@ device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-__SYCL_INLINE_NAMESPACE(cl) {
-#endif
+#ifndef __SYCL_ENABLE_SYCL121_NAMESPACE
 namespace sycl {
   using namespace __sycl_internal::__v1;
-}
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 }
 #endif

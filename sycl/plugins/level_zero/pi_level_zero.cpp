@@ -280,8 +280,13 @@ private:
 // Sycl RT calls piTearDown().
 static std::vector<pi_platform> *PiPlatformsCache =
     new std::vector<pi_platform>;
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+static sycl::detail::SpinLock *PiPlatformsCacheMutex =
+    new sycl::detail::SpinLock;
+#else
 static __sycl_internal::__v1::detail::SpinLock *PiPlatformsCacheMutex =
     new __sycl_internal::__v1::detail::SpinLock;
+#endif
 static bool PiPlatformCachePopulated = false;
 
 // Keeps track if the global offset extension is found
@@ -1275,7 +1280,11 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   // 2. performance; we can save time by immediately return from cache.
   //
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiPlatformsCacheMutex};
+#else
   const std::lock_guard<__sycl_internal::__v1::detail::SpinLock> Lock{*PiPlatformsCacheMutex};
+#endif
   if (!PiPlatformCachePopulated) {
     try {
       // Level Zero does not have concept of Platforms, but Level Zero driver is

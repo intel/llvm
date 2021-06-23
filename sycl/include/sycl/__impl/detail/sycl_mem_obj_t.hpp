@@ -23,8 +23,13 @@
 #include <memory>
 #include <type_traits>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 // Forward declarations
@@ -296,7 +301,7 @@ public:
 
   __SYCL_DLL_LOCAL MemObjType getType() const override { return UNDEFINED; }
 
-  ContextImplPtr getInteropContext() const override { return MInteropContext; }
+  ContextImplPtr getInteropContext() const override { std::cout << "!!\n"; return MInteropContext; }
 
   bool hasUserDataPtr() const { return MUserPtr != nullptr; };
 

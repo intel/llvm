@@ -16,8 +16,13 @@
 #include <cstring>
 #include <iostream>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 namespace detail {
 
 void spec_constant_impl::set(size_t Size, const void *Val) {

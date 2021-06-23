@@ -15,8 +15,13 @@
 
 #include <unordered_map>
 
+#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+#else
 namespace __sycl_internal {
 inline namespace __v1 {
+#endif
 
 enum class addressing_mode : unsigned int;
 enum class filtering_mode : unsigned int;
