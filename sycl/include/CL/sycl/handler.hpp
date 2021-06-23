@@ -112,8 +112,9 @@ using lambda_arg_type = decltype(argument_helper<F, SuggestedArgType>(0));
 // Used when parallel_for range is rounded-up.
 template <typename Name> class __pf_kernel_wrapper;
 
-template <typename Name> struct get_kernel_wrapper_name_t {
-  using name = __pf_kernel_wrapper<Name>;
+template <typename Type> struct get_kernel_wrapper_name_t {
+  using name = __pf_kernel_wrapper<
+      typename get_kernel_name_t<detail::auto_name, Type>::name>;
 };
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
