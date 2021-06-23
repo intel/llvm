@@ -47,7 +47,7 @@ struct array_fill_helper<Kind, Idx, T> {
 template <PiApiKind Kind, size_t Idx, typename T, typename... Args>
 struct array_fill_helper<Kind, Idx, T, Args...> {
   static void fill(unsigned char *Dst, size_t Offset, const T &&Arg,
-                   Args &&... Rest) {
+                   Args &&...Rest) {
     using ArgsTuple = typename PiApiArgTuple<Kind>::type;
     // C-style cast is required here.
     auto RealArg = (typename std::tuple_element<Idx, ArgsTuple>::type)(Arg);
