@@ -10,7 +10,6 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/pi_api_id.hpp>
 #include <CL/sycl/detail/pi_args_helper.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/plugin_printers.hpp>
@@ -130,7 +129,7 @@ public:
     auto ArgsData =
         packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...);
     uint64_t CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
-        PiApiID<PiApiOffset>::id, ArgsData.data());
+        static_cast<uint32_t>(PiApiOffset), ArgsData.data());
 #endif
     RT::PiResult R;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
@@ -149,8 +148,9 @@ public:
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Close the function begin with a call to function end
     pi::emitFunctionEndTrace(CorrelationID, PIFnName.c_str());
-    pi::emitFunctionWithArgsEndTrace(
-        CorrelationIDWithArgs, PiApiID<PiApiOffset>::id, ArgsData.data(), R);
+    pi::emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
+                                     static_cast<uint32_t>(PiApiOffset),
+                                     ArgsData.data(), R);
 #endif
     return R;
   }

@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/pi_api_id.hpp>
 #include <CL/sycl/detail/pi_args_helper.hpp>
 
 #include "tuple_view.hpp"
@@ -36,7 +35,7 @@ class PiArgumentsHandler {
 public:
   void handle(uint32_t ID, void *ArgsData) {
 #define _PI_API(api)                                                           \
-  if (ID == sycl::detail::PiApiID<detail::PiApiKind::api>::id) {               \
+  if (ID == static_cast<uint32_t>(detail::PiApiKind::api)) {                   \
     MHandler##_##api(ArgsData);                                                \
     return;                                                                    \
   }
