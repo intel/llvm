@@ -265,14 +265,14 @@ private:
   template<auto &SpecName, typename T = std::remove_reference_t<decltype(SpecName)>::type>
   // enable_if T is a scalar type
   T get_on_device() {
-    auto ID = __builtin_unqiue_ID(SpecName);
+    auto ID = __builtin_sycl_unique_id(SpecName);
     return __sycl_getScalar2020SpecConstantValue<T>(ID, &S, Ptr);
   }
 
   template<auto &SpecName, typename T = std::remove_reference_t<decltype(SpecName)>::type>
   // enable_if T is a composite type
   T get_on_device() {
-    auto ID = __builtin_unqiue_ID(SpecName);
+    auto ID = __builtin_sycl_unique_id(SpecName);
     return __sycl_getComposite2020SpecConstantValue<T>(ID, &S, Ptr);
   }
 #endif // __SYCL_DEVICE_ONLY__
@@ -283,7 +283,7 @@ private:
 } // namespace sycl
 ```
 
-Here `__builtin_unique_ID` is a new compiler built-in which is supposed to
+Here `__builtin_sycl_unique_id` is a new compiler built-in which is supposed to
 generate unique symbolic IDs for specialization constants.
 
 `__sycl_getScalar2020SpecConstantValue<T>` and
@@ -685,7 +685,7 @@ While transforming SYCL kernel function into an OpenCL kernel, DPC++ FE should
 - Communicate to DPC++ RT which kernel argument should be used for passing
   a buffer with specialization constant values when they are emulated.
 
-DPC++ FE provides implementation of `__builtin_unique_ID` built-in function and
+DPC++ FE provides implementation of `__builtin_sycl_unique_id` built-in function and
 it also populates special integration footer with the content required by DPC++
 RT for access to right device image properties describing specialization
 constants.
@@ -750,12 +750,12 @@ integration header mechanism, i.e. it is added as new entry to
 `kernel_signatures` structure there with parameter kind set to a new
 enumeration value `kernel_param_kind_t::kind_specialization_constants_buffer`.
 
-#### `__builtin_unique_ID`
+#### `__builtin_sycl_unique_id`
 
 This built-in is used to generate unique identifiers for specialization
 constants, which are used in communication between the compiler and the runtime.
 
-`__builtin_unique_ID` is defined as follows: it accepts a variable and returns
+`__builtin_sycl_unique_id` is defined as follows: it accepts a variable and returns
 a C-string (`const char *`), which:
 - if the input variable has external linkage, the string must be the same in all
   translation units that pass this same variable to the built-in.
@@ -766,11 +766,11 @@ a C-string (`const char *`), which:
 
 #### Integration footer generation
 
-Note: we could have used `__builtin_unique_ID` directly in DPC++ Headers, but
+Note: we could have used `__builtin_sycl_unique_id` directly in DPC++ Headers, but
 this would break compilation of those with a third-party C++ 17-compatible
 compiler, which is unaware of this built-in function. Therefore, the compiler
 generates a header file, which includes _the result_ of calling
-`__builtin_unique_ID` function and it is included into the user's program. By
+`__builtin_sycl_unique_id` function and it is included into the user's program. By
 doing so we can still use this non-standard built-in function and preserve
 support for third-party host compilers.
 
@@ -807,6 +807,8 @@ constexpr inline specialization_id<float> id_float;
 The integration footer will look like:
 
 ```
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 // Note: we do not declare `get_spec_constant_symbolic_ID` here and assume that
 // it is declared in some other header which was already included.
@@ -816,27 +818,29 @@ namespace detail {
 // footer was _appended_ to the user-provided translation unit
 template<>
 inline const char *get_spec_constant_symbolic_ID<id_int>() {
-  return "result of __builtin_unique_ID(id_int) encoded here";
+  return "result of __builtin_sycl_unique_id(id_int) encoded here";
 }
 
 template<>
 inline const char *get_spec_constant_symbolic_ID<Wrapper::id_A>() {
-  return "result of __builtin_unique_ID(Wrapper::id_A) encoded here";
+  return "result of __builtin_sycl_unique_id(Wrapper::id_A) encoded here";
 }
 
 template<>
 inline const char *get_spec_constant_symbolic_ID<id_double>() {
-  return "result of __builtin_unique_ID(id_double) encoded here";
+  return "result of __builtin_sycl_unique_id(id_double) encoded here";
 }
 
 template<>
 inline const char *get_spec_constant_symbolic_ID<id_float>() {
-  return "result of __builtin_unique_ID(id_float) encoded here";
+  return "result of __builtin_sycl_unique_id(id_float) encoded here";
 }
 
 } // namespace detail
+} //namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
-// TODO: elaborate why we have to include handler implementation here
+// get_spec_constant_symbolic_ID
 #include <CL/sycl/detail/spec_const_integration.hpp>
 ```
 
@@ -879,7 +883,7 @@ However, we can do the following trick:
 // For unambiguous references we can generate regular specialization
 template<>
 inline const char *get_spec_constant_symbolic_ID<::same_name>() {
-  return "result of __builtin_unique_ID(::same_name) encoded here";
+  return "result of __builtin_sycl_unique_id(::same_name) encoded here";
 }
 
 // For ambiguous references we generate 'shim' functions, which allows us to
