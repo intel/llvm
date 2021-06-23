@@ -244,7 +244,7 @@ In order to communicate the information from `[[sycl::requires()]]` and
 introduce two new LLVM IR metadata that can be attached to a function
 definition, similar to the existing `!intel_reqd_sub_group_size`.
 
-These new metadata are named `!intel_allowed_aspects` and
+These new metadata are named `!intel_declared_aspects` and
 `!intel_used_aspects`.  In each case, the parameter is an (unnamed) metadata
 node, and the value of the metadata node is a list of `i32` constants, where
 each constant is a value from `enum class aspect`.  For example, the following
@@ -254,7 +254,7 @@ illustrates the IR that corresponds to a function `foo` that is decorated with
 corresponds to an aspect with numerical value `8`.
 
 ```
-define void @foo() !intel_allowed_aspects !1 !intel_used_aspects !2 {}
+define void @foo() !intel_declared_aspects !1 !intel_used_aspects !2 {}
 !1 = !{i32 8, i32 9}
 !2 = !{i32 8}
 ```
@@ -264,11 +264,11 @@ define void @foo() !intel_allowed_aspects !1 !intel_used_aspects !2 {}
 
 The front-end of the device compiler is responsible for parsing the
 `[[sycl::requires()]]` and `[[sycl_detail::uses_aspects()]]` attributes and
-transferring the information to the LLVM IR `!intel_allowed_aspects` and
+transferring the information to the LLVM IR `!intel_declared_aspects` and
 `!intel_used_aspects` metadata according to the following rules:
 
 * If a function is decorated with the `[[sycl::requires()]]` attribute, the
-  front-end emits an `!intel_allowed_aspects` metadata on the function's LLVM
+  front-end emits an `!intel_declared_aspects` metadata on the function's LLVM
   IR definition with the numerical values of the aspects listed in the
   attribute.
 
@@ -332,7 +332,7 @@ already know whether an expression is potentially evaluated.
 ### Changes to other phases of clang
 
 Any clang phases that do function inlining will need to be changed, so that the
-`!intel_allowed_aspects` and `!intel_uses_aspects` metadata are transferred
+`!intel_declared_aspects` and `!intel_uses_aspects` metadata are transferred
 from the inlined function to the function that receives the inlined function
 body.  Presumably, there is already similar logic for the existing
 `!reqd_work_group_size` metadata, which already decorates device functions.
@@ -376,24 +376,24 @@ Linking][5].
 
 This pass operates on the static call graph for each kernel and each exported
 device function, propagating the aspects from the `!intel_used_aspects` and
-`!intel_allowed_aspects` metadata from the leaves of the call graph up to their
-callers.  The result of this pass is that each device function is labeled with
-a *Used* set of aspects which is computed as the union of the following:
+`!intel_declared_aspects` metadata from the leaves of the call graph up to
+their callers.  The result of this pass is that each device function is labeled
+with a *Used* set of aspects which is computed as the union of the following:
 
 * The aspects in the function's `!intel_used_aspects` metadata (if any).
-* The aspects in the function's `!intel_allowed_aspects` metadata (if any).
+* The aspects in the function's `!intel_declared_aspects` metadata (if any).
 * The aspects in the *Used* set of all functions called by this function.
 
 Once the *Used* set of aspects is known for each function, the post-link tool
-compares this set of aspects with the aspects from any `!intel_allowed_aspects`
-metadata.  If the function has this metadata and if the *Used* set contains
-aspects not in that set, it issues a warning indicating that the function uses
-aspects that are not in the `[[sycl::requires()]]` list.  Unfortunately, the
-post-link tool is unable to include the source position of the code that uses
-the aspect in question.  To compensate, the warning message must include
-instructions telling the user how to run the clang static analyzer which
-provides a better diagnostic.  This analysis phase is described in more detail
-below.
+compares this set of aspects with the aspects from any
+`!intel_declared_aspects` metadata.  If the function has this metadata and if
+the *Used* set contains aspects not in that set, it issues a warning indicating
+that the function uses aspects that are not in the `[[sycl::requires()]]` list.
+Unfortunately, the post-link tool is unable to include the source position of
+the code that uses the aspect in question.  To compensate, the warning message
+must include instructions telling the user how to run the clang static analyzer
+which provides a better diagnostic.  This analysis phase is described in more
+detail below.
 
 #### Changes to the device code split algorithm
 
