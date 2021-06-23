@@ -255,7 +255,7 @@ template <> struct ScalarTraits<exegesis::RegisterValue> {
                      raw_ostream &Out) {
     YamlContext &Context = getTypedContext(Ctx);
     Out << Context.getRegName(RV.Register) << "=0x"
-        << RV.Value.toString(kRadix, kSigned);
+        << toString(RV.Value, kRadix, kSigned);
   }
 
   static StringRef input(StringRef String, void *Ctx,
@@ -334,7 +334,7 @@ namespace exegesis {
 Expected<InstructionBenchmark>
 InstructionBenchmark::readYaml(const LLVMState &State, StringRef Filename) {
   if (auto ExpectedMemoryBuffer =
-          errorOrToExpected(MemoryBuffer::getFile(Filename))) {
+          errorOrToExpected(MemoryBuffer::getFile(Filename, /*IsText=*/true))) {
     yaml::Input Yin(*ExpectedMemoryBuffer.get());
     YamlContext Context(State);
     InstructionBenchmark Benchmark;
@@ -351,7 +351,7 @@ InstructionBenchmark::readYaml(const LLVMState &State, StringRef Filename) {
 Expected<std::vector<InstructionBenchmark>>
 InstructionBenchmark::readYamls(const LLVMState &State, StringRef Filename) {
   if (auto ExpectedMemoryBuffer =
-          errorOrToExpected(MemoryBuffer::getFile(Filename))) {
+          errorOrToExpected(MemoryBuffer::getFile(Filename, /*IsText=*/true))) {
     yaml::Input Yin(*ExpectedMemoryBuffer.get());
     YamlContext Context(State);
     std::vector<InstructionBenchmark> Benchmarks;

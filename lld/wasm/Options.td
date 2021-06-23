@@ -141,7 +141,11 @@ def z: JoinedOrSeparate<["-"], "z">, MetaVarName<"<option>">,
 // The follow flags are unique to wasm
 
 def allow_undefined: F<"allow-undefined">,
-  HelpText<"Allow undefined symbols in linked binary">;
+  HelpText<"Allow undefined symbols in linked binary. This options is equivelant "
+           "to --import-undefined and --unresolved-symbols=ignore-all">;
+
+def import_undefined: F<"import-undefined">,
+  HelpText<"Turn undefined symbols into imports where possible">;
 
 def allow_undefined_file: J<"allow-undefined-file=">,
   HelpText<"Allow symbols listed in <file> to be undefined in linked binary">;
@@ -150,6 +154,9 @@ def allow_undefined_file_s: Separate<["-"], "allow-undefined-file">,
   Alias<allow_undefined_file>;
 
 defm export: Eq<"export", "Force a symbol to be exported">;
+
+defm export_if_defined: Eq<"export-if-defined",
+     "Force a symbol to be exported, if it is defined in the input">;
 
 def export_all: F<"export-all">,
   HelpText<"Export all symbols (normally combined with --no-gc-sections)">;

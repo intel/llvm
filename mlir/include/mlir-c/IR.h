@@ -119,6 +119,10 @@ mlirContextGetNumLoadedDialects(MlirContext context);
 MLIR_CAPI_EXPORTED MlirDialect mlirContextGetOrLoadDialect(MlirContext context,
                                                            MlirStringRef name);
 
+/// Set threading mode (must be set to false to print-ir-after-all).
+MLIR_CAPI_EXPORTED void mlirContextEnableMultithreading(MlirContext context,
+                                                        bool enable);
+
 /// Returns whether the given fully-qualified operation (i.e.
 /// 'dialect.operation') is registered with the context. This will return true
 /// if the dialect is loaded and the operation is registered within the
@@ -204,6 +208,10 @@ MLIR_CAPI_EXPORTED void mlirModuleDestroy(MlirModule module);
 
 /// Views the module as a generic operation.
 MLIR_CAPI_EXPORTED MlirOperation mlirModuleGetOperation(MlirModule module);
+
+/// Views the generic operation as a module.
+/// The returned module is null when the input operation was not a ModuleOp.
+MLIR_CAPI_EXPORTED MlirModule mlirModuleFromOperation(MlirOperation op);
 
 //===----------------------------------------------------------------------===//
 // Operation state.
@@ -318,6 +326,10 @@ mlirOpPrintingFlagsUseLocalScope(MlirOpPrintingFlags flags);
 ///   - Result type inference is enabled and cannot be performed.
 MLIR_CAPI_EXPORTED MlirOperation mlirOperationCreate(MlirOperationState *state);
 
+/// Creates a deep copy of an operation. The operation is not inserted and
+/// ownership is transferred to the caller.
+MLIR_CAPI_EXPORTED MlirOperation mlirOperationClone(MlirOperation op);
+
 /// Takes an operation owned by the caller and destroys it.
 MLIR_CAPI_EXPORTED void mlirOperationDestroy(MlirOperation op);
 
@@ -361,6 +373,10 @@ MLIR_CAPI_EXPORTED intptr_t mlirOperationGetNumOperands(MlirOperation op);
 /// Returns `pos`-th operand of the operation.
 MLIR_CAPI_EXPORTED MlirValue mlirOperationGetOperand(MlirOperation op,
                                                      intptr_t pos);
+
+/// Sets the `pos`-th operand of the operation.
+MLIR_CAPI_EXPORTED void mlirOperationSetOperand(MlirOperation op, intptr_t pos,
+                                                MlirValue newValue);
 
 /// Returns the number of results of the operation.
 MLIR_CAPI_EXPORTED intptr_t mlirOperationGetNumResults(MlirOperation op);

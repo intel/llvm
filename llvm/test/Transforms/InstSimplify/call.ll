@@ -494,14 +494,24 @@ declare noalias i8* @malloc(i64)
 
 declare <8 x i32> @llvm.masked.load.v8i32.p0v8i32(<8 x i32>*, i32, <8 x i1>, <8 x i32>)
 
-declare double @llvm.powi.f64(double, i32)
-declare <2 x double> @llvm.powi.v2f64(<2 x double>, i32)
+declare double @llvm.powi.f64.i16(double, i16)
+declare <2 x double> @llvm.powi.v2f64.i16(<2 x double>, i16)
+declare double @llvm.powi.f64.i32(double, i32)
+declare <2 x double> @llvm.powi.v2f64.i32(<2 x double>, i32)
 
 define double @constant_fold_powi() {
 ; CHECK-LABEL: @constant_fold_powi(
 ; CHECK-NEXT:    ret double 9.000000e+00
 ;
-  %t0 = call double @llvm.powi.f64(double 3.00000e+00, i32 2)
+  %t0 = call double @llvm.powi.f64.i32(double 3.00000e+00, i32 2)
+  ret double %t0
+}
+
+define double @constant_fold_powi_i16() {
+; CHECK-LABEL: @constant_fold_powi_i16(
+; CHECK-NEXT:    ret double 9.000000e+00
+;
+  %t0 = call double @llvm.powi.f64.i16(double 3.00000e+00, i16 2)
   ret double %t0
 }
 
@@ -509,7 +519,15 @@ define <2 x double> @constant_fold_powi_vec() {
 ; CHECK-LABEL: @constant_fold_powi_vec(
 ; CHECK-NEXT:    ret <2 x double> <double 9.000000e+00, double 2.500000e+01>
 ;
-  %t0 = call <2 x double> @llvm.powi.v2f64(<2 x double> <double 3.00000e+00, double 5.00000e+00>, i32 2)
+  %t0 = call <2 x double> @llvm.powi.v2f64.i32(<2 x double> <double 3.00000e+00, double 5.00000e+00>, i32 2)
+  ret <2 x double> %t0
+}
+
+define <2 x double> @constant_fold_powi_vec_i16() {
+; CHECK-LABEL: @constant_fold_powi_vec_i16(
+; CHECK-NEXT:    ret <2 x double> <double 9.000000e+00, double 2.500000e+01>
+;
+  %t0 = call <2 x double> @llvm.powi.v2f64.i16(<2 x double> <double 3.00000e+00, double 5.00000e+00>, i16 2)
   ret <2 x double> %t0
 }
 
@@ -953,7 +971,7 @@ define double @fma_undef_op0(double %x, double %y) {
 
 define double @fma_poison_op0(double %x, double %y) {
 ; CHECK-LABEL: @fma_poison_op0(
-; CHECK-NEXT:    ret double 0x7FF8000000000000
+; CHECK-NEXT:    ret double poison
 ;
   %r = call double @llvm.fma.f64(double poison, double %x, double %y)
   ret double %r
@@ -969,7 +987,7 @@ define double @fma_undef_op1(double %x, double %y) {
 
 define double @fma_poison_op1(double %x, double %y) {
 ; CHECK-LABEL: @fma_poison_op1(
-; CHECK-NEXT:    ret double 0x7FF8000000000000
+; CHECK-NEXT:    ret double poison
 ;
   %r = call double @llvm.fma.f64(double %x, double poison, double %y)
   ret double %r
@@ -985,7 +1003,7 @@ define double @fma_undef_op2(double %x, double %y) {
 
 define double @fma_poison_op2(double %x, double %y) {
 ; CHECK-LABEL: @fma_poison_op2(
-; CHECK-NEXT:    ret double 0x7FF8000000000000
+; CHECK-NEXT:    ret double poison
 ;
   %r = call double @llvm.fma.f64(double %x, double %y, double poison)
   ret double %r
@@ -1001,7 +1019,7 @@ define double @fmuladd_undef_op0(double %x, double %y) {
 
 define double @fmuladd_poison_op0(double %x, double %y) {
 ; CHECK-LABEL: @fmuladd_poison_op0(
-; CHECK-NEXT:    ret double 0x7FF8000000000000
+; CHECK-NEXT:    ret double poison
 ;
   %r = call double @llvm.fmuladd.f64(double poison, double %x, double %y)
   ret double %r
@@ -1017,7 +1035,7 @@ define double @fmuladd_undef_op1(double %x, double %y) {
 
 define double @fmuladd_poison_op1(double %x, double %y) {
 ; CHECK-LABEL: @fmuladd_poison_op1(
-; CHECK-NEXT:    ret double 0x7FF8000000000000
+; CHECK-NEXT:    ret double poison
 ;
   %r = call double @llvm.fmuladd.f64(double %x, double poison, double %y)
   ret double %r
@@ -1033,7 +1051,7 @@ define double @fmuladd_undef_op2(double %x, double %y) {
 
 define double @fmuladd_poison_op2(double %x, double %y) {
 ; CHECK-LABEL: @fmuladd_poison_op2(
-; CHECK-NEXT:    ret double 0x7FF8000000000000
+; CHECK-NEXT:    ret double poison
 ;
   %r = call double @llvm.fmuladd.f64(double %x, double %y, double poison)
   ret double %r
@@ -1406,6 +1424,15 @@ define i32 @ctlz_lshr_sign_bit(i32 %x) {
   ret i32 %r
 }
 
+define i32 @ctlz_lshr_negative(i32 %x) {
+; CHECK-LABEL: @ctlz_lshr_negative(
+; CHECK-NEXT:    ret i32 [[X:%.*]]
+;
+  %s = lshr i32 -42, %x
+  %r = call i32 @llvm.ctlz.i32(i32 %s, i1 true)
+  ret i32 %r
+}
+
 define <3 x i33> @ctlz_lshr_sign_bit_vec(<3 x i33> %x) {
 ; CHECK-LABEL: @ctlz_lshr_sign_bit_vec(
 ; CHECK-NEXT:    ret <3 x i33> [[X:%.*]]
@@ -1417,35 +1444,38 @@ define <3 x i33> @ctlz_lshr_sign_bit_vec(<3 x i33> %x) {
 
 ; Negative test - this could be generalized in instcombine though.
 
-define i32 @ctlz_lshr_not_sign_bit(i32 %x) {
-; CHECK-LABEL: @ctlz_lshr_not_sign_bit(
-; CHECK-NEXT:    [[S:%.*]] = lshr i32 -1, [[X:%.*]]
+define i32 @ctlz_lshr_not_negative(i32 %x) {
+; CHECK-LABEL: @ctlz_lshr_not_negative(
+; CHECK-NEXT:    [[S:%.*]] = lshr i32 42, [[X:%.*]]
 ; CHECK-NEXT:    [[R:%.*]] = call i32 @llvm.ctlz.i32(i32 [[S]], i1 true)
 ; CHECK-NEXT:    ret i32 [[R]]
 ;
-  %s = lshr i32 4294967295, %x
+  %s = lshr i32 42, %x
   %r = call i32 @llvm.ctlz.i32(i32 %s, i1 true)
   ret i32 %r
 }
 
-; TODO: Reduce to 0.
-
 define i32 @ctlz_ashr_sign_bit(i32 %x) {
 ; CHECK-LABEL: @ctlz_ashr_sign_bit(
-; CHECK-NEXT:    [[S:%.*]] = ashr i32 -2147483648, [[X:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = call i32 @llvm.ctlz.i32(i32 [[S]], i1 false)
-; CHECK-NEXT:    ret i32 [[R]]
+; CHECK-NEXT:    ret i32 0
 ;
   %s = ashr i32 2147483648, %x
   %r = call i32 @llvm.ctlz.i32(i32 %s, i1 false)
   ret i32 %r
 }
 
+define i32 @ctlz_ashr_negative(i32 %x) {
+; CHECK-LABEL: @ctlz_ashr_negative(
+; CHECK-NEXT:    ret i32 0
+;
+  %s = ashr i32 -42, %x
+  %r = call i32 @llvm.ctlz.i32(i32 %s, i1 false)
+  ret i32 %r
+}
+
 define <3 x i33> @ctlz_ashr_sign_bit_vec(<3 x i33> %x) {
 ; CHECK-LABEL: @ctlz_ashr_sign_bit_vec(
-; CHECK-NEXT:    [[S:%.*]] = ashr <3 x i33> <i33 -4294967296, i33 undef, i33 -4294967296>, [[X:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = call <3 x i33> @llvm.ctlz.v3i33(<3 x i33> [[S]], i1 true)
-; CHECK-NEXT:    ret <3 x i33> [[R]]
+; CHECK-NEXT:    ret <3 x i33> zeroinitializer
 ;
   %s = ashr <3 x i33> <i33 4294967296, i33 undef, i33 4294967296>, %x
   %r = call <3 x i33> @llvm.ctlz.v3i33(<3 x i33> %s, i1 true)

@@ -13,7 +13,6 @@
 #define LLVM_CLANG_LIB_BASIC_TARGETS_OSTARGETS_H
 
 #include "Targets.h"
-#include "llvm/MC/MCSectionMachO.h"
 
 namespace clang {
 namespace targets {
@@ -112,15 +111,6 @@ public:
     }
 
     this->MCountName = "\01mcount";
-  }
-
-  llvm::Error isValidSectionSpecifier(StringRef SR) const override {
-    // Let MCSectionMachO validate this.
-    StringRef Segment, Section;
-    unsigned TAA, StubSize;
-    bool HasTAA;
-    return llvm::MCSectionMachO::ParseSectionSpecifier(SR, Segment, Section,
-                                                       TAA, HasTAA, StubSize);
   }
 
   const char *getStaticInitSectionSpecifier() const override {
@@ -685,6 +675,11 @@ protected:
     Builder.defineMacro("_POWER");
 
     Builder.defineMacro("_AIX");
+
+    if (Opts.C11) {
+      Builder.defineMacro("__STDC_NO_ATOMICS__");
+      Builder.defineMacro("__STDC_NO_THREADS__");
+    }
 
     if (Opts.EnableAIXExtendedAltivecABI)
       Builder.defineMacro("__EXTABI__");

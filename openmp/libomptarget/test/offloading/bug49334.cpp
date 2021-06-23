@@ -1,8 +1,7 @@
-// RUN: %libomptarget-compilexx-run-and-check-aarch64-unknown-linux-gnu
-// RUN: %libomptarget-compilexx-run-and-check-powerpc64-ibm-linux-gnu
-// RUN: %libomptarget-compilexx-run-and-check-powerpc64le-ibm-linux-gnu
-// RUN: %libomptarget-compilexx-run-and-check-x86_64-pc-linux-gnu
-// RUN: %libomptarget-compilexx-run-and-check-nvptx64-nvidia-cuda
+// RUN: %libomptarget-compilexx-run-and-check-generic
+
+// Currently hangs on amdgpu
+// UNSUPPORTED: amdgcn-amd-amdhsa
 
 #include <cassert>
 #include <iostream>
@@ -71,8 +70,8 @@ public:
   }
 };
 
-constexpr const int BS = 256;
-constexpr const int N = 1024;
+constexpr const int BS = 16;
+constexpr const int N = 256;
 
 int BlockMatMul_TargetNowait(BlockMatrix &A, BlockMatrix &B, BlockMatrix &C) {
 #pragma omp parallel

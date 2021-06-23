@@ -20,7 +20,7 @@
 #include <cassert>
 #include <climits>
 #include <cstring>
-#include <string>
+#include <utility>
 
 namespace llvm {
 class FoldingSetNodeID;
@@ -1698,8 +1698,10 @@ public:
   /// \returns BitWidth if the value is zero, otherwise returns the number of
   /// zeros from the least significant bit to the first one bit.
   unsigned countTrailingZeros() const {
-    if (isSingleWord())
-      return std::min(unsigned(llvm::countTrailingZeros(U.VAL)), BitWidth);
+    if (isSingleWord()) {
+      unsigned TrailingZeros = llvm::countTrailingZeros(U.VAL);
+      return (TrailingZeros > BitWidth ? BitWidth : TrailingZeros);
+    }
     return countTrailingZerosSlowCase();
   }
 
@@ -1750,13 +1752,6 @@ public:
   void toStringSigned(SmallVectorImpl<char> &Str, unsigned Radix = 10) const {
     toString(Str, Radix, true, false);
   }
-
-  /// Return the APInt as a std::string.
-  ///
-  /// Note that this is an inefficient method.  It is better to pass in a
-  /// SmallVector/SmallString to the methods above to avoid thrashing the heap
-  /// for the string.
-  std::string toString(unsigned Radix, bool Signed) const;
 
   /// \returns a byte-swapped representation of this APInt Value.
   APInt byteSwap() const;
@@ -2179,7 +2174,7 @@ inline const APInt &smax(const APInt &A, const APInt &B) {
   return A.sgt(B) ? A : B;
 }
 
-/// Determine the smaller of two APInts considered to be signed.
+/// Determine the smaller of two APInts considered to be unsigned.
 inline const APInt &umin(const APInt &A, const APInt &B) {
   return A.ult(B) ? A : B;
 }
@@ -2211,7 +2206,7 @@ inline double RoundSignedAPIntToDouble(const APInt &APIVal) {
   return APIVal.signedRoundToDouble();
 }
 
-/// Converts the given APInt to a float vlalue.
+/// Converts the given APInt to a float value.
 inline float RoundAPIntToFloat(const APInt &APIVal) {
   return float(RoundAPIntToDouble(APIVal));
 }
@@ -2295,6 +2290,27 @@ void StoreIntToMemory(const APInt &IntVal, uint8_t *Dst, unsigned StoreBytes);
 /// LoadIntFromMemory - Loads the integer stored in the LoadBytes bytes starting
 /// from Src into IntVal, which is assumed to be wide enough and to hold zero.
 void LoadIntFromMemory(APInt &IntVal, const uint8_t *Src, unsigned LoadBytes);
+
+/// Provide DenseMapInfo for APInt.
+template <> struct DenseMapInfo<APInt> {
+  static inline APInt getEmptyKey() {
+    APInt V(nullptr, 0);
+    V.U.VAL = 0;
+    return V;
+  }
+
+  static inline APInt getTombstoneKey() {
+    APInt V(nullptr, 0);
+    V.U.VAL = 1;
+    return V;
+  }
+
+  static unsigned getHashValue(const APInt &Key);
+
+  static bool isEqual(const APInt &LHS, const APInt &RHS) {
+    return LHS.getBitWidth() == RHS.getBitWidth() && LHS == RHS;
+  }
+};
 
 } // namespace llvm
 

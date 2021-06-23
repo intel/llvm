@@ -66,14 +66,9 @@ enum class LoopUnrollResult {
 
 struct UnrollLoopOptions {
   unsigned Count;
-  unsigned TripCount;
   bool Force;
-  bool AllowRuntime;
+  bool Runtime;
   bool AllowExpensiveTripCount;
-  bool PreserveCondBr;
-  bool PreserveOnlyFirst;
-  unsigned TripMultiple;
-  unsigned PeelCount;
   bool UnrollRemainder;
   bool ForgetAllSCEV;
 };

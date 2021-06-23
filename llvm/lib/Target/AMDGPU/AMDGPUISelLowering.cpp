@@ -327,6 +327,8 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::CONCAT_VECTORS, MVT::v5f32, Custom);
   setOperationAction(ISD::CONCAT_VECTORS, MVT::v8i32, Custom);
   setOperationAction(ISD::CONCAT_VECTORS, MVT::v8f32, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2f16, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2i16, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2f32, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2i32, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v3f32, Custom);
@@ -846,9 +848,9 @@ bool AMDGPUTargetLowering::isFAbsFree(EVT VT) const {
 
 bool AMDGPUTargetLowering::isFNegFree(EVT VT) const {
   assert(VT.isFloatingPoint());
-  return VT == MVT::f32 || VT == MVT::f64 ||
-         (Subtarget->has16BitInsts() && VT == MVT::f16) ||
-         (Subtarget->hasVOP3PInsts() && VT == MVT::v2f16);
+  // Report this based on the end legalized type.
+  VT = VT.getScalarType();
+  return VT == MVT::f32 || VT == MVT::f64 || VT == MVT::f16;
 }
 
 bool AMDGPUTargetLowering:: storeOfVectorConstantIsCheap(EVT MemVT,
@@ -1257,8 +1259,9 @@ SDValue AMDGPUTargetLowering::LowerOperation(SDValue Op,
   case ISD::SINT_TO_FP: return LowerSINT_TO_FP(Op, DAG);
   case ISD::UINT_TO_FP: return LowerUINT_TO_FP(Op, DAG);
   case ISD::FP_TO_FP16: return LowerFP_TO_FP16(Op, DAG);
-  case ISD::FP_TO_SINT: return LowerFP_TO_SINT(Op, DAG);
-  case ISD::FP_TO_UINT: return LowerFP_TO_UINT(Op, DAG);
+  case ISD::FP_TO_SINT:
+  case ISD::FP_TO_UINT:
+    return LowerFP_TO_INT(Op, DAG);
   case ISD::CTTZ:
   case ISD::CTTZ_ZERO_UNDEF:
   case ISD::CTLZ:
@@ -1304,7 +1307,8 @@ SDValue AMDGPUTargetLowering::LowerGlobalAddress(AMDGPUMachineFunction* MFI,
 
   if (G->getAddressSpace() == AMDGPUAS::LOCAL_ADDRESS ||
       G->getAddressSpace() == AMDGPUAS::REGION_ADDRESS) {
-    if (!MFI->isModuleEntryFunction()) {
+    if (!MFI->isModuleEntryFunction() &&
+        !GV->getName().equals("llvm.amdgcn.module.lds")) {
       SDLoc DL(Op);
       const Function &Fn = DAG.getMachineFunction().getFunction();
       DiagnosticInfoUnsupported BadLDSDecl(
@@ -1368,6 +1372,14 @@ SDValue AMDGPUTargetLowering::LowerEXTRACT_SUBVECTOR(SDValue Op,
   SmallVector<SDValue, 8> Args;
   unsigned Start = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
   EVT VT = Op.getValueType();
+  EVT SrcVT = Op.getOperand(0).getValueType();
+
+  // For these types, we have some TableGen patterns except if the index is 1
+  if (((SrcVT == MVT::v4f16 && VT == MVT::v2f16) ||
+       (SrcVT == MVT::v4i16 && VT == MVT::v2i16)) &&
+      Start != 1)
+    return Op;
+
   DAG.ExtractVectorElements(Op.getOperand(0), Args, Start,
                             VT.getVectorNumElements());
 
@@ -2579,33 +2591,77 @@ SDValue AMDGPUTargetLowering::LowerSINT_TO_FP(SDValue Op,
   return LowerINT_TO_FP64(Op, DAG, true);
 }
 
-SDValue AMDGPUTargetLowering::LowerFP64_TO_INT(SDValue Op, SelectionDAG &DAG,
+SDValue AMDGPUTargetLowering::LowerFP_TO_INT64(SDValue Op, SelectionDAG &DAG,
                                                bool Signed) const {
   SDLoc SL(Op);
 
   SDValue Src = Op.getOperand(0);
+  EVT SrcVT = Src.getValueType();
 
-  SDValue Trunc = DAG.getNode(ISD::FTRUNC, SL, MVT::f64, Src);
+  assert(SrcVT == MVT::f32 || SrcVT == MVT::f64);
 
-  SDValue K0 = DAG.getConstantFP(BitsToDouble(UINT64_C(0x3df0000000000000)), SL,
-                                 MVT::f64);
-  SDValue K1 = DAG.getConstantFP(BitsToDouble(UINT64_C(0xc1f0000000000000)), SL,
-                                 MVT::f64);
+  // The basic idea of converting a floating point number into a pair of 32-bit
+  // integers is illustrated as follows:
+  //
+  //     tf := trunc(val);
+  //    hif := floor(tf * 2^-32);
+  //    lof := tf - hif * 2^32; // lof is always positive due to floor.
+  //     hi := fptoi(hif);
+  //     lo := fptoi(lof);
+  //
+  SDValue Trunc = DAG.getNode(ISD::FTRUNC, SL, SrcVT, Src);
+  SDValue Sign;
+  if (Signed && SrcVT == MVT::f32) {
+    // However, a 32-bit floating point number has only 23 bits mantissa and
+    // it's not enough to hold all the significant bits of `lof` if val is
+    // negative. To avoid the loss of precision, We need to take the absolute
+    // value after truncating and flip the result back based on the original
+    // signedness.
+    Sign = DAG.getNode(ISD::SRA, SL, MVT::i32,
+                       DAG.getNode(ISD::BITCAST, SL, MVT::i32, Trunc),
+                       DAG.getConstant(31, SL, MVT::i32));
+    Trunc = DAG.getNode(ISD::FABS, SL, SrcVT, Trunc);
+  }
+
+  SDValue K0, K1;
+  if (SrcVT == MVT::f64) {
+    K0 = DAG.getConstantFP(BitsToDouble(UINT64_C(/*2^-32*/ 0x3df0000000000000)),
+                           SL, SrcVT);
+    K1 = DAG.getConstantFP(BitsToDouble(UINT64_C(/*-2^32*/ 0xc1f0000000000000)),
+                           SL, SrcVT);
+  } else {
+    K0 = DAG.getConstantFP(BitsToFloat(UINT32_C(/*2^-32*/ 0x2f800000)), SL,
+                           SrcVT);
+    K1 = DAG.getConstantFP(BitsToFloat(UINT32_C(/*-2^32*/ 0xcf800000)), SL,
+                           SrcVT);
+  }
   // TODO: Should this propagate fast-math-flags?
-  SDValue Mul = DAG.getNode(ISD::FMUL, SL, MVT::f64, Trunc, K0);
+  SDValue Mul = DAG.getNode(ISD::FMUL, SL, SrcVT, Trunc, K0);
 
-  SDValue FloorMul = DAG.getNode(ISD::FFLOOR, SL, MVT::f64, Mul);
+  SDValue FloorMul = DAG.getNode(ISD::FFLOOR, SL, SrcVT, Mul);
 
+  SDValue Fma = DAG.getNode(ISD::FMA, SL, SrcVT, FloorMul, K1, Trunc);
 
-  SDValue Fma = DAG.getNode(ISD::FMA, SL, MVT::f64, FloorMul, K1, Trunc);
-
-  SDValue Hi = DAG.getNode(Signed ? ISD::FP_TO_SINT : ISD::FP_TO_UINT, SL,
-                           MVT::i32, FloorMul);
+  SDValue Hi = DAG.getNode((Signed && SrcVT == MVT::f64) ? ISD::FP_TO_SINT
+                                                         : ISD::FP_TO_UINT,
+                           SL, MVT::i32, FloorMul);
   SDValue Lo = DAG.getNode(ISD::FP_TO_UINT, SL, MVT::i32, Fma);
 
-  SDValue Result = DAG.getBuildVector(MVT::v2i32, SL, {Lo, Hi});
+  SDValue Result = DAG.getNode(ISD::BITCAST, SL, MVT::i64,
+                               DAG.getBuildVector(MVT::v2i32, SL, {Lo, Hi}));
 
-  return DAG.getNode(ISD::BITCAST, SL, MVT::i64, Result);
+  if (Signed && SrcVT == MVT::f32) {
+    assert(Sign);
+    // Flip the result based on the signedness, which is either all 0s or 1s.
+    Sign = DAG.getNode(ISD::BITCAST, SL, MVT::i64,
+                       DAG.getBuildVector(MVT::v2i32, SL, {Sign, Sign}));
+    // r := xor(r, sign) - sign;
+    Result =
+        DAG.getNode(ISD::SUB, SL, MVT::i64,
+                    DAG.getNode(ISD::XOR, SL, MVT::i64, Result, Sign), Sign);
+  }
+
+  return Result;
 }
 
 SDValue AMDGPUTargetLowering::LowerFP_TO_FP16(SDValue Op, SelectionDAG &DAG) const {
@@ -2707,44 +2763,37 @@ SDValue AMDGPUTargetLowering::LowerFP_TO_FP16(SDValue Op, SelectionDAG &DAG) con
   return DAG.getZExtOrTrunc(V, DL, Op.getValueType());
 }
 
-SDValue AMDGPUTargetLowering::LowerFP_TO_SINT(SDValue Op,
-                                              SelectionDAG &DAG) const {
+SDValue AMDGPUTargetLowering::LowerFP_TO_INT(SDValue Op,
+                                             SelectionDAG &DAG) const {
   SDValue Src = Op.getOperand(0);
-
-  // TODO: Factor out code common with LowerFP_TO_UINT.
-
+  unsigned OpOpcode = Op.getOpcode();
   EVT SrcVT = Src.getValueType();
+  EVT DestVT = Op.getValueType();
+
+  // Will be selected natively
+  if (SrcVT == MVT::f16 && DestVT == MVT::i16)
+    return Op;
+
+  // Promote i16 to i32
+  if (DestVT == MVT::i16 && (SrcVT == MVT::f32 || SrcVT == MVT::f64)) {
+    SDLoc DL(Op);
+
+    SDValue FpToInt32 = DAG.getNode(OpOpcode, DL, MVT::i32, Src);
+    return DAG.getNode(ISD::TRUNCATE, DL, MVT::i16, FpToInt32);
+  }
+
   if (SrcVT == MVT::f16 ||
       (SrcVT == MVT::f32 && Src.getOpcode() == ISD::FP16_TO_FP)) {
     SDLoc DL(Op);
 
-    SDValue FpToInt32 = DAG.getNode(Op.getOpcode(), DL, MVT::i32, Src);
-    return DAG.getNode(ISD::SIGN_EXTEND, DL, MVT::i64, FpToInt32);
+    SDValue FpToInt32 = DAG.getNode(OpOpcode, DL, MVT::i32, Src);
+    unsigned Ext =
+        OpOpcode == ISD::FP_TO_SINT ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND;
+    return DAG.getNode(Ext, DL, MVT::i64, FpToInt32);
   }
 
-  if (Op.getValueType() == MVT::i64 && Src.getValueType() == MVT::f64)
-    return LowerFP64_TO_INT(Op, DAG, true);
-
-  return SDValue();
-}
-
-SDValue AMDGPUTargetLowering::LowerFP_TO_UINT(SDValue Op,
-                                              SelectionDAG &DAG) const {
-  SDValue Src = Op.getOperand(0);
-
-  // TODO: Factor out code common with LowerFP_TO_SINT.
-
-  EVT SrcVT = Src.getValueType();
-  if (SrcVT == MVT::f16 ||
-      (SrcVT == MVT::f32 && Src.getOpcode() == ISD::FP16_TO_FP)) {
-    SDLoc DL(Op);
-
-    SDValue FpToUInt32 = DAG.getNode(Op.getOpcode(), DL, MVT::i32, Src);
-    return DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, FpToUInt32);
-  }
-
-  if (Op.getValueType() == MVT::i64 && Src.getValueType() == MVT::f64)
-    return LowerFP64_TO_INT(Op, DAG, false);
+  if (DestVT == MVT::i64 && (SrcVT == MVT::f32 || SrcVT == MVT::f64))
+    return LowerFP_TO_INT64(Op, DAG, OpOpcode == ISD::FP_TO_SINT);
 
   return SDValue();
 }
@@ -4161,8 +4210,13 @@ SDValue AMDGPUTargetLowering::storeStackInputValue(SelectionDAG &DAG,
                                                    int64_t Offset) const {
   MachineFunction &MF = DAG.getMachineFunction();
   MachinePointerInfo DstInfo = MachinePointerInfo::getStack(MF, Offset);
+  const SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
 
   SDValue Ptr = DAG.getConstant(Offset, SL, MVT::i32);
+  // Stores to the argument stack area are relative to the stack pointer.
+  SDValue SP =
+      DAG.getCopyFromReg(Chain, SL, Info->getStackPtrOffsetReg(), MVT::i32);
+  Ptr = DAG.getNode(ISD::ADD, SL, MVT::i32, SP, Ptr);
   SDValue Store = DAG.getStore(Chain, SL, ArgVal, Ptr, DstInfo, Align(4),
                                MachineMemOperand::MODereferenceable);
   return Store;

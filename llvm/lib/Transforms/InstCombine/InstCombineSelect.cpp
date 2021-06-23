@@ -18,6 +18,7 @@
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/CmpInstAnalysis.h"
 #include "llvm/Analysis/InstructionSimplify.h"
+#include "llvm/Analysis/OverflowInstAnalysis.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
@@ -46,11 +47,6 @@ using namespace llvm;
 using namespace PatternMatch;
 
 #define DEBUG_TYPE "instcombine"
-
-/// FIXME: Enabled by default until the pattern is supported well.
-static cl::opt<bool> EnableUnsafeSelectTransform(
-    "instcombine-unsafe-select-transform", cl::init(true),
-    cl::desc("Enable poison-unsafe select to and/or transform"));
 
 static Value *createMinMax(InstCombiner::BuilderTy &Builder,
                            SelectPatternFlavor SPF, Value *A, Value *B) {
@@ -1146,7 +1142,7 @@ Instruction *InstCombinerImpl::foldSelectValueEquivalence(SelectInst &Sel,
   Value *CmpLHS = Cmp.getOperand(0), *CmpRHS = Cmp.getOperand(1);
   if (TrueVal != CmpLHS &&
       isGuaranteedNotToBeUndefOrPoison(CmpRHS, SQ.AC, &Sel, &DT)) {
-    if (Value *V = SimplifyWithOpReplaced(TrueVal, CmpLHS, CmpRHS, SQ,
+    if (Value *V = simplifyWithOpReplaced(TrueVal, CmpLHS, CmpRHS, SQ,
                                           /* AllowRefinement */ true))
       return replaceOperand(Sel, Swapped ? 2 : 1, V);
 
@@ -1168,7 +1164,7 @@ Instruction *InstCombinerImpl::foldSelectValueEquivalence(SelectInst &Sel,
   }
   if (TrueVal != CmpRHS &&
       isGuaranteedNotToBeUndefOrPoison(CmpLHS, SQ.AC, &Sel, &DT))
-    if (Value *V = SimplifyWithOpReplaced(TrueVal, CmpRHS, CmpLHS, SQ,
+    if (Value *V = simplifyWithOpReplaced(TrueVal, CmpRHS, CmpLHS, SQ,
                                           /* AllowRefinement */ true))
       return replaceOperand(Sel, Swapped ? 2 : 1, V);
 
@@ -1199,9 +1195,9 @@ Instruction *InstCombinerImpl::foldSelectValueEquivalence(SelectInst &Sel,
   // We have an 'EQ' comparison, so the select's false value will propagate.
   // Example:
   // (X == 42) ? 43 : (X + 1) --> (X == 42) ? (X + 1) : (X + 1) --> X + 1
-  if (SimplifyWithOpReplaced(FalseVal, CmpLHS, CmpRHS, SQ,
+  if (simplifyWithOpReplaced(FalseVal, CmpLHS, CmpRHS, SQ,
                              /* AllowRefinement */ false) == TrueVal ||
-      SimplifyWithOpReplaced(FalseVal, CmpRHS, CmpLHS, SQ,
+      simplifyWithOpReplaced(FalseVal, CmpRHS, CmpLHS, SQ,
                              /* AllowRefinement */ false) == TrueVal) {
     return replaceInstUsesWith(Sel, FalseVal);
   }
@@ -2585,6 +2581,48 @@ static Value *foldSelectWithFrozenICmp(SelectInst &Sel, InstCombiner::BuilderTy 
   return nullptr;
 }
 
+Instruction *InstCombinerImpl::foldAndOrOfSelectUsingImpliedCond(Value *Op,
+                                                                 SelectInst &SI,
+                                                                 bool IsAnd) {
+  Value *CondVal = SI.getCondition();
+  Value *A = SI.getTrueValue();
+  Value *B = SI.getFalseValue();
+
+  assert(Op->getType()->isIntOrIntVectorTy(1) &&
+         "Op must be either i1 or vector of i1.");
+
+  Optional<bool> Res = isImpliedCondition(Op, CondVal, DL, IsAnd);
+  if (!Res)
+    return nullptr;
+
+  Value *Zero = Constant::getNullValue(A->getType());
+  Value *One = Constant::getAllOnesValue(A->getType());
+
+  if (*Res == true) {
+    if (IsAnd)
+      // select op, (select cond, A, B), false => select op, A, false
+      // and    op, (select cond, A, B)        => select op, A, false
+      //   if op = true implies condval = true.
+      return SelectInst::Create(Op, A, Zero);
+    else
+      // select op, true, (select cond, A, B) => select op, true, A
+      // or     op, (select cond, A, B)       => select op, true, A
+      //   if op = false implies condval = true.
+      return SelectInst::Create(Op, One, A);
+  } else {
+    if (IsAnd)
+      // select op, (select cond, A, B), false => select op, B, false
+      // and    op, (select cond, A, B)        => select op, B, false
+      //   if op = true implies condval = false.
+      return SelectInst::Create(Op, B, Zero);
+    else
+      // select op, true, (select cond, A, B) => select op, true, B
+      // or     op, (select cond, A, B)       => select op, true, B
+      //   if op = false implies condval = false.
+      return SelectInst::Create(Op, One, B);
+  }
+}
+
 Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
   Value *CondVal = SI.getCondition();
   Value *TrueVal = SI.getTrueValue();
@@ -2596,7 +2634,7 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
   // don't simplify it so loop unswitch can know the equality comparison
   // may have an undef operand. This is a workaround for PR31652 caused by
   // descrepancy about branch on undef between LoopUnswitch and GVN.
-  if (isa<UndefValue>(TrueVal) || isa<UndefValue>(FalseVal)) {
+  if (match(TrueVal, m_Undef()) || match(FalseVal, m_Undef())) {
     if (llvm::any_of(SI.users(), [&](User *U) {
           ICmpInst *CI = dyn_cast<ICmpInst>(U);
           if (CI && CI->isEquality())
@@ -2619,34 +2657,19 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
 
   CmpInst::Predicate Pred;
 
-  if (SelType->isIntOrIntVectorTy(1) &&
+  // Avoid potential infinite loops by checking for non-constant condition.
+  // TODO: Can we assert instead by improving canonicalizeSelectToShuffle()?
+  //       Scalar select must have simplified?
+  if (SelType->isIntOrIntVectorTy(1) && !isa<Constant>(CondVal) &&
       TrueVal->getType() == CondVal->getType()) {
-    auto IsSafeToConvert = [&](Value *OtherVal) {
-      if (impliesPoison(OtherVal, CondVal))
-        return true;
-
-      if (!EnableUnsafeSelectTransform)
-        return false;
-
-      // We block this transformation if OtherVal or its operand can create
-      // poison. See PR49688
-      if (auto *Op = dyn_cast<Operator>(OtherVal)) {
-        if (canCreatePoison(Op))
-          return false;
-        if (propagatesPoison(Op) &&
-            llvm::any_of(Op->operand_values(), [](Value *V) {
-              return isa<Operator>(V) ? canCreatePoison(cast<Operator>(V))
-                                      : false;
-            }))
-          return false;
-      }
-      return true;
-    };
-    if (match(TrueVal, m_One()) && IsSafeToConvert(FalseVal)) {
+    // Folding select to and/or i1 isn't poison safe in general. impliesPoison
+    // checks whether folding it does not convert a well-defined value into
+    // poison.
+    if (match(TrueVal, m_One()) && impliesPoison(FalseVal, CondVal)) {
       // Change: A = select B, true, C --> A = or B, C
       return BinaryOperator::CreateOr(CondVal, FalseVal);
     }
-    if (match(FalseVal, m_Zero()) && IsSafeToConvert(TrueVal)) {
+    if (match(FalseVal, m_Zero()) && impliesPoison(TrueVal, CondVal)) {
       // Change: A = select B, C, false --> A = and B, C
       return BinaryOperator::CreateAnd(CondVal, TrueVal);
     }
@@ -2682,6 +2705,21 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
       return SelectInst::Create(FalseVal, One, TrueVal);
 
     Value *A, *B;
+
+    // DeMorgan in select form: !a && !b --> !(a || b)
+    // select !a, !b, false --> not (select a, true, b)
+    if (match(&SI, m_LogicalAnd(m_Not(m_Value(A)), m_Not(m_Value(B)))) &&
+        (CondVal->hasOneUse() || TrueVal->hasOneUse()) &&
+        !match(A, m_ConstantExpr()) && !match(B, m_ConstantExpr()))
+      return BinaryOperator::CreateNot(Builder.CreateSelect(A, One, B));
+
+    // DeMorgan in select form: !a || !b --> !(a && b)
+    // select !a, true, !b --> not (select a, b, false)
+    if (match(&SI, m_LogicalOr(m_Not(m_Value(A)), m_Not(m_Value(B)))) &&
+        (CondVal->hasOneUse() || FalseVal->hasOneUse()) &&
+        !match(A, m_ConstantExpr()) && !match(B, m_ConstantExpr()))
+      return BinaryOperator::CreateNot(Builder.CreateSelect(A, B, Zero));
+
     // select (select a, true, b), true, b -> select a, true, b
     if (match(CondVal, m_Select(m_Value(A), m_One(), m_Value(B))) &&
         match(TrueVal, m_One()) && match(FalseVal, m_Specific(B)))
@@ -2691,12 +2729,80 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
         match(TrueVal, m_Specific(B)) && match(FalseVal, m_Zero()))
       return replaceOperand(SI, 0, A);
 
-    if (Value *S = SimplifyWithOpReplaced(TrueVal, CondVal, One, SQ,
-                                          /* AllowRefinement */ true))
-      return replaceOperand(SI, 1, S);
-    if (Value *S = SimplifyWithOpReplaced(FalseVal, CondVal, Zero, SQ,
-                                          /* AllowRefinement */ true))
-      return replaceOperand(SI, 2, S);
+    if (!SelType->isVectorTy()) {
+      if (Value *S = simplifyWithOpReplaced(TrueVal, CondVal, One, SQ,
+                                            /* AllowRefinement */ true))
+        return replaceOperand(SI, 1, S);
+      if (Value *S = simplifyWithOpReplaced(FalseVal, CondVal, Zero, SQ,
+                                            /* AllowRefinement */ true))
+        return replaceOperand(SI, 2, S);
+    }
+
+    if (match(FalseVal, m_Zero()) || match(TrueVal, m_One())) {
+      Use *Y = nullptr;
+      bool IsAnd = match(FalseVal, m_Zero()) ? true : false;
+      Value *Op1 = IsAnd ? TrueVal : FalseVal;
+      if (isCheckForZeroAndMulWithOverflow(CondVal, Op1, IsAnd, Y)) {
+        auto *FI = new FreezeInst(*Y, (*Y)->getName() + ".fr");
+        InsertNewInstBefore(FI, *cast<Instruction>(Y->getUser()));
+        replaceUse(*Y, FI);
+        return replaceInstUsesWith(SI, Op1);
+      }
+
+      if (auto *Op1SI = dyn_cast<SelectInst>(Op1))
+        if (auto *I = foldAndOrOfSelectUsingImpliedCond(CondVal, *Op1SI,
+                                                        /* IsAnd */ IsAnd))
+          return I;
+
+      if (auto *ICmp0 = dyn_cast<ICmpInst>(CondVal))
+        if (auto *ICmp1 = dyn_cast<ICmpInst>(Op1))
+          if (auto *V = foldAndOrOfICmpsOfAndWithPow2(ICmp0, ICmp1, &SI, IsAnd,
+                                                      /* IsLogical */ true))
+            return replaceInstUsesWith(SI, V);
+    }
+
+    // select (select a, true, b), c, false -> select a, c, false
+    // select c, (select a, true, b), false -> select c, a, false
+    //   if c implies that b is false.
+    if (match(CondVal, m_Select(m_Value(A), m_One(), m_Value(B))) &&
+        match(FalseVal, m_Zero())) {
+      Optional<bool> Res = isImpliedCondition(TrueVal, B, DL);
+      if (Res && *Res == false)
+        return replaceOperand(SI, 0, A);
+    }
+    if (match(TrueVal, m_Select(m_Value(A), m_One(), m_Value(B))) &&
+        match(FalseVal, m_Zero())) {
+      Optional<bool> Res = isImpliedCondition(CondVal, B, DL);
+      if (Res && *Res == false)
+        return replaceOperand(SI, 1, A);
+    }
+    // select c, true, (select a, b, false)  -> select c, true, a
+    // select (select a, b, false), true, c  -> select a, true, c
+    //   if c = false implies that b = true
+    if (match(TrueVal, m_One()) &&
+        match(FalseVal, m_Select(m_Value(A), m_Value(B), m_Zero()))) {
+      Optional<bool> Res = isImpliedCondition(CondVal, B, DL, false);
+      if (Res && *Res == true)
+        return replaceOperand(SI, 2, A);
+    }
+    if (match(CondVal, m_Select(m_Value(A), m_Value(B), m_Zero())) &&
+        match(TrueVal, m_One())) {
+      Optional<bool> Res = isImpliedCondition(FalseVal, B, DL, false);
+      if (Res && *Res == true)
+        return replaceOperand(SI, 0, A);
+    }
+
+    // sel (sel c, a, false), true, (sel !c, b, false) -> sel c, a, b
+    // sel (sel !c, a, false), true, (sel c, b, false) -> sel c, b, a
+    Value *C1, *C2;
+    if (match(CondVal, m_Select(m_Value(C1), m_Value(A), m_Zero())) &&
+        match(TrueVal, m_One()) &&
+        match(FalseVal, m_Select(m_Value(C2), m_Value(B), m_Zero()))) {
+      if (match(C2, m_Not(m_Specific(C1)))) // first case
+        return SelectInst::Create(C1, A, B);
+      else if (match(C1, m_Not(m_Specific(C2)))) // second case
+        return SelectInst::Create(C2, B, A);
+    }
   }
 
   // Selecting between two integer or vector splat integer constants?
@@ -2731,9 +2837,9 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
     }
   }
 
-  // See if we are selecting two values based on a comparison of the two values.
-  if (FCmpInst *FCI = dyn_cast<FCmpInst>(CondVal)) {
-    Value *Cmp0 = FCI->getOperand(0), *Cmp1 = FCI->getOperand(1);
+  if (auto *FCmp = dyn_cast<FCmpInst>(CondVal)) {
+    Value *Cmp0 = FCmp->getOperand(0), *Cmp1 = FCmp->getOperand(1);
+    // Are we selecting a value based on a comparison of the two values?
     if ((Cmp0 == TrueVal && Cmp1 == FalseVal) ||
         (Cmp0 == FalseVal && Cmp1 == TrueVal)) {
       // Canonicalize to use ordered comparisons by swapping the select
@@ -2741,13 +2847,13 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
       //
       // e.g.
       // (X ugt Y) ? X : Y -> (X ole Y) ? Y : X
-      if (FCI->hasOneUse() && FCmpInst::isUnordered(FCI->getPredicate())) {
-        FCmpInst::Predicate InvPred = FCI->getInversePredicate();
+      if (FCmp->hasOneUse() && FCmpInst::isUnordered(FCmp->getPredicate())) {
+        FCmpInst::Predicate InvPred = FCmp->getInversePredicate();
         IRBuilder<>::FastMathFlagGuard FMFG(Builder);
         // FIXME: The FMF should propagate from the select, not the fcmp.
-        Builder.setFastMathFlags(FCI->getFastMathFlags());
+        Builder.setFastMathFlags(FCmp->getFastMathFlags());
         Value *NewCond = Builder.CreateFCmp(InvPred, Cmp0, Cmp1,
-                                            FCI->getName() + ".inv");
+                                            FCmp->getName() + ".inv");
         Value *NewSel = Builder.CreateSelect(NewCond, FalseVal, TrueVal);
         return replaceInstUsesWith(SI, NewSel);
       }

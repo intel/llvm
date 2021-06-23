@@ -60,12 +60,15 @@ public:
 
   static bool canAllocate(uptr Size) { return Size <= SizeClassMap::MaxSize; }
 
-  void initLinkerInitialized(s32 ReleaseToOsInterval) {
+  void init(s32 ReleaseToOsInterval) {
     if (SCUDO_FUCHSIA)
       reportError("SizeClassAllocator32 is not supported on Fuchsia");
 
-    PossibleRegions.initLinkerInitialized();
+    if (SCUDO_TRUSTY)
+      reportError("SizeClassAllocator32 is not supported on Trusty");
 
+    DCHECK(isAligned(reinterpret_cast<uptr>(this), alignof(ThisT)));
+    PossibleRegions.init();
     u32 Seed;
     const u64 Time = getMonotonicTime();
     if (!getRandom(reinterpret_cast<void *>(&Seed), sizeof(Seed)))
@@ -80,10 +83,6 @@ public:
     }
     setOption(Option::ReleaseInterval, static_cast<sptr>(ReleaseToOsInterval));
   }
-  void init(s32 ReleaseToOsInterval) {
-    memset(this, 0, sizeof(*this));
-    initLinkerInitialized(ReleaseToOsInterval);
-  }
 
   void unmapTestOnly() {
     while (NumberOfStashedRegions > 0)
@@ -96,6 +95,7 @@ public:
         MinRegionIndex = Sci->MinRegionIndex;
       if (Sci->MaxRegionIndex > MaxRegionIndex)
         MaxRegionIndex = Sci->MaxRegionIndex;
+      *Sci = {};
     }
     for (uptr I = MinRegionIndex; I < MaxRegionIndex; I++)
       if (PossibleRegions[I])
@@ -489,17 +489,17 @@ private:
     return TotalReleasedBytes;
   }
 
-  SizeClassInfo SizeClassInfoArray[NumClasses];
+  SizeClassInfo SizeClassInfoArray[NumClasses] = {};
 
   // Track the regions in use, 0 is unused, otherwise store ClassId + 1.
-  ByteMap PossibleRegions;
-  atomic_s32 ReleaseToOsIntervalMs;
+  ByteMap PossibleRegions = {};
+  atomic_s32 ReleaseToOsIntervalMs = {};
   // Unless several threads request regions simultaneously from different size
   // classes, the stash rarely contains more than 1 entry.
   static constexpr uptr MaxStashedRegions = 4;
   HybridMutex RegionsStashMutex;
-  uptr NumberOfStashedRegions;
-  uptr RegionsStash[MaxStashedRegions];
+  uptr NumberOfStashedRegions = 0;
+  uptr RegionsStash[MaxStashedRegions] = {};
 };
 
 } // namespace scudo

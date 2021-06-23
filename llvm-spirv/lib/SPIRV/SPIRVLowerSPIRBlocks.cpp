@@ -91,6 +91,7 @@ namespace SPIRV {
 class SPIRVLowerSPIRBlocksBase {
 public:
   SPIRVLowerSPIRBlocksBase() : M(nullptr) {}
+  virtual ~SPIRVLowerSPIRBlocksBase() {}
 
   bool runLowerSPIRBlocks(Module &Module) {
     M = &Module;

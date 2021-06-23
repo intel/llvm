@@ -47,6 +47,15 @@ def FeatureISA60
                      "Is M68060 ISA supported",
                      [ FeatureISA40 ]>;
 
+foreach i = {0-6} in
+  def FeatureReserveA#i :
+      SubtargetFeature<"reserve-a"#i, "UserReservedRegister[M68k::A"#i#"]",
+                       "true", "Reserve A"#i#" register">;
+foreach i = {0-7} in
+  def FeatureReserveD#i :
+      SubtargetFeature<"reserve-d"#i, "UserReservedRegister[M68k::D"#i#"]",
+                       "true", "Reserve D"#i#" register">;
+
 //===----------------------------------------------------------------------===//
 // M68k processors supported.
 //===----------------------------------------------------------------------===//
@@ -69,6 +78,7 @@ def : Proc<"M68060",  [ FeatureISA60 ]>;
 //===----------------------------------------------------------------------===//
 
 include "M68kRegisterInfo.td"
+include "GlSel/M68kRegisterBanks.td"
 
 //===----------------------------------------------------------------------===//
 // Instruction Descriptions
@@ -84,10 +94,34 @@ def M68kInstrInfo : InstrInfo;
 
 include "M68kCallingConv.td"
 
+//===---------------------------------------------------------------------===//
+// Assembly Printers
+//===---------------------------------------------------------------------===//
+
+def M68kAsmWriter : AsmWriter {
+ string AsmWriterClassName = "InstPrinter";
+ bit isMCAsmWriter = 1;
+}
+
+//===---------------------------------------------------------------------===//
+// Assembly Parsers
+//===---------------------------------------------------------------------===//
+
+def M68kAsmParser : AsmParser {
+  let ShouldEmitMatchRegisterName = 0;
+  let ShouldEmitMatchRegisterAltName = 0;
+}
+
+def M68kAsmParserVariant : AsmParserVariant {
+  int Variant = 0;
+}
+
 //===----------------------------------------------------------------------===//
 // Target
 //===----------------------------------------------------------------------===//
 
 def M68k : Target {
   let InstructionSet = M68kInstrInfo;
+  let AssemblyParsers = [M68kAsmParser];
+  let AssemblyWriters = [M68kAsmWriter];
 }

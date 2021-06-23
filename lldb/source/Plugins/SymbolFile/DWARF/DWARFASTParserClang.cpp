@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <stdlib.h>
+#include <cstdlib>
 
 #include "DWARFASTParserClang.h"
 #include "DWARFDebugInfo.h"
@@ -49,7 +49,7 @@
 //#define ENABLE_DEBUG_PRINTF // COMMENT OUT THIS LINE PRIOR TO CHECKIN
 
 #ifdef ENABLE_DEBUG_PRINTF
-#include <stdio.h>
+#include <cstdio>
 #define DEBUG_PRINTF(fmt, ...) printf(fmt, __VA_ARGS__)
 #else
 #define DEBUG_PRINTF(fmt, ...)
@@ -157,7 +157,7 @@ TypeSP DWARFASTParserClang::ParseTypeFromClangModule(const SymbolContext &sc,
 
   // The type in the Clang module must have the same language as the current CU.
   LanguageSet languages;
-  languages.Insert(SymbolFileDWARF::GetLanguage(*die.GetCU()));
+  languages.Insert(SymbolFileDWARF::GetLanguageFamily(*die.GetCU()));
   llvm::DenseSet<SymbolFile *> searched_symbol_files;
   clang_module_sp->GetSymbolFile()->FindTypes(decl_context, languages,
                                               searched_symbol_files, pcm_types);
@@ -1226,6 +1226,7 @@ TypeSP DWARFASTParserClang::ParseSubroutine(const DWARFDIE &die,
       }
 
       if (!function_decl) {
+        char *name_buf = nullptr;
         llvm::StringRef name = attrs.name.GetStringRef();
 
         // We currently generate function templates with template parameters in
@@ -1233,8 +1234,10 @@ TypeSP DWARFASTParserClang::ParseSubroutine(const DWARFDIE &die,
         // we want to strip these from the name when creating the AST.
         if (attrs.mangled_name) {
           llvm::ItaniumPartialDemangler D;
-          if (!D.partialDemangle(attrs.mangled_name))
-            name = D.getFunctionBaseName(nullptr, nullptr);
+          if (!D.partialDemangle(attrs.mangled_name)) {
+            name_buf = D.getFunctionBaseName(nullptr, nullptr);
+            name = name_buf;
+          }
         }
 
         // We just have a function that isn't part of a class
@@ -1243,6 +1246,7 @@ TypeSP DWARFASTParserClang::ParseSubroutine(const DWARFDIE &die,
                                       : containing_decl_ctx,
             GetOwningClangModule(die), name, clang_type, attrs.storage,
             attrs.is_inline);
+        std::free(name_buf);
 
         if (has_template_params) {
           TypeSystemClang::TemplateParameterInfos template_param_infos;
@@ -1357,7 +1361,7 @@ TypeSP DWARFASTParserClang::ParsePointerToMemberType(
       dwarf->ResolveTypeUID(attrs.containing_type.Reference(), true);
 
   CompilerType pointee_clang_type = pointee_type->GetForwardCompilerType();
-  CompilerType class_clang_type = class_type->GetLayoutCompilerType();
+  CompilerType class_clang_type = class_type->GetForwardCompilerType();
 
   CompilerType clang_type = TypeSystemClang::CreateMemberPointerType(
       class_clang_type, pointee_clang_type);
@@ -2667,7 +2671,7 @@ void DWARFASTParserClang::ParseSingleMember(
           last_field_info.bit_offset = field_bit_offset;
 
           if (llvm::Optional<uint64_t> clang_type_size =
-                  member_clang_type.GetByteSize(nullptr)) {
+                  member_type->GetByteSize(nullptr)) {
             last_field_info.bit_size = *clang_type_size * character_width;
           }
 

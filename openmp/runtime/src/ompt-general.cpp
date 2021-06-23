@@ -266,7 +266,7 @@ ompt_try_start_tool(unsigned int omp_version, const char *runtime_version) {
 #error Activation of OMPT is not supported on this platform.
 #endif
   if (ret) {
-    OMPT_VERBOSE_INIT_CONTINUED_PRINT("Sucess.\n");
+    OMPT_VERBOSE_INIT_CONTINUED_PRINT("Success.\n");
     OMPT_VERBOSE_INIT_PRINT(
         "Tool was started and is using the OMPT interface.\n");
     OMPT_VERBOSE_INIT_PRINT("----- END LOGGING OF TOOL REGISTRATION -----\n");
@@ -310,7 +310,7 @@ ompt_try_start_tool(unsigned int omp_version, const char *runtime_version) {
                                 fname);
         start_tool = (ompt_start_tool_t)GetProcAddress(h, "ompt_start_tool");
         if (!start_tool) {
-          OMPT_VERBOSE_INIT_CONTINUED_PRINT("Failed: Error %s\n",
+          OMPT_VERBOSE_INIT_CONTINUED_PRINT("Failed: Error %u\n",
                                             GetLastError());
         } else
 #else
@@ -501,7 +501,11 @@ void ompt_post_init() {
 }
 
 void ompt_fini() {
-  if (ompt_enabled.enabled) {
+  if (ompt_enabled.enabled
+#if OMPD_SUPPORT
+      && ompt_start_tool_result && ompt_start_tool_result->finalize
+#endif
+  ) {
     ompt_start_tool_result->finalize(&(ompt_start_tool_result->tool_data));
   }
 

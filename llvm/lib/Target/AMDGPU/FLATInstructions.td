@@ -81,6 +81,8 @@ class FLAT_Real <bits<7> op, FLAT_Pseudo ps> :
   let isPseudo = 0;
   let isCodeGenOnly = 0;
 
+  let FLAT = 1;
+
   // copy relevant pseudo op flags
   let SubtargetPredicate   = ps.SubtargetPredicate;
   let AsmMatchConverter    = ps.AsmMatchConverter;
@@ -88,6 +90,12 @@ class FLAT_Real <bits<7> op, FLAT_Pseudo ps> :
   let TSFlags              = ps.TSFlags;
   let UseNamedOperandTable = ps.UseNamedOperandTable;
   let SchedRW              = ps.SchedRW;
+  let mayLoad              = ps.mayLoad;
+  let mayStore             = ps.mayStore;
+  let IsAtomicRet          = ps.IsAtomicRet;
+  let IsAtomicNoRet        = ps.IsAtomicNoRet;
+  let VM_CNT               = ps.VM_CNT;
+  let LGKM_CNT             = ps.LGKM_CNT;
 
   // encoding fields
   bits<8> vaddr;
@@ -1539,7 +1547,7 @@ defm SCRATCH_STORE_DWORDX2      : FLAT_Real_AllAddr_vi <0x1d>;
 defm SCRATCH_STORE_DWORDX3      : FLAT_Real_AllAddr_vi <0x1e>;
 defm SCRATCH_STORE_DWORDX4      : FLAT_Real_AllAddr_vi <0x1f>;
 
-let SubtargetPredicate = isGFX908orGFX90A in {
+let SubtargetPredicate = HasAtomicFaddInsts in {
 defm GLOBAL_ATOMIC_ADD_F32    : FLAT_Global_Real_Atomics_vi <0x04d, 0>;
 defm GLOBAL_ATOMIC_PK_ADD_F16 : FLAT_Global_Real_Atomics_vi <0x04e, 0>;
 }

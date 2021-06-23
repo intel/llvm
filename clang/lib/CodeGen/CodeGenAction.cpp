@@ -329,7 +329,7 @@ namespace clang {
       EmbedBitcode(getModule(), CodeGenOpts, llvm::MemoryBufferRef());
 
       EmitBackendOutput(Diags, HeaderSearchOpts, CodeGenOpts, TargetOpts,
-                        LangOpts, C.getTargetInfo().getDataLayout(),
+                        LangOpts, C.getTargetInfo().getDataLayoutString(),
                         getModule(), Action, std::move(AsmOutStream));
 
       Ctx.setDiagnosticHandler(std::move(OldDiagnosticHandler));
@@ -879,6 +879,10 @@ llvm::LLVMContext *CodeGenAction::takeLLVMContext() {
   return VMContext;
 }
 
+CodeGenerator *CodeGenAction::getCodeGenerator() const {
+  return BEConsumer->getCodeGenerator();
+}
+
 static std::unique_ptr<raw_pwrite_stream>
 GetOutputStream(CompilerInstance &CI, StringRef InFile, BackendAction Action) {
   switch (Action) {
@@ -1028,9 +1032,8 @@ CodeGenAction::loadModule(MemoryBufferRef MBRef) {
 }
 
 namespace {
-// Handles the initialization and cleanup of the OptRecordFile. This
-// customization allows initialization before the clang codegen runs
-// so it can also emit to the opt report.
+// Handles the initialization and cleanup of the OptRecordFile before the clang
+// codegen runs so it can also emit to the opt report.
 struct OptRecordFileRAII {
   std::unique_ptr<llvm::ToolOutputFile> OptRecordFile;
   std::unique_ptr<DiagnosticHandler> OldDiagnosticHandler;
@@ -1038,7 +1041,7 @@ struct OptRecordFileRAII {
 
   OptRecordFileRAII(CodeGenAction &CGA, llvm::LLVMContext &Ctx,
                     BackendConsumer &BC)
-      : Ctx(Ctx), OldDiagnosticHandler(Ctx.getDiagnosticHandler()) {
+      : OldDiagnosticHandler(Ctx.getDiagnosticHandler()), Ctx(Ctx) {
 
     CompilerInstance &CI = CGA.getCompilerInstance();
     CodeGenOptions &CodeGenOpts = CI.getCodeGenOpts();
@@ -1142,7 +1145,7 @@ void CodeGenAction::ExecuteAction() {
 
   EmitBackendOutput(Diagnostics, CI.getHeaderSearchOpts(), CodeGenOpts,
                     TargetOpts, CI.getLangOpts(),
-                    CI.getTarget().getDataLayout(), TheModule.get(), BA,
+                    CI.getTarget().getDataLayoutString(), TheModule.get(), BA,
                     std::move(OS));
   if (OptRecordFile)
     OptRecordFile->keep();

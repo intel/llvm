@@ -39,6 +39,14 @@
 #define __opencl_c_images 1
 #endif
 
+// Define header-only feature macros for OpenCL C 3.0.
+#if (__OPENCL_C_VERSION__ == 300)
+// For the SPIR target all features are supported.
+#if defined(__SPIR__)
+#define __opencl_c_atomic_scope_all_devices 1
+#endif // defined(__SPIR__)
+#endif // (__OPENCL_C_VERSION__ == 300)
+
 // built-in scalar data types:
 
 /**
@@ -312,7 +320,12 @@ typedef enum memory_scope {
   memory_scope_work_item = __OPENCL_MEMORY_SCOPE_WORK_ITEM,
   memory_scope_work_group = __OPENCL_MEMORY_SCOPE_WORK_GROUP,
   memory_scope_device = __OPENCL_MEMORY_SCOPE_DEVICE,
+#if defined(__opencl_c_atomic_scope_all_devices)
   memory_scope_all_svm_devices = __OPENCL_MEMORY_SCOPE_ALL_SVM_DEVICES,
+#if (__OPENCL_C_VERSION__ >= CL_VERSION_3_0)
+  memory_scope_all_devices = memory_scope_all_svm_devices,
+#endif // __OPENCL_C_VERSION__ >= CL_VERSION_3_0
+#endif // defined(__opencl_c_atomic_scope_all_devices)
 #if defined(cl_intel_subgroups) || defined(cl_khr_subgroups)
   memory_scope_sub_group = __OPENCL_MEMORY_SCOPE_SUB_GROUP
 #endif
@@ -567,7 +580,6 @@ int printf(__constant const char* st, ...) __attribute__((format(printf, 1, 2)))
 #endif
 
 #ifdef cl_intel_device_side_avc_motion_estimation
-#pragma OPENCL EXTENSION cl_intel_device_side_avc_motion_estimation : begin
 
 #define CLK_AVC_ME_MAJOR_16x16_INTEL 0x0
 #define CLK_AVC_ME_MAJOR_16x8_INTEL 0x1
@@ -701,7 +713,6 @@ int printf(__constant const char* st, ...) __attribute__((format(printf, 1, 2)))
 #define CLK_AVC_IME_RESULT_DUAL_REFERENCE_STREAMOUT_INITIALIZE_INTEL 0x0
 #define CLK_AVC_IME_RESULT_DUAL_REFERENCE_STREAMIN_INITIALIZE_INTEL 0x0
 
-#pragma OPENCL EXTENSION cl_intel_device_side_avc_motion_estimation : end
 #endif // cl_intel_device_side_avc_motion_estimation
 
 // Disable any extensions we may have enabled previously.

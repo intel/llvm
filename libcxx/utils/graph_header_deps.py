@@ -10,10 +10,11 @@
 import argparse
 import os
 import re
+import sys
 
 
 def is_config_header(h):
-    return os.path.basename(h) in ['__config', '__libcpp_version']
+    return os.path.basename(h) in ['__config', '__libcpp_version', '__undef_macros']
 
 
 def is_experimental_header(h):
@@ -36,7 +37,7 @@ def list_all_roots_under(root):
     result = []
     for root, _, files in os.walk(root):
         for fname in files:
-            if '__support' in root:
+            if os.path.basename(root).startswith('__') or fname.startswith('__'):
                 pass
             elif ('.' in fname and not fname.endswith('.h')):
                 pass
@@ -60,7 +61,7 @@ def build_file_entry(fname, options):
     local_includes = []
     system_includes = []
     linecount = 0
-    with open(fname, 'r') as f:
+    with open(fname, 'r', encoding='utf-8') as f:
         for line in f.readlines():
             linecount += 1
             m = re.match(r'\s*#\s*include\s+"([^"]*)"', line)
@@ -116,13 +117,14 @@ def build_graph(roots, options):
     return graph
 
 
-def get_graphviz(graph, options):
+def get_friendly_id(fname):
+    i = fname.index('include/')
+    assert(i >= 0)
+    result = fname[i+8:]
+    return result
 
-    def get_friendly_id(fname):
-        i = fname.index('include/')
-        assert(i >= 0)
-        result = fname[i+8:]
-        return result
+
+def get_graphviz(graph, options):
 
     def get_decorators(fname, entry):
         result = ''
@@ -153,11 +155,15 @@ def get_graphviz(graph, options):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Produce a dependency graph of libc++ headers, in GraphViz dot format.')
+    parser = argparse.ArgumentParser(
+        description='Produce a dependency graph of libc++ headers, in GraphViz dot format.\n' +
+                    'For example, ./graph_header_deps.py | dot -Tpng > graph.png',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument('--root', default=None, metavar='FILE', help='File or directory to be the root of the dependency graph')
     parser.add_argument('-I', dest='search_dirs', default=[], action='append', metavar='DIR', help='Path(s) to search for local includes')
     parser.add_argument('--show-transitive-edges', action='store_true', help='Show edges to headers that are transitively included anyway')
-    parser.add_argument('--show-config-headers', action='store_true', help='Show headers named __config')
+    parser.add_argument('--show-config-headers', action='store_true', help='Show universally included headers, such as __config')
     parser.add_argument('--show-experimental-headers', action='store_true', help='Show headers in the experimental/ and ext/ directories')
     parser.add_argument('--show-support-headers', action='store_true', help='Show headers in the __support/ directory')
     parser.add_argument('--show-individual-line-counts', action='store_true', help='Include an individual line count in each node')
@@ -204,7 +210,9 @@ if __name__ == '__main__':
     for fname, entry in graph.items():
         for h in entry.includes:
             if transitively_includes(graph, h, fname):
-                print('Cycle detected between %s and %s' % (fname, h))
+                sys.stderr.write('Cycle detected between %s and %s\n' % (
+                    get_friendly_id(fname), get_friendly_id(h)
+                ))
                 no_cycles_detected = False
     assert no_cycles_detected
 

@@ -26,7 +26,7 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -637,6 +637,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
       }
       assert(SplitLatchEdge &&
              "Despite splitting all preds, failed to split latch exit?");
+      (void)SplitLatchEdge;
     } else {
       // We can fold the conditional branch in the preheader, this makes things
       // simpler. The first step is to remove the extra edge to the Exit block.

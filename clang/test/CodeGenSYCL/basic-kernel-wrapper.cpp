@@ -27,8 +27,8 @@ int main() {
 // Check alloca for pointer argument
 // CHECK: [[MEM_ARG]].addr = alloca i32 addrspace(1)*
 // Check lambda object alloca
-// CHECK: [[ANONALLOCA:%[0-9]+]] = alloca %"class.{{.*}}.anon"
-// CHECK: [[ANON:%[0-9]+]] = addrspacecast %"class.{{.*}}.anon"* [[ANONALLOCA]] to %"class.{{.*}}.anon" addrspace(4)*
+// CHECK: [[ANONALLOCA:%[0-9]+]] = alloca %class.{{.*}}.anon
+// CHECK: [[ANON:%[0-9]+]] = addrspacecast %class.{{.*}}.anon* [[ANONALLOCA]] to %class.{{.*}}.anon addrspace(4)*
 // Check allocas for ranges
 // CHECK: [[ARANGEA:%agg.tmp.*]] = alloca %"struct.{{.*}}.cl::sycl::range"
 // CHECK: [[ARANGET:%agg.tmp.*]] = addrspacecast %"struct.{{.*}}.cl::sycl::range"* [[ARANGEA]] to %"struct.{{.*}}.cl::sycl::range" addrspace(4)*
@@ -44,7 +44,7 @@ int main() {
 // CHECK: call spir_func {{.*}}accessor
 
 // Check accessor GEP
-// CHECK: [[ACCESSOR:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon" addrspace(4)* [[ANON]], i32 0, i32 0
+// CHECK: [[ACCESSOR:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class.{{.*}}.anon, %class.{{.*}}.anon addrspace(4)* [[ANON]], i32 0, i32 0
 
 // Check load from kernel pointer argument alloca
 // CHECK: [[MEM_LOAD:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)* addrspace(4)* [[MEM_ARG]].addr.ascast
@@ -56,4 +56,4 @@ int main() {
 // CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[ACCESSOR]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ARANGE]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MRANGE]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OID]])
 
 // Check lambda "()" operator call
-// CHECK: call spir_func void @{{.*}}(%"class.{{.*}}.anon" addrspace(4)* {{[^,]*}})
+// CHECK: call spir_func void @{{.*}}(%class.{{.*}}.anon addrspace(4)* {{[^,]*}})

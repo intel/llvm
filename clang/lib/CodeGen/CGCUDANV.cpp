@@ -191,12 +191,27 @@ CGNVCUDARuntime::addUnderscoredPrefixToName(StringRef FuncName) const {
   return ((Twine("__cuda") + Twine(FuncName)).str());
 }
 
+static std::unique_ptr<MangleContext> InitDeviceMC(CodeGenModule &CGM) {
+  // If the host and device have different C++ ABIs, mark it as the device
+  // mangle context so that the mangling needs to retrieve the additional
+  // device lambda mangling number instead of the regular host one.
+  if (CGM.getContext().getAuxTargetInfo() &&
+      CGM.getContext().getTargetInfo().getCXXABI().isMicrosoft() &&
+      CGM.getContext().getAuxTargetInfo()->getCXXABI().isItaniumFamily()) {
+    return std::unique_ptr<MangleContext>(
+        CGM.getContext().createDeviceMangleContext(
+            *CGM.getContext().getAuxTargetInfo()));
+  }
+
+  return std::unique_ptr<MangleContext>(CGM.getContext().createMangleContext(
+      CGM.getContext().getAuxTargetInfo()));
+}
+
 CGNVCUDARuntime::CGNVCUDARuntime(CodeGenModule &CGM)
     : CGCUDARuntime(CGM), Context(CGM.getLLVMContext()),
       TheModule(CGM.getModule()),
       RelocatableDeviceCode(CGM.getLangOpts().GPURelocatableDeviceCode),
-      DeviceMC(CGM.getContext().createMangleContext(
-          CGM.getContext().getAuxTargetInfo())) {
+      DeviceMC(InitDeviceMC(CGM)) {
   CodeGen::CodeGenTypes &Types = CGM.getTypes();
   ASTContext &Ctx = CGM.getContext();
 
@@ -207,14 +222,6 @@ CGNVCUDARuntime::CGNVCUDARuntime(CodeGenModule &CGM)
   CharPtrTy = llvm::PointerType::getUnqual(Types.ConvertType(Ctx.CharTy));
   VoidPtrTy = cast<llvm::PointerType>(Types.ConvertType(Ctx.VoidPtrTy));
   VoidPtrPtrTy = VoidPtrTy->getPointerTo();
-  if (CGM.getContext().getAuxTargetInfo()) {
-    // If the host and device have different C++ ABIs, mark it as the device
-    // mangle context so that the mangling needs to retrieve the additonal
-    // device lambda mangling number instead of the regular host one.
-    DeviceMC->setDeviceMangleContext(
-        CGM.getContext().getTargetInfo().getCXXABI().isMicrosoft() &&
-        CGM.getContext().getAuxTargetInfo()->getCXXABI().isItaniumFamily());
-  }
 }
 
 llvm::FunctionCallee CGNVCUDARuntime::getSetupArgumentFn() const {
@@ -337,7 +344,7 @@ void CGNVCUDARuntime::emitDeviceStubBodyNew(CodeGenFunction &CGF,
   IdentifierInfo &cudaLaunchKernelII =
       CGM.getContext().Idents.get(LaunchKernelName);
   FunctionDecl *cudaLaunchKernelFD = nullptr;
-  for (const auto &Result : DC->lookup(&cudaLaunchKernelII)) {
+  for (auto *Result : DC->lookup(&cudaLaunchKernelII)) {
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(Result))
       cudaLaunchKernelFD = FD;
   }
@@ -1015,10 +1022,14 @@ void CGNVCUDARuntime::handleVarRegistration(const VarDecl *D,
     // Don't register a C++17 inline variable. The local symbol can be
     // discarded and referencing a discarded local symbol from outside the
     // comdat (__cuda_register_globals) is disallowed by the ELF spec.
-    // TODO: Reject __device__ constexpr and __device__ inline in Sema.
+    //
     // HIP managed variables need to be always recorded in device and host
     // compilations for transformation.
+    //
+    // HIP managed variables and variables in CUDADeviceVarODRUsedByHost are
+    // added to llvm.compiler-used, therefore they are safe to be registered.
     if ((!D->hasExternalStorage() && !D->isInline()) ||
+        CGM.getContext().CUDADeviceVarODRUsedByHost.contains(D) ||
         D->hasAttr<HIPManagedAttr>()) {
       registerDeviceVar(D, GV, !D->hasDefinition(),
                         D->hasAttr<CUDAConstantAttr>());
@@ -1089,6 +1100,28 @@ void CGNVCUDARuntime::transformManagedVars() {
 llvm::Function *CGNVCUDARuntime::finalizeModule() {
   if (CGM.getLangOpts().CUDAIsDevice) {
     transformManagedVars();
+
+    // Mark ODR-used device variables as compiler used to prevent it from being
+    // eliminated by optimization. This is necessary for device variables
+    // ODR-used by host functions. Sema correctly marks them as ODR-used no
+    // matter whether they are ODR-used by device or host functions.
+    //
+    // We do not need to do this if the variable has used attribute since it
+    // has already been added.
+    //
+    // Static device variables have been externalized at this point, therefore
+    // variables with LLVM private or internal linkage need not be added.
+    for (auto &&Info : DeviceVars) {
+      auto Kind = Info.Flags.getKind();
+      if (!Info.Var->isDeclaration() &&
+          !llvm::GlobalValue::isLocalLinkage(Info.Var->getLinkage()) &&
+          (Kind == DeviceVarFlags::Variable ||
+           Kind == DeviceVarFlags::Surface ||
+           Kind == DeviceVarFlags::Texture) &&
+          Info.D->isUsed() && !Info.D->hasAttr<UsedAttr>()) {
+        CGM.addCompilerUsedGlobal(Info.Var);
+      }
+    }
     return nullptr;
   }
   return makeModuleCtorFunction();

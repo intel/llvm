@@ -201,9 +201,6 @@ using namespace llvm;
 
 #define DEBUG_TYPE "livedebugvalues"
 
-STATISTIC(NumInserted, "Number of DBG_VALUE instructions inserted");
-STATISTIC(NumRemoved, "Number of DBG_VALUE instructions removed");
-
 // Act more like the VarLoc implementation, by propagating some locations too
 // far and ignoring some transfers.
 static cl::opt<bool> EmulateOldLDV("emulate-old-livedebugvalues", cl::Hidden,
@@ -974,10 +971,10 @@ public:
     SmallVector<MachineInstr *, 4> Insts; /// Vector of DBG_VALUEs to insert.
   };
 
-  typedef struct {
+  struct LocAndProperties {
     LocIdx Loc;
     DbgValueProperties Properties;
-  } LocAndProperties;
+  };
 
   /// Collection of transfers (DBG_VALUEs) to be inserted.
   SmallVector<Transfer, 32> Transfers;

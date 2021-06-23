@@ -48,6 +48,10 @@ endif()
 
 include(builtin-config-ix)
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+  include(CompilerRTAIXUtils)
+endif()
+
 option(COMPILER_RT_BUILTINS_HIDE_SYMBOLS
   "Do not export any symbols from the static library." ON)
 
@@ -561,6 +565,8 @@ set(arm64_32_SOURCES ${aarch64_SOURCES})
 set(armv6m_SOURCES ${thumb1_SOURCES})
 set(armv7m_SOURCES ${arm_SOURCES})
 set(armv7em_SOURCES ${arm_SOURCES})
+set(armv8m.main_SOURCES ${arm_SOURCES})
+set(armv8.1m.main_SOURCES ${arm_SOURCES})
 
 # hexagon arch
 set(hexagon_SOURCES
@@ -700,8 +706,9 @@ else ()
 
   foreach (arch ${BUILTIN_SUPPORTED_ARCH})
     if (CAN_TARGET_${arch})
+      set(BUILTIN_CFLAGS_${arch} ${BUILTIN_CFLAGS})
       # For ARM archs, exclude any VFP builtins if VFP is not supported
-      if (${arch} MATCHES "^(arm|armhf|armv7|armv7s|armv7k|armv7m|armv7em)$")
+      if (${arch} MATCHES "^(arm|armhf|armv7|armv7s|armv7k|armv7m|armv7em|armv8m.main|armv8.1m.main)$")
         string(REPLACE ";" " " _TARGET_${arch}_CFLAGS "${TARGET_${arch}_CFLAGS}")
         check_compile_definition(__ARM_FP "${CMAKE_C_FLAGS} ${_TARGET_${arch}_CFLAGS}" COMPILER_RT_HAS_${arch}_VFP)
         if(NOT COMPILER_RT_HAS_${arch}_VFP)
@@ -725,13 +732,13 @@ else ()
       # Needed for clear_cache on debug mode, due to r7's usage in inline asm.
       # Release mode already sets it via -O2/3, Debug mode doesn't.
       if (${arch} STREQUAL "armhf")
-        list(APPEND BUILTIN_CFLAGS -fomit-frame-pointer -DCOMPILER_RT_ARMHF_TARGET)
+        list(APPEND BUILTIN_CFLAGS_${arch} -fomit-frame-pointer -DCOMPILER_RT_ARMHF_TARGET)
       endif()
 
       # For RISCV32, we must force enable int128 for compiling long
       # double routines.
       if("${arch}" STREQUAL "riscv32")
-        list(APPEND BUILTIN_CFLAGS -fforce-enable-int128)
+        list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
       endif()
 
       add_compiler_rt_runtime(clang_rt.builtins
@@ -739,10 +746,52 @@ else ()
                               ARCHS ${arch}
                               SOURCES ${${arch}_SOURCES}
                               DEFS ${BUILTIN_DEFS}
-                              CFLAGS ${BUILTIN_CFLAGS}
+                              CFLAGS ${BUILTIN_CFLAGS_${arch}}
                               PARENT_TARGET builtins)
     endif ()
   endforeach ()
 endif ()
+
+option(COMPILER_RT_BUILD_STANDALONE_LIBATOMIC
+  "Build standalone shared atomic library."
+  OFF)
+
+if(COMPILER_RT_BUILD_STANDALONE_LIBATOMIC)
+  add_custom_target(builtins-standalone-atomic)
+  set(BUILTIN_DEPS "")
+  set(BUILTIN_TYPE SHARED)
+  if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+    if(NOT COMPILER_RT_LIBATOMIC_LINK_FLAGS)
+      get_aix_libatomic_default_link_flags(COMPILER_RT_LIBATOMIC_LINK_FLAGS
+        "${CMAKE_CURRENT_SOURCE_DIR}/ppc/atomic.exp")
+    endif()
+    # The compiler needs builtins to link any other binaries, so let
+    # clang_rt.atomic be built after builtins.
+    set(BUILTIN_DEPS builtins)
+    # For different versions of cmake, SHARED behaves differently. For some
+    # versions, we might need MODULE rather than SHARED.
+    get_aix_libatomic_type(BUILTIN_TYPE)
+  endif()
+  foreach (arch ${BUILTIN_SUPPORTED_ARCH})
+    if(CAN_TARGET_${arch})
+      add_compiler_rt_runtime(clang_rt.atomic
+                              ${BUILTIN_TYPE}
+                              ARCHS ${arch}
+                              SOURCES atomic.c
+                              LINK_FLAGS ${COMPILER_RT_LIBATOMIC_LINK_FLAGS}
+                              DEPS ${BUILTIN_DEPS}
+                              PARENT_TARGET builtins-standalone-atomic)
+    endif()
+  endforeach()
+  # FIXME: On AIX, we have to archive built shared libraries into a static
+  # archive, i.e., libatomic.a. Once cmake adds support of such usage for AIX,
+  # this ad-hoc part can be removed.
+  if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+    archive_aix_libatomic(clang_rt.atomic
+                          ARCHS ${BUILTIN_SUPPORTED_ARCH}
+                          PARENT_TARGET builtins-standalone-atomic)
+  endif()
+  add_dependencies(compiler-rt builtins-standalone-atomic)
+endif()
 
 add_dependencies(compiler-rt builtins)

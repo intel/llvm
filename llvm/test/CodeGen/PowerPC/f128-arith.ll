@@ -2,7 +2,7 @@
 ; RUN: llc -mcpu=pwr9 -mtriple=powerpc64le-unknown-unknown -verify-machineinstrs \
 ; RUN:   -ppc-asm-full-reg-names -ppc-vsr-nums-as-vr < %s | FileCheck %s
 ; RUN: llc -mcpu=pwr8 -mtriple=powerpc64le-unknown-unknown -verify-machineinstrs \
-; RUN:   -ppc-asm-full-reg-names -ppc-vsr-nums-as-vr < %s -enable-soft-fp128 | FileCheck %s \
+; RUN:   -ppc-asm-full-reg-names -ppc-vsr-nums-as-vr < %s | FileCheck %s \
 ; RUN:   -check-prefix=CHECK-P8
 
 ; Function Attrs: norecurse nounwind
@@ -765,11 +765,11 @@ define dso_local void @qp_powi(fp128* nocapture readonly %a, i32* nocapture read
 entry:
   %0 = load fp128, fp128* %a, align 16
   %1 = load i32, i32* %b, align 8
-  %2 = tail call fp128 @llvm.powi.f128(fp128 %0, i32 %1)
+  %2 = tail call fp128 @llvm.powi.f128.i32(fp128 %0, i32 %1)
   store fp128 %2, fp128* %res, align 16
   ret void
 }
-declare fp128 @llvm.powi.f128(fp128 %Val, i32 %power)
+declare fp128 @llvm.powi.f128.i32(fp128 %Val, i32 %power)
 
 @a = common dso_local global fp128 0xL00000000000000000000000000000000, align 16
 @b = common dso_local global fp128 0xL00000000000000000000000000000000, align 16

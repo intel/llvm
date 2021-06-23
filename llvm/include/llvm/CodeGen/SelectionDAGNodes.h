@@ -462,7 +462,7 @@ protected:
   // SubclassData.  These are designed to fit within a uint16_t so they pack
   // with NodeType.
 
-#if defined(_AIX) && (!defined(__GNUC__) || defined(__ibmxl__))
+#if defined(_AIX) && (!defined(__GNUC__) || defined(__clang__))
 // Except for GCC; by default, AIX compilers store bit-fields in 4-byte words
 // and give the `pack` pragma push semantics.
 #define BEGIN_TWO_BYTE_PACK() _Pragma("pack(2)")
@@ -1262,10 +1262,6 @@ public:
   /// Returns alignment and volatility of the memory access
   Align getOriginalAlign() const { return MMO->getBaseAlign(); }
   Align getAlign() const { return MMO->getAlign(); }
-  LLVM_ATTRIBUTE_DEPRECATED(unsigned getOriginalAlignment() const,
-                            "Use getOriginalAlign() instead") {
-    return MMO->getBaseAlign().value();
-  }
   // FIXME: Remove once transition to getAlign is over.
   unsigned getAlignment() const { return MMO->getAlign().value(); }
 
@@ -1309,6 +1305,11 @@ public:
   /// cmpxchg atomic operations, return the atomic ordering requirements when
   /// store occurs.
   AtomicOrdering getOrdering() const { return MMO->getOrdering(); }
+
+  /// Return a single atomic ordering that is at least as strong as both the
+  /// success and failure orderings for an atomic operation.  (For operations
+  /// other than cmpxchg, this is equivalent to getOrdering().)
+  AtomicOrdering getMergedOrdering() const { return MMO->getMergedOrdering(); }
 
   /// Return true if the memory operation ordering is Unordered or higher.
   bool isAtomic() const { return MMO->isAtomic(); }

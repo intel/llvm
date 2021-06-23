@@ -32,10 +32,7 @@ function(add_sycl_rt_library LIB_NAME)
     target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
   endif()
 
-  #To-Do: Remove dependency on icd loader and opencl headers.
   add_dependencies(${LIB_OBJ_NAME}
-    ocl-icd
-    ocl-headers
     sycl-headers
   )
 
@@ -68,23 +65,22 @@ function(add_sycl_rt_library LIB_NAME)
     PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}
       "${sycl_inc_dir}"
-      ${OpenCL_INCLUDE_DIRS}
+  )
+  #TODO: Remove dependency on icd loader and opencl headers.
+  target_link_libraries(${LIB_OBJ_NAME}
+    PRIVATE OpenCL-Headers
   )
 
   find_package(Threads REQUIRED)
 
   target_link_libraries(${LIB_NAME}
     PRIVATE
-      ${OpenCL_LIBRARIES}
+      OpenCL-ICD
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
     PUBLIC
       $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
   )
-
-  target_compile_definitions(${LIB_OBJ_NAME}
-    PUBLIC
-      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>)
 
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
 
@@ -106,6 +102,7 @@ set(SYCL_SOURCES
     "backend/level_zero.cpp"
     "backend.cpp"
     "detail/accessor_impl.cpp"
+    "detail/allowlist.cpp"
     "detail/buffer_impl.cpp"
     "detail/builtins_common.cpp"
     "detail/builtins_geometric.cpp"

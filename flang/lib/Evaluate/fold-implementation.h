@@ -600,6 +600,9 @@ template <typename T> Expr<T> Folder<T>::Reshape(FunctionRef<T> &&funcRef) {
 template <typename T>
 Expr<T> FoldMINorMAX(
     FoldingContext &context, FunctionRef<T> &&funcRef, Ordering order) {
+  static_assert(T::category == TypeCategory::Integer ||
+      T::category == TypeCategory::Real ||
+      T::category == TypeCategory::Character);
   std::vector<Constant<T> *> constantArgs;
   // Call Folding on all arguments, even if some are not constant,
   // to make operand promotion explicit.
@@ -608,8 +611,9 @@ Expr<T> FoldMINorMAX(
       constantArgs.push_back(cst);
     }
   }
-  if (constantArgs.size() != funcRef.arguments().size())
+  if (constantArgs.size() != funcRef.arguments().size()) {
     return Expr<T>(std::move(funcRef));
+  }
   CHECK(constantArgs.size() > 0);
   Expr<T> result{std::move(*constantArgs[0])};
   for (std::size_t i{1}; i < constantArgs.size(); ++i) {
@@ -1030,8 +1034,9 @@ auto ApplyElementwise(FoldingContext &context,
         if (rightExpr.Rank() > 0) {
           if (std::optional<Shape> rightShape{GetShape(context, rightExpr)}) {
             if (auto right{AsFlatArrayConstructor(rightExpr)}) {
-              if (CheckConformance(
-                      context.messages(), *leftShape, *rightShape)) {
+              if (CheckConformance(context.messages(), *leftShape, *rightShape,
+                      CheckConformanceFlags::EitherScalarExpandable)
+                      .value_or(false /*fail if not known now to conform*/)) {
                 return MapOperation(context, std::move(f), *leftShape,
                     std::move(*left), std::move(*right));
               } else {
@@ -1177,14 +1182,23 @@ Expr<TO> FoldOperation(
           // Conversion of non-constant in same type category
           if constexpr (std::is_same_v<Operand, TO>) {
             return std::move(kindExpr); // remove needless conversion
-          } else if constexpr (std::is_same_v<TO, DescriptorInquiry::Result>) {
+          } else if constexpr (TO::category == TypeCategory::Logical ||
+              TO::category == TypeCategory::Integer) {
             if (auto *innerConv{
-                    std::get_if<Convert<Operand, TypeCategory::Integer>>(
-                        &kindExpr.u)}) {
+                    std::get_if<Convert<Operand, TO::category>>(&kindExpr.u)}) {
+              // Conversion of conversion of same category & kind
               if (auto *x{std::get_if<Expr<TO>>(&innerConv->left().u)}) {
-                if (std::holds_alternative<DescriptorInquiry>(x->u)) {
-                  // int(int(size(...),kind=k),kind=8) -> size(...)
-                  return std::move(*x);
+                if constexpr (TO::category == TypeCategory::Logical ||
+                    TO::kind <= Operand::kind) {
+                  return std::move(*x); // no-op Logical or Integer
+                                        // widening/narrowing conversion pair
+                } else if constexpr (std::is_same_v<TO,
+                                         DescriptorInquiry::Result>) {
+                  if (std::holds_alternative<DescriptorInquiry>(x->u) ||
+                      std::holds_alternative<TypeParamInquiry>(x->u)) {
+                    // int(int(size(...),kind=k),kind=8) -> size(...)
+                    return std::move(*x);
+                  }
                 }
               }
             }

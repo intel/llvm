@@ -232,6 +232,8 @@ void SIShrinkInstructions::shrinkMIMG(MachineInstr &MI) {
     RC = &AMDGPU::VReg_96RegClass;
   } else if (Info->VAddrDwords == 4) {
     RC = &AMDGPU::VReg_128RegClass;
+  } else if (Info->VAddrDwords == 5) {
+    RC = &AMDGPU::VReg_160RegClass;
   } else if (Info->VAddrDwords <= 8) {
     RC = &AMDGPU::VReg_256RegClass;
     NewAddrDwords = 8;
@@ -573,7 +575,7 @@ static MachineInstr* matchSwap(MachineInstr &MovT, MachineRegisterInfo &MRI,
     dropInstructionKeepingImpDefs(*MovY, TII);
     MachineInstr *Next = &*std::next(MovT.getIterator());
 
-    if (MRI.use_nodbg_empty(T)) {
+    if (T.isVirtual() && MRI.use_nodbg_empty(T)) {
       dropInstructionKeepingImpDefs(MovT, TII);
     } else {
       Xop.setIsKill(false);

@@ -9,9 +9,9 @@ int main() {
 
   // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE15kernel_function()
 
-  // CHECK: call spir_func void @"_ZZ4mainENK3$_0clEv"(%"class.{{.*}}.anon" addrspace(4)* {{[^,]*}} %{{.+}})
+  // CHECK: call spir_func void @_ZZ4mainENKUlvE_clEv(%class.{{.*}}.anon addrspace(4)* {{[^,]*}} %{{.+}})
 
-  // CHECK: define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class.{{.*}}anon" addrspace(4)* {{[^,]*}} %this)
+  // CHECK: define internal spir_func void @_ZZ4mainENKUlvE_clEv(%class.{{.*}}anon addrspace(4)* {{[^,]*}} %this)
 
   kernel_single_task<class kernel_function>([]() {});
   return 0;

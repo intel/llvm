@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/ONEAPI/sub_group.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/helpers.hpp>
@@ -18,6 +17,7 @@
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/nd_range.hpp>
 #include <CL/sycl/range.hpp>
+#include <CL/sycl/sub_group.hpp>
 
 #include <cstddef>
 #include <stdexcept>
@@ -67,7 +67,7 @@ public:
 
   group<dimensions> get_group() const { return Group; }
 
-  ONEAPI::sub_group get_sub_group() const { return ONEAPI::sub_group(); }
+  sub_group get_sub_group() const { return sub_group(); }
 
   size_t __SYCL_ALWAYS_INLINE get_group(int dimension) const {
     size_t Size = Group[dimension];

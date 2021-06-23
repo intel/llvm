@@ -13,10 +13,7 @@
 4 Name 11 "entry"
 4 Decorate 13 FuncParamAttr 5 
 2 DecorationGroup 13 
-4 Decorate 14 FuncParamAttr 6 
-2 DecorationGroup 14 
 5 GroupDecorate 13 8 9 10 
-4 GroupDecorate 14 8 9 
 4 TypeInt 3 8 0 
 2 TypeVoid 2 
 4 TypeVector 4 3 4 
@@ -38,6 +35,4 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-LLVM: define spir_kernel void @test(<4 x i8> addrspace(1)* nocapture %src1, <4 x i8> addrspace(1)* nocapture %src2, <4 x i8> addrspace(1)* nocapture %dst) {{.*}} !kernel_arg_type_qual ![[QUALS:[0-9]+]]
-
-; CHECK-LLVM: ![[QUALS]] = !{!"const", !"const", !""}
+; CHECK-LLVM: define spir_kernel void @test(<4 x i8> addrspace(1)* nocapture %src1, <4 x i8> addrspace(1)* nocapture %src2, <4 x i8> addrspace(1)* nocapture %dst) {{.*}}

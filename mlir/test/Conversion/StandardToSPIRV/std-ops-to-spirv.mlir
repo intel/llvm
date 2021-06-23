@@ -53,6 +53,10 @@ func @float32_unary_scalar(%arg0: f32) {
   %3 = math.exp %arg0 : f32
   // CHECK: spv.GLSL.Log %{{.*}}: f32
   %4 = math.log %arg0 : f32
+  // CHECK: %[[ONE:.+]] = spv.Constant 1.000000e+00 : f32
+  // CHECK: %[[ADDONE:.+]] = spv.FAdd %[[ONE]], %{{.+}}
+  // CHECK: spv.GLSL.Log %[[ADDONE]]
+  %40 = math.log1p %arg0 : f32
   // CHECK: spv.FNegate %{{.*}}: f32
   %5 = negf %arg0 : f32
   // CHECK: spv.GLSL.InverseSqrt %{{.*}}: f32
@@ -81,6 +85,8 @@ func @float32_binary_scalar(%lhs: f32, %rhs: f32) {
   %3 = divf %lhs, %rhs: f32
   // CHECK: spv.FRem %{{.*}}, %{{.*}}: f32
   %4 = remf %lhs, %rhs: f32
+  // CHECK: spv.GLSL.Pow %{{.*}}: f32
+  %5 = math.powf %lhs, %rhs : f32
   return
 }
 
@@ -222,6 +228,8 @@ func @logical_scalar(%arg0 : i1, %arg1 : i1) {
   %0 = and %arg0, %arg1 : i1
   // CHECK: spv.LogicalOr
   %1 = or %arg0, %arg1 : i1
+  // CHECK: spv.LogicalNotEqual
+  %2 = xor %arg0, %arg1 : i1
   return
 }
 
@@ -231,6 +239,8 @@ func @logical_vector(%arg0 : vector<4xi1>, %arg1 : vector<4xi1>) {
   %0 = and %arg0, %arg1 : vector<4xi1>
   // CHECK: spv.LogicalOr
   %1 = or %arg0, %arg1 : vector<4xi1>
+  // CHECK: spv.LogicalNotEqual
+  %2 = xor %arg0, %arg1 : vector<4xi1>
   return
 }
 
@@ -905,6 +915,19 @@ func @load_store_zero_rank_int(%arg0: memref<i32>, %arg1: memref<i32>) {
   return
 }
 
+// CHECK-LABEL: func @load_store_unknown_dim
+// CHECK-SAME: %[[SRC:[a-z0-9]+]]: !spv.ptr<!spv.struct<(!spv.rtarray<i32, stride=4> [0])>, StorageBuffer>,
+// CHECK-SAME: %[[DST:[a-z0-9]+]]: !spv.ptr<!spv.struct<(!spv.rtarray<i32, stride=4> [0])>, StorageBuffer>)
+func @load_store_unknown_dim(%i: index, %source: memref<?xi32>, %dest: memref<?xi32>) {
+  // CHECK: %[[AC0:.+]] = spv.AccessChain %[[SRC]]
+  // CHECK: spv.Load "StorageBuffer" %[[AC0]]
+  %0 = memref.load %source[%i] : memref<?xi32>
+  // CHECK: %[[AC1:.+]] = spv.AccessChain %[[DST]]
+  // CHECK: spv.Store "StorageBuffer" %[[AC1]]
+  memref.store %0, %dest[%i]: memref<?xi32>
+  return
+}
+
 } // end module
 
 // -----
@@ -1229,4 +1252,19 @@ func @tensor_extract_constant(%a : index, %b: index, %c: index) -> i32 {
   %extract = tensor.extract %cst[%a, %b, %c] : tensor<2x2x3xi32>
   // CHECK: spv.ReturnValue %[[VAL]]
   return %extract : i32
+}
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// splat
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: func @splat
+//  CHECK-SAME: (%[[A:.+]]: f32)
+//       CHECK:   %[[VAL:.+]] = spv.CompositeConstruct %[[A]], %[[A]], %[[A]], %[[A]] : vector<4xf32>
+//       CHECK:   spv.ReturnValue %[[VAL]]
+func @splat(%f : f32) -> vector<4xf32> {
+  %splat = splat %f : vector<4xf32>
+  return %splat : vector<4xf32>
 }

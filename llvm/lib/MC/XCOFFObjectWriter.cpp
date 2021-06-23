@@ -329,6 +329,8 @@ CsectGroup &XCOFFObjectWriter::getCsectGroup(const MCSectionXCOFF *MCSec) {
     assert(!TOCCsects.empty() &&
            "We should at least have a TOC-base in this CsectGroup.");
     return TOCCsects;
+  case XCOFF::XMC_TD:
+    report_fatal_error("toc-data not yet supported when writing object files.");
   default:
     report_fatal_error("Unhandled mapping of csect to section.");
   }
@@ -439,14 +441,23 @@ void XCOFFObjectWriter::recordRelocation(MCAssembler &Asm,
       TargetObjectWriter->getRelocTypeAndSignSize(Target, Fixup, IsPCRel);
 
   const MCSectionXCOFF *SymASec = getContainingCsect(cast<MCSymbolXCOFF>(SymA));
+
+  if (SymASec->isCsect() && SymASec->getMappingClass() == XCOFF::XMC_TD)
+    report_fatal_error("toc-data not yet supported when writing object files.");
+
   assert(SectionMap.find(SymASec) != SectionMap.end() &&
          "Expected containing csect to exist in map.");
 
   const uint32_t Index = getIndex(SymA, SymASec);
-  if (Type == XCOFF::RelocationType::R_POS)
+  if (Type == XCOFF::RelocationType::R_POS ||
+      Type == XCOFF::RelocationType::R_TLS)
     // The FixedValue should be symbol's virtual address in this object file
     // plus any constant value that we might get.
     FixedValue = getVirtualAddress(SymA, SymASec) + Target.getConstant();
+  else if (Type == XCOFF::RelocationType::R_TLSM)
+    // The FixedValue should always be zero since the region handle is only
+    // known at load time.
+    FixedValue = 0;
   else if (Type == XCOFF::RelocationType::R_TOC ||
            Type == XCOFF::RelocationType::R_TOCL) {
     // The FixedValue should be the TOC entry offset from the TOC-base plus any
@@ -911,8 +922,8 @@ void XCOFFObjectWriter::assignAddressesAndIndices(const MCAsmLayout &Layout) {
   SymbolTableEntryCount = SymbolTableIndex;
 
   // Calculate the RawPointer value for each section.
-  uint64_t RawPointer = sizeof(XCOFF::FileHeader32) + auxiliaryHeaderSize() +
-                        SectionCount * sizeof(XCOFF::SectionHeader32);
+  uint64_t RawPointer = XCOFF::FileHeaderSize32 + auxiliaryHeaderSize() +
+                        SectionCount * XCOFF::SectionHeaderSize32;
   for (auto *Sec : Sections) {
     if (Sec->Index == Section::UninitializedIndex || Sec->IsVirtual)
       continue;

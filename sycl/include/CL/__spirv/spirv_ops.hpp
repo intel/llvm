@@ -199,18 +199,18 @@ __spirv_GenericCastToPtrExplicit_ToLocal(const void *Ptr,
 
 template <typename dataT>
 extern __attribute__((opencl_global)) dataT *
-__spirv_GenericCastToPtrExplicit_ToGlobal(
-    const void *Ptr, __spv::StorageClass::Flag S) noexcept {
-  return (__attribute__((opencl_global))
-          dataT *)__spirv_GenericCastToPtrExplicit_ToGlobal(Ptr, S);
+__SYCL_GenericCastToPtrExplicit_ToGlobal(const void *Ptr) noexcept {
+  return (__attribute__((opencl_global)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToGlobal(
+          Ptr, __spv::StorageClass::CrossWorkgroup);
 }
 
 template <typename dataT>
 extern __attribute__((opencl_local)) dataT *
-__spirv_GenericCastToPtrExplicit_ToLocal(const void *Ptr,
-                                         __spv::StorageClass::Flag S) noexcept {
-  return (__attribute__((opencl_local))
-          dataT *)__spirv_GenericCastToPtrExplicit_ToLocal(Ptr, S);
+__SYCL_GenericCastToPtrExplicit_ToLocal(const void *Ptr) noexcept {
+  return (__attribute__((opencl_local)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToLocal(Ptr,
+                                               __spv::StorageClass::Workgroup);
 }
 
 template <typename dataT>

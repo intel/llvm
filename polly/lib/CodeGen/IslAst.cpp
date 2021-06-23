@@ -124,10 +124,6 @@ static void freeIslAstUserPayload(void *Ptr) {
   delete ((IslAstInfo::IslAstUserPayload *)Ptr);
 }
 
-IslAstInfo::IslAstUserPayload::~IslAstUserPayload() {
-  isl_ast_build_free(Build);
-}
-
 /// Print a string @p str in a single line using @p Printer.
 static isl_printer *printLine(__isl_take isl_printer *Printer,
                               const std::string &str,
@@ -286,8 +282,8 @@ astBuildAfterFor(__isl_take isl_ast_node *Node, __isl_keep isl_ast_build *Build,
   assert(Payload && "Post order visit assumes annotated for nodes");
 
   AstBuildUserInfo *BuildInfo = (AstBuildUserInfo *)User;
-  assert(!Payload->Build && "Build environment already set");
-  Payload->Build = isl_ast_build_copy(Build);
+  assert(Payload->Build.is_null() && "Build environment already set");
+  Payload->Build = isl::manage_copy(Build);
   Payload->IsInnermost = (Id == BuildInfo->LastForNodeId);
 
   Payload->IsInnermostParallel =
@@ -333,7 +329,7 @@ static __isl_give isl_ast_node *AtEachDomain(__isl_take isl_ast_node *Node,
   isl_id *Id = isl_id_alloc(isl_ast_build_get_ctx(Build), "", Payload);
   Id = isl_id_set_free_user(Id, freeIslAstUserPayload);
 
-  Payload->Build = isl_ast_build_copy(Build);
+  Payload->Build = isl::manage_copy(Build);
 
   return isl_ast_node_set_annotation(Node, Id);
 }
@@ -398,23 +394,22 @@ static isl::ast_expr buildCondition(Scop &S, isl::ast_build Build,
   return NonAliasGroup;
 }
 
-__isl_give isl_ast_expr *
-IslAst::buildRunCondition(Scop &S, __isl_keep isl_ast_build *Build) {
-  isl_ast_expr *RunCondition;
+isl::ast_expr IslAst::buildRunCondition(Scop &S, const isl::ast_build &Build) {
+  isl::ast_expr RunCondition;
 
   // The conditions that need to be checked at run-time for this scop are
   // available as an isl_set in the runtime check context from which we can
   // directly derive a run-time condition.
-  auto *PosCond =
-      isl_ast_build_expr_from_set(Build, S.getAssumedContext().release());
+  auto PosCond = Build.expr_from(S.getAssumedContext());
   if (S.hasTrivialInvalidContext()) {
-    RunCondition = PosCond;
+    RunCondition = std::move(PosCond);
   } else {
-    auto *ZeroV = isl_val_zero(isl_ast_build_get_ctx(Build));
-    auto *NegCond =
-        isl_ast_build_expr_from_set(Build, S.getInvalidContext().release());
-    auto *NotNegCond = isl_ast_expr_eq(isl_ast_expr_from_val(ZeroV), NegCond);
-    RunCondition = isl_ast_expr_and(PosCond, NotNegCond);
+    auto ZeroV = isl::val::zero(Build.get_ctx());
+    auto NegCond = Build.expr_from(S.getInvalidContext());
+    auto NotNegCond =
+        isl::ast_expr::from_val(std::move(ZeroV)).eq(std::move(NegCond));
+    RunCondition =
+        isl::manage(isl_ast_expr_and(PosCond.release(), NotNegCond.release()));
   }
 
   // Create the alias checks from the minimal/maximal accesses in each alias
@@ -429,15 +424,13 @@ IslAst::buildRunCondition(Scop &S, __isl_keep isl_ast_build *Build) {
     for (auto RWAccIt0 = MinMaxReadWrite.begin(); RWAccIt0 != RWAccEnd;
          ++RWAccIt0) {
       for (auto RWAccIt1 = RWAccIt0 + 1; RWAccIt1 != RWAccEnd; ++RWAccIt1)
-        RunCondition = isl_ast_expr_and(
-            RunCondition,
-            buildCondition(S, isl::manage_copy(Build), RWAccIt0, RWAccIt1)
-                .release());
+        RunCondition = isl::manage(isl_ast_expr_and(
+            RunCondition.release(),
+            buildCondition(S, Build, RWAccIt0, RWAccIt1).release()));
       for (const Scop::MinMaxAccessTy &ROAccIt : MinMaxReadOnly)
-        RunCondition = isl_ast_expr_and(
-            RunCondition,
-            buildCondition(S, isl::manage_copy(Build), RWAccIt0, &ROAccIt)
-                .release());
+        RunCondition = isl::manage(isl_ast_expr_and(
+            RunCondition.release(),
+            buildCondition(S, Build, RWAccIt0, &ROAccIt).release()));
     }
   }
 
@@ -465,10 +458,10 @@ static bool benefitsFromPolly(Scop &Scop, bool PerformParallelTest) {
 }
 
 /// Collect statistics for the syntax tree rooted at @p Ast.
-static void walkAstForStatistics(__isl_keep isl_ast_node *Ast) {
-  assert(Ast);
+static void walkAstForStatistics(const isl::ast_node &Ast) {
+  assert(!Ast.is_null());
   isl_ast_node_foreach_descendant_top_down(
-      Ast,
+      Ast.get(),
       [](__isl_keep isl_ast_node *Node, void *User) -> isl_bool {
         switch (isl_ast_node_get_type(Node)) {
         case isl_ast_node_for:
@@ -502,15 +495,8 @@ static void walkAstForStatistics(__isl_keep isl_ast_node *Ast) {
 IslAst::IslAst(Scop &Scop) : S(Scop), Ctx(Scop.getSharedIslCtx()) {}
 
 IslAst::IslAst(IslAst &&O)
-    : S(O.S), Root(O.Root), RunCondition(O.RunCondition), Ctx(O.Ctx) {
-  O.Root = nullptr;
-  O.RunCondition = nullptr;
-}
-
-IslAst::~IslAst() {
-  isl_ast_node_free(Root);
-  isl_ast_expr_free(RunCondition);
-}
+    : S(O.S), Ctx(O.Ctx), RunCondition(std::move(O.RunCondition)),
+      Root(std::move(O.Root)) {}
 
 void IslAst::init(const Dependences &D) {
   bool PerformParallelTest = PollyParallel || DetectParallel ||
@@ -557,9 +543,10 @@ void IslAst::init(const Dependences &D) {
                                               &BuildInfo);
   }
 
-  RunCondition = buildRunCondition(S, Build);
+  RunCondition = buildRunCondition(S, isl::manage_copy(Build));
 
-  Root = isl_ast_build_node_from_schedule(Build, S.getScheduleTree().release());
+  Root = isl::manage(
+      isl_ast_build_node_from_schedule(Build, S.getScheduleTree().release()));
   walkAstForStatistics(Root);
 
   isl_ast_build_free(Build);
@@ -571,19 +558,15 @@ IslAst IslAst::create(Scop &Scop, const Dependences &D) {
   return Ast;
 }
 
-__isl_give isl_ast_node *IslAst::getAst() { return isl_ast_node_copy(Root); }
-__isl_give isl_ast_expr *IslAst::getRunCondition() {
-  return isl_ast_expr_copy(RunCondition);
-}
+isl::ast_node IslAst::getAst() { return Root; }
+isl::ast_expr IslAst::getRunCondition() { return RunCondition; }
 
-__isl_give isl_ast_node *IslAstInfo::getAst() { return Ast.getAst(); }
-__isl_give isl_ast_expr *IslAstInfo::getRunCondition() {
-  return Ast.getRunCondition();
-}
+isl::ast_node IslAstInfo::getAst() { return Ast.getAst(); }
+isl::ast_expr IslAstInfo::getRunCondition() { return Ast.getRunCondition(); }
 
 IslAstUserPayload *IslAstInfo::getNodePayload(const isl::ast_node &Node) {
   isl::id Id = Node.get_annotation();
-  if (!Id)
+  if (Id.is_null())
     return nullptr;
   IslAstUserPayload *Payload = (IslAstUserPayload *)Id.get_user();
   return Payload;
@@ -635,17 +618,13 @@ bool IslAstInfo::isExecutedInParallel(const isl::ast_node &Node) {
 
 isl::union_map IslAstInfo::getSchedule(const isl::ast_node &Node) {
   IslAstUserPayload *Payload = getNodePayload(Node);
-  if (!Payload)
-    return nullptr;
-
-  isl::ast_build Build = isl::manage_copy(Payload->Build);
-  return Build.get_schedule();
+  return Payload ? Payload->Build.get_schedule() : isl::union_map();
 }
 
 isl::pw_aff
 IslAstInfo::getMinimalDependenceDistance(const isl::ast_node &Node) {
   IslAstUserPayload *Payload = getNodePayload(Node);
-  return Payload ? Payload->MinimalDependenceDistance : nullptr;
+  return Payload ? Payload->MinimalDependenceDistance : isl::pw_aff();
 }
 
 IslAstInfo::MemoryAccessSet *
@@ -654,9 +633,9 @@ IslAstInfo::getBrokenReductions(const isl::ast_node &Node) {
   return Payload ? &Payload->BrokenReductions : nullptr;
 }
 
-isl_ast_build *IslAstInfo::getBuild(__isl_keep isl_ast_node *Node) {
-  IslAstUserPayload *Payload = getNodePayload(isl::manage_copy(Node));
-  return Payload ? Payload->Build : nullptr;
+isl::ast_build IslAstInfo::getBuild(const isl::ast_node &Node) {
+  IslAstUserPayload *Payload = getNodePayload(Node);
+  return Payload ? Payload->Build : isl::ast_build();
 }
 
 static std::unique_ptr<IslAstInfo> runIslAst(
@@ -719,7 +698,7 @@ static __isl_give isl_printer *cbPrintUser(__isl_take isl_printer *P,
     else
       P = isl_printer_print_str(P, "/* write */  ");
 
-    isl::ast_build Build = isl::manage_copy(IslAstInfo::getBuild(Node));
+    isl::ast_build Build = IslAstInfo::getBuild(isl::manage_copy(Node));
     if (MemAcc->isAffine()) {
       isl_pw_multi_aff *PwmaPtr =
           MemAcc->applyScheduleToAccessRelation(Build.get_schedule()).release();
@@ -745,12 +724,12 @@ static __isl_give isl_printer *cbPrintUser(__isl_take isl_printer *P,
 
 void IslAstInfo::print(raw_ostream &OS) {
   isl_ast_print_options *Options;
-  isl_ast_node *RootNode = Ast.getAst();
+  isl::ast_node RootNode = Ast.getAst();
   Function &F = S.getFunction();
 
   OS << ":: isl ast :: " << F.getName() << " :: " << S.getNameStr() << "\n";
 
-  if (!RootNode) {
+  if (RootNode.is_null()) {
     OS << ":: isl ast generation and code generation was skipped!\n\n";
     OS << ":: This is either because no useful optimizations could be applied "
           "(use -polly-process-unprofitable to enforce code generation) or "
@@ -760,7 +739,7 @@ void IslAstInfo::print(raw_ostream &OS) {
     return;
   }
 
-  isl_ast_expr *RunCondition = Ast.getRunCondition();
+  isl::ast_expr RunCondition = Ast.getRunCondition();
   char *RtCStr, *AstStr;
 
   Options = isl_ast_print_options_alloc(S.getIslCtx().get());
@@ -772,18 +751,16 @@ void IslAstInfo::print(raw_ostream &OS) {
 
   isl_printer *P = isl_printer_to_str(S.getIslCtx().get());
   P = isl_printer_set_output_format(P, ISL_FORMAT_C);
-  P = isl_printer_print_ast_expr(P, RunCondition);
+  P = isl_printer_print_ast_expr(P, RunCondition.get());
   RtCStr = isl_printer_get_str(P);
   P = isl_printer_flush(P);
   P = isl_printer_indent(P, 4);
-  P = isl_ast_node_print(RootNode, P, Options);
+  P = isl_ast_node_print(RootNode.get(), P, Options);
   AstStr = isl_printer_get_str(P);
-
-  auto *Schedule = S.getScheduleTree().release();
 
   LLVM_DEBUG({
     dbgs() << S.getContextStr() << "\n";
-    dbgs() << stringFromIslObj(Schedule);
+    dbgs() << stringFromIslObj(S.getScheduleTree(), "null");
   });
   OS << "\nif (" << RtCStr << ")\n\n";
   OS << AstStr << "\n";
@@ -793,9 +770,6 @@ void IslAstInfo::print(raw_ostream &OS) {
   free(RtCStr);
   free(AstStr);
 
-  isl_ast_expr_free(RunCondition);
-  isl_schedule_free(Schedule);
-  isl_ast_node_free(RootNode);
   isl_printer_free(P);
 }
 

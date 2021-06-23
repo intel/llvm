@@ -153,8 +153,8 @@ public:
   /// \return depends on information being queried.
   template <info::kernel_sub_group param>
   // clang-format off
-  typename info::param_traits<info::kernel_sub_group, param>::return_type
   __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
+  typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device) const;
   // clang-format on
 
@@ -166,8 +166,8 @@ public:
   /// \return depends on information being queried.
   template <info::kernel_sub_group param>
   // clang-format off
-  typename info::param_traits<info::kernel_sub_group, param>::return_type
   __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
+  typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device,
                      typename info::param_traits<info::kernel_sub_group,
                      param>::input_type Value) const;
@@ -177,7 +177,8 @@ public:
   typename backend_traits<Backend>::template return_type<kernel>
   get_native() const {
     return detail::pi::cast<
-        backend_traits<Backend>::template return_type<kernel>>(getNativeImpl());
+        typename backend_traits<Backend>::template return_type<kernel>>(
+        getNativeImpl());
   }
 
 private:

@@ -298,17 +298,11 @@ bool llvm::MergeBlockIntoPredecessor(BasicBlock *BB, DomTreeUpdater *DTU,
   if (MemDep)
     MemDep->invalidateCachedPredecessors();
 
-  // Finally, erase the old block and update dominator info.
-  if (DTU) {
-    assert(BB->getInstList().size() == 1 &&
-           isa<UnreachableInst>(BB->getTerminator()) &&
-           "The successor list of BB isn't empty before "
-           "applying corresponding DTU updates.");
+  if (DTU)
     DTU->applyUpdates(Updates);
-    DTU->deleteBB(BB);
-  } else {
-    BB->eraseFromParent(); // Nuke BB if DTU is nullptr.
-  }
+
+  // Finally, erase the old block and update dominator info.
+  DeleteDeadBlock(BB, DTU);
 
   return true;
 }
@@ -435,7 +429,7 @@ static bool removeRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
   return !ToBeRemoved.empty();
 }
 
-bool llvm::RemoveRedundantDbgInstrs(BasicBlock *BB, bool RemovePseudoOp) {
+bool llvm::RemoveRedundantDbgInstrs(BasicBlock *BB) {
   bool MadeChanges = false;
   // By using the "backward scan" strategy before the "forward scan" strategy we
   // can remove both dbg.value (2) and (3) in a situation like this:
@@ -450,8 +444,6 @@ bool llvm::RemoveRedundantDbgInstrs(BasicBlock *BB, bool RemovePseudoOp) {
   // already is described as having the value V1 at (1).
   MadeChanges |= removeRedundantDbgInstrsUsingBackwardScan(BB);
   MadeChanges |= removeRedundantDbgInstrsUsingForwardScan(BB);
-  if (RemovePseudoOp)
-    MadeChanges |= removeRedundantPseudoProbes(BB);
 
   if (MadeChanges)
     LLVM_DEBUG(dbgs() << "Removed redundant dbg instrs from: "
@@ -887,7 +879,7 @@ static void UpdateAnalysisInformation(BasicBlock *OldBB, BasicBlock *NewBB,
   if (DTU) {
     // Recalculation of DomTree is needed when updating a forward DomTree and
     // the Entry BB is replaced.
-    if (NewBB == &NewBB->getParent()->getEntryBlock() && DTU->hasDomTree()) {
+    if (NewBB->isEntryBlock() && DTU->hasDomTree()) {
       // The entry block was removed and there is no external interface for
       // the dominator tree to be notified of this change. In this corner-case
       // we recalculate the entire tree.
@@ -906,7 +898,7 @@ static void UpdateAnalysisInformation(BasicBlock *OldBB, BasicBlock *NewBB,
     }
   } else if (DT) {
     if (OldBB == DT->getRootNode()->getBlock()) {
-      assert(NewBB == &NewBB->getParent()->getEntryBlock());
+      assert(NewBB->isEntryBlock());
       DT->setNewRoot(NewBB);
     } else {
       // Split block expects NewBB to have a non-empty set of predecessors.

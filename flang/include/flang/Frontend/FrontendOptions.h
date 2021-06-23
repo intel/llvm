@@ -51,6 +51,9 @@ enum ActionKind {
   /// Parse, run semantics and then output the parse tree
   DebugDumpParseTree,
 
+  /// Parse, run semantics and then output the parse tree and symbols
+  DebugDumpAll,
+
   /// Parse and then output the parse tree, skip the semantic checks
   DebugDumpParseTreeNoSema,
 
@@ -67,8 +70,14 @@ enum ActionKind {
   /// Parse, run semantics and then output the pre-FIR tree
   DebugPreFIRTree,
 
+  /// `-fget-definition`
+  GetDefinition,
+
   /// Parse, run semantics and then dump symbol sources map
-  GetSymbolsSources
+  GetSymbolsSources,
+
+  /// Only execute frontend initialization
+  InitOnly
 
   /// TODO: RunPreprocessor, EmitLLVM, EmitLLVMOnly,
   /// EmitCodeGenOnly, EmitAssembly, (...)
@@ -206,6 +215,14 @@ public:
   /// compilation.
   unsigned needProvenanceRangeToCharBlockMappings_ : 1;
 
+  /// Input values from `-fget-definition`
+  struct GetDefinitionVals {
+    unsigned line;
+    unsigned startColumn;
+    unsigned endColumn;
+  };
+  GetDefinitionVals getDefVals_;
+
   /// The input files and their types.
   std::vector<FrontendInputFile> inputs_;
 
@@ -221,6 +238,10 @@ public:
   // The column after which characters are ignored in fixed form lines in the
   // source file.
   int fixedFormColumns_ = 72;
+
+  /// The input kind, either specified via -x argument or deduced from the input
+  /// file name.
+  InputKind dashX_;
 
   // Language features
   common::LanguageFeatureControl features_;

@@ -22,6 +22,19 @@ func @extract(%arg0: tensor<?x?x?xf32>, %arg1: index) {
   return
 }
 
+// CHECK-LABEL:   func @insert(
+// CHECK-SAME:                  %[[SCALAR:.*]]: f32
+// CHECK-SAME:                  %[[INDEX:.*]]: index
+// CHECK-SAME:                  %[[DEST1:.*]]: tensor<?x?x?xf32>
+// CHECK-SAME:                  %[[DEST2:.*]]: tensor<*xf32>
+func @insert(%arg0: f32, %arg1: index, %arg2: tensor<?x?x?xf32>, %arg3: tensor<*xf32>) {
+  // CHECK: tensor.insert %[[SCALAR]] into %[[DEST1]][%[[INDEX]], %[[INDEX]], %[[INDEX]]] : tensor<?x?x?xf32>
+  %0 = tensor.insert %arg0 into %arg2[%arg1, %arg1, %arg1] : tensor<?x?x?xf32>
+  // CHECK: tensor.insert %[[SCALAR]] into %[[DEST2]][%[[INDEX]], %[[INDEX]], %[[INDEX]]] : tensor<*xf32>
+  %1 = tensor.insert %arg0 into %arg3[%arg1, %arg1, %arg1] : tensor<*xf32>
+  return
+}
+
 // CHECK-LABEL: func @tensor.from_elements() {
 func @tensor.from_elements() {
   %c0 = "std.constant"() {value = 0: index} : () -> index
@@ -52,4 +65,16 @@ func @tensor.generate(%m : index, %n : index)
       tensor.yield %elem : f32
   } : tensor<?x3x?xf32>
   return %tnsr : tensor<?x3x?xf32>
+}
+
+// CHECK-LABEL: func @tensor_reshape
+func @tensor_reshape(%unranked: tensor<*xf32>, %shape1: tensor<1xi32>,
+         %shape2: tensor<2xi32>, %shape3: tensor<?xi32>) -> tensor<*xf32> {
+  %dyn_vec = tensor.reshape %unranked(%shape1)
+               : (tensor<*xf32>, tensor<1xi32>) -> tensor<?xf32>
+  %dyn_mat = tensor.reshape %dyn_vec(%shape2)
+               : (tensor<?xf32>, tensor<2xi32>) -> tensor<?x?xf32>
+  %new_unranked = tensor.reshape %dyn_mat(%shape3)
+               : (tensor<?x?xf32>, tensor<?xi32>) -> tensor<*xf32>
+  return %new_unranked : tensor<*xf32>
 }

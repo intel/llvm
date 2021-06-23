@@ -1,26 +1,19 @@
-//==------------ esimd.hpp - DPC++ Explicit SIMD API -----------------------==//
+//==------------ esimd.hpp - DPC++ Explicit SIMD API redirection header ----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// The main header of the Explicit SIMD API.
+// This header is deprecated and should not be included by applications.
+// The header redirected to below should be used instead.
 //===----------------------------------------------------------------------===//
 
 #pragma once
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define SYCL_ESIMD_KERNEL __attribute__((sycl_explicit_simd))
-#define SYCL_ESIMD_FUNCTION __attribute__((sycl_explicit_simd))
-#else
-#define SYCL_ESIMD_KERNEL
-#define SYCL_ESIMD_FUNCTION
-#endif
+#include <CL/sycl/detail/defines_elementary.hpp>
 
-/// \defgroup sycl_esimd DPC++ Explicit SIMD API
+__SYCL_WARNING("CL/sycl/INTEL/esimd.hpp usage is deprecated, include "
+               "sycl/ext/intel/experimental/esimd.hpp instead")
 
-#include <CL/sycl/INTEL/esimd/esimd.hpp>
-#include <CL/sycl/INTEL/esimd/esimd_math.hpp>
-#include <CL/sycl/INTEL/esimd/esimd_memory.hpp>
-#include <CL/sycl/INTEL/esimd/esimd_view.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>

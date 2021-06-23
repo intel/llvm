@@ -8,9 +8,9 @@
 
 #include "NativeProcessLinux.h"
 
-#include <errno.h>
-#include <stdint.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdint>
+#include <cstring>
 #include <unistd.h>
 
 #include <fstream>
@@ -281,6 +281,12 @@ NativeProcessLinux::Factory::Attach(
       pid, -1, native_delegate, Info.GetArchitecture(), mainloop, *tids_or));
 }
 
+NativeProcessLinux::Extension
+NativeProcessLinux::Factory::GetSupportedExtensions() const {
+  return Extension::multiprocess | Extension::fork | Extension::vfork |
+         Extension::pass_signals | Extension::auxv | Extension::libraries_svr4;
+}
+
 // Public Instance Methods
 
 NativeProcessLinux::NativeProcessLinux(::pid_t pid, int terminal_fd,
@@ -288,7 +294,7 @@ NativeProcessLinux::NativeProcessLinux(::pid_t pid, int terminal_fd,
                                        const ArchSpec &arch, MainLoop &mainloop,
                                        llvm::ArrayRef<::pid_t> tids)
     : NativeProcessELF(pid, terminal_fd, delegate), m_arch(arch),
-      m_intel_pt_manager(pid) {
+      m_main_loop(mainloop), m_intel_pt_manager(pid) {
   if (m_terminal_fd != -1) {
     Status status = EnsureFDFlags(m_terminal_fd, O_NONBLOCK);
     assert(status.Success());
@@ -647,7 +653,12 @@ void NativeProcessLinux::MonitorSIGTRAP(const siginfo_t &info,
   }
 
   case (SIGTRAP | (PTRACE_EVENT_VFORK_DONE << 8)): {
-    ResumeThread(thread, thread.GetState(), LLDB_INVALID_SIGNAL_NUMBER);
+    if (bool(m_enabled_extensions & Extension::vfork)) {
+      thread.SetStoppedByVForkDone();
+      StopRunningThreads(thread.GetID());
+    }
+    else
+      ResumeThread(thread, thread.GetState(), LLDB_INVALID_SIGNAL_NUMBER);
     break;
   }
 
@@ -901,8 +912,6 @@ bool NativeProcessLinux::MonitorClone(
       assert(!tgid_ret || tgid_ret.getValue() == GetID());
 
       NativeThreadLinux &child_thread = AddThread(child_pid, /*resume*/ true);
-      // Resume the newly created thread.
-      ResumeThread(child_thread, eStateRunning, LLDB_INVALID_SIGNAL_NUMBER);
       ThreadWasCreated(child_thread);
 
       // Resume the parent.
@@ -914,16 +923,24 @@ bool NativeProcessLinux::MonitorClone(
     LLVM_FALLTHROUGH;
   case PTRACE_EVENT_FORK:
   case PTRACE_EVENT_VFORK: {
-    MainLoop unused_loop;
-    NativeProcessLinux child_process{static_cast<::pid_t>(child_pid),
-                                     m_terminal_fd,
-                                     *m_delegates[0],
-                                     m_arch,
-                                     unused_loop,
-                                     {static_cast<::pid_t>(child_pid)}};
-    child_process.Detach();
-    ResumeThread(*parent_thread, parent_thread->GetState(),
-                 LLDB_INVALID_SIGNAL_NUMBER);
+    bool is_vfork = clone_info->event == PTRACE_EVENT_VFORK;
+    std::unique_ptr<NativeProcessLinux> child_process{new NativeProcessLinux(
+        static_cast<::pid_t>(child_pid), m_terminal_fd, m_delegate, m_arch,
+        m_main_loop, {static_cast<::pid_t>(child_pid)})};
+    if (!is_vfork)
+      child_process->m_software_breakpoints = m_software_breakpoints;
+
+    Extension expected_ext = is_vfork ? Extension::vfork : Extension::fork;
+    if (bool(m_enabled_extensions & expected_ext)) {
+      m_delegate.NewSubprocess(this, std::move(child_process));
+      // NB: non-vfork clone() is reported as fork
+      parent_thread->SetStoppedByFork(is_vfork, child_pid);
+      StopRunningThreads(parent_thread->GetID());
+    } else {
+      child_process->Detach();
+      ResumeThread(*parent_thread, parent_thread->GetState(),
+                   LLDB_INVALID_SIGNAL_NUMBER);
+    }
     break;
   }
   default:

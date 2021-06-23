@@ -632,8 +632,8 @@ public:
   /// a Spelling enumeration, the value UINT_MAX is returned.
   unsigned getSemanticSpelling() const;
 
-  /// If this is an OpenCL addr space attribute returns its representation
-  /// in LangAS, otherwise returns default addr space.
+  /// If this is an OpenCL address space attribute, returns its representation
+  /// in LangAS, otherwise returns default address space.
   LangAS asOpenCLLangAS() const {
     switch (getParsedKind()) {
     case ParsedAttr::AT_OpenCLConstantAddressSpace:
@@ -650,6 +650,30 @@ public:
       return LangAS::opencl_private;
     case ParsedAttr::AT_OpenCLGenericAddressSpace:
       return LangAS::opencl_generic;
+    default:
+      return LangAS::Default;
+    }
+  }
+
+  /// If this is an OpenCL address space attribute, returns its SYCL
+  /// representation in LangAS, otherwise returns default address space.
+  LangAS asSYCLLangAS() const {
+    switch (getKind()) {
+    // FIXME: there are uses of `opencl_constant` attribute in SYCL mode.
+    // See https://github.com/intel/llvm/issues/3062 for more details.
+    case ParsedAttr::AT_OpenCLConstantAddressSpace:
+      return LangAS::opencl_constant;
+    case ParsedAttr::AT_OpenCLGlobalAddressSpace:
+      return LangAS::sycl_global;
+    case ParsedAttr::AT_OpenCLGlobalDeviceAddressSpace:
+      return LangAS::sycl_global_device;
+    case ParsedAttr::AT_OpenCLGlobalHostAddressSpace:
+      return LangAS::sycl_global_host;
+    case ParsedAttr::AT_OpenCLLocalAddressSpace:
+      return LangAS::sycl_local;
+    case ParsedAttr::AT_OpenCLPrivateAddressSpace:
+      return LangAS::sycl_private;
+    case ParsedAttr::AT_OpenCLGenericAddressSpace:
     default:
       return LangAS::Default;
     }

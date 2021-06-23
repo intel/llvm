@@ -15,7 +15,9 @@
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/ScopedHashTable.h"
+#include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
@@ -131,7 +133,7 @@ private:
 
   /// The set of operation values whose whose location will be used for newly
   /// generated operations.
-  llvm::SetVector<Value> locOps;
+  SetVector<Value> locOps;
 };
 } // end anonymous namespace
 
@@ -380,7 +382,7 @@ void PatternLowering::generateSwitch(SwitchNode *switchNode,
   if (kind == Predicates::OperandCountAtLeastQuestion ||
       kind == Predicates::ResultCountAtLeastQuestion) {
     // Order the children such that the cases are in reverse numerical order.
-    SmallVector<unsigned> sortedChildren(
+    SmallVector<unsigned> sortedChildren = llvm::to_vector<16>(
         llvm::seq<unsigned>(0, switchNode->getChildren().size()));
     llvm::sort(sortedChildren, [&](unsigned lhs, unsigned rhs) {
       return cast<UnsignedAnswer>(switchNode->getChild(lhs).first)->getValue() >

@@ -20,6 +20,7 @@ class LinuxCoreTestCase(TestBase):
     mydir = TestBase.compute_mydir(__file__)
 
     _aarch64_pid = 37688
+    _aarch64_pac_pid = 387
     _i386_pid = 32306
     _x86_64_pid = 32259
     _s390x_pid = 1045
@@ -258,6 +259,18 @@ class LinuxCoreTestCase(TestBase):
         self.dbg.DeleteTarget(target)
 
     @skipIfLLVMTargetMissing("AArch64")
+    def test_aarch64_pac(self):
+        """Test that lldb can unwind stack for AArch64 elf core file with PAC enabled."""
+
+        target = self.dbg.CreateTarget("linux-aarch64-pac.out")
+        self.assertTrue(target, VALID_TARGET)
+        process = target.LoadCore("linux-aarch64-pac.core")
+
+        self.check_all(process, self._aarch64_pac_pid, self._aarch64_regions, "a.out")
+
+        self.dbg.DeleteTarget(target)
+
+    @skipIfLLVMTargetMissing("AArch64")
     @expectedFailureAll(archs=["aarch64"], oslist=["freebsd"],
                         bugnumber="llvm.org/pr49415")
     def test_aarch64_regs(self):
@@ -436,6 +449,21 @@ class LinuxCoreTestCase(TestBase):
         values["p2"] = "{0x00 0x00 0x00 0x00}"
         values["p3"] = "{0x11 0x11 0x11 0x11}"
         values["p4"] = "{0x00 0x00 0x00 0x00}"
+
+        for regname, value in values.items():
+            self.expect("register read {}".format(regname),
+                        substrs=["{} = {}".format(regname, value)])
+
+        self.expect("register read --all")
+
+    @skipIfLLVMTargetMissing("AArch64")
+    def test_aarch64_pac_regs(self):
+        # Test AArch64/Linux Pointer Authenication register read
+        target = self.dbg.CreateTarget(None)
+        self.assertTrue(target, VALID_TARGET)
+        process = target.LoadCore("linux-aarch64-pac.core")
+
+        values = {"data_mask": "0x007f00000000000", "code_mask": "0x007f00000000000"}
 
         for regname, value in values.items():
             self.expect("register read {}".format(regname),

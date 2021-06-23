@@ -74,7 +74,7 @@ getInterfaceVariables(spirv::FuncOp funcOp,
   if (!module) {
     return failure();
   }
-  llvm::SetVector<Operation *> interfaceVarSet;
+  SetVector<Operation *> interfaceVarSet;
 
   // TODO: This should in reality traverse the entry function
   // call graph and collect all the interfaces. For now, just traverse the
@@ -115,7 +115,7 @@ static LogicalResult lowerEntryPointABIAttr(spirv::FuncOp funcOp,
 
   OpBuilder::InsertionGuard moduleInsertionGuard(builder);
   auto spirvModule = funcOp->getParentOfType<spirv::ModuleOp>();
-  builder.setInsertionPoint(spirvModule.body().front().getTerminator());
+  builder.setInsertionPointToEnd(spirvModule.getBody());
 
   // Adds the spv.EntryPointOp after collecting all the interface variables
   // needed.

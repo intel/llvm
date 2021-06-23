@@ -17,12 +17,16 @@ unittest("OrcJITTests") {
     "IndirectionUtilsTest.cpp",
     "JITTargetMachineBuilderTest.cpp",
     "LazyCallThroughAndReexportsTest.cpp",
+    "ObjectLinkingLayerTest.cpp",
+    "OrcCAPITest.cpp",
     "OrcTestCommon.cpp",
     "QueueChannel.cpp",
     "RPCUtilsTest.cpp",
     "RTDyldObjectLinkingLayerTest.cpp",
     "ResourceTrackerTest.cpp",
+    "SimplePackedSerializationTest.cpp",
     "SymbolStringPoolTest.cpp",
     "ThreadSafeModuleTest.cpp",
+    "WrapperFunctionUtilsTest.cpp",
   ]
 }

@@ -654,7 +654,6 @@ template <Op OC>
 class SPIRVBinaryInst
     : public SPIRVInstTemplate<SPIRVBinary, OC, true, 5, false> {};
 
-/* ToDo: SMod and FMod to be added */
 #define _SPIRV_OP(x) typedef SPIRVBinaryInst<Op##x> SPIRV##x;
 _SPIRV_OP(IAdd)
 _SPIRV_OP(FAdd)
@@ -666,7 +665,9 @@ _SPIRV_OP(UDiv)
 _SPIRV_OP(SDiv)
 _SPIRV_OP(FDiv)
 _SPIRV_OP(SRem)
+_SPIRV_OP(SMod)
 _SPIRV_OP(FRem)
+_SPIRV_OP(FMod)
 _SPIRV_OP(UMod)
 _SPIRV_OP(ShiftLeftLogical)
 _SPIRV_OP(ShiftRightLogical)
@@ -969,13 +970,12 @@ _SPIRV_OP(Unordered)
 class SPIRVSelect : public SPIRVInstruction {
 public:
   // Complete constructor
-  SPIRVSelect(SPIRVId TheId, SPIRVId TheCondition, SPIRVId TheOp1,
-              SPIRVId TheOp2, SPIRVBasicBlock *TheBB)
-      : SPIRVInstruction(6, OpSelect, TheBB->getValueType(TheOp1), TheId,
-                         TheBB),
+  SPIRVSelect(SPIRVId TheId, SPIRVType *TheType, SPIRVId TheCondition,
+              SPIRVId TheOp1, SPIRVId TheOp2, SPIRVBasicBlock *TheBB,
+              SPIRVModule *TheM)
+      : SPIRVInstruction(6, OpSelect, TheType, TheId, TheBB, TheM),
         Condition(TheCondition), Op1(TheOp1), Op2(TheOp2) {
     validate();
-    assert(TheBB && "Invalid BB");
   }
   // Incomplete constructor
   SPIRVSelect()
@@ -1157,69 +1157,6 @@ protected:
   SPIRVId Select;
   SPIRVId Default;
   std::vector<SPIRVWord> Pairs;
-};
-
-class SPIRVFSMod : public SPIRVInstruction {
-public:
-  static const SPIRVWord FixedWordCount = 4;
-  SPIRVFSMod(Op OC, SPIRVType *TheType, SPIRVId TheId, SPIRVId TheDividend,
-             SPIRVId TheDivisor, SPIRVBasicBlock *BB)
-      : SPIRVInstruction(5, OC, TheType, TheId, BB), Dividend(TheDividend),
-        Divisor(TheDivisor) {
-    validate();
-    assert(BB && "Invalid BB");
-  }
-  // Incomplete constructor
-  SPIRVFSMod(Op OC)
-      : SPIRVInstruction(OC), Dividend(SPIRVID_INVALID),
-        Divisor(SPIRVID_INVALID) {}
-
-  SPIRVValue *getDividend() const { return getValue(Dividend); }
-  SPIRVValue *getDivisor() const { return getValue(Divisor); }
-
-  std::vector<SPIRVValue *> getOperands() override {
-    std::vector<SPIRVId> Operands;
-    Operands.push_back(Dividend);
-    Operands.push_back(Divisor);
-    return getValues(Operands);
-  }
-
-  void setWordCount(SPIRVWord FixedWordCount) override {
-    SPIRVEntry::setWordCount(FixedWordCount);
-  }
-  _SPIRV_DEF_ENCDEC4(Type, Id, Dividend, Divisor)
-  void validate() const override {
-    SPIRVInstruction::validate();
-    if (getValue(Dividend)->isForward() || getValue(Divisor)->isForward())
-      return;
-    SPIRVInstruction::validate();
-  }
-
-protected:
-  SPIRVId Dividend;
-  SPIRVId Divisor;
-};
-
-class SPIRVFMod : public SPIRVFSMod {
-public:
-  static const Op OC = OpFMod;
-  // Complete constructor
-  SPIRVFMod(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheDividend,
-            SPIRVId TheDivisor, SPIRVBasicBlock *BB)
-      : SPIRVFSMod(OC, TheType, TheId, TheDividend, TheDivisor, BB) {}
-  // Incomplete constructor
-  SPIRVFMod() : SPIRVFSMod(OC) {}
-};
-
-class SPIRVSMod : public SPIRVFSMod {
-public:
-  static const Op OC = OpSMod;
-  // Complete constructor
-  SPIRVSMod(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheDividend,
-            SPIRVId TheDivisor, SPIRVBasicBlock *BB)
-      : SPIRVFSMod(OC, TheType, TheId, TheDividend, TheDivisor, BB) {}
-  // Incomplete constructor
-  SPIRVSMod() : SPIRVFSMod(OC) {}
 };
 
 class SPIRVVectorTimesScalar : public SPIRVInstruction {
@@ -1885,6 +1822,23 @@ public:
       return Index == 3;
     }
   }
+  std::vector<SPIRVValue *> getArgValues() {
+    std::vector<SPIRVValue *> VArgs;
+    for (size_t I = 0; I < Args.size(); ++I) {
+      if (isOperandLiteral(I))
+        VArgs.push_back(Module->getLiteralAsConstant(Args[I]));
+      else
+        VArgs.push_back(getValue(Args[I]));
+    }
+    return VArgs;
+  }
+  std::vector<SPIRVType *> getArgTypes() {
+    std::vector<SPIRVType *> ArgTypes;
+    auto VArgs = getArgValues();
+    for (auto VArg : VArgs)
+      ArgTypes.push_back(VArg->getType());
+    return ArgTypes;
+  }
 
 protected:
   SPIRVExtInstSetKind ExtSetKind;
@@ -1944,14 +1898,13 @@ class SPIRVCompositeExtract : public SPIRVInstruction {
 public:
   const static Op OC = OpCompositeExtract;
   // Complete constructor
-  SPIRVCompositeExtract(SPIRVType *TheType, SPIRVId TheId,
-                        SPIRVValue *TheComposite,
+  SPIRVCompositeExtract(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheComposite,
                         const std::vector<SPIRVWord> &TheIndices,
-                        SPIRVBasicBlock *TheBB)
-      : SPIRVInstruction(TheIndices.size() + 4, OC, TheType, TheId, TheBB),
-        Composite(TheComposite->getId()), Indices(TheIndices) {
+                        SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
+      : SPIRVInstruction(TheIndices.size() + 4, OC, TheType, TheId, TheBB,
+                         TheM),
+        Composite(TheComposite), Indices(TheIndices) {
     validate();
-    assert(TheBB && "Invalid BB");
   }
   // Incomplete constructor
   SPIRVCompositeExtract() : SPIRVInstruction(OC), Composite(SPIRVID_INVALID) {}
@@ -1982,16 +1935,14 @@ public:
   const static Op OC = OpCompositeInsert;
   const static SPIRVWord FixedWordCount = 5;
   // Complete constructor
-  SPIRVCompositeInsert(SPIRVId TheId, SPIRVValue *TheObject,
-                       SPIRVValue *TheComposite,
+  SPIRVCompositeInsert(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheObject,
+                       SPIRVId TheComposite,
                        const std::vector<SPIRVWord> &TheIndices,
-                       SPIRVBasicBlock *TheBB)
-      : SPIRVInstruction(TheIndices.size() + FixedWordCount, OC,
-                         TheComposite->getType(), TheId, TheBB),
-        Object(TheObject->getId()), Composite(TheComposite->getId()),
-        Indices(TheIndices) {
+                       SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
+      : SPIRVInstruction(TheIndices.size() + FixedWordCount, OC, TheType, TheId,
+                         TheBB, TheM),
+        Object(TheObject), Composite(TheComposite), Indices(TheIndices) {
     validate();
-    assert(TheBB && "Invalid BB");
   }
   // Incomplete constructor
   SPIRVCompositeInsert()
@@ -2225,16 +2176,14 @@ public:
   const static Op OC = OpVectorShuffle;
   const static SPIRVWord FixedWordCount = 5;
   // Complete constructor
-  SPIRVVectorShuffle(SPIRVId TheId, SPIRVType *TheType, SPIRVValue *TheVector1,
-                     SPIRVValue *TheVector2,
+  SPIRVVectorShuffle(SPIRVId TheId, SPIRVType *TheType, SPIRVId TheVector1,
+                     SPIRVId TheVector2,
                      const std::vector<SPIRVWord> &TheComponents,
-                     SPIRVBasicBlock *TheBB)
+                     SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
       : SPIRVInstruction(TheComponents.size() + FixedWordCount, OC, TheType,
-                         TheId, TheBB),
-        Vector1(TheVector1->getId()), Vector2(TheVector2->getId()),
-        Components(TheComponents) {
+                         TheId, TheBB, TheM),
+        Vector1(TheVector1), Vector2(TheVector2), Components(TheComponents) {
     validate();
-    assert(TheBB && "Invalid BB");
   }
   // Incomplete constructor
   SPIRVVectorShuffle()

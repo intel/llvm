@@ -1,4 +1,5 @@
 ! RUN: %S/test_errors.sh %s %t %flang -fopenmp
+! REQUIRES: shell
 use omp_lib
 ! Check OpenMP 2.13.6 atomic Construct
 
@@ -28,7 +29,6 @@ use omp_lib
   !$omp end atomic
 
   !ERROR: expected end of line
-  !ERROR: expected end of line
   !$omp atomic read write
   a = a + 1
 
@@ -41,7 +41,6 @@ use omp_lib
   !$omp atomic num_threads(4)
   a = a + 1
 
-  !ERROR: expected end of line
   !ERROR: expected end of line
   !$omp atomic capture num_threads(4)
   a = a + 1

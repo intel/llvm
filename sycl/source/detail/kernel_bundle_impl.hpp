@@ -55,6 +55,8 @@ static bool checkAllDevicesHaveAspect(const std::vector<device> &Devices,
 // objects.
 class kernel_bundle_impl {
 
+  using SpecConstMapT = std::map<std::string, std::vector<unsigned char>>;
+
   void common_ctor_checks(bundle_state State) {
     const bool AllDevicesInTheContext =
         checkAllDevicesAreInContext(MDevices, MContext);
@@ -104,6 +106,8 @@ public:
                      std::vector<device> Devs, const property_list &PropList,
                      bundle_state TargetState)
       : MContext(InputBundle.get_context()), MDevices(std::move(Devs)) {
+
+    MSpecConstValues = getSyclObjImpl(InputBundle)->get_spec_const_map_ref();
 
     const std::vector<device> &InputBundleDevices =
         getSyclObjImpl(InputBundle)->get_devices();
@@ -207,6 +211,14 @@ public:
 
     MDeviceImages = detail::ProgramManager::getInstance().link(
         std::move(DeviceImages), MDevices, PropList);
+
+    for (const kernel_bundle<bundle_state::object> &Bundle : ObjectBundles) {
+      const KernelBundleImplPtr BundlePtr = getSyclObjImpl(Bundle);
+      for (const std::pair<const std::string, std::vector<unsigned char>>
+               &SpecConst : BundlePtr->MSpecConstValues) {
+        MSpecConstValues[SpecConst.first] = SpecConst.second;
+      }
+    }
   }
 
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
@@ -258,9 +270,45 @@ public:
 
     std::sort(MDeviceImages.begin(), MDeviceImages.end(),
               LessByHash<device_image_plain>{});
+
+    if (get_bundle_state() == bundle_state::input) {
+      // Copy spec constants values from the device images to be removed.
+      auto MergeSpecConstants = [this](const device_image_plain &Img) {
+        const detail::DeviceImageImplPtr &ImgImpl = getSyclObjImpl(Img);
+        const std::map<std::string,
+                       std::vector<device_image_impl::SpecConstDescT>>
+            &SpecConsts = ImgImpl->get_spec_const_data_ref();
+        const std::vector<unsigned char> &Blob =
+            ImgImpl->get_spec_const_blob_ref();
+        for (const std::pair<const std::string,
+                             std::vector<device_image_impl::SpecConstDescT>>
+                 &SpecConst : SpecConsts) {
+          if (SpecConst.second.front().IsSet)
+            set_specialization_constant_raw_value(
+                SpecConst.first.c_str(),
+                Blob.data() + SpecConst.second.front().BlobOffset,
+                SpecConst.second.back().CompositeOffset +
+                    SpecConst.second.back().Size);
+        }
+      };
+      std::for_each(MDeviceImages.begin(), MDeviceImages.end(),
+                    MergeSpecConstants);
+    }
+
     const auto DevImgIt =
         std::unique(MDeviceImages.begin(), MDeviceImages.end());
+
+    // Remove duplicate device images.
     MDeviceImages.erase(DevImgIt, MDeviceImages.end());
+
+    for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
+      for (const std::pair<const std::string, std::vector<unsigned char>>
+               &SpecConst : Bundle->MSpecConstValues) {
+        set_specialization_constant_raw_value(SpecConst.first.c_str(),
+                                              SpecConst.second.data(),
+                                              SpecConst.second.size());
+      }
+    }
   }
 
   bool empty() const noexcept { return MDeviceImages.empty(); }
@@ -360,12 +408,18 @@ public:
   }
 
   void set_specialization_constant_raw_value(const char *SpecName,
-                                             const void *Value) noexcept {
-    // TODO add support for specialization constants, that are missing in any
-    // device image.
-    for (const device_image_plain &DeviceImage : MDeviceImages)
-      getSyclObjImpl(DeviceImage)
-          ->set_specialization_constant_raw_value(SpecName, Value);
+                                             const void *Value,
+                                             size_t Size) noexcept {
+    if (has_specialization_constant(SpecName))
+      for (const device_image_plain &DeviceImage : MDeviceImages)
+        getSyclObjImpl(DeviceImage)
+            ->set_specialization_constant_raw_value(SpecName, Value);
+    else {
+      const auto *DataPtr = static_cast<const unsigned char *>(Value);
+      std::vector<unsigned char> &Val = MSpecConstValues[std::string{SpecName}];
+      Val.resize(Size);
+      Val.insert(Val.begin(), DataPtr, DataPtr + Size);
+    }
   }
 
   void get_specialization_constant_raw_value(const char *SpecName,
@@ -376,17 +430,36 @@ public:
             ->get_specialization_constant_raw_value(SpecName, ValueRet);
         return;
       }
+
+    // Specialization constant wasn't found in any of the device images,
+    // try to fetch value from kernel_bundle.
+    if (MSpecConstValues.count(std::string{SpecName}) != 0) {
+      const std::vector<unsigned char> &Val =
+          MSpecConstValues.at(std::string{SpecName});
+      auto *Dest = static_cast<unsigned char *>(ValueRet);
+      std::uninitialized_copy(Val.begin(), Val.end(), Dest);
+      return;
+    }
+
+    assert(false &&
+           "get_specialization_constant_raw_value called for missing constant");
   }
 
   bool is_specialization_constant_set(const char *SpecName) const noexcept {
-    return std::any_of(MDeviceImages.begin(), MDeviceImages.end(),
-                       [SpecName](const device_image_plain &DeviceImage) {
-                         return getSyclObjImpl(DeviceImage)
-                             ->is_specialization_constant_set(SpecName);
-                       });
+    bool SetInDevImg =
+        std::any_of(MDeviceImages.begin(), MDeviceImages.end(),
+                    [SpecName](const device_image_plain &DeviceImage) {
+                      return getSyclObjImpl(DeviceImage)
+                          ->is_specialization_constant_set(SpecName);
+                    });
+    return SetInDevImg || MSpecConstValues.count(std::string{SpecName}) != 0;
   }
 
-  const device_image_plain *begin() const { return &MDeviceImages.front(); }
+  const device_image_plain *begin() const {
+    assert(!MDeviceImages.empty() && "MDeviceImages can't be empty");
+    // UB in case MDeviceImages is empty
+    return &MDeviceImages.front();
+  }
 
   const device_image_plain *end() const { return &MDeviceImages.back() + 1; }
 
@@ -399,10 +472,17 @@ public:
                : detail::getSyclObjImpl(MDeviceImages[0])->get_state();
   }
 
+  const SpecConstMapT &get_spec_const_map_ref() const noexcept {
+    return MSpecConstValues;
+  }
+
 private:
   context MContext;
   std::vector<device> MDevices;
   std::vector<device_image_plain> MDeviceImages;
+  // This map stores values for specialization constants, that are missing
+  // from any device image.
+  SpecConstMapT MSpecConstValues;
 };
 
 } // namespace detail

@@ -511,9 +511,10 @@ bool llvm::isInTailCallPosition(const CallBase &Call, const TargetMachine &TM) {
   // not profitable. Also, if the callee is a special function (e.g.
   // longjmp on x86), it can end up causing miscompilation that has not
   // been fully understood.
-  if (!Ret &&
-      ((!TM.Options.GuaranteedTailCallOpt &&
-        Call.getCallingConv() != CallingConv::Tail) || !isa<UnreachableInst>(Term)))
+  if (!Ret && ((!TM.Options.GuaranteedTailCallOpt &&
+                Call.getCallingConv() != CallingConv::Tail &&
+                Call.getCallingConv() != CallingConv::SwiftTail) ||
+               !isa<UnreachableInst>(Term)))
     return false;
 
   // If I will have a chain, make sure no other instruction that will have a
@@ -560,14 +561,12 @@ bool llvm::attributesPermitTailCall(const Function *F, const Instruction *I,
 
   // Following attributes are completely benign as far as calling convention
   // goes, they shouldn't affect whether the call is a tail call.
-  CallerAttrs.removeAttribute(Attribute::NoAlias);
-  CalleeAttrs.removeAttribute(Attribute::NoAlias);
-  CallerAttrs.removeAttribute(Attribute::NonNull);
-  CalleeAttrs.removeAttribute(Attribute::NonNull);
-  CallerAttrs.removeAttribute(Attribute::Dereferenceable);
-  CalleeAttrs.removeAttribute(Attribute::Dereferenceable);
-  CallerAttrs.removeAttribute(Attribute::DereferenceableOrNull);
-  CalleeAttrs.removeAttribute(Attribute::DereferenceableOrNull);
+  for (const auto &Attr : {Attribute::Alignment, Attribute::Dereferenceable,
+                           Attribute::DereferenceableOrNull, Attribute::NoAlias,
+                           Attribute::NonNull}) {
+    CallerAttrs.removeAttribute(Attr);
+    CalleeAttrs.removeAttribute(Attr);
+  }
 
   if (CallerAttrs.contains(Attribute::ZExt)) {
     if (!CalleeAttrs.contains(Attribute::ZExt))

@@ -13,32 +13,121 @@
 /*
     iterator synopsis
 
+#include <concepts>
+
 namespace std
 {
+template<class> struct incrementable_traits;       // since C++20
+template<class T>
+  using iter_difference_t = see below;             // since C++20
+
+template<class> struct indirectly_readable_traits; // since C++20
+template<class T>
+  using iter_value_t = see below;                  // since C++20
 
 template<class Iterator>
-struct iterator_traits
-{
-    typedef typename Iterator::difference_type difference_type;
-    typedef typename Iterator::value_type value_type;
-    typedef typename Iterator::pointer pointer;
-    typedef typename Iterator::reference reference;
-    typedef typename Iterator::iterator_category iterator_category;
-};
+struct iterator_traits;
 
 template<class T>
-struct iterator_traits<T*>
-{
-    typedef ptrdiff_t difference_type;
-    typedef T value_type;
-    typedef T* pointer;
-    typedef T& reference;
-    typedef random_access_iterator_tag iterator_category;
-};
+  requires is_object_v<T>                    // since C++20
+struct iterator_traits<T*>;
+
+template<dereferenceable T>
+  using iter_reference_t = decltype(*declval<T&>());
+
+namespace ranges::inline unspecified {
+    inline constexpr unspecified iter_move = unspecified; // since C++20, nodiscard as an extension
+}}
+
+template<dereferenceable T>
+  requires ...
+using iter_rvalue_reference_t = decltype(ranges::iter_move(declval<T&>())); // since C++20
+
+// [iterator.concepts], iterator concepts
+// [iterator.concept.readable], concept indirectly_readable
+template<class In>
+  concept indirectly_readable = see below;                      // since C++20
+
+template<indirectly_readable T>
+  using iter_common_reference_t =
+    common_reference_t<iter_reference_t<T>, iter_value_t<T>&>;  // since C++20
+
+// [iterator.concept.writable], concept indirectly_writable
+template<class Out, class T>
+  concept indirectly_writable = see below;                // since C++20
+
+// [iterator.concept.winc], concept weakly_incrementable
+template<class I>
+  concept weakly_incrementable = see below;                // since C++20
+
+// [iterator.concept.inc], concept incrementable
+template<class I>
+  concept incrementable = see below;                       // since C++20
+
+// [iterator.concept.iterator], concept input_or_output_iterator
+  template<class I>
+    concept input_or_output_iterator = see below;          // since C++20
+
+// [iterator.concept.sentinel], concept sentinel_for
+template<class S, class I>
+  concept sentinel_for = see below;                        // since C++20
+
+// [iterator.concept.sizedsentinel], concept sized_sentinel_for
+template<class S, class I>
+  inline constexpr bool disable_sized_sentinel_for = false;
+
+template<class S, class I>
+  concept sized_sentinel_for = see below;
+
+// [iterator.concept.input], concept input_iterator
+template<class I>
+  concept input_iterator = see below;                      // since C++20
+
+// [iterator.concept.forward], concept forward_iterator
+template<class I>
+  concept forward_iterator = see below;                    // since C++20
+
+// [iterator.concept.bidir], concept bidirectional_iterator
+template<class I>
+  concept bidirectional_iterator = see below;              // since C++20
+
+// [iterator.concept.random.access], concept random_access_iterator
+template<class I>
+  concept random_access_iterator = see below;              // since C++20
+
+// [indirectcallable]
+// [indirectcallable.indirectinvocable]
+template<class F, class I>
+  concept indirectly_unary_invocable = see below;          // since C++20
+
+template<class F, class I>
+  concept indirectly_regular_unary_invocable = see below;  // since C++20
+
+template<class F, class I>
+  concept indirect_unary_predicate = see below;            // since C++20
+
+template<class F, class I1, class I2>
+  concept indirect_binary_predicate = see below;           // since C++20
+
+template<class F, class I1, class I2 = I1>
+  concept indirect_equivalence_relation = see below;       // since C++20
+
+template<class F, class I1, class I2 = I1>
+  concept indirect_strict_weak_order = see below;          // since C++20
+
+template<class F, class... Is>
+  using indirect_result_t = see below;                     // since C++20
+
+// [projected], projected
+template<indirectly_readable I, indirectly_regular_unary_invocable<I> Proj>
+  struct projected;                                        // since C++20
+
+template<weakly_incrementable I, indirectly_regular_unary_invocable<I> Proj>
+  struct incrementable_traits<projected<I, Proj>>;         // since C++20
 
 template<class Category, class T, class Distance = ptrdiff_t,
          class Pointer = T*, class Reference = T&>
-struct iterator
+struct iterator                                            // deprecated in C++17
 {
     typedef T         value_type;
     typedef Distance  difference_type;
@@ -69,9 +158,20 @@ template <class BidirectionalIterator>  // constexpr in C++17
   constexpr BidirectionalIterator prev(BidirectionalIterator x,
     typename iterator_traits<BidirectionalIterator>::difference_type n = 1);
 
+// [range.iter.ops], range iterator operations
+namespace ranges {
+  // [range.iter.op.advance], ranges::advance
+  template<input_or_output_iterator I>
+    constexpr void advance(I& i, iter_difference_t<I> n);                          // since C++20
+  template<input_or_output_iterator I, sentinel_for<I> S>
+    constexpr void advance(I& i, S bound);                                         // since C++20
+  template<input_or_output_iterator I, sentinel_for<I> S>
+    constexpr iter_difference_t<I> advance(I& i, iter_difference_t<I> n, S bound); // since C++20
+}
+
 template <class Iterator>
 class reverse_iterator
-    : public iterator<typename iterator_traits<Iterator>::iterator_category,
+    : public iterator<typename iterator_traits<Iterator>::iterator_category, // until C++17
                       typename iterator_traits<Iterator>::value_type,
                       typename iterator_traits<Iterator>::difference_type,
                       typename iterator_traits<Iterator>::pointer,
@@ -142,13 +242,15 @@ constexpr reverse_iterator<Iterator> make_reverse_iterator(Iterator i); // C++14
 
 template <class Container>
 class back_insert_iterator
+    : public iterator<output_iterator_tag, void, void, void, void> // until C++17
 {
 protected:
     Container* container;
 public:
     typedef Container                   container_type;
     typedef void                        value_type;
-    typedef void                        difference_type;
+    typedef void                        difference_type; // until C++20
+    typedef ptrdiff_t                   difference_type; // since C++20
     typedef void                        reference;
     typedef void                        pointer;
 
@@ -163,13 +265,15 @@ template <class Container> back_insert_iterator<Container> back_inserter(Contain
 
 template <class Container>
 class front_insert_iterator
+    : public iterator<output_iterator_tag, void, void, void, void> // until C++17
 {
 protected:
     Container* container;
 public:
     typedef Container                    container_type;
     typedef void                         value_type;
-    typedef void                         difference_type;
+    typedef void                         difference_type; // until C++20
+    typedef ptrdiff_t                    difference_type; // since C++20
     typedef void                         reference;
     typedef void                         pointer;
 
@@ -184,6 +288,7 @@ template <class Container> front_insert_iterator<Container> front_inserter(Conta
 
 template <class Container>
 class insert_iterator
+    : public iterator<output_iterator_tag, void, void, void, void> // until C++17
 {
 protected:
     Container* container;
@@ -191,7 +296,8 @@ protected:
 public:
     typedef Container              container_type;
     typedef void                   value_type;
-    typedef void                   difference_type;
+    typedef void                   difference_type; // until C++20
+    typedef ptrdiff_t              difference_type; // since C++20
     typedef void                   reference;
     typedef void                   pointer;
 
@@ -274,15 +380,24 @@ constexpr move_iterator<Iterator> operator+(   // constexpr in C++17
 template <class Iterator>   // constexpr in C++17
 constexpr  move_iterator<Iterator> make_move_iterator(const Iterator& i);
 
+// [default.sentinel], default sentinel
+struct default_sentinel_t;
+inline constexpr default_sentinel_t default_sentinel{};
 
 template <class T, class charT = char, class traits = char_traits<charT>, class Distance = ptrdiff_t>
 class istream_iterator
-    : public iterator<input_iterator_tag, T, Distance, const T*, const T&>
+    : public iterator<input_iterator_tag, T, Distance, const T*, const T&> // until C++17
 {
 public:
-    typedef charT char_type;
-    typedef traits traits_type;
-    typedef basic_istream<charT,traits> istream_type;
+    typedef input_iterator_tag           iterator_category;
+    typedef T                            value_type;
+    typedef Distance                     difference_type;
+    typedef const T*                     pointer;
+    typedef const T&                     reference;
+
+    typedef charT                        char_type;
+    typedef traits                       traits_type;
+    typedef basic_istream<charT, traits> istream_type;
 
     constexpr istream_iterator();
     istream_iterator(istream_type& s);
@@ -304,9 +419,16 @@ bool operator!=(const istream_iterator<T,charT,traits,Distance>& x,
 
 template <class T, class charT = char, class traits = char_traits<charT> >
 class ostream_iterator
-    : public iterator<output_iterator_tag, void, void, void ,void>
+    : public iterator<output_iterator_tag, void, void, void, void> // until C++17
 {
 public:
+    typedef output_iterator_tag         iterator_category;
+    typedef void                        value_type;
+    typedef void                        difference_type; // until C++20
+    typedef ptrdiff_t                   difference_type; // since C++20
+    typedef void                        pointer;
+    typedef void                        reference;
+
     typedef charT char_type;
     typedef traits traits_type;
     typedef basic_ostream<charT,traits> ostream_type;
@@ -324,16 +446,20 @@ public:
 
 template<class charT, class traits = char_traits<charT> >
 class istreambuf_iterator
-    : public iterator<input_iterator_tag, charT,
-                      typename traits::off_type, unspecified,
-                      charT>
+    : public iterator<input_iterator_tag, charT, traits::off_type, unspecified, charT> // until C++17
 {
 public:
-    typedef charT                         char_type;
-    typedef traits                        traits_type;
-    typedef typename traits::int_type     int_type;
-    typedef basic_streambuf<charT,traits> streambuf_type;
-    typedef basic_istream<charT,traits>   istream_type;
+    typedef input_iterator_tag              iterator_category;
+    typedef charT                           value_type;
+    typedef traits::off_type                difference_type;
+    typedef unspecified                     pointer;
+    typedef charT                           reference;
+
+    typedef charT                           char_type;
+    typedef traits                          traits_type;
+    typedef traits::int_type                int_type;
+    typedef basic_streambuf<charT, traits>  streambuf_type;
+    typedef basic_istream<charT, traits>    istream_type;
 
     istreambuf_iterator() noexcept;
     istreambuf_iterator(istream_type& s) noexcept;
@@ -357,13 +483,20 @@ bool operator!=(const istreambuf_iterator<charT,traits>& a,
 
 template <class charT, class traits = char_traits<charT> >
 class ostreambuf_iterator
-    : public iterator<output_iterator_tag, void, void, void, void>
+    : public iterator<output_iterator_tag, void, void, void, void> // until C++17
 {
 public:
-    typedef charT                         char_type;
-    typedef traits                        traits_type;
-    typedef basic_streambuf<charT,traits> streambuf_type;
-    typedef basic_ostream<charT,traits>   ostream_type;
+    typedef output_iterator_tag            iterator_category;
+    typedef void                           value_type;
+    typedef void                           difference_type; // until C++20
+    typedef ptrdiff_t                      difference_type; // since C++20
+    typedef void                           pointer;
+    typedef void                           reference;
+
+    typedef charT                          char_type;
+    typedef traits                         traits_type;
+    typedef basic_streambuf<charT, traits> streambuf_type;
+    typedef basic_ostream<charT, traits>   ostream_type;
 
     ostreambuf_iterator(ostream_type& s) noexcept;
     ostreambuf_iterator(streambuf_type* s) noexcept;
@@ -399,7 +532,7 @@ template <class C> constexpr auto size(const C& c) -> decltype(c.size());       
 template <class T, size_t N> constexpr size_t size(const T (&array)[N]) noexcept; // C++17
 
 template <class C> constexpr auto ssize(const C& c)
-    -> common_type_t<ptrdiff_t, make_signed_t<decltype(c.size())>>;				       // C++20
+    -> common_type_t<ptrdiff_t, make_signed_t<decltype(c.size())>>;                    // C++20
 template <class T, ptrdiff_t> constexpr ptrdiff_t ssize(const T (&array)[N]) noexcept; // C++20
 
 template <class C> constexpr auto empty(const C& c) -> decltype(c.empty());       // C++17
@@ -415,243 +548,37 @@ template <class E> constexpr const E* data(initializer_list<E> il) noexcept;    
 */
 
 #include <__config>
-#include <iosfwd> // for forward declarations of vector and string.
+#include <__debug>
 #include <__functional_base>
-#include <type_traits>
+#include <__iterator/advance.h>
+#include <__iterator/concepts.h>
+#include <__iterator/default_sentinel.h>
+#include <__iterator/incrementable_traits.h>
+#include <__iterator/iter_move.h>
+#include <__iterator/iterator_traits.h>
+#include <__iterator/next.h>
+#include <__iterator/prev.h>
+#include <__iterator/projected.h>
+#include <__iterator/readable_traits.h>
+#include <__memory/addressof.h>
+#include <__memory/pointer_traits.h>
 #include <compare>
-#include <concepts>
+#include <concepts> // Mandated by the Standard.
 #include <cstddef>
 #include <initializer_list>
-#include <__memory/base.h>
-#include <__memory/pointer_traits.h>
+#include <iosfwd> // for forward declarations of vector and string
+#include <type_traits>
 #include <version>
-
-#include <__debug>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
-template <class _Iter>
-struct _LIBCPP_TEMPLATE_VIS iterator_traits;
-
-struct _LIBCPP_TEMPLATE_VIS input_iterator_tag {};
-struct _LIBCPP_TEMPLATE_VIS output_iterator_tag {};
-struct _LIBCPP_TEMPLATE_VIS forward_iterator_tag       : public input_iterator_tag {};
-struct _LIBCPP_TEMPLATE_VIS bidirectional_iterator_tag : public forward_iterator_tag {};
-struct _LIBCPP_TEMPLATE_VIS random_access_iterator_tag : public bidirectional_iterator_tag {};
-#if _LIBCPP_STD_VER > 17
-struct _LIBCPP_TEMPLATE_VIS contiguous_iterator_tag    : public random_access_iterator_tag {};
-#endif
-
-template <class _Iter>
-struct __iter_traits_cache {
-  using type = _If<
-    __is_primary_template<iterator_traits<_Iter> >::value,
-    _Iter,
-    iterator_traits<_Iter>
-  >;
-};
-template <class _Iter>
-using _ITER_TRAITS = typename __iter_traits_cache<_Iter>::type;
-
-struct __iter_concept_concept_test {
-  template <class _Iter>
-  using _Apply = typename _ITER_TRAITS<_Iter>::iterator_concept;
-};
-struct __iter_concept_category_test {
-  template <class _Iter>
-  using _Apply = typename _ITER_TRAITS<_Iter>::iterator_category;
-};
-struct __iter_concept_random_fallback {
-  template <class _Iter>
-  using _Apply = _EnableIf<
-                          __is_primary_template<iterator_traits<_Iter> >::value,
-                          random_access_iterator_tag
-                        >;
-};
-
-template <class _Iter, class _Tester> struct __test_iter_concept
-    : _IsValidExpansion<_Tester::template _Apply, _Iter>,
-      _Tester
-{
-};
-
-template <class _Iter>
-struct __iter_concept_cache {
-  using type = _Or<
-    __test_iter_concept<_Iter, __iter_concept_concept_test>,
-    __test_iter_concept<_Iter, __iter_concept_category_test>,
-    __test_iter_concept<_Iter, __iter_concept_random_fallback>
-  >;
-};
-
-template <class _Iter>
-using _ITER_CONCEPT = typename __iter_concept_cache<_Iter>::type::template _Apply<_Iter>;
-
-
-template <class _Tp>
-struct __has_iterator_typedefs
-{
-private:
-    struct __two {char __lx; char __lxx;};
-    template <class _Up> static __two __test(...);
-    template <class _Up> static char __test(typename __void_t<typename _Up::iterator_category>::type* = 0,
-                                            typename __void_t<typename _Up::difference_type>::type* = 0,
-                                            typename __void_t<typename _Up::value_type>::type* = 0,
-                                            typename __void_t<typename _Up::reference>::type* = 0,
-                                            typename __void_t<typename _Up::pointer>::type* = 0);
-public:
-    static const bool value = sizeof(__test<_Tp>(0,0,0,0,0)) == 1;
-};
-
-
-template <class _Tp>
-struct __has_iterator_category
-{
-private:
-    struct __two {char __lx; char __lxx;};
-    template <class _Up> static __two __test(...);
-    template <class _Up> static char __test(typename _Up::iterator_category* = nullptr);
-public:
-    static const bool value = sizeof(__test<_Tp>(nullptr)) == 1;
-};
-
-template <class _Tp>
-struct __has_iterator_concept
-{
-private:
-    struct __two {char __lx; char __lxx;};
-    template <class _Up> static __two __test(...);
-    template <class _Up> static char __test(typename _Up::iterator_concept* = nullptr);
-public:
-    static const bool value = sizeof(__test<_Tp>(nullptr)) == 1;
-};
-
-template <class _Iter, bool> struct __iterator_traits_impl {};
-
-template <class _Iter>
-struct __iterator_traits_impl<_Iter, true>
-{
-    typedef typename _Iter::difference_type   difference_type;
-    typedef typename _Iter::value_type        value_type;
-    typedef typename _Iter::pointer           pointer;
-    typedef typename _Iter::reference         reference;
-    typedef typename _Iter::iterator_category iterator_category;
-};
-
-template <class _Iter, bool> struct __iterator_traits {};
-
-template <class _Iter>
-struct __iterator_traits<_Iter, true>
-    :  __iterator_traits_impl
-      <
-        _Iter,
-        is_convertible<typename _Iter::iterator_category, input_iterator_tag>::value ||
-        is_convertible<typename _Iter::iterator_category, output_iterator_tag>::value
-      >
-{};
-
-// iterator_traits<Iterator> will only have the nested types if Iterator::iterator_category
-//    exists.  Else iterator_traits<Iterator> will be an empty class.  This is a
-//    conforming extension which allows some programs to compile and behave as
-//    the client expects instead of failing at compile time.
-
-template <class _Iter>
-struct _LIBCPP_TEMPLATE_VIS iterator_traits
-    : __iterator_traits<_Iter, __has_iterator_typedefs<_Iter>::value> {
-
-  using __primary_template = iterator_traits;
-};
-
-template<class _Tp>
-struct _LIBCPP_TEMPLATE_VIS iterator_traits<_Tp*>
-{
-    typedef ptrdiff_t difference_type;
-    typedef typename remove_cv<_Tp>::type value_type;
-    typedef _Tp* pointer;
-    typedef _Tp& reference;
-    typedef random_access_iterator_tag iterator_category;
-#if _LIBCPP_STD_VER > 17
-    typedef contiguous_iterator_tag    iterator_concept;
-#endif
-};
-
-template <class _Tp, class _Up, bool = __has_iterator_category<iterator_traits<_Tp> >::value>
-struct __has_iterator_category_convertible_to
-    : _BoolConstant<is_convertible<typename iterator_traits<_Tp>::iterator_category, _Up>::value>
-{};
-
-template <class _Tp, class _Up>
-struct __has_iterator_category_convertible_to<_Tp, _Up, false> : false_type {};
-
-template <class _Tp, class _Up, bool = __has_iterator_concept<_Tp>::value>
-struct __has_iterator_concept_convertible_to
-    : _BoolConstant<is_convertible<typename _Tp::iterator_concept, _Up>::value>
-{};
-
-template <class _Tp, class _Up>
-struct __has_iterator_concept_convertible_to<_Tp, _Up, false> : false_type {};
-
-template <class _Tp>
-struct __is_cpp17_input_iterator : public __has_iterator_category_convertible_to<_Tp, input_iterator_tag> {};
-
-template <class _Tp>
-struct __is_cpp17_forward_iterator : public __has_iterator_category_convertible_to<_Tp, forward_iterator_tag> {};
-
-template <class _Tp>
-struct __is_cpp17_bidirectional_iterator : public __has_iterator_category_convertible_to<_Tp, bidirectional_iterator_tag> {};
-
-template <class _Tp>
-struct __is_cpp17_random_access_iterator : public __has_iterator_category_convertible_to<_Tp, random_access_iterator_tag> {};
-
-// __is_cpp17_contiguous_iterator determines if an iterator is contiguous,
-// either because it advertises itself as such (in C++20) or because it
-// is a pointer type or a known trivial wrapper around a pointer type,
-// such as __wrap_iter<T*>.
-//
-#if _LIBCPP_STD_VER > 17
-template <class _Tp>
-struct __is_cpp17_contiguous_iterator : _Or<
-    __has_iterator_category_convertible_to<_Tp, contiguous_iterator_tag>,
-    __has_iterator_concept_convertible_to<_Tp, contiguous_iterator_tag>
-> {};
-#else
-template <class _Tp>
-struct __is_cpp17_contiguous_iterator : false_type {};
-#endif
-
-// Any native pointer which is an iterator is also a contiguous iterator.
-template <class _Up>
-struct __is_cpp17_contiguous_iterator<_Up*> : true_type {};
-
-
-template <class _Tp>
-struct __is_exactly_cpp17_input_iterator
-    : public integral_constant<bool,
-         __has_iterator_category_convertible_to<_Tp, input_iterator_tag>::value &&
-        !__has_iterator_category_convertible_to<_Tp, forward_iterator_tag>::value> {};
-
-#ifndef _LIBCPP_HAS_NO_DEDUCTION_GUIDES
-template<class _InputIterator>
-using __iter_value_type = typename iterator_traits<_InputIterator>::value_type;
-
-template<class _InputIterator>
-using __iter_key_type = remove_const_t<typename iterator_traits<_InputIterator>::value_type::first_type>;
-
-template<class _InputIterator>
-using __iter_mapped_type = typename iterator_traits<_InputIterator>::value_type::second_type;
-
-template<class _InputIterator>
-using __iter_to_alloc_type = pair<
-    add_const_t<typename iterator_traits<_InputIterator>::value_type::first_type>,
-    typename iterator_traits<_InputIterator>::value_type::second_type>;
-#endif
 
 template<class _Category, class _Tp, class _Distance = ptrdiff_t,
          class _Pointer = _Tp*, class _Reference = _Tp&>
-struct _LIBCPP_TEMPLATE_VIS iterator
+struct _LIBCPP_TEMPLATE_VIS _LIBCPP_DEPRECATED_IN_CXX17 iterator
 {
     typedef _Tp        value_type;
     typedef _Distance  difference_type;
@@ -659,47 +586,6 @@ struct _LIBCPP_TEMPLATE_VIS iterator
     typedef _Reference reference;
     typedef _Category  iterator_category;
 };
-
-template <class _InputIter>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
-void __advance(_InputIter& __i,
-             typename iterator_traits<_InputIter>::difference_type __n, input_iterator_tag)
-{
-    for (; __n > 0; --__n)
-        ++__i;
-}
-
-template <class _BiDirIter>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
-void __advance(_BiDirIter& __i,
-             typename iterator_traits<_BiDirIter>::difference_type __n, bidirectional_iterator_tag)
-{
-    if (__n >= 0)
-        for (; __n > 0; --__n)
-            ++__i;
-    else
-        for (; __n < 0; ++__n)
-            --__i;
-}
-
-template <class _RandIter>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
-void __advance(_RandIter& __i,
-             typename iterator_traits<_RandIter>::difference_type __n, random_access_iterator_tag)
-{
-   __i += __n;
-}
-
-template <class _InputIter, class _Distance>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
-void advance(_InputIter& __i, _Distance __orig_n)
-{
-    _LIBCPP_ASSERT(__orig_n >= 0 || __is_cpp17_bidirectional_iterator<_InputIter>::value,
-                   "Attempt to advance(it, n) with negative n on a non-bidirectional iterator");
-    typedef decltype(_VSTD::__convert_to_integral(__orig_n)) _IntegralSize;
-    _IntegralSize __n = __orig_n;
-    _VSTD::__advance(__i, __n, typename iterator_traits<_InputIter>::iterator_category());
-}
 
 template <class _InputIter>
 inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
@@ -728,40 +614,6 @@ distance(_InputIter __first, _InputIter __last)
     return _VSTD::__distance(__first, __last, typename iterator_traits<_InputIter>::iterator_category());
 }
 
-template <class _InputIter>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
-typename enable_if
-<
-    __is_cpp17_input_iterator<_InputIter>::value,
-    _InputIter
->::type
-next(_InputIter __x,
-     typename iterator_traits<_InputIter>::difference_type __n = 1)
-{
-    _LIBCPP_ASSERT(__n >= 0 || __is_cpp17_bidirectional_iterator<_InputIter>::value,
-                       "Attempt to next(it, n) with negative n on a non-bidirectional iterator");
-
-    _VSTD::advance(__x, __n);
-    return __x;
-}
-
-template <class _InputIter>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
-typename enable_if
-<
-    __is_cpp17_input_iterator<_InputIter>::value,
-    _InputIter
->::type
-prev(_InputIter __x,
-     typename iterator_traits<_InputIter>::difference_type __n = 1)
-{
-    _LIBCPP_ASSERT(__n <= 0 || __is_cpp17_bidirectional_iterator<_InputIter>::value,
-                       "Attempt to prev(it, n) with a positive n on a non-bidirectional iterator");
-    _VSTD::advance(__x, -__n);
-    return __x;
-}
-
-
 template <class _Tp, class = void>
 struct __is_stashing_iterator : false_type {};
 
@@ -769,16 +621,22 @@ template <class _Tp>
 struct __is_stashing_iterator<_Tp, typename __void_t<typename _Tp::__stashing_iterator_tag>::type>
   : true_type {};
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _Iter>
 class _LIBCPP_TEMPLATE_VIS reverse_iterator
+#if _LIBCPP_STD_VER <= 14 || !defined(_LIBCPP_ABI_NO_ITERATOR_BASES)
     : public iterator<typename iterator_traits<_Iter>::iterator_category,
                       typename iterator_traits<_Iter>::value_type,
                       typename iterator_traits<_Iter>::difference_type,
                       typename iterator_traits<_Iter>::pointer,
                       typename iterator_traits<_Iter>::reference>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 private:
-    /*mutable*/ _Iter __t;  // no longer used as of LWG #2360, not removed due to ABI break
+#ifndef _LIBCPP_ABI_NO_ITERATOR_BASES
+    _Iter __t; // no longer used as of LWG #2360, not removed due to ABI break
+#endif
 
     static_assert(!__is_stashing_iterator<_Iter>::value,
       "The specified iterator type cannot be used with reverse_iterator; "
@@ -794,23 +652,65 @@ public:
     typedef _If<__is_cpp17_random_access_iterator<_Iter>::value,
         random_access_iterator_tag,
         typename iterator_traits<_Iter>::iterator_category>  iterator_category;
+    typedef typename iterator_traits<_Iter>::value_type      value_type;
+
 #if _LIBCPP_STD_VER > 17
     typedef _If<__is_cpp17_random_access_iterator<_Iter>::value,
         random_access_iterator_tag,
         bidirectional_iterator_tag>                          iterator_concept;
 #endif
 
+#ifndef _LIBCPP_ABI_NO_ITERATOR_BASES
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
     reverse_iterator() : __t(), current() {}
+
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
     explicit reverse_iterator(_Iter __x) : __t(__x), current(__x) {}
-    template <class _Up>
-        _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
-        reverse_iterator(const reverse_iterator<_Up>& __u) : __t(__u.base()), current(__u.base()) {}
-    template <class _Up>
-        _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
-        reverse_iterator& operator=(const reverse_iterator<_Up>& __u)
-            { __t = current = __u.base(); return *this; }
+
+    template <class _Up, class = _EnableIf<
+        !is_same<_Up, _Iter>::value && is_convertible<_Up const&, _Iter>::value
+    > >
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
+    reverse_iterator(const reverse_iterator<_Up>& __u)
+        : __t(__u.base()), current(__u.base())
+    { }
+
+    template <class _Up, class = _EnableIf<
+        !is_same<_Up, _Iter>::value &&
+        is_convertible<_Up const&, _Iter>::value &&
+        is_assignable<_Up const&, _Iter>::value
+    > >
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
+    reverse_iterator& operator=(const reverse_iterator<_Up>& __u) {
+        __t = current = __u.base();
+        return *this;
+    }
+#else
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
+    reverse_iterator() : current() {}
+
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
+    explicit reverse_iterator(_Iter __x) : current(__x) {}
+
+    template <class _Up, class = _EnableIf<
+        !is_same<_Up, _Iter>::value && is_convertible<_Up const&, _Iter>::value
+    > >
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
+    reverse_iterator(const reverse_iterator<_Up>& __u)
+        : current(__u.base())
+    { }
+
+    template <class _Up, class = _EnableIf<
+        !is_same<_Up, _Iter>::value &&
+        is_convertible<_Up const&, _Iter>::value &&
+        is_assignable<_Up const&, _Iter>::value
+    > >
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
+    reverse_iterator& operator=(const reverse_iterator<_Up>& __u) {
+        current = __u.base();
+        return *this;
+    }
+#endif
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
     _Iter base() const {return current;}
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
@@ -921,17 +821,26 @@ reverse_iterator<_Iter> make_reverse_iterator(_Iter __i)
 }
 #endif
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _Container>
 class _LIBCPP_TEMPLATE_VIS back_insert_iterator
-    : public iterator<output_iterator_tag,
-                      void,
-                      void,
-                      void,
-                      void>
+#if _LIBCPP_STD_VER <= 14 || !defined(_LIBCPP_ABI_NO_ITERATOR_BASES)
+    : public iterator<output_iterator_tag, void, void, void, void>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 protected:
     _Container* container;
 public:
+    typedef output_iterator_tag iterator_category;
+    typedef void value_type;
+#if _LIBCPP_STD_VER > 17
+    typedef ptrdiff_t difference_type;
+#else
+    typedef void difference_type;
+#endif
+    typedef void pointer;
+    typedef void reference;
     typedef _Container container_type;
 
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 explicit back_insert_iterator(_Container& __x) : container(_VSTD::addressof(__x)) {}
@@ -940,7 +849,7 @@ public:
 #ifndef _LIBCPP_CXX03_LANG
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 back_insert_iterator& operator=(typename _Container::value_type&& __value_)
         {container->push_back(_VSTD::move(__value_)); return *this;}
-#endif  // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_CXX03_LANG
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 back_insert_iterator& operator*()     {return *this;}
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 back_insert_iterator& operator++()    {return *this;}
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 back_insert_iterator  operator++(int) {return *this;}
@@ -954,17 +863,26 @@ back_inserter(_Container& __x)
     return back_insert_iterator<_Container>(__x);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _Container>
 class _LIBCPP_TEMPLATE_VIS front_insert_iterator
-    : public iterator<output_iterator_tag,
-                      void,
-                      void,
-                      void,
-                      void>
+#if _LIBCPP_STD_VER <= 14 || !defined(_LIBCPP_ABI_NO_ITERATOR_BASES)
+    : public iterator<output_iterator_tag, void, void, void, void>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 protected:
     _Container* container;
 public:
+    typedef output_iterator_tag iterator_category;
+    typedef void value_type;
+#if _LIBCPP_STD_VER > 17
+    typedef ptrdiff_t difference_type;
+#else
+    typedef void difference_type;
+#endif
+    typedef void pointer;
+    typedef void reference;
     typedef _Container container_type;
 
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 explicit front_insert_iterator(_Container& __x) : container(_VSTD::addressof(__x)) {}
@@ -973,7 +891,7 @@ public:
 #ifndef _LIBCPP_CXX03_LANG
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 front_insert_iterator& operator=(typename _Container::value_type&& __value_)
         {container->push_front(_VSTD::move(__value_)); return *this;}
-#endif  // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_CXX03_LANG
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 front_insert_iterator& operator*()     {return *this;}
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 front_insert_iterator& operator++()    {return *this;}
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 front_insert_iterator  operator++(int) {return *this;}
@@ -987,18 +905,27 @@ front_inserter(_Container& __x)
     return front_insert_iterator<_Container>(__x);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _Container>
 class _LIBCPP_TEMPLATE_VIS insert_iterator
-    : public iterator<output_iterator_tag,
-                      void,
-                      void,
-                      void,
-                      void>
+#if _LIBCPP_STD_VER <= 14 || !defined(_LIBCPP_ABI_NO_ITERATOR_BASES)
+    : public iterator<output_iterator_tag, void, void, void, void>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 protected:
     _Container* container;
-    typename _Container::iterator iter;
+    typename _Container::iterator iter; // FIXME: `ranges::iterator_t<Container>` in C++20 mode
 public:
+    typedef output_iterator_tag iterator_category;
+    typedef void value_type;
+#if _LIBCPP_STD_VER > 17
+    typedef ptrdiff_t difference_type;
+#else
+    typedef void difference_type;
+#endif
+    typedef void pointer;
+    typedef void reference;
     typedef _Container container_type;
 
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 insert_iterator(_Container& __x, typename _Container::iterator __i)
@@ -1008,7 +935,7 @@ public:
 #ifndef _LIBCPP_CXX03_LANG
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 insert_iterator& operator=(typename _Container::value_type&& __value_)
         {iter = container->insert(iter, _VSTD::move(__value_)); ++iter; return *this;}
-#endif  // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_CXX03_LANG
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 insert_iterator& operator*()        {return *this;}
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 insert_iterator& operator++()       {return *this;}
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17 insert_iterator& operator++(int)    {return *this;}
@@ -1022,12 +949,21 @@ inserter(_Container& __x, typename _Container::iterator __i)
     return insert_iterator<_Container>(__x, __i);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _Tp, class _CharT = char,
           class _Traits = char_traits<_CharT>, class _Distance = ptrdiff_t>
 class _LIBCPP_TEMPLATE_VIS istream_iterator
+#if _LIBCPP_STD_VER <= 14 || !defined(_LIBCPP_ABI_NO_ITERATOR_BASES)
     : public iterator<input_iterator_tag, _Tp, _Distance, const _Tp*, const _Tp&>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 public:
+    typedef input_iterator_tag iterator_category;
+    typedef _Tp value_type;
+    typedef _Distance difference_type;
+    typedef const _Tp* pointer;
+    typedef const _Tp& reference;
     typedef _CharT char_type;
     typedef _Traits traits_type;
     typedef basic_istream<_CharT,_Traits> istream_type;
@@ -1084,15 +1020,19 @@ operator!=(const istream_iterator<_Tp, _CharT, _Traits, _Distance>& __x,
     return !(__x == __y);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _Tp, class _CharT = char, class _Traits = char_traits<_CharT> >
 class _LIBCPP_TEMPLATE_VIS ostream_iterator
+#if _LIBCPP_STD_VER <= 14 || !defined(_LIBCPP_ABI_NO_ITERATOR_BASES)
     : public iterator<output_iterator_tag, void, void, void, void>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 public:
     typedef output_iterator_tag             iterator_category;
     typedef void                            value_type;
 #if _LIBCPP_STD_VER > 17
-    typedef std::ptrdiff_t                  difference_type;
+    typedef ptrdiff_t                       difference_type;
 #else
     typedef void                            difference_type;
 #endif
@@ -1123,13 +1063,22 @@ public:
     _LIBCPP_INLINE_VISIBILITY ostream_iterator& operator++(int) {return *this;}
 };
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template<class _CharT, class _Traits>
 class _LIBCPP_TEMPLATE_VIS istreambuf_iterator
+#if _LIBCPP_STD_VER <= 14 || !defined(_LIBCPP_ABI_NO_ITERATOR_BASES)
     : public iterator<input_iterator_tag, _CharT,
                       typename _Traits::off_type, _CharT*,
                       _CharT>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 public:
+    typedef input_iterator_tag              iterator_category;
+    typedef _CharT                          value_type;
+    typedef typename _Traits::off_type      difference_type;
+    typedef _CharT*                         pointer;
+    typedef _CharT                          reference;
     typedef _CharT                          char_type;
     typedef _Traits                         traits_type;
     typedef typename _Traits::int_type      int_type;
@@ -1193,15 +1142,19 @@ bool operator!=(const istreambuf_iterator<_CharT,_Traits>& __a,
                 const istreambuf_iterator<_CharT,_Traits>& __b)
                 {return !__a.equal(__b);}
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _CharT, class _Traits>
 class _LIBCPP_TEMPLATE_VIS ostreambuf_iterator
+#if _LIBCPP_STD_VER <= 14 || !defined(_LIBCPP_ABI_NO_ITERATOR_BASES)
     : public iterator<output_iterator_tag, void, void, void, void>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 public:
     typedef output_iterator_tag                 iterator_category;
     typedef void                                value_type;
 #if _LIBCPP_STD_VER > 17
-    typedef std::ptrdiff_t                      difference_type;
+    typedef ptrdiff_t                           difference_type;
 #else
     typedef void                                difference_type;
 #endif
@@ -1269,11 +1222,27 @@ public:
 
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
     move_iterator() : __i() {}
+
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
     explicit move_iterator(_Iter __x) : __i(__x) {}
-    template <class _Up>
-      _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
-      move_iterator(const move_iterator<_Up>& __u) : __i(__u.base()) {}
+
+    template <class _Up, class = _EnableIf<
+        !is_same<_Up, _Iter>::value && is_convertible<_Up const&, _Iter>::value
+    > >
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
+    move_iterator(const move_iterator<_Up>& __u) : __i(__u.base()) {}
+
+    template <class _Up, class = _EnableIf<
+        !is_same<_Up, _Iter>::value &&
+        is_convertible<_Up const&, _Iter>::value &&
+        is_assignable<_Iter&, _Up const&>::value
+    > >
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
+    move_iterator& operator=(const move_iterator<_Up>& __u) {
+        __i = __u.base();
+        return *this;
+    }
+
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14 _Iter base() const {return __i;}
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
     reference operator*() const { return static_cast<reference>(*__i); }
@@ -1450,8 +1419,7 @@ public:
     typedef typename iterator_traits<iterator_type>::reference         reference;
     typedef typename iterator_traits<iterator_type>::iterator_category iterator_category;
 #if _LIBCPP_STD_VER > 17
-    typedef _If<__is_cpp17_contiguous_iterator<_Iter>::value,
-                contiguous_iterator_tag, iterator_category>            iterator_concept;
+    typedef contiguous_iterator_tag                                    iterator_concept;
 #endif
 
 private:
@@ -1512,13 +1480,13 @@ public:
         _LIBCPP_ASSERT(__get_const_db()->__dereferenceable(this),
                        "Attempted to dereference a non-dereferenceable iterator");
 #endif
-        return (pointer)_VSTD::addressof(*__i);
+        return _VSTD::__to_address(__i);
     }
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_IF_NODEBUG __wrap_iter& operator++() _NOEXCEPT
     {
 #if _LIBCPP_DEBUG_LEVEL == 2
         _LIBCPP_ASSERT(__get_const_db()->__dereferenceable(this),
-                       "Attempted to increment non-incrementable iterator");
+                       "Attempted to increment a non-incrementable iterator");
 #endif
         ++__i;
         return *this;
@@ -1530,7 +1498,7 @@ public:
     {
 #if _LIBCPP_DEBUG_LEVEL == 2
         _LIBCPP_ASSERT(__get_const_db()->__decrementable(this),
-                       "Attempted to decrement non-decrementable iterator");
+                       "Attempted to decrement a non-decrementable iterator");
 #endif
         --__i;
         return *this;
@@ -1543,7 +1511,7 @@ public:
     {
 #if _LIBCPP_DEBUG_LEVEL == 2
         _LIBCPP_ASSERT(__get_const_db()->__addable(this, __n),
-                   "Attempted to add/subtract iterator outside of valid range");
+                   "Attempted to add/subtract an iterator outside its valid range");
 #endif
         __i += __n;
         return *this;
@@ -1556,7 +1524,7 @@ public:
     {
 #if _LIBCPP_DEBUG_LEVEL == 2
         _LIBCPP_ASSERT(__get_const_db()->__subscriptable(this, __n),
-                   "Attempted to subscript iterator outside of valid range");
+                   "Attempted to subscript an iterator outside its valid range");
 #endif
         return __i[__n];
     }
@@ -1625,21 +1593,16 @@ private:
     _LIBCPP_CONSTEXPR_IF_NODEBUG friend
     __wrap_iter<_Iter1>
     operator+(typename __wrap_iter<_Iter1>::difference_type, __wrap_iter<_Iter1>) _NOEXCEPT;
-
-    template <class _Ip, class _Op> friend _LIBCPP_CONSTEXPR_AFTER_CXX17 _Op copy(_Ip, _Ip, _Op);
-    template <class _B1, class _B2> friend _LIBCPP_CONSTEXPR_AFTER_CXX17 _B2 copy_backward(_B1, _B1, _B2);
-    template <class _Ip, class _Op> friend _LIBCPP_CONSTEXPR_AFTER_CXX17 _Op move(_Ip, _Ip, _Op);
-    template <class _B1, class _B2> friend _LIBCPP_CONSTEXPR_AFTER_CXX17 _B2 move_backward(_B1, _B1, _B2);
 };
 
 #if _LIBCPP_STD_VER <= 17
 template <class _It>
-struct __is_cpp17_contiguous_iterator<__wrap_iter<_It> > : __is_cpp17_contiguous_iterator<_It> {};
+struct __is_cpp17_contiguous_iterator<__wrap_iter<_It> > : true_type {};
 #endif
 
 template <class _Iter>
 _LIBCPP_CONSTEXPR
-_EnableIf<__is_cpp17_contiguous_iterator<_Iter>::value, decltype(_VSTD::__to_address(declval<_Iter>()))>
+decltype(_VSTD::__to_address(declval<_Iter>()))
 __to_address(__wrap_iter<_Iter> __w) _NOEXCEPT {
     return _VSTD::__to_address(__w.base());
 }
@@ -1764,23 +1727,6 @@ operator+(typename __wrap_iter<_Iter>::difference_type __n,
     __x += __n;
     return __x;
 }
-
-template <class _Iter>
-struct __libcpp_is_trivial_iterator
-    : public _LIBCPP_BOOL_CONSTANT(is_pointer<_Iter>::value) {};
-
-template <class _Iter>
-struct __libcpp_is_trivial_iterator<move_iterator<_Iter> >
-    : public _LIBCPP_BOOL_CONSTANT(__libcpp_is_trivial_iterator<_Iter>::value) {};
-
-template <class _Iter>
-struct __libcpp_is_trivial_iterator<reverse_iterator<_Iter> >
-    : public _LIBCPP_BOOL_CONSTANT(__libcpp_is_trivial_iterator<_Iter>::value) {};
-
-template <class _Iter>
-struct __libcpp_is_trivial_iterator<__wrap_iter<_Iter> >
-    : public _LIBCPP_BOOL_CONSTANT(__libcpp_is_trivial_iterator<_Iter>::value) {};
-
 
 template <class _Tp, size_t _Np>
 _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX11
@@ -1955,7 +1901,7 @@ end(const _Cp& __c)
     return __c.end();
 }
 
-#endif  // !defined(_LIBCPP_CXX03_LANG)
+#endif // !defined(_LIBCPP_CXX03_LANG)
 
 #if _LIBCPP_STD_VER > 14
 
@@ -2053,4 +1999,4 @@ __libcpp_erase_if_container(_Container& __c, _Predicate& __pred) {
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif  // _LIBCPP_ITERATOR
+#endif // _LIBCPP_ITERATOR

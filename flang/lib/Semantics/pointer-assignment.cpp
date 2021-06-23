@@ -44,11 +44,13 @@ public:
       : context_{context}, source_{source}, description_{description} {}
   PointerAssignmentChecker(evaluate::FoldingContext &context, const Symbol &lhs)
       : context_{context}, source_{lhs.name()},
-        description_{"pointer '"s + lhs.name().ToString() + '\''}, lhs_{&lhs},
-        procedure_{Procedure::Characterize(lhs, context)} {
+        description_{"pointer '"s + lhs.name().ToString() + '\''}, lhs_{&lhs} {
     set_lhsType(TypeAndShape::Characterize(lhs, context));
     set_isContiguous(lhs.attrs().test(Attr::CONTIGUOUS));
     set_isVolatile(lhs.attrs().test(Attr::VOLATILE));
+    if (IsProcedure(lhs)) {
+      procedure_ = Procedure::Characterize(lhs, context);
+    }
   }
   PointerAssignmentChecker &set_lhsType(std::optional<TypeAndShape> &&);
   PointerAssignmentChecker &set_isContiguous(bool);
@@ -171,7 +173,7 @@ bool PointerAssignmentChecker::Check(const evaluate::FunctionRef<T> &f) {
     CHECK(frTypeAndShape);
     if (!lhsType_->IsCompatibleWith(context_.messages(), *frTypeAndShape,
             "pointer", "function result", false /*elemental*/,
-            true /*left: deferred shape*/, true /*right: deferred shape*/)) {
+            evaluate::CheckConformanceFlags::BothDeferredShape)) {
       msg = "%s is associated with the result of a reference to function '%s'"
             " whose pointer result has an incompatible type or shape"_err_en_US;
     }

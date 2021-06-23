@@ -23,7 +23,6 @@ set(ASAN_SOURCES
   asan_posix.cpp
   asan_premap_shadow.cpp
   asan_report.cpp
-  asan_rtems.cpp
   asan_rtl.cpp
   asan_shadow_setup.cpp
   asan_stack.cpp
@@ -63,9 +62,7 @@ SET(ASAN_HEADERS
   asan_interface_internal.h
   asan_internal.h
   asan_lock.h
-  asan_malloc_local.h
   asan_mapping.h
-  asan_mapping_myriad.h
   asan_poisoning.h
   asan_premap_shadow.h
   asan_report.h
@@ -327,7 +324,7 @@ else()
   endforeach()
 endif()
 
-add_compiler_rt_resource_file(asan_blacklist asan_blacklist.txt asan)
+add_compiler_rt_resource_file(asan_ignorelist asan_ignorelist.txt asan)
 
 add_subdirectory(scripts)
 

@@ -40,6 +40,7 @@
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/Support/InstructionCost.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -340,6 +341,41 @@ struct VPTransformState {
   VPlan *Plan;
 };
 
+/// VPUsers instance used by VPBlockBase to manage CondBit and the block
+/// predicate. Currently VPBlockUsers are used in VPBlockBase for historical
+/// reasons, but in the future the only VPUsers should either be recipes or
+/// live-outs.VPBlockBase uses.
+struct VPBlockUser : public VPUser {
+  VPBlockUser() : VPUser({}, VPUserID::Block) {}
+
+  VPValue *getSingleOperandOrNull() {
+    if (getNumOperands() == 1)
+      return getOperand(0);
+
+    return nullptr;
+  }
+  const VPValue *getSingleOperandOrNull() const {
+    if (getNumOperands() == 1)
+      return getOperand(0);
+
+    return nullptr;
+  }
+
+  void resetSingleOpUser(VPValue *NewVal) {
+    assert(getNumOperands() <= 1 && "Didn't expect more than one operand!");
+    if (!NewVal) {
+      if (getNumOperands() == 1)
+        removeLastOperand();
+      return;
+    }
+
+    if (getNumOperands() == 1)
+      setOperand(0, NewVal);
+    else
+      addOperand(NewVal);
+  }
+};
+
 /// VPBlockBase is the building block of the Hierarchical Control-Flow Graph.
 /// A VPBlockBase can be either a VPBasicBlock or a VPRegionBlock.
 class VPBlockBase {
@@ -363,12 +399,12 @@ class VPBlockBase {
   /// Successor selector managed by a VPUser. For blocks with zero or one
   /// successors, there is no operand. Otherwise there is exactly one operand
   /// which is the branch condition.
-  VPUser CondBitUser;
+  VPBlockUser CondBitUser;
 
   /// If the block is predicated, its predicate is stored as an operand of this
   /// VPUser to maintain the def-use relations. Otherwise there is no operand
   /// here.
-  VPUser PredicateUser;
+  VPBlockUser PredicateUser;
 
   /// VPlan containing the block. Can only be set on the entry block of the
   /// plan.
@@ -604,6 +640,10 @@ public:
     print(O, "", SlotTracker);
   }
 
+  /// Print the successors of this block to \p O, prefixing all lines with \p
+  /// Indent.
+  void printSuccessors(raw_ostream &O, const Twine &Indent) const;
+
   /// Dump this VPBlockBase to dbgs().
   LLVM_DUMP_METHOD void dump() const { print(dbgs()); }
 #endif
@@ -620,17 +660,16 @@ class VPRecipeBase : public ilist_node_with_parent<VPRecipeBase, VPBasicBlock>,
   friend VPBasicBlock;
   friend class VPBlockUtils;
 
-
   /// Each VPRecipe belongs to a single VPBasicBlock.
   VPBasicBlock *Parent = nullptr;
 
 public:
   VPRecipeBase(const unsigned char SC, ArrayRef<VPValue *> Operands)
-      : VPDef(SC), VPUser(Operands) {}
+      : VPDef(SC), VPUser(Operands, VPUser::VPUserID::Recipe) {}
 
   template <typename IterT>
   VPRecipeBase(const unsigned char SC, iterator_range<IterT> Operands)
-      : VPDef(SC), VPUser(Operands) {}
+      : VPDef(SC), VPUser(Operands, VPUser::VPUserID::Recipe) {}
   virtual ~VPRecipeBase() = default;
 
   /// \return the VPBasicBlock which this VPRecipe belongs to.
@@ -670,16 +709,40 @@ public:
   /// Returns the underlying instruction, if the recipe is a VPValue or nullptr
   /// otherwise.
   Instruction *getUnderlyingInstr() {
-    return cast<Instruction>(getVPValue()->getUnderlyingValue());
+    return cast<Instruction>(getVPSingleValue()->getUnderlyingValue());
   }
   const Instruction *getUnderlyingInstr() const {
-    return cast<Instruction>(getVPValue()->getUnderlyingValue());
+    return cast<Instruction>(getVPSingleValue()->getUnderlyingValue());
   }
 
   /// Method to support type inquiry through isa, cast, and dyn_cast.
   static inline bool classof(const VPDef *D) {
     // All VPDefs are also VPRecipeBases.
     return true;
+  }
+
+  static inline bool classof(const VPUser *U) {
+    return U->getVPUserID() == VPUser::VPUserID::Recipe;
+  }
+
+  /// Returns true if the recipe may have side-effects.
+  bool mayHaveSideEffects() const;
+
+  /// Returns true for PHI-like recipes.
+  bool isPhi() const {
+    return getVPDefID() == VPWidenIntOrFpInductionSC || getVPDefID() == VPWidenPHISC ||
+      getVPDefID() == VPPredInstPHISC || getVPDefID() == VPWidenCanonicalIVSC;
+  }
+
+  /// Returns true if the recipe may read from memory.
+  bool mayReadFromMemory() const;
+
+  /// Returns true if the recipe may write to memory.
+  bool mayWriteToMemory() const;
+
+  /// Returns true if the recipe may read from or write to memory.
+  bool mayReadOrWriteMemory() const {
+    return mayReadFromMemory() || mayWriteToMemory();
   }
 };
 
@@ -734,7 +797,7 @@ public:
       : VPRecipeBase(VPRecipeBase::VPInstructionSC, {}),
         VPValue(VPValue::VPVInstructionSC, nullptr, this), Opcode(Opcode) {
     for (auto *I : Operands)
-      addOperand(I->getVPValue());
+      addOperand(I->getVPSingleValue());
   }
 
   VPInstruction(unsigned Opcode, std::initializer_list<VPValue *> Operands)
@@ -983,9 +1046,10 @@ public:
 
 /// A recipe for handling all phi nodes except for integer and FP inductions.
 /// For reduction PHIs, RdxDesc must point to the corresponding recurrence
-/// descriptor and the start value is the first operand of the recipe.
-/// In the VPlan native path, all incoming VPValues & VPBasicBlock pairs are
-/// managed in the recipe directly.
+/// descriptor, the start value is the first operand of the recipe and the
+/// incoming value from the backedge is the second operand. In the VPlan native
+/// path, all incoming VPValues & VPBasicBlock pairs are managed in the recipe
+/// directly.
 class VPWidenPHIRecipe : public VPRecipeBase, public VPValue {
   /// Descriptor for a reduction PHI.
   RecurrenceDescriptor *RdxDesc = nullptr;
@@ -1030,6 +1094,13 @@ public:
     return getNumOperands() == 0 ? nullptr : getOperand(0);
   }
 
+  /// Returns the incoming value from the loop backedge, if it is a reduction.
+  VPValue *getBackedgeValue() {
+    assert(RdxDesc && "second incoming value is only guaranteed to be backedge "
+                      "value for reductions");
+    return getOperand(1);
+  }
+
   /// Adds a pair (\p IncomingV, \p IncomingBlock) to the phi.
   void addIncoming(VPValue *IncomingV, VPBasicBlock *IncomingBlock) {
     addOperand(IncomingV);
@@ -1041,6 +1112,8 @@ public:
 
   /// Returns the \p I th incoming VPBasicBlock.
   VPBasicBlock *getIncomingBlock(unsigned I) { return IncomingBlocks[I]; }
+
+  RecurrenceDescriptor *getRecurrenceDescriptor() { return RdxDesc; }
 };
 
 /// A recipe for vectorizing a phi-node as a sequence of mask-based select
@@ -1426,7 +1499,7 @@ public:
 
 /// VPBasicBlock serves as the leaf of the Hierarchical Control-Flow Graph. It
 /// holds a sequence of zero or more VPRecipe's each representing a sequence of
-/// output IR instructions.
+/// output IR instructions. All PHI-like recipes must come before any non-PHI recipes.
 class VPBasicBlock : public VPBlockBase {
 public:
   using RecipeListTy = iplist<VPRecipeBase>;
@@ -1504,7 +1577,17 @@ public:
   /// Return the position of the first non-phi node recipe in the block.
   iterator getFirstNonPhi();
 
+  /// Returns an iterator range over the PHI-like recipes in the block.
+  iterator_range<iterator> phis() {
+    return make_range(begin(), getFirstNonPhi());
+  }
+
   void dropAllReferences(VPValue *NewValue) override;
+
+  /// Split current block at \p SplitAt by inserting a new block between the
+  /// current block and its successors and moving all recipes starting at
+  /// SplitAt to the new block. Returns the new block.
+  VPBasicBlock *splitAt(iterator SplitAt);
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   /// Print this VPBsicBlock to \p O, prefixing all lines with \p Indent. \p
@@ -1741,6 +1824,136 @@ struct GraphTraits<Inverse<VPRegionBlock *>>
     // df_iterator::end() returns an empty iterator so the node used doesn't
     // matter.
     return nodes_iterator::end(N);
+  }
+};
+
+/// Iterator to traverse all successors of a VPBlockBase node. This includes the
+/// entry node of VPRegionBlocks. Exit blocks of a region implicitly have their
+/// parent region's successors. This ensures all blocks in a region are visited
+/// before any blocks in a successor region when doing a reverse post-order
+// traversal of the graph.
+template <typename BlockPtrTy>
+class VPAllSuccessorsIterator
+    : public iterator_facade_base<VPAllSuccessorsIterator<BlockPtrTy>,
+                                  std::forward_iterator_tag, VPBlockBase> {
+  BlockPtrTy Block;
+  /// Index of the current successor. For VPBasicBlock nodes, this simply is the
+  /// index for the successor array. For VPRegionBlock, SuccessorIdx == 0 is
+  /// used for the region's entry block, and SuccessorIdx - 1 are the indices
+  /// for the successor array.
+  size_t SuccessorIdx;
+
+  static BlockPtrTy getBlockWithSuccs(BlockPtrTy Current) {
+    while (Current && Current->getNumSuccessors() == 0)
+      Current = Current->getParent();
+    return Current;
+  }
+
+  /// Templated helper to dereference successor \p SuccIdx of \p Block. Used by
+  /// both the const and non-const operator* implementations.
+  template <typename T1> static T1 deref(T1 Block, unsigned SuccIdx) {
+    if (auto *R = dyn_cast<VPRegionBlock>(Block)) {
+      if (SuccIdx == 0)
+        return R->getEntry();
+      SuccIdx--;
+    }
+
+    // For exit blocks, use the next parent region with successors.
+    return getBlockWithSuccs(Block)->getSuccessors()[SuccIdx];
+  }
+
+public:
+  VPAllSuccessorsIterator(BlockPtrTy Block, size_t Idx = 0)
+      : Block(Block), SuccessorIdx(Idx) {}
+  VPAllSuccessorsIterator(const VPAllSuccessorsIterator &Other)
+      : Block(Other.Block), SuccessorIdx(Other.SuccessorIdx) {}
+
+  VPAllSuccessorsIterator &operator=(const VPAllSuccessorsIterator &R) {
+    Block = R.Block;
+    SuccessorIdx = R.SuccessorIdx;
+    return *this;
+  }
+
+  static VPAllSuccessorsIterator end(BlockPtrTy Block) {
+    BlockPtrTy ParentWithSuccs = getBlockWithSuccs(Block);
+    unsigned NumSuccessors = ParentWithSuccs
+                                 ? ParentWithSuccs->getNumSuccessors()
+                                 : Block->getNumSuccessors();
+
+    if (auto *R = dyn_cast<VPRegionBlock>(Block))
+      return {R, NumSuccessors + 1};
+    return {Block, NumSuccessors};
+  }
+
+  bool operator==(const VPAllSuccessorsIterator &R) const {
+    return Block == R.Block && SuccessorIdx == R.SuccessorIdx;
+  }
+
+  const VPBlockBase *operator*() const { return deref(Block, SuccessorIdx); }
+
+  BlockPtrTy operator*() { return deref(Block, SuccessorIdx); }
+
+  VPAllSuccessorsIterator &operator++() {
+    SuccessorIdx++;
+    return *this;
+  }
+
+  VPAllSuccessorsIterator operator++(int X) {
+    VPAllSuccessorsIterator Orig = *this;
+    SuccessorIdx++;
+    return Orig;
+  }
+};
+
+/// Helper for GraphTraits specialization that traverses through VPRegionBlocks.
+template <typename BlockTy> class VPBlockRecursiveTraversalWrapper {
+  BlockTy Entry;
+
+public:
+  VPBlockRecursiveTraversalWrapper(BlockTy Entry) : Entry(Entry) {}
+  BlockTy getEntry() { return Entry; }
+};
+
+/// GraphTraits specialization to recursively traverse VPBlockBase nodes,
+/// including traversing through VPRegionBlocks.  Exit blocks of a region
+/// implicitly have their parent region's successors. This ensures all blocks in
+/// a region are visited before any blocks in a successor region when doing a
+/// reverse post-order traversal of the graph.
+template <>
+struct GraphTraits<VPBlockRecursiveTraversalWrapper<VPBlockBase *>> {
+  using NodeRef = VPBlockBase *;
+  using ChildIteratorType = VPAllSuccessorsIterator<VPBlockBase *>;
+
+  static NodeRef
+  getEntryNode(VPBlockRecursiveTraversalWrapper<VPBlockBase *> N) {
+    return N.getEntry();
+  }
+
+  static inline ChildIteratorType child_begin(NodeRef N) {
+    return ChildIteratorType(N);
+  }
+
+  static inline ChildIteratorType child_end(NodeRef N) {
+    return ChildIteratorType::end(N);
+  }
+};
+
+template <>
+struct GraphTraits<VPBlockRecursiveTraversalWrapper<const VPBlockBase *>> {
+  using NodeRef = const VPBlockBase *;
+  using ChildIteratorType = VPAllSuccessorsIterator<const VPBlockBase *>;
+
+  static NodeRef
+  getEntryNode(VPBlockRecursiveTraversalWrapper<const VPBlockBase *> N) {
+    return N.getEntry();
+  }
+
+  static inline ChildIteratorType child_begin(NodeRef N) {
+    return ChildIteratorType(N);
+  }
+
+  static inline ChildIteratorType child_end(NodeRef N) {
+    return ChildIteratorType::end(N);
   }
 };
 
@@ -2066,6 +2279,26 @@ public:
         Count++;
     }
     return Count;
+  }
+
+  /// Return an iterator range over \p Range which only includes \p BlockTy
+  /// blocks. The accesses are casted to \p BlockTy.
+  template <typename BlockTy, typename T>
+  static auto blocksOnly(const T &Range) {
+    // Create BaseTy with correct const-ness based on BlockTy.
+    using BaseTy =
+        typename std::conditional<std::is_const<BlockTy>::value,
+                                  const VPBlockBase, VPBlockBase>::type;
+
+    // We need to first create an iterator range over (const) BlocktTy & instead
+    // of (const) BlockTy * for filter_range to work properly.
+    auto Mapped =
+        map_range(Range, [](BaseTy *Block) -> BaseTy & { return *Block; });
+    auto Filter = make_filter_range(
+        Mapped, [](BaseTy &Block) { return isa<BlockTy>(&Block); });
+    return map_range(Filter, [](BaseTy &Block) -> BlockTy * {
+      return cast<BlockTy>(&Block);
+    });
   }
 };
 

@@ -575,8 +575,10 @@ Value *LibCallSimplifier::optimizeStrNCpy(CallInst *CI, IRBuilderBase &B) {
   }
 
   if (SrcLen == 0) {
-    // strncpy(x, "", y) -> memset(align 1 x, '\0', y)
-    CallInst *NewCI = B.CreateMemSet(Dst, B.getInt8('\0'), Size, Align(1));
+    // strncpy(x, "", y) -> memset(x, '\0', y)
+    Align MemSetAlign =
+        CI->getAttributes().getParamAttributes(0).getAlignment().valueOrOne();
+    CallInst *NewCI = B.CreateMemSet(Dst, B.getInt8('\0'), Size, MemSetAlign);
     AttrBuilder ArgAttrs(CI->getAttributes().getParamAttributes(0));
     NewCI->setAttributes(NewCI->getAttributes().addParamAttributes(
         CI->getContext(), 0, ArgAttrs));
@@ -1422,17 +1424,18 @@ static Value *getPow(Value *InnerChain[33], unsigned Exp, IRBuilderBase &B) {
   return InnerChain[Exp];
 }
 
-// Return a properly extended 32-bit integer if the operation is an itofp.
-static Value *getIntToFPVal(Value *I2F, IRBuilderBase &B) {
+// Return a properly extended integer (DstWidth bits wide) if the operation is
+// an itofp.
+static Value *getIntToFPVal(Value *I2F, IRBuilderBase &B, unsigned DstWidth) {
   if (isa<SIToFPInst>(I2F) || isa<UIToFPInst>(I2F)) {
     Value *Op = cast<Instruction>(I2F)->getOperand(0);
-    // Make sure that the exponent fits inside an int32_t,
+    // Make sure that the exponent fits inside an "int" of size DstWidth,
     // thus avoiding any range issues that FP has not.
     unsigned BitWidth = Op->getType()->getPrimitiveSizeInBits();
-    if (BitWidth < 32 ||
-        (BitWidth == 32 && isa<SIToFPInst>(I2F)))
-      return isa<SIToFPInst>(I2F) ? B.CreateSExt(Op, B.getInt32Ty())
-                                  : B.CreateZExt(Op, B.getInt32Ty());
+    if (BitWidth < DstWidth ||
+        (BitWidth == DstWidth && isa<SIToFPInst>(I2F)))
+      return isa<SIToFPInst>(I2F) ? B.CreateSExt(Op, B.getIntNTy(DstWidth))
+                                  : B.CreateZExt(Op, B.getIntNTy(DstWidth));
   }
 
   return nullptr;
@@ -1522,7 +1525,7 @@ Value *LibCallSimplifier::replacePowWithExp(CallInst *Pow, IRBuilderBase &B) {
   if (match(Base, m_SpecificFP(2.0)) &&
       (isa<SIToFPInst>(Expo) || isa<UIToFPInst>(Expo)) &&
       hasFloatFn(TLI, Ty, LibFunc_ldexp, LibFunc_ldexpf, LibFunc_ldexpl)) {
-    if (Value *ExpoI = getIntToFPVal(Expo, B))
+    if (Value *ExpoI = getIntToFPVal(Expo, B, TLI->getIntSize()))
       return emitBinaryFloatFnCall(ConstantFP::get(Ty, 1.0), ExpoI, TLI,
                                    LibFunc_ldexp, LibFunc_ldexpf, LibFunc_ldexpl,
                                    B, Attrs);
@@ -1661,7 +1664,8 @@ Value *LibCallSimplifier::replacePowWithSqrt(CallInst *Pow, IRBuilderBase &B) {
 static Value *createPowWithIntegerExponent(Value *Base, Value *Expo, Module *M,
                                            IRBuilderBase &B) {
   Value *Args[] = {Base, Expo};
-  Function *F = Intrinsic::getDeclaration(M, Intrinsic::powi, Base->getType());
+  Type *Types[] = {Base->getType(), Expo->getType()};
+  Function *F = Intrinsic::getDeclaration(M, Intrinsic::powi, Types);
   return B.CreateCall(F, Args);
 }
 
@@ -1762,19 +1766,19 @@ Value *LibCallSimplifier::optimizePow(CallInst *Pow, IRBuilderBase &B) {
       return FMul;
     }
 
-    APSInt IntExpo(32, /*isUnsigned=*/false);
+    APSInt IntExpo(TLI->getIntSize(), /*isUnsigned=*/false);
     // powf(x, n) -> powi(x, n) if n is a constant signed integer value
     if (ExpoF->isInteger() &&
         ExpoF->convertToInteger(IntExpo, APFloat::rmTowardZero, &Ignored) ==
             APFloat::opOK) {
       return createPowWithIntegerExponent(
-          Base, ConstantInt::get(B.getInt32Ty(), IntExpo), M, B);
+          Base, ConstantInt::get(B.getIntNTy(TLI->getIntSize()), IntExpo), M, B);
     }
   }
 
   // powf(x, itofp(y)) -> powi(x, y)
   if (AllowApprox && (isa<SIToFPInst>(Expo) || isa<UIToFPInst>(Expo))) {
-    if (Value *ExpoI = getIntToFPVal(Expo, B))
+    if (Value *ExpoI = getIntToFPVal(Expo, B, TLI->getIntSize()))
       return createPowWithIntegerExponent(Base, ExpoI, M, B);
   }
 
@@ -1801,11 +1805,11 @@ Value *LibCallSimplifier::optimizeExp2(CallInst *CI, IRBuilderBase &B) {
   Type *Ty = CI->getType();
   Value *Op = CI->getArgOperand(0);
 
-  // Turn exp2(sitofp(x)) -> ldexp(1.0, sext(x))  if sizeof(x) <= 32
-  // Turn exp2(uitofp(x)) -> ldexp(1.0, zext(x))  if sizeof(x) < 32
+  // Turn exp2(sitofp(x)) -> ldexp(1.0, sext(x))  if sizeof(x) <= IntSize
+  // Turn exp2(uitofp(x)) -> ldexp(1.0, zext(x))  if sizeof(x) < IntSize
   if ((isa<SIToFPInst>(Op) || isa<UIToFPInst>(Op)) &&
       hasFloatFn(TLI, Ty, LibFunc_ldexp, LibFunc_ldexpf, LibFunc_ldexpl)) {
-    if (Value *Exp = getIntToFPVal(Op, B))
+    if (Value *Exp = getIntToFPVal(Op, B, TLI->getIntSize()))
       return emitBinaryFloatFnCall(ConstantFP::get(Ty, 1.0), Exp, TLI,
                                    LibFunc_ldexp, LibFunc_ldexpf, LibFunc_ldexpl,
                                    B, Attrs);
@@ -2375,18 +2379,28 @@ Value *LibCallSimplifier::optimizePrintFString(CallInst *CI, IRBuilderBase &B) {
   if (FormatStr.size() == 1 || FormatStr == "%%")
     return emitPutChar(B.getInt32(FormatStr[0]), B, TLI);
 
-  // printf("%s", "a") --> putchar('a')
+  // Try to remove call or emit putchar/puts.
   if (FormatStr == "%s" && CI->getNumArgOperands() > 1) {
-    StringRef ChrStr;
-    if (!getConstantStringInfo(CI->getOperand(1), ChrStr))
+    StringRef OperandStr;
+    if (!getConstantStringInfo(CI->getOperand(1), OperandStr))
       return nullptr;
-    if (ChrStr.size() != 1)
-      return nullptr;
-    return emitPutChar(B.getInt32(ChrStr[0]), B, TLI);
+    // printf("%s", "") --> NOP
+    if (OperandStr.empty())
+      return (Value *)CI;
+    // printf("%s", "a") --> putchar('a')
+    if (OperandStr.size() == 1)
+      return emitPutChar(B.getInt32(OperandStr[0]), B, TLI);
+    // printf("%s", str"\n") --> puts(str)
+    if (OperandStr.back() == '\n') {
+      OperandStr = OperandStr.drop_back();
+      Value *GV = B.CreateGlobalString(OperandStr, "str");
+      return emitPutS(GV, B, TLI);
+    }
+    return nullptr;
   }
 
   // printf("foo\n") --> puts("foo")
-  if (FormatStr[FormatStr.size() - 1] == '\n' &&
+  if (FormatStr.back() == '\n' &&
       FormatStr.find('%') == StringRef::npos) { // No format characters.
     // Create a string literal with no \n on it.  We expect the constant merge
     // pass to be run after this pass, to merge duplicate strings.

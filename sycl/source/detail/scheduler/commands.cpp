@@ -235,7 +235,7 @@ public:
     // Thus we employ read-lock of graph.
     {
       Scheduler &Sched = Scheduler::getInstance();
-      std::shared_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock);
+      Scheduler::ReadLockT Lock(Sched.MGraphLock);
 
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
 
@@ -481,7 +481,7 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
+Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   const QueueImplPtr &WorkerQueue = getWorkerQueue();
   const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
@@ -493,21 +493,25 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
     MPreparedHostDepsEvents.push_back(DepEvent);
-    return;
+    return nullptr;
   }
+
+  Command *ConnectionCmd = nullptr;
 
   // Do not add redundant event dependencies for in-order queues.
   if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
       WorkerQueue->has_property<property::queue::in_order>())
-    return;
+    return nullptr;
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
   if (DepEventContext != WorkerContext && !WorkerContext->is_host()) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
-    GB.connectDepEvent(this, DepEvent, Dep);
+    ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep);
   } else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
+
+  return ConnectionCmd;
 }
 
 const ContextImplPtr &Command::getWorkerContext() const {
@@ -516,9 +520,11 @@ const ContextImplPtr &Command::getWorkerContext() const {
 
 const QueueImplPtr &Command::getWorkerQueue() const { return MQueue; }
 
-void Command::addDep(DepDesc NewDep) {
+Command *Command::addDep(DepDesc NewDep) {
+  Command *ConnectionCmd = nullptr;
+
   if (NewDep.MDepCommand) {
-    processDepEvent(NewDep.MDepCommand->getEvent(), NewDep);
+    ConnectionCmd = processDepEvent(NewDep.MDepCommand->getEvent(), NewDep);
   }
   MDeps.push_back(NewDep);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -526,9 +532,11 @@ void Command::addDep(DepDesc NewDep) {
       NewDep.MDepCommand, (void *)NewDep.MDepRequirement->MSYCLMemObj,
       accessModeToString(NewDep.MDepRequirement->MAccessMode), true);
 #endif
+
+  return ConnectionCmd;
 }
 
-void Command::addDep(EventImplPtr Event) {
+Command *Command::addDep(EventImplPtr Event) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // We need this for just the instrumentation, so guarding it will prevent
   // unused variable warnings when instrumentation is turned off
@@ -538,7 +546,7 @@ void Command::addDep(EventImplPtr Event) {
   emitEdgeEventForEventDependence(Cmd, PiEventAddr);
 #endif
 
-  processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr});
+  return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr});
 }
 
 void Command::emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr) {
@@ -732,7 +740,10 @@ AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
   // Node event must be created before the dependent edge is added to this node,
   // so this call must be before the addDep() call.
   emitInstrumentationDataProxy();
-  addDep(DepDesc(nullptr, getRequirement(), this));
+  // "Nothing to depend on"
+  Command *ConnectionCmd = addDep(DepDesc(nullptr, getRequirement(), this));
+  assert(ConnectionCmd == nullptr);
+  (void)ConnectionCmd;
 }
 
 void AllocaCommand::emitInstrumentationData() {
@@ -795,7 +806,8 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
 }
 
 AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
-                                         AllocaCommandBase *ParentAlloca)
+                                         AllocaCommandBase *ParentAlloca,
+                                         std::vector<Command *> &ToEnqueue)
     : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue),
                         std::move(Req),
                         /*LinkedAllocaCmd*/ nullptr),
@@ -804,7 +816,10 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
   // is added to this node, so this call must be before
   // the addDep() call.
   emitInstrumentationDataProxy();
-  addDep(DepDesc(MParentAlloca, getRequirement(), MParentAlloca));
+  Command *ConnectionCmd =
+      addDep(DepDesc(MParentAlloca, getRequirement(), MParentAlloca));
+  if (ConnectionCmd)
+    ToEnqueue.push_back(ConnectionCmd);
 }
 
 void AllocaSubBufCommand::emitInstrumentationData() {
@@ -1329,7 +1344,10 @@ void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
   MRequirements.emplace_back(ReqRef);
   const Requirement *const StoredReq = &MRequirements.back();
 
-  addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
+  // EmptyCommand is always host one, so we believe that result of addDep is nil
+  Command *Cmd = addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
+  assert(Cmd == nullptr && "Conection command should be null for EmptyCommand");
+  (void)Cmd;
 }
 
 void EmptyCommand::emitInstrumentationData() {
@@ -1636,8 +1654,9 @@ static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
 }
 
 pi_result ExecCGCommand::SetKernelParamsAndLaunch(
-    CGExecKernel *ExecKernel, RT::PiKernel Kernel, NDRDescT &NDRDesc,
-    std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
+    CGExecKernel *ExecKernel,
+    std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
+    NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
     ProgramManager::KernelArgMask EliminatedArgMask) {
   vector_class<ArgDesc> &Args = ExecKernel->MArgs;
   // TODO this is not necessary as long as we can guarantee that the arguments
@@ -1660,6 +1679,8 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     if (!EliminatedArgMask.empty() && EliminatedArgMask[Arg.MIndex])
       continue;
     switch (Arg.MType) {
+    case kernel_param_kind_t::kind_stream:
+      break;
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
@@ -1692,9 +1713,21 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
       break;
     }
     case kernel_param_kind_t::kind_specialization_constants_buffer: {
-      throw cl::sycl::feature_not_supported(
-          "SYCL2020 specialization constants are not yet fully supported",
-          PI_INVALID_OPERATION);
+      if (MQueue->is_host()) {
+        throw cl::sycl::feature_not_supported(
+            "SYCL2020 specialization constants are not yet supported on host "
+            "device",
+            PI_INVALID_OPERATION);
+      }
+      if (DeviceImageImpl != nullptr) {
+        RT::PiMem SpecConstsBuffer =
+            DeviceImageImpl->get_spec_const_buffer_ref();
+        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                        &SpecConstsBuffer);
+      } else {
+        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                        nullptr);
+      }
       break;
     }
     }
@@ -1916,6 +1949,8 @@ cl_int ExecCGCommand::enqueueImp() {
     bool KnownProgram = true;
 
     std::shared_ptr<kernel_impl> SyclKernelImpl;
+    std::shared_ptr<device_image_impl> DeviceImageImpl;
+
     // Use kernel_bundle is available
     if (KernelBundleImplPtr) {
 
@@ -1929,9 +1964,7 @@ cl_int ExecCGCommand::enqueueImp() {
       SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
 
       Kernel = SyclKernelImpl->getHandleRef();
-
-      std::shared_ptr<device_image_impl> DeviceImageImpl =
-          SyclKernelImpl->getDeviceImage();
+      DeviceImageImpl = SyclKernelImpl->getDeviceImage();
 
       Program = DeviceImageImpl->get_program_ref();
 
@@ -1979,11 +2012,13 @@ cl_int ExecCGCommand::enqueueImp() {
     if (KernelMutex != nullptr) {
       // For cacheable kernels, we use per-kernel mutex
       std::lock_guard<std::mutex> Lock(*KernelMutex);
-      Error = SetKernelParamsAndLaunch(ExecKernel, Kernel, NDRDesc, RawEvents,
-                                       Event, EliminatedArgMask);
+      Error =
+          SetKernelParamsAndLaunch(ExecKernel, DeviceImageImpl, Kernel, NDRDesc,
+                                   RawEvents, Event, EliminatedArgMask);
     } else {
-      Error = SetKernelParamsAndLaunch(ExecKernel, Kernel, NDRDesc, RawEvents,
-                                       Event, EliminatedArgMask);
+      Error =
+          SetKernelParamsAndLaunch(ExecKernel, DeviceImageImpl, Kernel, NDRDesc,
+                                   RawEvents, Event, EliminatedArgMask);
     }
 
     if (PI_SUCCESS != Error) {

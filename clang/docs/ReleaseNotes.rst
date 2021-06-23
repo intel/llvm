@@ -46,7 +46,13 @@ sections with improvements to Clang's support for those languages.
 Major New Features
 ------------------
 
-- ...
+- Guaranteed tail calls are now supported with statement attributes
+  ``[[clang::musttail]]`` in C++ and ``__attribute__((musttail))`` in C. The
+  attribute is applied to a return statement (not a function declaration),
+  and an error is emitted if a tail call cannot be guaranteed, for example if
+  the function signatures of caller and callee are not compatible. Guaranteed
+  tail calls enable a class of algorithms that would otherwise use an
+  arbitrary amount of stack space.
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -56,12 +62,19 @@ Improvements to Clang's diagnostics
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 
-- ...
+- The default value of _MSC_VER was raised from 1911 to 1914. MSVC 19.14 has the
+  support to overaligned objects on x86_32 which is required for some LLVM 
+  passes.
 
 New Compiler Flags
 ------------------
 
-- ...
+- ``-Wreserved-identifier`` emits warning when user code uses reserved
+  identifiers.
+
+- ``-fstack-usage`` generates an extra .su file per input source file. The .su
+  file contains frame size information for each function defined in the source
+  file.
 
 Deprecated Compiler Flags
 -------------------------
@@ -100,6 +113,9 @@ Attribute Changes in Clang
 
 - ...
 
+- Added support for C++11-style ``[[]]`` attributes on using-declarations, as a
+  clang extension.
+
 Windows Support
 ---------------
 
@@ -111,9 +127,16 @@ C Language Changes in Clang
 C++ Language Changes in Clang
 -----------------------------
 
+- The oldest supported GNU libstdc++ is now 4.8.3 (released 2014-05-22).
+  Clang workarounds for bugs in earlier versions have been removed.
+
 - ...
 
-C++1z Feature Support
+C++20 Feature Support
+^^^^^^^^^^^^^^^^^^^^^
+...
+
+C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
 ...
 
@@ -210,11 +233,40 @@ clang-format
 - Option ``IndentAccessModifiers`` has been added to be able to give access
   modifiers their own indentation level inside records.
 
+- Option ``PPIndentWidth`` has been added to be able to configure pre-processor
+  indentation independent from regular code.
+
 - Option ``ShortNamespaceLines`` has been added to give better control
   over ``FixNamespaceComments`` when determining a namespace length.
 
 - Support for Whitesmiths has been improved, with fixes for ``namespace`` blocks
   and ``case`` blocks and labels.
+
+- Option ``EmptyLineAfterAccessModifier`` has been added to remove, force or keep
+  new lines after access modifiers.
+
+- Checks for newlines in option ``EmptyLineBeforeAccessModifier`` are now based
+  on the formatted new lines and not on the new lines in the file. (Fixes
+  https://llvm.org/PR41870.)
+
+- Option ``SpacesInAngles`` has been improved, it now accepts ``Leave`` value
+  that allows to keep spaces where they are already present.
+
+- Option ``AllowShortIfStatementsOnASingleLine`` has been improved, it now
+  accepts ``AllIfsAndElse`` value that allows to put "else if" and "else" short
+  statements on a single line. (Fixes https://llvm.org/PR50019.)
+
+- Option ``BreakInheritanceList`` gets a new style, ``AfterComma``. It breaks
+  only after the commas that separate the base-specifiers.
+
+- ``git-clang-format`` no longer formats changes to symbolic links. (Fixes
+  https://llvm.org/PR46992.)
+
+- Makes ``PointerAligment: Right`` working with ``AlignConsecutiveDeclarations``.
+  (Fixes https://llvm.org/PR27353)
+
+- Option ``AlignArrayOfStructure`` has been added to allow for ordering array-like
+  initializers.
 
 libclang
 --------

@@ -204,6 +204,41 @@ the configuration (without a prefix: ``Auto``).
 
 
 
+**AlignArrayOfStructures** (``ArrayInitializerAlignmentStyle``)
+  if not ``None``, when using initialization for an array of structs
+  aligns the fields into columns.
+
+  Possible values:
+
+  * ``AIAS_Left`` (in configuration: ``Left``)
+    Align array column and left justify the columns e.g.:
+
+    .. code-block:: c++
+
+      struct test demo[] =
+      {
+          {56, 23,    "hello"},
+          {-1, 93463, "world"},
+          {7,  5,     "!!"   }
+      };
+
+  * ``AIAS_Right`` (in configuration: ``Right``)
+    Align array column and right justify the columns e.g.:
+
+    .. code-block:: c++
+
+      struct test demo[] =
+      {
+          {56,    23, "hello"},
+          {-1, 93463, "world"},
+          { 7,     5,    "!!"}
+      };
+
+  * ``AIAS_None`` (in configuration: ``None``)
+    Don't align array initializer columns.
+
+
+
 **AlignConsecutiveAssignments** (``AlignConsecutiveStyle``)
   Style of aligning consecutive assignments.
 
@@ -773,7 +808,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 **AllowShortIfStatementsOnASingleLine** (``ShortIfStyle``)
-  If ``true``, ``if (a) return;`` can be put on a single line.
+  Dependent on the value, ``if (a) return;`` can be put on a single line.
 
   Possible values:
 
@@ -783,28 +818,67 @@ the configuration (without a prefix: ``Auto``).
     .. code-block:: c++
 
       if (a)
-        return ;
+        return;
+
+      if (b)
+        return;
+      else
+        return;
+
+      if (c)
+        return;
       else {
         return;
       }
 
   * ``SIS_WithoutElse`` (in configuration: ``WithoutElse``)
-    Without else put short ifs on the same line only if
-    the else is not a compound statement.
+    Put short ifs on the same line only if there is no else statement.
 
     .. code-block:: c++
 
       if (a) return;
+
+      if (b)
+        return;
       else
         return;
 
-  * ``SIS_Always`` (in configuration: ``Always``)
-    Always put short ifs on the same line if
-    the else is not a compound statement or not.
+      if (c)
+        return;
+      else {
+        return;
+      }
+
+  * ``SIS_OnlyFirstIf`` (in configuration: ``OnlyFirstIf``)
+    Put short ifs, but not else ifs nor else statements, on the same line.
 
     .. code-block:: c++
 
       if (a) return;
+
+      if (b) return;
+      else if (b)
+        return;
+      else
+        return;
+
+      if (c) return;
+      else {
+        return;
+      }
+
+  * ``SIS_AllIfsAndElse`` (in configuration: ``AllIfsAndElse``)
+    Always put short ifs, else ifs and else statements on the same
+    line.
+
+    .. code-block:: c++
+
+      if (a) return;
+
+      if (b) return;
+      else return;
+
+      if (c) return;
       else {
         return;
       }
@@ -1999,6 +2073,15 @@ the configuration (without a prefix: ``Auto``).
            Base2
        {};
 
+  * ``BILS_AfterComma`` (in configuration: ``AfterComma``)
+    Break inheritance list only after the commas.
+
+    .. code-block:: c++
+
+       class Foo : Base1,
+                   Base2
+       {};
+
 
 
 **BreakStringLiterals** (``bool``)
@@ -2127,6 +2210,59 @@ the configuration (without a prefix: ``Auto``).
 
 **DisableFormat** (``bool``)
   Disables formatting completely.
+
+**EmptyLineAfterAccessModifier** (``EmptyLineAfterAccessModifierStyle``)
+  Defines when to put an empty line after access modifiers.
+  ``EmptyLineBeforeAccessModifier`` configuration handles the number of
+  empty lines between two access modifiers.
+
+  Possible values:
+
+  * ``ELAAMS_Never`` (in configuration: ``Never``)
+    Remove all empty lines after access modifiers.
+
+    .. code-block:: c++
+
+      struct foo {
+      private:
+        int i;
+      protected:
+        int j;
+        /* comment */
+      public:
+        foo() {}
+      private:
+      protected:
+      };
+
+  * ``ELAAMS_Leave`` (in configuration: ``Leave``)
+    Keep existing empty lines after access modifiers.
+    MaxEmptyLinesToKeep is applied instead.
+
+  * ``ELAAMS_Always`` (in configuration: ``Always``)
+    Always add empty line after access modifiers if there are none.
+    MaxEmptyLinesToKeep is applied also.
+
+    .. code-block:: c++
+
+      struct foo {
+      private:
+
+        int i;
+      protected:
+
+        int j;
+        /* comment */
+      public:
+
+        foo() {}
+      private:
+
+      protected:
+
+      };
+
+
 
 **EmptyLineBeforeAccessModifier** (``EmptyLineBeforeAccessModifierStyle``)
   Defines in which cases to put empty line before access modifiers.
@@ -2932,6 +3068,21 @@ the configuration (without a prefix: ``Auto``).
   Add a space in front of an Objective-C protocol list, i.e. use
   ``Foo <Protocol>`` instead of ``Foo<Protocol>``.
 
+**PPIndentWidth** (``int``)
+  The number of columns to use for indentation of preprocessor statements.
+  When set to -1 (default) ``IndentWidth`` is used also for preprocessor
+  statements.
+
+  .. code-block:: c++
+
+     PPIndentWidth: 1
+
+     #ifdef __linux__
+     # define FOO
+     #else
+     # define BAR
+     #endif
+
 **PenaltyBreakAssignment** (``unsigned``)
   The penalty for breaking around an assignment operator.
 
@@ -3393,15 +3544,32 @@ the configuration (without a prefix: ``Auto``).
        }             // foo
      }
 
-**SpacesInAngles** (``bool``)
-  If ``true``, spaces will be inserted after ``<`` and before ``>``
-  in template argument lists.
+**SpacesInAngles** (``SpacesInAnglesStyle``)
+  The SpacesInAnglesStyle to use for template argument lists.
 
-  .. code-block:: c++
+  Possible values:
 
-     true:                                  false:
-     static_cast< int >(arg);       vs.     static_cast<int>(arg);
-     std::function< void(int) > fct;        std::function<void(int)> fct;
+  * ``SIAS_Never`` (in configuration: ``Never``)
+    Remove spaces after ``<`` and before ``>``.
+
+    .. code-block:: c++
+
+       static_cast<int>(arg);
+       std::function<void(int)> fct;
+
+  * ``SIAS_Always`` (in configuration: ``Always``)
+    Add spaces after ``<`` and before ``>``.
+
+    .. code-block:: c++
+
+       static_cast< int >(arg);
+       std::function< void(int) > fct;
+
+  * ``SIAS_Leave`` (in configuration: ``Leave``)
+    Keep a single space after ``<`` and before ``>`` if any spaces were
+    present. Option ``Standard: Cpp03`` takes precedence.
+
+
 
 **SpacesInCStyleCastParentheses** (``bool``)
   If ``true``, spaces may be inserted into C style casts.

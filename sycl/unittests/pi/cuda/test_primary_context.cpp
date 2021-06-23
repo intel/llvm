@@ -85,6 +85,6 @@ TEST_P(CudaPrimaryContextTests, piMultiContextMultiDevice) {
   ASSERT_NE(CudaContextA, CudaContextB);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     OnCudaPlatform, CudaPrimaryContextTests,
-    ::testing::ValuesIn(pi::getPlatformsWithName("CUDA BACKEND")), );
+    ::testing::ValuesIn(pi::getPlatformsWithName("CUDA BACKEND")));

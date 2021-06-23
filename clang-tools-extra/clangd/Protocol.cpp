@@ -600,6 +600,8 @@ llvm::json::Value toJSON(const Diagnostic &D) {
     Diag["source"] = D.source;
   if (D.relatedInformation)
     Diag["relatedInformation"] = *D.relatedInformation;
+  if (!D.data.empty())
+    Diag["data"] = llvm::json::Object(D.data);
   // FIXME: workaround for older gcc/clang
   return std::move(Diag);
 }
@@ -607,7 +609,11 @@ llvm::json::Value toJSON(const Diagnostic &D) {
 bool fromJSON(const llvm::json::Value &Params, Diagnostic &R,
               llvm::json::Path P) {
   llvm::json::ObjectMapper O(Params, P);
-  return O && O.map("range", R.range) && O.map("message", R.message) &&
+  if (!O)
+    return false;
+  if (auto *Data = Params.getAsObject()->getObject("data"))
+    R.data = *Data;
+  return O.map("range", R.range) && O.map("message", R.message) &&
          mapOptOrNull(Params, "severity", R.severity, P) &&
          mapOptOrNull(Params, "category", R.category, P) &&
          mapOptOrNull(Params, "code", R.code, P) &&
@@ -802,10 +808,8 @@ llvm::json::Value toJSON(const DocumentSymbol &S) {
 }
 
 llvm::json::Value toJSON(const WorkspaceEdit &WE) {
-  if (!WE.changes)
-    return llvm::json::Object{};
   llvm::json::Object FileChanges;
-  for (auto &Change : *WE.changes)
+  for (auto &Change : WE.changes)
     FileChanges[Change.first] = llvm::json::Array(Change.second);
   return llvm::json::Object{{"changes", std::move(FileChanges)}};
 }
@@ -1069,6 +1073,7 @@ llvm::json::Value toJSON(const FileStatus &FStatus) {
 constexpr unsigned SemanticTokenEncodingSize = 5;
 static llvm::json::Value encodeTokens(llvm::ArrayRef<SemanticToken> Toks) {
   llvm::json::Array Result;
+  Result.reserve(SemanticTokenEncodingSize * Toks.size());
   for (const auto &Tok : Toks) {
     Result.push_back(Tok.deltaLine);
     Result.push_back(Tok.deltaStart);
@@ -1295,6 +1300,27 @@ bool fromJSON(const llvm::json::Value &Params,
 
 llvm::json::Value toJSON(const CallHierarchyOutgoingCall &C) {
   return llvm::json::Object{{"to", C.to}, {"fromRanges", C.fromRanges}};
+}
+
+bool fromJSON(const llvm::json::Value &Params, InlayHintsParams &R,
+              llvm::json::Path P) {
+  llvm::json::ObjectMapper O(Params, P);
+  return O && O.map("textDocument", R.textDocument);
+}
+
+llvm::json::Value toJSON(InlayHintKind K) {
+  switch (K) {
+  case InlayHintKind::ParameterHint:
+    return "parameter";
+  case InlayHintKind::TypeHint:
+    return "type";
+  }
+  llvm_unreachable("Unknown clang.clangd.InlayHintKind");
+}
+
+llvm::json::Value toJSON(const InlayHint &H) {
+  return llvm::json::Object{
+      {"range", H.range}, {"kind", H.kind}, {"label", H.label}};
 }
 
 static const char *toString(OffsetEncoding OE) {

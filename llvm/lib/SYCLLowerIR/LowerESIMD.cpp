@@ -346,6 +346,10 @@ public:
         {"uushl_sat", {"uushl.sat", {a(0), a(1)}}},
         {"rol", {"rol", {a(0), a(1)}}},
         {"ror", {"ror", {a(0), a(1)}}},
+        {"rndd", {"rndd", {a(0)}}},
+        {"rnde", {"rnde", {a(0)}}},
+        {"rndu", {"rndu", {a(0)}}},
+        {"rndz", {"rndz", {a(0)}}},
         {"umulh", {"umulh", {a(0), a(1)}}},
         {"smulh", {"smulh", {a(0), a(1)}}},
         {"frc", {"frc", {a(0)}}},
@@ -383,7 +387,7 @@ public:
         {"ssdp4a_sat", {"ssdp4a.sat", {a(0), a(1), a(2)}}},
         {"any", {"any", {ai1(0)}}},
         {"all", {"all", {ai1(0)}}},
-    };
+        {"lane_id", {"lane.id", {}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -1243,7 +1247,9 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
     if (!PTy)
       continue;
     auto GTy = dyn_cast<StructType>(PTy->getPointerElementType());
-    if (!GTy || !GTy->getName().endswith("cl::sycl::INTEL::gpu::simd"))
+    // TODO FIXME relying on type name in LLVM IR is fragile, needs rework
+    if (!GTy || !GTy->getName().endswith(
+                    "cl::sycl::ext::intel::experimental::esimd::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
@@ -1326,7 +1332,8 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
 
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
-      if (Name.startswith("N2cl4sycl5INTEL3gpu8slm_init")) {
+      // TODO FIXME slm_init should be made top-level __esimd_slm_init
+      if (Name.startswith("N2cl4sycl3ext5intel12experimental5esimd8slm_init")) {
         // tag the kernel with meta-data SLMSize, and remove this builtin
         translateSLMInit(*CI);
         ESIMDToErases.push_back(CI);

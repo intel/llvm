@@ -247,7 +247,7 @@ declare void @bcopy(i8*, i8*, i64)
 ; CHECK: declare void @bzero(i8* nocapture writeonly, i64)  [[ARGMEMONLY_NOFREE_NOUNWIND_WILLRETURN]]
 declare void @bzero(i8*, i64)
 
-; CHECK: declare noalias noundef i8* @calloc(i64 noundef, i64 noundef) [[INACCESSIBLEMEMONLY_NOFREE_NOUNWIND_WILLRETURN:#[0-9]+]]
+; CHECK: declare noalias noundef i8* @calloc(i64 noundef, i64 noundef) [[NOFREE_NOUNWIND_WILLRETURN]]
 declare i8* @calloc(i64, i64)
 
 ; CHECK: declare double @cbrt(double) [[NOFREE_NOUNWIND_WILLRETURN]]
@@ -613,7 +613,7 @@ declare i32 @lstat(i8*, %opaque*)
 ; CHECK-LINUX: declare noundef i32 @lstat64(i8* nocapture noundef readonly, %opaque* nocapture noundef) [[NOFREE_NOUNWIND]]
 declare i32 @lstat64(i8*, %opaque*)
 
-; CHECK: declare noalias noundef i8* @malloc(i64 noundef) [[INACCESSIBLEMEMONLY_NOFREE_NOUNWIND_WILLRETURN]]
+; CHECK: declare noalias noundef i8* @malloc(i64 noundef) [[INACCESSIBLEMEMONLY_NOFREE_NOUNWIND_WILLRETURN:#[0-9]+]]
 declare i8* @malloc(i64)
 
 ; CHECK-LINUX: declare noalias noundef i8* @memalign(i64, i64) [[INACCESSIBLEMEMONLY_NOFREE_NOUNWIND_WILLRETURN]]
@@ -839,7 +839,7 @@ declare i8* @stpncpy(i8*, i8*, i64)
 ; CHECK: declare i32 @strcasecmp(i8* nocapture, i8* nocapture) [[NOFREE_NOUNWIND_READONLY_WILLRETURN:#[0-9]+]]
 declare i32 @strcasecmp(i8*, i8*)
 
-; CHECK: declare i8* @strcat(i8* noalias returned writeonly, i8* noalias nocapture readonly) [[ARGMEMONLY_NOFREE_NOUNWIND_WILLRETURN]]
+; CHECK: declare i8* @strcat(i8* noalias returned, i8* noalias nocapture readonly) [[ARGMEMONLY_NOFREE_NOUNWIND_WILLRETURN]]
 declare i8* @strcat(i8*, i8*)
 
 ; CHECK: declare i8* @strchr(i8*, i32) [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]]
@@ -866,7 +866,7 @@ declare i64 @strlen(i8*)
 ; CHECK: declare i32 @strncasecmp(i8* nocapture, i8* nocapture, i64) [[NOFREE_NOUNWIND_READONLY_WILLRETURN]]
 declare i32 @strncasecmp(i8*, i8*, i64)
 
-; CHECK: declare i8* @strncat(i8* noalias returned writeonly, i8* noalias nocapture readonly, i64) [[ARGMEMONLY_NOFREE_NOUNWIND_WILLRETURN]]
+; CHECK: declare i8* @strncat(i8* noalias returned, i8* noalias nocapture readonly, i64) [[ARGMEMONLY_NOFREE_NOUNWIND_WILLRETURN]]
 declare i8* @strncat(i8*, i8*, i64)
 
 ; CHECK: declare i32 @strncmp(i8* nocapture, i8* nocapture, i64) [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]]
@@ -1016,18 +1016,18 @@ declare i64 @write(i32, i8*, i64)
 declare void @memset_pattern16(i8*, i8*, i64)
 
 
-; CHECK-DAG: attributes [[NOFREE_NOUNWIND_WILLRETURN]] = { nofree nounwind willreturn }
+; CHECK-DAG: attributes [[NOFREE_NOUNWIND_WILLRETURN]] = { nofree nounwind willreturn mustprogress }
 ; CHECK-DAG: attributes [[NOFREE_NOUNWIND]] = { nofree nounwind }
-; CHECK-DAG: attributes [[INACCESSIBLEMEMONLY_NOFREE_NOUNWIND_WILLRETURN]] = { inaccessiblememonly nofree nounwind willreturn }
-; CHECK-DAG: attributes [[NOFREE_NOUNWIND_READONLY_WILLRETURN]] = { nofree nounwind readonly willreturn }
-; CHECK-DAG: attributes [[ARGMEMONLY_NOFREE_NOUNWIND_WILLRETURN]] = { argmemonly nofree nounwind willreturn }
+; CHECK-DAG: attributes [[INACCESSIBLEMEMONLY_NOFREE_NOUNWIND_WILLRETURN]] = { inaccessiblememonly nofree nounwind willreturn mustprogress }
+; CHECK-DAG: attributes [[NOFREE_NOUNWIND_READONLY_WILLRETURN]] = { nofree nounwind readonly willreturn mustprogress }
+; CHECK-DAG: attributes [[ARGMEMONLY_NOFREE_NOUNWIND_WILLRETURN]] = { argmemonly nofree nounwind willreturn mustprogress }
 ; CHECK-DAG: attributes [[NOFREE_NOUNWIND_READONLY]] = { nofree nounwind readonly }
-; CHECK-DAG: attributes [[INACCESSIBLEMEMORARGMEMONLY_NOUNWIND_WILLRETURN]] = { inaccessiblemem_or_argmemonly nounwind willreturn }
-; CHECK-DAG: attributes [[NOFREE_WILLRETURN]] = { nofree willreturn }
-; CHECK-DAG: attributes [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY_WILLRETURN]] = { argmemonly nofree nounwind readonly willreturn }
+; CHECK-DAG: attributes [[INACCESSIBLEMEMORARGMEMONLY_NOUNWIND_WILLRETURN]] = { inaccessiblemem_or_argmemonly nounwind willreturn mustprogress }
+; CHECK-DAG: attributes [[NOFREE_WILLRETURN]] = { nofree willreturn mustprogress }
+; CHECK-DAG: attributes [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY_WILLRETURN]] = { argmemonly nofree nounwind readonly willreturn mustprogress }
 ; CHECK-DAG: attributes [[NOFREE]] = { nofree }
-; CHECK-DAG: attributes [[WILLRETURN]] = { willreturn }
-; CHECK-DAG: attributes [[INACCESSIBLEMEMORARGONLY_NOFREE_NOUNWIND_WILLRETURN]]  = { inaccessiblemem_or_argmemonly nofree nounwind willreturn }
+; CHECK-DAG: attributes [[WILLRETURN]] = { willreturn mustprogress }
+; CHECK-DAG: attributes [[INACCESSIBLEMEMORARGONLY_NOFREE_NOUNWIND_WILLRETURN]]  = { inaccessiblemem_or_argmemonly nofree nounwind willreturn mustprogress }
 
 ; CHECK-DARWIN-DAG: attributes [[ARGMEMONLY_NOFREE]] = { argmemonly nofree }
-; CHECK-NVPTX-DAG: attributes [[NOFREE_NOUNWIND_READNONE]] = { nofree nounwind readnone }
+; CHECK-NVPTX-DAG: attributes [[NOFREE_NOUNWIND_READNONE]] = { nofree nosync nounwind readnone }

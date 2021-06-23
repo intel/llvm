@@ -126,11 +126,8 @@ SPIRVToLLVMDbgTran::transCompileUnit(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::CompilationUnit;
   assert(Ops.size() == OperandCount && "Invalid number of operands");
   M->addModuleFlag(llvm::Module::Max, "Dwarf Version", Ops[DWARFVersionIdx]);
-  SPIRVExtInst *Source = BM->get<SPIRVExtInst>(Ops[SourceIdx]);
-  SPIRVId FileId = Source->getArguments()[SPIRVDebug::Operand::Source::FileIdx];
-  std::string File = getString(FileId);
   unsigned SourceLang = Ops[LanguageIdx];
-  CU = Builder.createCompileUnit(SourceLang, getDIFile(File), "spirv", false,
+  CU = Builder.createCompileUnit(SourceLang, getFile(Ops[SourceIdx]), "spirv", false,
                                  "", 0);
   return CU;
 }
@@ -1006,8 +1003,11 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
          "DebugSource instruction is expected");
   SPIRVWordVec SourceArgs = Source->getArguments();
   assert(SourceArgs.size() == OperandCount && "Invalid number of operands");
-  StringRef Checksum(getString(SourceArgs[TextIdx]));
-  return getDIFile(getString(SourceArgs[FileIdx]), ParseChecksum(Checksum));
+  std::string ChecksumStr =
+      getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[TextIdx])
+          ? ""
+          : getString(SourceArgs[TextIdx]);
+  return getDIFile(getString(SourceArgs[FileIdx]), ParseChecksum(ChecksumStr));
 }
 
 SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const string &FileName) {

@@ -82,7 +82,6 @@
 #include <cassert>
 #include <cstdint>
 #include <utility>
-#include <vector>
 
 using namespace llvm;
 using namespace llvm::gvn;
@@ -91,13 +90,14 @@ using namespace PatternMatch;
 
 #define DEBUG_TYPE "gvn"
 
-STATISTIC(NumGVNInstr,  "Number of instructions deleted");
-STATISTIC(NumGVNLoad,   "Number of loads deleted");
-STATISTIC(NumGVNPRE,    "Number of instructions PRE'd");
+STATISTIC(NumGVNInstr, "Number of instructions deleted");
+STATISTIC(NumGVNLoad, "Number of loads deleted");
+STATISTIC(NumGVNPRE, "Number of instructions PRE'd");
 STATISTIC(NumGVNBlocks, "Number of blocks merged");
-STATISTIC(NumGVNSimpl,  "Number of instructions simplified");
+STATISTIC(NumGVNSimpl, "Number of instructions simplified");
 STATISTIC(NumGVNEqProp, "Number of equalities propagated");
-STATISTIC(NumPRELoad,   "Number of loads PRE'd");
+STATISTIC(NumPRELoad, "Number of loads PRE'd");
+STATISTIC(NumPRELoopLoad, "Number of loop loads PRE'd");
 
 STATISTIC(IsValueFullyAvailableInBlockNumSpeculationsMax,
           "Number of blocks speculated as available in "
@@ -676,7 +676,6 @@ PreservedAnalyses GVN::run(Function &F, FunctionAnalysisManager &AM) {
     return PreservedAnalyses::all();
   PreservedAnalyses PA;
   PA.preserve<DominatorTreeAnalysis>();
-  PA.preserve<GlobalsAA>();
   PA.preserve<TargetLibraryAnalysis>();
   if (MSSA)
     PA.preserve<MemorySSAAnalysis>();
@@ -894,17 +893,17 @@ Value *AvailableValue::MaterializeAdjustedValue(LoadInst *Load,
                         << "\n\n\n");
     }
   } else if (isCoercedLoadValue()) {
-    LoadInst *Load = getCoercedLoadValue();
-    if (Load->getType() == LoadTy && Offset == 0) {
-      Res = Load;
+    LoadInst *CoercedLoad = getCoercedLoadValue();
+    if (CoercedLoad->getType() == LoadTy && Offset == 0) {
+      Res = CoercedLoad;
     } else {
-      Res = getLoadValueForLoad(Load, Offset, LoadTy, InsertPt, DL);
+      Res = getLoadValueForLoad(CoercedLoad, Offset, LoadTy, InsertPt, DL);
       // We would like to use gvn.markInstructionForDeletion here, but we can't
       // because the load is already memoized into the leader map table that GVN
       // tracks.  It is potentially possible to remove the load from the table,
       // but then there all of the operations based on it would need to be
       // rehashed.  Just leave the dead load around.
-      gvn.getMemDep().removeInstruction(Load);
+      gvn.getMemDep().removeInstruction(CoercedLoad);
       LLVM_DEBUG(dbgs() << "GVN COERCED NONLOCAL LOAD:\nOffset: " << Offset
                         << "  " << *getCoercedLoadValue() << '\n'
                         << *Res << '\n'
@@ -930,6 +929,17 @@ static bool isLifetimeStart(const Instruction *Inst) {
   return false;
 }
 
+/// Assuming To can be reached from both From and Between, does Between lie on
+/// every path from From to To?
+static bool liesBetween(const Instruction *From, Instruction *Between,
+                        const Instruction *To, DominatorTree *DT) {
+  if (From->getParent() == Between->getParent())
+    return DT->dominates(From, Between);
+  SmallSet<BasicBlock *, 1> Exclusion;
+  Exclusion.insert(Between->getParent());
+  return !isPotentiallyReachable(From, To, &Exclusion, DT);
+}
+
 /// Try to locate the three instruction involved in a missed
 /// load-elimination case that is due to an intervening store.
 static void reportMayClobberedLoad(LoadInst *Load, MemDepResult DepInfo,
@@ -943,17 +953,46 @@ static void reportMayClobberedLoad(LoadInst *Load, MemDepResult DepInfo,
   R << "load of type " << NV("Type", Load->getType()) << " not eliminated"
     << setExtraArgs();
 
-  for (auto *U : Load->getPointerOperand()->users())
+  for (auto *U : Load->getPointerOperand()->users()) {
     if (U != Load && (isa<LoadInst>(U) || isa<StoreInst>(U)) &&
+        cast<Instruction>(U)->getFunction() == Load->getFunction() &&
         DT->dominates(cast<Instruction>(U), Load)) {
-      // FIXME: for now give up if there are multiple memory accesses that
-      // dominate the load.  We need further analysis to decide which one is
-      // that we're forwarding from.
-      if (OtherAccess)
-        OtherAccess = nullptr;
-      else
+      // Use the most immediately dominating value
+      if (OtherAccess) {
+        if (DT->dominates(cast<Instruction>(OtherAccess), cast<Instruction>(U)))
+          OtherAccess = U;
+        else
+          assert(DT->dominates(cast<Instruction>(U),
+                               cast<Instruction>(OtherAccess)));
+      } else
         OtherAccess = U;
     }
+  }
+
+  if (!OtherAccess) {
+    // There is no dominating use, check if we can find a closest non-dominating
+    // use that lies between any other potentially available use and Load.
+    for (auto *U : Load->getPointerOperand()->users()) {
+      if (U != Load && (isa<LoadInst>(U) || isa<StoreInst>(U)) &&
+          cast<Instruction>(U)->getFunction() == Load->getFunction() &&
+          isPotentiallyReachable(cast<Instruction>(U), Load, nullptr, DT)) {
+        if (OtherAccess) {
+          if (liesBetween(cast<Instruction>(OtherAccess), cast<Instruction>(U),
+                          Load, DT)) {
+            OtherAccess = U;
+          } else if (!liesBetween(cast<Instruction>(U),
+                                  cast<Instruction>(OtherAccess), Load, DT)) {
+            // These uses are both partially available at Load were it not for
+            // the clobber, but neither lies strictly after the other.
+            OtherAccess = nullptr;
+            break;
+          } // else: keep current OtherAccess since it lies between U and Load
+        } else {
+          OtherAccess = U;
+        }
+      }
+    }
+  }
 
   if (OtherAccess)
     R << " in favor of " << NV("OtherAccess", OtherAccess);
@@ -998,9 +1037,21 @@ bool GVN::AnalyzeLoadAvailability(LoadInst *Load, MemDepResult DepInfo,
       // Can't forward from non-atomic to atomic without violating memory model.
       if (DepLoad != Load && Address &&
           Load->isAtomic() <= DepLoad->isAtomic()) {
-        int Offset = analyzeLoadFromClobberingLoad(Load->getType(), Address,
-                                                   DepLoad, DL);
+        Type *LoadType = Load->getType();
+        int Offset = -1;
 
+        // If MD reported clobber, check it was nested.
+        if (DepInfo.isClobber() &&
+            canCoerceMustAliasedValueToLoad(DepLoad, LoadType, DL)) {
+          const auto ClobberOff = MD->getClobberOffset(DepLoad);
+          // GVN has no deal with a negative offset.
+          Offset = (ClobberOff == None || ClobberOff.getValue() < 0)
+                       ? -1
+                       : ClobberOff.getValue();
+        }
+        if (Offset == -1)
+          Offset =
+              analyzeLoadFromClobberingLoad(LoadType, Address, DepLoad, DL);
         if (Offset != -1) {
           Res = AvailableValue::getLoad(DepLoad, Offset);
           return true;
@@ -1447,6 +1498,84 @@ bool GVN::PerformLoadPRE(LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
   return true;
 }
 
+bool GVN::performLoopLoadPRE(LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
+                             UnavailBlkVect &UnavailableBlocks) {
+  if (!LI)
+    return false;
+
+  const Loop *L = LI->getLoopFor(Load->getParent());
+  // TODO: Generalize to other loop blocks that dominate the latch.
+  if (!L || L->getHeader() != Load->getParent())
+    return false;
+
+  BasicBlock *Preheader = L->getLoopPreheader();
+  BasicBlock *Latch = L->getLoopLatch();
+  if (!Preheader || !Latch)
+    return false;
+
+  Value *LoadPtr = Load->getPointerOperand();
+  // Must be available in preheader.
+  if (!L->isLoopInvariant(LoadPtr))
+    return false;
+
+  // We plan to hoist the load to preheader without introducing a new fault.
+  // In order to do it, we need to prove that we cannot side-exit the loop
+  // once loop header is first entered before execution of the load.
+  if (ICF->isDominatedByICFIFromSameBlock(Load))
+    return false;
+
+  BasicBlock *LoopBlock = nullptr;
+  for (auto *Blocker : UnavailableBlocks) {
+    // Blockers from outside the loop are handled in preheader.
+    if (!L->contains(Blocker))
+      continue;
+
+    // Only allow one loop block. Loop header is not less frequently executed
+    // than each loop block, and likely it is much more frequently executed. But
+    // in case of multiple loop blocks, we need extra information (such as block
+    // frequency info) to understand whether it is profitable to PRE into
+    // multiple loop blocks.
+    if (LoopBlock)
+      return false;
+
+    // Do not sink into inner loops. This may be non-profitable.
+    if (L != LI->getLoopFor(Blocker))
+      return false;
+
+    // Blocks that dominate the latch execute on every single iteration, maybe
+    // except the last one. So PREing into these blocks doesn't make much sense
+    // in most cases. But the blocks that do not necessarily execute on each
+    // iteration are sometimes much colder than the header, and this is when
+    // PRE is potentially profitable.
+    if (DT->dominates(Blocker, Latch))
+      return false;
+
+    // Make sure that the terminator itself doesn't clobber.
+    if (Blocker->getTerminator()->mayWriteToMemory())
+      return false;
+
+    LoopBlock = Blocker;
+  }
+
+  if (!LoopBlock)
+    return false;
+
+  // Make sure the memory at this pointer cannot be freed, therefore we can
+  // safely reload from it after clobber.
+  if (LoadPtr->canBeFreed())
+    return false;
+
+  // TODO: Support critical edge splitting if blocker has more than 1 successor.
+  MapVector<BasicBlock *, Value *> AvailableLoads;
+  AvailableLoads[LoopBlock] = LoadPtr;
+  AvailableLoads[Preheader] = LoadPtr;
+
+  LLVM_DEBUG(dbgs() << "GVN REMOVING PRE LOOP LOAD: " << *Load << '\n');
+  eliminatePartiallyRedundantLoad(Load, ValuesPerBlock, AvailableLoads);
+  ++NumPRELoopLoad;
+  return true;
+}
+
 static void reportLoadElim(LoadInst *Load, Value *AvailableValue,
                            OptimizationRemarkEmitter *ORE) {
   using namespace ore;
@@ -1544,7 +1673,8 @@ bool GVN::processNonLocalLoad(LoadInst *Load) {
   if (!isLoadInLoopPREEnabled() && LI && LI->getLoopFor(Load->getParent()))
     return Changed;
 
-  return Changed || PerformLoadPRE(Load, ValuesPerBlock, UnavailableBlocks);
+  return Changed || PerformLoadPRE(Load, ValuesPerBlock, UnavailableBlocks) ||
+         performLoopLoadPRE(Load, ValuesPerBlock, UnavailableBlocks);
 }
 
 static bool impliesEquivalanceIfTrue(CmpInst* Cmp) {

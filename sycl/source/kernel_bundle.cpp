@@ -95,8 +95,8 @@ bool kernel_bundle_plain::has_specialization_constant_impl(
 }
 
 void kernel_bundle_plain::set_specialization_constant_impl(
-    const char *SpecName, void *Value) noexcept {
-  impl->set_specialization_constant_raw_value(SpecName, Value);
+    const char *SpecName, void *Value, size_t Size) noexcept {
+  impl->set_specialization_constant_raw_value(SpecName, Value, Size);
 }
 
 void kernel_bundle_plain::get_specialization_constant_impl(const char *SpecName,

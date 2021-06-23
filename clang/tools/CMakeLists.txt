@@ -12,6 +12,8 @@ add_clang_subdirectory(clang-offload-bundler)
 add_clang_subdirectory(clang-offload-deps)
 add_clang_subdirectory(clang-offload-wrapper)
 add_clang_subdirectory(clang-scan-deps)
+add_clang_subdirectory(clang-offload-extract)
+add_clang_subdirectory(clang-repl)
 
 add_clang_subdirectory(c-index-test)
 
@@ -44,3 +46,5 @@ add_llvm_external_project(clang-tools-extra extra)
 
 # libclang may require clang-tidy in clang-tools-extra.
 add_clang_subdirectory(libclang)
+
+add_clang_subdirectory(amdgpu-arch)

@@ -76,10 +76,10 @@ bool mentionsMainFile(const Diag &D) {
   return false;
 }
 
-bool isExcluded(const Diag &D) {
+bool isExcluded(unsigned DiagID) {
   // clang will always fail parsing MS ASM, we don't link in desc + asm parser.
-  if (D.ID == clang::diag::err_msasm_unable_to_create_target ||
-      D.ID == clang::diag::err_msasm_unsupported_arch)
+  if (DiagID == clang::diag::err_msasm_unable_to_create_target ||
+      DiagID == clang::diag::err_msasm_unsupported_arch)
     return true;
   return false;
 }
@@ -372,8 +372,7 @@ CodeAction toCodeAction(const Fix &F, const URIForFile &File) {
   Action.title = F.Message;
   Action.kind = std::string(CodeAction::QUICKFIX_KIND);
   Action.edit.emplace();
-  Action.edit->changes.emplace();
-  (*Action.edit->changes)[File.uri()] = {F.Edits.begin(), F.Edits.end()};
+  Action.edit->changes[File.uri()] = {F.Edits.begin(), F.Edits.end()};
   return Action;
 }
 
@@ -476,6 +475,10 @@ void toLSPDiags(
       Res.message = noteMessage(D, Note, Opts);
       OutFn(std::move(Res), llvm::ArrayRef<Fix>());
     }
+
+  // FIXME: Get rid of the copies here by taking in a mutable clangd::Diag.
+  for (auto &Entry : D.OpaqueData)
+    Main.data.insert({Entry.first, Entry.second});
 }
 
 int getSeverity(DiagnosticsEngine::Level L) {
@@ -723,41 +726,41 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
     // Handle the new main diagnostic.
     flushLastDiag();
 
-    if (Adjuster) {
-      DiagLevel = Adjuster(DiagLevel, Info);
-      if (DiagLevel == DiagnosticsEngine::Ignored) {
-        LastPrimaryDiagnosticWasSuppressed = true;
-        return;
-      }
-    }
-    LastPrimaryDiagnosticWasSuppressed = false;
-
     LastDiag = Diag();
+    // FIXME: Merge with feature modules.
+    if (Adjuster)
+      DiagLevel = Adjuster(DiagLevel, Info);
+
     FillDiagBase(*LastDiag);
+    if (isExcluded(LastDiag->ID))
+      LastDiag->Severity = DiagnosticsEngine::Ignored;
+    if (DiagCB)
+      DiagCB(Info, *LastDiag);
+    // Don't bother filling in the rest if diag is going to be dropped.
+    if (LastDiag->Severity == DiagnosticsEngine::Ignored)
+      return;
+
     LastDiagLoc.emplace(Info.getLocation(), Info.getSourceManager());
     LastDiagOriginallyError = OriginallyError;
-
     if (!Info.getFixItHints().empty())
       AddFix(true /* try to invent a message instead of repeating the diag */);
     if (Fixer) {
-      auto ExtraFixes = Fixer(DiagLevel, Info);
+      auto ExtraFixes = Fixer(LastDiag->Severity, Info);
       LastDiag->Fixes.insert(LastDiag->Fixes.end(), ExtraFixes.begin(),
                              ExtraFixes.end());
     }
   } else {
     // Handle a note to an existing diagnostic.
-
-    // If a diagnostic was suppressed due to the suppression filter,
-    // also suppress notes associated with it.
-    if (LastPrimaryDiagnosticWasSuppressed) {
-      return;
-    }
-
     if (!LastDiag) {
       assert(false && "Adding a note without main diagnostic");
       IgnoreDiagnostics::log(DiagLevel, Info);
       return;
     }
+
+    // If a diagnostic was suppressed due to the suppression filter,
+    // also suppress notes associated with it.
+    if (LastDiag->Severity == DiagnosticsEngine::Ignored)
+      return;
 
     if (!Info.getFixItHints().empty()) {
       // A clang note with fix-it is not a separate diagnostic in clangd. We
@@ -783,7 +786,7 @@ void StoreDiags::flushLastDiag() {
     LastDiag.reset();
   });
 
-  if (isExcluded(*LastDiag))
+  if (LastDiag->Severity == DiagnosticsEngine::Ignored)
     return;
   // Move errors that occur from headers into main file.
   if (!LastDiag->InsideMainFile && LastDiagLoc && LastDiagOriginallyError) {

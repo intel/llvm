@@ -987,7 +987,9 @@ public:
     if (NameRef.startswith("async_work_group")) {
       addUnsignedArg(-1);
       setArgAttr(1, SPIR::ATTR_CONST);
-    } else if (NameRef.startswith("write_imageui"))
+    } else if (NameRef.startswith("printf"))
+      setVarArg(1);
+    else if (NameRef.startswith("write_imageui"))
       addUnsignedArg(2);
     else if (NameRef.equals("prefetch")) {
       addUnsignedArg(1);

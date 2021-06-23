@@ -11,7 +11,7 @@
 #define _LIBCPP___MEMORY_ALLOCATOR_TRAITS_H
 
 #include <__config>
-#include <__memory/base.h>
+#include <__memory/construct_at.h>
 #include <__memory/pointer_traits.h>
 #include <limits>
 #include <type_traits>
@@ -254,7 +254,7 @@ struct _LIBCPP_TEMPLATE_VIS allocator_traits
     struct rebind_traits {
         using other = allocator_traits<typename rebind_alloc<_Tp>::other>;
     };
-#endif  // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_CXX03_LANG
 
     _LIBCPP_NODISCARD_AFTER_CXX17 _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
     static pointer allocate(allocator_type& __a, size_type __n) {
@@ -361,8 +361,10 @@ struct __rebind_alloc_helper {
 template <class _Tp>
 struct __is_default_allocator : false_type { };
 
+template <class> class allocator;
+
 template <class _Tp>
-struct __is_default_allocator<_VSTD::allocator<_Tp> > : true_type { };
+struct __is_default_allocator<allocator<_Tp> > : true_type { };
 
 // __is_cpp17_move_insertable
 template <class _Alloc, class = void>
@@ -399,4 +401,4 @@ _LIBCPP_END_NAMESPACE_STD
 
 _LIBCPP_POP_MACROS
 
-#endif  // _LIBCPP___MEMORY_ALLOCATOR_TRAITS_H
+#endif // _LIBCPP___MEMORY_ALLOCATOR_TRAITS_H

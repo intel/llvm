@@ -31,7 +31,7 @@ This document describes an extension that adds pipes to SYCL.  Pipes are first i
 
 == Notice
 
-Copyright (c) 2019 Intel Corporation.  All rights reserved.
+Copyright (c) 2019-2021 Intel Corporation.  All rights reserved.
 
 == Status
 
@@ -44,14 +44,14 @@ Because the interfaces defined by this specification are not final and are subje
 == Version
 
 Built On: {docdate} +
-Revision: 2
+Revision: 3
 
 == Contact
 Michael Kinsner, Intel (michael 'dot' kinsner 'at' intel 'dot' com)
 
 == Dependencies
 
-This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-5.
+This extension is written against the SYCL 2020 specification, Revision 3.
 
 The use of blocking pipe reads or writes requires support for https://github.com/KhronosGroup/SPIRV-Registry/blob/master/extensions/INTEL/SPV_INTEL_blocking_pipes.asciidoc[SPV_INTEL_blocking_pipes] if SPIR-V is used by an implementation.
 
@@ -424,7 +424,9 @@ Pipes in the context of this extension step outside the OpenCL and SYCL memory m
 
 . There is no implicit synchronizes-with relationship between different pipes and/or with non-pipe memory in a named address space (e.g. global, local, private).  Specifically, there is no implicit global or local release of side effects through a pipe access, and observation of data or control information on one pipe does not imply any knowledge through happens-before relationship with a different pipe or with memory not associated with the pipe.
 
-. At a work-group barrier, there is an implicit acquire and release of side effects for any pipes operated on within the kernel, either before or after the barrier.  This occurs without an explicit pipe memory fence being applied as a barrier operand.
+. Pipe read and write operations behave as if they are SYCL relaxed atomic load and store operations.  When paired with sycl::atomic_fences to establish a sychronizes-with relationship, pipe operations can provide guarantees on side effect visibility in memory, as defined by the SYCL memory model.
+
+. At a work-group barrier, there is an implicit acquire and release of side effects for any pipes operated on within the kernel, either before or after the barrier.  This occurs without an explicit memory fence being applied to or around the barrier.
 
 . There are no guarantees on pipe operation side effect latency.  Writes to a pipe will eventually be visible to read operations on the pipe, without a synchronization point, but that visibility is not guaranteed to be by the time that the next instruction is executed by a writing work-item, for example.  There may be arbitrary latency between a write to a pipe and visibility of the data on a read endpoint of the pipe.  Likewise, there may be arbitrary latency between a read from a pipe, and visibility at a write endpoint that there is capacity available to write to (assuming that capacity was full prior to the read).
 
@@ -516,7 +518,7 @@ mylib_namespace::lib_function<my_pipe1, my_pipe2>();
 
 == [[device_queries]]Device queries
 
-Add additional device information queries to Table 4.20:
+Add additional device information queries to Table 25:
 
 [cols="3*^",options="header",stripes=none]
 |===
@@ -641,6 +643,7 @@ Automated mechanisms are possible to provide uniquification across calls, and co
 |Rev|Date|Author|Changes
 |1|2019-09-12|Michael Kinsner|*Initial public working draft*
 |2|2019-11-13|Michael Kinsner|Incorporate feedback
+|3|2020-04-27|Michael Kinsner|Clarify that pipe operations behave as-if they are relaxed atomic operations.  Make SYCL2020 the baseline
 |========================================
 
 //************************************************************************

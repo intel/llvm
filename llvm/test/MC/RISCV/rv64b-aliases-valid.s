@@ -3,7 +3,7 @@
 # RUN: llvm-mc %s  -triple=riscv64 -mattr=+experimental-b \
 # RUN:     | FileCheck -check-prefixes=CHECK-S-OBJ %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 -mattr=+experimental-b < %s \
-# RUN:     | llvm-objdump -d -r --riscv-no-aliases --mattr=+experimental-b - \
+# RUN:     | llvm-objdump -d -r -M no-aliases --mattr=+experimental-b - \
 # RUN:     | FileCheck -check-prefixes=CHECK-S-OBJ-NOALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 -mattr=+experimental-b < %s \
 # RUN:     | llvm-objdump -d -r --mattr=+experimental-b - \
@@ -338,3 +338,27 @@ binv x5, x6, 8
 # CHECK-S-OBJ-NOALIAS: bexti t0, t1, 8
 # CHECK-S-OBJ: bexti t0, t1, 8
 bext x5, x6, 8
+
+# CHECK-S-OBJ-NOALIAS: grevi t0, t1, 13
+# CHECK-S-OBJ: grevi t0, t1, 13
+grev x5, x6, 13
+
+# CHECK-S-OBJ-NOALIAS: gorci t0, t1, 13
+# CHECK-S-OBJ: gorci t0, t1, 13
+gorc x5, x6, 13
+
+# CHECK-S-OBJ-NOALIAS: shfli t0, t1, 13
+# CHECK-S-OBJ: shfli t0, t1, 13
+shfl x5, x6, 13
+
+# CHECK-S-OBJ-NOALIAS: unshfli t0, t1, 13
+# CHECK-S-OBJ: unshfli t0, t1, 13
+unshfl x5, x6, 13
+
+# CHECK-S-OBJ-NOALIAS: greviw t0, t1, 13
+# CHECK-S-OBJ: greviw t0, t1, 13
+grevw x5, x6, 13
+
+# CHECK-S-OBJ-NOALIAS: gorciw t0, t1, 13
+# CHECK-S-OBJ: gorciw t0, t1, 13
+gorcw x5, x6, 13

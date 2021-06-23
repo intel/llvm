@@ -138,11 +138,6 @@ char PEI::ID = 0;
 
 char &llvm::PrologEpilogCodeInserterID = PEI::ID;
 
-static cl::opt<unsigned>
-WarnStackSize("warn-stack-size", cl::Hidden, cl::init((unsigned)-1),
-              cl::desc("Warn for stack size bigger than the given"
-                       " number"));
-
 INITIALIZE_PASS_BEGIN(PEI, DEBUG_TYPE, "Prologue/Epilogue Insertion", false,
                       false)
 INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
@@ -278,7 +273,9 @@ bool PEI::runOnMachineFunction(MachineFunction &MF) {
   // Warn on stack size when we exceeds the given limit.
   MachineFrameInfo &MFI = MF.getFrameInfo();
   uint64_t StackSize = MFI.getStackSize();
-  if (WarnStackSize.getNumOccurrences() > 0 && WarnStackSize < StackSize) {
+
+  unsigned Threshold = MF.getFunction().getParent()->getWarnStackSize();
+  if (StackSize > Threshold) {
     DiagnosticInfoStackSize DiagStackSize(F, StackSize);
     F.getContext().diagnose(DiagStackSize);
   }
@@ -399,7 +396,8 @@ static void assignCalleeSavedSpillSlots(MachineFunction &F,
 
   const TargetFrameLowering *TFI = F.getSubtarget().getFrameLowering();
   MachineFrameInfo &MFI = F.getFrameInfo();
-  if (!TFI->assignCalleeSavedSpillSlots(F, RegInfo, CSI)) {
+  if (!TFI->assignCalleeSavedSpillSlots(F, RegInfo, CSI, MinCSFrameIndex,
+                                        MaxCSFrameIndex)) {
     // If target doesn't implement this, use generic code.
 
     if (CSI.empty())
@@ -436,7 +434,7 @@ static void assignCalleeSavedSpillSlots(MachineFunction &F,
       unsigned Size = RegInfo->getSpillSize(*RC);
       if (FixedSlot == FixedSpillSlots + NumFixedSpillSlots) {
         // Nope, just spill it anywhere convenient.
-        Align Alignment(RegInfo->getSpillAlignment(*RC));
+        Align Alignment = RegInfo->getSpillAlign(*RC);
         // We may not be able to satisfy the desired alignment specification of
         // the TargetRegisterClass if the stack alignment is smaller. Use the
         // min.
@@ -677,10 +675,12 @@ computeFreeStackSlots(MachineFrameInfo &MFI, bool StackGrowsDown,
     // StackSlot scavenging is only implemented for the default stack.
     if (MFI.getStackID(i) == TargetStackID::Default)
       AllocatedFrameSlots.push_back(i);
-  // Add callee-save objects.
-  for (int i = MinCSFrameIndex; i <= (int)MaxCSFrameIndex; ++i)
-    if (MFI.getStackID(i) == TargetStackID::Default)
-      AllocatedFrameSlots.push_back(i);
+  // Add callee-save objects if there are any.
+  if (MinCSFrameIndex <= MaxCSFrameIndex) {
+    for (int i = MinCSFrameIndex; i <= (int)MaxCSFrameIndex; ++i)
+      if (MFI.getStackID(i) == TargetStackID::Default)
+        AllocatedFrameSlots.push_back(i);
+  }
 
   for (int i : AllocatedFrameSlots) {
     // These are converted from int64_t, but they should always fit in int
@@ -833,7 +833,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
 
   // First assign frame offsets to stack objects that are used to spill
   // callee saved registers.
-  if (StackGrowsDown) {
+  if (StackGrowsDown && MaxCSFrameIndex >= MinCSFrameIndex) {
     for (unsigned i = MinCSFrameIndex; i <= MaxCSFrameIndex; ++i) {
       if (MFI.getStackID(i) !=
           TargetStackID::Default) // Only allocate objects on the default stack.
@@ -1265,6 +1265,9 @@ void PEI::replaceFrameIndices(MachineBasicBlock *BB, MachineFunction &MF,
           DIExpr = DIExpression::appendOpsToArg(DIExpr, Ops, DebugOpIndex);
         }
         MI.getDebugExpressionOp().setMetadata(DIExpr);
+        continue;
+      } else if (MI.isDebugPHI()) {
+        // Allow stack ref to continue onwards.
         continue;
       }
 

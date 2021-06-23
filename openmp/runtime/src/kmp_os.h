@@ -139,7 +139,7 @@ typedef struct kmp_struct64 kmp_uint64;
 #undef KMP_USE_X87CONTROL
 #define KMP_USE_X87CONTROL 1
 #endif
-#if KMP_ARCH_X86_64
+#if KMP_ARCH_X86_64 || KMP_ARCH_AARCH64
 #define KMP_INTPTR 1
 typedef __int64 kmp_intptr_t;
 typedef unsigned __int64 kmp_uintptr_t;
@@ -406,9 +406,24 @@ extern "C" {
           api_name) "@" ver_str "\n\t");                                        \
   __asm__(".symver " KMP_STR(__kmp_api_##api_name) "," KMP_STR(                 \
       api_name) "@@" default_ver "\n\t")
+
+#define KMP_VERSION_OMPC_SYMBOL(apic_name, api_name, ver_num, ver_str)         \
+  _KMP_VERSION_OMPC_SYMBOL(apic_name, api_name, ver_num, ver_str, "VERSION")
+#define _KMP_VERSION_OMPC_SYMBOL(apic_name, api_name, ver_num, ver_str,          \
+                                 default_ver)                                    \
+  __typeof__(__kmp_api_##apic_name) __kmp_api_##apic_name##_##ver_num##_alias    \
+      __attribute__((alias(KMP_STR(__kmp_api_##apic_name))));                    \
+  __asm__(".symver " KMP_STR(__kmp_api_##apic_name) "," KMP_STR(                 \
+      apic_name) "@@" default_ver "\n\t");                                       \
+  __asm__(                                                                       \
+      ".symver " KMP_STR(__kmp_api_##apic_name##_##ver_num##_alias) "," KMP_STR( \
+          api_name) "@" ver_str "\n\t")
+
 #else // KMP_USE_VERSION_SYMBOLS
 #define KMP_EXPAND_NAME(api_name) api_name
 #define KMP_VERSION_SYMBOL(api_name, ver_num, ver_str) /* Nothing */
+#define KMP_VERSION_OMPC_SYMBOL(apic_name, api_name, ver_num,                  \
+                                ver_str) /* Nothing */
 #endif // KMP_USE_VERSION_SYMBOLS
 
 /* Temporary note: if performance testing of this passes, we can remove
@@ -463,8 +478,13 @@ inline kmp_real32 KMP_XCHG_REAL32(volatile kmp_real32 *p, kmp_real32 v) {
   return *(kmp_real32 *)&tmp;
 }
 
-// Routines that we still need to implement in assembly.
-extern kmp_int8 __kmp_test_then_add8(volatile kmp_int8 *p, kmp_int8 v);
+#define KMP_TEST_THEN_OR8(p, v) __kmp_test_then_or8((p), (v))
+#define KMP_TEST_THEN_AND8(p, v) __kmp_test_then_and8((p), (v))
+#define KMP_TEST_THEN_OR32(p, v) __kmp_test_then_or32((p), (v))
+#define KMP_TEST_THEN_AND32(p, v) __kmp_test_then_and32((p), (v))
+#define KMP_TEST_THEN_OR64(p, v) __kmp_test_then_or64((p), (v))
+#define KMP_TEST_THEN_AND64(p, v) __kmp_test_then_and64((p), (v))
+
 extern kmp_int8 __kmp_test_then_or8(volatile kmp_int8 *p, kmp_int8 v);
 extern kmp_int8 __kmp_test_then_and8(volatile kmp_int8 *p, kmp_int8 v);
 extern kmp_int32 __kmp_test_then_add32(volatile kmp_int32 *p, kmp_int32 v);
@@ -473,6 +493,113 @@ extern kmp_uint32 __kmp_test_then_and32(volatile kmp_uint32 *p, kmp_uint32 v);
 extern kmp_int64 __kmp_test_then_add64(volatile kmp_int64 *p, kmp_int64 v);
 extern kmp_uint64 __kmp_test_then_or64(volatile kmp_uint64 *p, kmp_uint64 v);
 extern kmp_uint64 __kmp_test_then_and64(volatile kmp_uint64 *p, kmp_uint64 v);
+
+#if KMP_ARCH_AARCH64 && KMP_COMPILER_MSVC && !KMP_COMPILER_CLANG
+#define KMP_TEST_THEN_INC64(p) _InterlockedExchangeAdd64((p), 1LL)
+#define KMP_TEST_THEN_INC_ACQ64(p) _InterlockedExchangeAdd64_acq((p), 1LL)
+#define KMP_TEST_THEN_ADD4_64(p) _InterlockedExchangeAdd64((p), 4LL)
+// #define KMP_TEST_THEN_ADD4_ACQ64(p) _InterlockedExchangeAdd64_acq((p), 4LL)
+// #define KMP_TEST_THEN_DEC64(p) _InterlockedExchangeAdd64((p), -1LL)
+// #define KMP_TEST_THEN_DEC_ACQ64(p) _InterlockedExchangeAdd64_acq((p), -1LL)
+// #define KMP_TEST_THEN_ADD8(p, v) _InterlockedExchangeAdd8((p), (v))
+#define KMP_TEST_THEN_ADD64(p, v) _InterlockedExchangeAdd64((p), (v))
+
+#define KMP_COMPARE_AND_STORE_ACQ8(p, cv, sv)                                  \
+  __kmp_compare_and_store_acq8((p), (cv), (sv))
+#define KMP_COMPARE_AND_STORE_REL8(p, cv, sv)                                  \
+  __kmp_compare_and_store_rel8((p), (cv), (sv))
+#define KMP_COMPARE_AND_STORE_ACQ16(p, cv, sv)                                 \
+  __kmp_compare_and_store_acq16((p), (cv), (sv))
+// #define KMP_COMPARE_AND_STORE_REL16(p, cv, sv)                                 \
+//   __kmp_compare_and_store_rel16((p), (cv), (sv))
+#define KMP_COMPARE_AND_STORE_ACQ32(p, cv, sv)                                 \
+  __kmp_compare_and_store_acq32((volatile kmp_int32 *)(p), (kmp_int32)(cv),    \
+                                (kmp_int32)(sv))
+#define KMP_COMPARE_AND_STORE_REL32(p, cv, sv)                                 \
+  __kmp_compare_and_store_rel32((volatile kmp_int32 *)(p), (kmp_int32)(cv),    \
+                                (kmp_int32)(sv))
+#define KMP_COMPARE_AND_STORE_ACQ64(p, cv, sv)                                 \
+  __kmp_compare_and_store_acq64((volatile kmp_int64 *)(p), (kmp_int64)(cv),    \
+                                (kmp_int64)(sv))
+#define KMP_COMPARE_AND_STORE_REL64(p, cv, sv)                                 \
+  __kmp_compare_and_store_rel64((volatile kmp_int64 *)(p), (kmp_int64)(cv),    \
+                                (kmp_int64)(sv))
+#define KMP_COMPARE_AND_STORE_PTR(p, cv, sv)                                   \
+  __kmp_compare_and_store_ptr((void *volatile *)(p), (void *)(cv), (void *)(sv))
+
+//  KMP_COMPARE_AND_STORE expects this order:       pointer, compare, exchange
+// _InterlockedCompareExchange expects this order:  pointer, exchange, compare
+// KMP_COMPARE_AND_STORE also returns a bool indicating a successful write. A
+// write is successful if the return value of _InterlockedCompareExchange is the
+// same as the compare value.
+inline kmp_int8 __kmp_compare_and_store_acq8(volatile kmp_int8 *p, kmp_int8 cv,
+                                             kmp_int8 sv) {
+  return _InterlockedCompareExchange8_acq(p, sv, cv) == cv;
+}
+
+inline kmp_int8 __kmp_compare_and_store_rel8(volatile kmp_int8 *p, kmp_int8 cv,
+                                             kmp_int8 sv) {
+  return _InterlockedCompareExchange8_rel(p, sv, cv) == cv;
+}
+
+inline kmp_int16 __kmp_compare_and_store_acq16(volatile kmp_int16 *p,
+                                               kmp_int16 cv, kmp_int16 sv) {
+  return _InterlockedCompareExchange16_acq(p, sv, cv) == cv;
+}
+
+inline kmp_int16 __kmp_compare_and_store_rel16(volatile kmp_int16 *p,
+                                               kmp_int16 cv, kmp_int16 sv) {
+  return _InterlockedCompareExchange16_rel(p, sv, cv) == cv;
+}
+
+inline kmp_int32 __kmp_compare_and_store_acq32(volatile kmp_int32 *p,
+                                               kmp_int32 cv, kmp_int32 sv) {
+  return _InterlockedCompareExchange_acq((volatile long *)p, sv, cv) == cv;
+}
+
+inline kmp_int32 __kmp_compare_and_store_rel32(volatile kmp_int32 *p,
+                                               kmp_int32 cv, kmp_int32 sv) {
+  return _InterlockedCompareExchange_rel((volatile long *)p, sv, cv) == cv;
+}
+
+inline kmp_int32 __kmp_compare_and_store_acq64(volatile kmp_int64 *p,
+                                               kmp_int64 cv, kmp_int64 sv) {
+  return _InterlockedCompareExchange64_acq(p, sv, cv) == cv;
+}
+
+inline kmp_int32 __kmp_compare_and_store_rel64(volatile kmp_int64 *p,
+                                               kmp_int64 cv, kmp_int64 sv) {
+  return _InterlockedCompareExchange64_rel(p, sv, cv) == cv;
+}
+
+inline kmp_int32 __kmp_compare_and_store_ptr(void *volatile *p, void *cv,
+                                             void *sv) {
+  return _InterlockedCompareExchangePointer(p, sv, cv) == cv;
+}
+
+// The _RET versions return the value instead of a bool
+// #define KMP_COMPARE_AND_STORE_RET8(p, cv, sv) \
+//   _InterlockedCompareExchange8((p), (sv), (cv))
+// #define KMP_COMPARE_AND_STORE_RET16(p, cv, sv) \
+//   _InterlockedCompareExchange16((p), (sv), (cv))
+#define KMP_COMPARE_AND_STORE_RET64(p, cv, sv)                                 \
+  _InterlockedCompareExchange64((volatile kmp_int64 *)(p), (kmp_int64)(sv),    \
+                                (kmp_int64)(cv))
+
+// #define KMP_XCHG_FIXED8(p, v)                                                  \
+//   _InterlockedExchange8((volatile kmp_int8 *)(p), (kmp_int8)(v));
+// #define KMP_XCHG_FIXED16(p, v) _InterlockedExchange16((p), (v));
+// #define KMP_XCHG_REAL64(p, v) __kmp_xchg_real64((p), (v)));
+
+// inline kmp_real64 __kmp_xchg_real64(volatile kmp_real64 *p, kmp_real64 v) {
+//   kmp_int64 tmp = _InterlockedExchange64((volatile kmp_int64 *)p, *(kmp_int64
+//   *)&v); return *(kmp_real64 *)&tmp;
+// }
+
+#else // !KMP_ARCH_AARCH64
+
+// Routines that we still need to implement in assembly.
+extern kmp_int8 __kmp_test_then_add8(volatile kmp_int8 *p, kmp_int8 v);
 
 extern kmp_int8 __kmp_compare_and_store8(volatile kmp_int8 *p, kmp_int8 cv,
                                          kmp_int8 sv);
@@ -514,12 +641,6 @@ extern kmp_real64 __kmp_xchg_real64(volatile kmp_real64 *p, kmp_real64 v);
 #define KMP_TEST_THEN_ADD8(p, v) __kmp_test_then_add8((p), (v))
 #define KMP_TEST_THEN_ADD64(p, v) __kmp_test_then_add64((p), (v))
 
-#define KMP_TEST_THEN_OR8(p, v) __kmp_test_then_or8((p), (v))
-#define KMP_TEST_THEN_AND8(p, v) __kmp_test_then_and8((p), (v))
-#define KMP_TEST_THEN_OR32(p, v) __kmp_test_then_or32((p), (v))
-#define KMP_TEST_THEN_AND32(p, v) __kmp_test_then_and32((p), (v))
-#define KMP_TEST_THEN_OR64(p, v) __kmp_test_then_or64((p), (v))
-#define KMP_TEST_THEN_AND64(p, v) __kmp_test_then_and64((p), (v))
 
 #define KMP_COMPARE_AND_STORE_ACQ8(p, cv, sv)                                  \
   __kmp_compare_and_store8((p), (cv), (sv))
@@ -567,6 +688,7 @@ extern kmp_real64 __kmp_xchg_real64(volatile kmp_real64 *p, kmp_real64 v);
 //#define KMP_XCHG_FIXED64(p, v) __kmp_xchg_fixed64((p), (v));
 //#define KMP_XCHG_REAL32(p, v) __kmp_xchg_real32((p), (v));
 #define KMP_XCHG_REAL64(p, v) __kmp_xchg_real64((p), (v));
+#endif
 
 #elif (KMP_ASM_INTRINS && KMP_OS_UNIX) || !(KMP_ARCH_X86 || KMP_ARCH_X86_64)
 
@@ -885,11 +1007,37 @@ extern kmp_real64 __kmp_xchg_real64(volatile kmp_real64 *p, kmp_real64 v);
 
 #if KMP_ARCH_PPC64 || KMP_ARCH_ARM || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS ||     \
     KMP_ARCH_MIPS64 || KMP_ARCH_RISCV64
+#if KMP_OS_WINDOWS
+#undef KMP_MB
+#define KMP_MB() std::atomic_thread_fence(std::memory_order_seq_cst)
+#else /* !KMP_OS_WINDOWS */
 #define KMP_MB() __sync_synchronize()
+#endif
 #endif
 
 #ifndef KMP_MB
 #define KMP_MB() /* nothing to do */
+#endif
+
+#if KMP_ARCH_X86 || KMP_ARCH_X86_64
+#if KMP_COMPILER_ICC
+#define KMP_MFENCE_() _mm_mfence()
+#define KMP_SFENCE_() _mm_sfence()
+#elif KMP_COMPILER_MSVC
+#define KMP_MFENCE_() MemoryBarrier()
+#define KMP_SFENCE_() MemoryBarrier()
+#else
+#define KMP_MFENCE_() __sync_synchronize()
+#define KMP_SFENCE_() __sync_synchronize()
+#endif
+#define KMP_MFENCE()                                                           \
+  if (UNLIKELY(!__kmp_cpuinfo.initialized)) {                                  \
+    __kmp_query_cpuid(&__kmp_cpuinfo);                                         \
+  }                                                                            \
+  if (__kmp_cpuinfo.sse2) {                                                    \
+    KMP_MFENCE_();                                                             \
+  }
+#define KMP_SFENCE() KMP_SFENCE_()
 #endif
 
 #ifndef KMP_IMB

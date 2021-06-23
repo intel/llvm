@@ -103,10 +103,10 @@ eh.resume:                                        ; preds = %catch.dispatch
 ; ASM:    .vbyte  4, 0x00000000                   # Traceback table begin
 ; ASM:    .byte   0x00                            # Version = 0
 ; ASM:    .byte   0x09                            # Language = CPlusPlus
-; ASM:    .byte   0x22                            # -IsGlobaLinkage, -IsOutOfLineEpilogOrPrologue
+; ASM:    .byte   0x20                            # -IsGlobaLinkage, -IsOutOfLineEpilogOrPrologue
 ; ASM:                                    # +HasTraceBackTableOffset, -IsInternalProcedure
 ; ASM:                                    # -HasControlledStorage, -IsTOCless
-; ASM:                                    # +IsFloatingPointPresent
+; ASM:                                    # -IsFloatingPointPresent
 ; ASM:                                    # -IsFloatingPointOperationLogOrAbortEnabled
 ; ASM:    .byte   0x41                            # -IsInterruptHandler, +IsFunctionNamePresent, -IsAllocaUsed
 ; ASM:                                    # OnConditionDirective = 0, -IsCRSaved, +IsLRSaved
@@ -116,7 +116,7 @@ eh.resume:                                        ; preds = %catch.dispatch
 ; ASM:    .byte   0x01                            # NumberOfFPParms = 0, +HasParmsOnStack
 ; ASM:    .vbyte  4, L.._Z9catchFuncv0-._Z9catchFuncv # Function size
 ; ASM:    .vbyte  2, 0x000d                       # Function name len = 13
-; ASM:    .byte   '_,'Z,'9,'c,'a,'t,'c,'h,'F,'u,'n,'c,'v # Function Name
+; ASM:    .byte   "_Z9catchFuncv"                 # Function Name
 ; ASM:    .byte   0x08                            # ExtensionTableFlag = TB_EH_INFO
 ; ASM:    .align  2
 ; ASM32:  .vbyte  4, L..C1-TOC[TC0]               # EHInfo Table

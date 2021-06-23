@@ -21,6 +21,7 @@
 #include "flang/Semantics/semantics.h"
 #include "flang/Semantics/unparse-with-symbols.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/ErrorHandling.h"
 #include <clang/Basic/Diagnostic.h>
 #include <memory>
 
@@ -48,7 +49,6 @@ bool PrescanAction::BeginSourceFileAction(CompilerInstance &c1) {
   CompilerInstance &ci = this->instance();
   std::string currentInputPath{GetCurrentFileOrBufferName()};
   Fortran::parser::Options parserOptions = ci.invocation().fortranOpts();
-
 
   // Prescan. In case of failure, report and return.
   ci.parsing().Prescan(currentInputPath, parserOptions);
@@ -158,7 +158,7 @@ bool PrescanAndSemaAction::BeginSourceFileAction(CompilerInstance &c1) {
   // Prepare semantics
   setSemantics(std::make_unique<Fortran::semantics::Semantics>(
       ci.invocation().semanticsContext(), parseTree,
-      ci.parsing().cooked().AsCharBlock(), ci.invocation().debugModuleDir()));
+      ci.invocation().debugModuleDir()));
   auto &semantics = this->semantics();
 
   // Run semantic checks
@@ -282,13 +282,63 @@ void DebugUnparseWithSymbolsAction::ExecuteAction() {
 }
 
 void DebugDumpSymbolsAction::ExecuteAction() {
+  CompilerInstance &ci = this->instance();
   auto &semantics = this->semantics();
+
+  auto tables{Fortran::semantics::BuildRuntimeDerivedTypeTables(
+      instance().invocation().semanticsContext())};
+  // The runtime derived type information table builder may find and report
+  // semantic errors. So it is important that we report them _after_
+  // BuildRuntimeDerivedTypeTables is run.
+  reportFatalSemanticErrors(
+      semantics, this->instance().diagnostics(), GetCurrentFileOrBufferName());
+
+  if (!tables.schemata) {
+    unsigned DiagID =
+        ci.diagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+            "could not find module file for __fortran_type_info");
+    ci.diagnostics().Report(DiagID);
+    llvm::errs() << "\n";
+  }
 
   // Dump symbols
   semantics.DumpSymbols(llvm::outs());
-  // Report fatal semantic errors
+}
+
+void DebugDumpAllAction::ExecuteAction() {
+  CompilerInstance &ci = this->instance();
+
+  // Dump parse tree
+  auto &parseTree{instance().parsing().parseTree()};
+  Fortran::parser::AnalyzedObjectsAsFortran asFortran =
+      Fortran::frontend::getBasicAsFortran();
+  llvm::outs() << "========================";
+  llvm::outs() << " Flang: parse tree dump ";
+  llvm::outs() << "========================\n";
+  Fortran::parser::DumpTree(llvm::outs(), parseTree, &asFortran);
+
+  auto &semantics = this->semantics();
+  auto tables{Fortran::semantics::BuildRuntimeDerivedTypeTables(
+      instance().invocation().semanticsContext())};
+  // The runtime derived type information table builder may find and report
+  // semantic errors. So it is important that we report them _after_
+  // BuildRuntimeDerivedTypeTables is run.
   reportFatalSemanticErrors(
       semantics, this->instance().diagnostics(), GetCurrentFileOrBufferName());
+
+  if (!tables.schemata) {
+    unsigned DiagID =
+        ci.diagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+            "could not find module file for __fortran_type_info");
+    ci.diagnostics().Report(DiagID);
+    llvm::errs() << "\n";
+  }
+
+  // Dump symbols
+  llvm::outs() << "=====================";
+  llvm::outs() << " Flang: symbols dump ";
+  llvm::outs() << "=====================\n";
+  semantics.DumpSymbols(llvm::outs());
 }
 
 void DebugDumpParseTreeNoSemaAction::ExecuteAction() {
@@ -371,6 +421,53 @@ void DebugDumpParsingLogAction::ExecuteAction() {
   ci.parsing().DumpParsingLog(llvm::outs());
 }
 
+void GetDefinitionAction::ExecuteAction() {
+  // Report and exit if fatal semantic errors are present
+  if (reportFatalSemanticErrors(semantics(), this->instance().diagnostics(),
+          GetCurrentFileOrBufferName()))
+    return;
+
+  CompilerInstance &ci = this->instance();
+  parser::AllCookedSources &cs = ci.allCookedSources();
+  unsigned diagID = ci.diagnostics().getCustomDiagID(
+      clang::DiagnosticsEngine::Error, "Symbol not found");
+
+  auto gdv = ci.invocation().frontendOpts().getDefVals_;
+  auto charBlock{cs.GetCharBlockFromLineAndColumns(
+      gdv.line, gdv.startColumn, gdv.endColumn)};
+  if (!charBlock) {
+    ci.diagnostics().Report(diagID);
+    return;
+  }
+
+  llvm::outs() << "String range: >" << charBlock->ToString() << "<\n";
+
+  auto *symbol{ci.invocation()
+                   .semanticsContext()
+                   .FindScope(*charBlock)
+                   .FindSymbol(*charBlock)};
+  if (!symbol) {
+    ci.diagnostics().Report(diagID);
+    return;
+  }
+
+  llvm::outs() << "Found symbol name: " << symbol->name().ToString() << "\n";
+
+  auto sourceInfo{cs.GetSourcePositionRange(symbol->name())};
+  if (!sourceInfo) {
+    llvm_unreachable(
+        "Failed to obtain SourcePosition."
+        "TODO: Please, write a test and replace this with a diagnostic!");
+    return;
+  }
+
+  llvm::outs() << "Found symbol name: " << symbol->name().ToString() << "\n";
+  llvm::outs() << symbol->name().ToString() << ": "
+               << sourceInfo->first.file.path() << ", "
+               << sourceInfo->first.line << ", " << sourceInfo->first.column
+               << "-" << sourceInfo->second.column << "\n";
+}
+
 void GetSymbolsSourcesAction::ExecuteAction() {
   // Report and exit if fatal semantic errors are present
   if (reportFatalSemanticErrors(semantics(), this->instance().diagnostics(),
@@ -384,5 +481,13 @@ void EmitObjAction::ExecuteAction() {
   CompilerInstance &ci = this->instance();
   unsigned DiagID = ci.diagnostics().getCustomDiagID(
       clang::DiagnosticsEngine::Error, "code-generation is not available yet");
+  ci.diagnostics().Report(DiagID);
+}
+
+void InitOnlyAction::ExecuteAction() {
+  CompilerInstance &ci = this->instance();
+  unsigned DiagID =
+      ci.diagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning,
+          "Use `-init-only` for testing purposes only");
   ci.diagnostics().Report(DiagID);
 }

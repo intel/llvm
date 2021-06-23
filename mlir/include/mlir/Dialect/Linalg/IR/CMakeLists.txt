@@ -70,7 +70,7 @@ add_dependencies(mlir-headers LinalgOdsGen)
 
 add_mlir_dialect(LinalgOps linalg)
 
-add_mlir_doc(LinalgDoc -gen-op-doc LinalgOps Dialects/)
+add_mlir_doc(LinalgDoc LinalgOps Dialects/ -gen-op-doc)
 add_dependencies(LinalgOpsDocGen LinalgOdsGen)
 
 set(LLVM_TARGET_DEFINITIONS LinalgStructuredOps.td)
@@ -79,12 +79,6 @@ mlir_tablegen(LinalgStructuredOps.cpp.inc -gen-op-defs)
 add_public_tablegen_target(MLIRLinalgStructuredOpsIncGen)
 add_dependencies(MLIRLinalgStructuredOpsIncGen LinalgOdsGen)
 add_dependencies(mlir-headers MLIRLinalgStructuredOpsIncGen)
-
-set(LLVM_TARGET_DEFINITIONS LinalgSparseOps.td)
-mlir_tablegen(LinalgSparseOps.h.inc -gen-op-decls)
-mlir_tablegen(LinalgSparseOps.cpp.inc -gen-op-defs)
-add_public_tablegen_target(MLIRLinalgSparseOpsIncGen)
-add_dependencies(mlir-headers MLIRLinalgSparseOpsIncGen)
 
 set(LLVM_TARGET_DEFINITIONS LinalgInterfaces.td)
 mlir_tablegen(LinalgInterfaces.h.inc -gen-op-interface-decls)

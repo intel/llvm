@@ -331,7 +331,7 @@ AOT compiler for each device type:
 #### CPU
 
 * CPU AOT compiler `opencl-aot` is enabled by default. For more, see
-[opencl-aot documentation](../../opencl-aot/README.md).
+[opencl-aot documentation](../../opencl/opencl-aot/README.md).
 
 #### Accelerator
 
@@ -422,7 +422,7 @@ int main() {
   cl::sycl::queue Queue;
 
   // Size of index space for kernel
-  cl::sycl::range<1> NumOfWorkItems{Buffer.get_count()};
+  cl::sycl::range<1> NumOfWorkItems{Buffer.size()};
 
   // Submitting command group(work) to queue
   Queue.submit([&](cl::sycl::handler &cgh) {
@@ -442,7 +442,7 @@ int main() {
 
   // Check the results
   bool MismatchFound = false;
-  for (size_t I = 0; I < Buffer.get_count(); ++I) {
+  for (size_t I = 0; I < Buffer.size(); ++I) {
     if (HostAccessor[I] != I) {
       std::cout << "The result is incorrect for element: " << I
                 << " , expected: " << I << " , got: " << HostAccessor[I]
@@ -667,8 +667,8 @@ which contains all the symbols required.
 
 * DPC++ specification:
 [https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
-* SYCL\* 1.2.1 specification:
-[www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf](https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf)
+* SYCL\* 2020 specification:
+[https://www.khronos.org/registry/SYCL/](https://www.khronos.org/registry/SYCL/)
 * oneAPI Level Zero specification:
 [https://spec.oneapi.com/versions/latest/oneL0/index.html](https://spec.oneapi.com/versions/latest/oneL0/index.html)
 

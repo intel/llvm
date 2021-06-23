@@ -2,6 +2,8 @@
 set(LLVM_LINK_COMPONENTS
   Core
   ExecutionEngine
+  IRReader
+  JITLink
   Object
   OrcJIT
   OrcShared
@@ -17,13 +19,17 @@ add_llvm_unittest(OrcJITTests
   IndirectionUtilsTest.cpp
   JITTargetMachineBuilderTest.cpp
   LazyCallThroughAndReexportsTest.cpp
+  ObjectLinkingLayerTest.cpp
+  OrcCAPITest.cpp
   OrcTestCommon.cpp
   QueueChannel.cpp
   ResourceTrackerTest.cpp
   RPCUtilsTest.cpp
   RTDyldObjectLinkingLayerTest.cpp
+  SimplePackedSerializationTest.cpp
   SymbolStringPoolTest.cpp
   ThreadSafeModuleTest.cpp
+  WrapperFunctionUtilsTest.cpp
   )
 
 target_link_libraries(OrcJITTests PRIVATE

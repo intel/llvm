@@ -86,7 +86,7 @@ int main() {
         accessorD.use();
         //expected-error@+1{{sixth template parameter of the accessor must be of accessor_property_list type}}
         accessorE.use();
-        //expected-error@+1{{Can't apply buffer_location property twice to the same accessor}}
+        //expected-error@+1{{can't apply buffer_location property twice to the same accessor}}
         accessorF.use();
 #endif
       });

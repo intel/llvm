@@ -47,7 +47,7 @@ define void @test3(i64 %a, i64 %b, i1 %p) nounwind {
 ; CHECK-NEXT:    pushq %rax
 ; CHECK-NEXT:    testb $1, %dl
 ; CHECK-NEXT:    cmovel %esi, %edi
-; CHECK-NEXT:    callq bar
+; CHECK-NEXT:    callq bar@PLT
 ; CHECK-NEXT:    popq %rax
 ; CHECK-NEXT:    retq
   %c = trunc i64 %a to i32
@@ -79,17 +79,17 @@ define i1 @test4() nounwind {
 ; CHECK-LABEL: test4:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    pushq %rbx
-; CHECK-NEXT:    movsbl {{.*}}(%rip), %edx
+; CHECK-NEXT:    movsbl g_3(%rip), %edx
 ; CHECK-NEXT:    movzbl %dl, %ecx
 ; CHECK-NEXT:    shrl $7, %ecx
 ; CHECK-NEXT:    xorb $1, %cl
 ; CHECK-NEXT:    # kill: def $cl killed $cl killed $ecx
 ; CHECK-NEXT:    sarl %cl, %edx
-; CHECK-NEXT:    movb {{.*}}(%rip), %al
+; CHECK-NEXT:    movb g_96(%rip), %al
 ; CHECK-NEXT:    testb %al, %al
 ; CHECK-NEXT:    je .LBB3_2
 ; CHECK-NEXT:  # %bb.1: # %bb.i.i.i
-; CHECK-NEXT:    movb {{.*}}(%rip), %cl
+; CHECK-NEXT:    movb g_100(%rip), %cl
 ; CHECK-NEXT:  .LBB3_2: # %func_4.exit.i
 ; CHECK-NEXT:    xorl %esi, %esi
 ; CHECK-NEXT:    testb %dl, %dl
@@ -102,15 +102,15 @@ define i1 @test4() nounwind {
 ; CHECK-NEXT:    testb %bl, %bl
 ; CHECK-NEXT:    jne .LBB3_5
 ; CHECK-NEXT:  # %bb.4: # %bb.i.i
-; CHECK-NEXT:    movb {{.*}}(%rip), %cl
+; CHECK-NEXT:    movb g_100(%rip), %cl
 ; CHECK-NEXT:    xorl %ebx, %ebx
 ; CHECK-NEXT:    movl %eax, %ecx
 ; CHECK-NEXT:  .LBB3_5: # %func_1.exit
-; CHECK-NEXT:    movb %cl, {{.*}}(%rip)
+; CHECK-NEXT:    movb %cl, g_96(%rip)
 ; CHECK-NEXT:    movzbl %cl, %esi
 ; CHECK-NEXT:    movl $_2E_str, %edi
 ; CHECK-NEXT:    xorl %eax, %eax
-; CHECK-NEXT:    callq printf
+; CHECK-NEXT:    callq printf@PLT
 ; CHECK-NEXT:    movl %ebx, %eax
 ; CHECK-NEXT:    popq %rbx
 ; CHECK-NEXT:    retq

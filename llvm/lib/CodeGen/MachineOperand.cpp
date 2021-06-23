@@ -653,6 +653,14 @@ static void printCFI(raw_ostream &OS, const MCCFIInstruction &CFI,
     printCFIRegister(CFI.getRegister(), OS, TRI);
     OS << ", " << CFI.getOffset();
     break;
+  case MCCFIInstruction::OpLLVMDefAspaceCfa:
+    OS << "llvm_def_aspace_cfa ";
+    if (MCSymbol *Label = CFI.getLabel())
+      MachineOperand::printSymbol(OS, *Label);
+    printCFIRegister(CFI.getRegister(), OS, TRI);
+    OS << ", " << CFI.getOffset();
+    OS << ", " << CFI.getAddressSpace();
+    break;
   case MCCFIInstruction::OpRelOffset:
     OS << "rel_offset ";
     if (MCSymbol *Label = CFI.getLabel())
@@ -927,7 +935,7 @@ void MachineOperand::print(raw_ostream &OS, ModuleSlotTracker &MST,
   case MachineOperand::MO_IntrinsicID: {
     Intrinsic::ID ID = getIntrinsicID();
     if (ID < Intrinsic::num_intrinsics)
-      OS << "intrinsic(@" << Intrinsic::getName(ID, None) << ')';
+      OS << "intrinsic(@" << Intrinsic::getBaseName(ID) << ')';
     else if (IntrinsicInfo)
       OS << "intrinsic(@" << IntrinsicInfo->getName(ID) << ')';
     else
@@ -1059,10 +1067,6 @@ void MachineMemOperand::refineAlignment(const MachineMemOperand *MMO) {
     PtrInfo = MMO->PtrInfo;
   }
 }
-
-/// getAlignment - Return the minimum known alignment in bytes of the
-/// actual memory reference.
-uint64_t MachineMemOperand::getAlignment() const { return getAlign().value(); }
 
 /// getAlign - Return the minimum known alignment in bytes of the
 /// actual memory reference.

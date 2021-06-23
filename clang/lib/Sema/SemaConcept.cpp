@@ -25,6 +25,8 @@
 #include "clang/Basic/OperatorPrecedence.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PointerUnion.h"
+#include "llvm/ADT/StringExtras.h"
+
 using namespace clang;
 using namespace sema;
 
@@ -172,9 +174,11 @@ calculateConstraintSatisfaction(Sema &S, const Expr *ConstraintExpr,
   SmallVector<PartialDiagnosticAt, 2> EvaluationDiags;
   Expr::EvalResult EvalResult;
   EvalResult.Diag = &EvaluationDiags;
-  if (!SubstitutedAtomicExpr.get()->EvaluateAsRValue(EvalResult, S.Context)) {
-      // C++2a [temp.constr.atomic]p1
-      //   ...E shall be a constant expression of type bool.
+  if (!SubstitutedAtomicExpr.get()->EvaluateAsConstantExpr(EvalResult,
+                                                           S.Context) ||
+      !EvaluationDiags.empty()) {
+    // C++2a [temp.constr.atomic]p1
+    //   ...E shall be a constant expression of type bool.
     S.Diag(SubstitutedAtomicExpr.get()->getBeginLoc(),
            diag::err_non_constant_constraint_expression)
         << SubstitutedAtomicExpr.get()->getSourceRange();
@@ -183,6 +187,8 @@ calculateConstraintSatisfaction(Sema &S, const Expr *ConstraintExpr,
     return true;
   }
 
+  assert(EvalResult.Val.isInt() &&
+         "evaluating bool expression didn't produce int");
   Satisfaction.IsSatisfied = EvalResult.Val.getInt().getBoolValue();
   if (!Satisfaction.IsSatisfied)
     Satisfaction.Details.emplace_back(ConstraintExpr,
@@ -214,6 +220,13 @@ static bool calculateConstraintSatisfaction(
           Sema::SFINAETrap Trap(S);
           SubstitutedExpression = S.SubstExpr(const_cast<Expr *>(AtomicExpr),
                                               MLTAL);
+          // Substitution might have stripped off a contextual conversion to
+          // bool if this is the operand of an '&&' or '||'. For example, we
+          // might lose an lvalue-to-rvalue conversion here. If so, put it back
+          // before we try to evaluate.
+          if (!SubstitutedExpression.isInvalid())
+            SubstitutedExpression =
+                S.PerformContextuallyConvertToBool(SubstitutedExpression.get());
           if (SubstitutedExpression.isInvalid() || Trap.hasErrorOccurred()) {
             // C++2a [temp.constr.atomic]p1
             //   ...If substitution results in an invalid type or expression, the
@@ -523,9 +536,9 @@ static void diagnoseWellFormedUnsatisfiedConstraintExpr(Sema &S,
       diagnoseWellFormedUnsatisfiedConstraintExpr(S, BO->getRHS(),
                                                   /*First=*/false);
       return;
-    case BO_LAnd:
-      bool LHSSatisfied;
-      BO->getLHS()->EvaluateAsBooleanCondition(LHSSatisfied, S.Context);
+    case BO_LAnd: {
+      bool LHSSatisfied =
+          BO->getLHS()->EvaluateKnownConstInt(S.Context).getBoolValue();
       if (LHSSatisfied) {
         // LHS is true, so RHS must be false.
         diagnoseWellFormedUnsatisfiedConstraintExpr(S, BO->getRHS(), First);
@@ -535,12 +548,13 @@ static void diagnoseWellFormedUnsatisfiedConstraintExpr(Sema &S,
       diagnoseWellFormedUnsatisfiedConstraintExpr(S, BO->getLHS(), First);
 
       // RHS might also be false
-      bool RHSSatisfied;
-      BO->getRHS()->EvaluateAsBooleanCondition(RHSSatisfied, S.Context);
+      bool RHSSatisfied =
+          BO->getRHS()->EvaluateKnownConstInt(S.Context).getBoolValue();
       if (!RHSSatisfied)
         diagnoseWellFormedUnsatisfiedConstraintExpr(S, BO->getRHS(),
                                                     /*First=*/false);
       return;
+    }
     case BO_GE:
     case BO_LE:
     case BO_GT:
@@ -551,15 +565,19 @@ static void diagnoseWellFormedUnsatisfiedConstraintExpr(Sema &S,
           BO->getRHS()->getType()->isIntegerType()) {
         Expr::EvalResult SimplifiedLHS;
         Expr::EvalResult SimplifiedRHS;
-        BO->getLHS()->EvaluateAsInt(SimplifiedLHS, S.Context);
-        BO->getRHS()->EvaluateAsInt(SimplifiedRHS, S.Context);
+        BO->getLHS()->EvaluateAsInt(SimplifiedLHS, S.Context,
+                                    Expr::SE_NoSideEffects,
+                                    /*InConstantContext=*/true);
+        BO->getRHS()->EvaluateAsInt(SimplifiedRHS, S.Context,
+                                    Expr::SE_NoSideEffects,
+                                    /*InConstantContext=*/true);
         if (!SimplifiedLHS.Diag && ! SimplifiedRHS.Diag) {
           S.Diag(SubstExpr->getBeginLoc(),
                  diag::note_atomic_constraint_evaluated_to_false_elaborated)
               << (int)First << SubstExpr
-              << SimplifiedLHS.Val.getInt().toString(10)
+              << toString(SimplifiedLHS.Val.getInt(), 10)
               << BinaryOperator::getOpcodeStr(BO->getOpcode())
-              << SimplifiedRHS.Val.getInt().toString(10);
+              << toString(SimplifiedRHS.Val.getInt(), 10);
           return;
         }
       }

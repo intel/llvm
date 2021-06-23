@@ -1,21 +1,21 @@
 ! REQUIRES: new-flang-driver
 
 !--------------------------
-! FLANG DRIVER (flang-new)
+! FLANG DRIVER (flang)
 !--------------------------
-! RUN: %flang-new -help 2>&1 | FileCheck %s --check-prefix=HELP
-! RUN: not %flang-new -helps 2>&1 | FileCheck %s --check-prefix=ERROR
+! RUN: %flang -help 2>&1 | FileCheck %s --check-prefix=HELP
+! RUN: not %flang -helps 2>&1 | FileCheck %s --check-prefix=ERROR
 
 !----------------------------------------
-! FLANG FRONTEND DRIVER (flang-new -fc1)
+! FLANG FRONTEND DRIVER (flang -fc1)
 !----------------------------------------
-! RUN: %flang-new -fc1 -help 2>&1 | FileCheck %s --check-prefix=HELP-FC1
-! RUN: not %flang-new -fc1 -helps 2>&1 | FileCheck %s --check-prefix=ERROR
+! RUN: %flang_fc1 -help 2>&1 | FileCheck %s --check-prefix=HELP-FC1
+! RUN: not %flang_fc1 -helps 2>&1 | FileCheck %s --check-prefix=ERROR
 
 !----------------------------------------------------
-! EXPECTED OUTPUT FOR FLANG DRIVER (flang-new)
+! EXPECTED OUTPUT FOR FLANG DRIVER (flang)
 !----------------------------------------------------
-! HELP:USAGE: flang-new
+! HELP:USAGE: flang
 ! HELP-EMPTY:
 ! HELP-NEXT:OPTIONS:
 ! HELP-NEXT: -###                   Print (but do not run) the commands to run for this compilation
@@ -57,9 +57,9 @@
 ! HELP-NEXT: -Xflang <arg>          Pass <arg> to the flang compiler
 
 !-------------------------------------------------------------
-! EXPECTED OUTPUT FOR FLANG FRONTEND DRIVER (flang-new -fc1)
+! EXPECTED OUTPUT FOR FLANG FRONTEND DRIVER (flang -fc1)
 !-------------------------------------------------------------
-! HELP-FC1:USAGE: flang-new
+! HELP-FC1:USAGE: flang
 ! HELP-FC1-EMPTY:
 ! HELP-FC1-NEXT:OPTIONS:
 ! HELP-FC1-NEXT: -cpp                   Enable predefined and command line preprocessor macros
@@ -69,6 +69,7 @@
 ! HELP-FC1-NEXT: -falternative-parameter-statement
 ! HELP-FC1-NEXT: Enable the old style PARAMETER statement
 ! HELP-FC1-NEXT: -fbackslash            Specify that backslash in string introduces an escape character
+! HELP-FC1-NEXT: -fdebug-dump-all       Dump symbols and the parse tree after the semantic checks
 ! HELP-FC1-NEXT: -fdebug-dump-parse-tree-no-sema
 ! HELP-FC1-NEXT:                        Dump the parse tree (skips the semantic checks)
 ! HELP-FC1-NEXT: -fdebug-dump-parse-tree Dump the parse tree
@@ -91,6 +92,8 @@
 ! HELP-FC1-NEXT: -ffixed-line-length=<value>
 ! HELP-FC1-NEXT: Use <value> as character line width in fixed mode
 ! HELP-FC1-NEXT: -ffree-form            Process source files in free form
+! HELP-FC1-NEXT: -fget-definition <value> <value> <value>
+! HELP-FC1-NEXT:                        Get the symbol definition from <line> <start-column> <end-column>
 ! HELP-FC1-NEXT: -fget-symbols-sources   Dump symbols and their source code locations
 ! HELP-FC1-NEXT: -fimplicit-none        No implicit typing allowed unless overridden by IMPLICIT statements
 ! HELP-FC1-NEXT: -finput-charset=<value> Specify the default character set for source files
@@ -102,8 +105,10 @@
 ! HELP-FC1-NEXT: -fopenmp               Parse OpenMP pragmas and generate parallel code.
 ! HELP-FC1-NEXT: -fxor-operator         Enable .XOR. as a synonym of .NEQV.
 ! HELP-FC1-NEXT: -help                  Display available options
+! HELP-FC1-NEXT: -init-only             Only execute frontend initialization
 ! HELP-FC1-NEXT: -I <dir>               Add directory to the end of the list of include search paths
 ! HELP-FC1-NEXT: -module-dir <dir>      Put MODULE files in <dir>
+! HELP-FC1-NEXT: -module-suffix <suffix> Use <suffix> as the suffix for module files (the default value is `.mod`)
 ! HELP-FC1-NEXT: -nocpp                 Disable predefined and command line preprocessor macros
 ! HELP-FC1-NEXT: -o <file>              Write output to <file>
 ! HELP-FC1-NEXT: -pedantic              Warn on language extensions

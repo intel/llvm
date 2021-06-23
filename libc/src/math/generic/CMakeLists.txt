@@ -78,6 +78,9 @@ add_entrypoint_object(
     .sincosf_utils
     libc.include.math
     libc.src.errno.__errno_location
+    libc.utils.FPUtil.fputil
+  COMPILE_OPTIONS
+    -O3
 )
 
 add_entrypoint_object(
@@ -484,6 +487,18 @@ add_entrypoint_object(
     .exp_utils
     .math_utils
     libc.include.math
+)
+
+add_entrypoint_object(
+  expm1f
+  SRCS
+    expm1f.cpp
+  HDRS
+    ../expm1f.h
+  DEPENDS
+    libc.include.math
+    libc.src.math.expf
+    libc.src.math.fabsf
 )
 
 add_entrypoint_object(
@@ -972,18 +987,6 @@ add_entrypoint_object(
     nextafterl.cpp
   HDRS
     ../nextafterl.h
-  DEPENDS
-    libc.utils.FPUtil.fputil
-  COMPILE_OPTIONS
-    -O2
-)
-
-add_entrypoint_object(
-  fmaf
-  SRCS
-    fmaf.cpp
-  HDRS
-    ../fmaf.h
   DEPENDS
     libc.utils.FPUtil.fputil
   COMPILE_OPTIONS

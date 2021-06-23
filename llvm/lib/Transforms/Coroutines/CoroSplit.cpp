@@ -26,6 +26,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/LazyCallGraph.h"
@@ -37,6 +38,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -367,7 +369,7 @@ static void createResumeEntryBlock(Function &F, coro::Shape &Shape) {
                                  coro::Shape::SwitchFieldIndex::Resume,
                                   "ResumeFn.addr");
       auto *NullPtr = ConstantPointerNull::get(cast<PointerType>(
-          cast<PointerType>(GepIndex->getType())->getElementType()));
+          FrameTy->getTypeAtIndex(coro::Shape::SwitchFieldIndex::Resume)));
       Builder.CreateStore(NullPtr, GepIndex);
     } else {
       auto *GepIndex = Builder.CreateStructGEP(
@@ -475,7 +477,8 @@ static Function *createCloneDeclaration(Function &OrigF, coro::Shape &Shape,
   Function *NewF =
       Function::Create(FnTy, GlobalValue::LinkageTypes::InternalLinkage,
                        OrigF.getName() + Suffix);
-  NewF->addParamAttr(0, Attribute::NonNull);
+  if (Shape.ABI != coro::ABI::Async)
+    NewF->addParamAttr(0, Attribute::NonNull);
 
   // For the async lowering ABI we can't guarantee that the context argument is
   // not access via a different pointer not based on the argument.
@@ -647,32 +650,34 @@ void CoroCloner::replaceSwiftErrorOps() {
 }
 
 void CoroCloner::salvageDebugInfo() {
-  SmallVector<DbgDeclareInst *, 8> Worklist;
+  SmallVector<DbgVariableIntrinsic *, 8> Worklist;
   SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> DbgPtrAllocaCache;
   for (auto &BB : *NewF)
     for (auto &I : BB)
-      if (auto *DDI = dyn_cast<DbgDeclareInst>(&I))
-        Worklist.push_back(DDI);
-  for (DbgDeclareInst *DDI : Worklist)
-    coro::salvageDebugInfo(DbgPtrAllocaCache, DDI, Shape.ReuseFrameSlot);
+      if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
+        Worklist.push_back(DVI);
+  for (DbgVariableIntrinsic *DVI : Worklist)
+    coro::salvageDebugInfo(DbgPtrAllocaCache, DVI, Shape.ReuseFrameSlot);
 
   // Remove all salvaged dbg.declare intrinsics that became
   // either unreachable or stale due to the CoroSplit transformation.
+  DominatorTree DomTree(*NewF);
   auto IsUnreachableBlock = [&](BasicBlock *BB) {
-    return BB->hasNPredecessors(0) && BB != &NewF->getEntryBlock();
+    return !isPotentiallyReachable(&NewF->getEntryBlock(), BB, nullptr,
+                                   &DomTree);
   };
-  for (DbgDeclareInst *DDI : Worklist) {
-    if (IsUnreachableBlock(DDI->getParent()))
-      DDI->eraseFromParent();
-    else if (dyn_cast_or_null<AllocaInst>(DDI->getAddress())) {
+  for (DbgVariableIntrinsic *DVI : Worklist) {
+    if (IsUnreachableBlock(DVI->getParent()))
+      DVI->eraseFromParent();
+    else if (dyn_cast_or_null<AllocaInst>(DVI->getVariableLocationOp(0))) {
       // Count all non-debuginfo uses in reachable blocks.
       unsigned Uses = 0;
-      for (auto *User : DDI->getAddress()->users())
+      for (auto *User : DVI->getVariableLocationOp(0)->users())
         if (auto *I = dyn_cast<Instruction>(User))
           if (!isa<AllocaInst>(I) && !IsUnreachableBlock(I->getParent()))
             ++Uses;
       if (!Uses)
-        DDI->eraseFromParent();
+        DVI->eraseFromParent();
     }
   }
 }
@@ -815,6 +820,13 @@ static void addFramePointerAttrs(AttributeList &Attrs, LLVMContext &Context,
   Attrs = Attrs.addParamAttributes(Context, ParamIndex, ParamAttrs);
 }
 
+static void addAsyncContextAttrs(AttributeList &Attrs, LLVMContext &Context,
+                                 unsigned ParamIndex) {
+  AttrBuilder ParamAttrs;
+  ParamAttrs.addAttribute(Attribute::SwiftAsync);
+  Attrs = Attrs.addParamAttributes(Context, ParamIndex, ParamAttrs);
+}
+
 /// Clone the body of the original function into a resume function of
 /// some sort.
 void CoroCloner::create() {
@@ -850,14 +862,17 @@ void CoroCloner::create() {
   auto &Context = NewF->getContext();
 
   // For async functions / continuations, adjust the scope line of the
-  // clone to the line number of the suspend point. The scope line is
+  // clone to the line number of the suspend point. However, only
+  // adjust the scope line when the files are the same. This ensures
+  // line number and file name belong together. The scope line is
   // associated with all pre-prologue instructions. This avoids a jump
   // in the linetable from the function declaration to the suspend point.
   if (DISubprogram *SP = NewF->getSubprogram()) {
     assert(SP != OrigF.getSubprogram() && SP->isDistinct());
     if (ActiveSuspend)
       if (auto DL = ActiveSuspend->getDebugLoc())
-        SP->setScopeLine(DL->getLine());
+        if (SP->getFile() == DL->getFile())
+          SP->setScopeLine(DL->getLine());
     // Update the linkage name to reflect the modified symbol name. It
     // is necessary to update the linkage name in Swift, since the
     // mangling changes for resume functions. It might also be the
@@ -930,8 +945,15 @@ void CoroCloner::create() {
   // followed by a return.
   // Don't change returns to unreachable because that will trip up the verifier.
   // These returns should be unreachable from the clone.
-  case coro::ABI::Async:
+  case coro::ABI::Async: {
+    auto *ActiveAsyncSuspend = cast<CoroSuspendAsyncInst>(ActiveSuspend);
+    if (OrigF.hasParamAttribute(Shape.AsyncLowering.ContextArgNo,
+                                Attribute::SwiftAsync)) {
+      auto ContextArgIndex = ActiveAsyncSuspend->getStorageArgumentIndex();
+      addAsyncContextAttrs(NewAttrs, Context, ContextArgIndex);
+    }
     break;
+  }
   }
 
   NewF->setAttributes(NewAttrs);

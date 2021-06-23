@@ -160,7 +160,7 @@ enum Format {
   eFormatBytes,
   eFormatBytesWithASCII,
   eFormatChar,
-  eFormatCharPrintable, ///< Only printable characters, space if not printable
+  eFormatCharPrintable, ///< Only printable characters, '.' if not printable
   eFormatComplex,       ///< Floating point complex type
   eFormatComplexFloat = eFormatComplex,
   eFormatCString, ///< NULL terminated C strings
@@ -249,6 +249,9 @@ enum StopReason {
   eStopReasonThreadExiting,
   eStopReasonInstrumentation,
   eStopReasonProcessorTrace,
+  eStopReasonFork,
+  eStopReasonVFork,
+  eStopReasonVForkDone,
 };
 
 /// Command Return Status Types.
@@ -598,6 +601,7 @@ enum CommandArgumentType {
   eArgTypeCommand,
   eArgTypeColumnNum,
   eArgTypeModuleUUID,
+  eArgTypeSaveCoreStyle,
   eArgTypeLastArg // Always keep this entry as the last entry in this
                   // enumeration!!
 };
@@ -1108,6 +1112,14 @@ enum CommandInterpreterResult {
   /// Stopped because quit was requested.
   eCommandInterpreterResultQuitRequested,
 };
+
+// Style of core file to create when calling SaveCore.
+enum SaveCoreStyle {
+  eSaveCoreUnspecified = 0,
+  eSaveCoreFull = 1,
+  eSaveCoreDirtyOnly = 2,
+};
+
 } // namespace lldb
 
 #endif // LLDB_LLDB_ENUMERATIONS_H

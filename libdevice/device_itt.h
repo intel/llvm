@@ -15,6 +15,7 @@
 #include "spirv_vars.h"
 
 #define ITT_STUB_ATTRIBUTES __attribute__((noinline, optnone))
+#define ITT_WRAPPER_ATTRIBUTES __attribute__((always_inline))
 
 /// Atomic operation type
 enum __itt_atomic_mem_op_t {
@@ -36,7 +37,7 @@ DEVICE_EXTERN_C char __spirv_SpecConstant(int, char);
 
 #define ITT_SPEC_CONSTANT 0xFF747469
 
-static inline bool isITTEnabled() {
+static ITT_WRAPPER_ATTRIBUTES bool isITTEnabled() {
   return __spirv_SpecConstant(ITT_SPEC_CONSTANT, 0) != 0;
 }
 
@@ -50,14 +51,15 @@ static inline bool isITTEnabled() {
 // be computed in the wrapper itself and has to be passed from outside.
 // If a compiler needs to invoke such an API, it has to use the user
 // visible API directly (i.e. __itt_offload_sync_acquired).
-DEVICE_EXTERN_C
-void __itt_offload_wi_start_wrapper();
-DEVICE_EXTERN_C
-void __itt_offload_wi_finish_wrapper();
-DEVICE_EXTERN_C
-void __itt_offload_wg_barrier_wrapper();
-DEVICE_EXTERN_C
-void __itt_offload_wi_resume_wrapper();
+//
+// FIXME: we need to add always_inline compiler wrappers
+//        for atomic_op_start/finish. Compiler calls user
+//        wrappers right now, and they may interfere with
+//        debugging user code in non-ITT mode.
+DEVICE_EXTERN_C ITT_WRAPPER_ATTRIBUTES void __itt_offload_wi_start_wrapper();
+DEVICE_EXTERN_C ITT_WRAPPER_ATTRIBUTES void __itt_offload_wi_finish_wrapper();
+DEVICE_EXTERN_C ITT_WRAPPER_ATTRIBUTES void __itt_offload_wg_barrier_wrapper();
+DEVICE_EXTERN_C ITT_WRAPPER_ATTRIBUTES void __itt_offload_wi_resume_wrapper();
 
 // Non-inlinable and non-optimizable APIs that are recognized
 // by profiling tools.

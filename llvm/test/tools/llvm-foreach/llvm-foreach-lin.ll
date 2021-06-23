@@ -20,7 +20,7 @@
 ; RUN: echo 'something again' > %t4.tgt
 ; RUN: echo "%t3.tgt" > %t1.list
 ; RUN: echo "%t4.tgt" >> %t1.list
-; RUN: llvm-foreach --in-replace="{}" --in-replace="in" --in-file-list=%t.list --in-file-list=%t1.list -- echo -first-part-of-arg={}.out -first-part-of-arg=in.out > %t1.res
+; RUN: llvm-foreach --in-replace="{}" --in-replace="inrep" --in-file-list=%t.list --in-file-list=%t1.list --out-increment="%t_out.prj" -- echo -first-part-of-arg={}.out -first-part-of-arg=inrep.out -another-arg=%t_out.prj > %t1.res
 ; RUN: FileCheck < %t1.res %s --check-prefix=CHECK-DOUBLE-LISTS
-; CHECK-DOUBLE-LISTS: -first-part-of-arg=[[FIRST:.+1.tgt.out]] -first-part-of-arg=[[THIRD:.+3.tgt.out]]
-; CHECK-DOUBLE-LISTS: -first-part-of-arg=[[SECOND:.+2.tgt.out]] -first-part-of-arg=[[FOURTH:.+4.tgt.out]]
+; CHECK-DOUBLE-LISTS: -first-part-of-arg=[[FIRST:.+1.tgt.out]] -first-part-of-arg=[[THIRD:.+3.tgt.out]] -another-arg={{.+}}_out.prj
+; CHECK-DOUBLE-LISTS: -first-part-of-arg=[[SECOND:.+2.tgt.out]] -first-part-of-arg=[[FOURTH:.+4.tgt.out]] -another-arg={{.+}}_out.prj_1

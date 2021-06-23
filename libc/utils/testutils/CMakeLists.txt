@@ -3,7 +3,7 @@ if(CMAKE_HOST_UNIX)
   set(FDReaderFile FDReaderUnix.cpp)
 endif()
 
-add_llvm_library(
+add_library(
   libc_test_utils
   RandUtils.cpp
   RandUtils.h
@@ -13,4 +13,6 @@ add_llvm_library(
   ExecuteFunction.h
   ${FDReaderFile}
   FDReader.h
+  Timer.h
+  Timer.cpp
 )

@@ -2,7 +2,7 @@
 
 This file describes macros that have effect on SYCL compiler and run-time.
 
-### RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR
+### `RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR`
 
 The spec assumes that the SYCL implementation does address space deduction.
 However, for our implementation, the deduction is performed in the middle end,
@@ -24,12 +24,12 @@ so it's disabled by default.
 This macro is used to disable passing of code location information to public
 methods.
 
-### SYCL2020_DISABLE_DEPRECATION_WARNINGS
+### `SYCL2020_DISABLE_DEPRECATION_WARNINGS`
 
 Disables warnings coming from usage of SYCL 1.2.1 APIs, that are deprecated in
 SYCL 2020.
 
-### SYCL_DISABLE_DEPRECATION_WARNINGS
+### `SYCL_DISABLE_DEPRECATION_WARNINGS`
 
 Disables all deprecation warnings in SYCL runtime headers, including SYCL 1.2.1 deprecations.
 

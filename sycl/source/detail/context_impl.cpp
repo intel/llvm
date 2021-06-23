@@ -45,7 +45,6 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
 
   const auto Backend = getPlugin().getBackend();
   if (Backend == backend::cuda) {
-#if USE_PI_CUDA
     const bool UseCUDAPrimaryContext =
         MPropList.has_property<property::context::cuda::use_primary_context>();
     const pi_context_properties Props[] = {
@@ -55,10 +54,6 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
 
     getPlugin().call<PiApiKind::piContextCreate>(
         Props, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
-#else
-    cl::sycl::detail::pi::die(
-        "CUDA support was not enabled at compilation time");
-#endif
   } else {
     getPlugin().call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(),
                                                  DeviceIds.data(), nullptr,

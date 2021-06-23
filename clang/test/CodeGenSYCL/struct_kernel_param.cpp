@@ -2,7 +2,7 @@
 // RUN: FileCheck -input-file=%t.h %s
 
 // CHECK:     const kernel_param_desc_t kernel_signatures[] = {
-// CHECK-NEXT:  //--- _ZTSZZ5test0vENK3$_0clERN2cl4sycl7handlerEE8MyKernel
+// CHECK-NEXT:  //--- _ZTSZZ5test0vENKUlRN2cl4sycl7handlerEE_clES2_E8MyKernel
 // Accessor
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
 // FldInt, offset to 16 because the float* causes the alignment of the structs

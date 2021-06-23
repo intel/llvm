@@ -1,0 +1,324 @@
+= SYCL_EXT_ONEAPI_GROUP_SORT
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.
+GitHub does not render image icons.
+
+This extension is written against the SYCL 2020 revision 3 specification. All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Introduction
+
+This extension introduces sorting functions to the group algorithms library and Sorter objects.
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_GROUP_SORT` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
+==== Sorter
+
+Sorter is a special type that encapsulates a sorting algorithm. Sorter may contain parameters
+that help to get better performance. Data for sorting are provided to the `operator()`
+that should contain an implementation of a sorting algorithm.
+Semantics of `operator()` is following:
+
+[source,c++]
+----
+template<typename Group, typename Ptr>
+void operator()(Group g, Ptr first, Ptr last);
+
+template<typename Group, typename T>
+T operator()(Group g, T val);
+----
+
+At least one overload for `operator()` is required.
+
+Table. `operator()` for Sorters.
+|===
+|`operator()`|Description
+
+|`template<typename Group, typename Ptr>
+void operator()(Group g, Ptr first, Ptr last);`
+|Implements a sorting algorithm that calls by `joint_sort`.
+Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
+`first`, `last` must be the same for all work-items in the group.
+
+|`template<typename Group, typename T>
+T operator()(Group g, T val);`
+|Implements a sorting algorithm that calls by `sort_over_group`.
+Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
+|===
+
+Example of custom Sorter:
+[source,c++]
+----
+template<typename Compare>
+class bubble_sort{
+public:
+  Compare comp;
+
+  template<typename Group, typename Ptr>
+  void operator()(Group g, Ptr first, Ptr last){
+    size_t n = last - first;
+    size_t idx = g.get_local_id().get(0);
+    if(idx == 0)
+      for(size_t i = 0; i < n; ++i)
+        for(size_t j = i + 1; j < n; ++j)
+          if(comp(first[j], first[i]))
+            std::swap(first[i], first[j]);
+  }
+};
+----
+
+==== Predefined Sorters
+
+`radix_order` is a `enum` that defines the sorting order when `radix_sorter` is used.
+Only ascending and descending orders are applicable.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi {
+
+  enum class radix_order {
+    ascending,
+    descending
+  };
+
+}
+----
+
+SYCL provides the following predefined classes:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi {
+
+  template<typename Compare = std::less<>>
+  class default_sorter {
+  public:
+    default_sorter(Compare comp = Compare());
+
+    template<typename Group, typename Ptr>
+    void operator()(Group g, Ptr first, Ptr last);
+
+    template<typename Group, typename T>
+    T operator()(Group g, T val);
+  };
+
+  template<typename T, radix_order Order = radix_order::ascending, unsigned int BitsPerPass = 4>
+  class radix_sorter {
+  public:
+    radix_sorter(const std::bitset<sizeof(T) * CHAR_BIT> mask =
+                 std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max()));
+
+    template<typename Group, typename Ptr>
+    void operator()(Group g, Ptr first, Ptr last);
+
+    template<typename Group>
+    T operator()(Group g, T val);
+  };
+
+}
+----
+
+Table. Description of predefined Sorters.
+|===
+|Sorter|Description
+
+|`template<typename Compare = std::less<>>
+default_sorter`
+|Use a default sorting method based on an implementation-defined heuristic
+using `Compare` as the binary comparison function object.
+
+|`template<typename T, radix_order Order = radix_order::ascending, unsigned int BitsPerPass = 4>
+radix_sorter`
+|Use radix sort as a sorting method. `Order` specify the sorting order.
+Only arithmetic types as `T` can be passed to `radix_sorter`.
+`BitsPerPass` is a number of bits that values are split by.
+For example, if a sequence of `int32_t` is sorted using `BitsPerPass == 4` then one
+pass of the radix sort algorithm considers only 4 bits. The number of passes is `32/4=8`.
+|===
+
+Table. Constructors of the `default_sorter` class.
+|===
+|Constructor|Description
+
+|`default_sorter(Compare comp = Compare())`
+|Creates the `default_sorter` object using `comp`.
+|===
+
+Table. Member functions of the `default_sorter` class.
+|===
+|Member function|Description
+
+|`template<typename Group, typename Ptr>
+void operator()(Group g, Ptr first, Ptr last)`
+|Implements a default sorting algorithm to be called by the `joint_sort` algorithm.
+
+_Complexity_: Let `N` be `last - first`. `O(N*log_2(N))` comparisons.
+
+|`template<typename Group, typename T>
+T operator()(Group g, T val)`
+|Implements a default sorting algorithm to be called by the `sort_over_group` algorithm.
+
+_Complexity_: Let `N` be the work group size. `O(N*log_2(N))` comparisons.
+|===
+
+Table. Constructors of the `radix_sorter` class.
+|===
+|Constructor|Description
+
+|`radix_sorter(const std::bitset<sizeof(T) * CHAR_BIT> mask = std::bitset<sizeof(T) * CHAR_BIT>
+(std::numeric_limits<unsigned long long>::max()));`
+|Creates the `radix_sorter` object to sort values considering only bits
+that corresponds to 1 in `mask`.
+|===
+
+Table. Member functions of the `radix_sorter` class.
+|===
+|Member function|Description
+
+|`template<typename Group, typename Ptr>
+void operator()(Group g, Ptr first, Ptr last)`
+|Implements the radix sort algorithm to be called by the `joint_sort` algorithm.
+
+|`template<typename Group>
+T operator()(Group g, T val)`
+|Implements the radix sort algorithm to be called by the `sort_over_group` algorithm.
+|===
+
+==== Sort
+The sort function from the {cpp} standard sorts elements with respect to
+the binary comparison function object.
+
+SYCL provides two similar algorithms:
+
+`joint_sort` uses the work-items in a group to execute the corresponding
+algorithm in parallel.
+
+`sort_over_group` performs a sort over values held directly by the work-items
+in a group, and results returned to work-item `i` represent values that are in
+position `i` in the ordered range.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi {
+  template <typename Group, typename Ptr>
+  void joint_sort(Group g, Ptr first, Ptr last); // (1)
+
+  template <typename Group, typename Ptr, typename Compare>
+  void joint_sort(Group g, Ptr first, Ptr last, Compare comp); // (2)
+
+  template <typename Group, typename Ptr, typename Sorter>
+  void joint_sort(Group g, Ptr first, Ptr last, Sorter sorter); // (3)
+
+  template <typename Group, typename T>
+  T sort_over_group(Group g, T val); // (4)
+
+  template <typename Group, typename T, typename Compare>
+  T sort_over_group(Group g, T val, Compare comp); // (5)
+
+  template <typename Group, typename T, typename Sorter>
+  T sort_over_group(Group g, T val, Sorter sorter); // (6)
+}
+----
+
+_Constraints_: All functions are available only if `sycl::is_group_v<std::decay_t<Group>>`
+is true and `Sorter` is a SYCL Sorter.
+
+_Preconditions_: `first`, `last` must be the same for all work-items in the group.
+
+1._Effects_: Sort the elements in the range `[first, last)`.
+Elements are compared by `operator<`.
+
+_Complexity_: Let `N` be `last - first`. `O(N*log_2(N))` comparisons.
+
+2._Mandates_: `comp` must satisfy the requirements of `Compare` from
+the {cpp} standard.
+
+_Effects_: Sort the elements in the range `[first, last)` with respect to the
+binary comparison function object `comp`.
+
+_Complexity_: Let `N` be `last - first`. `O(N*log_2(N))` comparisons.
+
+3._Effects_: Equivalent to: `sorter(g, first, last)`.
+
+4._Returns_: The value returned on work-item `i` is the value in position `i`
+of the ordered range resulting from sorting `val` from all work-items in the
+`g` group. Elements are compared by `operator<`.
+For multi-dimensional groups, the order of work-items in the group is
+determined by their linear id.
+
+_Complexity_: Let `N` be the work group size. `O(N*log_2(N))` comparisons.
+
+5._Mandates_: `comp` must satisfy the requirements of `Compare` from
+the {cpp} standard.
+
+_Returns_: The value returned on work-item `i` is the value in position `i`
+of the ordered range resulting from sorting `val` from all work-items in the
+`g` group with respect to the binary comparison function object `comp`.
+For multi-dimensional groups, the order of work-items in the group is
+determined by their linear id.
+
+_Complexity_: Let `N` be the work group size. `O(N*log_2(N))` comparisons.
+
+6._Effects_: Equivalent to: `return sorter(g, val)`.
+
+== Issues
+
+. Sort function can have interfaces with static arrays in private memory as well.
+The concern is that it can require changes for other group algortihms as well since sort
+basing on private memory is not very useful if other algorithms in the chain use local
+memory only.
+. It can be a separate proposal for key-value sorting basing on Projections.
+It needs to be investigated what is the response for that.
+. Sorter traits can be useful if there are Finder, Reducer or other objects
+will be added to the Spec to be used with other Group algorithms, e.g. find, reduce.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|{docdate}|Andrey Fedorov|Initial public working draft
+|========================================

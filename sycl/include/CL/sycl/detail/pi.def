@@ -128,6 +128,9 @@ _PI_API(piextUSMGetMemAllocInfo)
 
 _PI_API(piextKernelSetArgMemObj)
 _PI_API(piextKernelSetArgSampler)
+
+_PI_API(piextPluginGetOpaqueData)
+
 _PI_API(piTearDown)
 
 #undef _PI_API

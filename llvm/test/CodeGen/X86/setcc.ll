@@ -2,9 +2,6 @@
 ; RUN: llc < %s -mtriple=x86_64-apple-darwin | FileCheck %s
 ; rdar://7329206
 
-; Use sbb x, x to materialize carry bit in a GPR. The value is either
-; all 1's or all 0's.
-
 define zeroext i16 @t1(i16 zeroext %x) nounwind readnone ssp {
 ; CHECK-LABEL: t1:
 ; CHECK:       ## %bb.0:
@@ -49,7 +46,7 @@ define i64 @t3(i64 %x) nounwind readnone ssp {
 define i32 @t4(i32 %a) {
 ; CHECK-LABEL: t4:
 ; CHECK:       ## %bb.0:
-; CHECK-NEXT:    movq _v4@{{.*}}(%rip), %rax
+; CHECK-NEXT:    movq _v4@GOTPCREL(%rip), %rax
 ; CHECK-NEXT:    cmpl $1, (%rax)
 ; CHECK-NEXT:    movw $1, %ax
 ; CHECK-NEXT:    adcw $0, %ax

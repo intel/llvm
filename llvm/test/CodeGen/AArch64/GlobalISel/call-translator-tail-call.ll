@@ -181,9 +181,9 @@ define void @test_varargs() {
   ; WINDOWS:   [[C1:%[0-9]+]]:_(s64) = G_FCONSTANT double 1.000000e+00
   ; WINDOWS:   [[C2:%[0-9]+]]:_(s64) = G_CONSTANT i64 12
   ; WINDOWS:   $w0 = COPY [[C]](s32)
-  ; WINDOWS:   $d0 = COPY [[C1]](s64)
-  ; WINDOWS:   $x1 = COPY [[C2]](s64)
-  ; WINDOWS:   TCRETURNdi @varargs, 0, csr_aarch64_aapcs, implicit $sp, implicit $w0, implicit $d0, implicit $x1
+  ; WINDOWS:   $x1 = COPY [[C1]](s64)
+  ; WINDOWS:   $x2 = COPY [[C2]](s64)
+  ; WINDOWS:   TCRETURNdi @varargs, 0, csr_aarch64_aapcs, implicit $sp, implicit $w0, implicit $x1, implicit $x2
   tail call void(i32, double, i64, ...) @varargs(i32 42, double 1.0, i64 12)
   ret void
 }
@@ -217,10 +217,10 @@ define void @test_varargs_2() {
   ; WINDOWS:   [[C2:%[0-9]+]]:_(s64) = G_CONSTANT i64 12
   ; WINDOWS:   [[C3:%[0-9]+]]:_(s64) = G_CONSTANT i64 314
   ; WINDOWS:   $w0 = COPY [[C]](s32)
-  ; WINDOWS:   $d0 = COPY [[C1]](s64)
-  ; WINDOWS:   $x1 = COPY [[C2]](s64)
-  ; WINDOWS:   $x2 = COPY [[C3]](s64)
-  ; WINDOWS:   TCRETURNdi @varargs, 0, csr_aarch64_aapcs, implicit $sp, implicit $w0, implicit $d0, implicit $x1, implicit $x2
+  ; WINDOWS:   $x1 = COPY [[C1]](s64)
+  ; WINDOWS:   $x2 = COPY [[C2]](s64)
+  ; WINDOWS:   $x3 = COPY [[C3]](s64)
+  ; WINDOWS:   TCRETURNdi @varargs, 0, csr_aarch64_aapcs, implicit $sp, implicit $w0, implicit $x1, implicit $x2, implicit $x3
   tail call void(i32, double, i64, ...) @varargs(i32 42, double 1.0, i64 12, i64 314)
   ret void
 }
@@ -276,10 +276,10 @@ define void @test_varargs_3([8 x <2 x double>], <4 x half> %arg) {
   ; WINDOWS:   [[C2:%[0-9]+]]:_(s64) = G_CONSTANT i64 12
   ; WINDOWS:   [[C3:%[0-9]+]]:_(s64) = G_CONSTANT i64 314
   ; WINDOWS:   $w0 = COPY [[C]](s32)
-  ; WINDOWS:   $d0 = COPY [[C1]](s64)
-  ; WINDOWS:   $x1 = COPY [[C2]](s64)
-  ; WINDOWS:   $x2 = COPY [[C3]](s64)
-  ; WINDOWS:   TCRETURNdi @varargs, 0, csr_aarch64_aapcs, implicit $sp, implicit $w0, implicit $d0, implicit $x1, implicit $x2
+  ; WINDOWS:   $x1 = COPY [[C1]](s64)
+  ; WINDOWS:   $x2 = COPY [[C2]](s64)
+  ; WINDOWS:   $x3 = COPY [[C3]](s64)
+  ; WINDOWS:   TCRETURNdi @varargs, 0, csr_aarch64_aapcs, implicit $sp, implicit $w0, implicit $x1, implicit $x2, implicit $x3
   tail call void(i32, double, i64, ...) @varargs(i32 42, double 1.0, i64 12, i64 314)
   ret void
 }
@@ -447,5 +447,33 @@ define void @foo(i32*) {
   ; WINDOWS:   $x0 = COPY [[C]](p0)
   ; WINDOWS:   TCRETURNdi @must_callee, 0, csr_aarch64_aapcs, implicit $sp, implicit $x0
   musttail call void @must_callee(i8* null)
+  ret void
+}
+
+; Verify we emit a tail call with a type that requires splitting into
+; multiple registers.
+declare void @outgoing_v16f16(<16 x half>)
+define void @test_tail_call_outgoing_v16f16(<16 x half> %arg) {
+  ; DARWIN-LABEL: name: test_tail_call_outgoing_v16f16
+  ; DARWIN: bb.1 (%ir-block.0):
+  ; DARWIN:   liveins: $q0, $q1
+  ; DARWIN:   [[COPY:%[0-9]+]]:_(<8 x s16>) = COPY $q0
+  ; DARWIN:   [[COPY1:%[0-9]+]]:_(<8 x s16>) = COPY $q1
+  ; DARWIN:   [[CONCAT_VECTORS:%[0-9]+]]:_(<16 x s16>) = G_CONCAT_VECTORS [[COPY]](<8 x s16>), [[COPY1]](<8 x s16>)
+  ; DARWIN:   [[UV:%[0-9]+]]:_(<8 x s16>), [[UV1:%[0-9]+]]:_(<8 x s16>) = G_UNMERGE_VALUES [[CONCAT_VECTORS]](<16 x s16>)
+  ; DARWIN:   $q0 = COPY [[UV]](<8 x s16>)
+  ; DARWIN:   $q1 = COPY [[UV1]](<8 x s16>)
+  ; DARWIN:   TCRETURNdi @outgoing_v16f16, 0, csr_darwin_aarch64_aapcs, implicit $sp, implicit $q0, implicit $q1
+  ; WINDOWS-LABEL: name: test_tail_call_outgoing_v16f16
+  ; WINDOWS: bb.1 (%ir-block.0):
+  ; WINDOWS:   liveins: $q0, $q1
+  ; WINDOWS:   [[COPY:%[0-9]+]]:_(<8 x s16>) = COPY $q0
+  ; WINDOWS:   [[COPY1:%[0-9]+]]:_(<8 x s16>) = COPY $q1
+  ; WINDOWS:   [[CONCAT_VECTORS:%[0-9]+]]:_(<16 x s16>) = G_CONCAT_VECTORS [[COPY]](<8 x s16>), [[COPY1]](<8 x s16>)
+  ; WINDOWS:   [[UV:%[0-9]+]]:_(<8 x s16>), [[UV1:%[0-9]+]]:_(<8 x s16>) = G_UNMERGE_VALUES [[CONCAT_VECTORS]](<16 x s16>)
+  ; WINDOWS:   $q0 = COPY [[UV]](<8 x s16>)
+  ; WINDOWS:   $q1 = COPY [[UV1]](<8 x s16>)
+  ; WINDOWS:   TCRETURNdi @outgoing_v16f16, 0, csr_aarch64_aapcs, implicit $sp, implicit $q0, implicit $q1
+  tail call void @outgoing_v16f16(<16 x half> %arg)
   ret void
 }

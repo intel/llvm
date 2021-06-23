@@ -32,6 +32,7 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SourceMgr.h"
@@ -114,6 +115,13 @@ static cl::opt<unsigned>
     NumRepetitions("num-repetitions",
                    cl::desc("number of time to repeat the asm snippet"),
                    cl::cat(BenchmarkOptions), cl::init(10000));
+
+static cl::opt<unsigned>
+    LoopBodySize("loop-body-size",
+                 cl::desc("when repeating the instruction snippet by looping "
+                          "over it, duplicate the snippet until the loop body "
+                          "contains at least this many instruction"),
+                 cl::cat(BenchmarkOptions), cl::init(0));
 
 static cl::opt<unsigned> MaxConfigsPerOpcode(
     "max-configs-per-opcode",
@@ -364,7 +372,7 @@ void benchmarkMain() {
 
   for (const BenchmarkCode &Conf : Configurations) {
     InstructionBenchmark Result = ExitOnErr(Runner->runConfiguration(
-        Conf, NumRepetitions, Repetitors, DumpObjectToDisk));
+        Conf, NumRepetitions, LoopBodySize, Repetitors, DumpObjectToDisk));
     ExitOnFileError(BenchmarkFile, Result.writeYaml(State, BenchmarkFile));
   }
   exegesis::pfm::pfmTerminate();
@@ -436,7 +444,7 @@ static void analysisMain() {
 
   const Analysis Analyzer(*TheTarget, std::move(InstrInfo), Clustering,
                           AnalysisInconsistencyEpsilon,
-                          AnalysisDisplayUnstableOpcodes);
+                          AnalysisDisplayUnstableOpcodes, CpuName);
 
   maybeRunAnalysis<Analysis::PrintClusters>(Analyzer, "analysis clusters",
                                             AnalysisClustersOutputFile);

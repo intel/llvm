@@ -23,6 +23,8 @@ struct TestCtx {
 
 std::unique_ptr<TestCtx> TestContext;
 
+const int ExpectedEventThreshold = 128;
+
 pi_result redefinedUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
                                     size_t count,
                                     pi_uint32 num_events_in_waitlist,
@@ -44,10 +46,16 @@ pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
                                 size_t *param_value_size_ret) {
   EXPECT_EQ(param_name, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS)
       << "Unexpected event info requested";
-  // Report half of events as complete
+  // Report first half of events as complete.
+  // Report second half of events as running.
+  // This is important, because removal algorithm assumes that
+  // events are likely to be removed oldest first, and stops removing
+  // at the first non-completed event.
   static int Counter = 0;
   auto *Result = reinterpret_cast<pi_event_status *>(param_value);
-  *Result = (++Counter % 2 == 0) ? PI_EVENT_COMPLETE : PI_EVENT_RUNNING;
+  *Result = (Counter < (ExpectedEventThreshold / 2)) ? PI_EVENT_COMPLETE
+                                                     : PI_EVENT_RUNNING;
+  Counter++;
   return PI_SUCCESS;
 }
 
@@ -117,7 +125,6 @@ TEST(QueueEventClear, CleanupOnThreshold) {
   queue Q{Ctx, default_selector()};
 
   unsigned char *HostAlloc = (unsigned char *)malloc_host(1, Ctx);
-  const int ExpectedEventThreshold = 128;
   TestContext->EventReferenceCount = ExpectedEventThreshold;
   for (size_t I = 0; I < ExpectedEventThreshold; ++I) {
     Q.memset(HostAlloc, 42, 1).wait();

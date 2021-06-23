@@ -236,12 +236,12 @@ define <2 x half> @test_fdiv(<2 x half> %a, <2 x half> %b) #0 {
 ; CHECK-DAG:  cvt.f32.f16     [[FB1:%f[0-9]+]], [[B1]];
 ; -- frem(a[0],b[0]).
 ; CHECK-DAG:  div.rn.f32      [[FD0:%f[0-9]+]], [[FA0]], [[FB0]];
-; CHECK-DAG:  cvt.rmi.f32.f32 [[DI0:%f[0-9]+]], [[FD0]];
+; CHECK-DAG:  cvt.rzi.f32.f32 [[DI0:%f[0-9]+]], [[FD0]];
 ; CHECK-DAG:  mul.f32         [[RI0:%f[0-9]+]], [[DI0]], [[FB0]];
 ; CHECK-DAG:  sub.f32         [[RF0:%f[0-9]+]], [[FA0]], [[RI0]];
 ; -- frem(a[1],b[1]).
 ; CHECK-DAG:  div.rn.f32      [[FD1:%f[0-9]+]], [[FA1]], [[FB1]];
-; CHECK-DAG:  cvt.rmi.f32.f32 [[DI1:%f[0-9]+]], [[FD1]];
+; CHECK-DAG:  cvt.rzi.f32.f32 [[DI1:%f[0-9]+]], [[FD1]];
 ; CHECK-DAG:  mul.f32         [[RI1:%f[0-9]+]], [[DI1]], [[FB1]];
 ; CHECK-DAG:  sub.f32         [[RF1:%f[0-9]+]], [[FA1]], [[RI1]];
 ; -- convert back to f16.
@@ -990,7 +990,7 @@ define <2 x half> @test_bitcast_2xi16_to_2xhalf(<2 x i16> %a) #0 {
 
 
 declare <2 x half> @llvm.sqrt.f16(<2 x half> %a) #0
-declare <2 x half> @llvm.powi.f16(<2 x half> %a, <2 x i32> %b) #0
+declare <2 x half> @llvm.powi.f16.i32(<2 x half> %a, <2 x i32> %b) #0
 declare <2 x half> @llvm.sin.f16(<2 x half> %a) #0
 declare <2 x half> @llvm.cos.f16(<2 x half> %a) #0
 declare <2 x half> @llvm.pow.f16(<2 x half> %a, <2 x half> %b) #0
@@ -1032,7 +1032,7 @@ define <2 x half> @test_sqrt(<2 x half> %a) #0 {
 ;;; Can't do this yet: requires libcall.
 ; XCHECK-LABEL: test_powi(
 ;define <2 x half> @test_powi(<2 x half> %a, <2 x i32> %b) #0 {
-;  %r = call <2 x half> @llvm.powi.f16(<2 x half> %a, <2 x i32> %b)
+;  %r = call <2 x half> @llvm.powi.f16.i32(<2 x half> %a, <2 x i32> %b)
 ;  ret <2 x half> %r
 ;}
 

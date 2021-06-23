@@ -3,6 +3,7 @@
 #if (SYCL_EXT_ONEAPI_MATRIX == 1)
 #include <iostream>
 
+using namespace sycl;
 using namespace sycl::intel;
 using namespace sycl::ext::intel::experimental::matrix;
 

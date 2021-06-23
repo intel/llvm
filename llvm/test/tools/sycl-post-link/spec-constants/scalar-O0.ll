@@ -14,8 +14,6 @@ target triple = "spir64-unknown-linux-sycldevice"
 $FOO = comdat any
 
 @__unique_stable_name.FOO = private unnamed_addr constant [18 x i8] c"_ZTS11MyBoolConst\00", align 1
-; check that post link removes the no longer used global
-; CHECK-NOT: @__unique_stable_name.FOO
 
 declare dso_local spir_func zeroext i1 @_Z33__sycl_getScalarSpecConstantValueIbET_PKc(i8 addrspace(4)*) #7
 
@@ -39,7 +37,7 @@ define spir_func zeroext i1 @FOO(%"UserSpecConstIDType" addrspace(4)* %0) comdat
   %7 = call spir_func zeroext i1 @_Z33__sycl_getScalarSpecConstantValueIbET_PKc(i8 addrspace(4)* %6)
 ; with -spec-const=rt the __sycl_getSpecConstantValue is replaced with
 ;  SPIRV intrinsic
-; CHECK-RT: %{{[0-9]+}} = call i1 @_Z20__spirv_SpecConstantib(i32 0, i1 false), !SYCL_SPEC_CONST_SYM_ID ![[MD_ID:[0-9]+]]
+; CHECK-RT: %{{[0-9]+}} = call i1 @_Z20__spirv_SpecConstantib(i32 0, i1 false)
   %8 = bitcast i8 addrspace(4)** %3 to i8*
   call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #8
   ret i1 %7
@@ -65,4 +63,6 @@ attributes #8 = { nounwind }
 !9 = !{!"any pointer", !10, i64 0}
 !10 = !{!"omnipotent char", !11, i64 0}
 !11 = !{!"Simple C++ TBAA"}
-; CHECK-RT: ![[MD_ID]] = !{!"_ZTS11MyBoolConst", i32 0}
+
+; CHECK-RT: !sycl.specialization-constants = !{![[#MD:]]}
+; CHECK-RT: ![[#MD]] = !{!"_ZTS11MyBoolConst", i32 0, i32 0, i32 1}

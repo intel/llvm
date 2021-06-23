@@ -49,16 +49,12 @@ template <class SizeClassAllocator> struct SizeClassAllocatorLocalCache {
     CompactPtrT Batch[MaxNumCached];
   };
 
-  void initLinkerInitialized(GlobalStats *S, SizeClassAllocator *A) {
-    Stats.initLinkerInitialized();
+  void init(GlobalStats *S, SizeClassAllocator *A) {
+    DCHECK(isEmpty());
+    Stats.init();
     if (LIKELY(S))
       S->link(&Stats);
     Allocator = A;
-  }
-
-  void init(GlobalStats *S, SizeClassAllocator *A) {
-    memset(this, 0, sizeof(*this));
-    initLinkerInitialized(S, A);
   }
 
   void destroy(GlobalStats *S) {
@@ -135,12 +131,13 @@ private:
   struct PerClass {
     u32 Count;
     u32 MaxCount;
+    // Note: ClassSize is zero for the transfer batch.
     uptr ClassSize;
     CompactPtrT Chunks[2 * TransferBatch::MaxNumCached];
   };
-  PerClass PerClassArray[NumClasses];
+  PerClass PerClassArray[NumClasses] = {};
   LocalStats Stats;
-  SizeClassAllocator *Allocator;
+  SizeClassAllocator *Allocator = nullptr;
 
   ALWAYS_INLINE void initCacheMaybe(PerClass *C) {
     if (LIKELY(C->MaxCount))
@@ -154,7 +151,13 @@ private:
       PerClass *P = &PerClassArray[I];
       const uptr Size = SizeClassAllocator::getSizeByClassId(I);
       P->MaxCount = 2 * TransferBatch::getMaxCached(Size);
-      P->ClassSize = Size;
+      if (I != BatchClassId) {
+        P->ClassSize = Size;
+      } else {
+        // ClassSize in this struct is only used for malloc/free stats, which
+        // should only track user allocations, not internal movements.
+        P->ClassSize = 0;
+      }
     }
   }
 

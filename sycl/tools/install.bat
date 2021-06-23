@@ -117,7 +117,7 @@ echo ### 4. Create symbolink links to TBB files in %OCL_RT_DIR%tbb
 echo ###
 if "%1" == "" (
   echo No TBB libraries path is specified
-  echo Create symbolic link or copy tbb.dll and tbbmalloc.tbb to %OCL_RT_DIR%tbb\ after installation
+  echo Create symbolic link or copy tbb12.dll and tbbmalloc.tbb to %OCL_RT_DIR%tbb\ after installation
 ) else (
   IF EXIST %OCL_RT_DIR%tbb (
     rmdir %OCL_RT_DIR%tbb
@@ -133,9 +133,9 @@ echo on
     echo !!! Cannot create symbolic link for tbbmalloc.dll
     set INSTALL_ERRORS=1
   )
-  mklink %OCL_RT_DIR%tbb\tbb.dll %1\tbb.dll
+  mklink %OCL_RT_DIR%tbb\tbb12.dll %1\tbb12.dll
   IF ERRORLEVEL 1 (
-    echo !!! Cannot create symbolic link for tbb.dll
+    echo !!! Cannot create symbolic link for tbb12.dll
     set INSTALL_ERRORS=1
   )
 echo off

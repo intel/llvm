@@ -18,7 +18,7 @@ extensible by design, any potential additions are heavily scrutinized.
 ## Location Attributes
 
 A subset of the builtin attribute values correspond to
-[source locations](../Diagnostics.md#source-locations), that may be attached to
+[source locations](../Diagnostics.md/#source-locations), that may be attached to
 Operations.
 
 [include "Dialects/BuiltinLocationAttributes.md"]
@@ -30,3 +30,7 @@ Operations.
 ## Types
 
 [include "Dialects/BuiltinTypes.md"]
+
+## Type Interfaces
+
+[include "Dialects/BuiltinTypeInterfaces.md"]

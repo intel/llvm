@@ -166,11 +166,15 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationFunctionFloatingPointModeINTEL,
       "FunctionFloatingPointModeINTEL");
   add(DecorationSingleElementVectorINTEL, "SingleElementVectorINTEL");
-  add(DecorationCallableFunctionINTEL, "CallableFunctionINTEL");
+  add(internal::DecorationCallableFunctionINTEL, "CallableFunctionINTEL");
   add(DecorationStallEnableINTEL, "StallEnableINTEL");
   add(DecorationFuseLoopsInFunctionINTEL, "FuseLoopsInFunctionINTEL");
+  add(internal::DecorationMathOpDSPModeINTEL, "MathOpDSPModeINTEL");
   add(internal::DecorationAliasScopeINTEL, "AliasScopeINTEL");
   add(internal::DecorationNoAliasINTEL, "NoAliasINTEL");
+  add(internal::DecorationInitiationIntervalINTEL, "InitiationIntervalINTEL");
+  add(internal::DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
+  add(internal::DecorationPipelineEnableINTEL, "PipelineEnableINTEL");
   add(DecorationMax, "Max");
 }
 SPIRV_DEF_NAMEMAP(Decoration, SPIRVDecorationNameMap)
@@ -517,11 +521,15 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFPGAClusterAttributesINTEL, "FPGAClusterAttributesINTEL");
   add(CapabilityLoopFuseINTEL, "LoopFuseINTEL");
   add(CapabilityMax, "Max");
+  add(internal::CapabilityFPGADSPControlINTEL, "FPGADSPControlINTEL");
   add(CapabilityLongConstantCompositeINTEL, "LongConstantCompositeINTEL");
-  add(CapabilityFastCompositeINTEL, "FastCompositeINTEL");
+  add(internal::CapabilityFastCompositeINTEL, "FastCompositeINTEL");
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(internal::CapabilityMemoryAccessAliasingINTEL,
       "MemoryAccessAliasingINTEL");
+  add(internal::CapabilityFPGAInvocationPipeliningAttributesINTEL,
+      "FPGAInvocationPipeliningAttributesINTEL");
+  add(internal::CapabilityTokenTypeINTEL, "TokenTypeINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

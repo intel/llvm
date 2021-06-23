@@ -139,6 +139,12 @@ public:
     return result;
   }
 
+  MPFRNumber expm1() const {
+    MPFRNumber result;
+    mpfr_expm1(result.value, value, MPFR_RNDN);
+    return result;
+  }
+
   MPFRNumber floor() const {
     MPFRNumber result;
     mpfr_floor(result.value, value);
@@ -207,6 +213,12 @@ public:
     return result;
   }
 
+  MPFRNumber tan() const {
+    MPFRNumber result;
+    mpfr_tan(result.value, value, MPFR_RNDN);
+    return result;
+  }
+
   MPFRNumber trunc() const {
     MPFRNumber result;
     mpfr_trunc(result.value, value);
@@ -264,12 +276,12 @@ public:
     mpfr_abs(mpfrInput.value, mpfrInput.value, MPFR_RNDN);
 
     // get eps(input)
-    int epsExponent = bits.exponent - fputil::FPBits<T>::exponentBias -
+    int epsExponent = bits.encoding.exponent - fputil::FPBits<T>::exponentBias -
                       fputil::MantissaWidth<T>::value;
-    if (bits.exponent == 0) {
+    if (bits.encoding.exponent == 0) {
       // correcting denormal exponent
       ++epsExponent;
-    } else if ((bits.mantissa == 0) && (bits.exponent > 1) &&
+    } else if ((bits.encoding.mantissa == 0) && (bits.encoding.exponent > 1) &&
                mpfr_less_p(value, mpfrInput.value)) {
       // when the input is exactly 2^n, distance (epsilon) between the input
       // and the next floating point number is different from the distance to
@@ -303,6 +315,8 @@ unaryOperation(Operation op, InputType input) {
     return mpfrInput.exp();
   case Operation::Exp2:
     return mpfrInput.exp2();
+  case Operation::Expm1:
+    return mpfrInput.expm1();
   case Operation::Floor:
     return mpfrInput.floor();
   case Operation::Round:
@@ -311,6 +325,8 @@ unaryOperation(Operation op, InputType input) {
     return mpfrInput.sin();
   case Operation::Sqrt:
     return mpfrInput.sqrt();
+  case Operation::Tan:
+    return mpfrInput.tan();
   case Operation::Trunc:
     return mpfrInput.trunc();
   default:
@@ -567,7 +583,7 @@ bool compareUnaryOperationSingleOutput(Operation op, T input, T libcResult,
   // is rounded to the nearest even.
   MPFRNumber mpfrResult = unaryOperation(op, input);
   double ulp = mpfrResult.ulp(libcResult);
-  bool bitsAreEven = ((FPBits<T>(libcResult).bitsAsUInt() & 1) == 0);
+  bool bitsAreEven = ((FPBits<T>(libcResult).uintval() & 1) == 0);
   return (ulp < ulpError) ||
          ((ulp == ulpError) && ((ulp != 0.5) || bitsAreEven));
 }
@@ -592,7 +608,7 @@ bool compareUnaryOperationTwoOutputs(Operation op, T input,
   if (mpfrIntResult != libcResult.i)
     return false;
 
-  bool bitsAreEven = ((FPBits<T>(libcResult.f).bitsAsUInt() & 1) == 0);
+  bool bitsAreEven = ((FPBits<T>(libcResult.f).uintval() & 1) == 0);
   return (ulp < ulpError) ||
          ((ulp == ulpError) && ((ulp != 0.5) || bitsAreEven));
 }
@@ -624,7 +640,7 @@ bool compareBinaryOperationTwoOutputs(Operation op, const BinaryInput<T> &input,
     }
   }
 
-  bool bitsAreEven = ((FPBits<T>(libcResult.f).bitsAsUInt() & 1) == 0);
+  bool bitsAreEven = ((FPBits<T>(libcResult.f).uintval() & 1) == 0);
   return (ulp < ulpError) ||
          ((ulp == ulpError) && ((ulp != 0.5) || bitsAreEven));
 }
@@ -645,7 +661,7 @@ bool compareBinaryOperationOneOutput(Operation op, const BinaryInput<T> &input,
   MPFRNumber mpfrResult = binaryOperationOneOutput(op, input.x, input.y);
   double ulp = mpfrResult.ulp(libcResult);
 
-  bool bitsAreEven = ((FPBits<T>(libcResult).bitsAsUInt() & 1) == 0);
+  bool bitsAreEven = ((FPBits<T>(libcResult).uintval() & 1) == 0);
   return (ulp < ulpError) ||
          ((ulp == ulpError) && ((ulp != 0.5) || bitsAreEven));
 }
@@ -667,7 +683,7 @@ bool compareTernaryOperationOneOutput(Operation op,
       ternaryOperationOneOutput(op, input.x, input.y, input.z);
   double ulp = mpfrResult.ulp(libcResult);
 
-  bool bitsAreEven = ((FPBits<T>(libcResult).bitsAsUInt() & 1) == 0);
+  bool bitsAreEven = ((FPBits<T>(libcResult).uintval() & 1) == 0);
   return (ulp < ulpError) ||
          ((ulp == ulpError) && ((ulp != 0.5) || bitsAreEven));
 }

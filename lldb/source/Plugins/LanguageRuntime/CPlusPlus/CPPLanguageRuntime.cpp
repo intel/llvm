@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <string.h>
+#include <cstring>
 
 #include <memory>
 
@@ -321,6 +321,9 @@ CPPLanguageRuntime::FindLibCppStdFunctionCallableInfo(
       calculate_symbol_context_helper(func_sp, scl);
     }
   }
+
+  if (symbol == nullptr)
+    return optional_info;
 
   // Case 1 or 3
   if (scl.GetSize() >= 1) {

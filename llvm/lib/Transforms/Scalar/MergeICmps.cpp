@@ -277,8 +277,8 @@ void BCECmpBlock::split(BasicBlock *NewParent, AliasAnalysis &AA) const {
   for (Instruction &Inst : *BB) {
     if (BlockInsts.count(&Inst))
       continue;
-      assert(canSinkBCECmpInst(&Inst, BlockInsts, AA) &&
-             "Split unsplittable block");
+    assert(canSinkBCECmpInst(&Inst, BlockInsts, AA) &&
+           "Split unsplittable block");
     // This is a non-BCE-cmp-block instruction. And it can be separated
     // from the BCE-cmp-block instruction.
     OtherInsts.push_back(&Inst);
@@ -732,8 +732,7 @@ bool BCECmpChain::simplify(const TargetLibraryInfo &TLI, AliasAnalysis &AA,
 
   // If the old cmp chain was the function entry, we need to update the function
   // entry.
-  const bool ChainEntryIsFnEntry =
-      (EntryBlock_ == &EntryBlock_->getParent()->getEntryBlock());
+  const bool ChainEntryIsFnEntry = EntryBlock_->isEntryBlock();
   if (ChainEntryIsFnEntry && DTU.hasDomTree()) {
     LLVM_DEBUG(dbgs() << "Changing function entry from "
                       << EntryBlock_->getName() << " to "
@@ -939,7 +938,6 @@ PreservedAnalyses MergeICmpsPass::run(Function &F,
   if (!MadeChanges)
     return PreservedAnalyses::all();
   PreservedAnalyses PA;
-  PA.preserve<GlobalsAA>();
   PA.preserve<DominatorTreeAnalysis>();
   return PA;
 }

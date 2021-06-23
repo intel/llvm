@@ -163,7 +163,7 @@ Pass *createArgumentPromotionPass(unsigned maxElements = 3);
 
 //===----------------------------------------------------------------------===//
 /// createOpenMPOptLegacyPass - OpenMP specific optimizations.
-Pass *createOpenMPOptLegacyPass();
+Pass *createOpenMPOptCGSCCLegacyPass();
 
 //===----------------------------------------------------------------------===//
 /// createIPSCCPPass - This pass propagates constants from call sites into the
@@ -171,6 +171,11 @@ Pass *createOpenMPOptLegacyPass();
 /// in the process.
 ///
 ModulePass *createIPSCCPPass();
+
+//===----------------------------------------------------------------------===//
+/// createFunctionSpecializationPass - This pass propagates constants from call
+/// sites to the specialized version of the callee function.
+ModulePass *createFunctionSpecializationPass();
 
 //===----------------------------------------------------------------------===//
 //

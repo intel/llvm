@@ -46,6 +46,7 @@
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
@@ -5557,7 +5558,10 @@ bool CodeGenPrepare::optimizeGatherScatterInst(Instruction *MemoryInst,
       NewAddr = Builder.CreateGEP(SourceTy, Ops[0],
                                   makeArrayRef(Ops).drop_front());
       auto *IndexTy = VectorType::get(ScalarIndexTy, NumElts);
-      NewAddr = Builder.CreateGEP(NewAddr, Constant::getNullValue(IndexTy));
+      auto *SecondTy = GetElementPtrInst::getIndexedType(
+          SourceTy, makeArrayRef(Ops).drop_front());
+      NewAddr =
+          Builder.CreateGEP(SecondTy, NewAddr, Constant::getNullValue(IndexTy));
     } else {
       Value *Base = Ops[0];
       Value *Index = Ops[FinalIndex];
@@ -5568,10 +5572,12 @@ bool CodeGenPrepare::optimizeGatherScatterInst(Instruction *MemoryInst,
         Ops[FinalIndex] = Constant::getNullValue(ScalarIndexTy);
         Base = Builder.CreateGEP(SourceTy, Base,
                                  makeArrayRef(Ops).drop_front());
+        SourceTy = GetElementPtrInst::getIndexedType(
+            SourceTy, makeArrayRef(Ops).drop_front());
       }
 
       // Now create the GEP with scalar pointer and vector index.
-      NewAddr = Builder.CreateGEP(Base, Index);
+      NewAddr = Builder.CreateGEP(SourceTy, Base, Index);
     }
   } else if (!isa<Constant>(Ptr)) {
     // Not a GEP, maybe its a splat and we can create a GEP to enable
@@ -5587,7 +5593,16 @@ bool CodeGenPrepare::optimizeGatherScatterInst(Instruction *MemoryInst,
     // Emit a vector GEP with a scalar pointer and all 0s vector index.
     Type *ScalarIndexTy = DL->getIndexType(V->getType()->getScalarType());
     auto *IndexTy = VectorType::get(ScalarIndexTy, NumElts);
-    NewAddr = Builder.CreateGEP(V, Constant::getNullValue(IndexTy));
+    Type *ScalarTy;
+    if (cast<IntrinsicInst>(MemoryInst)->getIntrinsicID() ==
+        Intrinsic::masked_gather) {
+      ScalarTy = MemoryInst->getType()->getScalarType();
+    } else {
+      assert(cast<IntrinsicInst>(MemoryInst)->getIntrinsicID() ==
+             Intrinsic::masked_scatter);
+      ScalarTy = MemoryInst->getOperand(0)->getType()->getScalarType();
+    }
+    NewAddr = Builder.CreateGEP(ScalarTy, V, Constant::getNullValue(IndexTy));
   } else {
     // Constant, SelectionDAGBuilder knows to check if its a splat.
     return false;
@@ -7660,9 +7675,8 @@ static bool tryUnmergingGEPsAcrossIndirectBr(GetElementPtrInst *GEPI,
   for (GetElementPtrInst *UGEPI : UGEPIs) {
     ConstantInt *UGEPIIdx = cast<ConstantInt>(UGEPI->getOperand(1));
     APInt NewIdx = UGEPIIdx->getValue() - GEPIIdx->getValue();
-    unsigned ImmCost =
-      TTI->getIntImmCost(NewIdx, GEPIIdx->getType(),
-                         TargetTransformInfo::TCK_SizeAndLatency);
+    InstructionCost ImmCost = TTI->getIntImmCost(
+        NewIdx, GEPIIdx->getType(), TargetTransformInfo::TCK_SizeAndLatency);
     if (ImmCost > TargetTransformInfo::TCC_Basic)
       return false;
   }
@@ -7686,6 +7700,67 @@ static bool tryUnmergingGEPsAcrossIndirectBr(GetElementPtrInst *GEPI,
         return cast<Instruction>(Usr)->getParent() != SrcBlock;
       }) == GEPIOp->users().end() && "GEPIOp is used outside SrcBlock");
   return true;
+}
+
+static bool optimizeBranch(BranchInst *Branch, const TargetLowering &TLI) {
+  // Try and convert
+  //  %c = icmp ult %x, 8
+  //  br %c, bla, blb
+  //  %tc = lshr %x, 3
+  // to
+  //  %tc = lshr %x, 3
+  //  %c = icmp eq %tc, 0
+  //  br %c, bla, blb
+  // Creating the cmp to zero can be better for the backend, especially if the
+  // lshr produces flags that can be used automatically.
+  if (!TLI.preferZeroCompareBranch() || !Branch->isConditional())
+    return false;
+
+  ICmpInst *Cmp = dyn_cast<ICmpInst>(Branch->getCondition());
+  if (!Cmp || !isa<ConstantInt>(Cmp->getOperand(1)) || !Cmp->hasOneUse())
+    return false;
+
+  Value *X = Cmp->getOperand(0);
+  APInt CmpC = cast<ConstantInt>(Cmp->getOperand(1))->getValue();
+
+  for (auto *U : X->users()) {
+    Instruction *UI = dyn_cast<Instruction>(U);
+    // A quick dominance check
+    if (!UI ||
+        (UI->getParent() != Branch->getParent() &&
+         UI->getParent() != Branch->getSuccessor(0) &&
+         UI->getParent() != Branch->getSuccessor(1)) ||
+        (UI->getParent() != Branch->getParent() &&
+         !UI->getParent()->getSinglePredecessor()))
+      continue;
+
+    if (CmpC.isPowerOf2() && Cmp->getPredicate() == ICmpInst::ICMP_ULT &&
+        match(UI, m_Shr(m_Specific(X), m_SpecificInt(CmpC.logBase2())))) {
+      IRBuilder<> Builder(Branch);
+      if (UI->getParent() != Branch->getParent())
+        UI->moveBefore(Branch);
+      Value *NewCmp = Builder.CreateCmp(ICmpInst::ICMP_EQ, UI,
+                                        ConstantInt::get(UI->getType(), 0));
+      LLVM_DEBUG(dbgs() << "Converting " << *Cmp << "\n");
+      LLVM_DEBUG(dbgs() << " to compare on zero: " << *NewCmp << "\n");
+      Cmp->replaceAllUsesWith(NewCmp);
+      return true;
+    }
+    if (Cmp->isEquality() &&
+        (match(UI, m_Add(m_Specific(X), m_SpecificInt(-CmpC))) ||
+         match(UI, m_Sub(m_Specific(X), m_SpecificInt(CmpC))))) {
+      IRBuilder<> Builder(Branch);
+      if (UI->getParent() != Branch->getParent())
+        UI->moveBefore(Branch);
+      Value *NewCmp = Builder.CreateCmp(Cmp->getPredicate(), UI,
+                                        ConstantInt::get(UI->getType(), 0));
+      LLVM_DEBUG(dbgs() << "Converting " << *Cmp << "\n");
+      LLVM_DEBUG(dbgs() << " to compare on zero: " << *NewCmp << "\n");
+      Cmp->replaceAllUsesWith(NewCmp);
+      return true;
+    }
+  }
+  return false;
 }
 
 bool CodeGenPrepare::optimizeInst(Instruction *I, bool &ModifiedDT) {
@@ -7849,6 +7924,8 @@ bool CodeGenPrepare::optimizeInst(Instruction *I, bool &ModifiedDT) {
     return optimizeSwitchInst(cast<SwitchInst>(I));
   case Instruction::ExtractElement:
     return optimizeExtractElementInst(cast<ExtractElementInst>(I));
+  case Instruction::Br:
+    return optimizeBranch(cast<BranchInst>(I), *TLI);
   }
 
   return false;

@@ -10,17 +10,17 @@
 
 // CHECK: static constexpr
 // CHECK-NEXT: const char* const kernel_names[] = {
-// CHECK-NEXT:   "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3GNU",
-// CHECK-NEXT:   "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3EMU",
-// CHECK-NEXT:   "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3OWL",
-// CHECK-NEXT:   "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3RAT",
-// CHECK-NEXT:   "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3FOX",
-// CHECK-NEXT:   "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3BEE"
+// CHECK-NEXT:   "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3GNU",
+// CHECK-NEXT:   "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3EMU",
+// CHECK-NEXT:   "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3OWL",
+// CHECK-NEXT:   "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3RAT",
+// CHECK-NEXT:   "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3FOX",
+// CHECK-NEXT:   "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3BEE"
 // CHECK-NEXT: };
 
 // CHECK:template <> struct KernelInfo<class GNU> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
-// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3GNU"; }
+// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3GNU"; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr unsigned getNumParams() { return 0; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -36,7 +36,7 @@
 // CHECK-NEXT:};
 // CHECK-NEXT:template <> struct KernelInfo<class EMU> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
-// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3EMU"; }
+// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3EMU"; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr unsigned getNumParams() { return 0; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -52,7 +52,7 @@
 // CHECK-NEXT:};
 // CHECK-NEXT:template <> struct KernelInfo<class OWL> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
-// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3OWL"; }
+// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3OWL"; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr unsigned getNumParams() { return 0; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -68,7 +68,7 @@
 // CHECK-NEXT:};
 // CHECK-NEXT:template <> struct KernelInfo<class RAT> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
-// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3RAT"; }
+// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3RAT"; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr unsigned getNumParams() { return 0; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -84,7 +84,7 @@
 // CHECK-NEXT:};
 // CHECK-NEXT:template <> struct KernelInfo<class FOX> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
-// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3FOX"; }
+// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3FOX"; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr unsigned getNumParams() { return 0; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -100,7 +100,7 @@
 // CHECK-NEXT:};
 // CHECK-NEXT:template <> struct KernelInfo<class BEE> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
-// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3BEE"; }
+// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3BEE"; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr unsigned getNumParams() { return 0; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL

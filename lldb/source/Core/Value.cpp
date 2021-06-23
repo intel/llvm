@@ -33,15 +33,12 @@
 #include <memory>
 #include <string>
 
-#include <inttypes.h>
+#include <cinttypes>
 
 using namespace lldb;
 using namespace lldb_private;
 
-Value::Value()
-    : m_value(), m_compiler_type(), m_context(nullptr),
-      m_value_type(ValueType::Scalar), m_context_type(ContextType::Invalid),
-      m_data_buffer() {}
+Value::Value() : m_value(), m_compiler_type(), m_data_buffer() {}
 
 Value::Value(const Scalar &scalar)
     : m_value(scalar), m_compiler_type(), m_context(nullptr),
@@ -525,15 +522,10 @@ Status Value::GetValueAsData(ExecutionContext *exe_ctx, DataExtractor &data,
     } else if ((address_type == eAddressTypeLoad) ||
                (address_type == eAddressTypeFile)) {
       if (file_so_addr.IsValid()) {
-        // We have a file address that we were able to translate into a section
-        // offset address so we might be able to read this from the object
-        // files if we don't have a live process. Lets always try and read from
-        // the process if we have one though since we want to read the actual
-        // value by setting "prefer_file_cache" to false.
-        const bool prefer_file_cache = false;
-        if (exe_ctx->GetTargetRef().ReadMemory(file_so_addr, prefer_file_cache,
-                                               dst, byte_size,
-                                               error) != byte_size) {
+        const bool force_live_memory = true;
+        if (exe_ctx->GetTargetRef().ReadMemory(file_so_addr, dst, byte_size,
+                                               error, force_live_memory) !=
+            byte_size) {
           error.SetErrorStringWithFormat(
               "read memory from 0x%" PRIx64 " failed", (uint64_t)address);
         }

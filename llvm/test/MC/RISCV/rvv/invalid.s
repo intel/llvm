@@ -551,10 +551,6 @@ vmsge.vx v0, v4, a0, v0.t
 # CHECK-ERROR: too few operands for instruction
 # CHECK-ERROR-LABEL: vmsge.vx v0, v4, a0, v0.t
 
-vmsge.vx v8, v4, a0, v0.t, v2
-# CHECK-ERROR: invalid operand for instruction
-# CHECK-ERROR-LABEL: vmsge.vx v8, v4, a0, v0.t, v2
-
 vmerge.vim v0, v1, 1, v0
 # CHECK-ERROR: The destination vector register group cannot be V0.
 # CHECK-ERROR-LABEL: vmerge.vim v0, v1, 1, v0
@@ -665,3 +661,14 @@ vs8r.v v6, (a0)
 vs8r.v v7, (a0)
 # CHECK-ERROR: invalid operand for instruction
 
+vmsge.vx v2, v4, a0, v0.t, v0
+# CHECK-ERROR: invalid operand for instruction
+
+vmsgeu.vx v2, v4, a0, v0.t, v0
+# CHECK-ERROR: invalid operand for instruction
+
+vmsge.vx v2, v4, a0, v0.t, v2
+# CHECK-ERROR: The temporary vector register cannot be the same as the destination register.
+
+vmsgeu.vx v2, v4, a0, v0.t, v2
+# CHECK-ERROR: The temporary vector register cannot be the same as the destination register.

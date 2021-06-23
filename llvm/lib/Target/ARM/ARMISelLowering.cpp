@@ -544,6 +544,7 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
   setLibcallName(RTLIB::SHL_I128, nullptr);
   setLibcallName(RTLIB::SRL_I128, nullptr);
   setLibcallName(RTLIB::SRA_I128, nullptr);
+  setLibcallName(RTLIB::MUL_I128, nullptr);
 
   // RTLIB
   if (Subtarget->isAAPCS_ABI() &&
@@ -769,9 +770,7 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
       addAllExtLoads(VT, InnerVT, Expand);
     }
 
-    setOperationAction(ISD::MULHS, VT, Expand);
     setOperationAction(ISD::SMUL_LOHI, VT, Expand);
-    setOperationAction(ISD::MULHU, VT, Expand);
     setOperationAction(ISD::UMUL_LOHI, VT, Expand);
 
     setOperationAction(ISD::BSWAP, VT, Expand);
@@ -949,6 +948,11 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::CTTZ_ZERO_UNDEF, MVT::v8i16, Custom);
     setOperationAction(ISD::CTTZ_ZERO_UNDEF, MVT::v4i32, Custom);
     setOperationAction(ISD::CTTZ_ZERO_UNDEF, MVT::v2i64, Custom);
+
+    for (MVT VT : MVT::fixedlen_vector_valuetypes()) {
+      setOperationAction(ISD::MULHS, VT, Expand);
+      setOperationAction(ISD::MULHU, VT, Expand);
+    }
 
     // NEON only has FMA instructions as of VFP4.
     if (!Subtarget->hasVFP4Base()) {
@@ -1609,210 +1613,208 @@ ARMTargetLowering::findRepresentativeClass(const TargetRegisterInfo *TRI,
 }
 
 const char *ARMTargetLowering::getTargetNodeName(unsigned Opcode) const {
+#define MAKE_CASE(V)                                                           \
+  case V:                                                                      \
+    return #V;
   switch ((ARMISD::NodeType)Opcode) {
-  case ARMISD::FIRST_NUMBER:  break;
-  case ARMISD::Wrapper:       return "ARMISD::Wrapper";
-  case ARMISD::WrapperPIC:    return "ARMISD::WrapperPIC";
-  case ARMISD::WrapperJT:     return "ARMISD::WrapperJT";
-  case ARMISD::COPY_STRUCT_BYVAL: return "ARMISD::COPY_STRUCT_BYVAL";
-  case ARMISD::CALL:          return "ARMISD::CALL";
-  case ARMISD::CALL_PRED:     return "ARMISD::CALL_PRED";
-  case ARMISD::CALL_NOLINK:   return "ARMISD::CALL_NOLINK";
-  case ARMISD::tSECALL:       return "ARMISD::tSECALL";
-  case ARMISD::BRCOND:        return "ARMISD::BRCOND";
-  case ARMISD::BR_JT:         return "ARMISD::BR_JT";
-  case ARMISD::BR2_JT:        return "ARMISD::BR2_JT";
-  case ARMISD::RET_FLAG:      return "ARMISD::RET_FLAG";
-  case ARMISD::SERET_FLAG:    return "ARMISD::SERET_FLAG";
-  case ARMISD::INTRET_FLAG:   return "ARMISD::INTRET_FLAG";
-  case ARMISD::PIC_ADD:       return "ARMISD::PIC_ADD";
-  case ARMISD::CMP:           return "ARMISD::CMP";
-  case ARMISD::CMN:           return "ARMISD::CMN";
-  case ARMISD::CMPZ:          return "ARMISD::CMPZ";
-  case ARMISD::CMPFP:         return "ARMISD::CMPFP";
-  case ARMISD::CMPFPE:        return "ARMISD::CMPFPE";
-  case ARMISD::CMPFPw0:       return "ARMISD::CMPFPw0";
-  case ARMISD::CMPFPEw0:      return "ARMISD::CMPFPEw0";
-  case ARMISD::BCC_i64:       return "ARMISD::BCC_i64";
-  case ARMISD::FMSTAT:        return "ARMISD::FMSTAT";
-
-  case ARMISD::CMOV:          return "ARMISD::CMOV";
-  case ARMISD::SUBS:          return "ARMISD::SUBS";
-
-  case ARMISD::SSAT:          return "ARMISD::SSAT";
-  case ARMISD::USAT:          return "ARMISD::USAT";
-
-  case ARMISD::ASRL:          return "ARMISD::ASRL";
-  case ARMISD::LSRL:          return "ARMISD::LSRL";
-  case ARMISD::LSLL:          return "ARMISD::LSLL";
-
-  case ARMISD::SRL_FLAG:      return "ARMISD::SRL_FLAG";
-  case ARMISD::SRA_FLAG:      return "ARMISD::SRA_FLAG";
-  case ARMISD::RRX:           return "ARMISD::RRX";
-
-  case ARMISD::ADDC:          return "ARMISD::ADDC";
-  case ARMISD::ADDE:          return "ARMISD::ADDE";
-  case ARMISD::SUBC:          return "ARMISD::SUBC";
-  case ARMISD::SUBE:          return "ARMISD::SUBE";
-  case ARMISD::LSLS:          return "ARMISD::LSLS";
-
-  case ARMISD::VMOVRRD:       return "ARMISD::VMOVRRD";
-  case ARMISD::VMOVDRR:       return "ARMISD::VMOVDRR";
-  case ARMISD::VMOVhr:        return "ARMISD::VMOVhr";
-  case ARMISD::VMOVrh:        return "ARMISD::VMOVrh";
-  case ARMISD::VMOVSR:        return "ARMISD::VMOVSR";
-
-  case ARMISD::EH_SJLJ_SETJMP: return "ARMISD::EH_SJLJ_SETJMP";
-  case ARMISD::EH_SJLJ_LONGJMP: return "ARMISD::EH_SJLJ_LONGJMP";
-  case ARMISD::EH_SJLJ_SETUP_DISPATCH: return "ARMISD::EH_SJLJ_SETUP_DISPATCH";
-
-  case ARMISD::TC_RETURN:     return "ARMISD::TC_RETURN";
-
-  case ARMISD::THREAD_POINTER:return "ARMISD::THREAD_POINTER";
-
-  case ARMISD::DYN_ALLOC:     return "ARMISD::DYN_ALLOC";
-
-  case ARMISD::MEMBARRIER_MCR: return "ARMISD::MEMBARRIER_MCR";
-
-  case ARMISD::PRELOAD:       return "ARMISD::PRELOAD";
-
-  case ARMISD::LDRD:          return "ARMISD::LDRD";
-  case ARMISD::STRD:          return "ARMISD::STRD";
-
-  case ARMISD::WIN__CHKSTK:   return "ARMISD::WIN__CHKSTK";
-  case ARMISD::WIN__DBZCHK:   return "ARMISD::WIN__DBZCHK";
-
-  case ARMISD::PREDICATE_CAST: return "ARMISD::PREDICATE_CAST";
-  case ARMISD::VECTOR_REG_CAST: return "ARMISD::VECTOR_REG_CAST";
-  case ARMISD::VCMP:          return "ARMISD::VCMP";
-  case ARMISD::VCMPZ:         return "ARMISD::VCMPZ";
-  case ARMISD::VTST:          return "ARMISD::VTST";
-
-  case ARMISD::VSHLs:         return "ARMISD::VSHLs";
-  case ARMISD::VSHLu:         return "ARMISD::VSHLu";
-  case ARMISD::VSHLIMM:       return "ARMISD::VSHLIMM";
-  case ARMISD::VSHRsIMM:      return "ARMISD::VSHRsIMM";
-  case ARMISD::VSHRuIMM:      return "ARMISD::VSHRuIMM";
-  case ARMISD::VRSHRsIMM:     return "ARMISD::VRSHRsIMM";
-  case ARMISD::VRSHRuIMM:     return "ARMISD::VRSHRuIMM";
-  case ARMISD::VRSHRNIMM:     return "ARMISD::VRSHRNIMM";
-  case ARMISD::VQSHLsIMM:     return "ARMISD::VQSHLsIMM";
-  case ARMISD::VQSHLuIMM:     return "ARMISD::VQSHLuIMM";
-  case ARMISD::VQSHLsuIMM:    return "ARMISD::VQSHLsuIMM";
-  case ARMISD::VQSHRNsIMM:    return "ARMISD::VQSHRNsIMM";
-  case ARMISD::VQSHRNuIMM:    return "ARMISD::VQSHRNuIMM";
-  case ARMISD::VQSHRNsuIMM:   return "ARMISD::VQSHRNsuIMM";
-  case ARMISD::VQRSHRNsIMM:   return "ARMISD::VQRSHRNsIMM";
-  case ARMISD::VQRSHRNuIMM:   return "ARMISD::VQRSHRNuIMM";
-  case ARMISD::VQRSHRNsuIMM:  return "ARMISD::VQRSHRNsuIMM";
-  case ARMISD::VSLIIMM:       return "ARMISD::VSLIIMM";
-  case ARMISD::VSRIIMM:       return "ARMISD::VSRIIMM";
-  case ARMISD::VGETLANEu:     return "ARMISD::VGETLANEu";
-  case ARMISD::VGETLANEs:     return "ARMISD::VGETLANEs";
-  case ARMISD::VMOVIMM:       return "ARMISD::VMOVIMM";
-  case ARMISD::VMVNIMM:       return "ARMISD::VMVNIMM";
-  case ARMISD::VMOVFPIMM:     return "ARMISD::VMOVFPIMM";
-  case ARMISD::VDUP:          return "ARMISD::VDUP";
-  case ARMISD::VDUPLANE:      return "ARMISD::VDUPLANE";
-  case ARMISD::VEXT:          return "ARMISD::VEXT";
-  case ARMISD::VREV64:        return "ARMISD::VREV64";
-  case ARMISD::VREV32:        return "ARMISD::VREV32";
-  case ARMISD::VREV16:        return "ARMISD::VREV16";
-  case ARMISD::VZIP:          return "ARMISD::VZIP";
-  case ARMISD::VUZP:          return "ARMISD::VUZP";
-  case ARMISD::VTRN:          return "ARMISD::VTRN";
-  case ARMISD::VTBL1:         return "ARMISD::VTBL1";
-  case ARMISD::VTBL2:         return "ARMISD::VTBL2";
-  case ARMISD::VMOVN:         return "ARMISD::VMOVN";
-  case ARMISD::VQMOVNs:       return "ARMISD::VQMOVNs";
-  case ARMISD::VQMOVNu:       return "ARMISD::VQMOVNu";
-  case ARMISD::VCVTN:         return "ARMISD::VCVTN";
-  case ARMISD::VCVTL:         return "ARMISD::VCVTL";
-  case ARMISD::VMULLs:        return "ARMISD::VMULLs";
-  case ARMISD::VMULLu:        return "ARMISD::VMULLu";
-  case ARMISD::VQDMULH:       return "ARMISD::VQDMULH";
-  case ARMISD::VADDVs:        return "ARMISD::VADDVs";
-  case ARMISD::VADDVu:        return "ARMISD::VADDVu";
-  case ARMISD::VADDVps:       return "ARMISD::VADDVps";
-  case ARMISD::VADDVpu:       return "ARMISD::VADDVpu";
-  case ARMISD::VADDLVs:       return "ARMISD::VADDLVs";
-  case ARMISD::VADDLVu:       return "ARMISD::VADDLVu";
-  case ARMISD::VADDLVAs:      return "ARMISD::VADDLVAs";
-  case ARMISD::VADDLVAu:      return "ARMISD::VADDLVAu";
-  case ARMISD::VADDLVps:      return "ARMISD::VADDLVps";
-  case ARMISD::VADDLVpu:      return "ARMISD::VADDLVpu";
-  case ARMISD::VADDLVAps:     return "ARMISD::VADDLVAps";
-  case ARMISD::VADDLVApu:     return "ARMISD::VADDLVApu";
-  case ARMISD::VMLAVs:        return "ARMISD::VMLAVs";
-  case ARMISD::VMLAVu:        return "ARMISD::VMLAVu";
-  case ARMISD::VMLAVps:       return "ARMISD::VMLAVps";
-  case ARMISD::VMLAVpu:       return "ARMISD::VMLAVpu";
-  case ARMISD::VMLALVs:       return "ARMISD::VMLALVs";
-  case ARMISD::VMLALVu:       return "ARMISD::VMLALVu";
-  case ARMISD::VMLALVps:      return "ARMISD::VMLALVps";
-  case ARMISD::VMLALVpu:      return "ARMISD::VMLALVpu";
-  case ARMISD::VMLALVAs:      return "ARMISD::VMLALVAs";
-  case ARMISD::VMLALVAu:      return "ARMISD::VMLALVAu";
-  case ARMISD::VMLALVAps:     return "ARMISD::VMLALVAps";
-  case ARMISD::VMLALVApu:     return "ARMISD::VMLALVApu";
-  case ARMISD::VMINVu:        return "ARMISD::VMINVu";
-  case ARMISD::VMINVs:        return "ARMISD::VMINVs";
-  case ARMISD::VMAXVu:        return "ARMISD::VMAXVu";
-  case ARMISD::VMAXVs:        return "ARMISD::VMAXVs";
-  case ARMISD::UMAAL:         return "ARMISD::UMAAL";
-  case ARMISD::UMLAL:         return "ARMISD::UMLAL";
-  case ARMISD::SMLAL:         return "ARMISD::SMLAL";
-  case ARMISD::SMLALBB:       return "ARMISD::SMLALBB";
-  case ARMISD::SMLALBT:       return "ARMISD::SMLALBT";
-  case ARMISD::SMLALTB:       return "ARMISD::SMLALTB";
-  case ARMISD::SMLALTT:       return "ARMISD::SMLALTT";
-  case ARMISD::SMULWB:        return "ARMISD::SMULWB";
-  case ARMISD::SMULWT:        return "ARMISD::SMULWT";
-  case ARMISD::SMLALD:        return "ARMISD::SMLALD";
-  case ARMISD::SMLALDX:       return "ARMISD::SMLALDX";
-  case ARMISD::SMLSLD:        return "ARMISD::SMLSLD";
-  case ARMISD::SMLSLDX:       return "ARMISD::SMLSLDX";
-  case ARMISD::SMMLAR:        return "ARMISD::SMMLAR";
-  case ARMISD::SMMLSR:        return "ARMISD::SMMLSR";
-  case ARMISD::QADD16b:       return "ARMISD::QADD16b";
-  case ARMISD::QSUB16b:       return "ARMISD::QSUB16b";
-  case ARMISD::QADD8b:        return "ARMISD::QADD8b";
-  case ARMISD::QSUB8b:        return "ARMISD::QSUB8b";
-  case ARMISD::BUILD_VECTOR:  return "ARMISD::BUILD_VECTOR";
-  case ARMISD::BFI:           return "ARMISD::BFI";
-  case ARMISD::VORRIMM:       return "ARMISD::VORRIMM";
-  case ARMISD::VBICIMM:       return "ARMISD::VBICIMM";
-  case ARMISD::VBSP:          return "ARMISD::VBSP";
-  case ARMISD::MEMCPY:        return "ARMISD::MEMCPY";
-  case ARMISD::VLD1DUP:       return "ARMISD::VLD1DUP";
-  case ARMISD::VLD2DUP:       return "ARMISD::VLD2DUP";
-  case ARMISD::VLD3DUP:       return "ARMISD::VLD3DUP";
-  case ARMISD::VLD4DUP:       return "ARMISD::VLD4DUP";
-  case ARMISD::VLD1_UPD:      return "ARMISD::VLD1_UPD";
-  case ARMISD::VLD2_UPD:      return "ARMISD::VLD2_UPD";
-  case ARMISD::VLD3_UPD:      return "ARMISD::VLD3_UPD";
-  case ARMISD::VLD4_UPD:      return "ARMISD::VLD4_UPD";
-  case ARMISD::VLD2LN_UPD:    return "ARMISD::VLD2LN_UPD";
-  case ARMISD::VLD3LN_UPD:    return "ARMISD::VLD3LN_UPD";
-  case ARMISD::VLD4LN_UPD:    return "ARMISD::VLD4LN_UPD";
-  case ARMISD::VLD1DUP_UPD:   return "ARMISD::VLD1DUP_UPD";
-  case ARMISD::VLD2DUP_UPD:   return "ARMISD::VLD2DUP_UPD";
-  case ARMISD::VLD3DUP_UPD:   return "ARMISD::VLD3DUP_UPD";
-  case ARMISD::VLD4DUP_UPD:   return "ARMISD::VLD4DUP_UPD";
-  case ARMISD::VST1_UPD:      return "ARMISD::VST1_UPD";
-  case ARMISD::VST2_UPD:      return "ARMISD::VST2_UPD";
-  case ARMISD::VST3_UPD:      return "ARMISD::VST3_UPD";
-  case ARMISD::VST4_UPD:      return "ARMISD::VST4_UPD";
-  case ARMISD::VST2LN_UPD:    return "ARMISD::VST2LN_UPD";
-  case ARMISD::VST3LN_UPD:    return "ARMISD::VST3LN_UPD";
-  case ARMISD::VST4LN_UPD:    return "ARMISD::VST4LN_UPD";
-  case ARMISD::WLS:           return "ARMISD::WLS";
-  case ARMISD::WLSSETUP:      return "ARMISD::WLSSETUP";
-  case ARMISD::LE:            return "ARMISD::LE";
-  case ARMISD::LOOP_DEC:      return "ARMISD::LOOP_DEC";
-  case ARMISD::CSINV:         return "ARMISD::CSINV";
-  case ARMISD::CSNEG:         return "ARMISD::CSNEG";
-  case ARMISD::CSINC:         return "ARMISD::CSINC";
+  case ARMISD::FIRST_NUMBER:
+    break;
+    MAKE_CASE(ARMISD::Wrapper)
+    MAKE_CASE(ARMISD::WrapperPIC)
+    MAKE_CASE(ARMISD::WrapperJT)
+    MAKE_CASE(ARMISD::COPY_STRUCT_BYVAL)
+    MAKE_CASE(ARMISD::CALL)
+    MAKE_CASE(ARMISD::CALL_PRED)
+    MAKE_CASE(ARMISD::CALL_NOLINK)
+    MAKE_CASE(ARMISD::tSECALL)
+    MAKE_CASE(ARMISD::BRCOND)
+    MAKE_CASE(ARMISD::BR_JT)
+    MAKE_CASE(ARMISD::BR2_JT)
+    MAKE_CASE(ARMISD::RET_FLAG)
+    MAKE_CASE(ARMISD::SERET_FLAG)
+    MAKE_CASE(ARMISD::INTRET_FLAG)
+    MAKE_CASE(ARMISD::PIC_ADD)
+    MAKE_CASE(ARMISD::CMP)
+    MAKE_CASE(ARMISD::CMN)
+    MAKE_CASE(ARMISD::CMPZ)
+    MAKE_CASE(ARMISD::CMPFP)
+    MAKE_CASE(ARMISD::CMPFPE)
+    MAKE_CASE(ARMISD::CMPFPw0)
+    MAKE_CASE(ARMISD::CMPFPEw0)
+    MAKE_CASE(ARMISD::BCC_i64)
+    MAKE_CASE(ARMISD::FMSTAT)
+    MAKE_CASE(ARMISD::CMOV)
+    MAKE_CASE(ARMISD::SUBS)
+    MAKE_CASE(ARMISD::SSAT)
+    MAKE_CASE(ARMISD::USAT)
+    MAKE_CASE(ARMISD::ASRL)
+    MAKE_CASE(ARMISD::LSRL)
+    MAKE_CASE(ARMISD::LSLL)
+    MAKE_CASE(ARMISD::SRL_FLAG)
+    MAKE_CASE(ARMISD::SRA_FLAG)
+    MAKE_CASE(ARMISD::RRX)
+    MAKE_CASE(ARMISD::ADDC)
+    MAKE_CASE(ARMISD::ADDE)
+    MAKE_CASE(ARMISD::SUBC)
+    MAKE_CASE(ARMISD::SUBE)
+    MAKE_CASE(ARMISD::LSLS)
+    MAKE_CASE(ARMISD::VMOVRRD)
+    MAKE_CASE(ARMISD::VMOVDRR)
+    MAKE_CASE(ARMISD::VMOVhr)
+    MAKE_CASE(ARMISD::VMOVrh)
+    MAKE_CASE(ARMISD::VMOVSR)
+    MAKE_CASE(ARMISD::EH_SJLJ_SETJMP)
+    MAKE_CASE(ARMISD::EH_SJLJ_LONGJMP)
+    MAKE_CASE(ARMISD::EH_SJLJ_SETUP_DISPATCH)
+    MAKE_CASE(ARMISD::TC_RETURN)
+    MAKE_CASE(ARMISD::THREAD_POINTER)
+    MAKE_CASE(ARMISD::DYN_ALLOC)
+    MAKE_CASE(ARMISD::MEMBARRIER_MCR)
+    MAKE_CASE(ARMISD::PRELOAD)
+    MAKE_CASE(ARMISD::LDRD)
+    MAKE_CASE(ARMISD::STRD)
+    MAKE_CASE(ARMISD::WIN__CHKSTK)
+    MAKE_CASE(ARMISD::WIN__DBZCHK)
+    MAKE_CASE(ARMISD::PREDICATE_CAST)
+    MAKE_CASE(ARMISD::VECTOR_REG_CAST)
+    MAKE_CASE(ARMISD::VCMP)
+    MAKE_CASE(ARMISD::VCMPZ)
+    MAKE_CASE(ARMISD::VTST)
+    MAKE_CASE(ARMISD::VSHLs)
+    MAKE_CASE(ARMISD::VSHLu)
+    MAKE_CASE(ARMISD::VSHLIMM)
+    MAKE_CASE(ARMISD::VSHRsIMM)
+    MAKE_CASE(ARMISD::VSHRuIMM)
+    MAKE_CASE(ARMISD::VRSHRsIMM)
+    MAKE_CASE(ARMISD::VRSHRuIMM)
+    MAKE_CASE(ARMISD::VRSHRNIMM)
+    MAKE_CASE(ARMISD::VQSHLsIMM)
+    MAKE_CASE(ARMISD::VQSHLuIMM)
+    MAKE_CASE(ARMISD::VQSHLsuIMM)
+    MAKE_CASE(ARMISD::VQSHRNsIMM)
+    MAKE_CASE(ARMISD::VQSHRNuIMM)
+    MAKE_CASE(ARMISD::VQSHRNsuIMM)
+    MAKE_CASE(ARMISD::VQRSHRNsIMM)
+    MAKE_CASE(ARMISD::VQRSHRNuIMM)
+    MAKE_CASE(ARMISD::VQRSHRNsuIMM)
+    MAKE_CASE(ARMISD::VSLIIMM)
+    MAKE_CASE(ARMISD::VSRIIMM)
+    MAKE_CASE(ARMISD::VGETLANEu)
+    MAKE_CASE(ARMISD::VGETLANEs)
+    MAKE_CASE(ARMISD::VMOVIMM)
+    MAKE_CASE(ARMISD::VMVNIMM)
+    MAKE_CASE(ARMISD::VMOVFPIMM)
+    MAKE_CASE(ARMISD::VDUP)
+    MAKE_CASE(ARMISD::VDUPLANE)
+    MAKE_CASE(ARMISD::VEXT)
+    MAKE_CASE(ARMISD::VREV64)
+    MAKE_CASE(ARMISD::VREV32)
+    MAKE_CASE(ARMISD::VREV16)
+    MAKE_CASE(ARMISD::VZIP)
+    MAKE_CASE(ARMISD::VUZP)
+    MAKE_CASE(ARMISD::VTRN)
+    MAKE_CASE(ARMISD::VTBL1)
+    MAKE_CASE(ARMISD::VTBL2)
+    MAKE_CASE(ARMISD::VMOVN)
+    MAKE_CASE(ARMISD::VQMOVNs)
+    MAKE_CASE(ARMISD::VQMOVNu)
+    MAKE_CASE(ARMISD::VCVTN)
+    MAKE_CASE(ARMISD::VCVTL)
+    MAKE_CASE(ARMISD::VIDUP)
+    MAKE_CASE(ARMISD::VMULLs)
+    MAKE_CASE(ARMISD::VMULLu)
+    MAKE_CASE(ARMISD::VQDMULH)
+    MAKE_CASE(ARMISD::VADDVs)
+    MAKE_CASE(ARMISD::VADDVu)
+    MAKE_CASE(ARMISD::VADDVps)
+    MAKE_CASE(ARMISD::VADDVpu)
+    MAKE_CASE(ARMISD::VADDLVs)
+    MAKE_CASE(ARMISD::VADDLVu)
+    MAKE_CASE(ARMISD::VADDLVAs)
+    MAKE_CASE(ARMISD::VADDLVAu)
+    MAKE_CASE(ARMISD::VADDLVps)
+    MAKE_CASE(ARMISD::VADDLVpu)
+    MAKE_CASE(ARMISD::VADDLVAps)
+    MAKE_CASE(ARMISD::VADDLVApu)
+    MAKE_CASE(ARMISD::VMLAVs)
+    MAKE_CASE(ARMISD::VMLAVu)
+    MAKE_CASE(ARMISD::VMLAVps)
+    MAKE_CASE(ARMISD::VMLAVpu)
+    MAKE_CASE(ARMISD::VMLALVs)
+    MAKE_CASE(ARMISD::VMLALVu)
+    MAKE_CASE(ARMISD::VMLALVps)
+    MAKE_CASE(ARMISD::VMLALVpu)
+    MAKE_CASE(ARMISD::VMLALVAs)
+    MAKE_CASE(ARMISD::VMLALVAu)
+    MAKE_CASE(ARMISD::VMLALVAps)
+    MAKE_CASE(ARMISD::VMLALVApu)
+    MAKE_CASE(ARMISD::VMINVu)
+    MAKE_CASE(ARMISD::VMINVs)
+    MAKE_CASE(ARMISD::VMAXVu)
+    MAKE_CASE(ARMISD::VMAXVs)
+    MAKE_CASE(ARMISD::UMAAL)
+    MAKE_CASE(ARMISD::UMLAL)
+    MAKE_CASE(ARMISD::SMLAL)
+    MAKE_CASE(ARMISD::SMLALBB)
+    MAKE_CASE(ARMISD::SMLALBT)
+    MAKE_CASE(ARMISD::SMLALTB)
+    MAKE_CASE(ARMISD::SMLALTT)
+    MAKE_CASE(ARMISD::SMULWB)
+    MAKE_CASE(ARMISD::SMULWT)
+    MAKE_CASE(ARMISD::SMLALD)
+    MAKE_CASE(ARMISD::SMLALDX)
+    MAKE_CASE(ARMISD::SMLSLD)
+    MAKE_CASE(ARMISD::SMLSLDX)
+    MAKE_CASE(ARMISD::SMMLAR)
+    MAKE_CASE(ARMISD::SMMLSR)
+    MAKE_CASE(ARMISD::QADD16b)
+    MAKE_CASE(ARMISD::QSUB16b)
+    MAKE_CASE(ARMISD::QADD8b)
+    MAKE_CASE(ARMISD::QSUB8b)
+    MAKE_CASE(ARMISD::BUILD_VECTOR)
+    MAKE_CASE(ARMISD::BFI)
+    MAKE_CASE(ARMISD::VORRIMM)
+    MAKE_CASE(ARMISD::VBICIMM)
+    MAKE_CASE(ARMISD::VBSP)
+    MAKE_CASE(ARMISD::MEMCPY)
+    MAKE_CASE(ARMISD::VLD1DUP)
+    MAKE_CASE(ARMISD::VLD2DUP)
+    MAKE_CASE(ARMISD::VLD3DUP)
+    MAKE_CASE(ARMISD::VLD4DUP)
+    MAKE_CASE(ARMISD::VLD1_UPD)
+    MAKE_CASE(ARMISD::VLD2_UPD)
+    MAKE_CASE(ARMISD::VLD3_UPD)
+    MAKE_CASE(ARMISD::VLD4_UPD)
+    MAKE_CASE(ARMISD::VLD1x2_UPD)
+    MAKE_CASE(ARMISD::VLD1x3_UPD)
+    MAKE_CASE(ARMISD::VLD1x4_UPD)
+    MAKE_CASE(ARMISD::VLD2LN_UPD)
+    MAKE_CASE(ARMISD::VLD3LN_UPD)
+    MAKE_CASE(ARMISD::VLD4LN_UPD)
+    MAKE_CASE(ARMISD::VLD1DUP_UPD)
+    MAKE_CASE(ARMISD::VLD2DUP_UPD)
+    MAKE_CASE(ARMISD::VLD3DUP_UPD)
+    MAKE_CASE(ARMISD::VLD4DUP_UPD)
+    MAKE_CASE(ARMISD::VST1_UPD)
+    MAKE_CASE(ARMISD::VST2_UPD)
+    MAKE_CASE(ARMISD::VST3_UPD)
+    MAKE_CASE(ARMISD::VST4_UPD)
+    MAKE_CASE(ARMISD::VST1x2_UPD)
+    MAKE_CASE(ARMISD::VST1x3_UPD)
+    MAKE_CASE(ARMISD::VST1x4_UPD)
+    MAKE_CASE(ARMISD::VST2LN_UPD)
+    MAKE_CASE(ARMISD::VST3LN_UPD)
+    MAKE_CASE(ARMISD::VST4LN_UPD)
+    MAKE_CASE(ARMISD::WLS)
+    MAKE_CASE(ARMISD::WLSSETUP)
+    MAKE_CASE(ARMISD::LE)
+    MAKE_CASE(ARMISD::LOOP_DEC)
+    MAKE_CASE(ARMISD::CSINV)
+    MAKE_CASE(ARMISD::CSNEG)
+    MAKE_CASE(ARMISD::CSINC)
+    MAKE_CASE(ARMISD::MEMCPYLOOP)
+    MAKE_CASE(ARMISD::MEMSETLOOP)
+#undef MAKE_CASE
   }
   return nullptr;
 }
@@ -1823,8 +1825,9 @@ EVT ARMTargetLowering::getSetCCResultType(const DataLayout &DL, LLVMContext &,
     return getPointerTy(DL);
 
   // MVE has a predicate register.
-  if (Subtarget->hasMVEIntegerOps() &&
-      (VT == MVT::v4i32 || VT == MVT::v8i16 || VT == MVT::v16i8))
+  if ((Subtarget->hasMVEIntegerOps() &&
+       (VT == MVT::v4i32 || VT == MVT::v8i16 || VT == MVT::v16i8)) ||
+      (Subtarget->hasMVEFloatOps() && (VT == MVT::v4f32 || VT == MVT::v8f16)))
     return MVT::getVectorVT(MVT::i1, VT.getVectorElementCount());
   return VT.changeVectorElementTypeToInteger();
 }
@@ -2004,8 +2007,10 @@ ARMTargetLowering::getEffectiveCallingConv(CallingConv::ID CC,
     return CallingConv::PreserveMost;
   case CallingConv::ARM_AAPCS_VFP:
   case CallingConv::Swift:
+  case CallingConv::SwiftTail:
     return isVarArg ? CallingConv::ARM_AAPCS : CallingConv::ARM_AAPCS_VFP;
   case CallingConv::C:
+  case CallingConv::Tail:
     if (!Subtarget->isAAPCS_ABI())
       return CallingConv::ARM_APCS;
     else if (Subtarget->hasVFP2Base() && !Subtarget->isThumb1Only() &&
@@ -2182,19 +2187,31 @@ SDValue ARMTargetLowering::LowerCallResult(
   return Chain;
 }
 
-/// LowerMemOpCallTo - Store the argument to the stack.
-SDValue ARMTargetLowering::LowerMemOpCallTo(SDValue Chain, SDValue StackPtr,
-                                            SDValue Arg, const SDLoc &dl,
-                                            SelectionDAG &DAG,
-                                            const CCValAssign &VA,
-                                            ISD::ArgFlagsTy Flags) const {
-  unsigned LocMemOffset = VA.getLocMemOffset();
-  SDValue PtrOff = DAG.getIntPtrConstant(LocMemOffset, dl);
-  PtrOff = DAG.getNode(ISD::ADD, dl, getPointerTy(DAG.getDataLayout()),
-                       StackPtr, PtrOff);
-  return DAG.getStore(
-      Chain, dl, Arg, PtrOff,
-      MachinePointerInfo::getStack(DAG.getMachineFunction(), LocMemOffset));
+std::pair<SDValue, MachinePointerInfo> ARMTargetLowering::computeAddrForCallArg(
+    const SDLoc &dl, SelectionDAG &DAG, const CCValAssign &VA, SDValue StackPtr,
+    bool IsTailCall, int SPDiff) const {
+  SDValue DstAddr;
+  MachinePointerInfo DstInfo;
+  int32_t Offset = VA.getLocMemOffset();
+  MachineFunction &MF = DAG.getMachineFunction();
+
+  if (IsTailCall) {
+        Offset += SPDiff;
+        auto PtrVT = getPointerTy(DAG.getDataLayout());
+        int Size = VA.getLocVT().getFixedSizeInBits() / 8;
+        int FI = MF.getFrameInfo().CreateFixedObject(Size, Offset, true);
+        DstAddr = DAG.getFrameIndex(FI, PtrVT);
+        DstInfo =
+            MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI);
+  } else {
+        SDValue PtrOff = DAG.getIntPtrConstant(Offset, dl);
+        DstAddr = DAG.getNode(ISD::ADD, dl, getPointerTy(DAG.getDataLayout()),
+                              StackPtr, PtrOff);
+        DstInfo =
+            MachinePointerInfo::getStack(DAG.getMachineFunction(), Offset);
+  }
+
+  return std::make_pair(DstAddr, DstInfo);
 }
 
 void ARMTargetLowering::PassF64ArgInRegs(const SDLoc &dl, SelectionDAG &DAG,
@@ -2203,7 +2220,8 @@ void ARMTargetLowering::PassF64ArgInRegs(const SDLoc &dl, SelectionDAG &DAG,
                                          CCValAssign &VA, CCValAssign &NextVA,
                                          SDValue &StackPtr,
                                          SmallVectorImpl<SDValue> &MemOpChains,
-                                         ISD::ArgFlagsTy Flags) const {
+                                         bool IsTailCall,
+                                         int SPDiff) const {
   SDValue fmrrd = DAG.getNode(ARMISD::VMOVRRD, dl,
                               DAG.getVTList(MVT::i32, MVT::i32), Arg);
   unsigned id = Subtarget->isLittle() ? 0 : 1;
@@ -2217,10 +2235,18 @@ void ARMTargetLowering::PassF64ArgInRegs(const SDLoc &dl, SelectionDAG &DAG,
       StackPtr = DAG.getCopyFromReg(Chain, dl, ARM::SP,
                                     getPointerTy(DAG.getDataLayout()));
 
-    MemOpChains.push_back(LowerMemOpCallTo(Chain, StackPtr, fmrrd.getValue(1-id),
-                                           dl, DAG, NextVA,
-                                           Flags));
+    SDValue DstAddr;
+    MachinePointerInfo DstInfo;
+    std::tie(DstAddr, DstInfo) =
+        computeAddrForCallArg(dl, DAG, NextVA, StackPtr, IsTailCall, SPDiff);
+    MemOpChains.push_back(
+        DAG.getStore(Chain, dl, fmrrd.getValue(1 - id), DstAddr, DstInfo));
   }
+}
+
+static bool canGuaranteeTCO(CallingConv::ID CC, bool GuaranteeTailCalls) {
+  return (CC == CallingConv::Fast && GuaranteeTailCalls) ||
+         CC == CallingConv::Tail || CC == CallingConv::SwiftTail;
 }
 
 /// LowerCall - Lowering a call into a callseq_start <-
@@ -2247,6 +2273,7 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   bool isStructRet = (Outs.empty()) ? false : Outs[0].Flags.isSRet();
   bool isThisReturn = false;
   bool isCmseNSCall   = false;
+  bool isSibCall = false;
   bool PreferIndirect = false;
 
   // Determine whether this is a non-secure function call.
@@ -2283,15 +2310,20 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
         Callee, CallConv, isVarArg, isStructRet,
         MF.getFunction().hasStructRetAttr(), Outs, OutVals, Ins, DAG,
         PreferIndirect);
-    if (!isTailCall && CLI.CB && CLI.CB->isMustTailCall())
-      report_fatal_error("failed to perform tail call elimination on a call "
-                         "site marked musttail");
+
+    if (isTailCall && !getTargetMachine().Options.GuaranteedTailCallOpt &&
+        CallConv != CallingConv::Tail && CallConv != CallingConv::SwiftTail)
+      isSibCall = true;
+
     // We don't support GuaranteedTailCallOpt for ARM, only automatically
     // detected sibcalls.
     if (isTailCall)
       ++NumTailCalls;
   }
 
+  if (!isTailCall && CLI.CB && CLI.CB->isMustTailCall())
+    report_fatal_error("failed to perform tail call elimination on a call "
+                       "site marked musttail");
   // Analyze operands of the call, assigning locations to each operand.
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, isVarArg, DAG.getMachineFunction(), ArgLocs,
@@ -2301,13 +2333,40 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   // Get a count of how many bytes are to be pushed on the stack.
   unsigned NumBytes = CCInfo.getNextStackOffset();
 
-  if (isTailCall) {
-    // For tail calls, memory operands are available in our caller's stack.
+  // SPDiff is the byte offset of the call's argument area from the callee's.
+  // Stores to callee stack arguments will be placed in FixedStackSlots offset
+  // by this amount for a tail call. In a sibling call it must be 0 because the
+  // caller will deallocate the entire stack and the callee still expects its
+  // arguments to begin at SP+0. Completely unused for non-tail calls.
+  int SPDiff = 0;
+
+  if (isTailCall && !isSibCall) {
+    auto FuncInfo = MF.getInfo<ARMFunctionInfo>();
+    unsigned NumReusableBytes = FuncInfo->getArgumentStackSize();
+
+    // Since callee will pop argument stack as a tail call, we must keep the
+    // popped size 16-byte aligned.
+    Align StackAlign = DAG.getDataLayout().getStackAlignment();
+    NumBytes = alignTo(NumBytes, StackAlign);
+
+    // SPDiff will be negative if this tail call requires more space than we
+    // would automatically have in our incoming argument space. Positive if we
+    // can actually shrink the stack.
+    SPDiff = NumReusableBytes - NumBytes;
+
+    // If this call requires more stack than we have available from
+    // LowerFormalArguments, tell FrameLowering to reserve space for it.
+    if (SPDiff < 0 && AFI->getArgRegsSaveSize() < (unsigned)-SPDiff)
+      AFI->setArgRegsSaveSize(-SPDiff);
+  }
+
+  if (isSibCall) {
+    // For sibling tail calls, memory operands are available in our caller's stack.
     NumBytes = 0;
   } else {
     // Adjust the stack pointer for the new arguments...
     // These operations are automatically eliminated by the prolog/epilog pass
-    Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, dl);
+    Chain = DAG.getCALLSEQ_START(Chain, isTailCall ? 0 : NumBytes, 0, dl);
   }
 
   SDValue StackPtr =
@@ -2315,6 +2374,13 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   RegsToPassVector RegsToPass;
   SmallVector<SDValue, 8> MemOpChains;
+
+  // During a tail call, stores to the argument area must happen after all of
+  // the function's incoming arguments have been loaded because they may alias.
+  // This is done by folding in a TokenFactor from LowerFormalArguments, but
+  // there's no point in doing so repeatedly so this tracks whether that's
+  // happened yet.
+  bool AfterFormalArgLoads = false;
 
   // Walk the register/memloc assignments, inserting copies/loads.  In the case
   // of tail call optimization, arguments are handled later.
@@ -2342,6 +2408,11 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     case CCValAssign::BCvt:
       Arg = DAG.getNode(ISD::BITCAST, dl, VA.getLocVT(), Arg);
       break;
+    }
+
+    if (isTailCall && VA.isMemLoc() && !AfterFormalArgLoads) {
+      Chain = DAG.getStackArgumentTokenFactor(Chain);
+      AfterFormalArgLoads = true;
     }
 
     // f16 arguments have their size extended to 4 bytes and passed as if they
@@ -2373,21 +2444,23 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                                 DAG.getConstant(1, dl, MVT::i32));
 
       PassF64ArgInRegs(dl, DAG, Chain, Op0, RegsToPass, VA, ArgLocs[++i],
-                       StackPtr, MemOpChains, Flags);
+                       StackPtr, MemOpChains, isTailCall, SPDiff);
 
       VA = ArgLocs[++i]; // skip ahead to next loc
       if (VA.isRegLoc()) {
         PassF64ArgInRegs(dl, DAG, Chain, Op1, RegsToPass, VA, ArgLocs[++i],
-                         StackPtr, MemOpChains, Flags);
+                         StackPtr, MemOpChains, isTailCall, SPDiff);
       } else {
         assert(VA.isMemLoc());
-
-        MemOpChains.push_back(
-            LowerMemOpCallTo(Chain, StackPtr, Op1, dl, DAG, VA, Flags));
+        SDValue DstAddr;
+        MachinePointerInfo DstInfo;
+        std::tie(DstAddr, DstInfo) =
+            computeAddrForCallArg(dl, DAG, VA, StackPtr, isTailCall, SPDiff);
+        MemOpChains.push_back(DAG.getStore(Chain, dl, Op1, DstAddr, DstInfo));
       }
     } else if (VA.needsCustom() && VA.getLocVT() == MVT::f64) {
       PassF64ArgInRegs(dl, DAG, Chain, Arg, RegsToPass, VA, ArgLocs[++i],
-                       StackPtr, MemOpChains, Flags);
+                       StackPtr, MemOpChains, isTailCall, SPDiff);
     } else if (VA.isRegLoc()) {
       if (realArgIdx == 0 && Flags.isReturned() && !Flags.isSwiftSelf() &&
           Outs[0].VT == MVT::i32) {
@@ -2437,9 +2510,10 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
       if (Flags.getByValSize() > 4*offset) {
         auto PtrVT = getPointerTy(DAG.getDataLayout());
-        unsigned LocMemOffset = VA.getLocMemOffset();
-        SDValue StkPtrOff = DAG.getIntPtrConstant(LocMemOffset, dl);
-        SDValue Dst = DAG.getNode(ISD::ADD, dl, PtrVT, StackPtr, StkPtrOff);
+        SDValue Dst;
+        MachinePointerInfo DstInfo;
+        std::tie(Dst, DstInfo) =
+            computeAddrForCallArg(dl, DAG, VA, StackPtr, isTailCall, SPDiff);
         SDValue SrcOffset = DAG.getIntPtrConstant(4*offset, dl);
         SDValue Src = DAG.getNode(ISD::ADD, dl, PtrVT, Arg, SrcOffset);
         SDValue SizeNode = DAG.getConstant(Flags.getByValSize() - 4*offset, dl,
@@ -2452,11 +2526,15 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
         MemOpChains.push_back(DAG.getNode(ARMISD::COPY_STRUCT_BYVAL, dl, VTs,
                                           Ops));
       }
-    } else if (!isTailCall) {
+    } else {
       assert(VA.isMemLoc());
+      SDValue DstAddr;
+      MachinePointerInfo DstInfo;
+      std::tie(DstAddr, DstInfo) =
+          computeAddrForCallArg(dl, DAG, VA, StackPtr, isTailCall, SPDiff);
 
-      MemOpChains.push_back(LowerMemOpCallTo(Chain, StackPtr, Arg,
-                                             dl, DAG, VA, Flags));
+      SDValue Store = DAG.getStore(Chain, dl, Arg, DstAddr, DstInfo);
+      MemOpChains.push_back(Store);
     }
   }
 
@@ -2620,9 +2698,23 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
       CallOpc = isLocalARMFunc ? ARMISD::CALL_PRED : ARMISD::CALL;
   }
 
+  // We don't usually want to end the call-sequence here because we would tidy
+  // the frame up *after* the call, however in the ABI-changing tail-call case
+  // we've carefully laid out the parameters so that when sp is reset they'll be
+  // in the correct location.
+  if (isTailCall && !isSibCall) {
+    Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(0, dl, true),
+                               DAG.getIntPtrConstant(0, dl, true), InFlag, dl);
+    InFlag = Chain.getValue(1);
+  }
+
   std::vector<SDValue> Ops;
   Ops.push_back(Chain);
   Ops.push_back(Callee);
+
+  if (isTailCall) {
+    Ops.push_back(DAG.getTargetConstant(SPDiff, dl, MVT::i32));
+  }
 
   // Add argument registers to the end of the list so that they are known live
   // into the call.
@@ -2668,8 +2760,16 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   InFlag = Chain.getValue(1);
   DAG.addCallSiteInfo(Chain.getNode(), std::move(CSInfo));
 
+  // If we're guaranteeing tail-calls will be honoured, the callee must
+  // pop its own argument stack on return. But this call is *not* a tail call so
+  // we need to undo that after it returns to restore the status-quo.
+  bool TailCallOpt = getTargetMachine().Options.GuaranteedTailCallOpt;
+  uint64_t CalleePopBytes =
+      canGuaranteeTCO(CallConv, TailCallOpt) ? alignTo(NumBytes, 16) : -1ULL;
+
   Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NumBytes, dl, true),
-                             DAG.getIntPtrConstant(0, dl, true), InFlag, dl);
+                             DAG.getIntPtrConstant(CalleePopBytes, dl, true),
+                             InFlag, dl);
   if (!Ins.empty())
     InFlag = Chain.getValue(1);
 
@@ -2809,6 +2909,9 @@ bool ARMTargetLowering::IsEligibleForTailCallOptimization(
   // break this.
   if (CallerF.hasFnAttribute("interrupt"))
     return false;
+
+  if (canGuaranteeTCO(CalleeCC, getTargetMachine().Options.GuaranteedTailCallOpt))
+    return CalleeCC == CallerCC;
 
   // Also avoid sibcall optimization if either caller or callee uses struct
   // return semantics.
@@ -4458,7 +4561,17 @@ SDValue ARMTargetLowering::LowerFormalArguments(
     }
   }
 
-  AFI->setArgumentStackSize(CCInfo.getNextStackOffset());
+  unsigned StackArgSize = CCInfo.getNextStackOffset();
+  bool TailCallOpt = MF.getTarget().Options.GuaranteedTailCallOpt;
+  if (canGuaranteeTCO(CallConv, TailCallOpt)) {
+    // The only way to guarantee a tail call is if the callee restores its
+    // argument area, but it must also keep the stack aligned when doing so.
+    const DataLayout &DL = DAG.getDataLayout();
+    StackArgSize = alignTo(StackArgSize, DL.getStackAlignment());
+
+    AFI->setArgumentStackToRestore(StackArgSize);
+  }
+  AFI->setArgumentStackSize(StackArgSize);
 
   if (CCInfo.getNextStackOffset() > 0 && AFI->isCmseNSEntryFunction()) {
     DiagnosticInfoUnsupported Diag(
@@ -6750,12 +6863,10 @@ static SDValue isVMOVModifiedImm(uint64_t SplatBits, uint64_t SplatUndef,
       return SDValue();
     // NEON has a 64-bit VMOV splat where each byte is either 0 or 0xff.
     uint64_t BitMask = 0xff;
-    uint64_t Val = 0;
     unsigned ImmMask = 1;
     Imm = 0;
     for (int ByteNum = 0; ByteNum < 8; ++ByteNum) {
       if (((SplatBits | SplatUndef) & BitMask) == BitMask) {
-        Val |= BitMask;
         Imm |= ImmMask;
       } else if ((SplatBits & BitMask) != 0) {
         return SDValue();
@@ -7441,6 +7552,39 @@ static SDValue LowerBUILD_VECTOR_i1(SDValue Op, SelectionDAG &DAG,
   return Base;
 }
 
+static SDValue LowerBUILD_VECTORToVIDUP(SDValue Op, SelectionDAG &DAG,
+                                        const ARMSubtarget *ST) {
+  if (!ST->hasMVEIntegerOps())
+    return SDValue();
+
+  // We are looking for a buildvector where each element is Op[0] + i*N
+  EVT VT = Op.getValueType();
+  SDValue Op0 = Op.getOperand(0);
+  unsigned NumElts = VT.getVectorNumElements();
+
+  // Get the increment value from operand 1
+  SDValue Op1 = Op.getOperand(1);
+  if (Op1.getOpcode() != ISD::ADD || Op1.getOperand(0) != Op0 ||
+      !isa<ConstantSDNode>(Op1.getOperand(1)))
+    return SDValue();
+  unsigned N = Op1.getConstantOperandVal(1);
+  if (N != 1 && N != 2 && N != 4 && N != 8)
+    return SDValue();
+
+  // Check that each other operand matches
+  for (unsigned I = 2; I < NumElts; I++) {
+    SDValue OpI = Op.getOperand(I);
+    if (OpI.getOpcode() != ISD::ADD || OpI.getOperand(0) != Op0 ||
+        !isa<ConstantSDNode>(OpI.getOperand(1)) ||
+        OpI.getConstantOperandVal(1) != I * N)
+      return SDValue();
+  }
+
+  SDLoc DL(Op);
+  return DAG.getNode(ARMISD::VIDUP, DL, DAG.getVTList(VT, MVT::i32), Op0,
+                     DAG.getConstant(N, DL, MVT::i32));
+}
+
 // If this is a case we can't handle, return null and let the default
 // expansion code take care of it.
 SDValue ARMTargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
@@ -7451,6 +7595,9 @@ SDValue ARMTargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
 
   if (ST->hasMVEIntegerOps() && VT.getScalarSizeInBits() == 1)
     return LowerBUILD_VECTOR_i1(Op, DAG, ST);
+
+  if (SDValue R = LowerBUILD_VECTORToVIDUP(Op, DAG, ST))
+    return R;
 
   APInt SplatBits, SplatUndef;
   unsigned SplatBitSize;
@@ -7489,6 +7636,18 @@ SDValue ARMTargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
           SDValue Val = DAG.getTargetConstant(ImmVal, dl, MVT::i32);
           return DAG.getNode(ARMISD::VMOVFPIMM, dl, VT, Val);
         }
+      }
+
+      // If we are under MVE, generate a VDUP(constant), bitcast to the original
+      // type.
+      if (ST->hasMVEIntegerOps() &&
+          (SplatBitSize == 8 || SplatBitSize == 16 || SplatBitSize == 32)) {
+        EVT DupVT = SplatBitSize == 32   ? MVT::v4i32
+                    : SplatBitSize == 16 ? MVT::v8i16
+                                         : MVT::v16i8;
+        SDValue Const = DAG.getConstant(SplatBits.getZExtValue(), dl, MVT::i32);
+        SDValue VDup = DAG.getNode(ARMISD::VDUP, dl, DupVT, Const);
+        return DAG.getNode(ARMISD::VECTOR_REG_CAST, dl, VT, VDup);
       }
     }
   }
@@ -11071,6 +11230,145 @@ static bool checkAndUpdateCPSRKill(MachineBasicBlock::iterator SelectItr,
   return true;
 }
 
+/// Adds logic in loop entry MBB to calculate loop iteration count and adds
+/// t2WhileLoopSetup and t2WhileLoopStart to generate WLS loop
+static Register genTPEntry(MachineBasicBlock *TpEntry,
+                           MachineBasicBlock *TpLoopBody,
+                           MachineBasicBlock *TpExit, Register OpSizeReg,
+                           const TargetInstrInfo *TII, DebugLoc Dl,
+                           MachineRegisterInfo &MRI) {
+  // Calculates loop iteration count = ceil(n/16) = (n + 15) >> 4.
+  Register AddDestReg = MRI.createVirtualRegister(&ARM::rGPRRegClass);
+  BuildMI(TpEntry, Dl, TII->get(ARM::t2ADDri), AddDestReg)
+      .addUse(OpSizeReg)
+      .addImm(15)
+      .add(predOps(ARMCC::AL))
+      .addReg(0);
+
+  Register LsrDestReg = MRI.createVirtualRegister(&ARM::rGPRRegClass);
+  BuildMI(TpEntry, Dl, TII->get(ARM::t2LSRri), LsrDestReg)
+      .addUse(AddDestReg, RegState::Kill)
+      .addImm(4)
+      .add(predOps(ARMCC::AL))
+      .addReg(0);
+
+  Register TotalIterationsReg = MRI.createVirtualRegister(&ARM::GPRlrRegClass);
+  BuildMI(TpEntry, Dl, TII->get(ARM::t2WhileLoopSetup), TotalIterationsReg)
+      .addUse(LsrDestReg, RegState::Kill);
+
+  BuildMI(TpEntry, Dl, TII->get(ARM::t2WhileLoopStart))
+      .addUse(TotalIterationsReg)
+      .addMBB(TpExit);
+
+  BuildMI(TpEntry, Dl, TII->get(ARM::t2B))
+      .addMBB(TpLoopBody)
+      .add(predOps(ARMCC::AL));
+
+  return TotalIterationsReg;
+}
+
+/// Adds logic in the loopBody MBB to generate MVE_VCTP, t2DoLoopDec and
+/// t2DoLoopEnd. These are used by later passes to generate tail predicated
+/// loops.
+static void genTPLoopBody(MachineBasicBlock *TpLoopBody,
+                          MachineBasicBlock *TpEntry, MachineBasicBlock *TpExit,
+                          const TargetInstrInfo *TII, DebugLoc Dl,
+                          MachineRegisterInfo &MRI, Register OpSrcReg,
+                          Register OpDestReg, Register ElementCountReg,
+                          Register TotalIterationsReg, bool IsMemcpy) {
+  // First insert 4 PHI nodes for: Current pointer to Src (if memcpy), Dest
+  // array, loop iteration counter, predication counter.
+
+  Register SrcPhiReg, CurrSrcReg;
+  if (IsMemcpy) {
+    //  Current position in the src array
+    SrcPhiReg = MRI.createVirtualRegister(&ARM::rGPRRegClass);
+    CurrSrcReg = MRI.createVirtualRegister(&ARM::rGPRRegClass);
+    BuildMI(TpLoopBody, Dl, TII->get(ARM::PHI), SrcPhiReg)
+        .addUse(OpSrcReg)
+        .addMBB(TpEntry)
+        .addUse(CurrSrcReg)
+        .addMBB(TpLoopBody);
+  }
+
+  // Current position in the dest array
+  Register DestPhiReg = MRI.createVirtualRegister(&ARM::rGPRRegClass);
+  Register CurrDestReg = MRI.createVirtualRegister(&ARM::rGPRRegClass);
+  BuildMI(TpLoopBody, Dl, TII->get(ARM::PHI), DestPhiReg)
+      .addUse(OpDestReg)
+      .addMBB(TpEntry)
+      .addUse(CurrDestReg)
+      .addMBB(TpLoopBody);
+
+  // Current loop counter
+  Register LoopCounterPhiReg = MRI.createVirtualRegister(&ARM::GPRlrRegClass);
+  Register RemainingLoopIterationsReg =
+      MRI.createVirtualRegister(&ARM::GPRlrRegClass);
+  BuildMI(TpLoopBody, Dl, TII->get(ARM::PHI), LoopCounterPhiReg)
+      .addUse(TotalIterationsReg)
+      .addMBB(TpEntry)
+      .addUse(RemainingLoopIterationsReg)
+      .addMBB(TpLoopBody);
+
+  // Predication counter
+  Register PredCounterPhiReg = MRI.createVirtualRegister(&ARM::rGPRRegClass);
+  Register RemainingElementsReg = MRI.createVirtualRegister(&ARM::rGPRRegClass);
+  BuildMI(TpLoopBody, Dl, TII->get(ARM::PHI), PredCounterPhiReg)
+      .addUse(ElementCountReg)
+      .addMBB(TpEntry)
+      .addUse(RemainingElementsReg)
+      .addMBB(TpLoopBody);
+
+  // Pass predication counter to VCTP
+  Register VccrReg = MRI.createVirtualRegister(&ARM::VCCRRegClass);
+  BuildMI(TpLoopBody, Dl, TII->get(ARM::MVE_VCTP8), VccrReg)
+      .addUse(PredCounterPhiReg)
+      .addImm(ARMVCC::None)
+      .addReg(0);
+
+  BuildMI(TpLoopBody, Dl, TII->get(ARM::t2SUBri), RemainingElementsReg)
+      .addUse(PredCounterPhiReg)
+      .addImm(16)
+      .add(predOps(ARMCC::AL))
+      .addReg(0);
+
+  // VLDRB (only if memcpy) and VSTRB instructions, predicated using VPR
+  Register SrcValueReg;
+  if (IsMemcpy) {
+    SrcValueReg = MRI.createVirtualRegister(&ARM::MQPRRegClass);
+    BuildMI(TpLoopBody, Dl, TII->get(ARM::MVE_VLDRBU8_post))
+        .addDef(CurrSrcReg)
+        .addDef(SrcValueReg)
+        .addReg(SrcPhiReg)
+        .addImm(16)
+        .addImm(ARMVCC::Then)
+        .addUse(VccrReg);
+  } else
+    SrcValueReg = OpSrcReg;
+
+  BuildMI(TpLoopBody, Dl, TII->get(ARM::MVE_VSTRBU8_post))
+      .addDef(CurrDestReg)
+      .addUse(SrcValueReg)
+      .addReg(DestPhiReg)
+      .addImm(16)
+      .addImm(ARMVCC::Then)
+      .addUse(VccrReg);
+
+  // Add the pseudoInstrs for decrementing the loop counter and marking the
+  // end:t2DoLoopDec and t2DoLoopEnd
+  BuildMI(TpLoopBody, Dl, TII->get(ARM::t2LoopDec), RemainingLoopIterationsReg)
+      .addUse(LoopCounterPhiReg)
+      .addImm(1);
+
+  BuildMI(TpLoopBody, Dl, TII->get(ARM::t2LoopEnd))
+      .addUse(RemainingLoopIterationsReg)
+      .addMBB(TpLoopBody);
+
+  BuildMI(TpLoopBody, Dl, TII->get(ARM::t2B))
+      .addMBB(TpExit)
+      .add(predOps(ARMCC::AL));
+}
+
 MachineBasicBlock *
 ARMTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                MachineBasicBlock *BB) const {
@@ -11095,6 +11393,98 @@ ARMTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
         .cloneMemRefs(MI);
     MI.eraseFromParent();
     return BB;
+  }
+
+  case ARM::MVE_MEMCPYLOOPINST:
+  case ARM::MVE_MEMSETLOOPINST: {
+
+    // Transformation below expands MVE_MEMCPYLOOPINST/MVE_MEMSETLOOPINST Pseudo
+    // into a Tail Predicated (TP) Loop. It adds the instructions to calculate
+    // the iteration count =ceil(size_in_bytes/16)) in the TP entry block and
+    // adds the relevant instructions in the TP loop Body for generation of a
+    // WLSTP loop.
+
+    // Below is relevant portion of the CFG after the transformation.
+    // The Machine Basic Blocks are shown along with branch conditions (in
+    // brackets). Note that TP entry/exit MBBs depict the entry/exit of this
+    // portion of the CFG and may not necessarily be the entry/exit of the
+    // function.
+
+    //             (Relevant) CFG after transformation:
+    //               TP entry MBB
+    //                   |
+    //          |-----------------|
+    //       (n <= 0)          (n > 0)
+    //          |                 |
+    //          |         TP loop Body MBB<--|
+    //          |                |           |
+    //           \               |___________|
+    //            \             /
+    //              TP exit MBB
+
+    MachineFunction *MF = BB->getParent();
+    MachineFunctionProperties &Properties = MF->getProperties();
+    MachineRegisterInfo &MRI = MF->getRegInfo();
+
+    Register OpDestReg = MI.getOperand(0).getReg();
+    Register OpSrcReg = MI.getOperand(1).getReg();
+    Register OpSizeReg = MI.getOperand(2).getReg();
+
+    // Allocate the required MBBs and add to parent function.
+    MachineBasicBlock *TpEntry = BB;
+    MachineBasicBlock *TpLoopBody = MF->CreateMachineBasicBlock();
+    MachineBasicBlock *TpExit;
+
+    MF->push_back(TpLoopBody);
+
+    // If any instructions are present in the current block after
+    // MVE_MEMCPYLOOPINST or MVE_MEMSETLOOPINST, split the current block and
+    // move the instructions into the newly created exit block. If there are no
+    // instructions add an explicit branch to the FallThrough block and then
+    // split.
+    //
+    // The split is required for two reasons:
+    // 1) A terminator(t2WhileLoopStart) will be placed at that site.
+    // 2) Since a TPLoopBody will be added later, any phis in successive blocks
+    //    need to be updated. splitAt() already handles this.
+    TpExit = BB->splitAt(MI, false);
+    if (TpExit == BB) {
+      assert(BB->canFallThrough() && "Exit Block must be Fallthrough of the "
+                                     "block containing memcpy/memset Pseudo");
+      TpExit = BB->getFallThrough();
+      BuildMI(BB, dl, TII->get(ARM::t2B))
+          .addMBB(TpExit)
+          .add(predOps(ARMCC::AL));
+      TpExit = BB->splitAt(MI, false);
+    }
+
+    // Add logic for iteration count
+    Register TotalIterationsReg =
+        genTPEntry(TpEntry, TpLoopBody, TpExit, OpSizeReg, TII, dl, MRI);
+
+    // Add the vectorized (and predicated) loads/store instructions
+    bool IsMemcpy = MI.getOpcode() == ARM::MVE_MEMCPYLOOPINST;
+    genTPLoopBody(TpLoopBody, TpEntry, TpExit, TII, dl, MRI, OpSrcReg,
+                  OpDestReg, OpSizeReg, TotalIterationsReg, IsMemcpy);
+
+    // Required to avoid conflict with the MachineVerifier during testing.
+    Properties.reset(MachineFunctionProperties::Property::NoPHIs);
+
+    // Connect the blocks
+    TpEntry->addSuccessor(TpLoopBody);
+    TpLoopBody->addSuccessor(TpLoopBody);
+    TpLoopBody->addSuccessor(TpExit);
+
+    // Reorder for a more natural layout
+    TpLoopBody->moveAfter(TpEntry);
+    TpExit->moveAfter(TpLoopBody);
+
+    // Finally, remove the memcpy Psuedo Instruction
+    MI.eraseFromParent();
+
+    // Return the exit block as it may contain other instructions requiring a
+    // custom inserter
+    return TpExit;
   }
 
   // The Thumb2 pre-indexed stores have the same MI operands, they just
@@ -12733,6 +13123,27 @@ static SDValue PerformADDCombine(SDNode *N,
   return PerformADDCombineWithOperands(N, N1, N0, DCI, Subtarget);
 }
 
+// Combine (sub 0, (csinc X, Y, CC)) -> (csinv -X, Y, CC)
+//   providing -X is as cheap as X (currently, just a constant).
+static SDValue PerformSubCSINCCombine(SDNode *N,
+                                      TargetLowering::DAGCombinerInfo &DCI) {
+  if (N->getValueType(0) != MVT::i32 || !isNullConstant(N->getOperand(0)))
+    return SDValue();
+  SDValue CSINC = N->getOperand(1);
+  if (CSINC.getOpcode() != ARMISD::CSINC || !CSINC.hasOneUse())
+    return SDValue();
+
+  ConstantSDNode *X = dyn_cast<ConstantSDNode>(CSINC.getOperand(0));
+  if (!X)
+    return SDValue();
+
+  return DCI.DAG.getNode(ARMISD::CSINV, SDLoc(N), MVT::i32,
+                         DCI.DAG.getNode(ISD::SUB, SDLoc(N), MVT::i32,
+                                         N->getOperand(0), CSINC.getOperand(0)),
+                         CSINC.getOperand(1), CSINC.getOperand(2),
+                         CSINC.getOperand(3));
+}
+
 /// PerformSUBCombine - Target-specific dag combine xforms for ISD::SUB.
 ///
 static SDValue PerformSUBCombine(SDNode *N,
@@ -12745,6 +13156,9 @@ static SDValue PerformSUBCombine(SDNode *N,
   if (N1.getNode()->hasOneUse())
     if (SDValue Result = combineSelectAndUse(N, N1, N0, DCI))
       return Result;
+
+  if (SDValue R = PerformSubCSINCCombine(N, DCI))
+    return R;
 
   if (!Subtarget->hasMVEIntegerOps() || !N->getValueType(0).isVector())
     return SDValue();
@@ -13682,22 +14096,51 @@ static SDValue PerformVMOVRRDCombine(SDNode *N,
   }
 
   // VMOVRRD(extract(..(build_vector(a, b, c, d)))) -> a,b or c,d
+  // VMOVRRD(extract(insert_vector(insert_vector(.., a, l1), b, l2))) -> a,b
   if (InDouble.getOpcode() == ISD::EXTRACT_VECTOR_ELT &&
       isa<ConstantSDNode>(InDouble.getOperand(1))) {
     SDValue BV = InDouble.getOperand(0);
-    // Look up through any nop bitcasts
-    while (BV.getOpcode() == ISD::BITCAST &&
-           (BV.getValueType() == MVT::v2f64 || BV.getValueType() == MVT::v2i64))
+    // Look up through any nop bitcasts and vector_reg_casts. bitcasts may
+    // change lane order under big endian.
+    bool BVSwap = BV.getOpcode() == ISD::BITCAST;
+    while (
+        (BV.getOpcode() == ISD::BITCAST ||
+         BV.getOpcode() == ARMISD::VECTOR_REG_CAST) &&
+        (BV.getValueType() == MVT::v2f64 || BV.getValueType() == MVT::v2i64)) {
+      BVSwap = BV.getOpcode() == ISD::BITCAST;
       BV = BV.getOperand(0);
-    if (BV.getValueType() != MVT::v4i32 || BV.getOpcode() != ISD::BUILD_VECTOR)
+    }
+    if (BV.getValueType() != MVT::v4i32)
       return SDValue();
+
+    // Handle buildvectors, pulling out the correct lane depending on
+    // endianness.
     unsigned Offset = InDouble.getConstantOperandVal(1) == 1 ? 2 : 0;
-    if (Subtarget->isLittle())
-      return DCI.DAG.getMergeValues(
-          {BV.getOperand(Offset), BV.getOperand(Offset + 1)}, SDLoc(N));
-    else
-      return DCI.DAG.getMergeValues(
-          {BV.getOperand(Offset + 1), BV.getOperand(Offset)}, SDLoc(N));
+    if (BV.getOpcode() == ISD::BUILD_VECTOR) {
+      SDValue Op0 = BV.getOperand(Offset);
+      SDValue Op1 = BV.getOperand(Offset + 1);
+      if (!Subtarget->isLittle() && BVSwap)
+        std::swap(Op0, Op1);
+
+      return DCI.DAG.getMergeValues({Op0, Op1}, SDLoc(N));
+    }
+
+    // A chain of insert_vectors, grabbing the correct value of the chain of
+    // inserts.
+    SDValue Op0, Op1;
+    while (BV.getOpcode() == ISD::INSERT_VECTOR_ELT) {
+      if (isa<ConstantSDNode>(BV.getOperand(2))) {
+        if (BV.getConstantOperandVal(2) == Offset)
+          Op0 = BV.getOperand(1);
+        if (BV.getConstantOperandVal(2) == Offset + 1)
+          Op1 = BV.getOperand(1);
+      }
+      BV = BV.getOperand(0);
+    }
+    if (!Subtarget->isLittle() && BVSwap)
+      std::swap(Op0, Op1);
+    if (Op0 && Op1)
+      return DCI.DAG.getMergeValues({Op0, Op1}, SDLoc(N));
   }
 
   return SDValue();
@@ -14057,6 +14500,70 @@ static SDValue PerformInsertEltCombine(SDNode *N,
   return DAG.getNode(ISD::BITCAST, dl, VT, InsElt);
 }
 
+// Convert a pair of extracts from the same base vector to a VMOVRRD. Either
+// directly or bitcast to an integer if the original is a float vector.
+// extract(x, n); extract(x, n+1)  ->  VMOVRRD(extract v2f64 x, n/2)
+// bitcast(extract(x, n)); bitcast(extract(x, n+1))  ->  VMOVRRD(extract x, n/2)
+static SDValue
+PerformExtractEltToVMOVRRD(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
+  EVT VT = N->getValueType(0);
+  SDLoc dl(N);
+
+  if (!DCI.isAfterLegalizeDAG() || VT != MVT::i32 ||
+      !DCI.DAG.getTargetLoweringInfo().isTypeLegal(MVT::f64))
+    return SDValue();
+
+  SDValue Ext = SDValue(N, 0);
+  if (Ext.getOpcode() == ISD::BITCAST &&
+      Ext.getOperand(0).getValueType() == MVT::f32)
+    Ext = Ext.getOperand(0);
+  if (Ext.getOpcode() != ISD::EXTRACT_VECTOR_ELT ||
+      !isa<ConstantSDNode>(Ext.getOperand(1)) ||
+      Ext.getConstantOperandVal(1) % 2 != 0)
+    return SDValue();
+  if (Ext->use_size() == 1 &&
+      (Ext->use_begin()->getOpcode() == ISD::SINT_TO_FP ||
+       Ext->use_begin()->getOpcode() == ISD::UINT_TO_FP))
+    return SDValue();
+
+  SDValue Op0 = Ext.getOperand(0);
+  EVT VecVT = Op0.getValueType();
+  unsigned Lane = Ext.getConstantOperandVal(1);
+  if (VecVT.getVectorNumElements() != 4)
+    return SDValue();
+
+  // Find another extract, of Lane + 1
+  auto OtherIt = find_if(Op0->uses(), [&](SDNode *V) {
+    return V->getOpcode() == ISD::EXTRACT_VECTOR_ELT &&
+           isa<ConstantSDNode>(V->getOperand(1)) &&
+           V->getConstantOperandVal(1) == Lane + 1;
+  });
+  if (OtherIt == Op0->uses().end())
+    return SDValue();
+
+  // For float extracts, we need to be converting to a i32 for both vector
+  // lanes.
+  SDValue OtherExt(*OtherIt, 0);
+  if (OtherExt.getValueType() != MVT::i32) {
+    if (OtherExt->use_size() != 1 ||
+        OtherExt->use_begin()->getOpcode() != ISD::BITCAST ||
+        OtherExt->use_begin()->getValueType(0) != MVT::i32)
+      return SDValue();
+    OtherExt = SDValue(*OtherExt->use_begin(), 0);
+  }
+
+  // Convert the type to a f64 and extract with a VMOVRRD.
+  SDValue F64 = DCI.DAG.getNode(
+      ISD::EXTRACT_VECTOR_ELT, dl, MVT::f64,
+      DCI.DAG.getNode(ARMISD::VECTOR_REG_CAST, dl, MVT::v2f64, Op0),
+      DCI.DAG.getConstant(Ext.getConstantOperandVal(1) / 2, dl, MVT::i32));
+  SDValue VMOVRRD =
+      DCI.DAG.getNode(ARMISD::VMOVRRD, dl, {MVT::i32, MVT::i32}, F64);
+
+  DCI.CombineTo(OtherExt.getNode(), SDValue(VMOVRRD.getNode(), 1));
+  return VMOVRRD;
+}
+
 static SDValue PerformExtractEltCombine(SDNode *N,
                                         TargetLowering::DAGCombinerInfo &DCI,
                                         const ARMSubtarget *ST) {
@@ -14090,6 +14597,10 @@ static SDValue PerformExtractEltCombine(SDNode *N,
     if (MOV.getOpcode() == ARMISD::VMOVDRR)
       return MOV.getOperand(ST->isLittle() ? Offset % 2 : 1 - Offset % 2);
   }
+
+  // extract x, n; extract x, n+1  ->  VMOVRRD x
+  if (SDValue R = PerformExtractEltToVMOVRRD(N, DCI))
+    return R;
 
   return SDValue();
 }
@@ -14241,6 +14752,9 @@ static SDValue CombineBaseUpdate(SDNode *N,
     // Find the new opcode for the updating load/store.
     bool isLoadOp = true;
     bool isLaneOp = false;
+    // Workaround for vst1x and vld1x intrinsics which do not have alignment
+    // as an operand.
+    bool hasAlignment = true;
     unsigned NewOpc = 0;
     unsigned NumVecs = 0;
     if (isIntrinsic) {
@@ -14255,15 +14769,18 @@ static SDValue CombineBaseUpdate(SDNode *N,
         NumVecs = 3; break;
       case Intrinsic::arm_neon_vld4:     NewOpc = ARMISD::VLD4_UPD;
         NumVecs = 4; break;
-      case Intrinsic::arm_neon_vld1x2:
-      case Intrinsic::arm_neon_vld1x3:
-      case Intrinsic::arm_neon_vld1x4:
-      case Intrinsic::arm_neon_vld2dup:
-      case Intrinsic::arm_neon_vld3dup:
-      case Intrinsic::arm_neon_vld4dup:
-        // TODO: Support updating VLD1x and VLDxDUP nodes. For now, we just skip
-        // combining base updates for such intrinsics.
-        continue;
+      case Intrinsic::arm_neon_vld1x2:   NewOpc = ARMISD::VLD1x2_UPD;
+        NumVecs = 2; hasAlignment = false; break;
+      case Intrinsic::arm_neon_vld1x3:   NewOpc = ARMISD::VLD1x3_UPD;
+        NumVecs = 3; hasAlignment = false; break;
+      case Intrinsic::arm_neon_vld1x4:   NewOpc = ARMISD::VLD1x4_UPD;
+        NumVecs = 4; hasAlignment = false; break;
+      case Intrinsic::arm_neon_vld2dup:  NewOpc = ARMISD::VLD2DUP_UPD;
+        NumVecs = 2; break;
+      case Intrinsic::arm_neon_vld3dup:  NewOpc = ARMISD::VLD3DUP_UPD;
+        NumVecs = 3; break;
+      case Intrinsic::arm_neon_vld4dup:  NewOpc = ARMISD::VLD4DUP_UPD;
+        NumVecs = 4; break;
       case Intrinsic::arm_neon_vld2lane: NewOpc = ARMISD::VLD2LN_UPD;
         NumVecs = 2; isLaneOp = true; break;
       case Intrinsic::arm_neon_vld3lane: NewOpc = ARMISD::VLD3LN_UPD;
@@ -14284,6 +14801,12 @@ static SDValue CombineBaseUpdate(SDNode *N,
         NumVecs = 3; isLoadOp = false; isLaneOp = true; break;
       case Intrinsic::arm_neon_vst4lane: NewOpc = ARMISD::VST4LN_UPD;
         NumVecs = 4; isLoadOp = false; isLaneOp = true; break;
+      case Intrinsic::arm_neon_vst1x2:   NewOpc = ARMISD::VST1x2_UPD;
+        NumVecs = 2; isLoadOp = false; hasAlignment = false; break;
+      case Intrinsic::arm_neon_vst1x3:   NewOpc = ARMISD::VST1x3_UPD;
+        NumVecs = 3; isLoadOp = false; hasAlignment = false; break;
+      case Intrinsic::arm_neon_vst1x4:   NewOpc = ARMISD::VST1x4_UPD;
+        NumVecs = 4; isLoadOp = false; hasAlignment = false; break;
       }
     } else {
       isLaneOp = true;
@@ -14311,8 +14834,12 @@ static SDValue CombineBaseUpdate(SDNode *N,
       VecTy = N->getOperand(1).getValueType();
     }
 
+    bool isVLDDUPOp =
+        NewOpc == ARMISD::VLD1DUP_UPD || NewOpc == ARMISD::VLD2DUP_UPD ||
+        NewOpc == ARMISD::VLD3DUP_UPD || NewOpc == ARMISD::VLD4DUP_UPD;
+
     unsigned NumBytes = NumVecs * VecTy.getSizeInBits() / 8;
-    if (isLaneOp)
+    if (isLaneOp || isVLDDUPOp)
       NumBytes /= VecTy.getVectorNumElements();
 
     // If the increment is a constant, it must match the memory ref size.
@@ -14387,7 +14914,9 @@ static SDValue CombineBaseUpdate(SDNode *N,
     } else {
       // Loads (and of course intrinsics) match the intrinsics' signature,
       // so just add all but the alignment operand.
-      for (unsigned i = AddrOpIdx + 1; i < N->getNumOperands() - 1; ++i)
+      unsigned LastOperand =
+          hasAlignment ? N->getNumOperands() - 1 : N->getNumOperands();
+      for (unsigned i = AddrOpIdx + 1; i < LastOperand; ++i)
         Ops.push_back(N->getOperand(i));
     }
 
@@ -16511,8 +17040,10 @@ ARMTargetLowering::PerformCMOVCombine(SDNode *N, SelectionDAG &DAG) const {
   return Res;
 }
 
-static SDValue PerformBITCASTCombine(SDNode *N, SelectionDAG &DAG,
-                                    const ARMSubtarget *ST) {
+static SDValue PerformBITCASTCombine(SDNode *N,
+                                     TargetLowering::DAGCombinerInfo &DCI,
+                                     const ARMSubtarget *ST) {
+  SelectionDAG &DAG = DCI.DAG;
   SDValue Src = N->getOperand(0);
   EVT DstVT = N->getValueType(0);
 
@@ -16537,6 +17068,10 @@ static SDValue PerformBITCASTCombine(SDNode *N, SelectionDAG &DAG,
       SrcVT.getScalarSizeInBits() <= DstVT.getScalarSizeInBits() &&
       DAG.getDataLayout().isBigEndian())
     return DAG.getNode(ARMISD::VECTOR_REG_CAST, SDLoc(N), DstVT, Src);
+
+  // bitcast(extract(x, n)); bitcast(extract(x, n+1))  ->  VMOVRRD x
+  if (SDValue R = PerformExtractEltToVMOVRRD(N, DCI))
+    return R;
 
   return SDValue();
 }
@@ -16609,7 +17144,7 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
   case ARMISD::BUILD_VECTOR:
     return PerformARMBUILD_VECTORCombine(N, DCI);
   case ISD::BITCAST:
-    return PerformBITCASTCombine(N, DCI.DAG, Subtarget);
+    return PerformBITCASTCombine(N, DCI, Subtarget);
   case ARMISD::PREDICATE_CAST:
     return PerformPREDICATE_CASTCombine(N, DCI);
   case ARMISD::VECTOR_REG_CAST:
@@ -17079,9 +17614,10 @@ bool ARMTargetLowering::allowTruncateForTailCall(Type *Ty1, Type *Ty2) const {
   return true;
 }
 
-int ARMTargetLowering::getScalingFactorCost(const DataLayout &DL,
-                                                const AddrMode &AM, Type *Ty,
-                                                unsigned AS) const {
+InstructionCost ARMTargetLowering::getScalingFactorCost(const DataLayout &DL,
+                                                        const AddrMode &AM,
+                                                        Type *Ty,
+                                                        unsigned AS) const {
   if (isLegalAddressingMode(DL, AM, Ty, AS)) {
     if (Subtarget->hasFPAO())
       return AM.Scale < 0 ? 1 : 0; // positive offsets execute faster
@@ -18732,6 +19268,66 @@ bool ARMTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.flags = MachineMemOperand::MOStore;
     return true;
   }
+  case Intrinsic::arm_mve_vldr_gather_base:
+  case Intrinsic::arm_mve_vldr_gather_base_predicated: {
+    Info.opc = ISD::INTRINSIC_W_CHAIN;
+    Info.ptrVal = nullptr;
+    Info.memVT = MVT::getVT(I.getType());
+    Info.align = Align(1);
+    Info.flags |= MachineMemOperand::MOLoad;
+    return true;
+  }
+  case Intrinsic::arm_mve_vldr_gather_base_wb:
+  case Intrinsic::arm_mve_vldr_gather_base_wb_predicated: {
+    Info.opc = ISD::INTRINSIC_W_CHAIN;
+    Info.ptrVal = nullptr;
+    Info.memVT = MVT::getVT(I.getType()->getContainedType(0));
+    Info.align = Align(1);
+    Info.flags |= MachineMemOperand::MOLoad;
+    return true;
+  }
+  case Intrinsic::arm_mve_vldr_gather_offset:
+  case Intrinsic::arm_mve_vldr_gather_offset_predicated: {
+    Info.opc = ISD::INTRINSIC_W_CHAIN;
+    Info.ptrVal = nullptr;
+    MVT DataVT = MVT::getVT(I.getType());
+    unsigned MemSize = cast<ConstantInt>(I.getArgOperand(2))->getZExtValue();
+    Info.memVT = MVT::getVectorVT(MVT::getIntegerVT(MemSize),
+                                  DataVT.getVectorNumElements());
+    Info.align = Align(1);
+    Info.flags |= MachineMemOperand::MOLoad;
+    return true;
+  }
+  case Intrinsic::arm_mve_vstr_scatter_base:
+  case Intrinsic::arm_mve_vstr_scatter_base_predicated: {
+    Info.opc = ISD::INTRINSIC_VOID;
+    Info.ptrVal = nullptr;
+    Info.memVT = MVT::getVT(I.getArgOperand(2)->getType());
+    Info.align = Align(1);
+    Info.flags |= MachineMemOperand::MOStore;
+    return true;
+  }
+  case Intrinsic::arm_mve_vstr_scatter_base_wb:
+  case Intrinsic::arm_mve_vstr_scatter_base_wb_predicated: {
+    Info.opc = ISD::INTRINSIC_W_CHAIN;
+    Info.ptrVal = nullptr;
+    Info.memVT = MVT::getVT(I.getArgOperand(2)->getType());
+    Info.align = Align(1);
+    Info.flags |= MachineMemOperand::MOStore;
+    return true;
+  }
+  case Intrinsic::arm_mve_vstr_scatter_offset:
+  case Intrinsic::arm_mve_vstr_scatter_offset_predicated: {
+    Info.opc = ISD::INTRINSIC_VOID;
+    Info.ptrVal = nullptr;
+    MVT DataVT = MVT::getVT(I.getArgOperand(2)->getType());
+    unsigned MemSize = cast<ConstantInt>(I.getArgOperand(3))->getZExtValue();
+    Info.memVT = MVT::getVectorVT(MVT::getIntegerVT(MemSize),
+                                  DataVT.getVectorNumElements());
+    Info.align = Align(1);
+    Info.flags |= MachineMemOperand::MOStore;
+    return true;
+  }
   case Intrinsic::arm_ldaex:
   case Intrinsic::arm_ldrex: {
     auto &DL = I.getCalledFunction()->getParent()->getDataLayout();
@@ -18803,7 +19399,7 @@ bool ARMTargetLowering::isExtractSubvectorCheap(EVT ResVT, EVT SrcVT,
   return (Index == 0 || Index == ResVT.getVectorNumElements());
 }
 
-Instruction* ARMTargetLowering::makeDMB(IRBuilder<> &Builder,
+Instruction *ARMTargetLowering::makeDMB(IRBuilderBase &Builder,
                                         ARM_MB::MemBOpt Domain) const {
   Module *M = Builder.GetInsertBlock()->getParent()->getParent();
 
@@ -18833,7 +19429,7 @@ Instruction* ARMTargetLowering::makeDMB(IRBuilder<> &Builder,
 }
 
 // Based on http://www.cl.cam.ac.uk/~pes20/cpp/cpp0xmappings.html
-Instruction *ARMTargetLowering::emitLeadingFence(IRBuilder<> &Builder,
+Instruction *ARMTargetLowering::emitLeadingFence(IRBuilderBase &Builder,
                                                  Instruction *Inst,
                                                  AtomicOrdering Ord) const {
   switch (Ord) {
@@ -18858,7 +19454,7 @@ Instruction *ARMTargetLowering::emitLeadingFence(IRBuilder<> &Builder,
   llvm_unreachable("Unknown fence ordering in emitLeadingFence");
 }
 
-Instruction *ARMTargetLowering::emitTrailingFence(IRBuilder<> &Builder,
+Instruction *ARMTargetLowering::emitTrailingFence(IRBuilderBase &Builder,
                                                   Instruction *Inst,
                                                   AtomicOrdering Ord) const {
   switch (Ord) {
@@ -18904,6 +19500,14 @@ ARMTargetLowering::shouldExpandAtomicLoadInIR(LoadInst *LI) const {
 TargetLowering::AtomicExpansionKind
 ARMTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const {
   if (AI->isFloatingPointOperation())
+    return AtomicExpansionKind::CmpXChg;
+
+  // At -O0, fast-regalloc cannot cope with the live vregs necessary to
+  // implement atomicrmw without spilling. If the target address is also on the
+  // stack and close enough to the spill slot, this can lead to a situation
+  // where the monitor always gets cleared and the atomic operation can never
+  // succeed. So at -O0 lower this operation to a CAS loop.
+  if (getTargetMachine().getOptLevel() == CodeGenOpt::None)
     return AtomicExpansionKind::CmpXChg;
 
   unsigned Size = AI->getType()->getPrimitiveSizeInBits();
@@ -19012,7 +19616,7 @@ bool ARMTargetLowering::shouldExpandShift(SelectionDAG &DAG, SDNode *N) const {
   return !Subtarget->hasMinSize() || Subtarget->isTargetWindows();
 }
 
-Value *ARMTargetLowering::emitLoadLinked(IRBuilder<> &Builder, Value *Addr,
+Value *ARMTargetLowering::emitLoadLinked(IRBuilderBase &Builder, Value *Addr,
                                          AtomicOrdering Ord) const {
   Module *M = Builder.GetInsertBlock()->getParent()->getParent();
   Type *ValTy = cast<PointerType>(Addr->getType())->getElementType();
@@ -19049,15 +19653,15 @@ Value *ARMTargetLowering::emitLoadLinked(IRBuilder<> &Builder, Value *Addr,
 }
 
 void ARMTargetLowering::emitAtomicCmpXchgNoStoreLLBalance(
-    IRBuilder<> &Builder) const {
+    IRBuilderBase &Builder) const {
   if (!Subtarget->hasV7Ops())
     return;
   Module *M = Builder.GetInsertBlock()->getParent()->getParent();
   Builder.CreateCall(Intrinsic::getDeclaration(M, Intrinsic::arm_clrex));
 }
 
-Value *ARMTargetLowering::emitStoreConditional(IRBuilder<> &Builder, Value *Val,
-                                               Value *Addr,
+Value *ARMTargetLowering::emitStoreConditional(IRBuilderBase &Builder,
+                                               Value *Val, Value *Addr,
                                                AtomicOrdering Ord) const {
   Module *M = Builder.GetInsertBlock()->getParent()->getParent();
   bool IsRelease = isReleaseOrStronger(Ord);
@@ -19512,8 +20116,8 @@ static bool isHomogeneousAggregate(Type *Ty, HABaseType &Base,
 }
 
 /// Return the correct alignment for the current calling convention.
-Align ARMTargetLowering::getABIAlignmentForCallingConv(Type *ArgTy,
-                                                       DataLayout DL) const {
+Align ARMTargetLowering::getABIAlignmentForCallingConv(
+    Type *ArgTy, const DataLayout &DL) const {
   const Align ABITypeAlign = DL.getABITypeAlign(ArgTy);
   if (!ArgTy->isVectorTy())
     return ABITypeAlign;
@@ -19527,7 +20131,8 @@ Align ARMTargetLowering::getABIAlignmentForCallingConv(Type *ArgTy,
 /// [N x i32] or [N x i64]. This allows front-ends to skip emitting padding when
 /// passing according to AAPCS rules.
 bool ARMTargetLowering::functionArgumentNeedsConsecutiveRegisters(
-    Type *Ty, CallingConv::ID CallConv, bool isVarArg) const {
+    Type *Ty, CallingConv::ID CallConv, bool isVarArg,
+    const DataLayout &DL) const {
   if (getEffectiveCallingConv(CallConv, isVarArg) !=
       CallingConv::ARM_AAPCS_VFP)
     return false;

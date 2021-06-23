@@ -114,8 +114,9 @@ def main():
             'verbose': args.verbose,
             'function_signature': False,
             'check_attributes': False,
-            'replace_function_regex': []}),
-      scrubber_args = [])
+            'replace_value_regex': []}),
+      scrubber_args = [],
+      path=test)
 
     for prefixes, opt_args in prefix_list:
       common.debug('Extracted opt cmd:', opt_basename, opt_args, file=sys.stderr)

@@ -89,7 +89,7 @@ static void appendToUsedList(Module &M, StringRef Name, ArrayRef<GlobalValue *> 
 
   Type *Int8PtrTy = llvm::Type::getInt8PtrTy(M.getContext());
   for (auto *V : Values) {
-    Constant *C = ConstantExpr::getBitCast(V, Int8PtrTy);
+    Constant *C = ConstantExpr::getPointerBitCastOrAddrSpaceCast(V, Int8PtrTy);
     if (InitAsSet.insert(C).second)
       Init.push_back(C);
   }
@@ -122,9 +122,10 @@ llvm::declareSanitizerInitFunction(Module &M, StringRef InitName,
 }
 
 Function *llvm::createSanitizerCtor(Module &M, StringRef CtorName) {
-  Function *Ctor = Function::Create(
+  Function *Ctor = Function::createWithDefaultAttr(
       FunctionType::get(Type::getVoidTy(M.getContext()), false),
-      GlobalValue::InternalLinkage, CtorName, &M);
+      GlobalValue::InternalLinkage, 0, CtorName, &M);
+  Ctor->addAttribute(AttributeList::FunctionIndex, Attribute::NoUnwind);
   BasicBlock *CtorBB = BasicBlock::Create(M.getContext(), "", Ctor);
   ReturnInst::Create(M.getContext(), CtorBB);
   return Ctor;

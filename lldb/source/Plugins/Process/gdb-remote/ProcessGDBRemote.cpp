@@ -8,8 +8,8 @@
 
 #include "lldb/Host/Config.h"
 
-#include <errno.h>
-#include <stdlib.h>
+#include <cerrno>
+#include <cstdlib>
 #if LLDB_ENABLE_POSIX
 #include <netinet/in.h>
 #include <sys/mman.h>
@@ -20,8 +20,8 @@
 #if defined(__APPLE__)
 #include <sys/sysctl.h>
 #endif
+#include <ctime>
 #include <sys/types.h>
-#include <time.h>
 
 #include <algorithm>
 #include <csignal>
@@ -1042,6 +1042,12 @@ void ProcessGDBRemote::DidLaunchOrAttach(ArchSpec &process_arch) {
              process_arch.GetTriple().getTriple());
   }
 
+  if (int addresssable_bits = m_gdb_comm.GetAddressingBits()) {
+    lldb::addr_t address_mask = ~((1ULL << addresssable_bits) - 1);
+    SetCodeAddressMask(address_mask);
+    SetDataAddressMask(address_mask);
+  }
+
   if (process_arch.IsValid()) {
     const ArchSpec &target_arch = GetTarget().GetArchitecture();
     if (target_arch.IsValid()) {
@@ -1826,8 +1832,7 @@ ThreadSP ProcessGDBRemote::SetThreadStopInfo(
               // If the current pc is a breakpoint site then the StopInfo
               // should be set to Breakpoint Otherwise, it will be set to
               // Trace.
-              if (bp_site_sp &&
-                  bp_site_sp->ValidForThisThread(thread_sp.get())) {
+              if (bp_site_sp && bp_site_sp->ValidForThisThread(*thread_sp)) {
                 thread_sp->SetStopInfo(
                     StopInfo::CreateStopReasonWithBreakpointSiteID(
                         *thread_sp, bp_site_sp->GetID()));
@@ -1847,7 +1852,7 @@ ThreadSP ProcessGDBRemote::SetThreadStopInfo(
                 // breakpoint here, that will be taken care of when the thread
                 // resumes and notices that there's a breakpoint under the pc.
                 handled = true;
-                if (bp_site_sp->ValidForThisThread(thread_sp.get())) {
+                if (bp_site_sp->ValidForThisThread(*thread_sp)) {
                   thread_sp->SetStopInfo(
                       StopInfo::CreateStopReasonWithBreakpointSiteID(
                           *thread_sp, bp_site_sp->GetID()));
@@ -1913,7 +1918,7 @@ ThreadSP ProcessGDBRemote::SetThreadStopInfo(
             // as such. This can happen when the thread is involuntarily
             // interrupted (e.g. due to stops on other threads) just as it is
             // about to execute the breakpoint instruction.
-            if (bp_site_sp && bp_site_sp->ValidForThisThread(thread_sp.get())) {
+            if (bp_site_sp && bp_site_sp->ValidForThisThread(*thread_sp)) {
               thread_sp->SetStopInfo(
                   StopInfo::CreateStopReasonWithBreakpointSiteID(
                       *thread_sp, bp_site_sp->GetID()));
@@ -1938,7 +1943,7 @@ ThreadSP ProcessGDBRemote::SetThreadStopInfo(
                 // reason.  We don't need to worry about stepping over the
                 // breakpoint here, that will be taken care of when the thread
                 // resumes and notices that there's a breakpoint under the pc.
-                if (bp_site_sp->ValidForThisThread(thread_sp.get())) {
+                if (bp_site_sp->ValidForThisThread(*thread_sp)) {
                   if (m_breakpoint_pc_offset != 0)
                     thread_sp->GetRegisterContext()->SetPC(pc);
                   thread_sp->SetStopInfo(
@@ -3683,12 +3688,25 @@ thread_result_t ProcessGDBRemote::AsyncThread(void *arg) {
             __FUNCTION__, arg, process->GetID());
 
   EventSP event_sp;
+
+  // We need to ignore any packets that come in after we have
+  // have decided the process has exited.  There are some
+  // situations, for instance when we try to interrupt a running
+  // process and the interrupt fails, where another packet might
+  // get delivered after we've decided to give up on the process.
+  // But once we've decided we are done with the process we will
+  // not be in a state to do anything useful with new packets.
+  // So it is safer to simply ignore any remaining packets by
+  // explicitly checking for eStateExited before reentering the
+  // fetch loop.
+  
   bool done = false;
-  while (!done) {
+  while (!done && process->GetPrivateState() != eStateExited) {
     LLDB_LOGF(log,
               "ProcessGDBRemote::%s (arg = %p, pid = %" PRIu64
               ") listener.WaitForEvent (NULL, event_sp)...",
               __FUNCTION__, arg, process->GetID());
+
     if (process->m_async_listener_sp->GetEvent(event_sp, llvm::None)) {
       const uint32_t event_type = event_sp->GetType();
       if (event_sp->BroadcasterIs(&process->m_async_broadcaster)) {
@@ -3787,6 +3805,7 @@ thread_result_t ProcessGDBRemote::AsyncThread(void *arg) {
                 } else {
                   process->SetExitStatus(-1, "lost connection");
                 }
+                done = true;
                 break;
               }
 
@@ -5227,7 +5246,6 @@ public:
                                    "amount to be transferred when "
                                    "reading/writing",
                                    m_cmd_name.c_str());
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -5268,7 +5286,6 @@ public:
       result.AppendErrorWithFormat(
           "'%s' takes a one or more packet content arguments",
           m_cmd_name.c_str());
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -5318,7 +5335,6 @@ public:
     if (command.empty()) {
       result.AppendErrorWithFormat("'%s' takes a command string argument",
                                    m_cmd_name.c_str());
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 

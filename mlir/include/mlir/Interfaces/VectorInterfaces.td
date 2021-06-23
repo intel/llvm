@@ -69,17 +69,17 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*defaultImplementation=*/ [{ return "permutation_map"; }]
     >,
     InterfaceMethod<
-      /*desc=*/[{
-      Return `true` when the `in_bounds` attribute at dimension
-      `dim` is set to `true`. Return `false` otherwise.}],
+      /*desc=*/[{ Return `true` if dimension `dim` is in-bounds. Return `false`
+                 otherwise. }],
       /*retTy=*/"bool",
       /*methodName=*/"isDimInBounds",
       /*args=*/(ins "unsigned":$dim),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.in_bounds() &&
-          $_op.in_bounds()->template cast<ArrayAttr>()[dim]
-                          .template cast<BoolAttr>().getValue();
+        return $_op.isBroadcastDim(dim)
+            || ($_op.in_bounds()
+                && $_op.in_bounds()->template cast<ArrayAttr>()[dim]
+                                    .template cast<BoolAttr>().getValue());
       }]
     >,
     InterfaceMethod<
@@ -115,6 +115,33 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
+      /*desc=*/[{ Returns true if the specified dimension is a broadcast. }],
+      /*retTy=*/"bool",
+      /*methodName=*/"isBroadcastDim",
+      /*args=*/(ins "unsigned":$idx),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        auto expr = $_op.permutation_map().getResult(idx);
+        return expr.template isa<AffineConstantExpr>() &&
+               expr.template dyn_cast<AffineConstantExpr>().getValue() == 0;
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{ Returns true if at least one of the dimensions in the
+                  permutation map is a broadcast.}],
+      /*retTy=*/"bool",
+      /*methodName=*/"hasBroadcastDim",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        for (unsigned i = 0; i < $_op.permutation_map().getNumResults(); ++i) {
+          if ($_op.isBroadcastDim(i))
+            return true;
+        }
+        return false;
+      }]
+    >,
+    InterfaceMethod<
       /*desc=*/"Return the `in_bounds` boolean ArrayAttr.",
       /*retTy=*/"Optional<ArrayAttr>",
       /*methodName=*/"in_bounds",
@@ -140,6 +167,19 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*defaultImplementation=*/[{
         return $_op.vector().getType().template dyn_cast<VectorType>();
         }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Return the mask type if the op has a mask.",
+      /*retTy=*/"VectorType",
+      /*methodName=*/"getMaskType",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return $_op.mask()
+            ? mlir::vector::detail::transferMaskType(
+                $_op.getVectorType(), $_op.permutation_map())
+            : VectorType();
+      }]
     >,
     InterfaceMethod<
       /*desc=*/[{ Return the number of dimensions that participate in the

@@ -216,9 +216,16 @@
 // CHECK-HIP-DEV: #define __HIP__ 1
 
 // RUN: %clang_cc1 %s -E -dM -fsycl-is-device \
+// RUN:   -triple spir64-unknown-unknown -fsycl-disable-range-rounding -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-device \
+// RUN:   -triple spir64_fpga-unknown-unknown-sycldevice -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-device -fsycl-disable-range-rounding \
 // RUN:   -triple spir64_fpga-unknown-unknown-sycldevice -o - \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-RANGE
-// CHECK-RANGE: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
 
 // RUN: %clang_cc1 %s -E -dM -fsycl-is-device -o - \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-RANGE
@@ -226,4 +233,12 @@
 // RUN: %clang_cc1 %s -E -dM -o - \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-RANGE
 
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-host \
+// RUN: -triple x86_64-unknown-linux-gnu -fsycl-disable-range-rounding -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-host -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-RANGE
+
+// CHECK-RANGE: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
 // CHECK-NO-RANGE-NOT: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1

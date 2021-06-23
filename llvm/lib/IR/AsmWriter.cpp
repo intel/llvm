@@ -388,6 +388,7 @@ static void PrintCallingConv(unsigned cc, raw_ostream &Out) {
   case CallingConv::SPIR_FUNC:     Out << "spir_func"; break;
   case CallingConv::SPIR_KERNEL:   Out << "spir_kernel"; break;
   case CallingConv::Swift:         Out << "swiftcc"; break;
+  case CallingConv::SwiftTail:     Out << "swifttailcc"; break;
   case CallingConv::X86_INTR:      Out << "x86_intrcc"; break;
   case CallingConv::HHVM:          Out << "hhvmcc"; break;
   case CallingConv::HHVM_C:        Out << "hhvm_ccc"; break;
@@ -651,6 +652,12 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
   }
   case Type::PointerTyID: {
     PointerType *PTy = cast<PointerType>(Ty);
+    if (PTy->isOpaque()) {
+      OS << "ptr";
+      if (unsigned AddressSpace = PTy->getAddressSpace())
+        OS << " addrspace(" << AddressSpace << ')';
+      return;
+    }
     print(PTy->getElementType(), OS);
     if (unsigned AddressSpace = PTy->getAddressSpace())
       OS << " addrspace(" << AddressSpace << ')';
@@ -706,6 +713,8 @@ void TypePrinting::printStructBody(StructType *STy, raw_ostream &OS) {
     OS << '>';
 }
 
+AbstractSlotTrackerStorage::~AbstractSlotTrackerStorage() {}
+
 namespace llvm {
 
 //===----------------------------------------------------------------------===//
@@ -713,7 +722,7 @@ namespace llvm {
 //===----------------------------------------------------------------------===//
 /// This class provides computation of slot numbers for LLVM Assembly writing.
 ///
-class SlotTracker {
+class SlotTracker : public AbstractSlotTrackerStorage {
 public:
   /// ValueMap - A mapping of Values to slot numbers.
   using ValueMap = DenseMap<const Value *, unsigned>;
@@ -726,6 +735,11 @@ private:
   const Function* TheFunction = nullptr;
   bool FunctionProcessed = false;
   bool ShouldInitializeAllMetadata;
+
+  std::function<void(AbstractSlotTrackerStorage *, const Module *, bool)>
+      ProcessModuleHookFn;
+  std::function<void(AbstractSlotTrackerStorage *, const Function *, bool)>
+      ProcessFunctionHookFn;
 
   /// The summary index for which we are holding slot numbers.
   const ModuleSummaryIndex *TheIndex = nullptr;
@@ -781,11 +795,22 @@ public:
   SlotTracker(const SlotTracker &) = delete;
   SlotTracker &operator=(const SlotTracker &) = delete;
 
+  ~SlotTracker() = default;
+
+  void setProcessHook(
+      std::function<void(AbstractSlotTrackerStorage *, const Module *, bool)>);
+  void setProcessHook(std::function<void(AbstractSlotTrackerStorage *,
+                                         const Function *, bool)>);
+
+  unsigned getNextMetadataSlot() override { return mdnNext; }
+
+  void createMetadataSlot(const MDNode *N) override;
+
   /// Return the slot number of the specified value in it's type
   /// plane.  If something is not in the SlotTracker, return -1.
   int getLocalSlot(const Value *V);
   int getGlobalSlot(const GlobalValue *V);
-  int getMetadataSlot(const MDNode *N);
+  int getMetadataSlot(const MDNode *N) override;
   int getAttributeGroupSlot(AttributeSet AS);
   int getModulePathSlot(StringRef Path);
   int getGUIDSlot(GlobalValue::GUID GUID);
@@ -886,6 +911,10 @@ SlotTracker *ModuleSlotTracker::getMachine() {
   MachineStorage =
       std::make_unique<SlotTracker>(M, ShouldInitializeAllMetadata);
   Machine = MachineStorage.get();
+  if (ProcessModuleHookFn)
+    Machine->setProcessHook(ProcessModuleHookFn);
+  if (ProcessFunctionHookFn)
+    Machine->setProcessHook(ProcessFunctionHookFn);
   return Machine;
 }
 
@@ -906,6 +935,18 @@ void ModuleSlotTracker::incorporateFunction(const Function &F) {
 int ModuleSlotTracker::getLocalSlot(const Value *V) {
   assert(F && "No function incorporated");
   return Machine->getLocalSlot(V);
+}
+
+void ModuleSlotTracker::setProcessHook(
+    std::function<void(AbstractSlotTrackerStorage *, const Module *, bool)>
+        Fn) {
+  ProcessModuleHookFn = Fn;
+}
+
+void ModuleSlotTracker::setProcessHook(
+    std::function<void(AbstractSlotTrackerStorage *, const Function *, bool)>
+        Fn) {
+  ProcessFunctionHookFn = Fn;
 }
 
 static SlotTracker *createSlotTracker(const Value *V) {
@@ -1018,6 +1059,9 @@ void SlotTracker::processModule() {
       CreateAttributeSetSlot(FnAttrs);
   }
 
+  if (ProcessModuleHookFn)
+    ProcessModuleHookFn(this, TheModule, ShouldInitializeAllMetadata);
+
   ST_DEBUG("end processModule!\n");
 }
 
@@ -1057,6 +1101,9 @@ void SlotTracker::processFunction() {
       }
     }
   }
+
+  if (ProcessFunctionHookFn)
+    ProcessFunctionHookFn(this, TheFunction, ShouldInitializeAllMetadata);
 
   FunctionProcessed = true;
 
@@ -1147,6 +1194,21 @@ int SlotTracker::getGlobalSlot(const GlobalValue *V) {
   ValueMap::iterator MI = mMap.find(V);
   return MI == mMap.end() ? -1 : (int)MI->second;
 }
+
+void SlotTracker::setProcessHook(
+    std::function<void(AbstractSlotTrackerStorage *, const Module *, bool)>
+        Fn) {
+  ProcessModuleHookFn = Fn;
+}
+
+void SlotTracker::setProcessHook(
+    std::function<void(AbstractSlotTrackerStorage *, const Function *, bool)>
+        Fn) {
+  ProcessFunctionHookFn = Fn;
+}
+
+/// getMetadataSlot - Get the slot number of a MDNode.
+void SlotTracker::createMetadataSlot(const MDNode *N) { CreateMetadataSlot(N); }
 
 /// getMetadataSlot - Get the slot number of a MDNode.
 int SlotTracker::getMetadataSlot(const MDNode *N) {
@@ -1361,7 +1423,7 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
       bool isInf = APF.isInfinity();
       bool isNaN = APF.isNaN();
       if (!isInf && !isNaN) {
-        double Val = isDouble ? APF.convertToDouble() : APF.convertToFloat();
+        double Val = APF.convertToDouble();
         SmallString<128> StrVal;
         APF.toString(StrVal, 6, 0, false);
         // Check to make sure that the stringized number is not some string like
@@ -2461,6 +2523,8 @@ static void WriteAsOperandInternal(raw_ostream &Out, const Value *V,
     // We don't emit the AD_ATT dialect as it's the assumed default.
     if (IA->getDialect() == InlineAsm::AD_Intel)
       Out << "inteldialect ";
+    if (IA->canThrow())
+      Out << "unwind ";
     Out << '"';
     printEscapedString(IA->getAsmString(), Out);
     Out << "\", \"";
@@ -3850,7 +3914,7 @@ void AssemblyWriter::printArgument(const Argument *Arg, AttributeSet Attrs) {
 /// printBasicBlock - This member is called for each basic block in a method.
 void AssemblyWriter::printBasicBlock(const BasicBlock *BB) {
   assert(BB && BB->getParent() && "block without parent!");
-  bool IsEntryBlock = BB == &BB->getParent()->getEntryBlock();
+  bool IsEntryBlock = BB->isEntryBlock();
   if (BB->hasName()) {              // Print out the label if it exists...
     Out << "\n";
     PrintLLVMName(Out, BB->getName(), LabelPrefix);
@@ -4756,6 +4820,17 @@ void ModuleSummaryIndex::print(raw_ostream &ROS, bool IsForDebug) const {
   formatted_raw_ostream OS(ROS);
   AssemblyWriter W(OS, SlotTable, this, IsForDebug);
   W.printModuleSummaryIndex();
+}
+
+void ModuleSlotTracker::collectMDNodes(MachineMDNodeListType &L, unsigned LB,
+                                       unsigned UB) const {
+  SlotTracker *ST = MachineStorage.get();
+  if (!ST)
+    return;
+
+  for (auto &I : llvm::make_range(ST->mdn_begin(), ST->mdn_end()))
+    if (I.second >= LB && I.second < UB)
+      L.push_back(std::make_pair(I.second, I.first));
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)

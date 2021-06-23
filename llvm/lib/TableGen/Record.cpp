@@ -655,6 +655,14 @@ Init *ListInit::resolveReferences(Resolver &R) const {
   return const_cast<ListInit *>(this);
 }
 
+bool ListInit::isComplete() const {
+  for (Init *Element : *this) {
+    if (!Element->isComplete())
+      return false;
+  }
+  return true;
+}
+
 bool ListInit::isConcrete() const {
   for (Init *Element : *this) {
     if (!Element->isConcrete())
@@ -1390,6 +1398,26 @@ Init *TernOpInit::Fold(Record *CurRec) const {
     }
     break;
   }
+
+  case FIND: {
+    StringInit *LHSs = dyn_cast<StringInit>(LHS);
+    StringInit *MHSs = dyn_cast<StringInit>(MHS);
+    IntInit *RHSi = dyn_cast<IntInit>(RHS);
+    if (LHSs && MHSs && RHSi) {
+      int64_t SourceSize = LHSs->getValue().size();
+      int64_t Start = RHSi->getValue();
+      if (Start < 0 || Start > SourceSize)
+        PrintError(CurRec->getLoc(),
+                   Twine("!find start position is out of range 0...") +
+                       std::to_string(SourceSize) + ": " +
+                       std::to_string(Start));
+      auto I = LHSs->getValue().find(MHSs->getValue(), Start);
+      if (I == std::string::npos)
+        return IntInit::get(-1);
+      return IntInit::get(I);
+    }
+    break;
+  }
   }
 
   return const_cast<TernOpInit *>(this);
@@ -1435,15 +1463,15 @@ std::string TernOpInit::getAsString() const {
   case IF: Result = "!if"; break;
   case SUBST: Result = "!subst"; break;
   case SUBSTR: Result = "!substr"; break;
+  case FIND: Result = "!find"; break;
   }
   return (Result + "(" +
           (UnquotedLHS ? LHS->getAsUnquotedString() : LHS->getAsString()) +
           ", " + MHS->getAsString() + ", " + RHS->getAsString() + ")");
 }
 
-static void ProfileFoldOpInit(FoldingSetNodeID &ID, Init *A, Init *B,
-                              Init *Start, Init *List, Init *Expr,
-                              RecTy *Type) {
+static void ProfileFoldOpInit(FoldingSetNodeID &ID, Init *Start, Init *List,
+                              Init *A, Init *B, Init *Expr, RecTy *Type) {
   ID.AddPointer(Start);
   ID.AddPointer(List);
   ID.AddPointer(A);
@@ -1838,7 +1866,7 @@ DefInit *VarDefInit::instantiate() {
     Records.addDef(std::move(NewRecOwner));
 
     // Check the assertions.
-    NewRec->checkAssertions();
+    NewRec->checkRecordAssertions();
 
     Def = DefInit::get(NewRec);
   }
@@ -1924,7 +1952,7 @@ Init *FieldInit::Fold(Record *CurRec) const {
                       FieldName->getAsUnquotedString() + "' of '" +
                       Rec->getAsString() + "' is a forbidden self-reference");
     Init *FieldVal = Def->getValue(FieldName)->getValue();
-    if (FieldVal->isComplete())
+    if (FieldVal->isConcrete())
       return FieldVal;
   }
   return const_cast<FieldInit *>(this);
@@ -2371,10 +2399,10 @@ void Record::resolveReferences(Resolver &R, const RecordVal *SkipVal) {
 
   // Resolve the assertion expressions.
   for (auto &Assertion : Assertions) {
-    Init *Value = std::get<1>(Assertion)->resolveReferences(R);
-    std::get<1>(Assertion) = Value;
-    Value = std::get<2>(Assertion)->resolveReferences(R);
-    std::get<2>(Assertion) = Value;
+    Init *Value = Assertion.Condition->resolveReferences(R);
+    Assertion.Condition = Value;
+    Value = Assertion.Message->resolveReferences(R);
+    Assertion.Message = Value;
   }
 }
 
@@ -2621,14 +2649,14 @@ DagInit *Record::getValueAsDag(StringRef FieldName) const {
 // and message, then call CheckAssert().
 // Note: The condition and message are probably already resolved,
 //       but resolving again allows calls before records are resolved.
-void Record::checkAssertions() {
+void Record::checkRecordAssertions() {
   RecordResolver R(*this);
   R.setFinal(true);
 
   for (auto Assertion : getAssertions()) {
-    Init *Condition = std::get<1>(Assertion)->resolveReferences(R);
-    Init *Message = std::get<2>(Assertion)->resolveReferences(R);
-    CheckAssert(std::get<0>(Assertion), Condition, Message);
+    Init *Condition = Assertion.Condition->resolveReferences(R);
+    Init *Message = Assertion.Message->resolveReferences(R);
+    CheckAssert(Assertion.Loc, Condition, Message);
   }
 }
 

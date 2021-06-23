@@ -13,8 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/WebAssemblyTargetStreamer.h"
-#include "MCTargetDesc/WebAssemblyInstPrinter.h"
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
+#include "Utils/WebAssemblyTypeUtilities.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCSectionWasm.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -91,9 +91,9 @@ void WebAssemblyTargetAsmStreamer::emitTableType(const MCSymbolWasm *Sym) {
   OS << '\n';
 }
 
-void WebAssemblyTargetAsmStreamer::emitEventType(const MCSymbolWasm *Sym) {
-  assert(Sym->isEvent());
-  OS << "\t.eventtype\t" << Sym->getName() << " ";
+void WebAssemblyTargetAsmStreamer::emitTagType(const MCSymbolWasm *Sym) {
+  assert(Sym->isTag());
+  OS << "\t.tagtype\t" << Sym->getName() << " ";
   OS << WebAssembly::typeListToString(Sym->getSignature()->Params);
   OS << "\n";
 }

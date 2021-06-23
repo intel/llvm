@@ -47,6 +47,7 @@
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SourceMgr.h"
+#include <algorithm>
 #include <string>
 
 namespace clang {
@@ -101,6 +102,7 @@ struct FragmentCompiler {
   llvm::SourceMgr *SourceMgr;
   // Normalized Fragment::SourceInfo::Directory.
   std::string FragmentDirectory;
+  bool Trusted = false;
 
   llvm::Optional<llvm::Regex>
   compileRegex(const Located<std::string> &Text,
@@ -183,6 +185,7 @@ struct FragmentCompiler {
   }
 
   void compile(Fragment &&F) {
+    Trusted = F.Source.Trusted;
     if (!F.Source.Directory.empty()) {
       FragmentDirectory = llvm::sys::path::convert_to_slash(F.Source.Directory);
       if (FragmentDirectory.back() != '/')
@@ -268,7 +271,9 @@ struct FragmentCompiler {
         Add.push_back(std::move(*A));
       Out.Apply.push_back([Add(std::move(Add))](const Params &, Config &C) {
         C.CompileFlags.Edits.push_back([Add](std::vector<std::string> &Args) {
-          Args.insert(Args.end(), Add.begin(), Add.end());
+          // The point to insert at. Just append when `--` isn't present.
+          auto It = llvm::find(Args, "--");
+          Args.insert(It, Add.begin(), Add.end());
         });
       });
     }
@@ -320,6 +325,13 @@ struct FragmentCompiler {
 
   void compile(Fragment::IndexBlock::ExternalBlock &&External,
                llvm::SMRange BlockRange) {
+    if (External.Server && !Trusted) {
+      diag(Error,
+           "Remote index may not be specified by untrusted configuration. "
+           "Copy this into user config to use it.",
+           External.Server->Range);
+      return;
+    }
 #ifndef CLANGD_ENABLE_REMOTE
     if (External.Server) {
       elog("Clangd isn't compiled with remote index support, ignoring Server: "
@@ -367,7 +379,7 @@ struct FragmentCompiler {
     }
     Out.Apply.push_back([Spec(std::move(Spec))](const Params &P, Config &C) {
       if (Spec.Kind == Config::ExternalIndexSpec::None) {
-        C.Index.External.reset();
+        C.Index.External = Spec;
         return;
       }
       if (P.Path.empty() || !pathStartsWith(Spec.MountPoint, P.Path,
@@ -510,8 +522,8 @@ CompiledFragment Fragment::compile(DiagnosticCallback D) && {
   trace::Span Tracer("ConfigCompile");
   SPAN_ATTACH(Tracer, "ConfigFile", ConfigFile);
   auto Result = std::make_shared<CompiledFragmentImpl>();
-  vlog("Config fragment: compiling {0}:{1} -> {2}", ConfigFile, LineCol.first,
-       Result.get());
+  vlog("Config fragment: compiling {0}:{1} -> {2} (trusted={3})", ConfigFile,
+       LineCol.first, Result.get(), Source.Trusted);
 
   FragmentCompiler{*Result, D, Source.Manager.get()}.compile(std::move(*this));
   // Return as cheaply-copyable wrapper.

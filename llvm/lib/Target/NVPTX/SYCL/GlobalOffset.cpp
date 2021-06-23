@@ -200,6 +200,7 @@ public:
             /* NameStr= */ Twine(),
             /* InsertBefore= */ CallToOld);
         NewCaller->setTailCallKind(CallToOld->getTailCallKind());
+        NewCaller->copyMetadata(*CallToOld);
         CallToOld->replaceAllUsesWith(NewCaller);
 
         if (CallToOld->hasName()) {

@@ -27,6 +27,7 @@ add_mlir_translation_library(MLIRTargetLLVMIRExport
 
   LINK_LIBS PUBLIC
   MLIRLLVMIR
+  MLIROpenACC
   MLIROpenMP
   MLIRLLVMIRTransforms
   MLIRTranslation
@@ -37,11 +38,12 @@ add_mlir_translation_library(MLIRToLLVMIRTranslationRegistration
 
   LINK_LIBS PUBLIC
   MLIRArmNeonToLLVMIRTranslation
+  MLIRArmSVEToLLVMIRTranslation
   MLIRAMXToLLVMIRTranslation
   MLIRX86VectorToLLVMIRTranslation
-  MLIRLLVMArmSVEToLLVMIRTranslation
   MLIRLLVMToLLVMIRTranslation
   MLIRNVVMToLLVMIRTranslation
+  MLIROpenACCToLLVMIRTranslation
   MLIROpenMPToLLVMIRTranslation
   MLIRROCDLToLLVMIRTranslation
   )

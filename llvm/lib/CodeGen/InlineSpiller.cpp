@@ -1245,13 +1245,16 @@ bool HoistSpillHelper::rmFromMergeableSpills(MachineInstr &Spill,
 /// i.e., there should be a living sibling of OrigReg at the insert point.
 bool HoistSpillHelper::isSpillCandBB(LiveInterval &OrigLI, VNInfo &OrigVNI,
                                      MachineBasicBlock &BB, Register &LiveReg) {
-  SlotIndex Idx;
+  SlotIndex Idx = IPA.getLastInsertPoint(OrigLI, BB);
+  // The original def could be after the last insert point in the root block,
+  // we can't hoist to here.
+  if (Idx < OrigVNI.def) {
+    // TODO: We could be better here. If LI is not alive in landing pad
+    // we could hoist spill after LIP.
+    LLVM_DEBUG(dbgs() << "can't spill in root block - def after LIP\n");
+    return false;
+  }
   Register OrigReg = OrigLI.reg();
-  MachineBasicBlock::iterator MI = IPA.getLastInsertPointIter(OrigLI, BB);
-  if (MI != BB.end())
-    Idx = LIS.getInstructionIndex(*MI);
-  else
-    Idx = LIS.getMBBEndIdx(&BB).getPrevSlot();
   SmallSetVector<Register, 16> &Siblings = Virt2SiblingsMap[OrigReg];
   assert(OrigLI.getVNInfoAt(Idx) == &OrigVNI && "Unexpected VNI");
 

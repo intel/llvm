@@ -492,6 +492,11 @@ def SI_TCRETURN : SPseudoInstSI <(outs),
   let isConvergent = 1;
 }
 
+// Handle selecting indirect tail calls
+def : GCNPat<
+  (AMDGPUtc_return i64:$src0, (i64 0), (i32 timm:$fpdiff)),
+  (SI_TCRETURN SReg_64:$src0, (i64 0), i32imm:$fpdiff)
+>;
 
 def ADJCALLSTACKUP : SPseudoInstSI<
   (outs), (ins i32imm:$amt0, i32imm:$amt1),
@@ -2275,8 +2280,12 @@ def : GCNPat <
   (S_PACK_LL_B32_B16 SReg_32:$src0, SReg_32:$src1)
 >;
 
+def : GCNPat <
+  (v2f16 (is_canonicalized<build_vector> (f16 (VOP3Mods (f16 VGPR_32:$src0), i32:$src0_mods)),
+                                         (f16 (VOP3Mods (f16 VGPR_32:$src1), i32:$src1_mods)))),
+  (V_PACK_B32_F16_e64 $src0_mods, VGPR_32:$src0, $src1_mods, VGPR_32:$src1)
+>;
 } // End SubtargetPredicate = HasVOP3PInsts
-
 
 def : GCNPat <
   (v2f16 (scalar_to_vector f16:$src0)),
@@ -2647,7 +2656,13 @@ def G_AMDGPU_CVT_PK_I16_I32 : AMDGPUGenericInstruction {
   let hasSideEffects = 0;
 }
 
-def G_AMDGPU_MED3 : AMDGPUGenericInstruction {
+def G_AMDGPU_SMED3 : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$src0, type0:$src1, type0:$src2);
+  let hasSideEffects = 0;
+}
+
+def G_AMDGPU_UMED3 : AMDGPUGenericInstruction {
   let OutOperandList = (outs type0:$dst);
   let InOperandList = (ins type0:$src0, type0:$src1, type0:$src2);
   let hasSideEffects = 0;

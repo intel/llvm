@@ -8,7 +8,7 @@
 
 #include "GDBRemoteCommunicationClient.h"
 
-#include <math.h>
+#include <cmath>
 #include <sys/stat.h>
 
 #include <numeric>
@@ -16,6 +16,7 @@
 
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Host/HostInfo.h"
+#include "lldb/Host/StringConvert.h"
 #include "lldb/Host/XML.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Target/MemoryRegionInfo.h"
@@ -55,41 +56,7 @@ llvm::raw_ostream &process_gdb_remote::operator<<(llvm::raw_ostream &os,
 // GDBRemoteCommunicationClient constructor
 GDBRemoteCommunicationClient::GDBRemoteCommunicationClient()
     : GDBRemoteClientBase("gdb-remote.client", "gdb-remote.client.rx_packet"),
-      m_supports_not_sending_acks(eLazyBoolCalculate),
-      m_supports_thread_suffix(eLazyBoolCalculate),
-      m_supports_threads_in_stop_reply(eLazyBoolCalculate),
-      m_supports_vCont_all(eLazyBoolCalculate),
-      m_supports_vCont_any(eLazyBoolCalculate),
-      m_supports_vCont_c(eLazyBoolCalculate),
-      m_supports_vCont_C(eLazyBoolCalculate),
-      m_supports_vCont_s(eLazyBoolCalculate),
-      m_supports_vCont_S(eLazyBoolCalculate),
-      m_qHostInfo_is_valid(eLazyBoolCalculate),
-      m_curr_pid_is_valid(eLazyBoolCalculate),
-      m_qProcessInfo_is_valid(eLazyBoolCalculate),
-      m_qGDBServerVersion_is_valid(eLazyBoolCalculate),
-      m_supports_alloc_dealloc_memory(eLazyBoolCalculate),
-      m_supports_memory_region_info(eLazyBoolCalculate),
-      m_supports_watchpoint_support_info(eLazyBoolCalculate),
-      m_supports_detach_stay_stopped(eLazyBoolCalculate),
-      m_watchpoints_trigger_after_instruction(eLazyBoolCalculate),
-      m_attach_or_wait_reply(eLazyBoolCalculate),
-      m_prepare_for_reg_writing_reply(eLazyBoolCalculate),
-      m_supports_p(eLazyBoolCalculate), m_supports_x(eLazyBoolCalculate),
-      m_avoid_g_packets(eLazyBoolCalculate),
-      m_supports_QSaveRegisterState(eLazyBoolCalculate),
-      m_supports_qXfer_auxv_read(eLazyBoolCalculate),
-      m_supports_qXfer_libraries_read(eLazyBoolCalculate),
-      m_supports_qXfer_libraries_svr4_read(eLazyBoolCalculate),
-      m_supports_qXfer_features_read(eLazyBoolCalculate),
-      m_supports_qXfer_memory_map_read(eLazyBoolCalculate),
-      m_supports_augmented_libraries_svr4_read(eLazyBoolCalculate),
-      m_supports_jThreadExtendedInfo(eLazyBoolCalculate),
-      m_supports_jLoadedDynamicLibrariesInfos(eLazyBoolCalculate),
-      m_supports_jGetSharedCacheInfo(eLazyBoolCalculate),
-      m_supports_QPassSignals(eLazyBoolCalculate),
-      m_supports_error_string_reply(eLazyBoolCalculate),
-      m_supports_multiprocess(eLazyBoolCalculate),
+
       m_supports_qProcessInfoPID(true), m_supports_qfProcessInfo(true),
       m_supports_qUserName(true), m_supports_qGroupName(true),
       m_supports_qThreadStopInfo(true), m_supports_z0(true),
@@ -98,15 +65,11 @@ GDBRemoteCommunicationClient::GDBRemoteCommunicationClient()
       m_supports_QEnvironmentHexEncoded(true), m_supports_qSymbol(true),
       m_qSymbol_requests_done(false), m_supports_qModuleInfo(true),
       m_supports_jThreadsInfo(true), m_supports_jModulesInfo(true),
-      m_curr_pid(LLDB_INVALID_PROCESS_ID), m_curr_tid(LLDB_INVALID_THREAD_ID),
-      m_curr_tid_run(LLDB_INVALID_THREAD_ID),
-      m_num_supported_hardware_watchpoints(0), m_host_arch(), m_process_arch(),
-      m_os_build(), m_os_kernel(), m_hostname(), m_gdb_server_name(),
-      m_gdb_server_version(UINT32_MAX), m_default_packet_timeout(0),
-      m_max_packet_size(0), m_qSupported_response(),
-      m_supported_async_json_packets_is_valid(false),
-      m_supported_async_json_packets_sp(), m_qXfer_memory_map(),
-      m_qXfer_memory_map_loaded(false) {}
+
+      m_host_arch(), m_process_arch(), m_os_build(), m_os_kernel(),
+      m_hostname(), m_gdb_server_name(), m_default_packet_timeout(0),
+      m_qSupported_response(), m_supported_async_json_packets_sp(),
+      m_qXfer_memory_map() {}
 
 // Destructor
 GDBRemoteCommunicationClient::~GDBRemoteCommunicationClient() {
@@ -323,6 +286,7 @@ void GDBRemoteCommunicationClient::ResetDiscoverableSettings(bool did_exec) {
     m_gdb_server_name.clear();
     m_gdb_server_version = UINT32_MAX;
     m_default_packet_timeout = seconds(0);
+    m_target_vm_page_size = 0;
     m_max_packet_size = 0;
     m_qSupported_response.clear();
     m_supported_async_json_packets_is_valid = false;
@@ -345,6 +309,9 @@ void GDBRemoteCommunicationClient::GetRemoteQSupported() {
   m_supports_qXfer_features_read = eLazyBoolNo;
   m_supports_qXfer_memory_map_read = eLazyBoolNo;
   m_supports_multiprocess = eLazyBoolNo;
+  m_supports_qEcho = eLazyBoolNo;
+  m_supports_QPassSignals = eLazyBoolNo;
+
   m_max_packet_size = UINT64_MAX; // It's supposed to always be there, but if
                                   // not, we assume no limit
 
@@ -362,97 +329,51 @@ void GDBRemoteCommunicationClient::GetRemoteQSupported() {
   if (SendPacketAndWaitForResponse(packet.GetString(), response,
                                    /*send_async=*/false) ==
       PacketResult::Success) {
-    const char *response_cstr = response.GetStringRef().data();
-
     // Hang on to the qSupported packet, so that platforms can do custom
     // configuration of the transport before attaching/launching the process.
-    m_qSupported_response = response_cstr;
+    m_qSupported_response = response.GetStringRef().str();
 
-    if (::strstr(response_cstr, "qXfer:auxv:read+"))
-      m_supports_qXfer_auxv_read = eLazyBoolYes;
-    if (::strstr(response_cstr, "qXfer:libraries-svr4:read+"))
-      m_supports_qXfer_libraries_svr4_read = eLazyBoolYes;
-    if (::strstr(response_cstr, "augmented-libraries-svr4-read")) {
-      m_supports_qXfer_libraries_svr4_read = eLazyBoolYes; // implied
-      m_supports_augmented_libraries_svr4_read = eLazyBoolYes;
-    }
-    if (::strstr(response_cstr, "qXfer:libraries:read+"))
-      m_supports_qXfer_libraries_read = eLazyBoolYes;
-    if (::strstr(response_cstr, "qXfer:features:read+"))
-      m_supports_qXfer_features_read = eLazyBoolYes;
-    if (::strstr(response_cstr, "qXfer:memory-map:read+"))
-      m_supports_qXfer_memory_map_read = eLazyBoolYes;
+    llvm::SmallVector<llvm::StringRef, 16> server_features;
+    response.GetStringRef().split(server_features, ';');
 
-    // Look for a list of compressions in the features list e.g.
-    // qXfer:features:read+;PacketSize=20000;qEcho+;SupportedCompressions=zlib-
-    // deflate,lzma
-    const char *features_list = ::strstr(response_cstr, "qXfer:features:");
-    if (features_list) {
-      const char *compressions =
-          ::strstr(features_list, "SupportedCompressions=");
-      if (compressions) {
-        std::vector<std::string> supported_compressions;
-        compressions += sizeof("SupportedCompressions=") - 1;
-        const char *end_of_compressions = strchr(compressions, ';');
-        if (end_of_compressions == nullptr) {
-          end_of_compressions = strchr(compressions, '\0');
+    for (llvm::StringRef x : server_features) {
+      if (x == "qXfer:auxv:read+")
+        m_supports_qXfer_auxv_read = eLazyBoolYes;
+      else if (x == "qXfer:libraries-svr4:read+")
+        m_supports_qXfer_libraries_svr4_read = eLazyBoolYes;
+      else if (x == "augmented-libraries-svr4-read") {
+        m_supports_qXfer_libraries_svr4_read = eLazyBoolYes; // implied
+        m_supports_augmented_libraries_svr4_read = eLazyBoolYes;
+      } else if (x == "qXfer:libraries:read+")
+        m_supports_qXfer_libraries_read = eLazyBoolYes;
+      else if (x == "qXfer:features:read+")
+        m_supports_qXfer_features_read = eLazyBoolYes;
+      else if (x == "qXfer:memory-map:read+")
+        m_supports_qXfer_memory_map_read = eLazyBoolYes;
+      else if (x == "qEcho")
+        m_supports_qEcho = eLazyBoolYes;
+      else if (x == "QPassSignals+")
+        m_supports_QPassSignals = eLazyBoolYes;
+      else if (x == "multiprocess+")
+        m_supports_multiprocess = eLazyBoolYes;
+      // Look for a list of compressions in the features list e.g.
+      // qXfer:features:read+;PacketSize=20000;qEcho+;SupportedCompressions=zlib-
+      // deflate,lzma
+      else if (x.consume_front("SupportedCompressions=")) {
+        llvm::SmallVector<llvm::StringRef, 4> compressions;
+        x.split(compressions, ',');
+        if (!compressions.empty())
+          MaybeEnableCompression(compressions);
+      } else if (x.consume_front("PacketSize=")) {
+        StringExtractorGDBRemote packet_response(x);
+        m_max_packet_size =
+            packet_response.GetHexMaxU64(/*little_endian=*/false, UINT64_MAX);
+        if (m_max_packet_size == 0) {
+          m_max_packet_size = UINT64_MAX; // Must have been a garbled response
+          Log *log(
+              ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
+          LLDB_LOGF(log, "Garbled PacketSize spec in qSupported response");
         }
-        const char *current_compression = compressions;
-        while (current_compression < end_of_compressions) {
-          const char *next_compression_name = strchr(current_compression, ',');
-          const char *end_of_this_word = next_compression_name;
-          if (next_compression_name == nullptr ||
-              end_of_compressions < next_compression_name) {
-            end_of_this_word = end_of_compressions;
-          }
-
-          if (end_of_this_word) {
-            if (end_of_this_word == current_compression) {
-              current_compression++;
-            } else {
-              std::string this_compression(
-                  current_compression, end_of_this_word - current_compression);
-              supported_compressions.push_back(this_compression);
-              current_compression = end_of_this_word + 1;
-            }
-          } else {
-            supported_compressions.push_back(current_compression);
-            current_compression = end_of_compressions;
-          }
-        }
-
-        if (supported_compressions.size() > 0) {
-          MaybeEnableCompression(supported_compressions);
-        }
-      }
-    }
-
-    if (::strstr(response_cstr, "qEcho"))
-      m_supports_qEcho = eLazyBoolYes;
-    else
-      m_supports_qEcho = eLazyBoolNo;
-
-    if (::strstr(response_cstr, "QPassSignals+"))
-      m_supports_QPassSignals = eLazyBoolYes;
-    else
-      m_supports_QPassSignals = eLazyBoolNo;
-
-    if (::strstr(response_cstr, "multiprocess+"))
-      m_supports_multiprocess = eLazyBoolYes;
-    else
-      m_supports_multiprocess = eLazyBoolNo;
-
-    const char *packet_size_str = ::strstr(response_cstr, "PacketSize=");
-    if (packet_size_str) {
-      StringExtractorGDBRemote packet_response(packet_size_str +
-                                               strlen("PacketSize="));
-      m_max_packet_size =
-          packet_response.GetHexMaxU64(/*little_endian=*/false, UINT64_MAX);
-      if (m_max_packet_size == 0) {
-        m_max_packet_size = UINT64_MAX; // Must have been a garbled response
-        Log *log(
-            ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
-        LLDB_LOGF(log, "Garbled PacketSize spec in qSupported response");
       }
     }
   }
@@ -1036,9 +957,9 @@ bool GDBRemoteCommunicationClient::GetGDBServerVersion() {
 }
 
 void GDBRemoteCommunicationClient::MaybeEnableCompression(
-    std::vector<std::string> supported_compressions) {
+    llvm::ArrayRef<llvm::StringRef> supported_compressions) {
   CompressionType avail_type = CompressionType::None;
-  std::string avail_name;
+  llvm::StringRef avail_name;
 
 #if defined(HAVE_LIBCOMPRESSION)
   if (avail_type == CompressionType::None) {
@@ -1102,8 +1023,8 @@ void GDBRemoteCommunicationClient::MaybeEnableCompression(
 
   if (avail_type != CompressionType::None) {
     StringExtractorGDBRemote response;
-    std::string packet = "QEnableCompression:type:" + avail_name + ";";
-    if (SendPacketAndWaitForResponse(packet, response, false) !=
+    llvm::Twine packet = "QEnableCompression:type:" + avail_name + ";";
+    if (SendPacketAndWaitForResponse(packet.str(), response, false) !=
         PacketResult::Success)
       return;
 
@@ -1245,11 +1166,13 @@ bool GDBRemoteCommunicationClient::GetHostInfo(bool force) {
           } else if (name.equals("ptrsize")) {
             if (!value.getAsInteger(0, pointer_byte_size))
               ++num_keys_decoded;
+          } else if (name.equals("addressing_bits")) {
+            if (!value.getAsInteger(0, m_addressing_bits))
+              ++num_keys_decoded;
           } else if (name.equals("os_version") ||
-                     name.equals(
-                         "version")) // Older debugserver binaries used the
-                                     // "version" key instead of
-                                     // "os_version"...
+                     name.equals("version")) // Older debugserver binaries used
+                                             // the "version" key instead of
+                                             // "os_version"...
           {
             if (!m_os_version.tryParse(value))
               ++num_keys_decoded;
@@ -1269,6 +1192,12 @@ bool GDBRemoteCommunicationClient::GetHostInfo(bool force) {
             if (!value.getAsInteger(0, timeout_seconds)) {
               m_default_packet_timeout = seconds(timeout_seconds);
               SetPacketTimeout(m_default_packet_timeout);
+              ++num_keys_decoded;
+            }
+          } else if (name.equals("vm-page-size")) {
+            int page_size;
+            if (!value.getAsInteger(0, page_size)) {
+              m_target_vm_page_size = page_size;
               ++num_keys_decoded;
             }
           }
@@ -1400,6 +1329,11 @@ GDBRemoteCommunicationClient::GetHostArchitecture() {
   return m_host_arch;
 }
 
+uint32_t GDBRemoteCommunicationClient::GetAddressingBits() {
+  if (m_qHostInfo_is_valid == eLazyBoolCalculate)
+    GetHostInfo();
+  return m_addressing_bits;
+}
 seconds GDBRemoteCommunicationClient::GetHostDefaultPacketTimeout() {
   if (m_qHostInfo_is_valid == eLazyBoolCalculate)
     GetHostInfo();
@@ -1577,8 +1511,29 @@ Status GDBRemoteCommunicationClient::GetMemoryRegionInfo(
           // Now convert the HEX bytes into a string value
           error_extractor.GetHexByteString(error_string);
           error.SetErrorString(error_string.c_str());
+        } else if (name.equals("dirty-pages")) {
+          std::vector<addr_t> dirty_page_list;
+          std::string comma_sep_str = value.str();
+          size_t comma_pos;
+          addr_t page;
+          while ((comma_pos = comma_sep_str.find(',')) != std::string::npos) {
+            comma_sep_str[comma_pos] = '\0';
+            page = StringConvert::ToUInt64(comma_sep_str.c_str(),
+                                           LLDB_INVALID_ADDRESS, 16);
+            if (page != LLDB_INVALID_ADDRESS)
+              dirty_page_list.push_back(page);
+            comma_sep_str.erase(0, comma_pos + 1);
+          }
+          page = StringConvert::ToUInt64(comma_sep_str.c_str(),
+                                         LLDB_INVALID_ADDRESS, 16);
+          if (page != LLDB_INVALID_ADDRESS)
+            dirty_page_list.push_back(page);
+          region_info.SetDirtyPageList(dirty_page_list);
         }
       }
+
+      if (m_target_vm_page_size != 0)
+        region_info.SetPageSize(m_target_vm_page_size);
 
       if (region_info.GetRange().IsValid()) {
         // We got a valid address range back but no permissions -- which means

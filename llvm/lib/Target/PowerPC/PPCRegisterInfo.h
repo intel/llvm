@@ -101,9 +101,7 @@ public:
 
   bool requiresFrameIndexScavenging(const MachineFunction &MF) const override;
 
-  bool requiresVirtualBaseRegisters(const MachineFunction &MF) const override {
-    return true;
-  }
+  bool requiresVirtualBaseRegisters(const MachineFunction &MF) const override;
 
   void lowerDynamicAlloc(MachineBasicBlock::iterator II) const;
   void lowerDynamicAreaOffset(MachineBasicBlock::iterator II) const;
@@ -124,6 +122,11 @@ public:
                         unsigned FrameIndex) const;
   void lowerACCRestore(MachineBasicBlock::iterator II,
                        unsigned FrameIndex) const;
+
+  void lowerQuadwordSpilling(MachineBasicBlock::iterator II,
+                             unsigned FrameIndex) const;
+  void lowerQuadwordRestore(MachineBasicBlock::iterator II,
+                            unsigned FrameIndex) const;
 
   static void emitAccCopyInfo(MachineBasicBlock &MBB, MCRegister DestReg,
                               MCRegister SrcReg);

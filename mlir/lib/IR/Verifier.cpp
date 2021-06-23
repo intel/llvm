@@ -32,8 +32,10 @@
 #include "mlir/IR/RegionKindInterface.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/Parallel.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Regex.h"
+#include <atomic>
 
 using namespace mlir;
 
@@ -41,75 +43,75 @@ namespace {
 /// This class encapsulates all the state used to verify an operation region.
 class OperationVerifier {
 public:
-  explicit OperationVerifier(MLIRContext *ctx) : ctx(ctx) {}
+  explicit OperationVerifier(MLIRContext *context)
+      // TODO: Re-enable parallelism once deadlocks found in D104207 are
+      // resolved.
+      : parallelismEnabled(false) {}
 
   /// Verify the given operation.
-  LogicalResult verify(Operation &op);
+  LogicalResult verifyOpAndDominance(Operation &op);
 
 private:
-  /// Verify the given potentially nested region or block.
-  LogicalResult verifyRegion(Region &region);
-  LogicalResult verifyBlock(Block &block);
-  LogicalResult verifyOperation(Operation &op);
-
-  /// Verify the dominance property of operations within the given Region.
-  LogicalResult verifyDominance(Region &region);
+  LogicalResult
+  verifyBlock(Block &block,
+              SmallVectorImpl<Operation *> &opsWithIsolatedRegions);
+  /// Verify the properties and dominance relationships of this operation,
+  /// stopping region recursion at any "isolated from above operations".  Any
+  /// such ops are returned in the opsWithIsolatedRegions vector.
+  LogicalResult
+  verifyOperation(Operation &op,
+                  SmallVectorImpl<Operation *> &opsWithIsolatedRegions);
 
   /// Verify the dominance property of regions contained within the given
   /// Operation.
-  LogicalResult verifyDominanceOfContainedRegions(Operation &op);
+  LogicalResult verifyDominanceOfContainedRegions(Operation &op,
+                                                  DominanceInfo &domInfo);
 
-  /// Emit an error for the given block.
-  InFlightDiagnostic emitError(Block &bb, const Twine &message) {
-    // Take the location information for the first operation in the block.
-    if (!bb.empty())
-      return bb.front().emitError(message);
-
-    // Worst case, fall back to using the parent's location.
-    return mlir::emitError(bb.getParent()->getLoc(), message);
-  }
-
-  /// The current context for the verifier.
-  MLIRContext *ctx;
-
-  /// Dominance information for this operation, when checking dominance.
-  DominanceInfo *domInfo = nullptr;
+  /// This is true if parallelism is enabled on the MLIRContext.
+  const bool parallelismEnabled;
 };
 } // end anonymous namespace
 
-/// Verify the given operation.
-LogicalResult OperationVerifier::verify(Operation &op) {
-  // Verify the operation first.
-  if (failed(verifyOperation(op)))
+LogicalResult OperationVerifier::verifyOpAndDominance(Operation &op) {
+  SmallVector<Operation *> opsWithIsolatedRegions;
+
+  // Verify the operation first, collecting any IsolatedFromAbove operations.
+  if (failed(verifyOperation(op, opsWithIsolatedRegions)))
     return failure();
 
   // Since everything looks structurally ok to this point, we do a dominance
   // check for any nested regions. We do this as a second pass since malformed
-  // CFG's can cause dominator analysis constructure to crash and we want the
+  // CFG's can cause dominator analysis construction to crash and we want the
   // verifier to be resilient to malformed code.
-  DominanceInfo theDomInfo(&op);
-  domInfo = &theDomInfo;
-  if (failed(verifyDominanceOfContainedRegions(op)))
-    return failure();
-
-  domInfo = nullptr;
-  return success();
-}
-
-LogicalResult OperationVerifier::verifyRegion(Region &region) {
-  if (region.empty())
-    return success();
-
-  // Verify the first block has no predecessors.
-  auto *firstBB = &region.front();
-  if (!firstBB->hasNoPredecessors())
-    return mlir::emitError(region.getLoc(),
-                           "entry block of region may not have predecessors");
-
-  // Verify each of the blocks within the region.
-  for (Block &block : region)
-    if (failed(verifyBlock(block)))
+  if (op.getNumRegions() != 0) {
+    DominanceInfo domInfo;
+    if (failed(verifyDominanceOfContainedRegions(op, domInfo)))
       return failure();
+  }
+
+  // Check the dominance properties and invariants of any operations in the
+  // regions contained by the 'opsWithIsolatedRegions' operations.
+  if (!parallelismEnabled || opsWithIsolatedRegions.size() <= 1) {
+    // If parallelism is disabled or if there is only 0/1 operation to do, use
+    // a simple non-parallel loop.
+    for (Operation *op : opsWithIsolatedRegions) {
+      if (failed(verifyOpAndDominance(*op)))
+        return failure();
+    }
+  } else {
+    // Otherwise, verify the operations and their bodies in parallel.
+    ParallelDiagnosticHandler handler(op.getContext());
+    std::atomic<bool> passFailed(false);
+    llvm::parallelForEachN(0, opsWithIsolatedRegions.size(), [&](size_t opIdx) {
+      handler.setOrderIDForThread(opIdx);
+      if (failed(verifyOpAndDominance(*opsWithIsolatedRegions[opIdx])))
+        passFailed = true;
+      handler.eraseOrderIDForThread();
+    });
+    if (passFailed)
+      return failure();
+  }
+
   return success();
 }
 
@@ -119,7 +121,7 @@ LogicalResult OperationVerifier::verifyRegion(Region &region) {
 ///    - This region does not have a parent op.
 ///    - Or the parent op is unregistered.
 ///    - Or the parent op has the NoTerminator trait.
-static bool mayNotHaveTerminator(Block *block) {
+static bool mayBeValidWithoutTerminator(Block *block) {
   if (!block->getParent())
     return true;
   if (!llvm::hasSingleElement(*block->getParent()))
@@ -128,41 +130,40 @@ static bool mayNotHaveTerminator(Block *block) {
   return !op || op->mightHaveTrait<OpTrait::NoTerminator>();
 }
 
-LogicalResult OperationVerifier::verifyBlock(Block &block) {
+LogicalResult OperationVerifier::verifyBlock(
+    Block &block, SmallVectorImpl<Operation *> &opsWithIsolatedRegions) {
+
   for (auto arg : block.getArguments())
     if (arg.getOwner() != &block)
-      return emitError(block, "block argument not owned by block");
+      return emitError(arg.getLoc(), "block argument not owned by block");
 
   // Verify that this block has a terminator.
-
   if (block.empty()) {
-    if (mayNotHaveTerminator(&block))
+    if (mayBeValidWithoutTerminator(&block))
       return success();
-    return emitError(block, "empty block: expect at least a terminator");
+    return emitError(block.getParent()->getLoc(),
+                     "empty block: expect at least a terminator");
   }
 
-  // Verify the non-terminator operations separately so that we can verify
-  // they have no successors.
-  for (auto &op : llvm::make_range(block.begin(), std::prev(block.end()))) {
-    if (op.getNumSuccessors() != 0)
+  // Check each operation, and make sure there are no branches out of the
+  // middle of this block.
+  for (auto &op : block) {
+    // Only the last instructions is allowed to have successors.
+    if (op.getNumSuccessors() != 0 && &op != &block.back())
       return op.emitError(
           "operation with block successors must terminate its parent block");
 
-    if (failed(verifyOperation(op)))
-      return failure();
+    // If this operation has regions and is IsolatedFromAbove, we defer
+    // checking.  This allows us to parallelize verification better.
+    if (op.getNumRegions() != 0 &&
+        op.hasTrait<OpTrait::IsIsolatedFromAbove>()) {
+      opsWithIsolatedRegions.push_back(&op);
+    } else {
+      // Otherwise, check the operation inline.
+      if (failed(verifyOperation(op, opsWithIsolatedRegions)))
+        return failure();
+    }
   }
-
-  // Verify the terminator.
-  Operation &terminator = block.back();
-  if (failed(verifyOperation(terminator)))
-    return failure();
-
-  if (mayNotHaveTerminator(&block))
-    return success();
-
-  if (!terminator.mightHaveTrait<OpTrait::IsTerminator>())
-    return block.back().emitError("block with no terminator, has ")
-           << terminator;
 
   // Verify that this block is not branching to a block of a different
   // region.
@@ -171,10 +172,23 @@ LogicalResult OperationVerifier::verifyBlock(Block &block) {
       return block.back().emitOpError(
           "branching to block of a different region");
 
+  // If this block doesn't have to have a terminator, don't require it.
+  if (mayBeValidWithoutTerminator(&block))
+    return success();
+
+  Operation &terminator = block.back();
+  if (!terminator.mightHaveTrait<OpTrait::IsTerminator>())
+    return block.back().emitError("block with no terminator, has ")
+           << terminator;
+
   return success();
 }
 
-LogicalResult OperationVerifier::verifyOperation(Operation &op) {
+/// Verify the properties and dominance relationships of this operation,
+/// stopping region recursion at any "isolated from above operations".  Any such
+/// ops are returned in the opsWithIsolatedRegions vector.
+LogicalResult OperationVerifier::verifyOperation(
+    Operation &op, SmallVectorImpl<Operation *> &opsWithIsolatedRegions) {
   // Check that operands are non-nil and structurally ok.
   for (auto operand : op.getOperands())
     if (!operand)
@@ -194,31 +208,40 @@ LogicalResult OperationVerifier::verifyOperation(Operation &op) {
   if (opInfo && failed(opInfo->verifyInvariants(&op)))
     return failure();
 
-  auto kindInterface = dyn_cast<mlir::RegionKindInterface>(op);
+  if (unsigned numRegions = op.getNumRegions()) {
+    auto kindInterface = dyn_cast<RegionKindInterface>(op);
 
-  // Verify that all child regions are ok.
-  unsigned numRegions = op.getNumRegions();
-  for (unsigned i = 0; i < numRegions; i++) {
-    Region &region = op.getRegion(i);
-    RegionKind kind =
-        kindInterface ? kindInterface.getRegionKind(i) : RegionKind::SSACFG;
-    // Check that Graph Regions only have a single basic block. This is
-    // similar to the code in SingleBlockImplicitTerminator, but doesn't
-    // require the trait to be specified. This arbitrary limitation is
-    // designed to limit the number of cases that have to be handled by
-    // transforms and conversions until the concept stabilizes.
-    if (op.isRegistered() && kind == RegionKind::Graph) {
-      // Empty regions are fine.
+    // Verify that all child regions are ok.
+    for (unsigned i = 0; i < numRegions; ++i) {
+      Region &region = op.getRegion(i);
+      RegionKind kind =
+          kindInterface ? kindInterface.getRegionKind(i) : RegionKind::SSACFG;
+      // Check that Graph Regions only have a single basic block. This is
+      // similar to the code in SingleBlockImplicitTerminator, but doesn't
+      // require the trait to be specified. This arbitrary limitation is
+      // designed to limit the number of cases that have to be handled by
+      // transforms and conversions.
+      if (op.isRegistered() && kind == RegionKind::Graph) {
+        // Non-empty regions must contain a single basic block.
+        if (!region.empty() && !region.hasOneBlock())
+          return op.emitOpError("expects graph region #")
+                 << i << " to have 0 or 1 blocks";
+      }
+
       if (region.empty())
         continue;
 
-      // Non-empty regions must contain a single basic block.
-      if (std::next(region.begin()) != region.end())
-        return op.emitOpError("expects graph region #")
-               << i << " to have 0 or 1 blocks";
+      // Verify the first block has no predecessors.
+      Block *firstBB = &region.front();
+      if (!firstBB->hasNoPredecessors())
+        return emitError(op.getLoc(),
+                         "entry block of region may not have predecessors");
+
+      // Verify each of the blocks within the region.
+      for (Block &block : region)
+        if (failed(verifyBlock(block, opsWithIsolatedRegions)))
+          return failure();
     }
-    if (failed(verifyRegion(region)))
-      return failure();
   }
 
   // If this is a registered operation, there is nothing left to do.
@@ -228,7 +251,7 @@ LogicalResult OperationVerifier::verifyOperation(Operation &op) {
   // Otherwise, verify that the parent dialect allows un-registered operations.
   Dialect *dialect = opName.getDialect();
   if (!dialect) {
-    if (!ctx->allowsUnregisteredDialects()) {
+    if (!op.getContext()->allowsUnregisteredDialects()) {
       return op.emitOpError()
              << "created with unregistered dialect. If this is "
                 "intended, please call allowUnregisteredDialects() on the "
@@ -247,10 +270,20 @@ LogicalResult OperationVerifier::verifyOperation(Operation &op) {
   return success();
 }
 
-/// Attach a note to an in-flight diagnostic that provide more information about
-/// where an op operand is defined.
-static void attachNoteForOperandDefinition(InFlightDiagnostic &diag,
-                                           Operation &op, Value operand) {
+//===----------------------------------------------------------------------===//
+// Dominance Checking
+//===----------------------------------------------------------------------===//
+
+/// Emit an error when the specified operand of the specified operation is an
+/// invalid use because of dominance properties.
+static void diagnoseInvalidOperandDominance(Operation &op, unsigned operandNo) {
+  InFlightDiagnostic diag = op.emitError("operand #")
+                            << operandNo << " does not dominate this use";
+
+  Value operand = op.getOperand(operandNo);
+
+  /// Attach a note to an in-flight diagnostic that provide more information
+  /// about where an op operand is defined.
   if (auto *useOp = operand.getDefiningOp()) {
     Diagnostic &note = diag.attachNote(useOp->getLoc());
     note << "operand defined here";
@@ -297,41 +330,42 @@ static void attachNoteForOperandDefinition(InFlightDiagnostic &diag,
     note << " neither in a parent nor in a child region)";
 }
 
-LogicalResult OperationVerifier::verifyDominance(Region &region) {
-  // Verify the dominance of each of the held operations.
-  for (Block &block : region) {
-    // Dominance is only meaningful inside reachable blocks.
-    if (domInfo->isReachableFromEntry(&block))
-      for (Operation &op : block)
-        // Check that operands properly dominate this use.
-        for (unsigned operandNo = 0, e = op.getNumOperands(); operandNo != e;
-             ++operandNo) {
-          Value operand = op.getOperand(operandNo);
-          if (domInfo->properlyDominates(operand, &op))
-            continue;
-
-          InFlightDiagnostic diag = op.emitError("operand #")
-                                    << operandNo
-                                    << " does not dominate this use";
-          attachNoteForOperandDefinition(diag, op, operand);
-          return failure();
-        }
-    // Recursively verify dominance within each operation in the
-    // block, even if the block itself is not reachable, or we are in
-    // a region which doesn't respect dominance.
-    for (Operation &op : block)
-      if (failed(verifyDominanceOfContainedRegions(op)))
-        return failure();
-  }
-  return success();
-}
-
 /// Verify the dominance of each of the nested blocks within the given operation
 LogicalResult
-OperationVerifier::verifyDominanceOfContainedRegions(Operation &op) {
+OperationVerifier::verifyDominanceOfContainedRegions(Operation &op,
+                                                     DominanceInfo &domInfo) {
   for (Region &region : op.getRegions()) {
-    if (failed(verifyDominance(region)))
-      return failure();
+    // Verify the dominance of each of the held operations.
+    for (Block &block : region) {
+      // Dominance is only meaningful inside reachable blocks.
+      bool isReachable = domInfo.isReachableFromEntry(&block);
+
+      for (Operation &op : block) {
+        if (isReachable) {
+          // Check that operands properly dominate this use.
+          for (auto operand : llvm::enumerate(op.getOperands())) {
+            if (domInfo.properlyDominates(operand.value(), &op))
+              continue;
+
+            diagnoseInvalidOperandDominance(op, operand.index());
+            return failure();
+          }
+        }
+
+        // Recursively verify dominance within each operation in the
+        // block, even if the block itself is not reachable, or we are in
+        // a region which doesn't respect dominance.
+        if (op.getNumRegions() != 0) {
+          // If this operation is IsolatedFromAbove, then we'll handle it in the
+          // outer verification loop.
+          if (op.hasTrait<OpTrait::IsIsolatedFromAbove>())
+            continue;
+
+          if (failed(verifyDominanceOfContainedRegions(op, domInfo)))
+            return failure();
+        }
+      }
+    }
   }
   return success();
 }
@@ -344,5 +378,5 @@ OperationVerifier::verifyDominanceOfContainedRegions(Operation &op) {
 /// compiler bugs.  On error, this reports the error through the MLIRContext and
 /// returns failure.
 LogicalResult mlir::verify(Operation *op) {
-  return OperationVerifier(op->getContext()).verify(*op);
+  return OperationVerifier(op->getContext()).verifyOpAndDominance(*op);
 }

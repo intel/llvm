@@ -181,6 +181,9 @@ public:
       for (const UsingShadowDecl *S : UD->shadows())
         add(S->getUnderlyingDecl(), Flags);
       Flags |= Rel::Alias; // continue with the alias.
+    } else if (const UsingEnumDecl *UED = dyn_cast<UsingEnumDecl>(D)) {
+      add(UED->getEnumDecl(), Flags);
+      Flags |= Rel::Alias; // continue with the alias.
     } else if (const auto *NAD = dyn_cast<NamespaceAliasDecl>(D)) {
       add(NAD->getUnderlyingDecl(), Flags | Rel::Underlying);
       Flags |= Rel::Alias; // continue with the alias
@@ -193,9 +196,9 @@ public:
       }
       Flags |= Rel::Alias; // continue with the alias
     } else if (const UsingShadowDecl *USD = dyn_cast<UsingShadowDecl>(D)) {
-      // Include the using decl, but don't traverse it. This may end up
+      // Include the Introducing decl, but don't traverse it. This may end up
       // including *all* shadows, which we don't want.
-      report(USD->getUsingDecl(), Flags | Rel::Alias);
+      report(USD->getIntroducer(), Flags | Rel::Alias);
       // Shadow decls are synthetic and not themselves interesting.
       // Record the underlying decl instead, if allowed.
       D = USD->getTargetDecl();
@@ -432,10 +435,13 @@ public:
         Outer.add(OIT->getDecl(), Flags);
       }
       void VisitObjCObjectType(const ObjCObjectType *OOT) {
-        // FIXME: ObjCObjectTypeLoc has no children for the protocol list, so
-        // there is no node in id<Foo> that refers to ObjCProtocolDecl Foo.
-        if (OOT->isObjCQualifiedId() && OOT->getNumProtocols() == 1)
-          Outer.add(OOT->getProtocol(0), Flags);
+        // Make all of the protocols targets since there's no child nodes for
+        // protocols. This isn't needed for the base type, which *does* have a
+        // child `ObjCInterfaceTypeLoc`. This structure is a hack, but it works
+        // well for go-to-definition.
+        unsigned NumProtocols = OOT->getNumProtocols();
+        for (unsigned I = 0; I < NumProtocols; I++)
+          Outer.add(OOT->getProtocol(I), Flags);
       }
     };
     Visitor(*this, Flags).Visit(T.getTypePtr());
@@ -767,6 +773,13 @@ llvm::SmallVector<ReferenceLoc> refInStmt(const Stmt *S,
           explicitReferenceTargets(DynTypedNode::create(*E), {}, Resolver)});
     }
 
+    void VisitObjCIvarRefExpr(const ObjCIvarRefExpr *OIRE) {
+      Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                  OIRE->getLocation(),
+                                  /*IsDecl=*/false,
+                                  {OIRE->getDecl()}});
+    }
+
     void VisitObjCMessageExpr(const ObjCMessageExpr *E) {
       // The name may have several tokens, we can only report the first.
       Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
@@ -813,30 +826,34 @@ refInTypeLoc(TypeLoc L, const HeuristicResolver *Resolver) {
     Visitor(const HeuristicResolver *Resolver) : Resolver(Resolver) {}
 
     const HeuristicResolver *Resolver;
-    llvm::Optional<ReferenceLoc> Ref;
+    llvm::SmallVector<ReferenceLoc> Refs;
 
     void VisitElaboratedTypeLoc(ElaboratedTypeLoc L) {
       // We only know about qualifier, rest if filled by inner locations.
+      size_t InitialSize = Refs.size();
       Visit(L.getNamedTypeLoc().getUnqualifiedLoc());
-      // Fill in the qualifier.
-      if (!Ref)
-        return;
-      assert(!Ref->Qualifier.hasQualifier() && "qualifier already set");
-      Ref->Qualifier = L.getQualifierLoc();
+      size_t NewSize = Refs.size();
+      // Add qualifier for the newly-added refs.
+      for (unsigned I = InitialSize; I < NewSize; ++I) {
+        ReferenceLoc *Ref = &Refs[I];
+        // Fill in the qualifier.
+        assert(!Ref->Qualifier.hasQualifier() && "qualifier already set");
+        Ref->Qualifier = L.getQualifierLoc();
+      }
     }
 
     void VisitTagTypeLoc(TagTypeLoc L) {
-      Ref = ReferenceLoc{NestedNameSpecifierLoc(),
-                         L.getNameLoc(),
-                         /*IsDecl=*/false,
-                         {L.getDecl()}};
+      Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                  L.getNameLoc(),
+                                  /*IsDecl=*/false,
+                                  {L.getDecl()}});
     }
 
     void VisitTemplateTypeParmTypeLoc(TemplateTypeParmTypeLoc L) {
-      Ref = ReferenceLoc{NestedNameSpecifierLoc(),
-                         L.getNameLoc(),
-                         /*IsDecl=*/false,
-                         {L.getDecl()}};
+      Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                  L.getNameLoc(),
+                                  /*IsDecl=*/false,
+                                  {L.getDecl()}});
     }
 
     void VisitTemplateSpecializationTypeLoc(TemplateSpecializationTypeLoc L) {
@@ -848,63 +865,71 @@ refInTypeLoc(TypeLoc L, const HeuristicResolver *Resolver) {
       //    1. valias with mask 'Alias'.
       //    2. 'vector<int>' with mask 'Underlying'.
       //  we want to return only #1 in this case.
-      Ref = ReferenceLoc{
+      Refs.push_back(ReferenceLoc{
           NestedNameSpecifierLoc(), L.getTemplateNameLoc(), /*IsDecl=*/false,
           explicitReferenceTargets(DynTypedNode::create(L.getType()),
-                                   DeclRelation::Alias, Resolver)};
+                                   DeclRelation::Alias, Resolver)});
     }
     void VisitDeducedTemplateSpecializationTypeLoc(
         DeducedTemplateSpecializationTypeLoc L) {
-      Ref = ReferenceLoc{
+      Refs.push_back(ReferenceLoc{
           NestedNameSpecifierLoc(), L.getNameLoc(), /*IsDecl=*/false,
           explicitReferenceTargets(DynTypedNode::create(L.getType()),
-                                   DeclRelation::Alias, Resolver)};
+                                   DeclRelation::Alias, Resolver)});
     }
 
     void VisitInjectedClassNameTypeLoc(InjectedClassNameTypeLoc TL) {
-      Ref = ReferenceLoc{NestedNameSpecifierLoc(),
-                         TL.getNameLoc(),
-                         /*IsDecl=*/false,
-                         {TL.getDecl()}};
+      Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                  TL.getNameLoc(),
+                                  /*IsDecl=*/false,
+                                  {TL.getDecl()}});
     }
 
     void VisitDependentTemplateSpecializationTypeLoc(
         DependentTemplateSpecializationTypeLoc L) {
-      Ref = ReferenceLoc{L.getQualifierLoc(), L.getTemplateNameLoc(),
-                         /*IsDecl=*/false,
-                         explicitReferenceTargets(
-                             DynTypedNode::create(L.getType()), {}, Resolver)};
+      Refs.push_back(
+          ReferenceLoc{L.getQualifierLoc(), L.getTemplateNameLoc(),
+                       /*IsDecl=*/false,
+                       explicitReferenceTargets(
+                           DynTypedNode::create(L.getType()), {}, Resolver)});
     }
 
     void VisitDependentNameTypeLoc(DependentNameTypeLoc L) {
-      Ref = ReferenceLoc{L.getQualifierLoc(), L.getNameLoc(), /*IsDecl=*/false,
-                         explicitReferenceTargets(
-                             DynTypedNode::create(L.getType()), {}, Resolver)};
+      Refs.push_back(
+          ReferenceLoc{L.getQualifierLoc(), L.getNameLoc(),
+                       /*IsDecl=*/false,
+                       explicitReferenceTargets(
+                           DynTypedNode::create(L.getType()), {}, Resolver)});
     }
 
     void VisitTypedefTypeLoc(TypedefTypeLoc L) {
-      Ref = ReferenceLoc{NestedNameSpecifierLoc(),
-                         L.getNameLoc(),
-                         /*IsDecl=*/false,
-                         {L.getTypedefNameDecl()}};
+      Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                  L.getNameLoc(),
+                                  /*IsDecl=*/false,
+                                  {L.getTypedefNameDecl()}});
     }
 
     void VisitObjCInterfaceTypeLoc(ObjCInterfaceTypeLoc L) {
-      Ref = ReferenceLoc{NestedNameSpecifierLoc(),
-                         L.getNameLoc(),
-                         /*IsDecl=*/false,
-                         {L.getIFaceDecl()}};
+      Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                  L.getNameLoc(),
+                                  /*IsDecl=*/false,
+                                  {L.getIFaceDecl()}});
     }
 
-    // FIXME: add references to protocols in ObjCObjectTypeLoc and maybe
-    // ObjCObjectPointerTypeLoc.
+    void VisitObjCObjectTypeLoc(ObjCObjectTypeLoc L) {
+      unsigned NumProtocols = L.getNumProtocols();
+      for (unsigned I = 0; I < NumProtocols; I++) {
+        Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                    L.getProtocolLoc(I),
+                                    /*IsDecl=*/false,
+                                    {L.getProtocol(I)}});
+      }
+    }
   };
 
   Visitor V{Resolver};
   V.Visit(L.getUnqualifiedLoc());
-  if (!V.Ref)
-    return {};
-  return {*V.Ref};
+  return V.Refs;
 }
 
 class ExplicitReferenceCollector

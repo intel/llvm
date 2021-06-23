@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cstdlib>
 #include <limits>
 #include <memory>
-#include <stdlib.h>
 #include <string>
 #include <vector>
 
@@ -1465,7 +1465,6 @@ CommandObject *CommandInterpreter::BuildAliasResult(
                                    "need at least %d arguments to use "
                                    "this alias.\n",
                                    index);
-      result.SetStatus(eReturnStatusFailed);
       return nullptr;
     } else {
       size_t strpos = raw_input_string.find(cmd_args.GetArgumentAtIndex(index));
@@ -1658,7 +1657,6 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
 
   if (WasInterrupted()) {
     result.AppendError("interrupted");
-    result.SetStatus(eReturnStatusFailed);
     return false;
   }
 
@@ -1694,7 +1692,6 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
       } else {
         result.AppendErrorWithFormat("Could not find entry: %s in history",
                                      command_string.c_str());
-        result.SetStatus(eReturnStatusFailed);
         return false;
       }
     }
@@ -1708,7 +1705,6 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
 
     if (m_command_history.IsEmpty()) {
       result.AppendError("empty command");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -1717,7 +1713,6 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
     original_command_string = command_line;
     if (m_repeat_command.empty()) {
       result.AppendError("No auto repeat.");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -1731,7 +1726,6 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
 
   if (error.Fail()) {
     result.AppendError(error.AsCString());
-    result.SetStatus(eReturnStatusFailed);
     return false;
   }
 
@@ -1999,7 +1993,6 @@ void CommandInterpreter::BuildAliasCommandArgs(CommandObject *alias_cmd_obj,
                                      "need at least %d arguments to use "
                                      "this alias.\n",
                                      index);
-        result.SetStatus(eReturnStatusFailed);
         return;
       } else {
         // Find and remove cmd_args.GetArgumentAtIndex(i) from raw_input_string
@@ -2169,7 +2162,6 @@ void CommandInterpreter::SourceInitFileCwd(CommandReturnObject &result) {
       result.SetStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       result.AppendError(InitFileWarning);
-      result.SetStatus(eReturnStatusFailed);
     }
   }
   }
@@ -2306,6 +2298,7 @@ void CommandInterpreter::HandleCommands(const StringList &commands,
 
     CommandReturnObject tmp_result(m_debugger.GetUseColor());
     tmp_result.SetInteractive(result.GetInteractive());
+    tmp_result.SetSuppressImmediateOutput(true);
 
     // We might call into a regex or alias command, in which case the
     // add_to_history will get lost.  This m_command_source_depth dingus is the
@@ -2330,7 +2323,6 @@ void CommandInterpreter::HandleCommands(const StringList &commands,
             "Aborting reading of commands after command #%" PRIu64
             ": '%s' failed with %s",
             (uint64_t)idx, cmd, error_msg.str().c_str());
-        result.SetStatus(eReturnStatusFailed);
         m_debugger.SetAsyncExecution(old_async_execution);
         return;
       } else if (options.GetPrintResults()) {
@@ -2426,7 +2418,6 @@ void CommandInterpreter::HandleCommandsFromFile(FileSpec &cmd_file,
     result.AppendErrorWithFormat(
         "Error reading commands from file %s - file not found.\n",
         cmd_file.GetFilename().AsCString("<Unknown>"));
-    result.SetStatus(eReturnStatusFailed);
     return;
   }
 
@@ -2438,7 +2429,6 @@ void CommandInterpreter::HandleCommandsFromFile(FileSpec &cmd_file,
     result.AppendErrorWithFormatv(
         "error: an error occurred read file '{0}': {1}\n", cmd_file_path,
         llvm::fmt_consume(input_file_up.takeError()));
-    result.SetStatus(eReturnStatusFailed);
     return;
   }
   FileSP input_file_sp = FileSP(std::move(input_file_up.get()));
@@ -2986,9 +2976,9 @@ void CommandInterpreter::GetLLDBCommandsFromIOHandler(
   IOHandlerSP io_handler_sp(
       new IOHandlerEditline(debugger, IOHandler::Type::CommandList,
                             "lldb", // Name of input reader for history
-                            llvm::StringRef::withNullAsEmpty(prompt), // Prompt
-                            llvm::StringRef(), // Continuation prompt
-                            true,              // Get multiple lines
+                            llvm::StringRef(prompt), // Prompt
+                            llvm::StringRef(),       // Continuation prompt
+                            true,                    // Get multiple lines
                             debugger.GetUseColor(),
                             0,         // Don't show line numbers
                             delegate,  // IOHandlerDelegate
@@ -3006,9 +2996,9 @@ void CommandInterpreter::GetPythonCommandsFromIOHandler(
   IOHandlerSP io_handler_sp(
       new IOHandlerEditline(debugger, IOHandler::Type::PythonCode,
                             "lldb-python", // Name of input reader for history
-                            llvm::StringRef::withNullAsEmpty(prompt), // Prompt
-                            llvm::StringRef(), // Continuation prompt
-                            true,              // Get multiple lines
+                            llvm::StringRef(prompt), // Prompt
+                            llvm::StringRef(),       // Continuation prompt
+                            true,                    // Get multiple lines
                             debugger.GetUseColor(),
                             0,         // Don't show line numbers
                             delegate,  // IOHandlerDelegate
@@ -3101,7 +3091,6 @@ CommandInterpreter::ResolveCommandImpl(std::string &command_line,
   CommandObject *cmd_obj = nullptr;
   StreamString revised_command_line;
   bool wants_raw_input = false;
-  size_t actual_cmd_name_len = 0;
   std::string next_word;
   StringList matches;
   bool done = false;
@@ -3123,12 +3112,10 @@ CommandInterpreter::ResolveCommandImpl(std::string &command_line,
         revised_command_line.Printf("%s", alias_result.c_str());
         if (cmd_obj) {
           wants_raw_input = cmd_obj->WantsRawCommandString();
-          actual_cmd_name_len = cmd_obj->GetCommandName().size();
         }
       } else {
         if (cmd_obj) {
           llvm::StringRef cmd_name = cmd_obj->GetCommandName();
-          actual_cmd_name_len += cmd_name.size();
           revised_command_line.Printf("%s", cmd_name.str().c_str());
           wants_raw_input = cmd_obj->WantsRawCommandString();
         } else {
@@ -3143,7 +3130,6 @@ CommandInterpreter::ResolveCommandImpl(std::string &command_line,
           // The subcommand's name includes the parent command's name, so
           // restart rather than append to the revised_command_line.
           llvm::StringRef sub_cmd_name = sub_cmd_obj->GetCommandName();
-          actual_cmd_name_len = sub_cmd_name.size() + 1;
           revised_command_line.Clear();
           revised_command_line.Printf("%s", sub_cmd_name.str().c_str());
           cmd_obj = sub_cmd_obj;
@@ -3187,7 +3173,6 @@ CommandInterpreter::ResolveCommandImpl(std::string &command_line,
         result.AppendErrorWithFormat("'%s' is not a valid command.\n",
                                      next_word.c_str());
       }
-      result.SetStatus(eReturnStatusFailed);
       return nullptr;
     }
 
@@ -3199,7 +3184,6 @@ CommandInterpreter::ResolveCommandImpl(std::string &command_line,
             cmd_obj->GetCommandName().str().c_str(),
             next_word.empty() ? "" : next_word.c_str(),
             next_word.empty() ? " -- " : " ", suffix.c_str());
-        result.SetStatus(eReturnStatusFailed);
         return nullptr;
       }
     } else {
@@ -3235,7 +3219,6 @@ CommandInterpreter::ResolveCommandImpl(std::string &command_line,
               result.AppendErrorWithFormat(
                   "the '%s' command doesn't support the --gdb-format option\n",
                   cmd_obj->GetCommandName().str().c_str());
-              result.SetStatus(eReturnStatusFailed);
               return nullptr;
             }
           }
@@ -3244,7 +3227,6 @@ CommandInterpreter::ResolveCommandImpl(std::string &command_line,
         default:
           result.AppendErrorWithFormat(
               "unknown command shorthand suffix: '%s'\n", suffix.c_str());
-          result.SetStatus(eReturnStatusFailed);
           return nullptr;
         }
       }

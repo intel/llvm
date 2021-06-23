@@ -11,11 +11,16 @@ declare <512 x i1> @llvm.ppc.mma.assemble.acc(<16 x i8>, <16 x i8>, <16 x i8>, <
 define void @ass_acc(<512 x i1>* %ptr, <16 x i8> %vc) {
 ; CHECK-LABEL: ass_acc:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vmr v3, v2
-; CHECK-NEXT:    xxlor vs0, v2, v2
-; CHECK-NEXT:    xxlor vs1, v3, v3
-; CHECK-NEXT:    xxlor vs2, v2, v2
-; CHECK-NEXT:    xxlor vs3, v3, v3
+; CHECK-NEXT:    xxlor vs1, v2, v2
+; CHECK-NEXT:    xxlor vs0, vs1, vs1
+; CHECK-NEXT:    xxlor vs4, vs0, vs0
+; CHECK-NEXT:    xxlor vs5, vs1, vs1
+; CHECK-NEXT:    xxlor vs6, vs0, vs0
+; CHECK-NEXT:    xxlor vs7, vs1, vs1
+; CHECK-NEXT:    xxlor vs0, vs4, vs4
+; CHECK-NEXT:    xxlor vs1, vs5, vs5
+; CHECK-NEXT:    xxlor vs2, vs6, vs6
+; CHECK-NEXT:    xxlor vs3, vs7, vs7
 ; CHECK-NEXT:    stxv vs0, 48(r3)
 ; CHECK-NEXT:    stxv vs1, 32(r3)
 ; CHECK-NEXT:    stxv vs2, 16(r3)
@@ -24,11 +29,16 @@ define void @ass_acc(<512 x i1>* %ptr, <16 x i8> %vc) {
 ;
 ; CHECK-BE-LABEL: ass_acc:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    vmr v3, v2
-; CHECK-BE-NEXT:    xxlor vs0, v2, v2
-; CHECK-BE-NEXT:    xxlor vs1, v3, v3
-; CHECK-BE-NEXT:    xxlor vs2, v2, v2
-; CHECK-BE-NEXT:    xxlor vs3, v3, v3
+; CHECK-BE-NEXT:    xxlor vs1, v2, v2
+; CHECK-BE-NEXT:    xxlor vs0, vs1, vs1
+; CHECK-BE-NEXT:    xxlor vs4, vs0, vs0
+; CHECK-BE-NEXT:    xxlor vs5, vs1, vs1
+; CHECK-BE-NEXT:    xxlor vs6, vs0, vs0
+; CHECK-BE-NEXT:    xxlor vs7, vs1, vs1
+; CHECK-BE-NEXT:    xxlor vs0, vs4, vs4
+; CHECK-BE-NEXT:    xxlor vs1, vs5, vs5
+; CHECK-BE-NEXT:    xxlor vs2, vs6, vs6
+; CHECK-BE-NEXT:    xxlor vs3, vs7, vs7
 ; CHECK-BE-NEXT:    stxv vs1, 16(r3)
 ; CHECK-BE-NEXT:    stxv vs0, 0(r3)
 ; CHECK-BE-NEXT:    stxv vs3, 48(r3)
@@ -45,11 +55,16 @@ declare <512 x i1> @llvm.ppc.mma.xxmtacc(<512 x i1>)
 define void @int_xxmtacc(<512 x i1>* %ptr, <16 x i8> %vc) {
 ; CHECK-LABEL: int_xxmtacc:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vmr v3, v2
-; CHECK-NEXT:    xxlor vs0, v2, v2
-; CHECK-NEXT:    xxlor vs1, v3, v3
-; CHECK-NEXT:    xxlor vs2, v2, v2
-; CHECK-NEXT:    xxlor vs3, v3, v3
+; CHECK-NEXT:    xxlor vs1, v2, v2
+; CHECK-NEXT:    xxlor vs0, vs1, vs1
+; CHECK-NEXT:    xxlor vs4, vs0, vs0
+; CHECK-NEXT:    xxlor vs5, vs1, vs1
+; CHECK-NEXT:    xxlor vs6, vs0, vs0
+; CHECK-NEXT:    xxlor vs7, vs1, vs1
+; CHECK-NEXT:    xxlor vs0, vs4, vs4
+; CHECK-NEXT:    xxlor vs1, vs5, vs5
+; CHECK-NEXT:    xxlor vs2, vs6, vs6
+; CHECK-NEXT:    xxlor vs3, vs7, vs7
 ; CHECK-NEXT:    xxmtacc acc0
 ; CHECK-NEXT:    stxv vs0, 48(r3)
 ; CHECK-NEXT:    stxv vs1, 32(r3)
@@ -59,11 +74,16 @@ define void @int_xxmtacc(<512 x i1>* %ptr, <16 x i8> %vc) {
 ;
 ; CHECK-BE-LABEL: int_xxmtacc:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    vmr v3, v2
-; CHECK-BE-NEXT:    xxlor vs0, v2, v2
-; CHECK-BE-NEXT:    xxlor vs1, v3, v3
-; CHECK-BE-NEXT:    xxlor vs2, v2, v2
-; CHECK-BE-NEXT:    xxlor vs3, v3, v3
+; CHECK-BE-NEXT:    xxlor vs1, v2, v2
+; CHECK-BE-NEXT:    xxlor vs0, vs1, vs1
+; CHECK-BE-NEXT:    xxlor vs4, vs0, vs0
+; CHECK-BE-NEXT:    xxlor vs5, vs1, vs1
+; CHECK-BE-NEXT:    xxlor vs6, vs0, vs0
+; CHECK-BE-NEXT:    xxlor vs7, vs1, vs1
+; CHECK-BE-NEXT:    xxlor vs0, vs4, vs4
+; CHECK-BE-NEXT:    xxlor vs1, vs5, vs5
+; CHECK-BE-NEXT:    xxlor vs2, vs6, vs6
+; CHECK-BE-NEXT:    xxlor vs3, vs7, vs7
 ; CHECK-BE-NEXT:    xxmtacc acc0
 ; CHECK-BE-NEXT:    stxv vs1, 16(r3)
 ; CHECK-BE-NEXT:    stxv vs0, 0(r3)
@@ -84,11 +104,16 @@ declare <512 x i1> @llvm.ppc.mma.xxmfacc(<512 x i1>)
 define void @int_xxmfacc(<512 x i1>* %ptr, <16 x i8> %vc) {
 ; CHECK-LABEL: int_xxmfacc:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vmr v3, v2
-; CHECK-NEXT:    xxlor vs0, v2, v2
-; CHECK-NEXT:    xxlor vs1, v3, v3
-; CHECK-NEXT:    xxlor vs2, v2, v2
-; CHECK-NEXT:    xxlor vs3, v3, v3
+; CHECK-NEXT:    xxlor vs1, v2, v2
+; CHECK-NEXT:    xxlor vs0, vs1, vs1
+; CHECK-NEXT:    xxlor vs4, vs0, vs0
+; CHECK-NEXT:    xxlor vs5, vs1, vs1
+; CHECK-NEXT:    xxlor vs6, vs0, vs0
+; CHECK-NEXT:    xxlor vs7, vs1, vs1
+; CHECK-NEXT:    xxlor vs0, vs4, vs4
+; CHECK-NEXT:    xxlor vs1, vs5, vs5
+; CHECK-NEXT:    xxlor vs2, vs6, vs6
+; CHECK-NEXT:    xxlor vs3, vs7, vs7
 ; CHECK-NEXT:    stxv vs0, 48(r3)
 ; CHECK-NEXT:    stxv vs1, 32(r3)
 ; CHECK-NEXT:    stxv vs2, 16(r3)
@@ -97,11 +122,16 @@ define void @int_xxmfacc(<512 x i1>* %ptr, <16 x i8> %vc) {
 ;
 ; CHECK-BE-LABEL: int_xxmfacc:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    vmr v3, v2
-; CHECK-BE-NEXT:    xxlor vs0, v2, v2
-; CHECK-BE-NEXT:    xxlor vs1, v3, v3
-; CHECK-BE-NEXT:    xxlor vs2, v2, v2
-; CHECK-BE-NEXT:    xxlor vs3, v3, v3
+; CHECK-BE-NEXT:    xxlor vs1, v2, v2
+; CHECK-BE-NEXT:    xxlor vs0, vs1, vs1
+; CHECK-BE-NEXT:    xxlor vs4, vs0, vs0
+; CHECK-BE-NEXT:    xxlor vs5, vs1, vs1
+; CHECK-BE-NEXT:    xxlor vs6, vs0, vs0
+; CHECK-BE-NEXT:    xxlor vs7, vs1, vs1
+; CHECK-BE-NEXT:    xxlor vs0, vs4, vs4
+; CHECK-BE-NEXT:    xxlor vs1, vs5, vs5
+; CHECK-BE-NEXT:    xxlor vs2, vs6, vs6
+; CHECK-BE-NEXT:    xxlor vs3, vs7, vs7
 ; CHECK-BE-NEXT:    stxv vs1, 16(r3)
 ; CHECK-BE-NEXT:    stxv vs0, 0(r3)
 ; CHECK-BE-NEXT:    stxv vs3, 48(r3)
@@ -558,16 +588,12 @@ define void @testRedundantPrimeUnprime(<512 x i1>* %dst, <16 x i8> %vc) nounwind
 ; CHECK-NEXT:    stxv vs2, 16(r3)
 ; CHECK-NEXT:    stxv vs3, 0(r3)
 ; CHECK-NEXT:    xvf32gerpp acc1, v2, v2
-; CHECK-NEXT:    li r3, 64
 ; CHECK-NEXT:    xxmfacc acc1
-; CHECK-NEXT:    stxvp vsp4, r1(r3)
-; CHECK-NEXT:    li r3, 32
-; CHECK-NEXT:    stxvp vsp6, r1(r3)
+; CHECK-NEXT:    stxvp vsp4, 64(r1)
+; CHECK-NEXT:    stxvp vsp6, 32(r1)
 ; CHECK-NEXT:    bl testRedundantPrimeUnprimeF@notoc
-; CHECK-NEXT:    li r3, 64
-; CHECK-NEXT:    lxvp vsp0, r1(r3)
-; CHECK-NEXT:    li r3, 32
-; CHECK-NEXT:    lxvp vsp2, r1(r3)
+; CHECK-NEXT:    lxvp vsp0, 64(r1)
+; CHECK-NEXT:    lxvp vsp2, 32(r1)
 ; CHECK-NEXT:    stxv vs0, 112(r30)
 ; CHECK-NEXT:    stxv vs1, 96(r30)
 ; CHECK-NEXT:    stxv vs2, 80(r30)
@@ -593,17 +619,13 @@ define void @testRedundantPrimeUnprime(<512 x i1>* %dst, <16 x i8> %vc) nounwind
 ; CHECK-BE-NEXT:    stxv vs3, 48(r3)
 ; CHECK-BE-NEXT:    stxv vs2, 32(r3)
 ; CHECK-BE-NEXT:    xvf32gerpp acc1, v2, v2
-; CHECK-BE-NEXT:    li r3, 112
 ; CHECK-BE-NEXT:    xxmfacc acc1
-; CHECK-BE-NEXT:    stxvp vsp4, r1(r3)
-; CHECK-BE-NEXT:    li r3, 144
-; CHECK-BE-NEXT:    stxvp vsp6, r1(r3)
+; CHECK-BE-NEXT:    stxvp vsp4, 112(r1)
+; CHECK-BE-NEXT:    stxvp vsp6, 144(r1)
 ; CHECK-BE-NEXT:    bl testRedundantPrimeUnprimeF
 ; CHECK-BE-NEXT:    nop
-; CHECK-BE-NEXT:    li r3, 112
-; CHECK-BE-NEXT:    lxvp vsp0, r1(r3)
-; CHECK-BE-NEXT:    li r3, 144
-; CHECK-BE-NEXT:    lxvp vsp2, r1(r3)
+; CHECK-BE-NEXT:    lxvp vsp0, 112(r1)
+; CHECK-BE-NEXT:    lxvp vsp2, 144(r1)
 ; CHECK-BE-NEXT:    stxv vs3, 112(r30)
 ; CHECK-BE-NEXT:    stxv vs2, 96(r30)
 ; CHECK-BE-NEXT:    stxv vs1, 80(r30)

@@ -4,13 +4,13 @@
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/tbss.s -o %t/tbss.o
 
 # RUN: %lld -lSystem -no_pie -o %t/regular %t/regular.o
-# RUN: llvm-readobj --file-headers %t/regular | FileCheck %s --check-prefix=HEADER
+# RUN: llvm-otool -hv %t/regular | FileCheck %s --check-prefix=HEADER
 # RUN: llvm-objdump -d --bind --rebase %t/regular | FileCheck %s --check-prefixes=REG,LINKEDIT
 # RUN: llvm-objdump --macho --section=__DATA,__thread_vars %t/regular | \
 # RUN:   FileCheck %s --check-prefix=REG-TLVP
 
 # RUN: %lld -lSystem -pie %t/regular.o -o %t/regular-pie
-# RUN: llvm-readobj --file-headers %t/regular-pie | FileCheck %s --check-prefix=HEADER
+# RUN: llvm-otool -hv %t/regular-pie | FileCheck %s --check-prefix=HEADER
 # RUN: llvm-objdump -d --bind --rebase %t/regular-pie | FileCheck %s --check-prefixes=REG,LINKEDIT
 # RUN: llvm-objdump --macho --section=__DATA,__thread_vars %t/regular-pie | \
 # RUN:   FileCheck %s --check-prefix=REG-TLVP
@@ -61,6 +61,7 @@
 ## Make sure we don't emit rebase opcodes for relocations in __thread_vars.
 # LINKEDIT:       Rebase table:
 # LINKEDIT-NEXT:  segment  section            address     type
+# LINKEDIT-EMPTY:
 # LINKEDIT-NEXT:  Bind table:
 # LINKEDIT:       __DATA  __thread_vars   0x{{[0-9a-f]*}}  pointer 0 libSystem __tlv_bootstrap
 # LINKEDIT:       __DATA  __thread_vars   0x{{[0-9a-f]*}}  pointer 0 libSystem __tlv_bootstrap

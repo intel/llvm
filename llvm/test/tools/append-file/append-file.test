@@ -1,0 +1,9 @@
+-- Verify append-file creates the expected output file
+-- Append files
+
+RUN: echo aaaaaaaa > %t_a.txt
+RUN: echo bbbbbbbb > %t_b.txt
+RUN: append-file %t_a.txt --append=%t_b.txt --output=%t.txt
+RUN: FileCheck --input-file %t.txt %s
+CHECK: aaaaaaaa
+CHECK-NEXT: bbbbbbbb

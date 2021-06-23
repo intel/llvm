@@ -5,17 +5,22 @@ add_public_tablegen_target(MachOOptionsTableGen)
 include_directories(${LLVM_MAIN_SRC_DIR}/../libunwind/include)
 
 add_lld_library(lldMachO2
-  Arch/X86_64.cpp
+  Arch/ARM.cpp
   Arch/ARM64.cpp
-  UnwindInfoSection.cpp
+  Arch/ARM64Common.cpp
+  Arch/ARM64_32.cpp
+  Arch/X86_64.cpp
+  ConcatOutputSection.cpp
   Driver.cpp
   DriverUtils.cpp
   Dwarf.cpp
   ExportTrie.cpp
+  ICF.cpp
   InputFiles.cpp
   InputSection.cpp
   LTO.cpp
-  MergedOutputSection.cpp
+  MapFile.cpp
+  MarkLive.cpp
   ObjC.cpp
   OutputSection.cpp
   OutputSegment.cpp
@@ -24,7 +29,7 @@ add_lld_library(lldMachO2
   Symbols.cpp
   SyntheticSections.cpp
   Target.cpp
-  MapFile.cpp
+  UnwindInfoSection.cpp
   Writer.cpp
 
   LINK_COMPONENTS
@@ -45,8 +50,13 @@ add_lld_library(lldMachO2
   LINK_LIBS
   lldCommon
   ${LLVM_PTHREAD_LIB}
+  ${XAR_LIB}
 
   DEPENDS
   MachOOptionsTableGen
   ${tablegen_deps}
   )
+
+if(LLVM_HAVE_LIBXAR)
+  target_link_libraries(lldMachO2 PRIVATE ${XAR_LIB})
+endif()

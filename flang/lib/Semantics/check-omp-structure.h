@@ -42,10 +42,10 @@ static OmpDirectiveSet parallelSet{Directive::OMPD_distribute_parallel_do,
     Directive::OMPD_teams_distribute_parallel_do,
     Directive::OMPD_teams_distribute_parallel_do_simd};
 static OmpDirectiveSet doSet{Directive::OMPD_distribute_parallel_do,
-    Directive::OMPD_distribute_parallel_do_simd, Directive::OMPD_parallel,
-    Directive::OMPD_parallel_do, Directive::OMPD_parallel_do_simd,
-    Directive::OMPD_do, Directive::OMPD_do_simd,
-    Directive::OMPD_target_parallel_do, Directive::OMPD_target_parallel_do_simd,
+    Directive::OMPD_distribute_parallel_do_simd, Directive::OMPD_parallel_do,
+    Directive::OMPD_parallel_do_simd, Directive::OMPD_do,
+    Directive::OMPD_do_simd, Directive::OMPD_target_parallel_do,
+    Directive::OMPD_target_parallel_do_simd,
     Directive::OMPD_target_teams_distribute_parallel_do,
     Directive::OMPD_target_teams_distribute_parallel_do_simd,
     Directive::OMPD_teams_distribute_parallel_do,
@@ -55,6 +55,11 @@ static OmpDirectiveSet doSimdSet{Directive::OMPD_distribute_parallel_do_simd,
     Directive::OMPD_target_parallel_do_simd,
     Directive::OMPD_target_teams_distribute_parallel_do_simd,
     Directive::OMPD_teams_distribute_parallel_do_simd};
+static OmpDirectiveSet workShareSet{
+    OmpDirectiveSet{Directive::OMPD_workshare,
+        Directive::OMPD_parallel_workshare, Directive::OMPD_parallel_sections,
+        Directive::OMPD_sections, Directive::OMPD_single} |
+    doSet};
 static OmpDirectiveSet taskloopSet{
     Directive::OMPD_taskloop, Directive::OMPD_taskloop_simd};
 static OmpDirectiveSet targetSet{Directive::OMPD_target,
@@ -71,11 +76,30 @@ static OmpDirectiveSet simdSet{Directive::OMPD_distribute_parallel_do_simd,
     Directive::OMPD_taskloop_simd,
     Directive::OMPD_teams_distribute_parallel_do_simd,
     Directive::OMPD_teams_distribute_simd};
+static OmpDirectiveSet teamSet{Directive::OMPD_teams,
+    Directive::OMPD_teams_distribute,
+    Directive::OMPD_teams_distribute_parallel_do,
+    Directive::OMPD_teams_distribute_parallel_do_simd,
+    Directive::OMPD_teams_distribute_parallel_for,
+    Directive::OMPD_teams_distribute_parallel_for_simd,
+    Directive::OMPD_teams_distribute_simd};
 static OmpDirectiveSet taskGeneratingSet{
     OmpDirectiveSet{Directive::OMPD_task} | taskloopSet};
 static OmpDirectiveSet nestedOrderedErrSet{Directive::OMPD_critical,
     Directive::OMPD_ordered, Directive::OMPD_atomic, Directive::OMPD_task,
     Directive::OMPD_taskloop};
+static OmpDirectiveSet nestedWorkshareErrSet{
+    OmpDirectiveSet{Directive::OMPD_task, Directive::OMPD_taskloop,
+        Directive::OMPD_critical, Directive::OMPD_ordered,
+        Directive::OMPD_atomic, Directive::OMPD_master} |
+    workShareSet};
+static OmpDirectiveSet nestedMasterErrSet{
+    OmpDirectiveSet{llvm::omp::Directive::OMPD_atomic} | taskGeneratingSet |
+    workShareSet};
+static OmpDirectiveSet nestedBarrierErrSet{
+    OmpDirectiveSet{Directive::OMPD_critical, Directive::OMPD_ordered,
+        Directive::OMPD_atomic, Directive::OMPD_master} |
+    taskGeneratingSet | workShareSet};
 static OmpClauseSet privateSet{
     Clause::OMPC_private, Clause::OMPC_firstprivate, Clause::OMPC_lastprivate};
 static OmpClauseSet privateReductionSet{
@@ -167,6 +191,9 @@ private:
   bool HasInvalidWorksharingNesting(
       const parser::CharBlock &, const OmpDirectiveSet &);
   bool IsCloselyNestedRegion(const OmpDirectiveSet &set);
+  void HasInvalidTeamsNesting(
+      const llvm::omp::Directive &dir, const parser::CharBlock &source);
+  void HasInvalidDistributeNesting(const parser::OpenMPLoopConstruct &x);
   // specific clause related
   bool ScheduleModifierHasType(const parser::OmpScheduleClause &,
       const parser::OmpScheduleModifierType::ModType &);
@@ -178,7 +205,9 @@ private:
   void CheckDependList(const parser::DataRef &);
   void CheckDependArraySection(
       const common::Indirection<parser::ArrayElement> &, const parser::Name &);
-  void CheckIsVarPartOfAnotherVar(const parser::OmpObjectList &objList);
+  bool IsDataRefTypeParamInquiry(const parser::DataRef *dataRef);
+  void CheckIsVarPartOfAnotherVar(
+      const parser::CharBlock &source, const parser::OmpObjectList &objList);
   void CheckIntentInPointer(
       const parser::OmpObjectList &, const llvm::omp::Clause);
   void GetSymbolsInObjectList(const parser::OmpObjectList &, SymbolSourceMap &);
@@ -194,12 +223,16 @@ private:
   void CheckLoopItrVariableIsInt(const parser::OpenMPLoopConstruct &x);
   void CheckDoWhile(const parser::OpenMPLoopConstruct &x);
   void CheckCycleConstraints(const parser::OpenMPLoopConstruct &x);
+  void CheckDistLinear(const parser::OpenMPLoopConstruct &x);
+  void CheckSIMDNest(const parser::OpenMPConstruct &x);
   std::int64_t GetOrdCollapseLevel(const parser::OpenMPLoopConstruct &x);
   void CheckIfDoOrderedClause(const parser::OmpBlockDirective &blkDirectiv);
   bool CheckReductionOperators(const parser::OmpClause::Reduction &);
   bool CheckIntrinsicOperator(
       const parser::DefinedOperator::IntrinsicOperator &);
   void CheckReductionTypeList(const parser::OmpClause::Reduction &);
+  void CheckMasterNesting(const parser::OpenMPBlockConstruct &x);
+  void CheckBarrierNesting(const parser::OpenMPSimpleStandaloneConstruct &x);
   void CheckReductionArraySection(const parser::OmpObjectList &ompObjectList);
   void CheckIntentInPointerAndDefinable(
       const parser::OmpObjectList &, const llvm::omp::Clause);
@@ -208,6 +241,11 @@ private:
   void CheckMultipleAppearanceAcrossContext(
       const parser::OmpObjectList &ompObjectList);
   const parser::OmpObjectList *GetOmpObjectList(const parser::OmpClause &);
+  void CheckPredefinedAllocatorRestriction(const parser::CharBlock &source,
+      const parser::OmpObjectList &ompObjectList);
+  void CheckPredefinedAllocatorRestriction(
+      const parser::CharBlock &source, const parser::Name &name);
+  bool isPredefinedAllocator{false};
 };
 } // namespace Fortran::semantics
 #endif // FORTRAN_SEMANTICS_CHECK_OMP_STRUCTURE_H_
