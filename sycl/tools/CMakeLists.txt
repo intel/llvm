@@ -20,8 +20,9 @@ target_link_libraries(get_device_count_by_type
     LevelZeroLoader::Headers
     OpenCL-ICD
     ${LEVEL_ZERO_LIBRARY}
-    $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:cudadrv>
-    $<$<BOOL:${SYCL_BUILD_PI_ROCM}>:rocmdrv>
+    $<$<OR:$<BOOL:${SYCL_BUILD_PI_CUDA}>,$<AND:$<BOOL:${SYCL_BUILD_PI_ROCM}>,$<STREQUAL:${SYCL_BUILD_PI_ROCM_PLATFORM},"NVIDIA">>>:cudadrv>
+    $<$<AND:$<BOOL:${SYCL_BUILD_PI_ROCM}>,$<STREQUAL:${SYCL_BUILD_PI_ROCM_PLATFORM},"AMD">>:rocmdrv>
+    $<$<AND:$<BOOL:${SYCL_BUILD_PI_ROCM}>,$<STREQUAL:${SYCL_BUILD_PI_ROCM_PLATFORM},"NVIDIA">>:cudart>
 )
 target_compile_definitions(get_device_count_by_type
   PRIVATE
