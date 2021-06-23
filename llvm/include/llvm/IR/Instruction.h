@@ -170,6 +170,11 @@ public:
   bool isExceptionalTerminator() const {
     return isExceptionalTerminator(getOpcode());
   }
+
+  /// It checks if this instruction is the only user of at least one of
+  /// its operands.
+  bool isOnlyUserOfAnyOperand();
+
   bool isIndirectTerminator() const {
     return isIndirectTerminator(getOpcode());
   }
@@ -656,6 +661,10 @@ public:
   /// Return true if the instruction is a llvm.lifetime.start or
   /// llvm.lifetime.end marker.
   bool isLifetimeStartOrEnd() const;
+
+  /// Return true if the instruction is a llvm.launder.invariant.group or
+  /// llvm.strip.invariant.group.
+  bool isLaunderOrStripInvariantGroup() const;
 
   /// Return true if the instruction is a DbgInfoIntrinsic or PseudoProbeInst.
   bool isDebugOrPseudoInst() const;

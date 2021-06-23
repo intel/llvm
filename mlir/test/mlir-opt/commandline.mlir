@@ -6,13 +6,12 @@
 // CHECK-NEXT: arm_neon
 // CHECK-NEXT: arm_sve
 // CHECK-NEXT: async
-// CHECK-NEXT: avx512
 // CHECK-NEXT: complex
 // CHECK-NEXT: dlti
+// CHECK-NEXT: emitc
 // CHECK-NEXT: gpu
 // CHECK-NEXT: linalg
 // CHECK-NEXT: llvm
-// CHECK-NEXT: llvm_arm_sve
 // CHECK-NEXT: math
 // CHECK-NEXT: memref
 // CHECK-NEXT: nvvm
@@ -24,9 +23,11 @@
 // CHECK-NEXT: scf
 // CHECK-NEXT: sdbm
 // CHECK-NEXT: shape
+// CHECK-NEXT: sparse_tensor
 // CHECK-NEXT: spv
 // CHECK-NEXT: std
 // CHECK-NEXT: tensor
 // CHECK-NEXT: test
 // CHECK-NEXT: tosa
 // CHECK-NEXT: vector
+// CHECK-NEXT: x86vector

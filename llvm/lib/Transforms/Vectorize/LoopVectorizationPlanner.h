@@ -25,18 +25,18 @@
 #define LLVM_TRANSFORMS_VECTORIZE_LOOPVECTORIZATIONPLANNER_H
 
 #include "VPlan.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Analysis/TargetTransformInfo.h"
 
 namespace llvm {
 
+class LoopInfo;
 class LoopVectorizationLegality;
 class LoopVectorizationCostModel;
 class PredicatedScalarEvolution;
 class LoopVectorizationRequirements;
 class LoopVectorizeHints;
 class OptimizationRemarkEmitter;
+class TargetTransformInfo;
+class TargetLibraryInfo;
 class VPRecipeBuilder;
 
 /// VPlan-based builder utility analogous to IRBuilder.
@@ -181,7 +181,10 @@ struct VectorizationFactor {
   // Vector width with best cost
   ElementCount Width;
   // Cost of the loop with that width
-  unsigned Cost;
+  InstructionCost Cost;
+
+  VectorizationFactor(ElementCount Width, InstructionCost Cost)
+      : Width(Width), Cost(Cost) {}
 
   // Width 1 means no vectorization, cost 0 means uncomputed cost.
   static VectorizationFactor Disabled() {
@@ -195,6 +198,37 @@ struct VectorizationFactor {
   bool operator!=(const VectorizationFactor &rhs) const {
     return !(*this == rhs);
   }
+};
+
+/// A class that represents two vectorization factors (initialized with 0 by
+/// default). One for fixed-width vectorization and one for scalable
+/// vectorization. This can be used by the vectorizer to choose from a range of
+/// fixed and/or scalable VFs in order to find the most cost-effective VF to
+/// vectorize with.
+struct FixedScalableVFPair {
+  ElementCount FixedVF;
+  ElementCount ScalableVF;
+
+  FixedScalableVFPair()
+      : FixedVF(ElementCount::getFixed(0)),
+        ScalableVF(ElementCount::getScalable(0)) {}
+  FixedScalableVFPair(const ElementCount &Max) : FixedScalableVFPair() {
+    *(Max.isScalable() ? &ScalableVF : &FixedVF) = Max;
+  }
+  FixedScalableVFPair(const ElementCount &FixedVF,
+                      const ElementCount &ScalableVF)
+      : FixedVF(FixedVF), ScalableVF(ScalableVF) {
+    assert(!FixedVF.isScalable() && ScalableVF.isScalable() &&
+           "Invalid scalable properties");
+  }
+
+  static FixedScalableVFPair getNone() { return FixedScalableVFPair(); }
+
+  /// \return true if either fixed- or scalable VF is non-zero.
+  explicit operator bool() const { return FixedVF || ScalableVF; }
+
+  /// \return true if either fixed- or scalable VF is a valid vector VF.
+  bool hasVector() const { return FixedVF.isVector() || ScalableVF.isVector(); }
 };
 
 /// Planner drives the vectorization process after having passed
@@ -310,7 +344,7 @@ private:
   /// Legal. This method is only used for the legacy inner loop vectorizer.
   VPlanPtr buildVPlanWithVPRecipes(
       VFRange &Range, SmallPtrSetImpl<Instruction *> &DeadInstructions,
-      const DenseMap<Instruction *, Instruction *> &SinkAfter);
+      const MapVector<Instruction *, Instruction *> &SinkAfter);
 
   /// Build VPlans for power-of-2 VF's between \p MinVF and \p MaxVF inclusive,
   /// according to the information gathered by Legal when it checked if it is

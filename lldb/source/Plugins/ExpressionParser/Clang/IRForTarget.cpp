@@ -41,8 +41,6 @@
 
 using namespace llvm;
 
-static char ID;
-
 typedef SmallVector<Instruction *, 2> InstrList;
 
 IRForTarget::FunctionValueCache::FunctionValueCache(Maker const &maker)
@@ -72,13 +70,9 @@ IRForTarget::IRForTarget(lldb_private::ClangExpressionDeclMap *decl_map,
                          lldb_private::IRExecutionUnit &execution_unit,
                          lldb_private::Stream &error_stream,
                          const char *func_name)
-    : ModulePass(ID), m_resolve_vars(resolve_vars), m_func_name(func_name),
-      m_module(nullptr), m_decl_map(decl_map),
-      m_CFStringCreateWithBytes(nullptr), m_sel_registerName(nullptr),
-      m_objc_getClass(nullptr), m_intptr_ty(nullptr),
-      m_error_stream(error_stream), m_execution_unit(execution_unit),
-      m_result_store(nullptr), m_result_is_pointer(false),
-      m_reloc_placeholder(nullptr),
+    : m_resolve_vars(resolve_vars), m_func_name(func_name),
+      m_decl_map(decl_map), m_error_stream(error_stream),
+      m_execution_unit(execution_unit),
       m_entry_instruction_finder(FindEntryInstruction) {}
 
 /* Handy utility functions used at several places in the code */
@@ -104,8 +98,6 @@ static std::string PrintType(const llvm::Type *type, bool truncate = false) {
     s.resize(s.length() - 1);
   return s;
 }
-
-IRForTarget::~IRForTarget() {}
 
 bool IRForTarget::FixFunctionLinkage(llvm::Function &llvm_function) {
   llvm_function.setLinkage(GlobalValue::ExternalLinkage);
@@ -2021,11 +2013,4 @@ bool IRForTarget::runOnModule(Module &llvm_module) {
   }
 
   return true;
-}
-
-void IRForTarget::assignPassManager(PMStack &pass_mgr_stack,
-                                    PassManagerType pass_mgr_type) {}
-
-PassManagerType IRForTarget::getPotentialPassManagerType() const {
-  return PMT_ModulePassManager;
 }

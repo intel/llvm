@@ -1,7 +1,6 @@
 ; RUN: llc < %s -mtriple=i686-windows | FileCheck %s -check-prefix=NORMAL
 ; RUN: llc < %s -mtriple=i686-windows -no-x86-call-frame-opt | FileCheck %s -check-prefix=NOPUSH
 ; RUN: llc < %s -mtriple=x86_64-windows | FileCheck %s -check-prefix=X64
-; RUN: llc < %s -mtriple=i686-windows -stackrealign -stack-alignment=32 | FileCheck %s -check-prefix=ALIGNED
 ; RUN: llc < %s -mtriple=i686-pc-linux | FileCheck %s -check-prefix=LINUX
 
 %class.Class = type { i32 }
@@ -107,7 +106,7 @@ entry:
 ; NORMAL-NEXT: addl $12, %esp
 define void @test4() optsize {
 entry:
-  call void @inreg(i32 1, i32 2, i32 3, i32 4)
+  call void @inreg(i32 1, i32 inreg 2, i32 3, i32 4)
   ret void
 }
 
@@ -122,50 +121,6 @@ entry:
 define void @test4b(%class.Class* %f) optsize {
 entry:
   call x86_thiscallcc void @thiscall(%class.Class* %f, i32 1, i32 2, i32 3, i32 4)
-  ret void
-}
-
-; When there is no reserved call frame, check that additional alignment
-; is added when the pushes don't add up to the required alignment.
-; ALIGNED-LABEL: test5:
-; ALIGNED: subl    $16, %esp
-; ALIGNED-NEXT: pushl   $4
-; ALIGNED-NEXT: pushl   $3
-; ALIGNED-NEXT: pushl   $2
-; ALIGNED-NEXT: pushl   $1
-; ALIGNED-NEXT: call
-define void @test5(i32 %k) {
-entry:
-  %a = alloca i32, i32 %k
-  call void @good(i32 1, i32 2, i32 3, i32 4)
-  ret void
-}
-
-; When the alignment adds up, do the transformation
-; ALIGNED-LABEL: test5b:
-; ALIGNED: pushl   $8
-; ALIGNED-NEXT: pushl   $7
-; ALIGNED-NEXT: pushl   $6
-; ALIGNED-NEXT: pushl   $5
-; ALIGNED-NEXT: pushl   $4
-; ALIGNED-NEXT: pushl   $3
-; ALIGNED-NEXT: pushl   $2
-; ALIGNED-NEXT: pushl   $1
-; ALIGNED-NEXT: call
-define void @test5b() optsize {
-entry:
-  call void @eightparams(i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8)
-  ret void
-}
-
-; When having to compensate for the alignment isn't worth it,
-; don't use pushes.
-; ALIGNED-LABEL: test5c:
-; ALIGNED: movl $1, (%esp)
-; ALIGNED-NEXT: call
-define void @test5c() optsize {
-entry:
-  call void @oneparam(i32 1)
   ret void
 }
 
@@ -307,9 +262,9 @@ define void @test11() optsize {
 define void @test12() optsize {
 entry:
   %s = alloca %struct.s, align 4
-  call void @struct(%struct.s* %s, i32 2, i32 3, i32 4)
+  call void @struct(%struct.s* byval(%struct.s) %s, i32 2, i32 3, i32 4)
   call void @good(i32 5, i32 6, i32 7, i32 8)
-  call void @struct(%struct.s* %s, i32 10, i32 11, i32 12)
+  call void @struct(%struct.s* byval(%struct.s) %s, i32 10, i32 11, i32 12)
   ret void
 }
 
@@ -340,7 +295,7 @@ define void @test12b() optsize {
 entry:
   %s = alloca %struct.s, align 4
   call void @good(i32 1, i32 2, i32 3, i32 4)
-  call void @struct(%struct.s* %s, i32 6, i32 7, i32 8)
+  call void @struct(%struct.s* byval(%struct.s) %s, i32 6, i32 7, i32 8)
   call void @good(i32 9, i32 10, i32 11, i32 12)
   ret void
 }
@@ -413,7 +368,7 @@ entry:
   %0 = bitcast %struct.A* %a to i64*
   %1 = load i64, i64* %0, align 4
   store i64 %1, i64* %agg.tmp, align 4
-  %call = call x86_thiscallcc %struct.B* @B_ctor(%struct.B* %ref.tmp, %struct.A* byval(%struct.A) %tmpcast)
+  %call = call x86_thiscallcc %struct.B* @B_ctor(%struct.B* returned %ref.tmp, %struct.A* byval(%struct.A) %tmpcast)
   %2 = getelementptr inbounds %struct.B, %struct.B* %tmp, i32 0, i32 0
   call void @B_func(%struct.B* sret(%struct.B) %tmp, %struct.B* %ref.tmp, i32 1)
   ret void

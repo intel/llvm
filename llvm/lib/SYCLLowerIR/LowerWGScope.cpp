@@ -303,7 +303,7 @@ shareOutputViaLocalMem(Instruction &I, BasicBlock &BBa, BasicBlock &BBb,
   Bld.CreateStore(&I, WGLocal);
   // 3) Generate a load in the "worker" BB of the value stored by the leader
   Bld.SetInsertPoint(&BBb.front());
-  auto *WGVal = Bld.CreateLoad(WGLocal, "wg_val_" + Twine(I.getName()));
+  auto *WGVal = Bld.CreateLoad(T, WGLocal, "wg_val_" + Twine(I.getName()));
   // 4) Finally, replace usages of I outside the scope
   for (auto *U : Users)
     U->replaceUsesOfWith(&I, WGVal);
@@ -416,7 +416,7 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
 
     if (!Loc2Shadow)
       std::swap(Src, Dst);
-    Value *LocalVal = Builder.CreateLoad(Src, "mat_ld");
+    Value *LocalVal = Builder.CreateLoad(T, Src, "mat_ld");
     Builder.CreateStore(LocalVal, Dst);
   }
 }
@@ -587,7 +587,7 @@ static void dumpDot(const Function &F, const Twine &Suff) {
   std::error_code EC;
   auto FName =
       ("PFWG_Kernel_" + Suff + "_" + Twine(F.getValueID()) + ".dot").str();
-  raw_fd_ostream File(FName, EC, sys::fs::F_Text);
+  raw_fd_ostream File(FName, EC, sys::fs::OF_Text);
 
   if (!EC)
     WriteGraph(File, (const Function *)&F, false);
@@ -599,7 +599,7 @@ static void dumpIR(const Function &F, const Twine &Suff) {
   std::error_code EC;
   auto FName =
       ("PFWG_Kernel_" + Suff + "_" + Twine(F.getValueID()) + ".ll").str();
-  raw_fd_ostream File(FName, EC, sys::fs::F_Text);
+  raw_fd_ostream File(FName, EC, sys::fs::OF_Text);
 
   if (!EC)
     F.print(File, 0, 1, 1);

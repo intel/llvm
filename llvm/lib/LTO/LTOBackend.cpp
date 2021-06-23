@@ -85,8 +85,9 @@ Error Config::addSaveTemps(std::string OutputFileName,
   ShouldDiscardValueNames = false;
 
   std::error_code EC;
-  ResolutionFile = std::make_unique<raw_fd_ostream>(
-      OutputFileName + "resolution.txt", EC, sys::fs::OpenFlags::OF_Text);
+  ResolutionFile =
+      std::make_unique<raw_fd_ostream>(OutputFileName + "resolution.txt", EC,
+                                       sys::fs::OpenFlags::OF_TextWithCRLF);
   if (EC) {
     ResolutionFile.reset();
     return errorCodeToError(EC);
@@ -214,23 +215,28 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
                         PGOOptions::SampleUse, PGOOptions::NoCSAction, true);
   else if (Conf.RunCSIRInstr) {
     PGOOpt = PGOOptions("", Conf.CSIRProfile, Conf.ProfileRemapping,
-                        PGOOptions::IRUse, PGOOptions::CSIRInstr);
+                        PGOOptions::IRUse, PGOOptions::CSIRInstr,
+                        Conf.AddFSDiscriminator);
   } else if (!Conf.CSIRProfile.empty()) {
     PGOOpt = PGOOptions(Conf.CSIRProfile, "", Conf.ProfileRemapping,
-                        PGOOptions::IRUse, PGOOptions::CSIRUse);
+                        PGOOptions::IRUse, PGOOptions::CSIRUse,
+                        Conf.AddFSDiscriminator);
+  } else if (Conf.AddFSDiscriminator) {
+    PGOOpt = PGOOptions("", "", "", PGOOptions::NoAction,
+                        PGOOptions::NoCSAction, true);
   }
+
+  LoopAnalysisManager LAM;
+  FunctionAnalysisManager FAM;
+  CGSCCAnalysisManager CGAM;
+  ModuleAnalysisManager MAM;
 
   PassInstrumentationCallbacks PIC;
   StandardInstrumentations SI(Conf.DebugPassManager);
-  SI.registerCallbacks(PIC);
-  PassBuilder PB(Conf.DebugPassManager, TM, Conf.PTO, PGOOpt, &PIC);
+  SI.registerCallbacks(PIC, &FAM);
+  PassBuilder PB(TM, Conf.PTO, PGOOpt, &PIC);
 
   RegisterPassPlugins(Conf.PassPlugins, PB);
-
-  LoopAnalysisManager LAM(Conf.DebugPassManager);
-  FunctionAnalysisManager FAM(Conf.DebugPassManager);
-  CGSCCAnalysisManager CGAM(Conf.DebugPassManager);
-  ModuleAnalysisManager MAM(Conf.DebugPassManager);
 
   std::unique_ptr<TargetLibraryInfoImpl> TLII(
       new TargetLibraryInfoImpl(Triple(TM->getTargetTriple())));
@@ -258,7 +264,7 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   PB.registerLoopAnalyses(LAM);
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
-  ModulePassManager MPM(Conf.DebugPassManager);
+  ModulePassManager MPM;
 
   if (!Conf.DisableVerify)
     MPM.addPass(VerifierPass());

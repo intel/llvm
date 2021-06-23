@@ -22,6 +22,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
@@ -33,6 +34,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "internalize"
@@ -111,14 +113,27 @@ bool InternalizePass::shouldPreserveGV(const GlobalValue &GV) {
 }
 
 bool InternalizePass::maybeInternalize(
-    GlobalValue &GV, const DenseSet<const Comdat *> &ExternalComdats) {
+    GlobalValue &GV, DenseMap<const Comdat *, ComdatInfo> &ComdatMap) {
+  SmallString<0> ComdatName;
   if (Comdat *C = GV.getComdat()) {
-    if (ExternalComdats.count(C))
+    // For GlobalAlias, C is the aliasee object's comdat which may have been
+    // redirected. So ComdatMap may not contain C.
+    if (ComdatMap.lookup(C).External)
       return false;
 
-    // If a comdat is not externally visible we can drop it.
-    if (auto GO = dyn_cast<GlobalObject>(&GV))
-      GO->setComdat(nullptr);
+    if (auto *GO = dyn_cast<GlobalObject>(&GV)) {
+      // If a comdat with one member is not externally visible, we can drop it.
+      // Otherwise, the comdat can be used to establish dependencies among the
+      // group of sections. Thus we have to keep the comdat but switch it to
+      // noduplicates.
+      // Note: noduplicates is not necessary for COFF. wasm doesn't support
+      // noduplicates.
+      ComdatInfo &Info = ComdatMap.find(C)->second;
+      if (Info.Size == 1)
+        GO->setComdat(nullptr);
+      else if (!IsWasm)
+        C->setSelectionKind(Comdat::NoDuplicates);
+    }
 
     if (GV.hasLocalLinkage())
       return false;
@@ -135,16 +150,18 @@ bool InternalizePass::maybeInternalize(
   return true;
 }
 
-// If GV is part of a comdat and is externally visible, keep track of its
-// comdat so that we don't internalize any of its members.
-void InternalizePass::checkComdatVisibility(
-    GlobalValue &GV, DenseSet<const Comdat *> &ExternalComdats) {
+// If GV is part of a comdat and is externally visible, update the comdat size
+// and keep track of its comdat so that we don't internalize any of its members.
+void InternalizePass::checkComdat(
+    GlobalValue &GV, DenseMap<const Comdat *, ComdatInfo> &ComdatMap) {
   Comdat *C = GV.getComdat();
   if (!C)
     return;
 
+  ComdatInfo &Info = ComdatMap.try_emplace(C).first->second;
+  ++Info.Size;
   if (shouldPreserveGV(GV))
-    ExternalComdats.insert(C);
+    Info.External = true;
 }
 
 bool InternalizePass::internalizeModule(Module &M, CallGraph *CG) {
@@ -154,15 +171,15 @@ bool InternalizePass::internalizeModule(Module &M, CallGraph *CG) {
   SmallVector<GlobalValue *, 4> Used;
   collectUsedGlobalVariables(M, Used, false);
 
-  // Collect comdat visiblity information for the module.
-  DenseSet<const Comdat *> ExternalComdats;
+  // Collect comdat size and visiblity information for the module.
+  DenseMap<const Comdat *, ComdatInfo> ComdatMap;
   if (!M.getComdatSymbolTable().empty()) {
     for (Function &F : M)
-      checkComdatVisibility(F, ExternalComdats);
+      checkComdat(F, ComdatMap);
     for (GlobalVariable &GV : M.globals())
-      checkComdatVisibility(GV, ExternalComdats);
+      checkComdat(GV, ComdatMap);
     for (GlobalAlias &GA : M.aliases())
-      checkComdatVisibility(GA, ExternalComdats);
+      checkComdat(GA, ComdatMap);
   }
 
   // We must assume that globals in llvm.used have a reference that not even
@@ -179,8 +196,9 @@ bool InternalizePass::internalizeModule(Module &M, CallGraph *CG) {
   }
 
   // Mark all functions not in the api as internal.
+  IsWasm = Triple(M.getTargetTriple()).isOSBinFormatWasm();
   for (Function &I : M) {
-    if (!maybeInternalize(I, ExternalComdats))
+    if (!maybeInternalize(I, ComdatMap))
       continue;
     Changed = true;
 
@@ -208,12 +226,15 @@ bool InternalizePass::internalizeModule(Module &M, CallGraph *CG) {
   // FIXME: We should probably add this (and the __stack_chk_guard) via some
   // type of call-back in CodeGen.
   AlwaysPreserved.insert("__stack_chk_fail");
-  AlwaysPreserved.insert("__stack_chk_guard");
+  if (Triple(M.getTargetTriple()).isOSAIX())
+    AlwaysPreserved.insert("__ssp_canary_word");
+  else
+    AlwaysPreserved.insert("__stack_chk_guard");
 
   // Mark all global variables with initializers that are not in the api as
   // internal as well.
   for (auto &GV : M.globals()) {
-    if (!maybeInternalize(GV, ExternalComdats))
+    if (!maybeInternalize(GV, ComdatMap))
       continue;
     Changed = true;
 
@@ -223,7 +244,7 @@ bool InternalizePass::internalizeModule(Module &M, CallGraph *CG) {
 
   // Mark all aliases that are not in the api as internal as well.
   for (auto &GA : M.aliases()) {
-    if (!maybeInternalize(GA, ExternalComdats))
+    if (!maybeInternalize(GA, ComdatMap))
       continue;
     Changed = true;
 

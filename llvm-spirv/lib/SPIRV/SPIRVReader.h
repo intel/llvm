@@ -79,8 +79,6 @@ public:
 
   static const StringSet<> BuiltInConstFunc;
   std::string getOCLBuiltinName(SPIRVInstruction *BI);
-  std::string getOCLConvertBuiltinName(SPIRVInstruction *BI);
-  std::string getOCLGenericCastToPtrName(SPIRVInstruction *BI);
 
   Type *transType(SPIRVType *BT, bool IsClassMember = false);
   std::string transTypeToOCLTypeName(SPIRVType *BT, bool IsSigned = true);
@@ -115,6 +113,10 @@ public:
   CallInst *transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
                               bool IsBinaryInst = false);
   bool transNonTemporalMetadata(Instruction *I);
+  template <typename SPIRVInstType>
+  void transAliasingMemAccess(SPIRVInstType *BI, Instruction *I);
+  void addMemAliasMetadata(Instruction *I, SPIRVId AliasListId,
+                           uint32_t AliasMDKind);
   void transSourceLanguage();
   bool transSourceExtension();
   void transGeneratorMD();
@@ -123,8 +125,6 @@ public:
                                     SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transOCLBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSPIRVBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB);
-  void transOCLVectorLoadStore(std::string &UnmangledName,
-                               std::vector<SPIRVWord> &BArgs);
 
   /// Post-process translated LLVM module for OpenCL.
   bool postProcessOCL();
@@ -142,24 +142,6 @@ public:
   /// first, then post-processed to have pointer arguments.
   bool postProcessOCLBuiltinWithArrayArguments(Function *F,
                                                StringRef DemangledName);
-
-  /// \brief Post-process OpImageSampleExplicitLod.
-  ///   sampled_image = __spirv_SampledImage__(image, sampler);
-  ///   return __spirv_ImageSampleExplicitLod__(sampled_image, image_operands,
-  ///                                           ...);
-  /// =>
-  ///   read_image(image, sampler, ...)
-  /// \return transformed call instruction.
-  Instruction *postProcessOCLReadImage(SPIRVInstruction *BI, CallInst *CI,
-                                       const std::string &DemangledName);
-
-  /// \brief Post-process OpImageWrite.
-  ///   return write_image(image, coord, color, image_operands, ...);
-  /// =>
-  ///   write_image(image, coord, ..., color)
-  /// \return transformed call instruction.
-  CallInst *postProcessOCLWriteImage(SPIRVInstruction *BI, CallInst *CI,
-                                     const std::string &DemangledName);
 
   /// \brief Post-process OpBuildNDRange.
   ///   OpBuildNDRange GlobalWorkSize, LocalWorkSize, GlobalWorkOffset
@@ -183,6 +165,7 @@ public:
   typedef DenseMap<SPIRVValue *, Value *> SPIRVBlockToLLVMStructMap;
   typedef DenseMap<SPIRVFunction *, Function *> SPIRVToLLVMFunctionMap;
   typedef DenseMap<GlobalVariable *, SPIRVBuiltinVariableKind> BuiltinVarMap;
+  typedef std::unordered_map<SPIRVId, MDNode *> SPIRVToLLVMMDAliasInstMap;
 
   // A SPIRV value may be translated to a load instruction of a placeholder
   // global variable. This map records load instruction of these placeholders
@@ -209,6 +192,12 @@ private:
   // This storage contains pairs of translated loop header basic block and loop
   // metadata SPIR-V instruction in SPIR-V representation of this basic block.
   SPIRVToLLVMLoopMetadataMap FuncLoopMetadataMap;
+
+  // These storages are used to prevent duplication of alias.scope/noalias
+  // metadata
+  SPIRVToLLVMMDAliasInstMap MDAliasDomainMap;
+  SPIRVToLLVMMDAliasInstMap MDAliasScopeMap;
+  SPIRVToLLVMMDAliasInstMap MDAliasListMap;
 
   Type *mapType(SPIRVType *BT, Type *T);
 
@@ -241,9 +230,9 @@ private:
   void setCallingConv(CallInst *Call);
   void setAttrByCalledFunc(CallInst *Call);
   Type *transFPType(SPIRVType *T);
-  BinaryOperator *transShiftLogicalBitwiseInst(SPIRVValue *BV, BasicBlock *BB,
-                                               Function *F);
-  Instruction *transCmpInst(SPIRVValue *BV, BasicBlock *BB, Function *F);
+  Value *transShiftLogicalBitwiseInst(SPIRVValue *BV, BasicBlock *BB,
+                                      Function *F);
+  Value *transCmpInst(SPIRVValue *BV, BasicBlock *BB, Function *F);
   void transOCLBuiltinFromInstPreproc(SPIRVInstruction *BI, Type *&RetTy,
                                       std::vector<SPIRVValue *> &Args);
   Instruction *transOCLBuiltinPostproc(SPIRVInstruction *BI, CallInst *CI,
@@ -282,6 +271,7 @@ private:
   void createCXXStructor(const char *ListName,
                          SmallVectorImpl<Function *> &Funcs);
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
+  void transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V);
 }; // class SPIRVToLLVM
 
 } // namespace SPIRV

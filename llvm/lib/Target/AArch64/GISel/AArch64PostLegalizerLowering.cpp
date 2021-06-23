@@ -19,9 +19,13 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "AArch64TargetMachine.h"
 #include "AArch64GlobalISelUtils.h"
+#include "AArch64Subtarget.h"
+#include "AArch64TargetMachine.h"
+#include "GISel/AArch64LegalizerInfo.h"
 #include "MCTargetDesc/AArch64MCTargetDesc.h"
+#include "TargetInfo/AArch64TargetInfo.h"
+#include "Utils/AArch64BaseInfo.h"
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
@@ -33,8 +37,10 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/ErrorHandling.h"
 
 #define DEBUG_TYPE "aarch64-postlegalizer-lowering"
 
@@ -732,6 +738,237 @@ static bool applyBuildVectorToDup(MachineInstr &MI, MachineRegisterInfo &MRI,
   B.buildInstr(AArch64::G_DUP, {MI.getOperand(0).getReg()},
                {MI.getOperand(1).getReg()});
   MI.eraseFromParent();
+  return true;
+}
+
+/// \returns how many instructions would be saved by folding a G_ICMP's shift
+/// and/or extension operations.
+static unsigned getCmpOperandFoldingProfit(Register CmpOp,
+                                           const MachineRegisterInfo &MRI) {
+  // No instructions to save if there's more than one use or no uses.
+  if (!MRI.hasOneNonDBGUse(CmpOp))
+    return 0;
+
+  // FIXME: This is duplicated with the selector. (See: selectShiftedRegister)
+  auto IsSupportedExtend = [&](const MachineInstr &MI) {
+    if (MI.getOpcode() == TargetOpcode::G_SEXT_INREG)
+      return true;
+    if (MI.getOpcode() != TargetOpcode::G_AND)
+      return false;
+    auto ValAndVReg =
+        getConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), MRI);
+    if (!ValAndVReg)
+      return false;
+    uint64_t Mask = ValAndVReg->Value.getZExtValue();
+    return (Mask == 0xFF || Mask == 0xFFFF || Mask == 0xFFFFFFFF);
+  };
+
+  MachineInstr *Def = getDefIgnoringCopies(CmpOp, MRI);
+  if (IsSupportedExtend(*Def))
+    return 1;
+
+  unsigned Opc = Def->getOpcode();
+  if (Opc != TargetOpcode::G_SHL && Opc != TargetOpcode::G_ASHR &&
+      Opc != TargetOpcode::G_LSHR)
+    return 0;
+
+  auto MaybeShiftAmt =
+      getConstantVRegValWithLookThrough(Def->getOperand(2).getReg(), MRI);
+  if (!MaybeShiftAmt)
+    return 0;
+  uint64_t ShiftAmt = MaybeShiftAmt->Value.getZExtValue();
+  MachineInstr *ShiftLHS =
+      getDefIgnoringCopies(Def->getOperand(1).getReg(), MRI);
+
+  // Check if we can fold an extend and a shift.
+  // FIXME: This is duplicated with the selector. (See:
+  // selectArithExtendedRegister)
+  if (IsSupportedExtend(*ShiftLHS))
+    return (ShiftAmt <= 4) ? 2 : 1;
+
+  LLT Ty = MRI.getType(Def->getOperand(0).getReg());
+  if (Ty.isVector())
+    return 0;
+  unsigned ShiftSize = Ty.getSizeInBits();
+  if ((ShiftSize == 32 && ShiftAmt <= 31) ||
+      (ShiftSize == 64 && ShiftAmt <= 63))
+    return 1;
+  return 0;
+}
+
+/// \returns true if it would be profitable to swap the LHS and RHS of a G_ICMP
+/// instruction \p MI.
+static bool trySwapICmpOperands(MachineInstr &MI,
+                                 const MachineRegisterInfo &MRI) {
+  assert(MI.getOpcode() == TargetOpcode::G_ICMP);
+  // Swap the operands if it would introduce a profitable folding opportunity.
+  // (e.g. a shift + extend).
+  //
+  //  For example:
+  //    lsl     w13, w11, #1
+  //    cmp     w13, w12
+  // can be turned into:
+  //    cmp     w12, w11, lsl #1
+
+  // Don't swap if there's a constant on the RHS, because we know we can fold
+  // that.
+  Register RHS = MI.getOperand(3).getReg();
+  auto RHSCst = getConstantVRegValWithLookThrough(RHS, MRI);
+  if (RHSCst && isLegalArithImmed(RHSCst->Value.getSExtValue()))
+    return false;
+
+  Register LHS = MI.getOperand(2).getReg();
+  auto Pred = static_cast<CmpInst::Predicate>(MI.getOperand(1).getPredicate());
+  auto GetRegForProfit = [&](Register Reg) {
+    MachineInstr *Def = getDefIgnoringCopies(Reg, MRI);
+    return isCMN(Def, Pred, MRI) ? Def->getOperand(2).getReg() : Reg;
+  };
+
+  // Don't have a constant on the RHS. If we swap the LHS and RHS of the
+  // compare, would we be able to fold more instructions?
+  Register TheLHS = GetRegForProfit(LHS);
+  Register TheRHS = GetRegForProfit(RHS);
+
+  // If the LHS is more likely to give us a folding opportunity, then swap the
+  // LHS and RHS.
+  return (getCmpOperandFoldingProfit(TheLHS, MRI) >
+          getCmpOperandFoldingProfit(TheRHS, MRI));
+}
+
+static bool applySwapICmpOperands(MachineInstr &MI,
+                                   GISelChangeObserver &Observer) {
+  auto Pred = static_cast<CmpInst::Predicate>(MI.getOperand(1).getPredicate());
+  Register LHS = MI.getOperand(2).getReg();
+  Register RHS = MI.getOperand(3).getReg();
+  Observer.changedInstr(MI);
+  MI.getOperand(1).setPredicate(CmpInst::getSwappedPredicate(Pred));
+  MI.getOperand(2).setReg(RHS);
+  MI.getOperand(3).setReg(LHS);
+  Observer.changedInstr(MI);
+  return true;
+}
+
+/// \returns a function which builds a vector floating point compare instruction
+/// for a condition code \p CC.
+/// \param [in] IsZero - True if the comparison is against 0.
+/// \param [in] NoNans - True if the target has NoNansFPMath.
+static std::function<Register(MachineIRBuilder &)>
+getVectorFCMP(AArch64CC::CondCode CC, Register LHS, Register RHS, bool IsZero,
+              bool NoNans, MachineRegisterInfo &MRI) {
+  LLT DstTy = MRI.getType(LHS);
+  assert(DstTy.isVector() && "Expected vector types only?");
+  assert(DstTy == MRI.getType(RHS) && "Src and Dst types must match!");
+  switch (CC) {
+  default:
+    llvm_unreachable("Unexpected condition code!");
+  case AArch64CC::NE:
+    return [LHS, RHS, IsZero, DstTy](MachineIRBuilder &MIB) {
+      auto FCmp = IsZero
+                      ? MIB.buildInstr(AArch64::G_FCMEQZ, {DstTy}, {LHS})
+                      : MIB.buildInstr(AArch64::G_FCMEQ, {DstTy}, {LHS, RHS});
+      return MIB.buildNot(DstTy, FCmp).getReg(0);
+    };
+  case AArch64CC::EQ:
+    return [LHS, RHS, IsZero, DstTy](MachineIRBuilder &MIB) {
+      return IsZero
+                 ? MIB.buildInstr(AArch64::G_FCMEQZ, {DstTy}, {LHS}).getReg(0)
+                 : MIB.buildInstr(AArch64::G_FCMEQ, {DstTy}, {LHS, RHS})
+                       .getReg(0);
+    };
+  case AArch64CC::GE:
+    return [LHS, RHS, IsZero, DstTy](MachineIRBuilder &MIB) {
+      return IsZero
+                 ? MIB.buildInstr(AArch64::G_FCMGEZ, {DstTy}, {LHS}).getReg(0)
+                 : MIB.buildInstr(AArch64::G_FCMGE, {DstTy}, {LHS, RHS})
+                       .getReg(0);
+    };
+  case AArch64CC::GT:
+    return [LHS, RHS, IsZero, DstTy](MachineIRBuilder &MIB) {
+      return IsZero
+                 ? MIB.buildInstr(AArch64::G_FCMGTZ, {DstTy}, {LHS}).getReg(0)
+                 : MIB.buildInstr(AArch64::G_FCMGT, {DstTy}, {LHS, RHS})
+                       .getReg(0);
+    };
+  case AArch64CC::LS:
+    return [LHS, RHS, IsZero, DstTy](MachineIRBuilder &MIB) {
+      return IsZero
+                 ? MIB.buildInstr(AArch64::G_FCMLEZ, {DstTy}, {LHS}).getReg(0)
+                 : MIB.buildInstr(AArch64::G_FCMGE, {DstTy}, {RHS, LHS})
+                       .getReg(0);
+    };
+  case AArch64CC::MI:
+    return [LHS, RHS, IsZero, DstTy](MachineIRBuilder &MIB) {
+      return IsZero
+                 ? MIB.buildInstr(AArch64::G_FCMLTZ, {DstTy}, {LHS}).getReg(0)
+                 : MIB.buildInstr(AArch64::G_FCMGT, {DstTy}, {RHS, LHS})
+                       .getReg(0);
+    };
+  }
+}
+
+/// Try to lower a vector G_FCMP \p MI into an AArch64-specific pseudo.
+static bool lowerVectorFCMP(MachineInstr &MI, MachineRegisterInfo &MRI,
+                            MachineIRBuilder &MIB) {
+  assert(MI.getOpcode() == TargetOpcode::G_FCMP);
+  const auto &ST = MI.getMF()->getSubtarget<AArch64Subtarget>();
+  Register Dst = MI.getOperand(0).getReg();
+  LLT DstTy = MRI.getType(Dst);
+  if (!DstTy.isVector() || !ST.hasNEON())
+    return false;
+  const auto Pred =
+      static_cast<CmpInst::Predicate>(MI.getOperand(1).getPredicate());
+  Register LHS = MI.getOperand(2).getReg();
+  // TODO: Handle v4s16 case.
+  unsigned EltSize = MRI.getType(LHS).getScalarSizeInBits();
+  if (EltSize != 32 && EltSize != 64)
+    return false;
+  Register RHS = MI.getOperand(3).getReg();
+  auto Splat = getAArch64VectorSplat(*MRI.getVRegDef(RHS), MRI);
+
+  // Compares against 0 have special target-specific pseudos.
+  bool IsZero = Splat && Splat->isCst() && Splat->getCst() == 0;
+  bool Invert;
+  AArch64CC::CondCode CC, CC2;
+  changeVectorFCMPPredToAArch64CC(Pred, CC, CC2, Invert);
+  bool NoNans = ST.getTargetLowering()->getTargetMachine().Options.NoNaNsFPMath;
+
+  // Instead of having an apply function, just build here to simplify things.
+  MIB.setInstrAndDebugLoc(MI);
+  auto Cmp = getVectorFCMP(CC, LHS, RHS, IsZero, NoNans, MRI);
+  Register CmpRes;
+  if (CC2 == AArch64CC::AL)
+    CmpRes = Cmp(MIB);
+  else {
+    auto Cmp2 = getVectorFCMP(CC2, LHS, RHS, IsZero, NoNans, MRI);
+    auto Cmp2Dst = Cmp2(MIB);
+    auto Cmp1Dst = Cmp(MIB);
+    CmpRes = MIB.buildOr(DstTy, Cmp1Dst, Cmp2Dst).getReg(0);
+  }
+  if (Invert)
+    CmpRes = MIB.buildNot(DstTy, CmpRes).getReg(0);
+  MRI.replaceRegWith(Dst, CmpRes);
+  MI.eraseFromParent();
+  return false;
+}
+
+static bool matchFormTruncstore(MachineInstr &MI, MachineRegisterInfo &MRI,
+                                Register &SrcReg) {
+  assert(MI.getOpcode() == TargetOpcode::G_STORE);
+  Register DstReg = MI.getOperand(0).getReg();
+  if (MRI.getType(DstReg).isVector())
+    return false;
+  // Match a store of a truncate.
+  return mi_match(DstReg, MRI, m_GTrunc(m_Reg(SrcReg)));
+}
+
+static bool applyFormTruncstore(MachineInstr &MI, MachineRegisterInfo &MRI,
+                                MachineIRBuilder &B,
+                                GISelChangeObserver &Observer,
+                                Register &SrcReg) {
+  assert(MI.getOpcode() == TargetOpcode::G_STORE);
+  Observer.changingInstr(MI);
+  MI.getOperand(0).setReg(SrcReg);
+  Observer.changedInstr(MI);
   return true;
 }
 

@@ -24,7 +24,12 @@ Non-comprehensive list of changes in this release
 ELF Improvements
 ----------------
 
-* ...
+* ``-Bsymbolic -Bsymbolic-functions`` has been changed to behave the same as ``-Bsymbolic-functions``. This matches GNU ld.
+  (`D102461 <https://reviews.llvm.org/D102461>`_)
+* ``-Bno-symbolic`` has been added.
+  (`D102461 <https://reviews.llvm.org/D102461>`_)
+* A new linker script command ``OVERWRITE_SECTIONS`` has been added.
+  (`D103303 <https://reviews.llvm.org/D103303>`_)
 
 Breaking changes
 ----------------

@@ -1246,14 +1246,14 @@ define float @test_pow_intrin(float %l, float %r) {
   ret float %res
 }
 
-declare float @llvm.powi.f32(float, i32)
+declare float @llvm.powi.f32.i32(float, i32)
 define float @test_powi_intrin(float %l, i32 %r) {
 ; CHECK-LABEL: name: test_powi_intrin
 ; CHECK: [[LHS:%[0-9]+]]:_(s32) = COPY $s0
 ; CHECK: [[RHS:%[0-9]+]]:_(s32) = COPY $w0
 ; CHECK: [[RES:%[0-9]+]]:_(s32) = nnan ninf nsz arcp contract afn reassoc G_FPOWI [[LHS]], [[RHS]]
 ; CHECK: $s0 = COPY [[RES]]
-  %res = call nnan ninf nsz arcp contract afn reassoc float @llvm.powi.f32(float %l, i32 %r)
+  %res = call nnan ninf nsz arcp contract afn reassoc float @llvm.powi.f32.i32(float %l, i32 %r)
   ret float %res
 }
 
@@ -2353,8 +2353,9 @@ declare { <4 x i32>, <4 x i32>, <4 x i32> } @llvm.aarch64.neon.ld3.v4i32.p0i32(i
 define void @test_i1_arg_zext(void (i1)* %f) {
 ; CHECK-LABEL: name: test_i1_arg_zext
 ; CHECK: [[I1:%[0-9]+]]:_(s1) = G_CONSTANT i1 true
-; CHECK: [[ZEXT:%[0-9]+]]:_(s32) = G_ZEXT [[I1]](s1)
-; CHECK: $w0 = COPY [[ZEXT]](s32)
+; CHECK: [[ZEXT0:%[0-9]+]]:_(s8) = G_ZEXT [[I1]](s1)
+; CHECK: [[ZEXT1:%[0-9]+]]:_(s32) = G_ZEXT [[ZEXT0]](s8)
+; CHECK: $w0 = COPY [[ZEXT1]](s32)
   call void %f(i1 true)
   ret void
 }

@@ -190,7 +190,10 @@ enum class SecProfSummaryFlags : uint32_t {
   SecFlagPartial = (1 << 0),
   /// SecFlagContext means this is context-sensitive profile for
   /// CSSPGO
-  SecFlagFullContext = (1 << 1)
+  SecFlagFullContext = (1 << 1),
+  /// SecFlagFSDiscriminator means this profile uses flow-sensitive
+  /// discriminators.
+  SecFlagFSDiscriminator = (1 << 2)
 };
 
 enum class SecFuncMetadataFlags : uint32_t {
@@ -427,6 +430,22 @@ public:
     return ContextStr.split(" @ ");
   }
 
+  // Reconstruct a new context with the last k frames, return the context-less
+  // name if K = 1
+  StringRef getContextWithLastKFrames(uint32_t K) {
+    if (K == 1)
+      return getNameWithoutContext();
+
+    size_t I = FullContext.size();
+    while (K--) {
+      I = FullContext.find_last_of(" @ ", I);
+      if (I == StringRef::npos)
+        return FullContext;
+      I -= 2;
+    }
+    return FullContext.slice(I + 3, StringRef::npos);
+  }
+
   // Decode context string for a frame to get function name and location.
   // `ContextStr` is in the form of `FuncName:StartLine.Discriminator`.
   static void decodeContextString(StringRef ContextStr, StringRef &FName,
@@ -462,9 +481,7 @@ public:
   bool isBaseContext() const { return CallingContext.empty(); }
   StringRef getNameWithoutContext() const { return Name; }
   StringRef getCallingContext() const { return CallingContext; }
-  StringRef getNameWithContext(bool WithBracket = false) const {
-    return WithBracket ? InputContext : FullContext;
-  }
+  StringRef getNameWithContext() const { return FullContext; }
 
 private:
   // Give a context string, decode and populate internal states like
@@ -472,7 +489,6 @@ private:
   // `ContextStr`: `[main:3 @ _Z5funcAi:1 @ _Z8funcLeafi]`
   void setContext(StringRef ContextStr, ContextStateMask CState) {
     assert(!ContextStr.empty());
-    InputContext = ContextStr;
     // Note that `[]` wrapped input indicates a full context string, otherwise
     // it's treated as context-less function name only.
     bool HasContext = ContextStr.startswith("[");
@@ -504,9 +520,6 @@ private:
     }
   }
 
-  // Input context string including bracketed calling context and leaf function
-  // name
-  StringRef InputContext;
   // Full context string including calling context and leaf function name
   StringRef FullContext;
   // Function name for the associated sample profile
@@ -585,21 +598,9 @@ public:
   ErrorOr<uint64_t> findSamplesAt(uint32_t LineOffset,
                                   uint32_t Discriminator) const {
     const auto &ret = BodySamples.find(LineLocation(LineOffset, Discriminator));
-    if (ret == BodySamples.end()) {
-      // For CSSPGO, in order to conserve profile size, we no longer write out
-      // locations profile for those not hit during training, so we need to
-      // treat them as zero instead of error here.
-      if (FunctionSamples::ProfileIsCS || FunctionSamples::ProfileIsProbeBased)
-        return 0;
+    if (ret == BodySamples.end())
       return std::error_code();
-    } else {
-      // Return error for an invalid sample count which is usually assigned to
-      // dangling probe.
-      if (FunctionSamples::ProfileIsProbeBased &&
-          ret->second.getSamples() == FunctionSamples::InvalidProbeCount)
-        return std::error_code();
-      return ret->second.getSamples();
-    }
+    return ret->second.getSamples();
   }
 
   /// Returns the call target map collected at a given location.
@@ -711,7 +712,7 @@ public:
     Name = Other.getName();
     if (!GUIDToFuncNameMap)
       GUIDToFuncNameMap = Other.GUIDToFuncNameMap;
-    if (Context.getNameWithContext(true).empty())
+    if (Context.getNameWithContext().empty())
       Context = Other.getContext();
     if (FunctionHash == 0) {
       // Set the function hash code for the target profile.
@@ -780,10 +781,8 @@ public:
   StringRef getName() const { return Name; }
 
   /// Return function name with context.
-  StringRef getNameWithContext(bool WithBracket = false) const {
-    return FunctionSamples::ProfileIsCS
-               ? Context.getNameWithContext(WithBracket)
-               : Name;
+  StringRef getNameWithContext() const {
+    return FunctionSamples::ProfileIsCS ? Context.getNameWithContext() : Name;
   }
 
   /// Return the original function name.
@@ -850,7 +849,7 @@ public:
     if (!UseMD5)
       return Name;
 
-    assert(GUIDToFuncNameMap && "GUIDToFuncNameMap needs to be popluated first");
+    assert(GUIDToFuncNameMap && "GUIDToFuncNameMap needs to be populated first");
     return GUIDToFuncNameMap->lookup(std::stoull(Name.data()));
   }
 
@@ -879,10 +878,6 @@ public:
       const DILocation *DIL,
       SampleProfileReaderItaniumRemapper *Remapper = nullptr) const;
 
-  // The invalid sample count is used to represent samples collected for a
-  // dangling probe.
-  static constexpr uint64_t InvalidProbeCount = UINT64_MAX;
-
   static bool ProfileIsProbeBased;
 
   static bool ProfileIsCS;
@@ -898,6 +893,9 @@ public:
 
   /// Whether the profile contains any ".__uniq." suffix in a name.
   static bool HasUniqSuffix;
+
+  /// If this profile uses flow sensitive discriminators.
+  static bool ProfileIsFS;
 
   /// GUIDToFuncNameMap saves the mapping from GUID to the symbol name, for
   /// all the function symbols defined or declared in current module.
@@ -984,6 +982,25 @@ public:
 
 private:
   SamplesWithLocList V;
+};
+
+/// SampleContextTrimmer impelements helper functions to trim, merge cold
+/// context profiles. It also supports context profile canonicalization to make
+/// sure ProfileMap's key is consistent with FunctionSample's name/context.
+class SampleContextTrimmer {
+public:
+  SampleContextTrimmer(StringMap<FunctionSamples> &Profiles)
+      : ProfileMap(Profiles){};
+  // Trim and merge cold context profile when requested.
+  void trimAndMergeColdContextProfiles(uint64_t ColdCountThreshold,
+                                       bool TrimColdContext,
+                                       bool MergeColdContext,
+                                       uint32_t ColdContextFrameLength);
+  // Canonicalize context profile name and attributes.
+  void canonicalizeContextProfiles();
+
+private:
+  StringMap<FunctionSamples> &ProfileMap;
 };
 
 /// ProfileSymbolList records the list of function symbols shown up

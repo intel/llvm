@@ -69,10 +69,8 @@ public:
       return;
     }
 
-    // We need to capture an owning-string in the lambda because the lambda
-    // is invoked in a deferred manner.
-    std::string LabelStr(Label);
-    auto DumpWithIndent = [this, DoAddChild, LabelStr](bool IsLastChild) {
+    auto DumpWithIndent = [this, DoAddChild,
+                           Label(Label.str())](bool IsLastChild) {
       // Print out the appropriate tree structure and work out the prefix for
       // children of this node. For instance:
       //
@@ -89,8 +87,8 @@ public:
         OS << '\n';
         ColorScope Color(OS, ShowColors, IndentColor);
         OS << Prefix << (IsLastChild ? '`' : '|') << '-';
-        if (!LabelStr.empty())
-          OS << LabelStr << ": ";
+        if (!Label.empty())
+          OS << Label << ": ";
 
         this->Prefix.push_back(IsLastChild ? ' ' : '|');
         this->Prefix.push_back(' ');
@@ -251,6 +249,8 @@ public:
   void VisitCastExpr(const CastExpr *Node);
   void VisitImplicitCastExpr(const ImplicitCastExpr *Node);
   void VisitDeclRefExpr(const DeclRefExpr *Node);
+  void VisitSYCLUniqueStableNameExpr(const SYCLUniqueStableNameExpr *Node);
+  void VisitSYCLUniqueStableIdExpr(const SYCLUniqueStableIdExpr *Node);
   void VisitPredefinedExpr(const PredefinedExpr *Node);
   void VisitCharacterLiteral(const CharacterLiteral *Node);
   void VisitIntegerLiteral(const IntegerLiteral *Node);
@@ -352,6 +352,7 @@ public:
   void VisitUsingDecl(const UsingDecl *D);
   void VisitUnresolvedUsingTypenameDecl(const UnresolvedUsingTypenameDecl *D);
   void VisitUnresolvedUsingValueDecl(const UnresolvedUsingValueDecl *D);
+  void VisitUsingEnumDecl(const UsingEnumDecl *D);
   void VisitUsingShadowDecl(const UsingShadowDecl *D);
   void VisitConstructorUsingShadowDecl(const ConstructorUsingShadowDecl *D);
   void VisitLinkageSpecDecl(const LinkageSpecDecl *D);

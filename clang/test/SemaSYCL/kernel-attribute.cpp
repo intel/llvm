@@ -50,13 +50,13 @@ template <typename T, typename A, int I>
 // No diagnostics
 template <typename Func>
 void __attribute__((sycl_kernel))
-KernelImpl4(Func f, int i, double d) {
+KernelImpl4(const Func &f, int i, double d) {
   f(i, d);
 }
 
 template <typename Name, typename Func>
 void __attribute__((sycl_kernel))
-Kernel(Func f) {
+Kernel(const Func &f) {
   KernelImpl4(f, 1, 2.0);
 }
 

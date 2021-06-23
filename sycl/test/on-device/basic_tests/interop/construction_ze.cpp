@@ -12,6 +12,12 @@ constexpr auto BE = sycl::backend::level_zero;
 int main() {
   sycl::device Dev{sycl::default_selector{}};
 
+  sycl::queue Q{Dev};
+
+  if (0) {
+    Q.submit([](sycl::handler &CGH) { CGH.single_task<class T>([] {}); });
+  }
+
   sycl::platform Plt = Dev.get_platform();
   auto NativePlt = Plt.get_native<BE>();
 

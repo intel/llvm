@@ -11,11 +11,13 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.h>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
+#include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
 #include <algorithm>
@@ -34,12 +36,36 @@ namespace detail {
 // of specialization constants for it
 class device_image_impl {
 public:
+  // The struct maps specialization ID to offset in the binary blob where value
+  // for this spec const should be.
+  struct SpecConstDescT {
+    unsigned int ID = 0;
+    unsigned int CompositeOffset = 0;
+    unsigned int Size = 0;
+    unsigned int BlobOffset = 0;
+    bool IsSet = false;
+  };
+
+  using SpecConstMapT = std::map<std::string, std::vector<SpecConstDescT>>;
+
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
                     std::vector<kernel_id> KernelIDs, RT::PiProgram Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
-        MKernelIDs(std::move(KernelIDs)) {}
+        MKernelIDs(std::move(KernelIDs)) {
+    updateSpecConstSymMap();
+  }
+
+  device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
+                    std::vector<device> Devices, bundle_state State,
+                    std::vector<kernel_id> KernelIDs, RT::PiProgram Program,
+                    const SpecConstMapT &SpecConstMap,
+                    const std::vector<unsigned char> &SpecConstsBlob)
+      : MBinImage(BinImage), MContext(std::move(Context)),
+        MDevices(std::move(Devices)), MState(State), MProgram(Program),
+        MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob),
+        MSpecConstSymMap(SpecConstMap) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
     return std::binary_search(MKernelIDs.begin(), MKernelIDs.end(),
@@ -60,7 +86,11 @@ public:
   }
 
   bool has_specialization_constants() const noexcept {
-    return !MSpecConstsBlob.empty();
+    // Lock the mutex to prevent when one thread in the middle of writing a
+    // new value while another thread is reading the value to pass it to
+    // JIT compiler.
+    const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+    return !MSpecConstSymMap.empty();
   }
 
   bool all_specialization_constant_native() const noexcept {
@@ -68,49 +98,63 @@ public:
     return false;
   }
 
-  // The struct maps specialization ID to offset in the binary blob where value
-  // for this spec const should be.
-  struct SpecConstDescT {
-    unsigned int ID = 0;
-    unsigned int Offset = 0;
-    bool IsSet = false;
-  };
-
-  bool has_specialization_constant(unsigned int SpecID) const noexcept {
-    return std::any_of(MSpecConstDescs.begin(), MSpecConstDescs.end(),
-                       [SpecID](const SpecConstDescT &SpecConstDesc) {
-                         return SpecConstDesc.ID == SpecID;
-                       });
+  bool has_specialization_constant(const char *SpecName) const noexcept {
+    // Lock the mutex to prevent when one thread in the middle of writing a
+    // new value while another thread is reading the value to pass it to
+    // JIT compiler.
+    const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+    return MSpecConstSymMap.count(SpecName) != 0;
   }
 
-  void set_specialization_constant_raw_value(unsigned int SpecID,
-                                             const void *Value,
-                                             size_t ValueSize) noexcept {
-    for (const SpecConstDescT &SpecConstDesc : MSpecConstDescs)
-      if (SpecConstDesc.ID == SpecID) {
-        // Lock the mutex to prevent when one thread in the middle of writing a
-        // new value while another thread is reading the value to pass it to
-        // JIT compiler.
-        const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-        std::memcpy(MSpecConstsBlob.data() + SpecConstDesc.Offset, Value,
-                    ValueSize);
-        return;
-      }
+  void set_specialization_constant_raw_value(const char *SpecName,
+                                             const void *Value) noexcept {
+    // Lock the mutex to prevent when one thread in the middle of writing a
+    // new value while another thread is reading the value to pass it to
+    // JIT compiler.
+    const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+
+    if (MSpecConstSymMap.count(std::string{SpecName}) == 0)
+      return;
+
+    std::vector<SpecConstDescT> &Descs =
+        MSpecConstSymMap[std::string{SpecName}];
+    for (SpecConstDescT &Desc : Descs) {
+      Desc.IsSet = true;
+      std::memcpy(MSpecConstsBlob.data() + Desc.BlobOffset,
+                  static_cast<const char *>(Value) + Desc.CompositeOffset,
+                  Desc.Size);
+    }
   }
 
-  void get_specialization_constant_raw_value(unsigned int SpecID,
-                                             void *ValueRet,
-                                             size_t ValueSize) const noexcept {
-    for (const SpecConstDescT &SpecConstDesc : MSpecConstDescs)
-      if (SpecConstDesc.ID == SpecID) {
-        // Lock the mutex to prevent when one thread in the middle of writing a
-        // new value while another thread is reading the value to pass it to
-        // JIT compiler.
-        const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-        std::memcpy(ValueRet, MSpecConstsBlob.data() + SpecConstDesc.Offset,
-                    ValueSize);
-        return;
-      }
+  void get_specialization_constant_raw_value(const char *SpecName,
+                                             void *ValueRet) const noexcept {
+    assert(is_specialization_constant_set(SpecName));
+    // Lock the mutex to prevent when one thread in the middle of writing a
+    // new value while another thread is reading the value to pass it to
+    // JIT compiler.
+    const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+
+    // operator[] can't be used here, since it's not marked as const
+    const std::vector<SpecConstDescT> &Descs =
+        MSpecConstSymMap.at(std::string{SpecName});
+    for (const SpecConstDescT &Desc : Descs) {
+
+      std::memcpy(static_cast<char *>(ValueRet) + Desc.CompositeOffset,
+                  MSpecConstsBlob.data() + Desc.BlobOffset, Desc.Size);
+    }
+  }
+
+  bool is_specialization_constant_set(const char *SpecName) const noexcept {
+    // Lock the mutex to prevent when one thread in the middle of writing a
+    // new value while another thread is reading the value to pass it to
+    // JIT compiler.
+    const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+    if (MSpecConstSymMap.count(std::string{SpecName}) == 0)
+      return false;
+
+    const std::vector<SpecConstDescT> &Descs =
+        MSpecConstSymMap.at(std::string{SpecName});
+    return Descs.front().IsSet;
   }
 
   bundle_state get_state() const noexcept { return MState; }
@@ -137,8 +181,37 @@ public:
     return MSpecConstsBlob;
   }
 
-  std::vector<SpecConstDescT> &get_spec_const_offsets_ref() noexcept {
-    return MSpecConstDescs;
+  RT::PiMem &get_spec_const_buffer_ref() noexcept {
+    std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
+    if (nullptr == MSpecConstsBuffer) {
+      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      Plugin.call<PiApiKind::piMemBufferCreate>(
+          detail::getSyclObjImpl(MContext)->getHandleRef(),
+          PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_USE,
+          MSpecConstsBlob.size(), MSpecConstsBlob.data(), &MSpecConstsBuffer,
+          nullptr);
+    }
+    return MSpecConstsBuffer;
+  }
+
+  const SpecConstMapT &get_spec_const_data_ref() const noexcept {
+    return MSpecConstSymMap;
+  }
+
+  std::mutex &get_spec_const_data_lock() noexcept {
+    return MSpecConstAccessMtx;
+  }
+
+  pi_native_handle getNative() const {
+    assert(MProgram);
+    const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
+    const plugin &Plugin = ContextImplPtr->getPlugin();
+
+    pi_native_handle NativeProgram = 0;
+    Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram,
+                                                        &NativeProgram);
+
+    return NativeProgram;
   }
 
   ~device_image_impl() {
@@ -150,6 +223,67 @@ public:
   }
 
 private:
+  void updateSpecConstSymMap() {
+    if (MBinImage) {
+      const pi::DeviceBinaryImage::PropertyRange &SCRange =
+          MBinImage->getSpecConstants();
+      using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
+
+      // get default values for specialization constants
+      const pi::DeviceBinaryImage::PropertyRange &SCDefValRange =
+          MBinImage->getSpecConstantsDefaultValues();
+
+      // This variable is used to calculate spec constant value offset in a
+      // flat byte array.
+      unsigned BlobOffset = 0;
+      for (SCItTy SCIt : SCRange) {
+        const char *SCName = (*SCIt)->Name;
+
+        pi::ByteArray Descriptors =
+            pi::DeviceBinaryProperty(*SCIt).asByteArray();
+        assert(Descriptors.size() > 8 && "Unexpected property size");
+
+        // Expected layout is vector of 3-component tuples (flattened into a
+        // vector of scalars), where each tuple consists of: ID of a scalar spec
+        // constant, (which might be a member of the composite); offset, which
+        // is used to calculate location of scalar member within the composite
+        // or zero for scalar spec constants; size of a spec constant
+        constexpr size_t NumElements = 3;
+        assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) %
+                       NumElements ==
+                   0 &&
+               "unexpected layout of composite spec const descriptors");
+        auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
+        auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
+                                                            Descriptors.size());
+        unsigned PrevOffset = 0;
+        while (It != End) {
+          // Make sure that alignment is correct in blob.
+          BlobOffset += /*Offset*/ It[1] - PrevOffset;
+          PrevOffset = It[1];
+          // The map is not locked here because updateSpecConstSymMap() is only
+          // supposed to be called from c'tor.
+          MSpecConstSymMap[std::string{SCName}].push_back(
+              SpecConstDescT{/*ID*/ It[0], /*CompositeOffset*/ It[1],
+                             /*Size*/ It[2], BlobOffset});
+          BlobOffset += /*Size*/ It[2];
+          It += NumElements;
+        }
+      }
+      MSpecConstsBlob.resize(BlobOffset);
+
+      bool HasDefaultValues = SCDefValRange.begin() != SCDefValRange.end();
+
+      if (HasDefaultValues) {
+        pi::ByteArray DefValDescriptors =
+            pi::DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
+        std::uninitialized_copy(&DefValDescriptors[8],
+                                &DefValDescriptors[8] + MSpecConstsBlob.size(),
+                                MSpecConstsBlob.data());
+      }
+    }
+  }
+
   const RTDeviceBinaryImage *MBinImage = nullptr;
   context MContext;
   std::vector<device> MDevices;
@@ -166,8 +300,13 @@ private:
   // Binary blob which can have values of all specialization constants in the
   // image
   std::vector<unsigned char> MSpecConstsBlob;
-  // Contains list of spec ID + their offsets in the MSpecConstsBlob
-  std::vector<SpecConstDescT> MSpecConstDescs;
+  // Buffer containing binary blob which can have values of all specialization
+  // constants in the image, it is using for storing non-native specialization
+  // constants
+  RT::PiMem MSpecConstsBuffer = nullptr;
+  // Contains map of spec const names to their descriptions + offsets in
+  // the MSpecConstsBlob
+  std::map<std::string, std::vector<SpecConstDescT>> MSpecConstSymMap;
 };
 
 } // namespace detail

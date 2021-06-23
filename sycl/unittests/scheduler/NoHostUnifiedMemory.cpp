@@ -89,9 +89,11 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     buffer<int, 1> Buf(&val, range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
 
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     detail::AllocaCommandBase *NonHostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
+        MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
 
     // Both non-host and host allocations should be created in this case in
     // order to perform a memory move.
@@ -102,7 +104,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     EXPECT_TRUE(!NonHostAllocaCmd->MLinkedAllocaCmd);
     EXPECT_TRUE(Record->MCurContext->is_host());
 
-    detail::Command *MemoryMove = MS.insertMemoryMove(Record, &Req, QImpl);
+    detail::Command *MemoryMove =
+        MS.insertMemoryMove(Record, &Req, QImpl, AuxCmds);
     EXPECT_EQ(MemoryMove->getType(), detail::Command::COPY_MEMORY);
   }
   // Check non-host alloca with discard access modes
@@ -116,8 +119,10 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
 
     // No need to create a host allocation in this case since the data can be
     // discarded.
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
-    MS.getOrCreateAllocaForReq(Record, &DiscardReq, QImpl);
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
+    MS.getOrCreateAllocaForReq(Record, &DiscardReq, QImpl, AuxCmds);
     EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
   }
   // Check non-host alloca without user pointer
@@ -127,8 +132,10 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
 
     // No need to create a host allocation in this case since there's no data to
     // initialize the buffer with.
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
-    MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
+    MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
   }
   // Check host -> non-host alloca
@@ -139,18 +146,20 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
 
     // No special handling required: alloca commands are created one after
     // another and the transfer is done via a write operation.
+    std::vector<detail::Command *> AuxCmds;
     detail::MemObjRecord *Record =
-        MS.getOrInsertMemObjRecord(DefaultHostQueue, &Req);
+        MS.getOrInsertMemObjRecord(DefaultHostQueue, &Req, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
+        MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue, AuxCmds);
     EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
     detail::AllocaCommandBase *NonHostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
+        MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     EXPECT_EQ(Record->MAllocaCommands.size(), 2U);
     EXPECT_TRUE(!HostAllocaCmd->MLinkedAllocaCmd);
     EXPECT_TRUE(!NonHostAllocaCmd->MLinkedAllocaCmd);
 
-    detail::Command *MemoryMove = MS.insertMemoryMove(Record, &Req, QImpl);
+    detail::Command *MemoryMove =
+        MS.insertMemoryMove(Record, &Req, QImpl, AuxCmds);
     EXPECT_EQ(MemoryMove->getType(), detail::Command::COPY_MEMORY);
   }
   // Check that memory movement operations work correctly with/after discard
@@ -163,14 +172,16 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     detail::Requirement DiscardReq = getMockRequirement(Buf);
     DiscardReq.MAccessMode = access::mode::discard_read_write;
 
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
-    MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
-    MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
+    MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
+    MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue, AuxCmds);
 
     // Memory movement operations should be omitted for discard access modes.
     detail::Command *MemoryMove =
-        MS.insertMemoryMove(Record, &DiscardReq, DefaultHostQueue);
-    EXPECT_EQ(MemoryMove, nullptr);
+        MS.insertMemoryMove(Record, &DiscardReq, DefaultHostQueue, AuxCmds);
+    EXPECT_TRUE(MemoryMove == nullptr);
     // The current context for the record should still be modified.
     EXPECT_EQ(Record->MCurContext, DefaultHostQueue->getContextImplPtr());
   }

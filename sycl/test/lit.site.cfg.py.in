@@ -23,6 +23,7 @@ config.llvm_enable_projects = "@LLVM_ENABLE_PROJECTS@"
 
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
 config.sycl_use_libcxx = '@SYCL_USE_LIBCXX@'
+config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)

@@ -168,6 +168,9 @@
 ;   } s;
 ;   s.field = 0;
 ; }
+; void memory_attribute_on_array() {
+;   [[intelfpga::register]] int register_var[32];
+; }
 ;
 ; template <typename name, typename Func>
 ; __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
@@ -194,6 +197,7 @@
 ;     templ_bank_bits_attr<4, 5>();
 ;     force_pow2_depth_attr();
 ;     templ_force_pow2_depth_attr<1>();
+;     memory_attribute_on_array();
 ;   });
 ;   return 0;
 ; }
@@ -304,6 +308,7 @@ target triple = "spir"
 ; CHECK-LLVM: [[STR_FP2_SCT:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{force_pow2_depth:1}
 ; CHECK-LLVM: [[STR_FP2_TE1:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{force_pow2_depth:1}
 ; CHECK-LLVM: [[STR_FP2_TE2:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{force_pow2_depth:1}
+; CHECK-LLVM: [[STR_REG_ARR:@[0-9_.]+]] = {{.*}}{register:1}
 @.str = private unnamed_addr constant [42 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:16}\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [25 x i8] c"intel-fpga-local-var.cpp\00", section "llvm.metadata"
 @.str.2 = private unnamed_addr constant [41 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:2}\00", section "llvm.metadata"
@@ -371,6 +376,7 @@ entry:
   call spir_func void @_Z20templ_bank_bits_attrILi4ELi5EEvv()
   call spir_func void @_Z21force_pow2_depth_attrv()
   call spir_func void @_Z27templ_force_pow2_depth_attrILi1EEvv()
+  call spir_func void @_Z25memory_attribute_on_arrayv()
   ret void
 }
 
@@ -811,6 +817,18 @@ entry:
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
   %3 = bitcast i32* %templ_fp2d_var to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  ret void
+}
+
+; Function Attrs: convergent noinline norecurse nounwind optnone mustprogress
+define dso_local spir_func void @_Z25memory_attribute_on_arrayv() #2 {
+entry:
+  %register_var = alloca [32 x i32], align 4
+  %register_var.ascast = addrspacecast [32 x i32]* %register_var to [32 x i32] addrspace(4)*
+  %register_var.ascast1 = bitcast [32 x i32] addrspace(4)* %register_var.ascast to i8 addrspace(4)*
+  %register_var.ascast2 = addrspacecast i8 addrspace(4)* %register_var.ascast1 to i8*
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %{{[a-zA-Z0-9_.]+}}, i8* getelementptr inbounds ([{{[0-9]+}} x i8], [{{[0-9]+}} x i8]* [[STR_REG_ARR]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+  call void @llvm.var.annotation(i8* %register_var.ascast2, i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.4, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 2, i8* null)
   ret void
 }
 

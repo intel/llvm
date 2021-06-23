@@ -9,8 +9,11 @@ clang/**/Driver @mdtoguchi @AGindinson
 # LLVM-SPIRV translator
 llvm-spirv/ @AlexeySotkin @AlexeySachkov
 
+# OpenCL deps
+opencl/ @pvchupin @vladimirlaz
+
 # OpenCL "offline" compiler
-opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
+opencl/opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
 
 # Device library
 libdevice/ @vzakhari @jinge90
@@ -20,18 +23,8 @@ sycl/ @intel/llvm-reviewers-runtime
 
 # Documentation
 sycl/ReleaseNotes.md @pvchupin
-sycl/doc/ @pvchupin @kbobrovs
+sycl/doc/ @pvchupin @bader
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
-
-# USM
-sycl/include/CL/sycl/detail/clusm.hpp @jbrodman
-sycl/include/CL/sycl/detail/usm_impl.hpp @jbrodman
-sycl/include/CL/sycl/usm/ @jbrodman
-sycl/include/CL/sycl/ordered_queue.hpp @jbrodman
-sycl/include/CL/sycl/usm.hpp @jbrodman
-sycl/include/CL/cl_usm_ext.h @jbrodman
-sycl/source/detail/usm/ @jbrodman
-sycl/source/ordered_queue.cpp @jbrodman
 
 # Sub-groups
 sycl/include/CL/sycl/detail/spirv.hpp @Pennycook @AlexeySachkov
@@ -58,15 +51,6 @@ sycl/include/CL/sycl/detail/stream_impl.hpp @againull
 sycl/include/CL/sycl/stream.hpp @againull
 sycl/source/detail/stream_impl.cpp @againull
 sycl/source/stream.cpp @againull
-
-# Specialization constant
-sycl/include/CL/sycl/detail/sycl_fe_intrins.hpp @kbobrovs
-sycl/include/CL/sycl/experimental/spec_constant.hpp @kbobrovs
-sycl/source/detail/spec_constant_impl.hpp @kbobrovs
-
-# Program manager
-sycl/source/detail/program_manager @kbobrovs
-sycl/source/detail/spec_constant_impl.cpp @kbobrovs
 
 # FPGA extensions
 sycl/include/CL/sycl/intel/fpga_device_selector.hpp @MrSidims
@@ -95,27 +79,32 @@ xpti/ @tovinkere @andykaylor
 xptifw/ @tovinkere  @andykaylor
 
 # DPC++ tools
-llvm/**/file-table-tform/ @kbobrovs @AlexeySachkov
+llvm/**/append-file/ @mdtoguchi @AGindinson
+llvm/**/file-table-tform/ @mlychkov @AlexeySachkov @kbobrovs
 llvm/**/llvm-foreach/ @AlexeySachkov  @Fznamznon
 llvm/**/llvm-no-spir-kernel/ @AGindinson @AlexeySachkov
-llvm/**/sycl-post-link/ @kbobrovs @AlexeySachkov
-llvm/include/llvm/Support/PropertySetIO.h @kbobrovs @AlexeySachkov
-llvm/lib/Support/PropertySetIO.cpp @kbobrovs @AlexeySachkov
-llvm/unittests/Support/PropertySetIOTest.cpp @kbobrovs @AlexeySachkov
-llvm/lib/Support/Base64.cpp @kbobrovs @AlexeySachkov
+llvm/**/sycl-post-link/ @mlychkov @AlexeySachkov @kbobrovs
+llvm/include/llvm/Support/PropertySetIO.h @mlychkov @AlexeySachkov @kbobrovs
+llvm/lib/Support/PropertySetIO.cpp @mlychkov @AlexeySachkov @kbobrovs
+llvm/unittests/Support/PropertySetIOTest.cpp @mlychkov @AlexeySachkov @kbobrovs
+llvm/include/llvm/Support/SimpleTable.h @mlychkov @AlexeySachkov @kbobrovs
+llvm/lib/Support/SimpleTable.cpp @mlychkov @AlexeySachkov @kbobrovs
+llvm/unittests/Support/SimpleTableTest.cpp @mlychkov @AlexeySachkov @kbobrovs
+llvm/lib/Support/Base64.cpp @mlychkov @AlexeySachkov @kbobrovs
 
 # Clang offload tools
-clang/tools/clang-offload-bundler/ @kbobrovs @sndmitriev
-clang/tools/clang-offload-wrapper/ @sndmitriev @kbobrovs
-clang/tools/clang-offload-deps/ @sndmitriev
+clang/tools/clang-offload-bundler/ @mlychkov @sndmitriev @AlexeySachkov
+clang/tools/clang-offload-wrapper/ @mlychkov @sndmitriev @AlexeySachkov @kbobrovs
+clang/tools/clang-offload-deps/ @sndmitriev @mlychkov @AlexeySachkov
+clang/tools/clang-offload-extract/ @sndmitriev @mlychkov @AlexeySachkov
 
 # Explicit SIMD
 SYCLLowerIR/ @kbobrovs @DenisBakhvalov
 esimd/ @kbobrovs @DenisBakhvalov
-sycl/include/CL/sycl/INTEL/esimd.hpp @kbobrovs @DenisBakhvalov
+sycl/include/sycl/ext/intel/experimental/esimd.hpp @kbobrovs @DenisBakhvalov
 sycl/doc/extensions/ExplicitSIMD/ @kbobrovs
 
 # ITT annotations
-llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims
-llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @MrSidims
-
+llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims @vzakhari
+llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @MrSidims @vzakhari
+llvm/test/Transforms/SPIRITTAnnotations/* @MrSidims @vzakhari

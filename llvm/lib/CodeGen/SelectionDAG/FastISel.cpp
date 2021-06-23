@@ -1035,7 +1035,7 @@ bool FastISel::lowerCallTo(CallLoweringInfo &CLI) {
     if (Arg.IsByVal)
       FinalType = cast<PointerType>(Arg.Ty)->getElementType();
     bool NeedsRegBlock = TLI.functionArgumentNeedsConsecutiveRegisters(
-        FinalType, CLI.CallConv, CLI.IsVarArg);
+        FinalType, CLI.CallConv, CLI.IsVarArg, DL);
 
     ISD::ArgFlagsTy Flags;
     if (Arg.IsZExt)
@@ -1048,6 +1048,8 @@ bool FastISel::lowerCallTo(CallLoweringInfo &CLI) {
       Flags.setSRet();
     if (Arg.IsSwiftSelf)
       Flags.setSwiftSelf();
+    if (Arg.IsSwiftAsync)
+      Flags.setSwiftAsync();
     if (Arg.IsSwiftError)
       Flags.setSwiftError();
     if (Arg.IsCFGuardTarget)
@@ -1072,6 +1074,7 @@ bool FastISel::lowerCallTo(CallLoweringInfo &CLI) {
       // preallocated handling in the various CC lowering callbacks.
       Flags.setByVal();
     }
+    MaybeAlign MemAlign = Arg.Alignment;
     if (Arg.IsByVal || Arg.IsInAlloca || Arg.IsPreallocated) {
       PointerType *Ty = cast<PointerType>(Arg.Ty);
       Type *ElementTy = Ty->getElementType();
@@ -1080,18 +1083,18 @@ bool FastISel::lowerCallTo(CallLoweringInfo &CLI) {
 
       // For ByVal, alignment should come from FE. BE will guess if this info
       // is not there, but there are cases it cannot get right.
-      MaybeAlign FrameAlign = Arg.Alignment;
-      if (!FrameAlign)
-        FrameAlign = Align(TLI.getByValTypeAlignment(ElementTy, DL));
+      if (!MemAlign)
+        MemAlign = Align(TLI.getByValTypeAlignment(ElementTy, DL));
       Flags.setByValSize(FrameSize);
-      Flags.setByValAlign(*FrameAlign);
+    } else if (!MemAlign) {
+      MemAlign = DL.getABITypeAlign(Arg.Ty);
     }
+    Flags.setMemAlign(*MemAlign);
     if (Arg.IsNest)
       Flags.setNest();
     if (NeedsRegBlock)
       Flags.setInConsecutiveRegs();
     Flags.setOrigAlign(DL.getABITypeAlign(Arg.Ty));
-
     CLI.OutVals.push_back(Arg.Val);
     CLI.OutFlags.push_back(Flags);
   }
@@ -1144,7 +1147,7 @@ bool FastISel::lowerCall(const CallInst *CI) {
     IsTailCall = false;
   if (IsTailCall && MF->getFunction()
                             .getFnAttribute("disable-tail-calls")
-                            .getValueAsString() == "true")
+                            .getValueAsBool())
     IsTailCall = false;
 
   CallLoweringInfo CLI;
@@ -1274,9 +1277,9 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
     const Value *V = DI->getValue();
     assert(DI->getVariable()->isValidLocationForIntrinsic(DbgLoc) &&
            "Expected inlined-at fields to agree");
-    if (!V || isa<UndefValue>(V)) {
-      // Currently the optimizer can produce this; insert an undef to
-      // help debugging.
+    if (!V || isa<UndefValue>(V) || DI->hasArgList()) {
+      // DI is either undef or cannot produce a valid DBG_VALUE, so produce an
+      // undef DBG_VALUE to terminate any prior location.
       BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, II, false, 0U,
               DI->getVariable(), DI->getExpression());
     } else if (const auto *CI = dyn_cast<ConstantInt>(V)) {

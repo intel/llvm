@@ -1322,9 +1322,8 @@ buildRegisterClasses(SmallPtrSetImpl<Record*> &SingletonRegisters) {
   }
 
   // Populate the map for individual registers.
-  for (std::map<Record*, RegisterSet>::iterator it = RegisterMap.begin(),
-         ie = RegisterMap.end(); it != ie; ++it)
-    RegisterClasses[it->first] = RegisterSetClasses[it->second];
+  for (auto &It : RegisterMap)
+    RegisterClasses[It.first] = RegisterSetClasses[It.second];
 
   // Name the register classes which correspond to singleton registers.
   for (Record *Rec : SingletonRegisters) {
@@ -1529,9 +1528,8 @@ void AsmMatcherInfo::buildInfo() {
     // matchables.
     std::vector<Record*> AllInstAliases =
       Records.getAllDerivedDefinitions("InstAlias");
-    for (unsigned i = 0, e = AllInstAliases.size(); i != e; ++i) {
-      auto Alias = std::make_unique<CodeGenInstAlias>(AllInstAliases[i],
-                                                       Target);
+    for (Record *InstAlias : AllInstAliases) {
+      auto Alias = std::make_unique<CodeGenInstAlias>(InstAlias, Target);
 
       // If the tblgen -match-prefix option is specified (for tblgen hackers),
       // filter the set of instruction aliases we consider, based on the target
@@ -2726,7 +2724,7 @@ static void emitMnemonicAliasVariant(raw_ostream &OS,const AsmMatcherInfo &Info,
     StringRef AsmVariantName = R->getValueAsString("AsmVariantName");
     if (AsmVariantName != AsmParserVariantName)
       continue;
-    AliasesFromMnemonic[std::string(R->getValueAsString("FromMnemonic"))]
+    AliasesFromMnemonic[R->getValueAsString("FromMnemonic").lower()]
         .push_back(R);
   }
   if (AliasesFromMnemonic.empty())
@@ -2768,7 +2766,7 @@ static void emitMnemonicAliasVariant(raw_ostream &OS,const AsmMatcherInfo &Info,
         MatchCode += "else ";
       MatchCode += "if (" + FeatureMask + ")\n";
       MatchCode += "  Mnemonic = \"";
-      MatchCode += R->getValueAsString("ToMnemonic");
+      MatchCode += R->getValueAsString("ToMnemonic").lower();
       MatchCode += "\";\n";
     }
 
@@ -2777,7 +2775,7 @@ static void emitMnemonicAliasVariant(raw_ostream &OS,const AsmMatcherInfo &Info,
       if (!MatchCode.empty())
         MatchCode += "else\n  ";
       MatchCode += "Mnemonic = \"";
-      MatchCode += R->getValueAsString("ToMnemonic");
+      MatchCode += R->getValueAsString("ToMnemonic").lower();
       MatchCode += "\";\n";
     }
 

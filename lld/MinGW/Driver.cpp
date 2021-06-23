@@ -290,6 +290,11 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     add("-debug:dwarf");
   }
 
+  if (args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false))
+    add("-WX");
+  else
+    add("-WX:no");
+
   if (args.hasArg(OPT_shared))
     add("-dll");
   if (args.hasArg(OPT_verbose))
@@ -432,5 +437,8 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   std::vector<const char *> vec;
   for (const std::string &s : linkArgs)
     vec.push_back(s.c_str());
-  return coff::link(vec, true, stdoutOS, stderrOS);
+  // Pass the actual binary name, to make error messages be printed with
+  // the right prefix.
+  vec[0] = argsArr[0];
+  return coff::link(vec, canExitEarly, stdoutOS, stderrOS);
 }

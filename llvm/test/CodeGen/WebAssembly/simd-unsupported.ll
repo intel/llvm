@@ -366,38 +366,6 @@ define <2 x i64> @rotr_v2i64(<2 x i64> %x, <2 x i64> %y) {
 ; 4 x f32
 ; ==============================================================================
 
-; CHECK-LABEL: ceil_v4f32:
-; CHECK: f32.ceil
-declare <4 x float> @llvm.ceil.v4f32(<4 x float>)
-define <4 x float> @ceil_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.ceil.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
-; CHECK-LABEL: floor_v4f32:
-; CHECK: f32.floor
-declare <4 x float> @llvm.floor.v4f32(<4 x float>)
-define <4 x float> @floor_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.floor.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
-; CHECK-LABEL: trunc_v4f32:
-; CHECK: f32.trunc
-declare <4 x float> @llvm.trunc.v4f32(<4 x float>)
-define <4 x float> @trunc_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.trunc.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
-; CHECK-LABEL: nearbyint_v4f32:
-; CHECK: f32.nearest
-declare <4 x float> @llvm.nearbyint.v4f32(<4 x float>)
-define <4 x float> @nearbyint_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.nearbyint.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
 ; CHECK-LABEL: copysign_v4f32:
 ; CHECK: f32.copysign
 declare <4 x float> @llvm.copysign.v4f32(<4 x float>, <4 x float>)
@@ -424,9 +392,9 @@ define <4 x float> @cos_v4f32(<4 x float> %x) {
 
 ; CHECK-LABEL: powi_v4f32:
 ; CHECK: call $push[[L:[0-9]+]]=, __powisf2
-declare <4 x float> @llvm.powi.v4f32(<4 x float>, i32)
+declare <4 x float> @llvm.powi.v4f32.i32(<4 x float>, i32)
 define <4 x float> @powi_v4f32(<4 x float> %x, i32 %y) {
-  %v = call <4 x float> @llvm.powi.v4f32(<4 x float> %x, i32 %y)
+  %v = call <4 x float> @llvm.powi.v4f32.i32(<4 x float> %x, i32 %y)
   ret <4 x float> %v
 }
 
@@ -498,38 +466,6 @@ define <4 x float> @round_v4f32(<4 x float> %x) {
 ; 2 x f64
 ; ==============================================================================
 
-; CHECK-LABEL: ceil_v2f64:
-; CHECK: f64.ceil
-declare <2 x double> @llvm.ceil.v2f64(<2 x double>)
-define <2 x double> @ceil_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.ceil.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
-
-; CHECK-LABEL: floor_v2f64:
-; CHECK: f64.floor
-declare <2 x double> @llvm.floor.v2f64(<2 x double>)
-define <2 x double> @floor_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.floor.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
-
-; CHECK-LABEL: trunc_v2f64:
-; CHECK: f64.trunc
-declare <2 x double> @llvm.trunc.v2f64(<2 x double>)
-define <2 x double> @trunc_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.trunc.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
-
-; CHECK-LABEL: nearbyint_v2f64:
-; CHECK: f64.nearest
-declare <2 x double> @llvm.nearbyint.v2f64(<2 x double>)
-define <2 x double> @nearbyint_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.nearbyint.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
-
 ; CHECK-LABEL: copysign_v2f64:
 ; CHECK: f64.copysign
 declare <2 x double> @llvm.copysign.v2f64(<2 x double>, <2 x double>)
@@ -556,9 +492,9 @@ define <2 x double> @cos_v2f64(<2 x double> %x) {
 
 ; CHECK-LABEL: powi_v2f64:
 ; CHECK: call $push[[L:[0-9]+]]=, __powidf2
-declare <2 x double> @llvm.powi.v2f64(<2 x double>, i32)
+declare <2 x double> @llvm.powi.v2f64.i32(<2 x double>, i32)
 define <2 x double> @powi_v2f64(<2 x double> %x, i32 %y) {
-  %v = call <2 x double> @llvm.powi.v2f64(<2 x double> %x, i32 %y)
+  %v = call <2 x double> @llvm.powi.v2f64.i32(<2 x double> %x, i32 %y)
   ret <2 x double> %v
 }
 

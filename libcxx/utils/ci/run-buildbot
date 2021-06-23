@@ -9,6 +9,9 @@
 
 set -ex
 set -o pipefail
+unset LANG
+unset LC_ALL
+unset LC_COLLATE
 
 PROGNAME="$(basename "${0}")"
 
@@ -61,27 +64,52 @@ MONOREPO_ROOT="${MONOREPO_ROOT:="$(git rev-parse --show-toplevel)"}"
 BUILD_DIR="${BUILD_DIR:=${MONOREPO_ROOT}/build/${BUILDER}}"
 INSTALL_DIR="${BUILD_DIR}/install"
 
-# On macOS, fall back to using the Ninja provided with Xcode if no other Ninja can be found.
-if which ninja &>/dev/null; then
-    NINJA="$(which ninja)"
-else
-    NINJA="$(xcrun --find ninja)"
-fi
+# If we can find Ninja/CMake provided by Xcode, use those since we know their
+# version will generally work with the Clang shipped in Xcode (e.g. if Clang
+# knows about -std=c++20, the CMake bundled in Xcode will probably know about
+# that flag too).
+if xcrun --find ninja &>/dev/null; then NINJA="$(xcrun --find ninja)"; else NINJA="ninja"; fi
+if xcrun --find cmake &>/dev/null; then CMAKE="$(xcrun --find cmake)"; else CMAKE="cmake"; fi
 
 function clean() {
     rm -rf "${BUILD_DIR}"
 }
 
-function generate-cmake() {
+function generate-cmake-base() {
     echo "--- Generating CMake"
-    cmake -S "${MONOREPO_ROOT}/llvm" \
+    ${CMAKE} \
           -B "${BUILD_DIR}" \
           -GNinja -DCMAKE_MAKE_PROGRAM="${NINJA}" \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
-          -DLLVM_ENABLE_PROJECTS="libcxx;libunwind;libcxxabi" \
           -DLLVM_LIT_ARGS="-sv --show-unsupported --xunit-xml-output test-results.xml" \
+          "${@}"
+}
+
+function generate-cmake() {
+    generate-cmake-base \
+          -S "${MONOREPO_ROOT}/llvm" \
+          -DLLVM_ENABLE_PROJECTS="libcxx;libunwind;libcxxabi" \
           -DLIBCXX_CXX_ABI=libcxxabi \
+          "${@}"
+}
+
+function generate-cmake-libcxx-win() {
+    # TODO: Clang-cl in MSVC configurations don't have access to compiler_rt
+    # builtins helpers for int128 division. See
+    # https://reviews.llvm.org/D91139#2429595 for a comment about longterm
+    # intent for handling the issue. In the meantime, define
+    # -D_LIBCPP_HAS_NO_INT128 (both when building the library itself and
+    # when building tests) to allow enabling filesystem for running tests,
+    # even if it uses a non-permanent ABI.
+
+    generate-cmake-base \
+          -S "${MONOREPO_ROOT}/libcxx" \
+          -DCMAKE_C_COMPILER=clang-cl \
+          -DCMAKE_CXX_COMPILER=clang-cl \
+          -DLIBCXX_ENABLE_FILESYSTEM=YES \
+          -DCMAKE_CXX_FLAGS="-D_LIBCPP_HAS_NO_INT128" \
+          -DLIBCXX_TEST_COMPILER_FLAGS="-D_LIBCPP_HAS_NO_INT128" \
           "${@}"
 }
 
@@ -113,7 +141,7 @@ function check-cxx-benchmarks() {
 }
 
 # Print the version of a few tools to aid diagnostics in some cases
-cmake --version
+${CMAKE} --version
 ${NINJA} --version
 
 case "${BUILDER}" in
@@ -132,11 +160,31 @@ check-format)
     # Check if the diff is empty, fail otherwise.
     ! grep -q '^--- a' ${BUILD_DIR}/clang-format.patch
 ;;
+check-generated-output)
+    # `! foo` doesn't work properly with `set -e`, use `! foo || false` instead.
+    # https://stackoverflow.com/questions/57681955/set-e-does-not-respect-logical-not
+    clean
+    echo "+++ Checking the output of the generator scripts"
+    mkdir -p ${BUILD_DIR}
+    # Reject patches that don't update the generated output correctly.
+    python3 libcxx/utils/generate_feature_test_macro_components.py
+    python3 libcxx/utils/generate_header_inclusion_tests.py
+    python3 libcxx/utils/generate_header_tests.py
+    git diff | tee ${BUILD_DIR}/generated_output.patch
+    # Check if the diffs are empty, fail otherwise.
+    ! grep -q '^--- a' ${BUILD_DIR}/generated_output.patch || false
+    # Reject patches that introduce non-ASCII characters or hard tabs.
+    # Depends on LC_COLLATE set at the top of this script.
+    ! grep -rn '[^ -~]' libcxx/include/ || false
+    # Check that no dependency cycles have been introduced.
+    python3 libcxx/utils/graph_header_deps.py >/dev/null
+;;
 generic-cxx03)
     export CC=clang
     export CXX=clang++
     clean
-    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx03.cmake"
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx03.cmake" \
+                   -DLIBCXX_TEST_CONFIG="${MONOREPO_ROOT}/libcxx/test/configs/libcxx-trunk-shared.cfg.in"
     check-cxx-cxxabi
     check-abi-list
 ;;
@@ -144,7 +192,8 @@ generic-cxx11)
     export CC=clang
     export CXX=clang++
     clean
-    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx11.cmake"
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx11.cmake" \
+                   -DLIBCXX_TEST_CONFIG="${MONOREPO_ROOT}/libcxx/test/configs/libcxx-trunk-shared.cfg.in"
     check-cxx-cxxabi
     check-abi-list
 ;;
@@ -152,7 +201,8 @@ generic-cxx14)
     export CC=clang
     export CXX=clang++
     clean
-    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx14.cmake"
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx14.cmake" \
+                   -DLIBCXX_TEST_CONFIG="${MONOREPO_ROOT}/libcxx/test/configs/libcxx-trunk-shared.cfg.in"
     check-cxx-cxxabi
     check-abi-list
 ;;
@@ -160,7 +210,8 @@ generic-cxx17)
     export CC=clang
     export CXX=clang++
     clean
-    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx17.cmake"
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx17.cmake" \
+                   -DLIBCXX_TEST_CONFIG="${MONOREPO_ROOT}/libcxx/test/configs/libcxx-trunk-shared.cfg.in"
     check-cxx-cxxabi
     check-abi-list
 ;;
@@ -168,7 +219,8 @@ generic-cxx20)
     export CC=clang
     export CXX=clang++
     clean
-    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx20.cmake"
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx20.cmake" \
+                   -DLIBCXX_TEST_CONFIG="${MONOREPO_ROOT}/libcxx/test/configs/libcxx-trunk-shared.cfg.in"
     check-cxx-cxxabi
     check-abi-list
 ;;
@@ -176,7 +228,24 @@ generic-cxx2b)
     export CC=clang-tot
     export CXX=clang++-tot
     clean
-    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx2b.cmake"
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx2b.cmake" \
+                   -DLIBCXX_TEST_CONFIG="${MONOREPO_ROOT}/libcxx/test/configs/libcxx-trunk-shared.cfg.in"
+    check-cxx-cxxabi
+    check-abi-list
+;;
+generic-assertions)
+    export CC=clang
+    export CXX=clang++
+    clean
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-assertions.cmake"
+    check-cxx-cxxabi
+    check-abi-list
+;;
+generic-debug-iterators)
+    export CC=clang-tot
+    export CXX=clang++-tot
+    clean
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-debug-iterators.cmake"
     check-cxx-cxxabi
     check-abi-list
 ;;
@@ -187,11 +256,19 @@ generic-noexceptions)
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-noexceptions.cmake"
     check-cxx-cxxabi
 ;;
+generic-modules)
+    export CC=clang
+    export CXX=clang++
+    clean
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-modules.cmake"
+    check-cxx-cxxabi
+;;
 generic-static)
     export CC=clang
     export CXX=clang++
     clean
-    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-static.cmake"
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-static.cmake" \
+                   -DLIBCXX_TEST_CONFIG="${MONOREPO_ROOT}/libcxx/test/configs/libcxx-trunk-static.cfg.in"
     check-cxx-cxxabi
 ;;
 generic-32bit)
@@ -202,8 +279,15 @@ generic-32bit)
     check-cxx-cxxabi
 ;;
 generic-gcc)
-    export CC=gcc
-    export CXX=g++
+    export CC=gcc-11
+    export CXX=g++-11
+    clean
+    generate-cmake
+    check-cxx-cxxabi
+;;
+generic-gcc-prev)
+    export CC=gcc-10
+    export CXX=g++-10
     clean
     generate-cmake
     check-cxx-cxxabi
@@ -348,7 +432,8 @@ unified-standalone)
     clean
 
     echo "--- Generating CMake"
-    cmake -S "${MONOREPO_ROOT}/libcxx/utils/ci/runtimes" \
+    ${CMAKE} \
+          -S "${MONOREPO_ROOT}/libcxx/utils/ci/runtimes" \
           -B "${BUILD_DIR}" \
           -GNinja -DCMAKE_MAKE_PROGRAM="${NINJA}" \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -364,20 +449,34 @@ runtimes-build)
     clean
 
     echo "--- Generating CMake"
-    cmake -S "${MONOREPO_ROOT}/llvm" \
+    # TODO: We currently enable modules and assertions in the runtimes build
+    #       because that provides coverage for some specific Clang failures
+    #       we've been seeing recently, however it would be better to instead
+    #       run all CI configurations against a Clang that has assertions enabled.
+    ${CMAKE} \
+          -S "${MONOREPO_ROOT}/llvm" \
           -B "${BUILD_DIR}" \
-          -GNinja \
+          -GNinja -DCMAKE_MAKE_PROGRAM="${NINJA}" \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
           -DLLVM_ENABLE_PROJECTS="clang" \
           -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" \
-          -DLLVM_RUNTIME_TARGETS="x86_64-unknown-linux-gnu"
+          -DLLVM_RUNTIME_TARGETS="x86_64-unknown-linux-gnu" \
+          -DLLVM_ENABLE_ASSERTIONS=ON \
+          -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-modules.cmake"
 
     echo "+++ Running the libc++ and libc++abi tests"
     ${NINJA} -C "${BUILD_DIR}" check-runtimes
 
     echo "--- Installing libc++ and libc++abi to a fake location"
     ${NINJA} -C "${BUILD_DIR}" install-cxx install-cxxabi
+;;
+legacy-test-config)
+    export CC=clang
+    export CXX=clang++
+    clean
+    generate-cmake -DLIBCXX_TEST_CONFIG="${MONOREPO_ROOT}/libcxx/test/configs/legacy.cfg.in"
+    check-cxx-cxxabi
 ;;
 legacy-standalone)
     export CC=clang
@@ -386,7 +485,8 @@ legacy-standalone)
     clean
 
     echo "--- Generating CMake"
-    cmake -S "${MONOREPO_ROOT}/libcxx" \
+    ${CMAKE} \
+          -S "${MONOREPO_ROOT}/libcxx" \
           -B "${BUILD_DIR}/libcxx" \
           -GNinja -DCMAKE_MAKE_PROGRAM="${NINJA}" \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -396,7 +496,8 @@ legacy-standalone)
           -DLIBCXX_CXX_ABI_INCLUDE_PATHS="${MONOREPO_ROOT}/libcxxabi/include" \
           -DLIBCXX_CXX_ABI_LIBRARY_PATH="${BUILD_DIR}/libcxxabi/lib"
 
-    cmake -S "${MONOREPO_ROOT}/libcxxabi" \
+    ${CMAKE} \
+          -S "${MONOREPO_ROOT}/libcxxabi" \
           -B "${BUILD_DIR}/libcxxabi" \
           -GNinja -DCMAKE_MAKE_PROGRAM="${NINJA}" \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -455,49 +556,32 @@ armv7-noexceptions)
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Armv7Thumb-noexceptions.cmake"
     check-cxx-cxxabi
 ;;
-generic-win)
+windows-dll)
     clean
-    # TODO: The CI runner doesn't have bash in the path currently, and it's
-    # needed for running tests. Once it's available out of the box, remove this.
-    export PATH="$PATH:/c/Program Files/Git/usr/bin"
-
-    # TODO: Clang-cl in MSVC configurations don't have access to compiler_rt
-    # builtins helpers for int128 division. See
-    # https://reviews.llvm.org/D91139#2429595 for a comment about longterm
-    # intent for handling the issue. In the meantime, define
-    # -D_LIBCPP_HAS_NO_INT128 (both when building the library itself and
-    # when building tests) to allow enabling filesystem for running tests,
-    # even if it uses a non-permanent ABI.
-
-    # TODO: The CI runner currently uses Clang 11, which doesn't implicitly
-    # link in oldnames.lib (which is needed for some tests) when compiling
-    # with the plain "clang" driver, as the tests do (as opposed to using
-    # the "clang-cl" driver for compiling). When the CI runner runs
-    # Clang 12, the "-loldnames" option can be dropped.
-
     # TODO: Currently, building with the experimental library breaks running
     # tests (the test linking look for the c++experimental library with the
     # wrong name, and the statically linked c++experimental can't be linked
     # correctly when libc++ visibility attributes indicate dllimport linkage
     # anyway), thus just disable the experimental library. Remove this
     # setting when cmake and the test driver does the right thing automatically.
-
-    echo "--- Generating CMake"
-    cmake -S "${MONOREPO_ROOT}/libcxx" \
-          -B "${BUILD_DIR}" \
-          -GNinja -DCMAKE_MAKE_PROGRAM="${NINJA}" \
-          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-          -DCMAKE_C_COMPILER=clang-cl \
-          -DCMAKE_CXX_COMPILER=clang-cl \
-          -DLLVM_LIT_ARGS="-sv --show-unsupported --xunit-xml-output test-results.xml" \
-          -DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=NO \
-          -DLIBCXX_ENABLE_FILESYSTEM=YES \
-          -DCMAKE_CXX_FLAGS="-D_LIBCPP_HAS_NO_INT128" \
-          -DLIBCXX_TEST_COMPILER_FLAGS="-D_LIBCPP_HAS_NO_INT128" \
-          -DLIBCXX_TEST_LINKER_FLAGS="-loldnames"
+    generate-cmake-libcxx-win -DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=OFF
     echo "+++ Running the libc++ tests"
     ${NINJA} -vC "${BUILD_DIR}" check-cxx
 ;;
+windows-static)
+    clean
+    generate-cmake-libcxx-win -DLIBCXX_ENABLE_SHARED=OFF
+    echo "+++ Running the libc++ tests"
+    ${NINJA} -vC "${BUILD_DIR}" check-cxx
+;;
+#################################################################
+# Insert vendor-specific internal configurations below.
+#
+# This allows vendors to extend this file with their own internal
+# configurations without running into merge conflicts with upstream.
+#################################################################
+
+#################################################################
 *)
     echo "${BUILDER} is not a known configuration"
     exit 1

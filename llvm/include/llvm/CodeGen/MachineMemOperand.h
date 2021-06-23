@@ -223,17 +223,9 @@ public:
   /// Return the size in bits of the memory reference.
   uint64_t getSizeInBits() const { return Size * 8; }
 
-  LLVM_ATTRIBUTE_DEPRECATED(uint64_t getAlignment() const,
-                            "Use getAlign instead");
-
   /// Return the minimum known alignment in bytes of the actual memory
   /// reference.
   Align getAlign() const;
-
-  LLVM_ATTRIBUTE_DEPRECATED(uint64_t getBaseAlignment() const,
-                            "Use getBaseAlign instead") {
-    return BaseAlign.value();
-  }
 
   /// Return the minimum known alignment in bytes of the base address, without
   /// the offset.
@@ -263,6 +255,23 @@ public:
     return static_cast<AtomicOrdering>(AtomicInfo.FailureOrdering);
   }
 
+  /// Return a single atomic ordering that is at least as strong as both the
+  /// success and failure orderings for an atomic operation.  (For operations
+  /// other than cmpxchg, this is equivalent to getOrdering().)
+  AtomicOrdering getMergedOrdering() const {
+    AtomicOrdering Ordering = getOrdering();
+    AtomicOrdering FailureOrdering = getFailureOrdering();
+    if (FailureOrdering == AtomicOrdering::SequentiallyConsistent)
+      return AtomicOrdering::SequentiallyConsistent;
+    if (FailureOrdering == AtomicOrdering::Acquire) {
+      if (Ordering == AtomicOrdering::Monotonic)
+        return AtomicOrdering::Acquire;
+      if (Ordering == AtomicOrdering::Release)
+        return AtomicOrdering::AcquireRelease;
+    }
+    return Ordering;
+  }
+
   bool isLoad() const { return FlagVals & MOLoad; }
   bool isStore() const { return FlagVals & MOStore; }
   bool isVolatile() const { return FlagVals & MOVolatile; }
@@ -276,7 +285,7 @@ public:
 
   /// Returns true if this memory operation doesn't have any ordering
   /// constraints other than normal aliasing. Volatile and (ordered) atomic
-  /// memory operations can't be reordered. 
+  /// memory operations can't be reordered.
   bool isUnordered() const {
     return (getOrdering() == AtomicOrdering::NotAtomic ||
             getOrdering() == AtomicOrdering::Unordered) &&

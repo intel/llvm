@@ -80,9 +80,9 @@ public:
       if (!owner)
         return llvm::None;
       if (OpOperand *operand = opView.dyn_cast<OpOperand *>())
-        return owner.getIndexingMap(operand->getOperandNumber());
-      return owner.getOutputIndexingMap(
-          opView.get<Value>().cast<OpResult>().getResultNumber());
+        return owner.getTiedIndexingMap(operand);
+      return owner.getTiedIndexingMap(owner.getOutputOperand(
+          opView.get<Value>().cast<OpResult>().getResultNumber()));
     }
     // Return the operand number if the `opView` is an OpOperand *. Otherwise
     // return llvm::None.
@@ -228,6 +228,10 @@ public:
   getDependentOperations(LinalgOp linalgOp,
                          ArrayRef<DependenceType> depTypes = {
                              DependenceType::RAW, DependenceType::WAW}) const;
+
+  void print(raw_ostream &os) const;
+
+  void dump() const;
 
 private:
   // Keep dependences in both directions, this is not just a performance gain

@@ -363,7 +363,7 @@ public:
   void setDebugLoc(const DebugLoc &DL) { this->State.DL = DL; }
 
   /// Get the current instruction's debug location.
-  DebugLoc getDebugLoc() { return State.DL; }
+  const DebugLoc &getDebugLoc() { return State.DL; }
 
   /// Build and insert <empty> = \p Opcode <empty>.
   /// The insertion point is the one set by the last call of either
@@ -1866,6 +1866,11 @@ public:
   MachineInstrBuilder buildRotateLeft(const DstOp &Dst, const SrcOp &Src,
                                       const SrcOp &Amt) {
     return buildInstr(TargetOpcode::G_ROTL, {Dst}, {Src, Amt});
+  }
+
+  /// Build and insert \p Dst = G_BITREVERSE \p Src
+  MachineInstrBuilder buildBitReverse(const DstOp &Dst, const SrcOp &Src) {
+    return buildInstr(TargetOpcode::G_BITREVERSE, {Dst}, {Src});
   }
 
   virtual MachineInstrBuilder buildInstr(unsigned Opc, ArrayRef<DstOp> DstOps,

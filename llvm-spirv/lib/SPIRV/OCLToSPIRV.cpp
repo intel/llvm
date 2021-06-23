@@ -49,6 +49,7 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 
@@ -69,16 +70,11 @@ static size_t getOCLCpp11AtomicMaxNumOps(StringRef Name) {
       .Default(0);
 }
 
-class OCLToSPIRV : public ModulePass, public InstVisitor<OCLToSPIRV> {
+class OCLToSPIRVBase : public InstVisitor<OCLToSPIRVBase> {
 public:
-  OCLToSPIRV() : ModulePass(ID), M(nullptr), Ctx(nullptr), CLVer(0) {
-    initializeOCLToSPIRVPass(*PassRegistry::getPassRegistry());
-  }
-  bool runOnModule(Module &M) override;
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<OCLTypeToSPIRV>();
-  }
+  OCLToSPIRVBase() : M(nullptr), Ctx(nullptr), CLVer(0) {}
+  virtual ~OCLToSPIRVBase() {}
+  bool runOCLToSPIRV(Module &M);
 
   virtual void visitCallInst(CallInst &CI);
 
@@ -187,7 +183,7 @@ public:
 
   /// Transform mem_fence to __spirv_MemoryBarrier.
   /// mem_fence(flag) => __spirv_MemoryBarrier(Workgroup, map(flag))
-  void visitCallMemFence(CallInst *CI);
+  void visitCallMemFence(CallInst *CI, StringRef DemangledName);
 
   void visitCallNDRange(CallInst *CI, StringRef DemangledName);
 
@@ -267,13 +263,17 @@ public:
   void visitSubgroupAVCBuiltinCallWithSampler(CallInst *CI,
                                               StringRef DemangledName);
 
-  static char ID;
+  void setOCLTypeToSPIRV(OCLTypeToSPIRVBase *OCLTypeToSPIRV) {
+    OCLTypeToSPIRVPtr = OCLTypeToSPIRV;
+  }
+  OCLTypeToSPIRVBase *getOCLTypeToSPIRV() { return OCLTypeToSPIRVPtr; }
 
 private:
   Module *M;
   LLVMContext *Ctx;
   unsigned CLVer; /// OpenCL version as major*10+minor
   std::set<Value *> ValuesToDelete;
+  OCLTypeToSPIRVBase *OCLTypeToSPIRVPtr;
 
   ConstantInt *addInt32(int I) { return getInt32(M, I); }
   ConstantInt *addSizet(uint64_t I) { return getSizet(M, I); }
@@ -321,9 +321,38 @@ private:
   }
 };
 
-char OCLToSPIRV::ID = 0;
+class OCLToSPIRVLegacy : public OCLToSPIRVBase, public llvm::ModulePass {
+public:
+  OCLToSPIRVLegacy() : ModulePass(ID) {
+    initializeOCLToSPIRVLegacyPass(*PassRegistry::getPassRegistry());
+  }
 
-bool OCLToSPIRV::runOnModule(Module &Module) {
+  bool runOnModule(Module &M) override {
+    setOCLTypeToSPIRV(&getAnalysis<OCLTypeToSPIRVLegacy>());
+    return runOCLToSPIRV(M);
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<OCLTypeToSPIRVLegacy>();
+  }
+
+  static char ID;
+};
+
+class OCLToSPIRVPass : public OCLToSPIRVBase,
+                       public llvm::PassInfoMixin<OCLToSPIRVBase> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    setOCLTypeToSPIRV(&MAM.getResult<OCLTypeToSPIRVPass>(M));
+    return runOCLToSPIRV(M) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+  }
+};
+
+char OCLToSPIRVLegacy::ID = 0;
+
+bool OCLToSPIRVBase::runOCLToSPIRV(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
   auto Src = getSPIRVSource(&Module);
@@ -360,7 +389,7 @@ bool OCLToSPIRV::runOnModule(Module &Module) {
 // The order of handling OCL builtin functions is important.
 // Workgroup functions need to be handled before pipe functions since
 // there are functions fall into both categories.
-void OCLToSPIRV::visitCallInst(CallInst &CI) {
+void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
   LLVM_DEBUG(dbgs() << "[visistCallInst] " << CI << '\n');
   auto F = CI.getCalledFunction();
   if (!F)
@@ -441,7 +470,7 @@ void OCLToSPIRV::visitCallInst(CallInst &CI) {
   if (DemangledName == kOCLBuiltinName::MemFence ||
       DemangledName == kOCLBuiltinName::ReadMemFence ||
       DemangledName == kOCLBuiltinName::WriteMemFence) {
-    visitCallMemFence(&CI);
+    visitCallMemFence(&CI, DemangledName);
     return;
   }
   if (DemangledName.find(kOCLBuiltinName::ReadImage) == 0) {
@@ -546,7 +575,7 @@ void OCLToSPIRV::visitCallInst(CallInst &CI) {
   visitCallBuiltinSimple(&CI, MangledName, DemangledName);
 }
 
-void OCLToSPIRV::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
   assert(DemangledName.find(kOCLBuiltinName::NDRangePrefix) == 0);
   StringRef LenStr = DemangledName.substr(8, 1);
   auto Len = atoi(LenStr.data());
@@ -585,9 +614,9 @@ void OCLToSPIRV::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
         default:
           assert(0 && "Invalid number of arguments");
         }
-        // Translate ndrange_ND into differently named SPIR-V decorated
-        // functions because they have array arugments of different dimension
-        // which mangled the same way.
+        // Translate ndrange_ND into differently named SPIR-V
+        // decorated functions because they have array arugments
+        // of different dimension which mangled the same way.
         std::string Postfix("_");
         Postfix += LenStr;
         Postfix += 'D';
@@ -596,8 +625,8 @@ void OCLToSPIRV::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
       &Attrs);
 }
 
-void OCLToSPIRV::visitCallAsyncWorkGroupCopy(CallInst *CI,
-                                             StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallAsyncWorkGroupCopy(CallInst *CI,
+                                                 StringRef DemangledName) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstSPIRV(
@@ -612,7 +641,7 @@ void OCLToSPIRV::visitCallAsyncWorkGroupCopy(CallInst *CI,
       &Attrs);
 }
 
-CallInst *OCLToSPIRV::visitCallAtomicCmpXchg(CallInst *CI) {
+CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Value *Expected = nullptr;
   CallInst *NewCI = nullptr;
@@ -640,14 +669,14 @@ CallInst *OCLToSPIRV::visitCallAtomicCmpXchg(CallInst *CI) {
   return NewCI;
 }
 
-void OCLToSPIRV::visitCallAtomicInit(CallInst *CI) {
+void OCLToSPIRVBase::visitCallAtomicInit(CallInst *CI) {
   auto ST = new StoreInst(CI->getArgOperand(1), CI->getArgOperand(0), CI);
   ST->takeName(CI);
   CI->dropAllReferences();
   CI->eraseFromParent();
 }
 
-void OCLToSPIRV::visitCallAllAny(spv::Op OC, CallInst *CI) {
+void OCLToSPIRVBase::visitCallAllAny(spv::Op OC, CallInst *CI) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
 
@@ -682,19 +711,23 @@ void OCLToSPIRV::visitCallAllAny(spv::Op OC, CallInst *CI) {
   }
 }
 
-void OCLToSPIRV::visitCallAtomicWorkItemFence(CallInst *CI) {
+void OCLToSPIRVBase::visitCallAtomicWorkItemFence(CallInst *CI) {
   transMemoryBarrier(CI, getAtomicWorkItemFenceLiterals(CI));
 }
 
-void OCLToSPIRV::visitCallMemFence(CallInst *CI) {
+void OCLToSPIRVBase::visitCallMemFence(CallInst *CI, StringRef DemangledName) {
+  OCLMemOrderKind MO = StringSwitch<OCLMemOrderKind>(DemangledName)
+                           .Case(kOCLBuiltinName::ReadMemFence, OCLMO_acquire)
+                           .Case(kOCLBuiltinName::WriteMemFence, OCLMO_release)
+                           .Default(OCLMO_acq_rel); // kOCLBuiltinName::MemFence
   transMemoryBarrier(
       CI,
       std::make_tuple(cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue(),
-                      OCLMO_relaxed, OCLMS_work_group));
+                      MO, OCLMS_work_group));
 }
 
-void OCLToSPIRV::transMemoryBarrier(CallInst *CI,
-                                    AtomicWorkItemFenceLiterals Lit) {
+void OCLToSPIRVBase::transMemoryBarrier(CallInst *CI,
+                                        AtomicWorkItemFenceLiterals Lit) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstSPIRV(
@@ -709,8 +742,8 @@ void OCLToSPIRV::transMemoryBarrier(CallInst *CI,
       &Attrs);
 }
 
-void OCLToSPIRV::visitCallAtomicLegacy(CallInst *CI, StringRef MangledName,
-                                       StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallAtomicLegacy(CallInst *CI, StringRef MangledName,
+                                           StringRef DemangledName) {
   StringRef Stem = DemangledName;
   if (Stem.startswith("atom_"))
     Stem = Stem.drop_front(strlen("atom_"));
@@ -756,8 +789,8 @@ void OCLToSPIRV::visitCallAtomicLegacy(CallInst *CI, StringRef MangledName,
   transAtomicBuiltin(CI, Info);
 }
 
-void OCLToSPIRV::visitCallAtomicCpp11(CallInst *CI, StringRef MangledName,
-                                      StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallAtomicCpp11(CallInst *CI, StringRef MangledName,
+                                          StringRef DemangledName) {
   StringRef Stem = DemangledName;
   if (Stem.startswith("atomic_"))
     Stem = Stem.drop_front(strlen("atomic_"));
@@ -801,7 +834,8 @@ void OCLToSPIRV::visitCallAtomicCpp11(CallInst *CI, StringRef MangledName,
   transAtomicBuiltin(CI, Info);
 }
 
-void OCLToSPIRV::transAtomicBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
+void OCLToSPIRVBase::transAtomicBuiltin(CallInst *CI,
+                                        OCLBuiltinTransInfo &Info) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstSPIRV(
       M, CI,
@@ -839,7 +873,7 @@ void OCLToSPIRV::transAtomicBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
       &Attrs);
 }
 
-void OCLToSPIRV::visitCallBarrier(CallInst *CI) {
+void OCLToSPIRVBase::visitCallBarrier(CallInst *CI) {
   auto Lit = getBarrierLiterals(CI);
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstSPIRV(
@@ -862,8 +896,8 @@ void OCLToSPIRV::visitCallBarrier(CallInst *CI) {
       &Attrs);
 }
 
-void OCLToSPIRV::visitCallConvert(CallInst *CI, StringRef MangledName,
-                                  StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
+                                      StringRef DemangledName) {
   if (eraseUselessConvert(CI, MangledName, DemangledName))
     return;
   Op OC = OpNop;
@@ -915,8 +949,8 @@ void OCLToSPIRV::visitCallConvert(CallInst *CI, StringRef MangledName,
       &Attrs);
 }
 
-void OCLToSPIRV::visitCallGroupBuiltin(CallInst *CI,
-                                       StringRef OrigDemangledName) {
+void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,
+                                           StringRef OrigDemangledName) {
   auto F = CI->getCalledFunction();
   std::vector<int> PreOps;
   std::string DemangledName{OrigDemangledName};
@@ -1023,7 +1057,7 @@ void OCLToSPIRV::visitCallGroupBuiltin(CallInst *CI,
   transBuiltin(CI, Info);
 }
 
-void OCLToSPIRV::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
+void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Op OC = OpNop;
   unsigned ExtOp = ~0U;
@@ -1076,7 +1110,8 @@ void OCLToSPIRV::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
         &Attrs);
 }
 
-void OCLToSPIRV::visitCallReadImageMSAA(CallInst *CI, StringRef MangledName) {
+void OCLToSPIRVBase::visitCallReadImageMSAA(CallInst *CI,
+                                            StringRef MangledName) {
   assert(MangledName.find("msaa") != StringRef::npos);
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstSPIRV(
@@ -1090,8 +1125,8 @@ void OCLToSPIRV::visitCallReadImageMSAA(CallInst *CI, StringRef MangledName) {
       &Attrs);
 }
 
-void OCLToSPIRV::visitCallReadImageWithSampler(CallInst *CI,
-                                               StringRef MangledName) {
+void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
+                                                   StringRef MangledName) {
   assert(MangledName.find(kMangledName::Sampler) != StringRef::npos);
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
@@ -1099,7 +1134,7 @@ void OCLToSPIRV::visitCallReadImageWithSampler(CallInst *CI,
   mutateCallInstSPIRV(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args, Type *&Ret) {
-        auto ImageTy = getAnalysis<OCLTypeToSPIRV>().getAdaptedType(Args[0]);
+        auto ImageTy = OCLTypeToSPIRVPtr->getAdaptedType(Args[0]);
         if (isOCLImageType(ImageTy))
           ImageTy = getSPIRVImageTypeFromOCL(M, ImageTy);
         auto SampledImgTy = getSPIRVTypeByChangeBaseTypeName(
@@ -1145,7 +1180,8 @@ void OCLToSPIRV::visitCallReadImageWithSampler(CallInst *CI,
       &Attrs);
 }
 
-void OCLToSPIRV::visitCallGetImageSize(CallInst *CI, StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
+                                           StringRef DemangledName) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   StringRef TyName;
   SmallVector<StringRef, 4> SubStrs;
@@ -1205,8 +1241,8 @@ void OCLToSPIRV::visitCallGetImageSize(CallInst *CI, StringRef DemangledName) {
 }
 
 /// Remove trivial conversion functions
-bool OCLToSPIRV::eraseUselessConvert(CallInst *CI, StringRef MangledName,
-                                     StringRef DemangledName) {
+bool OCLToSPIRVBase::eraseUselessConvert(CallInst *CI, StringRef MangledName,
+                                         StringRef DemangledName) {
   auto TargetTy = CI->getType();
   auto SrcTy = CI->getArgOperand(0)->getType();
   if (auto *VecTy = dyn_cast<VectorType>(TargetTy))
@@ -1229,8 +1265,8 @@ bool OCLToSPIRV::eraseUselessConvert(CallInst *CI, StringRef MangledName,
   return false;
 }
 
-void OCLToSPIRV::visitCallBuiltinSimple(CallInst *CI, StringRef MangledName,
-                                        StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallBuiltinSimple(CallInst *CI, StringRef MangledName,
+                                            StringRef DemangledName) {
   OCLBuiltinTransInfo Info;
   Info.MangledName = MangledName.str();
   Info.UniqName = DemangledName.str();
@@ -1240,7 +1276,7 @@ void OCLToSPIRV::visitCallBuiltinSimple(CallInst *CI, StringRef MangledName,
 /// Translates OCL work-item builtin functions to SPIRV builtin variables.
 /// Function like get_global_id(i) -> x = load GlobalInvocationId; extract x, i
 /// Function like get_work_dim() -> load WorkDim
-void OCLToSPIRV::transWorkItemBuiltinsToVariables() {
+void OCLToSPIRVBase::transWorkItemBuiltinsToVariables() {
   LLVM_DEBUG(dbgs() << "Enter transWorkItemBuiltinsToVariables\n");
   std::vector<Function *> WorkList;
   for (auto &I : *M) {
@@ -1291,8 +1327,8 @@ void OCLToSPIRV::transWorkItemBuiltinsToVariables() {
   }
 }
 
-void OCLToSPIRV::visitCallReadWriteImage(CallInst *CI,
-                                         StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallReadWriteImage(CallInst *CI,
+                                             StringRef DemangledName) {
   OCLBuiltinTransInfo Info;
   if (DemangledName.find(kOCLBuiltinName::ReadImage) == 0)
     Info.UniqName = kOCLBuiltinName::ReadImage;
@@ -1313,7 +1349,7 @@ void OCLToSPIRV::visitCallReadWriteImage(CallInst *CI,
   transBuiltin(CI, Info);
 }
 
-void OCLToSPIRV::visitCallToAddr(CallInst *CI, StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallToAddr(CallInst *CI, StringRef DemangledName) {
   auto AddrSpace =
       static_cast<SPIRAddressSpace>(CI->getType()->getPointerAddressSpace());
   OCLBuiltinTransInfo Info;
@@ -1331,7 +1367,8 @@ void OCLToSPIRV::visitCallToAddr(CallInst *CI, StringRef DemangledName) {
   transBuiltin(CI, Info);
 }
 
-void OCLToSPIRV::visitCallRelational(CallInst *CI, StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallRelational(CallInst *CI,
+                                         StringRef DemangledName) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Op OC = OpNop;
@@ -1373,8 +1410,8 @@ void OCLToSPIRV::visitCallRelational(CallInst *CI, StringRef DemangledName) {
       &Attrs);
 }
 
-void OCLToSPIRV::visitCallVecLoadStore(CallInst *CI, StringRef MangledName,
-                                       StringRef OrigDemangledName) {
+void OCLToSPIRVBase::visitCallVecLoadStore(CallInst *CI, StringRef MangledName,
+                                           StringRef OrigDemangledName) {
   std::vector<int> PreOps;
   std::string DemangledName{OrigDemangledName};
   if (DemangledName.find(kOCLBuiltinName::VLoadPrefix) == 0 &&
@@ -1413,7 +1450,7 @@ void OCLToSPIRV::visitCallVecLoadStore(CallInst *CI, StringRef MangledName,
   transBuiltin(CI, Info);
 }
 
-void OCLToSPIRV::visitCallGetFence(CallInst *CI, StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallGetFence(CallInst *CI, StringRef DemangledName) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Op OC = OpNop;
   OCLSPIRVBuiltinMap::find(DemangledName.str(), &OC);
@@ -1429,15 +1466,15 @@ void OCLToSPIRV::visitCallGetFence(CallInst *CI, StringRef DemangledName) {
       &Attrs);
 }
 
-void OCLToSPIRV::visitCallDot(CallInst *CI) {
+void OCLToSPIRVBase::visitCallDot(CallInst *CI) {
   IRBuilder<> Builder(CI);
   Value *FMulVal = Builder.CreateFMul(CI->getOperand(0), CI->getOperand(1));
   CI->replaceAllUsesWith(FMulVal);
   CI->eraseFromParent();
 }
 
-void OCLToSPIRV::visitCallScalToVec(CallInst *CI, StringRef MangledName,
-                                    StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
+                                        StringRef DemangledName) {
   // Check if all arguments have the same type - it's simple case.
   auto Uniform = true;
   auto IsArg0Vector = isa<VectorType>(CI->getOperand(0)->getType());
@@ -1501,8 +1538,9 @@ void OCLToSPIRV::visitCallScalToVec(CallInst *CI, StringRef MangledName,
       &Attrs);
 }
 
-void OCLToSPIRV::visitCallGetImageChannel(CallInst *CI, StringRef DemangledName,
-                                          unsigned int Offset) {
+void OCLToSPIRVBase::visitCallGetImageChannel(CallInst *CI,
+                                              StringRef DemangledName,
+                                              unsigned int Offset) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Op OC = OpNop;
@@ -1518,7 +1556,8 @@ void OCLToSPIRV::visitCallGetImageChannel(CallInst *CI, StringRef DemangledName,
       },
       &Attrs);
 }
-void OCLToSPIRV::visitCallEnqueueKernel(CallInst *CI, StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
+                                            StringRef DemangledName) {
   const DataLayout &DL = M->getDataLayout();
   bool HasEvents = DemangledName.find("events") != StringRef::npos;
 
@@ -1584,7 +1623,8 @@ void OCLToSPIRV::visitCallEnqueueKernel(CallInst *CI, StringRef DemangledName) {
   CI->eraseFromParent();
 }
 
-void OCLToSPIRV::visitCallKernelQuery(CallInst *CI, StringRef DemangledName) {
+void OCLToSPIRVBase::visitCallKernelQuery(CallInst *CI,
+                                          StringRef DemangledName) {
   const DataLayout &DL = M->getDataLayout();
   bool HasNDRange = DemangledName.find("_for_ndrange_impl") != StringRef::npos;
   // BIs with "_for_ndrange_impl" suffix has NDRange argument first, and
@@ -1647,7 +1687,7 @@ static void processSubgroupBlockReadWriteINTEL(CallInst *CI,
 // buffers and images, but need to be mapped to distinct SPIR-V instructions.
 // Additionally, for block reads, need to distinguish between scalar block
 // reads and vector block reads.
-void OCLToSPIRV::visitSubgroupBlockReadINTEL(CallInst *CI) {
+void OCLToSPIRVBase::visitSubgroupBlockReadINTEL(CallInst *CI) {
   OCLBuiltinTransInfo Info;
   if (isOCLImageType(CI->getArgOperand(0)->getType()))
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupImageBlockReadINTEL);
@@ -1660,7 +1700,7 @@ void OCLToSPIRV::visitSubgroupBlockReadINTEL(CallInst *CI) {
 // The intel_sub_group_block_write built-ins are similarly overloaded to support
 // both buffers and images but need to be mapped to distinct SPIR-V
 // instructions.
-void OCLToSPIRV::visitSubgroupBlockWriteINTEL(CallInst *CI) {
+void OCLToSPIRVBase::visitSubgroupBlockWriteINTEL(CallInst *CI) {
   OCLBuiltinTransInfo Info;
   if (isOCLImageType(CI->getArgOperand(0)->getType()))
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupImageBlockWriteINTEL);
@@ -1673,8 +1713,8 @@ void OCLToSPIRV::visitSubgroupBlockWriteINTEL(CallInst *CI) {
   processSubgroupBlockReadWriteINTEL(CI, Info, DataTy, M);
 }
 
-void OCLToSPIRV::visitSubgroupImageMediaBlockINTEL(CallInst *CI,
-                                                   StringRef DemangledName) {
+void OCLToSPIRVBase::visitSubgroupImageMediaBlockINTEL(
+    CallInst *CI, StringRef DemangledName) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   spv::Op OpCode = DemangledName.rfind("read") != StringRef::npos
                        ? spv::OpSubgroupImageMediaBlockReadINTEL
@@ -1723,8 +1763,8 @@ static Op getSubgroupAVCIntelMCEOpCodeForWrapper(StringRef DemangledName) {
 }
 
 // Handles Subgroup AVC Intel extension generic built-ins.
-void OCLToSPIRV::visitSubgroupAVCBuiltinCall(CallInst *CI,
-                                             StringRef DemangledName) {
+void OCLToSPIRVBase::visitSubgroupAVCBuiltinCall(CallInst *CI,
+                                                 StringRef DemangledName) {
   Op OC = OpNop;
   std::string FName{DemangledName};
   std::string Prefix = kOCLSubgroupsAVCIntel::Prefix;
@@ -1763,8 +1803,8 @@ void OCLToSPIRV::visitSubgroupAVCBuiltinCall(CallInst *CI,
 // 'IME', 'REF' and 'SIC' sets contain wrapper built-ins which don't have
 // corresponded instructions in SPIRV and should be translated to a
 // conterpart from 'MCE' with conversion for an argument and result (if needed).
-void OCLToSPIRV::visitSubgroupAVCWrapperBuiltinCall(CallInst *CI, Op WrappedOC,
-                                                    StringRef DemangledName) {
+void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
+    CallInst *CI, Op WrappedOC, StringRef DemangledName) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   std::string Prefix = kOCLSubgroupsAVCIntel::Prefix;
 
@@ -1828,7 +1868,7 @@ void OCLToSPIRV::visitSubgroupAVCWrapperBuiltinCall(CallInst *CI, Op WrappedOC,
 
 // Handles Subgroup AVC Intel extension built-ins which take sampler as
 // an argument (their SPIR-V counterparts take OpTypeVmeImageIntel instead)
-void OCLToSPIRV::visitSubgroupAVCBuiltinCallWithSampler(
+void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
     CallInst *CI, StringRef DemangledName) {
   std::string FName{DemangledName};
   std::string Prefix = kOCLSubgroupsAVCIntel::Prefix;
@@ -1860,7 +1900,7 @@ void OCLToSPIRV::visitSubgroupAVCBuiltinCallWithSampler(
           if (!isOCLImageType(Args[I]->getType()))
             continue;
 
-          auto *ImageTy = getAnalysis<OCLTypeToSPIRV>().getAdaptedType(Args[I]);
+          auto *ImageTy = OCLTypeToSPIRVPtr->getAdaptedType(Args[I]);
           if (isOCLImageType(ImageTy))
             ImageTy = getSPIRVImageTypeFromOCL(M, ImageTy);
           auto *SampledImgTy = getSPIRVTypeByChangeBaseTypeName(
@@ -1878,10 +1918,10 @@ void OCLToSPIRV::visitSubgroupAVCBuiltinCallWithSampler(
 
 } // namespace SPIRV
 
-INITIALIZE_PASS_BEGIN(OCLToSPIRV, "ocl-to-spv", "Transform OCL 2.0 to SPIR-V",
-                      false, false)
-INITIALIZE_PASS_DEPENDENCY(OCLTypeToSPIRV)
-INITIALIZE_PASS_END(OCLToSPIRV, "ocl-to-spv", "Transform OCL 2.0 to SPIR-V",
-                    false, false)
+INITIALIZE_PASS_BEGIN(OCLToSPIRVLegacy, "ocl-to-spv",
+                      "Transform OCL 2.0 to SPIR-V", false, false)
+INITIALIZE_PASS_DEPENDENCY(OCLTypeToSPIRVLegacy)
+INITIALIZE_PASS_END(OCLToSPIRVLegacy, "ocl-to-spv",
+                    "Transform OCL 2.0 to SPIR-V", false, false)
 
-ModulePass *llvm::createOCLToSPIRV() { return new OCLToSPIRV(); }
+ModulePass *llvm::createOCLToSPIRVLegacy() { return new OCLToSPIRVLegacy(); }

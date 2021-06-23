@@ -270,6 +270,10 @@ namespace llvm {
       return createHybridListDAGScheduler(IS, OptLevel);
     if (TLI->getSchedulingPreference() == Sched::VLIW)
       return createVLIWDAGScheduler(IS, OptLevel);
+    if (TLI->getSchedulingPreference() == Sched::Fast)
+      return createFastDAGScheduler(IS, OptLevel);
+    if (TLI->getSchedulingPreference() == Sched::Linearize)
+      return createDAGLinearizer(IS, OptLevel);
     assert(TLI->getSchedulingPreference() == Sched::ILP &&
            "Unknown sched type!");
     return createILPListDAGScheduler(IS, OptLevel);
@@ -1694,15 +1698,40 @@ static bool MIIsInTerminatorSequence(const MachineInstr &MI) {
 /// terminator, but additionally the copies that move the vregs into the
 /// physical registers.
 static MachineBasicBlock::iterator
-FindSplitPointForStackProtector(MachineBasicBlock *BB) {
+FindSplitPointForStackProtector(MachineBasicBlock *BB,
+                                const TargetInstrInfo &TII) {
   MachineBasicBlock::iterator SplitPoint = BB->getFirstTerminator();
-  //
   if (SplitPoint == BB->begin())
     return SplitPoint;
 
   MachineBasicBlock::iterator Start = BB->begin();
   MachineBasicBlock::iterator Previous = SplitPoint;
   --Previous;
+
+  if (TII.isTailCall(*SplitPoint) &&
+      Previous->getOpcode() == TII.getCallFrameDestroyOpcode()) {
+    // call itself, then we must insert before the sequence even starts. For
+    // example:
+    //     <split point>
+    //     ADJCALLSTACKDOWN ...
+    //     <Moves>
+    //     ADJCALLSTACKUP ...
+    //     TAILJMP somewhere
+    // On the other hand, it could be an unrelated call in which case this tail call
+    // has to register moves of its own and should be the split point. For example:
+    //     ADJCALLSTACKDOWN
+    //     CALL something_else
+    //     ADJCALLSTACKUP
+    //     <split point>
+    //     TAILJMP somewhere
+    do {
+      --Previous;
+      if (Previous->isCall())
+        return SplitPoint;
+    } while(Previous->getOpcode() != TII.getCallFrameSetupOpcode());
+
+    return Previous;
+  }
 
   while (MIIsInTerminatorSequence(*Previous)) {
     SplitPoint = Previous;
@@ -1743,7 +1772,7 @@ SelectionDAGISel::FinishBasicBlock() {
     // Add load and check to the basicblock.
     FuncInfo->MBB = ParentMBB;
     FuncInfo->InsertPt =
-        FindSplitPointForStackProtector(ParentMBB);
+        FindSplitPointForStackProtector(ParentMBB, *TII);
     SDB->visitSPDescriptorParent(SDB->SPDescriptor, ParentMBB);
     CurDAG->setRoot(SDB->getRoot());
     SDB->clear();
@@ -1762,7 +1791,7 @@ SelectionDAGISel::FinishBasicBlock() {
     // register allocation issues caused by us splitting the parent mbb. The
     // register allocator will clean up said virtual copies later on.
     MachineBasicBlock::iterator SplitPoint =
-        FindSplitPointForStackProtector(ParentMBB);
+        FindSplitPointForStackProtector(ParentMBB, *TII);
 
     // Splice the terminator of ParentMBB into SuccessMBB.
     SuccessMBB->splice(SuccessMBB->end(), ParentMBB,
@@ -3255,12 +3284,15 @@ void SelectionDAGISel::SelectCodeCommon(SDNode *NodeToMatch,
 
       continue;
     }
-    case OPC_EmitInteger: {
+    case OPC_EmitInteger:
+    case OPC_EmitStringInteger: {
       MVT::SimpleValueType VT =
         (MVT::SimpleValueType)MatcherTable[MatcherIndex++];
       int64_t Val = MatcherTable[MatcherIndex++];
       if (Val & 128)
         Val = GetVBR(Val, MatcherTable, MatcherIndex);
+      if (Opcode == OPC_EmitInteger)
+        Val = decodeSignRotatedValue(Val);
       RecordedNodes.push_back(std::pair<SDValue, SDNode*>(
                               CurDAG->getTargetConstant(Val, SDLoc(NodeToMatch),
                                                         VT), nullptr));
@@ -3745,7 +3777,7 @@ void SelectionDAGISel::CannotYetSelect(SDNode *N) {
     unsigned iid =
       cast<ConstantSDNode>(N->getOperand(HasInputChain))->getZExtValue();
     if (iid < Intrinsic::num_intrinsics)
-      Msg << "intrinsic %" << Intrinsic::getName((Intrinsic::ID)iid, None);
+      Msg << "intrinsic %" << Intrinsic::getBaseName((Intrinsic::ID)iid);
     else if (const TargetIntrinsicInfo *TII = TM.getIntrinsicInfo())
       Msg << "target intrinsic %" << TII->getName(iid);
     else

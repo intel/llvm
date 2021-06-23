@@ -16,7 +16,7 @@ syn case match
 " benefit as much from having dedicated highlighting rules.
 syn keyword llvmType void half bfloat float double x86_fp80 fp128 ppc_fp128
 syn keyword llvmType label metadata x86_mmx x86_amx
-syn keyword llvmType type label opaque token
+syn keyword llvmType type label opaque token ptr
 syn match   llvmType /\<i\d\+\>/
 
 " Instructions.
@@ -26,7 +26,7 @@ syn keyword llvmStatement add addrspacecast alloca and arcp ashr atomicrmw
 syn keyword llvmStatement bitcast br catchpad catchswitch catchret call callbr
 syn keyword llvmStatement cleanuppad cleanupret cmpxchg eq exact extractelement
 syn keyword llvmStatement extractvalue fadd fast fcmp fdiv fence fmul fpext
-syn keyword llvmStatement fptosi fptoui fptrunc free frem fsub fneg getelementptr
+syn keyword llvmStatement fptosi fptoui fptrunc free freeze frem fsub fneg getelementptr
 syn keyword llvmStatement icmp inbounds indirectbr insertelement insertvalue
 syn keyword llvmStatement inttoptr invoke landingpad load lshr malloc max min
 syn keyword llvmStatement mul nand ne ninf nnan nsw nsz nuw oeq oge ogt ole
@@ -138,6 +138,7 @@ syn keyword llvmKeyword
       \ nosync
       \ noundef
       \ nounwind
+      \ nosanitize_coverage
       \ null_pointer_is_valid
       \ optforfuzzing
       \ optnone
@@ -176,6 +177,7 @@ syn keyword llvmKeyword
       \ strictfp
       \ swiftcc
       \ swifterror
+      \ swifttailcc
       \ swiftself
       \ syncscope
       \ tail
@@ -211,7 +213,7 @@ syn match   llvmNumber /-\?\<\d\+\>/
 syn match   llvmFloat  /-\?\<\d\+\.\d*\(e[+-]\d\+\)\?\>/
 syn match   llvmFloat  /\<0x\x\+\>/
 syn keyword llvmBoolean true false
-syn keyword llvmConstant zeroinitializer undef null none poison
+syn keyword llvmConstant zeroinitializer undef null none poison vscale
 syn match   llvmComment /;.*$/
 syn region  llvmString start=/"/ skip=/\\"/ end=/"/
 syn match   llvmLabel /[-a-zA-Z$._][-a-zA-Z$._0-9]*:/
@@ -234,7 +236,8 @@ syn match  llvmSpecialComment /;\s*REQUIRES:.*$/
 syn match  llvmSpecialComment /;\s*RUN:.*$/
 syn match  llvmSpecialComment /;\s*ALLOW_RETRIES:.*$/
 syn match  llvmSpecialComment /;\s*CHECK:.*$/
-syn match  llvmSpecialComment "\v;\s*CHECK-(NEXT|NOT|DAG|SAME|LABEL):.*$"
+syn match  llvmSpecialComment /;\s*CHECK-EMPTY:\s*$/
+syn match  llvmSpecialComment /\v;\s*CHECK-(NEXT|NOT|DAG|SAME|LABEL|COUNT-\d+):.*$/
 syn match  llvmSpecialComment /;\s*XFAIL:.*$/
 
 if version >= 508 || !exists("did_c_syn_inits")

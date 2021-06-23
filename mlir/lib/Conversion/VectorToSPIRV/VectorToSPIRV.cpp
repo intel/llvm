@@ -89,6 +89,11 @@ struct VectorExtractOpConvert final
       return failure();
 
     vector::ExtractOp::Adaptor adaptor(operands);
+    if (adaptor.vector().getType().isa<spirv::ScalarType>()) {
+      rewriter.replaceOp(extractOp, adaptor.vector());
+      return success();
+    }
+
     int32_t id = getFirstIntValue(extractOp.position());
     rewriter.replaceOpWithNewOp<spirv::CompositeExtractOp>(
         extractOp, adaptor.vector(), id);
@@ -108,9 +113,6 @@ struct VectorExtractStridedSliceOpConvert final
     if (!dstType)
       return failure();
 
-    // Extract vector<1xT> not supported yet.
-    if (dstType.isa<spirv::ScalarType>())
-      return failure();
 
     uint64_t offset = getFirstIntValue(extractOp.offsets());
     uint64_t size = getFirstIntValue(extractOp.sizes());
@@ -119,6 +121,13 @@ struct VectorExtractStridedSliceOpConvert final
       return failure();
 
     Value srcVector = operands.front();
+
+    // Extract vector<1xT> case.
+    if (dstType.isa<spirv::ScalarType>()) {
+      rewriter.replaceOpWithNewOp<spirv::CompositeExtractOp>(extractOp,
+                                                             srcVector, offset);
+      return success();
+    }
 
     SmallVector<int32_t, 2> indices(size);
     std::iota(indices.begin(), indices.end(), offset);

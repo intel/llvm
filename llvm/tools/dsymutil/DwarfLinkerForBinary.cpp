@@ -167,7 +167,7 @@ bool DwarfLinkerForBinary::createStreamer(const Triple &TheTriple,
     return true;
 
   Streamer = std::make_unique<DwarfStreamer>(
-      Options.FileType, OutFile, Options.Translator, Options.Minimize,
+      Options.FileType, OutFile, Options.Translator,
       [&](const Twine &Error, StringRef Context, const DWARFDie *) {
         error(Error, Context);
       },
@@ -325,6 +325,7 @@ bool DwarfLinkerForBinary::link(const DebugMap &Map) {
   GeneralLinker.setNumThreads(Options.Threads);
   GeneralLinker.setAccelTableKind(Options.TheAccelTableKind);
   GeneralLinker.setPrependPath(Options.PrependPath);
+  GeneralLinker.setKeepFunctionForStatic(Options.KeepFunctionForStatic);
   if (Options.Translator)
     GeneralLinker.setStringsTranslator(TranslationLambda);
   GeneralLinker.setWarningHandler(

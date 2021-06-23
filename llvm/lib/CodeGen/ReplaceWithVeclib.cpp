@@ -142,7 +142,7 @@ static bool replaceWithCallToVeclib(const TargetLibraryInfo &TLI,
   // converted to scalar above.
   std::string ScalarName;
   if (Intrinsic::isOverloaded(IntrinsicID)) {
-    ScalarName = Intrinsic::getName(IntrinsicID, ScalarTypes);
+    ScalarName = Intrinsic::getName(IntrinsicID, ScalarTypes, CI.getModule());
   } else {
     ScalarName = Intrinsic::getName(IntrinsicID).str();
   }
@@ -205,11 +205,9 @@ PreservedAnalyses ReplaceWithVeclib::run(Function &F,
     PA.preserveSet<CFGAnalyses>();
     PA.preserve<TargetLibraryAnalysis>();
     PA.preserve<ScalarEvolutionAnalysis>();
-    PA.preserve<AAManager>();
     PA.preserve<LoopAccessAnalysis>();
     PA.preserve<DemandedBitsAnalysis>();
     PA.preserve<OptimizationRemarkEmitterAnalysis>();
-    PA.preserve<GlobalsAA>();
     return PA;
   } else {
     // The pass did not replace any calls, hence it preserves all analyses.

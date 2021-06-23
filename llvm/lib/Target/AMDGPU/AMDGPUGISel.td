@@ -70,10 +70,10 @@ def gi_smrd_sgpr :
 
 def gi_flat_offset :
     GIComplexOperandMatcher<s64, "selectFlatOffset">,
-    GIComplexPatternEquiv<FLATOffset>;
-def gi_flat_offset_signed :
-    GIComplexOperandMatcher<s64, "selectFlatOffsetSigned">,
-    GIComplexPatternEquiv<FLATOffsetSigned>;
+    GIComplexPatternEquiv<FlatOffset>;
+def gi_global_offset :
+    GIComplexOperandMatcher<s64, "selectGlobalOffset">,
+    GIComplexPatternEquiv<GlobalOffset>;
 def gi_global_saddr :
     GIComplexOperandMatcher<s64, "selectGlobalSAddr">,
     GIComplexPatternEquiv<GlobalSAddr>;
@@ -86,7 +86,7 @@ def gi_mubuf_scratch_offen :
     GIComplexPatternEquiv<MUBUFScratchOffen>;
 
 def gi_flat_scratch_offset :
-    GIComplexOperandMatcher<s32, "selectFlatOffsetSigned">,
+    GIComplexOperandMatcher<s32, "selectScratchOffset">,
     GIComplexPatternEquiv<ScratchOffset>;
 
 def gi_flat_scratch_saddr :
@@ -167,7 +167,8 @@ def : GINodeEquiv<G_AMDGPU_CVT_F32_UBYTE2, AMDGPUcvt_f32_ubyte2>;
 def : GINodeEquiv<G_AMDGPU_CVT_F32_UBYTE3, AMDGPUcvt_f32_ubyte3>;
 
 def : GINodeEquiv<G_AMDGPU_CVT_PK_I16_I32, AMDGPUpk_i16_i32_impl>;
-def : GINodeEquiv<G_AMDGPU_MED3, AMDGPUsmed3>;
+def : GINodeEquiv<G_AMDGPU_SMED3, AMDGPUsmed3>;
+def : GINodeEquiv<G_AMDGPU_UMED3, AMDGPUumed3>;
 
 def : GINodeEquiv<G_AMDGPU_ATOMIC_CMPXCHG, AMDGPUatomic_cmp_swap>;
 def : GINodeEquiv<G_AMDGPU_BUFFER_LOAD, SIbuffer_load>;

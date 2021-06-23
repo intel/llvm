@@ -117,6 +117,11 @@ static cl::opt<std::string> ClWriteSummary(
     cl::desc("Write summary to given YAML file after running pass"),
     cl::Hidden);
 
+static cl::opt<bool>
+    ClDropTypeTests("lowertypetests-drop-type-tests",
+                    cl::desc("Simply drop type test assume sequences"),
+                    cl::Hidden, cl::init(false));
+
 bool BitSetInfo::containsGlobalOffset(uint64_t Offset) const {
   if (Offset < ByteOffset)
     return false;
@@ -528,7 +533,8 @@ struct LowerTypeTests : public ModulePass {
   LowerTypeTests(ModuleSummaryIndex *ExportSummary,
                  const ModuleSummaryIndex *ImportSummary, bool DropTypeTests)
       : ModulePass(ID), ExportSummary(ExportSummary),
-        ImportSummary(ImportSummary), DropTypeTests(DropTypeTests) {
+        ImportSummary(ImportSummary),
+        DropTypeTests(DropTypeTests || ClDropTypeTests) {
     initializeLowerTypeTestsPass(*PassRegistry::getPassRegistry());
   }
 
@@ -1687,7 +1693,7 @@ LowerTypeTestsModule::LowerTypeTestsModule(
     Module &M, ModuleSummaryIndex *ExportSummary,
     const ModuleSummaryIndex *ImportSummary, bool DropTypeTests)
     : M(M), ExportSummary(ExportSummary), ImportSummary(ImportSummary),
-      DropTypeTests(DropTypeTests) {
+      DropTypeTests(DropTypeTests || ClDropTypeTests) {
   assert(!(ExportSummary && ImportSummary));
   Triple TargetTriple(M.getTargetTriple());
   Arch = TargetTriple.getArch();
@@ -1722,7 +1728,7 @@ bool LowerTypeTestsModule::runForTesting(Module &M) {
     ExitOnError ExitOnErr("-lowertypetests-write-summary: " + ClWriteSummary +
                           ": ");
     std::error_code EC;
-    raw_fd_ostream OS(ClWriteSummary, EC, sys::fs::OF_Text);
+    raw_fd_ostream OS(ClWriteSummary, EC, sys::fs::OF_TextWithCRLF);
     ExitOnErr(errorCodeToError(EC));
 
     yaml::Output Out(OS);
@@ -1791,9 +1797,16 @@ bool LowerTypeTestsModule::lower() {
       auto *CI = cast<CallInst>((*UI++).getUser());
       // Find and erase llvm.assume intrinsics for this llvm.type.test call.
       for (auto CIU = CI->use_begin(), CIUE = CI->use_end(); CIU != CIUE;)
-        if (auto *II = dyn_cast<IntrinsicInst>((*CIU++).getUser()))
-          if (II->getIntrinsicID() == Intrinsic::assume)
-            II->eraseFromParent();
+        if (auto *Assume = dyn_cast<AssumeInst>((*CIU++).getUser()))
+          Assume->eraseFromParent();
+      // If the assume was merged with another assume, we might have a use on a
+      // phi (which will feed the assume). Simply replace the use on the phi
+      // with "true" and leave the merged assume.
+      if (!CI->use_empty()) {
+        assert(all_of(CI->users(),
+                      [](User *U) -> bool { return isa<PHINode>(U); }));
+        CI->replaceAllUsesWith(ConstantInt::getTrue(M.getContext()));
+      }
       CI->eraseFromParent();
     }
 
@@ -2062,9 +2075,8 @@ bool LowerTypeTestsModule::lower() {
       // with the DropTypeTests flag set.
       bool OnlyAssumeUses = !CI->use_empty();
       for (const Use &CIU : CI->uses()) {
-        if (auto *II = dyn_cast<IntrinsicInst>(CIU.getUser()))
-          if (II->getIntrinsicID() == Intrinsic::assume)
-            continue;
+        if (isa<AssumeInst>(CIU.getUser()))
+          continue;
         OnlyAssumeUses = false;
         break;
       }

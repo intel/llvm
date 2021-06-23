@@ -136,13 +136,16 @@ v_mov_b32_dpp v5, v1 row_share:1 row_mask:0x0 bank_mask:0x0
 // GFX90A: error: not a valid operand
 
 v_ceil_f64_dpp v[0:1], v[2:3] quad_perm:[1,1,1,1] row_mask:0xf bank_mask:0xf
-// GFX90A: error: not a valid operand.
+// GFX90A: error: 64 bit dpp only supports row_newbcast
 
 v_ceil_f64_dpp v[0:1], v[2:3] row_shl:1 row_mask:0xf bank_mask:0xf
-// GFX90A: error: not a valid operand.
+// GFX90A: error: 64 bit dpp only supports row_newbcast
 
 v_ceil_f64_dpp v[0:1], v[2:3] wave_ror:1 row_mask:0xf bank_mask:0xf
-// GFX90A: error: not a valid operand.
+// GFX90A: error: 64 bit dpp only supports row_newbcast
+
+v_cvt_u32_f64 v5, v[0:1] quad_perm:[0,2,1,1] row_mask:0xf bank_mask:0xf
+// GFX90A: error: 64 bit dpp only supports row_newbcast
 
 v_ceil_f64_dpp v[0:1], v[2:3] row_share:1 row_mask:0xf bank_mask:0xf
 // GFX90A: error: not a valid operand.
@@ -196,55 +199,55 @@ image_sample_b v[0:3], v[0:1], s[4:11], s[16:19] dmask:0xf
 // GFX90A: error: instruction not supported on this GPU
 
 global_atomic_add_f32 v0, v[0:1], v2, off glc scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 global_atomic_add_f32 v[0:1], v2, off scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 global_atomic_add_f32 v0, v2, s[0:1] scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 global_atomic_add_f32 v1, v0, v2, s[0:1] glc scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 global_atomic_pk_add_f16 v0, v[0:1], v2, off glc scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 flat_atomic_add_f64 v[0:1], v[0:1], v[2:3] glc scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 flat_atomic_add_f64 v[0:1], v[2:3] scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 flat_atomic_min_f64 v[0:1], v[2:3] scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 flat_atomic_max_f64 v[0:1], v[2:3] scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 global_atomic_add_f64 v[0:1], v[2:3], off scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 global_atomic_min_f64 v[0:1], v[2:3], off scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 global_atomic_max_f64 v[0:1], v[2:3], off scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 buffer_atomic_add_f32 v4, off, s[8:11], s3 scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 buffer_atomic_pk_add_f16 v4, off, s[8:11], s3 scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 buffer_atomic_add_f64 v[4:5], off, s[8:11], s3 scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 buffer_atomic_max_f64 v[4:5], off, s[8:11], s3 scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 buffer_atomic_min_f64 v[4:5], off, s[8:11], s3 scc
-// GFX90A: error: instruction must not use scc
+// GFX90A: error: scc is not supported on this GPU
 
 v_mov_b32_sdwa v1, src_lds_direct dst_sel:DWORD
 // GFX90A: error: lds_direct is not supported on this GPU
@@ -257,3 +260,21 @@ v_ashrrev_i16 v0, lds_direct, v0
 
 v_add_f32 v5, v1, lds_direct
 // GFX90A: error: lds_direct is not supported on this GPU
+
+ds_gws_init a1 offset:65535 gds
+// GFX90A: error: vgpr must be even aligned
+
+ds_gws_init a255 offset:65535 gds
+// GFX90A: error: vgpr must be even aligned
+
+ds_gws_sema_br v1 offset:65535 gds
+// GFX90A: error: vgpr must be even aligned
+
+ds_gws_sema_br v255 offset:65535 gds
+// GFX90A: error: vgpr must be even aligned
+
+ds_gws_barrier a3 offset:4 gds
+// GFX90A: error: vgpr must be even aligned
+
+ds_gws_barrier a255 offset:4 gds
+// GFX90A: error: vgpr must be even aligned

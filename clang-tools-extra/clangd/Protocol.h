@@ -631,7 +631,7 @@ struct WorkDoneProgressReport {
   ///
   /// The value should be steadily rising. Clients are free to ignore values
   /// that are not following this rule.
-  llvm::Optional<double> percentage;
+  llvm::Optional<unsigned> percentage;
 };
 llvm::json::Value toJSON(const WorkDoneProgressReport &);
 //
@@ -844,6 +844,13 @@ struct Diagnostic {
   /// Only with capability textDocument.publishDiagnostics.codeActionsInline.
   /// (These actions can also be obtained using textDocument/codeAction).
   llvm::Optional<std::vector<CodeAction>> codeActions;
+
+  /// A data entry field that is preserved between a
+  /// `textDocument/publishDiagnostics` notification
+  /// and`textDocument/codeAction` request.
+  /// Mutating users should associate their data with a unique key they can use
+  /// to retrieve later on.
+  llvm::json::Object data;
 };
 llvm::json::Value toJSON(const Diagnostic &);
 
@@ -901,7 +908,7 @@ bool fromJSON(const llvm::json::Value &, CodeActionParams &, llvm::json::Path);
 
 struct WorkspaceEdit {
   /// Holds changes to existing resources.
-  llvm::Optional<std::map<std::string, std::vector<TextEdit>>> changes;
+  std::map<std::string, std::vector<TextEdit>> changes;
 
   /// Note: "documentChanges" is not currently used because currently there is
   /// no support for versioned edits.
@@ -1478,6 +1485,53 @@ struct CallHierarchyOutgoingCall {
 };
 llvm::json::Value toJSON(const CallHierarchyOutgoingCall &);
 
+/// The parameter of a `textDocument/inlayHints` request.
+struct InlayHintsParams {
+  /// The text document for which inlay hints are requested.
+  TextDocumentIdentifier textDocument;
+};
+bool fromJSON(const llvm::json::Value &, InlayHintsParams &, llvm::json::Path);
+
+/// A set of predefined hint kinds.
+enum class InlayHintKind {
+  /// The hint corresponds to parameter information.
+  /// An example of a parameter hint is a hint in this position:
+  ///    func(^arg);
+  /// which shows the name of the corresponding parameter.
+  ParameterHint,
+
+  /// The hint corresponds to information about a deduced type.
+  /// An example of a type hint is a hint in this position:
+  ///    auto var ^ = expr;
+  /// which shows the deduced type of the variable.
+  TypeHint,
+
+  /// Other ideas for hints that are not currently implemented:
+  ///
+  /// * Chaining hints, showing the types of intermediate expressions
+  ///   in a chain of function calls.
+  /// * Hints indicating implicit conversions or implicit constructor calls.
+};
+llvm::json::Value toJSON(InlayHintKind);
+
+/// An annotation to be displayed inline next to a range of source code.
+struct InlayHint {
+  /// The range of source code to which the hint applies.
+  /// We provide the entire range, rather than just the endpoint
+  /// relevant to `position` (e.g. the start of the range for
+  /// InlayHintPosition::Before), to give clients the flexibility
+  /// to make choices like only displaying the hint while the cursor
+  /// is over the range, rather than displaying it all the time.
+  Range range;
+
+  /// The type of hint.
+  InlayHintKind kind;
+
+  /// The label that is displayed in the editor.
+  std::string label;
+};
+llvm::json::Value toJSON(const InlayHint &);
+
 struct ReferenceContext {
   /// Include the declaration of the current symbol.
   bool includeDeclaration = false;
@@ -1676,7 +1730,8 @@ struct ASTParams {
 
   /// The position of the node to be dumped.
   /// The highest-level node that entirely contains the range will be returned.
-  Range range;
+  /// If no range is given, the root translation unit node will be returned.
+  llvm::Optional<Range> range;
 };
 bool fromJSON(const llvm::json::Value &, ASTParams &, llvm::json::Path);
 

@@ -695,7 +695,7 @@ bool DarwinAsmParser::parseDirectiveSection(StringRef, SMLoc) {
     return Error(Loc, toString(std::move(E)));
 
   // Issue a warning if the target is not powerpc and Section is a *coal* section.
-  Triple TT = getParser().getContext().getObjectFileInfo()->getTargetTriple();
+  Triple TT = getParser().getContext().getTargetTriple();
   Triple::ArchType ArchTy = TT.getArch();
 
   if (ArchTy != Triple::ppc && ArchTy != Triple::ppc64) {
@@ -776,8 +776,9 @@ bool DarwinAsmParser::parseDirectiveSecureLogUnique(StringRef, SMLoc IDLoc) {
   raw_fd_ostream *OS = getContext().getSecureLog();
   if (!OS) {
     std::error_code EC;
-    auto NewOS = std::make_unique<raw_fd_ostream>(
-        StringRef(SecureLogFile), EC, sys::fs::OF_Append | sys::fs::OF_Text);
+    auto NewOS = std::make_unique<raw_fd_ostream>(StringRef(SecureLogFile), EC,
+                                                  sys::fs::OF_Append |
+                                                      sys::fs::OF_TextWithCRLF);
     if (EC)
        return Error(IDLoc, Twine("can't open secure log file: ") +
                                SecureLogFile + " (" + EC.message() + ")");
@@ -1090,7 +1091,7 @@ bool DarwinAsmParser::parseSDKVersion(VersionTuple &SDKVersion) {
 
 void DarwinAsmParser::checkVersion(StringRef Directive, StringRef Arg,
                                    SMLoc Loc, Triple::OSType ExpectedOS) {
-  const Triple &Target = getContext().getObjectFileInfo()->getTargetTriple();
+  const Triple &Target = getContext().getTargetTriple();
   if (Target.getOS() != ExpectedOS)
     Warning(Loc, Twine(Directive) +
             (Arg.empty() ? Twine() : Twine(' ') + Arg) +

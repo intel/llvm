@@ -14,13 +14,14 @@
 
 #include <bsm/audit.h>
 #include <bsm/audit_session.h>
-#include <errno.h>
+#include <cerrno>
+#include <csignal>
 #include <libproc.h>
 #include <mach-o/loader.h>
 #include <mach/exception_types.h>
+#include <mach/mach_vm.h>
 #include <mach/task_info.h>
 #include <pwd.h>
-#include <signal.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
@@ -3920,6 +3921,17 @@ rnb_err_t RNBRemote::HandlePacket_v(const char *p) {
     char err_str[1024] = {'\0'};
     std::string attach_name;
 
+    if (DNBDebugserverIsTranslated()) {
+      DNBLogError("debugserver is x86_64 binary running in translation, attach "
+                  "failed.");
+      std::string return_message = "E96;";
+      return_message +=
+          cstring_to_asciihex_string("debugserver is x86_64 binary running in "
+                                     "translation, attached failed.");
+      SendPacket(return_message.c_str());
+      return rnb_err;
+    }
+
     if (strstr(p, "vAttachWait;") == p) {
       p += strlen("vAttachWait;");
       if (!GetProcessNameFrom_vAttach(p, attach_name)) {
@@ -4436,7 +4448,7 @@ rnb_err_t RNBRemote::HandlePacket_MemoryRegionInfo(const char *p) {
         __FILE__, __LINE__, p, "Invalid address in qMemoryRegionInfo packet");
   }
 
-  DNBRegionInfo region_info = {0, 0, 0};
+  DNBRegionInfo region_info;
   DNBProcessMemoryRegionInfo(m_ctx.ProcessID(), address, &region_info);
   std::ostringstream ostrm;
 
@@ -4456,6 +4468,18 @@ rnb_err_t RNBRemote::HandlePacket_MemoryRegionInfo(const char *p) {
     if (region_info.permissions & eMemoryPermissionsExecutable)
       ostrm << 'x';
     ostrm << ';';
+
+    ostrm << "dirty-pages:";
+    if (region_info.dirty_pages.size() > 0) {
+      bool first = true;
+      for (nub_addr_t addr : region_info.dirty_pages) {
+        if (!first)
+          ostrm << ",";
+        first = false;
+        ostrm << "0x" << std::hex << addr;
+      }
+    }
+    ostrm << ";";
   }
   return SendPacket(ostrm.str());
 }
@@ -4981,6 +5005,8 @@ rnb_err_t RNBRemote::HandlePacket_qHostInfo(const char *p) {
 #if defined(TARGET_OS_WATCH) && TARGET_OS_WATCH == 1
   strm << "default_packet_timeout:10;";
 #endif
+
+  strm << "vm-page-size:" << std::dec << vm_page_size << ";";
 
   return SendPacket(strm.str());
 }

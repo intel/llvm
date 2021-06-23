@@ -239,6 +239,7 @@ inline void SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>::init() {
   add(Attribute::StructRet, FunctionParameterAttributeSret);
   add(Attribute::NoAlias, FunctionParameterAttributeNoAlias);
   add(Attribute::NoCapture, FunctionParameterAttributeNoCapture);
+  add(Attribute::ReadOnly, FunctionParameterAttributeNoWrite);
 }
 typedef SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>
     SPIRSPIRVFuncParamAttrMap;
@@ -362,6 +363,9 @@ const static char TranslateSPIRVMemFence[] = "__translate_spirv_memory_fence";
 } // namespace kSPIRVName
 
 namespace kSPIRVPostfix {
+const static char ToGlobal[] = "ToGlobal";
+const static char ToLocal[] = "ToLocal";
+const static char ToPrivate[] = "ToPrivate";
 const static char Sat[] = "sat";
 const static char Rtz[] = "rtz";
 const static char Rte[] = "rte";
@@ -402,6 +406,11 @@ const static char NumSIMD[] = "num_simd_work_items";
 const static char StallEnable[] = "stall_enable";
 const static char FmaxMhz[] = "scheduler_target_fmax_mhz";
 const static char LoopFuse[] = "loop_fuse";
+const static char PreferDSP[] = "prefer_dsp";
+const static char PropDSPPref[] = "propagate_dsp_preference";
+const static char InitiationInterval[] = "initiation_interval";
+const static char MaxConcurrency[] = "max_concurrency";
+const static char DisableLoopPipelining[] = "disable_loop_pipelining";
 } // namespace kSPIR2MD
 
 enum Spir2SamplerKind {
@@ -981,6 +990,10 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
 
 // Check if the module contains llvm.loop.* metadata
 bool hasLoopMetadata(const Module *M);
+
+// Check if CI is a call to instruction from OpenCL Extended Instruction Set.
+// If so, return it's extended opcode in ExtOp.
+bool isSPIRVOCLExtInst(const CallInst *CI, OCLExtOpKind *ExtOp);
 
 // check LLVM Intrinsics type(s) for validity
 bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM);

@@ -62,32 +62,46 @@ __kernel void test_mem_fence_non_const_flags(cl_mem_fence_flags flags) {
 // 0x2 Workgroup
 // CHECK-SPIRV-DAG: Constant [[UINT]] [[WG:[0-9]+]] 2
 //
-// 0x0 Relaxed + 0x100 WorkgroupMemory
-// CHECK-SPIRV-DAG: Constant [[UINT]] [[LOCAL:[0-9]+]] 256
-// 0x0 Relaxed + 0x200 CrossWorkgroupMemory
-// CHECK-SPIRV-DAG: Constant [[UINT]] [[GLOBAL:[0-9]+]] 512
-// 0x0 Relaxed + 0x800 ImageMemory
-// CHECK-SPIRV-DAG: Constant [[UINT]] [[IMAGE:[0-9]+]] 2048
-// 0x0 Relaxed + 0x100 WorkgroupMemory + 0x200 CrossWorkgroupMemory
-// CHECK-SPIRV-DAG: Constant [[UINT]] [[LOCAL_GLOBAL:[0-9]+]] 768
-// 0x0 Relaxed + 0x100 WorkgroupMemory + 0x800 ImageMemory
-// CHECK-SPIRV-DAG: Constant [[UINT]] [[LOCAL_IMAGE:[0-9]+]] 2304
-// 0x0 Relaxed + 0x100 WorkgroupMemory + 0x200 CrossWorkgroupMemory + 0x800 ImageMemory
-// CHECK-SPIRV-DAG: Constant [[UINT]] [[LOCAL_GLOBAL_IMAGE:[0-9]+]] 2816
+// 0x2 Acquire + 0x100 WorkgroupMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[ACQ_LOCAL:[0-9]+]] 258
+// 0x2 Acquire + 0x200 CrossWorkgroupMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[ACQ_GLOBAL:[0-9]+]] 514
+// 0x2 Acquire + 0x100 WorkgroupMemory + 0x200 CrossWorkgroupMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[ACQ_LOCAL_GLOBAL:[0-9]+]] 770
+//
+// 0x4 Release + 0x100 WorkgroupMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[REL_LOCAL:[0-9]+]] 260
+// 0x4 Release + 0x200 CrossWorkgroupMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[REL_GLOBAL:[0-9]+]] 516
+// 0x4 Release + 0x100 WorkgroupMemory + 0x200 CrossWorkgroupMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[REL_LOCAL_GLOBAL:[0-9]+]] 772
+//
+// 0x8 AcquireRelease + 0x100 WorkgroupMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[ACQ_REL_LOCAL:[0-9]+]] 264
+// 0x8 AcquireRelease + 0x200 CrossWorkgroupMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[ACQ_REL_GLOBAL:[0-9]+]] 520
+// 0x8 AcquireRelease + 0x800 ImageMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[ACQ_REL_IMAGE:[0-9]+]] 2056
+// 0x8 AcquireRelease + 0x100 WorkgroupMemory + 0x200 CrossWorkgroupMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[ACQ_REL_LOCAL_GLOBAL:[0-9]+]] 776
+// 0x8 AcquireRelease + 0x100 WorkgroupMemory + 0x800 ImageMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[ACQ_REL_LOCAL_IMAGE:[0-9]+]] 2312
+// 0x8 AcquireRelease + 0x100 WorkgroupMemory + 0x200 CrossWorkgroupMemory + 0x800 ImageMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[ACQ_REL_LOCAL_GLOBAL_IMAGE:[0-9]+]] 2824
 //
 // CHECK-SPIRV: Function {{[0-9]+}} [[TEST_CONST_FLAGS]]
-// CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL]]
-// CHECK-SPIRV: MemoryBarrier [[WG]] [[GLOBAL]]
-// CHECK-SPIRV: MemoryBarrier [[WG]] [[IMAGE]]
-// CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL_GLOBAL]]
-// CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL_IMAGE]]
-// CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL_GLOBAL_IMAGE]]
-// CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL]]
-// CHECK-SPIRV: MemoryBarrier [[WG]] [[GLOBAL]]
-// CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL_GLOBAL]]
-// CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL]]
-// CHECK-SPIRV: MemoryBarrier [[WG]] [[GLOBAL]]
-// CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL_GLOBAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[ACQ_REL_LOCAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[ACQ_REL_GLOBAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[ACQ_REL_IMAGE]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[ACQ_REL_LOCAL_GLOBAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[ACQ_REL_LOCAL_IMAGE]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[ACQ_REL_LOCAL_GLOBAL_IMAGE]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[ACQ_LOCAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[ACQ_GLOBAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[ACQ_LOCAL_GLOBAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[REL_LOCAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[REL_GLOBAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[REL_LOCAL_GLOBAL]]
 //
 // CHECK-LLVM-LABEL: define spir_kernel void @test_mem_fence_const_flags
 // CHECK-LLVM: call spir_func void @_Z9mem_fencej(i32 1)

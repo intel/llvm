@@ -80,8 +80,24 @@ const Scope *FindPureProcedureContaining(const Scope &start) {
   // N.B. We only need to examine the innermost containing program unit
   // because an internal subprogram of a pure subprogram must also
   // be pure (C1592).
-  const Scope &scope{GetProgramUnitContaining(start)};
-  return IsPureProcedure(scope) ? &scope : nullptr;
+  if (start.IsGlobal()) {
+    return nullptr;
+  } else {
+    const Scope &scope{GetProgramUnitContaining(start)};
+    return IsPureProcedure(scope) ? &scope : nullptr;
+  }
+}
+
+static bool MightHaveCompatibleDerivedtypes(
+    const std::optional<evaluate::DynamicType> &lhsType,
+    const std::optional<evaluate::DynamicType> &rhsType) {
+  const DerivedTypeSpec *lhsDerived{evaluate::GetDerivedTypeSpec(lhsType)};
+  const DerivedTypeSpec *rhsDerived{evaluate::GetDerivedTypeSpec(rhsType)};
+  if (!lhsDerived || !rhsDerived) {
+    return false;
+  }
+  return *lhsDerived == *rhsDerived ||
+      lhsDerived->MightBeAssignmentCompatibleWith(*rhsDerived);
 }
 
 Tristate IsDefinedAssignment(
@@ -97,15 +113,10 @@ Tristate IsDefinedAssignment(
   } else if (lhsCat != TypeCategory::Derived) {
     return ToTristate(lhsCat != rhsCat &&
         (!IsNumericTypeCategory(lhsCat) || !IsNumericTypeCategory(rhsCat)));
+  } else if (MightHaveCompatibleDerivedtypes(lhsType, rhsType)) {
+    return Tristate::Maybe; // TYPE(t) = TYPE(t) can be defined or intrinsic
   } else {
-    const auto *lhsDerived{evaluate::GetDerivedTypeSpec(lhsType)};
-    const auto *rhsDerived{evaluate::GetDerivedTypeSpec(rhsType)};
-    if (lhsDerived && rhsDerived && *lhsDerived == *rhsDerived) {
-      return Tristate::Maybe; // TYPE(t) = TYPE(t) can be defined or
-                              // intrinsic
-    } else {
-      return Tristate::Yes;
-    }
+    return Tristate::Yes;
   }
 }
 
@@ -1053,10 +1064,9 @@ SymbolVector OrderParameterDeclarations(const Symbol &typeSymbol) {
   return result;
 }
 
-const DeclTypeSpec &FindOrInstantiateDerivedType(Scope &scope,
-    DerivedTypeSpec &&spec, SemanticsContext &semanticsContext,
-    DeclTypeSpec::Category category) {
-  spec.EvaluateParameters(semanticsContext);
+const DeclTypeSpec &FindOrInstantiateDerivedType(
+    Scope &scope, DerivedTypeSpec &&spec, DeclTypeSpec::Category category) {
+  spec.EvaluateParameters(scope.context());
   if (const DeclTypeSpec *
       type{scope.FindInstantiatedDerivedType(spec, category)}) {
     return *type;
@@ -1064,7 +1074,7 @@ const DeclTypeSpec &FindOrInstantiateDerivedType(Scope &scope,
   // Create a new instantiation of this parameterized derived type
   // for this particular distinct set of actual parameter values.
   DeclTypeSpec &type{scope.MakeDerivedType(category, std::move(spec))};
-  type.derivedTypeSpec().Instantiate(scope, semanticsContext);
+  type.derivedTypeSpec().Instantiate(scope);
   return type;
 }
 

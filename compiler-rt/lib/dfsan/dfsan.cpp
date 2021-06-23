@@ -36,14 +36,6 @@
 
 using namespace __dfsan;
 
-typedef atomic_uint16_t atomic_dfsan_label;
-static const dfsan_label kInitializingLabel = -1;
-
-static const uptr kNumLabels = 1 << (sizeof(dfsan_label) * 8);
-
-static atomic_dfsan_label __dfsan_last_label;
-static dfsan_label_info __dfsan_label_info[kNumLabels];
-
 Flags __dfsan::flags_data;
 
 // The size of TLS variables. These constants must be kept in sync with the ones
@@ -59,8 +51,6 @@ SANITIZER_INTERFACE_ATTRIBUTE THREADLOCAL u64
     __dfsan_arg_tls[kDFsanArgTlsSize / sizeof(u64)];
 SANITIZER_INTERFACE_ATTRIBUTE THREADLOCAL u32
     __dfsan_arg_origin_tls[kDFsanArgOriginTlsSize / sizeof(u32)];
-
-SANITIZER_INTERFACE_ATTRIBUTE uptr __dfsan_shadow_ptr_mask;
 
 // Instrumented code may set this value in terms of -dfsan-track-origins.
 // * undefined or 0: do not track origins.
@@ -80,178 +70,27 @@ int __dfsan_get_track_origins() {
 // |                    |
 // |       unused       |
 // |                    |
-// +--------------------+ 0x300200000000 (kUnusedAddr)
-// |    union table     |
-// +--------------------+ 0x300000000000 (kUnionTableAddr)
+// +--------------------+ 0x300000000000 (kUnusedAddr)
 // |       origin       |
-// +--------------------+ 0x200000000000 (kOriginAddr)
+// +--------------------+ 0x200000008000 (kOriginAddr)
+// |       unused       |
+// +--------------------+ 0x200000000000
 // |   shadow memory    |
-// +--------------------+ 0x000000010000 (kShadowAddr)
+// +--------------------+ 0x100000008000 (kShadowAddr)
+// |       unused       |
+// +--------------------+ 0x000000010000
 // | reserved by kernel |
 // +--------------------+ 0x000000000000
 //
-// To derive a shadow memory address from an application memory address,
-// bits 44-46 are cleared to bring the address into the range
-// [0x000000008000,0x100000000000).  Then the address is shifted left by 1 to
-// account for the double byte representation of shadow labels and move the
-// address into the shadow memory range.  See the function shadow_for below.
-
-// On Linux/MIPS64, memory is laid out as follows:
+// To derive a shadow memory address from an application memory address, bits
+// 45-46 are cleared to bring the address into the range
+// [0x100000008000,0x200000000000).  See the function shadow_for below.
 //
-// +--------------------+ 0x10000000000 (top of memory)
-// | application memory |
-// +--------------------+ 0xF000008000 (kAppAddr)
-// |                    |
-// |       unused       |
-// |                    |
-// +--------------------+ 0x2200000000 (kUnusedAddr)
-// |    union table     |
-// +--------------------+ 0x2000000000 (kUnionTableAddr)
-// |   shadow memory    |
-// +--------------------+ 0x0000010000 (kShadowAddr)
-// | reserved by kernel |
-// +--------------------+ 0x0000000000
-
-// On Linux/AArch64 (39-bit VMA), memory is laid out as follow:
 //
-// +--------------------+ 0x8000000000 (top of memory)
-// | application memory |
-// +--------------------+ 0x7000008000 (kAppAddr)
-// |                    |
-// |       unused       |
-// |                    |
-// +--------------------+ 0x1200000000 (kUnusedAddr)
-// |    union table     |
-// +--------------------+ 0x1000000000 (kUnionTableAddr)
-// |   shadow memory    |
-// +--------------------+ 0x0000010000 (kShadowAddr)
-// | reserved by kernel |
-// +--------------------+ 0x0000000000
 
-// On Linux/AArch64 (42-bit VMA), memory is laid out as follow:
-//
-// +--------------------+ 0x40000000000 (top of memory)
-// | application memory |
-// +--------------------+ 0x3ff00008000 (kAppAddr)
-// |                    |
-// |       unused       |
-// |                    |
-// +--------------------+ 0x1200000000 (kUnusedAddr)
-// |    union table     |
-// +--------------------+ 0x8000000000 (kUnionTableAddr)
-// |   shadow memory    |
-// +--------------------+ 0x0000010000 (kShadowAddr)
-// | reserved by kernel |
-// +--------------------+ 0x0000000000
-
-// On Linux/AArch64 (48-bit VMA), memory is laid out as follow:
-//
-// +--------------------+ 0x1000000000000 (top of memory)
-// | application memory |
-// +--------------------+ 0xffff00008000 (kAppAddr)
-// |       unused       |
-// +--------------------+ 0xaaaab0000000 (top of PIE address)
-// | application PIE    |
-// +--------------------+ 0xaaaaa0000000 (top of PIE address)
-// |                    |
-// |       unused       |
-// |                    |
-// +--------------------+ 0x1200000000 (kUnusedAddr)
-// |    union table     |
-// +--------------------+ 0x8000000000 (kUnionTableAddr)
-// |   shadow memory    |
-// +--------------------+ 0x0000010000 (kShadowAddr)
-// | reserved by kernel |
-// +--------------------+ 0x0000000000
-
-typedef atomic_dfsan_label dfsan_union_table_t[kNumLabels][kNumLabels];
-
-#ifdef DFSAN_RUNTIME_VMA
-// Runtime detected VMA size.
-int __dfsan::vmaSize;
-#endif
-
-static uptr UnusedAddr() {
-  return UnionTableAddr() + sizeof(dfsan_union_table_t);
-}
-
-static atomic_dfsan_label *union_table(dfsan_label l1, dfsan_label l2) {
-  return &(*(dfsan_union_table_t *) UnionTableAddr())[l1][l2];
-}
-
-// Checks we do not run out of labels.
-static void dfsan_check_label(dfsan_label label) {
-  if (label == kInitializingLabel) {
-    Report("FATAL: DataFlowSanitizer: out of labels\n");
-    Die();
-  }
-}
-
-// Resolves the union of two unequal labels.  Nonequality is a precondition for
-// this function (the instrumentation pass inlines the equality test).
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-dfsan_label __dfsan_union(dfsan_label l1, dfsan_label l2) {
-  DCHECK_NE(l1, l2);
-
-  if (l1 == 0)
-    return l2;
-  if (l2 == 0)
-    return l1;
-
-  // If no labels have been created, yet l1 and l2 are non-zero, we are using
-  // fast16labels mode.
-  if (atomic_load(&__dfsan_last_label, memory_order_relaxed) == 0)
-    return l1 | l2;
-
-  if (l1 > l2)
-    Swap(l1, l2);
-
-  atomic_dfsan_label *table_ent = union_table(l1, l2);
-  // We need to deal with the case where two threads concurrently request
-  // a union of the same pair of labels.  If the table entry is uninitialized,
-  // (i.e. 0) use a compare-exchange to set the entry to kInitializingLabel
-  // (i.e. -1) to mark that we are initializing it.
-  dfsan_label label = 0;
-  if (atomic_compare_exchange_strong(table_ent, &label, kInitializingLabel,
-                                     memory_order_acquire)) {
-    // Check whether l2 subsumes l1.  We don't need to check whether l1
-    // subsumes l2 because we are guaranteed here that l1 < l2, and (at least
-    // in the cases we are interested in) a label may only subsume labels
-    // created earlier (i.e. with a lower numerical value).
-    if (__dfsan_label_info[l2].l1 == l1 ||
-        __dfsan_label_info[l2].l2 == l1) {
-      label = l2;
-    } else {
-      label =
-        atomic_fetch_add(&__dfsan_last_label, 1, memory_order_relaxed) + 1;
-      dfsan_check_label(label);
-      __dfsan_label_info[label].l1 = l1;
-      __dfsan_label_info[label].l2 = l2;
-    }
-    atomic_store(table_ent, label, memory_order_release);
-  } else if (label == kInitializingLabel) {
-    // Another thread is initializing the entry.  Wait until it is finished.
-    do {
-      internal_sched_yield();
-      label = atomic_load(table_ent, memory_order_acquire);
-    } while (label == kInitializingLabel);
-  }
-  return label;
-}
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 dfsan_label __dfsan_union_load(const dfsan_label *ls, uptr n) {
-  dfsan_label label = ls[0];
-  for (uptr i = 1; i != n; ++i) {
-    dfsan_label next_label = ls[i];
-    if (label != next_label)
-      label = __dfsan_union(label, next_label);
-  }
-  return label;
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-dfsan_label __dfsan_union_load_fast16labels(const dfsan_label *ls, uptr n) {
   dfsan_label label = ls[0];
   for (uptr i = 1; i != n; ++i)
     label |= ls[i];
@@ -301,24 +140,10 @@ __dfsan_vararg_wrapper(const char *fname) {
   Die();
 }
 
-// Like __dfsan_union, but for use from the client or custom functions.  Hence
-// the equality comparison is done here before calling __dfsan_union.
+// Resolves the union of two labels.
 SANITIZER_INTERFACE_ATTRIBUTE dfsan_label
 dfsan_union(dfsan_label l1, dfsan_label l2) {
-  if (l1 == l2)
-    return l1;
-  return __dfsan_union(l1, l2);
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-dfsan_label dfsan_create_label(const char *desc, void *userdata) {
-  dfsan_label label =
-      atomic_fetch_add(&__dfsan_last_label, 1, memory_order_relaxed) + 1;
-  dfsan_check_label(label);
-  __dfsan_label_info[label].l1 = __dfsan_label_info[label].l2 = 0;
-  __dfsan_label_info[label].desc = desc;
-  __dfsan_label_info[label].userdata = userdata;
-  return label;
+  return l1 | l2;
 }
 
 // Return the origin of the first taint byte in the size bytes from the address
@@ -429,7 +254,7 @@ static void CopyOrigin(const void *dst, const void *src, uptr size,
   // Align src up.
   uptr s = AlignUp((uptr)src);
   dfsan_origin *src_o = (dfsan_origin *)origin_for((void *)s);
-  u64 *src_s = (u64 *)shadow_for((void *)s);
+  u32 *src_s = (u32 *)shadow_for((void *)s);
   dfsan_origin *src_end = (dfsan_origin *)origin_for((void *)(s + (end - beg)));
   dfsan_origin *dst_o = (dfsan_origin *)origin_for((void *)beg);
   dfsan_origin last_src_o = 0;
@@ -465,7 +290,7 @@ static void ReverseCopyOrigin(const void *dst, const void *src, uptr size,
     uptr s = AlignUp((uptr)src);
     dfsan_origin *src =
         (dfsan_origin *)origin_for((void *)(s + end - beg - kOriginAlign));
-    u64 *src_s = (u64 *)shadow_for((void *)(s + end - beg - kOriginAlign));
+    u32 *src_s = (u32 *)shadow_for((void *)(s + end - beg - kOriginAlign));
     dfsan_origin *src_begin = (dfsan_origin *)origin_for((void *)s);
     dfsan_origin *dst =
         (dfsan_origin *)origin_for((void *)(end - kOriginAlign));
@@ -540,10 +365,17 @@ static void SetOrigin(const void *dst, uptr size, u32 origin) {
       *(u32 *)(end - kOriginAlign) = origin;
 }
 
-static void WriteShadowIfDifferent(dfsan_label label, uptr shadow_addr,
-                                   uptr size) {
-  dfsan_label *labelp = (dfsan_label *)shadow_addr;
-  for (; size != 0; --size, ++labelp) {
+static void WriteShadowInRange(dfsan_label label, uptr beg_shadow_addr,
+                               uptr end_shadow_addr) {
+  // TODO: After changing dfsan_label to 8bit, use internal_memset when label
+  // is not 0.
+  dfsan_label *labelp = (dfsan_label *)beg_shadow_addr;
+  if (label) {
+    for (; (uptr)labelp < end_shadow_addr; ++labelp) *labelp = label;
+    return;
+  }
+
+  for (; (uptr)labelp < end_shadow_addr; ++labelp) {
     // Don't write the label if it is already the value we need it to be.
     // In a program where most addresses are not labeled, it is common that
     // a page of shadow memory is entirely zeroed.  The Linux copy-on-write
@@ -552,21 +384,38 @@ static void WriteShadowIfDifferent(dfsan_label label, uptr shadow_addr,
     // the value written does not change the value in memory.  Avoiding the
     // write when both |label| and |*labelp| are zero dramatically reduces
     // the amount of real memory used by large programs.
-    if (label == *labelp)
+    if (!*labelp)
       continue;
 
-    *labelp = label;
+    *labelp = 0;
   }
 }
+
+static void WriteShadowWithSize(dfsan_label label, uptr shadow_addr,
+                                uptr size) {
+  WriteShadowInRange(label, shadow_addr, shadow_addr + size * sizeof(label));
+}
+
+#define RET_CHAIN_ORIGIN(id)           \
+  GET_CALLER_PC_BP_SP;                 \
+  (void)sp;                            \
+  GET_STORE_STACK_TRACE_PC_BP(pc, bp); \
+  return ChainOrigin(id, &stack);
 
 // Return a new origin chain with the previous ID id and the current stack
 // trace.
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE dfsan_origin
 __dfsan_chain_origin(dfsan_origin id) {
-  GET_CALLER_PC_BP_SP;
-  (void)sp;
-  GET_STORE_STACK_TRACE_PC_BP(pc, bp);
-  return ChainOrigin(id, &stack);
+  RET_CHAIN_ORIGIN(id)
+}
+
+// Return a new origin chain with the previous ID id and the current stack
+// trace if the label is tainted.
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE dfsan_origin
+__dfsan_chain_origin_if_tainted(dfsan_label label, dfsan_origin id) {
+  if (!label)
+    return id;
+  RET_CHAIN_ORIGIN(id)
 }
 
 // Copy or move the origins of the len bytes from src to dst.
@@ -585,11 +434,26 @@ SANITIZER_INTERFACE_ATTRIBUTE void dfsan_mem_origin_transfer(const void *dst,
   __dfsan_mem_origin_transfer(dst, src, len);
 }
 
+namespace __dfsan {
+
+bool dfsan_inited = false;
+bool dfsan_init_is_running = false;
+
+void dfsan_copy_memory(void *dst, const void *src, uptr size) {
+  internal_memcpy(dst, src, size);
+  internal_memcpy((void *)shadow_for(dst), (const void *)shadow_for(src),
+                  size * sizeof(dfsan_label));
+  if (__dfsan_get_track_origins())
+    dfsan_mem_origin_transfer(dst, src, size);
+}
+
+}  // namespace __dfsan
+
 // If the label s is tainted, set the size bytes from the address p to be a new
 // origin chain with the previous ID o and the current stack trace. This is
 // used by instrumentation to reduce code size when too much code is inserted.
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE void __dfsan_maybe_store_origin(
-    u16 s, void *p, uptr size, dfsan_origin o) {
+    dfsan_label s, void *p, uptr size, dfsan_origin o) {
   if (UNLIKELY(s)) {
     GET_CALLER_PC_BP_SP;
     (void)sp;
@@ -598,63 +462,64 @@ extern "C" SANITIZER_INTERFACE_ATTRIBUTE void __dfsan_maybe_store_origin(
   }
 }
 
-// Releases the pages within the origin address range, and sets the origin
-// addresses not on the pages to be 0.
-static void ReleaseOrClearOrigins(void *addr, uptr size) {
+// Releases the pages within the origin address range.
+static void ReleaseOrigins(void *addr, uptr size) {
   const uptr beg_origin_addr = (uptr)__dfsan::origin_for(addr);
   const void *end_addr = (void *)((uptr)addr + size);
   const uptr end_origin_addr = (uptr)__dfsan::origin_for(end_addr);
+
+  if (end_origin_addr - beg_origin_addr <
+      common_flags()->clear_shadow_mmap_threshold)
+    return;
+
   const uptr page_size = GetPageSizeCached();
   const uptr beg_aligned = RoundUpTo(beg_origin_addr, page_size);
   const uptr end_aligned = RoundDownTo(end_origin_addr, page_size);
 
-  // dfsan_set_label can be called from the following cases
-  // 1) mapped ranges by new/delete and malloc/free. This case has origin memory
-  // size > 50k, and happens less frequently.
-  // 2) zero-filling internal data structures by utility libraries. This case
-  // has origin memory size < 16k, and happens more often.
-  // Set kNumPagesThreshold to be 4 to avoid releasing small pages.
-  const int kNumPagesThreshold = 4;
-  if (beg_aligned + kNumPagesThreshold * page_size >= end_aligned)
-    return;
+  if (!MmapFixedSuperNoReserve(beg_aligned, end_aligned - beg_aligned))
+    Die();
+}
 
-  ReleaseMemoryPagesToOS(beg_aligned, end_aligned);
+// Releases the pages within the shadow address range, and sets
+// the shadow addresses not on the pages to be 0.
+static void ReleaseOrClearShadows(void *addr, uptr size) {
+  const uptr beg_shadow_addr = (uptr)__dfsan::shadow_for(addr);
+  const void *end_addr = (void *)((uptr)addr + size);
+  const uptr end_shadow_addr = (uptr)__dfsan::shadow_for(end_addr);
+
+  if (end_shadow_addr - beg_shadow_addr <
+      common_flags()->clear_shadow_mmap_threshold)
+    return WriteShadowWithSize(0, beg_shadow_addr, size);
+
+  const uptr page_size = GetPageSizeCached();
+  const uptr beg_aligned = RoundUpTo(beg_shadow_addr, page_size);
+  const uptr end_aligned = RoundDownTo(end_shadow_addr, page_size);
+
+  if (beg_aligned >= end_aligned) {
+    WriteShadowWithSize(0, beg_shadow_addr, size);
+  } else {
+    if (beg_aligned != beg_shadow_addr)
+      WriteShadowInRange(0, beg_shadow_addr, beg_aligned);
+    if (end_aligned != end_shadow_addr)
+      WriteShadowInRange(0, end_aligned, end_shadow_addr);
+    if (!MmapFixedSuperNoReserve(beg_aligned, end_aligned - beg_aligned))
+      Die();
+  }
 }
 
 void SetShadow(dfsan_label label, void *addr, uptr size, dfsan_origin origin) {
-  const uptr beg_shadow_addr = (uptr)__dfsan::shadow_for(addr);
-
   if (0 != label) {
-    WriteShadowIfDifferent(label, beg_shadow_addr, size);
+    const uptr beg_shadow_addr = (uptr)__dfsan::shadow_for(addr);
+    WriteShadowWithSize(label, beg_shadow_addr, size);
     if (__dfsan_get_track_origins())
       SetOrigin(addr, size, origin);
     return;
   }
 
   if (__dfsan_get_track_origins())
-    ReleaseOrClearOrigins(addr, size);
+    ReleaseOrigins(addr, size);
 
-  // If label is 0, releases the pages within the shadow address range, and sets
-  // the shadow addresses not on the pages to be 0.
-  const void *end_addr = (void *)((uptr)addr + size);
-  const uptr end_shadow_addr = (uptr)__dfsan::shadow_for(end_addr);
-  const uptr page_size = GetPageSizeCached();
-  const uptr beg_aligned = RoundUpTo(beg_shadow_addr, page_size);
-  const uptr end_aligned = RoundDownTo(end_shadow_addr, page_size);
-
-  // dfsan_set_label can be called from the following cases
-  // 1) mapped ranges by new/delete and malloc/free. This case has shadow memory
-  // size > 100k, and happens less frequently.
-  // 2) zero-filling internal data structures by utility libraries. This case
-  // has shadow memory size < 32k, and happens more often.
-  // Set kNumPagesThreshold to be 8 to avoid releasing small pages.
-  const int kNumPagesThreshold = 8;
-  if (beg_aligned + kNumPagesThreshold * page_size >= end_aligned)
-    return WriteShadowIfDifferent(label, beg_shadow_addr, size);
-
-  WriteShadowIfDifferent(label, beg_shadow_addr, beg_aligned - beg_shadow_addr);
-  ReleaseMemoryPagesToOS(beg_aligned, end_aligned);
-  WriteShadowIfDifferent(label, end_aligned, end_shadow_addr - end_aligned);
+  ReleaseOrClearShadows(addr, size);
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE void __dfsan_set_label(
@@ -686,8 +551,7 @@ void dfsan_add_label(dfsan_label label, void *addr, uptr size) {
   }
 
   for (dfsan_label *labelp = shadow_for(addr); size != 0; --size, ++labelp)
-    if (*labelp != label)
-      *labelp = __dfsan_union(*labelp, label);
+    *labelp |= label;
 }
 
 // Unlike the other dfsan interface functions the behavior of this function
@@ -743,57 +607,9 @@ SANITIZER_INTERFACE_ATTRIBUTE void dfsan_set_label_origin(dfsan_label label,
   __dfsan_set_label(label, origin, addr, size);
 }
 
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-const struct dfsan_label_info *dfsan_get_label_info(dfsan_label label) {
-  return &__dfsan_label_info[label];
-}
-
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE int
 dfsan_has_label(dfsan_label label, dfsan_label elem) {
-  if (label == elem)
-    return true;
-  const dfsan_label_info *info = dfsan_get_label_info(label);
-  if (info->l1 != 0) {
-    return dfsan_has_label(info->l1, elem) || dfsan_has_label(info->l2, elem);
-  } else {
-    return false;
-  }
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE dfsan_label
-dfsan_has_label_with_desc(dfsan_label label, const char *desc) {
-  const dfsan_label_info *info = dfsan_get_label_info(label);
-  if (info->l1 != 0) {
-    return dfsan_has_label_with_desc(info->l1, desc) ||
-           dfsan_has_label_with_desc(info->l2, desc);
-  } else {
-    return internal_strcmp(desc, info->desc) == 0;
-  }
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE uptr
-dfsan_get_label_count(void) {
-  dfsan_label max_label_allocated =
-      atomic_load(&__dfsan_last_label, memory_order_relaxed);
-
-  return static_cast<uptr>(max_label_allocated);
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE void
-dfsan_dump_labels(int fd) {
-  dfsan_label last_label =
-      atomic_load(&__dfsan_last_label, memory_order_relaxed);
-  for (uptr l = 1; l <= last_label; ++l) {
-    char buf[64];
-    internal_snprintf(buf, sizeof(buf), "%u %u %u ", l,
-                      __dfsan_label_info[l].l1, __dfsan_label_info[l].l2);
-    WriteToFile(fd, buf, internal_strlen(buf));
-    if (__dfsan_label_info[l].l1 == 0 && __dfsan_label_info[l].desc) {
-      WriteToFile(fd, __dfsan_label_info[l].desc,
-                  internal_strlen(__dfsan_label_info[l].desc));
-    }
-    WriteToFile(fd, "\n", 1);
-  }
+  return (label & elem) == elem;
 }
 
 class Decorator : public __sanitizer::SanitizerCommonDecorator {
@@ -802,49 +618,123 @@ class Decorator : public __sanitizer::SanitizerCommonDecorator {
   const char *Origin() const { return Magenta(); }
 };
 
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE void dfsan_print_origin_trace(
-    const void *addr, const char *description) {
+namespace {
+
+void PrintNoOriginTrackingWarning() {
+  Decorator d;
+  Printf(
+      "  %sDFSan: origin tracking is not enabled. Did you specify the "
+      "-dfsan-track-origins=1 option?%s\n",
+      d.Warning(), d.Default());
+}
+
+void PrintNoTaintWarning(const void *address) {
+  Decorator d;
+  Printf("  %sDFSan: no tainted value at %x%s\n", d.Warning(), address,
+         d.Default());
+}
+
+void PrintInvalidOriginWarning(dfsan_label label, const void *address) {
+  Decorator d;
+  Printf(
+      "  %sTaint value 0x%x (at %p) has invalid origin tracking. This can "
+      "be a DFSan bug.%s\n",
+      d.Warning(), label, address, d.Default());
+}
+
+bool PrintOriginTraceToStr(const void *addr, const char *description,
+                           InternalScopedString *out) {
+  CHECK(out);
+  CHECK(__dfsan_get_track_origins());
   Decorator d;
 
-  if (!__dfsan_get_track_origins()) {
-    Printf(
-        "  %sDFSan: origin tracking is not enabled. Did you specify the "
-        "-dfsan-track-origins=1 option?%s\n",
-        d.Warning(), d.Default());
-    return;
-  }
-
   const dfsan_label label = *__dfsan::shadow_for(addr);
-  if (!label) {
-    Printf("  %sDFSan: no tainted value at %x%s\n", d.Warning(), addr,
-           d.Default());
-    return;
-  }
+  CHECK(label);
 
   const dfsan_origin origin = *__dfsan::origin_for(addr);
 
-  Printf("  %sTaint value 0x%x (at %p) origin tracking (%s)%s\n", d.Origin(),
-         label, addr, description ? description : "", d.Default());
+  out->append("  %sTaint value 0x%x (at %p) origin tracking (%s)%s\n",
+              d.Origin(), label, addr, description ? description : "",
+              d.Default());
+
   Origin o = Origin::FromRawId(origin);
   bool found = false;
+
   while (o.isChainedOrigin()) {
     StackTrace stack;
     dfsan_origin origin_id = o.raw_id();
     o = o.getNextChainedOrigin(&stack);
     if (o.isChainedOrigin())
-      Printf("  %sOrigin value: 0x%x, Taint value was stored to memory at%s\n",
-             d.Origin(), origin_id, d.Default());
+      out->append(
+          "  %sOrigin value: 0x%x, Taint value was stored to memory at%s\n",
+          d.Origin(), origin_id, d.Default());
     else
-      Printf("  %sOrigin value: 0x%x, Taint value was created at%s\n",
-             d.Origin(), origin_id, d.Default());
-    stack.Print();
+      out->append("  %sOrigin value: 0x%x, Taint value was created at%s\n",
+                  d.Origin(), origin_id, d.Default());
+
+    // Includes a trailing newline, so no need to add it again.
+    stack.PrintTo(out);
     found = true;
   }
-  if (!found)
-    Printf(
-        "  %sTaint value 0x%x (at %p) has invalid origin tracking. This can "
-        "be a DFSan bug.%s\n",
-        d.Warning(), label, addr, d.Default());
+
+  return found;
+}
+
+}  // namespace
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE void dfsan_print_origin_trace(
+    const void *addr, const char *description) {
+  if (!__dfsan_get_track_origins()) {
+    PrintNoOriginTrackingWarning();
+    return;
+  }
+
+  const dfsan_label label = *__dfsan::shadow_for(addr);
+  if (!label) {
+    PrintNoTaintWarning(addr);
+    return;
+  }
+
+  InternalScopedString trace;
+  bool success = PrintOriginTraceToStr(addr, description, &trace);
+
+  if (trace.length())
+    Printf("%s", trace.data());
+
+  if (!success)
+    PrintInvalidOriginWarning(label, addr);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE size_t
+dfsan_sprint_origin_trace(const void *addr, const char *description,
+                          char *out_buf, size_t out_buf_size) {
+  CHECK(out_buf);
+
+  if (!__dfsan_get_track_origins()) {
+    PrintNoOriginTrackingWarning();
+    return 0;
+  }
+
+  const dfsan_label label = *__dfsan::shadow_for(addr);
+  if (!label) {
+    PrintNoTaintWarning(addr);
+    return 0;
+  }
+
+  InternalScopedString trace;
+  bool success = PrintOriginTraceToStr(addr, description, &trace);
+
+  if (!success) {
+    PrintInvalidOriginWarning(label, addr);
+    return 0;
+  }
+
+  if (out_buf_size) {
+    internal_strncpy(out_buf, trace.data(), out_buf_size - 1);
+    out_buf[out_buf_size - 1] = '\0';
+  }
+
+  return trace.length();
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE dfsan_origin
@@ -868,10 +758,6 @@ dfsan_get_init_origin(const void *addr) {
   return origin_id;
 }
 
-#define GET_FATAL_STACK_TRACE_PC_BP(pc, bp) \
-  BufferedStackTrace stack;                 \
-  stack.Unwind(pc, bp, nullptr, common_flags()->fast_unwind_on_fatal);
-
 void __sanitizer::BufferedStackTrace::UnwindImpl(uptr pc, uptr bp,
                                                  void *context,
                                                  bool request_fast,
@@ -885,8 +771,17 @@ void __sanitizer::BufferedStackTrace::UnwindImpl(uptr pc, uptr bp,
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE void __sanitizer_print_stack_trace() {
-  GET_FATAL_STACK_TRACE_PC_BP(StackTrace::GetCurrentPc(), GET_CURRENT_FRAME());
+  GET_CALLER_PC_BP;
+  GET_STORE_STACK_TRACE_PC_BP(pc, bp);
   stack.Print();
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE size_t
+dfsan_sprint_stack_trace(char *out_buf, size_t out_buf_size) {
+  CHECK(out_buf);
+  GET_CALLER_PC_BP;
+  GET_STORE_STACK_TRACE_PC_BP(pc, bp);
+  return stack.PrintTo(out_buf, out_buf_size);
 }
 
 void Flags::SetDefaults() {
@@ -904,6 +799,12 @@ static void RegisterDfsanFlags(FlagParser *parser, Flags *f) {
 
 static void InitializeFlags() {
   SetCommonFlagsDefaults();
+  {
+    CommonFlags cf;
+    cf.CopyFrom(*common_flags());
+    cf.intercept_tls_get_addr = true;
+    OverrideCommonFlags(cf);
+  }
   flags().SetDefaults();
 
   FlagParser parser;
@@ -932,47 +833,21 @@ void dfsan_clear_thread_local_state() {
   }
 }
 
-static void InitializePlatformEarly() {
-  AvoidCVE_2016_2143();
-#ifdef DFSAN_RUNTIME_VMA
-  __dfsan::vmaSize =
-    (MostSignificantSetBitIndex(GET_CURRENT_FRAME()) + 1);
-  if (__dfsan::vmaSize == 39 || __dfsan::vmaSize == 42 ||
-      __dfsan::vmaSize == 48) {
-    __dfsan_shadow_ptr_mask = ShadowMask();
-  } else {
-    Printf("FATAL: DataFlowSanitizer: unsupported VMA range\n");
-    Printf("FATAL: Found %d - Supported 39, 42, and 48\n", __dfsan::vmaSize);
-    Die();
-  }
-#endif
-}
-
-static void dfsan_fini() {
-  if (internal_strcmp(flags().dump_labels_at_exit, "") != 0) {
-    fd_t fd = OpenFile(flags().dump_labels_at_exit, WrOnly);
-    if (fd == kInvalidFd) {
-      Report("WARNING: DataFlowSanitizer: unable to open output file %s\n",
-             flags().dump_labels_at_exit);
-      return;
-    }
-
-    Report("INFO: DataFlowSanitizer: dumping labels to %s\n",
-           flags().dump_labels_at_exit);
-    dfsan_dump_labels(fd);
-    CloseFile(fd);
-  }
-}
-
 extern "C" void dfsan_flush() {
   if (!MmapFixedSuperNoReserve(ShadowAddr(), UnusedAddr() - ShadowAddr()))
     Die();
 }
 
-static void dfsan_init(int argc, char **argv, char **envp) {
-  InitializeFlags();
+static void DFsanInit(int argc, char **argv, char **envp) {
+  CHECK(!dfsan_init_is_running);
+  if (dfsan_inited)
+    return;
+  dfsan_init_is_running = true;
+  SanitizerToolName = "DataflowSanitizer";
 
-  ::InitializePlatformEarly();
+  AvoidCVE_2016_2143();
+
+  InitializeFlags();
 
   dfsan_flush();
   if (common_flags()->use_madv_dontdump)
@@ -983,27 +858,33 @@ static void dfsan_init(int argc, char **argv, char **envp) {
   // will load our executable in the middle of our unused region. This mostly
   // works so long as the program doesn't use too much memory. We support this
   // case by disabling memory protection when ASLR is disabled.
-  uptr init_addr = (uptr)&dfsan_init;
+  uptr init_addr = (uptr)&DFsanInit;
   if (!(init_addr >= UnusedAddr() && init_addr < AppAddr()))
     MmapFixedNoAccess(UnusedAddr(), AppAddr() - UnusedAddr());
 
-  InitializeInterceptors();
-
-  // Register the fini callback to run when the program terminates successfully
-  // or it is killed by the runtime.
-  Atexit(dfsan_fini);
-  AddDieCallback(dfsan_fini);
+  initialize_interceptors();
 
   // Set up threads
   DFsanTSDInit(DFsanTSDDtor);
+
+  dfsan_allocator_init();
+
   DFsanThread *main_thread = DFsanThread::Create(nullptr, nullptr, nullptr);
   SetCurrentThread(main_thread);
   main_thread->ThreadStart();
 
-  __dfsan_label_info[kInitializingLabel].desc = "<init label>";
+  dfsan_init_is_running = false;
+  dfsan_inited = true;
 }
 
+namespace __dfsan {
+
+void dfsan_init() { DFsanInit(0, nullptr, nullptr); }
+
+}  // namespace __dfsan
+
 #if SANITIZER_CAN_USE_PREINIT_ARRAY
-__attribute__((section(".preinit_array"), used))
-static void (*dfsan_init_ptr)(int, char **, char **) = dfsan_init;
+__attribute__((section(".preinit_array"),
+               used)) static void (*dfsan_init_ptr)(int, char **,
+                                                    char **) = DFsanInit;
 #endif

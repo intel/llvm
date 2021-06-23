@@ -10,6 +10,7 @@
 // in Fortran.
 
 #include "../../runtime/character.h"
+#include "../../runtime/descriptor.h"
 #include "gtest/gtest.h"
 #include <cstring>
 #include <functional>
@@ -17,6 +18,37 @@
 #include <vector>
 
 using namespace Fortran::runtime;
+
+using CharacterTypes = ::testing::Types<char, char16_t, char32_t>;
+
+// Helper for creating, allocating and filling up a descriptor with data from
+// raw character literals, converted to the CHAR type used by the test.
+template <typename CHAR>
+OwningPtr<Descriptor> CreateDescriptor(const std::vector<SubscriptValue> &shape,
+    const std::vector<const char *> &raw_strings) {
+  std::size_t length{std::strlen(raw_strings[0])};
+
+  OwningPtr<Descriptor> descriptor{Descriptor::Create(sizeof(CHAR), length,
+      nullptr, shape.size(), nullptr, CFI_attribute_allocatable)};
+  int rank{static_cast<int>(shape.size())};
+  // Use a weird lower bound of 2 to flush out subscripting bugs
+  for (int j{0}; j < rank; ++j) {
+    descriptor->GetDimension(j).SetBounds(2, shape[j] + 1);
+  }
+  if (descriptor->Allocate() != 0) {
+    return nullptr;
+  }
+
+  std::size_t offset = 0;
+  for (const char *raw : raw_strings) {
+    std::basic_string<CHAR> converted{raw, raw + length};
+    std::copy(converted.begin(), converted.end(),
+        descriptor->OffsetElement<CHAR>(offset * length * sizeof(CHAR)));
+    ++offset;
+  }
+
+  return descriptor;
+}
 
 TEST(CharacterTests, AppendAndPad) {
   static constexpr int limitMax{8};
@@ -50,6 +82,60 @@ TEST(CharacterTests, CharacterAppend1Overrun) {
   offset = RTNAME(CharacterAppend1)(buffer, limit, offset, "1234", bufferSize);
   ASSERT_EQ(offset, limit) << "CharacterAppend1 did not halt at limit = "
                            << limit << ", but at offset = " << offset;
+}
+
+// Test ADJUSTL() and ADJUSTR()
+template <typename CHAR> struct AdjustLRTests : public ::testing::Test {};
+TYPED_TEST_SUITE(AdjustLRTests, CharacterTypes, );
+
+struct AdjustLRTestCase {
+  const char *input, *output;
+};
+
+template <typename CHAR>
+void RunAdjustLRTest(const char *which,
+    const std::function<void(
+        Descriptor &, const Descriptor &, const char *, int)> &adjust,
+    const char *inputRaw, const char *outputRaw) {
+  OwningPtr<Descriptor> input{CreateDescriptor<CHAR>({}, {inputRaw})};
+  ASSERT_NE(input, nullptr);
+  ASSERT_TRUE(input->IsAllocated());
+
+  StaticDescriptor<1> outputStaticDescriptor;
+  Descriptor &output{outputStaticDescriptor.descriptor()};
+
+  adjust(output, *input, /*sourceFile=*/nullptr, /*sourceLine=*/0);
+  std::basic_string<CHAR> got{
+      output.OffsetElement<CHAR>(), std::strlen(inputRaw)};
+  std::basic_string<CHAR> expect{outputRaw, outputRaw + std::strlen(outputRaw)};
+  ASSERT_EQ(got, expect) << which << "('" << inputRaw
+                         << "') for CHARACTER(kind=" << sizeof(CHAR) << ")";
+}
+
+TYPED_TEST(AdjustLRTests, AdjustL) {
+  static std::vector<AdjustLRTestCase> testcases{
+      {"     where should the spaces be?", "where should the spaces be?     "},
+      {"   leading and trailing whitespaces   ",
+          "leading and trailing whitespaces      "},
+      {"shouldn't change", "shouldn't change"},
+  };
+
+  for (const auto &t : testcases) {
+    RunAdjustLRTest<TypeParam>("Adjustl", RTNAME(Adjustl), t.input, t.output);
+  }
+}
+
+TYPED_TEST(AdjustLRTests, AdjustR) {
+  static std::vector<AdjustLRTestCase> testcases{
+      {"where should the spaces be?   ", "   where should the spaces be?"},
+      {" leading and trailing whitespaces ",
+          "  leading and trailing whitespaces"},
+      {"shouldn't change", "shouldn't change"},
+  };
+
+  for (const auto &t : testcases) {
+    RunAdjustLRTest<TypeParam>("Adjustr", RTNAME(Adjustr), t.input, t.output);
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -109,8 +195,7 @@ struct CharacterComparisonTests : public ::testing::Test {
   ComparisonFuncTy<CHAR> characterComparisonFunc;
 };
 
-using CharacterTypes = ::testing::Types<char, char16_t, char32_t>;
-TYPED_TEST_CASE(CharacterComparisonTests, CharacterTypes);
+TYPED_TEST_SUITE(CharacterComparisonTests, CharacterTypes, );
 
 TYPED_TEST(CharacterComparisonTests, CompareCharacters) {
   for (auto &[x, y, xBytes, yBytes, expect] : this->parameters) {
@@ -134,9 +219,92 @@ TYPED_TEST(CharacterComparisonTests, CompareCharacters) {
     std::memcpy(buf[0], x, xBytes);
     std::memcpy(buf[1], y, yBytes);
     ASSERT_EQ(cmp, expect) << "compare '" << x << "'(" << xBytes << ") to '"
-                           << y << "'(" << yBytes << "), got " << cmp
+                           << y << "'(" << yBytes << "'), got " << cmp
                            << ", should be " << expect << '\n';
   }
+}
+
+// Test MIN() and MAX()
+struct ExtremumTestCase {
+  std::vector<SubscriptValue> shape; // Empty = scalar, non-empty = array.
+  std::vector<const char *> x, y, expect;
+};
+
+template <typename CHAR>
+void RunExtremumTests(const char *which,
+    std::function<void(Descriptor &, const Descriptor &, const char *, int)>
+        function,
+    const std::vector<ExtremumTestCase> &testCases) {
+  std::stringstream traceMessage;
+  traceMessage << which << " for CHARACTER(kind=" << sizeof(CHAR) << ")";
+  SCOPED_TRACE(traceMessage.str());
+
+  for (const auto &t : testCases) {
+    OwningPtr<Descriptor> x = CreateDescriptor<CHAR>(t.shape, t.x);
+    OwningPtr<Descriptor> y = CreateDescriptor<CHAR>(t.shape, t.y);
+
+    ASSERT_NE(x, nullptr);
+    ASSERT_TRUE(x->IsAllocated());
+    ASSERT_NE(y, nullptr);
+    ASSERT_TRUE(y->IsAllocated());
+    function(*x, *y, __FILE__, __LINE__);
+
+    std::size_t length = x->ElementBytes() / sizeof(CHAR);
+    for (std::size_t i = 0; i < t.x.size(); ++i) {
+      std::basic_string<CHAR> got{
+          x->OffsetElement<CHAR>(i * x->ElementBytes()), length};
+      std::basic_string<CHAR> expect{
+          t.expect[i], t.expect[i] + std::strlen(t.expect[i])};
+      EXPECT_EQ(expect, got) << "inputs: '" << t.x[i] << "','" << t.y[i] << "'";
+    }
+  }
+}
+
+template <typename CHAR> struct ExtremumTests : public ::testing::Test {};
+TYPED_TEST_SUITE(ExtremumTests, CharacterTypes, );
+
+TYPED_TEST(ExtremumTests, MinTests) {
+  static std::vector<ExtremumTestCase> tests{
+      {{}, {"a"}, {"z"}, {"a"}},
+      {{1}, {"zaaa"}, {"aa"}, {"aa  "}},
+      {{1, 1}, {"aaz"}, {"aaaaa"}, {"aaaaa"}},
+      {
+        { 2, 3 },
+        { "a",  "b",  "c",  "d",  "E",  "f" },
+        { "xa", "ya", "az", "dd", "Sz", "cc"},
+        { "a ", "b ", "az", "d ", "E ", "cc"}
+      }
+  };
+  RunExtremumTests<TypeParam>("MIN", RTNAME(CharacterMin), tests);
+}
+
+TYPED_TEST(ExtremumTests, MaxTests) {
+  static std::vector<ExtremumTestCase> tests{
+      {{}, {"a"}, {"z"}, {"z"}},
+      {{1}, {"zaa"}, {"aaaaa"}, {"zaa  "}},
+      {{1, 1, 1}, {"aaaaa"}, {"aazaa"}, {"aazaa"}},
+  };
+  RunExtremumTests<TypeParam>("MAX", RTNAME(CharacterMax), tests);
+}
+
+template <typename CHAR>
+void RunAllocationTest(const char *xRaw, const char *yRaw) {
+  OwningPtr<Descriptor> x = CreateDescriptor<CHAR>({}, {xRaw});
+  OwningPtr<Descriptor> y = CreateDescriptor<CHAR>({}, {yRaw});
+
+  ASSERT_NE(x, nullptr);
+  ASSERT_TRUE(x->IsAllocated());
+  ASSERT_NE(y, nullptr);
+  ASSERT_TRUE(y->IsAllocated());
+
+  void *old = x->raw().base_addr;
+  RTNAME(CharacterMin)(*x, *y, __FILE__, __LINE__);
+  EXPECT_EQ(old, x->raw().base_addr);
+}
+
+TYPED_TEST(ExtremumTests, NoReallocate) {
+  // Test that we don't reallocate if the accumulator is already large enough.
+  RunAllocationTest<TypeParam>("loooooong", "short");
 }
 
 // Test search functions INDEX(), SCAN(), and VERIFY()
@@ -172,7 +340,7 @@ void RunSearchTests(const char *which,
 }
 
 template <typename CHAR> struct SearchTests : public ::testing::Test {};
-TYPED_TEST_CASE(SearchTests, CharacterTypes);
+TYPED_TEST_SUITE(SearchTests, CharacterTypes, );
 
 TYPED_TEST(SearchTests, IndexTests) {
   static SearchFunctions functions{
@@ -221,4 +389,43 @@ TYPED_TEST(SearchTests, VerifyTests) {
   };
   RunSearchTests(
       "VERIFY", tests, std::get<SearchFunction<TypeParam>>(functions));
+}
+
+// Test REPEAT()
+template <typename CHAR> struct RepeatTests : public ::testing::Test {};
+TYPED_TEST_SUITE(RepeatTests, CharacterTypes, );
+
+struct RepeatTestCase {
+  std::size_t ncopies;
+  const char *input, *output;
+};
+
+template <typename CHAR>
+void RunRepeatTest(
+    std::size_t ncopies, const char *inputRaw, const char *outputRaw) {
+  OwningPtr<Descriptor> input{CreateDescriptor<CHAR>({}, {inputRaw})};
+  ASSERT_NE(input, nullptr);
+  ASSERT_TRUE(input->IsAllocated());
+
+  StaticDescriptor<1> outputStaticDescriptor;
+  Descriptor &output{outputStaticDescriptor.descriptor()};
+
+  RTNAME(Repeat)(output, *input, ncopies);
+  std::basic_string<CHAR> got{
+      output.OffsetElement<CHAR>(), output.ElementBytes() / sizeof(CHAR)};
+  std::basic_string<CHAR> expect{outputRaw, outputRaw + std::strlen(outputRaw)};
+  ASSERT_EQ(got, expect) << "'" << inputRaw << "' * " << ncopies
+                         << "' for CHARACTER(kind=" << sizeof(CHAR) << ")";
+}
+
+TYPED_TEST(RepeatTests, Repeat) {
+  static std::vector<RepeatTestCase> testcases{
+      {1, "just one copy", "just one copy"},
+      {5, "copy.", "copy.copy.copy.copy.copy."},
+      {0, "no copies", ""},
+  };
+
+  for (const auto &t : testcases) {
+    RunRepeatTest<TypeParam>(t.ncopies, t.input, t.output);
+  }
 }

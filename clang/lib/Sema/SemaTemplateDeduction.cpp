@@ -3079,6 +3079,10 @@ Sema::DeduceTemplateArguments(ClassTemplatePartialSpecializationDecl *Partial,
       *this, Sema::ExpressionEvaluationContext::Unevaluated);
   SFINAETrap Trap(*this);
 
+  // This deduction has no relation to any outer instantiation we might be
+  // performing.
+  LocalInstantiationScope InstantiationScope(*this);
+
   SmallVector<DeducedTemplateArgument, 4> Deduced;
   Deduced.resize(Partial->getTemplateParameters()->size());
   if (TemplateDeductionResult Result
@@ -3126,6 +3130,10 @@ Sema::DeduceTemplateArguments(VarTemplatePartialSpecializationDecl *Partial,
   EnterExpressionEvaluationContext Unevaluated(
       *this, Sema::ExpressionEvaluationContext::Unevaluated);
   SFINAETrap Trap(*this);
+
+  // This deduction has no relation to any outer instantiation we might be
+  // performing.
+  LocalInstantiationScope InstantiationScope(*this);
 
   SmallVector<DeducedTemplateArgument, 4> Deduced;
   Deduced.resize(Partial->getTemplateParameters()->size());
@@ -3920,7 +3928,7 @@ static bool AdjustFunctionParmAndArgTypesForDeduction(
   if (isSimpleTemplateIdType(ParamType) ||
       (isa<PointerType>(ParamType) &&
        isSimpleTemplateIdType(
-                              ParamType->getAs<PointerType>()->getPointeeType())))
+           ParamType->castAs<PointerType>()->getPointeeType())))
     TDF |= TDF_DerivedClass;
 
   return false;
@@ -4697,10 +4705,9 @@ CheckDeducedPlaceholderConstraints(Sema &S, const AutoType &Type,
     llvm::raw_string_ostream OS(Buf);
     OS << "'" << Concept->getName();
     if (TypeLoc.hasExplicitTemplateArgs()) {
-      OS << "<";
-      for (const auto &Arg : Type.getTypeConstraintArguments())
-        Arg.print(S.getPrintingPolicy(), OS);
-      OS << ">";
+      printTemplateArgumentList(
+          OS, Type.getTypeConstraintArguments(), S.getPrintingPolicy(),
+          Type.getTypeConstraintConcept()->getTemplateParameters());
     }
     OS << "'";
     OS.flush();
@@ -5466,6 +5473,9 @@ static bool isAtLeastAsSpecializedAs(Sema &S, QualType T1, QualType T2,
                                                Deduced.end());
   Sema::InstantiatingTemplate Inst(S, Info.getLocation(), P2, DeducedArgs,
                                    Info);
+  if (Inst.isInvalid())
+    return false;
+
   auto *TST1 = T1->castAs<TemplateSpecializationType>();
   bool AtLeastAsSpecialized;
   S.runWithSufficientStackSpace(Info.getLocation(), [&] {

@@ -28,7 +28,7 @@
 // CKALL: Test Pass
 // CKALL: Test Pass
 // CKALL: Test Pass
-// CKDYN: Lowering QueueBatchSize to 3
+// CKDYN: Lowering QueueBatchSize to 2
 // CKDYN-NOT: Lowering QueueBatchSize
 // CKALL: Test Pass
 // CKALL: Test Pass

@@ -9,6 +9,7 @@
 #include "Annotations.h"
 #include "Config.h"
 #include "Diagnostics.h"
+#include "FeatureModule.h"
 #include "ParsedAST.h"
 #include "Protocol.h"
 #include "SourceCode.h"
@@ -26,6 +27,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <algorithm>
+#include <memory>
 
 namespace clang {
 namespace clangd {
@@ -246,13 +248,23 @@ TEST(DiagnosticsTest, ClangTidy) {
       return SQUARE($macroarg[[++]]y);
       return $doubled[[sizeof]](sizeof(int));
     }
+
+    // misc-no-recursion uses a custom traversal from the TUDecl
+    void foo();
+    void $bar[[bar]]() {
+      foo();
+    }
+    void $foo[[foo]]() {
+      bar();
+    }
   )cpp");
   auto TU = TestTU::withCode(Test.code());
   TU.HeaderFilename = "assert.h"; // Suppress "not found" error.
   TU.ClangTidyProvider = addTidyChecks("bugprone-sizeof-expression,"
                                        "bugprone-macro-repeated-side-effects,"
                                        "modernize-deprecated-headers,"
-                                       "modernize-use-trailing-return-type");
+                                       "modernize-use-trailing-return-type,"
+                                       "misc-no-recursion");
   EXPECT_THAT(
       *TU.build().getDiagnostics(),
       UnorderedElementsAre(
@@ -281,8 +293,12 @@ TEST(DiagnosticsTest, ClangTidy) {
               DiagSource(Diag::ClangTidy),
               DiagName("modernize-use-trailing-return-type"),
               // Verify that we don't have "[check-name]" suffix in the message.
-              WithFix(FixMessage(
-                  "use a trailing return type for this function")))));
+              WithFix(
+                  FixMessage("use a trailing return type for this function"))),
+          Diag(Test.range("foo"),
+               "function 'foo' is within a recursive call chain"),
+          Diag(Test.range("bar"),
+               "function 'bar' is within a recursive call chain")));
 }
 
 TEST(DiagnosticsTest, ClangTidyEOF) {
@@ -1346,6 +1362,50 @@ TEST(ToLSPDiag, RangeIsInMain) {
              });
 }
 
+TEST(ParsedASTTest, ModuleSawDiag) {
+  static constexpr const llvm::StringLiteral KDiagMsg = "StampedDiag";
+  struct DiagModifierModule final : public FeatureModule {
+    struct Listener : public FeatureModule::ASTListener {
+      void sawDiagnostic(const clang::Diagnostic &Info,
+                         clangd::Diag &Diag) override {
+        Diag.Message = KDiagMsg.str();
+      }
+    };
+    std::unique_ptr<ASTListener> astListeners() override {
+      return std::make_unique<Listener>();
+    };
+  };
+  FeatureModuleSet FMS;
+  FMS.add(std::make_unique<DiagModifierModule>());
+
+  Annotations Code("[[test]]; /* error-ok */");
+  TestTU TU;
+  TU.Code = Code.code().str();
+  TU.FeatureModules = &FMS;
+
+  auto AST = TU.build();
+  EXPECT_THAT(*AST.getDiagnostics(),
+              testing::Contains(Diag(Code.range(), KDiagMsg.str())));
+}
+
+TEST(Preamble, EndsOnNonEmptyLine) {
+  TestTU TU;
+  TU.ExtraArgs = {"-Wnewline-eof"};
+
+  {
+    TU.Code = "#define FOO\n  void bar();\n";
+    auto AST = TU.build();
+    EXPECT_THAT(*AST.getDiagnostics(), IsEmpty());
+  }
+  {
+    Annotations Code("#define FOO[[]]");
+    TU.Code = Code.code().str();
+    auto AST = TU.build();
+    EXPECT_THAT(
+        *AST.getDiagnostics(),
+        testing::Contains(Diag(Code.range(), "no newline at end of file")));
+  }
+}
 } // namespace
 } // namespace clangd
 } // namespace clang

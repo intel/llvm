@@ -10,8 +10,10 @@
 
 #if SCUDO_FUCHSIA
 #include <zxtest/zxtest.h>
+using Test = ::zxtest::Test;
 #else
 #include "gtest/gtest.h"
+using Test = ::testing::Test;
 #endif
 
 // If EXPECT_DEATH isn't defined, make it a no-op.
@@ -31,9 +33,16 @@
 #define EXPECT_STREQ(X, Y) EXPECT_EQ(strcmp(X, Y), 0)
 #endif
 
-extern bool UseQuarantine;
+#if SCUDO_FUCHSIA
+#define SKIP_ON_FUCHSIA(T) DISABLED_##T
+#else
+#define SKIP_ON_FUCHSIA(T) T
+#endif
 
-#define SCUDO_DEFINE_GTEST_TYPE_NAME(TYPE)                                     \
-  template <> std::string testing::internal::GetTypeName<TYPE>() {             \
-    return #TYPE;                                                              \
-  }
+#if SCUDO_DEBUG
+#define SKIP_NO_DEBUG(T) T
+#else
+#define SKIP_NO_DEBUG(T) DISABLED_##T
+#endif
+
+extern bool UseQuarantine;

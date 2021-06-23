@@ -80,18 +80,41 @@ public:
   void registerCallbacks(PassInstrumentationCallbacks &PIC);
 };
 
+struct PrintPassOptions {
+  /// Print adaptors and pass managers.
+  bool Verbose = false;
+  /// Don't print information for analyses.
+  bool SkipAnalyses = false;
+  /// Indent based on hierarchy.
+  bool Indent = false;
+};
+
 // Debug logging for transformation and analysis passes.
 class PrintPassInstrumentation {
+  raw_ostream &print();
+
 public:
-  PrintPassInstrumentation(bool DebugLogging) : DebugLogging(DebugLogging) {}
+  PrintPassInstrumentation(bool Enabled, PrintPassOptions Opts)
+      : Enabled(Enabled), Opts(Opts) {}
   void registerCallbacks(PassInstrumentationCallbacks &PIC);
 
 private:
-  bool DebugLogging;
+  bool Enabled;
+  PrintPassOptions Opts;
+  int Indent = 0;
 };
 
 class PreservedCFGCheckerInstrumentation {
-private:
+public:
+  // Keeps sticky poisoned flag for the given basic block once it has been
+  // deleted or RAUWed.
+  struct BBGuard final : public CallbackVH {
+    BBGuard(const BasicBlock *BB) : CallbackVH(BB) {}
+    void deleted() override { CallbackVH::deleted(); }
+    void allUsesReplacedWith(Value *) override { CallbackVH::deleted(); }
+    bool isPoisoned() const { return !getValPtr(); }
+  };
+
   // CFG is a map BB -> {(Succ, Multiplicity)}, where BB is a non-leaf basic
   // block, {(Succ, Multiplicity)} set of all pairs of the block's successors
   // and the multiplicity of the edge (BB->Succ). As the mapped sets are
@@ -101,40 +124,34 @@ private:
   // in the Graph (BBGuard). That is if any of the block is deleted or RAUWed
   // then the CFG is treated poisoned and no block pointer of the Graph is used.
   struct CFG {
-    struct BBGuard final : public CallbackVH {
-      BBGuard(const BasicBlock *BB) : CallbackVH(BB) {}
-      void deleted() override { CallbackVH::deleted(); }
-      void allUsesReplacedWith(Value *) override { CallbackVH::deleted(); }
-      bool isPoisoned() const { return !getValPtr(); }
-    };
-
     Optional<DenseMap<intptr_t, BBGuard>> BBGuards;
     DenseMap<const BasicBlock *, DenseMap<const BasicBlock *, unsigned>> Graph;
 
-    CFG(const Function *F, bool TrackBBLifetime = false);
+    CFG(const Function *F, bool TrackBBLifetime);
 
     bool operator==(const CFG &G) const {
       return !isPoisoned() && !G.isPoisoned() && Graph == G.Graph;
     }
 
     bool isPoisoned() const {
-      if (BBGuards)
-        for (auto &BB : *BBGuards) {
-          if (BB.second.isPoisoned())
-            return true;
-        }
-      return false;
+      return BBGuards &&
+             std::any_of(BBGuards->begin(), BBGuards->end(),
+                         [](const auto &BB) { return BB.second.isPoisoned(); });
     }
 
     static void printDiff(raw_ostream &out, const CFG &Before,
                           const CFG &After);
+    bool invalidate(Function &F, const PreservedAnalyses &PA,
+                    FunctionAnalysisManager::Invalidator &);
   };
 
-  SmallVector<std::pair<StringRef, Optional<CFG>>, 8> GraphStackBefore;
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
+  SmallVector<StringRef, 8> PassStack;
+#endif
 
-public:
   static cl::opt<bool> VerifyPreservedCFG;
-  void registerCallbacks(PassInstrumentationCallbacks &PIC);
+  void registerCallbacks(PassInstrumentationCallbacks &PIC,
+                         FunctionAnalysisManager &FAM);
 };
 
 // Base class for classes that report changes to the IR.
@@ -410,9 +427,13 @@ class StandardInstrumentations {
   bool VerifyEach;
 
 public:
-  StandardInstrumentations(bool DebugLogging, bool VerifyEach = false);
+  StandardInstrumentations(bool DebugLogging, bool VerifyEach = false,
+                           PrintPassOptions PrintPassOpts = PrintPassOptions());
 
-  void registerCallbacks(PassInstrumentationCallbacks &PIC);
+  // Register all the standard instrumentation callbacks. If \p FAM is nullptr
+  // then PreservedCFGChecker is not enabled.
+  void registerCallbacks(PassInstrumentationCallbacks &PIC,
+                         FunctionAnalysisManager *FAM = nullptr);
 
   TimePassesHandler &getTimePasses() { return TimePasses; }
 };

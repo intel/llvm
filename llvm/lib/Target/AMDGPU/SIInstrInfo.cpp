@@ -316,39 +316,22 @@ bool SIInstrInfo::getMemOperandsWithOffsetWidth(
   }
 
   if (isMUBUF(LdSt) || isMTBUF(LdSt)) {
-    const MachineOperand *SOffset = getNamedOperand(LdSt, AMDGPU::OpName::soffset);
-    if (SOffset && SOffset->isReg()) {
-      // We can only handle this if it's a stack access, as any other resource
-      // would require reporting multiple base registers.
-      const MachineOperand *AddrReg = getNamedOperand(LdSt, AMDGPU::OpName::vaddr);
-      if (AddrReg && !AddrReg->isFI())
-        return false;
-
-      const MachineOperand *RSrc = getNamedOperand(LdSt, AMDGPU::OpName::srsrc);
-      const SIMachineFunctionInfo *MFI
-        = LdSt.getParent()->getParent()->getInfo<SIMachineFunctionInfo>();
-      if (RSrc->getReg() != MFI->getScratchRSrcReg())
-        return false;
-
-      const MachineOperand *OffsetImm =
-        getNamedOperand(LdSt, AMDGPU::OpName::offset);
-      BaseOps.push_back(RSrc);
-      BaseOps.push_back(SOffset);
-      Offset = OffsetImm->getImm();
-    } else {
-      BaseOp = getNamedOperand(LdSt, AMDGPU::OpName::srsrc);
-      if (!BaseOp) // e.g. BUFFER_WBINVL1_VOL
-        return false;
+    const MachineOperand *RSrc = getNamedOperand(LdSt, AMDGPU::OpName::srsrc);
+    if (!RSrc) // e.g. BUFFER_WBINVL1_VOL
+      return false;
+    BaseOps.push_back(RSrc);
+    BaseOp = getNamedOperand(LdSt, AMDGPU::OpName::vaddr);
+    if (BaseOp && !BaseOp->isFI())
       BaseOps.push_back(BaseOp);
-
-      BaseOp = getNamedOperand(LdSt, AMDGPU::OpName::vaddr);
-      if (BaseOp)
-        BaseOps.push_back(BaseOp);
-
-      const MachineOperand *OffsetImm =
-          getNamedOperand(LdSt, AMDGPU::OpName::offset);
-      Offset = OffsetImm->getImm();
-      if (SOffset) // soffset can be an inline immediate.
+    const MachineOperand *OffsetImm =
+        getNamedOperand(LdSt, AMDGPU::OpName::offset);
+    Offset = OffsetImm->getImm();
+    const MachineOperand *SOffset =
+        getNamedOperand(LdSt, AMDGPU::OpName::soffset);
+    if (SOffset) {
+      if (SOffset->isReg())
+        BaseOps.push_back(SOffset);
+      else
         Offset += SOffset->getImm();
     }
     // Get appropriate operand, and compute width accordingly.
@@ -3986,7 +3969,8 @@ bool SIInstrInfo::verifyInstruction(const MachineInstr &MI,
     const int OpIndices[] = { Src0Idx, Src1Idx, Src2Idx };
 
     unsigned ConstantBusCount = 0;
-    unsigned LiteralCount = 0;
+    bool UsesLiteral = false;
+    const MachineOperand *LiteralVal = nullptr;
 
     if (AMDGPU::getNamedOperandIdx(Opcode, AMDGPU::OpName::imm) != -1)
       ++ConstantBusCount;
@@ -4008,8 +3992,15 @@ bool SIInstrInfo::verifyInstruction(const MachineInstr &MI,
             SGPRsUsed.push_back(SGPRUsed);
           }
         } else {
-          ++ConstantBusCount;
-          ++LiteralCount;
+          if (!UsesLiteral) {
+            ++ConstantBusCount;
+            UsesLiteral = true;
+            LiteralVal = &MO;
+          } else if (!MO.isIdenticalTo(*LiteralVal)) {
+            assert(isVOP3(MI));
+            ErrInfo = "VOP3 instruction uses more than one literal";
+            return false;
+          }
         }
       }
     }
@@ -4033,15 +4024,9 @@ bool SIInstrInfo::verifyInstruction(const MachineInstr &MI,
       return false;
     }
 
-    if (isVOP3(MI) && LiteralCount) {
-      if (!ST.hasVOP3Literal()) {
-        ErrInfo = "VOP3 instruction uses literal";
-        return false;
-      }
-      if (LiteralCount > 1) {
-        ErrInfo = "VOP3 instruction uses more than one literal";
-        return false;
-      }
+    if (isVOP3(MI) && UsesLiteral && !ST.hasVOP3Literal()) {
+      ErrInfo = "VOP3 instruction uses literal";
+      return false;
     }
   }
 
@@ -4235,25 +4220,10 @@ bool SIInstrInfo::verifyInstruction(const MachineInstr &MI,
         IsA16 = A16->getImm() != 0;
       }
 
-      bool PackDerivatives = IsA16 || BaseOpcode->G16;
       bool IsNSA = SRsrcIdx - VAddr0Idx > 1;
 
-      unsigned AddrWords = BaseOpcode->NumExtraArgs;
-      unsigned AddrComponents = (BaseOpcode->Coordinates ? Dim->NumCoords : 0) +
-                                (BaseOpcode->LodOrClampOrMip ? 1 : 0);
-      if (IsA16)
-        AddrWords += (AddrComponents + 1) / 2;
-      else
-        AddrWords += AddrComponents;
-
-      if (BaseOpcode->Gradients) {
-        if (PackDerivatives)
-          // There are two gradients per coordinate, we pack them separately.
-          // For the 3d case, we get (dy/du, dx/du) (-, dz/du) (dy/dv, dx/dv) (-, dz/dv)
-          AddrWords += (Dim->NumGradients / 2 + 1) / 2 * 2;
-        else
-          AddrWords += Dim->NumGradients;
-      }
+      unsigned AddrWords =
+          AMDGPU::getAddrSizeMIMGOp(BaseOpcode, Dim, IsA16, ST.hasG16());
 
       unsigned VAddrWords;
       if (IsNSA) {
@@ -4263,12 +4233,8 @@ bool SIInstrInfo::verifyInstruction(const MachineInstr &MI,
         VAddrWords = MRI.getTargetRegisterInfo()->getRegSizeInBits(*RC) / 32;
         if (AddrWords > 8)
           AddrWords = 16;
-        else if (AddrWords > 4)
+        else if (AddrWords > 5)
           AddrWords = 8;
-        else if (AddrWords == 4)
-          AddrWords = 4;
-        else if (AddrWords == 3)
-          AddrWords = 3;
       }
 
       if (VAddrWords != AddrWords) {
@@ -4371,6 +4337,28 @@ bool SIInstrInfo::verifyInstruction(const MachineInstr &MI,
                   "agpr loads and stores not supported on this GPU";
         return false;
       }
+    }
+  }
+
+  if (ST.needsAlignedVGPRs() &&
+      (MI.getOpcode() == AMDGPU::DS_GWS_INIT ||
+       MI.getOpcode() == AMDGPU::DS_GWS_SEMA_BR ||
+       MI.getOpcode() == AMDGPU::DS_GWS_BARRIER)) {
+    const MachineOperand *Op = getNamedOperand(MI, AMDGPU::OpName::data0);
+    Register Reg = Op->getReg();
+    bool Aligned = true;
+    if (Reg.isPhysical()) {
+      Aligned = !(RI.getHWRegIndex(Reg) & 1);
+    } else {
+      const TargetRegisterClass &RC = *MRI.getRegClass(Reg);
+      Aligned = RI.getRegSizeInBits(RC) > 32 && RI.isProperlyAlignedRC(RC) &&
+                !(RI.getChannelFromSubReg(Op->getSubReg()) & 1);
+    }
+
+    if (!Aligned) {
+      ErrInfo = "Subtarget requires even aligned vector registers "
+                "for DS_GWS instructions";
+      return false;
     }
   }
 
@@ -5010,6 +4998,86 @@ void SIInstrInfo::legalizeOperandsSMRD(MachineRegisterInfo &MRI,
   }
 }
 
+bool SIInstrInfo::moveFlatAddrToVGPR(MachineInstr &Inst) const {
+  unsigned Opc = Inst.getOpcode();
+  int OldSAddrIdx = AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::saddr);
+  if (OldSAddrIdx < 0)
+    return false;
+
+  assert(isSegmentSpecificFLAT(Inst));
+
+  int NewOpc = AMDGPU::getGlobalVaddrOp(Opc);
+  if (NewOpc < 0)
+    NewOpc = AMDGPU::getFlatScratchInstSVfromSS(Opc);
+  if (NewOpc < 0)
+    return false;
+
+  MachineRegisterInfo &MRI = Inst.getMF()->getRegInfo();
+  MachineOperand &SAddr = Inst.getOperand(OldSAddrIdx);
+  if (RI.isSGPRReg(MRI, SAddr.getReg()))
+    return false;
+
+  int NewVAddrIdx = AMDGPU::getNamedOperandIdx(NewOpc, AMDGPU::OpName::vaddr);
+  if (NewVAddrIdx < 0)
+    return false;
+
+  int OldVAddrIdx = AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::vaddr);
+
+  // Check vaddr, it shall be zero or absent.
+  MachineInstr *VAddrDef = nullptr;
+  if (OldVAddrIdx >= 0) {
+    MachineOperand &VAddr = Inst.getOperand(OldVAddrIdx);
+    VAddrDef = MRI.getUniqueVRegDef(VAddr.getReg());
+    if (!VAddrDef || VAddrDef->getOpcode() != AMDGPU::V_MOV_B32_e32 ||
+        !VAddrDef->getOperand(1).isImm() ||
+        VAddrDef->getOperand(1).getImm() != 0)
+      return false;
+  }
+
+  const MCInstrDesc &NewDesc = get(NewOpc);
+  Inst.setDesc(NewDesc);
+
+  // Callers expect interator to be valid after this call, so modify the
+  // instruction in place.
+  if (OldVAddrIdx == NewVAddrIdx) {
+    MachineOperand &NewVAddr = Inst.getOperand(NewVAddrIdx);
+    // Clear use list from the old vaddr holding a zero register.
+    MRI.removeRegOperandFromUseList(&NewVAddr);
+    MRI.moveOperands(&NewVAddr, &SAddr, 1);
+    Inst.RemoveOperand(OldSAddrIdx);
+    // Update the use list with the pointer we have just moved from vaddr to
+    // saddr poisition. Otherwise new vaddr will be missing from the use list.
+    MRI.removeRegOperandFromUseList(&NewVAddr);
+    MRI.addRegOperandToUseList(&NewVAddr);
+  } else {
+    assert(OldSAddrIdx == NewVAddrIdx);
+
+    if (OldVAddrIdx >= 0) {
+      int NewVDstIn = AMDGPU::getNamedOperandIdx(NewOpc,
+                                                 AMDGPU::OpName::vdst_in);
+
+      // RemoveOperand doesn't try to fixup tied operand indexes at it goes, so
+      // it asserts. Untie the operands for now and retie them afterwards.
+      if (NewVDstIn != -1) {
+        int OldVDstIn = AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::vdst_in);
+        Inst.untieRegOperand(OldVDstIn);
+      }
+
+      Inst.RemoveOperand(OldVAddrIdx);
+
+      if (NewVDstIn != -1) {
+        int NewVDst = AMDGPU::getNamedOperandIdx(NewOpc, AMDGPU::OpName::vdst);
+        Inst.tieOperands(NewVDst, NewVDstIn);
+      }
+    }
+  }
+
+  if (VAddrDef && MRI.use_nodbg_empty(VAddrDef->getOperand(0).getReg()))
+    VAddrDef->eraseFromParent();
+
+  return true;
+}
+
 // FIXME: Remove this when SelectionDAG is obsoleted.
 void SIInstrInfo::legalizeOperandsFLAT(MachineRegisterInfo &MRI,
                                        MachineInstr &MI) const {
@@ -5020,6 +5088,9 @@ void SIInstrInfo::legalizeOperandsFLAT(MachineRegisterInfo &MRI,
   // thinks they are uniform, so a readfirstlane should be valid.
   MachineOperand *SAddr = getNamedOperand(MI, AMDGPU::OpName::saddr);
   if (!SAddr || RI.isSGPRClass(MRI.getRegClass(SAddr->getReg())))
+    return;
+
+  if (moveFlatAddrToVGPR(MI))
     return;
 
   Register ToSGPR = readlaneVGPRToSGPR(SAddr->getReg(), MI, MRI);
@@ -5922,6 +5993,8 @@ MachineBasicBlock *SIInstrInfo::moveToVALU(MachineInstr &TopInst,
         // Only propagate through live-def of SCC.
         if (Op.isDef() && !Op.isDead())
           addSCCDefUsersToVALUWorklist(Op, Inst, Worklist);
+        if (Op.isUse())
+          addSCCDefsToVALUWorklist(Op, Worklist);
         Inst.RemoveOperand(i);
       }
     }
@@ -6757,6 +6830,32 @@ void SIInstrInfo::addSCCDefUsersToVALUWorklist(MachineOperand &Op,
   }
 }
 
+// Instructions that use SCC may be converted to VALU instructions. When that
+// happens, the SCC register is changed to VCC_LO. The instruction that defines
+// SCC must be changed to an instruction that defines VCC. This function makes
+// sure that the instruction that defines SCC is added to the moveToVALU
+// worklist.
+void SIInstrInfo::addSCCDefsToVALUWorklist(MachineOperand &Op,
+                                           SetVectorType &Worklist) const {
+  assert(Op.isReg() && Op.getReg() == AMDGPU::SCC && Op.isUse());
+
+  MachineInstr *SCCUseInst = Op.getParent();
+  // Look for a preceeding instruction that either defines VCC or SCC. If VCC
+  // then there is nothing to do because the defining instruction has been
+  // converted to a VALU already. If SCC then that instruction needs to be
+  // converted to a VALU.
+  for (MachineInstr &MI :
+       make_range(std::next(MachineBasicBlock::reverse_iterator(SCCUseInst)),
+                  SCCUseInst->getParent()->rend())) {
+    if (MI.modifiesRegister(AMDGPU::VCC, &RI))
+      break;
+    if (MI.definesRegister(AMDGPU::SCC, &RI)) {
+      Worklist.insert(&MI);
+      break;
+    }
+  }
+}
+
 const TargetRegisterClass *SIInstrInfo::getDestEquivalentVGPRClass(
   const MachineInstr &Inst) const {
   const TargetRegisterClass *NewDstRC = getOpRegClass(Inst, 0);
@@ -7299,36 +7398,92 @@ bool SIInstrInfo::isBufferSMRD(const MachineInstr &MI) const {
   return RI.getRegClass(RCID)->hasSubClassEq(&AMDGPU::SGPR_128RegClass);
 }
 
+// Depending on the used address space and instructions, some immediate offsets
+// are allowed and some are not.
+// In general, flat instruction offsets can only be non-negative, global and
+// scratch instruction offsets can also be negative.
+//
+// There are several bugs related to these offsets:
+// On gfx10.1, flat instructions that go into the global address space cannot
+// use an offset.
+//
+// For scratch instructions, the address can be either an SGPR or a VGPR.
+// The following offsets can be used, depending on the architecture (x means
+// cannot be used):
+// +----------------------------+------+------+
+// | Address-Mode               | SGPR | VGPR |
+// +----------------------------+------+------+
+// | gfx9                       |      |      |
+// | negative, 4-aligned offset | x    | ok   |
+// | negative, unaligned offset | x    | ok   |
+// +----------------------------+------+------+
+// | gfx10                      |      |      |
+// | negative, 4-aligned offset | ok   | ok   |
+// | negative, unaligned offset | ok   | x    |
+// +----------------------------+------+------+
+// | gfx10.3                    |      |      |
+// | negative, 4-aligned offset | ok   | ok   |
+// | negative, unaligned offset | ok   | ok   |
+// +----------------------------+------+------+
+//
+// This function ignores the addressing mode, so if an offset cannot be used in
+// one addressing mode, it is considered illegal.
 bool SIInstrInfo::isLegalFLATOffset(int64_t Offset, unsigned AddrSpace,
-                                    bool Signed) const {
+                                    uint64_t FlatVariant) const {
   // TODO: Should 0 be special cased?
   if (!ST.hasFlatInstOffsets())
     return false;
 
-  if (ST.hasFlatSegmentOffsetBug() && AddrSpace == AMDGPUAS::FLAT_ADDRESS)
+  if (ST.hasFlatSegmentOffsetBug() && FlatVariant == SIInstrFlags::FLAT &&
+      (AddrSpace == AMDGPUAS::FLAT_ADDRESS ||
+       AddrSpace == AMDGPUAS::GLOBAL_ADDRESS))
     return false;
+
+  bool Signed = FlatVariant != SIInstrFlags::FLAT;
+  if (ST.hasNegativeScratchOffsetBug() &&
+      FlatVariant == SIInstrFlags::FlatScratch)
+    Signed = false;
+  if (ST.hasNegativeUnalignedScratchOffsetBug() &&
+      FlatVariant == SIInstrFlags::FlatScratch && Offset < 0 &&
+      (Offset % 4) != 0) {
+    return false;
+  }
 
   unsigned N = AMDGPU::getNumFlatOffsetBits(ST, Signed);
   return Signed ? isIntN(N, Offset) : isUIntN(N, Offset);
 }
 
-std::pair<int64_t, int64_t> SIInstrInfo::splitFlatOffset(int64_t COffsetVal,
-                                                         unsigned AddrSpace,
-                                                         bool IsSigned) const {
+// See comment on SIInstrInfo::isLegalFLATOffset for what is legal and what not.
+std::pair<int64_t, int64_t>
+SIInstrInfo::splitFlatOffset(int64_t COffsetVal, unsigned AddrSpace,
+                             uint64_t FlatVariant) const {
   int64_t RemainderOffset = COffsetVal;
   int64_t ImmField = 0;
-  const unsigned NumBits = AMDGPU::getNumFlatOffsetBits(ST, IsSigned);
-  if (IsSigned) {
+  bool Signed = FlatVariant != SIInstrFlags::FLAT;
+  if (ST.hasNegativeScratchOffsetBug() &&
+      FlatVariant == SIInstrFlags::FlatScratch)
+    Signed = false;
+
+  const unsigned NumBits = AMDGPU::getNumFlatOffsetBits(ST, Signed);
+  if (Signed) {
     // Use signed division by a power of two to truncate towards 0.
     int64_t D = 1LL << (NumBits - 1);
     RemainderOffset = (COffsetVal / D) * D;
     ImmField = COffsetVal - RemainderOffset;
+
+    if (ST.hasNegativeUnalignedScratchOffsetBug() &&
+        FlatVariant == SIInstrFlags::FlatScratch && ImmField < 0 &&
+        (ImmField % 4) != 0) {
+      // Make ImmField a multiple of 4
+      RemainderOffset += ImmField % 4;
+      ImmField -= ImmField % 4;
+    }
   } else if (COffsetVal >= 0) {
     ImmField = COffsetVal & maskTrailingOnes<uint64_t>(NumBits);
     RemainderOffset = COffsetVal - ImmField;
   }
 
-  assert(isLegalFLATOffset(ImmField, AddrSpace, IsSigned));
+  assert(isLegalFLATOffset(ImmField, AddrSpace, FlatVariant));
   assert(RemainderOffset + ImmField == COffsetVal);
   return {ImmField, RemainderOffset};
 }

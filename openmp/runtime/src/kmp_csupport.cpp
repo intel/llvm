@@ -39,6 +39,7 @@ void __kmpc_begin(ident_t *loc, kmp_int32 flags) {
   if ((env = getenv("KMP_INITIAL_THREAD_BIND")) != NULL &&
       __kmp_str_match_true(env)) {
     __kmp_middle_initialize();
+    __kmp_assign_root_init_mask();
     KC_TRACE(10, ("__kmpc_begin: middle initialization called\n"));
   } else if (__kmp_ignore_mppbeg() == FALSE) {
     // By default __kmp_ignore_mppbeg() returns TRUE.
@@ -603,6 +604,11 @@ void __kmpc_end_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
       __kmp_load_mxcsr(&serial_team->t.t_mxcsr);
     }
 #endif /* KMP_ARCH_X86 || KMP_ARCH_X86_64 */
+
+#if OMPD_SUPPORT
+    if (ompd_state & OMPD_ENABLE_BP)
+      ompd_bp_parallel_end();
+#endif
 
     this_thr->th.th_team = serial_team->t.t_parent;
     this_thr->th.th_info.ds.ds_tid = serial_team->t.t_master_tid;
@@ -1494,13 +1500,13 @@ void __kmpc_critical_with_hint(ident_t *loc, kmp_int32 global_tid,
   kmp_dyna_lock_t *lk = (kmp_dyna_lock_t *)crit;
   // Check if it is initialized.
   KMP_PUSH_PARTITIONED_TIMER(OMP_critical_wait);
+  kmp_dyna_lockseq_t lockseq = __kmp_map_hint_to_lock(hint);
   if (*lk == 0) {
-    kmp_dyna_lockseq_t lckseq = __kmp_map_hint_to_lock(hint);
-    if (KMP_IS_D_LOCK(lckseq)) {
+    if (KMP_IS_D_LOCK(lockseq)) {
       KMP_COMPARE_AND_STORE_ACQ32((volatile kmp_int32 *)crit, 0,
-                                  KMP_GET_D_TAG(lckseq));
+                                  KMP_GET_D_TAG(lockseq));
     } else {
-      __kmp_init_indirect_csptr(crit, loc, global_tid, KMP_GET_I_TAG(lckseq));
+      __kmp_init_indirect_csptr(crit, loc, global_tid, KMP_GET_I_TAG(lockseq));
     }
   }
   // Branch for accessing the actual lock object and set operation. This
@@ -1533,11 +1539,11 @@ void __kmpc_critical_with_hint(ident_t *loc, kmp_int32 global_tid,
     }
 #endif
 #if KMP_USE_INLINED_TAS
-    if (__kmp_user_lock_seq == lockseq_tas && !__kmp_env_consistency_check) {
+    if (lockseq == lockseq_tas && !__kmp_env_consistency_check) {
       KMP_ACQUIRE_TAS_LOCK(lck, global_tid);
     } else
 #elif KMP_USE_INLINED_FUTEX
-    if (__kmp_user_lock_seq == lockseq_futex && !__kmp_env_consistency_check) {
+    if (lockseq == lockseq_futex && !__kmp_env_consistency_check) {
       KMP_ACQUIRE_FUTEX_LOCK(lck, global_tid);
     } else
 #endif
@@ -1614,7 +1620,8 @@ void __kmpc_end_critical(ident_t *loc, kmp_int32 global_tid,
   KC_TRACE(10, ("__kmpc_end_critical: called T#%d\n", global_tid));
 
 #if KMP_USE_DYNAMIC_LOCK
-  if (KMP_IS_D_LOCK(__kmp_user_lock_seq)) {
+  int locktag = KMP_EXTRACT_D_TAG(crit);
+  if (locktag) {
     lck = (kmp_user_lock_p)crit;
     KMP_ASSERT(lck != NULL);
     if (__kmp_env_consistency_check) {
@@ -1624,11 +1631,11 @@ void __kmpc_end_critical(ident_t *loc, kmp_int32 global_tid,
     __kmp_itt_critical_releasing(lck);
 #endif
 #if KMP_USE_INLINED_TAS
-    if (__kmp_user_lock_seq == lockseq_tas && !__kmp_env_consistency_check) {
+    if (locktag == locktag_tas && !__kmp_env_consistency_check) {
       KMP_RELEASE_TAS_LOCK(lck, global_tid);
     } else
 #elif KMP_USE_INLINED_FUTEX
-    if (__kmp_user_lock_seq == lockseq_futex && !__kmp_env_consistency_check) {
+    if (locktag == locktag_futex && !__kmp_env_consistency_check) {
       KMP_RELEASE_FUTEX_LOCK(lck, global_tid);
     } else
 #endif
@@ -1990,8 +1997,7 @@ int ompc_get_team_size(int level) {
 }
 
 /* OpenMP 5.0 Affinity Format API */
-
-void ompc_set_affinity_format(char const *format) {
+void KMP_EXPAND_NAME(ompc_set_affinity_format)(char const *format) {
   if (!__kmp_init_serial) {
     __kmp_serial_initialize();
   }
@@ -1999,7 +2005,7 @@ void ompc_set_affinity_format(char const *format) {
                          format, KMP_STRLEN(format) + 1);
 }
 
-size_t ompc_get_affinity_format(char *buffer, size_t size) {
+size_t KMP_EXPAND_NAME(ompc_get_affinity_format)(char *buffer, size_t size) {
   size_t format_size;
   if (!__kmp_init_serial) {
     __kmp_serial_initialize();
@@ -2012,23 +2018,25 @@ size_t ompc_get_affinity_format(char *buffer, size_t size) {
   return format_size;
 }
 
-void ompc_display_affinity(char const *format) {
+void KMP_EXPAND_NAME(ompc_display_affinity)(char const *format) {
   int gtid;
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   gtid = __kmp_get_gtid();
   __kmp_aux_display_affinity(gtid, format);
 }
 
-size_t ompc_capture_affinity(char *buffer, size_t buf_size,
-                             char const *format) {
+size_t KMP_EXPAND_NAME(ompc_capture_affinity)(char *buffer, size_t buf_size,
+                                              char const *format) {
   int gtid;
   size_t num_required;
   kmp_str_buf_t capture_buf;
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   gtid = __kmp_get_gtid();
   __kmp_str_buf_init(&capture_buf);
   num_required = __kmp_aux_capture_affinity(gtid, format, &capture_buf);
@@ -2087,6 +2095,7 @@ int kmpc_set_affinity_mask_proc(int proc, void **mask) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   return __kmp_aux_set_affinity_mask_proc(proc, mask);
 #endif
 }
@@ -2098,6 +2107,7 @@ int kmpc_unset_affinity_mask_proc(int proc, void **mask) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   return __kmp_aux_unset_affinity_mask_proc(proc, mask);
 #endif
 }
@@ -2109,6 +2119,7 @@ int kmpc_get_affinity_mask_proc(int proc, void **mask) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   return __kmp_aux_get_affinity_mask_proc(proc, mask);
 #endif
 }
@@ -2508,12 +2519,6 @@ void __kmpc_destroy_lock(ident_t *loc, kmp_int32 gtid, void **user_lock) {
   if (!codeptr)
     codeptr = OMPT_GET_RETURN_ADDRESS(0);
   if (ompt_enabled.ompt_callback_lock_destroy) {
-    kmp_user_lock_p lck;
-    if (KMP_EXTRACT_D_TAG(user_lock) == 0) {
-      lck = ((kmp_indirect_lock_t *)KMP_LOOKUP_I_LOCK(user_lock))->lock;
-    } else {
-      lck = (kmp_user_lock_p)user_lock;
-    }
     ompt_callbacks.ompt_callback(ompt_callback_lock_destroy)(
         ompt_mutex_lock, (ompt_wait_id_t)(uintptr_t)user_lock, codeptr);
   }
@@ -4389,3 +4394,35 @@ void __kmpc_error(ident_t *loc, int severity, const char *message) {
 
   __kmp_str_free(&src_loc);
 }
+
+#ifdef KMP_USE_VERSION_SYMBOLS
+// For GOMP compatibility there are two versions of each omp_* API.
+// One is the plain C symbol and one is the Fortran symbol with an appended
+// underscore. When we implement a specific ompc_* version of an omp_*
+// function, we want the plain GOMP versioned symbol to alias the ompc_* version
+// instead of the Fortran versions in kmp_ftn_entry.h
+extern "C" {
+// Have to undef these from omp.h so they aren't translated into
+// their ompc counterparts in the KMP_VERSION_OMPC_SYMBOL macros below
+#ifdef omp_set_affinity_format
+#undef omp_set_affinity_format
+#endif
+#ifdef omp_get_affinity_format
+#undef omp_get_affinity_format
+#endif
+#ifdef omp_display_affinity
+#undef omp_display_affinity
+#endif
+#ifdef omp_capture_affinity
+#undef omp_capture_affinity
+#endif
+KMP_VERSION_OMPC_SYMBOL(ompc_set_affinity_format, omp_set_affinity_format, 50,
+                        "OMP_5.0");
+KMP_VERSION_OMPC_SYMBOL(ompc_get_affinity_format, omp_get_affinity_format, 50,
+                        "OMP_5.0");
+KMP_VERSION_OMPC_SYMBOL(ompc_display_affinity, omp_display_affinity, 50,
+                        "OMP_5.0");
+KMP_VERSION_OMPC_SYMBOL(ompc_capture_affinity, omp_capture_affinity, 50,
+                        "OMP_5.0");
+} // extern "C"
+#endif

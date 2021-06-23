@@ -28,6 +28,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Allocator.h"
@@ -305,7 +306,7 @@ public:
   // Type uniquing
   //===--------------------------------------------------------------------===//
 
-  DenseMap<TypeID, const AbstractType *> registeredTypes;
+  DenseMap<TypeID, AbstractType *> registeredTypes;
   StorageUniquer typeUniquer;
 
   /// Cached Type Instances.
@@ -323,7 +324,7 @@ public:
   // Attribute uniquing
   //===--------------------------------------------------------------------===//
 
-  DenseMap<TypeID, const AbstractAttribute *> registeredAttributes;
+  DenseMap<TypeID, AbstractAttribute *> registeredAttributes;
   StorageUniquer attributeUniquer;
 
   /// Cached Attribute Instances.
@@ -331,6 +332,7 @@ public:
   UnitAttr unitAttr;
   UnknownLoc unknownLocAttr;
   DictionaryAttr emptyDictionaryAttr;
+  StringAttr emptyStringAttr;
 
 public:
   MLIRContextImpl() : identifiers(identifierAllocator) {}
@@ -354,11 +356,11 @@ MLIRContext::MLIRContext(const DialectRegistry &registry)
     printStackTraceOnDiagnostic(clOptions->printStackTraceOnDiagnostic);
   }
 
-  // Ensure the builtin dialect is always pre-loaded.
-  getOrLoadDialect<BuiltinDialect>();
-
   // Pre-populate the registry.
   registry.appendTo(impl->dialectsRegistry);
+
+  // Ensure the builtin dialect is always pre-loaded.
+  getOrLoadDialect<BuiltinDialect>();
 
   // Initialize several common attributes and types to avoid the need to lock
   // the context when accessing them.
@@ -399,6 +401,8 @@ MLIRContext::MLIRContext(const DialectRegistry &registry)
   impl->unitAttr = AttributeUniquer::get<UnitAttr>(this);
   /// The empty dictionary attribute.
   impl->emptyDictionaryAttr = DictionaryAttr::getEmptyUnchecked(this);
+  /// The empty string attribute.
+  impl->emptyStringAttr = StringAttr::getEmptyStringAttrUnchecked(this);
 
   // Register the affine storage objects with the uniquer.
   impl->affineUniquer
@@ -557,7 +561,7 @@ void MLIRContext::allowUnregisteredDialects(bool allowing) {
   impl->allowUnregisteredDialects = allowing;
 }
 
-/// Return true if multi-threading is disabled by the context.
+/// Return true if multi-threading is enabled by the context.
 bool MLIRContext::isMultithreadingEnabled() {
   return impl->threadingIsEnabled && llvm::llvm_is_multithreaded();
 }
@@ -665,12 +669,20 @@ void Dialect::addAttribute(TypeID typeID, AbstractAttribute &&attrInfo) {
 /// Get the dialect that registered the attribute with the provided typeid.
 const AbstractAttribute &AbstractAttribute::lookup(TypeID typeID,
                                                    MLIRContext *context) {
+  const AbstractAttribute *abstract = lookupMutable(typeID, context);
+  if (!abstract)
+    llvm::report_fatal_error("Trying to create an Attribute that was not "
+                             "registered in this MLIRContext.");
+  return *abstract;
+}
+
+AbstractAttribute *AbstractAttribute::lookupMutable(TypeID typeID,
+                                                    MLIRContext *context) {
   auto &impl = context->getImpl();
   auto it = impl.registeredAttributes.find(typeID);
   if (it == impl.registeredAttributes.end())
-    llvm::report_fatal_error("Trying to create an Attribute that was not "
-                             "registered in this MLIRContext.");
-  return *it->second;
+    return nullptr;
+  return it->second;
 }
 
 //===----------------------------------------------------------------------===//
@@ -684,8 +696,8 @@ ParseResult AbstractOperation::parseAssembly(OpAsmParser &parser,
 
 /// Look up the specified operation in the operation set and return a pointer
 /// to it if present. Otherwise, return a null pointer.
-const AbstractOperation *AbstractOperation::lookup(StringRef opName,
-                                                   MLIRContext *context) {
+AbstractOperation *AbstractOperation::lookupMutable(StringRef opName,
+                                                    MLIRContext *context) {
   auto &impl = context->getImpl();
   auto it = impl.registeredOperations.find(opName);
   if (it != impl.registeredOperations.end())
@@ -695,13 +707,15 @@ const AbstractOperation *AbstractOperation::lookup(StringRef opName,
 
 void AbstractOperation::insert(
     StringRef name, Dialect &dialect, TypeID typeID,
-    ParseAssemblyFn parseAssembly, PrintAssemblyFn printAssembly,
-    VerifyInvariantsFn verifyInvariants, FoldHookFn foldHook,
-    GetCanonicalizationPatternsFn getCanonicalizationPatterns,
-    detail::InterfaceMap &&interfaceMap, HasTraitFn hasTrait) {
-  AbstractOperation opInfo(
-      name, dialect, typeID, parseAssembly, printAssembly, verifyInvariants,
-      foldHook, getCanonicalizationPatterns, std::move(interfaceMap), hasTrait);
+    ParseAssemblyFn &&parseAssembly, PrintAssemblyFn &&printAssembly,
+    VerifyInvariantsFn &&verifyInvariants, FoldHookFn &&foldHook,
+    GetCanonicalizationPatternsFn &&getCanonicalizationPatterns,
+    detail::InterfaceMap &&interfaceMap, HasTraitFn &&hasTrait) {
+  AbstractOperation opInfo(name, dialect, typeID, std::move(parseAssembly),
+                           std::move(printAssembly),
+                           std::move(verifyInvariants), std::move(foldHook),
+                           std::move(getCanonicalizationPatterns),
+                           std::move(interfaceMap), std::move(hasTrait));
 
   auto &impl = dialect.getContext()->getImpl();
   assert(impl.multiThreadedExecutionContext == 0 &&
@@ -716,28 +730,37 @@ void AbstractOperation::insert(
 
 AbstractOperation::AbstractOperation(
     StringRef name, Dialect &dialect, TypeID typeID,
-    ParseAssemblyFn parseAssembly, PrintAssemblyFn printAssembly,
-    VerifyInvariantsFn verifyInvariants, FoldHookFn foldHook,
-    GetCanonicalizationPatternsFn getCanonicalizationPatterns,
-    detail::InterfaceMap &&interfaceMap, HasTraitFn hasTrait)
+    ParseAssemblyFn &&parseAssembly, PrintAssemblyFn &&printAssembly,
+    VerifyInvariantsFn &&verifyInvariants, FoldHookFn &&foldHook,
+    GetCanonicalizationPatternsFn &&getCanonicalizationPatterns,
+    detail::InterfaceMap &&interfaceMap, HasTraitFn &&hasTrait)
     : name(Identifier::get(name, dialect.getContext())), dialect(dialect),
       typeID(typeID), interfaceMap(std::move(interfaceMap)),
-      foldHookFn(foldHook),
-      getCanonicalizationPatternsFn(getCanonicalizationPatterns),
-      hasTraitFn(hasTrait), parseAssemblyFn(parseAssembly),
-      printAssemblyFn(printAssembly), verifyInvariantsFn(verifyInvariants) {}
+      foldHookFn(std::move(foldHook)),
+      getCanonicalizationPatternsFn(std::move(getCanonicalizationPatterns)),
+      hasTraitFn(std::move(hasTrait)),
+      parseAssemblyFn(std::move(parseAssembly)),
+      printAssemblyFn(std::move(printAssembly)),
+      verifyInvariantsFn(std::move(verifyInvariants)) {}
 
 //===----------------------------------------------------------------------===//
 // AbstractType
 //===----------------------------------------------------------------------===//
 
 const AbstractType &AbstractType::lookup(TypeID typeID, MLIRContext *context) {
+  const AbstractType *type = lookupMutable(typeID, context);
+  if (!type)
+    llvm::report_fatal_error(
+        "Trying to create a Type that was not registered in this MLIRContext.");
+  return *type;
+}
+
+AbstractType *AbstractType::lookupMutable(TypeID typeID, MLIRContext *context) {
   auto &impl = context->getImpl();
   auto it = impl.registeredTypes.find(typeID);
   if (it == impl.registeredTypes.end())
-    llvm::report_fatal_error(
-        "Trying to create a Type that was not registered in this MLIRContext.");
-  return *it->second;
+    return nullptr;
+  return it->second;
 }
 
 //===----------------------------------------------------------------------===//
@@ -745,7 +768,10 @@ const AbstractType &AbstractType::lookup(TypeID typeID, MLIRContext *context) {
 //===----------------------------------------------------------------------===//
 
 /// Return an identifier for the specified string.
-Identifier Identifier::get(StringRef str, MLIRContext *context) {
+Identifier Identifier::get(const Twine &string, MLIRContext *context) {
+  SmallString<32> tempStr;
+  StringRef str = string.toStringRef(tempStr);
+
   // Check invariants after seeing if we already have something in the
   // identifier table - if we already had it in the table, then it already
   // passed invariant checks.
@@ -922,6 +948,11 @@ UnknownLoc UnknownLoc::get(MLIRContext *context) {
 /// Return empty dictionary.
 DictionaryAttr DictionaryAttr::getEmpty(MLIRContext *context) {
   return context->getImpl().emptyDictionaryAttr;
+}
+
+/// Return an empty string.
+StringAttr StringAttr::get(MLIRContext *context) {
+  return context->getImpl().emptyStringAttr;
 }
 
 //===----------------------------------------------------------------------===//

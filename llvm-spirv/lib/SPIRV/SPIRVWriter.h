@@ -42,6 +42,7 @@
 #ifndef SPIRVWRITER_H
 #define SPIRVWRITER_H
 
+#include "LLVMToSPIRVDbgTran.h"
 #include "OCLTypeToSPIRV.h"
 #include "OCLUtil.h"
 #include "SPIRVBasicBlock.h"
@@ -65,21 +66,10 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-class LLVMToSPIRVDbgTran;
-
-class LLVMToSPIRV : public ModulePass {
+class LLVMToSPIRVBase {
 public:
-  LLVMToSPIRV(SPIRVModule *SMod = nullptr);
-
-  virtual StringRef getPassName() const override { return "LLVMToSPIRV"; }
-
-  bool runOnModule(Module &Mod) override;
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<OCLTypeToSPIRV>();
-  }
-
-  static char ID;
+  LLVMToSPIRVBase(SPIRVModule *SMod);
+  bool runLLVMToSPIRV(Module &Mod);
 
   // This enum sets the mode used to translate the value which is
   // a function, that is necessary for a convenient function pointers handling.
@@ -112,6 +102,7 @@ public:
   SPIRVValue *transAsmINTEL(InlineAsm *Asm);
   SPIRVValue *transAsmCallINTEL(CallInst *Call, SPIRVBasicBlock *BB);
   bool transDecoration(Value *V, SPIRVValue *BV);
+  void transMemAliasingINTELDecorations(Value *V, SPIRVValue *BV);
   SPIRVWord transFunctionControlMask(Function *);
   SPIRVFunction *transFunctionDecl(Function *F);
   void transVectorComputeMetadata(Function *F);
@@ -142,6 +133,12 @@ public:
   typedef DenseMap<Value *, SPIRVValue *> LLVMToSPIRVValueMap;
   typedef DenseMap<MDNode *, SmallSet<SPIRVId, 2>> LLVMToSPIRVMetadataMap;
 
+  void setOCLTypeToSPIRV(OCLTypeToSPIRVBase *OCLTypeToSPIRV) {
+    OCLTypeToSPIRVPtr = OCLTypeToSPIRV;
+  }
+  OCLTypeToSPIRVBase *getOCLTypeToSPIRV() { return OCLTypeToSPIRVPtr; }
+  ~LLVMToSPIRVBase();
+
 private:
   Module *M;
   LLVMContext *Ctx;
@@ -153,6 +150,8 @@ private:
   SPIRVWord SrcLangVer;
   std::unique_ptr<LLVMToSPIRVDbgTran> DbgTran;
   std::unique_ptr<CallGraph> CG;
+  OCLTypeToSPIRVBase *OCLTypeToSPIRVPtr;
+  std::vector<llvm::Instruction *> UnboundInst;
 
   enum class FPContract { UNDEF, DISABLED, ENABLED };
   DenseMap<Function *, FPContract> FPContractMap;
@@ -215,6 +214,36 @@ private:
       const Function *FS,
       const std::unordered_set<const Function *> Funcs) const;
   void collectInputOutputVariables(SPIRVFunction *SF, Function *F);
+};
+
+class LLVMToSPIRVPass : public PassInfoMixin<LLVMToSPIRVPass>,
+                        public LLVMToSPIRVBase {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    setOCLTypeToSPIRV(&MAM.getResult<OCLTypeToSPIRVPass>(M));
+    return runLLVMToSPIRV(M) ? llvm::PreservedAnalyses::none()
+                             : llvm::PreservedAnalyses::all();
+  }
+};
+
+class LLVMToSPIRVLegacy : public ModulePass, public LLVMToSPIRVBase {
+public:
+  LLVMToSPIRVLegacy(SPIRVModule *SMod = nullptr)
+      : ModulePass(ID), LLVMToSPIRVBase(SMod) {}
+
+  virtual StringRef getPassName() const override { return "LLVMToSPIRV"; }
+
+  bool runOnModule(Module &Mod) override {
+    setOCLTypeToSPIRV(&getAnalysis<OCLTypeToSPIRVLegacy>());
+    return runLLVMToSPIRV(Mod);
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<OCLTypeToSPIRVLegacy>();
+  }
+
+  static char ID;
 };
 
 } // namespace SPIRV

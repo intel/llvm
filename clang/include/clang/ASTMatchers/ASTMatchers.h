@@ -144,6 +144,7 @@ using TypeMatcher = internal::Matcher<QualType>;
 using TypeLocMatcher = internal::Matcher<TypeLoc>;
 using NestedNameSpecifierMatcher = internal::Matcher<NestedNameSpecifier>;
 using NestedNameSpecifierLocMatcher = internal::Matcher<NestedNameSpecifierLoc>;
+using CXXBaseSpecifierMatcher = internal::Matcher<CXXBaseSpecifier>;
 using CXXCtorInitializerMatcher = internal::Matcher<CXXCtorInitializer>;
 using TemplateArgumentMatcher = internal::Matcher<TemplateArgument>;
 using TemplateArgumentLocMatcher = internal::Matcher<TemplateArgumentLoc>;
@@ -515,6 +516,15 @@ extern const internal::VariadicDynCastAllOfMatcher<Decl, ParmVarDecl>
 ///   matches 'public:'
 extern const internal::VariadicDynCastAllOfMatcher<Decl, AccessSpecDecl>
     accessSpecDecl;
+
+/// Matches class bases.
+///
+/// Examples matches \c public virtual B.
+/// \code
+///   class B {};
+///   class C : public virtual B {};
+/// \endcode
+extern const internal::VariadicAllOfMatcher<CXXBaseSpecifier> cxxBaseSpecifier;
 
 /// Matches constructor initializers.
 ///
@@ -1203,7 +1213,7 @@ AST_MATCHER_P(TemplateArgument, equalsIntegralValue,
               std::string, Value) {
   if (Node.getKind() != TemplateArgument::Integral)
     return false;
-  return Node.getAsIntegral().toString(10) == Value;
+  return toString(Node.getAsIntegral(), 10) == Value;
 }
 
 /// Matches an Objective-C autorelease pool statement.
@@ -1741,6 +1751,18 @@ extern const internal::VariadicDynCastAllOfMatcher<Stmt,
 /// usingDecl()
 ///   matches \code using X::x \endcode
 extern const internal::VariadicDynCastAllOfMatcher<Decl, UsingDecl> usingDecl;
+
+/// Matches using-enum declarations.
+///
+/// Given
+/// \code
+///   namespace X { enum x {...}; }
+///   using enum X::x;
+/// \endcode
+/// usingEnumDecl()
+///   matches \code using enum X::x \endcode
+extern const internal::VariadicDynCastAllOfMatcher<Decl, UsingEnumDecl>
+    usingEnumDecl;
 
 /// Matches using namespace declarations.
 ///
@@ -3825,16 +3847,19 @@ AST_MATCHER_P_OVERLOAD(CallExpr, callee, internal::Matcher<Decl>, InnerMatcher,
 ///             and z (matcher = varDecl(hasType(cxxRecordDecl(hasName("X")))))
 ///             and U (matcher = typedefDecl(hasType(asString("int")))
 ///             and friend class X (matcher = friendDecl(hasType("X"))
+///             and public virtual X (matcher = cxxBaseSpecifier(hasType(
+///                                               asString("class X")))
 /// \code
 ///  class X {};
 ///  void y(X &x) { x; X z; }
 ///  typedef int U;
 ///  class Y { friend class X; };
+///  class Z : public virtual X {};
 /// \endcode
 AST_POLYMORPHIC_MATCHER_P_OVERLOAD(
     hasType,
     AST_POLYMORPHIC_SUPPORTED_TYPES(Expr, FriendDecl, TypedefNameDecl,
-                                    ValueDecl),
+                                    ValueDecl, CXXBaseSpecifier),
     internal::Matcher<QualType>, InnerMatcher, 0) {
   QualType QT = internal::getUnderlyingType(Node);
   if (!QT.isNull())
@@ -3854,10 +3879,13 @@ AST_POLYMORPHIC_MATCHER_P_OVERLOAD(
 /// Example matches x (matcher = expr(hasType(cxxRecordDecl(hasName("X")))))
 ///             and z (matcher = varDecl(hasType(cxxRecordDecl(hasName("X")))))
 ///             and friend class X (matcher = friendDecl(hasType("X"))
+///             and public virtual X (matcher = cxxBaseSpecifier(hasType(
+///                                               cxxRecordDecl(hasName("X"))))
 /// \code
 ///  class X {};
 ///  void y(X &x) { x; X z; }
 ///  class Y { friend class X; };
+///  class Z : public virtual X {};
 /// \endcode
 ///
 /// Example matches class Derived
@@ -3880,20 +3908,51 @@ AST_POLYMORPHIC_MATCHER_P_OVERLOAD(
   return false;
 }
 
-/// Matches if the type location of the declarator decl's type matches
-/// the inner matcher.
+/// Matches if the type location of a node matches the inner matcher.
 ///
-/// Given
+/// Examples:
 /// \code
 ///   int x;
 /// \endcode
 /// declaratorDecl(hasTypeLoc(loc(asString("int"))))
 ///   matches int x
-AST_MATCHER_P(DeclaratorDecl, hasTypeLoc, internal::Matcher<TypeLoc>, Inner) {
-  if (!Node.getTypeSourceInfo())
+///
+/// \code
+/// auto x = int(3);
+/// \code
+/// cxxTemporaryObjectExpr(hasTypeLoc(loc(asString("int"))))
+///   matches int(3)
+///
+/// \code
+/// struct Foo { Foo(int, int); };
+/// auto x = Foo(1, 2);
+/// \code
+/// cxxFunctionalCastExpr(hasTypeLoc(loc(asString("struct Foo"))))
+///   matches Foo(1, 2)
+///
+/// Usable as: Matcher<BlockDecl>, Matcher<CXXBaseSpecifier>,
+///   Matcher<CXXCtorInitializer>, Matcher<CXXFunctionalCastExpr>,
+///   Matcher<CXXNewExpr>, Matcher<CXXTemporaryObjectExpr>,
+///   Matcher<CXXUnresolvedConstructExpr>,
+///   Matcher<ClassTemplateSpecializationDecl>, Matcher<CompoundLiteralExpr>,
+///   Matcher<DeclaratorDecl>, Matcher<ExplicitCastExpr>,
+///   Matcher<ObjCPropertyDecl>, Matcher<TemplateArgumentLoc>,
+///   Matcher<TypedefNameDecl>
+AST_POLYMORPHIC_MATCHER_P(
+    hasTypeLoc,
+    AST_POLYMORPHIC_SUPPORTED_TYPES(
+        BlockDecl, CXXBaseSpecifier, CXXCtorInitializer, CXXFunctionalCastExpr,
+        CXXNewExpr, CXXTemporaryObjectExpr, CXXUnresolvedConstructExpr,
+        ClassTemplateSpecializationDecl, CompoundLiteralExpr, DeclaratorDecl,
+        ExplicitCastExpr, ObjCPropertyDecl, TemplateArgumentLoc,
+        TypedefNameDecl),
+    internal::Matcher<TypeLoc>, Inner) {
+  TypeSourceInfo *source = internal::GetTypeSourceInfo(Node);
+  if (source == nullptr) {
     // This happens for example for implicit destructors.
     return false;
-  return Inner.matches(Node.getTypeSourceInfo()->getTypeLoc(), Finder, Builder);
+  }
+  return Inner.matches(source->getTypeLoc(), Finder, Builder);
 }
 
 /// Matches if the matched type is represented by the given string.
@@ -4741,8 +4800,11 @@ AST_POLYMORPHIC_MATCHER_P2(forEachArgumentWithParamType,
 
   int ParamIndex = 0;
   bool Matched = false;
+  unsigned NumArgs = Node.getNumArgs();
+  if (FProto && FProto->isVariadic())
+    NumArgs = std::min(NumArgs, FProto->getNumParams());
 
-  for (; ArgIndex < Node.getNumArgs(); ++ArgIndex, ++ParamIndex) {
+  for (; ArgIndex < NumArgs; ++ArgIndex, ++ParamIndex) {
     BoundNodesTreeBuilder ArgMatches(*Builder);
     if (ArgMatcher.matches(*(Node.getArg(ArgIndex)->IgnoreParenCasts()), Finder,
                            &ArgMatches)) {
@@ -6147,7 +6209,7 @@ AST_POLYMORPHIC_MATCHER_P(
 /// \endcode
 /// usingDecl(hasAnyUsingShadowDecl(hasName("b"))))
 ///   matches \code using X::b \endcode
-AST_MATCHER_P(UsingDecl, hasAnyUsingShadowDecl,
+AST_MATCHER_P(BaseUsingDecl, hasAnyUsingShadowDecl,
               internal::Matcher<UsingShadowDecl>, InnerMatcher) {
   return matchesFirstInPointerRange(InnerMatcher, Node.shadow_begin(),
                                     Node.shadow_end(), Finder,
@@ -7493,7 +7555,12 @@ AST_MATCHER_P(DecompositionDecl, hasAnyBinding, internal::Matcher<BindingDecl>,
   });
 }
 
-/// Matches declaration of the function the statement belongs to
+/// Matches declaration of the function the statement belongs to.
+///
+/// Deprecated. Use forCallable() to correctly handle the situation when
+/// the declaration is not a function (but a block or an Objective-C method).
+/// forFunction() not only fails to take non-functions into account but also
+/// may match the wrong declaration in their presence.
 ///
 /// Given:
 /// \code
@@ -7510,20 +7577,79 @@ AST_MATCHER_P(Stmt, forFunction, internal::Matcher<FunctionDecl>,
   const auto &Parents = Finder->getASTContext().getParents(Node);
 
   llvm::SmallVector<DynTypedNode, 8> Stack(Parents.begin(), Parents.end());
-  while(!Stack.empty()) {
+  while (!Stack.empty()) {
     const auto &CurNode = Stack.back();
     Stack.pop_back();
-    if(const auto *FuncDeclNode = CurNode.get<FunctionDecl>()) {
-      if(InnerMatcher.matches(*FuncDeclNode, Finder, Builder)) {
+    if (const auto *FuncDeclNode = CurNode.get<FunctionDecl>()) {
+      if (InnerMatcher.matches(*FuncDeclNode, Finder, Builder)) {
         return true;
       }
-    } else if(const auto *LambdaExprNode = CurNode.get<LambdaExpr>()) {
-      if(InnerMatcher.matches(*LambdaExprNode->getCallOperator(),
-                              Finder, Builder)) {
+    } else if (const auto *LambdaExprNode = CurNode.get<LambdaExpr>()) {
+      if (InnerMatcher.matches(*LambdaExprNode->getCallOperator(), Finder,
+                               Builder)) {
         return true;
       }
     } else {
-      for(const auto &Parent: Finder->getASTContext().getParents(CurNode))
+      for (const auto &Parent : Finder->getASTContext().getParents(CurNode))
+        Stack.push_back(Parent);
+    }
+  }
+  return false;
+}
+
+/// Matches declaration of the function, method, or block the statement
+/// belongs to.
+///
+/// Given:
+/// \code
+/// F& operator=(const F& o) {
+///   std::copy_if(o.begin(), o.end(), begin(), [](V v) { return v > 0; });
+///   return *this;
+/// }
+/// \endcode
+/// returnStmt(forCallable(functionDecl(hasName("operator="))))
+///   matches 'return *this'
+///   but does not match 'return v > 0'
+///
+/// Given:
+/// \code
+/// -(void) foo {
+///   int x = 1;
+///   dispatch_sync(queue, ^{ int y = 2; });
+/// }
+/// \endcode
+/// declStmt(forCallable(objcMethodDecl()))
+///   matches 'int x = 1'
+///   but does not match 'int y = 2'.
+/// whereas declStmt(forCallable(blockDecl()))
+///   matches 'int y = 2'
+///   but does not match 'int x = 1'.
+AST_MATCHER_P(Stmt, forCallable, internal::Matcher<Decl>, InnerMatcher) {
+  const auto &Parents = Finder->getASTContext().getParents(Node);
+
+  llvm::SmallVector<DynTypedNode, 8> Stack(Parents.begin(), Parents.end());
+  while (!Stack.empty()) {
+    const auto &CurNode = Stack.back();
+    Stack.pop_back();
+    if (const auto *FuncDeclNode = CurNode.get<FunctionDecl>()) {
+      if (InnerMatcher.matches(*FuncDeclNode, Finder, Builder)) {
+        return true;
+      }
+    } else if (const auto *LambdaExprNode = CurNode.get<LambdaExpr>()) {
+      if (InnerMatcher.matches(*LambdaExprNode->getCallOperator(), Finder,
+                               Builder)) {
+        return true;
+      }
+    } else if (const auto *ObjCMethodDeclNode = CurNode.get<ObjCMethodDecl>()) {
+      if (InnerMatcher.matches(*ObjCMethodDeclNode, Finder, Builder)) {
+        return true;
+      }
+    } else if (const auto *BlockDeclNode = CurNode.get<BlockDecl>()) {
+      if (InnerMatcher.matches(*BlockDeclNode, Finder, Builder)) {
+        return true;
+      }
+    } else {
+      for (const auto &Parent : Finder->getASTContext().getParents(CurNode))
         Stack.push_back(Parent);
     }
   }

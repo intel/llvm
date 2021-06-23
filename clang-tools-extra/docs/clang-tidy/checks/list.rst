@@ -30,6 +30,7 @@ Clang-Tidy Checks
    `abseil-time-comparison <abseil-time-comparison.html>`_, "Yes"
    `abseil-time-subtraction <abseil-time-subtraction.html>`_, "Yes"
    `abseil-upgrade-duration-conversions <abseil-upgrade-duration-conversions.html>`_, "Yes"
+   `altera-id-dependent-backward-branch <altera-id-dependent-backward-branch.html>`_,
    `altera-kernel-name-restriction <altera-kernel-name-restriction.html>`_,
    `altera-single-work-item-barrier <altera-single-work-item-barrier.html>`_,
    `altera-struct-pack-align <altera-struct-pack-align.html>`_, "Yes"
@@ -62,6 +63,7 @@ Clang-Tidy Checks
    `bugprone-fold-init-type <bugprone-fold-init-type.html>`_,
    `bugprone-forward-declaration-namespace <bugprone-forward-declaration-namespace.html>`_,
    `bugprone-forwarding-reference-overload <bugprone-forwarding-reference-overload.html>`_,
+   `bugprone-implicit-widening-of-multiplication-result <bugprone-implicit-widening-of-multiplication-result.html>`_, "Yes"
    `bugprone-inaccurate-erase <bugprone-inaccurate-erase.html>`_, "Yes"
    `bugprone-incorrect-roundings <bugprone-incorrect-roundings.html>`_,
    `bugprone-infinite-loop <bugprone-infinite-loop.html>`_,
@@ -100,6 +102,7 @@ Clang-Tidy Checks
    `bugprone-too-small-loop-variable <bugprone-too-small-loop-variable.html>`_,
    `bugprone-undefined-memory-manipulation <bugprone-undefined-memory-manipulation.html>`_,
    `bugprone-undelegated-constructor <bugprone-undelegated-constructor.html>`_,
+   `bugprone-unhandled-exception-at-new <bugprone-unhandled-exception-at-new.html>`_,
    `bugprone-unhandled-self-assignment <bugprone-unhandled-self-assignment.html>`_,
    `bugprone-unused-raii <bugprone-unused-raii.html>`_, "Yes"
    `bugprone-unused-return-value <bugprone-unused-return-value.html>`_,

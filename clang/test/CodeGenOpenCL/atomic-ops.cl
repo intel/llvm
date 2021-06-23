@@ -1,11 +1,16 @@
-// RUN: %clang_cc1 %s -cl-std=CL2.0 -emit-llvm -O0 -o - -triple=amdgcn-amd-amdhsa-amdgizcl | opt -instnamer -S | FileCheck %s
+// RUN: %clang_cc1 %s -cl-std=CL2.0 -emit-llvm -O0 -o - -triple=amdgcn-amd-amdhsa \
+// RUN:   | opt -instnamer -S | FileCheck %s
 
 // Also test serialization of atomic operations here, to avoid duplicating the test.
-// RUN: %clang_cc1 %s -cl-std=CL2.0 -emit-pch -O0 -o %t -triple=amdgcn-amd-amdhsa-amdgizcl
-// RUN: %clang_cc1 %s -cl-std=CL2.0 -include-pch %t -O0 -triple=amdgcn-amd-amdhsa-amdgizcl -emit-llvm -o - | opt -instnamer -S | FileCheck %s
+// RUN: %clang_cc1 %s -cl-std=CL2.0 -emit-pch -O0 -o %t -triple=amdgcn-amd-amdhsa
+// RUN: %clang_cc1 %s -cl-std=CL2.0 -include-pch %t -O0 -triple=amdgcn-amd-amdhsa \
+// RUN:   -emit-llvm -o - | opt -instnamer -S | FileCheck %s
 
 #ifndef ALREADY_INCLUDED
 #define ALREADY_INCLUDED
+
+#pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
+#pragma OPENCL EXTENSION cl_khr_int64_extended_atomics : enable
 
 typedef __INTPTR_TYPE__ intptr_t;
 typedef int int8 __attribute__((ext_vector_type(8)));
@@ -185,6 +190,18 @@ float ff3(atomic_float *d) {
   return __opencl_atomic_exchange(d, 2, memory_order_seq_cst, memory_scope_work_group);
 }
 
+float ff4(global atomic_float *d, float a) {
+  // CHECK-LABEL: @ff4
+  // CHECK: atomicrmw fadd float addrspace(1)* {{.*}} syncscope("workgroup-one-as") monotonic
+  return __opencl_atomic_fetch_add(d, a, memory_order_relaxed, memory_scope_work_group);
+}
+
+float ff5(global atomic_double *d, double a) {
+  // CHECK-LABEL: @ff5
+  // CHECK: atomicrmw fadd double addrspace(1)* {{.*}} syncscope("workgroup-one-as") monotonic
+  return __opencl_atomic_fetch_add(d, a, memory_order_relaxed, memory_scope_work_group);
+}
+
 // CHECK-LABEL: @atomic_init_foo
 void atomic_init_foo()
 {
@@ -208,7 +225,7 @@ void failureOrder(atomic_int *ptr, int *ptr2) {
 // CHECK-LABEL: @generalFailureOrder
 void generalFailureOrder(atomic_int *ptr, int *ptr2, int success, int fail) {
   __opencl_atomic_compare_exchange_strong(ptr, ptr2, 42, success, fail, memory_scope_work_group);
-  // CHECK: switch i32 {{.*}}, label %[[MONOTONIC:[0-9a-zA-Z._]+]] [
+// CHECK: switch i32 {{.*}}, label %[[MONOTONIC:[0-9a-zA-Z._]+]] [
   // CHECK-NEXT: i32 1, label %[[ACQUIRE:[0-9a-zA-Z._]+]]
   // CHECK-NEXT: i32 2, label %[[ACQUIRE]]
   // CHECK-NEXT: i32 3, label %[[RELEASE:[0-9a-zA-Z._]+]]
@@ -217,34 +234,49 @@ void generalFailureOrder(atomic_int *ptr, int *ptr2, int success, int fail) {
 
   // CHECK: [[MONOTONIC]]
   // CHECK: switch {{.*}}, label %[[MONOTONIC_MONOTONIC:[0-9a-zA-Z._]+]] [
+  // CHECK-NEXT: i32 1, label %[[MONOTONIC_ACQUIRE:[0-9a-zA-Z._]+]]
+  // CHECK-NEXT: i32 2, label %[[MONOTONIC_ACQUIRE:[0-9a-zA-Z._]+]]
+  // CHECK-NEXT: i32 5, label %[[MONOTONIC_SEQCST:[0-9a-zA-Z._]+]]
   // CHECK-NEXT: ]
 
   // CHECK: [[ACQUIRE]]
   // CHECK: switch {{.*}}, label %[[ACQUIRE_MONOTONIC:[0-9a-zA-Z._]+]] [
   // CHECK-NEXT: i32 1, label %[[ACQUIRE_ACQUIRE:[0-9a-zA-Z._]+]]
   // CHECK-NEXT: i32 2, label %[[ACQUIRE_ACQUIRE:[0-9a-zA-Z._]+]]
+  // CHECK-NEXT: i32 5, label %[[ACQUIRE_SEQCST:[0-9a-zA-Z._]+]]
   // CHECK-NEXT: ]
 
   // CHECK: [[RELEASE]]
   // CHECK: switch {{.*}}, label %[[RELEASE_MONOTONIC:[0-9a-zA-Z._]+]] [
+  // CHECK-NEXT: i32 1, label %[[RELEASE_ACQUIRE:[0-9a-zA-Z._]+]]
   // CHECK-NEXT: i32 2, label %[[RELEASE_ACQUIRE:[0-9a-zA-Z._]+]]
+  // CHECK-NEXT: i32 5, label %[[RELEASE_SEQCST:[0-9a-zA-Z._]+]]
   // CHECK-NEXT: ]
 
   // CHECK: [[ACQREL]]
   // CHECK: switch {{.*}}, label %[[ACQREL_MONOTONIC:[0-9a-zA-Z._]+]] [
   // CHECK-NEXT: i32 1, label %[[ACQREL_ACQUIRE:[0-9a-zA-Z._]+]]
   // CHECK-NEXT: i32 2, label %[[ACQREL_ACQUIRE:[0-9a-zA-Z._]+]]
+  // CHECK-NEXT: i32 5, label %[[ACQREL_SEQCST:[0-9a-zA-Z._]+]]
   // CHECK-NEXT: ]
 
   // CHECK: [[SEQCST]]
   // CHECK: switch {{.*}}, label %[[SEQCST_MONOTONIC:[0-9a-zA-Z._]+]] [
   // CHECK-NEXT: i32 1, label %[[SEQCST_ACQUIRE:[0-9a-zA-Z._]+]]
-  // CHECK-NEXT: i32 2, label %[[SEQCST_ACQUIRE:[0-9a-zA-Z._]+]]
+  // CHECK-NEXT: i32 2, label %[[SEQCST_ACQUIRE]]
   // CHECK-NEXT: i32 5, label %[[SEQCST_SEQCST:[0-9a-zA-Z._]+]]
   // CHECK-NEXT: ]
 
   // CHECK: [[MONOTONIC_MONOTONIC]]
   // CHECK: cmpxchg {{.*}} monotonic monotonic, align 4
+  // CHECK: br
+
+  // CHECK: [[MONOTONIC_ACQUIRE]]
+  // CHECK: cmpxchg {{.*}} monotonic acquire, align 4
+  // CHECK: br
+
+  // CHECK: [[MONOTONIC_SEQCST]]
+  // CHECK: cmpxchg {{.*}} monotonic seq_cst, align 4
   // CHECK: br
 
   // CHECK: [[ACQUIRE_MONOTONIC]]
@@ -255,6 +287,10 @@ void generalFailureOrder(atomic_int *ptr, int *ptr2, int success, int fail) {
   // CHECK: cmpxchg {{.*}} acquire acquire, align 4
   // CHECK: br
 
+  // CHECK: [[ACQUIRE_SEQCST]]
+  // CHECK: cmpxchg {{.*}} acquire seq_cst, align 4
+  // CHECK: br
+
   // CHECK: [[RELEASE_MONOTONIC]]
   // CHECK: cmpxchg {{.*}} release monotonic, align 4
   // CHECK: br
@@ -263,12 +299,20 @@ void generalFailureOrder(atomic_int *ptr, int *ptr2, int success, int fail) {
   // CHECK: cmpxchg {{.*}} release acquire, align 4
   // CHECK: br
 
+  // CHECK: [[RELEASE_SEQCST]]
+  // CHECK: cmpxchg {{.*}} release seq_cst, align 4
+  // CHECK: br
+
   // CHECK: [[ACQREL_MONOTONIC]]
   // CHECK: cmpxchg {{.*}} acq_rel monotonic, align 4
   // CHECK: br
 
   // CHECK: [[ACQREL_ACQUIRE]]
   // CHECK: cmpxchg {{.*}} acq_rel acquire, align 4
+  // CHECK: br
+
+  // CHECK: [[ACQREL_SEQCST]]
+  // CHECK: cmpxchg {{.*}} acq_rel seq_cst, align 4
   // CHECK: br
 
   // CHECK: [[SEQCST_MONOTONIC]]

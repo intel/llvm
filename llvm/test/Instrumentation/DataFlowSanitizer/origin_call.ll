@@ -1,6 +1,10 @@
-; RUN: opt < %s -dfsan -dfsan-track-origins=1 -dfsan-fast-16-labels=true -S | FileCheck %s --check-prefix=CHECK
+; RUN: opt < %s -dfsan -dfsan-track-origins=1  -S | FileCheck %s
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
+
+; CHECK: @__dfsan_arg_tls = external thread_local(initialexec) global [[TLS_ARR:\[100 x i64\]]]
+; CHECK: @__dfsan_shadow_width_bits = weak_odr constant i32 [[#SBITS:]]
+; CHECK: @__dfsan_shadow_width_bytes = weak_odr constant i32 [[#SBYTES:]]
 
 define i1 @arg_overflow(
 i1   %a0, i1   %a1, i1   %a2, i1   %a3, i1   %a4, i1   %a5, i1   %a6, i1   %a7, i1   %a8, i1   %a9,
@@ -25,7 +29,7 @@ i1 %a180, i1 %a181, i1 %a182, i1 %a183, i1 %a184, i1 %a185, i1 %a186, i1 %a187, 
 i1 %a190, i1 %a191, i1 %a192, i1 %a193, i1 %a194, i1 %a195, i1 %a196, i1 %a197, i1 %a198, i1 %a199,
 i1 %a200
 ) {
-  ; CHECK: @"dfs$arg_overflow"
+  ; CHECK: @arg_overflow.dfsan
   ; CHECK: [[A199:%.*]] = load i32, i32* getelementptr inbounds ([200 x i32], [200 x i32]* @__dfsan_arg_origin_tls, i64 0, i64 199), align 4
   ; CHECK: store i32 [[A199]], i32* @__dfsan_retval_origin_tls, align 4
 
@@ -34,11 +38,11 @@ i1 %a200
 }
 
 define i1 @param_overflow(i1 %a) {
-  ; CHECK: @"dfs$param_overflow"
+  ; CHECK: @param_overflow.dfsan
   ; CHECK: store i32 %1, i32* getelementptr inbounds ([200 x i32], [200 x i32]* @__dfsan_arg_origin_tls, i64 0, i64 199), align 4
-  ; CHECK-NEXT: store i16 %2, i16* inttoptr (i64 add (i64 ptrtoint ([100 x i64]* @__dfsan_arg_tls to i64), i64 398) to i16*), align 2
-  ; CHECK-NEXT: store i16 %2, i16* inttoptr (i64 add (i64 ptrtoint ([100 x i64]* @__dfsan_arg_tls to i64), i64 400) to i16*), align 2
-  ; CHECK-NEXT: %r = call i1 @"dfs$arg_overflow"
+  ; CHECK-NEXT: store i[[#SBITS]] %2, i[[#SBITS]]* inttoptr (i64 add (i64 ptrtoint ([100 x i64]* @__dfsan_arg_tls to i64), i64 398) to i[[#SBITS]]*), align 2
+  ; CHECK-NEXT: store i[[#SBITS]] %2, i[[#SBITS]]* inttoptr (i64 add (i64 ptrtoint ([100 x i64]* @__dfsan_arg_tls to i64), i64 400) to i[[#SBITS]]*), align 2
+  ; CHECK-NEXT: %r = call i1 @arg_overflow.dfsan
   ; CHECK: %_dfsret_o = load i32, i32* @__dfsan_retval_origin_tls, align 4
   ; CHECK: store i32 %_dfsret_o, i32* @__dfsan_retval_origin_tls, align 4
 
@@ -71,9 +75,9 @@ i1 %a
 declare void @foo(i1 %a)
 
 define void @param_with_zero_shadow() {
-  ; CHECK: @"dfs$param_with_zero_shadow"
-  ; CHECK-NEXT: store i16 0, i16* bitcast ([100 x i64]* @__dfsan_arg_tls to i16*), align 2
-  ; CHECK-NEXT: call void @"dfs$foo"(i1 true)
+  ; CHECK: @param_with_zero_shadow.dfsan
+  ; CHECK-NEXT: store i[[#SBITS]] 0, i[[#SBITS]]* bitcast ([100 x i64]* @__dfsan_arg_tls to i[[#SBITS]]*), align 2
+  ; CHECK-NEXT: call void @foo.dfsan(i1 true)
 
   call void @foo(i1 1)
   ret void

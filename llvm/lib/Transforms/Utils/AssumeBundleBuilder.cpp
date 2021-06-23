@@ -25,6 +25,7 @@
 
 using namespace llvm;
 
+namespace llvm {
 cl::opt<bool> ShouldPreserveAllAttributes(
     "assume-preserve-all", cl::init(false), cl::Hidden,
     cl::desc("enable preservation of all attrbitues. even those that are "
@@ -34,6 +35,7 @@ cl::opt<bool> EnableKnowledgeRetention(
     "enable-knowledge-retention", cl::init(false), cl::Hidden,
     cl::desc(
         "enable preservation of attributes throughout code transformation"));
+} // namespace llvm
 
 #define DEBUG_TYPE "assume-builder"
 
@@ -218,7 +220,7 @@ struct AssumeBuilderState {
       addAttrList(Fn->getAttributes());
   }
 
-  IntrinsicInst *build() {
+  AssumeInst *build() {
     if (AssumedKnowledgeMap.empty())
       return nullptr;
     if (!DebugCounter::shouldExecute(BuildAssumeCounter))
@@ -242,7 +244,7 @@ struct AssumeBuilderState {
       NumBundlesInAssumes++;
     }
     NumAssumeBuilt++;
-    return cast<IntrinsicInst>(CallInst::Create(
+    return cast<AssumeInst>(CallInst::Create(
         FnAssume, ArrayRef<Value *>({ConstantInt::getTrue(C)}), OpBundle));
   }
 
@@ -280,7 +282,7 @@ struct AssumeBuilderState {
 
 } // namespace
 
-IntrinsicInst *llvm::buildAssumeFromInst(Instruction *I) {
+AssumeInst *llvm::buildAssumeFromInst(Instruction *I) {
   if (!EnableKnowledgeRetention)
     return nullptr;
   AssumeBuilderState Builder(I->getModule());
@@ -294,14 +296,14 @@ void llvm::salvageKnowledge(Instruction *I, AssumptionCache *AC,
     return;
   AssumeBuilderState Builder(I->getModule(), I, AC, DT);
   Builder.addInstruction(I);
-  if (IntrinsicInst *Intr = Builder.build()) {
+  if (auto *Intr = Builder.build()) {
     Intr->insertBefore(I);
     if (AC)
       AC->registerAssumption(Intr);
   }
 }
 
-IntrinsicInst *
+AssumeInst *
 llvm::buildAssumeFromKnowledge(ArrayRef<RetainedKnowledge> Knowledge,
                                Instruction *CtxI, AssumptionCache *AC,
                                DominatorTree *DT) {
@@ -311,11 +313,10 @@ llvm::buildAssumeFromKnowledge(ArrayRef<RetainedKnowledge> Knowledge,
   return Builder.build();
 }
 
-RetainedKnowledge llvm::simplifyRetainedKnowledge(CallBase *Assume,
+RetainedKnowledge llvm::simplifyRetainedKnowledge(AssumeInst *Assume,
                                                   RetainedKnowledge RK,
                                                   AssumptionCache *AC,
                                                   DominatorTree *DT) {
-  assert(Assume->getIntrinsicID() == Intrinsic::assume);
   AssumeBuilderState Builder(Assume->getModule(), Assume, AC, DT);
   RK = canonicalizedKnowledge(RK, Assume->getModule()->getDataLayout());
 
@@ -372,7 +373,8 @@ struct AssumeSimplify {
     for (IntrinsicInst *Assume : CleanupToDo) {
       auto *Arg = dyn_cast<ConstantInt>(Assume->getOperand(0));
       if (!Arg || Arg->isZero() ||
-          (!ForceCleanup && !isAssumeWithEmptyBundle(*Assume)))
+          (!ForceCleanup &&
+           !isAssumeWithEmptyBundle(cast<AssumeInst>(*Assume))))
         continue;
       MadeChange = true;
       if (ForceCleanup)
@@ -415,7 +417,8 @@ struct AssumeSimplify {
             CleanupToDo.insert(Assume);
             continue;
           }
-          RetainedKnowledge RK = getKnowledgeFromBundle(*Assume, BOI);
+          RetainedKnowledge RK =
+            getKnowledgeFromBundle(cast<AssumeInst>(*Assume), BOI);
           if (auto *Arg = dyn_cast_or_null<Argument>(RK.WasOn)) {
             bool HasSameKindAttr = Arg->hasAttribute(RK.AttrKind);
             if (HasSameKindAttr)
@@ -474,7 +477,8 @@ struct AssumeSimplify {
     for (IntrinsicInst *I : make_range(Begin, End)) {
       CleanupToDo.insert(I);
       for (CallInst::BundleOpInfo &BOI : I->bundle_op_infos()) {
-        RetainedKnowledge RK = getKnowledgeFromBundle(*I, BOI);
+        RetainedKnowledge RK =
+          getKnowledgeFromBundle(cast<AssumeInst>(*I), BOI);
         if (!RK)
           continue;
         Builder.addKnowledge(RK);
@@ -494,7 +498,7 @@ struct AssumeSimplify {
           InsertPt = It->getNextNode();
           break;
         }
-    IntrinsicInst *MergedAssume = Builder.build();
+    auto *MergedAssume = Builder.build();
     if (!MergedAssume)
       return;
     MadeChange = true;

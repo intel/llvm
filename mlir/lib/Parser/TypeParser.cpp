@@ -13,6 +13,7 @@
 #include "Parser.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/TensorEncoding.h"
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -409,14 +410,29 @@ Type Parser::parseTensorType() {
   // Parse the element type.
   auto elementTypeLoc = getToken().getLoc();
   auto elementType = parseType();
+
+  // Parse an optional encoding attribute.
+  Attribute encoding;
+  if (consumeIf(Token::comma)) {
+    encoding = parseAttribute();
+    if (auto v = encoding.dyn_cast_or_null<VerifiableTensorEncoding>()) {
+      if (failed(v.verifyEncoding(dimensions, elementType,
+                                  [&] { return emitError(); })))
+        return nullptr;
+    }
+  }
+
   if (!elementType || parseToken(Token::greater, "expected '>' in tensor type"))
     return nullptr;
   if (!TensorType::isValidElementType(elementType))
     return emitError(elementTypeLoc, "invalid tensor element type"), nullptr;
 
-  if (isUnranked)
+  if (isUnranked) {
+    if (encoding)
+      return emitError("cannot apply encoding to unranked tensor"), nullptr;
     return UnrankedTensorType::get(elementType);
-  return RankedTensorType::get(dimensions, elementType);
+  }
+  return RankedTensorType::get(dimensions, elementType, encoding);
 }
 
 /// Parse a tuple type.
@@ -472,7 +488,7 @@ VectorType Parser::parseVectorType() {
   if (!elementType || parseToken(Token::greater, "expected '>' in vector type"))
     return nullptr;
   if (!VectorType::isValidElementType(elementType))
-    return emitError(typeLoc, "vector elements must be int or float type"),
+    return emitError(typeLoc, "vector elements must be int/index/float type"),
            nullptr;
 
   return VectorType::get(dimensions, elementType);

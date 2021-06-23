@@ -25,6 +25,7 @@
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/DiagnosticRenderer.h"
+#include "clang/Lex/Lexer.h"
 #include "clang/Tooling/Core/Diagnostic.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/STLExtras.h"
@@ -62,15 +63,32 @@ protected:
         Loc.isValid()
             ? tooling::DiagnosticMessage(Message, Loc.getManager(), Loc)
             : tooling::DiagnosticMessage(Message);
+
+    // Make sure that if a TokenRange is receieved from the check it is unfurled
+    // into a real CharRange for the diagnostic printer later.
+    // Whatever we store here gets decoupled from the current SourceManager, so
+    // we **have to** know the exact position and length of the highlight.
+    auto ToCharRange = [this, &Loc](const CharSourceRange &SourceRange) {
+      if (SourceRange.isCharRange())
+        return SourceRange;
+      assert(SourceRange.isTokenRange());
+      SourceLocation End = Lexer::getLocForEndOfToken(
+          SourceRange.getEnd(), 0, Loc.getManager(), LangOpts);
+      return CharSourceRange::getCharRange(SourceRange.getBegin(), End);
+    };
+
     if (Level == DiagnosticsEngine::Note) {
       Error.Notes.push_back(TidyMessage);
+      for (const CharSourceRange &SourceRange : Ranges)
+        Error.Notes.back().Ranges.emplace_back(Loc.getManager(),
+                                               ToCharRange(SourceRange));
       return;
     }
     assert(Error.Message.Message.empty() && "Overwriting a diagnostic message");
     Error.Message = TidyMessage;
-    for (const CharSourceRange &SourceRange : Ranges) {
-      Error.Ranges.emplace_back(Loc.getManager(), SourceRange);
-    }
+    for (const CharSourceRange &SourceRange : Ranges)
+      Error.Message.Ranges.emplace_back(Loc.getManager(),
+                                        ToCharRange(SourceRange));
   }
 
   void emitDiagnosticLoc(FullSourceLoc Loc, PresumedLoc PLoc,
@@ -428,6 +446,9 @@ void ClangTidyDiagnosticConsumer::HandleDiagnostic(
       case DiagnosticsEngine::Warning:
         CheckName = "clang-diagnostic-warning";
         break;
+      case DiagnosticsEngine::Remark:
+        CheckName = "clang-diagnostic-remark";
+        break;
       default:
         CheckName = "clang-diagnostic-unknown";
         break;
@@ -442,7 +463,10 @@ void ClangTidyDiagnosticConsumer::HandleDiagnostic(
       Level = ClangTidyError::Error;
       LastErrorRelatesToUserCode = true;
       LastErrorPassesLineFilter = true;
+    } else if (DiagLevel == DiagnosticsEngine::Remark) {
+      Level = ClangTidyError::Remark;
     }
+
     bool IsWarningAsError = DiagLevel == DiagnosticsEngine::Warning &&
                             Context.treatAsError(CheckName);
     Errors.emplace_back(CheckName, Level, Context.getCurrentBuildDirectory(),

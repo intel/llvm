@@ -305,6 +305,7 @@ StringRef CGDebugInfo::getClassName(const RecordDecl *RD) {
     llvm::raw_svector_ostream OS(Name);
     PrintingPolicy PP = getPrintingPolicy();
     PP.PrintCanonicalTypes = true;
+    PP.SuppressInlineNamespace = false;
     RD->getNameForDiagnostic(OS, PP,
                              /*Qualified*/ false);
 
@@ -567,9 +568,11 @@ void CGDebugInfo::CreateCompileUnit() {
   if (LO.CPlusPlus) {
     if (LO.ObjC)
       LangTag = llvm::dwarf::DW_LANG_ObjC_plus_plus;
-    else if (LO.CPlusPlus14)
+    else if (LO.CPlusPlus14 && (!CGM.getCodeGenOpts().DebugStrictDwarf ||
+                                CGM.getCodeGenOpts().DwarfVersion >= 5))
       LangTag = llvm::dwarf::DW_LANG_C_plus_plus_14;
-    else if (LO.CPlusPlus11)
+    else if (LO.CPlusPlus11 && (!CGM.getCodeGenOpts().DebugStrictDwarf ||
+                                CGM.getCodeGenOpts().DwarfVersion >= 5))
       LangTag = llvm::dwarf::DW_LANG_C_plus_plus_11;
     else
       LangTag = llvm::dwarf::DW_LANG_C_plus_plus;
@@ -2995,8 +2998,13 @@ llvm::DIType *CGDebugInfo::CreateType(const LValueReferenceType *Ty,
 
 llvm::DIType *CGDebugInfo::CreateType(const RValueReferenceType *Ty,
                                       llvm::DIFile *Unit) {
-  return CreatePointerLikeType(llvm::dwarf::DW_TAG_rvalue_reference_type, Ty,
-                               Ty->getPointeeType(), Unit);
+  llvm::dwarf::Tag Tag = llvm::dwarf::DW_TAG_rvalue_reference_type;
+  // DW_TAG_rvalue_reference_type was introduced in DWARF 4.
+  if (CGM.getCodeGenOpts().DebugStrictDwarf &&
+      CGM.getCodeGenOpts().DwarfVersion < 4)
+    Tag = llvm::dwarf::DW_TAG_reference_type;
+
+  return CreatePointerLikeType(Tag, Ty, Ty->getPointeeType(), Unit);
 }
 
 llvm::DIType *CGDebugInfo::CreateType(const MemberPointerType *Ty,
@@ -3552,6 +3560,7 @@ void CGDebugInfo::collectFunctionDeclProps(GlobalDecl GD, llvm::DIFile *Unit,
   if (LinkageName == Name || (!CGM.getCodeGenOpts().EmitGcovArcs &&
                               !CGM.getCodeGenOpts().EmitGcovNotes &&
                               !CGM.getCodeGenOpts().DebugInfoForProfiling &&
+                              !CGM.getCodeGenOpts().PseudoProbeForProfiling &&
                               DebugKind <= codegenoptions::DebugLineTablesOnly))
     LinkageName = StringRef();
 
@@ -4064,9 +4073,9 @@ void CGDebugInfo::EmitFuncDeclForCallSite(llvm::CallBase *CallOrInvoke,
   if (CalleeDecl->getBuiltinID() != 0 || CalleeDecl->hasAttr<NoDebugAttr>() ||
       getCallSiteRelatedAttrs() == llvm::DINode::FlagZero)
     return;
-  if (const auto *Id = CalleeDecl->getIdentifier())
-    if (Id->isReservedName())
-      return;
+  if (CalleeDecl->isReserved(CGM.getLangOpts()) !=
+      ReservedIdentifierStatus::NotReserved)
+    return;
 
   // If there is no DISubprogram attached to the function being called,
   // create the one describing the function in order to have complete
@@ -4309,7 +4318,9 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
   auto *Scope = cast<llvm::DIScope>(LexicalBlockStack.back());
   StringRef Name = VD->getName();
   if (!Name.empty()) {
-    if (VD->hasAttr<BlocksAttr>()) {
+    // __block vars are stored on the heap if they are captured by a block that
+    // can escape the local scope.
+    if (VD->isEscapingByref()) {
       // Here, we need an offset *into* the alloca.
       CharUnits offset = CharUnits::fromQuantity(32);
       Expr.push_back(llvm::dwarf::DW_OP_plus_uconst);
@@ -4370,13 +4381,53 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
   }
 
   // Create the descriptor for the variable.
-  auto *D = ArgNo ? DBuilder.createParameterVariable(
-                        Scope, Name, *ArgNo, Unit, Line, Ty,
-                        CGM.getLangOpts().Optimize, Flags)
-                  : DBuilder.createAutoVariable(Scope, Name, Unit, Line, Ty,
-                                                CGM.getLangOpts().Optimize,
-                                                Flags, Align);
+  llvm::DILocalVariable *D = nullptr;
+  if (ArgNo) {
+    D = DBuilder.createParameterVariable(Scope, Name, *ArgNo, Unit, Line, Ty,
+                                         CGM.getLangOpts().Optimize, Flags);
+  } else {
+    // For normal local variable, we will try to find out whether 'VD' is the
+    // copy parameter of coroutine.
+    // If yes, we are going to use DIVariable of the origin parameter instead
+    // of creating the new one.
+    // If no, it might be a normal alloc, we just create a new one for it.
 
+    // Check whether the VD is move parameters.
+    auto RemapCoroArgToLocalVar = [&]() -> llvm::DILocalVariable * {
+      // The scope of parameter and move-parameter should be distinct
+      // DISubprogram.
+      if (!isa<llvm::DISubprogram>(Scope) || !Scope->isDistinct())
+        return nullptr;
+
+      auto Iter = llvm::find_if(CoroutineParameterMappings, [&](auto &Pair) {
+        Stmt *StmtPtr = const_cast<Stmt *>(Pair.second);
+        if (DeclStmt *DeclStmtPtr = dyn_cast<DeclStmt>(StmtPtr)) {
+          DeclGroupRef DeclGroup = DeclStmtPtr->getDeclGroup();
+          Decl *Decl = DeclGroup.getSingleDecl();
+          if (VD == dyn_cast_or_null<VarDecl>(Decl))
+            return true;
+        }
+        return false;
+      });
+
+      if (Iter != CoroutineParameterMappings.end()) {
+        ParmVarDecl *PD = const_cast<ParmVarDecl *>(Iter->first);
+        auto Iter2 = llvm::find_if(ParamDbgMappings, [&](auto &DbgPair) {
+          return DbgPair.first == PD && DbgPair.second->getScope() == Scope;
+        });
+        if (Iter2 != ParamDbgMappings.end())
+          return const_cast<llvm::DILocalVariable *>(Iter2->second);
+      }
+      return nullptr;
+    };
+
+    // If we couldn't find a move param DIVariable, create a new one.
+    D = RemapCoroArgToLocalVar();
+    // Or we will create a new DIVariable for this Decl if D dose not exists.
+    if (!D)
+      D = DBuilder.createAutoVariable(Scope, Name, Unit, Line, Ty,
+                                      CGM.getLangOpts().Optimize, Flags, Align);
+  }
   // Insert an llvm.dbg.declare into the current block.
   DBuilder.insertDeclare(Storage, D, DBuilder.createExpression(Expr),
                          llvm::DILocation::get(CGM.getLLVMContext(), Line,
@@ -4501,11 +4552,11 @@ void CGDebugInfo::EmitDeclareOfBlockDeclRefVariable(
     DBuilder.insertDeclare(Storage, D, Expr, DL, Builder.GetInsertBlock());
 }
 
-void CGDebugInfo::EmitDeclareOfArgVariable(const VarDecl *VD, llvm::Value *AI,
-                                           unsigned ArgNo,
-                                           CGBuilderTy &Builder) {
+llvm::DILocalVariable *
+CGDebugInfo::EmitDeclareOfArgVariable(const VarDecl *VD, llvm::Value *AI,
+                                      unsigned ArgNo, CGBuilderTy &Builder) {
   assert(CGM.getCodeGenOpts().hasReducedDebugInfo());
-  EmitDeclare(VD, AI, ArgNo, Builder);
+  return EmitDeclare(VD, AI, ArgNo, Builder);
 }
 
 namespace {
@@ -4926,24 +4977,7 @@ void CGDebugInfo::EmitUsingDirective(const UsingDirectiveDecl &UD) {
   }
 }
 
-void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
-  if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
-    return;
-  assert(UD.shadow_size() &&
-         "We shouldn't be codegening an invalid UsingDecl containing no decls");
-  // Emitting one decl is sufficient - debuggers can detect that this is an
-  // overloaded name & provide lookup for all the overloads.
-  const UsingShadowDecl &USD = **UD.shadow_begin();
-
-  // FIXME: Skip functions with undeduced auto return type for now since we
-  // don't currently have the plumbing for separate declarations & definitions
-  // of free functions and mismatched types (auto in the declaration, concrete
-  // return type in the definition)
-  if (const auto *FD = dyn_cast<FunctionDecl>(USD.getUnderlyingDecl()))
-    if (const auto *AT =
-            FD->getType()->castAs<FunctionProtoType>()->getContainedAutoType())
-      if (AT->getDeducedType().isNull())
-        return;
+void CGDebugInfo::EmitUsingShadowDecl(const UsingShadowDecl &USD) {
   if (llvm::DINode *Target =
           getDeclarationOrDefinition(USD.getUnderlyingDecl())) {
     auto Loc = USD.getLocation();
@@ -4951,6 +4985,42 @@ void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
         getCurrentContextDescriptor(cast<Decl>(USD.getDeclContext())), Target,
         getOrCreateFile(Loc), getLineNumber(Loc));
   }
+}
+
+void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
+  if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
+    return;
+  assert(UD.shadow_size() &&
+         "We shouldn't be codegening an invalid UsingDecl containing no decls");
+
+  for (const auto *USD : UD.shadows()) {
+    // FIXME: Skip functions with undeduced auto return type for now since we
+    // don't currently have the plumbing for separate declarations & definitions
+    // of free functions and mismatched types (auto in the declaration, concrete
+    // return type in the definition)
+    if (const auto *FD = dyn_cast<FunctionDecl>(USD->getUnderlyingDecl()))
+      if (const auto *AT = FD->getType()
+                               ->castAs<FunctionProtoType>()
+                               ->getContainedAutoType())
+        if (AT->getDeducedType().isNull())
+          continue;
+
+    EmitUsingShadowDecl(*USD);
+    // Emitting one decl is sufficient - debuggers can detect that this is an
+    // overloaded name & provide lookup for all the overloads.
+    break;
+  }
+}
+
+void CGDebugInfo::EmitUsingEnumDecl(const UsingEnumDecl &UD) {
+  if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
+    return;
+  assert(UD.shadow_size() &&
+         "We shouldn't be codegening an invalid UsingEnumDecl"
+         " containing no decls");
+
+  for (const auto *USD : UD.shadows())
+    EmitUsingShadowDecl(*USD);
 }
 
 void CGDebugInfo::EmitImportDecl(const ImportDecl &ID) {

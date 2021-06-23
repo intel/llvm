@@ -1,4 +1,5 @@
 ! RUN: %S/test_errors.sh %s %t %flang -fopenmp
+! REQUIRES: shell
 ! OpenMP Version 4.5
 ! 2.7.4 workshare Construct
 ! Invalid do construct inside !$omp workshare
@@ -15,6 +16,7 @@ subroutine workshare(aa, bb, cc, dd, ee, ff, n)
   end do
 
   !$omp critical
+  !ERROR: A worksharing region may not be closely nested inside a worksharing, explicit task, taskloop, critical, ordered, atomic, or master region
   !$omp single
   aa = bb
   !$omp end single

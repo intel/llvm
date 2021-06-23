@@ -166,9 +166,8 @@ EmitCopyFromReg(SDNode *Node, unsigned ResNo, bool IsClone, bool IsCloned,
     assert(TRI->isTypeLegalForClass(*UseRC, VT) &&
            "Incompatible phys register def and uses!");
     DstRC = UseRC;
-  } else {
-    DstRC = TLI->getRegClassFor(VT, Node->isDivergent());
-  }
+  } else
+    DstRC = SrcRC;
 
   // If all uses are reading from the src physical register and copying the
   // register is either impossible or very expensive, then don't create a copy.
@@ -1145,10 +1144,10 @@ EmitSpecialNode(SDNode *Node, bool IsClone, bool IsCloned,
 
   case ISD::LIFETIME_START:
   case ISD::LIFETIME_END: {
-    unsigned TarOp = (Node->getOpcode() == ISD::LIFETIME_START) ?
-    TargetOpcode::LIFETIME_START : TargetOpcode::LIFETIME_END;
-
-    FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Node->getOperand(1));
+    unsigned TarOp = (Node->getOpcode() == ISD::LIFETIME_START)
+                         ? TargetOpcode::LIFETIME_START
+                         : TargetOpcode::LIFETIME_END;
+    auto *FI = cast<FrameIndexSDNode>(Node->getOperand(1));
     BuildMI(*MBB, InsertPos, Node->getDebugLoc(), TII->get(TarOp))
     .addFrameIndex(FI->getIndex());
     break;

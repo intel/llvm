@@ -1,23 +1,11 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <limits>
 #include <utility>
 
-using namespace sycl::INTEL::gpu;
-
-bool test_simd_view_ctors() __attribute__((sycl_device)) {
-  simd<int, 16> v0(0, 1);
-
-  region1d_t<int, 4, 1> r0(4);
-  simd_view<simd<int, 16>, region1d_t<int, 4, 1>> ref0(v0, r0);
-  simd_view<simd<int, 16>, region1d_t<int, 4, 1>> ref1(std::move(ref0));
-  simd_view<simd<int, 16>, region1d_t<int, 4, 1>> ref2(
-      std::move(v0.select<4, 1>(8)));
-
-  return (ref0[0] == 4) && (ref1[1] == 5) && (ref2[0] == 8);
-}
+using namespace sycl::ext::intel::experimental::esimd;
 
 bool test_simd_view_bin_ops() __attribute__((sycl_device)) {
   simd<int, 16> v0 = 1;
@@ -68,8 +56,9 @@ bool test_simd_view_assign3() __attribute__((sycl_device)) {
   auto mask = (v0.select<16, 1>(0) > v1.select<16, 1>(0));
   auto mask2 = (v0 > v1);
   simd<ushort, 64> s = 0;
-  auto g4 = s.format<ushort, 4, 16>();
+  auto g4 = s.bit_cast_view<ushort, 4, 16>();
   simd<ushort, 16> val = (g4.row(2) & mask);
-  simd<ushort, 16> val1 = (g4.row(2) & mask2.format<ushort, 4, 16>().row(0));
+  simd<ushort, 16> val1 =
+      (g4.row(2) & mask2.bit_cast_view<ushort, 4, 16>().row(0));
   return val[0] == 0 && val1[0] == 0;
 }

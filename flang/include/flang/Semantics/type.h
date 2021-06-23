@@ -154,6 +154,9 @@ public:
       : IntrinsicTypeSpec(TypeCategory::Character, std::move(kind)),
         length_{std::move(length)} {}
   const ParamValue &length() const { return length_; }
+  bool operator==(const CharacterTypeSpec &that) const {
+    return kind() == that.kind() && length_ == that.length_;
+  }
   std::string AsFortran() const;
 
 private:
@@ -268,7 +271,7 @@ public:
   // Creates a Scope for the type and populates it with component
   // instantiations that have been specialized with actual type parameter
   // values, which are cooked &/or evaluated if necessary.
-  void Instantiate(Scope &, SemanticsContext &);
+  void Instantiate(Scope &containingScope);
 
   ParamValue *FindParameter(SourceName);
   const ParamValue *FindParameter(SourceName target) const {
@@ -279,10 +282,9 @@ public:
       return nullptr;
     }
   }
+  bool MightBeAssignmentCompatibleWith(const DerivedTypeSpec &) const;
   bool operator==(const DerivedTypeSpec &that) const {
-    return &typeSymbol_ == &that.typeSymbol_ && cooked_ == that.cooked_ &&
-        parameters_ == that.parameters_ &&
-        rawParameters_ == that.rawParameters_;
+    return RawEquals(that) && parameters_ == that.parameters_;
   }
   std::string AsFortran() const;
 
@@ -295,6 +297,10 @@ private:
   bool instantiated_{false};
   RawParameters rawParameters_;
   ParameterMapType parameters_;
+  bool RawEquals(const DerivedTypeSpec &that) const {
+    return &typeSymbol_ == &that.typeSymbol_ && cooked_ == that.cooked_ &&
+        rawParameters_ == that.rawParameters_;
+  }
   friend llvm::raw_ostream &operator<<(
       llvm::raw_ostream &, const DerivedTypeSpec &);
 };

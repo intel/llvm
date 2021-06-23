@@ -35,10 +35,22 @@ config.test_source_root = os.path.dirname(__file__)
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.sycl_obj_root, 'test')
 
-llvm_config.use_clang()
+llvm_config.use_clang(use_installed=True)
 
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAMES', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME'])
+
+# Propagate extra environment variables
+if config.extra_environment:
+    lit_config.note("Extra environment variables")
+    for env_pair in config.extra_environment.split(','):
+        [var,val]=env_pair.split("=")
+        if val:
+           llvm_config.with_environment(var,val)
+           lit_config.note("\t"+var+"="+val)
+        else:
+           lit_config.note("\tUnset "+var)
+           llvm_config.with_environment(var,"")
 
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
@@ -83,7 +95,7 @@ else:
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 backend=lit_config.params.get('SYCL_PLUGIN', "opencl")
 lit_config.note("Backend: {}".format(backend))
-config.substitutions.append( ('%sycl_be', { 'opencl': 'PI_OPENCL',  'cuda': 'PI_CUDA', 'level_zero': 'PI_LEVEL_ZERO'}[backend]) )
+config.substitutions.append( ('%sycl_be', backend) )
 config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env SYCL_DEVICE_FILTER={SYCL_PLUGIN} ".format(SYCL_PLUGIN=backend)) )
 config.substitutions.append( ('%RUN_ON_HOST', "env SYCL_DEVICE_FILTER=host ") )
 

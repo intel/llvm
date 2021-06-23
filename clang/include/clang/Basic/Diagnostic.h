@@ -18,6 +18,7 @@
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/SyclOptReportHandler.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
@@ -294,6 +295,7 @@ private:
   DiagnosticConsumer *Client = nullptr;
   std::unique_ptr<DiagnosticConsumer> Owner;
   SourceManager *SourceMgr = nullptr;
+  SyclOptReportHandler OptReportHandler;
 
   /// Mapping information for diagnostics.
   ///
@@ -546,6 +548,12 @@ public:
 
   LLVM_DUMP_METHOD void dump() const;
   LLVM_DUMP_METHOD void dump(StringRef DiagName) const;
+
+  /// Retrieve the report SyclOptReport info.
+  SyclOptReportHandler &getSYCLOptReportHandler() { return OptReportHandler; }
+  const SyclOptReportHandler &getSYCLOptReportHandler() const {
+    return OptReportHandler;
+  }
 
   const IntrusiveRefCntPtr<DiagnosticIDs> &getDiagnosticIDs() const {
     return Diags;

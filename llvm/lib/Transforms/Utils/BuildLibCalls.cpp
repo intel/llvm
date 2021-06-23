@@ -44,7 +44,6 @@ STATISTIC(NumSExtArg, "Number of arguments inferred as signext");
 STATISTIC(NumReadOnlyArg, "Number of arguments inferred as readonly");
 STATISTIC(NumNoAlias, "Number of function returns inferred as noalias");
 STATISTIC(NumNoUndef, "Number of function returns inferred as noundef returns");
-STATISTIC(NumNonNull, "Number of function returns inferred as nonnull returns");
 STATISTIC(NumReturnedArg, "Number of arguments inferred as returned");
 STATISTIC(NumWillReturn, "Number of functions inferred as willreturn");
 
@@ -257,11 +256,19 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 0);
     return Changed;
-  case LibFunc_strcpy:
-  case LibFunc_strncpy:
   case LibFunc_strcat:
   case LibFunc_strncat:
+    Changed |= setOnlyAccessesArgMemory(F);
+    Changed |= setDoesNotThrow(F);
     Changed |= setWillReturn(F);
+    Changed |= setReturnedArg(F, 0);
+    Changed |= setDoesNotCapture(F, 1);
+    Changed |= setOnlyReadsMemory(F, 1);
+    Changed |= setDoesNotAlias(F, 0);
+    Changed |= setDoesNotAlias(F, 1);
+    return Changed;
+  case LibFunc_strcpy:
+  case LibFunc_strncpy:
     Changed |= setReturnedArg(F, 0);
     LLVM_FALLTHROUGH;
   case LibFunc_stpcpy:
@@ -560,7 +567,6 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     return Changed;
   case LibFunc_calloc:
   case LibFunc_vec_calloc:
-    Changed |= setOnlyAccessesInaccessibleMemory(F);
     Changed |= setRetAndArgsNoUndef(F);
     Changed |= setDoesNotThrow(F);
     Changed |= setRetDoesNotAlias(F);

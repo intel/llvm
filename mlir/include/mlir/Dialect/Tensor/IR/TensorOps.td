@@ -137,6 +137,7 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
   ];
 
   let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -180,6 +181,118 @@ def Tensor_GenerateOp : Tensor_Op<"generate",
   ];
 
   let hasCanonicalizer = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// InsertOp
+//===----------------------------------------------------------------------===//
+
+def Tensor_InsertOp : Tensor_Op<"insert",
+    [NoSideEffect,
+     TypesMatchWith<"result type matches type of dest",
+                    "dest", "result",
+                    "$_self.cast<ShapedType>()">,
+     TypesMatchWith<"scalar type matches element type of dest",
+                    "dest", "scalar",
+                    "$_self.cast<ShapedType>().getElementType()">]> {
+  let summary = "element insertion operation";
+  let description = [{
+    The `tensor.insert` op writes a tensor into a tensor `dest`as specified by
+    the operation's indices.
+
+    It returns a copy of `dest` with the proper subtensor updated with the value
+    of `scalar`.
+
+    The arity of indices must match the rank of the tensor `dest` (i.e., if a
+    tensor is of rank 3, then 3 indices are required for the extract. The
+    indices should all be of `index` type.
+
+    Example:
+
+    ```mlir
+    %4 = tensor.insert %t into %dest[%1, %2] : tensor<4x4xi32>
+    %5 = tensor.insert %rt into %dest[%1, %2] : tensor<?x?xi32>
+    %6 = tensor.insert %ut into %dest[%1, %2] : tensor<*xi32>
+    ```
+  }];
+
+  let arguments = (ins AnyType:$scalar,
+                       AnyTensor:$dest,
+                       Variadic<Index>:$indices);
+  let results = (outs AnyTensor:$result);
+  let assemblyFormat = [{
+    $scalar `into` $dest `[` $indices `]` attr-dict `:` type($dest)
+  }];
+
+  let builders = [
+    OpBuilder<(ins "Value":$scalar, "Value":$dest,
+      CArg<"ValueRange", "{}">:$indices), [{
+      auto resType = dest.getType();
+      build($_builder, $_state, resType, scalar, dest, indices);
+    }]>];
+
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// ReshapeOp
+//===----------------------------------------------------------------------===//
+
+def Tensor_ReshapeOp: Tensor_Op<"reshape", [NoSideEffect]>  {
+  let summary = "tensor reshape operation";
+  let description = [{
+    The `reshape` operation converts a tensor from one type to an equivalent
+    type with a provided shape. The source and destination types are compatible
+    if both have the same element type, same number of elements. The following
+    combinations are possible:
+
+    a. Source type is ranked or unranked. Shape argument has static size.
+    Result type is ranked.
+
+    ```mlir
+    // Reshape statically-shaped tensor.
+    %dst = tensor.reshape %src(%shape)
+             : (tensor<4x1xf32>, tensor<1xi32>) -> tensor<4xf32>
+    %dst0 = tensor.reshape %src(%shape0)
+             : (tensor<4x1xf32>, tensor<2xi32>) -> tensor<2x2xf32>
+    // Flatten unranked tensor.
+    %dst = tensor.reshape %src(%shape)
+             : (tensor<*xf32>, tensor<1xi32>) -> tensor<?xf32>
+    ```
+
+    b. Source type is ranked or unranked. Shape argument has dynamic size.
+    Result type is unranked.
+
+    ```mlir
+    // Reshape dynamically-shaped 1D tensor.
+    %dst = tensor.reshape %src(%shape)
+             : (tensor<?xf32>, tensor<?xi32>) -> tensor<*xf32>
+    // Reshape unranked tensor.
+    %dst = tensor.reshape %src(%shape)
+             : (tensor<*xf32>, tensor<?xi32>) -> tensor<*xf32>
+    ```
+  }];
+
+  let arguments = (ins
+    AnyTensor:$source,
+    TensorRankOf<[AnySignlessInteger, Index], [1]>:$shape
+  );
+  let results = (outs AnyTensor:$result);
+
+  let builders = [OpBuilder<
+     (ins "TensorType":$resultType, "Value":$operand, "Value":$shape), [{
+       $_state.addOperands(operand);
+       $_state.addOperands(shape);
+       $_state.addTypes(resultType);
+     }]>];
+
+  let extraClassDeclaration = [{
+    TensorType getResultType() { return getResult().getType().cast<TensorType>(); }
+  }];
+
+  let assemblyFormat = [{
+    $source `(` $shape `)` attr-dict `:` functional-type(operands, results)
+  }];
 }
 
 //===----------------------------------------------------------------------===//

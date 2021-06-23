@@ -85,6 +85,8 @@ class VOP2_Real <VOP2_Pseudo ps, int EncodingFamily> :
   InstSI <ps.OutOperandList, ps.InOperandList, ps.Mnemonic # ps.AsmOperands, []>,
   SIMCInstr <ps.PseudoInstr, EncodingFamily> {
 
+  let VALU = 1;
+  let VOP2 = 1;
   let isPseudo = 0;
   let isCodeGenOnly = 0;
 
@@ -103,6 +105,8 @@ class VOP2_Real <VOP2_Pseudo ps, int EncodingFamily> :
   let Uses                 = ps.Uses;
   let Defs                 = ps.Defs;
   let SchedRW              = ps.SchedRW;
+  let mayLoad              = ps.mayLoad;
+  let mayStore             = ps.mayStore;
 }
 
 class VOP2_SDWA_Pseudo <string OpName, VOPProfile P, list<dag> pattern=[]> :
@@ -749,17 +753,21 @@ let AddedComplexity = 30 in {
   }
 } // End AddedComplexity = 30
 
+let SubtargetPredicate = HasFmaakFmamkF32Insts in {
+def V_FMAMK_F32 : VOP2_Pseudo<"v_fmamk_f32", VOP_MADMK_F32, [], "">;
+
+let isCommutable = 1 in
+def V_FMAAK_F32 : VOP2_Pseudo<"v_fmaak_f32", VOP_MADAK_F32, [], "">;
+}
+
 let SubtargetPredicate = isGFX10Plus in {
 
-def V_FMAMK_F32 : VOP2_Pseudo<"v_fmamk_f32", VOP_MADMK_F32, [], "">;
-let FPDPRounding = 1 in
+let FPDPRounding = 1 in {
 def V_FMAMK_F16 : VOP2_Pseudo <"v_fmamk_f16", VOP_MADMK_F16, [], "">;
 
-let isCommutable = 1 in {
-def V_FMAAK_F32 : VOP2_Pseudo<"v_fmaak_f32", VOP_MADAK_F32, [], "">;
-let FPDPRounding = 1 in
+let isCommutable = 1 in
 def V_FMAAK_F16 : VOP2_Pseudo <"v_fmaak_f16", VOP_MADAK_F16, [], "">;
-} // End isCommutable = 1
+} // End FPDPRounding  = 1
 
 let Constraints = "$vdst = $src2",
     DisableEncoding="$src2",
@@ -927,8 +935,6 @@ class VOP2_DPP8<bits<6> op, VOP2_Pseudo ps,
   let Inst{30-25} = op;
   let Inst{31}    = 0x0;
 
-  let AssemblerPredicate = HasDPP8;
-  let SubtargetPredicate = HasDPP8;
   let OtherPredicates = ps.OtherPredicates;
 }
 

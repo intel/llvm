@@ -276,7 +276,7 @@ void AggExprEmitter::withReturnValueSlot(
     RetAddr = Dest.getAddress();
   } else {
     RetAddr = CGF.CreateMemTemp(RetTy, "tmp", &RetAllocaAddr);
-    uint64_t Size =
+    llvm::TypeSize Size =
         CGF.CGM.getDataLayout().getTypeAllocSize(CGF.ConvertTypeForMem(RetTy));
     LifetimeSizePtr = CGF.EmitLifetimeStart(Size, RetAllocaAddr.getPointer());
     if (LifetimeSizePtr) {
@@ -901,6 +901,7 @@ void AggExprEmitter::VisitCastExpr(CastExpr *E) {
   case CK_CopyAndAutoreleaseBlockObject:
   case CK_BuiltinFnToFnPtr:
   case CK_ZeroToOCLOpaqueType:
+  case CK_MatrixCast:
 
   case CK_IntToOCLSampler:
   case CK_FloatingToFixedPoint:
@@ -1422,6 +1423,7 @@ static bool castPreservesZero(const CastExpr *CE) {
   case CK_PointerToIntegral:
     // Language extensions.
   case CK_VectorSplat:
+  case CK_MatrixCast:
   case CK_NonAtomicToAtomic:
   case CK_AtomicToNonAtomic:
     return true;

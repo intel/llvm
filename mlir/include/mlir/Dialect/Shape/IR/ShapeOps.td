@@ -93,7 +93,8 @@ def Shape_BroadcastOp : Shape_Op<"broadcast", [Commutative, NoSideEffect]> {
   let verifier = [{ return ::verify(*this); }];
 }
 
-def Shape_ConstShapeOp : Shape_Op<"const_shape", [ConstantLike, NoSideEffect]> {
+def Shape_ConstShapeOp : Shape_Op<"const_shape",
+    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Creates a constant shape or extent tensor";
   let description = [{
     Creates a constant shape or extent tensor. The individual extents are given
@@ -103,7 +104,7 @@ def Shape_ConstShapeOp : Shape_Op<"const_shape", [ConstantLike, NoSideEffect]> {
     ```mlir
     %0 = shape.const_shape [] : !shape.shape
     %1 = shape.const_shape [1, 2, 3] : !shape.shape
-    %2 = shape.const_shape [4, 5, 6] : tensor<?xindex>
+    %2 = shape.const_shape [4, 5, 6] : tensor<3xindex>
     ```
   }];
   let arguments = (ins IndexElementsAttr:$shape);
@@ -114,6 +115,11 @@ def Shape_ConstShapeOp : Shape_Op<"const_shape", [ConstantLike, NoSideEffect]> {
   let parser = [{ return ::parse$cppClass(parser, result); }];
   let hasFolder = 1;
   let hasCanonicalizer = 1;
+
+  let extraClassDeclaration = [{
+    // InferTypeOpInterface:
+    static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
+  }];
 }
 
 def Shape_ConstSizeOp : Shape_Op<"const_size", [
@@ -387,13 +393,56 @@ def Shape_JoinOp : Shape_Op<"join", [Commutative]> {
     used to return an error to the user upon mismatch of dimensions.
 
     ```mlir
-    %c = shape.join %a, %b, error="<reason>" : !shape.shape
+    %c = shape.join %a, %b, error="<reason>" : !shape.shape, !shape.shape -> !shape.shape
     ```
   }];
 
   let arguments = (ins Shape_ShapeOrSizeType:$arg0, Shape_ShapeOrSizeType:$arg1,
                    OptionalAttr<StrAttr>:$error);
   let results = (outs Shape_ShapeOrSizeType:$result);
+
+  let assemblyFormat = [{
+    $arg0 `,` $arg1 (`,` `error` `=` $error^)? attr-dict `:`
+      type($arg0) `,` type($arg1) `->` type($result)
+  }];
+}
+
+def Shape_MaxOp : Shape_Op<"max", [Commutative, NoSideEffect]> {
+  let summary = "Elementwise maximum";
+  let description = [{
+    Computes the elementwise maximum of two sizes or shapes with equal ranks.
+    If either operand is an error, then an error will be propagated to the
+    result. If the input types mismatch or the ranks do not match, then the
+    result is an error.
+  }];
+
+  let arguments = (ins Shape_ShapeOrSizeType:$lhs, Shape_ShapeOrSizeType:$rhs);
+  let results = (outs Shape_ShapeOrSizeType:$result);
+
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:` type($lhs) `,` type($rhs) `->` type($result)
+  }];
+
+  let hasFolder = 1;
+}
+
+def Shape_MinOp : Shape_Op<"min", [Commutative, NoSideEffect]> {
+  let summary = "Elementwise minimum";
+  let description = [{
+    Computes the elementwise minimum of two sizes or shapes with equal ranks.
+    If either operand is an error, then an error will be propagated to the
+    result. If the input types mismatch or the ranks do not match, then the
+    result is an error.
+  }];
+
+  let arguments = (ins Shape_ShapeOrSizeType:$lhs, Shape_ShapeOrSizeType:$rhs);
+  let results = (outs Shape_ShapeOrSizeType:$result);
+
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:` type($lhs) `,` type($rhs) `->` type($result)
+  }];
+
+  let hasFolder = 1;
 }
 
 def Shape_MulOp : Shape_Op<"mul", [Commutative, NoSideEffect]> {
@@ -704,6 +753,12 @@ def Shape_AssumingAllOp : Shape_Op<"assuming_all", [Commutative, NoSideEffect]> 
 
   let arguments = (ins Variadic<Shape_WitnessType>:$inputs);
   let results = (outs Shape_WitnessType:$result);
+
+  // Only needed while tablegen is unable to generate this for ops with variadic
+  // arguments.
+  let builders = [
+    OpBuilder<(ins "ValueRange":$inputs)>,
+  ];
 
   let assemblyFormat = "$inputs attr-dict";
 

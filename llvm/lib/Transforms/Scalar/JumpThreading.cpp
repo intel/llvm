@@ -371,7 +371,6 @@ PreservedAnalyses JumpThreadingPass::run(Function &F,
   if (!Changed)
     return PreservedAnalyses::all();
   PreservedAnalyses PA;
-  PA.preserve<GlobalsAA>();
   PA.preserve<DominatorTreeAnalysis>();
   PA.preserve<LazyValueAnalysis>();
   return PA;
@@ -434,9 +433,8 @@ bool JumpThreadingPass::runImpl(Function &F, TargetLibraryInfo *TLI_,
 
       // Jump threading may have introduced redundant debug values into BB
       // which should be removed.
-      // Remove redundant pseudo probes as well.
       if (Changed)
-        RemoveRedundantDbgInstrs(&BB, true);
+        RemoveRedundantDbgInstrs(&BB);
 
       // Stop processing BB if it's the entry or is now deleted. The following
       // routines attempt to eliminate BB and locating a suitable replacement
@@ -469,7 +467,7 @@ bool JumpThreadingPass::runImpl(Function &F, TargetLibraryInfo *TLI_,
             // detect and transform nested loops later.
             !LoopHeaders.count(&BB) && !LoopHeaders.count(Succ) &&
             TryToSimplifyUncondBranchFromEmptyBlock(&BB, DTU)) {
-          RemoveRedundantDbgInstrs(Succ, true);
+          RemoveRedundantDbgInstrs(Succ);
           // BB is valid for cleanup here because we passed in DTU. F remains
           // BB's parent until a DTU->getDomTree() event.
           LVI->eraseBlock(&BB);
@@ -1110,6 +1108,7 @@ bool JumpThreadingPass::processBlock(BasicBlock *BB) {
     LLVM_DEBUG(dbgs() << "  In block '" << BB->getName()
                       << "' folding undef terminator: " << *BBTerm << '\n');
     BranchInst::Create(BBTerm->getSuccessor(BestSucc), BBTerm);
+    ++NumFolds;
     BBTerm->eraseFromParent();
     DTU->applyUpdatesPermissive(Updates);
     if (FI)
@@ -1155,8 +1154,8 @@ bool JumpThreadingPass::processBlock(BasicBlock *BB) {
       assert(CondBr->isConditional() && "Threading on unconditional terminator");
 
       LazyValueInfo::Tristate Ret =
-        LVI->getPredicateAt(CondCmp->getPredicate(), CondCmp->getOperand(0),
-                            CondConst, CondBr);
+          LVI->getPredicateAt(CondCmp->getPredicate(), CondCmp->getOperand(0),
+                              CondConst, CondBr, /*UseBlockValue=*/false);
       if (Ret != LazyValueInfo::Unknown) {
         unsigned ToRemove = Ret == LazyValueInfo::True ? 1 : 0;
         unsigned ToKeep = Ret == LazyValueInfo::True ? 0 : 1;
@@ -1165,6 +1164,7 @@ bool JumpThreadingPass::processBlock(BasicBlock *BB) {
         BranchInst *UncondBr =
           BranchInst::Create(CondBr->getSuccessor(ToKeep), CondBr);
         UncondBr->setDebugLoc(CondBr->getDebugLoc());
+        ++NumFolds;
         CondBr->eraseFromParent();
         if (CondCmp->use_empty())
           CondCmp->eraseFromParent();
@@ -1280,6 +1280,7 @@ bool JumpThreadingPass::processImpliedCondition(BasicBlock *BB) {
       RemoveSucc->removePredecessor(BB);
       BranchInst *UncondBI = BranchInst::Create(KeepSucc, BI);
       UncondBI->setDebugLoc(BI->getDebugLoc());
+      ++NumFolds;
       BI->eraseFromParent();
       DTU->applyUpdatesPermissive({{DominatorTree::Delete, BB, RemoveSucc}});
       if (HasProfileData)
@@ -1729,6 +1730,7 @@ bool JumpThreadingPass::processThreadableEdges(Value *Cond, BasicBlock *BB,
       // Finally update the terminator.
       Instruction *Term = BB->getTerminator();
       BranchInst::Create(OnlyDest, Term);
+      ++NumFolds;
       Term->eraseFromParent();
       DTU->applyUpdatesPermissive(Updates);
       if (HasProfileData)
@@ -2746,7 +2748,8 @@ void JumpThreadingPass::unfoldSelectInstr(BasicBlock *Pred, BasicBlock *BB,
   PredTerm->removeFromParent();
   NewBB->getInstList().insert(NewBB->end(), PredTerm);
   // Create a conditional branch and update PHI nodes.
-  BranchInst::Create(NewBB, BB, SI->getCondition(), Pred);
+  auto *BI = BranchInst::Create(NewBB, BB, SI->getCondition(), Pred);
+  BI->applyMergedLocation(PredTerm->getDebugLoc(), SI->getDebugLoc());
   SIUse->setIncomingValue(Idx, SI->getFalseValue());
   SIUse->addIncoming(SI->getTrueValue(), NewBB);
 

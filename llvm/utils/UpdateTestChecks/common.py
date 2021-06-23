@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import copy
 import glob
+import os
 import re
 import subprocess
 import sys
@@ -31,8 +32,8 @@ def parse_commandline_args(parser):
                        help='Activate CHECK line generation from this point forward')
   parser.add_argument('--disable', action='store_false', dest='enabled',
                       help='Deactivate CHECK line generation from this point forward')
-  parser.add_argument('--replace-function-regex', nargs='+', default=[],
-                      help='List of regular expressions to replace matching function names')
+  parser.add_argument('--replace-value-regex', nargs='+', default=[],
+                      help='List of regular expressions to replace matching value names')
   parser.add_argument('--prefix-filecheck-ir-name', default='',
                       help='Add a prefix to FileCheck IR value names to avoid conflicts with scripted names')
   args = parser.parse_args()
@@ -141,11 +142,23 @@ def should_add_line_to_output(input_line, prefix_set, skip_global_checks = False
   return True
 
 # Invoke the tool that is being tested.
-def invoke_tool(exe, cmd_args, ir):
+def invoke_tool(exe, cmd_args, ir, preprocess_cmd=None, verbose=False):
   with open(ir) as ir_file:
     # TODO Remove the str form which is used by update_test_checks.py and
     # update_llc_test_checks.py
     # The safer list form is used by update_cc_test_checks.py
+    if preprocess_cmd:
+      # Allow pre-processing the IR file (e.g. using sed):
+      assert isinstance(preprocess_cmd, str)  # TODO: use a list instead of using shell
+      preprocess_cmd = preprocess_cmd.replace('%s', ir).strip()
+      if verbose:
+        print('Pre-processing input file: ', ir, " with command '",
+              preprocess_cmd, "'", sep="", file=sys.stderr)
+      # Python 2.7 doesn't have subprocess.DEVNULL:
+      with open(os.devnull, 'w') as devnull:
+        pp = subprocess.Popen(preprocess_cmd, shell=True, stdin=devnull,
+                              stdout=subprocess.PIPE)
+        ir_file = pp.stdout
     if isinstance(cmd_args, list):
       stdout = subprocess.check_output([exe] + cmd_args, stdin=ir_file)
     else:
@@ -278,13 +291,14 @@ class function_body(object):
     return self.scrub
 
 class FunctionTestBuilder:
-  def __init__(self, run_list, flags, scrubber_args):
+  def __init__(self, run_list, flags, scrubber_args, path):
     self._verbose = flags.verbose
     self._record_args = flags.function_signature
     self._check_attributes = flags.check_attributes
     self._scrubber_args = scrubber_args
+    self._path = path
     # Strip double-quotes if input was read by UTC_ARGS
-    self._replace_function_regex = list(map(lambda x: x.strip('"'), flags.replace_function_regex))
+    self._replace_value_regex = list(map(lambda x: x.strip('"'), flags.replace_value_regex))
     self._func_dict = {}
     self._func_order = {}
     self._global_var_dict = {}
@@ -296,7 +310,7 @@ class FunctionTestBuilder:
 
   def finish_and_get_func_dict(self):
     for prefix in self._get_failed_prefixes():
-      warn('Prefix %s had conflicting output from different RUN lines for all functions' % (prefix,))
+      warn('Prefix %s had conflicting output from different RUN lines for all functions in test %s' % (prefix,self._path,))
     return self._func_dict
 
   def func_order(self):
@@ -359,7 +373,7 @@ class FunctionTestBuilder:
               continue
 
         # Replace function names matching the regex.
-        for regex in self._replace_function_regex:
+        for regex in self._replace_value_regex:
           # Pattern that matches capture groups in the regex in leftmost order.
           group_regex = re.compile('\(.*?\)')
           # Replace function name with regex.
@@ -425,6 +439,7 @@ nameless_values = [
     NamelessValue(r'GLOB' , '@' , r'@'           , None            , None                   , r'[0-9]+'    , None                 , False) ,
     NamelessValue(r'GLOB' , '@' , None           , r'@'            , r'[a-zA-Z0-9_$"\\.-]+' , None         , r'.+'                , True)  ,
     NamelessValue(r'DBG'  , '!' , r'!dbg '       , None            , None                   , r'![0-9]+'   , None                 , False) ,
+    NamelessValue(r'PROF' , '!' , r'!prof '      , None            , None                   , r'![0-9]+'   , None                 , False) ,
     NamelessValue(r'TBAA' , '!' , r'!tbaa '      , None            , None                   , r'![0-9]+'   , None                 , False) ,
     NamelessValue(r'RNG'  , '!' , r'!range '     , None            , None                   , r'![0-9]+'   , None                 , False) ,
     NamelessValue(r'LOOP' , '!' , r'!llvm.loop ' , None            , None                   , r'![0-9]+'   , None                 , False) ,

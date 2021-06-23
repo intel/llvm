@@ -160,7 +160,7 @@ class SCEVExpander : public SCEVVisitor<SCEVExpander, Value *> {
   /// consistent when instructions are moved.
   SmallVector<SCEVInsertPointGuard *, 8> InsertPointGuards;
 
-#ifndef NDEBUG
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
   const char *DebugType;
 #endif
 
@@ -176,7 +176,7 @@ public:
         Builder(se.getContext(), TargetFolder(DL),
                 IRBuilderCallbackInserter(
                     [this](Instruction *I) { rememberInstruction(I); })) {
-#ifndef NDEBUG
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
     DebugType = "";
 #endif
   }
@@ -186,7 +186,7 @@ public:
     assert(InsertPointGuards.empty());
   }
 
-#ifndef NDEBUG
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
   void setDebugType(const char *s) { DebugType = s; }
 #endif
 
@@ -382,7 +382,7 @@ public:
   /// Returns a suitable insert point after \p I, that dominates \p
   /// MustDominate. Skips instructions inserted by the expander.
   BasicBlock::iterator findInsertPointAfter(Instruction *I,
-                                            Instruction *MustDominate);
+                                            Instruction *MustDominate) const;
 
 private:
   LLVMContext &getContext() const { return SE.getContext(); }
@@ -414,6 +414,9 @@ private:
   /// outer loop when the opportunity is there and it is safe.
   Value *InsertBinop(Instruction::BinaryOps Opcode, Value *LHS, Value *RHS,
                      SCEV::NoWrapFlags Flags, bool IsSafeToHoist);
+
+  /// We want to cast \p V. What would be the best place for such a cast?
+  BasicBlock::iterator GetOptimalInsertionPointForCastOf(Value *V) const;
 
   /// Arrange for there to be a cast of V to Ty at IP, reusing an existing
   /// cast if a suitable one exists, moving an existing cast if a suitable one

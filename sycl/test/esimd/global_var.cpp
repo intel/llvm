@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 using namespace cl::sycl;
 
@@ -28,8 +28,6 @@ SYCL_EXTERNAL void init_vc_sycl(int x) {
   vc = x;
 }
 
-SYCL_EXTERNAL void foo() {}
-
 void kernel_call() {
   queue q;
   q.submit([&](cl::sycl::handler &cgh) {
@@ -38,7 +36,6 @@ void kernel_call() {
                                    // ESIMD kernel is allowed to use ESIMD
                                    // global
                                    vc = 0;
-                                   foo();
                                    func_that_uses_esimd_glob();
                                  });
   });

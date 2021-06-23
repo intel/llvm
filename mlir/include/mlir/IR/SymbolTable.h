@@ -212,6 +212,8 @@ private:
   unsigned uniquingCounter = 0;
 };
 
+raw_ostream &operator<<(raw_ostream &os, SymbolTable::Visibility visibility);
+
 //===----------------------------------------------------------------------===//
 // SymbolTableCollection
 //===----------------------------------------------------------------------===//
@@ -295,7 +297,7 @@ private:
   SymbolTableCollection &symbolTable;
 
   /// A map of symbol operations to symbol users.
-  DenseMap<Operation *, llvm::SetVector<Operation *>> symbolToUsers;
+  DenseMap<Operation *, SetVector<Operation *>> symbolToUsers;
 };
 
 //===----------------------------------------------------------------------===//
@@ -334,8 +336,7 @@ public:
   Operation *lookupSymbol(SymbolRefAttr symbol) {
     return mlir::SymbolTable::lookupSymbolIn(this->getOperation(), symbol);
   }
-  template <typename T>
-  T lookupSymbol(SymbolRefAttr symbol) {
+  template <typename T> T lookupSymbol(SymbolRefAttr symbol) {
     return dyn_cast_or_null<T>(lookupSymbol(symbol));
   }
 };

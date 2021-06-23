@@ -196,8 +196,13 @@ protected:
   // HasZeroCycleZeroing - Has zero-cycle zeroing instructions.
   bool HasZeroCycleZeroing = false;
   bool HasZeroCycleZeroingGP = false;
-  bool HasZeroCycleZeroingFP = false;
   bool HasZeroCycleZeroingFPWorkaround = false;
+
+  // It is generally beneficial to rewrite "fmov s0, wzr" to "movi d0, #0".
+  // as movi is more efficient across all cores. Newer cores can eliminate
+  // fmovs early and there is no difference with movi, but this not true for
+  // all implementations.
+  bool HasZeroCycleZeroingFP = true;
 
   // StrictAlign - Disallow unaligned memory accesses.
   bool StrictAlign = false;
@@ -209,7 +214,6 @@ protected:
   unsigned MinVectorRegisterBitWidth = 64;
 
   bool OutlineAtomics = false;
-  bool UseAA = false;
   bool PredictableSelectIsExpensive = false;
   bool BalanceFPOps = false;
   bool CustomAsCheapAsMove = false;
@@ -237,6 +241,7 @@ protected:
   bool AllowTaggedGlobals = false;
   bool HardenSlsRetBr = false;
   bool HardenSlsBlr = false;
+  bool HardenSlsNoComdat = false;
   uint8_t MaxInterleaveFactor = 2;
   uint8_t VectorInsertExtractBaseCost = 3;
   uint16_t CacheLineSize = 0;
@@ -395,6 +400,7 @@ public:
 
   bool hardenSlsRetBr() const { return HardenSlsRetBr; }
   bool hardenSlsBlr() const { return HardenSlsBlr; }
+  bool hardenSlsNoComdat() const { return HardenSlsNoComdat; }
 
   bool useEL1ForTP() const { return UseEL1ForTP; }
   bool useEL2ForTP() const { return UseEL2ForTP; }
@@ -489,7 +495,7 @@ public:
            TargetTriple.getEnvironment() == Triple::GNUILP32;
   }
 
-  bool useAA() const override { return UseAA; }
+  bool useAA() const override;
 
   bool outlineAtomics() const { return OutlineAtomics; }
 

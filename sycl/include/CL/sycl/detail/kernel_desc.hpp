@@ -17,6 +17,13 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+// This guard is needed because the libsycl.so can be compiled with C++ <=14
+// while the code requires C++17. This code is not supposed to be used by the
+// libsycl.so so it should not be a problem.
+#if __cplusplus > 201402L
+template <auto &S> struct specialization_id_name_generator {};
+#endif
+
 #ifndef __SYCL_DEVICE_ONLY__
 #define _Bool bool
 #endif
@@ -28,6 +35,7 @@ enum class kernel_param_kind_t {
   kind_sampler = 2,
   kind_pointer = 3,
   kind_specialization_constants_buffer = 4,
+  kind_stream = 5,
 };
 
 // describes a kernel parameter
@@ -48,6 +56,18 @@ struct kernel_param_desc_t {
 template <class Name> struct SpecConstantInfo {
   static constexpr const char *getName() { return ""; }
 };
+
+#if __cplusplus >= 201703L
+// Translates SYCL 2020 specialization constant type to its name.
+template <auto &SpecName> const char *get_spec_constant_symbolic_ID() {
+#ifdef SYCL_LANGUAGE_VERSION
+  return __builtin_sycl_unique_stable_name(
+      specialization_id_name_generator<SpecName>);
+#else
+  return "";
+#endif
+}
+#endif
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
 template <class KernelNameType> struct KernelInfo {
@@ -85,7 +105,17 @@ using make_index_sequence =
 
 template <typename T> struct KernelInfoImpl {
 private:
-  static constexpr auto n = __builtin_unique_stable_name(T);
+  // This is necessary to ensure that any kernels we get info for are properly
+  // labeled as such before we call __builtin_sycl_unique_stable_name in a
+  // constant expression, otherwise subsequent calls to a sycl_kernel function
+  // could cause the kernel name to be altered, and change the result of the
+  // builtin.
+  // Additionally, we make this a dependency of 'n' so that we can guarantee
+  // that this is evaluated first. The builtin always returns 'true', so the
+  // 'else' branch of 'n's ternary is never evaluated.
+  static constexpr bool b = __builtin_sycl_mark_kernel_name(T);
+  static constexpr auto n = b ? __builtin_sycl_unique_stable_name(T)
+                              : __builtin_sycl_unique_stable_name(T);
   template <unsigned long long... I>
   static KernelInfoData<n[I]...> impl(index_sequence<I...>) {
     return {};

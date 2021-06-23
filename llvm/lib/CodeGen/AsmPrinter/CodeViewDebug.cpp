@@ -273,9 +273,9 @@ static StringRef getPrettyScopeName(const DIScope *Scope) {
     return "<unnamed-tag>";
   case dwarf::DW_TAG_namespace:
     return "`anonymous namespace'";
+  default:
+    return StringRef();
   }
-
-  return StringRef();
 }
 
 const DISubprogram *CodeViewDebug::collectParentScopeNames(
@@ -804,6 +804,9 @@ void CodeViewDebug::emitCompilerInformation() {
   // The low byte of the flags indicates the source language.
   Flags = MapDWLangToCVLang(CU->getSourceLanguage());
   // TODO:  Figure out which other flags need to be set.
+  if (MMI->getModule()->getProfileSummary(/*IsCS*/ false) != nullptr) {
+    Flags |= static_cast<uint32_t>(CompileSym3Flags::PGO);
+  }
 
   OS.AddComment("Flags and language");
   OS.emitInt32(Flags);
@@ -1428,6 +1431,10 @@ void CodeViewDebug::beginFunctionImpl(const MachineFunction *MF) {
   if (Asm->TM.getOptLevel() != CodeGenOpt::None &&
       !GV.hasOptSize() && !GV.hasOptNone())
     FPO |= FrameProcedureOptions::OptimizedForSpeed;
+  if (GV.hasProfileData()) {
+    FPO |= FrameProcedureOptions::ValidProfileCounts;
+    FPO |= FrameProcedureOptions::ProfileGuidedOptimization;
+  }
   // FIXME: Set GuardCfg when it is implemented.
   CurFn->FrameProcOpts = FPO;
 
@@ -1480,6 +1487,9 @@ static bool shouldEmitUdt(const DIType *T) {
       case dwarf::DW_TAG_class_type:
       case dwarf::DW_TAG_union_type:
         return false;
+      default:
+          // do nothing.
+          ;
       }
     }
   }
@@ -2025,10 +2035,13 @@ static MethodKind translateMethodKindFlags(const DISubprogram *SP,
 
 static TypeRecordKind getRecordKind(const DICompositeType *Ty) {
   switch (Ty->getTag()) {
-  case dwarf::DW_TAG_class_type:     return TypeRecordKind::Class;
-  case dwarf::DW_TAG_structure_type: return TypeRecordKind::Struct;
+  case dwarf::DW_TAG_class_type:
+    return TypeRecordKind::Class;
+  case dwarf::DW_TAG_structure_type:
+    return TypeRecordKind::Struct;
+  default:
+    llvm_unreachable("unexpected tag");
   }
-  llvm_unreachable("unexpected tag");
 }
 
 /// Return ClassOptions that should be present on both the forward declaration

@@ -756,6 +756,7 @@ const internal::VariadicDynCastAllOfMatcher<Decl, DeclaratorDecl>
 const internal::VariadicDynCastAllOfMatcher<Decl, ParmVarDecl> parmVarDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, AccessSpecDecl>
     accessSpecDecl;
+const internal::VariadicAllOfMatcher<CXXBaseSpecifier> cxxBaseSpecifier;
 const internal::VariadicAllOfMatcher<CXXCtorInitializer> cxxCtorInitializer;
 const internal::VariadicAllOfMatcher<TemplateArgument> templateArgument;
 const internal::VariadicAllOfMatcher<TemplateArgumentLoc> templateArgumentLoc;
@@ -840,6 +841,7 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, ParenListExpr> parenListExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, SubstNonTypeTemplateParmExpr>
     substNonTypeTemplateParmExpr;
 const internal::VariadicDynCastAllOfMatcher<Decl, UsingDecl> usingDecl;
+const internal::VariadicDynCastAllOfMatcher<Decl, UsingEnumDecl> usingEnumDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, UsingDirectiveDecl>
     usingDirectiveDecl;
 const internal::VariadicDynCastAllOfMatcher<Stmt, UnresolvedLookupExpr>

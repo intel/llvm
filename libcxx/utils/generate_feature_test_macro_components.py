@@ -138,7 +138,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["atomic", "memory"],
     "test_suite_guard": "!defined(_LIBCPP_HAS_NO_THREADS)",
     "libcxx_guard": "!defined(_LIBCPP_HAS_NO_THREADS)",
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_atomic_wait",
     "values": { "c++20": 201907 },
@@ -187,7 +186,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "values": { "c++20": 201811 },
     "headers": ["atomic", "filesystem", "istream", "limits", "locale", "ostream", "string", "string_view"],
     "test_suite_guard": "defined(__cpp_char8_t)",
-    "libcxx_guard": "!defined(_LIBCPP_NO_HAS_CHAR8_T)",
+    "libcxx_guard": "!defined(_LIBCPP_HAS_NO_CHAR8_T)",
   }, {
     "name": "__cpp_lib_chrono",
     "values": { "c++17": 201611 },
@@ -208,7 +207,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_concepts",
     "values": { "c++20": 202002 },
     "headers": ["concepts"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_constexpr_algorithms",
     "values": { "c++20": 201806 },
@@ -301,6 +299,8 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_format",
     "values": { "c++20": 201907 },
     "headers": ["format"],
+    "test_suite_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format)",
+    "libcxx_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format)",
     "unimplemented": True,
   }, {
     "name": "__cpp_lib_gcd_lcm",
@@ -341,7 +341,8 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_integer_comparison_functions",
     "values": { "c++20": 202002 },
     "headers": ["utility"],
-    "unimplemented": True,
+    "test_suite_guard": "defined(__cpp_concepts) && __cpp_concepts >= 201907L",
+    "libcxx_guard": "!defined(_LIBCPP_HAS_NO_CONCEPTS)",
   }, {
     "name": "__cpp_lib_integer_sequence",
     "values": { "c++14": 201304 },

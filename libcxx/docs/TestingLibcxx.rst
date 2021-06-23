@@ -126,7 +126,7 @@ default.
 
 .. option:: std=<standard version>
 
-  **Values**: c++03, c++11, c++14, c++17, c++2a, c++2b
+  **Values**: c++03, c++11, c++14, c++17, c++20, c++2b
 
   Change the standard version used when building the tests.
 
@@ -153,7 +153,7 @@ default.
   **Default**: False
 
   Enable or disable testing against the installed version of libc++ library.
-  This impacts whether the ``with_system_cxx_lib`` Lit feature is defined or
+  This impacts whether the ``use_system_cxx_lib`` Lit feature is defined or
   not. The ``cxx_library_root`` and ``cxx_runtime_root`` parameters should
   still be used to specify the path of the library to link to and run against,
   respectively.

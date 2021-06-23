@@ -35,14 +35,18 @@ add_flang_library(FortranRuntime
   allocatable.cpp
   buffer.cpp
   complex-reduction.c
+  copy.cpp
   character.cpp
   connection.cpp
   derived.cpp
   descriptor.cpp
+  dot-product.cpp
   edit-input.cpp
   edit-output.cpp
   environment.cpp
+  extrema.cpp
   file.cpp
+  findloc.cpp
   format.cpp
   internal-unit.cpp
   iostat.cpp
@@ -50,16 +54,23 @@ add_flang_library(FortranRuntime
   io-error.cpp
   io-stmt.cpp
   main.cpp
+  matmul.cpp
   memory.cpp
   misc-intrinsic.cpp
+  namelist.cpp
   numeric.cpp
+  random.cpp
   reduction.cpp
+  product.cpp
   stat.cpp
   stop.cpp
+  sum.cpp
   terminator.cpp
+  time-intrinsic.cpp
   tools.cpp
   transformational.cpp
   type-code.cpp
+  type-info.cpp
   unit.cpp
   unit-map.cpp
 

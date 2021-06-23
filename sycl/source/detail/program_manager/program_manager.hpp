@@ -42,6 +42,10 @@ namespace sycl {
 class context;
 namespace detail {
 
+// This value must be the same as in libdevice/device_itt.h.
+// See sycl/doc/extensions/ITTAnnotations/ITTAnnotations.rst for more info.
+static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
+
 class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class program_impl;

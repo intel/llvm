@@ -375,6 +375,19 @@ Operation *SymbolTable::lookupNearestSymbolFrom(Operation *from,
   return symbolTableOp ? lookupSymbolIn(symbolTableOp, symbol) : nullptr;
 }
 
+raw_ostream &mlir::operator<<(raw_ostream &os,
+                              SymbolTable::Visibility visibility) {
+  switch (visibility) {
+  case SymbolTable::Visibility::Public:
+    return os << "public";
+  case SymbolTable::Visibility::Private:
+    return os << "private";
+  case SymbolTable::Visibility::Nested:
+    return os << "nested";
+  }
+  llvm_unreachable("Unexpected visibility");
+}
+
 //===----------------------------------------------------------------------===//
 // SymbolTable Trait Types
 //===----------------------------------------------------------------------===//
@@ -601,8 +614,8 @@ static SmallVector<SymbolScope, 2> collectSymbolScopes(Operation *symbol,
   assert(!symbol->hasTrait<OpTrait::SymbolTable>() || symbol != limit);
 
   // Compute the ancestors of 'limit'.
-  llvm::SetVector<Operation *, SmallVector<Operation *, 4>,
-                  SmallPtrSet<Operation *, 4>>
+  SetVector<Operation *, SmallVector<Operation *, 4>,
+            SmallPtrSet<Operation *, 4>>
       limitAncestors;
   Operation *limitAncestor = limit;
   do {
@@ -1043,7 +1056,7 @@ void SymbolUserMap::replaceAllUsesWith(Operation *symbol,
   auto it = symbolToUsers.find(symbol);
   if (it == symbolToUsers.end())
     return;
-  llvm::SetVector<Operation *> &users = it->second;
+  SetVector<Operation *> &users = it->second;
 
   // Replace the uses within the users of `symbol`.
   for (Operation *user : users)

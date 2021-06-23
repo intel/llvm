@@ -195,9 +195,7 @@ attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide
 
 ; CHECK-LLVM-NEGATIVE: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_A:[0-9]+]]
 ; CHECK-LLVM-NEGATIVE: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_B:[0-9]+]]
-; CHECK-LLVM-NEGATIVE-NOT: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_C:[0-9]+]]
-; CHECK-LLVM-NEGATIVE-NOT: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_D:[0-9]+]]
-; CHECK-LLVM-NEGATIVE-NOT: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_E:[0-9]+]]
+; CHECK-LLVM-NEGATIVE-NOT: br label %for.cond{{[0-9]+}}, !llvm.loop
 
 ; CHECK-LLVM: ![[MD_A]] = distinct !{![[MD_A]], ![[MD_ivdep_enable:[0-9]+]]}
 ; CHECK-LLVM: ![[MD_ivdep_enable]] = !{!"llvm.loop.ivdep.enable"}
@@ -213,8 +211,5 @@ attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide
 ; CHECK-LLVM-NEGATIVE: ![[MD_ivdep_enable]] = !{!"llvm.loop.ivdep.enable"}
 ; CHECK-LLVM-NEGATIVE: ![[MD_B]] = distinct !{![[MD_B]], ![[MD_ivdep:[0-9]+]]}
 ; CHECK-LLVM-NEGATIVE: ![[MD_ivdep]] = !{!"llvm.loop.ivdep.safelen", i32 2}
-; CHECK-LLVM-NEGATIVE-NOT: ![[MD_C]] = distinct !{![[MD_C]], ![[MD_ii:[0-9]+]]}
-; CHECK-LLVM-NEGATIVE-NOT: ![[MD_ii]] = !{!"llvm.loop.ii.count", i32 2}
-; CHECK-LLVM-NEGATIVE-NOT: ![[MD_D]] = distinct !{![[MD_D]], ![[MD_max_concurrency:[0-9]+]]}
-; CHECK-LLVM-NEGATIVE-NOT: ![[MD_max_concurrency]] = !{!"llvm.loop.max_concurrency.count", i32 2}
-; CHECK-LLVM-NEGATIVE-NOT: ![[MD_E]] = distinct !{![[MD_E]], ![[MD_ii:[0-9]+]], ![[MD_max_concurrency:[0-9]+]]}
+; CHECK-LLVM-NEGATIVE-NOT: !{{.*}} = !{!"llvm.loop.ii.count"{{.*}}}
+; CHECK-LLVM-NEGATIVE-NOT: !{{.*}} = !{!"llvm.loop.max_concurrency.count"{{.*}}}

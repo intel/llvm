@@ -26,6 +26,8 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Discriminator.h"
 #include <cassert>
 #include <climits>
 #include <cstddef>
@@ -60,6 +62,8 @@
 
 namespace llvm {
 
+extern cl::opt<bool> EnableFSDiscriminator;
+
 class DITypeRefArray {
   const MDTuple *N = nullptr;
 
@@ -80,11 +84,16 @@ public:
     return cast_or_null<DIType>(N->getOperand(I));
   }
 
-  class iterator : std::iterator<std::input_iterator_tag, DIType *,
-                                 std::ptrdiff_t, void, DIType *> {
+  class iterator {
     MDNode::op_iterator I = nullptr;
 
   public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = DIType *;
+    using difference_type = std::ptrdiff_t;
+    using pointer = void;
+    using reference = DIType *;
+
     iterator() = default;
     explicit iterator(MDNode::op_iterator I) : I(I) {}
 
@@ -148,7 +157,7 @@ protected:
   void setTag(unsigned Tag) { SubclassData16 = Tag; }
 
 public:
-  unsigned getTag() const { return SubclassData16; }
+  dwarf::Tag getTag() const { return (dwarf::Tag)SubclassData16; }
 
   /// Debug info flags.
   ///
@@ -257,7 +266,7 @@ public:
   /// Return a (temporary) clone of this.
   TempGenericDINode clone() const { return cloneImpl(); }
 
-  unsigned getTag() const { return SubclassData16; }
+  dwarf::Tag getTag() const { return (dwarf::Tag)SubclassData16; }
   StringRef getHeader() const { return getStringOperand(0); }
   MDString *getRawHeader() const { return getOperandAs<MDString>(0); }
 
@@ -1571,44 +1580,11 @@ class DILocation : public MDNode {
                    ShouldCreate);
   }
 
-  /// With a given unsigned int \p U, use up to 13 bits to represent it.
-  /// old_bit 1~5  --> new_bit 1~5
-  /// old_bit 6~12 --> new_bit 7~13
-  /// new_bit_6 is 0 if higher bits (7~13) are all 0
-  static unsigned getPrefixEncodingFromUnsigned(unsigned U) {
-    U &= 0xfff;
-    return U > 0x1f ? (((U & 0xfe0) << 1) | (U & 0x1f) | 0x20) : U;
-  }
-
-  /// Reverse transformation as getPrefixEncodingFromUnsigned.
-  static unsigned getUnsignedFromPrefixEncoding(unsigned U) {
-    if (U & 1)
-      return 0;
-    U >>= 1;
-    return (U & 0x20) ? (((U >> 1) & 0xfe0) | (U & 0x1f)) : (U & 0x1f);
-  }
-
-  /// Returns the next component stored in discriminator.
-  static unsigned getNextComponentInDiscriminator(unsigned D) {
-    if ((D & 1) == 0)
-      return D >> ((D & 0x40) ? 14 : 7);
-    else
-      return D >> 1;
-  }
-
   TempDILocation cloneImpl() const {
     // Get the raw scope/inlinedAt since it is possible to invoke this on
     // a DILocation containing temporary metadata.
     return getTemporary(getContext(), getLine(), getColumn(), getRawScope(),
                         getRawInlinedAt(), isImplicitCode());
-  }
-
-  static unsigned encodeComponent(unsigned C) {
-    return (C == 0) ? 1U : (getPrefixEncodingFromUnsigned(C) << 1);
-  }
-
-  static unsigned encodingBits(unsigned C) {
-    return (C == 0) ? 1 : (C > 0x1f ? 14 : 7);
   }
 
 public:
@@ -1757,8 +1733,20 @@ public:
   static
   const DILocation *getMergedLocations(ArrayRef<const DILocation *> Locs);
 
+  /// Return the masked discriminator value for an input discrimnator value D
+  /// (i.e. zero out the (B+1)-th and above bits for D (B is 0-base).
+  // Example: an input of (0x1FF, 7) returns 0xFF.
+  static unsigned getMaskedDiscriminator(unsigned D, unsigned B) {
+    return (D & getN1Bits(B));
+  }
+
+  /// Return the bits used for base discriminators.
+  static unsigned getBaseDiscriminatorBits() { return getBaseFSBitEnd(); }
+
   /// Returns the base discriminator for a given encoded discriminator \p D.
   static unsigned getBaseDiscriminatorFromDiscriminator(unsigned D) {
+    if (EnableFSDiscriminator)
+      return getMaskedDiscriminator(D, getBaseDiscriminatorBits());
     return getUnsignedFromPrefixEncoding(D);
   }
 
@@ -1780,6 +1768,8 @@ public:
   /// Returns the duplication factor for a given encoded discriminator \p D, or
   /// 1 if no value or 0 is encoded.
   static unsigned getDuplicationFactorFromDiscriminator(unsigned D) {
+    if (EnableFSDiscriminator)
+      return 1;
     D = getNextComponentInDiscriminator(D);
     unsigned Ret = getUnsignedFromPrefixEncoding(D);
     if (Ret == 0)
@@ -2010,6 +2000,8 @@ public:
 
   StringRef getName() const { return getStringOperand(2); }
   StringRef getLinkageName() const { return getStringOperand(3); }
+  /// Only used by clients of CloneFunction, and only right after the cloning.
+  void replaceLinkageName(MDString *LN) { replaceOperandWith(3, LN); }
 
   DISubroutineType *getType() const {
     return cast_or_null<DISubroutineType>(getRawType());
@@ -2219,6 +2211,14 @@ unsigned DILocation::getCopyIdentifier() const {
 
 Optional<const DILocation *> DILocation::cloneWithBaseDiscriminator(unsigned D) const {
   unsigned BD, DF, CI;
+
+  if (EnableFSDiscriminator) {
+    BD = getBaseDiscriminator();
+    if (D == BD)
+      return this;
+    return cloneWithDiscriminator(D);
+  }
+
   decodeDiscriminator(getDiscriminator(), BD, DF, CI);
   if (D == BD)
     return this;
@@ -2228,6 +2228,8 @@ Optional<const DILocation *> DILocation::cloneWithBaseDiscriminator(unsigned D) 
 }
 
 Optional<const DILocation *> DILocation::cloneByMultiplyingDuplicationFactor(unsigned DF) const {
+  assert(!EnableFSDiscriminator && "FSDiscriminator should not call this.");
+
   DF *= getDuplicationFactor();
   if (DF <= 1)
     return this;
@@ -2627,11 +2629,16 @@ public:
   };
 
   /// An iterator for expression operands.
-  class expr_op_iterator
-      : public std::iterator<std::input_iterator_tag, ExprOperand> {
+  class expr_op_iterator {
     ExprOperand Op;
 
   public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = ExprOperand;
+    using difference_type = std::ptrdiff_t;
+    using pointer = value_type *;
+    using reference = value_type &;
+
     expr_op_iterator() = default;
     explicit expr_op_iterator(element_iterator I) : Op(I) {}
 

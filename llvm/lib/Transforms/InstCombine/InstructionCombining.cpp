@@ -924,6 +924,12 @@ Value *InstCombinerImpl::dyn_castNegVal(Value *V) const {
     return ConstantExpr::getNeg(CV);
   }
 
+  // Negate integer vector splats.
+  if (auto *CV = dyn_cast<Constant>(V))
+    if (CV->getType()->isVectorTy() &&
+        CV->getType()->getScalarType()->isIntegerTy() && CV->getSplatValue())
+      return ConstantExpr::getNeg(CV);
+
   return nullptr;
 }
 
@@ -931,6 +937,13 @@ static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
                                              InstCombiner::BuilderTy &Builder) {
   if (auto *Cast = dyn_cast<CastInst>(&I))
     return Builder.CreateCast(Cast->getOpcode(), SO, I.getType());
+
+  if (auto *II = dyn_cast<IntrinsicInst>(&I)) {
+    assert(canConstantFoldCallTo(II, cast<Function>(II->getCalledOperand())) &&
+           "Expected constant-foldable intrinsic");
+
+    return Builder.CreateIntrinsic(II->getIntrinsicID(), I.getType(), SO);
+  }
 
   assert(I.isBinaryOp() && "Unexpected opcode for select folding");
 
@@ -1098,7 +1111,7 @@ Instruction *InstCombinerImpl::foldOpIntoPhi(Instruction &I, PHINode *PN) {
     // If the incoming non-constant value is in I's block, we will remove one
     // instruction, but insert another equivalent one, leading to infinite
     // instcombine.
-    if (isPotentiallyReachable(I.getParent(), NonConstBB, &DT, LI))
+    if (isPotentiallyReachable(I.getParent(), NonConstBB, nullptr, &DT, LI))
       return nullptr;
   }
 
@@ -1682,7 +1695,7 @@ Instruction *InstCombinerImpl::foldVectorBinop(BinaryOperator &Inst) {
         Constant *MaybeUndef =
             ConstOp1 ? ConstantExpr::get(Opcode, UndefScalar, CElt)
                      : ConstantExpr::get(Opcode, CElt, UndefScalar);
-        if (!isa<UndefValue>(MaybeUndef)) {
+        if (!match(MaybeUndef, m_Undef())) {
           MayChange = false;
           break;
         }
@@ -2659,7 +2672,7 @@ Instruction *InstCombinerImpl::visitAllocSite(Instruction &MI) {
       } else {
         // Casts, GEP, or anything else: we're about to delete this instruction,
         // so it can not have any valid uses.
-        replaceInstUsesWith(*I, UndefValue::get(I->getType()));
+        replaceInstUsesWith(*I, PoisonValue::get(I->getType()));
       }
       eraseInstFromFunction(*I);
     }
@@ -2799,20 +2812,6 @@ Instruction *InstCombinerImpl::visitFree(CallInst &FI) {
   if (isa<ConstantPointerNull>(Op))
     return eraseInstFromFunction(FI);
 
-  // If we free a pointer we've been explicitly told won't be freed, this
-  // would be full UB and thus we can conclude this is unreachable. Cases:
-  // 1) freeing a pointer which is explicitly nofree
-  // 2) calling free from a call site marked nofree
-  // 3) calling free in a function scope marked nofree
-  if (auto *A = dyn_cast<Argument>(Op->stripPointerCasts()))
-    if (A->hasAttribute(Attribute::NoFree) ||
-        FI.hasFnAttr(Attribute::NoFree) ||
-        FI.getFunction()->hasFnAttribute(Attribute::NoFree)) {
-      // Leave a marker since we can't modify the CFG here.
-      CreateNonTerminatorUnreachable(&FI);
-      return eraseInstFromFunction(FI);
-    }
-
   // If we optimize for code size, try to move the call to free before the null
   // test so that simplify cfg can remove the empty block and dead code
   // elimination the branch. I.e., helps to turn something like:
@@ -2878,8 +2877,8 @@ Instruction *InstCombinerImpl::visitUnreachableInst(UnreachableInst &I) {
         return nullptr;
 
     // A value may still have uses before we process it here (for example, in
-    // another unreachable block), so convert those to undef.
-    replaceInstUsesWith(*Prev, UndefValue::get(Prev->getType()));
+    // another unreachable block), so convert those to poison.
+    replaceInstUsesWith(*Prev, PoisonValue::get(Prev->getType()));
     eraseInstFromFunction(*Prev);
     return &I;
   }
@@ -3072,7 +3071,8 @@ Instruction *InstCombinerImpl::visitExtractValueInst(ExtractValueInst &EV) {
       if (*EV.idx_begin() == 0) {
         Instruction::BinaryOps BinOp = WO->getBinaryOp();
         Value *LHS = WO->getLHS(), *RHS = WO->getRHS();
-        replaceInstUsesWith(*WO, UndefValue::get(WO->getType()));
+        // Replace the old instruction's uses with poison.
+        replaceInstUsesWith(*WO, PoisonValue::get(WO->getType()));
         eraseInstFromFunction(*WO);
         return BinaryOperator::Create(BinOp, LHS, RHS);
       }
@@ -3982,8 +3982,8 @@ static bool combineInstructionsOverFunction(
       F.getContext(), TargetFolder(DL),
       IRBuilderCallbackInserter([&Worklist, &AC](Instruction *I) {
         Worklist.add(I);
-        if (match(I, m_Intrinsic<Intrinsic::assume>()))
-          AC.registerAssumption(cast<CallInst>(I));
+        if (auto *Assume = dyn_cast<AssumeInst>(I))
+          AC.registerAssumption(Assume);
       }));
 
   // Lower dbg.declare intrinsics otherwise their value may be clobbered
@@ -4059,9 +4059,6 @@ PreservedAnalyses InstCombinePass::run(Function &F,
   // Mark all the analyses that instcombine updates as preserved.
   PreservedAnalyses PA;
   PA.preserveSet<CFGAnalyses>();
-  PA.preserve<AAManager>();
-  PA.preserve<BasicAA>();
-  PA.preserve<GlobalsAA>();
   return PA;
 }
 

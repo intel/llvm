@@ -16,14 +16,13 @@ namespace clang {
 namespace tooling {
 
 struct ClassData {
-
-  bool isEmpty() const {
-    return ASTClassLocations.empty() && ASTClassRanges.empty();
-  }
-
   std::vector<std::string> ASTClassLocations;
   std::vector<std::string> ASTClassRanges;
-  // TODO: Extend this with locations available via typelocs etc.
+  std::vector<std::string> TemplateParms;
+  std::vector<std::string> TypeSourceInfos;
+  std::vector<std::string> TypeLocs;
+  std::vector<std::string> NestedNameLocs;
+  std::vector<std::string> DeclNameInfos;
 };
 
 } // namespace tooling

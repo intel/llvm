@@ -27,6 +27,7 @@
 #include "llvm/Object/SymbolSize.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MSVCErrorWorkarounds.h"
 #include "llvm/Support/Memory.h"
@@ -756,7 +757,7 @@ static int linkAndVerify() {
   if (!MAI)
     ErrorAndExit("Unable to create target asm info!");
 
-  MCContext Ctx(MAI.get(), MRI.get(), nullptr);
+  MCContext Ctx(Triple(TripleName), MAI.get(), MRI.get(), STI.get());
 
   std::unique_ptr<MCDisassembler> Disassembler(
     TheTarget->createMCDisassembler(*STI, Ctx));

@@ -13,8 +13,6 @@ add_subdirectory(Syntax)
 add_subdirectory(DependencyScanning)
 add_subdirectory(Transformer)
 
-find_package(Python3 COMPONENTS Interpreter)
-
 # Replace the last lib component of the current binary directory with include
 string(FIND ${CMAKE_CURRENT_BINARY_DIR} "/lib/" PATH_LIB_START REVERSE)
 if(PATH_LIB_START EQUAL -1)
@@ -26,30 +24,15 @@ string(SUBSTRING ${CMAKE_CURRENT_BINARY_DIR} ${PATH_LIB_END} -1 PATH_TAIL)
 string(CONCAT BINARY_INCLUDE_DIR ${PATH_HEAD} "/include/clang/" ${PATH_TAIL})
 
 if (NOT Python3_EXECUTABLE
-    OR WIN32
     OR APPLE
+    OR CMAKE_CROSSCOMPILING
     OR GENERATOR_IS_MULTI_CONFIG
     OR NOT LLVM_NATIVE_ARCH IN_LIST LLVM_TARGETS_TO_BUILD
-    OR NOT X86 IN_LIST LLVM_TARGETS_TO_BUILD
     )
-  file(GENERATE OUTPUT ${BINARY_INCLUDE_DIR}/NodeIntrospection.inc
-    CONTENT "
-namespace clang {
-namespace tooling {
-
-NodeLocationAccessors NodeIntrospection::GetLocations(clang::Stmt const *) {
-  return {};
-}
-NodeLocationAccessors NodeIntrospection::GetLocations(clang::Decl const *) {
-  return {};
-}
-NodeLocationAccessors
-NodeIntrospection::GetLocations(clang::DynTypedNode const &) {
-  return {};
-}
-} // namespace tooling
-} // namespace clang
-"
+    configure_file(
+      EmptyNodeIntrospection.inc.in
+      ${BINARY_INCLUDE_DIR}/NodeIntrospection.inc
+      COPYONLY
     )
     set(CLANG_TOOLING_BUILD_AST_INTROSPECTION "OFF" CACHE BOOL "")
 else()
@@ -64,11 +47,6 @@ else()
 
   set(skip_expensive_processing $<OR:$<CONFIG:Debug>,$<NOT:$<BOOL:${CLANG_TOOLING_BUILD_AST_INTROSPECTION}>>>)
 
-  file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ASTTU.cpp
-    CONTENT "
-#include <clang/AST/AST.h>
-")
-
   set(implicitDirs)
   foreach(implicitDir ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
     list(APPEND implicitDirs -I ${implicitDir})
@@ -77,12 +55,11 @@ else()
   add_custom_command(
       COMMENT Generate ASTNodeAPI.json
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ASTNodeAPI.json
-      DEPENDS clang-ast-dump clang-resource-headers ${CMAKE_CURRENT_BINARY_DIR}/ASTTU.cpp
+      DEPENDS clang-ast-dump clang-resource-headers
       COMMAND
       $<TARGET_FILE:clang-ast-dump>
         # Skip this in debug mode because parsing AST.h is too slow
         --skip-processing=${skip_expensive_processing}
-        --astheader=${CMAKE_CURRENT_BINARY_DIR}/ASTTU.cpp
         -I ${CMAKE_BINARY_DIR}/lib/clang/${CLANG_VERSION}/include
         -I ${CMAKE_SOURCE_DIR}/../clang/include
         -I ${CMAKE_BINARY_DIR}/tools/clang/include
@@ -101,11 +78,14 @@ else()
       OUTPUT ${BINARY_INCLUDE_DIR}/NodeIntrospection.inc
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/ASTNodeAPI.json
         ${CMAKE_CURRENT_SOURCE_DIR}/DumpTool/generate_cxx_src_locs.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/EmptyNodeIntrospection.inc.in
       COMMAND
       ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/DumpTool/generate_cxx_src_locs.py
         --json-input-path ${CMAKE_CURRENT_BINARY_DIR}/ASTNodeAPI.json
         --output-file NodeIntrospection.inc
-        --empty-implementation ${skip_expensive_processing}
+        --use-empty-implementation ${skip_expensive_processing}
+        --empty-implementation
+          "${CMAKE_CURRENT_SOURCE_DIR}/EmptyNodeIntrospection.inc.in"
       COMMAND
       ${CMAKE_COMMAND} -E copy_if_different
         ${CMAKE_CURRENT_BINARY_DIR}/NodeIntrospection.inc

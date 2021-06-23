@@ -132,6 +132,7 @@ LANGOPT(ZVector           , 1, 0, "System z vector extensions")
 LANGOPT(Exceptions        , 1, 0, "exception handling")
 LANGOPT(ObjCExceptions    , 1, 0, "Objective-C exceptions")
 LANGOPT(CXXExceptions     , 1, 0, "C++ exceptions")
+LANGOPT(EHAsynch          , 1, 0, "C/C++ EH Asynch exceptions")
 ENUM_LANGOPT(ExceptionHandling, ExceptionHandlingKind, 3,
              ExceptionHandlingKind::None, "exception handling")
 LANGOPT(IgnoreExceptions  , 1, 0, "ignore exceptions")
@@ -263,6 +264,7 @@ LANGOPT(
     "SYCL compiler assumes value fits within MAX_INT for member function of "
     "get/operator[], get_id/operator[] and get_global_id/get_global_linear_id "
     "in SYCL class id, iterm and nd_iterm")
+LANGOPT(SYCLDisableRangeRounding, 1, 0, "Disable parallel for range rounding")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
 
@@ -309,6 +311,8 @@ LANGOPT(ObjCSubscriptingLegacyRuntime         , 1, 0, "Subscripting support in l
 BENIGN_LANGOPT(CompatibilityQualifiedIdBlockParamTypeChecking, 1, 0,
                "compatibility mode for type checking block parameters "
                "involving qualified id types")
+LANGOPT(ObjCDisableDirectMethodsForTesting, 1, 0,
+        "Disable recognition of objc_direct methods")
 LANGOPT(CFProtectionBranch , 1, 0, "Control-Flow Branch Protection enabled")
 LANGOPT(FakeAddressSpaceMap , 1, 0, "OpenCL fake address space map")
 ENUM_LANGOPT(AddressSpaceMapMangling , AddrSpaceMapMangling, 2, ASMM_Target, "OpenCL address space map mangling mode")
@@ -430,6 +434,10 @@ ENUM_LANGOPT(DefaultSubGroupSizeType, SubGroupSizeType, 2,
 
 VALUE_LANGOPT(DefaultSubGroupSize, 32, 0,
               "If DefaultSubGroupSizeType is Integer contains the value")
+
+ENUM_LANGOPT(ExtendIntArgs, ExtendArgsKind, 1, ExtendArgsKind::ExtendTo32, 
+             "Controls how scalar integer arguments are extended in calls "
+             "to unprototyped and varargs functions")
 
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT

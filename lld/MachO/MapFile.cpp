@@ -48,13 +48,15 @@ static SymbolMapTy getSectionSyms(ArrayRef<Defined *> syms) {
   for (Defined *dr : syms)
     ret[dr->isec].push_back(dr);
 
-  // Sort symbols by address. We want to print out symbols in the
-  // order in the output file rather than the order they appeared
-  // in the input files.
+  // Sort symbols by address. We want to print out symbols in the order they
+  // appear in the output file rather than the order they appeared in the input
+  // files.
   for (auto &it : ret)
-    llvm::stable_sort(it.second, [](Defined *a, Defined *b) {
-      return a->getVA() < b->getVA();
-    });
+    parallelSort(
+        it.second.begin(), it.second.end(), [](Defined *a, Defined *b) {
+          return a->getVA() != b->getVA() ? a->getVA() < b->getVA()
+                                          : a->getName() < b->getName();
+        });
   return ret;
 }
 
@@ -63,13 +65,12 @@ static std::vector<Defined *> getSymbols() {
   std::vector<Defined *> v;
   for (InputFile *file : inputFiles)
     if (isa<ObjFile>(file))
-      for (Symbol *sym : file->symbols) {
-        if (sym == nullptr)
-          continue;
-        if (auto *d = dyn_cast<Defined>(sym))
-          if (d->isec && d->getFile() == file)
+      for (Symbol *sym : file->symbols)
+        if (auto *d = dyn_cast_or_null<Defined>(sym))
+          if (d->isLive() && d->isec && d->getFile() == file) {
+            assert(!shouldOmitFromOutput(d->isec));
             v.push_back(d);
-      }
+          }
   return v;
 }
 
@@ -109,7 +110,7 @@ void macho::writeMapFile() {
 
   // Dump output architecture.
   os << format("# Arch: %s\n",
-               getArchitectureName(config->target.Arch).str().c_str());
+               getArchitectureName(config->arch()).str().c_str());
 
   // Dump table of object files.
   os << "# Object files:\n";
@@ -144,7 +145,11 @@ void macho::writeMapFile() {
   os << "# Symbols:\n";
   os << "# Address\t    File  Name\n";
   for (InputSection *isec : inputSections) {
-    for (Symbol *sym : sectionSyms[isec]) {
+    auto symsIt = sectionSyms.find(isec);
+    assert(!shouldOmitFromOutput(isec) || (symsIt == sectionSyms.end()));
+    if (symsIt == sectionSyms.end())
+      continue;
+    for (Symbol *sym : symsIt->second) {
       os << format("0x%08llX\t[%3u] %s\n", sym->getVA(),
                    readerToFileOrdinal[sym->getFile()], symStr[sym].c_str());
     }

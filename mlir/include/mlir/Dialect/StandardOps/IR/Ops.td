@@ -25,8 +25,11 @@ include "mlir/Interfaces/ViewLikeInterface.td"
 
 def StandardOps_Dialect : Dialect {
   let name = "std";
-  let cppNamespace = "";
+  let cppNamespace = "::mlir";
   let hasConstantMaterializer = 1;
+  // TODO: This dependency is needed to handle memref ops in the
+  // canonicalize pass and should be resolved.
+  let dependentDialects = ["memref::MemRefDialect"];
 }
 
 // Base class for Standard dialect ops.
@@ -277,6 +280,7 @@ def AddIOp : IntBinaryOp<"addi", [Commutative]> {
     ```
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -704,34 +708,6 @@ def FloorFOp : FloatUnaryOp<"floorf"> {
 // CmpFOp
 //===----------------------------------------------------------------------===//
 
-// The predicate indicates the type of the comparison to perform:
-// (un)orderedness, (in)equality and less/greater than (or equal to) as
-// well as predicates that are always true or false.
-def CMPF_P_FALSE   : I64EnumAttrCase<"AlwaysFalse", 0, "false">;
-def CMPF_P_OEQ     : I64EnumAttrCase<"OEQ", 1, "oeq">;
-def CMPF_P_OGT     : I64EnumAttrCase<"OGT", 2, "ogt">;
-def CMPF_P_OGE     : I64EnumAttrCase<"OGE", 3, "oge">;
-def CMPF_P_OLT     : I64EnumAttrCase<"OLT", 4, "olt">;
-def CMPF_P_OLE     : I64EnumAttrCase<"OLE", 5, "ole">;
-def CMPF_P_ONE     : I64EnumAttrCase<"ONE", 6, "one">;
-def CMPF_P_ORD     : I64EnumAttrCase<"ORD", 7, "ord">;
-def CMPF_P_UEQ     : I64EnumAttrCase<"UEQ", 8, "ueq">;
-def CMPF_P_UGT     : I64EnumAttrCase<"UGT", 9, "ugt">;
-def CMPF_P_UGE     : I64EnumAttrCase<"UGE", 10, "uge">;
-def CMPF_P_ULT     : I64EnumAttrCase<"ULT", 11, "ult">;
-def CMPF_P_ULE     : I64EnumAttrCase<"ULE", 12, "ule">;
-def CMPF_P_UNE     : I64EnumAttrCase<"UNE", 13, "une">;
-def CMPF_P_UNO     : I64EnumAttrCase<"UNO", 14, "uno">;
-def CMPF_P_TRUE    : I64EnumAttrCase<"AlwaysTrue", 15, "true">;
-
-def CmpFPredicateAttr : I64EnumAttr<
-    "CmpFPredicate", "",
-    [CMPF_P_FALSE, CMPF_P_OEQ, CMPF_P_OGT, CMPF_P_OGE, CMPF_P_OLT, CMPF_P_OLE,
-     CMPF_P_ONE, CMPF_P_ORD, CMPF_P_UEQ, CMPF_P_UGT, CMPF_P_UGE, CMPF_P_ULT,
-     CMPF_P_ULE, CMPF_P_UNE, CMPF_P_UNO, CMPF_P_TRUE]> {
-  let cppNamespace = "::mlir";
-}
-
 def CmpFOp : Std_Op<"cmpf", [NoSideEffect, SameTypeOperands,
     DeclareOpInterfaceMethods<VectorUnrollOpInterface>, TypesMatchWith<
     "result type has i1 element type and same shape as operands",
@@ -796,24 +772,6 @@ def CmpFOp : Std_Op<"cmpf", [NoSideEffect, SameTypeOperands,
 //===----------------------------------------------------------------------===//
 // CmpIOp
 //===----------------------------------------------------------------------===//
-
-def CMPI_P_EQ  : I64EnumAttrCase<"eq", 0>;
-def CMPI_P_NE  : I64EnumAttrCase<"ne", 1>;
-def CMPI_P_SLT : I64EnumAttrCase<"slt", 2>;
-def CMPI_P_SLE : I64EnumAttrCase<"sle", 3>;
-def CMPI_P_SGT : I64EnumAttrCase<"sgt", 4>;
-def CMPI_P_SGE : I64EnumAttrCase<"sge", 5>;
-def CMPI_P_ULT : I64EnumAttrCase<"ult", 6>;
-def CMPI_P_ULE : I64EnumAttrCase<"ule", 7>;
-def CMPI_P_UGT : I64EnumAttrCase<"ugt", 8>;
-def CMPI_P_UGE : I64EnumAttrCase<"uge", 9>;
-
-def CmpIPredicateAttr : I64EnumAttr<
-    "CmpIPredicate", "",
-    [CMPI_P_EQ, CMPI_P_NE, CMPI_P_SLT, CMPI_P_SLE, CMPI_P_SGT,
-     CMPI_P_SGE, CMPI_P_ULT, CMPI_P_ULE, CMPI_P_UGT, CMPI_P_UGE]> {
-  let cppNamespace = "::mlir";
-}
 
 def CmpIOp : Std_Op<"cmpi", [NoSideEffect, SameTypeOperands,
     DeclareOpInterfaceMethods<VectorUnrollOpInterface>, TypesMatchWith<
@@ -1091,7 +1049,10 @@ def ConstantOp : Std_Op<"constant",
 
   let builders = [
     OpBuilder<(ins "Attribute":$value),
-    [{ build($_builder, $_state, value.getType(), value); }]>];
+    [{ build($_builder, $_state, value.getType(), value); }]>,
+    OpBuilder<(ins "Attribute":$value, "Type":$type),
+    [{ build($_builder, $_state, type, value); }]>,
+  ];
 
   let extraClassDeclaration = [{
     Attribute getValue() { return (*this)->getAttr("value"); }
@@ -1243,12 +1204,14 @@ def FPTruncOp : ArithmeticCastOp<"fptrunc">, Arguments<(ins AnyType:$in)> {
 def IndexCastOp : ArithmeticCastOp<"index_cast">, Arguments<(ins AnyType:$in)> {
   let summary = "cast between index and integer types";
   let description = [{
-    Casts between integer scalars and 'index' scalars. Index is an integer of
-    platform-specific bit width. If casting to a wider integer, the value is
-    sign-extended. If casting to a narrower integer, the value is truncated.
+    Casts between scalar or vector integers and corresponding 'index' scalar or
+    vectors. Index is an integer of platform-specific bit width. If casting to
+    a wider integer, the value is sign-extended. If casting to a narrower
+    integer, the value is truncated.
   }];
 
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1541,13 +1504,13 @@ def SignedDivIOp : IntBinaryOp<"divi_signed"> {
 
     ```mlir
     // Scalar signed integer division.
-    %a = divis %b, %c : i64
+    %a = divi_signed %b, %c : i64
 
     // SIMD vector element-wise division.
-    %f = divis %g, %h : vector<4xi32>
+    %f = divi_signed %g, %h : vector<4xi32>
 
     // Tensor element-wise integer division.
-    %x = divis %y, %z : tensor<4x?xi8>
+    %x = divi_signed %y, %z : tensor<4x?xi8>
     ```
   }];
   let hasFolder = 1;
@@ -1633,13 +1596,13 @@ def SignedRemIOp : IntBinaryOp<"remi_signed"> {
 
     ```mlir
     // Scalar signed integer division remainder.
-    %a = remis %b, %c : i64
+    %a = remi_signed %b, %c : i64
 
     // SIMD vector element-wise division remainder.
-    %f = remis %g, %h : vector<4xi32>
+    %f = remi_signed %g, %h : vector<4xi32>
 
     // Tensor element-wise integer division remainder.
-    %x = remis %y, %z : tensor<4x?xi8>
+    %x = remi_signed %y, %z : tensor<4x?xi8>
     ```
   }];
   let hasFolder = 1;
@@ -1711,6 +1674,7 @@ def SignExtendIOp : Std_Op<"sexti", [NoSideEffect,
   let printer = [{
     return printStandardCastOp(this->getOperation(), p);
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1738,8 +1702,8 @@ def SplatOp : Std_Op<"splat", [NoSideEffect,
   let summary = "splat or broadcast operation";
   let description = [{
     Broadcast the operand to all elements of the result vector or tensor. The
-    operand has to be of either integer or float type. When the result is a
-    tensor, it has to be statically shaped.
+    operand has to be of integer/index/float type. When the result is a tensor,
+    it has to be statically shaped.
 
     Example:
 
@@ -1761,8 +1725,8 @@ def SplatOp : Std_Op<"splat", [NoSideEffect,
     ```
   }];
 
-  let arguments = (ins AnyTypeOf<[AnySignlessInteger, AnyFloat],
-                                 "integer or float type">:$input);
+  let arguments = (ins AnyTypeOf<[AnySignlessInteger, Index, AnyFloat],
+                                 "integer/index/float type">:$input);
   let results = (outs AnyTypeOf<[AnyVector, AnyStaticShapeTensor]>:$aggregate);
 
   let builders = [
@@ -1790,6 +1754,7 @@ def SubFOp : FloatBinaryOp<"subf"> {
 def SubIOp : IntBinaryOp<"subi"> {
   let summary = "integer subtraction operation";
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2030,6 +1995,89 @@ def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<
   let hasFolder = 1;
 }
 
+
+//===----------------------------------------------------------------------===//
+// SwitchOp
+//===----------------------------------------------------------------------===//
+
+def SwitchOp : Std_Op<"switch",
+    [AttrSizedOperandSegments,
+     DeclareOpInterfaceMethods<BranchOpInterface, ["getSuccessorForOperands"]>,
+     NoSideEffect, Terminator]> {
+  let summary = "switch operation";
+  let description = [{
+    The `switch` terminator operation represents a switch on a signless integer
+    value. If the flag matches one of the specified cases, then the
+    corresponding destination is jumped to. If the flag does not match any of
+    the cases, the default destination is jumped to. The count and types of
+    operands must align with the arguments in the corresponding target blocks.
+
+    Example:
+
+    ```mlir
+    switch %flag : i32, [
+      default: ^bb1(%a : i32),
+      42: ^bb1(%b : i32),
+      43: ^bb3(%c : i32)
+    ]
+    ```
+  }];
+
+  let arguments = (ins AnyInteger:$flag,
+                       Variadic<AnyType>:$defaultOperands,
+                       Variadic<AnyType>:$caseOperands,
+                       OptionalAttr<AnyIntElementsAttr>:$case_values,
+                       OptionalAttr<I32ElementsAttr>:$case_operand_offsets);
+  let successors = (successor
+                        AnySuccessor:$defaultDestination,
+                        VariadicSuccessor<AnySuccessor>:$caseDestinations);
+  let builders = [
+    OpBuilder<(ins "Value":$flag,
+      "Block *":$defaultDestination,
+      "ValueRange":$defaultOperands,
+      CArg<"ArrayRef<APInt>", "{}">:$caseValues,
+      CArg<"BlockRange", "{}">:$caseDestinations,
+      CArg<"ArrayRef<ValueRange>", "{}">:$caseOperands)>,
+    OpBuilder<(ins "Value":$flag,
+      "Block *":$defaultDestination,
+      "ValueRange":$defaultOperands,
+      CArg<"ArrayRef<int32_t>", "{}">:$caseValues,
+      CArg<"BlockRange", "{}">:$caseDestinations,
+      CArg<"ArrayRef<ValueRange>", "{}">:$caseOperands)>,
+    OpBuilder<(ins "Value":$flag,
+      "Block *":$defaultDestination,
+      "ValueRange":$defaultOperands,
+      CArg<"DenseIntElementsAttr", "{}">:$caseValues,
+      CArg<"BlockRange", "{}">:$caseDestinations,
+      CArg<"ArrayRef<ValueRange>", "{}">:$caseOperands)>
+  ];
+
+  let assemblyFormat = [{
+    $flag `:` type($flag) `,` `[` `\n`
+      custom<SwitchOpCases>(ref(type($flag)),$defaultDestination,
+                            $defaultOperands,
+                            type($defaultOperands),
+                            $case_values,
+                            $caseDestinations,
+                            $caseOperands,
+                            type($caseOperands),
+                            $case_operand_offsets)
+   `]`
+    attr-dict
+  }];
+
+  let extraClassDeclaration = [{
+    /// Return the operands for the case destination block at the given index.
+    OperandRange getCaseOperands(unsigned index);
+
+    /// Return a mutable range of operands for the case destination block at the
+    /// given index.
+    MutableOperandRange getCaseOperandsMutable(unsigned index);
+  }];
+
+  let hasCanonicalizer = 1;
+}
+
 //===----------------------------------------------------------------------===//
 // TruncateIOp
 //===----------------------------------------------------------------------===//
@@ -2111,13 +2159,13 @@ def UnsignedDivIOp : IntBinaryOp<"divi_unsigned"> {
 
     ```mlir
     // Scalar unsigned integer division.
-    %a = diviu %b, %c : i64
+    %a = divi_unsigned %b, %c : i64
 
     // SIMD vector element-wise division.
-    %f = diviu %g, %h : vector<4xi32>
+    %f = divi_unsigned %g, %h : vector<4xi32>
 
     // Tensor element-wise integer division.
-    %x = diviu %y, %z : tensor<4x?xi8>
+    %x = divi_unsigned %y, %z : tensor<4x?xi8>
     ```
   }];
   let hasFolder = 1;
@@ -2146,13 +2194,13 @@ def UnsignedRemIOp : IntBinaryOp<"remi_unsigned"> {
 
     ```mlir
     // Scalar unsigned integer division remainder.
-    %a = remiu %b, %c : i64
+    %a = remi_unsigned %b, %c : i64
 
     // SIMD vector element-wise division remainder.
-    %f = remiu %g, %h : vector<4xi32>
+    %f = remi_unsigned %g, %h : vector<4xi32>
 
     // Tensor element-wise integer division remainder.
-    %x = remiu %y, %z : tensor<4x?xi8>
+    %x = remi_unsigned %y, %z : tensor<4x?xi8>
     ```
   }];
   let hasFolder = 1;
@@ -2205,6 +2253,7 @@ def XOrOp : IntBinaryOp<"xor", [Commutative]> {
     ```
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//

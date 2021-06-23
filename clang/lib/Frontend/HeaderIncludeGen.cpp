@@ -45,6 +45,9 @@ public:
   void FileChanged(SourceLocation Loc, FileChangeReason Reason,
                    SrcMgr::CharacteristicKind FileType,
                    FileID PrevFID) override;
+
+  void FileSkipped(const FileEntryRef &SkippedFile, const Token &FilenameTok,
+                   SrcMgr::CharacteristicKind FileType) override;
 };
 }
 
@@ -101,7 +104,7 @@ void clang::AttachHeaderIncludeGen(Preprocessor &PP,
     std::error_code EC;
     llvm::raw_fd_ostream *OS = new llvm::raw_fd_ostream(
         OutputPath.str(), EC,
-        llvm::sys::fs::OF_Append | llvm::sys::fs::OF_Text);
+        llvm::sys::fs::OF_Append | llvm::sys::fs::OF_TextWithCRLF);
     if (EC) {
       PP.getDiagnostics().Report(clang::diag::warn_fe_cc_print_header_failure)
           << EC.message();
@@ -180,4 +183,17 @@ void HeaderIncludesCallback::FileChanged(SourceLocation Loc,
     PrintHeaderInfo(OutputFile, UserLoc.getFilename(), ShowDepth, IncludeDepth,
                     MSStyle);
   }
+}
+
+void HeaderIncludesCallback::FileSkipped(const FileEntryRef &SkippedFile, const
+                                         Token &FilenameTok,
+                                         SrcMgr::CharacteristicKind FileType) {
+  if (!DepOpts.ShowSkippedHeaderIncludes)
+    return;
+
+  if (!DepOpts.IncludeSystemHeaders && isSystem(FileType))
+    return;
+
+  PrintHeaderInfo(OutputFile, SkippedFile.getName(), ShowDepth,
+                  CurrentIncludeDepth + 1, MSStyle);
 }

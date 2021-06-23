@@ -126,11 +126,8 @@ SPIRVToLLVMDbgTran::transCompileUnit(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::CompilationUnit;
   assert(Ops.size() == OperandCount && "Invalid number of operands");
   M->addModuleFlag(llvm::Module::Max, "Dwarf Version", Ops[DWARFVersionIdx]);
-  SPIRVExtInst *Source = BM->get<SPIRVExtInst>(Ops[SourceIdx]);
-  SPIRVId FileId = Source->getArguments()[SPIRVDebug::Operand::Source::FileIdx];
-  std::string File = getString(FileId);
   unsigned SourceLang = Ops[LanguageIdx];
-  CU = Builder.createCompileUnit(SourceLang, getDIFile(File), "spirv", false,
+  CU = Builder.createCompileUnit(SourceLang, getFile(Ops[SourceIdx]), "spirv", false,
                                  "", 0);
   return CU;
 }
@@ -202,6 +199,10 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
   size_t TotalCount = 1;
   SmallVector<llvm::Metadata *, 8> Subscripts;
   for (size_t I = ComponentCountIdx, E = Ops.size(); I < E; ++I) {
+    if (getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[I])) {
+      Subscripts.push_back(Builder.getOrCreateSubrange(1, nullptr));
+      continue;
+    }
     SPIRVConstant *C = BM->get<SPIRVConstant>(Ops[I]);
     int64_t Count = static_cast<int64_t>(C->getZExtIntValue());
     Subscripts.push_back(Builder.getOrCreateSubrange(0, Count));
@@ -266,10 +267,12 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
   DICompositeType *CT = nullptr;
   switch (Ops[TagIdx]) {
   case SPIRVDebug::Class:
-    CT = Builder.createClassType(
-        ParentScope, Name, File, LineNo, Size, Align, 0, Flags, DerivedFrom,
-        DINodeArray() /*elements*/, nullptr /*VTableHolder*/,
-        nullptr /*TemplateParams*/, Identifier);
+    // TODO: should be replaced with createClassType, when bug with creating
+    // ClassType with llvm::dwarf::DW_TAG_struct_type tag will be fixed
+    CT = Builder.createReplaceableCompositeType(
+        llvm::dwarf::DW_TAG_class_type, Name, ParentScope, File, LineNo, 0,
+        Size, Align, Flags, Identifier);
+    CT = llvm::MDNode::replaceWithDistinct(llvm::TempDICompositeType(CT));
     break;
   case SPIRVDebug::Structure:
     CT = Builder.createStructType(ParentScope, Name, File, LineNo, Size, Align,
@@ -768,6 +771,9 @@ DINode *SPIRVToLLVMDbgTran::transImportedEntry(const SPIRVExtInst *DebugInst) {
   DIFile *File = getFile(Ops[SourceIdx]);
   auto *Entity = transDebugInst<DINode>(BM->get<SPIRVExtInst>(Ops[EntityIdx]));
   if (Ops[TagIdx] == SPIRVDebug::ImportedModule) {
+    if (!Entity)
+      return Builder.createImportedModule(
+          Scope, static_cast<DIImportedEntity *>(nullptr), File, Line);
     if (DIImportedEntity *IE = dyn_cast<DIImportedEntity>(Entity))
       return Builder.createImportedModule(Scope, IE, File, Line);
     if (DINamespace *NS = dyn_cast<DINamespace>(Entity))
@@ -997,8 +1003,11 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
          "DebugSource instruction is expected");
   SPIRVWordVec SourceArgs = Source->getArguments();
   assert(SourceArgs.size() == OperandCount && "Invalid number of operands");
-  StringRef Checksum(getString(SourceArgs[TextIdx]));
-  return getDIFile(getString(SourceArgs[FileIdx]), ParseChecksum(Checksum));
+  std::string ChecksumStr =
+      getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[TextIdx])
+          ? ""
+          : getString(SourceArgs[TextIdx]);
+  return getDIFile(getString(SourceArgs[FileIdx]), ParseChecksum(ChecksumStr));
 }
 
 SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const string &FileName) {

@@ -41,32 +41,29 @@
 #include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+#include "llvm/Transforms/Utils/LowerMemIntrinsics.h"
 
 using namespace llvm;
 using namespace SPIRV;
 
 namespace SPIRV {
-class SPIRVLowerMemmove : public ModulePass,
-                          public InstVisitor<SPIRVLowerMemmove> {
+
+class SPIRVLowerMemmoveBase {
 public:
-  SPIRVLowerMemmove() : ModulePass(ID), Context(nullptr) {
-    initializeSPIRVLowerMemmovePass(*PassRegistry::getPassRegistry());
-  }
-  virtual void visitMemMoveInst(MemMoveInst &I) {
+  SPIRVLowerMemmoveBase() : Context(nullptr), Mod(nullptr) {}
+  void LowerMemMoveInst(MemMoveInst &I) {
     IRBuilder<> Builder(I.getParent());
     Builder.SetInsertPoint(&I);
     auto *Dest = I.getRawDest();
     auto *Src = I.getRawSource();
-    auto *SrcTy = Src->getType();
-    if (!isa<ConstantInt>(I.getLength()))
-      // ToDo: for non-constant length, could use a loop to copy a
-      // fixed length chunk at a time. For now simply fail
-      report_fatal_error("llvm.memmove of non-constant length not supported",
+    if (isa<PHINode>(Src))
+      report_fatal_error("llvm.memmove of PHI instruction result not supported",
                          false);
+    auto *SrcTy = Src->getType();
     auto *Length = cast<ConstantInt>(I.getLength());
     auto *S = Src;
     // The source could be bit-cast or addrspacecast from another type,
@@ -108,26 +105,70 @@ public:
     I.dropAllReferences();
     I.eraseFromParent();
   }
-  bool runOnModule(Module &M) override {
+  bool expandMemMoveIntrinsicUses(Function &F) {
+    bool Changed = false;
+
+    for (User *U : make_early_inc_range(F.users())) {
+      MemMoveInst *Inst = cast<MemMoveInst>(U);
+      if (!isa<ConstantInt>(Inst->getLength())) {
+        expandMemMoveAsLoop(Inst);
+        Inst->eraseFromParent();
+      } else {
+        LowerMemMoveInst(*Inst);
+      }
+      Changed = true;
+    }
+    return Changed;
+  }
+  bool runLowerMemmove(Module &M) {
     Context = &M.getContext();
     Mod = &M;
-    visit(M);
+    bool Changed = false;
+
+    for (Function &F : M) {
+      if (!F.isDeclaration())
+        continue;
+
+      if (F.getIntrinsicID() == Intrinsic::memmove)
+        Changed |= expandMemMoveIntrinsicUses(F);
+    }
 
     verifyRegularizationPass(M, "SPIRVLowerMemmove");
-    return true;
+    return Changed;
   }
-
-  static char ID;
 
 private:
   LLVMContext *Context;
   Module *Mod;
 };
 
-char SPIRVLowerMemmove::ID = 0;
+class SPIRVLowerMemmovePass : public llvm::PassInfoMixin<SPIRVLowerMemmovePass>,
+                              public SPIRVLowerMemmoveBase {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    return runLowerMemmove(M) ? llvm::PreservedAnalyses::none()
+                              : llvm::PreservedAnalyses::all();
+  }
+};
+
+class SPIRVLowerMemmoveLegacy : public ModulePass,
+                                public SPIRVLowerMemmoveBase {
+public:
+  SPIRVLowerMemmoveLegacy() : ModulePass(ID) {
+    initializeSPIRVLowerMemmoveLegacyPass(*PassRegistry::getPassRegistry());
+  }
+  bool runOnModule(Module &M) override { return runLowerMemmove(M); }
+
+  static char ID;
+};
+
+char SPIRVLowerMemmoveLegacy::ID = 0;
 } // namespace SPIRV
 
-INITIALIZE_PASS(SPIRVLowerMemmove, "spvmemmove",
+INITIALIZE_PASS(SPIRVLowerMemmoveLegacy, "spvmemmove",
                 "Lower llvm.memmove into llvm.memcpy", false, false)
 
-ModulePass *llvm::createSPIRVLowerMemmove() { return new SPIRVLowerMemmove(); }
+ModulePass *llvm::createSPIRVLowerMemmoveLegacy() {
+  return new SPIRVLowerMemmoveLegacy();
+}

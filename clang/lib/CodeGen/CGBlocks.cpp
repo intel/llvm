@@ -1023,7 +1023,7 @@ llvm::Value *CodeGenFunction::EmitBlockLiteral(const CGBlockInfo &blockInfo) {
                           type, VK_LValue, SourceLocation());
 
       ImplicitCastExpr l2r(ImplicitCastExpr::OnStack, type, CK_LValueToRValue,
-                           &declRef, VK_RValue, FPOptionsOverride());
+                           &declRef, VK_PRValue, FPOptionsOverride());
       // FIXME: Pass a specific location for the expr init so that the store is
       // attributed to a reasonable location - otherwise it may be attributed to
       // locations of subexpressions in the initialization.
@@ -1902,7 +1902,7 @@ static void setBlockHelperAttributesVisibility(bool CapturesNonExternalType,
   } else {
     Fn->setVisibility(llvm::GlobalValue::HiddenVisibility);
     Fn->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
-    CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, Fn);
+    CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, Fn, /*IsThunk=*/false);
     CGM.SetLLVMFunctionAttributesForDefinition(nullptr, Fn);
   }
 }
@@ -2887,7 +2887,7 @@ static void configureBlocksRuntimeObject(CodeGenModule &CGM,
            "expected Function or GlobalVariable");
 
     const NamedDecl *ND = nullptr;
-    for (const auto &Result : DC->lookup(&II))
+    for (const auto *Result : DC->lookup(&II))
       if ((ND = dyn_cast<FunctionDecl>(Result)) ||
           (ND = dyn_cast<VarDecl>(Result)))
         break;
@@ -2939,9 +2939,8 @@ llvm::Constant *CodeGenModule::getNSConcreteGlobalBlock() {
   if (NSConcreteGlobalBlock)
     return NSConcreteGlobalBlock;
 
-  NSConcreteGlobalBlock = GetOrCreateLLVMGlobal("_NSConcreteGlobalBlock",
-                                                Int8PtrTy->getPointerTo(),
-                                                nullptr);
+  NSConcreteGlobalBlock =
+      GetOrCreateLLVMGlobal("_NSConcreteGlobalBlock", Int8PtrTy, 0, nullptr);
   configureBlocksRuntimeObject(*this, NSConcreteGlobalBlock);
   return NSConcreteGlobalBlock;
 }
@@ -2950,9 +2949,8 @@ llvm::Constant *CodeGenModule::getNSConcreteStackBlock() {
   if (NSConcreteStackBlock)
     return NSConcreteStackBlock;
 
-  NSConcreteStackBlock = GetOrCreateLLVMGlobal("_NSConcreteStackBlock",
-                                               Int8PtrTy->getPointerTo(),
-                                               nullptr);
+  NSConcreteStackBlock =
+      GetOrCreateLLVMGlobal("_NSConcreteStackBlock", Int8PtrTy, 0, nullptr);
   configureBlocksRuntimeObject(*this, NSConcreteStackBlock);
   return NSConcreteStackBlock;
 }

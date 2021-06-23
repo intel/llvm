@@ -181,11 +181,13 @@ private:
   void __init(__attribute__((opencl_global)) dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
   void __init_esimd(__attribute__((opencl_global)) dataT *Ptr) {}
+  friend class stream;
 };
 
 template <int dimensions, access::mode accessmode, access::target accesstarget>
 struct opencl_image_type;
 
+#ifdef __SYCL_DEVICE_ONLY__
 #define IMAGETY_DEFINE(dim, accessmode, amsuffix, Target, ifarray_) \
   template <>                                                       \
   struct opencl_image_type<dim, access::mode::accessmode,           \
@@ -216,6 +218,8 @@ IMAGETY_WRITE_3_DIM_IMAGE
 
 IMAGETY_READ_2_DIM_IARRAY
 IMAGETY_WRITE_2_DIM_IARRAY
+
+#endif
 
 template <int dim, access::mode accessmode, access::target accesstarget>
 struct _ImageImplT {
@@ -317,9 +321,15 @@ public:
   specialization_id &operator=(const specialization_id &rhs) = delete;
   specialization_id &operator=(specialization_id &&rhs) = delete;
 
+  T getDefaultValue() const { return MDefaultValue; }
+
 private:
   T MDefaultValue;
 };
+
+#if __cplusplus >= 201703L
+template<typename T> specialization_id(T) -> specialization_id<T>;
+#endif // C++17.
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
@@ -407,10 +417,22 @@ class stream {
 public:
   stream(unsigned long BufferSize, unsigned long MaxStatementSize,
          handler &CGH) {}
+#ifdef __SYCL_DEVICE_ONLY__
+  // Default constructor for objects later initialized with __init member.
+  stream() = default;
+#endif
 
-  void __init() {}
+  void __init(__attribute((opencl_global)) char *Ptr, range<1> AccessRange,
+              range<1> MemRange, id<1> Offset, int _FlushBufferSize) {
+    Acc.__init(Ptr, AccessRange, MemRange, Offset);
+    FlushBufferSize = _FlushBufferSize;
+  }
 
   void __finalize() {}
+
+private:
+  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write> Acc;
+  int FlushBufferSize;
 };
 
 template <typename T>

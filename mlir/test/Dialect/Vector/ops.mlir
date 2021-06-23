@@ -3,15 +3,22 @@
 // CHECK-LABEL: func @vector_transfer_ops(
 func @vector_transfer_ops(%arg0: memref<?x?xf32>,
                           %arg1 : memref<?x?xvector<4x3xf32>>,
-                          %arg2 : memref<?x?xvector<4x3xi32>>) {
+                          %arg2 : memref<?x?xvector<4x3xi32>>,
+                          %arg3 : memref<?x?xvector<4x3xindex>>,
+                          %arg4 : memref<?x?x?xf32>) {
   // CHECK: %[[C3:.*]] = constant 3 : index
   %c3 = constant 3 : index
   %cst = constant 3.0 : f32
   %f0 = constant 0.0 : f32
   %c0 = constant 0 : i32
+  %i0 = constant 0 : index
+  %i1 = constant 1 : i1
+
   %vf0 = splat %f0 : vector<4x3xf32>
   %v0 = splat %c0 : vector<4x3xi32>
-
+  %vi0 = splat %i0 : vector<4x3xindex>
+  %m = constant dense<[0, 0, 1, 0, 1]> : vector<5xi1>
+  %m2 = splat %i1 : vector<5x4xi1>
   //
   // CHECK: vector.transfer_read
   %0 = vector.transfer_read %arg0[%c3, %c3], %f0 {permutation_map = affine_map<(d0, d1)->(d0)>} : memref<?x?xf32>, vector<128xf32>
@@ -27,7 +34,12 @@ func @vector_transfer_ops(%arg0: memref<?x?xf32>,
   %5 = vector.transfer_read %arg1[%c3, %c3], %vf0 {in_bounds = [false, true]} : memref<?x?xvector<4x3xf32>>, vector<1x1x4x3xf32>
   // CHECK: vector.transfer_read %{{.*}}[%[[C3]], %[[C3]]], %{{.*}} : memref<?x?xvector<4x3xi32>>, vector<5x24xi8>
   %6 = vector.transfer_read %arg2[%c3, %c3], %v0 : memref<?x?xvector<4x3xi32>>, vector<5x24xi8>
-
+  // CHECK: vector.transfer_read %{{.*}}[%[[C3]], %[[C3]]], %{{.*}} : memref<?x?xvector<4x3xindex>>, vector<5x48xi8>
+  %7 = vector.transfer_read %arg3[%c3, %c3], %vi0 : memref<?x?xvector<4x3xindex>>, vector<5x48xi8>
+  // CHECK: vector.transfer_read %{{.*}}[%[[C3]], %[[C3]]], %{{.*}}, %{{.*}} : memref<?x?xf32>, vector<5xf32>
+  %8 = vector.transfer_read %arg0[%c3, %c3], %f0, %m : memref<?x?xf32>, vector<5xf32>
+  // CHECK: vector.transfer_read %{{.*}}[%[[C3]], %[[C3]], %[[C3]]], %{{.*}}, %{{.*}} : memref<?x?x?xf32>, vector<5x4x8xf32>
+  %9 = vector.transfer_read %arg4[%c3, %c3, %c3], %f0, %m2 {permutation_map = affine_map<(d0, d1, d2)->(d1, d0, 0)>} : memref<?x?x?xf32>, vector<5x4x8xf32>
 
   // CHECK: vector.transfer_write
   vector.transfer_write %0, %arg0[%c3, %c3] {permutation_map = affine_map<(d0, d1)->(d0)>} : vector<128xf32>, memref<?x?xf32>
@@ -39,6 +51,10 @@ func @vector_transfer_ops(%arg0: memref<?x?xf32>,
   vector.transfer_write %5, %arg1[%c3, %c3] {in_bounds = [false, false]} : vector<1x1x4x3xf32>, memref<?x?xvector<4x3xf32>>
   // CHECK: vector.transfer_write %{{.*}}, %{{.*}}[%[[C3]], %[[C3]]] : vector<5x24xi8>, memref<?x?xvector<4x3xi32>>
   vector.transfer_write %6, %arg2[%c3, %c3] : vector<5x24xi8>, memref<?x?xvector<4x3xi32>>
+  // CHECK: vector.transfer_write %{{.*}}, %{{.*}}[%[[C3]], %[[C3]]] : vector<5x48xi8>, memref<?x?xvector<4x3xindex>>
+  vector.transfer_write %7, %arg3[%c3, %c3] : vector<5x48xi8>, memref<?x?xvector<4x3xindex>>
+  // CHECK: vector.transfer_write %{{.*}}, %{{.*}}[%[[C3]], %[[C3]]], %{{.*}} : vector<5xf32>, memref<?x?xf32>
+  vector.transfer_write %8, %arg0[%c3, %c3], %m : vector<5xf32>, memref<?x?xf32>
 
   return
 }
@@ -47,16 +63,21 @@ func @vector_transfer_ops(%arg0: memref<?x?xf32>,
 // CHECK-LABEL: func @vector_transfer_ops_tensor(
 func @vector_transfer_ops_tensor(%arg0: tensor<?x?xf32>,
                           %arg1 : tensor<?x?xvector<4x3xf32>>,
-                          %arg2 : tensor<?x?xvector<4x3xi32>>) ->
+                          %arg2 : tensor<?x?xvector<4x3xi32>>,
+                          %arg3 : tensor<?x?xvector<4x3xindex>>) ->
   (tensor<?x?xf32>, tensor<?x?xf32>, tensor<?x?xvector<4x3xf32>>,
-   tensor<?x?xvector<4x3xf32>>, tensor<?x?xvector<4x3xi32>>){
+   tensor<?x?xvector<4x3xf32>>, tensor<?x?xvector<4x3xi32>>,
+   tensor<?x?xvector<4x3xindex>>){
   // CHECK: %[[C3:.*]] = constant 3 : index
   %c3 = constant 3 : index
   %cst = constant 3.0 : f32
   %f0 = constant 0.0 : f32
   %c0 = constant 0 : i32
+  %i0 = constant 0 : index
+
   %vf0 = splat %f0 : vector<4x3xf32>
   %v0 = splat %c0 : vector<4x3xi32>
+  %vi0 = splat %i0 : vector<4x3xindex>
 
   //
   // CHECK: vector.transfer_read
@@ -73,22 +94,27 @@ func @vector_transfer_ops_tensor(%arg0: tensor<?x?xf32>,
   %5 = vector.transfer_read %arg1[%c3, %c3], %vf0 {in_bounds = [false, true]} : tensor<?x?xvector<4x3xf32>>, vector<1x1x4x3xf32>
   // CHECK: vector.transfer_read %{{.*}}[%[[C3]], %[[C3]]], %{{.*}} : tensor<?x?xvector<4x3xi32>>, vector<5x24xi8>
   %6 = vector.transfer_read %arg2[%c3, %c3], %v0 : tensor<?x?xvector<4x3xi32>>, vector<5x24xi8>
+  // CHECK: vector.transfer_read %{{.*}}[%[[C3]], %[[C3]]], %{{.*}} : tensor<?x?xvector<4x3xindex>>, vector<5x48xi8>
+  %7 = vector.transfer_read %arg3[%c3, %c3], %vi0 : tensor<?x?xvector<4x3xindex>>, vector<5x48xi8>
 
 
   // CHECK: vector.transfer_write
-  %7 = vector.transfer_write %0, %arg0[%c3, %c3] {permutation_map = affine_map<(d0, d1)->(d0)>} : vector<128xf32>, tensor<?x?xf32>
+  %8 = vector.transfer_write %0, %arg0[%c3, %c3] {permutation_map = affine_map<(d0, d1)->(d0)>} : vector<128xf32>, tensor<?x?xf32>
   // CHECK: vector.transfer_write
-  %8 = vector.transfer_write %1, %arg0[%c3, %c3] {permutation_map = affine_map<(d0, d1)->(d1, d0)>} : vector<3x7xf32>, tensor<?x?xf32>
+  %9 = vector.transfer_write %1, %arg0[%c3, %c3] {permutation_map = affine_map<(d0, d1)->(d1, d0)>} : vector<3x7xf32>, tensor<?x?xf32>
   // CHECK: vector.transfer_write %{{.*}}, %{{.*}}[%[[C3]], %[[C3]]] : vector<1x1x4x3xf32>, tensor<?x?xvector<4x3xf32>>
-  %9 = vector.transfer_write %4, %arg1[%c3, %c3] {permutation_map = affine_map<(d0, d1)->(d0, d1)>} : vector<1x1x4x3xf32>, tensor<?x?xvector<4x3xf32>>
+  %10 = vector.transfer_write %4, %arg1[%c3, %c3] {permutation_map = affine_map<(d0, d1)->(d0, d1)>} : vector<1x1x4x3xf32>, tensor<?x?xvector<4x3xf32>>
   // CHECK: vector.transfer_write %{{.*}}, %{{.*}}[%[[C3]], %[[C3]]] : vector<1x1x4x3xf32>, tensor<?x?xvector<4x3xf32>>
-  %10 = vector.transfer_write %5, %arg1[%c3, %c3] {in_bounds = [false, false]} : vector<1x1x4x3xf32>, tensor<?x?xvector<4x3xf32>>
+  %11 = vector.transfer_write %5, %arg1[%c3, %c3] {in_bounds = [false, false]} : vector<1x1x4x3xf32>, tensor<?x?xvector<4x3xf32>>
   // CHECK: vector.transfer_write %{{.*}}, %{{.*}}[%[[C3]], %[[C3]]] : vector<5x24xi8>, tensor<?x?xvector<4x3xi32>>
-  %11 = vector.transfer_write %6, %arg2[%c3, %c3] : vector<5x24xi8>, tensor<?x?xvector<4x3xi32>>
+  %12 = vector.transfer_write %6, %arg2[%c3, %c3] : vector<5x24xi8>, tensor<?x?xvector<4x3xi32>>
+  // CHECK: vector.transfer_write %{{.*}}, %{{.*}}[%[[C3]], %[[C3]]] : vector<5x48xi8>, tensor<?x?xvector<4x3xindex>>
+  %13 = vector.transfer_write %7, %arg3[%c3, %c3] : vector<5x48xi8>, tensor<?x?xvector<4x3xindex>>
 
-  return %7, %8, %9, %10, %11 :
+  return %8, %9, %10, %11, %12, %13 :
     tensor<?x?xf32>, tensor<?x?xf32>,  tensor<?x?xvector<4x3xf32>>,
-    tensor<?x?xvector<4x3xf32>>, tensor<?x?xvector<4x3xi32>>
+    tensor<?x?xvector<4x3xf32>>, tensor<?x?xvector<4x3xi32>>,
+    tensor<?x?xvector<4x3xindex>>
 }
 
 // CHECK-LABEL: @vector_broadcast
@@ -132,14 +158,16 @@ func @extract_element(%a: vector<16xf32>) -> f32 {
 }
 
 // CHECK-LABEL: @extract
-func @extract(%arg0: vector<4x8x16xf32>) -> (vector<8x16xf32>, vector<16xf32>, f32) {
+func @extract(%arg0: vector<4x8x16xf32>) -> (vector<4x8x16xf32>, vector<8x16xf32>, vector<16xf32>, f32) {
+  // CHECK: vector.extract {{.*}}[] : vector<4x8x16xf32>
+  %0 = vector.extract %arg0[] : vector<4x8x16xf32>
   // CHECK: vector.extract {{.*}}[3] : vector<4x8x16xf32>
   %1 = vector.extract %arg0[3] : vector<4x8x16xf32>
   // CHECK-NEXT: vector.extract {{.*}}[3, 3] : vector<4x8x16xf32>
   %2 = vector.extract %arg0[3, 3] : vector<4x8x16xf32>
   // CHECK-NEXT: vector.extract {{.*}}[3, 3, 3] : vector<4x8x16xf32>
   %3 = vector.extract %arg0[3, 3, 3] : vector<4x8x16xf32>
-  return %1, %2, %3 : vector<8x16xf32>, vector<16xf32>, f32
+  return %0, %1, %2, %3 : vector<4x8x16xf32>, vector<8x16xf32>, vector<16xf32>, f32
 }
 
 // CHECK-LABEL: @insert_element
@@ -159,7 +187,9 @@ func @insert(%a: f32, %b: vector<16xf32>, %c: vector<8x16xf32>, %res: vector<4x8
   %2 = vector.insert %b, %res[3, 3] : vector<16xf32> into vector<4x8x16xf32>
   // CHECK: vector.insert %{{.*}}, %{{.*}}[3, 3, 3] : f32 into vector<4x8x16xf32>
   %3 = vector.insert %a, %res[3, 3, 3] : f32 into vector<4x8x16xf32>
-  return %3 : vector<4x8x16xf32>
+  // CHECK: vector.insert %{{.*}}, %{{.*}}[] : vector<4x8x16xf32> into vector<4x8x16xf32>
+  %4 = vector.insert %3, %3[] : vector<4x8x16xf32> into vector<4x8x16xf32>
+  return %4 : vector<4x8x16xf32>
 }
 
 // CHECK-LABEL: @outerproduct
@@ -378,8 +408,9 @@ func @shape_cast(%arg0 : vector<5x1x3x2xf32>,
 // CHECK-LABEL: @bitcast
 func @bitcast(%arg0 : vector<5x1x3x2xf32>,
                  %arg1 : vector<8x1xi32>,
-                 %arg2 : vector<16x1x8xi8>)
-  -> (vector<5x1x3x4xf16>, vector<5x1x3x8xi8>, vector<8x4xi8>, vector<8x1xf32>, vector<16x1x2xi32>, vector<16x1x4xi16>) {
+                 %arg2 : vector<16x1x8xi8>,
+                 %arg3 : vector<8x2x1xindex>)
+  -> (vector<5x1x3x4xf16>, vector<5x1x3x8xi8>, vector<8x4xi8>, vector<8x1xf32>, vector<16x1x2xi32>, vector<16x1x4xi16>, vector<16x1x1xindex>, vector<8x2x2xf32>) {
 
   // CHECK: vector.bitcast %{{.*}} : vector<5x1x3x2xf32> to vector<5x1x3x4xf16>
   %0 = vector.bitcast %arg0 : vector<5x1x3x2xf32> to vector<5x1x3x4xf16>
@@ -399,7 +430,13 @@ func @bitcast(%arg0 : vector<5x1x3x2xf32>,
   // CHECK-NEXT: vector.bitcast %{{.*}} : vector<16x1x8xi8> to vector<16x1x4xi16>
   %5 = vector.bitcast %arg2 : vector<16x1x8xi8> to vector<16x1x4xi16>
 
-  return %0, %1, %2, %3, %4, %5 : vector<5x1x3x4xf16>, vector<5x1x3x8xi8>, vector<8x4xi8>, vector<8x1xf32>, vector<16x1x2xi32>, vector<16x1x4xi16>
+  // CHECK-NEXT: vector.bitcast %{{.*}} : vector<16x1x8xi8> to vector<16x1x1xindex>
+  %6 = vector.bitcast %arg2 : vector<16x1x8xi8> to vector<16x1x1xindex>
+
+  // CHECK-NEXT: vector.bitcast %{{.*}} : vector<8x2x1xindex> to vector<8x2x2xf32>
+  %7 = vector.bitcast %arg3 : vector<8x2x1xindex> to vector<8x2x2xf32>
+
+  return %0, %1, %2, %3, %4, %5, %6, %7 : vector<5x1x3x4xf16>, vector<5x1x3x8xi8>, vector<8x4xi8>, vector<8x1xf32>, vector<16x1x2xi32>, vector<16x1x4xi16>, vector<16x1x1xindex>, vector<8x2x2xf32>
 }
 
 // CHECK-LABEL: @vector_fma

@@ -164,8 +164,6 @@ public:
     PREFETCH_USM = 12,
     CODEPLAY_INTEROP_TASK = 13,
     CODEPLAY_HOST_TASK = 14,
-    KERNEL_V1 =
-        getVersionedCGType(KERNEL, static_cast<unsigned int>(CG_VERSION::V1)),
   };
 
   CG(CGTYPE Type, vector_class<vector_class<char>> ArgsStorage,
@@ -191,6 +189,10 @@ public:
   CG(CG &&CommandGroup) = default;
 
   CGTYPE getType() { return static_cast<CGTYPE>(getUnversionedCGType(MType)); }
+
+  CG_VERSION getVersion() {
+    return static_cast<CG_VERSION>(getCGTypeVersion(MType));
+  }
 
   std::shared_ptr<std::vector<ExtendedMemberT>> getExtendedMembers() {
     if (getCGTypeVersion(MType) == static_cast<unsigned int>(CG_VERSION::V0) ||
@@ -259,8 +261,7 @@ public:
         MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
         MStreams(std::move(Streams)) {
-    assert((getType() == RUN_ON_HOST_INTEL || getType() == KERNEL ||
-            getType() == KERNEL_V1) &&
+    assert((getType() == RUN_ON_HOST_INTEL || getType() == KERNEL) &&
            "Wrong type of exec kernel CG.");
   }
 

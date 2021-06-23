@@ -248,11 +248,11 @@ public:
   }
 #include "llvm/IR/Instruction.def"
 
-  static BinaryOperator *CreateWithCopiedFlags(BinaryOps Opc,
-                                               Value *V1, Value *V2,
-                                               Instruction *CopyO,
-                                               const Twine &Name = "") {
-    BinaryOperator *BO = Create(Opc, V1, V2, Name);
+  static BinaryOperator *
+  CreateWithCopiedFlags(BinaryOps Opc, Value *V1, Value *V2, Instruction *CopyO,
+                        const Twine &Name = "",
+                        Instruction *InsertBefore = nullptr) {
+    BinaryOperator *BO = Create(Opc, V1, V2, Name, InsertBefore);
     BO->copyIRFlags(CopyO);
     return BO;
   }
@@ -1442,8 +1442,7 @@ public:
   /// type.
   void setCalledFunction(FunctionType *FTy, Value *Fn) {
     this->FTy = FTy;
-    assert(FTy == cast<FunctionType>(
-                      cast<PointerType>(Fn->getType())->getElementType()));
+    assert(cast<PointerType>(Fn->getType())->isOpaqueOrPointeeTypeMatches(FTy));
     // This function doesn't mutate the return type, only the function
     // type. Seems broken, but I'm just gonna stick an assert in for now.
     assert(getType() == FTy->getReturnType());
@@ -1552,6 +1551,13 @@ public:
     assert(ArgNo < getNumArgOperands() && "Out of bounds");
     AttributeList PAL = getAttributes();
     PAL = PAL.removeParamAttribute(getContext(), ArgNo, Kind);
+    setAttributes(PAL);
+  }
+
+  /// Removes the attributes from the given argument
+  void removeParamAttrs(unsigned ArgNo, const AttrBuilder &Attrs) {
+    AttributeList PAL = getAttributes();
+    PAL = PAL.removeParamAttributes(getContext(), ArgNo, Attrs);
     setAttributes(PAL);
   }
 
@@ -1708,27 +1714,16 @@ public:
            dataOperandHasImpliedAttr(OpNo + 1, Attribute::ReadNone);
   }
 
-  LLVM_ATTRIBUTE_DEPRECATED(unsigned getRetAlignment() const,
-                            "Use getRetAlign() instead") {
-    if (const auto MA = Attrs.getRetAlignment())
-      return MA->value();
-    return 0;
-  }
-
   /// Extract the alignment of the return value.
   MaybeAlign getRetAlign() const { return Attrs.getRetAlignment(); }
 
   /// Extract the alignment for a call or parameter (0=unknown).
-  LLVM_ATTRIBUTE_DEPRECATED(unsigned getParamAlignment(unsigned ArgNo) const,
-                            "Use getParamAlign() instead") {
-    if (const auto MA = Attrs.getParamAlignment(ArgNo))
-      return MA->value();
-    return 0;
-  }
-
-  /// Extract the alignment for a call or parameter (0=unknown).
   MaybeAlign getParamAlign(unsigned ArgNo) const {
     return Attrs.getParamAlignment(ArgNo);
+  }
+
+  MaybeAlign getParamStackAlign(unsigned ArgNo) const {
+    return Attrs.getParamStackAlignment(ArgNo);
   }
 
   /// Extract the byval type for a call or parameter.

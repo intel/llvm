@@ -13,10 +13,14 @@
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/backend_traits.hpp>
+#include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/queue.hpp>
 
@@ -25,14 +29,36 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+namespace detail {
+template <backend Backend, typename T> struct BackendInput {
+  // TODO replace usage of interop with specializations.
+  using type = typename interop<Backend, T>::type;
+};
+
+template <backend Backend, typename T> struct BackendReturn {
+  // TODO replace usage of interop with specializations.
+  using type = typename interop<Backend, T>::type;
+};
+} // namespace detail
+
 template <backend Backend> class backend_traits {
 public:
-  template <class T> using input_type = typename interop<Backend, T>::type;
+  template <class T>
+  using input_type = typename detail::BackendInput<Backend, T>::type;
 
-  template <class T> using return_type = typename interop<Backend, T>::type;
+  template <class T>
+  using return_type = typename detail::BackendReturn<Backend, T>::type;
 
   // TODO define errc once SYCL2020-style exceptions are supported.
 };
+
+template <backend Backend, typename SyclType>
+using backend_input_t =
+    typename backend_traits<Backend>::template input_type<SyclType>;
+
+template <backend Backend, typename SyclType>
+using backend_return_t =
+    typename backend_traits<Backend>::template return_type<SyclType>;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj) ->
@@ -54,6 +80,9 @@ auto get_native(const accessor<DataT, Dimensions, AccessMode, AccessTarget,
     delete;
 
 namespace detail {
+// Forward declaration
+class kernel_bundle_impl;
+
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle,
                                      backend Backend);
 __SYCL_EXPORT device make_device(pi_native_handle NativeHandle,
@@ -66,6 +95,11 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
+__SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
+                                 const context &TargetContext, backend Backend);
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
+make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
+                   bundle_state State, backend Backend);
 } // namespace detail
 
 template <backend Backend>
@@ -130,6 +164,29 @@ make_buffer(const typename backend_traits<Backend>::template input_type<
             const context &TargetContext, event AvailableEvent = {}) {
   return buffer<T, Dimensions, AllocatorT>(
       reinterpret_cast<cl_mem>(BackendObject), TargetContext, AvailableEvent);
+}
+
+template <backend Backend>
+kernel
+make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
+                &BackendObject,
+            const context &TargetContext) {
+  return detail::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
+                             TargetContext, Backend);
+}
+
+template <backend Backend, bundle_state State>
+typename std::enable_if<
+    detail::InteropFeatureSupportMap<Backend>::MakeKernelBundle == true,
+    kernel_bundle<State>>::type
+make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
+                       kernel_bundle<State>> &BackendObject,
+                   const context &TargetContext) {
+  std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
+      detail::make_kernel_bundle(
+          detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
+          State, Backend);
+  return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

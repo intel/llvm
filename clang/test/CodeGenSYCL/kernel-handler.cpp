@@ -22,16 +22,16 @@ void test(int val) {
   });
 }
 
-// NONATIVESUPPORT: define dso_local void @"{{.*}}test_kernel_handler{{.*}}"
+// NONATIVESUPPORT: define dso_local void @{{.*}}test_kernel_handler{{[^(]*}}
 // NONATIVESUPPORT-SAME: (i32 %_arg_, i8 addrspace(1)* %_arg__specialization_constants_buffer)
 // NONATIVESUPPORT: %kh = alloca %"class.[[MANGLEDCLASS:[a-zA-Z0-9_]+]].cl::sycl::kernel_handler", align 1
 // NONATIVESUPPORT: %[[KH:[0-9]+]] = load i8 addrspace(1)*, i8 addrspace(1)** %_arg__specialization_constants_buffer.addr, align 8
 // NONATIVESUPPORT: %[[ADDRSPACECAST:[0-9]+]] = addrspacecast i8 addrspace(1)* %[[KH]] to i8*
-// NONATIVESUPPORT: call void @{{.*}}__init_specialization_constants_buffer{{.*}}(%"class.[[MANGLEDCLASS]].cl::sycl::kernel_handler"* nonnull dereferenceable(1) %kh, i8* %[[ADDRSPACECAST]])
-// NONATIVESUPPORT: void @"[[MANGLEDKERNELCALL:[a-zA-Z0-9_$]+]]"
+// NONATIVESUPPORT: call void @{{.*}}__init_specialization_constants_buffer{{.*}}(%"class.[[MANGLEDCLASS]].cl::sycl::kernel_handler"* nonnull align 1 dereferenceable(1) %kh, i8* %[[ADDRSPACECAST]])
+// NONATIVESUPPORT: void @[[MANGLEDKERNELCALL:[a-zA-Z0-9_$]+]]
 // NONATIVESUPPORT-SAME: byval(%"class.[[MANGLEDCLASS]].cl::sycl::kernel_handler")
 
-// NATIVESUPPORT: define dso_local spir_kernel void @"{{.*}}test_kernel_handler{{.*}}"
+// NATIVESUPPORT: define dso_local spir_kernel void @{{.*}}test_kernel_handler{{[^(]*}}
 // NATIVESUPPORT-SAME: (i32 %_arg_)
 // NATIVESUPPORT: %kh = alloca %"class.[[MANGLEDCLASS:[a-zA-Z0-9_]+]].cl::sycl::kernel_handler"
 // NATIVESUPPORT-NOT: __init_specialization_constants_buffer

@@ -34,6 +34,8 @@ Explicit SIMD APIs can be used only in code to be executed on Intel Gen
 architecture devices and the host device for now. Attempt to run such code on
 other devices will result in error. 
 
+All the ESIMD APIs are defined in the `sycl::ext::intel::experimental::esimd` namespace.
+
 Kernels and `SYCL_EXTERNAL` functions using ESP must be explicitly marked with
 the `[[intel::sycl_explicit_simd]]` attribute. Subgroup size query within such
 functions will always return `1`.
@@ -56,9 +58,10 @@ private:
 
 *Lambda kernel and function*
 ```cpp
+using namespace sycl::ext::intel::experimental::esimd;
 SYCL_EXTERNAL
-void sycl_device_f(sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 8> X) [[intel::sycl_explicit_simd]] {
-  sycl::intel::gpu::flat_block_write(*ptr.get(), X);
+void sycl_device_f(sycl::global_ptr<int> ptr, simd<float, 8> X) [[intel::sycl_explicit_simd]] {
+  flat_block_write(*ptr.get(), X);
 }
 ...
   Q.submit([&](sycl::handler &Cgh) {
@@ -66,7 +69,7 @@ void sycl_device_f(sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 8> X
     auto Acc2 = Buf2.get_access<sycl::access::mode::read_write>(Cgh);
 
     Cgh.single_task<class KernelID>([=] () [[intel::sycl_explicit_simd]] {
-      sycl::intel::gpu::simd<float, 8> Val = sycl::intel::gpu::flat_block_read(Acc1.get_pointer());
+      simd<float, 8> Val = flat_block_read(Acc1.get_pointer());
       sycl_device_f(Acc2, Val);
     });
   });
@@ -87,7 +90,7 @@ device-side API
 - 2D and 3D accessors
 - Constant accessors
 - `sycl::accessor::get_pointer()`. All memory accesses through an accessor are
-done via explicit APIs; e.g. `sycl::intel::gpu::block_store(acc, offset)`
+done via explicit APIs; e.g. `sycl::ext::intel::experimental::esimd::block_store(acc, offset)`
 - Few others (to be documented)
 
 ## Core Explicit SIMD programming APIs
@@ -98,7 +101,7 @@ efficient mapping to SIMD vector operations on Intel GPU architectures.
 
 ### SIMD vector class
 
-The `sycl::intel::gpu::simd` class is a vector templated on some element type.
+The `simd` class is a vector templated on some element type.
 The element type must be vectorizable type. The set of vectorizable types is the
 set of fundamental SYCL arithmetic types (C++ arithmetic types or `half` type)
 excluding `bool`. The length of the vector is the second template parameter.
@@ -106,7 +109,7 @@ excluding `bool`. The length of the vector is the second template parameter.
 ESIMD compiler back-end does the best it can to map each `simd` class object to a consecutive block
 of registers in the general register file (GRF).
 
-Every specialization of ```sycl::intel::gpu::simd``` shall be a complete type. The term
+Every specialization of `simd` class shall be a complete type. The term
 simd type refers to all supported specialization of the simd class template.
 To access the i-th individual data element in a simd vector, Explicit SIMD supports the
 standard subscript operator ```[]```, which returns by value.
@@ -152,41 +155,41 @@ a.select<4, 2>(0) = b;  // selected elements of a are replaced
 
 
 Gen ISA provides powerful register region addressing modes to facilitate cross-lane
-SIMD vector operation. To exploit this feature Explicit SIMD provides ```replicate``` function
+SIMD vector operation. To exploit this feature Explicit SIMD provides ```replicate``` functions
 to allow programmer to implement any native Gen ISA region in the following forms:
 - ```replicate<REP>()```: replicate a simd vector object **REP** times and return a new simd
 vector of **REP** * Width, where Width specifies the original vector size.
-- ```replicate<REP, W>(uint16_t i)```: replicate **W** consecutive elements starting at the
+- ```replicate_w<REP, W>(uint16_t i)```: replicate **W** consecutive elements starting at the
 i-th element from the simd vector object **REP** times, and return a new simd vector of **REP** * **W** length.
-- ```replicate<REP, VS, W>(uint16_t i)```: replicate **REP** blocks of **W** consecutive
+- ```replicate_vs_w<REP, VS, W>(uint16_t i)```: replicate **REP** blocks of **W** consecutive
 elements starting at the i-th from the simd vector object with each block strided by **VS**
 elements, and return a new vector of **REP** * **W** length. Selected blocks of **W**
 elements will overlap if **VS** < **W**.
-- ```replicate<REP, VS, W, HS>(uint16_t i=0 )```: replicate **REP** blocks of **W** sequential
+- ```replicate_vs_w_hs<REP, VS, W, HS>(uint16_t i=0 )```: replicate **REP** blocks of **W** sequential
 elements with a stride of **HS** starting at the i-th element from the simd vector object with
 each block strided by **VS** elements, and return a new vector of **REP** * **W** length.
 Selected blocks of **W** elements will overlap if **VS** < **W**.
 
 To avoid explicit type cast and the resulting move instructions for large vectors, Explicit SIMD allows
 programmer to reinterpret the fundamental data element type of a simd vector object and change
-its shape to 1D or 2D object through the ```format``` function:
-- ```format<EltTy>( )```: returns a reference to the calling simd object interpreted as a new
+its shape to 1D or 2D object through the ```bit_cast_view``` function:
+- ```bit_cast_view<EltTy>( )```: returns a reference to the calling simd object interpreted as a new
 simd vector with the size determined by the template **EltTy** parameter.
-- ```format<EltTy, Height, Width>( )```: returns a reference to the calling simd object interpreted
+- ```bit_cast_view<EltTy, Height, Width>( )```: returns a reference to the calling simd object interpreted
 as a new 2D simd_view object with the shape determined by the template parameters **Height** and**Width**. The size of the new 2D block must not exceed the size of the original object.
 
 ```cpp
   simd<int, 16> v1;
    // ...
-  auto v2 = v1.format<short>;
+  auto v2 = v1.bit_cast_view<short>;
   // v2 is a reference to the location of v1
   // interpreted as a vector of 32 shorts.
   // ...
-  auto m1 = v1.format<int, 4, 4>;
+  auto m1 = v1.bit_cast_view<int, 4, 4>;
   // m1 is a reference to the location of v1
   // interpreted as a matrix 4x4 of ints.
   // ...
-  auto m2 = v1.format<char, 4, 16>( );
+  auto m2 = v1.bit_cast_view<char, 4, 16>( );
   // m2 is a reference to the location of v1
   // interpreted as a matrix 4x16 of chars.
 ```
@@ -215,7 +218,7 @@ To model predicated move, Explicit SIMD provides the following merge functions:
 ```
 ### `simd_view` class
 
-The ```sycl::intel::gpu::simd_view``` represents a "window" into existing simd object,
+The `simd_view` represents a "window" into existing simd object,
 through which a part of the original object can be read or modified. This is a
 syntactic convenience feature to reduce verbosity when accessing sub-regions of
 simd objects. **RegionTy** describes the window shape and can be 1D or 2D,
@@ -231,16 +234,16 @@ different shapes and dimensions as illustrated below (`auto` resolves to a
 <img src="images/simd_view.svg" title="1D select example" width="800" height="300"/>
 </p>
 
-```sycl::intel::gpu::simd_view``` class supports all the element-wise operations and
-other utility functions defined for ```sycl::intel::gpu::simd``` class. It also
+`simd_view` class supports all the element-wise operations and
+other utility functions defined for `simd` class. It also
 provides region accessors and more generic operations tailored for 2D regions,
-such as row/column operators and 2D select/replicate/format/merge operations.
+such as row/column operators and 2D select/replicate/bit_cast_view/merge operations.
 
 ```cpp
   simd<float, 32> v1;
-  auto m1 = v1.format<float, 4, 8>();
+  auto m1 = v1.bit_cast_view<float, 4, 8>();
   simd<float, 4> v2;
-  auto m2 = v2.format<float, 2, 2>();
+  auto m2 = v2.bit_cast_view<float, 2, 2>();
 
   // ...
   m2 = m1.select<2, 2, 2, 4>(1, 2);  // v_size = 2, v_stride = 2,
@@ -479,12 +482,12 @@ int main(void) {
   auto e = q.submit([&](handler &cgh) {
     cgh.parallel_for<class Test>(
       Range, [=](nd_item<1> i) [[intel::sycl_explicit_simd]] {
-
+      using namespace sycl::ext::intel::experimental::esimd;
       auto offset = i.get_global_id(0) * VL;
-      sycl::intel::gpu<float, VL> va = sycl::intel::gpu::flat_block_load<float, VL>(A + offset);
-      sycl::intel::gpu<float, VL> vb = sycl::intel::gpu::flat_block_load<float, VL>(B + offset);
-      sycl::intel::gpu<float, VL> vc = va + vb;
-      sycl::intel::gpu::flat_block_store<float, VL>(C + offset, vc);
+      simd<float, VL> va = flat_block_load<float, VL>(A + offset);
+      simd<float, VL> vb = flat_block_load<float, VL>(B + offset);
+      simd<float, VL> vc = va + vb;
+      flat_block_store<float, VL>(C + offset, vc);
     });
   });
   e.wait();
@@ -501,9 +504,9 @@ int main(void) {
 
 - Design interoperability with SPMD context - e.g. invocation of ESIMD functions
   from a standard SYCL code
-- Generate sycl::intel::gpu API documentation from sources
+- Generate `sycl::ext::intel::experimental::esimd` API documentation from sources
 - Section covering 2D use cases
-- A bridge from `std::simd` to `sycl::intel::gpu::simd`
+- A bridge from `std::simd` to `sycl::ext::intel::experimental::esimd::simd`
 - Describe `simd_view` class restrictions
 - Support OpenCL and L0 interop for ESIMD kernels
 - Consider auto-inclusion of sycl_explicit_simd.hpp under -fsycl-explicit-simd option

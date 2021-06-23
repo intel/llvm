@@ -118,6 +118,14 @@ static std::string rewritePath(StringRef s) {
   return std::string(s);
 }
 
+static std::string rewriteInputPath(StringRef s) {
+  // Don't bother rewriting "absolute" paths that are actually under the
+  // syslibroot; simply rewriting the syslibroot is sufficient.
+  if (rerootPath(s) == s && fs::exists(s))
+    return relativeToRoot(s);
+  return std::string(s);
+}
+
 // Reconstructs command line arguments so that so that you can re-run
 // the same command with the same inputs. This is for --reproduce.
 std::string macho::createResponseFile(const InputArgList &args) {
@@ -130,7 +138,7 @@ std::string macho::createResponseFile(const InputArgList &args) {
     case OPT_reproduce:
       break;
     case OPT_INPUT:
-      os << quote(rewritePath(arg->getValue())) << "\n";
+      os << quote(rewriteInputPath(arg->getValue())) << "\n";
       break;
     case OPT_o:
       os << "-o " << quote(path::filename(arg->getValue())) << "\n";
@@ -138,14 +146,21 @@ std::string macho::createResponseFile(const InputArgList &args) {
     case OPT_filelist:
       if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
         for (StringRef path : args::getLines(*buffer))
-          os << quote(rewritePath(path)) << "\n";
+          os << quote(rewriteInputPath(path)) << "\n";
       break;
     case OPT_force_load:
-    case OPT_rpath:
-    case OPT_syslibroot:
+    case OPT_weak_library:
+      os << arg->getSpelling() << " "
+         << quote(rewriteInputPath(arg->getValue())) << "\n";
+      break;
     case OPT_F:
     case OPT_L:
+    case OPT_bundle_loader:
+    case OPT_exported_symbols_list:
     case OPT_order_file:
+    case OPT_rpath:
+    case OPT_syslibroot:
+    case OPT_unexported_symbols_list:
       os << arg->getSpelling() << " " << quote(rewritePath(arg->getValue()))
          << "\n";
       break;
@@ -161,20 +176,27 @@ std::string macho::createResponseFile(const InputArgList &args) {
   return std::string(data.str());
 }
 
-Optional<std::string> macho::resolveDylibPath(StringRef path) {
+static void searchedDylib(const Twine &path, bool found) {
+  if (config->printDylibSearch)
+    message("searched " + path + (found ? ", found " : ", not found"));
+  if (!found)
+    depTracker->logFileNotFound(path);
+}
+
+Optional<std::string> macho::resolveDylibPath(StringRef dylibPath) {
   // TODO: if a tbd and dylib are both present, we should check to make sure
   // they are consistent.
-  if (fs::exists(path))
-    return std::string(path);
-  else
-    depTracker->logFileNotFound(path);
+  bool dylibExists = fs::exists(dylibPath);
+  searchedDylib(dylibPath, dylibExists);
+  if (dylibExists)
+    return std::string(dylibPath);
 
-  SmallString<261> location = path;
-  path::replace_extension(location, ".tbd");
-  if (fs::exists(location))
-    return std::string(location);
-  else
-    depTracker->logFileNotFound(location);
+  SmallString<261> tbdPath = dylibPath;
+  path::replace_extension(tbdPath, ".tbd");
+  bool tbdExists = fs::exists(tbdPath);
+  searchedDylib(tbdPath, tbdExists);
+  if (tbdExists)
+    return std::string(tbdPath);
   return {};
 }
 
@@ -182,37 +204,85 @@ Optional<std::string> macho::resolveDylibPath(StringRef path) {
 // especially if it's a commonly re-exported core library.
 static DenseMap<CachedHashStringRef, DylibFile *> loadedDylibs;
 
-Optional<DylibFile *> macho::loadDylib(MemoryBufferRef mbref,
-                                       DylibFile *umbrella,
-                                       bool isBundleLoader) {
-  StringRef path = mbref.getBufferIdentifier();
-  DylibFile *&file = loadedDylibs[CachedHashStringRef(path)];
+DylibFile *macho::loadDylib(MemoryBufferRef mbref, DylibFile *umbrella,
+                            bool isBundleLoader) {
+  CachedHashStringRef path(mbref.getBufferIdentifier());
+  DylibFile *&file = loadedDylibs[path];
   if (file)
     return file;
 
+  DylibFile *newFile;
   file_magic magic = identify_magic(mbref.getBuffer());
   if (magic == file_magic::tapi_file) {
     Expected<std::unique_ptr<InterfaceFile>> result = TextAPIReader::get(mbref);
     if (!result) {
       error("could not load TAPI file at " + mbref.getBufferIdentifier() +
             ": " + toString(result.takeError()));
-      return {};
+      return nullptr;
     }
     file = make<DylibFile>(**result, umbrella, isBundleLoader);
+
+    // parseReexports() can recursively call loadDylib(). That's fine since
+    // we wrote the DylibFile we just loaded to the loadDylib cache via the
+    // `file` reference. But the recursive load can grow loadDylibs, so the
+    // `file` reference might become invalid after parseReexports() -- so copy
+    // the pointer it refers to before continuing.
+    newFile = file;
+    if (newFile->exportingFile)
+      newFile->parseReexports(**result);
   } else {
     assert(magic == file_magic::macho_dynamically_linked_shared_lib ||
            magic == file_magic::macho_dynamically_linked_shared_lib_stub ||
            magic == file_magic::macho_executable ||
            magic == file_magic::macho_bundle);
     file = make<DylibFile>(mbref, umbrella, isBundleLoader);
+
+    // parseLoadCommands() can also recursively call loadDylib(). See comment
+    // in previous block for why this means we must copy `file` here.
+    newFile = file;
+    if (newFile->exportingFile)
+      newFile->parseLoadCommands(mbref);
   }
-  return file;
+  return newFile;
+}
+
+Optional<StringRef>
+macho::findPathCombination(const Twine &name,
+                           const std::vector<StringRef> &roots,
+                           ArrayRef<StringRef> extensions) {
+  SmallString<261> base;
+  for (StringRef dir : roots) {
+    base = dir;
+    path::append(base, name);
+    for (StringRef ext : extensions) {
+      Twine location = base + ext;
+      bool exists = fs::exists(location);
+      searchedDylib(location, exists);
+      if (exists)
+        return saver.save(location.str());
+    }
+  }
+  return {};
+}
+
+StringRef macho::rerootPath(StringRef path) {
+  if (!path::is_absolute(path, path::Style::posix) || path.endswith(".o"))
+    return path;
+
+  if (Optional<StringRef> rerootedPath =
+          findPathCombination(path, config->systemLibraryRoots))
+    return *rerootedPath;
+
+  return path;
 }
 
 Optional<InputFile *> macho::loadArchiveMember(MemoryBufferRef mb,
                                                uint32_t modTime,
                                                StringRef archiveName,
                                                bool objCOnly) {
+  if (config->zeroModTime)
+    modTime = 0;
+
   switch (identify_magic(mb.getBuffer())) {
   case file_magic::macho_object:
     if (!objCOnly || hasObjCSection(mb))
@@ -230,6 +300,9 @@ Optional<InputFile *> macho::loadArchiveMember(MemoryBufferRef mb,
 }
 
 uint32_t macho::getModTime(StringRef path) {
+  if (config->zeroModTime)
+    return 0;
+
   fs::file_status stat;
   if (!fs::status(path, stat))
     if (fs::exists(stat))

@@ -8,6 +8,7 @@ declare i8 @llvm.smax.i8(i8, i8)
 declare <3 x i8> @llvm.umin.v3i8(<3 x i8>, <3 x i8>)
 declare <3 x i8> @llvm.umax.v3i8(<3 x i8>, <3 x i8>)
 declare <3 x i8> @llvm.smin.v3i8(<3 x i8>, <3 x i8>)
+declare <3 x i8> @llvm.smax.v3i8(<3 x i8>, <3 x i8>)
 declare void @use(i8)
 
 define i8 @umin_known_bits(i8 %x, i8 %y) {
@@ -365,8 +366,8 @@ define i8 @umin_zext_constant_big(i5 %x) {
 
 ; negative test
 
-define i8 @umin_zext_constanti_uses(i5 %x) {
-; CHECK-LABEL: @umin_zext_constanti_uses(
+define i8 @umin_zext_constant_uses(i5 %x) {
+; CHECK-LABEL: @umin_zext_constant_uses(
 ; CHECK-NEXT:    [[E:%.*]] = zext i5 [[X:%.*]] to i8
 ; CHECK-NEXT:    call void @use(i8 [[E]])
 ; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.umin.i8(i8 [[E]], i8 7)
@@ -518,4 +519,301 @@ define i8 @umin_of_not_and_const_uses(i8 %x) {
   call void @use(i8 %notx)
   %m = call i8 @llvm.umin.i8(i8 -45, i8 %notx)
   ret i8 %m
+}
+
+define i8 @not_smax_of_nots(i8 %x, i8 %y) {
+; CHECK-LABEL: @not_smax_of_nots(
+; CHECK-NEXT:    [[NOTX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NOTX]])
+; CHECK-NEXT:    [[NOTY:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NOTY]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smin.i8(i8 [[X]], i8 [[Y]])
+; CHECK-NEXT:    ret i8 [[TMP1]]
+;
+  %notx = xor i8 %x, -1
+  call void @use(i8 %notx)
+  %noty = xor i8 %y, -1
+  call void @use(i8 %noty)
+  %m = call i8 @llvm.smax.i8(i8 %notx, i8 %noty)
+  %notm = xor i8 %m, -1
+  ret i8 %notm
+}
+
+define i8 @not_smin_of_nots(i8 %x, i8 %y) {
+; CHECK-LABEL: @not_smin_of_nots(
+; CHECK-NEXT:    [[NOTX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NOTX]])
+; CHECK-NEXT:    [[NOTY:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NOTY]])
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTX]], i8 [[NOTY]])
+; CHECK-NEXT:    call void @use(i8 [[M]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[X]], i8 [[Y]])
+; CHECK-NEXT:    ret i8 [[TMP1]]
+;
+  %notx = xor i8 %x, -1
+  call void @use(i8 %notx)
+  %noty = xor i8 %y, -1
+  call void @use(i8 %noty)
+  %m = call i8 @llvm.smin.i8(i8 %notx, i8 %noty)
+  call void @use(i8 %m)
+  %notm = xor i8 %m, -1
+  ret i8 %notm
+}
+
+define i8 @not_umax_of_not(i8 %x, i8 %y) {
+; CHECK-LABEL: @not_umax_of_not(
+; CHECK-NEXT:    [[NOTX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NOTX]])
+; CHECK-NEXT:    [[TMP1:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.umin.i8(i8 [[X]], i8 [[TMP1]])
+; CHECK-NEXT:    ret i8 [[TMP2]]
+;
+  %notx = xor i8 %x, -1
+  call void @use(i8 %notx)
+  %m = call i8 @llvm.umax.i8(i8 %notx, i8 %y)
+  %notm = xor i8 %m, -1
+  ret i8 %notm
+}
+
+; Negative test - this would require an extra instruction.
+
+define i8 @not_umin_of_not(i8 %x, i8 %y) {
+; CHECK-LABEL: @not_umin_of_not(
+; CHECK-NEXT:    [[NOTX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NOTX]])
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.umin.i8(i8 [[NOTX]], i8 [[Y:%.*]])
+; CHECK-NEXT:    call void @use(i8 [[M]])
+; CHECK-NEXT:    [[NOTM:%.*]] = xor i8 [[M]], -1
+; CHECK-NEXT:    ret i8 [[NOTM]]
+;
+  %notx = xor i8 %x, -1
+  call void @use(i8 %notx)
+  %m = call i8 @llvm.umin.i8(i8 %notx, i8 %y)
+  call void @use(i8 %m)
+  %notm = xor i8 %m, -1
+  ret i8 %notm
+}
+
+define i8 @not_umin_of_not_constant_op(i8 %x) {
+; CHECK-LABEL: @not_umin_of_not_constant_op(
+; CHECK-NEXT:    [[NOTX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NOTX]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.umax.i8(i8 [[X]], i8 -43)
+; CHECK-NEXT:    ret i8 [[TMP1]]
+;
+  %notx = xor i8 %x, -1
+  call void @use(i8 %notx)
+  %m = call i8 @llvm.umin.i8(i8 %notx, i8 42)
+  %notm = xor i8 %m, -1
+  ret i8 %notm
+}
+
+define i8 @smax_negation(i8 %x, i8 %y) {
+; CHECK-LABEL: @smax_negation(
+; CHECK-NEXT:    [[S1:%.*]] = sub i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.abs.i8(i8 [[S1]], i1 false)
+; CHECK-NEXT:    ret i8 [[TMP1]]
+;
+  %s1 = sub i8 %x, %y
+  %s2 = sub i8 %y, %x
+  %r = call i8 @llvm.smax.i8(i8 %s1, i8 %s2)
+  ret i8 %r
+}
+
+define i8 @smax_negation_nsw(i8 %x, i8 %y) {
+; CHECK-LABEL: @smax_negation_nsw(
+; CHECK-NEXT:    [[S1:%.*]] = sub nsw i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.abs.i8(i8 [[S1]], i1 true)
+; CHECK-NEXT:    ret i8 [[TMP1]]
+;
+  %s1 = sub nsw i8 %x, %y
+  %s2 = sub nsw i8 %y, %x
+  %r = call i8 @llvm.smax.i8(i8 %s1, i8 %s2)
+  ret i8 %r
+}
+
+define i8 @smax_negation_not_nsw(i8 %x, i8 %y) {
+; CHECK-LABEL: @smax_negation_not_nsw(
+; CHECK-NEXT:    [[S1:%.*]] = sub nsw i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.abs.i8(i8 [[S1]], i1 false)
+; CHECK-NEXT:    ret i8 [[TMP1]]
+;
+  %s1 = sub nsw i8 %x, %y
+  %s2 = sub nuw i8 %y, %x
+  %r = call i8 @llvm.smax.i8(i8 %s1, i8 %s2)
+  ret i8 %r
+}
+
+define <3 x i8> @smax_negation_vec(<3 x i8> %x) {
+; CHECK-LABEL: @smax_negation_vec(
+; CHECK-NEXT:    [[TMP1:%.*]] = call <3 x i8> @llvm.abs.v3i8(<3 x i8> [[X:%.*]], i1 false)
+; CHECK-NEXT:    ret <3 x i8> [[TMP1]]
+;
+  %s = sub <3 x i8> <i8 0, i8 undef, i8 0>, %x
+  %r = call <3 x i8> @llvm.smax.v3i8(<3 x i8> %x, <3 x i8> %s)
+  ret <3 x i8> %r
+}
+
+define i8 @smin_negation(i8 %x, i8 %y) {
+; CHECK-LABEL: @smin_negation(
+; CHECK-NEXT:    [[S1:%.*]] = sub i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.abs.i8(i8 [[S1]], i1 false)
+; CHECK-NEXT:    [[NABS:%.*]] = sub i8 0, [[TMP1]]
+; CHECK-NEXT:    ret i8 [[NABS]]
+;
+  %s1 = sub i8 %x, %y
+  %s2 = sub i8 %y, %x
+  %r = call i8 @llvm.smin.i8(i8 %s1, i8 %s2)
+  ret i8 %r
+}
+
+define i8 @umax_negation(i8 %x, i8 %y) {
+; CHECK-LABEL: @umax_negation(
+; CHECK-NEXT:    [[S1:%.*]] = sub nsw i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.abs.i8(i8 [[S1]], i1 true)
+; CHECK-NEXT:    [[NABS:%.*]] = sub nsw i8 0, [[TMP1]]
+; CHECK-NEXT:    ret i8 [[NABS]]
+;
+  %s1 = sub nsw i8 %x, %y
+  %s2 = sub nsw i8 %y, %x
+  %r = call i8 @llvm.umax.i8(i8 %s1, i8 %s2)
+  ret i8 %r
+}
+
+define i8 @umin_negation(i8 %x) {
+; CHECK-LABEL: @umin_negation(
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.abs.i8(i8 [[X:%.*]], i1 true)
+; CHECK-NEXT:    ret i8 [[TMP1]]
+;
+  %s = sub nsw i8 0, %x
+  %r = call i8 @llvm.umin.i8(i8 %s, i8 %x)
+  ret i8 %r
+}
+
+define i8 @smax_negation_uses(i8 %x, i8 %y) {
+; CHECK-LABEL: @smax_negation_uses(
+; CHECK-NEXT:    [[S2:%.*]] = sub i8 [[Y:%.*]], [[X:%.*]]
+; CHECK-NEXT:    call void @use(i8 [[S2]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.abs.i8(i8 [[S2]], i1 false)
+; CHECK-NEXT:    ret i8 [[TMP1]]
+;
+  %s1 = sub i8 %x, %y
+  %s2 = sub i8 %y, %x
+  call void @use(i8 %s2)
+  %r = call i8 @llvm.smax.i8(i8 %s1, i8 %s2)
+  ret i8 %r
+}
+
+define i8 @clamp_two_vals_smax_smin(i8 %x) {
+; CHECK-LABEL: @clamp_two_vals_smax_smin(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp slt i8 [[X:%.*]], 43
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[TMP1]], i8 42, i8 43
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = call i8 @llvm.smax.i8(i8 %x, i8 42)
+  %r = call i8 @llvm.smin.i8(i8 %m, i8 43)
+  ret i8 %r
+}
+
+define <3 x i8> @clamp_two_vals_smin_smax(<3 x i8> %x) {
+; CHECK-LABEL: @clamp_two_vals_smin_smax(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp sgt <3 x i8> [[X:%.*]], <i8 41, i8 41, i8 41>
+; CHECK-NEXT:    [[R:%.*]] = select <3 x i1> [[TMP1]], <3 x i8> <i8 42, i8 42, i8 42>, <3 x i8> <i8 41, i8 41, i8 41>
+; CHECK-NEXT:    ret <3 x i8> [[R]]
+;
+  %m = call <3 x i8> @llvm.smin.v3i8(<3 x i8> %x, <3 x i8> <i8 42, i8 42, i8 42>)
+  %r = call <3 x i8> @llvm.smax.v3i8(<3 x i8> %m, <3 x i8> <i8 41, i8 41, i8 41>)
+  ret <3 x i8> %r
+}
+
+define i8 @clamp_two_vals_umax_umin(i8 %x) {
+; CHECK-LABEL: @clamp_two_vals_umax_umin(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i8 [[X:%.*]], 43
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[TMP1]], i8 42, i8 43
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = call i8 @llvm.umax.i8(i8 %x, i8 42)
+  %r = call i8 @llvm.umin.i8(i8 %m, i8 43)
+  ret i8 %r
+}
+
+define i8 @clamp_two_vals_umin_umax(i8 %x) {
+; CHECK-LABEL: @clamp_two_vals_umin_umax(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp ugt i8 [[X:%.*]], 41
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[TMP1]], i8 42, i8 41
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = call i8 @llvm.umin.i8(i8 %x, i8 42)
+  %r = call i8 @llvm.umax.i8(i8 %m, i8 41)
+  ret i8 %r
+}
+
+; Negative test - mismatched signs
+
+define i8 @clamp_two_vals_smax_umin(i8 %x) {
+; CHECK-LABEL: @clamp_two_vals_smax_umin(
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smax.i8(i8 [[X:%.*]], i8 42)
+; CHECK-NEXT:    [[R:%.*]] = call i8 @llvm.umin.i8(i8 [[M]], i8 43)
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = call i8 @llvm.smax.i8(i8 %x, i8 42)
+  %r = call i8 @llvm.umin.i8(i8 %m, i8 43)
+  ret i8 %r
+}
+
+; Negative test - wrong range
+
+define i8 @clamp_three_vals_smax_smin(i8 %x) {
+; CHECK-LABEL: @clamp_three_vals_smax_smin(
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smax.i8(i8 [[X:%.*]], i8 42)
+; CHECK-NEXT:    [[R:%.*]] = call i8 @llvm.smin.i8(i8 [[M]], i8 44)
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = call i8 @llvm.smax.i8(i8 %x, i8 42)
+  %r = call i8 @llvm.smin.i8(i8 %m, i8 44)
+  ret i8 %r
+}
+
+; Edge cases are simplified
+
+define i8 @clamp_two_vals_umax_umin_edge(i8 %x) {
+; CHECK-LABEL: @clamp_two_vals_umax_umin_edge(
+; CHECK-NEXT:    ret i8 0
+;
+  %m = call i8 @llvm.umax.i8(i8 %x, i8 255)
+  %r = call i8 @llvm.umin.i8(i8 %m, i8 0)
+  ret i8 %r
+}
+
+; Edge cases are simplified
+
+define i8 @clamp_two_vals_umin_umax_edge(i8 %x) {
+; CHECK-LABEL: @clamp_two_vals_umin_umax_edge(
+; CHECK-NEXT:    ret i8 -1
+;
+  %m = call i8 @llvm.umin.i8(i8 %x, i8 0)
+  %r = call i8 @llvm.umax.i8(i8 %m, i8 255)
+  ret i8 %r
+}
+
+; Edge cases are simplified
+
+define i8 @clamp_two_vals_smax_smin_edge(i8 %x) {
+; CHECK-LABEL: @clamp_two_vals_smax_smin_edge(
+; CHECK-NEXT:    ret i8 -128
+;
+  %m = call i8 @llvm.smax.i8(i8 %x, i8 127)
+  %r = call i8 @llvm.smin.i8(i8 %m, i8 128)
+  ret i8 %r
+}
+
+; Edge cases are simplified
+
+define i8 @clamp_two_vals_smin_smax_edge(i8 %x) {
+; CHECK-LABEL: @clamp_two_vals_smin_smax_edge(
+; CHECK-NEXT:    ret i8 127
+;
+  %m = call i8 @llvm.smin.i8(i8 %x, i8 128)
+  %r = call i8 @llvm.smax.i8(i8 %m, i8 127)
+  ret i8 %r
 }

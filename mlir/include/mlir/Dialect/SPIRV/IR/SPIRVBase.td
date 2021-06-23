@@ -3048,6 +3048,7 @@ def SPV_Void : TypeAlias<NoneType, "void">;
 def SPV_Bool : TypeAlias<I1, "bool">;
 def SPV_Integer : AnyIntOfWidths<[8, 16, 32, 64]>;
 def SPV_Int32 : TypeAlias<I32, "Int32">;
+def SPV_Float32 : TypeAlias<F32, "Float32">;
 def SPV_Float : FloatOfWidths<[16, 32, 64]>;
 def SPV_Float16or32 : FloatOfWidths<[16, 32]>;
 def SPV_Vector : VectorOfLengthAndType<[2, 3, 4, 8, 16],
@@ -3202,7 +3203,9 @@ def SPV_OC_OpCompositeConstruct        : I32EnumAttrCase<"OpCompositeConstruct",
 def SPV_OC_OpCompositeExtract          : I32EnumAttrCase<"OpCompositeExtract", 81>;
 def SPV_OC_OpCompositeInsert           : I32EnumAttrCase<"OpCompositeInsert", 82>;
 def SPV_OC_OpTranspose                 : I32EnumAttrCase<"OpTranspose", 84>;
+def SPV_OC_OpImageDrefGather           : I32EnumAttrCase<"OpImageDrefGather", 97>;
 def SPV_OC_OpImage                     : I32EnumAttrCase<"OpImage", 100>;
+def SPV_OC_OpImageQuerySize            : I32EnumAttrCase<"OpImageQuerySize", 104>;
 def SPV_OC_OpConvertFToU               : I32EnumAttrCase<"OpConvertFToU", 109>;
 def SPV_OC_OpConvertFToS               : I32EnumAttrCase<"OpConvertFToS", 110>;
 def SPV_OC_OpConvertSToF               : I32EnumAttrCase<"OpConvertSToF", 111>;
@@ -3341,13 +3344,14 @@ def SPV_OpcodeAttr :
       SPV_OC_OpMemberDecorate, SPV_OC_OpVectorExtractDynamic,
       SPV_OC_OpVectorInsertDynamic, SPV_OC_OpVectorShuffle,
       SPV_OC_OpCompositeConstruct, SPV_OC_OpCompositeExtract,
-      SPV_OC_OpCompositeInsert, SPV_OC_OpTranspose, SPV_OC_OpImage,
-      SPV_OC_OpConvertFToU, SPV_OC_OpConvertFToS, SPV_OC_OpConvertSToF,
-      SPV_OC_OpConvertUToF, SPV_OC_OpUConvert, SPV_OC_OpSConvert, SPV_OC_OpFConvert,
-      SPV_OC_OpBitcast, SPV_OC_OpSNegate, SPV_OC_OpFNegate, SPV_OC_OpIAdd,
-      SPV_OC_OpFAdd, SPV_OC_OpISub, SPV_OC_OpFSub, SPV_OC_OpIMul, SPV_OC_OpFMul,
-      SPV_OC_OpUDiv, SPV_OC_OpSDiv, SPV_OC_OpFDiv, SPV_OC_OpUMod, SPV_OC_OpSRem,
-      SPV_OC_OpSMod, SPV_OC_OpFRem, SPV_OC_OpFMod, SPV_OC_OpMatrixTimesScalar,
+      SPV_OC_OpCompositeInsert, SPV_OC_OpTranspose, SPV_OC_OpImageDrefGather,
+      SPV_OC_OpImage, SPV_OC_OpImageQuerySize, SPV_OC_OpConvertFToU,
+      SPV_OC_OpConvertFToS, SPV_OC_OpConvertSToF, SPV_OC_OpConvertUToF,
+      SPV_OC_OpUConvert, SPV_OC_OpSConvert, SPV_OC_OpFConvert, SPV_OC_OpBitcast,
+      SPV_OC_OpSNegate, SPV_OC_OpFNegate, SPV_OC_OpIAdd, SPV_OC_OpFAdd,
+      SPV_OC_OpISub, SPV_OC_OpFSub, SPV_OC_OpIMul, SPV_OC_OpFMul, SPV_OC_OpUDiv,
+      SPV_OC_OpSDiv, SPV_OC_OpFDiv, SPV_OC_OpUMod, SPV_OC_OpSRem, SPV_OC_OpSMod,
+      SPV_OC_OpFRem, SPV_OC_OpFMod, SPV_OC_OpMatrixTimesScalar,
       SPV_OC_OpMatrixTimesMatrix, SPV_OC_OpIsNan, SPV_OC_OpIsInf, SPV_OC_OpOrdered,
       SPV_OC_OpUnordered, SPV_OC_OpLogicalEqual, SPV_OC_OpLogicalNotEqual,
       SPV_OC_OpLogicalOr, SPV_OC_OpLogicalAnd, SPV_OC_OpLogicalNot, SPV_OC_OpSelect,

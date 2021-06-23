@@ -32,8 +32,6 @@
 
 using namespace mlir;
 
-using llvm::SetVector;
-
 static llvm::cl::OptionCategory clOptionsCategory(DEBUG_TYPE " options");
 
 static llvm::cl::list<int> clTestVectorShapeRatio(
@@ -76,6 +74,10 @@ struct VectorizerTestPass
   static constexpr auto kTestAffineMapAttrName = "affine_map";
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<vector::VectorDialect>();
+  }
+  StringRef getArgument() const final { return "affine-super-vectorizer-test"; }
+  StringRef getDescription() const final {
+    return "Tests vectorizer standalone functionality.";
   }
 
   void runOnFunction() override;
@@ -271,9 +273,5 @@ void VectorizerTestPass::runOnFunction() {
 }
 
 namespace mlir {
-void registerVectorizerTestPass() {
-  PassRegistration<VectorizerTestPass> pass(
-      "affine-super-vectorizer-test",
-      "Tests vectorizer standalone functionality.");
-}
+void registerVectorizerTestPass() { PassRegistration<VectorizerTestPass>(); }
 } // namespace mlir

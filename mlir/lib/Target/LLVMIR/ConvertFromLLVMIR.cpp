@@ -475,9 +475,19 @@ GlobalOp Importer::processGlobal(llvm::GlobalVariable *GV) {
   Type type = processType(GV->getValueType());
   if (!type)
     return nullptr;
-  GlobalOp op = b.create<GlobalOp>(
-      UnknownLoc::get(context), type, GV->isConstant(),
-      convertLinkageFromLLVM(GV->getLinkage()), GV->getName(), valueAttr);
+
+  uint64_t alignment = 0;
+  llvm::MaybeAlign maybeAlign = GV->getAlign();
+  if (maybeAlign.hasValue()) {
+    llvm::Align align = maybeAlign.getValue();
+    alignment = align.value();
+  }
+
+  GlobalOp op =
+      b.create<GlobalOp>(UnknownLoc::get(context), type, GV->isConstant(),
+                         convertLinkageFromLLVM(GV->getLinkage()),
+                         GV->getName(), valueAttr, alignment);
+
   if (GV->hasInitializer() && !valueAttr) {
     Region &r = op.getInitializerRegion();
     currentEntryBlock = b.createBlock(&r);
@@ -487,6 +497,12 @@ GlobalOp Importer::processGlobal(llvm::GlobalVariable *GV) {
       return nullptr;
     b.create<ReturnOp>(op.getLoc(), ArrayRef<Value>({v}));
   }
+  if (GV->hasAtLeastLocalUnnamedAddr())
+    op.unnamed_addrAttr(UnnamedAddrAttr::get(
+        context, convertUnnamedAddrFromLLVM(GV->getUnnamedAddr())));
+  if (GV->hasSection())
+    op.sectionAttr(b.getStringAttr(GV->getSection()));
+
   return globals[GV] = op;
 }
 

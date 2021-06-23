@@ -31,3 +31,17 @@
 // CHECK_COVERAGE_MAPPING: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-fprofile-instrument=clang"
 // CHECK_COVERAGE_MAPPING-NOT: "-fcoverage-mapping"
 // CHECK_COVERAGE_MAPPING: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-fprofile-instrument=clang"{{.*}} "-fcoverage-mapping"{{.*}}
+
+/// check for PIC for device wrap compilation when using -shared or -fPIC
+// RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -shared %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
+// RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fPIC %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
+// CHECK_SHARED: llc{{.*}} "-relocation-model=pic"
+
+/// -S -emit-llvm should generate textual IR for device.
+// RUN: %clangxx -### -fsycl -S -emit-llvm %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK_S_LLVM %s
+// CHECK_S_LLVM: clang{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm"{{.*}} "-o" "[[DEVICE:.+\.ll]]"
+// CHECK_S_LLVM: clang{{.*}} "-fsycl-is-host"{{.*}} "-emit-llvm"{{.*}} "-o" "[[HOST:.+\.ll]]"
+// CHECK_S_LLVM: clang-offload-bundler{{.*}} "-type=ll"{{.*}} "-inputs=[[DEVICE]],[[HOST]]"

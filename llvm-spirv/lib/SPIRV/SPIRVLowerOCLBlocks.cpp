@@ -58,6 +58,7 @@
 #include "SPIRVInternal.h"
 
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Regex.h"
 
@@ -70,16 +71,12 @@ static bool isBlockInvoke(Function &F) {
   return BlockInvokeRegex.match(F.getName());
 }
 
-class SPIRVLowerOCLBlocks : public ModulePass {
+class SPIRVLowerOCLBlocksBase {
 
 public:
-  SPIRVLowerOCLBlocks() : ModulePass(ID) {}
+  SPIRVLowerOCLBlocksBase() {}
 
-  StringRef getPassName() const override {
-    return "Lower OpenCL Blocks For SPIR-V";
-  }
-
-  bool runOnModule(Module &M) override {
+  bool runLowerOCLBlocks(Module &M) {
     bool Changed = false;
     for (Function &F : M) {
       if (!isBlockInvoke(F))
@@ -96,19 +93,42 @@ public:
     }
     return Changed;
   }
+};
+
+class SPIRVLowerOCLBlocksPass
+    : public llvm::PassInfoMixin<SPIRVLowerOCLBlocksPass>,
+      public SPIRVLowerOCLBlocksBase {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    return runLowerOCLBlocks(M) ? llvm::PreservedAnalyses::none()
+                                : llvm::PreservedAnalyses::all();
+  }
+};
+
+class SPIRVLowerOCLBlocksLegacy : public ModulePass,
+                                  public SPIRVLowerOCLBlocksBase {
+public:
+  SPIRVLowerOCLBlocksLegacy() : ModulePass(ID) {}
+
+  bool runOnModule(Module &M) override { return runLowerOCLBlocks(M); }
+
+  StringRef getPassName() const override {
+    return "Lower OpenCL Blocks For SPIR-V";
+  }
 
   static char ID;
 };
 
-char SPIRVLowerOCLBlocks::ID = 0;
+char SPIRVLowerOCLBlocksLegacy::ID = 0;
 
 } // namespace
 
 INITIALIZE_PASS(
-    SPIRVLowerOCLBlocks, "spv-lower-ocl-blocks",
+    SPIRVLowerOCLBlocksLegacy, "spv-lower-ocl-blocks",
     "Remove function pointers occured in case of using OpenCL blocks", false,
     false)
 
-llvm::ModulePass *llvm::createSPIRVLowerOCLBlocks() {
-  return new SPIRVLowerOCLBlocks();
+llvm::ModulePass *llvm::createSPIRVLowerOCLBlocksLegacy() {
+  return new SPIRVLowerOCLBlocksLegacy();
 }

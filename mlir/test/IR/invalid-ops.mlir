@@ -388,15 +388,6 @@ func @dma_start_dst_index_wrong_type(
 
 // -----
 
-func @dma_start_same_space(
-    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32>,
-    %tag: memref<i32,2>) {
-  // expected-error@+1 {{DMA should be between different memory spaces}}
-  memref.dma_start %src[%idx, %idx], %dst[%idx], %idx, %tag[] : memref<2x2xf32>, memref<2xf32>, memref<i32,2>
-}
-
-// -----
-
 func @dma_start_too_many_operands(
     %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
     %tag: memref<i32,2>) {
@@ -842,7 +833,7 @@ func @invalid_splat(%v : f32) {
 
 func @invalid_splat(%v : vector<8xf32>) {
   %w = splat %v : tensor<8xvector<8xf32>>
-  // expected-error@-1 {{must be integer or float type}}
+  // expected-error@-1 {{must be integer/index/float type}}
   return
 }
 

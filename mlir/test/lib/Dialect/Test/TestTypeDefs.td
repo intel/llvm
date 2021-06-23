@@ -15,9 +15,12 @@
 
 // To get the test dialect def.
 include "TestOps.td"
+include "mlir/IR/BuiltinTypes.td"
+include "mlir/Interfaces/DataLayoutInterfaces.td"
 
 // All of the types will extend this class.
-class Test_Type<string name> : TypeDef<Test_Dialect, name> { }
+class Test_Type<string name, list<Trait> traits = []>
+  : TypeDef<Test_Dialect, name, traits>;
 
 def SimpleTypeA : Test_Type<"SimpleA"> {
   let mnemonic = "smpla";
@@ -149,6 +152,34 @@ class FieldInfo_Type<string name> : Test_Type<name> {
 
 def StructType : FieldInfo_Type<"Struct"> {
     let mnemonic = "struct";
+}
+
+def TestType : Test_Type<"Test", [
+  DeclareTypeInterfaceMethods<TestTypeInterface>
+]> {
+  let mnemonic = "test_type";
+}
+
+def TestTypeWithLayoutType : Test_Type<"TestTypeWithLayout", [
+  DeclareTypeInterfaceMethods<DataLayoutTypeInterface, ["areCompatible"]>
+]> {
+  let mnemonic = "test_type_with_layout";
+  let parameters = (ins "unsigned":$key);
+  let extraClassDeclaration = [{
+    LogicalResult verifyEntries(DataLayoutEntryListRef params,
+                                Location loc) const;
+
+  private:
+    unsigned extractKind(DataLayoutEntryListRef params,
+                         StringRef expectedKind) const;
+
+  public:
+  }];
+}
+
+def TestMemRefElementType : Test_Type<"TestMemRefElementType",
+                                      [MemRefElementTypeInterface]> {
+  let mnemonic = "memref_element";
 }
 
 #endif // TEST_TYPEDEFS

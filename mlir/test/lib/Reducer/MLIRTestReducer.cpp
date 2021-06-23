@@ -26,6 +26,10 @@ namespace {
 /// "crashOp" in the input MLIR file and crashes the mlir-opt tool if the
 /// operation is found.
 struct TestReducer : public PassWrapper<TestReducer, FunctionPass> {
+  StringRef getArgument() const final { return PASS_NAME; }
+  StringRef getDescription() const final {
+    return "Tests MLIR Reduce tool by generating failures";
+  }
   TestReducer() = default;
   TestReducer(const TestReducer &pass){};
   void runOnFunction() override;
@@ -38,7 +42,7 @@ void TestReducer::runOnFunction() {
     op.walk([&](Operation *op) {
       StringRef opName = op->getName().getStringRef();
 
-      if (opName == "test.crashOp") {
+      if (opName.contains("op_crash")) {
         llvm::errs() << "MLIR Reducer Test generated failure: Found "
                         "\"crashOp\" operation\n";
         exit(1);
@@ -47,8 +51,5 @@ void TestReducer::runOnFunction() {
 }
 
 namespace mlir {
-void registerTestReducer() {
-  PassRegistration<TestReducer>(
-      PASS_NAME, "Tests MLIR Reduce tool by generating failures");
-}
+void registerTestReducer() { PassRegistration<TestReducer>(); }
 } // namespace mlir

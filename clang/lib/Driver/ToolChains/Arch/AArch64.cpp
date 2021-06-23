@@ -41,18 +41,18 @@ std::string aarch64::getAArch64TargetCPU(const ArgList &Args,
   if (CPU == "native")
     return std::string(llvm::sys::getHostCPUName());
 
-  // arm64e requires v8.3a and only runs on apple-a12 and later CPUs.
-  if (Triple.isArm64e())
-    return "apple-a12";
-
   if (CPU.size())
     return CPU;
 
   if (Triple.isTargetMachineMac() &&
       Triple.getArch() == llvm::Triple::aarch64) {
-    // Apple Silicon macs default to A13 CPUs.
-    return "apple-a13";
+    // Apple Silicon macs default to M1 CPUs.
+    return "apple-m1";
   }
+
+  // arm64e requires v8.3a and only runs on apple-a12 and later CPUs.
+  if (Triple.isArm64e())
+    return "apple-a12";
 
   // Make sure we pick the appropriate Apple CPU if -arch is used or when
   // targetting a Darwin OS.
@@ -235,11 +235,17 @@ void aarch64::getAArch64TargetFeatures(const Driver &D,
     StringRef Scope = A->getValue();
     bool EnableRetBr = false;
     bool EnableBlr = false;
-    if (Scope != "none" && Scope != "all") {
+    bool DisableComdat = false;
+    if (Scope != "none") {
       SmallVector<StringRef, 4> Opts;
       Scope.split(Opts, ",");
       for (auto Opt : Opts) {
         Opt = Opt.trim();
+        if (Opt == "all") {
+          EnableBlr = true;
+          EnableRetBr = true;
+          continue;
+        }
         if (Opt == "retbr") {
           EnableRetBr = true;
           continue;
@@ -248,19 +254,27 @@ void aarch64::getAArch64TargetFeatures(const Driver &D,
           EnableBlr = true;
           continue;
         }
+        if (Opt == "comdat") {
+          DisableComdat = false;
+          continue;
+        }
+        if (Opt == "nocomdat") {
+          DisableComdat = true;
+          continue;
+        }
         D.Diag(diag::err_invalid_sls_hardening)
             << Scope << A->getAsString(Args);
         break;
       }
-    } else if (Scope == "all") {
-      EnableRetBr = true;
-      EnableBlr = true;
     }
 
     if (EnableRetBr)
       Features.push_back("+harden-sls-retbr");
     if (EnableBlr)
       Features.push_back("+harden-sls-blr");
+    if (DisableComdat) {
+      Features.push_back("+harden-sls-nocomdat");
+    }
   }
 
   // En/disable crc

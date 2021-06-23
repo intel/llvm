@@ -12,3 +12,42 @@ add_fp_unittest(
     libc.src.math.sqrtf
     libc.utils.FPUtil.fputil
 )
+
+add_fp_unittest(
+  sinf_test
+  NEED_MPFR
+  SUITE
+    libc_math_exhaustive_tests
+  SRCS
+    sinf_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.sinf
+    libc.utils.FPUtil.fputil
+)
+
+add_fp_unittest(
+  cosf_test
+  NEED_MPFR
+  SUITE
+    libc_math_exhaustive_tests
+  SRCS
+    cosf_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.cosf
+    libc.utils.FPUtil.fputil
+)
+
+add_fp_unittest(
+  expm1f_test
+  NEED_MPFR
+  SUITE
+    libc_math_exhaustive_tests
+  SRCS
+  expm1f_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.expm1f
+    libc.utils.FPUtil.fputil
+)

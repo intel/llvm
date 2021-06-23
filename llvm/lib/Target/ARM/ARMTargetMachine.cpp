@@ -47,6 +47,7 @@
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/CFGuard.h"
+#include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Scalar.h"
 #include <cassert>
 #include <memory>
@@ -274,8 +275,7 @@ ARMBaseTargetMachine::getSubtargetImpl(const Function &F) const {
   // function before we can generate a subtarget. We also need to use
   // it as a key for the subtarget since that can be the only difference
   // between two functions.
-  bool SoftFloat =
-      F.getFnAttribute("use-soft-float").getValueAsString() == "true";
+  bool SoftFloat = F.getFnAttribute("use-soft-float").getValueAsBool();
   // If the soft float attribute is set on the function turn on the soft float
   // subtarget feature.
   if (SoftFloat)
@@ -463,6 +463,14 @@ bool ARMPassConfig::addPreISel() {
   if (TM->getOptLevel() != CodeGenOpt::None) {
     addPass(createHardwareLoopsPass());
     addPass(createMVETailPredicationPass());
+    // FIXME: IR passes can delete address-taken basic blocks, deleting
+    // corresponding blockaddresses. ARMConstantPoolConstant holds references to
+    // address-taken basic blocks which can be invalidated if the function
+    // containing the blockaddress has already been codegen'd and the basic
+    // block is removed. Work around this by forcing all IR passes to run before
+    // any ISel takes place. We should have a more principled way of handling
+    // this. See D99707 for more details.
+    addPass(createBarrierNoopPass());
   }
 
   return false;

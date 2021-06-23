@@ -30,14 +30,15 @@
 ;
 ; virtual SPIRV::SPIRVEntry* SPIRV::SPIRVModuleImpl::getEntry(SPIRV::SPIRVId) const: Assertion `Loc != IdEntryMap.end() && "Id is not in map"' failed.
 ;
+; CHECK-SPIRV: TypeForwardPointer [[TYPEPTRTY:[0-9]+]]
 ; CHECK-SPIRV: TypeInt [[INTTY:[0-9]+]] 32 0
 ; CHECK-SPIRV: TypeVoid [[VOIDTY:[0-9]+]]
-; CHECK-SPIRV: TypeStruct [[TYPETY:[0-9]+]] [[INTTY]] [[FPTRTY:[0-9]+]]
-; CHECK-SPIRV: TypeStruct [[DESCTY:[0-9]+]] [[INTTY]] [[TYPEPTRTY:[0-9]+]]
-; CHECK-SPIRV: TypePointer [[TYPEPTRTY]] {{[0-9]+}} [[TYPETY]]
+; CHECK-SPIRV: TypeStruct [[DESCTY:[0-9]+]] [[INTTY]] [[TYPEPTRTY]]
 ; CHECK-SPIRV: TypePointer [[DESCPTRTY:[0-9]+]] {{[0-9]+}} [[DESCTY]]
 ; CHECK-SPIRV: TypeFunction [[FTY:[0-9]+]] [[VOIDTY]] [[DESCPTRTY]]
-; CHECK-SPIRV: TypePointer [[FPTRTY]] {{[0-9]+}} [[FTY]]
+; CHECK-SPIRV: TypePointer [[FPTRTY:[0-9]+]] {{[0-9]+}} [[FTY]]
+; CHECK-SPIRV: TypeStruct [[TYPETY:[0-9]+]] [[INTTY]] [[FPTRTY]]
+; CHECK-SPIRV: TypePointer [[TYPEPTRTY]] {{[0-9]+}} [[TYPETY]]
 ; CHECK-SPIRV: TypePointer [[DESCPTR1TY:[0-9]+]] {{[0-9]+}} [[TYPETY]]
 ; CHECK-SPIRV: TypeFunction [[F2TY:[0-9]+]] [[DESCPTRTY]]
 ; CHECK-SPIRV: TypePointer [[FPTR2TY:[0-9]+]] {{[0-9]+}} [[F2TY]]

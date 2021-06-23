@@ -43,6 +43,8 @@ Getting Started with libc++
    Cxx1zStatus
    Cxx2aStatus
    Cxx2bStatus
+   RangesStatus
+   FormatStatus
 
 
 .. toctree::
@@ -163,17 +165,18 @@ Design Documents
 .. toctree::
    :maxdepth: 1
 
-   DesignDocs/DebugMode
-   DesignDocs/CapturingConfigInfo
    DesignDocs/ABIVersioning
+   DesignDocs/AtomicDesign
+   DesignDocs/CapturingConfigInfo
+   DesignDocs/DebugMode
    DesignDocs/ExperimentalFeatures
-   DesignDocs/VisibilityMacros
-   DesignDocs/ThreadingSupportAPI
-   DesignDocs/FileTimeType
-   DesignDocs/FeatureTestMacros
    DesignDocs/ExtendedCXX03Support
-   DesignDocs/UniquePtrTrivialAbi
+   DesignDocs/FeatureTestMacros
+   DesignDocs/FileTimeType
    DesignDocs/NoexceptPolicy
+   DesignDocs/ThreadingSupportAPI
+   DesignDocs/UniquePtrTrivialAbi
+   DesignDocs/VisibilityMacros
 
 * `<atomic> design <http://libcxx.llvm.org/atomic_design.html>`_
 * `<type_traits> design <http://libcxx.llvm.org/type_traits_design.html>`_

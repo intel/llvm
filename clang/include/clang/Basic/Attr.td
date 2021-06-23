@@ -539,9 +539,9 @@ class Attr {
   // content. Eg) It parses 3 args, but semantically takes 4 args.  Opts out of
   // common attribute error checking.
   bit HasCustomParsing = 0;
-  // Set to true if the attribute is a type attribute that has custom
-  // TreeTransform logic in order to handle template transformations.
-  bit HasCustomTypeTransform = 0;
+  // Set to true if the statement attribute is instantiation dependent and uses
+  // custom TreeTransform logic for template instantiation.
+  bit IsStmtDependent = 0;
   // Set to true if all of the attribute's arguments should be parsed in an
   // unevaluated context.
   bit ParseArgumentsAsUnevaluated = 0;
@@ -662,6 +662,15 @@ def Alias : Attr {
   let Args = [StringArgument<"Aliasee">];
   let Subjects = SubjectList<[Function, GlobalVar], ErrorDiag>;
   let Documentation = [Undocumented];
+}
+
+def BuiltinAlias : Attr {
+  let Spellings = [CXX11<"clang", "builtin_alias">,
+                   C2x<"clang", "builtin_alias">,
+                   GNU<"clang_builtin_alias">];
+  let Args = [IdentifierArgument<"BuiltinName">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [BuiltinAliasDocs];
 }
 
 def ArmBuiltinAlias : InheritableAttr, TargetSpecificAttr<TargetAnyArm> {
@@ -1197,6 +1206,19 @@ def SYCLDevice : InheritableAttr {
   let Documentation = [SYCLDeviceDocs];
 }
 
+def GlobalStorageNonLocalVar : SubsetSubject<Var,
+                                             [{S->hasGlobalStorage() &&
+                                               !S->isLocalVarDeclOrParm()}],
+                                             "global variables">;
+
+def SYCLGlobalVar : InheritableAttr {
+  let Spellings = [GNU<"sycl_global_var">];
+  let Subjects = SubjectList<[GlobalStorageNonLocalVar], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice];
+  // Only used internally by the SYCL implementation
+  let Documentation = [Undocumented];
+}
+
 def SYCLKernel : InheritableAttr {
   let Spellings = [Clang<"sycl_kernel">];
   let Subjects = SubjectList<[FunctionTmpl]>;
@@ -1237,6 +1259,23 @@ def SYCLSimdAccessorPtr : InheritableAttr {
   let Spellings = [];
   let Subjects = SubjectList<[ParmVar]>;
   let Documentation = [Undocumented];
+}
+
+// The attribute denotes that it is a function written in a scalar fashion, which
+// is used in ESIMD context and needs to be vectorized by a vector backend compiler.
+// For now, this attribute will be used only in internal implementation of
+// specific public ESIMD APIs. It is not supposed to be used directly in the
+// user code, hence it is undocumented.
+// The argument of the attribute specifies the number of SIMD lanes, for which
+// the function should be vectorized.
+def SYCLIntelESimdVectorize : InheritableAttr {
+  let Spellings = [CXX11<"intel", "sycl_esimd_vectorize">];
+  let Args = [ExprArgument<"Value">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice];
+  let Documentation = [Undocumented];
+  let SupportsNonconformingLambdaSyntax = 1;
+  let PragmaAttributeSupport = 0;
 }
 
 def SYCLScope : Attr {
@@ -1415,7 +1454,7 @@ def LoopUnrollHint : StmtAttr {
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"UnrollHintExpr", /*opt*/1>];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
-  let HasCustomTypeTransform = 1;
+  let IsStmtDependent = 1;
   let AdditionalMembers = [{
     std::string getDiagnosticName(const PrintingPolicy &Policy) const {
       std::string ValueName;
@@ -1434,7 +1473,7 @@ def LoopUnrollHint : StmtAttr {
 def IntelReqdSubGroupSize: InheritableAttr {
   let Spellings = [
     GNU<"intel_reqd_sub_group_size">, CXX11<"intel", "reqd_sub_group_size">,
-    CXX11<"intel", "sub_group_size"> // SYCL2020 spelling.
+    CXX11<"intel", "sub_group_size">, CXX11<"sycl", "reqd_sub_group_size">
   ];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -1553,7 +1592,7 @@ def EmptyBases : InheritableAttr, TargetSpecificAttr<TargetMicrosoftCXXABI> {
 
 def AllocSize : InheritableAttr {
   let Spellings = [GCC<"alloc_size">];
-  let Subjects = SubjectList<[Function]>;
+  let Subjects = SubjectList<[HasFunctionProto]>;
   let Args = [ParamIdxArgument<"ElemSizeParam">,
               ParamIdxArgument<"NumElemsParam", /*opt*/ 1>];
   let TemplateDependent = 1;
@@ -1613,6 +1652,12 @@ def NoMerge : DeclOrStmtAttr {
   let Subjects = SubjectList<[Function, Stmt], ErrorDiag,
                              "functions and statements">;
   let SimpleHandler = 1;
+}
+
+def MustTail : StmtAttr {
+  let Spellings = [Clang<"musttail">];
+  let Documentation = [MustTailDocs];
+  let Subjects = SubjectList<[ReturnStmt], ErrorDiag, "return statements">;
 }
 
 def FastCall : DeclOrTypeAttr {
@@ -1733,7 +1778,7 @@ def IFunc : Attr, TargetSpecificAttr<TargetELF> {
 def Restrict : InheritableAttr {
   let Spellings = [Declspec<"restrict">, GCC<"malloc">];
   let Subjects = SubjectList<[Function]>;
-  let Documentation = [Undocumented];
+  let Documentation = [RestrictDocs];
 }
 
 def LayoutVersion : InheritableAttr, TargetSpecificAttr<TargetMicrosoftCXXABI> {
@@ -1883,7 +1928,7 @@ def SYCLIntelFPGAIVDep : StmtAttr {
     UnsignedArgument<"SafelenValue", /*opt*/1>
   ];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let HasCustomTypeTransform = 1;
+  let IsStmtDependent = 1;
   let AdditionalMembers = [{
     bool isDependent() const {
       return (getSafelenExpr() &&
@@ -1928,7 +1973,7 @@ def SYCLIntelFPGAInitiationInterval : DeclOrStmtAttr {
                               "'for', 'while', 'do' statements, and functions">;
   let Args = [ExprArgument<"IntervalExpr">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let HasCustomTypeTransform = 1;
+  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelFPGAInitiationIntervalAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
 }
@@ -1941,7 +1986,7 @@ def SYCLIntelFPGAMaxConcurrency : DeclOrStmtAttr {
                              "'for', 'while', 'do' statements, and functions">;
   let Args = [ExprArgument<"NThreadsExpr">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let HasCustomTypeTransform = 1;
+  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelFPGAMaxConcurrencyAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
 }
@@ -1953,7 +1998,7 @@ def SYCLIntelFPGALoopCoalesce : StmtAttr {
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr", /*opt*/1>];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let HasCustomTypeTransform = 1;
+  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelFPGALoopCoalesceAttrDocs];
 }
 
@@ -1964,7 +2009,7 @@ def SYCLIntelFPGADisableLoopPipelining : DeclOrStmtAttr {
                               ErrorDiag,
                               "'for', 'while', 'do' statements, and functions">;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let HasCustomTypeTransform = 1;
+  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelFPGADisableLoopPipeliningAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
 }
@@ -1974,6 +2019,21 @@ def : MutualExclusions<[SYCLIntelFPGAIVDep,
                         SYCLIntelFPGADisableLoopPipelining]>;
 def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
                         SYCLIntelFPGADisableLoopPipelining]>;
+
+def SYCLIntelFPGALoopCount : StmtAttr {
+  let Spellings = [CXX11<"intel", "loop_count_min">,
+                   CXX11<"intel", "loop_count_max">,
+                   CXX11<"intel", "loop_count_avg">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
+  let Accessors = [Accessor<"isMin", [CXX11<"intel", "loop_count_min">]>,
+                   Accessor<"isMax", [CXX11<"intel", "loop_count_max">]>,
+                   Accessor<"isAvg", [CXX11<"intel", "loop_count_avg">]>];
+  let Args = [ExprArgument<"NTripCount">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let IsStmtDependent = 1;
+  let Documentation = [SYCLIntelFPGALoopCountAttrDocs];
+}
 
 def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
                         SYCLIntelFPGADisableLoopPipelining]>;
@@ -1985,7 +2045,7 @@ def SYCLIntelFPGAMaxInterleaving : StmtAttr {
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let HasCustomTypeTransform = 1;
+  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelFPGAMaxInterleavingAttrDocs];
 }
 def : MutualExclusions<[SYCLIntelFPGADisableLoopPipelining,
@@ -1998,7 +2058,7 @@ def SYCLIntelFPGASpeculatedIterations : StmtAttr {
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let HasCustomTypeTransform = 1;
+  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelFPGASpeculatedIterationsAttrDocs];
 }
 def : MutualExclusions<[SYCLIntelFPGADisableLoopPipelining,
@@ -2009,7 +2069,7 @@ def SYCLIntelFPGANofusion : StmtAttr {
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let HasCustomTypeTransform = 1;
+  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelFPGANofusionAttrDocs];
 }
 
@@ -2525,6 +2585,13 @@ def NoInstrumentFunction : InheritableAttr {
   let SimpleHandler = 1;
 }
 
+def NoProfileFunction : InheritableAttr {
+  let Spellings = [Clang<"no_profile">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [NoProfileDocs];
+  let SimpleHandler = 1;
+}
+
 def NotTailCalled : InheritableAttr {
   let Spellings = [Clang<"not_tail_called">];
   let Subjects = SubjectList<[Function]>;
@@ -2896,12 +2963,13 @@ def NoDeref : TypeAttr {
   let Documentation = [NoDerefDocs];
 }
 
-// Default arguments in ReqWorkGroupSize can be used only with
-// intel::reqd_work_group_size spelling.
+// Default arguments can only be used with the intel::reqd_work_group_size or
+// sycl::reqd_work_group_size spellings.
 def ReqdWorkGroupSize : InheritableAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
-                   CXX11<"intel","reqd_work_group_size">,
-                   CXX11<"cl","reqd_work_group_size">];
+                   CXX11<"intel", "reqd_work_group_size">,
+                   CXX11<"cl", "reqd_work_group_size">,
+                   CXX11<"sycl", "reqd_work_group_size">];
   let Args = [ExprArgument<"XDim">,
               ExprArgument<"YDim", /*optional*/1>,
               ExprArgument<"ZDim", /*optional*/1>];
@@ -2925,13 +2993,30 @@ def ReqdWorkGroupSize : InheritableAttr {
 }
 
 def WorkGroupSizeHint :  InheritableAttr {
-  // Does not have a [[]] spelling because it is an OpenCL-related attribute.
-  let Spellings = [GNU<"work_group_size_hint">];
-  let Args = [UnsignedArgument<"XDim">,
-              UnsignedArgument<"YDim">,
-              UnsignedArgument<"ZDim">];
+  let Spellings = [GNU<"work_group_size_hint">,
+                   CXX11<"sycl", "work_group_size_hint">];
+  let Args = [ExprArgument<"XDim">,
+              ExprArgument<"YDim">,
+              ExprArgument<"ZDim">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [Undocumented];
+  let AdditionalMembers = [{
+    Optional<llvm::APSInt> getXDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))
+        return CE->getResultAsAPSInt();
+      return None;
+    }
+    Optional<llvm::APSInt> getYDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getYDim()))
+        return CE->getResultAsAPSInt();
+      return None;
+    }
+    Optional<llvm::APSInt> getZDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getZDim()))
+        return CE->getResultAsAPSInt();
+      return None;
+    }
+  }];
+  let Documentation = [WorkGroupSizeHintAttrDocs];
 }
 
 def InitPriority : InheritableAttr, TargetSpecificAttr<TargetSupportsInitPriority> {
@@ -3029,6 +3114,11 @@ def SwiftCall : DeclOrTypeAttr {
 def SwiftContext : ParameterABIAttr {
   let Spellings = [Clang<"swift_context">];
   let Documentation = [SwiftContextDocs];
+}
+
+def SwiftAsyncContext : ParameterABIAttr {
+  let Spellings = [Clang<"swift_async_context">];
+  let Documentation = [SwiftAsyncContextDocs];
 }
 
 def SwiftErrorResult : ParameterABIAttr {
@@ -3329,8 +3419,7 @@ def VectorSize : TypeAttr {
 }
 
 def VecTypeHint : InheritableAttr {
-  // Does not have a [[]] spelling because it is an OpenCL-related attribute.
-  let Spellings = [GNU<"vec_type_hint">];
+  let Spellings = [GNU<"vec_type_hint">, CXX11<"sycl", "vec_type_hint">];
   let Args = [TypeArgument<"TypeHint">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [Undocumented];
@@ -3470,6 +3559,10 @@ def NoSanitize : InheritableAttr {
         Mask |= expandSanitizerGroups(ParsedMask);
       }
       return Mask;
+    }
+
+    bool hasCoverage() const {
+      return llvm::is_contained(sanitizers(), "coverage");
     }
   }];
 }
@@ -4180,6 +4273,7 @@ def OMPDeclareTargetDecl : InheritableAttr {
     void printPrettyPragma(raw_ostream &OS, const PrintingPolicy &Policy) const;
     static llvm::Optional<MapTypeTy>
     isDeclareTargetDeclaration(const ValueDecl *VD);
+    static llvm::Optional<OMPDeclareTargetDeclAttr*> getActiveAttr(const ValueDecl *VD);
     static llvm::Optional<DevTypeTy> getDeviceType(const ValueDecl *VD);
     static llvm::Optional<SourceLocation> getLocation(const ValueDecl *VD);
   }];
@@ -4312,6 +4406,14 @@ def NoBuiltin : Attr {
   let Args = [VariadicStringArgument<"BuiltinNames">];
   let Subjects = SubjectList<[Function]>;
   let Documentation = [NoBuiltinDocs];
+}
+
+def UsingIfExists : InheritableAttr {
+  let Spellings = [Clang<"using_if_exists", 0>];
+  let Subjects = SubjectList<[Using,
+                              UnresolvedUsingTypename,
+                              UnresolvedUsingValue], ErrorDiag>;
+  let Documentation = [UsingIfExistsDocs];
 }
 
 // FIXME: This attribute is not inheritable, it will not be propagated to

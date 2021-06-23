@@ -1,7 +1,5 @@
 # REQUIRES: x86
-#
-# RUN: rm -rf %t
-# RUN: split-file %s %t
+# RUN: rm -rf %t; split-file %s %t
 
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-macos -o %t/foo.o %t/foo.s
 # RUN: %lld -dylib -o %t/libfoo.dylib %t/foo.o
@@ -20,7 +18,7 @@
 # CHECK-DAG: input-file: {{.*}}{{[/\]}}main.o
 # CHECK-DAG: input-file: {{.*}}bar.o
 
-# CHECK-NEXT: not-found: {{.*}}{{[/\]}}libdyld.{{.*}}
+# CHECK: not-found: {{.*}}{{[/\]}}libdyld.{{.*}}
 ## There could be more not-found here but we are not checking those because it's brittle.
 
 # CHECK: output-file: {{.*}}{{[/\]}}test.out

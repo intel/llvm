@@ -40,6 +40,7 @@
 #include "clang/Basic/ProfileList.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/TargetCXXABI.h"
 #include "clang/Basic/XRayLists.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -102,6 +103,7 @@ class DynTypedNode;
 class DynTypedNodeList;
 class Expr;
 class GlobalDecl;
+class ItaniumMangleContext;
 class MangleContext;
 class MangleNumberingContext;
 class MaterializeTemporaryExpr;
@@ -516,6 +518,17 @@ private:
   /// B<int> to the UnresolvedUsingDecl in B<T>.
   llvm::DenseMap<NamedDecl *, NamedDecl *> InstantiatedFromUsingDecl;
 
+  /// Like InstantiatedFromUsingDecl, but for using-enum-declarations. Maps
+  /// from the instantiated using-enum to the templated decl from whence it
+  /// came.
+  /// Note that using-enum-declarations cannot be dependent and
+  /// thus will never be instantiated from an "unresolved"
+  /// version thereof (as with using-declarations), so each mapping is from
+  /// a (resolved) UsingEnumDecl to a (resolved) UsingEnumDecl.
+  llvm::DenseMap<UsingEnumDecl *, UsingEnumDecl *>
+      InstantiatedFromUsingEnumDecl;
+
+  /// Simlarly maps instantiated UsingShadowDecls to their origin.
   llvm::DenseMap<UsingShadowDecl*, UsingShadowDecl*>
     InstantiatedFromUsingShadowDecl;
 
@@ -622,11 +635,22 @@ public:
   ParentMapContext &getParentMapContext();
 
   // A traversal scope limits the parts of the AST visible to certain analyses.
-  // RecursiveASTVisitor::TraverseAST will only visit reachable nodes, and
+  // RecursiveASTVisitor only visits specified children of TranslationUnitDecl.
   // getParents() will only observe reachable parent edges.
   //
-  // The scope is defined by a set of "top-level" declarations.
-  // Initially, it is the entire TU: {getTranslationUnitDecl()}.
+  // The scope is defined by a set of "top-level" declarations which will be
+  // visible under the TranslationUnitDecl.
+  // Initially, it is the entire TU, represented by {getTranslationUnitDecl()}.
+  //
+  // After setTraversalScope({foo, bar}), the exposed AST looks like:
+  // TranslationUnitDecl
+  //  - foo
+  //    - ...
+  //  - bar
+  //    - ...
+  // All other siblings of foo and bar are pruned from the tree.
+  // (However they are still accessible via TranslationUnitDecl->decls())
+  //
   // Changing the scope clears the parent cache, which is expensive to rebuild.
   std::vector<Decl *> getTraversalScope() const { return TraversalScope; }
   void setTraversalScope(const std::vector<Decl *> &);
@@ -729,6 +753,11 @@ public:
   FullSourceLoc getFullLoc(SourceLocation Loc) const {
     return FullSourceLoc(Loc,SourceMgr);
   }
+
+  /// Return the C++ ABI kind that should be used. The C++ ABI can be overriden
+  /// at compile time with `-fc++-abi=`. If this is not provided, we instead use
+  /// the default ABI set by the target.
+  TargetCXXABI::Kind getCXXABIKind() const;
 
   /// All comments in this translation unit.
   RawCommentList Comments;
@@ -879,30 +908,38 @@ public:
   MemberSpecializationInfo *getInstantiatedFromStaticDataMember(
                                                            const VarDecl *Var);
 
-  TemplateOrSpecializationInfo
-  getTemplateOrSpecializationInfo(const VarDecl *Var);
-
   /// Note that the static data member \p Inst is an instantiation of
   /// the static data member template \p Tmpl of a class template.
   void setInstantiatedFromStaticDataMember(VarDecl *Inst, VarDecl *Tmpl,
                                            TemplateSpecializationKind TSK,
                         SourceLocation PointOfInstantiation = SourceLocation());
 
+  TemplateOrSpecializationInfo
+  getTemplateOrSpecializationInfo(const VarDecl *Var);
+
   void setTemplateOrSpecializationInfo(VarDecl *Inst,
                                        TemplateOrSpecializationInfo TSI);
 
-  /// If the given using decl \p Inst is an instantiation of a
-  /// (possibly unresolved) using decl from a template instantiation,
-  /// return it.
+  /// If the given using decl \p Inst is an instantiation of
+  /// another (possibly unresolved) using decl, return it.
   NamedDecl *getInstantiatedFromUsingDecl(NamedDecl *Inst);
 
   /// Remember that the using decl \p Inst is an instantiation
   /// of the using decl \p Pattern of a class template.
   void setInstantiatedFromUsingDecl(NamedDecl *Inst, NamedDecl *Pattern);
 
+  /// If the given using-enum decl \p Inst is an instantiation of
+  /// another using-enum decl, return it.
+  UsingEnumDecl *getInstantiatedFromUsingEnumDecl(UsingEnumDecl *Inst);
+
+  /// Remember that the using enum decl \p Inst is an instantiation
+  /// of the using enum decl \p Pattern of a class template.
+  void setInstantiatedFromUsingEnumDecl(UsingEnumDecl *Inst,
+                                        UsingEnumDecl *Pattern);
+
+  UsingShadowDecl *getInstantiatedFromUsingShadowDecl(UsingShadowDecl *Inst);
   void setInstantiatedFromUsingShadowDecl(UsingShadowDecl *Inst,
                                           UsingShadowDecl *Pattern);
-  UsingShadowDecl *getInstantiatedFromUsingShadowDecl(UsingShadowDecl *Inst);
 
   FieldDecl *getInstantiatedFromUnnamedFieldDecl(FieldDecl *Field);
 
@@ -1063,8 +1100,8 @@ public:
   // Implicitly-declared type 'struct _GUID'.
   mutable TagDecl *MSGuidTagDecl = nullptr;
 
-  /// Keep track of CUDA/HIP static device variables referenced by host code.
-  llvm::DenseSet<const VarDecl *> CUDAStaticDeviceVarReferencedByHost;
+  /// Keep track of CUDA/HIP device-side variables ODR-used by host code.
+  llvm::DenseSet<const VarDecl *> CUDADeviceVarODRUsedByHost;
 
   ASTContext(LangOptions &LOpts, SourceManager &SM, IdentifierTable &idents,
              SelectorTable &sels, Builtin::Context &builtins);
@@ -2354,6 +2391,12 @@ public:
   /// If \p T is null pointer, assume the target in ASTContext.
   MangleContext *createMangleContext(const TargetInfo *T = nullptr);
 
+  /// Creates a device mangle context to correctly mangle lambdas in a mixed
+  /// architecture compile by setting the lambda mangling number source to the
+  /// DeviceLambdaManglingNumber. Currently this asserts that the TargetInfo
+  /// (from the AuxTargetInfo) is a an itanium target.
+  MangleContext *createDeviceMangleContext(const TargetInfo &T);
+
   void DeepCollectObjCIvars(const ObjCInterfaceDecl *OI, bool leafClass,
                             SmallVectorImpl<const ObjCIvarDecl*> &Ivars) const;
 
@@ -2454,7 +2497,7 @@ public:
                            const ObjCMethodDecl *MethodImp);
 
   bool UnwrapSimilarTypes(QualType &T1, QualType &T2);
-  bool UnwrapSimilarArrayTypes(QualType &T1, QualType &T2);
+  void UnwrapSimilarArrayTypes(QualType &T1, QualType &T2);
 
   /// Determine if two types are similar, according to the C++ rules. That is,
   /// determine if they are the same other than qualifiers on the initial
@@ -2752,6 +2795,14 @@ public:
   // accepts fixed point types and returns the corresponding unsigned type for
   // a given fixed point type.
   QualType getCorrespondingUnsignedType(QualType T) const;
+
+  // Per C99 6.2.5p6, for every signed integer type, there is a corresponding
+  // unsigned integer type.  This method takes an unsigned type, and returns the
+  // corresponding signed integer type.
+  // With the introduction of fixed point types in ISO N1169, this method also
+  // accepts fixed point types and returns the corresponding signed type for
+  // a given fixed point type.
+  QualType getCorrespondingSignedType(QualType T) const;
 
   // Per ISO N1169, this method accepts fixed point types and returns the
   // corresponding saturated type for a given fixed point type.
@@ -3149,10 +3200,32 @@ public:
 
   StringRef getCUIDHash() const;
 
+  void AddSYCLKernelNamingDecl(const CXXRecordDecl *RD);
+  bool IsSYCLKernelNamingDecl(const NamedDecl *RD) const;
+  unsigned GetSYCLKernelNamingIndex(const NamedDecl *RD);
+  /// A SourceLocation to store whether we have evaluated a kernel name already,
+  /// and where it happened.  If so, we need to diagnose an illegal use of the
+  /// builtin. This should only contain SYCLUniqueStableNameExprs and
+  /// SYCLUniqueStableIdExprs.
+  llvm::MapVector<const Expr *, std::string>
+      SYCLUniqueStableNameEvaluatedValues;
+
 private:
   /// All OMPTraitInfo objects live in this collection, one per
   /// `pragma omp [begin] declare variant` directive.
   SmallVector<std::unique_ptr<OMPTraitInfo>, 4> OMPTraitInfoVector;
+
+  /// A list of the (right now just lambda decls) declarations required to
+  /// name all the SYCL kernels in the translation unit, so that we can get the
+  /// correct kernel name, as well as implement
+  /// __builtin_sycl_unique_stable_name.
+  llvm::DenseMap<const DeclContext *,
+                 llvm::SmallPtrSet<const CXXRecordDecl *, 4>>
+      SYCLKernelNamingTypes;
+  std::unique_ptr<ItaniumMangleContext> SYCLKernelFilterContext;
+  void FilterSYCLKernelNamingDecls(
+      const CXXRecordDecl *RD,
+      llvm::SmallVectorImpl<const CXXRecordDecl *> &Decls);
 };
 
 /// Insertion operator for diagnostics.

@@ -12,11 +12,11 @@
 // UNSUPPORTED: cuda
 //
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <iostream>
 
 using namespace cl::sycl;
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 #define VLEN 8
 

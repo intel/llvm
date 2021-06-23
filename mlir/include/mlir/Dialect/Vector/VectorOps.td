@@ -286,6 +286,70 @@ def Vector_ReductionOp :
   }];
 }
 
+def Vector_MultiDimReductionOp :
+  Vector_Op<"multi_reduction", [NoSideEffect,
+     PredOpTrait<"source operand and result have same element type",
+                 TCresVTEtIsSameAsOpBase<0, 0>>]>,
+    Arguments<(ins Vector_CombiningKindAttr:$kind,
+                   AnyVector:$source,
+                   I64ArrayAttr:$reduction_dims)>,
+    Results<(outs AnyType:$dest)> {
+  let summary = "Multi-dimensional reduction operation";
+  let description = [{
+    Reduces an n-D vector into an (n-k)-D vector using the given operation
+    (add/mul/min/max for int/fp and and/or/xor for int only).
+
+    Example:
+
+    ```mlir
+    %1 = vector.multi_reduction "add", %0 [1, 3] :
+      vector<4x8x16x32xf32> into vector<4x16xf32>
+    ```
+  }];
+  let builders = [
+    OpBuilder<(ins "Value":$source, "ArrayRef<bool>":$reductionMask,
+                   "CombiningKind":$kind)>
+  ];
+  let extraClassDeclaration = [{
+    static StringRef getKindAttrName() { return "kind"; }
+    static StringRef getReductionDimsAttrName() { return "reduction_dims"; }
+
+    VectorType getSourceVectorType() {
+      return source().getType().cast<VectorType>();
+    }
+    VectorType getDestVectorType() {
+      return dest().getType().cast<VectorType>();
+    }
+
+    SmallVector<bool> getReductionMask() {
+      SmallVector<bool> res(getSourceVectorType().getRank(), false);
+      for (auto ia : reduction_dims().getAsRange<IntegerAttr>())
+        res[ia.getInt()] = true;
+      return res;
+    }
+    static SmallVector<bool> getReductionMask(
+        ArrayRef<int64_t> reductionDims, unsigned sourceRank) {
+      SmallVector<bool> res(sourceRank, false);
+      for (auto idx : reductionDims)
+        res[idx] = true;
+      return res;
+    }
+
+    static SmallVector<int64_t> inferDestShape(
+      ArrayRef<int64_t> shape, ArrayRef<bool> reducedDimsMask) {
+      assert(shape.size() == reducedDimsMask.size() && 
+             "shape and maks of different sizes");
+      SmallVector<int64_t> res;
+      for (auto it : llvm::zip(reducedDimsMask, shape))
+        if (!std::get<0>(it))
+          res.push_back(std::get<1>(it));
+      return res;
+    }
+  }];
+  let assemblyFormat =
+    "$kind `,` $source attr-dict $reduction_dims `:` type($source) `to` type($dest)";
+}
+
 def Vector_BroadcastOp :
   Vector_Op<"broadcast", [NoSideEffect,
      PredOpTrait<"source operand and result have same element type",
@@ -455,6 +519,7 @@ def Vector_ExtractOp :
       return vector().getType().cast<VectorType>();
     }
   }];
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 
@@ -699,6 +764,9 @@ def Vector_InsertOp :
       return dest().getType().cast<VectorType>();
     }
   }];
+
+  let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 def Vector_InsertSlicesOp :
@@ -1135,10 +1203,12 @@ def Vector_TransferReadOp :
   Vector_Op<"transfer_read", [
       DeclareOpInterfaceMethods<VectorTransferOpInterface>,
       DeclareOpInterfaceMethods<VectorUnrollOpInterface, ["getShapeForUnroll"]>,
-      DeclareOpInterfaceMethods<MemoryEffectsOpInterface>
+      DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+      AttrSizedOperandSegments
     ]>,
     Arguments<(ins AnyShaped:$source, Variadic<Index>:$indices,
                AffineMapAttr:$permutation_map, AnyType:$padding,
+               Optional<VectorOf<[I1]>>:$mask,
                OptionalAttr<BoolArrayAttr>:$in_bounds)>,
     Results<(outs AnyVector:$vector)> {
 
@@ -1167,13 +1237,25 @@ def Vector_TransferReadOp :
     return type.
 
     An SSA value `padding` of the same elemental type as the MemRef/Tensor is
-    provided to specify a fallback value in the case of out-of-bounds accesses.
+    provided to specify a fallback value in the case of out-of-bounds accesses
+    and/or masking.
+
+    An optional SSA value `mask` of the same shape as the vector type may be
+    specified to mask out elements. Such elements will be replaces with
+    `padding`. Elements whose corresponding mask element is `0` are masked out.
 
     An optional boolean array attribute is provided to specify which dimensions
-    of the transfer are guaranteed to be within bounds. The absence of this
-    `in_bounds` attribute signifies that any dimension of the transfer may be
-    out-of-bounds. A `vector.transfer_read` can be lowered to a simple load if
-    all dimensions are specified to be within bounds.
+    of the transfer are guaranteed to be within bounds. The length of the array
+    must equal the rank of the vector type. Broadcast dimensions must always be
+    in-bounds. The absence of this optional `in_bounds` attribute signifies that
+    any dimension of the transfer (except for broadcasts) may be out-of-bounds.
+    A `vector.transfer_read` can be lowered to a simple load if all dimensions
+    are specified to be within bounds and no `mask` was specified.
+
+    Note that `in_bounds` is specified for result dimensions and not input
+    dimensions. The starting point of the transfer, i.e.,
+    `%A[%expr1, %expr2, %expr3, %expr4]` in the example below, is expected to
+    be in-bounds and as indices are increasing, accesses may run out-of-bounds.
 
     This operation is called 'read' by opposition to 'load' because the
     super-vector granularity is generally not representable with a single
@@ -1299,6 +1381,14 @@ def Vector_TransferReadOp :
     // 'getMinorIdentityMap' (resp. zero).
     OpBuilder<(ins "VectorType":$vector, "Value":$source,
       "ValueRange":$indices, CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
+    // Builder that does not set mask.
+    OpBuilder<(ins "Type":$vector, "Value":$source,
+      "ValueRange":$indices, "AffineMapAttr":$permutationMap, "Value":$padding,
+      "ArrayAttr":$inBounds)>,
+    // Builder that does not set mask.
+    OpBuilder<(ins "Type":$vector, "Value":$source,
+      "ValueRange":$indices, "AffineMap":$permutationMap, "Value":$padding,
+      "ArrayAttr":$inBounds)>
   ];
 
   let hasFolder = 1;
@@ -1308,11 +1398,13 @@ def Vector_TransferWriteOp :
   Vector_Op<"transfer_write", [
       DeclareOpInterfaceMethods<VectorTransferOpInterface>,
       DeclareOpInterfaceMethods<VectorUnrollOpInterface, ["getShapeForUnroll"]>,
-      DeclareOpInterfaceMethods<MemoryEffectsOpInterface>
+      DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+      AttrSizedOperandSegments
   ]>,
     Arguments<(ins AnyVector:$vector, AnyShaped:$source,
                Variadic<Index>:$indices,
                AffineMapAttr:$permutation_map,
+               Optional<VectorOf<[I1]>>:$mask,
                OptionalAttr<BoolArrayAttr>:$in_bounds)>,
     Results<(outs Optional<AnyRankedTensor>:$result)> {
 
@@ -1337,15 +1429,34 @@ def Vector_TransferWriteOp :
     [affine-map](Affine.md#affine-maps) which specifies the transposition on the
     slice to match the vector shape. The permutation map may be implicit and
     omitted from parsing and printing if it is the canonical minor identity map
-    (i.e. if it does not permute or broadcast any dimension).
+    (i.e. if it does not permute any dimension). In contrast to `transfer_read`,
+    write ops cannot have broadcast dimensions.
 
     The size of the slice is specified by the size of the vector.
+
+    An optional SSA value `mask` of the same shape as the vector type may be
+    specified to mask out elements. Elements whose corresponding mask element
+    is `0` are masked out.
 
     An optional boolean array attribute is provided to specify which dimensions
     of the transfer are guaranteed to be within bounds. The absence of this
     `in_bounds` attribute signifies that any dimension of the transfer may be
     out-of-bounds. A `vector.transfer_write` can be lowered to a simple store
-    if all dimensions are specified to be within bounds.
+    if all dimensions are specified to be within bounds and no `mask` was
+    specified.
+
+    An optional boolean array attribute is provided to specify which dimensions
+    of the transfer are guaranteed to be within bounds. The length of the array
+    must equal the rank of the vector type. The absence of this optional
+    `in_bounds` attribute signifies that any dimension of the transfer
+    may be out-of-bounds. A `vector.transfer_write` can be lowered to a simple
+    store if all dimensions are specified to be within bounds and no `mask` was
+    specified.
+
+    Note that `in_bounds` is specified for result dimensions and not input
+    dimensions. The starting point of the transfer, i.e.,
+    `%A[%expr1, %expr2, %expr3, %expr4]` in the example below, is expected to
+    be in-bounds and as indices are increasing, accesses may run out-of-bounds.
 
     This operation is called 'write' by opposition to 'store' because the
     super-vector granularity is generally not representable with a single
@@ -1392,10 +1503,13 @@ def Vector_TransferWriteOp :
     OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
       "AffineMapAttr":$permutationMap, "ArrayAttr":$inBounds)>,
     OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
+      "AffineMap":$permutationMap, "Value":$mask, "ArrayAttr":$inBounds)>,
+    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
       "AffineMap":$permutationMap, "ArrayAttr":$inBounds)>,
   ];
 
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Vector_LoadOp : Vector_Op<"load"> {
@@ -1659,7 +1773,7 @@ def Vector_GatherOp :
   Vector_Op<"gather">,
     Arguments<(ins Arg<AnyMemRef, "", [MemRead]>:$base,
                Variadic<Index>:$indices,
-	       VectorOfRankAndType<[1], [AnyInteger]>:$index_vec,
+	       VectorOfRankAndType<[1], [AnyInteger, Index]>:$index_vec,
                VectorOfRankAndType<[1], [I1]>:$mask,
                VectorOfRank<[1]>:$pass_thru)>,
     Results<(outs VectorOfRank<[1]>:$result)> {
@@ -1724,7 +1838,7 @@ def Vector_ScatterOp :
   Vector_Op<"scatter">,
     Arguments<(ins Arg<AnyMemRef, "", [MemWrite]>:$base,
                Variadic<Index>:$indices,
-	       VectorOfRankAndType<[1], [AnyInteger]>:$index_vec,
+	       VectorOfRankAndType<[1], [AnyInteger, Index]>:$index_vec,
                VectorOfRankAndType<[1], [I1]>:$mask,
                VectorOfRank<[1]>:$valueToStore)> {
 
@@ -2282,13 +2396,13 @@ def Vector_MatmulOp : Vector_Op<"matrix_multiply", [NoSideEffect,
       Arguments<(
         // TODO: tighten vector element types that make sense.
         ins VectorOfRankAndType<[1],
-              [AnySignlessInteger, AnySignedInteger, AnyFloat]>:$lhs,
+              [AnySignlessInteger, AnySignedInteger, Index, AnyFloat]>:$lhs,
             VectorOfRankAndType<[1],
-              [AnySignlessInteger, AnySignedInteger, AnyFloat]>:$rhs,
+              [AnySignlessInteger, AnySignedInteger, Index, AnyFloat]>:$rhs,
             I32Attr:$lhs_rows, I32Attr:$lhs_columns, I32Attr:$rhs_columns)>,
       Results<(
         outs VectorOfRankAndType<[1],
-               [AnySignlessInteger, AnySignedInteger, AnyFloat]>:$res)>
+               [AnySignlessInteger, AnySignedInteger, Index, AnyFloat]>:$res)>
 {
   let summary = "Vector matrix multiplication op that operates on flattened 1-D"
     " MLIR vectors";
@@ -2345,11 +2459,11 @@ def Vector_FlatTransposeOp : Vector_Op<"flat_transpose", [NoSideEffect,
     Arguments<(
       // TODO: tighten vector element types that make sense.
       ins VectorOfRankAndType<[1],
-            [AnySignlessInteger, AnySignedInteger, AnyFloat]>:$matrix,
+            [AnySignlessInteger, AnySignedInteger, Index, AnyFloat]>:$matrix,
           I32Attr:$rows, I32Attr:$columns)>,
     Results<(
       outs VectorOfRankAndType<[1],
-             [AnySignlessInteger, AnySignedInteger, AnyFloat]>:$res)> {
+             [AnySignlessInteger, AnySignedInteger, Index, AnyFloat]>:$res)> {
   let summary = "Vector matrix transposition on flattened 1-D MLIR vectors";
   let description = [{
     This is the counterpart of llvm.matrix.transpose in MLIR. It serves

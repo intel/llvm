@@ -33,7 +33,7 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
     // Introduce each ingredient into VPlan.
     for (auto I = VPBB->begin(), E = VPBB->end(); I != E;) {
       VPRecipeBase *Ingredient = &*I++;
-      VPValue *VPV = Ingredient->getVPValue();
+      VPValue *VPV = Ingredient->getVPSingleValue();
       Instruction *Inst = cast<Instruction>(VPV->getUnderlyingValue());
       if (DeadInstructions.count(Inst)) {
         VPValue DummyValue;
@@ -87,7 +87,7 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
 
       NewRecipe->insertBefore(Ingredient);
       if (NewRecipe->getNumDefinedValues() == 1)
-        VPV->replaceAllUsesWith(NewRecipe->getVPValue());
+        VPV->replaceAllUsesWith(NewRecipe->getVPSingleValue());
       else
         assert(NewRecipe->getNumDefinedValues() == 0 &&
                "Only recpies with zero or one defined values expected");
@@ -98,4 +98,53 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
       }
     }
   }
+}
+
+bool VPlanTransforms::sinkScalarOperands(VPlan &Plan) {
+  auto Iter = depth_first(
+      VPBlockRecursiveTraversalWrapper<VPBlockBase *>(Plan.getEntry()));
+  bool Changed = false;
+  // First, collect the operands of all predicated replicate recipes as seeds
+  // for sinking.
+  SetVector<VPValue *> WorkList;
+  for (VPBasicBlock *VPBB : VPBlockUtils::blocksOnly<VPBasicBlock>(Iter)) {
+    for (auto &Recipe : *VPBB) {
+      auto *RepR = dyn_cast<VPReplicateRecipe>(&Recipe);
+      if (!RepR || !RepR->isPredicated())
+        continue;
+      WorkList.insert(RepR->op_begin(), RepR->op_end());
+    }
+  }
+
+  // Try to sink each replicate recipe in the worklist.
+  while (!WorkList.empty()) {
+    auto *C = WorkList.pop_back_val();
+    auto *SinkCandidate = dyn_cast_or_null<VPReplicateRecipe>(C->Def);
+    if (!SinkCandidate || SinkCandidate->isUniform())
+      continue;
+
+    // All users of SinkCandidate must be in the same block in order to perform
+    // sinking. Therefore the destination block for sinking must match the block
+    // containing the first user.
+    auto *FirstUser = dyn_cast<VPRecipeBase>(*SinkCandidate->user_begin());
+    if (!FirstUser)
+      continue;
+    VPBasicBlock *SinkTo = FirstUser->getParent();
+    if (SinkCandidate->getParent() == SinkTo ||
+        SinkCandidate->mayHaveSideEffects() ||
+        SinkCandidate->mayReadOrWriteMemory())
+      continue;
+
+    // All recipe users of the sink candidate must be in the same block SinkTo.
+    if (any_of(SinkCandidate->users(), [SinkTo](VPUser *U) {
+          auto *UI = dyn_cast<VPRecipeBase>(U);
+          return !UI || UI->getParent() != SinkTo;
+        }))
+      continue;
+
+    SinkCandidate->moveBefore(*SinkTo, SinkTo->getFirstNonPhi());
+    WorkList.insert(SinkCandidate->op_begin(), SinkCandidate->op_end());
+    Changed = true;
+  }
+  return Changed;
 }

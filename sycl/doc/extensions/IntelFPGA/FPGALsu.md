@@ -7,7 +7,7 @@ is included in `CL/sycl/INTEL/fpga_extensions.hpp`.
 The class `cl::sycl::INTEL::lsu` allows users to explicitly request that the
 implementation of a global memory access is configured in a certain way. The
 class has two member functions, `load()` and `store()` which allow loading from
-and storing to a `global_ptr`, respectively, and is templated on the following
+and storing to a `multi_ptr`, respectively, and is templated on the following
 4 optional paremeters:
 
 1.  **`cl::sycl::INTEL::burst_coalesce<B>`, where `B` is a boolean**: request,
@@ -47,10 +47,12 @@ template <class... mem_access_params> class lsu final {
 public:
   lsu() = delete;
 
-  template <typename T> static T load(sycl::global_ptr<T> Ptr) {
+  template <typename _T, access::address_space _space>
+  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
+    check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    return *__builtin_intel_fpga_mem((T *)Ptr,
+    return *__builtin_intel_fpga_mem((_T *)Ptr,
                                      _burst_coalesce | _cache |
                                          _dont_statically_coalesce | _prefetch,
                                      _cache_val);
@@ -59,10 +61,12 @@ public:
 #endif
   }
 
-  template <typename T> static void store(sycl::global_ptr<T> Ptr, T Val) {
+  template <typename _T, access::address_space _space>
+  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
+    check_space<_space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    *__builtin_intel_fpga_mem((T *)Ptr,
+    *__builtin_intel_fpga_mem((_T *)Ptr,
                               _burst_coalesce | _cache |
                                   _dont_statically_coalesce | _prefetch,
                               _cache_val) = Val;

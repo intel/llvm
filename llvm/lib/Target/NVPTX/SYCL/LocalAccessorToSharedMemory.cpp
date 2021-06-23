@@ -38,7 +38,8 @@ public:
 
   bool runOnModule(Module &M) override {
     // Invariant: This pass is only intended to operate on SYCL kernels being
-    // compiled to the `nvptx{,64}-nvidia-cuda-sycldevice` triple.
+    // compiled to the `nvptx{,64}-nvidia-cuda` triple.
+    // TODO: make sure that non-SYCL kernels are not impacted.
     if (skipModule(M))
       return false;
 
@@ -48,7 +49,9 @@ public:
     // Access `nvvm.annotations` to determine which functions are kernel entry
     // points.
     auto NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
-    assert(NvvmMetadata && "IR compiled to PTX must have nvvm.annotations");
+    if (!NvvmMetadata)
+      return false;
+
     for (auto MetadataNode : NvvmMetadata->operands()) {
       if (MetadataNode->getNumOperands() != 3)
         continue;

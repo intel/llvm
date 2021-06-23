@@ -810,7 +810,7 @@ main_body:
 
 ; GCN-LABEL: {{^}}test_wqm2:
 ; GFX1032: s_wqm_b32 exec_lo, exec_lo
-; GFX1032: s_and_b32 exec_lo, exec_lo, s{{[0-9+]}}
+; GFX1032: s_and_b32 exec_lo, exec_lo, s{{[0-9]+}}
 ; GFX1064: s_wqm_b64 exec, exec{{$}}
 ; GFX1064: s_and_b64 exec, exec, s[{{[0-9:]+}}]
 define amdgpu_ps float @test_wqm2(i32 inreg %idx0, i32 inreg %idx1) #0 {
@@ -1129,8 +1129,8 @@ declare void @external_void_func_void() #1
 
 ; GCN-NEXT: v_writelane_b32 v40, s33, 2
 ; GCN: s_mov_b32 s33, s32
-; GFX1064: s_add_u32 s32, s32, 0x400
-; GFX1032: s_add_u32 s32, s32, 0x200
+; GFX1064: s_addk_i32 s32, 0x400
+; GFX1032: s_addk_i32 s32, 0x200
 
 
 ; GCN-DAG: v_writelane_b32 v40, s30, 0
@@ -1140,8 +1140,8 @@ declare void @external_void_func_void() #1
 ; GCN-DAG: v_readlane_b32 s5, v40, 1
 
 
-; GFX1064: s_sub_u32 s32, s32, 0x400
-; GFX1032: s_sub_u32 s32, s32, 0x200
+; GFX1064: s_addk_i32 s32, 0xfc00
+; GFX1032: s_addk_i32 s32, 0xfe00
 ; GCN: v_readlane_b32 s33, v40, 2
 ; GFX1064: s_or_saveexec_b64 [[COPY_EXEC1:s\[[0-9]+:[0-9]+\]]], -1{{$}}
 ; GFX1032: s_or_saveexec_b32 [[COPY_EXEC1:s[0-9]]], -1{{$}}

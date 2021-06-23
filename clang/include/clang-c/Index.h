@@ -2584,7 +2584,15 @@ enum CXCursorKind {
    */
   CXCursor_OMPDispatchDirective = 291,
 
-  CXCursor_LastStmt = CXCursor_OMPDispatchDirective,
+  /** OpenMP masked directive.
+   */
+  CXCursor_OMPMaskedDirective = 292,
+
+  /** OpenMP unroll directive.
+   */
+  CXCursor_OMPUnrollDirective = 293,
+
+  CXCursor_LastStmt = CXCursor_OMPUnrollDirective,
 
   /**
    * Cursor that represents the translation unit itself.

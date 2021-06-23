@@ -102,6 +102,8 @@ public:
   /// If this is a byval or inalloca argument, return its alignment.
   MaybeAlign getParamAlign() const;
 
+  MaybeAlign getParamStackAlign() const;
+
   /// If this is a byval argument, return its type.
   Type *getParamByValType() const;
 
@@ -159,6 +161,8 @@ public:
 
   /// Remove attributes from an argument.
   void removeAttr(Attribute::AttrKind Kind);
+
+  void removeAttrs(const AttrBuilder &B);
 
   /// Check if an argument has a given attribute.
   bool hasAttribute(Attribute::AttrKind Kind) const;

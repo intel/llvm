@@ -77,6 +77,7 @@ private:
   void calculateCustomSections();
   void calculateTypes();
   void createOutputSegments();
+  OutputSegment *createOutputSegment(StringRef name);
   void combineOutputSegments();
   void layoutMemory();
   void createHeader();
@@ -99,7 +100,7 @@ private:
   uint64_t fileSize = 0;
 
   std::vector<WasmInitEntry> initFunctions;
-  llvm::StringMap<std::vector<InputSection *>> customSectionMapping;
+  llvm::StringMap<std::vector<InputChunk *>> customSectionMapping;
 
   // Stable storage for command export wrapper function name strings.
   std::list<std::string> commandExportWrapperNames;
@@ -120,7 +121,7 @@ void Writer::calculateCustomSections() {
   log("calculateCustomSections");
   bool stripDebug = config->stripDebug || config->stripAll;
   for (ObjFile *file : symtab->objectFiles) {
-    for (InputSection *section : file->customSections) {
+    for (InputChunk *section : file->customSections) {
       // Exclude COMDAT sections that are not selected for inclusion
       if (section->discarded)
         continue;
@@ -269,7 +270,7 @@ void Writer::layoutMemory() {
     log(formatv("mem: {0,-15} offset={1,-8} size={2,-8} align={3}", seg->name,
                 memoryPtr, seg->size, seg->alignment));
 
-    if (!config->relocatable && seg->name == ".tdata") {
+    if (!config->relocatable && seg->isTLS()) {
       if (config->sharedMemory) {
         auto *tlsSize = cast<DefinedGlobal>(WasmSym::tlsSize);
         setGlobalPtr(tlsSize, seg->size);
@@ -390,7 +391,7 @@ void Writer::addSections() {
   addSection(out.functionSec);
   addSection(out.tableSec);
   addSection(out.memorySec);
-  addSection(out.eventSec);
+  addSection(out.tagSec);
   addSection(out.globalSec);
   addSection(out.exportSec);
   addSection(out.startSec);
@@ -459,10 +460,8 @@ void Writer::populateTargetFeatures() {
     }
 
     // Find TLS data segments
-    auto isTLS = [](InputSegment *segment) {
-      StringRef name = segment->getName();
-      return segment->live &&
-             (name.startswith(".tdata") || name.startswith(".tbss"));
+    auto isTLS = [](InputChunk *segment) {
+      return segment->live && segment->isTLS();
     };
     tlsUsed = tlsUsed ||
               std::any_of(file->segments.begin(), file->segments.end(), isTLS);
@@ -547,7 +546,7 @@ void Writer::populateTargetFeatures() {
 static bool shouldImport(Symbol *sym) {
   if (!sym->isUndefined())
     return false;
-  if (sym->isWeak() && !config->relocatable)
+  if (sym->isWeak() && !config->relocatable && !config->isPic)
     return false;
   if (!sym->isLive())
     return false;
@@ -559,8 +558,7 @@ static bool shouldImport(Symbol *sym) {
   if (isa<DataSymbol>(sym))
     return false;
 
-  if (config->relocatable ||
-      config->unresolvedSymbols == UnresolvedPolicy::ImportFuncs)
+  if (config->isPic || config->relocatable || config->importUndefined)
     return true;
   if (config->allowUndefinedSymbols.count(sym->getName()) != 0)
     return true;
@@ -627,9 +625,15 @@ void Writer::calculateExports() {
         continue;
       }
       export_ = {name, WASM_EXTERNAL_GLOBAL, g->getGlobalIndex()};
-    } else if (auto *e = dyn_cast<DefinedEvent>(sym)) {
-      export_ = {name, WASM_EXTERNAL_EVENT, e->getEventIndex()};
+    } else if (auto *t = dyn_cast<DefinedTag>(sym)) {
+      export_ = {name, WASM_EXTERNAL_TAG, t->getTagIndex()};
     } else if (auto *d = dyn_cast<DefinedData>(sym)) {
+      if (d->segment && d->segment->isTLS()) {
+        // We can't currenly export TLS data symbols.
+        if (sym->isExportedExplicit())
+          error("TLS symbols cannot yet be exported: `" + toString(*sym) + "`");
+        continue;
+      }
       out.globalSec->dataAddressGlobals.push_back(d);
       export_ = {name, WASM_EXTERNAL_GLOBAL, globalIndex++};
     } else {
@@ -664,8 +668,8 @@ void Writer::calculateTypes() {
   // 1. Any signature used in the TYPE relocation
   // 2. The signatures of all imported functions
   // 3. The signatures of all defined functions
-  // 4. The signatures of all imported events
-  // 5. The signatures of all defined events
+  // 4. The signatures of all imported tags
+  // 5. The signatures of all defined tags
 
   for (ObjFile *file : symtab->objectFiles) {
     ArrayRef<WasmSignature> types = file->getWasmObj()->types();
@@ -677,15 +681,15 @@ void Writer::calculateTypes() {
   for (const Symbol *sym : out.importSec->importedSymbols) {
     if (auto *f = dyn_cast<FunctionSymbol>(sym))
       out.typeSec->registerType(*f->signature);
-    else if (auto *e = dyn_cast<EventSymbol>(sym))
-      out.typeSec->registerType(*e->signature);
+    else if (auto *t = dyn_cast<TagSymbol>(sym))
+      out.typeSec->registerType(*t->signature);
   }
 
   for (const InputFunction *f : out.functionSec->inputFunctions)
     out.typeSec->registerType(f->signature);
 
-  for (const InputEvent *e : out.eventSec->inputEvents)
-    out.typeSec->registerType(e->signature);
+  for (const InputTag *t : out.tagSec->inputTags)
+    out.typeSec->registerType(t->signature);
 }
 
 // In a command-style link, create a wrapper for each exported symbol
@@ -793,9 +797,9 @@ void Writer::assignIndexes() {
   }
 
   for (ObjFile *file : symtab->objectFiles) {
-    LLVM_DEBUG(dbgs() << "Events: " << file->getName() << "\n");
-    for (InputEvent *event : file->events)
-      out.eventSec->addEvent(event);
+    LLVM_DEBUG(dbgs() << "Tags: " << file->getName() << "\n");
+    for (InputTag *tag : file->tags)
+      out.tagSec->addTag(tag);
   }
 
   for (ObjFile *file : symtab->objectFiles) {
@@ -811,12 +815,12 @@ void Writer::assignIndexes() {
   out.tableSec->assignIndexes();
 }
 
-static StringRef getOutputDataSegmentName(StringRef name) {
-  // We only support one thread-local segment, so we must merge the segments
-  // despite --no-merge-data-segments.
-  // We also need to merge .tbss into .tdata so they share the same offsets.
-  if (name.startswith(".tdata") || name.startswith(".tbss"))
+static StringRef getOutputDataSegmentName(const InputChunk &seg) {
+  // We always merge .tbss and .tdata into a single TLS segment so all TLS
+  // symbols are be relative to single __tls_base.
+  if (seg.isTLS())
     return ".tdata";
+  StringRef name = seg.getName();
   if (!config->mergeDataSegments)
     return name;
   if (name.startswith(".text."))
@@ -830,29 +834,39 @@ static StringRef getOutputDataSegmentName(StringRef name) {
   return name;
 }
 
+OutputSegment *Writer::createOutputSegment(StringRef name) {
+  LLVM_DEBUG(dbgs() << "new segment: " << name << "\n");
+  OutputSegment *s = make<OutputSegment>(name);
+  if (config->sharedMemory)
+    s->initFlags = WASM_DATA_SEGMENT_IS_PASSIVE;
+  // Exported memories are guaranteed to be zero-initialized, so no need
+  // to emit data segments for bss sections.
+  // TODO: consider initializing bss sections with memory.fill
+  // instructions when memory is imported and bulk-memory is available.
+  if (!config->importMemory && !config->relocatable && name.startswith(".bss"))
+    s->isBss = true;
+  segments.push_back(s);
+  return s;
+}
+
 void Writer::createOutputSegments() {
   for (ObjFile *file : symtab->objectFiles) {
-    for (InputSegment *segment : file->segments) {
+    for (InputChunk *segment : file->segments) {
       if (!segment->live)
         continue;
-      StringRef name = getOutputDataSegmentName(segment->getName());
-      OutputSegment *&s = segmentMap[name];
-      if (s == nullptr) {
-        LLVM_DEBUG(dbgs() << "new segment: " << name << "\n");
-        s = make<OutputSegment>(name);
-        if (config->sharedMemory)
-          s->initFlags = WASM_DATA_SEGMENT_IS_PASSIVE;
-        // Exported memories are guaranteed to be zero-initialized, so no need
-        // to emit data segments for bss sections.
-        // TODO: consider initializing bss sections with memory.fill
-        // instructions when memory is imported and bulk-memory is available.
-        if (!config->importMemory && !config->relocatable &&
-            name.startswith(".bss"))
-          s->isBss = true;
-        segments.push_back(s);
+      StringRef name = getOutputDataSegmentName(*segment);
+      OutputSegment *s = nullptr;
+      // When running in relocatable mode we can't merge segments that are part
+      // of comdat groups since the ultimate linker needs to be able exclude or
+      // include them individually.
+      if (config->relocatable && !segment->getComdatName().empty()) {
+        s = createOutputSegment(name);
+      } else {
+        if (segmentMap.count(name) == 0)
+          segmentMap[name] = createOutputSegment(name);
+        s = segmentMap[name];
       }
       s->addInputSegment(segment);
-      LLVM_DEBUG(dbgs() << "added data: " << name << ": " << s->size << "\n");
     }
   }
 
@@ -872,53 +886,45 @@ void Writer::createOutputSegments() {
 
   for (size_t i = 0; i < segments.size(); ++i)
     segments[i]->index = i;
+
+  // Merge MergeInputSections into a single MergeSyntheticSection.
+  LLVM_DEBUG(dbgs() << "-- finalize input semgments\n");
+  for (OutputSegment *seg : segments)
+    seg->finalizeInputSegments();
 }
 
 void Writer::combineOutputSegments() {
-  // With PIC code we currently only support a single data segment since
-  // we only have a single __memory_base to use as our base address.
-  // This pass combines all non-TLS data segments into a single .data
-  // segment.
+  // With PIC code we currently only support a single active data segment since
+  // we only have a single __memory_base to use as our base address.  This pass
+  // combines all data segments into a single .data segment.
   // This restructions can be relaxed once we have extended constant
   // expressions available:
   // https://github.com/WebAssembly/extended-const
-  assert(config->isPic);
+  assert(config->isPic && !config->sharedMemory);
   if (segments.size() <= 1)
     return;
-  OutputSegment *combined = nullptr;
-  std::vector<OutputSegment *> new_segments;
+  OutputSegment *combined = make<OutputSegment>(".data");
+  combined->startVA = segments[0]->startVA;
   for (OutputSegment *s : segments) {
-    if (s->name == ".tdata") {
-      new_segments.push_back(s);
-    } else {
-      if (!combined) {
-        combined = make<OutputSegment>(".data");
-        combined->startVA = s->startVA;
-        if (config->sharedMemory)
-          combined->initFlags = WASM_DATA_SEGMENT_IS_PASSIVE;
-      }
-      bool first = true;
-      for (InputSegment *inSeg : s->inputSegments) {
-        if (first)
-          inSeg->alignment = std::max(inSeg->alignment, s->alignment);
-        first = false;
+    bool first = true;
+    for (InputChunk *inSeg : s->inputSegments) {
+      if (first)
+        inSeg->alignment = std::max(inSeg->alignment, s->alignment);
+      first = false;
 #ifndef NDEBUG
-        uint64_t oldVA = inSeg->getVA();
+      uint64_t oldVA = inSeg->getVA();
 #endif
-        combined->addInputSegment(inSeg);
+      combined->addInputSegment(inSeg);
 #ifndef NDEBUG
-        uint64_t newVA = inSeg->getVA();
-        assert(oldVA == newVA);
+      uint64_t newVA = inSeg->getVA();
+      LLVM_DEBUG(dbgs() << "added input segment. name=" << inSeg->getName()
+                        << " oldVA=" << oldVA << " newVA=" << newVA << "\n");
+      assert(oldVA == newVA);
 #endif
-      }
     }
   }
-  if (combined) {
-    new_segments.push_back(combined);
-    segments = new_segments;
-    for (size_t i = 0; i < segments.size(); ++i)
-      segments[i]->index = i;
-  }
+
+  segments = {combined};
 }
 
 static void createFunction(DefinedFunction *func, StringRef bodyContent) {
@@ -934,7 +940,7 @@ static void createFunction(DefinedFunction *func, StringRef bodyContent) {
 
 bool Writer::needsPassiveInitialization(const OutputSegment *segment) {
   return segment->initFlags & WASM_DATA_SEGMENT_IS_PASSIVE &&
-         segment->name != ".tdata" && !segment->isBss;
+         !segment->isTLS() && !segment->isBss;
 }
 
 bool Writer::hasPassiveInitializedSegments() {
@@ -1178,7 +1184,7 @@ void Writer::createApplyDataRelocationsFunction() {
     raw_string_ostream os(bodyContent);
     writeUleb128(os, 0, "num locals");
     for (const OutputSegment *seg : segments)
-      for (const InputSegment *inSeg : seg->inputSegments)
+      for (const InputChunk *inSeg : seg->inputSegments)
         inSeg->generateRelocationCode(os);
 
     writeU8(os, WASM_OPCODE_END, "END");
@@ -1355,7 +1361,7 @@ void Writer::createSyntheticSections() {
   out.functionSec = make<FunctionSection>();
   out.tableSec = make<TableSection>();
   out.memorySec = make<MemorySection>();
-  out.eventSec = make<EventSection>();
+  out.tagSec = make<TagSection>();
   out.globalSec = make<GlobalSection>();
   out.exportSec = make<ExportSection>();
   out.startSec = make<StartSection>();
@@ -1380,6 +1386,8 @@ void Writer::run() {
     config->tableBase = 1;
     if (WasmSym::definedTableBase)
       WasmSym::definedTableBase->setVA(config->tableBase);
+    if (WasmSym::definedTableBase32)
+      WasmSym::definedTableBase32->setVA(config->tableBase);
   }
 
   log("-- createOutputSegments");
@@ -1397,20 +1405,27 @@ void Writer::run() {
     }
   }
 
-  // Delay reporting error about explict exports until after addStartStopSymbols
-  // which can create optional symbols.
-  for (auto &entry : config->exportedSymbols) {
-    StringRef name = entry.first();
-    Symbol *sym = symtab->find(name);
+  for (auto &pair : config->exportedSymbols) {
+    Symbol *sym = symtab->find(pair.first());
     if (sym && sym->isDefined())
       sym->forceExport = true;
-    else if (config->unresolvedSymbols == UnresolvedPolicy::ReportError)
-      error(Twine("symbol exported via --export not found: ") + name);
-    else if (config->unresolvedSymbols == UnresolvedPolicy::Warn)
-      warn(Twine("symbol exported via --export not found: ") + name);
   }
 
-  if (config->isPic) {
+  // Delay reporting error about explict exports until after addStartStopSymbols
+  // which can create optional symbols.
+  for (auto &name : config->requiredExports) {
+    Symbol *sym = symtab->find(name);
+    if (!sym || !sym->isDefined()) {
+      if (config->unresolvedSymbols == UnresolvedPolicy::ReportError)
+        error(Twine("symbol exported via --export not found: ") + name);
+      if (config->unresolvedSymbols == UnresolvedPolicy::Warn)
+        warn(Twine("symbol exported via --export not found: ") + name);
+    }
+  }
+
+  if (config->isPic && !config->sharedMemory) {
+    // In shared memory mode all data segments are passive and initilized
+    // via __wasm_init_memory.
     log("-- combineOutputSegments");
     combineOutputSegments();
   }
@@ -1479,12 +1494,12 @@ void Writer::run() {
   if (errorHandler().verbose) {
     log("Defined Functions: " + Twine(out.functionSec->inputFunctions.size()));
     log("Defined Globals  : " + Twine(out.globalSec->numGlobals()));
-    log("Defined Events   : " + Twine(out.eventSec->inputEvents.size()));
+    log("Defined Tags     : " + Twine(out.tagSec->inputTags.size()));
     log("Defined Tables   : " + Twine(out.tableSec->inputTables.size()));
     log("Function Imports : " +
         Twine(out.importSec->getNumImportedFunctions()));
     log("Global Imports   : " + Twine(out.importSec->getNumImportedGlobals()));
-    log("Event Imports    : " + Twine(out.importSec->getNumImportedEvents()));
+    log("Tag Imports      : " + Twine(out.importSec->getNumImportedTags()));
     log("Table Imports    : " + Twine(out.importSec->getNumImportedTables()));
     for (ObjFile *file : symtab->objectFiles)
       file->dumpInfo();

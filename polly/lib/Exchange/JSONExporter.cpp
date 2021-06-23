@@ -178,7 +178,7 @@ static void exportScop(Scop &S) {
 
   // Write to file.
   std::error_code EC;
-  ToolOutputFile F(FileName, EC, llvm::sys::fs::OF_Text);
+  ToolOutputFile F(FileName, EC, llvm::sys::fs::OF_TextWithCRLF);
 
   std::string FunctionName = S.getFunction().getName().str();
   errs() << "Writing JScop '" << S.getNameStr() << "' in function '"
@@ -219,7 +219,7 @@ static bool importContext(Scop &S, const json::Object &JScop) {
                                  JScop.getString("context").getValue().str()};
 
   // Check whether the context was parsed successfully.
-  if (!NewContext) {
+  if (NewContext.is_null()) {
     errs() << "The context was not parsed successfully by ISL.\n";
     return false;
   }

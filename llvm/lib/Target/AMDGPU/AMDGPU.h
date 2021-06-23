@@ -18,6 +18,7 @@ namespace llvm {
 class FunctionPass;
 class GCNTargetMachine;
 class ImmutablePass;
+class MachineFunctionPass;
 class ModulePass;
 class Pass;
 class Target;
@@ -55,6 +56,7 @@ FunctionPass *createSILoadStoreOptimizerPass();
 FunctionPass *createSIWholeQuadModePass();
 FunctionPass *createSIFixControlFlowLiveIntervalsPass();
 FunctionPass *createSIOptimizeExecMaskingPreRAPass();
+FunctionPass *createSIOptimizeVGPRLiveRangePass();
 FunctionPass *createSIFixSGPRCopiesPass();
 FunctionPass *createSIMemoryLegalizerPass();
 FunctionPass *createSIInsertWaitcntsPass();
@@ -70,6 +72,7 @@ FunctionPass *createAMDGPUMachineCFGStructurizerPass();
 FunctionPass *createAMDGPUPropagateAttributesEarlyPass(const TargetMachine *);
 ModulePass *createAMDGPUPropagateAttributesLatePass(const TargetMachine *);
 FunctionPass *createAMDGPURewriteOutArgumentsPass();
+ModulePass *createAMDGPUReplaceLDSUseWithPointerPass();
 ModulePass *createAMDGPULowerModuleLDSPass();
 FunctionPass *createSIModeRegisterPass();
 
@@ -143,6 +146,14 @@ struct AMDGPUPropagateAttributesLatePass
 
 private:
   TargetMachine &TM;
+};
+
+void initializeAMDGPUReplaceLDSUseWithPointerPass(PassRegistry &);
+extern char &AMDGPUReplaceLDSUseWithPointerID;
+
+struct AMDGPUReplaceLDSUseWithPointerPass
+    : PassInfoMixin<AMDGPUReplaceLDSUseWithPointerPass> {
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 void initializeAMDGPULowerModuleLDSPass(PassRegistry &);
@@ -287,6 +298,9 @@ struct AMDGPUUnifyMetadataPass : PassInfoMixin<AMDGPUUnifyMetadataPass> {
 void initializeSIOptimizeExecMaskingPreRAPass(PassRegistry&);
 extern char &SIOptimizeExecMaskingPreRAID;
 
+void initializeSIOptimizeVGPRLiveRangePass(PassRegistry &);
+extern char &SIOptimizeVGPRLiveRangeID;
+
 void initializeAMDGPUAnnotateUniformValuesPass(PassRegistry&);
 extern char &AMDGPUAnnotateUniformValuesPassID;
 
@@ -330,9 +344,6 @@ void initializeAMDGPUArgumentUsageInfoPass(PassRegistry &);
 ModulePass *createAMDGPUOpenCLEnqueuedBlockLoweringPass();
 void initializeAMDGPUOpenCLEnqueuedBlockLoweringPass(PassRegistry &);
 extern char &AMDGPUOpenCLEnqueuedBlockLoweringID;
-
-void initializeGCNRegBankReassignPass(PassRegistry &);
-extern char &GCNRegBankReassignID;
 
 void initializeGCNNSAReassignPass(PassRegistry &);
 extern char &GCNNSAReassignID;

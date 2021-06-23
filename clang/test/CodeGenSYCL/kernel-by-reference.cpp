@@ -15,7 +15,7 @@ int simple_add(int i) {
 int main() {
   queue q;
 #if defined(SYCL2020)
-  // expected-warning@#KernelSingleTask2017 {{Passing kernel functions by value is deprecated in SYCL 2020}}
+  // expected-warning@#KernelSingleTask2017 {{passing kernel functions by value is deprecated in SYCL 2020}}
   // expected-note@+3 {{in instantiation of function template specialization}}
 #endif
   q.submit([&](handler &h) {
@@ -23,7 +23,7 @@ int main() {
   });
 
 #if defined(SYCL2017)
-  // expected-warning@#KernelSingleTask {{Passing of kernel functions by reference is a SYCL 2020 extension}}
+  // expected-warning@#KernelSingleTask {{passing of kernel functions by reference is a SYCL 2020 extension}}
   // expected-note@+3 {{in instantiation of function template specialization}}
 #endif
   q.submit([&](handler &h) {

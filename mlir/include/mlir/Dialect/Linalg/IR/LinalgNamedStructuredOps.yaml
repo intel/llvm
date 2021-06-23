@@ -1,9 +1,9 @@
 --- !LinalgOpConfig
 metadata: !LinalgOpMetadata
   name: matmul
-  cpp_op_name: MatmulOp
+  cpp_class_name: MatmulOp
   doc: |-
-    Performs a matrix multiplacation of two 2D inputs.
+    Performs a matrix multiplication of two 2D inputs.
 
     Numeric casting is performed on the operands to the inner multiply, promoting
     them to the same data type as the accumulator/output.
@@ -11,21 +11,21 @@ metadata: !LinalgOpMetadata
   - LinalgContractionOpInterface
 structured_op: !LinalgStructuredOpConfig
   args:
-  - !<LinalgTensorDef>
+  - !LinalgOperandDefConfig
     name: A
     usage: input
     shape: affine_map<()[s0, s1, s2] -> (s0, s2)>
-    element_type_var: T1
-  - !<LinalgTensorDef>
+    type_var: T1
+  - !LinalgOperandDefConfig
     name: B
     usage: input
     shape: affine_map<()[s0, s1, s2] -> (s2, s1)>
-    element_type_var: T2
-  - !<LinalgTensorDef>
+    type_var: T2
+  - !LinalgOperandDefConfig
     name: C
     usage: output
     shape: affine_map<()[s0, s1, s2] -> (s0, s1)>
-    element_type_var: U
+    type_var: U
   indexing_maps: !LinalgIndexingMapsConfig
     static_indexing_maps:
     - affine_map<(d0, d1, d2)[s0, s1, s2] -> (d0, d2)>
@@ -63,9 +63,9 @@ structured_op: !LinalgStructuredOpConfig
 --- !LinalgOpConfig
 metadata: !LinalgOpMetadata
   name: batch_matmul
-  cpp_op_name: BatchMatmulOp
+  cpp_class_name: BatchMatmulOp
   doc: |-
-    Performs a batched matrix multiplacation of two 3D inputs.
+    Performs a batched matrix multiplication of two 3D inputs.
 
     Numeric casting is performed on the operands to the inner multiply, promoting
     them to the same data type as the accumulator/output.
@@ -73,21 +73,21 @@ metadata: !LinalgOpMetadata
   - LinalgContractionOpInterface
 structured_op: !LinalgStructuredOpConfig
   args:
-  - !<LinalgTensorDef>
+  - !LinalgOperandDefConfig
     name: A
     usage: input
     shape: affine_map<()[s0, s1, s2, s3] -> (s0, s1, s3)>
-    element_type_var: T1
-  - !<LinalgTensorDef>
+    type_var: T1
+  - !LinalgOperandDefConfig
     name: B
     usage: input
     shape: affine_map<()[s0, s1, s2, s3] -> (s0, s3, s2)>
-    element_type_var: T2
-  - !<LinalgTensorDef>
+    type_var: T2
+  - !LinalgOperandDefConfig
     name: C
     usage: output
     shape: affine_map<()[s0, s1, s2, s3] -> (s0, s1, s2)>
-    element_type_var: U
+    type_var: U
   indexing_maps: !LinalgIndexingMapsConfig
     static_indexing_maps:
     - affine_map<(d0, d1, d2, d3)[s0, s1, s2, s3] -> (d0, d1, d3)>
@@ -126,7 +126,7 @@ structured_op: !LinalgStructuredOpConfig
 --- !LinalgOpConfig
 metadata: !LinalgOpMetadata
   name: matvec
-  cpp_op_name: MatvecOp
+  cpp_class_name: MatvecOp
   doc: |-
     Performs a matrix-vector multiplication.
 
@@ -136,21 +136,21 @@ metadata: !LinalgOpMetadata
   - LinalgContractionOpInterface
 structured_op: !LinalgStructuredOpConfig
   args:
-  - !<LinalgTensorDef>
+  - !LinalgOperandDefConfig
     name: A
     usage: input
     shape: affine_map<()[s0, s1] -> (s0, s1)>
-    element_type_var: T1
-  - !<LinalgTensorDef>
+    type_var: T1
+  - !LinalgOperandDefConfig
     name: y
     usage: input
     shape: affine_map<()[s0, s1] -> (s1)>
-    element_type_var: T2
-  - !<LinalgTensorDef>
+    type_var: T2
+  - !LinalgOperandDefConfig
     name: x
     usage: output
     shape: affine_map<()[s0, s1] -> (s0)>
-    element_type_var: U
+    type_var: U
   indexing_maps: !LinalgIndexingMapsConfig
     static_indexing_maps:
     - affine_map<(d0, d1)[s0, s1] -> (d0, d1)>
@@ -187,9 +187,9 @@ structured_op: !LinalgStructuredOpConfig
 --- !LinalgOpConfig
 metadata: !LinalgOpMetadata
   name: vecmat
-  cpp_op_name: VecmatOp
+  cpp_class_name: VecmatOp
   doc: |-
-    Performs a vector-matrix multiplacation.
+    Performs a vector-matrix multiplication.
 
     Numeric casting is performed on the operands to the inner multiply, promoting
     them to the same data type as the accumulator/output.
@@ -197,21 +197,21 @@ metadata: !LinalgOpMetadata
   - LinalgContractionOpInterface
 structured_op: !LinalgStructuredOpConfig
   args:
-  - !<LinalgTensorDef>
+  - !LinalgOperandDefConfig
     name: y
     usage: input
     shape: affine_map<()[s0, s1] -> (s1)>
-    element_type_var: T1
-  - !<LinalgTensorDef>
+    type_var: T1
+  - !LinalgOperandDefConfig
     name: A
     usage: input
     shape: affine_map<()[s0, s1] -> (s1, s0)>
-    element_type_var: T2
-  - !<LinalgTensorDef>
+    type_var: T2
+  - !LinalgOperandDefConfig
     name: x
     usage: output
     shape: affine_map<()[s0, s1] -> (s0)>
-    element_type_var: U
+    type_var: U
   indexing_maps: !LinalgIndexingMapsConfig
     static_indexing_maps:
     - affine_map<(d0, d1)[s0, s1] -> (d1)>
@@ -248,7 +248,7 @@ structured_op: !LinalgStructuredOpConfig
 --- !LinalgOpConfig
 metadata: !LinalgOpMetadata
   name: dot
-  cpp_op_name: DotOp
+  cpp_class_name: DotOp
   doc: |-
     Performs a dot product of two vectors to a scalar result.
 
@@ -258,21 +258,21 @@ metadata: !LinalgOpMetadata
   - LinalgContractionOpInterface
 structured_op: !LinalgStructuredOpConfig
   args:
-  - !<LinalgTensorDef>
+  - !LinalgOperandDefConfig
     name: A
     usage: input
     shape: affine_map<()[s0] -> (s0)>
-    element_type_var: T1
-  - !<LinalgTensorDef>
+    type_var: T1
+  - !LinalgOperandDefConfig
     name: B
     usage: input
     shape: affine_map<()[s0] -> (s0)>
-    element_type_var: T2
-  - !<LinalgTensorDef>
+    type_var: T2
+  - !LinalgOperandDefConfig
     name: C
     usage: output
     shape: affine_map<()[s0] -> ()>
-    element_type_var: U
+    type_var: U
   indexing_maps: !LinalgIndexingMapsConfig
     static_indexing_maps:
     - affine_map<(d0)[s0] -> (d0)>
@@ -305,4 +305,156 @@ structured_op: !LinalgStructuredOpConfig
                 operands:
                 - !ScalarExpression
                   scalar_arg: B
+--- !LinalgOpConfig
+metadata: !LinalgOpMetadata
+  name: fill_rng_2d
+  cpp_class_name: FillRng2DOp
+  doc: |-
+    Fills the output tensor with pseudo random numbers.
 
+    The operation generations pseudo random numbers using a linear congruential
+    generator. It provides no guarantees regarding the distribution of the
+    generated random numbers. Instead of generating the random numbers
+    sequentially, it instantiates one random number generator per data element
+    and runs them in parallel. The seed operand and the indices of the data
+    element seed the random number generation. The min and max operands limit
+    the range of the generated random numbers.
+structured_op: !LinalgStructuredOpConfig
+  args:
+  - !LinalgOperandDefConfig
+    name: min
+    usage: input
+    type_var: F64
+  - !LinalgOperandDefConfig
+    name: max
+    usage: input
+    type_var: F64
+  - !LinalgOperandDefConfig
+    name: seed
+    usage: input
+    type_var: I32
+  - !LinalgOperandDefConfig
+    name: O
+    usage: output
+    shape: affine_map<()[s0, s1] -> (s0, s1)>
+    type_var: T
+  indexing_maps: !LinalgIndexingMapsConfig
+    static_indexing_maps:
+    - affine_map<(d0, d1)[s0, s1] -> ()>
+    - affine_map<(d0, d1)[s0, s1] -> ()>
+    - affine_map<(d0, d1)[s0, s1] -> ()>
+    - affine_map<(d0, d1)[s0, s1] -> (d0, d1)>
+  iterator_types:
+  - parallel
+  - parallel
+  assignments:
+  - !ScalarAssign
+    arg: O
+    value: !ScalarExpression
+      symbolic_cast:
+        type_var: T
+        operands:
+        - !ScalarExpression
+          scalar_apply:
+            fn_name: add
+            operands:
+            - !ScalarExpression
+              scalar_apply:
+                fn_name: mul
+                operands:
+                - !ScalarExpression
+                  scalar_apply:
+                    fn_name: add
+                    operands:
+                    - !ScalarExpression
+                      symbolic_cast:
+                        type_var: F64
+                        operands:
+                        - !ScalarExpression
+                          scalar_const: '2147483647 : i64'
+                    - !ScalarExpression
+                      symbolic_cast:
+                        type_var: F64
+                        operands:
+                        - !ScalarExpression
+                          scalar_apply:
+                            fn_name: add
+                            operands:
+                            - !ScalarExpression
+                              scalar_apply:
+                                fn_name: mul
+                                operands:
+                                - !ScalarExpression
+                                  scalar_apply:
+                                    fn_name: add
+                                    operands:
+                                    - !ScalarExpression
+                                      symbolic_cast:
+                                        type_var: I32
+                                        operands:
+                                        - !ScalarExpression
+                                          scalar_index: 1
+                                    - !ScalarExpression
+                                      scalar_apply:
+                                        fn_name: add
+                                        operands:
+                                        - !ScalarExpression
+                                          scalar_apply:
+                                            fn_name: mul
+                                            operands:
+                                            - !ScalarExpression
+                                              scalar_apply:
+                                                fn_name: add
+                                                operands:
+                                                - !ScalarExpression
+                                                  symbolic_cast:
+                                                    type_var: I32
+                                                    operands:
+                                                    - !ScalarExpression
+                                                      scalar_index: 0
+                                                - !ScalarExpression
+                                                  scalar_arg: seed
+                                            - !ScalarExpression
+                                              symbolic_cast:
+                                                type_var: I32
+                                                operands:
+                                                - !ScalarExpression
+                                                  scalar_const: '1103515245 : i64'
+                                        - !ScalarExpression
+                                          symbolic_cast:
+                                            type_var: I32
+                                            operands:
+                                            - !ScalarExpression
+                                              scalar_const: '12345 : i64'
+                                - !ScalarExpression
+                                  symbolic_cast:
+                                    type_var: I32
+                                    operands:
+                                    - !ScalarExpression
+                                      scalar_const: '1103515245 : i64'
+                            - !ScalarExpression
+                              symbolic_cast:
+                                type_var: I32
+                                operands:
+                                - !ScalarExpression
+                                  scalar_const: '12345 : i64'
+                - !ScalarExpression
+                  scalar_apply:
+                    fn_name: mul
+                    operands:
+                    - !ScalarExpression
+                      scalar_apply:
+                        fn_name: sub
+                        operands:
+                        - !ScalarExpression
+                          scalar_arg: max
+                        - !ScalarExpression
+                          scalar_arg: min
+                    - !ScalarExpression
+                      symbolic_cast:
+                        type_var: F64
+                        operands:
+                        - !ScalarExpression
+                          scalar_const: '2.3283063999999999E-10 : f64'
+            - !ScalarExpression
+              scalar_arg: min

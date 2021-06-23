@@ -10,20 +10,19 @@
 
 #include "../PassDetail.h"
 
-#include "mlir/Conversion/ArmSVEToLLVM/ArmSVEToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/AMX/AMXDialect.h"
 #include "mlir/Dialect/AMX/Transforms.h"
-#include "mlir/Dialect/AVX512/AVX512Dialect.h"
-#include "mlir/Dialect/AVX512/Transforms.h"
 #include "mlir/Dialect/ArmNeon/ArmNeonDialect.h"
 #include "mlir/Dialect/ArmSVE/ArmSVEDialect.h"
-#include "mlir/Dialect/LLVMIR/LLVMArmSVEDialect.h"
+#include "mlir/Dialect/ArmSVE/Transforms.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
+#include "mlir/Dialect/X86Vector/Transforms.h"
+#include "mlir/Dialect/X86Vector/X86VectorDialect.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 using namespace mlir;
@@ -38,7 +37,7 @@ struct LowerVectorToLLVMPass
     this->enableArmNeon = options.enableArmNeon;
     this->enableArmSVE = options.enableArmSVE;
     this->enableAMX = options.enableAMX;
-    this->enableAVX512 = options.enableAVX512;
+    this->enableX86Vector = options.enableX86Vector;
   }
   // Override explicitly to allow conditional dialect dependence.
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -47,11 +46,11 @@ struct LowerVectorToLLVMPass
     if (enableArmNeon)
       registry.insert<arm_neon::ArmNeonDialect>();
     if (enableArmSVE)
-      registry.insert<LLVM::LLVMArmSVEDialect>();
+      registry.insert<arm_sve::ArmSVEDialect>();
     if (enableAMX)
       registry.insert<amx::AMXDialect>();
-    if (enableAVX512)
-      registry.insert<avx512::AVX512Dialect>();
+    if (enableX86Vector)
+      registry.insert<x86vector::X86VectorDialect>();
   }
   void runOnOperation() override;
 };
@@ -65,15 +64,17 @@ void LowerVectorToLLVMPass::runOnOperation() {
     populateVectorToVectorCanonicalizationPatterns(patterns);
     populateVectorSlicesLoweringPatterns(patterns);
     populateVectorContractLoweringPatterns(patterns);
+    populateVectorTransposeLoweringPatterns(patterns);
     (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
   }
 
   // Convert to the LLVM IR dialect.
   LLVMTypeConverter converter(&getContext());
   RewritePatternSet patterns(&getContext());
+  populateVectorMaskMaterializationPatterns(patterns, enableIndexOptimizations);
   populateVectorToLLVMMatrixConversionPatterns(converter, patterns);
-  populateVectorToLLVMConversionPatterns(
-      converter, patterns, reassociateFPReductions, enableIndexOptimizations);
+  populateVectorToLLVMConversionPatterns(converter, patterns,
+                                         reassociateFPReductions);
   populateVectorToLLVMMatrixConversionPatterns(converter, patterns);
 
   // Architecture specific augmentations.
@@ -89,34 +90,16 @@ void LowerVectorToLLVMPass::runOnOperation() {
     target.addLegalDialect<arm_neon::ArmNeonDialect>();
   }
   if (enableArmSVE) {
-    target.addLegalDialect<LLVM::LLVMArmSVEDialect>();
-    target.addIllegalDialect<arm_sve::ArmSVEDialect>();
-    auto hasScalableVectorType = [](TypeRange types) {
-      for (Type type : types)
-        if (type.isa<arm_sve::ScalableVectorType>())
-          return true;
-      return false;
-    };
-    // Remove any ArmSVE-specific types from function signatures and results.
-    populateFuncOpTypeConversionPattern(patterns, converter);
-    target.addDynamicallyLegalOp<FuncOp>([hasScalableVectorType](FuncOp op) {
-      return !hasScalableVectorType(op.getType().getInputs()) &&
-             !hasScalableVectorType(op.getType().getResults());
-    });
-    target.addDynamicallyLegalOp<CallOp, CallIndirectOp, ReturnOp>(
-        [hasScalableVectorType](Operation *op) {
-          return !hasScalableVectorType(op->getOperandTypes()) &&
-                 !hasScalableVectorType(op->getResultTypes());
-        });
-    populateArmSVEToLLVMConversionPatterns(converter, patterns);
+    configureArmSVELegalizeForExportTarget(target);
+    populateArmSVELegalizeForLLVMExportPatterns(converter, patterns);
   }
   if (enableAMX) {
     configureAMXLegalizeForExportTarget(target);
     populateAMXLegalizeForLLVMExportPatterns(converter, patterns);
   }
-  if (enableAVX512) {
-    configureAVX512LegalizeForExportTarget(target);
-    populateAVX512LegalizeForLLVMExportPatterns(converter, patterns);
+  if (enableX86Vector) {
+    configureX86VectorLegalizeForExportTarget(target);
+    populateX86VectorLegalizeForLLVMExportPatterns(converter, patterns);
   }
 
   if (failed(

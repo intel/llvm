@@ -7,7 +7,7 @@
 // CHECK-NOT: @_ZN8BaseInitI12TestBaseTypeE15s_regbase_ncsdmE = weak_odr addrspace(1) global %struct._ZTS16RegisterBaseInit.RegisterBaseInit zeroinitializer, comdat, align 1
 // CHECK-NOT: @_ZGVN8BaseInitI12TestBaseTypeE15s_regbase_ncsdmE = weak_odr global i64 0, comdat($_ZN8BaseInitI12TestBaseTypeE9s_regbaseE), align 8
 // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE11fake_kernel()
-// CHECK: call spir_func void @"_ZZ4mainENK3$_0clEv
+// CHECK: call spir_func void @_ZZ4mainENKUlvE_clEv
 
 struct TestBaseType {};
 struct RegisterBaseInit {

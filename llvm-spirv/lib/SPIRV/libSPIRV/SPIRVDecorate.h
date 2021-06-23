@@ -154,7 +154,7 @@ public:
   SPIRVDecorate() : SPIRVDecorateGeneric(OC) {}
 
   llvm::Optional<ExtensionID> getRequiredExtension() const override {
-    switch (Dec) {
+    switch (static_cast<size_t>(Dec)) {
     case DecorationNoSignedWrap:
     case DecorationNoUnsignedWrap:
       return ExtensionID::SPV_KHR_no_integer_wrap_decoration;
@@ -190,8 +190,44 @@ public:
       return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
     case DecorationFuseLoopsInFunctionINTEL:
       return ExtensionID::SPV_INTEL_loop_fuse;
-    case DecorationCallableFunctionINTEL:
+    case internal::DecorationCallableFunctionINTEL:
       return ExtensionID::SPV_INTEL_fast_composite;
+    case internal::DecorationMathOpDSPModeINTEL:
+      return ExtensionID::SPV_INTEL_fpga_dsp_control;
+    case internal::DecorationInitiationIntervalINTEL:
+      return ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes;
+    case internal::DecorationMaxConcurrencyINTEL:
+      return ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes;
+    case internal::DecorationPipelineEnableINTEL:
+      return ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes;
+    default:
+      return {};
+    }
+  }
+
+  _SPIRV_DCL_ENCDEC
+  void setWordCount(SPIRVWord) override;
+  void validate() const override {
+    SPIRVDecorateGeneric::validate();
+    assert(WordCount == Literals.size() + FixedWC);
+  }
+};
+
+class SPIRVDecorateId : public SPIRVDecorateGeneric {
+public:
+  static const Op OC = OpDecorateId;
+  static const SPIRVWord FixedWC = 3;
+  // Complete constructor for decorations with one id operand
+  SPIRVDecorateId(Decoration TheDec, SPIRVEntry *TheTarget, SPIRVId V)
+      : SPIRVDecorateGeneric(OC, 4, TheDec, TheTarget, V) {}
+  // Incomplete constructor
+  SPIRVDecorateId() : SPIRVDecorateGeneric(OC) {}
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    switch (static_cast<int>(Dec)) {
+    case internal::DecorationAliasScopeINTEL:
+    case internal::DecorationNoAliasINTEL:
+      return ExtensionID::SPV_INTEL_memory_access_aliasing;
     default:
       return {};
     }
@@ -645,6 +681,55 @@ public:
                                         SPIRVWord Independent)
       : SPIRVDecorate(spv::DecorationFuseLoopsInFunctionINTEL, TheTarget, Depth,
                       Independent){};
+};
+
+class SPIRVDecorateMathOpDSPModeINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecorateMathOpDSPModeINTEL
+  SPIRVDecorateMathOpDSPModeINTEL(SPIRVEntry *TheTarget, SPIRVWord Mode,
+                                  SPIRVWord Propagate)
+      : SPIRVDecorate(spv::internal::DecorationMathOpDSPModeINTEL, TheTarget,
+                      Mode, Propagate){};
+};
+
+class SPIRVDecorateAliasScopeINTEL : public SPIRVDecorateId {
+public:
+  // Complete constructor for SPIRVDecorateAliasScopeINTEL
+  SPIRVDecorateAliasScopeINTEL(SPIRVEntry *TheTarget, SPIRVId AliasList)
+      : SPIRVDecorateId(spv::internal::DecorationAliasScopeINTEL, TheTarget,
+                        AliasList){};
+};
+
+class SPIRVDecorateNoAliasINTEL : public SPIRVDecorateId {
+public:
+  // Complete constructor for SPIRVDecorateNoAliasINTEL
+  SPIRVDecorateNoAliasINTEL(SPIRVEntry *TheTarget, SPIRVId AliasList)
+      : SPIRVDecorateId(spv::internal::DecorationNoAliasINTEL, TheTarget,
+                        AliasList){};
+};
+
+class SPIRVDecorateInitiationIntervalINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecorateInitiationIntervalINTEL
+  SPIRVDecorateInitiationIntervalINTEL(SPIRVEntry *TheTarget, SPIRVWord Cycles)
+      : SPIRVDecorate(spv::internal::DecorationInitiationIntervalINTEL,
+                      TheTarget, Cycles){};
+};
+
+class SPIRVDecorateMaxConcurrencyINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecorateMaxConcurrencyINTEL
+  SPIRVDecorateMaxConcurrencyINTEL(SPIRVEntry *TheTarget, SPIRVWord Invocations)
+      : SPIRVDecorate(spv::internal::DecorationMaxConcurrencyINTEL, TheTarget,
+                      Invocations){};
+};
+
+class SPIRVDecoratePipelineEnableINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecoratePipelineEnableINTEL
+  SPIRVDecoratePipelineEnableINTEL(SPIRVEntry *TheTarget, SPIRVWord Enable)
+      : SPIRVDecorate(spv::internal::DecorationPipelineEnableINTEL, TheTarget,
+                      Enable){};
 };
 
 } // namespace SPIRV

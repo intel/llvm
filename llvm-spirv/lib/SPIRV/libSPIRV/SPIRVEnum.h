@@ -43,6 +43,7 @@
 #include "LLVMSPIRVOpts.h"
 #include "SPIRVOpCode.h"
 #include "spirv.hpp"
+#include "spirv_internal.hpp"
 #include <cstdint>
 using namespace spv;
 
@@ -258,8 +259,8 @@ template <> inline void SPIRVMap<SPIRVExecutionModeKind, SPIRVCapVec>::init() {
                {CapabilityFloatingPointModeINTEL});
   ADD_VEC_INIT(ExecutionModeSharedLocalMemorySizeINTEL,
                {CapabilityVectorComputeINTEL});
-  ADD_VEC_INIT(ExecutionModeFastCompositeKernelINTEL,
-               {CapabilityFastCompositeINTEL});
+  ADD_VEC_INIT(internal::ExecutionModeFastCompositeKernelINTEL,
+               {internal::CapabilityFastCompositeINTEL});
 }
 
 template <> inline void SPIRVMap<SPIRVMemoryModelKind, SPIRVCapVec>::init() {
@@ -422,10 +423,23 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {CapabilityFunctionFloatControlINTEL});
   ADD_VEC_INIT(DecorationSingleElementVectorINTEL,
                {CapabilityVectorComputeINTEL});
-  ADD_VEC_INIT(DecorationCallableFunctionINTEL, {CapabilityFastCompositeINTEL});
+  ADD_VEC_INIT(internal::DecorationCallableFunctionINTEL,
+               {internal::CapabilityFastCompositeINTEL});
   ADD_VEC_INIT(DecorationStallEnableINTEL,
                {CapabilityFPGAClusterAttributesINTEL});
   ADD_VEC_INIT(DecorationFuseLoopsInFunctionINTEL, {CapabilityLoopFuseINTEL});
+  ADD_VEC_INIT(internal::DecorationMathOpDSPModeINTEL,
+               {internal::CapabilityFPGADSPControlINTEL});
+  ADD_VEC_INIT(internal::DecorationAliasScopeINTEL,
+               {internal::CapabilityMemoryAccessAliasingINTEL});
+  ADD_VEC_INIT(internal::DecorationNoAliasINTEL,
+               {internal::CapabilityMemoryAccessAliasingINTEL});
+  ADD_VEC_INIT(internal::DecorationInitiationIntervalINTEL,
+               {internal::CapabilityFPGAInvocationPipeliningAttributesINTEL});
+  ADD_VEC_INIT(internal::DecorationMaxConcurrencyINTEL,
+               {internal::CapabilityFPGAInvocationPipeliningAttributesINTEL});
+  ADD_VEC_INIT(internal::DecorationPipelineEnableINTEL,
+               {internal::CapabilityFPGAInvocationPipeliningAttributesINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {

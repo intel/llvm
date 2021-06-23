@@ -1,4 +1,5 @@
 ! RUN: %S/test_errors.sh %s %t %flang -fopenmp
+! REQUIRES: shell
 ! OpenMP Version 4.5
 ! 2.7.4 workshare Construct
 ! Checks for OpenMP Parallel constructs enclosed in Workshare constructs
@@ -40,6 +41,7 @@ program omp_workshare
   !$omp end single
   !$omp end parallel
 
+  !ERROR: A worksharing region may not be closely nested inside a worksharing, explicit task, taskloop, critical, ordered, atomic, or master region
   !$omp parallel sections
   !$omp section
   aa = my_func()

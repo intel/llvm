@@ -133,6 +133,12 @@ PPCRegisterInfo::PPCRegisterInfo(const PPCTargetMachine &TM)
   ImmToIdxMap[PPC::EVSTDD] = PPC::EVSTDDX;
   ImmToIdxMap[PPC::SPESTW] = PPC::SPESTWX;
   ImmToIdxMap[PPC::SPELWZ] = PPC::SPELWZX;
+
+  // Power10
+  ImmToIdxMap[PPC::LXVP]   = PPC::LXVPX;
+  ImmToIdxMap[PPC::STXVP]  = PPC::STXVPX;
+  ImmToIdxMap[PPC::PLXVP]  = PPC::LXVPX;
+  ImmToIdxMap[PPC::PSTXVP] = PPC::STXVPX;
 }
 
 /// getPointerRegClass - Return the register class to use to hold pointers.
@@ -159,10 +165,16 @@ PPCRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   if (MF->getFunction().getCallingConv() == CallingConv::AnyReg) {
     if (!TM.isPPC64() && Subtarget.isAIXABI())
       report_fatal_error("AnyReg unimplemented on 32-bit AIX.");
-    if (Subtarget.hasVSX())
+    if (Subtarget.hasVSX()) {
+      if (Subtarget.isAIXABI() && !TM.getAIXExtendedAltivecABI())
+        return CSR_64_AllRegs_AIX_Dflt_VSX_SaveList;
       return CSR_64_AllRegs_VSX_SaveList;
-    if (Subtarget.hasAltivec())
+    }
+    if (Subtarget.hasAltivec()) {
+      if (Subtarget.isAIXABI() && !TM.getAIXExtendedAltivecABI())
+        return CSR_64_AllRegs_AIX_Dflt_Altivec_SaveList;
       return CSR_64_AllRegs_Altivec_SaveList;
+    }
     return CSR_64_AllRegs_SaveList;
   }
 
@@ -222,10 +234,16 @@ PPCRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
                                       CallingConv::ID CC) const {
   const PPCSubtarget &Subtarget = MF.getSubtarget<PPCSubtarget>();
   if (CC == CallingConv::AnyReg) {
-    if (Subtarget.hasVSX())
+    if (Subtarget.hasVSX()) {
+      if (Subtarget.isAIXABI() && !TM.getAIXExtendedAltivecABI())
+        return CSR_64_AllRegs_AIX_Dflt_VSX_RegMask;
       return CSR_64_AllRegs_VSX_RegMask;
-    if (Subtarget.hasAltivec())
+    }
+    if (Subtarget.hasAltivec()) {
+      if (Subtarget.isAIXABI() && !TM.getAIXExtendedAltivecABI())
+        return CSR_64_AllRegs_AIX_Dflt_Altivec_RegMask;
       return CSR_64_AllRegs_Altivec_RegMask;
+    }
     return CSR_64_AllRegs_RegMask;
   }
 
@@ -345,6 +363,9 @@ BitVector PPCRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
       if (Reg == 0)
         break;
       markSuperRegs(Reserved, Reg);
+      for (MCRegAliasIterator AS(Reg, this, true); AS.isValid(); ++AS) {
+        Reserved.set(*AS);
+      }
     }
   }
 
@@ -358,22 +379,32 @@ bool PPCRegisterInfo::requiresFrameIndexScavenging(const MachineFunction &MF) co
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const std::vector<CalleeSavedInfo> &Info = MFI.getCalleeSavedInfo();
 
+  LLVM_DEBUG(dbgs() << "requiresFrameIndexScavenging for " << MF.getName()
+                    << ".\n");
   // If the callee saved info is invalid we have to default to true for safety.
-  if (!MFI.isCalleeSavedInfoValid())
+  if (!MFI.isCalleeSavedInfoValid()) {
+    LLVM_DEBUG(dbgs() << "TRUE - Invalid callee saved info.\n");
     return true;
+  }
 
   // We will require the use of X-Forms because the frame is larger than what
   // can be represented in signed 16 bits that fit in the immediate of a D-Form.
   // If we need an X-Form then we need a register to store the address offset.
   unsigned FrameSize = MFI.getStackSize();
   // Signed 16 bits means that the FrameSize cannot be more than 15 bits.
-  if (FrameSize & ~0x7FFF)
+  if (FrameSize & ~0x7FFF) {
+    LLVM_DEBUG(dbgs() << "TRUE - Frame size is too large for D-Form.\n");
     return true;
+  }
 
   // The callee saved info is valid so it can be traversed.
   // Checking for registers that need saving that do not have load or store
   // forms where the address offset is an immediate.
   for (unsigned i = 0; i < Info.size(); i++) {
+    // If the spill is to a register no scavenging is required.
+    if (Info[i].isSpilledToReg())
+      continue;
+
     int FrIdx = Info[i].getFrameIdx();
     unsigned Reg = Info[i].getReg();
 
@@ -382,8 +413,13 @@ bool PPCRegisterInfo::requiresFrameIndexScavenging(const MachineFunction &MF) co
     if (!MFI.isFixedObjectIndex(FrIdx)) {
       // This is not a fixed object. If it requires alignment then we may still
       // need to use the XForm.
-      if (offsetMinAlignForOpcode(Opcode) > 1)
+      if (offsetMinAlignForOpcode(Opcode) > 1) {
+        LLVM_DEBUG(dbgs() << "Memory Operand: " << InstrInfo->getName(Opcode)
+                          << " for register " << printReg(Reg, this) << ".\n");
+        LLVM_DEBUG(dbgs() << "TRUE - Not fixed frame object that requires "
+                          << "alignment.\n");
         return true;
+      }
     }
 
     // This is eiher:
@@ -392,10 +428,25 @@ bool PPCRegisterInfo::requiresFrameIndexScavenging(const MachineFunction &MF) co
     // need to consider the alignment here.
     // 2) A not fixed object but in that case we now know that the min required
     // alignment is no more than 1 based on the previous check.
-    if (InstrInfo->isXFormMemOp(Opcode))
+    if (InstrInfo->isXFormMemOp(Opcode)) {
+      LLVM_DEBUG(dbgs() << "Memory Operand: " << InstrInfo->getName(Opcode)
+                        << " for register " << printReg(Reg, this) << ".\n");
+      LLVM_DEBUG(dbgs() << "TRUE - Memory operand is X-Form.\n");
       return true;
+    }
   }
+  LLVM_DEBUG(dbgs() << "FALSE - Scavenging is not required.\n");
   return false;
+}
+
+bool PPCRegisterInfo::requiresVirtualBaseRegisters(
+    const MachineFunction &MF) const {
+  const PPCSubtarget &Subtarget = MF.getSubtarget<PPCSubtarget>();
+  // Do not use virtual base registers when ROP protection is turned on.
+  // Virtual base registers break the layout of the local variable space and may
+  // push the ROP Hash location past the 512 byte range of the ROP store
+  // instruction.
+  return !Subtarget.hasROPProtect();
 }
 
 bool PPCRegisterInfo::isCallerPreservedPhysReg(MCRegister PhysReg,
@@ -469,6 +520,8 @@ const TargetRegisterClass *
 PPCRegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
                                            const MachineFunction &MF) const {
   const PPCSubtarget &Subtarget = MF.getSubtarget<PPCSubtarget>();
+  const auto *DefaultSuperclass =
+      TargetRegisterInfo::getLargestLegalSuperClass(RC, MF);
   if (Subtarget.hasVSX()) {
     // With VSX, we can inflate various sub-register classes to the full VSX
     // register set.
@@ -485,15 +538,27 @@ PPCRegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
       if (RC == &PPC::GPRCRegClass && EnableGPRToVecSpills)
         InflateGPRC++;
     }
-    if (RC == &PPC::F8RCRegClass)
-      return &PPC::VSFRCRegClass;
-    else if (RC == &PPC::VRRCRegClass)
-      return &PPC::VSRCRegClass;
-    else if (RC == &PPC::F4RCRegClass && Subtarget.hasP8Vector())
-      return &PPC::VSSRCRegClass;
+
+    for (const auto *I = RC->getSuperClasses(); *I; ++I) {
+      if (getRegSizeInBits(**I) != getRegSizeInBits(*RC))
+        continue;
+
+      switch ((*I)->getID()) {
+      case PPC::VSSRCRegClassID:
+        return Subtarget.hasP8Vector() ? *I : DefaultSuperclass;
+      case PPC::VSFRCRegClassID:
+      case PPC::VSRCRegClassID:
+        return *I;
+      case PPC::VSRpRCRegClassID:
+        return Subtarget.pairedVectorMemops() ? *I : DefaultSuperclass;
+      case PPC::ACCRCRegClassID:
+      case PPC::UACCRCRegClassID:
+        return Subtarget.hasMMA() ? *I : DefaultSuperclass;
+      }
+    }
   }
 
-  return TargetRegisterInfo::getLargestLegalSuperClass(RC, MF);
+  return DefaultSuperclass;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1087,6 +1152,59 @@ void PPCRegisterInfo::lowerACCRestore(MachineBasicBlock::iterator II,
   MBB.erase(II);
 }
 
+/// lowerQuadwordSpilling - Generate code to spill paired general register.
+void PPCRegisterInfo::lowerQuadwordSpilling(MachineBasicBlock::iterator II,
+                                            unsigned FrameIndex) const {
+  MachineInstr &MI = *II;
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineFunction &MF = *MBB.getParent();
+  const PPCSubtarget &Subtarget = MF.getSubtarget<PPCSubtarget>();
+  const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
+  DebugLoc DL = MI.getDebugLoc();
+
+  Register SrcReg = MI.getOperand(0).getReg();
+  bool IsKilled = MI.getOperand(0).isKill();
+
+  Register Reg = PPC::X0 + (SrcReg - PPC::G8p0) * 2;
+  bool IsLittleEndian = Subtarget.isLittleEndian();
+
+  addFrameReference(BuildMI(MBB, II, DL, TII.get(PPC::STD))
+                        .addReg(Reg, getKillRegState(IsKilled)),
+                    FrameIndex, IsLittleEndian ? 8 : 0);
+  addFrameReference(BuildMI(MBB, II, DL, TII.get(PPC::STD))
+                        .addReg(Reg + 1, getKillRegState(IsKilled)),
+                    FrameIndex, IsLittleEndian ? 0 : 8);
+
+  // Discard the pseudo instruction.
+  MBB.erase(II);
+}
+
+/// lowerQuadwordRestore - Generate code to restore paired general register.
+void PPCRegisterInfo::lowerQuadwordRestore(MachineBasicBlock::iterator II,
+                                           unsigned FrameIndex) const {
+  MachineInstr &MI = *II;
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineFunction &MF = *MBB.getParent();
+  const PPCSubtarget &Subtarget = MF.getSubtarget<PPCSubtarget>();
+  const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
+  DebugLoc DL = MI.getDebugLoc();
+
+  Register DestReg = MI.getOperand(0).getReg();
+  assert(MI.definesRegister(DestReg) &&
+         "RESTORE_QUADWORD does not define its destination");
+
+  Register Reg = PPC::X0 + (DestReg - PPC::G8p0) * 2;
+  bool IsLittleEndian = Subtarget.isLittleEndian();
+
+  addFrameReference(BuildMI(MBB, II, DL, TII.get(PPC::LD), Reg), FrameIndex,
+                    IsLittleEndian ? 8 : 0);
+  addFrameReference(BuildMI(MBB, II, DL, TII.get(PPC::LD), Reg + 1), FrameIndex,
+                    IsLittleEndian ? 0 : 8);
+
+  // Discard the pseudo instruction.
+  MBB.erase(II);
+}
+
 bool PPCRegisterInfo::hasReservedSpillSlot(const MachineFunction &MF,
                                            Register Reg, int &FrameIdx) const {
   // For the nonvolatile condition registers (CR2, CR3, CR4) return true to
@@ -1123,12 +1241,16 @@ static unsigned offsetMinAlignForOpcode(unsigned OpC) {
   case PPC::LXSSP:
   case PPC::STXSD:
   case PPC::STXSSP:
+  case PPC::STQ:
     return 4;
   case PPC::EVLDD:
   case PPC::EVSTDD:
     return 8;
   case PPC::LXV:
   case PPC::STXV:
+  case PPC::LQ:
+  case PPC::LXVP:
+  case PPC::STXVP:
     return 16;
   }
 }
@@ -1224,6 +1346,12 @@ PPCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   } else if (OpC == PPC::RESTORE_ACC || OpC == PPC::RESTORE_UACC) {
     lowerACCRestore(II, FrameIndex);
     return;
+  } else if (OpC == PPC::SPILL_QUADWORD) {
+    lowerQuadwordSpilling(II, FrameIndex);
+    return;
+  } else if (OpC == PPC::RESTORE_QUADWORD) {
+    lowerQuadwordRestore(II, FrameIndex);
+    return;
   }
 
   // Replace the FrameIndex with base register with GPR1 (SP) or GPR31 (FP).
@@ -1250,6 +1378,16 @@ PPCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       Offset += MFI.getStackSize();
   }
 
+  // If we encounter an LXVP/STXVP with an offset that doesn't fit, we can
+  // transform it to the prefixed version so we don't have to use the XForm.
+  if ((OpC == PPC::LXVP || OpC == PPC::STXVP) &&
+      (!isInt<16>(Offset) || (Offset % offsetMinAlign(MI)) != 0) &&
+      Subtarget.hasPrefixInstrs()) {
+    unsigned NewOpc = OpC == PPC::LXVP ? PPC::PLXVP : PPC::PSTXVP;
+    MI.setDesc(TII.get(NewOpc));
+    OpC = NewOpc;
+  }
+
   // If we can, encode the offset directly into the instruction.  If this is a
   // normal PPC "ri" instruction, any 16-bit value can be safely encoded.  If
   // this is a PPC64 "ix" instruction, only a 16-bit value with the low two bits
@@ -1258,9 +1396,13 @@ PPCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   // happen in invalid code.
   assert(OpC != PPC::DBG_VALUE &&
          "This should be handled in a target-independent way");
+  // FIXME: This should be factored out to a separate function as prefixed
+  // instructions add a number of opcodes for which we can use 34-bit imm.
   bool OffsetFitsMnemonic = (OpC == PPC::EVSTDD || OpC == PPC::EVLDD) ?
                             isUInt<8>(Offset) :
                             isInt<16>(Offset);
+  if (OpC == PPC::PLXVP || OpC == PPC::PSTXVP)
+    OffsetFitsMnemonic = isInt<34>(Offset);
   if (!noImmForm && ((OffsetFitsMnemonic &&
                       ((Offset % offsetMinAlign(MI)) == 0)) ||
                      OpC == TargetOpcode::STACKMAP ||

@@ -215,7 +215,7 @@ const DeclTypeSpec *Scope::GetType(const SomeExpr &expr) {
       case TypeCategory::Complex:
         return &MakeNumericType(dyType->category(), KindExpr{dyType->kind()});
       case TypeCategory::Character:
-        if (const ParamValue * lenParam{dyType->charLength()}) {
+        if (const ParamValue * lenParam{dyType->charLengthParamValue()}) {
           return &MakeCharacterType(
               ParamValue{*lenParam}, KindExpr{dyType->kind()});
         } else {
@@ -318,7 +318,7 @@ Scope *Scope::FindScope(parser::CharBlock source) {
 }
 
 void Scope::AddSourceRange(const parser::CharBlock &source) {
-  for (auto *scope = this; !scope->IsGlobal(); scope = &scope->parent()) {
+  for (auto *scope{this}; !scope->IsGlobal(); scope = &scope->parent()) {
     scope->sourceRange_.ExtendToCover(source);
   }
 }
@@ -408,7 +408,7 @@ void Scope::InstantiateDerivedTypes() {
   for (DeclTypeSpec &type : declTypeSpecs_) {
     if (type.category() == DeclTypeSpec::TypeDerived ||
         type.category() == DeclTypeSpec::ClassDerived) {
-      type.derivedTypeSpec().Instantiate(*this, context_);
+      type.derivedTypeSpec().Instantiate(*this);
     }
   }
 }

@@ -238,6 +238,12 @@ void FromElementsOp::build(OpBuilder &builder, OperationState &result,
   build(builder, result, elements.front().getType(), elements);
 }
 
+OpFoldResult FromElementsOp::fold(ArrayRef<Attribute> operands) {
+  if (!llvm::is_contained(operands, nullptr))
+    return DenseElementsAttr::get(getType(), operands);
+  return {};
+}
+
 namespace {
 
 // Canonicalizes the pattern of the form
@@ -278,6 +284,28 @@ struct ExtractElementFromTensorFromElements
 void FromElementsOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                  MLIRContext *context) {
   results.add<ExtractElementFromTensorFromElements>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// InsertOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(InsertOp op) {
+  // Verify the # indices match if we have a ranked type.
+  if (auto destType = op.dest().getType().dyn_cast<RankedTensorType>())
+    if (destType.getRank() != static_cast<int64_t>(op.indices().size()))
+      return op.emitOpError("incorrect number of indices");
+  return success();
+}
+
+OpFoldResult InsertOp::fold(ArrayRef<Attribute> operands) {
+  Attribute scalar = operands[0];
+  Attribute dest = operands[1];
+  if (scalar && dest)
+    if (auto splatDest = dest.dyn_cast<SplatElementsAttr>())
+      if (scalar == splatDest.getSplatValue())
+        return dest;
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
@@ -440,6 +468,47 @@ void GenerateOp::getCanonicalizationPatterns(RewritePatternSet &results,
   // TODO: Move extract patterns to tensor::ExtractOp.
   results.add<ExtractFromTensorGenerate, ExtractFromTensorCast,
               StaticTensorGenerate>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// ReshapeOp
+//===----------------------------------------------------------------------===//
+
+static int64_t GetNumElements(ShapedType type) {
+  int64_t numElements = 1;
+  for (auto dim : type.getShape())
+    numElements *= dim;
+  return numElements;
+}
+
+static LogicalResult verify(ReshapeOp op) {
+  TensorType operandType = op.source().getType().cast<TensorType>();
+  TensorType resultType = op.result().getType().cast<TensorType>();
+
+  if (operandType.getElementType() != resultType.getElementType())
+    return op.emitOpError("element types of source and destination tensor "
+                          "types should be the same");
+
+  int64_t shapeSize =
+      op.shape().getType().cast<RankedTensorType>().getDimSize(0);
+  auto resultRankedType = resultType.dyn_cast<RankedTensorType>();
+  auto operandRankedType = operandType.dyn_cast<RankedTensorType>();
+
+  if (resultRankedType) {
+    if (operandRankedType && resultRankedType.hasStaticShape() &&
+        operandRankedType.hasStaticShape()) {
+      if (GetNumElements(operandRankedType) != GetNumElements(resultRankedType))
+        return op.emitOpError("source and destination tensor should have the "
+                              "same number of elements");
+    }
+    if (shapeSize == TensorType::kDynamicSize)
+      return op.emitOpError("cannot use shape operand with dynamic length to "
+                            "reshape to statically-ranked tensor type");
+    if (shapeSize != resultRankedType.getRank())
+      return op.emitOpError(
+          "length of shape operand differs from the result's tensor rank");
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

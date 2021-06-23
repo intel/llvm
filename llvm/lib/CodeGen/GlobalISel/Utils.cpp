@@ -365,6 +365,14 @@ Optional<ValueAndVReg> llvm::getConstantVRegValWithLookThrough(
   return ValueAndVReg{Val, VReg};
 }
 
+const ConstantInt *llvm::getConstantIntVRegVal(Register VReg,
+                                               const MachineRegisterInfo &MRI) {
+  MachineInstr *MI = MRI.getVRegDef(VReg);
+  if (MI->getOpcode() != TargetOpcode::G_CONSTANT)
+    return nullptr;
+  return MI->getOperand(1).getCImm();
+}
+
 const ConstantFP *
 llvm::getConstantFPVRegVal(Register VReg, const MachineRegisterInfo &MRI) {
   MachineInstr *MI = MRI.getVRegDef(VReg);
@@ -988,4 +996,13 @@ bool llvm::shouldOptForSize(const MachineBasicBlock &MBB,
   const auto &F = MBB.getParent()->getFunction();
   return F.hasOptSize() || F.hasMinSize() ||
          llvm::shouldOptimizeForSize(MBB.getBasicBlock(), PSI, BFI);
+}
+
+unsigned llvm::getIntrinsicID(const MachineInstr &MI) {
+#ifndef NDEBUG
+  unsigned Opc = MI.getOpcode();
+  assert(Opc == TargetOpcode::G_INTRINSIC ||
+         Opc == TargetOpcode::G_INTRINSIC_W_SIDE_EFFECTS);
+#endif
+  return MI.getOperand(MI.getNumExplicitDefs()).getIntrinsicID();
 }

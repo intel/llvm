@@ -38,20 +38,25 @@
 ///
 //===----------------------------------------------------------------------===//
 
+#ifndef SPIRVTOOCL_H
+#define SPIRVTOOCL_H
+
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
 #include "llvm/IR/InstVisitor.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
 #include <string>
 
 namespace SPIRV {
-class SPIRVToOCL : public ModulePass, public InstVisitor<SPIRVToOCL> {
-protected:
-  SPIRVToOCL(char &ID) : ModulePass(ID), M(nullptr), Ctx(nullptr) {}
 
+class SPIRVToOCLBase : public InstVisitor<SPIRVToOCLBase> {
 public:
-  virtual bool runOnModule(Module &M) override = 0;
+  SPIRVToOCLBase() : M(nullptr), Ctx(nullptr) {}
+  virtual ~SPIRVToOCLBase() {}
+
+  virtual bool runSPIRVToOCL(Module &M) = 0;
 
   void visitCallInst(CallInst &CI);
 
@@ -98,6 +103,10 @@ public:
   ///  intel_sub_group_media_block_write
   void visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC);
 
+  /// Transform __spirv_OpGenericCastToPtrExplicit_To{Global|Local|Private} to
+  /// to_{global|local|private} OCL builtin.
+  void visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI, Op OC);
+
   /// Transform __spirv_*Convert_R{ReturnType}{_sat}{_rtp|_rtn|_rtz|_rte} to
   /// convert_{ReturnType}_{sat}{_rtp|_rtn|_rtz|_rte}
   /// example:  <2 x i8> __spirv_SatConvertUToS(<2 x i32>) =>
@@ -113,9 +122,28 @@ public:
   ///   => wait_group_events(NumEvents, EventsList)
   void visitCallGroupWaitEvents(CallInst *CI, Op OC);
 
+  /// Transform __spirv_ImageSampleExplicitLod__{ReturnType} to read_imade
+  void visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI, Op OC);
+
+  /// Transform __spirv_ImageWrite to write_image
+  void visitCallSPIRVImageWriteBuiltIn(CallInst *CI, Op OC);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
+
+  /// Transform __spirv_ocl* instructions (OpenCL Extended Instruction Set)
+  /// to OpenCL builtins.
+  void visitCallSPIRVOCLExt(CallInst *CI, OCLExtOpKind Kind);
+
+  /// Transform __spirv_ocl_vstore* to corresponding vstore OpenCL instruction
+  void visitCallSPIRVVStore(CallInst *CI, OCLExtOpKind Kind);
+
+  /// Transform __spirv_ocl_vloadn to OpenCL vload[2|4|8|16]
+  void visitCallSPIRVVLoadn(CallInst *CI, OCLExtOpKind Kind);
+
+  /// Transform __spirv_ocl_printf to (i8 addrspace(2)*, ...) @printf
+  void visitCallSPIRVPrintf(CallInst *CI, OCLExtOpKind Kind);
 
   /// Get prefix work_/sub_ for OCL group builtin functions.
   /// Assuming the first argument of \param CI is a constant integer for
@@ -154,7 +182,9 @@ public:
   /// using separate maps for OpenCL 1.2 and OpenCL 2.0
   virtual Instruction *mutateAtomicName(CallInst *CI, Op OC) = 0;
 
-private:
+  // Transform FP atomic opcode to corresponding OpenCL function name
+  virtual std::string mapFPAtomicName(Op OC) = 0;
+
   /// Transform uniform group opcode to corresponding OpenCL function name,
   /// example: GroupIAdd(Reduce) => group_iadd => work_group_reduce_add |
   /// sub_group_reduce_add
@@ -170,17 +200,21 @@ private:
   /// Transform group opcode to corresponding OpenCL function name
   std::string groupOCToOCLBuiltinName(CallInst *CI, Op OC);
 
-protected:
   Module *M;
   LLVMContext *Ctx;
 };
 
-class SPIRVToOCL12 : public SPIRVToOCL {
+class SPIRVToOCLLegacy : public ModulePass {
+protected:
+  SPIRVToOCLLegacy(char &ID) : ModulePass(ID) {}
+
 public:
-  SPIRVToOCL12() : SPIRVToOCL(ID) {
-    initializeSPIRVToOCL12Pass(*PassRegistry::getPassRegistry());
-  }
-  bool runOnModule(Module &M) override;
+  bool runOnModule(Module &M) override = 0;
+};
+
+class SPIRVToOCL12Base : public SPIRVToOCLBase {
+public:
+  bool runSPIRVToOCL(Module &M) override;
 
   /// Transform __spirv_MemoryBarrier to atomic_work_item_fence.
   ///   __spirv_MemoryBarrier(scope, sema) =>
@@ -230,21 +264,39 @@ public:
   /// Transform atomic builtin name into correct ocl-dependent name
   Instruction *mutateAtomicName(CallInst *CI, Op OC) override;
 
+  // Transform FP atomic opcode to corresponding OpenCL function name
+  std::string mapFPAtomicName(Op OC) override;
+
   /// Transform SPIR-V atomic instruction opcode into OpenCL 1.2 builtin name.
   /// Depending on the type, the return name starts with "atomic_" for 32-bit
   /// types or with "atom_" for 64-bit types, as specified by
   /// cl_khr_int64_base_atomics and cl_khr_int64_extended_atomics extensions.
   std::string mapAtomicName(Op OC, Type *Ty);
+};
+
+class SPIRVToOCL12Pass : public llvm::PassInfoMixin<SPIRVToOCL12Pass>,
+                         public SPIRVToOCL12Base {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    return runSPIRVToOCL(M) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+  }
+};
+
+class SPIRVToOCL12Legacy : public SPIRVToOCL12Base, public SPIRVToOCLLegacy {
+public:
+  SPIRVToOCL12Legacy() : SPIRVToOCLLegacy(ID) {
+    initializeSPIRVToOCL12LegacyPass(*PassRegistry::getPassRegistry());
+  }
+  bool runOnModule(Module &M) override;
 
   static char ID;
 };
 
-class SPIRVToOCL20 : public SPIRVToOCL {
+class SPIRVToOCL20Base : public SPIRVToOCLBase {
 public:
-  SPIRVToOCL20() : SPIRVToOCL(ID) {
-    initializeSPIRVToOCL20Pass(*PassRegistry::getPassRegistry());
-  }
-  bool runOnModule(Module &M) override;
+  bool runSPIRVToOCL(Module &M) override;
 
   /// Transform __spirv_MemoryBarrier to atomic_work_item_fence.
   ///   __spirv_MemoryBarrier(scope, sema) =>
@@ -275,11 +327,33 @@ public:
   /// Transform atomic builtin name into correct ocl-dependent name
   Instruction *mutateAtomicName(CallInst *CI, Op OC) override;
 
+  // Transform FP atomic opcode to corresponding OpenCL function name
+  std::string mapFPAtomicName(Op OC) override;
+
   /// Transform __spirv_OpAtomicCompareExchange/Weak into
   /// compare_exchange_strong/weak_explicit
   Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) override;
+};
 
+class SPIRVToOCL20Pass : public llvm::PassInfoMixin<SPIRVToOCL20Pass>,
+                         public SPIRVToOCL20Base {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    return runSPIRVToOCL(M) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+  }
+};
+
+class SPIRVToOCL20Legacy : public SPIRVToOCLLegacy, public SPIRVToOCL20Base {
+public:
+  SPIRVToOCL20Legacy() : SPIRVToOCLLegacy(ID) {
+    initializeSPIRVToOCL20LegacyPass(*PassRegistry::getPassRegistry());
+  }
+  bool runOnModule(Module &M) override;
   static char ID;
 };
 
 } // namespace SPIRV
+
+#endif // SPIRVTOOCL_H

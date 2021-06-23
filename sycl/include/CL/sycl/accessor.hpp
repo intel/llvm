@@ -203,19 +203,19 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+class stream;
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 namespace detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
 } // namespace detail
-} // namespace gpu
-} // namespace INTEL
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
-
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 
 template <typename DataT, int Dimensions = 1,
           access::mode AccessMode = access::mode::read_write,
@@ -471,7 +471,8 @@ private:
 #endif
 
 private:
-  friend class sycl::INTEL::gpu::detail::AccessorPrivateProxy;
+  friend class sycl::ext::intel::experimental::esimd::detail::
+      AccessorPrivateProxy;
 
 #ifdef __SYCL_DEVICE_ONLY__
   const OCLImageTy getNativeImageObj() const { return MImageObj; }
@@ -510,7 +511,7 @@ public:
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                          Dimensions, ImageElementSize),
-        MImageCount(ImageRef.get_count()),
+        MImageCount(ImageRef.size()),
         MImgChannelOrder(detail::getSyclObjImpl(ImageRef)->getChannelOrder()),
         MImgChannelType(detail::getSyclObjImpl(ImageRef)->getChannelType()) {
     addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -541,7 +542,7 @@ public:
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                          Dimensions, ImageElementSize),
-        MImageCount(ImageRef.get_count()),
+        MImageCount(ImageRef.size()),
         MImgChannelOrder(detail::getSyclObjImpl(ImageRef)->getChannelOrder()),
         MImgChannelType(detail::getSyclObjImpl(ImageRef)->getChannelType()) {
     checkDeviceFeatureSupported<info::device::image_support>(
@@ -574,7 +575,9 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-  size_t get_count() const { return get_range<Dimensions>().size(); }
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); }
+  size_t size() const noexcept { return get_range<Dimensions>().size(); }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
   range<1> get_range() const {
@@ -593,7 +596,9 @@ public:
   }
 
 #else
-  size_t get_count() const { return MImageCount; };
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); };
+  size_t size() const noexcept { return MImageCount; };
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   range<Dims> get_range() const {
@@ -728,7 +733,9 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  size_t get_count() const { return get_range<Dimensions>().size(); }
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); }
+  size_t size() const noexcept { return get_range<Dimensions>().size(); }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
   range<1> get_range() const {
@@ -743,7 +750,9 @@ public:
 
 #else
 
-  size_t get_count() const {
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); }
+  size_t size() const noexcept {
     return MBaseAcc.MImageCount / MBaseAcc.getAccessRange()[Dimensions];
   }
 
@@ -837,7 +846,8 @@ protected:
   static access::mode getAdjustedMode(const PropertyListT &PropertyList) {
     access::mode AdjustedMode = AccessMode;
 
-    if (PropertyList.template has_property<property::noinit>()) {
+    if (PropertyList.template has_property<property::no_init>() ||
+        PropertyList.template has_property<property::noinit>()) {
       if (AdjustedMode == access::mode::write) {
         AdjustedMode = access::mode::discard_write;
       } else if (AdjustedMode == access::mode::read_write) {
@@ -928,7 +938,9 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
-  friend class sycl::INTEL::gpu::detail::AccessorPrivateProxy;
+  friend class sycl::stream;
+  friend class sycl::ext::intel::experimental::esimd::detail::
+      AccessorPrivateProxy;
 
 public:
   using value_type = DataT;
@@ -977,7 +989,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
 #endif
@@ -1003,7 +1015,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
 #endif
@@ -1028,7 +1040,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
@@ -1054,7 +1066,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
@@ -1079,7 +1091,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
   }
@@ -1107,7 +1119,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
   }
@@ -1157,7 +1169,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
@@ -1184,7 +1196,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
@@ -1337,7 +1349,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
   }
@@ -1366,7 +1378,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
   }
@@ -1419,7 +1431,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
@@ -1447,7 +1459,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
@@ -1501,7 +1513,9 @@ public:
 
   size_t get_size() const { return getAccessRange().size() * sizeof(DataT); }
 
-  size_t get_count() const { return getAccessRange().size(); }
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); }
+  size_t size() const noexcept { return getAccessRange().size(); }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   range<Dimensions> get_range() const {
@@ -1896,7 +1910,9 @@ public:
 
   size_t get_size() const { return getSize().size() * sizeof(DataT); }
 
-  size_t get_count() const { return getSize().size(); }
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); }
+  size_t size() const noexcept { return getSize().size(); }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   range<Dims> get_range() const {

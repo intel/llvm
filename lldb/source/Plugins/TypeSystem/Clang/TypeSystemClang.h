@@ -9,7 +9,7 @@
 #ifndef LLDB_SOURCE_PLUGINS_TYPESYSTEM_CLANG_TYPESYSTEMCLANG_H
 #define LLDB_SOURCE_PLUGINS_TYPESYSTEM_CLANG_TYPESYSTEMCLANG_H
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <functional>
 #include <initializer_list>
@@ -327,6 +327,8 @@ public:
       return args.size() == names.size() &&
         (!packed_args || !packed_args->packed_args);
     }
+
+    bool hasParameterPack() const { return static_cast<bool>(packed_args); }
 
     llvm::SmallVector<const char *, 2> names;
     llvm::SmallVector<clang::TemplateArgument, 2> args;

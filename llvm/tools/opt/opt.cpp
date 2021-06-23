@@ -313,6 +313,7 @@ static cl::opt<std::string> RemarksFormat(
     cl::desc("The format used for serializing remarks (default: YAML)"),
     cl::value_desc("format"), cl::init("yaml"));
 
+namespace llvm {
 cl::opt<PGOKind>
     PGOKindFlag("pgo-kind", cl::init(NoPGO), cl::Hidden,
                 cl::desc("The kind of profile guided optimization"),
@@ -341,6 +342,7 @@ cl::opt<std::string> CSProfileGenFile(
     "cs-profilegen-file",
     cl::desc("Path to the instrumented context sensitive profile."),
     cl::Hidden);
+} // namespace llvm
 
 static inline void addPass(legacy::PassManagerBase &PM, Pass *P) {
   // Add the pass to the pass manager...
@@ -515,15 +517,15 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "safe-stack",           "cost-model",
       "codegenprepare",       "interleaved-load-combine",
       "unreachableblockelim", "verify-safepoint-ir",
-      "atomic-expand",
+      "atomic-expand",        "expandvp",
       "hardware-loops",       "type-promotion",
       "mve-tail-predication", "interleaved-access",
       "global-merge",         "pre-isel-intrinsic-lowering",
       "expand-reductions",    "indirectbr-expand",
       "generic-to-nvvm",      "expandmemcmp",
       "loop-reduce",          "lower-amx-type",
-      "lower-amx-intrinsics", "polyhedral-info",
-      "replace-with-veclib"};
+      "pre-amx-config",       "lower-amx-intrinsics",
+      "polyhedral-info",      "replace-with-veclib"};
   for (const auto &P : PassNamePrefix)
     if (Pass.startswith(P))
       return true;
@@ -593,6 +595,7 @@ int main(int argc, char **argv) {
   initializePostInlineEntryExitInstrumenterPass(Registry);
   initializeUnreachableBlockElimLegacyPassPass(Registry);
   initializeExpandReductionsPass(Registry);
+  initializeExpandVectorPredicationPass(Registry);
   initializeWasmEHPreparePass(Registry);
   initializeWriteBitcodePassPass(Registry);
   initializeHardwareLoopsPass(Registry);
@@ -708,8 +711,8 @@ int main(int argc, char **argv) {
       OutputFilename = "-";
 
     std::error_code EC;
-    sys::fs::OpenFlags Flags = OutputAssembly ? sys::fs::OF_Text
-                                              : sys::fs::OF_None;
+    sys::fs::OpenFlags Flags =
+        OutputAssembly ? sys::fs::OF_TextWithCRLF : sys::fs::OF_None;
     Out.reset(new ToolOutputFile(OutputFilename, EC, Flags));
     if (EC) {
       errs() << EC.message() << '\n';

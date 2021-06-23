@@ -132,6 +132,22 @@ std::optional<ConstantSubscripts> AsConstantExtents(
   }
 }
 
+Shape AsShape(const ConstantSubscripts &shape) {
+  Shape result;
+  for (const auto &extent : shape) {
+    result.emplace_back(ExtentExpr{extent});
+  }
+  return result;
+}
+
+std::optional<Shape> AsShape(const std::optional<ConstantSubscripts> &shape) {
+  if (shape) {
+    return AsShape(*shape);
+  } else {
+    return std::nullopt;
+  }
+}
+
 Shape Fold(FoldingContext &context, Shape &&shape) {
   for (auto &dim : shape) {
     dim = Fold(context, std::move(dim));
@@ -188,6 +204,14 @@ MaybeExtentExpr GetSize(Shape &&shape) {
     }
   }
   return extent;
+}
+
+ConstantSubscript GetSize(const ConstantSubscripts &shape) {
+  ConstantSubscript size{1};
+  for (auto dim : std::move(shape)) {
+    size *= dim;
+  }
+  return size;
 }
 
 bool ContainsAnyImpliedDoIndex(const ExtentExpr &expr) {
@@ -490,16 +514,10 @@ auto GetShapeHelper::operator()(const Symbol &symbol) const -> Result {
           [&](const semantics::ProcBindingDetails &binding) {
             return (*this)(binding.symbol());
           },
-          [&](const semantics::UseDetails &use) {
-            return (*this)(use.symbol());
-          },
-          [&](const semantics::HostAssocDetails &assoc) {
-            return (*this)(assoc.symbol());
-          },
           [](const semantics::TypeParamDetails &) { return ScalarShape(); },
           [](const auto &) { return Result{}; },
       },
-      symbol.details());
+      symbol.GetUltimate().details());
 }
 
 auto GetShapeHelper::operator()(const Component &component) const -> Result {
@@ -759,18 +777,16 @@ auto GetShapeHelper::operator()(const ProcedureRef &call) const -> Result {
   return std::nullopt;
 }
 
-// Check conformance of the passed shapes.  Only return true if we can verify
-// that they conform
-bool CheckConformance(parser::ContextualMessages &messages, const Shape &left,
-    const Shape &right, const char *leftIs, const char *rightIs,
-    bool leftScalarExpandable, bool rightScalarExpandable,
-    bool leftIsDeferredShape, bool rightIsDeferredShape) {
+// Check conformance of the passed shapes.
+std::optional<bool> CheckConformance(parser::ContextualMessages &messages,
+    const Shape &left, const Shape &right, CheckConformanceFlags::Flags flags,
+    const char *leftIs, const char *rightIs) {
   int n{GetRank(left)};
-  if (n == 0 && leftScalarExpandable) {
+  if (n == 0 && (flags & CheckConformanceFlags::LeftScalarExpandable)) {
     return true;
   }
   int rn{GetRank(right)};
-  if (rn == 0 && rightScalarExpandable) {
+  if (rn == 0 && (flags & CheckConformanceFlags::RightScalarExpandable)) {
     return true;
   }
   if (n != rn) {
@@ -787,11 +803,11 @@ bool CheckConformance(parser::ContextualMessages &messages, const Shape &left,
               j + 1, leftIs, *leftDim, rightIs, *rightDim);
           return false;
         }
-      } else if (!rightIsDeferredShape) {
-        return false;
+      } else if (!(flags & CheckConformanceFlags::RightIsDeferredShape)) {
+        return std::nullopt;
       }
-    } else if (!leftIsDeferredShape) {
-      return false;
+    } else if (!(flags & CheckConformanceFlags::LeftIsDeferredShape)) {
+      return std::nullopt;
     }
   }
   return true;

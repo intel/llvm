@@ -362,11 +362,13 @@ DwarfDebug::DwarfDebug(AsmPrinter *A)
     DebuggerTuning = DebuggerKind::LLDB;
   else if (TT.isPS4CPU())
     DebuggerTuning = DebuggerKind::SCE;
+  else if (TT.isOSAIX())
+    DebuggerTuning = DebuggerKind::DBX;
   else
     DebuggerTuning = DebuggerKind::GDB;
 
   if (DwarfInlinedStrings == Default)
-    UseInlineStrings = TT.isNVPTX();
+    UseInlineStrings = TT.isNVPTX() || tuneForDBX();
   else
     UseInlineStrings = DwarfInlinedStrings == Enable;
 
@@ -717,7 +719,7 @@ static void interpretValues(const MachineInstr *CurMI,
     for (const MachineOperand &MO : MI.operands()) {
       if (MO.isReg() && MO.isDef() &&
           Register::isPhysicalRegister(MO.getReg())) {
-        for (auto FwdReg : ForwardedRegWorklist)
+        for (auto &FwdReg : ForwardedRegWorklist)
           if (TRI.regsOverlap(FwdReg.first, MO.getReg()))
             Defs.insert(FwdReg.first);
       }
@@ -766,7 +768,7 @@ static void interpretValues(const MachineInstr *CurMI,
 
   // Now that we are done handling this instruction, add items from the
   // temporary worklist to the real one.
-  for (auto New : TmpWorklistItems)
+  for (auto &New : TmpWorklistItems)
     addToFwdRegWorklist(ForwardedRegWorklist, New.first, EmptyExpr, New.second);
   TmpWorklistItems.clear();
 }
@@ -801,7 +803,7 @@ static bool interpretNextInstr(const MachineInstr *CurMI,
 static void collectCallSiteParameters(const MachineInstr *CallMI,
                                       ParamSet &Params) {
   const MachineFunction *MF = CallMI->getMF();
-  auto CalleesMap = MF->getCallSitesInfo();
+  const auto &CalleesMap = MF->getCallSitesInfo();
   auto CallFwdRegsInfo = CalleesMap.find(CallMI);
 
   // There is no information for the call instruction.
@@ -819,7 +821,7 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
       DIExpression::get(MF->getFunction().getContext(), {});
 
   // Add all the forwarding registers into the ForwardedRegWorklist.
-  for (auto ArgReg : CallFwdRegsInfo->second) {
+  for (const auto &ArgReg : CallFwdRegsInfo->second) {
     bool InsertedReg =
         ForwardedRegWorklist.insert({ArgReg.Reg, {{ArgReg.Reg, EmptyExpr}}})
             .second;
@@ -867,7 +869,7 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
     // Create an expression where the register's entry value is used.
     DIExpression *EntryExpr = DIExpression::get(
         MF->getFunction().getContext(), {dwarf::DW_OP_LLVM_entry_value, 1});
-    for (auto RegEntry : ForwardedRegWorklist) {
+    for (auto &RegEntry : ForwardedRegWorklist) {
       MachineLocation MLoc(RegEntry.first);
       finishCallSiteParams(MLoc, EntryExpr, RegEntry.second, Params);
     }
@@ -936,8 +938,10 @@ void DwarfDebug::constructCallSiteEntryDIEs(const DISubprogram &SP,
       // If this is a direct call, find the callee's subprogram.
       // In the case of an indirect call find the register that holds
       // the callee.
-      const MachineOperand &CalleeOp = MI.getOperand(0);
-      if (!CalleeOp.isGlobal() && !CalleeOp.isReg())
+      const MachineOperand &CalleeOp = TII->getCalleeOperand(MI);
+      if (!CalleeOp.isGlobal() &&
+          (!CalleeOp.isReg() ||
+           !Register::isPhysicalRegister(CalleeOp.getReg())))
         continue;
 
       unsigned CallReg = 0;
@@ -1737,7 +1741,30 @@ bool DwarfDebug::buildLocationList(SmallVectorImpl<DebugLocEntry> &DebugLoc,
     SmallVector<DbgValueLoc, 4> Values;
     for (auto &R : OpenRanges)
       Values.push_back(R.second);
-    DebugLoc.emplace_back(StartLabel, EndLabel, Values);
+
+    // With Basic block sections, it is posssible that the StartLabel and the
+    // Instr are not in the same section.  This happens when the StartLabel is
+    // the function begin label and the dbg value appears in a basic block
+    // that is not the entry.  In this case, the range needs to be split to
+    // span each individual section in the range from StartLabel to EndLabel.
+    if (Asm->MF->hasBBSections() && StartLabel == Asm->getFunctionBegin() &&
+        !Instr->getParent()->sameSection(&Asm->MF->front())) {
+      const MCSymbol *BeginSectionLabel = StartLabel;
+
+      for (const MachineBasicBlock &MBB : *Asm->MF) {
+        if (MBB.isBeginSection() && &MBB != &Asm->MF->front())
+          BeginSectionLabel = MBB.getSymbol();
+
+        if (MBB.sameSection(Instr->getParent())) {
+          DebugLoc.emplace_back(BeginSectionLabel, EndLabel, Values);
+          break;
+        }
+        if (MBB.isEndSection())
+          DebugLoc.emplace_back(BeginSectionLabel, MBB.getEndSymbol(), Values);
+      }
+    } else {
+      DebugLoc.emplace_back(StartLabel, EndLabel, Values);
+    }
 
     // Attempt to coalesce the ranges of two otherwise identical
     // DebugLocEntries.
@@ -1754,8 +1781,46 @@ bool DwarfDebug::buildLocationList(SmallVectorImpl<DebugLocEntry> &DebugLoc,
       DebugLoc.pop_back();
   }
 
-  return DebugLoc.size() == 1 && isSafeForSingleLocation &&
-         validThroughout(LScopes, StartDebugMI, EndMI, getInstOrdering());
+  if (!isSafeForSingleLocation ||
+      !validThroughout(LScopes, StartDebugMI, EndMI, getInstOrdering()))
+    return false;
+
+  if (DebugLoc.size() == 1)
+    return true;
+
+  if (!Asm->MF->hasBBSections())
+    return false;
+
+  // Check here to see if loclist can be merged into a single range. If not,
+  // we must keep the split loclists per section.  This does exactly what
+  // MergeRanges does without sections.  We don't actually merge the ranges
+  // as the split ranges must be kept intact if this cannot be collapsed
+  // into a single range.
+  const MachineBasicBlock *RangeMBB = nullptr;
+  if (DebugLoc[0].getBeginSym() == Asm->getFunctionBegin())
+    RangeMBB = &Asm->MF->front();
+  else
+    RangeMBB = Entries.begin()->getInstr()->getParent();
+  auto *CurEntry = DebugLoc.begin();
+  auto *NextEntry = std::next(CurEntry);
+  while (NextEntry != DebugLoc.end()) {
+    // Get the last machine basic block of this section.
+    while (!RangeMBB->isEndSection())
+      RangeMBB = RangeMBB->getNextNode();
+    if (!RangeMBB->getNextNode())
+      return false;
+    // CurEntry should end the current section and NextEntry should start
+    // the next section and the Values must match for these two ranges to be
+    // merged.
+    if (CurEntry->getEndSym() != RangeMBB->getEndSymbol() ||
+        NextEntry->getBeginSym() != RangeMBB->getNextNode()->getSymbol() ||
+        CurEntry->getValues() != NextEntry->getValues())
+      return false;
+    RangeMBB = RangeMBB->getNextNode();
+    CurEntry = NextEntry;
+    NextEntry = std::next(CurEntry);
+  }
+  return true;
 }
 
 DbgEntity *DwarfDebug::createConcreteEntity(DwarfCompileUnit &TheCU,

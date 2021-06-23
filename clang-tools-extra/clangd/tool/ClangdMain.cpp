@@ -60,8 +60,10 @@ namespace clang {
 namespace clangd {
 
 // Implemented in Check.cpp.
-bool check(const llvm::StringRef File, const ThreadsafeFS &TFS,
-           const ClangdLSPServer::Options &Opts);
+bool check(const llvm::StringRef File,
+           llvm::function_ref<bool(const Position &)> ShouldCheckLine,
+           const ThreadsafeFS &TFS, const ClangdLSPServer::Options &Opts,
+           bool EnableCodeCompletion);
 
 namespace {
 
@@ -291,6 +293,14 @@ opt<int> LimitResults{
     init(100),
 };
 
+opt<int> ReferencesLimit{
+    "limit-references",
+    cat(Features),
+    desc("Limit the number of references returned by clangd. "
+         "0 means no limit (default=1000)"),
+    init(1000),
+};
+
 list<std::string> TweakList{
     "tweaks",
     cat(Features),
@@ -306,6 +316,9 @@ opt<bool> FoldingRanges{
     init(false),
     Hidden,
 };
+
+opt<bool> InlayHints{"inlay-hints", cat(Features),
+                     desc("Enable preview of InlayHints feature"), init(false)};
 
 opt<unsigned> WorkerThreadsCount{
     "j",
@@ -343,6 +356,17 @@ opt<Path> CheckFile{
     desc("Parse one file in isolation instead of acting as a language server. "
          "Useful to investigate/reproduce crashes or configuration problems. "
          "With --check=<filename>, attempts to parse a particular file."),
+    init(""),
+    ValueOptional,
+};
+
+opt<std::string> CheckFileLines{
+    "check-lines",
+    cat(Misc),
+    desc("If specified, limits the range of tokens in -check file on which "
+         "various features are tested. Example --check-lines=3-7 restricts "
+         "testing to lines 3 to 7 (inclusive) or --check-lines=5 to restrict "
+         "to one line. Default is testing entire file."),
     init(""),
     ValueOptional,
 };
@@ -539,6 +563,8 @@ std::unique_ptr<SymbolIndex>
 loadExternalIndex(const Config::ExternalIndexSpec &External,
                   AsyncTaskRunner *Tasks) {
   switch (External.Kind) {
+  case Config::ExternalIndexSpec::None:
+    break;
   case Config::ExternalIndexSpec::Server:
     log("Associating {0} with remote index at {1}.", External.MountPoint,
         External.Location);
@@ -804,6 +830,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   }
 #endif
   Opts.BackgroundIndex = EnableBackgroundIndex;
+  Opts.ReferencesLimit = ReferencesLimit;
   auto PAI = createProjectAwareIndex(loadExternalIndex, Sync);
   if (StaticIdx) {
     IdxStack.emplace_back(std::move(StaticIdx));
@@ -815,6 +842,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   }
   Opts.AsyncThreadsCount = WorkerThreadsCount;
   Opts.FoldingRanges = FoldingRanges;
+  Opts.InlayHints = InlayHints;
   Opts.MemoryCleanup = getMemoryCleanupFunction();
 
   Opts.CodeComplete.IncludeIneligibleResults = IncludeIneligibleResults;
@@ -841,8 +869,8 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
     if (llvm::sys::path::user_config_directory(UserConfig)) {
       llvm::sys::path::append(UserConfig, "clangd", "config.yaml");
       vlog("User config file is {0}", UserConfig);
-      ProviderStack.push_back(
-          config::Provider::fromYAMLFile(UserConfig, /*Directory=*/"", TFS));
+      ProviderStack.push_back(config::Provider::fromYAMLFile(
+          UserConfig, /*Directory=*/"", TFS, /*Trusted=*/true));
     } else {
       elog("Couldn't determine user config file, not loading");
     }
@@ -881,11 +909,42 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
 
   if (CheckFile.getNumOccurrences()) {
     llvm::SmallString<256> Path;
-    llvm::sys::fs::real_path(CheckFile, Path, /*expand_tilde=*/true);
+    if (auto Error =
+            llvm::sys::fs::real_path(CheckFile, Path, /*expand_tilde=*/true)) {
+      elog("Failed to resolve path {0}: {1}", CheckFile, Error.message());
+      return 1;
+    }
     log("Entering check mode (no LSP server)");
-    return check(Path, TFS, Opts)
+    uint32_t Begin = 0, End = std::numeric_limits<uint32_t>::max();
+    if (!CheckFileLines.empty()) {
+      StringRef RangeStr(CheckFileLines);
+      bool ParseError = RangeStr.consumeInteger(0, Begin);
+      if (RangeStr.empty()) {
+        End = Begin;
+      } else {
+        ParseError |= !RangeStr.consume_front("-");
+        ParseError |= RangeStr.consumeInteger(0, End);
+      }
+      if (ParseError || !RangeStr.empty()) {
+        elog("Invalid --check-line specified. Use Begin-End format, e.g. 3-17");
+        return 1;
+      }
+    }
+    auto ShouldCheckLine = [&](const Position &Pos) {
+      uint32_t Line = Pos.line + 1; // Position::line is 0-based.
+      return Line >= Begin && Line <= End;
+    };
+    // For now code completion is enabled any time the range is limited via
+    // --check-lines. If it turns out to be to slow, we can introduce a
+    // dedicated flag for that instead.
+    return check(Path, ShouldCheckLine, TFS, Opts,
+                 /*EnableCodeCompletion=*/!CheckFileLines.empty())
                ? 0
                : static_cast<int>(ErrorResultCode::CheckFailed);
+  }
+  if (!CheckFileLines.empty()) {
+    elog("--check-lines requires --check");
+    return 1;
   }
 
   // Initialize and run ClangdLSPServer.

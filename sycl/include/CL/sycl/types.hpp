@@ -454,8 +454,8 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
             typename OpenCLT, typename OpenCLR>                                \
   detail::enable_if_t<is_float_to_int<T, R>::value &&                          \
                           (std::is_same<OpenCLR, cl_##DestType>::value ||      \
-                           std::is_same<OpenCLR, signed char>::value &&        \
-                               std::is_same<DestType, char>::value) &&         \
+                           (std::is_same<OpenCLR, signed char>::value &&       \
+                            std::is_same<DestType, char>::value)) &&           \
                           RoundingModeCondition<roundingMode>::value,          \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
@@ -672,13 +672,13 @@ public:
   using EnableIfNotHostHalf = typename detail::enable_if_t<
       !std::is_same<DataT, cl::sycl::detail::half_impl::half>::value ||
           !std::is_same<cl::sycl::detail::half_impl::StorageT,
-                        cl::sycl::detail::host_half_impl::half>::value,
+                        cl::sycl::detail::host_half_impl::half_v2>::value,
       T>;
   template <typename T = void>
   using EnableIfHostHalf = typename detail::enable_if_t<
       std::is_same<DataT, cl::sycl::detail::half_impl::half>::value &&
           std::is_same<cl::sycl::detail::half_impl::StorageT,
-                       cl::sycl::detail::host_half_impl::half>::value,
+                       cl::sycl::detail::host_half_impl::half_v2>::value,
       T>;
 
   template <typename Ty = DataT>
@@ -801,7 +801,10 @@ public:
   operator typename detail::enable_if_t<N == 1, DataT>() const {
     return m_Data;
   }
-  static constexpr size_t get_count() { return NumElements; }
+
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  static constexpr size_t get_count() { return size(); }
+  static constexpr size_t size() noexcept { return NumElements; }
   static constexpr size_t get_size() { return sizeof(m_Data); }
 
   template <typename convertT,
@@ -1394,7 +1397,9 @@ class SwizzleOp {
       SwizzleOp<const VecT, GetOp<DataT>, GetOp<DataT>, GetOp, Indices...>;
 
 public:
-  size_t get_count() const { return getNumElements(); }
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); }
+  size_t size() const noexcept { return getNumElements(); }
   template <int Num = getNumElements()> size_t get_size() const {
     return sizeof(DataT) * (Num == 3 ? 4 : Num);
   }

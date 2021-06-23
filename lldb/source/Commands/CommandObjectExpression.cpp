@@ -408,6 +408,12 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
   lldb::ValueObjectSP result_valobj_sp;
   StackFrame *frame = exe_ctx.GetFramePtr();
 
+  if (m_command_options.top_level && !m_command_options.allow_jit) {
+    result.AppendErrorWithFormat(
+        "Can't disable JIT compilation for top-level expressions.\n");
+    return false;
+  }
+
   const EvaluateExpressionOptions options = GetEvalOptions(target);
   ExpressionResults success = target.EvaluateExpression(
       expr, frame, result_valobj_sp, options, &m_fixed_expression);
@@ -434,7 +440,6 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
             result.AppendErrorWithFormat(
                 "expression cannot be used with --element-count %s\n",
                 error.AsCString(""));
-            result.SetStatus(eReturnStatusFailed);
             return false;
           }
         }

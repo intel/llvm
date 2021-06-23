@@ -8,18 +8,16 @@
 define void @pr34127() {
 ; CHECK-LABEL: pr34127:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    movzwl {{.*}}(%rip), %eax
-; CHECK-NEXT:    movzwl {{.*}}(%rip), %ecx
+; CHECK-NEXT:    movzwl var_3(%rip), %eax
+; CHECK-NEXT:    movzwl var_13(%rip), %ecx
 ; CHECK-NEXT:    andl %eax, %ecx
-; CHECK-NEXT:    movl %eax, %edx
-; CHECK-NEXT:    andl %ecx, %edx
-; CHECK-NEXT:    movzwl %dx, %edx
-; CHECK-NEXT:    movl %edx, -{{[0-9]+}}(%rsp)
 ; CHECK-NEXT:    xorl %edx, %edx
-; CHECK-NEXT:    testw %cx, %ax
+; CHECK-NEXT:    andl %eax, %ecx
+; CHECK-NEXT:    movzwl %cx, %ecx
+; CHECK-NEXT:    movl %ecx, -{{[0-9]+}}(%rsp)
 ; CHECK-NEXT:    sete %dl
 ; CHECK-NEXT:    andl %eax, %edx
-; CHECK-NEXT:    movq %rdx, {{.*}}(%rip)
+; CHECK-NEXT:    movq %rdx, var_212(%rip)
 ; CHECK-NEXT:    movw $0, (%rax)
 ; CHECK-NEXT:    retq
 entry:

@@ -56,12 +56,13 @@ public:
 
 */
 
-#include <__config>
 #include <__availability>
-#include <exception>
+#include <__config>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <type_traits>
+
 #ifdef _LIBCPP_NO_EXCEPTIONS
 #include <cstdlib>
 #endif
@@ -376,4 +377,4 @@ void __throw_bad_cast()
 }
 _LIBCPP_END_NAMESPACE_STD
 
-#endif  // __LIBCPP_TYPEINFO
+#endif // __LIBCPP_TYPEINFO

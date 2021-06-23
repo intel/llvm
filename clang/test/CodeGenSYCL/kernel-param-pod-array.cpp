@@ -49,11 +49,11 @@ int main() {
 // CHECK-SAME:(%struct{{.*}}.__wrapper_class* byval(%struct{{.*}}.__wrapper_class) align 4 %[[ARR_ARG:.*]])
 
 // Check local lambda object alloca
-// CHECK: %[[LOCAL_OBJECTA:[0-9]+]] = alloca %"class{{.*}}.anon", align 4
-// CHECK: %[[LOCAL_OBJECT:[0-9]+]] = addrspacecast %"class{{.*}}.anon"* %[[LOCAL_OBJECTA]] to %"class{{.*}}.anon" addrspace(4)*
+// CHECK: %[[LOCAL_OBJECTA:[0-9]+]] = alloca %class{{.*}}.anon, align 4
+// CHECK: %[[LOCAL_OBJECT:[0-9]+]] = addrspacecast %class{{.*}}.anon* %[[LOCAL_OBJECTA]] to %class{{.*}}.anon addrspace(4)*
 
 // Check for Array init loop
-// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %"class{{.*}}.anon", %"class{{.*}}.anon" addrspace(4)* %[[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon, %class{{.*}}.anon addrspace(4)* %[[LOCAL_OBJECT]], i32 0, i32 0
 // CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class, %struct{{.*}}.__wrapper_class addrspace(4)* %[[ARR_ARG]].ascast, i32 0, i32 0
 // CHECK: %[[ARRAY_BEGIN:.+]] = getelementptr inbounds [2 x i32], [2 x i32] addrspace(4)* %[[LAMBDA_PTR]], i64 0, i64 0
 // CHECK: br label %[[ARRAYINITBODY:.+]]
@@ -74,11 +74,11 @@ int main() {
 // CHECK-SAME:(%struct{{.*}}.__wrapper_class{{.*}}* byval(%struct{{.*}}.__wrapper_class{{.*}}) align 4 %[[ARR_ARG:.*]])
 
 // Check local lambda object alloca
-// CHECK: %[[LOCAL_OBJECTA:[0-9]+]] = alloca %"class{{.*}}.anon{{.*}}", align 4
-// CHECK: %[[LOCAL_OBJECT:[0-9]+]] = addrspacecast %"class{{.*}}.anon{{.*}}"* %[[LOCAL_OBJECTA]] to %"class{{.*}}.anon{{.*}}" addrspace(4)*
+// CHECK: %[[LOCAL_OBJECTA:[0-9]+]] = alloca %class{{.*}}.anon{{.*}}, align 4
+// CHECK: %[[LOCAL_OBJECT:[0-9]+]] = addrspacecast %class{{.*}}.anon{{.*}}* %[[LOCAL_OBJECTA]] to %class{{.*}}.anon{{.*}} addrspace(4)*
 
 // Check for Array init loop
-// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %"class{{.*}}.anon{{.*}}", %"class{{.*}}.anon{{.*}}" addrspace(4)* %[[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon{{.*}}, %class{{.*}}.anon{{.*}} addrspace(4)* %[[LOCAL_OBJECT]], i32 0, i32 0
 // CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class{{.*}}, %struct{{.*}}.__wrapper_class{{.*}} addrspace(4)* %[[ARR_ARG]].ascast, i32 0, i32 0
 // CHECK: %[[ARRAY_BEGIN:.+]] = getelementptr inbounds [2 x %struct{{.*}}.foo], [2 x %struct{{.*}}.foo] addrspace(4)* %[[LAMBDA_PTR]], i64 0, i64 0
 // CHECK: br label %[[ARRAYINITBODY:.+]]
@@ -100,11 +100,11 @@ int main() {
 // CHECK-SAME:(%struct{{.*}}.__wrapper_class{{.*}}* byval(%struct{{.*}}.__wrapper_class{{.*}}) align 4 %[[ARR_ARG:.*]])
 
 // Check local lambda object alloca
-// CHECK: %[[LOCAL_OBJECTA:[0-9]+]] = alloca %"class{{.*}}.anon{{.*}}", align 4
-// CHECK: %[[LOCAL_OBJECT:[0-9]+]] = addrspacecast %"class{{.*}}.anon{{.*}}"* %[[LOCAL_OBJECTA]] to %"class{{.*}}.anon{{.*}}" addrspace(4)*
+// CHECK: %[[LOCAL_OBJECTA:[0-9]+]] = alloca %class{{.*}}.anon{{.*}}, align 4
+// CHECK: %[[LOCAL_OBJECT:[0-9]+]] = addrspacecast %class{{.*}}.anon{{.*}}* %[[LOCAL_OBJECTA]] to %class{{.*}}.anon{{.*}} addrspace(4)*
 
 // Check for Array init loop
-// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %"class{{.*}}.anon{{.*}}", %"class{{.*}}.anon{{.*}}" addrspace(4)* %[[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon{{.*}}, %class{{.*}}.anon{{.*}} addrspace(4)* %[[LOCAL_OBJECT]], i32 0, i32 0
 // CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class{{.*}}, %struct{{.*}}.__wrapper_class{{.*}} addrspace(4)* %[[ARR_ARG]].ascast, i32 0, i32 0
 // CHECK: %[[ARRAY_BEGIN:.+]] = getelementptr inbounds [2 x [1 x i32]], [2 x [1 x i32]] addrspace(4)* %[[LAMBDA_PTR]], i64 0, i64 0
 // CHECK: br label %[[ARRAYINITBODY:.+]]

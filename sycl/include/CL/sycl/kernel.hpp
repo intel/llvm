@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -20,6 +21,8 @@ namespace sycl {
 // Forward declaration
 class program;
 class context;
+template <backend Backend> class backend_traits;
+
 namespace detail {
 class kernel_impl;
 
@@ -57,6 +60,8 @@ public:
   ///
   /// \param ClKernel is a valid OpenCL cl_kernel instance
   /// \param SyclContext is a valid SYCL context
+  __SYCL2020_DEPRECATED(
+      "OpenCL interop constructors are deprecated, use make_kernel() instead")
   kernel(cl_kernel ClKernel, const context &SyclContext);
 
   kernel(const kernel &RHS) = default;
@@ -78,6 +83,8 @@ public:
   /// an invalid_object_error exception will be thrown.
   ///
   /// \return a valid cl_kernel instance
+  __SYCL2020_DEPRECATED(
+      "OpenCL interop get() functions are deprecated, use get_native() instead")
   cl_kernel get() const;
 
   /// Check if the associated SYCL context is a SYCL host context.
@@ -146,8 +153,8 @@ public:
   /// \return depends on information being queried.
   template <info::kernel_sub_group param>
   // clang-format off
-  typename info::param_traits<info::kernel_sub_group, param>::return_type
   __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
+  typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device) const;
   // clang-format on
 
@@ -159,16 +166,26 @@ public:
   /// \return depends on information being queried.
   template <info::kernel_sub_group param>
   // clang-format off
-  typename info::param_traits<info::kernel_sub_group, param>::return_type
   __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
+  typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device,
                      typename info::param_traits<info::kernel_sub_group,
                      param>::input_type Value) const;
   // clang-format on
 
+  template <backend Backend>
+  typename backend_traits<Backend>::template return_type<kernel>
+  get_native() const {
+    return detail::pi::cast<
+        typename backend_traits<Backend>::template return_type<kernel>>(
+        getNativeImpl());
+  }
+
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);
+
+  pi_native_handle getNativeImpl() const;
 
   shared_ptr_class<detail::kernel_impl> impl;
 

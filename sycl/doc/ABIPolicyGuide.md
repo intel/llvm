@@ -112,3 +112,10 @@ Whenever you need to change the existing ABI, please, follow these steps:
    update test files.
 3. ~~If Pull Request introduces a breaking change, update the library version~~
    ~~according to the policies.~~ **(See note above)**
+
+## BKMs on avoiding changing ABI
+
+1. If there is a need to add a new field in `sycl::handler` or/and
+   `sycl::detail::CG` classes it can be done without breaking ABI using the
+   approach described in the comment at the beggining of
+   [cg.hpp](../include/CL/sycl/detail/cg.hpp)

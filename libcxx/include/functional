@@ -76,123 +76,104 @@ template <class T> using unwrap_reference_t = typename unwrap_reference<T>::type
 template <class T> using unwrap_ref_decay_t = typename unwrap_ref_decay<T>::type; // since C++20
 
 template <class T> // <class T=void> in C++14
-struct plus : binary_function<T, T, T>
-{
+struct plus {
     T operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct minus : binary_function<T, T, T>
-{
+struct minus {
     T operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct multiplies : binary_function<T, T, T>
-{
+struct multiplies {
     T operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct divides : binary_function<T, T, T>
-{
+struct divides {
     T operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct modulus : binary_function<T, T, T>
-{
+struct modulus {
     T operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct negate : unary_function<T, T>
-{
+struct negate {
     T operator()(const T& x) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct equal_to : binary_function<T, T, bool>
-{
+struct equal_to {
     bool operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct not_equal_to : binary_function<T, T, bool>
-{
+struct not_equal_to {
     bool operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct greater : binary_function<T, T, bool>
-{
+struct greater {
     bool operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct less : binary_function<T, T, bool>
-{
+struct less {
     bool operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct greater_equal : binary_function<T, T, bool>
-{
+struct greater_equal {
     bool operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct less_equal : binary_function<T, T, bool>
-{
+struct less_equal {
     bool operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct logical_and : binary_function<T, T, bool>
-{
+struct logical_and {
     bool operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct logical_or : binary_function<T, T, bool>
-{
+struct logical_or {
     bool operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct logical_not : unary_function<T, bool>
-{
+struct logical_not {
     bool operator()(const T& x) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct bit_and : binary_function<T, T, T>
-{
+struct bit_and {
     T operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct bit_or : binary_function<T, T, T>
-{
+struct bit_or {
     T operator()(const T& x, const T& y) const;
 };
 
 template <class T> // <class T=void> in C++14
-struct bit_xor : binary_function<T, T, T>
-{
+struct bit_xor {
     T operator()(const T& x, const T& y) const;
 };
 
 template <class T=void> // C++14
-struct bit_not : unary_function<T, T>
-{
+struct bit_not {
     T operator()(const T& x) const;
 };
 
 struct identity; // C++20
 
 template <class Predicate>
-class unary_negate // deprecated in C++17
+class unary_negate // deprecated in C++17, removed in C++20
     : public unary_function<typename Predicate::argument_type, bool>
 {
 public:
@@ -200,11 +181,11 @@ public:
     bool operator()(const typename Predicate::argument_type& x) const;
 };
 
-template <class Predicate> // deprecated in C++17
+template <class Predicate> // deprecated in C++17, removed in C++20
 unary_negate<Predicate> not1(const Predicate& pred);
 
 template <class Predicate>
-class binary_negate // deprecated in C++17
+class binary_negate // deprecated in C++17, removed in C++20
     : public binary_function<typename Predicate::first_argument_type,
                              typename Predicate::second_argument_type,
                              bool>
@@ -215,7 +196,7 @@ public:
                     const typename Predicate::second_argument_type& y) const;
 };
 
-template <class Predicate> // deprecated in C++17
+template <class Predicate> // deprecated in C++17, removed in C++20
 binary_negate<Predicate> not2(const Predicate& pred);
 
 template <class F>
@@ -507,15 +488,17 @@ POLICY:  For non-variadic implementations, the number of arguments is limited
 */
 
 #include <__config>
-#include <type_traits>
-#include <typeinfo>
+#include <__debug>
+#include <__functional_base>
+#include <__functional/search.h>
+#include <concepts>
 #include <exception>
 #include <memory>
 #include <tuple>
+#include <type_traits>
+#include <typeinfo>
 #include <utility>
 #include <version>
-
-#include <__functional_base>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
@@ -523,13 +506,24 @@ POLICY:  For non-variadic implementations, the number of arguments is limited
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS plus : binary_function<_Tp, _Tp, _Tp>
+struct _LIBCPP_TEMPLATE_VIS plus
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, _Tp>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef _Tp __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     _Tp operator()(const _Tp& __x, const _Tp& __y) const
         {return __x + __y;}
@@ -550,13 +544,24 @@ struct _LIBCPP_TEMPLATE_VIS plus<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS minus : binary_function<_Tp, _Tp, _Tp>
+struct _LIBCPP_TEMPLATE_VIS minus
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, _Tp>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef _Tp __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     _Tp operator()(const _Tp& __x, const _Tp& __y) const
         {return __x - __y;}
@@ -577,13 +582,24 @@ struct _LIBCPP_TEMPLATE_VIS minus<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS multiplies : binary_function<_Tp, _Tp, _Tp>
+struct _LIBCPP_TEMPLATE_VIS multiplies
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, _Tp>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef _Tp __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     _Tp operator()(const _Tp& __x, const _Tp& __y) const
         {return __x * __y;}
@@ -604,13 +620,24 @@ struct _LIBCPP_TEMPLATE_VIS multiplies<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS divides : binary_function<_Tp, _Tp, _Tp>
+struct _LIBCPP_TEMPLATE_VIS divides
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, _Tp>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef _Tp __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     _Tp operator()(const _Tp& __x, const _Tp& __y) const
         {return __x / __y;}
@@ -631,13 +658,24 @@ struct _LIBCPP_TEMPLATE_VIS divides<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS modulus : binary_function<_Tp, _Tp, _Tp>
+struct _LIBCPP_TEMPLATE_VIS modulus
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, _Tp>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef _Tp __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     _Tp operator()(const _Tp& __x, const _Tp& __y) const
         {return __x % __y;}
@@ -658,13 +696,23 @@ struct _LIBCPP_TEMPLATE_VIS modulus<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS negate : unary_function<_Tp, _Tp>
+struct _LIBCPP_TEMPLATE_VIS negate
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : unary_function<_Tp, _Tp>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef _Tp __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     _Tp operator()(const _Tp& __x) const
         {return -__x;}
@@ -685,13 +733,24 @@ struct _LIBCPP_TEMPLATE_VIS negate<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS equal_to : binary_function<_Tp, _Tp, bool>
+struct _LIBCPP_TEMPLATE_VIS equal_to
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, bool>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef bool __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef bool result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     bool operator()(const _Tp& __x, const _Tp& __y) const
         {return __x == __y;}
@@ -712,13 +771,24 @@ struct _LIBCPP_TEMPLATE_VIS equal_to<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS not_equal_to : binary_function<_Tp, _Tp, bool>
+struct _LIBCPP_TEMPLATE_VIS not_equal_to
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, bool>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef bool __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef bool result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     bool operator()(const _Tp& __x, const _Tp& __y) const
         {return __x != __y;}
@@ -739,13 +809,24 @@ struct _LIBCPP_TEMPLATE_VIS not_equal_to<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS greater : binary_function<_Tp, _Tp, bool>
+struct _LIBCPP_TEMPLATE_VIS greater
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, bool>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef bool __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef bool result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     bool operator()(const _Tp& __x, const _Tp& __y) const
         {return __x > __y;}
@@ -768,13 +849,25 @@ struct _LIBCPP_TEMPLATE_VIS greater<void>
 
 // less in <__functional_base>
 
+
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS greater_equal : binary_function<_Tp, _Tp, bool>
+struct _LIBCPP_TEMPLATE_VIS greater_equal
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, bool>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef bool __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef bool result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     bool operator()(const _Tp& __x, const _Tp& __y) const
         {return __x >= __y;}
@@ -795,13 +888,24 @@ struct _LIBCPP_TEMPLATE_VIS greater_equal<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS less_equal : binary_function<_Tp, _Tp, bool>
+struct _LIBCPP_TEMPLATE_VIS less_equal
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, bool>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef bool __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef bool result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     bool operator()(const _Tp& __x, const _Tp& __y) const
         {return __x <= __y;}
@@ -822,13 +926,24 @@ struct _LIBCPP_TEMPLATE_VIS less_equal<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS logical_and : binary_function<_Tp, _Tp, bool>
+struct _LIBCPP_TEMPLATE_VIS logical_and
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, bool>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef bool __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef bool result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     bool operator()(const _Tp& __x, const _Tp& __y) const
         {return __x && __y;}
@@ -849,13 +964,24 @@ struct _LIBCPP_TEMPLATE_VIS logical_and<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS logical_or : binary_function<_Tp, _Tp, bool>
+struct _LIBCPP_TEMPLATE_VIS logical_or
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, bool>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef bool __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef bool result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     bool operator()(const _Tp& __x, const _Tp& __y) const
         {return __x || __y;}
@@ -876,13 +1002,23 @@ struct _LIBCPP_TEMPLATE_VIS logical_or<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS logical_not : unary_function<_Tp, bool>
+struct _LIBCPP_TEMPLATE_VIS logical_not
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : unary_function<_Tp, bool>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef bool __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef bool result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     bool operator()(const _Tp& __x) const
         {return !__x;}
@@ -903,13 +1039,24 @@ struct _LIBCPP_TEMPLATE_VIS logical_not<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS bit_and : binary_function<_Tp, _Tp, _Tp>
+struct _LIBCPP_TEMPLATE_VIS bit_and
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, _Tp>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef _Tp __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     _Tp operator()(const _Tp& __x, const _Tp& __y) const
         {return __x & __y;}
@@ -930,13 +1077,24 @@ struct _LIBCPP_TEMPLATE_VIS bit_and<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS bit_or : binary_function<_Tp, _Tp, _Tp>
+struct _LIBCPP_TEMPLATE_VIS bit_or
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, _Tp>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef _Tp __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     _Tp operator()(const _Tp& __x, const _Tp& __y) const
         {return __x | __y;}
@@ -957,13 +1115,24 @@ struct _LIBCPP_TEMPLATE_VIS bit_or<void>
 #endif
 
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #if _LIBCPP_STD_VER > 11
 template <class _Tp = void>
 #else
 template <class _Tp>
 #endif
-struct _LIBCPP_TEMPLATE_VIS bit_xor : binary_function<_Tp, _Tp, _Tp>
+struct _LIBCPP_TEMPLATE_VIS bit_xor
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : binary_function<_Tp, _Tp, _Tp>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+    typedef _Tp __result_type;  // used by valarray
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp second_argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     _Tp operator()(const _Tp& __x, const _Tp& __y) const
         {return __x ^ __y;}
@@ -985,9 +1154,18 @@ struct _LIBCPP_TEMPLATE_VIS bit_xor<void>
 
 
 #if _LIBCPP_STD_VER > 11
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _Tp = void>
-struct _LIBCPP_TEMPLATE_VIS bit_not : unary_function<_Tp, _Tp>
+struct _LIBCPP_TEMPLATE_VIS bit_not
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
+    : unary_function<_Tp, _Tp>
+#endif
 {
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef _Tp argument_type;
+#endif
     _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
     _Tp operator()(const _Tp& __x) const
         {return ~__x;}
@@ -1006,6 +1184,7 @@ struct _LIBCPP_TEMPLATE_VIS bit_not<void>
 };
 #endif
 
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_NEGATORS)
 template <class _Predicate>
 class _LIBCPP_TEMPLATE_VIS _LIBCPP_DEPRECATED_IN_CXX17 unary_negate
     : public unary_function<typename _Predicate::argument_type, bool>
@@ -1046,6 +1225,7 @@ template <class _Predicate>
 _LIBCPP_DEPRECATED_IN_CXX17 inline _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
 binary_negate<_Predicate>
 not2(const _Predicate& __pred) {return binary_negate<_Predicate>(__pred);}
+#endif // _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_NEGATORS)
 
 #if _LIBCPP_STD_VER <= 14 || defined(_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS)
 template <class __Operation>
@@ -1287,7 +1467,9 @@ mem_fun_ref(_Sp (_Tp::*__f)(_Ap) const)
 
 template <class _Tp>
 class __mem_fn
+#if _LIBCPP_STD_VER <= 17 || !defined(_LIBCPP_ABI_NO_BINDER_BASES)
     : public __weak_result_type<_Tp>
+#endif
 {
 public:
     // types
@@ -1652,7 +1834,7 @@ public:
 #ifndef _LIBCPP_NO_RTTI
     virtual const void* target(const type_info&) const _NOEXCEPT = 0;
     virtual const std::type_info& target_type() const _NOEXCEPT = 0;
-#endif  // _LIBCPP_NO_RTTI
+#endif // _LIBCPP_NO_RTTI
 };
 
 // __func implements __base for a given functor type.
@@ -1689,7 +1871,7 @@ public:
 #ifndef _LIBCPP_NO_RTTI
     virtual const void* target(const type_info&) const _NOEXCEPT;
     virtual const std::type_info& target_type() const _NOEXCEPT;
-#endif  // _LIBCPP_NO_RTTI
+#endif // _LIBCPP_NO_RTTI
 };
 
 template<class _Fp, class _Alloc, class _Rp, class ..._ArgTypes>
@@ -1755,7 +1937,7 @@ __func<_Fp, _Alloc, _Rp(_ArgTypes...)>::target_type() const _NOEXCEPT
     return typeid(_Fp);
 }
 
-#endif  // _LIBCPP_NO_RTTI
+#endif // _LIBCPP_NO_RTTI
 
 // __value_func creates a value-type from a __func.
 
@@ -1961,11 +2143,11 @@ union __policy_storage
 // True if _Fun can safely be held in __policy_storage.__small.
 template <typename _Fun>
 struct __use_small_storage
-    : public _VSTD::integral_constant<
+    : public integral_constant<
           bool, sizeof(_Fun) <= sizeof(__policy_storage) &&
                     _LIBCPP_ALIGNOF(_Fun) <= _LIBCPP_ALIGNOF(__policy_storage) &&
-                    _VSTD::is_trivially_copy_constructible<_Fun>::value &&
-                    _VSTD::is_trivially_destructible<_Fun>::value> {};
+                    is_trivially_copy_constructible<_Fun>::value &&
+                    is_trivially_destructible<_Fun>::value> {};
 
 // Policy contains information about how to copy, destroy, and move the
 // underlying functor. You can think of it as a vtable of sorts.
@@ -2049,7 +2231,7 @@ struct __policy
 // faster for types that can be passed in registers.
 template <typename _Tp>
 using __fast_forward =
-    typename _VSTD::conditional<_VSTD::is_scalar<_Tp>::value, _Tp, _Tp&&>::type;
+    typename conditional<is_scalar<_Tp>::value, _Tp, _Tp&&>::type;
 
 // __policy_invoker calls an instance of __alloc_func held in __policy_storage.
 
@@ -2325,17 +2507,19 @@ public:
     virtual const std::type_info& target_type() const _NOEXCEPT {
         return typeid(__func::__block_type);
     }
-#endif  // _LIBCPP_NO_RTTI
+#endif // _LIBCPP_NO_RTTI
 };
 
-#endif  // _LIBCPP_HAS_EXTENSION_BLOCKS && !_LIBCPP_HAS_OBJC_ARC
+#endif // _LIBCPP_HAS_EXTENSION_BLOCKS && !_LIBCPP_HAS_OBJC_ARC
 
 }  // __function
 
 template<class _Rp, class ..._ArgTypes>
 class _LIBCPP_TEMPLATE_VIS function<_Rp(_ArgTypes...)>
+#if _LIBCPP_STD_VER <= 17 || !defined(_LIBCPP_ABI_NO_BINDER_BASES)
     : public __function::__maybe_derive_from_unary_function<_Rp(_ArgTypes...)>,
       public __function::__maybe_derive_from_binary_function<_Rp(_ArgTypes...)>
+#endif
 {
 #ifndef _LIBCPP_ABI_OPTIMIZED_FUNCTION
     typedef __function::__value_func<_Rp(_ArgTypes...)> __func;
@@ -2431,7 +2615,7 @@ public:
     const std::type_info& target_type() const _NOEXCEPT;
     template <typename _Tp> _Tp* target() _NOEXCEPT;
     template <typename _Tp> const _Tp* target() const _NOEXCEPT;
-#endif  // _LIBCPP_NO_RTTI
+#endif // _LIBCPP_NO_RTTI
 };
 
 #ifndef _LIBCPP_HAS_NO_DEDUCTION_GUIDES
@@ -2590,7 +2774,7 @@ function<_Rp(_ArgTypes...)>::target() const _NOEXCEPT
     return __f_.template target<_Tp>();
 }
 
-#endif  // _LIBCPP_NO_RTTI
+#endif // _LIBCPP_NO_RTTI
 
 template <class _Rp, class... _ArgTypes>
 inline _LIBCPP_INLINE_VISIBILITY
@@ -2864,7 +3048,9 @@ __apply_functor(_Fp& __f, _BoundArgs& __bound_args, __tuple_indices<_Indx...>,
 
 template<class _Fp, class ..._BoundArgs>
 class __bind
+#if _LIBCPP_STD_VER <= 17 || !defined(_LIBCPP_ABI_NO_BINDER_BASES)
     : public __weak_result_type<typename decay<_Fp>::type>
+#endif
 {
 protected:
     typedef typename decay<_Fp>::type _Fd;
@@ -2982,17 +3168,9 @@ bind(_Fp&& __f, _BoundArgs&&... __bound_args)
     return type(_VSTD::forward<_Fp>(__f), _VSTD::forward<_BoundArgs>(__bound_args)...);
 }
 
-#endif  // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_CXX03_LANG
 
 #if _LIBCPP_STD_VER > 14
-
-template <class _Fn, class ..._Args>
-_LIBCPP_CONSTEXPR_AFTER_CXX17 invoke_result_t<_Fn, _Args...>
-invoke(_Fn&& __f, _Args&&... __args)
-    noexcept(is_nothrow_invocable_v<_Fn, _Args...>)
-{
-    return _VSTD::__invoke(_VSTD::forward<_Fn>(__f), _VSTD::forward<_Args>(__args)...);
-}
 
 template<class _Op, class _Tuple,
          class _Idxs = typename __make_tuple_indices<tuple_size<_Tuple>::value>::type>
@@ -3098,93 +3276,11 @@ constexpr auto bind_front(_Fn&& __f, _Args&&... __args)
 
 // struct hash<T*> in <memory>
 
-template <class _BinaryPredicate, class _ForwardIterator1, class _ForwardIterator2>
-pair<_ForwardIterator1, _ForwardIterator1> _LIBCPP_CONSTEXPR_AFTER_CXX11
-__search(_ForwardIterator1 __first1, _ForwardIterator1 __last1,
-         _ForwardIterator2 __first2, _ForwardIterator2 __last2, _BinaryPredicate __pred,
-         forward_iterator_tag, forward_iterator_tag)
-{
-    if (__first2 == __last2)
-        return _VSTD::make_pair(__first1, __first1);  // Everything matches an empty sequence
-    while (true)
-    {
-        // Find first element in sequence 1 that matchs *__first2, with a mininum of loop checks
-        while (true)
-        {
-            if (__first1 == __last1)  // return __last1 if no element matches *__first2
-                return _VSTD::make_pair(__last1, __last1);
-            if (__pred(*__first1, *__first2))
-                break;
-            ++__first1;
-        }
-        // *__first1 matches *__first2, now match elements after here
-        _ForwardIterator1 __m1 = __first1;
-        _ForwardIterator2 __m2 = __first2;
-        while (true)
-        {
-            if (++__m2 == __last2)  // If pattern exhausted, __first1 is the answer (works for 1 element pattern)
-                return _VSTD::make_pair(__first1, __m1);
-            if (++__m1 == __last1)  // Otherwise if source exhaused, pattern not found
-                return _VSTD::make_pair(__last1, __last1);
-            if (!__pred(*__m1, *__m2))  // if there is a mismatch, restart with a new __first1
-            {
-                ++__first1;
-                break;
-            }  // else there is a match, check next elements
-        }
-    }
-}
-
-template <class _BinaryPredicate, class _RandomAccessIterator1, class _RandomAccessIterator2>
-_LIBCPP_CONSTEXPR_AFTER_CXX11
-pair<_RandomAccessIterator1, _RandomAccessIterator1>
-__search(_RandomAccessIterator1 __first1, _RandomAccessIterator1 __last1,
-         _RandomAccessIterator2 __first2, _RandomAccessIterator2 __last2, _BinaryPredicate __pred,
-           random_access_iterator_tag, random_access_iterator_tag)
-{
-    typedef typename iterator_traits<_RandomAccessIterator1>::difference_type _D1;
-    typedef typename iterator_traits<_RandomAccessIterator2>::difference_type _D2;
-    // Take advantage of knowing source and pattern lengths.  Stop short when source is smaller than pattern
-    const _D2 __len2 = __last2 - __first2;
-    if (__len2 == 0)
-        return _VSTD::make_pair(__first1, __first1);
-    const _D1 __len1 = __last1 - __first1;
-    if (__len1 < __len2)
-        return _VSTD::make_pair(__last1, __last1);
-    const _RandomAccessIterator1 __s = __last1 - (__len2 - 1);  // Start of pattern match can't go beyond here
-
-    while (true)
-    {
-        while (true)
-        {
-            if (__first1 == __s)
-                return _VSTD::make_pair(__last1, __last1);
-            if (__pred(*__first1, *__first2))
-                break;
-            ++__first1;
-        }
-
-        _RandomAccessIterator1 __m1 = __first1;
-        _RandomAccessIterator2 __m2 = __first2;
-         while (true)
-         {
-             if (++__m2 == __last2)
-                 return _VSTD::make_pair(__first1, __first1 + __len2);
-             ++__m1;          // no need to check range on __m1 because __s guarantees we have enough source
-             if (!__pred(*__m1, *__m2))
-             {
-                 ++__first1;
-                 break;
-             }
-         }
-    }
-}
-
 #if _LIBCPP_STD_VER > 14
 
 // default searcher
 template<class _ForwardIterator, class _BinaryPredicate = equal_to<>>
-class _LIBCPP_TYPE_VIS default_searcher {
+class _LIBCPP_TEMPLATE_VIS default_searcher {
 public:
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
     default_searcher(_ForwardIterator __f, _ForwardIterator __l,
@@ -3197,8 +3293,8 @@ public:
     operator () (_ForwardIterator2 __f, _ForwardIterator2 __l) const
     {
         return _VSTD::__search(__f, __l, __first_, __last_, __pred_,
-            typename _VSTD::iterator_traits<_ForwardIterator>::iterator_category(),
-            typename _VSTD::iterator_traits<_ForwardIterator2>::iterator_category());
+            typename iterator_traits<_ForwardIterator>::iterator_category(),
+            typename iterator_traits<_ForwardIterator2>::iterator_category());
     }
 
 private:
@@ -3221,7 +3317,7 @@ using unwrap_ref_decay_t = typename unwrap_ref_decay<_Tp>::type;
 // [func.identity]
 struct identity {
     template<class _Tp>
-    constexpr _Tp&& operator()(_Tp&& __t) const noexcept
+    _LIBCPP_NODISCARD_EXT constexpr _Tp&& operator()(_Tp&& __t) const noexcept
     {
         return _VSTD::forward<_Tp>(__t);
     }
@@ -3230,6 +3326,80 @@ struct identity {
 };
 #endif // _LIBCPP_STD_VER > 17
 
+#if !defined(_LIBCPP_HAS_NO_RANGES)
+
+namespace ranges {
+
+struct equal_to {
+  template <class _Tp, class _Up>
+  requires equality_comparable_with<_Tp, _Up>
+  [[nodiscard]] constexpr bool operator()(_Tp &&__t, _Up &&__u) const
+      noexcept(noexcept(bool(_VSTD::forward<_Tp>(__t) == _VSTD::forward<_Up>(__u)))) {
+    return _VSTD::forward<_Tp>(__t) == _VSTD::forward<_Up>(__u);
+  }
+
+  using is_transparent = void;
+};
+
+struct not_equal_to {
+  template <class _Tp, class _Up>
+  requires equality_comparable_with<_Tp, _Up>
+  [[nodiscard]] constexpr bool operator()(_Tp &&__t, _Up &&__u) const
+      noexcept(noexcept(bool(!(_VSTD::forward<_Tp>(__t) == _VSTD::forward<_Up>(__u))))) {
+    return !(_VSTD::forward<_Tp>(__t) == _VSTD::forward<_Up>(__u));
+  }
+
+  using is_transparent = void;
+};
+
+struct greater {
+  template <class _Tp, class _Up>
+  requires totally_ordered_with<_Tp, _Up>
+  [[nodiscard]] constexpr bool operator()(_Tp &&__t, _Up &&__u) const
+      noexcept(noexcept(bool(_VSTD::forward<_Up>(__u) < _VSTD::forward<_Tp>(__t)))) {
+    return _VSTD::forward<_Up>(__u) < _VSTD::forward<_Tp>(__t);
+  }
+
+  using is_transparent = void;
+};
+
+struct less {
+  template <class _Tp, class _Up>
+  requires totally_ordered_with<_Tp, _Up>
+  [[nodiscard]] constexpr bool operator()(_Tp &&__t, _Up &&__u) const
+      noexcept(noexcept(bool(_VSTD::forward<_Tp>(__t) < _VSTD::forward<_Up>(__u)))) {
+    return _VSTD::forward<_Tp>(__t) < _VSTD::forward<_Up>(__u);
+  }
+
+  using is_transparent = void;
+};
+
+struct greater_equal {
+  template <class _Tp, class _Up>
+  requires totally_ordered_with<_Tp, _Up>
+  [[nodiscard]] constexpr bool operator()(_Tp &&__t, _Up &&__u) const
+      noexcept(noexcept(bool(!(_VSTD::forward<_Tp>(__t) < _VSTD::forward<_Up>(__u))))) {
+    return !(_VSTD::forward<_Tp>(__t) < _VSTD::forward<_Up>(__u));
+  }
+
+  using is_transparent = void;
+};
+
+struct less_equal {
+  template <class _Tp, class _Up>
+  requires totally_ordered_with<_Tp, _Up>
+  [[nodiscard]] constexpr bool operator()(_Tp &&__t, _Up &&__u) const
+      noexcept(noexcept(bool(!(_VSTD::forward<_Up>(__u) < _VSTD::forward<_Tp>(__t))))) {
+    return !(_VSTD::forward<_Up>(__u) < _VSTD::forward<_Tp>(__t));
+  }
+
+  using is_transparent = void;
+};
+
+} // namespace ranges
+
+#endif // !defined(_LIBCPP_HAS_NO_RANGES)
+
 _LIBCPP_END_NAMESPACE_STD
 
-#endif  // _LIBCPP_FUNCTIONAL
+#endif // _LIBCPP_FUNCTIONAL

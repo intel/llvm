@@ -9,6 +9,7 @@
 #include "llvm/ProfileData/SampleProf.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
@@ -57,7 +58,8 @@ struct SampleProfTest : ::testing::Test {
   void readProfile(const Module &M, StringRef Profile,
                    StringRef RemapFile = "") {
     auto ReaderOrErr = SampleProfileReader::create(
-        std::string(Profile), Context, std::string(RemapFile));
+        std::string(Profile), Context, FSDiscriminatorPass::Base,
+        std::string(RemapFile));
     ASSERT_TRUE(NoError(ReaderOrErr.getError()));
     Reader = std::move(ReaderOrErr.get());
     Reader->setModule(&M);

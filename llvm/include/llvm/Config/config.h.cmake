@@ -220,9 +220,6 @@
 /* Define if the setupterm() function is supported this platform. */
 #cmakedefine LLVM_ENABLE_TERMINFO ${LLVM_ENABLE_TERMINFO}
 
-/* Define if the xar_open() function is supported this platform. */
-#cmakedefine HAVE_LIBXAR ${HAVE_LIBXAR}
-
 /* Define to 1 if you have the <termios.h> header file. */
 #cmakedefine HAVE_TERMIOS_H ${HAVE_TERMIOS_H}
 
@@ -352,9 +349,6 @@
 
 /* Define to the default GlobalISel coverage file prefix */
 #cmakedefine LLVM_GISEL_COV_PREFIX "${LLVM_GISEL_COV_PREFIX}"
-
-/* Whether Timers signpost passes in Xcode Instruments */
-#cmakedefine01 LLVM_SUPPORT_XCODE_SIGNPOSTS
 
 #cmakedefine HAVE_PROC_PID_RUSAGE 1
 

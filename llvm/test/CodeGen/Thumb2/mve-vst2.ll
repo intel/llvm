@@ -75,15 +75,15 @@ define void @vst2_v16i32(<16 x i32> *%src, <32 x i32> *%dst) {
 ; CHECK-NEXT:    vldrw.u32 q0, [r0, #48]
 ; CHECK-NEXT:    vldrw.u32 q2, [r0, #32]
 ; CHECK-NEXT:    vldrw.u32 q4, [r0, #16]
-; CHECK-NEXT:    vst20.32 {q6, q7}, [r1]
 ; CHECK-NEXT:    add.w r0, r1, #96
 ; CHECK-NEXT:    add.w r2, r1, #64
+; CHECK-NEXT:    vst20.32 {q6, q7}, [r1]
 ; CHECK-NEXT:    vst21.32 {q6, q7}, [r1]!
 ; CHECK-NEXT:    vst20.32 {q4, q5}, [r1]
-; CHECK-NEXT:    vst21.32 {q4, q5}, [r1]
 ; CHECK-NEXT:    vst20.32 {q2, q3}, [r2]
-; CHECK-NEXT:    vst21.32 {q2, q3}, [r2]
 ; CHECK-NEXT:    vst20.32 {q0, q1}, [r0]
+; CHECK-NEXT:    vst21.32 {q4, q5}, [r1]
+; CHECK-NEXT:    vst21.32 {q2, q3}, [r2]
 ; CHECK-NEXT:    vst21.32 {q0, q1}, [r0]
 ; CHECK-NEXT:    vpop {d8, d9, d10, d11, d12, d13, d14, d15}
 ; CHECK-NEXT:    bx lr
@@ -460,15 +460,15 @@ define void @vst2_v16f32(<16 x float> *%src, <32 x float> *%dst) {
 ; CHECK-NEXT:    vldrw.u32 q0, [r0, #48]
 ; CHECK-NEXT:    vldrw.u32 q2, [r0, #32]
 ; CHECK-NEXT:    vldrw.u32 q4, [r0, #16]
-; CHECK-NEXT:    vst20.32 {q6, q7}, [r1]
 ; CHECK-NEXT:    add.w r0, r1, #96
 ; CHECK-NEXT:    add.w r2, r1, #64
+; CHECK-NEXT:    vst20.32 {q6, q7}, [r1]
 ; CHECK-NEXT:    vst21.32 {q6, q7}, [r1]!
 ; CHECK-NEXT:    vst20.32 {q4, q5}, [r1]
-; CHECK-NEXT:    vst21.32 {q4, q5}, [r1]
 ; CHECK-NEXT:    vst20.32 {q2, q3}, [r2]
-; CHECK-NEXT:    vst21.32 {q2, q3}, [r2]
 ; CHECK-NEXT:    vst20.32 {q0, q1}, [r0]
+; CHECK-NEXT:    vst21.32 {q4, q5}, [r1]
+; CHECK-NEXT:    vst21.32 {q2, q3}, [r2]
 ; CHECK-NEXT:    vst21.32 {q0, q1}, [r0]
 ; CHECK-NEXT:    vpop {d8, d9, d10, d11, d12, d13, d14, d15}
 ; CHECK-NEXT:    bx lr
@@ -520,9 +520,8 @@ define void @vst2_v2f16(<2 x half> *%src, <4 x half> *%dst) {
 ; CHECK-NEXT:    vins.f16 s4, s0
 ; CHECK-NEXT:    vmovx.f16 s0, s0
 ; CHECK-NEXT:    vins.f16 s5, s0
-; CHECK-NEXT:    vmov r0, s5
-; CHECK-NEXT:    str r0, [r1, #4]
-; CHECK-NEXT:    vmov r0, s4
+; CHECK-NEXT:    vmov r0, r2, d2
+; CHECK-NEXT:    str r2, [r1, #4]
 ; CHECK-NEXT:    str r0, [r1]
 ; CHECK-NEXT:    bx lr
 entry:

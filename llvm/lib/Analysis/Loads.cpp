@@ -28,7 +28,6 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/IR/Statepoint.h"
 
 using namespace llvm;
 
@@ -59,6 +58,16 @@ static bool isDereferenceableAndAlignedPointer(
 
   // Note that it is not safe to speculate into a malloc'd region because
   // malloc may return null.
+
+  // Recurse into both hands of select.
+  if (const SelectInst *Sel = dyn_cast<SelectInst>(V)) {
+    return isDereferenceableAndAlignedPointer(Sel->getTrueValue(), Alignment,
+                                              Size, DL, CtxI, DT, TLI, Visited,
+                                              MaxDepth) &&
+           isDereferenceableAndAlignedPointer(Sel->getFalseValue(), Alignment,
+                                              Size, DL, CtxI, DT, TLI, Visited,
+                                              MaxDepth);
+  }
 
   // bitcast instructions are no-ops as far as dereferenceability is concerned.
   if (const BitCastOperator *BC = dyn_cast<BitCastOperator>(V)) {
@@ -407,7 +416,7 @@ bool llvm::isSafeToLoadUnconditionally(Value *V, Type *Ty, Align Alignment,
   return isSafeToLoadUnconditionally(V, Alignment, Size, DL, ScanFrom, DT, TLI);
 }
 
-  /// DefMaxInstsToScan - the default number of maximum instructions
+/// DefMaxInstsToScan - the default number of maximum instructions
 /// to scan in the block, used by FindAvailableLoadedValue().
 /// FindAvailableLoadedValue() was introduced in r60148, to improve jump
 /// threading in part by eliminating partially redundant loads.
@@ -523,7 +532,7 @@ Value *llvm::findAvailablePtrLoadStore(
     // We must ignore debug info directives when counting (otherwise they
     // would affect codegen).
     Instruction *Inst = &*--ScanFrom;
-    if (isa<DbgInfoIntrinsic>(Inst))
+    if (Inst->isDebugOrPseudoInst())
       continue;
 
     // Restore ScanFrom to expected value in case next test succeeds
@@ -611,7 +620,7 @@ Value *llvm::FindAvailableLoadedValue(LoadInst *Load, AAResults &AA,
   SmallVector<Instruction *> MustNotAliasInsts;
   for (Instruction &Inst : make_range(++Load->getReverseIterator(),
                                       ScanBB->rend())) {
-    if (isa<DbgInfoIntrinsic>(&Inst))
+    if (Inst.isDebugOrPseudoInst())
       continue;
 
     if (MaxInstsToScan-- == 0)

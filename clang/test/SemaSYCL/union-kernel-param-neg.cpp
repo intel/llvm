@@ -12,7 +12,7 @@ union union_with_sampler {
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void a_kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void a_kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 

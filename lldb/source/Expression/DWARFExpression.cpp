@@ -8,7 +8,7 @@
 
 #include "lldb/Expression/DWARFExpression.h"
 
-#include <inttypes.h>
+#include <cinttypes>
 
 #include <vector>
 
@@ -55,9 +55,7 @@ ReadAddressFromDebugAddrSection(const DWARFUnit *dwarf_cu,
 }
 
 // DWARFExpression constructor
-DWARFExpression::DWARFExpression()
-    : m_module_wp(), m_data(), m_dwarf_cu(nullptr),
-      m_reg_kind(eRegisterKindDWARF) {}
+DWARFExpression::DWARFExpression() : m_module_wp(), m_data() {}
 
 DWARFExpression::DWARFExpression(lldb::ModuleSP module_sp,
                                  const DataExtractor &data,
@@ -1130,6 +1128,8 @@ bool DWARFExpression::Evaluate(
             lldb::addr_t pointer_value =
                 process->ReadPointerFromMemory(pointer_addr, error);
             if (pointer_value != LLDB_INVALID_ADDRESS) {
+              if (ABISP abi_sp = process->GetABI())
+                pointer_value = abi_sp->FixCodeAddress(pointer_value);
               stack.back().GetScalar() = pointer_value;
               stack.back().ClearContext();
             } else {

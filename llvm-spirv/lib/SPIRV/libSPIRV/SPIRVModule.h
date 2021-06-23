@@ -43,6 +43,8 @@
 #include "LLVMSPIRVOpts.h"
 #include "SPIRVEntry.h"
 
+#include "llvm/IR/Metadata.h"
+
 #include <iostream>
 #include <set>
 #include <string>
@@ -92,6 +94,7 @@ class SPIRVAsmTargetINTEL;
 class SPIRVAsmINTEL;
 class SPIRVAsmCallINTEL;
 class SPIRVTypeBufferSurfaceINTEL;
+class SPIRVTypeTokenINTEL;
 
 typedef SPIRVBasicBlock SPIRVLabel;
 struct SPIRVTypeImageDescriptor;
@@ -248,7 +251,7 @@ public:
   virtual SPIRVTypeVmeImageINTEL *addVmeImageINTELType(SPIRVTypeImage *) = 0;
   virtual SPIRVTypeBufferSurfaceINTEL *
   addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) = 0;
-  virtual void createForwardPointers() = 0;
+  virtual SPIRVTypeTokenINTEL *addTokenTypeINTEL() = 0;
 
   // Constants creation functions
   virtual SPIRVValue *
@@ -399,9 +402,6 @@ public:
       SPIRVValue *, SPIRVBasicBlock *,
       const std::vector<std::pair<std::vector<SPIRVWord>, SPIRVBasicBlock *>> &,
       SPIRVBasicBlock *) = 0;
-  virtual SPIRVInstruction *addFModInst(SPIRVType *TheType, SPIRVId TheDividend,
-                                        SPIRVId TheDivisor,
-                                        SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addVectorTimesScalarInst(SPIRVType *TheType,
                                                      SPIRVId TheVector,
                                                      SPIRVId TheScalar,
@@ -452,6 +452,12 @@ public:
                                                SPIRVValue *Value,
                                                SPIRVValue *ExpectedValue,
                                                SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVEntry *getOrAddAliasDomainDeclINTELInst(
+      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *getOrAddAliasScopeDeclINTELInst(
+      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *getOrAddAliasScopeListDeclINTELInst(
+      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const = 0;
 

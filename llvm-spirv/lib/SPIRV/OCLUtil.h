@@ -45,6 +45,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Path.h"
 
+#include <atomic>
 #include <functional>
 #include <tuple>
 #include <type_traits>
@@ -305,10 +306,10 @@ const unsigned int OCLImageChannelOrderOffset = 0x10B0;
 const unsigned int OCLImageChannelDataTypeOffset = 0x10D0;
 
 /// OCL 1.x atomic memory order when translated to 2.0 atomics.
-const OCLMemOrderKind OCLLegacyAtomicMemOrder = OCLMO_seq_cst;
+const OCLMemOrderKind OCLLegacyAtomicMemOrder = OCLMO_relaxed;
 
 /// OCL 1.x atomic memory scope when translated to 2.0 atomics.
-const OCLScopeKind OCLLegacyAtomicMemScope = OCLMS_device;
+const OCLScopeKind OCLLegacyAtomicMemScope = OCLMS_work_group;
 
 enum IntelFPGAMemoryAccessesVal {
   BurstCoalesce = 0x1,

@@ -435,15 +435,16 @@ define i8 @rotate_right_8bit(i8 %v, i3 %shift) {
   ret i8 %conv2
 }
 
-; The shifted value does not need to be a zexted value; here it is masked.
+; The right-shifted value does not need to be a zexted value; here it is masked.
 ; The shift mask could be less than the bitwidth, but this is still ok.
 
-define i8 @rotate_right_commute_8bit(i32 %v, i32 %shift) {
-; CHECK-LABEL: @rotate_right_commute_8bit(
+define i8 @rotate_right_commute_8bit_unmasked_shl(i32 %v, i32 %shift) {
+; CHECK-LABEL: @rotate_right_commute_8bit_unmasked_shl(
 ; CHECK-NEXT:    [[TMP1:%.*]] = trunc i32 [[SHIFT:%.*]] to i8
 ; CHECK-NEXT:    [[TMP2:%.*]] = and i8 [[TMP1]], 3
 ; CHECK-NEXT:    [[TMP3:%.*]] = trunc i32 [[V:%.*]] to i8
-; CHECK-NEXT:    [[CONV2:%.*]] = call i8 @llvm.fshr.i8(i8 [[TMP3]], i8 [[TMP3]], i8 [[TMP2]])
+; CHECK-NEXT:    [[TMP4:%.*]] = trunc i32 [[V]] to i8
+; CHECK-NEXT:    [[CONV2:%.*]] = call i8 @llvm.fshr.i8(i8 [[TMP3]], i8 [[TMP4]], i8 [[TMP2]])
 ; CHECK-NEXT:    ret i8 [[CONV2]]
 ;
   %and = and i32 %shift, 3
@@ -451,6 +452,27 @@ define i8 @rotate_right_commute_8bit(i32 %v, i32 %shift) {
   %shr = lshr i32 %conv, %and
   %sub = sub i32 8, %and
   %shl = shl i32 %conv, %sub
+  %or = or i32 %shr, %shl
+  %conv2 = trunc i32 %or to i8
+  ret i8 %conv2
+}
+
+; The left-shifted value does not need to be masked at all.
+
+define i8 @rotate_right_commute_8bit(i32 %v, i32 %shift) {
+; CHECK-LABEL: @rotate_right_commute_8bit(
+; CHECK-NEXT:    [[TMP1:%.*]] = trunc i32 [[SHIFT:%.*]] to i8
+; CHECK-NEXT:    [[TMP2:%.*]] = and i8 [[TMP1]], 3
+; CHECK-NEXT:    [[TMP3:%.*]] = trunc i32 [[V:%.*]] to i8
+; CHECK-NEXT:    [[TMP4:%.*]] = trunc i32 [[V]] to i8
+; CHECK-NEXT:    [[CONV2:%.*]] = call i8 @llvm.fshr.i8(i8 [[TMP3]], i8 [[TMP4]], i8 [[TMP2]])
+; CHECK-NEXT:    ret i8 [[CONV2]]
+;
+  %and = and i32 %shift, 3
+  %conv = and i32 %v, 255
+  %shr = lshr i32 %conv, %and
+  %sub = sub i32 8, %and
+  %shl = shl i32 %v, %sub
   %or = or i32 %shr, %shl
   %conv2 = trunc i32 %or to i8
   ret i8 %conv2
@@ -913,4 +935,25 @@ define i32 @rotateright32_doubleand1(i32 %v, i16 %r) {
   %shr = lshr i32 %v, %z
   %or = or i32 %shr, %shl
   ret i32 %or
+}
+
+; TODO: This should be a rotate (funnel-shift).
+
+define i8 @unmasked_shlop_unmasked_shift_amount(i32 %x, i32 %shamt) {
+; CHECK-LABEL: @unmasked_shlop_unmasked_shift_amount(
+; CHECK-NEXT:    [[MASKX:%.*]] = and i32 [[X:%.*]], 255
+; CHECK-NEXT:    [[T4:%.*]] = sub i32 8, [[SHAMT:%.*]]
+; CHECK-NEXT:    [[T5:%.*]] = shl i32 [[X]], [[T4]]
+; CHECK-NEXT:    [[T6:%.*]] = lshr i32 [[MASKX]], [[SHAMT]]
+; CHECK-NEXT:    [[T7:%.*]] = or i32 [[T5]], [[T6]]
+; CHECK-NEXT:    [[T8:%.*]] = trunc i32 [[T7]] to i8
+; CHECK-NEXT:    ret i8 [[T8]]
+;
+  %maskx = and i32 %x, 255
+  %t4 = sub i32 8, %shamt
+  %t5 = shl i32 %x, %t4
+  %t6 = lshr i32 %maskx, %shamt
+  %t7 = or i32 %t5, %t6
+  %t8 = trunc i32 %t7 to i8
+  ret i8 %t8
 }

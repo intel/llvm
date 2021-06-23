@@ -28,10 +28,20 @@ def SDT_RISCVSelectCC : SDTypeProfile<1, 5, [SDTCisSameAs<1, 2>,
 def SDT_RISCVBrCC : SDTypeProfile<0, 4, [SDTCisSameAs<0, 1>,
                                          SDTCisVT<2, OtherVT>,
                                          SDTCisVT<3, OtherVT>]>;
+def SDT_RISCVReadCSR  : SDTypeProfile<1, 1, [SDTCisInt<0>, SDTCisInt<1>]>;
+def SDT_RISCVWriteCSR : SDTypeProfile<0, 2, [SDTCisInt<0>, SDTCisInt<1>]>;
+def SDT_RISCVSwapCSR  : SDTypeProfile<1, 2, [SDTCisInt<0>, SDTCisInt<1>,
+                                             SDTCisInt<2>]>;
 def SDT_RISCVReadCycleWide : SDTypeProfile<2, 0, [SDTCisVT<0, i32>,
                                                   SDTCisVT<1, i32>]>;
+def SDT_RISCVIntUnaryOpW : SDTypeProfile<1, 1, [
+  SDTCisSameAs<0, 1>, SDTCisVT<0, i64>
+]>;
 def SDT_RISCVIntBinOpW : SDTypeProfile<1, 2, [
   SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>, SDTCisVT<0, i64>
+]>;
+def SDT_RISCVIntShiftDOpW : SDTypeProfile<1, 3, [
+  SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>, SDTCisVT<0, i64>, SDTCisVT<3, i64>
 ]>;
 
 // Target-independent nodes, but with target-specific formats.
@@ -61,6 +71,12 @@ def riscv_tail      : SDNode<"RISCVISD::TAIL", SDT_RISCVCall,
 def riscv_sllw      : SDNode<"RISCVISD::SLLW", SDT_RISCVIntBinOpW>;
 def riscv_sraw      : SDNode<"RISCVISD::SRAW", SDT_RISCVIntBinOpW>;
 def riscv_srlw      : SDNode<"RISCVISD::SRLW", SDT_RISCVIntBinOpW>;
+def riscv_read_csr  : SDNode<"RISCVISD::READ_CSR", SDT_RISCVReadCSR,
+                             [SDNPHasChain]>;
+def riscv_write_csr : SDNode<"RISCVISD::WRITE_CSR", SDT_RISCVWriteCSR,
+                             [SDNPHasChain]>;
+def riscv_swap_csr  : SDNode<"RISCVISD::SWAP_CSR", SDT_RISCVSwapCSR,
+                             [SDNPHasChain]>;
 
 def riscv_read_cycle_wide : SDNode<"RISCVISD::READ_CYCLE_WIDE",
                                    SDT_RISCVReadCycleWide,
@@ -129,7 +145,7 @@ def uimmlog2xlen : Operand<XLenVT>, ImmLeaf<XLenVT, [{
     if (!MCOp.evaluateAsConstantImm(Imm))
       return false;
     if (STI.getTargetTriple().isArch64Bit())
-      return  isUInt<6>(Imm);
+      return isUInt<6>(Imm);
     return isUInt<5>(Imm);
   }];
   let OperandType = "OPERAND_UIMMLOG2XLEN";
@@ -327,6 +343,29 @@ def ImmSubFrom32 : SDNodeXForm<imm, [{
                                    N->getValueType(0));
 }]>;
 
+// Check if (add r, imm) can be optimized to (ADDI (ADDI r, imm0), imm1),
+// in which imm = imm0 + imm1 and both imm0 and imm1 are simm12.
+def AddiPair : PatLeaf<(imm), [{
+  if (!N->hasOneUse())
+    return false;
+  // The immediate operand must be in range [-4096,-2049] or [2048,4094].
+  int64_t Imm = N->getSExtValue();
+  return (-4096 <= Imm && Imm <= -2049) || (2048 <= Imm && Imm <= 4094);
+}]>;
+
+// Return imm/2.
+def AddiPairImmA : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getSExtValue() / 2, SDLoc(N),
+                                   N->getValueType(0));
+}]>;
+
+// Return imm - imm/2.
+def AddiPairImmB : SDNodeXForm<imm, [{
+  int64_t Imm = N->getSExtValue();
+  return CurDAG->getTargetConstant(Imm - Imm / 2, SDLoc(N),
+                                   N->getValueType(0));
+}]>;
+
 //===----------------------------------------------------------------------===//
 // Instruction Formats
 //===----------------------------------------------------------------------===//
@@ -368,8 +407,8 @@ class ALU_ri<bits<3> funct3, string opcodestr>
       Sched<[WriteIALU, ReadIALU]>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-class Shift_ri<bit arithshift, bits<3> funct3, string opcodestr>
-    : RVInstIShift<arithshift, funct3, OPC_OP_IMM, (outs GPR:$rd),
+class Shift_ri<bits<5> imm11_7, bits<3> funct3, string opcodestr>
+    : RVInstIShift<imm11_7, funct3, OPC_OP_IMM, (outs GPR:$rd),
                    (ins GPR:$rs1, uimmlog2xlen:$shamt), opcodestr,
                    "$rd, $rs1, $shamt">,
       Sched<[WriteShiftImm, ReadShiftImm]>;
@@ -393,8 +432,8 @@ class CSR_ii<bits<3> funct3, string opcodestr>
               opcodestr, "$rd, $imm12, $rs1">, Sched<[WriteCSR]>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-class ShiftW_ri<bit arithshift, bits<3> funct3, string opcodestr>
-    : RVInstIShiftW<arithshift, funct3, OPC_OP_IMM_32, (outs GPR:$rd),
+class ShiftW_ri<bits<7> imm11_5, bits<3> funct3, string opcodestr>
+    : RVInstIShiftW<imm11_5, funct3, OPC_OP_IMM_32, (outs GPR:$rd),
                     (ins GPR:$rs1, uimm5:$shamt), opcodestr,
                     "$rd, $rs1, $shamt">,
       Sched<[WriteShiftImm32, ReadShiftImm32]>;
@@ -464,9 +503,9 @@ def ORI   : ALU_ri<0b110, "ori">;
 
 def ANDI  : ALU_ri<0b111, "andi">;
 
-def SLLI : Shift_ri<0, 0b001, "slli">;
-def SRLI : Shift_ri<0, 0b101, "srli">;
-def SRAI : Shift_ri<1, 0b101, "srai">;
+def SLLI : Shift_ri<0b00000, 0b001, "slli">;
+def SRLI : Shift_ri<0b00000, 0b101, "srli">;
+def SRAI : Shift_ri<0b01000, 0b101, "srai">;
 
 def ADD  : ALU_rr<0b0000000, 0b000, "add">, Sched<[WriteIALU, ReadIALU, ReadIALU]>;
 def SUB  : ALU_rr<0b0100000, 0b000, "sub">, Sched<[WriteIALU, ReadIALU, ReadIALU]>;
@@ -548,9 +587,9 @@ def ADDIW : RVInstI<0b000, OPC_OP_IMM_32, (outs GPR:$rd),
                     "addiw", "$rd, $rs1, $imm12">,
             Sched<[WriteIALU32, ReadIALU32]>;
 
-def SLLIW : ShiftW_ri<0, 0b001, "slliw">;
-def SRLIW : ShiftW_ri<0, 0b101, "srliw">;
-def SRAIW : ShiftW_ri<1, 0b101, "sraiw">;
+def SLLIW : ShiftW_ri<0b0000000, 0b001, "slliw">;
+def SRLIW : ShiftW_ri<0b0000000, 0b101, "srliw">;
+def SRAIW : ShiftW_ri<0b0100000, 0b101, "sraiw">;
 
 def ADDW  : ALUW_rr<0b0000000, 0b000, "addw">,
             Sched<[WriteIALU32, ReadIALU32, ReadIALU32]>;
@@ -823,11 +862,14 @@ class PatGpr<SDPatternOperator OpNode, RVInst Inst>
     : Pat<(OpNode GPR:$rs1), (Inst GPR:$rs1)>;
 class PatGprGpr<SDPatternOperator OpNode, RVInst Inst>
     : Pat<(OpNode GPR:$rs1, GPR:$rs2), (Inst GPR:$rs1, GPR:$rs2)>;
+
+class PatGprImm<SDPatternOperator OpNode, RVInst Inst, ImmLeaf ImmType>
+    : Pat<(XLenVT (OpNode (XLenVT GPR:$rs1), ImmType:$imm)),
+          (Inst GPR:$rs1, ImmType:$imm)>;
 class PatGprSimm12<SDPatternOperator OpNode, RVInstI Inst>
-    : Pat<(OpNode GPR:$rs1, simm12:$imm12), (Inst GPR:$rs1, simm12:$imm12)>;
+    : PatGprImm<OpNode, Inst, simm12>;
 class PatGprUimmLog2XLen<SDPatternOperator OpNode, RVInstIShift Inst>
-    : Pat<(OpNode GPR:$rs1, uimmlog2xlen:$shamt),
-          (Inst GPR:$rs1, uimmlog2xlen:$shamt)>;
+    : PatGprImm<OpNode, Inst, uimmlog2xlen>;
 
 /// Predicates
 
@@ -848,6 +890,14 @@ def zexti32 : ComplexPattern<i64, 1, "selectZExti32">;
 def SLLIUWPat : PatFrag<(ops node:$A, node:$B),
                         (and (shl node:$A, node:$B), imm), [{
   return MatchSLLIUW(N);
+}]>;
+
+def add_oneuse : PatFrag<(ops node:$A, node:$B), (add node:$A, node:$B), [{
+  return N->hasOneUse();
+}]>;
+
+def mul_oneuse : PatFrag<(ops node:$A, node:$B), (mul node:$A, node:$B), [{
+  return N->hasOneUse();
 }]>;
 
 /// Simple arithmetic operations
@@ -929,7 +979,7 @@ class SelectCC_rrirr<RegisterClass valty, RegisterClass cmpty>
              (ins cmpty:$lhs, cmpty:$rhs, ixlenimm:$imm,
               valty:$truev, valty:$falsev),
              [(set valty:$dst, (riscv_selectcc cmpty:$lhs, cmpty:$rhs,
-              (XLenVT imm:$imm), valty:$truev, valty:$falsev))]>;
+              (XLenVT timm:$imm), valty:$truev, valty:$falsev))]>;
 
 def Select_GPR_Using_CC_GPR : SelectCC_rrirr<GPR, GPR>;
 
@@ -1115,6 +1165,58 @@ def : Pat<(atomic_fence (XLenVT 7), (timm)), (FENCE 0b11, 0b11)>;
 // present. This is necessary as it isn't valid to mix __atomic_* libcalls
 // with inline atomic operations for the same object.
 
+/// Access to system registers
+
+// Helpers for defining specific operations. They are defined for each system
+// register separately. Side effect is not used because dependencies are
+// expressed via use-def properties.
+
+class ReadSysReg<SysReg SR, list<Register> Regs>
+  : Pseudo<(outs GPR:$rd), (ins),
+           [(set GPR:$rd, (riscv_read_csr (XLenVT SR.Encoding)))]>,
+    PseudoInstExpansion<(CSRRS GPR:$rd, SR.Encoding, X0)> {
+  let hasSideEffects = 0;
+  let Uses = Regs;
+}
+
+class WriteSysReg<SysReg SR, list<Register> Regs>
+  : Pseudo<(outs), (ins GPR:$val),
+           [(riscv_write_csr (XLenVT SR.Encoding), GPR:$val)]>,
+    PseudoInstExpansion<(CSRRW X0, SR.Encoding, GPR:$val)> {
+  let hasSideEffects = 0;
+  let Defs = Regs;
+}
+
+class WriteSysRegImm<SysReg SR, list<Register> Regs>
+  : Pseudo<(outs), (ins uimm5:$val),
+           [(riscv_write_csr (XLenVT SR.Encoding), uimm5:$val)]>,
+    PseudoInstExpansion<(CSRRWI X0, SR.Encoding, uimm5:$val)> {
+  let hasSideEffects = 0;
+  let Defs = Regs;
+}
+
+class SwapSysReg<SysReg SR, list<Register> Regs>
+  : Pseudo<(outs GPR:$rd), (ins GPR:$val),
+           [(set GPR:$rd, (riscv_swap_csr (XLenVT SR.Encoding), GPR:$val))]>,
+    PseudoInstExpansion<(CSRRW GPR:$rd, SR.Encoding, GPR:$val)> {
+  let hasSideEffects = 0;
+  let Uses = Regs;
+  let Defs = Regs;
+}
+
+class SwapSysRegImm<SysReg SR, list<Register> Regs>
+  : Pseudo<(outs GPR:$rd), (ins uimm5:$val),
+           [(set GPR:$rd, (riscv_swap_csr (XLenVT SR.Encoding), uimm5:$val))]>,
+    PseudoInstExpansion<(CSRRWI GPR:$rd, SR.Encoding, uimm5:$val)> {
+  let hasSideEffects = 0;
+  let Uses = Regs;
+  let Defs = Regs;
+}
+
+def ReadFRM : ReadSysReg<SysRegFRM, [FRM]>;
+def WriteFRM : WriteSysReg<SysRegFRM, [FRM]>;
+def WriteFRMImm : WriteSysRegImm<SysRegFRM, [FRM]>;
+
 /// Other pseudo-instructions
 
 // Pessimistically assume the stack pointer will be clobbered
@@ -1206,6 +1308,17 @@ def : Pat<(trap), (UNIMP)>;
 // We lower `debugtrap` to `ebreak`, as this will get the attention of the
 // debugger if possible.
 def : Pat<(debugtrap), (EBREAK)>;
+
+/// Simple optimization
+def : Pat<(add GPR:$rs1, (AddiPair:$rs2)),
+          (ADDI (ADDI GPR:$rs1, (AddiPairImmB AddiPair:$rs2)),
+                (AddiPairImmA GPR:$rs2))>;
+
+let Predicates = [IsRV64] in {
+def : Pat<(sext_inreg (add_oneuse GPR:$rs1, (AddiPair:$rs2)), i32),
+          (ADDIW (ADDIW GPR:$rs1, (AddiPairImmB AddiPair:$rs2)),
+                 (AddiPairImmA AddiPair:$rs2))>;
+}
 
 //===----------------------------------------------------------------------===//
 // Standard extensions

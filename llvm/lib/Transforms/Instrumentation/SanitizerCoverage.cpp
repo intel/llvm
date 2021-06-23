@@ -621,6 +621,8 @@ void ModuleSanitizerCoverage::instrumentFunction(
     return;
   if (Blocklist && Blocklist->inSection("coverage", "fun", F.getName()))
     return;
+  if (F.hasFnAttribute(Attribute::NoSanitizeCoverage))
+    return;
   if (Options.CoverageType >= SanitizerCoverageOptions::SCK_Edge)
     SplitAllCriticalEdges(F, CriticalEdgeSplittingOptions().setIgnoreUnreachableDests());
   SmallVector<Instruction *, 8> IndirCalls;
@@ -904,6 +906,9 @@ void ModuleSanitizerCoverage::InjectCoverageAtBlock(Function &F, BasicBlock &BB,
     IP = PrepareToSplitEntryBlock(BB, IP);
   } else {
     EntryLoc = IP->getDebugLoc();
+    if (!EntryLoc)
+      if (auto *SP = F.getSubprogram())
+        EntryLoc = DILocation::get(SP->getContext(), 0, 0, SP);
   }
 
   IRBuilder<> IRB(&*IP);

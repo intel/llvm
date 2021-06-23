@@ -80,6 +80,7 @@ SPIRVDecorateGeneric::SPIRVDecorateGeneric(Op OC, SPIRVWord WC,
   validate();
   updateModuleVersion();
 }
+
 SPIRVDecorateGeneric::SPIRVDecorateGeneric(Op OC)
     : SPIRVAnnotationGeneric(OC), Dec(DecorationRelaxedPrecision),
       Owner(nullptr) {}
@@ -148,6 +149,22 @@ void SPIRVDecorate::decode(std::istream &I) {
   default:
     Decoder >> Literals;
   }
+  getOrCreateTarget()->addDecorate(this);
+}
+
+void SPIRVDecorateId::encode(spv_ostream &O) const {
+  SPIRVEncoder Encoder = getEncoder(O);
+  Encoder << Target << Dec << Literals;
+}
+
+void SPIRVDecorateId::setWordCount(SPIRVWord Count) {
+  WordCount = Count;
+  Literals.resize(WordCount - FixedWC);
+}
+
+void SPIRVDecorateId::decode(std::istream &I) {
+  SPIRVDecoder Decoder = getDecoder(I);
+  Decoder >> Target >> Dec >> Literals;
   getOrCreateTarget()->addDecorate(this);
 }
 

@@ -45,6 +45,7 @@
 #include "LLVMSPIRVLib.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
 #include <map>
@@ -54,19 +55,16 @@ using namespace llvm;
 
 namespace SPIRV {
 
-class OCLTypeToSPIRV : public ModulePass {
+class OCLTypeToSPIRVBase {
 public:
-  OCLTypeToSPIRV();
-  void getAnalysisUsage(AnalysisUsage &AU) const override;
-  bool runOnModule(Module &M) override;
+  OCLTypeToSPIRVBase();
 
+  bool runOCLTypeToSPIRV(Module &M);
   /// \return Adapted type based on kernel argument metadata. If \p V is
   ///   a function, returns function type.
   /// E.g. for a function with argument of read only opencl.image_2d_t* type
   /// returns a function with argument of type opencl.image2d_t.read_only*.
   Type *getAdaptedType(Value *V);
-
-  static char ID;
 
 private:
   Module *M;
@@ -80,6 +78,22 @@ private:
   void adaptFunction(Function *F);
   void addAdaptedType(Value *V, Type *T);
   void addWork(Function *F);
+};
+
+class OCLTypeToSPIRVLegacy : public OCLTypeToSPIRVBase, public ModulePass {
+public:
+  OCLTypeToSPIRVLegacy();
+  void getAnalysisUsage(AnalysisUsage &AU) const override;
+  bool runOnModule(Module &M) override;
+  static char ID;
+};
+
+class OCLTypeToSPIRVPass : public OCLTypeToSPIRVBase,
+                           public llvm::AnalysisInfoMixin<OCLTypeToSPIRVPass> {
+public:
+  using Result = OCLTypeToSPIRVBase;
+  static llvm::AnalysisKey Key;
+  OCLTypeToSPIRVBase run(llvm::Module &F, llvm::ModuleAnalysisManager &MAM);
 };
 
 } // namespace SPIRV

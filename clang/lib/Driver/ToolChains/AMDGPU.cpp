@@ -12,9 +12,16 @@
 #include "clang/Basic/TargetID.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/Options.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/FileUtilities.h"
+#include "llvm/Support/LineIterator.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include <system_error>
+
+#define AMDGPU_ARCH_PROGRAM_NAME "amdgpu-arch"
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -51,19 +58,16 @@ RocmInstallationDetector::findSPACKPackage(const Candidate &Cand,
     llvm::sys::path::append(PackagePath, SubDirs[0]);
     return PackagePath;
   }
-  if (SubDirs.size() == 0) {
-    unsigned DiagID = D.getDiags().getCustomDiagID(
-        DiagnosticsEngine::Error,
-        "Expecting SPACK package %0 at %1 but not found");
-    D.Diag(DiagID) << Prefix << Cand.Path;
+  if (SubDirs.size() == 0 && Verbose) {
+    llvm::errs() << "SPACK package " << Prefix << " not found at " << Cand.Path
+                 << '\n';
     return {};
   }
 
-  assert(SubDirs.size() > 1);
-  unsigned DiagID = D.getDiags().getCustomDiagID(
-      DiagnosticsEngine::Error,
-      "Expecting one SPACK package %0 at %1 but found more");
-  D.Diag(DiagID) << Prefix << Cand.Path;
+  if (SubDirs.size() > 1 && Verbose) {
+    llvm::errs() << "Cannot use SPACK package " << Prefix << " at " << Cand.Path
+                 << " due to multiple installations for the same version\n";
+  }
   return {};
 }
 
@@ -247,7 +251,12 @@ RocmInstallationDetector::getInstallationPathCandidates() {
   if (ParentPath != InstallDir)
     ROCmSearchDirs.emplace_back(DeduceROCmPath(ParentPath));
 
-  // Device library may be installed in clang resource directory.
+  // Device library may be installed in clang or resource directory.
+  auto ClangRoot = llvm::sys::path::parent_path(InstallDir);
+  auto RealClangRoot = llvm::sys::path::parent_path(ParentPath);
+  ROCmSearchDirs.emplace_back(ClangRoot.str(), /*StrictChecking=*/true);
+  if (RealClangRoot != ClangRoot)
+    ROCmSearchDirs.emplace_back(RealClangRoot.str(), /*StrictChecking=*/true);
   ROCmSearchDirs.emplace_back(D.ResourceDir,
                               /*StrictChecking=*/true);
 
@@ -298,6 +307,7 @@ RocmInstallationDetector::RocmInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
     const llvm::opt::ArgList &Args, bool DetectHIPRuntime, bool DetectDeviceLib)
     : D(D) {
+  Verbose = Args.hasArg(options::OPT_v);
   RocmPathArg = Args.getLastArgValue(clang::driver::options::OPT_rocm_path_EQ);
   PrintROCmSearchDirs =
       Args.hasArg(clang::driver::options::OPT_print_rocm_search_dirs);
@@ -306,8 +316,8 @@ RocmInstallationDetector::RocmInstallationDetector(
   HIPPathArg = Args.getLastArgValue(clang::driver::options::OPT_hip_path_EQ);
   if (auto *A = Args.getLastArg(clang::driver::options::OPT_hip_version_EQ)) {
     HIPVersionArg = A->getValue();
-    unsigned Major = 0;
-    unsigned Minor = 0;
+    unsigned Major = ~0U;
+    unsigned Minor = ~0U;
     SmallVector<StringRef, 3> Parts;
     HIPVersionArg.split(Parts, '.');
     if (Parts.size())
@@ -318,7 +328,9 @@ RocmInstallationDetector::RocmInstallationDetector(
       VersionPatch = Parts[2].str();
     if (VersionPatch.empty())
       VersionPatch = "0";
-    if (Major == 0 || Minor == 0)
+    if (Major != ~0U && Minor == ~0U)
+      Minor = 0;
+    if (Major == ~0U || Minor == ~0U)
       D.Diag(diag::err_drv_invalid_value)
           << A->getAsString(Args) << HIPVersionArg;
 
@@ -404,10 +416,7 @@ void RocmInstallationDetector::detectDeviceLibrary() {
 
     // Make a path by appending sub-directories to InstallPath.
     auto MakePath = [&](const llvm::ArrayRef<const char *> &SubDirs) {
-      // Device library built by SPACK is installed to
-      // <rocm_root>/rocm-device-libs-<rocm_release_string>-<hash> directory.
-      auto SPACKPath = findSPACKPackage(Candidate, "rocm-device-libs");
-      auto Path = SPACKPath.empty() ? CandidatePath : SPACKPath;
+      auto Path = CandidatePath;
       for (auto SubDir : SubDirs)
         llvm::sys::path::append(Path, SubDir);
       return Path;
@@ -568,7 +577,7 @@ AMDGPUToolChain::AMDGPUToolChain(const Driver &D, const llvm::Triple &Triple,
   // and errors for the last invalid code object version options.
   // It is done here to avoid repeated warning or error messages for
   // each tool invocation.
-  (void)getOrCheckAMDGPUCodeObjectVersion(D, Args, /*Diagnose=*/true);
+  checkAMDGPUCodeObjectVersion(D, Args);
 }
 
 Tool *AMDGPUToolChain::buildLinker() const {
@@ -702,17 +711,99 @@ AMDGPUToolChain::getGPUArch(const llvm::opt::ArgList &DriverArgs) const {
       getTriple(), DriverArgs.getLastArgValue(options::OPT_mcpu_EQ));
 }
 
-void AMDGPUToolChain::checkTargetID(
-    const llvm::opt::ArgList &DriverArgs) const {
+AMDGPUToolChain::ParsedTargetIDType
+AMDGPUToolChain::getParsedTargetID(const llvm::opt::ArgList &DriverArgs) const {
   StringRef TargetID = DriverArgs.getLastArgValue(options::OPT_mcpu_EQ);
   if (TargetID.empty())
-    return;
+    return {None, None, None};
 
   llvm::StringMap<bool> FeatureMap;
   auto OptionalGpuArch = parseTargetID(getTriple(), TargetID, &FeatureMap);
-  if (!OptionalGpuArch) {
-    getDriver().Diag(clang::diag::err_drv_bad_target_id) << TargetID;
+  if (!OptionalGpuArch)
+    return {TargetID.str(), None, None};
+
+  return {TargetID.str(), OptionalGpuArch.getValue().str(), FeatureMap};
+}
+
+void AMDGPUToolChain::checkTargetID(
+    const llvm::opt::ArgList &DriverArgs) const {
+  auto PTID = getParsedTargetID(DriverArgs);
+  if (PTID.OptionalTargetID && !PTID.OptionalGPUArch) {
+    getDriver().Diag(clang::diag::err_drv_bad_target_id)
+        << PTID.OptionalTargetID.getValue();
   }
+}
+
+llvm::Error
+AMDGPUToolChain::detectSystemGPUs(const ArgList &Args,
+                                  SmallVector<std::string, 1> &GPUArchs) const {
+  std::string Program;
+  if (Arg *A = Args.getLastArg(options::OPT_amdgpu_arch_tool_EQ))
+    Program = A->getValue();
+  else
+    Program = GetProgramPath(AMDGPU_ARCH_PROGRAM_NAME);
+  llvm::SmallString<64> OutputFile;
+  llvm::sys::fs::createTemporaryFile("print-system-gpus", "" /* No Suffix */,
+                                     OutputFile);
+  llvm::FileRemover OutputRemover(OutputFile.c_str());
+  llvm::Optional<llvm::StringRef> Redirects[] = {
+      {""},
+      StringRef(OutputFile),
+      {""},
+  };
+
+  std::string ErrorMessage;
+  if (int Result = llvm::sys::ExecuteAndWait(
+          Program.c_str(), {}, {}, Redirects, /* SecondsToWait */ 0,
+          /*MemoryLimit*/ 0, &ErrorMessage)) {
+    if (Result > 0) {
+      ErrorMessage = "Exited with error code " + std::to_string(Result);
+    } else if (Result == -1) {
+      ErrorMessage = "Execute failed: " + ErrorMessage;
+    } else {
+      ErrorMessage = "Crashed: " + ErrorMessage;
+    }
+
+    return llvm::createStringError(std::error_code(),
+                                   Program + ": " + ErrorMessage);
+  }
+
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> OutputBuf =
+      llvm::MemoryBuffer::getFile(OutputFile.c_str());
+  if (!OutputBuf) {
+    return llvm::createStringError(OutputBuf.getError(),
+                                   "Failed to read stdout of " + Program +
+                                       ": " + OutputBuf.getError().message());
+  }
+
+  for (llvm::line_iterator LineIt(**OutputBuf); !LineIt.is_at_end(); ++LineIt) {
+    GPUArchs.push_back(LineIt->str());
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error AMDGPUToolChain::getSystemGPUArch(const ArgList &Args,
+                                              std::string &GPUArch) const {
+  // detect the AMDGPU installed in system
+  SmallVector<std::string, 1> GPUArchs;
+  auto Err = detectSystemGPUs(Args, GPUArchs);
+  if (Err) {
+    return Err;
+  }
+  if (GPUArchs.empty()) {
+    return llvm::createStringError(std::error_code(),
+                                   "No AMD GPU detected in the system");
+  }
+  GPUArch = GPUArchs[0];
+  if (GPUArchs.size() > 1) {
+    bool AllSame = std::all_of(
+        GPUArchs.begin(), GPUArchs.end(),
+        [&](const StringRef &GPUArch) { return GPUArch == GPUArchs.front(); });
+    if (!AllSame)
+      return llvm::createStringError(
+          std::error_code(), "Multiple AMD GPUs found with different archs");
+  }
+  return llvm::Error::success();
 }
 
 void ROCMToolChain::addClangTargetOptions(

@@ -51,11 +51,9 @@ public:
     return {nameData, nameSize};
   }
 
-  virtual uint64_t getVA() const { return 0; }
+  bool isLive() const;
 
-  virtual uint64_t getFileOffset() const {
-    llvm_unreachable("attempt to get an offset from a non-defined symbol");
-  }
+  virtual uint64_t getVA() const { return 0; }
 
   virtual bool isWeakDef() const { llvm_unreachable("cannot be weak def"); }
 
@@ -72,6 +70,16 @@ public:
   // Whether this symbol is in the StubsSection.
   bool isInStubs() const { return stubsIndex != UINT32_MAX; }
 
+  uint64_t getStubVA() const;
+  uint64_t getGotVA() const;
+  uint64_t getTlvVA() const;
+  uint64_t resolveBranchVA() const {
+    assert(isa<Defined>(this) || isa<DylibSymbol>(this));
+    return isInStubs() ? getStubVA() : getVA();
+  }
+  uint64_t resolveGotVA() const { return isInGot() ? getGotVA() : getVA(); }
+  uint64_t resolveTlvVA() const { return isInGot() ? getTlvVA() : getVA(); }
+
   // The index of this symbol in the GOT or the TLVPointer section, depending
   // on whether it is a thread-local. A given symbol cannot be referenced by
   // both these sections at once.
@@ -85,21 +93,36 @@ public:
 
 protected:
   Symbol(Kind k, StringRefZ name, InputFile *file)
-      : symbolKind(k), nameData(name.data), nameSize(name.size), file(file) {}
+      : symbolKind(k), nameData(name.data), nameSize(name.size), file(file),
+        isUsedInRegularObj(!file || isa<ObjFile>(file)),
+        used(!config->deadStrip) {}
 
   Kind symbolKind;
   const char *nameData;
   mutable uint32_t nameSize;
   InputFile *file;
+
+public:
+  // True if this symbol was referenced by a regular (non-bitcode) object.
+  bool isUsedInRegularObj : 1;
+
+  // True if an undefined or dylib symbol is used from a live section.
+  bool used : 1;
 };
 
 class Defined : public Symbol {
 public:
   Defined(StringRefZ name, InputFile *file, InputSection *isec, uint64_t value,
-          uint64_t size, bool isWeakDef, bool isExternal, bool isPrivateExtern)
+          uint64_t size, bool isWeakDef, bool isExternal, bool isPrivateExtern,
+          bool isThumb, bool isReferencedDynamically, bool noDeadStrip)
       : Symbol(DefinedKind, name, file), isec(isec), value(value), size(size),
         overridesWeakDef(false), privateExtern(isPrivateExtern),
-        includeInSymtab(true), weakDef(isWeakDef), external(isExternal) {}
+        includeInSymtab(true), thumb(isThumb),
+        referencedDynamically(isReferencedDynamically),
+        noDeadStrip(noDeadStrip), weakDef(isWeakDef), external(isExternal) {
+    if (auto concatIsec = dyn_cast_or_null<ConcatInputSection>(isec))
+      concatIsec->numRefs++;
+  }
 
   bool isWeakDef() const override { return weakDef; }
   bool isExternalWeakDef() const {
@@ -113,12 +136,14 @@ public:
   bool isAbsolute() const { return isec == nullptr; }
 
   uint64_t getVA() const override;
-  uint64_t getFileOffset() const override;
 
   static bool classof(const Symbol *s) { return s->kind() == DefinedKind; }
 
   InputSection *isec;
+  // Contains the offset from the containing subsection. Note that this is
+  // different from nlist::n_value, which is the absolute address of the symbol.
   uint64_t value;
+  // size is only calculated for regular (non-bitcode) symbols.
   uint64_t size;
 
   bool overridesWeakDef : 1;
@@ -126,6 +151,20 @@ public:
   bool privateExtern : 1;
   // Whether this symbol should appear in the output symbol table.
   bool includeInSymtab : 1;
+  // Only relevant when compiling for Thumb-supporting arm32 archs.
+  bool thumb : 1;
+  // Symbols marked referencedDynamically won't be removed from the output's
+  // symbol table by tools like strip. In theory, this could be set on arbitrary
+  // symbols in input object files. In practice, it's used solely for the
+  // synthetic __mh_execute_header symbol.
+  // This is information for the static linker, and it's also written to the
+  // output file's symbol table for tools running later (such as `strip`).
+  bool referencedDynamically : 1;
+  // Set on symbols that should not be removed by dead code stripping.
+  // Set for example on `__attribute__((used))` globals, or on some Objective-C
+  // metadata. This is information only for the static linker and not written
+  // to the output.
+  bool noDeadStrip : 1;
 
 private:
   const bool weakDef : 1;
@@ -190,8 +229,12 @@ public:
   DylibSymbol(DylibFile *file, StringRefZ name, bool isWeakDef,
               RefState refState, bool isTlv)
       : Symbol(DylibKind, name, file), refState(refState), weakDef(isWeakDef),
-        tlv(isTlv) {}
+        tlv(isTlv) {
+    if (file && refState > RefState::Unreferenced)
+      file->numReferencedSymbols++;
+  }
 
+  uint64_t getVA() const override;
   bool isWeakDef() const override { return weakDef; }
   bool isWeakRef() const override { return refState == RefState::Weak; }
   bool isReferenced() const { return refState != RefState::Unreferenced; }
@@ -209,9 +252,25 @@ public:
   uint32_t stubsHelperIndex = UINT32_MAX;
   uint32_t lazyBindOffset = UINT32_MAX;
 
-  RefState refState : 2;
+  RefState getRefState() const { return refState; }
+
+  void reference(RefState newState) {
+    assert(newState > RefState::Unreferenced);
+    if (refState == RefState::Unreferenced && file)
+      getFile()->numReferencedSymbols++;
+    refState = std::max(refState, newState);
+  }
+
+  void unreference() {
+    // dynamic_lookup symbols have no file.
+    if (refState > RefState::Unreferenced && file) {
+      assert(getFile()->numReferencedSymbols > 0);
+      getFile()->numReferencedSymbols--;
+    }
+  }
 
 private:
+  RefState refState : 2;
   const bool weakDef : 1;
   const bool tlv : 1;
 };
@@ -239,14 +298,17 @@ union SymbolUnion {
 };
 
 template <typename T, typename... ArgT>
-T *replaceSymbol(Symbol *s, ArgT &&... arg) {
+T *replaceSymbol(Symbol *s, ArgT &&...arg) {
   static_assert(sizeof(T) <= sizeof(SymbolUnion), "SymbolUnion too small");
   static_assert(alignof(T) <= alignof(SymbolUnion),
                 "SymbolUnion not aligned enough");
   assert(static_cast<Symbol *>(static_cast<T *>(nullptr)) == nullptr &&
          "Not a Symbol");
 
-  return new (s) T(std::forward<ArgT>(arg)...);
+  bool isUsedInRegularObj = s->isUsedInRegularObj;
+  T *sym = new (s) T(std::forward<ArgT>(arg)...);
+  sym->isUsedInRegularObj |= isUsedInRegularObj;
+  return sym;
 }
 
 } // namespace macho

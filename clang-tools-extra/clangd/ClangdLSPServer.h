@@ -62,6 +62,12 @@ public:
     std::function<bool(const Tweak &)> TweakFilter = [](const Tweak &T) {
       return !T.hidden(); // only enable non-hidden tweaks.
     };
+
+    /// Enable preview of InlayHints feature.
+    bool InlayHints = false;
+
+    /// Limit the number of references returned (0 means no limit).
+    size_t ReferencesLimit = 0;
   };
 
   ClangdLSPServer(Transport &Transp, const ThreadsafeFS &TFS,
@@ -145,6 +151,7 @@ private:
   void onCallHierarchyOutgoingCalls(
       const CallHierarchyOutgoingCallsParams &,
       Callback<std::vector<CallHierarchyOutgoingCall>>);
+  void onInlayHints(const InlayHintsParams &, Callback<std::vector<InlayHint>>);
   void onChangeConfiguration(const DidChangeConfigurationParams &);
   void onSymbolInfo(const TextDocumentPositionParams &,
                     Callback<std::vector<SymbolDetails>>);

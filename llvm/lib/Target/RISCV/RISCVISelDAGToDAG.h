@@ -36,6 +36,7 @@ public:
     return SelectionDAGISel::runOnMachineFunction(MF);
   }
 
+  void PreprocessISelDAG() override;
   void PostprocessISelDAG() override;
 
   void Select(SDNode *Node) override;
@@ -64,16 +65,19 @@ public:
   bool selectVSplat(SDValue N, SDValue &SplatVal);
   bool selectVSplatSimm5(SDValue N, SDValue &SplatVal);
   bool selectVSplatUimm5(SDValue N, SDValue &SplatVal);
+  bool selectVSplatSimm5Plus1(SDValue N, SDValue &SplatVal);
+  bool selectVSplatSimm5Plus1NonZero(SDValue N, SDValue &SplatVal);
 
   bool selectRVVSimm5(SDValue N, unsigned Width, SDValue &Imm);
   template <unsigned Width> bool selectRVVSimm5(SDValue N, SDValue &Imm) {
     return selectRVVSimm5(N, Width, Imm);
   }
 
-  bool selectRVVUimm5(SDValue N, unsigned Width, SDValue &Imm);
-  template <unsigned Width> bool selectRVVUimm5(SDValue N, SDValue &Imm) {
-    return selectRVVUimm5(N, Width, Imm);
-  }
+  void addVectorLoadStoreOperands(SDNode *Node, unsigned SEWImm,
+                                  const SDLoc &DL, unsigned CurOp,
+                                  bool IsMasked, bool IsStridedOrIndexed,
+                                  SmallVectorImpl<SDValue> &Operands,
+                                  MVT *IndexVT = nullptr);
 
   void selectVLSEG(SDNode *Node, bool IsMasked, bool IsStrided);
   void selectVLSEGFF(SDNode *Node, bool IsMasked);
@@ -90,67 +94,67 @@ private:
 
 namespace RISCV {
 struct VLSEGPseudo {
-  uint8_t NF;
-  uint8_t Masked;
-  uint8_t Strided;
-  uint8_t FF;
-  uint8_t SEW;
-  uint8_t LMUL;
+  uint16_t NF : 4;
+  uint16_t Masked : 1;
+  uint16_t Strided : 1;
+  uint16_t FF : 1;
+  uint16_t Log2SEW : 3;
+  uint16_t LMUL : 3;
   uint16_t Pseudo;
 };
 
 struct VLXSEGPseudo {
-  uint8_t NF;
-  uint8_t Masked;
-  uint8_t Ordered;
-  uint8_t SEW;
-  uint8_t LMUL;
-  uint8_t IndexLMUL;
+  uint16_t NF : 4;
+  uint16_t Masked : 1;
+  uint16_t Ordered : 1;
+  uint16_t Log2SEW : 3;
+  uint16_t LMUL : 3;
+  uint16_t IndexLMUL : 3;
   uint16_t Pseudo;
 };
 
 struct VSSEGPseudo {
-  uint8_t NF;
-  uint8_t Masked;
-  uint8_t Strided;
-  uint8_t SEW;
-  uint8_t LMUL;
+  uint16_t NF : 4;
+  uint16_t Masked : 1;
+  uint16_t Strided : 1;
+  uint16_t Log2SEW : 3;
+  uint16_t LMUL : 3;
   uint16_t Pseudo;
 };
 
 struct VSXSEGPseudo {
-  uint8_t NF;
-  uint8_t Masked;
-  uint8_t Ordered;
-  uint8_t SEW;
-  uint8_t LMUL;
-  uint8_t IndexLMUL;
+  uint16_t NF : 4;
+  uint16_t Masked : 1;
+  uint16_t Ordered : 1;
+  uint16_t Log2SEW : 3;
+  uint16_t LMUL : 3;
+  uint16_t IndexLMUL : 3;
   uint16_t Pseudo;
 };
 
 struct VLEPseudo {
-  uint8_t Masked;
-  uint8_t Strided;
-  uint8_t FF;
-  uint8_t SEW;
-  uint8_t LMUL;
+  uint16_t Masked : 1;
+  uint16_t Strided : 1;
+  uint16_t FF : 1;
+  uint16_t Log2SEW : 3;
+  uint16_t LMUL : 3;
   uint16_t Pseudo;
 };
 
 struct VSEPseudo {
-  uint8_t Masked;
-  uint8_t Strided;
-  uint8_t SEW;
-  uint8_t LMUL;
+  uint16_t Masked :1;
+  uint16_t Strided : 1;
+  uint16_t Log2SEW : 3;
+  uint16_t LMUL : 3;
   uint16_t Pseudo;
 };
 
 struct VLX_VSXPseudo {
-  uint8_t Masked;
-  uint8_t Ordered;
-  uint8_t SEW;
-  uint8_t LMUL;
-  uint8_t IndexLMUL;
+  uint16_t Masked : 1;
+  uint16_t Ordered : 1;
+  uint16_t Log2SEW : 3;
+  uint16_t LMUL : 3;
+  uint16_t IndexLMUL : 3;
   uint16_t Pseudo;
 };
 

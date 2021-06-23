@@ -14,6 +14,7 @@
 #define LLVM_ANALYSIS_IVDESCRIPTORS_H
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -69,9 +70,11 @@ public:
 
   RecurrenceDescriptor(Value *Start, Instruction *Exit, RecurKind K,
                        FastMathFlags FMF, Instruction *ExactFP, Type *RT,
-                       bool Signed, SmallPtrSetImpl<Instruction *> &CI)
+                       bool Signed, bool Ordered,
+                       SmallPtrSetImpl<Instruction *> &CI)
       : StartValue(Start), LoopExitInstr(Exit), Kind(K), FMF(FMF),
-        ExactFPMathInst(ExactFP), RecurrenceType(RT), IsSigned(Signed) {
+        ExactFPMathInst(ExactFP), RecurrenceType(RT), IsSigned(Signed),
+        IsOrdered(Ordered) {
     CastInsts.insert(CI.begin(), CI.end());
   }
 
@@ -136,7 +139,8 @@ public:
   static InstDesc isConditionalRdxPattern(RecurKind Kind, Instruction *I);
 
   /// Returns identity corresponding to the RecurrenceKind.
-  static Constant *getRecurrenceIdentity(RecurKind K, Type *Tp);
+  static Constant *getRecurrenceIdentity(RecurKind K, Type *Tp,
+                                         FastMathFlags FMF);
 
   /// Returns the opcode corresponding to the RecurrenceKind.
   static unsigned getOpcode(RecurKind Kind);
@@ -171,7 +175,7 @@ public:
   /// to handle Phi as a first-order recurrence.
   static bool
   isFirstOrderRecurrence(PHINode *Phi, Loop *TheLoop,
-                         DenseMap<Instruction *, Instruction *> &SinkAfter,
+                         MapVector<Instruction *, Instruction *> &SinkAfter,
                          DominatorTree *DT);
 
   RecurKind getRecurrenceKind() const { return Kind; }
@@ -227,6 +231,9 @@ public:
   /// Returns true if all source operands of the recurrence are SExtInsts.
   bool isSigned() const { return IsSigned; }
 
+  /// Expose an ordered FP reduction to the instance users.
+  bool isOrdered() const { return IsOrdered; }
+
   /// Attempts to find a chain of operations from Phi to LoopExitInst that can
   /// be treated as a set of reductions instructions for in-loop reductions.
   SmallVector<Instruction *, 4> getReductionOpChain(PHINode *Phi,
@@ -249,6 +256,10 @@ private:
   Type *RecurrenceType = nullptr;
   // True if all source operands of the recurrence are SExtInsts.
   bool IsSigned = false;
+  // True if this recurrence can be treated as an in-order reduction.
+  // Currently only a non-reassociative FAdd can be considered in-order,
+  // if it is also the only FAdd in the PHI's use chain.
+  bool IsOrdered = false;
   // Instructions used for type-promoting the recurrence.
   SmallPtrSet<Instruction *, 8> CastInsts;
 };

@@ -52,6 +52,7 @@ class TargetLibraryInfoImpl {
   llvm::DenseMap<unsigned, std::string> CustomNames;
   static StringLiteral const StandardNames[NumLibFuncs];
   bool ShouldExtI32Param, ShouldExtI32Return, ShouldSignExtI32Param;
+  unsigned SizeOfInt;
 
   enum AvailabilityState {
     StandardName = 3, // (memset to all ones)
@@ -86,11 +87,12 @@ public:
   /// addVectorizableFunctionsFromVecLib for filling up the tables of
   /// vectorizable functions.
   enum VectorLibrary {
-    NoLibrary,  // Don't use any vector library.
-    Accelerate, // Use Accelerate framework.
-    LIBMVEC_X86,// GLIBC Vector Math library.
-    MASSV,      // IBM MASS vector library.
-    SVML        // Intel short vector math library.
+    NoLibrary,        // Don't use any vector library.
+    Accelerate,       // Use Accelerate framework.
+    DarwinLibSystemM, // Use Darwin's libsystem_m.
+    LIBMVEC_X86,      // GLIBC Vector Math library.
+    MASSV,            // IBM MASS vector library.
+    SVML              // Intel short vector math library.
   };
 
   TargetLibraryInfoImpl();
@@ -188,10 +190,25 @@ public:
   /// This queries the 'wchar_size' metadata.
   unsigned getWCharSize(const Module &M) const;
 
+  /// Get size of a C-level int or unsigned int, in bits.
+  unsigned getIntSize() const {
+    return SizeOfInt;
+  }
+
+  /// Initialize the C-level size of an integer.
+  void setIntSize(unsigned Bits) {
+    SizeOfInt = Bits;
+  }
+
   /// Returns the largest vectorization factor used in the list of
   /// vector functions.
   void getWidestVF(StringRef ScalarF, ElementCount &FixedVF,
                    ElementCount &Scalable) const;
+
+  /// Returns true if call site / callee has cdecl-compatible calling
+  /// conventions.
+  static bool isCallingConvCCompatible(CallBase *CI);
+  static bool isCallingConvCCompatible(Function *Callee);
 };
 
 /// Provides information about what library functions are available for
@@ -382,6 +399,11 @@ public:
   /// \copydoc TargetLibraryInfoImpl::getWCharSize()
   unsigned getWCharSize(const Module &M) const {
     return Impl->getWCharSize(M);
+  }
+
+  /// \copydoc TargetLibraryInfoImpl::getIntSize()
+  unsigned getIntSize() const {
+    return Impl->getIntSize();
   }
 
   /// Handle invalidation from the pass manager.

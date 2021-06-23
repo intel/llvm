@@ -240,7 +240,7 @@ SPIRVEntry *SPIRVDecoder::getEntry() {
 
   if (OpExtension == OpCode) {
     auto *OpExt = static_cast<SPIRVExtension *>(Entry);
-    ExtensionID ExtID;
+    ExtensionID ExtID = {};
     bool ExtIsKnown = SPIRVMap<ExtensionID, std::string>::rfind(
         OpExt->getExtensionName(), &ExtID);
     if (!M.getErrorLog().checkError(

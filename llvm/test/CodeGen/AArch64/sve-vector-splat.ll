@@ -1,8 +1,4 @@
-; RUN: llc -mtriple=aarch64-linux-gnu -mattr=+sve < %s 2>%t | FileCheck %s
-; RUN: FileCheck --check-prefix=WARN --allow-empty %s <%t
-
-; If this check fails please read test/CodeGen/AArch64/README for instructions on how to resolve it.
-; WARN-NOT: warning
+; RUN: llc -mtriple=aarch64-linux-gnu -mattr=+sve < %s | FileCheck %s
 
 ;; Splats of legal integer vector types
 
@@ -135,6 +131,16 @@ define <vscale x 2 x i32> @sve_splat_2xi32(i32 %val) {
 }
 
 ;; Widen/split splats of wide vector types.
+
+define <vscale x 1 x i32> @sve_splat_1xi32(i32 %val) {
+; CHECK-LABEL: sve_splat_1xi32:
+; CHECK:       mov z0.s, w0
+; CHECK-NEXT:  ret
+entry:
+  %ins = insertelement <vscale x 1 x i32> undef, i32 %val, i32 0
+  %splat = shufflevector <vscale x 1 x i32> %ins, <vscale x 1 x i32> undef, <vscale x 1 x i32> zeroinitializer
+  ret <vscale x 1 x i32> %splat
+}
 
 define <vscale x 12 x i32> @sve_splat_12xi32(i32 %val) {
 ; CHECK-LABEL: @sve_splat_12xi32

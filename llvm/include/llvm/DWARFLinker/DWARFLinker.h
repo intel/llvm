@@ -26,6 +26,7 @@ enum class AccelTableKind {
   Apple,   ///< .apple_names, .apple_namespaces, .apple_types, .apple_objc.
   Dwarf,   ///< DWARF v5 .debug_names.
   Default, ///< Dwarf for DWARF5 or later, Apple otherwise.
+  Pub,     ///< .debug_pubnames, .debug_pubtypes
 };
 
 /// Partial address range. Besides an offset, only the
@@ -279,6 +280,11 @@ public:
 
   /// update existing DWARF info(for the linked binary).
   void setUpdate(bool Update) { Options.Update = Update; }
+
+  /// Set whether to keep the enclosing function for a static variable.
+  void setKeepFunctionForStatic(bool KeepFunctionForStatic) {
+    Options.KeepFunctionForStatic = KeepFunctionForStatic;
+  }
 
   /// Use specified number of threads for parallel files linking.
   void setNumThreads(unsigned NumThreads) { Options.Threads = NumThreads; }
@@ -708,6 +714,7 @@ private:
   void emitAcceleratorEntriesForUnit(CompileUnit &Unit);
   void emitDwarfAcceleratorEntriesForUnit(CompileUnit &Unit);
   void emitAppleAcceleratorEntriesForUnit(CompileUnit &Unit);
+  void emitPubAcceleratorEntriesForUnit(CompileUnit &Unit);
 
   /// Patch the frame info for an object file and emit it.
   void patchFrameInfoForObject(const DWARFFile &, RangesTy &Ranges,
@@ -779,6 +786,10 @@ private:
 
     /// Update
     bool Update = false;
+
+    /// Whether we want a static variable to force us to keep its enclosing
+    /// function.
+    bool KeepFunctionForStatic = false;
 
     /// Number of threads.
     unsigned Threads = 1;

@@ -147,7 +147,7 @@ void AMDGPUInstPrinter::printFlatOffset(const MCInst *MI, unsigned OpNo,
 
     const MCInstrDesc &Desc = MII.get(MI->getOpcode());
     bool IsFlatSeg = !(Desc.TSFlags &
-        (SIInstrFlags::IsFlatGlobal | SIInstrFlags::IsFlatScratch));
+                       (SIInstrFlags::FlatGlobal | SIInstrFlags::FlatScratch));
 
     if (IsFlatSeg) { // Unsigned offset
       printU16ImmDecOperand(MI, OpNo, O);
@@ -808,15 +808,11 @@ void AMDGPUInstPrinter::printDPPCtrl(const MCInst *MI, unsigned OpNo,
 
   unsigned Imm = MI->getOperand(OpNo).getImm();
   const MCInstrDesc &Desc = MII.get(MI->getOpcode());
-  int DstIdx = AMDGPU::getNamedOperandIdx(MI->getOpcode(),
-                                          AMDGPU::OpName::vdst);
   int Src0Idx = AMDGPU::getNamedOperandIdx(MI->getOpcode(),
                                            AMDGPU::OpName::src0);
 
-  if (((DstIdx >= 0 &&
-        Desc.OpInfo[DstIdx].RegClass == AMDGPU::VReg_64RegClassID) ||
-      ((Src0Idx >= 0 &&
-        Desc.OpInfo[Src0Idx].RegClass == AMDGPU::VReg_64RegClassID))) &&
+  if (Src0Idx >= 0 &&
+      Desc.OpInfo[Src0Idx].RegClass == AMDGPU::VReg_64RegClassID &&
       !AMDGPU::isLegal64BitDPPControl(Imm)) {
     O << " /* 64 bit dpp only supports row_newbcast */";
     return;
@@ -881,7 +877,7 @@ void AMDGPUInstPrinter::printDPPCtrl(const MCInst *MI, unsigned OpNo,
   } else if ((Imm >= DppCtrl::ROW_SHARE_FIRST) &&
              (Imm <= DppCtrl::ROW_SHARE_LAST)) {
     if (AMDGPU::isGFX90A(STI)) {
-      O << " row_newbcast:";
+      O << "row_newbcast:";
     } else if (AMDGPU::isGFX10Plus(STI)) {
       O << "row_share:";
     } else {

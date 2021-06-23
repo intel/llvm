@@ -42,7 +42,7 @@
 ; HSA-ALLOCA: .end_amd_kernel_code_t
 
 ; HSA-ALLOCA: s_mov_b32 flat_scratch_lo, s7
-; HSA-ALLOCA: s_add_u32 s6, s6, s9
+; HSA-ALLOCA: s_add_i32 s6, s6, s9
 ; HSA-ALLOCA: s_lshr_b32 flat_scratch_hi, s6, 8
 
 ; SI-ALLOCA: buffer_store_dword v{{[0-9]+}}, v{{[0-9]+}}, s[{{[0-9]+:[0-9]+}}], 0 offen ; encoding: [0x00,0x10,0x70,0xe0
@@ -275,9 +275,6 @@ entry:
 ; Test that two stack objects are not stored in the same register
 ; The second stack object should be in T3.X
 ; FUNC-LABEL: {{^}}no_overlap:
-; R600-CHECK: MOV
-; R600-CHECK: [[CHAN:[XYZW]]]+
-; R600-NOT: [[CHAN]]+
 ;
 ; A total of 5 bytes should be allocated and used.
 ; SI: buffer_store_byte v{{[0-9]+}}, off, s[{{[0-9]+:[0-9]+}}], 0 offset:4 ;

@@ -19,11 +19,9 @@ define i1 @bitcast_from_single_element_pointer_vector_to_pointer(<1 x i8*> %ptr1
   ret i1 %cmp
 }
 
-; TODO: these should return poison
-
 define i1 @poison(i32 %x) {
 ; CHECK-LABEL: @poison(
-; CHECK-NEXT:    ret i1 undef
+; CHECK-NEXT:    ret i1 poison
 ;
   %v = icmp eq i32 %x, poison
   ret i1 %v
@@ -31,7 +29,7 @@ define i1 @poison(i32 %x) {
 
 define i1 @poison2(i32 %x) {
 ; CHECK-LABEL: @poison2(
-; CHECK-NEXT:    ret i1 false
+; CHECK-NEXT:    ret i1 poison
 ;
   %v = icmp slt i32 %x, poison
   ret i1 %v
@@ -186,4 +184,30 @@ define i1 @shl_div_cmp_greater(i8 %x) {
   %div = udiv i8 %mul, 3
   %cmp = icmp ule i8 %div, %x
   ret i1 %cmp
+}
+
+; Don't crash matching recurrences/invertible ops.
+
+define void @PR50191(i32 %x) {
+; CHECK-LABEL: @PR50191(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br label [[LOOP:%.*]]
+; CHECK:       loop:
+; CHECK-NEXT:    [[P1:%.*]] = phi i32 [ [[X:%.*]], [[ENTRY:%.*]] ], [ [[SUB1:%.*]], [[LOOP]] ]
+; CHECK-NEXT:    [[P2:%.*]] = phi i32 [ [[X]], [[ENTRY]] ], [ [[SUB2:%.*]], [[LOOP]] ]
+; CHECK-NEXT:    [[SUB1]] = sub i32 [[P1]], [[P2]]
+; CHECK-NEXT:    [[SUB2]] = sub i32 42, [[P2]]
+; CHECK-NEXT:    br label [[LOOP]]
+;
+entry:
+  br label %loop
+
+loop:
+  %p1 = phi i32 [ %x, %entry ], [ %sub1, %loop ]
+  %p2 = phi i32 [ %x, %entry ], [ %sub2, %loop ]
+  %cmp = icmp eq i32 %p1, %p2
+  %user = zext i1 %cmp to i32
+  %sub1 = sub i32 %p1, %p2
+  %sub2 = sub i32 42, %p2
+  br label %loop
 }

@@ -1241,7 +1241,7 @@ define amdgpu_kernel void @v_fneg_fma_x_fneg_y_f32(float addrspace(1)* %out, flo
 ; GCN: {{buffer|flat}}_load_dword [[C:v[0-9]+]]
 
 ; GCN-SAFE: v_fma_f32 [[FMA:v[0-9]+]], [[A]], [[B]], [[C]]
-; GCN-SAFE: v_xor_b32_e32 v{{[[0-9]+}}, 0x80000000, [[FMA]]
+; GCN-SAFE: v_xor_b32_e32 v{{[0-9]+}}, 0x80000000, [[FMA]]
 
 ; GCN-NSZ: v_fma_f32 [[FMA:v[0-9]+]], [[A]], -[[B]], -[[C]]
 ; GCN-NSZ-NOT: [[FMA]]
@@ -1270,7 +1270,7 @@ define amdgpu_kernel void @v_fneg_fma_fneg_fneg_y_f32(float addrspace(1)* %out, 
 ; GCN: {{buffer|flat}}_load_dword [[C:v[0-9]+]]
 
 ; GCN-SAFE: v_fma_f32 [[FMA:v[0-9]+]], -[[A]], [[B]], -[[C]]
-; GCN-SAFE: v_xor_b32_e32 v{{[[0-9]+}}, 0x80000000, [[FMA]]
+; GCN-SAFE: v_xor_b32_e32 v{{[0-9]+}}, 0x80000000, [[FMA]]
 
 ; GCN-NSZ: v_fma_f32 [[FMA:v[0-9]+]], [[A]], [[B]], [[C]]
 ; GCN-NSZ-NOT: [[FMA]]
@@ -2575,8 +2575,31 @@ define amdgpu_kernel void @multi_use_cost_to_fold_into_src(float addrspace(1)* %
   ret void
 }
 
+; The AMDGPU combine to pull fneg into the FMA operands was being
+; undone by the generic combine to pull the fneg out of the fma if
+; !isFNegFree. We were reporting false for v2f32 even though it will
+; be split into f32 where it will be free.
+; GCN-LABEL: {{^}}fneg_fma_fneg_dagcombine_loop:
+; GCN: s_brev_b32 [[NEGZERO:s[0-9]+]], 1{{$}}
+; GCN-DAG: v_fma_f32 [[FMA0:v[0-9]+]], v2, -v4, [[NEGZERO]]
+; GCN-DAG: v_fma_f32 [[FMA1:v[0-9]+]], v3, -v5, [[NEGZERO]]
+; GCN-DAG: v_sub_f32_e32 [[SUB0:v[0-9]+]], [[FMA0]], v0
+; GCN-DAG: v_sub_f32_e32 [[SUB1:v[0-9]+]], [[FMA1]], v1
+; GCN-DAG: v_mul_f32_e32 v0, [[SUB0]], v4
+; GCN-DAG: v_mul_f32_e32 v1, [[SUB1]], v5
+; GCN: s_setpc_b64
+define <2 x float> @fneg_fma_fneg_dagcombine_loop(<2 x float> %arg, <2 x float> %arg1, <2 x float> %arg2) #0 {
+bb:
+  %i3 = call fast <2 x float> @llvm.fma.v2f32(<2 x float> %arg1, <2 x float> %arg2, <2 x float> zeroinitializer)
+  %i4 = fadd fast <2 x float> %i3, %arg
+  %i5 = fneg <2 x float> %i4
+  %i6 = fmul fast <2 x float> %i5, %arg2
+  ret <2 x float> %i6
+}
+
 declare i32 @llvm.amdgcn.workitem.id.x() #1
 declare float @llvm.fma.f32(float, float, float) #1
+declare <2 x float> @llvm.fma.v2f32(<2 x float>, <2 x float>, <2 x float>)
 declare float @llvm.fmuladd.f32(float, float, float) #1
 declare <4 x float> @llvm.fmuladd.v4f32(<4 x float>, <4 x float>, <4 x float>) #1
 declare float @llvm.sin.f32(float) #1
@@ -2601,3 +2624,4 @@ declare float @llvm.amdgcn.interp.p2(float, float, i32, i32, i32) #0
 attributes #0 = { nounwind "denormal-fp-math-f32"="preserve-sign,preserve-sign" }
 attributes #1 = { nounwind readnone }
 attributes #2 = { nounwind "unsafe-fp-math"="true" }
+attributes #3 = { nounwind "no-signed-zeros-fp-math"="true" }

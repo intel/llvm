@@ -16,6 +16,7 @@ namespace clangd {
 
 // Convenience lambdas for use as the 'Filter' parameter of
 // HeuristicResolver::resolveDependentMember().
+const auto NoFilter = [](const NamedDecl *D) { return true; };
 const auto NonStaticFilter = [](const NamedDecl *D) {
   return D->isCXXInstanceMember();
 };
@@ -90,6 +91,28 @@ const Type *HeuristicResolver::getPointeeType(const Type *T) const {
 
 std::vector<const NamedDecl *> HeuristicResolver::resolveMemberExpr(
     const CXXDependentScopeMemberExpr *ME) const {
+  // If the expression has a qualifier, first try resolving the member
+  // inside the qualifier's type.
+  // Note that we cannot use a NonStaticFilter in either case, for a couple
+  // of reasons:
+  //   1. It's valid to access a static member using instance member syntax,
+  //      e.g. `instance.static_member`.
+  //   2. We can sometimes get a CXXDependentScopeMemberExpr for static
+  //      member syntax too, e.g. if `X::static_member` occurs inside
+  //      an instance method, it's represented as a CXXDependentScopeMemberExpr
+  //      with `this` as the base expression as `X` as the qualifier
+  //      (which could be valid if `X` names a base class after instantiation).
+  if (NestedNameSpecifier *NNS = ME->getQualifier()) {
+    if (const Type *QualifierType = resolveNestedNameSpecifierToType(NNS)) {
+      auto Decls =
+          resolveDependentMember(QualifierType, ME->getMember(), NoFilter);
+      if (!Decls.empty())
+        return Decls;
+    }
+  }
+
+  // If that didn't yield any results, try resolving the member inside
+  // the expression's base type.
   const Type *BaseType = ME->getBaseType().getTypePtrOrNull();
   if (ME->isArrow()) {
     BaseType = getPointeeType(BaseType);
@@ -105,7 +128,7 @@ std::vector<const NamedDecl *> HeuristicResolver::resolveMemberExpr(
       BaseType = resolveExprToType(Base);
     }
   }
-  return resolveDependentMember(BaseType, ME->getMember(), NonStaticFilter);
+  return resolveDependentMember(BaseType, ME->getMember(), NoFilter);
 }
 
 std::vector<const NamedDecl *> HeuristicResolver::resolveDeclRefExpr(
@@ -115,7 +138,7 @@ std::vector<const NamedDecl *> HeuristicResolver::resolveDeclRefExpr(
 }
 
 std::vector<const NamedDecl *>
-HeuristicResolver::resolveCallExpr(const CallExpr *CE) const {
+HeuristicResolver::resolveTypeOfCallExpr(const CallExpr *CE) const {
   const auto *CalleeType = resolveExprToType(CE->getCallee());
   if (!CalleeType)
     return {};
@@ -128,6 +151,15 @@ HeuristicResolver::resolveCallExpr(const CallExpr *CE) const {
     }
   }
   return {};
+}
+
+std::vector<const NamedDecl *>
+HeuristicResolver::resolveCalleeOfCallExpr(const CallExpr *CE) const {
+  if (const auto *ND = dyn_cast_or_null<NamedDecl>(CE->getCalleeDecl())) {
+    return {ND};
+  }
+
+  return resolveExprToDecls(CE->getCallee());
 }
 
 std::vector<const NamedDecl *> HeuristicResolver::resolveUsingValueDecl(
@@ -163,18 +195,30 @@ const Type *resolveDeclsToType(const std::vector<const NamedDecl *> &Decls) {
   return nullptr;
 }
 
-const Type *HeuristicResolver::resolveExprToType(const Expr *E) const {
+std::vector<const NamedDecl *>
+HeuristicResolver::resolveExprToDecls(const Expr *E) const {
   if (const auto *ME = dyn_cast<CXXDependentScopeMemberExpr>(E)) {
-    return resolveDeclsToType(resolveMemberExpr(ME));
+    return resolveMemberExpr(ME);
   }
   if (const auto *RE = dyn_cast<DependentScopeDeclRefExpr>(E)) {
-    return resolveDeclsToType(resolveDeclRefExpr(RE));
+    return resolveDeclRefExpr(RE);
+  }
+  if (const auto *OE = dyn_cast<OverloadExpr>(E)) {
+    return {OE->decls_begin(), OE->decls_end()};
   }
   if (const auto *CE = dyn_cast<CallExpr>(E)) {
-    return resolveDeclsToType(resolveCallExpr(CE));
+    return resolveTypeOfCallExpr(CE);
   }
   if (const auto *ME = dyn_cast<MemberExpr>(E))
-    return resolveDeclsToType({ME->getMemberDecl()});
+    return {ME->getMemberDecl()};
+
+  return {};
+}
+
+const Type *HeuristicResolver::resolveExprToType(const Expr *E) const {
+  std::vector<const NamedDecl *> Decls = resolveExprToDecls(E);
+  if (!Decls.empty())
+    return resolveDeclsToType(Decls);
 
   return E->getType().getTypePtr();
 }

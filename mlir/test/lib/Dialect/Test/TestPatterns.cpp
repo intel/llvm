@@ -35,6 +35,15 @@ static void handleNoResultOp(PatternRewriter &rewriter,
                                     op.operand());
 }
 
+static bool getFirstI32Result(Operation *op, Value &value) {
+  if (!Type(op->getResult(0).getType()).isSignlessInteger(32))
+    return false;
+  value = op->getResult(0);
+  return true;
+}
+
+static Value bindNativeCodeCallResult(Value value) { return value; }
+
 // Test that natives calls are only called once during rewrites.
 // OpM_Test will return Pi, increased by 1 for each subsequent calls.
 // This let us check the number of times OpM_Test was called by inspecting
@@ -48,6 +57,14 @@ static Attribute OpMTest(PatternRewriter &rewriter, Value val) {
 namespace {
 #include "TestPatterns.inc"
 } // end anonymous namespace
+
+//===----------------------------------------------------------------------===//
+// Test Reduce Pattern Interface
+//===----------------------------------------------------------------------===//
+
+void mlir::test::populateTestReductionPatterns(RewritePatternSet &patterns) {
+  populateWithGenerated(patterns);
+}
 
 //===----------------------------------------------------------------------===//
 // Canonicalizer Driver.
@@ -78,6 +95,8 @@ public:
 };
 
 struct TestPatternDriver : public PassWrapper<TestPatternDriver, FunctionPass> {
+  StringRef getArgument() const final { return "test-patterns"; }
+  StringRef getDescription() const final { return "Run test dialect patterns"; }
   void runOnFunction() override {
     mlir::RewritePatternSet patterns(&getContext());
     populateWithGenerated(patterns);
@@ -128,7 +147,7 @@ static void reifyReturnShape(Operation *op) {
   // Use permutations of 2 args as operands.
   auto shapedOp = cast<OpWithShapedTypeInferTypeInterfaceOp>(op);
   SmallVector<Value, 2> shapes;
-  if (failed(shapedOp.reifyReturnTypeShapes(b, shapes)) ||
+  if (failed(shapedOp.reifyReturnTypeShapes(b, op->getOperands(), shapes)) ||
       !llvm::hasSingleElement(shapes))
     return;
   for (auto it : llvm::enumerate(shapes)) {
@@ -142,6 +161,8 @@ struct TestReturnTypeDriver
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<memref::MemRefDialect>();
   }
+  StringRef getArgument() const final { return "test-return-type"; }
+  StringRef getDescription() const final { return "Run return type functions"; }
 
   void runOnFunction() override {
     if (getFunction().getName() == "testCreateFunctions") {
@@ -177,6 +198,10 @@ struct TestReturnTypeDriver
 namespace {
 struct TestDerivedAttributeDriver
     : public PassWrapper<TestDerivedAttributeDriver, FunctionPass> {
+  StringRef getArgument() const final { return "test-derived-attr"; }
+  StringRef getDescription() const final {
+    return "Run test derived attributes";
+  }
   void runOnFunction() override;
 };
 } // end anonymous namespace
@@ -464,8 +489,9 @@ struct TestNonRootReplacement : public RewritePattern {
 /// bounded recursion.
 struct TestBoundedRecursiveRewrite
     : public OpRewritePattern<TestRecursiveRewriteOp> {
-  TestBoundedRecursiveRewrite(MLIRContext *ctx)
-      : OpRewritePattern<TestRecursiveRewriteOp>(ctx) {
+  using OpRewritePattern<TestRecursiveRewriteOp>::OpRewritePattern;
+
+  void initialize() {
     // The conversion target handles bounding the recursion of this pattern.
     setHasBoundedRewriteRecursion();
   }
@@ -567,6 +593,10 @@ struct TestTypeConverter : public TypeConverter {
 
 struct TestLegalizePatternDriver
     : public PassWrapper<TestLegalizePatternDriver, OperationPass<ModuleOp>> {
+  StringRef getArgument() const final { return "test-legalize-patterns"; }
+  StringRef getDescription() const final {
+    return "Run test dialect legalization patterns";
+  }
   /// The mode of conversion to use with the driver.
   enum class ConversionMode { Analysis, Full, Partial };
 
@@ -715,6 +745,10 @@ struct OneVResOneVOperandOp1Converter
 
 struct TestRemappedValue
     : public mlir::PassWrapper<TestRemappedValue, FunctionPass> {
+  StringRef getArgument() const final { return "test-remapped-value"; }
+  StringRef getDescription() const final {
+    return "Test public remapped value mechanism in ConversionPatternRewriter";
+  }
   void runOnFunction() override {
     mlir::RewritePatternSet patterns(&getContext());
     patterns.add<OneVResOneVOperandOp1Converter>(&getContext());
@@ -758,6 +792,12 @@ struct RemoveTestDialectOps : public RewritePattern {
 
 struct TestUnknownRootOpDriver
     : public mlir::PassWrapper<TestUnknownRootOpDriver, FunctionPass> {
+  StringRef getArgument() const final {
+    return "test-legalize-unknown-root-patterns";
+  }
+  StringRef getDescription() const final {
+    return "Test public remapped value mechanism in ConversionPatternRewriter";
+  }
   void runOnFunction() override {
     mlir::RewritePatternSet patterns(&getContext());
     patterns.add<RemoveTestDialectOps>(&getContext());
@@ -838,6 +878,12 @@ struct TestTypeConversionDriver
     : public PassWrapper<TestTypeConversionDriver, OperationPass<ModuleOp>> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<TestDialect>();
+  }
+  StringRef getArgument() const final {
+    return "test-legalize-type-conversion";
+  }
+  StringRef getDescription() const final {
+    return "Test various type conversion functionalities in DialectConversion";
   }
 
   void runOnOperation() override {
@@ -981,6 +1027,10 @@ struct TestMergeSingleBlockOps
 struct TestMergeBlocksPatternDriver
     : public PassWrapper<TestMergeBlocksPatternDriver,
                          OperationPass<ModuleOp>> {
+  StringRef getArgument() const final { return "test-merge-blocks"; }
+  StringRef getDescription() const final {
+    return "Test Merging operation in ConversionPatternRewriter";
+  }
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     mlir::RewritePatternSet patterns(context);
@@ -1048,6 +1098,12 @@ struct TestSelectiveOpReplacementPattern : public OpRewritePattern<TestCastOp> {
 struct TestSelectiveReplacementPatternDriver
     : public PassWrapper<TestSelectiveReplacementPatternDriver,
                          OperationPass<>> {
+  StringRef getArgument() const final {
+    return "test-pattern-selective-replacement";
+  }
+  StringRef getDescription() const final {
+    return "Test selective replacement in the PatternRewriter";
+  }
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     mlir::RewritePatternSet patterns(context);
@@ -1065,39 +1121,24 @@ struct TestSelectiveReplacementPatternDriver
 namespace mlir {
 namespace test {
 void registerPatternsTestPass() {
-  PassRegistration<TestReturnTypeDriver>("test-return-type",
-                                         "Run return type functions");
+  PassRegistration<TestReturnTypeDriver>();
 
-  PassRegistration<TestDerivedAttributeDriver>("test-derived-attr",
-                                               "Run test derived attributes");
+  PassRegistration<TestDerivedAttributeDriver>();
 
-  PassRegistration<TestPatternDriver>("test-patterns",
-                                      "Run test dialect patterns");
+  PassRegistration<TestPatternDriver>();
 
-  PassRegistration<TestLegalizePatternDriver>(
-      "test-legalize-patterns", "Run test dialect legalization patterns", [] {
-        return std::make_unique<TestLegalizePatternDriver>(
-            legalizerConversionMode);
-      });
+  PassRegistration<TestLegalizePatternDriver>([] {
+    return std::make_unique<TestLegalizePatternDriver>(legalizerConversionMode);
+  });
 
-  PassRegistration<TestRemappedValue>(
-      "test-remapped-value",
-      "Test public remapped value mechanism in ConversionPatternRewriter");
+  PassRegistration<TestRemappedValue>();
 
-  PassRegistration<TestUnknownRootOpDriver>(
-      "test-legalize-unknown-root-patterns",
-      "Test public remapped value mechanism in ConversionPatternRewriter");
+  PassRegistration<TestUnknownRootOpDriver>();
 
-  PassRegistration<TestTypeConversionDriver>(
-      "test-legalize-type-conversion",
-      "Test various type conversion functionalities in DialectConversion");
+  PassRegistration<TestTypeConversionDriver>();
 
-  PassRegistration<TestMergeBlocksPatternDriver>{
-      "test-merge-blocks",
-      "Test Merging operation in ConversionPatternRewriter"};
-  PassRegistration<TestSelectiveReplacementPatternDriver>{
-      "test-pattern-selective-replacement",
-      "Test selective replacement in the PatternRewriter"};
+  PassRegistration<TestMergeBlocksPatternDriver>();
+  PassRegistration<TestSelectiveReplacementPatternDriver>();
 }
 } // namespace test
 } // namespace mlir

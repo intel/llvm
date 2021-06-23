@@ -1064,6 +1064,16 @@ public:
   /// has the potential of causing nasty silent breakage in out-of-tree targets.
   virtual bool isSubregFoldable() const { return false; }
 
+  /// For a patchpoint, stackmap, or statepoint intrinsic, return the range of
+  /// operands which can't be folded into stack references. Operands outside
+  /// of the range are most likely foldable but it is not guaranteed.
+  /// These instructions are unique in that stack references for some operands
+  /// have the same execution cost (e.g. none) as the unfolded register forms.
+  /// The ranged return is guaranteed to include all operands which can't be
+  /// folded at zero cost.
+  virtual std::pair<unsigned, unsigned>
+  getPatchpointUnfoldableRange(const MachineInstr &MI) const;
+
   /// Attempt to fold a load or store of the specified stack
   /// slot into the specified machine instruction for the specified operand(s).
   /// If this is possible, a new instruction is returned with the specified
@@ -1963,6 +1973,11 @@ public:
   /// not provided.
   virtual unsigned getTailDuplicateSize(CodeGenOpt::Level OptLevel) const {
     return OptLevel >= CodeGenOpt::Aggressive ? 4 : 2;
+  }
+
+  /// Returns the callee operand from the given \p MI.
+  virtual const MachineOperand &getCalleeOperand(const MachineInstr &MI) const {
+    return MI.getOperand(0);
   }
 
 private:
