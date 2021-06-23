@@ -5064,8 +5064,17 @@ bool Util::isSyclStreamType(const QualType Ty) {
   return false;
 }
 
-// TODO: Remove this once structs decomposing is optimized
-bool Util::isSyclHalfType(const QualType Ty) {
+bool Util::isSyclHalfType(QualType Ty) {
+  std::array<DeclContextDesc, 5> Scopes = {
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "detail"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "half_impl"),
+      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "half")};
+  return matchQualifiedTypeName(Ty, Scopes);
+}
+
+bool Util::isSyclSpecConstantType(QualType Ty) {
   std::array<DeclContextDesc, 5> Scopes = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
@@ -5073,17 +5082,6 @@ bool Util::isSyclHalfType(const QualType Ty) {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "spec_constant")};
-  return matchQualifiedTypeName(Ty, Scopes);
-}
-
-// TODO: Do we need an attribute for this one as well?
-bool Util::isSyclSpecConstantType(const QualType Ty) {
-  const StringRef &Name = "spec_constant";
-  std::array<DeclContextDesc, 4> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 

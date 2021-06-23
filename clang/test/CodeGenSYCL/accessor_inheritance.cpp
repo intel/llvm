@@ -72,12 +72,12 @@ int main() {
 // Check accessors initialization
 // CHECK: [[ACC_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Base, %struct{{.*}}Base addrspace(4)* [[BITCAST]], i32 0, i32 2
 // Default constructor call
-// CHECK:  call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0EEC1Ev(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* align 4 dereferenceable_or_null(12) [[ACC_FIELD]])
+// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEC1Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[ACC_FIELD]])
 // CHECK: [[BITCAST1:%[a-zA-Z0-9_]+]] = bitcast %struct{{.*}}Captured addrspace(4)* [[GEP]] to i8 addrspace(4)*
 // CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr inbounds i8, i8 addrspace(4)* [[BITCAST1]], i64 20
-// CHECK: [[BITCAST2:%[a-zA-Z0-9_]+]] = bitcast i8 addrspace(4)* [[GEP1]] to %"class._ZTSN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0EEE.cl::sycl::accessor" addrspace(4)*
+// CHECK: [[BITCAST2:%[a-zA-Z0-9_]+]] = bitcast i8 addrspace(4)* [[GEP1]] to %"class{{.*}}cl::sycl::accessor" addrspace(4)*
 // Default constructor call
-// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0EEC2Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* align 4 dereferenceable_or_null(12) [[BITCAST2]])
+// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEC2Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[BITCAST2]])
 
 // CHECK C field initialization
 // CHECK: [[FIELD_C:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Captured, %struct{{.*}}Captured addrspace(4)* [[GEP]], i32 0, i32 2

@@ -24,10 +24,10 @@ int main() {
   });
 }
 
-// CHECK: FunctionDecl {{.*}}kernel_sc{{.*}} 'void (sycl::ONEAPI::experimental::spec_constant<char, class MyInt32Const>, sycl::ONEAPI::experimental::spec_constant<int, class sc_name1>, sycl::ONEAPI::experimental::spec_constant<int, class sc_name2>)'
-// CHECK: VarDecl {{.*}}'(lambda at {{.*}})'
-// CHECK: InitListExpr {{.*}}'(lambda at {{.*}})'
+// CHECK: FunctionDecl {{.*}}kernel_sc{{.*}} 'void ()'
+// CHECK: VarDecl {{.*}}'(lambda at {{.*}}'
+// CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}'
 // CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::ONEAPI::experimental::spec_constant<char, class MyInt32Const>':'sycl::ONEAPI::experimental::spec_constant<char, MyInt32Const>'
-// CHECK: InitListExpr {{.*}} 'SpecConstantsWrapper'
-// CHECK: CXXConstructExpr {{.*}} 'sycl::ONEAPI::experimental::spec_constant<int, class sc_name1>':'sycl::ONEAPI::experimental::spec_constant<int, sc_name1>'
+// CHECK-NEXT: InitListExpr {{.*}} 'SpecConstantsWrapper'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::ONEAPI::experimental::spec_constant<int, class sc_name1>':'sycl::ONEAPI::experimental::spec_constant<int, sc_name1>'
 // CHECK: CXXConstructExpr {{.*}} 'sycl::ONEAPI::experimental::spec_constant<int, class sc_name2>':'sycl::ONEAPI::experimental::spec_constant<int, sc_name2>'

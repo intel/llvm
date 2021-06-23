@@ -165,7 +165,8 @@ struct _ImplT {
 
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
-          access::placeholder isPlaceholder = access::placeholder::false_t>
+          access::placeholder isPlaceholder = access::placeholder::false_t,
+          typename propertyListT = ONEAPI::accessor_property_list<>>
 class __attribute__((sycl_special_class(accessor))) accessor {
 
 public:
@@ -258,7 +259,7 @@ public:
 
 // TODO: Add support for image_array accessor.
 // template <typename dataT, int dimensions, access::mode accessmode>
-// class accessor<dataT, dimensions, accessmode, access::target::image_array, access::placeholder::false_t>
+//class accessor<dataT, dimensions, accessmode, access::target::image_array, access::placeholder::false_t>
 
 class kernel {};
 class context {};

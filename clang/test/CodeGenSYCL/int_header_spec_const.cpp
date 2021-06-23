@@ -44,21 +44,47 @@ int main() {
   double val;
   double *ptr = &val; // to avoid "unused" warnings
 
-  // CHECK: // Forward declarations of templated kernel function types:
+  // CHECK: // Forward declarations of templated spec constant types:
+  // CHECK: class MyInt8Const;
+  // CHECK: class MyUInt8Const;
+  // CHECK: class MyInt16Const;
+  // CHECK: class MyUInt16Const;
+  // CHECK: class MyInt32Const;
+  // CHECK: class MyUInt32Const;
+  // CHECK: class MyFloatConst;
+  // CHECK: class MyDoubleConst;
   // CHECK: class SpecializedKernel;
+  // CHECK: namespace test {
+  // CHECK: class MySpecConstantWithinANamespace;
+  // CHECK: }
 
   cl::sycl::kernel_single_task<SpecializedKernel>([=]() {
     *ptr = i1.get() +
+           // CHECK-DAG: template <> struct sycl::detail::SpecConstantInfo<::MyBoolConst> {
+           // CHECK-DAG-NEXT:   static constexpr const char* getName() {
+           // CHECK-DAG-NEXT:     return "_ZTS11MyBoolConst";
+           // CHECK-DAG-NEXT:   }
+           // CHECK-DAG-NEXT: };
            i8.get() +
+           // CHECK-DAG: return "_ZTS11MyInt8Const";
            ui8.get() +
+           // CHECK-DAG: return "_ZTS12MyUInt8Const";
            i16.get() +
+           // CHECK-DAG: return "_ZTS12MyInt16Const";
            ui16.get() +
+           // CHECK-DAG: return "_ZTS13MyUInt16Const";
            i32.get() +
            i32_1.get() +
+           // CHECK-DAG: return "_ZTS12MyInt32Const";
            ui32.get() +
+           // CHECK-DAG: return "_ZTS13MyUInt32Const";
            f32.get() +
+           // CHECK-DAG: return "_ZTS12MyFloatConst";
            f64.get() +
+           // CHECK-DAG: return "_ZTS13MyDoubleConst";
            spec1.get() +
+           // CHECK-DAG: return "_ZTS17SpecializedKernel"
            spec2.get();
+    // CHECK-DAG: return "_ZTSN4test30MySpecConstantWithinANamespaceE"
   });
 }

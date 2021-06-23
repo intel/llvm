@@ -117,13 +117,13 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class SpecConst1>([=]() { return t1.i; });
     });
-    // CHECK: FunctionDecl {{.*}}SpecConst1{{.*}} 'void (sycl::ONEAPI::experimental::spec_constant<int, class f1>, sycl::ONEAPI::experimental::spec_constant<int, class f1>, sycl::ONEAPI::experimental::spec_constant<int, class f1>, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}SpecConst{{.*}} 'void (StructNonDecomposed, int)'
 
     DerivedStruct<StructWithSpecConst> t2;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class SpecConst2>([=]() { return t2.i; });
     });
-    // CHECK: FunctionDecl {{.*}}SpecConst2{{.*}} 'void (sycl::ONEAPI::experimental::spec_constant<int, class f1>, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}SpecConst2{{.*}} 'void (StructNonDecomposed, int)'
   }
 
   {
@@ -144,12 +144,12 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Half1>([=]() { return t1.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Half1{{.*}} 'void (StructWithArray<StructWithHalf>)'
+    // CHECK: FunctionDecl {{.*}}Half1{{.*}} 'void (sycl::half, sycl::half, sycl::half, StructNonDecomposed, int)'
 
     DerivedStruct<StructWithHalf> t2;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Half2>([=]() { return t2.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Half2{{.*}} 'void (DerivedStruct<StructWithHalf>)'
+    // CHECK: FunctionDecl {{.*}}Half2{{.*}} 'void (sycl::half, StructNonDecomposed, int)'
   }
 }
