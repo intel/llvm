@@ -29,6 +29,8 @@ KERNEL_FUNCTOR_WITH_SIZE(2);
 KERNEL_FUNCTOR_WITH_SIZE(4);
 KERNEL_FUNCTOR_WITH_SIZE(8);
 KERNEL_FUNCTOR_WITH_SIZE(16);
+KERNEL_FUNCTOR_WITH_SIZE(32);
+KERNEL_FUNCTOR_WITH_SIZE(64);
 
 #undef KERNEL_FUNCTOR_WITH_SIZE
 
@@ -75,6 +77,16 @@ int main() {
       cl::sycl::vector_class<cl::sycl::kernel> TheKernel;
 
       switch (ReqdSize) {
+      case 64:
+        Prog.build_with_kernel_type<KernelFunctor64>();
+        TheKernel.push_back(Prog.get_kernel<KernelFunctor64>());
+        submit<KernelFunctor64>(Queue);
+        break;
+      case 32:
+        Prog.build_with_kernel_type<KernelFunctor32>();
+        TheKernel.push_back(Prog.get_kernel<KernelFunctor32>());
+        submit<KernelFunctor32>(Queue);
+        break;
       case 16:
         Prog.build_with_kernel_type<KernelFunctor16>();
         TheKernel.push_back(Prog.get_kernel<KernelFunctor16>());
