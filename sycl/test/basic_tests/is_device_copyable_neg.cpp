@@ -1,5 +1,5 @@
 // RUN: not %clangxx -fsycl -fsycl-device-only -fsyntax-only \
-// RUN: %s -I %sycl_include 2>&1 | FileCheck -check-prefix=CHECK-ERR %s
+// RUN: %s -I %sycl_include 2>&1 | FileCheck %s
 
 // This test checks if compiler reports compilation error on an attempt to pass
 // a struct with type that is not device copyable as SYCL kernel parameter.
@@ -68,8 +68,14 @@ void test() {
   Q.single_task<class TestC>(FB);
 }
 
-// CHECK-ERR: static_assert failed due to requirement 'is_device_copyable<A,
-// void> CHECK-ERR: static_assert failed due to requirement
-// 'is_device_copyable<B, void> CHECK-ERR: static_assert failed due to
-// requirement 'is_device_copyable<C, void> CHECK-ERR: static_assert failed due
-// to requirement 'is_device_copyable<D, void>
+// CHECK: static_assert failed due to requirement 'is_device_copyable<A, void>
+// CHECK: is_device_copyable_neg.cpp:59:5: note: in instantiation of function
+
+// CHECK: static_assert failed due to requirement 'is_device_copyable<B, void>
+// CHECK: is_device_copyable_neg.cpp:59:5: note: in instantiation of function
+
+// CHECK: static_assert failed due to requirement 'is_device_copyable<C, void>
+// CHECK: is_device_copyable_neg.cpp:65:5: note: in instantiation of function
+
+// CHECK: static_assert failed due to requirement 'is_device_copyable<D, void>
+// CHECK: is_device_copyable_neg.cpp:68:5: note: in instantiation of function

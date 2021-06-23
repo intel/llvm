@@ -13,6 +13,7 @@
 
 using namespace cl::sycl;
 
+// Trivially copyable type.
 struct A {
   int i;
 };
@@ -24,6 +25,9 @@ struct BCopyable {
   BCopyable(const BCopyable &x) : i(x.i) {}
 };
 
+// Not trivially copyable, but trivially copy constructible/destructible.
+// Such types are passed to kernels to stay compatible with deprecated
+// sycl 1.2.1 rules.
 struct C : A {
   const A C2;
   C() : A{0}, C2{2} {}
