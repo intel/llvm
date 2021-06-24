@@ -110,8 +110,6 @@ public:
   unsigned GetDefaultDwarfVersion() const override { return 4; }
 
   const ToolChain &HostTC;
-
-  
   void checkTargetID(const llvm::opt::ArgList &DriverArgs) const override;
   Tool *SelectTool(const JobAction &JA) const override;
 
