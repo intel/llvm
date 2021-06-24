@@ -60,6 +60,14 @@
 #define _KERNELFUNCPARAM(a) const KernelType &a
 #endif
 
+// Helper macro to identify if fallback assert is needed
+// FIXME remove __NVPTX__ condition once devicelib supports CUDA
+#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+#define __SYCL_USE_FALLBACK_ASSERT 1
+#else
+#define __SYCL_USE_FALLBACK_ASSERT 0
+#endif
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -72,8 +80,10 @@ class queue;
 
 namespace detail {
 class queue_impl;
+#if __SYCL_USE_FALLBACK_ASSERT
 static event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
+#endif
 }
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
@@ -239,7 +249,7 @@ public:
 
     event Event;
 
-#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+#if __SYCL_USE_FALLBACK_ASSERT
     bool IsKernel = false;
     Event = submit_impl(CGF, IsKernel, CodeLoc);
 
@@ -276,7 +286,7 @@ public:
 
     event Event;
 
-#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+#if __SYCL_USE_FALLBACK_ASSERT
     bool IsKernel = false;
     Event = submit_impl(CGF, IsKernel, SecondaryQueue, CodeLoc);
 
@@ -797,8 +807,10 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
+#if __SYCL_USE_FALLBACK_ASSERT
   friend event detail::submitAssertCapture(queue &, event &, queue *,
                                            const detail::code_location &);
+#endif
 
   /// A template-free version of submit.
   event submit_impl(function_class<void(handler &)> CGH,
@@ -888,8 +900,7 @@ private:
 };
 
 namespace detail {
-// FIXME remove __NVPTX__ condition once devicelib supports CUDA
-#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+#if __SYCL_USE_FALLBACK_ASSERT
 #define __SYCL_ASSERT_START 1
 /**
  * Submit copy task for assert failure flag and host-task to check the flag
@@ -983,3 +994,5 @@ template <> struct hash<cl::sycl::queue> {
   }
 };
 } // namespace std
+
+#undef __SYCL_USE_FALLBACK_ASSERT
