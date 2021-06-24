@@ -151,7 +151,7 @@ using byte = unsigned char;
 #if defined(__SYCL_DEVICE_ONLY__)
 #define _SYCL_SPAN_ASSERT(x, m) ((void)0)
 #else
-#define _SYCL_SPAN_ASSERT(x, m) assert((x && m))
+#define _SYCL_SPAN_ASSERT(x, m) assert(((x) && m))
 #endif
 
 inline constexpr size_t dynamic_extent = SIZE_MAX;

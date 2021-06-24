@@ -50,25 +50,20 @@ public:
   /// The number of elements in this simd object.
   static constexpr int length = N;
 
-  // TODO @rolandschulz
-  // Provide examples why constexpr is needed here.
-  //
   /// @{
   /// Constructors.
-  constexpr simd() = default;
-  template <typename SrcTy> constexpr simd(const simd<SrcTy, N> &other) {
+  simd() = default;
+  simd(const simd &other) { set(other.data()); }
+  template <typename SrcTy> simd(const simd<SrcTy, N> &other) {
+    set(__builtin_convertvector(other.data(), detail::vector_type_t<Ty, N>));
+  }
+  template <typename SrcTy> simd(simd<SrcTy, N> &&other) {
     if constexpr (std::is_same<SrcTy, Ty>::value)
       set(other.data());
     else
       set(__builtin_convertvector(other.data(), detail::vector_type_t<Ty, N>));
   }
-  template <typename SrcTy> constexpr simd(simd<SrcTy, N> &&other) {
-    if constexpr (std::is_same<SrcTy, Ty>::value)
-      set(other.data());
-    else
-      set(__builtin_convertvector(other.data(), detail::vector_type_t<Ty, N>));
-  }
-  constexpr simd(const vector_type &Val) { set(Val); }
+  simd(const vector_type &Val) { set(Val); }
 
   // TODO @rolandschulz
   // {quote}
@@ -89,7 +84,7 @@ public:
   // thought through seems to have only downsides.
   // {/quote}
 
-  constexpr simd(std::initializer_list<Ty> Ilist) noexcept {
+  simd(std::initializer_list<Ty> Ilist) noexcept {
     int i = 0;
     for (auto It = Ilist.begin(); It != Ilist.end() && i < N; ++It) {
       M_data[i++] = *It;
@@ -97,7 +92,7 @@ public:
   }
 
   /// Initialize a simd with an initial value and step.
-  constexpr simd(Ty Val, Ty Step = Ty()) noexcept {
+  simd(Ty Val, Ty Step = Ty()) noexcept {
     if (Step == Ty())
       M_data = Val;
     else {
@@ -113,6 +108,13 @@ public:
   /// conversion operator
   operator const vector_type &() const & { return M_data; }
   operator vector_type &() & { return M_data; }
+
+  /// Implicit conversion for simd<T, 1> into T.
+  template <typename T = simd,
+            typename = sycl::detail::enable_if_t<T::length == 1>>
+  operator element_type() const {
+    return data()[0];
+  }
 
   vector_type data() const {
 #ifndef __SYCL_DEVICE_ONLY__
@@ -195,16 +197,13 @@ public:
                                                                  Offset);
   }
 
-  // TODO
-  // @rolandschulz
-  // {quote}
-  // - There is no point in having this non-const overload.
-  // - Actually why does this overload not return simd_view.
-  //   This would allow you to use the subscript operator to write to an
-  //   element.
-  // {/quote}
   /// Read single element, return value only (not reference).
   Ty operator[](int i) const { return data()[i]; }
+
+  /// Return writable view of a single element.
+  simd_view<simd, region1d_t<Ty, 1, 0>> operator[](int i) {
+    return select<1, 0>(i);
+  }
 
   // TODO ESIMD_EXPERIMENTAL
   /// Read multiple elements by their indices in vector
@@ -243,6 +242,11 @@ public:
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
+  template <typename T = simd,                                                 \
+            typename = sycl::detail::enable_if_t<T::length == 1>>              \
+  ESIMD_INLINE friend auto operator BINOP(const simd &X, const Ty &Y) {        \
+    return X BINOP simd(Y);                                                    \
+  }                                                                            \
   ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const simd &RHS) {    \
     using ComputeTy = detail::compute_type_t<simd>;                            \
     auto V0 = detail::convert<typename ComputeTy::vector_type>(LHS.data());    \
@@ -276,6 +280,11 @@ public:
     auto R = X.data() RELOP Y.data();                                          \
     mask_type_t<N> M(1);                                                       \
     return M & detail::convert<mask_type_t<N>>(R);                             \
+  }                                                                            \
+  template <typename T = simd,                                                 \
+            typename = sycl::detail::enable_if_t<T::length == 1>>              \
+  ESIMD_INLINE friend bool operator RELOP(const simd &X, const Ty &Y) {        \
+    return (Ty)X RELOP Y;                                                      \
   }
 
   DEF_RELOP(>)

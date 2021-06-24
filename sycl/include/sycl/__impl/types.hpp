@@ -459,8 +459,8 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
             typename OpenCLT, typename OpenCLR>                                \
   detail::enable_if_t<is_float_to_int<T, R>::value &&                          \
                           (std::is_same<OpenCLR, cl_##DestType>::value ||      \
-                           std::is_same<OpenCLR, signed char>::value &&        \
-                               std::is_same<DestType, char>::value) &&         \
+                           (std::is_same<OpenCLR, signed char>::value &&       \
+                            std::is_same<DestType, char>::value)) &&           \
                           RoundingModeCondition<roundingMode>::value,          \
                       R>                                                       \
   convertImpl(T Value) {                                                       \

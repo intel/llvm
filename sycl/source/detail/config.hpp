@@ -136,11 +136,12 @@ public:
       return BackendPtr;
 
     const char *ValStr = BaseT::getRawValue();
-    const std::array<std::pair<std::string, backend>, 4> SyclBeMap = {
+    const std::array<std::pair<std::string, backend>, 5> SyclBeMap = {
         {{"PI_OPENCL", backend::opencl},
          {"PI_LEVEL_ZERO", backend::level_zero},
          {"PI_LEVEL0", backend::level_zero}, // for backward compatibility
-         {"PI_CUDA", backend::cuda}}};
+         {"PI_CUDA", backend::cuda},
+         {"PI_ROCM", backend::rocm}}};
     if (ValStr) {
       auto It = std::find_if(
           std::begin(SyclBeMap), std::end(SyclBeMap),
@@ -149,7 +150,7 @@ public:
           });
       if (It == SyclBeMap.end())
         pi::die("Invalid backend. "
-                "Valid values are PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA");
+                "Valid values are PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA/PI_ROCM");
       static backend Backend = It->second;
       BackendPtr = &Backend;
     }

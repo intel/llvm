@@ -287,7 +287,7 @@ static int convertSPIRVToLLVM(const SPIRV::TranslatorOpts &Opts) {
   }
 
   std::error_code EC;
-  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::F_None);
+  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::OF_None);
   if (EC) {
     errs() << "Fails to open output file: " << EC.message();
     return -1;
@@ -364,7 +364,7 @@ static int regularizeLLVM(SPIRV::TranslatorOpts &Opts) {
   }
 
   std::error_code EC;
-  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::F_None);
+  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::OF_None);
   if (EC) {
     errs() << "Fails to open output file: " << EC.message();
     return -1;

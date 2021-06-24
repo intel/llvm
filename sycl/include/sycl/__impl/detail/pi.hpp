@@ -71,11 +71,13 @@ bool trace(TraceLevel level);
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #define __SYCL_ESIMD_CPU_PLUGIN_NAME "pi_esimd_cpu.dll"
+#define __SYCL_ROCM_PLUGIN_NAME "libpi_rocm.dll"
 #else
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.so"
 #define __SYCL_ESIMD_CPU_PLUGIN_NAME "libpi_esimd_cpu.so"
+#define __SYCL_ROCM_PLUGIN_NAME "libpi_rocm.so"
 #endif
 
 // Report error and no return (keeps compiler happy about no return statements).
@@ -168,7 +170,7 @@ template <PiApiKind PiApiOffset> struct PiFuncInfo {};
 #define _PI_API(api)                                                           \
   template <> struct PiFuncInfo<PiApiKind::api> {                              \
     using FuncPtrT = decltype(&::api);                                         \
-    inline std::string getFuncName() { return #api; }                          \
+    inline const char *getFuncName() { return #api; }                          \
     inline FuncPtrT getFuncPtr(PiPlugin MPlugin) {                             \
       return MPlugin.PiFunctionTable.api;                                      \
     }                                                                          \
@@ -230,16 +232,16 @@ public:
   public:
     using ValTy = std::remove_pointer<pi_device_binary_property>::type;
 
-    class ConstIterator
-        : public std::iterator<std::input_iterator_tag, // iterator_category
-                               ValTy,                   // value_type
-                               ptrdiff_t,               // difference_type
-                               const pi_device_binary_property, // pointer
-                               pi_device_binary_property>       // reference
-    {
+    class ConstIterator {
       pi_device_binary_property Cur;
 
     public:
+      using iterator_category = std::input_iterator_tag;
+      using value_type = ValTy;
+      using difference_type = ptrdiff_t;
+      using pointer = const pi_device_binary_property;
+      using reference = pi_device_binary_property;
+
       ConstIterator(pi_device_binary_property Cur = nullptr) : Cur(Cur) {}
       ConstIterator &operator++() {
         Cur++;

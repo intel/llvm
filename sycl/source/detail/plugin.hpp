@@ -78,13 +78,13 @@ public:
     // Emit a function_begin trace for the PI API before the call is executed.
     // If arguments need to be captured, then a data structure can be sent in
     // the per_instance_user_data field.
-    std::string PIFnName = PiCallInfo.getFuncName();
-    uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName.c_str());
+    const char *PIFnName = PiCallInfo.getFuncName();
+    uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
 #endif
     RT::PiResult R;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
       std::lock_guard<std::mutex> Guard(*TracingMutex);
-      std::string FnName = PiCallInfo.getFuncName();
+      const char *FnName = PiCallInfo.getFuncName();
       std::cout << "---> " << FnName << "(" << std::endl;
       RT::printArgs(Args...);
       R = PiCallInfo.getFuncPtr(MPlugin)(Args...);
@@ -97,7 +97,7 @@ public:
     }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Close the function begin with a call to function end
-    pi::emitFunctionEndTrace(CorrelationID, PIFnName.c_str());
+    pi::emitFunctionEndTrace(CorrelationID, PIFnName);
 #endif
     return R;
   }
