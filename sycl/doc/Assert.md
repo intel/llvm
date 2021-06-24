@@ -174,6 +174,19 @@ declaration:</a>
 ```c++
 struct __SYCL_AssertHappened {
   int Flag = 0;
+  char Expr[256 + 1] = "";
+  char File[256 + 1] = "";
+  char Func[128 + 1] = "";
+
+  int32_t Line = 0;
+
+  uint64_t GID0 = 0;
+  uint64_t GID1 = 0;
+  uint64_t GID2 = 0;
+
+  uint64_t LID0 = 0;
+  uint64_t LID1 = 0;
+  uint64_t LID2 = 0;
 };
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -186,6 +199,28 @@ mutable program-scope variable.
 
 The reference to extern variable is resolved within online-linking against
 fallback devicelib.
+
+#### Description of fields
+
+The value stored here denotes if assert happened at all. There are two valid
+values at host:
+
+| Value | Meaning |
+| ----- | ------- |
+| 0     | No assert failure detected |
+| 2     | Assert failure detected and reported within this instance of struct |
+
+At device-side, there's another valid value: 1, which means that assert failure
+is detected and the structure is filling up at the moment. This value is for
+device-side only and should never be reported to host. Otherwise, it means, that
+atomic operation malfunctioned.
+
+`Expr`, `File`, `Func`, `Line` are to describe the assert message itself and
+contain the expression, file name, function name, line in the file where assert
+failure had happened respectively.
+
+`GID*` and `LID*` fields describe the global and local ID respectively of a
+work-item in which assert had failed.
 
 ### Online-linking fallback `__devicelib_assert_fail`
 
