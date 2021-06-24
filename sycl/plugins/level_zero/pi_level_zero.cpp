@@ -4365,8 +4365,12 @@ pi_result piEventRelease(pi_event Event) {
     die("piEventRelease: called on a destroyed event");
   }
 
+  if (!Event->CleanedUp)
+    PI_CALL(piEventsWait(1, &Event));
+
   if (--(Event->RefCount) == 0) {
-    cleanupAfterEvent(Event);
+    if (!Event->CleanedUp)
+      cleanupAfterEvent(Event);
 
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
