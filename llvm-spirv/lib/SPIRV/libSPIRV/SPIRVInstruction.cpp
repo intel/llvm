@@ -245,6 +245,31 @@ SPIRVInstruction *createInstFromSpecConstantOp(SPIRVSpecConstantOp *Inst) {
          "Op code not allowed for OpSpecConstantOp");
   Ops.erase(Ops.begin(), Ops.begin() + 1);
   switch (OC) {
+  case OpVectorShuffle: {
+    std::vector<SPIRVWord> Comp;
+    for (auto I = Ops.begin() + 2, E = Ops.end(); I != E; ++I) {
+      Comp.push_back(*I);
+    }
+    return new SPIRVVectorShuffle(Inst->getId(), Inst->getType(), Ops[0],
+                                  Ops[1], Comp, nullptr, Inst->getModule());
+  }
+  case OpCompositeExtract: {
+    std::vector<SPIRVWord> Indices;
+    for (auto I = Ops.begin() + 1, E = Ops.end(); I != E; ++I) {
+      Indices.push_back(*I);
+    }
+    return new SPIRVCompositeExtract(Inst->getType(), Inst->getId(), Ops[0],
+                                     Indices, nullptr, Inst->getModule());
+  }
+  case OpCompositeInsert: {
+    std::vector<SPIRVWord> Indices;
+    for (auto I = Ops.begin() + 2, E = Ops.end(); I != E; ++I) {
+      Indices.push_back(*I);
+    }
+    return new SPIRVCompositeInsert(Inst->getType(), Inst->getId(), Ops[0],
+                                    Ops[1], Indices, nullptr,
+                                    Inst->getModule());
+  }
   case OpSelect:
     return new SPIRVSelect(Inst->getId(), Inst->getType(), Ops[0], Ops[1],
                            Ops[2], nullptr, Inst->getModule());
