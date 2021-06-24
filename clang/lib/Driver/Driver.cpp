@@ -712,8 +712,8 @@ static bool isValidSYCLTriple(llvm::Triple T) {
 static llvm::Triple resolveSYCLTriple(Compilation &C, StringRef TripleStr) {
   SmallVector<StringRef, 4> SYCLAlias = {"spir64", "spir64_fpga",
                                          "spir64_x86_64", "spir64_gen"};
-  if (std::find(SYCLAlias.begin(), SYCLAlias.end(), TripleStr)
-          != SYCLAlias.end())
+  if (std::find(SYCLAlias.begin(), SYCLAlias.end(), TripleStr) !=
+      SYCLAlias.end())
     return C.getDriver().MakeSYCLDeviceTriple(TripleStr);
   return llvm::Triple(TripleStr);
 }
