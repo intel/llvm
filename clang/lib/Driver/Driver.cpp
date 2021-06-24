@@ -706,6 +706,18 @@ static bool isValidSYCLTriple(llvm::Triple T) {
   return true;
 }
 
+// Create a triple based off of the input provided.  Allow for short aliases
+// of known arch strings, which will be expanded to the full triple for usage
+// during the compilation.
+static llvm::Triple resolveSYCLTriple(Compilation &C, StringRef TripleStr) {
+  SmallVector<StringRef, 4> SYCLAlias = {"spir64", "spir64_fpga",
+                                         "spir64_x86_64", "spir64_gen"};
+  if (std::find(SYCLAlias.begin(), SYCLAlias.end(), TripleStr)
+          != SYCLAlias.end())
+    return C.getDriver().MakeSYCLDeviceTriple(TripleStr);
+  return llvm::Triple(TripleStr);
+}
+
 void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                               InputList &Inputs) {
 
@@ -897,7 +909,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     if (SYCLTargetsValues) {
       if (SYCLTargetsValues->getNumValues()) {
         for (StringRef Val : SYCLTargetsValues->getValues()) {
-          llvm::Triple TT(Val);
+          llvm::Triple TT(resolveSYCLTriple(C, Val));
           if (!isValidSYCLTriple(TT)) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
             continue;
@@ -4565,7 +4577,7 @@ class OffloadingActionBuilder final {
         if (SYCLTargets) {
           llvm::StringMap<StringRef> FoundNormalizedTriples;
           for (const char *Val : SYCLTargets->getValues()) {
-            llvm::Triple TT(Val);
+            llvm::Triple TT(resolveSYCLTriple(C, Val));
             std::string NormalizedName = TT.normalize();
 
             // Make sure we don't have a duplicate triple.
