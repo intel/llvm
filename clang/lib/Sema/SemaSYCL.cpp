@@ -1012,8 +1012,9 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
 }
 
 // The SYCL kernel's 'object type' used for diagnostics and naming/mangling is
-// the first parameter to a sycl_kernel labeled function template. In SYCL1.2.1,
-// this was passed by value, and in SYCL2020, it is passed by reference.
+// the first parameter to a function template using the sycl_kernel
+// attribute labeled function template. In SYCL1.2.1, this was passed by value,
+// and in SYCL2020, it is passed by reference.
 static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
   assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
   QualType KernelParamTy = KernelCaller->getParamDecl(0)->getType();
@@ -3686,12 +3687,12 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   // issues.
   if (!LangOpts.SYCLIsDevice)
     return;
-  QualType KernelObjType = GetSYCLKernelObjectType(KernelFunc);
+  const CXXRecordDecl *KernelObj =
+      GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
-  const CXXRecordDecl *KernelObj;
-  if (KernelObjType.isNull() ||
-      !(KernelObj = KernelObjType->getAsCXXRecordDecl())) {
+  ;
+  if (!KernelObj) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
     return;
