@@ -1245,7 +1245,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   PiESimdDeviceAccess->data =
       reinterpret_cast<void *>(new sycl::detail::ESIMDDeviceInterface());
 
-#define _PI_API(api)                                                           \
+#define _PI_API(api, ...)                                                      \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
 #include <CL/sycl/detail/pi.def>
 

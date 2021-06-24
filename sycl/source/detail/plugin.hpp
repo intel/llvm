@@ -10,7 +10,6 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/pi_args_helper.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/plugin_printers.hpp>
 #include <memory>
@@ -31,6 +30,16 @@ extern xpti::trace_event_data_t *GPIArgCallEvent;
 
 template <PiApiKind Kind, size_t Idx, typename... Args>
 struct array_fill_helper;
+
+template <PiApiKind Kind> struct PiApiArgTuple;
+
+#define _PI_API(api, ...)                                                      \
+  template <> struct PiApiArgTuple<PiApiKind::api> {                           \
+    using type = std::tuple<__VA_ARGS__>;                                      \
+  };
+
+#include <CL/sycl/detail/pi.def>
+#undef _PI_API
 
 template <PiApiKind Kind, size_t Idx, typename T>
 struct array_fill_helper<Kind, Idx, T> {

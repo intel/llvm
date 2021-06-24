@@ -6401,7 +6401,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   strncpy(PluginInit->PluginVersion, _PI_H_VERSION_STRING, PluginVersionSize);
 
-#define _PI_API(api)                                                           \
+#define _PI_API(api, ...)                                                      \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
 #include <CL/sycl/detail/pi.def>
 

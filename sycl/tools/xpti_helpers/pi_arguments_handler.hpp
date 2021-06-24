@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/pi_args_helper.hpp>
 
 #include "tuple_view.hpp"
 
@@ -34,7 +33,7 @@ namespace xpti_helpers {
 class PiArgumentsHandler {
 public:
   void handle(uint32_t ID, void *ArgsData) {
-#define _PI_API(api)                                                           \
+#define _PI_API(api, ...)                                                      \
   if (ID == static_cast<uint32_t>(detail::PiApiKind::api)) {                   \
     MHandler##_##api(ArgsData);                                                \
     return;                                                                    \
@@ -43,15 +42,10 @@ public:
 #undef _PI_API
   }
 
-#define _PI_API(api)                                                           \
-  void set##_##api(                                                            \
-      typename as_function<void, typename detail::PiApiArgTuple<               \
-                                     detail::PiApiKind::api>::type>::type      \
-          Handler) {                                                           \
+#define _PI_API(api, ...)                                                      \
+  void set##_##api(std::function<void(__VA_ARGS__)> Handler) {                 \
     MHandler##_##api = [Handler](void *Data) {                                 \
-      typename as_tuple_view<                                                  \
-          typename detail::PiApiArgTuple<detail::PiApiKind::api>::type>::type  \
-          TV{static_cast<unsigned char *>(Data)};                              \
+      tuple_view<__VA_ARGS__> TV{static_cast<unsigned char *>(Data)};          \
       xpti_helpers::apply(Handler, TV);                                        \
     };                                                                         \
   }
@@ -59,7 +53,7 @@ public:
 #undef _PI_API
 
 private:
-#define _PI_API(api)                                                           \
+#define _PI_API(api, ...)                                                      \
   std::function<void(void *)> MHandler##_##api = [](void *) {};
 #include <CL/sycl/detail/pi.def>
 #undef _PI_API

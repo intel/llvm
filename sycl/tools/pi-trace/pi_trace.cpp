@@ -50,8 +50,8 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
         GStreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
         tpCallback);
 
-#define _PI_API(api)                                                           \
-  ArgHandler.set##_##api([](auto &&... Args) {                                 \
+#define _PI_API(api, ...)                                                      \
+  ArgHandler.set##_##api([](auto &&...Args) {                                  \
     std::cout << "---> " << #api << "("                                        \
               << "\n";                                                         \
     sycl::detail::pi::printArgs(Args...);                                      \
