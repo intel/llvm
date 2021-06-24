@@ -316,10 +316,11 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
 
       // Return if we've already discovered if there are asserts in the
       // function call graph.
-      if (hasAssertionInCallGraphMap.count(CF)) {
+      auto HasAssert = hasAssertionInCallGraphMap.find(CF);
+      if (HasAssert != hasAssertionInCallGraphMap.end()) {
         // If we know, that this function does not contain assert, we still
         // should investigate another instructions in the function.
-        if (!hasAssertionInCallGraphMap[CF])
+        if (!HasAssert->second)
           continue;
 
         return true;
@@ -343,11 +344,10 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
       }
     }
 
-    if (IsLeaf) {
-      // Mark the above functions as ones that definetely do not call assert.
-      for (auto *It : FuncCallStack)
-        hasAssertionInCallGraphMap[It] = false;
-      FuncCallStack.clear();
+    if (IsLeaf && !FuncCallStack.empty()) {
+      // Mark the leaf function as one that definetely does not call assert.
+      hasAssertionInCallGraphMap[FuncCallStack.back()] = false;
+      FuncCallStack.pop_back();
     }
   }
   return false;
