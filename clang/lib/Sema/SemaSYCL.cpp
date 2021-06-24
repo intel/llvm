@@ -1011,16 +1011,19 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
       .Default(InvokeUnknown);
 }
 
-static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
-  assert(Caller->getNumParams() > 0 && "Insufficient kernel parameters");
+// The SYCL kernel's 'object type' used for diagnostics and naming/mangling is
+// the first parameter to a sycl_kernel labeled function template. In SYCL1.2.1,
+// this was passed by value, and in SYCL2020, it is passed by reference.
+static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
+  assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
+  QualType KernelParamTy = KernelCaller->getParamDecl(0)->getType();
 
-  QualType KernelParamTy = Caller->getParamDecl(0)->getType();
-  // In SYCL 2020 kernels are now passed by reference.
+  // SYCL 2020 kernels are passed by reference.
   if (KernelParamTy->isReferenceType())
-    return KernelParamTy->getPointeeCXXRecordDecl();
+    KernelParamTy = KernelParamTy->getPointeeType();
 
   // SYCL 1.2.1
-  return KernelParamTy->getAsCXXRecordDecl();
+  return KernelParamTy.getUnqualifiedType();
 }
 
 /// Creates a kernel parameter descriptor
@@ -1048,7 +1051,7 @@ static target getAccessTarget(const ClassTemplateSpecializationDecl *AccTy) {
 // The first template argument to the kernel caller function is used to identify
 // the kernel itself.
 static QualType calculateKernelNameType(ASTContext &Ctx,
-                                        FunctionDecl *KernelCallerFunc) {
+                                        const FunctionDecl *KernelCallerFunc) {
   const TemplateArgumentList *TAL =
       KernelCallerFunc->getTemplateSpecializationArgs();
   assert(TAL && "No template argument info");
@@ -3683,10 +3686,12 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   // issues.
   if (!LangOpts.SYCLIsDevice)
     return;
-  const CXXRecordDecl *KernelObj = getKernelObjectType(KernelFunc);
+  QualType KernelObjType = GetSYCLKernelObjectType(KernelFunc);
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
-  if (!KernelObj) {
+  const CXXRecordDecl *KernelObj;
+  if (KernelObjType.isNull() ||
+      !(KernelObj = KernelObjType->getAsCXXRecordDecl())) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
     return;
@@ -3827,7 +3832,8 @@ void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
 void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                  MangleContext &MC) {
   // The first argument to the KernelCallerFunc is the lambda object.
-  const CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
+  const CXXRecordDecl *KernelObj =
+      GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
   assert(KernelObj && "invalid kernel caller");
 
   // Do not visit invalid kernel object.
@@ -5181,21 +5187,6 @@ bool Util::matchQualifiedTypeName(QualType Ty,
   return Util::matchContext(Ctx, Scopes);
 }
 
-// The SYCL kernel's 'object type' used for diagnostics and naming/mangling is
-// the first parameter to a sycl_kernel labeled function template. In SYCL1.2.1,
-// this was passed by value, and in SYCL2020, it is passed by reference.
-static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
-  assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
-  QualType KernelParamTy = KernelCaller->getParamDecl(0)->getType();
-
-  // SYCL 2020 kernels are passed by reference.
-  if (KernelParamTy->isReferenceType())
-    return KernelParamTy->getPointeeType();
-
-  // SYCL 1.2.1
-  return KernelParamTy;
-}
-
 void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
                           bool IsInstantiation) {
   auto MangleCallback = [](ASTContext &Ctx,
@@ -5234,6 +5225,9 @@ void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
 }
 
 void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
-  QualType Ty = GetSYCLKernelObjectType(FD);
-  MarkSYCLKernel(FD->getLocation(), Ty, /*IsInstantiation*/ true);
+  QualType FunctorTy = GetSYCLKernelObjectType(FD);
+  QualType TmplArgTy =
+      calculateKernelNameType(Context, FD).getUnqualifiedType();
+  if (Context.hasSameType(FunctorTy, TmplArgTy))
+    MarkSYCLKernel(FD->getLocation(), FunctorTy, /*IsInstantiation*/ true);
 }
