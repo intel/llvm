@@ -908,6 +908,7 @@ namespace detail {
  *              kernel to check for assertion failure
  * \param SecondaryQueue secondary queue for submit process, null if not used
  * \returns host tasks event
+ *
  * This method doesn't belong to queue class to overcome msvc behaviour due to
  * which it gets compiled and exported without any integration header and, thus,
  * with no proper KernelInfo instance.
@@ -942,7 +943,14 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
     CGH.codeplay_host_task([=] {
       const detail::AssertHappened *AH = &Acc[0];
 
-      assert(AH->Flag != __SYCL_ASSERT_START && "Invalid value");
+      // Don't use assert here as msvc will insert reference to __imp__wassert
+      // which won't be properly resolved in separate compile use-case
+#ifndef NDEBUG
+      if (AH->Flag == __SYCL_ASSERT_START)
+        throw sycl::runtime_error(
+            "Internal Error. Invalid value in assert description.",
+            PI_INVALID_VALUE);
+#endif
 
       if (AH->Flag) {
         const char *Expr = AH->Expr[0] ? AH->Expr : "<unknown expr>";
