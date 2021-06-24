@@ -31,6 +31,8 @@ and not recommended to use in production environment.
       Intel FPGA;
     * spir64_gen-unknown-unknown-sycldevice - generate code ahead of time for
       Intel Processor Graphics;
+    Shorter aliases of the above triples can also be used:
+    * spir64, spir64_x86_64, spir64_fpga, spir64_gen
     Available in special build configuration:
     * nvptx64-nvidia-cuda-sycldevice - generate code ahead of time for CUDA
       target;
