@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 // >> ---- compile src1
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c %s -o %t-same-kernel-a.o
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple -c %s -o %t-same-kernel-a.o
 //
 // >> ---- compile src2
-// RUN: %clangxx -DB_CPP=1 -fsycl -fsycl-targets=%sycl_triple -c %s -o %t-same-kernel-b.o
+// RUN: %clangxx -DB_CPP=1 -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple -c %s -o %t-same-kernel-b.o
 //
 // >> ---- link the full hetero app
 // RUN: %clangxx %t-same-kernel-a.o %t-same-kernel-b.o -o %t-same-kernel.exe -fsycl -fsycl-targets=%sycl_triple
