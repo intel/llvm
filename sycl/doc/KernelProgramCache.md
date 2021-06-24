@@ -12,7 +12,7 @@ examples below illustrate scenarios where such optimization is possible.
 *Use-case #1.* Submission of the same kernel in a loop:
 
 ```C++
-  using namespace cl::sycl;
+  using namespace sycl;
 
   queue Q;
   std::vector<buffer> Bufs;
@@ -34,7 +34,7 @@ examples below illustrate scenarios where such optimization is possible.
 *Use-case #2.* Submission of multiple kernels within a single program<sup>[1](#what-is-program)</sup>:
 
 ```C++
-  using namespace cl::sycl;
+  using namespace sycl;
 
   queue Q;
 
@@ -96,9 +96,9 @@ The cache is split into two levels:
 
 ### In-memory cache
 
-The cache stores underlying PI objects behind `cl::sycl::program` and
-`cl::sycl::kernel` user-level objects in a per-context data storage. The storage
-consists of two maps: one is for programs and the other is for kernels.
+The cache stores underlying PI objects behind `sycl::program` and `sycl::kernel`
+user-level objects in a per-context data storage. The storage consists of two
+maps: one is for programs and the other is for kernels.
 
 The programs map's key consists of four components:
 
@@ -132,14 +132,13 @@ which affect JIT process). Changing such configuration will invalidate cache and
 manual cache cleanup should be done.
 
 <a name="what-is-kname">3</a>: Kernel name is a kernel ID mangled class' name
-which is provided to methods of `cl::sycl::handler` (e.g. `parallel_for` or
+which is provided to methods of `sycl::handler` (e.g. `parallel_for` or
 `single_task`).
 
 ### Persistent cache
 
 The cache works behind in-memory cache and stores the same underlying PI
-object behind `cl::sycl::program` user-level objects in a per-context data
-storage.
+object behind `sycl::program` user-level objects in a per-context data storage.
 The storage is organized as a map for storing device code image. It uses
 different keys to address difference in SYCL objects ids between applications
 runs as well as the fact that the same kernel name can be used in different
@@ -238,7 +237,7 @@ instance of cache. We will see rationale behind it a bit later.
 ### Thread-safety
 
 Why do we need thread safety here? It is quite possible to have a use-case when
-the `cl::sycl::context` is shared across multiple threads (e.g. via sharing a
+the `sycl::context` is shared across multiple threads (e.g. via sharing a
 queue). Possibility of enqueueing multiple cacheable kernels simultaneously
 from multiple threads requires us to provide thread-safety for the caching
 mechanisms.
@@ -311,7 +310,7 @@ fails, we will wait for building thread to finish with call to `waitUntilBuilt`
 function. This function will throw stored exception<sup>[2](#exception-data)</sup>
 upon build failure. This allows waiting threads to see the same result as the
 building thread. Special case of the failure is when build result doesn't
-contain the error (i.e. the error wasn't of `cl::sycl::exception` type) and the
+contain the error (i.e. the error wasn't of `sycl::exception` type) and the
 pointer to object in `BuildResult` instance is nil. In this case, the building
 thread has finished the build process and has returned an error to the user.
 But this error may be sporadic in nature and may be spurious. Hence, the waiting
