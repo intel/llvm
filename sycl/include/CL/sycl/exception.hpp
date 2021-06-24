@@ -23,6 +23,8 @@ namespace sycl {
 // Forward declaration
 class context;
 
+#define Exception121DeprecationMessage "Use SYCL 2020 exceptions."
+
 // Derive from std::exception so uncaught exceptions are printed in c++ default
 // exception handler.
 /// \ingroup sycl_api
@@ -62,7 +64,8 @@ protected:
   exception(const string_class &Msg) : MMsg(Msg), MContext(nullptr) {}
 };
 
-class runtime_error : public exception {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) runtime_error
+    : public exception {
 public:
   runtime_error() = default;
 
@@ -71,22 +74,28 @@ public:
 
   runtime_error(const string_class &Msg, cl_int Err) : exception(Msg, Err) {}
 };
-class kernel_error : public runtime_error {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) kernel_error
+    : public runtime_error {
   using runtime_error::runtime_error;
 };
-class accessor_error : public runtime_error {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) accessor_error
+    : public runtime_error {
   using runtime_error::runtime_error;
 };
-class nd_range_error : public runtime_error {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) nd_range_error
+    : public runtime_error {
   using runtime_error::runtime_error;
 };
-class event_error : public runtime_error {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) event_error
+    : public runtime_error {
   using runtime_error::runtime_error;
 };
-class invalid_parameter_error : public runtime_error {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage)
+    invalid_parameter_error : public runtime_error {
   using runtime_error::runtime_error;
 };
-class device_error : public exception {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) device_error
+    : public exception {
 public:
   device_error() = default;
 
@@ -95,25 +104,32 @@ public:
 
   device_error(const string_class &Msg, cl_int Err) : exception(Msg, Err) {}
 };
-class compile_program_error : public device_error {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage)
+    compile_program_error : public device_error {
   using device_error::device_error;
 };
-class link_program_error : public device_error {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) link_program_error
+    : public device_error {
   using device_error::device_error;
 };
-class invalid_object_error : public device_error {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) invalid_object_error
+    : public device_error {
   using device_error::device_error;
 };
-class memory_allocation_error : public device_error {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage)
+    memory_allocation_error : public device_error {
   using device_error::device_error;
 };
-class platform_error : public device_error {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) platform_error
+    : public device_error {
   using device_error::device_error;
 };
-class profiling_error : public device_error {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) profiling_error
+    : public device_error {
   using device_error::device_error;
 };
-class feature_not_supported : public device_error {
+class __SYCL2020_DEPRECATED(Exception121DeprecationMessage)
+    feature_not_supported : public device_error {
   using device_error::device_error;
 };
 

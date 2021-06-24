@@ -64,5 +64,34 @@ int main() {
   size_t BufferGetCount = Buffer.get_count();
   size_t BufferSize = Buffer.size();
 
+  // expected-warning@+1 {{'runtime_error' is deprecated: Use SYCL 2020 exceptions}}
+  sycl::runtime_error re;
+  // expected-warning@+1 {{'kernel_error' is deprecated}}
+  sycl::kernel_error ke;
+  // expected-warning@+1 {{'accessor_error' is deprecated}}
+  sycl::accessor_error ae;
+  // expected-warning@+1 {{'nd_range_error' is deprecated}}
+  sycl::nd_range_error ne;
+  // expected-warning@+1 {{'event_error' is deprecated}}
+  sycl::event_error ee;
+  // expected-warning@+1 {{'invalid_parameter_error' is deprecated}}
+  sycl::invalid_parameter_error ipe;
+  // expected-warning@+1 {{'device_error' is deprecated}}
+  sycl::device_error de;
+  // expected-warning@+1 {{'compile_program_error' is deprecated}}
+  sycl::compile_program_error cpe;
+  // expected-warning@+1 {{'link_program_error' is deprecated}}
+  sycl::link_program_error lpe;
+  // expected-warning@+1 {{'invalid_object_error' is deprecated}}
+  sycl::invalid_object_error ioe;
+  // expected-warning@+1 {{'memory_allocation_error' is deprecated}}
+  sycl::memory_allocation_error mae;
+  // expected-warning@+1 {{'platform_error' is deprecated}}
+  sycl::platform_error ple;
+  // expected-warning@+1 {{'profiling_error' is deprecated}}
+  sycl::profiling_error pre;
+  // expected-warning@+1 {{'feature_not_supported' is deprecated}}
+  sycl::feature_not_supported fns;
+
   return 0;
 }
