@@ -4229,11 +4229,17 @@ static pi_result cleanupAfterEvent(pi_event Event) {
         if (it == Queue->ZeCommandListFenceMap.end()) {
           die("Missing command-list completition fence");
         }
-        ze_result_t ZeResult =
-            ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-        if (ZeResult == ZE_RESULT_SUCCESS) {
-          Queue->resetCommandListFenceEntry(*it, true);
-          Event->ZeCommandList = nullptr;
+
+        // It is possible that the fence was already noted as signalled and
+        // reset.  In that case the InUse flag will be false, and there is
+        // no need to query the fence's status or try to reset it.
+        if (it->second.InUse) {
+          ze_result_t ZeResult =
+              ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+          if (ZeResult == ZE_RESULT_SUCCESS) {
+            Queue->resetCommandListFenceEntry(*it, true);
+            Event->ZeCommandList = nullptr;
+          }
         }
       }
     }
