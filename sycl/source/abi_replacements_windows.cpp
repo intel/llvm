@@ -1685,6 +1685,7 @@
 #pragma comment(linker, "/export:?extractArgsAndReqs@handler@sycl@cl@@AEAAXXZ=?extractArgsAndReqs@handler@__v1@__sycl_internal@@AEAAXXZ")
 #pragma comment(linker, "/export:?extractArgsAndReqsFromLambda@handler@sycl@cl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@@Z=?extractArgsAndReqsFromLambda@handler@__v1@__sycl_internal@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@@Z")
 #pragma comment(linker, "/export:?extractArgsAndReqsFromLambda@handler@sycl@cl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@_N@Z=?extractArgsAndReqsFromLambda@handler@__v1@__sycl_internal@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@_N@Z")
+#pragma comment(linker, "/export:?extractArgsAndReqsFromLambda@handler@sycl@cl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@__v1@__sycl_internal@@_N@Z=?extractArgsAndReqsFromLambda@handler@__v1@__sycl_internal@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@_N@Z")
 #pragma comment(linker, "/export:?fabs@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z=?fabs@__host_std@__v1@__sycl_internal@@YA?AV?$vec@M$00@23@V423@@Z")
 #pragma comment(linker, "/export:?fabs@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z=?fabs@__host_std@__v1@__sycl_internal@@YA?AV?$vec@M$01@23@V423@@Z")
 #pragma comment(linker, "/export:?fabs@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@@Z=?fabs@__host_std@__v1@__sycl_internal@@YA?AV?$vec@M$02@23@V423@@Z")
