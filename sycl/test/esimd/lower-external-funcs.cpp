@@ -18,7 +18,6 @@ extern "C" SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void vmult2(simd<float, VL> a) {
 }
 
 // CHECK: define dso_local spir_func void @vmult2
-// CHECK: entry:
 // CHECK:   call <3 x i32> @llvm.genx.local.id.v3i32()
 // CHECK:   call <3 x i32> @llvm.genx.local.size.v3i32()
 // CHECK:   call i32 @llvm.genx.group.id.x()
