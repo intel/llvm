@@ -8600,8 +8600,23 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back("-o");
   TranslatorArgs.push_back(Output.getFilename());
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
+    bool isFPGAHardware = false;
+    if (getToolChain().getTriple().getSubArch() ==
+        llvm::Triple::SPIRSubArch_fpga) {
+      for (auto *A : TCArgs) {
+        if (A->getOption().matches(options::OPT_Xs_separate) ||
+            A->getOption().matches(options::OPT_Xs)) {
+          StringRef ArgString(A->getValue());
+          if (ArgString == "hardware" || ArgString == "simulation")
+            isFPGAHardware = true;
+        }
+      }
+    }
     TranslatorArgs.push_back("-spirv-max-version=1.3");
-    TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
+    if (!isFPGAHardware)
+      TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
+    else
+      TranslatorArgs.push_back("-spirv-debug-info-version=legacy");
     // Prevent crash in the translator if input IR contains DIExpression
     // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
     TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
@@ -8631,23 +8646,14 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         ",+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse"
         ",+SPV_INTEL_long_constant_composite";
     ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
-    if (getToolChain().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_fpga) {
-      for (auto *A : TCArgs) {
-        if (A->getOption().matches(options::OPT_Xs_separate) ||
-            A->getOption().matches(options::OPT_Xs)) {
-          StringRef ArgString(A->getValue());
-          // Enable SPV_INTEL_usm_storage_classes only for FPGA hardware,
-          // since it adds new storage classes that represent global_device and
-          // global_host address spaces, which are not supported for all
-          // targets. With the extension disabled the storage classes will be
-          // lowered to CrossWorkgroup storage class that is mapped to just
-          // global address space.
-          if (ArgString == "hardware" || ArgString == "simulation")
-            ExtArg += ",+SPV_INTEL_usm_storage_classes";
-        }
-      }
-    }
+    if (isFPGAHardware)
+      // Enable SPV_INTEL_usm_storage_classes only for FPGA hardware,
+      // since it adds new storage classes that represent global_device and
+      // global_host address spaces, which are not supported for all
+      // targets. With the extension disabled the storage classes will be
+      // lowered to CrossWorkgroup storage class that is mapped to just
+      // global address space.
+      ExtArg += ",+SPV_INTEL_usm_storage_classes";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
