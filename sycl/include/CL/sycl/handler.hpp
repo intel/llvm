@@ -211,7 +211,7 @@ using cl::sycl::detail::enable_if_t;
 using cl::sycl::detail::queue_impl;
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<Reduction::has_atomic_add_float>
+enable_if_t<Reduction::has_atomic_add_float64>
 reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
                    const nd_range<Dims> &Range, Reduction &Redu);
 
@@ -1396,7 +1396,7 @@ public:
   // seem efficient.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
-  detail::enable_if_t<Reduction::has_atomic_add_float>
+  detail::enable_if_t<Reduction::has_atomic_add_float64>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
 
@@ -1438,7 +1438,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
   detail::enable_if_t<!Reduction::has_fast_atomics &&
-                      !Reduction::has_atomic_add_float>
+                      !Reduction::has_atomic_add_float64>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
 
