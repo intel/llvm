@@ -39,26 +39,10 @@ template <typename Type, bool B> struct get_kernel_name_t_helper {
 /// types: if \c Name is undefined (is a \c auto_name) then \c Type becomes
 /// the \c Name.
 template <typename Name, typename Type> struct get_kernel_name_t {
-#ifdef __SYCL_UNNAMED_LAMBDA__
-  // We need to mark 'Name' as kernel here so FE will apply proper mangling for
-  // it. This is required due to several reasons:
-  // - it might be the case with range rounding enabled that we evaluate
-  //   __builtin_sycl_unique_stable_name before instantiating the kernel, which
-  //   leads to different results of built-in evaluation before and after kernel
-  //   instantiation, which is illegal as it changes the result of previously
-  //   evaluated constant expression.
-  // - in case when functor is used as kernel instead of a lambda, FE only marks
-  //   functor type as kernel, but not the name specified by user, which also
-  //   leads to changing the result of previously evaluated constant expression.
-  using name =
-      typename get_kernel_name_t_helper<Name, __builtin_sycl_mark_kernel_name(
-                                                  Name)>::name;
-#else
   using name = Name;
   static_assert(
       !std::is_same<Name, auto_name>::value,
       "No kernel name provided without -fsycl-unnamed-lambda enabled!");
-#endif // __SYCL_UNNAMED_LAMBDA__
 };
 
 #ifdef __SYCL_UNNAMED_LAMBDA__
@@ -68,6 +52,12 @@ template <typename Name, typename Type> struct get_kernel_name_t {
 /// lack of specialization allows us to trigger static_assert from the primary
 /// definition.
 template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
+  // We need to mark 'Type' as kernel here so FE will apply proper mangling for
+  // it. The reason for that is that when with range rounding enabled, we
+  // evaluate __builtin_sycl_unique_stable_name before instantiating the kernel,
+  // which leads to different results of built-in evaluation before and after
+  // kernel instantiation, which is illegal as it changes the result of
+  // previously evaluated constant expression.
   using name =
       typename get_kernel_name_t_helper<Type, __builtin_sycl_mark_kernel_name(
                                                   Type)>::name;
