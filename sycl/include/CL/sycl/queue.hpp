@@ -71,8 +71,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-class AssertInfoCopier;
-
 // Forward declaration
 class context;
 class device;
@@ -81,6 +79,7 @@ class queue;
 namespace detail {
 class queue_impl;
 #if __SYCL_USE_FALLBACK_ASSERT
+class AssertInfoCopier;
 static event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
 #endif
