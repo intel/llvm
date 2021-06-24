@@ -43,28 +43,23 @@ template <PiApiKind Kind> struct PiApiArgTuple;
 
 template <PiApiKind Kind, size_t Idx, typename T>
 struct array_fill_helper<Kind, Idx, T> {
-  static void fill(unsigned char *Dst, size_t Offset, T &&Arg) {
+  static void fill(unsigned char *Dst, T &&Arg) {
     using ArgsTuple = typename PiApiArgTuple<Kind>::type;
     // C-style cast is required here.
-    auto RealArg = (typename std::tuple_element<Idx, ArgsTuple>::type)(Arg);
-    auto *Begin = reinterpret_cast<const unsigned char *>(&RealArg);
-    auto *End = Begin + sizeof(decltype(RealArg));
-    std::uninitialized_copy(Begin, End, Dst + Offset);
+    auto RealArg = (std::tuple_element_t<Idx, ArgsTuple>)(Arg);
+    *(std::remove_cv_t<std::tuple_element_t<Idx, ArgsTuple>> *)Dst = RealArg;
   }
 };
 
 template <PiApiKind Kind, size_t Idx, typename T, typename... Args>
 struct array_fill_helper<Kind, Idx, T, Args...> {
-  static void fill(unsigned char *Dst, size_t Offset, const T &&Arg,
-                   Args &&... Rest) {
+  static void fill(unsigned char *Dst, const T &&Arg, Args &&...Rest) {
     using ArgsTuple = typename PiApiArgTuple<Kind>::type;
     // C-style cast is required here.
-    auto RealArg = (typename std::tuple_element<Idx, ArgsTuple>::type)(Arg);
-    auto *Begin = reinterpret_cast<const unsigned char *>(&RealArg);
-    auto *End = Begin + sizeof(decltype(RealArg));
-    std::uninitialized_copy(Begin, End, Dst + Offset);
+    auto RealArg = (std::tuple_element_t<Idx, ArgsTuple>)(Arg);
+    *(std::remove_cv_t<std::tuple_element_t<Idx, ArgsTuple>> *)Dst = RealArg;
     array_fill_helper<Kind, Idx + 1, Args...>::fill(
-        Dst, Offset + sizeof(decltype(RealArg)), std::forward<Args>(Rest)...);
+        Dst + sizeof(decltype(RealArg)), std::forward<Args>(Rest)...);
   }
 };
 
@@ -80,7 +75,7 @@ auto packCallArguments(ArgsT &&... Args) {
   constexpr size_t TotalSize = totalSize(ArgsTuple{});
 
   std::array<unsigned char, TotalSize> ArgsData;
-  array_fill_helper<Kind, 0, ArgsT...>::fill(ArgsData.data(), 0,
+  array_fill_helper<Kind, 0, ArgsT...>::fill(ArgsData.data(),
                                              std::forward<ArgsT>(Args)...);
 
   return ArgsData;
