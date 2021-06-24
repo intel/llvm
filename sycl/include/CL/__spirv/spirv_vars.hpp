@@ -15,7 +15,7 @@
 
 #define __SPIRV_VAR_QUALIFIERS extern "C" const
 
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
 
 SYCL_EXTERNAL size_t __spirv_GlobalInvocationId_x();
 SYCL_EXTERNAL size_t __spirv_GlobalInvocationId_y();
@@ -51,7 +51,7 @@ SYCL_EXTERNAL uint32_t __spirv_NumSubgroups();
 SYCL_EXTERNAL uint32_t __spirv_SubgroupId();
 SYCL_EXTERNAL uint32_t __spirv_SubgroupLocalInvocationId();
 
-#else // __NVPTX__
+#else // defined(__NVPTX__) || defined(__AMDGCN__)
 
 typedef size_t size_t_vec __attribute__((ext_vector_type(3)));
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInGlobalSize;
@@ -154,7 +154,7 @@ SYCL_EXTERNAL inline uint32_t __spirv_SubgroupLocalInvocationId() {
   return __spirv_BuiltInSubgroupLocalInvocationId;
 }
 
-#endif // __NVPTX__
+#endif // defined(__NVPTX__) || defined(__AMDGCN__)
 
 #undef __SPIRV_VAR_QUALIFIERS
 
