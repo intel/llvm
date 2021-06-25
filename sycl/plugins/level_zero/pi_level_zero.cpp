@@ -185,8 +185,7 @@ template <> ze_result_t zeHostSynchronize(ze_event_handle_t Handle) {
 template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle) {
   return zeHostSynchronizeImpl(zeCommandQueueSynchronize, Handle);
 }
-template <>
-ze_result_t zeHostSynchronize(ze_fence_handle_t Handle) {
+template <> ze_result_t zeHostSynchronize(ze_fence_handle_t Handle) {
   return zeHostSynchronizeImpl(zeFenceHostSynchronize, Handle);
 }
 
