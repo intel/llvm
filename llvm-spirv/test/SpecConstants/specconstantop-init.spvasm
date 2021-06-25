@@ -30,6 +30,9 @@
 ; CHECK: @var_bitor = addrspace(1) global i32 -3
 ; CHECK: @var_bitxor = addrspace(1) global i32 -55
 ; CHECK: @var_bitand = addrspace(1) global i32 52
+; CHECK: @var_vecshuf = addrspace(1) global <2 x i32> <i32 4, i32 53>
+; CHECK: @var_compext = addrspace(1) global i32 53
+; CHECK: @var_compins = addrspace(1) global <2 x i32> <i32 53, i32 53>
 ; CHECK: @var_logor = addrspace(1) global i1 true
 ; CHECK: @var_logand = addrspace(1) global i1 false
 ; CHECK: @var_lognot = addrspace(1) global i1 false
@@ -76,6 +79,9 @@
                OpDecorate %var_bitor LinkageAttributes "var_bitor" Export
                OpDecorate %var_bitxor LinkageAttributes "var_bitxor" Export
                OpDecorate %var_bitand LinkageAttributes "var_bitand" Export
+               OpDecorate %var_vecshuf LinkageAttributes "var_vecshuf" Export
+               OpDecorate %var_compext LinkageAttributes "var_compext" Export
+               OpDecorate %var_compins LinkageAttributes "var_compins" Export
                OpDecorate %var_logor LinkageAttributes "var_logor" Export
                OpDecorate %var_logand LinkageAttributes "var_logand" Export
                OpDecorate %var_lognot LinkageAttributes "var_lognot" Export
@@ -99,11 +105,14 @@
       %uchar = OpTypeInt 8 0
        %uint = OpTypeInt 32 0
       %float = OpTypeFloat 32
+      %v2i32 = OpTypeVector %uint 2
      %uint_0 = OpConstant %uint 0
      %uint_4 = OpConstant %uint 4
     %uint_53 = OpConstant %uint 53
   %uint_min4 = OpConstant %uint 0xfffffffc
     %float_1 = OpConstant %float 1.0
+   %vec_53_0 = OpConstantComposite %v2i32 %uint_53 %uint_0
+    %vec_4_4 = OpConstantComposite %v2i32 %uint_4 %uint_4
    %sconvert = OpSpecConstantOp %uchar SConvert %uint_53
    %uconvert = OpSpecConstantOp %uchar UConvert %uint_53
     %snegate = OpSpecConstantOp %uint SNegate %uint_53
@@ -125,6 +134,9 @@
       %bitor = OpSpecConstantOp %uint BitwiseOr %uint_53 %uint_min4
      %bitxor = OpSpecConstantOp %uint BitwiseXor %uint_53 %uint_min4
      %bitand = OpSpecConstantOp %uint BitwiseAnd %uint_53 %uint_min4
+    %vecshuf = OpSpecConstantOp %v2i32 VectorShuffle %vec_53_0 %vec_4_4 2 0
+    %compext = OpSpecConstantOp %uint CompositeExtract %vec_53_0 0
+    %compins = OpSpecConstantOp %v2i32 CompositeInsert %uint_53 %vec_53_0 1
       %logor = OpSpecConstantOp %bool LogicalOr %true %false
      %logand = OpSpecConstantOp %bool LogicalAnd %true %false
      %lognot = OpSpecConstantOp %bool LogicalNot %true
@@ -145,6 +157,7 @@
  %_ptr_uchar = OpTypePointer CrossWorkgroup %uchar
   %_ptr_uint = OpTypePointer CrossWorkgroup %uint
   %_ptr_bool = OpTypePointer CrossWorkgroup %bool
+ %_ptr_v2i32 = OpTypePointer CrossWorkgroup %v2i32
        %void = OpTypeVoid
          %14 = OpTypeFunction %void
 
@@ -169,6 +182,9 @@
   %var_bitor = OpVariable %_ptr_uint CrossWorkgroup %bitor
  %var_bitxor = OpVariable %_ptr_uint CrossWorkgroup %bitxor
  %var_bitand = OpVariable %_ptr_uint CrossWorkgroup %bitand
+%var_vecshuf = OpVariable %_ptr_v2i32 CrossWorkgroup %vecshuf
+%var_compext = OpVariable %_ptr_uint CrossWorkgroup %compext
+%var_compins = OpVariable %_ptr_v2i32 CrossWorkgroup %compins
   %var_logor = OpVariable %_ptr_bool CrossWorkgroup %logor
  %var_logand = OpVariable %_ptr_bool CrossWorkgroup %logand
  %var_lognot = OpVariable %_ptr_bool CrossWorkgroup %lognot
