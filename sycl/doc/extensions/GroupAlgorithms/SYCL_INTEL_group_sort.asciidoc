@@ -35,7 +35,8 @@ SYCL specification refer to that revision.
 
 == Introduction
 
-This extension introduces sorting functions to the group algorithms library and Sorter objects.
+This extension introduces sorting functions to the group algorithms library,
+Sorter objects and memory helpers.
 
 == Feature test macro
 
@@ -269,11 +270,18 @@ SYCL provides the following function to identify the required size for a tempora
 ----
 namespace sycl::ext::oneapi {
     template<typename... Args>
-    std::size_t sort_memory_helper(/*unspecified*/);
+    std::size_t joint_sort_memory_helper(/*unspecified*/); // (1)
+
+    template<typename... Args>
+    std::size_t sort_over_group_memory_helper(/*unspecified*/); // (2)
 }
 ----
 
-_Returns_: temporary local memory size (in bytes) that is required by a sorting algorithm.
+1. _Returns_: temporary local memory size (in bytes) that is required by the `joint_sort`
+without Sorter parameters.
+
+2. _Returns_: temporary local memory size (in bytes) that is required by `sort_over_group`
+without Sorter parameters.
 
 ==== Sort
 The sort function from the {cpp} standard sorts elements with respect to
