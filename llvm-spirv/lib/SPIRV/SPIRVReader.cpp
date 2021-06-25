@@ -1495,14 +1495,12 @@ void SPIRVToLLVM::transAliasingMemAccess(SPIRVInstType *BI, Instruction *I) {
   static_assert(std::is_same<SPIRVInstType, SPIRVStore>::value ||
                 std::is_same<SPIRVInstType, SPIRVLoad>::value,
                 "Only stores and loads can be aliased by memory access mask");
-  bool IsAliasScope = BI->SPIRVMemoryAccess::isAliasScope();
-  bool IsNoAlias = BI->SPIRVMemoryAccess::isNoAlias();
-  if (!(IsAliasScope || IsNoAlias))
-    return;
-  uint32_t AliasMDKind = IsAliasScope ? LLVMContext::MD_alias_scope
-                                      : LLVMContext::MD_noalias;
-  SPIRVId AliasListId = BI->SPIRVMemoryAccess::getAliasing();
-  addMemAliasMetadata(I, AliasListId, AliasMDKind);
+  if (BI->SPIRVMemoryAccess::isNoAlias())
+    addMemAliasMetadata(I, BI->SPIRVMemoryAccess::getNoAliasInstID(),
+                        LLVMContext::MD_noalias);
+  if (BI->SPIRVMemoryAccess::isAliasScope())
+    addMemAliasMetadata(I, BI->SPIRVMemoryAccess::getAliasScopeInstID(),
+                        LLVMContext::MD_alias_scope);
 }
 
 // Create and apply alias.scope/noalias metadata
@@ -1531,10 +1529,9 @@ void SPIRVToLLVM::addMemAliasMetadata(Instruction *I, SPIRVId AliasListId,
     MDScopes.emplace_back(MDAliasScopeMap[ScopeId]);
   }
   // Create and store unique alias.scope/noalias metadata
-  MDAliasListMap.emplace(
-      AliasListId,
-      MDNode::concatenate(I->getMetadata(LLVMContext::MD_alias_scope),
-                          MDNode::get(*Context, MDScopes)));
+  MDAliasListMap.emplace(AliasListId,
+                         MDNode::concatenate(I->getMetadata(AliasMDKind),
+                                             MDNode::get(*Context, MDScopes)));
   I->setMetadata(AliasMDKind, MDAliasListMap[AliasListId]);
 }
 
@@ -3834,21 +3831,22 @@ void SPIRVToLLVM::transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V) {
   Instruction *Inst = dyn_cast<Instruction>(V);
   if (!Inst)
     return;
-  std::vector<SPIRVId> AliasListIds;
-  uint32_t AliasMDKind;
   if (BV->hasDecorateId(internal::DecorationAliasScopeINTEL)) {
-    AliasMDKind = LLVMContext::MD_alias_scope;
+    std::vector<SPIRVId> AliasListIds;
     AliasListIds =
         BV->getDecorationIdLiterals(internal::DecorationAliasScopeINTEL);
-  } else if (BV->hasDecorateId(internal::DecorationNoAliasINTEL)) {
-    AliasMDKind = LLVMContext::MD_noalias;
+    assert(AliasListIds.size() == 1 &&
+           "Memory aliasing decorations must have one argument");
+    addMemAliasMetadata(Inst, AliasListIds[0], LLVMContext::MD_alias_scope);
+  }
+  if (BV->hasDecorateId(internal::DecorationNoAliasINTEL)) {
+    std::vector<SPIRVId> AliasListIds;
     AliasListIds =
         BV->getDecorationIdLiterals(internal::DecorationNoAliasINTEL);
-  } else
-    return;
-  assert(AliasListIds.size() == 1 &&
-         "Memory aliasing decorations must have one argument");
-  addMemAliasMetadata(Inst, AliasListIds[0], AliasMDKind);
+    assert(AliasListIds.size() == 1 &&
+           "Memory aliasing decorations must have one argument");
+    addMemAliasMetadata(Inst, AliasListIds[0], LLVMContext::MD_noalias);
+  }
 }
 
 // Having UserSemantic decoration on Function is against the spec, but we allow
