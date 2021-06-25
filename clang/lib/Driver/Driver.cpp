@@ -1846,8 +1846,8 @@ void Driver::PrintHelp(bool ShowHidden) const {
 }
 
 llvm::Triple Driver::MakeSYCLDeviceTriple(StringRef TargetArch) const {
-  SmallVector<StringRef, 5> SYCLAlias = {"spir", "spir64", "spir64_fpga",
-                                         "spir64_x86_64", "spir64_gen"};
+  ArrayRef<StringRef> SYCLAlias = {"spir", "spir64", "spir64_fpga",
+                                   "spir64_x86_64", "spir64_gen"};
   if (std::find(SYCLAlias.begin(), SYCLAlias.end(), TargetArch) !=
       SYCLAlias.end()) {
     llvm::Triple TT;
