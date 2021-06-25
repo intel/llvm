@@ -347,7 +347,7 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
     if (IsLeaf && !FuncCallStack.empty()) {
       // Mark the leaf function as one that definetely does not call assert.
       hasAssertionInCallGraphMap[FuncCallStack.back()] = false;
-      FuncCallStack.pop_back();
+      FuncCallStack.clear();
     }
   }
   return false;
