@@ -10,6 +10,7 @@
 #define _LIBCPP___ALGORITHM_UPPER_BOUND_H
 
 #include <__config>
+#include <__algorithm/comp.h>
 #include <__algorithm/half_positive.h>
 #include <iterator>
 

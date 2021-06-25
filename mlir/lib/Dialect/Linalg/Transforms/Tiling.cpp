@@ -163,10 +163,6 @@ tileLinalgOpImpl(OpBuilder &b, LinalgOp op, ValueRange tileSizes,
   if (llvm::all_of(tileSizes, isZero))
     return llvm::None;
 
-  // Canonicalize indexed generic operations before tiling.
-  if (isa<IndexedGenericOp>(op))
-    return llvm::None;
-
   if (auto convOp = dyn_cast<linalg::ConvOp>(op.getOperation())) {
     // For conv op only support tiling along batch dimension (which is the first
     // loop).
@@ -414,6 +410,7 @@ void mlir::linalg::populateLinalgTilingCanonicalizationPatterns(
   memref::SubViewOp::getCanonicalizationPatterns(patterns, ctx);
   tensor::CastOp::getCanonicalizationPatterns(patterns, ctx);
   memref::ViewOp::getCanonicalizationPatterns(patterns, ctx);
+  ctx->getLoadedDialect<LinalgDialect>()->getCanonicalizationPatterns(patterns);
   CanonicalizationPatternList<
 #define GET_OP_LIST
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"

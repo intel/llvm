@@ -43,6 +43,16 @@ static cl::opt<bool> CSProfTrimColdContext(
     cl::desc("If the total count of the profile after all merge is done "
              "is still smaller than threshold, it will be trimmed."));
 
+static cl::opt<uint32_t> CSProfColdContextFrameDepth(
+    "csprof-frame-depth-for-cold-context", cl::init(1), cl::ZeroOrMore,
+    cl::desc("Keep the last K frames while merging cold profile. 1 means the "
+             "context-less base profile"));
+
+static cl::opt<bool> EnableCSPreInliner(
+    "csspgo-preinliner", cl::Hidden, cl::init(false),
+    cl::desc("Run a global pre-inliner to merge context profile based on "
+             "estimated global top-down inline decisions"));
+
 extern cl::opt<int> ProfileSummaryCutoffCold;
 
 using namespace llvm;
@@ -169,19 +179,20 @@ void ProfileGenerator::findDisjointRanges(RangeSample &DisjointRanges,
     Boundaries[End].addEndCount(Count);
   }
 
-  uint64_t BeginAddress = 0;
+  uint64_t BeginAddress = UINT64_MAX;
   int Count = 0;
   for (auto Item : Boundaries) {
     uint64_t Address = Item.first;
     BoundaryPoint &Point = Item.second;
     if (Point.BeginCount) {
-      if (BeginAddress)
+      if (BeginAddress != UINT64_MAX)
         DisjointRanges[{BeginAddress, Address - 1}] = Count;
       Count += Point.BeginCount;
       BeginAddress = Address;
     }
     if (Point.EndCount) {
-      assert(BeginAddress && "First boundary point cannot be 'end' point");
+      assert((BeginAddress != UINT64_MAX) &&
+             "First boundary point cannot be 'end' point");
       DisjointRanges[{BeginAddress, Address}] = Count;
       Count -= Point.EndCount;
       BeginAddress = Address + 1;
@@ -396,12 +407,14 @@ void CSProfileGenerator::postProcessProfiles() {
 
   // Run global pre-inliner to adjust/merge context profile based on estimated
   // inline decisions.
-  CSPreInliner(ProfileMap, HotCountThreshold, ColdCountThreshold).run();
+  if (EnableCSPreInliner)
+    CSPreInliner(ProfileMap, HotCountThreshold, ColdCountThreshold).run();
 
   // Trim and merge cold context profile using cold threshold above;
   SampleContextTrimmer(ProfileMap)
       .trimAndMergeColdContextProfiles(
-          ColdCountThreshold, CSProfTrimColdContext, CSProfMergeColdContext);
+          ColdCountThreshold, CSProfTrimColdContext, CSProfMergeColdContext,
+          CSProfColdContextFrameDepth);
 }
 
 void CSProfileGenerator::computeSummaryAndThreshold() {
@@ -511,14 +524,11 @@ void PseudoProbeCSProfileGenerator::populateBodySamplesWithProbes(
   for (auto PI : ProbeCounter) {
     const PseudoProbe *Probe = PI.first;
     uint64_t Count = PI.second;
-    // Ignore dangling probes since they will be reported later if needed.
-    if (Probe->isDangling())
-      continue;
     FunctionSamples &FunctionProfile =
         getFunctionProfileForLeafProbe(ContextStrStack, Probe, Binary);
     // Record the current frame and FunctionProfile whenever samples are
     // collected for non-danglie probes. This is for reporting all of the
-    // dangling probes of the frame later.
+    // zero count probes of the frame later.
     FrameSamples[Probe->getInlineTreeNode()] = &FunctionProfile;
     FunctionProfile.addBodySamplesForProbe(Probe->Index, Count);
     FunctionProfile.addTotalSamples(Count);
@@ -549,19 +559,13 @@ void PseudoProbeCSProfileGenerator::populateBodySamplesWithProbes(
       }
     }
 
-    // Report dangling probes for frames that have real samples collected.
-    // Dangling probes are the probes associated to an empty block. With this
-    // place holder, sample count on a dangling probe will not be trusted by the
-    // compiler and we will rely on the counts inference algorithm to get the
-    // probe a reasonable count. Use InvalidProbeCount to mark sample count for
-    // a dangling probe.
+    // Assign zero count for remaining probes without sample hits to
+    // differentiate from probes optimized away, of which the counts are unknown
+    // and will be inferred by the compiler.
     for (auto &I : FrameSamples) {
       auto *FunctionProfile = I.second;
       for (auto *Probe : I.first->getProbes()) {
-        if (Probe->isDangling()) {
-          FunctionProfile->addBodySamplesForProbe(
-              Probe->Index, FunctionSamples::InvalidProbeCount);
-        }
+          FunctionProfile->addBodySamplesForProbe(Probe->Index, 0);
       }
     }
   }

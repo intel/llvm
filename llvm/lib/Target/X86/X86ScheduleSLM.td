@@ -88,6 +88,7 @@ def : WriteRes<WriteStoreNT, [SLM_IEC_RSV01, SLM_MEC_RSV]>;
 def : WriteRes<WriteLoad,    [SLM_MEC_RSV]> { let Latency = 3; }
 def : WriteRes<WriteMove,    [SLM_IEC_RSV01]>;
 def : WriteRes<WriteZero,    []>;
+defm : X86WriteResUnsupported<WriteVecMaskedGatherWriteback>;
 
 // Load/store MXCSR.
 // FIXME: These are probably wrong. They are copy pasted from WriteStore/Load.
@@ -341,8 +342,8 @@ defm : SLMWriteResPair<WriteVecALUX,  [SLM_FPC_RSV01],  1>;
 defm : SLMWriteResPair<WriteVecALUY,  [SLM_FPC_RSV01],  1>;
 defm : X86WriteResPairUnsupported<WriteVecALUZ>;
 defm : SLMWriteResPair<WriteVecIMul,  [SLM_FPC_RSV0],   4>;
-defm : SLMWriteResPair<WriteVecIMulX, [SLM_FPC_RSV0],   4>;
-defm : SLMWriteResPair<WriteVecIMulY, [SLM_FPC_RSV0],   4>;
+defm : SLMWriteResPair<WriteVecIMulX, [SLM_FPC_RSV0],   5, [2], 2>;
+defm : SLMWriteResPair<WriteVecIMulY, [SLM_FPC_RSV0],   5, [2], 2>;
 defm : X86WriteResPairUnsupported<WriteVecIMulZ>;
 // FIXME: The below is closer to correct, but caused some perf regressions.
 //defm : SLMWriteResPair<WritePMULLD,  [SLM_FPC_RSV0],   11, [11], 7>;

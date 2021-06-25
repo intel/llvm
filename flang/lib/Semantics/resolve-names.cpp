@@ -642,6 +642,8 @@ public:
   bool BeginSubmodule(const parser::Name &, const parser::ParentIdentifier &);
   void ApplyDefaultAccess();
   void AddGenericUse(GenericDetails &, const SourceName &, const Symbol &);
+  void ClearUseRenames() { useRenames_.clear(); }
+  void ClearUseOnly() { useOnly_.clear(); }
 
 private:
   // The default access spec for this module.
@@ -650,6 +652,10 @@ private:
   std::optional<SourceName> prevAccessStmt_;
   // The scope of the module during a UseStmt
   Scope *useModuleScope_{nullptr};
+  // Names that have appeared in a rename clause of a USE statement
+  std::set<std::pair<SourceName, Scope *>> useRenames_;
+  // Names that have appeared in an ONLY clause of a USE statement
+  std::set<std::pair<SourceName, Scope *>> useOnly_;
 
   Symbol &SetAccess(const SourceName &, Attr attr, Symbol * = nullptr);
   // A rename in a USE statement: local => use
@@ -663,6 +669,22 @@ private:
   void DoAddUse(const SourceName &, const SourceName &, Symbol &localSymbol,
       const Symbol &useSymbol);
   void AddUse(const GenericSpecInfo &);
+  // If appropriate, erase a previously USE-associated symbol
+  void EraseRenamedSymbol(const Symbol &);
+  // Record a name appearing in a USE rename clause
+  void AddUseRename(const SourceName &name) {
+    useRenames_.emplace(std::make_pair(name, useModuleScope_));
+  }
+  bool IsUseRenamed(const SourceName &name) const {
+    return useRenames_.find({name, useModuleScope_}) != useRenames_.end();
+  }
+  // Record a name appearing in a USE ONLY clause
+  void AddUseOnly(const SourceName &name) {
+    useOnly_.emplace(std::make_pair(name, useModuleScope_));
+  }
+  bool IsUseOnly(const SourceName &name) const {
+    return useOnly_.find({name, useModuleScope_}) != useOnly_.end();
+  }
   Scope *FindModule(const parser::Name &, Scope *ancestor = nullptr);
 };
 
@@ -2367,9 +2389,12 @@ void ScopeHandler::MakeExternal(Symbol &symbol) {
 bool ModuleVisitor::Pre(const parser::Only &x) {
   std::visit(common::visitors{
                  [&](const Indirection<parser::GenericSpec> &generic) {
-                   AddUse(GenericSpecInfo{generic.value()});
+                   const GenericSpecInfo &genericSpecInfo{generic.value()};
+                   AddUseOnly(genericSpecInfo.symbolName());
+                   AddUse(genericSpecInfo);
                  },
                  [&](const parser::Name &name) {
+                   AddUseOnly(name.source);
                    Resolve(name, AddUse(name.source, name.source).use);
                  },
                  [&](const parser::Rename &rename) { Walk(rename); },
@@ -2381,7 +2406,11 @@ bool ModuleVisitor::Pre(const parser::Only &x) {
 bool ModuleVisitor::Pre(const parser::Rename::Names &x) {
   const auto &localName{std::get<0>(x.t)};
   const auto &useName{std::get<1>(x.t)};
+  AddUseRename(useName.source);
   SymbolRename rename{AddUse(localName.source, useName.source)};
+  if (rename.use) {
+    EraseRenamedSymbol(*rename.use);
+  }
   Resolve(useName, rename.use);
   Resolve(localName, rename.local);
   return false;
@@ -2399,6 +2428,9 @@ bool ModuleVisitor::Pre(const parser::Rename::Operators &x) {
         "Logical constant '%s' may not be used as a defined operator"_err_en_US);
   } else {
     SymbolRename rename{AddUse(localInfo.symbolName(), useInfo.symbolName())};
+    if (rename.use) {
+      EraseRenamedSymbol(*rename.use);
+    }
     useInfo.Resolve(rename.use);
     localInfo.Resolve(rename.local);
   }
@@ -2433,7 +2465,7 @@ void ModuleVisitor::Post(const parser::UseStmt &x) {
           rename.u);
     }
     for (const auto &[name, symbol] : *useModuleScope_) {
-      if (symbol->attrs().test(Attr::PUBLIC) &&
+      if (symbol->attrs().test(Attr::PUBLIC) && !IsUseRenamed(symbol->name()) &&
           (!symbol->attrs().test(Attr::INTRINSIC) ||
               symbol->has<UseDetails>()) &&
           !symbol->has<MiscDetails>() && useNames.count(name) == 0) {
@@ -2491,14 +2523,34 @@ static void ConvertToUseError(
       UseErrorDetails{*useDetails}.add_occurrence(location, module));
 }
 
+// If a symbol has previously been USE-associated and did not appear in a USE
+// ONLY clause, erase it from the current scope.  This is needed when a name
+// appears in a USE rename clause.
+void ModuleVisitor::EraseRenamedSymbol(const Symbol &useSymbol) {
+  const SourceName &name{useSymbol.name()};
+  if (const Symbol * symbol{FindInScope(name)}) {
+    if (auto *useDetails{symbol->detailsIf<UseDetails>()}) {
+      const Symbol &moduleSymbol{useDetails->symbol()};
+      if (moduleSymbol.name() == name &&
+          moduleSymbol.owner() == useSymbol.owner() && IsUseRenamed(name) &&
+          !IsUseOnly(name)) {
+        EraseSymbol(*symbol);
+      }
+    }
+  }
+}
+
 void ModuleVisitor::DoAddUse(const SourceName &location,
     const SourceName &localName, Symbol &localSymbol, const Symbol &useSymbol) {
+  if (localName != useSymbol.name()) {
+    EraseRenamedSymbol(useSymbol);
+  }
   localSymbol.attrs() = useSymbol.attrs() & ~Attrs{Attr::PUBLIC, Attr::PRIVATE};
   localSymbol.flags() = useSymbol.flags();
   const Symbol &useUltimate{useSymbol.GetUltimate()};
   if (auto *useDetails{localSymbol.detailsIf<UseDetails>()}) {
     const Symbol &localUltimate{localSymbol.GetUltimate()};
-    if (localUltimate == useUltimate) {
+    if (localUltimate.owner() == useUltimate.owner()) {
       // use-associating the same symbol again -- ok
     } else if (localUltimate.has<GenericDetails>() &&
         useUltimate.has<GenericDetails>()) {
@@ -3050,6 +3102,7 @@ void SubprogramVisitor::Post(const parser::EntryStmt &stmt) {
                 Say2(effectiveResultName.source,
                     "'%s' was previously declared as an item that may not be used as a function result"_err_en_US,
                     resultSymbol->name(), "Previous declaration of '%s'"_en_US);
+                context().SetError(*resultSymbol);
               }},
           resultSymbol->details());
     } else if (inExecutionPart_) {
@@ -3309,7 +3362,8 @@ void DeclarationVisitor::EndDecl() {
 }
 
 bool DeclarationVisitor::CheckUseError(const parser::Name &name) {
-  const auto *details{name.symbol->detailsIf<UseErrorDetails>()};
+  const auto *details{
+      name.symbol ? name.symbol->detailsIf<UseErrorDetails>() : nullptr};
   if (!details) {
     return false;
   }
@@ -3318,6 +3372,7 @@ bool DeclarationVisitor::CheckUseError(const parser::Name &name) {
     msg.Attach(location, "'%s' was use-associated from module '%s'"_en_US,
         name.source, module->GetName().value());
   }
+  context().SetError(*name.symbol);
   return true;
 }
 
@@ -5195,6 +5250,7 @@ void ConstructVisitor::ResolveIndexName(
         !prevRoot.has<EntityDetails>()) {
       Say2(name, "Index name '%s' conflicts with existing identifier"_err_en_US,
           *prev, "Previous declaration of '%s'"_en_US);
+      context().SetError(symbol);
       return;
     } else {
       if (const auto *type{prevRoot.GetType()}) {
@@ -6064,7 +6120,7 @@ void DeclarationVisitor::NonPointerInitialization(
     const parser::Name &name, const parser::ConstantExpr &expr) {
   if (name.symbol) {
     Symbol &ultimate{name.symbol->GetUltimate()};
-    if (!context().HasError(ultimate)) {
+    if (!context().HasError(ultimate) && !context().HasError(name.symbol)) {
       if (IsPointer(ultimate)) {
         Say(name,
             "'%s' is a pointer but is not initialized like one"_err_en_US);
@@ -6109,16 +6165,10 @@ void ResolveNamesVisitor::HandleProcedureName(
       symbol = &MakeSymbol(context().globalScope(), name.source, Attrs{});
     }
     Resolve(name, *symbol);
-    if (symbol->has<ModuleDetails>()) {
-      SayWithDecl(name, *symbol,
-          "Use of '%s' as a procedure conflicts with its declaration"_err_en_US);
-      return;
-    }
     if (!symbol->attrs().test(Attr::INTRINSIC)) {
-      if (!CheckImplicitNoneExternal(name.source, *symbol)) {
-        return;
+      if (CheckImplicitNoneExternal(name.source, *symbol)) {
+        MakeExternal(*symbol);
       }
-      MakeExternal(*symbol);
     }
     ConvertToProcEntity(*symbol);
     SetProcFlag(name, *symbol, flag);
@@ -6312,6 +6362,8 @@ bool ResolveNamesVisitor::Pre(const parser::SpecificationPart &x) {
   Walk(ompDecls);
   Walk(compilerDirectives);
   Walk(useStmts);
+  ClearUseRenames();
+  ClearUseOnly();
   Walk(importStmts);
   Walk(implicitPart);
   for (const auto &decl : decls) {

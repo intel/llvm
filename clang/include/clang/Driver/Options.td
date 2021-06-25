@@ -1008,6 +1008,10 @@ def gpu_instrument_lib_EQ : Joined<["--"], "gpu-instrument-lib=">,
 def fgpu_sanitize : Flag<["-"], "fgpu-sanitize">, Group<f_Group>,
   HelpText<"Enable sanitizer for AMDGPU target">;
 def fno_gpu_sanitize : Flag<["-"], "fno-gpu-sanitize">, Group<f_Group>;
+def gpu_bundle_output : Flag<["--"], "gpu-bundle-output">,
+  Group<f_Group>, HelpText<"Bundle output files of HIP device compilation">;
+def no_gpu_bundle_output : Flag<["--"], "no-gpu-bundle-output">,
+  Group<f_Group>, HelpText<"Do not bundle output files of HIP device compilation">;
 def cuid_EQ : Joined<["-"], "cuid=">, Flags<[CC1Option]>,
   HelpText<"An ID for compilation unit, which should be the same for the same "
            "compilation unit but different for different compilation units. "
@@ -1559,10 +1563,6 @@ def fsanitize_coverage_ignorelist : Joined<["-"], "fsanitize-coverage-ignorelist
     HelpText<"Disable sanitizer coverage instrumentation for modules and functions "
              "that match the provided special case list, even the allowed ones">,
     MarshallingInfoStringVector<CodeGenOpts<"SanitizeCoverageIgnorelistFiles">>;
-def : Joined<["-"], "fsanitize-coverage-blocklist=">,
-  Group<f_clang_Group>, Flags<[CoreOption, HelpHidden]>,
-  Alias<fsanitize_coverage_ignorelist>,
-  HelpText<"Deprecated, use -fsanitize-coverage-ignorelist= instead">;
 def : Joined<["-"], "fsanitize-coverage-blacklist=">,
   Group<f_clang_Group>, Flags<[CoreOption, HelpHidden]>,
   Alias<fsanitize_coverage_ignorelist>,
@@ -1600,6 +1600,16 @@ defm sanitize_address_use_after_scope : BoolOption<"f", "sanitize-address-use-af
   PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [CoreOption, NoXarchOption], "Disable">,
   BothFlags<[], " use-after-scope detection in AddressSanitizer">>,
   Group<f_clang_Group>;
+def sanitize_address_use_after_return_EQ
+  : Joined<["-"], "fsanitize-address-use-after-return=">,
+    MetaVarName<"<mode>">,
+    Flags<[CC1Option]>,
+    HelpText<"Select the mode of detecting stack use-after-return in AddressSanitizer">,
+    Group<f_clang_Group>,
+    Values<"never,runtime,always">,
+    NormalizedValuesScope<"llvm::AsanDetectStackUseAfterReturnMode">,
+    NormalizedValues<["Never", "Runtime", "Always"]>,
+    MarshallingInfoEnum<CodeGenOpts<"SanitizeAddressUseAfterReturn">, "Runtime">;
 defm sanitize_address_poison_custom_array_cookie : BoolOption<"f", "sanitize-address-poison-custom-array-cookie",
   CodeGenOpts<"SanitizeAddressPoisonCustomArrayCookie">, DefaultFalse,
   PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [], "Disable">,
@@ -2237,9 +2247,10 @@ def fno_ms_compatibility : Flag<["-"], "fno-ms-compatibility">, Group<f_Group>,
 def fno_objc_legacy_dispatch : Flag<["-"], "fno-objc-legacy-dispatch">, Group<f_Group>;
 def fno_objc_weak : Flag<["-"], "fno-objc-weak">, Group<f_Group>, Flags<[CC1Option]>;
 def fno_omit_frame_pointer : Flag<["-"], "fno-omit-frame-pointer">, Group<f_Group>;
-def fno_operator_names : Flag<["-"], "fno-operator-names">, Group<f_Group>,
-  HelpText<"Do not treat C++ operator name keywords as synonyms for operators">,
-  Flags<[CC1Option]>, MarshallingInfoNegativeFlag<LangOpts<"CXXOperatorNames">, cplusplus.KeyPath>;
+defm operator_names : BoolFOption<"operator-names",
+  LangOpts<"CXXOperatorNames">, Default<cplusplus.KeyPath>,
+  NegFlag<SetFalse, [CC1Option], "Do not treat C++ operator name keywords as synonyms for operators">,
+  PosFlag<SetTrue>>;
 def fdiagnostics_absolute_paths : Flag<["-"], "fdiagnostics-absolute-paths">, Group<f_Group>,
   Flags<[CC1Option, CoreOption]>, HelpText<"Print absolute paths in diagnostics">,
   MarshallingInfoFlag<DiagnosticOpts<"AbsolutePath">>;
@@ -2663,7 +2674,12 @@ def Wlarge_by_value_copy_EQ : Joined<["-"], "Wlarge-by-value-copy=">, Flags<[CC1
 // Just silence warnings about -Wlarger-than for now.
 def Wlarger_than_EQ : Joined<["-"], "Wlarger-than=">, Group<clang_ignored_f_Group>;
 def Wlarger_than_ : Joined<["-"], "Wlarger-than-">, Alias<Wlarger_than_EQ>;
-def Wframe_larger_than_EQ : Joined<["-"], "Wframe-larger-than=">, Group<f_Group>, Flags<[NoXarchOption]>;
+
+// This is converted to -fwarn-stack-size=N and also passed through by the driver.
+// FIXME: The driver should strip out the =<value> when passing W_value_Group through.
+def Wframe_larger_than_EQ : Joined<["-"], "Wframe-larger-than=">, Group<W_value_Group>,
+                            Flags<[NoXarchOption, CC1Option]>;
+def Wframe_larger_than : Flag<["-"], "Wframe-larger-than">, Alias<Wframe_larger_than_EQ>;
 
 def : Flag<["-"], "fterminated-vtables">, Alias<fapple_kext>;
 defm threadsafe_statics : BoolFOption<"threadsafe-statics",
@@ -4621,6 +4637,8 @@ def fdebug_dump_parse_tree_no_sema : Flag<["-"], "fdebug-dump-parse-tree-no-sema
   HelpText<"Dump the parse tree (skips the semantic checks)">,
   DocBrief<[{Run the Parser and then output the parse tree. Semantic
 checks are disabled.}]>;
+def fdebug_dump_all : Flag<["-"], "fdebug-dump-all">, Group<Action_Group>,
+  HelpText<"Dump symbols and the parse tree after the semantic checks">;
 def fdebug_dump_provenance : Flag<["-"], "fdebug-dump-provenance">, Group<Action_Group>,
   HelpText<"Dump provenance">;
 def fdebug_dump_parsing_log : Flag<["-"], "fdebug-dump-parsing-log">, Group<Action_Group>,
@@ -5143,6 +5161,9 @@ def fverify_debuginfo_preserve_export
                "into specified (JSON) file (should be abs path as we use "
                "append mode to insert new JSON objects).">,
       MarshallingInfoString<CodeGenOpts<"DIBugsReportFilePath">>;
+def fwarn_stack_size_EQ
+    : Joined<["-"], "fwarn-stack-size=">,
+      MarshallingInfoInt<CodeGenOpts<"WarnStackSize">, "UINT_MAX">;
 // The driver option takes the key as a parameter to the -msign-return-address=
 // and -mbranch-protection= options, but CC1 has a separate option so we
 // don't have to parse the parameter twice.
@@ -5388,8 +5409,6 @@ def analyze : Flag<["-"], "analyze">,
   HelpText<"Run static analysis engine">;
 def dump_tokens : Flag<["-"], "dump-tokens">,
   HelpText<"Run preprocessor, dump internal rep of tokens">;
-def init_only : Flag<["-"], "init-only">,
-  HelpText<"Only execute frontend initialization">;
 def fixit : Flag<["-"], "fixit">,
   HelpText<"Apply fix-it advice to the input source">;
 def fixit_EQ : Joined<["-"], "fixit=">,
@@ -5600,6 +5619,10 @@ def fallow_pch_with_errors : Flag<["-"], "fallow-pch-with-compiler-errors">,
   HelpText<"Accept a PCH file that was created with compiler errors">,
   MarshallingInfoFlag<PreprocessorOpts<"AllowPCHWithCompilerErrors">>,
   ImpliedByAnyOf<[fallow_pcm_with_errors.KeyPath]>;
+def fallow_pch_with_different_modules_cache_path :
+  Flag<["-"], "fallow-pch-with-different-modules-cache-path">,
+  HelpText<"Accept a PCH file that was created with a different modules cache path">,
+  MarshallingInfoFlag<PreprocessorOpts<"AllowPCHWithDifferentModulesCachePath">>;
 def dump_deserialized_pch_decls : Flag<["-"], "dump-deserialized-decls">,
   HelpText<"Dump declarations that are deserialized from PCH, for testing">,
   MarshallingInfoFlag<PreprocessorOpts<"DumpDeserializedPCHDecls">>;
@@ -5898,6 +5921,8 @@ let Group = Action_Group in {
 
 def emit_obj : Flag<["-"], "emit-obj">,
   HelpText<"Emit native object files">;
+def init_only : Flag<["-"], "init-only">,
+  HelpText<"Only execute frontend initialization">;
 
 } // let Group = Action_Group
 } // let Flags = [CC1Option, FC1Option, NoDriverOption]
@@ -6252,6 +6277,10 @@ def _SLASH_o : CLJoinedOrSeparate<"o">,
   HelpText<"Deprecated (set output file name); use /Fe or /Fe">,
   MetaVarName<"<file or dir/>">;
 def _SLASH_P : CLFlag<"P">, HelpText<"Preprocess to file">;
+def _SLASH_permissive : CLFlag<"permissive">,
+  HelpText<"Enable some non conforming code to compile">;
+def _SLASH_permissive_ : CLFlag<"permissive-">,
+  HelpText<"Disable non conforming code from compiling (default)">;
 def _SLASH_Tc : CLCompileJoinedOrSeparate<"Tc">,
   HelpText<"Treat <file> as C source file">, MetaVarName<"<file>">;
 def _SLASH_TC : CLCompileFlag<"TC">, HelpText<"Treat all source files as C">;
@@ -6333,7 +6362,6 @@ def _SLASH_FS : CLIgnoredFlag<"FS">;
 def _SLASH_JMC : CLIgnoredFlag<"JMC">;
 def _SLASH_kernel_ : CLIgnoredFlag<"kernel-">;
 def _SLASH_nologo : CLIgnoredFlag<"nologo">;
-def _SLASH_permissive_ : CLIgnoredFlag<"permissive-">;
 def _SLASH_RTC : CLIgnoredJoined<"RTC">;
 def _SLASH_sdl : CLIgnoredFlag<"sdl">;
 def _SLASH_sdl_ : CLIgnoredFlag<"sdl-">;
@@ -6358,6 +6386,7 @@ def _SLASH_Zo_ : CLIgnoredFlag<"Zo-">;
 // Unsupported:
 
 def _SLASH_await : CLFlag<"await">;
+def _SLASH_await_COLON : CLJoined<"await:">;
 def _SLASH_constexpr : CLJoined<"constexpr:">;
 def _SLASH_AI : CLJoinedOrSeparate<"AI">;
 def _SLASH_Bt : CLFlag<"Bt">;
@@ -6367,6 +6396,8 @@ def _SLASH_d2 : CLJoined<"d2">;
 def _SLASH_doc : CLJoined<"doc">;
 def _SLASH_experimental : CLJoined<"experimental:">;
 def _SLASH_exportHeader : CLFlag<"exportHeader">;
+def _SLASH_external : CLJoined<"external:">;
+def _SLASH_external_COLON_I : CLJoinedOrSeparate<"external:I">;
 def _SLASH_FA_joined : CLJoined<"FA">;
 def _SLASH_favor : CLJoined<"favor">;
 def _SLASH_fsanitize_address_use_after_return : CLJoined<"fsanitize-address-use-after-return">;

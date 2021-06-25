@@ -13,9 +13,6 @@
 #include "SyntheticSections.h"
 
 #include "mach-o/compact_unwind_encoding.h"
-#include "llvm/ADT/DenseMap.h"
-
-#include <vector>
 
 namespace lld {
 namespace macho {
@@ -32,7 +29,7 @@ class UnwindInfoSection : public SyntheticSection {
 public:
   bool isNeeded() const override { return compactUnwindSection != nullptr; }
   uint64_t getSize() const override { return unwindInfoSize; }
-  virtual void prepareRelocations(InputSection *) = 0;
+  virtual void prepareRelocations(ConcatInputSection *) = 0;
 
   void setCompactUnwindSection(ConcatOutputSection *cuSection) {
     compactUnwindSection = cuSection;

@@ -342,17 +342,14 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
 
   // Avoid stack access for these.
   // TODO: Generalize to more vector types.
-  setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v2i16, Custom);
-  setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v2f16, Custom);
-  setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v4i16, Custom);
-  setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v4f16, Custom);
-
   setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v2i16, Custom);
   setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v2f16, Custom);
+  setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v2i16, Custom);
+  setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v2f16, Custom);
+
   setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v2i8, Custom);
   setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v4i8, Custom);
   setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v8i8, Custom);
-
   setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v2i8, Custom);
   setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v4i8, Custom);
   setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v8i8, Custom);
@@ -5821,6 +5818,9 @@ static SDValue getBuildDwordsVector(SelectionDAG &DAG, SDLoc DL,
   } else if (Elts.size() <= 4) {
     Type = MVT::v4f32;
     NumElts = 4;
+  } else if (Elts.size() <= 5) {
+    Type = MVT::v5f32;
+    NumElts = 5;
   } else if (Elts.size() <= 8) {
     Type = MVT::v8f32;
     NumElts = 8;
@@ -7337,6 +7337,11 @@ SDValue SITargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
            NodePtr.getValueType() == MVT::i64);
     assert(RayDir.getValueType() == MVT::v4f16 ||
            RayDir.getValueType() == MVT::v4f32);
+
+    if (!Subtarget->hasGFX10_AEncoding()) {
+      emitRemovedIntrinsicError(DAG, DL, Op.getValueType());
+      return SDValue();
+    }
 
     bool IsA16 = RayDir.getValueType().getVectorElementType() == MVT::f16;
     bool Is64 = NodePtr.getValueType() == MVT::i64;

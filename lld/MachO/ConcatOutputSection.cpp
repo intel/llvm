@@ -17,21 +17,20 @@
 #include "lld/Common/Memory.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/Support/ScopedPrinter.h"
-
-#include <algorithm>
+#include "llvm/Support/TimeProfiler.h"
 
 using namespace llvm;
 using namespace llvm::MachO;
 using namespace lld;
 using namespace lld::macho;
 
-void ConcatOutputSection::addInput(InputSection *input) {
+void ConcatOutputSection::addInput(ConcatInputSection *input) {
   if (inputs.empty()) {
     align = input->align;
     flags = input->flags;
   } else {
     align = std::max(align, input->align);
-    mergeFlags(input);
+    finalizeFlags(input);
   }
   inputs.push_back(input);
   input->parent = this;
@@ -154,7 +153,7 @@ bool ConcatOutputSection::needsThunks() const {
 uint64_t ConcatOutputSection::estimateStubsInRangeVA(size_t callIdx) const {
   uint64_t branchRange = target->branchRange;
   size_t endIdx = inputs.size();
-  InputSection *isec = inputs[callIdx];
+  ConcatInputSection *isec = inputs[callIdx];
   uint64_t isecVA = isec->getVA();
   // Tally the non-stub functions which still have call sites
   // remaining to process, which yields the maximum number
@@ -188,18 +187,17 @@ uint64_t ConcatOutputSection::estimateStubsInRangeVA(size_t callIdx) const {
 void ConcatOutputSection::finalize() {
   uint64_t isecAddr = addr;
   uint64_t isecFileOff = fileOff;
-  auto finalizeOne = [&](InputSection *isec) {
+  auto finalizeOne = [&](ConcatInputSection *isec) {
     isecAddr = alignTo(isecAddr, isec->align);
     isecFileOff = alignTo(isecFileOff, isec->align);
     isec->outSecOff = isecAddr - addr;
-    isec->outSecFileOff = isecFileOff - fileOff;
     isec->isFinal = true;
     isecAddr += isec->getSize();
     isecFileOff += isec->getFileSize();
   };
 
   if (!needsThunks()) {
-    for (InputSection *isec : inputs)
+    for (ConcatInputSection *isec : inputs)
       finalizeOne(isec);
     size = isecAddr - addr;
     fileSize = isecFileOff - fileOff;
@@ -221,7 +219,7 @@ void ConcatOutputSection::finalize() {
        ++callIdx) {
     if (finalIdx == callIdx)
       finalizeOne(inputs[finalIdx++]);
-    InputSection *isec = inputs[callIdx];
+    ConcatInputSection *isec = inputs[callIdx];
     assert(isec->isFinal);
     uint64_t isecVA = isec->getVA();
     // Assign addresses up-to the forward branch-range limit
@@ -290,9 +288,7 @@ void ConcatOutputSection::finalize() {
         // unfinalized inputs[finalIdx].
         fatal(Twine(__FUNCTION__) + ": FIXME: thunk range overrun");
       }
-      thunkInfo.isec = make<InputSection>();
-      thunkInfo.isec->name = isec->name;
-      thunkInfo.isec->segname = isec->segname;
+      thunkInfo.isec = make<ConcatInputSection>(isec->segname, isec->name);
       thunkInfo.isec->parent = this;
       StringRef thunkName = saver.save(funcSym->getName() + ".thunk." +
                                        std::to_string(thunkInfo.sequence++));
@@ -325,38 +321,46 @@ void ConcatOutputSection::writeTo(uint8_t *buf) const {
   while (i < ie || t < te) {
     while (i < ie && (t == te || inputs[i]->getSize() == 0 ||
                       inputs[i]->outSecOff < thunks[t]->outSecOff)) {
-      inputs[i]->writeTo(buf + inputs[i]->outSecFileOff);
+      inputs[i]->writeTo(buf + inputs[i]->outSecOff);
       ++i;
     }
     while (t < te && (i == ie || thunks[t]->outSecOff < inputs[i]->outSecOff)) {
-      thunks[t]->writeTo(buf + thunks[t]->outSecFileOff);
+      thunks[t]->writeTo(buf + thunks[t]->outSecOff);
       ++t;
     }
   }
 }
 
-// TODO: this is most likely wrong; reconsider how section flags
-// are actually merged. The logic presented here was written without
-// any form of informed research.
-void ConcatOutputSection::mergeFlags(InputSection *input) {
-  uint8_t baseType = flags & SECTION_TYPE;
+void ConcatOutputSection::finalizeFlags(InputSection *input) {
   uint8_t inputType = input->flags & SECTION_TYPE;
-  if (baseType != inputType)
-    error("Cannot merge section " + input->name + " (type=0x" +
-          to_hexString(inputType) + ") into " + name + " (type=0x" +
-          to_hexString(baseType) + "): inconsistent types");
+  switch (inputType) {
+  default /*type-unspec'ed*/:
+    // FIXME: Add additional logics here when supporting emitting obj files.
+    break;
+  case S_4BYTE_LITERALS:
+  case S_8BYTE_LITERALS:
+  case S_16BYTE_LITERALS:
+  case S_CSTRING_LITERALS:
+  case S_ZEROFILL:
+  case S_LAZY_SYMBOL_POINTERS:
+  case S_MOD_TERM_FUNC_POINTERS:
+  case S_THREAD_LOCAL_REGULAR:
+  case S_THREAD_LOCAL_ZEROFILL:
+  case S_THREAD_LOCAL_VARIABLES:
+  case S_THREAD_LOCAL_INIT_FUNCTION_POINTERS:
+  case S_THREAD_LOCAL_VARIABLE_POINTERS:
+  case S_NON_LAZY_SYMBOL_POINTERS:
+  case S_SYMBOL_STUBS:
+    flags |= input->flags;
+    break;
+  }
+}
 
-  constexpr uint32_t strictFlags = S_ATTR_DEBUG | S_ATTR_STRIP_STATIC_SYMS |
-                                   S_ATTR_NO_DEAD_STRIP | S_ATTR_LIVE_SUPPORT;
-  if ((input->flags ^ flags) & strictFlags)
-    error("Cannot merge section " + input->name + " (flags=0x" +
-          to_hexString(input->flags) + ") into " + name + " (flags=0x" +
-          to_hexString(flags) + "): strict flags differ");
-
-  // Negate pure instruction presence if any section isn't pure.
-  uint32_t pureMask = ~S_ATTR_PURE_INSTRUCTIONS | (input->flags & flags);
-
-  // Merge the rest
-  flags |= input->flags;
-  flags &= pureMask;
+void ConcatOutputSection::eraseOmittedInputSections() {
+  // Remove the duplicates from inputs
+  inputs.erase(std::remove_if(inputs.begin(), inputs.end(),
+                              [](const ConcatInputSection *isec) -> bool {
+                                return isec->shouldOmitFromOutput();
+                              }),
+               inputs.end());
 }

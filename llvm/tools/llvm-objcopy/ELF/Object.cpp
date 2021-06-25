@@ -1786,7 +1786,7 @@ template <class ELFT> Error ELFBuilder<ELFT>::readSectionHeaders() {
     Sec->OriginalIndex = Sec->Index;
     Sec->OriginalData =
         ArrayRef<uint8_t>(ElfFile.base() + Shdr.sh_offset,
-                          (Shdr.sh_type == SHT_NOBITS) ? 0 : Shdr.sh_size);
+                          (Shdr.sh_type == SHT_NOBITS) ? (size_t)0 : Shdr.sh_size);
   }
 
   return Error::success();
@@ -2666,31 +2666,15 @@ Error IHexWriter::checkSection(const SectionBase &Sec) {
 }
 
 Error IHexWriter::finalize() {
-  bool UseSegments = false;
-  auto ShouldWrite = [](const SectionBase &Sec) {
-    return (Sec.Flags & ELF::SHF_ALLOC) && (Sec.Type != ELF::SHT_NOBITS);
-  };
-  auto IsInPtLoad = [](const SectionBase &Sec) {
-    return Sec.ParentSegment && Sec.ParentSegment->Type == ELF::PT_LOAD;
-  };
-
   // We can't write 64-bit addresses.
   if (addressOverflows32bit(Obj.Entry))
     return createStringError(errc::invalid_argument,
                              "Entry point address 0x%llx overflows 32 bits",
                              Obj.Entry);
 
-  // If any section we're to write has segment then we
-  // switch to using physical addresses. Otherwise we
-  // use section virtual address.
   for (const SectionBase &Sec : Obj.sections())
-    if (ShouldWrite(Sec) && IsInPtLoad(Sec)) {
-      UseSegments = true;
-      break;
-    }
-
-  for (const SectionBase &Sec : Obj.sections())
-    if (ShouldWrite(Sec) && (!UseSegments || IsInPtLoad(Sec))) {
+    if ((Sec.Flags & ELF::SHF_ALLOC) && Sec.Type != ELF::SHT_NOBITS &&
+        Sec.Size > 0) {
       if (Error E = checkSection(Sec))
         return E;
       Sections.insert(&Sec);

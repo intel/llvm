@@ -1839,40 +1839,51 @@ void Verifier::verifyParameterAttrs(AttributeSet Attrs, Type *Ty,
          V);
 
   if (PointerType *PTy = dyn_cast<PointerType>(Ty)) {
-    SmallPtrSet<Type*, 4> Visited;
-    if (!PTy->getElementType()->isSized(&Visited)) {
-      Assert(!Attrs.hasAttribute(Attribute::ByVal) &&
-             !Attrs.hasAttribute(Attribute::ByRef) &&
-             !Attrs.hasAttribute(Attribute::InAlloca) &&
-             !Attrs.hasAttribute(Attribute::Preallocated),
-             "Attributes 'byval', 'byref', 'inalloca', and 'preallocated' do not "
-             "support unsized types!",
-             V);
+    if (Attrs.hasAttribute(Attribute::ByVal)) {
+      SmallPtrSet<Type *, 4> Visited;
+      Assert(Attrs.getByValType()->isSized(&Visited),
+             "Attribute 'byval' does not support unsized types!", V);
     }
-    if (!isa<PointerType>(PTy->getElementType()))
-      Assert(!Attrs.hasAttribute(Attribute::SwiftError),
-             "Attribute 'swifterror' only applies to parameters "
-             "with pointer to pointer type!",
-             V);
-
     if (Attrs.hasAttribute(Attribute::ByRef)) {
-      Assert(Attrs.getByRefType() == PTy->getElementType(),
-             "Attribute 'byref' type does not match parameter!", V);
+      SmallPtrSet<Type *, 4> Visited;
+      Assert(Attrs.getByRefType()->isSized(&Visited),
+             "Attribute 'byref' does not support unsized types!", V);
     }
-
-    if (Attrs.hasAttribute(Attribute::ByVal) && Attrs.getByValType()) {
-      Assert(Attrs.getByValType() == PTy->getElementType(),
-             "Attribute 'byval' type does not match parameter!", V);
-    }
-
-    if (Attrs.hasAttribute(Attribute::Preallocated)) {
-      Assert(Attrs.getPreallocatedType() == PTy->getElementType(),
-             "Attribute 'preallocated' type does not match parameter!", V);
-    }
-
     if (Attrs.hasAttribute(Attribute::InAlloca)) {
-      Assert(Attrs.getInAllocaType() == PTy->getElementType(),
-             "Attribute 'inalloca' type does not match parameter!", V);
+      SmallPtrSet<Type *, 4> Visited;
+      Assert(Attrs.getInAllocaType()->isSized(&Visited),
+             "Attribute 'inalloca' does not support unsized types!", V);
+    }
+    if (Attrs.hasAttribute(Attribute::Preallocated)) {
+      SmallPtrSet<Type *, 4> Visited;
+      Assert(Attrs.getPreallocatedType()->isSized(&Visited),
+             "Attribute 'preallocated' does not support unsized types!", V);
+    }
+    if (!PTy->isOpaque()) {
+      if (!isa<PointerType>(PTy->getElementType()))
+        Assert(!Attrs.hasAttribute(Attribute::SwiftError),
+               "Attribute 'swifterror' only applies to parameters "
+               "with pointer to pointer type!",
+               V);
+      if (Attrs.hasAttribute(Attribute::ByRef)) {
+        Assert(Attrs.getByRefType() == PTy->getElementType(),
+               "Attribute 'byref' type does not match parameter!", V);
+      }
+
+      if (Attrs.hasAttribute(Attribute::ByVal) && Attrs.getByValType()) {
+        Assert(Attrs.getByValType() == PTy->getElementType(),
+               "Attribute 'byval' type does not match parameter!", V);
+      }
+
+      if (Attrs.hasAttribute(Attribute::Preallocated)) {
+        Assert(Attrs.getPreallocatedType() == PTy->getElementType(),
+               "Attribute 'preallocated' type does not match parameter!", V);
+      }
+
+      if (Attrs.hasAttribute(Attribute::InAlloca)) {
+        Assert(Attrs.getInAllocaType() == PTy->getElementType(),
+               "Attribute 'inalloca' type does not match parameter!", V);
+      }
     }
   } else {
     Assert(!Attrs.hasAttribute(Attribute::ByVal),
@@ -2178,19 +2189,6 @@ void Verifier::visitConstantExpr(const ConstantExpr *CE) {
     Assert(CastInst::castIsValid(Instruction::BitCast, CE->getOperand(0),
                                  CE->getType()),
            "Invalid bitcast", CE);
-
-  if (CE->getOpcode() == Instruction::IntToPtr ||
-      CE->getOpcode() == Instruction::PtrToInt) {
-    auto *PtrTy = CE->getOpcode() == Instruction::IntToPtr
-                      ? CE->getType()
-                      : CE->getOperand(0)->getType();
-    StringRef Msg = CE->getOpcode() == Instruction::IntToPtr
-                        ? "inttoptr not supported for non-integral pointers"
-                        : "ptrtoint not supported for non-integral pointers";
-    Assert(
-        !DL.isNonIntegralPointerType(cast<PointerType>(PtrTy->getScalarType())),
-        Msg);
-  }
 }
 
 bool Verifier::verifyAttributeCount(AttributeList Attrs, unsigned Params) {
@@ -3041,10 +3039,6 @@ void Verifier::visitPtrToIntInst(PtrToIntInst &I) {
 
   Assert(SrcTy->isPtrOrPtrVectorTy(), "PtrToInt source must be pointer", &I);
 
-  if (auto *PTy = dyn_cast<PointerType>(SrcTy->getScalarType()))
-    Assert(!DL.isNonIntegralPointerType(PTy),
-           "ptrtoint not supported for non-integral pointers");
-
   Assert(DestTy->isIntOrIntVectorTy(), "PtrToInt result must be integral", &I);
   Assert(SrcTy->isVectorTy() == DestTy->isVectorTy(), "PtrToInt type mismatch",
          &I);
@@ -3067,10 +3061,6 @@ void Verifier::visitIntToPtrInst(IntToPtrInst &I) {
   Assert(SrcTy->isIntOrIntVectorTy(),
          "IntToPtr source must be an integral", &I);
   Assert(DestTy->isPtrOrPtrVectorTy(), "IntToPtr result must be a pointer", &I);
-
-  if (auto *PTy = dyn_cast<PointerType>(DestTy->getScalarType()))
-    Assert(!DL.isNonIntegralPointerType(PTy),
-           "inttoptr not supported for non-integral pointers");
 
   Assert(SrcTy->isVectorTy() == DestTy->isVectorTy(), "IntToPtr type mismatch",
          &I);
@@ -4539,12 +4529,9 @@ void Verifier::visitInstruction(Instruction &I) {
       Assert(CBI && &CBI->getCalledOperandUse() == &I.getOperandUse(i),
              "Cannot take the address of an inline asm!", &I);
     } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(I.getOperand(i))) {
-      if (CE->getType()->isPtrOrPtrVectorTy() ||
-          !DL.getNonIntegralAddressSpaces().empty()) {
+      if (CE->getType()->isPtrOrPtrVectorTy()) {
         // If we have a ConstantExpr pointer, we need to see if it came from an
-        // illegal bitcast.  If the datalayout string specifies non-integral
-        // address spaces then we also need to check for illegal ptrtoint and
-        // inttoptr expressions.
+        // illegal bitcast.
         visitConstantExprsRecursively(CE);
       }
     }

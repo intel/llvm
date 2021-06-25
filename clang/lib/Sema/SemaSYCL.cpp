@@ -211,7 +211,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
   // ensure that the AST node will have a dependent type that gets resolved
   // later to the real type.
   QualType FieldTy = SourceTy;
-  ExprValueKind ValueKind = VK_RValue;
+  ExprValueKind ValueKind = VK_PRValue;
   if (!SourceTy->isDependentType()) {
     if (RequireCompleteType(Loc, SourceTy,
                             diag::err_sycl_type_trait_requires_complete_type,
@@ -243,7 +243,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
         if (Index >= NumFields) {
           Diag(Idx->getExprLoc(),
                diag::err_sycl_builtin_type_trait_index_out_of_range)
-              << IdxVal->toString(10) << SourceTy << /*fields*/ 0;
+              << toString(*IdxVal, 10) << SourceTy << /*fields*/ 0;
           return ExprError();
         }
         const FieldDecl *FD = *std::next(RD->field_begin(), Index);
@@ -345,7 +345,7 @@ ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
         if (Index >= RD->getNumBases()) {
           Diag(Idx->getExprLoc(),
                diag::err_sycl_builtin_type_trait_index_out_of_range)
-              << IdxVal->toString(10) << SourceTy << /*bases*/ 1;
+              << toString(*IdxVal, 10) << SourceTy << /*bases*/ 1;
           return ExprError();
         }
 
@@ -568,20 +568,6 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
                SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
   });
 
-  // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
-  // functions and function objects called directly from a kernel.
-  // For all other cases, emit a warning and ignore.
-  if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
-    if (DirectlyCalled) {
-      Attrs.push_back(A);
-    } else {
-      S.Diag(A->getLocation(),
-             diag::warn_attribute_on_direct_kernel_callee_only)
-          << A;
-      FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
-    }
-  }
-
   // Attributes that should not be propagated from device functions to a kernel.
   if (DirectlyCalled) {
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
@@ -593,26 +579,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
 }
 
 class DiagDeviceFunction : public RecursiveASTVisitor<DiagDeviceFunction> {
-  // Used to keep track of the constexpr depth, so we know whether to skip
-  // diagnostics.
-  unsigned ConstexprDepth = 0;
   Sema &SemaRef;
   const llvm::SmallPtrSetImpl<const FunctionDecl *> &RecursiveFuncs;
-
-  struct ConstexprDepthRAII {
-    DiagDeviceFunction &DDF;
-    bool Increment;
-
-    ConstexprDepthRAII(DiagDeviceFunction &DDF, bool Increment = true)
-        : DDF(DDF), Increment(Increment) {
-      if (Increment)
-        ++DDF.ConstexprDepth;
-    }
-    ~ConstexprDepthRAII() {
-      if (Increment)
-        --DDF.ConstexprDepth;
-    }
-  };
 
 public:
   DiagDeviceFunction(
@@ -631,7 +599,7 @@ public:
       // instantiation as template functions. It means that
       // all functions used by kernel have already been parsed and have
       // definitions.
-      if (RecursiveFuncs.count(Callee) && !ConstexprDepth) {
+      if (RecursiveFuncs.count(Callee)) {
         SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
             << Sema::KernelCallRecursiveFunction;
         SemaRef.Diag(Callee->getSourceRange().getBegin(),
@@ -684,45 +652,41 @@ public:
 
   // Skip checking rules on variables initialized during constant evaluation.
   bool TraverseVarDecl(VarDecl *VD) {
-    ConstexprDepthRAII R(*this, VD->isConstexpr());
+    if (VD->isConstexpr())
+      return true;
     return RecursiveASTVisitor::TraverseVarDecl(VD);
   }
 
   // Skip checking rules on template arguments, since these are constant
   // expressions.
   bool TraverseTemplateArgumentLoc(const TemplateArgumentLoc &ArgLoc) {
-    ConstexprDepthRAII R(*this);
-    return RecursiveASTVisitor::TraverseTemplateArgumentLoc(ArgLoc);
+    return true;
   }
 
   // Skip checking the static assert, both components are required to be
   // constant expressions.
-  bool TraverseStaticAssertDecl(StaticAssertDecl *D) {
-    ConstexprDepthRAII R(*this);
-    return RecursiveASTVisitor::TraverseStaticAssertDecl(D);
-  }
+  bool TraverseStaticAssertDecl(StaticAssertDecl *D) { return true; }
 
   // Make sure we skip the condition of the case, since that is a constant
   // expression.
   bool TraverseCaseStmt(CaseStmt *S) {
-    {
-      ConstexprDepthRAII R(*this);
-      if (!TraverseStmt(S->getLHS()))
-        return false;
-      if (!TraverseStmt(S->getRHS()))
-        return false;
-    }
     return TraverseStmt(S->getSubStmt());
   }
 
   // Skip checking the size expr, since a constant array type loc's size expr is
   // a constant expression.
   bool TraverseConstantArrayTypeLoc(const ConstantArrayTypeLoc &ArrLoc) {
-    if (!TraverseTypeLoc(ArrLoc.getElementLoc()))
-      return false;
+    return true;
+  }
 
-    ConstexprDepthRAII R(*this);
-    return TraverseStmt(ArrLoc.getSizeExpr());
+  bool TraverseIfStmt(IfStmt *S) {
+    if (llvm::Optional<Stmt *> ActiveStmt =
+            S->getNondiscardedCase(SemaRef.Context)) {
+      if (*ActiveStmt)
+        return TraverseStmt(*ActiveStmt);
+      return true;
+    }
+    return RecursiveASTVisitor::TraverseIfStmt(S);
   }
 };
 
@@ -763,6 +727,7 @@ class DeviceFunctionTracker {
 
 public:
   DeviceFunctionTracker(Sema &S) : SemaRef(S) {
+    CG.setSkipConstantExpressions(S.Context);
     CG.addToCallGraph(S.getASTContext().getTranslationUnitDecl());
     CollectSyclExternalFuncs();
   }
@@ -1605,26 +1570,6 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
                          diag::err_sycl_non_constant_array_type)
              << FieldTy;
     }
-
-    if (SemaRef.getASTContext().getLangOpts().SYCLStdLayoutKernelParams)
-      if (!FieldTy->isStandardLayoutType())
-        return Diag.Report(FD->getLocation(),
-                           diag::err_sycl_non_std_layout_type)
-               << FieldTy;
-
-    if (!FieldTy->isStructureOrClassType())
-      return false;
-
-    CXXRecordDecl *RD =
-        cast<CXXRecordDecl>(FieldTy->getAs<RecordType>()->getDecl());
-    if (!RD->hasTrivialCopyConstructor())
-      return Diag.Report(FD->getLocation(),
-                         diag::err_sycl_non_trivially_copy_ctor_dtor_type)
-             << 0 << FieldTy;
-    if (!RD->hasTrivialDestructor())
-      return Diag.Report(FD->getLocation(),
-                         diag::err_sycl_non_trivially_copy_ctor_dtor_type)
-             << 1 << FieldTy;
 
     return false;
   }
@@ -2746,13 +2691,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     DRE = ImplicitCastExpr::Create(SemaRef.Context, ParamType,
                                    CK_LValueToRValue, DRE, /*BasePath=*/nullptr,
-                                   VK_RValue, FPOptionsOverride());
+                                   VK_PRValue, FPOptionsOverride());
 
     if (PointerTy->getPointeeType().getAddressSpace() !=
         ParamType->getPointeeType().getAddressSpace())
       DRE = ImplicitCastExpr::Create(SemaRef.Context, PointerTy,
                                      CK_AddressSpaceConversion, DRE, nullptr,
-                                     VK_RValue, FPOptionsOverride());
+                                     VK_PRValue, FPOptionsOverride());
 
     return DRE;
   }
@@ -4128,7 +4073,6 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
   case attr::Kind::SYCLIntelMaxGlobalWorkDim:
   case attr::Kind::SYCLIntelNoGlobalWorkOffset:
-  case attr::Kind::SYCLIntelUseStallEnableClusters:
   case attr::Kind::SYCLIntelLoopFuse:
   case attr::Kind::SYCLIntelFPGAMaxConcurrency:
   case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
@@ -4840,9 +4784,18 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(bool _UnnamedLambdaSupport,
     : UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
 
 void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
+  // Variable template declaration can result in an error case of 'nullptr'
+  // here.
+  if (!VD)
+    return;
   // Skip the dependent version of these variables, we only care about them
   // after instantiation.
   if (VD->getDeclContext()->isDependentContext())
+    return;
+
+  // Skip partial specializations of a variable template, treat other variable
+  // template instantiations as a VarDecl.
+  if (isa<VarTemplatePartialSpecializationDecl>(VD))
     return;
   // Step 1: ensure that this is of the correct type-spec-constant template
   // specialization).
@@ -4880,21 +4833,6 @@ bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
   }
   llvm::raw_fd_ostream Out(IntHeaderFD, true /*close in destructor*/);
   return emit(Out);
-}
-
-void SYCLIntegrationFooter::emitSpecIDName(raw_ostream &O, const VarDecl *VD) {
-  // FIXME: Figure out the spec-constant unique name here.
-  // Note that this changes based on the linkage of the variable.
-  // We typically want to use the __builtin_sycl_unique_stable_name for the
-  // variable (or the newer-equivilent for values, see the JIRA), but we also
-  // have to figure out if this has internal or external linkage.  In
-  // external-case this should be the same as the the unique-name.  However,
-  // this isn't the case with local-linkage, where we want to put the
-  // driver-provided random-value ahead of it, so that we make sure it is unique
-  // across translation units. This name should come from the yet
-  // implemented __builtin_sycl_unique_stable_name feature that accepts
-  // variables and gives the mangling for that.
-  O << "";
 }
 
 template <typename BeforeFn, typename AfterFn>
@@ -5009,10 +4947,14 @@ static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
 // Returns a string containing the FQN of the 'top most' shim, including its
 // function call parameters.
 static std::string EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
-                                   const VarDecl *VD) {
+                                   PrintingPolicy &Policy, const VarDecl *VD) {
   if (!VD->isInAnonymousNamespace())
     return "";
-  std::string RelativeName = VD->getNameAsString();
+  std::string RelativeName;
+  llvm::raw_string_ostream stream(RelativeName);
+  VD->getNameForDiagnostic(stream, Policy, false);
+  stream.flush();
+
   EmitSpecIdShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
   return RelativeName;
 }
@@ -5041,7 +4983,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       continue;
 
     VisitedSpecConstants.insert(VD);
-    std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
+    std::string TopShim = EmitSpecIdShims(OS, ShimCounter, Policy, VD);
     OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
     OS << "namespace sycl {\n";
     OS << "namespace detail {\n";
@@ -5052,12 +4994,12 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       OS << TopShim;
     } else {
       OS << "::";
-      VD->printQualifiedName(OS, Policy);
+      VD->getNameForDiagnostic(OS, Policy, true);
     }
 
     OS << ">() {\n";
     OS << "  return \"";
-    emitSpecIDName(OS, VD);
+    OS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(), VD);
     OS << "\";\n";
     OS << "}\n";
     OS << "} // namespace detail\n";
@@ -5251,14 +5193,20 @@ void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
   Ctx->mangleTypeName(Ty, Out);
 
   // Evaluate whether this would change any of the already evaluated
-  // __builtin_sycl_unique_stable_name values.
+  // __builtin_sycl_unique_stable_name/id values.
   for (auto &Itr : Context.SYCLUniqueStableNameEvaluatedValues) {
-    const std::string &CurName = Itr.first->ComputeName(Context);
+    const auto *NameExpr = dyn_cast<SYCLUniqueStableNameExpr>(Itr.first);
+    const auto *IdExpr = dyn_cast<SYCLUniqueStableIdExpr>(Itr.first);
+    assert((NameExpr || IdExpr) && "Unknown expr type?");
+
+    const std::string &CurName = NameExpr ? NameExpr->ComputeName(Context)
+                                          : IdExpr->ComputeName(Context);
     if (Itr.second != CurName) {
       Diag(NewLoc, diag::err_kernel_invalidates_sycl_unique_stable_name)
-          << IsInstantiation;
-      Diag(Itr.first->getLocation(),
-           diag::note_sycl_unique_stable_name_evaluated_here);
+          << IsInstantiation << (IdExpr != nullptr);
+      Diag(Itr.first->getExprLoc(),
+           diag::note_sycl_unique_stable_name_evaluated_here)
+          << (IdExpr != nullptr);
       // Update this so future diagnostics work correctly.
       Itr.second = CurName;
     }

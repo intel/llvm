@@ -2946,10 +2946,21 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
   case Builtin::BI__builtin_powi:
   case Builtin::BI__builtin_powif:
-  case Builtin::BI__builtin_powil:
-    return RValue::get(emitBinaryMaybeConstrainedFPBuiltin(
-        *this, E, Intrinsic::powi, Intrinsic::experimental_constrained_powi));
+  case Builtin::BI__builtin_powil: {
+    llvm::Value *Src0 = EmitScalarExpr(E->getArg(0));
+    llvm::Value *Src1 = EmitScalarExpr(E->getArg(1));
 
+    if (Builder.getIsFPConstrained()) {
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
+      Function *F = CGM.getIntrinsic(Intrinsic::experimental_constrained_powi,
+                                     Src0->getType());
+      return RValue::get(Builder.CreateConstrainedFPCall(F, { Src0, Src1 }));
+    }
+
+    Function *F = CGM.getIntrinsic(Intrinsic::powi,
+                                   { Src0->getType(), Src1->getType() });
+    return RValue::get(Builder.CreateCall(F, { Src0, Src1 }));
+  }
   case Builtin::BI__builtin_isgreater:
   case Builtin::BI__builtin_isgreaterequal:
   case Builtin::BI__builtin_isless:
@@ -9067,33 +9078,32 @@ Value *CodeGenFunction::EmitAArch64SVEBuiltinExpr(unsigned BuiltinID,
     if (IsBoolTy)
       EltTy = IntegerType::get(getLLVMContext(), SVEBitsPerBlock / NumOpnds);
 
-    Address Alloca = CreateTempAlloca(llvm::ArrayType::get(EltTy, NumOpnds),
-                                     CharUnits::fromQuantity(16));
+    SmallVector<llvm::Value *, 16> VecOps;
     for (unsigned I = 0; I < NumOpnds; ++I)
-      Builder.CreateDefaultAlignedStore(
-          IsBoolTy ? Builder.CreateZExt(Ops[I], EltTy) : Ops[I],
-          Builder.CreateGEP(Alloca.getElementType(), Alloca.getPointer(),
-                            {Builder.getInt64(0), Builder.getInt64(I)}));
+        VecOps.push_back(Builder.CreateZExt(Ops[I], EltTy));
+    Value *Vec = BuildVector(VecOps);
 
     SVETypeFlags TypeFlags(Builtin->TypeModifier);
     Value *Pred = EmitSVEAllTruePred(TypeFlags);
 
     llvm::Type *OverloadedTy = getSVEVectorForElementType(EltTy);
-    Function *F = CGM.getIntrinsic(Intrinsic::aarch64_sve_ld1rq, OverloadedTy);
-    Value *Alloca0 = Builder.CreateGEP(
-        Alloca.getElementType(), Alloca.getPointer(),
-        {Builder.getInt64(0), Builder.getInt64(0)});
-    Value *LD1RQ = Builder.CreateCall(F, {Pred, Alloca0});
+    Value *InsertSubVec = Builder.CreateInsertVector(
+        OverloadedTy, UndefValue::get(OverloadedTy), Vec, Builder.getInt64(0));
+
+    Function *F =
+        CGM.getIntrinsic(Intrinsic::aarch64_sve_dupq_lane, OverloadedTy);
+    Value *DupQLane =
+        Builder.CreateCall(F, {InsertSubVec, Builder.getInt64(0)});
 
     if (!IsBoolTy)
-      return LD1RQ;
+      return DupQLane;
 
     // For svdupq_n_b* we need to add an additional 'cmpne' with '0'.
     F = CGM.getIntrinsic(NumOpnds == 2 ? Intrinsic::aarch64_sve_cmpne
                                        : Intrinsic::aarch64_sve_cmpne_wide,
                          OverloadedTy);
-    Value *Call =
-        Builder.CreateCall(F, {Pred, LD1RQ, EmitSVEDupX(Builder.getInt64(0))});
+    Value *Call = Builder.CreateCall(
+        F, {Pred, DupQLane, EmitSVEDupX(Builder.getInt64(0))});
     return EmitSVEPredicateCast(Call, cast<llvm::ScalableVectorType>(Ty));
   }
 
@@ -9448,7 +9458,7 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
 
     llvm::APSInt Value = Result.Val.getInt();
     LLVMContext &Context = CGM.getLLVMContext();
-    std::string Reg = Value == 31 ? "sp" : "x" + Value.toString(10);
+    std::string Reg = Value == 31 ? "sp" : "x" + toString(Value, 10);
 
     llvm::Metadata *Ops[] = {llvm::MDString::get(Context, Reg)};
     llvm::MDNode *RegName = llvm::MDNode::get(Context, Ops);
@@ -17906,12 +17916,12 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   Optional<llvm::APSInt> Params =
       E->getArg(1)->getIntegerConstantExpr(getContext());
   assert(Params.hasValue() && "Constant arg isn't actually constant?");
-  Out << "{params:" << Params->toString(10) << "}";
+  Out << "{params:" << toString(*Params, 10) << "}";
 
   Optional<llvm::APSInt> CacheSize =
       E->getArg(2)->getIntegerConstantExpr(getContext());
   assert(CacheSize.hasValue() && "Constant arg isn't actually constant?");
-  Out << "{cache-size:" << CacheSize->toString(10) << "}";
+  Out << "{cache-size:" << toString(*CacheSize, 10) << "}";
 
   llvm::Value *Ann = EmitAnnotationCall(F, PtrVal, AnnotStr, SourceLocation());
 

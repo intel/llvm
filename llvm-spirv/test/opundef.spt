@@ -16,25 +16,25 @@
 4 TypeInt 7 32 0 
 4 Constant 7 10 1 
 2 TypeVoid 2 
-3 TypeFunction 3 2 
 3 TypeFloat 8 32 
 4 TypeStruct 6 7 8 
+3 TypeFunction 3 6
 
-5 Function 2 4 0 3 
+5 Function 6 4 0 3
 
 2 Label 5 
 3 Undef 6 9 
 6 CompositeInsert 6 11 10 9 0 
-1 Return 
+2 ReturnValue 11
 
 1 FunctionEnd 
 
-5 Function 2 12 0 3 
+5 Function 6 12 0 3
 
 2 Label 13 
 3 Undef 6 15 
 6 CompositeInsert 6 14 10 15 0 
-1 Return 
+2 ReturnValue 14
 
 1 FunctionEnd 
 
@@ -43,14 +43,12 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s
 
-; CHECK: define spir_func void @foo() #0 {
+; CHECK: define spir_func %structtype @foo() #0 {
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: %agg1 = insertvalue %{{[0-9a-z\.]*}} undef
-; CHECK-NEXT: ret void
+; CHECK-NEXT: ret %structtype { i32 1, float undef }
 ; CHECK-NEXT: }
-; CHECK: define spir_func void @bar() #0 {
+; CHECK: define spir_func %structtype @bar() #0 {
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: %agg2 = insertvalue %{{[0-9a-z\.]*}} undef
-; CHECK-NEXT: ret void
+; CHECK-NEXT: ret %structtype { i32 1, float undef }
 ; CHECK-NEXT: }
 

@@ -42,6 +42,12 @@ struct TestLinalgTransforms
                     gpu::GPUDialect>();
     // clang-format on
   }
+  StringRef getArgument() const final {
+    return "test-linalg-transform-patterns";
+  }
+  StringRef getDescription() const final {
+    return "Test Linalg transformation patterns by applying them greedily.";
+  }
 
   void runOnFunction() override;
 
@@ -90,6 +96,11 @@ struct TestLinalgTransforms
   Option<bool> testTransformPadTensor{
       *this, "test-transform-pad-tensor",
       llvm::cl::desc("Test transform pad tensor by copying with generic ops"),
+      llvm::cl::init(false)};
+  Option<bool> testSwapSubTensorPadTensor{
+      *this, "test-swap-subtensor-padtensor",
+      llvm::cl::desc("Test rewrite of subtensor(pad_tensor) into "
+                     "pad_tensor(subtensor)"),
       llvm::cl::init(false)};
   ListOption<int64_t> tileSizesForPadding{
       *this, "tile-sizes-for-padding",
@@ -518,6 +529,12 @@ static void applyPadTensorToGenericPatterns(FuncOp funcOp) {
   (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
 }
 
+static void applySubTensorOfPadTensorSwapPattern(FuncOp funcOp) {
+  RewritePatternSet patterns(funcOp.getContext());
+  patterns.add<SubTensorOfPadTensorSwapPattern>(funcOp.getContext());
+  (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
+}
+
 static void applyAffineMinSCFCanonicalizationPatterns(FuncOp funcOp) {
   RewritePatternSet foldPattern(funcOp.getContext());
   foldPattern.add<AffineMinSCFCanonicalizationPattern>(funcOp.getContext());
@@ -533,7 +550,7 @@ static void applyAffineMinSCFCanonicalizationPatterns(FuncOp funcOp) {
 // For now, just assume it is the zero of type.
 // In the future, it should be the zero of type + op.
 static Value getNeutralOfLinalgOp(OpBuilder &b, OpOperand &op) {
-  auto t = getElementTypeOrSelf(op.get().getType());
+  auto t = getElementTypeOrSelf(op.get());
   return b.create<ConstantOp>(op.getOwner()->getLoc(), t, b.getZeroAttr(t));
 }
 
@@ -544,7 +561,8 @@ static void applyTileAndPadPattern(FuncOp funcOp, ArrayRef<int64_t> tileSizes) {
       linalg::LinalgTilingOptions()
           .setTileSizes(tileSizes)
           .setPaddingValueComputationFunction(getNeutralOfLinalgOp);
-  tilingPattern.add<linalg::LinalgTilingPattern<linalg::MatmulI8I8I32Op>>(
+  tilingPattern.add<linalg::LinalgTilingPattern<linalg::MatmulI8I8I32Op>,
+                    linalg::LinalgTilingPattern<linalg::GenericOp>>(
       context, linalgTilingOptions,
       linalg::LinalgTransformationFilter(
           Identifier::get("tile-and-pad", context)));
@@ -595,6 +613,8 @@ void TestLinalgTransforms::runOnFunction() {
     return applyLinalgToVectorPatterns(getFunction());
   if (testTransformPadTensor)
     return applyPadTensorToGenericPatterns(getFunction());
+  if (testSwapSubTensorPadTensor)
+    return applySubTensorOfPadTensorSwapPattern(getFunction());
   if (testAffineMinSCFCanonicalizationPatterns)
     return applyAffineMinSCFCanonicalizationPatterns(getFunction());
   if (testTileAndPadPattern)
@@ -611,9 +631,7 @@ void TestLinalgTransforms::runOnFunction() {
 namespace mlir {
 namespace test {
 void registerTestLinalgTransforms() {
-  PassRegistration<TestLinalgTransforms> testTransformPatternsPass(
-      "test-linalg-transform-patterns",
-      "Test Linalg transformation patterns by applying them greedily.");
+  PassRegistration<TestLinalgTransforms>();
 }
 } // namespace test
 } // namespace mlir

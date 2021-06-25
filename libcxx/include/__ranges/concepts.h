@@ -11,8 +11,15 @@
 
 #include <__config>
 #include <__iterator/concepts.h>
+#include <__iterator/incrementable_traits.h>
+#include <__iterator/iter_move.h>
+#include <__iterator/iterator_traits.h>
+#include <__iterator/readable_traits.h>
 #include <__ranges/access.h>
+#include <__ranges/enable_borrowed_range.h>
+#include <__ranges/enable_view.h>
 #include <__ranges/size.h>
+#include <concepts>
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -62,6 +69,23 @@ namespace ranges {
   concept sized_range = range<_Tp> && requires(_Tp& __t) { ranges::size(__t); };
 
   // `disable_sized_range` defined in `<__ranges/size.h>`
+
+  // [range.view], views
+
+  // `enable_view` defined in <__ranges/enable_view.h>
+  // `view_base` defined in <__ranges/enable_view.h>
+
+  template <class _Tp>
+  concept view =
+    range<_Tp> &&
+    movable<_Tp> &&
+    enable_view<_Tp>;
+
+  template<class _Range>
+  concept __simple_view =
+    view<_Range> && range<const _Range> &&
+    same_as<iterator_t<_Range>, iterator_t<const _Range>> &&
+    same_as<sentinel_t<_Range>, iterator_t<const _Range>>;
 
   // [range.refinements], other range refinements
   template <class _Tp>

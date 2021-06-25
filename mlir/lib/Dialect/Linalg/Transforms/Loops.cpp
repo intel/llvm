@@ -126,8 +126,12 @@ static void emitScalarImplementation(OpBuilder &b, Location loc,
 
   // TODO: Avoid the loads if the corresponding argument of the
   // region has no uses.
-  // 1.a. Emit load from input views.
+  // 1.a. Emit load from input operand or for scalars access the operand itself.
   for (OpOperand *inputOperand : linalgOp.getInputOperands()) {
+    if (linalgOp.isScalar(inputOperand)) {
+      indexedValues.push_back(inputOperand->get());
+      continue;
+    }
     auto indexing = makeCanonicalAffineApplies(
         b, loc, linalgOp.getTiedIndexingMap(inputOperand), allIvsPlusDims);
     indexedValues.push_back(
@@ -413,10 +417,6 @@ static Optional<LinalgLoops> linalgOpToLoopsImpl(PatternRewriter &rewriter,
   using StoreOpTy =
       typename std::conditional<std::is_same<LoopTy, AffineForOp>::value,
                                 AffineStoreOp, memref::StoreOp>::type;
-
-  // Canonicalize indexed_generic operations before lowering them to loops.
-  if (isa<IndexedGenericOp>(linalgOp))
-    return llvm::None;
 
   // The flattened loopToOperandRangesMaps is expected to be an invertible
   // permutation map (which is asserted in the inverse calculation).

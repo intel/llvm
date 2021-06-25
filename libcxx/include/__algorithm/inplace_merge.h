@@ -10,6 +10,7 @@
 #define _LIBCPP___ALGORITHM_INPLACE_MERGE_H
 
 #include <__config>
+#include <__algorithm/comp.h>
 #include <__algorithm/comp_ref_type.h>
 #include <__algorithm/rotate.h>
 #include <__algorithm/lower_bound.h>

@@ -924,6 +924,12 @@ Value *InstCombinerImpl::dyn_castNegVal(Value *V) const {
     return ConstantExpr::getNeg(CV);
   }
 
+  // Negate integer vector splats.
+  if (auto *CV = dyn_cast<Constant>(V))
+    if (CV->getType()->isVectorTy() &&
+        CV->getType()->getScalarType()->isIntegerTy() && CV->getSplatValue())
+      return ConstantExpr::getNeg(CV);
+
   return nullptr;
 }
 
@@ -931,6 +937,13 @@ static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
                                              InstCombiner::BuilderTy &Builder) {
   if (auto *Cast = dyn_cast<CastInst>(&I))
     return Builder.CreateCast(Cast->getOpcode(), SO, I.getType());
+
+  if (auto *II = dyn_cast<IntrinsicInst>(&I)) {
+    assert(canConstantFoldCallTo(II, cast<Function>(II->getCalledOperand())) &&
+           "Expected constant-foldable intrinsic");
+
+    return Builder.CreateIntrinsic(II->getIntrinsicID(), I.getType(), SO);
+  }
 
   assert(I.isBinaryOp() && "Unexpected opcode for select folding");
 
@@ -2659,7 +2672,7 @@ Instruction *InstCombinerImpl::visitAllocSite(Instruction &MI) {
       } else {
         // Casts, GEP, or anything else: we're about to delete this instruction,
         // so it can not have any valid uses.
-        replaceInstUsesWith(*I, UndefValue::get(I->getType()));
+        replaceInstUsesWith(*I, PoisonValue::get(I->getType()));
       }
       eraseInstFromFunction(*I);
     }
@@ -2864,8 +2877,8 @@ Instruction *InstCombinerImpl::visitUnreachableInst(UnreachableInst &I) {
         return nullptr;
 
     // A value may still have uses before we process it here (for example, in
-    // another unreachable block), so convert those to undef.
-    replaceInstUsesWith(*Prev, UndefValue::get(Prev->getType()));
+    // another unreachable block), so convert those to poison.
+    replaceInstUsesWith(*Prev, PoisonValue::get(Prev->getType()));
     eraseInstFromFunction(*Prev);
     return &I;
   }
@@ -3058,7 +3071,8 @@ Instruction *InstCombinerImpl::visitExtractValueInst(ExtractValueInst &EV) {
       if (*EV.idx_begin() == 0) {
         Instruction::BinaryOps BinOp = WO->getBinaryOp();
         Value *LHS = WO->getLHS(), *RHS = WO->getRHS();
-        replaceInstUsesWith(*WO, UndefValue::get(WO->getType()));
+        // Replace the old instruction's uses with poison.
+        replaceInstUsesWith(*WO, PoisonValue::get(WO->getType()));
         eraseInstFromFunction(*WO);
         return BinaryOperator::Create(BinOp, LHS, RHS);
       }

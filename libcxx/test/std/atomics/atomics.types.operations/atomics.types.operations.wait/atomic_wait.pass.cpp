@@ -10,9 +10,8 @@
 // XFAIL: c++03
 // XFAIL: !non-lockfree-atomics
 
-// This test requires the dylib support introduced in D68480,
-// which hasn't shipped yet.
-// XFAIL: use_system_cxx_lib && x86_64-apple
+// This test requires the dylib support introduced in D68480, which shipped in
+// macOS 11.0.
 // XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.15
 // XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.14
 // XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.13
@@ -37,8 +36,7 @@ struct TestFn {
   void operator()() const {
     typedef std::atomic<T> A;
 
-    A t;
-    std::atomic_init(&t, T(1));
+    A t(T(1));
     assert(std::atomic_load(&t) == T(1));
     std::atomic_wait(&t, T(0));
     std::thread t1 = support::make_test_thread([&](){
@@ -48,8 +46,7 @@ struct TestFn {
     std::atomic_wait(&t, T(1));
     t1.join();
 
-    volatile A vt;
-    std::atomic_init(&vt, T(2));
+    volatile A vt(T(2));
     assert(std::atomic_load(&vt) == T(2));
     std::atomic_wait(&vt, T(1));
     std::thread t2 = support::make_test_thread([&](){

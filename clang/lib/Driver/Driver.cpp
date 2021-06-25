@@ -537,14 +537,21 @@ static llvm::Triple computeTargetTriple(const Driver &D,
       AT = Target.get64BitArchVariant().getArch();
       if (Target.getEnvironment() == llvm::Triple::GNUX32)
         Target.setEnvironment(llvm::Triple::GNU);
+      else if (Target.getEnvironment() == llvm::Triple::MuslX32)
+        Target.setEnvironment(llvm::Triple::Musl);
     } else if (A->getOption().matches(options::OPT_mx32) &&
                Target.get64BitArchVariant().getArch() == llvm::Triple::x86_64) {
       AT = llvm::Triple::x86_64;
-      Target.setEnvironment(llvm::Triple::GNUX32);
+      if (Target.getEnvironment() == llvm::Triple::Musl)
+        Target.setEnvironment(llvm::Triple::MuslX32);
+      else
+        Target.setEnvironment(llvm::Triple::GNUX32);
     } else if (A->getOption().matches(options::OPT_m32)) {
       AT = Target.get32BitArchVariant().getArch();
       if (Target.getEnvironment() == llvm::Triple::GNUX32)
         Target.setEnvironment(llvm::Triple::GNU);
+      else if (Target.getEnvironment() == llvm::Triple::MuslX32)
+        Target.setEnvironment(llvm::Triple::Musl);
     } else if (A->getOption().matches(options::OPT_m16) &&
                Target.get32BitArchVariant().getArch() == llvm::Triple::x86) {
       AT = llvm::Triple::x86;
@@ -693,6 +700,11 @@ static bool isValidSYCLTriple(llvm::Triple T) {
   // NVPTX is valid for SYCL.
   if (T.isNVPTX())
     return true;
+
+  // AMDGCN is valid for SYCL
+  if (T.isAMDGCN())
+    return true;
+
   // Check for invalid SYCL device triple values.
   // Non-SPIR arch.
   if (!T.isSPIR())
@@ -3428,6 +3440,12 @@ class OffloadingActionBuilder final {
     /// The linker inputs obtained for each device arch.
     SmallVector<ActionList, 8> DeviceLinkerInputs;
     bool GPUSanitize;
+    // The default bundling behavior depends on the type of output, therefore
+    // BundleOutput needs to be tri-value: None, true, or false.
+    // Bundle code objects except --no-gpu-output is specified for device
+    // only compilation. Bundle other type of output files only if
+    // --gpu-bundle-output is specified for device only compilation.
+    Optional<bool> BundleOutput;
 
   public:
     HIPActionBuilder(Compilation &C, DerivedArgList &Args,
@@ -3436,6 +3454,10 @@ class OffloadingActionBuilder final {
       DefaultCudaArch = CudaArch::GFX803;
       GPUSanitize = Args.hasFlag(options::OPT_fgpu_sanitize,
                                  options::OPT_fno_gpu_sanitize, false);
+      if (Args.hasArg(options::OPT_gpu_bundle_output,
+                      options::OPT_no_gpu_bundle_output))
+        BundleOutput = Args.hasFlag(options::OPT_gpu_bundle_output,
+                                    options::OPT_no_gpu_bundle_output);
     }
 
     bool canUseBundlerUnbundler() const override { return true; }
@@ -3525,22 +3547,25 @@ class OffloadingActionBuilder final {
           CudaDeviceActions[I] = C.MakeAction<OffloadAction>(
               DDep, CudaDeviceActions[I]->getType());
         }
-        // Create HIP fat binary with a special "link" action.
-        CudaFatBinary =
-            C.MakeAction<LinkJobAction>(CudaDeviceActions,
-                types::TY_HIP_FATBIN);
 
-        if (!CompileDeviceOnly) {
-          DA.add(*CudaFatBinary, *ToolChains.front(), /*BoundArch=*/nullptr,
-                 AssociatedOffloadKind);
-          // Clear the fat binary, it is already a dependence to an host
-          // action.
-          CudaFatBinary = nullptr;
+        if (!CompileDeviceOnly || !BundleOutput.hasValue() ||
+            BundleOutput.getValue()) {
+          // Create HIP fat binary with a special "link" action.
+          CudaFatBinary = C.MakeAction<LinkJobAction>(CudaDeviceActions,
+                                                      types::TY_HIP_FATBIN);
+
+          if (!CompileDeviceOnly) {
+            DA.add(*CudaFatBinary, *ToolChains.front(), /*BoundArch=*/nullptr,
+                   AssociatedOffloadKind);
+            // Clear the fat binary, it is already a dependence to an host
+            // action.
+            CudaFatBinary = nullptr;
+          }
+
+          // Remove the CUDA actions as they are already connected to an host
+          // action or fat binary.
+          CudaDeviceActions.clear();
         }
-
-        // Remove the CUDA actions as they are already connected to an host
-        // action or fat binary.
-        CudaDeviceActions.clear();
 
         return CompileDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
       } else if (CurPhase == phases::Link) {
@@ -3566,6 +3591,20 @@ class OffloadingActionBuilder final {
       for (Action *&A : CudaDeviceActions)
         A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                AssociatedOffloadKind);
+
+      if (CompileDeviceOnly && CurPhase == FinalPhase &&
+          BundleOutput.hasValue() && BundleOutput.getValue()) {
+        for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
+          OffloadAction::DeviceDependences DDep;
+          DDep.add(*CudaDeviceActions[I], *ToolChains.front(), GpuArchList[I],
+                   AssociatedOffloadKind);
+          CudaDeviceActions[I] = C.MakeAction<OffloadAction>(
+              DDep, CudaDeviceActions[I]->getType());
+        }
+        CudaFatBinary =
+            C.MakeAction<OffloadBundlingJobAction>(CudaDeviceActions);
+        CudaDeviceActions.clear();
+      }
 
       return (CompileDeviceOnly && CurPhase == FinalPhase) ? ABRT_Ignore_Host
                                                            : ABRT_Success;
@@ -3862,6 +3901,21 @@ class OffloadingActionBuilder final {
                                            types::TY_CUDA_FATBIN);
       }
       return BA;
+    }
+
+    Action *finalizeAMDGCNDependences(Action *Input, const llvm::Triple &TT) {
+      auto *BA = C.getDriver().ConstructPhaseAction(
+          C, Args, phases::Backend, Input, AssociatedOffloadKind);
+
+      auto *AA = C.getDriver().ConstructPhaseAction(C, Args, phases::Assemble,
+                                                    BA, AssociatedOffloadKind);
+
+      ActionList AL = {AA};
+      Action *LinkAction = C.MakeAction<LinkJobAction>(AL, types::TY_Image);
+      ActionList HIPActions = {LinkAction};
+      Action *HIPFatBinary =
+          C.MakeAction<LinkJobAction>(HIPActions, types::TY_HIP_FATBIN);
+      return HIPFatBinary;
     }
 
   public:
@@ -4260,6 +4314,7 @@ class OffloadingActionBuilder final {
         ActionList LinkObjects;
         auto TT = SYCLTripleList[I];
         auto isNVPTX = (*TC)->getTriple().isNVPTX();
+        auto isAMDGCN = (*TC)->getTriple().isAMDGCN();
         bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
@@ -4357,7 +4412,7 @@ class OffloadingActionBuilder final {
         // When spv online link is supported by all backends, the fallback
         // device libraries are only needed when current toolchain is using
         // AOT compilation.
-        if (!isNVPTX) {
+        if (!isNVPTX && !isAMDGCN) {
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
               *TC, FullLinkObjects, true,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
@@ -4371,7 +4426,7 @@ class OffloadingActionBuilder final {
           FullDeviceLinkAction = DeviceLinkAction;
         // setup some flags upfront
 
-        if (isNVPTX && DeviceCodeSplit) {
+        if ((isNVPTX || isAMDGCN) && DeviceCodeSplit) {
           // TODO Temporary limitation, need to support code splitting for PTX
           const Driver &D = C.getDriver();
           const std::string &OptName =
@@ -4383,14 +4438,14 @@ class OffloadingActionBuilder final {
         }
         // reflects whether current target is ahead-of-time and can't support
         // runtime setting of specialization constants
-        bool isAOT = isNVPTX || isSpirvAOT;
+        bool isAOT = isNVPTX || isAMDGCN || isSpirvAOT;
         // TODO support device code split for NVPTX target
 
         ActionList WrapperInputs;
         // post link is not optional - even if not splitting, always need to
         // process specialization constants
         types::ID PostLinkOutType =
-            isNVPTX ? types::TY_LLVM_BC : types::TY_Tempfiletable;
+            isNVPTX || isAMDGCN ? types::TY_LLVM_BC : types::TY_Tempfiletable;
         auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
             FullDeviceLinkAction, PostLinkOutType);
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
@@ -4398,6 +4453,10 @@ class OffloadingActionBuilder final {
         if (isNVPTX) {
           Action *FinAction =
               finalizeNVPTXDependences(PostLinkAction, (*TC)->getTriple());
+          WrapperInputs.push_back(FinAction);
+        } else if (isAMDGCN) {
+          Action *FinAction =
+              finalizeAMDGCNDependences(PostLinkAction, (*TC)->getTriple());
           WrapperInputs.push_back(FinAction);
         } else {
           // For SPIRV-based targets - translate to SPIRV then optionally
@@ -7242,7 +7301,7 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
         break;
       case Action::OFK_HIP:
         TC = std::make_unique<toolchains::HIPToolChain>(
-          *this, Target, HostTC, Args);
+            *this, Target, HostTC, Args, TargetDeviceOffloadKind);
         break;
       case Action::OFK_OpenMP:
         // omp + nvptx
@@ -7260,6 +7319,10 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
           case llvm::Triple::nvptx64:
             TC = std::make_unique<toolchains::CudaToolChain>(
               *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+            break;
+          case llvm::Triple::amdgcn:
+            TC = std::make_unique<toolchains::HIPToolChain>(
+                *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           default:
           break;

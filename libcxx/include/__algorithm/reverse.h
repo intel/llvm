@@ -22,8 +22,6 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-// reverse
-
 template <class _BidirectionalIterator>
 inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
 void
@@ -54,18 +52,6 @@ void
 reverse(_BidirectionalIterator __first, _BidirectionalIterator __last)
 {
     _VSTD::__reverse(__first, __last, typename iterator_traits<_BidirectionalIterator>::iterator_category());
-}
-
-// reverse_copy
-
-template <class _BidirectionalIterator, class _OutputIterator>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
-_OutputIterator
-reverse_copy(_BidirectionalIterator __first, _BidirectionalIterator __last, _OutputIterator __result)
-{
-    for (; __first != __last; ++__result)
-        *__result = *--__last;
-    return __result;
 }
 
 _LIBCPP_END_NAMESPACE_STD

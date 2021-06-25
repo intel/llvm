@@ -4331,6 +4331,15 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
       }
     } else
       HostCompileArgs.push_back("-E");
+
+    // Add the integration header.
+    StringRef Header =
+        TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
+    if (types::getPreprocessedType(InputFile.getType()) != types::TY_INVALID &&
+        !Header.empty()) {
+      HostCompileArgs.push_back(IsMSVCHostCompiler ? "-FI" : "-include");
+      HostCompileArgs.push_back(TCArgs.MakeArgString(Header));
+    }
   } else if (isa<AssembleJobAction>(JA)) {
     HostCompileArgs.push_back("-c");
     if (IsMSVCHostCompiler)
@@ -4373,15 +4382,6 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
     // with the '-o' option that is used to designate the output file.
     HostCompileArgs.push_back("-o");
     HostCompileArgs.push_back(Output.getFilename());
-  }
-
-  // Add the integration header.
-  StringRef Header =
-      TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
-  if (types::getPreprocessedType(InputFile.getType()) != types::TY_INVALID &&
-      !Header.empty()) {
-    HostCompileArgs.push_back(IsMSVCHostCompiler ? "-FI" : "-include");
-    HostCompileArgs.push_back(TCArgs.MakeArgString(Header));
   }
 
   SmallString<128> ExecPath;
@@ -5229,8 +5229,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Arg *A = Args.getLastArg(options::OPT_Wframe_larger_than_EQ)) {
     StringRef v = A->getValue();
-    CmdArgs.push_back("-mllvm");
-    CmdArgs.push_back(Args.MakeArgString("-warn-stack-size=" + v));
+    // FIXME: Validate the argument here so we don't produce meaningless errors
+    // about -fwarn-stack-size=.
+    if (v.empty())
+      D.Diag(diag::err_drv_missing_argument) << A->getSpelling() << 1;
+    else
+      CmdArgs.push_back(Args.MakeArgString("-fwarn-stack-size=" + v));
     A->claim();
   }
 
@@ -6075,11 +6079,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_ftlsmodel_EQ);
 
+  if (Args.hasFlag(options::OPT_fno_operator_names,
+                   options::OPT_foperator_names, false))
+    CmdArgs.push_back("-fno-operator-names");
+
   // Forward -f (flag) options which we can pass directly.
   Args.AddLastArg(CmdArgs, options::OPT_femit_all_decls);
   Args.AddLastArg(CmdArgs, options::OPT_fheinous_gnu_extensions);
   Args.AddLastArg(CmdArgs, options::OPT_fdigraphs, options::OPT_fno_digraphs);
-  Args.AddLastArg(CmdArgs, options::OPT_fno_operator_names);
   Args.AddLastArg(CmdArgs, options::OPT_femulated_tls,
                   options::OPT_fno_emulated_tls);
 
@@ -8627,7 +8634,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         ",+SPV_INTEL_arbitrary_precision_floating_point"
         ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
         ",+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse"
-        ",+SPV_INTEL_long_constant_composite";
+        ",+SPV_INTEL_long_constant_composite"
+        ",+SPV_INTEL_fpga_invocation_pipelining_attributes";
     ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
     if (getToolChain().getTriple().getSubArch() ==
         llvm::Triple::SPIRSubArch_fpga) {

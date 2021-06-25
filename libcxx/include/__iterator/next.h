@@ -11,6 +11,7 @@
 #define _LIBCPP___ITERATOR_NEXT_H
 
 #include <__config>
+#include <__debug>
 #include <__function_like.h>
 #include <__iterator/advance.h>
 #include <__iterator/concepts.h>

@@ -10,8 +10,8 @@
 #define _LIBCPP___ALGORITHM_LOWER_BOUND_H
 
 #include <__config>
-#include <__algorithm/half_positive.h>
 #include <__algorithm/comp.h>
+#include <__algorithm/half_positive.h>
 #include <iterator>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)

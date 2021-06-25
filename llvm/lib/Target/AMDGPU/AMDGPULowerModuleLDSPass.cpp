@@ -24,6 +24,13 @@
 // A possible future refinement is to specialise the structure per-kernel, so
 // that fields can be elided based on more expensive analysis.
 //
+// NOTE: Since this pass will directly pack LDS (assume large LDS) into a struct
+// type which would cause allocating huge memory for struct instance within
+// every kernel. Hence, before running this pass, it is advisable to run the
+// pass "amdgpu-replace-lds-use-with-pointer" which will replace LDS uses within
+// non-kernel functions by pointers and thereby minimizes the unnecessary per
+// kernel allocation of LDS memory.
+//
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
@@ -37,6 +44,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <algorithm>
@@ -45,6 +53,11 @@
 #define DEBUG_TYPE "amdgpu-lower-module-lds"
 
 using namespace llvm;
+
+static cl::opt<bool> SuperAlignLDSGlobals(
+    "amdgpu-super-align-lds-globals",
+    cl::desc("Increase alignment of LDS if it is not on align boundary"),
+    cl::init(true), cl::Hidden);
 
 namespace {
 
@@ -165,11 +178,36 @@ private:
 
     // Find variables to move into new struct instance
     std::vector<GlobalVariable *> FoundLocalVars =
-        AMDGPU::findVariablesToLower(M, UsedList, F);
+        AMDGPU::findVariablesToLower(M, F);
 
     if (FoundLocalVars.empty()) {
       // No variables to rewrite, no changes made.
       return false;
+    }
+
+    // Increase the alignment of LDS globals if necessary to maximise the chance
+    // that we can use aligned LDS instructions to access them.
+    if (SuperAlignLDSGlobals) {
+      for (auto *GV : FoundLocalVars) {
+        Align Alignment = AMDGPU::getAlign(DL, GV);
+        TypeSize GVSize = DL.getTypeAllocSize(GV->getValueType());
+
+        if (GVSize > 8) {
+          // We might want to use a b96 or b128 load/store
+          Alignment = std::max(Alignment, Align(16));
+        } else if (GVSize > 4) {
+          // We might want to use a b64 load/store
+          Alignment = std::max(Alignment, Align(8));
+        } else if (GVSize > 2) {
+          // We might want to use a b32 load/store
+          Alignment = std::max(Alignment, Align(4));
+        } else if (GVSize > 1) {
+          // We might want to use a b16 load/store
+          Alignment = std::max(Alignment, Align(2));
+        }
+
+        GV->setAlignment(Alignment);
+      }
     }
 
     // Sort by alignment, descending, to minimise padding.
@@ -261,8 +299,18 @@ private:
       Constant *GEPIdx[] = {ConstantInt::get(I32, 0), ConstantInt::get(I32, I)};
       Constant *GEP = ConstantExpr::getGetElementPtr(LDSTy, SGV, GEPIdx);
       if (F) {
+        // Replace all constant uses with instructions if they belong to the
+        // current kernel.
+        for (User *U : make_early_inc_range(GV->users())) {
+          if (ConstantExpr *C = dyn_cast<ConstantExpr>(U))
+            AMDGPU::replaceConstantUsesInFunction(C, F);
+        }
+
+        GV->removeDeadConstantUsers();
+
         GV->replaceUsesWithIf(GEP, [F](Use &U) {
-          return AMDGPU::isUsedOnlyFromFunction(U.getUser(), F);
+          Instruction *I = dyn_cast<Instruction>(U.getUser());
+          return I && I->getFunction() == F;
         });
       } else {
         GV->replaceAllUsesWith(GEP);

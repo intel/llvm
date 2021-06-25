@@ -66,8 +66,8 @@ public:
   }
 
   // The non-static version just calls static one.
-  ze_result_t doCall(ze_result_t ZeResult, std::string ZeName,
-                     std::string ZeArgs, bool TraceError = true);
+  ze_result_t doCall(ze_result_t ZeResult, const char *ZeName,
+                     const char *ZeArgs, bool TraceError = true);
 };
 std::mutex ZeCall::GlobalLock;
 
@@ -408,7 +408,7 @@ static pi_result enqueueMemCopyRectHelper(
     const pi_event *EventWaitList, pi_event *Event,
     bool PreferCopyEngine = false);
 
-inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
+inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   switch (ZeError) {
 #define ZE_ERRCASE(ERR)                                                        \
   case ERR:                                                                    \
@@ -456,18 +456,18 @@ inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
   } // switch
 }
 
-ze_result_t ZeCall::doCall(ze_result_t ZeResult, std::string ZeName,
-                           std::string ZeArgs, bool TraceError) {
-  zePrint("ZE ---> %s%s\n", ZeName.c_str(), ZeArgs.c_str());
+ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
+                           const char *ZeArgs, bool TraceError) {
+  zePrint("ZE ---> %s%s\n", ZeName, ZeArgs);
 
   if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
     ++(*ZeCallCount)[ZeName];
   }
 
   if (ZeResult && TraceError) {
-    std::string ErrorString;
+    const char *ErrorString = "Unknown";
     zeParseError(ZeResult, ErrorString);
-    zePrint("Error (%s) in %s\n", ErrorString.c_str(), ZeName.c_str());
+    zePrint("Error (%s) in %s\n", ErrorString, ZeName);
   }
   return ZeResult;
 }
@@ -6129,6 +6129,19 @@ pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
       Count, NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
+// Helper function to check if a pointer is a device pointer.
+static bool IsDevicePointer(pi_context Context, const void *Ptr) {
+  ze_device_handle_t ZeDeviceHandle;
+  ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
+
+  // Query memory type of the pointer
+  ZE_CALL(zeMemGetAllocProperties,
+          (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
+           &ZeDeviceHandle));
+
+  return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_DEVICE);
+}
+
 pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
                                 const void *SrcPtr, size_t Size,
                                 pi_uint32 NumEventsInWaitlist,
@@ -6141,10 +6154,14 @@ pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  // Device to Device copies are found to execute slower on copy engine
+  // (versus compute engine).
+  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, SrcPtr) ||
+                          !IsDevicePointer(Queue->Context, DstPtr);
   return enqueueMemCopyHelper(
       // TODO: do we need a new command type for this?
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue, DstPtr, Blocking, Size, SrcPtr,
-      NumEventsInWaitlist, EventsWaitlist, Event);
+      NumEventsInWaitlist, EventsWaitlist, Event, PreferCopyEngine);
 }
 
 /// Hint to migrate memory to the device

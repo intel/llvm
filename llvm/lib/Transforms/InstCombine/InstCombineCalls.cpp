@@ -444,6 +444,16 @@ static Instruction *foldCttzCtlz(IntrinsicInst &II, InstCombinerImpl &IC) {
     return CallInst::Create(F, {X, II.getArgOperand(1)});
   }
 
+  if (II.getType()->isIntOrIntVectorTy(1)) {
+    // ctlz/cttz i1 Op0 --> not Op0
+    if (match(Op1, m_Zero()))
+      return BinaryOperator::CreateNot(Op0);
+    // If zero is undef, then the input can be assumed to be "true", so the
+    // instruction simplifies to "false".
+    assert(match(Op1, m_One()) && "Expected ctlz/cttz operand to be 0 or 1");
+    return IC.replaceInstUsesWith(II, ConstantInt::getNullValue(II.getType()));
+  }
+
   if (IsTZ) {
     // cttz(-x) -> cttz(x)
     if (match(Op0, m_Neg(m_Value(X))))
@@ -1075,6 +1085,11 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
   case Intrinsic::ctpop:
     if (auto *I = foldCtpop(*II, *this))
       return I;
+
+    // If the operand is a select with constant arm(s), try to hoist ctpop.
+    if (auto *Sel = dyn_cast<SelectInst>(II->getArgOperand(0)))
+      if (Instruction *R = FoldOpIntoSelect(*II, Sel))
+        return R;
     break;
 
   case Intrinsic::fshl:
@@ -2260,10 +2275,10 @@ Instruction *InstCombinerImpl::visitCallBase(CallBase &Call) {
         !CalleeF->isDeclaration()) {
       Instruction *OldCall = &Call;
       CreateNonTerminatorUnreachable(OldCall);
-      // If OldCall does not return void then replaceInstUsesWith undef.
+      // If OldCall does not return void then replaceInstUsesWith poison.
       // This allows ValueHandlers and custom metadata to adjust itself.
       if (!OldCall->getType()->isVoidTy())
-        replaceInstUsesWith(*OldCall, UndefValue::get(OldCall->getType()));
+        replaceInstUsesWith(*OldCall, PoisonValue::get(OldCall->getType()));
       if (isa<CallInst>(OldCall))
         return eraseInstFromFunction(*OldCall);
 
@@ -2276,13 +2291,15 @@ Instruction *InstCombinerImpl::visitCallBase(CallBase &Call) {
     }
   }
 
+  // Calling a null function pointer is undefined if a null address isn't
+  // dereferenceable.
   if ((isa<ConstantPointerNull>(Callee) &&
        !NullPointerIsDefined(Call.getFunction())) ||
       isa<UndefValue>(Callee)) {
-    // If Call does not return void then replaceInstUsesWith undef.
+    // If Call does not return void then replaceInstUsesWith poison.
     // This allows ValueHandlers and custom metadata to adjust itself.
     if (!Call.getType()->isVoidTy())
-      replaceInstUsesWith(Call, UndefValue::get(Call.getType()));
+      replaceInstUsesWith(Call, PoisonValue::get(Call.getType()));
 
     if (Call.isTerminator()) {
       // Can't remove an invoke or callbr because we cannot change the CFG.

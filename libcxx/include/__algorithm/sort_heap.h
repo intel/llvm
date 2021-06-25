@@ -10,9 +10,11 @@
 #define _LIBCPP___ALGORITHM_SORT_HEAP_H
 
 #include <__config>
-#include <__algorithm/pop_heap.h>
+#include <__algorithm/comp.h>
 #include <__algorithm/comp_ref_type.h>
+#include <__algorithm/pop_heap.h>
 #include <__iterator/iterator_traits.h>
+#include <type_traits> // swap
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header

@@ -1,7 +1,7 @@
 // RUN: mlir-opt %s | mlir-opt | FileCheck %s
 // RUN: mlir-opt %s --mlir-print-op-generic | mlir-opt | FileCheck %s
 
-// TODO: Re-enable LLVM lowering test after IndexedGenericOp is lowered.
+// TODO: Re-enable LLVM lowering test.
 //
 // Test that we can lower all the way to LLVM without crashing, don't check results here.
 // DISABLED: mlir-opt %s --convert-linalg-to-llvm -o=/dev/null 2>&1
@@ -316,6 +316,7 @@ func @pooling_sum(%arg0: memref<?x?x?xf32>,
 
 #accesses_0 = [
   affine_map<(i, j, k) -> (j, i)>,
+  affine_map<(i, j, k) -> ()>,
   affine_map<(i, j, k) -> (i, k, i + j)>
 ]
 
@@ -327,34 +328,34 @@ func @pooling_sum(%arg0: memref<?x?x?xf32>,
 
 func @generic(%arg0: memref<?x?xvector<3x4xi4>, offset: ?, strides: [?, 1]>,
               %arg1: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>) {
+  %cst = constant 0.0 : f32
   linalg.generic #trait_0
-       ins(%arg0 : memref<?x?xvector<3x4xi4>, offset: ?, strides: [?, 1]>)
+       ins(%arg0, %cst : memref<?x?xvector<3x4xi4>, offset: ?, strides: [?, 1]>, f32)
       outs(%arg1 : memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>)
       attrs = {foo = 1} {
-    ^bb(%0: vector<3x4xi4>, %1: f32) :
-      %f0 = constant 0.0 : f32
-      linalg.yield %f0 : f32
+    ^bb(%0: vector<3x4xi4>, %1: f32, %2: f32) :
+      linalg.yield %1 : f32
   }
   return
 }
 // CHECK-LABEL: func @generic
 //       CHECK:   linalg.generic {
-//  CHECK-SAME:     indexing_maps = [#{{[0-9a-z]*}}, #{{[0-9a-z]*}}],
+//  CHECK-SAME:     indexing_maps = [#{{[0-9a-z]*}}, #{{[0-9a-z]*}}, #{{[0-9a-z]*}}],
 //  CHECK-SAME:     iterator_types = ["parallel", "parallel", "parallel"],
 //  CHECK-SAME:     library_call = "some_external_function_name_1"}
-//  CHECK-SAME:      ins({{.*}} : memref<?x?xvector<3x4xi4>, #[[$strided2D]]>)
+//  CHECK-SAME:      ins({{.*}}, {{.*}} : memref<?x?xvector<3x4xi4>, #[[$strided2D]]>, f32)
 //  CHECK-SAME:     outs({{.*}} : memref<?x?x?xf32, #[[$strided3D]]>)
 //  CHECK-SAME:     {foo = 1 : i64}
 
 func @generic_with_tensor_input(%arg0: tensor<?x?xvector<3x4xi4>>,
                                 %arg1: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>) {
+  %cst = constant 0.0 : f32
   linalg.generic #trait_0
-       ins(%arg0 : tensor<?x?xvector<3x4xi4>>)
+       ins(%arg0, %cst : tensor<?x?xvector<3x4xi4>>, f32)
       outs(%arg1 : memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>)
       attrs = {foo = 1} {
-    ^bb(%0: vector<3x4xi4>, %1: f32) :
-      %f0 = constant 0.0 : f32
-      linalg.yield %f0 : f32
+    ^bb(%0: vector<3x4xi4>, %1: f32, %2: f32) :
+      linalg.yield %1 : f32
   }
   return
 }
@@ -362,7 +363,7 @@ func @generic_with_tensor_input(%arg0: tensor<?x?xvector<3x4xi4>>,
 //       CHECK:   linalg.generic {
 //  CHECK-SAME:     indexing_maps = [#{{.*}}, #{{.*}}], iterator_types = ["parallel", "parallel", "parallel"],
 //  CHECK-SAME:     library_call = "some_external_function_name_1"}
-//  CHECK-SAME:     ins({{.*}} : tensor<?x?xvector<3x4xi4>>)
+//  CHECK-SAME:     ins({{.*}}, {{.*}} : tensor<?x?xvector<3x4xi4>>, f32)
 //  CHECK-SAME:     outs({{.*}} : memref<?x?x?xf32, #[[$strided3D]]>)
 //  CHECK-SAME:     {foo = 1 : i64}
 
@@ -423,40 +424,36 @@ func @generic_with_tensor_input_and_output(
 
 // -----
 
-#accesses_2 = [
-  affine_map<(i, j, k) -> (j, i)>,
-  affine_map<(i, j, k) -> (i, k, i + j)>,
-  affine_map<(i, j, k) -> (i, k, i + j)>
-]
-
-#trait_2 = {
-  indexing_maps = #accesses_2,
-  iterator_types = ["parallel", "parallel", "parallel"],
-  library_call = "some_external_function_name_1"
+func @generic_with_multiple_tensor_outputs(
+    %arg0: tensor<?xi32>, %arg1: tensor<?xi32>, %arg2: i32)
+    -> (tensor<i32>, tensor<i32>) {
+  %c0 = constant 0 : index
+  %0 = linalg.init_tensor [] : tensor<i32>
+  %1 = linalg.fill(%0, %arg2) : tensor<i32>, i32 -> tensor<i32>
+  %2 = linalg.init_tensor [] : tensor<i32>
+  %3 = linalg.fill(%2, %arg2) : tensor<i32>, i32 -> tensor<i32>
+  %4:2 = linalg.generic {
+    indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> ()>, affine_map<(d0) -> ()>],
+    iterator_types = ["reduction"]}
+    ins(%arg0, %arg1 : tensor<?xi32>, tensor<?xi32>)
+    outs(%1, %3 : tensor<i32>, tensor<i32>) {
+  ^bb0(%arg3: i32, %arg4: i32, %arg5: i32, %arg6: i32):  // no predecessors
+    %5 = cmpi sge, %arg3, %arg5 : i32
+    %6 = select %5, %arg3, %arg5 : i32
+    %7 = cmpi eq, %arg3, %arg5 : i32
+    %8 = cmpi slt, %arg4, %arg6 : i32
+    %9 = select %8, %arg4, %arg6 : i32
+    %10 = select %5, %arg4, %arg6 : i32
+    %11 = select %7, %9, %10 : i32
+    linalg.yield %6, %11 : i32, i32
+  } -> (tensor<i32>, tensor<i32>)
+  return %4#0, %4#1 : tensor<i32>, tensor<i32>
 }
-
-func @indexed_generic_with_tensor_input_and_output(
-    %arg0: tensor<?x?xvector<3x4xi4>>, %arg1: tensor<?x?x?xf32>)
-    -> (tensor<?x?x?xf32>) {
-  %0 = linalg.indexed_generic #trait_2
-       ins(%arg0, %arg1 : tensor<?x?xvector<3x4xi4>>, tensor<?x?x?xf32>)
-      outs(%arg1 : tensor<?x?x?xf32>)
-      attrs = {foo = 1} {
-    ^bb(%i: index, %j: index, %k: index, %0: vector<3x4xi4>, %1: f32, %2: f32) :
-      %f0 = constant 0.0 : f32
-      linalg.yield %f0 : f32
-  } -> tensor<?x?x?xf32>
-  return %0 : tensor<?x?x?xf32>
-}
-// CHECK-LABEL: func @indexed_generic_with_tensor_input_and_output
-//       CHECK:   linalg.indexed_generic {
-//  CHECK-SAME:     indexing_maps = [#{{.*}}, #{{.*}}], iterator_types = ["parallel", "parallel", "parallel"],
-//  CHECK-SAME:     library_call = "some_external_function_name_1"}
-//  CHECK-SAME:      ins({{.*}} : tensor<?x?xvector<3x4xi4>>, tensor<?x?x?xf32>)
-//  CHECK-SAME:     outs({{.*}} : tensor<?x?x?xf32>)
-//  CHECK-SAME:     {foo = 1 : i64}
-//       CHECK:     -> tensor<?x?x?xf32>
-//       CHECK:   return {{.*}} : tensor<?x?x?xf32>
+// CHECK-LABEL: func @generic_with_multiple_tensor_outputs
+//       CHECK:   %{{.*}} = linalg.generic {
+//  CHECK-SAME:      ins({{.*}} : tensor<?xi32>, tensor<?xi32>)
+//  CHECK-SAME:     outs({{.*}} : tensor<i32>, tensor<i32>)
+//       CHECK:   } -> (tensor<i32>, tensor<i32>)
 
 // -----
 
@@ -477,17 +474,6 @@ func @generic_op_zero_rank(%arg0: tensor<f32>, %arg1 : tensor<3x4xf32>) -> (tens
        ins(%arg0 : tensor<f32>)
       outs(%arg1 : tensor<3x4xf32>) {
     ^bb(%a: f32, %b: f32) :
-      linalg.yield %a : f32
-  } -> tensor<3x4xf32>
-  return %0 : tensor<3x4xf32>
-}
-
-func @indexed_generic_op_zero_rank(%arg0: tensor<f32>, %arg1 : tensor<3x4xf32>) -> (tensor<3x4xf32>)
-{
-  %0 = linalg.indexed_generic #trait_broadcast
-       ins(%arg0 : tensor<f32>)
-      outs(%arg1 : tensor<3x4xf32>) {
-    ^bb(%i: index, %j: index, %a: f32, %b: f32) :
       linalg.yield %a : f32
   } -> tensor<3x4xf32>
   return %0 : tensor<3x4xf32>
@@ -534,29 +520,6 @@ func @generic_region(%arg0: memref<?x?xvector<3x4xi4>, offset: ?, strides: [?, 1
 //       CHECK:    %{{.*}} = linalg.index 1 : index
 //       CHECK:    %{{.*}} = linalg.index 2 : index
 //       CHECK:    linalg.yield %{{.*}} : f32
-
-func @indexed_generic(%arg0: memref<?x?xvector<3x4xi4>, offset: ?, strides: [?, 1]>,
-                      %arg1: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>) {
-  linalg.indexed_generic #trait_3
-       ins(%arg0 : memref<?x?xvector<3x4xi4>, offset: ?, strides: [?, 1]>)
-      outs(%arg1 : memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>)
-      attrs = {foo = 1} {
-    ^bb(%i: index, %j: index, %k: index, %a: vector<3x4xi4>, %b: f32) :
-      linalg.yield %b : f32
-  }
-  return
-}
-// CHECK-LABEL: func @indexed_generic
-//       CHECK:   linalg.indexed_generic {
-//  CHECK-SAME:     indexing_maps = [#{{[0-9a-z]*}}, #{{[0-9a-z]*}}],
-//  CHECK-SAME:     iterator_types = ["parallel", "parallel", "parallel"],
-//  CHECK-SAME:     library_call = "some_external_function_name_2"
-//  CHECK-SAME:      ins({{.*}} : memref<?x?xvector<3x4xi4>, #[[$strided2D]]>)
-//  CHECK-SAME:     outs({{.*}} : memref<?x?x?xf32, #[[$strided3D]]>)
-//  CHECK-SAME:     {foo = 1 : i64}
-//       CHECK:    ^{{.*}}(%{{.*}}: index, %{{.*}}: index, %{{.*}}: index, %{{.*}}: vector<3x4xi4>, %{{.*}}: f32):
-//       CHECK:      linalg.yield %{{.*}} : f32
-//       CHECK:    }
 
 // -----
 

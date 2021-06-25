@@ -117,7 +117,7 @@ static bool isKernel(SPIRVFunction *BF) {
 
 static void dumpLLVM(Module *M, const std::string &FName) {
   std::error_code EC;
-  raw_fd_ostream FS(FName, EC, sys::fs::F_None);
+  raw_fd_ostream FS(FName, EC, sys::fs::OF_None);
   if (!EC) {
     FS << *M;
     FS.close();
@@ -1169,40 +1169,43 @@ Value *SPIRVToLLVM::transShiftLogicalBitwiseInst(SPIRVValue *BV, BasicBlock *BB,
     OP = IntBoolOpMap::rmap(OP);
   BO = static_cast<Instruction::BinaryOps>(OpCodeMap::rmap(OP));
 
-  auto *Op0Constant = dyn_cast<Constant>(transValue(BBN->getOperand(0), F, BB));
-  auto *Op1Constant = dyn_cast<Constant>(transValue(BBN->getOperand(1), F, BB));
-  if (Op0Constant && Op1Constant) {
-    // If both operands are constant, create a constant expression.
-    // This can be used for initializers.
-    return ConstantExpr::get(BO, Op0Constant, Op1Constant);
+  Value *Op0 = transValue(BBN->getOperand(0), F, BB);
+  Value *Op1 = transValue(BBN->getOperand(1), F, BB);
+
+  IRBuilder<> Builder(*Context);
+  if (BB) {
+    Builder.SetInsertPoint(BB);
   }
-  assert(BB && "Invalid BB");
-  auto *Inst = BinaryOperator::Create(BO, transValue(BBN->getOperand(0), F, BB),
-                                      transValue(BBN->getOperand(1), F, BB),
-                                      BV->getName(), BB);
-  applyNoIntegerWrapDecorations(BV, Inst);
-  applyFPFastMathModeDecorations(BV, Inst);
-  return Inst;
+
+  Value *NewOp = Builder.CreateBinOp(BO, Op0, Op1, BV->getName());
+  if (auto *Inst = dyn_cast<Instruction>(NewOp)) {
+    applyNoIntegerWrapDecorations(BV, Inst);
+    applyFPFastMathModeDecorations(BV, Inst);
+  }
+  return NewOp;
 }
 
-Instruction *SPIRVToLLVM::transCmpInst(SPIRVValue *BV, BasicBlock *BB,
-                                       Function *F) {
+Value *SPIRVToLLVM::transCmpInst(SPIRVValue *BV, BasicBlock *BB, Function *F) {
   SPIRVCompare *BC = static_cast<SPIRVCompare *>(BV);
-  assert(BB && "Invalid BB");
   SPIRVType *BT = BC->getOperand(0)->getType();
-  Instruction *Inst = nullptr;
+  Value *Inst = nullptr;
   auto OP = BC->getOpCode();
   if (isLogicalOpCode(OP))
     OP = IntBoolOpMap::rmap(OP);
+
+  Value *Op0 = transValue(BC->getOperand(0), F, BB);
+  Value *Op1 = transValue(BC->getOperand(1), F, BB);
+
+  IRBuilder<> Builder(*Context);
+  if (BB) {
+    Builder.SetInsertPoint(BB);
+  }
+
   if (BT->isTypeVectorOrScalarInt() || BT->isTypeVectorOrScalarBool() ||
       BT->isTypePointer())
-    Inst = new ICmpInst(*BB, CmpMap::rmap(OP),
-                        transValue(BC->getOperand(0), F, BB),
-                        transValue(BC->getOperand(1), F, BB));
+    Inst = Builder.CreateICmp(CmpMap::rmap(OP), Op0, Op1);
   else if (BT->isTypeVectorOrScalarFloat())
-    Inst = new FCmpInst(*BB, CmpMap::rmap(OP),
-                        transValue(BC->getOperand(0), F, BB),
-                        transValue(BC->getOperand(1), F, BB));
+    Inst = Builder.CreateFCmp(CmpMap::rmap(OP), Op0, Op1);
   assert(Inst && "not implemented");
   return Inst;
 }
@@ -1959,11 +1962,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpSelect: {
     SPIRVSelect *BS = static_cast<SPIRVSelect *>(BV);
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     return mapValue(BV,
-                    SelectInst::Create(transValue(BS->getCondition(), F, BB),
-                                       transValue(BS->getTrueValue(), F, BB),
-                                       transValue(BS->getFalseValue(), F, BB),
-                                       BV->getName(), BB));
+                    Builder.CreateSelect(transValue(BS->getCondition(), F, BB),
+                                         transValue(BS->getTrueValue(), F, BB),
+                                         transValue(BS->getFalseValue(), F, BB),
+                                         BV->getName()));
   }
 
   case OpVmeImageINTEL:
@@ -2311,17 +2318,21 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpCompositeExtract: {
     SPIRVCompositeExtract *CE = static_cast<SPIRVCompositeExtract *>(BV);
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     if (CE->getComposite()->getType()->isTypeVector()) {
       assert(CE->getIndices().size() == 1 && "Invalid index");
       return mapValue(
-          BV, ExtractElementInst::Create(
+          BV, Builder.CreateExtractElement(
                   transValue(CE->getComposite(), F, BB),
                   ConstantInt::get(*Context, APInt(32, CE->getIndices()[0])),
-                  BV->getName(), BB));
+                  BV->getName()));
     }
     return mapValue(
-        BV, ExtractValueInst::Create(transValue(CE->getComposite(), F, BB),
-                                     CE->getIndices(), BV->getName(), BB));
+        BV, Builder.CreateExtractValue(transValue(CE->getComposite(), F, BB),
+                                       CE->getIndices(), BV->getName()));
   }
 
   case OpVectorExtractDynamic: {
@@ -2334,19 +2345,23 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpCompositeInsert: {
     auto CI = static_cast<SPIRVCompositeInsert *>(BV);
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     if (CI->getComposite()->getType()->isTypeVector()) {
       assert(CI->getIndices().size() == 1 && "Invalid index");
       return mapValue(
-          BV, InsertElementInst::Create(
+          BV, Builder.CreateInsertElement(
                   transValue(CI->getComposite(), F, BB),
                   transValue(CI->getObject(), F, BB),
                   ConstantInt::get(*Context, APInt(32, CI->getIndices()[0])),
-                  BV->getName(), BB));
+                  BV->getName()));
     }
     return mapValue(
-        BV, InsertValueInst::Create(transValue(CI->getComposite(), F, BB),
-                                    transValue(CI->getObject(), F, BB),
-                                    CI->getIndices(), BV->getName(), BB));
+        BV, Builder.CreateInsertValue(transValue(CI->getComposite(), F, BB),
+                                      transValue(CI->getObject(), F, BB),
+                                      CI->getIndices(), BV->getName()));
   }
 
   case OpVectorInsertDynamic: {
@@ -2368,11 +2383,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       else
         Components.push_back(ConstantInt::get(Int32Ty, I));
     }
-    return mapValue(BV,
-                    new ShuffleVectorInst(transValue(VS->getVector1(), F, BB),
-                                          transValue(VS->getVector2(), F, BB),
-                                          ConstantVector::get(Components),
-                                          BV->getName(), BB));
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
+    return mapValue(BV, Builder.CreateShuffleVector(
+                            transValue(VS->getVector1(), F, BB),
+                            transValue(VS->getVector2(), F, BB),
+                            ConstantVector::get(Components), BV->getName()));
   }
 
   case OpBitReverse: {
@@ -2444,10 +2462,16 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   }
 
   case OpSNegate: {
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
-    auto Neg = BinaryOperator::CreateNeg(transValue(BC->getOperand(0), F, BB),
-                                         BV->getName(), BB);
-    applyNoIntegerWrapDecorations(BV, Neg);
+    auto Neg =
+        Builder.CreateNeg(transValue(BC->getOperand(0), F, BB), BV->getName());
+    if (auto *NegInst = dyn_cast<Instruction>(Neg)) {
+      applyNoIntegerWrapDecorations(BV, NegInst);
+    }
     return mapValue(BV, Neg);
   }
 
@@ -2475,7 +2499,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     //   r = srem(a, b)
     //   needs_fixing = ((a < 0) != (b < 0) && r != 0)
     //   result = needs_fixing ? r + b : r
-    IRBuilder<> Builder(BB);
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     SPIRVSMod *SMod = static_cast<SPIRVSMod *>(BV);
     auto Dividend = transValue(SMod->getOperand(0), F, BB);
     auto Divisor = transValue(SMod->getOperand(1), F, BB);
@@ -2500,10 +2527,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpNot:
   case OpLogicalNot: {
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
-    return mapValue(
-        BV, BinaryOperator::CreateNot(transValue(BC->getOperand(0), F, BB),
-                                      BV->getName(), BB));
+    return mapValue(BV, Builder.CreateNot(transValue(BC->getOperand(0), F, BB),
+                                          BV->getName()));
   }
 
   case OpAll:
