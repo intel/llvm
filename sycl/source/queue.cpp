@@ -101,15 +101,19 @@ event queue::submit_impl(function_class<void(handler &)> CGH, queue SecondQueue,
                       CodeLoc);
 }
 
-event queue::submit_impl_and_store_info(function_class<void(handler &)> CGH,
-                                        const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, impl, CodeLoc, true);
+event
+queue::submit_impl_and_postprocess(function_class<void(handler &)> CGH,
+                                   const detail::code_location &CodeLoc,
+                                   const SubmitPostProcessF &PostProcess) {
+  return impl->submit(CGH, impl, CodeLoc, &PostProcess);
 }
 
-event queue::submit_impl_and_store_info(function_class<void(handler &)> CGH,
-                                        queue SecondQueue,
-                                        const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, true);
+event
+queue::submit_impl_and_postprocess(function_class<void(handler &)> CGH,
+                                   queue SecondQueue,
+                                   const detail::code_location &CodeLoc,
+                                   const SubmitPostProcessF &PostProcess) {
+  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, &PostProcess);
 }
 
 void queue::wait_proxy(const detail::code_location &CodeLoc) {

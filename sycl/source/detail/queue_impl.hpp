@@ -156,6 +156,8 @@ public:
   template <info::queue Param>
   typename info::param_traits<info::queue, Param>::return_type get_info() const;
 
+  using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
+
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
@@ -173,15 +175,15 @@ public:
                const shared_ptr_class<queue_impl> &Self,
                const shared_ptr_class<queue_impl> &SecondQueue,
                const detail::code_location &Loc,
-               bool StoreAdditionalInfo = false) {
+               const SubmitPostProcessF *PostProcess = nullptr) {
     try {
-      return submit_impl(CGF, Self, Loc, StoreAdditionalInfo);
+      return submit_impl(CGF, Self, Loc, PostProcess);
     } catch (...) {
       {
         std::lock_guard<mutex_class> Lock(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
-      return SecondQueue->submit(CGF, SecondQueue, Loc, StoreAdditionalInfo);
+      return SecondQueue->submit(CGF, SecondQueue, Loc, PostProcess);
     }
   }
 
@@ -196,8 +198,8 @@ public:
   event submit(const function_class<void(handler &)> &CGF,
                const shared_ptr_class<queue_impl> &Self,
                const detail::code_location &Loc,
-               bool StoreAdditionalInfo = false) {
-    return submit_impl(CGF, Self, Loc, StoreAdditionalInfo);
+               const SubmitPostProcessF *PostProcess = nullptr) {
+    return submit_impl(CGF, Self, Loc, PostProcess);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -395,14 +397,14 @@ private:
   event submit_impl(const function_class<void(handler &)> &CGF,
                     const shared_ptr_class<queue_impl> &Self,
                     const detail::code_location &Loc,
-                    bool StoreAdditionalInfo) {
+                    const SubmitPostProcessF *PostProcess) {
     handler Handler(Self, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
 
     event Event;
 
-    if (StoreAdditionalInfo) {
+    if (PostProcess) {
       bool IsKernel = Handler.getType() == CG::KERNEL;
       bool KernelUsesAssert = false;
       if (IsKernel)
@@ -411,8 +413,7 @@ private:
 
       Event = Handler.finalize();
 
-      detail::getSyclObjImpl(Event)->storeAdditionalInfo(
-          IsKernel, KernelUsesAssert);
+      (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else
       Event = Handler.finalize();
 

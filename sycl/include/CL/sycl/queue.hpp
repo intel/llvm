@@ -244,18 +244,18 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    Event = submit_impl_and_store_info(CGF, CodeLoc);
+    auto PostProcess = [this, &CodeLoc](
+        bool IsKernel, bool KernelUsesAssert, event &E) {
+      if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
+          KernelUsesAssert) {
+        // __devicelib_assert_fail isn't supported by Device-side Runtime
+        // Linking against fallback impl of __devicelib_assert_fail is performed
+        // by program manager class
+        submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr, CodeLoc);
+      }
+    };
 
-    // assert required
-    if (Event.enqueuedIsKernel() &&
-        !get_device().has(aspect::ext_oneapi_native_assert) &&
-        Event.enqueuedKernelUsesAssert()) {
-      // __devicelib_assert_fail isn't supported by Device-side Runtime
-      // Linking against fallback impl of __devicelib_assert_fail is performed
-      // by program manager class
-      submitAssertCapture(*this, Event, /* SecondaryQueue = */ nullptr,
-                          CodeLoc);
-    }
+    Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
 #else
     Event = submit_impl(CGF, CodeLoc);
 #endif // !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
@@ -281,17 +281,19 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    Event = submit_impl_and_store_info(CGF, SecondaryQueue, CodeLoc);
+    auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
+        bool IsKernel, bool KernelUsesAssert, event &E) {
+      if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
+          KernelUsesAssert) {
+        // __devicelib_assert_fail isn't supported by Device-side Runtime
+        // Linking against fallback impl of __devicelib_assert_fail is performed
+        // by program manager class
+        submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr, CodeLoc);
+      }
+    };
 
-    // assert required
-    if (Event.enqueuedIsKernel() &&
-        !get_device().has(aspect::ext_oneapi_native_assert) &&
-        Event.enqueuedKernelUsesAssert()) {
-      // __devicelib_assert_fail isn't supported by Device-side Runtime
-      // Linking against fallback impl of __devicelib_assert_fail is performed
-      // by program manager class
-      submitAssertCapture(*this, Event, &SecondaryQueue, CodeLoc);
-    }
+    Event =
+        submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc, PostProcess);
 #else
     Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
 #endif // !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
@@ -813,22 +815,32 @@ private:
   event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
 
+  // Function to postprocess submitted command
+  // Arguments:
+  // bool IsKernel - true if the submitted command was kernel, false otherwise
+  // bool KernelUsesAssert - true if submitted kernel uses assert, only
+  //                         meaningful when IsKernel is true
+  // event &Event - event after which post processing should be executed
+  using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
+
   /// A template-free version of submit.
   /// \param CGH command group function/handler
   /// \param CodeLoc code location
   ///
   /// This method stores additional information within event_impl class instance
-  event submit_impl_and_store_info(function_class<void(handler &)> CGH,
-                                   const detail::code_location &CodeLoc);
+  event submit_impl_and_postprocess(function_class<void(handler &)> CGH,
+                                    const detail::code_location &CodeLoc,
+                                    const SubmitPostProcessF &PostProcess);
   /// A template-free version of submit.
   /// \param CGH command group function/handler
   /// \param secondQueue fallback queue
   /// \param CodeLoc code location
   ///
   /// This method stores additional information within event_impl class instance
-  event submit_impl_and_store_info(function_class<void(handler &)> CGH,
-                                   queue secondQueue,
-                                   const detail::code_location &CodeLoc);
+  event submit_impl_and_postprocess(function_class<void(handler &)> CGH,
+                                    queue secondQueue,
+                                    const detail::code_location &CodeLoc,
+                                    const SubmitPostProcessF &PostProcess);
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
   /// specifies global size only.

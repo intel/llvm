@@ -89,18 +89,5 @@ event::event(shared_ptr_class<detail::event_impl> event_impl)
 backend event::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle event::getNative() const { return impl->getNative(); }
-
-void event::storeAdditionalInfo(bool IsKernel, bool KernelUsesAssert) {
-  impl->storeAdditionalInfo(IsKernel, KernelUsesAssert);
-}
-
-bool event::enqueuedIsKernel() const {
-  return impl->enqueuedIsKernel();
-}
-
-bool event::enqueuedKernelUsesAssert() const {
-  return impl->enqueuedKernelUsesAssert();
-}
-
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
