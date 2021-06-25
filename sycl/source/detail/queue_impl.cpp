@@ -289,9 +289,6 @@ pi_native_handle queue_impl::getNative() const {
 
 bool queue_impl::kernelUsesAssert(const std::string &KernelName,
                                   OSModuleHandle Handle) const {
-#ifndef __SYCL_POST_LINK_TOOL_ADDS_ASSERT_USED_PROPERTY_SET
-  return true;
-#else
   RTDeviceBinaryImage &BinImg = ProgramManager::getInstance().getDeviceImage(
       Handle, KernelName, get_context(), get_device());
 
@@ -303,7 +300,6 @@ bool queue_impl::kernelUsesAssert(const std::string &KernelName,
         return true;
 
   return false;
-#endif
 }
 } // namespace detail
 } // namespace sycl
