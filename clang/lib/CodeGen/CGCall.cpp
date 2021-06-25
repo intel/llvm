@@ -760,7 +760,8 @@ CodeGenTypes::arrangeLLVMFunctionInfo(CanQualType resultType,
   unsigned CC = ClangCallConvToLLVMCallConv(info.getCC());
   // This is required so SYCL kernels are successfully processed by tools from CUDA. Kernels
   // with a `spir_kernel` calling convention are ignored otherwise.
-  if (CC == llvm::CallingConv::SPIR_KERNEL && CGM.getTriple().isNVPTX() &&
+  if (CC == llvm::CallingConv::SPIR_KERNEL &&
+      (CGM.getTriple().isNVPTX() || CGM.getTriple().isAMDGCN()) &&
       getContext().getLangOpts().SYCLIsDevice) {
     CC = llvm::CallingConv::C;
   }
