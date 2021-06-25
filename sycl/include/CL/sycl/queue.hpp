@@ -244,8 +244,8 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    auto PostProcess = [this, &CodeLoc](
-        bool IsKernel, bool KernelUsesAssert, event &E) {
+    auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
+                                        event &E) {
       if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
           KernelUsesAssert) {
         // __devicelib_assert_fail isn't supported by Device-side Runtime
@@ -282,7 +282,7 @@ public:
 
 #if __SYCL_USE_FALLBACK_ASSERT
     auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
-        bool IsKernel, bool KernelUsesAssert, event &E) {
+                           bool IsKernel, bool KernelUsesAssert, event &E) {
       if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
           KernelUsesAssert) {
         // __devicelib_assert_fail isn't supported by Device-side Runtime

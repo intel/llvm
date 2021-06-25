@@ -97,22 +97,19 @@ event queue::submit_impl(function_class<void(handler &)> CGH,
 
 event queue::submit_impl(function_class<void(handler &)> CGH, queue SecondQueue,
                          const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, impl, SecondQueue.impl,
-                      CodeLoc);
+  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
 }
 
-event
-queue::submit_impl_and_postprocess(function_class<void(handler &)> CGH,
-                                   const detail::code_location &CodeLoc,
-                                   const SubmitPostProcessF &PostProcess) {
+event queue::submit_impl_and_postprocess(
+    function_class<void(handler &)> CGH, const detail::code_location &CodeLoc,
+    const SubmitPostProcessF &PostProcess) {
   return impl->submit(CGH, impl, CodeLoc, &PostProcess);
 }
 
-event
-queue::submit_impl_and_postprocess(function_class<void(handler &)> CGH,
-                                   queue SecondQueue,
-                                   const detail::code_location &CodeLoc,
-                                   const SubmitPostProcessF &PostProcess) {
+event queue::submit_impl_and_postprocess(
+    function_class<void(handler &)> CGH, queue SecondQueue,
+    const detail::code_location &CodeLoc,
+    const SubmitPostProcessF &PostProcess) {
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, &PostProcess);
 }
 

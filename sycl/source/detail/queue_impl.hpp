@@ -408,8 +408,8 @@ private:
       bool IsKernel = Handler.getType() == CG::KERNEL;
       bool KernelUsesAssert = false;
       if (IsKernel)
-        KernelUsesAssert = kernelUsesAssert(
-            Handler.MKernelName, Handler.MOSModuleHandle);
+        KernelUsesAssert =
+            kernelUsesAssert(Handler.MKernelName, Handler.MOSModuleHandle);
 
       Event = Handler.finalize();
 
