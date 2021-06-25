@@ -2425,7 +2425,7 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
 
-    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+    SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), NameToEmitInDescription,
         isWrappedField ? "Compiler generated" : KernelArgType.getAsString(),
         KernelInvocationLoc, KernelArgSize, getKernelArgDesc(KernelArgDesc),
@@ -2448,7 +2448,7 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
                 KernelArgDescription KernelArgDesc) {
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
-    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+    SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), KernelArgType.getAsString(),
         KernelArgType.getAsString(), KernelInvocationLoc, KernelArgSize,
         getKernelArgDesc(KernelArgDesc), "");
@@ -2458,7 +2458,7 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
   void addParam(QualType KernelArgType, KernelArgDescription KernelArgDesc) {
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
-    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+    SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), "", KernelArgType.getAsString(),
         KernelInvocationLoc, KernelArgSize, getKernelArgDesc(KernelArgDesc),
         "");
@@ -2490,7 +2490,7 @@ public:
       unsigned KernelArgSize = SemaRef.getASTContext()
                                    .getTypeSizeInChars(KernelArgType)
                                    .getQuantity();
-      SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+      SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
           DC.getKernelDecl(), FieldTy.getAsString(),
           KernelArgType.getAsString(), KernelInvocationLoc, KernelArgSize,
           getKernelArgDesc(
