@@ -18,7 +18,7 @@ Contributors
 
 - Mariya Podchishchaeva, Intel
 - Alexey Sotkin, Intel
-- Ashbaugh, Ben, Intel
+- Ashbaugh Ben, Intel
 
 Notice
 ------
@@ -117,9 +117,9 @@ Instructions
 
 Modify section 4.10 "Imported Entities", adding the following instruction:
 
-[cols="13", width="100%"]
+[cols="14", width="100%"]
 |=====
-12+^|*DebugModuleINTEL* +
+13+^|*DebugModuleINTEL* +
 
 Represents a module in the programming language, for example a Fortran module. +
 
@@ -166,7 +166,7 @@ case.
 | Capability:
 *DebugInfoModuleINTEL*
 
-| 13 | 12 | _<id> Result type_ | _Result <id>_ | _<id> Set_ | _<id> Name_ | _<id> Source_ | _Literal Number Line_ | _<id> Parent_ | _<id> ConfigurationMacros_ | _<id> IncludePath_ | _<id> APINotesFile_ | _Literal IsDeclaration_ |
+| 13 | 12 | _<id> Result type_ | _Result <id>_ | _<id> Set_ | 36 | _<id> Name_ | _<id> Source_ | _Literal Number Line_ | _<id> Parent_ | _<id> ConfigurationMacros_ | _<id> IncludePath_ | _<id> APINotesFile_ | _Literal IsDeclaration_ |
 |=====
 
 Modify the description of *DebugImportedEntity* instruction by changing the
