@@ -989,6 +989,9 @@ private:
 #else
   kernel_single_task_wrapper(const KernelType &KernelFunc) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
+    detail::CheckDeviceCopyable<KernelType>();
+#endif // __SYCL_DEVICE_ONLY__
     if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
                       KernelType>()) {
       kernel_handler KH;
@@ -1007,6 +1010,9 @@ private:
 #else
   kernel_parallel_for_wrapper(const KernelType &KernelFunc) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
+    detail::CheckDeviceCopyable<KernelType>();
+#endif // __SYCL_DEVICE_ONLY__
     if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
                       KernelType, ElementType>()) {
       kernel_handler KH;
@@ -1025,6 +1031,9 @@ private:
 #else
   kernel_parallel_for_work_group_wrapper(const KernelType &KernelFunc) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
+    detail::CheckDeviceCopyable<KernelType>();
+#endif // __SYCL_DEVICE_ONLY__
     if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
                       KernelType, ElementType>()) {
       kernel_handler KH;
@@ -1703,6 +1712,8 @@ public:
       MKernelName = getKernelName();
     } else
       StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(std::move(KernelFunc));
+#else
+    detail::CheckDeviceCopyable<KernelType>();
 #endif
   }
 

@@ -1,7 +1,7 @@
-// RUN: not %clangxx -fsycl -fsycl-device-only -fsyntax-only %s 2>&1 | FileCheck %s
-// RUN: not %clangxx %fsycl-host-only -fsyntax-only %s 2>&1 | FileCheck %s
+// RUN: not %clangxx -fsycl -fsycl-device-only -fsyntax-only %s 2>&1 | FileCheck %s --implicit-check-not="warning:" --implicit-check-not="error:"
+// RUN: not %clangxx %fsycl-host-only -fsyntax-only %s 2>&1 | FileCheck %s --implicit-check-not="warning:" --implicit-check-not="error:"
 
-// This test checks that device and host compilers can:
+// This test checks that both host and device compilers can:
 // - successfully compile simd::copy_to and simd::copy_from APIs
 // - emit an error if argument of an incompatible type is used
 //   in place of the accessor argument
