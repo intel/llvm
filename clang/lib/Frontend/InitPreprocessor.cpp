@@ -1185,9 +1185,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
         DeviceSubArch != llvm::Triple::SPIRSubArch_fpga)
       Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
     // Enable generation of USM address spaces for FPGA.
-    if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga) {
+    if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga)
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
-    }
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");
