@@ -904,6 +904,8 @@ private:
         },
         CodeLoc);
   }
+
+  buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();
 };
 
 namespace detail {
@@ -924,13 +926,13 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
                           const detail::code_location &CodeLoc) {
   using AHBufT = buffer<detail::AssertHappened, 1>;
 
-  AHBufT *Buffer = new AHBufT{range<1>{1}};
+  AHBufT &Buffer = Self.getAssertHappenedBuffer();
 
   event CopierEv, CheckerEv, PostCheckerEv;
   auto CopierCGF = [&](handler &CGH) {
     CGH.depends_on(Event);
 
-    auto Acc = Buffer->get_access<access::mode::write>(CGH);
+    auto Acc = Buffer.get_access<access::mode::write>(CGH);
 
     CGH.single_task<AssertInfoCopier>([Acc] {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -940,12 +942,12 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 #endif // __SYCL_DEVICE_ONLY__
     });
   };
-  auto CheckerCGF = [&CopierEv, Buffer](handler &CGH) {
+  auto CheckerCGF = [&CopierEv, &Buffer](handler &CGH) {
     CGH.depends_on(CopierEv);
     using mode = access::mode;
     using target = access::target;
 
-    auto Acc = Buffer->get_access<mode::read, target::host_buffer>(CGH);
+    auto Acc = Buffer.get_access<mode::read, target::host_buffer>(CGH);
 
     CGH.codeplay_host_task([=] {
       const detail::AssertHappened *AH = &Acc[0];
@@ -974,21 +976,13 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
       }
     });
   };
-  // Release memory in distinct host-task so that any dependency is eliminated
-  auto PostCheckerCGF = [&CheckerEv, Buffer](handler &CGH) {
-    CGH.depends_on(CheckerEv);
-
-    CGH.codeplay_host_task([=] { delete Buffer; });
-  };
 
   if (SecondaryQueue) {
     CopierEv = Self.submit_impl(CopierCGF, *SecondaryQueue, CodeLoc);
     CheckerEv = Self.submit_impl(CheckerCGF, *SecondaryQueue, CodeLoc);
-    PostCheckerEv = Self.submit_impl(PostCheckerCGF, *SecondaryQueue, CodeLoc);
   } else {
     CopierEv = Self.submit_impl(CopierCGF, CodeLoc);
     CheckerEv = Self.submit_impl(CheckerCGF, CodeLoc);
-    PostCheckerEv = Self.submit_impl(PostCheckerCGF, CodeLoc);
   }
 
   return CheckerEv;

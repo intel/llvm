@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/assert_happened.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
@@ -78,7 +79,8 @@ public:
   queue_impl(const DeviceImplPtr &Device, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
-        MPropList(PropList), MHostQueue(MDevice->is_host()) {
+        MPropList(PropList), MHostQueue(MDevice->is_host()),
+        MAssertHappenedBuffer(range<1>{1}) {
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
@@ -101,7 +103,8 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   queue_impl(RT::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
-      : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false) {
+      : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
+        MAssertHappenedBuffer(range<1>{1}) {
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
@@ -386,6 +389,12 @@ public:
   bool kernelUsesAssert(const std::string &KernelName,
                         OSModuleHandle Handle) const;
 
+  void asynchronouslyDeleteBuffer(buffer<AssertHappened, 1> *B);
+
+  buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
+    return MAssertHappenedBuffer;
+  }
+
 private:
   /// Performs command group submission to the queue.
   ///
@@ -473,6 +482,9 @@ private:
   // Thread pool for host task and event callbacks execution.
   // The thread pool is instantiated upon the very first call to getThreadPool()
   std::unique_ptr<ThreadPool> MHostTaskThreadPool;
+
+  // Buffer to store assert failure descriptor
+  buffer<AssertHappened, 1> MAssertHappenedBuffer;
 };
 
 } // namespace detail

@@ -156,5 +156,8 @@ backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 
+buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
+  return impl->getAssertHappenedBuffer();
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

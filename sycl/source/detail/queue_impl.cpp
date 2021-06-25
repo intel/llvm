@@ -305,7 +305,6 @@ bool queue_impl::kernelUsesAssert(const std::string &KernelName,
   return false;
 #endif
 }
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
