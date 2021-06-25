@@ -1013,7 +1013,7 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
 
 // The SYCL kernel's 'object type' used for diagnostics and naming/mangling is
 // the first parameter to a function template using the sycl_kernel
-// attribute labeled function template. In SYCL1.2.1, this was passed by value,
+// attribute. In SYCL1.2.1, this was passed by value,
 // and in SYCL2020, it is passed by reference.
 static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
   assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
