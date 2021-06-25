@@ -1,8 +1,5 @@
 // UNSUPPORTED: windows
 //
-// XFAIL: level_zero
-// TODO: enable the test when L0 driver is honoring too large sizes.
-//
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
 // RUN: %HOST_RUN_PLACEHOLDER %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out

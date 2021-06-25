@@ -6,6 +6,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %th.out
 // RUN: %HOST_RUN_PLACEHOLDER %th.out
 
+// The test regressed with GPU 21.23.20043. The fix is coming in next driver.
+// XFAIL: linux
 // This test checks INTEL feature class online_compiler for Level-Zero.
 // All Level-Zero specific code is kept here and the common part that can be
 // re-used by other backends is kept in online_compiler_common.hpp file.
