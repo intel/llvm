@@ -8,7 +8,6 @@ int main() {
 }
 
 // CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
-// CHECK-NEXT: #include <CL/sycl/detail/spec_const_integration.hpp>
 
 using namespace cl::sycl;
 
@@ -190,3 +189,5 @@ auto x = HasVarTemplate::VarTempl<int, 2>.getDefaultValue();
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
 // CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
+
+// CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>

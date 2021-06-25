@@ -10,7 +10,6 @@ int main() {
 }
 
 // CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
-// CHECK-NEXT: #include <CL/sycl/detail/spec_const_integration.hpp>
 
 using namespace cl;
 
@@ -155,3 +154,5 @@ constexpr sycl::specialization_id same_name{209};
 // CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 }
 }
+
+// CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>

@@ -263,7 +263,8 @@ public:
   /// \returns true if any device image in the kernel_bundle uses specialization
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
-    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    const char *SpecSymName =
+        detail::get_spec_constant_symbolic_ID_wrapper<SpecName>();
     return has_specialization_constant_impl(SpecSymName);
   }
 
@@ -274,7 +275,8 @@ public:
             typename = detail::enable_if_t<_State == bundle_state::input>>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
-    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    const char *SpecSymName =
+        detail::get_spec_constant_symbolic_ID_wrapper<SpecName>();
     set_specialization_constant_impl(SpecSymName, &Value,
                                      sizeof(decltype(Value)));
   }
@@ -284,7 +286,8 @@ public:
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
-    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    const char *SpecSymName =
+        detail::get_spec_constant_symbolic_ID_wrapper<SpecName>();
     if (!is_specialization_constant_set(SpecSymName))
       return SpecName.getDefaultValue();
 

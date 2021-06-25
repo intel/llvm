@@ -4986,7 +4986,6 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.SuppressUnwrittenScope = true;
 
   OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
-  OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
 
   llvm::SmallSet<const VarDecl *, 8> VisitedSpecConstants;
 
@@ -5029,6 +5028,9 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "} // namespace sycl\n";
     OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
   }
+
+  OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
+
   return true;
 }
 
