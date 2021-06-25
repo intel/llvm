@@ -92,23 +92,24 @@ event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice) {
 
 event queue::submit_impl(function_class<void(handler &)> CGH,
                          const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, /* IsKernel */ nullptr, impl, CodeLoc);
+  return impl->submit(CGH, impl, CodeLoc);
 }
 
 event queue::submit_impl(function_class<void(handler &)> CGH, queue SecondQueue,
                          const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, /* IsKernel */ nullptr, impl, SecondQueue.impl,
+  return impl->submit(CGH, impl, SecondQueue.impl,
                       CodeLoc);
 }
 
-event queue::submit_impl(function_class<void(handler &)> CGH, bool &IsKernel,
-                         const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, &IsKernel, impl, CodeLoc);
+event queue::submit_impl_and_store_info(function_class<void(handler &)> CGH,
+                                        const detail::code_location &CodeLoc) {
+  return impl->submit(CGH, impl, CodeLoc, true);
 }
 
-event queue::submit_impl(function_class<void(handler &)> CGH, queue SecondQueue,
-                         bool &IsKernel, const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, &IsKernel, impl, SecondQueue.impl, CodeLoc);
+event queue::submit_impl_and_store_info(function_class<void(handler &)> CGH,
+                                        queue SecondQueue,
+                                        const detail::code_location &CodeLoc) {
+  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, true);
 }
 
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
@@ -153,10 +154,6 @@ bool queue::is_in_order() const {
 backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
-
-bool queue::kernelUsesAssert(event &Event) const {
-  return impl->kernelUsesAssert(Event);
-}
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -166,20 +166,22 @@ public:
   /// \param Self is a shared_ptr to this queue.
   /// \param SecondQueue is a shared_ptr to the secondary queue.
   /// \param Loc is the code location of the submit call (default argument)
+  /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  event submit(const function_class<void(handler &)> &CGF, bool *IsKernel,
+  event submit(const function_class<void(handler &)> &CGF,
                const shared_ptr_class<queue_impl> &Self,
                const shared_ptr_class<queue_impl> &SecondQueue,
-               const detail::code_location &Loc) {
+               const detail::code_location &Loc,
+               bool StoreAdditionalInfo = false) {
     try {
-      return submit_impl(CGF, IsKernel, Self, Loc);
+      return submit_impl(CGF, Self, Loc, StoreAdditionalInfo);
     } catch (...) {
       {
         std::lock_guard<mutex_class> Lock(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
-      return SecondQueue->submit(CGF, IsKernel, SecondQueue, Loc);
+      return SecondQueue->submit(CGF, SecondQueue, Loc, StoreAdditionalInfo);
     }
   }
 
@@ -189,11 +191,13 @@ public:
   /// \param CGF is a function object containing command group.
   /// \param Self is a shared_ptr to this queue.
   /// \param Loc is the code location of the submit call (default argument)
+  /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object for the submitted command group.
-  event submit(const function_class<void(handler &)> &CGF, bool *IsKernel,
+  event submit(const function_class<void(handler &)> &CGF,
                const shared_ptr_class<queue_impl> &Self,
-               const detail::code_location &Loc) {
-    return submit_impl(CGF, IsKernel, Self, Loc);
+               const detail::code_location &Loc,
+               bool StoreAdditionalInfo = false) {
+    return submit_impl(CGF, Self, Loc, StoreAdditionalInfo);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -377,7 +381,8 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
-  bool kernelUsesAssert(event &Event) const;
+  bool kernelUsesAssert(const std::string &KernelName,
+                        OSModuleHandle Handle) const;
 
 private:
   /// Performs command group submission to the queue.
@@ -387,17 +392,30 @@ private:
   /// \param Self is a pointer to this queue.
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event representing submitted command group.
-  event submit_impl(const function_class<void(handler &)> &CGF, bool *IsKernel,
+  event submit_impl(const function_class<void(handler &)> &CGF,
                     const shared_ptr_class<queue_impl> &Self,
-                    const detail::code_location &Loc) {
+                    const detail::code_location &Loc,
+                    bool StoreAdditionalInfo) {
     handler Handler(Self, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
 
-    if (IsKernel)
-      *IsKernel = Handler.getType() == CG::KERNEL;
+    event Event;
 
-    event Event = Handler.finalize();
+    if (StoreAdditionalInfo) {
+      bool IsKernel = Handler.getType() == CG::KERNEL;
+      bool KernelUsesAssert = false;
+      if (IsKernel)
+        KernelUsesAssert = kernelUsesAssert(
+            Handler.MKernelName, Handler.MOSModuleHandle);
+
+      Event = Handler.finalize();
+
+      detail::getSyclObjImpl(Event)->storeAdditionalInfo(
+          IsKernel, KernelUsesAssert);
+    } else
+      Event = Handler.finalize();
+
     addEvent(Event);
     return Event;
   }

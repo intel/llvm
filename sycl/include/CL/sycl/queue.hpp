@@ -231,11 +231,6 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
-private:
-  // Check if kernel with the name provided in KernelName and which is being
-  // enqueued and can be waited on by Event uses assert
-  bool kernelUsesAssert(event &Event) const;
-
 public:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
@@ -249,12 +244,12 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    bool IsKernel = false;
-    Event = submit_impl(CGF, IsKernel, CodeLoc);
+    Event = submit_impl_and_store_info(CGF, CodeLoc);
 
     // assert required
-    if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
-        kernelUsesAssert(Event)) {
+    if (Event.enqueuedIsKernel() &&
+        !get_device().has(aspect::ext_oneapi_native_assert) &&
+        Event.enqueuedKernelUsesAssert()) {
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
       // by program manager class
@@ -286,12 +281,12 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    bool IsKernel = false;
-    Event = submit_impl(CGF, IsKernel, SecondaryQueue, CodeLoc);
+    Event = submit_impl_and_store_info(CGF, SecondaryQueue, CodeLoc);
 
     // assert required
-    if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
-        kernelUsesAssert(Event)) {
+    if (Event.enqueuedIsKernel() &&
+        !get_device().has(aspect::ext_oneapi_native_assert) &&
+        Event.enqueuedKernelUsesAssert()) {
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
       // by program manager class
@@ -820,19 +815,20 @@ private:
 
   /// A template-free version of submit.
   /// \param CGH command group function/handler
-  /// \param[out] IsKernel set by callee to \c true if CGH represents a kernel
-  ///                      submit
   /// \param CodeLoc code location
-  event submit_impl(function_class<void(handler &)> CGH, bool &IsKernel,
-                    const detail::code_location &CodeLoc);
+  ///
+  /// This method stores additional information within event_impl class instance
+  event submit_impl_and_store_info(function_class<void(handler &)> CGH,
+                                   const detail::code_location &CodeLoc);
   /// A template-free version of submit.
   /// \param CGH command group function/handler
   /// \param secondQueue fallback queue
-  /// \param[out] IsKernel set by callee to \c true if CGH represents a kernel
-  ///                      submit
   /// \param CodeLoc code location
-  event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
-                    bool &IsKernel, const detail::code_location &CodeLoc);
+  ///
+  /// This method stores additional information within event_impl class instance
+  event submit_impl_and_store_info(function_class<void(handler &)> CGH,
+                                   queue secondQueue,
+                                   const detail::code_location &CodeLoc);
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
   /// specifies global size only.

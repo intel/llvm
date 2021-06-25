@@ -287,38 +287,19 @@ pi_native_handle queue_impl::getNative() const {
   return Handle;
 }
 
-bool queue_impl::kernelUsesAssert(event &Event) const {
-  Scheduler &Sched = Scheduler::getInstance();
-  std::shared_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock);
-
-  // FIXME remove unwanted lines after sycl-post-link tool changes
+bool queue_impl::kernelUsesAssert(const std::string &KernelName,
+                                  OSModuleHandle Handle) const {
 #ifndef __SYCL_POST_LINK_TOOL_ADDS_ASSERT_USED_PROPERTY_SET
   return true;
 #else
-  EventImplPtr EventPtr = detail::getSyclObjImpl(Event);
-
-  Command *_Cmd = static_cast<Command *>(EventPtr->getCommand());
-
-  assert((_Cmd->getType() == Command::RUN_CG) &&
-         "Only RUN_CG command can use asserts");
-
-  ExecCGCommand *Cmd = static_cast<ExecCGCommand *>(_Cmd);
-  CG &_CG = Cmd->getCG();
-
-  assert((_CG.getType() == CG::CGTYPE::KERNEL) &&
-         "Only kernel can use asserts");
-
-  CGExecKernel &CmdGroup = static_cast<CGExecKernel &>(_CG);
-
   RTDeviceBinaryImage &BinImg = ProgramManager::getInstance().getDeviceImage(
-      CmdGroup.MOSModuleHandle, CmdGroup.MKernelName, get_context(),
-      get_device());
+      Handle, KernelName, get_context(), get_device());
 
   const pi::DeviceBinaryImage::PropertyRange &AssertUsedRange =
       BinImg.getAssertUsed();
   if (AssertUsedRange.isAvailable())
     for (const auto &Prop : AssertUsedRange)
-      if (Prop->Name == CmdGroup.MKernelName)
+      if (Prop->Name == KernelName)
         return true;
 
   return false;

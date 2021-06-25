@@ -134,6 +134,10 @@ public:
         getNative());
   }
 
+  void storeAdditionalInfo(bool IsKernel, bool KernelUsesAssert);
+  bool enqueuedIsKernel() const;
+  bool enqueuedKernelUsesAssert() const;
+
 private:
   event(shared_ptr_class<detail::event_impl> EventImpl);
 

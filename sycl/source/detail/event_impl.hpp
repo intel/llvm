@@ -155,6 +155,14 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
+  void storeAdditionalInfo(bool IsKernel, bool KernelUsesAssert) {
+    MEnqueuedIsKernel = IsKernel;
+    MEnqueuedKernelUsesAssert = KernelUsesAssert;
+  }
+
+  bool enqueuedIsKernel() const { return MEnqueuedIsKernel; }
+  bool enqueuedKernelUsesAssert() const { return MEnqueuedKernelUsesAssert; }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -177,6 +185,9 @@ private:
   // backend's representation (e.g. alloca). Used values are listed in
   // HostEventState enum.
   std::atomic<int> MState;
+
+  bool MEnqueuedIsKernel = false;
+  bool MEnqueuedKernelUsesAssert = false;
 };
 
 } // namespace detail
