@@ -4365,6 +4365,9 @@ pi_result piEventRelease(pi_event Event) {
     die("piEventRelease: called on a destroyed event");
   }
 
+  // The event is no longer needed upstream, but we have to wait for its completion
+  // in order to do proper cleanup. Otherwise refcount may still be non-zero in the
+  // check below and we will get event leak.
   if (!Event->CleanedUp)
     PI_CALL(piEventsWait(1, &Event));
 
