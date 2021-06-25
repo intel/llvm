@@ -840,7 +840,7 @@ inline const char *get_spec_constant_symbolic_ID<id_float>() {
 } //namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-// get_spec_constant_symbolic_ID
+// Detailed description of this header is provided below in corresponding RT section
 #include <CL/sycl/detail/spec_const_integration.hpp>
 ```
 
@@ -939,6 +939,7 @@ namespace sycl {
   }
 }
 
+#include <CL/sycl/detail/spec_const_integration.hpp>
 ```
 
 ### DPC++ runtime
@@ -1001,6 +1002,28 @@ In order to properly set default values of specialization constants,
 "SYCL/specialization constants default values" property set is used: its content
 is used to either fully or partially initialize the buffer with specialization
 constant values.
+
+#### sycl/detail/spec_const_integration.hpp header file
+
+DPC++ RT needs to have access to a mapping between `specialization_id` variables
+and corresponding unique symbolic IDs used by the compiler. As already stated
+above, we use integration footer for that by providing template specializations
+of `get_spec_constant_symbolic_ID` function template.
+
+The tricky thing here, is that C++ specification states the following:
+
+> Specialization must be declared before the first use that would cause implicit
+> instantiation, in every translation unit where such use occurs.
+>
+> [cppreference][cppreference-template-specialization]
+
+[cppreference-template-specialization]: https://en.cppreference.com/w/cpp/language/template_specialization
+
+That means that all users of `get_spec_constant_symbolic_ID` has to appear
+*after* we defined all `get_spec_constant_symbolic_ID` template specializations.
+
+`sycl/detail/spec_const/integration.hpp` header file is intended to be a
+location for such methods/classes/functions.
 
 ### SPIRV-LLVM-Translator
 
