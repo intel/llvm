@@ -3691,7 +3691,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
-  ;
+
   if (!KernelObj) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
