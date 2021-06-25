@@ -60,7 +60,7 @@
 // STATIC_LIB_SRC: 10: backend, {9}, assembler, (host-sycl)
 // STATIC_LIB_SRC: 11: assembler, {10}, object, (host-sycl)
 // STATIC_LIB_SRC: 12: linker, {0, 11}, image, (host-sycl)
-// STATIC_LIB_SRC: 13: linker, {0, 11}, image, (host-sycl)
+// STATIC_LIB_SRC: 13: linker, {0, 11}, dep_image, (host-sycl)
 // STATIC_LIB_SRC: 14: clang-offload-deps, {13}, ir, (host-sycl)
 // STATIC_LIB_SRC: 15: input, "[[INPUTA]]", archive
 // STATIC_LIB_SRC: 16: clang-offload-unbundler, {15}, archive

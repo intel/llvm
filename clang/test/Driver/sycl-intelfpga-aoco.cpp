@@ -28,7 +28,7 @@
 // CHK-FPGA-AOCO-PHASES: 10: backend, {9}, assembler, (host-sycl)
 // CHK-FPGA-AOCO-PHASES: 11: assembler, {10}, object, (host-sycl)
 // CHK-FPGA-AOCO-PHASES: 12: linker, {0, 11}, image, (host-sycl)
-// CHK-FPGA-AOCO-PHASES: 13: linker, {0, 11}, image, (host-sycl)
+// CHK-FPGA-AOCO-PHASES: 13: linker, {0, 11}, dep_image, (host-sycl)
 // CHK-FPGA-AOCO-PHASES: 14: clang-offload-deps, {13}, ir, (host-sycl)
 // CHK-FPGA-AOCO-PHASES: 15: input, "[[INPUTA]]", archive
 // CHK-FPGA-AOCO-PHASES: 16: clang-offload-unbundler, {15}, archive
@@ -61,7 +61,7 @@
 // CHK-FPGA-AOCO-PHASES-WIN: 10: backend, {9}, assembler, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 11: assembler, {10}, object, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 12: linker, {0, 11}, image, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 13: linker, {0, 11}, image, (host-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 13: linker, {0, 11}, dep_image, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 14: clang-offload-deps, {13}, ir, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 15: input, "[[INPUTA]]", archive
 // CHK-FPGA-AOCO-PHASES-WIN: 16: clang-offload-unbundler, {15}, archive

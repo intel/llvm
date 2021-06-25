@@ -570,6 +570,14 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddAllArgValues(CmdArgs, options::OPT__SLASH_link);
 
+  // A user can add the -out: option to the /link sequence on the command line
+  // which we do not want to use when we are performing the host link when
+  // gathering dependencies used for device compilation.  Add an additional
+  // -out: to override in case it was seen.
+  if (JA.getType() == types::TY_Dependencies_Image && Output.isFilename())
+    CmdArgs.push_back(
+        Args.MakeArgString(std::string("-out:") + Output.getFilename()));
+
   // Control Flow Guard checks
   if (Arg *A = Args.getLastArg(options::OPT__SLASH_guard)) {
     StringRef GuardArgs = A->getValue();
