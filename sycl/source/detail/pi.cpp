@@ -633,7 +633,6 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
   SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
   DeviceLibReqMask.init(Bin, __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
   KernelParamOptInfo.init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
-  AssertUsed.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED);
 }
 
 } // namespace pi

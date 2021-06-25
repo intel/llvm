@@ -336,7 +336,13 @@ public:
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
-  const PropertyRange &getAssertUsed() const { return AssertUsed; }
+  const PropertyRange getAssertUsed() const {
+    // We can't have this variable as a class member, since it would break
+    // the ABI backwards compatibility.
+    PropertyRange AssertUsed;
+    AssertUsed.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED);
+    return AssertUsed;
+  }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -348,7 +354,6 @@ protected:
   DeviceBinaryImage::PropertyRange SpecConstIDMap;
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
   DeviceBinaryImage::PropertyRange KernelParamOptInfo;
-  DeviceBinaryImage::PropertyRange AssertUsed;
 };
 
 /// Tries to determine the device binary image foramat. Returns
