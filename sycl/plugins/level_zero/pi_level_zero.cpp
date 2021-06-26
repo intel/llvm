@@ -4365,9 +4365,15 @@ pi_result piEventRelease(pi_event Event) {
     die("piEventRelease: called on a destroyed event");
   }
 
-  // The event is no longer needed upstream, but we have to wait for its completion
-  // in order to do proper cleanup. Otherwise refcount may still be non-zero in the
-  // check below and we will get event leak.
+  // The event is no longer needed upstream, but we have to wait for its
+  // completion in order to do proper cleanup. Otherwise refcount may still be
+  // non-zero in the check below and we will get event leak.
+  //
+  // TODO: in case this potentially "early" wait causes performance problems,
+  // e.g. due to closing a batch too early, or blocking the host for no good
+  // reason, then we should look into moving the wait down to queue release
+  // (will need to remember all events in the queue for that).
+  //
   if (!Event->CleanedUp)
     PI_CALL(piEventsWait(1, &Event));
 
