@@ -303,16 +303,6 @@ esimd_lsr(T1 src0, T2 src1, int flag = saturation_off) {
   return Result[0];
 }
 
-template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    detail::is_esimd_scalar<T1>::value && detail::is_esimd_vector<T2>::value &&
-        std::is_integral<T0>::value && std::is_integral<T1>::value &&
-        std::is_integral<T2>::value,
-    decltype(esimd_lsr<T0>(T2(), T1()))>
-esimd_lsr(T1 src0, T2 src1, int flag = saturation_off) {
-  return esimd_lsr<T0>(src1, src0, flag);
-}
-
 // esimd_asr
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -344,16 +334,6 @@ esimd_asr(T1 src0, T2 src1, int flag = saturation_off) {
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_asr<T0>(Src0, Src1, flag);
   return Result[0];
-}
-
-template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    detail::is_esimd_scalar<T1>::value && detail::is_esimd_vector<T2>::value &&
-        std::is_integral<T0>::value && std::is_integral<T1>::value &&
-        std::is_integral<T2>::value,
-    decltype(esimd_asr<T0>(T2(), T1()))>
-esimd_asr(T1 src0, T2 src1, int flag = saturation_off) {
-  return esimd_asr<T0>(src1, src0, flag);
 }
 
 // esimd_imul
