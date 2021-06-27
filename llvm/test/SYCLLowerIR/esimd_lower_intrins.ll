@@ -359,6 +359,12 @@ define dso_local spir_func <16 x float>  @FUNC_50() {
   ret <16 x float>  %ret_val
 }
 
+define dso_local spir_func void  @FUNC_51() {
+  call spir_func void @_Z25__esimd_test_src_tmpl_argILi3ELi5ELi7ELi11ELi13EEvv()
+; CHECK:  call void @llvm.genx.test.src.tmpl.arg(i32 3, i1 true, i8 7, i16 11, i32 13, i8 17)
+  ret void
+}
+
 declare dso_local i32 @_Z15__esimd_lane_idv()
 
 declare dso_local spir_func <32 x i32> @_Z20__esimd_flat_atomic0ILN2cm3gen14CmAtomicOpTypeE2EjLi32ELNS1_9CacheHintE0ELS3_0EENS1_13__vector_typeIT0_XT1_EE4typeENS4_IyXT1_EE4typeENS4_ItXT1_EE4typeE(<32 x i64> %0, <32 x i16> %1)
@@ -407,6 +413,7 @@ declare dso_local spir_func <16 x float> @_Z12__esimd_rnddILi16EEN2cl4sycl3ext5i
 declare dso_local spir_func <16 x float> @_Z12__esimd_rnduILi16EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIfXT_EE4typeES9_(<16 x float>)
 declare dso_local spir_func <16 x float> @_Z12__esimd_rndzILi16EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIfXT_EE4typeES9_(<16 x float>)
 declare dso_local spir_func <16 x float> @_Z12__esimd_rndeILi16EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIfXT_EE4typeES9_(<16 x float>)
+declare dso_local spir_func void @_Z25__esimd_test_src_tmpl_argILi3ELi5ELi7ELi11ELi13EEvv()
 
 attributes #0 = { "genx_byte_offset"="192" "genx_volatile" }
 
