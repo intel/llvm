@@ -20,8 +20,28 @@ SYCL_ESIMD_FUNCTION bool test_simd_view_bin_ops() {
   ref0 *= 2;
   ref0 /= ref1;
   ref0 /= 2;
-  return v0[0] == 1;
+  if (v0[0] == 1)
+    return ref0 + (short)3;
+  else
+    return ref0 + ref1;
 }
+
+// auto test_simd_view_bitwise_ops() __attribute__((sycl_device)) {
+//   simd<int, 16> v0 = 1;
+//   simd<int, 16> v1 = 2;
+//   auto ref0 = v0.select<8, 2>(0);
+//   auto ref1 = v1.select<8, 2>(0);
+//   simd<int, 8> v2 = (ref0 | ref1) & (ref0 | 3);
+//   ref0 |= 3;
+//   ref0 |= ref1;
+//   simd<int, 8> v3 = (ref0 ^ ref1) & (ref0 ^ 3);
+//   ref0 ^= 3;
+//   ref0 ^= ref1;
+//   simd<int, 8> v4 = (ref0 & ref1) | (ref0 & 3);
+//   ref0 &= 3;
+//   ref0 &= ref1;
+//   return ref0;
+// }
 
 SYCL_ESIMD_FUNCTION bool test_simd_view_unary_ops() {
   simd<int, 16> v0 = 1;
@@ -54,10 +74,10 @@ SYCL_ESIMD_FUNCTION bool test_simd_view_assign3() {
   simd<int, 64> v1 = 1;
   auto mask = (v0.select<16, 1>(0) > v1.select<16, 1>(0));
   auto mask2 = (v0 > v1);
-  simd<ushort, 64> s = 0;
+  simd_mask<64> s = 0;
   auto g4 = s.bit_cast_view<ushort, 4, 16>();
-  simd<ushort, 16> val = (g4.row(2) & mask);
-  simd<ushort, 16> val1 =
+  simd_mask<16> val = (g4.row(2) & mask);
+  simd_mask<16> val1 =
       (g4.row(2) & mask2.bit_cast_view<ushort, 4, 16>().row(0));
   return val[0] == 0 && val1[0] == 0;
 }
