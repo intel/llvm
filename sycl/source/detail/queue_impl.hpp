@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
@@ -247,6 +248,9 @@ public:
     }
     if (MPropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
+    }
+    if (MPropList.has_property<property::queue::cuda::use_default_stream>()) {
+      CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
     }
     RT::PiQueue Queue{};
     RT::PiContext Context = MContext->getHandleRef();
