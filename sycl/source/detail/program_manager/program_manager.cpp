@@ -959,7 +959,16 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
     debugPrintBinaryImages();
   }
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-  std::vector<RTDeviceBinaryImageUPtr> &Imgs = *m_DeviceImages[KSId];
+  std::vector<RTDeviceBinaryImageUPtr> *ImgsPtr = nullptr;
+  {
+    auto It = m_DeviceImages.find(KSId);
+    if (It == m_DeviceImages.end())
+      throw runtime_error(
+          "No device image found for KernelSetId " + std::to_string(KSId) + " was found",
+          PI_INVALID_KERNEL_NAME);
+    ImgsPtr = It->second.get();
+  }
+  std::vector<RTDeviceBinaryImageUPtr> &Imgs = *ImgsPtr;
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
   pi_uint32 ImgInd = 0;
   RTDeviceBinaryImage *Img = nullptr;
