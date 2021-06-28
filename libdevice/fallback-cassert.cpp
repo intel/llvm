@@ -16,10 +16,6 @@
 #define ASSERT_START 1
 #define ASSERT_FINISH 2
 
-static const __attribute__((opencl_constant)) char assert_fmt[] =
-    "%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] "
-    "Assertion `%s` failed.\n";
-
 DEVICE_EXTERN_C void __devicelib_assert_read(void *_Dst) {
   AssertHappened *Dst = (AssertHappened *)_Dst;
   int Flag = atomicLoad(&__SYCL_AssertHappenedMem.Flag);
