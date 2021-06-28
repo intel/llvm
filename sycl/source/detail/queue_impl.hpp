@@ -389,8 +389,6 @@ public:
   bool kernelUsesAssert(const std::string &KernelName,
                         OSModuleHandle Handle) const;
 
-  void asynchronouslyDeleteBuffer(buffer<AssertHappened, 1> *B);
-
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
   }
