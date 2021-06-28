@@ -3555,6 +3555,21 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
   case LangOptions::SubGroupSizeType::None:
     break;
   }
+
+  if (Opts.isSYCL()) {
+    switch (Opts.SYCLVersion) {
+    default:
+      llvm_unreachable(
+          "Shouldn't be able to generate SYCL args without one being set");
+      break;
+    case LangOptions::SYCL_2017:
+      GenerateArg(Args, OPT_sycl_std_EQ, "2017", SA);
+      break;
+    case LangOptions::SYCL_2020:
+      GenerateArg(Args, OPT_sycl_std_EQ, "2020", SA);
+      break;
+    }
+  }
 }
 
 bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
@@ -3646,6 +3661,32 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       LangStd = OpenCLLangStd;
   }
 
+  // We have to parse this manually before the marshalling, otherwise we can't
+  // use the marshalling to set other flags based on the SYCL version.
+  if (Args.hasArg(OPT_fsycl_is_device) || Args.hasArg(OPT_fsycl_is_host)) {
+    if (const Arg *A = Args.getLastArg(OPT_sycl_std_EQ)) {
+      Opts.setSYCLVersion(
+          llvm::StringSwitch<LangOptions::SYCLMajorVersion>(A->getValue())
+              .Case("2020", LangOptions::SYCL_2020)
+              .Cases("2017", "121", "1.2.1", "sycl-1.2.1",
+                     LangOptions::SYCL_2017)
+              .Default(LangOptions::SYCL_None));
+
+      if (Opts.SYCLVersion == LangOptions::SYCL_None) {
+        Diags.Report(diag::err_drv_invalid_value)
+            << A->getAsString(Args) << A->getValue();
+        Opts.setSYCLVersion(LangOptions::SYCL_Default);
+      }
+    } else {
+      // If the user supplied -fsycl-is-device or -fsycl-is-host, but failed to
+      // provide -sycl-std=, we want to default it to whatever the default SYCL
+      // version is. I could not find a way to express this with the options
+      // tablegen because we still want this value to be SYCL_None when the user
+      // is not in device or host mode.
+      Opts.setSYCLVersion(LangOptions::SYCL_Default);
+    }
+  }
+
   // Parse SYCL Default Sub group size.
   if (const Arg *A = Args.getLastArg(OPT_fsycl_default_sub_group_size)) {
     StringRef Value = A->getValue();
@@ -3694,16 +3735,6 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     if (Name == "full" || Name == "branch") {
       Opts.CFProtectionBranch = 1;
     }
-  }
-
-  if ((Args.hasArg(OPT_fsycl_is_device) || Args.hasArg(OPT_fsycl_is_host)) &&
-      !Args.hasArg(OPT_sycl_std_EQ)) {
-    // If the user supplied -fsycl-is-device or -fsycl-is-host, but failed to
-    // provide -sycl-std=, we want to default it to whatever the default SYCL
-    // version is. I could not find a way to express this with the options
-    // tablegen because we still want this value to be SYCL_None when the user
-    // is not in device or host mode.
-    Opts.setSYCLVersion(LangOptions::SYCL_Default);
   }
 
   if (Opts.ObjC) {
