@@ -638,10 +638,10 @@ pi_result piclProgramCreateWithSource(pi_context context, pi_uint32 count,
 pi_result piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
-    pi_int32 *binary_status, const pi_device_binary_property *metadata,
-    size_t metadata_length, pi_program *ret_program) {
+    size_t num_metadata_entries, const pi_device_binary_property *metadata,
+    pi_int32 *binary_status, pi_program *ret_program) {
   (void)metadata;
-  (void)metadata_length;
+  (void)num_metadata_entries;
 
   pi_result ret_err = PI_INVALID_OPERATION;
   *ret_program = cast<pi_program>(clCreateProgramWithBinary(

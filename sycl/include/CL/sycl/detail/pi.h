@@ -1115,11 +1115,27 @@ __SYCL_EXPORT pi_result piclProgramCreateWithSource(pi_context context,
                                                     const size_t *lengths,
                                                     pi_program *ret_program);
 
+/// Creates a PI program for a context and loads the given binary into it.
+///
+/// \param context is the PI context to associate the program with.
+/// \param num_devices is the number of devices in device_list.
+/// \param device_list is a pointer to a list of devices. These devices must all
+///                    be in context.
+/// \param lengths is an array of sizes in bytes of the binary in binaries.
+/// \param binaries is a pointer to a list of program binaries.
+/// \param num_metadata_entries is the number of metadata entries in metadata.
+/// \param metadata is a pointer to a list of program metadata entries. The
+///                 use of metadata entries is backend-defined.
+/// \param binary_status returns whether the program binary was loaded
+///                      succesfully or not, for each device in device_list.
+///                      binary_status is ignored if it is null and otherwise
+///                      it must be an array of num_devices elements.
+/// \param program is the PI program created from the program binaries.
 __SYCL_EXPORT pi_result piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
-    pi_int32 *binary_status, const pi_device_binary_property *metadata,
-    size_t metadata_length, pi_program *ret_program);
+    size_t num_metadata_entries, const pi_device_binary_property *metadata,
+    pi_int32 *binary_status, pi_program *ret_program);
 
 __SYCL_EXPORT pi_result piProgramGetInfo(pi_program program,
                                          pi_program_info param_name,

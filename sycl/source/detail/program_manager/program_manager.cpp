@@ -84,7 +84,7 @@ createBinaryProgram(const ContextImplPtr Context, const device &Device,
   pi_int32 BinaryStatus = CL_SUCCESS;
   Plugin.call<PiApiKind::piProgramCreateWithBinary>(
       Context->getHandleRef(), 1 /*one binary*/, &PiDevice, &DataLen, &Data,
-      &BinaryStatus, Metadata.data(), Metadata.size(), &Program);
+      Metadata.size(), Metadata.data(), &BinaryStatus, &Program);
 
   if (BinaryStatus != CL_SUCCESS) {
     throw runtime_error("Creating program with binary failed.", BinaryStatus);

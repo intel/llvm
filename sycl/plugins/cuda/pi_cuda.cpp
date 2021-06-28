@@ -2877,8 +2877,8 @@ pi_result cuda_piProgramCreate(pi_context, const void *, size_t, pi_program *) {
 pi_result cuda_piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
-    pi_int32 *binary_status, const pi_device_binary_property *metadata,
-    size_t metadata_length, pi_program *program) {
+    size_t num_metadata_entries, const pi_device_binary_property *metadata,
+    pi_int32 *binary_status, pi_program *program) {
   // Ignore unused parameter
   (void)binary_status;
 
@@ -2895,7 +2895,7 @@ pi_result cuda_piProgramCreateWithBinary(
 
   std::unique_ptr<_pi_program> retProgram{new _pi_program{context}};
 
-  retProgram->set_metadata(metadata, metadata_length);
+  retProgram->set_metadata(metadata, num_metadata_entries);
 
   const bool has_length = (lengths != nullptr);
   size_t length = has_length
