@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
+//CP
+//#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
