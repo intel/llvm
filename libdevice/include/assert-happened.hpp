@@ -7,6 +7,12 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#ifdef __DEVICELIB_ASSERT_HAPPENED_GUARD
+#error "assert-happened.hpp is only allowed to be included once"
+#endif
+
+#define __DEVICELIB_ASSERT_HAPPENED_GUARD
+
 // Treat this header as system one to workaround frontend's restriction
 #pragma clang system_header
 
@@ -35,8 +41,7 @@ struct AssertHappened {
 
 #define __SYCL_GLOBAL__ __attribute__((opencl_global))
 
-// declaration
-extern __SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ AssertHappened
+static __SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ AssertHappened
     __SYCL_AssertHappenedMem;
 
 #endif

@@ -16,9 +16,6 @@
 #define ASSERT_START 1
 #define ASSERT_FINISH 2
 
-// definition
-__SYCL_GLOBAL__ AssertHappened __SYCL_AssertHappenedMem;
-
 static const __attribute__((opencl_constant)) char assert_fmt[] =
     "%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] "
     "Assertion `%s` failed.\n";
