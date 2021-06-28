@@ -4990,7 +4990,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "namespace sycl {\n";
     OS << "namespace detail {\n";
     OS << "template<>\n";
-    OS << "inline const char *get_spec_constant_symbolic_ID<";
+    OS << "inline const char *get_spec_constant_symbolic_ID_impl<";
 
     if (VD->isInAnonymousNamespace()) {
       OS << TopShim;

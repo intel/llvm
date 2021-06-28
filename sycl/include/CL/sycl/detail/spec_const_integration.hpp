@@ -17,8 +17,8 @@ namespace detail {
 
 #if __cplusplus >= 201703L
 // Translates SYCL 2020 specialization constant type to its name.
-template <auto &SpecName> const char *get_spec_constant_symbolic_ID_wrapper() {
-  return get_spec_constant_symbolic_ID<SpecName>();
+template <auto &SpecName> const char *get_spec_constant_symbolic_ID() {
+  return get_spec_constant_symbolic_ID_impl<SpecName>();
 }
 #endif
 

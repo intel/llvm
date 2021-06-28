@@ -33,7 +33,7 @@ template <> struct KernelInfo<TestKernel> {
   static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 
-template <> const char *get_spec_constant_symbolic_ID_wrapper<SpecConst1>() {
+template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
   return "SC1";
 }
 } // namespace detail

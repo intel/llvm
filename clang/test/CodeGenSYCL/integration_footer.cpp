@@ -15,7 +15,7 @@ cl::sycl::specialization_id<int> GlobalSpecID;
 // CHECK: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::GlobalSpecID>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::GlobalSpecID>() {
 // CHECK-NEXT: return "_Z12GlobalSpecID";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -26,7 +26,7 @@ struct Wrapper {
   // CHECK: namespace sycl {
   // CHECK-NEXT: namespace detail {
   // CHECK-NEXT: template<>
-  // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::Wrapper::WrapperSpecID>() {
+  // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::Wrapper::WrapperSpecID>() {
   // CHECK-NEXT: return "_ZN7Wrapper13WrapperSpecIDE";
   // CHECK-NEXT: }
   // CHECK-NEXT: } // namespace detail
@@ -41,7 +41,7 @@ template class WrapperTemplate<int>;
 // CHECK: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::WrapperTemplate<int>::WrapperSpecID>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::WrapperTemplate<int>::WrapperSpecID>() {
 // CHECK-NEXT: return "_ZN15WrapperTemplateIiE13WrapperSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -50,7 +50,7 @@ template class WrapperTemplate<double>;
 // CHECK: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::WrapperTemplate<double>::WrapperSpecID>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::WrapperTemplate<double>::WrapperSpecID>() {
 // CHECK-NEXT: return "_ZN15WrapperTemplateIdE13WrapperSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -61,7 +61,7 @@ specialization_id<int> NSSpecID;
 // CHECK: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::Foo::NSSpecID>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::Foo::NSSpecID>() {
 // CHECK-NEXT: return "_ZN3Foo8NSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -71,7 +71,7 @@ specialization_id<int> InlineNSSpecID;
 // CHECK: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::Foo::InlineNSSpecID>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::Foo::InlineNSSpecID>() {
 // CHECK-NEXT: return "_ZN3Foo3Bar14InlineNSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -80,7 +80,7 @@ specialization_id<int> NSSpecID;
 // CHECK: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::Foo::Bar::NSSpecID>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::Foo::Bar::NSSpecID>() {
 // CHECK-NEXT: return "_ZN3Foo3Bar8NSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -91,7 +91,7 @@ struct Wrapper {
   // CHECK: namespace sycl {
   // CHECK-NEXT: namespace detail {
   // CHECK-NEXT: template<>
-  // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::Foo::Wrapper::WrapperSpecID>() {
+  // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::Foo::Wrapper::WrapperSpecID>() {
   // CHECK-NEXT: return "_ZN3Foo3Bar7Wrapper13WrapperSpecIDE";
   // CHECK-NEXT: }
   // CHECK-NEXT: } // namespace detail
@@ -106,7 +106,7 @@ template class WrapperTemplate<int>;
 // CHECK: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::Foo::WrapperTemplate<int>::WrapperSpecID>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::Foo::WrapperTemplate<int>::WrapperSpecID>() {
 // CHECK-NEXT: return "_ZN3Foo3Bar15WrapperTemplateIiE13WrapperSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -115,7 +115,7 @@ template class WrapperTemplate<double>;
 // CHECK: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::Foo::WrapperTemplate<double>::WrapperSpecID>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::Foo::WrapperTemplate<double>::WrapperSpecID>() {
 // CHECK-NEXT: return "_ZN3Foo3Bar15WrapperTemplateIdE13WrapperSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -137,7 +137,7 @@ specialization_id<int> AnonNSSpecID;
 // CHECK: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::Foo::__sycl_detail::__spec_id_shim_[[SHIM0]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::Foo::__sycl_detail::__spec_id_shim_[[SHIM0]]()>() {
 // CHECK-NEXT: return "____ZN3Foo12_GLOBAL__N_112AnonNSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -183,7 +183,7 @@ auto x = HasVarTemplate::VarTempl<int, 2>.getDefaultValue();
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM1]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__spec_id_shim_[[SHIM1]]()>() {
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_114HasVarTemplate8VarTemplIiLi2EEE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail

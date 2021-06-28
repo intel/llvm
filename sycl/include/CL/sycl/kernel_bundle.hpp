@@ -264,7 +264,7 @@ public:
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
     const char *SpecSymName =
-        detail::get_spec_constant_symbolic_ID_wrapper<SpecName>();
+        detail::get_spec_constant_symbolic_ID<SpecName>();
     return has_specialization_constant_impl(SpecSymName);
   }
 
@@ -276,7 +276,7 @@ public:
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
     const char *SpecSymName =
-        detail::get_spec_constant_symbolic_ID_wrapper<SpecName>();
+        detail::get_spec_constant_symbolic_ID<SpecName>();
     set_specialization_constant_impl(SpecSymName, &Value,
                                      sizeof(decltype(Value)));
   }
@@ -287,7 +287,7 @@ public:
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
     const char *SpecSymName =
-        detail::get_spec_constant_symbolic_ID_wrapper<SpecName>();
+        detail::get_spec_constant_symbolic_ID<SpecName>();
     if (!is_specialization_constant_set(SpecSymName))
       return SpecName.getDefaultValue();
 
