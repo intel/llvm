@@ -2020,6 +2020,23 @@ def : MutualExclusions<[SYCLIntelFPGAIVDep,
 def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
                         SYCLIntelFPGADisableLoopPipelining]>;
 
+def SYCLIntelFpgaPipeline : InheritableAttr {
+  let Spellings = [CXX11<"intel","fpga_pipeline">];
+  let Args = [ExprArgument<"Value", /*optional*/1>];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt, Function],
+                              ErrorDiag,
+                              "'for', 'while', 'do' statements, and functions">;
+  let Documentation = [SYCLIntelFpgaPipelineAttrDocs];
+  let IsStmtDependent = 1;
+  let SupportsNonconformingLambdaSyntax = 1;
+}
+
+def : MutualExclusions<[SYCLIntelFPGAInitiationInterval,
+                        SYCLIntelFpgaPipeline]>;
+def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
+                        SYCLIntelFpgaPipeline]>;
+
 def SYCLIntelFPGALoopCount : StmtAttr {
   let Spellings = [CXX11<"intel", "loop_count_min">,
                    CXX11<"intel", "loop_count_max">,

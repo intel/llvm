@@ -17,7 +17,9 @@
 // CHECK: br label %for.cond, !llvm.loop ![[MD_LCA:[0-9]+]]
 // CHECK: br label %for.cond2, !llvm.loop ![[MD_LCA_1:[0-9]+]]
 // CHECK: br label %for.cond13, !llvm.loop ![[MD_LCA_2:[0-9]+]]
-
+// CHECK: br label %for.cond, !llvm.loop ![[MD_FP:[0-9]+]]
+// CHECK: br label %for.cond2, !llvm.loop ![[MD_FP_1:[0-9]+]]
+// CHECK: br label %for.cond13, !llvm.loop ![[MD_FP_2:[0-9]+]]
 void disable_loop_pipelining() {
   int a[10];
   // CHECK: ![[MD_DLP]] = distinct !{![[MD_DLP]], ![[MP:[0-9]+]], ![[MD_dlp:[0-9]+]]}
@@ -131,6 +133,23 @@ void loop_count_control() {
       a[i] = 0;
 }
 
+template <int A>
+void fpga_pipeline() {
+  int a[10];
+  // CHECK: ![[MD_FP]] = distinct !{![[MD_FP]], ![[MP]], ![[MD_fpga_pipeline:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_fpga_pipeline]] = !{!"llvm.loop.intel.pipelining.enable", i32 1}
+  [[intel::fpga_pipeline(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // CHECK: ![[MD_FP_1]] = distinct !{![[MD_FP_1]], ![[MP]], ![[MD_fpga_pipeline]]}
+  [[intel::fpga_pipeline(1)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // CHECK: ![[MD_FP_2]] = distinct !{![[MD_FP_2]], ![[MP]], ![[MD_fpga_pipeline]]}
+  [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
@@ -146,6 +165,7 @@ int main() {
     max_interleaving<3>();
     speculated_iterations<4>();
     loop_count_control<12>();
+    fpga_pipeline<1>();
   });
   return 0;
 }

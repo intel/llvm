@@ -13,7 +13,8 @@ sycl::queue deviceQueue;
 #endif
 
 struct FuncObj {
-  [[intel::disable_loop_pipelining]] void operator()() const {}
+  [[intel::disable_loop_pipelining]] void operator()() const {} // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
+                                                                // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
 };
 
 int main() {
@@ -26,7 +27,9 @@ int main() {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
     // CHECK:       SYCLIntelFPGADisableLoopPipeliningAttr {{.*}}
     h.single_task<class test_kernel2>(
-        []() [[intel::disable_loop_pipelining]]{});
+        []() [[intel::disable_loop_pipelining]]{}); // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
+                                                    // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
+
   });
   return 0;
 }

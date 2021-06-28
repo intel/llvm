@@ -3102,6 +3102,9 @@ function, or in conjunction with ``max_interleaving``,
 ``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
 or ``ivdep``.
 
+The ``[[intel::disable_loop_pipelining`` attribute spelling
+is deprecated in favor of ``[[[intel::fpga_pipeline(n)]]``.
+
 .. code-block:: c++
 
   void foo() {
@@ -3110,6 +3113,43 @@ or ``ivdep``.
   }
 
   [[intel::disable_loop_pipelining]] void foo1() { }
+
+  }];
+}
+
+def SYCLIntelFpgaPipelineAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "intel::fpga_pipeline";
+  let Content = [{
+The ``intel::fpga_pipeline(N)`` attribute applies to a loop or a function.
+Allows users to disable/enable pipelining invocations of a function
+or pipelining iterations of a loop. Takes boolean parameter N where N can be
+a template parameter or constexpr. Valid values are 0 and 1.
+If used without argument, value of 1 is set implicitly, which implies
+enable pipelining. Cannot be used on the same loop or function, or in
+conjunction with ``max_concurrency`` or ``initiation_interval`` attributes.
+
+.. code-block:: c++
+
+  struct my_kernel {
+    [[intel::fpga_pipeline]]
+    // identical to [[intel::fpga_pipeline(1)]]
+    void operator()() {}
+  };
+
+  // unpipelined function
+  [[intel::fpga_pipeline(0)]] void foo() {};
+
+  template <int N>
+  class Functor {
+  public:
+    [[intel::fpga_pipeline(N)]] void operator()() const {}
+  };
+
+  void foo() {
+    int var = 0;
+    [[intel::fpga_pipeline(1)]] for (int i = 0; i < 10; ++i) var++;
+  }
 
   }];
 }

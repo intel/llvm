@@ -160,6 +160,12 @@ struct LoopAttributes {
   /// Flag for llvm.loop.fusion.disable metatdata.
   bool SYCLNofusionEnable;
 
+  /// Flag for llvm.loop.intel.pipelining.enable metadata.
+  bool SYCLIntelFPGAPipelineEnable;
+
+  /// Flag for llvm.loop.intel.pipelining.enable metadata.
+  unsigned SYCLIntelFPGANPipelines;
+
   /// Value for whether the loop is required to make progress.
   bool MustProgress;
 };
@@ -432,6 +438,16 @@ public:
 
   /// Set no progress for the next loop pushed.
   void setMustProgress(bool P) { StagedAttrs.MustProgress = P; }
+
+  /// Set flag of fpga_pipeline for the next loop pushed.
+  void setSYCLIntelFPGAPipelineEnable() {
+    StagedAttrs.SYCLIntelFPGAPipelineEnable = true;
+  }
+
+  /// Set value of concurrent fpga_pipeline for the next loop pushed.
+  void setSYCLIntelFPGANPipelines(unsigned C) {
+    StagedAttrs.SYCLIntelFPGANPipelines = C;
+  }
 
 private:
   /// Returns true if there is LoopInfo on the stack.

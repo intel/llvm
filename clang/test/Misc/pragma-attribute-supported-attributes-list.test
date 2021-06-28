@@ -157,6 +157,7 @@
 // CHECK-NEXT: SYCLIntelFPGADisableLoopPipelining (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelFPGAInitiationInterval (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelFPGAMaxConcurrency (SubjectMatchRule_function)
+// CHECK-NEXT: SYCLIntelFpgaPipeline (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelKernelArgsRestrict (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelLoopFuse (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelMaxGlobalWorkDim (SubjectMatchRule_function)

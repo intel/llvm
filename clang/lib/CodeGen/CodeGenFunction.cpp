@@ -784,6 +784,16 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     Fn->setMetadata("initiation_interval",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
+
+  if (const auto *A = FD->getAttr<SYCLIntelFpgaPipelineAttr>()) {
+    const auto *CE = cast<ConstantExpr>(A->getValue());
+    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    llvm::Metadata *AttrMDArgs[] = {
+        llvm::ConstantAsMetadata::get(
+              ArgVal->getBoolValue() ? Builder.getInt32(0) : Builder.getInt32(1))};
+    Fn->setMetadata("disable_loop_pipelining",
+                     llvm::MDNode::get(Context, AttrMDArgs));
+  }
 }
 
 /// Determine whether the function F ends with a return stmt.

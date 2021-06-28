@@ -611,6 +611,25 @@ MDNode *LoopInfo::createMetadata(
                             llvm::Type::getInt32Ty(Ctx), VC.second))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
+
+  if (Attrs.SYCLIntelFPGANPipelines > 0) {
+    Metadata *Vals[] = {
+        MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
+        ConstantAsMetadata::get(
+            ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
+                             Attrs.SYCLIntelFPGANPipelines))};
+    LoopProperties.push_back(MDNode::get(Ctx, Vals));
+  }
+
+  // fpga_pipeline attribute corresponds to
+  // 'llvm.loop.intel.pipelining.enable, i32 1' metadata for empty argument.
+  if (Attrs.SYCLIntelFPGAPipelineEnable) {
+    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
+                        ConstantAsMetadata::get(
+                            ConstantInt::get(llvm::Type::getInt32Ty(Ctx), 1))};
+    LoopProperties.push_back(MDNode::get(Ctx, Vals));
+  }
+
   LoopProperties.insert(LoopProperties.end(), AdditionalLoopProperties.begin(),
                         AdditionalLoopProperties.end());
   return createFullUnrollMetadata(Attrs, LoopProperties, HasUserTransforms);
@@ -630,7 +649,8 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       SYCLSpeculatedIterationsNIterations(0), UnrollCount(0),
       UnrollAndJamCount(0), DistributeEnable(LoopAttributes::Unspecified),
       PipelineDisabled(false), PipelineInitiationInterval(0),
-      SYCLNofusionEnable(false), MustProgress(false) {}
+      SYCLNofusionEnable(false), SYCLIntelFPGAPipelineEnable(false),
+      SYCLIntelFPGANPipelines(0), MustProgress(false) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;
@@ -660,6 +680,8 @@ void LoopAttributes::clear() {
   PipelineDisabled = false;
   PipelineInitiationInterval = 0;
   SYCLNofusionEnable = false;
+  SYCLIntelFPGAPipelineEnable = false;
+  SYCLIntelFPGANPipelines = 0;
   MustProgress = false;
 }
 
@@ -695,7 +717,10 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollAndJamEnable == LoopAttributes::Unspecified &&
       Attrs.DistributeEnable == LoopAttributes::Unspecified && !StartLoc &&
-      Attrs.SYCLNofusionEnable == false && !EndLoc && !Attrs.MustProgress)
+      Attrs.SYCLNofusionEnable == false &&
+      Attrs.SYCLIntelFPGAPipelineEnable == false &&
+      Attrs.SYCLIntelFPGANPipelines == 0 &&
+      !EndLoc && !Attrs.MustProgress)
     return;
 
   TempLoopID = MDNode::getTemporary(Header->getContext(), None);
@@ -1082,6 +1107,15 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (isa<SYCLIntelFPGANofusionAttr>(A))
       setSYCLNofusionEnable();
+
+    if (const auto *IntelFpgaPipeline =
+            dyn_cast<SYCLIntelFpgaPipelineAttr>(A)) {
+      if (auto *FP = IntelFpgaPipeline->getValue())
+        setSYCLIntelFPGANPipelines(
+            FP->getIntegerConstantExpr(Ctx)->getSExtValue());
+      else
+	setSYCLIntelFPGAPipelineEnable();
+    }
   }
 
   setMustProgress(MustProgress);

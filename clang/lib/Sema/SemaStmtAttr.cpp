@@ -82,6 +82,67 @@ static Attr *handleSYCLIntelFPGADisableLoopPipeliningAttr(Sema &S, Stmt *,
   return new (S.Context) SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A);
 }
 
+static Attr *handleSYCLIntelFPGAPipelineAttr(Sema &S, Stmt *,
+                                             const ParsedAttr &A) {
+  Expr *E = A.getNumArgs() ? A.getArgAsExpr(0) : nullptr;
+  return S.BuildSYCLIntelFPGAPipelineAttr(A, E);
+}
+
+SYCLIntelFpgaPipelineAttr *
+Sema::BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &A,
+                                     Expr *E) {
+  //if (!E && !(A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce))
+    //return nullptr;
+
+  if (E && !E->isInstantiationDependent()) {
+    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
+
+    if (!ArgVal) {
+      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+          << A.getAttrName() << AANT_ArgumentIntegerConstant
+          << E->getSourceRange();
+      return nullptr;
+    }
+
+    int Val = ArgVal->getSExtValue();
+    if (Val < 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << A.getAttrName() << /* non-negative */ 1;
+      return nullptr;
+    } 
+  }
+
+  return new (Context) SYCLIntelFpgaPipelineAttr (Context, A, E);
+}
+/*
+static bool CheckPipelineAttrExpr(Sema &S, Expr *E,
+                                  const AttributeCommonInfo &A,
+                                  unsigned *Pipeline = nullptr) {
+  if (E && !E->isInstantiationDependent()) {
+    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(S.Context);
+    if (!ArgVal)
+      return S.Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+             << A.getAttrName() << AANT_ArgumentIntegerConstant
+             << E->getSourceRange();
+
+    if (ArgVal->isNonPositive())
+      return S.Diag(E->getExprLoc(),
+                    diag::err_attribute_requires_positive_integer)
+             << A.getAttrName() <<  positive 0;
+
+    if (Pipeline)
+      *Pipeline = ArgVal->getSExtValue();
+  }
+  return false;
+}
+
+SYCLIntelFpgaPipelineAttr *Sema::BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &A,
+                                                                Expr *E) {
+  return !CheckPipelineAttrExpr(*this, E, A)
+             ? new (Context) SYCLIntelFpgaPipelineAttr(Context, A, E)
+             : nullptr;
+}
+*/
 static bool checkSYCLIntelFPGAIVDepSafeLen(Sema &S, llvm::APSInt &Value,
                                            Expr *E) {
   if (!Value.isStrictlyPositive())
@@ -618,6 +679,7 @@ static void CheckForIncompatibleSYCLLoopAttributes(
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
   CheckRedundantSYCLIntelFPGAIVDepAttrs(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGANofusionAttr>(S, Attrs);
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFpgaPipelineAttr>(S, Attrs);
 }
 
 void CheckForIncompatibleUnrollHintAttributes(
@@ -746,6 +808,8 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
                                                                           A);
   case ParsedAttr::AT_SYCLIntelFPGALoopCount:
     return handleIntelFPGALoopCountAttr(S, St, A);
+  case ParsedAttr::AT_SYCLIntelFpgaPipeline:
+    return handleSYCLIntelFPGAPipelineAttr(S, St, A);
   case ParsedAttr::AT_OpenCLUnrollHint:
   case ParsedAttr::AT_LoopUnrollHint:
     return handleLoopUnrollHint(S, St, A, Range);

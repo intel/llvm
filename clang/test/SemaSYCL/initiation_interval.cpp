@@ -30,6 +30,8 @@
 [[intel::initiation_interval(3)]] void func6(); // expected-warning {{attribute 'initiation_interval' is already applied with different arguments}}
 
 // Tests for Intel FPGA initiation_interval and disable_loop_pipelining attributes compatibility checks.
+// expected-warning@+4 {{attribute 'intel::disable_loop_pipelining' is deprecated}}
+// expected-note@+3 {{did you mean to use 'intel::fpga_pipeline' instead?}}
 // expected-error@+2 {{'initiation_interval' and 'disable_loop_pipelining' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::disable_loop_pipelining]] [[intel::initiation_interval(2)]] void func7();
@@ -41,7 +43,8 @@
 // expected-error@+3 {{'disable_loop_pipelining' and 'initiation_interval' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::initiation_interval(4)]] void func9();
-[[intel::disable_loop_pipelining]] void func9();
+[[intel::disable_loop_pipelining]] void func9(); // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
+                                                 // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
 
 // Tests that check template parameter support for Intel FPGA initiation_interval function attributes
 template <int N>
@@ -84,3 +87,17 @@ void test() {
   //expected-note@+1{{in instantiation of function template specialization 'func14<float>' requested here}}
   func14<float>();
 }
+
+// Tests for Intel FPGA i[[intel::initiation_interval]] and [[intel::fpga_pipeline]] attributes compatibility checks.
+// expected-error@+2 {{'initiation_interval' and 'fpga_pipeline' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
+[[intel::fpga_pipeline(1)]] [[intel::initiation_interval(2)]] void func15();
+
+// expected-error@+2 {{'fpga_pipeline' and 'initiation_interval' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
+[[intel::initiation_interval(4)]] [[intel::fpga_pipeline]] void func16();
+
+// expected-error@+3 {{'fpga_pipeline' and 'initiation_interval' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
+[[intel::initiation_interval(4)]] void func17();
+[[intel::fpga_pipeline(0)]] void func17();

@@ -1096,6 +1096,8 @@ namespace {
         const SYCLIntelFPGASpeculatedIterationsAttr *SI);
     const SYCLIntelFPGALoopCountAttr *
     TransformSYCLIntelFPGALoopCountAttr(const SYCLIntelFPGALoopCountAttr *SI);
+    const SYCLIntelFpgaPipelineAttr *
+    TransformSYCLIntelFpgaPipelineAttr(const SYCLIntelFpgaPipelineAttr *SI);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1587,6 +1589,12 @@ TemplateInstantiator::TransformSYCLIntelFPGALoopCountAttr(
       getDerived().TransformExpr(LCA->getNTripCount()).get();
   return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopCountAttr>(
       *LCA, TransformedExpr);
+}
+
+const SYCLIntelFpgaPipelineAttr *TemplateInstantiator::TransformSYCLIntelFpgaPipelineAttr(
+    const SYCLIntelFpgaPipelineAttr *PA) {
+  Expr *TransformedExpr = getDerived().TransformExpr(PA->getValue()).get();
+  return getSema().BuildSYCLIntelFPGAPipelineAttr(*PA, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
