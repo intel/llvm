@@ -243,9 +243,9 @@ public:
 template <class KernelType, class KernelArgType, int Dims, typename KernelName>
 class HostKernel : public HostKernelBase {
   using IDBuilder = sycl::detail::Builder;
-  KernelType MKernel;
 
 public:
+  KernelType MKernel;
   HostKernel(KernelType Kernel) : MKernel(Kernel) {}
   void call(const NDRDescT &NDRDesc, HostProfilingInfo *HPI) override {
     // adjust ND range for serial host:

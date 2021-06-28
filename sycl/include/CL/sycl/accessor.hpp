@@ -671,6 +671,11 @@ public:
                        AccessorBaseHost::getPtr() /*Ptr to Image*/);
 #endif
   }
+
+#ifndef __SYCL_DEVICE_ONLY__
+public:
+  void *get_pointer() const { return detail::AccessorBaseHost::getPtr(); }
+#endif // __SYCL_DEVICE_ONLY__
 };
 
 template <typename DataT, int Dimensions, access::mode AccessMode,

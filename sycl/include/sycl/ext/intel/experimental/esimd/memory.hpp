@@ -803,7 +803,7 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
 
 #ifndef __SYCL_DEVICE_ONLY__
 
-inline void slm_init(uint32_t size) {}
+inline void slm_init(uint32_t size) { __esimd_slm_init(size); }
 
 #endif
 
