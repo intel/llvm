@@ -17,14 +17,10 @@ macro(add_sycl_unittest test_dirname link_variant)
   if ("${link_variant}" MATCHES "SHARED")
     set(SYCL_LINK_LIBS ${sycl_so_target})
     add_unittest(SYCLUnitTests ${test_dirname} ${ARGN})
-    target_compile_definitions(${test_dirname}
-                               PRIVATE SYCL_DISABLE_FALLBACK_ASSERT)
   else()
     add_unittest(SYCLUnitTests ${test_dirname}
                 $<TARGET_OBJECTS:${sycl_obj_target}> ${ARGN})
-    target_compile_definitions(${test_dirname}
-                               PRIVATE __SYCL_BUILD_SYCL_DLL
-                                       SYCL_DISABLE_FALLBACK_ASSERT)
+    target_compile_definitions(${test_dirname} PRIVATE __SYCL_BUILD_SYCL_DLL)
 
     get_target_property(SYCL_LINK_LIBS ${sycl_so_target} LINK_LIBRARIES)
   endif()
@@ -70,7 +66,6 @@ macro(add_sycl_unittest_with_device test_dirname link_variant)
     -DGTEST_LANG_CXX11=1
     -DGTEST_HAS_TR1_TUPLE=0
     -D__SYCL_BUILD_SYCL_DLL
-    -DSYCL_DISABLE_FALLBACK_ASSERT
     -I${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include
     -I${LLVM_MAIN_SRC_DIR}/utils/unittest/googlemock/include
     -I${LLVM_BINARY_DIR}/include
