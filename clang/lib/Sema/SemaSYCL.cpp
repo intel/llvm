@@ -579,26 +579,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
 }
 
 class DiagDeviceFunction : public RecursiveASTVisitor<DiagDeviceFunction> {
-  // Used to keep track of the constexpr depth, so we know whether to skip
-  // diagnostics.
-  unsigned ConstexprDepth = 0;
   Sema &SemaRef;
   const llvm::SmallPtrSetImpl<const FunctionDecl *> &RecursiveFuncs;
-
-  struct ConstexprDepthRAII {
-    DiagDeviceFunction &DDF;
-    bool Increment;
-
-    ConstexprDepthRAII(DiagDeviceFunction &DDF, bool Increment = true)
-        : DDF(DDF), Increment(Increment) {
-      if (Increment)
-        ++DDF.ConstexprDepth;
-    }
-    ~ConstexprDepthRAII() {
-      if (Increment)
-        --DDF.ConstexprDepth;
-    }
-  };
 
 public:
   DiagDeviceFunction(
@@ -617,7 +599,7 @@ public:
       // instantiation as template functions. It means that
       // all functions used by kernel have already been parsed and have
       // definitions.
-      if (RecursiveFuncs.count(Callee) && !ConstexprDepth) {
+      if (RecursiveFuncs.count(Callee)) {
         SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
             << Sema::KernelCallRecursiveFunction;
         SemaRef.Diag(Callee->getSourceRange().getBegin(),
@@ -670,45 +652,41 @@ public:
 
   // Skip checking rules on variables initialized during constant evaluation.
   bool TraverseVarDecl(VarDecl *VD) {
-    ConstexprDepthRAII R(*this, VD->isConstexpr());
+    if (VD->isConstexpr())
+      return true;
     return RecursiveASTVisitor::TraverseVarDecl(VD);
   }
 
   // Skip checking rules on template arguments, since these are constant
   // expressions.
   bool TraverseTemplateArgumentLoc(const TemplateArgumentLoc &ArgLoc) {
-    ConstexprDepthRAII R(*this);
-    return RecursiveASTVisitor::TraverseTemplateArgumentLoc(ArgLoc);
+    return true;
   }
 
   // Skip checking the static assert, both components are required to be
   // constant expressions.
-  bool TraverseStaticAssertDecl(StaticAssertDecl *D) {
-    ConstexprDepthRAII R(*this);
-    return RecursiveASTVisitor::TraverseStaticAssertDecl(D);
-  }
+  bool TraverseStaticAssertDecl(StaticAssertDecl *D) { return true; }
 
   // Make sure we skip the condition of the case, since that is a constant
   // expression.
   bool TraverseCaseStmt(CaseStmt *S) {
-    {
-      ConstexprDepthRAII R(*this);
-      if (!TraverseStmt(S->getLHS()))
-        return false;
-      if (!TraverseStmt(S->getRHS()))
-        return false;
-    }
     return TraverseStmt(S->getSubStmt());
   }
 
   // Skip checking the size expr, since a constant array type loc's size expr is
   // a constant expression.
   bool TraverseConstantArrayTypeLoc(const ConstantArrayTypeLoc &ArrLoc) {
-    if (!TraverseTypeLoc(ArrLoc.getElementLoc()))
-      return false;
+    return true;
+  }
 
-    ConstexprDepthRAII R(*this);
-    return TraverseStmt(ArrLoc.getSizeExpr());
+  bool TraverseIfStmt(IfStmt *S) {
+    if (llvm::Optional<Stmt *> ActiveStmt =
+            S->getNondiscardedCase(SemaRef.Context)) {
+      if (*ActiveStmt)
+        return TraverseStmt(*ActiveStmt);
+      return true;
+    }
+    return RecursiveASTVisitor::TraverseIfStmt(S);
   }
 };
 
@@ -749,6 +727,7 @@ class DeviceFunctionTracker {
 
 public:
   DeviceFunctionTracker(Sema &S) : SemaRef(S) {
+    CG.setSkipConstantExpressions(S.Context);
     CG.addToCallGraph(S.getASTContext().getTranslationUnitDecl());
     CollectSyclExternalFuncs();
   }
@@ -1591,26 +1570,6 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
                          diag::err_sycl_non_constant_array_type)
              << FieldTy;
     }
-
-    if (SemaRef.getASTContext().getLangOpts().SYCLStdLayoutKernelParams)
-      if (!FieldTy->isStandardLayoutType())
-        return Diag.Report(FD->getLocation(),
-                           diag::err_sycl_non_std_layout_type)
-               << FieldTy;
-
-    if (!FieldTy->isStructureOrClassType())
-      return false;
-
-    CXXRecordDecl *RD =
-        cast<CXXRecordDecl>(FieldTy->getAs<RecordType>()->getDecl());
-    if (!RD->hasTrivialCopyConstructor())
-      return Diag.Report(FD->getLocation(),
-                         diag::err_sycl_non_trivially_copy_ctor_dtor_type)
-             << 0 << FieldTy;
-    if (!RD->hasTrivialDestructor())
-      return Diag.Report(FD->getLocation(),
-                         diag::err_sycl_non_trivially_copy_ctor_dtor_type)
-             << 1 << FieldTy;
 
     return false;
   }

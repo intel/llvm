@@ -1,4 +1,5 @@
-// RUN: not %clangxx -fsyntax-only -std=c++17 %s -I %sycl_include/sycl 2>&1 | FileCheck %s
+// RUN: %clangxx -fsyntax-only %fsycl-host-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx -fsyntax-only -fsycl -fsycl-device-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 #include <CL/sycl.hpp>
 #include <iostream>
 
@@ -12,12 +13,10 @@ int main() {
   myQueue.submit([&](handler &cgh) {
     accessor<float, 2, access::mode::read, access::target::image> NotValidType1(
         srcImage, cgh);
-    // CHECK: The data type of an image accessor must be only cl_int4, cl_uint4,
-    // CHECK-SAME:  cl_float4 or cl_half4
+    // expected-error@CL/sycl/accessor.hpp:* {{The data type of an image accessor must be only cl_int4, cl_uint4, cl_float4 or cl_half4}}
     accessor<int2, 2, access::mode::read, access::target::image> NotValidType2(
         srcImage, cgh);
-    // CHECK: The data type of an image accessor must be only cl_int4, cl_uint4,
-    // CHECK-SAME:  cl_float4 or cl_half4
+    // expected-error@CL/sycl/accessor.hpp:* {{The data type of an image accessor must be only cl_int4, cl_uint4, cl_float4 or cl_half4}}
     accessor<float4, 2, access::mode::read, access::target::image>
         ValidSYCLFloat(srcImage, cgh);
     accessor<int4, 2, access::mode::read, access::target::image> ValidSYCLInt(

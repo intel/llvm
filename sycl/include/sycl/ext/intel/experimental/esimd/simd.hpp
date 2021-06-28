@@ -223,12 +223,8 @@ public:
     set(__esimd_wrindirect<Ty, N, Size>(data(), Val.data(), Offsets, Mask));
   }
 
-  // TODO
-  // @rolandschulz
-  // {quote}
-  // - Why would the return type ever be different for a binary operator?
-  // {/quote}
-  //   * if not different, then auto should not be used
+  // Use auto as a return type to honor C++ integer promotion rules,
+  // e.g. simd<short,4>  +  simd<short,4>  ->  simd<int,4>
 #define DEF_BINOP(BINOP, OPASSIGN)                                             \
   ESIMD_INLINE friend auto operator BINOP(const simd &X, const simd &Y) {      \
     using ComputeTy = detail::compute_type_t<simd>;                            \
