@@ -276,7 +276,7 @@ inline void InvokeLambda_NDITEM_1DIM(void *Wrapper) {
   sycl::range<1> GroupSize(
       sycl::detail::InitializedVal<1, sycl::range>::template get<0>());
 
-  if (LambdaWrapper->LocalSize[0] ||
+  if (LambdaWrapper->LocalSize[0] == 0 ||
       LambdaWrapper->GlobalSize[0] % LambdaWrapper->LocalSize[0] != 0) {
     throw sycl::nd_range_error("Invalid local size for global size - 1DIM",
                                PI_INVALID_WORK_GROUP_SIZE);
@@ -310,7 +310,7 @@ inline void InvokeLambda_NDITEM_2DIM(void *Wrapper) {
       sycl::detail::InitializedVal<2, sycl::range>::template get<0>());
 
   for (int I = 0; I < 2 /*Dims*/; ++I) {
-    if (LambdaWrapper->LocalSize[I] ||
+    if (LambdaWrapper->LocalSize[I] == 0 ||
         LambdaWrapper->GlobalSize[I] % LambdaWrapper->LocalSize[I] != 0) {
       throw sycl::nd_range_error("Invalid local size for global size - 2DIM",
                                  PI_INVALID_WORK_GROUP_SIZE);
@@ -347,7 +347,7 @@ inline void InvokeLambda_NDITEM_3DIM(void *Wrapper) {
       sycl::detail::InitializedVal<3, sycl::range>::template get<0>());
 
   for (int I = 0; I < 3 /*Dims*/; ++I) {
-    if (LambdaWrapper->LocalSize[I] ||
+    if (LambdaWrapper->LocalSize[I] == 0 ||
         LambdaWrapper->GlobalSize[I] % LambdaWrapper->LocalSize[I] != 0) {
       throw sycl::nd_range_error("Invalid local size for global size - 3DIM",
                                  PI_INVALID_WORK_GROUP_SIZE);
