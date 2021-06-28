@@ -325,31 +325,41 @@ public:
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   ///
-  /// \param Impl is a shared_ptr to this queue.
+  /// \param Self is a shared_ptr to this queue.
   /// \param Ptr is a USM pointer to the memory to fill.
   /// \param Value is a value to be set. Value is cast as an unsigned char.
   /// \param Count is a number of bytes to fill.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
   /// \return an event representing fill operation.
   event memset(const std::shared_ptr<queue_impl> &Self, void *Ptr, int Value,
-               size_t Count);
+               size_t Count, const std::vector<event> &DepEvents);
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
   ///
-  /// \param Impl is a shared_ptr to this queue.
+  /// \param Self is a shared_ptr to this queue.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
   /// \param Count is a number of bytes to copy.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing copy operation.
   event memcpy(const std::shared_ptr<queue_impl> &Self, void *Dest,
-               const void *Src, size_t Count);
+               const void *Src, size_t Count,
+               const std::vector<event> &DepEvents);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
-  /// \param Impl is a shared_ptr to this queue.
+  /// \param Self is a shared_ptr to this queue.
   /// \param Ptr is a USM pointer to the allocation.
   /// \param Length is a number of bytes in the allocation.
   /// \param Advice is a device-defined advice for the specified allocation.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing advise operation.
   event mem_advise(const std::shared_ptr<queue_impl> &Self, const void *Ptr,
-                   size_t Length, pi_mem_advice Advice);
+                   size_t Length, pi_mem_advice Advice,
+                   const std::vector<event> &DepEvents);
 
   /// Puts exception to the list of asynchronous ecxeptions.
   ///

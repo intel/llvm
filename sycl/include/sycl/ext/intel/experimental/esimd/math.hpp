@@ -303,16 +303,6 @@ esimd_lsr(T1 src0, T2 src1, int flag = saturation_off) {
   return Result[0];
 }
 
-template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    detail::is_esimd_scalar<T1>::value && detail::is_esimd_vector<T2>::value &&
-        std::is_integral<T0>::value && std::is_integral<T1>::value &&
-        std::is_integral<T2>::value,
-    decltype(esimd_lsr<T0>(T2(), T1()))>
-esimd_lsr(T1 src0, T2 src1, int flag = saturation_off) {
-  return esimd_lsr<T0>(src1, src0, flag);
-}
-
 // esimd_asr
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -344,16 +334,6 @@ esimd_asr(T1 src0, T2 src1, int flag = saturation_off) {
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_asr<T0>(Src0, Src1, flag);
   return Result[0];
-}
-
-template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    detail::is_esimd_scalar<T1>::value && detail::is_esimd_vector<T2>::value &&
-        std::is_integral<T0>::value && std::is_integral<T1>::value &&
-        std::is_integral<T2>::value,
-    decltype(esimd_asr<T0>(T2(), T1()))>
-esimd_asr(T1 src0, T2 src1, int flag = saturation_off) {
-  return esimd_asr<T0>(src1, src0, flag);
 }
 
 // esimd_imul
@@ -1369,18 +1349,6 @@ esimd_fbh(simd<T, N> src) {
   return __esimd_sfbh<T, N>(src.data());
 }
 
-/// Scalar version of \c esimd_fbh - both input and output are scalars rather
-/// than vectors.
-template <typename T>
-ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    std::is_integral<T>::value && std::is_signed<T>::value && (sizeof(T) == 4),
-    T>
-esimd_fbh(T src) {
-  simd<T, 1> Src = src;
-  simd<T, 1> Result = esimd_fbh(Src);
-  return Result[0];
-}
-
 /// Find the per element number of the first bit set in the source operand
 /// starting from the most significant bit (sign bit is counted).
 /// @param src0 the source operand to count bits in.
@@ -1395,12 +1363,11 @@ esimd_fbh(simd<T, N> src) {
   return __esimd_ufbh<T, N>(src.data());
 }
 
-/// Scalar unsigned version of \c esimd_fbh - both input and output are unsigned
-/// scalars rather than vectors.
+/// Scalar version of \c esimd_fbh - both input and output are scalars rather
+/// than vectors.
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    std::is_integral<T>::value && !std::is_signed<T>::value && (sizeof(T) == 4),
-    T>
+    std::is_integral<T>::value && (sizeof(T) == 4), T>
 esimd_fbh(T src) {
   simd<T, 1> Src = src;
   simd<T, 1> Result = esimd_fbh(Src);

@@ -488,7 +488,7 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("SYCL_LANGUAGE_VERSION", "202001");
 
     if (LangOpts.SYCLValueFitInMaxInt)
-      Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__", "1");
+      Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__");
 
     // Set __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ macro for
     // both host and device compilations if -fsycl-disable-range-rounding
@@ -1176,15 +1176,20 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   // Define a macro indicating that the source file is being compiled with a
   // SYCL device compiler which doesn't produce host binary.
   if (LangOpts.SYCLIsDevice) {
-    Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
+    Builder.defineMacro("__SYCL_DEVICE_ONLY__");
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
-    if (TI.getTriple().isNVPTX()) {
-        Builder.defineMacro("__SYCL_NVPTX__", "1");
-    }
+    const llvm::Triple &DeviceTriple = TI.getTriple();
+    const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
+    if (DeviceTriple.isSPIR() &&
+        DeviceSubArch != llvm::Triple::SPIRSubArch_fpga)
+      Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
+    // Enable generation of USM address spaces for FPGA.
+    if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga)
+      Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
   }
   if (LangOpts.SYCLUnnamedLambda)
-    Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");
+    Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");
 
   // OpenCL definitions.
   if (LangOpts.OpenCL) {

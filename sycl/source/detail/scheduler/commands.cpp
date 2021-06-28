@@ -1741,10 +1741,27 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
   ReverseRangeDimensionsForKernel(NDRDesc);
+
+  size_t RequiredWGSize[3] = {0, 0, 0};
+  Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+      Kernel, detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
+      PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
+      RequiredWGSize, /* param_value_size_ret = */ nullptr);
+
+  const bool EnforcedLocalSize =
+      (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
+       RequiredWGSize[2] != 0);
+  size_t *LocalSize = nullptr;
+
+  if (EnforcedLocalSize && !HasLocalSize)
+    LocalSize = RequiredWGSize;
+  else if (HasLocalSize)
+    LocalSize = &NDRDesc.LocalSize[0];
+
   pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-      &NDRDesc.GlobalSize[0], HasLocalSize ? &NDRDesc.LocalSize[0] : nullptr,
-      RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
+      &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
+      RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
   return Error;
 }
 
@@ -2051,6 +2068,13 @@ cl_int ExecCGCommand::enqueueImp() {
     MemoryManager::prefetch_usm(Prefetch->getDst(), MQueue,
                                 Prefetch->getLength(), std::move(RawEvents),
                                 Event);
+
+    return CL_SUCCESS;
+  }
+  case CG::CGTYPE::ADVISE_USM: {
+    CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
+    MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
+                              Advise->getAdvice(), std::move(RawEvents), Event);
 
     return CL_SUCCESS;
   }
