@@ -60,7 +60,7 @@ Table 1. Values of the `SYCL_EXT_ONEAPI_GROUP_SORT` macro.
 Sorter is a special type that encapsulates a sorting algorithm. Sorter may contain parameters
 that help to get better performance. Data for sorting are provided to the `operator()`
 that should contain an implementation of a sorting algorithm.
-Semantics of `operator()` is following:
+General semantics of `operator()` is following:
 
 [source,c++]
 ----
@@ -71,7 +71,8 @@ template<typename Group, typename T>
 T operator()(Group g, T val);
 ----
 
-At least one overload for `operator()` is required.
+At least one overload for `operator()` is required to let Sorter work with
+`joint_sort` or `sort_over_group` functions.
 
 Table 2. `operator()` for Sorters.
 |===
@@ -93,7 +94,7 @@ Example of custom Sorter:
 [source,c++]
 ----
 template<typename Compare>
-class bubble_sort{
+class bubble_sorter{
 public:
   Compare comp;
 
@@ -110,9 +111,14 @@ public:
 };
 ----
 
+This sorter can be invoked by `joint_sort`, but won't work with `sort_over_group`
+due to the absence of corresponding `operator()`
+
 ==== Predefined Sorters
 
-`radix_order` is a `enum` that defines the sorting order when `radix_sorter` is used.
+===== Radix order
+
+`radix_order` is a `enum` that defines a sorting order when `radix_sorter` is used.
 Only ascending and descending orders are applicable.
 
 [source,c++]
@@ -145,8 +151,11 @@ namespace sycl::ext::oneapi {
     template<typename Group, typename T>
     T operator()(Group g, T val);
 
-    template<typename... Args>
-    static std::size_t temp_memory_size(/*unspecified*/);
+    template</*unspecified*/>
+    static std::size_t joint_sort_memory_helper(/*unspecified*/);
+
+    template</*unspecified*/>
+    static std::size_t sort_over_group_memory_helper(/*unspecified*/);
   };
 
   template<typename T, radix_order Order = radix_order::ascending, unsigned int BitsPerPass = 4>
@@ -163,8 +172,8 @@ namespace sycl::ext::oneapi {
     template<typename Group>
     T operator()(Group g, T val);
 
-    static std::size_t joint_sort_temp_memory_size(std::size_t range_size);
-    static std::size_t sort_over_group_temp_memory_size(std::size_t range_size);
+    static std::size_t joint_sort_memory_helper(std::size_t range_size);
+    static std::size_t sort_over_group_memory_helper(std::size_t range_size);
   };
 
 }
@@ -178,8 +187,9 @@ Table 3. Description of predefined Sorters.
 default_sorter`
 |Use a default sorting method based on an implementation-defined heuristic
 using `Compare` as the binary comparison function object.
-The algorithm requires a temporary local memory that must be allocated by users.
-Size of required memory (bytes) is defined by calling the `temp_memory_size` method.
+The algorithm requires a temporary local memory that must be allocated on callers side.
+Size of required memory (bytes) is defined by calling `joint_sort_memory_helper`
+and/or `sort_over_group_memory_helper`.
 
 |`template<typename T, radix_order Order = radix_order::ascending, unsigned int BitsPerPass = 4>
 radix_sorter`
@@ -188,19 +198,22 @@ Only arithmetic types as `T` can be passed to `radix_sorter`.
 `BitsPerPass` is a number of bits that values are split by.
 For example, if a sequence of `int32_t` is sorted using `BitsPerPass == 4` then one
 pass of the radix sort algorithm considers only 4 bits. The number of passes is `32/4=8`.
-The algorithm requires a temporary local memory that must be allocated by users.
-Size of required memory (bytes) is defined by calling the `temp_memory_size` method.
+The algorithm requires a temporary local memory that must be allocated on callers side.
+Size of required memory (bytes) is defined by calling `joint_sort_memory_helper`
+and/or `sort_over_group_memory_helper`.
 |===
 
 Table 4. Constructors of the `default_sorter` class.
 |===
 |Constructor|Description
 
-|`template<std::size_t Extent> default_sorter(sycl::span<uint8_t, Extent> scratch, Compare comp = Compare())`
+|`template<std::size_t Extent>
+default_sorter(sycl::span<uint8_t, Extent> scratch, Compare comp = Compare())`
 |Creates the `default_sorter` object using `comp`.
 Temporary local memory for the algorithm is provided using `scratch`.
-If `scratch.size()` is less than value returned by `temp_memory_size`,
-behavior of the sorting algorithm is undefined.
+If `scratch.size()` is less than value returned by
+`joint_sort_memory_helper` or `sort_over_group_memory_helper`,
+behavior of the corresponding sorting algorithm is undefined.
 
 |===
 
@@ -218,11 +231,18 @@ _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 T operator()(Group g, T val)`
 |Implements a default sorting algorithm to be called by the `sort_over_group` algorithm.
 
-
 _Complexity_: Let `N` be the work group size. `O(N*log(N)*log(N))` comparisons.
-|`template<typename... Args>
-static std::size_t temp_memory_size(/\*unspecified*/);`
-|Returns temporary memory size (in bytes) that is required by the sorting algorithm defined by the sorter.
+|`template</\*unspecified*/>
+static std::size_t joint_sort_memory_helper(/\*unspecified*/)`
+|Returns size of temporary memory (in bytes) that is required by
+the default sorting algorithm defined by the sorter calling by `joint_sort`.
+`range_size` represents a range size for sorting,
+e.g. `last-first` from `operator()` arguments. Function must be called on host
+|`template</\*unspecified*/>
+static std::size_t sort_over_group_memory_helper(/\*unspecified*/)`
+|Returns size of temporary memory (in bytes) that is required by the default sorting
+algorithm defined by the sorter calling by `sort_over_group`.
+`range_size` represents work group size. Function must be called on host
 |===
 
 Table 6. Constructors of the `radix_sorter` class.
@@ -231,12 +251,13 @@ Table 6. Constructors of the `radix_sorter` class.
 
 |`template<std::size_t Extent>
 radix_sorter(sycl::span<uint8_t, Extent> scratch, const std::bitset<sizeof(T) * CHAR_BIT> mask = std::bitset<sizeof(T) * CHAR_BIT>
-(std::numeric_limits<unsigned long long>::max()));`
+(std::numeric_limits<unsigned long long>::max()))`
 |Creates the `radix_sorter` object to sort values considering only bits
 that corresponds to 1 in `mask`.
 Temporary local memory for the algorithm is provided using `scratch`.
-If `scratch.size()` is less than value returned by `temp_memory_size`,
-behavior of the sorting algorithm is undefined.
+If `scratch.size()` is less than value returned by `joint_sort_memory_helper` or
+`sort_over_group_memory_helper`, behavior of the corresponding sorting algorithm is undefined.
+
 |===
 
 Table 7. Member functions of the `radix_sorter` class.
@@ -252,36 +273,41 @@ T operator()(Group g, T val)`
 |Implements the radix sort algorithm to be called by the `sort_over_group` algorithm.
 
 |`static std::size_t
-joint_sort_temp_memory_size(std::size_t range_size)`
-|Returns temporary memory size (in bytes) that is required by the radix sort algorithm
-calling by `joint_sort`. `range_size` represents a range size for sorting: `last-first`.
+joint_sort_memory_helper(std::size_t range_size)`
+|Returns size of temporary memory (in bytes) that is required by the radix sort algorithm
+calling by `joint_sort`. `range_size` represents a range size for sorting,
+e.g. `last-first` from `operator()` arguments. Function must be called on host
 
 |`static std::size_t
-sort_over_group_temp_memory_size(std::size_t range_size)`
-|Returns temporary memory size (in bytes) that is required by the radix sort algorithm
+sort_over_group_memory_helper(std::size_t range_size)`
+|Returns size of temporary memory (in bytes) that is required by the radix sort algorithm
 calling by `sort_over_group`. `range_size` represents work group size.
+Function must be called on host
 |===
 
-==== Memory helper
+==== Memory helpers
 
-SYCL provides the following function to identify the required size for a temporary local memory that is required for some of sorting functions.
+SYCL provides following functions to identify the required size for a temporary local memory
+that is required for sorting functions that don't have the Sorter argument.
 
 [source,c++]
 ----
 namespace sycl::ext::oneapi {
-    template<typename... Args>
+    template</*unspecified*/>
     std::size_t joint_sort_memory_helper(/*unspecified*/); // (1)
 
-    template<typename... Args>
+    template</*unspecified*/>
     std::size_t sort_over_group_memory_helper(/*unspecified*/); // (2)
 }
 ----
 
-1. _Returns_: temporary local memory size (in bytes) that is required by the `joint_sort`
+1. _Returns_: temporary local memory size (in bytes) that is required by `joint_sort`
 without Sorter parameters.
 
 2. _Returns_: temporary local memory size (in bytes) that is required by `sort_over_group`
 without Sorter parameters.
+
+Note: memory helper functions must be called on host.
 
 ==== Sort
 The sort function from the {cpp} standard sorts elements with respect to
@@ -323,10 +349,9 @@ _Constraints_: All functions are available only if `sycl::is_group_v<std::decay_
 is true and `Sorter` is a SYCL Sorter.
 
 _Preconditions_: `first`, `last` must be the same for all work-items in the group.
-If size of memory provided by users is less than value that returns by the function,
-behavior of the sorting algorithm is undefined.
 
-1._Mandates_: `scratch.size()` must not be less than value returned by `sort_memory_helper`. Otherwise, behavior is undefined.
+1._Mandates_: `scratch.size()` must not be less than value returned by
+`joint_sort_memory_helper`. Otherwise, behavior is undefined.
 
 _Effects_: Sort the elements in the range `[first, last)`
 using temporary local memory from `scratch`.
@@ -335,7 +360,8 @@ Elements are compared by `operator<`.
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
 2._Mandates_: `comp` must satisfy the requirements of `Compare` from
-the {cpp} standard. `scratch.size()` must not be less than value returned by `sort_memory_helper`. Otherwise, behavior is undefined.
+the {cpp} standard. `scratch.size()` must not be less than value returned by
+`joint_sort_memory_helper`. Otherwise, behavior is undefined.
 
 _Effects_: Sort the elements in the range `[first, last)` with respect to the
 binary comparison function object `comp` using temporary local memory from `scratch`.
@@ -344,7 +370,8 @@ _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
 3._Effects_: Equivalent to: `sorter(g, first, last)`.
 
-4._Mandates_: `scratch.size()` must not be less than value returned by `sort_memory_helper`. Otherwise, behavior is undefined.
+4._Mandates_: `scratch.size()` must not be less than value returned by
+`sort_over_group_memory_helper`. Otherwise, behavior is undefined.
 
 _Returns_: The value returned on work-item `i` is the value in position `i`
 of the ordered range resulting from sorting `val` from all work-items in the
@@ -356,7 +383,8 @@ determined by their linear id.
 _Complexity_: Let `N` be the work group size. `O(N*log(N)*log(N))` comparisons.
 
 5._Mandates_: `comp` must satisfy the requirements of `Compare` from
-the {cpp} standard. `scratch.size()` must not be less than value returned by `sort_memory_helper`. Otherwise, behavior is undefined.
+the {cpp} standard. `scratch.size()` must not be less than value returned by
+`sort_over_group_memory_helper`. Otherwise, behavior is undefined.
 
 _Returns_: The value returned on work-item `i` is the value in position `i`
 of the ordered range resulting from sorting `val` from all work-items in the
@@ -369,12 +397,13 @@ _Complexity_: Let `N` be the work group size. `O(N*log(N)*log(N))` comparisons.
 
 6._Effects_: Equivalent to: `return sorter(g, val)`.
 
-== Issues
+== Issues for later investigations
 
 . Sort function can have interfaces with static arrays in private memory as well.
 The concern is that it can require changes for other group algortihms as well since sort
 basing on private memory is not very useful if other algorithms in the chain use local
-memory only.
+memory only. It needs to make sure that we allow different layout for values in static arrays
+between different work-items, e.g. "raw major" or "column major" format for storing.
 . It can be a separate proposal for key-value sorting basing on Projections.
 It needs to be investigated what is the response for that.
 . Sorter traits can be useful if there are Finder, Reducer or other objects
