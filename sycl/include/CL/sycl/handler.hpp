@@ -994,6 +994,9 @@ private:
 #else
   kernel_single_task_wrapper(const KernelType &KernelFunc) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
+    detail::CheckDeviceCopyable<KernelType>();
+#endif // __SYCL_DEVICE_ONLY__
     if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
                       KernelType>()) {
       kernel_handler KH;
@@ -1012,6 +1015,9 @@ private:
 #else
   kernel_parallel_for_wrapper(const KernelType &KernelFunc) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
+    detail::CheckDeviceCopyable<KernelType>();
+#endif // __SYCL_DEVICE_ONLY__
     if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
                       KernelType, ElementType>()) {
       kernel_handler KH;
@@ -1030,6 +1036,9 @@ private:
 #else
   kernel_parallel_for_work_group_wrapper(const KernelType &KernelFunc) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
+    detail::CheckDeviceCopyable<KernelType>();
+#endif // __SYCL_DEVICE_ONLY__
     if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
                       KernelType, ElementType>()) {
       kernel_handler KH;
@@ -1761,6 +1770,8 @@ public:
       MKernelName = getKernelName();
     } else
       StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(std::move(KernelFunc));
+#else
+    detail::CheckDeviceCopyable<KernelType>();
 #endif
   }
 
@@ -2241,6 +2252,19 @@ public:
   /// \param Count is a number of bytes to copy.
   void memcpy(void *Dest, const void *Src, size_t Count);
 
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Count is a number of elements of type T to copy.
+  template <typename T> void copy(T *Dest, const T *Src, size_t Count) {
+    this->memcpy(Dest, Src, Count * sizeof(T));
+  }
+
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if \param Dest is nullptr. The behavior is undefined if \param Dest
@@ -2258,6 +2282,14 @@ public:
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
   void prefetch(const void *Ptr, size_t Count);
+
+  /// Provides additional information to the underlying runtime about how
+  /// different allocations are used.
+  ///
+  /// \param Ptr is a USM pointer to the allocation.
+  /// \param Length is a number of bytes in the allocation.
+  /// \param Advice is a device-defined advice for the specified allocation.
+  void mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice);
 
 private:
   shared_ptr_class<detail::queue_impl> MQueue;

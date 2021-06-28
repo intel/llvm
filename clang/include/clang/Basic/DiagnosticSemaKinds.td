@@ -9193,6 +9193,9 @@ def note_defaulted_comparison_cannot_deduce_undeduced_auto : Note<
   "%select{|member|base class}0 %1 declared here">;
 def note_defaulted_comparison_cannot_deduce_callee : Note<
   "selected 'operator<=>' for %select{|member|base class}0 %1 declared here">;
+def note_defaulted_comparison_selected_invalid : Note<
+  "would compare %select{|member|base class}0 %1 "
+  "as %2, which does not support relational comparisons">;
 def err_incorrect_defaulted_comparison_constexpr : Error<
   "defaulted definition of %select{%sub{select_defaulted_comparison_kind}1|"
   "three-way comparison operator}0 "
@@ -11421,11 +11424,6 @@ def err_sycl_type_trait_requires_nonnegative_index : Error<
 def err_sycl_builtin_type_trait_evaluated : Error<
   "'%select{__builtin_field_type|__builtin_base_type}0' cannot be used in an "
   "evaluated context">;
-def err_sycl_non_trivially_copy_ctor_dtor_type
-    : Error<"kernel parameter has non-trivially %select{copy "
-            "constructible|destructible}0 class/struct type %1">;
-def err_sycl_non_std_layout_type : Error<
-  "kernel parameter has non-standard layout class/struct type %0">;
 def err_sycl_non_constant_array_type : Error<
   "kernel parameter is not a constant size array %0">;
 def err_conflicting_sycl_kernel_attributes : Error<

@@ -669,6 +669,7 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
 /// PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
 #define __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
 
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with

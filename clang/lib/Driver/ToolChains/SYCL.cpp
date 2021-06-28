@@ -274,7 +274,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                 const char *LinkingOutput) const {
 
   assert((getToolChain().getTriple().isSPIR() ||
-          getToolChain().getTriple().isNVPTX()) &&
+          getToolChain().getTriple().isNVPTX() ||
+          getToolChain().getTriple().isAMDGCN()) &&
          "Unsupported target");
 
   std::string SubArchName =
@@ -285,7 +286,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // For CUDA, we want to link all BC files before resuming the normal
   // compilation path
-  if (getToolChain().getTriple().isNVPTX()) {
+  if (getToolChain().getTriple().isNVPTX() ||
+      getToolChain().getTriple().isAMDGCN()) {
     InputInfoList NvptxInputs;
     for (const auto &II : Inputs) {
       if (!II.isFilename())
@@ -639,6 +641,10 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
       }
     }
   }
+  // Strip out -O0 for FPGA Hardware device compilation.
+  if (!getDriver().isFPGAEmulationMode() &&
+      getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+    DAL->eraseArg(options::OPT_O0);
 
   const OptTable &Opts = getDriver().getOpts();
   if (!BoundArch.empty()) {

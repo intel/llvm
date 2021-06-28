@@ -1,15 +1,24 @@
+if(${CMAKE_VERSION} VERSION_LESS 3.14)
+    macro(FetchContent_MakeAvailable NAME)
+        FetchContent_GetProperties(${NAME})
+        if(NOT ${NAME}_POPULATED)
+            FetchContent_Populate(${NAME})
+            add_subdirectory(${${NAME}_SOURCE_DIR} ${${NAME}_BINARY_DIR})
+        endif()
+    endmacro()
+endif()
+
 # Lowering of SYCL ESIMD kernels depends on vc-intrinsics
 # NOTE: could have been added earlier from llvm/projects
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     message(STATUS "vc-intrinsics are missing. Will try to download them from github.com")
-    # FIXME: temporarily use a fork of intel/vc-intrinsics.git with getAnyName function
-    # disabled as it is not compatible with https://reviews.llvm.org/D99173.
-    set(LLVMGenXIntrinsics_GIT_TAG c3ecb918fc00913b0dc9b1bef1912df0361b74b0)
+
+    set( LLVMGenXIntrinsics_GIT_TAG 19e6ddafc545bc96ceaacbf7c81cacbff59a39b6 )
 
     include(FetchContent)
     FetchContent_Declare(vc-intrinsics
-      GIT_REPOSITORY https://github.com/abhinavgaba/vc-intrinsics.git
+      GIT_REPOSITORY https://github.com/intel/vc-intrinsics.git
       GIT_TAG        ${LLVMGenXIntrinsics_GIT_TAG}
     )
     FetchContent_MakeAvailable(vc-intrinsics)
