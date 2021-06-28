@@ -110,6 +110,7 @@
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MustExecute.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/AbstractCallSite.h"
@@ -1076,6 +1077,10 @@ private:
 /// NOTE: The mechanics of adding a new "concrete" abstract attribute are
 ///       described in the file comment.
 struct Attributor {
+
+  using OptimizationRemarkGetter =
+      function_ref<OptimizationRemarkEmitter &(Function *)>;
+
   /// Constructor
   ///
   /// \param Functions The set of functions we are deriving attributes for.
@@ -1085,13 +1090,41 @@ struct Attributor {
   /// \param Allowed If not null, a set limiting the attribute opportunities.
   /// \param DeleteFns Whether to delete functions.
   /// \param RewriteSignatures Whether to rewrite function signatures.
+  /// \param MaxFixedPointIterations Maximum number of iterations to run until
+  ///                                fixpoint.
   Attributor(SetVector<Function *> &Functions, InformationCache &InfoCache,
              CallGraphUpdater &CGUpdater,
              DenseSet<const char *> *Allowed = nullptr, bool DeleteFns = true,
              bool RewriteSignatures = true)
       : Allocator(InfoCache.Allocator), Functions(Functions),
         InfoCache(InfoCache), CGUpdater(CGUpdater), Allowed(Allowed),
-        DeleteFns(DeleteFns), RewriteSignatures(RewriteSignatures) {}
+        DeleteFns(DeleteFns), RewriteSignatures(RewriteSignatures),
+        MaxFixpointIterations(None), OREGetter(None), PassName("")  {}
+
+  /// Constructor
+  ///
+  /// \param Functions The set of functions we are deriving attributes for.
+  /// \param InfoCache Cache to hold various information accessible for
+  ///                  the abstract attributes.
+  /// \param CGUpdater Helper to update an underlying call graph.
+  /// \param Allowed If not null, a set limiting the attribute opportunities.
+  /// \param DeleteFns Whether to delete functions
+  /// \param MaxFixedPointIterations Maximum number of iterations to run until
+  ///                                fixpoint.
+  /// \param OREGetter A callback function that returns an ORE object from a
+  ///                  Function pointer.
+  /// \param PassName  The name of the pass emitting remarks.
+  Attributor(SetVector<Function *> &Functions, InformationCache &InfoCache,
+             CallGraphUpdater &CGUpdater, DenseSet<const char *> *Allowed,
+             bool DeleteFns, bool RewriteSignatures,
+             Optional<unsigned> MaxFixpointIterations,
+             OptimizationRemarkGetter OREGetter, const char *PassName)
+      : Allocator(InfoCache.Allocator), Functions(Functions),
+        InfoCache(InfoCache), CGUpdater(CGUpdater), Allowed(Allowed),
+        DeleteFns(DeleteFns), RewriteSignatures(RewriteSignatures),
+        MaxFixpointIterations(MaxFixpointIterations),
+        OREGetter(Optional<OptimizationRemarkGetter>(OREGetter)),
+        PassName(PassName) {}
 
   ~Attributor();
 
@@ -1494,6 +1527,41 @@ public:
                        const AbstractAttribute &QueryingAA, const Value &V,
                        DepClassTy LivenessDepClass = DepClassTy::OPTIONAL);
 
+  /// Emit a remark generically.
+  ///
+  /// This template function can be used to generically emit a remark. The
+  /// RemarkKind should be one of the following:
+  ///   - OptimizationRemark to indicate a successful optimization attempt
+  ///   - OptimizationRemarkMissed to report a failed optimization attempt
+  ///   - OptimizationRemarkAnalysis to provide additional information about an
+  ///     optimization attempt
+  ///
+  /// The remark is built using a callback function \p RemarkCB that takes a
+  /// RemarkKind as input and returns a RemarkKind.
+  template <typename RemarkKind, typename RemarkCallBack>
+  void emitRemark(Instruction *I, StringRef RemarkName,
+                  RemarkCallBack &&RemarkCB) const {
+    if (!OREGetter)
+      return;
+
+    Function *F = I->getFunction();
+    auto &ORE = OREGetter.getValue()(F);
+
+    ORE.emit([&]() { return RemarkCB(RemarkKind(PassName, RemarkName, I)); });
+  }
+
+  /// Emit a remark on a function.
+  template <typename RemarkKind, typename RemarkCallBack>
+  void emitRemark(Function *F, StringRef RemarkName,
+                  RemarkCallBack &&RemarkCB) const {
+    if (!OREGetter)
+      return;
+
+    auto &ORE = OREGetter.getValue()(F);
+
+    ORE.emit([&]() { return RemarkCB(RemarkKind(PassName, RemarkName, F)); });
+  }
+
   /// Helper struct used in the communication between an abstract attribute (AA)
   /// that wants to change the signature of a function and the Attributor which
   /// applies the changes. The struct is partially initialized with the
@@ -1797,6 +1865,9 @@ private:
   /// Whether to rewrite signatures.
   const bool RewriteSignatures;
 
+  /// Maximum number of fixedpoint iterations.
+  Optional<unsigned> MaxFixpointIterations;
+
   /// A set to remember the functions we already assume to be live and visited.
   DenseSet<const Function *> VisitedFunctions;
 
@@ -1829,6 +1900,12 @@ private:
   SmallPtrSet<BasicBlock *, 8> ToBeDeletedBlocks;
   SmallDenseSet<WeakVH, 8> ToBeDeletedInsts;
   ///}
+
+  /// Callback to get an OptimizationRemarkEmitter from a Function *.
+  Optional<OptimizationRemarkGetter> OREGetter;
+
+  /// The name of the pass to emit remarks for.
+  const char *PassName = "";
 
   friend AADepGraph;
   friend AttributorCallGraph;
@@ -4120,6 +4197,39 @@ struct AAExecutionDomain
 
   /// Unique ID (due to the unique address)
   static const char ID;
+};
+
+/// An abstract Attribute for computing reachability between functions.
+struct AAFunctionReachability
+    : public StateWrapper<BooleanState, AbstractAttribute> {
+  using Base = StateWrapper<BooleanState, AbstractAttribute>;
+
+  AAFunctionReachability(const IRPosition &IRP, Attributor &A) : Base(IRP) {}
+
+  /// If the function represented by this possition can reach \p Fn.
+  virtual bool canReach(Attributor &A, Function *Fn) const = 0;
+
+  /// Create an abstract attribute view for the position \p IRP.
+  static AAFunctionReachability &createForPosition(const IRPosition &IRP,
+                                                   Attributor &A);
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAFuncitonReacability"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AACallEdges.
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
+  /// Unique ID (due to the unique address)
+  static const char ID;
+
+private:
+  /// Can this function reach a call with unknown calee.
+  virtual bool canReachUnknownCallee() const = 0;
 };
 
 /// Run options, used by the pass manager.
