@@ -122,6 +122,25 @@ static SPIRVMemoryModelKind getMemoryModel(Module &M) {
   return SPIRVMemoryModelKind::MemoryModelMax;
 }
 
+static bool shouldTryToAddMemAliasingDecoration(Instruction *Inst) {
+  // Limit translation of aliasing metadata with only this set of instructions
+  // gracefully considering others as compilation mistakes and ignoring them
+  if (!Inst->mayReadOrWriteMemory())
+    return false;
+  // Loads and Stores are handled during memory access mask addition
+  if (isa<StoreInst>(Inst) || isa<LoadInst>(Inst))
+    return false;
+  CallInst *CI = dyn_cast<CallInst>(Inst);
+  if (!CI)
+    return true;
+  // Calls to intrinsics are skipped. At some point lifetime start/end will be
+  // handled separately, but specification isn't ready.
+  if (Function *Fun = CI->getCalledFunction())
+    if (Fun->isIntrinsic())
+      return false;
+  return true;
+}
+
 LLVMToSPIRVBase::LLVMToSPIRVBase(SPIRVModule *SMod)
     : M(nullptr), Ctx(nullptr), BM(SMod), SrcLang(0), SrcLangVer(0) {
   DbgTran = std::make_unique<LLVMToSPIRVDbgTran>(nullptr, SMod, this);
@@ -1973,7 +1992,9 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
         BV->setFPFastMathMode(M);
     }
   }
-  transMemAliasingINTELDecorations(V, BV);
+  if (Instruction *Inst = dyn_cast<Instruction>(V))
+    if (shouldTryToAddMemAliasingDecoration(Inst))
+      transMemAliasingINTELDecorations(Inst, BV);
 
   if (auto *CI = dyn_cast<CallInst>(V)) {
     auto OC = BV->getOpCode();
@@ -2001,18 +2022,11 @@ bool LLVMToSPIRVBase::transAlign(Value *V, SPIRVValue *BV) {
 
 // Apply aliasing decorations to instructions annotated with aliasing metadata.
 // Do it for any instruction but loads and stores.
-void LLVMToSPIRVBase::transMemAliasingINTELDecorations(Value *V, SPIRVValue *BV) {
+void LLVMToSPIRVBase::transMemAliasingINTELDecorations(Instruction *Inst,
+                                                       SPIRVValue *BV) {
   if (!BM->isAllowedToUseExtension(
          ExtensionID::SPV_INTEL_memory_access_aliasing))
     return;
-  // Loads and Stores are handled during memory access mask addition
-  if (isa<StoreInst>(V) || isa<LoadInst>(V))
-    return;
-
-  Instruction *Inst = dyn_cast<Instruction>(V);
-  if (!Inst)
-    return;
-
   if (MDNode *AliasingListMD =
           Inst->getMetadata(LLVMContext::MD_alias_scope)) {
     auto *MemAliasList =
