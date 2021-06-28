@@ -13,7 +13,7 @@
 // CHK-ACTIONS: clang-offload-wrapper"{{.*}} "-host=x86_64-unknown-linux-gnu" "-target=amdgcn" "-kind=sycl"{{.*}}
 
 /// Check phases w/out specifying a compute capability.
-// RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl -fsycl-use-footer \
+// RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=amdgcn-amd-amdhsa-sycldevice -mcpu=gfx906 %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
 // CHK-PHASES-NO-CC: 0: input, "{{.*}}", c++, (host-sycl)
