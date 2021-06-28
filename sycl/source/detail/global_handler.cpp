@@ -125,11 +125,33 @@ std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
   return *MHandlerExtendedMembersMutex;
 }
 
+std::vector<DeviceImplPtr> &GlobalHandler::getDeviceCache() {
+  if (MDeviceCache)
+    return *MDeviceCache;
+
+  const std::lock_guard<SpinLock> Lock{MFieldsLock};
+  if (!MDeviceCache)
+    MDeviceCache = std::make_unique<std::vector<DeviceImplPtr>>();
+
+  return *MDeviceCache;
+}
+std::mutex &GlobalHandler::getDeviceCacheMutex() {
+  if (MDeviceCacheMutex)
+    return *MDeviceCacheMutex;
+
+  const std::lock_guard<SpinLock> Lock{MFieldsLock};
+  if (!MDeviceCacheMutex)
+    MDeviceCacheMutex = std::make_unique<std::mutex>();
+
+  return *MDeviceCacheMutex;
+}
+
 void shutdown() {
   // First, release resources, that may access plugins.
   GlobalHandler::instance().MScheduler.reset(nullptr);
   GlobalHandler::instance().MProgramManager.reset(nullptr);
   GlobalHandler::instance().MPlatformCache.reset(nullptr);
+  GlobalHandler::instance().MDeviceCache.reset(nullptr);
 
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,

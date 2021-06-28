@@ -22,8 +22,10 @@ class ProgramManager;
 class Sync;
 class plugin;
 class device_filter_list;
+class device_impl;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
+using DeviceImplPtr = std::shared_ptr<device_impl>;
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -57,6 +59,8 @@ public:
   std::vector<plugin> &getPlugins();
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
   std::mutex &getHandlerExtendedMembersMutex();
+  std::vector<DeviceImplPtr> &getDeviceCache();
+  std::mutex &getDeviceCacheMutex();
 
 private:
   friend void shutdown();
@@ -79,6 +83,8 @@ private:
   std::unique_ptr<device_filter_list> MDeviceFilterList;
   // The mutex for synchronizing accesses to handlers extended members
   std::unique_ptr<std::mutex> MHandlerExtendedMembersMutex;
+  std::unique_ptr<std::vector<DeviceImplPtr>> MDeviceCache;
+  std::unique_ptr<std::mutex> MDeviceCacheMutex;
 };
 } // namespace detail
 } // namespace sycl

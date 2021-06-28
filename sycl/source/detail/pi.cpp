@@ -558,6 +558,8 @@ void fillPlatformAndDeviceCache(plugin &Plugin) {
 
     std::vector<PlatformImplPtr> &PlatformCache =
         GlobalHandler::instance().getPlatformCache();
+    std::vector<DeviceImplPtr> &DeviceCache =
+        GlobalHandler::instance().getDeviceCache();
 
     int DeviceNum = 0;
     for (const auto &PiPlatform : PiPlatforms) {
@@ -599,6 +601,7 @@ void fillPlatformAndDeviceCache(plugin &Plugin) {
       for (const RT::PiDevice &PiDevice : PiDevices) {
         std::shared_ptr<device_impl> Device =
             PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl);
+        DeviceCache.emplace_back(Device);
       }
       DeviceNum += UnfilteredDeviceCount;
     } // end of for
@@ -687,9 +690,13 @@ static void initializePlugins(vector_class<plugin> *Plugins) {
   if (!FilterList || FilterList->containsHost()) {
     std::vector<PlatformImplPtr> &PlatformCache =
         GlobalHandler::instance().getPlatformCache();
+    std::vector<DeviceImplPtr> &DeviceCache =
+        GlobalHandler::instance().getDeviceCache();
     PlatformImplPtr PlatformImpl = platform_impl::getHostPlatformImpl();
     PlatformCache.emplace_back(PlatformImpl);
-    platform_impl::makeHostDevice();
+    std::shared_ptr<device_impl> Device =
+        platform_impl::getOrMakeHostDeviceImpl();
+    DeviceCache.emplace_back(Device);
   }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!(xptiTraceEnabled() && !XPTIInitDone))
