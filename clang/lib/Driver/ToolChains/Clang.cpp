@@ -4676,12 +4676,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (HasFPGA)
       CmdArgs.push_back("-fsycl-disable-range-rounding");
 
-    // Enable generation of USM address spaces for FPGA.
-    // __ENABLE_USM_ADDR_SPACE__ will be used during compilation of SYCL headers
-    if (getToolChain().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_fpga)
-      CmdArgs.push_back("-D__ENABLE_USM_ADDR_SPACE__");
-
     // Add any options that are needed specific to SYCL offload while
     // performing the host side compilation.
     if (!IsSYCLOffloadDevice) {

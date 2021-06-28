@@ -8,7 +8,7 @@
 /// Test behaviors of -foffload-static-lib=<lib> with single object.
 // Build the offload library that is used for the tests.
 // RUN: echo "void foo() {}" > %t.c
-// RUN: %clang_cl -fsycl -c -Fo%t-orig.obj %t.c
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -c -Fo%t-orig.obj %t.c
 // RUN: llvm-ar cr %t-orig.lib %t-orig.obj
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all %t-orig.lib %t-orig.obj -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
