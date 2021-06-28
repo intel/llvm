@@ -142,7 +142,7 @@ void contextSetExtendedDeleter(const cl::sycl::context &context,
   auto contextHandle = reinterpret_cast<pi_context>(impl->getHandleRef());
   auto plugin = impl->getPlugin();
   auto Error = plugin.call_nocheck<PiApiKind::piextContextSetExtendedDeleter>(
-                   contextHandle, func, user_data);
+      contextHandle, func, user_data);
 
   if (Error != PI_SUCCESS) {
     plugin.reportPiError(Error, "piextContextSetExtendedDeleter()");

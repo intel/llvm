@@ -104,11 +104,11 @@ static inline std::string codeToString(cl_int code) {
   /* ":" __SYCL_STRINGIFY_LINE(__LINE__) ": " */                               \
                                "Native API returns: "
 
-#define __SYCL_REPORT_PLUGIN_ERR(expr, name, exc)                               \
+#define __SYCL_REPORT_PLUGIN_ERR(expr, name, exc)                              \
   {                                                                            \
     auto code = expr;                                                          \
     if (code != PI_SUCCESS) {                                                  \
-      throw exc(name + " API failed with error: " +                                 \
+      throw exc(name + " API failed with error: " +                            \
                     cl::sycl::detail::codeToString(code),                      \
                 code);                                                         \
     }                                                                          \
