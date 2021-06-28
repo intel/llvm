@@ -3808,6 +3808,18 @@ void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
   }
 }
 
+// Kernels are only the unnamed-lambda feature if the feature is enabled, AND
+// the first template argument has been corrected by the library to match the
+// functor type.
+static bool IsSYCLUnnamedLambda(LangOptions &LO, FunctionDecl *FD) {
+  if (!LO.SYCLUnnamedLamba)
+    return false;
+  QualType FunctorTy = GetSYCLKernelObjectType(FD);
+  QualType TmplArgTy =
+      calculateKernelNameType(Context, FD).getUnqualifiedType();
+  return Context.hasSameType(FunctorTy, TmplArgTy);
+}
+
 // Generates the OpenCL kernel using KernelCallerFunc (kernel caller
 // function) defined is SYCL headers.
 // Generated OpenCL kernel contains the body of the kernel caller function,
@@ -3845,8 +3857,9 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   std::string CalculatedName, StableName;
   std::tie(CalculatedName, StableName) =
       constructKernelName(*this, KernelCallerFunc, MC);
-  StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
-                                                       : CalculatedName);
+  StringRef KernelName(IsSYCLUnnamedLambda(getLangOpts(), KernelCallerFunc)
+                           ? StableName
+                           : CalculatedName);
 
   // Attributes of a user-written SYCL kernel must be copied to the internally
   // generated alternative kernel, identified by a known string in its name.
@@ -5226,9 +5239,6 @@ void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
 }
 
 void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
-  QualType FunctorTy = GetSYCLKernelObjectType(FD);
-  QualType TmplArgTy =
-      calculateKernelNameType(Context, FD).getUnqualifiedType();
-  if (Context.hasSameType(FunctorTy, TmplArgTy))
+  if (IsSYCLUnnamedLambda(getLangOpts(), FD))
     MarkSYCLKernel(FD->getLocation(), FunctorTy, /*IsInstantiation*/ true);
 }
