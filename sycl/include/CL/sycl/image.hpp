@@ -34,7 +34,9 @@ enum class image_channel_order : unsigned int {
   bgra = 10,
   intensity = 11,
   luminance = 12,
-  abgr = 13
+  abgr = 13,
+  srgb = 15, // CP
+  srgba = 17
 };
 
 enum class image_channel_type : unsigned int {
