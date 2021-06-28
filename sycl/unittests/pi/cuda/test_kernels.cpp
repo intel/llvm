@@ -141,8 +141,8 @@ TEST_F(CudaKernelsTest, PICreateProgramAndKernel) {
   pi_int32 binary_status = PI_SUCCESS;
   ASSERT_EQ(
       (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource,
-          0, nullptr, &binary_status, &prog)),
+          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource, 0,
+          nullptr, &binary_status, &prog)),
       PI_SUCCESS);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piProgramBuild>(
@@ -185,23 +185,23 @@ TEST_F(CudaKernelsTest, PICreateProgramAndKernelWithMetadata) {
   pi_program prog;
   pi_int32 binary_status = PI_SUCCESS;
   ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource,
-          1, &reqdWorkGroupSizeMDPropPointer, &binary_status, &prog)),
+      (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource, 1,
+          &reqdWorkGroupSizeMDPropPointer, &binary_status, &prog)),
       PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
             PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelCreate>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelCreate>(
                 prog, "_Z8myKernelPi", &kern)),
             PI_SUCCESS);
   ASSERT_NE(kern, nullptr);
 
   size_t compileWGSize[3] = {0};
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelGetGroupInfo>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelGetGroupInfo>(
                 kern, device_, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
                 sizeof(size_t) * 3, compileWGSize, nullptr)),
             PI_SUCCESS);
@@ -219,8 +219,8 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSimple) {
   pi_int32 binary_status = PI_SUCCESS;
   ASSERT_EQ(
       (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource,
-          0, nullptr, &binary_status, &prog)),
+          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource, 0,
+          nullptr, &binary_status, &prog)),
       PI_SUCCESS);
   ASSERT_EQ(binary_status, PI_SUCCESS);
 
@@ -249,8 +249,8 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwice) {
   pi_int32 binary_status = PI_SUCCESS;
   ASSERT_EQ(
       (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource,
-          0, nullptr, &binary_status, &prog)),
+          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource, 0,
+          nullptr, &binary_status, &prog)),
       PI_SUCCESS);
   ASSERT_EQ(binary_status, PI_SUCCESS);
 
@@ -288,8 +288,8 @@ TEST_F(CudaKernelsTest, PIKernelSetMemObj) {
   pi_int32 binary_status = PI_SUCCESS;
   ASSERT_EQ(
       (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource,
-          0, nullptr, &binary_status, &prog)),
+          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource, 0,
+          nullptr, &binary_status, &prog)),
       PI_SUCCESS);
   ASSERT_EQ(binary_status, PI_SUCCESS);
 
@@ -324,8 +324,8 @@ TEST_F(CudaKernelsTest, PIkerneldispatch) {
   pi_int32 binary_status = PI_SUCCESS;
   ASSERT_EQ(
       (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource,
-          0, nullptr, &binary_status, &prog)),
+          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource, 0,
+          nullptr, &binary_status, &prog)),
       PI_SUCCESS);
   ASSERT_EQ(binary_status, PI_SUCCESS);
 
@@ -368,8 +368,8 @@ TEST_F(CudaKernelsTest, PIkerneldispatchTwo) {
   pi_int32 binary_status = PI_SUCCESS;
   ASSERT_EQ(
       (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-          context_, 1, &device_, nullptr, (const unsigned char **)&twoParams,
-          0, nullptr, &binary_status, &prog)),
+          context_, 1, &device_, nullptr, (const unsigned char **)&twoParams, 0,
+          nullptr, &binary_status, &prog)),
       PI_SUCCESS);
   ASSERT_EQ(binary_status, PI_SUCCESS);
 
