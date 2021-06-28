@@ -4229,11 +4229,17 @@ static pi_result cleanupAfterEvent(pi_event Event) {
         if (it == Queue->ZeCommandListFenceMap.end()) {
           die("Missing command-list completition fence");
         }
-        ze_result_t ZeResult =
-            ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-        if (ZeResult == ZE_RESULT_SUCCESS) {
-          Queue->resetCommandListFenceEntry(*it, true);
-          Event->ZeCommandList = nullptr;
+
+        // It is possible that the fence was already noted as signalled and
+        // reset.  In that case the InUse flag will be false, and there is
+        // no need to query the fence's status or try to reset it.
+        if (it->second.InUse) {
+          ze_result_t ZeResult =
+              ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+          if (ZeResult == ZE_RESULT_SUCCESS) {
+            Queue->resetCommandListFenceEntry(*it, true);
+            Event->ZeCommandList = nullptr;
+          }
         }
       }
     }
@@ -4365,8 +4371,21 @@ pi_result piEventRelease(pi_event Event) {
     die("piEventRelease: called on a destroyed event");
   }
 
+  // The event is no longer needed upstream, but we have to wait for its
+  // completion in order to do proper cleanup. Otherwise refcount may still be
+  // non-zero in the check below and we will get event leak.
+  //
+  // TODO: in case this potentially "early" wait causes performance problems,
+  // e.g. due to closing a batch too early, or blocking the host for no good
+  // reason, then we should look into moving the wait down to queue release
+  // (will need to remember all events in the queue for that).
+  //
+  if (!Event->CleanedUp)
+    PI_CALL(piEventsWait(1, &Event));
+
   if (--(Event->RefCount) == 0) {
-    cleanupAfterEvent(Event);
+    if (!Event->CleanedUp)
+      cleanupAfterEvent(Event);
 
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {

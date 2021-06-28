@@ -51,10 +51,11 @@ prepareUSMEvent(const shared_ptr_class<detail::queue_impl> &QueueImpl,
 }
 
 event queue_impl::memset(const shared_ptr_class<detail::queue_impl> &Self,
-                         void *Ptr, int Value, size_t Count) {
+                         void *Ptr, int Value, size_t Count,
+                         const vector_class<event> &DepEvents) {
   RT::PiEvent NativeEvent{};
-  MemoryManager::fill_usm(Ptr, Self, Count, Value, /*DepEvents*/ {},
-                          NativeEvent);
+  MemoryManager::fill_usm(Ptr, Self, Count, Value,
+                          getOrWaitEvents(DepEvents, MContext), NativeEvent);
 
   if (MContext->is_host())
     return event();
@@ -65,10 +66,11 @@ event queue_impl::memset(const shared_ptr_class<detail::queue_impl> &Self,
 }
 
 event queue_impl::memcpy(const shared_ptr_class<detail::queue_impl> &Self,
-                         void *Dest, const void *Src, size_t Count) {
+                         void *Dest, const void *Src, size_t Count,
+                         const vector_class<event> &DepEvents) {
   RT::PiEvent NativeEvent{};
-  MemoryManager::copy_usm(Src, Self, Count, Dest, /*DepEvents*/ {},
-                          NativeEvent);
+  MemoryManager::copy_usm(Src, Self, Count, Dest,
+                          getOrWaitEvents(DepEvents, MContext), NativeEvent);
 
   if (MContext->is_host())
     return event();
@@ -80,16 +82,14 @@ event queue_impl::memcpy(const shared_ptr_class<detail::queue_impl> &Self,
 
 event queue_impl::mem_advise(const shared_ptr_class<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
-                             pi_mem_advice Advice) {
-  if (MContext->is_host()) {
-    return event();
-  }
-
-  // non-Host device
+                             pi_mem_advice Advice,
+                             const vector_class<event> &DepEvents) {
   RT::PiEvent NativeEvent{};
-  const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(getHandleRef(), Ptr, Length,
-                                                   Advice, &NativeEvent);
+  MemoryManager::advise_usm(Ptr, Self, Length, Advice,
+                            getOrWaitEvents(DepEvents, MContext), NativeEvent);
+
+  if (MContext->is_host())
+    return event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   addSharedEvent(ResEvent);

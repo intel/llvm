@@ -1180,12 +1180,13 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
     const llvm::Triple &DeviceTriple = TI.getTriple();
-    if (DeviceTriple.isNVPTX())
-      Builder.defineMacro("__SYCL_NVPTX__", "1");
     const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
     if (DeviceTriple.isSPIR() &&
         DeviceSubArch != llvm::Triple::SPIRSubArch_fpga)
       Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
+    // Enable generation of USM address spaces for FPGA.
+    if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga)
+      Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");

@@ -1,4 +1,4 @@
-//==---- itt_annotations.cpp --- ITT Annotations for SPIR-V images ---------==//
+//==---- RequiredWGSize.cpp --- Check required WG size handling ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,26 +18,11 @@
 
 #include <stdlib.h>
 
-// Same as defined in config.def
-static constexpr auto ITTProfileEnvVarName = "INTEL_ENABLE_OFFLOAD_ANNOTATIONS";
-
-static void set_env(const char *name, const char *value) {
-#ifdef _WIN32
-  (void)_putenv_s(name, value);
-#else
-  (void)setenv(name, value, /*overwrite*/ 1);
-#endif
-}
-
-static void unset_env(const char *name) {
-#ifdef _WIN32
-  (void)_putenv_s(name, "");
-#else
-  unsetenv(name);
-#endif
-}
-
 class TestKernel;
+
+bool KernelGetGroupInfoCalled = false;
+std::array<size_t, 3> IncomingLocalSize = {0, 0, 0};
+std::array<size_t, 3> RequiredLocalSize = {0, 0, 0};
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -158,43 +143,45 @@ static pi_result redefinedKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                              size_t param_value_size,
                                              void *param_value,
                                              size_t *param_value_size_ret) {
+  KernelGetGroupInfoCalled = true;
   if (param_name == PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE) {
     if (param_value_size_ret) {
       *param_value_size_ret = 3 * sizeof(size_t);
     } else if (param_value) {
       auto size = static_cast<size_t *>(param_value);
-      size[0] = 0;
-      size[1] = 0;
-      size[2] = 0;
+      size[0] = RequiredLocalSize[0];
+      size[1] = RequiredLocalSize[1];
+      size[2] = RequiredLocalSize[2];
     }
   }
 
   return PI_SUCCESS;
 }
 
-bool HasITTEnabled = false;
-
 static pi_result
 redefinedProgramSetSpecializationConstant(pi_program prog, pi_uint32 spec_id,
                                           size_t spec_size,
                                           const void *spec_value) {
-  if (spec_id == sycl::detail::ITTSpecConstId)
-    HasITTEnabled = true;
-
   return PI_SUCCESS;
 }
 
 static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
                                               const size_t *, const size_t *,
-                                              const size_t *, pi_uint32,
-                                              const pi_event *, pi_event *) {
+                                              const size_t *LocalSize,
+                                              pi_uint32, const pi_event *,
+                                              pi_event *) {
+  if (LocalSize) {
+    IncomingLocalSize[0] = LocalSize[0];
+    IncomingLocalSize[1] = LocalSize[1];
+    IncomingLocalSize[2] = LocalSize[2];
+  }
   return PI_SUCCESS;
 }
 
 static void reset() {
-  using namespace sycl::detail;
-  HasITTEnabled = false;
-  SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::reset();
+  KernelGetGroupInfoCalled = false;
+  IncomingLocalSize = {0, 0, 0};
+  RequiredLocalSize = {0, 0, 0};
 }
 
 static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
@@ -241,11 +228,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 sycl::unittest::PiImage Img = generateDefaultImage();
 sycl::unittest::PiImageArray ImgArray{Img};
 
-TEST(ITTNotify, UseKernelBundle) {
-  set_env(ITTProfileEnvVarName, "1");
-
-  reset();
-
+static void performChecks() {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -274,41 +257,19 @@ TEST(ITTNotify, UseKernelBundle) {
     CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
   });
 
-  EXPECT_EQ(HasITTEnabled, true);
+  EXPECT_EQ(KernelGetGroupInfoCalled, true);
+  EXPECT_EQ(IncomingLocalSize[0], RequiredLocalSize[0]);
+  EXPECT_EQ(IncomingLocalSize[1], RequiredLocalSize[1]);
+  EXPECT_EQ(IncomingLocalSize[2], RequiredLocalSize[2]);
 }
 
-TEST(ITTNotify, VarNotSet) {
-  unset_env(ITTProfileEnvVarName);
-
+TEST(RequiredWGSize, NoRequiredSize) {
   reset();
+  performChecks();
+}
 
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
-
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
-
-  sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
-  auto ExecBundle = sycl::build(KernelBundle);
-  Queue.submit([&](sycl::handler &CGH) {
-    CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
-  });
-
-  EXPECT_EQ(HasITTEnabled, false);
+TEST(RequiredWGSize, HasRequiredSize) {
+  reset();
+  RequiredLocalSize = {1, 2, 3};
+  performChecks();
 }

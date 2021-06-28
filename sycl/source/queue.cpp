@@ -79,15 +79,43 @@ bool queue::is_host() const { return impl->is_host(); }
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
 event queue::memset(void *Ptr, int Value, size_t Count) {
-  return impl->memset(impl, Ptr, Value, Count);
+  return impl->memset(impl, Ptr, Value, Count, {});
+}
+
+event queue::memset(void *Ptr, int Value, size_t Count, event DepEvent) {
+  return impl->memset(impl, Ptr, Value, Count, {DepEvent});
+}
+
+event queue::memset(void *Ptr, int Value, size_t Count,
+                    const vector_class<event> &DepEvents) {
+  return impl->memset(impl, Ptr, Value, Count, DepEvents);
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count) {
-  return impl->memcpy(impl, Dest, Src, Count);
+  return impl->memcpy(impl, Dest, Src, Count, {});
+}
+
+event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent) {
+  return impl->memcpy(impl, Dest, Src, Count, {DepEvent});
+}
+
+event queue::memcpy(void *Dest, const void *Src, size_t Count,
+                    const vector_class<event> &DepEvents) {
+  return impl->memcpy(impl, Dest, Src, Count, DepEvents);
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice) {
-  return impl->mem_advise(impl, Ptr, Length, Advice);
+  return impl->mem_advise(impl, Ptr, Length, Advice, {});
+}
+
+event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
+                        event DepEvent) {
+  return impl->mem_advise(impl, Ptr, Length, Advice, {DepEvent});
+}
+
+event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
+                        const vector_class<event> &DepEvents) {
+  return impl->mem_advise(impl, Ptr, Length, Advice, DepEvents);
 }
 
 event queue::submit_impl(function_class<void(handler &)> CGH,
