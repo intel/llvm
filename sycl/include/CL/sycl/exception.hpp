@@ -10,6 +10,8 @@
 
 // 4.9.2 Exception Class Interface
 
+//CP
+//#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/pi.h>
@@ -48,13 +50,17 @@ public:
   //     : exception(ctx, ev, ecat, std::string(what_arg)) {}
 
   // exception(context ctx, int ev, const std::error_category& ecat, const std::string& what_arg)
-  //     : MMsg(what_arg + reserved_for_errorcode), MContext(&ctx) {
+  //     : MMsg(what_arg + reserved_for_errorcode) /*, MContext(&ctx) */ {
+  //   // For compatibility with previous implementation, we are "hiding" the 
+  //   // std:::error_code in the MMsg string, behind the null string terminator
   //   size_t whatLen = what_arg.length();
   //   char *reservedPtr = &MMsg[whatLen];
   //   reservedPtr[0] = '\0';
   //   reservedPtr++;
   //   std::error_code *ecPtr = reinterpret_cast<std::error_code*>(reservedPtr);
   //   *ecPtr = {ev, ecat};
+
+  //   //MContext = std::make_shared<context>(&ctx);
   // }
 
   const char *what() const noexcept final;
