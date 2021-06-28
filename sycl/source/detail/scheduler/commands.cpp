@@ -1762,6 +1762,11 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
       MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
       RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
+
+  if (Error != PI_SUCCESS) {
+    Plugin.reportPiError(Error, "piEnqueueKernelLaunch()");
+  }
+
   return Error;
 }
 

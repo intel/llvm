@@ -66,6 +66,12 @@ public:
   /// \endcode
   ///
   /// \sa plugin::checkPiResult
+
+  template <typename Exception = cl::sycl::runtime_error>
+  void reportPiError(RT::PiResult pi_result, string_class api_name) const {
+    __SYCL_REPORT_PLUGIN_ERR(pi_result, api_name, Exception);
+  }
+
   template <PiApiKind PiApiOffset, typename... ArgsT>
   RT::PiResult call_nocheck(ArgsT... Args) const {
     RT::PiFuncInfo<PiApiOffset> PiCallInfo;

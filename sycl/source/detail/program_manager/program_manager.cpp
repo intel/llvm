@@ -1498,10 +1498,11 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
       /*user_data=*/nullptr, &LinkedProg);
 
   if (Error != PI_SUCCESS) {
-    const string_class ErrorMsg =
-        LinkedProg ? getProgramBuildLog(LinkedProg, ContextImpl)
-                   : "Online link operation failed";
-    throw sycl::exception(make_error_code(errc::build), ErrorMsg);
+    if (LinkedProg) {
+      const string_class ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
+      throw sycl::exception(make_error_code(errc::build), ErrorMsg);
+    }
+    Plugin.reportPiError(Error, "piProgramLink()");
   }
 
   std::vector<kernel_id> KernelIDs;

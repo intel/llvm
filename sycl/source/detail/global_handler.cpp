@@ -140,7 +140,13 @@ void shutdown() {
       // some parameters in the plugin tear-down process.
       // Currently, it is not used.
       void *PluginParameter = nullptr;
-      Plugin.call_nocheck<PiApiKind::piTearDown>(PluginParameter);
+      auto Error = Plugin.call_nocheck<PiApiKind::piTearDown>(
+                        PluginParameter);
+
+      if (Error != PI_SUCCESS) {
+        Plugin.reportPiError(Error, "piTearDown()");
+      }
+
       Plugin.unload();
     }
     GlobalHandler::instance().MPlugins.reset(nullptr);

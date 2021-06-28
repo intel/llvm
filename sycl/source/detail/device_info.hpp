@@ -969,7 +969,11 @@ template <> struct get_device_info<bool, info::device::usm_device_allocations> {
         dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_device_allocations),
         sizeof(pi_usm_capabilities), &caps, nullptr);
 
-    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+    if (Err != PI_SUCCESS) {
+      Plugin.reportPiError(Err, "piDeviceGetInfo()");
+    }
+
+    return (caps & PI_USM_ACCESS);
   }
 };
 
@@ -981,7 +985,11 @@ template <> struct get_device_info<bool, info::device::usm_host_allocations> {
         dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_host_allocations),
         sizeof(pi_usm_capabilities), &caps, nullptr);
 
-    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+    if (Err != PI_SUCCESS) {
+      Plugin.reportPiError(Err, "piDeviceGetInfo()");
+    }
+
+    return (caps & PI_USM_ACCESS);
   }
 };
 
@@ -992,7 +1000,12 @@ template <> struct get_device_info<bool, info::device::usm_shared_allocations> {
     pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_shared_allocations),
         sizeof(pi_usm_capabilities), &caps, nullptr);
-    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+
+    if (Err != PI_SUCCESS) {
+      Plugin.reportPiError(Err, "piDeviceGetInfo()");
+    }
+
+    return (caps & PI_USM_ACCESS);
   }
 };
 
@@ -1007,9 +1020,11 @@ struct get_device_info<bool, info::device::usm_restricted_shared_allocations> {
             info::device::usm_restricted_shared_allocations),
         sizeof(pi_usm_capabilities), &caps, nullptr);
     // Check that we don't support any cross device sharing
-    return (Err != PI_SUCCESS)
-               ? false
-               : !(caps & (PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS));
+    if (Err != PI_SUCCESS) {
+      Plugin.reportPiError(Err, "piDeviceGetInfo()");
+    }
+
+    return !(caps & (PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS));
   }
 };
 
@@ -1020,7 +1035,12 @@ template <> struct get_device_info<bool, info::device::usm_system_allocator> {
     pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_system_allocator),
         sizeof(pi_usm_capabilities), &caps, nullptr);
-    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+
+    if (Err != PI_SUCCESS) {
+      Plugin.reportPiError(Err, "piDeviceGetInfo()");
+    }
+
+    return (caps & PI_USM_ACCESS);
   }
 };
 
@@ -1031,7 +1051,12 @@ template <> struct get_device_info<bool, info::device::ext_intel_mem_channel> {
     pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::ext_intel_mem_channel),
         sizeof(pi_mem_properties), &caps, nullptr);
-    return (Err != PI_SUCCESS) ? false : (caps & PI_MEM_PROPERTIES_CHANNEL);
+
+    if (Err != PI_SUCCESS) {
+      Plugin.reportPiError(Err, "piDeviceGetInfo()");
+    }
+
+    return (caps & PI_MEM_PROPERTIES_CHANNEL);
   }
 };
 

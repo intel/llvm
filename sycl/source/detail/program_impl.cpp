@@ -360,6 +360,10 @@ void program_impl::create_cl_program_with_source(const string_class &Source) {
         "program::compile_with_source is not supported by the selected backend",
         PI_INVALID_OPERATION);
   }
+
+  if (Err != PI_SUCCESS) {
+    Plugin.reportPiError(Err, "piclProgramCreateWithSource()");
+  }
 }
 
 void program_impl::compile(const string_class &Options) {

@@ -104,6 +104,16 @@ static inline std::string codeToString(cl_int code) {
   /* ":" __SYCL_STRINGIFY_LINE(__LINE__) ": " */                               \
                                "Native API returns: "
 
+#define __SYCL_REPORT_PLUGIN_ERR(expr, name, exc)                               \
+  {                                                                            \
+    auto code = expr;                                                          \
+    if (code != PI_SUCCESS) {                                                  \
+      throw exc(name + " API failed with error: " +                                 \
+                    cl::sycl::detail::codeToString(code),                      \
+                code);                                                         \
+    }                                                                          \
+  }
+
 #ifndef __SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>
 // TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
