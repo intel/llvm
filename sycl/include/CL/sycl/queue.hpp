@@ -381,17 +381,52 @@ public:
 
   /// Fills the specified memory with the specified pattern.
   ///
-  /// \param Ptr is the pointer to the memory to fill
+  /// \param Ptr is the pointer to the memory to fill.
   /// \param Pattern is the pattern to fill into the memory.  T should be
   /// trivially copyable.
   /// \param Count is the number of times to fill Pattern into Ptr.
+  /// \return an event representing fill operation.
   template <typename T> event fill(void *Ptr, const T &Pattern, size_t Count) {
     return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); });
   }
 
+  /// Fills the specified memory with the specified pattern.
+  ///
+  /// \param Ptr is the pointer to the memory to fill.
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Count is the number of times to fill Pattern into Ptr.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing fill operation.
+  template <typename T>
+  event fill(void *Ptr, const T &Pattern, size_t Count, event DepEvent) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.fill<T>(Ptr, Pattern, Count);
+    });
+  }
+
+  /// Fills the specified memory with the specified pattern.
+  ///
+  /// \param Ptr is the pointer to the memory to fill.
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Count is the number of times to fill Pattern into Ptr.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing fill operation.
+  template <typename T>
+  event fill(void *Ptr, const T &Pattern, size_t Count,
+             const vector_class<event> &DepEvents) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.fill<T>(Ptr, Pattern, Count);
+    });
+  }
+
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Count is zero. An exception is thrown
-  /// if \param Dest is nullptr. The behavior is undefined if \param Ptr
+  /// if \param Ptr is nullptr. The behavior is undefined if \param Ptr
   /// is invalid.
   ///
   /// \param Ptr is a USM pointer to the memory to fill.
@@ -399,6 +434,32 @@ public:
   /// \param Count is a number of bytes to fill.
   /// \return an event representing fill operation.
   event memset(void *Ptr, int Value, size_t Count);
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if \param Ptr is nullptr. The behavior is undefined if \param Ptr
+  /// is invalid.
+  ///
+  /// \param Ptr is a USM pointer to the memory to fill.
+  /// \param Value is a value to be set. Value is cast as an unsigned char.
+  /// \param Count is a number of bytes to fill.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing fill operation.
+  event memset(void *Ptr, int Value, size_t Count, event DepEvent);
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if \param Ptr is nullptr. The behavior is undefined if \param Ptr
+  /// is invalid.
+  ///
+  /// \param Ptr is a USM pointer to the memory to fill.
+  /// \param Value is a value to be set. Value is cast as an unsigned char.
+  /// \param Count is a number of bytes to fill.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing fill operation.
+  event memset(void *Ptr, int Value, size_t Count,
+               const vector_class<event> &DepEvents);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -412,6 +473,81 @@ public:
   /// \return an event representing copy operation.
   event memcpy(void *Dest, const void *Src, size_t Count);
 
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Count is a number of bytes to copy.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing copy operation.
+  event memcpy(void *Dest, const void *Src, size_t Count, event DepEvent);
+
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Count is a number of bytes to copy.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing copy operation.
+  event memcpy(void *Dest, const void *Src, size_t Count,
+               const vector_class<event> &DepEvents);
+
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Count is a number of elements of type T to copy.
+  /// \return an event representing copy operation.
+  template <typename T> event copy(T *Dest, const T *Src, size_t Count) {
+    return this->memcpy(Dest, Src, Count * sizeof(T));
+  }
+
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Count is a number of elements of type T to copy.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing copy operation.
+  template <typename T>
+  event copy(T *Dest, const T *Src, size_t Count, event DepEvent) {
+    return this->memcpy(Dest, Src, Count * sizeof(T), DepEvent);
+  }
+
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Count is a number of elements of type T to copy.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// \return an event representing copy operation.
+  template <typename T>
+  event copy(T *Dest, const T *Src, size_t Count,
+             const vector_class<event> &DepEvents) {
+    return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
+  }
+
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -421,14 +557,70 @@ public:
   /// \return an event representing advice operation.
   event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice);
 
+  /// Provides additional information to the underlying runtime about how
+  /// different allocations are used.
+  ///
+  /// \param Ptr is a USM pointer to the allocation.
+  /// \param Length is a number of bytes in the allocation.
+  /// \param Advice is a device-defined advice for the specified allocation.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing advice operation.
+  event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
+                   event DepEvent);
+
+  /// Provides additional information to the underlying runtime about how
+  /// different allocations are used.
+  ///
+  /// \param Ptr is a USM pointer to the allocation.
+  /// \param Length is a number of bytes in the allocation.
+  /// \param Advice is a device-defined advice for the specified allocation.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing advice operation.
+  event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
+                   const vector_class<event> &DepEvents);
+
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
   /// to be available.
   ///
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
+  /// \return an event representing prefetch operation.
   event prefetch(const void *Ptr, size_t Count) {
     return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
+  }
+
+  /// Provides hints to the runtime library that data should be made available
+  /// on a device earlier than Unified Shared Memory would normally require it
+  /// to be available.
+  ///
+  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+  /// \param Count is a number of bytes to be prefetched.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing prefetch operation.
+  event prefetch(const void *Ptr, size_t Count, event DepEvent) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.prefetch(Ptr, Count);
+    });
+  }
+
+  /// Provides hints to the runtime library that data should be made available
+  /// on a device earlier than Unified Shared Memory would normally require it
+  /// to be available.
+  ///
+  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+  /// \param Count is a number of bytes to be prefetched.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing prefetch operation.
+  event prefetch(const void *Ptr, size_t Count,
+                 const vector_class<event> &DepEvents) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.prefetch(Ptr, Count);
+    });
   }
 
   /// single_task version with a kernel represented as a lambda.

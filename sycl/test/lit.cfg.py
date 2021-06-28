@@ -90,6 +90,8 @@ config.substitutions.append( ('%sycl_tools_src_dir',  config.sycl_tools_src_dir 
 config.substitutions.append( ('%llvm_build_lib_dir',  config.llvm_build_lib_dir ) )
 config.substitutions.append( ('%llvm_build_bin_dir',  config.llvm_build_bin_dir ) )
 
+config.substitutions.append( ('%fsycl-host-only', '-std=c++17 -Xclang -fsycl-is-host -isystem %s -isystem %s -isystem %s' % (config.sycl_include, config.opencl_include_dir, config.sycl_include + '/sycl/') ) )
+
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 
 config.substitutions.append( ('%RUN_ON_HOST', "env SYCL_DEVICE_FILTER=host ") )
