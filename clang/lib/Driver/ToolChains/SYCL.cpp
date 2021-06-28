@@ -89,7 +89,8 @@ static void addFPGATimingDiagnostic(std::unique_ptr<Command> &Cmd,
       "and may produce functional errors if used. Refer to the Intel oneAPI "
       "DPC++ FPGA Optimization Guide section on Timing Failures for more "
       "information.");
-  Cmd->addDiagForErrorCode(/*ErrorCode*/ 42, Msg, true);
+  Cmd->addDiagForErrorCode(/*ErrorCode*/ 42, Msg);
+  Cmd->addExitForErrorCode(/*ErrorCode*/ 42, false);
 }
 
 void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,

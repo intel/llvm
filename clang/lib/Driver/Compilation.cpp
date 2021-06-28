@@ -250,7 +250,7 @@ static bool ActionFailed(const Action *A,
     return false;
 
   for (const auto &CI : FailingCommands)
-    if (CI.second->getWillNotExitForErrorCode(CI.first))
+    if (!CI.second->getWillExitForErrorCode(CI.first))
       return false;
 
   // CUDA/HIP/SYCL can have the same input source code compiled multiple times
@@ -292,7 +292,7 @@ void Compilation::ExecuteJobs(const JobList &Jobs,
       // Do not bail when the tool is setup to allow for continuation upon
       // failure.
       if (TheDriver.IsCLMode() &&
-          !FailingCommand->getWillNotExitForErrorCode(Res))
+          FailingCommand->getWillExitForErrorCode(Res))
         return;
     }
   }

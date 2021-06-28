@@ -105,7 +105,8 @@ struct ResponseFileSupport {
 /// execute.
 class Command {
 public:
-  using ErrorCodeDiagMapTy = llvm::DenseMap<int, std::pair<std::string, bool>>;
+  using ErrorCodeDiagMapTy = llvm::DenseMap<int, std::string>;
+  using ErrorCodeExitMapTy = llvm::DenseMap<int, bool>;
 
 private:
   /// Source - The action which caused the creation of this job.
@@ -122,8 +123,6 @@ private:
 
   /// The container for custom driver-set diagnostic messages that are
   /// produced upon particular error codes returned by the command.
-  /// Given a custom diagnostic, also allow for logic to determine if the
-  /// compilation should continue, even with a non-zero return code.
   /// In order to add such a diagnostic for an external tool, consider the
   /// following criteria:
   /// 1) Does the command's executable return different codes upon different
@@ -133,6 +132,11 @@ private:
   ///    flow? E.g. the driver guarantees a valid input to the tool, so any
   ///    "invalid input" error can be ruled out
   ErrorCodeDiagMapTy ErrorCodeDiagMap;
+
+  /// Similar to the container for the diagnostic messages, this container
+  /// is used to signify if the toolchain should error and exit right away
+  /// or if we should continue compilation.
+  ErrorCodeExitMapTy ErrorCodeExitMap;
 
   /// The list of program arguments (not including the implicit first
   /// argument, which will be the executable).
@@ -198,8 +202,11 @@ public:
 
   /// Store a custom driver diagnostic message and if the compilation should
   /// exit upon a particular error code returned by the command
-  void addDiagForErrorCode(int ErrorCode, StringRef CustomDiag,
-                           bool NoExit = false);
+  void addDiagForErrorCode(int ErrorCode, StringRef CustomDiag);
+
+  /// Store if the compilation should exit upon a particular error code
+  /// returned by the command
+  void addExitForErrorCode(int ErrorCode, bool Exit);
 
   /// Get the custom driver diagnostic message for a particular error code
   /// if such was stored. Returns an empty string if no diagnostic message
@@ -207,8 +214,8 @@ public:
   StringRef getDiagForErrorCode(int ErrorCode) const;
 
   /// Will the tool exit when a particular error code is encountered. Returns
-  /// false if not set (always exit)
-  bool getWillNotExitForErrorCode(int ErrorCode) const;
+  /// true if not set (always exit)
+  bool getWillExitForErrorCode(int ErrorCode) const;
 
   /// getSource - Return the Action which caused the creation of this job.
   const Action &getSource() const { return Source; }
