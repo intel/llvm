@@ -521,6 +521,155 @@ __esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
                        __SEIEED::vector_type_t<Ty1, N1> msgSrc0);
 #ifndef __SYCL_DEVICE_ONLY__
 
+#define __SYCL_EXPLICIT_SIMD_PLUGIN__
+
+// Header files required for accessing CM-managed memory - Surface,
+// buffer, etc
+namespace cm_support {
+#include <CL/cm_rt.h>
+} // namespace cm_support
+#include "cmrt_if_defs.hpp"
+
+#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/pi.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/atomic_intrin.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/emu/esimdcpu_device_interface.hpp>
+
+namespace raw_send {
+
+enum class msgField : short {
+  OP,
+  VNNI,
+  ADDRSIZE,
+  DATASIZE,
+  VECTSIZE,
+  TRANSPOSE,
+  CACHE,
+  DSTLEN,
+  SRC0LEN,
+  ADDRTYPE
+};
+
+enum class msgOp : short {
+  DP_LOAD = 0x0, // scatter/vector load
+  LOAD_2D = 0x3,
+  DP_STORE = 0x4, // scatter/vector store
+  STORE_2D = 0x7,
+  OP_MAX = 0x3F
+};
+
+typedef struct _bitfields_ {
+  uint32_t offset;
+  uint32_t mask;
+} bitfields;
+
+const bitfields BIT_FIELDS[10] = {
+    {0, 0x3F},  // OP / 6 bits
+    {7, 0x1},   // VNNI -> LOAD only
+    {7, 0x3},   // Address size
+    {9, 0x7},   // DATASIZE
+    {12, 0x7},  // VECTSIZE
+    {15, 0x1},  // TRANSPOSE -> LOAD only
+    {17, 0x7},  // CACHE
+    {20, 0x1F}, // DSTLEN
+    {25, 0xF},  // SRC0LEN,
+    {29, 0x3}   // ADDRTYPE
+};
+uint32_t inline getMsgField(uint32_t msg, msgField field) {
+  uint32_t idx = static_cast<uint32_t>(field);
+  return ((msg >> BIT_FIELDS[idx].offset) & BIT_FIELDS[idx].mask);
+}
+
+auto inline getMsgOp(uint32_t msg) {
+  msgOp ret;
+  ret = static_cast<msgOp>(getMsgField((uint32_t)msg, msgField::OP));
+  return ret;
+}
+
+template <typename T, unsigned N>
+uint64_t inline getSurfaceBaseAddr(__SEIEED::vector_type_t<T, N> addrMsg) {
+  constexpr int sizeofT = sizeof(T);
+  uint64_t Ret = 0;
+
+  if constexpr (sizeofT == 4) {
+    Ret = (uint64_t)addrMsg[1] << 32;
+    Ret |= (uint64_t)addrMsg[0];
+  } else if constexpr (sizeofT == 8) {
+    Ret = addrMsg[0];
+  }
+
+  return Ret;
+}
+
+template <typename T, unsigned N>
+uint64_t inline getLaneAddr(__SEIEED::vector_type_t<T, N> addrMsg,
+                            unsigned lane_id) {
+  // (matrix_ref<T, R, C> addrMsg)
+  // vector_ref<uint64_t, 1> addr_ref = addrMsg.template select<1, 1, 2, 1>(0, 2
+  // * lane_id).template format<uint64_t, 1, 1>(); return addr_ref(0);
+  throw cl::sycl::feature_not_supported();
+}
+
+template <typename T, unsigned N>
+auto inline getSurfaceDim(__SEIEED::vector_type_t<T, N> addrMsg) {
+  __SEIEED::vector_type_t<uint32_t, 4> Ret;
+  constexpr int sizeofT = sizeof(T);
+
+  static_assert(sizeofT == 4, "Unsupported addrMsg format!!");
+
+  if constexpr (sizeofT == 4) {
+    for (int idx = 0; idx < 4; idx++) {
+      Ret[idx] = addrMsg[idx + 2];
+    }
+  }
+
+  return Ret;
+}
+
+template <typename T, unsigned N>
+auto inline getBlockOffsets(__SEIEED::vector_type_t<T, N> addrMsg) {
+  __SEIEED::vector_type_t<int32_t, 4> Ret;
+  constexpr int sizeofT = sizeof(T);
+
+  static_assert(sizeofT == 4, "Unsupported addrMsg format!!");
+
+  if constexpr (sizeofT == 4) {
+    for (int idx = 0; idx < 4; idx++) {
+      Ret[idx] = static_cast<int32_t>(addrMsg[idx + 5]);
+    }
+  }
+
+  return Ret;
+}
+
+template <typename T, unsigned N>
+auto inline getBlockDim(__SEIEED::vector_type_t<T, N> addrMsg) {
+  __SEIEED::vector_type_t<unsigned char, 4> Ret;
+  constexpr int sizeofT = sizeof(T);
+  T RawValue = 0;
+
+  static_assert(sizeofT == 4, "Unsupported addrMsg format!!");
+
+  if constexpr (sizeofT == 4) {
+    RawValue = addrMsg[7];
+    Ret[0] = (unsigned char)(RawValue & 0xFF);         // width
+    Ret[1] = (unsigned char)((RawValue >> 8) & 0xFF);  // height
+    Ret[2] = (unsigned char)((RawValue >> 24) & 0xFF); // For ArrayLen
+  }
+
+  assert(RawValue != 0);
+
+  return Ret;
+}
+
+template <typename T, unsigned N>
+auto inline getArrayLen(__SEIEED::vector_type_t<T, N> addrMsg) {
+  auto blkDim = getBlockDim<T, N>(addrMsg);
+  return (blkDim[2] >> 4);
+}
+
+} // namespace raw_send
+
 template <typename Ty, int N, int NumBlk, __SEIEE::CacheHint L1H,
           __SEIEE::CacheHint L3H>
 inline __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)>
@@ -693,48 +842,105 @@ template <typename Ty, int M, int N, typename TACC>
 inline __SEIEED::vector_type_t<Ty, M * N>
 __esimd_media_block_load(unsigned modififer, TACC handle, unsigned plane,
                          unsigned width, unsigned x, unsigned y) {
-  // On host the input surface is modeled as sycl image 2d object,
-  // and the read/write access is done through accessor,
-  // which is passed in as the handle argument.
-  auto range = __SEIEED::AccessorPrivateProxy::getImageRange(handle);
-  unsigned bpp = __SEIEED::AccessorPrivateProxy::getElemSize(handle);
-  unsigned vpp = bpp / sizeof(Ty);
-  unsigned int i = x / bpp;
-  unsigned int j = y;
-
-  assert(x % bpp == 0);
-  unsigned int xbound = range[0] - 1;
-  unsigned int ybound = range[1] - 1;
-
   __SEIEED::vector_type_t<Ty, M * N> vals;
-  for (int row = 0; row < M; row++) {
-    for (int col = 0; col < N; col += vpp) {
-      unsigned int xoff = (i > xbound) ? xbound : i;
-      unsigned int yoff = (j > ybound) ? ybound : j;
-      auto coords = cl::sycl::cl_int2(xoff, yoff);
-      cl::sycl::cl_uint4 data = handle.read(coords);
 
-      __SEIEED::vector_type_t<unsigned int, 4> res;
-      for (int idx = 0; idx < 4; idx++) {
-        res[idx] = data[idx];
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  _pi_image *img =
+      static_cast<_pi_image *>(static_cast<void *>(handle.get_pointer()));
+  std::unique_lock<std::mutex> lock(img->mutexLock);
+
+  char *readBase = I->sycl_get_surface_base_addr_ptr(img->SurfaceIndex);
+
+  uint32_t bpp = static_cast<uint32_t>(img->BytesPerPixel);
+  uint32_t imgWidth = static_cast<uint32_t>(img->Width) * bpp;
+  uint32_t imgHeight = static_cast<uint32_t>(img->Height);
+  int x_pos_a, y_pos_a, offset, index;
+
+  // TODO : Remove intermediate 'in' matrix
+  std::vector<std::vector<Ty>> in(M, std::vector<Ty>(N));
+  int R = M;
+  int C = N;
+  for (int i = 0; i < R; i++) {
+    for (int j = 0; j < C; j++) {
+      x_pos_a = x + j * sizeof(Ty);
+      { y_pos_a = y + i; }
+      // We should check the boundary condition based on sizeof(Ty), x_pos_a is
+      // 0-based Note: Use a signed variable; otherwise sizeof(Ty) is unsigned
+      if ((x_pos_a + sizeof(Ty)) > imgWidth) {
+        // If we're trying to read outside the boundary, limit the value of
+        // x_pos_a Assumption -- We don't this situation:
+        //         x_pos_a  width's boundary
+        //           |      |
+        //           <---type(Ty)--->
+        // At most x_pos_a+sizeof(Ty) is exactly at the boundary.
+        x_pos_a = imgWidth;
+      }
+      if (y_pos_a > imgHeight - 1) {
+        y_pos_a = imgHeight - 1;
+      }
+      if (y_pos_a < 0) {
+        y_pos_a = 0;
+      }
+      {
+        if (x_pos_a < 0) {
+          // Need to align x position to bbp
+          int offset = x % bpp;
+          x_pos_a -= offset;
+        }
+        while (x_pos_a < 0) {
+          // If we're trying to read outside the left boundary, increase x_pos_a
+          x_pos_a += bpp;
+        }
       }
 
-      constexpr int refN = sizeof(cl::sycl::cl_uint4) / sizeof(Ty);
-      unsigned int stride = sizeof(cl::sycl::cl_uint4) / bpp;
-      using refTy = __SEIEED::vector_type_t<Ty, refN>;
-      auto ref = reinterpret_cast<refTy>(res);
+      if (x_pos_a >= imgWidth) {
+        {
+          x_pos_a = x_pos_a - bpp;
+          for (uint byte_count = 0; byte_count < sizeof(Ty); byte_count++) {
+            if (x_pos_a >= imgWidth) {
+              x_pos_a = x_pos_a - bpp;
+            }
+            offset = y_pos_a * imgWidth + x_pos_a;
 
-      unsigned int offset1 = col + row * N;
-      unsigned int offset2 = 0;
-      for (int idx = 0; idx < vpp; idx++) {
-        vals[offset1] = ref[offset2];
-        offset1++;
-        offset2 += stride;
+            /*
+              If destination size per element is less then or equal pixel size
+              of the surface move the pixel value accross the destination
+              elements. If destination size per element is greater then pixel
+              size of the surface replicate pixel value in the destination
+              element.
+            */
+            if (sizeof(Ty) <= bpp) {
+              for (uint bpp_count = 0; j < C && bpp_count < bpp;
+                   j++, bpp_count += sizeof(Ty)) {
+                in[i][j] = *((Ty *)(readBase + offset + bpp_count));
+              }
+              j--;
+              break;
+            } else {
+              // ((unsigned char*)in.get_addr(i*C+j))[byte_count] = *((unsigned
+              // char*)((char*)buff_iter->p + offset));
+              unsigned char *pTempBase =
+                  ((unsigned char *)in[i].data()) + j * sizeof(Ty);
+              pTempBase[byte_count] = *((unsigned char *)(readBase + offset));
+            }
+
+            x_pos_a = x_pos_a + 1;
+          }
+          x_pos_a = imgWidth;
+        }
+      } else {
+        offset = y_pos_a * imgWidth + x_pos_a;
+        { in[i][j] = *((Ty *)(readBase + offset)); }
       }
-      i++;
     }
-    i = x / bpp;
-    j++;
+  }
+
+  for (auto i = 0, k = 0; i < M; i++) {
+    for (auto j = 0; j < N; j++) {
+      vals[k++] = in[i][j];
+    }
   }
 
   return vals;
@@ -745,45 +951,57 @@ inline void __esimd_media_block_store(unsigned modififer, TACC handle,
                                       unsigned plane, unsigned width,
                                       unsigned x, unsigned y,
                                       __SEIEED::vector_type_t<Ty, M * N> vals) {
-  unsigned bpp = __SEIEED::AccessorPrivateProxy::getElemSize(handle);
-  unsigned vpp = bpp / sizeof(Ty);
-  auto range = __SEIEED::AccessorPrivateProxy::getImageRange(handle);
-  unsigned int i = x / bpp;
-  unsigned int j = y;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
 
-  assert(x % bpp == 0);
+  _pi_image *img =
+      static_cast<_pi_image *>(static_cast<void *>(handle.get_pointer()));
 
-  for (int row = 0; row < M; row++) {
-    for (int col = 0; col < N; col += vpp) {
-      constexpr int Sz = sizeof(cl::sycl::cl_uint4) / sizeof(Ty);
-      __SEIEED::vector_type_t<Ty, Sz> res = 0;
+  char *writeBase = I->sycl_get_surface_base_addr_ptr(img->SurfaceIndex);
 
-      unsigned int offset1 = col + row * N;
-      unsigned int offset2 = 0;
-      unsigned int stride = sizeof(cl::sycl::cl_uint4) / bpp;
-      for (int idx = 0; idx < vpp; idx++) {
-        res[offset2] = vals[offset1];
-        offset1++;
-        offset2 += stride;
-      }
+  uint32_t bpp = static_cast<uint32_t>(img->BytesPerPixel);
+  uint32_t imgWidth = static_cast<uint32_t>(img->Width) * bpp;
+  uint32_t imgHeight = static_cast<uint32_t>(img->Height);
+  int x_pos_a, y_pos_a, offset;
 
-      using refTy = __SEIEED::vector_type_t<unsigned int, 4>;
-      auto ref = reinterpret_cast<refTy>(res);
+  assert((x % 4) == 0);
+  assert((N * sizeof(Ty)) % 4 == 0);
 
-      cl::sycl::cl_uint4 data;
-      for (int idx = 0; idx < 4; idx++) {
-        data[idx] = ref[idx];
-      }
+  // TODO : Remove intermediate 'out' matrix
+  std::vector<std::vector<Ty>> out(M, std::vector<Ty>(N));
 
-      if (i < range[0] && j < range[1]) {
-        auto coords = cl::sycl::cl_int2(i, j);
-        handle.write(coords, data);
-      }
-      i++;
+  std::unique_lock<std::mutex> lock(img->mutexLock);
+
+  for (int i = 0, k = 0; i < M; i++) {
+    for (int j = 0; j < N; j++) {
+      out[i][j] = vals[k++];
     }
-    i = x / bpp;
-    j++;
   }
+
+  for (int i = 0; i < M; i++) {
+    for (int j = 0; j < N; j++) {
+      x_pos_a = x + j * sizeof(Ty);
+      { y_pos_a = y + i; }
+      if ((int)x_pos_a < 0) {
+        continue;
+      }
+      if ((int)y_pos_a < 0) {
+        continue;
+      }
+      if ((int)(x_pos_a + sizeof(Ty)) > imgWidth) {
+        continue;
+      }
+
+      if ((int)y_pos_a > imgHeight - 1) {
+        continue;
+      }
+      offset = y_pos_a * imgWidth + x_pos_a;
+      *((Ty *)(writeBase + offset)) = out[i][j];
+    }
+  }
+
+  /// TODO : Optimize
+  I->cm_fence_ptr();
 }
 
 template <typename Ty, int N>
@@ -820,10 +1038,27 @@ __esimd_dp4(__SEIEED::vector_type_t<Ty, N> v1,
   return retv;
 }
 
-/// TODO
-inline void __esimd_barrier() {}
+inline void __esimd_slm_init(size_t size) {
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
 
-inline void __esimd_sbarrier(__SEIEE::split_barrier_action flag) {}
+  I->cm_slm_init_ptr(size);
+}
+
+inline void __esimd_barrier() {
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->cm_barrier_ptr();
+}
+
+inline void __esimd_sbarrier(
+    sycl::ext::intel::experimental::esimd::EsimdSbarrierType flag) {
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->cm_sbarrier_ptr((uint32_t)flag);
+}
 
 inline void __esimd_slm_fence(uint8_t cntl) {}
 
@@ -832,6 +1067,17 @@ inline __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_read(__SEIEED::vector_type_t<uint32_t, N> addrs,
                  __SEIEED::vector_type_t<uint16_t, N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  char *SlmBase = I->__cm_emu_get_slm_ptr();
+  for (int i = 0; i < N; ++i) {
+    if (pred[i]) {
+      Ty *addr = reinterpret_cast<Ty *>(addrs[i] + SlmBase);
+      retv[i] = *addr;
+    }
+  }
+
   return retv;
 }
 
@@ -839,19 +1085,49 @@ __esimd_slm_read(__SEIEED::vector_type_t<uint32_t, N> addrs,
 template <typename Ty, int N>
 inline void __esimd_slm_write(__SEIEED::vector_type_t<uint32_t, N> addrs,
                               __SEIEED::vector_type_t<Ty, N> vals,
-                              __SEIEED::vector_type_t<uint16_t, N> pred) {}
+                              __SEIEED::vector_type_t<uint16_t, N> pred) {
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  char *SlmBase = I->__cm_emu_get_slm_ptr();
+  for (int i = 0; i < N; ++i) {
+    if (pred[i]) {
+      Ty *addr = reinterpret_cast<Ty *>(addrs[i] + SlmBase);
+      *addr = vals[i];
+    }
+  }
+}
 
 // slm_block_read reads a block of data from SLM
 template <typename Ty, int N>
 inline __SEIEED::vector_type_t<Ty, N> __esimd_slm_block_read(uint32_t addr) {
   __SEIEED::vector_type_t<Ty, N> retv;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+  char *SlmBase = I->__cm_emu_get_slm_ptr();
+  addr <<= 4;
+  for (int i = 0; i < N; ++i) {
+    Ty *SlmAddr = reinterpret_cast<Ty *>(addr + SlmBase);
+    retv[i] = *SlmAddr;
+    addr += sizeof(Ty);
+  }
   return retv;
 }
 
 // slm_block_write writes a block of data to SLM
 template <typename Ty, int N>
 inline void __esimd_slm_block_write(uint32_t addr,
-                                    __SEIEED::vector_type_t<Ty, N> vals) {}
+                                    __SEIEED::vector_type_t<Ty, N> vals) {
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+  char *SlmBase = I->__cm_emu_get_slm_ptr();
+  addr <<= 4;
+  for (int i = 0; i < N; ++i) {
+    Ty *SlmAddr = reinterpret_cast<Ty *>(addr + SlmBase);
+    *SlmAddr = vals[i];
+    addr += sizeof(Ty);
+  }
+}
 
 // slm_read4 does SLM gather4
 template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
@@ -859,6 +1135,52 @@ inline __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
 __esimd_slm_read4(__SEIEED::vector_type_t<uint32_t, N> addrs,
                   __SEIEED::vector_type_t<uint16_t, N> pred) {
   __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> retv;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+  char *ReadBase = I->__cm_emu_get_slm_ptr();
+
+  unsigned int Next = 0;
+  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::R)) {
+    for (int I = 0; I < N; I++, Next++) {
+      if (pred[I]) {
+        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + ReadBase);
+        retv[Next] = *addr;
+      }
+    }
+  }
+
+  ReadBase += sizeof(Ty);
+
+  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::G)) {
+    for (int I = 0; I < N; I++, Next++) {
+      if (pred[I]) {
+        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + ReadBase);
+        retv[Next] = *addr;
+      }
+    }
+  }
+
+  ReadBase += sizeof(Ty);
+
+  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::B)) {
+    for (int I = 0; I < N; I++, Next++) {
+      if (pred[I]) {
+        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + ReadBase);
+        retv[Next] = *addr;
+      }
+    }
+  }
+
+  ReadBase += sizeof(Ty);
+
+  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::A)) {
+    for (int I = 0; I < N; I++, Next++) {
+      if (pred[I]) {
+        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + ReadBase);
+        retv[Next] = *addr;
+      }
+    }
+  }
   return retv;
 }
 
@@ -867,7 +1189,55 @@ template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
 inline void __esimd_slm_write4(
     __SEIEED::vector_type_t<uint32_t, N> addrs,
     __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
-    __SEIEED::vector_type_t<uint16_t, N> pred) {}
+    __SEIEED::vector_type_t<uint16_t, N> pred) {
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+  char *WriteBase = I->__cm_emu_get_slm_ptr();
+
+  unsigned int Next = 0;
+  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::R)) {
+    for (int I = 0; I < N; I++, Next++) {
+      if (pred[I]) {
+        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + WriteBase);
+        *addr = vals[Next];
+      }
+    }
+  }
+
+  WriteBase += sizeof(Ty);
+
+  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::G)) {
+    for (int I = 0; I < N; I++, Next++) {
+      if (pred[I]) {
+        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + WriteBase);
+        *addr = vals[Next];
+      }
+    }
+  }
+
+  WriteBase += sizeof(Ty);
+
+  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::B)) {
+    for (int I = 0; I < N; I++, Next++) {
+      if (pred[I]) {
+        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + WriteBase);
+        *addr = vals[Next];
+      }
+    }
+  }
+
+  WriteBase += sizeof(Ty);
+
+  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::A)) {
+    for (int I = 0; I < N; I++, Next++) {
+      if (pred[I]) {
+        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + WriteBase);
+        *addr = vals[Next];
+      }
+    }
+  }
+}
 
 // slm_atomic: SLM atomic
 template <__SEIEE::atomic_op Op, typename Ty, int N>
@@ -875,6 +1245,23 @@ inline __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic0(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<uint16_t, N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+  char *WriteBase = I->__cm_emu_get_slm_ptr();
+
+  for (int i = 0; i < N; i++) {
+    if (pred[i]) {
+      Ty *p = reinterpret_cast<Ty *>(addrs[i] + WriteBase);
+
+      switch (Op) {
+      case __SEIEE::EsimdAtomicOpType::ATOMIC_INC:
+        retv[i] = atomic_add_fetch<Ty>(p, 1);
+        break;
+      default:
+        throw cl::sycl::feature_not_supported();
+      }
+    }
+  }
   return retv;
 }
 
@@ -884,6 +1271,21 @@ __esimd_slm_atomic1(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
                     __SEIEED::vector_type_t<uint16_t, N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
+
+  for (int i = 0; i < N; i++) {
+    if (pred[i]) {
+      Ty *p = reinterpret_cast<Ty *>(addrs[i]);
+
+      switch (Op) {
+      case __SEIEE::EsimdAtomicOpType::ATOMIC_ADD:
+        retv[i] = atomic_add_fetch<Ty>(p, src0[i]);
+        break;
+      default:
+        throw cl::sycl::feature_not_supported();
+      }
+    }
+  }
+
   return retv;
 }
 
@@ -930,15 +1332,59 @@ __esimd_flat_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
 template <typename Ty, int N, typename SurfIndAliasTy>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_block_read(SurfIndAliasTy surf_ind, uint32_t offset) {
-  throw cl::sycl::feature_not_supported();
-  return __SEIEED::vector_type_t<Ty, N>();
+  __SEIEED::vector_type_t<Ty, N> retv;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+  _pi_buffer *buf =
+      static_cast<_pi_buffer *>(static_cast<void *>(surf_ind.get_pointer()));
+
+  char *readBase = I->sycl_get_surface_base_addr_ptr(buf->SurfaceIndex);
+
+  uint32_t width = static_cast<uint32_t>(buf->Size);
+  uint32_t pos = offset;
+
+  std::unique_lock<std::mutex> lock(buf->mutexLock);
+
+  for (int idx = 0; idx < N; idx++) {
+    if (pos >= width) {
+      retv[idx] = 0;
+    } else {
+      retv[idx] = *((Ty *)(readBase + pos));
+    }
+    pos += (uint32_t)sizeof(Ty);
+  }
+
+  return retv;
 }
 
 template <typename Ty, int N, typename SurfIndAliasTy>
 inline void __esimd_block_write(SurfIndAliasTy surf_ind, uint32_t offset,
                                 __SEIEED::vector_type_t<Ty, N> vals) {
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+  _pi_buffer *buf =
+      static_cast<_pi_buffer *>(static_cast<void *>(surf_ind.get_pointer()));
 
-  throw cl::sycl::feature_not_supported();
+  char *writeBase = I->sycl_get_surface_base_addr_ptr(buf->SurfaceIndex);
+
+  uint32_t width = static_cast<uint32_t>(buf->Size);
+  assert(buf->Size == width);
+
+  uint32_t pos = offset << 4;
+
+  std::unique_lock<std::mutex> lock(buf->mutexLock);
+
+  for (int idx = 0; idx < N; idx++) {
+    if (pos < width) {
+      *((Ty *)(writeBase + pos)) = vals[idx];
+    } else {
+      break;
+    }
+    pos += (uint32_t)sizeof(Ty);
+  }
+
+  /// TODO : Optimize
+  I->cm_fence_ptr();
 }
 
 /// \brief esimd_get_value
@@ -1032,8 +1478,173 @@ __esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
                       uint32_t exDesc, uint32_t msgDesc,
                       __SEIEED::vector_type_t<Ty2, N2> msgSrc0,
                       __SEIEED::vector_type_t<Ty1, N1> msgDst) {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  assert(sfid == 0xF); // UGM type only
+
+  __SEIEED::vector_type_t<Ty1, N1> retv;
+
+  auto op = raw_send::getMsgOp(msgDesc);
+  assert(op == raw_send::msgOp::LOAD_2D);
+  uint64_t surfaceBase = raw_send::getSurfaceBaseAddr<Ty2, N2>(msgSrc0);
+  auto surfaceDim = raw_send::getSurfaceDim<Ty2, N2>(msgSrc0);
+  auto blockOffset = raw_send::getBlockOffsets<Ty2, N2>(msgSrc0);
+  auto blockDim = raw_send::getBlockDim<Ty2, N2>(msgSrc0);
+  auto arrayLen = raw_send::getArrayLen<Ty2, N2>(msgSrc0);
+
+  unsigned SurfaceWidth = surfaceDim[0] + 1;
+  unsigned SurfaceHeight = surfaceDim[1] + 1;
+  unsigned SurfacePitch = surfaceDim[2] + 1;
+
+  int X = blockOffset[0];
+  int Y = blockOffset[1];
+  int Width = blockDim[0] + 1;
+  int Height = blockDim[1] + 1;
+  int NBlks = arrayLen + 1;
+
+  bool Transposed =
+      raw_send::getMsgField(msgDesc, raw_send::msgField::TRANSPOSE);
+  bool Transformed = raw_send::getMsgField(msgDesc, raw_send::msgField::VNNI);
+
+  constexpr unsigned sizeofT = sizeof(Ty1);
+
+  char *buffBase = (char *)surfaceBase;
+
+  // TODO : Acquire mutex for the surface pointed to by 'surfaceBase'
+  int vecIdx = 0;
+  int blkCount = 0;
+
+  for (int xBase = X * sizeofT; blkCount < NBlks; xBase += sizeofT * Width) {
+    if (Transformed == true) {
+      constexpr int elems_per_DW = (sizeofT == 1) ? 4 : 2; /// VNNI_pack
+      if (Transposed == false) { /// Transform only load
+        int yRead = Y * SurfacePitch;
+        for (int u = 0; u < Height;
+             u += elems_per_DW, yRead += SurfacePitch * elems_per_DW) {
+          if ((yRead < 0) || (yRead >= SurfacePitch * SurfaceHeight)) {
+            /// Vertically out-of-bound, padding zero on out of boundary
+            for (int v = 0; v < Width; v += 1) {
+              for (int k = 0; k < elems_per_DW; k++, vecIdx += 1) {
+                retv[vecIdx] = (Ty1)(0);
+              } // k loop
+            }
+            // vecIdx += Width * elems_per_DW;;
+            continue;
+          }
+
+          int xRead = xBase;
+          for (int v = 0; v < Width; v += 1, xRead += sizeofT) {
+            if ((xRead < 0) || (xRead >= SurfaceWidth)) {
+              /// Horizontally out-of-bound
+              for (int k = 0; k < elems_per_DW; k++, vecIdx += 1) {
+                retv[vecIdx] = (Ty1)(0);
+              } // k loop
+              // vecIdx += elems_per_DW;
+              continue;
+            }
+
+            char *base = buffBase + yRead + xRead;
+            int offset = 0;
+            for (int k = 0; k < elems_per_DW; k++, vecIdx += 1) {
+              retv[vecIdx] = *((Ty1 *)(base + offset));
+              // Increasing in Y-direction
+              offset += SurfacePitch;
+            } // k loop
+          }   // v loop
+        }     /// u loop
+      }       // Transposed = false
+      else    // Transposed == true
+      {       /// Transform & Transpose load
+        int xRead = xBase;
+        for (int v = 0; v < Width;
+             v += elems_per_DW, xRead += sizeofT * elems_per_DW) {
+          if ((xRead < 0) || (xRead >= SurfaceWidth)) {
+            // Horizontally out-of-bound
+            for (int u = 0; u < Height; u += 1) {
+              for (int k = 0; k < elems_per_DW; k++, vecIdx += 1) {
+                retv[vecIdx] = (Ty1)(0);
+              } // k loop
+            }
+            // vecIdx += Height * elems_per_DW;
+            continue;
+          }
+
+          int yRead = Y * SurfacePitch;
+          for (int u = 0; u < Height; u += 1, yRead += SurfacePitch) {
+            if ((yRead < 0) || (yRead >= SurfacePitch * SurfaceHeight)) {
+              /// Vertically out-of-bound
+              for (int k = 0; k < elems_per_DW; k++, vecIdx += 1) {
+                retv[vecIdx] = (Ty1)(0);
+              } // k loop
+              // vecIdx += elems_per_DW;
+              continue;
+            }
+
+            char *base = buffBase + yRead + xRead;
+            int offset = 0;
+            for (int k = 0; k < elems_per_DW; k++, vecIdx += 1) {
+              retv[vecIdx] = *((Ty1 *)(base + offset));
+              // Increasing in X-direction
+              offset += sizeofT;
+            } // k loop
+          }   // u loop
+        }     // v loop
+      }       // Transposed == true
+    }         // Transformed == true
+    else      // (Transformed == false)
+    {
+      if (Transposed == false) { /// Linear load - no transform, no transpose
+        int yRead = Y * SurfacePitch;
+        for (int u = 0; u < Height; u += 1, yRead += SurfacePitch) {
+          if ((yRead < 0) || (yRead >= SurfacePitch * SurfaceHeight)) {
+            // Vertically Out-of-bound
+            for (int v = 0; v < Width; v += 1, vecIdx += 1) {
+              retv[vecIdx] = (Ty1)(0);
+            }
+            // vecIdx += Width;
+            continue;
+          }
+
+          int xRead = xBase;
+          for (int v = 0; v < Width; v += 1, xRead += sizeofT, vecIdx += 1) {
+            if ((xRead >= 0) && (xRead < SurfaceWidth)) {
+              retv[vecIdx] = *((Ty1 *)(buffBase + yRead + xRead));
+            } else {
+              // Horizontally out of bound
+              retv[vecIdx] = (Ty1)(0);
+            }
+          } // v loop
+        }   // u loop
+      }     /// Transposed == false
+      else  // Transposed = true
+      {     /// Transpose load - no transform
+        int xRead = xBase;
+        for (int v = 0; v < Width; v += 1, xRead += sizeofT) {
+          if ((xRead < 0) || (xRead > SurfaceWidth)) {
+            // Horizontally out-of-bound
+            for (int u = 0; u < Height; u += 1, vecIdx += 1) {
+              retv[vecIdx] = (Ty1)(0);
+            }
+            // vecIdx += Height;
+            continue;
+          }
+
+          int yRead = Y * SurfacePitch;
+          for (int u = 0; u < Height;
+               u += 1, yRead += SurfacePitch, vecIdx += 1) {
+            if ((yRead >= 0) && (yRead < SurfacePitch * SurfaceHeight)) {
+              retv[vecIdx] = *((Ty1 *)(buffBase + yRead + xRead));
+            } else {
+              // Vertically out of bound
+              retv[vecIdx] = (Ty1)(0);
+            }
+          } // u loop
+        }   // v loop
+      }     // Transposed == true
+    }       // Transformed == false
+    blkCount += 1;
+    vecIdx = blkCount * Width * Height;
+  } // xBase loop
+
+  return retv;
 }
 
 /// \brief Raw sends store.
@@ -1068,7 +1679,44 @@ inline void __esimd_raw_sends_store(uint8_t modifier, uint8_t execSize,
                                     uint32_t msgDesc,
                                     __SEIEED::vector_type_t<Ty1, N1> msgSrc0,
                                     __SEIEED::vector_type_t<Ty2, N2> msgSrc1) {
-  throw cl::sycl::feature_not_supported();
+  assert(sfid == 0xF); // UGM type only
+  auto op = raw_send::getMsgOp(msgDesc);
+  assert(op == raw_send::msgOp::STORE_2D);
+  uint64_t surfaceBase = raw_send::getSurfaceBaseAddr<Ty1, N1>(msgSrc0);
+  auto surfaceDim = raw_send::getSurfaceDim<Ty1, N1>(msgSrc0);
+  auto blockOffset = raw_send::getBlockOffsets<Ty1, N1>(msgSrc0);
+  auto blockDim = raw_send::getBlockDim<Ty1, N1>(msgSrc0);
+
+  unsigned SurfaceWidth = surfaceDim[0] + 1;
+  unsigned SurfaceHeight = surfaceDim[1] + 1;
+  unsigned SurfacePitch = surfaceDim[2] + 1;
+
+  int X = blockOffset[0];
+  int Y = blockOffset[1];
+  int Width = blockDim[0] + 1;
+  int Height = blockDim[1] + 1;
+
+  constexpr unsigned sizeofT = sizeof(Ty2);
+
+  char *buffBase = (char *)surfaceBase;
+
+  int vecIdx = 0;
+  int rowCount = 0;
+  for (int yWrite = Y * SurfacePitch; rowCount < Height;
+       yWrite += SurfacePitch) {
+    if (yWrite == SurfacePitch * SurfaceHeight) {
+      // Vertically Out-of-bound
+      break;
+    }
+    int writeCount = 0;
+    for (int xWrite = X * sizeofT; writeCount < Width;
+         xWrite += sizeofT, vecIdx += 1, writeCount += 1) {
+      if (xWrite >= 0 && xWrite < SurfaceWidth) {
+        *((Ty2 *)(buffBase + yWrite + xWrite)) = msgSrc1[vecIdx];
+      }
+    } // xWrite loop
+    rowCount += 1;
+  } // yWrite loop
 }
 
 /// \brief Raw send store.
@@ -1096,6 +1744,13 @@ inline void __esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
                                    uint8_t numSrc0, uint8_t sfid,
                                    uint32_t exDesc, uint32_t msgDesc,
                                    __SEIEED::vector_type_t<Ty1, N1> msgSrc0) {
+  auto op = raw_send::getMsgOp(msgDesc);
+
+  if (op == raw_send::msgOp::LOAD_2D) {
+    // Prefetch?
+    return;
+  }
+
   throw cl::sycl::feature_not_supported();
 }
 

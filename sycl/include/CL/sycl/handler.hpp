@@ -514,6 +514,98 @@ private:
     return {z, y, x};
   }
 
+  /* The kernel passed to StoreLambda can take an id, an item or an nd_item as
+   * its argument. Since esimd plugin directly invokes the kernel (doesn’t use
+   * piKernelSetArg), the kernel argument type must be known to the plugin.
+   * However, passing kernel argument type to the plugin requires changing ABI
+   * in HostKernel class. To overcome this problem, helpers below wrap the
+   * “original” kernel with a functor that always takes an nd_item as argument.
+   * A functor is used instead of a lambda because extractArgsAndReqsFromLambda
+   * needs access to the “original” kernel and keeps references to its internal
+   * data, i.e. the kernel passed as argument cannot be local in scope. The
+   * functor itself is again encapsulated in a std::function since functor’s
+   * type is unknown to the plugin.
+   */
+
+  template <class KernelType, class NormalizedKernelType, int Dims>
+  KernelType *ResetHostKernelHelper(const KernelType &KernelFunc) {
+    NormalizedKernelType NormalizedKernel(KernelFunc);
+    auto NormalizedKernelFunc =
+        std::function<void(const sycl::nd_item<Dims> &)>(NormalizedKernel);
+    auto HostKernelPtr =
+        new detail::HostKernel<decltype(NormalizedKernelFunc),
+                               sycl::nd_item<Dims>, Dims, KernelType>(
+            NormalizedKernelFunc);
+    MHostKernel.reset(HostKernelPtr);
+    return &HostKernelPtr->MKernel.template target<NormalizedKernelType>()
+                ->MKernelFunc;
+  }
+
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, sycl::id<Dims>>::value,
+                          KernelType *>::type
+  ResetHostKernel(const KernelType &KernelFunc) {
+    struct NormalizedKernelType {
+      KernelType MKernelFunc;
+      NormalizedKernelType(const KernelType &KernelFunc)
+          : MKernelFunc(KernelFunc) {}
+      void operator()(const nd_item<Dims> &Arg) {
+        MKernelFunc(Arg.get_global_id());
+      }
+    };
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
+  }
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, sycl::nd_item<Dims>>::value,
+                          KernelType *>::type
+  ResetHostKernel(const KernelType &KernelFunc) {
+    struct NormalizedKernelType {
+      KernelType MKernelFunc;
+      NormalizedKernelType(const KernelType &KernelFunc)
+          : MKernelFunc(KernelFunc) {}
+      void operator()(const nd_item<Dims> &Arg) { MKernelFunc(Arg); }
+    };
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
+  }
+
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, sycl::item<Dims, false>>::value,
+                          KernelType *>::type
+  ResetHostKernel(const KernelType &KernelFunc) {
+    struct NormalizedKernelType {
+      KernelType MKernelFunc;
+      NormalizedKernelType(const KernelType &KernelFunc)
+          : MKernelFunc(KernelFunc) {}
+      void operator()(const nd_item<Dims> &Arg) {
+        sycl::item<Dims, false> Item = detail::Builder::createItem<Dims, false>(
+            Arg.get_global_range(), Arg.get_global_id());
+        MKernelFunc(Item);
+      }
+    };
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
+  }
+
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, sycl::item<Dims, true>>::value,
+                          KernelType *>::type
+  ResetHostKernel(const KernelType &KernelFunc) {
+    struct NormalizedKernelType {
+      KernelType MKernelFunc;
+      NormalizedKernelType(const KernelType &KernelFunc)
+          : MKernelFunc(KernelFunc) {}
+      void operator()(const nd_item<Dims> &Arg) {
+        sycl::item<Dims, true> Item = detail::Builder::createItem<Dims, true>(
+            Arg.get_global_range(), Arg.get_global_id(), Arg.get_offset());
+        MKernelFunc(Item);
+      }
+    };
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
+  }
+
   /// Stores lambda to the template-free object
   ///
   /// Also initializes kernel name, list of arguments and requirements using
@@ -530,9 +622,8 @@ private:
           "kernel_handler is not yet supported by host device.",
           PI_INVALID_OPERATION);
     }
-    MHostKernel.reset(
-        new detail::HostKernel<KernelType, LambdaArgType, Dims, KernelName>(
-            KernelFunc));
+    KernelType *KernelPtr =
+        ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
 
     using KI = sycl::detail::KernelInfo<KernelName>;
     // Empty name indicates that the compilation happens without integration
@@ -540,8 +631,8 @@ private:
     if (KI::getName() != nullptr && KI::getName()[0] != '\0') {
       // TODO support ESIMD in no-integration-header case too.
       MArgs.clear();
-      extractArgsAndReqsFromLambda(MHostKernel->getPtr(), KI::getNumParams(),
-                                   &KI::getParamDesc(0), KI::isESIMD());
+      extractArgsAndReqsFromLambda(reinterpret_cast<char *>(KernelPtr),
+                                   KI::getNumParams(), &KI::getParamDesc(0));
       MKernelName = KI::getName();
       MOSModuleHandle = detail::OSUtil::getOSModuleHandle(KI::getName());
     } else {
