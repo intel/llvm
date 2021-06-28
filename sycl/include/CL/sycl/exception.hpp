@@ -23,9 +23,9 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // CP
-// namespace { //anonymous
-//   char reserved_for_errorcode[1 + sizeof(std::error_code)];
-// }
+namespace { //anonymous
+  char reserved_for_errorcode[1 + sizeof(std::error_code)];
+}
 
 // Forward declaration
 class context;
@@ -46,22 +46,20 @@ public:
       : exception(Msg, PI_INVALID_VALUE) {}
 
   // CP
-  // exception(context ctx, int ev, const std::error_category& ecat, const char* what_arg)
-  //     : exception(ctx, ev, ecat, std::string(what_arg)) {}
+  exception(context &ctx, int ev, const std::error_category& ecat, const char* what_arg)
+      : exception(ctx, ev, ecat, std::string(what_arg)) {}
 
-  // exception(context ctx, int ev, const std::error_category& ecat, const std::string& what_arg)
-  //     : MMsg(what_arg + reserved_for_errorcode) /*, MContext(&ctx) */ {
-  //   // For compatibility with previous implementation, we are "hiding" the 
-  //   // std:::error_code in the MMsg string, behind the null string terminator
-  //   size_t whatLen = what_arg.length();
-  //   char *reservedPtr = &MMsg[whatLen];
-  //   reservedPtr[0] = '\0';
-  //   reservedPtr++;
-  //   std::error_code *ecPtr = reinterpret_cast<std::error_code*>(reservedPtr);
-  //   *ecPtr = {ev, ecat};
-
-  //   //MContext = std::make_shared<context>(&ctx);
-  // }
+  exception(context &ctx, int ev, const std::error_category& ecat, const std::string& what_arg)
+      : MMsg(what_arg + reserved_for_errorcode), MContext(nullptr)   {   // <-- !!
+    // For compatibility with previous implementation, we are "hiding" the 
+    // std:::error_code in the MMsg string, behind the null string terminator
+    size_t whatLen = what_arg.length();
+    char *reservedPtr = &MMsg[whatLen];
+    reservedPtr[0] = '\0';
+    reservedPtr++;
+    std::error_code *ecPtr = reinterpret_cast<std::error_code*>(reservedPtr);
+    *ecPtr = {ev, ecat};
+  }
 
   const char *what() const noexcept final;
 
