@@ -1,7 +1,7 @@
 // REQUIRES: gpu, level_zero
 // Disable fallback assert as it employs host-task which calls event::wait and
 // causes to execute open command lists
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 
 // Check that dynamic batching raises/lowers batch size
 // RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
