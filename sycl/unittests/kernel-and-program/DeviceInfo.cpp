@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include <CL/sycl.hpp>
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
@@ -17,7 +15,7 @@ using namespace sycl;
 
 namespace {
 struct TestCtx {
-  TestCtx(context &Ctx) : Ctx{Ctx} {};
+  TestCtx(context &Ctx) : Ctx{Ctx} {}
 
   context &Ctx;
   bool UUIDInfoCalled = false;
