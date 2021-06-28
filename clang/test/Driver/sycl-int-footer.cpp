@@ -24,3 +24,9 @@
 // FOOTER_PREPROC_USE: clang{{.*}} "-fsycl-is-device"{{.*}} "[[DEVICE_PP]]"
 // FOOTER_PREPROC_USE: clang-offload-bundler{{.*}} "-outputs=[[HOST_PP:.+\.ii]],[[DEVICE1:.+\.ii]]"
 // FOOTER_PREPROC_USE: clang{{.*}} "-fsycl-is-host"{{.*}} "[[HOST_PP]]"
+
+/// Check that integration footer can be disabled
+// RUN:  %clangxx -fsycl -fno-sycl-use-footer %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix NO-FOOTER --implicit-check-not "-fsycl-int-footer" %s
+// NO-FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-sycl-std={{.*}}"
+// NO-FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-o"
