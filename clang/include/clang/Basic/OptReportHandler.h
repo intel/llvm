@@ -1,4 +1,4 @@
-//===---------------------- SyclOptReportHandler.h --------------*- C++ -*-===//
+//===------------------------ OptReportHandler.h ----------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,8 +11,8 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_BASIC_SYCLOPTREPORTHANDLER_H
-#define LLVM_CLANG_BASIC_SYCLOPTREPORTHANDLER_H
+#ifndef LLVM_CLANG_BASIC_OPTREPORTHANDLER_H
+#define LLVM_CLANG_BASIC_OPTREPORTHANDLER_H
 
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/DenseMap.h"
@@ -56,7 +56,6 @@ public:
     assert(It != Map.end());
     return It->second;
   }
-
   bool HasOptReportInfo(const FunctionDecl *FD) const {
     return Map.find(FD) != Map.end();
   }
@@ -64,4 +63,4 @@ public:
 
 } // namespace clang
 
-#endif // LLVM_CLANG_BASIC_SYCLOPTREPORTHANDLER_H
+#endif // LLVM_CLANG_BASIC_OPTREPORTHANDLER_H
