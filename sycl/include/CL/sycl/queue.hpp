@@ -244,21 +244,25 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
-                                        event &E) {
-      if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
-          KernelUsesAssert) {
-        // __devicelib_assert_fail isn't supported by Device-side Runtime
-        // Linking against fallback impl of __devicelib_assert_fail is performed
-        // by program manager class
-        submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr, CodeLoc);
-      }
-    };
+    if (!is_host()) {
+      auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
+                                          event &E) {
+        if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
+            KernelUsesAssert) {
+          // __devicelib_assert_fail isn't supported by Device-side Runtime
+          // Linking against fallback impl of __devicelib_assert_fail is
+          // performed by program manager class
+          submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr,
+                              CodeLoc);
+        }
+      };
 
-    Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
-#else
-    Event = submit_impl(CGF, CodeLoc);
+      Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+    } else
 #endif // !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+    {
+      Event = submit_impl(CGF, CodeLoc);
+    }
 
     return Event;
   }
