@@ -2054,6 +2054,13 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
+  case CG::CGTYPE::ADVISE_USM: {
+    CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
+    MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
+                              Advise->getAdvice(), std::move(RawEvents), Event);
+
+    return CL_SUCCESS;
+  }
   case CG::CGTYPE::CODEPLAY_INTEROP_TASK: {
     const detail::plugin &Plugin = MQueue->getPlugin();
     CGInteropTask *ExecInterop = (CGInteropTask *)MCommandGroup.get();
