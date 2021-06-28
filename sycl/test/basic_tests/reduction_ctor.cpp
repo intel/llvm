@@ -54,9 +54,9 @@ void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
         ReduRWAcc(ReduBuf, CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         ReduDWAcc(ReduBuf, CGH);
-    auto ReduRW = ONEAPI::reduction(ReduRWAcc, BOp);
-    auto ReduDW = ONEAPI::reduction(ReduDWAcc, BOp);
-    auto ReduRWUSM = ONEAPI::reduction(ReduUSMPtr, BOp);
+    auto ReduRW = oneapi::reduction(ReduRWAcc, BOp);
+    auto ReduDW = oneapi::reduction(ReduDWAcc, BOp);
+    auto ReduRWUSM = oneapi::reduction(ReduUSMPtr, BOp);
     auto ReduRW2020 = sycl::reduction(ReduBuf, CGH, BOp);
     auto ReduRWUSM2020 = sycl::reduction(ReduUSMPtr, BOp);
 
@@ -98,9 +98,9 @@ void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
         ReduRWAcc(ReduBuf, CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         ReduDWAcc(ReduBuf, CGH);
-    auto ReduRW = ONEAPI::reduction(ReduRWAcc, Identity, BOp);
-    auto ReduDW = ONEAPI::reduction(ReduDWAcc, Identity, BOp);
-    auto ReduRWUSM = ONEAPI::reduction(ReduUSMPtr, Identity, BOp);
+    auto ReduRW = oneapi::reduction(ReduRWAcc, Identity, BOp);
+    auto ReduDW = oneapi::reduction(ReduDWAcc, Identity, BOp);
+    auto ReduRWUSM = oneapi::reduction(ReduUSMPtr, Identity, BOp);
     auto ReduRW2020 = sycl::reduction(ReduBuf, CGH, Identity, BOp);
     auto ReduRWUSM2020 = sycl::reduction(ReduUSMPtr, Identity, BOp);
     assert(toBool(ReduRW.getIdentity() == Identity) &&
@@ -137,28 +137,28 @@ void testBoth(T Identity, BinaryOperation BOp, T A, T B) {
 }
 
 int main() {
-  testBoth<class KernelName_DpWavJTNjhJtrHmLWt, int>(0, ONEAPI::plus<int>(), 1,
+  testBoth<class KernelName_DpWavJTNjhJtrHmLWt, int>(0, oneapi::plus<int>(), 1,
                                                      7);
   testBoth<class KernelName_MHRtc, int>(1, std::multiplies<int>(), 1, 7);
-  testBoth<class KernelName_eYhurMyKBZvzctmqwUZ, int>(0, ONEAPI::bit_or<int>(),
+  testBoth<class KernelName_eYhurMyKBZvzctmqwUZ, int>(0, oneapi::bit_or<int>(),
                                                       1, 8);
-  testBoth<class KernelName_DpVPIUBjUMGZEwBFHH, int>(0, ONEAPI::bit_xor<int>(),
+  testBoth<class KernelName_DpVPIUBjUMGZEwBFHH, int>(0, oneapi::bit_xor<int>(),
                                                      7, 3);
-  testBoth<class KernelName_vGKFactgrkngMXd, int>(~0, ONEAPI::bit_and<int>(), 7,
+  testBoth<class KernelName_vGKFactgrkngMXd, int>(~0, oneapi::bit_and<int>(), 7,
                                                   3);
   testBoth<class KernelName_GLpknSBxclKWjm, int>(
-      (std::numeric_limits<int>::max)(), ONEAPI::minimum<int>(), 7, 3);
+      (std::numeric_limits<int>::max)(), oneapi::minimum<int>(), 7, 3);
   testBoth<class KernelName_EvOaOYQ, int>((std::numeric_limits<int>::min)(),
-                                          ONEAPI::maximum<int>(), 7, 3);
+                                          oneapi::maximum<int>(), 7, 3);
 
-  testBoth<class KernelName_iFbcoTtPeDtUEK, float>(0, ONEAPI::plus<float>(), 1,
+  testBoth<class KernelName_iFbcoTtPeDtUEK, float>(0, oneapi::plus<float>(), 1,
                                                    7);
   testBoth<class KernelName_PEMJanstdNezDSXnP, float>(
       1, std::multiplies<float>(), 1, 7);
   testBoth<class KernelName_wOEuftXSjCLpoTOMrYHR, float>(
-      getMaximumFPValue<float>(), ONEAPI::minimum<float>(), 7, 3);
+      getMaximumFPValue<float>(), oneapi::minimum<float>(), 7, 3);
   testBoth<class KernelName_HzFCIZQKeV, float>(getMinimumFPValue<float>(),
-                                               ONEAPI::maximum<float>(), 7, 3);
+                                               oneapi::maximum<float>(), 7, 3);
 
   testUnknown<class KernelName_sJOZPgFeiALyqwIWnFP, CustomVec<float>, 0,
               CustomVecPlus<float>>(CustomVec<float>(0), CustomVecPlus<float>(),
@@ -173,12 +173,12 @@ int main() {
   int2 IdentityI2 = {0, 0};
   int2 AI2 = {1, 2};
   int2 BI2 = {7, 13};
-  testUnknown<class KNI2, int2, 0>(IdentityI2, ONEAPI::plus<int2>(), AI2, BI2);
+  testUnknown<class KNI2, int2, 0>(IdentityI2, oneapi::plus<int2>(), AI2, BI2);
 
   float4 IdentityF4 = {0, 0, 0, 0};
   float4 AF4 = {1, 2, -1, -34};
   float4 BF4 = {7, 13, 0, 35};
-  testUnknown<class KNF4, float4, 0>(IdentityF4, ONEAPI::plus<>(), AF4, BF4);
+  testUnknown<class KNF4, float4, 0>(IdentityF4, oneapi::plus<>(), AF4, BF4);
 
   std::cout << "Test passed\n";
   return 0;

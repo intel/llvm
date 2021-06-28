@@ -9,7 +9,7 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::oneapi;
 
 template <typename T>
 class compare_exchange_kernel;
@@ -30,8 +30,8 @@ void compare_exchange_test(queue q, size_t N) {
       cgh.parallel_for<compare_exchange_kernel<T>>(range<1>(N), [=](item<1>
                                                                         it) {
         size_t gid = it.get_id(0);
-        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
-                              ONEAPI::memory_scope::device,
+        auto atm = atomic_ref<T, oneapi::memory_order::relaxed,
+                              oneapi::memory_scope::device,
                               access::address_space::global_space>(exc[0]);
         T result = T(N); // Avoid copying pointer
         bool success = atm.compare_exchange_strong(result, (T)gid);

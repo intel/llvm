@@ -19,7 +19,7 @@ namespace sycl {
 /// reduction operation \p Combiner, and optional reduction properties.
 template <typename T, typename AllocatorT, typename BinaryOperation>
 std::enable_if_t<has_known_identity<BinaryOperation, T>::value,
-                 ONEAPI::detail::reduction_impl<T, BinaryOperation, 1, false,
+                 oneapi::detail::reduction_impl<T, BinaryOperation, 1, false,
                                                 access::placeholder::true_t>>
 reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, BinaryOperation,
           const property_list &PropList = {}) {
@@ -34,7 +34,7 @@ reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, BinaryOperation,
 /// reduction identity is not known statically and it is not provided by user.
 template <typename T, typename AllocatorT, typename BinaryOperation>
 std::enable_if_t<!has_known_identity<BinaryOperation, T>::value,
-                 ONEAPI::detail::reduction_impl<T, BinaryOperation, 1, false,
+                 oneapi::detail::reduction_impl<T, BinaryOperation, 1, false,
                                                 access::placeholder::true_t>>
 reduction(buffer<T, 1, AllocatorT>, handler &, BinaryOperation,
           const property_list &PropList = {}) {
@@ -50,7 +50,7 @@ reduction(buffer<T, 1, AllocatorT>, handler &, BinaryOperation,
 /// \p Combiner, and optional reduction properties.
 template <typename T, typename BinaryOperation>
 std::enable_if_t<has_known_identity<BinaryOperation, T>::value,
-                 ONEAPI::detail::reduction_impl<T, BinaryOperation, 0, true>>
+                 oneapi::detail::reduction_impl<T, BinaryOperation, 0, true>>
 reduction(T *Var, BinaryOperation, const property_list &PropList = {}) {
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
@@ -64,7 +64,7 @@ reduction(T *Var, BinaryOperation, const property_list &PropList = {}) {
 /// reduction identity is not known statically and it is not provided by user.
 template <typename T, typename BinaryOperation>
 std::enable_if_t<!has_known_identity<BinaryOperation, T>::value,
-                 ONEAPI::detail::reduction_impl<T, BinaryOperation, 0, true>>
+                 oneapi::detail::reduction_impl<T, BinaryOperation, 0, true>>
 reduction(T *, BinaryOperation, const property_list &PropList = {}) {
   // TODO: implement reduction that works even when identity is not known.
   (void)PropList;
@@ -77,7 +77,7 @@ reduction(T *, BinaryOperation, const property_list &PropList = {}) {
 /// reduction identity value \p Identity, reduction operation \p Combiner,
 /// and optional reduction properties.
 template <typename T, typename AllocatorT, typename BinaryOperation>
-ONEAPI::detail::reduction_impl<T, BinaryOperation, 1, false,
+oneapi::detail::reduction_impl<T, BinaryOperation, 1, false,
                                access::placeholder::true_t>
 reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
           BinaryOperation Combiner, const property_list &PropList = {}) {
@@ -90,7 +90,7 @@ reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
 /// the given USM pointer \p Var, reduction identity value \p Identity,
 /// binary operation \p Combiner, and optional reduction properties.
 template <typename T, typename BinaryOperation>
-ONEAPI::detail::reduction_impl<T, BinaryOperation, 0, true>
+oneapi::detail::reduction_impl<T, BinaryOperation, 0, true>
 reduction(T *Var, const T &Identity, BinaryOperation Combiner,
           const property_list &PropList = {}) {
   bool InitializeToIdentity =

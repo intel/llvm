@@ -277,22 +277,22 @@ public:
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
            access::target::image, access::placeholder::false_t,
-           ONEAPI::accessor_property_list<>>
+           oneapi::accessor_property_list<>>
   get_access(handler &commandGroupHandler) {
     return accessor<DataT, Dimensions, AccessMode, access::target::image,
                     access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(*this,
+                    oneapi::accessor_property_list<>>(*this,
                                                       commandGroupHandler);
   }
 
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
            access::target::host_image, access::placeholder::false_t,
-           ONEAPI::accessor_property_list<>>
+           oneapi::accessor_property_list<>>
   get_access() {
     return accessor<DataT, Dimensions, AccessMode, access::target::host_image,
                     access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(*this);
+                    oneapi::accessor_property_list<>>(*this);
   }
 
   template <typename Destination = std::nullptr_t>

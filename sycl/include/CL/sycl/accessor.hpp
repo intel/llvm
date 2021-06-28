@@ -221,7 +221,7 @@ template <typename DataT, int Dimensions = 1,
           access::mode AccessMode = access::mode::read_write,
           access::target AccessTarget = access::target::global_buffer,
           access::placeholder IsPlaceholder = access::placeholder::false_t,
-          typename PropertyListT = ONEAPI::accessor_property_list<>>
+          typename PropertyListT = oneapi::accessor_property_list<>>
 class accessor;
 
 namespace detail {
@@ -230,18 +230,18 @@ using IsPropertyListT = typename std::is_base_of<PropertyListBase, T>;
 
 template <typename T>
 using IsRunTimePropertyListT =
-    typename std::is_same<ONEAPI::accessor_property_list<>, T>;
+    typename std::is_same<oneapi::accessor_property_list<>, T>;
 
 template <typename T> struct IsCxPropertyList {
   constexpr static bool value = false;
 };
 
 template <typename... Props>
-struct IsCxPropertyList<ONEAPI::accessor_property_list<Props...>> {
+struct IsCxPropertyList<oneapi::accessor_property_list<Props...>> {
   constexpr static bool value = true;
 };
 
-template <> struct IsCxPropertyList<ONEAPI::accessor_property_list<>> {
+template <> struct IsCxPropertyList<oneapi::accessor_property_list<>> {
   constexpr static bool value = false;
 };
 
@@ -263,7 +263,7 @@ __SYCL_EXPORT device getDeviceFromHandler(handler &CommandGroupHandlerRef);
 
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT = ONEAPI::accessor_property_list<>>
+          typename PropertyListT = oneapi::accessor_property_list<>>
 class accessor_common {
 protected:
   constexpr static bool IsPlaceH = IsPlaceholder == access::placeholder::true_t;
@@ -706,7 +706,7 @@ class __image_array_slice__ {
 public:
   __image_array_slice__(
       accessor<DataT, Dimensions, AccessMode, access::target::image_array,
-               IsPlaceholder, ONEAPI::accessor_property_list<>>
+               IsPlaceholder, oneapi::accessor_property_list<>>
           BaseAcc,
       size_t Idx)
       : MBaseAcc(BaseAcc), MIdx(Idx) {}
@@ -767,7 +767,7 @@ public:
 private:
   size_t MIdx;
   accessor<DataT, Dimensions, AccessMode, access::target::image_array,
-           IsPlaceholder, ONEAPI::accessor_property_list<>>
+           IsPlaceholder, oneapi::accessor_property_list<>>
       MBaseAcc;
 };
 
@@ -1004,7 +1004,7 @@ public:
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))> * = nullptr>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
     (void)PropertyList;
@@ -1053,7 +1053,7 @@ public:
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef, handler &CommandGroupHandler,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
     (void)CommandGroupHandler;
@@ -1106,7 +1106,7 @@ public:
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)PropertyList;
@@ -1145,7 +1145,7 @@ public:
                 (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, TagT,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, PropertyList) {}
 #endif
 
@@ -1182,7 +1182,7 @@ public:
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)CommandGroupHandler;
@@ -1222,7 +1222,7 @@ public:
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       TagT,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, CommandGroupHandler, PropertyList) {}
 
 #endif
@@ -1247,7 +1247,7 @@ public:
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, AccessRange, {}, PropertyList) {}
 
 #if __cplusplus > 201402L
@@ -1272,7 +1272,7 @@ public:
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       TagT,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, AccessRange, {}, PropertyList) {}
 #endif
 
@@ -1296,7 +1296,7 @@ public:
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {},
                  PropertyList) {}
 
@@ -1323,7 +1323,7 @@ public:
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, TagT,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {},
                  PropertyList) {}
 #endif
@@ -1365,7 +1365,7 @@ public:
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)PropertyList;
@@ -1406,7 +1406,7 @@ public:
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset, TagT,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, AccessRange, AccessOffset, PropertyList) {}
 #endif
 
@@ -1445,7 +1445,7 @@ public:
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)CommandGroupHandler;
@@ -1487,7 +1487,7 @@ public:
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset, TagT,
-      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
+      const oneapi::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                  PropertyList) {}
 #endif
@@ -1495,7 +1495,7 @@ public:
   template <typename... NewPropsT>
   accessor(
       const accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
-                     ONEAPI::accessor_property_list<NewPropsT...>> &Other)
+                     oneapi::accessor_property_list<NewPropsT...>> &Other)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(Other.impl)
 #else
@@ -1636,10 +1636,10 @@ accessor(buffer<DataT, Dimensions, AllocatorT>)
 template <typename DataT, int Dimensions, typename AllocatorT,
           typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>,
-         const ONEAPI::accessor_property_list<PropsT...> &)
+         const oneapi::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, access::mode::read_write,
                target::global_buffer, access::placeholder::true_t,
-               ONEAPI::accessor_property_list<PropsT...>>;
+               oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1)
@@ -1650,11 +1650,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, Type1)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1,
-         const ONEAPI::accessor_property_list<PropsT...> &)
+         const oneapi::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
                detail::deduceAccessTarget<Type1, Type1>(target::global_buffer),
                access::placeholder::true_t,
-               ONEAPI::accessor_property_list<PropsT...>>;
+               oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2>
@@ -1666,11 +1666,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2,
-         const ONEAPI::accessor_property_list<PropsT...> &)
+         const oneapi::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
                detail::deduceAccessTarget<Type1, Type2>(target::global_buffer),
                access::placeholder::true_t,
-               ONEAPI::accessor_property_list<PropsT...>>;
+               oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3>
@@ -1682,11 +1682,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3,
-         const ONEAPI::accessor_property_list<PropsT...> &)
+         const oneapi::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
                detail::deduceAccessTarget<Type2, Type3>(target::global_buffer),
                access::placeholder::true_t,
-               ONEAPI::accessor_property_list<PropsT...>>;
+               oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4>
@@ -1698,11 +1698,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4, typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
-         const ONEAPI::accessor_property_list<PropsT...> &)
+         const oneapi::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
                detail::deduceAccessTarget<Type3, Type4>(target::global_buffer),
                access::placeholder::true_t,
-               ONEAPI::accessor_property_list<PropsT...>>;
+               oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler)
@@ -1712,10 +1712,10 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler)
 template <typename DataT, int Dimensions, typename AllocatorT,
           typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
-         const ONEAPI::accessor_property_list<PropsT...> &)
+         const oneapi::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, access::mode::read_write,
                target::global_buffer, access::placeholder::false_t,
-               ONEAPI::accessor_property_list<PropsT...>>;
+               oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1)
@@ -1726,11 +1726,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1,
-         const ONEAPI::accessor_property_list<PropsT...> &)
+         const oneapi::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
                detail::deduceAccessTarget<Type1, Type1>(target::global_buffer),
                access::placeholder::false_t,
-               ONEAPI::accessor_property_list<PropsT...>>;
+               oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2>
@@ -1742,11 +1742,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2,
-         const ONEAPI::accessor_property_list<PropsT...> &)
+         const oneapi::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
                detail::deduceAccessTarget<Type1, Type2>(target::global_buffer),
                access::placeholder::false_t,
-               ONEAPI::accessor_property_list<PropsT...>>;
+               oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3>
@@ -1758,11 +1758,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
-         const ONEAPI::accessor_property_list<PropsT...> &)
+         const oneapi::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
                detail::deduceAccessTarget<Type2, Type3>(target::global_buffer),
                access::placeholder::false_t,
-               ONEAPI::accessor_property_list<PropsT...>>;
+               oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4>
@@ -1775,11 +1775,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4, typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
-         Type4, const ONEAPI::accessor_property_list<PropsT...> &)
+         Type4, const oneapi::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
                detail::deduceAccessTarget<Type3, Type4>(target::global_buffer),
                access::placeholder::false_t,
-               ONEAPI::accessor_property_list<PropsT...>>;
+               oneapi::accessor_property_list<PropsT...>>;
 #endif
 
 /// Local accessor

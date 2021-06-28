@@ -16,7 +16,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
+namespace intel {
 namespace detail {
 
 static std::vector<const char *>
@@ -229,6 +229,28 @@ __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
                                 FreeSPIRVOutputsHandle, CMUserArgs);
 }
 
-} // namespace INTEL
+} // namespace intel
+
+namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
+    using namespace intel;
+
+    template <>
+    template <>
+    __SYCL_EXPORT std::vector<byte>
+    online_compiler<source_language::opencl_c>::compile(
+        const std::string &Source, const std::vector<std::string> &UserArgs) {
+      intel::online_compiler<intel::source_language::opencl_c> intel_online_compiler_obj;
+      return intel_online_compiler_obj.compile(Source, UserArgs);
+    }
+
+    template <>
+    template <>
+    __SYCL_EXPORT std::vector<byte>
+    online_compiler<source_language::cm>::compile(
+        const std::string &Source, const std::vector<std::string> &UserArgs) {
+      intel::online_compiler<intel::source_language::opencl_c> intel_online_compiler_obj;
+      return intel_online_compiler_obj.compile(Source, UserArgs);
+    }
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

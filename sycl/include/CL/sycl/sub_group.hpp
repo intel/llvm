@@ -13,7 +13,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-using ONEAPI::sub_group;
+using oneapi::sub_group;
 // TODO move the entire sub_group class implementation to this file once
 // breaking changes are allowed.
 } // namespace sycl

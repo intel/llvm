@@ -272,40 +272,40 @@ public:
   template <access::mode Mode,
             access::target Target = access::target::global_buffer>
   accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
-           ONEAPI::accessor_property_list<>>
+           oneapi::accessor_property_list<>>
   get_access(handler &CommandGroupHandler) {
     return accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(*this,
+                    oneapi::accessor_property_list<>>(*this,
                                                       CommandGroupHandler);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t, ONEAPI::accessor_property_list<>>
+           access::placeholder::false_t, oneapi::accessor_property_list<>>
   get_access() {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(*this);
+                    oneapi::accessor_property_list<>>(*this);
   }
 
   template <access::mode mode,
             access::target target = access::target::global_buffer>
   accessor<T, dimensions, mode, target, access::placeholder::false_t,
-           ONEAPI::accessor_property_list<>>
+           oneapi::accessor_property_list<>>
   get_access(handler &commandGroupHandler, range<dimensions> accessRange,
              id<dimensions> accessOffset = {}) {
     return accessor<T, dimensions, mode, target, access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(
+                    oneapi::accessor_property_list<>>(
         *this, commandGroupHandler, accessRange, accessOffset);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t, ONEAPI::accessor_property_list<>>
+           access::placeholder::false_t, oneapi::accessor_property_list<>>
   get_access(range<dimensions> accessRange, id<dimensions> accessOffset = {}) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(*this, accessRange,
+                    oneapi::accessor_property_list<>>(*this, accessRange,
                                                       accessOffset);
   }
 

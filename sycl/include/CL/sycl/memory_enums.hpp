@@ -12,7 +12,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-using ONEAPI::memory_scope;
+using oneapi::memory_scope;
 
 #if __cplusplus >= 201703L
 inline constexpr auto memory_scope_work_item = memory_scope::work_item;

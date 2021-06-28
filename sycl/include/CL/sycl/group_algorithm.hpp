@@ -55,7 +55,7 @@ template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
 template <>
-inline size_t get_local_linear_range<ONEAPI::sub_group>(ONEAPI::sub_group g) {
+inline size_t get_local_linear_range<oneapi::sub_group>(oneapi::sub_group g) {
   return g.get_local_range()[0];
 }
 
@@ -77,17 +77,17 @@ __SYCL_GROUP_GET_LOCAL_LINEAR_ID(3);
 #endif // __SYCL_DEVICE_ONLY__
 
 template <>
-inline ONEAPI::sub_group::linear_id_type
-get_local_linear_id<ONEAPI::sub_group>(ONEAPI::sub_group g) {
+inline oneapi::sub_group::linear_id_type
+get_local_linear_id<oneapi::sub_group>(oneapi::sub_group g) {
   return g.get_local_id()[0];
 }
 
 // ---- is_native_op
 template <typename T>
 using native_op_list =
-    type_list<ONEAPI::plus<T>, ONEAPI::bit_or<T>, ONEAPI::bit_xor<T>,
-              ONEAPI::bit_and<T>, ONEAPI::maximum<T>, ONEAPI::minimum<T>,
-              ONEAPI::multiplies<T>, sycl::plus<T>, sycl::bit_or<T>,
+    type_list<oneapi::plus<T>, oneapi::bit_or<T>, oneapi::bit_xor<T>,
+              oneapi::bit_and<T>, oneapi::maximum<T>, oneapi::minimum<T>,
+              oneapi::multiplies<T>, sycl::plus<T>, sycl::bit_or<T>,
               sycl::bit_xor<T>, sycl::bit_and<T>, sycl::maximum<T>,
               sycl::minimum<T>, sycl::multiplies<T>>;
 

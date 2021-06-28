@@ -12,7 +12,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
+namespace intel {
 
 class platform_selector : public device_selector {
 private:
@@ -47,6 +47,10 @@ public:
   fpga_emulator_selector() : platform_selector(EMULATION_PLATFORM_NAME) {}
 };
 
-} // namespace INTEL
+} // namespace intel
+
+namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
+    using namespace intel;
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

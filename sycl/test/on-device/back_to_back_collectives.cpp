@@ -8,7 +8,7 @@
 #include <numeric>
 #include <vector>
 using namespace cl::sycl;
-using namespace cl::sycl::ONEAPI;
+using namespace cl::sycl::oneapi;
 
 class back_to_back;
 

@@ -14,7 +14,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
+namespace intel {
 
 template <template <int32_t> class _Type, class _T>
 struct _MatchType : std::is_same<_Type<_T::value>, _T> {};
@@ -29,6 +29,10 @@ struct _GetValue<_Type, _T1, _T...> {
       detail::conditional_t<_MatchType<_Type, _T1>::value, _T1,
                             _GetValue<_Type, _T...>>::value;
 };
-} // namespace INTEL
+} // namespace intel
+
+namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
+    using namespace intel;
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

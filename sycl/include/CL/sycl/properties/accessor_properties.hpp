@@ -44,7 +44,7 @@ constexpr const auto &noinit __SYCL2020_DEPRECATED("spelling is now: no_init") =
 
 #endif
 
-namespace INTEL {
+namespace intel {
 namespace property {
 struct buffer_location {
   template <int A> struct instance {
@@ -63,8 +63,12 @@ struct buffer_location {
 template <int A>
 inline constexpr property::buffer_location::instance<A> buffer_location{};
 #endif
-} // namespace INTEL
-namespace ONEAPI {
+} // namespace intel
+
+namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
+    using namespace intel;
+}
+namespace oneapi {
 namespace property {
 struct no_offset {
   template <bool B = true> struct instance {
@@ -96,23 +100,27 @@ inline constexpr property::no_alias::instance no_alias;
 #endif
 
 template <>
-struct is_compile_time_property<ONEAPI::property::no_offset> : std::true_type {
+struct is_compile_time_property<oneapi::property::no_offset> : std::true_type {
 };
 template <>
-struct is_compile_time_property<ONEAPI::property::no_alias> : std::true_type {};
+struct is_compile_time_property<oneapi::property::no_alias> : std::true_type {};
 template <>
-struct is_compile_time_property<INTEL::property::buffer_location>
+struct is_compile_time_property<intel::property::buffer_location>
     : std::true_type {};
-} // namespace ONEAPI
+} // namespace oneapi
+
+namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
+    using namespace oneapi;
+}
 namespace detail {
 template <int I>
 struct IsCompileTimePropertyInstance<
-    INTEL::property::buffer_location::instance<I>> : std::true_type {};
+    intel::property::buffer_location::instance<I>> : std::true_type {};
 template <>
-struct IsCompileTimePropertyInstance<ONEAPI::property::no_alias::instance<>>
+struct IsCompileTimePropertyInstance<oneapi::property::no_alias::instance<>>
     : std::true_type {};
 template <>
-struct IsCompileTimePropertyInstance<ONEAPI::property::no_offset::instance<>>
+struct IsCompileTimePropertyInstance<oneapi::property::no_offset::instance<>>
     : std::true_type {};
 } // namespace detail
 } // namespace sycl

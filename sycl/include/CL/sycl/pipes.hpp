@@ -13,6 +13,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <class name, class dataT, int32_t min_capacity = 0>
-using pipe = INTEL::pipe<name, dataT, min_capacity>;
+using pipe = intel::pipe<name, dataT, min_capacity>;
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

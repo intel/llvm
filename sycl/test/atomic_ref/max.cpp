@@ -12,7 +12,7 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::oneapi;
 
 template <typename T>
 void max_test(queue q, size_t N) {
@@ -29,8 +29,8 @@ void max_test(queue q, size_t N) {
       auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
-                              ONEAPI::memory_scope::device,
+        auto atm = atomic_ref<T, oneapi::memory_order::relaxed,
+                              oneapi::memory_scope::device,
                               access::address_space::global_space>(val[0]);
 
         // +1 accounts for lowest() returning 0 for unsigned types

@@ -66,7 +66,7 @@ int main() {
   test<sycl::group>(this_group_caller<2>{});
   test<sycl::group>(this_group_caller<3>{});
 
-  static_assert(std::is_same<decltype(sycl::ONEAPI::this_sub_group()),
-                             sycl::ONEAPI::sub_group>::value,
+  static_assert(std::is_same<decltype(sycl::oneapi::this_sub_group()),
+                             sycl::oneapi::sub_group>::value,
                 "Wrong return type of free function query for Sub Group");
 }

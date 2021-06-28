@@ -57,13 +57,13 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C, big_matrix<T2, N
            const auto sg_startx = global_idx;
            const auto sg_starty = global_idy;
 
-           ONEAPI::sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<ONEAPI::sub_group, unsigned short, TM, TK> sub_a(sg);
+           oneapi::sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<oneapi::sub_group, unsigned short, TM, TK> sub_a(sg);
            // For B, since current implementation does not support non-packed layout,
            // users need to specify the updated VNNI sizes along with the packed_b layout.
            // By default, the layout is row_major and size is (TK, TN).
-           joint_matrix<ONEAPI::sub_group, unsigned short, TK / 2, TN * 2, matrix_layout::packed_b> sub_b(sg);
-           joint_matrix<ONEAPI::sub_group, float, TM, TN> sub_c(sg);
+           joint_matrix<oneapi::sub_group, unsigned short, TK / 2, TN * 2, matrix_layout::packed_b> sub_b(sg);
+           joint_matrix<oneapi::sub_group, float, TM, TN> sub_c(sg);
 
            // Only the leader perform AMX computation.
            if (spmd_item.get_local_id(1) % TILE_SZ)

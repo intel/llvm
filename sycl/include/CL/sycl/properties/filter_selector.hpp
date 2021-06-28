@@ -1,4 +1,4 @@
-//==------ filter_selector.hpp - ONEAPI filter selector -------*- C++ --*---==//
+//==------ filter_selector.hpp - oneapi filter selector -------*- C++ --*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
