@@ -764,41 +764,6 @@ TEST(STLExtras, Unique) {
   EXPECT_EQ(3, V[3]);
 }
 
-TEST(STLExtrasTest, TypesAreDistinct) {
-  EXPECT_TRUE((llvm::TypesAreDistinct<>::value));
-  EXPECT_TRUE((llvm::TypesAreDistinct<int>::value));
-  EXPECT_FALSE((llvm::TypesAreDistinct<int, int>::value));
-  EXPECT_TRUE((llvm::TypesAreDistinct<int, float>::value));
-  EXPECT_FALSE((llvm::TypesAreDistinct<int, float, int>::value));
-  EXPECT_TRUE((llvm::TypesAreDistinct<int, float, double>::value));
-  EXPECT_FALSE((llvm::TypesAreDistinct<int, float, double, float>::value));
-  EXPECT_TRUE((llvm::TypesAreDistinct<int, int *>::value));
-  EXPECT_TRUE((llvm::TypesAreDistinct<int, int &>::value));
-  EXPECT_TRUE((llvm::TypesAreDistinct<int, int &&>::value));
-  EXPECT_TRUE((llvm::TypesAreDistinct<int, const int>::value));
-}
-
-TEST(STLExtrasTest, FirstIndexOfType) {
-  EXPECT_EQ((llvm::FirstIndexOfType<int, int>::value), 0u);
-  EXPECT_EQ((llvm::FirstIndexOfType<int, int, int>::value), 0u);
-  EXPECT_EQ((llvm::FirstIndexOfType<int, float, int>::value), 1u);
-  EXPECT_EQ((llvm::FirstIndexOfType<int const *, float, int, int const *,
-                                    const int>::value),
-            2u);
-}
-
-TEST(STLExtrasTest, TypeAtIndex) {
-  EXPECT_TRUE((std::is_same<int, llvm::TypeAtIndex<0, int>>::value));
-  EXPECT_TRUE((std::is_same<int, llvm::TypeAtIndex<0, int, float>>::value));
-  EXPECT_TRUE((std::is_same<float, llvm::TypeAtIndex<1, int, float>>::value));
-  EXPECT_TRUE(
-      (std::is_same<float, llvm::TypeAtIndex<1, int, float, double>>::value));
-  EXPECT_TRUE(
-      (std::is_same<float, llvm::TypeAtIndex<1, int, float, double>>::value));
-  EXPECT_TRUE(
-      (std::is_same<double, llvm::TypeAtIndex<2, int, float, double>>::value));
-}
-
 TEST(STLExtrasTest, MakeVisitorOneCallable) {
   auto IdentityLambda = [](auto X) { return X; };
   auto IdentityVisitor = makeVisitor(IdentityLambda);
