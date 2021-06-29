@@ -129,34 +129,34 @@ _Set_ must be result of an OpExtInstImport instruction. +
 
 _Name_ is an *OpString*, holding the name of the imported module. +
 
-_Source_ is a *DebugSource* instruction representing text of the source program +
+_Source_ is a *DebugSource* instruction representing text of the source program
 of the module. +
 
-_Line_ is a single word literal denoting the source line number at which the +
+_Line_ is a single word literal denoting the source line number at which the
 declaration or use of a module appears in the _Source_. +
 
 _Parent_ is id of a debug instruction which represents the parent lexical scope. +
 
-_ConfigurationMacros_ is an *OpString*, holding space-separated shell-quoted +
-list of -D macro definitions as they would appear on a command line specified +
+_ConfigurationMacros_ is an *OpString*, holding space-separated shell-quoted
+list of -D macro definitions as they would appear on a command line specified
 to a preprocessor on early stages of _Source_ translation to a SPIR-V module. +
 
 _IncludePath_ is an *OpString*, holding the path to the module map file. +
 
-_APINotesFile_ is an *OpString*, holding the path to an API notes file for this +
+_APINotesFile_ is an *OpString*, holding the path to an API notes file for this
 module. +
 
-_IsDecl_ indicates if the module is a declaration and must be one of the +
+_IsDecl_ indicates if the module is a declaration and must be one of the
 following values: +
 0 indicates that this module is not a declaration +
 1 indicates that this module is a declaration +
 
 The *DebugModuleINTEL* instruction has no semantic impact and can be safely
 removed from the module if all references to _Result_ of this instruction are
-replaced with id of *DebugInfoNone* instruction.
+replaced with id of *DebugInfoNone* instruction. +
 
 Result of this instruction can be used as _Entity_ operand of
-*DebugImportedEntity* instruction.
+*DebugImportedEntity* instruction. +
 
 Any non-literal operand, except _Set_, can be _id_ of *DebugInfoNone*
 instruction in case the corresponding debug information is unavailable. String
