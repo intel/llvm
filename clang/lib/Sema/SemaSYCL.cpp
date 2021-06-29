@@ -3212,6 +3212,18 @@ public:
   using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
+// Kernels are only the unnamed-lambda feature if the feature is enabled, AND
+// the first template argument has been corrected by the library to match the
+// functor type.
+static bool IsSYCLUnnamedKernel(Sema &SemaRef, const FunctionDecl *FD) {
+  if (!SemaRef.getLangOpts().SYCLUnnamedLambda)
+    return false;
+  QualType FunctorTy = GetSYCLKernelObjectType(FD);
+  QualType TmplArgTy =
+      calculateKernelNameType(SemaRef.Context, FD).getUnqualifiedType();
+  return SemaRef.Context.hasSameType(FunctorTy, TmplArgTy);
+}
+
 class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
   int64_t CurOffset = 0;
@@ -3314,7 +3326,7 @@ public:
       : SyclKernelFieldHandler(S), Header(H) {
     bool IsSIMDKernel = isESIMDKernelType(KernelObj);
     Header.startKernel(Name, NameType, StableName, KernelObj->getLocation(),
-                       IsSIMDKernel);
+                       IsSIMDKernel, IsSYCLUnnamedKernel(S, KernelFunc));
     setThisItemIsCalled(KernelFunc);
   }
 
@@ -3679,18 +3691,6 @@ public:
     VisitTemplateArgs(TA.getPackAsArray());
   }
 };
-
-// Kernels are only the unnamed-lambda feature if the feature is enabled, AND
-// the first template argument has been corrected by the library to match the
-// functor type.
-static bool IsSYCLUnnamedKernel(Sema &SemaRef, const FunctionDecl *FD) {
-  if (!SemaRef.getLangOpts().SYCLUnnamedLambda)
-    return false;
-  QualType FunctorTy = GetSYCLKernelObjectType(FD);
-  QualType TmplArgTy =
-      calculateKernelNameType(SemaRef.Context, FD).getUnqualifiedType();
-  return SemaRef.Context.hasSameType(FunctorTy, TmplArgTy);
-}
 
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                ArrayRef<const Expr *> Args) {
@@ -4763,17 +4763,11 @@ bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
   return true;
 }
 
-void SYCLIntegrationHeader::startKernel(StringRef KernelName,
-                                        QualType KernelNameType,
-                                        StringRef KernelStableName,
-                                        SourceLocation KernelLocation,
-                                        bool IsESIMDKernel) {
-  KernelDescs.resize(KernelDescs.size() + 1);
-  KernelDescs.back().Name = std::string(KernelName);
-  KernelDescs.back().NameType = KernelNameType;
-  KernelDescs.back().StableName = std::string(KernelStableName);
-  KernelDescs.back().KernelLocation = KernelLocation;
-  KernelDescs.back().IsESIMDKernel = IsESIMDKernel;
+void SYCLIntegrationHeader::startKernel(
+    StringRef KernelName, QualType KernelNameType, StringRef KernelStableName,
+    SourceLocation KernelLocation, bool IsESIMDKernel, bool IsUnnamedKernel) {
+  KernelDescs.emplace_back(KernelName, KernelNameType, KernelStableName,
+                           KernelLocation, IsESIMDKernel, IsUnnamedKernel);
 }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
