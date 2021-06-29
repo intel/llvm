@@ -615,7 +615,7 @@ MDNode *LoopInfo::createMetadata(
   if (Attrs.SYCLIntelFPGAPipelineEnable) {
     Metadata *Vals[] = {
         MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
-	ConstantAsMetadata::get(ConstantInt::get(
+        ConstantAsMetadata::get(ConstantInt::get(
             llvm::Type::getInt32Ty(Ctx), Attrs.SYCLIntelFPGANPipelines))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
