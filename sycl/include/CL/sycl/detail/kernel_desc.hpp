@@ -122,15 +122,19 @@ public:
 // it will instead get the unspecialized case, defined above.
 template <class KernelNameType> struct KernelInfo {
   using SubKernelInfo = typename KernelInfoImpl<KernelNameType>::type;
-  static constexpr unsigned getNumParams() { SubKernelInfo::getNumParams(); }
+  static constexpr unsigned getNumParams() {
+    return SubKernelInfo::getNumParams();
+  }
   static const kernel_param_desc_t &getParamDesc(int Idx) {
     return SubKernelInfo::getParamDesc(Idx);
   }
-  static constexpr const char *getName() { SubKernelInfo::getName(); }
-  static constexpr bool isESIMD() { SubKernelInfo::isESIMD(); }
-  static constexpr bool callsThisItem() { SubKernelInfo::callsThisItem(); }
+  static constexpr const char *getName() { return SubKernelInfo::getName(); }
+  static constexpr bool isESIMD() { return kSubKernelInfo::isESIMD(); }
+  static constexpr bool callsThisItem() {
+    return SubKernelInfo::callsThisItem();
+  }
   static constexpr bool callsAnyThisFreeFunction() {
-    SubKernelInfo::callsAnyThisFreeFunction();
+    return SubKernelInfo::callsAnyThisFreeFunction();
   }
 };
 #endif //__SYCL_UNNAMED_LAMBDA__
