@@ -93,23 +93,16 @@ MachineTypes getDefaultMachine() {
   return getMachine(Triple(sys::getDefaultTargetTriple()));
 }
 
-static bool consume_back_lower(StringRef &S, const char *Str) {
-  if (!S.endswith_lower(Str))
-    return false;
-  S = S.drop_back(strlen(Str));
-  return true;
-}
-
 Optional<std::string> getPrefix(StringRef Argv0) {
   StringRef ProgName = llvm::sys::path::stem(Argv0);
   // x86_64-w64-mingw32-dlltool -> x86_64-w64-mingw32
   // llvm-dlltool -> None
   // aarch64-w64-mingw32-llvm-dlltool-10.exe -> aarch64-w64-mingw32
   ProgName = ProgName.rtrim("0123456789.-");
-  if (!consume_back_lower(ProgName, "dlltool"))
+  if (!ProgName.consume_back_insensitive("dlltool"))
     return None;
-  consume_back_lower(ProgName, "llvm-");
-  consume_back_lower(ProgName, "-");
+  ProgName.consume_back_insensitive("llvm-");
+  ProgName.consume_back_insensitive("-");
   return ProgName.str();
 }
 
@@ -129,7 +122,7 @@ int llvm::dlltoolDriverMain(llvm::ArrayRef<const char *> ArgsArr) {
   // Handle when no input or output is specified
   if (Args.hasArgNoClaim(OPT_INPUT) ||
       (!Args.hasArgNoClaim(OPT_d) && !Args.hasArgNoClaim(OPT_l))) {
-    Table.PrintHelp(outs(), "llvm-dlltool [options] file...", "llvm-dlltool",
+    Table.printHelp(outs(), "llvm-dlltool [options] file...", "llvm-dlltool",
                     false);
     llvm::outs() << "\nTARGETS: i386, i386:x86-64, arm, arm64\n";
     return 1;

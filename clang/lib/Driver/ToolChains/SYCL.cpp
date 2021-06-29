@@ -66,7 +66,10 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(
   } else {
     CmdArgs.push_back("-spirv-max-version=1.3");
     CmdArgs.push_back("-spirv-ext=+all");
-    CmdArgs.push_back("-spirv-debug-info-version=ocl-100");
+    if (!C.getDriver().isFPGAEmulationMode())
+      CmdArgs.push_back("-spirv-debug-info-version=legacy");
+    else
+      CmdArgs.push_back("-spirv-debug-info-version=ocl-100");
     CmdArgs.push_back("-spirv-allow-extra-diexpressions");
     CmdArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
     CmdArgs.push_back("-o");
@@ -677,7 +680,7 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     OptNoTriple = A->getOption().matches(Opt);
     if (A->getOption().matches(Opt_EQ)) {
       // Passing device args: -X<Opt>=<triple> -opt=val.
-      if (A->getValue() != getTripleString())
+      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple())
         // Provided triple does not match current tool chain.
         continue;
     } else if (!OptNoTriple)

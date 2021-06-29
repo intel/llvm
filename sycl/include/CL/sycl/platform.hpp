@@ -73,7 +73,9 @@ public:
   ///
   /// \param ExtensionName is a string containing extension name.
   /// \return true if specified extension is supported by this SYCL platform.
-  bool has_extension(const string_class &ExtensionName) const;
+  __SYCL2020_DEPRECATED(
+      "use platform::has() function with aspects APIs instead")
+  bool has_extension(const std::string &ExtensionName) const;
 
   /// Checks if this SYCL platform is a host platform.
   ///
@@ -88,7 +90,7 @@ public:
   ///
   /// \param DeviceType is a SYCL device type.
   /// \return a vector of SYCL devices.
-  vector_class<device>
+  std::vector<device>
   get_devices(info::device_type DeviceType = info::device_type::all) const;
 
   /// Queries this SYCL platform for info.
@@ -103,7 +105,7 @@ public:
   /// The resulting vector always contains a single SYCL host platform instance.
   ///
   /// \return a vector of all available SYCL platforms.
-  static vector_class<platform> get_platforms();
+  static std::vector<platform> get_platforms();
 
   /// Returns the backend associated with this platform.
   ///
@@ -132,8 +134,8 @@ public:
 private:
   pi_native_handle getNative() const;
 
-  shared_ptr_class<detail::platform_impl> impl;
-  platform(shared_ptr_class<detail::platform_impl> impl) : impl(impl) {}
+  std::shared_ptr<detail::platform_impl> impl;
+  platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -147,7 +149,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::platform> {
   size_t operator()(const cl::sycl::platform &p) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::platform_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::platform_impl>>()(
         cl::sycl::detail::getSyclObjImpl(p));
   }
 };

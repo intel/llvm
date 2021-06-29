@@ -326,7 +326,7 @@ public:
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event
-  submit_barrier(const vector_class<event> &WaitList _CODELOCPARAM(&CodeLoc)) {
+  submit_barrier(const std::vector<event> &WaitList _CODELOCPARAM(&CodeLoc)) {
     return submit(
         [=](handler &CGH) { CGH.barrier(WaitList); } _CODELOCFW(CodeLoc));
   }
@@ -662,7 +662,7 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(const vector_class<event> &DepEvents,
+  event single_task(const std::vector<event> &DepEvents,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return submit(
@@ -766,8 +766,7 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(range<1> NumWorkItems,
-                     const vector_class<event> &DepEvents,
+  event parallel_for(range<1> NumWorkItems, const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
@@ -783,8 +782,7 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(range<2> NumWorkItems,
-                     const vector_class<event> &DepEvents,
+  event parallel_for(range<2> NumWorkItems, const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
@@ -800,8 +798,7 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(range<3> NumWorkItems,
-                     const vector_class<event> &DepEvents,
+  event parallel_for(range<3> NumWorkItems, const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
@@ -863,7 +860,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                     const vector_class<event> &DepEvents,
+                     const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return submit(
@@ -929,7 +926,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange,
-                     const vector_class<event> &DepEvents,
+                     const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return submit(
@@ -991,8 +988,8 @@ public:
 private:
   pi_native_handle getNative() const;
 
-  shared_ptr_class<detail::queue_impl> impl;
-  queue(shared_ptr_class<detail::queue_impl> impl) : impl(impl) {}
+  std::shared_ptr<detail::queue_impl> impl;
+  queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -1005,10 +1002,10 @@ private:
 #endif
 
   /// A template-free version of submit.
-  event submit_impl(function_class<void(handler &)> CGH,
+  event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
   /// A template-free version of submit.
-  event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
+  event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
 
   // Function to postprocess submitted command
@@ -1089,7 +1086,7 @@ private:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for_impl(range<Dims> NumWorkItems,
-                          const vector_class<event> &DepEvents,
+                          const std::vector<event> &DepEvents,
                           KernelType KernelFunc,
                           const detail::code_location &CodeLoc) {
     return submit(
@@ -1193,8 +1190,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 namespace std {
 template <> struct hash<cl::sycl::queue> {
   size_t operator()(const cl::sycl::queue &Q) const {
-    return std::hash<
-        cl::sycl::shared_ptr_class<cl::sycl::detail::queue_impl>>()(
+    return std::hash<std::shared_ptr<cl::sycl::detail::queue_impl>>()(
         cl::sycl::detail::getSyclObjImpl(Q));
   }
 };

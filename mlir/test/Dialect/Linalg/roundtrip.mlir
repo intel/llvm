@@ -153,12 +153,12 @@ func @ops(%arg0: memref<?x?xf32, offset: ?, strides: [?, 1]>,
 
 
 func @fill_view(%arg0: memref<?xf32, offset: ?, strides: [1]>, %arg1: f32) {
-  linalg.fill(%arg0, %arg1) : memref<?xf32, offset: ?, strides: [1]>, f32
+  linalg.fill(%arg1, %arg0) : f32, memref<?xf32, offset: ?, strides: [1]>
   return
 }
 // CHECK-LABEL: func @fill_view(
 //       CHECK:  %{{.*}}: memref<?xf32, #[[$strided1D]]>, %{{.*}}: f32) {
-//       CHECK:   linalg.fill(%{{.*}}, %{{.*}}) : memref<?xf32, #[[$strided1D]]>, f32
+//       CHECK:   linalg.fill(%{{.*}}, %{{.*}}) : f32, memref<?xf32, #[[$strided1D]]>
 
 // -----
 
@@ -174,12 +174,12 @@ func @transpose(%arg0: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>) {
 
 
 func @fill_view3(%arg0: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>, %arg1: f32) {
-  linalg.fill(%arg0, %arg1) : memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>, f32
+  linalg.fill(%arg1, %arg0) : f32, memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>
   return
 }
 // CHECK-LABEL: func @fill_view3(
 //       CHECK:  %{{.*}}: memref<?x?x?xf32, #[[$strided3D]]>, %{{.*}}: f32) {
-//       CHECK:   linalg.fill(%{{.*}}, %{{.*}}) : memref<?x?x?xf32, #[[$strided3D]]>, f32
+//       CHECK:   linalg.fill(%{{.*}}, %{{.*}}) : f32, memref<?x?x?xf32, #[[$strided3D]]>
 
 // -----
 
@@ -429,9 +429,9 @@ func @generic_with_multiple_tensor_outputs(
     -> (tensor<i32>, tensor<i32>) {
   %c0 = constant 0 : index
   %0 = linalg.init_tensor [] : tensor<i32>
-  %1 = linalg.fill(%0, %arg2) : tensor<i32>, i32 -> tensor<i32>
+  %1 = linalg.fill(%arg2, %0) : i32, tensor<i32> -> tensor<i32>
   %2 = linalg.init_tensor [] : tensor<i32>
-  %3 = linalg.fill(%2, %arg2) : tensor<i32>, i32 -> tensor<i32>
+  %3 = linalg.fill(%arg2, %2) : i32, tensor<i32> -> tensor<i32>
   %4:2 = linalg.generic {
     indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> ()>, affine_map<(d0) -> ()>],
     iterator_types = ["reduction"]}
@@ -704,10 +704,10 @@ func @legal_collapsing_reshape_dynamic_memref
 
 func @fill_tensor(%arg0 : index, %arg1 : index, %arg2 : f32) -> tensor<?x?xf32> {
   %0 = linalg.init_tensor [%arg0, %arg1] : tensor<?x?xf32>
-  %1 = linalg.fill(%0, %arg2) : tensor<?x?xf32>, f32 -> tensor<?x?xf32>
+  %1 = linalg.fill(%arg2, %0) : f32, tensor<?x?xf32> -> tensor<?x?xf32>
   return %1 : tensor<?x?xf32>
 }
-// CHECK: %{{.+}} = linalg.fill(%{{.+}}, %{{.+}}) : tensor<?x?xf32>, f32 -> tensor<?x?xf32>
+// CHECK: %{{.+}} = linalg.fill(%{{.+}}, %{{.+}}) : f32, tensor<?x?xf32> -> tensor<?x?xf32>
 
 // -----
 
@@ -732,11 +732,11 @@ func @tiled_loop(%lhs: tensor<24x64xi8>, %rhs: tensor<24x64xi8>,
  %prod = linalg.tiled_loop (%i) = (%c0) to (%c24) step (%c4)
       ins(%lhs_ = %lhs: tensor<24x64xi8>, %rhs_ = %rhs: tensor<24x64xi8>)
       outs(%out_ = %out: tensor<24x64xi8>) {
-    %lhs_sub = subtensor %lhs_[%i, 0] [%c4, %c64] [1, 1]
+    %lhs_sub = tensor.extract_slice %lhs_[%i, 0] [%c4, %c64] [1, 1]
         : tensor<24x64xi8> to tensor<?x?xi8>
-    %rhs_sub = subtensor %rhs_[%i, 0] [%c4, %c64] [1, 1]
+    %rhs_sub = tensor.extract_slice %rhs_[%i, 0] [%c4, %c64] [1, 1]
         : tensor<24x64xi8> to tensor<?x?xi8>
-    %out_sub = subtensor %out_[%i, 0] [%c4, %c64] [1, 1]
+    %out_sub = tensor.extract_slice %out_[%i, 0] [%c4, %c64] [1, 1]
         : tensor<24x64xi8> to tensor<?x?xi8>
 
     %sum = linalg.generic #trait_4
@@ -747,7 +747,7 @@ func @tiled_loop(%lhs: tensor<24x64xi8>, %rhs: tensor<24x64xi8>,
         linalg.yield %s : i8
       } -> tensor<?x?xi8>
 
-    %sum_sub = subtensor_insert %sum into %out_[%i, 0][%c4, %c64][1, 1]
+    %sum_sub = tensor.insert_slice %sum into %out_[%i, 0][%c4, %c64][1, 1]
       : tensor<?x?xi8> into tensor<24x64xi8>
     linalg.yield %sum_sub : tensor<24x64xi8>
   }
@@ -792,13 +792,13 @@ func @tiled_loop_reduction(%input_3d: tensor<16x24x32xf32>,
       outs(%o_ =  %output: tensor<24xf32>)
       iterators["reduction", "parallel", "reduction"]
       distribution["block_x", "block_y", "none"] {
-    %sub_3d = subtensor %i3d_[%i, %j, %k][2, 4, 8][1, 1, 1]
+    %sub_3d = tensor.extract_slice %i3d_[%i, %j, %k][2, 4, 8][1, 1, 1]
       : tensor<16x24x32xf32> to tensor<2x4x8xf32>
-    %sub_2d = subtensor %i2d_[%i, %k][2, 8][1, 1]
+    %sub_2d = tensor.extract_slice %i2d_[%i, %k][2, 8][1, 1]
       : tensor<16x32xf32> to tensor<2x8xf32>
-    %sub_1d = subtensor %i1d_[%j] [4] [1]
+    %sub_1d = tensor.extract_slice %i1d_[%j] [4] [1]
       : tensor<24xf32> to tensor<4xf32>
-    %sub_out = subtensor %o_[%j] [4] [1]
+    %sub_out = tensor.extract_slice %o_[%j] [4] [1]
       : tensor<24xf32> to tensor<4xf32>
     %acc = linalg.generic #trait_5
       ins(%sub_3d, %sub_2d, %sub_1d
@@ -810,7 +810,7 @@ func @tiled_loop_reduction(%input_3d: tensor<16x24x32xf32>,
       linalg.yield %1 : f32
     } -> tensor<4xf32>
 
-    %sum_sub = subtensor_insert %acc into %o_[%j][%c4][1]
+    %sum_sub = tensor.insert_slice %acc into %o_[%j][%c4][1]
       : tensor<4xf32> into tensor<24xf32>
     linalg.yield %sum_sub : tensor<24xf32>
   }

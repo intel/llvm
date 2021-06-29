@@ -1411,8 +1411,7 @@ void request_modules(const llvm::json::Object &request) {
 // }
 void request_initialize(const llvm::json::Object &request) {
   g_vsc.debugger = lldb::SBDebugger::Create(true /*source_init_files*/);
-  // TODO: reenable once confirmed that this doesn't make the buildbots flaky
-  // g_vsc.progress_event_thread = std::thread(ProgressEventThreadFunction);
+  g_vsc.progress_event_thread = std::thread(ProgressEventThreadFunction);
 
   // Create an empty target right away since we might get breakpoint requests
   // before we are given an executable to launch in a "launch" request, or a
@@ -3047,7 +3046,7 @@ void RegisterRequestCallbacks() {
 
 static void printHelp(LLDBVSCodeOptTable &table, llvm::StringRef tool_name) {
   std::string usage_str = tool_name.str() + " options";
-  table.PrintHelp(llvm::outs(), usage_str.c_str(), "LLDB VSCode", false);
+  table.printHelp(llvm::outs(), usage_str.c_str(), "LLDB VSCode", false);
 
   std::string examples = R"___(
 EXAMPLES:

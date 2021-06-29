@@ -674,7 +674,7 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
 namespace std {
 template <> struct hash<cl::sycl::kernel_id> {
   size_t operator()(const cl::sycl::kernel_id &KernelID) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::kernel_id_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::kernel_id_impl>>()(
         cl::sycl::detail::getSyclObjImpl(KernelID));
   }
 };
@@ -682,8 +682,7 @@ template <> struct hash<cl::sycl::kernel_id> {
 template <cl::sycl::bundle_state State>
 struct hash<cl::sycl::device_image<State>> {
   size_t operator()(const cl::sycl::device_image<State> &DeviceImage) const {
-    return hash<
-        cl::sycl::shared_ptr_class<cl::sycl::detail::device_image_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::device_image_impl>>()(
         cl::sycl::detail::getSyclObjImpl(DeviceImage));
   }
 };
@@ -691,8 +690,7 @@ struct hash<cl::sycl::device_image<State>> {
 template <cl::sycl::bundle_state State>
 struct hash<cl::sycl::kernel_bundle<State>> {
   size_t operator()(const cl::sycl::kernel_bundle<State> &KernelBundle) const {
-    return hash<
-        cl::sycl::shared_ptr_class<cl::sycl::detail::kernel_bundle_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::kernel_bundle_impl>>()(
         cl::sycl::detail::getSyclObjImpl(KernelBundle));
   }
 };

@@ -125,9 +125,9 @@ public:
   ///
   /// \param ExtensionName is a name of queried extension.
   /// \return true if SYCL device supports the extension.
-  bool has_extension(const string_class &ExtensionName) const;
+  bool has_extension(const std::string &ExtensionName) const;
 
-  vector_class<device>
+  std::vector<device>
   create_sub_devices(const cl_device_partition_property *Properties,
                      size_t SubDevicesCount) const;
 
@@ -141,7 +141,7 @@ public:
   /// device.
   /// \return A vector class of sub devices partitioned equally from this
   /// SYCL device based on the ComputeUnits parameter.
-  vector_class<device> create_sub_devices(size_t ComputeUnits) const;
+  std::vector<device> create_sub_devices(size_t ComputeUnits) const;
 
   /// Partition device into sub devices
   ///
@@ -149,11 +149,11 @@ public:
   /// info::partition_property::partition_by_counts a feature_not_supported
   /// exception must be thrown.
   ///
-  /// \param Counts is a vector_class of desired compute units in sub devices.
-  /// \return a vector_class of sub devices partitioned from this SYCL device
+  /// \param Counts is a std::vector of desired compute units in sub devices.
+  /// \return a std::vector of sub devices partitioned from this SYCL device
   /// by count sizes based on the Counts parameter.
-  vector_class<device>
-  create_sub_devices(const vector_class<size_t> &Counts) const;
+  std::vector<device>
+  create_sub_devices(const std::vector<size_t> &Counts) const;
 
   /// Partition device into sub devices
   ///
@@ -166,7 +166,7 @@ public:
   /// SYCL Spec
   /// \return a vector class of sub devices partitioned from this SYCL device
   /// by affinity domain based on the AffinityDomain parameter
-  vector_class<device>
+  std::vector<device>
   create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
 
   /// Check if desired partition property supported by device

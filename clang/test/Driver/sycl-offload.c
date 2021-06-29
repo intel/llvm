@@ -96,16 +96,24 @@
 
 /// Check no error for -fsycl-targets with good triple
 // RUN:   %clang -### -fsycl-targets=spir-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-TRIPLE %s
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
+// RUN:   %clang -### -fsycl-targets=spir64 -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
 // RUN:   %clang -### -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-TRIPLE %s
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
+// RUN:   %clang -### -fsycl-targets=spir64_fpga -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
 // RUN:   %clang -### -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-TRIPLE %s
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
+// RUN:   %clang -### -fsycl-targets=spir64_x86_64 -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
 // RUN:   %clang -### -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-TRIPLE %s
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
+// RUN:   %clang -### -fsycl-targets=spir64_gen -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
 // RUN:   %clang_cl -### -fsycl-targets=spir-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-TRIPLE %s
-// CHK-SYCL-FPGA-TRIPLE-NOT: error: SYCL target is invalid
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
+// CHK-SYCL-TARGET-NOT: error: SYCL target is invalid
 
 /// Check error for -fsycl-[add|link]-targets with bad triple
 // RUN:   %clang -### -fsycl-add-targets=spir64_bad-unknown-unknown-sycldevice:dummy.spv -fsycl  %s 2>&1 \
@@ -301,6 +309,8 @@
 /// Check separate compilation with offloading - unbundling actions
 // RUN:   touch %t.o
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -o %t.out -lsomelib -fsycl-targets=spir64-unknown-unknown-sycldevice %t.o 2>&1 \
+// RUN:   | FileCheck -DINPUT=%t.o -check-prefix=CHK-UBACTIONS %s
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -o %t.out -lsomelib -fsycl-targets=spir64 %t.o 2>&1 \
 // RUN:   | FileCheck -DINPUT=%t.o -check-prefix=CHK-UBACTIONS %s
 // RUN:   mkdir -p %t_dir
 // RUN:   touch %t_dir/dummy
@@ -625,9 +635,15 @@
 /// Ahead of Time compilation for fpga, gen, cpu
 // RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl-use-footer -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-FPGA
+// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl-use-footer -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64_fpga %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-FPGA
 // RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl-use-footer -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64_gen-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-GEN
+// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl-use-footer -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64_gen %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-GEN
 // RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl-use-footer -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-CPU
+// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl-use-footer -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64_x86_64 %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-CPU
 // CHK-PHASES-AOT: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASES-AOT: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -693,7 +709,8 @@
 // CHK-TOOLS-AOT: file-table-tform{{.*}} "-extract=Code" "-drop_titles" "-o" "[[OUTPUT2_1:.+\.txt]]" "[[OUTPUT2_T]]"
 // CHK-TOOLS-CPU: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.3" "-spirv-debug-info-version=ocl-100" "-spirv-allow-extra-diexpressions" "-spirv-allow-unknown-intrinsics=llvm.genx." {{.*}} "[[OUTPUT2_1]]"
 // CHK-TOOLS-GEN: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.3" "-spirv-debug-info-version=ocl-100" "-spirv-allow-extra-diexpressions" "-spirv-allow-unknown-intrinsics=llvm.genx." {{.*}} "[[OUTPUT2_1]]"
-// CHK-TOOLS-FPGA: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.3" "-spirv-debug-info-version=ocl-100" "-spirv-allow-extra-diexpressions" "-spirv-allow-unknown-intrinsics=llvm.genx." {{.*}} "[[OUTPUT2_1]]"
+// CHK-TOOLS-FPGA-HW: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.3" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-allow-unknown-intrinsics=llvm.genx." {{.*}} "[[OUTPUT2_1]]"
+// CHK-TOOLS-FPGA-EMU: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.3" "-spirv-debug-info-version=ocl-100" "-spirv-allow-extra-diexpressions" "-spirv-allow-unknown-intrinsics=llvm.genx." {{.*}} "[[OUTPUT2_1]]"
 // CHK-TOOLS-FPGA-HW: aoc{{.*}} "-o" "[[OUTPUT4_T:.+\.aocx]]" "[[OUTPUT3_T]]"
 // CHK-TOOLS-FPGA-EMU: opencl-aot{{.*}} "-spv=[[OUTPUT3_T]]" "-ir=[[OUTPUT4_T:.+\.aocx]]"
 // CHK-TOOLS-GEN: ocloc{{.*}} "-output" "[[OUTPUT4_T:.+\.out]]" {{.*}} "[[OUTPUT3_T]]"
@@ -803,6 +820,9 @@
 // Sane-check "-compile-opts" and "-link-opts" passing for multiple targets
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice,spir64_gen-unknown-unknown-sycldevice \
 // RUN:   -Xsycl-target-backend=spir64_gen-unknown-unknown-sycldevice "-device skl -cl-opt-disable" -Xsycl-target-linker=spir64-unknown-unknown-sycldevice "-cl-denorms-are-zero" %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-TOOLS-MULT-OPTS,CHK-TOOLS-MULT-OPTS-NEG %s
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64,spir64_gen \
+// RUN:   -Xsycl-target-backend=spir64_gen "-device skl -cl-opt-disable" -Xsycl-target-linker=spir64 "-cl-denorms-are-zero" %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-TOOLS-MULT-OPTS,CHK-TOOLS-MULT-OPTS-NEG %s
 // CHK-TOOLS-MULT-OPTS: clang-offload-wrapper{{.*}} "-link-opts=-cl-denorms-are-zero"{{.*}} "-target=spir64"
 // CHK-TOOLS-MULT-OPTS: ocloc{{.*}} "-device" "skl"{{.*}} "-cl-opt-disable"
