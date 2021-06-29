@@ -3558,15 +3558,14 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
 
   if (Opts.isSYCL()) {
     switch (Opts.SYCLVersion) {
-    default:
-      llvm_unreachable(
-          "Shouldn't be able to generate SYCL args without one being set");
-      break;
     case LangOptions::SYCL_2017:
       GenerateArg(Args, OPT_sycl_std_EQ, "2017", SA);
       break;
     case LangOptions::SYCL_2020:
       GenerateArg(Args, OPT_sycl_std_EQ, "2020", SA);
+      break;
+    case LangOptions::SYCL_None:
+      // Do nothing, case where we were given an invalid value.
       break;
     }
   }
@@ -3672,11 +3671,9 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
                      LangOptions::SYCL_2017)
               .Default(LangOptions::SYCL_None));
 
-      if (Opts.SYCLVersion == LangOptions::SYCL_None) {
+      if (Opts.SYCLVersion == LangOptions::SYCL_None)
         Diags.Report(diag::err_drv_invalid_value)
             << A->getAsString(Args) << A->getValue();
-        Opts.setSYCLVersion(LangOptions::SYCL_Default);
-      }
     } else {
       // If the user supplied -fsycl-is-device or -fsycl-is-host, but failed to
       // provide -sycl-std=, we want to default it to whatever the default SYCL
