@@ -163,7 +163,7 @@ struct LoopAttributes {
   /// Flag for llvm.loop.intel.pipelining.enable metadata.
   bool SYCLIntelFPGAPipelineEnable;
 
-  /// Flag for llvm.loop.intel.pipelining.enable metadata.
+  /// Value for llvm.loop.intel.pipelining.enable metadata.
   unsigned SYCLIntelFPGANPipelines;
 
   /// Value for whether the loop is required to make progress.

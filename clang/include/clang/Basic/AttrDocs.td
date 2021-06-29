@@ -3102,7 +3102,7 @@ function, or in conjunction with ``max_interleaving``,
 ``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
 or ``ivdep``.
 
-The ``[[intel::disable_loop_pipelining`` attribute spelling
+The ``[[intel::disable_loop_pipelining]]`` attribute spelling
 is deprecated in favor of ``[[[intel::fpga_pipeline(n)]]``.
 
 .. code-block:: c++
@@ -3259,13 +3259,13 @@ def SYCLIntelFpgaPipelineAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::fpga_pipeline";
   let Content = [{
-The ``intel::fpga_pipeline(N)`` attribute applies to a loop or a function.
-Allows users to disable/enable pipelining invocations of a function
-or pipelining iterations of a loop. Takes boolean parameter N where N can be
-a template parameter or constexpr. Valid values are 0 and 1.
-If used without argument, value of 1 is set implicitly, which implies
-enable pipelining. Cannot be used on the same loop or function, or in
-conjunction with ``max_interleaving``, ``speculated_iterations``,
+The ``intel::fpga_pipeline(N)`` attribute applies to a loop or a function and it
+allows users to disable or enable pipelining invocations of a function
+or pipelining iterations of a loop. The attribute optionally accepts an integer
+constant expression that is converted to `bool`. A `true` value enables
+pipelining while a `false` value disables pipelining. The optional argument
+defaults to `true`. This attribute cannot be applied to a loop or
+function in conjunction with the  ``max_interleaving``, ``speculated_iterations``,
 ``max_concurrency``, ``initiation_interval``, or ``ivdep`` attributes.
 
 .. code-block:: c++
@@ -3276,11 +3276,11 @@ conjunction with ``max_interleaving``, ``speculated_iterations``,
     void operator()() {}
   };
 
-  // unpipelined function
-  [[intel::fpga_pipeline(0)]] void foo() {};
+  // Disable function pipelining
+  [[intel::fpga_pipeline(0)]] void foo() {}
 
   // Enable function pipelining
-  [[intel::fpga_pipeline(0)]] int bar() {};
+  [[intel::fpga_pipeline(1)]] int bar() {}
 
   template <int N>
   class Functor {

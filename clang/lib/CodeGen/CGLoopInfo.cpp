@@ -1101,10 +1101,10 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (const auto *IntelFpgaPipeline =
             dyn_cast<SYCLIntelFpgaPipelineAttr>(A)) {
+      const auto *CE = cast<ConstantExpr>(IntelFpgaPipeline->getValue());
+      Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
       setSYCLIntelFPGAPipelineEnable();
-      setSYCLIntelFPGANPipelines(IntelFpgaPipeline->getValue()
-                                     ->getIntegerConstantExpr(Ctx)
-                                     ->getSExtValue());
+      setSYCLIntelFPGANPipelines(ArgVal->getBoolValue() ? 1 : 0);
     }
   }
 

@@ -56,10 +56,6 @@ int main() {
     h.single_task<class test_kernel7>(
         []() [[intel::fpga_pipeline(0),      // expected-note {{previous attribute is here}}
 	       intel::fpga_pipeline(1)]]{});  // expected-warning{{attribute 'fpga_pipeline' is already applied with different arguments}}
-
-    h.single_task<class test_kernel8>(
-       []() [[intel::fpga_pipeline(-2)]]{}); // expected-error{{'fpga_pipeline' attribute requires a non-negative integral compile time constant expression}}
-
   });
   return 0;
 }
