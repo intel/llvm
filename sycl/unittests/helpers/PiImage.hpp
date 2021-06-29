@@ -233,46 +233,30 @@ private:
 
 /// Convenience wrapper around pi_device_binaries_struct, that manages mock
 /// device images' lifecycle.
+template <size_t __NumberOfImages>
 class PiImageArray {
 public:
-  /// Constructs an array of device images from a single image and registers
-  /// it with SYCL runtime.
-  PiImageArray(PiImage Image) {
-    MImages.push_back(std::move(Image));
-    convertImages();
-    MAllBinaries = pi_device_binaries_struct{
-        PI_DEVICE_BINARIES_VERSION,
-        1, // num binaries
-        MNativeImages.data(),
-        nullptr, // not used, for compatibility with OpenMP
-        nullptr  // not used, for compatibility with OpenMP
-    };
-    __sycl_register_lib(&MAllBinaries);
-  }
+  static constexpr size_t NumberOfImages = __NumberOfImages;
 
-  /// Constructs an array of device images and registers it with SYCL runtime.
-  PiImageArray(std::vector<PiImage> Images) : MImages(std::move(Images)) {
-    convertImages();
+  PiImageArray(const PiImage *Imgs) {
+    for (size_t Idx = 0; Idx < NumberOfImages; ++Idx)
+      MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
+
     MAllBinaries = pi_device_binaries_struct{
         PI_DEVICE_BINARIES_VERSION,
-        static_cast<uint16_t>(MNativeImages.size()), // num binaries
-        MNativeImages.data(),
-        nullptr, // not used, for compatibility with OpenMP
-        nullptr  // not used, for compatibility with OpenMP
+        NumberOfImages,
+        MNativeImages,
+        nullptr, // not used, put here for compatibility with OpenMP
+        nullptr, // not used, put here for compatibility with OpenMP
     };
+
     __sycl_register_lib(&MAllBinaries);
   }
 
   ~PiImageArray() { __sycl_unregister_lib(&MAllBinaries); }
 
 private:
-  void convertImages() {
-    std::transform(
-        MImages.begin(), MImages.end(), std::back_inserter(MNativeImages),
-        [](const PiImage &Img) { return Img.convertToNativeType(); });
-  }
-  std::vector<PiImage> MImages;
-  std::vector<pi_device_binary_struct> MNativeImages;
+  pi_device_binary_struct MNativeImages[NumberOfImages];
   pi_device_binaries_struct MAllBinaries;
 };
 
