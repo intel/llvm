@@ -7,22 +7,24 @@ include(ExternalProject)
 include_directories("${sycl_inc_dir}")
 include_directories(${OpenCL_INCLUDE_DIR})
 
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libva_build)
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libva_install)
-ExternalProject_Add(libva
-  GIT_REPOSITORY    https://github.com/intel/libva.git
-  GIT_TAG           bef69c5f380a27b6908d6daea0fc18ce50e33bb9
-  BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/libva_build
-  INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/libva_install
-  CONFIGURE_COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && ./autogen.sh --prefix=${CMAKE_CURRENT_BINARY_DIR}/libva_install
-  BUILD_COMMAND     cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && make -j
-  INSTALL_COMMAND   cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && make install
-)
-ExternalProject_Add_Step(libva llvminstall
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${LLVM_BINARY_DIR}/pi_esimd_cpu_deps && ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}/pi_esimd_cpu_deps
-  COMMENT "Installing libva into the LLVM binary directory"
-  DEPENDEES install
-)
+if (NOT MSVC)
+  file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libva_build)
+  file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libva_install)
+  ExternalProject_Add(libva
+    GIT_REPOSITORY    https://github.com/intel/libva.git
+    GIT_TAG           bef69c5f380a27b6908d6daea0fc18ce50e33bb9
+    BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/libva_build
+    INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/libva_install
+    CONFIGURE_COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && ./autogen.sh --prefix=${CMAKE_CURRENT_BINARY_DIR}/libva_install
+    BUILD_COMMAND     cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && make -j
+    INSTALL_COMMAND   cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && make install
+  )
+  ExternalProject_Add_Step(libva llvminstall
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${LLVM_BINARY_DIR}/pi_esimd_cpu_deps && ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}/pi_esimd_cpu_deps
+    COMMENT "Installing libva into the LLVM binary directory"
+    DEPENDEES install
+  )
+endif()
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install)
@@ -147,7 +149,7 @@ install(TARGETS pi_esimd_cpu
 
 # Copy CM Header files to $(INSTALL)/include/sycl/CL/
 install(DIRECTORY    ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install/include/libcm/cm/
-        DESTINATION  ${SYCL_INCLUDE_DEPLOY_DIR}/CL
+        DESTINATION  ${SYCL_INCLUDE_DIR}/CL
         COMPONENT    libcmrt-headers
         FILES_MATCHING PATTERN "*.h"
 )
