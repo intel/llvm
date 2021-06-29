@@ -36,6 +36,7 @@ enum class image_channel_order : unsigned int {
   luminance = 12,
   abgr = 13,
   srgb = 0x10BF, // OpenCL 2.0
+  srgbx = 0x10C0,
   srgba = 0x10C1
 };
 

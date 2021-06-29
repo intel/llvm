@@ -9,7 +9,8 @@
 
 using namespace cl::sycl;
 
-using pixelT = sycl::float4;
+using accessorPixelT = sycl::float4;
+using dataPixelT = uint32_t;
 
 // will output a pixel as {r,g,b,a}.  provide override if a different pixelT is
 // defined.
@@ -20,58 +21,45 @@ void outputPixel(sycl::float4 somePixel) {
 
 // 4 pixels on a side. 1D at the moment
 constexpr long width = 4;
+constexpr long height = 3;
 
 void test_rw(image_channel_order ChanOrder, image_channel_type ChanType) {
+
   int numTests = 4; // drives the size of the testResults buffer, and the number
                     // of report iterations. Kludge.
 
-  // we'll use these four pixels for our image. Makes it easy to measure
-  // interpolation and spot "off-by-one" probs.
-  // These values will work consistently with different levels of float
-  // precision (like unorm_int8 vs. fp32)
-  pixelT leftEdge{0.2f, 0.4f, 0.6f, 0.8f};
-  pixelT body{0.6f, 0.4f, 0.2f, 0.0f};
-  pixelT bony{0.2f, 0.4f, 0.6f, 0.8f};
-  pixelT rightEdge{0.6f, 0.4f, 0.2f, 0.0f};
+  // this should yield a read of approximate 0.5 for each channel
+  // when read directly.  For sRGB, this should be the point
+  // with the maximum conversion. So we should read values of
+  // 0.2 or 0.7 (but I'm not sure yet which way that conversion goes)
+  dataPixelT basicPixel{127 << 24 | 127 << 16 | 127 << 8 | 127};
 
   queue Q;
-  const sycl::range<1> ImgRange_1D(width);
-  { // closure
-    // - create an image
-    image<1> image_1D(ChanOrder, ChanType, ImgRange_1D);
-    event E_Setup = Q.submit([&](handler &cgh) {
-      auto image_acc = image_1D.get_access<pixelT, access::mode::write>(cgh);
-      cgh.single_task<class setupUnormLinear>([=]() {
-        image_acc.write(0, leftEdge);
-        image_acc.write(1, body);
-        image_acc.write(2, bony);
-        image_acc.write(3, rightEdge);
-      });
-    });
-    E_Setup.wait();
+  const sycl::range<2> ImgRange_2D(width, height);
+  std::vector<dataPixelT> ImgData(ImgRange_2D.size(), basicPixel);
+  try { // closure
 
+    image<2> image_2D(ImgData.data(), ChanOrder, ChanType, ImgRange_2D);
     // use a buffer to report back test results.
-    buffer<pixelT, 1> testResults((range<1>(numTests)));
+    buffer<accessorPixelT, 1> testResults((range<1>(numTests)));
 
-    event E_Test = Q.submit([&](handler &cgh) {
-      auto image_acc = image_1D.get_access<pixelT, access::mode::read>(cgh);
+    Q.submit([&](handler &cgh) {
+      auto image_acc =
+          image_2D.get_access<accessorPixelT, access::mode::read>(cgh);
       auto test_acc = testResults.get_access<access::mode::write>(cgh);
 
-      cgh.single_task<class im1D_Unorm_Linear>([=]() {
+      cgh.single_task<class im2D_rw>([=]() {
         int i = 0; // the index for writing into the testResult buffer.
 
         // verify our four pixels were set up correctly.
         // 0-3 read four pixels. no sampler
-        test_acc[i++] = image_acc.read(0); // {1,2,3,4}
-        test_acc[i++] = image_acc.read(1); // {49,48,47,46}
-        test_acc[i++] = image_acc.read(2); // {59,58,57,56}
-        test_acc[i++] = image_acc.read(3); // {11,12,13,14}
-
-        // Add more tests below. Just be sure to increase the numTests counter
-        // at the beginning of this function
+        test_acc[i++] = image_acc.read(sycl::int2{0, 0});
+        test_acc[i++] = image_acc.read(sycl::int2{1, 0});
+        test_acc[i++] = image_acc.read(sycl::int2{0, 1});
+        test_acc[i++] = image_acc.read(sycl::int2{2, 2});
       });
     });
-    E_Test.wait();
+    Q.wait_and_throw();
 
     // REPORT RESULTS
     auto test_acc = testResults.get_access<access::mode::read>();
@@ -81,11 +69,13 @@ void test_rw(image_channel_order ChanOrder, image_channel_type ChanType) {
         std::cout << "read four pixels, no sampler" << std::endl;
       }
 
-      pixelT testPixel = test_acc[i];
+      accessorPixelT testPixel = test_acc[i];
       std::cout << i << /* " -- " << idx << */ ": ";
       outputPixel(testPixel);
       std::cout << std::endl;
     }
+  } catch (sycl::exception e) {
+    std::cout << "exception caught: " << e.what() << std::endl;
   } // ~image / ~buffer
 }
 
@@ -100,19 +90,31 @@ int main() {
     // per pixel (for RGBA) the _int32/fp32  channels are four bytes per
     // channel, or sixteen bytes per pixel (for RGBA).
 
-    // basic read write of fp32 working.
-    std::cout << "fp32 -------------" << std::endl;
-    test_rw(image_channel_order::rgba, image_channel_type::fp32);
+    // RGBx -- CL_IMAGE_FORMAT_NOT_SUPPORTED on CPU
+    //         CL_INVALID_IMAGE_FORMAT_DESCRIPTOR on GPU.
+    //          LevelZero dies in piMemImageCreate (shouldn't it throw?)
+    //      I believe both CPU and GPU are in error.  Should be fine.
+    //      (irrelevant to sRGB enablement though)
+    // std::cout << "rgbx -------" << std::endl;
+    // test_rw(image_channel_order::rgbx, image_channel_type::unorm_int8);
 
-    // read-write of unorm_int8 working (except CUDA)
-    std::cout << "unorm_int8 -------" << std::endl;
+    // RGBA -- WORKS
+    std::cout << "rgba -------" << std::endl;
     test_rw(image_channel_order::rgba, image_channel_type::unorm_int8);
 
-    // srgb and srgba tests follow. 
-    // CL_IMAGE_FORMAT_NOT_SUPPORTED
-    std::cout << "srgb -------" << std::endl;
-    test_rw(image_channel_order::srgb, image_channel_type::unorm_int8);
+    // srgb (24 bit) throws exception, as size is supposed to be power of 2.
+    // srgbx and srgba tests follow.
 
+    // sRGBx  -- CL_INVALID_IMAGE_DESCRIPTOR on CPU
+    //           CL_IMAGE_FORMAT_NOT_SUPPORTED on GPU
+    //     This is the reverse of how CPU/GPU handle 'rgbx'
+    //     LevelZero dies in piMemImageCreate
+    // std::cout << "srgbx -------" << std::endl;
+    // test_rw(image_channel_order::srgbx, image_channel_type::unorm_int8);
+
+    // sRGBA -- CL_IMAGE_FORMAT_NOT_SUPPORTED on both OpenCL CPU and GPU
+    //          LevelZero accepts this, but I suspect it does not apply any
+    //          linear scaling.
     std::cout << "srgba -------" << std::endl;
     test_rw(image_channel_order::srgba, image_channel_type::unorm_int8);
   } else {
@@ -122,30 +124,20 @@ int main() {
   return 0;
 }
 
-// CHECK: fp32 -------------
+// clang-format off
+// CHECK: rgba -------
 // CHECK-NEXT: read four pixels, no sampler
-// CHECK-NEXT: 0: {0.2,0.4,0.6,0.8}
-// CHECK-NEXT: 1: {0.6,0.4,0.2,0}
-// CHECK-NEXT: 2: {0.2,0.4,0.6,0.8}
-// CHECK-NEXT: 3: {0.6,0.4,0.2,0}
-
-// CHECK: unorm_int8 -------
-// CHECK-NEXT: read four pixels, no sampler
-// CHECK-NEXT: 0: {0.2,0.4,0.6,0.8}
-// CHECK-NEXT: 1: {0.6,0.4,0.2,0}
-// CHECK-NEXT: 2: {0.2,0.4,0.6,0.8}
-// CHECK-NEXT: 3: {0.6,0.4,0.2,0}
-
-// CHECK: srgb -------
-// CHECK-NEXT: read four pixels, no sampler
-// CHECK-NEXT: 0: {0.2,0.4,0.6,0.8}
-// CHECK-NEXT: 1: {0.6,0.4,0.2,0}
-// CHECK-NEXT: 2: {0.2,0.4,0.6,0.8}
-// CHECK-NEXT: 3: {0.6,0.4,0.2,0}
-
+//   these next four reads should all be close to 0.5
+// CHECK-NEXT: 0: {0.498039,0.498039,0.498039,0.498039} 
+// CHECK-NEXT: 1: {0.498039,0.498039,0.498039,0.498039} 
+// CHECK-NEXT: 2: {0.498039,0.498039,0.498039,0.498039} 
+// CHECK-NEXT: 3: {0.498039,0.498039,0.498039,0.498039} 
 // CHECK: srgba -------
 // CHECK-NEXT: read four pixels, no sampler
-// CHECK-NEXT: 0: {0.2,0.4,0.6,0.8}
-// CHECK-NEXT: 1: {0.6,0.4,0.2,0}
-// CHECK-NEXT: 2: {0.2,0.4,0.6,0.8}
-// CHECK-NEXT: 3: {0.6,0.4,0.2,0}
+//   these next four reads should all be close to 0.7 
+//   or maybe 0.2.  I don't know yet
+// CHECK-NEXT: 0: {0.7,0.7,0.7,0.7} 
+// CHECK-NEXT: 1: {0.2,0.2,0.2,0.2} 
+// CHECK-NEXT: 2: {0.7,0.7,0.7,0.7} 
+// CHECK-NEXT: 3: {0.2,0.2,0.2,0.2}
+// clang-format on

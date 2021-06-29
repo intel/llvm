@@ -2802,6 +2802,16 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
       return PI_INVALID_VALUE;
     }
     break;
+  case CL_sRGBA:
+    switch (ZeImageFormatTypeSize) {
+    case 8:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8;
+      break;
+    default:
+      zePrint("piMemImageCreate: unexpected data type Size\n");
+      return PI_INVALID_VALUE;
+    }
+    break;
   default:
     zePrint("format layout = %d\n", ImageFormat->image_channel_order);
     die("piMemImageCreate: unsupported image format layout\n");
