@@ -489,10 +489,15 @@ Therefore, two kernels or exported device functions are only bundled together
 into the same device image if all of the following are true:
 
 * They share the same set of *Used* aspects,
-* They either both have no required sub-group size or both have the same
-  required sub-group size, and
 * They either both have no required work-group size or both have the same
-  required work-group size.
+  required work-group size, and
+* They either both have the same numeric value for their required sub-group
+  size or neither has a numeric value for a required sub-group size.  (Note
+  that this implies that kernels decorated with
+  `[[intel::named_sub_group_size(automatic)]]` can be bundled together with
+  kernels that are decorated with `[[intel::named_sub_group_size(primary)]]`
+  and that either of these kernels could be bundled with a kernel that has no
+  required sub-group size.)
 
 These criteria are an additional filter applied to the device code split
 algorithm after taking into account the `-fsycl-device-code-split` command line
@@ -526,10 +531,9 @@ property (which is always divisible by `4`) tells the number of aspects in the
 array.
 
 There is a "reqd\_sub\_group\_size" property if the image contains any kernels
-with a required sub-group size.  The value of the property is a `uint32` value
-that tells the required size.  (The device code split algorithm ensures that
-there are never two kernels with different required sub-group sizes in the same
-image.)
+with a numeric required sub-group size.  (I.e. this excludes kernels where the
+required sub-group size is a named value like `automatic` or `primary`.)  The
+value of the property is a `uint32` value that tells the required size.
 
 There is a "reqd\_work\_group\_size" property if the image contains any kernels
 with a required work-group size.  The value of the property is a `BYTE_ARRAY`
