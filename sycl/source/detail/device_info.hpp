@@ -240,15 +240,9 @@ template <> struct get_device_info<bool, info::device::atomic64> {
 
     bool result = false;
 
-    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::atomic64), sizeof(result),
         &result, nullptr);
-    if (Err == PI_INVALID_VALUE) {
-      std::cout
-          << "The Plugin Interface has returned an error:\n  The value of "
-             "the atomic64 device aspect is unknown, Setting atomic64 "
-             "= false.\n\n";
-    }
 
     return result;
   }
