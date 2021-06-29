@@ -240,10 +240,12 @@ template <> struct get_device_info<bool, info::device::atomic64> {
 
     bool result = false;
 
-    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::atomic64), sizeof(result),
         &result, nullptr);
-
+    if (Err == PI_INVALID_VALUE) {
+      return false;
+    }
     return result;
   }
 };
