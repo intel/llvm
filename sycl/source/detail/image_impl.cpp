@@ -433,9 +433,9 @@ bool image_impl<Dimensions>::checkImageFormat(
       !checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_RGB,
                 PI_IMAGE_CHANNEL_ORDER_RGBx))
     throw invalid_parameter_error(
-        "CL_RGB or CL_RGBx	These formats can only be used if channel data "
         "type = CL_UNORM_SHORT_565, CL_UNORM_SHORT_555 or "
-        "CL_UNORM_INT_101010.",
+        "CL_UNORM_INT_101010."
+        "These channel types can only be used with CL_RGB or CL_RGBx channel order.",
         PI_INVALID_VALUE);
 
   if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_ARGB,
