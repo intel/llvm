@@ -51,7 +51,7 @@
 // FOOTER-PHASES: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
 // FOOTER-PHASES: [[#DEVICE_IR:]]: compiler, {5}, ir, (device-sycl)
 
-// COMMON-PHASES: [[#OFFLOAD:]]: offload, "host-sycl (x86_64-unknown-linux-gnu)" {[[#HOST_PREPROC]]}, "device-sycl (spir64-unknown-unknown-sycldevice)" {[[#DEVICE_IR]]}, c++-cpp-output
+// COMMON-PHASES: [[#OFFLOAD:]]: offload, "host-sycl (x86_64-{{.*}})" {[[#HOST_PREPROC]]}, "device-sycl (spir64-unknown-unknown-sycldevice)" {[[#DEVICE_IR]]}, c++-cpp-output
 // COMMON-PHASES: [[#OFFLOAD+1]]: compiler, {[[#OFFLOAD]]}, ir, (host-sycl)
 // COMMON-PHASES: [[#OFFLOAD+2]]: backend, {[[#OFFLOAD+1]]}, assembler, (host-sycl)
 // COMMON-PHASES: [[#OFFLOAD+3]]: assembler, {[[#OFFLOAD+2]]}, object, (host-sycl)
@@ -62,4 +62,4 @@
 // COMMON-PHASES: [[#OFFLOAD+8]]: llvm-spirv, {[[#OFFLOAD+7]]}, tempfilelist, (device-sycl)
 // COMMON-PHASES: [[#OFFLOAD+9]]: file-table-tform, {[[#OFFLOAD+6]], [[#OFFLOAD+8]]}, tempfiletable, (device-sycl)
 // COMMON-PHASES: [[#OFFLOAD+10]]: clang-offload-wrapper, {[[#OFFLOAD+9]]}, object, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+11]]: offload, "host-sycl (x86_64-unknown-linux-gnu)" {[[#OFFLOAD+4]]}, "device-sycl (spir64-unknown-unknown-sycldevice)" {[[#OFFLOAD+10]]}, image
+// COMMON-PHASES: [[#OFFLOAD+11]]: offload, "host-sycl (x86_64-{{.*}})" {[[#OFFLOAD+4]]}, "device-sycl (spir64-unknown-unknown-sycldevice)" {[[#OFFLOAD+10]]}, image
