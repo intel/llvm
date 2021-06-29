@@ -114,7 +114,25 @@ private:
 public:
   using type = decltype(impl(make_index_sequence<__builtin_strlen(n)>{}));
 };
-template <typename T> using KernelInfo = typename KernelInfoImpl<T>::type;
+
+// For named kernels, this structure is specialized in the integration header.
+// For unnamed kernels, KernelInfoData is specialized in the integration header,
+// and this picks it up via the KernelInfoImpl. For non-existent kernels, this
+// will also pick up a KernelInfoData (as SubKernelInfo) via KernelInfoImpl, but
+// it will instead get the unspecialized case, defined above.
+template<class KernelNameType> struct KernelInfo {
+  using SubKernelInfo = typename KernelInfoImpl<KernelNameType>::type;
+  static constexpr unsigned getNumParams() { SubKernelInfo::getNumParams(); }
+  static const kernel_param_desc_t &getParamDesc(int Idx) {
+    return SubKernelInfo::getParamDesc(Idx);
+  }
+  static constexpr const char *getName() { SubKernelInfo::getName(); }
+  static constexpr bool isESIMD() { SubKernelInfo::isESIMD(); }
+  static constexpr bool callsThisItem() { SubKernelInfo::callsThisItem(); }
+  static constexpr bool callsAnyThisFreeFunction() {
+    SubKernelInfo::callsAnyThisFreeFunction();
+  }
+};
 #endif //__SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
