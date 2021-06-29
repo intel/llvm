@@ -113,22 +113,22 @@ template <typename DataT, int Dimensions, typename AllocatorT,
           memory_order Order, memory_scope Scope>
 atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, order_tag_t<Order>,
                 scope_tag_t<Scope>, property_list = {})
-    ->atomic_accessor<DataT, Dimensions, Order, Scope, target::global_buffer,
-                      access::placeholder::true_t>;
+    -> atomic_accessor<DataT, Dimensions, Order, Scope, target::global_buffer,
+                       access::placeholder::true_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT,
           memory_order Order, memory_scope Scope>
 atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
                 order_tag_t<Order>, scope_tag_t<Scope>, property_list = {})
-    ->atomic_accessor<DataT, Dimensions, Order, Scope, target::global_buffer,
-                      access::placeholder::false_t>;
+    -> atomic_accessor<DataT, Dimensions, Order, Scope, target::global_buffer,
+                       access::placeholder::false_t>;
 
 #endif
 
 } // namespace oneapi
 
 namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-    using namespace oneapi;
+  using namespace oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

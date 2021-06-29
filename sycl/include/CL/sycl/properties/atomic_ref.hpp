@@ -197,10 +197,10 @@ public:
 #endif
   }
 
-  bool compare_exchange_strong(T &expected, T desired, memory_order success,
-                               memory_order failure,
-                               memory_scope scope = default_scope) const
-      noexcept {
+  bool
+  compare_exchange_strong(T &expected, T desired, memory_order success,
+                          memory_order failure,
+                          memory_scope scope = default_scope) const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     T value = detail::spirv::AtomicCompareExchange(ptr, scope, success, failure,
                                                    desired, expected);
@@ -224,10 +224,10 @@ public:
     return compare_exchange_strong(expected, desired, order, order, scope);
   }
 
-  bool compare_exchange_weak(T &expected, T desired, memory_order success,
-                             memory_order failure,
-                             memory_scope scope = default_scope) const
-      noexcept {
+  bool
+  compare_exchange_weak(T &expected, T desired, memory_order success,
+                        memory_order failure,
+                        memory_scope scope = default_scope) const noexcept {
     // SPIR-V AtomicCompareExchangeWeak is deprecated and equivalent to
     // AtomicCompareExchange. For now, use AtomicCompareExchange on device and
     // compare_exchange_weak on host
@@ -669,7 +669,7 @@ public:
 } // namespace oneapi
 
 namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-    using namespace oneapi;
+  using namespace oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

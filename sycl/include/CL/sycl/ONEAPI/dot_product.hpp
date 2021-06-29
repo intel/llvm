@@ -74,7 +74,7 @@ int32_t dot_acc(vec<int8_t, 4> a, vec<uint8_t, 4> b, int32_t c) {
 } // namespace oneapi
 
 namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-    using namespace oneapi;
+  using namespace oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

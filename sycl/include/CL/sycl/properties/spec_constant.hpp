@@ -79,7 +79,7 @@ public:
 } // namespace oneapi
 
 namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-    using namespace oneapi;
+  using namespace oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

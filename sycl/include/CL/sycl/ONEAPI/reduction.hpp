@@ -984,7 +984,8 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 /// of work-groups. At the end of each work-groups the partial sum is written
 /// to a global buffer.
 ///
-/// Briefly: aux kernel, oneapi::reduce(), reproducible results, FP + ADD/MIN/MAX
+/// Briefly: aux kernel, oneapi::reduce(), reproducible results, FP +
+/// ADD/MIN/MAX
 template <typename KernelName, typename KernelType, bool UniformWG,
           class Reduction, typename InputT, typename OutputT>
 enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>

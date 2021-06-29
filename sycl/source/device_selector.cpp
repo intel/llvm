@@ -274,15 +274,13 @@ namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
       : oneapi::filter_selector(Input) {}
 
   int filter_selector::operator()(const device &Dev) const {
-      return oneapi::filter_selector::operator()(Dev);
+    return oneapi::filter_selector::operator()(Dev);
   }
 
-  void filter_selector::reset() const {
-      oneapi::filter_selector::reset();
-  }
+  void filter_selector::reset() const { oneapi::filter_selector::reset(); }
 
   device filter_selector::select_device() const {
-      return oneapi::filter_selector::select_device();
+    return oneapi::filter_selector::select_device();
   }
 } // namespace ONEAPI
 } // namespace sycl

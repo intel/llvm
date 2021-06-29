@@ -232,25 +232,26 @@ __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
 } // namespace intel
 
 namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
-    using namespace intel;
+  using namespace intel;
 
-    template <>
-    template <>
-    __SYCL_EXPORT std::vector<byte>
-    online_compiler<source_language::opencl_c>::compile(
-        const std::string &Source, const std::vector<std::string> &UserArgs) {
-      intel::online_compiler<intel::source_language::opencl_c> intel_online_compiler_obj;
-      return intel_online_compiler_obj.compile(Source, UserArgs);
-    }
+  template <>
+  template <>
+  __SYCL_EXPORT std::vector<byte>
+  online_compiler<source_language::opencl_c>::compile(
+      const std::string &Source, const std::vector<std::string> &UserArgs) {
+    intel::online_compiler<intel::source_language::opencl_c>
+        intel_online_compiler_obj;
+    return intel_online_compiler_obj.compile(Source, UserArgs);
+  }
 
-    template <>
-    template <>
-    __SYCL_EXPORT std::vector<byte>
-    online_compiler<source_language::cm>::compile(
-        const std::string &Source, const std::vector<std::string> &UserArgs) {
-      intel::online_compiler<intel::source_language::opencl_c> intel_online_compiler_obj;
-      return intel_online_compiler_obj.compile(Source, UserArgs);
-    }
-}
+  template <>
+  template <>
+  __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
+      const std::string &Source, const std::vector<std::string> &UserArgs) {
+    intel::online_compiler<intel::source_language::opencl_c>
+        intel_online_compiler_obj;
+    return intel_online_compiler_obj.compile(Source, UserArgs);
+  }
+} // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

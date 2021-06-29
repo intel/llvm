@@ -59,7 +59,7 @@ template <typename T = void> using bit_and = std::bit_and<T>;
 } // namespace oneapi
 
 namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-    using namespace oneapi;
+  using namespace oneapi;
 }
 
 #ifdef __SYCL_DEVICE_ONLY__

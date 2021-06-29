@@ -25,7 +25,7 @@ template <typename _T> _T fpga_reg(const _T &t) {
 } // namespace intel
 
 namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
-    using namespace intel;
+  using namespace intel;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

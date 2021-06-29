@@ -228,70 +228,85 @@ namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
     /// given compiled code format. Produces 64-bit device code.
     /// The created compiler is "optimistic" - it assumes all applicable SYCL
     /// device capabilities are supported by the target device(s).
-    online_compiler(intel::compiled_code_format fmt = intel::compiled_code_format::spir_v)
-        : intel::online_compiler<(intel::source_language)Lang>::online_compiler(fmt) {}
+    online_compiler(
+        intel::compiled_code_format fmt = intel::compiled_code_format::spir_v)
+        : intel::online_compiler<(intel::source_language)Lang>::online_compiler(
+              fmt) {}
 
-      /// Constructs online compiler which targets given architecture and produces
-  /// given compiled code format. Produces 64-bit device code.
-  /// Throws online_compile_error if values of constructor arguments are
-  /// contradictory or not supported - e.g. if the source language is not
-  /// supported for given device type.
-  online_compiler(sycl::info::device_type dev_type, intel::device_arch arch,
-                  intel::compiled_code_format fmt = intel::compiled_code_format::spir_v)
-      : intel::online_compiler<(intel::source_language)Lang>::online_compiler(dev_type, arch, fmt) {}
+    /// Constructs online compiler which targets given architecture and produces
+    /// given compiled code format. Produces 64-bit device code.
+    /// Throws online_compile_error if values of constructor arguments are
+    /// contradictory or not supported - e.g. if the source language is not
+    /// supported for given device type.
+    online_compiler(
+        sycl::info::device_type dev_type, intel::device_arch arch,
+        intel::compiled_code_format fmt = intel::compiled_code_format::spir_v)
+        : intel::online_compiler<(intel::source_language)Lang>::online_compiler(
+              dev_type, arch, fmt) {}
 
-  /// Constructs online compiler for the target specified by given SYCL device.
-  // TODO: the initial version generates the generic code (SKL now), need
-  // to do additional device::info calls to determine the device by it's
-  // features.
-  online_compiler(const sycl::device &device)
-      :  intel::online_compiler<(intel::source_language)Lang>::online_compiler(device) {}
+    /// Constructs online compiler for the target specified by given SYCL
+    /// device.
+    // TODO: the initial version generates the generic code (SKL now), need
+    // to do additional device::info calls to determine the device by it's
+    // features.
+    online_compiler(const sycl::device &device)
+        : intel::online_compiler<(intel::source_language)Lang>::online_compiler(
+              device) {}
 
-  /// Compiles given in-memory \c Lang source to a binary blob. Blob format,
-  /// other parameters are set in the constructor by the compilation target
-  /// specification parameters.
-  /// Specialization for each language will provide exact signatures, which
-  /// can be different for different languages.
-  /// Throws online_compile_error if compilation is not successful.
-  template <typename... Tys>
-  std::vector<byte> compile(const std::string &src, const Tys &... args);
+    /// Compiles given in-memory \c Lang source to a binary blob. Blob format,
+    /// other parameters are set in the constructor by the compilation target
+    /// specification parameters.
+    /// Specialization for each language will provide exact signatures, which
+    /// can be different for different languages.
+    /// Throws online_compile_error if compilation is not successful.
+    template <typename... Tys>
+    std::vector<byte> compile(const std::string &src, const Tys &... args);
 
-  /// Sets the compiled code format of the compilation target and returns *this.
-  online_compiler<Lang> &setOutputFormat(intel::compiled_code_format fmt) {
-    return intel::online_compiler<(intel::source_language)Lang>::setOutputFormat<(intel::source_language)Lang>(fmt);
-  }
+    /// Sets the compiled code format of the compilation target and returns
+    /// *this.
+    online_compiler<Lang> &setOutputFormat(intel::compiled_code_format fmt) {
+      return intel::online_compiler<(intel::source_language)Lang>::
+          setOutputFormat<(intel::source_language)Lang>(fmt);
+    }
 
-  /// Sets the compiled code format version of the compilation target and
-  /// returns *this.
-  online_compiler<Lang> &setOutputFormatVersion(int major, int minor) {
-    return intel::online_compiler<(intel::source_language)Lang>::setOutputFormatVersion<(intel::source_language)Lang>(major, minor);
-  }
+    /// Sets the compiled code format version of the compilation target and
+    /// returns *this.
+    online_compiler<Lang> &setOutputFormatVersion(int major, int minor) {
+      return intel::online_compiler<(intel::source_language)Lang>::
+          setOutputFormatVersion<(intel::source_language)Lang>(major, minor);
+    }
 
-  /// Sets the device type of the compilation target and returns *this.
-  online_compiler<Lang> &setTargetDeviceType(sycl::info::device_type type) {
-    return intel::online_compiler<(intel::source_language)Lang>::setTargetDeviceType<(intel::source_language)Lang>(type);
-  }
+    /// Sets the device type of the compilation target and returns *this.
+    online_compiler<Lang> &setTargetDeviceType(sycl::info::device_type type) {
+      return intel::online_compiler<(intel::source_language)Lang>::
+          setTargetDeviceType<(intel::source_language)Lang>(type);
+    }
 
-  /// Sets the device architecture of the compilation target and returns *this.
-  online_compiler<Lang> &setTargetDeviceArch(device_arch arch) {
-    return intel::online_compiler<(intel::source_language)Lang>::setTargetDeviceArch<(intel::source_language)Lang>(arch);
-  }
+    /// Sets the device architecture of the compilation target and returns
+    /// *this.
+    online_compiler<Lang> &setTargetDeviceArch(device_arch arch) {
+      return intel::online_compiler<(intel::source_language)Lang>::
+          setTargetDeviceArch<(intel::source_language)Lang>(arch);
+    }
 
-  /// Makes the compilation target 32-bit and returns *this.
-  online_compiler<Lang> &set32bitTarget() {
-    return intel::online_compiler<(intel::source_language)Lang>::set32bitTarget();
-  };
+    /// Makes the compilation target 32-bit and returns *this.
+    online_compiler<Lang> &set32bitTarget() {
+      return intel::online_compiler<(
+          intel::source_language)Lang>::set32bitTarget();
+    };
 
-  /// Makes the compilation target 64-bit and returns *this.
-  online_compiler<Lang> &set64bitTarget() {
-    return intel::online_compiler<(intel::source_language)Lang>::set64bitTarget();
-  };
+    /// Makes the compilation target 64-bit and returns *this.
+    online_compiler<Lang> &set64bitTarget() {
+      return intel::online_compiler<(
+          intel::source_language)Lang>::set64bitTarget();
+    };
 
-  /// Sets implementation-defined target device stepping of the compilation
-  /// target and returns *this.
-  online_compiler<Lang> &setTargetDeviceStepping(const std::string &id) {
-    return intel::online_compiler<(intel::source_language)Lang>::setTargetDeviceStepping<(intel::source_language)Lang>(id);
-  }
+    /// Sets implementation-defined target device stepping of the compilation
+    /// target and returns *this.
+    online_compiler<Lang> &setTargetDeviceStepping(const std::string &id) {
+      return intel::online_compiler<(intel::source_language)Lang>::
+          setTargetDeviceStepping<(intel::source_language)Lang>(id);
+    }
   };
 
   // Specializations of the online_compiler class and 'compile' function for
@@ -315,6 +330,6 @@ namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
   __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
       const std::string &src, const std::vector<std::string> &options);
 
-} // namespace ONEAPI
+} // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

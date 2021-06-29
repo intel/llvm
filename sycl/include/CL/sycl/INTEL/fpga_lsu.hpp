@@ -123,7 +123,7 @@ private:
 } // namespace intel
 
 namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
-    using namespace intel;
+  using namespace intel;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

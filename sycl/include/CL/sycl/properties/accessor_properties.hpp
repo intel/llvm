@@ -66,7 +66,7 @@ inline constexpr property::buffer_location::instance<A> buffer_location{};
 } // namespace intel
 
 namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
-    using namespace intel;
+  using namespace intel;
 }
 namespace oneapi {
 namespace property {
@@ -110,7 +110,7 @@ struct is_compile_time_property<intel::property::buffer_location>
 } // namespace oneapi
 
 namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-    using namespace oneapi;
+  using namespace oneapi;
 }
 namespace detail {
 template <int I>
