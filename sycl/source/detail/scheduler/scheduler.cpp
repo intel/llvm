@@ -95,12 +95,12 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     Command *NewCmd = nullptr;
     switch (CommandGroup->getType()) {
     case CG::UPDATE_HOST:
-      NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
-                                             DefaultHostQueue, AuxiliaryCmds);
+      NewCmd = MGraphBuilder.addCGUpdateHost(
+          std::move(CommandGroup), getDefaultHostQueue(),AuxiliaryCmds);
       break;
     case CG::CODEPLAY_HOST_TASK:
-      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), DefaultHostQueue,
-                                   AuxiliaryCmds);
+      NewCmd = MGraphBuilder.addCG(
+          std::move(CommandGroup), getDefaultHostQueue(), AuxiliaryCmds);
       break;
     default:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue),
@@ -365,15 +365,20 @@ void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
   StreamBuffersPool.erase(Impl);
 }
 
-Scheduler::Scheduler() {
+QueueImplPtr Scheduler::getDefaultHostQueue() {
+  std::lock_guard<std::mutex> Lock(HostQueueMutex);
+  if (DefaultHostQueue != nullptr)
+    return DefaultHostQueue;
+
   sycl::device HostDevice;
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
                      /*PropList=*/{}));
+  return DefaultHostQueue;
 }
 
 Scheduler::~Scheduler() {
-  DefaultHostQueue->stopThreadPool();
+  getDefaultHostQueue()->stopThreadPool();
   // By specification there are several possible sync points: buffer
   // destruction, wait() method of a queue or event. Stream doesn't introduce
   // any synchronization point. It is guaranteed that stream is flushed and

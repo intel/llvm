@@ -442,11 +442,10 @@ public:
   /// \param Pointer to the stream object
   void deallocateStreamBuffers(stream_impl *);
 
-  QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
+  QueueImplPtr getDefaultHostQueue();
 
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
-  Scheduler();
   ~Scheduler();
 
 protected:
@@ -759,7 +758,8 @@ protected:
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
 
-  QueueImplPtr DefaultHostQueue;
+  std::mutex HostQueueMutex;
+  QueueImplPtr DefaultHostQueue = nullptr;
 
   friend class Command;
   friend class DispatchHostTask;
