@@ -183,8 +183,8 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
                                         size_t param_value_size,
                                         void *param_value,
                                         size_t *param_value_size_ret) {
-      if (param_value_size_ret)
-        *param_value_size_ret = 0;
+  if (param_value_size_ret)
+    *param_value_size_ret = 0;
 
   return PI_SUCCESS;
 }
