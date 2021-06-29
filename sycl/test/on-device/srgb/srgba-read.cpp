@@ -1,17 +1,16 @@
-// RUN: %clangxx -fsycl -std=c++17 -cl-std=CL2.0 -DCL_TARGET_OPENCL_VERSION=220 -fsycl-targets=%sycl_triple %s -o %t.out
-// XUN: %HOST_RUN_PLACEHOLDER %t.out %HOST_CHECK_PLACEHOLDER
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
+// RUN: %clangxx -fsycl -std=c++17  -DCL_TARGET_OPENCL_VERSION=220 -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %CPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="-cl-std=CL2.0" SYCL_PROGRAM_LINK_OPTIONS="-cl-std=CL2.0" %t.out %CPU_CHECK_PLACEHOLDER
+// RUN: %GPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="-cl-std=CL2.0" SYCL_PROGRAM_LINK_OPTIONS="-cl-std=CL2.0" %t.out %GPU_CHECK_PLACEHOLDER
 
 // UNSUPPORTED: CUDA
 
 /// to build
-// clang++ -fsycl -cl-std=CL2.0 -DCL_TARGET_OPENCL_VERSION=220 -o srgba.bin srgba-read.cpp
+// clang++ -fsycl -DCL_TARGET_OPENCL_VERSION=220 -o srgba.bin srgba-read.cpp
 
 /// to run
-// SYCL_DEVICE_FILTER=opencl:gpu ./srgba.bin
-// SYCL_DEVICE_FILTER=opencl:cpu ./srgba.bin
-// SYCL_DEVICE_FILTER=level_zero:gpu ./srgba.bin
+// SYCL_PROGRAM_COMPILE_OPTIONS="-cl-std=CL2.0" SYCL_PROGRAM_LINK_OPTIONS="-cl-std=CL2.0" SYCL_DEVICE_FILTER=opencl:gpu ./srgba.bin
+// SYCL_PROGRAM_COMPILE_OPTIONS="-cl-std=CL2.0" SYCL_PROGRAM_LINK_OPTIONS="-cl-std=CL2.0" SYCL_DEVICE_FILTER=opencl:cpu ./srgba.bin
+// SYCL_PROGRAM_COMPILE_OPTIONS="-cl-std=CL2.0" SYCL_PROGRAM_LINK_OPTIONS="-cl-std=CL2.0" SYCL_DEVICE_FILTER=level_zero:gpu ./srgba.bin
 
 #include <CL/sycl.hpp>
 
