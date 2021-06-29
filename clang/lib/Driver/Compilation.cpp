@@ -291,8 +291,7 @@ void Compilation::ExecuteJobs(const JobList &Jobs,
       // Bail as soon as one command fails in cl driver mode.
       // Do not bail when the tool is setup to allow for continuation upon
       // failure.
-      if (TheDriver.IsCLMode() &&
-          FailingCommand->getWillExitForErrorCode(Res))
+      if (TheDriver.IsCLMode() && FailingCommand->getWillExitForErrorCode(Res))
         return;
     }
   }
