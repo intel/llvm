@@ -4657,7 +4657,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     if (!Args.hasFlag(options::OPT_fsycl_unnamed_lambda,
-                     options::OPT_fno_sycl_unnamed_lambda))
+                      options::OPT_fno_sycl_unnamed_lambda))
       CmdArgs.push_back("-fno-sycl-unnamed-lambda");
 
     // Add the Unique ID prefix
