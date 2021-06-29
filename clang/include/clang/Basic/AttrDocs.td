@@ -3279,12 +3279,22 @@ conjunction with ``max_interleaving``, ``speculated_iterations``,
   // unpipelined function
   [[intel::fpga_pipeline(0)]] void foo() {};
 
+  // Enable function pipelining
+  [[intel::fpga_pipeline(0)]] int bar() {};
+
   template <int N>
   class Functor {
   public:
     [[intel::fpga_pipeline(N)]] void operator()() const {}
   };
 
+  // Disable loop pipelining
+  void bar() {
+    int a[10];
+    [[[intel::fpga_pipeline(0)]] for (int i = 0; i != 10; ++i) a[i] = 0;
+  }
+
+  // Enable loop pipelining
   void foo() {
     int var = 0;
     [[intel::fpga_pipeline(1)]] for (int i = 0; i < 10; ++i) var++;
