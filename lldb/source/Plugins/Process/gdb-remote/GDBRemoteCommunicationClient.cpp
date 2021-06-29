@@ -16,6 +16,7 @@
 
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Host/HostInfo.h"
+#include "lldb/Host/StringConvert.h"
 #include "lldb/Host/XML.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Target/MemoryRegionInfo.h"
@@ -285,6 +286,7 @@ void GDBRemoteCommunicationClient::ResetDiscoverableSettings(bool did_exec) {
     m_gdb_server_name.clear();
     m_gdb_server_version = UINT32_MAX;
     m_default_packet_timeout = seconds(0);
+    m_target_vm_page_size = 0;
     m_max_packet_size = 0;
     m_qSupported_response.clear();
     m_supported_async_json_packets_is_valid = false;
@@ -309,6 +311,7 @@ void GDBRemoteCommunicationClient::GetRemoteQSupported() {
   m_supports_multiprocess = eLazyBoolNo;
   m_supports_qEcho = eLazyBoolNo;
   m_supports_QPassSignals = eLazyBoolNo;
+  m_supports_memory_tagging = eLazyBoolNo;
 
   m_max_packet_size = UINT64_MAX; // It's supposed to always be there, but if
                                   // not, we assume no limit
@@ -354,6 +357,8 @@ void GDBRemoteCommunicationClient::GetRemoteQSupported() {
         m_supports_QPassSignals = eLazyBoolYes;
       else if (x == "multiprocess+")
         m_supports_multiprocess = eLazyBoolYes;
+      else if (x == "memory-tagging+")
+        m_supports_memory_tagging = eLazyBoolYes;
       // Look for a list of compressions in the features list e.g.
       // qXfer:features:read+;PacketSize=20000;qEcho+;SupportedCompressions=zlib-
       // deflate,lzma
@@ -572,6 +577,57 @@ bool GDBRemoteCommunicationClient::GetSharedCacheInfoSupported() {
     }
   }
   return m_supports_jGetSharedCacheInfo;
+}
+
+bool GDBRemoteCommunicationClient::GetMemoryTaggingSupported() {
+  if (m_supports_memory_tagging == eLazyBoolCalculate) {
+    GetRemoteQSupported();
+  }
+  return m_supports_memory_tagging == eLazyBoolYes;
+}
+
+DataBufferSP GDBRemoteCommunicationClient::ReadMemoryTags(lldb::addr_t addr,
+                                                          size_t len,
+                                                          int32_t type) {
+  StreamString packet;
+  packet.Printf("qMemTags:%" PRIx64 ",%zx:%" PRIx32, addr, len, type);
+  StringExtractorGDBRemote response;
+
+  Log *log = ProcessGDBRemoteLog::GetLogIfAnyCategoryIsSet(GDBR_LOG_MEMORY);
+
+  if (SendPacketAndWaitForResponse(packet.GetString(), response, false) !=
+          PacketResult::Success ||
+      !response.IsNormalResponse()) {
+    LLDB_LOGF(log, "GDBRemoteCommunicationClient::%s: qMemTags packet failed",
+              __FUNCTION__);
+    return nullptr;
+  }
+
+  // We are expecting
+  // m<hex encoded bytes>
+
+  if (response.GetChar() != 'm') {
+    LLDB_LOGF(log,
+              "GDBRemoteCommunicationClient::%s: qMemTags response did not "
+              "begin with \"m\"",
+              __FUNCTION__);
+    return nullptr;
+  }
+
+  size_t expected_bytes = response.GetBytesLeft() / 2;
+  DataBufferSP buffer_sp(new DataBufferHeap(expected_bytes, 0));
+  size_t got_bytes = response.GetHexBytesAvail(buffer_sp->GetData());
+  // Check both because in some situations chars are consumed even
+  // if the decoding fails.
+  if (response.GetBytesLeft() || (expected_bytes != got_bytes)) {
+    LLDB_LOGF(
+        log,
+        "GDBRemoteCommunicationClient::%s: Invalid data in qMemTags response",
+        __FUNCTION__);
+    return nullptr;
+  }
+
+  return buffer_sp;
 }
 
 bool GDBRemoteCommunicationClient::GetxPacketSupported() {
@@ -1192,6 +1248,12 @@ bool GDBRemoteCommunicationClient::GetHostInfo(bool force) {
               SetPacketTimeout(m_default_packet_timeout);
               ++num_keys_decoded;
             }
+          } else if (name.equals("vm-page-size")) {
+            int page_size;
+            if (!value.getAsInteger(0, page_size)) {
+              m_target_vm_page_size = page_size;
+              ++num_keys_decoded;
+            }
           }
         }
 
@@ -1503,8 +1565,29 @@ Status GDBRemoteCommunicationClient::GetMemoryRegionInfo(
           // Now convert the HEX bytes into a string value
           error_extractor.GetHexByteString(error_string);
           error.SetErrorString(error_string.c_str());
+        } else if (name.equals("dirty-pages")) {
+          std::vector<addr_t> dirty_page_list;
+          std::string comma_sep_str = value.str();
+          size_t comma_pos;
+          addr_t page;
+          while ((comma_pos = comma_sep_str.find(',')) != std::string::npos) {
+            comma_sep_str[comma_pos] = '\0';
+            page = StringConvert::ToUInt64(comma_sep_str.c_str(),
+                                           LLDB_INVALID_ADDRESS, 16);
+            if (page != LLDB_INVALID_ADDRESS)
+              dirty_page_list.push_back(page);
+            comma_sep_str.erase(0, comma_pos + 1);
+          }
+          page = StringConvert::ToUInt64(comma_sep_str.c_str(),
+                                         LLDB_INVALID_ADDRESS, 16);
+          if (page != LLDB_INVALID_ADDRESS)
+            dirty_page_list.push_back(page);
+          region_info.SetDirtyPageList(dirty_page_list);
         }
       }
+
+      if (m_target_vm_page_size != 0)
+        region_info.SetPageSize(m_target_vm_page_size);
 
       if (region_info.GetRange().IsValid()) {
         // We got a valid address range back but no permissions -- which means

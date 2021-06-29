@@ -697,6 +697,19 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   }
 }
 
+void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
+                               size_t Length, pi_mem_advice Advice,
+                               std::vector<RT::PiEvent> /*DepEvents*/,
+                               RT::PiEvent &OutEvent) {
+  sycl::context Context = Queue->get_context();
+
+  if (!Context.is_host()) {
+    const detail::plugin &Plugin = Queue->getPlugin();
+    Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
+                                                     Length, Advice, &OutEvent);
+  }
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

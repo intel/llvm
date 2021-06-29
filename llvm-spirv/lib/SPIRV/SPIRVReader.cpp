@@ -117,7 +117,7 @@ static bool isKernel(SPIRVFunction *BF) {
 
 static void dumpLLVM(Module *M, const std::string &FName) {
   std::error_code EC;
-  raw_fd_ostream FS(FName, EC, sys::fs::F_None);
+  raw_fd_ostream FS(FName, EC, sys::fs::OF_None);
   if (!EC) {
     FS << *M;
     FS.close();
@@ -290,6 +290,20 @@ Value *SPIRVToLLVM::mapFunction(SPIRVFunction *BF, Function *F) {
 // %5 = insertelement <3 x i64> %3, i64 %4, i32 2
 // %c = extractelement <3 x i64> %5, i32 idx
 // %d = extractelement <3 x i64> %5, i32 idx
+//
+// Replace the following pattern:
+// %0 = addrspacecast <3 x i64> addrspace(1)* @__spirv_BuiltInWorkgroupSize to
+// <3 x i64> addrspace(4)*
+// %1 = getelementptr <3 x i64>, <3 x i64> addrspace(4)* %0, i64 0, i64 0
+// %2 = load i64, i64 addrspace(4)* %1, align 32
+// With:
+// %0 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
+// %1 = insertelement <3 x i64> undef, i64 %0, i32 0
+// %2 = call spir_func i64 @_Z13get_global_idj(i32 1) #1
+// %3 = insertelement <3 x i64> %1, i64 %2, i32 1
+// %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
+// %5 = insertelement <3 x i64> %3, i64 %4, i32 2
+// %6 = extractelement <3 x i64> %5, i32 0
 bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
                                               SPIRVBuiltinVariableKind Kind) {
   std::string FuncName;
@@ -300,7 +314,8 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
   } else {
     FuncName = std::string(GV->getName());
   }
-  Type *ReturnTy = GV->getType()->getPointerElementType();
+  Type *GVTy = GV->getType()->getPointerElementType();
+  Type *ReturnTy = GVTy;
   // Some SPIR-V builtin variables are translated to a function with an index
   // argument.
   bool HasIndexArg =
@@ -324,9 +339,9 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
   }
 
   // Collect instructions in these containers to remove them later.
-  std::vector<Instruction *> Extracts;
   std::vector<Instruction *> Loads;
   std::vector<Instruction *> Casts;
+  std::vector<Instruction *> GEPs;
 
   auto Replace = [&](std::vector<Value *> Arg, Instruction *I) {
     auto Call = CallInst::Create(Func, Arg, "", I);
@@ -342,12 +357,15 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
   // with this vector.
   // If HasIndexArg is false, the result of the Load instruction is the value
   // which should be replaced with the Func.
-  auto FindAndReplace = [&](LoadInst *LD) {
+  // Returns true if Load was replaced, false otherwise.
+  auto ReplaceIfLoad = [&](User *I) {
+    auto *LD = dyn_cast<LoadInst>(I);
+    if (!LD)
+      return false;
     std::vector<Value *> Vectors;
     Loads.push_back(LD);
     if (HasIndexArg) {
-      auto *VecTy = cast<FixedVectorType>(
-          LD->getPointerOperandType()->getPointerElementType());
+      auto *VecTy = cast<FixedVectorType>(GVTy);
       Value *EmptyVec = UndefValue::get(VecTy);
       Vectors.push_back(EmptyVec);
       const DebugLoc &DLoc = LD->getDebugLoc();
@@ -363,10 +381,27 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
         Insert->insertAfter(Call);
         Vectors.push_back(Insert);
       }
-      LD->replaceAllUsesWith(Vectors.back());
+
+      Value *Ptr = LD->getPointerOperand();
+
+      if (isa<FixedVectorType>(Ptr->getType()->getPointerElementType())) {
+        LD->replaceAllUsesWith(Vectors.back());
+      } else {
+        auto *GEP = dyn_cast<GetElementPtrInst>(Ptr);
+        assert(GEP && "Unexpected pattern!");
+        assert(GEP->getNumIndices() == 2 && "Unexpected pattern!");
+        Value *Idx = GEP->getOperand(2);
+        Value *Vec = Vectors.back();
+        auto *NewExtract = ExtractElementInst::Create(Vec, Idx);
+        NewExtract->insertAfter(cast<Instruction>(Vec));
+        LD->replaceAllUsesWith(NewExtract);
+      }
+
     } else {
       Replace({}, LD);
     }
+
+    return true;
   };
 
   // Go over the GV users, find Load and ExtractElement instructions and
@@ -376,13 +411,19 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
     if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(UI)) {
       Casts.push_back(ASCast);
       for (auto *CastUser : ASCast->users()) {
-        if (auto *LD = dyn_cast<LoadInst>(CastUser)) {
-          FindAndReplace(LD);
+        if (ReplaceIfLoad(CastUser))
+          continue;
+        if (auto *GEP = dyn_cast<GetElementPtrInst>(CastUser)) {
+          GEPs.push_back(GEP);
+          for (auto *GEPUser : GEP->users()) {
+            if (!ReplaceIfLoad(GEPUser))
+              llvm_unreachable("Unexpected pattern!");
+          }
+        } else {
+          llvm_unreachable("Unexpected pattern!");
         }
       }
-    } else if (auto *LD = dyn_cast<LoadInst>(UI)) {
-      FindAndReplace(LD);
-    } else {
+    } else if (!ReplaceIfLoad(UI)) {
       llvm_unreachable("Unexpected pattern!");
     }
   }
@@ -394,8 +435,8 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
     }
   };
   // Order of erasing is important.
-  Erase(Extracts);
   Erase(Loads);
+  Erase(GEPs);
   Erase(Casts);
 
   return true;
@@ -739,6 +780,145 @@ SPIRVToLLVM::getMetadataFromNameAndParameter(std::string Name,
               ConstantInt::get(Type::getInt32Ty(*Context), Parameter))};
 }
 
+inline llvm::MDNode *
+SPIRVToLLVM::getMetadataFromNameAndParameter(std::string Name,
+                                             int64_t Parameter) {
+  std::vector<llvm::Metadata *> Metadata = {
+      MDString::get(*Context, Name),
+      ConstantAsMetadata::get(
+          ConstantInt::get(Type::getInt64Ty(*Context), Parameter))};
+  return llvm::MDNode::get(*Context, Metadata);
+}
+
+class IVDepMetadataEmitter {
+public:
+  using PointerSafeLenMapTy = std::map<Value *, unsigned>;
+  static void emit(LLVMContext *Context, const Loop *LoopObj,
+                   const PointerSafeLenMapTy &PointerSafeLenMap,
+                   std::vector<llvm::Metadata *> &Metadata) {
+    if (LoopsEmitted.contains(LoopObj))
+      return;
+    const auto ArrayGEPMap = mapArrayToGEPs(LoopObj, PointerSafeLenMap);
+    emitMetadata(Context, ArrayGEPMap, PointerSafeLenMap, Metadata);
+    LoopsEmitted.insert(LoopObj);
+  }
+
+private:
+  static llvm::DenseSet<const Loop *> LoopsEmitted;
+
+  using ArrayGEPMapTy = std::map<Value *, std::vector<GetElementPtrInst *>>;
+  // A single run over the loop to retrieve all GetElementPtr instructions
+  // that access relevant array variables
+  static ArrayGEPMapTy
+  mapArrayToGEPs(const Loop *LoopObj,
+                 const PointerSafeLenMapTy &PointerSafeLenMap) {
+    ArrayGEPMapTy ArrayGEPMap;
+    for (const auto &BB : LoopObj->blocks()) {
+      for (Instruction &I : *BB) {
+        auto *GEP = dyn_cast<GetElementPtrInst>(&I);
+        if (!GEP)
+          continue;
+
+        Value *AccessedPointer = GEP->getPointerOperand();
+        if (auto *LI = dyn_cast<LoadInst>(AccessedPointer))
+          AccessedPointer = LI->getPointerOperand();
+        auto PointerSafeLenIt = PointerSafeLenMap.find(AccessedPointer);
+        if (PointerSafeLenIt != PointerSafeLenMap.end()) {
+          ArrayGEPMap[AccessedPointer].push_back(GEP);
+        }
+      }
+    }
+    return ArrayGEPMap;
+  }
+
+  // Create index group metadata nodes - one per each of the array
+  // variables. Mark each GEP accessing a particular array variable
+  // into a corresponding index group
+  static void emitMetadata(LLVMContext *Context,
+                           const ArrayGEPMapTy &ArrayGEPMap,
+                           const PointerSafeLenMapTy &PointerSafeLenMap,
+                           std::vector<llvm::Metadata *> &Metadata) {
+    using SafeLenIdxGroupMapTy = std::map<unsigned, SmallSet<MDNode *, 4>>;
+    SafeLenIdxGroupMapTy SafeLenIdxGroupMap;
+    // Whenever a kernel closure field access is pointed to instead of
+    // an array/pointer variable, ensure that all GEPs to that memory
+    // share the same index group by hashing the newly added index groups.
+    // "Memory offset info" represents a handle to the whole closure block
+    // + an integer offset to a particular captured parameter.
+    using MemoryOffsetInfo = std::pair<Value *, unsigned>;
+    std::map<MemoryOffsetInfo, MDNode *> OffsetIdxGroupMap;
+
+    for (auto &ArrayGEPIt : ArrayGEPMap) {
+      MDNode *CurrentDepthIdxGroup = nullptr;
+      if (auto *PrecedingGEP = dyn_cast<GetElementPtrInst>(ArrayGEPIt.first)) {
+        Value *ClosureFieldPointer = PrecedingGEP->getPointerOperand();
+        unsigned Offset =
+            cast<ConstantInt>(PrecedingGEP->getOperand(2))->getZExtValue();
+        MemoryOffsetInfo Info{ClosureFieldPointer, Offset};
+        auto OffsetIdxGroupIt = OffsetIdxGroupMap.find(Info);
+        if (OffsetIdxGroupIt == OffsetIdxGroupMap.end()) {
+          // This is the first GEP encountered for this closure field.
+          // Emit a distinct index group that will be referenced from
+          // llvm.loop.parallel_access_indices metadata; hash the new
+          // MDNode for future accesses to the same memory.
+          CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
+          OffsetIdxGroupMap.emplace(Info, CurrentDepthIdxGroup);
+        } else {
+          // Previous accesses to that field have already been indexed,
+          // just use the already-existing metadata.
+          CurrentDepthIdxGroup = OffsetIdxGroupIt->second;
+        }
+      } else /* Regular kernel-scope array/pointer variable */ {
+        // Emit a distinct index group that will be referenced from
+        // llvm.loop.parallel_access_indices metadata
+        CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
+      }
+
+      unsigned SafeLen = PointerSafeLenMap.find(ArrayGEPIt.first)->second;
+      SafeLenIdxGroupMap[SafeLen].insert(CurrentDepthIdxGroup);
+      for (auto *GEP : ArrayGEPIt.second) {
+        StringRef IdxGroupMDName("llvm.index.group");
+        llvm::MDNode *PreviousIdxGroup = GEP->getMetadata(IdxGroupMDName);
+        if (!PreviousIdxGroup) {
+          GEP->setMetadata(IdxGroupMDName, CurrentDepthIdxGroup);
+          continue;
+        }
+
+        // If we're dealing with an embedded loop, it may be the case
+        // that GEP instructions for some of the arrays were already
+        // marked by the algorithm when it went over the outer level loops.
+        // In order to retain the IVDep information for each "loop
+        // dimension", we will mark such GEP's into a separate joined node
+        // that will refer to the previous levels' index groups AND to the
+        // index group specific to the current loop.
+        std::vector<llvm::Metadata *> CurrentDepthOperands(
+            PreviousIdxGroup->op_begin(), PreviousIdxGroup->op_end());
+        if (CurrentDepthOperands.empty())
+          CurrentDepthOperands.push_back(PreviousIdxGroup);
+        CurrentDepthOperands.push_back(CurrentDepthIdxGroup);
+        auto *JointIdxGroup = llvm::MDNode::get(*Context, CurrentDepthOperands);
+        GEP->setMetadata(IdxGroupMDName, JointIdxGroup);
+      }
+    }
+
+    for (auto &SafeLenIdxGroupIt : SafeLenIdxGroupMap) {
+      auto *Name = MDString::get(*Context, "llvm.loop.parallel_access_indices");
+      unsigned SafeLenValue = SafeLenIdxGroupIt.first;
+      llvm::Metadata *SafeLenMDOp =
+          SafeLenValue ? ConstantAsMetadata::get(ConstantInt::get(
+                             Type::getInt32Ty(*Context), SafeLenValue))
+                       : nullptr;
+      std::vector<llvm::Metadata *> Parameters{Name};
+      for (auto *Node : SafeLenIdxGroupIt.second)
+        Parameters.push_back(Node);
+      if (SafeLenMDOp)
+        Parameters.push_back(SafeLenMDOp);
+      Metadata.push_back(llvm::MDNode::get(*Context, Parameters));
+    }
+  }
+};
+llvm::DenseSet<const Loop *> IVDepMetadataEmitter::LoopsEmitted;
+
 template <typename LoopInstType>
 void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
                                       const Loop *LoopObj) {
@@ -833,7 +1013,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
   }
   if (LC & LoopControlDependencyArrayINTELMask) {
     // Collect pointer variable <-> safelen information
-    std::map<Value *, unsigned> PointerSflnMap;
+    IVDepMetadataEmitter::PointerSafeLenMapTy PointerSafeLenMap;
     unsigned NumOperandPairs = LoopControlParameters[NumParam];
     unsigned OperandsEndIndex = NumParam + NumOperandPairs * 2;
     assert(OperandsEndIndex <= LoopControlParameters.size() &&
@@ -842,109 +1022,13 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     while (NumParam < OperandsEndIndex) {
       SPIRVId ArraySPIRVId = LoopControlParameters[++NumParam];
       Value *PointerVar = ValueMap[M->getValue(ArraySPIRVId)];
-      unsigned Safelen = LoopControlParameters[++NumParam];
-      PointerSflnMap.emplace(PointerVar, Safelen);
+      unsigned SafeLen = LoopControlParameters[++NumParam];
+      PointerSafeLenMap.emplace(PointerVar, SafeLen);
     }
-
-    // A single run over the loop to retrieve all GetElementPtr instructions
-    // that access relevant array variables
-    std::map<Value *, std::vector<GetElementPtrInst *>> ArrayGEPMap;
-    for (const auto &BB : LoopObj->blocks()) {
-      for (Instruction &I : *BB) {
-        auto *GEP = dyn_cast<GetElementPtrInst>(&I);
-        if (!GEP)
-          continue;
-
-        Value *AccessedPointer = GEP->getPointerOperand();
-        if (auto *LI = dyn_cast<LoadInst>(AccessedPointer))
-          AccessedPointer = LI->getPointerOperand();
-        auto PointerSflnIt = PointerSflnMap.find(AccessedPointer);
-        if (PointerSflnIt != PointerSflnMap.end()) {
-          ArrayGEPMap[AccessedPointer].push_back(GEP);
-        }
-      }
-    }
-
-    // Create index group metadata nodes - one per each of the array
-    // variables. Mark each GEP accessing a particular array variable
-    // into a corresponding index group
-    std::map<unsigned, SmallSet<MDNode *, 4>> SafelenIdxGroupMap;
-    // Whenever a kernel closure field access is pointed to instead of
-    // an array/pointer variable, ensure that all GEPs to that memory
-    // share the same index group by hashing the newly added index groups.
-    // "Memory offset info" represents a handle to the whole closure block
-    // + an integer offset to a particular captured parameter.
-    using MemoryOffsetInfo = std::pair<Value *, unsigned>;
-    std::map<MemoryOffsetInfo, MDNode *> OffsetIdxGroupMap;
-
-    for (auto &ArrayGEPIt : ArrayGEPMap) {
-      MDNode *CurrentDepthIdxGroup = nullptr;
-      if (auto *PrecedingGEP = dyn_cast<GetElementPtrInst>(ArrayGEPIt.first)) {
-        Value *ClosureFieldPointer = PrecedingGEP->getPointerOperand();
-        unsigned Offset =
-            cast<ConstantInt>(PrecedingGEP->getOperand(2))->getZExtValue();
-        MemoryOffsetInfo Info{ClosureFieldPointer, Offset};
-        auto OffsetIdxGroupIt = OffsetIdxGroupMap.find(Info);
-        if (OffsetIdxGroupIt == OffsetIdxGroupMap.end()) {
-          // This is the first GEP encountered for this closure field.
-          // Emit a distinct index group that will be referenced from
-          // llvm.loop.parallel_access_indices metadata; hash the new
-          // MDNode for future accesses to the same memory.
-          CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
-          OffsetIdxGroupMap.emplace(Info, CurrentDepthIdxGroup);
-        } else {
-          // Previous accesses to that field have already been indexed,
-          // just use the already-existing metadata.
-          CurrentDepthIdxGroup = OffsetIdxGroupIt->second;
-        }
-      } else /* Regular kernel-scope array/pointer variable */ {
-        // Emit a distinct index group that will be referenced from
-        // llvm.loop.parallel_access_indices metadata
-        CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
-      }
-
-      unsigned Safelen = PointerSflnMap.find(ArrayGEPIt.first)->second;
-      SafelenIdxGroupMap[Safelen].insert(CurrentDepthIdxGroup);
-      for (auto *GEP : ArrayGEPIt.second) {
-        StringRef IdxGroupMDName("llvm.index.group");
-        llvm::MDNode *PreviousIdxGroup = GEP->getMetadata(IdxGroupMDName);
-        if (!PreviousIdxGroup) {
-          GEP->setMetadata(IdxGroupMDName, CurrentDepthIdxGroup);
-          continue;
-        }
-
-        // If we're dealing with an embedded loop, it may be the case
-        // that GEP instructions for some of the arrays were already
-        // marked by the algorithm when it went over the outer level loops.
-        // In order to retain the IVDep information for each "loop
-        // dimension", we will mark such GEP's into a separate joined node
-        // that will refer to the previous levels' index groups AND to the
-        // index group specific to the current loop.
-        std::vector<llvm::Metadata *> CurrentDepthOperands(
-            PreviousIdxGroup->op_begin(), PreviousIdxGroup->op_end());
-        if (CurrentDepthOperands.empty())
-          CurrentDepthOperands.push_back(PreviousIdxGroup);
-        CurrentDepthOperands.push_back(CurrentDepthIdxGroup);
-        auto *JointIdxGroup = llvm::MDNode::get(*Context, CurrentDepthOperands);
-        GEP->setMetadata(IdxGroupMDName, JointIdxGroup);
-      }
-    }
-
-    for (auto &SflnIdxGroupIt : SafelenIdxGroupMap) {
-      auto *Name = MDString::get(*Context, "llvm.loop.parallel_access_indices");
-      unsigned SflnValue = SflnIdxGroupIt.first;
-      llvm::Metadata *SafelenMDOp =
-          SflnValue ? ConstantAsMetadata::get(ConstantInt::get(
-                          Type::getInt32Ty(*Context), SflnValue))
-                    : nullptr;
-      std::vector<llvm::Metadata *> Parameters{Name};
-      for (auto *Node : SflnIdxGroupIt.second)
-        Parameters.push_back(Node);
-      if (SafelenMDOp)
-        Parameters.push_back(SafelenMDOp);
-      Metadata.push_back(llvm::MDNode::get(*Context, Parameters));
-    }
+    IVDepMetadataEmitter::emit(Context, LoopObj, PointerSafeLenMap, Metadata);
     ++NumParam;
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
   }
   if (LC & LoopControlPipelineEnableINTELMask) {
     Metadata.push_back(llvm::MDNode::get(
@@ -987,6 +1071,39 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
   }
   if (LC & LoopControlNoFusionINTELMask)
     Metadata.push_back(getMetadataFromName("llvm.loop.fusion.disable"));
+  if (LC & spv::internal::LoopControlLoopCountINTELMask) {
+    // LoopCountINTELMask parameters are int64 and each parameter is stored
+    // as 2 SPIRVWords (int32)
+    assert(NumParam + 6 <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+
+    uint64_t LoopCountMin =
+        static_cast<uint64_t>(LoopControlParameters[NumParam++]);
+    LoopCountMin |= static_cast<uint64_t>(LoopControlParameters[NumParam++])
+                    << 32;
+    if (static_cast<int64_t>(LoopCountMin) >= 0) {
+      Metadata.push_back(getMetadataFromNameAndParameter(
+          "llvm.loop.intel.loopcount_min", static_cast<int64_t>(LoopCountMin)));
+    }
+
+    uint64_t LoopCountMax =
+        static_cast<uint64_t>(LoopControlParameters[NumParam++]);
+    LoopCountMax |= static_cast<uint64_t>(LoopControlParameters[NumParam++])
+                    << 32;
+    if (static_cast<int64_t>(LoopCountMax) >= 0) {
+      Metadata.push_back(getMetadataFromNameAndParameter(
+          "llvm.loop.intel.loopcount_max", static_cast<int64_t>(LoopCountMax)));
+    }
+
+    uint64_t LoopCountAvg =
+        static_cast<uint64_t>(LoopControlParameters[NumParam++]);
+    LoopCountAvg |= static_cast<uint64_t>(LoopControlParameters[NumParam++])
+                    << 32;
+    if (static_cast<int64_t>(LoopCountAvg) >= 0) {
+      Metadata.push_back(getMetadataFromNameAndParameter(
+          "llvm.loop.intel.loopcount_avg", static_cast<int64_t>(LoopCountAvg)));
+    }
+  }
   llvm::MDNode *Node = llvm::MDNode::get(*Context, Metadata);
 
   // Set the first operand to refer itself
@@ -1452,14 +1569,12 @@ void SPIRVToLLVM::transAliasingMemAccess(SPIRVInstType *BI, Instruction *I) {
   static_assert(std::is_same<SPIRVInstType, SPIRVStore>::value ||
                 std::is_same<SPIRVInstType, SPIRVLoad>::value,
                 "Only stores and loads can be aliased by memory access mask");
-  bool IsAliasScope = BI->SPIRVMemoryAccess::isAliasScope();
-  bool IsNoAlias = BI->SPIRVMemoryAccess::isNoAlias();
-  if (!(IsAliasScope || IsNoAlias))
-    return;
-  uint32_t AliasMDKind = IsAliasScope ? LLVMContext::MD_alias_scope
-                                      : LLVMContext::MD_noalias;
-  SPIRVId AliasListId = BI->SPIRVMemoryAccess::getAliasing();
-  addMemAliasMetadata(I, AliasListId, AliasMDKind);
+  if (BI->SPIRVMemoryAccess::isNoAlias())
+    addMemAliasMetadata(I, BI->SPIRVMemoryAccess::getNoAliasInstID(),
+                        LLVMContext::MD_noalias);
+  if (BI->SPIRVMemoryAccess::isAliasScope())
+    addMemAliasMetadata(I, BI->SPIRVMemoryAccess::getAliasScopeInstID(),
+                        LLVMContext::MD_alias_scope);
 }
 
 // Create and apply alias.scope/noalias metadata
@@ -1488,10 +1603,9 @@ void SPIRVToLLVM::addMemAliasMetadata(Instruction *I, SPIRVId AliasListId,
     MDScopes.emplace_back(MDAliasScopeMap[ScopeId]);
   }
   // Create and store unique alias.scope/noalias metadata
-  MDAliasListMap.emplace(
-      AliasListId,
-      MDNode::concatenate(I->getMetadata(LLVMContext::MD_alias_scope),
-                          MDNode::get(*Context, MDScopes)));
+  MDAliasListMap.emplace(AliasListId,
+                         MDNode::concatenate(I->getMetadata(AliasMDKind),
+                                             MDNode::get(*Context, MDScopes)));
   I->setMetadata(AliasMDKind, MDAliasListMap[AliasListId]);
 }
 
@@ -2318,17 +2432,21 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpCompositeExtract: {
     SPIRVCompositeExtract *CE = static_cast<SPIRVCompositeExtract *>(BV);
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     if (CE->getComposite()->getType()->isTypeVector()) {
       assert(CE->getIndices().size() == 1 && "Invalid index");
       return mapValue(
-          BV, ExtractElementInst::Create(
+          BV, Builder.CreateExtractElement(
                   transValue(CE->getComposite(), F, BB),
                   ConstantInt::get(*Context, APInt(32, CE->getIndices()[0])),
-                  BV->getName(), BB));
+                  BV->getName()));
     }
     return mapValue(
-        BV, ExtractValueInst::Create(transValue(CE->getComposite(), F, BB),
-                                     CE->getIndices(), BV->getName(), BB));
+        BV, Builder.CreateExtractValue(transValue(CE->getComposite(), F, BB),
+                                       CE->getIndices(), BV->getName()));
   }
 
   case OpVectorExtractDynamic: {
@@ -2341,19 +2459,23 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpCompositeInsert: {
     auto CI = static_cast<SPIRVCompositeInsert *>(BV);
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     if (CI->getComposite()->getType()->isTypeVector()) {
       assert(CI->getIndices().size() == 1 && "Invalid index");
       return mapValue(
-          BV, InsertElementInst::Create(
+          BV, Builder.CreateInsertElement(
                   transValue(CI->getComposite(), F, BB),
                   transValue(CI->getObject(), F, BB),
                   ConstantInt::get(*Context, APInt(32, CI->getIndices()[0])),
-                  BV->getName(), BB));
+                  BV->getName()));
     }
     return mapValue(
-        BV, InsertValueInst::Create(transValue(CI->getComposite(), F, BB),
-                                    transValue(CI->getObject(), F, BB),
-                                    CI->getIndices(), BV->getName(), BB));
+        BV, Builder.CreateInsertValue(transValue(CI->getComposite(), F, BB),
+                                      transValue(CI->getObject(), F, BB),
+                                      CI->getIndices(), BV->getName()));
   }
 
   case OpVectorInsertDynamic: {
@@ -2375,11 +2497,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       else
         Components.push_back(ConstantInt::get(Int32Ty, I));
     }
-    return mapValue(BV,
-                    new ShuffleVectorInst(transValue(VS->getVector1(), F, BB),
-                                          transValue(VS->getVector2(), F, BB),
-                                          ConstantVector::get(Components),
-                                          BV->getName(), BB));
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
+    return mapValue(BV, Builder.CreateShuffleVector(
+                            transValue(VS->getVector1(), F, BB),
+                            transValue(VS->getVector2(), F, BB),
+                            ConstantVector::get(Components), BV->getName()));
   }
 
   case OpBitReverse: {
@@ -3780,21 +3905,22 @@ void SPIRVToLLVM::transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V) {
   Instruction *Inst = dyn_cast<Instruction>(V);
   if (!Inst)
     return;
-  std::vector<SPIRVId> AliasListIds;
-  uint32_t AliasMDKind;
   if (BV->hasDecorateId(internal::DecorationAliasScopeINTEL)) {
-    AliasMDKind = LLVMContext::MD_alias_scope;
+    std::vector<SPIRVId> AliasListIds;
     AliasListIds =
         BV->getDecorationIdLiterals(internal::DecorationAliasScopeINTEL);
-  } else if (BV->hasDecorateId(internal::DecorationNoAliasINTEL)) {
-    AliasMDKind = LLVMContext::MD_noalias;
+    assert(AliasListIds.size() == 1 &&
+           "Memory aliasing decorations must have one argument");
+    addMemAliasMetadata(Inst, AliasListIds[0], LLVMContext::MD_alias_scope);
+  }
+  if (BV->hasDecorateId(internal::DecorationNoAliasINTEL)) {
+    std::vector<SPIRVId> AliasListIds;
     AliasListIds =
         BV->getDecorationIdLiterals(internal::DecorationNoAliasINTEL);
-  } else
-    return;
-  assert(AliasListIds.size() == 1 &&
-         "Memory aliasing decorations must have one argument");
-  addMemAliasMetadata(Inst, AliasListIds[0], AliasMDKind);
+    assert(AliasListIds.size() == 1 &&
+           "Memory aliasing decorations must have one argument");
+    addMemAliasMetadata(Inst, AliasListIds[0], LLVMContext::MD_noalias);
+  }
 }
 
 // Having UserSemantic decoration on Function is against the spec, but we allow

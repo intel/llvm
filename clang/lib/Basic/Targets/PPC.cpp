@@ -81,6 +81,35 @@ bool PPCTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   return true;
 }
 
+static void defineXLCompatMacros(MacroBuilder &Builder) {
+  Builder.defineMacro("__popcntb", "__builtin_ppc_popcntb");
+  Builder.defineMacro("__eieio", "__builtin_ppc_eieio");
+  Builder.defineMacro("__iospace_eieio", "__builtin_ppc_iospace_eieio");
+  Builder.defineMacro("__isync", "__builtin_ppc_isync");
+  Builder.defineMacro("__lwsync", "__builtin_ppc_lwsync");
+  Builder.defineMacro("__iospace_lwsync", "__builtin_ppc_iospace_lwsync");
+  Builder.defineMacro("__sync", "__builtin_ppc_sync");
+  Builder.defineMacro("__iospace_sync", "__builtin_ppc_iospace_sync");
+  Builder.defineMacro("__dcbfl", "__builtin_ppc_dcbfl");
+  Builder.defineMacro("__dcbflp", "__builtin_ppc_dcbflp");
+  Builder.defineMacro("__dcbst", "__builtin_ppc_dcbst");
+  Builder.defineMacro("__dcbt", "__builtin_ppc_dcbt");
+  Builder.defineMacro("__dcbtst", "__builtin_ppc_dcbtst");
+  Builder.defineMacro("__dcbz", "__builtin_ppc_dcbz");
+  Builder.defineMacro("__icbt", "__builtin_ppc_icbt");
+  Builder.defineMacro("__compare_and_swap", "__builtin_ppc_compare_and_swap");
+  Builder.defineMacro("__compare_and_swaplp",
+                      "__builtin_ppc_compare_and_swaplp");
+  Builder.defineMacro("__fetch_and_add", "__builtin_ppc_fetch_and_add");
+  Builder.defineMacro("__fetch_and_addlp", "__builtin_ppc_fetch_and_addlp");
+  Builder.defineMacro("__fetch_and_and", "__builtin_ppc_fetch_and_and");
+  Builder.defineMacro("__fetch_and_andlp", "__builtin_ppc_fetch_and_andlp");
+  Builder.defineMacro("__fetch_and_or", "__builtin_ppc_fetch_and_or");
+  Builder.defineMacro("__fetch_and_orlp", "__builtin_ppc_fetch_and_orlp");
+  Builder.defineMacro("__fetch_and_swap", "__builtin_ppc_fetch_and_swap");
+  Builder.defineMacro("__fetch_and_swaplp", "__builtin_ppc_fetch_and_swaplp");
+}
+
 /// PPCTargetInfo::getTargetDefines - Return a set of the PowerPC-specific
 /// #defines that are not tied to a specific subtarget.
 void PPCTargetInfo::getTargetDefines(const LangOptions &Opts,

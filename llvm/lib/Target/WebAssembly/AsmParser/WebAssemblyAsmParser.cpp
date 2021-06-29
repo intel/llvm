@@ -391,9 +391,9 @@ public:
     auto &Flt = Lexer.getTok();
     auto S = Flt.getString();
     double Val;
-    if (S.compare_lower("infinity") == 0) {
+    if (S.compare_insensitive("infinity") == 0) {
       Val = std::numeric_limits<double>::infinity();
-    } else if (S.compare_lower("nan") == 0) {
+    } else if (S.compare_insensitive("nan") == 0) {
       Val = std::numeric_limits<double>::quiet_NaN();
     } else {
       return true;
@@ -899,7 +899,7 @@ public:
       TOut.emitImportName(WasmSym, ImportName);
     }
 
-    if (DirectiveID.getString() == ".eventtype") {
+    if (DirectiveID.getString() == ".tagtype") {
       auto SymName = expectIdent();
       if (SymName.empty())
         return true;
@@ -909,8 +909,8 @@ public:
         return true;
       WasmSym->setSignature(Signature.get());
       addSignature(std::move(Signature));
-      WasmSym->setType(wasm::WASM_SYMBOL_TYPE_EVENT);
-      TOut.emitEventType(WasmSym);
+      WasmSym->setType(wasm::WASM_SYMBOL_TYPE_TAG);
+      TOut.emitTagType(WasmSym);
       // TODO: backend also calls TOut.emitIndIdx, but that is not implemented.
       return expect(AsmToken::EndOfStatement, "EOL");
     }

@@ -34,6 +34,7 @@
 #include "lldb/Target/ExecutionContextScope.h"
 #include "lldb/Target/InstrumentationRuntime.h"
 #include "lldb/Target/Memory.h"
+#include "lldb/Target/MemoryTagManager.h"
 #include "lldb/Target/QueueList.h"
 #include "lldb/Target/ThreadList.h"
 #include "lldb/Target/ThreadPlanStack.h"
@@ -1709,6 +1710,44 @@ public:
   lldb::addr_t CallocateMemory(size_t size, uint32_t permissions,
                                Status &error);
 
+  /// If the address range given is in a memory tagged range and this
+  /// architecture and process supports memory tagging, return a tag
+  /// manager that can be used to maniupulate those memory tags.
+  /// Tags present in the addresses given are ignored.
+  ///
+  /// \param[in] addr
+  ///     Start of memory range.
+  ///
+  /// \param[in] end_addr
+  ///     End of the memory range. Where end is one beyond the last byte to be
+  ///     included.
+  ///
+  /// \return
+  ///     Either a valid pointer to a tag manager or an error describing why one
+  ///     could not be provided.
+  llvm::Expected<const MemoryTagManager *>
+  GetMemoryTagManager(lldb::addr_t addr, lldb::addr_t end_addr);
+
+  /// Expands the range addr to addr+len to align with granule boundaries and
+  /// then calls DoReadMemoryTags to do the target specific operations.
+  /// Tags are returned unpacked so can be used without conversion.
+  ///
+  /// \param[in] tag_manager
+  ///     The tag manager to get memory tagging information from.
+  ///
+  /// \param[in] addr
+  ///     Start of memory range to read tags for.
+  ///
+  /// \param[in] len
+  ///     Length of memory range to read tags for (in bytes).
+  ///
+  /// \return
+  ///     Either the unpacked tags or an error describing a failure to read
+  ///     or unpack them.
+  llvm::Expected<std::vector<lldb::addr_t>>
+  ReadMemoryTags(const MemoryTagManager *tag_manager, lldb::addr_t addr,
+                 size_t len);
+
   /// Resolve dynamically loaded indirect functions.
   ///
   /// \param[in] address
@@ -2469,56 +2508,6 @@ void PruneThreadPlans();
   lldb::StructuredDataPluginSP
   GetStructuredDataPlugin(ConstString type_name) const;
 
-  /// Deprecated
-  ///
-  /// Starts tracing with the configuration provided in options. To enable
-  /// tracing on the complete process the thread_id in the options should be
-  /// set to LLDB_INVALID_THREAD_ID. The API returns a user_id which is needed
-  /// by other API's that manipulate the trace instance. The handling of
-  /// erroneous or unsupported configuration is left to the trace technology
-  /// implementations in the server, as they could be returned as an error, or
-  /// rounded to a valid configuration to start tracing. In the later case the
-  /// GetTraceConfig should supply the actual used trace configuration.
-  virtual lldb::user_id_t StartTrace(const TraceOptions &options,
-                                     Status &error) {
-    error.SetErrorString("Not implemented");
-    return LLDB_INVALID_UID;
-  }
-
-  /// Deprecated
-  ///
-  /// Stops the tracing instance leading to deletion of the trace data. The
-  /// tracing instance is identified by the user_id which is obtained when
-  /// tracing was started from the StartTrace. In case tracing of the complete
-  /// process needs to be stopped the thread_id should be set to
-  /// LLDB_INVALID_THREAD_ID. In the other case that tracing on an individual
-  /// thread needs to be stopped a thread_id can be supplied.
-  virtual Status StopTrace(lldb::user_id_t uid, lldb::tid_t thread_id) {
-    return Status("Not implemented");
-  }
-
-  /// Deprecated
-  ///
-  /// Provides the trace data as raw bytes. A buffer needs to be supplied to
-  /// copy the trace data. The exact behavior of this API may vary across
-  /// trace technology, as some may support partial reading of the trace data
-  /// from a specified offset while some may not. The thread_id should be used
-  /// to select a particular thread for trace extraction.
-  virtual Status GetData(lldb::user_id_t uid, lldb::tid_t thread_id,
-                         llvm::MutableArrayRef<uint8_t> &buffer,
-                         size_t offset = 0) {
-    return Status("Not implemented");
-  }
-
-  /// Deprecated
-  ///
-  /// Similar API as above except for obtaining meta data
-  virtual Status GetMetaData(lldb::user_id_t uid, lldb::tid_t thread_id,
-                             llvm::MutableArrayRef<uint8_t> &buffer,
-                             size_t offset = 0) {
-    return Status("Not implemented");
-  }
-
 protected:
   friend class Trace;
   ///  Get the processor tracing type supported for this process.
@@ -2770,6 +2759,36 @@ protected:
   ///     True if the structured data was routed to a plugin; otherwise,
   ///     false.
   bool RouteAsyncStructuredData(const StructuredData::ObjectSP object_sp);
+
+  /// Check whether the process supports memory tagging.
+  ///
+  /// \return
+  ///     true if the process supports memory tagging,
+  ///     false otherwise.
+  virtual bool SupportsMemoryTagging() { return false; }
+
+  /// Does the final operation to read memory tags. E.g. sending a GDB packet.
+  /// It assumes that ReadMemoryTags has checked that memory tagging is enabled
+  /// and has expanded the memory range as needed.
+  ///
+  /// \param[in] addr
+  ///    Start of address range to read memory tags for.
+  ///
+  /// \param[in] len
+  ///    Length of the memory range to read tags for (in bytes).
+  ///
+  /// \param[in] type
+  ///    Type of tags to read (get this from a MemoryTagManager)
+  ///
+  /// \return
+  ///     The packed tag data received from the remote or an error
+  ///     if the read failed.
+  virtual llvm::Expected<std::vector<uint8_t>>
+  DoReadMemoryTags(lldb::addr_t addr, size_t len, int32_t type) {
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "%s does not support reading memory tags",
+                                   GetPluginName().GetCString());
+  }
 
   // Type definitions
   typedef std::map<lldb::LanguageType, lldb::LanguageRuntimeSP>

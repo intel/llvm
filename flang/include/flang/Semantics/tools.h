@@ -140,6 +140,9 @@ inline bool IsAllocatable(const Symbol &symbol) {
 inline bool IsAllocatableOrPointer(const Symbol &symbol) {
   return IsPointer(symbol) || IsAllocatable(symbol);
 }
+inline bool IsSave(const Symbol &symbol) {
+  return symbol.attrs().test(Attr::SAVE);
+}
 inline bool IsNamedConstant(const Symbol &symbol) {
   return symbol.attrs().test(Attr::PARAMETER);
 }
@@ -248,6 +251,10 @@ const Symbol *FindExternallyVisibleObject(
       [&](const auto &x) { return FindExternallyVisibleObject(x, scope); },
       expr.u);
 }
+
+// Apply GetUltimate(), then if the symbol is a generic procedure shadowing a
+// specific procedure of the same name, return it instead.
+const Symbol &BypassGeneric(const Symbol &);
 
 using SomeExpr = evaluate::Expr<evaluate::SomeType>;
 

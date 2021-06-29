@@ -2946,10 +2946,21 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
   case Builtin::BI__builtin_powi:
   case Builtin::BI__builtin_powif:
-  case Builtin::BI__builtin_powil:
-    return RValue::get(emitBinaryMaybeConstrainedFPBuiltin(
-        *this, E, Intrinsic::powi, Intrinsic::experimental_constrained_powi));
+  case Builtin::BI__builtin_powil: {
+    llvm::Value *Src0 = EmitScalarExpr(E->getArg(0));
+    llvm::Value *Src1 = EmitScalarExpr(E->getArg(1));
 
+    if (Builder.getIsFPConstrained()) {
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
+      Function *F = CGM.getIntrinsic(Intrinsic::experimental_constrained_powi,
+                                     Src0->getType());
+      return RValue::get(Builder.CreateConstrainedFPCall(F, { Src0, Src1 }));
+    }
+
+    Function *F = CGM.getIntrinsic(Intrinsic::powi,
+                                   { Src0->getType(), Src1->getType() });
+    return RValue::get(Builder.CreateCall(F, { Src0, Src1 }));
+  }
   case Builtin::BI__builtin_isgreater:
   case Builtin::BI__builtin_isgreaterequal:
   case Builtin::BI__builtin_isless:
@@ -13371,8 +13382,8 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
         cast<llvm::FixedVectorType>(Ops[0]->getType())->getNumElements();
     unsigned ShiftVal = cast<llvm::ConstantInt>(Ops[2])->getZExtValue() & 0xff;
 
-    // Mask the shift amount to width of two vectors.
-    ShiftVal &= (2 * NumElts) - 1;
+    // Mask the shift amount to width of a vector.
+    ShiftVal &= NumElts - 1;
 
     int Indices[16];
     for (unsigned i = 0; i != NumElts; ++i)
@@ -15421,6 +15432,40 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
     llvm::Function *F = CGM.getIntrinsic(ID);
     Value *Call = Builder.CreateCall(F, CallOps);
     return Builder.CreateAlignedStore(Call, Ops[0], MaybeAlign(64));
+  }
+
+  case PPC::BI__builtin_ppc_compare_and_swap:
+  case PPC::BI__builtin_ppc_compare_and_swaplp: {
+    Address Addr = EmitPointerWithAlignment(E->getArg(0));
+    Address OldValAddr = EmitPointerWithAlignment(E->getArg(1));
+    Value *OldVal = Builder.CreateLoad(OldValAddr);
+    QualType AtomicTy = E->getArg(0)->getType()->getPointeeType();
+    LValue LV = MakeAddrLValue(Addr, AtomicTy);
+    auto Pair = EmitAtomicCompareExchange(
+        LV, RValue::get(OldVal), RValue::get(Ops[2]), E->getExprLoc(),
+        llvm::AtomicOrdering::Monotonic, llvm::AtomicOrdering::Monotonic, true);
+    return Pair.second;
+  }
+  case PPC::BI__builtin_ppc_fetch_and_add:
+  case PPC::BI__builtin_ppc_fetch_and_addlp: {
+    return MakeBinaryAtomicValue(*this, AtomicRMWInst::Add, E,
+                                 llvm::AtomicOrdering::Monotonic);
+  }
+  case PPC::BI__builtin_ppc_fetch_and_and:
+  case PPC::BI__builtin_ppc_fetch_and_andlp: {
+    return MakeBinaryAtomicValue(*this, AtomicRMWInst::And, E,
+                                 llvm::AtomicOrdering::Monotonic);
+  }
+
+  case PPC::BI__builtin_ppc_fetch_and_or:
+  case PPC::BI__builtin_ppc_fetch_and_orlp: {
+    return MakeBinaryAtomicValue(*this, AtomicRMWInst::Or, E,
+                                 llvm::AtomicOrdering::Monotonic);
+  }
+  case PPC::BI__builtin_ppc_fetch_and_swap:
+  case PPC::BI__builtin_ppc_fetch_and_swaplp: {
+    return MakeBinaryAtomicValue(*this, AtomicRMWInst::Xchg, E,
+                                 llvm::AtomicOrdering::Monotonic);
   }
   }
 }

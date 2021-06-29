@@ -74,8 +74,8 @@ PlatformImplPtr platform_impl::getPlatformFromPiDevice(RT::PiDevice PiDevice,
   return getOrMakePlatformImpl(Plt, Plugin);
 }
 
-vector_class<platform> platform_impl::get_platforms() {
-  vector_class<platform> Platforms;
+std::vector<platform> platform_impl::get_platforms() {
+  std::vector<platform> Platforms;
   RT::initialize();
   std::vector<PlatformImplPtr> &PlatformCache =
       GlobalHandler::instance().getPlatformCache();
@@ -105,9 +105,9 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
   return Result;
 }
 
-vector_class<device>
+std::vector<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
-  vector_class<device> Res;
+  std::vector<device> Res;
   for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
     // Assumption here is that there is 1-to-1 mapping between PiDevType and
     // Sycl device type for GPU, CPU, and ACC.
@@ -121,12 +121,12 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   return Res;
 }
 
-bool platform_impl::has_extension(const string_class &ExtensionName) const {
+bool platform_impl::has_extension(const std::string &ExtensionName) const {
   if (is_host())
     return false;
 
-  string_class AllExtensionNames =
-      get_platform_info<string_class, info::platform::extensions>::get(
+  std::string AllExtensionNames =
+      get_platform_info<std::string, info::platform::extensions>::get(
           MPlatform, getPlugin());
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }

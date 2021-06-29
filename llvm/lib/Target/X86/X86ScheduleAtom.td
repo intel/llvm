@@ -165,6 +165,7 @@ def : WriteRes<WriteLoad,    [AtomPort0]>;
 def : WriteRes<WriteStore,   [AtomPort0]>;
 def : WriteRes<WriteStoreNT, [AtomPort0]>;
 def : WriteRes<WriteMove,    [AtomPort01]>;
+defm : X86WriteResUnsupported<WriteVecMaskedGatherWriteback>;
 
 // Treat misc copies as a move.
 def : InstRW<[WriteMove], (instrs COPY)>;
@@ -498,7 +499,7 @@ def AtomWrite0_1 : SchedWriteRes<[AtomPort0]> {
   let Latency = 1;
   let ResourceCycles = [1];
 }
-def : InstRW<[AtomWrite0_1], (instrs FXAM, LD_Frr,
+def : InstRW<[AtomWrite0_1], (instrs XAM_F, LD_Frr,
                                      MOVSX64rr32)>;
 def : SchedAlias<WriteALURMW, AtomWrite0_1>;
 def : SchedAlias<WriteADCRMW, AtomWrite0_1>;

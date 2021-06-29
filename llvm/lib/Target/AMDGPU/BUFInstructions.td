@@ -110,6 +110,10 @@ class MTBUF_Real <MTBUF_Pseudo ps> :
   let isPseudo = 0;
   let isCodeGenOnly = 0;
 
+  let VM_CNT = 1;
+  let EXP_CNT = 1;
+  let MTBUF = 1;
+
   // copy relevant pseudo op flags
   let UseNamedOperandTable = ps.UseNamedOperandTable;
   let SubtargetPredicate = ps.SubtargetPredicate;
@@ -118,6 +122,10 @@ class MTBUF_Real <MTBUF_Pseudo ps> :
   let DisableEncoding    = ps.DisableEncoding;
   let TSFlags            = ps.TSFlags;
   let SchedRW            = ps.SchedRW;
+  let mayLoad            = ps.mayLoad;
+  let mayStore           = ps.mayStore;
+  let IsAtomicRet        = ps.IsAtomicRet;
+  let IsAtomicNoRet      = ps.IsAtomicNoRet;
 
   bits<12> offset;
   bits<5>  cpol;
@@ -341,6 +349,10 @@ class MUBUF_Real <MUBUF_Pseudo ps> :
   let isPseudo = 0;
   let isCodeGenOnly = 0;
 
+  let VM_CNT = 1;
+  let EXP_CNT = 1;
+  let MUBUF = 1;
+
   // copy relevant pseudo op flags
   let SubtargetPredicate   = ps.SubtargetPredicate;
   let AsmMatchConverter    = ps.AsmMatchConverter;
@@ -350,6 +362,10 @@ class MUBUF_Real <MUBUF_Pseudo ps> :
   let TSFlags              = ps.TSFlags;
   let UseNamedOperandTable = ps.UseNamedOperandTable;
   let SchedRW              = ps.SchedRW;
+  let mayLoad              = ps.mayLoad;
+  let mayStore             = ps.mayStore;
+  let IsAtomicRet          = ps.IsAtomicRet;
+  let IsAtomicNoRet        = ps.IsAtomicNoRet;
 
   bits<12> offset;
   bits<5>  cpol;
@@ -1908,13 +1924,6 @@ class MUBUF_Real_gfx6_gfx7<bits<8> op, MUBUF_Pseudo ps> :
 //===----------------------------------------------------------------------===//
 
 let AssemblerPredicate = isGFX10Plus, DecoderNamespace = "GFX10" in {
-  multiclass MUBUF_Real_gfx10_with_name<bits<8> op, string opName,
-                                        string asmName> {
-    def _gfx10 : MUBUF_Real_gfx10<op, !cast<MUBUF_Pseudo>(opName)> {
-      MUBUF_Pseudo ps = !cast<MUBUF_Pseudo>(opName);
-      let AsmString = asmName # ps.AsmOperands;
-    }
-  }
   multiclass MUBUF_Real_AllAddr_gfx10<bits<8> op> {
     def _BOTHEN_gfx10 :
       MUBUF_Real_gfx10<op, !cast<MUBUF_Pseudo>(NAME#"_BOTHEN")>;

@@ -328,6 +328,8 @@
 ; GCN-O1-NEXT:         Process Implicit Definitions
 ; GCN-O1-NEXT:         Remove unreachable machine basic blocks
 ; GCN-O1-NEXT:         Live Variable Analysis
+; GCN-O1-NEXT:         MachineDominator Tree Construction
+; GCN-O1-NEXT:         SI Optimize VGPR LiveRange
 ; GCN-O1-NEXT:         Eliminate PHI nodes for register allocation
 ; GCN-O1-NEXT:         SI Lower control flow pseudo instructions
 ; GCN-O1-NEXT:         Two-Address instruction pass
@@ -607,6 +609,7 @@
 ; GCN-O1-OPTS-NEXT:         Process Implicit Definitions
 ; GCN-O1-OPTS-NEXT:         Remove unreachable machine basic blocks
 ; GCN-O1-OPTS-NEXT:         Live Variable Analysis
+; GCN-O1-OPTS-NEXT:         SI Optimize VGPR LiveRange
 ; GCN-O1-OPTS-NEXT:         Eliminate PHI nodes for register allocation
 ; GCN-O1-OPTS-NEXT:         SI Lower control flow pseudo instructions
 ; GCN-O1-OPTS-NEXT:         Two-Address instruction pass
@@ -886,6 +889,7 @@
 ; GCN-O2-NEXT:         Process Implicit Definitions
 ; GCN-O2-NEXT:         Remove unreachable machine basic blocks
 ; GCN-O2-NEXT:         Live Variable Analysis
+; GCN-O2-NEXT:         SI Optimize VGPR LiveRange
 ; GCN-O2-NEXT:         Eliminate PHI nodes for register allocation
 ; GCN-O2-NEXT:         SI Lower control flow pseudo instructions
 ; GCN-O2-NEXT:         Two-Address instruction pass
@@ -1179,6 +1183,7 @@
 ; GCN-O3-NEXT:         Process Implicit Definitions
 ; GCN-O3-NEXT:         Remove unreachable machine basic blocks
 ; GCN-O3-NEXT:         Live Variable Analysis
+; GCN-O3-NEXT:         SI Optimize VGPR LiveRange
 ; GCN-O3-NEXT:         Eliminate PHI nodes for register allocation
 ; GCN-O3-NEXT:         SI Lower control flow pseudo instructions
 ; GCN-O3-NEXT:         Two-Address instruction pass

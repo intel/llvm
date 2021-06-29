@@ -143,11 +143,19 @@ void UnwindInfoSectionImpl<Ptr>::prepareRelocations(ConcatInputSection *isec) {
   // work. But since there are usually just few personality functions
   // that are referenced from many places, at least some of them likely
   // live, it wouldn't reduce number of got entries.
-  for (Reloc &r : isec->relocs) {
+  for (size_t i = 0; i < isec->relocs.size(); ++i) {
+    Reloc &r = isec->relocs[i];
     assert(target->hasAttr(r.type, RelocAttrBits::UNSIGNED));
     if (r.offset % sizeof(CompactUnwindEntry<Ptr>) !=
         offsetof(CompactUnwindEntry<Ptr>, personality))
       continue;
+
+    Reloc &rFunc = isec->relocs[++i];
+    assert(r.offset ==
+           rFunc.offset + offsetof(CompactUnwindEntry<Ptr>, personality));
+    auto *referentIsec =
+        cast<ConcatInputSection>(rFunc.referent.get<InputSection *>());
+    referentIsec->hasPersonality = true;
 
     if (auto *s = r.referent.dyn_cast<Symbol *>()) {
       if (auto *undefined = dyn_cast<Undefined>(s)) {
@@ -174,6 +182,7 @@ void UnwindInfoSectionImpl<Ptr>::prepareRelocations(ConcatInputSection *isec) {
     }
 
     if (auto *referentIsec = r.referent.dyn_cast<InputSection *>()) {
+      assert(!isCoalescedWeak(referentIsec));
       // Personality functions can be referenced via section relocations
       // if they live in the same object file. Create placeholder synthetic
       // symbols for them in the GOT.
@@ -249,9 +258,9 @@ relocateCompactUnwind(ConcatOutputSection *compactUnwindSection,
 // There should only be a handful of unique personality pointers, so we can
 // encode them as 2-bit indices into a small array.
 template <class Ptr>
-void encodePersonalities(
-    const std::vector<CompactUnwindEntry<Ptr> *> &cuPtrVector,
-    std::vector<uint32_t> &personalities) {
+static void
+encodePersonalities(const std::vector<CompactUnwindEntry<Ptr> *> &cuPtrVector,
+                    std::vector<uint32_t> &personalities) {
   for (CompactUnwindEntry<Ptr> *cu : cuPtrVector) {
     if (cu->personality == 0)
       continue;
@@ -271,6 +280,65 @@ void encodePersonalities(
   if (personalities.size() > 3)
     error("too many personalities (" + std::to_string(personalities.size()) +
           ") for compact unwind to encode");
+}
+
+// __unwind_info stores unwind data for address ranges. If several
+// adjacent functions have the same unwind encoding, LSDA, and personality
+// function, they share one unwind entry. For this to work, functions without
+// unwind info need explicit "no unwind info" unwind entries -- else the
+// unwinder would think they have the unwind info of the closest function
+// with unwind info right before in the image.
+template <class Ptr>
+static void addEntriesForFunctionsWithoutUnwindInfo(
+    std::vector<CompactUnwindEntry<Ptr>> &cuVector) {
+  DenseSet<Ptr> hasUnwindInfo;
+  for (CompactUnwindEntry<Ptr> &cuEntry : cuVector)
+    if (cuEntry.functionAddress != UINT64_MAX)
+      hasUnwindInfo.insert(cuEntry.functionAddress);
+
+  // Add explicit "has no unwind info" entries for all global and local symbols
+  // without unwind info.
+  auto markNoUnwindInfo = [&cuVector, &hasUnwindInfo](const Defined *d) {
+    if (d->isLive() && d->isec && isCodeSection(d->isec)) {
+      Ptr ptr = d->getVA();
+      if (!hasUnwindInfo.count(ptr))
+        cuVector.push_back({ptr, 0, 0, 0, 0});
+    }
+  };
+  for (Symbol *sym : symtab->getSymbols())
+    if (auto *d = dyn_cast<Defined>(sym))
+      markNoUnwindInfo(d);
+  for (const InputFile *file : inputFiles)
+    if (auto *objFile = dyn_cast<ObjFile>(file))
+      for (Symbol *sym : objFile->symbols)
+        if (auto *d = dyn_cast_or_null<Defined>(sym))
+          if (!d->isExternal())
+            markNoUnwindInfo(d);
+}
+
+static bool canFoldEncoding(compact_unwind_encoding_t encoding) {
+  // From compact_unwind_encoding.h:
+  //  UNWIND_X86_64_MODE_STACK_IND:
+  //  A "frameless" (RBP not used as frame pointer) function large constant
+  //  stack size.  This case is like the previous, except the stack size is too
+  //  large to encode in the compact unwind encoding.  Instead it requires that
+  //  the function contains "subq $nnnnnnnn,RSP" in its prolog.  The compact
+  //  encoding contains the offset to the nnnnnnnn value in the function in
+  //  UNWIND_X86_64_FRAMELESS_STACK_SIZE.
+  // Since this means the unwinder has to look at the `subq` in the function
+  // of the unwind info's unwind address, two functions that have identical
+  // unwind info can't be folded if it's using this encoding since both
+  // entries need unique addresses.
+  static_assert(UNWIND_X86_64_MODE_MASK == UNWIND_X86_MODE_MASK, "");
+  static_assert(UNWIND_X86_64_MODE_STACK_IND == UNWIND_X86_MODE_STACK_IND, "");
+  if ((target->cpuType == CPU_TYPE_X86_64 || target->cpuType == CPU_TYPE_X86) &&
+      (encoding & UNWIND_X86_64_MODE_MASK) == UNWIND_X86_64_MODE_STACK_IND) {
+    // FIXME: Consider passing in the two function addresses and getting
+    // their two stack sizes off the `subq` and only returning false if they're
+    // actually different.
+    return false;
+  }
+  return true;
 }
 
 // Scan the __LD,__compact_unwind entries and compute the space needs of
@@ -293,6 +361,8 @@ template <class Ptr> void UnwindInfoSectionImpl<Ptr>::finalize() {
       compactUnwindSection->getSize() / sizeof(CompactUnwindEntry<Ptr>);
   cuVector.resize(cuCount);
   relocateCompactUnwind(compactUnwindSection, cuVector);
+
+  addEntriesForFunctionsWithoutUnwindInfo(cuVector);
 
   // Rather than sort & fold the 32-byte entries directly, we create a
   // vector of pointers to entries and sort & fold that instead.
@@ -332,7 +402,8 @@ template <class Ptr> void UnwindInfoSectionImpl<Ptr>::finalize() {
     while (++foldEnd < cuPtrVector.end() &&
            (*foldBegin)->encoding == (*foldEnd)->encoding &&
            (*foldBegin)->personality == (*foldEnd)->personality &&
-           (*foldBegin)->lsda == (*foldEnd)->lsda)
+           (*foldBegin)->lsda == (*foldEnd)->lsda &&
+           canFoldEncoding((*foldEnd)->encoding))
       ;
     *foldWrite++ = *foldBegin;
     foldBegin = foldEnd;

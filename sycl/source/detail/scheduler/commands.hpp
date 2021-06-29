@@ -151,7 +151,7 @@ public:
   void resolveReleaseDependencies(std::set<Command *> &list);
   /// Creates an edge event when the dependency is a command.
   void emitEdgeEventForCommandDependence(Command *Cmd, void *ObjAddr,
-                                         const string_class &Prefix,
+                                         const std::string &Prefix,
                                          bool IsCommand);
   /// Creates an edge event when the dependency is an event.
   void emitEdgeEventForEventDependence(Command *Cmd, RT::PiEvent &EventAddr);
@@ -272,11 +272,11 @@ public:
   /// address.
   void *MAddress = nullptr;
   /// Buffer to build the address string.
-  string_class MAddressString;
+  std::string MAddressString;
   /// Buffer to build the command node type.
-  string_class MCommandNodeType;
+  std::string MCommandNodeType;
   /// Buffer to build the command end-user understandable name.
-  string_class MCommandName;
+  std::string MCommandName;
   /// Flag to indicate if makeTraceEventProlog() has been run.
   bool MTraceEventPrologComplete = false;
   /// Flag to indicate if this is the first time we are seeing this payload.
@@ -496,7 +496,7 @@ class ExecCGCommand : public Command {
 public:
   ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
 
-  vector_class<StreamImplPtr> getStreams() const;
+  std::vector<StreamImplPtr> getStreams() const;
 
   void clearStreams();
 

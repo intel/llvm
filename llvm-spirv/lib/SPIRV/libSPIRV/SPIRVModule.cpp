@@ -1367,8 +1367,10 @@ SPIRVInstruction *SPIRVModuleImpl::addVectorInsertDynamicInst(
 SPIRVValue *SPIRVModuleImpl::addVectorShuffleInst(
     SPIRVType *Type, SPIRVValue *Vec1, SPIRVValue *Vec2,
     const std::vector<SPIRVWord> &Components, SPIRVBasicBlock *BB) {
-  return addInstruction(
-      new SPIRVVectorShuffle(getId(), Type, Vec1, Vec2, Components, BB), BB);
+  return addInstruction(new SPIRVVectorShuffle(getId(), Type, Vec1->getId(),
+                                               Vec2->getId(), Components, BB,
+                                               this),
+                        BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addBranchInst(SPIRVLabel *TargetLabel,
@@ -1509,15 +1511,19 @@ SPIRVInstruction *
 SPIRVModuleImpl::addCompositeExtractInst(SPIRVType *Type, SPIRVValue *TheVector,
                                          const std::vector<SPIRVWord> &Indices,
                                          SPIRVBasicBlock *BB) {
-  return addInstruction(
-      new SPIRVCompositeExtract(Type, getId(), TheVector, Indices, BB), BB);
+  return addInstruction(new SPIRVCompositeExtract(Type, getId(),
+                                                  TheVector->getId(), Indices,
+                                                  BB, this),
+                        BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addCompositeInsertInst(
     SPIRVValue *Object, SPIRVValue *Composite,
     const std::vector<SPIRVWord> &Indices, SPIRVBasicBlock *BB) {
   return addInstruction(
-      new SPIRVCompositeInsert(getId(), Object, Composite, Indices, BB), BB);
+      new SPIRVCompositeInsert(Composite->getType(), getId(), Object->getId(),
+                               Composite->getId(), Indices, BB, this),
+      BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addCopyObjectInst(SPIRVType *TheType,
@@ -1694,8 +1700,9 @@ class TopologicalSort {
           // cyclic dependency by inserting a forward declaration of that
           // pointer.
           SPIRVTypePointer *Ptr = static_cast<SPIRVTypePointer *>(E);
-          ForwardPointerSet.insert(new SPIRVTypeForwardPointer(
-              E->getModule(), Ptr, Ptr->getPointerStorageClass()));
+          SPIRVModule *BM = E->getModule();
+          ForwardPointerSet.insert(BM->add(new SPIRVTypeForwardPointer(
+              BM, Ptr, Ptr->getPointerStorageClass())));
           return false;
         }
         return true;

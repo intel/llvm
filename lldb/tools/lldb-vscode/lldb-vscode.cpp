@@ -389,8 +389,7 @@ void ProgressEventThreadFunction() {
         const char *message = lldb::SBDebugger::GetProgressFromEvent(
             event, progress_id, completed, total, is_debugger_specific);
         if (message)
-          g_vsc.SendProgressEvent(
-              ProgressEvent(progress_id, message, completed, total));
+          g_vsc.SendProgressEvent(progress_id, message, completed, total);
       }
     }
   }
@@ -3047,7 +3046,7 @@ void RegisterRequestCallbacks() {
 
 static void printHelp(LLDBVSCodeOptTable &table, llvm::StringRef tool_name) {
   std::string usage_str = tool_name.str() + " options";
-  table.PrintHelp(llvm::outs(), usage_str.c_str(), "LLDB VSCode", false);
+  table.printHelp(llvm::outs(), usage_str.c_str(), "LLDB VSCode", false);
 
   std::string examples = R"___(
 EXAMPLES:

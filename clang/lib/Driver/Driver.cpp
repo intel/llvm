@@ -609,9 +609,9 @@ static llvm::Triple computeTargetTriple(const Driver &D,
   A = Args.getLastArg(options::OPT_march_EQ);
   if (A && Target.isRISCV()) {
     StringRef ArchName = A->getValue();
-    if (ArchName.startswith_lower("rv32"))
+    if (ArchName.startswith_insensitive("rv32"))
       Target.setArch(llvm::Triple::riscv32);
-    else if (ArchName.startswith_lower("rv64"))
+    else if (ArchName.startswith_insensitive("rv64"))
       Target.setArch(llvm::Triple::riscv64);
   }
 
@@ -700,6 +700,11 @@ static bool isValidSYCLTriple(llvm::Triple T) {
   // NVPTX is valid for SYCL.
   if (T.isNVPTX())
     return true;
+
+  // AMDGCN is valid for SYCL
+  if (T.isAMDGCN())
+    return true;
+
   // Check for invalid SYCL device triple values.
   // Non-SPIR arch.
   if (!T.isSPIR())
@@ -904,7 +909,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     if (SYCLTargetsValues) {
       if (SYCLTargetsValues->getNumValues()) {
         for (StringRef Val : SYCLTargetsValues->getValues()) {
-          llvm::Triple TT(Val);
+          llvm::Triple TT(MakeSYCLDeviceTriple(Val));
           if (!isValidSYCLTriple(TT)) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
             continue;
@@ -1847,18 +1852,24 @@ void Driver::PrintHelp(bool ShowHidden) const {
     ExcludedFlagsBitmask |= options::FlangOnlyOption;
 
   std::string Usage = llvm::formatv("{0} [options] file...", Name).str();
-  getOpts().PrintHelp(llvm::outs(), Usage.c_str(), DriverTitle.c_str(),
+  getOpts().printHelp(llvm::outs(), Usage.c_str(), DriverTitle.c_str(),
                       IncludedFlagsBitmask, ExcludedFlagsBitmask,
                       /*ShowAllAliases=*/false);
 }
 
 llvm::Triple Driver::MakeSYCLDeviceTriple(StringRef TargetArch) const {
-  llvm::Triple TT;
-  TT.setArchName(TargetArch);
-  TT.setVendor(llvm::Triple::UnknownVendor);
-  TT.setOS(llvm::Triple::UnknownOS);
-  TT.setEnvironment(llvm::Triple::SYCLDevice);
-  return TT;
+  SmallVector<StringRef, 5> SYCLAlias = {"spir", "spir64", "spir64_fpga",
+                                         "spir64_x86_64", "spir64_gen"};
+  if (std::find(SYCLAlias.begin(), SYCLAlias.end(), TargetArch) !=
+      SYCLAlias.end()) {
+    llvm::Triple TT;
+    TT.setArchName(TargetArch);
+    TT.setVendor(llvm::Triple::UnknownVendor);
+    TT.setOS(llvm::Triple::UnknownOS);
+    TT.setEnvironment(llvm::Triple::SYCLDevice);
+    return TT;
+  }
+  return llvm::Triple(TargetArch);
 }
 
 // Print the help from any of the given tools which are used for AOT
@@ -2028,7 +2039,7 @@ void Driver::HandleAutocompletions(StringRef PassedFlags) const {
   // case-insensitive sorting for consistency with the -help option
   // which prints out options in the case-insensitive alphabetical order.
   llvm::sort(SuggestedCompletions, [](StringRef A, StringRef B) {
-    if (int X = A.compare_lower(B))
+    if (int X = A.compare_insensitive(B))
       return X < 0;
     return A.compare(B) > 0;
   });
@@ -3898,6 +3909,21 @@ class OffloadingActionBuilder final {
       return BA;
     }
 
+    Action *finalizeAMDGCNDependences(Action *Input, const llvm::Triple &TT) {
+      auto *BA = C.getDriver().ConstructPhaseAction(
+          C, Args, phases::Backend, Input, AssociatedOffloadKind);
+
+      auto *AA = C.getDriver().ConstructPhaseAction(C, Args, phases::Assemble,
+                                                    BA, AssociatedOffloadKind);
+
+      ActionList AL = {AA};
+      Action *LinkAction = C.MakeAction<LinkJobAction>(AL, types::TY_Image);
+      ActionList HIPActions = {LinkAction};
+      Action *HIPFatBinary =
+          C.MakeAction<LinkJobAction>(HIPActions, types::TY_HIP_FATBIN);
+      return HIPFatBinary;
+    }
+
   public:
     SYCLActionBuilder(Compilation &C, DerivedArgList &Args,
                       const Driver::InputList &Inputs)
@@ -4294,6 +4320,7 @@ class OffloadingActionBuilder final {
         ActionList LinkObjects;
         auto TT = SYCLTripleList[I];
         auto isNVPTX = (*TC)->getTriple().isNVPTX();
+        auto isAMDGCN = (*TC)->getTriple().isAMDGCN();
         bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
@@ -4391,7 +4418,7 @@ class OffloadingActionBuilder final {
         // When spv online link is supported by all backends, the fallback
         // device libraries are only needed when current toolchain is using
         // AOT compilation.
-        if (!isNVPTX) {
+        if (!isNVPTX && !isAMDGCN) {
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
               *TC, FullLinkObjects, true,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
@@ -4405,7 +4432,7 @@ class OffloadingActionBuilder final {
           FullDeviceLinkAction = DeviceLinkAction;
         // setup some flags upfront
 
-        if (isNVPTX && DeviceCodeSplit) {
+        if ((isNVPTX || isAMDGCN) && DeviceCodeSplit) {
           // TODO Temporary limitation, need to support code splitting for PTX
           const Driver &D = C.getDriver();
           const std::string &OptName =
@@ -4417,14 +4444,14 @@ class OffloadingActionBuilder final {
         }
         // reflects whether current target is ahead-of-time and can't support
         // runtime setting of specialization constants
-        bool isAOT = isNVPTX || isSpirvAOT;
+        bool isAOT = isNVPTX || isAMDGCN || isSpirvAOT;
         // TODO support device code split for NVPTX target
 
         ActionList WrapperInputs;
         // post link is not optional - even if not splitting, always need to
         // process specialization constants
         types::ID PostLinkOutType =
-            isNVPTX ? types::TY_LLVM_BC : types::TY_Tempfiletable;
+            isNVPTX || isAMDGCN ? types::TY_LLVM_BC : types::TY_Tempfiletable;
         auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
             FullDeviceLinkAction, PostLinkOutType);
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
@@ -4432,6 +4459,10 @@ class OffloadingActionBuilder final {
         if (isNVPTX) {
           Action *FinAction =
               finalizeNVPTXDependences(PostLinkAction, (*TC)->getTriple());
+          WrapperInputs.push_back(FinAction);
+        } else if (isAMDGCN) {
+          Action *FinAction =
+              finalizeAMDGCNDependences(PostLinkAction, (*TC)->getTriple());
           WrapperInputs.push_back(FinAction);
         } else {
           // For SPIRV-based targets - translate to SPIRV then optionally
@@ -4599,7 +4630,7 @@ class OffloadingActionBuilder final {
         if (SYCLTargets) {
           llvm::StringMap<StringRef> FoundNormalizedTriples;
           for (const char *Val : SYCLTargets->getValues()) {
-            llvm::Triple TT(Val);
+            llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
             std::string NormalizedName = TT.normalize();
 
             // Make sure we don't have a duplicate triple.
@@ -5091,7 +5122,8 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
     if (Args.hasArg(options::OPT_emit_llvm))
       Diag(clang::diag::err_drv_emit_llvm_link);
     if (IsCLMode() && LTOMode != LTOK_None &&
-        !Args.getLastArgValue(options::OPT_fuse_ld_EQ).equals_lower("lld"))
+        !Args.getLastArgValue(options::OPT_fuse_ld_EQ)
+             .equals_insensitive("lld"))
       Diag(clang::diag::err_drv_lto_without_lld);
   }
 
@@ -7172,7 +7204,7 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
       case llvm::Triple::UnknownEnvironment:
       case llvm::Triple::SYCLDevice:
         if (Args.getLastArgValue(options::OPT_fuse_ld_EQ)
-                .startswith_lower("bfd"))
+                .startswith_insensitive("bfd"))
           TC = std::make_unique<toolchains::CrossWindowsToolChain>(
               *this, Target, Args);
         else
@@ -7276,7 +7308,7 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
         break;
       case Action::OFK_HIP:
         TC = std::make_unique<toolchains::HIPToolChain>(
-          *this, Target, HostTC, Args);
+            *this, Target, HostTC, Args, TargetDeviceOffloadKind);
         break;
       case Action::OFK_OpenMP:
         // omp + nvptx
@@ -7294,6 +7326,10 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
           case llvm::Triple::nvptx64:
             TC = std::make_unique<toolchains::CudaToolChain>(
               *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+            break;
+          case llvm::Triple::amdgcn:
+            TC = std::make_unique<toolchains::HIPToolChain>(
+                *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           default:
           break;
