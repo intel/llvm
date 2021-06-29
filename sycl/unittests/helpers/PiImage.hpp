@@ -233,8 +233,7 @@ private:
 
 /// Convenience wrapper around pi_device_binaries_struct, that manages mock
 /// device images' lifecycle.
-template <size_t __NumberOfImages>
-class PiImageArray {
+template <size_t __NumberOfImages> class PiImageArray {
 public:
   static constexpr size_t NumberOfImages = __NumberOfImages;
 
