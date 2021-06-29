@@ -1454,7 +1454,12 @@ function(add_unittest test_suite test_name)
     list(APPEND LLVM_COMPILE_FLAGS "-Wno-gnu-zero-variadic-macro-arguments")
   endif()
 
-  set(LLVM_REQUIRES_RTTI OFF)
+  # Enabling of exception handling for unittests means we must enable RTTI.
+  if(NOT (LLVM_REQUIRES_EH OR LLVM_ENABLE_EH))
+    set(LLVM_REQUIRES_RTTI OFF)
+  else()
+    set(LLVM_REQUIRES_RTTI ON)
+  endif()
 
   list(APPEND LLVM_LINK_COMPONENTS Support) # gtest needs it for raw_ostream
   add_llvm_executable(${test_name} IGNORE_EXTERNALIZE_DEBUGINFO NO_INSTALL_RPATH ${ARGN})

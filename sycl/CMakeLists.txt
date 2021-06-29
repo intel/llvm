@@ -47,6 +47,7 @@ if(MSVC)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions
   # never throw C++ exceptions.
+  set (LLVM_REQUIRES_EH 1)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 endif()
 
@@ -69,6 +70,7 @@ set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION
 
 set(SYCL_INCLUDE_DIR "include")
 set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/${SYCL_INCLUDE_DIR})
+set(SYCL_INCLUDE_DEPLOY_DIR ${CMAKE_INSTALL_PREFIX}/${SYCL_INCLUDE_DIR})
 
 add_llvm_external_project(opencl)
 list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_FOUND)
@@ -84,14 +86,11 @@ file(COPY ${OpenCL_INCLUDE_DIR}/CL
 
 # Include OpenCL Headers into final bundle.
 install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
-        DESTINATION ${SYCL_INCLUDE_DIR}/sycl
+        DESTINATION ${SYCL_INCLUDE_DEPLOY_DIR}/sycl
         COMPONENT OpenCL-Headers)
 
 option(SYCL_BUILD_PI_CUDA
   "Enables the CUDA backend for the Plugin Interface" OFF)
-
-option(SYCL_BUILD_PI_ROCM
-  "Enables the ROCM backend for the Plugin Interface" OFF)
 
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -108,8 +107,8 @@ COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUI
 COMMENT "Copying SYCL headers ...")
 
 # Copy SYCL headers from sources to install directory
-install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT sycl-headers)
+install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DEPLOY_DIR} COMPONENT sycl-headers)
+install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DEPLOY_DIR}/sycl COMPONENT sycl-headers)
 
 set(SYCL_RT_LIBS sycl)
 if (MSVC)
@@ -271,18 +270,6 @@ if(SYCL_BUILD_PI_CUDA)
 
   add_dependencies(sycl-toolchain libspirv-builtins pi_cuda)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_cuda)
-endif()
-
-if(SYCL_BUILD_PI_ROCM)
-  # Ensure that libclc is enabled.
-  list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
-  if( LIBCLC_FOUND EQUAL -1 )
-    message(FATAL_ERROR
-      "ROCM support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
-  endif()
-
-  add_dependencies(sycl-toolchain libspirv-builtins pi_rocm)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_rocm)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.
