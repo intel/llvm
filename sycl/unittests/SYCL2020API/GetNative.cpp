@@ -12,8 +12,8 @@
 #include <CL/sycl/backend/opencl.hpp>
 #include <detail/context_impl.hpp>
 
-#include <helpers/PiMock.hpp>
 #include <helpers/CommonRedefinitions.hpp>
+#include <helpers/PiMock.hpp>
 
 #include <gtest/gtest.h>
 
