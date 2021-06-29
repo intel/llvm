@@ -201,7 +201,7 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
     // which means that there is already an allocation(cl_mem) in some context.
     // Registering this allocation in the SYCL graph.
 
-    sycl::vector_class<sycl::device> Devices =
+    std::vector<sycl::device> Devices =
         InteropCtxPtr->get_info<info::context::devices>();
     assert(Devices.size() != 0);
     DeviceImplPtr Dev = detail::getSyclObjImpl(Devices[0]);
