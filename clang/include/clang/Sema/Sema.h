@@ -375,10 +375,10 @@ private:
   // there are four free functions the kernel may call (this_id, this_item,
   // this_nd_item, this_group)
   struct KernelCallsSYCLFreeFunction {
-    bool CallsThisId;
-    bool CallsThisItem;
-    bool CallsThisNDItem;
-    bool CallsThisGroup;
+    bool CallsThisId = false;
+    bool CallsThisItem = false;
+    bool CallsThisNDItem = false;
+    bool CallsThisGroup = false;
   };
 
   // Kernel invocation descriptor
@@ -402,7 +402,7 @@ private:
 
     // Whether kernel calls any of the SYCL free functions (this_item(),
     // this_id(), etc)
-    KernelCallsSYCLFreeFunction FreeFunctionCalls;
+    KernelCallsSYCLFreeFunction FreeFunctionCalls{};
 
     // If we are in unnamed kernel/lambda mode AND this is one that the user
     // hasn't provided an explicit name for.
