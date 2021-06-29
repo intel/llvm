@@ -4653,11 +4653,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
   }
 
-  if (!UnnamedLambdaSupport) {
-    O << "// Forward declarations of templated kernel function types:\n";
-    for (const KernelDesc &K : KernelDescs)
+  O << "// Forward declarations of templated kernel function types:\n";
+  for (const KernelDesc &K : KernelDescs)
+    if (!K.IsUnnamedKernel)
       FwdDeclEmitter.Visit(K.NameType);
-  }
   O << "\n";
 
   O << "__SYCL_INLINE_NAMESPACE(cl) {\n";
@@ -4702,7 +4701,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
-    if (UnnamedLambdaSupport) {
+    if (K.IsUnnamedKernel) {
       O << "template <> struct KernelInfoData<";
       O << "'" << K.StableName.front();
       for (char c : StringRef(K.StableName).substr(1))
@@ -4813,9 +4812,7 @@ void SYCLIntegrationHeader::setCallsThisGroup(bool B) {
   K->FreeFunctionCalls.CallsThisGroup = B;
 }
 
-SYCLIntegrationHeader::SYCLIntegrationHeader(bool _UnnamedLambdaSupport,
-                                             Sema &_S)
-    : UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
+SYCLIntegrationHeader::SYCLIntegrationHeader(Sema &_S) : S(_S) {}
 
 void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   // Variable template declaration can result in an error case of 'nullptr'

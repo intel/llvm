@@ -322,7 +322,7 @@ public:
   };
 
 public:
-  SYCLIntegrationHeader(bool UnnamedLambdaSupport, Sema &S);
+  SYCLIntegrationHeader(Sema &S);
 
   /// Emits contents of the header into given stream.
   void emit(raw_ostream &Out);
@@ -433,10 +433,6 @@ private:
   /// constant's ID type to generated unique name. Duplicates are removed at
   /// integration header emission time.
   llvm::SmallVector<SpecConstID, 4> SpecConsts;
-
-  /// Whether header is generated with unnamed lambda support
-  // TODO: ERICH: Can we get rid of this bool here?
-  bool UnnamedLambdaSupport;
 
   Sema &S;
 };
@@ -13285,8 +13281,7 @@ public:
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
     if (SyclIntHeader == nullptr)
-      SyclIntHeader = std::make_unique<SYCLIntegrationHeader>(
-          getLangOpts().SYCLUnnamedLambda, *this);
+      SyclIntHeader = std::make_unique<SYCLIntegrationHeader>(*this);
     return *SyclIntHeader.get();
   }
 
