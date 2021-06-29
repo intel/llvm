@@ -115,7 +115,7 @@ static pi_result mapError(ze_result_t ZeResult) {
 }
 
 // This will count the calls to Level-Zero
-static std::map<std::string, int> *ZeCallCount = nullptr;
+static std::map<const char *, int> *ZeCallCount = nullptr;
 
 // Trace a call to Level-Zero RT
 #define ZE_CALL(ZeName, ZeArgs)                                                \
@@ -1226,7 +1226,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   ZeDebug = DebugModeValue;
 
   if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
-    ZeCallCount = new std::map<std::string, int>;
+    ZeCallCount = new std::map<const char *, int>;
   }
 
   if (NumEntries == 0 && Platforms != nullptr) {
@@ -6461,7 +6461,7 @@ pi_result piTearDown(void *PluginParameter) {
     // one are allocating objects of that type, while the last element is known
     // to deallocate objects of that type.
     //
-    std::vector<std::vector<std::string>> CreateDestroySet = {
+    std::vector<std::vector<const char *>> CreateDestroySet = {
       {"zeContextCreate",      "zeContextDestroy"},
       {"zeCommandQueueCreate", "zeCommandQueueDestroy"},
       {"zeModuleCreate",       "zeModuleDestroy"},
@@ -6501,7 +6501,7 @@ pi_result piTearDown(void *PluginParameter) {
     for (const auto &Row : CreateDestroySet) {
       int diff = 0;
       for (auto I = Row.begin(); I != Row.end();) {
-        const auto &ZeName = I->c_str();
+        const char *ZeName = *I;
         const auto &ZeCount = (*ZeCallCount)[*I];
 
         bool First = (I == Row.begin());
