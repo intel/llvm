@@ -1,9 +1,6 @@
 // XFAIL: cuda
 // The negative test fails on CUDA.  It's not clear whether the CUDA backend
 // respects the reqd_work_group_size attribute.
-// XFAIL: level_zero && linux
-// Positive test fails on Linux (Level Zero GPU RT 21.21.19914). Zero sizes
-// for local size is not allowed when required work group size is specified.
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
