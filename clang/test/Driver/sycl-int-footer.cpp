@@ -30,3 +30,36 @@
 // RUN:   | FileCheck -check-prefix NO-FOOTER --implicit-check-not "-fsycl-int-footer" %s
 // NO-FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-sycl-std={{.*}}"
 // NO-FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-o"
+
+/// Check phases without integration footer
+// RUN: %clangxx -fsycl -fno-sycl-device-lib=all -fno-sycl-use-footer %s -ccc-print-phases 2>&1 \
+// RUN:   | FileCheck -check-prefix NO-FOOTER-PHASES -check-prefix COMMON-PHASES %s
+// NO-FOOTER-PHASES: 0: input, "{{.*}}", c++, (host-sycl)
+// NO-FOOTER-PHASES: [[#HOST_PREPROC:]]: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// NO-FOOTER-PHASES: 2: input, "{{.*}}", c++, (device-sycl)
+// NO-FOOTER-PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
+// NO-FOOTER-PHASES: [[#DEVICE_IR:]]: compiler, {3}, ir, (device-sycl)
+
+/// Check phases with integration footer
+// RUN: %clangxx -fsycl -fno-sycl-device-lib=all %s -ccc-print-phases 2>&1 \
+// RUN:   | FileCheck -check-prefix FOOTER-PHASES -check-prefix COMMON-PHASES %s
+// FOOTER-PHASES: 0: input, "{{.*}}", c++, (host-sycl)
+// FOOTER-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// FOOTER-PHASES: 2: append-footer, {1}, c++, (host-sycl)
+// FOOTER-PHASES: [[#HOST_PREPROC:]]: preprocessor, {2}, c++-cpp-output, (host-sycl)
+// FOOTER-PHASES: 4: input, "{{.*}}", c++, (device-sycl)
+// FOOTER-PHASES: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
+// FOOTER-PHASES: [[#DEVICE_IR:]]: compiler, {5}, ir, (device-sycl)
+
+// COMMON-PHASES: [[#OFFLOAD:]]: offload, "host-sycl (x86_64-unknown-linux-gnu)" {[[#HOST_PREPROC]]}, "device-sycl (spir64-unknown-unknown-sycldevice)" {[[#DEVICE_IR]]}, c++-cpp-output
+// COMMON-PHASES: [[#OFFLOAD+1]]: compiler, {[[#OFFLOAD]]}, ir, (host-sycl)
+// COMMON-PHASES: [[#OFFLOAD+2]]: backend, {[[#OFFLOAD+1]]}, assembler, (host-sycl)
+// COMMON-PHASES: [[#OFFLOAD+3]]: assembler, {[[#OFFLOAD+2]]}, object, (host-sycl)
+// COMMON-PHASES: [[#OFFLOAD+4]]: linker, {[[#OFFLOAD+3]]}, image, (host-sycl)
+// COMMON-PHASES: [[#OFFLOAD+5]]: linker, {[[#DEVICE_IR]]}, ir, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+6]]: sycl-post-link, {[[#OFFLOAD+5]]}, tempfiletable, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+7]]: file-table-tform, {[[#OFFLOAD+6]]}, tempfilelist, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+8]]: llvm-spirv, {[[#OFFLOAD+7]]}, tempfilelist, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+9]]: file-table-tform, {[[#OFFLOAD+6]], [[#OFFLOAD+8]]}, tempfiletable, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+10]]: clang-offload-wrapper, {[[#OFFLOAD+9]]}, object, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+11]]: offload, "host-sycl (x86_64-unknown-linux-gnu)" {[[#OFFLOAD+4]]}, "device-sycl (spir64-unknown-unknown-sycldevice)" {[[#OFFLOAD+10]]}, image
