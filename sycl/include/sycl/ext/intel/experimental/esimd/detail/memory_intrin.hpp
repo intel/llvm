@@ -1254,7 +1254,7 @@ __esimd_slm_atomic0(__SEIEED::vector_type_t<uint32_t, N> addrs,
       Ty *p = reinterpret_cast<Ty *>(addrs[i] + WriteBase);
 
       switch (Op) {
-      case __SEIEE::EsimdAtomicOpType::ATOMIC_INC:
+      case __SEIEE::atomic_op::inc:
         retv[i] = atomic_add_fetch<Ty>(p, 1);
         break;
       default:
@@ -1271,21 +1271,6 @@ __esimd_slm_atomic1(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
                     __SEIEED::vector_type_t<uint16_t, N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
-
-  for (int i = 0; i < N; i++) {
-    if (pred[i]) {
-      Ty *p = reinterpret_cast<Ty *>(addrs[i]);
-
-      switch (Op) {
-      case __SEIEE::EsimdAtomicOpType::ATOMIC_ADD:
-        retv[i] = atomic_add_fetch<Ty>(p, src0[i]);
-        break;
-      default:
-        throw cl::sycl::feature_not_supported();
-      }
-    }
-  }
-
   return retv;
 }
 
@@ -1315,6 +1300,21 @@ __esimd_flat_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
                      __SEIEED::vector_type_t<Ty, N> src0,
                      __SEIEED::vector_type_t<uint16_t, N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
+
+  for (int i = 0; i < N; i++) {
+    if (pred[i]) {
+      Ty *p = reinterpret_cast<Ty *>(addrs[i]);
+
+      switch (Op) {
+      case __SEIEE::atomic_op::add:
+        retv[i] = atomic_add_fetch<Ty>(p, src0[i]);
+        break;
+      default:
+        throw cl::sycl::feature_not_supported();
+      }
+    }
+  }
+
   return retv;
 }
 
