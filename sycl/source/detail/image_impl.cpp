@@ -55,12 +55,12 @@ uint8_t getImageNumberChannels(image_channel_order Order) {
     return 2;
   case image_channel_order::rgb:
   case image_channel_order::rgbx:
-  case image_channel_order::srgb:
     return 3;
   case image_channel_order::rgba:
   case image_channel_order::argb:
   case image_channel_order::bgra:
   case image_channel_order::abgr:
+  case image_channel_order::srgb:
   case image_channel_order::srgba:
     return 4;
   }
