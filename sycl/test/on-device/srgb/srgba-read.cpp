@@ -31,7 +31,7 @@ void outputPixel(sycl::float4 somePixel) {
 constexpr long width = 4;
 constexpr long height = 3;
 
-void test_rw(image_channel_order ChanOrder, image_channel_type ChanType) {
+void test_rd(image_channel_order ChanOrder, image_channel_type ChanType) {
 
   int numTests = 4; // drives the size of the testResults buffer, and the number
                     // of report iterations. Kludge.
@@ -108,7 +108,7 @@ int main() {
 
     // RGBA -- WORKS
     std::cout << "rgba -------" << std::endl;
-    test_rw(image_channel_order::rgba, image_channel_type::unorm_int8);
+    test_rd(image_channel_order::rgba, image_channel_type::unorm_int8);
 
     // srgb (24 bit) throws exception, as size is supposed to be power of 2.
     // srgbx and srgba tests follow.
@@ -124,7 +124,7 @@ int main() {
     //          LevelZero accepts this, but I suspect it does not apply any
     //          linear scaling.
     std::cout << "srgba -------" << std::endl;
-    test_rw(image_channel_order::srgba, image_channel_type::unorm_int8);
+    test_rd(image_channel_order::srgba, image_channel_type::unorm_int8);
   } else {
     std::cout << "device does not support image operations" << std::endl;
   }
