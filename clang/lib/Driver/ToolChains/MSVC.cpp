@@ -574,7 +574,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // which we do not want to use when we are performing the host link when
   // gathering dependencies used for device compilation.  Add an additional
   // -out: to override in case it was seen.
-  if (JA.getType() == types::TY_Dependencies_Image && Output.isFilename())
+  if (JA.getType() == types::TY_Host_Dependencies_Image && Output.isFilename())
     CmdArgs.push_back(
         Args.MakeArgString(std::string("-out:") + Output.getFilename()));
 

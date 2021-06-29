@@ -64,7 +64,7 @@
 // FOFFLOAD_STATIC_LIB_SRC: 10: backend, {9}, assembler, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 11: assembler, {10}, object, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 12: linker, {0, 11}, image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 13: linker, {0, 11}, dep_image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 13: linker, {0, 11}, host_dep_image, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 14: clang-offload-deps, {13}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 15: input, "[[INPUTA]]", archive
 // FOFFLOAD_STATIC_LIB_SRC: 16: clang-offload-unbundler, {15}, archive
@@ -133,7 +133,7 @@
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_NOSRC_PHASES
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 1: linker, {0}, image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 2: linker, {0}, dep_image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 2: linker, {0}, host_dep_image, (host-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 3: clang-offload-deps, {2}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 4: input, "[[INPUTA]]", archive
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 5: clang-offload-unbundler, {4}, archive
