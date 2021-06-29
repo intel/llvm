@@ -573,8 +573,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityFPGAInvocationPipeliningAttributesINTEL,
       "FPGAInvocationPipeliningAttributesINTEL");
   add(internal::CapabilityTokenTypeINTEL, "TokenTypeINTEL");
-
   add(CapabilityMax, "Max");
+  add(internal::CapabilityDebugInfoModuleINTEL, "DebugInfoModuleINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 
