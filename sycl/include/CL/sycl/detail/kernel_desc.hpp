@@ -120,7 +120,7 @@ public:
 // and this picks it up via the KernelInfoImpl. For non-existent kernels, this
 // will also pick up a KernelInfoData (as SubKernelInfo) via KernelInfoImpl, but
 // it will instead get the unspecialized case, defined above.
-template<class KernelNameType> struct KernelInfo {
+template <class KernelNameType> struct KernelInfo {
   using SubKernelInfo = typename KernelInfoImpl<KernelNameType>::type;
   static constexpr unsigned getNumParams() { SubKernelInfo::getNumParams(); }
   static const kernel_param_desc_t &getParamDesc(int Idx) {
