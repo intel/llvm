@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/INTEL/fpga_device_selector.hpp>
-#include <CL/sycl/INTEL/fpga_lsu.hpp>
-#include <CL/sycl/INTEL/fpga_reg.hpp>
-#include <CL/sycl/INTEL/pipes.hpp>
+#include <CL/sycl/intel/fpga_device_selector.hpp>
+#include <CL/sycl/intel/fpga_lsu.hpp>
+#include <CL/sycl/intel/fpga_reg.hpp>
+#include <CL/sycl/intel/pipes.hpp>

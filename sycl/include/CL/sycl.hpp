@@ -8,14 +8,14 @@
 
 #pragma once
 
-#include <CL/sycl/ONEAPI/atomic.hpp>
-#include <CL/sycl/ONEAPI/experimental/builtins.hpp>
-#include <CL/sycl/ONEAPI/filter_selector.hpp>
-#include <CL/sycl/ONEAPI/function_pointer.hpp>
-#include <CL/sycl/ONEAPI/group_algorithm.hpp>
-#include <CL/sycl/ONEAPI/matrix/matrix.hpp>
-#include <CL/sycl/ONEAPI/reduction.hpp>
-#include <CL/sycl/ONEAPI/sub_group.hpp>
+#include <CL/sycl/oneapi/atomic.hpp>
+#include <CL/sycl/oneapi/experimental/builtins.hpp>
+#include <CL/sycl/oneapi/filter_selector.hpp>
+#include <CL/sycl/oneapi/function_pointer.hpp>
+#include <CL/sycl/oneapi/group_algorithm.hpp>
+#include <CL/sycl/oneapi/matrix/matrix.hpp>
+#include <CL/sycl/oneapi/reduction.hpp>
+#include <CL/sycl/oneapi/sub_group.hpp>
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/aspects.hpp>
 #include <CL/sycl/atomic.hpp>

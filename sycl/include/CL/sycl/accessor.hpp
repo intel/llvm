@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/__spirv/spirv_types.hpp>
-#include <CL/sycl/ONEAPI/accessor_property_list.hpp>
+#include <CL/sycl/oneapi/accessor_property_list.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>

@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/ONEAPI/atomic_enums.hpp>
-#include <CL/sycl/ONEAPI/atomic_ref.hpp>
+#include <CL/sycl/oneapi/atomic_enums.hpp>
+#include <CL/sycl/onepai/atomic_ref.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/accessor.hpp>
 

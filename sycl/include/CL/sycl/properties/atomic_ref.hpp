@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/ONEAPI/atomic_enums.hpp>
+#include <CL/sycl/oneapi/atomic_enums.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/detail/defines.hpp>

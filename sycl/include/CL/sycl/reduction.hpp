@@ -10,7 +10,7 @@
 
 #include <CL/sycl/known_identity.hpp>
 
-#include "CL/sycl/ONEAPI/reduction.hpp"
+#include "CL/sycl/oneapi/reduction.hpp"
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

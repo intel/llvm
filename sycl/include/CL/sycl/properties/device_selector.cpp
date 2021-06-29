@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/ONEAPI/filter_selector.hpp>
+#include <CL/sycl/oneapi/filter_selector.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/device.hpp>

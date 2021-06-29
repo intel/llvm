@@ -43,4 +43,4 @@ template <> uint32_t pi_cast(uint64_t Value) {
   std::terminate();
 }
 
-#include <CL/sycl/INTEL/esimd/detail/emu/esimdcpu_device_interface.hpp>
+#include <CL/sycl/intel/esimd/detail/emu/esimdcpu_device_interface.hpp>

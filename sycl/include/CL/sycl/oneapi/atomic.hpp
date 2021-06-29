@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/ONEAPI/atomic_accessor.hpp>
-#include <CL/sycl/ONEAPI/atomic_enums.hpp>
-#include <CL/sycl/ONEAPI/atomic_fence.hpp>
-#include <CL/sycl/ONEAPI/atomic_ref.hpp>
+#include <CL/sycl/oneapi/atomic_accessor.hpp>
+#include <CL/sycl/oneapi/atomic_enums.hpp>
+#include <CL/sycl/oneapi/atomic_fence.hpp>
+#include <CL/sycl/oneapi/atomic_ref.hpp>

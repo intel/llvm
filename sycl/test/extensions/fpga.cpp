@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/fpga_extensions.hpp>
+#include <CL/sycl/intel/fpga_extensions.hpp>
 namespace intelfpga {
 template <unsigned ID> struct ethernet_pipe_id {
   static constexpr unsigned id = ID;

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/ONEAPI/sub_group.hpp>
+#include <CL/sycl/oneapi/sub_group.hpp>
 #include <CL/sycl/group.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
