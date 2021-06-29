@@ -44,7 +44,6 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
     // With SYCL-2020 BE generalization "make" functions are used instead.
     Plugin.call<PiApiKind::piextDeviceCreateWithNativeHandle>(
         InteropDeviceHandle, nullptr, &MDevice);
-    std::cout << "interop device constructor " << std::endl;
     InteroperabilityConstructor = true;
   }
 
