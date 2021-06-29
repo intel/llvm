@@ -129,7 +129,7 @@ template <class KernelNameType> struct KernelInfo {
     return SubKernelInfo::getParamDesc(Idx);
   }
   static constexpr const char *getName() { return SubKernelInfo::getName(); }
-  static constexpr bool isESIMD() { return kSubKernelInfo::isESIMD(); }
+  static constexpr bool isESIMD() { return SubKernelInfo::isESIMD(); }
   static constexpr bool callsThisItem() {
     return SubKernelInfo::callsThisItem();
   }
