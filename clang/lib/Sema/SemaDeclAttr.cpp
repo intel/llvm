@@ -6396,8 +6396,7 @@ static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
 }
 
 // Handle [[intel:fpga_pipeline]] attribute.
-void Sema::AddSYCLIntelFpgaPipelineAttr(Decl *D,
-                                        const AttributeCommonInfo &CI,
+void Sema::AddSYCLIntelFpgaPipelineAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *E) {
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the
@@ -6436,8 +6435,9 @@ void Sema::AddSYCLIntelFpgaPipelineAttr(Decl *D,
   D->addAttr(::new (Context) SYCLIntelFpgaPipelineAttr(Context, CI, E));
 }
 
-SYCLIntelFpgaPipelineAttr *Sema::MergeSYCLIntelFpgaPipelineAttr(
-    Decl *D, const SYCLIntelFpgaPipelineAttr &A) {
+SYCLIntelFpgaPipelineAttr *
+Sema::MergeSYCLIntelFpgaPipelineAttr(Decl *D,
+                                     const SYCLIntelFpgaPipelineAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelFpgaPipelineAttr>()) {
@@ -6452,8 +6452,8 @@ SYCLIntelFpgaPipelineAttr *Sema::MergeSYCLIntelFpgaPipelineAttr(
       }
     }
   }
-  return ::new (Context)
-       SYCLIntelFpgaPipelineAttr(Context, A, A.getValue());
+
+  return ::new (Context) SYCLIntelFpgaPipelineAttr(Context, A, A.getValue());
 }
 
 static void handleSYCLIntelFpgaPipelineAttr(Sema &S, Decl *D,

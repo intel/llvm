@@ -788,11 +788,10 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   if (const auto *A = FD->getAttr<SYCLIntelFpgaPipelineAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getValue());
     Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(
-              ArgVal->getBoolValue() ? Builder.getInt32(0) : Builder.getInt32(1))};
+    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
+        ArgVal->getBoolValue() ? Builder.getInt32(0) : Builder.getInt32(1))};
     Fn->setMetadata("disable_loop_pipelining",
-                     llvm::MDNode::get(Context, AttrMDArgs));
+                    llvm::MDNode::get(Context, AttrMDArgs));
   }
 }
 

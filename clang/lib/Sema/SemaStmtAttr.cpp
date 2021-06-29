@@ -94,8 +94,7 @@ static Attr *handleSYCLIntelFPGAPipelineAttr(Sema &S, Stmt *,
 }
 
 SYCLIntelFpgaPipelineAttr *
-Sema::BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &A,
-                                     Expr *E) {
+Sema::BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &A, Expr *E) {
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the
     // converted constant expression into the semantic attribute so that we
@@ -114,7 +113,7 @@ Sema::BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &A,
     }
   }
 
-  return new (Context) SYCLIntelFpgaPipelineAttr (Context, A, E);
+  return new (Context) SYCLIntelFpgaPipelineAttr(Context, A, E);
 }
 
 static bool checkSYCLIntelFPGAIVDepSafeLen(Sema &S, llvm::APSInt &Value,

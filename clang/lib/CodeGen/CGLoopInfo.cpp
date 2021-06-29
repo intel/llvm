@@ -615,9 +615,8 @@ MDNode *LoopInfo::createMetadata(
   if (Attrs.SYCLIntelFPGAPipelineEnable) {
     Metadata *Vals[] = {
         MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
-        ConstantAsMetadata::get(
-            ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
-                             Attrs.SYCLIntelFPGANPipelines))};
+	ConstantAsMetadata::get(ConstantInt::get(
+            llvm::Type::getInt32Ty(Ctx), Attrs.SYCLIntelFPGANPipelines))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
@@ -710,8 +709,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.DistributeEnable == LoopAttributes::Unspecified && !StartLoc &&
       Attrs.SYCLNofusionEnable == false &&
       Attrs.SYCLIntelFPGAPipelineEnable == false &&
-      Attrs.SYCLIntelFPGANPipelines == 0 &&
-      !EndLoc && !Attrs.MustProgress)
+      Attrs.SYCLIntelFPGANPipelines == 0 && !EndLoc && !Attrs.MustProgress)
     return;
 
   TempLoopID = MDNode::getTemporary(Header->getContext(), None);
@@ -1035,6 +1033,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
   // emitted
   // For attribute nofusion:
   // 'llvm.loop.fusion.disable' metadata will be emitted
+  // For attribute fpga_pipeline:
+  // n - 'llvm.loop.intel.pipelining.enable, i32 n' metadata will be emitted
   for (const auto *A : Attrs) {
     if (const auto *IntelFPGAIVDep = dyn_cast<SYCLIntelFPGAIVDepAttr>(A))
       addSYCLIVDepInfo(Header->getContext(), IntelFPGAIVDep->getSafelenValue(),
@@ -1102,9 +1102,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     if (const auto *IntelFpgaPipeline =
             dyn_cast<SYCLIntelFpgaPipelineAttr>(A)) {
       setSYCLIntelFPGAPipelineEnable();
-      setSYCLIntelFPGANPipelines(
-         IntelFpgaPipeline->getValue()
-         ->getIntegerConstantExpr(Ctx)->getSExtValue());
+      setSYCLIntelFPGANPipelines(IntelFpgaPipeline->getValue()
+                                     ->getIntegerConstantExpr(Ctx)
+                                     ->getSExtValue());
     }
   }
 

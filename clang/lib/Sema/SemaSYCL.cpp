@@ -574,7 +574,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
       return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
                  SYCLIntelFPGADisableLoopPipeliningAttr,
                  SYCLIntelFPGAInitiationIntervalAttr,
-		 SYCLIntelFpgaPipelineAttr>(A);
+                 SYCLIntelFpgaPipelineAttr>(A);
     });
   }
 }

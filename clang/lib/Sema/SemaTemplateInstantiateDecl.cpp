@@ -1036,8 +1036,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *SYCLIntelFpgaPipeline =
             dyn_cast<SYCLIntelFpgaPipelineAttr>(TmplAttr)) {
-      instantiateSYCLIntelFpgaPipelineAttr(
-          *this, TemplateArgs, SYCLIntelFpgaPipeline, New);
+      instantiateSYCLIntelFpgaPipelineAttr(*this, TemplateArgs,
+                                           SYCLIntelFpgaPipeline, New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.

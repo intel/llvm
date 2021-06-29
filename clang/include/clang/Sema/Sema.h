@@ -10417,8 +10417,8 @@ public:
   MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
                                      const SYCLIntelMaxGlobalWorkDimAttr &A);
 
-  SYCLIntelFpgaPipelineAttr *MergeSYCLIntelFpgaPipelineAttr(
-      Decl *D, const SYCLIntelFpgaPipelineAttr &A);
+  SYCLIntelFpgaPipelineAttr *
+  MergeSYCLIntelFpgaPipelineAttr(Decl *D, const SYCLIntelFpgaPipelineAttr &A);
   void AddSYCLIntelFpgaPipelineAttr(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *E);
 
