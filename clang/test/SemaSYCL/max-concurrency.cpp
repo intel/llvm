@@ -16,19 +16,35 @@ public:
 
 [[intel::max_concurrency]] void foo() {} // expected-error {{'max_concurrency' attribute takes one argument}}
 
-// Tests for Intel FPGA max_concurrency and disable_loop_pipelining function attributes compatibility.
+// Tests for Intel FPGA max_concurrency and disable_loop_pipelining/fpga_pipeline function attributes compatibility checks.
+// expected-warning@+4 {{attribute 'intel::disable_loop_pipelining' is deprecated}}
+// expected-note@+3 {{did you mean to use 'intel::fpga_pipeline' instead?}}
 // expected-error@+2 {{'max_concurrency' and 'disable_loop_pipelining' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::disable_loop_pipelining]] [[intel::max_concurrency(2)]] void check();
 
-// expected-error@+2 {{'disable_loop_pipelining' and 'max_concurrency' attributes are not compatible}}
+// expected-error@+2 {{'fpga_pipeline' and 'max_concurrency' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::max_concurrency(4)]] [[intel::disable_loop_pipelining]] void check1();
+[[intel::max_concurrency(4)]] [[intel::fpga_pipeline]] void check1();
 
 // expected-error@+3 {{'disable_loop_pipelining' and 'max_concurrency' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::max_concurrency(4)]] void check2();
-[[intel::disable_loop_pipelining]] void check2();
+[[intel::disable_loop_pipelining]] void check2(); // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
+		                                  // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
+// expected-error@+2 {{'max_concurrency' and 'fpga_pipeline' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
+[[intel::fpga_pipeline(1)]] [[intel::max_concurrency(2)]] void check3();
+
+// expected-error@+3 {{'fpga_pipeline' and 'max_concurrency' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
+[[intel::max_concurrency(8)]] void check5();
+[[intel::fpga_pipeline(0)]] void check5();
+
+// expected-error@+3 {{'max_concurrency' and 'fpga_pipeline' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
+[[intel::fpga_pipeline(1)]] void check6();
+[[intel::max_concurrency(8)]] void check6();
 
 class Functor2 {
 public:

@@ -2172,6 +2172,9 @@ public:
   SYCLIntelFPGALoopCountAttr *
   BuildSYCLIntelFPGALoopCount(const AttributeCommonInfo &CI, Expr *E);
 
+  SYCLIntelFpgaPipelineAttr *
+  BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &CI, Expr *E);
+
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 
   bool CheckFunctionReturnType(QualType T, SourceLocation Loc);
@@ -10413,6 +10416,12 @@ public:
   SYCLIntelMaxGlobalWorkDimAttr *
   MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
                                      const SYCLIntelMaxGlobalWorkDimAttr &A);
+
+  SYCLIntelFpgaPipelineAttr *MergeSYCLIntelFpgaPipelineAttr(
+      Decl *D, const SYCLIntelFpgaPipelineAttr &A);
+  void AddSYCLIntelFpgaPipelineAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *E);
+
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);

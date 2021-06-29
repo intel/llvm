@@ -762,6 +762,16 @@ static void instantiateWorkGroupSizeHintAttr(
                              ZResult.get());
 }
 
+static void instantiateSYCLIntelFpgaPipelineAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelFpgaPipelineAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddSYCLIntelFpgaPipelineAttr(New, *A, Result.getAs<Expr>());
+}
+
 // This doesn't take any template parameters, but we have a custom action that
 // needs to happen when the kernel itself is instantiated. We need to run the
 // ItaniumMangler to mark the names required to name this kernel.
@@ -1022,6 +1032,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(TmplAttr)) {
       instantiateWorkGroupSizeHintAttr(*this, TemplateArgs, A, New);
+      continue;
+    }
+    if (const auto *SYCLIntelFpgaPipeline =
+            dyn_cast<SYCLIntelFpgaPipelineAttr>(TmplAttr)) {
+      instantiateSYCLIntelFpgaPipelineAttr(
+          *this, TemplateArgs, SYCLIntelFpgaPipeline, New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.

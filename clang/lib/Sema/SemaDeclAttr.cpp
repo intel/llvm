@@ -379,6 +379,14 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     DiagnoseDeprecatedAttribute(A, "intel", NewName);
     return;
   }
+
+  // Deprecate [[intel::disable_loop_pipelining]] attribute spelling in favor
+  // of the SYCL FPGA attribute spelling [[intel::fpga_pipeline]].
+  if (A.hasScope() && A.getScopeName()->isStr("intel") &&
+      A.getAttrName()->isStr("disable_loop_pipelining")) {
+    DiagnoseDeprecatedAttribute(A, "intel", "fpga_pipeline");
+    return;
+  }
 }
 
 /// Check if IdxExpr is a valid parameter index for a function or
@@ -6387,6 +6395,78 @@ static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
   S.AddIntelFPGAMaxReplicatesAttr(D, A, A.getArgAsExpr(0));
 }
 
+// Handle [[intel:fpga_pipeline]] attribute.
+void Sema::AddSYCLIntelFpgaPipelineAttr(Decl *D,
+                                        const AttributeCommonInfo &CI,
+                                        Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
+
+    // This attribute requires a non-negative value.
+    if (ArgVal < 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*non-negative*/ 1;
+      return;
+    }
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelFpgaPipelineAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
+  }
+
+  D->addAttr(::new (Context) SYCLIntelFpgaPipelineAttr(Context, CI, E));
+}
+
+SYCLIntelFpgaPipelineAttr *Sema::MergeSYCLIntelFpgaPipelineAttr(
+    Decl *D, const SYCLIntelFpgaPipelineAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelFpgaPipelineAttr>()) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // Do not add a duplicate attribute.
+        return nullptr;
+      }
+    }
+  }
+  return ::new (Context)
+       SYCLIntelFpgaPipelineAttr(Context, A, A.getValue());
+}
+
+static void handleSYCLIntelFpgaPipelineAttr(Sema &S, Decl *D,
+                                            const ParsedAttr &A) {
+  // If no attribute argument is specified, set to default value '1'.
+  Expr *E = A.isArgExpr(0)
+                ? A.getArgAsExpr(0)
+                : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                         S.Context.IntTy, A.getLoc());
+
+  S.AddSYCLIntelFpgaPipelineAttr(D, A, E);
+}
+
 /// Handle the merge attribute.
 /// This requires two string arguments.  The first argument is a name, the
 /// second is a direction.  The direction must be "depth" or "width".
@@ -9700,6 +9780,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLIntelFPGAInitiationInterval:
     handleSYCLIntelFPGAInitiationIntervalAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelFpgaPipeline:
+    handleSYCLIntelFpgaPipelineAttr(S, D, AL);
     break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);
