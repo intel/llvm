@@ -221,9 +221,8 @@ const char *stringifyErrorCode(cl_int error) {
   }
 }
 
-vector_class<string_class> split_string(const string_class &str,
-                                        char delimeter) {
-  vector_class<string_class> result;
+std::vector<std::string> split_string(const std::string &str, char delimeter) {
+  std::vector<std::string> result;
   size_t beg = 0;
   size_t length = 0;
   for (const auto &x : str) {

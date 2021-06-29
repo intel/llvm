@@ -74,6 +74,8 @@ enum InternalMemoryAccessMask {
 
 enum InternalExecutionMode { IExecModeFastCompositeKernelINTEL = 6088 };
 
+enum InternalLoopControlMask { ILoopControlLoopCountINTELMask = 0x1000000 };
+
 constexpr LinkageType LinkageTypeInternal =
     static_cast<LinkageType>(ILTInternal);
 
@@ -127,6 +129,9 @@ constexpr MemoryAccessMask MemoryAccessNoAliasINTELMask =
 
 constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
     static_cast<ExecutionMode>(IExecModeFastCompositeKernelINTEL);
+
+constexpr LoopControlMask LoopControlLoopCountINTELMask =
+    static_cast<LoopControlMask>(ILoopControlLoopCountINTELMask);
 
 } // namespace internal
 } // namespace spv

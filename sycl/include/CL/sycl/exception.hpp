@@ -45,21 +45,21 @@ public:
   cl_int get_cl_code() const;
 
 private:
-  string_class MMsg;
+  std::string MMsg;
   cl_int MCLErr;
-  shared_ptr_class<context> MContext;
+  std::shared_ptr<context> MContext;
 
 protected:
   exception(const char *Msg, const cl_int CLErr,
-            shared_ptr_class<context> Context = nullptr)
-      : exception(string_class(Msg), CLErr, Context) {}
+            std::shared_ptr<context> Context = nullptr)
+      : exception(std::string(Msg), CLErr, Context) {}
 
-  exception(const string_class &Msg, const cl_int CLErr,
-            shared_ptr_class<context> Context = nullptr)
+  exception(const std::string &Msg, const cl_int CLErr,
+            std::shared_ptr<context> Context = nullptr)
       : MMsg(Msg + " " + detail::codeToString(CLErr)), MCLErr(CLErr),
         MContext(Context) {}
 
-  exception(const string_class &Msg) : MMsg(Msg), MContext(nullptr) {}
+  exception(const std::string &Msg) : MMsg(Msg), MContext(nullptr) {}
 };
 
 class runtime_error : public exception {
@@ -67,9 +67,9 @@ public:
   runtime_error() = default;
 
   runtime_error(const char *Msg, cl_int Err)
-      : runtime_error(string_class(Msg), Err) {}
+      : runtime_error(std::string(Msg), Err) {}
 
-  runtime_error(const string_class &Msg, cl_int Err) : exception(Msg, Err) {}
+  runtime_error(const std::string &Msg, cl_int Err) : exception(Msg, Err) {}
 };
 class kernel_error : public runtime_error {
   using runtime_error::runtime_error;
@@ -91,9 +91,9 @@ public:
   device_error() = default;
 
   device_error(const char *Msg, cl_int Err)
-      : device_error(string_class(Msg), Err) {}
+      : device_error(std::string(Msg), Err) {}
 
-  device_error(const string_class &Msg, cl_int Err) : exception(Msg, Err) {}
+  device_error(const std::string &Msg, cl_int Err) : exception(Msg, Err) {}
 };
 class compile_program_error : public device_error {
   using device_error::device_error;

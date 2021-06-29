@@ -74,7 +74,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
   std::vector<Command *> AuxiliaryCmds;
   const bool IsHostKernel = CommandGroup->getType() == CG::RUN_ON_HOST_INTEL;
-  vector_class<StreamImplPtr> Streams;
+  std::vector<StreamImplPtr> Streams;
 
   if (IsKernel) {
     Streams = ((CGExecKernel *)CommandGroup.get())->getStreams();
