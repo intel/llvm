@@ -176,7 +176,7 @@ public:
         PropList);
   }
 
-  image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
+  image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
@@ -185,7 +185,7 @@ public:
         PropList);
   }
 
-  image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
+  image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
@@ -197,7 +197,7 @@ public:
 
   /* Available only when: dimensions >1 */
   template <bool B = (Dimensions > 1)>
-  image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
+  image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {}) {
@@ -209,7 +209,7 @@ public:
 
   /* Available only when: dimensions >1 */
   template <bool B = (Dimensions > 1)>
-  image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
+  image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
@@ -303,7 +303,7 @@ public:
   void set_write_back(bool flag = true) { impl->set_write_back(flag); }
 
 private:
-  shared_ptr_class<detail::image_impl<Dimensions>> impl;
+  std::shared_ptr<detail::image_impl<Dimensions>> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);

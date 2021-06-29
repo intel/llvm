@@ -221,7 +221,15 @@ SPIRVToLLVMDbgTran::transTypeVector(const SPIRVExtInst *DebugInst) {
   DIType *BaseTy =
       transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
   SPIRVWord Count = Ops[ComponentCountIdx];
-  uint64_t Size = getDerivedSizeInBits(BaseTy) * Count;
+  // FIXME: The current design of SPIR-V Debug Info doesn't provide a field
+  // for the derived memory size. Meanwhile, OpenCL/SYCL 3-element vectors
+  // occupy the same amount of memory as 4-element vectors, hence the simple
+  // elem_count * elem_size formula fails in this edge case.
+  // Once the specification is updated to reflect the whole memory block's
+  // size in SPIR-V, the calculations below must be replaced with a simple
+  // translation of the known size.
+  SPIRVWord SizeCount = (Count == 3) ? 4 : Count;
+  uint64_t Size = getDerivedSizeInBits(BaseTy) * SizeCount;
 
   SmallVector<llvm::Metadata *, 8> Subscripts;
   Subscripts.push_back(Builder.getOrCreateSubrange(0, Count));

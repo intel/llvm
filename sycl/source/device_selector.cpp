@@ -63,7 +63,7 @@ static bool isForcedDevice(const device &Dev, int Index = -1) {
 }
 
 device device_selector::select_device() const {
-  vector_class<device> devices = device::get_devices();
+  std::vector<device> devices = device::get_devices();
   int score = REJECT_DEVICE_SCORE;
   const device *res = nullptr;
 
@@ -71,9 +71,9 @@ device device_selector::select_device() const {
     int dev_score = (*this)(dev);
 
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
-      string_class PlatformName = dev.get_info<info::device::platform>()
-                                      .get_info<info::platform::name>();
-      string_class DeviceName = dev.get_info<info::device::name>();
+      std::string PlatformName = dev.get_info<info::device::platform>()
+                                     .get_info<info::platform::name>();
+      std::string DeviceName = dev.get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
                 << "select_device(): -> score = " << dev_score
                 << ((dev_score < 0) ? " (REJECTED)" : "") << std::endl
@@ -108,9 +108,9 @@ device device_selector::select_device() const {
 
   if (res != nullptr) {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
-      string_class PlatformName = res->get_info<info::device::platform>()
-                                      .get_info<info::platform::name>();
-      string_class DeviceName = res->get_info<info::device::name>();
+      std::string PlatformName = res->get_info<info::device::platform>()
+                                     .get_info<info::platform::name>();
+      std::string DeviceName = res->get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
                 << "Selected device ->" << std::endl
                 << "SYCL_PI_TRACE[all]: "

@@ -49,7 +49,7 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
 }
 
 __SYCL_EXPORT size_t
-reduGetMaxWGSize(shared_ptr_class<sycl::detail::queue_impl> Queue,
+reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
                  size_t LocalMemBytesPerWorkItem) {
   device Dev = Queue->get_device();
   size_t MaxWGSize = Dev.get_info<info::device::max_work_group_size>();
