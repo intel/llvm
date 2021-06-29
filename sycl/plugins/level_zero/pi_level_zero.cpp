@@ -185,10 +185,9 @@ template <> ze_result_t zeHostSynchronize(ze_event_handle_t Handle) {
 template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle) {
   return zeHostSynchronizeImpl(zeCommandQueueSynchronize, Handle);
 }
-// template <>
-// ze_result_t zeHostSynchronize(ze_fence_handle_t Handle) {
-//   return zeHostSynchronizeImpl(zeFenceHostSynchronize, Handle);
-// }
+template <> ze_result_t zeHostSynchronize(ze_fence_handle_t Handle) {
+  return zeHostSynchronizeImpl(zeFenceHostSynchronize, Handle);
+}
 
 template <typename T, typename Assign>
 pi_result getInfoImpl(size_t param_value_size, void *param_value,
@@ -4231,11 +4230,25 @@ static pi_result cleanupAfterEvent(pi_event Event) {
         }
 
         // It is possible that the fence was already noted as signalled and
-        // reset.  In that case the InUse flag will be false, and there is
-        // no need to query the fence's status or try to reset it.
+        // reset.  In that case the InUse flag will be false, and
+        // we shouldn't query it, synchronize on it, or try to reset it.
         if (it->second.InUse) {
+          // Workaround for VM_BIND mode.
+          // Make sure that the command-list doing memcpy is reset before
+          // non-USM host memory potentially involved in the memcpy is freed.
+          //
+          // NOTE: it is valid to wait for the fence here as long as we aren't
+          // doing batching on the involved command-list. Today memcpy goes by
+          // itself in a command list.
+          //
+          // TODO: this will unnecessarily(?) wait for non-USM memory buffers
+          // too, so we might need to add a new command type to differentiate.
+          //
           ze_result_t ZeResult =
-              ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+              (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_COPY)
+                  ? ZE_CALL_NOCHECK(zeHostSynchronize, (it->second.ZeFence))
+                  : ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+
           if (ZeResult == ZE_RESULT_SUCCESS) {
             Queue->resetCommandListFenceEntry(*it, true);
             Event->ZeCommandList = nullptr;
