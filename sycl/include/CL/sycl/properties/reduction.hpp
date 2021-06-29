@@ -1735,6 +1735,5 @@ namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
                                          size_t &NWorkGroups);
   } // namespace detail
 } // namespace ONEAPI
-}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

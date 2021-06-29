@@ -342,7 +342,6 @@ template <access::address_space AS, class DataT>
 using const_if_const_AS = DataT;
 #endif
 
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

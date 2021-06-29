@@ -1630,22 +1630,22 @@ private:
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 accessor(buffer<DataT, Dimensions, AllocatorT>)
-    ->accessor<DataT, Dimensions, access::mode::read_write,
-               target::global_buffer, access::placeholder::true_t>;
+    -> accessor<DataT, Dimensions, access::mode::read_write,
+                target::global_buffer, access::placeholder::true_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT,
           typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>,
          const oneapi::accessor_property_list<PropsT...> &)
-    ->accessor<DataT, Dimensions, access::mode::read_write,
-               target::global_buffer, access::placeholder::true_t,
-               oneapi::accessor_property_list<PropsT...>>;
+    -> accessor<DataT, Dimensions, access::mode::read_write,
+                target::global_buffer, access::placeholder::true_t,
+                oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1)
-    ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
-               detail::deduceAccessTarget<Type1, Type1>(target::global_buffer),
-               access::placeholder::true_t>;
+    -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
+                detail::deduceAccessTarget<Type1, Type1>(target::global_buffer),
+                access::placeholder::true_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename... PropsT>
