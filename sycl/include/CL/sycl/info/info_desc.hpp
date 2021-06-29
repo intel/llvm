@@ -87,8 +87,11 @@ enum class device : cl_device_info {
   global_mem_cache_line_size = CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE,
   global_mem_cache_size = CL_DEVICE_GLOBAL_MEM_CACHE_SIZE,
   global_mem_size = CL_DEVICE_GLOBAL_MEM_SIZE,
-  max_constant_buffer_size = CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,
-  max_constant_args = CL_DEVICE_MAX_CONSTANT_ARGS,
+  max_constant_buffer_size __SYCL2020_DEPRECATED(
+      "max_constant_buffer_size is deprecated") =
+      CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,
+  max_constant_args __SYCL2020_DEPRECATED("max_constant_args is deprecated") =
+      CL_DEVICE_MAX_CONSTANT_ARGS,
   local_mem_type = CL_DEVICE_LOCAL_MEM_TYPE,
   local_mem_size = CL_DEVICE_LOCAL_MEM_SIZE,
   error_correction_support = CL_DEVICE_ERROR_CORRECTION_SUPPORT,
