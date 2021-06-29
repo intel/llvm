@@ -3521,6 +3521,7 @@ class SYCLKernelNameTypeVisitor
   using InnerTemplArgVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
   bool IsInvalid = false;
+  bool IsUnnamedKernel = false;
 
   void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
     for (auto &A : Args)
@@ -3529,9 +3530,9 @@ class SYCLKernelNameTypeVisitor
 
 public:
   SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc,
-                            QualType KernelNameType)
+                            QualType KernelNameType, bool IsUnnamedKernel)
       : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc),
-        KernelNameType(KernelNameType) {}
+        KernelNameType(KernelNameType), IsUnnamedKernel(IsUnnamedKernel) {}
 
   bool isValid() { return !IsInvalid; }
 
@@ -3596,10 +3597,8 @@ public:
       }
     }
 
-    bool UnnamedLambdaEnabled =
-        S.getASTContext().getLangOpts().SYCLUnnamedLambda;
     const DeclContext *DeclCtx = DeclNamed->getDeclContext();
-    if (DeclCtx && !UnnamedLambdaEnabled) {
+    if (DeclCtx && !IsUnnamedKernel) {
 
       // Check if the kernel name declaration is declared within namespace
       // "std" (at any level).
@@ -3681,6 +3680,18 @@ public:
   }
 };
 
+// Kernels are only the unnamed-lambda feature if the feature is enabled, AND
+// the first template argument has been corrected by the library to match the
+// functor type.
+static bool IsSYCLUnnamedKernel(Sema &SemaRef, const FunctionDecl *FD) {
+  if (!SemaRef.getLangOpts().SYCLUnnamedLambda)
+    return false;
+  QualType FunctorTy = GetSYCLKernelObjectType(FD);
+  QualType TmplArgTy =
+      calculateKernelNameType(SemaRef.Context, FD).getUnqualifiedType();
+  return SemaRef.Context.hasSameType(FunctorTy, TmplArgTy);
+}
+
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                ArrayRef<const Expr *> Args) {
   // FIXME: In place until the library works around its 'host' invocation
@@ -3732,8 +3743,9 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                             IsSIMDKernel);
 
   KernelObjVisitor Visitor{*this};
-  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc(),
-                                                  KernelNameType);
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
+      *this, Args[0]->getExprLoc(), KernelNameType,
+      IsSYCLUnnamedKernel(*this, KernelFunc));
 
   DiagnosingSYCLKernel = true;
 
@@ -3808,18 +3820,6 @@ void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
   }
 }
 
-// Kernels are only the unnamed-lambda feature if the feature is enabled, AND
-// the first template argument has been corrected by the library to match the
-// functor type.
-static bool IsSYCLUnnamedLambda(Sema &SemaRef, const FunctionDecl *FD) {
-  if (!SemaRef.getLangOpts().SYCLUnnamedLambda)
-    return false;
-  QualType FunctorTy = GetSYCLKernelObjectType(FD);
-  QualType TmplArgTy =
-      calculateKernelNameType(SemaRef.Context, FD).getUnqualifiedType();
-  return SemaRef.Context.hasSameType(FunctorTy, TmplArgTy);
-}
-
 // Generates the OpenCL kernel using KernelCallerFunc (kernel caller
 // function) defined is SYCL headers.
 // Generated OpenCL kernel contains the body of the kernel caller function,
@@ -3857,7 +3857,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   std::string CalculatedName, StableName;
   std::tie(CalculatedName, StableName) =
       constructKernelName(*this, KernelCallerFunc, MC);
-  StringRef KernelName(IsSYCLUnnamedLambda(*this, KernelCallerFunc)
+  StringRef KernelName(IsSYCLUnnamedKernel(*this, KernelCallerFunc)
                            ? StableName
                            : CalculatedName);
 
@@ -5239,7 +5239,7 @@ void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
 }
 
 void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
-  if (IsSYCLUnnamedLambda(*this, FD)) {
+  if (IsSYCLUnnamedKernel(*this, FD)) {
     QualType ObjTy = GetSYCLKernelObjectType(FD);
     MarkSYCLKernel(FD->getLocation(), ObjTy, /*IsInstantiation*/ true);
   }

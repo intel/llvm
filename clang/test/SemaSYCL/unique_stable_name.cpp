@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -std=c++17 -triple x86_64-pc-windows-msvc -Wno-sycl-2020-compat -fsycl-unnamed-lambda -fsycl-is-device -verify -fsyntax-only -Wno-unused
-// RUN: %clang_cc1 %s -std=c++17 -triple x86_64-linux-gnu -Wno-sycl-2020-compat -fsycl-unnamed-lambda -fsycl-is-device -verify -fsyntax-only -Wno-unused
+// RUN: %clang_cc1 %s -std=c++17 -triple x86_64-pc-windows-msvc -Wno-sycl-2020-compat -fsycl-is-device -verify -fsyntax-only -Wno-unused
+// RUN: %clang_cc1 %s -std=c++17 -triple x86_64-linux-gnu -Wno-sycl-2020-compat -fsycl-is-device -verify -fsyntax-only -Wno-unused
 
 template <typename KernelName, typename KernelType>
 [[clang::sycl_kernel]] void kernel_single_task(KernelType kernelFunc) { // #kernelSingleTask
@@ -93,7 +93,7 @@ int main() {
       __builtin_sycl_unique_stable_name(decltype(l5));
   auto l5_wrapper = [=]() { l5(); };
   // Used in the kernel, but not the kernel name itself
-  kernel_single_task<decltype(l5_wrapper)>(l5);
+  kernel_single_task<decltype(l5_wrapper)>(l5_wrapper);
 
   // kernel6 - expect error
   // Test that passing the lambda to the unique stable name builtin and then
