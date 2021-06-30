@@ -311,7 +311,7 @@ bool trace(TraceLevel Level) {
   return (TraceLevelMask & Level) == Level;
 }
 
-static bool IsBannedPlatform(platform Platform) {
+static bool IsBannedPlatform(const platform &Platform) {
   // The NVIDIA OpenCL platform is currently not compatible with DPC++
   // since it is only 1.2 but gets selected by default in many systems
   // There is also no support on the PTX backend for OpenCL consumption,
