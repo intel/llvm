@@ -338,8 +338,8 @@ static bool IsBannedPlatform(platform Platform) {
   return IsNVIDIAOpenCL(Platform);
 }
 
-std::string getValue(const std::string &AllowList, size_t &Pos,
-                     unsigned long int Size) {
+std::string getAllowListValue(const std::string &AllowList, size_t &Pos,
+                              unsigned long int Size) {
   size_t Prev = Pos;
   if ((Pos = AllowList.find("{{", Pos)) == std::string::npos) {
     throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
@@ -383,7 +383,8 @@ static std::vector<DevDescT> getAllowListDesc() {
   size_t Pos = 0;
   while (Pos < AllowList.size()) {
     if ((AllowList.compare(Pos, DeviceName.size(), DeviceName)) == 0) {
-      DecDescs.back().DevName = getValue(AllowList, Pos, DeviceName.size());
+      DecDescs.back().DevName =
+          getAllowListValue(AllowList, Pos, DeviceName.size());
       if (AllowList[Pos] == ',') {
         Pos++;
       }
@@ -392,14 +393,15 @@ static std::vector<DevDescT> getAllowListDesc() {
     else if ((AllowList.compare(Pos, DriverVersion.size(), DriverVersion)) ==
              0) {
       DecDescs.back().DevDriverVer =
-          getValue(AllowList, Pos, DriverVersion.size());
+          getAllowListValue(AllowList, Pos, DriverVersion.size());
       if (AllowList[Pos] == ',') {
         Pos++;
       }
     }
 
     else if ((AllowList.compare(Pos, PlatformName.size(), PlatformName)) == 0) {
-      DecDescs.back().PlatName = getValue(AllowList, Pos, PlatformName.size());
+      DecDescs.back().PlatName =
+          getAllowListValue(AllowList, Pos, PlatformName.size());
       if (AllowList[Pos] == ',') {
         Pos++;
       }
@@ -408,7 +410,7 @@ static std::vector<DevDescT> getAllowListDesc() {
     else if ((AllowList.compare(Pos, PlatformVersion.size(),
                                 PlatformVersion)) == 0) {
       DecDescs.back().PlatVer =
-          getValue(AllowList, Pos, PlatformVersion.size());
+          getAllowListValue(AllowList, Pos, PlatformVersion.size());
     } else if (AllowList.find('|', Pos) != std::string::npos) {
       Pos = AllowList.find('|') + 1;
       while (AllowList[Pos] == ' ') {
@@ -571,16 +573,11 @@ void fillPlatformAndDeviceCache(plugin &Plugin) {
     for (const auto &PiPlatform : PiPlatforms) {
       PlatformImplPtr PlatformImpl =
           std::make_shared<platform_impl>(PiPlatform, Plugin);
-      {
-        const std::lock_guard<std::mutex> Guard(
-            GlobalHandler::instance().getPlatformMapMutex());
-
-        PlatformCache.emplace_back(PlatformImpl);
-      }
       platform Platform = detail::createSyclObjFromImpl<platform>(PlatformImpl);
 
       if (IsBannedPlatform(Platform))
         continue;
+
       // get devices
       info::device_type DeviceType = info::device_type::all;
       pi_uint32 NumDevices = 0;
@@ -604,10 +601,18 @@ void fillPlatformAndDeviceCache(plugin &Plugin) {
       // Filter out devices that are not compatible with SYCL_DEVICE_FILTER
       filterDeviceFilter(PiDevices, PiPlatform, Plugin, DeviceNum);
 
-      for (const RT::PiDevice &PiDevice : PiDevices) {
-        std::shared_ptr<device_impl> Device =
-            PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl);
-        DeviceCache.emplace_back(Device);
+      if (PiDevices.size() != 0) {
+        const std::lock_guard<std::mutex> Guard(
+            GlobalHandler::instance().getPlatformMapMutex());
+
+        PlatformCache.emplace_back(PlatformImpl);
+        const std::lock_guard<std::mutex> DeviceCacheLock(
+            GlobalHandler::instance().getDeviceCacheMutex());
+        for (const RT::PiDevice &PiDevice : PiDevices) {
+          std::shared_ptr<device_impl> Device =
+              PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl);
+          DeviceCache.emplace_back(Device);
+        }
       }
       DeviceNum += UnfilteredDeviceCount;
     } // end of for
@@ -699,6 +704,11 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
   detail::device_filter_list *FilterList =
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
   if (!FilterList || FilterList->containsHost()) {
+    const std::lock_guard<std::mutex> Guard(
+        GlobalHandler::instance().getPlatformMapMutex());
+    const std::lock_guard<std::mutex> DeviceCacheLock(
+        GlobalHandler::instance().getDeviceCacheMutex());
+
     std::vector<PlatformImplPtr> &PlatformCache =
         GlobalHandler::instance().getPlatformCache();
     std::vector<DeviceImplPtr> &DeviceCache =
