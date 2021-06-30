@@ -9,7 +9,7 @@
 // UNSUPPORTED: cuda
 // RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -I%S/.. %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL: *
+// XFAIL: windows
 
 // This is a regression for vector BE bug:
 // storing a constant zero through an USM pointer causes BE crash with

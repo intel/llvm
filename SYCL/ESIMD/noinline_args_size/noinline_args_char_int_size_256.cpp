@@ -10,9 +10,6 @@
 // RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
 // RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %GPU_RUN_PLACEHOLDER %t.out
 
-// Regression in GPU RT 21.16.19610
-// XFAIL: linux
-
 #include <cstdint>
 
 constexpr unsigned VL = 16;
