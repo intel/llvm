@@ -53,6 +53,28 @@ using IsReduOptForFastAtomicFetch =
                    sycl::detail::IsBitAND<T, BinaryOperation>::value)>;
 #endif
 
+// This type trait is used to detect if the atomic operation BinaryOperation
+// used with operands of the type T is available for using in reduction, in
+// addition to the cases covered by "IsReduOptForFastAtomicFetch", if the device
+// has the atomic64 aspect. This type trait should only be used if the device
+// has the atomic64 aspect.  Note that this type trait is currently a subset of
+// IsReduOptForFastReduce. The macro SYCL_REDUCTION_DETERMINISTIC prohibits
+// using the reduce_over_group() algorithm to produce stable results across same
+// type devices.
+// TODO 32 bit floating point atomics are eventually expected to be supported by
+// the has_fast_atomics specialization. Once the reducer class is updated to
+// replace the deprecated atomic class with atomic_ref, the (sizeof(T) == 4)
+// case should be removed here and replaced in IsReduOptForFastAtomicFetch.
+template <typename T, class BinaryOperation>
+using IsReduOptForAtomic64Add =
+#ifdef SYCL_REDUCTION_DETERMINISTIC
+    bool_constant<false>;
+#else
+    bool_constant<sycl::detail::IsPlus<T, BinaryOperation>::value &&
+                  sycl::detail::is_sgenfloat<T>::value &&
+                  (sizeof(T) == 4 || sizeof(T) == 8)>;
+#endif
+
 // This type trait is used to detect if the group algorithm reduce() used with
 // operands of the type T and the operation BinaryOperation is available
 // for using in reduction.
@@ -80,7 +102,7 @@ template <typename... Ts> ReduTupleT<Ts...> makeReduTupleT(Ts... Elements) {
   return sycl::detail::make_tuple(Elements...);
 }
 
-__SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
+__SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
 __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
                                        size_t &NWorkGroups);
@@ -288,6 +310,18 @@ public:
         .fetch_max(MValue);
   }
 
+  /// Atomic ADD operation: for floating point using atomic_ref
+  template <typename _T = T, class _BinaryOperation = BinaryOperation>
+  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+              IsReduOptForAtomic64Add<T, _BinaryOperation>::value>
+  atomic_combine(_T *ReduVarPtr) const {
+
+    atomic_ref<T, sycl::ONEAPI::memory_order::relaxed,
+               sycl::ONEAPI::memory_scope::device,
+               access::address_space::global_space>(
+        *global_ptr<T>(ReduVarPtr)) += MValue;
+  }
+
   T MValue;
 };
 
@@ -330,6 +364,8 @@ public:
   using local_accessor_type =
       accessor<T, buffer_dim, access::mode::read_write, access::target::local>;
 
+  static constexpr bool has_atomic_add_float64 =
+      IsReduOptForAtomic64Add<T, BinaryOperation>::value;
   static constexpr bool has_fast_atomics =
       IsReduOptForFastAtomicFetch<T, BinaryOperation>::value;
   static constexpr bool has_fast_reduce =
@@ -636,7 +672,8 @@ public:
   /// require initialization with identity value, then return user's read-write
   /// accessor. Otherwise, create 1-element global buffer initialized with
   /// identity value and return an accessor to that buffer.
-  template <bool HasFastAtomics = has_fast_atomics>
+
+  template <bool HasFastAtomics = (has_fast_atomics || has_atomic_add_float64)>
   std::enable_if_t<HasFastAtomics, rw_accessor_type>
   getReadWriteAccessorToInitializedMem(handler &CGH) {
     if (!is_usm && !initializeToIdentity())
@@ -698,10 +735,10 @@ private:
   const T MIdentity;
 
   /// User's accessor to where the reduction must be written.
-  shared_ptr_class<rw_accessor_type> MRWAcc;
-  shared_ptr_class<dw_accessor_type> MDWAcc;
+  std::shared_ptr<rw_accessor_type> MRWAcc;
+  std::shared_ptr<dw_accessor_type> MDWAcc;
 
-  shared_ptr_class<buffer<T, buffer_dim>> MOutBufPtr;
+  std::shared_ptr<buffer<T, buffer_dim>> MOutBufPtr;
 
   /// USM pointer referencing the memory to where the result of the reduction
   /// must be written. Applicable/used only for USM reductions.
@@ -1467,6 +1504,50 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
   }
 }
 
+// Specialization for devices with the atomic64 aspect, which guarantees 64 (and
+// temporarily 32) bit floating point support for atomic add.
+// TODO 32 bit floating point atomics are eventually expected to be supported by
+// the has_fast_atomics specialization. Corresponding changes to
+// IsReduOptForAtomic64Add, as prescribed in its documentation, should then also
+// be made.
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+std::enable_if_t<Reduction::has_atomic_add_float64>
+reduCGFuncImplAtomic64(handler &CGH, KernelType KernelFunc,
+                       const nd_range<Dims> &Range, Reduction &,
+                       typename Reduction::rw_accessor_type Out) {
+  using Name = typename get_reduction_main_kernel_name_t<
+      KernelName, KernelType, Reduction::is_usm,
+      Reduction::has_atomic_add_float64,
+      typename Reduction::rw_accessor_type>::name;
+  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+    // Call user's function. Reducer.MValue gets initialized there.
+    typename Reduction::reducer_type Reducer;
+    KernelFunc(NDIt, Reducer);
+
+    typename Reduction::binary_operation BOp;
+    Reducer.MValue = reduce_over_group(NDIt.get_group(), Reducer.MValue, BOp);
+    if (NDIt.get_local_linear_id() == 0) {
+      Reducer.atomic_combine(Reduction::getOutPointer(Out));
+    }
+  });
+}
+
+// Specialization for devices with the atomic64 aspect, which guarantees 64 (and
+// temporarily 32) bit floating point support for atomic add.
+// TODO 32 bit floating point atomics are eventually expected to be supported by
+// the has_fast_atomics specialization. Corresponding changes to
+// IsReduOptForAtomic64Add, as prescribed in its documentation, should then also
+// be made.
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<Reduction::has_atomic_add_float64>
+reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
+                   const nd_range<Dims> &Range, Reduction &Redu) {
+
+  auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
+  reduCGFuncImplAtomic64<KernelName, KernelType, Dims, Reduction>(
+      CGH, KernelFunc, Range, Redu, Out);
+}
+
 inline void associateReduAccsWithHandlerHelper(handler &) {}
 
 template <typename ReductionT>
@@ -1584,13 +1665,14 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
   return NWorkGroups;
 }
 
-inline void reduSaveFinalResultToUserMemHelper(
-    std::vector<event> &, shared_ptr_class<detail::queue_impl>, bool) {}
+inline void
+reduSaveFinalResultToUserMemHelper(std::vector<event> &,
+                                   std::shared_ptr<detail::queue_impl>, bool) {}
 
 template <typename Reduction, typename... RestT>
 std::enable_if_t<Reduction::is_usm>
 reduSaveFinalResultToUserMemHelper(std::vector<event> &Events,
-                                   shared_ptr_class<detail::queue_impl> Queue,
+                                   std::shared_ptr<detail::queue_impl> Queue,
                                    bool IsHost, Reduction &, RestT... Rest) {
   // Reductions initialized with USM pointer currently do not require copying
   // because the last kernel write directly to USM memory.
@@ -1599,7 +1681,7 @@ reduSaveFinalResultToUserMemHelper(std::vector<event> &Events,
 
 template <typename Reduction, typename... RestT>
 std::enable_if_t<!Reduction::is_usm> reduSaveFinalResultToUserMemHelper(
-    std::vector<event> &Events, shared_ptr_class<detail::queue_impl> Queue,
+    std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
     bool IsHost, Reduction &Redu, RestT... Rest) {
   if (Redu.hasUserDiscardWriteAccessor()) {
     handler CopyHandler(Queue, IsHost);
@@ -1620,8 +1702,8 @@ std::enable_if_t<!Reduction::is_usm> reduSaveFinalResultToUserMemHelper(
 /// Returns the event to the last kernel copying data or nullptr if no
 /// additional kernels created.
 template <typename... Reduction, size_t... Is>
-shared_ptr_class<event>
-reduSaveFinalResultToUserMem(shared_ptr_class<detail::queue_impl> Queue,
+std::shared_ptr<event>
+reduSaveFinalResultToUserMem(std::shared_ptr<detail::queue_impl> Queue,
                              bool IsHost, std::tuple<Reduction...> &ReduTuple,
                              std::index_sequence<Is...>) {
   std::vector<event> Events;
@@ -1629,7 +1711,7 @@ reduSaveFinalResultToUserMem(shared_ptr_class<detail::queue_impl> Queue,
                                      std::get<Is>(ReduTuple)...);
   if (!Events.empty())
     return std::make_shared<event>(Events.back());
-  return shared_ptr_class<event>();
+  return std::shared_ptr<event>();
 }
 
 template <typename Reduction> size_t reduGetMemPerWorkItemHelper(Reduction &) {

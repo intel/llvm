@@ -337,7 +337,7 @@ void Command::emitInstrumentationDataProxy() {
 /// @param IsCommand True if the dependency has a command object as the source,
 /// false otherwise
 void Command::emitEdgeEventForCommandDependence(Command *Cmd, void *ObjAddr,
-                                                const string_class &Prefix,
+                                                const std::string &Prefix,
                                                 bool IsCommand) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Bail early if either the source or the target node for the given dependency
@@ -1206,7 +1206,7 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
   throw runtime_error("Alloca for command not found", PI_INVALID_OPERATION);
 }
 
-vector_class<StreamImplPtr> ExecCGCommand::getStreams() const {
+std::vector<StreamImplPtr> ExecCGCommand::getStreams() const {
   if (MCommandGroup->getType() == CG::KERNEL)
     return ((CGExecKernel *)MCommandGroup.get())->getStreams();
   return {};
@@ -1658,7 +1658,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
     NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
     ProgramManager::KernelArgMask EliminatedArgMask) {
-  vector_class<ArgDesc> &Args = ExecKernel->MArgs;
+  std::vector<ArgDesc> &Args = ExecKernel->MArgs;
   // TODO this is not necessary as long as we can guarantee that the arguments
   // are already sorted (e. g. handle the sorting in handler if necessary due
   // to set_arg(...) usage).
