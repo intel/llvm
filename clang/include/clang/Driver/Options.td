@@ -2611,10 +2611,10 @@ defm sycl_unnamed_lambda
                   Default<!strconcat(
                       sycl_ver.KeyPath,
                       " >= clang::LangOptions::SYCLMajorVersion::SYCL_2020")>,
-                  PosFlag<SetTrue, [CC1Option, CoreOption],
-                          "Allow unnamed SYCL lambda kernels">,
-                  NegFlag<SetFalse, [CC1Option, CoreOption],
-                          "Disallow unnamed SYCL lambda kernels">>;
+                  BothFlags<[CC1Option, CoreOption],
+                          " unnamed SYCL lambda kernels">,
+                  PosFlag<SetTrue, [], "Allow">,
+                  NegFlag<SetFalse, [], "Disallow">>;
 def fsycl_help_EQ : Joined<["-"], "fsycl-help=">,
   Flags<[NoXarchOption, CoreOption]>, HelpText<"Emit help information from the "
   "related offline compilation tool. Valid values: all, fpga, gen, x86_64.">,
