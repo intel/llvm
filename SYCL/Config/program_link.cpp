@@ -12,7 +12,7 @@
 using namespace cl::sycl;
 class DUMMY {
 public:
-  void operator()(item<1>){};
+  void operator()(item<1>) const {};
 };
 
 int main(void) {
@@ -22,6 +22,7 @@ int main(void) {
     return 0;
   }
   context c(p);
+  queue Q(c, s);
   program prog1(c);
   prog1.compile_with_kernel_type<DUMMY>();
   prog1.link("-cl-finite-math-only");
@@ -40,5 +41,11 @@ int main(void) {
   // CHECK-IS-OPT-DISABLE-NOT: -cl-mad-enable
   assert(prog2.get_compile_options() == "-cl-mad-enable" &&
          "program::get_compile_options() output is wrong");
+
+  // enforce SYCL toolchain to emit device image but no enqueue in run-time
+  if (false) {
+    Q.submit([&](handler &CGH) { CGH.parallel_for(range<1>{2}, DUMMY{}); });
+  }
+
   return 0;
 }
