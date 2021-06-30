@@ -311,19 +311,19 @@ bool trace(TraceLevel Level) {
   return (TraceLevelMask & Level) == Level;
 }
 
-static bool IsBannedPlatform(platform Platform) {
+static bool IsBannedPlatform(const platform &Platform) {
   // The NVIDIA OpenCL platform is currently not compatible with DPC++
   // since it is only 1.2 but gets selected by default in many systems
   // There is also no support on the PTX backend for OpenCL consumption,
   // and there have been some internal reports.
   // To avoid problems on default users and deployment of DPC++ on platforms
-  // where CUDA is available, the OpenCL support is disabled.
+  // where CUDA is available, the NVidiaOpenCL support is disabled.
   //
-  auto IsNVIDIAOpenCL = [](platform Platform) {
+  auto IsNVIDIAOpenCL = [](const platform &Platform) {
     if (Platform.is_host())
       return false;
 
-    const bool HasCUDA = Platform.get_info<info::platform::name>().find(
+    const bool IsCUDA = Platform.get_info<info::platform::name>().find(
                              "NVIDIA CUDA") != std::string::npos;
     const auto Backend =
         detail::getSyclObjImpl(Platform)->getPlugin().getBackend();
