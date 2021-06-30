@@ -901,6 +901,7 @@ Instruction *InstCombinerImpl::visitTrunc(TruncInst &Trunc) {
   if (Instruction *I = foldVecTruncToExtElt(Trunc, *this))
     return I;
 
+<<<<<<< HEAD
   // FIXME: This is temporary work-around for a problem reported here:
   // https://github.com/KhronosGroup/SPIRV-LLVM-Translator/issues/645
   //
@@ -913,6 +914,8 @@ Instruction *InstCombinerImpl::visitTrunc(TruncInst &Trunc) {
   // ```
   // can't be lowered by SPIR-V translator to "standard" format.
 
+=======
+>>>>>>> parent of 2fb2468474af... [SPIR][InstCombine] Work around SPIR-V translator limitation (#2143)
   // Whenever an element is extracted from a vector, and then truncated,
   // canonicalize by converting it to a bitcast followed by an
   // extractelement.
