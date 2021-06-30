@@ -1056,6 +1056,6 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgModule(const DIModule *Module) {
   Ops[ApiNotesIdx] = BM->getString(Module->getAPINotesFile().str())->getId();
   Ops[IsDeclIdx] = Module->getIsDecl();
   BM->addExtension(ExtensionID::SPV_INTEL_debug_module);
-  BM->addCapability(spv::internal::CapabilityDebugInfoModuleINTEL);
+  BM->addCapability(spv::CapabilityDebugInfoModuleINTEL);
   return BM->addDebugInfo(SPIRVDebug::ModuleINTEL, getVoidTy(), Ops);
 }
