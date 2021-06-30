@@ -814,21 +814,25 @@ private:
       // will yield a rounded-up value for the total range.
       size_t NewValX =
           ((NumWorkItems[0] + GoodFactorX - 1) / GoodFactorX) * GoodFactorX;
-      using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       if (getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE") != nullptr)
         std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
                   << " to " << NewValX << std::endl;
 
-      auto Wrapper = getRangeRoundedKernelLambda<TransformedArgType, Dims>(
-          KernelFunc, NumWorkItems);
+      using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
+      auto Wrapper =
+          getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
+              KernelFunc, NumWorkItems);
+
+      using KName = std::conditional_t<std::is_same_v<KernelType, NameT>,
+                                       decltype(Wrapper), NameWT>;
 
       range<Dims> AdjustedRange = NumWorkItems;
       AdjustedRange.set_range_dim0(NewValX);
-      kernel_parallel_for_wrapper<NameWT, TransformedArgType>(Wrapper);
+      kernel_parallel_for_wrapper<KName, TransformedArgType>(Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
       detail::checkValueRange<Dims>(AdjustedRange);
       MNDRDesc.set(std::move(AdjustedRange));
-      StoreLambda<NameWT, decltype(Wrapper), Dims, TransformedArgType>(
+      StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       setType(detail::CG::KERNEL);
 #endif
@@ -2290,7 +2294,8 @@ private:
 
   friend class ::MockHandler;
 
-  template <typename TransformedArgType, int Dims, typename KernelType>
+  template <typename WrapperT, typename TransformedArgType, int Dims,
+            typename KernelType>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
                                    range<Dims> NumWorkItems) {
     if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
