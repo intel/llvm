@@ -324,7 +324,7 @@ static bool IsBannedPlatform(const platform &Platform) {
       return false;
 
     const bool IsCUDA = Platform.get_info<info::platform::name>().find(
-                             "NVIDIA CUDA") != std::string::npos;
+                            "NVIDIA CUDA") != std::string::npos;
     const auto Backend =
         detail::getSyclObjImpl(Platform)->getPlugin().getBackend();
     const bool IsCUDAOCL = (IsCUDA && Backend == backend::opencl);
