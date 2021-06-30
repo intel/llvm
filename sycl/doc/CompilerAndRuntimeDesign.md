@@ -321,8 +321,10 @@ compiler `ocloc` without parsing it.
 versions/Gen architectures. For example, to make the device binary
 compatible with all Intel Gen9 GPU platforms, one could use:
 
-`-fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice
--Xsycl-target-backend "-device gen9"`
+```
+-fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice
+-Xsycl-target-backend "-device gen9"
+```
 
 For more details on supported platforms and argument syntax, refer to
 the GPU offline compiler manual by detecting your local `ocloc`
