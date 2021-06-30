@@ -722,8 +722,8 @@ class __sycl_reduction_aux_kernel;
 
 /// Helper structs to get additional kernel name types based on given
 /// \c Name and additional template parameters helping to distinguish kernels.
-/// If \c Name is undefined (is \c auto_name) leave it that way to take advantage
-// of unnamed kernels being named after their functor.
+/// If \c Name is undefined (is \c auto_name) leave it that way to take
+/// advantage of unnamed kernels being named after their functor.
 template <typename Name, typename Type, bool B1, bool B2, typename T3 = void>
 struct get_reduction_main_kernel_name_t {
   using name = __sycl_reduction_main_kernel<Name, Type, B1, B2, T3>;
