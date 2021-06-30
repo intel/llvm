@@ -36,17 +36,24 @@ void test3() {
   // CHECK: SYCLIntelUseStallEnableClustersAttr
 }
 
+// Test attribute is presented on functor.
+class Functor {
+public:
+  [[intel::use_stall_enable_clusters]] void operator()() const {
+  }
+};
+
 int main() {
   q.submit([&](handler &h) {
-    // Test attribute is not propagated to the kernel.
+    // Test attribute is propagated to the kernel.
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
-    // CHECK-NOT:   SYCLIntelUseStallEnableClustersAttr {{.*}}
+    // CHECK:       SYCLIntelUseStallEnableClustersAttr {{.*}}
     h.single_task<class test_kernel1>(
         FuncObj());
 
-    // Test attribute does not present on LambdaExpr called by kernel.
+    // Test attribute is presented on LambdaExpr called by kernel.
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
-    // CHECK-NOT:   SYCLIntelUseStallEnableClustersAttr {{.*}}
+    // CHECK-:      SYCLIntelUseStallEnableClustersAttr {{.*}}
     h.single_task<class test_kernel2>(
         []() [[intel::use_stall_enable_clusters]]{});
 
@@ -55,6 +62,12 @@ int main() {
     // CHECK-NOT:   SYCLIntelUseStallEnableClustersAttr {{.*}}
     h.single_task<class test_kernel3>(
         []() { test(); });
+
+    // Test attribute is applied to kernel if directly applied through functor.
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
+    // CHECK:       SYCLIntelUseStallEnableClustersAttr {{.*}}
+    Functor f2;
+    h.single_task<class test_kernel4>(f2);
   });
   return 0;
 }
