@@ -60,17 +60,8 @@ We introduce a new class called `joint_matrix`. The user needs to specify the ty
 
 //`joint_matrix` is distributed among an execution unit. In practice this can be one work-item, the work-items in a sub-group, or the work-items in a work-group.
 
-#### Memory Scope
-In this experimental API version, we used the terminology of `joint_matrix` instead of plain `matrix` to emphasis that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
 
-	
-#### Shape
-The same class `joint_matrix` should handle both cases where sizes are constant (GPU case) and when sizes are variables (CPU case). Note that a AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes. The ability to define only one interface for both makes it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. We use `sycl::dynamic_extent`  to differentiate between static and dynamic sizes.
-	
-#### Layout
-Layout is necessary on the type to be able to calculate the physical offset if the user needs to access a single entry for some purpose. Besides row major and column major layout, `matrix_layout` is flexible enough to introduce customed layouts such as symmetric or tiled layouts.
-
-This results into the following description:
+//This results into the following description:
 
 
 ```c++
@@ -81,20 +72,28 @@ struct joint_matrix {
 };
 }
 ```
+
+
+#### Memory Scope
+In this experimental API version, we used the terminology of `joint_matrix` instead of plain `matrix` to emphasis that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
+
+IMPORTANT: In the current implementation, only the subgroup scope is supported
+
 When the group is a `sycl::sub_group`, a matrix is declared as follows:
 
 ```c++
 joint_matrix<sub_group, int8_t, tM, tN> tA(sg); 
 ```
 
+#### Shape
+The same class `joint_matrix` should handle both cases where sizes are constant (GPU case) and when sizes are variables (CPU case). Note that a AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes. The ability to define only one interface for both makes it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. We use `sycl::dynamic_extent`  to differentiate between static and dynamic sizes.
 
-AMX hardware requires both A and B to be in VNNI or 32 bits packed layout.
-If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed size for B is different. Let's take an example of bf16 type. The size of packed B is (K/2, N*2). For maximum performance, the allocation of B tile has to be done at the declaration of B matrix point using these VNNIed sizes. This motivate the choice of adding layout argument to the matrix type. 
+IMPORTANT: In the current implementation, only the static extent is supported
 
-Same applies to matrix A. But in the case where the memory layout (where the matrices will be loaded from) is column major.
-Here, we multiply matrices A (K, M) and B (N, K) into a matrix C (N, M). The packed size for A is different. For bf16 type, the size of packed A is (K/2, M*2). 
 
-//If users did not specify these layouts, transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A and/or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
+#### Layout
+//Layout is necessary on the type to be able to calculate the physical offset if the user needs to access a single entry for some purpose.
+Besides row major and column major layouts, `matrix_layout` is flexible enough to introduce customed layouts such as symmetric or tiled layouts.
 	
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
@@ -107,20 +106,37 @@ enum class matrix_layout {
 }
 ```
 
+AMX hardware requires both A and B to be in VNNI or 32 bits packed layout. If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed shape for B used by the implementation is different. Let's take an example of bf16 type. The shape of packed B is (K/2, N*2) as should be specified in user code as follows: 
+
+//For maximum performance, the allocation of B tile has to be done at the declaration of B matrix point using these VNNIed sizes. This motivate the choice of adding layout argument to the matrix type. 
+
+//Same applies to matrix A. But in the case where the memory layout (where the matrices will be loaded from) is column major.
+//Here, we multiply matrices A (K, M) and B (N, K) into a matrix C (N, M). The packed size for A is different. For bf16 type, the size of packed A is (K/2, M*2). 
+
+//If users did not specify these layouts, transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A and/or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
+
+IMPORTANT: In the current implementation, only `packed_b` layout is necessary to specify on matrix B, the layout on other matrices is ignored.
+
+```c++
+joint_matrix<sub_group, int8_t, K, N, packed_b> tB(sg);
+```   
 
 
 
 ## Matrix Operations and their Execution Scope
 We define three new functions needed to perform the main and common operations on matrices namely, load, store, and the actual multiply and add operation. This set of functions can be easily extended if the tensor hardware implements new features.
 
-The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data are being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed_a`, `packed_b`).
+The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data are being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed_a`, `packed_b`). `stride` describes the number of elements between consecutive rows for row major and packed layout,  columns for column major layout. 
 
 Note that for getting maximum performance on AMX, prepacking data in the memory is necessary. If users did not specify the packed layouts (`packed_a` in column major case, `packed_b` in row major case), transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A and/or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
 	
+IMPORTANT: In the current implementation, the layout in the load of matrix B should be `packed_b`, layout in the load of matrix A and C should be `row_major`, layout in the store of matrix C should be `row_major`.
 
-Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a sub-group. These functions will be called once by each work item in the group.
+Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a subgroup. These functions will be called once by each work item in the group.
 
 To be aligned with the SYCL 2020 group algorithms, an additional group argument is added to the matrix operations to designate that these functions are collective operations. The {dpcpp} syntax is the following: 
+
+IMPORTANT: In the current implementation, only the subgroup scope is supported
 
 #### Load 
 ```c++
@@ -167,14 +183,14 @@ AMX compute assumes register for B tile (src1) to be in VNNI format as they need
 The VNNI blocking factor is 2 in the case of 16bits, 4 in the case of 8 bits elements. While the current implementation assumes that the matrix has been already packed by the user for performance reasons, the layout information is needed to inform the implementation about this transform.
 
 
-      // Example of bf16 data type: 
+      // Example of bf16 data type: For the 4 rows x 4 columns matrix below
       // ---------------------------------
       // a1, b1, c1, d1
       // a2, b2, c2, d2
       // a3, b3, c3, d3
       // a4, b4, c4, d4
       // ---------------------------------
-      // reformat to
+      // The reformating to VNNI layout yield the below 2 rows x 8 columns matrix
       // ---------------------------------
       // a1, a2, b1, b2, c1, c2, d1, d2
       // a3, a4, b3, b4, c3, c4, d3, d4
@@ -202,7 +218,7 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
    joint_matrix<sub_group, int8_t, tM, tK> tA(sg);
    // For B, since current implementation does not support non packed layout,
    // users need to specify the updated VNNI sizes along with the packed_b layout
-   joint_matrix<sub_group, int8_t, tK/4, tN*4, packed_b> tB(sg);
+   joint_matrix<sub_group, int8_t, tK, tN, packed_b> tB(sg);
    joint_matrix<sub_group, int32_t, tM, tN> tC(sg);
    joint_matrix_load(sg, tC, memC + sg_startx * tM * N + sg_starty, N, matrix_layout::row_major);
    for (int k = 0; k < K; k += tk) {
@@ -215,8 +231,7 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
   
 ```
 ## Implementation Status
-For oneAPI release 3, an AOT implementation is available on the CPU device to targets AMX hardware. we are using AMX tile intrinsics to implement the matrix load and store operations. Since we are currently emitting AMX intrinsics directly, this only enables AOT compilation. Please refer to the following section that talks about the future unified SPIR-V path that will enable JIT compilation.
-// We used the https://software.intel.com/sites/landingpage/IntrinsicsGuide/#techs=AMX[`_tile_`-prefixed intrinsics] defined in `immintrin.h`.
+For oneAPI release 3, an AOT implementation is available on the CPU device to targets AMX hardware. we are using AMX tile intrinsics to implement the matrix load and store operations. Since we are currently emitting AMX intrinsics directly, this only enables AOT compilation. 
 
 Currently, this is the compilation command line needed to invoke AMX unit of Sapphire Rapids CPU:
 
@@ -224,8 +239,13 @@ Currently, this is the compilation command line needed to invoke AMX unit of Sap
 clang++ -fsycl -march=sapphirerapids fsycl-targets="spir64_x86_64-uknown-linux-sycldevice"  -O2 matmul-int8.cpp -o matmul-int8
 ```
 
+Please refer to the section "Future Implementation Work" that talks about the future unified SPIR-V path that will enable JIT compilation.
+
+// We used the https://software.intel.com/sites/landingpage/IntrinsicsGuide/#techs=AMX[`_tile_`-prefixed intrinsics] defined in `immintrin.h`.
+
+
 ### Current Implementation Restrictions
-This section provides the specific features that this implementation supports. However, in future versions of this API and implementation, the expectation is to provide a query interface to guide the usage of this API. 
+This section summarizes the specific features that this implementation supports. In future versions of this API and implementation, the expectation is to provide a query interface to guide the usage of this API. 
 
 #### Type, Sizes, and Layouts
 The types supported by this AMX implementation are restricted to the types that AMX hardware support. Although the AMX hardware supports 2d tiles with a maximum size of 16x64 bytes, this current implementation can handle any size. If the matrix size is bigger than 1024 bytes, it will be stored in memory rather than mapped to a 2d tile. Performance penalty may occur in this case. In order to get the best performance with this implementation, matrix sizes should be no larger than 16x64 bytes and A and B matrices should be already packed (put in VNNI format).
