@@ -317,7 +317,7 @@ static bool IsBannedPlatform(platform Platform) {
   // There is also no support on the PTX backend for OpenCL consumption,
   // and there have been some internal reports.
   // To avoid problems on default users and deployment of DPC++ on platforms
-  // where CUDA is available, the OpenCL support is disabled.
+  // where CUDA is available, the NVidiaOpenCL support is disabled.
   //
   auto IsNVIDIAOpenCL = [](platform Platform) {
     if (Platform.is_host())
