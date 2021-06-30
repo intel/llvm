@@ -10,13 +10,32 @@
 
 #include <CL/sycl/detail/pi.hpp>
 
-#include "tuple_view.hpp"
-
 #include <functional>
+#include <tuple>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace xpti_helpers {
+
+template <typename TupleT, size_t... Is>
+inline auto get(char *Data, const std::index_sequence<Is...> &) {
+  // Our type should be last in Is sequence
+  using TargetType =
+      typename std::tuple_element<sizeof...(Is) - 1, TupleT>::type;
+
+  // Calculate sizeof all elements before target + target element then substract
+  // sizeof target element
+  size_t Res = (sizeof(typename std::tuple_element<Is, TupleT>::type) + ...) -
+               sizeof(TargetType);
+  return *(typename std::decay<TargetType>::type *)(Data + Res);
+}
+
+template <typename TupleT, size_t... Is>
+inline TupleT unpack(char *Data,
+                     const std::index_sequence<Is...> & /*1..TupleSize*/) {
+  return {get<TupleT>(Data, std::make_index_sequence<Is + 1>{})...};
+}
+
 /// PiArgumentsHandler is a helper class to process incoming XPTI function call
 /// events and unpack contained arguments.
 ///
@@ -45,8 +64,11 @@ public:
 #define _PI_API(api, ...)                                                      \
   void set##_##api(std::function<void(__VA_ARGS__)> Handler) {                 \
     MHandler##_##api = [Handler](void *Data) {                                 \
-      tuple_view<__VA_ARGS__> TV{static_cast<unsigned char *>(Data)};          \
-      xpti_helpers::apply(Handler, TV);                                        \
+      using TupleT = std::tuple<__VA_ARGS__>;                                  \
+      TupleT Tuple = unpack<TupleT>(                                           \
+          (char *)Data,                                                        \
+          std::make_index_sequence<std::tuple_size<TupleT>::value>{});         \
+      std::apply(Handler, Tuple);                                              \
     };                                                                         \
   }
 #include <CL/sycl/detail/pi.def>
