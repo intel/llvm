@@ -307,10 +307,15 @@ context platform_impl::getDefaultContext() {
   // Lazily instantiate default context
   // using context constructor b/c there's lots of logic there that isn't in
   // the context_impl constructor
-  context NewDefaultContext(get_devices());
-  MDefaultContext = detail::getSyclObjImpl(NewDefaultContext);
+  if (is_host()) {
+    context NewDefaultHostContext({device()});
+    MDefaultContext = detail::getSyclObjImpl(NewDefaultHostContext);
+  } else {
+    context NewDefaultContext(get_devices());
+    MDefaultContext = detail::getSyclObjImpl(NewDefaultContext);
+  }
 
-  return NewDefaultContext;
+  return detail::createSyclObjFromImpl<context>(MDefaultContext);
 }
 
 } // namespace detail
