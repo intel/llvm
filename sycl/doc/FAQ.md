@@ -30,16 +30,22 @@ linked into the final binary, the compilation steps sequence is more
 complicated compared to the usual C++ flow.
 
 In general, we encourage our users to rely on the DPC++ Compiler for handling
-all of the compilation phases "under the hood". However, thorough understanding
-of the above-described steps may allow you to customize your compilation by
-invoking different phases manually. As an example, you could:
-1. preprocess your host code with another C++-capable compiler;
-2. turn to the DPC++ compiler for generating the integration header and
-compiling the device code for the needed target(s);
-3. use your preferred host compiler from 1) to compile your preprocessed host
-code and the integration header into a host object file;
-4. link the host object file and the device image(s) into the final executable.
+all of the compilation phases "under the hood". However, certain use-cases
+may involve third-party compiler usage for host-side compilation. The DPC++
+compiler provides the `-fsycl-host-compiler=<compiler_name>` option, which
+allows one to specify the desired third-party compiler name. Usage example:
 
+`clang++ -fsycl -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-g" test.cpp`
+
+Implicitly, the above command would:
+1. turn to the DPC++ compiler for generating the integration header and
+compiling the device code for the needed target(s);
+2. detect your preferred host compiler (`g++`, in this case) and use it to
+compile your host code and the integration header from 1) into a host object file;
+3. link the host object file and the device image(s) into the final executable.
+
+To learn more about the compiler options mentioned, and the DPC++ compiler CLI
+in general, please refer to the [DPC++ Compiler User Manual](UsersManual.md).
 To learn more about the concepts behind this flow, and the DPC++ Compiler
 internals as such, we welcome you to study our
 [DPC++ Compiler and Runtime architecture design](CompilerAndRuntimeDesign.md)
