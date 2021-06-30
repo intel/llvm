@@ -74,7 +74,7 @@
 // FOFFLOAD_STATIC_LIB_SRC: 10: backend, {9}, assembler, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 11: assembler, {10}, object, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 12: linker, {0, 11}, image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 13: linker, {0, 11}, image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 13: linker, {0, 11}, host_dep_image, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 14: clang-offload-deps, {13}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 15: input, "[[INPUTLIB]]", archive
 // FOFFLOAD_STATIC_LIB_SRC: 16: clang-offload-unbundler, {15}, archive
@@ -103,3 +103,10 @@
 // FSYCL_P: clang{{.*}} "-cc1" "-triple" "x86_64-pc-windows-msvc{{.*}}" {{.*}} "-E" {{.*}} "-o" "[[HOSTPP:.+\.ii]]"
 // FSYCL_P: clang-offload-bundler{{.*}} "-type=ii" "-targets=sycl-spir64-unknown-unknown-sycldevice,host-x86_64-pc-windows-msvc" {{.*}} "-inputs=[[DEVICEPP]],[[HOSTPP]]"
 
+// RUN: touch %t-orig.lib
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl %t-orig.lib %s -### /link -out:force_out_file 2>&1 \
+// RUN:  | FileCheck %s -check-prefix=HOSTDEP_LINK_OVERRIDE
+// HOSTDEP_LINK_OVERRIDE: link{{.*}} "-out:[[HOSTDEP_LINK_OUT:.+\.out]]"{{.*}} "-out:force_out_file" "-out:[[HOSTDEP_LINK_OUT]]"
+// HOSTDEP_LINK_OVERRIDE: clang-offload-deps{{.*}}
+// HOSTDEP_LINK_OVERRIDE: link{{.*}} "-out:[[LINK_OUT:.+\.exe]]"{{.*}} "-out:force_out_file"
+// HOSTDEP_LINK_OVERRIDE-NOT: "-out:[[LINK_OUT]]"
