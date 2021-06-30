@@ -8,15 +8,9 @@
 
 #pragma once
 
-//CP
-//#include <CL/sycl/backend_types.hpp>
-//#include <CL/sycl/detail/common.hpp>
-//#include <CL/sycl/detail/export.hpp>
-//#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/property_list.hpp>
-//#include <CL/sycl/stl.hpp>
 
 // 4.6.2 Context class
 

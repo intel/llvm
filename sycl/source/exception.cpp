@@ -13,26 +13,35 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-// CP
 namespace { // anonymous
 char reserved_for_errorcode[1 + sizeof(std::error_code)];
 }
 
-// upper 6 go here
+exception::exception(std::error_code ec, const char *Msg)
+    : exception(static_cast<context *>(nullptr), ec, Msg) {}
+
+exception::exception(std::error_code ec, const std::string &Msg)
+    : exception(static_cast<context *>(nullptr), ec, Msg) {}
+
+// new SYCL2020 constructors
+exception::exception(std::error_code ec)
+    : exception(static_cast<context *>(nullptr), ec, "") {}
+
+exception::exception(int ev, const std::error_category &ecat,
+                     const std::string &what_arg)
+    : exception(static_cast<context *>(nullptr), {ev, ecat}, what_arg) {}
+
+exception::exception(int ev, const std::error_category &ecat,
+                     const char *what_arg)
+    : exception(static_cast<context *>(nullptr), {ev, ecat},
+                std::string(what_arg)) {}
+
+exception::exception(int ev, const std::error_category &ecat)
+    : exception(static_cast<context *>(nullptr), {ev, ecat}, "") {}
 
 exception::exception(context ctx, std::error_code ec,
                      const std::string &what_arg)
-    : MMsg(what_arg + reserved_for_errorcode), MCLErr(PI_INVALID_VALUE),
-      MContext(&ctx) {
-  // For compatibility with previous implementation, we are "hiding" the
-  // std:::error_code in the MMsg string, behind the null string terminator
-  size_t whatLen = what_arg.length();
-  char *reservedPtr = &MMsg[whatLen];
-  reservedPtr[0] = '\0';
-  reservedPtr++;
-  std::error_code *ecPtr = reinterpret_cast<std::error_code *>(reservedPtr);
-  *ecPtr = ec; //{ev, ecat};
-}
+    : exception(&ctx, ec, what_arg) {}
 
 exception::exception(context ctx, std::error_code ec, const char *what_arg)
     : exception(ctx, ec, std::string(what_arg)) {}
@@ -50,6 +59,21 @@ exception::exception(context ctx, int ev, const std::error_category &ecat,
 
 exception::exception(context ctx, int ev, const std::error_category &ecat)
     : exception(ctx, ev, ecat, "") {}
+
+// protected base constructor for all SYCL2020 constructors
+exception::exception(context *ctxPtr, std::error_code ec,
+                     const std::string &what_arg)
+    : MMsg(what_arg + reserved_for_errorcode), MCLErr(PI_INVALID_VALUE),
+      MContext(ctxPtr) {
+  // For compatibility with previous implementation, we are "hiding" the
+  // std:::error_code in the MMsg string, behind the null string terminator
+  size_t whatLen = what_arg.length();
+  char *reservedPtr = &MMsg[whatLen];
+  reservedPtr[0] = '\0';
+  reservedPtr++;
+  std::error_code *ecPtr = reinterpret_cast<std::error_code *>(reservedPtr);
+  *ecPtr = ec;
+}
 
 const char *exception::what() const noexcept { return MMsg.c_str(); }
 

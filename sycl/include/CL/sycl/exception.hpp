@@ -10,8 +10,6 @@
 
 // 4.9.2 Exception Class Interface
 
-//CP
-//#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/pi.h>
@@ -34,20 +32,15 @@ class __SYCL_EXPORT exception : public std::exception {
 public:
   exception() = default;
 
-  exception(std::error_code, const char *Msg)
-      : exception(Msg, PI_INVALID_VALUE) {}
+  exception(std::error_code, const char *Msg);
 
-  exception(std::error_code, const std::string &Msg)
-      : exception(Msg, PI_INVALID_VALUE) {}
+  exception(std::error_code, const std::string &Msg);
 
-  // SYCL2020 constructors
-  ////exception(std::error_code ec, const std::string& what_arg);
-  ////exception(std::error_code ec, const char * what_arg);
-  // exception(std::error_code ec);
-  // exception(int ev, const std::error_category& ecat, const std::string&
-  // what_arg);
-  // exception(int ev, const std::error_category& ecat, const char* what_arg);
-  // exception(int ev, const std::error_category& ecat);
+  // new SYCL2020 constructors
+  exception(std::error_code);
+  exception(int, const std::error_category &, const std::string &);
+  exception(int, const std::error_category &, const char *);
+  exception(int, const std::error_category &);
 
   exception(context, std::error_code, const std::string &);
   exception(context, std::error_code, const char *);
@@ -80,6 +73,9 @@ protected:
         MContext(Context) {}
 
   exception(const string_class &Msg) : MMsg(Msg), MContext(nullptr) {}
+
+  // base constructor for all SYCL2020 constructors
+  exception(context *ctxPtr, std::error_code ec, const std::string &what_arg);
 };
 
 class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) runtime_error
