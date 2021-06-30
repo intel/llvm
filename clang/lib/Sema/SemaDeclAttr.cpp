@@ -6408,13 +6408,6 @@ void Sema::AddSYCLIntelFpgaPipelineAttr(Decl *D, const AttributeCommonInfo &CI,
       return;
     E = Res.get();
 
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*non-negative*/ 1;
-      return;
-    }
-
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
     if (const auto *DeclAttr = D->getAttr<SYCLIntelFpgaPipelineAttr>()) {

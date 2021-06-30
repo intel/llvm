@@ -224,9 +224,6 @@ void goo() {
   // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
   [[intel::fpga_pipeline("abc")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  //expected-error@+1 {{'fpga_pipeline' attribute requires a non-negative integral compile time constant expression}}
-  [[intel::fpga_pipeline(-1)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes duplication
@@ -554,7 +551,6 @@ void loop_count_control_dependent() {
 template <int A, int B, int C>
 void fpga_pipeline_dependent() {
   int a[10];
-  // expected-error@+1 {{'fpga_pipeline' attribute requires a non-negative integral compile time constant expression}}
   [[intel::fpga_pipeline(C)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
@@ -585,8 +581,7 @@ int main() {
      loop_count_control_dependent<3, 2, -1>();
       //expected-note@-1{{in instantiation of function template specialization 'loop_count_control_dependent<3, 2, -1>' requested here}}
 
-     fpga_pipeline_dependent<1, 1, -1>();
-     //expected-note@-1 +{{in instantiation of function template specialization}}
+     fpga_pipeline_dependent<1, 1, 0>();
 });
   });
 

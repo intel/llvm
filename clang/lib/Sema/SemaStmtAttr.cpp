@@ -104,13 +104,6 @@ Sema::BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &A, Expr *E) {
     if (Res.isInvalid())
       return nullptr;
     E = Res.get();
-
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << A.getAttrName() << /*non-negative*/ 1;
-      return nullptr;
-    }
   }
 
   return new (Context) SYCLIntelFpgaPipelineAttr(Context, A, E);
