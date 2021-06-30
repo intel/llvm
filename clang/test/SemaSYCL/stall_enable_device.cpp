@@ -37,6 +37,11 @@ void test3() {
 }
 
 // Test attribute is presented on functor.
+// CHECK: CXXRecordDecl{{.*}}referenced class Functor definition
+// CHECK: CXXRecordDecl{{.*}} implicit class Functor
+// CHECK: AccessSpecDecl{{.*}} public
+// CHECK-NEXT: CXXMethodDecl{{.*}}used operator() 'void () const'
+// CHECK-NEXT-NEXT: SYCLIntelUseStallEnableClustersAttr
 class Functor {
 public:
   [[intel::use_stall_enable_clusters]] void operator()() const {

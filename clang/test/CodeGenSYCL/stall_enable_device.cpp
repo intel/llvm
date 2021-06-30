@@ -2,7 +2,8 @@
 
 // Tests for IR of Intel FPGA [[intel::use_stall_enable_clusters]] function attribute on Device.
 // The metadata to be attached to the functionDecl that the attribute is applied to.
-// The attributes get propagated to the kernel metadata i.e. spir_kernel.
+// The attributes get propagated to the kernel metadata i.e. spir_kernel if directly applied
+// through functors/lambda function.
 
 #include "sycl.hpp"
 
