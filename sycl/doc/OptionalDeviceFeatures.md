@@ -591,29 +591,16 @@ the supported aspects, sub-group sizes and AOT compiler ID.  For example:
 gen11_1:
   aspects: [1, 2, 3]
   sub-group-sizes: [8, 16]
-  aot-compiler-id: gen-spir64
 gen_icl:
   aspects: [2, 3]
   sub-group-sizes: [8, 16]
-  aot-compiler-id: gen-spir64
 x86_64_avx512:
   aspects: [1, 2, 3, 9, 11]
   sub-group-sizes: [8, 32]
-  aot-compiler-id: x86-spir64
 ```
 
 The values of the aspects in this configuration file can be the numerical
 values from the `enum class aspect` enumeration or the enum identifier itself.
-For each valid AOT compiler ID the driver has a built-in rule how to construct
-an AOT compilation command line based on given architecture name. For example,
-for the `gen11_1` and `gen_icl` architectures, the driver sees `gen-spir64`
-as the AOT compiler ID, so it knows that the `ocloc` tool must be used, and it
-also knows how to translate the `gen11_1` or `gen_icl` to proper `ocloc`
-architecture specification option.
-
-**NOTE**: New kinds of AOT compilers are expected to appear very rarely, so
-developing some kind of "AOT compiler plugin" mechanism is impractical, and
-hard coding AOT compiler types in the driver is reasonable.
 
 One advantage to encoding this information in a textual configuration file is
 that customers can update the file if necessary.  This could be useful, for
