@@ -319,7 +319,7 @@ static bool IsBannedPlatform(platform Platform) {
   // To avoid problems on default users and deployment of DPC++ on platforms
   // where CUDA is available, the NVidiaOpenCL support is disabled.
   //
-  auto IsNVIDIAOpenCL = [](platform Platform) {
+  auto IsNVIDIAOpenCL = [](const platform &Platform) {
     if (Platform.is_host())
       return false;
 
