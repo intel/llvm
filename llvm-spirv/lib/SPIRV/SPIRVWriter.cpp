@@ -3885,10 +3885,6 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addAsyncGroupCopy(BArgs[0], BArgs[1], BArgs[2], BArgs[3],
                                  BArgs[4], BArgs[5], BB);
   } break;
-  case OpSelect: {
-    auto BArgs = transValue(getArguments(CI), BB);
-    return BM->addSelectInst(BArgs[0], BArgs[1], BArgs[2], BB);
-  }
   case OpSampledImage: {
     // Clang can generate SPIRV-friendly call for OpSampledImage instruction,
     // i.e. __spirv_SampledImage... But it can't generate correct return type
