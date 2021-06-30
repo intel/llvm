@@ -36,7 +36,7 @@ SYCL specification refer to that revision.
 == Introduction
 
 This extension introduces sorting functions to the group algorithms library,
-Sorter objects and memory helpers.
+Sorter objects, Executor objects and memory helpers.
 
 == Feature test macro
 
@@ -55,7 +55,7 @@ Table 1. Values of the `SYCL_EXT_ONEAPI_GROUP_SORT` macro.
 |1     |Initial extension version.  Base features are supported.
 |===
 
-==== Sorter
+== Sorter
 
 Sorter is a special type that encapsulates a sorting algorithm. Sorter may contain parameters
 that help to get better performance. Data for sorting are provided to the `operator()`
@@ -114,9 +114,9 @@ public:
 This sorter can be invoked by `joint_sort`, but won't work with `sort_over_group`
 due to the absence of corresponding `operator()`
 
-==== Predefined Sorters
+=== Predefined Sorters
 
-===== Radix order
+==== Radix order
 
 `radix_order` is a `enum` that defines a sorting order when `radix_sorter` is used.
 Only ascending and descending orders are applicable.
@@ -152,10 +152,10 @@ namespace sycl::ext::oneapi {
     T operator()(Group g, T val);
 
     template</*unspecified*/>
-    static std::size_t joint_sort_memory_helper(/*unspecified*/);
+    static std::size_t memory_required(sycl::memory_scope scope, std::size_t range_size,/*unspecified*/);
 
-    template</*unspecified*/>
-    static std::size_t sort_over_group_memory_helper(/*unspecified*/);
+    template<int dimensions = 1, /*unspecified*/>
+    static std::size_t memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range,/*unspecified*/);
   };
 
   template<typename T, radix_order Order = radix_order::ascending, unsigned int BitsPerPass = 4>
@@ -172,8 +172,10 @@ namespace sycl::ext::oneapi {
     template<typename Group>
     T operator()(Group g, T val);
 
-    static std::size_t joint_sort_memory_helper(std::size_t range_size);
-    static std::size_t sort_over_group_memory_helper(std::size_t range_size);
+    static std::size_t memory_required(sycl::memory_scope scope, std::size_t range_size);
+
+    template<int dimensions = 1>
+    static std::size_t memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range);
   };
 
 }
@@ -188,8 +190,7 @@ default_sorter`
 |Use a default sorting method based on an implementation-defined heuristic
 using `Compare` as the binary comparison function object.
 The algorithm requires a temporary local memory that must be allocated on callers side.
-Size of required memory (bytes) is defined by calling `joint_sort_memory_helper`
-and/or `sort_over_group_memory_helper`.
+Size of required memory (bytes) is defined by calling `memory_required`.
 
 |`template<typename T, radix_order Order = radix_order::ascending, unsigned int BitsPerPass = 4>
 radix_sorter`
@@ -199,8 +200,7 @@ Only arithmetic types as `T` can be passed to `radix_sorter`.
 For example, if a sequence of `int32_t` is sorted using `BitsPerPass == 4` then one
 pass of the radix sort algorithm considers only 4 bits. The number of passes is `32/4=8`.
 The algorithm requires a temporary local memory that must be allocated on callers side.
-Size of required memory (bytes) is defined by calling `joint_sort_memory_helper`
-and/or `sort_over_group_memory_helper`.
+Size of required memory (bytes) is defined by calling `memory_required`.
 |===
 
 Table 4. Constructors of the `default_sorter` class.
@@ -212,8 +212,7 @@ default_sorter(sycl::span<uint8_t, Extent> scratch, Compare comp = Compare())`
 |Creates the `default_sorter` object using `comp`.
 Temporary local memory for the algorithm is provided using `scratch`.
 If `scratch.size()` is less than value returned by
-`joint_sort_memory_helper` or `sort_over_group_memory_helper`,
-behavior of the corresponding sorting algorithm is undefined.
+`memory_required`, behavior of the corresponding sorting algorithm is undefined.
 
 |===
 
@@ -232,17 +231,25 @@ T operator()(Group g, T val)`
 |Implements a default sorting algorithm to be called by the `sort_over_group` algorithm.
 
 _Complexity_: Let `N` be the work group size. `O(N*log(N)*log(N))` comparisons.
-|`template</\*unspecified*/>
-static std::size_t joint_sort_memory_helper(/\*unspecified*/)`
+|`template<int dimensions = 1, /\*unspecified*/>
+static std::size_t memory_required(sycl::memory_scope scope, std::size_t range_size, /\*unspecified*/)`
 |Returns size of temporary memory (in bytes) that is required by
 the default sorting algorithm defined by the sorter calling by `joint_sort`.
 `range_size` represents a range size for sorting,
-e.g. `last-first` from `operator()` arguments. Function must be called on host
+e.g. `last-first` from `operator()` arguments.
+Result depends on the `scope` parameter:
+use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::group`;
+use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::sub_group`.
+Function must be called on host.
 |`template</\*unspecified*/>
-static std::size_t sort_over_group_memory_helper(/\*unspecified*/)`
+static std::size_t memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range, /\*unspecified*/)`
 |Returns size of temporary memory (in bytes) that is required by the default sorting
 algorithm defined by the sorter calling by `sort_over_group`.
-`range_size` represents work group size. Function must be called on host
+`local_range` is a local range of `sycl::nd_range` that was used to run the kernel.
+Result depends on the `scope` parameter:
+use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::group`;
+use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::sub_group`.
+Function must be called on host.
 |===
 
 Table 6. Constructors of the `radix_sorter` class.
@@ -255,8 +262,8 @@ radix_sorter(sycl::span<uint8_t, Extent> scratch, const std::bitset<sizeof(T) * 
 |Creates the `radix_sorter` object to sort values considering only bits
 that corresponds to 1 in `mask`.
 Temporary local memory for the algorithm is provided using `scratch`.
-If `scratch.size()` is less than value returned by `joint_sort_memory_helper` or
-`sort_over_group_memory_helper`, behavior of the corresponding sorting algorithm is undefined.
+If `scratch.size()` is less than value returned by `memory_required`,
+behavior of the corresponding sorting algorithm is undefined.
 
 |===
 
@@ -273,19 +280,28 @@ T operator()(Group g, T val)`
 |Implements the radix sort algorithm to be called by the `sort_over_group` algorithm.
 
 |`static std::size_t
-joint_sort_memory_helper(std::size_t range_size)`
+memory_required(sycl::memory_scope scope, std::size_t range_size)`
 |Returns size of temporary memory (in bytes) that is required by the radix sort algorithm
 calling by `joint_sort`. `range_size` represents a range size for sorting,
-e.g. `last-first` from `operator()` arguments. Function must be called on host
+e.g. `last-first` from `operator()` arguments.
+Result depends on the `scope` parameter:
+use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::group`;
+use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::sub_group`.
+Function must be called on host.
 
-|`static std::size_t
-sort_over_group_memory_helper(std::size_t range_size)`
+|`template<int dimensions = 1>
+static std::size_t
+memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range)`
 |Returns size of temporary memory (in bytes) that is required by the radix sort algorithm
-calling by `sort_over_group`. `range_size` represents work group size.
-Function must be called on host
+calling by `sort_over_group`.
+`local_range` is a local range of `sycl::nd_range` that was used to run the kernel.
+Result depends on the `scope` parameter:
+use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::group`;
+use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::sub_group`.
+Function must be called on host.
 |===
 
-==== Memory helpers
+=== Memory helpers
 
 SYCL provides following functions to identify the required size for a temporary local memory
 that is required for sorting functions that don't have the Sorter argument.
@@ -293,23 +309,80 @@ that is required for sorting functions that don't have the Sorter argument.
 [source,c++]
 ----
 namespace sycl::ext::oneapi {
-    template</*unspecified*/>
-    std::size_t joint_sort_memory_helper(/*unspecified*/); // (1)
+  template</*unspecified*/>
+  std::size_t memory_required(sycl::memory_scope scope, std::size_t range_size, /*unspecified*/); // (1)
 
-    template</*unspecified*/>
-    std::size_t sort_over_group_memory_helper(/*unspecified*/); // (2)
+  template<int dimensions = 1, /*unspecified*/>
+  std::size_t memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range/*unspecified*/); // (2)
 }
 ----
 
+Results for both functions depends on the `scope` parameter:
+use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::group`;
+use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::sub_group`.
+
 1. _Returns_: temporary local memory size (in bytes) that is required by `joint_sort`
-without Sorter parameters.
+without Sorter parameters. `range_size` is the size of a sorting range, e.g. `last - first`.
 
 2. _Returns_: temporary local memory size (in bytes) that is required by `sort_over_group`
-without Sorter parameters.
+without Sorter parameters. `local_range` is a local range of `sycl::nd_range` that was used to run the kernel.
 
 Note: memory helper functions must be called on host.
 
-==== Sort
+=== Group Executors
+
+To pass temporary local memory to an algorithm SYCL introduces special class `group_executor`:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi {
+
+  template<typename Group, std::size_t Extent>
+  class group_executor
+  {
+  public:
+    group_executor(Group group, sycl::span<uint8_t, Extent> scratch);
+    Group get_group() const;
+
+    sycl::span<uint8_t, Extent>
+    get_memory() const;
+  };
+
+  // Deduction guides
+  template<typename Group, std::size_t Extent>
+  group_executor(Group, sycl::span<uint8_t, Extent>)
+    -> group_executor<Group, Extent>;
+
+}
+----
+
+Table 8. Constructors of the `group_executor` class.
+|===
+|Constructor|Description
+
+|`group_executor(Group group, sycl::span<uint8_t, Extent> scratch)`
+|Creates the `group_executor` object using `group` and `scratch`.
+`sycl::is_group_v<std::decay_t<Group>>` must be true.
+`scratch.size()` must not be less than value returned by `memory_required`. Otherwise,
+behavior of sorting algorithm, which is called with the constructed object, is undefined.
+
+|===
+
+Table 9. Member functions of the `group_executor` class.
+|===
+|Member function|Description
+
+|`Group get_group() const`
+|Returns the `Group` class object that is handled by the `group_executor` object.
+
+|`sycl::span<uint8_t, Extent> get_memory() const`
+|Returns `sycl::span` that represents an additional local memory
+that is handled by the `group_executor` object.
+
+|===
+
+
+=== Sort
 The sort function from the {cpp} standard sorts elements with respect to
 the binary comparison function object.
 
@@ -326,19 +399,19 @@ position `i` in the ordered range.
 ----
 namespace sycl::ext::oneapi {
   template <typename Group, std::size_t Extent, typename Ptr>
-  void joint_sort(Group g, sycl::span<uint8_t, Extent> scratch, Ptr first, Ptr last); // (1)
+  void joint_sort(group_executor<Group, Extent> exec, Ptr first, Ptr last); // (1)
 
   template <typename Group, std::size_t Extent, typename Ptr, typename Compare>
-  void joint_sort(Group g, sycl::span<uint8_t, Extent> scratch, Ptr first, Ptr last, Compare comp); // (2)
+  void joint_sort(group_executor<Group, Extent> exec, Ptr first, Ptr last, Compare comp); // (2)
 
   template <typename Group, typename Ptr, typename Sorter>
   void joint_sort(Group g, Ptr first, Ptr last, Sorter sorter); // (3)
 
   template <typename Group, std::size_t Extent, typename T>
-  T sort_over_group(Group g, sycl::span<uint8_t, Extent> scratch, T val); // (4)
+  T sort_over_group(group_executor<Group, Extent> exec, T val); // (4)
 
   template <typename Group, std::size_t Extent, typename T, typename Compare>
-  T sort_over_group(Group g, sycl::span<uint8_t, Extent> scratch, T val, Compare comp); // (5)
+  T sort_over_group(group_executor<Group, Extent> exec, T val, Compare comp); // (5)
 
   template <typename Group, typename T, typename Sorter>
   T sort_over_group(Group g, T val, Sorter sorter); // (6)
@@ -350,48 +423,38 @@ is true and `Sorter` is a SYCL Sorter.
 
 _Preconditions_: `first`, `last` must be the same for all work-items in the group.
 
-1._Mandates_: `scratch.size()` must not be less than value returned by
-`joint_sort_memory_helper`. Otherwise, behavior is undefined.
-
-_Effects_: Sort the elements in the range `[first, last)`
-using temporary local memory from `scratch`.
-Elements are compared by `operator<`.
+1._Effects_: Sort the elements in the range `[first, last)`
+using the `exec` group executor object. Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
 2._Mandates_: `comp` must satisfy the requirements of `Compare` from
-the {cpp} standard. `scratch.size()` must not be less than value returned by
-`joint_sort_memory_helper`. Otherwise, behavior is undefined.
+the {cpp} standard.
 
 _Effects_: Sort the elements in the range `[first, last)` with respect to the
-binary comparison function object `comp` using temporary local memory from `scratch`.
+binary comparison function object `comp` using the `exec` group executor object.
 
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
 3._Effects_: Equivalent to: `sorter(g, first, last)`.
 
-4._Mandates_: `scratch.size()` must not be less than value returned by
-`sort_over_group_memory_helper`. Otherwise, behavior is undefined.
-
-_Returns_: The value returned on work-item `i` is the value in position `i`
-of the ordered range resulting from sorting `val` from all work-items in the
-`g` group. `scratch` represents the memory that is required for the sorting algorithm.
-Elements are compared by `operator<`.
+4._Returns_: The value returned on work-item `i` is the value in position `i`
+of the ordered range resulting from sorting `val` from all work-items in the group.
+Elements are compared by `operator<`
+using the `exec` group executor object.
 For multi-dimensional groups, the order of work-items in the group is
 determined by their linear id.
 
 _Complexity_: Let `N` be the work group size. `O(N*log(N)*log(N))` comparisons.
 
-5._Mandates_: `comp` must satisfy the requirements of `Compare` from
-the {cpp} standard. `scratch.size()` must not be less than value returned by
-`sort_over_group_memory_helper`. Otherwise, behavior is undefined.
+5._Mandates_: `comp` must satisfy the requirements of `Compare` from the {cpp} standard.
 
 _Returns_: The value returned on work-item `i` is the value in position `i`
 of the ordered range resulting from sorting `val` from all work-items in the
-`g` group with respect to the binary comparison function object `comp`.
+`g` group with respect to the binary comparison function object `comp`
+using the `exec` group executor object.
 For multi-dimensional groups, the order of work-items in the group is
 determined by their linear id.
-`scratch` represents the memory that is required for the sorting algorithm.
 
 _Complexity_: Let `N` be the work group size. `O(N*log(N)*log(N))` comparisons.
 
