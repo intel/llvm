@@ -13,6 +13,44 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+// CP
+namespace { // anonymous
+char reserved_for_errorcode[1 + sizeof(std::error_code)];
+}
+
+// upper 6 go here
+
+exception::exception(context ctx, std::error_code ec,
+                     const std::string &what_arg)
+    : MMsg(what_arg + reserved_for_errorcode), MCLErr(PI_INVALID_VALUE),
+      MContext(&ctx) {
+  // For compatibility with previous implementation, we are "hiding" the
+  // std:::error_code in the MMsg string, behind the null string terminator
+  size_t whatLen = what_arg.length();
+  char *reservedPtr = &MMsg[whatLen];
+  reservedPtr[0] = '\0';
+  reservedPtr++;
+  std::error_code *ecPtr = reinterpret_cast<std::error_code *>(reservedPtr);
+  *ecPtr = ec; //{ev, ecat};
+}
+
+exception::exception(context ctx, std::error_code ec, const char *what_arg)
+    : exception(ctx, ec, std::string(what_arg)) {}
+
+exception::exception(context ctx, std::error_code ec)
+    : exception(ctx, ec, "") {}
+
+exception::exception(context ctx, int ev, const std::error_category &ecat,
+                     const char *what_arg)
+    : exception(ctx, {ev, ecat}, std::string(what_arg)) {}
+
+exception::exception(context ctx, int ev, const std::error_category &ecat,
+                     const std::string &what_arg)
+    : exception(ctx, {ev, ecat}, what_arg) {}
+
+exception::exception(context ctx, int ev, const std::error_category &ecat)
+    : exception(ctx, ev, ecat, "") {}
+
 const char *exception::what() const noexcept { return MMsg.c_str(); }
 
 bool exception::has_context() const { return (MContext != nullptr); }

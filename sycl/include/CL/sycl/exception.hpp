@@ -22,11 +22,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-// CP
-namespace { //anonymous
-  char reserved_for_errorcode[1 + sizeof(std::error_code)];
-}
-
 // Forward declaration
 class context;
 
@@ -45,21 +40,21 @@ public:
   exception(std::error_code, const std::string &Msg)
       : exception(Msg, PI_INVALID_VALUE) {}
 
-  // CP
-  exception(context &ctx, int ev, const std::error_category& ecat, const char* what_arg)
-      : exception(ctx, ev, ecat, std::string(what_arg)) {}
+  // SYCL2020 constructors
+  ////exception(std::error_code ec, const std::string& what_arg);
+  ////exception(std::error_code ec, const char * what_arg);
+  // exception(std::error_code ec);
+  // exception(int ev, const std::error_category& ecat, const std::string&
+  // what_arg);
+  // exception(int ev, const std::error_category& ecat, const char* what_arg);
+  // exception(int ev, const std::error_category& ecat);
 
-  exception(context &ctx, int ev, const std::error_category& ecat, const std::string& what_arg)
-      : MMsg(what_arg + reserved_for_errorcode), MContext(nullptr)   {   // <-- !!
-    // For compatibility with previous implementation, we are "hiding" the 
-    // std:::error_code in the MMsg string, behind the null string terminator
-    size_t whatLen = what_arg.length();
-    char *reservedPtr = &MMsg[whatLen];
-    reservedPtr[0] = '\0';
-    reservedPtr++;
-    std::error_code *ecPtr = reinterpret_cast<std::error_code*>(reservedPtr);
-    *ecPtr = {ev, ecat};
-  }
+  exception(context, std::error_code, const std::string &);
+  exception(context, std::error_code, const char *);
+  exception(context, std::error_code);
+  exception(context, int, const std::error_category &, const std::string &);
+  exception(context, int, const std::error_category &, const char *);
+  exception(context, int, const std::error_category &);
 
   const char *what() const noexcept final;
 
