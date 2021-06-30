@@ -2607,14 +2607,13 @@ def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
   AliasArgs<["early"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Generate partially linked device object to be used with the host link">;
 defm sycl_unnamed_lambda
-    : BoolFOption<"sycl-unnamed-lambda", LangOpts<"SYCLUnnamedLambda">,
-                  Default<!strconcat(
-                      sycl_ver.KeyPath,
-                      " >= clang::LangOptions::SYCLMajorVersion::SYCL_2020")>,
-                  BothFlags<[CC1Option, CoreOption],
-                          " unnamed SYCL lambda kernels">,
-                  PosFlag<SetTrue, [], "Allow">,
-                  NegFlag<SetFalse, [], "Disallow">>;
+    : BoolFOption<
+          "sycl-unnamed-lambda", LangOpts<"SYCLUnnamedLambda">,
+          Default<!strconcat(
+              sycl_ver.KeyPath,
+              " >= clang::LangOptions::SYCLMajorVersion::SYCL_2020")>,
+          PosFlag<SetTrue, [], "Allow">, NegFlag<SetFalse, [], "Disallow">,
+          BothFlags<[CC1Option, CoreOption], " unnamed SYCL lambda kernels">>;
 def fsycl_help_EQ : Joined<["-"], "fsycl-help=">,
   Flags<[NoXarchOption, CoreOption]>, HelpText<"Emit help information from the "
   "related offline compilation tool. Valid values: all, fpga, gen, x86_64.">,
