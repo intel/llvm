@@ -823,7 +823,7 @@ private:
           getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
               KernelFunc, NumWorkItems);
 
-      using KName = std::conditional_t<std::is_same_v<KernelType, NameT>,
+      using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
 
       range<Dims> AdjustedRange = NumWorkItems;

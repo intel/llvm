@@ -1,4 +1,4 @@
-// RUN: %clangxx -Xclang -fsycl-is-host -std=c++17 -isystem %sycl_include/sycl -Xclang -verify -fsyntax-only %s -Xclang -verify-ignore-unexpected=note
+// RUN: %clangxx -Xclang -fsycl-is-host -std=c++17 -fno-sycl-unnamed-lambda -isystem %sycl_include/sycl -Xclang -verify -fsyntax-only %s -Xclang -verify-ignore-unexpected=note
 #include <CL/sycl.hpp>
 
 int main() {
