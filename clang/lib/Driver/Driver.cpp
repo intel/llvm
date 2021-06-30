@@ -5015,7 +5015,8 @@ public:
   /// they can add it to the device linker inputs.
   void addDeviceLinkDependenciesFromHost(ActionList &LinkerInputs) {
     // Link image for reading dependencies from it.
-    auto *LA = C.MakeAction<LinkJobAction>(LinkerInputs, types::TY_Image);
+    auto *LA = C.MakeAction<LinkJobAction>(LinkerInputs,
+                                           types::TY_Host_Dependencies_Image);
 
     // Calculate all the offload kinds used in the current compilation.
     unsigned ActiveOffloadKinds = 0u;
@@ -5612,7 +5613,7 @@ Action *Driver::ConstructPhaseAction(
     }
     types::ID HostPPType = types::getPreprocessedType(Input->getType());
     if (Args.hasArg(options::OPT_fsycl) && HostPPType != types::TY_INVALID &&
-        Args.hasArg(options::OPT_fsycl_use_footer) &&
+        !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
         TargetDeviceOffloadKind == Action::OFK_None) {
       // Performing a host compilation with -fsycl.  Append the integration
       // footer to the preprocessed source file.  We then add another

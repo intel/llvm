@@ -7,9 +7,9 @@
 // RUN:  clang-offload-wrapper -o %t-aoco.bc -host=x86_64-pc-windows-msvc -kind=sycl -target=fpga_aoco-intel-unknown-sycldevice %t.aoco
 // RUN:  llc -filetype=obj -o %t-aoco.o %t-aoco.bc
 // RUN:  llvm-ar crv %t_aoco.a %t.o %t2.o %t-aoco.o
-// RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fsycl-use-footer -fsycl -fno-sycl-device-lib=all -fintelfpga -foffload-static-lib=%t_aoco.a %s -ccc-print-phases 2>&1 \
+// RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fintelfpga -foffload-static-lib=%t_aoco.a %s -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCO-PHASES-WIN %s
-// RUN:  %clangxx -fsycl-use-footer -target x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fintelfpga -foffload-static-lib=%t_aoco.a %s -ccc-print-phases 2>&1 \
+// RUN:  %clangxx -target x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fintelfpga -foffload-static-lib=%t_aoco.a %s -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCO-PHASES-WIN %s
 // CHK-FPGA-AOCO-PHASES-WIN: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 1: input, "[[INPUTSRC:.+\.cpp]]", c++, (host-sycl)
@@ -24,7 +24,7 @@
 // CHK-FPGA-AOCO-PHASES-WIN: 10: backend, {9}, assembler, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 11: assembler, {10}, object, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 12: linker, {0, 11}, image, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 13: linker, {0, 11}, image, (host-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 13: linker, {0, 11}, host_dep_image, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 14: clang-offload-deps, {13}, ir, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 15: input, "[[INPUTA]]", archive
 // CHK-FPGA-AOCO-PHASES-WIN: 16: clang-offload-unbundler, {15}, archive
