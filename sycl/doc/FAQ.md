@@ -38,14 +38,15 @@ allows one to specify the desired third-party compiler name. Usage example:
 `clang++ -fsycl -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-g" test.cpp`
 
 Implicitly, the above command would:
-1. turn to the DPC++ compiler for generating the integration header and
-compiling the device code for the needed target(s);
-2. detect your preferred host compiler (`g++`, in this case) and use it to
-compile your host code and the integration header from 1) into a host object file;
-3. link the host object file and the device image(s) into the final executable.
+1. turn to the DPC++ compiler for compiling the device code for the needed
+target(s) and generating dependencies ("integration files") for the host side;
+2. detect your preferred host compiler (`g++`, in this case), then use it to
+compile your host code and the dependency files from 1) into host object file(s);
+3. link the device image(s) from 1) and the host object(s) from 2) into
+the final executable.
 
-To learn more about the compiler options mentioned, and the DPC++ compiler CLI
-in general, please refer to the [DPC++ Compiler User Manual](UsersManual.md).
+To learn more about the compiler options mentioned, and the DPC++ compiler
+command-line interface in general, please refer to the [DPC++ Compiler User Manual](UsersManual.md).
 To learn more about the concepts behind this flow, and the DPC++ Compiler
 internals as such, we welcome you to study our
 [DPC++ Compiler and Runtime architecture design](CompilerAndRuntimeDesign.md)
