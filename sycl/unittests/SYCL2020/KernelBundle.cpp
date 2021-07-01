@@ -63,12 +63,12 @@ static sycl::unittest::PiImageArray ImgArray{Img};
 TEST(KernelBundle, GetKernelBundleFromKernel) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
+    std::cout << "Test is not supported on host, skipping\n";
     return; // test is not supported on host.
   }
 
   if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    std::cout << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 

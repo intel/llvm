@@ -102,7 +102,7 @@ public:
   /// \return a valid SYCL context
   context get_context() const;
 
-  /// Get the kernel_bundle that this kernel is associated with.
+  /// Get the kernel_bundle associated with this kernel.
   ///
   /// \return a valid kernel_bundle<bundle_state::executable>
   kernel_bundle<bundle_state::executable> get_kernel_bundle() const;
