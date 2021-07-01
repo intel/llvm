@@ -335,9 +335,10 @@ To pass temporary local memory to an algorithm SYCL introduces special class `gr
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
-  template<typename Group, std::size_t Extent>
+  // Exposition only: all template arguments except Group are unspecified
+  template<typename Group, std::size_t Extent, /* unspecified */>
   class group_executor
   {
   public:
@@ -355,6 +356,8 @@ namespace sycl::ext::oneapi {
 
 }
 ----
+
+Note: `group_executor` is in the `experimental` namespace: interfaces might be changed later.
 
 Table 8. Constructors of the `group_executor` class.
 |===
@@ -375,7 +378,8 @@ Table 9. Member functions of the `group_executor` class.
 |`Group get_group() const`
 |Returns the `Group` class object that is handled by the `group_executor` object.
 
-|`sycl::span<uint8_t, Extent> get_memory() const`
+|`sycl::span<uint8_t, Extent>
+get_memory() const`
 |Returns `sycl::span` that represents an additional local memory
 that is handled by the `group_executor` object.
 
@@ -398,37 +402,39 @@ position `i` in the ordered range.
 [source,c++]
 ----
 namespace sycl::ext::oneapi {
-  template <typename Group, std::size_t Extent, typename Ptr>
-  void joint_sort(group_executor<Group, Extent> exec, Ptr first, Ptr last); // (1)
 
-  template <typename Group, std::size_t Extent, typename Ptr, typename Compare>
-  void joint_sort(group_executor<Group, Extent> exec, Ptr first, Ptr last, Compare comp); // (2)
+  // Only available if GroupExecutor was created with a work-group and some associated scratch space
+
+  template <typename GroupExecutor, typename Ptr>
+  void joint_sort(GroupExecutor exec, Ptr first, Ptr last); // (1)
+
+  template <typename GroupExecutor, typename Ptr, typename Compare>
+  void joint_sort(GroupExecutor exec, Ptr first, Ptr last, Compare comp); // (2)
 
   template <typename Group, typename Ptr, typename Sorter>
   void joint_sort(Group g, Ptr first, Ptr last, Sorter sorter); // (3)
 
-  template <typename Group, std::size_t Extent, typename T>
-  T sort_over_group(group_executor<Group, Extent> exec, T val); // (4)
+  template <typename GroupExecutor, typename T>
+  T sort_over_group(GroupExecutor exec, T val); // (4)
 
-  template <typename Group, std::size_t Extent, typename T, typename Compare>
-  T sort_over_group(group_executor<Group, Extent> exec, T val, Compare comp); // (5)
+  template <typename GroupExecutor, typename T, typename Compare>
+  T sort_over_group(GroupExecutor exec, T val, Compare comp); // (5)
 
   template <typename Group, typename T, typename Sorter>
   T sort_over_group(Group g, T val, Sorter sorter); // (6)
 }
 ----
 
-_Constraints_: All functions are available only if `sycl::is_group_v<std::decay_t<Group>>`
-is true and `Sorter` is a SYCL Sorter.
+1._Preconditions_: `first`, `last` must be the same for all work-items in the group.
 
-_Preconditions_: `first`, `last` must be the same for all work-items in the group.
-
-1._Effects_: Sort the elements in the range `[first, last)`
+_Effects_: Sort the elements in the range `[first, last)`
 using the `exec` group executor object. Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
-2._Mandates_: `comp` must satisfy the requirements of `Compare` from
+2._Preconditions_: `first`, `last` must be the same for all work-items in the group.
+
+_Mandates_: `comp` must satisfy the requirements of `Compare` from
 the {cpp} standard.
 
 _Effects_: Sort the elements in the range `[first, last)` with respect to the
@@ -436,7 +442,11 @@ binary comparison function object `comp` using the `exec` group executor object.
 
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
-3._Effects_: Equivalent to: `sorter(g, first, last)`.
+3._Preconditions_: `first`, `last` must be the same for all work-items in the group.
+
+_Effects_: Equivalent to: `sorter(g, first, last)`.
+
+_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter.
 
 4._Returns_: The value returned on work-item `i` is the value in position `i`
 of the ordered range resulting from sorting `val` from all work-items in the group.
@@ -459,6 +469,8 @@ determined by their linear id.
 _Complexity_: Let `N` be the work group size. `O(N*log(N)*log(N))` comparisons.
 
 6._Effects_: Equivalent to: `return sorter(g, val)`.
+
+_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter.
 
 == Examples
 
