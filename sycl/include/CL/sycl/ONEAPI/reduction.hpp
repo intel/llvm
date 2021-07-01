@@ -726,7 +726,7 @@ class __sycl_reduction_aux_kernel;
 /// advantage of unnamed kernels being named after their functor.
 template <typename Name, typename Type, bool B1, bool B2, typename T3 = void>
 struct get_reduction_main_kernel_name_t {
-  using name = __sycl_reduction_main_kernel<NameB1, B2, T3>;
+  using name = __sycl_reduction_main_kernel<Name, B1, B2, T3>;
 };
 template <typename Type, bool B1, bool B2, typename T3>
 struct get_reduction_main_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
