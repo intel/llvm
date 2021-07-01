@@ -411,7 +411,6 @@ private:
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
-  /// \param[out] IsKernel set to true if kernel was submit
   /// \param Self is a pointer to this queue.
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event representing submitted command group.
