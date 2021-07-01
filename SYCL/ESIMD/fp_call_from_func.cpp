@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// Issue #162 Test timeouts on Windows
-// UNSUPPORTED: windows
+// Issue #162 Test timeouts on Windows and Linux
+// UNSUPPORTED: TEMPORARY_DISABLED
 // RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda
