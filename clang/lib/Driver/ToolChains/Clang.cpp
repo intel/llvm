@@ -1189,7 +1189,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   // When preprocessing using the integration footer, add the comments
   // to the first preprocessing step.
   if (JA.isOffloading(Action::OFK_SYCL) && !ContainsAppendFooterAction(&JA) &&
-      Args.hasArg(options::OPT_fsycl_use_footer) &&
+      !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
       JA.isDeviceOffloading(Action::OFK_None))
     CmdArgs.push_back("-C");
 
@@ -4643,7 +4643,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
     }
 
-    if (Args.hasArg(options::OPT_fsycl_use_footer)) {
+    if (!Args.hasArg(options::OPT_fno_sycl_use_footer)) {
       // Add the integration footer option to generated the footer.
       StringRef Footer(D.getIntegrationFooter(Input.getBaseInput()));
       if (!Footer.empty()) {
@@ -8608,7 +8608,11 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back(Output.getFilename());
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
     TranslatorArgs.push_back("-spirv-max-version=1.3");
-    TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
+    // TODO: align debug info for FPGA H/W when its SPIR-V consumer is ready
+    if (C.getDriver().isFPGAEmulationMode())
+      TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
+    else
+      TranslatorArgs.push_back("-spirv-debug-info-version=legacy");
     // Prevent crash in the translator if input IR contains DIExpression
     // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
     TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
@@ -8639,23 +8643,14 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         ",+SPV_INTEL_long_constant_composite"
         ",+SPV_INTEL_fpga_invocation_pipelining_attributes";
     ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
-    if (getToolChain().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_fpga) {
-      for (auto *A : TCArgs) {
-        if (A->getOption().matches(options::OPT_Xs_separate) ||
-            A->getOption().matches(options::OPT_Xs)) {
-          StringRef ArgString(A->getValue());
-          // Enable SPV_INTEL_usm_storage_classes only for FPGA hardware,
-          // since it adds new storage classes that represent global_device and
-          // global_host address spaces, which are not supported for all
-          // targets. With the extension disabled the storage classes will be
-          // lowered to CrossWorkgroup storage class that is mapped to just
-          // global address space.
-          if (ArgString == "hardware" || ArgString == "simulation")
-            ExtArg += ",+SPV_INTEL_usm_storage_classes";
-        }
-      }
-    }
+    if (!C.getDriver().isFPGAEmulationMode())
+      // Enable SPV_INTEL_usm_storage_classes only for FPGA hardware,
+      // since it adds new storage classes that represent global_device and
+      // global_host address spaces, which are not supported for all
+      // targets. With the extension disabled the storage classes will be
+      // lowered to CrossWorkgroup storage class that is mapped to just
+      // global address space.
+      ExtArg += ",+SPV_INTEL_usm_storage_classes";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
