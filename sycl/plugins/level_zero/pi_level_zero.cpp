@@ -1504,6 +1504,53 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   return PI_SUCCESS;
 }
 
+// sub-sub-device
+// TODO: do we need to gather Ordinals or just the SubSubDevicesCount will do ?
+pi_result getCmdQueueOrdinals(pi_device PiSubDevice, pi_uint32 &SubSubDevicesCount, std::vector<int>& Ordinals,
+                              std::vector<ze_command_queue_group_properties_t>& AllQueueProperties) {
+  uint32_t numQueueGroups = 0;
+  ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
+          (PiSubDevice->ZeDevice, &numQueueGroups, nullptr));
+  if (numQueueGroups == 0) {
+    return PI_ERROR_UNKNOWN;
+  }
+  std::vector<ze_command_queue_group_properties_t> QueueProperties(
+      numQueueGroups);
+  ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
+          (PiSubDevice->ZeDevice, &numQueueGroups, QueueProperties.data()));
+
+  SubSubDevicesCount = numQueueGroups;
+  AllQueueProperties = QueueProperties;
+
+  bool noComputeEngineFlag = true;
+  for (uint32_t i = 0; i < numQueueGroups; i++) {
+    if (QueueProperties[i].flags &
+        ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
+      Ordinals.push_back(i);
+      noComputeEngineFlag = false;
+    }
+  }
+
+  if (noComputeEngineFlag) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return PI_SUCCESS;
+}
+
+pi_result initializeWithOrdinal(pi_device PiSubSubDevice, int Ordinal, std::vector<ze_command_queue_group_properties_t>& QueueProperties) {
+  PiSubSubDevice->ZeComputeQueueGroupIndex = Ordinal;
+  PiSubSubDevice->ZeComputeQueueGroupProperties = QueueProperties[Ordinal];
+
+  // Cache device properties
+  PiSubSubDevice->ZeDeviceProperties = {};
+  ZE_CALL(zeDeviceGetProperties, (PiSubSubDevice->ZeDevice, &(PiSubSubDevice->ZeDeviceProperties)));
+  PiSubSubDevice->ZeDeviceComputeProperties = {};
+  ZE_CALL(zeDeviceGetComputeProperties, (PiSubSubDevice->ZeDevice, &(PiSubSubDevice->ZeDeviceComputeProperties)));
+
+  return PI_SUCCESS;
+}
+
 // Check the device cache and load it if necessary.
 pi_result _pi_platform::populateDeviceCacheIfNeeded() {
   std::lock_guard<std::mutex> Lock(PiDevicesCacheMutex);
@@ -1547,6 +1594,32 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
           delete[] ZeSubdevices;
           return Result;
         }
+
+        // sub-sub-device
+        // get all the ordinals for the sub-sub-devices
+        pi_uint32 SubSubDevicesCount = 0;
+        std::vector<int> Ordinals;
+        std::vector<ze_command_queue_group_properties_t> AllQueueProperties;
+        Result = getCmdQueueOrdinals(PiSubDevice.get(), SubSubDevicesCount, Ordinals, AllQueueProperties);
+        if (Result != PI_SUCCESS) {
+          return Result;
+        }
+
+        // Create PI sub-sub-devices with the sub-device for all the ordinals
+        for (uint32_t J = 0; J < SubSubDevicesCount; ++J) {
+          // TODO: check if a device can be it's own parent
+          std::unique_ptr<_pi_device> PiSubSubDevice(
+            new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
+          pi_result Result = initializeWithOrdinal(PiSubSubDevice.get(), Ordinals[J], AllQueueProperties);
+          if (Result != PI_SUCCESS) {
+            return Result;
+          }
+
+          // save pointers to sub-sub-devices for quick retrieval in the future.
+          PiSubDevice->SubDevices.push_back(PiSubSubDevice.get());
+          PiDevicesCache.push_back(std::move(PiSubSubDevice));
+        }
+
         // save pointers to sub-devices for quick retrieval in the future.
         Device->SubDevices.push_back(PiSubDevice.get());
         PiDevicesCache.push_back(std::move(PiSubDevice));
