@@ -130,7 +130,7 @@ namespace sycl::ext::intel::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout,
           access::address_space Space>
-  void joint_matrix_load(Group sg, joint_matrix<Group, T, NumRows, NumCols> &res,
+  void joint_matrix_load(Group sg, joint_matrix<Group, T, NumRows, NumCols, Layout> &res,
 		    multi_ptr<T, Space> src, size_t stride, matrix_layout layout = matrix_layout::row_major);
 }
 ```
@@ -143,7 +143,7 @@ namespace sycl::ext::intel::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout,
           access::address_space Space>	  
-  void joint_matrix_store(Group sg, matrix<Group, T, NumRows, NumCols> &res,
+  void joint_matrix_store(Group sg, joint_matrix<Group, T, NumRows, NumCols, Layout> &res,
 		     multi_ptr<T, Space> src, size_t stride, matrix_layout layout = matrix_layout::row_major);
 }
 ```
@@ -157,8 +157,8 @@ namespace sycl::ext::intel::experimental::matrix {
           std::size_t K, std::size_t N,
 	  matrix_layout LayoutA, matrix_layout LayoutB,
           matrix_layout LayoutC>
-  joint_matrix<Group, T2, M, N> joint_matrix_mad(Group sg, joint_matrix<Group, T1, M, K> A,
-               joint_matrix<Group, T1, K, N> B, joint_matrix<Group, T2, M, N> C);
+  joint_matrix<Group, T2, M, N, LayoutC> joint_matrix_mad(Group sg, joint_matrix<Group, T1, M, K, LayoutA> A,
+               joint_matrix<Group, T1, K, N, LayoutB> B, joint_matrix<Group, T2, M, N, LayoutC> C);
 }
 ```
 The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulate the result with `C` and return the result.
