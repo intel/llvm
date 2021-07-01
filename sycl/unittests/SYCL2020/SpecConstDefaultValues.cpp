@@ -82,7 +82,7 @@ static sycl::unittest::PiImage generateImageWithSpecConsts() {
 }
 
 sycl::unittest::PiImage Img = generateImageWithSpecConsts();
-sycl::unittest::PiImageArray ImgArray{Img};
+sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 TEST(SpecConstDefaultValues, DISABLED_DefaultValuesAreSet) {
   sycl::platform Plt{sycl::default_selector()};
