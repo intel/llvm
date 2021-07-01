@@ -86,7 +86,6 @@ IMPORTANT: In the current implementation, only the static extent is supported
 
 
 #### Layout
-//Layout is necessary on the type to be able to calculate the physical offset if the user needs to access a single entry for some purpose.
 Besides row major and column major layouts, `matrix_layout` is flexible enough to introduce customed layouts such as symmetric or tiled layouts.
 	
 ```c++
@@ -100,7 +99,7 @@ enum class matrix_layout {
 }
 ```
 
-AMX hardware requires B matrix to be in VNNI or 32 bits packed layout. If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed shape for B used by the implementation uses the VNNI format, which is described below. The user must provide the information of `packed_b` layout to make the implementation allocate the right shape.  The layout information for AMX should be specified in user code as follows: 
+AMX hardware requires B matrix to be in VNNI or 32 bits packed layout. If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed shape for B tile uses the VNNI format, which is described below. The user must provide the information of packed_b layout to make the implementation allocate the right shape. The layout information for AMX should be specified in user code as follows: 
 
 ```c++
 joint_matrix<sub_group, int8_t, K, N, packed_b> tB(sg);
