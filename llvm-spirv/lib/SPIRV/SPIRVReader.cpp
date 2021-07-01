@@ -163,23 +163,24 @@ static void addNamedMetadataStringSet(LLVMContext *Context, Module *M,
 static void addOCLKernelArgumentMetadata(
     LLVMContext *Context, const std::string &MDName, SPIRVFunction *BF,
     llvm::Function *Fn,
-    std::function<Metadata *(SPIRVFunctionParameter *)> Func) {
+    std::function<Metadata *(SPIRVFunctionParameter *)> ForeachFnArg) {
   std::vector<Metadata *> ValueVec;
-  BF->foreachArgument(
-      [&](SPIRVFunctionParameter *Arg) { ValueVec.push_back(Func(Arg)); });
+  BF->foreachArgument([&](SPIRVFunctionParameter *Arg) {
+    ValueVec.push_back(ForeachFnArg(Arg));
+  });
   Fn->setMetadata(MDName, MDNode::get(*Context, ValueVec));
 }
 
 static void addBufferLocationMetadata(
     LLVMContext *Context, SPIRVFunction *BF, llvm::Function *Fn,
-    std::function<Metadata *(SPIRVFunctionParameter *)> Func) {
+    std::function<Metadata *(SPIRVFunctionParameter *)> ForeachFnArg) {
   std::vector<Metadata *> ValueVec;
   bool DecorationFound = false;
   BF->foreachArgument([&](SPIRVFunctionParameter *Arg) {
     if (Arg->getType()->isTypePointer() &&
         Arg->hasDecorate(DecorationBufferLocationINTEL)) {
       DecorationFound = true;
-      ValueVec.push_back(Func(Arg));
+      ValueVec.push_back(ForeachFnArg(Arg));
     } else {
       llvm::Metadata *DefaultNode = ConstantAsMetadata::get(
           ConstantInt::get(Type::getInt32Ty(*Context), -1));
@@ -188,6 +189,27 @@ static void addBufferLocationMetadata(
   });
   if (DecorationFound)
     Fn->setMetadata("kernel_arg_buffer_location",
+                    MDNode::get(*Context, ValueVec));
+}
+
+static void addRuntimeAlignedMetadata(
+    LLVMContext *Context, SPIRVFunction *BF, llvm::Function *Fn,
+    std::function<Metadata *(SPIRVFunctionParameter *)> ForeachFnArg) {
+  std::vector<Metadata *> ValueVec;
+  bool DecorationFound = false;
+  BF->foreachArgument([&](SPIRVFunctionParameter *Arg) {
+    if (Arg->getType()->isTypePointer() &&
+        Arg->hasDecorate(internal::DecorationRuntimeAlignedINTEL)) {
+      DecorationFound = true;
+      ValueVec.push_back(ForeachFnArg(Arg));
+    } else {
+      llvm::Metadata *DefaultNode = ConstantAsMetadata::get(
+          ConstantInt::get(Type::getInt1Ty(*Context), 0));
+      ValueVec.push_back(DefaultNode);
+    }
+  });
+  if (DecorationFound)
+    Fn->setMetadata("kernel_arg_runtime_aligned",
                     MDNode::get(*Context, ValueVec));
 }
 
@@ -4269,6 +4291,16 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
 
     return ConstantAsMetadata::get(
         ConstantInt::get(Type::getInt32Ty(*Context), Literals[0]));
+  });
+  // Generate metadata for kernel_arg_runtime_aligned
+  addRuntimeAlignedMetadata(Context, BF, F, [=](SPIRVFunctionParameter *Arg) {
+    auto Literals =
+        Arg->getDecorationLiterals(internal::DecorationRuntimeAlignedINTEL);
+    assert(Literals.size() == 1 &&
+           "RuntimeAlignedINTEL decoration shall have 1 ID literal");
+
+    return ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt1Ty(*Context), Literals[0]));
   });
   return true;
 }
