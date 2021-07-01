@@ -56,7 +56,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 }
 
 static sycl::unittest::PiImage Img = generateDefaultImage();
-static sycl::unittest::PiImageArray ImgArray{Img};
+static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 TEST(KernelBundle, GetKernelBundleFromKernel) {
   sycl::platform Plt{sycl::default_selector()};
