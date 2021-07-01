@@ -155,7 +155,6 @@ exit:
   ret void
 }
 
-; TODO: SCEV seems not to recognize this as a zero btc loop
 define void @test_multi_exit3(i1 %cond1) {
 ; CHECK-LABEL: @test_multi_exit3(
 ; CHECK-NEXT:  entry:

@@ -211,6 +211,11 @@ using cl::sycl::detail::enable_if_t;
 using cl::sycl::detail::queue_impl;
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<Reduction::has_atomic_add_float64>
+reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
+                   const nd_range<Dims> &Range, Reduction &Redu);
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
 enable_if_t<Reduction::has_fast_atomics>
 reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
            Reduction &Redu);
@@ -247,18 +252,18 @@ std::enable_if_t<Reduction::is_usm>
 reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu);
 
 template <typename... Reduction, size_t... Is>
-shared_ptr_class<event>
-reduSaveFinalResultToUserMem(shared_ptr_class<detail::queue_impl> Queue,
+std::shared_ptr<event>
+reduSaveFinalResultToUserMem(std::shared_ptr<detail::queue_impl> Queue,
                              bool IsHost, std::tuple<Reduction...> &ReduTuple,
                              std::index_sequence<Is...>);
 
 template <typename Reduction, typename... RestT>
 std::enable_if_t<!Reduction::is_usm>
 reduSaveFinalResultToUserMemHelper(std::vector<event> &Events,
-                                   shared_ptr_class<detail::queue_impl> Queue,
+                                   std::shared_ptr<detail::queue_impl> Queue,
                                    bool IsHost, Reduction &Redu, RestT... Rest);
 
-__SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
+__SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
 
 template <typename... ReductionT, size_t... Is>
@@ -313,7 +318,7 @@ private:
   ///
   /// \param Queue is a SYCL queue.
   /// \param IsHost indicates if this handler is created for SYCL host device.
-  handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost);
+  handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost);
 
   /// Stores copy of Arg passed to the MArgsStorage.
   template <typename T, typename F = typename detail::remove_const_t<
@@ -370,7 +375,7 @@ private:
                   bool IsKernelCreatedFromSource, bool IsESIMD);
 
   /// \return a string containing name of SYCL kernel.
-  string_class getKernelName();
+  std::string getKernelName();
 
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
@@ -379,8 +384,8 @@ private:
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
-    const string_class LambdaName = detail::KernelInfo<LambdaNameT>::getName();
-    const string_class KernelName = getKernelName();
+    const std::string LambdaName = detail::KernelInfo<LambdaNameT>::getName();
+    const std::string KernelName = getKernelName();
     return LambdaName == KernelName;
   }
 
@@ -401,7 +406,7 @@ private:
   /// Streams are then forwarded to command group and flushed in the scheduler.
   ///
   /// \param Stream is a pointer to SYCL stream.
-  void addStream(const shared_ptr_class<detail::stream_impl> &Stream) {
+  void addStream(const std::shared_ptr<detail::stream_impl> &Stream) {
     MStreamStorage.push_back(Stream);
   }
 
@@ -411,7 +416,7 @@ private:
   /// The 'MSharedPtrStorage' suits that need.
   ///
   /// @param ReduObj is a pointer to object that must be stored.
-  void addReduction(const shared_ptr_class<const void> &ReduObj) {
+  void addReduction(const std::shared_ptr<const void> &ReduObj) {
     MSharedPtrStorage.push_back(ReduObj);
   }
 
@@ -583,7 +588,7 @@ private:
         IsCopyingRectRegionAvailable(Src.get_range(), Dst.get_range()))
       return false;
 
-    range<1> LinearizedRange(Src.get_count());
+    range<1> LinearizedRange(Src.size());
     parallel_for<class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc,
                                      TDst, DimDst, ModeDst, TargetDst,
                                      IsPHSrc, IsPHDst>>
@@ -825,9 +830,8 @@ private:
 
       range<Dims> AdjustedRange = NumWorkItems;
       AdjustedRange.set_range_dim0(NewValX);
-#ifdef __SYCL_DEVICE_ONLY__
       kernel_parallel_for_wrapper<NameWT, TransformedArgType>(Wrapper);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
       detail::checkValueRange<Dims>(AdjustedRange);
       MNDRDesc.set(std::move(AdjustedRange));
       StoreLambda<NameWT, decltype(Wrapper), Dims, TransformedArgType>(
@@ -839,10 +843,9 @@ private:
        // !DPCPP_HOST_DEVICE_OPENMP && !DPCPP_HOST_DEVICE_PERF_NATIVE &&       \
        // SYCL_LANGUAGE_VERSION >= 202001
     {
-#ifdef __SYCL_DEVICE_ONLY__
       (void)NumWorkItems;
       kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
       detail::checkValueRange<Dims>(NumWorkItems);
       MNDRDesc.set(std::move(NumWorkItems));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
@@ -871,79 +874,109 @@ private:
     MKernelName = getKernelName();
   }
 
-#ifdef __SYCL_DEVICE_ONLY__
-
+#ifdef SYCL_LANGUAGE_VERSION
+#define __SYCL_KERNEL_ATTR__ __attribute__((sycl_kernel))
+#else
+#define __SYCL_KERNEL_ATTR__
+#endif
   // NOTE: the name of this function - "kernel_single_task" - is used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType>
-  __attribute__((sycl_kernel)) void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_single_task(KernelType KernelFunc) {
 #else
   kernel_single_task(const KernelType &KernelFunc) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
     KernelFunc();
+#else
+    (void)KernelFunc;
+#endif
   }
 
   // NOTE: the name of this function - "kernel_single_task" - is used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType>
-  __attribute__((sycl_kernel)) void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_single_task(KernelType KernelFunc, kernel_handler KH) {
 #else
   kernel_single_task(const KernelType &KernelFunc, kernel_handler KH) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(KH);
+#else
+    (void)KernelFunc;
+    (void)KH;
+#endif
   }
 
   // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
-  __attribute__((sycl_kernel)) void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for(KernelType KernelFunc) {
 #else
   kernel_parallel_for(const KernelType &KernelFunc) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+#else
+    (void)KernelFunc;
+#endif
   }
 
   // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
-  __attribute__((sycl_kernel)) void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for(KernelType KernelFunc, kernel_handler KH) {
 #else
   kernel_parallel_for(const KernelType &KernelFunc, kernel_handler KH) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
+#else
+    (void)KernelFunc;
+    (void)KH;
+#endif
   }
 
   // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
   // used by the Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
-  __attribute__((sycl_kernel)) void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for_work_group(KernelType KernelFunc) {
 #else
   kernel_parallel_for_work_group(const KernelType &KernelFunc) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+#else
+    (void)KernelFunc;
+#endif
   }
 
   // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
   // used by the Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
-  __attribute__((sycl_kernel)) void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for_work_group(KernelType KernelFunc, kernel_handler KH) {
 #else
   kernel_parallel_for_work_group(const KernelType &KernelFunc,
                                  kernel_handler KH) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
+#else
+    (void)KernelFunc;
+    (void)KH;
+#endif
   }
 
   // Wrappers for kernel_*** functions above with and without support of
@@ -955,88 +988,88 @@ private:
   // Wrappers for kernel_single_task(...)
 
   template <typename KernelName, typename KernelType>
-  std::enable_if_t<
-      detail::isKernelLambdaCallableWithKernelHandler<KernelType>(), void>
+  void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_single_task_wrapper(KernelType KernelFunc) {
 #else
   kernel_single_task_wrapper(const KernelType &KernelFunc) {
 #endif
-    kernel_handler KH;
-    kernel_single_task<KernelName>(KernelFunc, KH);
-  }
-
-  template <typename KernelName, typename KernelType>
-  std::enable_if_t<
-      !detail::isKernelLambdaCallableWithKernelHandler<KernelType>(), void>
-#ifdef __SYCL_NONCONST_FUNCTOR__
-  kernel_single_task_wrapper(KernelType KernelFunc) {
-#else
-  kernel_single_task_wrapper(const KernelType &KernelFunc) {
-#endif
-    kernel_single_task<KernelName>(KernelFunc);
+#ifdef __SYCL_DEVICE_ONLY__
+    detail::CheckDeviceCopyable<KernelType>();
+#endif // __SYCL_DEVICE_ONLY__
+    if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_single_task<KernelName>(KernelFunc, KH);
+    } else {
+      kernel_single_task<KernelName>(KernelFunc);
+    }
   }
 
   // Wrappers for kernel_parallel_for(...)
 
   template <typename KernelName, typename ElementType, typename KernelType>
-  std::enable_if_t<detail::isKernelLambdaCallableWithKernelHandler<
-                       KernelType, ElementType>(),
-                   void>
+  void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for_wrapper(KernelType KernelFunc) {
 #else
   kernel_parallel_for_wrapper(const KernelType &KernelFunc) {
 #endif
-    kernel_handler KH;
-    kernel_parallel_for<KernelName, ElementType>(KernelFunc, KH);
-  }
-
-  template <typename KernelName, typename ElementType, typename KernelType>
-  std::enable_if_t<!detail::isKernelLambdaCallableWithKernelHandler<
-                       KernelType, ElementType>(),
-                   void>
-#ifdef __SYCL_NONCONST_FUNCTOR__
-  kernel_parallel_for_wrapper(KernelType KernelFunc) {
-#else
-  kernel_parallel_for_wrapper(const KernelType &KernelFunc) {
-#endif
-    kernel_parallel_for<KernelName, ElementType>(KernelFunc);
+#ifdef __SYCL_DEVICE_ONLY__
+    detail::CheckDeviceCopyable<KernelType>();
+#endif // __SYCL_DEVICE_ONLY__
+    if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
+                      KernelType, ElementType>()) {
+      kernel_handler KH;
+      kernel_parallel_for<KernelName, ElementType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for<KernelName, ElementType>(KernelFunc);
+    }
   }
 
   // Wrappers for kernel_parallel_for_work_group(...)
 
   template <typename KernelName, typename ElementType, typename KernelType>
-  std::enable_if_t<detail::isKernelLambdaCallableWithKernelHandler<
-                       KernelType, ElementType>(),
-                   void>
+  void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for_work_group_wrapper(KernelType KernelFunc) {
 #else
   kernel_parallel_for_work_group_wrapper(const KernelType &KernelFunc) {
 #endif
-    kernel_handler KH;
-    kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc, KH);
+#ifdef __SYCL_DEVICE_ONLY__
+    detail::CheckDeviceCopyable<KernelType>();
+#endif // __SYCL_DEVICE_ONLY__
+    if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
+                      KernelType, ElementType>()) {
+      kernel_handler KH;
+      kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc);
+    }
   }
-
-  template <typename KernelName, typename ElementType, typename KernelType>
-  std::enable_if_t<!detail::isKernelLambdaCallableWithKernelHandler<
-                       KernelType, ElementType>(),
-                   void>
-#ifdef __SYCL_NONCONST_FUNCTOR__
-  kernel_parallel_for_work_group_wrapper(KernelType KernelFunc) {
-#else
-  kernel_parallel_for_work_group_wrapper(const KernelType &KernelFunc) {
-#endif
-    kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc);
-  }
-#endif
 
   std::shared_ptr<detail::kernel_bundle_impl>
   getOrInsertHandlerKernelBundle(bool Insert) const;
 
   void setHandlerKernelBundle(
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
+
+  template <typename FuncT>
+  detail::enable_if_t<
+      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+                                 void()>::value ||
+      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+                                 void(interop_handle)>::value>
+  host_task_impl(FuncT &&Func) {
+    throwIfActionIsCreated();
+
+    MNDRDesc.set(range<1>(1));
+    MArgs = std::move(MAssociatedAccesors);
+
+    MHostTask.reset(new detail::HostTask(std::move(Func)));
+
+    setType(detail::CG::CODEPLAY_HOST_TASK);
+  }
 
 public:
   handler(const handler &) = delete;
@@ -1105,7 +1138,7 @@ public:
   /// Registers event dependencies on this command group.
   ///
   /// \param Events is a vector of valid SYCL events to wait on.
-  void depends_on(const vector_class<event> &Events) {
+  void depends_on(const std::vector<event> &Events) {
     for (const event &Event : Events) {
       MEvents.push_back(detail::getSyclObjImpl(Event));
     }
@@ -1175,9 +1208,8 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-#ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task_wrapper<NameT>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant.
     MNDRDesc.set(range<1>{1});
@@ -1231,31 +1263,26 @@ public:
   }
 
   template <typename FuncT>
-  detail::enable_if_t<detail::check_fn_signature<
-      detail::remove_reference_t<FuncT>, void()>::value>
-  codeplay_host_task(FuncT Func) {
-    throwIfActionIsCreated();
-
-    MNDRDesc.set(range<1>(1));
-    MArgs = std::move(MAssociatedAccesors);
-
-    MHostTask.reset(new detail::HostTask(std::move(Func)));
-
-    setType(detail::CG::CODEPLAY_HOST_TASK);
+  __SYCL2020_DEPRECATED(
+      "codeplay_host_task() is deprecated, use host_task() instead")
+  detail::enable_if_t<
+      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+                                 void()>::value ||
+      detail::check_fn_signature<
+          detail::remove_reference_t<FuncT>,
+          void(interop_handle)>::value> codeplay_host_task(FuncT Func) {
+    host_task_impl(Func);
   }
 
+  /// Enqueues a command to the SYCL runtime to invoke \p Func once.
   template <typename FuncT>
-  detail::enable_if_t<detail::check_fn_signature<
-      detail::remove_reference_t<FuncT>, void(interop_handle)>::value>
-  codeplay_host_task(FuncT Func) {
-    throwIfActionIsCreated();
-
-    MNDRDesc.set(range<1>(1));
-    MArgs = std::move(MAssociatedAccesors);
-
-    MHostTask.reset(new detail::HostTask(std::move(Func)));
-
-    setType(detail::CG::CODEPLAY_HOST_TASK);
+  detail::enable_if_t<
+      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+                                 void()>::value ||
+      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+                                 void(interop_handle)>::value>
+  host_task(FuncT &&Func) {
+    host_task_impl(Func);
   }
 
 // replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
@@ -1281,17 +1308,17 @@ public:
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
+  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                     _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkItems;
     (void)WorkItemOffset;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1320,10 +1347,9 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)ExecutionRange;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1349,7 +1375,7 @@ public:
   detail::enable_if_t<Reduction::has_fast_atomics>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
-    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
     ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
 
     if (Reduction::is_usm || Redu.initializeToIdentity()) {
@@ -1359,6 +1385,49 @@ public:
       ONEAPI::detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler,
                                                                Redu);
       MLastEvent = CopyHandler.finalize();
+    }
+  }
+
+  /// Implements parallel_for() accepting nd_range \p Range and one reduction
+  /// object. This version is a specialization for the add operator.
+  /// It performs runtime checks for device aspect "atomic64"; if found, fast
+  /// sycl::atomic_ref operations are used to update the reduction at the
+  /// end of each work-group work.  Otherwise the default implementation is
+  /// used.
+  //
+  // If the reduction variable must be initialized with the identity value
+  // before the kernel run, then an additional working accessor is created,
+  // initialized with the identity value and used in the kernel. That working
+  // accessor is then copied to user's accessor or USM pointer after
+  // the kernel run.
+  // For USM pointers without initialize_to_identity properties the same scheme
+  // with working accessor is used as re-using user's USM pointer in the kernel
+  // would require creation of another variant of user's kernel, which does not
+  // seem efficient.
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims, typename Reduction>
+  detail::enable_if_t<Reduction::has_atomic_add_float64>
+  parallel_for(nd_range<Dims> Range, Reduction Redu,
+               _KERNELFUNCPARAM(KernelFunc)) {
+
+    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+    device D = detail::getDeviceFromHandler(*this);
+
+    if (D.has(aspect::atomic64)) {
+
+      ONEAPI::detail::reduCGFuncAtomic64<KernelName>(*this, KernelFunc, Range,
+                                                     Redu);
+
+      if (Reduction::is_usm || Redu.initializeToIdentity()) {
+        this->finalize();
+        handler CopyHandler(QueueCopy, MIsHost);
+        CopyHandler.saveCodeLoc(MCodeLoc);
+        ONEAPI::detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler,
+                                                                 Redu);
+        MLastEvent = CopyHandler.finalize();
+      }
+    } else {
+      parallel_for_Impl<KernelName>(Range, Redu, KernelFunc);
     }
   }
 
@@ -1378,9 +1447,19 @@ public:
   /// optimized implementations waiting for their turn of code-review.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
-  detail::enable_if_t<!Reduction::has_fast_atomics>
+  detail::enable_if_t<!Reduction::has_fast_atomics &&
+                      !Reduction::has_atomic_add_float64>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
+
+    parallel_for_Impl<KernelName>(Range, Redu, KernelFunc);
+  }
+
+  template <typename KernelName, typename KernelType, int Dims,
+            typename Reduction>
+  detail::enable_if_t<!Reduction::has_fast_atomics>
+  parallel_for_Impl(nd_range<Dims> Range, Reduction Redu,
+                    KernelType KernelFunc) {
     // This parallel_for() is lowered to the following sequence:
     // 1) Call a kernel that a) call user's lambda function and b) performs
     //    one iteration of reduction, storing the partial reductions/sums
@@ -1417,7 +1496,7 @@ public:
 
     // 1. Call the kernel that includes user's lambda function.
     ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
-    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
     // 2. Run the additional kernel as many times as needed to reduce
@@ -1514,7 +1593,7 @@ public:
 
     ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, ReduTuple,
                                            ReduIndices);
-    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
     size_t NWorkItems = Range.get_group_range().size();
@@ -1553,10 +1632,9 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkGroups;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1586,11 +1664,10 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkGroups;
     (void)WorkGroupSize;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::checkValueRange<Dims>(ExecRange);
@@ -1639,6 +1716,7 @@ public:
   /// \param WorkItemOffset is an offset to be applied to each work item index.
   /// \param Kernel is a SYCL kernel function.
   template <int Dims>
+  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                     kernel Kernel) {
     throwIfActionIsCreated();
@@ -1681,10 +1759,9 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     kernel_single_task<NameT>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     MNDRDesc.set(range<1>{1});
@@ -1695,6 +1772,8 @@ public:
       MKernelName = getKernelName();
     } else
       StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(std::move(KernelFunc));
+#else
+    detail::CheckDeviceCopyable<KernelType>();
 #endif
   }
 
@@ -1722,11 +1801,10 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkItems;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
@@ -1751,18 +1829,18 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
+  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkItems;
     (void)WorkItemOffset;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
@@ -1794,11 +1872,10 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NDRange;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
@@ -1834,11 +1911,10 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkGroups;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
@@ -1872,12 +1948,11 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkGroups;
     (void)WorkGroupSize;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::checkValueRange<Dims>(ExecRange);
@@ -1904,7 +1979,7 @@ public:
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
-            shared_ptr_class<T_Dst> Dst) {
+            std::shared_ptr<T_Dst> Dst) {
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
@@ -1913,7 +1988,7 @@ public:
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Dst);
-    typename shared_ptr_class<T_Dst>::element_type *RawDstPtr = Dst.get();
+    typename std::shared_ptr<T_Dst>::element_type *RawDstPtr = Dst.get();
     copy(Src, RawDstPtr);
   }
 
@@ -1928,7 +2003,7 @@ public:
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void
-  copy(shared_ptr_class<T_Src> Src,
+  copy(std::shared_ptr<T_Src> Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -1938,7 +2013,7 @@ public:
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Src);
-    typename shared_ptr_class<T_Src>::element_type *RawSrcPtr = Src.get();
+    typename std::shared_ptr<T_Src>::element_type *RawSrcPtr = Src.get();
     copy(RawSrcPtr, Dst);
   }
 
@@ -2167,7 +2242,7 @@ public:
   ///
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
-  void barrier(const vector_class<event> &WaitList);
+  void barrier(const std::vector<event> &WaitList);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -2179,6 +2254,19 @@ public:
   /// \param Src is a USM pointer to the source memory.
   /// \param Count is a number of bytes to copy.
   void memcpy(void *Dest, const void *Src, size_t Count);
+
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Count is a number of elements of type T to copy.
+  template <typename T> void copy(T *Dest, const T *Src, size_t Count) {
+    this->memcpy(Dest, Src, Count * sizeof(T));
+  }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Count is zero. An exception is thrown
@@ -2198,30 +2286,38 @@ public:
   /// \param Count is a number of bytes to be prefetched.
   void prefetch(const void *Ptr, size_t Count);
 
+  /// Provides additional information to the underlying runtime about how
+  /// different allocations are used.
+  ///
+  /// \param Ptr is a USM pointer to the allocation.
+  /// \param Length is a number of bytes in the allocation.
+  /// \param Advice is a device-defined advice for the specified allocation.
+  void mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice);
+
 private:
-  shared_ptr_class<detail::queue_impl> MQueue;
+  std::shared_ptr<detail::queue_impl> MQueue;
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after
   /// we exit the method they are passed in.
-  vector_class<vector_class<char>> MArgsStorage;
-  vector_class<detail::AccessorImplPtr> MAccStorage;
-  vector_class<detail::LocalAccessorImplPtr> MLocalAccStorage;
-  vector_class<shared_ptr_class<detail::stream_impl>> MStreamStorage;
-  mutable vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
+  std::vector<std::vector<char>> MArgsStorage;
+  std::vector<detail::AccessorImplPtr> MAccStorage;
+  std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
+  std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
+  mutable std::vector<std::shared_ptr<const void>> MSharedPtrStorage;
   /// The list of arguments for the kernel.
-  vector_class<detail::ArgDesc> MArgs;
+  std::vector<detail::ArgDesc> MArgs;
   /// The list of associated accessors with this handler.
   /// These accessors were created with this handler as argument or
   /// have become required for this handler via require method.
-  vector_class<detail::ArgDesc> MAssociatedAccesors;
+  std::vector<detail::ArgDesc> MAssociatedAccesors;
   /// The list of requirements to the memory objects for the scheduling.
-  vector_class<detail::Requirement *> MRequirements;
+  std::vector<detail::Requirement *> MRequirements;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
-  string_class MKernelName;
+  std::string MKernelName;
   /// Storage for a sycl::kernel object.
-  shared_ptr_class<detail::kernel_impl> MKernel;
+  std::shared_ptr<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
   /// Use getType and setType methods to access this variable unless
   /// manipulations with version are required
@@ -2233,19 +2329,19 @@ private:
   /// Length to copy or fill (for USM operations).
   size_t MLength = 0;
   /// Pattern that is used to fill memory object in case command type is fill.
-  vector_class<char> MPattern;
+  std::vector<char> MPattern;
   /// Storage for a lambda or function object.
-  unique_ptr_class<detail::HostKernelBase> MHostKernel;
+  std::unique_ptr<detail::HostKernelBase> MHostKernel;
   /// Storage for lambda/function when using HostTask
-  unique_ptr_class<detail::HostTask> MHostTask;
+  std::unique_ptr<detail::HostTask> MHostTask;
   detail::OSModuleHandle MOSModuleHandle = detail::OSUtil::ExeModuleHandle;
   // Storage for a lambda or function when using InteropTasks
-  unique_ptr_class<detail::InteropTask> MInteropTask;
+  std::unique_ptr<detail::InteropTask> MInteropTask;
   /// The list of events that order this operation.
-  vector_class<detail::EventImplPtr> MEvents;
+  std::vector<detail::EventImplPtr> MEvents;
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
-  vector_class<detail::EventImplPtr> MEventsWaitWithBarrier;
+  std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
 
   bool MIsHost = false;
 
@@ -2278,9 +2374,8 @@ private:
   template <typename Reduction, typename... RestT>
   std::enable_if_t<!Reduction::is_usm> friend ONEAPI::detail::
       reduSaveFinalResultToUserMemHelper(
-          std::vector<event> &Events,
-          shared_ptr_class<detail::queue_impl> Queue, bool IsHost, Reduction &,
-          RestT...);
+          std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
+          bool IsHost, Reduction &, RestT...);
 
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,
@@ -2288,32 +2383,25 @@ private:
 
   friend class ::MockHandler;
 
-  template <
-      typename TransformedArgType, int Dims, typename KernelType,
-      typename std::enable_if_t<detail::isKernelLambdaCallableWithKernelHandler<
-          KernelType, TransformedArgType>()> * = nullptr>
+  template <typename TransformedArgType, int Dims, typename KernelType>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
                                    range<Dims> NumWorkItems) {
-    return [=](TransformedArgType Arg, kernel_handler KH) {
-      if (Arg[0] >= NumWorkItems[0])
-        return;
-      Arg.set_allowed_range(NumWorkItems);
-      KernelFunc(Arg, KH);
-    };
-  }
-
-  template <typename TransformedArgType, int Dims, typename KernelType,
-            typename std::enable_if_t<
-                !detail::isKernelLambdaCallableWithKernelHandler<
-                    KernelType, TransformedArgType>()> * = nullptr>
-  auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> NumWorkItems) {
-    return [=](TransformedArgType Arg) {
-      if (Arg[0] >= NumWorkItems[0])
-        return;
-      Arg.set_allowed_range(NumWorkItems);
-      KernelFunc(Arg);
-    };
+    if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
+                      KernelType, TransformedArgType>()) {
+      return [=](TransformedArgType Arg, kernel_handler KH) {
+        if (Arg[0] >= NumWorkItems[0])
+          return;
+        Arg.set_allowed_range(NumWorkItems);
+        KernelFunc(Arg, KH);
+      };
+    } else {
+      return [=](TransformedArgType Arg) {
+        if (Arg[0] >= NumWorkItems[0])
+          return;
+        Arg.set_allowed_range(NumWorkItems);
+        KernelFunc(Arg);
+      };
+    }
   }
 };
 } // namespace sycl

@@ -94,8 +94,7 @@ public:
 
   struct ExecuteScriptOptions {
   public:
-    ExecuteScriptOptions()
-        : m_enable_io(true), m_set_lldb_globals(true), m_maskout_errors(true) {}
+    ExecuteScriptOptions() {}
 
     bool GetEnableIO() const { return m_enable_io; }
 
@@ -122,9 +121,9 @@ public:
     }
 
   private:
-    bool m_enable_io;
-    bool m_set_lldb_globals;
-    bool m_maskout_errors;
+    bool m_enable_io = true;
+    bool m_set_lldb_globals = true;
+    bool m_maskout_errors = true;
   };
 
   virtual bool Interrupt() { return false; }
@@ -339,18 +338,19 @@ public:
   }
 
   virtual void CollectDataForBreakpointCommandCallback(
-      std::vector<BreakpointOptions *> &options, CommandReturnObject &result);
+      std::vector<std::reference_wrapper<BreakpointOptions>> &options,
+      CommandReturnObject &result);
 
   virtual void
   CollectDataForWatchpointCommandCallback(WatchpointOptions *wp_options,
                                           CommandReturnObject &result);
 
   /// Set the specified text as the callback for the breakpoint.
-  Status
-  SetBreakpointCommandCallback(std::vector<BreakpointOptions *> &bp_options_vec,
-                               const char *callback_text);
+  Status SetBreakpointCommandCallback(
+      std::vector<std::reference_wrapper<BreakpointOptions>> &bp_options_vec,
+      const char *callback_text);
 
-  virtual Status SetBreakpointCommandCallback(BreakpointOptions *bp_options,
+  virtual Status SetBreakpointCommandCallback(BreakpointOptions &bp_options,
                                               const char *callback_text) {
     Status error;
     error.SetErrorString("unimplemented");
@@ -359,7 +359,7 @@ public:
 
   /// This one is for deserialization:
   virtual Status SetBreakpointCommandCallback(
-      BreakpointOptions *bp_options,
+      BreakpointOptions &bp_options,
       std::unique_ptr<BreakpointOptions::CommandData> &data_up) {
     Status error;
     error.SetErrorString("unimplemented");
@@ -367,15 +367,14 @@ public:
   }
 
   Status SetBreakpointCommandCallbackFunction(
-      std::vector<BreakpointOptions *> &bp_options_vec,
+      std::vector<std::reference_wrapper<BreakpointOptions>> &bp_options_vec,
       const char *function_name, StructuredData::ObjectSP extra_args_sp);
 
   /// Set a script function as the callback for the breakpoint.
   virtual Status
-  SetBreakpointCommandCallbackFunction(
-      BreakpointOptions *bp_options,
-      const char *function_name,
-      StructuredData::ObjectSP extra_args_sp) {
+  SetBreakpointCommandCallbackFunction(BreakpointOptions &bp_options,
+                                       const char *function_name,
+                                       StructuredData::ObjectSP extra_args_sp) {
     Status error;
     error.SetErrorString("unimplemented");
     return error;

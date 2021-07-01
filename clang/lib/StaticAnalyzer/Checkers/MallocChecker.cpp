@@ -2123,7 +2123,7 @@ void MallocChecker::HandleMismatchedDealloc(CheckerContext &C,
                                                       os.str(), N);
     R->markInteresting(Sym);
     R->addRange(Range);
-    R->addVisitor(std::make_unique<MallocBugVisitor>(Sym));
+    R->addVisitor<MallocBugVisitor>(Sym);
     C.emitReport(std::move(R));
   }
 }
@@ -2216,7 +2216,7 @@ void MallocChecker::HandleUseAfterFree(CheckerContext &C, SourceRange Range,
 
     R->markInteresting(Sym);
     R->addRange(Range);
-    R->addVisitor(std::make_unique<MallocBugVisitor>(Sym));
+    R->addVisitor<MallocBugVisitor>(Sym);
 
     if (AF == AF_InnerBuffer)
       R->addVisitor(allocation_state::getInnerPointerBRVisitor(Sym));
@@ -2252,7 +2252,7 @@ void MallocChecker::HandleDoubleFree(CheckerContext &C, SourceRange Range,
     R->markInteresting(Sym);
     if (PrevSym)
       R->markInteresting(PrevSym);
-    R->addVisitor(std::make_unique<MallocBugVisitor>(Sym));
+    R->addVisitor<MallocBugVisitor>(Sym);
     C.emitReport(std::move(R));
   }
 }
@@ -2278,7 +2278,7 @@ void MallocChecker::HandleDoubleDelete(CheckerContext &C, SymbolRef Sym) const {
         *BT_DoubleDelete, "Attempt to delete released memory", N);
 
     R->markInteresting(Sym);
-    R->addVisitor(std::make_unique<MallocBugVisitor>(Sym));
+    R->addVisitor<MallocBugVisitor>(Sym);
     C.emitReport(std::move(R));
   }
 }
@@ -2308,7 +2308,7 @@ void MallocChecker::HandleUseZeroAlloc(CheckerContext &C, SourceRange Range,
     R->addRange(Range);
     if (Sym) {
       R->markInteresting(Sym);
-      R->addVisitor(std::make_unique<MallocBugVisitor>(Sym));
+      R->addVisitor<MallocBugVisitor>(Sym);
     }
     C.emitReport(std::move(R));
   }
@@ -2578,7 +2578,7 @@ void MallocChecker::HandleLeak(SymbolRef Sym, ExplodedNode *N,
       *BT_Leak[*CheckKind], os.str(), N, LocUsedForUniqueing,
       AllocNode->getLocationContext()->getDecl());
   R->markInteresting(Sym);
-  R->addVisitor(std::make_unique<MallocBugVisitor>(Sym, true));
+  R->addVisitor<MallocBugVisitor>(Sym, true);
   C.emitReport(std::move(R));
 }
 
@@ -3145,9 +3145,10 @@ static SymbolRef findFailedReallocSymbol(ProgramStateRef currState,
 static bool isReferenceCountingPointerDestructor(const CXXDestructorDecl *DD) {
   if (const IdentifierInfo *II = DD->getParent()->getIdentifier()) {
     StringRef N = II->getName();
-    if (N.contains_lower("ptr") || N.contains_lower("pointer")) {
-      if (N.contains_lower("ref") || N.contains_lower("cnt") ||
-          N.contains_lower("intrusive") || N.contains_lower("shared")) {
+    if (N.contains_insensitive("ptr") || N.contains_insensitive("pointer")) {
+      if (N.contains_insensitive("ref") || N.contains_insensitive("cnt") ||
+          N.contains_insensitive("intrusive") ||
+          N.contains_insensitive("shared")) {
         return true;
       }
     }

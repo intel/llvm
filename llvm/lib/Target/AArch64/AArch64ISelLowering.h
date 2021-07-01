@@ -172,9 +172,6 @@ enum NodeType : unsigned {
   // element must be identical.
   BSP,
 
-  // Vector arithmetic negation
-  NEG,
-
   // Vector shuffles
   ZIP1,
   ZIP2,
@@ -239,9 +236,8 @@ enum NodeType : unsigned {
   SRHADD,
   URHADD,
 
-  // Absolute difference
-  UABD,
-  SABD,
+  // Unsigned Add Long Pairwise
+  UADDLP,
 
   // udot/sdot instructions
   UDOT,
@@ -650,12 +646,12 @@ public:
     return TargetLowering::shouldFormOverflowOp(Opcode, VT, true);
   }
 
-  Value *emitLoadLinked(IRBuilder<> &Builder, Value *Addr,
+  Value *emitLoadLinked(IRBuilderBase &Builder, Value *Addr,
                         AtomicOrdering Ord) const override;
-  Value *emitStoreConditional(IRBuilder<> &Builder, Value *Val,
-                              Value *Addr, AtomicOrdering Ord) const override;
+  Value *emitStoreConditional(IRBuilderBase &Builder, Value *Val, Value *Addr,
+                              AtomicOrdering Ord) const override;
 
-  void emitAtomicCmpXchgNoStoreLLBalance(IRBuilder<> &Builder) const override;
+  void emitAtomicCmpXchgNoStoreLLBalance(IRBuilderBase &Builder) const override;
 
   TargetLoweringBase::AtomicExpansionKind
   shouldExpandAtomicLoadInIR(LoadInst *LI) const override;
@@ -672,7 +668,7 @@ public:
 
   /// If the target has a standard location for the stack protector cookie,
   /// returns the address of that location. Otherwise, returns nullptr.
-  Value *getIRStackGuard(IRBuilder<> &IRB) const override;
+  Value *getIRStackGuard(IRBuilderBase &IRB) const override;
 
   void insertSSPDeclarations(Module &M) const override;
   Value *getSDagStackGuard(const Module &M) const override;
@@ -680,7 +676,7 @@ public:
 
   /// If the target has a standard location for the unsafe stack pointer,
   /// returns the address of that location. Otherwise, returns nullptr.
-  Value *getSafeStackPointerLocation(IRBuilder<> &IRB) const override;
+  Value *getSafeStackPointerLocation(IRBuilderBase &IRB) const override;
 
   /// If a physical register, this returns the register that receives the
   /// exception address on entry to an EH pad.
@@ -801,9 +797,10 @@ public:
   MachineMemOperand::Flags getTargetMMOFlags(
     const Instruction &I) const override;
 
-  bool functionArgumentNeedsConsecutiveRegisters(Type *Ty,
-                                                 CallingConv::ID CallConv,
-                                                 bool isVarArg) const override;
+  bool functionArgumentNeedsConsecutiveRegisters(
+      Type *Ty, CallingConv::ID CallConv, bool isVarArg,
+      const DataLayout &DL) const override;
+
   /// Used for exception handling on Win64.
   bool needsFixedCatchObjects() const override;
 
@@ -854,6 +851,7 @@ private:
                           SmallVectorImpl<SDValue> &InVals, bool isThisReturn,
                           SDValue ThisVal) const;
 
+  SDValue LowerLOAD(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSTORE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerABS(SDValue Op, SelectionDAG &DAG) const;
 
@@ -956,6 +954,7 @@ private:
   SDValue LowerVSETCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerCTPOP(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerCTTZ(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerBitreverse(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFCOPYSIGN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
@@ -1005,6 +1004,8 @@ private:
                                              SelectionDAG &DAG) const;
   SDValue LowerFixedLengthFPExtendToSVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFixedLengthFPRoundToSVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthIntToFPToSVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthFPToIntToSVE(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue BuildSDIVPow2(SDNode *N, const APInt &Divisor, SelectionDAG &DAG,
                         SmallVectorImpl<SDNode *> &Created) const override;
@@ -1098,6 +1099,9 @@ private:
   // to transition between unpacked and packed types of the same element type,
   // with BITCAST used otherwise.
   SDValue getSVESafeBitCast(EVT VT, SDValue Op, SelectionDAG &DAG) const;
+
+  bool isConstantUnsignedBitfieldExtactLegal(unsigned Opc, LLT Ty1,
+                                             LLT Ty2) const override;
 };
 
 namespace AArch64 {

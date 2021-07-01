@@ -355,7 +355,7 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::aarch64:
   case llvm::Triple::aarch64_32:
   case llvm::Triple::aarch64_be:
-    aarch64::getAArch64TargetFeatures(D, Triple, Args, Features);
+    aarch64::getAArch64TargetFeatures(D, Triple, Args, Features, ForAS);
     break;
   case llvm::Triple::x86:
   case llvm::Triple::x86_64:
@@ -812,6 +812,20 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
     PGOGenerateArg = nullptr;
   }
 
+  if (TC.getTriple().isOSAIX()) {
+    if (PGOGenerateArg)
+      if (!D.isUsingLTO(false /*IsDeviceOffloadAction */) ||
+          D.getLTOMode() != LTOK_Full)
+        D.Diag(clang::diag::err_drv_argument_only_allowed_with)
+            << PGOGenerateArg->getSpelling() << "-flto";
+    if (ProfileGenerateArg)
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << ProfileGenerateArg->getSpelling() << TC.getTriple().str();
+    if (Arg *ProfileSampleUseArg = getLastProfileSampleUseArg(Args))
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << ProfileSampleUseArg->getSpelling() << TC.getTriple().str();
+  }
+
   if (ProfileGenerateArg) {
     if (ProfileGenerateArg->getOption().matches(
             options::OPT_fprofile_instr_generate_EQ))
@@ -1148,6 +1162,17 @@ static void handleAMDGPUCodeObjectVersionOptions(const Driver &D,
   }
 }
 
+/// Check whether the given input tree contains any append footer actions
+static bool ContainsAppendFooterAction(const Action *A) {
+  if (isa<AppendFooterJobAction>(A))
+    return true;
+  for (const auto &AI : A->inputs())
+    if (ContainsAppendFooterAction(AI))
+      return true;
+
+  return false;
+}
+
 void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
                                     const Driver &D, const ArgList &Args,
                                     ArgStringList &CmdArgs,
@@ -1160,6 +1185,13 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_C);
   Args.AddLastArg(CmdArgs, options::OPT_CC);
+
+  // When preprocessing using the integration footer, add the comments
+  // to the first preprocessing step.
+  if (JA.isOffloading(Action::OFK_SYCL) && !ContainsAppendFooterAction(&JA) &&
+      !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
+      JA.isDeviceOffloading(Action::OFK_None))
+    CmdArgs.push_back("-C");
 
   // Handle dependency file generation.
   Arg *ArgM = Args.getLastArg(options::OPT_MM);
@@ -2096,7 +2128,7 @@ static void SetRISCVSmallDataLimit(const ToolChain &TC, const ArgList &Args,
       D.Diag(diag::warn_drv_unsupported_sdata);
     }
   } else if (Args.getLastArgValue(options::OPT_mcmodel_EQ)
-                 .equals_lower("large") &&
+                 .equals_insensitive("large") &&
              (Triple.getArch() == llvm::Triple::riscv64)) {
     // Not support linker relaxation for RV64 with large code model.
     SmallDataLimit = "0";
@@ -2457,6 +2489,8 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
   for (const Arg *A :
        Args.filtered(options::OPT_Wa_COMMA, options::OPT_Xassembler,
                      options::OPT_mimplicit_it_EQ)) {
+    A->claim();
+
     if (A->getOption().getID() == options::OPT_mimplicit_it_EQ) {
       switch (C.getDefaultToolChain().getArch()) {
       case llvm::Triple::arm:
@@ -2473,8 +2507,6 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
         break;
       }
     }
-
-    A->claim();
 
     for (StringRef Value : A->getValues()) {
       if (TakeNextArg) {
@@ -3319,7 +3351,8 @@ static void RenderOpenCLOptions(const ArgList &Args, ArgStringList &CmdArgs,
       CmdArgs.push_back(Args.MakeArgString(A->getOption().getPrefixedName()));
 
   // Only add the default headers if we are compiling OpenCL sources.
-  if ((types::isOpenCL(InputType) || Args.hasArg(options::OPT_cl_std_EQ)) &&
+  if ((types::isOpenCL(InputType) ||
+       (Args.hasArg(options::OPT_cl_std_EQ) && types::isSrcFile(InputType))) &&
       !Args.hasArg(options::OPT_cl_no_stdinc)) {
     CmdArgs.push_back("-finclude-default-header");
     CmdArgs.push_back("-fdeclare-opencl-builtins");
@@ -4232,17 +4265,6 @@ static bool ContainsWrapperAction(const Action *A) {
   return false;
 }
 
-/// Check whether the given input tree contains any append footer actions
-static bool ContainsAppendFooterAction(const Action *A) {
-  if (isa<AppendFooterJobAction>(A))
-    return true;
-  for (const auto &AI : A->inputs())
-    if (ContainsAppendFooterAction(AI))
-      return true;
-
-  return false;
-}
-
 // Put together an external compiler compilation call which is used instead
 // of the clang invocation for the host compile of an offload compilation.
 // Enabling command line:  clang++ -fsycl -fsycl-host-compiler=<HostExe>
@@ -4324,6 +4346,15 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
       }
     } else
       HostCompileArgs.push_back("-E");
+
+    // Add the integration header.
+    StringRef Header =
+        TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
+    if (types::getPreprocessedType(InputFile.getType()) != types::TY_INVALID &&
+        !Header.empty()) {
+      HostCompileArgs.push_back(IsMSVCHostCompiler ? "-FI" : "-include");
+      HostCompileArgs.push_back(TCArgs.MakeArgString(Header));
+    }
   } else if (isa<AssembleJobAction>(JA)) {
     HostCompileArgs.push_back("-c");
     if (IsMSVCHostCompiler)
@@ -4366,15 +4397,6 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
     // with the '-o' option that is used to designate the output file.
     HostCompileArgs.push_back("-o");
     HostCompileArgs.push_back(Output.getFilename());
-  }
-
-  // Add the integration header.
-  StringRef Header =
-      TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
-  if (types::getPreprocessedType(InputFile.getType()) != types::TY_INVALID &&
-      !Header.empty()) {
-    HostCompileArgs.push_back(IsMSVCHostCompiler ? "-FI" : "-include");
-    HostCompileArgs.push_back(TCArgs.MakeArgString(Header));
   }
 
   SmallString<128> ExecPath;
@@ -4621,7 +4643,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
     }
 
-    if (Args.hasArg(options::OPT_fsycl_use_footer)) {
+    if (!Args.hasArg(options::OPT_fno_sycl_use_footer)) {
       // Add the integration footer option to generated the footer.
       StringRef Footer(D.getIntegrationFooter(Input.getBaseInput()));
       if (!Footer.empty()) {
@@ -4669,12 +4691,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (HasFPGA)
       CmdArgs.push_back("-fsycl-disable-range-rounding");
 
-    // Enable generation of USM address spaces for FPGA.
-    // __ENABLE_USM_ADDR_SPACE__ will be used during compilation of SYCL headers
-    if (getToolChain().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_fpga)
-      CmdArgs.push_back("-D__ENABLE_USM_ADDR_SPACE__");
-
     // Add any options that are needed specific to SYCL offload while
     // performing the host side compilation.
     if (!IsSYCLOffloadDevice) {
@@ -4703,7 +4719,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         if (AuxT.isWindowsMSVCEnvironment()) {
           CmdArgs.push_back("-D_MT");
           CmdArgs.push_back("-D_DLL");
-          CmdArgs.push_back("--dependent-lib=msvcrt");
         }
       }
     }
@@ -5218,13 +5233,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (A->getOption().getID() == options::OPT_mabi_EQ_vec_extabi)
       CmdArgs.push_back("-mabi=vec-extabi");
     else
-      D.Diag(diag::err_aix_default_altivec_abi);
+      CmdArgs.push_back("-mabi=vec-default");
   }
 
   if (Arg *A = Args.getLastArg(options::OPT_Wframe_larger_than_EQ)) {
     StringRef v = A->getValue();
-    CmdArgs.push_back("-mllvm");
-    CmdArgs.push_back(Args.MakeArgString("-warn-stack-size=" + v));
+    // FIXME: Validate the argument here so we don't produce meaningless errors
+    // about -fwarn-stack-size=.
+    if (v.empty())
+      D.Diag(diag::err_drv_missing_argument) << A->getSpelling() << 1;
+    else
+      CmdArgs.push_back(Args.MakeArgString("-fwarn-stack-size=" + v));
     A->claim();
   }
 
@@ -5423,10 +5442,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Enable -mconstructor-aliases except on darwin, where we have to work around
   // a linker bug (see <rdar://problem/7651567>), and CUDA/AMDGPU device code,
-  // where aliases aren't supported. Similarly, aliases aren't yet supported
-  // for AIX.
-  if (!RawTriple.isOSDarwin() && !RawTriple.isNVPTX() &&
-      !RawTriple.isAMDGPU() && !RawTriple.isOSAIX())
+  // where aliases aren't supported.
+  if (!RawTriple.isOSDarwin() && !RawTriple.isNVPTX() && !RawTriple.isAMDGPU())
     CmdArgs.push_back("-mconstructor-aliases");
 
   // Darwin's kernel doesn't support guard variables; just die if we
@@ -5787,6 +5804,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_fcxx_abi_EQ))
     A->render(Args, CmdArgs);
 
+  Args.AddLastArg(CmdArgs, options::OPT_fexperimental_relative_cxx_abi_vtables,
+                  options::OPT_fno_experimental_relative_cxx_abi_vtables);
+
   // Handle -{std, ansi, trigraphs} -- take the last of -{std, ansi}
   // (-ansi is equivalent to -std=c89 or -std=c++98).
   //
@@ -6057,18 +6077,25 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           << A->getAsString(Args) << TripleStr;
   }
 
-  Args.AddLastArg(CmdArgs, options::OPT_fvisibility_inlines_hidden);
+
+  if (Args.hasFlag(options::OPT_fvisibility_inlines_hidden,
+                    options::OPT_fno_visibility_inlines_hidden, false))
+    CmdArgs.push_back("-fvisibility-inlines-hidden");
+
   Args.AddLastArg(CmdArgs, options::OPT_fvisibility_inlines_hidden_static_local_var,
                            options::OPT_fno_visibility_inlines_hidden_static_local_var);
   Args.AddLastArg(CmdArgs, options::OPT_fvisibility_global_new_delete_hidden);
 
   Args.AddLastArg(CmdArgs, options::OPT_ftlsmodel_EQ);
 
+  if (Args.hasFlag(options::OPT_fno_operator_names,
+                   options::OPT_foperator_names, false))
+    CmdArgs.push_back("-fno-operator-names");
+
   // Forward -f (flag) options which we can pass directly.
   Args.AddLastArg(CmdArgs, options::OPT_femit_all_decls);
   Args.AddLastArg(CmdArgs, options::OPT_fheinous_gnu_extensions);
   Args.AddLastArg(CmdArgs, options::OPT_fdigraphs, options::OPT_fno_digraphs);
-  Args.AddLastArg(CmdArgs, options::OPT_fno_operator_names);
   Args.AddLastArg(CmdArgs, options::OPT_femulated_tls,
                   options::OPT_fno_emulated_tls);
 
@@ -6115,13 +6142,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (Args.hasFlag(options::OPT_fopenmp_cuda_mode,
                        options::OPT_fno_openmp_cuda_mode, /*Default=*/false))
         CmdArgs.push_back("-fopenmp-cuda-mode");
-
-      // When in OpenMP offloading mode with NVPTX target, forward
-      // cuda-parallel-target-regions flag
-      if (Args.hasFlag(options::OPT_fopenmp_cuda_parallel_target_regions,
-                       options::OPT_fno_openmp_cuda_parallel_target_regions,
-                       /*Default=*/true))
-        CmdArgs.push_back("-fopenmp-cuda-parallel-target-regions");
 
       // When in OpenMP offloading mode with NVPTX target, check if full runtime
       // is required.
@@ -6505,7 +6525,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       LanguageStandard = llvm::StringSwitch<StringRef>(StdArg->getValue())
                              .Case("c++14", "-std=c++14")
                              .Case("c++17", "-std=c++17")
-                             .Case("c++latest", "-std=c++20")
+                             .Case("c++20", "-std=c++20")
+                             .Case("c++latest", "-std=c++2b")
                              .Default("");
       if (LanguageStandard.empty())
         D.Diag(clang::diag::warn_drv_unused_argument)
@@ -6737,7 +6758,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // -finput_charset=UTF-8 is default. Reject others
   if (Arg *inputCharset = Args.getLastArg(options::OPT_finput_charset_EQ)) {
     StringRef value = inputCharset->getValue();
-    if (!value.equals_lower("utf-8"))
+    if (!value.equals_insensitive("utf-8"))
       D.Diag(diag::err_drv_invalid_value) << inputCharset->getAsString(Args)
                                           << value;
   }
@@ -6745,7 +6766,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // -fexec_charset=UTF-8 is default. Reject others
   if (Arg *execCharset = Args.getLastArg(options::OPT_fexec_charset_EQ)) {
     StringRef value = execCharset->getValue();
-    if (!value.equals_lower("utf-8"))
+    if (!value.equals_insensitive("utf-8"))
       D.Diag(diag::err_drv_invalid_value) << execCharset->getAsString(Args)
                                           << value;
   }
@@ -7087,11 +7108,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (WholeProgramVTables) {
-    if (!IsUsingLTO)
+    // Propagate -fwhole-program-vtables if this is an LTO compile.
+    if (IsUsingLTO)
+      CmdArgs.push_back("-fwhole-program-vtables");
+    // Check if we passed LTO options but they were suppressed because this is a
+    // device offloading action, or we passed device offload LTO options which
+    // were suppressed because this is not the device offload action.
+    // Otherwise, issue an error.
+    else if (!D.isUsingLTO(!IsDeviceOffloadAction))
       D.Diag(diag::err_drv_argument_only_allowed_with)
           << "-fwhole-program-vtables"
           << "-flto";
-    CmdArgs.push_back("-fwhole-program-vtables");
   }
 
   bool DefaultsSplitLTOUnit =
@@ -7610,8 +7637,6 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     if (types::isCXX(InputType))
       CmdArgs.push_back("-fcxx-exceptions");
     CmdArgs.push_back("-fexceptions");
-    if (EH.Asynch)
-      CmdArgs.push_back("-fasync-exceptions");
   }
   if (types::isCXX(InputType) && EH.Synch && EH.NoUnwindC)
     CmdArgs.push_back("-fexternc-nounwind");
@@ -7713,17 +7738,17 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     StringRef GuardArgs = A->getValue();
     // The only valid options are "cf", "cf,nochecks", "cf-", "ehcont" and
     // "ehcont-".
-    if (GuardArgs.equals_lower("cf")) {
+    if (GuardArgs.equals_insensitive("cf")) {
       // Emit CFG instrumentation and the table of address-taken functions.
       CmdArgs.push_back("-cfguard");
-    } else if (GuardArgs.equals_lower("cf,nochecks")) {
+    } else if (GuardArgs.equals_insensitive("cf,nochecks")) {
       // Emit only the table of address-taken functions.
       CmdArgs.push_back("-cfguard-no-checks");
-    } else if (GuardArgs.equals_lower("ehcont")) {
+    } else if (GuardArgs.equals_insensitive("ehcont")) {
       // Emit EH continuation table.
       CmdArgs.push_back("-ehcontguard");
-    } else if (GuardArgs.equals_lower("cf-") ||
-               GuardArgs.equals_lower("ehcont-")) {
+    } else if (GuardArgs.equals_insensitive("cf-") ||
+               GuardArgs.equals_insensitive("ehcont-")) {
       // Do nothing, but we might want to emit a security warning in future.
     } else {
       D.Diag(diag::err_drv_invalid_value) << A->getSpelling() << GuardArgs;
@@ -8583,7 +8608,11 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back(Output.getFilename());
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
     TranslatorArgs.push_back("-spirv-max-version=1.3");
-    TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
+    // TODO: align debug info for FPGA H/W when its SPIR-V consumer is ready
+    if (C.getDriver().isFPGAEmulationMode())
+      TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
+    else
+      TranslatorArgs.push_back("-spirv-debug-info-version=legacy");
     // Prevent crash in the translator if input IR contains DIExpression
     // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
     TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
@@ -8611,25 +8640,17 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         ",+SPV_INTEL_arbitrary_precision_floating_point"
         ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
         ",+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse"
-        ",+SPV_INTEL_long_constant_composite";
+        ",+SPV_INTEL_long_constant_composite"
+        ",+SPV_INTEL_fpga_invocation_pipelining_attributes";
     ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
-    if (getToolChain().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_fpga) {
-      for (auto *A : TCArgs) {
-        if (A->getOption().matches(options::OPT_Xs_separate) ||
-            A->getOption().matches(options::OPT_Xs)) {
-          StringRef ArgString(A->getValue());
-          // Enable SPV_INTEL_usm_storage_classes only for FPGA hardware,
-          // since it adds new storage classes that represent global_device and
-          // global_host address spaces, which are not supported for all
-          // targets. With the extension disabled the storage classes will be
-          // lowered to CrossWorkgroup storage class that is mapped to just
-          // global address space.
-          if (ArgString == "hardware" || ArgString == "simulation")
-            ExtArg += ",+SPV_INTEL_usm_storage_classes";
-        }
-      }
-    }
+    if (!C.getDriver().isFPGAEmulationMode())
+      // Enable SPV_INTEL_usm_storage_classes only for FPGA hardware,
+      // since it adds new storage classes that represent global_device and
+      // global_host address spaces, which are not supported for all
+      // targets. With the extension disabled the storage classes will be
+      // lowered to CrossWorkgroup storage class that is mapped to just
+      // global address space.
+      ExtArg += ",+SPV_INTEL_usm_storage_classes";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {

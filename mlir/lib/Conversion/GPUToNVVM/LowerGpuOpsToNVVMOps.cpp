@@ -18,6 +18,7 @@
 #include "mlir/Dialect/GPU/Passes.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -135,11 +136,9 @@ struct LowerGpuOpsToNVVMOpsPass
       numElemsPerThreadF16["AOp"] = 8;
       numElemsPerThreadF16["BOp"] = 8;
       numElemsPerThreadF16["COp"] = 4;
-      numElemsPerThreadF16["DOp"] = 4;
       numElemsPerThreadF32["AOp"] = 8;
       numElemsPerThreadF32["BOp"] = 8;
       numElemsPerThreadF32["COp"] = 8;
-      numElemsPerThreadF32["DOp"] = 8;
       Type structToReturn;
       if (type.getElementType().isF16()) {
         // Number of f16's in 32-bit.

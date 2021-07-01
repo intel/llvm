@@ -51,6 +51,9 @@ enum ActionKind {
   /// Parse, run semantics and then output the parse tree
   DebugDumpParseTree,
 
+  /// Parse, run semantics and then output the parse tree and symbols
+  DebugDumpAll,
+
   /// Parse and then output the parse tree, skip the semantic checks
   DebugDumpParseTreeNoSema,
 
@@ -71,7 +74,10 @@ enum ActionKind {
   GetDefinition,
 
   /// Parse, run semantics and then dump symbol sources map
-  GetSymbolsSources
+  GetSymbolsSources,
+
+  /// Only execute frontend initialization
+  InitOnly
 
   /// TODO: RunPreprocessor, EmitLLVM, EmitLLVMOnly,
   /// EmitCodeGenOnly, EmitAssembly, (...)

@@ -2476,11 +2476,11 @@ void ASTWriter::WritePreprocessorDetail(PreprocessingRecord &PPRec,
   }
 }
 
-unsigned ASTWriter::getLocalOrImportedSubmoduleID(Module *Mod) {
+unsigned ASTWriter::getLocalOrImportedSubmoduleID(const Module *Mod) {
   if (!Mod)
     return 0;
 
-  llvm::DenseMap<Module *, unsigned>::iterator Known = SubmoduleIDs.find(Mod);
+  auto Known = SubmoduleIDs.find(Mod);
   if (Known != SubmoduleIDs.end())
     return Known->second;
 
@@ -6054,6 +6054,13 @@ void OMPClauseWriter::VisitOMPSizesClause(OMPSizesClause *C) {
   Record.push_back(C->getNumSizes());
   for (Expr *Size : C->getSizesRefs())
     Record.AddStmt(Size);
+  Record.AddSourceLocation(C->getLParenLoc());
+}
+
+void OMPClauseWriter::VisitOMPFullClause(OMPFullClause *C) {}
+
+void OMPClauseWriter::VisitOMPPartialClause(OMPPartialClause *C) {
+  Record.AddStmt(C->getFactor());
   Record.AddSourceLocation(C->getLParenLoc());
 }
 

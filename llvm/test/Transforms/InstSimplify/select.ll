@@ -105,12 +105,9 @@ define <2 x i8> @vsel_mixedvec() {
   ret <2 x i8> %s
 }
 
-; FIXME: Allow for undef elements in a constant vector condition.
-
 define <3 x i8> @vsel_undef_true_op(<3 x i8> %x, <3 x i8> %y) {
 ; CHECK-LABEL: @vsel_undef_true_op(
-; CHECK-NEXT:    [[S:%.*]] = select <3 x i1> <i1 true, i1 undef, i1 true>, <3 x i8> [[X:%.*]], <3 x i8> [[Y:%.*]]
-; CHECK-NEXT:    ret <3 x i8> [[S]]
+; CHECK-NEXT:    ret <3 x i8> [[X:%.*]]
 ;
   %s = select <3 x i1><i1 1, i1 undef, i1 1>, <3 x i8> %x, <3 x i8> %y
   ret <3 x i8> %s
@@ -118,8 +115,7 @@ define <3 x i8> @vsel_undef_true_op(<3 x i8> %x, <3 x i8> %y) {
 
 define <3 x i4> @vsel_undef_false_op(<3 x i4> %x, <3 x i4> %y) {
 ; CHECK-LABEL: @vsel_undef_false_op(
-; CHECK-NEXT:    [[S:%.*]] = select <3 x i1> <i1 false, i1 undef, i1 undef>, <3 x i4> [[X:%.*]], <3 x i4> [[Y:%.*]]
-; CHECK-NEXT:    ret <3 x i4> [[S]]
+; CHECK-NEXT:    ret <3 x i4> [[Y:%.*]]
 ;
   %s = select <3 x i1><i1 0, i1 undef, i1 undef>, <3 x i4> %x, <3 x i4> %y
   ret <3 x i4> %s
@@ -961,8 +957,7 @@ declare i32 @llvm.cttz.i32(i32, i1 immarg)
 ; Partial undef scalable vectors should be ignored.
 define <vscale x 2 x i1> @ignore_scalable_undef(<vscale x 2 x i1> %cond) {
 ; CHECK-LABEL: @ignore_scalable_undef(
-; CHECK-NEXT:    [[S:%.*]] = select <vscale x 2 x i1> [[COND:%.*]], <vscale x 2 x i1> undef, <vscale x 2 x i1> insertelement (<vscale x 2 x i1> undef, i1 true, i32 0)
-; CHECK-NEXT:    ret <vscale x 2 x i1> [[S]]
+; CHECK-NEXT:    ret <vscale x 2 x i1> insertelement (<vscale x 2 x i1> undef, i1 true, i32 0)
 ;
   %vec = insertelement <vscale x 2 x i1> undef, i1 true, i32 0
   %s = select <vscale x 2 x i1> %cond, <vscale x 2 x i1> undef, <vscale x 2 x i1> %vec
@@ -1040,8 +1035,6 @@ define <2 x i32> @vec_select_no_equivalence(<2 x i32> %x, <2 x i32> %y) {
   ret <2 x i32> %s
 }
 
-; TODO: these can be optimized more
-
 define i32 @poison(i32 %x, i32 %y) {
 ; CHECK-LABEL: @poison(
 ; CHECK-NEXT:    ret i32 [[X:%.*]]
@@ -1052,8 +1045,7 @@ define i32 @poison(i32 %x, i32 %y) {
 
 define i32 @poison2(i1 %cond, i32 %x) {
 ; CHECK-LABEL: @poison2(
-; CHECK-NEXT:    [[V:%.*]] = select i1 [[COND:%.*]], i32 poison, i32 [[X:%.*]]
-; CHECK-NEXT:    ret i32 [[V]]
+; CHECK-NEXT:    ret i32 [[X:%.*]]
 ;
   %v = select i1 %cond, i32 poison, i32 %x
   ret i32 %v
@@ -1061,8 +1053,7 @@ define i32 @poison2(i1 %cond, i32 %x) {
 
 define i32 @poison3(i1 %cond, i32 %x) {
 ; CHECK-LABEL: @poison3(
-; CHECK-NEXT:    [[V:%.*]] = select i1 [[COND:%.*]], i32 [[X:%.*]], i32 poison
-; CHECK-NEXT:    ret i32 [[V]]
+; CHECK-NEXT:    ret i32 [[X:%.*]]
 ;
   %v = select i1 %cond, i32 %x, i32 poison
   ret i32 %v
@@ -1070,8 +1061,7 @@ define i32 @poison3(i1 %cond, i32 %x) {
 
 define <2 x i32> @poison4(<2 x i1> %cond, <2 x i32> %x) {
 ; CHECK-LABEL: @poison4(
-; CHECK-NEXT:    [[V:%.*]] = select <2 x i1> [[COND:%.*]], <2 x i32> [[X:%.*]], <2 x i32> poison
-; CHECK-NEXT:    ret <2 x i32> [[V]]
+; CHECK-NEXT:    ret <2 x i32> [[X:%.*]]
 ;
   %v = select <2 x i1> %cond, <2 x i32> %x, <2 x i32> poison
   ret <2 x i32> %v

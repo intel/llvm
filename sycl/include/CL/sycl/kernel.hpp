@@ -194,7 +194,7 @@ private:
 
   pi_native_handle getNativeImpl() const;
 
-  shared_ptr_class<detail::kernel_impl> impl;
+  std::shared_ptr<detail::kernel_impl> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);

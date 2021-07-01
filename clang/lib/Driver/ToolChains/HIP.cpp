@@ -118,7 +118,8 @@ void AMDGCN::constructHIPFatbinCommand(Compilation &C, const JobAction &JA,
   // for backward compatibility. For code object version 4 and greater, the
   // offload kind in bundle ID is 'hipv4'.
   std::string OffloadKind = "hip";
-  if (getAMDGPUCodeObjectVersion(C.getDriver(), Args) >= 4)
+  if (haveAMDGPUCodeObjectVersionArgument(C.getDriver(), Args) &&
+      getAMDGPUCodeObjectVersion(C.getDriver(), Args) >= 4)
     OffloadKind = OffloadKind + "v4";
   for (const auto &II : Inputs) {
     const auto* A = II.getAction();
@@ -231,8 +232,9 @@ void AMDGCN::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 }
 
 HIPToolChain::HIPToolChain(const Driver &D, const llvm::Triple &Triple,
-                             const ToolChain &HostTC, const ArgList &Args)
-    : ROCMToolChain(D, Triple, Args), HostTC(HostTC) {
+                           const ToolChain &HostTC, const ArgList &Args,
+                           const Action::OffloadKind OK)
+    : ROCMToolChain(D, Triple, Args), HostTC(HostTC), OK(OK) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
   getProgramPaths().push_back(getDriver().Dir);
@@ -244,8 +246,11 @@ void HIPToolChain::addClangTargetOptions(
     Action::OffloadKind DeviceOffloadingKind) const {
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
 
-  assert(DeviceOffloadingKind == Action::OFK_HIP &&
-         "Only HIP offloading kinds are supported for GPUs.");
+  assert((DeviceOffloadingKind == Action::OFK_HIP ||
+          DeviceOffloadingKind == Action::OFK_SYCL) &&
+         "Only HIP and SYCL offloading kinds are supported for GPUs.");
+
+  StringRef GpuArch = getGPUArch(DriverArgs);
 
   CC1Args.push_back("-fcuda-is-device");
 
@@ -273,6 +278,57 @@ void HIPToolChain::addClangTargetOptions(
                          options::OPT_fvisibility_ms_compat)) {
     CC1Args.append({"-fvisibility", "hidden"});
     CC1Args.push_back("-fapply-global-visibility-to-externs");
+  }
+
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
+                                                  CC1Args);
+  }
+
+  auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv,
+                                      options::OPT_fsycl_device_only);
+  if (DeviceOffloadingKind == Action::OFK_SYCL && !NoLibSpirv) {
+    std::string LibSpirvFile;
+
+    if (DriverArgs.hasArg(clang::driver::options::OPT_fsycl_libspirv_path_EQ)) {
+      auto ProvidedPath =
+          DriverArgs
+              .getLastArgValue(
+                  clang::driver::options::OPT_fsycl_libspirv_path_EQ)
+              .str();
+      if (llvm::sys::fs::exists(ProvidedPath))
+        LibSpirvFile = ProvidedPath;
+    } else {
+      SmallVector<StringRef, 8> LibraryPaths;
+
+      // Expected path w/out install.
+      SmallString<256> WithoutInstallPath(getDriver().ResourceDir);
+      llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
+      LibraryPaths.emplace_back(WithoutInstallPath.c_str());
+
+      // Expected path w/ install.
+      SmallString<256> WithInstallPath(getDriver().ResourceDir);
+      llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
+      LibraryPaths.emplace_back(WithInstallPath.c_str());
+
+      std::string LibSpirvTargetName = "libspirv-amdgcn--amdhsa.bc";
+      for (StringRef LibraryPath : LibraryPaths) {
+        SmallString<128> LibSpirvTargetFile(LibraryPath);
+        llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
+        if (llvm::sys::fs::exists(LibSpirvTargetFile)) {
+          LibSpirvFile = std::string(LibSpirvTargetFile.str());
+          break;
+        }
+      }
+    }
+
+    if (LibSpirvFile.empty()) {
+      getDriver().Diag(diag::err_drv_no_sycl_libspirv);
+      return;
+    }
+
+    CC1Args.push_back("-mlink-builtin-bitcode");
+    CC1Args.push_back(DriverArgs.MakeArgString(LibSpirvFile));
   }
 
   llvm::for_each(getHIPDeviceLibs(DriverArgs), [&](StringRef BCFile) {
@@ -308,7 +364,20 @@ HIPToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
 
 Tool *HIPToolChain::buildLinker() const {
   assert(getTriple().getArch() == llvm::Triple::amdgcn);
+  if (OK == Action::OFK_SYCL)
+    return new tools::AMDGCN::SYCLLinker(*this);
   return new tools::AMDGCN::Linker(*this);
+}
+
+Tool *HIPToolChain::SelectTool(const JobAction &JA) const {
+  if (OK == Action::OFK_SYCL) {
+    if (JA.getKind() == Action::LinkJobClass &&
+        JA.getType() == types::TY_LLVM_BC) {
+      return static_cast<tools::AMDGCN::SYCLLinker *>(ToolChain::SelectTool(JA))
+          ->GetSYCLToolChainLinker();
+    }
+  }
+  return ToolChain::SelectTool(JA);
 }
 
 void HIPToolChain::addClangWarningOptions(ArgStringList &CC1Args) const {
@@ -458,4 +527,29 @@ HIPToolChain::getHIPDeviceLibs(const llvm::opt::ArgList &DriverArgs) const {
   }
 
   return BCLibs;
+}
+
+void HIPToolChain::checkTargetID(const llvm::opt::ArgList &DriverArgs) const {
+  auto PTID = getParsedTargetID(DriverArgs);
+  if (PTID.OptionalTargetID && !PTID.OptionalGPUArch) {
+    getDriver().Diag(clang::diag::err_drv_bad_target_id)
+        << PTID.OptionalTargetID.getValue();
+    return;
+  }
+
+  assert(PTID.OptionalFeatures && "Invalid return from getParsedTargetID");
+  auto &FeatureMap = PTID.OptionalFeatures.getValue();
+  // Sanitizer is not supported with xnack-.
+  if (DriverArgs.hasFlag(options::OPT_fgpu_sanitize,
+                         options::OPT_fno_gpu_sanitize, false)) {
+    auto Loc = FeatureMap.find("xnack");
+    if (Loc != FeatureMap.end() && !Loc->second) {
+      auto &Diags = getDriver().getDiags();
+      auto DiagID = Diags.getCustomDiagID(
+          DiagnosticsEngine::Error,
+          "'-fgpu-sanitize' is not compatible with offload arch '%0'. "
+          "Use an offload arch without 'xnack-' instead");
+      Diags.Report(DiagID) << PTID.OptionalTargetID.getValue();
+    }
+  }
 }

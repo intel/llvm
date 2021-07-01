@@ -8,8 +8,8 @@
 
 #include "lldb/Utility/StringExtractorGDBRemote.h"
 
-#include <ctype.h>
-#include <string.h>
+#include <cctype>
+#include <cstring>
 
 constexpr lldb::pid_t StringExtractorGDBRemote::AllProcesses;
 constexpr lldb::tid_t StringExtractorGDBRemote::AllThreads;
@@ -223,6 +223,8 @@ StringExtractorGDBRemote::GetServerPacketType() const {
         return eServerPacketType_qMemoryRegionInfoSupported;
       if (PACKET_STARTS_WITH("qModuleInfo:"))
         return eServerPacketType_qModuleInfo;
+      if (PACKET_STARTS_WITH("qMemTags:"))
+        return eServerPacketType_qMemTags;
       break;
 
     case 'P':

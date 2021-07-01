@@ -14,6 +14,7 @@
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/stream.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -23,7 +24,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-handler::handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
+handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
     : MQueue(std::move(Queue)), MIsHost(IsHost) {
   MSharedPtrStorage.emplace_back(
       std::make_shared<std::vector<detail::ExtendedMemberT>>());
@@ -130,7 +131,7 @@ event handler::finalize() {
     }
   }
 
-  unique_ptr_class<detail::CG> CommandGroup;
+  std::unique_ptr<detail::CG> CommandGroup;
   switch (getType()) {
   case detail::CG::KERNEL:
   case detail::CG::RUN_ON_HOST_INTEL: {
@@ -187,6 +188,12 @@ event handler::finalize() {
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCodeLoc));
     break;
+  case detail::CG::ADVISE_USM:
+    CommandGroup.reset(new detail::CGAdviseUSM(
+        MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCodeLoc));
+    break;
   case detail::CG::CODEPLAY_HOST_TASK:
     CommandGroup.reset(new detail::CGHostTask(
         std::move(MHostTask), MQueue, MQueue->getContextImplPtr(),
@@ -202,9 +209,13 @@ event handler::finalize() {
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
   case detail::CG::NONE:
-    throw runtime_error("Command group submitted without a kernel or a "
-                        "explicit memory operation.",
-                        PI_INVALID_OPERATION);
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
+      std::cout << "WARNING: An empty command group is submitted." << std::endl;
+    }
+    detail::EventImplPtr Event =
+        std::make_shared<cl::sycl::detail::event_impl>();
+    MLastEvent = detail::createSyclObjFromImpl<event>(Event);
+    return MLastEvent;
   }
 
   if (!CommandGroup)
@@ -234,6 +245,41 @@ void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
                                    /*index*/ 0);
 }
 
+static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
+                                     size_t &IndexShift, int Size,
+                                     bool IsKernelCreatedFromSource,
+                                     size_t GlobalSize,
+                                     std::vector<detail::ArgDesc> &Args,
+                                     bool isESIMD) {
+  using detail::kernel_param_kind_t;
+  if (AccImpl->PerWI)
+    AccImpl->resize(GlobalSize);
+
+  Args.emplace_back(kernel_param_kind_t::kind_accessor, AccImpl, Size,
+                    Index + IndexShift);
+
+  // TODO ESIMD currently does not suport offset, memory and access ranges -
+  // accessor::init for ESIMD-mode accessor has a single field, translated
+  // to a single kernel argument set above.
+  if (!isESIMD && !IsKernelCreatedFromSource) {
+    // Dimensionality of the buffer is 1 when dimensionality of the
+    // accessor is 0.
+    const size_t SizeAccField =
+        sizeof(size_t) * (AccImpl->MDims == 0 ? 1 : AccImpl->MDims);
+    ++IndexShift;
+    Args.emplace_back(kernel_param_kind_t::kind_std_layout,
+                      &AccImpl->MAccessRange[0], SizeAccField,
+                      Index + IndexShift);
+    ++IndexShift;
+    Args.emplace_back(kernel_param_kind_t::kind_std_layout,
+                      &AccImpl->MMemoryRange[0], SizeAccField,
+                      Index + IndexShift);
+    ++IndexShift;
+    Args.emplace_back(kernel_param_kind_t::kind_std_layout,
+                      &AccImpl->MOffset[0], SizeAccField, Index + IndexShift);
+  }
+}
+
 // TODO remove this one once ABI breaking changes are allowed.
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
@@ -253,6 +299,40 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     MArgs.emplace_back(Kind, Ptr, Size, Index + IndexShift);
     break;
   }
+  case kernel_param_kind_t::kind_stream: {
+    // Stream contains several accessors inside.
+    stream *S = static_cast<stream *>(Ptr);
+
+    detail::AccessorBaseHost *GBufBase =
+        static_cast<detail::AccessorBaseHost *>(&S->GlobalBuf);
+    detail::AccessorImplPtr GBufImpl = detail::getSyclObjImpl(*GBufBase);
+    detail::Requirement *GBufReq = GBufImpl.get();
+    addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
+                             IsKernelCreatedFromSource,
+                             MNDRDesc.GlobalSize.size(), MArgs, IsESIMD);
+    ++IndexShift;
+    detail::AccessorBaseHost *GOffsetBase =
+        static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
+    detail::AccessorImplPtr GOfssetImpl = detail::getSyclObjImpl(*GOffsetBase);
+    detail::Requirement *GOffsetReq = GOfssetImpl.get();
+    addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
+                             IsKernelCreatedFromSource,
+                             MNDRDesc.GlobalSize.size(), MArgs, IsESIMD);
+    ++IndexShift;
+    detail::AccessorBaseHost *GFlushBase =
+        static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
+    detail::AccessorImplPtr GFlushImpl = detail::getSyclObjImpl(*GFlushBase);
+    detail::Requirement *GFlushReq = GFlushImpl.get();
+    addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
+                             IsKernelCreatedFromSource,
+                             MNDRDesc.GlobalSize.size(), MArgs, IsESIMD);
+    ++IndexShift;
+    MArgs.emplace_back(kernel_param_kind_t::kind_std_layout,
+                       &S->FlushBufferSize, sizeof(S->FlushBufferSize),
+                       Index + IndexShift);
+
+    break;
+  }
   case kernel_param_kind_t::kind_accessor: {
     // For args kind of accessor Size is information about accessor.
     // The first 11 bits of Size encodes the accessor target.
@@ -261,37 +341,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::global_buffer:
     case access::target::constant_buffer: {
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
-
-      // Stream implementation creates an accessor with initial size for
-      // work item. Number of work items is not available during
-      // stream construction, that is why size of the accessor is updated here
-      // using information about number of work items.
-      if (AccImpl->PerWI) {
-        AccImpl->resize(MNDRDesc.GlobalSize.size());
-      }
-      MArgs.emplace_back(Kind, AccImpl, Size, Index + IndexShift);
-
-      // TODO ESIMD currently does not suport offset, memory and access ranges -
-      // accessor::init for ESIMD-mode accessor has a single field, translated
-      // to a single kernel argument set above.
-      if (!IsKernelCreatedFromSource && !IsESIMD) {
-        // Dimensionality of the buffer is 1 when dimensionality of the
-        // accessor is 0.
-        const size_t SizeAccField =
-            sizeof(size_t) * (AccImpl->MDims == 0 ? 1 : AccImpl->MDims);
-        ++IndexShift;
-        MArgs.emplace_back(kernel_param_kind_t::kind_std_layout,
-                           &AccImpl->MAccessRange[0], SizeAccField,
-                           Index + IndexShift);
-        ++IndexShift;
-        MArgs.emplace_back(kernel_param_kind_t::kind_std_layout,
-                           &AccImpl->MMemoryRange[0], SizeAccField,
-                           Index + IndexShift);
-        ++IndexShift;
-        MArgs.emplace_back(kernel_param_kind_t::kind_std_layout,
-                           &AccImpl->MOffset[0], SizeAccField,
-                           Index + IndexShift);
-      }
+      addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
+                               IsKernelCreatedFromSource,
+                               MNDRDesc.GlobalSize.size(), MArgs, IsESIMD);
       break;
     }
     case access::target::local: {
@@ -418,11 +470,11 @@ void handler::extractArgsAndReqsFromLambda(
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
-string_class handler::getKernelName() {
+std::string handler::getKernelName() {
   return MKernel->get_info<info::kernel::function_name>();
 }
 
-void handler::barrier(const vector_class<event> &WaitList) {
+void handler::barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   MCGType = detail::CG::BARRIER_WAITLIST;
   MEventsWaitWithBarrier.resize(WaitList.size());
@@ -452,6 +504,27 @@ void handler::prefetch(const void *Ptr, size_t Count) {
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
   MCGType = detail::CG::PREFETCH_USM;
+}
+
+void handler::mem_advise(const void *Ptr, size_t Count, pi_mem_advice Advice) {
+  throwIfActionIsCreated();
+  MDstPtr = const_cast<void *>(Ptr);
+  MLength = Count;
+  MCGType = detail::CG::ADVISE_USM;
+
+  assert(!MSharedPtrStorage.empty());
+
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExtendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+  detail::ExtendedMemberT EMember = {
+      detail::ExtendedMembersType::HANDLER_MEM_ADVICE,
+      std::make_shared<pi_mem_advice>(Advice)};
+
+  ExtendedMembersVec->push_back(EMember);
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

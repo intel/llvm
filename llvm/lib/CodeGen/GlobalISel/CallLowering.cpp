@@ -224,7 +224,7 @@ void CallLowering::splitToValueTypes(const ArgInfo &OrigArg,
   assert(OrigArg.Regs.size() == SplitVTs.size() && "Regs / types mismatch");
 
   bool NeedsRegBlock = TLI->functionArgumentNeedsConsecutiveRegisters(
-      OrigArg.Ty, CallConv, false);
+      OrigArg.Ty, CallConv, false, DL);
   for (unsigned i = 0, e = SplitVTs.size(); i < e; ++i) {
     Type *SplitTy = SplitVTs[i].getTypeForEVT(Ctx);
     SplitArgs.emplace_back(OrigArg.Regs[i], SplitTy, OrigArg.Flags[0],
@@ -377,7 +377,7 @@ static void buildCopyFromRegs(MachineIRBuilder &B, ArrayRef<Register> OrigRegs,
         PartLLT.getScalarSizeInBits() == LLTy.getScalarSizeInBits() * 2 &&
         Regs.size() == 1) {
       LLT NewTy = PartLLT.changeElementType(LLTy.getElementType())
-                      .changeNumElements(PartLLT.getNumElements() * 2);
+                      .changeElementCount(PartLLT.getElementCount() * 2);
       CastRegs[0] = B.buildBitcast(NewTy, Regs[0]).getReg(0);
       PartLLT = NewTy;
     }
@@ -438,7 +438,7 @@ static void buildCopyFromRegs(MachineIRBuilder &B, ArrayRef<Register> OrigRegs,
   } else {
     // Vector was split, and elements promoted to a wider type.
     // FIXME: Should handle floating point promotions.
-    LLT BVType = LLT::vector(LLTy.getNumElements(), PartLLT);
+    LLT BVType = LLT::fixed_vector(LLTy.getNumElements(), PartLLT);
     auto BV = B.buildBuildVector(BVType, Regs);
     B.buildTrunc(OrigRegs[0], BV);
   }

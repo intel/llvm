@@ -11,7 +11,7 @@
 
 #include "lldb/API/SBDefines.h"
 
-#include <stdio.h>
+#include <cstdio>
 
 namespace lldb {
 
@@ -220,6 +220,7 @@ private:
   friend class lldb_private::QueueImpl;
   friend class SBQueueItem;
   friend class SBThreadPlan;
+  friend class SBTrace;
 
   void SetThread(const lldb::ThreadSP &lldb_object_sp);
 

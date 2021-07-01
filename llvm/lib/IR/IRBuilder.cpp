@@ -62,7 +62,7 @@ Type *IRBuilderBase::getCurrentFunctionReturnType() const {
 
 Value *IRBuilderBase::getCastedInt8PtrValue(Value *Ptr) {
   auto *PT = cast<PointerType>(Ptr->getType());
-  if (PT->getElementType()->isIntegerTy(8))
+  if (PT->isOpaqueOrPointeeTypeMatches(getInt8Ty()))
     return Ptr;
 
   // Otherwise, we need to insert a bitcast.
@@ -778,6 +778,24 @@ CallInst *IRBuilderBase::CreateGCRelocate(Instruction *Statepoint,
                   getInt32(BaseOffset),
                   getInt32(DerivedOffset)};
  return createCallHelper(FnGCRelocate, Args, this, Name);
+}
+
+CallInst *IRBuilderBase::CreateGCGetPointerBase(Value *DerivedPtr,
+                                                const Twine &Name) {
+  Module *M = BB->getParent()->getParent();
+  Type *PtrTy = DerivedPtr->getType();
+  Function *FnGCFindBase = Intrinsic::getDeclaration(
+      M, Intrinsic::experimental_gc_get_pointer_base, {PtrTy, PtrTy});
+  return createCallHelper(FnGCFindBase, {DerivedPtr}, this, Name);
+}
+
+CallInst *IRBuilderBase::CreateGCGetPointerOffset(Value *DerivedPtr,
+                                                  const Twine &Name) {
+  Module *M = BB->getParent()->getParent();
+  Type *PtrTy = DerivedPtr->getType();
+  Function *FnGCGetOffset = Intrinsic::getDeclaration(
+      M, Intrinsic::experimental_gc_get_pointer_offset, {PtrTy});
+  return createCallHelper(FnGCGetOffset, {DerivedPtr}, this, Name);
 }
 
 CallInst *IRBuilderBase::CreateUnaryIntrinsic(Intrinsic::ID ID, Value *V,

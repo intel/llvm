@@ -184,6 +184,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
   // XXX - What does the member GPU mean if device name string passed here?
   if (isAMDGCN(getTriple())) {
     switch (llvm::AMDGPU::parseArchAMDGCN(CPU)) {
+    case GK_GFX1035:
     case GK_GFX1034:
     case GK_GFX1033:
     case GK_GFX1032:
@@ -214,6 +215,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["dot6-insts"] = true;
       Features["dot7-insts"] = true;
       LLVM_FALLTHROUGH;
+    case GK_GFX1013:
     case GK_GFX1010:
       Features["dl-insts"] = true;
       Features["ci-insts"] = true;

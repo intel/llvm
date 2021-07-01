@@ -24,8 +24,8 @@ static void addOperands(Operation *op, SetVector<Value> &operandSet) {
     return;
   TypeSwitch<Operation *, void>(op)
       .Case<linalg::LinalgOp>([&](linalg::LinalgOp linalgOp) {
-        operandSet.insert(linalgOp.getInputs().begin(),
-                          linalgOp.getInputs().end());
+        SmallVector<Value> inputOperands = linalgOp.getInputOperands();
+        operandSet.insert(inputOperands.begin(), inputOperands.end());
       })
       .Default([&](Operation *operation) {
         operandSet.insert(operation->operand_begin(), operation->operand_end());
@@ -51,6 +51,12 @@ struct TestLinalgElementwiseFusion
     registry.insert<AffineDialect, linalg::LinalgDialect, memref::MemRefDialect,
                     tensor::TensorDialect>();
   }
+  StringRef getArgument() const final {
+    return "test-linalg-elementwise-fusion-patterns";
+  }
+  StringRef getDescription() const final {
+    return "Test Linalg element wise operation fusion patterns";
+  }
 
   void runOnFunction() override {
     MLIRContext *context = &this->getContext();
@@ -73,6 +79,10 @@ struct TestPushExpandingReshape
     registry
         .insert<AffineDialect, linalg::LinalgDialect, tensor::TensorDialect>();
   }
+  StringRef getArgument() const final { return "test-linalg-push-reshape"; }
+  StringRef getDescription() const final {
+    return "Test Linalg reshape push patterns";
+  }
 
   void runOnFunction() override {
     MLIRContext *context = &this->getContext();
@@ -86,14 +96,11 @@ struct TestPushExpandingReshape
 
 namespace test {
 void registerTestLinalgElementwiseFusion() {
-  PassRegistration<TestLinalgElementwiseFusion> testElementwiseFusionPass(
-      "test-linalg-elementwise-fusion-patterns",
-      "Test Linalg element wise operation fusion patterns");
+  PassRegistration<TestLinalgElementwiseFusion>();
 }
 
 void registerTestPushExpandingReshape() {
-  PassRegistration<TestPushExpandingReshape> testPushExpandingReshapePass(
-      "test-linalg-push-reshape", "Test Linalg reshape push patterns");
+  PassRegistration<TestPushExpandingReshape>();
 }
 } // namespace test
 

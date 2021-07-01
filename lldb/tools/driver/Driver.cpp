@@ -36,11 +36,11 @@
 #include <thread>
 #include <utility>
 
+#include <climits>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <fcntl.h>
-#include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 // Includes for pipe()
 #if defined(_WIN32)
@@ -740,7 +740,7 @@ void reproducer_handler(void *finalize_cmd) {
 
 static void printHelp(LLDBOptTable &table, llvm::StringRef tool_name) {
   std::string usage_str = tool_name.str() + " [options]";
-  table.PrintHelp(llvm::outs(), usage_str.c_str(), "LLDB", false);
+  table.printHelp(llvm::outs(), usage_str.c_str(), "LLDB", false);
 
   std::string examples = R"___(
 EXAMPLES:

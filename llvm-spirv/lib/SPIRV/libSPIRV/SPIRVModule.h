@@ -94,6 +94,7 @@ class SPIRVAsmTargetINTEL;
 class SPIRVAsmINTEL;
 class SPIRVAsmCallINTEL;
 class SPIRVTypeBufferSurfaceINTEL;
+class SPIRVTypeTokenINTEL;
 
 typedef SPIRVBasicBlock SPIRVLabel;
 struct SPIRVTypeImageDescriptor;
@@ -250,6 +251,7 @@ public:
   virtual SPIRVTypeVmeImageINTEL *addVmeImageINTELType(SPIRVTypeImage *) = 0;
   virtual SPIRVTypeBufferSurfaceINTEL *
   addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) = 0;
+  virtual SPIRVTypeTokenINTEL *addTokenTypeINTEL() = 0;
 
   // Constants creation functions
   virtual SPIRVValue *
@@ -400,9 +402,6 @@ public:
       SPIRVValue *, SPIRVBasicBlock *,
       const std::vector<std::pair<std::vector<SPIRVWord>, SPIRVBasicBlock *>> &,
       SPIRVBasicBlock *) = 0;
-  virtual SPIRVInstruction *addFModInst(SPIRVType *TheType, SPIRVId TheDividend,
-                                        SPIRVId TheDivisor,
-                                        SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addVectorTimesScalarInst(SPIRVType *TheType,
                                                      SPIRVId TheVector,
                                                      SPIRVId TheScalar,

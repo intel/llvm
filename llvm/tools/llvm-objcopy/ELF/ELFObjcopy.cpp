@@ -45,12 +45,12 @@
 #include <system_error>
 #include <utility>
 
-namespace llvm {
-namespace objcopy {
-namespace elf {
+using namespace llvm;
+using namespace llvm::ELF;
+using namespace llvm::objcopy;
+using namespace llvm::objcopy::elf;
+using namespace llvm::object;
 
-using namespace object;
-using namespace ELF;
 using SectionPred = std::function<bool(const SectionBase &Sec)>;
 
 static bool isDebugSection(const SectionBase &Sec) {
@@ -71,7 +71,7 @@ static bool onlyKeepDWOPred(const Object &Obj, const SectionBase &Sec) {
   return !isDWOSection(Sec);
 }
 
-uint64_t getNewShfFlags(SectionFlag AllFlags) {
+static uint64_t getNewShfFlags(SectionFlag AllFlags) {
   uint64_t NewFlags = 0;
   if (AllFlags & SectionFlag::SecAlloc)
     NewFlags |= ELF::SHF_ALLOC;
@@ -500,6 +500,60 @@ static Error replaceAndRemoveSections(const CommonConfig &Config, Object &Obj) {
   return Obj.removeSections(Config.AllowBrokenLinks, RemovePred);
 }
 
+// Add symbol to the Object symbol table with the specified properties.
+static void addSymbol(Object &Obj, const NewSymbolInfo &SymInfo,
+                      uint8_t DefaultVisibility) {
+  SectionBase *Sec = Obj.findSection(SymInfo.SectionName);
+  uint64_t Value = Sec ? Sec->Addr + SymInfo.Value : SymInfo.Value;
+
+  uint8_t Bind = ELF::STB_GLOBAL;
+  uint8_t Type = ELF::STT_NOTYPE;
+  uint8_t Visibility = DefaultVisibility;
+
+  for (SymbolFlag FlagValue : SymInfo.Flags)
+    switch (FlagValue) {
+    case SymbolFlag::Global:
+      Bind = ELF::STB_GLOBAL;
+      break;
+    case SymbolFlag::Local:
+      Bind = ELF::STB_LOCAL;
+      break;
+    case SymbolFlag::Weak:
+      Bind = ELF::STB_WEAK;
+      break;
+    case SymbolFlag::Default:
+      Visibility = ELF::STV_DEFAULT;
+      break;
+    case SymbolFlag::Hidden:
+      Visibility = ELF::STV_HIDDEN;
+      break;
+    case SymbolFlag::Protected:
+      Visibility = ELF::STV_PROTECTED;
+      break;
+    case SymbolFlag::File:
+      Type = ELF::STT_FILE;
+      break;
+    case SymbolFlag::Section:
+      Type = ELF::STT_SECTION;
+      break;
+    case SymbolFlag::Object:
+      Type = ELF::STT_OBJECT;
+      break;
+    case SymbolFlag::Function:
+      Type = ELF::STT_FUNC;
+      break;
+    case SymbolFlag::IndirectFunction:
+      Type = ELF::STT_GNU_IFUNC;
+      break;
+    default: /* Other flag values are ignored for ELF. */
+      break;
+    };
+
+  Obj.SymbolTable->addSymbol(
+      SymInfo.SymbolName, Bind, Type, Sec, Value, Visibility,
+      Sec ? (uint16_t)SYMBOL_SIMPLE_INDEX : (uint16_t)SHN_ABS, 0);
+}
+
 // This function handles the high level operations of GNU objcopy including
 // handling command line options. It's important to outline certain properties
 // we expect to hold of the command line operations. Any operation that "keeps"
@@ -633,17 +687,12 @@ static Error handleArgs(const CommonConfig &Config, const ELFConfig &ELFConfig,
 
   // If the symbol table was previously removed, we need to create a new one
   // before adding new symbols.
-  if (!Obj.SymbolTable && !ELFConfig.SymbolsToAdd.empty())
+  if (!Obj.SymbolTable && !Config.SymbolsToAdd.empty())
     if (Error E = Obj.addNewSymbolTable())
       return E;
 
-  for (const NewSymbolInfo &SI : ELFConfig.SymbolsToAdd) {
-    SectionBase *Sec = Obj.findSection(SI.SectionName);
-    uint64_t Value = Sec ? Sec->Addr + SI.Value : SI.Value;
-    Obj.SymbolTable->addSymbol(
-        SI.SymbolName, SI.Bind, SI.Type, Sec, Value, SI.Visibility,
-        Sec ? (uint16_t)SYMBOL_SIMPLE_INDEX : (uint16_t)SHN_ABS, 0);
-  }
+  for (const NewSymbolInfo &SI : Config.SymbolsToAdd)
+    addSymbol(Obj, SI, ELFConfig.NewSymbolVisibility);
 
   // --set-section-flags works with sections added by --add-section.
   if (!Config.SetSectionFlags.empty()) {
@@ -670,9 +719,9 @@ static Error writeOutput(const CommonConfig &Config, Object &Obj,
   return Writer->write();
 }
 
-Error executeObjcopyOnIHex(const CommonConfig &Config,
-                           const ELFConfig &ELFConfig, MemoryBuffer &In,
-                           raw_ostream &Out) {
+Error objcopy::elf::executeObjcopyOnIHex(const CommonConfig &Config,
+                                         const ELFConfig &ELFConfig,
+                                         MemoryBuffer &In, raw_ostream &Out) {
   IHexReader Reader(&In);
   Expected<std::unique_ptr<Object>> Obj = Reader.create(true);
   if (!Obj)
@@ -685,12 +734,11 @@ Error executeObjcopyOnIHex(const CommonConfig &Config,
   return writeOutput(Config, **Obj, Out, OutputElfType);
 }
 
-Error executeObjcopyOnRawBinary(const CommonConfig &Config,
-                                const ELFConfig &ELFConfig, MemoryBuffer &In,
-                                raw_ostream &Out) {
-  uint8_t NewSymbolVisibility =
-      ELFConfig.NewSymbolVisibility.getValueOr((uint8_t)ELF::STV_DEFAULT);
-  BinaryReader Reader(&In, NewSymbolVisibility);
+Error objcopy::elf::executeObjcopyOnRawBinary(const CommonConfig &Config,
+                                              const ELFConfig &ELFConfig,
+                                              MemoryBuffer &In,
+                                              raw_ostream &Out) {
+  BinaryReader Reader(&In, ELFConfig.NewSymbolVisibility);
   Expected<std::unique_ptr<Object>> Obj = Reader.create(true);
   if (!Obj)
     return Obj.takeError();
@@ -704,12 +752,13 @@ Error executeObjcopyOnRawBinary(const CommonConfig &Config,
   return writeOutput(Config, **Obj, Out, OutputElfType);
 }
 
-Error executeObjcopyOnBinary(const CommonConfig &Config,
-                             const ELFConfig &ELFConfig,
-                             object::ELFObjectFileBase &In, raw_ostream &Out) {
+Error objcopy::elf::executeObjcopyOnBinary(const CommonConfig &Config,
+                                           const ELFConfig &ELFConfig,
+                                           object::ELFObjectFileBase &In,
+                                           raw_ostream &Out) {
   ELFReader Reader(&In, Config.ExtractPartition);
   Expected<std::unique_ptr<Object>> Obj =
-      Reader.create(!ELFConfig.SymbolsToAdd.empty());
+      Reader.create(!Config.SymbolsToAdd.empty());
   if (!Obj)
     return Obj.takeError();
   // Prefer OutputArch (-O<format>) if set, otherwise infer it from the input.
@@ -725,7 +774,3 @@ Error executeObjcopyOnBinary(const CommonConfig &Config,
 
   return Error::success();
 }
-
-} // end namespace elf
-} // end namespace objcopy
-} // end namespace llvm

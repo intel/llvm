@@ -57,7 +57,9 @@ public:
     while (IndentForLevel.size() <= Line.Level)
       IndentForLevel.push_back(-1);
     if (Line.InPPDirective) {
-      Indent = Line.Level * Style.IndentWidth + AdditionalIndent;
+      unsigned IndentWidth =
+          (Style.PPIndentWidth >= 0) ? Style.PPIndentWidth : Style.IndentWidth;
+      Indent = Line.Level * IndentWidth + AdditionalIndent;
     } else {
       IndentForLevel.resize(Line.Level + 1);
       Indent = getIndent(IndentForLevel, Line.Level);
@@ -821,8 +823,20 @@ protected:
       return true;
 
     if (NewLine) {
-      int AdditionalIndent = State.Stack.back().Indent -
-                             Previous.Children[0]->Level * Style.IndentWidth;
+      const ParenState &P = State.Stack.back();
+
+      int AdditionalIndent =
+          P.Indent - Previous.Children[0]->Level * Style.IndentWidth;
+
+      if (Style.LambdaBodyIndentation == FormatStyle::LBI_OuterScope &&
+          P.NestedBlockIndent == P.LastSpace) {
+        if (State.NextToken->MatchingParen &&
+            State.NextToken->MatchingParen->is(TT_LambdaLBrace)) {
+          State.Stack.pop_back();
+        }
+        if (LBrace->is(TT_LambdaLBrace))
+          AdditionalIndent = 0;
+      }
 
       Penalty +=
           BlockFormatter->format(Previous.Children, DryRun, AdditionalIndent,
@@ -1120,6 +1134,7 @@ unsigned UnwrappedLineFormatter::format(
   unsigned Penalty = 0;
   LevelIndentTracker IndentTracker(Style, Keywords, Lines[0]->Level,
                                    AdditionalIndent);
+  const AnnotatedLine *PrevPrevLine = nullptr;
   const AnnotatedLine *PreviousLine = nullptr;
   const AnnotatedLine *NextLine = nullptr;
 
@@ -1158,7 +1173,7 @@ unsigned UnwrappedLineFormatter::format(
     if (ShouldFormat && TheLine.Type != LT_Invalid) {
       if (!DryRun) {
         bool LastLine = Line->First->is(tok::eof);
-        formatFirstToken(TheLine, PreviousLine, Lines, Indent,
+        formatFirstToken(TheLine, PreviousLine, PrevPrevLine, Lines, Indent,
                          LastLine ? LastStartColumn : NextStartColumn + Indent);
       }
 
@@ -1204,7 +1219,7 @@ unsigned UnwrappedLineFormatter::format(
                               TheLine.LeadingEmptyLinesAffected);
         // Format the first token.
         if (ReformatLeadingWhitespace)
-          formatFirstToken(TheLine, PreviousLine, Lines,
+          formatFirstToken(TheLine, PreviousLine, PrevPrevLine, Lines,
                            TheLine.First->OriginalColumn,
                            TheLine.First->OriginalColumn);
         else
@@ -1220,6 +1235,7 @@ unsigned UnwrappedLineFormatter::format(
     }
     if (!DryRun)
       markFinalized(TheLine.First);
+    PrevPrevLine = PreviousLine;
     PreviousLine = &TheLine;
   }
   PenaltyCache[CacheKey] = Penalty;
@@ -1228,6 +1244,7 @@ unsigned UnwrappedLineFormatter::format(
 
 void UnwrappedLineFormatter::formatFirstToken(
     const AnnotatedLine &Line, const AnnotatedLine *PreviousLine,
+    const AnnotatedLine *PrevPrevLine,
     const SmallVectorImpl<AnnotatedLine *> &Lines, unsigned Indent,
     unsigned NewlineIndent) {
   FormatToken &RootToken = *Line.First;
@@ -1259,6 +1276,8 @@ void UnwrappedLineFormatter::formatFirstToken(
   if (!Style.KeepEmptyLinesAtTheStartOfBlocks && PreviousLine &&
       PreviousLine->Last->is(tok::l_brace) &&
       !PreviousLine->startsWithNamespace() &&
+      !(PrevPrevLine && PrevPrevLine->startsWithNamespace() &&
+        PreviousLine->startsWith(tok::l_brace)) &&
       !startsExternCBlock(*PreviousLine))
     Newlines = 1;
 

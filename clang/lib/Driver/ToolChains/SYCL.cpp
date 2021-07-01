@@ -66,7 +66,10 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(
   } else {
     CmdArgs.push_back("-spirv-max-version=1.3");
     CmdArgs.push_back("-spirv-ext=+all");
-    CmdArgs.push_back("-spirv-debug-info-version=ocl-100");
+    if (!C.getDriver().isFPGAEmulationMode())
+      CmdArgs.push_back("-spirv-debug-info-version=legacy");
+    else
+      CmdArgs.push_back("-spirv-debug-info-version=ocl-100");
     CmdArgs.push_back("-spirv-allow-extra-diexpressions");
     CmdArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
     CmdArgs.push_back("-o");
@@ -274,7 +277,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                 const char *LinkingOutput) const {
 
   assert((getToolChain().getTriple().isSPIR() ||
-          getToolChain().getTriple().isNVPTX()) &&
+          getToolChain().getTriple().isNVPTX() ||
+          getToolChain().getTriple().isAMDGCN()) &&
          "Unsupported target");
 
   std::string SubArchName =
@@ -285,7 +289,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // For CUDA, we want to link all BC files before resuming the normal
   // compilation path
-  if (getToolChain().getTriple().isNVPTX()) {
+  if (getToolChain().getTriple().isNVPTX() ||
+      getToolChain().getTriple().isAMDGCN()) {
     InputInfoList NvptxInputs;
     for (const auto &II : Inputs) {
       if (!II.isFilename())
@@ -494,7 +499,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   if (Arg *FinalOutput = Args.getLastArg(options::OPT_o, options::OPT__SLASH_o,
                                          options::OPT__SLASH_Fe)) {
     SmallString<128> FN(FinalOutput->getValue());
-    llvm::sys::path::replace_extension(FN, "prj");
+    FN.append(".prj");
     const char *FolderName = Args.MakeArgString(FN);
     ReportOptArg += FolderName;
   } else {
@@ -639,6 +644,10 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
       }
     }
   }
+  // Strip out -O0 for FPGA Hardware device compilation.
+  if (!getDriver().isFPGAEmulationMode() &&
+      getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+    DAL->eraseArg(options::OPT_O0);
 
   const OptTable &Opts = getDriver().getOpts();
   if (!BoundArch.empty()) {
@@ -671,7 +680,7 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     OptNoTriple = A->getOption().matches(Opt);
     if (A->getOption().matches(Opt_EQ)) {
       // Passing device args: -X<Opt>=<triple> -opt=val.
-      if (A->getValue() != getTripleString())
+      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple())
         // Provided triple does not match current tool chain.
         continue;
     } else if (!OptNoTriple)

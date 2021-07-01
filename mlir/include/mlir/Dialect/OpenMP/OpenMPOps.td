@@ -28,9 +28,8 @@ def OpenMP_Dialect : Dialect {
 class OpenMP_Op<string mnemonic, list<OpTrait> traits = []> :
       Op<OpenMP_Dialect, mnemonic, traits>;
 
-// Type which can be constraint accepting standard integers, indices and
-// LLVM integer types.
-def IntLikeType : AnyTypeOf<[AnyInteger, Index, LLVM_AnyInteger]>;
+// Type which can be constraint accepting standard integers and indices.
+def IntLikeType : AnyTypeOf<[AnyInteger, Index]>;
 
 //===----------------------------------------------------------------------===//
 // 2.6 parallel Construct
@@ -257,6 +256,40 @@ def FlushOp : OpenMP_Op<"flush"> {
 
   let assemblyFormat = [{ ( `(` $varList^ `:` type($varList) `)` )? attr-dict}];
 }
+//===----------------------------------------------------------------------===//
+// 2.14.5 target construct
+//===----------------------------------------------------------------------===//
+
+def TargetOp : OpenMP_Op<"target",[AttrSizedOperandSegments]> {
+  let summary = "target construct";
+  let description = [{
+    The target construct includes a region of code which is to be executed
+    on a device.
+
+    The optional $if_expr parameter specifies a boolean result of a
+    conditional check. If this value is 1 or is not provided then the target
+    region runs on a device, if it is 0 then the target region is executed on the
+    host device.
+
+    The optional $device parameter specifies the device number for the target region.
+
+    The optional $thread_limit specifies the limit on the number of threads
+    
+    The optional $nowait elliminates the implicit barrier so the parent task can make progress
+    even if the target task is not yet completed.
+    
+    TODO:  private, map, is_device_ptr, firstprivate, depend, defaultmap, in_reduction
+    
+  }];
+
+  let arguments = (ins Optional<I1>:$if_expr,
+                       Optional<AnyInteger>:$device,
+                       Optional<AnyInteger>:$thread_limit,
+                       UnitAttr:$nowait);
+
+  let regions = (region AnyRegion:$region);
+}
+
 
 //===----------------------------------------------------------------------===//
 // 2.16 master Construct

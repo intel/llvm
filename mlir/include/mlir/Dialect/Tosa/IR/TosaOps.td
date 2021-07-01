@@ -208,13 +208,13 @@ def Tosa_MatMulOp : Tosa_Op<"matmul", [NoSideEffect]> {
   }];
 
   let arguments = (ins
-    Tosa_Tensor2D:$a,
-    Tosa_Tensor2D:$b,
+    Tosa_Tensor2Dto3D:$a,
+    Tosa_Tensor2Dto3D:$b,
     OptionalAttr<Tosa_MatMulOpQuantizationAttr>:$quantization_info
   );
 
   let results = (outs
-    Tosa_Tensor2D:$c
+    Tosa_Tensor2Dto3D:$c
   );
 
   let builders = [Tosa_MatMulOpQuantInfoBuilder];
@@ -1384,7 +1384,7 @@ def Tosa_GatherOp : Tosa_Op<"gather", [NoSideEffect]> {
   let summary = "Gather operation,";
 
   let description = [{
-    Generate a tensor for which each element in the output is a subtensor of the
+    Generate a tensor for which each element in the output is a slice of the
     values tensor based on the value of indices.
   }];
 

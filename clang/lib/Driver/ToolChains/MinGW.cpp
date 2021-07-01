@@ -338,6 +338,7 @@ static bool findGccVersion(StringRef LibDir, std::string &GccLibDir,
       continue;
     if (CandidateVersion <= Version)
       continue;
+    Version = CandidateVersion;
     Ver = std::string(VersionText);
     GccLibDir = LI->path();
   }
@@ -426,7 +427,7 @@ toolchains::MinGW::MinGW(const Driver &D, const llvm::Triple &Triple,
 
   NativeLLVMSupport =
       Args.getLastArgValue(options::OPT_fuse_ld_EQ, CLANG_DEFAULT_LINKER)
-          .equals_lower("lld");
+          .equals_insensitive("lld");
 }
 
 bool toolchains::MinGW::IsIntegratedAssemblerDefault() const { return true; }

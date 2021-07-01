@@ -10,7 +10,7 @@ queue q;
 // expected-no-diagnostics
 class Functor {
 public:
-  [[intel::reqd_work_group_size(4)]] void operator()() const {}
+  [[sycl::reqd_work_group_size(4)]] void operator()() const {}
 };
 
 void bar() {
@@ -21,15 +21,14 @@ void bar() {
 }
 
 #else
-[[intel::reqd_work_group_size(4)]] void f4x1x1() {} // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(4)]] void f4x1x1() {} // expected-note {{conflicting attribute is here}}
 // expected-note@-1 {{conflicting attribute is here}}
-[[intel::reqd_work_group_size(32)]] void f32x1x1() {} // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(32)]] void f32x1x1() {} // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(16)]] void f16x1x1() {}      // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(16, 16)]] void f16x16x1() {} // expected-note {{conflicting attribute is here}}
 
-[[intel::reqd_work_group_size(16)]] void f16x1x1() {}      // expected-note {{conflicting attribute is here}}
-[[intel::reqd_work_group_size(16, 16)]] void f16x16x1() {} // expected-note {{conflicting attribute is here}}
-
-[[intel::reqd_work_group_size(32, 32)]] void f32x32x1() {}      // expected-note {{conflicting attribute is here}}
-[[intel::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(32, 32)]] void f32x32x1() {}      // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
 #ifdef TRIGGER_ERROR
 class Functor32 {
@@ -43,33 +42,34 @@ public:
 class Functor33 {
 public:
   // expected-warning@+1{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
-  [[intel::reqd_work_group_size(32, -4)]] void operator()() const {}
+  [[sycl::reqd_work_group_size(32, -4)]] void operator()() const {}
 };
 
 class Functor30 {
 public:
   // expected-warning@+1 2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
-  [[intel::reqd_work_group_size(30, -30, -30)]] void operator()() const {}
+  [[sycl::reqd_work_group_size(30, -30, -30)]] void operator()() const {}
 };
 
 class Functor16 {
 public:
-  [[intel::reqd_work_group_size(16)]] void operator()() const {}
+  [[sycl::reqd_work_group_size(16)]] void operator()() const {}
 };
 
 class Functor64 {
 public:
-  [[intel::reqd_work_group_size(64, 64)]] void operator()() const {}
+  [[sycl::reqd_work_group_size(64, 64)]] void operator()() const {}
 };
 
 class Functor16x16x16 {
 public:
-  [[intel::reqd_work_group_size(16, 16, 16)]] void operator()() const {}
+  [[intel::reqd_work_group_size(16, 16, 16)]] void operator()() const {} // expected-warning {{attribute 'intel::reqd_work_group_size' is deprecated}} \
+                                                                         // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 };
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
-  [[intel::reqd_work_group_size(8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
     f4x1x1();
   }
 };
@@ -107,7 +107,7 @@ int main() {
     Functor30 f30;
     h.single_task<class kernel_name6>(f30);
 
-    h.single_task<class kernel_name7>([]() [[intel::reqd_work_group_size(32, 32, 32)]] {
+    h.single_task<class kernel_name7>([]() [[sycl::reqd_work_group_size(32, 32, 32)]] {
       f32x32x32();
     });
 #ifdef TRIGGER_ERROR
@@ -130,7 +130,7 @@ int main() {
     });
 
     // expected-error@+1 {{expected variable name or 'this' in lambda capture list}}
-    h.single_task<class kernel_name12>([[intel::reqd_work_group_size(32, 32, 32)]][]() {
+    h.single_task<class kernel_name12>([[sycl::reqd_work_group_size(32, 32, 32)]][]() {
       f32x32x32();
     });
 

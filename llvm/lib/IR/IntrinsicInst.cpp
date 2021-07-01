@@ -283,40 +283,39 @@ bool ConstrainedFPIntrinsic::classof(const IntrinsicInst *I) {
 
 ElementCount VPIntrinsic::getStaticVectorLength() const {
   auto GetVectorLengthOfType = [](const Type *T) -> ElementCount {
-    auto VT = cast<VectorType>(T);
+    const auto *VT = cast<VectorType>(T);
     auto ElemCount = VT->getElementCount();
     return ElemCount;
   };
 
-  auto VPMask = getMaskParam();
+  Value *VPMask = getMaskParam();
+  assert(VPMask && "No mask param?");
   return GetVectorLengthOfType(VPMask->getType());
 }
 
 Value *VPIntrinsic::getMaskParam() const {
-  auto maskPos = GetMaskParamPos(getIntrinsicID());
-  if (maskPos)
-    return getArgOperand(maskPos.getValue());
+  if (auto MaskPos = getMaskParamPos(getIntrinsicID()))
+    return getArgOperand(MaskPos.getValue());
   return nullptr;
 }
 
 void VPIntrinsic::setMaskParam(Value *NewMask) {
-  auto MaskPos = GetMaskParamPos(getIntrinsicID());
+  auto MaskPos = getMaskParamPos(getIntrinsicID());
   setArgOperand(*MaskPos, NewMask);
 }
 
 Value *VPIntrinsic::getVectorLengthParam() const {
-  auto vlenPos = GetVectorLengthParamPos(getIntrinsicID());
-  if (vlenPos)
-    return getArgOperand(vlenPos.getValue());
+  if (auto EVLPos = getVectorLengthParamPos(getIntrinsicID()))
+    return getArgOperand(EVLPos.getValue());
   return nullptr;
 }
 
 void VPIntrinsic::setVectorLengthParam(Value *NewEVL) {
-  auto EVLPos = GetVectorLengthParamPos(getIntrinsicID());
+  auto EVLPos = getVectorLengthParamPos(getIntrinsicID());
   setArgOperand(*EVLPos, NewEVL);
 }
 
-Optional<int> VPIntrinsic::GetMaskParamPos(Intrinsic::ID IntrinsicID) {
+Optional<unsigned> VPIntrinsic::getMaskParamPos(Intrinsic::ID IntrinsicID) {
   switch (IntrinsicID) {
   default:
     return None;
@@ -328,7 +327,8 @@ Optional<int> VPIntrinsic::GetMaskParamPos(Intrinsic::ID IntrinsicID) {
   }
 }
 
-Optional<int> VPIntrinsic::GetVectorLengthParamPos(Intrinsic::ID IntrinsicID) {
+Optional<unsigned>
+VPIntrinsic::getVectorLengthParamPos(Intrinsic::ID IntrinsicID) {
   switch (IntrinsicID) {
   default:
     return None;
@@ -340,7 +340,7 @@ Optional<int> VPIntrinsic::GetVectorLengthParamPos(Intrinsic::ID IntrinsicID) {
   }
 }
 
-bool VPIntrinsic::IsVPIntrinsic(Intrinsic::ID ID) {
+bool VPIntrinsic::isVPIntrinsic(Intrinsic::ID ID) {
   switch (ID) {
   default:
     return false;
@@ -354,7 +354,7 @@ bool VPIntrinsic::IsVPIntrinsic(Intrinsic::ID ID) {
 }
 
 // Equivalent non-predicated opcode
-Optional<unsigned> VPIntrinsic::GetFunctionalOpcodeForVP(Intrinsic::ID ID) {
+Optional<unsigned> VPIntrinsic::getFunctionalOpcodeForVP(Intrinsic::ID ID) {
   Optional<unsigned> FunctionalOC;
   switch (ID) {
   default:
@@ -368,7 +368,7 @@ Optional<unsigned> VPIntrinsic::GetFunctionalOpcodeForVP(Intrinsic::ID ID) {
   return FunctionalOC;
 }
 
-Intrinsic::ID VPIntrinsic::GetForOpcode(unsigned IROPC) {
+Intrinsic::ID VPIntrinsic::getForOpcode(unsigned IROPC) {
   switch (IROPC) {
   default:
     return Intrinsic::not_intrinsic;
@@ -397,7 +397,7 @@ bool VPIntrinsic::canIgnoreVectorLengthParam() const {
   // Check whether "W == vscale * EC.getKnownMinValue()"
   if (EC.isScalable()) {
     // Undig the DL
-    auto ParMod = this->getModule();
+    const auto *ParMod = this->getModule();
     if (!ParMod)
       return false;
     const auto &DL = ParMod->getDataLayout();
@@ -410,7 +410,7 @@ bool VPIntrinsic::canIgnoreVectorLengthParam() const {
   }
 
   // standard SIMD operation
-  auto VLConst = dyn_cast<ConstantInt>(VLParam);
+  const auto *VLConst = dyn_cast<ConstantInt>(VLParam);
   if (!VLConst)
     return false;
 
@@ -419,6 +419,17 @@ bool VPIntrinsic::canIgnoreVectorLengthParam() const {
     return true;
 
   return false;
+}
+
+Function *VPIntrinsic::getDeclarationForParams(Module *M, Intrinsic::ID VPID,
+                                               ArrayRef<Value *> Params) {
+  assert(isVPIntrinsic(VPID) && "not a VP intrinsic");
+
+  // TODO: Extend this for other VP intrinsics as they are upstreamed. This
+  // works for binary arithmetic VP intrinsics.
+  auto *VPFunc = Intrinsic::getDeclaration(M, VPID, Params[0]->getType());
+  assert(VPFunc && "Could not declare VP intrinsic");
+  return VPFunc;
 }
 
 Instruction::BinaryOps BinaryOpIntrinsic::getBinaryOp() const {

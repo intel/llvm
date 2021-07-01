@@ -660,6 +660,18 @@ public:
     return PointerType::get(C, 0);
   }
 
+  /// This constructs a pointer type with the same pointee type as input
+  /// PointerType (or opaque pointer is the input PointerType is opaque) and the
+  /// given address space. This is only useful during the opaque pointer
+  /// transition.
+  /// TODO: remove after opaque pointer transition is complete.
+  static PointerType *getWithSamePointeeType(PointerType *PT,
+                                             unsigned AddressSpace) {
+    if (PT->isOpaque())
+      return get(PT->getContext(), AddressSpace);
+    return get(PT->getElementType(), AddressSpace);
+  }
+
   Type *getElementType() const {
     assert(!isOpaque() && "Attempting to get element type of opaque pointer");
     return PointeeTy;
@@ -682,6 +694,14 @@ public:
   /// removed.
   bool isOpaqueOrPointeeTypeMatches(Type *Ty) {
     return isOpaque() || PointeeTy == Ty;
+  }
+
+  /// Return true if both pointer types have the same element type. Two opaque
+  /// pointers are considered to have the same element type, while an opaque
+  /// and a non-opaque pointer have different element types.
+  /// TODO: Remove after opaque pointer transition is complete.
+  bool hasSameElementTypeAs(PointerType *Other) {
+    return PointeeTy == Other->PointeeTy;
   }
 
   /// Implement support type inquiry through isa, cast, and dyn_cast.

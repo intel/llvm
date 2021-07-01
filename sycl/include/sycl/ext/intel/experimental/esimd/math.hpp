@@ -1,4 +1,4 @@
-﻿//==-------------- math.hpp - DPC++ Explicit SIMD API   --------------------==//
+//==-------------- math.hpp - DPC++ Explicit SIMD API   --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,6 +11,7 @@
 #pragma once
 
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/host_util.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
@@ -52,9 +53,9 @@ namespace detail {
 
 template <typename T0, typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ>
-__esimd_abs_common_internal(simd<T1, SZ> src0, int flag = GENX_NOSAT) {
+__esimd_abs_common_internal(simd<T1, SZ> src0, int flag = saturation_off) {
   simd<T1, SZ> Result = __esimd_abs<T1, SZ>(src0.data());
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T0>(Result);
@@ -64,7 +65,7 @@ template <typename T0, typename T1>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value,
     typename sycl::detail::remove_const_t<T0>>
-__esimd_abs_common_internal(T1 src0, int flag = GENX_NOSAT) {
+__esimd_abs_common_internal(T1 src0, int flag = saturation_off) {
   typedef typename sycl::detail::remove_const_t<T0> TT0;
   typedef typename sycl::detail::remove_const_t<T1> TT1;
 
@@ -79,7 +80,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     !std::is_same<typename sycl::detail::remove_const_t<T0>,
                   typename sycl::detail::remove_const_t<T1>>::value,
     simd<T0, SZ>>
-esimd_abs(simd<T1, SZ> src0, int flag = GENX_NOSAT) {
+esimd_abs(simd<T1, SZ> src0, int flag = saturation_off) {
   return detail::__esimd_abs_common_internal<T0, T1, SZ>(src0, flag);
 }
 
@@ -90,13 +91,13 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_esimd_scalar<T0>::value &&
         detail::is_esimd_scalar<T1>::value,
     typename sycl::detail::remove_const_t<T0>>
-esimd_abs(T1 src0, int flag = GENX_NOSAT) {
+esimd_abs(T1 src0, int flag = saturation_off) {
   return detail::__esimd_abs_common_internal<T0, T1>(src0, flag);
 }
 
 template <typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T1, SZ> esimd_abs(simd<T1, SZ> src0,
-                                                  int flag = GENX_NOSAT) {
+                                                  int flag = saturation_off) {
   return detail::__esimd_abs_common_internal<T1, T1, SZ>(src0, flag);
 }
 
@@ -104,7 +105,7 @@ template <typename T1>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<T1>::value,
     typename sycl::detail::remove_const_t<T1>>
-esimd_abs(T1 src0, int flag = GENX_NOSAT) {
+esimd_abs(T1 src0, int flag = saturation_off) {
   return detail::__esimd_abs_common_internal<T1, T1>(src0, flag);
 }
 
@@ -115,13 +116,13 @@ ESIMD_NODEBUG ESIMD_INLINE
                                            std::is_integral<T1>::value &&
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
-    esimd_shl(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
+    esimd_shl(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
   typedef
       typename detail::computation_type<decltype(src0), U>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
 
-  if (flag != GENX_SAT) {
+  if (flag != saturation_on) {
     if constexpr (std::is_unsigned<T0>::value) {
       if constexpr (std::is_unsigned<T1>::value)
         return __esimd_uushl_sat<T0, T1, SZ>(Src0.data(), Src1.data());
@@ -154,7 +155,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename sycl::detail::remove_const_t<T0>>
-esimd_shl(T1 src0, T2 src1, int flag = GENX_NOSAT) {
+esimd_shl(T1 src0, T2 src1, int flag = saturation_off) {
   typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
@@ -169,7 +170,7 @@ ESIMD_NODEBUG ESIMD_INLINE
                                            std::is_integral<T1>::value &&
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
-    esimd_shr(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
+    esimd_shr(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
   typedef
       typename detail::computation_type<decltype(src0), U>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
@@ -177,7 +178,7 @@ ESIMD_NODEBUG ESIMD_INLINE
   typename detail::simd_type<ComputationTy>::type Result =
       Src0.data() >> Src1.data();
 
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T0>(Result);
@@ -189,7 +190,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename sycl::detail::remove_const_t<T0>>
-esimd_shr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
+esimd_shr(T1 src0, T2 src1, int flag = saturation_off) {
   typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
@@ -276,13 +277,13 @@ ESIMD_NODEBUG ESIMD_INLINE
                                            std::is_integral<T1>::value &&
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
-    esimd_lsr(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
+    esimd_lsr(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
   typedef typename detail::computation_type<T1, T1>::type IntermedTy;
   typedef typename std::make_unsigned<IntermedTy>::type ComputationTy;
   simd<ComputationTy, SZ> Src0 = src0;
   simd<ComputationTy, SZ> Result = Src0.data() >> src1.data();
 
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T0>(Result);
@@ -294,22 +295,12 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename sycl::detail::remove_const_t<T0>>
-esimd_lsr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
+esimd_lsr(T1 src0, T2 src1, int flag = saturation_off) {
   typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_lsr<T0>(Src0, Src1, flag);
   return Result[0];
-}
-
-template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    detail::is_esimd_scalar<T1>::value && detail::is_esimd_vector<T2>::value &&
-        std::is_integral<T0>::value && std::is_integral<T1>::value &&
-        std::is_integral<T2>::value,
-    decltype(esimd_lsr<T0>(T2(), T1()))>
-esimd_lsr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
-  return esimd_lsr<T0>(src1, src0, flag);
 }
 
 // esimd_asr
@@ -319,13 +310,13 @@ ESIMD_NODEBUG ESIMD_INLINE
                                            std::is_integral<T1>::value &&
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
-    esimd_asr(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
+    esimd_asr(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
   typedef typename detail::computation_type<T1, T1>::type IntermedTy;
   typedef typename std::make_signed<IntermedTy>::type ComputationTy;
   simd<ComputationTy, SZ> Src0 = src0;
   simd<ComputationTy, SZ> Result = Src0 >> src1;
 
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T0>(Result);
@@ -337,22 +328,12 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename sycl::detail::remove_const_t<T0>>
-esimd_asr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
+esimd_asr(T1 src0, T2 src1, int flag = saturation_off) {
   typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_asr<T0>(Src0, Src1, flag);
   return Result[0];
-}
-
-template <typename T0, typename T1, typename T2>
-ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    detail::is_esimd_scalar<T1>::value && detail::is_esimd_vector<T2>::value &&
-        std::is_integral<T0>::value && std::is_integral<T1>::value &&
-        std::is_integral<T2>::value,
-    decltype(esimd_asr<T0>(T2(), T1()))>
-esimd_asr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
-  return esimd_asr<T0>(src1, src0, flag);
 }
 
 // esimd_imul
@@ -390,8 +371,8 @@ esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
       ComputationTy;
   ComputationTy Product = convert<long long>(src0);
   Product *= src1;
-  rmd = Product.format<T0>().select<1, 1>[0];
-  return Product.format<T0>().select<1, 1>[1];
+  rmd = Product.bit_cast_view<T0>().select<1, 1>[0];
+  return Product.bit_cast_view<T0>().select<1, 1>[1];
 }
 
 template <typename T0, typename T1, typename U, int SZ>
@@ -404,8 +385,8 @@ esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
       ComputationTy;
   ComputationTy Product = convert<long long>(src0);
   Product *= src1;
-  rmd = Product.format<T0>().select<SZ, 2>(0);
-  return Product.format<T0>().select<SZ, 2>(1);
+  rmd = Product.bit_cast_view<T0>().select<SZ, 2>(0);
+  return Product.bit_cast_view<T0>().select<SZ, 2>(1);
 }
 #endif
 
@@ -505,18 +486,18 @@ esimd_div(simd<typename std::remove_const<RT>, 1> &remainder, T0 src0,
 //
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ>
-esimd_max(simd<T, SZ> src0, simd<T, SZ> src1, int flag = GENX_NOSAT) {
+esimd_max(simd<T, SZ> src0, simd<T, SZ> src1, int flag = saturation_off) {
   if constexpr (std::is_floating_point<T>::value) {
     auto Result = __esimd_fmax<T, SZ>(src0.data(), src1.data());
-    return (flag == GENX_NOSAT) ? Result : __esimd_satf<T, T, SZ>(Result);
+    return (flag == saturation_off) ? Result : __esimd_satf<T, T, SZ>(Result);
   } else if constexpr (std::is_unsigned<T>::value) {
     auto Result = __esimd_umax<T, SZ>(src0.data(), src1.data());
-    return (flag == GENX_NOSAT) ? Result
-                                : __esimd_uutrunc_sat<T, T, SZ>(Result);
+    return (flag == saturation_off) ? Result
+                                    : __esimd_uutrunc_sat<T, T, SZ>(Result);
   } else {
     auto Result = __esimd_smax<T, SZ>(src0.data(), src1.data());
-    return (flag == GENX_NOSAT) ? Result
-                                : __esimd_sstrunc_sat<T, T, SZ>(Result);
+    return (flag == saturation_off) ? Result
+                                    : __esimd_sstrunc_sat<T, T, SZ>(Result);
   }
 }
 
@@ -524,7 +505,7 @@ template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value,
                                        simd<T, SZ>>
-    esimd_max(simd<T, SZ> src0, T src1, int flag = GENX_NOSAT) {
+    esimd_max(simd<T, SZ> src0, T src1, int flag = saturation_off) {
   simd<T, SZ> Src1 = src1;
   simd<T, SZ> Result = esimd_max<T>(src0, Src1, flag);
   return Result;
@@ -534,7 +515,7 @@ template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value,
                                        simd<T, SZ>>
-    esimd_max(T src0, simd<T, SZ> src1, int flag = GENX_NOSAT) {
+    esimd_max(T src0, simd<T, SZ> src1, int flag = saturation_off) {
   simd<T, SZ> Src0 = src0;
   simd<T, SZ> Result = esimd_max<T>(Src0, src1, flag);
   return Result;
@@ -543,7 +524,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value, T>
-    esimd_max(T src0, T src1, int flag = GENX_NOSAT) {
+    esimd_max(T src0, T src1, int flag = saturation_off) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Src1 = src1;
   simd<T, 1> Result = esimd_max<T>(Src0, Src1, flag);
@@ -552,18 +533,18 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ>
-esimd_min(simd<T, SZ> src0, simd<T, SZ> src1, int flag = GENX_NOSAT) {
+esimd_min(simd<T, SZ> src0, simd<T, SZ> src1, int flag = saturation_off) {
   if constexpr (std::is_floating_point<T>::value) {
     auto Result = __esimd_fmin<T, SZ>(src0.data(), src1.data());
-    return (flag == GENX_NOSAT) ? Result : __esimd_satf<T, T, SZ>(Result);
+    return (flag == saturation_off) ? Result : __esimd_satf<T, T, SZ>(Result);
   } else if constexpr (std::is_unsigned<T>::value) {
     auto Result = __esimd_umin<T, SZ>(src0.data(), src1.data());
-    return (flag == GENX_NOSAT) ? Result
-                                : __esimd_uutrunc_sat<T, T, SZ>(Result);
+    return (flag == saturation_off) ? Result
+                                    : __esimd_uutrunc_sat<T, T, SZ>(Result);
   } else {
     auto Result = __esimd_smin<T, SZ>(src0.data(), src1.data());
-    return (flag == GENX_NOSAT) ? Result
-                                : __esimd_sstrunc_sat<T, T, SZ>(Result);
+    return (flag == saturation_off) ? Result
+                                    : __esimd_sstrunc_sat<T, T, SZ>(Result);
   }
 }
 
@@ -571,7 +552,7 @@ template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value,
                                        simd<T, SZ>>
-    esimd_min(simd<T, SZ> src0, T src1, int flag = GENX_NOSAT) {
+    esimd_min(simd<T, SZ> src0, T src1, int flag = saturation_off) {
   simd<T, SZ> Src1 = src1;
   simd<T, SZ> Result = esimd_min<T>(src0, Src1, flag);
   return Result;
@@ -581,7 +562,7 @@ template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value,
                                        simd<T, SZ>>
-    esimd_min(T src0, simd<T, SZ> src1, int flag = GENX_NOSAT) {
+    esimd_min(T src0, simd<T, SZ> src1, int flag = saturation_off) {
   simd<T, SZ> Src0 = src0;
   simd<T, SZ> Result = esimd_min<T>(Src0, src1, flag);
   return Result;
@@ -589,7 +570,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::is_esimd_scalar<T>::value, T>
-    esimd_min(T src0, T src1, int flag = GENX_NOSAT) {
+    esimd_min(T src0, T src1, int flag = saturation_off) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Src1 = src1;
   simd<T, 1> Result = esimd_min<T>(Src0, Src1, flag);
@@ -601,12 +582,12 @@ ESIMD_NODEBUG ESIMD_INLINE
     defined(ESIMD_GEN9) || defined(ESIMD_GEN9_5)
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dp2(simd<T1, SZ> src0, U src1,
-                                                  int flag = GENX_NOSAT) {
+                                                  int flag = saturation_off) {
   static_assert(SZ % 4 == 0, "result size is not a multiple of 4");
   simd<float, SZ> Src0 = src0;
   simd<float, SZ> Src1 = src1;
   simd<float, SZ> Result = __esimd_dp2(Src0.data(), Src1.data());
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T0>(Result);
@@ -614,12 +595,12 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dp2(simd<T1, SZ> src0, U src1,
 
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dp3(simd<T1, SZ> src0, U src1,
-                                                  int flag = GENX_NOSAT) {
+                                                  int flag = saturation_off) {
   static_assert(SZ % 4 == 0, "result size is not a multiple of 4");
   simd<float, SZ> Src0 = src0;
   simd<float, SZ> Src1 = src1;
   simd<float, SZ> Result = __esimd_dp3(Src0.data(), Src1.data());
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T0>(Result);
@@ -627,12 +608,12 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dp3(simd<T1, SZ> src0, U src1,
 
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dp4(simd<T1, SZ> src0, U src1,
-                                                  int flag = GENX_NOSAT) {
+                                                  int flag = saturation_off) {
   static_assert(SZ % 4 == 0, "result size is not a multiple of 4");
   simd<float, SZ> Src0 = src0;
   simd<float, SZ> Src1 = src1;
   simd<float, SZ> Result = __esimd_dp4(Src0.data(), Src1.data());
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T0>(Result);
@@ -640,12 +621,12 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dp4(simd<T1, SZ> src0, U src1,
 
 template <typename T0, typename T1, typename U, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dph(simd<T1, SZ> src0, U src1,
-                                                  int flag = GENX_NOSAT) {
+                                                  int flag = saturation_off) {
   static_assert(SZ % 4 == 0, "result size is not a multiple of 4");
   simd<float, SZ> Src0 = src0;
   simd<float, SZ> Src1 = src1;
   simd<float, SZ> Result = __esimd_dph(Src0.data(), Src1.data());
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T0>(Result);
@@ -653,7 +634,7 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dph(simd<T1, SZ> src0, U src1,
 
 template <typename RT, typename T1, typename T2, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<RT, SZ>
-esimd_line(simd<T1, 4> src0, simd<T2, SZ> src1, int flag = GENX_NOSAT) {
+esimd_line(simd<T1, 4> src0, simd<T2, SZ> src1, int flag = saturation_off) {
   static_assert(SZ % 4 == 0, "result size is not a multiple of 4");
 
   simd<float, 4> Src0 = src0;
@@ -661,7 +642,7 @@ esimd_line(simd<T1, 4> src0, simd<T2, SZ> src1, int flag = GENX_NOSAT) {
   simd<float, SZ> Result = __esimd_line(Src0.data(), Src1.data());
 
   simd<RT, SZ> Result;
-  if (flag == GENX_SAT)
+  if (flag == saturation_on)
     Result = esimd_sat<RT>(Result);
   else
     Result = Result;
@@ -671,7 +652,7 @@ esimd_line(simd<T1, 4> src0, simd<T2, SZ> src1, int flag = GENX_NOSAT) {
 
 template <typename RT, typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<RT, SZ>
-esimd_line(float P, float Q, simd<T, SZ> src1, int flag = GENX_NOSAT) {
+esimd_line(float P, float Q, simd<T, SZ> src1, int flag = saturation_off) {
   simd<float, 4> Src0 = P;
   Src0(3) = Q;
   return esimd_line<RT>(Src0, src1, flag);
@@ -695,7 +676,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_fp_or_dword_type<U>::value &&
         std::is_floating_point<U>::value,
     simd<T0, SZ>>
-esimd_dp2(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
+esimd_dp2(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
   static_assert(SZ % 4 == 0, "result size is not a multiple of 4");
 
   simd<float, SZ> Src1 = src1;
@@ -704,7 +685,7 @@ esimd_dp2(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
   for (int i = 0; i < SZ; i += 4) {
     Result.select<4, 1>(i) = src0[i] * Src1[i] + src0[i + 1] * Src1[i + 1];
   }
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T1>(Result);
@@ -717,7 +698,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_fp_or_dword_type<U>::value &&
         std::is_floating_point<U>::value,
     simd<T0, SZ>>
-esimd_dp3(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
+esimd_dp3(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
   static_assert(SZ % 4 == 0, "result size is not a multiple of 4");
 
   simd<float, SZ> Src1 = src1;
@@ -727,7 +708,7 @@ esimd_dp3(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
     Result.select<4, 1>(i) = src0[i] * Src1[i] + src0[i + 1] * Src1[i + 1] +
                              src0[i + 2] * Src1[i + 2];
   }
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T1>(Result);
@@ -740,7 +721,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_fp_or_dword_type<U>::value &&
         std::is_floating_point<U>::value,
     simd<T0, SZ>>
-esimd_dp4(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
+esimd_dp4(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
   static_assert(SZ % 4 == 0, "result size is not a multiple of 4");
 
   simd<T1, SZ> Src1 = src1;
@@ -751,7 +732,7 @@ esimd_dp4(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
                              src0[i + 2] * Src1[i + 2] +
                              src0[i + 3] * Src1[i + 3];
   }
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T1>(Result);
@@ -763,7 +744,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_fp_or_dword_type<U>::value &&
         std::is_floating_point<U>::value,
     simd<T, SZ>>
-esimd_dph(simd<T, SZ> src0, U src1, int flag = GENX_NOSAT) {
+esimd_dph(simd<T, SZ> src0, U src1, int flag = saturation_off) {
   static_assert(SZ % 4 == 0, "result size is not a multiple of 4");
 
   simd<float, SZ> Src1 = src1;
@@ -773,7 +754,7 @@ esimd_dph(simd<T, SZ> src0, U src1, int flag = GENX_NOSAT) {
     Result.select<4, 1>(i) = src0[i] * Src1[i] + src0[i + 1] * Src1[i + 1] +
                              src0[i + 2] * Src1[i + 2] + 1.0 * Src1[i + 3];
   }
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T>(Result);
@@ -784,7 +765,7 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::is_fp_or_dword_type<T>::value &&
                                            std::is_floating_point<T>::value,
                                        simd<T, SZ>>
-    esimd_line(simd<T, 4> src0, simd<T, SZ> src1, int flag = GENX_NOSAT) {
+    esimd_line(simd<T, 4> src0, simd<T, SZ> src1, int flag = saturation_off) {
   static_assert(SZ % 4 == 0, "result size is not a multiple of 4");
 
   simd<T, SZ> Src1 = src1;
@@ -794,7 +775,7 @@ ESIMD_NODEBUG ESIMD_INLINE
     Result.select<4, 1>(i) = src0[0] * src1[i] + src0[3];
   }
 
-  if (flag == GENX_SAT)
+  if (flag == saturation_on)
     Result = esimd_sat<T>(Result);
 
   return Result;
@@ -805,7 +786,7 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::is_fp_or_dword_type<T>::value &&
                                            std::is_floating_point<T>::value,
                                        simd<T, SZ>>
-    esimd_line(float P, float Q, simd<T, SZ> src1, int flag = GENX_NOSAT) {
+    esimd_line(float P, float Q, simd<T, SZ> src1, int flag = saturation_off) {
   simd<T, 4> Src0 = P;
   Src0(3) = Q;
   return esimd_line<T>(Src0, src1, flag);
@@ -828,7 +809,7 @@ template <typename T> ESIMD_NODEBUG ESIMD_INLINE T esimd_frc(T src0) {
 // esimd_lzd
 template <typename RT, typename T0, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<RT, SZ> esimd_lzd(simd<T0, SZ> src0,
-                                                  int flag = GENX_NOSAT) {
+                                                  int flag = saturation_off) {
   // Saturation parameter ignored
   simd<uint, SZ> Src0 = src0;
   return __esimd_lzd<uint>(Src0);
@@ -838,7 +819,7 @@ template <typename RT, typename T0>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_esimd_scalar<RT>::value && detail::is_esimd_scalar<T0>::value,
     typename sycl::detail::remove_const_t<RT>>
-esimd_lzd(T0 src0, int flag = GENX_NOSAT) {
+esimd_lzd(T0 src0, int flag = saturation_off) {
   simd<T0, 1> Src0 = src0;
   simd<RT, 1> Result = esimd_lzd<RT>(Src0);
   return Result[0];
@@ -850,14 +831,14 @@ esimd_lzd(T0 src0, int flag = GENX_NOSAT) {
 
 template <int SZ, typename U, typename V>
 ESIMD_NODEBUG ESIMD_INLINE simd<float, SZ>
-esimd_lrp(simd<float, SZ> src0, U src1, V src2, int flag = GENX_NOSAT) {
+esimd_lrp(simd<float, SZ> src0, U src1, V src2, int flag = saturation_off) {
   static_assert(SZ >= 4 && (SZ & 0x3) == 0,
                 "vector size must be a multiple of 4");
   simd<float, SZ> Src1 = src1;
   simd<float, SZ> Src2 = src2;
   simd<float, SZ> Result = __esimd_lrp<SZ>(src0, Src1, Src2);
 
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<float>(Result);
@@ -880,13 +861,13 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_fp_or_dword_type<U>::value &&
         std::is_floating_point<U>::value,
     simd<T, SZ>>
-esimd_lrp(simd<T, SZ> src0, U src1, V src2, int flag = GENX_NOSAT) {
+esimd_lrp(simd<T, SZ> src0, U src1, V src2, int flag = saturation_off) {
 
   simd<float, SZ> Src1 = src1;
   simd<float, SZ> Src2 = src2;
   simd<float, SZ> Result;
   Result = Src1 * src0 + Src2 * (1.0f - src0);
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
   return esimd_sat<T>(Result);
 }
@@ -896,7 +877,7 @@ esimd_lrp(simd<T, SZ> src0, U src1, V src2, int flag = GENX_NOSAT) {
 template <int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<float, SZ>
 esimd_pln(simd<float, 4> src0, simd<float, SZ> src1, simd<float, SZ> src2,
-          int flag = GENX_NOSAT) {
+          int flag = saturation_off) {
   static_assert(SZ >= 8 && (SZ & 0x7) == 0,
                 "vector size must be a multiple of 8");
 
@@ -906,16 +887,16 @@ esimd_pln(simd<float, 4> src0, simd<float, SZ> src1, simd<float, SZ> src2,
   // the next block of 8 from src1, then the next block of 8 from src2,
   // and so-on.)
   simd<float, (SZ >> 3) * 16> Src12v;
-  auto Src12 = Src12v.template format<float, (SZ >> 3), 16>();
+  auto Src12 = Src12v.template bit_cast_view<float, (SZ >> 3), 16>();
 
   Src12.select<(SZ >> 3), 1, 8, 1>(0, 0) =
-      src1.template format<float, (SZ >> 3), 8>();
+      src1.template bit_cast_view<float, (SZ >> 3), 8>();
   Src12.select<(SZ >> 3), 1, 8, 1>(0, 8) =
-      src2.template format<float, (SZ >> 3), 8>();
+      src2.template bit_cast_view<float, (SZ >> 3), 8>();
 
   simd<float, SZ> Result = __esimd_pln<SZ>(src0, Src12.read());
 
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<float>(Result);
@@ -1000,9 +981,9 @@ esimd_bf_extract(T1 src0, T2 src1, T3 src2) {
 //
 // template <int SZ>
 // simd<float, SZ>
-// ESIMD_INLINE esimd_inv(simd<float, SZ> src0, int flag = GENX_NOSAT) {
+// ESIMD_INLINE esimd_inv(simd<float, SZ> src0, int flag = saturation_off) {
 //   simd<float, SZ> Result = __esimd_inv(src0);
-//   if (flag != GENX_SAT)
+//   if (flag != saturation_on)
 //     return Result;
 //   return __esimd_sat<float>(Result);
 // }
@@ -1010,12 +991,12 @@ esimd_bf_extract(T1 src0, T2 src1, T3 src2) {
 // template <int N1, int N2>
 // ESIMD_NODEBUG ESIMD_INLINE
 // simd<float, N1 * N2>
-// esimd_inv(matrix<float, N1, N2> src0, int flag = GENX_NOSAT) {
+// esimd_inv(matrix<float, N1, N2> src0, int flag = saturation_off) {
 //   simd<float, N1 * N2> Src0 = src0;
 //   return esimd_inv(Src0, flag);
 // }
 //
-// ESIMD_INLINE float esimd_inv(float src0, int flag = GENX_NOSAT) {
+// ESIMD_INLINE float esimd_inv(float src0, int flag = saturation_off) {
 //   simd<float, 1> Src0 = src0;
 //   simd<float, 1> Result = esimd_inv(Src0, flag);
 //   return Result[0];
@@ -1028,15 +1009,15 @@ esimd_bf_extract(T1 src0, T2 src1, T3 src2) {
 #define ESIMD_INTRINSIC_DEF(type, name)                                        \
   template <int SZ>                                                            \
   ESIMD_NODEBUG ESIMD_INLINE simd<type, SZ> esimd_##name(                      \
-      simd<type, SZ> src0, int flag = GENX_NOSAT) {                            \
+      simd<type, SZ> src0, int flag = saturation_off) {                        \
     simd<type, SZ> Result = __esimd_##name<SZ>(src0.data());                   \
-    if (flag != GENX_SAT)                                                      \
+    if (flag != saturation_on)                                                 \
       return Result;                                                           \
     return esimd_sat<type>(Result);                                            \
   }                                                                            \
   template <typename T = void>                                                 \
   ESIMD_NODEBUG ESIMD_INLINE type esimd_##name(type src0,                      \
-                                               int flag = GENX_NOSAT) {        \
+                                               int flag = saturation_off) {    \
     simd<type, 1> Src0 = src0;                                                 \
     simd<type, 1> Result = esimd_##name(Src0, flag);                           \
     return Result[0];                                                          \
@@ -1058,10 +1039,10 @@ ESIMD_INTRINSIC_DEF(double, sqrt_ieee)
 #define ESIMD_INTRINSIC_DEF(ftype, name)                                       \
   template <int SZ, typename U>                                                \
   ESIMD_NODEBUG ESIMD_INLINE simd<ftype, SZ> esimd_##name(                     \
-      simd<ftype, SZ> src0, U src1, int flag = GENX_NOSAT) {                   \
+      simd<ftype, SZ> src0, U src1, int flag = saturation_off) {               \
     simd<ftype, SZ> Src1 = src1;                                               \
     simd<ftype, SZ> Result = __esimd_##name<SZ>(src0.data(), Src1.data());     \
-    if (flag != GENX_SAT)                                                      \
+    if (flag != saturation_on)                                                 \
       return Result;                                                           \
                                                                                \
     return esimd_sat<ftype>(Result);                                           \
@@ -1070,12 +1051,13 @@ ESIMD_INTRINSIC_DEF(double, sqrt_ieee)
   ESIMD_NODEBUG ESIMD_INLINE                                                   \
       typename sycl::detail::enable_if_t<detail::is_esimd_scalar<U>::value,    \
                                          simd<ftype, SZ>>                      \
-          esimd_##name(U src0, simd<ftype, SZ> src1, int flag = GENX_NOSAT) {  \
+          esimd_##name(U src0, simd<ftype, SZ> src1,                           \
+                       int flag = saturation_off) {                            \
     simd<ftype, SZ> Src0 = src0;                                               \
     return esimd_##name(Src0, src1, flag);                                     \
   }                                                                            \
   ESIMD_NODEBUG ESIMD_INLINE ftype esimd_##name(ftype src0, ftype src1,        \
-                                                int flag = GENX_NOSAT) {       \
+                                                int flag = saturation_off) {   \
     simd<ftype, 1> Src0 = src0;                                                \
     simd<ftype, 1> Src1 = src1;                                                \
     simd<ftype, 1> Result = esimd_##name(Src0, Src1, flag);                    \
@@ -1092,7 +1074,7 @@ ESIMD_INTRINSIC_DEF(double, div_ieee)
 // esimd_sincos
 template <int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE simd<float, SZ>
-esimd_sincos(simd<float, SZ> &dstcos, U src0, int flag = GENX_NOSAT) {
+esimd_sincos(simd<float, SZ> &dstcos, U src0, int flag = saturation_off) {
   dstcos = esimd_cos(src0, flag);
   return esimd_sin(src0, flag);
 }
@@ -1105,7 +1087,7 @@ template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<std::is_floating_point<T>::value,
                                        simd<T, SZ>>
-    esimd_atan(simd<T, SZ> src0, int flag = GENX_NOSAT) {
+    esimd_atan(simd<T, SZ> src0, int flag = saturation_off) {
   simd<T, SZ> Src0 = esimd_abs(src0);
 
   simd<ushort, SZ> Neg = src0 < T(0.0);
@@ -1127,7 +1109,7 @@ ESIMD_NODEBUG ESIMD_INLINE
   Result.merge(Result - T(ESIMD_HDR_CONST_PI / 2.0), Gt1);
   Result.merge(Result, Neg);
 
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T>(Result);
@@ -1136,7 +1118,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<std::is_floating_point<T>::value, T>
-    esimd_atan(T src0, int flag = GENX_NOSAT) {
+    esimd_atan(T src0, int flag = saturation_off) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Result = esimd_atan(Src0, flag);
   return Result[0];
@@ -1148,7 +1130,7 @@ template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<std::is_floating_point<T>::value,
                                        simd<T, SZ>>
-    esimd_acos(simd<T, SZ> src0, int flag = GENX_NOSAT) {
+    esimd_acos(simd<T, SZ> src0, int flag = saturation_off) {
   simd<T, SZ> Src0 = esimd_abs(src0);
 
   simd<ushort, SZ> Neg = src0 < T(0.0);
@@ -1172,7 +1154,7 @@ ESIMD_NODEBUG ESIMD_INLINE
   Result.merge(T(0.0), TooBig);
   Result.merge(T(ESIMD_HDR_CONST_PI) - Result, Neg);
 
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T>(Result);
@@ -1181,7 +1163,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<std::is_floating_point<T>::value, T>
-    esimd_acos(T src0, int flag = GENX_NOSAT) {
+    esimd_acos(T src0, int flag = saturation_off) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Result = esimd_acos(Src0, flag);
   return Result[0];
@@ -1193,7 +1175,7 @@ template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<std::is_floating_point<T>::value,
                                        simd<T, SZ>>
-    esimd_asin(simd<T, SZ> src0, int flag = GENX_NOSAT) {
+    esimd_asin(simd<T, SZ> src0, int flag = saturation_off) {
   simd<ushort, SZ> Neg = src0 < T(0.0);
 
   simd<T, SZ> Result =
@@ -1201,7 +1183,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
   Result.merge(-Result, Neg);
 
-  if (flag != GENX_SAT)
+  if (flag != saturation_on)
     return Result;
 
   return esimd_sat<T>(Result);
@@ -1210,7 +1192,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<std::is_floating_point<T>::value, T>
-    esimd_asin(T src0, int flag = GENX_NOSAT) {
+    esimd_asin(T src0, int flag = saturation_off) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Result = esimd_asin(Src0, flag);
   return Result[0];
@@ -1222,16 +1204,16 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 #define ESIMD_INTRINSIC_DEF(name)                                              \
   template <typename T, int SZ>                                                \
-  ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ> esimd_##name(simd<float, SZ> src0,    \
-                                                      int flag = GENX_NOSAT) { \
+  ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ> esimd_##name(                         \
+      simd<float, SZ> src0, int flag = saturation_off) {                       \
     simd<float, SZ> Result = __esimd_##name<SZ>(src0.data());                  \
-    if (flag != GENX_SAT)                                                      \
+    if (flag != saturation_on)                                                 \
       return Result;                                                           \
     return esimd_sat<T>(Result);                                               \
   }                                                                            \
   template <typename T>                                                        \
   ESIMD_NODEBUG ESIMD_INLINE T esimd_##name(float src0,                        \
-                                            int flag = GENX_NOSAT) {           \
+                                            int flag = saturation_off) {       \
     simd<float, 1> Src0 = src0;                                                \
     simd<T, 1> Result = esimd_##name<T>(Src0, flag);                           \
     return Result[0];                                                          \
@@ -1264,63 +1246,152 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<(N != 8 && N != 16 && N < 32), uint>
     esimd_pack_mask(simd<ushort, N> src0) {
   simd<ushort, (N < 8 ? 8 : N < 16 ? 16 : 32)> src_0 = 0;
-  src_0.template select<N, 1>() = src0.template format<ushort>();
+  src_0.template select<N, 1>() = src0.template bit_cast_view<ushort>();
   return esimd_pack_mask(src_0);
 }
 
-/// Count component-wise the total bits set in source operand.
+/// Count number of bits set in the source operand per element.
+/// @param src0 the source operand to count bits in.
+/// @return a vector of \c uint32_t, where each element is set to bit count of
+///     the corresponding element of the source operand.
 template <typename T, int N>
-ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<std::is_integral<T>::value,
-                                       simd<uint, N>>
-    esimd_cbit(simd<T, N> src0) {
-  return __esimd_cbit(src0.data());
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<T>::value && sizeof(T) <= 4, simd<uint32_t, N>>
+esimd_cbit(simd<T, N> src) {
+  return __esimd_cbit<T, N>(src.data());
 }
 
+/// Scalar version of \c esimd_cbit - both input and output are scalars rather
+/// than vectors.
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    std::is_integral<T>::value && detail::is_esimd_scalar<T>::value, uint>
+    std::is_integral<T>::value && sizeof(T) <= 4, uint32_t>
 esimd_cbit(T src) {
   simd<T, 1> Src = src;
-  simd<uint, 1> Result = esimd_cbit(Src);
+  simd<uint32_t, 1> Result = esimd_cbit(Src);
   return Result[0];
 }
 
+/// Scalar version of \c esimd_cbit, that takes simd_view object as an
+/// argument, e.g. `esimd_cbit(v[0])`.
+/// @param src0 input simd_view object of size 1.
+/// @return scalar number of bits set.
+template <typename BaseTy, typename RegionTy>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<
+        typename simd_view<BaseTy, RegionTy>::element_type>::value &&
+        (sizeof(typename simd_view<BaseTy, RegionTy>::element_type) <= 4) &&
+        (simd_view<BaseTy, RegionTy>::length == 1),
+    uint32_t>
+esimd_cbit(simd_view<BaseTy, RegionTy> src) {
+  using Ty = typename simd_view<BaseTy, RegionTy>::element_type;
+  simd<Ty, 1> Src = src;
+  simd<uint32_t, 1> Result = esimd_cbit(Src);
+  return Result[0];
+}
+
+/// Find the per element number of the first bit set in the source operand
+/// starting from the least significant bit.
+/// @param src0 the source operand to count bits in.
+/// @return a vector of the same type as the source operand, where each element
+///     is set to the number first bit set in corresponding element of the
+///     source operand. \c 0xFFFFffff is returned for an element equal to \c 0.
 /// Find component-wise the first bit from LSB side
-template <int N>
-ESIMD_NODEBUG ESIMD_INLINE simd<unsigned, N> esimd_fbl(simd<unsigned, N> src) {
-  return __esimd_fbl(src.data());
+template <typename T, int N>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<T>::value && (sizeof(T) == 4), simd<T, N>>
+esimd_fbl(simd<T, N> src) {
+  return __esimd_fbl<T, N>(src.data());
 }
 
-template <typename T = void>
-ESIMD_NODEBUG ESIMD_INLINE unsigned esimd_fbl(unsigned src) {
-  simd<unsigned, 1> Src = src;
-  simd<unsigned, 1> Result = esimd_fbl(Src);
-  return Result[0];
-}
-
-/// Find component-wise the first bit from MSB side.
-template <int N>
-ESIMD_NODEBUG ESIMD_INLINE simd<int, N> esimd_fbh(simd<int, N> src) {
-  return __esimd_sfbh(src.data());
-}
-
-template <int N>
-ESIMD_NODEBUG ESIMD_INLINE simd<unsigned int, N>
-esimd_fbh(simd<unsigned int, N> src) {
-  return __esimd_ufbh(src.data());
-}
-
+/// Scalar version of \c esimd_fbl - both input and output are scalars rather
+/// than vectors.
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    detail::is_dword_type<T>::value && detail::is_esimd_scalar<T>::value, T>
+    std::is_integral<T>::value && (sizeof(T) == 4), T>
+esimd_fbl(T src) {
+  simd<T, 1> Src = src;
+  simd<T, 1> Result = esimd_fbl(Src);
+  return Result[0];
+}
+
+/// Scalar version of \c esimd_fbl, that takes simd_view object as an
+/// argument, e.g. `esimd_fbl(v[0])`.
+/// @param src0 input simd_view object of size 1.
+/// @return scalar number of the first bit set starting from the least
+/// significant bit.
+template <typename BaseTy, typename RegionTy>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<
+        typename simd_view<BaseTy, RegionTy>::element_type>::value &&
+        (sizeof(typename simd_view<BaseTy, RegionTy>::element_type) == 4) &&
+        (simd_view<BaseTy, RegionTy>::length == 1),
+    typename simd_view<BaseTy, RegionTy>::element_type>
+esimd_fbl(simd_view<BaseTy, RegionTy> src) {
+  using Ty = typename simd_view<BaseTy, RegionTy>::element_type;
+  simd<Ty, 1> Src = src;
+  simd<Ty, 1> Result = esimd_fbl(Src);
+  return Result[0];
+}
+
+/// Find the per element number of the first bit set in the source operand
+/// starting from the most significant bit (sign bit is skipped).
+/// @param src0 the source operand to count bits in.
+/// @return a vector of the same type as the source operand, where each element
+///     is set to the number first bit set in corresponding element of the
+///     source operand. \c 0xFFFFffff is returned for an element equal to \c 0
+///     or \c -1.
+template <typename T, int N>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<T>::value && std::is_signed<T>::value && (sizeof(T) == 4),
+    simd<T, N>>
+esimd_fbh(simd<T, N> src) {
+  return __esimd_sfbh<T, N>(src.data());
+}
+
+/// Find the per element number of the first bit set in the source operand
+/// starting from the most significant bit (sign bit is counted).
+/// @param src0 the source operand to count bits in.
+/// @return a vector of the same type as the source operand, where each element
+///     is set to the number first bit set in corresponding element of the
+///     source operand. \c 0xFFFFffff is returned for an element equal to \c 0.
+template <typename T, int N>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<T>::value && !std::is_signed<T>::value && (sizeof(T) == 4),
+    simd<T, N>>
+esimd_fbh(simd<T, N> src) {
+  return __esimd_ufbh<T, N>(src.data());
+}
+
+/// Scalar version of \c esimd_fbh - both input and output are scalars rather
+/// than vectors.
+template <typename T>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<T>::value && (sizeof(T) == 4), T>
 esimd_fbh(T src) {
   simd<T, 1> Src = src;
   simd<T, 1> Result = esimd_fbh(Src);
   return Result[0];
 }
 
-template <typename T = void> simd<uint, 4> esimd_rdtsc();
+/// Scalar version of \c esimd_fbh, that takes simd_view object as an
+/// argument, e.g. `esimd_fbh(v[0])`.
+/// @param src0 input simd_view object of size 1.
+/// @return scalar number of the first bit set starting from the most
+/// significant bit.
+template <typename BaseTy, typename RegionTy>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    std::is_integral<
+        typename simd_view<BaseTy, RegionTy>::element_type>::value &&
+        (sizeof(typename simd_view<BaseTy, RegionTy>::element_type) == 4) &&
+        (simd_view<BaseTy, RegionTy>::length == 1),
+    typename simd_view<BaseTy, RegionTy>::element_type>
+esimd_fbh(simd_view<BaseTy, RegionTy> src) {
+  using Ty = typename simd_view<BaseTy, RegionTy>::element_type;
+  simd<Ty, 1> Src = src;
+  simd<Ty, 1> Result = esimd_fbh(Src);
+  return Result[0];
+}
 
 /// \brief DP4A.
 ///
@@ -1330,7 +1401,7 @@ template <typename T = void> simd<uint, 4> esimd_rdtsc();
 ///
 /// @param src2 the third source operand of dp4a operation.
 ///
-/// @param flag saturation flag, which has default value of GENX_NOSAT.
+/// @param flag saturation flag, which has default value of saturation_off.
 ///
 /// Returns simd vector of the dp4a operation result.
 ///
@@ -1340,14 +1411,14 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_dword_type<T3>::value && detail::is_dword_type<T4>::value,
     simd<T1, N>>
 esimd_dp4a(simd<T2, N> src0, simd<T3, N> src1, simd<T4, N> src2,
-           int flag = GENX_NOSAT) {
+           int flag = saturation_off) {
   simd<T2, N> Src0 = src0;
   simd<T3, N> Src1 = src1;
   simd<T4, N> Src2 = src2;
   simd<T1, N> Result;
 
 #if defined(__SYCL_DEVICE_ONLY__)
-  if (flag == GENX_NOSAT) {
+  if (flag == saturation_off) {
     if constexpr (std::is_unsigned<T1>::value) {
       if constexpr (std::is_unsigned<T2>::value) {
         Result = __esimd_uudp4a<T1, T2, T3, T4, N>(Src0.data(), Src1.data(),
@@ -1388,7 +1459,7 @@ esimd_dp4a(simd<T2, N> src0, simd<T3, N> src1, simd<T4, N> src2,
   simd<T2, N> tmp =
       __esimd_dp4a<T1, T2, T3, T4, N>(Src0.data(), Src1.data(), Src2.data());
 
-  if (flag == GENX_SAT)
+  if (flag == saturation_on)
     Result = esimd_sat<T1>(tmp);
   else
     Result = convert<T1>(tmp);
@@ -1501,7 +1572,7 @@ ESIMD_INLINE simd<float, N> esimd_atan2_fast(simd<float, N> y, simd<float, N> x,
   a1 += (xy / (x2 + y2 * 0.28f + ESIMD_DBL_EPSILON));
 
   atan2.merge(a1, a0, y2 <= x2);
-  if (flags & GENX_SAT)
+  if (flags & saturation_on)
     atan2 = esimd_sat<float>(atan2);
   return atan2;
 }
@@ -1530,7 +1601,7 @@ ESIMD_INLINE simd<float, N> esimd_atan2(simd<float, N> y, simd<float, N> x,
   v_distance = esimd_sqrt(x * x + y * y);
   mask = (esimd_abs<float>(y) < 0.000001f);
   atan2.merge(v_y0, (2 * esimd_atan((v_distance - x) / y)), mask);
-  if (flags & GENX_SAT)
+  if (flags & saturation_on)
     atan2 = esimd_sat<float>(atan2);
 
   return atan2;
@@ -1548,7 +1619,7 @@ template <> ESIMD_INLINE float esimd_atan2(float y, float x, const uint flags) {
   v_distance = esimd_sqrt<float>(x * x + y * y);
   mask = (esimd_abs<float>(y) < 0.000001f);
   atan2.merge(v_y0, (2 * esimd_atan((v_distance - x) / y)), mask);
-  if (flags & GENX_SAT)
+  if (flags & saturation_on)
     atan2 = esimd_sat<float>(atan2);
 
   return atan2[0];
@@ -1564,7 +1635,7 @@ ESIMD_INLINE simd<float, N> esimd_fmod(simd<float, N> y, simd<float, N> x,
 
   v_quot = convert<int>(y / x);
   fmod = y - x * convert<float>(v_quot);
-  if (flags & GENX_SAT)
+  if (flags & saturation_on)
     fmod = esimd_sat<float>(fmod);
 
   return fmod;
@@ -1577,7 +1648,7 @@ template <> ESIMD_INLINE float esimd_fmod(float y, float x, const uint flags) {
 
   v_quot = (int)(y / x);
   fmod = y - x * v_quot;
-  if (flags & GENX_SAT)
+  if (flags & saturation_on)
     fmod = esimd_sat<float>(fmod);
 
   return fmod[0];
@@ -1618,7 +1689,7 @@ ESIMD_INLINE simd<float, N> esimd_sin_emu(simd<float, N> x, const uint flags) {
                                                     (OneP - x2 * 0.0090909f))));
   fTrig *= sign;
 
-  if (flags & GENX_SAT)
+  if (flags & saturation_on)
     fTrig = esimd_sat<float>(fTrig);
 
   return fTrig;
@@ -1642,7 +1713,7 @@ template <typename T> ESIMD_INLINE float esimd_sin_emu(T x0, const uint flags) {
 
   x1.merge(CmpI - x, x - CmpI, (x <= CMPI));
   x1.merge(x, (x <= CMPI * 0.5f));
-  x1.merge(CmpI * 2 - x, (x > CMPI * 1.5f));
+  x1.merge(CmpI * 2.0f - x, (x > CMPI * 1.5f));
 
   sign.merge(OneN, OneP, (x > CMPI));
 
@@ -1656,7 +1727,7 @@ template <typename T> ESIMD_INLINE float esimd_sin_emu(T x0, const uint flags) {
                                                     (OneP - x2 * 0.0090909f))));
   fTrig *= sign;
 
-  if (flags & GENX_SAT)
+  if (flags & saturation_on)
     fTrig = esimd_sat<float>(fTrig);
 
   return fTrig[0];
@@ -1695,7 +1766,7 @@ ESIMD_INLINE simd<float, N> esimd_cos_emu(simd<float, N> x, const uint flags) {
                                                     (OneP - x2 * 0.0090909f))));
   fTrig *= sign;
 
-  if (flags & GENX_SAT)
+  if (flags & saturation_on)
     fTrig = esimd_sat<float>(fTrig);
 
   return fTrig;
@@ -1732,7 +1803,7 @@ template <typename T> ESIMD_INLINE float esimd_cos_emu(T x0, const uint flags) {
                                                     (OneP - x2 * 0.0090909f))));
   fTrig *= sign;
 
-  if (flags & GENX_SAT)
+  if (flags & saturation_on)
     fTrig = esimd_sat<float>(fTrig);
 
   return fTrig[0];
@@ -1747,7 +1818,7 @@ ESIMD_INLINE simd<float, N> esimd_tanh_cody_waite_impl(simd<float, N> x) {
    *  |   x   | rational polynomial | 1 - 2/(1 + exp(2*x)) |  1
    *
    * rational polynomial for single precision = x + x * (g * (p[1] * g + p[0]) /
-   * (g + q[0]) g = x^2 p0 = −0.82377 28127 E+00 p1 = −0.38310 10665 E-02 q0 =
+   * (g + q[0]) g = x^2 p0 = -0.82377 28127 E+00 p1 = -0.38310 10665 E-02 q0 =
    * 0.24713 19654 E+01 q1 = 1.00000 00000 E+00
    *
    */

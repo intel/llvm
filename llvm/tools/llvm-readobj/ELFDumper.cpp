@@ -298,6 +298,13 @@ protected:
 
   std::vector<GroupSection> getGroups();
 
+  // Returns the function symbol index for the given address. Matches the
+  // symbol's section with FunctionSec when specified.
+  // Returns None if no function symbol can be found for the address or in case
+  // it is not defined in the specified section.
+  Optional<uint32_t>
+  getSymbolIndexForFunctionAddress(uint64_t SymValue,
+                                   Optional<const Elf_Shdr *> FunctionSec);
   bool printFunctionStackSize(uint64_t SymValue,
                               Optional<const Elf_Shdr *> FunctionSec,
                               const Elf_Shdr &StackSizeSec, DataExtractor Data,
@@ -310,6 +317,12 @@ protected:
 
   void printRelocatableStackSizes(std::function<void()> PrintHeader);
   void printNonRelocatableStackSizes(std::function<void()> PrintHeader);
+
+  /// Retrieves sections with corresponding relocation sections based on
+  /// IsMatch.
+  void getSectionAndRelocations(
+      std::function<bool(const Elf_Shdr &)> IsMatch,
+      llvm::MapVector<const Elf_Shdr *, const Elf_Shdr *> &SecToRelocMap);
 
   const object::ELFObjectFile<ELFT> &ObjF;
   const ELFFile<ELFT> &Obj;
@@ -349,10 +362,10 @@ protected:
   const Elf_GnuHash *GnuHashTable = nullptr;
   const Elf_Shdr *DotSymtabSec = nullptr;
   const Elf_Shdr *DotDynsymSec = nullptr;
-  const Elf_Shdr *DotCGProfileSec = nullptr;
   const Elf_Shdr *DotAddrsigSec = nullptr;
   DenseMap<const Elf_Shdr *, ArrayRef<Elf_Word>> ShndxTables;
   Optional<uint64_t> SONameOffset;
+  Optional<DenseMap<uint64_t, std::vector<uint32_t>>> AddressToIndexMap;
 
   const Elf_Shdr *SymbolVersionSection = nullptr;   // .gnu.version
   const Elf_Shdr *SymbolVersionNeedSection = nullptr; // .gnu.version_r
@@ -1474,11 +1487,13 @@ static const EnumEntry<unsigned> ElfHeaderAMDGPUFlagsABIVersion3[] = {
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1010),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1011),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1012),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1013),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1030),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1031),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1032),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1033),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1034),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1035),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_XNACK_V3),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_SRAMECC_V3)
 };
@@ -1526,11 +1541,13 @@ static const EnumEntry<unsigned> ElfHeaderAMDGPUFlagsABIVersion4[] = {
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1010),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1011),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1012),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1013),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1030),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1031),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1032),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1033),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1034),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1035),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_XNACK_ANY_V4),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_XNACK_OFF_V4),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_XNACK_ON_V4),
@@ -1827,10 +1844,6 @@ ELFDumper<ELFT>::ELFDumper(const object::ELFObjectFile<ELFT> &O,
     case ELF::SHT_GNU_verneed:
       if (!SymbolVersionNeedSection)
         SymbolVersionNeedSection = &Sec;
-      break;
-    case ELF::SHT_LLVM_CALL_GRAPH_PROFILE:
-      if (!DotCGProfileSec)
-        DotCGProfileSec = &Sec;
       break;
     case ELF::SHT_LLVM_ADDRSIG:
       if (!DotAddrsigSec)
@@ -5703,64 +5716,82 @@ template <class ELFT> void GNUELFDumper<ELFT>::printDependentLibs() {
 }
 
 template <class ELFT>
-bool ELFDumper<ELFT>::printFunctionStackSize(
-    uint64_t SymValue, Optional<const Elf_Shdr *> FunctionSec,
-    const Elf_Shdr &StackSizeSec, DataExtractor Data, uint64_t *Offset) {
-  uint32_t FuncSymIndex = 0;
-  if (this->DotSymtabSec) {
-    if (Expected<Elf_Sym_Range> SymsOrError = Obj.symbols(this->DotSymtabSec)) {
-      uint32_t Index = (uint32_t)-1;
-      for (const Elf_Sym &Sym : *SymsOrError) {
-        ++Index;
+Optional<uint32_t> ELFDumper<ELFT>::getSymbolIndexForFunctionAddress(
+    uint64_t SymValue, Optional<const Elf_Shdr *> FunctionSec) {
+  if (!this->AddressToIndexMap.hasValue()) {
+    // Populate the address to index map upon the first invocation of this
+    // function.
+    this->AddressToIndexMap.emplace();
+    if (this->DotSymtabSec) {
+      if (Expected<Elf_Sym_Range> SymsOrError =
+              Obj.symbols(this->DotSymtabSec)) {
+        uint32_t Index = (uint32_t)-1;
+        for (const Elf_Sym &Sym : *SymsOrError) {
+          ++Index;
 
-        if (Sym.st_shndx == ELF::SHN_UNDEF || Sym.getType() != ELF::STT_FUNC)
-          continue;
-
-        if (Expected<uint64_t> SymAddrOrErr =
-                ObjF.toSymbolRef(this->DotSymtabSec, Index).getAddress()) {
-          if (SymValue != *SymAddrOrErr)
+          if (Sym.st_shndx == ELF::SHN_UNDEF || Sym.getType() != ELF::STT_FUNC)
             continue;
-        } else {
-          std::string Name = this->getStaticSymbolName(Index);
-          reportUniqueWarning("unable to get address of symbol '" + Name +
-                              "': " + toString(SymAddrOrErr.takeError()));
-          break;
-        }
 
-        // Check if the symbol is in the right section. FunctionSec == None
-        // means "any section".
-        if (FunctionSec) {
-          if (Expected<const Elf_Shdr *> SecOrErr =
-                  Obj.getSection(Sym, this->DotSymtabSec,
-                                 this->getShndxTable(this->DotSymtabSec))) {
-            if (*FunctionSec != *SecOrErr)
-              continue;
-          } else {
+          Expected<uint64_t> SymAddrOrErr =
+              ObjF.toSymbolRef(this->DotSymtabSec, Index).getAddress();
+          if (!SymAddrOrErr) {
             std::string Name = this->getStaticSymbolName(Index);
-            // Note: it is impossible to trigger this error currently, it is
-            // untested.
-            reportUniqueWarning("unable to get section of symbol '" + Name +
-                                "': " + toString(SecOrErr.takeError()));
-            break;
+            reportUniqueWarning("unable to get address of symbol '" + Name +
+                                "': " + toString(SymAddrOrErr.takeError()));
+            return None;
           }
-        }
 
-        FuncSymIndex = Index;
-        break;
+          (*this->AddressToIndexMap)[*SymAddrOrErr].push_back(Index);
+        }
+      } else {
+        reportUniqueWarning("unable to read the symbol table: " +
+                            toString(SymsOrError.takeError()));
       }
-    } else {
-      reportUniqueWarning("unable to read the symbol table: " +
-                          toString(SymsOrError.takeError()));
     }
   }
 
+  auto Symbols = this->AddressToIndexMap->find(SymValue);
+  if (Symbols == this->AddressToIndexMap->end())
+    return None;
+
+  for (uint32_t Index : Symbols->second) {
+    // Check if the symbol is in the right section. FunctionSec == None
+    // means "any section".
+    if (FunctionSec) {
+      const Elf_Sym &Sym = *cantFail(Obj.getSymbol(this->DotSymtabSec, Index));
+      if (Expected<const Elf_Shdr *> SecOrErr =
+              Obj.getSection(Sym, this->DotSymtabSec,
+                             this->getShndxTable(this->DotSymtabSec))) {
+        if (*FunctionSec != *SecOrErr)
+          continue;
+      } else {
+        std::string Name = this->getStaticSymbolName(Index);
+        // Note: it is impossible to trigger this error currently, it is
+        // untested.
+        reportUniqueWarning("unable to get section of symbol '" + Name +
+                            "': " + toString(SecOrErr.takeError()));
+        return None;
+      }
+    }
+
+    return Index;
+  }
+  return None;
+}
+
+template <class ELFT>
+bool ELFDumper<ELFT>::printFunctionStackSize(
+    uint64_t SymValue, Optional<const Elf_Shdr *> FunctionSec,
+    const Elf_Shdr &StackSizeSec, DataExtractor Data, uint64_t *Offset) {
+  Optional<uint32_t> FuncSymIndex =
+      this->getSymbolIndexForFunctionAddress(SymValue, FunctionSec);
   std::string FuncName = "?";
   if (!FuncSymIndex)
     reportUniqueWarning(
         "could not identify function symbol for stack size entry in " +
         describe(StackSizeSec));
   else
-    FuncName = this->getStaticSymbolName(FuncSymIndex);
+    FuncName = this->getStaticSymbolName(*FuncSymIndex);
 
   // Extract the size. The expectation is that Offset is pointing to the right
   // place, i.e. past the function address.
@@ -5870,28 +5901,15 @@ void ELFDumper<ELFT>::printNonRelocatableStackSizes(
 }
 
 template <class ELFT>
-void ELFDumper<ELFT>::printRelocatableStackSizes(
-    std::function<void()> PrintHeader) {
-  // Build a map between stack size sections and their corresponding relocation
-  // sections.
-  llvm::MapVector<const Elf_Shdr *, const Elf_Shdr *> StackSizeRelocMap;
+void ELFDumper<ELFT>::getSectionAndRelocations(
+    std::function<bool(const Elf_Shdr &)> IsMatch,
+    llvm::MapVector<const Elf_Shdr *, const Elf_Shdr *> &SecToRelocMap) {
   for (const Elf_Shdr &Sec : cantFail(Obj.sections())) {
-    StringRef SectionName;
-    if (Expected<StringRef> NameOrErr = Obj.getSectionName(Sec))
-      SectionName = *NameOrErr;
-    else
-      consumeError(NameOrErr.takeError());
-
-    // A stack size section that we haven't encountered yet is mapped to the
-    // null section until we find its corresponding relocation section.
-    if (SectionName == ".stack_sizes")
-      if (StackSizeRelocMap
-              .insert(std::make_pair(&Sec, (const Elf_Shdr *)nullptr))
+    if (IsMatch(Sec))
+      if (SecToRelocMap.insert(std::make_pair(&Sec, (const Elf_Shdr *)nullptr))
               .second)
         continue;
 
-    // Check relocation sections if they are relocating contents of a
-    // stack sizes section.
     if (Sec.sh_type != ELF::SHT_RELA && Sec.sh_type != ELF::SHT_REL)
       continue;
 
@@ -5902,14 +5920,28 @@ void ELFDumper<ELFT>::printRelocatableStackSizes(
                           toString(RelSecOrErr.takeError()));
       continue;
     }
-
     const Elf_Shdr *ContentsSec = *RelSecOrErr;
-    if (this->getPrintableSectionName(**RelSecOrErr) != ".stack_sizes")
-      continue;
-
-    // Insert a mapping from the stack sizes section to its relocation section.
-    StackSizeRelocMap[ContentsSec] = &Sec;
+    if (IsMatch(*ContentsSec))
+      SecToRelocMap[ContentsSec] = &Sec;
   }
+}
+
+template <class ELFT>
+void ELFDumper<ELFT>::printRelocatableStackSizes(
+    std::function<void()> PrintHeader) {
+  // Build a map between stack size sections and their corresponding relocation
+  // sections.
+  llvm::MapVector<const Elf_Shdr *, const Elf_Shdr *> StackSizeRelocMap;
+  auto IsMatch = [&](const Elf_Shdr &Sec) -> bool {
+    StringRef SectionName;
+    if (Expected<StringRef> NameOrErr = Obj.getSectionName(Sec))
+      SectionName = *NameOrErr;
+    else
+      consumeError(NameOrErr.takeError());
+
+    return SectionName == ".stack_sizes";
+  };
+  getSectionAndRelocations(IsMatch, StackSizeRelocMap);
 
   for (const auto &StackSizeMapEntry : StackSizeRelocMap) {
     PrintHeader();
@@ -6671,34 +6703,77 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printHashHistograms() {
 }
 
 template <class ELFT> void LLVMELFDumper<ELFT>::printCGProfile() {
-  ListScope L(W, "CGProfile");
-  if (!this->DotCGProfileSec)
-    return;
+  llvm::MapVector<const Elf_Shdr *, const Elf_Shdr *> SecToRelocMap;
 
-  Expected<ArrayRef<Elf_CGProfile>> CGProfileOrErr =
-      this->Obj.template getSectionContentsAsArray<Elf_CGProfile>(
-          *this->DotCGProfileSec);
-  if (!CGProfileOrErr) {
-    this->reportUniqueWarning(
-        "unable to dump the SHT_LLVM_CALL_GRAPH_PROFILE section: " +
-        toString(CGProfileOrErr.takeError()));
-    return;
-  }
+  auto IsMatch = [](const Elf_Shdr &Sec) -> bool {
+    return Sec.sh_type == ELF::SHT_LLVM_CALL_GRAPH_PROFILE;
+  };
+  this->getSectionAndRelocations(IsMatch, SecToRelocMap);
 
-  for (const Elf_CGProfile &CGPE : *CGProfileOrErr) {
-    DictScope D(W, "CGProfileEntry");
-    W.printNumber("From", this->getStaticSymbolName(CGPE.cgp_from),
-                  CGPE.cgp_from);
-    W.printNumber("To", this->getStaticSymbolName(CGPE.cgp_to),
-                  CGPE.cgp_to);
-    W.printNumber("Weight", CGPE.cgp_weight);
+  for (const auto &CGMapEntry : SecToRelocMap) {
+    const Elf_Shdr *CGSection = CGMapEntry.first;
+    const Elf_Shdr *CGRelSection = CGMapEntry.second;
+
+    Expected<ArrayRef<Elf_CGProfile>> CGProfileOrErr =
+        this->Obj.template getSectionContentsAsArray<Elf_CGProfile>(*CGSection);
+    if (!CGProfileOrErr) {
+      this->reportUniqueWarning(
+          "unable to load the SHT_LLVM_CALL_GRAPH_PROFILE section: " +
+          toString(CGProfileOrErr.takeError()));
+      return;
+    }
+
+    Elf_Rel_Range CGProfileRel;
+    bool UseReloc = (CGRelSection != nullptr);
+    if (UseReloc) {
+      Expected<Elf_Rel_Range> CGProfileRelaOrError =
+          this->Obj.rels(*CGRelSection);
+      if (!CGProfileRelaOrError) {
+        this->reportUniqueWarning("unable to load relocations for "
+                                  "SHT_LLVM_CALL_GRAPH_PROFILE section: " +
+                                  toString(CGProfileRelaOrError.takeError()));
+        UseReloc = false;
+      } else
+        CGProfileRel = *CGProfileRelaOrError;
+
+      if (UseReloc && CGProfileRel.size() != (CGProfileOrErr->size() * 2)) {
+        this->reportUniqueWarning(
+            "number of from/to pairs does not match number of frequencies");
+        UseReloc = false;
+      }
+    } else
+      this->reportUniqueWarning(
+          "relocation section for a call graph section doesn't exist");
+
+    auto GetIndex = [&](uint32_t Index) {
+      const Elf_Rel_Impl<ELFT, false> &Rel = CGProfileRel[Index];
+      return Rel.getSymbol(this->Obj.isMips64EL());
+    };
+
+    ListScope L(W, "CGProfile");
+    for (uint32_t I = 0, Size = CGProfileOrErr->size(); I != Size; ++I) {
+      const Elf_CGProfile &CGPE = (*CGProfileOrErr)[I];
+      DictScope D(W, "CGProfileEntry");
+      if (UseReloc) {
+        uint32_t From = GetIndex(I * 2);
+        uint32_t To = GetIndex(I * 2 + 1);
+        W.printNumber("From", this->getStaticSymbolName(From), From);
+        W.printNumber("To", this->getStaticSymbolName(To), To);
+      }
+      W.printNumber("Weight", CGPE.cgp_weight);
+    }
   }
 }
 
 template <class ELFT> void LLVMELFDumper<ELFT>::printBBAddrMaps() {
+  bool IsRelocatable = this->Obj.getHeader().e_type == ELF::ET_REL;
   for (const Elf_Shdr &Sec : cantFail(this->Obj.sections())) {
     if (Sec.sh_type != SHT_LLVM_BB_ADDR_MAP)
       continue;
+    Optional<const Elf_Shdr *> FunctionSec = None;
+    if (IsRelocatable)
+      FunctionSec =
+          unwrapOrError(this->FileName, this->Obj.getSection(Sec.sh_link));
     ListScope L(W, "BBAddrMap");
     Expected<std::vector<Elf_BBAddrMap>> BBAddrMapOrErr =
         this->Obj.decodeBBAddrMap(Sec);
@@ -6710,6 +6785,17 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printBBAddrMaps() {
     for (const Elf_BBAddrMap &AM : *BBAddrMapOrErr) {
       DictScope D(W, "Function");
       W.printHex("At", AM.Addr);
+      Optional<uint32_t> FuncSymIndex =
+          this->getSymbolIndexForFunctionAddress(AM.Addr, FunctionSec);
+      std::string FuncName = "<?>";
+      if (FuncSymIndex == None)
+        this->reportUniqueWarning(
+            "could not identify function symbol for address (0x" +
+            Twine::utohexstr(AM.Addr) + ") in " + this->describe(Sec));
+      else
+        FuncName = this->getStaticSymbolName(*FuncSymIndex);
+      W.printString("Name", FuncName);
+
       ListScope L(W, "BB entries");
       for (const typename Elf_BBAddrMap::BBEntry &BBE : AM.BBEntries) {
         DictScope L(W);

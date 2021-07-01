@@ -462,7 +462,7 @@ protected:
   // SubclassData.  These are designed to fit within a uint16_t so they pack
   // with NodeType.
 
-#if defined(_AIX) && (!defined(__GNUC__) || defined(__ibmxl__))
+#if defined(_AIX) && (!defined(__GNUC__) || defined(__clang__))
 // Except for GCC; by default, AIX compilers store bit-fields in 4-byte words
 // and give the `pack` pragma push semantics.
 #define BEGIN_TWO_BYTE_PACK() _Pragma("pack(2)")
@@ -1304,7 +1304,14 @@ public:
   /// Return the atomic ordering requirements for this memory operation. For
   /// cmpxchg atomic operations, return the atomic ordering requirements when
   /// store occurs.
-  AtomicOrdering getOrdering() const { return MMO->getOrdering(); }
+  AtomicOrdering getSuccessOrdering() const {
+    return MMO->getSuccessOrdering();
+  }
+
+  /// Return a single atomic ordering that is at least as strong as both the
+  /// success and failure orderings for an atomic operation.  (For operations
+  /// other than cmpxchg, this is equivalent to getSuccessOrdering().)
+  AtomicOrdering getMergedOrdering() const { return MMO->getMergedOrdering(); }
 
   /// Return true if the memory operation ordering is Unordered or higher.
   bool isAtomic() const { return MMO->isAtomic(); }

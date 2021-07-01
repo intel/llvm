@@ -1368,6 +1368,55 @@ static SDValue convertValVTToLocVT(SelectionDAG &DAG, const SDLoc &DL,
   }
 }
 
+static SDValue lowerI128ToGR128(SelectionDAG &DAG, SDValue In) {
+  SDLoc DL(In);
+  SDValue Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i64, In,
+                           DAG.getIntPtrConstant(0, DL));
+  SDValue Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i64, In,
+                           DAG.getIntPtrConstant(1, DL));
+  SDNode *Pair = DAG.getMachineNode(SystemZ::PAIR128, DL,
+                                    MVT::Untyped, Hi, Lo);
+  return SDValue(Pair, 0);
+}
+
+static SDValue lowerGR128ToI128(SelectionDAG &DAG, SDValue In) {
+  SDLoc DL(In);
+  SDValue Hi = DAG.getTargetExtractSubreg(SystemZ::subreg_h64,
+                                          DL, MVT::i64, In);
+  SDValue Lo = DAG.getTargetExtractSubreg(SystemZ::subreg_l64,
+                                          DL, MVT::i64, In);
+  return DAG.getNode(ISD::BUILD_PAIR, DL, MVT::i128, Lo, Hi);
+}
+
+bool SystemZTargetLowering::splitValueIntoRegisterParts(
+    SelectionDAG &DAG, const SDLoc &DL, SDValue Val, SDValue *Parts,
+    unsigned NumParts, MVT PartVT, Optional<CallingConv::ID> CC) const {
+  EVT ValueVT = Val.getValueType();
+  assert((ValueVT != MVT::i128 ||
+          ((NumParts == 1 && PartVT == MVT::Untyped) ||
+           (NumParts == 2 && PartVT == MVT::i64))) &&
+         "Unknown handling of i128 value.");
+  if (ValueVT == MVT::i128 && NumParts == 1) {
+    // Inline assembly operand.
+    Parts[0] = lowerI128ToGR128(DAG, Val);
+    return true;
+  }
+  return false;
+}
+
+SDValue SystemZTargetLowering::joinRegisterPartsIntoValue(
+    SelectionDAG &DAG, const SDLoc &DL, const SDValue *Parts, unsigned NumParts,
+    MVT PartVT, EVT ValueVT, Optional<CallingConv::ID> CC) const {
+  assert((ValueVT != MVT::i128 ||
+          ((NumParts == 1 && PartVT == MVT::Untyped) ||
+           (NumParts == 2 && PartVT == MVT::i64))) &&
+         "Unknown handling of i128 value.");
+  if (ValueVT == MVT::i128 && NumParts == 1)
+    // Inline assembly operand.
+    return lowerGR128ToI128(DAG, Parts[0]);
+  return SDValue();
+}
+
 SDValue SystemZTargetLowering::LowerFormalArguments(
     SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
@@ -3883,7 +3932,7 @@ SDValue SystemZTargetLowering::lowerATOMIC_STORE(SDValue Op,
                                     Node->getMemOperand());
   // We have to enforce sequential consistency by performing a
   // serialization operation after the store.
-  if (Node->getOrdering() == AtomicOrdering::SequentiallyConsistent)
+  if (Node->getSuccessOrdering() == AtomicOrdering::SequentiallyConsistent)
     Chain = SDValue(DAG.getMachineNode(SystemZ::Serialize, SDLoc(Op),
                                        MVT::Other, Chain), 0);
   return Chain;
@@ -5489,27 +5538,6 @@ SDValue SystemZTargetLowering::LowerOperation(SDValue Op,
 
 // Lower operations with invalid operand or result types (currently used
 // only for 128-bit integer types).
-
-static SDValue lowerI128ToGR128(SelectionDAG &DAG, SDValue In) {
-  SDLoc DL(In);
-  SDValue Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i64, In,
-                           DAG.getIntPtrConstant(0, DL));
-  SDValue Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i64, In,
-                           DAG.getIntPtrConstant(1, DL));
-  SDNode *Pair = DAG.getMachineNode(SystemZ::PAIR128, DL,
-                                    MVT::Untyped, Hi, Lo);
-  return SDValue(Pair, 0);
-}
-
-static SDValue lowerGR128ToI128(SelectionDAG &DAG, SDValue In) {
-  SDLoc DL(In);
-  SDValue Hi = DAG.getTargetExtractSubreg(SystemZ::subreg_h64,
-                                          DL, MVT::i64, In);
-  SDValue Lo = DAG.getTargetExtractSubreg(SystemZ::subreg_l64,
-                                          DL, MVT::i64, In);
-  return DAG.getNode(ISD::BUILD_PAIR, DL, MVT::i128, Lo, Hi);
-}
-
 void
 SystemZTargetLowering::LowerOperationWrapper(SDNode *N,
                                              SmallVectorImpl<SDValue> &Results,
@@ -5537,7 +5565,7 @@ SystemZTargetLowering::LowerOperationWrapper(SDNode *N,
                                           DL, Tys, Ops, MVT::i128, MMO);
     // We have to enforce sequential consistency by performing a
     // serialization operation after the store.
-    if (cast<AtomicSDNode>(N)->getOrdering() ==
+    if (cast<AtomicSDNode>(N)->getSuccessOrdering() ==
         AtomicOrdering::SequentiallyConsistent)
       Res = SDValue(DAG.getMachineNode(SystemZ::Serialize, DL,
                                        MVT::Other, Res), 0);
@@ -7395,7 +7423,7 @@ MachineBasicBlock *SystemZTargetLowering::emitAtomicLoadBinary(
   //  StartMBB:
   //   ...
   //   %OrigVal = L Disp(%Base)
-  //   # fall through to LoopMMB
+  //   # fall through to LoopMBB
   MBB = StartMBB;
   BuildMI(MBB, DL, TII->get(LOpcode), OrigVal).add(Base).addImm(Disp).addReg(0);
   MBB->addSuccessor(LoopMBB);
@@ -7407,7 +7435,7 @@ MachineBasicBlock *SystemZTargetLowering::emitAtomicLoadBinary(
   //   %NewVal        = RLL %RotatedNewVal, 0(%NegBitShift)
   //   %Dest          = CS %OldVal, %NewVal, Disp(%Base)
   //   JNE LoopMBB
-  //   # fall through to DoneMMB
+  //   # fall through to DoneMBB
   MBB = LoopMBB;
   BuildMI(MBB, DL, TII->get(SystemZ::PHI), OldVal)
     .addReg(OrigVal).addMBB(StartMBB)
@@ -7515,7 +7543,7 @@ MachineBasicBlock *SystemZTargetLowering::emitAtomicLoadMinMax(
   //  StartMBB:
   //   ...
   //   %OrigVal     = L Disp(%Base)
-  //   # fall through to LoopMMB
+  //   # fall through to LoopMBB
   MBB = StartMBB;
   BuildMI(MBB, DL, TII->get(LOpcode), OrigVal).add(Base).addImm(Disp).addReg(0);
   MBB->addSuccessor(LoopMBB);
@@ -7541,7 +7569,7 @@ MachineBasicBlock *SystemZTargetLowering::emitAtomicLoadMinMax(
 
   //  UseAltMBB:
   //   %RotatedAltVal = RISBG %RotatedOldVal, %Src2, 32, 31 + BitSize, 0
-  //   # fall through to UpdateMMB
+  //   # fall through to UpdateMBB
   MBB = UseAltMBB;
   if (IsSubWord)
     BuildMI(MBB, DL, TII->get(SystemZ::RISBG32), RotatedAltVal)
@@ -7555,7 +7583,7 @@ MachineBasicBlock *SystemZTargetLowering::emitAtomicLoadMinMax(
   //   %NewVal        = RLL %RotatedNewVal, 0(%NegBitShift)
   //   %Dest          = CS %OldVal, %NewVal, Disp(%Base)
   //   JNE LoopMBB
-  //   # fall through to DoneMMB
+  //   # fall through to DoneMBB
   MBB = UpdateMBB;
   BuildMI(MBB, DL, TII->get(SystemZ::PHI), RotatedNewVal)
     .addReg(RotatedOldVal).addMBB(LoopMBB)
@@ -7624,7 +7652,7 @@ SystemZTargetLowering::emitAtomicCmpSwapW(MachineInstr &MI,
   //  StartMBB:
   //   ...
   //   %OrigOldVal     = L Disp(%Base)
-  //   # fall through to LoopMMB
+  //   # fall through to LoopMBB
   MBB = StartMBB;
   BuildMI(MBB, DL, TII->get(LOpcode), OrigOldVal)
       .add(Base)
@@ -7671,7 +7699,7 @@ SystemZTargetLowering::emitAtomicCmpSwapW(MachineInstr &MI,
   //                      ^^ Rotate the new field to its proper position.
   //   %RetryOldVal  = CS %OldVal, %StoreVal, Disp(%Base)
   //   JNE LoopMBB
-  //   # fall through to ExitMMB
+  //   # fall through to ExitMBB
   MBB = SetMBB;
   BuildMI(MBB, DL, TII->get(SystemZ::RLL), StoreVal)
     .addReg(RetrySwapVal).addReg(NegBitShift).addImm(-BitSize);
@@ -7850,7 +7878,7 @@ MachineBasicBlock *SystemZTargetLowering::emitMemMemWrapper(
     //   %NextCountReg = AGHI %ThisCountReg, -1
     //   CGHI %NextCountReg, 0
     //   JLH LoopMBB
-    //   # fall through to DoneMMB
+    //   # fall through to DoneMBB
     //
     // The AGHI, CGHI and JLH should be converted to BRCTG by later passes.
     MBB = NextMBB;
@@ -7959,7 +7987,7 @@ MachineBasicBlock *SystemZTargetLowering::emitStringWrapper(
   MachineBasicBlock *LoopMBB = SystemZ::emitBlockAfter(StartMBB);
 
   //  StartMBB:
-  //   # fall through to LoopMMB
+  //   # fall through to LoopMBB
   MBB->addSuccessor(LoopMBB);
 
   //  LoopMBB:
@@ -7968,7 +7996,7 @@ MachineBasicBlock *SystemZTargetLowering::emitStringWrapper(
   //   R0L = %CharReg
   //   %End1Reg, %End2Reg = CLST %This1Reg, %This2Reg -- uses R0L
   //   JO LoopMBB
-  //   # fall through to DoneMMB
+  //   # fall through to DoneMBB
   //
   // The load of R0L can be hoisted by post-RA LICM.
   MBB = LoopMBB;

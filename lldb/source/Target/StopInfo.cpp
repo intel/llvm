@@ -125,7 +125,7 @@ public:
       BreakpointSiteSP bp_site_sp(
           process_sp->GetBreakpointSiteList().FindByID(m_value));
       if (bp_site_sp)
-        return bp_site_sp->ValidForThisThread(&thread);
+        return bp_site_sp->ValidForThisThread(thread);
     }
     return false;
   }
@@ -413,7 +413,7 @@ protected:
             // The breakpoint site may have many locations associated with it,
             // not all of them valid for this thread.  Skip the ones that
             // aren't:
-            if (!bp_loc_sp->ValidForThisThread(thread_sp.get())) {
+            if (!bp_loc_sp->ValidForThisThread(*thread_sp)) {
               if (log) {
                 LLDB_LOGF(log,
                           "Breakpoint %s hit on thread 0x%llx but it was not "
@@ -481,6 +481,15 @@ protected:
                   continue;
                 }
               }
+            }
+
+            // We've done all the checks whose failure means "we consider lldb
+            // not to have hit the breakpoint".  Now we're going to check for
+            // conditions that might continue after hitting.  Start with the
+            // ignore count:
+            if (!bp_loc_sp->IgnoreCountShouldStop()) {
+              actually_said_continue = true;
+              continue;
             }
 
             // Check the auto-continue bit on the location, do this before the

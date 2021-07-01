@@ -813,7 +813,7 @@ static LogicalResult reduceMatchAndRewriteHelper(Operation *op, uint64_t axis,
 
   auto fillValue = rewriter.create<ConstantOp>(loc, fillValueAttr);
   auto filledTensor =
-      rewriter.create<linalg::FillOp>(loc, initTensor, fillValue).result();
+      rewriter.create<linalg::FillOp>(loc, fillValue, initTensor).result();
 
   SmallVector<AffineExpr, 2> srcExprs;
   SmallVector<AffineExpr, 2> dstExprs;
@@ -956,9 +956,6 @@ convolutionMatchAndRewriterHelper(Operation *op,
   }
 
   if (isa<tosa::DepthwiseConv2DOp>(op)) {
-    if (llvm::any_of(dilation, [](int64_t d) { return d > 1; }))
-      return failure();
-
     ShapedType linalgConvTy =
         RankedTensorType::get({resultShape[0], resultShape[1], resultShape[2],
                                weightShape[2], weightShape[3]},
@@ -969,7 +966,7 @@ convolutionMatchAndRewriterHelper(Operation *op,
     Value conv = rewriter
                      .create<linalg::DepthwiseConvInputNHWCFilterHWCFOp>(
                          loc, linalgConvTy, ValueRange{input, weight},
-                         ValueRange{biasReshape}, strideAttr)
+                         ValueRange{biasReshape}, dilationAttr, strideAttr)
                      .getResult(0);
 
     Value reshape = rewriter.create<tosa::ReshapeOp>(loc, resultTy, conv);
@@ -1021,8 +1018,8 @@ public:
     auto initTensor = rewriter.create<linalg::InitTensorOp>(
         loc, outputTy.getShape(), outputTy.getElementType());
     Value zeroTensor =
-        rewriter.create<linalg::FillOp>(loc, initTensor, zero).getResult(0);
-    rewriter.replaceOpWithNewOp<linalg::MatmulOp>(
+        rewriter.create<linalg::FillOp>(loc, zero, initTensor).getResult(0);
+    rewriter.replaceOpWithNewOp<linalg::BatchMatmulOp>(
         op, TypeRange{op.getType()}, ValueRange{adaptor.a(), adaptor.b()},
         ValueRange{zeroTensor});
     return success();
@@ -1095,7 +1092,6 @@ public:
     return success();
   }
 };
-
 
 class ReshapeConverter : public OpConversionPattern<tosa::ReshapeOp> {
 public:
@@ -1191,16 +1187,20 @@ public:
           getIdentityExprs(resultTy.getShape().size())};
 
       auto collapsedTy = RankedTensorType::get({totalElems}, elemTy);
-      Value collapsedOp = rewriter.create<linalg::TensorReshapeOp>(
+      Value collapsedOp = rewriter.create<linalg::TensorCollapseShapeOp>(
           loc, collapsedTy, args[0], collapsingMap);
-      rewriter.replaceOpWithNewOp<linalg::TensorReshapeOp>(
+      rewriter.replaceOpWithNewOp<linalg::TensorExpandShapeOp>(
           reshape, resultTy, collapsedOp, expandingMap);
 
       return success();
     }
 
-    rewriter.replaceOpWithNewOp<linalg::TensorReshapeOp>(
-        reshape, resultTy, args[0], reassociationMap);
+    if (resultTy.getRank() < args[0].getType().cast<ShapedType>().getRank())
+      rewriter.replaceOpWithNewOp<linalg::TensorCollapseShapeOp>(
+          reshape, resultTy, args[0], reassociationMap);
+    else
+      rewriter.replaceOpWithNewOp<linalg::TensorExpandShapeOp>(
+          reshape, resultTy, args[0], reassociationMap);
 
     return success();
   }
@@ -1342,15 +1342,20 @@ public:
         getNParallelLoopsAttrs(rank),
         [&](OpBuilder &nestedBuilder, Location nestedLoc,
             ValueRange blockArgs) {
+          Value value = blockArgs[0];
+
           // For now we do all of our math in 64-bit. This is not optimal but
           // should be correct for now, consider computing correct bit depth
           // later.
+          int32_t inBitwidth =
+              value.getType().getIntOrFloatBitWidth() > 32 ? 48 : 32;
+
           auto inputZp = createConstFromIntAttribute<int32_t>(
-              op, "input_zp", nestedBuilder.getI32Type(), nestedBuilder);
+              op, "input_zp", nestedBuilder.getIntegerType(inBitwidth),
+              nestedBuilder);
           auto outputZp = createConstFromIntAttribute<int32_t>(
               op, "output_zp", nestedBuilder.getI32Type(), nestedBuilder);
 
-          Value value = blockArgs[0];
           Value multiplier = multiplierConstant ? multiplierConstant
                                                 : blockArgs[multiplierArg];
           Value shift = shiftConstant ? shiftConstant : blockArgs[shiftArg];
@@ -1427,20 +1432,19 @@ public:
     SmallVector<AffineMap, 2> affineMaps = {
         rewriter.getMultiDimIdentityMap(resultTy.getRank())};
 
-    auto genericOp = rewriter.create<linalg::IndexedGenericOp>(
+    auto genericOp = rewriter.create<linalg::GenericOp>(
         loc, resultTy, ValueRange({}), ValueRange{initTensor}, affineMaps,
         getNParallelLoopsAttrs(resultTy.getRank()));
     rewriter.replaceOp(op, genericOp.getResult(0));
 
     {
       OpBuilder::InsertionGuard regionGuard(rewriter);
-      Block *block = rewriter.createBlock(
-          &genericOp.region(), genericOp.region().end(),
-          TypeRange({rewriter.getIndexType(), rewriter.getIndexType(),
-                     rewriter.getIndexType(), rewriter.getIndexType(),
-                     resultElementTy}));
-      Value batch = block->getArgument(0);
-      Value channel = block->getArgument(3);
+      rewriter.createBlock(&genericOp.region(), genericOp.region().end(),
+                           TypeRange({resultElementTy}));
+      Value batch = rewriter.create<linalg::IndexOp>(loc, 0);
+      Value y = rewriter.create<linalg::IndexOp>(loc, 1);
+      Value x = rewriter.create<linalg::IndexOp>(loc, 2);
+      Value channel = rewriter.create<linalg::IndexOp>(loc, 3);
 
       auto hwMin =
           rewriter.create<ConstantOp>(loc, rewriter.getI32IntegerAttr(0));
@@ -1449,10 +1453,8 @@ public:
       auto wMax = rewriter.create<ConstantOp>(
           loc, rewriter.getI32IntegerAttr(imageW - 1));
 
-      Value inY = rewriter.create<IndexCastOp>(loc, rewriter.getI32Type(),
-                                               block->getArgument(1));
-      Value inX = rewriter.create<IndexCastOp>(loc, rewriter.getI32Type(),
-                                               block->getArgument(2));
+      Value inY = rewriter.create<IndexCastOp>(loc, rewriter.getI32Type(), y);
+      Value inX = rewriter.create<IndexCastOp>(loc, rewriter.getI32Type(), x);
 
       int32_t shift = op.shift();
       bool floatingPointMode = shift == 0;
@@ -1734,12 +1736,12 @@ struct ConcatConverter : public OpConversionPattern<tosa::ConcatOp> {
     Value zeroVal = rewriter.create<ConstantOp>(
         loc, rewriter.getZeroAttr(resultType.getElementType()));
     Value result =
-        rewriter.create<linalg::FillOp>(loc, init, zeroVal).getResult(0);
+        rewriter.create<linalg::FillOp>(loc, zeroVal, init).getResult(0);
 
     for (auto arg : args) {
       sizes[axis] = rewriter.create<memref::DimOp>(loc, arg, axisValue);
-      result = rewriter.create<SubTensorInsertOp>(loc, arg, result, offsets,
-                                                  sizes, strides);
+      result = rewriter.create<tensor::InsertSliceOp>(loc, arg, result, offsets,
+                                                      sizes, strides);
       offsets[axis] = rewriter.create<AddIOp>(loc, offsets[axis], sizes[axis]);
     }
     rewriter.replaceOp(op, result);
@@ -1978,7 +1980,7 @@ public:
     auto fillValueIdx = rewriter.create<ConstantOp>(
         loc, rewriter.getIntegerAttr(outElementTy, 0));
     auto filledTensorIdx =
-        rewriter.create<linalg::FillOp>(loc, initTensorIdx, fillValueIdx)
+        rewriter.create<linalg::FillOp>(loc, fillValueIdx, initTensorIdx)
             .result();
 
     // Second fill the output buffer for the running max.
@@ -1996,7 +1998,7 @@ public:
 
     auto fillValueMax = rewriter.create<ConstantOp>(loc, fillValueMaxAttr);
     auto filledTensorMax =
-        rewriter.create<linalg::FillOp>(loc, initTensorMax, fillValueMax)
+        rewriter.create<linalg::FillOp>(loc, fillValueMax, initTensorMax)
             .result();
 
     // We need to reduce along the arg-max axis, with parallel operations along
@@ -2015,17 +2017,18 @@ public:
 
     bool didEncounterError = false;
     auto maps = AffineMap::inferFromExprList({srcExprs, dstExprs, dstExprs});
-    auto linalgOp = rewriter.create<linalg::IndexedGenericOp>(
+    auto linalgOp = rewriter.create<linalg::GenericOp>(
         loc, ArrayRef<Type>({resultTy, resultMaxTy}), input,
         ValueRange({filledTensorIdx, filledTensorMax}), maps, iteratorTypes,
-        [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange ivs,
+        [&](OpBuilder &nestedBuilder, Location nestedLoc,
             ValueRange blockArgs) {
           auto newValue = blockArgs[0];
           auto oldIndex = blockArgs[1];
           auto oldValue = blockArgs[2];
 
           Value newIndex = rewriter.create<IndexCastOp>(
-              nestedLoc, oldIndex.getType(), ivs[axis]);
+              nestedLoc, oldIndex.getType(),
+              rewriter.create<linalg::IndexOp>(loc, axis));
 
           Value predicate;
           if (inElementTy.isa<FloatType>()) {
@@ -2090,16 +2093,16 @@ public:
             rewriter.getContext()),
         rewriter.getMultiDimIdentityMap(resultTy.getRank())};
 
-    auto genericOp = rewriter.create<linalg::IndexedGenericOp>(
+    auto genericOp = rewriter.create<linalg::GenericOp>(
         loc, ArrayRef<Type>({resultTy}), ValueRange{indices},
         ValueRange{initTensor}, affineMaps,
         getNParallelLoopsAttrs(resultTy.getRank()),
-        [&](OpBuilder &b, Location loc, ValueRange indices, ValueRange args) {
+        [&](OpBuilder &b, Location loc, ValueRange args) {
           auto indexValue = args[0];
-          auto index0 = indices[0];
+          auto index0 = rewriter.create<linalg::IndexOp>(loc, 0);
           Value index1 = rewriter.create<IndexCastOp>(
               loc, rewriter.getIndexType(), indexValue);
-          auto index2 = indices[2];
+          auto index2 = rewriter.create<linalg::IndexOp>(loc, 2);
           Value extract = rewriter.create<tensor::ExtractOp>(
               loc, input, ValueRange{index0, index1, index2});
           rewriter.create<linalg::YieldOp>(loc, extract);
@@ -2284,7 +2287,7 @@ public:
         loc, resultTy.getShape(), resultTy.getElementType());
 
     Value filledInitTensor =
-        rewriter.create<linalg::FillOp>(loc, initTensor, initialValue).result();
+        rewriter.create<linalg::FillOp>(loc, initialValue, initTensor).result();
 
     Value fakeWindowDims =
         rewriter.create<linalg::InitTensorOp>(loc, kernel, outElementTy);
@@ -2333,11 +2336,11 @@ public:
               ->getResult(0);
       auto poolingOpTy = poolingOp.getType().cast<ShapedType>();
       auto affineMap = rewriter.getMultiDimIdentityMap(resultTy.getRank());
-      auto genericOp = rewriter.create<linalg::IndexedGenericOp>(
+      auto genericOp = rewriter.create<linalg::GenericOp>(
           loc, ArrayRef<Type>({resultTy}), ValueRange{}, ValueRange{poolingOp},
           ArrayRef<AffineMap>({affineMap}),
           getNParallelLoopsAttrs(resultTy.getRank()),
-          [&](OpBuilder &b, Location loc, ValueRange indices, ValueRange args) {
+          [&](OpBuilder &b, Location loc, ValueRange args) {
             auto zero = rewriter.create<ConstantIndexOp>(loc, 0);
             auto one = rewriter.create<ConstantIndexOp>(loc, 1);
             auto iH = rewriter.create<ConstantIndexOp>(
@@ -2346,8 +2349,8 @@ public:
                 loc, poolingOpTy.getDimSize(2) - 1);
 
             // Compute the indices from either end.
-            auto y0 = indices[1];
-            auto x0 = indices[2];
+            auto y0 = rewriter.create<linalg::IndexOp>(loc, 1);
+            auto x0 = rewriter.create<linalg::IndexOp>(loc, 2);
             auto y1 = rewriter.create<SubIOp>(loc, iH, y0);
             auto x1 = rewriter.create<SubIOp>(loc, iW, x0);
 

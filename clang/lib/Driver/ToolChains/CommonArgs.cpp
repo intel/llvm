@@ -737,11 +737,6 @@ static bool addSanitizerDynamicList(const ToolChain &TC, const ArgList &Args,
   // the option, so don't try to pass it.
   if (TC.getTriple().getOS() == llvm::Triple::Solaris)
     return true;
-  // Myriad is static linking only.  Furthermore, some versions of its
-  // linker have the bug where --export-dynamic overrides -static, so
-  // don't use --export-dynamic on that platform.
-  if (TC.getTriple().getVendor() == llvm::Triple::Myriad)
-    return true;
   SmallString<128> SanRT(TC.getCompilerRT(Args, Sanitizer));
   if (llvm::sys::fs::exists(SanRT + ".syms")) {
     CmdArgs.push_back(Args.MakeArgString("--dynamic-list=" + SanRT + ".syms"));
@@ -751,6 +746,9 @@ static bool addSanitizerDynamicList(const ToolChain &TC, const ArgList &Args,
 }
 
 static const char *getAsNeededOption(const ToolChain &TC, bool as_needed) {
+  assert(!TC.getTriple().isOSAIX() &&
+         "AIX linker does not support any form of --as-needed option yet.");
+
   // While the Solaris 11.2 ld added --as-needed/--no-as-needed as aliases
   // for the native forms -z ignore/-z record, they are missing in Illumos,
   // so always use the native form.
@@ -779,10 +777,9 @@ void tools::linkSanitizerRuntimeDeps(const ToolChain &TC,
   }
   CmdArgs.push_back("-lm");
   // There's no libdl on all OSes.
-  if (!TC.getTriple().isOSFreeBSD() &&
-      !TC.getTriple().isOSNetBSD() &&
+  if (!TC.getTriple().isOSFreeBSD() && !TC.getTriple().isOSNetBSD() &&
       !TC.getTriple().isOSOpenBSD() &&
-       TC.getTriple().getOS() != llvm::Triple::RTEMS)
+      TC.getTriple().getOS() != llvm::Triple::RTEMS)
     CmdArgs.push_back("-ldl");
   // Required for backtrace on some OSes
   if (TC.getTriple().isOSFreeBSD() ||
@@ -1437,7 +1434,8 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
 
   LibGccType LGT = getLibGccType(TC, D, Args);
   bool AsNeeded = LGT == LibGccType::UnspecifiedLibGcc &&
-                  !TC.getTriple().isAndroid() && !TC.getTriple().isOSCygMing();
+                  !TC.getTriple().isAndroid() &&
+                  !TC.getTriple().isOSCygMing() && !TC.getTriple().isOSAIX();
   if (AsNeeded)
     CmdArgs.push_back(getAsNeededOption(TC, true));
 
@@ -1452,17 +1450,23 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
     break;
   }
   case ToolChain::UNW_CompilerRT:
-    if (LGT == LibGccType::StaticLibGcc)
+    if (TC.getTriple().isOSAIX()) {
+      // AIX only has libunwind as a shared library. So do not pass
+      // anything in if -static is specified.
+      if (LGT != LibGccType::StaticLibGcc)
+        CmdArgs.push_back("-lunwind");
+    } else if (LGT == LibGccType::StaticLibGcc) {
       CmdArgs.push_back("-l:libunwind.a");
-    else if (TC.getTriple().isOSCygMing()) {
+    } else if (TC.getTriple().isOSCygMing()) {
       if (LGT == LibGccType::SharedLibGcc)
         CmdArgs.push_back("-l:libunwind.dll.a");
       else
         // Let the linker choose between libunwind.dll.a and libunwind.a
         // depending on what's available, and depending on the -static flag
         CmdArgs.push_back("-lunwind");
-    } else
+    } else {
       CmdArgs.push_back("-l:libunwind.so");
+    }
     break;
   }
 

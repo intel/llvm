@@ -165,6 +165,7 @@ def : WriteRes<WriteLoad,    [AtomPort0]>;
 def : WriteRes<WriteStore,   [AtomPort0]>;
 def : WriteRes<WriteStoreNT, [AtomPort0]>;
 def : WriteRes<WriteMove,    [AtomPort01]>;
+defm : X86WriteResUnsupported<WriteVecMaskedGatherWriteback>;
 
 // Treat misc copies as a move.
 def : InstRW<[WriteMove], (instrs COPY)>;
@@ -388,8 +389,8 @@ defm : X86WriteResPairUnsupported<WriteVecLogicZ>;
 defm : X86WriteResPairUnsupported<WriteVecTest>;
 defm : X86WriteResPairUnsupported<WriteVecTestY>;
 defm : X86WriteResPairUnsupported<WriteVecTestZ>;
-defm : AtomWriteResPair<WriteVecShift,     [AtomPort01], [AtomPort01], 2, 3, [2], [3]>;
-defm : AtomWriteResPair<WriteVecShiftX,    [AtomPort01], [AtomPort01], 2, 3, [2], [3]>;
+defm : AtomWriteResPair<WriteVecShift,     [AtomPort0,AtomPort1], [AtomPort0,AtomPort1], 2, 3, [1,1], [2,2]>;
+defm : AtomWriteResPair<WriteVecShiftX,    [AtomPort0,AtomPort1], [AtomPort0,AtomPort1], 2, 3, [1,1], [2,2]>;
 defm : X86WriteResPairUnsupported<WriteVecShiftY>;
 defm : X86WriteResPairUnsupported<WriteVecShiftZ>;
 defm : AtomWriteResPair<WriteVecShiftImm,   [AtomPort0],  [AtomPort0], 1, 1>;
@@ -416,7 +417,7 @@ defm : AtomWriteResPair<WriteShuffleX,      [AtomPort0],  [AtomPort0], 1, 1>;
 defm : X86WriteResPairUnsupported<WriteShuffleY>;
 defm : X86WriteResPairUnsupported<WriteShuffleZ>;
 defm : AtomWriteResPair<WriteVarShuffle,    [AtomPort0],  [AtomPort0], 1, 1>;
-defm : AtomWriteResPair<WriteVarShuffleX,  [AtomPort01], [AtomPort01], 4, 5, [4], [5]>;
+defm : AtomWriteResPair<WriteVarShuffleX,  [AtomPort0,AtomPort1], [AtomPort0,AtomPort1], 4, 5, [3,3], [4,4]>;
 defm : X86WriteResPairUnsupported<WriteVarShuffleY>;
 defm : X86WriteResPairUnsupported<WriteVarShuffleZ>;
 defm : X86WriteResPairUnsupported<WriteBlend>;
@@ -498,7 +499,7 @@ def AtomWrite0_1 : SchedWriteRes<[AtomPort0]> {
   let Latency = 1;
   let ResourceCycles = [1];
 }
-def : InstRW<[AtomWrite0_1], (instrs FXAM, LD_Frr,
+def : InstRW<[AtomWrite0_1], (instrs XAM_F, LD_Frr,
                                      MOVSX64rr32)>;
 def : SchedAlias<WriteALURMW, AtomWrite0_1>;
 def : SchedAlias<WriteADCRMW, AtomWrite0_1>;

@@ -356,8 +356,8 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
 
   SmallSetVector<BasicBlock *, 16> BBWorklist;
   SmallSetVector<std::pair<BasicBlock *, BasicBlock *>, 4> ExitWorklist;
-  DenseMap<Value *, Constant *> SimplifiedValues;
-  SmallVector<std::pair<Value *, Constant *>, 4> SimplifiedInputValues;
+  DenseMap<Value *, Value *> SimplifiedValues;
+  SmallVector<std::pair<Value *, Value *>, 4> SimplifiedInputValues;
 
   // The estimated cost of the unrolled form of the loop. We try to estimate
   // this by simplifying as much as we can while computing the estimate.
@@ -498,11 +498,9 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
 
       Value *V = PHI->getIncomingValueForBlock(
           Iteration == 0 ? L->getLoopPreheader() : L->getLoopLatch());
-      Constant *C = dyn_cast<Constant>(V);
-      if (Iteration != 0 && !C)
-        C = SimplifiedValues.lookup(V);
-      if (C)
-        SimplifiedInputValues.push_back({PHI, C});
+      if (Iteration != 0 && SimplifiedValues.count(V))
+        V = SimplifiedValues.lookup(V);
+      SimplifiedInputValues.push_back({PHI, V});
     }
 
     // Now clear and re-populate the map for the next iteration.
@@ -571,13 +569,18 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
 
       Instruction *TI = BB->getTerminator();
 
+      auto getSimplifiedConstant = [&](Value *V) -> Constant * {
+        if (SimplifiedValues.count(V))
+          V = SimplifiedValues.lookup(V);
+        return dyn_cast<Constant>(V);
+      };
+
       // Add in the live successors by first checking whether we have terminator
       // that may be simplified based on the values simplified by this call.
       BasicBlock *KnownSucc = nullptr;
       if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
         if (BI->isConditional()) {
-          if (Constant *SimpleCond =
-                  SimplifiedValues.lookup(BI->getCondition())) {
+          if (auto *SimpleCond = getSimplifiedConstant(BI->getCondition())) {
             // Just take the first successor if condition is undef
             if (isa<UndefValue>(SimpleCond))
               KnownSucc = BI->getSuccessor(0);
@@ -587,8 +590,7 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
           }
         }
       } else if (SwitchInst *SI = dyn_cast<SwitchInst>(TI)) {
-        if (Constant *SimpleCond =
-                SimplifiedValues.lookup(SI->getCondition())) {
+        if (auto *SimpleCond = getSimplifiedConstant(SI->getCondition())) {
           // Just take the first successor if condition is undef
           if (isa<UndefValue>(SimpleCond))
             KnownSucc = SI->getSuccessor(0);
@@ -762,12 +764,24 @@ public:
 bool llvm::computeUnrollCount(
     Loop *L, const TargetTransformInfo &TTI, DominatorTree &DT, LoopInfo *LI,
     ScalarEvolution &SE, const SmallPtrSetImpl<const Value *> &EphValues,
-    OptimizationRemarkEmitter *ORE, unsigned &TripCount, unsigned MaxTripCount,
-    bool MaxOrZero, unsigned &TripMultiple, unsigned LoopSize,
+    OptimizationRemarkEmitter *ORE, unsigned TripCount, unsigned MaxTripCount,
+    bool MaxOrZero, unsigned TripMultiple, unsigned LoopSize,
     TargetTransformInfo::UnrollingPreferences &UP,
     TargetTransformInfo::PeelingPreferences &PP, bool &UseUpperBound) {
 
   UnrollCostEstimator UCE(*L, LoopSize);
+
+  // Use an explicit peel count that has been specified for testing. In this
+  // case it's not permitted to also specify an explicit unroll count.
+  if (PP.PeelCount) {
+    if (UnrollCount.getNumOccurrences() > 0) {
+      report_fatal_error("Cannot specify both explicit peel count and "
+                         "explicit unroll count");
+    }
+    UP.Count = 1;
+    UP.Runtime = false;
+    return true;
+  }
 
   // Check for explicit Count.
   // 1st priority is unroll count set by "unroll-count" option.
@@ -815,8 +829,6 @@ bool llvm::computeUnrollCount(
   // Full unroll makes sense only when TripCount or its upper bound could be
   // statically calculated.
   // Also we need to check if we exceed FullUnrollMaxCount.
-  // If using the upper bound to unroll, TripMultiple should be set to 1 because
-  // we do not know when loop may exit.
 
   // We can unroll by the upper bound amount if it's generally allowed or if
   // we know that the loop is executed either the upper bound or zero times.
@@ -845,8 +857,6 @@ bool llvm::computeUnrollCount(
     // like the rest of the loop body.
     if (UCE.getUnrolledLoopSize(UP) < UP.Threshold) {
       UseUpperBound = (FullUnrollMaxTripCount == FullUnrollTripCount);
-      TripCount = FullUnrollTripCount;
-      TripMultiple = UP.UpperBound ? 1 : TripMultiple;
       return ExplicitUnroll;
     } else {
       // The loop isn't that small, but we still can fully unroll it if that
@@ -860,8 +870,6 @@ bool llvm::computeUnrollCount(
             getFullUnrollBoostingFactor(*Cost, UP.MaxPercentThresholdBoost);
         if (Cost->UnrolledCost < UP.Threshold * Boost / 100) {
           UseUpperBound = (FullUnrollMaxTripCount == FullUnrollTripCount);
-          TripCount = FullUnrollTripCount;
-          TripMultiple = UP.UpperBound ? 1 : TripMultiple;
           return ExplicitUnroll;
         }
       }
@@ -1106,18 +1114,29 @@ static LoopUnrollResult tryToUnrollLoop(
     return LoopUnrollResult::Unmodified;
   }
 
-  // Find trip count and trip multiple if count is not available
+  // Find the smallest exact trip count for any exit. This is an upper bound
+  // on the loop trip count, but an exit at an earlier iteration is still
+  // possible. An unroll by the smallest exact trip count guarantees that all
+  // brnaches relating to at least one exit can be eliminated. This is unlike
+  // the max trip count, which only guarantees that the backedge can be broken.
   unsigned TripCount = 0;
   unsigned TripMultiple = 1;
-  // If there are multiple exiting blocks but one of them is the latch, use the
-  // latch for the trip count estimation. Otherwise insist on a single exiting
-  // block for the trip count estimation.
-  BasicBlock *ExitingBlock = L->getLoopLatch();
-  if (!ExitingBlock || !L->isLoopExiting(ExitingBlock))
-    ExitingBlock = L->getExitingBlock();
-  if (ExitingBlock) {
-    TripCount = SE.getSmallConstantTripCount(L, ExitingBlock);
-    TripMultiple = SE.getSmallConstantTripMultiple(L, ExitingBlock);
+  SmallVector<BasicBlock *, 8> ExitingBlocks;
+  L->getExitingBlocks(ExitingBlocks);
+  for (BasicBlock *ExitingBlock : ExitingBlocks)
+    if (unsigned TC = SE.getSmallConstantTripCount(L, ExitingBlock))
+      if (!TripCount || TC < TripCount)
+        TripCount = TripMultiple = TC;
+
+  if (!TripCount) {
+    // If no exact trip count is known, determine the trip multiple of either
+    // the loop latch or the single exiting block.
+    // TODO: Relax for multiple exits.
+    BasicBlock *ExitingBlock = L->getLoopLatch();
+    if (!ExitingBlock || !L->isLoopExiting(ExitingBlock))
+      ExitingBlock = L->getExitingBlock();
+    if (ExitingBlock)
+      TripMultiple = SE.getSmallConstantTripMultiple(L, ExitingBlock);
   }
 
   // If the loop contains a convergent operation, the prelude we'd add
@@ -1152,9 +1171,35 @@ static LoopUnrollResult tryToUnrollLoop(
       TripMultiple, LoopSize, UP, PP, UseUpperBound);
   if (!UP.Count)
     return LoopUnrollResult::Unmodified;
-  // Unroll factor (Count) must be less or equal to TripCount.
-  if (TripCount && UP.Count > TripCount)
-    UP.Count = TripCount;
+
+  if (PP.PeelCount) {
+    assert(UP.Count == 1 && "Cannot perform peel and unroll in the same step");
+    LLVM_DEBUG(dbgs() << "PEELING loop %" << L->getHeader()->getName()
+                      << " with iteration count " << PP.PeelCount << "!\n");
+    ORE.emit([&]() {
+      return OptimizationRemark(DEBUG_TYPE, "Peeled", L->getStartLoc(),
+                                L->getHeader())
+             << " peeled loop by " << ore::NV("PeelCount", PP.PeelCount)
+             << " iterations";
+    });
+
+    if (peelLoop(L, PP.PeelCount, LI, &SE, &DT, &AC, PreserveLCSSA)) {
+      simplifyLoopAfterUnroll(L, true, LI, &SE, &DT, &AC, &TTI);
+      // If the loop was peeled, we already "used up" the profile information
+      // we had, so we don't want to unroll or peel again.
+      if (PP.PeelProfiledIterations)
+        L->setLoopAlreadyUnrolled();
+      return LoopUnrollResult::PartiallyUnrolled;
+    }
+    return LoopUnrollResult::Unmodified;
+  }
+
+  // At this point, UP.Runtime indicates that run-time unrolling is allowed.
+  // However, we only want to actually perform it if we don't know the trip
+  // count and the unroll count doesn't divide the known trip multiple.
+  // TODO: This decision should probably be pushed up into
+  // computeUnrollCount().
+  UP.Runtime &= TripCount == 0 && TripMultiple % UP.Count != 0;
 
   // Save loop properties before it is transformed.
   MDNode *OrigLoopID = L->getLoopID();
@@ -1163,9 +1208,8 @@ static LoopUnrollResult tryToUnrollLoop(
   Loop *RemainderLoop = nullptr;
   LoopUnrollResult UnrollResult = UnrollLoop(
       L,
-      {UP.Count, TripCount, UP.Force, UP.Runtime, UP.AllowExpensiveTripCount,
-       UseUpperBound, MaxOrZero, TripMultiple, PP.PeelCount, UP.UnrollRemainder,
-       ForgetAllSCEV},
+      {UP.Count, UP.Force, UP.Runtime, UP.AllowExpensiveTripCount,
+       UP.UnrollRemainder, ForgetAllSCEV},
       LI, &SE, &DT, &AC, &TTI, &ORE, PreserveLCSSA, &RemainderLoop);
   if (UnrollResult == LoopUnrollResult::Unmodified)
     return LoopUnrollResult::Unmodified;
@@ -1193,10 +1237,7 @@ static LoopUnrollResult tryToUnrollLoop(
 
   // If loop has an unroll count pragma or unrolled by explicitly set count
   // mark loop as unrolled to prevent unrolling beyond that requested.
-  // If the loop was peeled, we already "used up" the profile information
-  // we had, so we don't want to unroll or peel again.
-  if (UnrollResult != LoopUnrollResult::FullyUnrolled &&
-      (IsCountSetExplicitly || (PP.PeelProfiledIterations && PP.PeelCount)))
+  if (UnrollResult != LoopUnrollResult::FullyUnrolled && IsCountSetExplicitly)
     L->setLoopAlreadyUnrolled();
 
   return UnrollResult;

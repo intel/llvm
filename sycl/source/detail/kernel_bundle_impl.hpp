@@ -55,6 +55,8 @@ static bool checkAllDevicesHaveAspect(const std::vector<device> &Devices,
 // objects.
 class kernel_bundle_impl {
 
+  using SpecConstMapT = std::map<std::string, std::vector<unsigned char>>;
+
   void common_ctor_checks(bundle_state State) {
     const bool AllDevicesInTheContext =
         checkAllDevicesAreInContext(MDevices, MContext);
@@ -104,6 +106,8 @@ public:
                      std::vector<device> Devs, const property_list &PropList,
                      bundle_state TargetState)
       : MContext(InputBundle.get_context()), MDevices(std::move(Devs)) {
+
+    MSpecConstValues = getSyclObjImpl(InputBundle)->get_spec_const_map_ref();
 
     const std::vector<device> &InputBundleDevices =
         getSyclObjImpl(InputBundle)->get_devices();
@@ -207,6 +211,14 @@ public:
 
     MDeviceImages = detail::ProgramManager::getInstance().link(
         std::move(DeviceImages), MDevices, PropList);
+
+    for (const kernel_bundle<bundle_state::object> &Bundle : ObjectBundles) {
+      const KernelBundleImplPtr BundlePtr = getSyclObjImpl(Bundle);
+      for (const std::pair<const std::string, std::vector<unsigned char>>
+               &SpecConst : BundlePtr->MSpecConstValues) {
+        MSpecConstValues[SpecConst.first] = SpecConst.second;
+      }
+    }
   }
 
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
@@ -258,8 +270,6 @@ public:
 
     std::sort(MDeviceImages.begin(), MDeviceImages.end(),
               LessByHash<device_image_plain>{});
-    const auto DevImgIt =
-        std::unique(MDeviceImages.begin(), MDeviceImages.end());
 
     if (get_bundle_state() == bundle_state::input) {
       // Copy spec constants values from the device images to be removed.
@@ -284,6 +294,9 @@ public:
       std::for_each(MDeviceImages.begin(), MDeviceImages.end(),
                     MergeSpecConstants);
     }
+
+    const auto DevImgIt =
+        std::unique(MDeviceImages.begin(), MDeviceImages.end());
 
     // Remove duplicate device images.
     MDeviceImages.erase(DevImgIt, MDeviceImages.end());
@@ -459,13 +472,17 @@ public:
                : detail::getSyclObjImpl(MDeviceImages[0])->get_state();
   }
 
+  const SpecConstMapT &get_spec_const_map_ref() const noexcept {
+    return MSpecConstValues;
+  }
+
 private:
   context MContext;
   std::vector<device> MDevices;
   std::vector<device_image_plain> MDeviceImages;
   // This map stores values for specialization constants, that are missing
   // from any device image.
-  std::map<std::string, std::vector<unsigned char>> MSpecConstValues;
+  SpecConstMapT MSpecConstValues;
 };
 
 } // namespace detail

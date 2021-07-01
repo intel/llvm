@@ -10,7 +10,7 @@
 // CHECK: define internal spir_func void @{{.*}}Kernel{{.*}}Bar{{.*}}({{.*}}) #[[SKA]] {
 // CHECK: call spir_func void @{{.*}}KernelImpl{{.*}}({{.*}}, i32 1, double 2.000000e+00)
 // CHECK: define internal spir_func void @{{.*}}KernelImpl{{.*}}({{.*}} %f, i32 %i, double %d) #[[SKA]] {
-// CHECK: call spir_func void @"{{.*}}func{{.*}}"(%class
+// CHECK: call spir_func void @{{.*}}func{{.*}}(%class
 // CHECK: define internal spir_func void @{{.*}}func{{.*}}(%class.anon* {{[^,]*}} %this, i32 %i, double %d) #[[ALWAYSINLINE:[0-9]+]]
 // CHECK: define linkonce_odr spir_func void @{{.*}}KernelImpl{{.*}}Functor{{.*}}({{.*}}, i32 %i, double %d) #[[SKA]] comdat {
 // CHECK: call spir_func void @{{.*}}Functor{{.*}}(%struct

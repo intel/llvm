@@ -29,9 +29,9 @@
 ; CHECK-DAG:   icmp eq i8* %5, @__omp_outlined__1_wrapper.ID
 ; CHECK-DAG:   icmp eq i8* %7, @__omp_outlined__3_wrapper.ID
 
-; CHECK-DAG:   call void @__kmpc_parallel_51(%struct.ident_t* @1, i32 %1, i32 1, i32 -1, i32 -1, i8* bitcast (void (i32*, i32*)* @__omp_outlined__1 to i8*), i8* @__omp_outlined__1_wrapper.ID, i8** %2, i64 0)
+; CHECK-DAG:   call void @__kmpc_parallel_51(%struct.ident_t* noundef @1, i32 %1, i32 noundef 1, i32 noundef -1, i32 noundef -1, i8* noundef bitcast (void (i32*, i32*)* @__omp_outlined__1 to i8*), i8* noundef @__omp_outlined__1_wrapper.ID, i8** noundef %2, i64 noundef 0)
 ; CHECK-DAG:   call void @__kmpc_parallel_51(%struct.ident_t* @1, i32 %0, i32 1, i32 -1, i32 -1, i8* bitcast (void (i32*, i32*)* @__omp_outlined__2 to i8*), i8* bitcast (void (i16, i32)* @__omp_outlined__2_wrapper to i8*), i8** %1, i64 0)
-; CHECK-DAG:   call void @__kmpc_parallel_51(%struct.ident_t* @1, i32 %1, i32 1, i32 -1, i32 -1, i8* bitcast (void (i32*, i32*)* @__omp_outlined__3 to i8*), i8* @__omp_outlined__3_wrapper.ID, i8** %3, i64 0)
+; CHECK-DAG:   call void @__kmpc_parallel_51(%struct.ident_t* noundef @1, i32 %1, i32 noundef 1, i32 noundef -1, i32 noundef -1, i8* noundef bitcast (void (i32*, i32*)* @__omp_outlined__3 to i8*), i8* noundef @__omp_outlined__3_wrapper.ID, i8** noundef %3, i64 noundef 0)
 
 
 %struct.ident_t = type { i32, i32, i32, i32, i8* }
@@ -68,7 +68,7 @@ entry:
   br i1 %work_match, label %.execute.fn, label %.check.next
 
 .execute.fn:                                      ; preds = %.execute.parallel
-  call void @__omp_outlined__1_wrapper(i16 0, i32 %4) 
+  call void @__omp_outlined__1_wrapper(i16 zeroext 0, i32 %4) 
   br label %.terminate.parallel
 
 .check.next:                                      ; preds = %.execute.parallel
@@ -77,7 +77,7 @@ entry:
   br i1 %work_match1, label %.execute.fn2, label %.check.next3
 
 .execute.fn2:                                     ; preds = %.check.next
-  call void @__omp_outlined__2_wrapper(i16 0, i32 %4) 
+  call void @__omp_outlined__2_wrapper(i16 zeroext 0, i32 %4) 
   br label %.terminate.parallel
 
 .check.next3:                                     ; preds = %.check.next
@@ -86,7 +86,7 @@ entry:
   br i1 %work_match4, label %.execute.fn5, label %.check.next6
 
 .execute.fn5:                                     ; preds = %.check.next3
-  call void @__omp_outlined__3_wrapper(i16 0, i32 %4) 
+  call void @__omp_outlined__3_wrapper(i16 zeroext 0, i32 %4) 
   br label %.terminate.parallel
 
 .check.next6:                                     ; preds = %.check.next3
@@ -275,5 +275,8 @@ declare void @__kmpc_kernel_end_parallel()
 
 
 !nvvm.annotations = !{!1}
+!llvm.module.flags = !{!2, !3}
 
 !1 = !{void ()* @__omp_offloading_50_6dfa0f01_foo_l6, !"kernel", i32 1}
+!2 = !{i32 7, !"openmp", i32 50}
+!3 = !{i32 7, !"openmp-device", i32 50}

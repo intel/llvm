@@ -25,6 +25,7 @@ include "TestInterfaces.td"
 def Test_Dialect : Dialect {
   let name = "test";
   let cppNamespace = "::mlir::test";
+  let hasCanonicalizer = 1;
   let hasConstantMaterializer = 1;
   let hasOperationAttrVerify = 1;
   let hasRegionArgAttrVerify = 1;
@@ -337,13 +338,22 @@ def SizedRegionOp : TEST_Op<"sized_region_op", []> {
 // NoTerminator Operation
 //===----------------------------------------------------------------------===//
 
-def SingleNoTerminatorOp : TEST_Op<"single_no_terminator_op", GraphRegionNoTerminator.traits> {
+def SingleNoTerminatorOp : TEST_Op<"single_no_terminator_op",
+                                   GraphRegionNoTerminator.traits> {
   let regions = (region SizedRegion<1>:$my_region);
 
   let assemblyFormat = "attr-dict `:` $my_region";
 }
 
-def VariadicNoTerminatorOp : TEST_Op<"variadic_no_terminator_op", GraphRegionNoTerminator.traits> {
+def SingleNoTerminatorCustomAsmOp : TEST_Op<"single_no_terminator_custom_asm_op",
+                                            [SingleBlock, NoTerminator]> {
+  let regions = (region SizedRegion<1>);
+  let parser = [{ return ::parseSingleNoTerminatorCustomAsmOp(parser, result); }];
+  let printer = [{ return ::print(*this, p); }];
+}
+
+def VariadicNoTerminatorOp : TEST_Op<"variadic_no_terminator_op",
+                                     GraphRegionNoTerminator.traits> {
   let regions = (region VariadicRegion<SizedRegion<1>>:$my_regions);
 
   let assemblyFormat = "attr-dict `:` $my_regions";
@@ -561,9 +571,25 @@ def OpWithShapedTypeInferTypeInterfaceOp : TEST_Op<"op_with_shaped_type_infer_ty
   let results = (outs AnyTensor);
 }
 
-def OpWithResultShapePerDimInterfaceOp : TEST_Op<"op_with_result_shape_per_dim_interface",
+def OpWithResultShapeInterfaceOp : TEST_Op<"op_with_result_shape_interface",
       [DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-           ["reifyReturnTypeShapesPerResultDim"]>]> {
+          ["reifyReturnTypeShapes"]>]> {
+  let arguments = (ins AnyRankedTensor:$operand1, AnyRankedTensor:$operand2);
+  let results = (outs AnyRankedTensor:$result1, AnyRankedTensor:$result2);
+}
+
+def OpWithResultShapePerDimInterfaceOp :
+    TEST_Op<"op_with_result_shape_per_dim_interface",
+        [DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
+             ["reifyReturnTypeShapesPerResultDim"]>]> {
+  let arguments = (ins AnyRankedTensor:$operand1, AnyRankedTensor:$operand2);
+  let results = (outs AnyRankedTensor:$result1, AnyRankedTensor:$result2);
+}
+
+def OpWithResultShapeAndPerDimInterfaceOp :
+    TEST_Op<"op_with_result_shape_and_per_dim_interface",
+        [DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
+             ["reifyReturnTypeShapes", "reifyReturnTypeShapesPerResultDim"]>]> {
   let arguments = (ins AnyRankedTensor:$operand1, AnyRankedTensor:$operand2);
   let results = (outs AnyRankedTensor:$result1, AnyRankedTensor:$result2);
 }
@@ -964,6 +990,11 @@ def TestPassthroughFold : TEST_Op<"passthrough_fold"> {
   let arguments = (ins AnyType:$op);
   let results = (outs AnyType);
   let hasFolder = 1;
+}
+
+def TestDialectCanonicalizerOp : TEST_Op<"dialect_canonicalizable"> {
+  let arguments = (ins);
+  let results = (outs I32);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1861,6 +1892,15 @@ def FormatTypesMatchAttrOp : TEST_Op<"format_types_match_attr", [
   let assemblyFormat = "attr-dict $value";
 }
 
+def FormatTypesMatchContextOp : TEST_Op<"format_types_match_context", [
+    TypesMatchWith<"tuple result type matches operand type", "value", "result",
+        "::mlir::TupleType::get($_ctxt, $_self)">
+  ]> {
+  let arguments = (ins AnyType:$value);
+  let results = (outs AnyType:$result);
+  let assemblyFormat = "attr-dict $value `:` type($value)";
+}
+
 //===----------------------------------------------------------------------===//
 // Test SideEffects
 //===----------------------------------------------------------------------===//
@@ -2097,5 +2137,20 @@ def DataLayoutQueryOp : TEST_Op<"data_layout_query"> {
 
   let results = (outs AnyType:$res);
 }
+
+//===----------------------------------------------------------------------===//
+// Test Reducer Patterns
+//===----------------------------------------------------------------------===//
+
+def OpCrashLong : TEST_Op<"op_crash_long"> {
+  let arguments = (ins I32, I32, I32);
+  let results = (outs I32);
+}
+
+def OpCrashShort : TEST_Op<"op_crash_short"> {
+  let results = (outs I32);
+}
+
+def : Pat<(OpCrashLong $_, $_, $_), (OpCrashShort)>;
 
 #endif // TEST_OPS

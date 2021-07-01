@@ -7,11 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "Writer.h"
+#include "ConcatOutputSection.h"
 #include "Config.h"
+#include "ICF.h"
 #include "InputFiles.h"
 #include "InputSection.h"
 #include "MapFile.h"
-#include "MergedOutputSection.h"
 #include "OutputSection.h"
 #include "OutputSegment.h"
 #include "SymbolTable.h"
@@ -51,6 +52,7 @@ public:
   void scanSymbols();
   template <class LP> void createOutputSections();
   template <class LP> void createLoadCommands();
+  void foldIdenticalSections();
   void finalizeAddresses();
   void finalizeLinkEditSegment();
   void assignAddresses(OutputSegment *);
@@ -71,14 +73,16 @@ public:
   SymtabSection *symtabSection = nullptr;
   IndirectSymtabSection *indirectSymtabSection = nullptr;
   CodeSignatureSection *codeSignatureSection = nullptr;
+  DataInCodeSection *dataInCodeSection = nullptr;
   FunctionStartsSection *functionStartsSection = nullptr;
 
   LCUuid *uuidCommand = nullptr;
   OutputSegment *linkEditSegment = nullptr;
+  DenseMap<NamePair, ConcatOutputSection *> concatOutputSections;
 };
 
 // LC_DYLD_INFO_ONLY stores the offsets of symbol import/export information.
-class LCDyldInfo : public LoadCommand {
+class LCDyldInfo final : public LoadCommand {
 public:
   LCDyldInfo(RebaseSection *rebaseSection, BindingSection *bindingSection,
              WeakBindingSection *weakBindingSection,
@@ -123,7 +127,7 @@ public:
   ExportSection *exportSection;
 };
 
-class LCFunctionStarts : public LoadCommand {
+class LCFunctionStarts final : public LoadCommand {
 public:
   explicit LCFunctionStarts(FunctionStartsSection *functionStartsSection)
       : functionStartsSection(functionStartsSection) {}
@@ -142,7 +146,26 @@ private:
   FunctionStartsSection *functionStartsSection;
 };
 
-class LCDysymtab : public LoadCommand {
+class LCDataInCode final : public LoadCommand {
+public:
+  explicit LCDataInCode(DataInCodeSection *dataInCodeSection)
+      : dataInCodeSection(dataInCodeSection) {}
+
+  uint32_t getSize() const override { return sizeof(linkedit_data_command); }
+
+  void writeTo(uint8_t *buf) const override {
+    auto *c = reinterpret_cast<linkedit_data_command *>(buf);
+    c->cmd = LC_DATA_IN_CODE;
+    c->cmdsize = getSize();
+    c->dataoff = dataInCodeSection->fileOff;
+    c->datasize = dataInCodeSection->getFileSize();
+  }
+
+private:
+  DataInCodeSection *dataInCodeSection;
+};
+
+class LCDysymtab final : public LoadCommand {
 public:
   LCDysymtab(SymtabSection *symtabSection,
              IndirectSymtabSection *indirectSymtabSection)
@@ -170,7 +193,7 @@ public:
   IndirectSymtabSection *indirectSymtabSection;
 };
 
-template <class LP> class LCSegment : public LoadCommand {
+template <class LP> class LCSegment final : public LoadCommand {
 public:
   LCSegment(StringRef name, OutputSegment *seg) : name(name), seg(seg) {}
 
@@ -226,7 +249,7 @@ private:
   OutputSegment *seg;
 };
 
-class LCMain : public LoadCommand {
+class LCMain final : public LoadCommand {
   uint32_t getSize() const override {
     return sizeof(structs::entry_point_command);
   }
@@ -240,13 +263,13 @@ class LCMain : public LoadCommand {
       c->entryoff =
           in.stubs->fileOff + config->entry->stubsIndex * target->stubSize;
     else
-      c->entryoff = config->entry->getFileOffset();
+      c->entryoff = config->entry->getVA() - in.header->addr;
 
     c->stacksize = 0;
   }
 };
 
-class LCSymtab : public LoadCommand {
+class LCSymtab final : public LoadCommand {
 public:
   LCSymtab(SymtabSection *symtabSection, StringTableSection *stringTableSection)
       : symtabSection(symtabSection), stringTableSection(stringTableSection) {}
@@ -271,7 +294,7 @@ public:
 //   * LC_LOAD_DYLIB
 //   * LC_ID_DYLIB
 //   * LC_REEXPORT_DYLIB
-class LCDylib : public LoadCommand {
+class LCDylib final : public LoadCommand {
 public:
   LCDylib(LoadCommandType type, StringRef path,
           uint32_t compatibilityVersion = 0, uint32_t currentVersion = 0)
@@ -311,7 +334,7 @@ private:
 
 uint32_t LCDylib::instanceCount = 0;
 
-class LCLoadDylinker : public LoadCommand {
+class LCLoadDylinker final : public LoadCommand {
 public:
   uint32_t getSize() const override {
     return alignTo(sizeof(dylinker_command) + path.size() + 1, 8);
@@ -335,7 +358,7 @@ private:
   const StringRef path = "/usr/lib/dyld";
 };
 
-class LCRPath : public LoadCommand {
+class LCRPath final : public LoadCommand {
 public:
   explicit LCRPath(StringRef path) : path(path) {}
 
@@ -359,13 +382,7 @@ private:
   StringRef path;
 };
 
-static uint32_t encodeVersion(const VersionTuple &version) {
-  return ((version.getMajor() << 020) |
-          (version.getMinor().getValueOr(0) << 010) |
-          version.getSubminor().getValueOr(0));
-}
-
-class LCMinVersion : public LoadCommand {
+class LCMinVersion final : public LoadCommand {
 public:
   explicit LCMinVersion(const PlatformInfo &platformInfo)
       : platformInfo(platformInfo) {}
@@ -403,7 +420,7 @@ private:
   const PlatformInfo &platformInfo;
 };
 
-class LCBuildVersion : public LoadCommand {
+class LCBuildVersion final : public LoadCommand {
 public:
   explicit LCBuildVersion(const PlatformInfo &platformInfo)
       : platformInfo(platformInfo) {}
@@ -438,7 +455,7 @@ private:
 // offsets to be calculated correctly. We resolve this circular paradox by
 // first writing an LC_UUID with an all-zero UUID, then updating the UUID with
 // its real value later.
-class LCUuid : public LoadCommand {
+class LCUuid final : public LoadCommand {
 public:
   uint32_t getSize() const override { return sizeof(uuid_command); }
 
@@ -471,7 +488,7 @@ public:
   mutable uint8_t *uuidBuf;
 };
 
-template <class LP> class LCEncryptionInfo : public LoadCommand {
+template <class LP> class LCEncryptionInfo final : public LoadCommand {
 public:
   uint32_t getSize() const override {
     return sizeof(typename LP::encryption_info_command);
@@ -492,7 +509,7 @@ public:
   }
 };
 
-class LCCodeSignature : public LoadCommand {
+class LCCodeSignature final : public LoadCommand {
 public:
   LCCodeSignature(CodeSignatureSection *section) : section(section) {}
 
@@ -572,11 +589,15 @@ static void prepareSymbolRelocation(Symbol *sym, const InputSection *isec,
 void Writer::scanRelocations() {
   TimeTraceScope timeScope("Scan relocations");
   for (InputSection *isec : inputSections) {
-    if (isec->shouldOmitFromOutput())
+    if (!isa<ConcatInputSection>(isec))
+      continue;
+    auto concatIsec = cast<ConcatInputSection>(isec);
+
+    if (concatIsec->shouldOmitFromOutput())
       continue;
 
-    if (isec->segname == segment_names::ld) {
-      in.unwindInfo->prepareRelocations(isec);
+    if (concatIsec->segname == segment_names::ld) {
+      in.unwindInfo->prepareRelocations(concatIsec);
       continue;
     }
 
@@ -597,7 +618,6 @@ void Writer::scanRelocations() {
           prepareSymbolRelocation(sym, isec, r);
       } else {
         assert(r.referent.is<InputSection *>());
-        assert(!r.referent.get<InputSection *>()->shouldOmitFromOutput());
         if (!r.pcrel)
           in.rebase->addEntry(isec, r.offset);
       }
@@ -609,13 +629,14 @@ void Writer::scanSymbols() {
   TimeTraceScope timeScope("Scan symbols");
   for (const Symbol *sym : symtab->getSymbols()) {
     if (const auto *defined = dyn_cast<Defined>(sym)) {
-      if (defined->overridesWeakDef)
+      if (defined->overridesWeakDef && defined->isLive())
         in.weakBinding->addNonWeakDefinition(defined);
     } else if (const auto *dysym = dyn_cast<DylibSymbol>(sym)) {
+      // This branch intentionally doesn't check isLive().
       if (dysym->isDynamicLookup())
         continue;
       dysym->getFile()->refState =
-          std::max(dysym->getFile()->refState, dysym->refState);
+          std::max(dysym->getFile()->refState, dysym->getRefState());
     }
   }
 }
@@ -648,6 +669,8 @@ template <class LP> void Writer::createLoadCommands() {
       make<LCDysymtab>(symtabSection, indirectSymtabSection));
   if (functionStartsSection)
     in.header->addLoadCommand(make<LCFunctionStarts>(functionStartsSection));
+  if (dataInCodeSection)
+    in.header->addLoadCommand(make<LCDataInCode>(dataInCodeSection));
   if (config->emitEncryptionInfo)
     in.header->addLoadCommand(make<LCEncryptionInfo<LP>>());
   for (StringRef path : config->runtimePaths)
@@ -678,6 +701,7 @@ template <class LP> void Writer::createLoadCommands() {
     in.header->addLoadCommand(make<LCMinVersion>(config->platformInfo));
 
   int64_t dylibOrdinal = 1;
+  DenseMap<StringRef, int64_t> ordinalForInstallName;
   for (InputFile *file : inputFiles) {
     if (auto *dylibFile = dyn_cast<DylibFile>(file)) {
       if (dylibFile->isBundleLoader) {
@@ -688,18 +712,57 @@ template <class LP> void Writer::createLoadCommands() {
         continue;
       }
 
-      dylibFile->ordinal = dylibOrdinal++;
+      // Don't emit load commands for a dylib that is not referenced if:
+      // - it was added implicitly (via a reexport, an LC_LOAD_DYLINKER --
+      //   if it's on the linker command line, it's explicit)
+      // - or it's marked MH_DEAD_STRIPPABLE_DYLIB
+      // - or the flag -dead_strip_dylibs is used
+      // FIXME: `isReferenced()` is currently computed before dead code
+      // stripping, so references from dead code keep a dylib alive. This
+      // matches ld64, but it's something we should do better.
+      if (!dylibFile->isReferenced() && !dylibFile->forceNeeded &&
+          (!dylibFile->explicitlyLinked || dylibFile->deadStrippable ||
+           config->deadStripDylibs))
+        continue;
+
+      // Several DylibFiles can have the same installName. Only emit a single
+      // load command for that installName and give all these DylibFiles the
+      // same ordinal.
+      // This can happen in several cases:
+      // - a new framework could change its installName to an older
+      //   framework name via an $ld$ symbol depending on platform_version
+      // - symlinks (for example, libpthread.tbd is a symlink to libSystem.tbd;
+      //   Foo.framework/Foo.tbd is usually a symlink to
+      //   Foo.framework/Versions/Current/Foo.tbd, where
+      //   Foo.framework/Versions/Current is usually a symlink to
+      //   Foo.framework/Versions/A)
+      // - a framework can be linked both explicitly on the linker
+      //   command line and implicitly as a reexport from a different
+      //   framework. The re-export will usually point to the tbd file
+      //   in Foo.framework/Versions/A/Foo.tbd, while the explicit link will
+      //   usually find Foo.framework/Foo.tbd. These are usually symlinks,
+      //   but in a --reproduce archive they will be identical but distinct
+      //   files.
+      // In the first case, *semantically distinct* DylibFiles will have the
+      // same installName.
+      int64_t &ordinal = ordinalForInstallName[dylibFile->installName];
+      if (ordinal) {
+        dylibFile->ordinal = ordinal;
+        continue;
+      }
+
+      ordinal = dylibFile->ordinal = dylibOrdinal++;
       LoadCommandType lcType =
           dylibFile->forceWeakImport || dylibFile->refState == RefState::Weak
               ? LC_LOAD_WEAK_DYLIB
               : LC_LOAD_DYLIB;
-      in.header->addLoadCommand(make<LCDylib>(lcType, dylibFile->dylibName,
+      in.header->addLoadCommand(make<LCDylib>(lcType, dylibFile->installName,
                                               dylibFile->compatibilityVersion,
                                               dylibFile->currentVersion));
 
       if (dylibFile->reexport)
         in.header->addLoadCommand(
-            make<LCDylib>(LC_REEXPORT_DYLIB, dylibFile->dylibName));
+            make<LCDylib>(LC_REEXPORT_DYLIB, dylibFile->installName));
     }
   }
 
@@ -748,84 +811,11 @@ static DenseMap<const InputSection *, size_t> buildInputSectionPriorities() {
   for (const InputFile *file : inputFiles) {
     if (isa<ObjFile>(file))
       for (Symbol *sym : file->symbols)
-        if (auto *d = dyn_cast<Defined>(sym))
+        if (auto *d = dyn_cast_or_null<Defined>(sym))
           addSym(*d);
   }
 
   return sectionPriorities;
-}
-
-static int segmentOrder(OutputSegment *seg) {
-  return StringSwitch<int>(seg->name)
-      .Case(segment_names::pageZero, -4)
-      .Case(segment_names::text, -3)
-      .Case(segment_names::dataConst, -2)
-      .Case(segment_names::data, -1)
-      .Case(segment_names::llvm, std::numeric_limits<int>::max() - 1)
-      // Make sure __LINKEDIT is the last segment (i.e. all its hidden
-      // sections must be ordered after other sections).
-      .Case(segment_names::linkEdit, std::numeric_limits<int>::max())
-      .Default(0);
-}
-
-static int sectionOrder(OutputSection *osec) {
-  StringRef segname = osec->parent->name;
-  // Sections are uniquely identified by their segment + section name.
-  if (segname == segment_names::text) {
-    return StringSwitch<int>(osec->name)
-        .Case(section_names::header, -4)
-        .Case(section_names::text, -3)
-        .Case(section_names::stubs, -2)
-        .Case(section_names::stubHelper, -1)
-        .Case(section_names::unwindInfo, std::numeric_limits<int>::max() - 1)
-        .Case(section_names::ehFrame, std::numeric_limits<int>::max())
-        .Default(0);
-  } else if (segname == segment_names::data ||
-             segname == segment_names::dataConst) {
-    // For each thread spawned, dyld will initialize its TLVs by copying the
-    // address range from the start of the first thread-local data section to
-    // the end of the last one. We therefore arrange these sections contiguously
-    // to minimize the amount of memory used. Additionally, since zerofill
-    // sections must be at the end of their segments, and since TLV data
-    // sections can be zerofills, we end up putting all TLV data sections at the
-    // end of the segment.
-    switch (sectionType(osec->flags)) {
-    case S_THREAD_LOCAL_REGULAR:
-      return std::numeric_limits<int>::max() - 2;
-    case S_THREAD_LOCAL_ZEROFILL:
-      return std::numeric_limits<int>::max() - 1;
-    case S_ZEROFILL:
-      return std::numeric_limits<int>::max();
-    default:
-      return StringSwitch<int>(osec->name)
-          .Case(section_names::lazySymbolPtr, -2)
-          .Case(section_names::data, -1)
-          .Default(0);
-    }
-  } else if (segname == segment_names::linkEdit) {
-    return StringSwitch<int>(osec->name)
-        .Case(section_names::rebase, -9)
-        .Case(section_names::binding, -8)
-        .Case(section_names::weakBinding, -7)
-        .Case(section_names::lazyBinding, -6)
-        .Case(section_names::export_, -5)
-        .Case(section_names::functionStarts, -4)
-        .Case(section_names::symbolTable, -3)
-        .Case(section_names::indirectSymbolTable, -2)
-        .Case(section_names::stringTable, -1)
-        .Case(section_names::codeSignature, std::numeric_limits<int>::max())
-        .Default(0);
-  }
-  // ZeroFill sections must always be the at the end of their segments,
-  // otherwise subsequent sections may get overwritten with zeroes at runtime.
-  if (sectionType(osec->flags) == S_ZEROFILL)
-    return std::numeric_limits<int>::max();
-  return 0;
-}
-
-template <typename T, typename F>
-static std::function<bool(T, T)> compareByOrder(F ord) {
-  return [=](T a, T b) { return ord(a) < ord(b); };
 }
 
 // Sorting only can happen once all outputs have been collected. Here we sort
@@ -833,16 +823,14 @@ static std::function<bool(T, T)> compareByOrder(F ord) {
 // output segment.
 static void sortSegmentsAndSections() {
   TimeTraceScope timeScope("Sort segments and sections");
-
-  llvm::stable_sort(outputSegments,
-                    compareByOrder<OutputSegment *>(segmentOrder));
+  sortOutputSegments();
 
   DenseMap<const InputSection *, size_t> isecPriorities =
       buildInputSectionPriorities();
 
   uint32_t sectionIndex = 0;
   for (OutputSegment *seg : outputSegments) {
-    seg->sortOutputSections(compareByOrder<OutputSection *>(sectionOrder));
+    seg->sortOutputSections();
     for (OutputSection *osec : seg->getSections()) {
       // Now that the output sections are sorted, assign the final
       // output section indices.
@@ -852,7 +840,7 @@ static void sortSegmentsAndSections() {
         firstTLVDataSection = osec;
 
       if (!isecPriorities.empty()) {
-        if (auto *merged = dyn_cast<MergedOutputSection>(osec)) {
+        if (auto *merged = dyn_cast<ConcatOutputSection>(osec)) {
           llvm::stable_sort(merged->inputs,
                             [&](InputSection *a, InputSection *b) {
                               return isecPriorities[a] > isecPriorities[b];
@@ -881,6 +869,8 @@ template <class LP> void Writer::createOutputSections() {
   indirectSymtabSection = make<IndirectSymtabSection>();
   if (config->adhocCodesign)
     codeSignatureSection = make<CodeSignatureSection>();
+  if (config->emitDataInCodeInfo)
+    dataInCodeSection = make<DataInCodeSection>();
   if (config->emitFunctionStarts)
     functionStartsSection = make<FunctionStartsSection>();
   if (config->emitBitcodeBundle)
@@ -897,21 +887,36 @@ template <class LP> void Writer::createOutputSections() {
     llvm_unreachable("unhandled output file type");
   }
 
-  // Then merge input sections into output sections.
-  MapVector<NamePair, MergedOutputSection *> mergedOutputSections;
-  for (InputSection *isec : inputSections) {
-    if (isec->shouldOmitFromOutput())
-      continue;
-    NamePair names = maybeRenameSection({isec->segname, isec->name});
-    MergedOutputSection *&osec = mergedOutputSections[names];
-    if (osec == nullptr)
-      osec = make<MergedOutputSection>(names.second);
-    osec->mergeInput(isec);
+  // Then add input sections to output sections.
+  for (const auto &p : enumerate(inputSections)) {
+    InputSection *isec = p.value();
+    OutputSection *osec;
+    if (auto *concatIsec = dyn_cast<ConcatInputSection>(isec)) {
+      if (concatIsec->shouldOmitFromOutput())
+        continue;
+      NamePair names = maybeRenameSection({isec->segname, isec->name});
+      ConcatOutputSection *&concatOsec = concatOutputSections[names];
+      if (concatOsec == nullptr)
+        concatOsec = make<ConcatOutputSection>(names.second);
+      concatOsec->addInput(concatIsec);
+      osec = concatOsec;
+    } else if (auto *cStringIsec = dyn_cast<CStringInputSection>(isec)) {
+      in.cStringSection->addInput(cStringIsec);
+      osec = in.cStringSection;
+    } else if (auto *litIsec = dyn_cast<WordLiteralInputSection>(isec)) {
+      in.wordLiteralSection->addInput(litIsec);
+      osec = in.wordLiteralSection;
+    } else {
+      llvm_unreachable("unhandled InputSection type");
+    }
+    osec->inputOrder = std::min(osec->inputOrder, static_cast<int>(p.index()));
   }
 
-  for (const auto &it : mergedOutputSections) {
+  // Once all the inputs are added, we can finalize the output section
+  // properties and create the corresponding output segments.
+  for (const auto &it : concatOutputSections) {
     StringRef segname = it.first.first;
-    MergedOutputSection *osec = it.second;
+    ConcatOutputSection *osec = it.second;
     if (segname == segment_names::ld) {
       assert(osec->name == section_names::compactUnwind);
       in.unwindInfo->setCompactUnwindSection(osec);
@@ -921,19 +926,65 @@ template <class LP> void Writer::createOutputSections() {
   }
 
   for (SyntheticSection *ssec : syntheticSections) {
-    auto it = mergedOutputSections.find({ssec->segname, ssec->name});
-    if (it == mergedOutputSections.end()) {
-      if (ssec->isNeeded())
+    auto it = concatOutputSections.find({ssec->segname, ssec->name});
+    if (ssec->isNeeded()) {
+      if (it == concatOutputSections.end()) {
         getOrCreateOutputSegment(ssec->segname)->addOutputSection(ssec);
-    } else {
-      error("section from " + toString(it->second->firstSection()->file) +
-            " conflicts with synthetic section " + ssec->segname + "," +
-            ssec->name);
+      } else {
+        fatal("section from " + toString(it->second->firstSection()->file) +
+              " conflicts with synthetic section " + ssec->segname + "," +
+              ssec->name);
+      }
     }
   }
 
   // dyld requires __LINKEDIT segment to always exist (even if empty).
   linkEditSegment = getOrCreateOutputSegment(segment_names::linkEdit);
+}
+
+void Writer::foldIdenticalSections() {
+  if (config->icfLevel == ICFLevel::none)
+    return;
+  ConcatOutputSection *textOutputSection = concatOutputSections.lookup(
+      maybeRenameSection({segment_names::text, section_names::text}));
+  if (textOutputSection == nullptr)
+    return;
+
+  TimeTraceScope timeScope("Fold Identical Code Sections");
+  // The ICF equivalence-class segregation algorithm relies on pre-computed
+  // hashes of InputSection::data for the ConcatOutputSection::inputs and all
+  // sections referenced by their relocs. We could recursively traverse the
+  // relocs to find every referenced InputSection, but that precludes easy
+  // parallelization. Therefore, we hash every InputSection here where we have
+  // them all accessible as a simple vector.
+  std::vector<ConcatInputSection *> hashable;
+  // If an InputSection is ineligible for ICF, we give it a unique ID to force
+  // it into an unfoldable singleton equivalence class.  Begin the unique-ID
+  // space at inputSections.size(), so that it will never intersect with
+  // equivalence-class IDs which begin at 0. Since hashes & unique IDs never
+  // coexist with equivalence-class IDs, this is not necessary, but might help
+  // someone keep the numbers straight in case we ever need to debug the
+  // ICF::segregate()
+  uint64_t icfUniqueID = inputSections.size();
+  for (InputSection *isec : inputSections) {
+    if (auto *concatIsec = dyn_cast<ConcatInputSection>(isec)) {
+      if (concatIsec->isHashableForICF(isec->parent == textOutputSection))
+        hashable.push_back(concatIsec);
+      else
+        concatIsec->icfEqClass[0] = ++icfUniqueID;
+    }
+    // FIXME: hash literal sections here?
+  }
+  parallelForEach(hashable,
+                  [](ConcatInputSection *isec) { isec->hashForICF(); });
+  // Now that every input section is either hashed or marked as unique,
+  // run the segregation algorithm to detect foldable subsections
+  ICF(textOutputSection->inputs).run();
+  size_t oldSize = textOutputSection->inputs.size();
+  textOutputSection->eraseOmittedInputSections();
+  size_t newSize = textOutputSection->inputs.size();
+  log("ICF kept " + Twine(newSize) + " removed " + Twine(oldSize - newSize) +
+      " of " + Twine(oldSize));
 }
 
 void Writer::finalizeAddresses() {
@@ -964,8 +1015,15 @@ void Writer::finalizeLinkEditSegment() {
   TimeTraceScope timeScope("Finalize __LINKEDIT segment");
   // Fill __LINKEDIT contents.
   std::vector<LinkEditSection *> linkEditSections{
-      in.rebase,  in.binding,    in.weakBinding,        in.lazyBinding,
-      in.exports, symtabSection, indirectSymtabSection, functionStartsSection,
+      in.rebase,
+      in.binding,
+      in.weakBinding,
+      in.lazyBinding,
+      in.exports,
+      symtabSection,
+      indirectSymtabSection,
+      dataInCodeSection,
+      functionStartsSection,
   };
   parallelForEach(linkEditSections, [](LinkEditSection *osec) {
     if (osec)
@@ -1060,6 +1118,7 @@ template <class LP> void Writer::run() {
     in.stubHelper->setup();
   scanSymbols();
   createOutputSections<LP>();
+  foldIdenticalSections();
   // After this point, we create no new segments; HOWEVER, we might
   // yet create branch-range extension thunks for architectures whose
   // hardware call instructions have limited range, e.g., ARM(64).
@@ -1077,6 +1136,9 @@ template <class LP> void macho::writeResult() { Writer().run<LP>(); }
 
 void macho::createSyntheticSections() {
   in.header = make<MachHeaderSection>();
+  in.cStringSection = config->dedupLiterals ? make<CStringSection>() : nullptr;
+  in.wordLiteralSection =
+      config->dedupLiterals ? make<WordLiteralSection>() : nullptr;
   in.rebase = make<RebaseSection>();
   in.binding = make<BindingSection>();
   in.weakBinding = make<WeakBindingSection>();
@@ -1087,8 +1149,19 @@ void macho::createSyntheticSections() {
   in.lazyPointers = make<LazyPointerSection>();
   in.stubs = make<StubsSection>();
   in.stubHelper = make<StubHelperSection>();
-  in.imageLoaderCache = make<ImageLoaderCacheSection>();
   in.unwindInfo = makeUnwindInfoSection();
+
+  // This section contains space for just a single word, and will be used by
+  // dyld to cache an address to the image loader it uses.
+  uint8_t *arr = bAlloc.Allocate<uint8_t>(target->wordSize);
+  memset(arr, 0, target->wordSize);
+  in.imageLoaderCache = make<ConcatInputSection>(
+      segment_names::data, section_names::data, /*file=*/nullptr,
+      ArrayRef<uint8_t>{arr, target->wordSize},
+      /*align=*/target->wordSize, /*flags=*/S_REGULAR);
+  // References from dyld are not visible to us, so ensure this section is
+  // always treated as live.
+  in.imageLoaderCache->live = true;
 }
 
 OutputSection *macho::firstTLVDataSection = nullptr;

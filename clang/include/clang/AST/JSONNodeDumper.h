@@ -234,6 +234,7 @@ public:
   void VisitUsingDirectiveDecl(const UsingDirectiveDecl *UDD);
   void VisitNamespaceAliasDecl(const NamespaceAliasDecl *NAD);
   void VisitUsingDecl(const UsingDecl *UD);
+  void VisitUsingEnumDecl(const UsingEnumDecl *UED);
   void VisitUsingShadowDecl(const UsingShadowDecl *USD);
   void VisitVarDecl(const VarDecl *VD);
   void VisitFieldDecl(const FieldDecl *FD);
@@ -263,6 +264,8 @@ public:
   void VisitBlockDecl(const BlockDecl *D);
 
   void VisitDeclRefExpr(const DeclRefExpr *DRE);
+  void VisitSYCLUniqueStableNameExpr(const SYCLUniqueStableNameExpr *E);
+  void VisitSYCLUniqueStableIdExpr(const SYCLUniqueStableIdExpr *E);
   void VisitPredefinedExpr(const PredefinedExpr *PE);
   void VisitUnaryOperator(const UnaryOperator *UO);
   void VisitBinaryOperator(const BinaryOperator *BO);

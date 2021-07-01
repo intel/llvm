@@ -435,6 +435,11 @@ public:
                                std::tuple<Register, int64_t> &MatchInfo);
   bool applyAshShlToSextInreg(MachineInstr &MI,
                               std::tuple<Register, int64_t> &MatchInfo);
+
+  /// Fold and(and(x, C1), C2) -> C1&C2 ? and(x, C1&C2) : 0
+  bool matchOverlappingAnd(MachineInstr &MI,
+                           std::function<void(MachineIRBuilder &)> &MatchInfo);
+
   /// \return true if \p MI is a G_AND instruction whose operands are x and y
   /// where x & y == x or x & y == y. (E.g., one of operands is all-ones value.)
   ///
@@ -516,6 +521,10 @@ public:
   /// \returns true if a G_ICMP instruction \p MI can be replaced with a true
   /// or false constant based off of KnownBits information.
   bool matchICmpToTrueFalseKnownBits(MachineInstr &MI, int64_t &MatchInfo);
+
+  /// Match: and (lshr x, cst), mask -> ubfx x, cst, width
+  bool matchBitfieldExtractFromAnd(
+      MachineInstr &MI, std::function<void(MachineIRBuilder &)> &MatchInfo);
 
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.

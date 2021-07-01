@@ -274,8 +274,8 @@ if(NOT COMPILER_RT_HAS_FUNC_SYMBOL)
   add_definitions(-D__func__=__FUNCTION__)
 endif()
 
-# Provide some common commmandline flags for Sanitizer runtimes.
-if("${ANDROID_API_LEVEL}" GREATER_EQUAL 28)
+# Provide some common commandline flags for Sanitizer runtimes.
+if("${ANDROID_API_LEVEL}" GREATER_EQUAL 29)
   list(APPEND SANITIZER_COMMON_CFLAGS -fno-emulated-tls)
   string(APPEND COMPILER_RT_TEST_COMPILER_CFLAGS " -fno-emulated-tls")
 endif()
@@ -437,10 +437,18 @@ else()
 endif()
 
 append_list_if(COMPILER_RT_HAS_LIBC c SANITIZER_COMMON_LINK_LIBS)
+if("${CMAKE_SYSTEM_NAME}" STREQUAL "Fuchsia")
+  list(APPEND SANITIZER_COMMON_LINK_LIBS zircon)
+endif()
 
 if("${CMAKE_SYSTEM_NAME}" STREQUAL "Fuchsia")
-  list(APPEND SANITIZER_COMMON_LINK_FLAGS -Wl,-z,defs,-z,now,-z,relro)
-  list(APPEND SANITIZER_COMMON_LINK_LIBS zircon)
+  set(SANITIZER_NO_UNDEFINED_SYMBOLS_DEFAULT ON)
+else()
+  set(SANITIZER_NO_UNDEFINED_SYMBOLS_DEFAULT OFF)
+endif()
+option(SANITIZER_NO_UNDEFINED_SYMBOLS "Report error on unresolved symbol references" ${SANITIZER_NO_UNDEFINED_SYMBOLS_DEFAULT})
+if (SANITIZER_NO_UNDEFINED_SYMBOLS)
+  list(APPEND SANITIZER_COMMON_LINK_FLAGS -Wl,-z,defs)
 endif()
 
 # TODO: COMPILER_RT_COMMON_CFLAGS and COMPILER_RT_COMMON_LINK_FLAGS are

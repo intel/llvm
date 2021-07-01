@@ -245,7 +245,7 @@ public:
   /// Return the atomic ordering requirements for this memory operation. For
   /// cmpxchg atomic operations, return the atomic ordering requirements when
   /// store occurs.
-  AtomicOrdering getOrdering() const {
+  AtomicOrdering getSuccessOrdering() const {
     return static_cast<AtomicOrdering>(AtomicInfo.Ordering);
   }
 
@@ -253,6 +253,23 @@ public:
   /// when store does not occur.
   AtomicOrdering getFailureOrdering() const {
     return static_cast<AtomicOrdering>(AtomicInfo.FailureOrdering);
+  }
+
+  /// Return a single atomic ordering that is at least as strong as both the
+  /// success and failure orderings for an atomic operation.  (For operations
+  /// other than cmpxchg, this is equivalent to getSuccessOrdering().)
+  AtomicOrdering getMergedOrdering() const {
+    AtomicOrdering Ordering = getSuccessOrdering();
+    AtomicOrdering FailureOrdering = getFailureOrdering();
+    if (FailureOrdering == AtomicOrdering::SequentiallyConsistent)
+      return AtomicOrdering::SequentiallyConsistent;
+    if (FailureOrdering == AtomicOrdering::Acquire) {
+      if (Ordering == AtomicOrdering::Monotonic)
+        return AtomicOrdering::Acquire;
+      if (Ordering == AtomicOrdering::Release)
+        return AtomicOrdering::AcquireRelease;
+    }
+    return Ordering;
   }
 
   bool isLoad() const { return FlagVals & MOLoad; }
@@ -264,14 +281,16 @@ public:
 
   /// Returns true if this operation has an atomic ordering requirement of
   /// unordered or higher, false otherwise.
-  bool isAtomic() const { return getOrdering() != AtomicOrdering::NotAtomic; }
+  bool isAtomic() const {
+    return getSuccessOrdering() != AtomicOrdering::NotAtomic;
+  }
 
   /// Returns true if this memory operation doesn't have any ordering
   /// constraints other than normal aliasing. Volatile and (ordered) atomic
   /// memory operations can't be reordered.
   bool isUnordered() const {
-    return (getOrdering() == AtomicOrdering::NotAtomic ||
-            getOrdering() == AtomicOrdering::Unordered) &&
+    return (getSuccessOrdering() == AtomicOrdering::NotAtomic ||
+            getSuccessOrdering() == AtomicOrdering::Unordered) &&
            !isVolatile();
   }
 

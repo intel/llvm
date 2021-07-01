@@ -590,7 +590,7 @@ bool AMDGPUInstructionSelector::selectG_BUILD_VECTOR_TRUNC(
     return true;
 
   const LLT S32 = LLT::scalar(32);
-  const LLT V2S16 = LLT::vector(2, 16);
+  const LLT V2S16 = LLT::fixed_vector(2, 16);
 
   Register Dst = MI.getOperand(0).getReg();
   if (MRI->getType(Dst) != V2S16)
@@ -1390,7 +1390,24 @@ bool AMDGPUInstructionSelector::selectDSGWSIntrinsic(MachineInstr &MI,
 
   if (HasVSrc) {
     Register VSrc = MI.getOperand(1).getReg();
-    MIB.addReg(VSrc);
+
+    if (STI.needsAlignedVGPRs()) {
+      // Add implicit aligned super-reg to force alignment on the data operand.
+      Register Undef = MRI->createVirtualRegister(&AMDGPU::VGPR_32RegClass);
+      BuildMI(*MBB, &*MIB, DL, TII.get(AMDGPU::IMPLICIT_DEF), Undef);
+      Register NewVR =
+          MRI->createVirtualRegister(&AMDGPU::VReg_64_Align2RegClass);
+      BuildMI(*MBB, &*MIB, DL, TII.get(AMDGPU::REG_SEQUENCE), NewVR)
+          .addReg(VSrc, 0, MI.getOperand(1).getSubReg())
+          .addImm(AMDGPU::sub0)
+          .addReg(Undef)
+          .addImm(AMDGPU::sub1);
+      MIB.addReg(NewVR, 0, AMDGPU::sub0);
+      MIB.addReg(NewVR, RegState::Implicit);
+    } else {
+      MIB.addReg(VSrc);
+    }
+
     if (!RBI.constrainGenericRegister(VSrc, AMDGPU::VGPR_32RegClass, *MRI))
       return false;
   }
@@ -1866,7 +1883,7 @@ bool AMDGPUInstructionSelector::selectG_TRUNC(MachineInstr &I) const {
     return false;
   }
 
-  if (DstTy == LLT::vector(2, 16) && SrcTy == LLT::vector(2, 32)) {
+  if (DstTy == LLT::fixed_vector(2, 16) && SrcTy == LLT::fixed_vector(2, 32)) {
     MachineBasicBlock *MBB = I.getParent();
     const DebugLoc &DL = I.getDebugLoc();
 
@@ -2796,7 +2813,7 @@ bool AMDGPUInstructionSelector::selectG_SHUFFLE_VECTOR(
   Register Src1Reg = MI.getOperand(2).getReg();
   ArrayRef<int> ShufMask = MI.getOperand(3).getShuffleMask();
 
-  const LLT V2S16 = LLT::vector(2, 16);
+  const LLT V2S16 = LLT::fixed_vector(2, 16);
   if (MRI->getType(DstReg) != V2S16 || MRI->getType(Src0Reg) != V2S16)
     return false;
 
@@ -3314,7 +3331,7 @@ AMDGPUInstructionSelector::selectVOP3PModsImpl(
   if (MI && MI->getOpcode() == AMDGPU::G_FNEG &&
       // It's possible to see an f32 fneg here, but unlikely.
       // TODO: Treat f32 fneg as only high bit.
-      MRI.getType(Src) == LLT::vector(2, 16)) {
+      MRI.getType(Src) == LLT::fixed_vector(2, 16)) {
     Mods ^= (SISrcMods::NEG | SISrcMods::NEG_HI);
     Src = MI->getOperand(1).getReg();
     MI = MRI.getVRegDef(Src);
@@ -3677,9 +3694,9 @@ AMDGPUInstructionSelector::selectScratchSAddr(MachineOperand &Root) const {
       const DebugLoc &DL = I.getDebugLoc();
       SAddr = MRI->createVirtualRegister(&AMDGPU::SReg_32RegClass);
 
-      BuildMI(*BB, &I, DL, TII.get(AMDGPU::S_ADD_U32), SAddr)
-        .addFrameIndex(FI)
-        .addReg(RHSDef->Reg);
+      BuildMI(*BB, &I, DL, TII.get(AMDGPU::S_ADD_I32), SAddr)
+          .addFrameIndex(FI)
+          .addReg(RHSDef->Reg);
     }
   }
 
@@ -3690,11 +3707,6 @@ AMDGPUInstructionSelector::selectScratchSAddr(MachineOperand &Root) const {
       [=](MachineInstrBuilder &MIB) { MIB.addReg(SAddr); }, // saddr
       [=](MachineInstrBuilder &MIB) { MIB.addImm(ImmOffset); } // offset
   }};
-}
-
-static bool isStackPtrRelative(const MachinePointerInfo &PtrInfo) {
-  auto PSV = PtrInfo.V.dyn_cast<const PseudoSourceValue *>();
-  return PSV && PSV->isStack();
 }
 
 InstructionSelector::ComplexRendererFns
@@ -3818,18 +3830,13 @@ AMDGPUInstructionSelector::selectMUBUFScratchOffset(
 
   const MachineFunction *MF = MBB->getParent();
   const SIMachineFunctionInfo *Info = MF->getInfo<SIMachineFunctionInfo>();
-  const MachineMemOperand *MMO = *MI->memoperands_begin();
-  const MachinePointerInfo &PtrInfo = MMO->getPointerInfo();
 
   return {{
       [=](MachineInstrBuilder &MIB) { // rsrc
         MIB.addReg(Info->getScratchRSrcReg());
       },
       [=](MachineInstrBuilder &MIB) { // soffset
-        if (isStackPtrRelative(PtrInfo))
-          MIB.addReg(Info->getStackPtrOffsetReg());
-        else
-          MIB.addImm(0);
+        MIB.addImm(0);
       },
       [=](MachineInstrBuilder &MIB) { MIB.addImm(Offset); } // offset
   }};

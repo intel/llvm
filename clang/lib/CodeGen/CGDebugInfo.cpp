@@ -568,14 +568,19 @@ void CGDebugInfo::CreateCompileUnit() {
   if (LO.CPlusPlus) {
     if (LO.ObjC)
       LangTag = llvm::dwarf::DW_LANG_ObjC_plus_plus;
-    else if (LO.CPlusPlus14 && CGM.getCodeGenOpts().DwarfVersion >= 5)
+    else if (LO.CPlusPlus14 && (!CGM.getCodeGenOpts().DebugStrictDwarf ||
+                                CGM.getCodeGenOpts().DwarfVersion >= 5))
       LangTag = llvm::dwarf::DW_LANG_C_plus_plus_14;
-    else if (LO.CPlusPlus11 && CGM.getCodeGenOpts().DwarfVersion >= 5)
+    else if (LO.CPlusPlus11 && (!CGM.getCodeGenOpts().DebugStrictDwarf ||
+                                CGM.getCodeGenOpts().DwarfVersion >= 5))
       LangTag = llvm::dwarf::DW_LANG_C_plus_plus_11;
     else
       LangTag = llvm::dwarf::DW_LANG_C_plus_plus;
   } else if (LO.ObjC) {
     LangTag = llvm::dwarf::DW_LANG_ObjC;
+  } else if (LO.OpenCL && (!CGM.getCodeGenOpts().DebugStrictDwarf ||
+                           CGM.getCodeGenOpts().DwarfVersion >= 5)) {
+    LangTag = llvm::dwarf::DW_LANG_OpenCL;
   } else if (LO.RenderScript) {
     LangTag = llvm::dwarf::DW_LANG_GOOGLE_RenderScript;
   } else if (LO.C99) {
@@ -3558,6 +3563,7 @@ void CGDebugInfo::collectFunctionDeclProps(GlobalDecl GD, llvm::DIFile *Unit,
   if (LinkageName == Name || (!CGM.getCodeGenOpts().EmitGcovArcs &&
                               !CGM.getCodeGenOpts().EmitGcovNotes &&
                               !CGM.getCodeGenOpts().DebugInfoForProfiling &&
+                              !CGM.getCodeGenOpts().PseudoProbeForProfiling &&
                               DebugKind <= codegenoptions::DebugLineTablesOnly))
     LinkageName = StringRef();
 
@@ -4974,24 +4980,7 @@ void CGDebugInfo::EmitUsingDirective(const UsingDirectiveDecl &UD) {
   }
 }
 
-void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
-  if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
-    return;
-  assert(UD.shadow_size() &&
-         "We shouldn't be codegening an invalid UsingDecl containing no decls");
-  // Emitting one decl is sufficient - debuggers can detect that this is an
-  // overloaded name & provide lookup for all the overloads.
-  const UsingShadowDecl &USD = **UD.shadow_begin();
-
-  // FIXME: Skip functions with undeduced auto return type for now since we
-  // don't currently have the plumbing for separate declarations & definitions
-  // of free functions and mismatched types (auto in the declaration, concrete
-  // return type in the definition)
-  if (const auto *FD = dyn_cast<FunctionDecl>(USD.getUnderlyingDecl()))
-    if (const auto *AT =
-            FD->getType()->castAs<FunctionProtoType>()->getContainedAutoType())
-      if (AT->getDeducedType().isNull())
-        return;
+void CGDebugInfo::EmitUsingShadowDecl(const UsingShadowDecl &USD) {
   if (llvm::DINode *Target =
           getDeclarationOrDefinition(USD.getUnderlyingDecl())) {
     auto Loc = USD.getLocation();
@@ -4999,6 +4988,42 @@ void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
         getCurrentContextDescriptor(cast<Decl>(USD.getDeclContext())), Target,
         getOrCreateFile(Loc), getLineNumber(Loc));
   }
+}
+
+void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
+  if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
+    return;
+  assert(UD.shadow_size() &&
+         "We shouldn't be codegening an invalid UsingDecl containing no decls");
+
+  for (const auto *USD : UD.shadows()) {
+    // FIXME: Skip functions with undeduced auto return type for now since we
+    // don't currently have the plumbing for separate declarations & definitions
+    // of free functions and mismatched types (auto in the declaration, concrete
+    // return type in the definition)
+    if (const auto *FD = dyn_cast<FunctionDecl>(USD->getUnderlyingDecl()))
+      if (const auto *AT = FD->getType()
+                               ->castAs<FunctionProtoType>()
+                               ->getContainedAutoType())
+        if (AT->getDeducedType().isNull())
+          continue;
+
+    EmitUsingShadowDecl(*USD);
+    // Emitting one decl is sufficient - debuggers can detect that this is an
+    // overloaded name & provide lookup for all the overloads.
+    break;
+  }
+}
+
+void CGDebugInfo::EmitUsingEnumDecl(const UsingEnumDecl &UD) {
+  if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
+    return;
+  assert(UD.shadow_size() &&
+         "We shouldn't be codegening an invalid UsingEnumDecl"
+         " containing no decls");
+
+  for (const auto *USD : UD.shadows())
+    EmitUsingShadowDecl(*USD);
 }
 
 void CGDebugInfo::EmitImportDecl(const ImportDecl &ID) {

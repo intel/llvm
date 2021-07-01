@@ -59,10 +59,6 @@ ARMBaseRegisterInfo::ARMBaseRegisterInfo()
   ARM_MC::initLLVMToCVRegMapping(this);
 }
 
-static unsigned getFramePointerReg(const ARMSubtarget &STI) {
-  return STI.useR7AsFramePointer() ? ARM::R7 : ARM::R11;
-}
-
 const MCPhysReg*
 ARMBaseRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   const ARMSubtarget &STI = MF->getSubtarget<ARMSubtarget>();
@@ -79,6 +75,11 @@ ARMBaseRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
     return CSR_NoRegs_SaveList;
   } else if (F.getCallingConv() == CallingConv::CFGuard_Check) {
     return CSR_Win_AAPCS_CFGuard_Check_SaveList;
+  } else if (F.getCallingConv() == CallingConv::SwiftTail) {
+    return STI.isTargetDarwin()
+               ? CSR_iOS_SwiftTail_SaveList
+               : (UseSplitPush ? CSR_AAPCS_SplitPush_SwiftTail_SaveList
+                               : CSR_AAPCS_SwiftTail_SaveList);
   } else if (F.hasFnAttribute("interrupt")) {
     if (STI.isMClass()) {
       // M-class CPUs have hardware which saves the registers needed to allow a
@@ -129,6 +130,10 @@ ARMBaseRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
     return CSR_NoRegs_RegMask;
   if (CC == CallingConv::CFGuard_Check)
     return CSR_Win_AAPCS_CFGuard_Check_RegMask;
+  if (CC == CallingConv::SwiftTail) {
+    return STI.isTargetDarwin() ? CSR_iOS_SwiftTail_RegMask
+                                : CSR_AAPCS_SwiftTail_RegMask;
+  }
   if (STI.getTargetLowering()->supportSwiftError() &&
       MF.getFunction().getAttributes().hasAttrSomewhere(Attribute::SwiftError))
     return STI.isTargetDarwin() ? CSR_iOS_SwiftError_RegMask
@@ -197,7 +202,7 @@ getReservedRegs(const MachineFunction &MF) const {
   markSuperRegs(Reserved, ARM::FPSCR);
   markSuperRegs(Reserved, ARM::APSR_NZCV);
   if (TFI->hasFP(MF))
-    markSuperRegs(Reserved, getFramePointerReg(STI));
+    markSuperRegs(Reserved, STI.getFramePointerReg());
   if (hasBasePointer(MF))
     markSuperRegs(Reserved, BasePtr);
   // Some targets reserve R9.
@@ -234,7 +239,7 @@ bool ARMBaseRegisterInfo::isInlineAsmReadOnlyReg(const MachineFunction &MF,
   BitVector Reserved(getNumRegs());
   markSuperRegs(Reserved, ARM::PC);
   if (TFI->hasFP(MF))
-    markSuperRegs(Reserved, getFramePointerReg(STI));
+    markSuperRegs(Reserved, STI.getFramePointerReg());
   if (hasBasePointer(MF))
     markSuperRegs(Reserved, BasePtr);
   assert(checkAllSuperRegsMarked(Reserved));
@@ -435,6 +440,7 @@ bool ARMBaseRegisterInfo::hasBasePointer(const MachineFunction &MF) const {
 bool ARMBaseRegisterInfo::canRealignStack(const MachineFunction &MF) const {
   const MachineRegisterInfo *MRI = &MF.getRegInfo();
   const ARMFrameLowering *TFI = getFrameLowering(MF);
+  const ARMSubtarget &STI = MF.getSubtarget<ARMSubtarget>();
   // We can't realign the stack if:
   // 1. Dynamic stack realignment is explicitly disabled,
   // 2. There are VLAs in the function and the base pointer is disabled.
@@ -442,7 +448,7 @@ bool ARMBaseRegisterInfo::canRealignStack(const MachineFunction &MF) const {
     return false;
   // Stack realignment requires a frame pointer.  If we already started
   // register allocation with frame pointer elimination, it is too late now.
-  if (!MRI->canReserveReg(getFramePointerReg(MF.getSubtarget<ARMSubtarget>())))
+  if (!MRI->canReserveReg(STI.getFramePointerReg()))
     return false;
   // We may also need a base pointer if there are dynamic allocas or stack
   // pointer adjustments around calls.
@@ -468,7 +474,7 @@ ARMBaseRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   const ARMFrameLowering *TFI = getFrameLowering(MF);
 
   if (TFI->hasFP(MF))
-    return getFramePointerReg(STI);
+    return STI.getFramePointerReg();
   return ARM::SP;
 }
 

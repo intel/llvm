@@ -85,7 +85,9 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-SPV-IR
 
 ; CHECK-SPIRV-DAG: {{[0-9]*}} Capability GroupNonUniformShuffle
 
@@ -116,9 +118,13 @@ target triple = "spir64"
 ; CHECK-SPIRV: GroupNonUniformShuffleXor [[char]] {{[0-9]+}} [[ScopeSubgroup]] [[char_0]] [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testShuffleChar
+; CHECK-COMMON-LABEL: @testShuffleChar
+
 ; CHECK-LLVM: call spir_func i8 @_Z17sub_group_shufflecj(i8 0, i32 0)
 ; CHECK-LLVM: call spir_func i8 @_Z21sub_group_shuffle_xorcj(i8 0, i32 0)
+
+; CHECK-SPV-IR: call spir_func i8 @_Z30__spirv_GroupNonUniformShuffleicj(i32 3, i8 0, i32 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformShuffleXoricj(i32 3, i8 0, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleChar(i8 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
@@ -141,9 +147,13 @@ declare dso_local spir_func signext i8 @_Z21sub_group_shuffle_xorcj(i8 signext, 
 ; CHECK-SPIRV: GroupNonUniformShuffleXor [[char]] {{[0-9]+}} [[ScopeSubgroup]] [[char_0]] [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testShuffleUChar
+; CHECK-COMMON-LABEL: @testShuffleUChar
+
 ; CHECK-LLVM: call spir_func i8 @_Z17sub_group_shufflecj(i8 0, i32 0)
 ; CHECK-LLVM: call spir_func i8 @_Z21sub_group_shuffle_xorcj(i8 0, i32 0)
+
+; CHECK-SPV-IR: call spir_func i8 @_Z30__spirv_GroupNonUniformShuffleicj(i32 3, i8 0, i32 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformShuffleXoricj(i32 3, i8 0, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleUChar(i8 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !10 !kernel_arg_base_type !10 !kernel_arg_type_qual !6 {
@@ -166,9 +176,13 @@ declare dso_local spir_func zeroext i8 @_Z21sub_group_shuffle_xorhj(i8 zeroext, 
 ; CHECK-SPIRV: GroupNonUniformShuffleXor [[short]] {{[0-9]+}} [[ScopeSubgroup]] [[short_0]] [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testShuffleShort
+; CHECK-COMMON-LABEL: @testShuffleShort
+
 ; CHECK-LLVM: call spir_func i16 @_Z17sub_group_shufflesj(i16 0, i32 0)
 ; CHECK-LLVM: call spir_func i16 @_Z21sub_group_shuffle_xorsj(i16 0, i32 0)
+
+; CHECK-SPV-IR: call spir_func i16 @_Z30__spirv_GroupNonUniformShuffleisj(i32 3, i16 0, i32 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformShuffleXorisj(i32 3, i16 0, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleShort(i16 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !11 !kernel_arg_base_type !11 !kernel_arg_type_qual !6 {
@@ -191,9 +205,13 @@ declare dso_local spir_func signext i16 @_Z21sub_group_shuffle_xorsj(i16 signext
 ; CHECK-SPIRV: GroupNonUniformShuffleXor [[short]] {{[0-9]+}} [[ScopeSubgroup]] [[short_0]] [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testShuffleUShort
+; CHECK-COMMON-LABEL: @testShuffleUShort
+
 ; CHECK-LLVM: call spir_func i16 @_Z17sub_group_shufflesj(i16 0, i32 0)
 ; CHECK-LLVM: call spir_func i16 @_Z21sub_group_shuffle_xorsj(i16 0, i32 0)
+
+; CHECK-SPV-IR: call spir_func i16 @_Z30__spirv_GroupNonUniformShuffleisj(i32 3, i16 0, i32 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformShuffleXorisj(i32 3, i16 0, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleUShort(i16 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !14 !kernel_arg_base_type !14 !kernel_arg_type_qual !6 {
@@ -216,9 +234,13 @@ declare dso_local spir_func zeroext i16 @_Z21sub_group_shuffle_xortj(i16 zeroext
 ; CHECK-SPIRV: GroupNonUniformShuffleXor [[int]] {{[0-9]+}} [[ScopeSubgroup]] [[int_0]] [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testShuffleInt
+; CHECK-COMMON-LABEL: @testShuffleInt
+
 ; CHECK-LLVM: call spir_func i32 @_Z17sub_group_shuffleij(i32 0, i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z21sub_group_shuffle_xorij(i32 0, i32 0)
+
+; CHECK-SPV-IR: call spir_func i32 @_Z30__spirv_GroupNonUniformShuffleiij(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformShuffleXoriij(i32 3, i32 0, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleInt(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !15 !kernel_arg_base_type !15 !kernel_arg_type_qual !6 {
@@ -241,9 +263,13 @@ declare dso_local spir_func i32 @_Z21sub_group_shuffle_xorij(i32, i32) local_unn
 ; CHECK-SPIRV: GroupNonUniformShuffleXor [[int]] {{[0-9]+}} [[ScopeSubgroup]] [[int_0]] [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testShuffleUInt
+; CHECK-COMMON-LABEL: @testShuffleUInt
+
 ; CHECK-LLVM: call spir_func i32 @_Z17sub_group_shuffleij(i32 0, i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z21sub_group_shuffle_xorij(i32 0, i32 0)
+
+; CHECK-SPV-IR: call spir_func i32 @_Z30__spirv_GroupNonUniformShuffleiij(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformShuffleXoriij(i32 3, i32 0, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleUInt(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !18 !kernel_arg_base_type !18 !kernel_arg_type_qual !6 {
@@ -266,9 +292,13 @@ declare dso_local spir_func i32 @_Z21sub_group_shuffle_xorjj(i32, i32) local_unn
 ; CHECK-SPIRV: GroupNonUniformShuffleXor [[long]] {{[0-9]+}} [[ScopeSubgroup]] [[long_0]] [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testShuffleLong
+; CHECK-COMMON-LABEL: @testShuffleLong
+
 ; CHECK-LLVM: call spir_func i64 @_Z17sub_group_shufflelj(i64 0, i32 0)
 ; CHECK-LLVM: call spir_func i64 @_Z21sub_group_shuffle_xorlj(i64 0, i32 0)
+
+; CHECK-SPV-IR: call spir_func i64 @_Z30__spirv_GroupNonUniformShuffleilj(i32 3, i64 0, i32 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformShuffleXorilj(i32 3, i64 0, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleLong(i64 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !19 !kernel_arg_base_type !19 !kernel_arg_type_qual !6 {
@@ -291,9 +321,13 @@ declare dso_local spir_func i64 @_Z21sub_group_shuffle_xorlj(i64, i32) local_unn
 ; CHECK-SPIRV: GroupNonUniformShuffleXor [[long]] {{[0-9]+}} [[ScopeSubgroup]] [[long_0]] [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testShuffleULong
+; CHECK-COMMON-LABEL: @testShuffleULong
+
 ; CHECK-LLVM: call spir_func i64 @_Z17sub_group_shufflelj(i64 0, i32 0)
 ; CHECK-LLVM: call spir_func i64 @_Z21sub_group_shuffle_xorlj(i64 0, i32 0)
+
+; CHECK-SPV-IR: call spir_func i64 @_Z30__spirv_GroupNonUniformShuffleilj(i32 3, i64 0, i32 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformShuffleXorilj(i32 3, i64 0, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleULong(i64 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !22 !kernel_arg_base_type !22 !kernel_arg_type_qual !6 {
@@ -316,9 +350,13 @@ declare dso_local spir_func i64 @_Z21sub_group_shuffle_xormj(i64, i32) local_unn
 ; CHECK-SPIRV: GroupNonUniformShuffleXor [[float]] {{[0-9]+}} [[ScopeSubgroup]] [[float_0]] [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testShuffleFloat
+; CHECK-COMMON-LABEL: @testShuffleFloat
+
 ; CHECK-LLVM: call spir_func float @_Z17sub_group_shufflefj(float 0.000000e+00, i32 0)
 ; CHECK-LLVM: call spir_func float @_Z21sub_group_shuffle_xorfj(float 0.000000e+00, i32 0)
+
+; CHECK-SPV-IR: call spir_func float @_Z30__spirv_GroupNonUniformShuffleifj(i32 3, float 0.000000e+00, i32 0)
+; CHECK-SPV-IR: call spir_func float @_Z33__spirv_GroupNonUniformShuffleXorifj(i32 3, float 0.000000e+00, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleFloat(float addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !23 !kernel_arg_base_type !23 !kernel_arg_type_qual !6 {
@@ -341,9 +379,13 @@ declare dso_local spir_func float @_Z21sub_group_shuffle_xorfj(float, i32) local
 ; CHECK-SPIRV: GroupNonUniformShuffleXor [[half]] {{[0-9]+}} [[ScopeSubgroup]] [[half_0]] [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testShuffleHalf
+; CHECK-COMMON-LABEL: @testShuffleHalf
+
 ; CHECK-LLVM: call spir_func half @_Z17sub_group_shuffleDhj(half 0xH0000, i32 0)
 ; CHECK-LLVM: call spir_func half @_Z21sub_group_shuffle_xorDhj(half 0xH0000, i32 0)
+
+; CHECK-SPV-IR: call spir_func half @_Z30__spirv_GroupNonUniformShuffleiDhj(i32 3, half 0xH0000, i32 0)
+; CHECK-SPV-IR: call spir_func half @_Z33__spirv_GroupNonUniformShuffleXoriDhj(i32 3, half 0xH0000, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleHalf(half addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !26 !kernel_arg_base_type !26 !kernel_arg_type_qual !6 {
@@ -366,9 +408,13 @@ declare dso_local spir_func half @_Z21sub_group_shuffle_xorDhj(half, i32) local_
 ; CHECK-SPIRV: GroupNonUniformShuffleXor [[double]] {{[0-9]+}} [[ScopeSubgroup]] [[double_0]] [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testShuffleDouble
+; CHECK-COMMON-LABEL: @testShuffleDouble
+
 ; CHECK-LLVM: call spir_func double @_Z17sub_group_shuffledj(double 0.000000e+00, i32 0)
 ; CHECK-LLVM: call spir_func double @_Z21sub_group_shuffle_xordj(double 0.000000e+00, i32 0)
+
+; CHECK-SPV-IR: call spir_func double @_Z30__spirv_GroupNonUniformShuffleidj(i32 3, double 0.000000e+00, i32 0)
+; CHECK-SPV-IR: call spir_func double @_Z33__spirv_GroupNonUniformShuffleXoridj(i32 3, double 0.000000e+00, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleDouble(double addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !29 !kernel_arg_base_type !29 !kernel_arg_type_qual !6 {

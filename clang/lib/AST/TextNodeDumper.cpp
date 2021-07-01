@@ -21,6 +21,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TypeTraits.h"
+#include "llvm/ADT/StringExtras.h"
 
 #include <algorithm>
 #include <utility>
@@ -144,7 +145,7 @@ void TextNodeDumper::Visit(const Stmt *Node) {
     {
       ColorScope Color(OS, ShowColors, ValueKindColor);
       switch (E->getValueKind()) {
-      case VK_RValue:
+      case VK_PRValue:
         break;
       case VK_LValue:
         OS << " lvalue";
@@ -1018,6 +1019,14 @@ void TextNodeDumper::VisitObjCIvarRefExpr(const ObjCIvarRefExpr *Node) {
     OS << " isFreeIvar";
 }
 
+void TextNodeDumper::VisitSYCLUniqueStableNameExpr(
+    const SYCLUniqueStableNameExpr *Node) {
+  dumpType(Node->getTypeSourceInfo()->getType());
+}
+
+void TextNodeDumper::VisitSYCLUniqueStableIdExpr(
+    const SYCLUniqueStableIdExpr *Node) {}
+
 void TextNodeDumper::VisitPredefinedExpr(const PredefinedExpr *Node) {
   OS << " " << PredefinedExpr::getIdentKindName(Node->getIdentKind());
 }
@@ -1030,7 +1039,7 @@ void TextNodeDumper::VisitCharacterLiteral(const CharacterLiteral *Node) {
 void TextNodeDumper::VisitIntegerLiteral(const IntegerLiteral *Node) {
   bool isSigned = Node->getType()->isSignedIntegerType();
   ColorScope Color(OS, ShowColors, ValueColor);
-  OS << " " << Node->getValue().toString(10, isSigned);
+  OS << " " << toString(Node->getValue(), 10, isSigned);
 }
 
 void TextNodeDumper::VisitFixedPointLiteral(const FixedPointLiteral *Node) {
@@ -2051,6 +2060,11 @@ void TextNodeDumper::VisitUsingDecl(const UsingDecl *D) {
   if (D->getQualifier())
     D->getQualifier()->print(OS, D->getASTContext().getPrintingPolicy());
   OS << D->getDeclName();
+}
+
+void TextNodeDumper::VisitUsingEnumDecl(const UsingEnumDecl *D) {
+  OS << ' ';
+  dumpBareDeclRef(D->getEnumDecl());
 }
 
 void TextNodeDumper::VisitUnresolvedUsingTypenameDecl(

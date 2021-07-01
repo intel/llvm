@@ -27,6 +27,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Target/CGPassBuilderOption.h"
@@ -43,6 +44,7 @@
 #include "llvm/Transforms/Scalar/InstSimplifyPass.h"
 #include "llvm/Transforms/Scalar/LICM.h"
 #include "llvm/Transforms/Scalar/LoopUnrollPass.h"
+#include "llvm/Transforms/Scalar/SCCP.h"
 #include "llvm/Transforms/Scalar/SimpleLoopUnswitch.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Vectorize.h"
@@ -169,6 +171,10 @@ cl::opt<bool> EnableConstraintElimination(
     "enable-constraint-elimination", cl::init(false), cl::Hidden,
     cl::desc(
         "Enable pass to eliminate conditions based on linear constraints."));
+
+cl::opt<bool> EnableFunctionSpecialization(
+    "enable-function-specialization", cl::init(false), cl::Hidden,
+    cl::desc("Enable Function Specialization pass"));
 
 cl::opt<AttributorRunOption> AttributorRun(
     "attributor-enable", cl::Hidden, cl::init(AttributorRunOption::NONE),
@@ -429,7 +435,10 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   if (OptLevel > 1)
     MPM.add(createTailCallEliminationPass()); // Eliminate tail calls
   MPM.add(createCFGSimplificationPass());      // Merge & remove BBs
-  MPM.add(createReassociatePass());           // Reassociate expressions
+  // FIXME: re-association increases variables liveness and therefore register
+  // pressure.
+  if (!SYCLOptimizationMode)
+    MPM.add(createReassociatePass()); // Reassociate expressions
 
   // Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
   // optimizations rely on TTI, which is not accurate for SPIR target.
@@ -577,26 +586,22 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
     PM.add(createInstructionCombiningPass());
   }
 
-  if (IsLTO) {
-    PM.add(createCFGSimplificationPass(SimplifyCFGOptions() // if-convert
-                                           .hoistCommonInsts(true)));
-  } else {
-    // Now that we've formed fast to execute loop structures, we do further
-    // optimizations. These are run afterward as they might block doing complex
-    // analyses and transforms such as what are needed for loop vectorization.
+  // Now that we've formed fast to execute loop structures, we do further
+  // optimizations. These are run afterward as they might block doing complex
+  // analyses and transforms such as what are needed for loop vectorization.
 
-    // Cleanup after loop vectorization, etc. Simplification passes like CVP and
-    // GVN, loop transforms, and others have already run, so it's now better to
-    // convert to more optimized IR using more aggressive simplify CFG options.
-    // The extra sinking transform can create larger basic blocks, so do this
-    // before SLP vectorization.
-    PM.add(createCFGSimplificationPass(SimplifyCFGOptions()
-                                           .forwardSwitchCondToPhi(true)
-                                           .convertSwitchToLookupTable(true)
-                                           .needCanonicalLoops(false)
-                                           .hoistCommonInsts(true)
-                                           .sinkCommonInsts(true)));
-  }
+  // Cleanup after loop vectorization, etc. Simplification passes like CVP and
+  // GVN, loop transforms, and others have already run, so it's now better to
+  // convert to more optimized IR using more aggressive simplify CFG options.
+  // The extra sinking transform can create larger basic blocks, so do this
+  // before SLP vectorization.
+  PM.add(createCFGSimplificationPass(SimplifyCFGOptions()
+                                         .forwardSwitchCondToPhi(true)
+                                         .convertSwitchToLookupTable(true)
+                                         .needCanonicalLoops(false)
+                                         .hoistCommonInsts(true)
+                                         .sinkCommonInsts(true)));
+
   if (IsLTO) {
     PM.add(createSCCPPass());                 // Propagate exposed constants
     PM.add(createInstructionCombiningPass()); // Clean up again
@@ -751,6 +756,10 @@ void PassManagerBuilder::populateModulePassManager(
 
   if (OptLevel > 2)
     MPM.add(createCallSiteSplittingPass());
+
+  // Propage constant function arguments by specializing the functions.
+  if (OptLevel > 2 && EnableFunctionSpecialization)
+    MPM.add(createFunctionSpecializationPass());
 
   MPM.add(createIPSCCPPass());          // IP SCCP
   MPM.add(createCalledValuePropagationPass());
@@ -1008,6 +1017,10 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
     // produce the same result as if we only do promotion here.
     PM.add(
         createPGOIndirectCallPromotionLegacyPass(true, !PGOSampleUse.empty()));
+
+    // Propage constant function arguments by specializing the functions.
+    if (EnableFunctionSpecialization)
+      PM.add(createFunctionSpecializationPass());
 
     // Propagate constants at call sites into the functions they call.  This
     // opens opportunities for globalopt (and inlining) by substituting function

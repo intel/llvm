@@ -230,9 +230,9 @@ private:
   void setCallingConv(CallInst *Call);
   void setAttrByCalledFunc(CallInst *Call);
   Type *transFPType(SPIRVType *T);
-  BinaryOperator *transShiftLogicalBitwiseInst(SPIRVValue *BV, BasicBlock *BB,
-                                               Function *F);
-  Instruction *transCmpInst(SPIRVValue *BV, BasicBlock *BB, Function *F);
+  Value *transShiftLogicalBitwiseInst(SPIRVValue *BV, BasicBlock *BB,
+                                      Function *F);
+  Value *transCmpInst(SPIRVValue *BV, BasicBlock *BB, Function *F);
   void transOCLBuiltinFromInstPreproc(SPIRVInstruction *BI, Type *&RetTy,
                                       std::vector<SPIRVValue *> &Args);
   Instruction *transOCLBuiltinPostproc(SPIRVInstruction *BI, CallInst *CI,
@@ -258,6 +258,8 @@ private:
   inline llvm::Metadata *getMetadataFromName(std::string Name);
   inline std::vector<llvm::Metadata *>
   getMetadataFromNameAndParameter(std::string Name, SPIRVWord Parameter);
+  inline MDNode *getMetadataFromNameAndParameter(std::string Name,
+                                                 int64_t Parameter);
   void insertImageNameAccessQualifier(SPIRV::SPIRVTypeImage *ST,
                                       std::string &Name);
   template <class Source, class Func> bool foreachFuncCtlMask(Source, Func);

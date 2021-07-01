@@ -1535,8 +1535,7 @@ defm vrgatherei16 : RVVOutBuiltinSet<"vrgatherei16_vv", "csil",
 let HasMask = false,
     ManualCodegen = [{
       std::rotate(Ops.begin(), Ops.begin() + 1, Ops.begin() + 3);
-      ID = Intrinsic::riscv_vcompress;
-       IntrinsicTypes = {ResultType, Ops[3]->getType()};
+      IntrinsicTypes = {ResultType, Ops[3]->getType()};
     }] in {
   // signed and floating type
   defm vcompress : RVVOutBuiltinSet<"vcompress", "csilfd",
@@ -1608,6 +1607,43 @@ let HasMask = false, HasVL = false, HasNoMaskedOverloaded = false,
                         "(LFixedLog2LMUL:1)", "(LFixedLog2LMUL:2)", "(LFixedLog2LMUL:3)"] in {
       def vlmul_ext # dst_lmul : RVVBuiltin<"v" # dst_lmul # "v", dst_lmul # "vv", "csilfd">;
       def vlmul_ext_u # dst_lmul : RVVBuiltin<"Uv" # dst_lmul # "Uv", dst_lmul # "UvUv", "csil">;
+    }
+  }
+
+  let Name = "vget_v",
+      ManualCodegen = [{
+      {
+        ID = Intrinsic::experimental_vector_extract;
+        ScalableVectorType *VecTy = cast<ScalableVectorType>(ResultType);
+        Ops[1] = Builder.CreateMul(Ops[1],
+                                   ConstantInt::get(Ops[1]->getType(),
+                                                    VecTy->getMinNumElements()));
+        IntrinsicTypes = {ResultType, Ops[0]->getType()};
+        return Builder.CreateCall(CGM.getIntrinsic(ID, IntrinsicTypes), Ops, "");
+      }
+      }] in {
+    foreach dst_lmul = ["(SFixedLog2LMUL:0)", "(SFixedLog2LMUL:1)", "(SFixedLog2LMUL:2)"] in {
+      def : RVVBuiltin<"v" # dst_lmul # "v", dst_lmul # "vvKz", "csilfd">;
+      def : RVVBuiltin<"Uv" # dst_lmul # "Uv", dst_lmul # "UvUvKz", "csil">;
+    }
+  }
+
+  let Name = "vset_v", Log2LMUL = [0, 1, 2],
+      ManualCodegen = [{
+      {
+        ID = Intrinsic::experimental_vector_insert;
+        IntrinsicTypes = {ResultType, Ops[2]->getType()};
+        ScalableVectorType *VecTy = cast<ScalableVectorType>(Ops[2]->getType());
+        Ops[1] = Builder.CreateMul(Ops[1],
+                                   ConstantInt::get(Ops[1]->getType(),
+                                                    VecTy->getMinNumElements()));
+        std::swap(Ops[1], Ops[2]);
+        return Builder.CreateCall(CGM.getIntrinsic(ID, IntrinsicTypes), Ops, "");
+      }
+      }] in {
+    foreach dst_lmul = ["(LFixedLog2LMUL:1)", "(LFixedLog2LMUL:2)", "(LFixedLog2LMUL:3)"] in {
+      def : RVVBuiltin<"v" # dst_lmul # "v", dst_lmul # "v" # dst_lmul # "vKzv", "csilfd">;
+      def : RVVBuiltin<"Uv" # dst_lmul # "Uv", dst_lmul # "Uv" # dst_lmul #"UvKzUv", "csil">;
     }
   }
 }

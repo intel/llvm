@@ -17,6 +17,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Bitfields.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -626,6 +627,20 @@ public:
     setSubclassData<FailureOrderingField>(Ordering);
   }
 
+  /// Returns a single ordering which is at least as strong as both the
+  /// success and failure orderings for this cmpxchg.
+  AtomicOrdering getMergedOrdering() const {
+    if (getFailureOrdering() == AtomicOrdering::SequentiallyConsistent)
+      return AtomicOrdering::SequentiallyConsistent;
+    if (getFailureOrdering() == AtomicOrdering::Acquire) {
+      if (getSuccessOrdering() == AtomicOrdering::Monotonic)
+        return AtomicOrdering::Acquire;
+      if (getSuccessOrdering() == AtomicOrdering::Release)
+        return AtomicOrdering::AcquireRelease;
+    }
+    return getSuccessOrdering();
+  }
+
   /// Returns the synchronization scope ID of this cmpxchg instruction.
   SyncScope::ID getSyncScopeID() const {
     return SSID;
@@ -1017,8 +1032,8 @@ public:
   void setResultElementType(Type *Ty) { ResultElementType = Ty; }
 
   Type *getResultElementType() const {
-    assert(ResultElementType ==
-           cast<PointerType>(getType()->getScalarType())->getElementType());
+    assert(cast<PointerType>(getType()->getScalarType())
+               ->isOpaqueOrPointeeTypeMatches(ResultElementType));
     return ResultElementType;
   }
 
@@ -1084,8 +1099,12 @@ public:
   /// instruction, which may be a vector of pointers.
   static Type *getGEPReturnType(Type *ElTy, Value *Ptr,
                                 ArrayRef<Value *> IdxList) {
-    Type *PtrTy = PointerType::get(checkGEPType(getIndexedType(ElTy, IdxList)),
-                                   Ptr->getType()->getPointerAddressSpace());
+    PointerType *OrigPtrTy = cast<PointerType>(Ptr->getType()->getScalarType());
+    unsigned AddrSpace = OrigPtrTy->getAddressSpace();
+    Type *ResultElemTy = checkGEPType(getIndexedType(ElTy, IdxList));
+    Type *PtrTy = OrigPtrTy->isOpaque()
+      ? PointerType::get(OrigPtrTy->getContext(), AddrSpace)
+      : PointerType::get(ResultElemTy, AddrSpace);
     // Vector GEP
     if (auto *PtrVTy = dyn_cast<VectorType>(Ptr->getType())) {
       ElementCount EltCount = PtrVTy->getElementCount();
@@ -1135,7 +1154,7 @@ public:
   /// the base GEP pointer.
   bool accumulateConstantOffset(const DataLayout &DL, APInt &Offset) const;
   bool collectOffset(const DataLayout &DL, unsigned BitWidth,
-                     SmallDenseMap<Value *, APInt, 8> &VariableOffsets,
+                     MapVector<Value *, APInt> &VariableOffsets,
                      APInt &ConstantOffset) const;
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
@@ -1160,8 +1179,8 @@ GetElementPtrInst::GetElementPtrInst(Type *PointeeType, Value *Ptr,
                   Values, InsertBefore),
       SourceElementType(PointeeType),
       ResultElementType(getIndexedType(PointeeType, IdxList)) {
-  assert(ResultElementType ==
-         cast<PointerType>(getType()->getScalarType())->getElementType());
+  assert(cast<PointerType>(getType()->getScalarType())
+             ->isOpaqueOrPointeeTypeMatches(ResultElementType));
   init(Ptr, IdxList, NameStr);
 }
 
@@ -1174,8 +1193,8 @@ GetElementPtrInst::GetElementPtrInst(Type *PointeeType, Value *Ptr,
                   Values, InsertAtEnd),
       SourceElementType(PointeeType),
       ResultElementType(getIndexedType(PointeeType, IdxList)) {
-  assert(ResultElementType ==
-         cast<PointerType>(getType()->getScalarType())->getElementType());
+  assert(cast<PointerType>(getType()->getScalarType())
+             ->isOpaqueOrPointeeTypeMatches(ResultElementType));
   init(Ptr, IdxList, NameStr);
 }
 

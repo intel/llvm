@@ -142,6 +142,9 @@ static cl::opt<unsigned>
 /// The index of the host input in the list of inputs.
 static unsigned HostInputIndex = ~0u;
 
+/// Whether not having host target is allowed.
+static bool AllowNoHost = false;
+
 /// Path to the current binary.
 static std::string BundlerExecutable;
 
@@ -644,11 +647,19 @@ class ObjectFileHandler final : public FileHandler {
         if (Undefined || !Global)
           continue;
 
-        // Add symbol name with the target prefix to the buffer.
-        SymbolsOS << TargetNames[I] << ".";
-        if (Error Err = Symbol.printName(SymbolsOS))
+        // Get symbol name.
+        std::string Name;
+        raw_string_ostream NameOS(Name);
+        if (Error Err = Symbol.printName(NameOS))
           return std::move(Err);
-        SymbolsOS << '\0';
+
+        // If we are dealing with a bitcode file do not add special globals
+        // llvm.used and llvm.compiler.used to the list of defined symbols.
+        if (SF->isIR() && (Name == "llvm.used" || Name == "llvm.compiler.used"))
+          continue;
+
+        // Add symbol name with the target prefix to the buffer.
+        SymbolsOS << TargetNames[I] << "." << Name << '\0';
       }
     }
     return SymbolsBuf;
@@ -1241,9 +1252,10 @@ static Error BundleFiles() {
   }
 
   // Get the file handler. We use the host buffer as reference.
-  assert(HostInputIndex != ~0u && "Host input index undefined??");
+  assert((HostInputIndex != ~0u || AllowNoHost) &&
+         "Host input index undefined??");
   Expected<std::unique_ptr<FileHandler>> FileHandlerOrErr =
-      CreateFileHandler(*InputBuffers[HostInputIndex]);
+      CreateFileHandler(*InputBuffers[AllowNoHost ? 0 : HostInputIndex]);
   if (!FileHandlerOrErr)
     return FileHandlerOrErr.takeError();
 
@@ -1596,6 +1608,7 @@ int main(int argc, const char **argv) {
   // have exactly one host target.
   unsigned Index = 0u;
   unsigned HostTargetNum = 0u;
+  bool HIPOnly = true;
   llvm::DenseSet<StringRef> ParsedTargets;
   for (StringRef Target : TargetNames) {
     if (ParsedTargets.contains(Target)) {
@@ -1639,6 +1652,9 @@ int main(int argc, const char **argv) {
       HostInputIndex = Index;
     }
 
+    if (Kind != "hip" && Kind != "hipv4")
+      HIPOnly = false;
+
     ++Index;
   }
 
@@ -1651,9 +1667,15 @@ int main(int argc, const char **argv) {
     return !*Res;
   }
 
+  // HIP uses clang-offload-bundler to bundle device-only compilation results
+  // for multiple GPU archs, therefore allow no host target if all entries
+  // are for HIP.
+  AllowNoHost = HIPOnly;
+
   // Host triple is not really needed for unbundling operation, so do not
   // treat missing host triple as error if we do unbundling.
-  if ((Unbundle && HostTargetNum > 1) || (!Unbundle && HostTargetNum != 1)) {
+  if ((Unbundle && HostTargetNum > 1) ||
+      (!Unbundle && HostTargetNum != 1 && !AllowNoHost)) {
     reportError(createStringError(errc::invalid_argument,
                                   "expecting exactly one host target but got " +
                                       Twine(HostTargetNum)));

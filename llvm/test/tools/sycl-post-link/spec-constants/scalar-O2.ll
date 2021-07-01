@@ -17,30 +17,17 @@ target triple = "spir64-unknown-linux-sycldevice"
 $_ZTS17SpecializedKernel = comdat any
 
 @__unique_stable_name.SC_Ib11MyBoolConstE3getEv = private unnamed_addr constant [18 x i8] c"_ZTS11MyBoolConst\00", align 1
-;;;;;;;;;;;;;; check that no longer used globals are removed:
-; CHECK-NOT: @__unique_stable_name.SC_Ib11MyBoolConstE3getEv
 @__unique_stable_name.SC_Ia11MyInt8ConstE3getEv = private unnamed_addr constant [18 x i8] c"_ZTS11MyInt8Const\00", align 1
-; CHECK-NOT: @__unique_stable_name.SC_Ia11MyInt8ConstE3getEv
 @__unique_stable_name.SC_Ih12MyUInt8ConstE3getEv = private unnamed_addr constant [19 x i8] c"_ZTS12MyUInt8Const\00", align 1
-; CHECK-NOT: @__unique_stable_name.SC_Ih12MyUInt8ConstE3getEv
 @__unique_stable_name.SC_Is12MyInt16ConstE3getEv = private unnamed_addr constant [19 x i8] c"_ZTS12MyInt16Const\00", align 1
-; CHECK-NOT: @__unique_stable_name.SC_Is12MyInt16ConstE3getEv
 @__unique_stable_name.SC_It13MyUInt16ConstE3getEv = private unnamed_addr constant [20 x i8] c"_ZTS13MyUInt16Const\00", align 1
-; CHECK-NOT: @__unique_stable_name.SC_It13MyUInt16ConstE3getEv
 @__unique_stable_name.SC_Ii12MyInt32ConstE3getEv = private unnamed_addr constant [19 x i8] c"_ZTS12MyInt32Const\00", align 1
-; CHECK-NOT: @__unique_stable_name.SC_Ii12MyInt32ConstE3getEv
 @__unique_stable_name.SC_Ij13MyUInt32ConstE3getEv = private unnamed_addr constant [20 x i8] c"_ZTS13MyUInt32Const\00", align 1
-; CHECK-NOT: @__unique_stable_name.SC_Ij13MyUInt32ConstE3getEv
 @__unique_stable_name.SC_Il12MyInt64ConstE3getEv = private unnamed_addr constant [19 x i8] c"_ZTS12MyInt64Const\00", align 1
-; CHECK-NOT: @__unique_stable_name.SC_Il12MyInt64ConstE3getEv
 @__unique_stable_name.SC_Im13MyUInt64ConstE3getEv = private unnamed_addr constant [20 x i8] c"_ZTS13MyUInt64Const\00", align 1
-; CHECK-NOT: @__unique_stable_name.SC_Im13MyUInt64ConstE3getEv
 @__unique_stable_name.SC_If12MyFloatConstE3getEv = private unnamed_addr constant [19 x i8] c"_ZTS12MyFloatConst\00", align 1
-; CHECK-NOT: @__unique_stable_name.SC_If12MyFloatConstE3getEv
 @__unique_stable_name.SC_Id13MyDoubleConstE3getEv = private unnamed_addr constant [20 x i8] c"_ZTS13MyDoubleConst\00", align 1
-; CHECK-NOT: @__unique_stable_name.SC_Id13MyDoubleConstE3getEv
 @__unique_stable_name.SC_Id14MyDoubleConst2E3getEv = private unnamed_addr constant [21 x i8] c"_ZTS14MyDoubleConst2\00", align 1
-; CHECK-NOT: @__unique_stable_name.SC_Id14MyDoubleConst2E3getEv
 
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @_ZTS17SpecializedKernel(float addrspace(1)* %0, %"cl::sycl::range"* byval(%"cl::sycl::range") align 8 %1, %"cl::sycl::range"* byval(%"cl::sycl::range") align 8 %2, %"cl::sycl::id"* byval(%"cl::sycl::id") align 8 %3) local_unnamed_addr #0 comdat !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {

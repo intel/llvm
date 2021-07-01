@@ -247,9 +247,13 @@ class X86Subtarget final : public X86GenSubtargetInfo {
   /// True if LZCNT/TZCNT instructions have a false dependency on the destination register.
   bool HasLZCNTFalseDeps = false;
 
-  /// True if its preferable to combine to a single shuffle using a variable
-  /// mask over multiple fixed shuffles.
-  bool HasFastVariableShuffle = false;
+  /// True if its preferable to combine to a single cross-lane shuffle
+  /// using a variable mask over multiple fixed shuffles.
+  bool HasFastVariableCrossLaneShuffle = false;
+
+  /// True if its preferable to combine to a single per-lane shuffle
+  /// using a variable mask over multiple fixed shuffles.
+  bool HasFastVariablePerLaneShuffle = false;
 
   /// True if vzeroupper instructions should be inserted after code that uses
   /// ymm or zmm registers.
@@ -606,14 +610,12 @@ public:
 
   /// Is this x86_64 with the ILP32 programming model (x32 ABI)?
   bool isTarget64BitILP32() const {
-    return In64BitMode && (TargetTriple.getEnvironment() == Triple::GNUX32 ||
-                           TargetTriple.isOSNaCl());
+    return In64BitMode && (TargetTriple.isX32() || TargetTriple.isOSNaCl());
   }
 
   /// Is this x86_64 with the LP64 programming model (standard AMD64, no x32)?
   bool isTarget64BitLP64() const {
-    return In64BitMode && (TargetTriple.getEnvironment() != Triple::GNUX32 &&
-                           !TargetTriple.isOSNaCl());
+    return In64BitMode && (!TargetTriple.isX32() && !TargetTriple.isOSNaCl());
   }
 
   PICStyles::Style getPICStyle() const { return PICStyle; }
@@ -704,8 +706,11 @@ public:
   bool useLeaForSP() const { return UseLeaForSP; }
   bool hasPOPCNTFalseDeps() const { return HasPOPCNTFalseDeps; }
   bool hasLZCNTFalseDeps() const { return HasLZCNTFalseDeps; }
-  bool hasFastVariableShuffle() const {
-    return HasFastVariableShuffle;
+  bool hasFastVariableCrossLaneShuffle() const {
+    return HasFastVariableCrossLaneShuffle;
+  }
+  bool hasFastVariablePerLaneShuffle() const {
+    return HasFastVariablePerLaneShuffle;
   }
   bool insertVZEROUPPER() const { return InsertVZEROUPPER; }
   bool hasFastGather() const { return HasFastGather; }

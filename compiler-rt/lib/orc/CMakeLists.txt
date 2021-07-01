@@ -13,10 +13,15 @@ set(x86_64_SOURCES
 set(ORC_IMPL_HEADERS
 # Implementation headers will go here.
   adt.h
+  c_api.h
+  common.h
   compiler.h
+  endianness.h
   error.h
   extensible_rtti.h
+  simple_packed_serialization.h
   stl_extras.h
+  wrapper_function_utils.h
 )
 
 # Create list of all source files for

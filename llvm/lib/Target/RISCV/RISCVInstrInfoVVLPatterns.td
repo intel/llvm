@@ -220,6 +220,12 @@ def SDTRVVVecReduce : SDTypeProfile<1, 4, [
   SDTCisSameNumEltsAs<1, 3>, SDTCisVT<4, XLenVT>
 ]>;
 
+def riscv_mul_vl_oneuse : PatFrag<(ops node:$A, node:$B, node:$C, node:$D),
+                                  (riscv_mul_vl node:$A, node:$B, node:$C,
+                                                node:$D), [{
+  return N->hasOneUse();
+}]>;
+
 foreach kind = ["ADD", "UMAX", "SMAX", "UMIN", "SMIN", "AND", "OR", "XOR",
                 "FADD", "SEQ_FADD", "FMIN", "FMAX"] in
   def rvv_vecreduce_#kind#_vl : SDNode<"RISCVISD::VECREDUCE_"#kind#"_VL", SDTRVVVecReduce>;
@@ -731,6 +737,53 @@ defm : VPatBinaryVL_VV_VX<riscv_sdiv_vl, "PseudoVDIV">;
 defm : VPatBinaryVL_VV_VX<riscv_urem_vl, "PseudoVREMU">;
 defm : VPatBinaryVL_VV_VX<riscv_srem_vl, "PseudoVREM">;
 
+// 12.13 Vector Single-Width Integer Multiply-Add Instructions
+foreach vti = AllIntegerVectors in {
+  // NOTE: We choose VMADD because it has the most commuting freedom. So it
+  // works best with how TwoAddressInstructionPass tries commuting.
+  defvar suffix = vti.LMul.MX # "_COMMUTABLE";
+  def : Pat<(vti.Vector
+             (riscv_add_vl vti.RegClass:$rs2,
+                           (riscv_mul_vl_oneuse vti.RegClass:$rs1,
+                                                vti.RegClass:$rd,
+                                                (vti.Mask true_mask), VLOpFrag),
+                           (vti.Mask true_mask), VLOpFrag)),
+            (!cast<Instruction>("PseudoVMADD_VV_"# suffix)
+                 vti.RegClass:$rd, vti.RegClass:$rs1, vti.RegClass:$rs2,
+                 GPR:$vl, vti.Log2SEW)>;
+  def : Pat<(vti.Vector
+             (riscv_sub_vl vti.RegClass:$rs2,
+                           (riscv_mul_vl_oneuse vti.RegClass:$rs1,
+                                                vti.RegClass:$rd,
+                                                (vti.Mask true_mask), VLOpFrag),
+                           (vti.Mask true_mask), VLOpFrag)),
+            (!cast<Instruction>("PseudoVNMSUB_VV_"# suffix)
+                 vti.RegClass:$rd, vti.RegClass:$rs1, vti.RegClass:$rs2,
+                 GPR:$vl, vti.Log2SEW)>;
+
+  // The choice of VMADD here is arbitrary, vmadd.vx and vmacc.vx are equally
+  // commutable.
+  def : Pat<(vti.Vector
+             (riscv_add_vl vti.RegClass:$rs2,
+                           (riscv_mul_vl_oneuse (SplatPat XLenVT:$rs1),
+                                                vti.RegClass:$rd,
+                                                (vti.Mask true_mask), VLOpFrag),
+                           (vti.Mask true_mask), VLOpFrag)),
+            (!cast<Instruction>("PseudoVMADD_VX_" # suffix)
+                 vti.RegClass:$rd, vti.ScalarRegClass:$rs1, vti.RegClass:$rs2,
+                 GPR:$vl, vti.Log2SEW)>;
+  def : Pat<(vti.Vector
+             (riscv_sub_vl vti.RegClass:$rs2,
+                           (riscv_mul_vl_oneuse (SplatPat XLenVT:$rs1),
+                                                vti.RegClass:$rd,
+                                                (vti.Mask true_mask),
+                                                VLOpFrag),
+                           (vti.Mask true_mask), VLOpFrag)),
+            (!cast<Instruction>("PseudoVNMSUB_VX_" # suffix)
+                 vti.RegClass:$rd, vti.ScalarRegClass:$rs1, vti.RegClass:$rs2,
+                 GPR:$vl, vti.Log2SEW)>;
+}
+
 // 12.15. Vector Integer Merge Instructions
 foreach vti = AllIntegerVectors in {
   def : Pat<(vti.Vector (riscv_vselect_vl (vti.Mask VMV0:$vm),
@@ -1161,7 +1214,7 @@ foreach vti = AllIntegerVectors in {
 
   // emul = lmul * 16 / sew
   defvar vlmul = vti.LMul;
-  defvar octuple_lmul = octuple_from_str<vlmul.MX>.ret;
+  defvar octuple_lmul = vlmul.octuple;
   defvar octuple_emul = !srl(!mul(octuple_lmul, 16), vti.Log2SEW);
   if !and(!ge(octuple_emul, 1), !le(octuple_emul, 64)) then {
     defvar emul_str = octuple_to_str<octuple_emul>.ret;
@@ -1231,7 +1284,7 @@ foreach vti = AllFloatVectors in {
                  vti.Mask:$vm, GPR:$vl, vti.Log2SEW)>;
 
   defvar vlmul = vti.LMul;
-  defvar octuple_lmul = octuple_from_str<vlmul.MX>.ret;
+  defvar octuple_lmul = vlmul.octuple;
   defvar octuple_emul = !srl(!mul(octuple_lmul, 16), vti.Log2SEW);
   if !and(!ge(octuple_emul, 1), !le(octuple_emul, 64)) then {
     defvar emul_str = octuple_to_str<octuple_emul>.ret;

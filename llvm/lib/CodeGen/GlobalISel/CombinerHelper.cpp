@@ -491,7 +491,7 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
         LegalityQuery::MemDesc MMDesc;
         MMDesc.SizeInBits = MMO.getSizeInBits();
         MMDesc.AlignInBits = MMO.getAlign().value() * 8;
-        MMDesc.Ordering = MMO.getOrdering();
+        MMDesc.Ordering = MMO.getSuccessOrdering();
         LLT UseTy = MRI.getType(UseMI.getOperand(0).getReg());
         LLT SrcTy = MRI.getType(MI.getOperand(1).getReg());
         if (LI->getAction({MI.getOpcode(), {UseTy, SrcTy}, {MMDesc}}).Action !=
@@ -2997,6 +2997,33 @@ bool CombinerHelper::applyAshShlToSextInreg(
   return true;
 }
 
+/// and(and(x, C1), C2) -> C1&C2 ? and(x, C1&C2) : 0
+bool CombinerHelper::matchOverlappingAnd(
+    MachineInstr &MI, std::function<void(MachineIRBuilder &)> &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_AND);
+
+  Register Dst = MI.getOperand(0).getReg();
+  LLT Ty = MRI.getType(Dst);
+
+  Register R;
+  int64_t C1;
+  int64_t C2;
+  if (!mi_match(
+          Dst, MRI,
+          m_GAnd(m_GAnd(m_Reg(R), m_ICst(C1)), m_ICst(C2))))
+    return false;
+
+  MatchInfo = [=](MachineIRBuilder &B) {
+    if (C1 & C2) {
+      B.buildAnd(Dst, R, B.buildConstant(Ty, C1 & C2));
+      return;
+    }
+    auto Zero = B.buildConstant(Ty, 0);
+    replaceRegWith(MRI, Dst, Zero->getOperand(0).getReg());
+  };
+  return true;
+}
+
 bool CombinerHelper::matchRedundantAnd(MachineInstr &MI,
                                        Register &Replacement) {
   // Given
@@ -3634,7 +3661,7 @@ bool CombinerHelper::matchLoadOrCombine(
   LegalityQuery::MemDesc MMDesc;
   MMDesc.SizeInBits = WideMemSizeInBits;
   MMDesc.AlignInBits = MMO.getAlign().value() * 8;
-  MMDesc.Ordering = MMO.getOrdering();
+  MMDesc.Ordering = MMO.getSuccessOrdering();
   if (!isLegalOrBeforeLegalizer(
           {TargetOpcode::G_LOAD, {Ty, MRI.getType(Ptr)}, {MMDesc}}))
     return false;
@@ -3983,6 +4010,41 @@ bool CombinerHelper::matchICmpToTrueFalseKnownBits(MachineInstr &MI,
                            MRI.getType(MI.getOperand(0).getReg()).isVector(),
                            /* IsFP = */ false)
           : 0;
+  return true;
+}
+
+bool CombinerHelper::matchBitfieldExtractFromAnd(
+    MachineInstr &MI, std::function<void(MachineIRBuilder &)> &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_AND);
+  Register Dst = MI.getOperand(0).getReg();
+  LLT Ty = MRI.getType(Dst);
+  if (!getTargetLowering().isConstantUnsignedBitfieldExtactLegal(
+          TargetOpcode::G_UBFX, Ty, Ty))
+    return false;
+
+  int64_t AndImm, LSBImm;
+  Register ShiftSrc;
+  const unsigned Size = Ty.getScalarSizeInBits();
+  if (!mi_match(MI.getOperand(0).getReg(), MRI,
+                m_GAnd(m_OneNonDBGUse(m_GLShr(m_Reg(ShiftSrc), m_ICst(LSBImm))),
+                       m_ICst(AndImm))))
+    return false;
+
+  // The mask is a mask of the low bits iff imm & (imm+1) == 0.
+  auto MaybeMask = static_cast<uint64_t>(AndImm);
+  if (MaybeMask & (MaybeMask + 1))
+    return false;
+
+  // LSB must fit within the register.
+  if (static_cast<uint64_t>(LSBImm) >= Size)
+    return false;
+
+  uint64_t Width = APInt(Size, AndImm).countTrailingOnes();
+  MatchInfo = [=](MachineIRBuilder &B) {
+    auto WidthCst = B.buildConstant(Ty, Width);
+    auto LSBCst = B.buildConstant(Ty, LSBImm);
+    B.buildInstr(TargetOpcode::G_UBFX, {Dst}, {ShiftSrc, LSBCst, WidthCst});
+  };
   return true;
 }
 

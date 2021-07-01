@@ -163,6 +163,13 @@ static llvm::cl::opt<bool> GenerateModulesPathArgs(
         "'-fmodule-file=', '-o', '-fmodule-map-file='."),
     llvm::cl::init(false), llvm::cl::cat(DependencyScannerCategory));
 
+static llvm::cl::opt<std::string> ModuleFilesDir(
+    "module-files-dir",
+    llvm::cl::desc("With '-generate-modules-path-args', paths to module files "
+                   "in the generated command lines will begin with the "
+                   "specified directory instead the module cache directory."),
+    llvm::cl::cat(DependencyScannerCategory));
+
 llvm::cl::opt<unsigned>
     NumThreads("j", llvm::cl::Optional,
                llvm::cl::desc("Number of worker threads to use (default: use "
@@ -193,13 +200,6 @@ llvm::cl::opt<bool> Verbose("v", llvm::cl::Optional,
                             llvm::cl::cat(DependencyScannerCategory));
 
 } // end anonymous namespace
-
-/// \returns object-file path derived from source-file path.
-static std::string getObjFilePath(StringRef SrcFile) {
-  SmallString<128> ObjFileName(SrcFile);
-  llvm::sys::path::replace_extension(ObjFileName, "o");
-  return std::string(ObjFileName.str());
-}
 
 class SingleCommandCompilationDatabase : public tooling::CompilationDatabase {
 public:
@@ -357,7 +357,22 @@ public:
 
 private:
   StringRef lookupPCMPath(ModuleID MID) {
-    return Modules[IndexedModuleID{MID, 0}].ImplicitModulePCMPath;
+    auto PCMPath = PCMPaths.insert({MID, ""});
+    if (PCMPath.second)
+      PCMPath.first->second = constructPCMPath(lookupModuleDeps(MID));
+    return PCMPath.first->second;
+  }
+
+  /// Construct a path for the explicitly built PCM.
+  std::string constructPCMPath(const ModuleDeps &MD) const {
+    StringRef Filename = llvm::sys::path::filename(MD.ImplicitModulePCMPath);
+
+    SmallString<256> ExplicitPCMPath(
+        !ModuleFilesDir.empty()
+            ? ModuleFilesDir
+            : MD.Invocation.getHeaderSearchOpts().ModuleCachePath);
+    llvm::sys::path::append(ExplicitPCMPath, MD.ID.ContextHash, Filename);
+    return std::string(ExplicitPCMPath);
   }
 
   const ModuleDeps &lookupModuleDeps(ModuleID MID) {
@@ -395,6 +410,7 @@ private:
   std::mutex Lock;
   std::unordered_map<IndexedModuleID, ModuleDeps, IndexedModuleIDHasher>
       Modules;
+  std::unordered_map<ModuleID, std::string, ModuleIDHasher> PCMPaths;
   std::vector<InputDeps> Inputs;
 };
 
@@ -439,19 +455,17 @@ int main(int argc, const char **argv) {
       std::make_unique<tooling::ArgumentsAdjustingCompilations>(
           std::move(Compilations));
   ResourceDirectoryCache ResourceDirCache;
+
   AdjustingCompilations->appendArgumentsAdjuster(
       [&ResourceDirCache](const tooling::CommandLineArguments &Args,
                           StringRef FileName) {
         std::string LastO = "";
-        bool HasMT = false;
-        bool HasMQ = false;
-        bool HasMD = false;
         bool HasResourceDir = false;
         bool ClangCLMode = false;
         auto FlagsEnd = llvm::find(Args, "--");
         if (FlagsEnd != Args.begin()) {
           ClangCLMode =
-              llvm::sys::path::stem(Args[0]).contains_lower("clang-cl") ||
+              llvm::sys::path::stem(Args[0]).contains_insensitive("clang-cl") ||
               llvm::is_contained(Args, "--driver-mode=cl");
 
           // Reverse scan, starting at the end or at the element before "--".
@@ -476,64 +490,18 @@ int main(int argc, const char **argv) {
                 if (!LastO.empty() && !llvm::sys::path::has_extension(LastO))
                   LastO.append(".obj");
               }
-              if (Arg == "/clang:-MT")
-                HasMT = true;
-              if (Arg == "/clang:-MQ")
-                HasMQ = true;
-              if (Arg == "/clang:-MD")
-                HasMD = true;
-            } else {
-              if (LastO.empty()) {
-                if (Arg == "-o" && I != R)
-                  LastO = I[-1]; // Next argument (reverse iterator)
-                else if (Arg.startswith("-o"))
-                  LastO = Arg.drop_front(2).str();
-              }
-              if (Arg == "-MT")
-                HasMT = true;
-              if (Arg == "-MQ")
-                HasMQ = true;
-              if (Arg == "-MD")
-                HasMD = true;
             }
             if (Arg == "-resource-dir")
               HasResourceDir = true;
           }
         }
-        // If there's no -MT/-MQ Driver would add -MT with the value of the last
-        // -o option.
         tooling::CommandLineArguments AdjustedArgs(Args.begin(), FlagsEnd);
-        AdjustedArgs.push_back("-o");
-#ifdef _WIN32
-        AdjustedArgs.push_back("nul");
-#else
-        AdjustedArgs.push_back("/dev/null");
-#endif
-        if (!HasMT && !HasMQ) {
-          // We're interested in source dependencies of an object file.
-          std::string FileNameArg;
-          if (!HasMD) {
-            // FIXME: We are missing the directory unless the -o value is an
-            // absolute path.
-            FileNameArg = !LastO.empty() ? LastO : getObjFilePath(FileName);
-          } else {
-            FileNameArg = std::string(FileName);
-          }
-          if (ClangCLMode) {
-            AdjustedArgs.push_back("/clang:-M");
-            AdjustedArgs.push_back("/clang:-MT");
-            AdjustedArgs.push_back(Twine("/clang:", FileNameArg).str());
-          } else {
-            AdjustedArgs.push_back("-M");
-            AdjustedArgs.push_back("-MT");
-            AdjustedArgs.push_back(std::move(FileNameArg));
-          }
+        // The clang-cl driver passes "-o -" to the frontend. Inject the real
+        // file here to ensure "-MT" can be deduced if need be.
+        if (ClangCLMode && !LastO.empty()) {
+          AdjustedArgs.push_back("/clang:-o");
+          AdjustedArgs.push_back("/clang:" + LastO);
         }
-        AdjustedArgs.push_back("-Xclang");
-        AdjustedArgs.push_back("-Eonly");
-        AdjustedArgs.push_back("-Xclang");
-        AdjustedArgs.push_back("-sys-header-deps");
-        AdjustedArgs.push_back("-Wno-error");
 
         if (!HasResourceDir) {
           StringRef ResourceDir =
@@ -546,8 +514,6 @@ int main(int argc, const char **argv) {
         AdjustedArgs.insert(AdjustedArgs.end(), FlagsEnd, Args.end());
         return AdjustedArgs;
       });
-  AdjustingCompilations->appendArgumentsAdjuster(
-      tooling::getClangStripSerializeDiagnosticAdjuster());
 
   SharedStream Errs(llvm::errs());
   // Print out the dependency results to STDOUT by default.

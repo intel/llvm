@@ -22,6 +22,7 @@
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/BuryPointer.h"
+#include "llvm/Support/FileSystem.h"
 #include <cassert>
 #include <list>
 #include <memory>
@@ -165,11 +166,10 @@ class CompilerInstance : public ModuleLoader {
   /// failed.
   struct OutputFile {
     std::string Filename;
-    std::string TempFilename;
+    Optional<llvm::sys::fs::TempFile> File;
 
-    OutputFile(std::string filename, std::string tempFilename)
-        : Filename(std::move(filename)), TempFilename(std::move(tempFilename)) {
-    }
+    OutputFile(std::string filename, Optional<llvm::sys::fs::TempFile> file)
+        : Filename(std::move(filename)), File(std::move(file)) {}
   };
 
   /// The list of active output files.
@@ -696,15 +696,13 @@ public:
   /// The files created by this are usually removed on signal, and, depending
   /// on FrontendOptions, may also use a temporary file (that is, the data is
   /// written to a temporary file which will atomically replace the target
-  /// output on success). If a client (like libclang) needs to disable
-  /// RemoveFileOnSignal, temporary files will be forced on.
+  /// output on success).
   ///
   /// \return - Null on error.
-  std::unique_ptr<raw_pwrite_stream>
-  createDefaultOutputFile(bool Binary = true, StringRef BaseInput = "",
-                          StringRef Extension = "",
-                          bool RemoveFileOnSignal = true,
-                          bool CreateMissingDirectories = false);
+  std::unique_ptr<raw_pwrite_stream> createDefaultOutputFile(
+      bool Binary = true, StringRef BaseInput = "", StringRef Extension = "",
+      bool RemoveFileOnSignal = true, bool CreateMissingDirectories = false,
+      bool ForceUseTemporary = false);
 
   /// Create a new output file, optionally deriving the output path name, and
   /// add it to the list of tracked output files.

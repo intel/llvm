@@ -10,7 +10,10 @@
 #define DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H_
 
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/Utils.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/Identifier.h"
 #include "mlir/IR/PatternMatch.h"
@@ -493,6 +496,14 @@ struct LinalgTilingOptions {
     return *this;
   }
 
+  /// Specification markers of how to distribute the `linalg.tiled_loop`.
+  SmallVector<StringRef, 2> distributionTypes = {};
+
+  LinalgTilingOptions &setDistributionTypes(ArrayRef<StringRef> types) {
+    distributionTypes.assign(types.begin(), types.end());
+    return *this;
+  }
+
   /// Computation function that returns a padding value to use when padding to
   /// force static sizes. When `paddingValueComputationFunction` is set, padding
   /// operations are introduced, that guarantee the underlying op is statically
@@ -852,18 +863,34 @@ void populateLinalgConvGeneralizationPatterns(
     RewritePatternSet &patterns,
     LinalgTransformationFilter filter = LinalgTransformationFilter());
 
+/// Linalg distribution patterns
+//
+/// Populates `patterns` with patterns to distribute linalg.tiled_loop.
+void populateLinalgDistributeTiledLoopPattern(
+    RewritePatternSet &patterns, const LinalgLoopDistributionOptions &opts,
+    const LinalgTransformationFilter &marker);
+
 //===----------------------------------------------------------------------===//
 // Op-specific patterns.
 //===----------------------------------------------------------------------===//
 
-/// PadTensorOp does not implement the LinalgStructuredOpInterface `LinalgOp`,
-/// it needs a specific pattern to vectorize.
-struct PadTensorOpVectorizationPattern : public OpRewritePattern<PadTensorOp> {
+/// PadTensorOp is not canonicalized away yet, so we provide a transformation to
+/// `linalg.generic`.
+struct PadTensorOpTransformationPattern : public OpRewritePattern<PadTensorOp> {
   using OpRewritePattern<PadTensorOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(PadTensorOp padOp,
                                 PatternRewriter &rewriter) const override;
 };
+
+/// Populates `patterns` with patterns that vectorize linalg.pad_tensor.
+/// These patterns are meant to apply in a complementary fashion. Benefits
+/// are used to encode a certain ordering of pattern application. To avoid
+/// scattering magic constants throughout the code base, the patterns must be
+/// added with this function. `baseBenefit` can be used to offset the benefit
+/// of all PadTensorOp vectorization patterns by a certain value.
+void populatePadTensorOpVectorizationPatterns(
+    RewritePatternSet &patterns, PatternBenefit baseBenefit = 1);
 
 /// Match and rewrite for the pattern:
 /// ```
@@ -1051,6 +1078,15 @@ LogicalResult applyStagedPatterns(
     Operation *op, ArrayRef<FrozenRewritePatternSet> stage1Patterns,
     const FrozenRewritePatternSet &stage2Patterns,
     function_ref<LogicalResult(Operation *)> stage3Lambda = nullptr);
+
+/// Rewrite extract_slice(pad_tensor(x)) into pad_tensor(extract_slice(x)).
+struct ExtractSliceOfPadTensorSwapPattern
+    : public OpRewritePattern<tensor::ExtractSliceOp> {
+  using OpRewritePattern<tensor::ExtractSliceOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tensor::ExtractSliceOp sliceOp,
+                                PatternRewriter &rewriter) const override;
+};
 
 } // namespace linalg
 } // namespace mlir

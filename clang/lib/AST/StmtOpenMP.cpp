@@ -124,11 +124,30 @@ OMPLoopBasedDirective::tryToFindNextInnerLoop(Stmt *CurStmt,
 
 bool OMPLoopBasedDirective::doForAllLoops(
     Stmt *CurStmt, bool TryImperfectlyNestedLoops, unsigned NumLoops,
-    llvm::function_ref<bool(unsigned, Stmt *)> Callback) {
+    llvm::function_ref<bool(unsigned, Stmt *)> Callback,
+    llvm::function_ref<void(OMPLoopBasedDirective *)>
+        OnTransformationCallback) {
   CurStmt = CurStmt->IgnoreContainers();
   for (unsigned Cnt = 0; Cnt < NumLoops; ++Cnt) {
-    if (auto *Dir = dyn_cast<OMPTileDirective>(CurStmt))
-      CurStmt = Dir->getTransformedStmt();
+    while (true) {
+      auto *OrigStmt = CurStmt;
+      if (auto *Dir = dyn_cast<OMPTileDirective>(OrigStmt)) {
+        OnTransformationCallback(Dir);
+        CurStmt = Dir->getTransformedStmt();
+      } else if (auto *Dir = dyn_cast<OMPUnrollDirective>(OrigStmt)) {
+        OnTransformationCallback(Dir);
+        CurStmt = Dir->getTransformedStmt();
+      } else {
+        break;
+      }
+
+      if (!CurStmt) {
+        // May happen if the loop transformation does not result in a generated
+        // loop (such as full unrolling).
+        CurStmt = OrigStmt;
+        break;
+      }
+    }
     if (auto *CanonLoop = dyn_cast<OMPCanonicalLoop>(CurStmt))
       CurStmt = CanonLoop->getLoopStmt();
     if (Callback(Cnt, CurStmt))
@@ -353,6 +372,25 @@ OMPTileDirective *OMPTileDirective::CreateEmpty(const ASTContext &C,
   return createEmptyDirective<OMPTileDirective>(
       C, NumClauses, /*HasAssociatedStmt=*/true, TransformedStmtOffset + 1,
       SourceLocation(), SourceLocation(), NumLoops);
+}
+
+OMPUnrollDirective *
+OMPUnrollDirective::Create(const ASTContext &C, SourceLocation StartLoc,
+                           SourceLocation EndLoc, ArrayRef<OMPClause *> Clauses,
+                           Stmt *AssociatedStmt, Stmt *TransformedStmt,
+                           Stmt *PreInits) {
+  auto *Dir = createDirective<OMPUnrollDirective>(
+      C, Clauses, AssociatedStmt, TransformedStmtOffset + 1, StartLoc, EndLoc);
+  Dir->setTransformedStmt(TransformedStmt);
+  Dir->setPreInits(PreInits);
+  return Dir;
+}
+
+OMPUnrollDirective *OMPUnrollDirective::CreateEmpty(const ASTContext &C,
+                                                    unsigned NumClauses) {
+  return createEmptyDirective<OMPUnrollDirective>(
+      C, NumClauses, /*HasAssociatedStmt=*/true, TransformedStmtOffset + 1,
+      SourceLocation(), SourceLocation());
 }
 
 OMPForSimdDirective *

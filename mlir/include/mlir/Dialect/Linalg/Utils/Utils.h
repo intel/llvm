@@ -78,7 +78,7 @@ bool isProducerLastWriteOfView(const LinalgDependenceGraph &graph,
 bool isFusableInto(const LinalgDependenceGraph &graph, LinalgOp consumer,
                    Value consumedView, LinalgOp producer);
 
-/// Creates subtensor/subview ops for all `tiledOperands` of the given
+/// Creates extract_slice/subview ops for all `tiledOperands` of the given
 /// `linalgOp` with `builder`, assuming `linalgOp` is being fused into a loop
 /// nest for tiling with the given induction variables `ivs` and tile sizes
 /// `tileSizes`. `sizeBounds` are the iteration space bounds for *all* the
@@ -118,15 +118,17 @@ Optional<FusionInfo> fuseProducerOfBuffer(OpBuilder &b,
                                           const LinalgDependenceGraph &graph);
 /// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
-/// transformation and thus requires the `consumerOpOperand` to be a `subtensor`
-/// op (generally obtained by applying the tiling transformation).
+/// transformation and thus requires the `consumerOpOperand` to be a
+/// `extract_slice` op (generally obtained by applying the tiling
+/// transformation).
 Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
                                           OpOperand &consumerOpOperand);
 /// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
-/// transformation and thus requires the `consumerOpOperand` to be a `subtensor`
-/// op (generally obtained by applying the tiling transformation).
-/// Assumes `producerOfTensor` is a Linalg op that produces `consumerOpOperand`.
+/// transformation and thus requires the `consumerOpOperand` to be a
+/// `extract_slice` op (generally obtained by applying the tiling
+/// transformation). Assumes `producerOfTensor` is a Linalg op that produces
+/// `consumerOpOperand`.
 Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
                                           OpResult producerOpResult,
                                           OpOperand &consumerOpOperand);
@@ -184,6 +186,8 @@ struct ProcInfo {
 };
 using ProcInfoCallBackFn = std::function<SmallVector<ProcInfo, 2>(
     OpBuilder &b, Location loc, ArrayRef<Range> parallelLoopRanges)>;
+using OneDimProcInfoCallBackFn =
+    std::function<ProcInfo(OpBuilder &b, Location loc)>;
 
 /// Options that allow distribution of loops generated in Linalg transforms to
 /// processors while generating the loops.
@@ -201,6 +205,11 @@ struct LinalgLoopDistributionOptions {
   /// applied. If the vector is less than the number of `scf.parallel` loops
   /// generated, then no distribution is applied.
   SmallVector<DistributionMethod, 0> distributionMethod = {};
+
+  /// The map keyed by the distribution type that contains callback functions
+  /// that return the Values for processor ID (`procId`), and number of
+  /// processors (`nprocs`) used to execute the parallel loops.
+  DenseMap<StringRef, OneDimProcInfoCallBackFn> procInfoMap;
 };
 
 /// Update the `lb`, `ub` and `step` to get per processor `lb`, `ub` and `step`.
@@ -247,7 +256,8 @@ struct GenerateLoopNest {
                    function_ref<scf::ValueVector(OpBuilder &, Location,
                                                  ValueRange, ValueRange)>
                        bodyBuilderFn,
-                   Optional<LinalgLoopDistributionOptions> = None);
+                   Optional<LinalgLoopDistributionOptions> = None,
+                   ArrayRef<StringRef> distributionTypes = {});
 };
 
 } // namespace linalg

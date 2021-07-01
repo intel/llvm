@@ -59,6 +59,11 @@ lldb_private::ConstString CPlusPlusLanguage::GetPluginNameStatic() {
   return g_name;
 }
 
+bool CPlusPlusLanguage::SymbolNameFitsToLanguage(Mangled mangled) const {
+  const char *mangled_name = mangled.GetMangledName().GetCString();
+  return mangled_name && CPlusPlusLanguage::IsCPPMangledName(mangled_name);
+}
+
 // PluginInterface protocol
 
 lldb_private::ConstString CPlusPlusLanguage::GetPluginName() {
@@ -1147,7 +1152,7 @@ bool CPlusPlusLanguage::IsSourceFile(llvm::StringRef file_path) const {
   const auto suffixes = {".cpp", ".cxx", ".c++", ".cc",  ".c",
                          ".h",   ".hh",  ".hpp", ".hxx", ".h++"};
   for (auto suffix : suffixes) {
-    if (file_path.endswith_lower(suffix))
+    if (file_path.endswith_insensitive(suffix))
       return true;
   }
 

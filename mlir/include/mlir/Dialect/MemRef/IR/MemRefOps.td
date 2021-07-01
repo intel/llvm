@@ -9,6 +9,7 @@
 #ifndef MEMREF_OPS
 #define MEMREF_OPS
 
+include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Dialect/MemRef/IR/MemRefBase.td"
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
@@ -165,7 +166,7 @@ def MemRef_AllocaOp : AllocLikeOp<"alloca", AutomaticAllocationScopeResource> {
     The `alloca` operation allocates memory on the stack, to be automatically
     released when control transfers back from the region of its closest
     surrounding operation with an
-    [`AutomaticAllocationScope`](../Traits.md#automaticallocationscope) trait.
+    [`AutomaticAllocationScope`](../Traits.md/#automaticallocationscope) trait.
     The amount of memory allocated is specified by its memref and additional
     operands. For example:
 
@@ -197,6 +198,87 @@ def MemRef_AllocaOp : AllocLikeOp<"alloca", AutomaticAllocationScopeResource> {
     chosen.
   }];
 }
+
+//===----------------------------------------------------------------------===//
+// AllocaScopeOp
+//===----------------------------------------------------------------------===//
+
+def MemRef_AllocaScopeOp : MemRef_Op<"alloca_scope", 
+      [AutomaticAllocationScope,
+       DeclareOpInterfaceMethods<RegionBranchOpInterface>,
+       SingleBlockImplicitTerminator<"AllocaScopeReturnOp">,
+       RecursiveSideEffects,
+       NoRegionArguments]> {
+  let summary = "explicitly delimited scope for stack allocation";
+  let description = [{
+    The `memref.alloca_scope` operation represents an explicitly-delimited
+    scope for the alloca allocations. Any `memref.alloca` operations that are
+    used within this scope are going to be cleaned up automatically once
+    the control-flow exits the nested region. For example:
+
+    ```mlir
+    memref.alloca_scope {
+      %myalloca = memref.alloca(): memref<4x3xf32>
+      ...
+    }
+    ```
+
+    Here, `%myalloca` memref is valid within the explicitly delimited scope
+    and is automatically deallocated at the end of the given region. Conceptually,
+    `memref.alloca_scope` is a passthrough operation with 
+    `AutomaticAllocationScope` that spans the body of the region within the operation. 
+
+    `memref.alloca_scope` may also return results that are defined in the nested
+    region. To return a value, one should use `memref.alloca_scope.return`
+    operation:
+
+    ```mlir
+    %result = memref.alloca_scope {
+      ...
+      memref.alloca_scope.return %value
+    }
+    ```
+
+    If `memref.alloca_scope` returns no value, the `memref.alloca_scope.return ` can
+    be left out, and will be inserted implicitly.
+  }];
+
+  let results = (outs Variadic<AnyType>:$results);
+  let regions = (region SizedRegion<1>:$bodyRegion);
+}
+
+//===----------------------------------------------------------------------===//
+// AllocaScopeReturnOp
+//===----------------------------------------------------------------------===//
+
+def MemRef_AllocaScopeReturnOp : MemRef_Op<"alloca_scope.return", 
+      [HasParent<"AllocaScopeOp">,
+       NoSideEffect,
+       ReturnLike,
+       Terminator]> {
+  let summary = "terminator for alloca_scope operation";
+  let description = [{
+    `memref.alloca_scope.return` operation returns zero or more SSA values 
+    from the region within `memref.alloca_scope`. If no values are returned,
+    the return operation may be omitted. Otherwise, it has to be present
+    to indicate which values are going to be returned. For example:
+
+    ```mlir
+    memref.alloca_scope.return %value
+    ```
+  }];
+
+  let arguments = (ins Variadic<AnyType>:$results);
+  let builders = [OpBuilder<(ins), [{ /*nothing to do */ }]>];
+
+  let assemblyFormat =
+      [{ attr-dict ($results^ `:` type($results))? }];
+
+  // No custom verification needed.
+  let verifier = ?;
+}
+
+
 
 //===----------------------------------------------------------------------===//
 // BufferCastOp
@@ -360,6 +442,43 @@ def CloneOp : MemRef_Op<"clone", [
   let hasFolder = 1;
   let verifier = ?;
   let hasCanonicalizer = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// CopyOp
+//===----------------------------------------------------------------------===//
+
+def CopyOp : MemRef_Op<"copy",
+    [CopyOpInterface, SameOperandsElementType, SameOperandsShape]> {
+
+  let description = [{
+    Copies the data from the source to the destination memref.
+
+    Usage:
+
+    ```mlir
+    memref.copy %arg0, %arg1 : memref<?xf32> to memref<?xf32>
+    ```
+
+    Source and destination are expected to have the same element type and shape.
+    Otherwise, the result is undefined. They may have different layouts.
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "the memref to copy from",
+                           [MemRead]>:$source,
+                       Arg<AnyRankedOrUnrankedMemRef, "the memref to copy to",
+                           [MemWrite]>:$target);
+
+  let extraClassDeclaration = [{
+    Value getSource() { return source();}
+    Value getTarget() { return target(); }
+  }];
+
+  let assemblyFormat = [{
+    $source `,` $target attr-dict `:` type($source) `to` type($target)
+  }];
+
+  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//
@@ -553,8 +672,8 @@ def LoadOp : MemRef_Op<"load",
 
     In an `affine.if` or `affine.for` body, the indices of a load are restricted
     to SSA values bound to surrounding loop induction variables,
-    [symbols](Affine.md#dimensions-and-symbols), results of a
-    [`constant` operation](#stdconstant-constantop), or the result of an
+    [symbols](Affine.md/#dimensions-and-symbols), results of a
+    [`constant` operation](Standard.md/#stdconstant-constantop), or the result of an
     `affine.apply` operation that can in turn take as arguments all of the
     aforementioned SSA values or the recursively result of such an
     `affine.apply` operation.
@@ -574,10 +693,10 @@ def LoadOp : MemRef_Op<"load",
     **Context:** The `load` and `store` operations are specifically crafted to
     fully resolve a reference to an element of a memref, and (in affine
     `affine.if` and `affine.for` operations) the compiler can follow use-def
-    chains (e.g. through [`affine.apply`](Affine.md#affineapply-affineapplyop)
+    chains (e.g. through [`affine.apply`](Affine.md/#affineapply-affineapplyop)
     operations) to precisely analyze references at compile-time using polyhedral
     techniques. This is possible because of the
-    [restrictions on dimensions and symbols](Affine.md#restrictions-on-dimensions-and-symbols)
+    [restrictions on dimensions and symbols](Affine.md/#restrictions-on-dimensions-and-symbols)
     in these contexts.
   }];
 
@@ -826,9 +945,9 @@ def MemRef_StoreOp : MemRef_Op<"store",
 
     In an affine context, the indices of a store are restricted to SSA values
     bound to surrounding loop induction variables,
-    [symbols](Affine.md#restrictions-on-dimensions-and-symbols), results of a
-    [`constant` operation](#stdconstant-constantop), or the result of an
-    [`affine.apply`](Affine.md#affineapply-affineapplyop) operation that can in
+    [symbols](Affine.md/#restrictions-on-dimensions-and-symbols), results of a
+    [`constant` operation](Standard.md/#stdconstant-constantop), or the result of an
+    [`affine.apply`](Affine.md/#affineapply-affineapplyop) operation that can in
     turn take as arguments all of the aforementioned SSA values or the
     recursively result of such an `affine.apply` operation.
 
@@ -841,10 +960,10 @@ def MemRef_StoreOp : MemRef_Op<"store",
     **Context:** The `load` and `store` operations are specifically crafted to
     fully resolve a reference to an element of a memref, and (in polyhedral
     `affine.if` and `affine.for` operations) the compiler can follow use-def
-    chains (e.g. through [`affine.apply`](Affine.md#affineapply-affineapplyop)
+    chains (e.g. through [`affine.apply`](Affine.md/#affineapply-affineapplyop)
     operations) to precisely analyze references at compile-time using polyhedral
     techniques. This is possible because of the
-    [restrictions on dimensions and symbols](Affine.md#restrictions-on-dimensions-and-symbols)
+    [restrictions on dimensions and symbols](Affine.md/#restrictions-on-dimensions-and-symbols)
     in these contexts.
   }];
 

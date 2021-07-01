@@ -1,5 +1,5 @@
 // RUN: mlir-opt %s -linalg-tile="linalg-tile-sizes=2,3,4" -split-input-file | FileCheck %s
-// RUN: mlir-opt %s -linalg-tile-to-tiled-loop="linalg-tile-sizes=2,3,4" -split-input-file | FileCheck %s -check-prefix=TLOOP
+// RUN: mlir-opt %s -linalg-tile-to-tiled-loop="linalg-tile-sizes=2,3,4 linalg-distribution-types=block_x,block_y,none" -split-input-file | FileCheck %s -check-prefix=TLOOP
 
 // CHECK-LABEL: func @matmul_tensors(
 // CHECK-SAME:    %[[TA:[0-9a-z]+]]: tensor<?x?xf32>
@@ -11,12 +11,12 @@ func @matmul_tensors(
 //      CHECK: %[[TD0:.*]] = scf.for {{.*}} to {{.*}} step {{.*}} iter_args(%[[TC0:.*]] = %[[TC]]) -> (tensor<?x?xf32>) {
 //      CHECK:   %[[TD1:.*]] = scf.for {{.*}} to {{.*}} step {{.*}} iter_args(%[[TC1:.*]] = %[[TC0]]) -> (tensor<?x?xf32>) {
 //      CHECK:     %[[TD2:.*]] = scf.for {{.*}} to {{.*}} step {{.*}} iter_args(%[[TC2:.*]] = %[[TC1]]) -> (tensor<?x?xf32>) {
-//      CHECK:       %[[sTA:.*]] = subtensor %[[TA]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
-//      CHECK:       %[[sTB:.*]] = subtensor %[[TB]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
-//      CHECK:       %[[sTC:.*]] = subtensor %[[TC2]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
+//      CHECK:       %[[sTA:.*]] = tensor.extract_slice %[[TA]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
+//      CHECK:       %[[sTB:.*]] = tensor.extract_slice %[[TB]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
+//      CHECK:       %[[sTC:.*]] = tensor.extract_slice %[[TC2]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
 //      CHECK:       %[[sTD:.*]] = linalg.matmul ins(%[[sTA]], %[[sTB]] : tensor<?x?xf32>, tensor<?x?xf32>)
 // CHECK-SAME:                                  outs(%[[sTC]] : tensor<?x?xf32>)  -> tensor<?x?xf32>
-//      CHECK:       %[[TD:.*]] = subtensor_insert %[[sTD]] into %[[TC2]][{{.*}}]  : tensor<?x?xf32> into tensor<?x?xf32>
+//      CHECK:       %[[TD:.*]] = tensor.insert_slice %[[sTD]] into %[[TC2]][{{.*}}]  : tensor<?x?xf32> into tensor<?x?xf32>
 //      CHECK:       scf.yield %[[TD]] : tensor<?x?xf32>
 //      CHECK:     scf.yield %[[TD2]] : tensor<?x?xf32>
 //      CHECK:   scf.yield %[[TD1]] : tensor<?x?xf32>
@@ -48,16 +48,17 @@ func @matmul_tensors(
 // TLOOP-SAME: step (%[[C2]], %[[C3]], %[[C4]])
 // TLOOP-SAME: ins (%[[A0:.*]] = %[[ARG_0]]: [[TY]], %[[A1:.*]] = %[[ARG_1]]: [[TY]])
 // TLOOP-SAME: outs (%[[A2:.*]] = %[[ARG_2]]: [[TY]])
-// TLOOP-SAME: iterators["parallel", "parallel", "reduction"] {
+// TLOOP-SAME: iterators["parallel", "parallel", "reduction"]
+// TLOOP-SAME: distribution["block_x", "block_y", "none"] {
 
-// TLOOP: %[[SUB_ARG_0:.*]] = subtensor %[[A0]][%[[I]], %[[K]]]
-// TLOOP: %[[SUB_ARG_1:.*]] = subtensor %[[A1]][%[[K]], %[[J]]]
-// TLOOP: %[[SUB_ARG_2:.*]] = subtensor %[[A2]][%[[I]], %[[J]]]
+// TLOOP: %[[SUB_ARG_0:.*]] = tensor.extract_slice %[[A0]][%[[I]], %[[K]]]
+// TLOOP: %[[SUB_ARG_1:.*]] = tensor.extract_slice %[[A1]][%[[K]], %[[J]]]
+// TLOOP: %[[SUB_ARG_2:.*]] = tensor.extract_slice %[[A2]][%[[I]], %[[J]]]
 
 // TLOOP: %[[PROD:.*]] = linalg.matmul ins(%[[SUB_ARG_0]], %[[SUB_ARG_1]]
 // TLOOP-SE: outs(%[[SUB_ARG_2]] : [[TY]]) -> [[TY]]
 
-// TLOOP: %[[O:.*]] = subtensor_insert %[[PROD]] into %[[A2]][%[[I]], %[[J]]]
+// TLOOP: %[[O:.*]] = tensor.insert_slice %[[PROD]] into %[[A2]][%[[I]], %[[J]]]
 // TLOOP: linalg.yield %[[O]] : [[TY]]
 
 // -----
@@ -92,13 +93,13 @@ func @generic_op_tensors(
 //       CHECK:   %[[TD0:.+]] = scf.for %{{.+}} to %{{.+}} step %{{.+}} iter_args(%[[TC0:.+]] = %[[INIT]]) -> (tensor<?x?x?xf32>) {
 //       CHECK:     %[[TD1:.+]] = scf.for %{{.+}} to %{{.+}} step %{{.+}} iter_args(%[[TC1:.+]] = %[[TC0]]) -> (tensor<?x?x?xf32>) {
 //       CHECK:       %[[TD2:.+]] = scf.for %{{.+}} to %{{.+}} step %{{.+}} iter_args(%[[TC2:.+]] = %[[TC1]]) -> (tensor<?x?x?xf32>) {
-//       CHECK:       %[[STARG0:.+]] = subtensor %[[ARG0]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
-//       CHECK:       %[[STARG1:.+]] = subtensor %[[ARG1]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
-//       CHECK:       %[[STARG2:.+]] = subtensor %[[TC2]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
+//       CHECK:       %[[STARG0:.+]] = tensor.extract_slice %[[ARG0]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
+//       CHECK:       %[[STARG1:.+]] = tensor.extract_slice %[[ARG1]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
+//       CHECK:       %[[STARG2:.+]] = tensor.extract_slice %[[TC2]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
 //       CHECK:       %[[STRETURN:.+]] = linalg.generic
 //  CHECK-SAME:         ins(%[[STARG0]], %[[STARG1]] : tensor<?x?x?xf32>, tensor<?x?x?xf32>)
 //  CHECK-SAME:         outs(%[[STARG2]] : tensor<?x?x?xf32>)
-//       CHECK:       %[[TD:.+]] = subtensor_insert %[[STRETURN]] into %[[TC2]]
+//       CHECK:       %[[TD:.+]] = tensor.insert_slice %[[STRETURN]] into %[[TC2]]
 //       CHECK:       scf.yield %[[TD]]
 //       CHECK:     }
 //       CHECK:     scf.yield %[[TD2]]
@@ -128,26 +129,4 @@ func @generic_op_tensors(
 // TLOOP-SAME: step (%[[C2]], %[[C3]], %[[C4]])
 // TLOOP-SAME: ins (%{{.*}} = %[[ARG_0]]: [[TY]], %{{.*}} = %[[ARG_1]]: [[TY]])
 // TLOOP-SAME: outs (%{{.*}} = %[[INIT]]: [[TY]])
-
-// -----
-
-func @fill_tensors(%arg0 : index, %arg1 : index, %arg2 : f32) -> tensor<?x?xf32> {
-  %0 = linalg.init_tensor [%arg0, %arg1] : tensor<?x?xf32>
-  %1 = linalg.fill(%0, %arg2) : tensor<?x?xf32>, f32 -> tensor<?x?xf32>
-  return %1 : tensor<?x?xf32>
-}
-//       CHECK: func @fill_tensors
-//       CHECK:   %[[INIT:.+]] = linalg.init_tensor
-//       CHECK:   %[[RESULT:.+]] = scf.for %[[IV0:[a-zA-z0-9_]+]]
-//  CHECK-SAME:     iter_args(%[[ARG4:.+]] = %[[INIT]]) -> (tensor<?x?xf32>) {
-//       CHECK:     %[[YIELD_1:.+]] = scf.for %[[IV1:[a-zA-Z0-9_]+]]
-//  CHECK-SAME:       iter_args(%[[ARG6:.+]] = %[[ARG4]]) -> (tensor<?x?xf32>) {
-//       CHECK:       %[[FILL_TILE:.+]] = subtensor %[[ARG6]][%[[IV0]], %[[IV1]]]
-//       CHECK:       %[[RESULT_TILE:.+]] = linalg.fill(%[[FILL_TILE]], %{{.+}})
-//       CHECK:       %[[YIELD_2:.+]] = subtensor_insert %[[RESULT_TILE]]
-//  CHECK-SAME:         into %[[ARG6]][%[[IV0]], %[[IV1]]]
-//       CHECK:       scf.yield %[[YIELD_2]]
-//       CHECK:     }
-//       CHECK:     scf.yield %[[YIELD_1]]
-//       CHECK:   }
-//       CHECK:   return %[[RESULT]]
+// TLOOP-SAME: distribution["block_x", "block_y", "none"] {

@@ -406,6 +406,11 @@ const static char NumSIMD[] = "num_simd_work_items";
 const static char StallEnable[] = "stall_enable";
 const static char FmaxMhz[] = "scheduler_target_fmax_mhz";
 const static char LoopFuse[] = "loop_fuse";
+const static char PreferDSP[] = "prefer_dsp";
+const static char PropDSPPref[] = "propagate_dsp_preference";
+const static char InitiationInterval[] = "initiation_interval";
+const static char MaxConcurrency[] = "max_concurrency";
+const static char DisableLoopPipelining[] = "disable_loop_pipelining";
 } // namespace kSPIR2MD
 
 enum Spir2SamplerKind {
@@ -798,7 +803,7 @@ std::vector<Value *> getInt32(Module *M, const std::vector<int> &Value);
 ConstantInt *getSizet(Module *M, uint64_t Value);
 
 /// Get metadata operand as int.
-int getMDOperandAsInt(MDNode *N, unsigned I);
+int64_t getMDOperandAsInt(MDNode *N, unsigned I);
 
 /// Get metadata operand as string.
 std::string getMDOperandAsString(MDNode *N, unsigned I);

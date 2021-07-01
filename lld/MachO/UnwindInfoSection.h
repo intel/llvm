@@ -9,24 +9,29 @@
 #ifndef LLD_MACHO_UNWIND_INFO_H
 #define LLD_MACHO_UNWIND_INFO_H
 
-#include "MergedOutputSection.h"
+#include "ConcatOutputSection.h"
 #include "SyntheticSections.h"
 
 #include "mach-o/compact_unwind_encoding.h"
-#include "llvm/ADT/DenseMap.h"
-
-#include <vector>
 
 namespace lld {
 namespace macho {
+
+template <class Ptr> struct CompactUnwindEntry {
+  Ptr functionAddress;
+  uint32_t functionLength;
+  compact_unwind_encoding_t encoding;
+  Ptr personality;
+  Ptr lsda;
+};
 
 class UnwindInfoSection : public SyntheticSection {
 public:
   bool isNeeded() const override { return compactUnwindSection != nullptr; }
   uint64_t getSize() const override { return unwindInfoSize; }
-  virtual void prepareRelocations(InputSection *) = 0;
+  virtual void prepareRelocations(ConcatInputSection *) = 0;
 
-  void setCompactUnwindSection(MergedOutputSection *cuSection) {
+  void setCompactUnwindSection(ConcatOutputSection *cuSection) {
     compactUnwindSection = cuSection;
   }
 
@@ -36,7 +41,7 @@ protected:
     align = 4;
   }
 
-  MergedOutputSection *compactUnwindSection = nullptr;
+  ConcatOutputSection *compactUnwindSection = nullptr;
   uint64_t unwindInfoSize = 0;
 };
 

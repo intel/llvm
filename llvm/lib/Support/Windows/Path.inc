@@ -560,11 +560,6 @@ static std::error_code rename_handle(HANDLE FromHandle, const Twine &To) {
   return errc::permission_denied;
 }
 
-static std::error_code rename_fd(int FromFD, const Twine &To) {
-  HANDLE FromHandle = reinterpret_cast<HANDLE>(_get_osfhandle(FromFD));
-  return rename_handle(FromHandle, To);
-}
-
 std::error_code rename(const Twine &From, const Twine &To) {
   // Convert to utf-16.
   SmallVector<wchar_t, 128> WideFrom;
@@ -674,7 +669,7 @@ static bool isReservedName(StringRef path) {
 
   // Then compare against the list of ancient reserved names.
   for (size_t i = 0; i < array_lengthof(sReservedNames); ++i) {
-    if (path.equals_lower(sReservedNames[i]))
+    if (path.equals_insensitive(sReservedNames[i]))
       return true;
   }
 

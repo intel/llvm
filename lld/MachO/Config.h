@@ -38,6 +38,12 @@ struct PlatformInfo {
   llvm::VersionTuple sdk;
 };
 
+inline uint32_t encodeVersion(const llvm::VersionTuple &version) {
+  return ((version.getMajor() << 020) |
+          (version.getMinor().getValueOr(0) << 010) |
+          version.getSubminor().getValueOr(0));
+}
+
 enum class NamespaceKind {
   twolevel,
   flat,
@@ -49,6 +55,13 @@ enum class UndefinedSymbolTreatment {
   warning,
   suppress,
   dynamic_lookup,
+};
+
+enum class ICFLevel {
+  unknown,
+  none,
+  safe,
+  all,
 };
 
 struct SectionAlign {
@@ -83,12 +96,14 @@ struct Configuration {
   bool hasReexports = false;
   bool allLoad = false;
   bool forceLoadObjC = false;
+  bool forceLoadSwift = false;
   bool staticLink = false;
   bool implicitDylibs = false;
   bool isPic = false;
   bool headerPadMaxInstallNames = false;
   bool ltoNewPassManager = LLVM_ENABLE_NEW_PASS_MANAGER;
   bool markDeadStrippableDylib = false;
+  bool printDylibSearch = false;
   bool printEachFile = false;
   bool printWhyLoad = false;
   bool searchDylibsFirst = false;
@@ -96,9 +111,11 @@ struct Configuration {
   bool adhocCodesign = false;
   bool emitFunctionStarts = false;
   bool emitBitcodeBundle = false;
+  bool emitDataInCodeInfo = false;
   bool emitEncryptionInfo = false;
   bool timeTraceEnabled = false;
   bool dataConst = false;
+  bool dedupLiterals = true;
   uint32_t headerPad;
   uint32_t dylibCompatibilityVersion = 0;
   uint32_t dylibCurrentVersion = 0;
@@ -109,11 +126,14 @@ struct Configuration {
   llvm::StringRef outputFile;
   llvm::StringRef ltoObjPath;
   llvm::StringRef thinLTOJobs;
+  bool deadStripDylibs = false;
   bool demangle = false;
+  bool deadStrip = false;
   PlatformInfo platformInfo;
   NamespaceKind namespaceKind = NamespaceKind::twolevel;
   UndefinedSymbolTreatment undefinedSymbolTreatment =
       UndefinedSymbolTreatment::error;
+  ICFLevel icfLevel = ICFLevel::none;
   llvm::MachO::HeaderFileType outputType;
   std::vector<llvm::StringRef> systemLibraryRoots;
   std::vector<llvm::StringRef> librarySearchPaths;
@@ -132,6 +152,8 @@ struct Configuration {
 
   SymbolPatterns exportedSymbols;
   SymbolPatterns unexportedSymbols;
+
+  bool zeroModTime = false;
 
   llvm::MachO::Architecture arch() const { return platformInfo.target.Arch; }
 

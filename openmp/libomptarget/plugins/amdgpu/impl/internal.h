@@ -65,15 +65,6 @@ typedef struct hsa_signal_s {
 } hsa_signal_t;
 #endif
 
-/*  All global values go in this global structure */
-typedef struct atl_context_s {
-  bool struct_initialized;
-  bool g_hsa_initialized;
-  bool g_gpu_initialized;
-  bool g_tasks_initialized;
-} atl_context_t;
-extern atl_context_t atlc;
-
 #ifdef __cplusplus
 }
 #endif
@@ -105,9 +96,6 @@ typedef struct atl_symbol_info_s {
   uint64_t addr;
   uint32_t size;
 } atl_symbol_info_t;
-
-extern std::vector<std::map<std::string, atl_kernel_info_t>> KernelInfoTable;
-extern std::vector<std::map<std::string, atl_symbol_info_t>> SymbolInfoTable;
 
 // ---------------------- Kernel End -------------
 
@@ -184,10 +172,8 @@ private:
   };
 };
 
-extern std::vector<hsa_amd_memory_pool_t> atl_gpu_kernarg_pools;
-
 namespace core {
-atmi_status_t atl_init_gpu_context();
+hsa_status_t atl_init_gpu_context();
 
 hsa_status_t init_hsa();
 hsa_status_t finalize_hsa();
@@ -211,9 +197,6 @@ template <typename T> inline T *alignUp(T *value, size_t alignment) {
       alignDown((intptr_t)(value + alignment - 1), alignment));
 }
 
-hsa_status_t register_allocation(void *addr, size_t size,
-                                 atmi_mem_place_t place);
-
 extern bool atl_is_atmi_initialized();
 
 bool handle_group_signal(hsa_signal_value_t value, void *arg);
@@ -222,6 +205,6 @@ hsa_status_t allow_access_to_all_gpu_agents(void *ptr);
 } // namespace core
 
 const char *get_error_string(hsa_status_t err);
-const char *get_atmi_error_string(atmi_status_t err);
+const char *get_atmi_error_string(hsa_status_t err);
 
 #endif // SRC_RUNTIME_INCLUDE_INTERNAL_H_

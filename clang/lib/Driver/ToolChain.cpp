@@ -856,7 +856,7 @@ ToolChain::UnwindLibType ToolChain::GetUnwindLibType(
   else if (LibName == "platform" || LibName == "") {
     ToolChain::RuntimeLibType RtLibType = GetRuntimeLibType(Args);
     if (RtLibType == ToolChain::RLT_CompilerRT) {
-      if (getTriple().isAndroid())
+      if (getTriple().isAndroid() || getTriple().isOSAIX())
         unwindLibType = ToolChain::UNW_CompilerRT;
       else
         unwindLibType = ToolChain::UNW_None;
@@ -1169,7 +1169,9 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
     // matches the current toolchain triple. If it is not present
     // at all, target and host share a toolchain.
     if (A->getOption().matches(options::OPT_m_Group)) {
-      if (SameTripleAsHost)
+      // AMD GPU is a special case, as -mcpu is required for the device
+      // compilation.
+      if (SameTripleAsHost || getTriple().getArch() == llvm::Triple::amdgcn)
         DAL->append(A);
       else
         Modified = true;

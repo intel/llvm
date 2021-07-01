@@ -500,16 +500,14 @@ void ObjFile::handleComdatSelection(
   // symbol in `Sym` should be discarded, produce a duplicate symbol
   // error, etc.
 
-  SectionChunk *leaderChunk = nullptr;
-  COMDATType leaderSelection = IMAGE_COMDAT_SELECT_ANY;
+  SectionChunk *leaderChunk = leader->getChunk();
+  COMDATType leaderSelection = leaderChunk->selection;
 
-  if (leader->data) {
-    leaderChunk = leader->getChunk();
-    leaderSelection = leaderChunk->selection;
-  } else {
-    // FIXME: comdats from LTO files don't know their selection; treat them
-    // as "any".
-    selection = leaderSelection;
+  assert(leader->data && "Comdat leader without SectionChunk?");
+  if (isa<BitcodeFile>(leader->file)) {
+    // If the leader is only a LTO symbol, we don't know e.g. its final size
+    // yet, so we can't do the full strict comdat selection checking yet.
+    selection = leaderSelection = IMAGE_COMDAT_SELECT_ANY;
   }
 
   if ((selection == IMAGE_COMDAT_SELECT_ANY &&
@@ -563,8 +561,10 @@ void ObjFile::handleComdatSelection(
       if (!config->mingw) {
         symtab->reportDuplicate(leader, this);
       } else {
-        const coff_aux_section_definition *leaderDef = findSectionDef(
-            leaderChunk->file->getCOFFObj(), leaderChunk->getSectionNumber());
+        const coff_aux_section_definition *leaderDef = nullptr;
+        if (leaderChunk->file)
+          leaderDef = findSectionDef(leaderChunk->file->getCOFFObj(),
+                                     leaderChunk->getSectionNumber());
         if (!leaderDef || leaderDef->Length != def->Length)
           symtab->reportDuplicate(leader, this);
       }
@@ -1051,10 +1051,23 @@ public:
   coff_section section;
 };
 
+// Convenience class for initializing a SectionChunk with specific flags.
+class FakeSectionChunk {
+public:
+  FakeSectionChunk(const coff_section *section) : chunk(nullptr, section) {
+    // Comdats from LTO files can't be fully treated as regular comdats
+    // at this point; we don't know what size or contents they are going to
+    // have, so we can't do proper checking of such aspects of them.
+    chunk.selection = IMAGE_COMDAT_SELECT_ANY;
+  }
+
+  SectionChunk chunk;
+};
+
 FakeSection ltoTextSection(IMAGE_SCN_MEM_EXECUTE);
 FakeSection ltoDataSection(IMAGE_SCN_CNT_INITIALIZED_DATA);
-SectionChunk ltoTextSectionChunk(nullptr, &ltoTextSection.section);
-SectionChunk ltoDataSectionChunk(nullptr, &ltoDataSection.section);
+FakeSectionChunk ltoTextSectionChunk(&ltoTextSection.section);
+FakeSectionChunk ltoDataSectionChunk(&ltoDataSection.section);
 } // namespace
 
 void BitcodeFile::parse() {
@@ -1069,9 +1082,9 @@ void BitcodeFile::parse() {
     Symbol *sym;
     SectionChunk *fakeSC = nullptr;
     if (objSym.isExecutable())
-      fakeSC = &ltoTextSectionChunk;
+      fakeSC = &ltoTextSectionChunk.chunk;
     else
-      fakeSC = &ltoDataSectionChunk;
+      fakeSC = &ltoDataSectionChunk.chunk;
     if (objSym.isUndefined()) {
       sym = symtab->addUndefined(symName, this, false);
     } else if (objSym.isCommon()) {
@@ -1083,12 +1096,15 @@ void BitcodeFile::parse() {
       Symbol *alias = symtab->addUndefined(saver.save(fallback));
       checkAndSetWeakAlias(symtab, this, sym, alias);
     } else if (comdatIndex != -1) {
-      if (symName == obj->getComdatTable()[comdatIndex])
+      if (symName == obj->getComdatTable()[comdatIndex]) {
         sym = comdat[comdatIndex].first;
-      else if (comdat[comdatIndex].second)
+        if (cast<DefinedRegular>(sym)->data == nullptr)
+          cast<DefinedRegular>(sym)->data = &fakeSC->repl;
+      } else if (comdat[comdatIndex].second) {
         sym = symtab->addRegular(this, symName, nullptr, fakeSC);
-      else
+      } else {
         sym = symtab->addUndefined(symName, this, false);
+      }
     } else {
       sym = symtab->addRegular(this, symName, nullptr, fakeSC);
     }

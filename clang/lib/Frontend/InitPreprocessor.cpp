@@ -168,7 +168,7 @@ static void DefineTypeSize(const Twine &MacroName, unsigned TypeWidth,
                            MacroBuilder &Builder) {
   llvm::APInt MaxVal = isSigned ? llvm::APInt::getSignedMaxValue(TypeWidth)
                                 : llvm::APInt::getMaxValue(TypeWidth);
-  Builder.defineMacro(MacroName, MaxVal.toString(10, isSigned) + ValSuffix);
+  Builder.defineMacro(MacroName, toString(MaxVal, 10, isSigned) + ValSuffix);
 }
 
 /// DefineTypeSize - An overloaded helper that uses TargetInfo to determine
@@ -488,7 +488,7 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("SYCL_LANGUAGE_VERSION", "202001");
 
     if (LangOpts.SYCLValueFitInMaxInt)
-      Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__", "1");
+      Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__");
 
     // Set __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ macro for
     // both host and device compilations if -fsycl-disable-range-rounding
@@ -608,11 +608,13 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_designated_initializers", "201707L");
     Builder.defineMacro("__cpp_impl_three_way_comparison", "201907L");
     //Builder.defineMacro("__cpp_modules", "201907L");
-    //Builder.defineMacro("__cpp_using_enum", "201907L");
+    Builder.defineMacro("__cpp_using_enum", "201907L");
   }
   // C++2b features.
-  if (LangOpts.CPlusPlus2b)
+  if (LangOpts.CPlusPlus2b) {
+    Builder.defineMacro("__cpp_implicit_move", "202011L");
     Builder.defineMacro("__cpp_size_t_suffix", "202011L");
+  }
   if (LangOpts.Char8)
     Builder.defineMacro("__cpp_char8_t", "201811L");
   Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
@@ -1176,15 +1178,20 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   // Define a macro indicating that the source file is being compiled with a
   // SYCL device compiler which doesn't produce host binary.
   if (LangOpts.SYCLIsDevice) {
-    Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
+    Builder.defineMacro("__SYCL_DEVICE_ONLY__");
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
-    if (TI.getTriple().isNVPTX()) {
-        Builder.defineMacro("__SYCL_NVPTX__", "1");
-    }
+    const llvm::Triple &DeviceTriple = TI.getTriple();
+    const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
+    if (DeviceTriple.isSPIR() &&
+        DeviceSubArch != llvm::Triple::SPIRSubArch_fpga)
+      Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
+    // Enable generation of USM address spaces for FPGA.
+    if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga)
+      Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
   }
   if (LangOpts.SYCLUnnamedLambda)
-    Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");
+    Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");
 
   // OpenCL definitions.
   if (LangOpts.OpenCL) {

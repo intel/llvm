@@ -15,6 +15,7 @@
 #include <CL/sycl/detail/tuple.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/known_identity.hpp>
 
 #include <tuple>
 
@@ -26,10 +27,71 @@ namespace detail {
 
 using cl::sycl::detail::bool_constant;
 using cl::sycl::detail::enable_if_t;
-using cl::sycl::detail::is_sgenfloat;
-using cl::sycl::detail::is_sgeninteger;
 using cl::sycl::detail::queue_impl;
 using cl::sycl::detail::remove_AS;
+
+// This type trait is used to detect if the atomic operation BinaryOperation
+// used with operands of the type T is available for using in reduction.
+// The order in which the atomic operations are performed may be arbitrary and
+// thus may cause different results from run to run even on the same elements
+// and on same device. The macro SYCL_REDUCTION_DETERMINISTIC prohibits using
+// atomic operations for reduction and helps to produce stable results.
+// SYCL_REDUCTION_DETERMINISTIC is a short term solution, which perhaps become
+// deprecated eventually and is replaced by a sycl property passed to reduction.
+template <typename T, class BinaryOperation>
+using IsReduOptForFastAtomicFetch =
+#ifdef SYCL_REDUCTION_DETERMINISTIC
+    bool_constant<false>;
+#else
+    bool_constant<sycl::detail::is_sgeninteger<T>::value &&
+                  sycl::detail::IsValidAtomicType<T>::value &&
+                  (sycl::detail::IsPlus<T, BinaryOperation>::value ||
+                   sycl::detail::IsMinimum<T, BinaryOperation>::value ||
+                   sycl::detail::IsMaximum<T, BinaryOperation>::value ||
+                   sycl::detail::IsBitOR<T, BinaryOperation>::value ||
+                   sycl::detail::IsBitXOR<T, BinaryOperation>::value ||
+                   sycl::detail::IsBitAND<T, BinaryOperation>::value)>;
+#endif
+
+// This type trait is used to detect if the atomic operation BinaryOperation
+// used with operands of the type T is available for using in reduction, in
+// addition to the cases covered by "IsReduOptForFastAtomicFetch", if the device
+// has the atomic64 aspect. This type trait should only be used if the device
+// has the atomic64 aspect.  Note that this type trait is currently a subset of
+// IsReduOptForFastReduce. The macro SYCL_REDUCTION_DETERMINISTIC prohibits
+// using the reduce_over_group() algorithm to produce stable results across same
+// type devices.
+// TODO 32 bit floating point atomics are eventually expected to be supported by
+// the has_fast_atomics specialization. Once the reducer class is updated to
+// replace the deprecated atomic class with atomic_ref, the (sizeof(T) == 4)
+// case should be removed here and replaced in IsReduOptForFastAtomicFetch.
+template <typename T, class BinaryOperation>
+using IsReduOptForAtomic64Add =
+#ifdef SYCL_REDUCTION_DETERMINISTIC
+    bool_constant<false>;
+#else
+    bool_constant<sycl::detail::IsPlus<T, BinaryOperation>::value &&
+                  sycl::detail::is_sgenfloat<T>::value &&
+                  (sizeof(T) == 4 || sizeof(T) == 8)>;
+#endif
+
+// This type trait is used to detect if the group algorithm reduce() used with
+// operands of the type T and the operation BinaryOperation is available
+// for using in reduction.
+// The macro SYCL_REDUCTION_DETERMINISTIC prohibits using the reduce() algorithm
+// to produce stable results across same type devices.
+template <typename T, class BinaryOperation>
+using IsReduOptForFastReduce =
+#ifdef SYCL_REDUCTION_DETERMINISTIC
+    bool_constant<false>;
+#else
+    bool_constant<((sycl::detail::is_sgeninteger<T>::value &&
+                    (sizeof(T) == 4 || sizeof(T) == 8)) ||
+                   sycl::detail::is_sgenfloat<T>::value) &&
+                  (sycl::detail::IsPlus<T, BinaryOperation>::value ||
+                   sycl::detail::IsMinimum<T, BinaryOperation>::value ||
+                   sycl::detail::IsMaximum<T, BinaryOperation>::value)>;
+#endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
 // Thus sycl::detail::tuple is used instead.
@@ -40,183 +102,10 @@ template <typename... Ts> ReduTupleT<Ts...> makeReduTupleT(Ts... Elements) {
   return sycl::detail::make_tuple(Elements...);
 }
 
-__SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
+__SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
 __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
                                        size_t &NWorkGroups);
-
-template <typename T, class BinaryOperation>
-using IsReduPlus =
-    bool_constant<std::is_same<BinaryOperation, ONEAPI::plus<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::plus<void>>::value>;
-
-template <typename T, class BinaryOperation>
-using IsReduMultiplies =
-    bool_constant<std::is_same<BinaryOperation, std::multiplies<T>>::value ||
-                  std::is_same<BinaryOperation, std::multiplies<void>>::value>;
-
-template <typename T, class BinaryOperation>
-using IsReduMinimum =
-    bool_constant<std::is_same<BinaryOperation, ONEAPI::minimum<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::minimum<void>>::value>;
-
-template <typename T, class BinaryOperation>
-using IsReduMaximum =
-    bool_constant<std::is_same<BinaryOperation, ONEAPI::maximum<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::maximum<void>>::value>;
-
-template <typename T, class BinaryOperation>
-using IsReduBitOR =
-    bool_constant<std::is_same<BinaryOperation, ONEAPI::bit_or<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::bit_or<void>>::value>;
-
-template <typename T, class BinaryOperation>
-using IsReduBitXOR =
-    bool_constant<std::is_same<BinaryOperation, ONEAPI::bit_xor<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::bit_xor<void>>::value>;
-
-template <typename T, class BinaryOperation>
-using IsReduBitAND =
-    bool_constant<std::is_same<BinaryOperation, ONEAPI::bit_and<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::bit_and<void>>::value>;
-
-template <typename T, class BinaryOperation>
-using IsReduOptForFastAtomicFetch =
-    bool_constant<is_sgeninteger<T>::value &&
-                  sycl::detail::IsValidAtomicType<T>::value &&
-                  (IsReduPlus<T, BinaryOperation>::value ||
-                   IsReduMinimum<T, BinaryOperation>::value ||
-                   IsReduMaximum<T, BinaryOperation>::value ||
-                   IsReduBitOR<T, BinaryOperation>::value ||
-                   IsReduBitXOR<T, BinaryOperation>::value ||
-                   IsReduBitAND<T, BinaryOperation>::value)>;
-
-template <typename T, class BinaryOperation>
-using IsReduOptForFastReduce =
-    bool_constant<((is_sgeninteger<T>::value &&
-                    (sizeof(T) == 4 || sizeof(T) == 8)) ||
-                   is_sgenfloat<T>::value) &&
-                  (IsReduPlus<T, BinaryOperation>::value ||
-                   IsReduMinimum<T, BinaryOperation>::value ||
-                   IsReduMaximum<T, BinaryOperation>::value)>;
-
-// Identity = 0
-template <typename T, class BinaryOperation>
-using IsZeroIdentityOp = bool_constant<
-    (is_sgeninteger<T>::value && (IsReduPlus<T, BinaryOperation>::value ||
-                                  IsReduBitOR<T, BinaryOperation>::value ||
-                                  IsReduBitXOR<T, BinaryOperation>::value)) ||
-    (is_sgenfloat<T>::value && IsReduPlus<T, BinaryOperation>::value)>;
-
-// Identity = 1
-template <typename T, class BinaryOperation>
-using IsOneIdentityOp =
-    bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
-                  IsReduMultiplies<T, BinaryOperation>::value>;
-
-// Identity = ~0
-template <typename T, class BinaryOperation>
-using IsOnesIdentityOp = bool_constant<is_sgeninteger<T>::value &&
-                                       IsReduBitAND<T, BinaryOperation>::value>;
-
-// Identity = <max possible value>
-template <typename T, class BinaryOperation>
-using IsMinimumIdentityOp =
-    bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
-                  IsReduMinimum<T, BinaryOperation>::value>;
-
-// Identity = <min possible value>
-template <typename T, class BinaryOperation>
-using IsMaximumIdentityOp =
-    bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
-                  IsReduMaximum<T, BinaryOperation>::value>;
-
-template <typename T, class BinaryOperation>
-using IsKnownIdentityOp =
-    bool_constant<IsZeroIdentityOp<T, BinaryOperation>::value ||
-                  IsOneIdentityOp<T, BinaryOperation>::value ||
-                  IsOnesIdentityOp<T, BinaryOperation>::value ||
-                  IsMinimumIdentityOp<T, BinaryOperation>::value ||
-                  IsMaximumIdentityOp<T, BinaryOperation>::value>;
-
-template <typename BinaryOperation, typename AccumulatorT>
-struct has_known_identity_impl
-    : std::integral_constant<
-          bool, IsKnownIdentityOp<AccumulatorT, BinaryOperation>::value> {};
-
-template <typename BinaryOperation, typename AccumulatorT, typename = void>
-struct known_identity_impl {};
-
-/// Returns zero as identity for ADD, OR, XOR operations.
-template <typename BinaryOperation, typename AccumulatorT>
-struct known_identity_impl<BinaryOperation, AccumulatorT,
-                           typename std::enable_if<IsZeroIdentityOp<
-                               AccumulatorT, BinaryOperation>::value>::type> {
-  static constexpr AccumulatorT value = 0;
-};
-
-template <typename BinaryOperation>
-struct known_identity_impl<BinaryOperation, half,
-                           typename std::enable_if<IsZeroIdentityOp<
-                               half, BinaryOperation>::value>::type> {
-  static constexpr half value =
-#ifdef __SYCL_DEVICE_ONLY__
-      0;
-#else
-      cl::sycl::detail::host_half_impl::half(static_cast<uint16_t>(0));
-#endif
-};
-
-/// Returns one as identify for MULTIPLY operations.
-template <typename BinaryOperation, typename AccumulatorT>
-struct known_identity_impl<BinaryOperation, AccumulatorT,
-                           typename std::enable_if<IsOneIdentityOp<
-                               AccumulatorT, BinaryOperation>::value>::type> {
-  static constexpr AccumulatorT value = 1;
-};
-
-template <typename BinaryOperation>
-struct known_identity_impl<BinaryOperation, half,
-                           typename std::enable_if<IsOneIdentityOp<
-                               half, BinaryOperation>::value>::type> {
-  static constexpr half value =
-#ifdef __SYCL_DEVICE_ONLY__
-      1;
-#else
-      cl::sycl::detail::host_half_impl::half(static_cast<uint16_t>(0x3C00));
-#endif
-};
-
-/// Returns bit image consisting of all ones as identity for AND operations.
-template <typename BinaryOperation, typename AccumulatorT>
-struct known_identity_impl<BinaryOperation, AccumulatorT,
-                           typename std::enable_if<IsOnesIdentityOp<
-                               AccumulatorT, BinaryOperation>::value>::type> {
-  static constexpr AccumulatorT value = ~static_cast<AccumulatorT>(0);
-};
-
-/// Returns maximal possible value as identity for MIN operations.
-template <typename BinaryOperation, typename AccumulatorT>
-struct known_identity_impl<BinaryOperation, AccumulatorT,
-                           typename std::enable_if<IsMinimumIdentityOp<
-                               AccumulatorT, BinaryOperation>::value>::type> {
-  static constexpr AccumulatorT value =
-      std::numeric_limits<AccumulatorT>::has_infinity
-          ? std::numeric_limits<AccumulatorT>::infinity()
-          : (std::numeric_limits<AccumulatorT>::max)();
-};
-
-/// Returns minimal possible value as identity for MAX operations.
-template <typename BinaryOperation, typename AccumulatorT>
-struct known_identity_impl<BinaryOperation, AccumulatorT,
-                           typename std::enable_if<IsMaximumIdentityOp<
-                               AccumulatorT, BinaryOperation>::value>::type> {
-  static constexpr AccumulatorT value =
-      std::numeric_limits<AccumulatorT>::has_infinity
-          ? static_cast<AccumulatorT>(
-                -std::numeric_limits<AccumulatorT>::infinity())
-          : std::numeric_limits<AccumulatorT>::lowest();
-};
 
 /// Class that is used to represent objects that are passed to user's lambda
 /// functions and representing users' reduction variable.
@@ -232,45 +121,45 @@ public:
   T getIdentity() const { return MIdentity; }
 
   template <typename _T = T>
-  enable_if_t<IsReduPlus<_T, BinaryOperation>::value &&
+  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value &&
               sycl::detail::is_geninteger<_T>::value>
   operator++() {
     combine(static_cast<T>(1));
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduPlus<_T, BinaryOperation>::value &&
+  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value &&
               sycl::detail::is_geninteger<_T>::value>
   operator++(int) {
     combine(static_cast<T>(1));
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduPlus<_T, BinaryOperation>::value>
+  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value>
   operator+=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduMultiplies<_T, BinaryOperation>::value>
+  enable_if_t<sycl::detail::IsMultiplies<_T, BinaryOperation>::value>
   operator*=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduBitOR<_T, BinaryOperation>::value>
+  enable_if_t<sycl::detail::IsBitOR<_T, BinaryOperation>::value>
   operator|=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduBitXOR<_T, BinaryOperation>::value>
+  enable_if_t<sycl::detail::IsBitXOR<_T, BinaryOperation>::value>
   operator^=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduBitAND<_T, BinaryOperation>::value>
+  enable_if_t<sycl::detail::IsBitAND<_T, BinaryOperation>::value>
   operator&=(const _T &Partial) {
     combine(Partial);
   }
@@ -318,45 +207,45 @@ public:
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduPlus<_T, BinaryOperation>::value &&
+  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value &&
               sycl::detail::is_geninteger<_T>::value>
   operator++() {
     combine(static_cast<T>(1));
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduPlus<_T, BinaryOperation>::value &&
+  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value &&
               sycl::detail::is_geninteger<_T>::value>
   operator++(int) {
     combine(static_cast<T>(1));
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduPlus<_T, BinaryOperation>::value>
+  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value>
   operator+=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduMultiplies<_T, BinaryOperation>::value>
+  enable_if_t<sycl::detail::IsMultiplies<_T, BinaryOperation>::value>
   operator*=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduBitOR<_T, BinaryOperation>::value>
+  enable_if_t<sycl::detail::IsBitOR<_T, BinaryOperation>::value>
   operator|=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduBitXOR<_T, BinaryOperation>::value>
+  enable_if_t<sycl::detail::IsBitXOR<_T, BinaryOperation>::value>
   operator^=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<IsReduBitAND<_T, BinaryOperation>::value>
+  enable_if_t<sycl::detail::IsBitAND<_T, BinaryOperation>::value>
   operator&=(const _T &Partial) {
     combine(Partial);
   }
@@ -365,7 +254,7 @@ public:
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              IsReduPlus<T, _BinaryOperation>::value>
+              sycl::detail::IsPlus<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
         .fetch_add(MValue);
@@ -375,7 +264,7 @@ public:
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              IsReduBitOR<T, _BinaryOperation>::value>
+              sycl::detail::IsBitOR<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
         .fetch_or(MValue);
@@ -385,7 +274,7 @@ public:
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              IsReduBitXOR<T, _BinaryOperation>::value>
+              sycl::detail::IsBitXOR<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
         .fetch_xor(MValue);
@@ -395,7 +284,7 @@ public:
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              IsReduBitAND<T, _BinaryOperation>::value>
+              sycl::detail::IsBitAND<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
         .fetch_and(MValue);
@@ -405,7 +294,7 @@ public:
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              IsReduMinimum<T, _BinaryOperation>::value>
+              sycl::detail::IsMinimum<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
         .fetch_min(MValue);
@@ -415,10 +304,22 @@ public:
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              IsReduMaximum<T, _BinaryOperation>::value>
+              sycl::detail::IsMaximum<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
         .fetch_max(MValue);
+  }
+
+  /// Atomic ADD operation: for floating point using atomic_ref
+  template <typename _T = T, class _BinaryOperation = BinaryOperation>
+  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+              IsReduOptForAtomic64Add<T, _BinaryOperation>::value>
+  atomic_combine(_T *ReduVarPtr) const {
+
+    atomic_ref<T, sycl::ONEAPI::memory_order::relaxed,
+               sycl::ONEAPI::memory_scope::device,
+               access::address_space::global_space>(
+        *global_ptr<T>(ReduVarPtr)) += MValue;
   }
 
   T MValue;
@@ -463,6 +364,8 @@ public:
   using local_accessor_type =
       accessor<T, buffer_dim, access::mode::read_write, access::target::local>;
 
+  static constexpr bool has_atomic_add_float64 =
+      IsReduOptForAtomic64Add<T, BinaryOperation>::value;
   static constexpr bool has_fast_atomics =
       IsReduOptForFastAtomicFetch<T, BinaryOperation>::value;
   static constexpr bool has_fast_reduce =
@@ -473,8 +376,8 @@ public:
 
   // Only scalar (i.e. 0-dim and 1-dim with 1 element) reductions supported now.
   // TODO: suport (Dims > 1) accessors/reductions.
-  // TODO: support true 1-Dimensional accessors/reductions (get_count() > 1).
-  // (get_count() == 1) is checked in the constructor of reduction_impl.
+  // TODO: support true 1-Dimensional accessors/reductions (size() > 1).
+  // (size() == 1) is checked in the constructor of reduction_impl.
   static_assert(Dims <= 1,
                 "Multi-dimensional reductions are not supported yet.");
 
@@ -502,7 +405,7 @@ public:
       : MRWAcc(std::make_shared<rw_accessor_type>(Buffer)),
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
-    if (Buffer.get_count() != 1)
+    if (Buffer.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
@@ -514,7 +417,7 @@ public:
   reduction_impl(rw_accessor_type &Acc)
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(false) {
-    if (Acc.get_count() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
@@ -526,7 +429,7 @@ public:
   reduction_impl(dw_accessor_type &Acc)
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(true) {
-    if (Acc.get_count() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
@@ -543,7 +446,7 @@ public:
       : MRWAcc(std::make_shared<rw_accessor_type>(Buffer)),
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
-    if (Buffer.get_count() != 1)
+    if (Buffer.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
@@ -567,7 +470,7 @@ public:
   reduction_impl(rw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(false) {
-    if (Acc.get_count() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
@@ -591,7 +494,7 @@ public:
   reduction_impl(dw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(true) {
-    if (Acc.get_count() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
@@ -618,7 +521,7 @@ public:
       : MRWAcc(std::make_shared<rw_accessor_type>(Buffer)), MIdentity(Identity),
         MBinaryOp(BOp), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
-    if (Buffer.get_count() != 1)
+    if (Buffer.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
@@ -630,7 +533,7 @@ public:
   reduction_impl(rw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
         InitializeToIdentity(false) {
-    if (Acc.get_count() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
@@ -642,7 +545,7 @@ public:
   reduction_impl(dw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
         InitializeToIdentity(true) {
-    if (Acc.get_count() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
@@ -769,7 +672,8 @@ public:
   /// require initialization with identity value, then return user's read-write
   /// accessor. Otherwise, create 1-element global buffer initialized with
   /// identity value and return an accessor to that buffer.
-  template <bool HasFastAtomics = has_fast_atomics>
+
+  template <bool HasFastAtomics = (has_fast_atomics || has_atomic_add_float64)>
   std::enable_if_t<HasFastAtomics, rw_accessor_type>
   getReadWriteAccessorToInitializedMem(handler &CGH) {
     if (!is_usm && !initializeToIdentity())
@@ -831,10 +735,10 @@ private:
   const T MIdentity;
 
   /// User's accessor to where the reduction must be written.
-  shared_ptr_class<rw_accessor_type> MRWAcc;
-  shared_ptr_class<dw_accessor_type> MDWAcc;
+  std::shared_ptr<rw_accessor_type> MRWAcc;
+  std::shared_ptr<dw_accessor_type> MDWAcc;
 
-  shared_ptr_class<buffer<T, buffer_dim>> MOutBufPtr;
+  std::shared_ptr<buffer<T, buffer_dim>> MOutBufPtr;
 
   /// USM pointer referencing the memory to where the result of the reduction
   /// must be written. Applicable/used only for USM reductions.
@@ -1600,6 +1504,50 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
   }
 }
 
+// Specialization for devices with the atomic64 aspect, which guarantees 64 (and
+// temporarily 32) bit floating point support for atomic add.
+// TODO 32 bit floating point atomics are eventually expected to be supported by
+// the has_fast_atomics specialization. Corresponding changes to
+// IsReduOptForAtomic64Add, as prescribed in its documentation, should then also
+// be made.
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+std::enable_if_t<Reduction::has_atomic_add_float64>
+reduCGFuncImplAtomic64(handler &CGH, KernelType KernelFunc,
+                       const nd_range<Dims> &Range, Reduction &,
+                       typename Reduction::rw_accessor_type Out) {
+  using Name = typename get_reduction_main_kernel_name_t<
+      KernelName, KernelType, Reduction::is_usm,
+      Reduction::has_atomic_add_float64,
+      typename Reduction::rw_accessor_type>::name;
+  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+    // Call user's function. Reducer.MValue gets initialized there.
+    typename Reduction::reducer_type Reducer;
+    KernelFunc(NDIt, Reducer);
+
+    typename Reduction::binary_operation BOp;
+    Reducer.MValue = reduce_over_group(NDIt.get_group(), Reducer.MValue, BOp);
+    if (NDIt.get_local_linear_id() == 0) {
+      Reducer.atomic_combine(Reduction::getOutPointer(Out));
+    }
+  });
+}
+
+// Specialization for devices with the atomic64 aspect, which guarantees 64 (and
+// temporarily 32) bit floating point support for atomic add.
+// TODO 32 bit floating point atomics are eventually expected to be supported by
+// the has_fast_atomics specialization. Corresponding changes to
+// IsReduOptForAtomic64Add, as prescribed in its documentation, should then also
+// be made.
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<Reduction::has_atomic_add_float64>
+reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
+                   const nd_range<Dims> &Range, Reduction &Redu) {
+
+  auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
+  reduCGFuncImplAtomic64<KernelName, KernelType, Dims, Reduction>(
+      CGH, KernelFunc, Range, Redu, Out);
+}
+
 inline void associateReduAccsWithHandlerHelper(handler &) {}
 
 template <typename ReductionT>
@@ -1717,13 +1665,14 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
   return NWorkGroups;
 }
 
-inline void reduSaveFinalResultToUserMemHelper(
-    std::vector<event> &, shared_ptr_class<detail::queue_impl>, bool) {}
+inline void
+reduSaveFinalResultToUserMemHelper(std::vector<event> &,
+                                   std::shared_ptr<detail::queue_impl>, bool) {}
 
 template <typename Reduction, typename... RestT>
 std::enable_if_t<Reduction::is_usm>
 reduSaveFinalResultToUserMemHelper(std::vector<event> &Events,
-                                   shared_ptr_class<detail::queue_impl> Queue,
+                                   std::shared_ptr<detail::queue_impl> Queue,
                                    bool IsHost, Reduction &, RestT... Rest) {
   // Reductions initialized with USM pointer currently do not require copying
   // because the last kernel write directly to USM memory.
@@ -1732,7 +1681,7 @@ reduSaveFinalResultToUserMemHelper(std::vector<event> &Events,
 
 template <typename Reduction, typename... RestT>
 std::enable_if_t<!Reduction::is_usm> reduSaveFinalResultToUserMemHelper(
-    std::vector<event> &Events, shared_ptr_class<detail::queue_impl> Queue,
+    std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
     bool IsHost, Reduction &Redu, RestT... Rest) {
   if (Redu.hasUserDiscardWriteAccessor()) {
     handler CopyHandler(Queue, IsHost);
@@ -1753,8 +1702,8 @@ std::enable_if_t<!Reduction::is_usm> reduSaveFinalResultToUserMemHelper(
 /// Returns the event to the last kernel copying data or nullptr if no
 /// additional kernels created.
 template <typename... Reduction, size_t... Is>
-shared_ptr_class<event>
-reduSaveFinalResultToUserMem(shared_ptr_class<detail::queue_impl> Queue,
+std::shared_ptr<event>
+reduSaveFinalResultToUserMem(std::shared_ptr<detail::queue_impl> Queue,
                              bool IsHost, std::tuple<Reduction...> &ReduTuple,
                              std::index_sequence<Is...>) {
   std::vector<event> Events;
@@ -1762,7 +1711,7 @@ reduSaveFinalResultToUserMem(shared_ptr_class<detail::queue_impl> Queue,
                                      std::get<Is>(ReduTuple)...);
   if (!Events.empty())
     return std::make_shared<event>(Events.back());
-  return shared_ptr_class<event>();
+  return std::shared_ptr<event>();
 }
 
 template <typename Reduction> size_t reduGetMemPerWorkItemHelper(Reduction &) {
@@ -1838,25 +1787,23 @@ reduction(T *VarPtr, BinaryOperation) {
   return {VarPtr};
 }
 
+// ---- has_known_identity
 template <typename BinaryOperation, typename AccumulatorT>
-struct has_known_identity : detail::has_known_identity_impl<
-                                typename std::decay<BinaryOperation>::type,
-                                typename std::decay<AccumulatorT>::type> {};
-#if __cplusplus >= 201703L
-template <typename BinaryOperation, typename AccumulatorT>
-inline constexpr bool has_known_identity_v =
-    has_known_identity<BinaryOperation, AccumulatorT>::value;
-#endif
+struct has_known_identity
+    : sycl::has_known_identity<BinaryOperation, AccumulatorT> {};
 
 template <typename BinaryOperation, typename AccumulatorT>
-struct known_identity
-    : detail::known_identity_impl<typename std::decay<BinaryOperation>::type,
-                                  typename std::decay<AccumulatorT>::type> {};
-#if __cplusplus >= 201703L
+__SYCL_INLINE_CONSTEXPR bool has_known_identity_v =
+    has_known_identity<BinaryOperation, AccumulatorT>::value;
+
+// ---- known_identity
 template <typename BinaryOperation, typename AccumulatorT>
-inline constexpr AccumulatorT known_identity_v =
+struct known_identity : sycl::known_identity<BinaryOperation, AccumulatorT> {};
+
+template <typename BinaryOperation, typename AccumulatorT>
+__SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
     known_identity<BinaryOperation, AccumulatorT>::value;
-#endif
+
 } // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

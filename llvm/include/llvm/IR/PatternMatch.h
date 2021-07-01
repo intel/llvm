@@ -1168,10 +1168,10 @@ struct OverflowingBinaryOp_match {
     if (auto *Op = dyn_cast<OverflowingBinaryOperator>(V)) {
       if (Op->getOpcode() != Opcode)
         return false;
-      if (WrapFlags & OverflowingBinaryOperator::NoUnsignedWrap &&
+      if ((WrapFlags & OverflowingBinaryOperator::NoUnsignedWrap) &&
           !Op->hasNoUnsignedWrap())
         return false;
-      if (WrapFlags & OverflowingBinaryOperator::NoSignedWrap &&
+      if ((WrapFlags & OverflowingBinaryOperator::NoSignedWrap) &&
           !Op->hasNoSignedWrap())
         return false;
       return L.match(Op->getOperand(0)) && R.match(Op->getOperand(1));
@@ -2437,8 +2437,8 @@ public:
       return true;
 
     if (m_PtrToInt(m_OffsetGep(m_Zero(), m_SpecificInt(1))).match(V)) {
-      Type *PtrTy = cast<Operator>(V)->getOperand(0)->getType();
-      auto *DerefTy = PtrTy->getPointerElementType();
+      auto *GEP = cast<GEPOperator>(cast<Operator>(V)->getOperand(0));
+      auto *DerefTy = GEP->getSourceElementType();
       if (isa<ScalableVectorType>(DerefTy) &&
           DL.getTypeAllocSizeInBits(DerefTy).getKnownMinSize() == 8)
         return true;

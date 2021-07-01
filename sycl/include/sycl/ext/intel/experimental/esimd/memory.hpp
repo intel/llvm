@@ -380,12 +380,12 @@ ESIMD_INLINE ESIMD_NODEBUG void scalar_store(AccessorTy acc, uint32_t offset,
 /// Flat-address gather4.
 /// Only allow simd-16 and simd-32.
 /// \ingroup sycl_esimd
-template <typename T, int n, ChannelMaskType Mask,
+template <typename T, int n, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG
-    typename sycl::detail::enable_if_t<(n == 16 || n == 32) && (sizeof(T) == 4),
-                                       simd<T, n * NumChannels(Mask)>>
-    gather4(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    (n == 16 || n == 32) && (sizeof(T) == 4),
+    simd<T, n * get_num_channels_enabled(Mask)>>
+gather4(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
 
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
@@ -395,12 +395,12 @@ ESIMD_INLINE ESIMD_NODEBUG
 
 /// Flat-address scatter4.
 /// \ingroup sycl_esimd
-template <typename T, int n, ChannelMaskType Mask,
+template <typename T, int n, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG
     typename sycl::detail::enable_if_t<(n == 16 || n == 32) && (sizeof(T) == 4),
                                        void>
-    scatter4(T *p, simd<T, n * NumChannels(Mask)> vals,
+    scatter4(T *p, simd<T, n * get_num_channels_enabled(Mask)> vals,
              simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
@@ -412,7 +412,7 @@ ESIMD_INLINE ESIMD_NODEBUG
 namespace detail {
 /// Check the legality of an atomic call in terms of size and type.
 /// \ingroup sycl_esimd
-template <EsimdAtomicOpType Op, typename T, int N, unsigned NumSrc>
+template <atomic_op Op, typename T, int N, unsigned NumSrc>
 constexpr bool check_atomic() {
   if constexpr (!detail::isPowerOf2(N, 32)) {
     static_assert((detail::isPowerOf2(N, 32)),
@@ -421,8 +421,7 @@ constexpr bool check_atomic() {
   }
 
   // No source operand.
-  if constexpr (Op == EsimdAtomicOpType::ATOMIC_INC ||
-                Op == EsimdAtomicOpType::ATOMIC_DEC) {
+  if constexpr (Op == atomic_op::inc || Op == atomic_op::dec) {
     if constexpr (NumSrc != 0) {
       static_assert(NumSrc == 0, "No source operands are expected");
       return false;
@@ -436,29 +435,22 @@ constexpr bool check_atomic() {
   }
 
   // One source integer operand.
-  if constexpr (Op == EsimdAtomicOpType::ATOMIC_ADD ||
-                Op == EsimdAtomicOpType::ATOMIC_SUB ||
-                Op == EsimdAtomicOpType::ATOMIC_MIN ||
-                Op == EsimdAtomicOpType::ATOMIC_MAX ||
-                Op == EsimdAtomicOpType::ATOMIC_XCHG ||
-                Op == EsimdAtomicOpType::ATOMIC_AND ||
-                Op == EsimdAtomicOpType::ATOMIC_OR ||
-                Op == EsimdAtomicOpType::ATOMIC_XOR ||
-                Op == EsimdAtomicOpType::ATOMIC_MINSINT ||
-                Op == EsimdAtomicOpType::ATOMIC_MAXSINT) {
+  if constexpr (Op == atomic_op::add || Op == atomic_op::sub ||
+                Op == atomic_op::min || Op == atomic_op::max ||
+                Op == atomic_op::xchg || Op == atomic_op::bit_and ||
+                Op == atomic_op::bit_or || Op == atomic_op::bit_xor ||
+                Op == atomic_op::minsint || Op == atomic_op::maxsint) {
     if constexpr (NumSrc != 1) {
       static_assert(NumSrc == 1, "One source operand is expected");
       return false;
     }
-    if constexpr ((Op != EsimdAtomicOpType::ATOMIC_MINSINT &&
-                   Op != EsimdAtomicOpType::ATOMIC_MAXSINT) &&
+    if constexpr ((Op != atomic_op::minsint && Op != atomic_op::maxsint) &&
                   !is_type<T, uint16_t, uint32_t, uint64_t>()) {
       static_assert((is_type<T, uint16_t, uint32_t, uint64_t>()),
                     "Type UW, UD or UQ is expected");
       return false;
     }
-    if constexpr ((Op == EsimdAtomicOpType::ATOMIC_MINSINT ||
-                   Op == EsimdAtomicOpType::ATOMIC_MAXSINT) &&
+    if constexpr ((Op == atomic_op::minsint || Op == atomic_op::maxsint) &&
                   !is_type<T, int16_t, int32_t, int64_t>()) {
       static_assert((is_type<T, int16_t, int32_t, int64_t>()),
                     "Type W, D or Q is expected");
@@ -468,8 +460,7 @@ constexpr bool check_atomic() {
   }
 
   // One source float operand.
-  if constexpr (Op == EsimdAtomicOpType::ATOMIC_FMAX ||
-                Op == EsimdAtomicOpType::ATOMIC_FMIN) {
+  if constexpr (Op == atomic_op::fmax || Op == atomic_op::fmin) {
     if constexpr (NumSrc != 1) {
       static_assert(NumSrc == 1, "One source operand is expected");
       return false;
@@ -484,19 +475,18 @@ constexpr bool check_atomic() {
   }
 
   // Two scouce operands.
-  if constexpr (Op == EsimdAtomicOpType::ATOMIC_CMPXCHG ||
-                Op == EsimdAtomicOpType::ATOMIC_FCMPWR) {
+  if constexpr (Op == atomic_op::cmpxchg || Op == atomic_op::fcmpwr) {
     if constexpr (NumSrc != 2) {
       static_assert(NumSrc == 2, "Two source operands are expected");
       return false;
     }
-    if constexpr (Op == EsimdAtomicOpType::ATOMIC_CMPXCHG &&
+    if constexpr (Op == atomic_op::cmpxchg &&
                   !is_type<T, uint16_t, uint32_t, uint64_t>()) {
       static_assert((is_type<T, uint16_t, uint32_t, uint64_t>()),
                     "Type UW, UD or UQ is expected");
       return false;
     }
-    if constexpr (Op == EsimdAtomicOpType::ATOMIC_FCMPWR &&
+    if constexpr (Op == atomic_op::fcmpwr &&
                   !is_type<T, float, cl::sycl::detail::half_impl::StorageT>()) {
       static_assert(
           (is_type<T, float, cl::sycl::detail::half_impl::StorageT>()),
@@ -520,8 +510,8 @@ constexpr bool check_atomic() {
 
 /// Flat-address atomic, zero source operand: inc and dec.
 /// \ingroup sycl_esimd
-template <EsimdAtomicOpType Op, typename T, int n,
-          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+template <atomic_op Op, typename T, int n, CacheHint L1H = CacheHint::None,
+          CacheHint L3H = CacheHint::None>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
                                        simd<T, n>>
@@ -534,8 +524,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 /// Flat-address atomic, one source operand, add/sub/min/max etc.
 /// \ingroup sycl_esimd
-template <EsimdAtomicOpType Op, typename T, int n,
-          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+template <atomic_op Op, typename T, int n, CacheHint L1H = CacheHint::None,
+          CacheHint L3H = CacheHint::None>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
                                        simd<T, n>>
@@ -550,8 +540,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 /// Flat-address atomic, two source operands.
 /// \ingroup sycl_esimd
-template <EsimdAtomicOpType Op, typename T, int n,
-          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+template <atomic_op Op, typename T, int n, CacheHint L1H = CacheHint::None,
+          CacheHint L3H = CacheHint::None>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
                                        simd<T, n>>
@@ -608,7 +598,7 @@ inline ESIMD_NODEBUG void esimd_barrier() {
 }
 
 /// Generic work-group split barrier
-inline ESIMD_NODEBUG void esimd_sbarrier(EsimdSbarrierType flag) {
+inline ESIMD_NODEBUG void esimd_sbarrier(split_barrier_action flag) {
   __esimd_sbarrier(flag);
 }
 
@@ -641,21 +631,20 @@ ESIMD_INLINE ESIMD_NODEBUG
 /// SLM gather4.
 ///
 /// Only allow simd-8, simd-16 and simd-32.
-template <typename T, int n, ChannelMaskType Mask>
-ESIMD_INLINE ESIMD_NODEBUG
-    typename sycl::detail::enable_if_t<(n == 8 || n == 16 || n == 32) &&
-                                           (sizeof(T) == 4),
-                                       simd<T, n * NumChannels(Mask)>>
-    slm_load4(simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
+template <typename T, int n, rgba_channel_mask Mask>
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    (n == 8 || n == 16 || n == 32) && (sizeof(T) == 4),
+    simd<T, n * get_num_channels_enabled(Mask)>>
+slm_load4(simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
   return __esimd_slm_read4<T, n, Mask>(offsets.data(), pred.data());
 }
 
 /// SLM scatter4.
-template <typename T, int n, ChannelMaskType Mask>
-typename sycl::detail::enable_if_t<
+template <typename T, int n, rgba_channel_mask Mask>
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
     (n == 8 || n == 16 || n == 32) && (sizeof(T) == 4), void>
-slm_store4(simd<T, n * NumChannels(Mask)> vals, simd<uint32_t, n> offsets,
-           simd<uint16_t, n> pred = 1) {
+slm_store4(simd<T, n * get_num_channels_enabled(Mask)> vals,
+           simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
   __esimd_slm_write4<T, n, Mask>(offsets.data(), vals.data(), pred.data());
 }
 
@@ -694,7 +683,7 @@ ESIMD_INLINE ESIMD_NODEBUG void slm_block_store(uint32_t offset,
 }
 
 /// SLM atomic, zero source operand: inc and dec.
-template <EsimdAtomicOpType Op, typename T, int n>
+template <atomic_op Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
                                        simd<T, n>>
@@ -703,7 +692,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 
 /// SLM atomic, one source operand, add/sub/min/max etc.
-template <EsimdAtomicOpType Op, typename T, int n>
+template <atomic_op Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
                                        simd<T, n>>
@@ -714,7 +703,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 
 /// SLM atomic, two source operands.
-template <EsimdAtomicOpType Op, typename T, int n>
+template <atomic_op Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
                                        simd<T, n>>
@@ -796,8 +785,8 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
 
   if constexpr (Width < RoundedWidth) {
     simd<T, m * n1> temp;
-    auto temp_ref = temp.template format<T, m, n1>();
-    auto vals_ref = vals.template format<T, m, n>();
+    auto temp_ref = temp.template bit_cast_view<T, m, n1>();
+    auto vals_ref = vals.template bit_cast_view<T, m, n>();
     temp_ref.template select<m, 1, n, 1>() = vals_ref;
     __esimd_media_block_store<T, m, n1>(
         0, detail::AccessorPrivateProxy::getNativeImageObj(acc), plane,

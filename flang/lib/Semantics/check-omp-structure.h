@@ -96,6 +96,10 @@ static OmpDirectiveSet nestedWorkshareErrSet{
 static OmpDirectiveSet nestedMasterErrSet{
     OmpDirectiveSet{llvm::omp::Directive::OMPD_atomic} | taskGeneratingSet |
     workShareSet};
+static OmpDirectiveSet nestedBarrierErrSet{
+    OmpDirectiveSet{Directive::OMPD_critical, Directive::OMPD_ordered,
+        Directive::OMPD_atomic, Directive::OMPD_master} |
+    taskGeneratingSet | workShareSet};
 static OmpClauseSet privateSet{
     Clause::OMPC_private, Clause::OMPC_firstprivate, Clause::OMPC_lastprivate};
 static OmpClauseSet privateReductionSet{
@@ -201,6 +205,7 @@ private:
   void CheckDependList(const parser::DataRef &);
   void CheckDependArraySection(
       const common::Indirection<parser::ArrayElement> &, const parser::Name &);
+  bool IsDataRefTypeParamInquiry(const parser::DataRef *dataRef);
   void CheckIsVarPartOfAnotherVar(
       const parser::CharBlock &source, const parser::OmpObjectList &objList);
   void CheckIntentInPointer(
@@ -218,6 +223,7 @@ private:
   void CheckLoopItrVariableIsInt(const parser::OpenMPLoopConstruct &x);
   void CheckDoWhile(const parser::OpenMPLoopConstruct &x);
   void CheckCycleConstraints(const parser::OpenMPLoopConstruct &x);
+  void CheckDistLinear(const parser::OpenMPLoopConstruct &x);
   void CheckSIMDNest(const parser::OpenMPConstruct &x);
   std::int64_t GetOrdCollapseLevel(const parser::OpenMPLoopConstruct &x);
   void CheckIfDoOrderedClause(const parser::OmpBlockDirective &blkDirectiv);
@@ -226,6 +232,7 @@ private:
       const parser::DefinedOperator::IntrinsicOperator &);
   void CheckReductionTypeList(const parser::OmpClause::Reduction &);
   void CheckMasterNesting(const parser::OpenMPBlockConstruct &x);
+  void CheckBarrierNesting(const parser::OpenMPSimpleStandaloneConstruct &x);
   void CheckReductionArraySection(const parser::OmpObjectList &ompObjectList);
   void CheckIntentInPointerAndDefinable(
       const parser::OmpObjectList &, const llvm::omp::Clause);
@@ -234,6 +241,11 @@ private:
   void CheckMultipleAppearanceAcrossContext(
       const parser::OmpObjectList &ompObjectList);
   const parser::OmpObjectList *GetOmpObjectList(const parser::OmpClause &);
+  void CheckPredefinedAllocatorRestriction(const parser::CharBlock &source,
+      const parser::OmpObjectList &ompObjectList);
+  void CheckPredefinedAllocatorRestriction(
+      const parser::CharBlock &source, const parser::Name &name);
+  bool isPredefinedAllocator{false};
 };
 } // namespace Fortran::semantics
 #endif // FORTRAN_SEMANTICS_CHECK_OMP_STRUCTURE_H_

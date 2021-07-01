@@ -124,7 +124,7 @@ steps:
         - exit_status: -1  # Agent was lost
           limit: 2
 
-  - label: "GCC/C++20"
+  - label: "GCC Current/C++20"
     command: "libcxx/utils/ci/run-buildbot generic-gcc"
     artifact_paths:
       - "**/test-results.xml"
@@ -140,8 +140,30 @@ steps:
   #
   - wait
 
+  - label: "GCC Previous/C++20"
+    command: "libcxx/utils/ci/run-buildbot generic-gcc-prev"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
   - label: "-fno-exceptions"
     command: "libcxx/utils/ci/run-buildbot generic-noexceptions"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Modular build"
+    command: "libcxx/utils/ci/run-buildbot generic-modules"
     artifact_paths:
       - "**/test-results.xml"
     agents:
@@ -155,6 +177,18 @@ steps:
     command: "libcxx/utils/ci/run-buildbot generic-static"
     artifact_paths:
       - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Assertions enabled"
+    command: "libcxx/utils/ci/run-buildbot generic-assertions"
+    artifact_paths:
+      - "**/test-results.xml"
+      - "**/*.abilist"
     agents:
       queue: "libcxx-builders"
     retry:
@@ -356,6 +390,17 @@ steps:
       - "**/test-results.xml"
     agents:
       queue: "windows"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "32 bit"
+    command: "libcxx/utils/ci/run-buildbot generic-32bit"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
     retry:
       automatic:
         - exit_status: -1  # Agent was lost

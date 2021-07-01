@@ -525,6 +525,7 @@ def OpenCLUnsupportedRGBA: DiagGroup<"opencl-unsupported-rgba">;
 def UnderalignedExceptionObject : DiagGroup<"underaligned-exception-object">;
 def DeprecatedObjCIsaUsage : DiagGroup<"deprecated-objc-isa-usage">;
 def ExplicitInitializeCall : DiagGroup<"explicit-initialize-call">;
+def OrderedCompareFunctionPointers : DiagGroup<"ordered-compare-function-pointers">;
 def Packed : DiagGroup<"packed">;
 def Padded : DiagGroup<"padded">;
 
@@ -727,6 +728,7 @@ def UnusedMemberFunction : DiagGroup<"unused-member-function",
 def UnusedLabel : DiagGroup<"unused-label">;
 def UnusedLambdaCapture : DiagGroup<"unused-lambda-capture">;
 def UnusedParameter : DiagGroup<"unused-parameter">;
+def UnusedButSetParameter : DiagGroup<"unused-but-set-parameter">;
 def UnusedResult : DiagGroup<"unused-result">;
 def PotentiallyEvaluatedExpression : DiagGroup<"potentially-evaluated-expression">;
 def UnevaluatedExpression : DiagGroup<"unevaluated-expression",
@@ -736,6 +738,7 @@ def UnusedValue : DiagGroup<"unused-value", [UnusedComparison, UnusedResult,
 def UnusedConstVariable : DiagGroup<"unused-const-variable">;
 def UnusedVariable : DiagGroup<"unused-variable",
                                [UnusedConstVariable]>;
+def UnusedButSetVariable : DiagGroup<"unused-but-set-variable">;
 def UnusedLocalTypedef : DiagGroup<"unused-local-typedef">;
 def UnusedPropertyIvar :  DiagGroup<"unused-property-ivar">;
 def UnusedGetterReturnValue : DiagGroup<"unused-getter-return-value">;
@@ -877,7 +880,7 @@ def Unused : DiagGroup<"unused",
                         // UnusedMemberFunction, (clean-up llvm before enabling)
                         UnusedPrivateField, UnusedLambdaCapture,
                         UnusedLocalTypedef, UnusedValue, UnusedVariable,
-                        UnusedPropertyIvar]>,
+                        UnusedButSetVariable, UnusedPropertyIvar]>,
                         DiagCategory<"Unused Entity Issue">;
 
 // Format settings.
@@ -929,6 +932,7 @@ def Extra : DiagGroup<"extra", [
     MissingMethodReturnType,
     SignCompare,
     UnusedParameter,
+    UnusedButSetParameter,
     NullPointerArithmetic,
     EmptyInitStatement,
     StringConcatation,
@@ -1088,6 +1092,7 @@ def MicrosoftInclude : DiagGroup<"microsoft-include">;
 def MicrosoftCppMacro : DiagGroup<"microsoft-cpp-macro">;
 def MicrosoftFixedEnum : DiagGroup<"microsoft-fixed-enum">;
 def MicrosoftSealed : DiagGroup<"microsoft-sealed">;
+def MicrosoftAbstract : DiagGroup<"microsoft-abstract">;
 def MicrosoftUnqualifiedFriend : DiagGroup<"microsoft-unqualified-friend">;
 def MicrosoftExceptionSpec : DiagGroup<"microsoft-exception-spec">;
 def MicrosoftUsingDecl : DiagGroup<"microsoft-using-decl">;
@@ -1125,7 +1130,7 @@ def : DiagGroup<"msvc-include", [MicrosoftInclude]>;
 // Warnings group for warnings about Microsoft extensions.
 def Microsoft : DiagGroup<"microsoft",
     [MicrosoftCharize, MicrosoftDrectveSection, MicrosoftInclude,
-     MicrosoftCppMacro, MicrosoftFixedEnum, MicrosoftSealed,
+     MicrosoftCppMacro, MicrosoftFixedEnum, MicrosoftSealed, MicrosoftAbstract,
      MicrosoftUnqualifiedFriend, MicrosoftExceptionSpec, MicrosoftUsingDecl,
      MicrosoftMutableReference, MicrosoftPureDefinition,
      MicrosoftUnionMemberReference, MicrosoftExplicitConstructorCall,
@@ -1197,7 +1202,9 @@ def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
 // Backend warnings.
 def BackendInlineAsm : DiagGroup<"inline-asm">;
 def BackendSourceMgr : DiagGroup<"source-mgr">;
-def BackendFrameLargerThanEQ : DiagGroup<"frame-larger-than=">;
+def BackendFrameLargerThan : DiagGroup<"frame-larger-than">;
+// Compatibility flag name from old versions of Clang.
+def : DiagGroup<"frame-larger-than=", [BackendFrameLargerThan]>;
 def BackendPlugin : DiagGroup<"backend-plugin">;
 def RemarkBackendPlugin : DiagGroup<"remark-backend-plugin">;
 def BackendOptimizationRemark : DiagGroup<"pass">;

@@ -46,10 +46,24 @@ def lto_legacy_pass_manager: Flag<["--"], "lto-legacy-pass-manager">,
 def no_lto_legacy_pass_manager : Flag<["--"], "no-lto-legacy-pass-manager">,
     HelpText<"Use the new pass manager in LLVM">,
     Group<grp_lld>;
-def time_trace: Flag<["--"], "time-trace">, HelpText<"Record time trace">;
+def time_trace: Flag<["--"], "time-trace">, HelpText<"Record time trace">,
+    Group<grp_lld>;
 def time_trace_granularity_eq: Joined<["--"], "time-trace-granularity=">,
-    HelpText<"Minimum time granularity (in microseconds) traced by time profiler">;
-def time_trace_file_eq: Joined<["--"], "time-trace-file=">, HelpText<"Specify time trace output file">;
+    HelpText<"Minimum time granularity (in microseconds) traced by time profiler">,
+    Group<grp_lld>;
+def time_trace_file_eq: Joined<["--"], "time-trace-file=">,
+    HelpText<"Specify time trace output file">,
+    Group<grp_lld>;
+def deduplicate_literals: Flag<["--"], "deduplicate-literals">,
+    HelpText<"Enable literal deduplication">,
+    Group<grp_lld>;
+def print_dylib_search: Flag<["--"], "print-dylib-search">,
+    HelpText<"Print which paths lld searched when trying to find dylibs">,
+    Group<grp_lld>;
+def icf_eq: Joined<["--"], "icf=">,
+    HelpText<"Set level for identical code folding (default: none)">,
+    MetaVarName<"[none,safe,all]">,
+    Group<grp_lld>;
 
 // This is a complete Options.td compiled from Apple's ld(1) manpage
 // dated 2018-03-07 and cross checked with ld64 source code in repo
@@ -114,15 +128,21 @@ def weak_library : Separate<["-"], "weak_library">,
     MetaVarName<"<path>">,
     HelpText<"Like bare <path>, but mark library and its references as weak imports">,
     Group<grp_libs>;
+def needed_l : Joined<["-"], "needed-l">,
+    MetaVarName<"<name>">,
+    HelpText<"Like -l<name>, but link library even if its symbols are not used and -dead_strip_dylibs is active">,
+    Group<grp_libs>;
+def needed_library : Separate<["-"], "needed_library">,
+    MetaVarName<"<path>">,
+    HelpText<"Like bare <path>, but link library even if its symbols are not used and -dead_strip_dylibs is active">,
+    Group<grp_libs>;
 def reexport_l : Joined<["-"], "reexport-l">,
     MetaVarName<"<name>">,
     HelpText<"Like -l<name>, but export all symbols of <name> from newly created library">,
-    Flags<[HelpHidden]>,
     Group<grp_libs>;
 def reexport_library : Separate<["-"], "reexport_library">,
     MetaVarName<"<path>">,
     HelpText<"Like bare <path>, but export all symbols of <path> from newly created library">,
-    Flags<[HelpHidden]>,
     Group<grp_libs>;
 def upward_l : Joined<["-"], "upward-l">,
     MetaVarName<"<name>">,
@@ -159,10 +179,13 @@ def weak_framework : Separate<["-"], "weak_framework">,
     MetaVarName<"<name>">,
     HelpText<"Like -framework <name>, but mark framework and its references as weak imports">,
     Group<grp_libs>;
+def needed_framework : Separate<["-"], "needed_framework">,
+    MetaVarName<"<name>">,
+    HelpText<"Like -framework <name>, but link <name> even if none of its symbols are used and -dead_strip_dylibs is active">,
+    Group<grp_libs>;
 def reexport_framework : Separate<["-"], "reexport_framework">,
     MetaVarName<"<name>">,
     HelpText<"Like -framework <name>, but export all symbols of <name> from the newly created library">,
-    Flags<[HelpHidden]>,
     Group<grp_libs>;
 def upward_framework : Separate<["-"], "upward_framework">,
     MetaVarName<"<name>">,
@@ -182,6 +205,9 @@ def ObjC : Flag<["-"], "ObjC">,
 def force_load : Separate<["-"], "force_load">,
     MetaVarName<"<path>">,
     HelpText<"Load all members static archive library at <path>">,
+    Group<grp_libs>;
+def force_load_swift_libs : Flag<["-"], "force_load_swift_libs">,
+    HelpText<"Apply -force_load to libraries listed in LC_LINKER_OPTIONS whose names start with 'swift'">,
     Group<grp_libs>;
 
 def grp_content : OptionGroup<"content">, HelpText<"ADDITIONAL CONTENT">;
@@ -209,7 +235,6 @@ def grp_opts : OptionGroup<"opts">, HelpText<"OPTIMIZATIONS">;
 
 def dead_strip : Flag<["-"], "dead_strip">,
     HelpText<"Remove unreachable functions and data">,
-    Flags<[HelpHidden]>,
     Group<grp_opts>;
 def order_file : Separate<["-"], "order_file">,
     MetaVarName<"<file>">,
@@ -253,6 +278,9 @@ def merge_zero_fill_sections : Flag<["-"], "merge_zero_fill_sections">,
 def no_branch_islands : Flag<["-"], "no_branch_islands">,
     HelpText<"Disable infra for branches beyond the maximum branch distance.">,
     Flags<[HelpHidden]>,
+    Group<grp_opts>;
+def no_deduplicate : Flag<["-"], "no_deduplicate">,
+    HelpText<"Disable code deduplicaiton (synonym for `--icf=none')">,
     Group<grp_opts>;
 
 def grp_version : OptionGroup<"version">, HelpText<"VERSION TARGETING">;
@@ -580,10 +608,6 @@ def no_weak_imports : Flag<["-"], "no_weak_imports">,
     HelpText<"Fail if any symbols are weak imports, allowed to be NULL at runtime">,
     Flags<[HelpHidden]>,
     Group<grp_rare>;
-def no_deduplicate : Flag<["-"], "no_deduplicate">,
-    HelpText<"Omit the deduplication pass">,
-    Flags<[HelpHidden]>,
-    Group<grp_rare>;
 def verbose_deduplicate : Flag<["-"], "verbose_deduplicate">,
     HelpText<"Print function names eliminated by deduplication and the total size of code savings">,
     Flags<[HelpHidden]>,
@@ -702,7 +726,6 @@ def objc_gc_only : Flag<["-"], "objc_gc_only">,
     Group<grp_rare>;
 def dead_strip_dylibs : Flag<["-"], "dead_strip_dylibs">,
     HelpText<"Remove dylibs that are unreachable by the entry point or exported symbols">,
-    Flags<[HelpHidden]>,
     Group<grp_rare>;
 def allow_sub_type_mismatches : Flag<["-"], "allow_sub_type_mismatches">,
     HelpText<"Permit mixing objects compiled for different ARM CPU subtypes">,
@@ -881,7 +904,7 @@ def interposable_list : Separate<["-"], "interposable_list">,
     Flags<[HelpHidden]>,
     Group<grp_rare>;
 def no_function_starts : Flag<["-"], "no_function_starts">,
-    HelpText<"Do not create a table of function start addresses">,
+    HelpText<"Do not create table of function start addresses">,
     Group<grp_rare>;
 def no_objc_category_merging : Flag<["-"], "no_objc_category_merging">,
     HelpText<"Do not merge Objective-C categories into their classes">,
@@ -1146,12 +1169,10 @@ def classic_linker : Flag<["-"], "classic_linker">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
 def data_in_code_info : Flag<["-"], "data_in_code_info">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
+    HelpText<"Emit data-in-code information (default)">,
     Group<grp_undocumented>;
 def no_data_in_code_info : Flag<["-"], "no_data_in_code_info">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
+    HelpText<"Do not emit data-in-code information">,
     Group<grp_undocumented>;
 def debug_snapshot : Flag<["-"], "debug_snapshot">,
     HelpText<"This option is undocumented in ld64">,
@@ -1185,10 +1206,6 @@ def flto_codegen_only : Flag<["-"], "flto-codegen-only">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
-def force_load_swift_libs : Flag<["-"], "force_load_swift_libs">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
-    Group<grp_undocumented>;
 def force_symbol_not_weak : Flag<["-"], "force_symbol_not_weak">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
@@ -1210,8 +1227,7 @@ def force_symbol_weak : Flag<["-"], "force_symbol_weak">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
 def function_starts : Flag<["-"], "function_starts">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
+    HelpText<"Create table of function start addresses (default)">,
     Group<grp_undocumented>;
 def i : Flag<["-"], "i">,
     HelpText<"This option is undocumented in ld64">,

@@ -285,7 +285,8 @@ typedef enum {
   PI_DEVICE_INFO_GPU_SLICES = 0x10023,
   PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 0x10024,
   PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 0x10025,
-  PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026
+  PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026,
+  PI_DEVICE_INFO_ATOMIC_64 = 0x10110
 } _pi_device_info;
 
 typedef enum {
@@ -667,6 +668,7 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
 /// PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
 #define __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
 
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with
@@ -1633,6 +1635,15 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
 __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
     pi_context context, const void *ptr, pi_mem_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
+
+/// API to get Plugin internal data, opaque to SYCL RT. Some devices whose
+/// device code is compiled by the host compiler (e.g. CPU emulators) may use it
+/// to access some device code functionality implemented in/behind the plugin.
+/// \param opaque_data_param - unspecified argument, interpretation is specific
+/// to a plugin \param opaque_data_return - placeholder for the returned opaque
+/// data.
+__SYCL_EXPORT pi_result piextPluginGetOpaqueData(void *opaque_data_param,
+                                                 void **opaque_data_return);
 
 /// API to notify that the plugin should clean up its resources.
 /// No PI calls should be made until the next piPluginInit call.

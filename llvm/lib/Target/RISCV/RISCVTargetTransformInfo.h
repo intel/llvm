@@ -104,6 +104,10 @@ public:
     if (isa<FixedVectorType>(DataType) && ST->getMinRVVVectorSizeInBits() == 0)
       return false;
 
+    if (Alignment <
+        DL.getTypeStoreSize(DataType->getScalarType()).getFixedSize())
+      return false;
+
     return isLegalElementTypeForRVV(DataType->getScalarType());
   }
 
@@ -120,6 +124,10 @@ public:
 
     // Only support fixed vectors if we know the minimum vector size.
     if (isa<FixedVectorType>(DataType) && ST->getMinRVVVectorSizeInBits() == 0)
+      return false;
+
+    if (Alignment <
+        DL.getTypeStoreSize(DataType->getScalarType()).getFixedSize())
       return false;
 
     return isLegalElementTypeForRVV(DataType->getScalarType());
@@ -140,7 +148,7 @@ public:
     return VPLegalization(VPLegalization::Legal, VPLegalization::Legal);
   }
 
-  bool isLegalToVectorizeReduction(RecurrenceDescriptor RdxDesc,
+  bool isLegalToVectorizeReduction(const RecurrenceDescriptor &RdxDesc,
                                    ElementCount VF) const {
     if (!ST->hasStdExtV())
       return false;
@@ -168,6 +176,10 @@ public:
     default:
       return false;
     }
+  }
+
+  unsigned getMaxInterleaveFactor(unsigned VF) {
+    return ST->getMaxInterleaveFactor();
   }
 };
 

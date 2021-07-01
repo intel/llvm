@@ -29,6 +29,33 @@
 #define UNALIASED_CUSTOM_BUILTIN(ID, TYPES, ACCUMULATE) \
    CUSTOM_BUILTIN(ID, ID, TYPES, ACCUMULATE)
 
+// builtins for compatibility with the XL compiler
+BUILTIN(__builtin_ppc_popcntb, "ULiULi", "")
+BUILTIN(__builtin_ppc_eieio, "v", "")
+BUILTIN(__builtin_ppc_iospace_eieio, "v", "")
+BUILTIN(__builtin_ppc_isync, "v", "")
+BUILTIN(__builtin_ppc_lwsync, "v", "")
+BUILTIN(__builtin_ppc_iospace_lwsync, "v", "")
+BUILTIN(__builtin_ppc_sync, "v", "")
+BUILTIN(__builtin_ppc_iospace_sync, "v", "")
+BUILTIN(__builtin_ppc_dcbfl, "vvC*", "")
+BUILTIN(__builtin_ppc_dcbflp, "vvC*", "")
+BUILTIN(__builtin_ppc_dcbst, "vvC*", "")
+BUILTIN(__builtin_ppc_dcbt, "vv*", "")
+BUILTIN(__builtin_ppc_dcbtst, "vv*", "")
+BUILTIN(__builtin_ppc_dcbz, "vv*", "")
+BUILTIN(__builtin_ppc_icbt, "vv*", "")
+BUILTIN(__builtin_ppc_compare_and_swap, "iiD*i*i", "")
+BUILTIN(__builtin_ppc_compare_and_swaplp, "iLiD*Li*Li", "")
+BUILTIN(__builtin_ppc_fetch_and_add, "UiUiD*Ui", "")
+BUILTIN(__builtin_ppc_fetch_and_addlp, "ULiULiD*ULi", "")
+BUILTIN(__builtin_ppc_fetch_and_and, "UiUiD*Ui", "")
+BUILTIN(__builtin_ppc_fetch_and_andlp, "ULiULiD*ULi", "")
+BUILTIN(__builtin_ppc_fetch_and_or, "UiUiD*Ui", "")
+BUILTIN(__builtin_ppc_fetch_and_orlp, "ULiULiD*ULi", "")
+BUILTIN(__builtin_ppc_fetch_and_swap, "UiUiD*Ui", "")
+BUILTIN(__builtin_ppc_fetch_and_swaplp, "ULiULiD*ULi", "")
+
 BUILTIN(__builtin_ppc_get_timebase, "ULLi", "n")
 
 // This is just a placeholder, the types and attributes are wrong.

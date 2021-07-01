@@ -1102,9 +1102,7 @@ static const IntrinsicInterface intrinsicSubroutine[]{
             {"put", DefaultInt, Rank::vector, Optionality::optional},
             {"get", DefaultInt, Rank::vector, Optionality::optional,
                 common::Intent::Out}},
-        {}, Rank::elemental,
-        IntrinsicClass::impureSubroutine}, // TODO: at most one argument can be
-                                           // present
+        {}, Rank::elemental, IntrinsicClass::impureSubroutine},
     {"system_clock",
         {{"count", AnyInt, Rank::scalar, Optionality::optional,
              common::Intent::Out},
@@ -1481,12 +1479,6 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       CHECK(FloatingType.test(*category));
       resultType = DynamicType{*category, defaults.doublePrecisionKind()};
       break;
-    case KindCode::defaultCharKind:
-      CHECK(result.categorySet == CharType);
-      CHECK(*category == TypeCategory::Character);
-      resultType = DynamicType{TypeCategory::Character,
-          defaults.GetDefaultKind(TypeCategory::Character)};
-      break;
     case KindCode::defaultLogicalKind:
       CHECK(result.categorySet == LogicalType);
       CHECK(*category == TypeCategory::Logical);
@@ -1516,7 +1508,11 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
           CHECK(expr->Rank() == 0);
           if (auto code{ToInt64(*expr)}) {
             if (IsValidKindOfIntrinsicType(*category, *code)) {
-              resultType = DynamicType{*category, static_cast<int>(*code)};
+              if (*category == TypeCategory::Character) { // ACHAR & CHAR
+                resultType = DynamicType{static_cast<int>(*code), 1};
+              } else {
+                resultType = DynamicType{*category, static_cast<int>(*code)};
+              }
               break;
             }
           }
@@ -1535,7 +1531,12 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       } else {
         CHECK(kindDummyArg->optionality ==
             Optionality::defaultsToDefaultForResult);
-        resultType = DynamicType{*category, defaults.GetDefaultKind(*category)};
+        int kind{defaults.GetDefaultKind(*category)};
+        if (*category == TypeCategory::Character) { // ACHAR & CHAR
+          resultType = DynamicType{kind, 1};
+        } else {
+          resultType = DynamicType{*category, kind};
+        }
       }
       break;
     case KindCode::likeMultiply:
@@ -1557,6 +1558,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       resultType =
           DynamicType{TypeCategory::Integer, defaults.sizeIntegerKind()};
       break;
+    case KindCode::defaultCharKind:
     case KindCode::typeless:
     case KindCode::teamType:
     case KindCode::any:
@@ -1861,8 +1863,9 @@ SpecificCall IntrinsicProcTable::Implementation::HandleNull(
           // MOLD= procedure pointer
           const Symbol *last{GetLastSymbol(*mold)};
           CHECK(last);
-          auto procPointer{
-              characteristics::Procedure::Characterize(*last, context)};
+          auto procPointer{IsProcedure(*last)
+                  ? characteristics::Procedure::Characterize(*last, context)
+                  : std::nullopt};
           // procPointer is null if there was an error with the analysis
           // associated with the procedure pointer
           if (procPointer) {
@@ -1998,12 +2001,9 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
                                 "POINTER"_err_en_US),
               *pointerSymbol);
         } else {
-          const auto pointerProc{characteristics::Procedure::Characterize(
-              *pointerSymbol, context)};
           if (const auto &targetArg{call.arguments[1]}) {
             if (const auto *targetExpr{targetArg->UnwrapExpr()}) {
-              std::optional<characteristics::Procedure> targetProc{
-                  std::nullopt};
+              std::optional<characteristics::Procedure> pointerProc, targetProc;
               const Symbol *targetSymbol{GetLastSymbol(*targetExpr)};
               bool isCall{false};
               std::string targetName;
@@ -2016,13 +2016,18 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
                   targetName = targetProcRef->proc().GetName() + "()";
                   isCall = true;
                 }
-              } else if (targetSymbol && !targetProc) {
+              } else if (targetSymbol) {
                 // proc that's not a call
-                targetProc = characteristics::Procedure::Characterize(
-                    *targetSymbol, context);
+                if (IsProcedure(*targetSymbol)) {
+                  targetProc = characteristics::Procedure::Characterize(
+                      *targetSymbol, context);
+                }
                 targetName = targetSymbol->name().ToString();
               }
-
+              if (IsProcedure(*pointerSymbol)) {
+                pointerProc = characteristics::Procedure::Characterize(
+                    *pointerSymbol, context);
+              }
               if (pointerProc) {
                 if (targetProc) {
                   // procedure pointer and procedure target
@@ -2163,15 +2168,18 @@ std::optional<SpecificCall> IntrinsicProcTable::Implementation::Probe(
     FoldingContext &context, const IntrinsicProcTable &intrinsics) const {
 
   // All special cases handled here before the table probes below must
-  // also be recognized as special names in IsIntrinsic().
+  // also be recognized as special names in IsIntrinsicSubroutine().
   if (call.isSubroutineCall) {
     if (call.name == "__builtin_c_f_pointer") {
       return HandleC_F_Pointer(arguments, context);
+    } else if (call.name == "random_seed") {
+      if (arguments.size() != 0 && arguments.size() != 1) {
+        context.messages().Say(
+            "RANDOM_SEED must have either 1 or no arguments"_err_en_US);
+      }
     }
-  } else {
-    if (call.name == "null") {
-      return HandleNull(arguments, context);
-    }
+  } else if (call.name == "null") {
+    return HandleNull(arguments, context);
   }
 
   if (call.isSubroutineCall) {

@@ -15,6 +15,7 @@
 #include "llvm/Object/Error.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/MathExtras.h"
 #include <cassert>
 #include <cstdint>
 #include <cstring>
@@ -736,8 +737,6 @@ public:
 
 template <class ELFT> struct Elf_CGProfile_Impl {
   LLVM_ELF_IMPORT_TYPES_ELFT(ELFT)
-  Elf_Word cgp_from;
-  Elf_Word cgp_to;
   Elf_Xword cgp_weight;
 };
 

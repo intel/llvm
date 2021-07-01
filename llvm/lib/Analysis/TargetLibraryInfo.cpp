@@ -151,6 +151,11 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
   TLI.setShouldExtI32Return(ShouldExtI32Return);
   TLI.setShouldSignExtI32Param(ShouldSignExtI32Param);
 
+  // Let's assume by default that the size of int is 32 bits, unless the target
+  // is a 16-bit architecture because then it most likely is 16 bits. If that
+  // isn't true for a target those defaults should be overridden below.
+  TLI.setIntSize(T.isArch16Bit() ? 16 : 32);
+
   if (T.isAMDGPU())
     TLI.disableAllFunctions();
 
@@ -160,6 +165,8 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
     TLI.setUnavailable(LibFunc_memcpy);
     TLI.setUnavailable(LibFunc_memset);
     TLI.setUnavailable(LibFunc_memset_pattern16);
+    TLI.setAvailable(llvm::LibFunc___kmpc_alloc_shared);
+    TLI.setAvailable(llvm::LibFunc___kmpc_free_shared);
     return;
   }
 
@@ -607,6 +614,8 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
     //    TLI.setAvailable(llvm::LibFunc_memcpy);
     //    TLI.setAvailable(llvm::LibFunc_memset);
 
+    TLI.setAvailable(llvm::LibFunc___kmpc_alloc_shared);
+    TLI.setAvailable(llvm::LibFunc___kmpc_free_shared);
   } else {
     TLI.setUnavailable(LibFunc_nvvm_reflect);
   }
@@ -639,7 +648,8 @@ TargetLibraryInfoImpl::TargetLibraryInfoImpl(const Triple &T) {
 TargetLibraryInfoImpl::TargetLibraryInfoImpl(const TargetLibraryInfoImpl &TLI)
     : CustomNames(TLI.CustomNames), ShouldExtI32Param(TLI.ShouldExtI32Param),
       ShouldExtI32Return(TLI.ShouldExtI32Return),
-      ShouldSignExtI32Param(TLI.ShouldSignExtI32Param) {
+      ShouldSignExtI32Param(TLI.ShouldSignExtI32Param),
+      SizeOfInt(TLI.SizeOfInt) {
   memcpy(AvailableArray, TLI.AvailableArray, sizeof(AvailableArray));
   VectorDescs = TLI.VectorDescs;
   ScalarDescs = TLI.ScalarDescs;
@@ -649,7 +659,8 @@ TargetLibraryInfoImpl::TargetLibraryInfoImpl(TargetLibraryInfoImpl &&TLI)
     : CustomNames(std::move(TLI.CustomNames)),
       ShouldExtI32Param(TLI.ShouldExtI32Param),
       ShouldExtI32Return(TLI.ShouldExtI32Return),
-      ShouldSignExtI32Param(TLI.ShouldSignExtI32Param) {
+      ShouldSignExtI32Param(TLI.ShouldSignExtI32Param),
+      SizeOfInt(TLI.SizeOfInt) {
   std::move(std::begin(TLI.AvailableArray), std::end(TLI.AvailableArray),
             AvailableArray);
   VectorDescs = TLI.VectorDescs;
@@ -661,6 +672,7 @@ TargetLibraryInfoImpl &TargetLibraryInfoImpl::operator=(const TargetLibraryInfoI
   ShouldExtI32Param = TLI.ShouldExtI32Param;
   ShouldExtI32Return = TLI.ShouldExtI32Return;
   ShouldSignExtI32Param = TLI.ShouldSignExtI32Param;
+  SizeOfInt = TLI.SizeOfInt;
   memcpy(AvailableArray, TLI.AvailableArray, sizeof(AvailableArray));
   return *this;
 }
@@ -670,6 +682,7 @@ TargetLibraryInfoImpl &TargetLibraryInfoImpl::operator=(TargetLibraryInfoImpl &&
   ShouldExtI32Param = TLI.ShouldExtI32Param;
   ShouldExtI32Return = TLI.ShouldExtI32Return;
   ShouldSignExtI32Param = TLI.ShouldSignExtI32Param;
+  SizeOfInt = TLI.SizeOfInt;
   std::move(std::begin(TLI.AvailableArray), std::end(TLI.AvailableArray),
             AvailableArray);
   return *this;
@@ -897,6 +910,7 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
             FTy.getParamType(2)->isPointerTy());
   case LibFunc_system:
     return (NumParams == 1 && FTy.getParamType(0)->isPointerTy());
+  case LibFunc___kmpc_alloc_shared:
   case LibFunc_malloc:
   case LibFunc_vec_malloc:
     return (NumParams == 1 && FTy.getReturnType()->isPointerTy());
@@ -982,7 +996,8 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
     return (NumParams == 2 && FTy.getParamType(0)->isPointerTy());
   case LibFunc_calloc:
   case LibFunc_vec_calloc:
-    return (NumParams == 2 && FTy.getReturnType()->isPointerTy());
+    return (NumParams == 2 && FTy.getReturnType()->isPointerTy() &&
+            FTy.getParamType(0) == FTy.getParamType(1));
 
   case LibFunc_atof:
   case LibFunc_atoi:
@@ -1033,6 +1048,7 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
   case LibFunc_mktime:
   case LibFunc_times:
   case LibFunc_vec_free:
+  case LibFunc___kmpc_free_shared:
     return (NumParams != 0 && FTy.getParamType(0)->isPointerTy());
 
   case LibFunc_fopen:
@@ -1498,7 +1514,7 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
   case LibFunc_ldexpl:
     return (NumParams == 2 && FTy.getReturnType()->isFloatingPointTy() &&
             FTy.getReturnType() == FTy.getParamType(0) &&
-            FTy.getParamType(1)->isIntegerTy(32));
+            FTy.getParamType(1)->isIntegerTy(getIntSize()));
 
   case LibFunc_ffs:
   case LibFunc_ffsl:

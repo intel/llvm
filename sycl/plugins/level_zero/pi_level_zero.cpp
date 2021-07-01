@@ -66,8 +66,8 @@ public:
   }
 
   // The non-static version just calls static one.
-  ze_result_t doCall(ze_result_t ZeResult, std::string ZeName,
-                     std::string ZeArgs, bool TraceError = true);
+  ze_result_t doCall(ze_result_t ZeResult, const char *ZeName,
+                     const char *ZeArgs, bool TraceError = true);
 };
 std::mutex ZeCall::GlobalLock;
 
@@ -115,7 +115,7 @@ static pi_result mapError(ze_result_t ZeResult) {
 }
 
 // This will count the calls to Level-Zero
-static std::map<std::string, int> *ZeCallCount = nullptr;
+static std::map<const char *, int> *ZeCallCount = nullptr;
 
 // Trace a call to Level-Zero RT
 #define ZE_CALL(ZeName, ZeArgs)                                                \
@@ -185,10 +185,9 @@ template <> ze_result_t zeHostSynchronize(ze_event_handle_t Handle) {
 template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle) {
   return zeHostSynchronizeImpl(zeCommandQueueSynchronize, Handle);
 }
-// template <>
-// ze_result_t zeHostSynchronize(ze_fence_handle_t Handle) {
-//   return zeHostSynchronizeImpl(zeFenceHostSynchronize, Handle);
-// }
+template <> ze_result_t zeHostSynchronize(ze_fence_handle_t Handle) {
+  return zeHostSynchronizeImpl(zeFenceHostSynchronize, Handle);
+}
 
 template <typename T, typename Assign>
 pi_result getInfoImpl(size_t param_value_size, void *param_value,
@@ -408,7 +407,7 @@ static pi_result enqueueMemCopyRectHelper(
     const pi_event *EventWaitList, pi_event *Event,
     bool PreferCopyEngine = false);
 
-inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
+inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   switch (ZeError) {
 #define ZE_ERRCASE(ERR)                                                        \
   case ERR:                                                                    \
@@ -456,18 +455,18 @@ inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
   } // switch
 }
 
-ze_result_t ZeCall::doCall(ze_result_t ZeResult, std::string ZeName,
-                           std::string ZeArgs, bool TraceError) {
-  zePrint("ZE ---> %s%s\n", ZeName.c_str(), ZeArgs.c_str());
+ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
+                           const char *ZeArgs, bool TraceError) {
+  zePrint("ZE ---> %s%s\n", ZeName, ZeArgs);
 
   if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
     ++(*ZeCallCount)[ZeName];
   }
 
   if (ZeResult && TraceError) {
-    std::string ErrorString;
+    const char *ErrorString = "Unknown";
     zeParseError(ZeResult, ErrorString);
-    zePrint("Error (%s) in %s\n", ErrorString.c_str(), ZeName.c_str());
+    zePrint("Error (%s) in %s\n", ErrorString, ZeName);
   }
   return ZeResult;
 }
@@ -940,9 +939,8 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
 
       auto &Contexts = Device->Platform->Contexts;
       for (auto &Ctx : Contexts) {
-        for (auto It = Ctx->MemAllocs.begin(); It != Ctx->MemAllocs.end();
-             It++) {
-          const auto &Pair = Kernel->MemAllocs.insert(It);
+        for (auto &Elem : Ctx->MemAllocs) {
+          const auto &Pair = Kernel->MemAllocs.insert(&Elem);
           // Kernel is referencing this memory allocation from now.
           // If this memory allocation was already captured for this kernel, it
           // means that kernel is submitted several times. Increase reference
@@ -950,7 +948,7 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
           // SubmissionsCount turns to 0. We don't want to know how many times
           // allocation was retained by each submission.
           if (Pair.second)
-            It->second.RefCount++;
+            Elem.second.RefCount++;
         }
       }
       Kernel->SubmissionsCount++;
@@ -1227,7 +1225,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   ZeDebug = DebugModeValue;
 
   if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
-    ZeCallCount = new std::map<std::string, int>;
+    ZeCallCount = new std::map<const char *, int>;
   }
 
   if (NumEntries == 0 && Platforms != nullptr) {
@@ -4230,11 +4228,31 @@ static pi_result cleanupAfterEvent(pi_event Event) {
         if (it == Queue->ZeCommandListFenceMap.end()) {
           die("Missing command-list completition fence");
         }
-        ze_result_t ZeResult =
-            ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-        if (ZeResult == ZE_RESULT_SUCCESS) {
-          Queue->resetCommandListFenceEntry(*it, true);
-          Event->ZeCommandList = nullptr;
+
+        // It is possible that the fence was already noted as signalled and
+        // reset.  In that case the InUse flag will be false, and
+        // we shouldn't query it, synchronize on it, or try to reset it.
+        if (it->second.InUse) {
+          // Workaround for VM_BIND mode.
+          // Make sure that the command-list doing memcpy is reset before
+          // non-USM host memory potentially involved in the memcpy is freed.
+          //
+          // NOTE: it is valid to wait for the fence here as long as we aren't
+          // doing batching on the involved command-list. Today memcpy goes by
+          // itself in a command list.
+          //
+          // TODO: this will unnecessarily(?) wait for non-USM memory buffers
+          // too, so we might need to add a new command type to differentiate.
+          //
+          ze_result_t ZeResult =
+              (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_COPY)
+                  ? ZE_CALL_NOCHECK(zeHostSynchronize, (it->second.ZeFence))
+                  : ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+
+          if (ZeResult == ZE_RESULT_SUCCESS) {
+            Queue->resetCommandListFenceEntry(*it, true);
+            Event->ZeCommandList = nullptr;
+          }
         }
       }
     }
@@ -4366,8 +4384,21 @@ pi_result piEventRelease(pi_event Event) {
     die("piEventRelease: called on a destroyed event");
   }
 
+  // The event is no longer needed upstream, but we have to wait for its
+  // completion in order to do proper cleanup. Otherwise refcount may still be
+  // non-zero in the check below and we will get event leak.
+  //
+  // TODO: in case this potentially "early" wait causes performance problems,
+  // e.g. due to closing a batch too early, or blocking the host for no good
+  // reason, then we should look into moving the wait down to queue release
+  // (will need to remember all events in the queue for that).
+  //
+  if (!Event->CleanedUp)
+    PI_CALL(piEventsWait(1, &Event));
+
   if (--(Event->RefCount) == 0) {
-    cleanupAfterEvent(Event);
+    if (!Event->CleanedUp)
+      cleanupAfterEvent(Event);
 
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
@@ -5683,6 +5714,15 @@ static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
   ze_device_mem_alloc_desc_t ZeDesc = {};
   ZeDesc.flags = 0;
   ZeDesc.ordinal = 0;
+
+  ze_relaxed_allocation_limits_exp_desc_t RelaxedDesc = {};
+  if (Size > Device->ZeDeviceProperties.maxMemAllocSize) {
+    // Tell Level-Zero to accept Size > maxMemAllocSize
+    RelaxedDesc.stype = ZE_STRUCTURE_TYPE_RELAXED_ALLOCATION_LIMITS_EXP_DESC;
+    RelaxedDesc.flags = ZE_RELAXED_ALLOCATION_LIMITS_EXP_FLAG_MAX_SIZE;
+    ZeDesc.pNext = &RelaxedDesc;
+  }
+
   ZE_CALL(zeMemAllocDevice, (Context->ZeContext, &ZeDesc, Size, Alignment,
                              Device->ZeDevice, ResultPtr));
 
@@ -5710,6 +5750,15 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
   ze_device_mem_alloc_desc_t ZeDevDesc = {};
   ZeDevDesc.flags = 0;
   ZeDevDesc.ordinal = 0;
+
+  ze_relaxed_allocation_limits_exp_desc_t RelaxedDesc = {};
+  if (Size > Device->ZeDeviceProperties.maxMemAllocSize) {
+    // Tell Level-Zero to accept Size > maxMemAllocSize
+    RelaxedDesc.stype = ZE_STRUCTURE_TYPE_RELAXED_ALLOCATION_LIMITS_EXP_DESC;
+    RelaxedDesc.flags = ZE_RELAXED_ALLOCATION_LIMITS_EXP_FLAG_MAX_SIZE;
+    ZeDevDesc.pNext = &RelaxedDesc;
+  }
+
   ZE_CALL(zeMemAllocShared, (Context->ZeContext, &ZeDevDesc, &ZeHostDesc, Size,
                              Alignment, Device->ZeDevice, ResultPtr));
 
@@ -6112,6 +6161,19 @@ pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
       Count, NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
+// Helper function to check if a pointer is a device pointer.
+static bool IsDevicePointer(pi_context Context, const void *Ptr) {
+  ze_device_handle_t ZeDeviceHandle;
+  ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
+
+  // Query memory type of the pointer
+  ZE_CALL(zeMemGetAllocProperties,
+          (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
+           &ZeDeviceHandle));
+
+  return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_DEVICE);
+}
+
 pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
                                 const void *SrcPtr, size_t Size,
                                 pi_uint32 NumEventsInWaitlist,
@@ -6124,10 +6186,14 @@ pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  // Device to Device copies are found to execute slower on copy engine
+  // (versus compute engine).
+  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, SrcPtr) ||
+                          !IsDevicePointer(Queue->Context, DstPtr);
   return enqueueMemCopyHelper(
       // TODO: do we need a new command type for this?
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue, DstPtr, Blocking, Size, SrcPtr,
-      NumEventsInWaitlist, EventsWaitlist, Event);
+      NumEventsInWaitlist, EventsWaitlist, Event, PreferCopyEngine);
 }
 
 /// Hint to migrate memory to the device
@@ -6391,6 +6457,13 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   return PI_SUCCESS;
 }
 
+pi_result piextPluginGetOpaqueData(void *opaque_data_param,
+                                   void **opaque_data_return) {
+  (void)opaque_data_param;
+  (void)opaque_data_return;
+  return PI_ERROR_UNKNOWN;
+}
+
 // SYCL RT calls this api to notify the end of plugin lifetime.
 // It can include all the jobs to tear down resources before
 // the plugin is unloaded from memory.
@@ -6414,7 +6487,7 @@ pi_result piTearDown(void *PluginParameter) {
     // one are allocating objects of that type, while the last element is known
     // to deallocate objects of that type.
     //
-    std::vector<std::vector<std::string>> CreateDestroySet = {
+    std::vector<std::vector<const char *>> CreateDestroySet = {
       {"zeContextCreate",      "zeContextDestroy"},
       {"zeCommandQueueCreate", "zeCommandQueueDestroy"},
       {"zeModuleCreate",       "zeModuleDestroy"},
@@ -6454,7 +6527,7 @@ pi_result piTearDown(void *PluginParameter) {
     for (const auto &Row : CreateDestroySet) {
       int diff = 0;
       for (auto I = Row.begin(); I != Row.end();) {
-        const auto &ZeName = I->c_str();
+        const char *ZeName = *I;
         const auto &ZeCount = (*ZeCallCount)[*I];
 
         bool First = (I == Row.begin());

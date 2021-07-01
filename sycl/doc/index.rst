@@ -23,6 +23,8 @@ Developing oneAPI DPC++ Compiler
    :maxdepth: 1
 
    API Reference <https://intel.github.io/llvm-docs/doxygen>
+   Clang Documentation <https://intel.github.io/llvm-docs/clang>
+   Clang API Reference <https://intel.github.io/llvm-docs/clang_doxygen>
    CompilerAndRuntimeDesign
    KernelParameterPassing
    EnvironmentVariables
@@ -33,4 +35,6 @@ Developing oneAPI DPC++ Compiler
    GlobalObjectsInRuntime
    LinkedAllocations
    Assert
+   SharedLibraries
+   MultiTileCardWithLevelZero
 

@@ -216,21 +216,6 @@ void Operation::destroy() {
   free(rawMem);
 }
 
-/// Return the context this operation is associated with.
-MLIRContext *Operation::getContext() { return location->getContext(); }
-
-/// Return the dialect this operation is associated with, or nullptr if the
-/// associated dialect is not registered.
-Dialect *Operation::getDialect() { return getName().getDialect(); }
-
-Region *Operation::getParentRegion() {
-  return block ? block->getParent() : nullptr;
-}
-
-Operation *Operation::getParentOp() {
-  return block ? block->getParentOp() : nullptr;
-}
-
 /// Return true if this operation is a proper ancestor of the `other`
 /// operation.
 bool Operation::isProperAncestor(Operation *other) {
@@ -1099,6 +1084,54 @@ LogicalResult OpTrait::impl::verifyElementwise(Operation *op) {
       failed(verifyCompatibleShapes(types))) {
     return op->emitOpError() << "all non-scalar operands/results must have the "
                                 "same shape and base type";
+  }
+
+  return success();
+}
+
+/// Check for any values used by operations regions attached to the
+/// specified "IsIsolatedFromAbove" operation defined outside of it.
+LogicalResult OpTrait::impl::verifyIsIsolatedFromAbove(Operation *isolatedOp) {
+  assert(isolatedOp->hasTrait<OpTrait::IsIsolatedFromAbove>() &&
+         "Intended to check IsolatedFromAbove ops");
+
+  // List of regions to analyze.  Each region is processed independently, with
+  // respect to the common `limit` region, so we can look at them in any order.
+  // Therefore, use a simple vector and push/pop back the current region.
+  SmallVector<Region *, 8> pendingRegions;
+  for (auto &region : isolatedOp->getRegions()) {
+    pendingRegions.push_back(&region);
+
+    // Traverse all operations in the region.
+    while (!pendingRegions.empty()) {
+      for (Operation &op : pendingRegions.pop_back_val()->getOps()) {
+        for (Value operand : op.getOperands()) {
+          // operand should be non-null here if the IR is well-formed. But
+          // we don't assert here as this function is called from the verifier
+          // and so could be called on invalid IR.
+          if (!operand)
+            return op.emitOpError("operation's operand is null");
+
+          // Check that any value that is used by an operation is defined in the
+          // same region as either an operation result.
+          auto *operandRegion = operand.getParentRegion();
+          if (!region.isAncestor(operandRegion)) {
+            return op.emitOpError("using value defined outside the region")
+                       .attachNote(isolatedOp->getLoc())
+                   << "required by region isolation constraints";
+          }
+        }
+
+        // Schedule any regions in the operation for further checking.  Don't
+        // recurse into other IsolatedFromAbove ops, because they will check
+        // themselves.
+        if (op.getNumRegions() &&
+            !op.hasTrait<OpTrait::IsIsolatedFromAbove>()) {
+          for (Region &subRegion : op.getRegions())
+            pendingRegions.push_back(&subRegion);
+        }
+      }
+    }
   }
 
   return success();

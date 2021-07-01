@@ -761,12 +761,6 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
 
-  if (FD->hasAttr<SYCLIntelUseStallEnableClustersAttr>()) {
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
-    Fn->setMetadata("stall_enable", llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
   if (const auto *A = FD->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getNThreadsExpr());
     llvm::APSInt ArgVal = CE->getResultAsAPSInt();
@@ -888,8 +882,10 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   } while (0);
 
   if (D) {
-    // Apply the no_sanitize* attributes to SanOpts.
+    bool NoSanitizeCoverage = false;
+
     for (auto Attr : D->specific_attrs<NoSanitizeAttr>()) {
+      // Apply the no_sanitize* attributes to SanOpts.
       SanitizerMask mask = Attr->getMask();
       SanOpts.Mask &= ~mask;
       if (mask & SanitizerKind::Address)
@@ -900,7 +896,14 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         SanOpts.set(SanitizerKind::KernelHWAddress, false);
       if (mask & SanitizerKind::KernelHWAddress)
         SanOpts.set(SanitizerKind::HWAddress, false);
+
+      // SanitizeCoverage is not handled by SanOpts.
+      if (Attr->hasCoverage())
+        NoSanitizeCoverage = true;
     }
+
+    if (NoSanitizeCoverage && CGM.getCodeGenOpts().hasSanitizeCoverage())
+      Fn->addFnAttr(llvm::Attribute::NoSanitizeCoverage);
   }
 
   // Apply sanitizer attributes to the function.
@@ -1038,6 +1041,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (D && D->hasAttr<CFICanonicalJumpTableAttr>())
     Fn->addFnAttr("cfi-canonical-jump-table");
 
+  if (D && D->hasAttr<NoProfileFunctionAttr>())
+    Fn->addFnAttr(llvm::Attribute::NoProfile);
+
   if (getLangOpts().SYCLIsHost && D && D->hasAttr<SYCLKernelAttr>())
     Fn->addFnAttr("sycl_kernel");
 
@@ -1053,6 +1059,14 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       Fn->setMetadata("loop_fuse",
                       llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
     }
+  }
+
+  if (getLangOpts().SYCLIsDevice && D &&
+      D->hasAttr<SYCLIntelUseStallEnableClustersAttr>()) {
+    llvm::Metadata *AttrMDArgs[] = {
+        llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
+    Fn->setMetadata("stall_enable",
+                    llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
   }
 
   if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
@@ -1220,6 +1234,10 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         << "-mpacked-stack";
     Fn->addFnAttr("packed-stack");
   }
+
+  if (CGM.getCodeGenOpts().WarnStackSize != UINT_MAX)
+    Fn->addFnAttr("warn-stack-size",
+                  std::to_string(CGM.getCodeGenOpts().WarnStackSize));
 
   if (RetTy->isVoidType()) {
     // Void type; nothing to return.
@@ -1509,11 +1527,10 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   // Emit the standard function prologue.
   StartFunction(GD, ResTy, Fn, FnInfo, Args, Loc, BodyRange.getBegin());
 
-  SyclOptReportHandler &OptReportHandler =
-      CGM.getDiags().getSYCLOptReportHandler();
-  if (OptReportHandler.HasOptReportInfo(FD)) {
+  SyclOptReportHandler &SyclOptReport = CGM.getDiags().getSYCLOptReport();
+  if (SyclOptReport.HasOptReportInfo(FD)) {
     llvm::OptimizationRemarkEmitter ORE(Fn);
-    for (auto ORI : llvm::enumerate(OptReportHandler.GetInfo(FD))) {
+    for (auto ORI : llvm::enumerate(SyclOptReport.GetInfo(FD))) {
       llvm::DiagnosticLocation DL =
           SourceLocToDebugLoc(ORI.value().KernelArgLoc);
       StringRef NameInDesc = ORI.value().KernelArgDescName;

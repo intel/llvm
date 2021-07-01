@@ -311,6 +311,10 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
                                    pi_uint32 num_events_in_wait_list,
                                    const pi_event *event_wait_list,
                                    pi_event *event);
+pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                              pi_uint32 num_events_in_wait_list,
+                                              const pi_event *event_wait_list,
+                                              pi_event *event);
 pi_result cuda_piEventRelease(pi_event event);
 pi_result cuda_piEventRetain(pi_event event);
 
@@ -981,6 +985,19 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     bool ifp = (major >= 7);
     return getInfo(param_value_size, param_value, param_value_size_ret, ifp);
   }
+
+  case PI_DEVICE_INFO_ATOMIC_64: {
+    int major = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device->get()) == CUDA_SUCCESS);
+
+    bool atomic64 = (major >= 6) ? true : false;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   atomic64);
+  }
+
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // NVIDIA devices only support one sub-group size (the warp size)
     int warpSize = 0;
@@ -1358,7 +1375,27 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
   }
   case PI_DEVICE_INFO_EXTENSIONS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, "");
+
+    std::string SupportedExtensions = "cl_khr_fp64 ";
+
+    int major = 0;
+    int minor = 0;
+
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&minor,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
+                             device->get()) == CUDA_SUCCESS);
+
+    if ((major >= 6) || ((major == 5) && (minor >= 3))) {
+      SupportedExtensions += "cl_khr_fp16 ";
+    }
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   SupportedExtensions.c_str());
   }
   case PI_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
     // The minimum value for the FULL profile is 1 MB.
@@ -3279,11 +3316,33 @@ pi_result cuda_piEventRelease(pi_event event) {
 
 /// Enqueues a wait on the given CUstream for all events.
 /// See \ref enqueueEventWait
+/// TODO: Add support for multiple streams once the Event class is properly
+/// refactored.
 ///
 pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
                                    pi_uint32 num_events_in_wait_list,
                                    const pi_event *event_wait_list,
                                    pi_event *event) {
+  return cuda_piEnqueueEventsWaitWithBarrier(
+      command_queue, num_events_in_wait_list, event_wait_list, event);
+}
+
+/// Enqueues a wait on the given CUstream for all specified events (See
+/// \ref enqueueEventWaitWithBarrier.) If the events list is empty, the enqueued
+/// wait will wait on all previous events in the queue.
+///
+/// \param[in] command_queue A valid PI queue.
+/// \param[in] num_events_in_wait_list Number of events in event_wait_list.
+/// \param[in] event_wait_list Events to wait on.
+/// \param[out] event Event for when all events in event_wait_list have finished
+/// or, if event_wait_list is empty, when all previous events in the queue have
+/// finished.
+///
+/// \return TBD
+pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                              pi_uint32 num_events_in_wait_list,
+                                              const pi_event *event_wait_list,
+                                              pi_event *event) {
   if (!command_queue) {
     return PI_INVALID_QUEUE;
   }
@@ -3315,26 +3374,6 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-}
-
-/// Enqueues a wait on the given CUstream for all specified events (See
-/// \ref enqueueEventWait.) If the events list is empty, the enqueued wait will
-/// wait on all previous events in the queue.
-/// TODO: Implement this.
-///
-/// \param[in] command_queue A valid PI queue.
-/// \param[in] num_events_in_wait_list Number of events in event_wait_list.
-/// \param[in] event_wait_list Events to wait on.
-/// \param[out] event Event for when all events in event_wait_list have finished
-/// or, if event_wait_list is empty, when all previous events in the queue have
-/// finished.
-///
-/// \return TBD
-pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue, pi_uint32,
-                                              const pi_event *, pi_event *) {
-  cl::sycl::detail::pi::die(
-      "cuda_piEnqueueEventsWaitWithBarrier not implemented");
-  return {};
 }
 
 /// Gets the native CUDA handle of a PI event object

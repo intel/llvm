@@ -100,10 +100,6 @@ LogicalResult mlir::linalg::LinalgOpToLibraryCallRewrite::matchAndRewrite(
   if (isa<CopyOp>(op))
     return failure();
 
-  // Canonicalize indexed generic operations before library call conversion.
-  if (isa<IndexedGenericOp>(op))
-    return failure();
-
   auto libraryCallName = getLibraryCallSymbolRef(op, rewriter);
   if (!libraryCallName)
     return failure();
@@ -191,7 +187,8 @@ void ConvertLinalgToStandardPass::runOnOperation() {
   target.addLegalDialect<AffineDialect, memref::MemRefDialect, scf::SCFDialect,
                          StandardOpsDialect>();
   target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
-  target.addLegalOp<linalg::ReshapeOp, linalg::RangeOp>();
+  target.addLegalOp<linalg::ExpandShapeOp, linalg::CollapseShapeOp,
+                    linalg::RangeOp>();
   RewritePatternSet patterns(&getContext());
   populateLinalgToStandardConversionPatterns(patterns);
   if (failed(applyFullConversion(module, target, std::move(patterns))))

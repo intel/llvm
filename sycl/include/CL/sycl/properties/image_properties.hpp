@@ -20,12 +20,12 @@ class use_host_ptr : public detail::DataLessProperty<detail::ImageUseHostPtr> {
 
 class use_mutex : public detail::PropertyWithData<detail::ImageUseMutex> {
 public:
-  use_mutex(sycl::mutex_class &MutexRef) : MMutex(MutexRef) {}
+  use_mutex(std::mutex &MutexRef) : MMutex(MutexRef) {}
 
-  sycl::mutex_class *get_mutex_ptr() const { return &MMutex; }
+  std::mutex *get_mutex_ptr() const { return &MMutex; }
 
 private:
-  sycl::mutex_class &MMutex;
+  std::mutex &MMutex;
 };
 
 class context_bound
