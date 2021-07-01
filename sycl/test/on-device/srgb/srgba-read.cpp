@@ -43,7 +43,8 @@ void test_rd(image_channel_order ChanOrder, image_channel_type ChanType) {
 
   queue Q;
   const sycl::range<2> ImgRange_2D(width, height);
-  // const data
+  // IMPORTANT: const data is *required* for sRGBA images.
+  // OpenCL support is limited for 2D/3D images that are read only.
   const std::vector<dataPixelT> ImgData(ImgRange_2D.size(), basicPixel);
   try { // closure
 
