@@ -100,7 +100,7 @@ enum class matrix_layout {
 }
 ```
 
-AMX hardware requires both A and B to be in VNNI or 32 bits packed layout. So the matrices are always packed in AMX. If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed shape for B used by the implementation is different. For bf16 type for instance, the shape of AMX tile B is (K/2, N*2). The user must provide the information of `packed_b` layout to make the implementation allocate the right shape.  The layout information for AMX should be specified in user code as follows: 
+AMX hardware requires B matrix to be in VNNI or 32 bits packed layout. If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed shape for B used by the implementation uses the VNNI format, which is described below. The user must provide the information of `packed_b` layout to make the implementation allocate the right shape.  The layout information for AMX should be specified in user code as follows: 
 
 ```c++
 joint_matrix<sub_group, int8_t, K, N, packed_b> tB(sg);
