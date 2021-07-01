@@ -1,0 +1,153 @@
+= srgb_support
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C,
+// for syntax highlighting purposes.
+:language: c
+
+// This is what is needed for C++, since docbook uses c++
+// and everything else uses cpp.  This doesn't work when
+// source blocks are in table cells, though, so don't use
+// C++ unless it is required.
+//:language: {basebackend@docbook:c++:cpp}
+
+
+
+== Name Strings
+
+`srgb_support`
+
+== Contact
+
+Chris Perkins, Intel (chris 'dot' perkins 'at' intel 'dot' com)
+
+== Contributors
+
+// spell-checker: disable
+Chris Perkins, Intel +
+// spell-checker: enable
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback.
+When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+If you are interested in using this feature in your software product, please let us know!
+
+== Version
+
+Built On: {docdate} +
+Revision: R
+
+== Dependencies
+
+This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-6.
+
+
+== Overview
+
+sRGB isn't an image data format, per se. It is a linearization of RGB color values that adjusts the color to be better matched with a particular hardware medium. A more detailed explanation may be found here: https://software.intel.com/content/www/us/en/develop/articles/using-opencl-20-srgb-image-format.html
+
+OpenCL provides automatic linearization of RGB values into sRGB color space. OneAPI now exposes that OpenCL support for read_only images. 
+
+== New ImageChannelOrder Enums
+
+sRGB values have been added to the `image_channel_order` enumeration. The `image_channel_order::srgba` value allows images to be read with sRGB linearization of the color values. This value can be passed to `image` constructors, with some limitations that are outlined below.
+
+[source]
+----
+image_channel_order::srgba
+----
+
+== Limitations of sRGB usage
+
+There are four primary limitations of which any potential user should be aware.
+
+. 2D and 3D images only. 
+. unorm_int8 channel type (only)
+. read_only access to image 
+. const data required when initializing image.
+
+Three of these are limitations to the construction of the image object itself, and will typically result in a `CL_IMAGE_FORMAT_NOT_SUPPORTED` error if exceeded. 
+
+=== 2D and 3D images only.
+The title is self explanatory. OneAPI does not support 1D sRGB images. They must be 2D or 3D images.
+
+=== unorm_int8 channel type (only)
+sRGB images can *only* be created with the `image_channel_type::unorm_int8` channel type. This is an 8-bit per channel type, normalized to a low accuracy floating point on read. 
+
+=== read_only access to image
+The OneAPI support for sRGB images at this time is read_only. Be sure to only request read access mode accessors, not write or read_write.
+
+=== const data required when initializing image
+As a consequence of the read_only limitation, the image must be initialized with user data upon construction, and that data must be `const`.
+
+== Example
+
+[source]
+----
+using accessorPixelT = sycl::float4; // we access the image data as four floats
+using dataPixelT = uint32_t;         // but the underlying data is merely 32 bit per pixel (four 8 bit values)
+
+// this should yield a read of approximate 0.5 for each channel
+// when read directly with a normal non-linearized image (e.g. image_channel_order::rgba).  
+// For sRGB (image_channel_order::srgba), this is the value that will experience maximum conversion/linearization. 
+// So we should read values of approximately 0.2 
+dataPixelT basicPixel{127 << 24 | 127 << 16 | 127 << 8 | 127};
+
+const sycl::range<2> ImgRange_2D(width, height);
+
+// Make a 2D image with every pixel initialized to basicPixel.
+// IMPORTANT: const data is *required* for sRGBA images.
+// OpenCL support is limited for 2D/3D images that are read only.
+const std::vector<dataPixelT> ImgData(ImgRange_2D.size(), basicPixel);
+
+image<2> image_2D(ImgData.data(), image_channel_order::srgba, image_channel_type::unorm_int8, ImgRange_2D);
+
+queue Q;
+Q.submit([&](handler &cgh) {
+    // read only accessor
+    auto image_acc = image_2D.get_access<accessorPixelT, access::mode::read>(cgh);
+
+    cgh.parallel_for<class sRGAExample>(ImgRange_2D, [=](sycl::item<2> Item) {
+        accessorPixelT Data = image_acc.read(sycl::int2{Item[0], Item[1]});
+        // in our example, Data will be approximately {0.2, 0.2, 0.2, 0.5}
+        // ie, the color was linearized, the alpha value was untouched
+        // etc.
+----
+
+
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|A|2021-07-01|Chris Perkins|*Initial revision*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use `mono` text for device APIs, or [source] syntax highlighting.
+//* Use `mono` text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************
