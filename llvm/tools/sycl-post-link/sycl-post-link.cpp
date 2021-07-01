@@ -44,6 +44,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
+#include <algorithm>
 #include <memory>
 
 using namespace llvm;
@@ -297,7 +298,8 @@ static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
   // false - if there are definetely no assertions in underlying functions.
   static std::map<llvm::Function *, bool> hasAssertionInCallGraphMap;
   std::vector<llvm::Function *> FuncCallStack;
-  bool HasIndirectlyCalledAssert = false;
+
+  static std::vector<llvm::Function *> isIndirectlyCalledInGraph;
 
   std::vector<llvm::Function *> Workstack;
   Workstack.push_back(Func);
@@ -308,9 +310,11 @@ static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
     if (F != Func)
       FuncCallStack.push_back(F);
 
-    if (!HasIndirectlyCalledAssert &&
-        F->hasFnAttribute("referenced-indirectly"))
-      HasIndirectlyCalledAssert = true;
+    bool HasIndirectlyCalledAttr = false;
+    if (F->hasFnAttribute("referenced-indirectly")) {
+      HasIndirectlyCalledAttr = true;
+      isIndirectlyCalledInGraph.push_back(F);
+    }
 
     bool IsLeaf = true;
     for (auto &I : instructions(F)) {
@@ -321,6 +325,12 @@ static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
       if (!CF)
         continue;
 
+      bool IsIndirectlyCalled =
+          HasIndirectlyCalledAttr ||
+          std::find(isIndirectlyCalledInGraph.begin(),
+                    isIndirectlyCalledInGraph.end(),
+                    CF) != isIndirectlyCalledInGraph.end();
+
       // Return if we've already discovered if there are asserts in the
       // function call graph.
       auto HasAssert = hasAssertionInCallGraphMap.find(CF);
@@ -330,8 +340,7 @@ static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
         if (!HasAssert->second)
           continue;
 
-        return HasIndirectlyCalledAssert ? Assert_Indirect : Assert;
-        ;
+        return IsIndirectlyCalled ? Assert_Indirect : Assert;
       }
 
       if (CF->getName().startswith("__devicelib_assert_fail")) {
@@ -343,12 +352,14 @@ static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
         hasAssertionInCallGraphMap[Func] = true;
         hasAssertionInCallGraphMap[CF] = true;
 
-        return HasIndirectlyCalledAssert ? Assert_Indirect : Assert;
+        return IsIndirectlyCalled ? Assert_Indirect : Assert;
       }
 
       if (!CF->isDeclaration()) {
         Workstack.push_back(CF);
         IsLeaf = false;
+        if (HasIndirectlyCalledAttr)
+          isIndirectlyCalledInGraph.push_back(CF);
       }
     }
 
@@ -560,23 +571,24 @@ static string_vector saveDeviceImageProperty(
       for (auto &F : M->functions()) {
         // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
         // TODO: handle function pointers.
-        if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-          Kernels.push_back(&F);
-          if (HasIndirectlyCalledAssert)
-            continue;
+        if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+          continue;
 
-          HasAssertStatus HasAssert = hasAssertInFunctionCallGraph(&F);
-          switch (HasAssert) {
-          case Assert:
-            PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
-                {F.getName(), true});
-            break;
-          case Assert_Indirect:
-            HasIndirectlyCalledAssert = true;
-            break;
-          case No_Assert:
-            break;
-          }
+        Kernels.push_back(&F);
+        if (HasIndirectlyCalledAssert)
+          continue;
+
+        HasAssertStatus HasAssert = hasAssertInFunctionCallGraph(&F);
+        switch (HasAssert) {
+        case Assert:
+          PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
+              {F.getName(), true});
+          break;
+        case Assert_Indirect:
+          HasIndirectlyCalledAssert = true;
+          break;
+        case No_Assert:
+          break;
         }
       }
 
