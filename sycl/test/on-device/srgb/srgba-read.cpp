@@ -2,15 +2,8 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 
-// UNSUPPORTED: CUDA || level_zero
-
-/// to build
-// clang++ -fsycl -o srgba.bin srgba-read.cpp
-
-/// to run
-// SYCL_DEVICE_FILTER=opencl:gpu ./srgba.bin
-// SYCL_DEVICE_FILTER=opencl:cpu ./srgba.bin
-// SYCL_DEVICE_FILTER=level_zero:gpu ./srgba.bin   <--
+// XFAIL: level_zero
+// UNSUPPORTED: CUDA
 
 #include <CL/sycl.hpp>
 
@@ -26,7 +19,6 @@ void outputPixel(sycl::float4 somePixel) {
             << "," << somePixel[3] << "} ";
 }
 
-// 4 pixels on a side. 1D at the moment
 constexpr long width = 4;
 constexpr long height = 3;
 
@@ -36,13 +28,14 @@ void test_rd(image_channel_order ChanOrder, image_channel_type ChanType) {
                     // of report iterations. Kludge.
 
   // this should yield a read of approximate 0.5 for each channel
-  // when read directly.  For sRGB, this should be the point
-  // with the maximum conversion. So we should read values of
-  // 0.2 or 0.7 (but I'm not sure yet which way that conversion goes)
+  // when read directly with a normal non-linearized image (e.g. image_channel_order::rgba).  
+  // For sRGB (image_channel_order::srgba), this is the value with maximum conversion. 
+  // So we should read values of approximately 0.2 
   dataPixelT basicPixel{127 << 24 | 127 << 16 | 127 << 8 | 127};
 
   queue Q;
   const sycl::range<2> ImgRange_2D(width, height);
+
   // IMPORTANT: const data is *required* for sRGBA images.
   // OpenCL support is limited for 2D/3D images that are read only.
   const std::vector<dataPixelT> ImgData(ImgRange_2D.size(), basicPixel);
@@ -94,36 +87,11 @@ int main() {
   device D = Q.get_device();
 
   if (D.has(aspect::image)) {
-    // the _int8 channels are one byte per channel, or four bytes per pixel (for
-    // RGBA) the _int16/fp16 channels are two bytes per channel, or eight bytes
-    // per pixel (for RGBA) the _int32/fp32  channels are four bytes per
-    // channel, or sixteen bytes per pixel (for RGBA).
-
-    // RGBx -- CL_IMAGE_FORMAT_NOT_SUPPORTED on CPU
-    //         CL_INVALID_IMAGE_FORMAT_DESCRIPTOR on GPU.
-    //          LevelZero dies in piMemImageCreate (shouldn't it throw?)
-    //      I believe both CPU and GPU are in error.  Should be fine.
-    //      (irrelevant to sRGB enablement though)
-    // std::cout << "rgbx -------" << std::endl;
-    // test_rw(image_channel_order::rgbx, image_channel_type::unorm_int8);
-
-    // RGBA -- WORKS
+    // RGBA -- (normal, non-linearized)
     std::cout << "rgba -------" << std::endl;
     test_rd(image_channel_order::rgba, image_channel_type::unorm_int8);
 
-    // srgb (24 bit) throws exception, as size is supposed to be power of 2.
-    // srgbx and srgba tests follow.
-
-    // sRGBx  -- CL_INVALID_IMAGE_DESCRIPTOR on CPU
-    //           CL_IMAGE_FORMAT_NOT_SUPPORTED on GPU
-    //     This is the reverse of how CPU/GPU handle 'rgbx'
-    //     LevelZero dies in piMemImageCreate
-    // std::cout << "srgbx -------" << std::endl;
-    // test_rw(image_channel_order::srgbx, image_channel_type::unorm_int8);
-
-    // sRGBA -- CL_IMAGE_FORMAT_NOT_SUPPORTED on both OpenCL CPU and GPU
-    //          LevelZero accepts this, but I suspect it does not apply any
-    //          linear scaling.
+    // sRGBA -- (linearized reads)
     std::cout << "srgba -------" << std::endl;
     test_rd(image_channel_order::srgba, image_channel_type::unorm_int8);
   } else {

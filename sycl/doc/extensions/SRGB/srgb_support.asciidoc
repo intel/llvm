@@ -76,12 +76,13 @@ image_channel_order::srgba
 
 == Limitations of sRGB usage
 
-There are four primary limitations of which any potential user should be aware.
+There are five primary limitations of which any potential user should be aware.
 
 . 2D and 3D images only. 
 . unorm_int8 channel type (only)
 . read_only access to image 
 . const data required when initializing image.
+. OpenCL backend only at this time.
 
 Three of these are limitations to the construction of the image object itself, and will typically result in a `CL_IMAGE_FORMAT_NOT_SUPPORTED` error if exceeded. 
 
@@ -96,6 +97,9 @@ The OneAPI support for sRGB images at this time is read_only. Be sure to only re
 
 === const data required when initializing image
 As a consequence of the read_only limitation, the image must be initialized with user data upon construction, and that data must be `const`.
+
+=== OpenCL backend only at this time
+The sRGB enablement is available on OpenCL, but no other backends at this time.   
 
 == Example
 
@@ -131,6 +135,11 @@ Q.submit([&](handler &cgh) {
         // etc.
 ----
 
+And to run, be sure to select the OpenCL backend (works on both CPU and GPU devices)
+[source]
+----
+$ SYCL_DEVICE_FILTER=opencl:gpu ./myapp.bin
+----
 
 
 == Revision History
