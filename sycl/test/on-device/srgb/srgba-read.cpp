@@ -1,16 +1,16 @@
-// RUN: %clangxx -fsycl -std=c++17  -DCL_TARGET_OPENCL_VERSION=220 -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="-cl-std=CL2.0" SYCL_PROGRAM_LINK_OPTIONS="-cl-std=CL2.0" %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="-cl-std=CL2.0" SYCL_PROGRAM_LINK_OPTIONS="-cl-std=CL2.0" %t.out %GPU_CHECK_PLACEHOLDER
+// RUN: %clangxx -fsycl  -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
+// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 
-// UNSUPPORTED: CUDA
+// UNSUPPORTED: CUDA || level_zero
 
 /// to build
-// clang++ -fsycl -DCL_TARGET_OPENCL_VERSION=220 -o srgba.bin srgba-read.cpp
+// clang++ -fsycl -o srgba.bin srgba-read.cpp
 
 /// to run
-// SYCL_PROGRAM_COMPILE_OPTIONS="-cl-std=CL2.0" SYCL_PROGRAM_LINK_OPTIONS="-cl-std=CL2.0" SYCL_DEVICE_FILTER=opencl:gpu ./srgba.bin
-// SYCL_PROGRAM_COMPILE_OPTIONS="-cl-std=CL2.0" SYCL_PROGRAM_LINK_OPTIONS="-cl-std=CL2.0" SYCL_DEVICE_FILTER=opencl:cpu ./srgba.bin
-// SYCL_PROGRAM_COMPILE_OPTIONS="-cl-std=CL2.0" SYCL_PROGRAM_LINK_OPTIONS="-cl-std=CL2.0" SYCL_DEVICE_FILTER=level_zero:gpu ./srgba.bin
+// SYCL_DEVICE_FILTER=opencl:gpu ./srgba.bin
+// SYCL_DEVICE_FILTER=opencl:cpu ./srgba.bin
+// SYCL_DEVICE_FILTER=level_zero:gpu ./srgba.bin   <--
 
 #include <CL/sycl.hpp>
 
@@ -43,7 +43,8 @@ void test_rd(image_channel_order ChanOrder, image_channel_type ChanType) {
 
   queue Q;
   const sycl::range<2> ImgRange_2D(width, height);
-  std::vector<dataPixelT> ImgData(ImgRange_2D.size(), basicPixel);
+  // const data
+  const std::vector<dataPixelT> ImgData(ImgRange_2D.size(), basicPixel);
   try { // closure
 
     image<2> image_2D(ImgData.data(), ChanOrder, ChanType, ImgRange_2D);
@@ -141,10 +142,11 @@ int main() {
 // CHECK-NEXT: 3: {0.498039,0.498039,0.498039,0.498039} 
 // CHECK: srgba -------
 // CHECK-NEXT: read four pixels, no sampler
-//   these next four reads should all be close to 0.7 
-//   or maybe 0.2.  I don't know yet
-// CHECK-NEXT: 0: {0.7,0.7,0.7,0.7} 
-// CHECK-NEXT: 1: {0.2,0.2,0.2,0.2} 
-// CHECK-NEXT: 2: {0.7,0.7,0.7,0.7} 
-// CHECK-NEXT: 3: {0.2,0.2,0.2,0.2}
+//   these next four reads should all be close to 0.2 
+//   presently the values differ slightly between OpenCL GPU and CPU
+// (e.g. GPU: 0.21231, CPU: 0.211795 )
+// CHECK-NEXT: 0: {0.21 
+// CHECK-NEXT: 1: {0.21 
+// CHECK-NEXT: 2: {0.21 
+// CHECK-NEXT: 3: {0.21
 // clang-format on
