@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <numeric>
+#include <string>
 #include <utility>
 
 #define FOR_EACH_NODE_KIND(X) \
