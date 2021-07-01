@@ -3,7 +3,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 
 // XFAIL: level_zero
-// UNSUPPORTED: CUDA
+// UNSUPPORTED: cuda
 
 #include <CL/sycl.hpp>
 
