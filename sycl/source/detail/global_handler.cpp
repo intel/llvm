@@ -173,8 +173,9 @@ void shutdown() {
 }
 
 #ifdef _WIN32
-extern "C" __declspec(dllexport) BOOL WINAPI
-    DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
+extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
+                                             DWORD fdwReason,
+                                             LPVOID lpReserved) {
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
