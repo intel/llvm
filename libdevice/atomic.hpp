@@ -66,10 +66,10 @@ extern DEVICE_EXTERNAL int __spirv_AtomicLoad(const int __SYCL_GLOBAL__ *,
                                               __spv::Scope::Flag,
                                               __spv::MemorySemanticsMask::Flag);
 
-extern DEVICE_EXTERNAL int __spirv_AtomicStore(int __SYCL_GLOBAL__ *,
-                                               __spv::Scope::Flag,
-                                               __spv::MemorySemanticsMask::Flag,
-                                               int);
+extern DEVICE_EXTERNAL void __spirv_AtomicStore(int __SYCL_GLOBAL__ *,
+                                                __spv::Scope::Flag,
+                                                __spv::MemorySemanticsMask::Flag,
+                                                int);
 
 /// Atomically set the value in *Ptr with Desired if and only if it is Expected
 /// Return the value which already was in *Ptr
@@ -86,10 +86,10 @@ static inline int atomicLoad(__SYCL_GLOBAL__ int *Ptr) {
                             __spv::MemorySemanticsMask::SequentiallyConsistent);
 }
 
-static inline int atomicStore(__SYCL_GLOBAL__ int *Ptr, int V) {
-  return __spirv_AtomicStore(Ptr, __spv::Scope::Device,
-                             __spv::MemorySemanticsMask::SequentiallyConsistent,
-                             V);
+static inline void atomicStore(__SYCL_GLOBAL__ int *Ptr, int V) {
+  __spirv_AtomicStore(Ptr, __spv::Scope::Device,
+                      __spv::MemorySemanticsMask::SequentiallyConsistent,
+                      V);
 }
 
 #endif // __SPIR__
