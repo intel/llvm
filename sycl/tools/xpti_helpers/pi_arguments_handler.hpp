@@ -25,9 +25,10 @@ inline auto get(char *Data, const std::index_sequence<Is...> &) {
 
   // Calculate sizeof all elements before target + target element then substract
   // sizeof target element
-  size_t Res = (sizeof(typename std::tuple_element<Is, TupleT>::type) + ...) -
-               sizeof(TargetType);
-  return *(typename std::decay<TargetType>::type *)(Data + Res);
+  const size_t Offset =
+      (sizeof(typename std::tuple_element<Is, TupleT>::type) + ...) -
+      sizeof(TargetType);
+  return *(typename std::decay<TargetType>::type *)(Data + Offset);
 }
 
 template <typename TupleT, size_t... Is>
