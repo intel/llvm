@@ -24,6 +24,8 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+using LockGuard = std::lock_guard<SpinLock>;
+
 GlobalHandler::GlobalHandler() = default;
 GlobalHandler::~GlobalHandler() = default;
 
@@ -32,109 +34,57 @@ GlobalHandler &GlobalHandler::instance() {
   return *SyclGlobalObjectsHandler;
 }
 
-Scheduler &GlobalHandler::getScheduler() {
-  if (MScheduler)
-    return *MScheduler;
+template <typename T, typename... Types>
+T& GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types... Args) {
+  const LockGuard Lock{IWL.Lock};
 
-  const std::lock_guard<SpinLock> Lock{MFieldsLock};
-  if (!MScheduler)
-    MScheduler = std::make_unique<Scheduler>();
+  if (!IWL.Inst)
+    IWL.Inst = std::make_unique<T>(Args...);
 
-  return *MScheduler;
+  return *IWL.Inst;
 }
+
+Scheduler &GlobalHandler::getScheduler() { return getOrCreate(MScheduler); }
+
 ProgramManager &GlobalHandler::getProgramManager() {
-  if (MProgramManager)
-    return *MProgramManager;
-
-  const std::lock_guard<SpinLock> Lock{MFieldsLock};
-  if (!MProgramManager)
-    MProgramManager = std::make_unique<ProgramManager>();
-
-  return *MProgramManager;
+  return getOrCreate(MProgramManager);
 }
-Sync &GlobalHandler::getSync() {
-  if (MSync)
-    return *MSync;
 
-  const std::lock_guard<SpinLock> Lock{MFieldsLock};
-  if (!MSync)
-    MSync = std::make_unique<Sync>();
+Sync &GlobalHandler::getSync() { return getOrCreate(MSync); }
 
-  return *MSync;
-}
 std::vector<PlatformImplPtr> &GlobalHandler::getPlatformCache() {
-  if (MPlatformCache)
-    return *MPlatformCache;
-
-  const std::lock_guard<SpinLock> Lock{MFieldsLock};
-  if (!MPlatformCache)
-    MPlatformCache = std::make_unique<std::vector<PlatformImplPtr>>();
-
-  return *MPlatformCache;
+  return getOrCreate(MPlatformCache);
 }
+
 std::mutex &GlobalHandler::getPlatformMapMutex() {
-  if (MPlatformMapMutex)
-    return *MPlatformMapMutex;
-
-  const std::lock_guard<SpinLock> Lock{MFieldsLock};
-  if (!MPlatformMapMutex)
-    MPlatformMapMutex = std::make_unique<std::mutex>();
-
-  return *MPlatformMapMutex;
+  return getOrCreate(MPlatformMapMutex);
 }
+
 std::mutex &GlobalHandler::getFilterMutex() {
-  if (MFilterMutex)
-    return *MFilterMutex;
-
-  const std::lock_guard<SpinLock> Lock{MFieldsLock};
-  if (!MFilterMutex)
-    MFilterMutex = std::make_unique<std::mutex>();
-
-  return *MFilterMutex;
+  return getOrCreate(MFilterMutex);
 }
 std::vector<plugin> &GlobalHandler::getPlugins() {
-  if (MPlugins)
-    return *MPlugins;
-
-  const std::lock_guard<SpinLock> Lock{MFieldsLock};
-  if (!MPlugins)
-    MPlugins = std::make_unique<std::vector<plugin>>();
-
-  return *MPlugins;
+  return getOrCreate(MPlugins);
 }
 device_filter_list &
 GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
-  if (MDeviceFilterList)
-    return *MDeviceFilterList;
-
-  const std::lock_guard<SpinLock> Lock{MFieldsLock};
-  if (!MDeviceFilterList)
-    MDeviceFilterList = std::make_unique<device_filter_list>(InitValue);
-
-  return *MDeviceFilterList;
+  return getOrCreate(MDeviceFilterList, InitValue);
 }
 
 std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
-  if (MHandlerExtendedMembersMutex)
-    return *MHandlerExtendedMembersMutex;
-
-  const std::lock_guard<SpinLock> Lock{MFieldsLock};
-  if (!MHandlerExtendedMembersMutex)
-    MHandlerExtendedMembersMutex = std::make_unique<std::mutex>();
-
-  return *MHandlerExtendedMembersMutex;
+  return getOrCreate(MHandlerExtendedMembersMutex);
 }
 
 void shutdown() {
   // First, release resources, that may access plugins.
-  GlobalHandler::instance().MScheduler.reset(nullptr);
-  GlobalHandler::instance().MProgramManager.reset(nullptr);
-  GlobalHandler::instance().MPlatformCache.reset(nullptr);
+  GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
+  GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
+  GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
 
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,
   // there's no need to load and unload plugins.
-  if (GlobalHandler::instance().MPlugins) {
+  if (GlobalHandler::instance().MPlugins.Inst) {
     for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
       // PluginParameter is reserved for future use that can control
       // some parameters in the plugin tear-down process.
@@ -143,7 +93,7 @@ void shutdown() {
       Plugin.call_nocheck<PiApiKind::piTearDown>(PluginParameter);
       Plugin.unload();
     }
-    GlobalHandler::instance().MPlugins.reset(nullptr);
+    GlobalHandler::instance().MPlugins.Inst.reset(nullptr);
   }
 
   // Release the rest of global resources.
