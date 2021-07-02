@@ -10,13 +10,13 @@
 using namespace cl::sycl;
 queue q;
 
-[[intel::use_stall_enable_clusters]] void test() {}
+[[intel::use_stall_enable_clusters]] void func() {}
 
 struct FuncObj {
   [[intel::use_stall_enable_clusters]] void operator()() const {}
 };
 
-void test1() {
+void func1() {
   auto lambda = []() [[intel::use_stall_enable_clusters]]{};
   lambda();
 }
@@ -47,17 +47,17 @@ int main() {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel3()
     // CHECK-NOT: !stall_enable
     // CHECK-SAME: {
-    // CHECK: define {{.*}}spir_func void @{{.*}}test{{.*}} !stall_enable ![[NUM4]]
+    // CHECK: define {{.*}}spir_func void @{{.*}}func{{.*}} !stall_enable ![[NUM4]]
     h.single_task<class test_kernel3>(
-        []() { test(); });
+        []() { func(); });
 
     // Test attribute is not propagated to the kernel metadata i.e. spir_kernel.
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel4()
     // CHECK-NOT: !stall_enable
     // CHECK-SAME: {
-    // CHECK: define {{.*}}spir_func void @{{.*}}test1{{.*}}(%class.{{.*}}test1{{.*}}.anon addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 !stall_enable ![[NUM4]]
+    // CHECK: define {{.*}}spir_func void @{{.*}}func1{{.*}}(%class.{{.*}}func1{{.*}}.anon addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 !stall_enable ![[NUM4]]
     h.single_task<class test_kernel4>(
-        []() { test1(); });
+        []() { func1(); });
 
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel5() {{.*}} !stall_enable ![[NUM4]]
     h.single_task<class test_kernel5>(
