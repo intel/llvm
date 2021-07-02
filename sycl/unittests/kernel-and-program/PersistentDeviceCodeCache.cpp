@@ -91,6 +91,8 @@ public:
       return;
     }
 
+    set_env("SYCL_CACHE_DIR", ".");
+
     Mock = std::make_unique<unittest::PiMock>(Plt);
     Dev = Plt.get_devices()[0];
     Mock->redefine<detail::PiApiKind::piProgramGetInfo>(
