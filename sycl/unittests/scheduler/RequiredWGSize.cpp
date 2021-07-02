@@ -183,8 +183,15 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
                                         size_t param_value_size,
                                         void *param_value,
                                         size_t *param_value_size_ret) {
-  if (param_value_size_ret)
-    *param_value_size_ret = 0;
+  if ((cl::sycl::info::device)param_name ==
+          cl::sycl::info::device::extensions) {
+    static const std::string Extensions = "cl_khr_il_program";
+    if (param_value_size_ret)
+      *param_value_size_ret = Extensions.length();
+    if (param_value)
+      std::memcpy(param_value, Extensions.c_str(), Extensions.length());
+  }
+
 
   return PI_SUCCESS;
 }
