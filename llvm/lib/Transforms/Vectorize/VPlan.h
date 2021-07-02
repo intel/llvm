@@ -640,6 +640,10 @@ public:
     print(O, "", SlotTracker);
   }
 
+  /// Print the successors of this block to \p O, prefixing all lines with \p
+  /// Indent.
+  void printSuccessors(raw_ostream &O, const Twine &Indent) const;
+
   /// Dump this VPBlockBase to dbgs().
   LLVM_DUMP_METHOD void dump() const { print(dbgs()); }
 #endif
@@ -1042,10 +1046,10 @@ public:
 
 /// A recipe for handling all phi nodes except for integer and FP inductions.
 /// For reduction PHIs, RdxDesc must point to the corresponding recurrence
-/// descriptor, the start value is the first operand of the recipe and the
-/// incoming value from the backedge is the second operand. In the VPlan native
-/// path, all incoming VPValues & VPBasicBlock pairs are managed in the recipe
-/// directly.
+/// descriptor. For reductions and first-order recurrences, the start value is
+/// the first operand of the recipe and the incoming value from the backedge is
+/// the second operand. In the VPlan native path, all incoming VPValues &
+/// VPBasicBlock pairs are managed in the recipe directly.
 class VPWidenPHIRecipe : public VPRecipeBase, public VPValue {
   /// Descriptor for a reduction PHI.
   RecurrenceDescriptor *RdxDesc = nullptr;
@@ -1059,6 +1063,11 @@ public:
   VPWidenPHIRecipe(PHINode *Phi, RecurrenceDescriptor &RdxDesc, VPValue &Start)
       : VPWidenPHIRecipe(Phi) {
     this->RdxDesc = &RdxDesc;
+    addOperand(&Start);
+  }
+
+  /// Create a new VPWidenPHIRecipe for \p Phi with start value \p Start.
+  VPWidenPHIRecipe(PHINode *Phi, VPValue &Start) : VPWidenPHIRecipe(Phi) {
     addOperand(&Start);
   }
 
@@ -1085,15 +1094,15 @@ public:
              VPSlotTracker &SlotTracker) const override;
 #endif
 
-  /// Returns the start value of the phi, if it is a reduction.
+  /// Returns the start value of the phi, if it is a reduction or first-order
+  /// recurrence.
   VPValue *getStartValue() {
     return getNumOperands() == 0 ? nullptr : getOperand(0);
   }
 
-  /// Returns the incoming value from the loop backedge, if it is a reduction.
+  /// Returns the incoming value from the loop backedge, if it is a reduction or
+  /// first-order recurrence.
   VPValue *getBackedgeValue() {
-    assert(RdxDesc && "second incoming value is only guaranteed to be backedge "
-                      "value for reductions");
     return getOperand(1);
   }
 

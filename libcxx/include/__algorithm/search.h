@@ -11,6 +11,7 @@
 #define _LIBCPP___ALGORITHM_SEARCH_H
 
 #include <__config>
+#include <__algorithm/comp.h>
 #include <__functional/search.h>
 #include <__iterator/iterator_traits.h>
 #include <type_traits>
@@ -31,8 +32,7 @@ search(_ForwardIterator1 __first1, _ForwardIterator1 __last1, _ForwardIterator2 
   return _VSTD::__search<typename add_lvalue_reference<_BinaryPredicate>::type>(
              __first1, __last1, __first2, __last2, __pred,
              typename iterator_traits<_ForwardIterator1>::iterator_category(),
-             typename iterator_traits<_ForwardIterator2>::iterator_category())
-      .first;
+             typename iterator_traits<_ForwardIterator2>::iterator_category()).first;
 }
 
 template <class _ForwardIterator1, class _ForwardIterator2>

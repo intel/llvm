@@ -98,12 +98,12 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   FullFS += "+enable-prt-strict-null,"; // This is overridden by a disable in FS
 
   // Disable mutually exclusive bits.
-  if (FS.find_lower("+wavefrontsize") != StringRef::npos) {
-    if (FS.find_lower("wavefrontsize16") == StringRef::npos)
+  if (FS.find_insensitive("+wavefrontsize") != StringRef::npos) {
+    if (FS.find_insensitive("wavefrontsize16") == StringRef::npos)
       FullFS += "-wavefrontsize16,";
-    if (FS.find_lower("wavefrontsize32") == StringRef::npos)
+    if (FS.find_insensitive("wavefrontsize32") == StringRef::npos)
       FullFS += "-wavefrontsize32,";
-    if (FS.find_lower("wavefrontsize64") == StringRef::npos)
+    if (FS.find_insensitive("wavefrontsize64") == StringRef::npos)
       FullFS += "-wavefrontsize64,";
   }
 
@@ -262,6 +262,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasGFX10A16(false),
     HasG16(false),
     HasNSAEncoding(false),
+    GFX10_AEncoding(false),
     GFX10_BEncoding(false),
     HasDLInsts(false),
     HasDot1Insts(false),
@@ -350,6 +351,105 @@ unsigned GCNSubtarget::getConstantBusLimit(unsigned Opcode) const {
   }
 
   return 2;
+}
+
+/// This list was mostly derived from experimentation.
+bool GCNSubtarget::zeroesHigh16BitsOfDest(unsigned Opcode) const {
+  switch (Opcode) {
+  case AMDGPU::V_CVT_F16_F32_e32:
+  case AMDGPU::V_CVT_F16_F32_e64:
+  case AMDGPU::V_CVT_F16_U16_e32:
+  case AMDGPU::V_CVT_F16_U16_e64:
+  case AMDGPU::V_CVT_F16_I16_e32:
+  case AMDGPU::V_CVT_F16_I16_e64:
+  case AMDGPU::V_RCP_F16_e64:
+  case AMDGPU::V_RCP_F16_e32:
+  case AMDGPU::V_RSQ_F16_e64:
+  case AMDGPU::V_RSQ_F16_e32:
+  case AMDGPU::V_SQRT_F16_e64:
+  case AMDGPU::V_SQRT_F16_e32:
+  case AMDGPU::V_LOG_F16_e64:
+  case AMDGPU::V_LOG_F16_e32:
+  case AMDGPU::V_EXP_F16_e64:
+  case AMDGPU::V_EXP_F16_e32:
+  case AMDGPU::V_SIN_F16_e64:
+  case AMDGPU::V_SIN_F16_e32:
+  case AMDGPU::V_COS_F16_e64:
+  case AMDGPU::V_COS_F16_e32:
+  case AMDGPU::V_FLOOR_F16_e64:
+  case AMDGPU::V_FLOOR_F16_e32:
+  case AMDGPU::V_CEIL_F16_e64:
+  case AMDGPU::V_CEIL_F16_e32:
+  case AMDGPU::V_TRUNC_F16_e64:
+  case AMDGPU::V_TRUNC_F16_e32:
+  case AMDGPU::V_RNDNE_F16_e64:
+  case AMDGPU::V_RNDNE_F16_e32:
+  case AMDGPU::V_FRACT_F16_e64:
+  case AMDGPU::V_FRACT_F16_e32:
+  case AMDGPU::V_FREXP_MANT_F16_e64:
+  case AMDGPU::V_FREXP_MANT_F16_e32:
+  case AMDGPU::V_FREXP_EXP_I16_F16_e64:
+  case AMDGPU::V_FREXP_EXP_I16_F16_e32:
+  case AMDGPU::V_LDEXP_F16_e64:
+  case AMDGPU::V_LDEXP_F16_e32:
+  case AMDGPU::V_LSHLREV_B16_e64:
+  case AMDGPU::V_LSHLREV_B16_e32:
+  case AMDGPU::V_LSHRREV_B16_e64:
+  case AMDGPU::V_LSHRREV_B16_e32:
+  case AMDGPU::V_ASHRREV_I16_e64:
+  case AMDGPU::V_ASHRREV_I16_e32:
+  case AMDGPU::V_ADD_U16_e64:
+  case AMDGPU::V_ADD_U16_e32:
+  case AMDGPU::V_SUB_U16_e64:
+  case AMDGPU::V_SUB_U16_e32:
+  case AMDGPU::V_SUBREV_U16_e64:
+  case AMDGPU::V_SUBREV_U16_e32:
+  case AMDGPU::V_MUL_LO_U16_e64:
+  case AMDGPU::V_MUL_LO_U16_e32:
+  case AMDGPU::V_ADD_F16_e64:
+  case AMDGPU::V_ADD_F16_e32:
+  case AMDGPU::V_SUB_F16_e64:
+  case AMDGPU::V_SUB_F16_e32:
+  case AMDGPU::V_SUBREV_F16_e64:
+  case AMDGPU::V_SUBREV_F16_e32:
+  case AMDGPU::V_MUL_F16_e64:
+  case AMDGPU::V_MUL_F16_e32:
+  case AMDGPU::V_MAX_F16_e64:
+  case AMDGPU::V_MAX_F16_e32:
+  case AMDGPU::V_MIN_F16_e64:
+  case AMDGPU::V_MIN_F16_e32:
+  case AMDGPU::V_MAX_U16_e64:
+  case AMDGPU::V_MAX_U16_e32:
+  case AMDGPU::V_MIN_U16_e64:
+  case AMDGPU::V_MIN_U16_e32:
+  case AMDGPU::V_MAX_I16_e64:
+  case AMDGPU::V_MAX_I16_e32:
+  case AMDGPU::V_MIN_I16_e64:
+  case AMDGPU::V_MIN_I16_e32:
+    // On gfx10, all 16-bit instructions preserve the high bits.
+    return getGeneration() <= AMDGPUSubtarget::GFX9;
+  case AMDGPU::V_MAD_F16_e64:
+  case AMDGPU::V_MADAK_F16:
+  case AMDGPU::V_MADMK_F16:
+  case AMDGPU::V_MAC_F16_e64:
+  case AMDGPU::V_MAC_F16_e32:
+  case AMDGPU::V_FMAMK_F16:
+  case AMDGPU::V_FMAAK_F16:
+  case AMDGPU::V_MAD_U16_e64:
+  case AMDGPU::V_MAD_I16_e64:
+  case AMDGPU::V_FMA_F16_e64:
+  case AMDGPU::V_FMAC_F16_e64:
+  case AMDGPU::V_FMAC_F16_e32:
+  case AMDGPU::V_DIV_FIXUP_F16_e64:
+    // In gfx9, the preferred handling of the unused high 16-bits changed. Most
+    // instructions maintain the legacy behavior of 0ing. Some instructions
+    // changed to preserving the high bits.
+    return getGeneration() == AMDGPUSubtarget::VOLCANIC_ISLANDS;
+  case AMDGPU::V_MAD_MIXLO_F16:
+  case AMDGPU::V_MAD_MIXHI_F16:
+  default:
+    return false;
+  }
 }
 
 unsigned AMDGPUSubtarget::getMaxLocalMemSizeWithWaveCount(unsigned NWaves,
@@ -697,12 +797,12 @@ unsigned GCNSubtarget::getOccupancyWithNumVGPRs(unsigned VGPRs) const {
   return std::min(std::max(getTotalNumVGPRs() / RoundedRegs, 1u), MaxWaves);
 }
 
-unsigned GCNSubtarget::getReservedNumSGPRs(const MachineFunction &MF) const {
-  const SIMachineFunctionInfo &MFI = *MF.getInfo<SIMachineFunctionInfo>();
+unsigned
+GCNSubtarget::getBaseReservedNumSGPRs(const bool HasFlatScratchInit) const {
   if (getGeneration() >= AMDGPUSubtarget::GFX10)
     return 2; // VCC. FLAT_SCRATCH and XNACK are no longer in SGPRs.
 
-  if (MFI.hasFlatScratchInit()) {
+  if (HasFlatScratchInit) {
     if (getGeneration() >= AMDGPUSubtarget::VOLCANIC_ISLANDS)
       return 6; // FLAT_SCRATCH, XNACK, VCC (in that order).
     if (getGeneration() == AMDGPUSubtarget::SEA_ISLANDS)
@@ -712,6 +812,26 @@ unsigned GCNSubtarget::getReservedNumSGPRs(const MachineFunction &MF) const {
   if (isXNACKEnabled())
     return 4; // XNACK, VCC (in that order).
   return 2; // VCC.
+}
+
+unsigned GCNSubtarget::getReservedNumSGPRs(const MachineFunction &MF) const {
+  const SIMachineFunctionInfo &MFI = *MF.getInfo<SIMachineFunctionInfo>();
+  return getBaseReservedNumSGPRs(MFI.hasFlatScratchInit());
+}
+
+unsigned GCNSubtarget::getReservedNumSGPRs(const Function &F) const {
+  // The logic to detect if the function has
+  // flat scratch init is same as how MachineFunctionInfo derives.
+  bool FunctionHasFlatScratchInit = false;
+  bool HasCalls = F.hasFnAttribute("amdgpu-calls");
+  bool HasStackObjects = F.hasFnAttribute("amdgpu-stack-objects");
+  if (hasFlatAddressSpace() && AMDGPU::isEntryFunctionCC(F.getCallingConv()) &&
+      (isAmdHsaOrMesa(F) || enableFlatScratch()) &&
+      !flatScratchIsArchitected()) {
+    if (HasCalls || HasStackObjects || enableFlatScratch())
+      FunctionHasFlatScratchInit = true;
+  }
+  return getBaseReservedNumSGPRs(FunctionHasFlatScratchInit);
 }
 
 unsigned GCNSubtarget::computeOccupancy(const Function &F, unsigned LDSSize,
@@ -727,13 +847,11 @@ unsigned GCNSubtarget::computeOccupancy(const Function &F, unsigned LDSSize,
   return Occupancy;
 }
 
-unsigned GCNSubtarget::getMaxNumSGPRs(const MachineFunction &MF) const {
-  const Function &F = MF.getFunction();
-  const SIMachineFunctionInfo &MFI = *MF.getInfo<SIMachineFunctionInfo>();
-
+unsigned GCNSubtarget::getBaseMaxNumSGPRs(
+    const Function &F, std::pair<unsigned, unsigned> WavesPerEU,
+    unsigned PreloadedSGPRs, unsigned ReservedNumSGPRs) const {
   // Compute maximum number of SGPRs function can use using default/requested
   // minimum number of waves per execution unit.
-  std::pair<unsigned, unsigned> WavesPerEU = MFI.getWavesPerEU();
   unsigned MaxNumSGPRs = getMaxNumSGPRs(WavesPerEU.first, false);
   unsigned MaxAddressableNumSGPRs = getMaxNumSGPRs(WavesPerEU.first, true);
 
@@ -744,7 +862,7 @@ unsigned GCNSubtarget::getMaxNumSGPRs(const MachineFunction &MF) const {
       F, "amdgpu-num-sgpr", MaxNumSGPRs);
 
     // Make sure requested value does not violate subtarget's specifications.
-    if (Requested && (Requested <= getReservedNumSGPRs(MF)))
+    if (Requested && (Requested <= ReservedNumSGPRs))
       Requested = 0;
 
     // If more SGPRs are required to support the input user/system SGPRs,
@@ -754,7 +872,7 @@ unsigned GCNSubtarget::getMaxNumSGPRs(const MachineFunction &MF) const {
     // of reserved special registers in total. Theoretically you could re-use
     // the last input registers for these special registers, but this would
     // require a lot of complexity to deal with the weird aliasing.
-    unsigned InputNumSGPRs = MFI.getNumPreloadedSGPRs();
+    unsigned InputNumSGPRs = PreloadedSGPRs;
     if (Requested && Requested < InputNumSGPRs)
       Requested = InputNumSGPRs;
 
@@ -773,17 +891,43 @@ unsigned GCNSubtarget::getMaxNumSGPRs(const MachineFunction &MF) const {
   if (hasSGPRInitBug())
     MaxNumSGPRs = AMDGPU::IsaInfo::FIXED_NUM_SGPRS_FOR_INIT_BUG;
 
-  return std::min(MaxNumSGPRs - getReservedNumSGPRs(MF),
-                  MaxAddressableNumSGPRs);
+  return std::min(MaxNumSGPRs - ReservedNumSGPRs, MaxAddressableNumSGPRs);
 }
 
-unsigned GCNSubtarget::getMaxNumVGPRs(const MachineFunction &MF) const {
+unsigned GCNSubtarget::getMaxNumSGPRs(const MachineFunction &MF) const {
   const Function &F = MF.getFunction();
   const SIMachineFunctionInfo &MFI = *MF.getInfo<SIMachineFunctionInfo>();
+  return getBaseMaxNumSGPRs(F, MFI.getWavesPerEU(), MFI.getNumPreloadedSGPRs(),
+                            getReservedNumSGPRs(MF));
+}
 
+static unsigned getMaxNumPreloadedSGPRs() {
+  // Max number of user SGPRs
+  unsigned MaxUserSGPRs = 4 + // private segment buffer
+                          2 + // Dispatch ptr
+                          2 + // queue ptr
+                          2 + // kernel segment ptr
+                          2 + // dispatch ID
+                          2 + // flat scratch init
+                          2;  // Implicit buffer ptr
+  // Max number of system SGPRs
+  unsigned MaxSystemSGPRs = 1 + // WorkGroupIDX
+                            1 + // WorkGroupIDY
+                            1 + // WorkGroupIDZ
+                            1 + // WorkGroupInfo
+                            1;  // private segment wave byte offset
+  return MaxUserSGPRs + MaxSystemSGPRs;
+}
+
+unsigned GCNSubtarget::getMaxNumSGPRs(const Function &F) const {
+  return getBaseMaxNumSGPRs(F, getWavesPerEU(F), getMaxNumPreloadedSGPRs(),
+                            getReservedNumSGPRs(F));
+}
+
+unsigned GCNSubtarget::getBaseMaxNumVGPRs(
+    const Function &F, std::pair<unsigned, unsigned> WavesPerEU) const {
   // Compute maximum number of VGPRs function can use using default/requested
   // minimum number of waves per execution unit.
-  std::pair<unsigned, unsigned> WavesPerEU = MFI.getWavesPerEU();
   unsigned MaxNumVGPRs = getMaxNumVGPRs(WavesPerEU.first);
 
   // Check if maximum number of VGPRs was explicitly requested using
@@ -808,6 +952,16 @@ unsigned GCNSubtarget::getMaxNumVGPRs(const MachineFunction &MF) const {
   }
 
   return MaxNumVGPRs;
+}
+
+unsigned GCNSubtarget::getMaxNumVGPRs(const Function &F) const {
+  return getBaseMaxNumVGPRs(F, getWavesPerEU(F));
+}
+
+unsigned GCNSubtarget::getMaxNumVGPRs(const MachineFunction &MF) const {
+  const Function &F = MF.getFunction();
+  const SIMachineFunctionInfo &MFI = *MF.getInfo<SIMachineFunctionInfo>();
+  return getBaseMaxNumVGPRs(F, MFI.getWavesPerEU());
 }
 
 void GCNSubtarget::adjustSchedDependency(SUnit *Def, int DefOpIdx, SUnit *Use,

@@ -3898,6 +3898,17 @@ Node *AbstractManglingParser<Derived, Alloc>::parseType() {
     case 'f':
       First += 2;
       return make<NameType>("decimal32");
+    //                ::= DF <number> _
+    //            # ISO/IEC TS 18661 binary floating point type _FloatN (N bits)
+    case 'F': {
+      First += 2;
+      StringView N = parseNumber(false /*disallow negatives*/);
+      if (N.size() == 0 || look() != '_')
+        return nullptr;
+      assert((N == "16") && "Unknown FP type");
+      First += 1;                        // consume '_'
+      return make<NameType>("_Float16"); // use FE-supoprted spelling
+    }
     //                ::= Dh   # IEEE 754r half-precision floating point (16 bits)
     case 'h':
       First += 2;
@@ -5253,14 +5264,18 @@ Node *AbstractManglingParser<Derived, Alloc>::parseEncoding() {
   class SaveTemplateParams {
     AbstractManglingParser *Parser;
     decltype(TemplateParams) OldParams;
+    decltype(OuterTemplateParams) OldOuterParams;
 
   public:
     SaveTemplateParams(AbstractManglingParser *TheParser) : Parser(TheParser) {
       OldParams = std::move(Parser->TemplateParams);
+      OldOuterParams = std::move(Parser->OuterTemplateParams);
       Parser->TemplateParams.clear();
+      Parser->OuterTemplateParams.clear();
     }
     ~SaveTemplateParams() {
       Parser->TemplateParams = std::move(OldParams);
+      Parser->OuterTemplateParams = std::move(OldOuterParams);
     }
   } SaveTemplateParams(this);
 

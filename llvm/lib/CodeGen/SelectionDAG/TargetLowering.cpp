@@ -102,32 +102,29 @@ bool TargetLowering::parametersInCSRMatch(const MachineRegisterInfo &MRI,
   return true;
 }
 
-/// Set CallLoweringInfo attribute flags based on the call instruction's
-/// argument attributes.
+/// Set CallLoweringInfo attribute flags based on a call instruction
+/// and called function attributes.
 void TargetLoweringBase::ArgListEntry::setAttributes(const CallBase *Call,
                                                      unsigned ArgIdx) {
-  auto Attrs = Call->getAttributes();
-
-  IsSExt = Attrs.hasParamAttribute(ArgIdx, Attribute::SExt);
-  IsZExt = Attrs.hasParamAttribute(ArgIdx, Attribute::ZExt);
-  IsInReg = Attrs.hasParamAttribute(ArgIdx, Attribute::InReg);
-  IsSRet = Attrs.hasParamAttribute(ArgIdx, Attribute::StructRet);
-  IsNest = Attrs.hasParamAttribute(ArgIdx, Attribute::Nest);
-  IsReturned = Attrs.hasParamAttribute(ArgIdx, Attribute::Returned);
-  IsSwiftSelf = Attrs.hasParamAttribute(ArgIdx, Attribute::SwiftSelf);
-  IsSwiftAsync = Attrs.hasParamAttribute(ArgIdx, Attribute::SwiftAsync);
-  IsSwiftError = Attrs.hasParamAttribute(ArgIdx, Attribute::SwiftError);
-  Alignment = Attrs.getParamStackAlignment(ArgIdx);
-
-  IsByVal = Attrs.hasParamAttribute(ArgIdx, Attribute::ByVal);
+  IsSExt = Call->paramHasAttr(ArgIdx, Attribute::SExt);
+  IsZExt = Call->paramHasAttr(ArgIdx, Attribute::ZExt);
+  IsInReg = Call->paramHasAttr(ArgIdx, Attribute::InReg);
+  IsSRet = Call->paramHasAttr(ArgIdx, Attribute::StructRet);
+  IsNest = Call->paramHasAttr(ArgIdx, Attribute::Nest);
+  IsByVal = Call->paramHasAttr(ArgIdx, Attribute::ByVal);
+  IsPreallocated = Call->paramHasAttr(ArgIdx, Attribute::Preallocated);
+  IsInAlloca = Call->paramHasAttr(ArgIdx, Attribute::InAlloca);
+  IsReturned = Call->paramHasAttr(ArgIdx, Attribute::Returned);
+  IsSwiftSelf = Call->paramHasAttr(ArgIdx, Attribute::SwiftSelf);
+  IsSwiftAsync = Call->paramHasAttr(ArgIdx, Attribute::SwiftAsync);
+  IsSwiftError = Call->paramHasAttr(ArgIdx, Attribute::SwiftError);
+  Alignment = Call->getParamStackAlign(ArgIdx);
   ByValType = nullptr;
   if (IsByVal) {
     ByValType = Call->getParamByValType(ArgIdx);
     if (!Alignment)
       Alignment = Call->getParamAlign(ArgIdx);
   }
-  IsInAlloca = Attrs.hasParamAttribute(ArgIdx, Attribute::InAlloca);
-  IsPreallocated = Attrs.hasParamAttribute(ArgIdx, Attribute::Preallocated);
   PreallocatedType = nullptr;
   if (IsPreallocated)
     PreallocatedType = Call->getParamPreallocatedType(ArgIdx);
@@ -510,7 +507,7 @@ bool TargetLowering::ShrinkDemandedConstant(SDValue Op,
   case ISD::AND:
   case ISD::OR: {
     auto *Op1C = dyn_cast<ConstantSDNode>(Op.getOperand(1));
-    if (!Op1C)
+    if (!Op1C || Op1C->isOpaque())
       return false;
 
     // If this is a 'not' op, don't touch it because that's a canonical form.
@@ -2423,6 +2420,27 @@ bool TargetLowering::SimplifyDemandedVectorElts(
     if (!DemandedElts[0]) {
       KnownUndef.setAllBits();
       return TLO.CombineTo(Op, TLO.DAG.getUNDEF(VT));
+    }
+    SDValue ScalarSrc = Op.getOperand(0);
+    if (ScalarSrc.getOpcode() == ISD::EXTRACT_VECTOR_ELT) {
+      SDValue Src = ScalarSrc.getOperand(0);
+      SDValue Idx = ScalarSrc.getOperand(1);
+      EVT SrcVT = Src.getValueType();
+
+      ElementCount SrcEltCnt = SrcVT.getVectorElementCount();
+
+      if (SrcEltCnt.isScalable())
+        return false;
+
+      unsigned NumSrcElts = SrcEltCnt.getFixedValue();
+      if (isNullConstant(Idx)) {
+        APInt SrcDemandedElts = APInt::getOneBitSet(NumSrcElts, 0);
+        APInt SrcUndef = KnownUndef.zextOrTrunc(NumSrcElts);
+        APInt SrcZero = KnownZero.zextOrTrunc(NumSrcElts);
+        if (SimplifyDemandedVectorElts(Src, SrcDemandedElts, SrcUndef, SrcZero,
+                                       TLO, Depth + 1))
+          return true;
+      }
     }
     KnownUndef.setHighBits(NumElts - 1);
     break;
@@ -4572,7 +4590,7 @@ TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *RI,
       continue;
 
     for (const MCPhysReg &PR : *RC) {
-      if (RegName.equals_lower(RI->getRegAsmName(PR))) {
+      if (RegName.equals_insensitive(RI->getRegAsmName(PR))) {
         std::pair<unsigned, const TargetRegisterClass *> S =
             std::make_pair(PR, RC);
 

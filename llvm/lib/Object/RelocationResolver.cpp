@@ -89,8 +89,8 @@ static uint64_t resolveAArch64(uint64_t Type, uint64_t Offset, uint64_t S,
 
 static bool supportsBPF(uint64_t Type) {
   switch (Type) {
-  case ELF::R_BPF_64_32:
-  case ELF::R_BPF_64_64:
+  case ELF::R_BPF_64_ABS32:
+  case ELF::R_BPF_64_ABS64:
     return true;
   default:
     return false;
@@ -100,9 +100,9 @@ static bool supportsBPF(uint64_t Type) {
 static uint64_t resolveBPF(uint64_t Type, uint64_t Offset, uint64_t S,
                            uint64_t LocData, int64_t /*Addend*/) {
   switch (Type) {
-  case ELF::R_BPF_64_32:
+  case ELF::R_BPF_64_ABS32:
     return (S + LocData) & 0xFFFFFFFF;
-  case ELF::R_BPF_64_64:
+  case ELF::R_BPF_64_ABS64:
     return S + LocData;
   default:
     llvm_unreachable("Invalid relocation type");
@@ -572,7 +572,7 @@ static bool supportsWasm32(uint64_t Type) {
   case wasm::R_WASM_GLOBAL_INDEX_LEB:
   case wasm::R_WASM_FUNCTION_OFFSET_I32:
   case wasm::R_WASM_SECTION_OFFSET_I32:
-  case wasm::R_WASM_EVENT_INDEX_LEB:
+  case wasm::R_WASM_TAG_INDEX_LEB:
   case wasm::R_WASM_GLOBAL_INDEX_I32:
   case wasm::R_WASM_TABLE_NUMBER_LEB:
   case wasm::R_WASM_MEMORY_ADDR_LOCREL_I32:
@@ -609,7 +609,7 @@ static uint64_t resolveWasm32(uint64_t Type, uint64_t Offset, uint64_t S,
   case wasm::R_WASM_GLOBAL_INDEX_LEB:
   case wasm::R_WASM_FUNCTION_OFFSET_I32:
   case wasm::R_WASM_SECTION_OFFSET_I32:
-  case wasm::R_WASM_EVENT_INDEX_LEB:
+  case wasm::R_WASM_TAG_INDEX_LEB:
   case wasm::R_WASM_GLOBAL_INDEX_I32:
   case wasm::R_WASM_TABLE_NUMBER_LEB:
   case wasm::R_WASM_MEMORY_ADDR_LOCREL_I32:

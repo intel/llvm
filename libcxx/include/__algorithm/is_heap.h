@@ -10,6 +10,7 @@
 #define _LIBCPP___ALGORITHM_IS_HEAP_H
 
 #include <__config>
+#include <__algorithm/comp.h>
 #include <__algorithm/is_heap_until.h>
 #include <__iterator/iterator_traits.h>
 

@@ -627,6 +627,21 @@ bool AMDGPUAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
   return false;
 }
 
+bool AMDGPUAsmPrinter::doInitialization(Module &M) {
+  NonKernelMaxSGPRs = 0;
+  NonKernelMaxVGPRs = 0;
+  // Compute upper bound on the number of SGPRs and VGPRs
+  // for non-kernel functions.
+  for (const Function &F : M) {
+    if (!AMDGPU::isEntryFunctionCC(F.getCallingConv())) {
+      const GCNSubtarget &STM = TM.getSubtarget<GCNSubtarget>(F);
+      NonKernelMaxSGPRs = std::max(NonKernelMaxSGPRs, STM.getMaxNumSGPRs(F));
+      NonKernelMaxVGPRs = std::max(NonKernelMaxVGPRs, STM.getMaxNumVGPRs(F));
+    }
+  }
+  return AsmPrinter::doInitialization(M);
+}
+
 // TODO: Fold this into emitFunctionBodyStart.
 void AMDGPUAsmPrinter::initializeTargetID(const Module &M) {
   // In the beginning all features are either 'Any' or 'NotSupported',
@@ -818,6 +833,8 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
         case AMDGPU::EXEC_HI:
         case AMDGPU::SCC:
         case AMDGPU::M0:
+        case AMDGPU::M0_LO16:
+        case AMDGPU::M0_HI16:
         case AMDGPU::SRC_SHARED_BASE:
         case AMDGPU::SRC_SHARED_LIMIT:
         case AMDGPU::SRC_PRIVATE_BASE:
@@ -948,6 +965,16 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
           IsSGPR = false;
           IsAGPR = true;
           Width = 6;
+        } else if (AMDGPU::VReg_224RegClass.contains(Reg)) {
+          IsSGPR = false;
+          Width = 7;
+        } else if (AMDGPU::SReg_224RegClass.contains(Reg)) {
+          IsSGPR = true;
+          Width = 7;
+        } else if (AMDGPU::AReg_224RegClass.contains(Reg)) {
+          IsSGPR = false;
+          IsAGPR = true;
+          Width = 7;
         } else if (AMDGPU::SReg_256RegClass.contains(Reg)) {
           assert(!AMDGPU::TTMP_256RegClass.contains(Reg) &&
             "trap handler registers should not be used");
@@ -1020,14 +1047,20 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
               AMDGPU::isEntryFunctionCC(Callee->getCallingConv()))
             report_fatal_error("invalid call to entry function");
 
-          // If this is a call to an external function, we can't do much. Make
-          // conservative guesses.
-
-          // 48 SGPRs - vcc, - flat_scr, -xnack
-          int MaxSGPRGuess =
-            47 - IsaInfo::getNumExtraSGPRs(&ST, true, ST.hasFlatAddressSpace());
-          MaxSGPR = std::max(MaxSGPR, MaxSGPRGuess);
-          MaxVGPR = std::max(MaxVGPR, 23);
+          unsigned ExtraSGPRs = IsaInfo::getNumExtraSGPRs(
+              TM.getMCSubtargetInfo(), false, ST.hasFlatAddressSpace());
+          // If this is a call to an external function, we put the
+          // max values computed in doInitialization().
+          // Subtract extra SGPRs in case of indirect calls.
+          // For indirect calls, we take the max for the module
+          // and use that as the register budget for functions
+          // which makes an indirect calls. This max value
+          // includes extra SGPRs too (e.g. flatscratch and vcc).
+          // which are getting added later.
+          // Subtract them here so that they don't get added twice.
+          MaxSGPR = NonKernelMaxSGPRs - ExtraSGPRs - 1;
+          MaxVGPR = NonKernelMaxVGPRs - 1;
+          // TODO: handle AGPRs
           MaxAGPR = std::max(MaxAGPR, 23);
 
           CalleeFrameSize = std::max(CalleeFrameSize,

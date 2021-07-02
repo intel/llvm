@@ -543,6 +543,8 @@ private:
   void verifyAttributeTypes(AttributeSet Attrs, bool IsFunction,
                             const Value *V);
   void verifyParameterAttrs(AttributeSet Attrs, Type *Ty, const Value *V);
+  void checkUnsignedBaseTenFuncAttr(AttributeList Attrs, StringRef Attr,
+                                    const Value *V);
   void verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
                            const Value *V, bool IsIntrinsic);
   void verifyFunctionMetadata(ArrayRef<std::pair<unsigned, MDNode *>> MDs);
@@ -1839,40 +1841,51 @@ void Verifier::verifyParameterAttrs(AttributeSet Attrs, Type *Ty,
          V);
 
   if (PointerType *PTy = dyn_cast<PointerType>(Ty)) {
-    SmallPtrSet<Type*, 4> Visited;
-    if (!PTy->getElementType()->isSized(&Visited)) {
-      Assert(!Attrs.hasAttribute(Attribute::ByVal) &&
-             !Attrs.hasAttribute(Attribute::ByRef) &&
-             !Attrs.hasAttribute(Attribute::InAlloca) &&
-             !Attrs.hasAttribute(Attribute::Preallocated),
-             "Attributes 'byval', 'byref', 'inalloca', and 'preallocated' do not "
-             "support unsized types!",
-             V);
+    if (Attrs.hasAttribute(Attribute::ByVal)) {
+      SmallPtrSet<Type *, 4> Visited;
+      Assert(Attrs.getByValType()->isSized(&Visited),
+             "Attribute 'byval' does not support unsized types!", V);
     }
-    if (!isa<PointerType>(PTy->getElementType()))
-      Assert(!Attrs.hasAttribute(Attribute::SwiftError),
-             "Attribute 'swifterror' only applies to parameters "
-             "with pointer to pointer type!",
-             V);
-
     if (Attrs.hasAttribute(Attribute::ByRef)) {
-      Assert(Attrs.getByRefType() == PTy->getElementType(),
-             "Attribute 'byref' type does not match parameter!", V);
+      SmallPtrSet<Type *, 4> Visited;
+      Assert(Attrs.getByRefType()->isSized(&Visited),
+             "Attribute 'byref' does not support unsized types!", V);
     }
-
-    if (Attrs.hasAttribute(Attribute::ByVal) && Attrs.getByValType()) {
-      Assert(Attrs.getByValType() == PTy->getElementType(),
-             "Attribute 'byval' type does not match parameter!", V);
-    }
-
-    if (Attrs.hasAttribute(Attribute::Preallocated)) {
-      Assert(Attrs.getPreallocatedType() == PTy->getElementType(),
-             "Attribute 'preallocated' type does not match parameter!", V);
-    }
-
     if (Attrs.hasAttribute(Attribute::InAlloca)) {
-      Assert(Attrs.getInAllocaType() == PTy->getElementType(),
-             "Attribute 'inalloca' type does not match parameter!", V);
+      SmallPtrSet<Type *, 4> Visited;
+      Assert(Attrs.getInAllocaType()->isSized(&Visited),
+             "Attribute 'inalloca' does not support unsized types!", V);
+    }
+    if (Attrs.hasAttribute(Attribute::Preallocated)) {
+      SmallPtrSet<Type *, 4> Visited;
+      Assert(Attrs.getPreallocatedType()->isSized(&Visited),
+             "Attribute 'preallocated' does not support unsized types!", V);
+    }
+    if (!PTy->isOpaque()) {
+      if (!isa<PointerType>(PTy->getElementType()))
+        Assert(!Attrs.hasAttribute(Attribute::SwiftError),
+               "Attribute 'swifterror' only applies to parameters "
+               "with pointer to pointer type!",
+               V);
+      if (Attrs.hasAttribute(Attribute::ByRef)) {
+        Assert(Attrs.getByRefType() == PTy->getElementType(),
+               "Attribute 'byref' type does not match parameter!", V);
+      }
+
+      if (Attrs.hasAttribute(Attribute::ByVal) && Attrs.getByValType()) {
+        Assert(Attrs.getByValType() == PTy->getElementType(),
+               "Attribute 'byval' type does not match parameter!", V);
+      }
+
+      if (Attrs.hasAttribute(Attribute::Preallocated)) {
+        Assert(Attrs.getPreallocatedType() == PTy->getElementType(),
+               "Attribute 'preallocated' type does not match parameter!", V);
+      }
+
+      if (Attrs.hasAttribute(Attribute::InAlloca)) {
+        Assert(Attrs.getInAllocaType() == PTy->getElementType(),
+               "Attribute 'inalloca' type does not match parameter!", V);
+      }
     }
   } else {
     Assert(!Attrs.hasAttribute(Attribute::ByVal),
@@ -1885,6 +1898,17 @@ void Verifier::verifyParameterAttrs(AttributeSet Attrs, Type *Ty,
            "Attribute 'swifterror' only applies to parameters "
            "with pointer type!",
            V);
+  }
+}
+
+void Verifier::checkUnsignedBaseTenFuncAttr(AttributeList Attrs, StringRef Attr,
+                                            const Value *V) {
+  if (Attrs.hasFnAttribute(Attr)) {
+    StringRef S = Attrs.getAttribute(AttributeList::FunctionIndex, Attr)
+                      .getValueAsString();
+    unsigned N;
+    if (S.getAsInteger(10, N))
+      CheckFailed("\"" + Attr + "\" takes an unsigned integer: " + S, V);
   }
 }
 
@@ -2087,26 +2111,9 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
       CheckFailed("invalid value for 'frame-pointer' attribute: " + FP, V);
   }
 
-  if (Attrs.hasFnAttribute("patchable-function-prefix")) {
-    StringRef S = Attrs
-                      .getAttribute(AttributeList::FunctionIndex,
-                                    "patchable-function-prefix")
-                      .getValueAsString();
-    unsigned N;
-    if (S.getAsInteger(10, N))
-      CheckFailed(
-          "\"patchable-function-prefix\" takes an unsigned integer: " + S, V);
-  }
-  if (Attrs.hasFnAttribute("patchable-function-entry")) {
-    StringRef S = Attrs
-                      .getAttribute(AttributeList::FunctionIndex,
-                                    "patchable-function-entry")
-                      .getValueAsString();
-    unsigned N;
-    if (S.getAsInteger(10, N))
-      CheckFailed(
-          "\"patchable-function-entry\" takes an unsigned integer: " + S, V);
-  }
+  checkUnsignedBaseTenFuncAttr(Attrs, "patchable-function-prefix", V);
+  checkUnsignedBaseTenFuncAttr(Attrs, "patchable-function-entry", V);
+  checkUnsignedBaseTenFuncAttr(Attrs, "warn-stack-size", V);
 }
 
 void Verifier::verifyFunctionMetadata(
@@ -2178,19 +2185,6 @@ void Verifier::visitConstantExpr(const ConstantExpr *CE) {
     Assert(CastInst::castIsValid(Instruction::BitCast, CE->getOperand(0),
                                  CE->getType()),
            "Invalid bitcast", CE);
-
-  if (CE->getOpcode() == Instruction::IntToPtr ||
-      CE->getOpcode() == Instruction::PtrToInt) {
-    auto *PtrTy = CE->getOpcode() == Instruction::IntToPtr
-                      ? CE->getType()
-                      : CE->getOperand(0)->getType();
-    StringRef Msg = CE->getOpcode() == Instruction::IntToPtr
-                        ? "inttoptr not supported for non-integral pointers"
-                        : "ptrtoint not supported for non-integral pointers";
-    Assert(
-        !DL.isNonIntegralPointerType(cast<PointerType>(PtrTy->getScalarType())),
-        Msg);
-  }
 }
 
 bool Verifier::verifyAttributeCount(AttributeList Attrs, unsigned Params) {
@@ -3041,10 +3035,6 @@ void Verifier::visitPtrToIntInst(PtrToIntInst &I) {
 
   Assert(SrcTy->isPtrOrPtrVectorTy(), "PtrToInt source must be pointer", &I);
 
-  if (auto *PTy = dyn_cast<PointerType>(SrcTy->getScalarType()))
-    Assert(!DL.isNonIntegralPointerType(PTy),
-           "ptrtoint not supported for non-integral pointers");
-
   Assert(DestTy->isIntOrIntVectorTy(), "PtrToInt result must be integral", &I);
   Assert(SrcTy->isVectorTy() == DestTy->isVectorTy(), "PtrToInt type mismatch",
          &I);
@@ -3067,10 +3057,6 @@ void Verifier::visitIntToPtrInst(IntToPtrInst &I) {
   Assert(SrcTy->isIntOrIntVectorTy(),
          "IntToPtr source must be an integral", &I);
   Assert(DestTy->isPtrOrPtrVectorTy(), "IntToPtr result must be a pointer", &I);
-
-  if (auto *PTy = dyn_cast<PointerType>(DestTy->getScalarType()))
-    Assert(!DL.isNonIntegralPointerType(PTy),
-           "inttoptr not supported for non-integral pointers");
 
   Assert(SrcTy->isVectorTy() == DestTy->isVectorTy(), "IntToPtr type mismatch",
          &I);
@@ -3138,10 +3124,7 @@ void Verifier::visitCallBase(CallBase &Call) {
          "Called function must be a pointer!", Call);
   PointerType *FPTy = cast<PointerType>(Call.getCalledOperand()->getType());
 
-  Assert(FPTy->getElementType()->isFunctionTy(),
-         "Called function is not pointer to function type!", Call);
-
-  Assert(FPTy->getElementType() == Call.getFunctionType(),
+  Assert(FPTy->isOpaqueOrPointeeTypeMatches(Call.getFunctionType()),
          "Called function is not the same type as the call!", Call);
 
   FunctionType *FTy = Call.getFunctionType();
@@ -4539,12 +4522,9 @@ void Verifier::visitInstruction(Instruction &I) {
       Assert(CBI && &CBI->getCalledOperandUse() == &I.getOperandUse(i),
              "Cannot take the address of an inline asm!", &I);
     } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(I.getOperand(i))) {
-      if (CE->getType()->isPtrOrPtrVectorTy() ||
-          !DL.getNonIntegralAddressSpaces().empty()) {
+      if (CE->getType()->isPtrOrPtrVectorTy()) {
         // If we have a ConstantExpr pointer, we need to see if it came from an
-        // illegal bitcast.  If the datalayout string specifies non-integral
-        // address spaces then we also need to check for illegal ptrtoint and
-        // inttoptr expressions.
+        // illegal bitcast.
         visitConstantExprsRecursively(CE);
       }
     }
@@ -5086,15 +5066,14 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     Assert(Alignment->getValue().isPowerOf2(),
            "masked_load: alignment must be a power of 2", Call);
 
-    // DataTy is the overloaded type
-    Type *DataTy = cast<PointerType>(Ptr->getType())->getElementType();
-    Assert(DataTy == Call.getType(),
+    PointerType *PtrTy = cast<PointerType>(Ptr->getType());
+    Assert(PtrTy->isOpaqueOrPointeeTypeMatches(Call.getType()),
            "masked_load: return must match pointer type", Call);
-    Assert(PassThru->getType() == DataTy,
-           "masked_load: pass through and data type must match", Call);
+    Assert(PassThru->getType() == Call.getType(),
+           "masked_load: pass through and return type must match", Call);
     Assert(cast<VectorType>(Mask->getType())->getElementCount() ==
-               cast<VectorType>(DataTy)->getElementCount(),
-           "masked_load: vector mask must be same length as data", Call);
+               cast<VectorType>(Call.getType())->getElementCount(),
+           "masked_load: vector mask must be same length as return", Call);
     break;
   }
   case Intrinsic::masked_store: {
@@ -5107,13 +5086,12 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     Assert(Alignment->getValue().isPowerOf2(),
            "masked_store: alignment must be a power of 2", Call);
 
-    // DataTy is the overloaded type
-    Type *DataTy = cast<PointerType>(Ptr->getType())->getElementType();
-    Assert(DataTy == Val->getType(),
+    PointerType *PtrTy = cast<PointerType>(Ptr->getType());
+    Assert(PtrTy->isOpaqueOrPointeeTypeMatches(Val->getType()),
            "masked_store: storee must match pointer type", Call);
     Assert(cast<VectorType>(Mask->getType())->getElementCount() ==
-               cast<VectorType>(DataTy)->getElementCount(),
-           "masked_store: vector mask must be same length as data", Call);
+               cast<VectorType>(Val->getType())->getElementCount(),
+           "masked_store: vector mask must be same length as value", Call);
     break;
   }
 
@@ -5333,23 +5311,63 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     break;
   }
   case Intrinsic::experimental_vector_insert: {
-    VectorType *VecTy = cast<VectorType>(Call.getArgOperand(0)->getType());
-    VectorType *SubVecTy = cast<VectorType>(Call.getArgOperand(1)->getType());
+    Value *Vec = Call.getArgOperand(0);
+    Value *SubVec = Call.getArgOperand(1);
+    Value *Idx = Call.getArgOperand(2);
+    unsigned IdxN = cast<ConstantInt>(Idx)->getZExtValue();
 
+    VectorType *VecTy = cast<VectorType>(Vec->getType());
+    VectorType *SubVecTy = cast<VectorType>(SubVec->getType());
+
+    ElementCount VecEC = VecTy->getElementCount();
+    ElementCount SubVecEC = SubVecTy->getElementCount();
     Assert(VecTy->getElementType() == SubVecTy->getElementType(),
            "experimental_vector_insert parameters must have the same element "
            "type.",
            &Call);
+    Assert(IdxN % SubVecEC.getKnownMinValue() == 0,
+           "experimental_vector_insert index must be a constant multiple of "
+           "the subvector's known minimum vector length.");
+
+    // If this insertion is not the 'mixed' case where a fixed vector is
+    // inserted into a scalable vector, ensure that the insertion of the
+    // subvector does not overrun the parent vector.
+    if (VecEC.isScalable() == SubVecEC.isScalable()) {
+      Assert(
+          IdxN < VecEC.getKnownMinValue() &&
+              IdxN + SubVecEC.getKnownMinValue() <= VecEC.getKnownMinValue(),
+          "subvector operand of experimental_vector_insert would overrun the "
+          "vector being inserted into.");
+    }
     break;
   }
   case Intrinsic::experimental_vector_extract: {
+    Value *Vec = Call.getArgOperand(0);
+    Value *Idx = Call.getArgOperand(1);
+    unsigned IdxN = cast<ConstantInt>(Idx)->getZExtValue();
+
     VectorType *ResultTy = cast<VectorType>(Call.getType());
-    VectorType *VecTy = cast<VectorType>(Call.getArgOperand(0)->getType());
+    VectorType *VecTy = cast<VectorType>(Vec->getType());
+
+    ElementCount VecEC = VecTy->getElementCount();
+    ElementCount ResultEC = ResultTy->getElementCount();
 
     Assert(ResultTy->getElementType() == VecTy->getElementType(),
            "experimental_vector_extract result must have the same element "
            "type as the input vector.",
            &Call);
+    Assert(IdxN % ResultEC.getKnownMinValue() == 0,
+           "experimental_vector_extract index must be a constant multiple of "
+           "the result type's known minimum vector length.");
+
+    // If this extraction is not the 'mixed' case where a fixed vector is is
+    // extracted from a scalable vector, ensure that the extraction does not
+    // overrun the parent vector.
+    if (VecEC.isScalable() == ResultEC.isScalable()) {
+      Assert(IdxN < VecEC.getKnownMinValue() &&
+                 IdxN + ResultEC.getKnownMinValue() <= VecEC.getKnownMinValue(),
+             "experimental_vector_extract would overrun.");
+    }
     break;
   }
   case Intrinsic::experimental_noalias_scope_decl: {

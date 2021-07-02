@@ -242,6 +242,9 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
         Type type, Value source, Value pad, ArrayRef<OpFoldResult> low,
         ArrayRef<OpFoldResult> high, Location loc, OpBuilder & builder);
 
+    // Return the pad value if it is a constant. Return null value otherwise.
+    Value getConstantPaddingValue();
+
     // Return a vector of all the static or dynamic values (low/high padding) of
     // the op.
     inline SmallVector<OpFoldResult> getMixedPadImpl(ArrayAttr staticAttrs,
@@ -263,6 +266,18 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
     SmallVector<OpFoldResult> getMixedHighPad() {
       return getMixedPadImpl(static_high(), high());
     }
+    // Return true if low padding is guaranteed to be 0.
+    bool hasZeroLowPad() {
+      return llvm::all_of(getMixedLowPad(), [](OpFoldResult ofr) {
+        return getConstantIntValue(ofr) == static_cast<int64_t>(0);
+      });
+    }
+    // Return true if high padding is guaranteed to be 0.
+    bool hasZeroHighPad() {
+      return llvm::all_of(getMixedHighPad(), [](OpFoldResult ofr) {
+        return getConstantIntValue(ofr) == static_cast<int64_t>(0);
+      });
+    }
   }];
 
   let builders = [
@@ -279,6 +294,9 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
       "ArrayRef<OpFoldResult>":$low, "ArrayRef<OpFoldResult>":$high,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
   ];
+
+  let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 def Linalg_RangeOp :
@@ -561,12 +579,11 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
 
     Tensor-based version:
 
-    The body region of the loop contains `subtensor` operations applied to
+    The body region of the loop contains `extract_slice` operations applied to
     every tensor argument of TiledLoopOp.
 
     The body region must contain exactly one block that terminates with
-    `linalg.yield` with the operands resulting from `subtensor_insert`
-    operations.
+    `linalg.yield` with the operands resulting from `insert_slice` operations.
 
     Example:
 
@@ -576,16 +593,16 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
         outs(%out : tensor<24x64xi8>)
         iterators("parallel")
         distribution("block_x") {
-      %lhs_sub = subtensor %lhs[%i, 0] [%c4, %c64] [1, 1]
+      %lhs_sub = tensor.extract_slice %lhs[%i, 0] [%c4, %c64] [1, 1]
           : tensor<24x64xi8> to tensor<?x?xi8>
-      %rhs_sub = subtensor %rhs[%i, 0] [%c4, %c64] [1, 1]
+      %rhs_sub = tensor.extract_slice %rhs[%i, 0] [%c4, %c64] [1, 1]
           : tensor<24x64xi8> to tensor<?x?xi8>
-      %out_sub = subtensor %out[%i, 0] [%c4, %c64] [1, 1]
+      %out_sub = tensor.extract_slice %out[%i, 0] [%c4, %c64] [1, 1]
           : tensor<24x64xi8> to tensor<?x?xi8>
 
       %result_sub = linalg.generic ...
 
-      %result = subtensor_insert %result_sub into %out[%i, 0][%c4, %c64][1, 1]
+      %result = tensor.insert_slice %result_sub into %out[%i, 0][%c4, %c64][1, 1]
         : tensor<?x?xi8> into tensor<24x64xi8>
       linalg.yield %result : tensor<24x64xi8>
     }
@@ -623,8 +640,8 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
   let arguments = (ins Variadic<Index>:$lowerBound,
                        Variadic<Index>:$upperBound,
                        Variadic<Index>:$step,
-                       Variadic<LinalgOperand>:$inputs,
-                       Variadic<LinalgOperand>:$outputs,
+                       Variadic<AnyType>:$inputs,
+                       Variadic<AnyShaped>:$outputs,
                        ArrayAttr:$iterator_types,
                        OptionalAttr<ArrayAttr>:$distribution_types);
   let results = (outs Variadic<AnyRankedTensor>:$results);

@@ -11,6 +11,7 @@
 #define _LIBCPP___ALGORITHM_FIND_END_OF_H
 
 #include <__config>
+#include <__algorithm/comp.h>
 #include <__iterator/iterator_traits.h>
 #include <type_traits>
 

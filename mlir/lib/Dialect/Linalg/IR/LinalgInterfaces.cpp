@@ -338,7 +338,7 @@ LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
     if (failed(linalgOp.verifyIndexingMapRequiredAttributes()))
       return failure();
 
-  // All shaped operands must be indexed.
+  // All input/output operands must be indexed.
   if (static_cast<int64_t>(linalgOp.indexing_maps().size()) !=
       linalgOp.getNumInputsAndOutputs())
     return op->emitOpError("expected the number of indexing_map (")
@@ -363,7 +363,7 @@ LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
 
     int64_t rank = linalgOp.getRank(opOperand);
     if (indexingMap.getNumResults() != rank)
-      return op->emitOpError("expected shaped value rank (")
+      return op->emitOpError("expected operand rank (")
              << rank << ") to match the result rank of indexing_map #"
              << opOperand->getOperandNumber() << " ("
              << indexingMap.getNumResults() << ")";
@@ -440,26 +440,18 @@ LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
   // consistency discussions (i.e. what to do with output tensors whose bbarg is
   // not used).
   Block &block = linalgOp->getRegion(0).front();
-  unsigned numBBIvs = linalgOp.getNumPayloadInductionVariables();
 
-  if (linalgOp.getNumInputsAndOutputs() + numBBIvs != block.getNumArguments())
+  if (linalgOp.getNumInputsAndOutputs() != block.getNumArguments())
     return op->emitOpError("expected as many non-induction variable region "
-                           "arguments as the number of shaped operands");
-
-  // Note: the number and type of yield values are checked in the YieldOp.
-  for (unsigned i = 0; i < numBBIvs; ++i)
-    if (!block.getArgument(i).getType().isIndex())
-      return op->emitOpError("expected index block argument #") << i;
+                           "arguments as the number of input/output operands");
 
   for (OpOperand *opOperand : linalgOp.getInputAndOutputOperands()) {
-    Type elementType = getElementTypeOrSelf(opOperand->get().getType());
-    Type argType =
-        block.getArgument(numBBIvs + opOperand->getOperandNumber()).getType();
+    Type elementType = getElementTypeOrSelf(opOperand->get());
+    Type argType = block.getArgument(opOperand->getOperandNumber()).getType();
     if (elementType != argType)
       return op->emitOpError("expected type of bb argument #")
-             << numBBIvs + opOperand->getOperandNumber() << " (" << argType
-             << ")"
-             << " to match element type of corresponding shaped operand ("
+             << opOperand->getOperandNumber() << " (" << argType << ")"
+             << " to match element or self type of the corresponding operand ("
              << elementType << ")";
   }
 
@@ -489,10 +481,11 @@ LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
 
         // The first index or last index should be the maximum or the minimum in
         // the inferred index ranges since the range is increasing or
-        // decreasing. The size of dimensions of shaped operands and the maximum
-        // value + 1 in the inferred range should be the same. But, for now we
-        // check if the inferred ranges are in boundary of shaped operands' size
-        // or not in case that Affine Expressions are complicated such as d0 * 3
+        // decreasing. The size of dimensions of input/output operands and the
+        // maximum value + 1 in the inferred range should be the same. But, for
+        // now we check if the inferred ranges are in boundary of input/output
+        // operands' size or not in case that Affine Expressions are complicated
+        // such as d0 * 3
         // + d1 since it is not easy to handle the issues.
         // Found the case that this solution can't check, for example, (d0, d1)
         // -> (d1 - d0)
@@ -510,14 +503,14 @@ LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
         }
         if (indexingMap.getResult(dim).dyn_cast<AffineDimExpr>()) {
           if (inferredDimSize != shape[dim]) {
-            return op->emitOpError("inferred shaped operand #")
+            return op->emitOpError("inferred input/output operand #")
                    << opOperand->getOperandNumber()
                    << " has shape's dimension #" << dim << " to be "
                    << inferredDimSize << ", but found " << shape[dim];
           }
         } else {
           if (inferredDimSize > shape[dim]) {
-            return op->emitOpError("inferred shaped operand #")
+            return op->emitOpError("inferred input/output operand #")
                    << opOperand->getOperandNumber()
                    << " has shape's dimension #" << dim
                    << " to be greater than or equal to " << inferredDimSize

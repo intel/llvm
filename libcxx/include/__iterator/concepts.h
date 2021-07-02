@@ -16,6 +16,7 @@
 #include <__iterator/iterator_traits.h>
 #include <__iterator/readable_traits.h>
 #include <__memory/pointer_traits.h>
+#include <__utility/forward.h>
 #include <concepts>
 #include <type_traits>
 
@@ -71,7 +72,6 @@ concept __signed_integer_like = signed_integral<_Tp>;
 
 template<class _Ip>
 concept weakly_incrementable =
-  default_initializable<_Ip> &&
   movable<_Ip> &&
   requires(_Ip __i) {
     typename iter_difference_t<_Ip>;
@@ -168,9 +168,86 @@ concept contiguous_iterator =
     { _VSTD::to_address(__i) } -> same_as<add_pointer_t<iter_reference_t<_Ip>>>;
   };
 
-
 template<class _Ip>
 concept __has_arrow = input_iterator<_Ip> && (is_pointer_v<_Ip> || requires(_Ip __i) { __i.operator->(); });
+
+// [indirectcallable.indirectinvocable]
+template<class _Fp, class _It>
+concept indirectly_unary_invocable =
+  indirectly_readable<_It> &&
+  copy_constructible<_Fp> &&
+  invocable<_Fp&, iter_value_t<_It>&> &&
+  invocable<_Fp&, iter_reference_t<_It>> &&
+  invocable<_Fp&, iter_common_reference_t<_It>> &&
+  common_reference_with<
+    invoke_result_t<_Fp&, iter_value_t<_It>&>,
+    invoke_result_t<_Fp&, iter_reference_t<_It>>>;
+
+template<class _Fp, class _It>
+concept indirectly_regular_unary_invocable =
+  indirectly_readable<_It> &&
+  copy_constructible<_Fp> &&
+  regular_invocable<_Fp&, iter_value_t<_It>&> &&
+  regular_invocable<_Fp&, iter_reference_t<_It>> &&
+  regular_invocable<_Fp&, iter_common_reference_t<_It>> &&
+  common_reference_with<
+    invoke_result_t<_Fp&, iter_value_t<_It>&>,
+    invoke_result_t<_Fp&, iter_reference_t<_It>>>;
+
+template<class _Fp, class _It>
+concept indirect_unary_predicate =
+  indirectly_readable<_It> &&
+  copy_constructible<_Fp> &&
+  predicate<_Fp&, iter_value_t<_It>&> &&
+  predicate<_Fp&, iter_reference_t<_It>> &&
+  predicate<_Fp&, iter_common_reference_t<_It>>;
+
+template<class _Fp, class _It1, class _It2>
+concept indirect_binary_predicate =
+  indirectly_readable<_It1> && indirectly_readable<_It2> &&
+  copy_constructible<_Fp> &&
+  predicate<_Fp&, iter_value_t<_It1>&, iter_value_t<_It2>&> &&
+  predicate<_Fp&, iter_value_t<_It1>&, iter_reference_t<_It2>> &&
+  predicate<_Fp&, iter_reference_t<_It1>, iter_value_t<_It2>&> &&
+  predicate<_Fp&, iter_reference_t<_It1>, iter_reference_t<_It2>> &&
+  predicate<_Fp&, iter_common_reference_t<_It1>, iter_common_reference_t<_It2>>;
+
+template<class _Fp, class _It1, class _It2 = _It1>
+concept indirect_equivalence_relation =
+  indirectly_readable<_It1> && indirectly_readable<_It2> &&
+  copy_constructible<_Fp> &&
+  equivalence_relation<_Fp&, iter_value_t<_It1>&, iter_value_t<_It2>&> &&
+  equivalence_relation<_Fp&, iter_value_t<_It1>&, iter_reference_t<_It2>> &&
+  equivalence_relation<_Fp&, iter_reference_t<_It1>, iter_value_t<_It2>&> &&
+  equivalence_relation<_Fp&, iter_reference_t<_It1>, iter_reference_t<_It2>> &&
+  equivalence_relation<_Fp&, iter_common_reference_t<_It1>, iter_common_reference_t<_It2>>;
+
+template<class _Fp, class _It1, class _It2 = _It1>
+concept indirect_strict_weak_order =
+  indirectly_readable<_It1> && indirectly_readable<_It2> &&
+  copy_constructible<_Fp> &&
+  strict_weak_order<_Fp&, iter_value_t<_It1>&, iter_value_t<_It2>&> &&
+  strict_weak_order<_Fp&, iter_value_t<_It1>&, iter_reference_t<_It2>> &&
+  strict_weak_order<_Fp&, iter_reference_t<_It1>, iter_value_t<_It2>&> &&
+  strict_weak_order<_Fp&, iter_reference_t<_It1>, iter_reference_t<_It2>> &&
+  strict_weak_order<_Fp&, iter_common_reference_t<_It1>, iter_common_reference_t<_It2>>;
+
+template<class _Fp, class... _Its>
+  requires (indirectly_readable<_Its> && ...) && invocable<_Fp, iter_reference_t<_Its>...>
+using indirect_result_t = invoke_result_t<_Fp, iter_reference_t<_Its>...>;
+
+template<class _In, class _Out>
+concept indirectly_movable =
+  indirectly_readable<_In> &&
+  indirectly_writable<_Out, iter_rvalue_reference_t<_In>>;
+
+template<class _In, class _Out>
+concept indirectly_movable_storable =
+  indirectly_movable<_In, _Out> &&
+  indirectly_writable<_Out, iter_value_t<_In>> &&
+  movable<iter_value_t<_In>> &&
+  constructible_from<iter_value_t<_In>, iter_rvalue_reference_t<_In>> &&
+  assignable_from<iter_value_t<_In>&, iter_rvalue_reference_t<_In>>;
 
 // clang-format on
 

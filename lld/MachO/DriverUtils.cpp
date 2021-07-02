@@ -107,8 +107,9 @@ InputArgList MachOOptTable::parse(ArrayRef<const char *> argv) {
 }
 
 void MachOOptTable::printHelp(const char *argv0, bool showHidden) const {
-  PrintHelp(lld::outs(), (std::string(argv0) + " [options] file...").c_str(),
-            "LLVM Linker", showHidden);
+  OptTable::printHelp(lld::outs(),
+                      (std::string(argv0) + " [options] file...").c_str(),
+                      "LLVM Linker", showHidden);
   lld::outs() << "\n";
 }
 
@@ -176,20 +177,27 @@ std::string macho::createResponseFile(const InputArgList &args) {
   return std::string(data.str());
 }
 
-Optional<std::string> macho::resolveDylibPath(StringRef path) {
+static void searchedDylib(const Twine &path, bool found) {
+  if (config->printDylibSearch)
+    message("searched " + path + (found ? ", found " : ", not found"));
+  if (!found)
+    depTracker->logFileNotFound(path);
+}
+
+Optional<std::string> macho::resolveDylibPath(StringRef dylibPath) {
   // TODO: if a tbd and dylib are both present, we should check to make sure
   // they are consistent.
-  if (fs::exists(path))
-    return std::string(path);
-  else
-    depTracker->logFileNotFound(path);
+  bool dylibExists = fs::exists(dylibPath);
+  searchedDylib(dylibPath, dylibExists);
+  if (dylibExists)
+    return std::string(dylibPath);
 
-  SmallString<261> location = path;
-  path::replace_extension(location, ".tbd");
-  if (fs::exists(location))
-    return std::string(location);
-  else
-    depTracker->logFileNotFound(location);
+  SmallString<261> tbdPath = dylibPath;
+  path::replace_extension(tbdPath, ".tbd");
+  bool tbdExists = fs::exists(tbdPath);
+  searchedDylib(tbdPath, tbdExists);
+  if (tbdExists)
+    return std::string(tbdPath);
   return {};
 }
 
@@ -216,10 +224,10 @@ DylibFile *macho::loadDylib(MemoryBufferRef mbref, DylibFile *umbrella,
     file = make<DylibFile>(**result, umbrella, isBundleLoader);
 
     // parseReexports() can recursively call loadDylib(). That's fine since
-    // we wrote DylibFile we just loaded to the loadDylib cache via the `file`
-    // reference. But the recursive load can grow loadDylibs, so the `file`
-    // reference might become invalid after parseReexports() -- so copy the
-    // pointer it refers to before going on.
+    // we wrote the DylibFile we just loaded to the loadDylib cache via the
+    // `file` reference. But the recursive load can grow loadDylibs, so the
+    // `file` reference might become invalid after parseReexports() -- so copy
+    // the pointer it refers to before continuing.
     newFile = file;
     if (newFile->exportingFile)
       newFile->parseReexports(**result);
@@ -249,10 +257,10 @@ macho::findPathCombination(const Twine &name,
     path::append(base, name);
     for (StringRef ext : extensions) {
       Twine location = base + ext;
-      if (fs::exists(location))
+      bool exists = fs::exists(location);
+      searchedDylib(location, exists);
+      if (exists)
         return saver.save(location.str());
-      else
-        depTracker->logFileNotFound(location);
     }
   }
   return {};

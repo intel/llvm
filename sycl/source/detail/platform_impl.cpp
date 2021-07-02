@@ -94,9 +94,9 @@ static bool IsBannedPlatform(platform Platform) {
   return IsNVIDIAOpenCL(Platform);
 }
 
-vector_class<platform> platform_impl::get_platforms() {
-  vector_class<platform> Platforms;
-  const vector_class<plugin> &Plugins = RT::initialize();
+std::vector<platform> platform_impl::get_platforms() {
+  std::vector<platform> Platforms;
+  const std::vector<plugin> &Plugins = RT::initialize();
 
   info::device_type ForcedType = detail::get_forced_type();
   for (unsigned int i = 0; i < Plugins.size(); i++) {
@@ -109,7 +109,7 @@ vector_class<platform> platform_impl::get_platforms() {
       continue;
 
     if (NumPlatforms) {
-      vector_class<RT::PiPlatform> PiPlatforms(NumPlatforms);
+      std::vector<RT::PiPlatform> PiPlatforms(NumPlatforms);
       if (Plugins[i].call_nocheck<PiApiKind::piPlatformsGet>(
               NumPlatforms, PiPlatforms.data(), nullptr) != PI_SUCCESS)
         return Platforms;
@@ -141,7 +141,7 @@ vector_class<platform> platform_impl::get_platforms() {
 // by the device_filter constructor.
 // This function matches devices in the order of backend, device_type, and
 // device_num.
-static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
+static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
                                const plugin &Plugin) {
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   if (!FilterList)
@@ -204,9 +204,9 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
   return Result;
 }
 
-vector_class<device>
+std::vector<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
-  vector_class<device> Res;
+  std::vector<device> Res;
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
     // If SYCL_DEVICE_FILTER is set, check if filter contains host.
@@ -230,7 +230,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (NumDevices == 0)
     return Res;
 
-  vector_class<RT::PiDevice> PiDevices(NumDevices);
+  std::vector<RT::PiDevice> PiDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piDevicesGet>(MPlatform,
                                        pi::cast<RT::PiDeviceType>(DeviceType),
@@ -254,12 +254,12 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   return Res;
 }
 
-bool platform_impl::has_extension(const string_class &ExtensionName) const {
+bool platform_impl::has_extension(const std::string &ExtensionName) const {
   if (is_host())
     return false;
 
-  string_class AllExtensionNames =
-      get_platform_info<string_class, info::platform::extensions>::get(
+  std::string AllExtensionNames =
+      get_platform_info<std::string, info::platform::extensions>::get(
           MPlatform, getPlugin());
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }

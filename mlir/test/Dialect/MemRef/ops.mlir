@@ -69,10 +69,29 @@ func @memref_clone() {
   return
 }
 
+// CHECK-LABEL: func @memref_copy
+func @memref_copy() {
+  %0 = memref.alloc() : memref<2xf32>
+  %1 = memref.cast %0 : memref<2xf32> to memref<*xf32>
+  %2 = memref.alloc() : memref<2xf32>
+  %3 = memref.cast %0 : memref<2xf32> to memref<*xf32>
+  memref.copy %1, %3 : memref<*xf32> to memref<*xf32>
+  return
+}
+
 // CHECK-LABEL: func @memref_dealloc
 func @memref_dealloc() {
   %0 = memref.alloc() : memref<2xf32>
   %1 = memref.cast %0 : memref<2xf32> to memref<*xf32>
   memref.dealloc %1 : memref<*xf32>
+  return
+}
+
+
+// CHECK-LABEL: func @memref_alloca_scope
+func @memref_alloca_scope() {
+  memref.alloca_scope {
+    memref.alloca_scope.return
+  }
   return
 }

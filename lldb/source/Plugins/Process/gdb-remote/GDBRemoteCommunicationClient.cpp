@@ -16,6 +16,7 @@
 
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Host/HostInfo.h"
+#include "lldb/Host/StringConvert.h"
 #include "lldb/Host/XML.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Target/MemoryRegionInfo.h"
@@ -55,41 +56,7 @@ llvm::raw_ostream &process_gdb_remote::operator<<(llvm::raw_ostream &os,
 // GDBRemoteCommunicationClient constructor
 GDBRemoteCommunicationClient::GDBRemoteCommunicationClient()
     : GDBRemoteClientBase("gdb-remote.client", "gdb-remote.client.rx_packet"),
-      m_supports_not_sending_acks(eLazyBoolCalculate),
-      m_supports_thread_suffix(eLazyBoolCalculate),
-      m_supports_threads_in_stop_reply(eLazyBoolCalculate),
-      m_supports_vCont_all(eLazyBoolCalculate),
-      m_supports_vCont_any(eLazyBoolCalculate),
-      m_supports_vCont_c(eLazyBoolCalculate),
-      m_supports_vCont_C(eLazyBoolCalculate),
-      m_supports_vCont_s(eLazyBoolCalculate),
-      m_supports_vCont_S(eLazyBoolCalculate),
-      m_qHostInfo_is_valid(eLazyBoolCalculate),
-      m_curr_pid_is_valid(eLazyBoolCalculate),
-      m_qProcessInfo_is_valid(eLazyBoolCalculate),
-      m_qGDBServerVersion_is_valid(eLazyBoolCalculate),
-      m_supports_alloc_dealloc_memory(eLazyBoolCalculate),
-      m_supports_memory_region_info(eLazyBoolCalculate),
-      m_supports_watchpoint_support_info(eLazyBoolCalculate),
-      m_supports_detach_stay_stopped(eLazyBoolCalculate),
-      m_watchpoints_trigger_after_instruction(eLazyBoolCalculate),
-      m_attach_or_wait_reply(eLazyBoolCalculate),
-      m_prepare_for_reg_writing_reply(eLazyBoolCalculate),
-      m_supports_p(eLazyBoolCalculate), m_supports_x(eLazyBoolCalculate),
-      m_avoid_g_packets(eLazyBoolCalculate),
-      m_supports_QSaveRegisterState(eLazyBoolCalculate),
-      m_supports_qXfer_auxv_read(eLazyBoolCalculate),
-      m_supports_qXfer_libraries_read(eLazyBoolCalculate),
-      m_supports_qXfer_libraries_svr4_read(eLazyBoolCalculate),
-      m_supports_qXfer_features_read(eLazyBoolCalculate),
-      m_supports_qXfer_memory_map_read(eLazyBoolCalculate),
-      m_supports_augmented_libraries_svr4_read(eLazyBoolCalculate),
-      m_supports_jThreadExtendedInfo(eLazyBoolCalculate),
-      m_supports_jLoadedDynamicLibrariesInfos(eLazyBoolCalculate),
-      m_supports_jGetSharedCacheInfo(eLazyBoolCalculate),
-      m_supports_QPassSignals(eLazyBoolCalculate),
-      m_supports_error_string_reply(eLazyBoolCalculate),
-      m_supports_multiprocess(eLazyBoolCalculate),
+
       m_supports_qProcessInfoPID(true), m_supports_qfProcessInfo(true),
       m_supports_qUserName(true), m_supports_qGroupName(true),
       m_supports_qThreadStopInfo(true), m_supports_z0(true),
@@ -98,15 +65,11 @@ GDBRemoteCommunicationClient::GDBRemoteCommunicationClient()
       m_supports_QEnvironmentHexEncoded(true), m_supports_qSymbol(true),
       m_qSymbol_requests_done(false), m_supports_qModuleInfo(true),
       m_supports_jThreadsInfo(true), m_supports_jModulesInfo(true),
-      m_curr_pid(LLDB_INVALID_PROCESS_ID), m_curr_tid(LLDB_INVALID_THREAD_ID),
-      m_curr_tid_run(LLDB_INVALID_THREAD_ID),
-      m_num_supported_hardware_watchpoints(0), m_addressing_bits(0),
+
       m_host_arch(), m_process_arch(), m_os_build(), m_os_kernel(),
-      m_hostname(), m_gdb_server_name(), m_gdb_server_version(UINT32_MAX),
-      m_default_packet_timeout(0), m_max_packet_size(0),
-      m_qSupported_response(), m_supported_async_json_packets_is_valid(false),
-      m_supported_async_json_packets_sp(), m_qXfer_memory_map(),
-      m_qXfer_memory_map_loaded(false) {}
+      m_hostname(), m_gdb_server_name(), m_default_packet_timeout(0),
+      m_qSupported_response(), m_supported_async_json_packets_sp(),
+      m_qXfer_memory_map() {}
 
 // Destructor
 GDBRemoteCommunicationClient::~GDBRemoteCommunicationClient() {
@@ -323,6 +286,7 @@ void GDBRemoteCommunicationClient::ResetDiscoverableSettings(bool did_exec) {
     m_gdb_server_name.clear();
     m_gdb_server_version = UINT32_MAX;
     m_default_packet_timeout = seconds(0);
+    m_target_vm_page_size = 0;
     m_max_packet_size = 0;
     m_qSupported_response.clear();
     m_supported_async_json_packets_is_valid = false;
@@ -347,6 +311,7 @@ void GDBRemoteCommunicationClient::GetRemoteQSupported() {
   m_supports_multiprocess = eLazyBoolNo;
   m_supports_qEcho = eLazyBoolNo;
   m_supports_QPassSignals = eLazyBoolNo;
+  m_supports_memory_tagging = eLazyBoolNo;
 
   m_max_packet_size = UINT64_MAX; // It's supposed to always be there, but if
                                   // not, we assume no limit
@@ -392,6 +357,8 @@ void GDBRemoteCommunicationClient::GetRemoteQSupported() {
         m_supports_QPassSignals = eLazyBoolYes;
       else if (x == "multiprocess+")
         m_supports_multiprocess = eLazyBoolYes;
+      else if (x == "memory-tagging+")
+        m_supports_memory_tagging = eLazyBoolYes;
       // Look for a list of compressions in the features list e.g.
       // qXfer:features:read+;PacketSize=20000;qEcho+;SupportedCompressions=zlib-
       // deflate,lzma
@@ -610,6 +577,57 @@ bool GDBRemoteCommunicationClient::GetSharedCacheInfoSupported() {
     }
   }
   return m_supports_jGetSharedCacheInfo;
+}
+
+bool GDBRemoteCommunicationClient::GetMemoryTaggingSupported() {
+  if (m_supports_memory_tagging == eLazyBoolCalculate) {
+    GetRemoteQSupported();
+  }
+  return m_supports_memory_tagging == eLazyBoolYes;
+}
+
+DataBufferSP GDBRemoteCommunicationClient::ReadMemoryTags(lldb::addr_t addr,
+                                                          size_t len,
+                                                          int32_t type) {
+  StreamString packet;
+  packet.Printf("qMemTags:%" PRIx64 ",%zx:%" PRIx32, addr, len, type);
+  StringExtractorGDBRemote response;
+
+  Log *log = ProcessGDBRemoteLog::GetLogIfAnyCategoryIsSet(GDBR_LOG_MEMORY);
+
+  if (SendPacketAndWaitForResponse(packet.GetString(), response, false) !=
+          PacketResult::Success ||
+      !response.IsNormalResponse()) {
+    LLDB_LOGF(log, "GDBRemoteCommunicationClient::%s: qMemTags packet failed",
+              __FUNCTION__);
+    return nullptr;
+  }
+
+  // We are expecting
+  // m<hex encoded bytes>
+
+  if (response.GetChar() != 'm') {
+    LLDB_LOGF(log,
+              "GDBRemoteCommunicationClient::%s: qMemTags response did not "
+              "begin with \"m\"",
+              __FUNCTION__);
+    return nullptr;
+  }
+
+  size_t expected_bytes = response.GetBytesLeft() / 2;
+  DataBufferSP buffer_sp(new DataBufferHeap(expected_bytes, 0));
+  size_t got_bytes = response.GetHexBytesAvail(buffer_sp->GetData());
+  // Check both because in some situations chars are consumed even
+  // if the decoding fails.
+  if (response.GetBytesLeft() || (expected_bytes != got_bytes)) {
+    LLDB_LOGF(
+        log,
+        "GDBRemoteCommunicationClient::%s: Invalid data in qMemTags response",
+        __FUNCTION__);
+    return nullptr;
+  }
+
+  return buffer_sp;
 }
 
 bool GDBRemoteCommunicationClient::GetxPacketSupported() {
@@ -1230,6 +1248,12 @@ bool GDBRemoteCommunicationClient::GetHostInfo(bool force) {
               SetPacketTimeout(m_default_packet_timeout);
               ++num_keys_decoded;
             }
+          } else if (name.equals("vm-page-size")) {
+            int page_size;
+            if (!value.getAsInteger(0, page_size)) {
+              m_target_vm_page_size = page_size;
+              ++num_keys_decoded;
+            }
           }
         }
 
@@ -1541,8 +1565,29 @@ Status GDBRemoteCommunicationClient::GetMemoryRegionInfo(
           // Now convert the HEX bytes into a string value
           error_extractor.GetHexByteString(error_string);
           error.SetErrorString(error_string.c_str());
+        } else if (name.equals("dirty-pages")) {
+          std::vector<addr_t> dirty_page_list;
+          std::string comma_sep_str = value.str();
+          size_t comma_pos;
+          addr_t page;
+          while ((comma_pos = comma_sep_str.find(',')) != std::string::npos) {
+            comma_sep_str[comma_pos] = '\0';
+            page = StringConvert::ToUInt64(comma_sep_str.c_str(),
+                                           LLDB_INVALID_ADDRESS, 16);
+            if (page != LLDB_INVALID_ADDRESS)
+              dirty_page_list.push_back(page);
+            comma_sep_str.erase(0, comma_pos + 1);
+          }
+          page = StringConvert::ToUInt64(comma_sep_str.c_str(),
+                                         LLDB_INVALID_ADDRESS, 16);
+          if (page != LLDB_INVALID_ADDRESS)
+            dirty_page_list.push_back(page);
+          region_info.SetDirtyPageList(dirty_page_list);
         }
       }
+
+      if (m_target_vm_page_size != 0)
+        region_info.SetPageSize(m_target_vm_page_size);
 
       if (region_info.GetRange().IsValid()) {
         // We got a valid address range back but no permissions -- which means

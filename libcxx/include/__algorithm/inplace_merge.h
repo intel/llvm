@@ -10,12 +10,14 @@
 #define _LIBCPP___ALGORITHM_INPLACE_MERGE_H
 
 #include <__config>
+#include <__algorithm/comp.h>
 #include <__algorithm/comp_ref_type.h>
 #include <__algorithm/rotate.h>
 #include <__algorithm/lower_bound.h>
 #include <__algorithm/min.h>
 #include <__algorithm/upper_bound.h>
 #include <__iterator/iterator_traits.h>
+#include <__utility/swap.h>
 #include <memory>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)

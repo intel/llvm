@@ -55,6 +55,62 @@ template <> uint32_t pi_cast(uint64_t Value) {
   std::terminate();
 }
 
+// Returns the ze_structure_type_t to use in .stype of a structured descriptor.
+// Intentionally not defined; will give an error if no proper specialization
+template <class T> ze_structure_type_t getZeStructureType();
+
+template <> ze_structure_type_t getZeStructureType<ze_event_pool_desc_t>() {
+  return ZE_STRUCTURE_TYPE_EVENT_POOL_DESC;
+}
+template <> ze_structure_type_t getZeStructureType<ze_fence_desc_t>() {
+  return ZE_STRUCTURE_TYPE_FENCE_DESC;
+}
+template <> ze_structure_type_t getZeStructureType<ze_command_list_desc_t>() {
+  return ZE_STRUCTURE_TYPE_COMMAND_LIST_DESC;
+}
+template <> ze_structure_type_t getZeStructureType<ze_context_desc_t>() {
+  return ZE_STRUCTURE_TYPE_CONTEXT_DESC;
+}
+template <>
+ze_structure_type_t
+getZeStructureType<ze_relaxed_allocation_limits_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_RELAXED_ALLOCATION_LIMITS_EXP_DESC;
+}
+template <> ze_structure_type_t getZeStructureType<ze_host_mem_alloc_desc_t>() {
+  return ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_device_mem_alloc_desc_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
+}
+template <> ze_structure_type_t getZeStructureType<ze_command_queue_desc_t>() {
+  return ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC;
+}
+template <> ze_structure_type_t getZeStructureType<ze_image_desc_t>() {
+  return ZE_STRUCTURE_TYPE_IMAGE_DESC;
+}
+template <> ze_structure_type_t getZeStructureType<ze_module_desc_t>() {
+  return ZE_STRUCTURE_TYPE_MODULE_DESC;
+}
+template <> ze_structure_type_t getZeStructureType<ze_kernel_desc_t>() {
+  return ZE_STRUCTURE_TYPE_KERNEL_DESC;
+}
+template <> ze_structure_type_t getZeStructureType<ze_event_desc_t>() {
+  return ZE_STRUCTURE_TYPE_EVENT_DESC;
+}
+template <> ze_structure_type_t getZeStructureType<ze_sampler_desc_t>() {
+  return ZE_STRUCTURE_TYPE_SAMPLER_DESC;
+}
+
+// The helper struct to properly default initialize Level-Zero descriptor
+// structure.
+template <class T> struct ZeStruct : public T {
+  ZeStruct() {
+    this->stype = getZeStructureType<T>();
+    this->pNext = nullptr;
+  }
+};
+
 // Base class to store common data
 struct _pi_object {
   _pi_object() : RefCount{1} {}
@@ -613,7 +669,7 @@ struct _pi_image final : _pi_mem {
 
 #ifndef NDEBUG
   // Keep the descriptor of the image (for debugging purposes)
-  ze_image_desc_t ZeImageDesc;
+  ZeStruct<ze_image_desc_t> ZeImageDesc;
 #endif // !NDEBUG
 
   // Level Zero image handle.

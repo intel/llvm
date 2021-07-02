@@ -53,6 +53,7 @@
 #include "OutputSegment.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
+#include "SyntheticSections.h"
 #include "Target.h"
 
 #include "lld/Common/DWARF.h"
@@ -177,13 +178,12 @@ static bool checkCompatibility(const InputFile *input) {
     return false;
   }
 
-  if (it->minimum <= config->platformInfo.minimum)
-    return true;
+  if (it->minimum > config->platformInfo.minimum)
+    warn(toString(input) + " has version " + it->minimum.getAsString() +
+         ", which is newer than target minimum of " +
+         config->platformInfo.minimum.getAsString());
 
-  error(toString(input) + " has version " + it->minimum.getAsString() +
-        ", which is newer than target minimum of " +
-        config->platformInfo.minimum.getAsString());
-  return false;
+  return true;
 }
 
 // Open a given file path and return it as a memory-mapped file.
@@ -246,31 +246,56 @@ void ObjFile::parseSections(ArrayRef<Section> sections) {
   auto *buf = reinterpret_cast<const uint8_t *>(mb.getBufferStart());
 
   for (const Section &sec : sections) {
-    InputSection *isec = make<InputSection>();
-    isec->file = this;
-    isec->name =
+    StringRef name =
         StringRef(sec.sectname, strnlen(sec.sectname, sizeof(sec.sectname)));
-    isec->segname =
+    StringRef segname =
         StringRef(sec.segname, strnlen(sec.segname, sizeof(sec.segname)));
-    isec->data = {isZeroFill(sec.flags) ? nullptr : buf + sec.offset,
-                  static_cast<size_t>(sec.size)};
-    if (sec.align >= 32)
-      error("alignment " + std::to_string(sec.align) + " of section " +
-            isec->name + " is too large");
-    else
-      isec->align = 1 << sec.align;
-    isec->flags = sec.flags;
+    ArrayRef<uint8_t> data = {isZeroFill(sec.flags) ? nullptr
+                                                    : buf + sec.offset,
+                              static_cast<size_t>(sec.size)};
+    if (sec.align >= 32) {
+      error("alignment " + std::to_string(sec.align) + " of section " + name +
+            " is too large");
+      subsections.push_back({});
+      continue;
+    }
+    uint32_t align = 1 << sec.align;
+    uint32_t flags = sec.flags;
 
-    if (!(isDebugSection(isec->flags) &&
-          isec->segname == segment_names::dwarf)) {
+    if (config->dedupLiterals &&
+        (sectionType(sec.flags) == S_CSTRING_LITERALS ||
+         isWordLiteralSection(sec.flags))) {
+      if (sec.nreloc)
+        fatal(toString(this) + " contains relocations in " + sec.segname + "," +
+              sec.sectname +
+              ", so LLD cannot deduplicate literals. Try re-running without "
+              "--deduplicate-literals.");
+
+      InputSection *isec;
+      if (sectionType(sec.flags) == S_CSTRING_LITERALS) {
+        isec =
+            make<CStringInputSection>(segname, name, this, data, align, flags);
+        // FIXME: parallelize this?
+        cast<CStringInputSection>(isec)->splitIntoPieces();
+      } else {
+        isec = make<WordLiteralInputSection>(segname, name, this, data, align,
+                                             flags);
+      }
       subsections.push_back({{0, isec}});
     } else {
-      // Instead of emitting DWARF sections, we emit STABS symbols to the
-      // object files that contain them. We filter them out early to avoid
-      // parsing their relocations unnecessarily. But we must still push an
-      // empty map to ensure the indices line up for the remaining sections.
-      subsections.push_back({});
-      debugSections.push_back(isec);
+      auto *isec =
+          make<ConcatInputSection>(segname, name, this, data, align, flags);
+      if (!(isDebugSection(isec->flags) &&
+            isec->segname == segment_names::dwarf)) {
+        subsections.push_back({{0, isec}});
+      } else {
+        // Instead of emitting DWARF sections, we emit STABS symbols to the
+        // object files that contain them. We filter them out early to avoid
+        // parsing their relocations unnecessarily. But we must still push an
+        // empty map to ensure the indices line up for the remaining sections.
+        subsections.push_back({});
+        debugSections.push_back(isec);
+      }
     }
   }
 }
@@ -446,18 +471,16 @@ static macho::Symbol *createDefined(const NList &sym, StringRef name,
   //                 either reported (for non-weak symbols) or merged
   //                 (for weak symbols), but they do not go in the export
   //                 table of the output.
-  // N_PEXT: Does not occur in input files in practice,
-  //         a private extern must be external.
+  // N_PEXT: llvm-mc does not emit these, but `ld -r` (wherein ld64 emits
+  //         object files) may produce them. LLD does not yet support -r.
+  //         These are translation-unit scoped, identical to the `0` case.
   // 0: Translation-unit scoped. These are not in the symbol table during
   //    link, and not in the export table of the output either.
-
   bool isWeakDefCanBeHidden =
       (sym.n_desc & (N_WEAK_DEF | N_WEAK_REF)) == (N_WEAK_DEF | N_WEAK_REF);
 
-  if (sym.n_type & (N_EXT | N_PEXT)) {
-    assert((sym.n_type & N_EXT) && "invalid input");
+  if (sym.n_type & N_EXT) {
     bool isPrivateExtern = sym.n_type & N_PEXT;
-
     // lld's behavior for merging symbols is slightly different from ld64:
     // ld64 picks the winning symbol based on several criteria (see
     // pickBetweenRegularAtoms() in ld64's SymbolTable.cpp), while lld
@@ -508,8 +531,7 @@ static macho::Symbol *createDefined(const NList &sym, StringRef name,
 template <class NList>
 static macho::Symbol *createAbsolute(const NList &sym, InputFile *file,
                                      StringRef name) {
-  if (sym.n_type & (N_EXT | N_PEXT)) {
-    assert((sym.n_type & N_EXT) && "invalid input");
+  if (sym.n_type & N_EXT) {
     return symtab->addDefined(name, file, nullptr, sym.n_value, /*size=*/0,
                               /*isWeakDef=*/false, sym.n_type & N_PEXT,
                               sym.n_desc & N_ARM_THUMB_DEF,
@@ -596,29 +618,37 @@ void ObjFile::parseSymbols(ArrayRef<typename LP::section> sectionHeaders,
       InputSection *isec = subsecEntry.isec;
 
       uint64_t subsecAddr = sectionAddr + subsecEntry.offset;
-      uint64_t symbolOffset = sym.n_value - subsecAddr;
+      size_t symbolOffset = sym.n_value - subsecAddr;
       uint64_t symbolSize =
           j + 1 < symbolIndices.size()
               ? nList[symbolIndices[j + 1]].n_value - sym.n_value
               : isec->data.size() - symbolOffset;
-      // There are 3 cases where we do not need to create a new subsection:
+      // There are 4 cases where we do not need to create a new subsection:
       //   1. If the input file does not use subsections-via-symbols.
       //   2. Multiple symbols at the same address only induce one subsection.
       //      (The symbolOffset == 0 check covers both this case as well as
       //      the first loop iteration.)
       //   3. Alternative entry points do not induce new subsections.
+      //   4. If we have a literal section (e.g. __cstring and __literal4).
       if (!subsectionsViaSymbols || symbolOffset == 0 ||
-          sym.n_desc & N_ALT_ENTRY) {
+          sym.n_desc & N_ALT_ENTRY || !isa<ConcatInputSection>(isec)) {
         symbols[symIndex] =
             createDefined(sym, name, isec, symbolOffset, symbolSize);
         continue;
       }
+      auto *concatIsec = cast<ConcatInputSection>(isec);
 
-      auto *nextIsec = make<InputSection>(*isec);
-      nextIsec->data = isec->data.slice(symbolOffset);
+      auto *nextIsec = make<ConcatInputSection>(*concatIsec);
       nextIsec->numRefs = 0;
       nextIsec->wasCoalesced = false;
-      isec->data = isec->data.slice(0, symbolOffset);
+      if (isZeroFill(isec->flags)) {
+        // Zero-fill sections have NULL data.data() non-zero data.size()
+        nextIsec->data = {nullptr, isec->data.size() - symbolOffset};
+        isec->data = {nullptr, symbolOffset};
+      } else {
+        nextIsec->data = isec->data.slice(symbolOffset);
+        isec->data = isec->data.slice(0, symbolOffset);
+      }
 
       // By construction, the symbol will be at offset zero in the new
       // subsection.
@@ -637,10 +667,9 @@ void ObjFile::parseSymbols(ArrayRef<typename LP::section> sectionHeaders,
 OpaqueFile::OpaqueFile(MemoryBufferRef mb, StringRef segName,
                        StringRef sectName)
     : InputFile(OpaqueKind, mb) {
-  InputSection *isec = make<InputSection>();
+  ConcatInputSection *isec =
+      make<ConcatInputSection>(segName.take_front(16), sectName.take_front(16));
   isec->file = this;
-  isec->name = sectName.take_front(16);
-  isec->segname = segName.take_front(16);
   const auto *buf = reinterpret_cast<const uint8_t *>(mb.getBufferStart());
   isec->data = {buf, mb.getBufferSize()};
   isec->live = true;
@@ -676,11 +705,10 @@ template <class LP> void ObjFile::parse() {
   if (!checkCompatibility(this))
     return;
 
-  if (const load_command *cmd = findCommand(hdr, LC_LINKER_OPTION)) {
-    auto *c = reinterpret_cast<const linker_option_command *>(cmd);
-    StringRef data{reinterpret_cast<const char *>(c + 1),
-                   c->cmdsize - sizeof(linker_option_command)};
-    parseLCLinkerOption(this, c->count, data);
+  for (auto *cmd : findCommands<linker_option_command>(hdr, LC_LINKER_OPTION)) {
+    StringRef data{reinterpret_cast<const char *>(cmd + 1),
+                   cmd->cmdsize - sizeof(linker_option_command)};
+    parseLCLinkerOption(this, cmd->count, data);
   }
 
   ArrayRef<Section> sectionHeaders;
@@ -708,6 +736,8 @@ template <class LP> void ObjFile::parse() {
       parseRelocations(sectionHeaders, sectionHeaders[i], subsections[i]);
 
   parseDebugInfo();
+  if (config->emitDataInCodeInfo)
+    parseDataInCode();
 }
 
 void ObjFile::parseDebugInfo() {
@@ -731,6 +761,21 @@ void ObjFile::parseDebugInfo() {
   // PR48637.
   auto it = units.begin();
   compileUnit = it->get();
+}
+
+void ObjFile::parseDataInCode() {
+  const auto *buf = reinterpret_cast<const uint8_t *>(mb.getBufferStart());
+  const load_command *cmd = findCommand(buf, LC_DATA_IN_CODE);
+  if (!cmd)
+    return;
+  const auto *c = reinterpret_cast<const linkedit_data_command *>(cmd);
+  dataInCodeEntries = {
+      reinterpret_cast<const data_in_code_entry *>(buf + c->dataoff),
+      c->datasize / sizeof(data_in_code_entry)};
+  assert(is_sorted(dataInCodeEntries, [](const data_in_code_entry &lhs,
+                                         const data_in_code_entry &rhs) {
+    return lhs.offset < rhs.offset;
+  }));
 }
 
 // The path can point to either a dylib or a .tbd file.
@@ -760,17 +805,31 @@ static DylibFile *findDylib(StringRef path, DylibFile *umbrella,
               resolveDylibPath((root + path).str()))
         return loadDylib(*dylibPath, umbrella);
 
-  // TODO: Expand @rpath, handle -dylib_file
+  // TODO: Handle -dylib_file
+
   SmallString<128> newPath;
   if (config->outputType == MH_EXECUTE &&
       path.consume_front("@executable_path/")) {
     // ld64 allows overriding this with the undocumented flag -executable_path.
     // lld doesn't currently implement that flag.
-    path::append(newPath, sys::path::parent_path(config->outputFile), path);
+    path::append(newPath, path::parent_path(config->outputFile), path);
     path = newPath;
   } else if (path.consume_front("@loader_path/")) {
-    path::append(newPath, sys::path::parent_path(umbrella->getName()), path);
+    fs::real_path(umbrella->getName(), newPath);
+    path::remove_filename(newPath);
+    path::append(newPath, path);
     path = newPath;
+  } else if (path.startswith("@rpath/")) {
+    for (StringRef rpath : umbrella->rpaths) {
+      newPath.clear();
+      if (rpath.consume_front("@loader_path/")) {
+        fs::real_path(umbrella->getName(), newPath);
+        path::remove_filename(newPath);
+      }
+      path::append(newPath, rpath, path.drop_front(strlen("@rpath/")));
+      if (Optional<std::string> dylibPath = resolveDylibPath(newPath))
+        return loadDylib(*dylibPath, umbrella);
+    }
   }
 
   if (currentTopLevelTapi) {
@@ -816,8 +875,6 @@ static void loadReexport(StringRef path, DylibFile *umbrella,
   DylibFile *reexport = findDylib(path, umbrella, currentTopLevelTapi);
   if (!reexport)
     error("unable to locate re-export with install name " + path);
-  else if (isImplicitlyLinked(path))
-    inputFiles.insert(reexport);
 }
 
 DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
@@ -848,11 +905,17 @@ DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
 
   if (config->printEachFile)
     message(toString(this));
+  inputFiles.insert(this);
 
   deadStrippable = hdr->flags & MH_DEAD_STRIPPABLE_DYLIB;
 
   if (!checkCompatibility(this))
     return;
+
+  for (auto *cmd : findCommands<rpath_command>(hdr, LC_RPATH)) {
+    StringRef rpath{reinterpret_cast<const char *>(cmd) + cmd->path};
+    rpaths.push_back(rpath);
+  }
 
   // Initialize symbols.
   exportingFile = isImplicitlyLinked(installName) ? this : this->umbrella;
@@ -929,6 +992,7 @@ DylibFile::DylibFile(const InterfaceFile &interface, DylibFile *umbrella,
 
   if (config->printEachFile)
     message(toString(this));
+  inputFiles.insert(this);
 
   if (!is_contained(skipPlatformChecks, installName) &&
       !is_contained(interface.targets(), config->platformInfo.target)) {

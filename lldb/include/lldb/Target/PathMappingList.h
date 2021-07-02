@@ -72,13 +72,9 @@ public:
   /// \param[in] path
   ///     The original source file path to try and remap.
   ///
-  /// \param[out] new_path
-  ///     The newly remapped filespec that is may or may not exist.
-  ///
   /// \return
-  ///     /b true if \a path was successfully located and \a new_path
-  ///     is filled in with a new source path, \b false otherwise.
-  bool RemapPath(llvm::StringRef path, std::string &new_path) const;
+  ///     The remapped filespec that may or may not exist on disk.
+  llvm::Optional<FileSpec> RemapPath(llvm::StringRef path) const;
   bool RemapPath(const char *, std::string &) const = delete;
 
   bool ReverseRemapPath(const FileSpec &file, FileSpec &fixed) const;
@@ -118,9 +114,9 @@ protected:
   const_iterator FindIteratorForPath(ConstString path) const;
 
   collection m_pairs;
-  ChangedCallback m_callback;
-  void *m_callback_baton;
-  uint32_t m_mod_id; // Incremented anytime anything is added or removed.
+  ChangedCallback m_callback = nullptr;
+  void *m_callback_baton = nullptr;
+  uint32_t m_mod_id = 0; // Incremented anytime anything is added or removed.
 };
 
 } // namespace lldb_private

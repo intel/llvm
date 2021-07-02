@@ -571,9 +571,25 @@ def OpWithShapedTypeInferTypeInterfaceOp : TEST_Op<"op_with_shaped_type_infer_ty
   let results = (outs AnyTensor);
 }
 
-def OpWithResultShapePerDimInterfaceOp : TEST_Op<"op_with_result_shape_per_dim_interface",
+def OpWithResultShapeInterfaceOp : TEST_Op<"op_with_result_shape_interface",
       [DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-           ["reifyReturnTypeShapesPerResultDim"]>]> {
+          ["reifyReturnTypeShapes"]>]> {
+  let arguments = (ins AnyRankedTensor:$operand1, AnyRankedTensor:$operand2);
+  let results = (outs AnyRankedTensor:$result1, AnyRankedTensor:$result2);
+}
+
+def OpWithResultShapePerDimInterfaceOp :
+    TEST_Op<"op_with_result_shape_per_dim_interface",
+        [DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
+             ["reifyReturnTypeShapesPerResultDim"]>]> {
+  let arguments = (ins AnyRankedTensor:$operand1, AnyRankedTensor:$operand2);
+  let results = (outs AnyRankedTensor:$result1, AnyRankedTensor:$result2);
+}
+
+def OpWithResultShapeAndPerDimInterfaceOp :
+    TEST_Op<"op_with_result_shape_and_per_dim_interface",
+        [DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
+             ["reifyReturnTypeShapes", "reifyReturnTypeShapesPerResultDim"]>]> {
   let arguments = (ins AnyRankedTensor:$operand1, AnyRankedTensor:$operand2);
   let results = (outs AnyRankedTensor:$result1, AnyRankedTensor:$result2);
 }
@@ -1874,6 +1890,15 @@ def FormatTypesMatchAttrOp : TEST_Op<"format_types_match_attr", [
   let arguments = (ins AnyAttr:$value);
   let results = (outs AnyType:$result);
   let assemblyFormat = "attr-dict $value";
+}
+
+def FormatTypesMatchContextOp : TEST_Op<"format_types_match_context", [
+    TypesMatchWith<"tuple result type matches operand type", "value", "result",
+        "::mlir::TupleType::get($_ctxt, $_self)">
+  ]> {
+  let arguments = (ins AnyType:$value);
+  let results = (outs AnyType:$result);
+  let assemblyFormat = "attr-dict $value `:` type($value)";
 }
 
 //===----------------------------------------------------------------------===//

@@ -106,17 +106,17 @@ template <int N>
 [[intel::num_simd_work_items(N)]] void func7(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 
 template <int N>
-[[intel::reqd_work_group_size(N, N, N)]] void func8(); // expected-note{{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(N, N, N)]] void func8(); // expected-note{{conflicting attribute is here}}
 template <int N>
 [[intel::num_simd_work_items(3)]] void func8(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 
 template <int X, int Y, int Z, int N>
-[[intel::reqd_work_group_size(X, Y, Z)]] void func9(); // expected-note{{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(X, Y, Z)]] void func9(); // expected-note{{conflicting attribute is here}}
 template <int X, int Y, int Z, int N>
 [[intel::num_simd_work_items(N)]] void func9(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 
 template <int X, int Y, int Z>
-[[intel::reqd_work_group_size(X, Y, Z)]] void func10(); // expected-note{{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(X, Y, Z)]] void func10(); // expected-note{{conflicting attribute is here}}
 template <int X, int Y, int Z>
 [[intel::num_simd_work_items(3)]] void func10(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 

@@ -19,6 +19,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/MemoryLocation.h"
+#include "llvm/CodeGen/LiveVariables.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
@@ -1169,7 +1170,13 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   case CASE_VFMA_OPCODE_LMULS(FMACC, VV):
   case CASE_VFMA_OPCODE_LMULS(FMSAC, VV):
   case CASE_VFMA_OPCODE_LMULS(FNMACC, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMSAC, VV): {
+  case CASE_VFMA_OPCODE_LMULS(FNMSAC, VV):
+  case CASE_VFMA_OPCODE_LMULS(MADD, VX):
+  case CASE_VFMA_OPCODE_LMULS(NMSUB, VX):
+  case CASE_VFMA_OPCODE_LMULS(MACC, VX):
+  case CASE_VFMA_OPCODE_LMULS(NMSAC, VX):
+  case CASE_VFMA_OPCODE_LMULS(MACC, VV):
+  case CASE_VFMA_OPCODE_LMULS(NMSAC, VV): {
     // For these instructions we can only swap operand 1 and operand 3 by
     // changing the opcode.
     unsigned CommutableOpIdx1 = 1;
@@ -1182,7 +1189,9 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   case CASE_VFMA_OPCODE_LMULS(FMADD, VV):
   case CASE_VFMA_OPCODE_LMULS(FMSUB, VV):
   case CASE_VFMA_OPCODE_LMULS(FNMADD, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV): {
+  case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV):
+  case CASE_VFMA_OPCODE_LMULS(MADD, VV):
+  case CASE_VFMA_OPCODE_LMULS(NMSUB, VV): {
     // For these instructions we have more freedom. We can commute with the
     // other multiplicand or with the addend/subtrahend/minuend.
 
@@ -1287,7 +1296,13 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   case CASE_VFMA_OPCODE_LMULS(FMACC, VV):
   case CASE_VFMA_OPCODE_LMULS(FMSAC, VV):
   case CASE_VFMA_OPCODE_LMULS(FNMACC, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMSAC, VV): {
+  case CASE_VFMA_OPCODE_LMULS(FNMSAC, VV):
+  case CASE_VFMA_OPCODE_LMULS(MADD, VX):
+  case CASE_VFMA_OPCODE_LMULS(NMSUB, VX):
+  case CASE_VFMA_OPCODE_LMULS(MACC, VX):
+  case CASE_VFMA_OPCODE_LMULS(NMSAC, VX):
+  case CASE_VFMA_OPCODE_LMULS(MACC, VV):
+  case CASE_VFMA_OPCODE_LMULS(NMSAC, VV): {
     // It only make sense to toggle these between clobbering the
     // addend/subtrahend/minuend one of the multiplicands.
     assert((OpIdx1 == 1 || OpIdx2 == 1) && "Unexpected opcode index");
@@ -1308,6 +1323,12 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
       CASE_VFMA_CHANGE_OPCODE_LMULS(FMSAC, FMSUB, VV)
       CASE_VFMA_CHANGE_OPCODE_LMULS(FNMACC, FNMADD, VV)
       CASE_VFMA_CHANGE_OPCODE_LMULS(FNMSAC, FNMSUB, VV)
+      CASE_VFMA_CHANGE_OPCODE_LMULS(MACC, MADD, VX)
+      CASE_VFMA_CHANGE_OPCODE_LMULS(MADD, MACC, VX)
+      CASE_VFMA_CHANGE_OPCODE_LMULS(NMSAC, NMSUB, VX)
+      CASE_VFMA_CHANGE_OPCODE_LMULS(NMSUB, NMSAC, VX)
+      CASE_VFMA_CHANGE_OPCODE_LMULS(MACC, MADD, VV)
+      CASE_VFMA_CHANGE_OPCODE_LMULS(NMSAC, NMSUB, VV)
     }
 
     auto &WorkingMI = cloneIfNew(MI);
@@ -1318,7 +1339,9 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   case CASE_VFMA_OPCODE_LMULS(FMADD, VV):
   case CASE_VFMA_OPCODE_LMULS(FMSUB, VV):
   case CASE_VFMA_OPCODE_LMULS(FNMADD, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV): {
+  case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV):
+  case CASE_VFMA_OPCODE_LMULS(MADD, VV):
+  case CASE_VFMA_OPCODE_LMULS(NMSUB, VV): {
     assert((OpIdx1 == 1 || OpIdx2 == 1) && "Unexpected opcode index");
     // If one of the operands, is the addend we need to change opcode.
     // Otherwise we're just swapping 2 of the multiplicands.
@@ -1331,6 +1354,8 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
         CASE_VFMA_CHANGE_OPCODE_LMULS(FMSUB, FMSAC, VV)
         CASE_VFMA_CHANGE_OPCODE_LMULS(FNMADD, FNMACC, VV)
         CASE_VFMA_CHANGE_OPCODE_LMULS(FNMSUB, FNMSAC, VV)
+        CASE_VFMA_CHANGE_OPCODE_LMULS(MADD, MACC, VV)
+        CASE_VFMA_CHANGE_OPCODE_LMULS(NMSUB, NMSAC, VV)
       }
 
       auto &WorkingMI = cloneIfNew(MI);
@@ -1353,6 +1378,86 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
 #undef CASE_VFMA_OPCODE_LMULS
 #undef CASE_VFMA_OPCODE_COMMON
 
+// clang-format off
+#define CASE_WIDEOP_OPCODE_COMMON(OP, LMUL)                                    \
+  RISCV::PseudoV##OP##_##LMUL##_TIED
+
+#define CASE_WIDEOP_OPCODE_LMULS(OP)                                           \
+  CASE_WIDEOP_OPCODE_COMMON(OP, MF8):                                          \
+  case CASE_WIDEOP_OPCODE_COMMON(OP, MF4):                                     \
+  case CASE_WIDEOP_OPCODE_COMMON(OP, MF2):                                     \
+  case CASE_WIDEOP_OPCODE_COMMON(OP, M1):                                      \
+  case CASE_WIDEOP_OPCODE_COMMON(OP, M2):                                      \
+  case CASE_WIDEOP_OPCODE_COMMON(OP, M4)
+// clang-format on
+
+#define CASE_WIDEOP_CHANGE_OPCODE_COMMON(OP, LMUL)                             \
+  case RISCV::PseudoV##OP##_##LMUL##_TIED:                                     \
+    NewOpc = RISCV::PseudoV##OP##_##LMUL;                                      \
+    break;
+
+#define CASE_WIDEOP_CHANGE_OPCODE_LMULS(OP)                                    \
+  CASE_WIDEOP_CHANGE_OPCODE_COMMON(OP, MF8)                                    \
+  CASE_WIDEOP_CHANGE_OPCODE_COMMON(OP, MF4)                                    \
+  CASE_WIDEOP_CHANGE_OPCODE_COMMON(OP, MF2)                                    \
+  CASE_WIDEOP_CHANGE_OPCODE_COMMON(OP, M1)                                     \
+  CASE_WIDEOP_CHANGE_OPCODE_COMMON(OP, M2)                                     \
+  CASE_WIDEOP_CHANGE_OPCODE_COMMON(OP, M4)
+
+MachineInstr *RISCVInstrInfo::convertToThreeAddress(
+    MachineFunction::iterator &MBB, MachineInstr &MI, LiveVariables *LV) const {
+  switch (MI.getOpcode()) {
+  default:
+    break;
+  case CASE_WIDEOP_OPCODE_LMULS(FWADD_WV):
+  case CASE_WIDEOP_OPCODE_LMULS(FWSUB_WV):
+  case CASE_WIDEOP_OPCODE_LMULS(WADD_WV):
+  case CASE_WIDEOP_OPCODE_LMULS(WADDU_WV):
+  case CASE_WIDEOP_OPCODE_LMULS(WSUB_WV):
+  case CASE_WIDEOP_OPCODE_LMULS(WSUBU_WV): {
+    // clang-format off
+    unsigned NewOpc;
+    switch (MI.getOpcode()) {
+    default:
+      llvm_unreachable("Unexpected opcode");
+    CASE_WIDEOP_CHANGE_OPCODE_LMULS(FWADD_WV)
+    CASE_WIDEOP_CHANGE_OPCODE_LMULS(FWSUB_WV)
+    CASE_WIDEOP_CHANGE_OPCODE_LMULS(WADD_WV)
+    CASE_WIDEOP_CHANGE_OPCODE_LMULS(WADDU_WV)
+    CASE_WIDEOP_CHANGE_OPCODE_LMULS(WSUB_WV)
+    CASE_WIDEOP_CHANGE_OPCODE_LMULS(WSUBU_WV)
+    }
+    //clang-format on
+
+    MachineInstrBuilder MIB = BuildMI(*MBB, MI, MI.getDebugLoc(), get(NewOpc))
+                                  .add(MI.getOperand(0))
+                                  .add(MI.getOperand(1))
+                                  .add(MI.getOperand(2))
+                                  .add(MI.getOperand(3))
+                                  .add(MI.getOperand(4));
+    MIB.copyImplicitOps(MI);
+
+    if (LV) {
+      unsigned NumOps = MI.getNumOperands();
+      for (unsigned I = 1; I < NumOps; ++I) {
+        MachineOperand &Op = MI.getOperand(I);
+        if (Op.isReg() && Op.isKill())
+          LV->replaceKillInstruction(Op.getReg(), MI, *MIB);
+      }
+    }
+
+    return MIB;
+  }
+  }
+
+  return nullptr;
+}
+
+#undef CASE_WIDEOP_CHANGE_OPCODE_LMULS
+#undef CASE_WIDEOP_CHANGE_OPCODE_COMMON
+#undef CASE_WIDEOP_OPCODE_LMULS
+#undef CASE_WIDEOP_OPCODE_COMMON
+
 Register RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
                                                MachineBasicBlock &MBB,
                                                MachineBasicBlock::iterator II,
@@ -1368,8 +1473,8 @@ Register RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
 
   Register VL = MRI.createVirtualRegister(&RISCV::GPRRegClass);
   BuildMI(MBB, II, DL, TII->get(RISCV::PseudoReadVLENB), VL);
-  assert(isInt<12>(NumOfVReg) &&
-         "Expect the number of vector registers within 12-bits.");
+  assert(isInt<32>(NumOfVReg) &&
+         "Expect the number of vector registers within 32-bits.");
   if (isPowerOf2_32(NumOfVReg)) {
     uint32_t ShiftAmount = Log2_32(NumOfVReg);
     if (ShiftAmount == 0)
@@ -1397,9 +1502,12 @@ Register RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
         .addReg(VL, RegState::Kill);
   } else {
     Register N = MRI.createVirtualRegister(&RISCV::GPRRegClass);
-    BuildMI(MBB, II, DL, TII->get(RISCV::ADDI), N)
-        .addReg(RISCV::X0)
-        .addImm(NumOfVReg);
+    if (!isInt<12>(NumOfVReg))
+      movImm(MBB, II, DL, N, NumOfVReg);
+    else
+      BuildMI(MBB, II, DL, TII->get(RISCV::ADDI), N)
+          .addReg(RISCV::X0)
+          .addImm(NumOfVReg);
     if (!MF.getSubtarget<RISCVSubtarget>().hasStdExtM())
       MF.getFunction().getContext().diagnose(DiagnosticInfoUnsupported{
           MF.getFunction(),

@@ -225,12 +225,15 @@ function(add_link_opts target_name)
       # We may consider avoiding LTO altogether by using -fembed-bitcode
       # and teaching the linker to select machine code from .o files, see
       # https://lists.llvm.org/pipermail/llvm-dev/2021-April/149843.html
-      if((UNIX OR MINGW) AND LLVM_USE_LINKER STREQUAL "lld")
+      if((UNIX OR MINGW) AND LINKER_IS_LLD)
         set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                       LINK_FLAGS " -Wl,--lto-O0")
       elseif(LINKER_IS_LLD_LINK)
         set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                       LINK_FLAGS " /opt:lldlto=0")
+      elseif(APPLE)
+        set_property(TARGET ${target_name} APPEND_STRING PROPERTY
+                      LINK_FLAGS " -Wl,-mllvm,-O0")
       endif()
     endif()
   endif()
@@ -1458,12 +1461,15 @@ function(add_unittest test_suite test_name)
 
   # The runtime benefits of LTO don't outweight the compile time costs for tests.
   if(LLVM_ENABLE_LTO)
-    if((UNIX OR MINGW) AND LLVM_USE_LINKER STREQUAL "lld")
+    if((UNIX OR MINGW) AND LINKER_IS_LLD)
       set_property(TARGET ${test_name} APPEND_STRING PROPERTY
                     LINK_FLAGS " -Wl,--lto-O0")
     elseif(LINKER_IS_LLD_LINK)
       set_property(TARGET ${test_name} APPEND_STRING PROPERTY
                     LINK_FLAGS " /opt:lldlto=0")
+    elseif(APPLE)
+      set_property(TARGET ${target_name} APPEND_STRING PROPERTY
+                    LINK_FLAGS " -Wl,-mllvm,-O0")
     endif()
   endif()
 
@@ -1566,9 +1572,10 @@ endfunction()
 # use it and can't be in a lit module. Use with make_paths_relative().
 string(CONCAT LLVM_LIT_PATH_FUNCTION
   "# Allow generated file to be relocatable.\n"
+  "from pathlib import Path\n"
   "def path(p):\n"
   "    if not p: return ''\n"
-  "    return os.path.join(os.path.dirname(os.path.abspath(__file__)), p)\n"
+  "    return str((Path(__file__).parent / p).resolve())\n"
   )
 
 # This function provides an automatic way to 'configure'-like generate a file
