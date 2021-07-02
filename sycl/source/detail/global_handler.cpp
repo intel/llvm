@@ -35,7 +35,7 @@ GlobalHandler &GlobalHandler::instance() {
 }
 
 template <typename T, typename... Types>
-T& GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types... Args) {
+T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types... Args) {
   const LockGuard Lock{IWL.Lock};
 
   if (!IWL.Inst)

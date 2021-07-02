@@ -66,14 +66,13 @@ private:
   GlobalHandler();
   ~GlobalHandler();
 
-  template <typename T>
-  struct InstWithLock {
+  template <typename T> struct InstWithLock {
     std::unique_ptr<T> Inst;
     SpinLock Lock;
   };
 
   template <typename T, typename... Types>
-  T& getOrCreate(InstWithLock<T> &IWL, Types... Args);
+  T &getOrCreate(InstWithLock<T> &IWL, Types... Args);
 
   InstWithLock<Scheduler> MScheduler;
   InstWithLock<ProgramManager> MProgramManager;
