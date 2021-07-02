@@ -1,9 +1,13 @@
 ; RUN: llvm-as %s -o %t.bc
+; RUN: not llvm-spirv %t.bc -spirv-text -o %t.txt 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_KHR_integer_dot_product -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv --spirv-ext=+SPV_KHR_integer_dot_product %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-ERROR: Feature requires the following SPIR-V extension:
+; CHECK-ERROR-NEXT: SPV_KHR_integer_dot_product
 
 ; CHECK-SPIRV: Capability DotProductInputAllKHR
 ; CHECK-SPIRV: Capability DotProductInput4x8BitKHR
