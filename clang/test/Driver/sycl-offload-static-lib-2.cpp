@@ -45,7 +45,7 @@
 
 /// test behaviors of fat static lib from source
 // RUN: touch %t_lib.a
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl-use-footer -fno-sycl-device-lib=all -fsycl %t_lib.a -ccc-print-phases %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-device-lib=all -fsycl %t_lib.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC
 // STATIC_LIB_SRC: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
@@ -60,7 +60,7 @@
 // STATIC_LIB_SRC: 10: backend, {9}, assembler, (host-sycl)
 // STATIC_LIB_SRC: 11: assembler, {10}, object, (host-sycl)
 // STATIC_LIB_SRC: 12: linker, {0, 11}, image, (host-sycl)
-// STATIC_LIB_SRC: 13: linker, {0, 11}, image, (host-sycl)
+// STATIC_LIB_SRC: 13: linker, {0, 11}, host_dep_image, (host-sycl)
 // STATIC_LIB_SRC: 14: clang-offload-deps, {13}, ir, (host-sycl)
 // STATIC_LIB_SRC: 15: input, "[[INPUTA]]", archive
 // STATIC_LIB_SRC: 16: clang-offload-unbundler, {15}, archive

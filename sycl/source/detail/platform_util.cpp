@@ -41,7 +41,7 @@ uint32_t PlatformUtil::getMaxClockFrequency() {
       PI_INVALID_DEVICE);
 #if defined(__x86_64__) || defined(__i386__)
   uint32_t CPUInfo[4];
-  string_class Buff(sizeof(CPUInfo) * 3 + 1, 0);
+  std::string Buff(sizeof(CPUInfo) * 3 + 1, 0);
   size_t Offset = 0;
 
   for (uint32_t i = 0x80000002; i <= 0x80000004; i++) {

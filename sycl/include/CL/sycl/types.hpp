@@ -2279,6 +2279,99 @@ __SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 #undef __SYCL_DECLARE_SCALAR_BOOL_CONVERTER
 #undef __SYCL_USE_EXT_VECTOR_TYPE__
 
+/// This macro must be defined to 1 when SYCL implementation allows user
+/// applications to explicitly declare certain class types as device copyable
+/// by adding specializations of is_device_copyable type trait class.
+#define SYCL_DEVICE_COPYABLE 1
+
+/// is_device_copyable is a user specializable class template to indicate
+/// that a type T is device copyable, which means that SYCL implementation
+/// may copy objects of the type T between host and device or between two
+/// devices.
+/// Specializing is_device_copyable such a way that
+/// is_device_copyable_v<T> == true on a T that does not satisfy all
+/// the requirements of a device copyable type is undefined behavior.
+template <typename T, typename = void>
+struct is_device_copyable : std::false_type {};
+
+template <typename T>
+struct is_device_copyable<
+    T, std::enable_if_t<std::is_trivially_copyable<T>::value>>
+    : std::true_type {};
+
+#if __cplusplus >= 201703L
+template <typename T>
+inline constexpr bool is_device_copyable_v = is_device_copyable<T>::value;
+#endif // __cplusplus >= 201703L
+
+// std::tuple<> is implicitly device copyable type.
+template <> struct is_device_copyable<std::tuple<>> : std::true_type {};
+
+// std::tuple<Ts...> is implicitly device copyable type if each type T of Ts...
+// is device copyable.
+template <typename T, typename... Ts>
+struct is_device_copyable<std::tuple<T, Ts...>>
+    : detail::bool_constant<is_device_copyable<T>::value &&
+                            is_device_copyable<std::tuple<Ts...>>::value> {};
+
+namespace detail {
+template <typename T, typename = void>
+struct IsDeprecatedDeviceCopyable : std::false_type {};
+
+// TODO: using C++ attribute [[deprecated]] or the macro __SYCL2020_DEPRECATED
+// does not produce expected warning message for the type 'T'.
+template <typename T>
+struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
+    IsDeprecatedDeviceCopyable<
+        T, std::enable_if_t<std::is_trivially_copy_constructible<T>::value &&
+                            std::is_trivially_destructible<T>::value &&
+                            !is_device_copyable<T>::value>> : std::true_type {};
+
+#ifdef __SYCL_DEVICE_ONLY__
+// Checks that the fields of the type T with indices 0 to (NumFieldsToCheck - 1)
+// are device copyable.
+template <typename T, unsigned NumFieldsToCheck>
+struct CheckFieldsAreDeviceCopyable
+    : CheckFieldsAreDeviceCopyable<T, NumFieldsToCheck - 1> {
+  using FieldT = decltype(__builtin_field_type(T, NumFieldsToCheck - 1));
+  static_assert(is_device_copyable<FieldT>::value ||
+                    detail::IsDeprecatedDeviceCopyable<FieldT>::value,
+                "The specified type is not device copyable");
+};
+
+template <typename T> struct CheckFieldsAreDeviceCopyable<T, 0> {};
+
+// Checks that the base classes of the type T with indices 0 to
+// (NumFieldsToCheck - 1) are device copyable.
+template <typename T, unsigned NumBasesToCheck>
+struct CheckBasesAreDeviceCopyable
+    : CheckBasesAreDeviceCopyable<T, NumBasesToCheck - 1> {
+  using BaseT = decltype(__builtin_base_type(T, NumBasesToCheck - 1));
+  static_assert(is_device_copyable<BaseT>::value ||
+                    detail::IsDeprecatedDeviceCopyable<BaseT>::value,
+                "The specified type is not device copyable");
+};
+
+template <typename T> struct CheckBasesAreDeviceCopyable<T, 0> {};
+
+// All the captures of a lambda or functor of type FuncT passed to a kernel
+// must be is_device_copyable, which extends to bases and fields of FuncT.
+// Fields are captures of lambda/functors and bases are possible base classes
+// of functors also allowed by SYCL.
+// The SYCL-2020 implementation must check each of the fields & bases of the
+// type FuncT, only one level deep, which is enough to see if they are all
+// device copyable by using the result of is_device_copyable returned for them.
+// At this moment though the check also allowes using types for which
+// (is_trivially_copy_constructible && is_trivially_destructible) returns true
+// and (is_device_copyable) returns false. That is the deprecated behavior and
+// is currently/temporarily supported only to not break older SYCL programs.
+template <typename FuncT>
+struct CheckDeviceCopyable
+    : CheckFieldsAreDeviceCopyable<FuncT, __builtin_num_fields(FuncT)>,
+      CheckBasesAreDeviceCopyable<FuncT, __builtin_num_bases(FuncT)> {};
+#endif // __SYCL_DEVICE_ONLY__
+} // namespace detail
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 

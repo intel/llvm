@@ -611,8 +611,10 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_using_enum", "201907L");
   }
   // C++2b features.
-  if (LangOpts.CPlusPlus2b)
+  if (LangOpts.CPlusPlus2b) {
+    Builder.defineMacro("__cpp_implicit_move", "202011L");
     Builder.defineMacro("__cpp_size_t_suffix", "202011L");
+  }
   if (LangOpts.Char8)
     Builder.defineMacro("__cpp_char8_t", "201811L");
   Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
@@ -1180,12 +1182,13 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
     const llvm::Triple &DeviceTriple = TI.getTriple();
-    if (DeviceTriple.isNVPTX())
-      Builder.defineMacro("__SYCL_NVPTX__", "1");
     const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
     if (DeviceTriple.isSPIR() &&
         DeviceSubArch != llvm::Triple::SPIRSubArch_fpga)
       Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
+    // Enable generation of USM address spaces for FPGA.
+    if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga)
+      Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");

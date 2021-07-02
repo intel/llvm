@@ -317,13 +317,18 @@ used:
 The driver passes the `-device skl` parameter directly to the Gen device backend
 compiler `ocloc` without parsing it.
 
-**TBD:** Having multiple code forms for the same target in the fat binary might
-mean invoking device compiler multiple times. Multiple invocations are not
-needed if these forms can be dumped at various compilation stages by the single
-device compilation, like SPIR-V → visa → ISA. But if e.g. `gen9:visa3.2` and
-`gen9:visa3.3` are needed at the same time, then some mechanism is needed.
-Should it be a dedicated target triple for each needed visa version or Gen
-generation?
+`ocloc` is also capable of offline compilation for several ISA
+versions/Gen architectures. For example, to make the device binary
+compatible with all Intel Gen9 GPU platforms, one could use:
+
+```
+-fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice
+-Xsycl-target-backend "-device gen9"
+```
+
+For more details on supported platforms and argument syntax, refer to
+the GPU offline compiler manual by detecting your local `ocloc`
+installation and running `ocloc compile --help`.
 
 #### Separate Compilation and Linking
 
@@ -549,11 +554,11 @@ is then passed to the offload wrapper tool.
 ##### Checking if the compiler is targeting NVPTX
 
 When the SYCL compiler is in device mode and targeting the NVPTX backend,
-compiler defines the macro `__SYCL_NVPTX__`.
-This macro can safely be used to enable NVPTX specific code path in SYCL
-kernels.
+the compiler defines `__SYCL_DEVICE_ONLY__` and `__NVPTX__` macros. This
+macro combination can safely be used to enable NVPTX specific code
+path in SYCL kernels.
 
-*Note: this macro is defined only during the device compilation phase.*
+*Note: these macros are defined only during the device compilation phase.*
 
 ##### NVPTX Builtins
 
@@ -567,7 +572,7 @@ Example:
 
 ```cpp
 double my_min(double x, double y) {
-#ifdef __SYCL_NVPTX__
+#if defined(__NVPTX__) && defined(__SYCL_DEVICE_ONLY__)
   // Only available if in device mode and
   // while compiling for the NVPTX target.
   return __nvvm_fmin_d(x, y);
