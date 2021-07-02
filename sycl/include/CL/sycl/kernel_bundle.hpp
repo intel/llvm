@@ -15,6 +15,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/kernel_bundle_enums.hpp>
 
 #include <cassert>
 #include <memory>
@@ -24,8 +25,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declaration
 template <backend Backend> class backend_traits;
-
-enum class bundle_state : char { input = 0, object = 1, executable = 2 };
 
 namespace detail {
 class kernel_id_impl;
