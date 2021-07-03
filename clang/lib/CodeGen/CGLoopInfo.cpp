@@ -613,7 +613,7 @@ MDNode *LoopInfo::createMetadata(
   }
 
   for (auto &FP : Attrs.SYCLIntelFPGANPipelines) {
-     Metadata *Vals[] = {MDString::get(Ctx, FP.first),
+    Metadata *Vals[] = {MDString::get(Ctx, FP.first),
                         ConstantAsMetadata::get(ConstantInt::get(
                             llvm::Type::getInt32Ty(Ctx), FP.second))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
