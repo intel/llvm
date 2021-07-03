@@ -6425,7 +6425,7 @@ void Sema::AddSYCLIntelFpgaPipelineAttr(Decl *D, const AttributeCommonInfo &CI,
       // have converted it to a constant expression yet and thus we test
       // whether this is a null pointer.
       if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
-	const auto *CE = cast<ConstantExpr>(E);
+        const auto *CE = cast<ConstantExpr>(E);
         Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
