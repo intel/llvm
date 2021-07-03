@@ -95,13 +95,12 @@ static Attr *handleSYCLIntelFPGAPipelineAttr(Sema &S, Stmt *,
 
 SYCLIntelFpgaPipelineAttr *
 Sema::BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &A, Expr *E) {
+  SYCLIntelFpgaPipelineAttr TmpAttr(Context, A, E);
+
   if (!E->isValueDependent()) {
-    // Validate that we have an integer constant expression and then store the
-    // converted constant expression into the semantic attribute so that we
-    // don't have to evaluate it again later.
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
+    // Check if the expression is not value dependent.
+    ExprResult Res;
+    if (checkPipelineAttrArgument(E, &TmpAttr, Res))
       return nullptr;
     E = Res.get();
   }

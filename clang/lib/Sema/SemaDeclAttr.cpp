@@ -6396,17 +6396,27 @@ static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
 }
 
 // Handle [[intel:fpga_pipeline]] attribute.
+bool Sema::checkPipelineAttrArgument(Expr *E,
+                                     const SYCLIntelFpgaPipelineAttr *TmpAttr,
+                                     ExprResult &Result) {
+  llvm::APSInt Value;
+  // Validate that we have an integer constant expression.
+  Result = VerifyIntegerConstantExpression(E, &Value);
+  if (Result.isInvalid())
+    return true;
+  return false;
+}
+
 void Sema::AddSYCLIntelFpgaPipelineAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *E) {
+  SYCLIntelFpgaPipelineAttr TmpAttr(Context, CI, E);
+
   if (!E->isValueDependent()) {
-    // Validate that we have an integer constant expression and then store the
-    // converted constant expression into the semantic attribute so that we
-    // don't have to evaluate it again later.
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
+    // Check if the expression is not value dependent.
+    ExprResult ICE;
+    if (checkPipelineAttrArgument(E, &TmpAttr, ICE))
       return;
-    E = Res.get();
+    E = ICE.get();
 
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
@@ -6415,6 +6425,8 @@ void Sema::AddSYCLIntelFpgaPipelineAttr(Decl *D, const AttributeCommonInfo &CI,
       // have converted it to a constant expression yet and thus we test
       // whether this is a null pointer.
       if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+	const auto *CE = cast<ConstantExpr>(E);
+        Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
