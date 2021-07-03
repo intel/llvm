@@ -160,11 +160,9 @@ struct LoopAttributes {
   /// Flag for llvm.loop.fusion.disable metatdata.
   bool SYCLNofusionEnable;
 
-  /// Flag for llvm.loop.intel.pipelining.enable metadata.
-  bool SYCLIntelFPGAPipelineEnable;
-
-  /// Value for llvm.loop.intel.pipelining.enable metadata.
-  unsigned SYCLIntelFPGANPipelines;
+  /// Value for fpga_pipleline variant and metadata.
+  llvm::SmallVector<std::pair<const char *, unsigned int>, 2>
+      SYCLIntelFPGANPipelines;
 
   /// Value for whether the loop is required to make progress.
   bool MustProgress;
@@ -436,14 +434,9 @@ public:
   /// Set flag of nofusion for the next loop pushed.
   void setSYCLNofusionEnable() { StagedAttrs.SYCLNofusionEnable = true; }
 
-  /// Set flag of fpga_pipeline for the next loop pushed.
-  void setSYCLIntelFPGAPipelineEnable() {
-    StagedAttrs.SYCLIntelFPGAPipelineEnable = true;
-  }
-
-  /// Set value of concurrent fpga_pipeline for the next loop pushed.
-  void setSYCLIntelFPGANPipelines(unsigned C) {
-    StagedAttrs.SYCLIntelFPGANPipelines = C;
+  /// Set variant and value of fpga_pipeline for the next loop pushed.
+  void setSYCLIntelFPGANPipelines(const char *Var, unsigned int Value) {
+    StagedAttrs.SYCLIntelFPGANPipelines.push_back({Var, Value});
   }
 
   /// Set no progress for the next loop pushed.

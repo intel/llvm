@@ -612,11 +612,10 @@ MDNode *LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
-  if (Attrs.SYCLIntelFPGAPipelineEnable) {
-    Metadata *Vals[] = {
-        MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
-        ConstantAsMetadata::get(ConstantInt::get(
-            llvm::Type::getInt32Ty(Ctx), Attrs.SYCLIntelFPGANPipelines))};
+  for (auto &FP : Attrs.SYCLIntelFPGANPipelines) {
+     Metadata *Vals[] = {MDString::get(Ctx, FP.first),
+                        ConstantAsMetadata::get(ConstantInt::get(
+                            llvm::Type::getInt32Ty(Ctx), FP.second))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
@@ -639,8 +638,7 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       SYCLSpeculatedIterationsNIterations(0), UnrollCount(0),
       UnrollAndJamCount(0), DistributeEnable(LoopAttributes::Unspecified),
       PipelineDisabled(false), PipelineInitiationInterval(0),
-      SYCLNofusionEnable(false), SYCLIntelFPGAPipelineEnable(false),
-      SYCLIntelFPGANPipelines(0), MustProgress(false) {}
+      SYCLNofusionEnable(false), MustProgress(false) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;
@@ -670,8 +668,7 @@ void LoopAttributes::clear() {
   PipelineDisabled = false;
   PipelineInitiationInterval = 0;
   SYCLNofusionEnable = false;
-  SYCLIntelFPGAPipelineEnable = false;
-  SYCLIntelFPGANPipelines = 0;
+  SYCLIntelFPGANPipelines.clear();
   MustProgress = false;
 }
 
@@ -708,8 +705,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.UnrollAndJamEnable == LoopAttributes::Unspecified &&
       Attrs.DistributeEnable == LoopAttributes::Unspecified && !StartLoc &&
       Attrs.SYCLNofusionEnable == false &&
-      Attrs.SYCLIntelFPGAPipelineEnable == false &&
-      Attrs.SYCLIntelFPGANPipelines == 0 && !EndLoc && !Attrs.MustProgress)
+      Attrs.SYCLIntelFPGANPipelines.empty() && !EndLoc && !Attrs.MustProgress)
     return;
 
   TempLoopID = MDNode::getTemporary(Header->getContext(), None);
@@ -1103,8 +1099,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
             dyn_cast<SYCLIntelFpgaPipelineAttr>(A)) {
       const auto *CE = cast<ConstantExpr>(IntelFpgaPipeline->getValue());
       Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-      setSYCLIntelFPGAPipelineEnable();
-      setSYCLIntelFPGANPipelines(ArgVal->getBoolValue() ? 1 : 0);
+      unsigned int Value = ArgVal->getBoolValue() ? 1 : 0;
+      const char *Var = "llvm.loop.intel.pipelining.enable";
+      setSYCLIntelFPGANPipelines(Var, Value);
     }
   }
 
