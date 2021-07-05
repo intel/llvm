@@ -1424,7 +1424,7 @@ bool SPIRVToLLVM::postProcessOCLBuiltinWithArrayArguments(
           auto Zero =
               ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
           Value *Index[] = {Zero, Zero};
-          I = GetElementPtrInst::CreateInBounds(nullptr, Alloca, Index, "", CI);
+          I = GetElementPtrInst::CreateInBounds(T, Alloca, Index, "", CI);
         }
         return Name.str();
       },
