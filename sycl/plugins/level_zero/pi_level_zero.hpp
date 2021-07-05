@@ -32,6 +32,7 @@
 #include <vector>
 
 #include <level_zero/ze_api.h>
+#include <level_zero/zes_api.h>
 
 #include "usm_allocator.hpp"
 
@@ -58,6 +59,7 @@ template <> uint32_t pi_cast(uint64_t Value) {
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
 // Intentionally not defined; will give an error if no proper specialization
 template <class T> ze_structure_type_t getZeStructureType();
+template <class T> zes_structure_type_t getZesStructureType();
 
 template <> ze_structure_type_t getZeStructureType<ze_event_pool_desc_t>() {
   return ZE_STRUCTURE_TYPE_EVENT_POOL_DESC;
@@ -101,12 +103,58 @@ template <> ze_structure_type_t getZeStructureType<ze_event_desc_t>() {
 template <> ze_structure_type_t getZeStructureType<ze_sampler_desc_t>() {
   return ZE_STRUCTURE_TYPE_SAMPLER_DESC;
 }
+template <> ze_structure_type_t getZeStructureType<ze_driver_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DRIVER_PROPERTIES;
+}
+template <> ze_structure_type_t getZeStructureType<ze_device_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_device_compute_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_COMPUTE_PROPERTIES;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_command_queue_group_properties_t>() {
+  return ZE_STRUCTURE_TYPE_COMMAND_QUEUE_GROUP_PROPERTIES;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_device_image_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_device_module_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_device_cache_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_CACHE_PROPERTIES;
+}
+template <> ze_structure_type_t getZeStructureType<ze_module_properties_t>() {
+  return ZE_STRUCTURE_TYPE_MODULE_PROPERTIES;
+}
+template <> ze_structure_type_t getZeStructureType<ze_kernel_properties_t>() {
+  return ZE_STRUCTURE_TYPE_KERNEL_PROPERTIES;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_memory_allocation_properties_t>() {
+  return ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES;
+}
 
-// The helper struct to properly default initialize Level-Zero descriptor
-// structure.
+template <> zes_structure_type_t getZesStructureType<zes_pci_properties_t>() {
+  return ZES_STRUCTURE_TYPE_PCI_PROPERTIES;
+}
+
+// The helpers to properly default initialize Level-Zero descriptor and
+// properties structures.
 template <class T> struct ZeStruct : public T {
-  ZeStruct() {
+  ZeStruct() { // default initializes base class
     this->stype = getZeStructureType<T>();
+    this->pNext = nullptr;
+  }
+};
+template <class T> struct ZesStruct : public T {
+  ZesStruct() { // default initializes base class
+    this->stype = getZesStructureType<T>();
     this->pNext = nullptr;
   }
 };
@@ -244,8 +292,8 @@ struct _pi_device : _pi_object {
   int32_t ZeCopyQueueGroupIndex;
 
   // Cache the properties of the compute/copy queue groups.
-  ze_command_queue_group_properties_t ZeComputeQueueGroupProperties = {};
-  ze_command_queue_group_properties_t ZeCopyQueueGroupProperties = {};
+  ZeStruct<ze_command_queue_group_properties_t> ZeComputeQueueGroupProperties;
+  ZeStruct<ze_command_queue_group_properties_t> ZeCopyQueueGroupProperties;
 
   // This returns "true" if a copy engine is available for use.
   bool hasCopyEngine() const { return ZeCopyQueueGroupIndex >= 0; }
@@ -270,8 +318,8 @@ struct _pi_device : _pi_object {
   bool isSubDevice() { return RootDevice != nullptr; }
 
   // Cache of the immutable device properties.
-  ze_device_properties_t ZeDeviceProperties;
-  ze_device_compute_properties_t ZeDeviceComputeProperties;
+  ZeStruct<ze_device_properties_t> ZeDeviceProperties;
+  ZeStruct<ze_device_compute_properties_t> ZeDeviceComputeProperties;
 };
 
 struct _pi_context : _pi_object {
