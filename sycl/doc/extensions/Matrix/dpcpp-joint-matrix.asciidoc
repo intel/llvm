@@ -1,0 +1,310 @@
+# Matrix Programming Extension for DPC++: SYCL_EXT_ONEAPI_MATRIX
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+:dpcpp: pass:[DPC++]
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+Copyright (c) 2021-2021 Intel Corporation.  All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This extension is written against the SYCL 2020 revision 3 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+**_NOTE:_** _This document describes the current design and API for the matrix
+extension to {dpcpp}. This is an initial experimental version to try out functionality
+and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX). We are going to work with the community on incrementally improving
+the API to bring them closer to standard C++ (aligned with the `std::mdspan` and `std::mdarray` proposals) and SYCL in the next several months._
+
+## Introduction
+This document presents an ongoing work towards defining a unified matrix interface. This interface is intended to unify different tensor hardware: AMX in Intel CPU, Habana Gaudi and Goya tensor and gemm cores, Nvidia TPUs, IBM Power MMA. All these hardware provide low-level intrinsics or assembly to access and perform matrix operations. The goal is to provide a unified interface that is portable but also benefit from the maximum performance these different hardware can offer.
+
+## Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_MATRIX` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[frame="none",options="header"]
+|======================
+|Value |Description
+|1     |Initial extension implementation on AMX.  Base features are supported.
+|======================
+
+## New `joint_matrix` class
+We introduce a new class called `joint_matrix`. The user needs to specify the type of the elements, shape, the memory layout, and the memory scope of the matrix. This results into the following description:
+
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+template <typename Group, typename T, size_t Rows=sycl::dynamic_extent, size_t Cols=sycl::dynamic_extent, matrix_layout Layout = matrix_layout::row_major>
+struct joint_matrix {
+    joint_matrix(Group g) {}
+};
+}
+```
+
+
+#### Memory Scope
+In this experimental API version, we used the terminology of `joint_matrix` instead of plain `matrix` to emphasis that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
+
+IMPORTANT: In the current implementation, only the subgroup scope is supported
+
+When the group is a `sycl::sub_group`, a matrix is declared as follows:
+
+```c++
+joint_matrix<sub_group, int8_t, tM, tN> tA(sg); 
+```
+
+#### Shape
+The same class `joint_matrix` should handle both cases where sizes are constant (GPU case) and when sizes are variables (CPU case). Note that a AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes. The ability to define only one interface for both makes it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. We use `sycl::dynamic_extent`  to differentiate between static and dynamic sizes.
+
+IMPORTANT: In the current implementation, only the static extent is supported
+
+
+#### Layout
+Besides row major and column major layouts, `matrix_layout` is flexible enough to introduce customed layouts such as symmetric or tiled layouts.
+	
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+enum class matrix_layout {
+  row_major,
+  col_major,
+  packed_a,
+  packed_b
+};
+}
+```
+
+AMX hardware requires B matrix to be in VNNI or 32 bits packed layout. If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed shape for B tile uses the VNNI format, which is described below. The user must provide the information of packed_b layout to make the implementation allocate the right shape. The layout information for AMX should be specified in user code as follows: 
+
+```c++
+joint_matrix<sub_group, int8_t, K, N, packed_b> tB(sg);
+```   
+IMPORTANT: In the current implementation, only `packed_b` layout is necessary to specify on matrix B, the layout on other matrices is ignored.
+
+
+
+## Matrix Operations and their Execution Scope
+We define three new functions needed to perform the main and common operations on matrices namely, load, store, and the actual multiply and add operation. This set of functions can be easily extended if the tensor hardware implements new features.
+
+The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data are being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed_a`, `packed_b`). `stride` describes the number of elements between consecutive rows for row major and packed layout,  columns for column major layout. 
+
+Note that for getting maximum performance on AMX, prepacking data in the memory is necessary. If users did not specify the packed layouts (`packed_a` in column major case, `packed_b` in row major case), transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A and/or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
+	
+IMPORTANT: In the current implementation, the layout in the load of matrix B must be `packed_b`.  Therefore, both the template parameter for the declaration of the B matrix and the call to `joint_matrix_load` for the B matrix must specify the `packed_b` layout.  The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C must also be `row_major`.
+
+Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a subgroup. These functions will be called once by each work item in the group.
+
+To be aligned with the SYCL 2020 group algorithms, an additional group argument is added to the matrix operations to designate that these functions are collective operations. The {dpcpp} syntax is the following: 
+
+IMPORTANT: In the current implementation, only the subgroup scope is supported. Moreover, a kernel using this extension must be decorated with the [[sycl::reqd_sub_group_size(1)]] attribute. 
+
+#### Load 
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+  template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout,
+          access::address_space Space>
+  void joint_matrix_load(Group sg, joint_matrix<Group, T, NumRows, NumCols, Layout> &res,
+		    multi_ptr<T, Space> src, size_t stride, matrix_layout layout = matrix_layout::row_major);
+}
+```
+This function loads data from memory to the 2d tiles of AMX that is a 2d storage.
+
+
+#### Store 
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+  template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout,
+          access::address_space Space>	  
+  void joint_matrix_store(Group sg, joint_matrix<Group, T, NumRows, NumCols, Layout> &res,
+		     multi_ptr<T, Space> src, size_t stride, matrix_layout layout = matrix_layout::row_major);
+}
+```
+This function stores the data from the 2d tiles back to memory.
+
+#### Multiply and Add
+
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+  template <typename Group, typename T1, typename T2, std::size_t M,
+          std::size_t K, std::size_t N,
+	  matrix_layout LayoutA, matrix_layout LayoutB,
+          matrix_layout LayoutC>
+  joint_matrix<Group, T2, M, N, LayoutC> joint_matrix_mad(Group sg, joint_matrix<Group, T1, M, K, LayoutA> A,
+               joint_matrix<Group, T1, K, N, LayoutB> B, joint_matrix<Group, T2, M, N, LayoutC> C);
+}
+```
+The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulate the result with `C` and return the result.
+
+
+## VNNI/Packed Layout
+AMX compute assumes register for B tile (src1) to be in VNNI format as they need 32bit of K-data in A and B to be contiguous in memory.
+The VNNI blocking factor is 2 in the case of 16-bit types, and it is 4 in the case of 8-bit types. While the current implementation assumes that the matrix has been already packed by the user for performance reasons, the layout information is needed to inform the implementation about this transform.  The following example illustrates how a matrix in `row_major` layout is transformed into the `packed_b` layout for a 16-bit type.
+
+#### Example 1: 16-bit elements
+      // Example of a 4 row x 4 column matrix using a 16-bit data element, in row-major layout.
+      // Element a1 is contiguous in memory with element b1, etc.
+      // ---------------------------------
+      // a1, b1, c1, d1
+      // a2, b2, c2, d2
+      // a3, b3, c3, d3
+      // a4, b4, c4, d4
+      // ---------------------------------
+      // The same matrix reformatted in packed_b layout. 
+      // Here, packing of 2 elements is needed to form 32 bits.
+      // Element a1 is contiguous in memory with element a2, etc.
+      // ---------------------------------
+      // a1, a2, b1, b2, c1, c2, d1, d2
+      // a3, a4, b3, b4, c3, c4, d3, d4
+
+#### Example 2: 8-bit elements
+
+      // Example of a 4 row x 4 column matrix using a 8-bit data element, in row-major layout.
+      // Element a1 is contiguous in memory with element b1, etc.
+      // ---------------------------------
+      // a1, b1, c1, d1
+      // a2, b2, c2, d2
+      // a3, b3, c3, d3
+      // a4, b4, c4, d4
+      // ---------------------------------
+      // The same matrix reformatted in packed_b layout.  
+      // Here, packing of 4 elements is needed to form 32 bits.
+      // Elements a1, a2, a3, a4 are contiguous in memory, etc.
+      // ---------------------------------
+      // a1, a2, a3, a4, b1, b2, b3, b4, c1, c2, c3, c4, d1, d2, d3, d4
+
+
+## Example using int8_t type
+```c++
+using namespace sycl::ext::intel::experimental::matrix;
+
+queue q;
+range<2> G = {M, N};
+// For this first implementation, SG_SIZE has to be equal to one
+range<2> L = {1, SG_SIZE};
+int8_t *memA = malloc_shared<int8_t>(M*K, q);
+int8_t *memB = malloc_shared<int8_t>(K*N, q);
+Int32_t *memC = malloc_shared<int32_t>(M*N, q);
+// Assuming memB has already been VNNIed
+q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)                            
+  [[sycl::reqd_sub_group_size(SG_SIZE)]] {
+   const auto global_idx = item.get_global_id(0);
+   const auto global_idy = item.get_global_id(1);
+   const auto sg_startx = global_idx - item.get_local_id(0);
+   const auto sg_starty = global_idy - item.get_local_id(1);
+   sub_group sg = item.get_sub_group();
+   joint_matrix<sub_group, int8_t, tM, tK> tA(sg);
+   // For B, since current implementation does not support non packed layout,
+   // users need to specify the updated VNNI sizes along with the packed_b layout
+   joint_matrix<sub_group, int8_t, tK, tN, packed_b> tB(sg);
+   joint_matrix<sub_group, int32_t, tM, tN> tC(sg);
+   joint_matrix_load(sg, tC, memC + sg_startx * tM * N + sg_starty, N, matrix_layout::row_major);
+   for (int k = 0; k < K; k += tk) {
+     joint_matrix_load(sg, tA, memA + sg_startx * tM * K + k, K, matrix_layout::row_major);
+     joint_matrix_load(sg, tB, memB + k * N + sg_starty, N, matrix_layout::packed_b); // VNNI
+     tC = joint_matrix_mad(sg, tA, tB, tC);
+   }
+   joint_matrix_store(sg, tC, memC + sg_startx * tM * N + sg_starty, N, matrix_layout::row_major);
+}).wait();
+  
+```
+## Implementation Status
+For oneAPI release 3, an AOT implementation is available on the CPU device to targets AMX hardware. we are using AMX tile intrinsics to implement the matrix load and store operations. Since we are currently emitting AMX intrinsics directly, this only enables AOT compilation. 
+
+Currently, this is the compilation command line needed to invoke AMX unit of Sapphire Rapids CPU:
+
+```c++
+clang++ -fsycl -march=sapphirerapids fsycl-targets="spir64_x86_64-uknown-linux-sycldevice"  -O2 matmul-int8.cpp -o matmul-int8
+```
+
+Please refer to the section "Future Implementation Work" that talks about the future unified SPIR-V path that will enable JIT compilation.
+
+### Current Implementation Restrictions
+This section summarizes the specific features that this implementation supports. In future versions of this API and implementation, the expectation is to provide a query interface to guide the usage of this API. 
+
+#### Type, Sizes, and Layouts
+The types supported by this AMX implementation are restricted to the types that AMX hardware support. Although the AMX hardware supports 2d tiles with a maximum size of 16x64 bytes, this current implementation can handle any size. If the matrix size is bigger than 1024 bytes, it will be stored in memory rather than mapped to a 2d tile. Performance penalty may occur in this case. In order to get the best performance with this implementation, matrix sizes should be no larger than 16x64 bytes and B matrix should be already packed (put in VNNI format).
+
+More specifically, the following operation C = A*B+C can be performed on AMX with this interface where:
+
+A(int8, any-size, row_major), B(int8, any-size, packed_b), C(int32, any-size, row_major)
+
+or 
+
+A(bf16, any-size, row_major), B(bf16, any-size, packed_b), C(float, any-size, row_major).
+
+No other types or layouts are supported at this time.
+
+#### Memory and Execution Scope
+This current implementation only considers a sub-group scope. However, the sub-group size has to be equal to one in this first implementation. In this case, a kernel using this extension must be decorated with the [[sycl::reqd_sub_group_size(1)]] attribute.
+
+
+## Future Implementation Work
+
+### Unified LLVM IR and SPIRV JIT Enabling
+To enable JIT compilation, a unified matrix IR needs to be added. Currently, there is no matrix type in LLVM IR or SPIR-V. We are working towards adding a new matrix type in both LLVM IR and SPIR-V. This JIT enabling is expected to be part of a future compiler release.
+
+#### LLVM IR Extension
+As a short-term solution, we are extending the https://llvm.org/docs/LangRef.html#llvm-matrix-transpose-intrinsic[existing LLVM IR matrix intrinsics] to include features like VNNI layout. The current matrix intrinsics use flattened vectors to represent the matrix. Therefore, we are exploring both adding matrix type to LLVM IR and also using MLIR `vector` dialect for this work. 
+
+#### SPIR-V Extension
+The current draft proposal can be found https://gitlab.devtools.intel.com/OpenCL/opencl-extension-drafts/-/blob/master/SPV_INTEL_matrix.asciidoc[here]. 
+We are adding translation from LLVM IR matrix to SPIR-V matrix and vice versa in the LLVM to SPIR-V translator tool.
+
+## Future-looking API
+
+
+### Memory scope
+The current experimental API uses `joint_` semantics to define the memory scope of the matrix. The long term solution is to use the proposed https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/LocalMemory/SYCL_INTEL_local_memory.asciidoc[`group_local_memory` extension] to allocate the matrix in local memory associated with a SYCL group as shown in the example below.
+
+
+```c++
+multi_ptr<matrix<T>, address_space::local_space> tA_ptr = group_local_memory<matrix<sub_group, int8_t, tM, tN>>(sg);
+```
+We did not utilize this extension for this matrix API version because sub-group local memory is not yet well defined in {dpcpp}. Moreover, the representation of this notion in LLVM IR and SPIR-V is not clear yet. 
+
+
+## Open Questions
+- Besides row, col major and packed (VNNI) layout, what are the additional layouts that should absolutely be added?
+- Are there alternative names for the `packed_a` and `packed_b` layouts that would be clearer to distinguish between the VNNI Layout in matrix A and VNNI layout in matrix B of a matrix multiply and add operation on AMX?
+- Ronan Keryell: "It would be interesting to investigate whether providing also member functions would simplify the API. Provide both so it is possible to use the best one for each use case, while waiting for https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax to land into C++?"
+- What should the API description include: (1) only features that are implemented, (2) features that are actually part of the API: currently implemented and the ones that we expect implementing them in the future. Specifically, should the document include things like dynamic_ extent and Group? These are part of the API but are not currently implemented.
+
+## TODO List
+- Handle sub group sizes that are bigger than one.
+- Add support for queries that gives information about the capabilities of the implementation on a particular device.
+- Once the SPIRV translator work is done, this code generation work will move to the backend along enabling JIT compilation.
+
+## Revision History
+
+[frame="none",options="header"]
+|======================
+|Rev |Date       |Author     |Changes
+|1   |2021-04-13 |Dounia Khaldi |Initial public working draft.
+|======================

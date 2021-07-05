@@ -10,16 +10,18 @@
 
 #include <cuda.h>
 
+#include "TestGetPlatforms.hpp"
 #include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
+#include <CL/sycl/backend/cuda.hpp>
 #include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
-struct CudaTestQueue : public ::testing::Test {
+struct CudaTestQueue : public ::testing::TestWithParam<platform> {
 
 protected:
   detail::plugin plugin = pi::initializeAndGet(backend::cuda);
@@ -148,4 +150,16 @@ TEST_F(CudaTestQueue, PICreateQueueInterop) {
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piQueueRelease>(queue)),
             PI_SUCCESS);
+}
+
+TEST_P(CudaTestQueue, SYCLQueueDefaultStream) {
+  std::vector<device> CudaDevices = GetParam().get_devices();
+  auto deviceA_ = CudaDevices[0];
+  queue Queue(deviceA_, async_handler{},
+              {property::queue::cuda::use_default_stream{}});
+
+  CUstream CudaStream = get_native<backend::cuda>(Queue);
+  unsigned int flags;
+  cuStreamGetFlags(CudaStream, &flags);
+  ASSERT_EQ(flags, CU_STREAM_DEFAULT);
 }
