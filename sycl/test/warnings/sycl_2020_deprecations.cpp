@@ -4,6 +4,7 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=1.2.1 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 #include <CL/sycl.hpp>
+#include <CL/sycl/ONEAPI/atomic_fence.hpp>
 
 int main() {
   cl_context ClCtx;
@@ -99,6 +100,10 @@ int main() {
   // expected-warning@+1{{'max_constant_args' is deprecated: max_constant_args is deprecated}}
   auto MCA = sycl::info::device::max_constant_args;
   (void)MCA;
+
+
+  // expected-warning@+1{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
+  sycl::ONEAPI::atomic_fence(sycl::ONEAPI::memory_order::relaxed, sycl::ONEAPI::memory_scope::work_group);
 
   return 0;
 }

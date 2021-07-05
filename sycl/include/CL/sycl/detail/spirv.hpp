@@ -216,24 +216,25 @@ EnableIfGenericBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
 
 // Single happens-before means semantics should always apply to all spaces
 // Although consume is unsupported, forwarding to acquire is valid
+template <typename T>
 static inline constexpr __spv::MemorySemanticsMask::Flag
-getMemorySemanticsMask(ONEAPI::memory_order Order) {
+getMemorySemanticsMask(T Order) {
   __spv::MemorySemanticsMask::Flag SpvOrder = __spv::MemorySemanticsMask::None;
   switch (Order) {
-  case ONEAPI::memory_order::relaxed:
+  case T::relaxed:
     SpvOrder = __spv::MemorySemanticsMask::None;
     break;
-  case ONEAPI::memory_order::__consume_unsupported:
-  case ONEAPI::memory_order::acquire:
+  case T::__consume_unsupported:
+  case T::acquire:
     SpvOrder = __spv::MemorySemanticsMask::Acquire;
     break;
-  case ONEAPI::memory_order::release:
+  case T::release:
     SpvOrder = __spv::MemorySemanticsMask::Release;
     break;
-  case ONEAPI::memory_order::acq_rel:
+  case T::acq_rel:
     SpvOrder = __spv::MemorySemanticsMask::AcquireRelease;
     break;
-  case ONEAPI::memory_order::seq_cst:
+  case T::seq_cst:
     SpvOrder = __spv::MemorySemanticsMask::SequentiallyConsistent;
     break;
   }
