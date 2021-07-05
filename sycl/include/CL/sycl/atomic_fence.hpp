@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/memory_enums.hpp>
 #include <CL/sycl/detail/spirv.hpp>
+#include <CL/sycl/memory_enums.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>
@@ -33,4 +33,3 @@ static inline void atomic_fence(memory_order order, memory_scope scope) {
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
-

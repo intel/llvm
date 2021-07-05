@@ -41,8 +41,7 @@ inline constexpr auto memory_order_seq_cst = memory_order::seq_cst;
 #ifndef __SYCL_DEVICE_ONLY__
 namespace detail {
 
-static constexpr std::memory_order
-getStdMemoryOrder(sycl::memory_order order) {
+static constexpr std::memory_order getStdMemoryOrder(sycl::memory_order order) {
   switch (order) {
   case memory_order::relaxed:
     return std::memory_order_relaxed;

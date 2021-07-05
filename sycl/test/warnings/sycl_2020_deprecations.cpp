@@ -101,9 +101,9 @@ int main() {
   auto MCA = sycl::info::device::max_constant_args;
   (void)MCA;
 
-
   // expected-warning@+1{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
-  sycl::ONEAPI::atomic_fence(sycl::ONEAPI::memory_order::relaxed, sycl::ONEAPI::memory_scope::work_group);
+  sycl::ONEAPI::atomic_fence(sycl::ONEAPI::memory_order::relaxed,
+                             sycl::ONEAPI::memory_scope::work_group);
 
   return 0;
 }
