@@ -9,8 +9,18 @@ struct FuncObj {
   [[intel::fpga_pipeline]] void operator()() const {}
 };
 
+[[intel::fpga_pipeline(1)]] void func() {}
+
+class KernelFunctor {
+public:
+  void operator()() const {
+    func();
+  }
+};
+
 int main() {
   q.submit([&](handler &h) {
+    // Test attribute is propagated to the kernel.
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
     // CHECK:       SYCLIntelFpgaPipelineAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
@@ -18,25 +28,33 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     h.single_task<class test_kernel1>(FuncObj());
 
+    // Test attribute is not propagated to the kernel.
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
+    // CHECK-NOT:   SYCLIntelFpgaPipelineAttr {{.*}}
+    KernelFunctor f1;
+    h.single_task<class test_kernel2>(f1);
+
+    // Test attribute is presented on LambdaExpr called by kernel.
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelFpgaPipelineAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 0
     // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
-    h.single_task<class test_kernel2>(
+    h.single_task<class test_kernel3>(
         []() [[intel::fpga_pipeline(0)]]{});
 
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
+    // Test attribute is presented on LambdaExpr called by kernel.
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
     // CHECK: SYCLIntelFpgaPipelineAttr{{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    h.single_task<class test_kernel3>(
+    h.single_task<class test_kernel4>(
         []() [[intel::fpga_pipeline(1)]]{});
 
     // Ignore duplicate attribute.
-    h.single_task<class test_kernel4>(
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
+    h.single_task<class test_kernel5>(
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
     // CHECK:       SYCLIntelFpgaPipelineAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
@@ -45,15 +63,15 @@ int main() {
                intel::fpga_pipeline]]{});
 
     // expected-error@+2{{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
-    h.single_task<class test_kernel5>(
+    h.single_task<class test_kernel6>(
         []() [[intel::fpga_pipeline("foo")]]{});
 
-    h.single_task<class test_kernel6>([]() {
+    h.single_task<class test_kernel7>([]() {
       // expected-error@+1{{'fpga_pipeline' attribute only applies to 'for', 'while', 'do' statements, and functions}}
       [[intel::fpga_pipeline(1)]] int a;
     });
 
-    h.single_task<class test_kernel7>(
+    h.single_task<class test_kernel8>(
         []() [[intel::fpga_pipeline(0),      // expected-note {{previous attribute is here}}
 	       intel::fpga_pipeline(1)]]{});  // expected-warning{{attribute 'fpga_pipeline' is already applied with different arguments}}
   });
