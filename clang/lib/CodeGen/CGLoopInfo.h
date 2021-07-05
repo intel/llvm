@@ -160,7 +160,7 @@ struct LoopAttributes {
   /// Flag for llvm.loop.fusion.disable metatdata.
   bool SYCLNofusionEnable;
 
-  /// Value for fpga_pipleline variant and metadata.
+  /// Value for fpga_pipeline variant and metadata.
   llvm::SmallVector<std::pair<const char *, unsigned int>, 2>
       SYCLIntelFPGANPipelines;
 
