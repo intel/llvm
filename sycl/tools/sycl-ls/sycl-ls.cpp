@@ -16,15 +16,13 @@
 // In verbose mode it also prints, which devices would be chosen by various SYCL
 // device selectors.
 //
-#include <CL/sycl.hpp>
-//#include <sycl/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cstdlib>
 #include <iostream>
 #include <stdlib.h>
 
-using namespace cl::sycl;
-//using namespace sycl;
+using namespace sycl; 
 
 // Controls verbose output vs. concise.
 bool verbose;

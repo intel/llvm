@@ -5008,8 +5008,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     VisitedSpecConstants.insert(VD);
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, Policy, VD);
-    OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
-    OS << "namespace sycl {\n";
+    OS << "namespace __sycl_internal {\n";
+    OS << "inline namespace __v1 {\n";
     OS << "namespace detail {\n";
     OS << "template<>\n";
     OS << "inline const char *get_spec_constant_symbolic_ID<";
@@ -5049,8 +5049,8 @@ bool Util::isSyclStreamType(QualType Ty) { return isSyclType(Ty, "stream"); }
 
 bool Util::isSyclHalfType(QualType Ty) {
   std::array<DeclContextDesc, 5> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__sycl_internal"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__v1"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "detail"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "half_impl"),
       Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "half")};
@@ -5059,8 +5059,8 @@ bool Util::isSyclHalfType(QualType Ty) {
 
 bool Util::isSyclSpecConstantType(QualType Ty) {
   std::array<DeclContextDesc, 5> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__sycl_internal"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__v1"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ONEAPI"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
@@ -5070,8 +5070,8 @@ bool Util::isSyclSpecConstantType(QualType Ty) {
 
 bool Util::isSyclSpecIdType(QualType Ty) {
   std::array<DeclContextDesc, 3> Scopes = {
-      Util::MakeDeclContextDesc(clang::Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(clang::Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(clang::Decl::Kind::Namespace, "__sycl_internal"),
+      Util::MakeDeclContextDesc(clang::Decl::Kind::Namespace, "__v1"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "specialization_id")};
   return matchQualifiedTypeName(Ty, Scopes);
@@ -5079,16 +5079,16 @@ bool Util::isSyclSpecIdType(QualType Ty) {
 
 bool Util::isSyclKernelHandlerType(QualType Ty) {
   std::array<DeclContextDesc, 3> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__sycl_internal"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__v1"),
       Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "kernel_handler")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
   std::array<DeclContextDesc, 6> Scopes = {
-      Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "__sycl_internal"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "__v1"},
       Util::DeclContextDesc{Decl::Kind::Namespace, "ONEAPI"},
       Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
       Util::DeclContextDesc{Decl::Kind::CXXRecord, "no_alias"},
@@ -5099,8 +5099,8 @@ bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
 
 bool Util::isSyclBufferLocationType(QualType Ty) {
   std::array<DeclContextDesc, 6> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__sycl_internal"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__v1"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "INTEL"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
       Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "buffer_location"),
@@ -5113,8 +5113,8 @@ bool Util::isSyclType(QualType Ty, StringRef Name, bool Tmpl) {
   Decl::Kind ClassDeclKind =
       Tmpl ? Decl::Kind::ClassTemplateSpecialization : Decl::Kind::CXXRecord;
   std::array<DeclContextDesc, 3> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__sycl_internal"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__v1"),
       Util::MakeDeclContextDesc(ClassDeclKind, Name)};
   return matchQualifiedTypeName(Ty, Scopes);
 }
@@ -5129,15 +5129,15 @@ bool Util::isSyclFunction(const FunctionDecl *FD, StringRef Name) {
     return false;
 
   std::array<DeclContextDesc, 2> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl")};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__sycl_internal"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__v1")};
   return matchContext(DC, Scopes);
 }
 
 bool Util::isAccessorPropertyListType(QualType Ty) {
   std::array<DeclContextDesc, 4> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__sycl_internal"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "__v1"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ONEAPI"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "accessor_property_list")};
