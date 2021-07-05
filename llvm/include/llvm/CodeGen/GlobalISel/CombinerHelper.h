@@ -522,6 +522,8 @@ public:
   /// or false constant based off of KnownBits information.
   bool matchICmpToTrueFalseKnownBits(MachineInstr &MI, int64_t &MatchInfo);
 
+  bool matchBitfieldExtractFromSExtInReg(
+      MachineInstr &MI, std::function<void(MachineIRBuilder &)> &MatchInfo);
   /// Match: and (lshr x, cst), mask -> ubfx x, cst, width
   bool matchBitfieldExtractFromAnd(
       MachineInstr &MI, std::function<void(MachineIRBuilder &)> &MatchInfo);
@@ -530,16 +532,25 @@ public:
   /// combine functions. Returns true if changed.
   bool tryCombine(MachineInstr &MI);
 
+  /// Emit loads and stores that perform the given memcpy.
+  /// Assumes \p MI is a G_MEMCPY_INLINE
+  /// TODO: implement dynamically sized inline memcpy,
+  ///       and rename: s/bool tryEmit/void emit/
+  bool tryEmitMemcpyInline(MachineInstr &MI);
+
 private:
   // Memcpy family optimization helpers.
+  bool tryEmitMemcpyInline(MachineInstr &MI, Register Dst, Register Src,
+                           uint64_t KnownLen, Align DstAlign, Align SrcAlign,
+                           bool IsVolatile);
   bool optimizeMemcpy(MachineInstr &MI, Register Dst, Register Src,
-                      unsigned KnownLen, Align DstAlign, Align SrcAlign,
-                      bool IsVolatile);
+                      uint64_t KnownLen, uint64_t Limit, Align DstAlign,
+                      Align SrcAlign, bool IsVolatile);
   bool optimizeMemmove(MachineInstr &MI, Register Dst, Register Src,
-                       unsigned KnownLen, Align DstAlign, Align SrcAlign,
+                       uint64_t KnownLen, Align DstAlign, Align SrcAlign,
                        bool IsVolatile);
   bool optimizeMemset(MachineInstr &MI, Register Dst, Register Val,
-                      unsigned KnownLen, Align DstAlign, bool IsVolatile);
+                      uint64_t KnownLen, Align DstAlign, bool IsVolatile);
 
   /// Given a non-indexed load or store instruction \p MI, find an offset that
   /// can be usefully and legally folded into it as a post-indexing operation.

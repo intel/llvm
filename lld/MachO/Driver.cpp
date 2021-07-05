@@ -841,6 +841,20 @@ static std::vector<SectionAlign> parseSectAlign(const opt::InputArgList &args) {
 }
 
 static bool dataConstDefault(const InputArgList &args) {
+  static const std::map<PlatformKind, VersionTuple> minVersion = {
+      {PlatformKind::macOS, VersionTuple(10, 15)},
+      {PlatformKind::iOS, VersionTuple(13, 0)},
+      {PlatformKind::iOSSimulator, VersionTuple(13, 0)},
+      {PlatformKind::tvOS, VersionTuple(13, 0)},
+      {PlatformKind::tvOSSimulator, VersionTuple(13, 0)},
+      {PlatformKind::watchOS, VersionTuple(6, 0)},
+      {PlatformKind::watchOSSimulator, VersionTuple(6, 0)},
+      {PlatformKind::bridgeOS, VersionTuple(4, 0)}};
+  auto it = minVersion.find(config->platformInfo.target.Platform);
+  if (it != minVersion.end())
+    if (config->platformInfo.minimum < it->second)
+      return false;
+
   switch (config->outputType) {
   case MH_EXECUTE:
     return !args.hasArg(OPT_no_pie);
@@ -1080,7 +1094,9 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   config->emitBitcodeBundle = args.hasArg(OPT_bitcode_bundle);
   config->emitDataInCodeInfo =
       args.hasFlag(OPT_data_in_code_info, OPT_no_data_in_code_info, true);
-  config->dedupLiterals = args.hasArg(OPT_deduplicate_literals);
+  config->icfLevel = getICFLevel(args);
+  config->dedupLiterals = args.hasArg(OPT_deduplicate_literals) ||
+                          config->icfLevel != ICFLevel::none;
 
   // FIXME: Add a commandline flag for this too.
   config->zeroModTime = getenv("ZERO_AR_DATE");
@@ -1122,8 +1138,6 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
                                 : NamespaceKind::flat;
 
   config->undefinedSymbolTreatment = getUndefinedSymbolTreatment(args);
-
-  config->icfLevel = getICFLevel(args);
 
   if (config->outputType == MH_EXECUTE)
     config->entry = symtab->addUndefined(args.getLastArgValue(OPT_e, "_main"),

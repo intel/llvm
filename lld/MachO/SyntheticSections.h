@@ -46,7 +46,7 @@ public:
     return sec->kind() == SyntheticKind;
   }
 
-  const StringRef segname;
+  StringRef segname;
   // This fake InputSection makes it easier for us to write code that applies
   // generically to both user inputs and synthetics.
   InputSection *isec;
@@ -518,16 +518,27 @@ private:
   uint64_t xarSize;
 };
 
-class CStringSection final : public SyntheticSection {
+class CStringSection : public SyntheticSection {
 public:
   CStringSection();
   void addInput(CStringInputSection *);
-  uint64_t getSize() const override { return builder.getSize(); }
-  void finalize() override;
+  uint64_t getSize() const override { return size; }
+  virtual void finalizeContents();
   bool isNeeded() const override { return !inputs.empty(); }
-  void writeTo(uint8_t *buf) const override { builder.write(buf); }
+  void writeTo(uint8_t *buf) const override;
 
   std::vector<CStringInputSection *> inputs;
+
+private:
+  uint64_t size;
+};
+
+class DeduplicatedCStringSection final : public CStringSection {
+public:
+  DeduplicatedCStringSection();
+  uint64_t getSize() const override { return builder.getSize(); }
+  void finalizeContents() override;
+  void writeTo(uint8_t *buf) const override { builder.write(buf); }
 
 private:
   llvm::StringTableBuilder builder;

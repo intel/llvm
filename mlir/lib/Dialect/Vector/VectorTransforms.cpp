@@ -37,6 +37,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/Interfaces/VectorInterfaces.h"
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -2299,7 +2300,7 @@ static Value createInBoundsCond(OpBuilder &b,
     Value sum =
         makeComposedAffineApply(b, loc, d0 + vs, xferOp.indices()[indicesIdx]);
     Value cond = createFoldedSLE(
-        b, sum, lb.create<memref::DimOp>(xferOp.source(), indicesIdx));
+        b, sum, createOrFoldDimOp(b, loc, xferOp.source(), indicesIdx));
     if (!cond)
       return;
     // Conjunction over all dims for which we are in-bounds.
@@ -2384,7 +2385,8 @@ static Value createSubViewIntersection(OpBuilder &b,
   auto isaWrite = isa<vector::TransferWriteOp>(xferOp);
   xferOp.zipResultAndIndexing([&](int64_t resultIdx, int64_t indicesIdx) {
     using MapList = ArrayRef<ArrayRef<AffineExpr>>;
-    Value dimMemRef = lb.create<memref::DimOp>(xferOp.source(), indicesIdx);
+    Value dimMemRef =
+        createOrFoldDimOp(b, xferOp.getLoc(), xferOp.source(), indicesIdx);
     Value dimAlloc = lb.create<memref::DimOp>(alloc, resultIdx);
     Value index = xferOp.indices()[indicesIdx];
     AffineExpr i, j, k;
@@ -2792,25 +2794,6 @@ LogicalResult mlir::vector::VectorTransferFullPartialRewriter::matchAndRewrite(
   return failure();
 }
 
-LogicalResult mlir::vector::PointwiseExtractPattern::matchAndRewrite(
-    ExtractMapOp extract, PatternRewriter &rewriter) const {
-  Operation *definedOp = extract.vector().getDefiningOp();
-  if (!definedOp || definedOp->getNumResults() != 1)
-    return failure();
-  // TODO: Create an interfaceOp for elementwise operations.
-  if (!isa<AddFOp>(definedOp))
-    return failure();
-  Location loc = extract.getLoc();
-  SmallVector<Value, 4> extractOperands;
-  for (OpOperand &operand : definedOp->getOpOperands())
-    extractOperands.push_back(rewriter.create<vector::ExtractMapOp>(
-        loc, extract.getResultType(), operand.get(), extract.ids()));
-  Operation *newOp = cloneOpWithOperandsAndTypes(
-      rewriter, loc, definedOp, extractOperands, extract.getResult().getType());
-  rewriter.replaceOp(extract, newOp->getResult(0));
-  return success();
-}
-
 Optional<mlir::vector::DistributeOps> mlir::vector::distributPointwiseVectorOp(
     OpBuilder &builder, Operation *op, ArrayRef<Value> ids,
     ArrayRef<int64_t> multiplicity, const AffineMap &map) {
@@ -2841,6 +2824,91 @@ Optional<mlir::vector::DistributeOps> mlir::vector::distributPointwiseVectorOp(
       builder.create<vector::InsertMapOp>(loc, ops.extract, result, ids);
   return ops;
 }
+
+/// Canonicalize an extract_map using the result of a pointwise operation.
+/// Transforms:
+/// %v = addf %a, %b : vector32xf32>
+/// %dv = vector.extract_map %v[%id] : vector<32xf32> to vector<1xf32>
+/// to:
+/// %da = vector.extract_map %a[%id] : vector<32xf32> to vector<1xf32>
+/// %db = vector.extract_map %a[%id] : vector<32xf32> to vector<1xf32>
+/// %dv = addf %da, %db : vector<1xf32>
+struct PointwiseExtractPattern : public OpRewritePattern<vector::ExtractMapOp> {
+  using OpRewritePattern<vector::ExtractMapOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(vector::ExtractMapOp extract,
+                                PatternRewriter &rewriter) const override {
+    Operation *definedOp = extract.vector().getDefiningOp();
+    if (!definedOp || !OpTrait::hasElementwiseMappableTraits(definedOp) ||
+        definedOp->getNumResults() != 1)
+      return failure();
+    Location loc = extract.getLoc();
+    SmallVector<Value, 4> extractOperands;
+    for (OpOperand &operand : definedOp->getOpOperands()) {
+      auto vecType = operand.get().getType().template dyn_cast<VectorType>();
+      if (!vecType) {
+        extractOperands.push_back(operand.get());
+        continue;
+      }
+      extractOperands.push_back(rewriter.create<vector::ExtractMapOp>(
+          loc,
+          VectorType::get(extract.getResultType().getShape(),
+                          vecType.getElementType()),
+          operand.get(), extract.ids()));
+    }
+    Operation *newOp = cloneOpWithOperandsAndTypes(
+        rewriter, loc, definedOp, extractOperands, extract.getResultType());
+    rewriter.replaceOp(extract, newOp->getResult(0));
+    return success();
+  }
+};
+
+/// Canonicalize an extract_map using the result of a contract operation.
+/// This propagate the extract_map to operands.
+struct ContractExtractPattern : public OpRewritePattern<vector::ExtractMapOp> {
+  using OpRewritePattern<vector::ExtractMapOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(vector::ExtractMapOp extract,
+                                PatternRewriter &rewriter) const override {
+    Operation *definedOp = extract.vector().getDefiningOp();
+    auto contract = dyn_cast_or_null<vector::ContractionOp>(definedOp);
+    if (!contract)
+      return failure();
+    Location loc = contract.getLoc();
+    unsigned accIndex = vector::ContractionOp::getAccOperandIndex();
+    AffineMap affineMap = contract.getIndexingMaps()[accIndex];
+    // Create a map of the dimensions distributed based on the acc affine map.
+    // Only parallel dimensions are being distributed, reduction dimensions are
+    // untouched.
+    DenseMap<int64_t, int64_t> map;
+    for (unsigned i : llvm::seq(unsigned(0), affineMap.getNumResults()))
+      map[affineMap.getDimPosition(i)] = extract.getResultType().getDimSize(i);
+    SmallVector<Value, 4> extractOperands;
+    for (auto it : llvm::enumerate(contract.getIndexingMaps())) {
+      // For each operands calculate the new vector type after distribution.
+      Value operand = contract->getOperand(it.index());
+      auto vecType = operand.getType().cast<VectorType>();
+      SmallVector<int64_t> operandShape(vecType.getShape().begin(),
+                                        vecType.getShape().end());
+      for (unsigned i : llvm::seq(unsigned(0), it.value().getNumResults())) {
+        unsigned dim = it.value().getDimPosition(i);
+        auto distributedDim = map.find(dim);
+        // If the dimension is not in the map it means it is a reduction and
+        // doesn't get distributed.
+        if (distributedDim == map.end())
+          continue;
+        operandShape[i] = distributedDim->second;
+      }
+      VectorType newVecType =
+          VectorType::get(operandShape, vecType.getElementType());
+      extractOperands.push_back(rewriter.create<vector::ExtractMapOp>(
+          loc, newVecType, operand, extract.ids()));
+    }
+    Operation *newOp =
+        cloneOpWithOperandsAndTypes(rewriter, loc, definedOp, extractOperands,
+                                    extract.getResult().getType());
+    rewriter.replaceOp(extract, newOp->getResult(0));
+    return success();
+  }
+};
 
 /// Converts TransferRead op used by ExtractMap op into a smaller dimension
 /// TransferRead.
@@ -3856,7 +3924,7 @@ public:
     unsigned vecWidth = vtp.getNumElements();
     unsigned lastIndex = llvm::size(xferOp.indices()) - 1;
     Value off = xferOp.indices()[lastIndex];
-    Value dim = rewriter.create<memref::DimOp>(loc, xferOp.source(), lastIndex);
+    Value dim = createOrFoldDimOp(rewriter, loc, xferOp.source(), lastIndex);
     Value mask = buildVectorComparison(
         rewriter, xferOp, enableIndexOptimizations, vecWidth, dim, &off);
 
@@ -3915,42 +3983,33 @@ struct InnerDimReductionConversion
     auto loc = multiReductionOp.getLoc();
     auto srcRank = multiReductionOp.getSourceVectorType().getRank();
 
-    auto reductionDims = llvm::to_vector<4>(
-        llvm::map_range(multiReductionOp.reduction_dims().cast<ArrayAttr>(),
-                        [](Attribute attr) -> int64_t {
-                          return attr.cast<IntegerAttr>().getInt();
-                        }));
-    llvm::sort(reductionDims);
-
-    int64_t reductionSize = multiReductionOp.reduction_dims().size();
-
-    // Fails if already inner most reduction.
-    bool innerMostReduction = true;
-    for (int i = 0; i < reductionSize; ++i) {
-      if (reductionDims[reductionSize - i - 1] != srcRank - i - 1) {
-        innerMostReduction = false;
-      }
+    // Separate reduction and parallel dims
+    auto reductionDimsRange =
+        multiReductionOp.reduction_dims().getAsValueRange<IntegerAttr>();
+    auto reductionDims = llvm::to_vector<4>(llvm::map_range(
+        reductionDimsRange, [](APInt a) { return a.getZExtValue(); }));
+    llvm::SmallDenseSet<int64_t> reductionDimsSet(reductionDims.begin(),
+                                                  reductionDims.end());
+    int64_t reductionSize = reductionDims.size();
+    SmallVector<int64_t, 4> parallelDims;
+    for (int64_t i = 0; i < srcRank; i++) {
+      if (!reductionDimsSet.contains(i))
+        parallelDims.push_back(i);
     }
-    if (innerMostReduction)
+
+    // Add transpose only if inner-most dimensions are not reductions
+    if (parallelDims ==
+        llvm::to_vector<4>(llvm::seq<int64_t>(0, parallelDims.size())))
       return failure();
 
-    // Permutes the indices so reduction dims are inner most dims.
-    SmallVector<int64_t> indices;
-    for (int i = 0; i < srcRank; ++i) {
-      indices.push_back(i);
-    }
-    int ir = reductionSize - 1;
-    int id = srcRank - 1;
-    while (ir >= 0) {
-      std::swap(indices[reductionDims[ir--]], indices[id--]);
-    }
-
-    // Sets inner most dims as reduction.
+    SmallVector<int64_t, 4> indices;
+    indices.append(parallelDims.begin(), parallelDims.end());
+    indices.append(reductionDims.begin(), reductionDims.end());
+    auto transposeOp = rewriter.create<vector::TransposeOp>(loc, src, indices);
     SmallVector<bool> reductionMask(srcRank, false);
     for (int i = 0; i < reductionSize; ++i) {
       reductionMask[srcRank - i - 1] = true;
     }
-    auto transposeOp = rewriter.create<vector::TransposeOp>(loc, src, indices);
     rewriter.replaceOpWithNewOp<vector::MultiDimReductionOp>(
         multiReductionOp, transposeOp.result(), reductionMask,
         multiReductionOp.kind());
@@ -4108,8 +4167,7 @@ void mlir::vector::populateVectorMaskMaterializationPatterns(
 // TODO: Add this as DRR pattern.
 void mlir::vector::populateVectorToVectorTransformationPatterns(
     RewritePatternSet &patterns) {
-  patterns.add<ShapeCastOpDecomposer, ShapeCastOpFolder, TupleGetFolderOp,
-               TransferReadExtractPattern, TransferWriteInsertPattern>(
+  patterns.add<ShapeCastOpDecomposer, ShapeCastOpFolder, TupleGetFolderOp>(
       patterns.getContext());
 }
 
@@ -4118,6 +4176,13 @@ void mlir::vector::populateSplitVectorTransferPatterns(
     std::function<bool(Operation *)> ignoreFilter) {
   patterns.add<SplitTransferReadOp, SplitTransferWriteOp>(patterns.getContext(),
                                                           ignoreFilter);
+}
+
+void mlir::vector::populatePropagateVectorDistributionPatterns(
+    RewritePatternSet &patterns) {
+  patterns.add<PointwiseExtractPattern, ContractExtractPattern,
+               TransferReadExtractPattern, TransferWriteInsertPattern>(
+      patterns.getContext());
 }
 
 void mlir::vector::populateCastAwayVectorLeadingOneDimPatterns(
