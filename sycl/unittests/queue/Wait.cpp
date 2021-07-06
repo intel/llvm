@@ -91,12 +91,6 @@ bool preparePiMock(platform &Plt) {
               << std::endl;
     return false;
   }
-  // TODO: Skip tests for CUDA temporarily
-  if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() == backend::cuda) {
-    std::cout << "Not run on CUDA - usm is not supported for CUDA backend yet"
-              << std::endl;
-    return false;
-  }
 
   unittest::PiMock Mock{Plt};
   Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
