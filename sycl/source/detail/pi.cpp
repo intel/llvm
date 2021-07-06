@@ -602,10 +602,12 @@ void fillPlatformAndDeviceCache(plugin &Plugin) {
       filterDeviceFilter(PiDevices, PiPlatform, Plugin, DeviceNum);
 
       if (PiDevices.size() != 0) {
+    {
         const std::lock_guard<std::mutex> Guard(
             GlobalHandler::instance().getPlatformMapMutex());
 
         PlatformCache.emplace_back(PlatformImpl);
+      }
         const std::lock_guard<std::mutex> DeviceCacheLock(
             GlobalHandler::instance().getDeviceCacheMutex());
         for (const RT::PiDevice &PiDevice : PiDevices) {
