@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -std=c++17 -triple x86_64-linux-gnu -fsycl-unnamed-lambda -fsycl-is-device -verify -fsyntax-only
+// RUN: %clang_cc1 %s -std=c++17 -triple x86_64-linux-gnu -fsycl-is-device -verify -fsyntax-only
 
 #include "Inputs/sycl.hpp"
 

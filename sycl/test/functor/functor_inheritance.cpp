@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple -o %t.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -o %t.out %s
 // RUN: %RUN_ON_HOST %t.out
 
 #include <CL/sycl.hpp>
