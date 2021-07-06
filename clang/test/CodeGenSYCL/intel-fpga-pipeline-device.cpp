@@ -18,33 +18,34 @@ public:
   [[intel::fpga_pipeline(SIZE)]] void operator()() const {}
 };
 
-[[intel::fpga_pipeline(1)]] void func() {}
+[[intel::fpga_pipeline(0)]] void func() {}
 
 int main() {
   q.submit([&](handler &h) {
-    //CHECK: define dso_local spir_kernel void @{{.*}}kernel_name1() #0 !kernel_arg_buffer_location ![[NUM:[0-9]+]]  !disable_loop_pipelining ![[NUM0:[0-9]+]]
+    //CHECK: define dso_local spir_kernel void @{{.*}}kernel_name1() {{.*}} !disable_loop_pipelining ![[NUM0:[0-9]+]]
     Foo boo;
     h.single_task<class kernel_name1>(boo);
 
-    // CHECK: define dso_local spir_kernel void @{{.*}}kernel_name2() #0 !kernel_arg_buffer_location ![[NUM]] !disable_loop_pipelining ![[NUM0]]
+    // CHECK: define dso_local spir_kernel void @{{.*}}kernel_name2() {{.*}} !disable_loop_pipelining ![[NUM0]]
     h.single_task<class kernel_name2>(
         []() [[intel::fpga_pipeline]]{});
 
-    // CHECK: define dso_local spir_kernel void @{{.*}}kernel_name3() #0 !kernel_arg_buffer_location ![[NUM]] !disable_loop_pipelining ![[NUM1:[0-9]+]]
+    // CHECK: define dso_local spir_kernel void @{{.*}}kernel_name3() {{.*}} !disable_loop_pipelining ![[NUM1:[0-9]+]]
     h.single_task<class kernel_name3>(
         []() [[intel::fpga_pipeline(0)]]{});
 
-    // CHECK: define dso_local spir_kernel void @{{.*}}kernel_name4() #0 !kernel_arg_buffer_location ![[NUM]] !disable_loop_pipelining ![[NUM0]]
+    // CHECK: define dso_local spir_kernel void @{{.*}}kernel_name4() {{.*}} !disable_loop_pipelining ![[NUM0]]
     Functor<1> f;
     h.single_task<class kernel_name4>(f);
 
-    // CHECK: define dso_local spir_kernel void @{{.*}}test_kernel5() #0 !kernel_arg_buffer_location ![[NUM]]
+    // Test attribute is not propagated to the kernel metadata i.e. spir_kernel.
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel5()
+    // CHECK-NOT: !disable_loop_pipelining
     h.single_task<class test_kernel5>(
         []() { func(); });
   });
   return 0;
 }
 
-// CHECK: ![[NUM]] = !{}
 // CHECK: ![[NUM0]] = !{i32 0}
 // CHECK: ![[NUM1]] = !{i32 1}
