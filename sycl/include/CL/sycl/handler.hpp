@@ -2261,10 +2261,10 @@ public:
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
   ///
-  /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
-  template <typename T> void copy(T *Dest, const T *Src, size_t Count) {
+  template <typename T> void copy(const T *Src, T *Dest, size_t Count) {
     this->memcpy(Dest, Src, Count * sizeof(T));
   }
 
