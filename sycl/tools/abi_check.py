@@ -60,7 +60,7 @@ def dump_symbols(target_path, output):
     out.write("\n# UNSUPPORTED: libcxx")
     out.write("\n\n")
     readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj",
-                                           "-t", target_path])
+                                           "--syms", target_path])
     symbols = parse_readobj_output(readobj_out)
     symbols.sort()
     out.write("\n".join(symbols))
@@ -84,7 +84,7 @@ def check_symbols(ref_path, target_path):
         ref_symbols.append(line.strip())
 
     readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj",
-                                           "-t", target_path])
+                                           "--syms", target_path])
     symbols = parse_readobj_output(readobj_out)
 
     missing_symbols, new_symbols = compare_results(ref_symbols, symbols)
