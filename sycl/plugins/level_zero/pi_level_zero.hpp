@@ -147,13 +147,13 @@ template <> zes_structure_type_t getZesStructureType<zes_pci_properties_t>() {
 // The helpers to properly default initialize Level-Zero descriptor and
 // properties structures.
 template <class T> struct ZeStruct : public T {
-  ZeStruct() { // default initializes base class
+  ZeStruct() : T{} { // zero initializes base struct
     this->stype = getZeStructureType<T>();
     this->pNext = nullptr;
   }
 };
 template <class T> struct ZesStruct : public T {
-  ZesStruct() { // default initializes base class
+  ZesStruct() : T{}  { // zero initializes base struct
     this->stype = getZesStructureType<T>();
     this->pNext = nullptr;
   }
