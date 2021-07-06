@@ -232,7 +232,7 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
         PI_INVALID_VALUE);
 
   if (Error != PI_SUCCESS) {
-    Plugin.reportPiError(Error, "piMemBufferPartition()");
+    Plugin.reportPiError(Error, "allocateMemSubBuffer()");
   }
 
   return NewMem;

@@ -1502,7 +1502,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
       const string_class ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
       throw sycl::exception(make_error_code(errc::build), ErrorMsg);
     }
-    Plugin.reportPiError(Error, "piProgramLink()");
+    Plugin.reportPiError(Error, "link()");
   }
 
   std::vector<kernel_id> KernelIDs;

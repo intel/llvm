@@ -362,7 +362,7 @@ void program_impl::create_cl_program_with_source(const string_class &Source) {
   }
 
   if (Err != PI_SUCCESS) {
-    Plugin.reportPiError(Err, "piclProgramCreateWithSource()");
+    Plugin.reportPiError(Err, "create_cl_program_with_source()");
   }
 }
 

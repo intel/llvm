@@ -351,7 +351,7 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
     return alloc::unknown;
   // otherwise PI_SUCCESS is expected
   if (Err != PI_SUCCESS) {
-    Plugin.reportPiError(Err, "piextUSMGetMemAllocInfo()");
+    Plugin.reportPiError(Err, "get_pointer_type()");
   }
 
   alloc ResultAlloc;
