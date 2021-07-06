@@ -24,7 +24,6 @@
 #include <thread>
 #include <utility>
 
-#include <level_zero/zes_api.h>
 #include <level_zero/zet_api.h>
 
 #include "usm_allocator.hpp"
@@ -524,7 +523,7 @@ pi_result _pi_device::initialize() {
   if (numQueueGroups == 0) {
     return PI_ERROR_UNKNOWN;
   }
-  std::vector<ze_command_queue_group_properties_t> QueueProperties(
+  std::vector<ZeStruct<ze_command_queue_group_properties_t>> QueueProperties(
       numQueueGroups);
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (ZeDevice, &numQueueGroups, QueueProperties.data()));
@@ -1169,7 +1168,7 @@ static bool setEnvVar(const char *name, const char *value) {
 
 pi_result _pi_platform::initialize() {
   // Cache driver properties
-  ze_driver_properties_t ZeDriverProperties;
+  ZeStruct<ze_driver_properties_t> ZeDriverProperties;
   ZE_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
   uint32_t DriverVersion = ZeDriverProperties.driverVersion;
   // Intel Level-Zero GPU driver stores version as:
@@ -1611,16 +1610,16 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   ZE_CALL(zeDeviceGetMemoryProperties,
           (ZeDevice, &ZeAvailMemCount, ZeDeviceMemoryProperties.data()));
 
-  ze_device_image_properties_t ZeDeviceImageProperties = {};
+  ZeStruct<ze_device_image_properties_t> ZeDeviceImageProperties;
   ZE_CALL(zeDeviceGetImageProperties, (ZeDevice, &ZeDeviceImageProperties));
 
-  ze_device_module_properties_t ZeDeviceModuleProperties = {};
+  ZeStruct<ze_device_module_properties_t> ZeDeviceModuleProperties;
   ZE_CALL(zeDeviceGetModuleProperties, (ZeDevice, &ZeDeviceModuleProperties));
 
   // TODO[1.0]: there can be multiple cache properites now, adjust.
   // For now remember the first one, if any.
   uint32_t Count = 0;
-  ze_device_cache_properties_t ZeDeviceCacheProperties = {};
+  ZeStruct<ze_device_cache_properties_t> ZeDeviceCacheProperties;
   ZE_CALL(zeDeviceGetCacheProperties, (ZeDevice, &Count, nullptr));
   if (Count > 0) {
     Count = 1;
@@ -2057,7 +2056,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       zePrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
       return PI_INVALID_VALUE;
     }
-    zes_pci_properties_t ZeDevicePciProperties = {};
+    ZesStruct<zes_pci_properties_t> ZeDevicePciProperties;
     ZE_CALL(zesDevicePciGetProperties, (ZeDevice, &ZeDevicePciProperties));
     std::stringstream ss;
     ss << ZeDevicePciProperties.address.domain << ":"
@@ -3365,7 +3364,7 @@ static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
   // Check if this module imports any symbols, which we need to know if we
   // end up linking this module later.  See comments in piProgramLink() for
   // details.
-  ze_module_properties_t ZeModuleProps;
+  ZeStruct<ze_module_properties_t> ZeModuleProps;
   ZE_CALL(zeModuleGetPropertiesMock, (ZeModule, &ZeModuleProps));
   Program->HasImports = (ZeModuleProps.flags & ZE_MODULE_PROPERTY_FLAG_IMPORTS);
 
@@ -3716,7 +3715,7 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
                           size_t *ParamValueSizeRet) {
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
 
-  ze_kernel_properties_t ZeKernelProperties = {};
+  ZeStruct<ze_kernel_properties_t> ZeKernelProperties;
   ZE_CALL(zeKernelGetProperties, (Kernel->ZeKernel, &ZeKernelProperties));
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
@@ -3775,10 +3774,10 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
   ze_device_handle_t ZeDevice = Device->ZeDevice;
-  ze_device_compute_properties_t ZeDeviceComputeProperties = {};
+  ZeStruct<ze_device_compute_properties_t> ZeDeviceComputeProperties;
   ZE_CALL(zeDeviceGetComputeProperties, (ZeDevice, &ZeDeviceComputeProperties));
 
-  ze_kernel_properties_t ZeKernelProperties = {};
+  ZeStruct<ze_kernel_properties_t> ZeKernelProperties;
   ZE_CALL(zeKernelGetProperties, (Kernel->ZeKernel, &ZeKernelProperties));
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
@@ -3809,7 +3808,7 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
   case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE:
     return ReturnValue(pi_uint32{ZeKernelProperties.localMemSize});
   case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
-    ze_device_properties_t ZeDeviceProperties = {};
+    ZeStruct<ze_device_properties_t> ZeDeviceProperties;
     ZE_CALL(zeDeviceGetProperties, (ZeDevice, &ZeDeviceProperties));
 
     return ReturnValue(size_t{ZeDeviceProperties.physicalEUSimdWidth});
@@ -3833,7 +3832,7 @@ pi_result piKernelGetSubGroupInfo(pi_kernel Kernel, pi_device Device,
   (void)InputValueSize;
   (void)InputValue;
 
-  ze_kernel_properties_t ZeKernelProperties;
+  ZeStruct<ze_kernel_properties_t> ZeKernelProperties;
   ZE_CALL(zeKernelGetProperties, (Kernel->ZeKernel, &ZeKernelProperties));
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
@@ -6060,7 +6059,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
 
   // Query the device of the allocation to determine the right allocator context
   ze_device_handle_t ZeDeviceHandle;
-  ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
+  ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
 
   // Query memory type of the pointer we're freeing to determine the correct
   // way to do it(directly or via an allocator)
@@ -6174,7 +6173,7 @@ pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
 // Helper function to check if a pointer is a device pointer.
 static bool IsDevicePointer(pi_context Context, const void *Ptr) {
   ze_device_handle_t ZeDeviceHandle;
-  ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
+  ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
 
   // Query memory type of the pointer
   ZE_CALL(zeMemGetAllocProperties,
@@ -6354,7 +6353,7 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
   ze_device_handle_t ZeDeviceHandle;
-  ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
+  ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
 
   ZE_CALL(zeMemGetAllocProperties,
           (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
