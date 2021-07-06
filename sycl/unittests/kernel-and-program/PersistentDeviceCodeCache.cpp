@@ -81,6 +81,10 @@ public:
     return _putenv_s(name, value);
   }
 #endif
+  virtual void SetUp() {
+    assert(getenv("SYCL_CACHE_DIR") && "Please set SYCL_CACHE_DIR environment "
+                                       "variable pointing to cache location.");
+  }
 
   PersistenDeviceCodeCache() : Plt{default_selector()} {
 
@@ -90,8 +94,6 @@ public:
                 << Plt.get_info<info::platform::name>();
       return;
     }
-
-    set_env("SYCL_CACHE_DIR", ".");
 
     Mock = std::make_unique<unittest::PiMock>(Plt);
     Dev = Plt.get_devices()[0];
