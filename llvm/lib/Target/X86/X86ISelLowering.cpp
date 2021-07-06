@@ -29725,7 +29725,7 @@ static SDValue lowerAtomicArith(SDValue N, SelectionDAG &DAG,
     // during codegen and then dropped. Note that we expect (but don't assume),
     // that orderings other than seq_cst and acq_rel have been canonicalized to
     // a store or load.
-    if (AN->getOrdering() == AtomicOrdering::SequentiallyConsistent &&
+    if (AN->getSuccessOrdering() == AtomicOrdering::SequentiallyConsistent &&
         AN->getSyncScopeID() == SyncScope::System) {
       // Prefer a locked operation against a stack location to minimize cache
       // traffic.  This assumes that stack locations are very likely to be
@@ -29758,7 +29758,8 @@ static SDValue LowerATOMIC_STORE(SDValue Op, SelectionDAG &DAG,
   SDLoc dl(Node);
   EVT VT = Node->getMemoryVT();
 
-  bool IsSeqCst = Node->getOrdering() == AtomicOrdering::SequentiallyConsistent;
+  bool IsSeqCst =
+      Node->getSuccessOrdering() == AtomicOrdering::SequentiallyConsistent;
   bool IsTypeLegal = DAG.getTargetLoweringInfo().isTypeLegal(VT);
 
   // If this store is not sequentially consistent and the type is legal
@@ -37486,7 +37487,9 @@ static SDValue combineTargetShuffle(SDValue N, SelectionDAG &DAG,
     // 32-bit targets have to bitcast i64 to f64, so better to bitcast upward.
     if (Src.getOpcode() == ISD::BITCAST &&
         SrcVT.getScalarSizeInBits() == BCVT.getScalarSizeInBits() &&
-        DAG.getTargetLoweringInfo().isTypeLegal(BCVT)) {
+        DAG.getTargetLoweringInfo().isTypeLegal(BCVT) &&
+        FixedVectorType::isValidElementType(
+            BCVT.getScalarType().getTypeForEVT(*DAG.getContext()))) {
       EVT NewVT = EVT::getVectorVT(*DAG.getContext(), BCVT.getScalarType(),
                                    VT.getVectorNumElements());
       return DAG.getBitcast(VT, DAG.getNode(X86ISD::VBROADCAST, DL, NewVT, BC));
@@ -41833,6 +41836,36 @@ static SDValue combineSelect(SDNode *N, SelectionDAG &DAG,
         ISD::CondCode NewCC = ISD::SETUGE;
         Cond = DAG.getSetCC(SDLoc(Cond), CondVT, Cond0, Cond1, NewCC);
         return DAG.getSelect(DL, VT, Cond, LHS, RHS);
+      }
+    }
+
+    // Similar to DAGCombine's select(or(CC0,CC1),X,Y) fold but for legal types.
+    // fold eq + gt/lt nested selects into ge/le selects
+    // select (cmpeq Cond0, Cond1), LHS, (select (cmpugt Cond0, Cond1), LHS, Y)
+    // --> (select (cmpuge Cond0, Cond1), LHS, Y)
+    // select (cmpslt Cond0, Cond1), LHS, (select (cmpeq Cond0, Cond1), LHS, Y)
+    // --> (select (cmpsle Cond0, Cond1), LHS, Y)
+    // .. etc ..
+    if (RHS.getOpcode() == ISD::SELECT && RHS.getOperand(1) == LHS &&
+        RHS.getOperand(0).getOpcode() == ISD::SETCC) {
+      SDValue InnerSetCC = RHS.getOperand(0);
+      ISD::CondCode InnerCC =
+          cast<CondCodeSDNode>(InnerSetCC.getOperand(2))->get();
+      if ((CC == ISD::SETEQ || InnerCC == ISD::SETEQ) &&
+          Cond0 == InnerSetCC.getOperand(0) &&
+          Cond1 == InnerSetCC.getOperand(1)) {
+        ISD::CondCode NewCC;
+        switch (CC == ISD::SETEQ ? InnerCC : CC) {
+        case ISD::SETGT:  NewCC = ISD::SETGE; break;
+        case ISD::SETLT:  NewCC = ISD::SETLE; break;
+        case ISD::SETUGT: NewCC = ISD::SETUGE; break;
+        case ISD::SETULT: NewCC = ISD::SETULE; break;
+        default: NewCC = ISD::SETCC_INVALID; break;
+        }
+        if (NewCC != ISD::SETCC_INVALID) {
+          Cond = DAG.getSetCC(DL, CondVT, Cond0, Cond1, NewCC);
+          return DAG.getSelect(DL, VT, Cond, LHS, RHS.getOperand(2));
+        }
       }
     }
   }
@@ -51757,7 +51790,7 @@ X86TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
           return std::make_pair(0U, &X86::GR16RegClass);
         if (VT == MVT::i32 || VT == MVT::f32)
           return std::make_pair(0U, &X86::GR32RegClass);
-        if (VT != MVT::f80)
+        if (VT != MVT::f80 && !VT.isVector())
           return std::make_pair(0U, &X86::GR64RegClass);
         break;
       }
@@ -51768,9 +51801,10 @@ X86TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
         return std::make_pair(0U, &X86::GR8_ABCD_LRegClass);
       if (VT == MVT::i16)
         return std::make_pair(0U, &X86::GR16_ABCDRegClass);
-      if (VT == MVT::i32 || VT == MVT::f32 || !Subtarget.is64Bit())
+      if (VT == MVT::i32 || VT == MVT::f32 ||
+          (!VT.isVector() && !Subtarget.is64Bit()))
         return std::make_pair(0U, &X86::GR32_ABCDRegClass);
-      if (VT != MVT::f80)
+      if (VT != MVT::f80 && !VT.isVector())
         return std::make_pair(0U, &X86::GR64_ABCDRegClass);
       break;
     case 'r':   // GENERAL_REGS
@@ -51779,9 +51813,10 @@ X86TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
         return std::make_pair(0U, &X86::GR8RegClass);
       if (VT == MVT::i16)
         return std::make_pair(0U, &X86::GR16RegClass);
-      if (VT == MVT::i32 || VT == MVT::f32 || !Subtarget.is64Bit())
+      if (VT == MVT::i32 || VT == MVT::f32 ||
+          (!VT.isVector() && !Subtarget.is64Bit()))
         return std::make_pair(0U, &X86::GR32RegClass);
-      if (VT != MVT::f80)
+      if (VT != MVT::f80 && !VT.isVector())
         return std::make_pair(0U, &X86::GR64RegClass);
       break;
     case 'R':   // LEGACY_REGS
@@ -51789,9 +51824,10 @@ X86TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
         return std::make_pair(0U, &X86::GR8_NOREXRegClass);
       if (VT == MVT::i16)
         return std::make_pair(0U, &X86::GR16_NOREXRegClass);
-      if (VT == MVT::i32 || VT == MVT::f32 || !Subtarget.is64Bit())
+      if (VT == MVT::i32 || VT == MVT::f32 ||
+          (!VT.isVector() && !Subtarget.is64Bit()))
         return std::make_pair(0U, &X86::GR32_NOREXRegClass);
-      if (VT != MVT::f80)
+      if (VT != MVT::f80 && !VT.isVector())
         return std::make_pair(0U, &X86::GR64_NOREXRegClass);
       break;
     case 'f':  // FP Stack registers.
@@ -51967,21 +52003,22 @@ X86TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
       }
 
       // GCC allows "st(0)" to be called just plain "st".
-      if (StringRef("{st}").equals_lower(Constraint))
+      if (StringRef("{st}").equals_insensitive(Constraint))
         return std::make_pair(X86::FP0, &X86::RFP80RegClass);
     }
 
     // flags -> EFLAGS
-    if (StringRef("{flags}").equals_lower(Constraint))
+    if (StringRef("{flags}").equals_insensitive(Constraint))
       return std::make_pair(X86::EFLAGS, &X86::CCRRegClass);
 
     // dirflag -> DF
     // Only allow for clobber.
-    if (StringRef("{dirflag}").equals_lower(Constraint) && VT == MVT::Other)
+    if (StringRef("{dirflag}").equals_insensitive(Constraint) &&
+        VT == MVT::Other)
       return std::make_pair(X86::DF, &X86::DFCCRRegClass);
 
     // fpsr -> FPSW
-    if (StringRef("{fpsr}").equals_lower(Constraint))
+    if (StringRef("{fpsr}").equals_insensitive(Constraint))
       return std::make_pair(X86::FPSW, &X86::FPCCRRegClass);
 
     return Res;
