@@ -136,6 +136,7 @@ Q.submit([&](handler &cgh) {
 ----
 
 And to run, be sure to select the OpenCL backend (works on both CPU and GPU devices)
+
 [source]
 ----
 $ SYCL_DEVICE_FILTER=opencl:gpu ./myapp.bin
