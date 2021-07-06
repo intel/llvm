@@ -2559,8 +2559,8 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   pi_device Device = Context->Devices[0];
   // TODO: see what we can do to correctly initialize PI queue for
   // compute vs. copy Level-Zero queue.
-  *Queue =
-      new _pi_queue(ZeQueue, nullptr, Context, Device, ZeCommandListBatchSize, OwnNativeHandle);
+  *Queue = new _pi_queue(ZeQueue, nullptr, Context, Device,
+                         ZeCommandListBatchSize, OwnNativeHandle);
   return PI_SUCCESS;
 }
 

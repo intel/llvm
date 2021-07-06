@@ -1047,7 +1047,8 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 ///        the native handle, if it can.
 /// \param queue is the PI queue created from the native handle.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle, pi_queue *queue);
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    pi_queue *queue);
 
 //
 // Memory
