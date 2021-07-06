@@ -2506,7 +2506,7 @@ defm signed_char : BoolFOption<"signed-char",
   ShouldParseIf<!strconcat("!", open_cl.KeyPath)>;
 defm split_stack : BoolFOption<"split-stack",
   CodeGenOpts<"EnableSegmentedStacks">, DefaultFalse,
-  NegFlag<SetFalse, [], "Wouldn't use segmented stack">,
+  NegFlag<SetFalse, [], "Wouldn't use segmented stack">, 
   PosFlag<SetTrue, [CC1Option], "Use segmented stack">>;
 def fstack_protector_all : Flag<["-"], "fstack-protector-all">, Group<f_Group>,
   HelpText<"Enable stack protectors for all functions">;
@@ -4604,7 +4604,7 @@ def falternative_parameter_statement : Flag<["-"], "falternative-parameter-state
   HelpText<"Enable the old style PARAMETER statement">;
 def fintrinsic_modules_path : Separate<["-"], "fintrinsic-modules-path">,  Group<f_Group>, MetaVarName<"<dir>">,
   HelpText<"Specify where to find the compiled intrinsic modules">,
-  DocBrief<[{This option specifies the location of pre-compiled intrinsic modules,
+  DocBrief<[{This option specifies the location of pre-compiled intrinsic modules, 
   if they are not in the default location expected by the compiler.}]>;
 }
 

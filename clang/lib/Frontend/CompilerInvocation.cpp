@@ -3677,9 +3677,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     } else {
       // If the user supplied -fsycl-is-device or -fsycl-is-host, but failed to
       // provide -sycl-std=, we want to default it to whatever the default SYCL
-      // version is. I could not find a way to express this with the options
-      // tablegen because we still want this value to be SYCL_None when the user
-      // is not in device or host mode.
+      // version is.
       Opts.setSYCLVersion(LangOptions::SYCL_Default);
     }
   }

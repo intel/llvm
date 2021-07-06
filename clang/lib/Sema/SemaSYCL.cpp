@@ -1013,8 +1013,8 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
 
 // The SYCL kernel's 'object type' used for diagnostics and naming/mangling is
 // the first parameter to a function template using the sycl_kernel
-// attribute. In SYCL1.2.1, this was passed by value,
-// and in SYCL2020, it is passed by reference.
+// attribute. In SYCL 1.2.1, this was passed by value,
+// and in SYCL 2020, it is passed by reference.
 static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
   assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
   QualType KernelParamTy = KernelCaller->getParamDecl(0)->getType();
@@ -3220,7 +3220,7 @@ static bool IsSYCLUnnamedKernel(Sema &SemaRef, const FunctionDecl *FD) {
     return false;
   QualType FunctorTy = GetSYCLKernelObjectType(FD);
   QualType TmplArgTy =
-      calculateKernelNameType(SemaRef.Context, FD).getUnqualifiedType();
+      calculateKernelNameType(SemaRef.Context, FD);
   return SemaRef.Context.hasSameType(FunctorTy, TmplArgTy);
 }
 
@@ -4812,7 +4812,7 @@ void SYCLIntegrationHeader::setCallsThisGroup(bool B) {
   K->FreeFunctionCalls.CallsThisGroup = B;
 }
 
-SYCLIntegrationHeader::SYCLIntegrationHeader(Sema &_S) : S(_S) {}
+SYCLIntegrationHeader::SYCLIntegrationHeader(Sema &S) : S(S) {}
 
 void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   // Variable template declaration can result in an error case of 'nullptr'
