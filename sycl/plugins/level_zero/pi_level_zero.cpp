@@ -2565,10 +2565,10 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             const pi_mem_properties *properties) {
 
   // TODO: implement read-only, write-only
-  if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
-    die("piMemBufferCreate: Level-Zero implements only read-write buffer,"
-        "no read-only or write-only yet.");
-  }
+  // if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
+  //   die("piMemBufferCreate: Level-Zero implements only read-write buffer,"
+  //       "no read-only or write-only yet.");
+  // }
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(RetMem, PI_INVALID_VALUE);
 
