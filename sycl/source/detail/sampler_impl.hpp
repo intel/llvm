@@ -60,7 +60,7 @@ public:
 
 private:
   /// Protects all the fields that can be changed by class' methods.
-  mutex_class MMutex;
+  std::mutex MMutex;
 
   std::unordered_map<context, RT::PiSampler> MContextToSampler;
 

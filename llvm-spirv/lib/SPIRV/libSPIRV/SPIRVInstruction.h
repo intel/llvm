@@ -377,17 +377,20 @@ public:
 class SPIRVMemoryAccess {
 public:
   SPIRVMemoryAccess(const std::vector<SPIRVWord> &TheMemoryAccess)
-      : TheMemoryAccessMask(0), Alignment(0), AliasInstID(0) {
+      : TheMemoryAccessMask(0), Alignment(0), AliasScopeInstID(0),
+        NoAliasInstID(0) {
     memoryAccessUpdate(TheMemoryAccess);
   }
 
-  SPIRVMemoryAccess() : TheMemoryAccessMask(0), Alignment(0), AliasInstID(0) {}
+  SPIRVMemoryAccess()
+      : TheMemoryAccessMask(0), Alignment(0), AliasScopeInstID(0),
+        NoAliasInstID(0) {}
 
   void memoryAccessUpdate(const std::vector<SPIRVWord> &MemoryAccess) {
     if (!MemoryAccess.size())
       return;
-    assert((MemoryAccess.size() == 1 || MemoryAccess.size() == 2 ||
-            MemoryAccess.size() == 3) && "Invalid memory access operand size");
+    assert(MemoryAccess.size() > 0 && "Invalid memory access operand size");
+    assert(MemoryAccess.size() < 5 && "Invalid memory access operand size");
     TheMemoryAccessMask = MemoryAccess[0];
     size_t MemAccessNumParam = 1;
     if (MemoryAccess[0] & MemoryAccessAlignedMask) {
@@ -397,13 +400,12 @@ public:
     if (MemoryAccess[0] & internal::MemoryAccessAliasScopeINTELMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
-      assert(!(MemoryAccess[0] & internal::MemoryAccessNoAliasINTELMask) &&
-          "AliasScopeINTELMask and NoAliasINTELMask are mutually exclusive");
-      AliasInstID = MemoryAccess[MemAccessNumParam];
-    } else if (MemoryAccess[0] & internal::MemoryAccessNoAliasINTELMask) {
+      AliasScopeInstID = MemoryAccess[MemAccessNumParam++];
+    }
+    if (MemoryAccess[0] & internal::MemoryAccessNoAliasINTELMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
-      AliasInstID = MemoryAccess[MemAccessNumParam];
+      NoAliasInstID = MemoryAccess[MemAccessNumParam];
     }
   }
   SPIRVWord isVolatile() const {
@@ -420,12 +422,14 @@ public:
   }
   SPIRVWord getMemoryAccessMask() const { return TheMemoryAccessMask; }
   SPIRVWord getAlignment() const { return Alignment; }
-  SPIRVWord getAliasing() const { return AliasInstID; }
+  SPIRVWord getAliasScopeInstID() const { return AliasScopeInstID; }
+  SPIRVWord getNoAliasInstID() const { return NoAliasInstID; }
 
 protected:
   SPIRVWord TheMemoryAccessMask;
   SPIRVWord Alignment;
-  SPIRVId AliasInstID;
+  SPIRVId AliasScopeInstID;
+  SPIRVId NoAliasInstID;
 };
 
 class SPIRVVariable : public SPIRVInstruction {
@@ -1898,14 +1902,13 @@ class SPIRVCompositeExtract : public SPIRVInstruction {
 public:
   const static Op OC = OpCompositeExtract;
   // Complete constructor
-  SPIRVCompositeExtract(SPIRVType *TheType, SPIRVId TheId,
-                        SPIRVValue *TheComposite,
+  SPIRVCompositeExtract(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheComposite,
                         const std::vector<SPIRVWord> &TheIndices,
-                        SPIRVBasicBlock *TheBB)
-      : SPIRVInstruction(TheIndices.size() + 4, OC, TheType, TheId, TheBB),
-        Composite(TheComposite->getId()), Indices(TheIndices) {
+                        SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
+      : SPIRVInstruction(TheIndices.size() + 4, OC, TheType, TheId, TheBB,
+                         TheM),
+        Composite(TheComposite), Indices(TheIndices) {
     validate();
-    assert(TheBB && "Invalid BB");
   }
   // Incomplete constructor
   SPIRVCompositeExtract() : SPIRVInstruction(OC), Composite(SPIRVID_INVALID) {}
@@ -1936,16 +1939,14 @@ public:
   const static Op OC = OpCompositeInsert;
   const static SPIRVWord FixedWordCount = 5;
   // Complete constructor
-  SPIRVCompositeInsert(SPIRVId TheId, SPIRVValue *TheObject,
-                       SPIRVValue *TheComposite,
+  SPIRVCompositeInsert(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheObject,
+                       SPIRVId TheComposite,
                        const std::vector<SPIRVWord> &TheIndices,
-                       SPIRVBasicBlock *TheBB)
-      : SPIRVInstruction(TheIndices.size() + FixedWordCount, OC,
-                         TheComposite->getType(), TheId, TheBB),
-        Object(TheObject->getId()), Composite(TheComposite->getId()),
-        Indices(TheIndices) {
+                       SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
+      : SPIRVInstruction(TheIndices.size() + FixedWordCount, OC, TheType, TheId,
+                         TheBB, TheM),
+        Object(TheObject), Composite(TheComposite), Indices(TheIndices) {
     validate();
-    assert(TheBB && "Invalid BB");
   }
   // Incomplete constructor
   SPIRVCompositeInsert()
@@ -2179,16 +2180,14 @@ public:
   const static Op OC = OpVectorShuffle;
   const static SPIRVWord FixedWordCount = 5;
   // Complete constructor
-  SPIRVVectorShuffle(SPIRVId TheId, SPIRVType *TheType, SPIRVValue *TheVector1,
-                     SPIRVValue *TheVector2,
+  SPIRVVectorShuffle(SPIRVId TheId, SPIRVType *TheType, SPIRVId TheVector1,
+                     SPIRVId TheVector2,
                      const std::vector<SPIRVWord> &TheComponents,
-                     SPIRVBasicBlock *TheBB)
+                     SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
       : SPIRVInstruction(TheComponents.size() + FixedWordCount, OC, TheType,
-                         TheId, TheBB),
-        Vector1(TheVector1->getId()), Vector2(TheVector2->getId()),
-        Components(TheComponents) {
+                         TheId, TheBB, TheM),
+        Vector1(TheVector1), Vector2(TheVector2), Components(TheComponents) {
     validate();
-    assert(TheBB && "Invalid BB");
   }
   // Incomplete constructor
   SPIRVVectorShuffle()

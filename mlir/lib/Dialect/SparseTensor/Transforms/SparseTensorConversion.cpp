@@ -270,6 +270,36 @@ public:
   }
 };
 
+/// Sparse conversion rule for tensor reconstruction.
+class SparseTensorToTensorConverter : public OpConversionPattern<ToTensorOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  // Simply fold the operator into the pointer to the sparse storage scheme.
+  matchAndRewrite(ToTensorOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    // Check that all arguments of the tensor reconstruction operators are calls
+    // into the support library that query exactly the same opaque pointer.
+    Value ptr;
+    for (Value op : operands) {
+      if (auto call = op.getDefiningOp<CallOp>()) {
+        Value arg = call.getOperand(0);
+        if (!arg.getType().isa<LLVM::LLVMPointerType>())
+          return failure();
+        if (!ptr)
+          ptr = arg;
+        else if (arg != ptr)
+          return failure();
+      }
+    }
+    // If a single opaque pointer is found, perform the folding.
+    if (!ptr)
+      return failure();
+    rewriter.replaceOp(op, ptr);
+    return success();
+  }
+};
+
 } // namespace
 
 /// Populates the given patterns list with conversion rules required for
@@ -278,6 +308,7 @@ void mlir::populateSparseTensorConversionPatterns(TypeConverter &typeConverter,
                                                   RewritePatternSet &patterns) {
   patterns.add<SparseReturnConverter, SparseTensorToDimSizeConverter,
                SparseTensorNewConverter, SparseTensorToPointersConverter,
-               SparseTensorToIndicesConverter, SparseTensorToValuesConverter>(
-      typeConverter, patterns.getContext());
+               SparseTensorToIndicesConverter, SparseTensorToValuesConverter,
+               SparseTensorToTensorConverter>(typeConverter,
+                                              patterns.getContext());
 }

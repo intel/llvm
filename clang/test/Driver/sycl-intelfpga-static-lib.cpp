@@ -14,7 +14,7 @@
 // RUN:  | FileCheck -check-prefix=CHECK_PHASES %s
 // CHECK_PHASES: 0: input, "[[INPUT:.+\.a]]", object, (host-sycl)
 // CHECK_PHASES: 1: linker, {0}, image, (host-sycl)
-// CHECK_PHASES: 2: linker, {0}, image, (host-sycl)
+// CHECK_PHASES: 2: linker, {0}, host_dep_image, (host-sycl)
 // CHECK_PHASES: 3: clang-offload-deps, {2}, ir, (host-sycl)
 // CHECK_PHASES: 4: input, "[[INPUT]]", archive
 // CHECK_PHASES: 5: clang-offload-unbundler, {4}, archive

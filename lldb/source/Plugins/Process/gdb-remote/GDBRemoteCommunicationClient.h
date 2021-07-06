@@ -451,6 +451,11 @@ public:
 
   bool GetSharedCacheInfoSupported();
 
+  bool GetMemoryTaggingSupported();
+
+  lldb::DataBufferSP ReadMemoryTags(lldb::addr_t addr, size_t len,
+                                    int32_t type);
+
   /// Use qOffsets to query the offset used when relocating the target
   /// executable. If successful, the returned structure will contain at least
   /// one value in the offsets field.
@@ -558,6 +563,7 @@ protected:
   LazyBool m_supports_QPassSignals = eLazyBoolCalculate;
   LazyBool m_supports_error_string_reply = eLazyBoolCalculate;
   LazyBool m_supports_multiprocess = eLazyBoolCalculate;
+  LazyBool m_supports_memory_tagging = eLazyBoolCalculate;
 
   bool m_supports_qProcessInfoPID : 1, m_supports_qfProcessInfo : 1,
       m_supports_qUserName : 1, m_supports_qGroupName : 1,
@@ -592,6 +598,7 @@ protected:
       UINT32_MAX; // from reply to qGDBServerVersion, zero if
                   // qGDBServerVersion is not supported
   std::chrono::seconds m_default_packet_timeout;
+  int m_target_vm_page_size = 0; // target system VM page size; 0 unspecified
   uint64_t m_max_packet_size = 0;    // as returned by qSupported
   std::string m_qSupported_response; // the complete response to qSupported
 

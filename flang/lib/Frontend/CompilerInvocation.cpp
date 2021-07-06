@@ -141,6 +141,9 @@ static bool ParseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
     case clang::driver::options::OPT_fdebug_dump_parse_tree:
       opts.programAction_ = DebugDumpParseTree;
       break;
+    case clang::driver::options::OPT_fdebug_dump_all:
+      opts.programAction_ = DebugDumpAll;
+      break;
     case clang::driver::options::OPT_fdebug_dump_parse_tree_no_sema:
       opts.programAction_ = DebugDumpParseTreeNoSema;
       break;
@@ -399,6 +402,12 @@ static bool parseSemaArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
   if (const auto *moduleSuffix =
           args.getLastArg(clang::driver::options::OPT_module_suffix)) {
     res.SetModuleFileSuffix(moduleSuffix->getValue());
+  }
+
+  // -fno-analyzed-objects-for-unparse
+  if (args.hasArg(
+          clang::driver::options::OPT_fno_analyzed_objects_for_unparse)) {
+    res.SetUseAnalyzedObjectsForUnparse(false);
   }
 
   return diags.getNumErrors() == numErrorsBefore;

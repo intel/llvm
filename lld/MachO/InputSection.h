@@ -23,6 +23,7 @@ namespace macho {
 
 class InputFile;
 class OutputSection;
+class Defined;
 
 class InputSection {
 public:
@@ -44,6 +45,7 @@ public:
   // Whether the data at \p off in this InputSection is live.
   virtual bool isLive(uint64_t off) const = 0;
   virtual void markLive(uint64_t off) = 0;
+  virtual InputSection *canonical() { return this; }
 
   InputFile *file = nullptr;
   StringRef name;
@@ -54,8 +56,9 @@ public:
   uint32_t align = 1;
   uint32_t flags = 0;
   uint32_t callSiteCount = 0;
-  bool isFinal = false; // is address assigned?
 
+  // is address assigned?
+  bool isFinal = false;
 
   ArrayRef<uint8_t> data;
   std::vector<Reloc> relocs;
@@ -92,11 +95,25 @@ public:
   void markLive(uint64_t off) override { live = true; }
   bool isCoalescedWeak() const { return wasCoalesced && numRefs == 0; }
   bool shouldOmitFromOutput() const { return !live || isCoalescedWeak(); }
+  bool isHashableForICF(bool isText) const;
+  void hashForICF();
   void writeTo(uint8_t *buf);
+
+  void foldIdentical(ConcatInputSection *redundant);
+  InputSection *canonical() override {
+    return replacement ? replacement : this;
+  }
 
   static bool classof(const InputSection *isec) {
     return isec->kind() == ConcatKind;
   }
+
+  // ICF can't fold functions with LSDA+personality
+  bool hasPersonality = false;
+  // Points to the surviving section after this one is folded by ICF
+  InputSection *replacement = nullptr;
+  // Equivalence-class ID for ICF
+  uint64_t icfEqClass[2] = {0, 0};
 
   // With subsections_via_symbols, most symbols have their own InputSection,
   // and for weak symbols (e.g. from inline functions), only the
@@ -109,6 +126,18 @@ public:
   uint32_t numRefs = 0;
   uint64_t outSecOff = 0;
 };
+
+// Helper functions to make it easy to sprinkle asserts.
+
+inline bool shouldOmitFromOutput(InputSection *isec) {
+  return isa<ConcatInputSection>(isec) &&
+         cast<ConcatInputSection>(isec)->shouldOmitFromOutput();
+}
+
+inline bool isCoalescedWeak(InputSection *isec) {
+  return isa<ConcatInputSection>(isec) &&
+         cast<ConcatInputSection>(isec)->isCoalescedWeak();
+}
 
 // We allocate a lot of these and binary search on them, so they should be as
 // compact as possible. Hence the use of 31 rather than 64 bits for the hash.

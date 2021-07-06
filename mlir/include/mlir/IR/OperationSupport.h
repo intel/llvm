@@ -162,7 +162,9 @@ public:
   /// Look up the specified operation in the specified MLIRContext and return a
   /// pointer to it if present.  Otherwise, return a null pointer.
   static const AbstractOperation *lookup(StringRef opName,
-                                         MLIRContext *context);
+                                         MLIRContext *context) {
+    return lookupMutable(opName, context);
+  }
 
   /// This constructor is used by Dialect objects when they register the list of
   /// operations they contain.
@@ -172,7 +174,7 @@ public:
            T::getParseAssemblyFn(), T::getPrintAssemblyFn(),
            T::getVerifyInvariantsFn(), T::getFoldHookFn(),
            T::getGetCanonicalizationPatternsFn(), T::getInterfaceMap(),
-           T::getHasTraitFn());
+           T::getHasTraitFn(), T::getAttributeNames());
   }
 
   /// Register a new operation in a Dialect object.
@@ -183,7 +185,26 @@ public:
          ParseAssemblyFn &&parseAssembly, PrintAssemblyFn &&printAssembly,
          VerifyInvariantsFn &&verifyInvariants, FoldHookFn &&foldHook,
          GetCanonicalizationPatternsFn &&getCanonicalizationPatterns,
-         detail::InterfaceMap &&interfaceMap, HasTraitFn &&hasTrait);
+         detail::InterfaceMap &&interfaceMap, HasTraitFn &&hasTrait,
+         ArrayRef<StringRef> attrNames);
+
+  /// Return the list of cached attribute names registered to this operation.
+  /// The order of attributes cached here is unique to each type of operation,
+  /// and the interpretation of this attribute list should generally be driven
+  /// by the respective operation. In many cases, this caching removes the need
+  /// to use the raw string name of a known attribute.
+  ///
+  /// For example the ODS generator, with an op defining the following
+  /// attributes:
+  ///
+  ///   let arguments = (ins I32Attr:$attr1, I32Attr:$attr2);
+  ///
+  /// ... may produce an order here of ["attr1", "attr2"]. This allows for the
+  /// ODS generator to directly access the cached name for a known attribute,
+  /// greatly simplifying the cost and complexity of attribute usage produced by
+  /// the generator.
+  ///
+  ArrayRef<Identifier> getAttributeNames() const { return attributeNames; }
 
 private:
   AbstractOperation(StringRef name, Dialect &dialect, TypeID typeID,
@@ -192,7 +213,17 @@ private:
                     VerifyInvariantsFn &&verifyInvariants,
                     FoldHookFn &&foldHook,
                     GetCanonicalizationPatternsFn &&getCanonicalizationPatterns,
-                    detail::InterfaceMap &&interfaceMap, HasTraitFn &&hasTrait);
+                    detail::InterfaceMap &&interfaceMap, HasTraitFn &&hasTrait,
+                    ArrayRef<Identifier> attrNames);
+
+  /// Give Op access to lookupMutable.
+  template <typename ConcreteType, template <typename T> class... Traits>
+  friend class Op;
+
+  /// Look up the specified operation in the specified MLIRContext and return a
+  /// pointer to it if present.  Otherwise, return a null pointer.
+  static AbstractOperation *lookupMutable(StringRef opName,
+                                          MLIRContext *context);
 
   /// A map of interfaces that were registered to this operation.
   detail::InterfaceMap interfaceMap;
@@ -204,6 +235,11 @@ private:
   ParseAssemblyFn parseAssemblyFn;
   PrintAssemblyFn printAssemblyFn;
   VerifyInvariantsFn verifyInvariantsFn;
+
+  /// A list of attribute names registered to this operation in identifier form.
+  /// This allows for operation classes to use identifiers for attribute
+  /// lookup/creation/etc., as opposed to strings.
+  ArrayRef<Identifier> attributeNames;
 };
 
 //===----------------------------------------------------------------------===//
@@ -484,7 +520,11 @@ namespace detail {
 /// This class contains the information for a trailing operand storage.
 struct TrailingOperandStorage final
     : public llvm::TrailingObjects<TrailingOperandStorage, OpOperand> {
+#if defined(BYTE_ORDER) && defined(BIG_ENDIAN) && (BYTE_ORDER == BIG_ENDIAN)
+  TrailingOperandStorage() : numOperands(0), capacity(0), reserved(0) {}
+#else
   TrailingOperandStorage() : reserved(0), capacity(0), numOperands(0) {}
+#endif
   ~TrailingOperandStorage() {
     for (auto &operand : getOperands())
       operand.~OpOperand();
@@ -495,12 +535,21 @@ struct TrailingOperandStorage final
     return {getTrailingObjects<OpOperand>(), numOperands};
   }
 
+#if defined(BYTE_ORDER) && defined(BIG_ENDIAN) && (BYTE_ORDER == BIG_ENDIAN)
+  /// The number of operands within the storage.
+  unsigned numOperands;
+  /// The total capacity number of operands that the storage can hold.
+  unsigned capacity : 31;
+  /// We reserve a range of bits for use by the operand storage.
+  unsigned reserved : 1;
+#else
   /// We reserve a range of bits for use by the operand storage.
   unsigned reserved : 1;
   /// The total capacity number of operands that the storage can hold.
   unsigned capacity : 31;
   /// The number of operands within the storage.
   unsigned numOperands;
+#endif
 };
 
 /// This class handles the management of operation operands. Operands are

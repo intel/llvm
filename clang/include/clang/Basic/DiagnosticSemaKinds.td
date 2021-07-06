@@ -6819,7 +6819,7 @@ def warn_param_mismatched_alignment : Warning<
 def err_objc_object_assignment : Error<
   "cannot assign to class object (%0 invalid)">;
 def err_typecheck_invalid_operands : Error<
-  "invalid operands to binary expression (%0 and %1)">;
+  "invalid operands to binary expression (%0 and %1)">, Deferrable;
 def note_typecheck_invalid_operands_converted : Note<
   "%select{first|second}0 operand was implicitly converted to type %1">;
 def err_typecheck_logical_vector_expr_gnu_cpp_restrict : Error<
@@ -6842,9 +6842,14 @@ def ext_typecheck_compare_complete_incomplete_pointers : Extension<
   "%0 is %select{|in}2complete and "
   "%1 is %select{|in}3complete">,
   InGroup<C11>;
+def warn_typecheck_ordered_comparison_of_function_pointers : Warning<
+  "ordered comparison of function pointers (%0 and %1)">,
+  InGroup<OrderedCompareFunctionPointers>;
 def ext_typecheck_ordered_comparison_of_function_pointers : ExtWarn<
   "ordered comparison of function pointers (%0 and %1)">,
-  InGroup<DiagGroup<"ordered-compare-function-pointers">>;
+  InGroup<OrderedCompareFunctionPointers>;
+def err_typecheck_ordered_comparison_of_function_pointers : Error<
+  "ordered comparison of function pointers (%0 and %1)">;
 def ext_typecheck_comparison_of_fptr_to_void : Extension<
   "equality comparison between function pointer and void pointer (%0 and %1)">;
 def err_typecheck_comparison_of_fptr_to_void : Error<
@@ -11421,11 +11426,6 @@ def err_sycl_type_trait_requires_nonnegative_index : Error<
 def err_sycl_builtin_type_trait_evaluated : Error<
   "'%select{__builtin_field_type|__builtin_base_type}0' cannot be used in an "
   "evaluated context">;
-def err_sycl_non_trivially_copy_ctor_dtor_type
-    : Error<"kernel parameter has non-trivially %select{copy "
-            "constructible|destructible}0 class/struct type %1">;
-def err_sycl_non_std_layout_type : Error<
-  "kernel parameter has non-standard layout class/struct type %0">;
 def err_sycl_non_constant_array_type : Error<
   "kernel parameter is not a constant size array %0">;
 def err_conflicting_sycl_kernel_attributes : Error<

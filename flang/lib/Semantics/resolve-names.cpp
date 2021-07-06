@@ -2751,7 +2751,7 @@ void InterfaceVisitor::ResolveSpecificsInGeneric(Symbol &generic) {
   auto &details{generic.get<GenericDetails>()};
   UnorderedSymbolSet symbolsSeen;
   for (const Symbol &symbol : details.specificProcs()) {
-    symbolsSeen.insert(symbol);
+    symbolsSeen.insert(symbol.GetUltimate());
   }
   auto range{specificProcs_.equal_range(&generic)};
   for (auto it{range.first}; it != range.second; ++it) {
@@ -2762,12 +2762,8 @@ void InterfaceVisitor::ResolveSpecificsInGeneric(Symbol &generic) {
       Say(*name, "Procedure '%s' not found"_err_en_US);
       continue;
     }
-    if (symbol == &generic) {
-      if (auto *specific{generic.get<GenericDetails>().specific()}) {
-        symbol = specific;
-      }
-    }
-    const Symbol &ultimate{symbol->GetUltimate()};
+    const Symbol &specific{BypassGeneric(*symbol)};
+    const Symbol &ultimate{specific.GetUltimate()};
     if (!ultimate.has<SubprogramDetails>() &&
         !ultimate.has<SubprogramNameDetails>()) {
       Say(*name, "'%s' is not a subprogram"_err_en_US);
@@ -2788,20 +2784,21 @@ void InterfaceVisitor::ResolveSpecificsInGeneric(Symbol &generic) {
         }
       }
     }
-    if (!symbolsSeen.insert(ultimate).second) {
-      if (symbol == &ultimate) {
-        Say(name->source,
-            "Procedure '%s' is already specified in generic '%s'"_err_en_US,
-            name->source, MakeOpName(generic.name()));
-      } else {
-        Say(name->source,
-            "Procedure '%s' from module '%s' is already specified in generic '%s'"_err_en_US,
-            ultimate.name(), ultimate.owner().GetName().value(),
-            MakeOpName(generic.name()));
-      }
-      continue;
+    if (symbolsSeen.insert(ultimate).second /*true if added*/) {
+      // When a specific procedure is a USE association, that association
+      // is saved in the generic's specifics, not its ultimate symbol,
+      // so that module file output of interfaces can distinguish them.
+      details.AddSpecificProc(specific, name->source);
+    } else if (&specific == &ultimate) {
+      Say(name->source,
+          "Procedure '%s' is already specified in generic '%s'"_err_en_US,
+          name->source, MakeOpName(generic.name()));
+    } else {
+      Say(name->source,
+          "Procedure '%s' from module '%s' is already specified in generic '%s'"_err_en_US,
+          ultimate.name(), ultimate.owner().GetName().value(),
+          MakeOpName(generic.name()));
     }
-    details.AddSpecificProc(*symbol, name->source);
   }
   specificProcs_.erase(range.first, range.second);
 }
@@ -3102,6 +3099,7 @@ void SubprogramVisitor::Post(const parser::EntryStmt &stmt) {
                 Say2(effectiveResultName.source,
                     "'%s' was previously declared as an item that may not be used as a function result"_err_en_US,
                     resultSymbol->name(), "Previous declaration of '%s'"_en_US);
+                context().SetError(*resultSymbol);
               }},
           resultSymbol->details());
     } else if (inExecutionPart_) {
@@ -3361,7 +3359,8 @@ void DeclarationVisitor::EndDecl() {
 }
 
 bool DeclarationVisitor::CheckUseError(const parser::Name &name) {
-  const auto *details{name.symbol->detailsIf<UseErrorDetails>()};
+  const auto *details{
+      name.symbol ? name.symbol->detailsIf<UseErrorDetails>() : nullptr};
   if (!details) {
     return false;
   }
@@ -3370,6 +3369,7 @@ bool DeclarationVisitor::CheckUseError(const parser::Name &name) {
     msg.Attach(location, "'%s' was use-associated from module '%s'"_en_US,
         name.source, module->GetName().value());
   }
+  context().SetError(*name.symbol);
   return true;
 }
 
@@ -5247,6 +5247,7 @@ void ConstructVisitor::ResolveIndexName(
         !prevRoot.has<EntityDetails>()) {
       Say2(name, "Index name '%s' conflicts with existing identifier"_err_en_US,
           *prev, "Previous declaration of '%s'"_en_US);
+      context().SetError(symbol);
       return;
     } else {
       if (const auto *type{prevRoot.GetType()}) {
@@ -6161,16 +6162,10 @@ void ResolveNamesVisitor::HandleProcedureName(
       symbol = &MakeSymbol(context().globalScope(), name.source, Attrs{});
     }
     Resolve(name, *symbol);
-    if (symbol->has<ModuleDetails>()) {
-      SayWithDecl(name, *symbol,
-          "Use of '%s' as a procedure conflicts with its declaration"_err_en_US);
-      return;
-    }
     if (!symbol->attrs().test(Attr::INTRINSIC)) {
-      if (!CheckImplicitNoneExternal(name.source, *symbol)) {
-        return;
+      if (CheckImplicitNoneExternal(name.source, *symbol)) {
+        MakeExternal(*symbol);
       }
-      MakeExternal(*symbol);
     }
     ConvertToProcEntity(*symbol);
     SetProcFlag(name, *symbol, flag);

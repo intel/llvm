@@ -12,10 +12,10 @@
 # can also just start the image with a shell to debug CI failures.
 #
 # To start a Buildkite Agent, run it as:
-#   $ docker run --env-file secrets.env -it $(docker build -q .)
+#   $ docker run --env-file <secrets> -it $(docker build -q .)
 #
-# The environment variables in `secrets.env` must be replaced by the actual
-# tokens for this to work. These should obviously never be checked in.
+# The environment variables in `<secrets>` should be the ones necessary
+# to run a BuildKite agent.
 #
 # If you're only looking to run the Docker image locally for debugging a
 # build bot, see the `run-buildbot-container` script located in this directory.
@@ -58,11 +58,9 @@ RUN . /tmp/env.sh && apt-get install -y clang-format-$LLVM_VERSION
 RUN ln -s $(find /usr/bin -regex '^.+/clang-format-[0-9.]+$') /usr/bin/clang-format && [ -e $(readlink /usr/bin/clang-format) ]
 RUN ln -s $(find /usr/bin -regex '^.+/git-clang-format-[0-9.]+$') /usr/bin/git-clang-format && [ -e $(readlink /usr/bin/git-clang-format) ]
 
-# Install a recent GCC
+# Install the most recent GCC version and the previous one (which are the two we support)
 RUN add-apt-repository ppa:ubuntu-toolchain-r/test
 RUN apt-get update && apt install -y gcc-10 g++-10 gcc-11 g++-11
-RUN ln -f -s /usr/bin/g++-10 /usr/bin/g++ && [ -e $(readlink /usr/bin/g++) ]
-RUN ln -f -s /usr/bin/gcc-10 /usr/bin/gcc && [ -e $(readlink /usr/bin/gcc) ]
 
 # Install a recent CMake
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.sh -O /tmp/install-cmake.sh

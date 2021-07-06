@@ -233,46 +233,29 @@ private:
 
 /// Convenience wrapper around pi_device_binaries_struct, that manages mock
 /// device images' lifecycle.
-class PiImageArray {
+template <size_t __NumberOfImages> class PiImageArray {
 public:
-  /// Constructs an array of device images from a single image and registers
-  /// it with SYCL runtime.
-  PiImageArray(PiImage Image) {
-    MImages.push_back(std::move(Image));
-    convertImages();
-    MAllBinaries = pi_device_binaries_struct{
-        PI_DEVICE_BINARIES_VERSION,
-        1, // num binaries
-        MNativeImages.data(),
-        nullptr, // not used, for compatibility with OpenMP
-        nullptr  // not used, for compatibility with OpenMP
-    };
-    __sycl_register_lib(&MAllBinaries);
-  }
+  static constexpr size_t NumberOfImages = __NumberOfImages;
 
-  /// Constructs an array of device images and registers it with SYCL runtime.
-  PiImageArray(std::vector<PiImage> Images) : MImages(std::move(Images)) {
-    convertImages();
+  PiImageArray(const PiImage *Imgs) {
+    for (size_t Idx = 0; Idx < NumberOfImages; ++Idx)
+      MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
+
     MAllBinaries = pi_device_binaries_struct{
         PI_DEVICE_BINARIES_VERSION,
-        static_cast<uint16_t>(MNativeImages.size()), // num binaries
-        MNativeImages.data(),
-        nullptr, // not used, for compatibility with OpenMP
-        nullptr  // not used, for compatibility with OpenMP
+        NumberOfImages,
+        MNativeImages,
+        nullptr, // not used, put here for compatibility with OpenMP
+        nullptr, // not used, put here for compatibility with OpenMP
     };
+
     __sycl_register_lib(&MAllBinaries);
   }
 
   ~PiImageArray() { __sycl_unregister_lib(&MAllBinaries); }
 
 private:
-  void convertImages() {
-    std::transform(
-        MImages.begin(), MImages.end(), std::back_inserter(MNativeImages),
-        [](const PiImage &Img) { return Img.convertToNativeType(); });
-  }
-  std::vector<PiImage> MImages;
-  std::vector<pi_device_binary_struct> MNativeImages;
+  pi_device_binary_struct MNativeImages[NumberOfImages];
   pi_device_binaries_struct MAllBinaries;
 };
 
@@ -283,7 +266,7 @@ std::enable_if_t<Idx == sizeof...(Ts)> iterate_tuple(Func &F,
 }
 template <typename Func, uint32_t Idx = 0, typename... Ts>
     std::enable_if_t <
-    Idx<sizeof...(Ts)> iterate_tuple(Func &F, std::tuple<Ts...> &Tuple) {
+    Idx<sizeof...(Ts)> inline iterate_tuple(Func &F, std::tuple<Ts...> &Tuple) {
   const auto &Value = std::get<Idx>(Tuple);
   const char *Begin = reinterpret_cast<const char *>(&Value);
   const char *End = Begin + sizeof(Value);
@@ -301,10 +284,11 @@ template <typename Func, uint32_t Idx = 0, typename... Ts>
 /// \param Offsets is a list of offsets inside composite spec constant.
 /// \param DefaultValues is a tuple of default values for composite spec const.
 template <typename... T>
-PiProperty makeSpecConstant(std::vector<char> &ValData, const std::string &Name,
-                            std::initializer_list<uint32_t> IDs,
-                            std::initializer_list<uint32_t> Offsets,
-                            std::tuple<T...> DefaultValues) {
+inline PiProperty makeSpecConstant(std::vector<char> &ValData,
+                                   const std::string &Name,
+                                   std::initializer_list<uint32_t> IDs,
+                                   std::initializer_list<uint32_t> Offsets,
+                                   std::tuple<T...> DefaultValues) {
   const size_t PropByteArraySize = sizeof...(T) * sizeof(uint32_t) * 3;
   std::vector<char> DescData;
   DescData.resize(8 + PropByteArraySize);
@@ -360,8 +344,8 @@ PiProperty makeSpecConstant(std::vector<char> &ValData, const std::string &Name,
 /// Utility function to add specialization constants to property set.
 ///
 /// This function overrides the default spec constant values.
-void addSpecConstants(PiArray<PiProperty> SpecConstants,
-                      std::vector<char> ValData, PiPropertySet &Props) {
+inline void addSpecConstants(PiArray<PiProperty> SpecConstants,
+                             std::vector<char> ValData, PiPropertySet &Props) {
   Props.insert(__SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP, std::move(SpecConstants));
 
   PiProperty Prop{"all", std::move(ValData), PI_PROPERTY_TYPE_BYTE_ARRAY};
@@ -373,7 +357,7 @@ void addSpecConstants(PiArray<PiProperty> SpecConstants,
 }
 
 /// Utility function to add ESIMD kernel flag to property set.
-void addESIMDFlag(PiPropertySet &Props) {
+inline void addESIMDFlag(PiPropertySet &Props) {
   std::vector<char> ValData(sizeof(uint32_t));
   ValData[0] = 1;
   PiProperty Prop{"isEsimdImage", ValData, PI_PROPERTY_TYPE_UINT32};
@@ -384,7 +368,7 @@ void addESIMDFlag(PiPropertySet &Props) {
 }
 
 /// Utility function to generate offload entries for kernels without arguments.
-PiArray<PiOffloadEntry>
+inline PiArray<PiOffloadEntry>
 makeEmptyKernels(std::initializer_list<std::string> KernelNames) {
   PiArray<PiOffloadEntry> Entries;
 
