@@ -65,6 +65,7 @@ enum InternalCapability {
   ICapFastCompositeINTEL = 6093,
   ICapOptNoneINTEL = 6094,
   ICapTokenTypeINTEL = 6112,
+  ICapFPArithmeticFenceINTEL = 6144
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
@@ -121,6 +122,8 @@ constexpr Capability CapabilityTokenTypeINTEL =
     static_cast<Capability>(ICapTokenTypeINTEL);
 constexpr Capability CapabilityRuntimeAlignedAttributeINTEL =
     static_cast<Capability>(ICapRuntimeAlignedAttributeINTEL);
+constexpr Capability CapabilityFPArithmeticFenceINTEL =
+    static_cast<Capability>(ICapFPArithmeticFenceINTEL);
 
 constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
     static_cast<FunctionControlMask>(IFunctionControlOptNoneINTELMask);

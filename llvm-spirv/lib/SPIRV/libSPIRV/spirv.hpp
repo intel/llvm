@@ -1052,6 +1052,7 @@ enum Capability {
     CapabilityLongConstantCompositeINTEL = 6089,
     CapabilityAtomicFloat16AddEXT = 6095,
     CapabilityDebugInfoModuleINTEL = 6114,
+    CapabilityFPArithmeticFenceINTEL = 6144,
     CapabilityMax = 0x7fffffff,
 };
 
@@ -1792,6 +1793,7 @@ enum Op {
     OpTypeStructContinuedINTEL = 6090,
     OpConstantCompositeContinuedINTEL = 6091,
     OpSpecConstantCompositeContinuedINTEL = 6092,
+    OpArithmeticFenceINTEL = 6145,
     OpMax = 0x7fffffff,
 };
 

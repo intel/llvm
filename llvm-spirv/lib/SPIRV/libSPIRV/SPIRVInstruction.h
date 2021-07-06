@@ -1566,6 +1566,7 @@ _SPIRV_OP(Any)
 _SPIRV_OP(All)
 _SPIRV_OP(BitCount)
 _SPIRV_OP(BitReverse)
+_SPIRV_OP(ArithmeticFenceINTEL)
 #undef _SPIRV_OP
 
 class SPIRVAccessChainBase : public SPIRVInstTemplateBase {

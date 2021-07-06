@@ -579,6 +579,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityRuntimeAlignedAttributeINTEL,
       "RuntimeAlignedAttributeINTEL");
   add(CapabilityMax, "Max");
+  add(internal::CapabilityFPArithmeticFenceINTEL, "FPArithmeticFenceINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 
