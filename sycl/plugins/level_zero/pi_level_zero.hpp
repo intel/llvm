@@ -153,7 +153,7 @@ template <class T> struct ZeStruct : public T {
   }
 };
 template <class T> struct ZesStruct : public T {
-  ZesStruct() : T{}  { // zero initializes base struct
+  ZesStruct() : T{} { // zero initializes base struct
     this->stype = getZesStructureType<T>();
     this->pNext = nullptr;
   }
