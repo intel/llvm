@@ -602,12 +602,12 @@ void fillPlatformAndDeviceCache(plugin &Plugin) {
       filterDeviceFilter(PiDevices, PiPlatform, Plugin, DeviceNum);
 
       if (PiDevices.size() != 0) {
-    {
-        const std::lock_guard<std::mutex> Guard(
-            GlobalHandler::instance().getPlatformMapMutex());
+        {
+          const std::lock_guard<std::mutex> Guard(
+              GlobalHandler::instance().getPlatformMapMutex());
 
-        PlatformCache.emplace_back(PlatformImpl);
-      }
+          PlatformCache.emplace_back(PlatformImpl);
+        }
         const std::lock_guard<std::mutex> DeviceCacheLock(
             GlobalHandler::instance().getDeviceCacheMutex());
         for (const RT::PiDevice &PiDevice : PiDevices) {
@@ -706,17 +706,19 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
   detail::device_filter_list *FilterList =
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
   if (!FilterList || FilterList->containsHost()) {
-    const std::lock_guard<std::mutex> Guard(
-        GlobalHandler::instance().getPlatformMapMutex());
-    const std::lock_guard<std::mutex> DeviceCacheLock(
-        GlobalHandler::instance().getDeviceCacheMutex());
+    {
+      const std::lock_guard<std::mutex> Guard(
+          GlobalHandler::instance().getPlatformMapMutex());
+      std::vector<PlatformImplPtr> &PlatformCache =
+          GlobalHandler::instance().getPlatformCache();
+      PlatformImplPtr PlatformImpl = platform_impl::getHostPlatformImpl();
+      PlatformCache.emplace_back(PlatformImpl);
+    }
 
-    std::vector<PlatformImplPtr> &PlatformCache =
-        GlobalHandler::instance().getPlatformCache();
     std::vector<DeviceImplPtr> &DeviceCache =
         GlobalHandler::instance().getDeviceCache();
-    PlatformImplPtr PlatformImpl = platform_impl::getHostPlatformImpl();
-    PlatformCache.emplace_back(PlatformImpl);
+    const std::lock_guard<std::mutex> DeviceCacheLock(
+        GlobalHandler::instance().getDeviceCacheMutex());
     std::shared_ptr<device_impl> Device =
         platform_impl::getOrMakeHostDeviceImpl();
     DeviceCache.emplace_back(Device);

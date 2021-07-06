@@ -77,6 +77,8 @@ PlatformImplPtr platform_impl::getPlatformFromPiDevice(RT::PiDevice PiDevice,
 std::vector<platform> platform_impl::get_platforms() {
   std::vector<platform> Platforms;
   RT::initialize();
+  const std::lock_guard<std::mutex> Guard(
+      GlobalHandler::instance().getPlatformMapMutex());
   std::vector<PlatformImplPtr> &PlatformCache =
       GlobalHandler::instance().getPlatformCache();
   for (const PlatformImplPtr &PlatformImpl : PlatformCache) {
