@@ -47,7 +47,7 @@ namespace RT = detail::pi;
 /// \param MPlugin is a pointer to the PiPlugin instance that will be modified.
 /// \param FuncPtr is a pointer to the function that will override the original.
 ///        function table entry
-#define _PI_API(api, ...)                                                      \
+#define _PI_API(api)                                                           \
   template <detail::PiApiKind PiApiOffset>                                     \
   inline void setFuncPtr(RT::PiPlugin *MPlugin, decltype(&::api) FuncPtr);     \
   template <>                                                                  \

@@ -40,7 +40,7 @@ class context;
 namespace detail {
 
 enum class PiApiKind {
-#define _PI_API(api, ...) api,
+#define _PI_API(api) api,
 #include <CL/sycl/detail/pi.def>
 };
 class plugin;
@@ -162,7 +162,7 @@ template <backend BE> __SYCL_EXPORT const plugin &getPlugin();
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};
 
-#define _PI_API(api, ...)                                                      \
+#define _PI_API(api)                                                           \
   template <> struct PiFuncInfo<PiApiKind::api> {                              \
     using FuncPtrT = decltype(&::api);                                         \
     inline const char *getFuncName() { return #api; }                          \

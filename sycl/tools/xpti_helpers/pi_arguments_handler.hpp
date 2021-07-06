@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 
 #include <functional>
 #include <tuple>
@@ -37,6 +38,12 @@ inline TupleT unpack(char *Data,
   return {get<TupleT>(Data, std::make_index_sequence<Is + 1>{})...};
 }
 
+template <typename T> struct to_function {};
+
+template <typename... Args> struct to_function<std::tuple<Args...>> {
+  using type = std::function<void(Args...)>;
+};
+
 /// PiArgumentsHandler is a helper class to process incoming XPTI function call
 /// events and unpack contained arguments.
 ///
@@ -53,7 +60,7 @@ inline TupleT unpack(char *Data,
 class PiArgumentsHandler {
 public:
   void handle(uint32_t ID, void *ArgsData) {
-#define _PI_API(api, ...)                                                      \
+#define _PI_API(api)                                                           \
   if (ID == static_cast<uint32_t>(detail::PiApiKind::api)) {                   \
     MHandler##_##api(ArgsData);                                                \
     return;                                                                    \
@@ -62,10 +69,14 @@ public:
 #undef _PI_API
   }
 
-#define _PI_API(api, ...)                                                      \
-  void set##_##api(std::function<void(__VA_ARGS__)> Handler) {                 \
+#define _PI_API(api)                                                           \
+  void set##_##api(                                                            \
+      const typename to_function<                                              \
+          typename detail::function_traits<decltype(api)>::args_type>::type    \
+          &Handler) {                                                          \
     MHandler##_##api = [Handler](void *Data) {                                 \
-      using TupleT = std::tuple<__VA_ARGS__>;                                  \
+      using TupleT =                                                           \
+          typename detail::function_traits<decltype(api)>::args_type;          \
       TupleT Tuple = unpack<TupleT>(                                           \
           (char *)Data,                                                        \
           std::make_index_sequence<std::tuple_size<TupleT>::value>{});         \
@@ -76,7 +87,7 @@ public:
 #undef _PI_API
 
 private:
-#define _PI_API(api, ...)                                                      \
+#define _PI_API(api)                                                           \
   std::function<void(void *)> MHandler##_##api = [](void *) {};
 #include <CL/sycl/detail/pi.def>
 #undef _PI_API

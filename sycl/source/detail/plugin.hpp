@@ -10,6 +10,7 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/plugin_printers.hpp>
 #include <memory>
@@ -33,9 +34,9 @@ struct array_fill_helper;
 
 template <PiApiKind Kind> struct PiApiArgTuple;
 
-#define _PI_API(api, ...)                                                      \
+#define _PI_API(api)                                                           \
   template <> struct PiApiArgTuple<PiApiKind::api> {                           \
-    using type = std::tuple<__VA_ARGS__>;                                      \
+    using type = typename function_traits<decltype(api)>::args_type;           \
   };
 
 #include <CL/sycl/detail/pi.def>
