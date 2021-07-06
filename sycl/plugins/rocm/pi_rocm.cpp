@@ -884,6 +884,32 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfoArray(max_work_item_dimensions, param_value_size, param_value,
                         param_value_size_ret, return_sizes);
   }
+  case PI_DEVICE_INFO_MAX_GLOBAL_WORK_SIZES: {
+    size_t return_sizes[max_work_item_dimensions];
+
+    int max_x = 0, max_y = 0, max_z = 0;
+    cl::sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&max_x, hipDeviceAttributeMaxGridDimX,
+                              device->get()) == hipSuccess);
+    cl::sycl::detail::pi::assertion(max_x >= 0);
+
+    cl::sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&max_y, hipDeviceAttributeMaxGridDimY,
+                              device->get()) == hipSuccess);
+    cl::sycl::detail::pi::assertion(max_y >= 0);
+
+    cl::sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&max_z, hipDeviceAttributeMaxGridDimZ,
+                              device->get()) == hipSuccess);
+    cl::sycl::detail::pi::assertion(max_z >= 0);
+
+    return_sizes[0] = size_t(max_x);
+    return_sizes[1] = size_t(max_y);
+    return_sizes[2] = size_t(max_z);
+    return getInfoArray(max_work_item_dimensions, param_value_size, param_value,
+                        param_value_size_ret, return_sizes);
+  }
+
   case PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
     int max_work_group_size = 0;
     cl::sycl::detail::pi::assertion(

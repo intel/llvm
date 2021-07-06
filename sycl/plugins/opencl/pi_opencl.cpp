@@ -185,6 +185,26 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_ATOMIC_64:
     return PI_INVALID_VALUE;
 
+  case PI_DEVICE_INFO_MAX_GLOBAL_WORK_SIZES:
+    // Returns the maximum sizes of a work group for each dimension one
+    // could use to submit a kernel. There is no such query defined in OpenCL
+    // so we'll return the maximum value one could pass. See
+    // sycl/include/CL/sycl/handler.hpp and __SYCL_ID_QUERIES_FIT_IN_INT__
+    {
+      if (paramValueSizeRet)
+        *paramValueSizeRet = paramValueSize;
+      static constexpr size_t Limit =
+          static_cast<size_t>((std::numeric_limits<int>::max)());
+      size_t *out = cast<size_t *>(paramValue);
+      if (paramValueSize >= sizeof(size_t))
+        out[0] = Limit;
+      if (paramValueSize >= 2 * sizeof(size_t))
+        out[1] = Limit;
+      if (paramValueSize >= 3 * sizeof(size_t))
+        out[2] = Limit;
+      return PI_SUCCESS;
+    }
+
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),

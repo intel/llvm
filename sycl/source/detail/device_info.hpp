@@ -457,6 +457,16 @@ template <> struct get_device_info<id<3>, info::device::max_work_item_sizes> {
   }
 };
 
+template <> struct get_device_info<id<3>, info::device::max_global_work_sizes> {
+  static id<3> get(RT::PiDevice dev, const plugin &Plugin) {
+    size_t result[3];
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::max_global_work_sizes),
+        sizeof(result), &result, nullptr);
+    return id<3>(result[2], result[1], result[0]);
+  }
+};
+
 // Specialization for parent device
 template <> struct get_device_info<device, info::device::parent_device> {
   static device get(RT::PiDevice dev, const plugin &Plugin) {
@@ -508,6 +518,14 @@ template <>
 inline id<3> get_device_info_host<info::device::max_work_item_sizes>() {
   // current value is the required minimum
   return {1, 1, 1};
+}
+
+template <>
+inline id<3> get_device_info_host<info::device::max_global_work_sizes>() {
+  // See handler.hpp for the maximum value :
+  static constexpr size_t Limit =
+      static_cast<size_t>((std::numeric_limits<int>::max)());
+  return {Limit, Limit, Limit};
 }
 
 template <>

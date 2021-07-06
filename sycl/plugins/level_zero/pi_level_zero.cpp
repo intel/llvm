@@ -1731,6 +1731,14 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                        Device->ZeDeviceComputeProperties.maxGroupSizeZ}};
     return ReturnValue(MaxGroupSize);
   }
+  case PI_DEVICE_INFO_MAX_GLOBAL_WORK_SIZES: {
+    struct {
+      size_t Arr[3];
+    } MaxGroupCounts = {{Device->ZeDeviceComputeProperties.maxGroupCountX,
+                         Device->ZeDeviceComputeProperties.maxGroupCountY,
+                         Device->ZeDeviceComputeProperties.maxGroupCountZ}};
+    return ReturnValue(MaxGroupCounts);
+  }
   case PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
     return ReturnValue(pi_uint32{Device->ZeDeviceProperties.coreClockRate});
   case PI_DEVICE_INFO_ADDRESS_BITS: {
