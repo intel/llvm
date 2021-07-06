@@ -8,6 +8,8 @@
 // This implements Semantic Analysis for SYCL constructs.
 //===----------------------------------------------------------------------===//
 
+#include <iostream>
+
 #include "TreeTransform.h"
 #include "clang/AST/AST.h"
 #include "clang/AST/Mangle.h"
@@ -764,10 +766,8 @@ class SingleDeviceFunctionTracker {
     return FD->getMostRecentDecl();
   }
 
-  void VisitCallNode(CallGraphNode *Node,
+  void VisitCallNode(CallGraphNode *Node, FunctionDecl *CurrentDecl,
                      llvm::SmallVectorImpl<FunctionDecl *> &CallStack) {
-    FunctionDecl *CurrentDecl = GetFDFromNode(Node);
-
     // If this isn't a function, I don't think there is anything we can do here.
     if (!CurrentDecl)
       return;
@@ -787,22 +787,6 @@ class SingleDeviceFunctionTracker {
       Parent.SemaRef.addFDToReachableFromSyclDevice(CurrentDecl,
                                                     CallStack.back());
 
-    // We previously thought we could skip this function if we'd seen it before,
-    // but if we haven't seen it before in this call graph, we can end up
-    // missing a recursive call.  SO, we have to revisit call-graphs we've
-    // already seen, just in case it ALSO has recursion.  For example:
-    // void recurse1();
-    // void recurse2() { recurse1(); }
-    // void recurse1() { recurse2(); }
-    // void CallerInKernel() { recurse1(); recurse2(); }
-    // When checking 'recurse1', we'd have ended up 'visiting' recurse2 without
-    // realizing it was recursive, since we never went into the
-    // child-of-its-child, since THAT was recursive and exited early out of
-    // necessity.
-    // Then when we go to visit the kernel's call to recurse2, we would
-    // immediately escape not noticing it was recursive. SO, we have to do a
-    // little extra work in this case, and make sure we visit the entire call
-    // graph.
     DeviceFunctions.insert(CurrentDecl);
 
     // Collect attributes for functions that aren't the root kernel.
@@ -842,8 +826,16 @@ class SingleDeviceFunctionTracker {
 
     // Recurse.
     CallStack.push_back(CurrentDecl);
+    llvm::SmallPtrSet<FunctionDecl *, 16> SeenCallees;
     for (CallGraphNode *CI : Node->callees()) {
-      VisitCallNode(CI, CallStack);
+      FunctionDecl *CurFD = GetFDFromNode(CI);
+
+      // Make sure we only visit each callee 1x from this function to avoid very
+      // time consuming template recursion cases.
+      if (!llvm::is_contained(SeenCallees, CurFD)) {
+        VisitCallNode(CI, CurFD, CallStack);
+        SeenCallees.insert(CurFD);
+      }
     }
     CallStack.pop_back();
   }
@@ -852,7 +844,7 @@ class SingleDeviceFunctionTracker {
   void Init() {
     CallGraphNode *KernelNode = Parent.getNodeForKernel(SYCLKernel);
     llvm::SmallVector<FunctionDecl *> CallStack;
-    VisitCallNode(KernelNode, CallStack);
+    VisitCallNode(KernelNode, GetFDFromNode(KernelNode), CallStack);
   }
 
 public:
