@@ -3219,8 +3219,7 @@ static bool IsSYCLUnnamedKernel(Sema &SemaRef, const FunctionDecl *FD) {
   if (!SemaRef.getLangOpts().SYCLUnnamedLambda)
     return false;
   QualType FunctorTy = GetSYCLKernelObjectType(FD);
-  QualType TmplArgTy =
-      calculateKernelNameType(SemaRef.Context, FD);
+  QualType TmplArgTy = calculateKernelNameType(SemaRef.Context, FD);
   return SemaRef.Context.hasSameType(FunctorTy, TmplArgTy);
 }
 
