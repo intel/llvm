@@ -5,5 +5,6 @@ set(LLVM_REQUIRES_EH 1)
 add_sycl_unittest(SYCL2020Tests OBJECT
   GetNativeOpenCL.cpp
   SpecConstDefaultValues.cpp
+  KernelBundle.cpp
 )
 

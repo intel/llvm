@@ -1101,6 +1101,14 @@ get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
       PI_INVALID_DEVICE);
 }
 
+template <>
+inline detail::uuid_type
+get_device_info_host<info::device::ext_intel_device_info_uuid>() {
+  throw runtime_error(
+      "Obtaining the device uuid is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
