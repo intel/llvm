@@ -72,20 +72,6 @@ pi_result redefinedEventsWait(pi_uint32 num_events,
 pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
                                 size_t param_value_size, void *param_value,
                                 size_t *param_value_size_ret) {
-#if 0
-  EXPECT_EQ(param_name, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS)
-      << "Unexpected event info requested";
-  // Report first half of events as complete.
-  // Report second half of events as running.
-  // This is important, because removal algorithm assumes that
-  // events are likely to be removed oldest first, and stops removing
-  // at the first non-completed event.
-  static int Counter = 0;
-  auto *Result = reinterpret_cast<pi_event_status *>(param_value);
-  *Result = (Counter < (ExpectedEventThreshold / 2)) ? PI_EVENT_COMPLETE
-                                                     : PI_EVENT_RUNNING;
-  Counter++;
-#endif
   return PI_SUCCESS;
 }
 
@@ -127,7 +113,7 @@ bool preparePiMock(platform &Plt) {
   return true;
 }
 
-TEST(QueueWait, Finish) {
+TEST(QueueWait, QueueWaitTest) {
   platform Plt{default_selector()};
   if (!preparePiMock(Plt))
     return;
@@ -161,38 +147,40 @@ TEST(QueueWait, Finish) {
   }
 
   // Blocked commands
-  TestContext = {};
-  buffer<int, 1> buf{range<1>(1)};
-  event HostTaskEvent = Q.submit([&](handler &Cgh) {
-    auto acc = buf.template get_access<access::mode::read>(Cgh);
-    Cgh.host_task([=]() { (void)acc; });
-  });
-  std::shared_ptr<detail::event_impl> HostTaskEventImpl =
-      detail::getSyclObjImpl(HostTaskEvent);
-  auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl->getCommand());
-  detail::Command *EmptyTask = *Cmd->MUsers.begin();
-  ASSERT_EQ(EmptyTask->getType(), detail::Command::EMPTY_TASK);
-  HostTaskEvent.wait();
-  // Use the empty task produced by the host task to block the next commands
-  while (EmptyTask->MEnqueueStatus !=
-         detail::EnqueueResultT::SyclEnqueueSuccess)
-    continue;
-  EmptyTask->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
-  Q.submit([&](handler &Cgh) {
-    auto acc = buf.template get_access<access::mode::discard_write>(Cgh);
-    Cgh.fill(acc, 42);
-  });
-  Q.submit([&](handler &Cgh) {
-    auto acc = buf.template get_access<access::mode::discard_write>(Cgh);
-    Cgh.fill(acc, 42);
-  });
-  // Unblock the empty task to allow the submitted events to complete once
-  // enqueued.
-  EmptyTask->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
-  Q.wait();
-  // Only a single event (the last one) should be waited for here.
-  ASSERT_EQ(TestContext.NEventsWaitedFor, 1);
-  ASSERT_TRUE(TestContext.PiQueueFinishCalled);
+  {
+    TestContext = {};
+    buffer<int, 1> buf{range<1>(1)};
+    event HostTaskEvent = Q.submit([&](handler &Cgh) {
+      auto acc = buf.template get_access<access::mode::read>(Cgh);
+      Cgh.host_task([=]() { (void)acc; });
+    });
+    std::shared_ptr<detail::event_impl> HostTaskEventImpl =
+        detail::getSyclObjImpl(HostTaskEvent);
+    auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl->getCommand());
+    detail::Command *EmptyTask = *Cmd->MUsers.begin();
+    ASSERT_EQ(EmptyTask->getType(), detail::Command::EMPTY_TASK);
+    HostTaskEvent.wait();
+    // Use the empty task produced by the host task to block the next commands
+    while (EmptyTask->MEnqueueStatus !=
+           detail::EnqueueResultT::SyclEnqueueSuccess)
+      continue;
+    EmptyTask->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+    Q.submit([&](handler &Cgh) {
+      auto acc = buf.template get_access<access::mode::discard_write>(Cgh);
+      Cgh.fill(acc, 42);
+    });
+    Q.submit([&](handler &Cgh) {
+      auto acc = buf.template get_access<access::mode::discard_write>(Cgh);
+      Cgh.fill(acc, 42);
+    });
+    // Unblock the empty task to allow the submitted events to complete once
+    // enqueued.
+    EmptyTask->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
+    Q.wait();
+    // Only a single event (the last one) should be waited for here.
+    ASSERT_EQ(TestContext.NEventsWaitedFor, 1);
+    ASSERT_TRUE(TestContext.PiQueueFinishCalled);
+  }
 
   // Test behaviour for emulating an OOO queue with multiple in-order ones.
   TestContext = {};
