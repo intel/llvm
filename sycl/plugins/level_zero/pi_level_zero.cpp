@@ -2411,7 +2411,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   try {
     *Queue = new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueue, Context,
-                           Device, ZeCommandListBatchSize, Properties);
+                           Device, ZeCommandListBatchSize, true, Properties);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2471,7 +2471,7 @@ pi_result piQueueRelease(pi_queue Queue) {
     std::lock_guard<std::mutex> Lock(Queue->PiQueueMutex);
     Queue->RefCount--;
     if (Queue->RefCount == 0)
-      RefCountZero = true;
+      RefCountZero = Queue->OwnZeCommandQueue ? true : false;
 
     if (RefCountZero) {
       // It is possible to get to here and still have an open command list
@@ -2546,6 +2546,7 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
                                            pi_context Context,
+                                           bool OwnNativeHandle,
                                            pi_queue *Queue) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
@@ -2559,7 +2560,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   // TODO: see what we can do to correctly initialize PI queue for
   // compute vs. copy Level-Zero queue.
   *Queue =
-      new _pi_queue(ZeQueue, nullptr, Context, Device, ZeCommandListBatchSize);
+      new _pi_queue(ZeQueue, nullptr, Context, Device, ZeCommandListBatchSize, OwnNativeHandle);
   return PI_SUCCESS;
 }
 

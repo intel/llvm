@@ -434,12 +434,13 @@ const pi_uint32 DynamicBatchStartSize = 4;
 struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue,
             ze_command_queue_handle_t CopyQueue, pi_context Context,
-            pi_device Device, pi_uint32 BatchSize,
+            pi_device Device, pi_uint32 BatchSize, bool OwnZeCommandQueue,
             pi_queue_properties PiQueueProperties = 0)
       : ZeComputeCommandQueue{Queue},
         ZeCopyCommandQueue{CopyQueue}, Context{Context}, Device{Device},
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
         UseDynamicBatching{BatchSize == 0},
+        OwnZeCommandQueue{OwnZeCommandQueue},
         PiQueueProperties(PiQueueProperties) {}
 
   // Level Zero compute command queue handle.
@@ -496,6 +497,10 @@ struct _pi_queue : _pi_object {
   // or not.  This is set only at queue creation time, and is therefore
   // const for the life of the queue.
   const bool UseDynamicBatching;
+
+  // Indicates if we own the ZeCommandQueue or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeCommandQueue;
 
   // These two members are used to keep track of how often the
   // batching closes and executes a command list before reaching the
