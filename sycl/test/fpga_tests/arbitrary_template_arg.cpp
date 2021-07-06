@@ -22,9 +22,10 @@ struct test_enum_class : std::integral_constant<enum_class, _N> {
 
 template <class... _Params> void func() {
   static constexpr auto test_int_value =
-      _GetValue<test_int<0>, _Params...>::value;
+      sycl::INTEL::_GetValue<test_int<0>, _Params...>::value;
   static constexpr auto test_enum_class_value =
-      _GetValue<test_enum_class<enum_class::first>, _Params...>::value;
+      sycl::INTEL::_GetValue<test_enum_class<enum_class::first>,
+                             _Params...>::value;
 
   std::cout << test_int_value << " ";
   if (test_enum_class_value == enum_class::first) {
