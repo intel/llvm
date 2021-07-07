@@ -1583,7 +1583,10 @@ void Parser::HandlePragmaAttribute() {
 
   if (Tok.is(tok::l_square) && NextToken().is(tok::l_square)) {
     // Parse the CXX11 style attribute.
-    ParseCXX11AttributeSpecifier(Attrs);
+    CachedTokens OpenMPTokens;
+    ParseCXX11AttributeSpecifier(Attrs, OpenMPTokens);
+    // FIXME: We currently do not support #pragma clang attribute to spit out
+    // OpenMP attributes. It's not clear that this support would be useful.
   } else if (Tok.is(tok::kw___attribute)) {
     ConsumeToken();
     if (ExpectAndConsume(tok::l_paren, diag::err_expected_lparen_after,

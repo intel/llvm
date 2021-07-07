@@ -2791,28 +2791,53 @@ private:
     }
     return false;
   }
-  bool MaybeParseCXX11Attributes(ParsedAttributesWithRange &attrs,
-                                 SourceLocation *endLoc = nullptr,
+  bool MaybeParseCXX11Attributes(ParsedAttributesWithRange &Attrs,
+                                 CachedTokens &OpenMPTokens,
+                                 SourceLocation *EndLoc = nullptr,
                                  bool OuterMightBeMessageSend = false) {
     if (standardAttributesAllowed() &&
         isCXX11AttributeSpecifier(false, OuterMightBeMessageSend)) {
-      ParseCXX11Attributes(attrs, endLoc);
+      ParseCXX11Attributes(Attrs, OpenMPTokens, EndLoc);
       return true;
     }
     return false;
   }
+  // This overload is necessary so that we do not fall back on calling
+  // MaybeParseCXX11Attributes with a ParsedAttributes reference rather than a
+  // ParsedAttributesWithRange reference.
+  bool MaybeParseCXX11Attributes(ParsedAttributesWithRange &Attrs,
+                                 SourceLocation *EndLoc = nullptr,
+                                 bool OuterMightBeMessageSend = false) {
+    CachedTokens Discard;
+    bool Ret = MaybeParseCXX11Attributes(Attrs, Discard, EndLoc,
+                                         OuterMightBeMessageSend);
+    assert(Discard.empty() && "Did not expect to find OpenMP attribute tokens");
+    return Ret;
+  }
 
-  void ParseCXX11AttributeSpecifier(ParsedAttributes &attrs,
+  void ParseOpenMPAttributeArgs(IdentifierInfo *AttrName,
+                                CachedTokens &OpenMPTokens);
+
+  void ParseCXX11AttributeSpecifier(ParsedAttributes &Attrs,
+                                    CachedTokens &OpenMPTokens,
                                     SourceLocation *EndLoc = nullptr);
-  void ParseCXX11Attributes(ParsedAttributesWithRange &attrs,
+  void ParseCXX11Attributes(ParsedAttributesWithRange &Attrs,
+                            CachedTokens &OpenMPTokens,
                             SourceLocation *EndLoc = nullptr);
+  void ParseCXX11Attributes(ParsedAttributesWithRange &Attrs,
+                            SourceLocation *EndLoc = nullptr) {
+    CachedTokens OpenMPTokens;
+    ParseCXX11Attributes(Attrs, OpenMPTokens, EndLoc);
+  }
+
   /// Parses a C++11 (or C2x)-style attribute argument list. Returns true
   /// if this results in adding an attribute to the ParsedAttributes list.
   bool ParseCXX11AttributeArgs(IdentifierInfo *AttrName,
                                SourceLocation AttrNameLoc,
                                ParsedAttributes &Attrs, SourceLocation *EndLoc,
                                IdentifierInfo *ScopeName,
-                               SourceLocation ScopeLoc);
+                               SourceLocation ScopeLoc,
+                               CachedTokens &OpenMPTokens);
 
   IdentifierInfo *TryParseCXX11AttributeIdentifier(SourceLocation &Loc);
 

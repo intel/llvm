@@ -876,6 +876,7 @@ PRAGMA_ANNOTATION(pragma_opencl_extension)
 // The lexer produces these so that they only take effect when the parser
 // handles #pragma omp ... directives.
 PRAGMA_ANNOTATION(pragma_openmp)
+PRAGMA_ANNOTATION(pragma_openmp_from_attr)
 PRAGMA_ANNOTATION(pragma_openmp_end)
 
 // Annotations for loop pragma directives #pragma clang loop ...

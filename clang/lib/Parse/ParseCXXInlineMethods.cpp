@@ -778,6 +778,7 @@ void Parser::ParseLexedPragma(LateParsedPragma &LP) {
   ConsumeAnyToken(/*ConsumeCodeCompletionTok=*/true);
   assert(Tok.isAnnotation() && "Expected annotation token.");
   switch (Tok.getKind()) {
+  case tok::annot_pragma_openmp_from_attr:
   case tok::annot_pragma_openmp: {
     AccessSpecifier AS = LP.getAccessSpecifier();
     ParsedAttributesWithRange Attrs(AttrFactory);

@@ -309,6 +309,7 @@ bool Parser::SkipUntil(ArrayRef<tok::TokenKind> Toks, SkipUntilFlags Flags) {
       return false;
 
     case tok::annot_pragma_openmp:
+    case tok::annot_pragma_openmp_from_attr:
     case tok::annot_pragma_openmp_end:
       // Stop before an OpenMP pragma boundary.
       if (OpenMPDirectiveParsing)
@@ -714,7 +715,17 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
   }
 
   ParsedAttributesWithRange attrs(AttrFactory);
-  MaybeParseCXX11Attributes(attrs);
+  CachedTokens OpenMPTokens;
+  MaybeParseCXX11Attributes(attrs, OpenMPTokens);
+
+  // If parsing the attributes found an OpenMP directive, emit those tokens to
+  // the parse stream now.
+  if (!OpenMPTokens.empty()) {
+    PP.EnterToken(Tok, /*IsReinject*/ true);
+    PP.EnterTokenStream(OpenMPTokens, /*DisableMacroExpansion*/ true,
+                        /*IsReinject*/ true);
+    ConsumeAnyToken(/*ConsumeCodeCompletionTok*/ true);
+  }
 
   Result = ParseExternalDeclaration(attrs);
   return false;
@@ -798,6 +809,7 @@ Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
   case tok::annot_pragma_opencl_extension:
     HandlePragmaOpenCLExtension();
     return nullptr;
+  case tok::annot_pragma_openmp_from_attr:
   case tok::annot_pragma_openmp: {
     AccessSpecifier AS = AS_none;
     return ParseOpenMPDeclarativeDirectiveWithExtDecl(AS, attrs);

@@ -106,9 +106,20 @@ Parser::ParseStatementOrDeclaration(StmtVector &Stmts,
   // at the start of the statement. Thus, we're not using MaybeParseAttributes
   // here because we don't want to allow arbitrary orderings.
   ParsedAttributesWithRange Attrs(AttrFactory);
-  MaybeParseCXX11Attributes(Attrs, nullptr, /*MightBeObjCMessageSend*/ true);
+  CachedTokens OpenMPTokens;
+  MaybeParseCXX11Attributes(Attrs, OpenMPTokens, nullptr,
+                            /*MightBeObjCMessageSend*/ true);
   if (getLangOpts().OpenCL)
     MaybeParseGNUAttributes(Attrs);
+
+  // If parsing the attributes found an OpenMP directive, emit those tokens to
+  // the parse stream now.
+  if (!OpenMPTokens.empty()) {
+    PP.EnterToken(Tok, /*IsReinject*/ true);
+    PP.EnterTokenStream(OpenMPTokens, /*DisableMacroExpansion*/ true,
+                        /*IsReinject*/ true);
+    ConsumeAnyToken(/*ConsumeCodeCompletionTok*/ true);
+  }
 
   StmtResult Res = ParseStatementOrDeclarationAfterAttributes(
       Stmts, StmtCtx, TrailingElseLoc, Attrs);
@@ -401,7 +412,12 @@ Retry:
     return HandlePragmaCaptured();
 
   case tok::annot_pragma_openmp:
+    // Prohibit attributes that are not OpenMP attributes, but only before
+    // processing a #pragma omp clause.
     ProhibitAttributes(Attrs);
+    LLVM_FALLTHROUGH;
+  case tok::annot_pragma_openmp_from_attr:
+    // Do not prohibit attributes if they were OpenMP attributes.
     return ParseOpenMPDeclarativeOrExecutableDirective(StmtCtx);
 
   case tok::annot_pragma_ms_pointers_to_members:
@@ -1110,8 +1126,18 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
         ConsumeToken();
 
       ParsedAttributesWithRange attrs(AttrFactory);
-      MaybeParseCXX11Attributes(attrs, nullptr,
+      CachedTokens OpenMPTokens;
+      MaybeParseCXX11Attributes(attrs, OpenMPTokens, nullptr,
                                 /*MightBeObjCMessageSend*/ true);
+
+      // If parsing the attributes found an OpenMP directive, emit those tokens
+      // to the parse stream now.
+      if (!OpenMPTokens.empty()) {
+        PP.EnterToken(Tok, /*IsReinject*/ true);
+        PP.EnterTokenStream(OpenMPTokens, /*DisableMacroExpansion*/ true,
+                            /*IsReinject*/ true);
+        ConsumeAnyToken(/*ConsumeCodeCompletionTok*/ true);
+      }
 
       // If this is the start of a declaration, parse it as such.
       if (isDeclarationStatement()) {

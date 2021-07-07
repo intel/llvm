@@ -242,7 +242,18 @@ void Parser::ParseInnerNamespace(const InnerNamespaceInfoList &InnerNSs,
     while (!tryParseMisplacedModuleImport() && Tok.isNot(tok::r_brace) &&
            Tok.isNot(tok::eof)) {
       ParsedAttributesWithRange attrs(AttrFactory);
-      MaybeParseCXX11Attributes(attrs);
+      CachedTokens OpenMPTokens;
+      MaybeParseCXX11Attributes(attrs, OpenMPTokens);
+
+      // If parsing the attributes found an OpenMP directive, emit those tokens
+      // to the parse stream now.
+      if (!OpenMPTokens.empty()) {
+        PP.EnterToken(Tok, /*IsReinject*/ true);
+        PP.EnterTokenStream(OpenMPTokens, /*DisableMacroExpansion*/ true,
+                            /*IsReinject*/ true);
+        ConsumeAnyToken(/*ConsumeCodeCompletionTok*/ true);
+      }
+
       ParseExternalDeclaration(attrs);
     }
 
@@ -3261,6 +3272,7 @@ Parser::DeclGroupPtrTy Parser::ParseCXXClassMemberDeclarationWithPragmas(
     return nullptr;
   }
 
+  case tok::annot_pragma_openmp_from_attr:
   case tok::annot_pragma_openmp:
     return ParseOpenMPDeclarativeDirectiveWithExtDecl(
         AS, AccessAttrs, /*Delayed=*/true, TagType, TagDecl);
@@ -4135,6 +4147,74 @@ IdentifierInfo *Parser::TryParseCXX11AttributeIdentifier(SourceLocation &Loc) {
   }
 }
 
+void Parser::ParseOpenMPAttributeArgs(IdentifierInfo *AttrName,
+                                      CachedTokens &OpenMPTokens) {
+  if (AttrName->isStr("directive")) {
+    // If the attribute is named `directive`, we can consume its argument list
+    // and push the tokens from it into the cached token stream for a new OpenMP
+    // pragma directive.
+    BalancedDelimiterTracker T(*this, tok::l_paren);
+    if (T.consumeOpen()) {
+      Diag(Tok, diag::err_expected) << tok::l_paren;
+      return;
+    }
+
+    Token OMPBeginTok;
+    OMPBeginTok.startToken();
+    OMPBeginTok.setKind(tok::annot_pragma_openmp_from_attr);
+    OMPBeginTok.setLocation(Tok.getLocation());
+    OpenMPTokens.push_back(OMPBeginTok);
+
+    ConsumeAndStoreUntil(tok::r_paren, OpenMPTokens, /*StopAtSemi=*/false,
+                         /*ConsumeFinalToken*/ false);
+    Token OMPEndTok;
+    OMPEndTok.startToken();
+    OMPEndTok.setKind(tok::annot_pragma_openmp_end);
+    OMPEndTok.setLocation(Tok.getLocation());
+    OpenMPTokens.push_back(OMPEndTok);
+
+    T.consumeClose();
+  } else if (AttrName->isStr("sequence")) {
+    // If the attribute is named 'sequence', its argument is a list of one or
+    // more OpenMP attributes (either 'omp::directive' or 'omp::sequence',
+    // where the 'omp::' is optional).
+    BalancedDelimiterTracker T(*this, tok::l_paren);
+    if (T.consumeOpen()) {
+      Diag(Tok, diag::err_expected) << tok::l_paren;
+      return;
+    }
+
+    do {
+      // We expect to see one of the following:
+      //  * An identifier (omp) for the attribute namespace followed by ::
+      //  * An identifier (directive) or an identifier (sequence).
+      SourceLocation IdentLoc;
+      IdentifierInfo *Ident = TryParseCXX11AttributeIdentifier(IdentLoc);
+
+      // If there is an identifier and it is 'omp', a double colon is required
+      // followed by the actual identifier we're after.
+      if (Ident && Ident->isStr("omp") && !ExpectAndConsume(tok::coloncolon))
+        Ident = TryParseCXX11AttributeIdentifier(IdentLoc);
+
+      // If we failed to find an identifier (scoped or otherwise), diagnose.
+      if (!Ident) {
+        Diag(Tok.getLocation(), diag::err_expected) << tok::identifier;
+        SkipUntil(tok::r_paren, StopBeforeMatch);
+      } else {
+        // We read an identifier. If the identifier is one of the ones we
+        // expected, we can recurse to parse the args.
+        if (Ident->isStr("directive") || Ident->isStr("sequence"))
+          ParseOpenMPAttributeArgs(Ident, OpenMPTokens);
+      }
+
+      // There may be a comma to signal that we expect another directive in the
+      // sequence.
+    } while (TryConsumeToken(tok::comma));
+
+    T.consumeClose();
+  }
+}
+
 static bool IsBuiltInOrStandardCXX11Attribute(IdentifierInfo *AttrName,
                                               IdentifierInfo *ScopeName) {
   switch (
@@ -4175,12 +4255,25 @@ bool Parser::ParseCXX11AttributeArgs(IdentifierInfo *AttrName,
                                      ParsedAttributes &Attrs,
                                      SourceLocation *EndLoc,
                                      IdentifierInfo *ScopeName,
-                                     SourceLocation ScopeLoc) {
+                                     SourceLocation ScopeLoc,
+                                     CachedTokens &OpenMPTokens) {
   assert(Tok.is(tok::l_paren) && "Not a C++11 attribute argument list");
   SourceLocation LParenLoc = Tok.getLocation();
   const LangOptions &LO = getLangOpts();
   ParsedAttr::Syntax Syntax =
       LO.CPlusPlus ? ParsedAttr::AS_CXX11 : ParsedAttr::AS_C2x;
+
+  // FIXME: [[omp::directive()]] and [[omp::sequence()]] are both known
+  // attributes but we do not support them via __has_cpp_attribute currently.
+  // So the test for OpenMP attributes has to go before the call to
+  // hasAttribute() until we fix that.
+  if (ScopeName && ScopeName->isStr("omp")) {
+    ParseOpenMPAttributeArgs(AttrName, OpenMPTokens);
+
+    // We claim that an attribute was parsed and added so that one is not
+    // created for us by the caller.
+    return true;
+  }
 
   // If the attribute isn't known, we will not attempt to parse any
   // arguments.
@@ -4259,11 +4352,12 @@ bool Parser::ParseCXX11AttributeArgs(IdentifierInfo *AttrName,
 ///
 /// [C++11] attribute-namespace:
 ///         identifier
-void Parser::ParseCXX11AttributeSpecifier(ParsedAttributes &attrs,
-                                          SourceLocation *endLoc) {
+void Parser::ParseCXX11AttributeSpecifier(ParsedAttributes &Attrs,
+                                          CachedTokens &OpenMPTokens,
+                                          SourceLocation *EndLoc) {
   if (Tok.is(tok::kw_alignas)) {
     Diag(Tok.getLocation(), diag::warn_cxx98_compat_alignas);
-    ParseAlignmentSpecifier(attrs, endLoc);
+    ParseAlignmentSpecifier(Attrs, EndLoc);
     return;
   }
 
@@ -4345,11 +4439,11 @@ void Parser::ParseCXX11AttributeSpecifier(ParsedAttributes &attrs,
 
     // Parse attribute arguments
     if (Tok.is(tok::l_paren))
-      AttrParsed = ParseCXX11AttributeArgs(AttrName, AttrLoc, attrs, endLoc,
-                                           ScopeName, ScopeLoc);
+      AttrParsed = ParseCXX11AttributeArgs(AttrName, AttrLoc, Attrs, EndLoc,
+                                           ScopeName, ScopeLoc, OpenMPTokens);
 
     if (!AttrParsed) {
-      attrs.addNew(
+      Attrs.addNew(
           AttrName,
           SourceRange(ScopeLoc.isValid() ? ScopeLoc : AttrLoc, AttrLoc),
           ScopeName, ScopeLoc, nullptr, 0,
@@ -4374,8 +4468,8 @@ void Parser::ParseCXX11AttributeSpecifier(ParsedAttributes &attrs,
     SkipUntil(tok::r_square);
   else if (Tok.is(tok::r_square))
     checkCompoundToken(CloseLoc, tok::r_square, CompoundToken::AttrEnd);
-  if (endLoc)
-    *endLoc = Tok.getLocation();
+  if (EndLoc)
+    *EndLoc = Tok.getLocation();
   if (ExpectAndConsume(tok::r_square))
     SkipUntil(tok::r_square);
 }
@@ -4384,19 +4478,20 @@ void Parser::ParseCXX11AttributeSpecifier(ParsedAttributes &attrs,
 ///
 /// attribute-specifier-seq:
 ///       attribute-specifier-seq[opt] attribute-specifier
-void Parser::ParseCXX11Attributes(ParsedAttributesWithRange &attrs,
-                                  SourceLocation *endLoc) {
+void Parser::ParseCXX11Attributes(ParsedAttributesWithRange &Attrs,
+                                  CachedTokens &OpenMPTokens,
+                                  SourceLocation *EndLoc) {
   assert(standardAttributesAllowed());
 
   SourceLocation StartLoc = Tok.getLocation(), Loc;
-  if (!endLoc)
-    endLoc = &Loc;
+  if (!EndLoc)
+    EndLoc = &Loc;
 
   do {
-    ParseCXX11AttributeSpecifier(attrs, endLoc);
+    ParseCXX11AttributeSpecifier(Attrs, OpenMPTokens, EndLoc);
   } while (isCXX11AttributeSpecifier());
 
-  attrs.Range = SourceRange(StartLoc, *endLoc);
+  Attrs.Range = SourceRange(StartLoc, *EndLoc);
 }
 
 void Parser::DiagnoseAndSkipCXX11Attributes() {
