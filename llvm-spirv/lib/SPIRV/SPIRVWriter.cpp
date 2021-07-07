@@ -3051,9 +3051,9 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVType *Ty = transType(II->getType());
     SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
     if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_arithmetic_fence)) {
-      BM->addCapability(CapabilityFPArithmeticFenceINTEL);
+      BM->addCapability(internal::CapabilityFPArithmeticFenceINTEL);
       BM->addExtension(ExtensionID::SPV_INTEL_arithmetic_fence);
-      return BM->addUnaryInst(OpArithmeticFenceINTEL, Ty, Op, BB);
+      return BM->addUnaryInst(internal::OpArithmeticFenceINTEL, Ty, Op, BB);
     }
     return Op;
   }
