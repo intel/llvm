@@ -62,7 +62,9 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
-  if (!MSupportOOO)
+  // FIXME these events are stored for level zero until as a workaround, remove
+  // once piEventRelease no longer calls wait on the event in the plugin.
+  if (!MSupportOOO || getPlugin().getBackend() == backend::level_zero)
     addSharedEvent(ResEvent);
   return ResEvent;
 }
@@ -79,7 +81,9 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
-  if (!MSupportOOO)
+  // FIXME these events are stored for level zero until as a workaround, remove
+  // once piEventRelease no longer calls wait on the event in the plugin.
+  if (!MSupportOOO || getPlugin().getBackend() == backend::level_zero)
     addSharedEvent(ResEvent);
   return ResEvent;
 }
@@ -97,7 +101,9 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
-  if (!MSupportOOO)
+  // FIXME these events are stored for level zero until as a workaround, remove
+  // once piEventRelease no longer calls wait on the event in the plugin.
+  if (!MSupportOOO || getPlugin().getBackend() == backend::level_zero)
     addSharedEvent(ResEvent);
   return ResEvent;
 }
@@ -109,7 +115,11 @@ void queue_impl::addEvent(const event &Event) {
     // if there is no command on the event, we cannot track it with MEventsWeak
     // as that will leave it with no owner. Track in MEventsShared only if we're
     // unable to call piQueueFinish during wait.
-    if (is_host() || !MSupportOOO)
+    // FIXME these events are stored for level zero until as a workaround,
+    // remove once piEventRelease no longer calls wait on the event in the
+    // plugin.
+    if (is_host() || !MSupportOOO ||
+        getPlugin().getBackend() == backend::level_zero)
       addSharedEvent(Event);
   } else {
     std::weak_ptr<event_impl> EventWeakPtr{Eimpl};
@@ -122,7 +132,10 @@ void queue_impl::addEvent(const event &Event) {
 /// but some events have no other owner. In this case,
 /// addSharedEvent will have the queue track the events via a shared pointer.
 void queue_impl::addSharedEvent(const event &Event) {
-  assert(is_host() || !MSupportOOO);
+  // FIXME The assertion should be corrected once the Level Zero workaround is
+  // removed.
+  assert(is_host() || !MSupportOOO ||
+         getPlugin().getBackend() == backend::level_zero);
   std::lock_guard<std::mutex> Lock(MMutex);
   // Events stored in MEventsShared are not released anywhere else aside from
   // calls to queue::wait/wait_and_throw, which a user application might not
@@ -274,6 +287,12 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
       if (std::shared_ptr<event_impl> EventImplSharedPtr =
               EventImplWeakPtr.lock())
         EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
+    // FIXME these events are stored for level zero until as a workaround,
+    // remove once piEventRelease no longer calls wait on the event in the
+    // plugin.
+    if (Plugin.getBackend() == backend::level_zero) {
+      SharedEvents.clear();
+    }
     assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
                                    "shouldn't have shared events");
   } else {

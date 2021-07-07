@@ -8,6 +8,7 @@
 
 #include <CL/sycl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/platform_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
@@ -120,7 +121,12 @@ TEST(QueueWait, QueueWaitTest) {
   TestContext = {};
   Q.memset(HostAlloc, 42, 1);
   // No need to keep the event since we'll use piQueueFinish.
-  ASSERT_EQ(TestContext.EventReferenceCount, 0);
+  // FIXME ... unless the plugin is Level Zero, where there's a workaround that
+  // releases events later.
+  if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() !=
+      backend::level_zero) {
+    ASSERT_EQ(TestContext.EventReferenceCount, 0);
+  }
   Q.wait();
   ASSERT_EQ(TestContext.NEventsWaitedFor, 0);
   ASSERT_TRUE(TestContext.PiQueueFinishCalled);
