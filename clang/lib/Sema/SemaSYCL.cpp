@@ -8,8 +8,6 @@
 // This implements Semantic Analysis for SYCL constructs.
 //===----------------------------------------------------------------------===//
 
-#include <iostream>
-
 #include "TreeTransform.h"
 #include "clang/AST/AST.h"
 #include "clang/AST/Mangle.h"
@@ -787,6 +785,22 @@ class SingleDeviceFunctionTracker {
       Parent.SemaRef.addFDToReachableFromSyclDevice(CurrentDecl,
                                                     CallStack.back());
 
+    // We previously thought we could skip this function if we'd seen it before,
+    // but if we haven't seen it before in this call graph, we can end up
+    // missing a recursive call.  SO, we have to revisit call-graphs we've
+    // already seen, just in case it ALSO has recursion.  For example:
+    // void recurse1();
+    // void recurse2() { recurse1(); }
+    // void recurse1() { recurse2(); }
+    // void CallerInKernel() { recurse1(); recurse2(); }
+    // When checking 'recurse1', we'd have ended up 'visiting' recurse2 without
+    // realizing it was recursive, since we never went into the
+    // child-of-its-child, since THAT was recursive and exited early out of
+    // necessity.
+    // Then when we go to visit the kernel's call to recurse2, we would
+    // immediately escape not noticing it was recursive. SO, we have to do a
+    // little extra work in this case, and make sure we visit the entire call
+    // graph.
     DeviceFunctions.insert(CurrentDecl);
 
     // Collect attributes for functions that aren't the root kernel.
