@@ -232,6 +232,23 @@ template <> struct get_device_info<bool, info::device::queue_profiling> {
   }
 };
 
+// Specialization for atomic64 that is necessary because
+// PI_DEVICE_INFO_ATOMIC_64 is currently only implemented for the cuda backend.
+template <> struct get_device_info<bool, info::device::atomic64> {
+  static bool get(RT::PiDevice dev, const plugin &Plugin) {
+
+    bool result = false;
+
+    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::atomic64), sizeof(result),
+        &result, nullptr);
+    if (Err != PI_SUCCESS) {
+      return false;
+    }
+    return result;
+  }
+};
+
 // Specialization for exec_capabilities, OpenCL returns a bitfield
 template <>
 struct get_device_info<std::vector<info::execution_capability>,
@@ -608,6 +625,10 @@ inline cl_ulong get_device_info_host<info::device::max_mem_alloc_size>() {
 
 template <> inline bool get_device_info_host<info::device::image_support>() {
   return true;
+}
+
+template <> inline bool get_device_info_host<info::device::atomic64>() {
+  return false;
 }
 
 template <>
@@ -1077,6 +1098,14 @@ inline cl_ulong
 get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
   throw runtime_error(
       "Obtaining the maximum memory bandwidth is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+
+template <>
+inline detail::uuid_type
+get_device_info_host<info::device::ext_intel_device_info_uuid>() {
+  throw runtime_error(
+      "Obtaining the device uuid is not supported on HOST device",
       PI_INVALID_DEVICE);
 }
 

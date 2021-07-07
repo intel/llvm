@@ -1700,8 +1700,9 @@ class TopologicalSort {
           // cyclic dependency by inserting a forward declaration of that
           // pointer.
           SPIRVTypePointer *Ptr = static_cast<SPIRVTypePointer *>(E);
-          ForwardPointerSet.insert(new SPIRVTypeForwardPointer(
-              E->getModule(), Ptr, Ptr->getPointerStorageClass()));
+          SPIRVModule *BM = E->getModule();
+          ForwardPointerSet.insert(BM->add(new SPIRVTypeForwardPointer(
+              BM, Ptr, Ptr->getPointerStorageClass())));
           return false;
         }
         return true;

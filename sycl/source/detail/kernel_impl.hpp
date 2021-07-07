@@ -198,6 +198,8 @@ public:
     return NativeKernel;
   }
 
+  KernelBundleImplPtr get_kernel_bundle() const { return MKernelBundleImpl; }
+
 private:
   RT::PiKernel MKernel;
   const ContextImplPtr MContext;

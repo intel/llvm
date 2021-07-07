@@ -65,6 +65,7 @@ enum SourceLanguage {
     SourceLanguageOpenCL_C = 3,
     SourceLanguageOpenCL_CPP = 4,
     SourceLanguageHLSL = 5,
+    SourceLanguageCPP_for_OpenCL = 6,
     SourceLanguageMax = 0x7fffffff,
 };
 
@@ -150,6 +151,7 @@ enum ExecutionMode {
     ExecutionModeSubgroupsPerWorkgroupId = 37,
     ExecutionModeLocalSizeId = 38,
     ExecutionModeLocalSizeHintId = 39,
+    ExecutionModeSubgroupUniformControlFlowKHR = 4421,
     ExecutionModePostDepthCoverage = 4446,
     ExecutionModeDenormPreserve = 4459,
     ExecutionModeDenormFlushToZero = 4460,
@@ -406,18 +408,6 @@ enum FPRoundingMode {
     FPRoundingModeMax = 0x7fffffff,
 };
 
-enum FPDenormMode {
-    FPDenormModePreserve = 0,
-    FPDenormModeFlushToZero = 1,
-    FPDenormModeMax = 0x7fffffff,
-};
-
-enum FPOperationMode {
-    FPOperationModeIEEE = 0,
-    FPOperationModeALT = 1,
-    FPOperationModeMax = 0x7fffffff,
-};
-
 enum LinkageType {
     LinkageTypeExport = 0,
     LinkageTypeImport = 1,
@@ -549,6 +539,7 @@ enum Decoration {
     DecorationIOPipeStorageINTEL = 5944,
     DecorationFunctionFloatingPointModeINTEL = 6080,
     DecorationSingleElementVectorINTEL = 6085,
+    DecorationVectorComputeCallableFunctionINTEL = 6087,
     DecorationMax = 0x7fffffff,
 };
 
@@ -925,6 +916,9 @@ enum Capability {
     CapabilityFragmentShadingRateKHR = 4422,
     CapabilitySubgroupBallotKHR = 4423,
     CapabilityDrawParameters = 4427,
+    CapabilityWorkgroupMemoryExplicitLayoutKHR = 4428,
+    CapabilityWorkgroupMemoryExplicitLayout8BitAccessKHR = 4429,
+    CapabilityWorkgroupMemoryExplicitLayout16BitAccessKHR = 4430,
     CapabilitySubgroupVoteKHR = 4431,
     CapabilityStorageBuffer16BitAccess = 4433,
     CapabilityStorageUniformBufferBlock16 = 4433,
@@ -1048,9 +1042,14 @@ enum Capability {
     CapabilityIOPipesINTEL = 5943,
     CapabilityBlockingPipesINTEL = 5945,
     CapabilityFPGARegINTEL = 5948,
+    CapabilityDotProductInputAllKHR = 6016,
+    CapabilityDotProductInput4x8BitKHR = 6017,
+    CapabilityDotProductInput4x8BitPackedKHR = 6018,
+    CapabilityDotProductKHR = 6019,
     CapabilityAtomicFloat32AddEXT = 6033,
     CapabilityAtomicFloat64AddEXT = 6034,
     CapabilityLongConstantCompositeINTEL = 6089,
+    CapabilityAtomicFloat16AddEXT = 6095,
     CapabilityMax = 0x7fffffff,
 };
 
@@ -1115,6 +1114,43 @@ enum FragmentShadingRateMask {
     FragmentShadingRateVertical4PixelsMask = 0x00000002,
     FragmentShadingRateHorizontal2PixelsMask = 0x00000004,
     FragmentShadingRateHorizontal4PixelsMask = 0x00000008,
+};
+
+enum FPDenormMode {
+    FPDenormModePreserve = 0,
+    FPDenormModeFlushToZero = 1,
+    FPDenormModeMax = 0x7fffffff,
+};
+
+enum FPOperationMode {
+    FPOperationModeIEEE = 0,
+    FPOperationModeALT = 1,
+    FPOperationModeMax = 0x7fffffff,
+};
+
+enum QuantizationModes {
+    QuantizationModesTRN = 0,
+    QuantizationModesTRN_ZERO = 1,
+    QuantizationModesRND = 2,
+    QuantizationModesRND_ZERO = 3,
+    QuantizationModesRND_INF = 4,
+    QuantizationModesRND_MIN_INF = 5,
+    QuantizationModesRND_CONV = 6,
+    QuantizationModesRND_CONV_ODD = 7,
+    QuantizationModesMax = 0x7fffffff,
+};
+
+enum OverflowModes {
+    OverflowModesWRAP = 0,
+    OverflowModesSAT = 1,
+    OverflowModesSAT_ZERO = 2,
+    OverflowModesSAT_SYM = 3,
+    OverflowModesMax = 0x7fffffff,
+};
+
+enum PackedVectorFormat {
+    PackedVectorFormatPackedVectorFormat4x8BitKHR = 0,
+    PackedVectorFormatMax = 0x7fffffff,
 };
 
 enum Op {
@@ -1474,6 +1510,12 @@ enum Op {
     OpConvertUToAccelerationStructureKHR = 4447,
     OpIgnoreIntersectionKHR = 4448,
     OpTerminateRayKHR = 4449,
+    OpSDotKHR = 4450,
+    OpUDotKHR = 4451,
+    OpSUDotKHR = 4452,
+    OpSDotAccSatKHR = 4453,
+    OpUDotAccSatKHR = 4454,
+    OpSUDotAccSatKHR = 4455,
     OpTypeRayQueryKHR = 4472,
     OpRayQueryInitializeKHR = 4473,
     OpRayQueryTerminateKHR = 4474,
@@ -1784,7 +1826,6 @@ inline void HasResultAndType(Op opcode, bool *hasResult, bool *hasResultType) {
     case OpTypeArray: *hasResult = true; *hasResultType = false; break;
     case OpTypeRuntimeArray: *hasResult = true; *hasResultType = false; break;
     case OpTypeStruct: *hasResult = true; *hasResultType = false; break;
-    case OpTypeStructContinuedINTEL: *hasResult = false; *hasResultType = false; break;
     case OpTypeOpaque: *hasResult = true; *hasResultType = false; break;
     case OpTypePointer: *hasResult = true; *hasResultType = false; break;
     case OpTypeFunction: *hasResult = true; *hasResultType = false; break;
@@ -1798,8 +1839,6 @@ inline void HasResultAndType(Op opcode, bool *hasResult, bool *hasResultType) {
     case OpConstantFalse: *hasResult = true; *hasResultType = true; break;
     case OpConstant: *hasResult = true; *hasResultType = true; break;
     case OpConstantComposite: *hasResult = true; *hasResultType = true; break;
-    case OpConstantCompositeContinuedINTEL: *hasResult = false; *hasResultType = false; break;
-    case OpSpecConstantCompositeContinuedINTEL: *hasResult = false; *hasResultType = false; break;
     case OpConstantSampler: *hasResult = true; *hasResultType = true; break;
     case OpConstantNull: *hasResult = true; *hasResultType = true; break;
     case OpSpecConstantTrue: *hasResult = true; *hasResultType = true; break;
@@ -2115,6 +2154,12 @@ inline void HasResultAndType(Op opcode, bool *hasResult, bool *hasResultType) {
     case OpConvertUToAccelerationStructureKHR: *hasResult = true; *hasResultType = true; break;
     case OpIgnoreIntersectionKHR: *hasResult = false; *hasResultType = false; break;
     case OpTerminateRayKHR: *hasResult = false; *hasResultType = false; break;
+    case OpSDotKHR: *hasResult = true; *hasResultType = true; break;
+    case OpUDotKHR: *hasResult = true; *hasResultType = true; break;
+    case OpSUDotKHR: *hasResult = true; *hasResultType = true; break;
+    case OpSDotAccSatKHR: *hasResult = true; *hasResultType = true; break;
+    case OpUDotAccSatKHR: *hasResult = true; *hasResultType = true; break;
+    case OpSUDotAccSatKHR: *hasResult = true; *hasResultType = true; break;
     case OpTypeRayQueryKHR: *hasResult = true; *hasResultType = false; break;
     case OpRayQueryInitializeKHR: *hasResult = false; *hasResultType = false; break;
     case OpRayQueryTerminateKHR: *hasResult = false; *hasResultType = false; break;
@@ -2182,6 +2227,8 @@ inline void HasResultAndType(Op opcode, bool *hasResult, bool *hasResultType) {
     case OpAsmCallINTEL: *hasResult = true; *hasResultType = true; break;
     case OpAtomicFMinEXT: *hasResult = true; *hasResultType = true; break;
     case OpAtomicFMaxEXT: *hasResult = true; *hasResultType = true; break;
+    case OpAssumeTrueKHR: *hasResult = false; *hasResultType = false; break;
+    case OpExpectKHR: *hasResult = true; *hasResultType = true; break;
     case OpDecorateString: *hasResult = false; *hasResultType = false; break;
     case OpMemberDecorateString: *hasResult = false; *hasResultType = false; break;
     case OpVmeImageINTEL: *hasResult = true; *hasResultType = true; break;
@@ -2347,8 +2394,6 @@ inline void HasResultAndType(Op opcode, bool *hasResult, bool *hasResultType) {
     case OpArbitraryFloatPowRINTEL: *hasResult = true; *hasResultType = true; break;
     case OpArbitraryFloatPowNINTEL: *hasResult = true; *hasResultType = true; break;
     case OpLoopControlINTEL: *hasResult = false; *hasResultType = false; break;
-    case OpPtrCastToCrossWorkgroupINTEL: *hasResult = true; *hasResultType = true; break;
-    case OpCrossWorkgroupCastToPtrINTEL: *hasResult = true; *hasResultType = true; break;
     case OpFixedSqrtINTEL: *hasResult = true; *hasResultType = true; break;
     case OpFixedRecipINTEL: *hasResult = true; *hasResultType = true; break;
     case OpFixedRsqrtINTEL: *hasResult = true; *hasResultType = true; break;
@@ -2360,6 +2405,8 @@ inline void HasResultAndType(Op opcode, bool *hasResult, bool *hasResultType) {
     case OpFixedSinCosPiINTEL: *hasResult = true; *hasResultType = true; break;
     case OpFixedLogINTEL: *hasResult = true; *hasResultType = true; break;
     case OpFixedExpINTEL: *hasResult = true; *hasResultType = true; break;
+    case OpPtrCastToCrossWorkgroupINTEL: *hasResult = true; *hasResultType = true; break;
+    case OpCrossWorkgroupCastToPtrINTEL: *hasResult = true; *hasResultType = true; break;
     case OpReadPipeBlockingINTEL: *hasResult = true; *hasResultType = true; break;
     case OpWritePipeBlockingINTEL: *hasResult = true; *hasResultType = true; break;
     case OpFPGARegINTEL: *hasResult = true; *hasResultType = true; break;
@@ -2382,6 +2429,9 @@ inline void HasResultAndType(Op opcode, bool *hasResult, bool *hasResultType) {
     case OpRayQueryGetIntersectionWorldToObjectKHR: *hasResult = true; *hasResultType = true; break;
     case OpAtomicFAddEXT: *hasResult = true; *hasResultType = true; break;
     case OpTypeBufferSurfaceINTEL: *hasResult = true; *hasResultType = false; break;
+    case OpTypeStructContinuedINTEL: *hasResult = false; *hasResultType = false; break;
+    case OpConstantCompositeContinuedINTEL: *hasResult = false; *hasResultType = false; break;
+    case OpSpecConstantCompositeContinuedINTEL: *hasResult = false; *hasResultType = false; break;
     }
 }
 #endif /* SPV_ENABLE_UTILITY_CODE */

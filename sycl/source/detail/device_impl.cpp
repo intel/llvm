@@ -238,6 +238,8 @@ bool device_impl::has(aspect Aspect) const {
     return has_extension("cl_khr_int64_base_atomics");
   case aspect::int64_extended_atomics:
     return has_extension("cl_khr_int64_extended_atomics");
+  case aspect::atomic64:
+    return get_info<info::device::atomic64>();
   case aspect::image:
     return get_info<info::device::image_support>();
   case aspect::online_compiler:
@@ -296,6 +298,20 @@ bool device_impl::has(aspect Aspect) const {
                MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
                sizeof(pi_device_type), &device_type,
                &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_device_info_uuid: {
+    auto Result = getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+        MDevice, PI_DEVICE_INFO_UUID, 0, nullptr, &return_size);
+    if (Result != PI_SUCCESS) {
+      return false;
+    }
+
+    assert(return_size <= 16);
+    unsigned char UUID[16];
+
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_DEVICE_INFO_UUID, 16 * sizeof(unsigned char), UUID,
+               nullptr) == PI_SUCCESS;
+  }
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
     return false;

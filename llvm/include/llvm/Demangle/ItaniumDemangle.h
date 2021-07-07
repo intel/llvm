@@ -3905,7 +3905,7 @@ Node *AbstractManglingParser<Derived, Alloc>::parseType() {
       StringView N = parseNumber(false /*disallow negatives*/);
       if (N.size() == 0 || look() != '_')
         return nullptr;
-      assert((std::string(N.begin(), N.end()) == "16") && "Unknown FP type");
+      assert((N == "16") && "Unknown FP type");
       First += 1;                        // consume '_'
       return make<NameType>("_Float16"); // use FE-supoprted spelling
     }
