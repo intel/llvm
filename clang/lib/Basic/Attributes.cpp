@@ -20,6 +20,12 @@ int clang::hasAttribute(AttrSyntax Syntax, const IdentifierInfo *Scope,
   else if (ScopeName == "_Clang")
     ScopeName = "clang";
 
+  // As a special case, look for the omp::sequence and omp::directive
+  // attributes. We support those, but not through the typical attribute
+  // machinery that goes through TableGen.
+  if (LangOpts.OpenMP && ScopeName == "omp")
+    return Name == "directive" || Name == "sequence";
+
 #include "clang/Basic/AttrHasAttributeImpl.inc"
 
   return 0;

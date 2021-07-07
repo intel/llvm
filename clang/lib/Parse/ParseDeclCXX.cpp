@@ -4259,18 +4259,6 @@ bool Parser::ParseCXX11AttributeArgs(IdentifierInfo *AttrName,
   ParsedAttr::Syntax Syntax =
       LO.CPlusPlus ? ParsedAttr::AS_CXX11 : ParsedAttr::AS_C2x;
 
-  // FIXME: [[omp::directive()]] and [[omp::sequence()]] are both known
-  // attributes but we do not support them via __has_cpp_attribute currently.
-  // So the test for OpenMP attributes has to go before the call to
-  // hasAttribute() until we fix that.
-  if (ScopeName && ScopeName->isStr("omp")) {
-    ParseOpenMPAttributeArgs(AttrName, OpenMPTokens);
-
-    // We claim that an attribute was parsed and added so that one is not
-    // created for us by the caller.
-    return true;
-  }
-
   // If the attribute isn't known, we will not attempt to parse any
   // arguments.
   if (!hasAttribute(LO.CPlusPlus ? AttrSyntax::CXX : AttrSyntax::C, ScopeName,
@@ -4286,6 +4274,14 @@ bool Parser::ParseCXX11AttributeArgs(IdentifierInfo *AttrName,
     // behaviors.
     ParseGNUAttributeArgs(AttrName, AttrNameLoc, Attrs, EndLoc, ScopeName,
                           ScopeLoc, Syntax, nullptr);
+    return true;
+  }
+
+  if (getLangOpts().OpenMP && ScopeName && ScopeName->isStr("omp")) {
+    ParseOpenMPAttributeArgs(AttrName, OpenMPTokens);
+
+    // We claim that an attribute was parsed and added so that one is not
+    // created for us by the caller.
     return true;
   }
 
