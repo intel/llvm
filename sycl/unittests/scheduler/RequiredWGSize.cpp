@@ -178,17 +178,6 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedDeviceGetInfo(pi_device device,
-                                        pi_device_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
-  if (param_value_size_ret)
-    *param_value_size_ret = 0;
-
-  return PI_SUCCESS;
-}
-
 static void reset() {
   KernelGetGroupInfoCalled = false;
   IncomingLocalSize = {0, 0, 0};
@@ -214,7 +203,6 @@ static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
   Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
   Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
   Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
-  Mock.redefine<PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
 }
 
 static sycl::unittest::PiImage generateDefaultImage() {
