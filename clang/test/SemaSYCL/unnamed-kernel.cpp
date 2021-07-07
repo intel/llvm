@@ -94,12 +94,6 @@ public:
   // but this set is now fine.
   void test_unnamed() {
     cl::sycl::queue q;
-    class InvalidKernelName1 {};
-    q.submit([&](cl::sycl::handler &h) {
-      h.single_task([] {});
-    });
-
-    class InvalidKernelName2 {};
     q.submit([&](cl::sycl::handler &h) {
       h.single_task([] {});
     });
@@ -112,7 +106,6 @@ public:
       h.single_task([] {});
     });
 
-    using ValidAlias = MyWrapper;
     q.submit([&](cl::sycl::handler &h) {
       h.single_task([] {});
     });
@@ -121,17 +114,34 @@ public:
       h.single_task([] {});
     });
 
-    using InvalidAlias = InvalidKernelName4;
     q.submit([&](cl::sycl::handler &h) {
       h.single_task([] {});
     });
 
-    using InvalidAlias1 = InvalidKernelName5;
+    q.submit([&](cl::sycl::handler &h) {
+      h.single_task([] {});
+    });
+
     q.submit([&](cl::sycl::handler &h) {
       h.single_task([] {});
     });
     q.submit([&](cl::sycl::handler &h) {
       h.single_task([] {});
+    });
+
+    // This should have no problem, since the types match.
+    q.submit([&](cl::sycl::handler &h) {
+      auto SomeLambda = []() {};
+      h.single_task<decltype(SomeLambda)>(SomeLambda);
+    });
+
+    // This errors because const decltype(SomeLambda) != decltype(SomeLambda),
+    //  so this is not the unnamed lambda situation.
+    // expected-error@#KernelSingleTask {{unnamed lambda 'const}}
+    // expected-note@+3{{in instantiation of function template specialization}}
+    q.submit([&](cl::sycl::handler &h) {
+      auto SomeLambda = []() {};
+      h.single_task<const decltype(SomeLambda)>(SomeLambda);
     });
   }
 #endif
