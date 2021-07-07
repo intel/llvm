@@ -49,6 +49,8 @@ public:
   exception(context, int, const std::error_category &, const char *);
   exception(context, int, const std::error_category &);
 
+  const std::error_code &code() const noexcept;
+
   const char *what() const noexcept final;
 
   bool has_context() const;

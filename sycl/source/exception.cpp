@@ -10,11 +10,14 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/exception.hpp>
 
+#include <cstring>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 namespace { // anonymous
-char reserved_for_errorcode[1 + sizeof(std::error_code)];
+char reserved_for_errorcode[] =
+    "01234567812345678"; // 17 (string terminator plus error code)
 }
 
 exception::exception(std::error_code ec, const char *Msg)
@@ -73,6 +76,15 @@ exception::exception(context *ctxPtr, std::error_code ec,
   reservedPtr++;
   std::error_code *ecPtr = reinterpret_cast<std::error_code *>(reservedPtr);
   *ecPtr = ec;
+}
+
+const std::error_code &exception::code() const noexcept {
+  const char *whatStr = MMsg.c_str();
+  size_t whatLen = strlen(whatStr);
+  const char *reservedPtr = &whatStr[whatLen + 1];
+  const std::error_code *ecPtr =
+      reinterpret_cast<const std::error_code *>(reservedPtr);
+  return *ecPtr;
 }
 
 const char *exception::what() const noexcept { return MMsg.c_str(); }
