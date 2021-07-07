@@ -249,6 +249,10 @@ static bool ActionFailed(const Action *A,
   if (FailingCommands.empty())
     return false;
 
+  for (const auto &CI : FailingCommands)
+    if (!CI.second->getWillExitForErrorCode(CI.first))
+      return false;
+
   // CUDA/HIP/SYCL can have the same input source code compiled multiple times
   // so do not compile again if there are already failures. It is OK to abort
   // the CUDA pipeline on errors.
@@ -285,7 +289,9 @@ void Compilation::ExecuteJobs(const JobList &Jobs,
     if (int Res = ExecuteCommand(Job, FailingCommand)) {
       FailingCommands.push_back(std::make_pair(Res, FailingCommand));
       // Bail as soon as one command fails in cl driver mode.
-      if (TheDriver.IsCLMode())
+      // Do not bail when the tool is setup to allow for continuation upon
+      // failure.
+      if (TheDriver.IsCLMode() && FailingCommand->getWillExitForErrorCode(Res))
         return;
     }
   }

@@ -1,11 +1,16 @@
 /// Check compilation tool steps when using the integration footer
-// RUN:  %clangxx -fsycl %s -### 2>&1 \
+// RUN:  %clangxx -fsycl -include dummy.h %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER %s
-// FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}"
-// FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-E"{{.*}} "-C"{{.*}} "-o" "[[PREPROC:.+\.ii]]"
+// FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}"{{.*}} "-include" "dummy.h"
+// FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-E"{{.*}} "-C"{{.*}} "-include" "dummy.h"{{.*}} "-o" "[[PREPROC:.+\.ii]]"
 // FOOTER: append-file{{.*}} "[[PREPROC]]" "--append=[[INTFOOTER]]" "--output=[[APPENDEDSRC:.+\.cpp]]"
 // FOOTER: clang{{.*}} "-fsycl-is-host"{{.*}} "[[APPENDEDSRC]]"
 // FOOTER-NOT: "-include" "[[INTHEADER]]"
+
+// RUN:  %clangxx -fsycl -include dummy.h %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix FOOTER_NO_HEADER %s
+// FOOTER_NO_HEADER: append-file{{.*}}
+// FOOTER_NO_HEADER-NOT: clang{{.*}} "-include" "dummy.h"
 
 /// Preprocessed file creation with integration footer
 // RUN: %clangxx -fsycl -E %s -### 2>&1 \
@@ -32,7 +37,7 @@
 // NO-FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-o"
 
 /// Check phases without integration footer
-// RUN: %clangxx -fsycl -fno-sycl-device-lib=all -fno-sycl-use-footer %s -ccc-print-phases 2>&1 \
+// RUN: %clangxx -fsycl -fno-sycl-device-lib=all -fno-sycl-use-footer -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix NO-FOOTER-PHASES -check-prefix COMMON-PHASES %s
 // NO-FOOTER-PHASES: 0: input, "{{.*}}", c++, (host-sycl)
 // NO-FOOTER-PHASES: [[#HOST_PREPROC:]]: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -41,7 +46,7 @@
 // NO-FOOTER-PHASES: [[#DEVICE_IR:]]: compiler, {3}, ir, (device-sycl)
 
 /// Check phases with integration footer
-// RUN: %clangxx -fsycl -fno-sycl-device-lib=all %s -ccc-print-phases 2>&1 \
+// RUN: %clangxx -fsycl -fno-sycl-device-lib=all -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER-PHASES -check-prefix COMMON-PHASES %s
 // FOOTER-PHASES: 0: input, "{{.*}}", c++, (host-sycl)
 // FOOTER-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)

@@ -1416,6 +1416,11 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
                                                        << A->getAsString(Args);
         }
       }
+      // Do not render -include when performing the compilation that occurs
+      // after the the integration footer has been appended.  This has already
+      // been preprocessed and should not be included again.
+      if (ContainsAppendFooterAction(&JA))
+        continue;
     } else if (A->getOption().matches(options::OPT_isystem_after)) {
       // Handling of paths which must come late.  These entries are handled by
       // the toolchain itself after the resource dir is inserted in the right
