@@ -82,8 +82,9 @@ public:
   }
 #endif
   virtual void SetUp() {
-    assert(getenv("SYCL_CACHE_DIR") && "Please set SYCL_CACHE_DIR environment "
-                                       "variable pointing to cache location.");
+    EXPECT_NE(getenv("SYCL_CACHE_DIR"), nullptr)
+        << "Please set SYCL_CACHE_DIR environment variable pointing to cache "
+           "location.";
   }
 
   PersistenDeviceCodeCache() : Plt{default_selector()} {
@@ -138,8 +139,8 @@ public:
             BuildOptions);
         for (size_t i = 0; i < Res.size(); ++i) {
           for (size_t j = 0; j < Res[i].size(); ++j) {
-            assert(Res[i][j] == static_cast<char>(i) &&
-                   "Corrupted image loaded from persistent cache");
+            EXPECT_EQ(Res[i][j], static_cast<char>(i))
+                << "Corrupted image loaded from persistent cache";
           }
         }
       };
@@ -193,12 +194,13 @@ TEST_F(PersistenDeviceCodeCache, KeysWithNullTermSymbol) {
                                                    NativeProg);
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img,
                                                                 SpecConst, Key);
-  assert(Res.size() != 0 && "Failed to load cache item");
+  EXPECT_NE(Res.size(), static_cast<size_t>(0)) << "Failed to load cache item";
   for (size_t i = 0; i < Res.size(); ++i) {
-    assert(Res[i].size() != 0 && "Failed to device image");
+    EXPECT_NE(Res[i].size(), static_cast<size_t>(0))
+        << "Failed to load device image";
     for (size_t j = 0; j < Res[i].size(); ++j) {
-      assert(Res[i][j] == static_cast<char>(i) &&
-             "Corrupted image loaded from persistent cache");
+      EXPECT_EQ(Res[i][j], static_cast<unsigned char>(i))
+          << "Corrupted image loaded from persistent cache";
     }
   }
 
@@ -249,21 +251,23 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
   // Only source file is present
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  assert(!llvm::sys::fs::remove(ItemDir + "/0.bin") &&
-         "Failed to remove binary file");
+  EXPECT_EQ(!llvm::sys::fs::remove(ItemDir + "/0.bin"), true)
+      << "Failed to remove binary file";
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                                 BuildOptions);
-  assert(Res.size() == 0 && "Item with missed binary file was read");
+  EXPECT_EQ(Res.size(), static_cast<size_t>(0))
+      << "Item with missed binary file was read";
   llvm::sys::fs::remove_directories(ItemDir);
 
   // Only binary file is present
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  assert(!llvm::sys::fs::remove(ItemDir + "/0.src") &&
-         "Failed to remove source file");
+  EXPECT_EQ(!llvm::sys::fs::remove(ItemDir + "/0.src"), true)
+      << "Failed to remove source file";
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                            BuildOptions);
-  assert(Res.size() == 0 && "Item with missed source file was read");
+  EXPECT_EQ(Res.size(), static_cast<size_t>(0))
+      << "Item with missed source file was read";
   llvm::sys::fs::remove_directories(ItemDir);
 
   // Binary file is corrupted
@@ -276,10 +280,12 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
    */
   FileStream << 2 << 12 << "123456789012" << 23 << "1234";
   FileStream.close();
-  assert((!FileStream.fail()) && "Failed to create trancated binary file");
+  EXPECT_EQ(FileStream.fail(), false)
+      << "Failed to create trancated binary file";
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                            BuildOptions);
-  assert(Res.size() == 0 && "Item with corrupted binary file was read");
+  EXPECT_EQ(Res.size(), static_cast<size_t>(0))
+      << "Item with corrupted binary file was read";
 
   llvm::sys::fs::remove_directories(ItemDir);
 
@@ -292,7 +298,8 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
   }
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                            BuildOptions);
-  assert(Res.size() == 0 && "Item with corrupted binary file was read");
+  EXPECT_EQ(Res.size(), static_cast<size_t>(0))
+      << "Item with corrupted binary file was read";
   llvm::sys::fs::remove_directories(ItemDir);
 }
 
@@ -316,9 +323,10 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
   // Create 1st cahe item
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  assert(llvm::sys::fs::exists(ItemDir + "/0.bin") && "No file created");
+  EXPECT_EQ(llvm::sys::fs::exists(ItemDir + "/0.bin"), true)
+      << "No file created";
   std::string LockFile = ItemDir + "/0.lock";
-  assert(!llvm::sys::fs::exists(LockFile) && "Cache item locked");
+  EXPECT_NE(llvm::sys::fs::exists(LockFile), true) << "Cache item locked";
 
   // Create lock file for the 1st cache item
   { std::ofstream File{LockFile}; }
@@ -326,18 +334,20 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
   // Cache item is locked, cache miss happens on read
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                                 BuildOptions);
-  assert(Res.size() == 0 && "Locked item was read");
+  EXPECT_EQ(Res.size(), static_cast<size_t>(0)) << "Locked item was read";
 
   // Cache item is locked - new cache item to be created
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  assert(llvm::sys::fs::exists(ItemDir + "/1.bin") && "No file created");
+  EXPECT_EQ(llvm::sys::fs::exists(ItemDir + "/1.bin"), true)
+      << "No file created";
 
   // Second cache item is locked, cache miss happens on read
   { std::ofstream File{ItemDir + "/1.lock"}; }
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                            BuildOptions);
-  assert(Res.size() == 0 && "Locked item was read");
+
+  EXPECT_EQ(Res.size(), static_cast<size_t>(0)) << "Locked item was read";
 
   // First cache item was unlocked and successfully read
   std::remove(LockFile.c_str());
@@ -345,8 +355,8 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
                                                            BuildOptions);
   for (size_t i = 0; i < Res.size(); ++i) {
     for (size_t j = 0; j < Res[i].size(); ++j) {
-      assert(Res[i][j] == static_cast<char>(i) &&
-             "Corrupted image loaded from persistent cache");
+      EXPECT_EQ(Res[i][j], static_cast<unsigned char>(i))
+          << "Corrupted image loaded from persistent cache";
     }
   }
   llvm::sys::fs::remove_directories(ItemDir);
@@ -370,19 +380,22 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   llvm::sys::fs::remove_directories(ItemDir);
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  assert(llvm::sys::fs::exists(ItemDir + "/0.bin") && "No file created");
+  EXPECT_EQ(llvm::sys::fs::exists(ItemDir + "/0.bin"), true)
+      << "No file created";
   llvm::sys::fs::setPermissions(ItemDir + "/0.bin", llvm::sys::fs::no_perms);
   // No access to binary file new cache item to be created
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  assert(llvm::sys::fs::exists(ItemDir + "/1.bin") && "No file created");
+  EXPECT_EQ(llvm::sys::fs::exists(ItemDir + "/1.bin"), true)
+      << "No file created";
 
   llvm::sys::fs::setPermissions(ItemDir + "/1.bin", llvm::sys::fs::no_perms);
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                                 BuildOptions);
 
-  // No image to be read due to lack of permissions fro source file
-  assert(Res.size() == 0);
+  // No image to be read due to lack of permissions from source file
+  EXPECT_EQ(Res.size(), static_cast<size_t>(0))
+      << "Read from the file without permissions.";
 
   llvm::sys::fs::setPermissions(ItemDir + "/0.bin", llvm::sys::fs::all_perms);
   llvm::sys::fs::setPermissions(ItemDir + "/1.bin", llvm::sys::fs::all_perms);
@@ -392,8 +405,8 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   // Image should be successfully read
   for (size_t i = 0; i < Res.size(); ++i) {
     for (size_t j = 0; j < Res[i].size(); ++j) {
-      assert(Res[i][j] == static_cast<char>(i) &&
-             "Corrupted image loaded from persistent cache");
+      EXPECT_EQ(Res[i][j], static_cast<unsigned char>(i))
+          << "Corrupted image loaded from persistent cache";
     }
   }
   llvm::sys::fs::remove_directories(ItemDir);
