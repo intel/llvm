@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/kernel_bundle_enums.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <memory>
@@ -22,6 +23,7 @@ namespace sycl {
 class program;
 class context;
 template <backend Backend> class backend_traits;
+template <bundle_state State> class kernel_bundle;
 
 namespace detail {
 class kernel_impl;
@@ -122,6 +124,11 @@ public:
   /// \return a valid SYCL context
   context get_context() const;
 
+  /// Get the kernel_bundle associated with this kernel.
+  ///
+  /// \return a valid kernel_bundle<bundle_state::executable>
+  kernel_bundle<bundle_state::executable> get_kernel_bundle() const;
+
   /// Get the program that this kernel is defined for.
   ///
   /// The value returned must be equal to that returned by
@@ -209,7 +216,7 @@ private:
 
   pi_native_handle getNativeImpl() const;
 
-  shared_ptr_class<detail::kernel_impl> impl;
+  std::shared_ptr<detail::kernel_impl> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);

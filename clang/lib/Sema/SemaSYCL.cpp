@@ -573,7 +573,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
                  SYCLIntelFPGADisableLoopPipeliningAttr,
-                 SYCLIntelFPGAInitiationIntervalAttr>(A);
+                 SYCLIntelFPGAInitiationIntervalAttr,
+                 SYCLIntelUseStallEnableClustersAttr>(A);
     });
   }
 }
@@ -1575,26 +1576,6 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
              << FieldTy;
     }
 
-    if (SemaRef.getASTContext().getLangOpts().SYCLStdLayoutKernelParams)
-      if (!FieldTy->isStandardLayoutType())
-        return Diag.Report(FD->getLocation(),
-                           diag::err_sycl_non_std_layout_type)
-               << FieldTy;
-
-    if (!FieldTy->isStructureOrClassType())
-      return false;
-
-    CXXRecordDecl *RD =
-        cast<CXXRecordDecl>(FieldTy->getAs<RecordType>()->getDecl());
-    if (!RD->hasTrivialCopyConstructor())
-      return Diag.Report(FD->getLocation(),
-                         diag::err_sycl_non_trivially_copy_ctor_dtor_type)
-             << 0 << FieldTy;
-    if (!RD->hasTrivialDestructor())
-      return Diag.Report(FD->getLocation(),
-                         diag::err_sycl_non_trivially_copy_ctor_dtor_type)
-             << 1 << FieldTy;
-
     return false;
   }
 
@@ -2429,7 +2410,7 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
 
-    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+    SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), NameToEmitInDescription,
         isWrappedField ? "Compiler generated" : KernelArgType.getAsString(),
         KernelInvocationLoc, KernelArgSize, getKernelArgDesc(KernelArgDesc),
@@ -2452,7 +2433,7 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
                 KernelArgDescription KernelArgDesc) {
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
-    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+    SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), KernelArgType.getAsString(),
         KernelArgType.getAsString(), KernelInvocationLoc, KernelArgSize,
         getKernelArgDesc(KernelArgDesc), "");
@@ -2462,7 +2443,7 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
   void addParam(QualType KernelArgType, KernelArgDescription KernelArgDesc) {
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
-    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+    SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), "", KernelArgType.getAsString(),
         KernelInvocationLoc, KernelArgSize, getKernelArgDesc(KernelArgDesc),
         "");
@@ -2494,7 +2475,7 @@ public:
       unsigned KernelArgSize = SemaRef.getASTContext()
                                    .getTypeSizeInChars(KernelArgType)
                                    .getQuantity();
-      SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+      SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
           DC.getKernelDecl(), FieldTy.getAsString(),
           KernelArgType.getAsString(), KernelInvocationLoc, KernelArgSize,
           getKernelArgDesc(
@@ -4116,6 +4097,7 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelFPGAMaxConcurrency:
   case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
   case attr::Kind::SYCLIntelFPGAInitiationInterval:
+  case attr::Kind::SYCLIntelUseStallEnableClusters:
     SYCLKernel->addAttr(A);
     break;
   case attr::Kind::IntelNamedSubGroupSize:
@@ -4995,6 +4977,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
 
+  OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
+
   llvm::SmallSet<const VarDecl *, 8> VisitedSpecConstants;
 
   // Used to uniquely name the 'shim's as we generate the names in each
@@ -5018,7 +5002,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "namespace sycl {\n";
     OS << "namespace detail {\n";
     OS << "template<>\n";
-    OS << "inline const char *get_spec_constant_symbolic_ID<";
+    OS << "inline const char *get_spec_constant_symbolic_ID_impl<";
 
     if (VD->isInAnonymousNamespace()) {
       OS << TopShim;
@@ -5038,6 +5022,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   }
 
   OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
+
   return true;
 }
 

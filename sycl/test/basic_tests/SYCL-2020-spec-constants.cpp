@@ -86,19 +86,19 @@ int main() {
 }
 
 // CHECK: [SYCL/specialization constants]
-// CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL12composite_idEEE=2|
+// CHECK-DAG: [[UNIQUE_PREFIX:[a-z0-9]+]]____ZL12composite_id=2|
 // See FIXME above about bool type support
-// CHECK-disabled: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL7bool_idEEE=2|
-// CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL7int8_idEEE=2|
-// CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL8float_idEEE=2|
-// CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL8int16_idEEE=2|
-// CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL8int32_idEEE=2|
-// CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL8int64_idEEE=2|
-// CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL8uint8_idEEE=2|
-// CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL9double_idEEE=2|
-// CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL9uint16_idEEE=2|
-// CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL9uint32_idEEE=2|
-// CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL9uint64_idEEE=2|
+// CHECK-disabled: [[UNIQUE_PREFIX]]____IL_ZL7bool_id=2|
+// CHECK-DAG: [[UNIQUE_PREFIX]]____ZL7int8_id=2|
+// CHECK-DAG: [[UNIQUE_PREFIX]]____ZL8float_id=2|
+// CHECK-DAG: [[UNIQUE_PREFIX]]____ZL8int16_id=2|
+// CHECK-DAG: [[UNIQUE_PREFIX]]____ZL8int32_id=2|
+// CHECK-DAG: [[UNIQUE_PREFIX]]____ZL8int64_id=2|
+// CHECK-DAG: [[UNIQUE_PREFIX]]____ZL8uint8_id=2|
+// CHECK-DAG: [[UNIQUE_PREFIX]]____ZL9double_id=2|
+// CHECK-DAG: [[UNIQUE_PREFIX]]____ZL9uint16_id=2|
+// CHECK-DAG: [[UNIQUE_PREFIX]]____ZL9uint32_id=2|
+// CHECK-DAG: [[UNIQUE_PREFIX]]____ZL9uint64_id=2|
 // FIXME: check line for half constant
 
 // CHECK-RT-NOT: [SYCL/specialization constants default values]

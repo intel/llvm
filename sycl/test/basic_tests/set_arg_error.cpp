@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -Xclang -verify %s -I %sycl_include -Xclang -verify-ignore-unexpected=note,warning -fsyntax-only
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 
 #include <CL/sycl.hpp>
 

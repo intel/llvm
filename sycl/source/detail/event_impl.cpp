@@ -135,7 +135,7 @@ event_impl::event_impl(QueueImplPtr Queue) {
   MState.store(HES_Complete);
 }
 
-void *event_impl::instrumentationProlog(string_class &Name, int32_t StreamID,
+void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
                                         uint64_t &IId) const {
   void *TraceEvent = nullptr;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -171,7 +171,7 @@ void *event_impl::instrumentationProlog(string_class &Name, int32_t StreamID,
 }
 
 void event_impl::instrumentationEpilog(void *TelemetryEvent,
-                                       const string_class &Name,
+                                       const std::string &Name,
                                        int32_t StreamID, uint64_t IId) const {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!(xptiTraceEnabled() && TelemetryEvent))
