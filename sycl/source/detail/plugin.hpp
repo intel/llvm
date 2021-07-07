@@ -58,8 +58,10 @@ public:
 
   void reportPiError(RT::PiResult pi_result, string_class api_name) const {
     if (pi_result != PI_SUCCESS) {
-      throw cl::sycl::runtime_error(api_name + " API failed with error: " +
-                cl::sycl::detail::codeToString(pi_result), pi_result);
+      throw cl::sycl::runtime_error(
+          api_name + " API failed with error: " +
+              cl::sycl::detail::codeToString(pi_result),
+          pi_result);
     }
   }
 
