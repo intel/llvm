@@ -2668,6 +2668,12 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
   // Optional C++11 attribute-specifier
   MaybeParseCXX11Attributes(attrs);
 
+  // The next token may be an OpenMP pragma annotation token. That would
+  // normally be handled from ParseCXXClassMemberDeclarationWithPragmas, but in
+  // this case, it came from an *attribute* rather than a pragma. Handle it now.
+  if (Tok.is(tok::annot_pragma_openmp_from_attr))
+    return ParseOpenMPDeclarativeDirectiveWithExtDecl(AS, attrs);
+
   // We need to keep these attributes for future diagnostic
   // before they are taken over by declaration specifier.
   FnAttrs.addAll(attrs.begin(), attrs.end());
