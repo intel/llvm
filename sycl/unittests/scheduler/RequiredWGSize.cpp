@@ -178,26 +178,6 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
   return PI_SUCCESS;
 }
 
-static pi_result
-redefinedGetExtensionName(pi_extension_number ExtNumber, size_t *S, char *V) {
-  pi_result Result = PI_SUCCESS;
-  // TODO switch to map/unordered_map when have enough number of extensions
-  switch (ExtNumber) {
-  case PI_INTEL_DEVICELIB_CASSERT: {
-    static const std::string Name = "cl_intel_devicelib_cassert";
-    if (S)
-      *S = Name.length();
-    if (V)
-      std::memcpy(V, Name.data(), Name.length());
-    break;
-  }
-  default:
-    Result = PI_INVALID_VALUE;
-  }
-
-  return Result;
-}
-
 static pi_result redefinedDeviceGetInfo(pi_device device,
                                         pi_device_info param_name,
                                         size_t param_value_size,
@@ -242,7 +222,6 @@ static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
   Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
   Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
   Mock.redefine<PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  Mock.redefine<PiApiKind::piextGetExtensionName>(redefinedGetExtensionName);
 }
 
 static sycl::unittest::PiImage generateDefaultImage() {
