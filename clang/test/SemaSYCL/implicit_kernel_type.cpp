@@ -1,14 +1,10 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify %s -Werror=sycl-strict -DERROR
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify %s  -Wsycl-strict -DWARN
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-unnamed-lambda -fsyntax-only -sycl-std=2020 -verify %s  -Werror=sycl-strict
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fno-sycl-unnamed-lambda -fsyntax-only -sycl-std=2020 -verify %s -Werror=sycl-strict -DERROR
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fno-sycl-unnamed-lambda -fsyntax-only -sycl-std=2020 -verify %s  -Wsycl-strict -DWARN
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify %s  -Werror=sycl-strict -DERROR
 
 // This test verifies that incorrect kernel names are diagnosed correctly.
 
 #include "sycl.hpp"
-
-#ifdef __SYCL_UNNAMED_LAMBDA__
-// expected-no-diagnostics
-#endif
 
 using namespace cl::sycl;
 
@@ -45,10 +41,8 @@ int main() {
 #endif
 
   q.submit([&](handler &h) {
-#ifndef __SYCL_UNNAMED_LAMBDA__
-  // expected-note@+3 {{fake_kernel declared here}}
-  // expected-note@+2 {{in instantiation of function template specialization}}
-#endif
+  // expected-note@+2 {{fake_kernel declared here}}
+  // expected-note@+1 {{in instantiation of function template specialization}}
     h.single_task<class fake_kernel>([]() { function(); });
   });
 
@@ -59,10 +53,8 @@ int main() {
 #endif
 
   q.submit([&](handler &h) {
-#ifndef __SYCL_UNNAMED_LAMBDA__
-  // expected-note@+3 {{fake_kernel2 declared here}}
-  // expected-note@+2 {{in instantiation of function template specialization}}
-#endif
+  // expected-note@+2 {{fake_kernel2 declared here}}
+  // expected-note@+1 {{in instantiation of function template specialization}}
     h.single_task<class fake_kernel2>([]() {
       auto l = [](auto f) { f(); };
     });

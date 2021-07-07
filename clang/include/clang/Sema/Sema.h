@@ -323,7 +323,7 @@ public:
   };
 
 public:
-  SYCLIntegrationHeader(bool UnnamedLambdaSupport, Sema &S);
+  SYCLIntegrationHeader(Sema &S);
 
   /// Emits contents of the header into given stream.
   void emit(raw_ostream &Out);
@@ -335,8 +335,8 @@ public:
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
   void startKernel(StringRef KernelName, QualType KernelNameType,
-                   StringRef KernelStableName, SourceLocation Loc,
-                   bool IsESIMD);
+                   StringRef KernelStableName, SourceLocation Loc, bool IsESIMD,
+                   bool IsUnnamedKernel);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
@@ -376,10 +376,10 @@ private:
   // there are four free functions the kernel may call (this_id, this_item,
   // this_nd_item, this_group)
   struct KernelCallsSYCLFreeFunction {
-    bool CallsThisId;
-    bool CallsThisItem;
-    bool CallsThisNDItem;
-    bool CallsThisGroup;
+    bool CallsThisId = false;
+    bool CallsThisItem = false;
+    bool CallsThisNDItem = false;
+    bool CallsThisGroup = false;
   };
 
   // Kernel invocation descriptor
@@ -405,7 +405,15 @@ private:
     // this_id(), etc)
     KernelCallsSYCLFreeFunction FreeFunctionCalls;
 
-    KernelDesc() = default;
+    // If we are in unnamed kernel/lambda mode AND this is one that the user
+    // hasn't provided an explicit name for.
+    bool IsUnnamedKernel;
+
+    KernelDesc(StringRef Name, QualType NameType, StringRef StableName,
+               SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel)
+        : Name(Name), NameType(NameType), StableName(StableName),
+          KernelLocation(KernelLoc), IsESIMDKernel(IsESIMD),
+          IsUnnamedKernel(IsUnnamedKernel) {}
   };
 
   /// Returns the latest invocation descriptor started by
@@ -426,9 +434,6 @@ private:
   /// constant's ID type to generated unique name. Duplicates are removed at
   /// integration header emission time.
   llvm::SmallVector<SpecConstID, 4> SpecConsts;
-
-  /// Whether header is generated with unnamed lambda support
-  bool UnnamedLambdaSupport;
 
   Sema &S;
 };
@@ -13296,8 +13301,7 @@ public:
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
     if (SyclIntHeader == nullptr)
-      SyclIntHeader = std::make_unique<SYCLIntegrationHeader>(
-          getLangOpts().SYCLUnnamedLambda, *this);
+      SyclIntHeader = std::make_unique<SYCLIntegrationHeader>(*this);
     return *SyclIntHeader.get();
   }
 
