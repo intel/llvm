@@ -118,7 +118,7 @@ public:
             allocator));
   }
 
-  buffer(const shared_ptr_class<T> &hostData,
+  buffer(const std::shared_ptr<T> &hostData,
          const range<dimensions> &bufferRange, AllocatorT allocator,
          const property_list &propList = {})
       : Range(bufferRange) {
@@ -129,7 +129,7 @@ public:
             allocator));
   }
 
-  buffer(const shared_ptr_class<T[]> &hostData,
+  buffer(const std::shared_ptr<T[]> &hostData,
          const range<dimensions> &bufferRange, AllocatorT allocator,
          const property_list &propList = {})
       : Range(bufferRange) {
@@ -140,7 +140,7 @@ public:
             allocator));
   }
 
-  buffer(const shared_ptr_class<T> &hostData,
+  buffer(const std::shared_ptr<T> &hostData,
          const range<dimensions> &bufferRange,
          const property_list &propList = {})
       : Range(bufferRange) {
@@ -150,7 +150,7 @@ public:
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
 
-  buffer(const shared_ptr_class<T[]> &hostData,
+  buffer(const std::shared_ptr<T[]> &hostData,
          const range<dimensions> &bufferRange,
          const property_list &propList = {})
       : Range(bufferRange) {
@@ -389,7 +389,7 @@ public:
   }
 
 private:
-  shared_ptr_class<detail::buffer_impl> impl;
+  std::shared_ptr<detail::buffer_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
   template <typename A, int dims, typename C, typename Enable>
@@ -404,7 +404,7 @@ private:
   bool IsSubBuffer = false;
 
   // Reinterpret contructor
-  buffer(shared_ptr_class<detail::buffer_impl> Impl,
+  buffer(std::shared_ptr<detail::buffer_impl> Impl,
          range<dimensions> reinterpretRange, size_t reinterpretOffset,
          bool isSubBuffer)
       : impl(Impl), Range(reinterpretRange), OffsetInBytes(reinterpretOffset),
