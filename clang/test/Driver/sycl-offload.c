@@ -542,7 +542,6 @@
 // CHK-ADD-TARGETS-REG: 18: clang-offload-wrapper, {17}, object, (device-sycl)
 // CHK-ADD-TARGETS-REG: 19: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown-sycldevice)" {16}, "device-sycl (spir64-unknown-unknown-sycldevice)" {18}, image
 
-
 /// ###########################################################################
 
 /// Check regular offload with multiple additional AOT binaries passed through -fsycl-add-targets
@@ -575,7 +574,6 @@
 // CHK-ADD-TARGETS-REG-MUL: 24: input, "dummy.ir", sycl-fatbin, (device-sycl)
 // CHK-ADD-TARGETS-REG-MUL: 25: clang-offload-wrapper, {24}, object, (device-sycl)
 // CHK-ADD-TARGETS-REG-MUL: 26: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown-sycldevice)" {19}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {21}, "device-sycl (spir64_gen-unknown-unknown-sycldevice)" {23}, "device-sycl (spir64_x86_64-unknown-unknown-sycldevice)" {25}, image
-
 
 /// ###########################################################################
 

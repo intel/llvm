@@ -35,4 +35,3 @@
 // CHK-PHASES-NO-CC: 16: linker, {15}, hip-fatbin, (device-sycl)
 // CHK-PHASES-NO-CC: 17: clang-offload-wrapper, {16}, object, (device-sycl)
 // CHK-PHASES-NO-CC: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (amdgcn-amd-amdhsa-sycldevice)" {17}, image
-

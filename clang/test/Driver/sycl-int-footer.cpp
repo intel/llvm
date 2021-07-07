@@ -60,4 +60,3 @@
 // COMMON-PHASES: [[#OFFLOAD+9]]: file-table-tform, {[[#OFFLOAD+6]], [[#OFFLOAD+8]]}, tempfiletable, (device-sycl)
 // COMMON-PHASES: [[#OFFLOAD+10]]: clang-offload-wrapper, {[[#OFFLOAD+9]]}, object, (device-sycl)
 // COMMON-PHASES: [[#OFFLOAD+11]]: offload, "host-sycl (x86_64-{{.*}})" {[[#OFFLOAD+4]]}, "device-sycl (spir64-unknown-unknown-sycldevice)" {[[#OFFLOAD+10]]}, image
-

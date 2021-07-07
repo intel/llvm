@@ -23,8 +23,6 @@
 // RUN:  | FileCheck -check-prefix=HOST_OPTIONS_CL %s
 // HOST_OPTIONS_CL: cl{{.*}} "-Fo[[HOSTOBJ:.+\.obj]]"{{.*}} "/DFOO" "/DBAR" "/O2"
 
- "/localdisk2/mtoguchi/github/llvm/build/bin/append-file" "/localdisk2/mtoguchi/github/llvm/clang/test/Driver/sycl-host-compiler.cpp" "--append=/tmp/sycl-host-compiler-footer-b55274.h" "--orig-filename=/localdisk2/mtoguchi/github/llvm/clang/test/Driver/sycl-host-compiler.cpp" "--output=/tmp/sycl-host-compiler-c79710.cpp" "--use-include"
-
 /// preprocessing
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -E %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_PREPROCESS %s

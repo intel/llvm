@@ -207,7 +207,6 @@
 // CHK-FPGA-LINK-SRC: 20: clang-offload-wrapper, {19}, object, (device-sycl)
 // CHK-FPGA-LINK-SRC: 21: offload, "host-sycl (x86_64-unknown-linux-gnu)" {13}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {20}, archive
 
-
 /// Check the warning's emission for conflicting emulation/hardware (AOCX)
 // RUN: touch %t_aocx.a
 // RUN: %clangxx -fsycl -fintelfpga -fsycl-link=image -target x86_64-unknown-linux-gnu %t_aocx.a %s -Xshardware -### 2>&1 \

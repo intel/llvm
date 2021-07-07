@@ -54,4 +54,3 @@
 // CHK-PHASES: 13: backend, {12}, assembler, (device-sycl, sm_35)
 // CHK-PHASES: 14: clang-offload-wrapper, {13}, object, (device-sycl, sm_35)
 // CHK-PHASES: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_35)" {14}, image
-
