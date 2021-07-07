@@ -507,11 +507,11 @@ public:
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
   ///
-  /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
   /// \return an event representing copy operation.
-  template <typename T> event copy(T *Dest, const T *Src, size_t Count) {
+  template <typename T> event copy(const T *Src, T *Dest, size_t Count) {
     return this->memcpy(Dest, Src, Count * sizeof(T));
   }
 
@@ -521,13 +521,13 @@ public:
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
   ///
-  /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing copy operation.
   template <typename T>
-  event copy(T *Dest, const T *Src, size_t Count, event DepEvent) {
+  event copy(const T *Src, T *Dest, size_t Count, event DepEvent) {
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvent);
   }
 
@@ -537,13 +537,13 @@ public:
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
   ///
-  /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// \return an event representing copy operation.
   template <typename T>
-  event copy(T *Dest, const T *Src, size_t Count,
+  event copy(const T *Src, T *Dest, size_t Count,
              const vector_class<event> &DepEvents) {
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
   }

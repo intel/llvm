@@ -573,7 +573,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
                  SYCLIntelFPGADisableLoopPipeliningAttr,
-                 SYCLIntelFPGAInitiationIntervalAttr>(A);
+                 SYCLIntelFPGAInitiationIntervalAttr,
+                 SYCLIntelUseStallEnableClustersAttr>(A);
     });
   }
 }
@@ -763,10 +764,8 @@ class SingleDeviceFunctionTracker {
     return FD->getMostRecentDecl();
   }
 
-  void VisitCallNode(CallGraphNode *Node,
+  void VisitCallNode(CallGraphNode *Node, FunctionDecl *CurrentDecl,
                      llvm::SmallVectorImpl<FunctionDecl *> &CallStack) {
-    FunctionDecl *CurrentDecl = GetFDFromNode(Node);
-
     // If this isn't a function, I don't think there is anything we can do here.
     if (!CurrentDecl)
       return;
@@ -841,8 +840,16 @@ class SingleDeviceFunctionTracker {
 
     // Recurse.
     CallStack.push_back(CurrentDecl);
+    llvm::SmallPtrSet<FunctionDecl *, 16> SeenCallees;
     for (CallGraphNode *CI : Node->callees()) {
-      VisitCallNode(CI, CallStack);
+      FunctionDecl *CurFD = GetFDFromNode(CI);
+
+      // Make sure we only visit each callee 1x from this function to avoid very
+      // time consuming template recursion cases.
+      if (!llvm::is_contained(SeenCallees, CurFD)) {
+        VisitCallNode(CI, CurFD, CallStack);
+        SeenCallees.insert(CurFD);
+      }
     }
     CallStack.pop_back();
   }
@@ -851,7 +858,7 @@ class SingleDeviceFunctionTracker {
   void Init() {
     CallGraphNode *KernelNode = Parent.getNodeForKernel(SYCLKernel);
     llvm::SmallVector<FunctionDecl *> CallStack;
-    VisitCallNode(KernelNode, CallStack);
+    VisitCallNode(KernelNode, GetFDFromNode(KernelNode), CallStack);
   }
 
 public:
@@ -4077,6 +4084,7 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelFPGAMaxConcurrency:
   case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
   case attr::Kind::SYCLIntelFPGAInitiationInterval:
+  case attr::Kind::SYCLIntelUseStallEnableClusters:
     SYCLKernel->addAttr(A);
     break;
   case attr::Kind::IntelNamedSubGroupSize:
