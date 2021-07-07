@@ -16,6 +16,9 @@
 #define ASSERT_START 1
 #define ASSERT_FINISH 2
 
+// definition
+__SYCL_GLOBAL__ AssertHappened __SYCL_AssertHappenedMem;
+
 DEVICE_EXTERN_C void __devicelib_assert_read(void *_Dst) {
   AssertHappened *Dst = (AssertHappened *)_Dst;
   int Flag = atomicLoad(&__SYCL_AssertHappenedMem.Flag);
