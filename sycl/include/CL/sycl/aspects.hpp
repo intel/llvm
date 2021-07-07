@@ -31,6 +31,8 @@ enum class aspect {
   usm_shared_allocations = 15,
   usm_restricted_shared_allocations = 16,
   usm_system_allocations = 17,
+  usm_system_allocator __SYCL2020_DEPRECATED(
+      "use usm_system_allocations instead") = usm_system_allocations,
   ext_intel_pci_address = 18,
   ext_intel_gpu_eu_count = 19,
   ext_intel_gpu_eu_simd_width = 20,
