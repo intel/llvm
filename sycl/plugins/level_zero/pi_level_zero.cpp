@@ -2548,8 +2548,7 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                           pi_context Context,
-                                           pi_queue *Queue,
+                                           pi_context Context, pi_queue *Queue,
                                            bool OwnNativeHandle) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);

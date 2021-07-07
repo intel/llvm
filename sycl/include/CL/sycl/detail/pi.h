@@ -1048,8 +1048,8 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 /// \param ownNativeHandle tells if SYCL RT should assume the ownership of
 ///        the native handle, if it can.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context,
-    pi_queue *queue, bool ownNativeHandle);
+    pi_native_handle nativeHandle, pi_context context, pi_queue *queue,
+    bool ownNativeHandle);
 
 //
 // Memory
