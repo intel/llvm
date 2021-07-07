@@ -765,10 +765,8 @@ class SingleDeviceFunctionTracker {
     return FD->getMostRecentDecl();
   }
 
-  void VisitCallNode(CallGraphNode *Node,
+  void VisitCallNode(CallGraphNode *Node, FunctionDecl *CurrentDecl,
                      llvm::SmallVectorImpl<FunctionDecl *> &CallStack) {
-    FunctionDecl *CurrentDecl = GetFDFromNode(Node);
-
     // If this isn't a function, I don't think there is anything we can do here.
     if (!CurrentDecl)
       return;
@@ -843,8 +841,16 @@ class SingleDeviceFunctionTracker {
 
     // Recurse.
     CallStack.push_back(CurrentDecl);
+    llvm::SmallPtrSet<FunctionDecl *, 16> SeenCallees;
     for (CallGraphNode *CI : Node->callees()) {
-      VisitCallNode(CI, CallStack);
+      FunctionDecl *CurFD = GetFDFromNode(CI);
+
+      // Make sure we only visit each callee 1x from this function to avoid very
+      // time consuming template recursion cases.
+      if (!llvm::is_contained(SeenCallees, CurFD)) {
+        VisitCallNode(CI, CurFD, CallStack);
+        SeenCallees.insert(CurFD);
+      }
     }
     CallStack.pop_back();
   }
@@ -853,7 +859,7 @@ class SingleDeviceFunctionTracker {
   void Init() {
     CallGraphNode *KernelNode = Parent.getNodeForKernel(SYCLKernel);
     llvm::SmallVector<FunctionDecl *> CallStack;
-    VisitCallNode(KernelNode, CallStack);
+    VisitCallNode(KernelNode, GetFDFromNode(KernelNode), CallStack);
   }
 
 public:

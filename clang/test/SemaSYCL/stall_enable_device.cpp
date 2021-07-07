@@ -59,7 +59,7 @@ int main() {
 
     // Test attribute is presented on LambdaExpr called by kernel.
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
-    // CHECK-:      SYCLIntelUseStallEnableClustersAttr
+    // CHECK:       SYCLIntelUseStallEnableClustersAttr
     h.single_task<class test_kernel2>(
         []() [[intel::use_stall_enable_clusters]]{});
 
