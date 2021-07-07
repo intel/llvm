@@ -1730,12 +1730,19 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                        Device->ZeDeviceComputeProperties.maxGroupSizeZ}};
     return ReturnValue(MaxGroupSize);
   }
-  case PI_DEVICE_INFO_MAX_GLOBAL_WORK_SIZES: {
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS: {
     struct {
       size_t Arr[3];
-    } MaxGroupCounts = {{Device->ZeDeviceComputeProperties.maxGroupCountX,
-                         Device->ZeDeviceComputeProperties.maxGroupCountY,
-                         Device->ZeDeviceComputeProperties.maxGroupCountZ}};
+      static constexpr size_t Limit =
+          static_cast<size_t>((std::numeric_limits<int>::max)());
+      size_t xMax =
+          std::min(Limit, Device->ZeDeviceComputeProperties.maxGroupCountX);
+      size_t yMax =
+          std::min(Limit, Device->ZeDeviceComputeProperties.maxGroupCountX);
+      size_t zMax =
+          std::min(Limit, Device->ZeDeviceComputeProperties.maxGroupCountX);
+
+    } MaxGroupCounts = {{xMax, yMax, zMax}};
     return ReturnValue(MaxGroupCounts);
   }
   case PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY:

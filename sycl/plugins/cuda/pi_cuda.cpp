@@ -906,9 +906,10 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                         param_value_size_ret, return_sizes);
   }
 
-  case PI_DEVICE_INFO_MAX_GLOBAL_WORK_SIZES: {
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS: {
     size_t return_sizes[max_work_item_dimensions];
-
+    static constexpr size_t Limit =
+        static_cast<size_t>((std::numeric_limits<int>::max)());
     int max_x = 0, max_y = 0, max_z = 0;
     cl::sycl::detail::pi::assertion(
         cuDeviceGetAttribute(&max_x, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X,
@@ -925,9 +926,9 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                              device->get()) == CUDA_SUCCESS);
     cl::sycl::detail::pi::assertion(max_z >= 0);
 
-    return_sizes[0] = size_t(max_x);
-    return_sizes[1] = size_t(max_y);
-    return_sizes[2] = size_t(max_z);
+    return_sizes[0] = size_t(std::min(Limit, (size_t)max_x));
+    return_sizes[1] = size_t(std::min(Limit, (size_t)max_y));
+    return_sizes[2] = size_t(std::min(Limit, (size_t)max_z));
     return getInfoArray(max_work_item_dimensions, param_value_size, param_value,
                         param_value_size_ret, return_sizes);
   }

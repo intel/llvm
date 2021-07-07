@@ -1,4 +1,4 @@
-# Device information descriptor: max_global_work_sizes
+# Device information descriptor: ext_oneapi_max_number_work_groups
 
 This extension adds a new device information descriptor which returns a `sycl::id<3>` containing the maximum number of work-groups that can be submitted on a device, per dimension. 
 
@@ -6,10 +6,12 @@ OpenCL never offered such query, but now that SYCL supports GPU back-ends where 
 
 Examples:
 ```c++
+#ifdef SYCL_EXT_ONEAPI_MAX_NUMBER_WORK_GROUPS
 sycl::device cpu = sycl::device{sycl::cpu_selector{}};
-sycl::id<3> cpu_sizes = cpu.get_info<sycl::info::device::max_global_work_sizes>();
+sycl::id<3> cpu_sizes = cpu.get_info<sycl::info::device::ext_oneapi_max_number_work_groups>();
 std::cout << cpu.get_info<sycl::info::device::name>() << '\n';
 std::cout <<  "Max sizes: x_max: " << cpu_sizes[2] << " y_max: " << cpu_sizes[1] << " z_max: " << cpu_sizes[0] << '\n';
+#endif
 ```
 Returns:
 ```
@@ -21,7 +23,7 @@ Max sizes: x_max: 2147483647 y_max: 2147483647 z_max: 2147483647
 Whereas on a GPU:
 ```c++
 sycl::device gpu = sycl::device{sycl::gpu_selector{}};
-sycl::id<3> gpu_sizes = gpu.get_info<sycl::info::device::max_global_work_sizes>();
+sycl::id<3> gpu_sizes = gpu.get_info<sycl::info::device::ext_oneapi_max_number_work_groups>();
 std::cout << gpu.get_info<sycl::info::device::name>() << '\n';
 std::cout << " Max sizes: x_max: " << gpu_sizes[2] << " y_max: " << gpu_sizes[1] << " z_max: " << gpu_sizes[0] << '\n';
 ```

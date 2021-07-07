@@ -185,7 +185,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_ATOMIC_64:
     return PI_INVALID_VALUE;
 
-  case PI_DEVICE_INFO_MAX_GLOBAL_WORK_SIZES:
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS:
     // Returns the maximum sizes of a work group for each dimension one
     // could use to submit a kernel. There is no such query defined in OpenCL
     // so we'll return the maximum value one could pass. See
