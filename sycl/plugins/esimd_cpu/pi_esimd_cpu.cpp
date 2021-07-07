@@ -674,8 +674,8 @@ pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
   return PI_SUCCESS;
 }
 
-pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context, bool,
-                                           pi_queue *) {
+pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
+                                           pi_queue *, bool) {
   DIE_NO_IMPLEMENTATION;
   return PI_SUCCESS;
 }

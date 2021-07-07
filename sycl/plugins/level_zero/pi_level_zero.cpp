@@ -2411,7 +2411,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   try {
     *Queue = new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueue, Context,
-                           Device, ZeCommandListBatchSize, true, Properties);
+                           Device, ZeCommandListBatchSize, Properties, true);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2471,7 +2471,7 @@ pi_result piQueueRelease(pi_queue Queue) {
     std::lock_guard<std::mutex> Lock(Queue->PiQueueMutex);
     Queue->RefCount--;
     if (Queue->RefCount == 0)
-      RefCountZero = Queue->OwnZeCommandQueue ? true : false;
+      RefCountZero = true;
 
     if (RefCountZero) {
       // It is possible to get to here and still have an open command list
@@ -2494,11 +2494,14 @@ pi_result piQueueRelease(pi_queue Queue) {
         ZE_CALL(zeFenceDestroy, (MapEntry.second.ZeFence));
       }
       Queue->ZeCommandListFenceMap.clear();
-      ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
-      Queue->ZeComputeCommandQueue = nullptr;
-      if (Queue->ZeCopyCommandQueue) {
-        ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCopyCommandQueue));
-        Queue->ZeCopyCommandQueue = nullptr;
+
+      if (Queue->OwnZeCommandQueue) {
+        ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
+        Queue->ZeComputeCommandQueue = nullptr;
+        if (Queue->ZeCopyCommandQueue) {
+          ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCopyCommandQueue));
+          Queue->ZeCopyCommandQueue = nullptr;
+        }
       }
 
       zePrint("piQueueRelease NumTimesClosedFull %d, NumTimesClosedEarly %d\n",
@@ -2546,8 +2549,8 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
                                            pi_context Context,
-                                           bool OwnNativeHandle,
-                                           pi_queue *Queue) {
+                                           pi_queue *Queue,
+                                           bool OwnNativeHandle) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);

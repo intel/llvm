@@ -50,10 +50,10 @@ __SYCL_EXPORT program make_program(const context &Context,
 //----------------------------------------------------------------------------
 // Implementation of opencl::make<queue>
 __SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle NativeHandle) {
+                               pi_native_handle NativeHandle, bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, false,
-                            ContextImpl->get_async_handler(), backend::opencl);
+  return detail::make_queue(NativeHandle, Context,
+                            ContextImpl->get_async_handler(), KeepOwnership, backend::opencl);
 }
 } // namespace opencl
 } // namespace sycl

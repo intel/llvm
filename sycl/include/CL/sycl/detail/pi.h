@@ -36,7 +36,8 @@
 // 2. A number of types needed to define pi_device_binary_property_set added.
 // 3. Added new ownership argument to piextContextCreateWithNativeHandle.
 // 4. Add interoperability interfaces for kernel.
-// 5. Added new ownership argument to piextQueueCreateWithNativeHandle.
+// 4.6 Added new ownership argument to piextQueueCreateWithNativeHandle which
+// changes the API version from 3.5 to 4.6.
 //
 #include "CL/cl.h"
 #define _PI_H_VERSION_MAJOR 4
@@ -1047,8 +1048,8 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 ///        the native handle, if it can.
 /// \param queue is the PI queue created from the native handle.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
-    pi_queue *queue);
+    pi_native_handle nativeHandle, pi_context context,
+    pi_queue *queue, bool ownNativeHandle);
 
 //
 // Memory
