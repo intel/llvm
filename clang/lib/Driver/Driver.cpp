@@ -718,6 +718,24 @@ static bool isValidSYCLTriple(llvm::Triple T) {
   return true;
 }
 
+static bool addSYCLDefaultTriple(Compilation &C,
+                                 SmallVectorImpl<llvm::Triple> &SYCLTriples) {
+  if (C.getArgs().hasArg(options::OPT_fno_sycl_default_triple))
+    return false;
+  for (const auto &SYCLTriple : SYCLTriples) {
+    if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
+        SYCLTriple.isSPIR())
+      return false;
+    // If we encounter a known non-spir* target, do not add the default triple.
+    if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
+      return false;
+  }
+  // Add the default triple as it was not found.
+  llvm::Triple DefaultTriple = C.getDriver().MakeSYCLDeviceTriple("spir64");
+  SYCLTriples.push_back(DefaultTriple);
+  return true;
+}
+
 void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                               InputList &Inputs) {
 
@@ -919,8 +937,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // Make sure we don't have a duplicate triple.
           auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
           if (Duplicate != FoundNormalizedTriples.end()) {
-            Diag(clang::diag::warn_drv_sycl_offload_target_duplicate)
-                << Val << Duplicate->second;
+            if (!Duplicate->second.equals("spir64"))
+              Diag(clang::diag::warn_drv_sycl_offload_target_duplicate)
+                  << Val << Duplicate->second;
             continue;
           }
 
@@ -928,6 +947,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
           UniqueSYCLTriplesVec.push_back(TT);
+        }
+        // Scanned the triples.  Add the default device triple if it wasn't
+        // specified by the user.
+        if (addSYCLDefaultTriple(C, UniqueSYCLTriplesVec)) {
+          // set variable that the default triple was added.  We want to be
+          // sure that user set generic -Xs* options are not applied.
+          C.getDriver().setSYCLDefaultTriple(true);
         }
       } else
         Diag(clang::diag::warn_drv_empty_joined_argument)
@@ -987,8 +1013,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     else if (HasValidSYCLRuntime)
       // Triple for -fintelfpga is spir64_fpga-unknown-unknown-sycldevice.
       SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
-    if (!SYCLTargetArch.empty())
+    if (!SYCLTargetArch.empty()) {
       UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(SYCLTargetArch));
+      if (addSYCLDefaultTriple(C, UniqueSYCLTriplesVec))
+        C.getDriver().setSYCLDefaultTriple(true);
+    }
   }
   // We'll need to use the SYCL and host triples as the key into
   // getOffloadingDeviceToolChain, because the device toolchains we're
@@ -1428,7 +1457,8 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     const ToolChain *TC = SYCLTCRange.first->second;
     const toolchains::SYCLToolChain *SYCLTC =
         static_cast<const toolchains::SYCLToolChain *>(TC);
-    SYCLTC->TranslateBackendTargetArgs(*TranslatedArgs, TargetArgs);
+    SYCLTC->TranslateBackendTargetArgs(SYCLTC->getTriple(), *TranslatedArgs,
+                                       TargetArgs);
     for (StringRef ArgString : TargetArgs) {
       if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
         setFPGAEmulationMode(false);
@@ -4666,6 +4696,7 @@ class OffloadingActionBuilder final {
             if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
               SYCLfpgaTriple = true;
           }
+          addSYCLDefaultTriple(C, SYCLTripleList);
         }
         if (SYCLAddTargets) {
           for (StringRef Val : SYCLAddTargets->getValues()) {
@@ -4688,6 +4719,7 @@ class OffloadingActionBuilder final {
         const char *SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
         SYCLTripleList.push_back(
             C.getDriver().MakeSYCLDeviceTriple(SYCLTargetArch));
+        addSYCLDefaultTriple(C, SYCLTripleList);
         if (SYCLfpga)
           SYCLfpgaTriple = true;
       }

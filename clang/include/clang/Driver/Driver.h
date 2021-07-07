@@ -655,6 +655,11 @@ private:
     FPGAEmulationMode = IsEmulation;
   }
 
+  /// For SYCL w/ AOT, we imply the default device triple (spir64) as well.
+  /// We need to keep track of this so any use of any generic target option
+  /// setting is only applied to the user specified triples.
+  mutable bool SYCLDefaultTripleSet = false;
+
   /// Returns true if an offload static library is found.
   bool checkForOffloadStaticLib(Compilation &C,
                                 llvm::opt::DerivedArgList &Args) const;
@@ -713,6 +718,14 @@ public:
   /// isFPGAEmulationMode - Compilation mode is determined to be used for
   /// FPGA Emulation.  This is only used for SYCL offloading to FPGA device.
   bool isFPGAEmulationMode() const { return FPGAEmulationMode; };
+
+  /// isSYCLDefaultTripleSet - The default SYCL triple (spir64) has been added
+  /// along with the user specified AOT triples.
+  bool isSYCLDefaultTripleSet() const { return SYCLDefaultTripleSet; };
+
+  void setSYCLDefaultTriple(bool IsDefaultSet) const {
+    SYCLDefaultTripleSet = IsDefaultSet;
+  }
 
   /// addIntegrationFiles - Add the integration files that will be populated
   /// by the device compilation and used by the host compile.

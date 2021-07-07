@@ -8274,6 +8274,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       if (getToolChain().getTriple().getSubArch() ==
               llvm::Triple::SPIRSubArch_fpga &&
           Dep.DependentOffloadKind == Action::OFK_SYCL) {
+        if (J++)
+          Triples += ',';
         llvm::Triple TT;
         TT.setArchName(types::getTypeName(InputType));
         TT.setVendorName("intel");
@@ -8284,6 +8286,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       } else if (getToolChain().getTriple().getSubArch() !=
                      llvm::Triple::SPIRSubArch_fpga &&
                  Dep.DependentOffloadKind == Action::OFK_Host) {
+        if (J++)
+          Triples += ',';
         Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
         Triples += '-';
         Triples += Dep.DependentToolChain->getTriple().normalize();
@@ -8442,10 +8446,10 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       // Only store compile/link opts in the image descriptor for the SPIR-V
       // target; AOT compilation has already been performed otherwise.
       TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs);
-      TC.TranslateBackendTargetArgs(TCArgs, BuildArgs);
+      TC.TranslateBackendTargetArgs(TT, TCArgs, BuildArgs);
       createArgString("-compile-opts=");
       BuildArgs.clear();
-      TC.TranslateLinkerTargetArgs(TCArgs, BuildArgs);
+      TC.TranslateLinkerTargetArgs(TT, TCArgs, BuildArgs);
       createArgString("-link-opts=");
     }
 

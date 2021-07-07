@@ -387,8 +387,8 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
   llvm::Triple CPUTriple("spir64_x86_64");
   TC.AddImpliedTargetArgs(CPUTriple, Args, CmdArgs);
   // Add the target args passed in
-  TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+  TC.TranslateBackendTargetArgs(CPUTriple, Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(CPUTriple, Args, CmdArgs);
 
   SmallString<128> ExecPath(
       getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
@@ -414,7 +414,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   ArgStringList TargetArgs;
-  TC.TranslateBackendTargetArgs(Args, TargetArgs);
+  TC.TranslateBackendTargetArgs(TC.getTriple(), Args, TargetArgs);
 
   // When performing emulation compilations for FPGA AOT, we want to use
   // opencl-aot instead of aoc.
@@ -534,8 +534,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
 
   // Add -Xsycl-target* options.
-  TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+  TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
 
   // Look for -reuse-exe=XX option
   if (Arg *A = Args.getLastArg(options::OPT_reuse_exe_EQ)) {
@@ -581,8 +581,8 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
-  TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+  TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   SmallString<128> ExecPath(
       getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
@@ -614,8 +614,8 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
 
   TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
-  TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+  TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   SmallString<128> ExecPath(
       getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
@@ -765,7 +765,8 @@ void SYCLToolChain::AddImpliedTargetArgs(
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(
-    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const {
+    const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
+    llvm::opt::ArgStringList &CmdArgs) const {
   // Handle -Xs flags.
   for (auto *A : Args) {
     // When parsing the target args, the -Xs<opt> type option applies to all
@@ -775,6 +776,15 @@ void SYCLToolChain::TranslateBackendTargetArgs(
     //   -Xs "-DFOO -DBAR"
     //   -XsDFOO -XsDBAR
     // All of the above examples will pass -DFOO -DBAR to the backend compiler.
+
+    // Do not add the -Xs to the default SYCL triple (spir64) when we have
+    // implied the setting along with AOT compilations.
+    if ((A->getOption().matches(options::OPT_Xs) ||
+         A->getOption().matches(options::OPT_Xs_separate)) &&
+        Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
+        getDriver().isSYCLDefaultTripleSet())
+      continue;
+
     if (A->getOption().matches(options::OPT_Xs)) {
       // Take the arg and create an option out of it.
       CmdArgs.push_back(Args.MakeArgString(Twine("-") + A->getValue()));
@@ -788,13 +798,22 @@ void SYCLToolChain::TranslateBackendTargetArgs(
       continue;
     }
   }
+  // Do not process -Xsycl-target-backend for implied spir64 for AOT.
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
+      getDriver().isSYCLDefaultTripleSet())
+    return;
   // Handle -Xsycl-target-backend.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_backend,
                      options::OPT_Xsycl_backend_EQ);
 }
 
 void SYCLToolChain::TranslateLinkerTargetArgs(
-    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const {
+    const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
+    llvm::opt::ArgStringList &CmdArgs) const {
+  // Do not process -Xsycl-target-linker for implied spir64 for AOT.
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
+      getDriver().isSYCLDefaultTripleSet())
+    return;
   // Handle -Xsycl-target-linker.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_linker,
                      options::OPT_Xsycl_linker_EQ);
