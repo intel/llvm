@@ -262,7 +262,7 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
   // Only binary file is present
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  EXPECT_TRUE(!llvm::sys::fs::remove(ItemDir + "/0.src"))
+  EXPECT_FALSE(llvm::sys::fs::remove(ItemDir + "/0.src"))
       << "Failed to remove source file";
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                            BuildOptions);
