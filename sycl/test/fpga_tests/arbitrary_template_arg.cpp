@@ -1,6 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
-
 // This test performs basic check of SYCL FPGA arbitrary template argument list.
 
 #include <CL/sycl.hpp>
