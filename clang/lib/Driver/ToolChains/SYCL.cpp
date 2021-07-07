@@ -85,6 +85,17 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(
   return OutputFileName;
 }
 
+static void addFPGATimingDiagnostic(std::unique_ptr<Command> &Cmd,
+                                    Compilation &C) {
+  const char *Msg = C.getArgs().MakeArgString(
+      "The FPGA image generated during this compile contains timing violations "
+      "and may produce functional errors if used. Refer to the Intel oneAPI "
+      "DPC++ FPGA Optimization Guide section on Timing Failures for more "
+      "information.");
+  Cmd->addDiagForErrorCode(/*ErrorCode*/ 42, Msg);
+  Cmd->addExitForErrorCode(/*ErrorCode*/ 42, false);
+}
+
 void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                        std::unique_ptr<Command> InputCommand,
                                        const InputInfoList &InputFiles,
@@ -122,8 +133,14 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   SmallString<128> ForeachPath(C.getDriver().Dir);
   llvm::sys::path::append(ForeachPath, "llvm-foreach");
   const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
-  C.addCommand(std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
-                                         Foreach, ForeachArgs, None));
+
+  auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
+                                       Foreach, ForeachArgs, None);
+  // FIXME: Add the FPGA specific timing diagnostic to the foreach call.
+  // The foreach call obscures the return codes from the tool it is calling
+  // to the compiler itself.
+  addFPGATimingDiagnostic(Cmd, C);
+  C.addCommand(std::move(Cmd));
 }
 
 // The list should match pre-built SYCL device library files located in
@@ -530,6 +547,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, None);
+  addFPGATimingDiagnostic(Cmd, C);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
                                 this, ReportOptArg, ForeachExt);
