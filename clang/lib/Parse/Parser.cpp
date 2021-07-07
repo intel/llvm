@@ -715,17 +715,7 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
   }
 
   ParsedAttributesWithRange attrs(AttrFactory);
-  CachedTokens OpenMPTokens;
-  MaybeParseCXX11Attributes(attrs, OpenMPTokens);
-
-  // If parsing the attributes found an OpenMP directive, emit those tokens to
-  // the parse stream now.
-  if (!OpenMPTokens.empty()) {
-    PP.EnterToken(Tok, /*IsReinject*/ true);
-    PP.EnterTokenStream(OpenMPTokens, /*DisableMacroExpansion*/ true,
-                        /*IsReinject*/ true);
-    ConsumeAnyToken(/*ConsumeCodeCompletionTok*/ true);
-  }
+  MaybeParseCXX11Attributes(attrs);
 
   Result = ParseExternalDeclaration(attrs);
   return false;

@@ -106,20 +106,10 @@ Parser::ParseStatementOrDeclaration(StmtVector &Stmts,
   // at the start of the statement. Thus, we're not using MaybeParseAttributes
   // here because we don't want to allow arbitrary orderings.
   ParsedAttributesWithRange Attrs(AttrFactory);
-  CachedTokens OpenMPTokens;
-  MaybeParseCXX11Attributes(Attrs, OpenMPTokens, nullptr,
+  MaybeParseCXX11Attributes(Attrs, nullptr,
                             /*MightBeObjCMessageSend*/ true);
   if (getLangOpts().OpenCL)
     MaybeParseGNUAttributes(Attrs);
-
-  // If parsing the attributes found an OpenMP directive, emit those tokens to
-  // the parse stream now.
-  if (!OpenMPTokens.empty()) {
-    PP.EnterToken(Tok, /*IsReinject*/ true);
-    PP.EnterTokenStream(OpenMPTokens, /*DisableMacroExpansion*/ true,
-                        /*IsReinject*/ true);
-    ConsumeAnyToken(/*ConsumeCodeCompletionTok*/ true);
-  }
 
   StmtResult Res = ParseStatementOrDeclarationAfterAttributes(
       Stmts, StmtCtx, TrailingElseLoc, Attrs);
@@ -1126,18 +1116,8 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
         ConsumeToken();
 
       ParsedAttributesWithRange attrs(AttrFactory);
-      CachedTokens OpenMPTokens;
-      MaybeParseCXX11Attributes(attrs, OpenMPTokens, nullptr,
+      MaybeParseCXX11Attributes(attrs, nullptr,
                                 /*MightBeObjCMessageSend*/ true);
-
-      // If parsing the attributes found an OpenMP directive, emit those tokens
-      // to the parse stream now.
-      if (!OpenMPTokens.empty()) {
-        PP.EnterToken(Tok, /*IsReinject*/ true);
-        PP.EnterTokenStream(OpenMPTokens, /*DisableMacroExpansion*/ true,
-                            /*IsReinject*/ true);
-        ConsumeAnyToken(/*ConsumeCodeCompletionTok*/ true);
-      }
 
       // If this is the start of a declaration, parse it as such.
       if (isDeclarationStatement()) {

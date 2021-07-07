@@ -242,18 +242,7 @@ void Parser::ParseInnerNamespace(const InnerNamespaceInfoList &InnerNSs,
     while (!tryParseMisplacedModuleImport() && Tok.isNot(tok::r_brace) &&
            Tok.isNot(tok::eof)) {
       ParsedAttributesWithRange attrs(AttrFactory);
-      CachedTokens OpenMPTokens;
-      MaybeParseCXX11Attributes(attrs, OpenMPTokens);
-
-      // If parsing the attributes found an OpenMP directive, emit those tokens
-      // to the parse stream now.
-      if (!OpenMPTokens.empty()) {
-        PP.EnterToken(Tok, /*IsReinject*/ true);
-        PP.EnterTokenStream(OpenMPTokens, /*DisableMacroExpansion*/ true,
-                            /*IsReinject*/ true);
-        ConsumeAnyToken(/*ConsumeCodeCompletionTok*/ true);
-      }
-
+      MaybeParseCXX11Attributes(attrs);
       ParseExternalDeclaration(attrs);
     }
 
@@ -2678,6 +2667,7 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
   ParsedAttributesViewWithRange FnAttrs;
   // Optional C++11 attribute-specifier
   MaybeParseCXX11Attributes(attrs);
+
   // We need to keep these attributes for future diagnostic
   // before they are taken over by declaration specifier.
   FnAttrs.addAll(attrs.begin(), attrs.end());
@@ -4352,9 +4342,9 @@ bool Parser::ParseCXX11AttributeArgs(IdentifierInfo *AttrName,
 ///
 /// [C++11] attribute-namespace:
 ///         identifier
-void Parser::ParseCXX11AttributeSpecifier(ParsedAttributes &Attrs,
-                                          CachedTokens &OpenMPTokens,
-                                          SourceLocation *EndLoc) {
+void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
+                                                  CachedTokens &OpenMPTokens,
+                                                  SourceLocation *EndLoc) {
   if (Tok.is(tok::kw_alignas)) {
     Diag(Tok.getLocation(), diag::warn_cxx98_compat_alignas);
     ParseAlignmentSpecifier(Attrs, EndLoc);
@@ -4479,7 +4469,6 @@ void Parser::ParseCXX11AttributeSpecifier(ParsedAttributes &Attrs,
 /// attribute-specifier-seq:
 ///       attribute-specifier-seq[opt] attribute-specifier
 void Parser::ParseCXX11Attributes(ParsedAttributesWithRange &Attrs,
-                                  CachedTokens &OpenMPTokens,
                                   SourceLocation *EndLoc) {
   assert(standardAttributesAllowed());
 
@@ -4488,7 +4477,7 @@ void Parser::ParseCXX11Attributes(ParsedAttributesWithRange &Attrs,
     EndLoc = &Loc;
 
   do {
-    ParseCXX11AttributeSpecifier(Attrs, OpenMPTokens, EndLoc);
+    ParseCXX11AttributeSpecifier(Attrs, EndLoc);
   } while (isCXX11AttributeSpecifier());
 
   Attrs.Range = SourceRange(StartLoc, *EndLoc);
