@@ -251,7 +251,7 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
   // Only source file is present
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  EXPECT_EQ(!llvm::sys::fs::remove(ItemDir + "/0.bin"), true)
+  EXPECT_FALSE(llvm::sys::fs::remove(ItemDir + "/0.bin"))
       << "Failed to remove binary file";
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                                 BuildOptions);
@@ -262,7 +262,7 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
   // Only binary file is present
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  EXPECT_EQ(!llvm::sys::fs::remove(ItemDir + "/0.src"), true)
+  EXPECT_TRUE(!llvm::sys::fs::remove(ItemDir + "/0.src"))
       << "Failed to remove source file";
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                            BuildOptions);
@@ -280,8 +280,7 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
    */
   FileStream << 2 << 12 << "123456789012" << 23 << "1234";
   FileStream.close();
-  EXPECT_EQ(FileStream.fail(), false)
-      << "Failed to create trancated binary file";
+  EXPECT_FALSE(FileStream.fail()) << "Failed to create trancated binary file";
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                            BuildOptions);
   EXPECT_EQ(Res.size(), static_cast<size_t>(0))
@@ -323,10 +322,9 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
   // Create 1st cahe item
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  EXPECT_EQ(llvm::sys::fs::exists(ItemDir + "/0.bin"), true)
-      << "No file created";
+  EXPECT_TRUE(llvm::sys::fs::exists(ItemDir + "/0.bin")) << "No file created";
   std::string LockFile = ItemDir + "/0.lock";
-  EXPECT_NE(llvm::sys::fs::exists(LockFile), true) << "Cache item locked";
+  EXPECT_FALSE(llvm::sys::fs::exists(LockFile)) << "Cache item locked";
 
   // Create lock file for the 1st cache item
   { std::ofstream File{LockFile}; }
@@ -339,8 +337,7 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
   // Cache item is locked - new cache item to be created
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  EXPECT_EQ(llvm::sys::fs::exists(ItemDir + "/1.bin"), true)
-      << "No file created";
+  EXPECT_TRUE(llvm::sys::fs::exists(ItemDir + "/1.bin")) << "No file created";
 
   // Second cache item is locked, cache miss happens on read
   { std::ofstream File{ItemDir + "/1.lock"}; }
@@ -380,14 +377,12 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   llvm::sys::fs::remove_directories(ItemDir);
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  EXPECT_EQ(llvm::sys::fs::exists(ItemDir + "/0.bin"), true)
-      << "No file created";
+  EXPECT_TRUE(llvm::sys::fs::exists(ItemDir + "/0.bin")) << "No file created";
   llvm::sys::fs::setPermissions(ItemDir + "/0.bin", llvm::sys::fs::no_perms);
   // No access to binary file new cache item to be created
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
-  EXPECT_EQ(llvm::sys::fs::exists(ItemDir + "/1.bin"), true)
-      << "No file created";
+  EXPECT_TRUE(llvm::sys::fs::exists(ItemDir + "/1.bin")) << "No file created";
 
   llvm::sys::fs::setPermissions(ItemDir + "/1.bin", llvm::sys::fs::no_perms);
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
