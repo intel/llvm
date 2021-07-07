@@ -200,8 +200,8 @@ public:
   virtual int Execute(ArrayRef<Optional<StringRef>> Redirects,
                       std::string *ErrMsg, bool *ExecutionFailed) const;
 
-  /// Store a custom driver diagnostic message and if the compilation should
-  /// exit upon a particular error code returned by the command
+  /// Store a custom driver diagnostic message upon a particular error code
+  /// returned by the command
   void addDiagForErrorCode(int ErrorCode, StringRef CustomDiag);
 
   /// Store if the compilation should exit upon a particular error code
