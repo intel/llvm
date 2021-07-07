@@ -37,6 +37,16 @@ static cl::opt<std::string>
                cl::desc("file which is appended to the input file"),
                cl::cat(AppendFileCategory));
 
+static cl::opt<std::string>
+    OriginalFile("orig-filename", cl::ZeroOrMore,
+                 cl::desc("original filename, when specified is prepended "
+                          "as a line directive to the source file"),
+                 cl::cat(AppendFileCategory));
+
+static cl::opt<bool> UseInclude("use-include", cl::ZeroOrMore,
+    cl::desc("appended file is included via #include directive"),
+    cl::cat(AppendFileCategory));
+
 static void error(const Twine &Msg) {
   errs() << "append-file: " << Msg << '\n';
   exit(1);
@@ -52,17 +62,28 @@ int main(int argc, const char **argv) {
   if (!llvm::sys::fs::exists(Input))
     error("input file not found");
 
-  // Copy the input file to the output file
-  llvm::sys::fs::copy_file(Input, Output);
+  // Open the output file stream
+  std::ofstream OutFile(Output, std::ios_base::binary | std::ios_base::app |
+                        std::ios_base::ate);
+  if (!OriginalFile.empty())
+    OutFile << "# 1 \"" << OriginalFile << "\" 1\n";
+
+  // Add the original source file contents.
+  std::ifstream InputFile(Input, std::ios_base::binary);
+  OutFile << InputFile.rdbuf();
+  InputFile.close();
+
   if (!AppendFile.empty()) {
-    // Append the to the output file.
-    std::ofstream OutFile(Output, std::ios_base::binary | std::ios_base::app |
-                                      std::ios_base::ate);
-    std::ifstream FooterFile(AppendFile, std::ios_base::binary);
-    OutFile << FooterFile.rdbuf();
-    OutFile.close();
-    FooterFile.close();
+    if (UseInclude)
+      OutFile << "\n#include \"" << AppendFile << "\"\n";
+    else {
+      // Append the to the output file.
+      std::ifstream FooterFile(AppendFile, std::ios_base::binary);
+      OutFile << FooterFile.rdbuf();
+      FooterFile.close();
+    }
   }
 
+  OutFile.close();
   return 0;
 }

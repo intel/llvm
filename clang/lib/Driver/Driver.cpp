@@ -5616,11 +5616,9 @@ Action *Driver::ConstructPhaseAction(
         !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
         TargetDeviceOffloadKind == Action::OFK_None) {
       // Performing a host compilation with -fsycl.  Append the integration
-      // footer to the preprocessed source file.  We then add another
-      // preprocessed step to complete the action chain.
-      auto *Preprocess = C.MakeAction<PreprocessJobAction>(Input, HostPPType);
+      // footer to the source file.
       auto *AppendFooter =
-          C.MakeAction<AppendFooterJobAction>(Preprocess, types::TY_CXX);
+          C.MakeAction<AppendFooterJobAction>(Input, types::TY_CXX);
       // FIXME: There are 2 issues with dependency generation in regards to
       // the integration footer that need to be addressed.
       // 1) Input file referenced on the RHS of a dependency is based on the

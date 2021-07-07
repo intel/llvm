@@ -17,22 +17,22 @@
 // RUN: -fsycl-targets=amdgcn-amd-amdhsa-sycldevice -mcpu=gfx906 %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
 // CHK-PHASES-NO-CC: 0: input, "{{.*}}", c++, (host-sycl)
-// CHK-PHASES-NO-CC: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
-// CHK-PHASES-NO-CC: 2: append-footer, {1}, c++, (host-sycl)
-// CHK-PHASES-NO-CC: 3: preprocessor, {2}, c++-cpp-output, (host-sycl)
-// CHK-PHASES-NO-CC: 4: input, "{{.*}}", c++, (device-sycl)
-// CHK-PHASES-NO-CC: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
-// CHK-PHASES-NO-CC: compiler, {5}, ir, (device-sycl)
-// CHK-PHASES-NO-CC: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (amdgcn-amd-amdhsa-sycldevice)" {6}, c++-cpp-output
-// CHK-PHASES-NO-CC: compiler, {7}, ir, (host-sycl)
-// CHK-PHASES-NO-CC: backend, {8}, assembler, (host-sycl)
-// CHK-PHASES-NO-CC: assembler, {9}, object, (host-sycl)
-// CHK-PHASES-NO-CC: linker, {10}, image, (host-sycl)
-// CHK-PHASES-NO-CC: linker, {6}, ir, (device-sycl)
-// CHK-PHASES-NO-CC: sycl-post-link, {12}, ir, (device-sycl)
-// CHK-PHASES-NO-CC: backend, {13}, assembler, (device-sycl)
-// CHK-PHASES-NO-CC: assembler, {14}, object, (device-sycl)
-// CHK-PHASES-NO-CC: linker, {15}, image, (device-sycl)
-// CHK-PHASES-NO-CC: linker, {16}, hip-fatbin, (device-sycl)
-// CHK-PHASES-NO-CC: clang-offload-wrapper, {17}, object, (device-sycl)
-// CHK-PHASES-NO-CC: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (amdgcn-amd-amdhsa-sycldevice)" {18}, image
+// CHK-PHASES-NO-CC: 1: append-footer, {0}, c++, (host-sycl)
+// CHK-PHASES-NO-CC: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// CHK-PHASES-NO-CC: 3: input, "{{.*}}", c++, (device-sycl)
+// CHK-PHASES-NO-CC: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
+// CHK-PHASES-NO-CC: 5: compiler, {4}, ir, (device-sycl)
+// CHK-PHASES-NO-CC: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (amdgcn-amd-amdhsa-sycldevice)" {5}, c++-cpp-output
+// CHK-PHASES-NO-CC: 7: compiler, {6}, ir, (host-sycl)
+// CHK-PHASES-NO-CC: 8: backend, {7}, assembler, (host-sycl)
+// CHK-PHASES-NO-CC: 9: assembler, {8}, object, (host-sycl)
+// CHK-PHASES-NO-CC: 10: linker, {9}, image, (host-sycl)
+// CHK-PHASES-NO-CC: 11: linker, {5}, ir, (device-sycl)
+// CHK-PHASES-NO-CC: 12: sycl-post-link, {11}, ir, (device-sycl)
+// CHK-PHASES-NO-CC: 13: backend, {12}, assembler, (device-sycl)
+// CHK-PHASES-NO-CC: 14: assembler, {13}, object, (device-sycl)
+// CHK-PHASES-NO-CC: 15: linker, {14}, image, (device-sycl)
+// CHK-PHASES-NO-CC: 16: linker, {15}, hip-fatbin, (device-sycl)
+// CHK-PHASES-NO-CC: 17: clang-offload-wrapper, {16}, object, (device-sycl)
+// CHK-PHASES-NO-CC: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (amdgcn-amd-amdhsa-sycldevice)" {17}, image
+

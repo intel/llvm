@@ -1186,13 +1186,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_C);
   Args.AddLastArg(CmdArgs, options::OPT_CC);
 
-  // When preprocessing using the integration footer, add the comments
-  // to the first preprocessing step.
-  if (JA.isOffloading(Action::OFK_SYCL) && !ContainsAppendFooterAction(&JA) &&
-      !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
-      JA.isDeviceOffloading(Action::OFK_None))
-    CmdArgs.push_back("-C");
-
   // Handle dependency file generation.
   Arg *ArgM = Args.getLastArg(options::OPT_MM);
   if (!ArgM)
@@ -1416,11 +1409,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
                                                        << A->getAsString(Args);
         }
       }
-      // Do not render -include when performing the compilation that occurs
-      // after the the integration footer has been appended.  This has already
-      // been preprocessed and should not be included again.
-      if (ContainsAppendFooterAction(&JA))
-        continue;
     } else if (A->getOption().matches(options::OPT_isystem_after)) {
       // Handling of paths which must come late.  These entries are handled by
       // the toolchain itself after the resource dir is inserted in the right
@@ -1436,6 +1424,18 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     // Not translated, render as usual.
     A->claim();
     A->render(Args, CmdArgs);
+  }
+
+  // The file being compiled that contains the integration footer is not being
+  // compiled in the directory of the original source.  Add that directory
+  // as a -I option so we can properly find potential headers there.
+  if (ContainsAppendFooterAction(&JA)) {
+    SmallString<128> SourcePath(Inputs[0].getBaseInput());
+    llvm::sys::path::remove_filename(SourcePath);
+    if (!SourcePath.empty()) {
+      CmdArgs.push_back("-I");
+      CmdArgs.push_back(Args.MakeArgString(SourcePath));
+    }
   }
 
   Args.AddAllArgs(CmdArgs,
@@ -4351,15 +4351,6 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
       }
     } else
       HostCompileArgs.push_back("-E");
-
-    // Add the integration header.
-    StringRef Header =
-        TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
-    if (types::getPreprocessedType(InputFile.getType()) != types::TY_INVALID &&
-        !Header.empty()) {
-      HostCompileArgs.push_back(IsMSVCHostCompiler ? "-FI" : "-include");
-      HostCompileArgs.push_back(TCArgs.MakeArgString(Header));
-    }
   } else if (isa<AssembleJobAction>(JA)) {
     HostCompileArgs.push_back("-c");
     if (IsMSVCHostCompiler)
@@ -4385,6 +4376,24 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
     } else {
       TC.getDriver().Diag(diag::err_drv_output_type_with_host_compiler);
     }
+  }
+
+  // Add the integration header.
+  StringRef Header =
+      TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
+  if (types::getPreprocessedType(InputFile.getType()) != types::TY_INVALID &&
+      !Header.empty()) {
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "-FI" : "-include");
+    HostCompileArgs.push_back(TCArgs.MakeArgString(Header));
+  }
+
+  // Add directory in which the original source file resides, as there could
+  // be headers that need to be picked up from there.
+  SmallString<128> SourcePath(InputFile.getBaseInput());
+  llvm::sys::path::remove_filename(SourcePath);
+  if (!SourcePath.empty()) {
+    HostCompileArgs.push_back("-I");
+    HostCompileArgs.push_back(TCArgs.MakeArgString(SourcePath));
   }
 
   // Add default header search directories.
@@ -4705,7 +4714,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // integration footer has been applied.  Check for the append job
       // action to determine this.
       if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
-          !Header.empty() && !ContainsAppendFooterAction(&JA)) {
+          !Header.empty()) {
         CmdArgs.push_back("-include");
         CmdArgs.push_back(Args.MakeArgString(Header));
         // When creating dependency information, filter out the generated
@@ -8942,9 +8951,18 @@ void AppendFooter::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {AppendOpt});
   }
 
+  // Name of original source file passed in to be prepended to the newly
+  // modified file as a #line directive.
+  SmallString<128> PrependOpt("--orig-filename=");
+  PrependOpt.append(Inputs[0].getBaseInput());
+  addArgs(CmdArgs, TCArgs, {PrependOpt});
+
   SmallString<128> OutputOpt("--output=");
   OutputOpt.append(Output.getFilename());
   addArgs(CmdArgs, TCArgs, {OutputOpt});
+
+  // Use #include to pull in footer
+  addArgs(CmdArgs, TCArgs, {"--use-include"});
 
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),

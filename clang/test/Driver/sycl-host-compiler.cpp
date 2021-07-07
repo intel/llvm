@@ -5,15 +5,13 @@
 // RUN: %clangxx -fsycl -fsycl-host-compiler=/some/dir/g++ %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER %s
 // HOST_COMPILER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
-// HOST_COMPILER: g++{{.*}} "-E" "-include" "[[INTHEADER]]" "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-o" "[[TMPII:.+\.ii]]"
-// HOST_COMPILER: g++{{.*}} "-c" "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-o" "[[HOSTOBJ:.+\.o]]"{{.*}}
+// HOST_COMPILER: g++{{.*}} "-c" "-include" "[[INTHEADER]]" "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-o" "[[HOSTOBJ:.+\.o]]"{{.*}}
 // HOST_COMPILER: ld{{.*}} "[[HOSTOBJ]]"
 
 // RUN: %clang_cl -fsycl -fsycl-host-compiler=/some/dir/cl %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER_CL %s
 // HOST_COMPILER_CL: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
-// HOST_COMPILER_CL: cl{{.*}} "-P" "-Fi[[TMPII:.+\.ii]]" "-FI" "[[INTHEADER]]"{{.*}} "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
-// HOST_COMPILER_CL: cl{{.*}} "-c" "-Fo[[HOSTOBJ:.+\.obj]]"{{.*}} "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}}
+// HOST_COMPILER_CL: cl{{.*}} "-c" "-Fo[[HOSTOBJ:.+\.obj]]" "-FI" "[[INTHEADER]]"{{.*}} "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}}
 // HOST_COMPILER_CL: link{{.*}} "[[HOSTOBJ]]"
 
 /// check for additional host options
@@ -25,18 +23,18 @@
 // RUN:  | FileCheck -check-prefix=HOST_OPTIONS_CL %s
 // HOST_OPTIONS_CL: cl{{.*}} "-Fo[[HOSTOBJ:.+\.obj]]"{{.*}} "/DFOO" "/DBAR" "/O2"
 
+ "/localdisk2/mtoguchi/github/llvm/build/bin/append-file" "/localdisk2/mtoguchi/github/llvm/clang/test/Driver/sycl-host-compiler.cpp" "--append=/tmp/sycl-host-compiler-footer-b55274.h" "--orig-filename=/localdisk2/mtoguchi/github/llvm/clang/test/Driver/sycl-host-compiler.cpp" "--output=/tmp/sycl-host-compiler-c79710.cpp" "--use-include"
+
 /// preprocessing
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -E %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_PREPROCESS %s
-// HOST_PREPROCESS: g++{{.*}} "-E"{{.*}} "-o" "[[PPOUT:.+\.ii]]"
-// HOST_PREPROCESS: append-file{{.*}} "[[PPOUT]]"{{.*}} "--output=[[APPEND:.+\.cpp]]"
+// HOST_PREPROCESS: append-file{{.*}} "--output=[[APPEND:.+\.cpp]]"
 // HOST_PREPROCESS: g++{{.*}} "[[APPEND]]"{{.*}} "-E"{{.*}} "-o" "[[PPOUT2:.+\.ii]]"
 // HOST_PREPROCESS: clang-offload-bundler{{.*}} "-inputs={{.*}}.ii,[[PPOUT2]]"
 
 // RUN: %clang_cl -fsycl -fsycl-host-compiler=cl -E %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_PREPROCESS_CL %s
-// HOST_PREPROCESS_CL: cl{{.*}} "-P"{{.*}} "-Fi[[PPOUT:.+\.ii]]"
-// HOST_PREPROCESS_CL: append-file{{.*}} "[[PPOUT]]"{{.*}} "--output=[[APPEND:.+\.cpp]]"
+// HOST_PREPROCESS_CL: append-file{{.*}} "--output=[[APPEND:.+\.cpp]]"
 // HOST_PREPROCESS_CL: cl{{.*}} "[[APPEND]]"{{.*}} "-P"{{.*}} "-Fi[[PPOUT2:.+\.ii]]"
 // HOST_PREPROCESS_CL: clang-offload-bundler{{.*}} "-inputs={{.*}}.ii,[[PPOUT2]]"
 
