@@ -141,8 +141,8 @@ void contextSetExtendedDeleter(const cl::sycl::context &context,
   auto impl = getSyclObjImpl(context);
   auto contextHandle = reinterpret_cast<pi_context>(impl->getHandleRef());
   auto plugin = impl->getPlugin();
-  plugin.call<PiApiKind::piextContextSetExtendedDeleter>(
-      contextHandle, func, user_data);
+  plugin.call<PiApiKind::piextContextSetExtendedDeleter>(contextHandle, func,
+                                                         user_data);
 }
 
 std::string platformInfoToString(pi_platform_info info) {
