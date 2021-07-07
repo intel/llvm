@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// RUN: not %clangxx -fsycl -fsyntax-only %s 2>&1 | FileCheck %s --implicit-check-not="warning:" --implicit-check-not="error:"
 
 #include <sycl/ext/intel/experimental/esimd.hpp>
 
@@ -68,7 +68,8 @@ void test_simd_writable_subscript() SYCL_ESIMD_FUNCTION {
 void test_simd_const_subscript() SYCL_ESIMD_FUNCTION {
   const simd<int, 4> cv = 1;
   int val2 = cv[0]; // returns int instead of simd_view
-  cv[1] = 0;        // expected-error {{expression is not assignable}}
+  // CHECK: simd_subscript.cpp:72{{.*}}error: expression is not assignable
+  cv[1] = 0;
 }
 
 void test_simd_view_assign_op() SYCL_ESIMD_FUNCTION {

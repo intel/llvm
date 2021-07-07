@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/program.hpp>
+#include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -26,6 +27,12 @@ bool kernel::is_host() const { return impl->is_host(); }
 
 context kernel::get_context() const {
   return impl->get_info<info::kernel::context>();
+}
+
+kernel_bundle<sycl::bundle_state::executable>
+kernel::get_kernel_bundle() const {
+  return detail::createSyclObjFromImpl<
+      kernel_bundle<sycl::bundle_state::executable>>(impl->get_kernel_bundle());
 }
 
 program kernel::get_program() const {

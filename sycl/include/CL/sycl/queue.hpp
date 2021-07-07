@@ -265,7 +265,7 @@ public:
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event
-  submit_barrier(const vector_class<event> &WaitList _CODELOCPARAM(&CodeLoc)) {
+  submit_barrier(const std::vector<event> &WaitList _CODELOCPARAM(&CodeLoc)) {
     return submit(
         [=](handler &CGH) { CGH.barrier(WaitList); } _CODELOCFW(CodeLoc));
   }
@@ -320,17 +320,52 @@ public:
 
   /// Fills the specified memory with the specified pattern.
   ///
-  /// \param Ptr is the pointer to the memory to fill
+  /// \param Ptr is the pointer to the memory to fill.
   /// \param Pattern is the pattern to fill into the memory.  T should be
   /// trivially copyable.
   /// \param Count is the number of times to fill Pattern into Ptr.
+  /// \return an event representing fill operation.
   template <typename T> event fill(void *Ptr, const T &Pattern, size_t Count) {
     return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); });
   }
 
+  /// Fills the specified memory with the specified pattern.
+  ///
+  /// \param Ptr is the pointer to the memory to fill.
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Count is the number of times to fill Pattern into Ptr.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing fill operation.
+  template <typename T>
+  event fill(void *Ptr, const T &Pattern, size_t Count, event DepEvent) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.fill<T>(Ptr, Pattern, Count);
+    });
+  }
+
+  /// Fills the specified memory with the specified pattern.
+  ///
+  /// \param Ptr is the pointer to the memory to fill.
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Count is the number of times to fill Pattern into Ptr.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing fill operation.
+  template <typename T>
+  event fill(void *Ptr, const T &Pattern, size_t Count,
+             const vector_class<event> &DepEvents) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.fill<T>(Ptr, Pattern, Count);
+    });
+  }
+
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Count is zero. An exception is thrown
-  /// if \param Dest is nullptr. The behavior is undefined if \param Ptr
+  /// if \param Ptr is nullptr. The behavior is undefined if \param Ptr
   /// is invalid.
   ///
   /// \param Ptr is a USM pointer to the memory to fill.
@@ -338,6 +373,32 @@ public:
   /// \param Count is a number of bytes to fill.
   /// \return an event representing fill operation.
   event memset(void *Ptr, int Value, size_t Count);
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if \param Ptr is nullptr. The behavior is undefined if \param Ptr
+  /// is invalid.
+  ///
+  /// \param Ptr is a USM pointer to the memory to fill.
+  /// \param Value is a value to be set. Value is cast as an unsigned char.
+  /// \param Count is a number of bytes to fill.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing fill operation.
+  event memset(void *Ptr, int Value, size_t Count, event DepEvent);
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if \param Ptr is nullptr. The behavior is undefined if \param Ptr
+  /// is invalid.
+  ///
+  /// \param Ptr is a USM pointer to the memory to fill.
+  /// \param Value is a value to be set. Value is cast as an unsigned char.
+  /// \param Count is a number of bytes to fill.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing fill operation.
+  event memset(void *Ptr, int Value, size_t Count,
+               const vector_class<event> &DepEvents);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -351,6 +412,81 @@ public:
   /// \return an event representing copy operation.
   event memcpy(void *Dest, const void *Src, size_t Count);
 
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Count is a number of bytes to copy.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing copy operation.
+  event memcpy(void *Dest, const void *Src, size_t Count, event DepEvent);
+
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Count is a number of bytes to copy.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing copy operation.
+  event memcpy(void *Dest, const void *Src, size_t Count,
+               const vector_class<event> &DepEvents);
+
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Count is a number of elements of type T to copy.
+  /// \return an event representing copy operation.
+  template <typename T> event copy(const T *Src, T *Dest, size_t Count) {
+    return this->memcpy(Dest, Src, Count * sizeof(T));
+  }
+
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Count is a number of elements of type T to copy.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing copy operation.
+  template <typename T>
+  event copy(const T *Src, T *Dest, size_t Count, event DepEvent) {
+    return this->memcpy(Dest, Src, Count * sizeof(T), DepEvent);
+  }
+
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Count is a number of elements of type T to copy.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// \return an event representing copy operation.
+  template <typename T>
+  event copy(const T *Src, T *Dest, size_t Count,
+             const vector_class<event> &DepEvents) {
+    return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
+  }
+
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -360,14 +496,70 @@ public:
   /// \return an event representing advice operation.
   event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice);
 
+  /// Provides additional information to the underlying runtime about how
+  /// different allocations are used.
+  ///
+  /// \param Ptr is a USM pointer to the allocation.
+  /// \param Length is a number of bytes in the allocation.
+  /// \param Advice is a device-defined advice for the specified allocation.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing advice operation.
+  event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
+                   event DepEvent);
+
+  /// Provides additional information to the underlying runtime about how
+  /// different allocations are used.
+  ///
+  /// \param Ptr is a USM pointer to the allocation.
+  /// \param Length is a number of bytes in the allocation.
+  /// \param Advice is a device-defined advice for the specified allocation.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing advice operation.
+  event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
+                   const vector_class<event> &DepEvents);
+
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
   /// to be available.
   ///
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
+  /// \return an event representing prefetch operation.
   event prefetch(const void *Ptr, size_t Count) {
     return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
+  }
+
+  /// Provides hints to the runtime library that data should be made available
+  /// on a device earlier than Unified Shared Memory would normally require it
+  /// to be available.
+  ///
+  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+  /// \param Count is a number of bytes to be prefetched.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing prefetch operation.
+  event prefetch(const void *Ptr, size_t Count, event DepEvent) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.prefetch(Ptr, Count);
+    });
+  }
+
+  /// Provides hints to the runtime library that data should be made available
+  /// on a device earlier than Unified Shared Memory would normally require it
+  /// to be available.
+  ///
+  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+  /// \param Count is a number of bytes to be prefetched.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing prefetch operation.
+  event prefetch(const void *Ptr, size_t Count,
+                 const vector_class<event> &DepEvents) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.prefetch(Ptr, Count);
+    });
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -409,7 +601,7 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(const vector_class<event> &DepEvents,
+  event single_task(const std::vector<event> &DepEvents,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return submit(
@@ -513,8 +705,7 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(range<1> NumWorkItems,
-                     const vector_class<event> &DepEvents,
+  event parallel_for(range<1> NumWorkItems, const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
@@ -530,8 +721,7 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(range<2> NumWorkItems,
-                     const vector_class<event> &DepEvents,
+  event parallel_for(range<2> NumWorkItems, const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
@@ -547,8 +737,7 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(range<3> NumWorkItems,
-                     const vector_class<event> &DepEvents,
+  event parallel_for(range<3> NumWorkItems, const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
@@ -610,7 +799,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                     const vector_class<event> &DepEvents,
+                     const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return submit(
@@ -676,7 +865,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange,
-                     const vector_class<event> &DepEvents,
+                     const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return submit(
@@ -738,8 +927,8 @@ public:
 private:
   pi_native_handle getNative() const;
 
-  shared_ptr_class<detail::queue_impl> impl;
-  queue(shared_ptr_class<detail::queue_impl> impl) : impl(impl) {}
+  std::shared_ptr<detail::queue_impl> impl;
+  queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -747,10 +936,10 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   /// A template-free version of submit.
-  event submit_impl(function_class<void(handler &)> CGH,
+  event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
   /// A template-free version of submit.
-  event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
+  event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
@@ -804,7 +993,7 @@ private:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for_impl(range<Dims> NumWorkItems,
-                          const vector_class<event> &DepEvents,
+                          const std::vector<event> &DepEvents,
                           KernelType KernelFunc,
                           const detail::code_location &CodeLoc) {
     return submit(
@@ -823,8 +1012,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::queue> {
   size_t operator()(const cl::sycl::queue &Q) const {
-    return std::hash<
-        cl::sycl::shared_ptr_class<cl::sycl::detail::queue_impl>>()(
+    return std::hash<std::shared_ptr<cl::sycl::detail::queue_impl>>()(
         cl::sycl::detail::getSyclObjImpl(Q));
   }
 };

@@ -240,3 +240,14 @@ bool test_simd_iselect() SYCL_ESIMD_FUNCTION {
   auto ref = v.select<8, 2>(0);
   return ref[0] == 16 && ref[14] == 32;
 }
+
+void test_simd_binop_honor_int_promo() SYCL_ESIMD_FUNCTION {
+  simd<short, 32> a;
+  simd<unsigned short, 32> b;
+  simd<char, 32> c;
+  simd<unsigned char, 32> d;
+  static_assert(std::is_same<decltype(a + a), simd<int, 32>>::value, "");
+  static_assert(std::is_same<decltype(b + b), simd<int, 32>>::value, "");
+  static_assert(std::is_same<decltype(c + c), simd<int, 32>>::value, "");
+  static_assert(std::is_same<decltype(d + d), simd<int, 32>>::value, "");
+}

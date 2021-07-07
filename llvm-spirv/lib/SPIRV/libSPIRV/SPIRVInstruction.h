@@ -377,17 +377,20 @@ public:
 class SPIRVMemoryAccess {
 public:
   SPIRVMemoryAccess(const std::vector<SPIRVWord> &TheMemoryAccess)
-      : TheMemoryAccessMask(0), Alignment(0), AliasInstID(0) {
+      : TheMemoryAccessMask(0), Alignment(0), AliasScopeInstID(0),
+        NoAliasInstID(0) {
     memoryAccessUpdate(TheMemoryAccess);
   }
 
-  SPIRVMemoryAccess() : TheMemoryAccessMask(0), Alignment(0), AliasInstID(0) {}
+  SPIRVMemoryAccess()
+      : TheMemoryAccessMask(0), Alignment(0), AliasScopeInstID(0),
+        NoAliasInstID(0) {}
 
   void memoryAccessUpdate(const std::vector<SPIRVWord> &MemoryAccess) {
     if (!MemoryAccess.size())
       return;
-    assert((MemoryAccess.size() == 1 || MemoryAccess.size() == 2 ||
-            MemoryAccess.size() == 3) && "Invalid memory access operand size");
+    assert(MemoryAccess.size() > 0 && "Invalid memory access operand size");
+    assert(MemoryAccess.size() < 5 && "Invalid memory access operand size");
     TheMemoryAccessMask = MemoryAccess[0];
     size_t MemAccessNumParam = 1;
     if (MemoryAccess[0] & MemoryAccessAlignedMask) {
@@ -397,13 +400,12 @@ public:
     if (MemoryAccess[0] & internal::MemoryAccessAliasScopeINTELMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
-      assert(!(MemoryAccess[0] & internal::MemoryAccessNoAliasINTELMask) &&
-          "AliasScopeINTELMask and NoAliasINTELMask are mutually exclusive");
-      AliasInstID = MemoryAccess[MemAccessNumParam];
-    } else if (MemoryAccess[0] & internal::MemoryAccessNoAliasINTELMask) {
+      AliasScopeInstID = MemoryAccess[MemAccessNumParam++];
+    }
+    if (MemoryAccess[0] & internal::MemoryAccessNoAliasINTELMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
-      AliasInstID = MemoryAccess[MemAccessNumParam];
+      NoAliasInstID = MemoryAccess[MemAccessNumParam];
     }
   }
   SPIRVWord isVolatile() const {
@@ -420,12 +422,14 @@ public:
   }
   SPIRVWord getMemoryAccessMask() const { return TheMemoryAccessMask; }
   SPIRVWord getAlignment() const { return Alignment; }
-  SPIRVWord getAliasing() const { return AliasInstID; }
+  SPIRVWord getAliasScopeInstID() const { return AliasScopeInstID; }
+  SPIRVWord getNoAliasInstID() const { return NoAliasInstID; }
 
 protected:
   SPIRVWord TheMemoryAccessMask;
   SPIRVWord Alignment;
-  SPIRVId AliasInstID;
+  SPIRVId AliasScopeInstID;
+  SPIRVId NoAliasInstID;
 };
 
 class SPIRVVariable : public SPIRVInstruction {
