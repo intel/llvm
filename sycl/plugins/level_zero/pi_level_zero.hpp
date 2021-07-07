@@ -441,8 +441,8 @@ struct _pi_queue : _pi_object {
         ZeCopyCommandQueue{CopyQueue}, Context{Context}, Device{Device},
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
         UseDynamicBatching{BatchSize == 0},
-        PiQueueProperties(PiQueueProperties),
-        OwnZeCommandQueue{OwnZeCommandQueue} {}
+        PiQueueProperties(PiQueueProperties), OwnZeCommandQueue{
+                                                  OwnZeCommandQueue} {}
 
   // Level Zero compute command queue handle.
   ze_command_queue_handle_t ZeComputeCommandQueue;
