@@ -4983,9 +4983,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
 
-  OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
-
   llvm::SmallSet<const VarDecl *, 8> VisitedSpecConstants;
+  bool EmittedFirstSpecConstant = false;
 
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
@@ -5001,6 +5000,12 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     // Skip if we've already visited this.
     if (llvm::find(VisitedSpecConstants, VD) != VisitedSpecConstants.end())
       continue;
+
+    // We only want to emit the #includes if we have a spec-constant that needs
+    // them, so emit this one on the first time through the loop.
+    if (!EmittedFirstSpecConstant)
+      OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
+    EmittedFirstSpecConstant = true;
 
     VisitedSpecConstants.insert(VD);
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, Policy, VD);
@@ -5027,7 +5032,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
   }
 
-  OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
+  if (EmittedFirstSpecConstant)
+    OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
 
   return true;
 }
