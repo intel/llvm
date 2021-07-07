@@ -193,15 +193,14 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     {
       if (paramValueSizeRet)
         *paramValueSizeRet = paramValueSize;
-      static constexpr size_t Limit =
-          static_cast<size_t>((std::numeric_limits<int>::max)());
+      static constexpr size_t Max = (std::numeric_limits<size_t>::max)();
       size_t *out = cast<size_t *>(paramValue);
       if (paramValueSize >= sizeof(size_t))
-        out[0] = Limit;
+        out[0] = Max;
       if (paramValueSize >= 2 * sizeof(size_t))
-        out[1] = Limit;
+        out[1] = Max;
       if (paramValueSize >= 3 * sizeof(size_t))
-        out[2] = Limit;
+        out[2] = Max;
       return PI_SUCCESS;
     }
 

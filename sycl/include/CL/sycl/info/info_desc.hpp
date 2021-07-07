@@ -146,8 +146,11 @@ enum class device : cl_device_info {
   ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL,
   ext_intel_device_info_uuid = PI_DEVICE_INFO_UUID,
   atomic64 = PI_DEVICE_INFO_ATOMIC_64,
+  ext_oneapi_max_global_number_work_groups =
+      PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_NUMBER_WORK_GROUPS,
   ext_oneapi_max_number_work_groups =
       PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS
+
 };
 
 enum class device_type : pi_uint64 {

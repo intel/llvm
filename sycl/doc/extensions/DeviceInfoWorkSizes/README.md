@@ -37,7 +37,20 @@ See: [CUDA Toolkit Documentation](https://docs.nvidia.com/cuda/cuda-c-programmin
 ## Implementation
 - For the host and openCL the values returned - as they are not applicable - are the maximum values accepted at kerrnel submission (see `sycl/include/CL/sycl/handler.hpp`) which are currently `std::numeric_limits<int>::max`. 
 
+One could query that limit with
+````
+#define SYCL_EXT_ONEAPI_MAX_GLOBAL_NUMBER_WORK_GROUPS 1
+size_t max_workgroup_number = gpu.get_info<sycl::info::device::ext_oneapi_max_global_number_work_groups>();
+#endif
+```
+This means that when submitting a kernel with a global range `nd_range<3>(a, b, c)`, one must (and now can) ensure that `a*b*c < max_workgroup_number`.
+
+
+
 - CUDA: Backend query using `CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_[X,Y,Z]`.
 
 ## Caveat
 There's no guarantee one could submit a kernel with all global sizes maxed out.
+
+
+
