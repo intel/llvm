@@ -17,11 +17,11 @@
 #define ASSERT_FINISH 2
 
 // definition
-__SYCL_GLOBAL__ AssertHappened __SYCL_AssertHappenedMem;
+SPIR_GLOBAL AssertHappened SPIR_AssertHappenedMem;
 
 DEVICE_EXTERN_C void __devicelib_assert_read(void *_Dst) {
   AssertHappened *Dst = (AssertHappened *)_Dst;
-  int Flag = atomicLoad(&__SYCL_AssertHappenedMem.Flag);
+  int Flag = atomicLoad(&SPIR_AssertHappenedMem.Flag);
 
   if (ASSERT_NONE == Flag) {
     Dst->Flag = Flag;
@@ -29,10 +29,10 @@ DEVICE_EXTERN_C void __devicelib_assert_read(void *_Dst) {
   }
 
   if (Flag != ASSERT_FINISH)
-    while (ASSERT_START == atomicLoad(&__SYCL_AssertHappenedMem.Flag))
+    while (ASSERT_START == atomicLoad(&SPIR_AssertHappenedMem.Flag))
       ;
 
-  *Dst = __SYCL_AssertHappenedMem;
+  *Dst = SPIR_AssertHappenedMem;
 }
 
 DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
@@ -43,15 +43,15 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
   int Expected = ASSERT_NONE;
   int Desired = ASSERT_START;
 
-  if (atomicCompareAndSet(&__SYCL_AssertHappenedMem.Flag, Desired, Expected) ==
+  if (atomicCompareAndSet(&SPIR_AssertHappenedMem.Flag, Desired, Expected) ==
       Expected) {
-    __SYCL_AssertHappenedMem.Line = line;
-    __SYCL_AssertHappenedMem.GID0 = gid0;
-    __SYCL_AssertHappenedMem.GID1 = gid1;
-    __SYCL_AssertHappenedMem.GID2 = gid2;
-    __SYCL_AssertHappenedMem.LID0 = lid0;
-    __SYCL_AssertHappenedMem.LID1 = lid1;
-    __SYCL_AssertHappenedMem.LID2 = lid2;
+    SPIR_AssertHappenedMem.Line = line;
+    SPIR_AssertHappenedMem.GID0 = gid0;
+    SPIR_AssertHappenedMem.GID1 = gid1;
+    SPIR_AssertHappenedMem.GID2 = gid2;
+    SPIR_AssertHappenedMem.LID0 = lid0;
+    SPIR_AssertHappenedMem.LID1 = lid1;
+    SPIR_AssertHappenedMem.LID2 = lid2;
 
     int ExprLength = 0;
     int FileLength = 0;
@@ -67,9 +67,9 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
       for (const char *C = func; *C != '\0'; ++C, ++FuncLength)
         ;
 
-    int MaxExprIdx = sizeof(__SYCL_AssertHappenedMem.Expr) - 1;
-    int MaxFileIdx = sizeof(__SYCL_AssertHappenedMem.File) - 1;
-    int MaxFuncIdx = sizeof(__SYCL_AssertHappenedMem.Func) - 1;
+    int MaxExprIdx = sizeof(SPIR_AssertHappenedMem.Expr) - 1;
+    int MaxFileIdx = sizeof(SPIR_AssertHappenedMem.File) - 1;
+    int MaxFuncIdx = sizeof(SPIR_AssertHappenedMem.Func) - 1;
 
     if (ExprLength < MaxExprIdx)
       MaxExprIdx = ExprLength;
@@ -79,19 +79,19 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
       MaxFuncIdx = FuncLength;
 
     for (int Idx = 0; Idx < MaxExprIdx; ++Idx)
-      __SYCL_AssertHappenedMem.Expr[Idx] = expr[Idx];
-    __SYCL_AssertHappenedMem.Expr[MaxExprIdx] = '\0';
+      SPIR_AssertHappenedMem.Expr[Idx] = expr[Idx];
+    SPIR_AssertHappenedMem.Expr[MaxExprIdx] = '\0';
 
     for (int Idx = 0; Idx < MaxFileIdx; ++Idx)
-      __SYCL_AssertHappenedMem.File[Idx] = file[Idx];
-    __SYCL_AssertHappenedMem.File[MaxFileIdx] = '\0';
+      SPIR_AssertHappenedMem.File[Idx] = file[Idx];
+    SPIR_AssertHappenedMem.File[MaxFileIdx] = '\0';
 
     for (int Idx = 0; Idx < MaxFuncIdx; ++Idx)
-      __SYCL_AssertHappenedMem.Func[Idx] = func[Idx];
-    __SYCL_AssertHappenedMem.Func[MaxFuncIdx] = '\0';
+      SPIR_AssertHappenedMem.Func[Idx] = func[Idx];
+    SPIR_AssertHappenedMem.Func[MaxFuncIdx] = '\0';
 
     // Show we've done copying
-    atomicStore(&__SYCL_AssertHappenedMem.Flag, ASSERT_FINISH);
+    atomicStore(&SPIR_AssertHappenedMem.Flag, ASSERT_FINISH);
   }
 
   // FIXME: call SPIR-V unreachable instead

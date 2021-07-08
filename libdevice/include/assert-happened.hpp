@@ -12,6 +12,8 @@
 
 #ifdef __SPIR__
 
+// NOTE Layout of this structure should be aligned with the one in
+// sycl/include/CL/sycl/detail/assert_happened.hpp
 struct AssertHappened {
   int Flag = 0;
   char Expr[256 + 1] = "";
@@ -29,14 +31,18 @@ struct AssertHappened {
   uint64_t LID2 = 0;
 };
 
-#ifndef __SYCL_GLOBAL_VAR__
-#define __SYCL_GLOBAL_VAR__ __attribute__((sycl_global_var))
+#ifndef SPIR_GLOBAL_VAR
+#ifdef __SYCL_DEVICE_ONLY__
+#define SPIR_GLOBAL_VAR __attribute__((sycl_global_var))
+#else
+#warning "SPIR_GLOBAL_VAR not defined in host mode. Defining as empty macro."
+#define SPIR_GLOBAL_VAR
+#endif
 #endif
 
 #define __SYCL_GLOBAL__ __attribute__((opencl_global))
 
 // declaration
-extern __SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ AssertHappened
-    __SYCL_AssertHappenedMem;
+extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ AssertHappened SPIR_AssertHappenedMem;
 
 #endif

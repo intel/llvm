@@ -19,6 +19,8 @@ __devicelib_assert_read(void *);
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+// NOTE Layout of this structure should be aligned with the one in
+// libdevice/include/assert-happened.hpp
 struct AssertHappened {
   int Flag = 0; // set to non-zero upon assert failure
   char Expr[256 + 1] = "";

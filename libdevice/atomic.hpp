@@ -13,7 +13,7 @@
 
 #ifdef __SPIR__
 
-#define __SYCL_GLOBAL__ __attribute__((opencl_global))
+#define SPIR_GLOBAL __attribute__((opencl_global))
 
 namespace __spv {
 struct Scope {
@@ -58,21 +58,21 @@ struct MemorySemanticsMask {
 } // namespace __spv
 
 extern DEVICE_EXTERNAL int
-__spirv_AtomicCompareExchange(int __SYCL_GLOBAL__ *, __spv::Scope::Flag,
+__spirv_AtomicCompareExchange(int SPIR_GLOBAL *, __spv::Scope::Flag,
                               __spv::MemorySemanticsMask::Flag,
                               __spv::MemorySemanticsMask::Flag, int, int);
 
-extern DEVICE_EXTERNAL int __spirv_AtomicLoad(const int __SYCL_GLOBAL__ *,
+extern DEVICE_EXTERNAL int __spirv_AtomicLoad(const int SPIR_GLOBAL *,
                                               __spv::Scope::Flag,
                                               __spv::MemorySemanticsMask::Flag);
 
 extern DEVICE_EXTERNAL void
-__spirv_AtomicStore(int __SYCL_GLOBAL__ *, __spv::Scope::Flag,
+__spirv_AtomicStore(int SPIR_GLOBAL *, __spv::Scope::Flag,
                     __spv::MemorySemanticsMask::Flag, int);
 
 /// Atomically set the value in *Ptr with Desired if and only if it is Expected
 /// Return the value which already was in *Ptr
-static inline int atomicCompareAndSet(__SYCL_GLOBAL__ int *Ptr, int Desired,
+static inline int atomicCompareAndSet(SPIR_GLOBAL int *Ptr, int Desired,
                                       int Expected) {
   return __spirv_AtomicCompareExchange(
       Ptr, __spv::Scope::Device,
@@ -80,12 +80,12 @@ static inline int atomicCompareAndSet(__SYCL_GLOBAL__ int *Ptr, int Desired,
       __spv::MemorySemanticsMask::SequentiallyConsistent, Desired, Expected);
 }
 
-static inline int atomicLoad(__SYCL_GLOBAL__ int *Ptr) {
+static inline int atomicLoad(SPIR_GLOBAL int *Ptr) {
   return __spirv_AtomicLoad(Ptr, __spv::Scope::Device,
                             __spv::MemorySemanticsMask::SequentiallyConsistent);
 }
 
-static inline void atomicStore(__SYCL_GLOBAL__ int *Ptr, int V) {
+static inline void atomicStore(SPIR_GLOBAL int *Ptr, int V) {
   __spirv_AtomicStore(Ptr, __spv::Scope::Device,
                       __spv::MemorySemanticsMask::SequentiallyConsistent, V);
 }
