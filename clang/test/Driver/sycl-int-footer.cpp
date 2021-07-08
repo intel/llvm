@@ -1,5 +1,5 @@
 /// Check compilation tool steps when using the integration footer
-// RUN:  %clangxx -fsycl -include dummy.h %s -### 2>&1 \
+// RUN:  %clangxx -fsycl -include dummy.h %/s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER %s
 // FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}"{{.*}} "-include" "dummy.h"
 // FOOTER: append-file{{.*}} "[[INPUTFILE:.+\.cpp]]" "--append=[[INTFOOTER]]" "--orig-filename=[[INPUTFILE]]" "--output=[[APPENDEDSRC:.+\.cpp]]"
@@ -7,7 +7,7 @@
 // FOOTER-NOT: "-include" "[[INTHEADER]]"
 
 /// Preprocessed file creation with integration footer
-// RUN: %clangxx -fsycl -E %s -### 2>&1 \
+// RUN: %clangxx -fsycl -E %/s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER_PREPROC_GEN %s
 // FOOTER_PREPROC_GEN: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}" "-o" "[[PREPROC_DEVICE:.+\.ii]]"
 // FOOTER_PREPROC_GEN: append-file{{.*}} "[[INPUTFILE:.+\.cpp]]" "--append=[[INTFOOTER]]" "--orig-filename=[[INPUTFILE]]" "--output=[[APPENDEDSRC:.+\.cpp]]"

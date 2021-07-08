@@ -8954,7 +8954,8 @@ void AppendFooter::ConstructJob(Compilation &C, const JobAction &JA,
   // Name of original source file passed in to be prepended to the newly
   // modified file as a #line directive.
   SmallString<128> PrependOpt("--orig-filename=");
-  PrependOpt.append(Inputs[0].getBaseInput());
+  PrependOpt.append(
+      llvm::sys::path::convert_to_slash(Inputs[0].getBaseInput()));
   addArgs(CmdArgs, TCArgs, {PrependOpt});
 
   SmallString<128> OutputOpt("--output=");
