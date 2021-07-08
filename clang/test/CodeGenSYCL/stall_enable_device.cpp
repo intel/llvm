@@ -1,9 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
 
 // Tests for IR of Intel FPGA [[intel::use_stall_enable_clusters]] function attribute on Device.
-// The metadata to be attached to the functionDecl that the attribute is applied to.
-// The attributes get propagated to the kernel metadata i.e. spir_kernel if directly applied
-// through functors/lambda function.
 
 #include "sycl.hpp"
 
@@ -22,11 +19,6 @@ void func1() {
 }
 
 class Foo {
-public:
-  [[intel::use_stall_enable_clusters]] void operator()() const {}
-};
-
-class Functor {
 public:
   [[intel::use_stall_enable_clusters]] void operator()() const {}
 };
@@ -62,11 +54,6 @@ int main() {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel5() {{.*}} !stall_enable ![[NUM4]]
     h.single_task<class test_kernel5>(
         []() [[intel::use_stall_enable_clusters]]{});
-
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel6() {{.*}} !stall_enable ![[NUM4]]
-    // CHECK: define {{.*}}spir_func void @{{.*}}Functor{{.*}}(%class._ZTS7Functor.Functor addrspace(4)* align 1 dereferenceable_or_null(1) %this) #3 comdat align 2 !stall_enable ![[NUM4]]
-    Functor f1;
-    h.single_task<class test_kernel6>(f1);
   });
   return 0;
 }
