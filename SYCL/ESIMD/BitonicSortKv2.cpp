@@ -84,8 +84,8 @@ bitonic_exchange4(simd<uint32_t, BASE_SZ> A, simd<ushort, 32> flip) {
   simd<uint32_t, BASE_SZ> B;
 #pragma unroll
   for (int i = 0; i < BASE_SZ; i += 32) {
-    auto MA = A.select<32, 1>(i).format<uint32_t, 4, 8>();
-    auto MB = B.select<32, 1>(i).format<uint32_t, 4, 8>();
+    auto MA = A.select<32, 1>(i).bit_cast_view<uint32_t, 4, 8>();
+    auto MB = B.select<32, 1>(i).bit_cast_view<uint32_t, 4, 8>();
     MB.select<4, 1, 4, 1>(0, 0) = MA.select<4, 1, 4, 1>(0, 4);
     MB.select<4, 1, 4, 1>(0, 4) = MA.select<4, 1, 4, 1>(0, 0);
     B.select<32, 1>(i).merge(A.select<32, 1>(i),
@@ -113,8 +113,8 @@ bitonic_exchange2(simd<uint32_t, BASE_SZ> A, simd<ushort, 32> flip) {
   simd<uint32_t, BASE_SZ> B;
 #pragma unroll
   for (int i = 0; i < BASE_SZ; i += 32) {
-    auto MB = B.select<32, 1>(i).format<long long, 4, 4>();
-    auto MA = A.select<32, 1>(i).format<long long, 4, 4>();
+    auto MB = B.select<32, 1>(i).bit_cast_view<long long, 4, 4>();
+    auto MA = A.select<32, 1>(i).bit_cast_view<long long, 4, 4>();
     MB.select<4, 1, 2, 2>(0, 0) = MA.select<4, 1, 2, 2>(0, 1);
     MB.select<4, 1, 2, 2>(0, 1) = MA.select<4, 1, 2, 2>(0, 0);
     B.select<32, 1>(i).merge(A.select<32, 1>(i),
@@ -243,8 +243,8 @@ ESIMD_INLINE void bitonic_merge(uint32_t offset, simd<uint32_t, BASE_SZ> &A,
   simd<ushort, 32> flip16 = esimd_unpack_mask<32>(0x0f0f0f0f); //(init_mask16);
 #pragma unroll
   for (int i = 0; i < BASE_SZ; i += 32) {
-    auto MA = A.select<32, 1>(i).format<uint32_t, 4, 8>();
-    auto MB = B.select<32, 1>(i).format<uint32_t, 4, 8>();
+    auto MA = A.select<32, 1>(i).bit_cast_view<uint32_t, 4, 8>();
+    auto MB = B.select<32, 1>(i).bit_cast_view<uint32_t, 4, 8>();
     MA.select<4, 1, 4, 1>(0, 0) = MB.select<4, 1, 4, 1>(0, 4);
     MA.select<4, 1, 4, 1>(0, 4) = MB.select<4, 1, 4, 1>(0, 0);
     bool dir_up = (((offset + i) >> (m + 1)) & 1) == 0;
@@ -263,8 +263,8 @@ ESIMD_INLINE void bitonic_merge(uint32_t offset, simd<uint32_t, BASE_SZ> &A,
   simd<ushort, 32> flip18 = esimd_unpack_mask<32>(0x33333333); //(init_mask18);
 #pragma unroll
   for (int i = 0; i < BASE_SZ; i += 32) {
-    auto MB = B.select<32, 1>(i).format<long long, 4, 4>();
-    auto MA = A.select<32, 1>(i).format<long long, 4, 4>();
+    auto MB = B.select<32, 1>(i).bit_cast_view<long long, 4, 4>();
+    auto MA = A.select<32, 1>(i).bit_cast_view<long long, 4, 4>();
 
     MB.select<4, 1, 2, 2>(0, 0) = MA.select<4, 1, 2, 2>(0, 1);
     MB.select<4, 1, 2, 2>(0, 1) = MA.select<4, 1, 2, 2>(0, 0);

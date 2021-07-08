@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
 
             simd<float, (HEIGHT + 10) * 32> vin;
             // matrix HEIGHT+10 x 32
-            auto in = vin.format<float, HEIGHT + 10, 32>();
+            auto in = vin.bit_cast_view<float, HEIGHT + 10, 32>();
 
             //
             // rather than loading all data in

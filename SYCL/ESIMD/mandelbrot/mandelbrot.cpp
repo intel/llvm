@@ -71,7 +71,7 @@ ESIMD_INLINE void mandelbrot(ACC out_image, int ix, int iy, int crunch,
   // because the output is a y-tile 2D surface
   // we can only write 32-byte wide
   media_block_store<unsigned char, 2, 32>(out_image, ix * sizeof(int), iy,
-                                          color.format<unsigned char>());
+                                          color.bit_cast_view<unsigned char>());
 }
 
 int main(int argc, char *argv[]) {

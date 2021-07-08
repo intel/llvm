@@ -62,14 +62,14 @@ void load_to_slm(uint grpSize, uint localId, uint slmOffset, char *addr,
     rowTrans.select<8, 1>(40) = row1.select<8, 4>(2);
     rowTrans.select<8, 1>(56) = row1.select<8, 4>(3);
 
-    slm_store4<uint, 16, ESIMD_ABGR_ENABLE>(rowTrans, vOffsets);
+    slm_store4<uint, 16, rgba_channel_mask::ABGR>(rowTrans, vOffsets);
     threadOffsetInMemory += grpSize * 256;
     vOffsets += (grpSize * 256);
   }
 
   esimd_fence(ESIMD_GLOBAL_COHERENT_FENCE);
-  esimd_sbarrier(ESIMD_SBARRIER_SIGNAL);
-  esimd_sbarrier(ESIMD_SBARRIER_WAIT);
+  esimd_sbarrier(split_barrier_action::signal);
+  esimd_sbarrier(split_barrier_action::wait);
 }
 
 int main(void) {

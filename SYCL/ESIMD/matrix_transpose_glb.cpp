@@ -76,8 +76,10 @@ ESIMD_NOINLINE void transpose_matrix(int InR, int OuR) {
   // mask to control how to merge two vectors.
   simd<uint16_t, 16> mask = 0;
   mask.select<8, 2>(0) = 1;
-  auto t1 = GRF.template format<int, 48, 16>().select<4, 1, 16, 1>(InR >> 1, 0);
-  auto t2 = GRF.template format<int, 48, 16>().select<4, 1, 16, 1>(OuR >> 1, 0);
+  auto t1 = GRF.template bit_cast_view<int, 48, 16>().select<4, 1, 16, 1>(
+      InR >> 1, 0);
+  auto t2 = GRF.template bit_cast_view<int, 48, 16>().select<4, 1, 16, 1>(
+      OuR >> 1, 0);
 
   // j = 1
   t2.row(0).merge(t1.template replicate<8, 1, 2, 0>(0, 0),

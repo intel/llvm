@@ -233,12 +233,10 @@ int main(int argc, char *argv[]) {
       cgh.parallel_for<class kMeans>(
           Range, [=](nd_item<1> it) SYCL_ESIMD_KERNEL {
             simd<float, 2 * NUM_CENTROIDS_ALLOCATED> centroids(0);
-            auto centroidsXYXY =
-                centroids.format<float, NUM_CENTROIDS_ALLOCATED / SIMD_SIZE,
-                                 SIMD_SIZE * 2>();
-            auto centroidsXY =
-                centroids.format<float, 2 * NUM_CENTROIDS_ALLOCATED / SIMD_SIZE,
-                                 SIMD_SIZE>();
+            auto centroidsXYXY = centroids.bit_cast_view<
+                float, NUM_CENTROIDS_ALLOCATED / SIMD_SIZE, SIMD_SIZE * 2>();
+            auto centroidsXY = centroids.bit_cast_view<
+                float, 2 * NUM_CENTROIDS_ALLOCATED / SIMD_SIZE, SIMD_SIZE>();
 
 #pragma unroll
             for (int i = 0; i < NUM_CENTROIDS_ALLOCATED / SIMD_SIZE; i++) {
@@ -251,22 +249,19 @@ int main(int argc, char *argv[]) {
             simd<float, NUM_CENTROIDS_ALLOCATED> accumysum(0);
             simd<int, NUM_CENTROIDS_ALLOCATED> accumnpoints(0);
 
-            auto xsum =
-                accumxsum.format<float, NUM_CENTROIDS_ALLOCATED / SIMD_SIZE,
-                                 SIMD_SIZE>();
-            auto ysum =
-                accumysum.format<float, NUM_CENTROIDS_ALLOCATED / SIMD_SIZE,
-                                 SIMD_SIZE>();
-            auto npoints =
-                accumnpoints.format<int, NUM_CENTROIDS_ALLOCATED / SIMD_SIZE,
-                                    SIMD_SIZE>();
+            auto xsum = accumxsum.bit_cast_view<
+                float, NUM_CENTROIDS_ALLOCATED / SIMD_SIZE, SIMD_SIZE>();
+            auto ysum = accumysum.bit_cast_view<
+                float, NUM_CENTROIDS_ALLOCATED / SIMD_SIZE, SIMD_SIZE>();
+            auto npoints = accumnpoints.bit_cast_view<
+                int, NUM_CENTROIDS_ALLOCATED / SIMD_SIZE, SIMD_SIZE>();
 
             // each thread handles POINTS_PER_THREAD points
             int index = it.get_global_id(0) * POINTS_PER_THREAD / SIMD_SIZE;
 
             for (int i = 0; i < POINTS_PER_THREAD / SIMD_SIZE; i++) {
               simd<float, 2 * SIMD_SIZE> points;
-              auto pointsXY = points.format<float, 2, SIMD_SIZE>();
+              auto pointsXY = points.bit_cast_view<float, 2, SIMD_SIZE>();
               simd<int, SIMD_SIZE> cluster(0);
 
               points.copy_from(kpoints4[index + i].xyn);
@@ -366,7 +361,7 @@ int main(int argc, char *argv[]) {
             int num = reduce<int>(npoints, std::plus<>());
             centroid.select<1, 0>(0) = reduce<float>(xsum, std::plus<>()) / num;
             centroid.select<1, 0>(1) = reduce<float>(ysum, std::plus<>()) / num;
-            (centroid.format<int>()).select<1, 0>(2) = num;
+            (centroid.bit_cast_view<int>()).select<1, 0>(2) = num;
 
             simd<ushort, SIMD_SIZE> mask(0);
             mask.select<3, 1>(0) = 1;

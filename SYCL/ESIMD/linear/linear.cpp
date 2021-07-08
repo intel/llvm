@@ -90,13 +90,13 @@ int main(int argc, char *argv[]) {
             using namespace sycl::ext::intel::experimental::esimd;
 
             simd<unsigned char, 8 * 32> vin;
-            auto in = vin.format<unsigned char, 8, 32>();
+            auto in = vin.bit_cast_view<unsigned char, 8, 32>();
 
             simd<unsigned char, 6 * 24> vout;
-            auto out = vout.format<uchar, 6, 24>();
+            auto out = vout.bit_cast_view<uchar, 6, 24>();
 
             simd<float, 6 * 24> vm;
-            auto m = vm.format<float, 6, 24>();
+            auto m = vm.bit_cast_view<float, 6, 24>();
 
             uint h_pos = it.get_id(0);
             uint v_pos = it.get_id(1);

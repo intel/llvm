@@ -22,11 +22,11 @@
 #define TUPLE_SZ 1
 
 #if TUPLE_SZ == 1
-#define GATHER_SCATTER_MASK ESIMD_R_ENABLE
+#define GATHER_SCATTER_MASK rgba_channel_mask::R
 #elif TUPLE_SZ == 2
-#define GATHER_SCATTER_MASK ESIMD_GR_ENABLE
+#define GATHER_SCATTER_MASK rgba_channel_mask::GR
 #elif TUPLE_SZ == 4
-#define GATHER_SCATTER_MASK ESIMD_ABGR_ENABLE
+#define GATHER_SCATTER_MASK rgba_channel_mask::ABGR
 #endif
 
 #define LOG_ENTRIES 8
@@ -148,7 +148,7 @@ void cmk_acum_iterative(unsigned *buf, unsigned h_pos,
     S += T;
   }
 
-  auto cnt_table = S.format<unsigned int, 32, TUPLE_SZ>();
+  auto cnt_table = S.bit_cast_view<unsigned int, 32, TUPLE_SZ>();
   // sum reduction for each bin
   cnt_table.select<16, 1, TUPLE_SZ, 1>(0, 0) +=
       cnt_table.select<16, 1, TUPLE_SZ, 1>(16, 0);
@@ -186,7 +186,7 @@ void cmk_acum_final(unsigned *buf, unsigned h_pos, unsigned int stride_elems,
 
     S = gather4<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset, p);
 
-    auto cnt_table = S.format<unsigned int, TUPLE_SZ, 32>();
+    auto cnt_table = S.bit_cast_view<unsigned int, TUPLE_SZ, 32>();
     cnt_table.column(0) += prev;
 #pragma unroll
     for (unsigned j = 0; j < TUPLE_SZ; j++) {
@@ -254,7 +254,7 @@ void cmk_prefix_iterative(unsigned *buf, unsigned h_pos,
 
     S = gather4<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset);
 
-    auto cnt_table = S.format<unsigned int, TUPLE_SZ, 32>();
+    auto cnt_table = S.bit_cast_view<unsigned int, TUPLE_SZ, 32>();
     cnt_table.column(0) += prev;
 #pragma unroll
     for (unsigned j = 0; j < TUPLE_SZ; j++) {

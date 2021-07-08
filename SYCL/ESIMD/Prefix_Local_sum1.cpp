@@ -22,11 +22,11 @@
 #define TUPLE_SZ 1
 
 #if TUPLE_SZ == 1
-#define GATHER_SCATTER_MASK ESIMD_R_ENABLE
+#define GATHER_SCATTER_MASK rgba_channel_mask::R
 #elif TUPLE_SZ == 2
-#define GATHER_SCATTER_MASK ESIMD_GR_ENABLE
+#define GATHER_SCATTER_MASK rgba_channel_mask::GR
 #elif TUPLE_SZ == 4
-#define GATHER_SCATTER_MASK ESIMD_ABGR_ENABLE
+#define GATHER_SCATTER_MASK rgba_channel_mask::ABGR
 #endif
 
 #define PREFIX_ENTRIES 256
@@ -87,7 +87,7 @@ void cmk_sum_tuple_count(unsigned int *buf, unsigned int h_pos) {
   }
 
   // format S to be a 32xTUPLE_SZ matrix
-  auto cnt_table = S.format<unsigned int, 32, TUPLE_SZ>();
+  auto cnt_table = S.bit_cast_view<unsigned int, 32, TUPLE_SZ>();
   // sum reduction for each bin
   cnt_table.select<16, 1, TUPLE_SZ, 1>(0, 0) +=
       cnt_table.select<16, 1, TUPLE_SZ, 1>(16, 0);

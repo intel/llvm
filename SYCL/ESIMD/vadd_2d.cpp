@@ -68,15 +68,15 @@ int main(void) {
             int y = 0;
 
             simd<int, VL> va;
-            auto va_ref = va.format<int, 1, VL>();
+            auto va_ref = va.bit_cast_view<int, 1, VL>();
             va_ref = media_block_load<int, 1, VL>(accA, x, y);
 
             simd<int, VL> vb;
-            auto vb_ref = vb.format<int, 1, VL>();
+            auto vb_ref = vb.bit_cast_view<int, 1, VL>();
             vb_ref = media_block_load<int, 1, VL>(accB, x, y);
 
             simd<int, VL> vc;
-            auto vc_ref = vc.format<int, 1, VL>();
+            auto vc_ref = vc.bit_cast_view<int, 1, VL>();
             vc_ref = va_ref + vb_ref;
             media_block_store<int, 1, VL>(accC, x, y, vc_ref);
           });

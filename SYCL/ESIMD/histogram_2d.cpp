@@ -191,8 +191,8 @@ int main(int argc, char *argv[]) {
               src = histogram.select<8, 1>(i);
 
 #ifdef __SYCL_DEVICE_ONLY__
-              flat_atomic<EsimdAtomicOpType::ATOMIC_ADD, unsigned int, 8>(
-                  bins, offset, src, 1);
+              flat_atomic<atomic_op::add, unsigned int, 8>(bins, offset, src,
+                                                           1);
               offset += 8 * sizeof(unsigned int);
 #else
               simd<unsigned int, 8> vals;

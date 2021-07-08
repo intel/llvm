@@ -63,7 +63,7 @@ ESIMD_INLINE void block_write2(AccessorTy acc, unsigned int offset,
                                simd<T, N> data) {
   simd<T, 16> src0;
   auto src0_ref1 =
-      src0.template select<8, 1>(0).template format<unsigned int>();
+      src0.template select<8, 1>(0).template bit_cast_view<unsigned int>();
   auto src0_ref2 = src0.template select<8, 1>(8);
 
   src0_ref1.template select<1, 1>(2) = offset >> 4;

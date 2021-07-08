@@ -46,14 +46,14 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
     auto start_addr = ((unsigned int *)input_ptr) + start_off;
     simd<uint, 32> data;
     data.copy_from(start_addr);
-    auto in = data.format<uchar>();
+    auto in = data.bit_cast_view<uchar>();
 
 #pragma unroll
     for (int j = 0; j < BLOCK_WIDTH * sizeof(int); j += 16) {
       // Accumulate local histogram for each pixel value
       simd<uint, 16> dataOffset = in.select<16, 1>(j).read();
       dataOffset *= sizeof(int);
-      slm_atomic<EsimdAtomicOpType::ATOMIC_INC, uint, 16>(dataOffset, 1);
+      slm_atomic<atomic_op::inc, uint, 16>(dataOffset, 1);
     }
     start_off += BLOCK_WIDTH;
   }
@@ -62,10 +62,10 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
   // Update global sum by atomically adding each local histogram
   simd<uint, 16> local_histogram;
   local_histogram = slm_load<uint32_t, 16>(slm_offset);
-  flat_atomic<EsimdAtomicOpType::ATOMIC_ADD, uint32_t, 8>(
-      output, slm_offset.select<8, 1>(0), local_histogram.select<8, 1>(0), 1);
-  flat_atomic<EsimdAtomicOpType::ATOMIC_ADD, uint32_t, 8>(
-      output, slm_offset.select<8, 1>(8), local_histogram.select<8, 1>(8), 1);
+  flat_atomic<atomic_op::add, uint32_t, 8>(output, slm_offset.select<8, 1>(0),
+                                           local_histogram.select<8, 1>(0), 1);
+  flat_atomic<atomic_op::add, uint32_t, 8>(output, slm_offset.select<8, 1>(8),
+                                           local_histogram.select<8, 1>(8), 1);
 }
 
 // This function calculates histogram of the image with the CPU.
