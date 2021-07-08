@@ -41,7 +41,8 @@ enum class aspect {
   ext_intel_mem_channel = 25,
   usm_atomic_host_allocations = 26,
   usm_atomic_shared_allocations = 27,
-  atomic64 = 28
+  atomic64 = 28,
+  ext_intel_device_info_uuid = 29,
 };
 
 } // namespace sycl
