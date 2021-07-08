@@ -1505,8 +1505,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 }
 
 // sub-sub-device
-// TODO: do we need to gather Ordinals or just the SubSubDevicesCount will do ?
-pi_result getCmdQueueOrdinals(pi_device PiSubDevice, pi_uint32 &SubSubDevicesCount, std::vector<int>& Ordinals,
+pi_result getComputeCmdQueueOrdinals(pi_device PiSubDevice, pi_uint32 &SubSubDevicesCount, std::vector<int>& Ordinals,
                               std::vector<ze_command_queue_group_properties_t>& AllQueueProperties) {
   uint32_t numQueueGroups = 0;
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
@@ -1519,7 +1518,6 @@ pi_result getCmdQueueOrdinals(pi_device PiSubDevice, pi_uint32 &SubSubDevicesCou
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (PiSubDevice->ZeDevice, &numQueueGroups, QueueProperties.data()));
 
-  SubSubDevicesCount = numQueueGroups;
   AllQueueProperties = QueueProperties;
 
   bool noComputeEngineFlag = true;
@@ -1530,6 +1528,8 @@ pi_result getCmdQueueOrdinals(pi_device PiSubDevice, pi_uint32 &SubSubDevicesCou
       noComputeEngineFlag = false;
     }
   }
+
+  SubSubDevicesCount = Ordinals.size();
 
   if (noComputeEngineFlag) {
     return PI_ERROR_UNKNOWN;
@@ -1600,7 +1600,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
         pi_uint32 SubSubDevicesCount = 0;
         std::vector<int> Ordinals;
         std::vector<ze_command_queue_group_properties_t> AllQueueProperties;
-        Result = getCmdQueueOrdinals(PiSubDevice.get(), SubSubDevicesCount, Ordinals, AllQueueProperties);
+        Result = getComputeCmdQueueOrdinals(PiSubDevice.get(), SubSubDevicesCount, Ordinals, AllQueueProperties);
         if (Result != PI_SUCCESS) {
           return Result;
         }
