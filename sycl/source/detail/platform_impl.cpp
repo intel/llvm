@@ -298,26 +298,6 @@ bool platform_impl::has(aspect Aspect) const {
 #include <CL/sycl/info/platform_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-context platform_impl::getDefaultContext() {
-  const std::lock_guard<std::mutex> Guard(MDefaultContextMutex);
-
-  if (MDefaultContext)
-    return detail::createSyclObjFromImpl<context>(MDefaultContext);
-
-  // Lazily instantiate default context
-  // using context constructor b/c there's lots of logic there that isn't in
-  // the context_impl constructor
-  if (is_host()) {
-    context NewDefaultHostContext({device()});
-    MDefaultContext = detail::getSyclObjImpl(NewDefaultHostContext);
-  } else {
-    context NewDefaultContext(get_devices());
-    MDefaultContext = detail::getSyclObjImpl(NewDefaultContext);
-  }
-
-  return detail::createSyclObjFromImpl<context>(MDefaultContext);
-}
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -12,6 +12,7 @@
 #include <CL/sycl/platform.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/force_device.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -66,7 +67,22 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform::ext_oneapi_get_default_context() const {
-  return impl->getDefaultContext();
+
+  // Keeping the default context for platforms in the global cache to avoid
+  // shared_ptr based circular dependency between platform and context classes
+  std::unordered_map<detail::PlatformImplPtr, detail::ContextImplPtr>
+      &PlatformToDefaultContextCache =
+          detail::GlobalHandler::instance().getPlatformToDefaultContextCache();
+
+  std::lock_guard Lock{detail::GlobalHandler::instance()
+                           .getPlatformToDefaultContextCacheMutex()};
+
+  auto It = PlatformToDefaultContextCache.find(impl);
+  if (PlatformToDefaultContextCache.end() == It)
+    std::tie(It, std::ignore) = PlatformToDefaultContextCache.insert(
+        {impl, detail::getSyclObjImpl(context{get_devices()})});
+
+  return detail::createSyclObjFromImpl<context>(It->second);
 }
 
 } // namespace sycl

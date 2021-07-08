@@ -4,6 +4,8 @@
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
 
+add_definitions(-g -O0)
+
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc

@@ -50,6 +50,15 @@ ProgramManager &GlobalHandler::getProgramManager() {
   return getOrCreate(MProgramManager);
 }
 
+std::unordered_map<PlatformImplPtr, ContextImplPtr> &
+GlobalHandler::getPlatformToDefaultContextCache() {
+  return getOrCreate(MPlatformToDefaultContextCache);
+}
+
+std::mutex &GlobalHandler::getPlatformToDefaultContextCacheMutex() {
+  return getOrCreate(MPlatformToDefaultContextCacheMutex);
+}
+
 Sync &GlobalHandler::getSync() { return getOrCreate(MSync); }
 
 std::vector<PlatformImplPtr> &GlobalHandler::getPlatformCache() {

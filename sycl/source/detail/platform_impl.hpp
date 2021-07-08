@@ -183,16 +183,12 @@ public:
   static std::shared_ptr<platform_impl>
   getPlatformFromPiDevice(RT::PiDevice PiDevice, const plugin &Plugin);
 
-  context getDefaultContext();
-
 private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
-  std::shared_ptr<detail::context_impl> MDefaultContext;
-  std::mutex MDefaultContextMutex;
 };
 
 } // namespace detail
