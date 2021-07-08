@@ -56,10 +56,10 @@ public:
     __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
   }
 
-  void reportPiError(RT::PiResult pi_result, string_class api_name) const {
+  void reportPiError(RT::PiResult pi_result, std::string &context) const {
     if (pi_result != PI_SUCCESS) {
       throw cl::sycl::runtime_error(
-          api_name + " API failed with error: " +
+          context + " API failed with error: " +
               cl::sycl::detail::codeToString(pi_result),
           pi_result);
     }
