@@ -74,6 +74,12 @@ public:
   /// \param Self is a pointer to this event.
   void wait_and_throw(std::shared_ptr<cl::sycl::detail::event_impl> Self);
 
+  /// Clean up the command associated with the event. Assumes that the task this
+  /// event is associated with has been completed.
+  ///
+  /// \param Self is a pointer to this event.
+  void cleanupCommand(std::shared_ptr<cl::sycl::detail::event_impl> Self) const;
+
   /// Queries this event for profiling information.
   ///
   /// If the requested info is not available when this member function is

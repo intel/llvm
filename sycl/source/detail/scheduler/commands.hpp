@@ -189,6 +189,9 @@ public:
   /// for memory copy commands.
   virtual const QueueImplPtr &getWorkerQueue() const;
 
+  /// Returns true iff the command produces a PI event on non-host devices.
+  virtual bool producesPiEvent() const;
+
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
@@ -306,6 +309,8 @@ public:
 
   void emitInstrumentationData() override;
 
+  bool producesPiEvent() const final;
+
 private:
   cl_int enqueueImp() final;
 
@@ -323,6 +328,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
+  bool producesPiEvent() const final;
 
 private:
   cl_int enqueueImp() final;
@@ -346,6 +352,8 @@ public:
   const Requirement *getRequirement() const final { return &MRequirement; }
 
   void emitInstrumentationData() override;
+
+  bool producesPiEvent() const final;
 
   void *MMemAllocation = nullptr;
 
@@ -517,6 +525,8 @@ public:
   void releaseCG() {
     MCommandGroup.release();
   }
+
+  bool producesPiEvent() const final;
 
 private:
   cl_int enqueueImp() final;
