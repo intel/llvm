@@ -168,6 +168,8 @@ struct function_with_args_t {
   /// A stable API function ID. It is a contract between the profiled system and
   /// subscribers.
   uint32_t function_id;
+  /// A null-terminated string, containing human-readable function name.
+  const char *function_name;
   /// Pointer to packed function arguments.
   void *args_data;
   /// Pointer to the return value of the function.

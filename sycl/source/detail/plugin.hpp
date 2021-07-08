@@ -134,7 +134,7 @@ public:
     auto ArgsData =
         packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...);
     uint64_t CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
-        static_cast<uint32_t>(PiApiOffset), ArgsData.data());
+        static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsData.data());
 #endif
     RT::PiResult R;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
@@ -155,7 +155,7 @@ public:
     pi::emitFunctionEndTrace(CorrelationID, PIFnName);
     pi::emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
                                      static_cast<uint32_t>(PiApiOffset),
-                                     ArgsData.data(), R);
+                                     PIFnName, ArgsData.data(), R);
 #endif
     return R;
   }

@@ -137,15 +137,16 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 #endif // XPTI_ENABLE_INSTRUMENTATION
 }
 
-uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID,
+uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
                                         unsigned char *ArgsData) {
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
-    uint8_t StreamID = xptiRegisterStream(SYCL_PIARGCALL_STREAM_NAME);
+    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
     CorrelationID = xptiGetUniqueId();
 
-    xpti::function_with_args_t Payload{FuncID, ArgsData, nullptr, nullptr};
+    xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, nullptr,
+                                       nullptr};
 
     xptiNotifySubscribers(
         StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
@@ -156,12 +157,14 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID,
 }
 
 void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
-                                  unsigned char *ArgsData, pi_result Result) {
+                                  const char *FuncName, unsigned char *ArgsData,
+                                  pi_result Result) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
-    uint8_t StreamID = xptiRegisterStream(SYCL_PIARGCALL_STREAM_NAME);
+    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
 
-    xpti::function_with_args_t Payload{FuncID, ArgsData, &Result, nullptr};
+    xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, &Result,
+                                       nullptr};
 
     xptiNotifySubscribers(
         StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
@@ -466,7 +469,7 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
       xptiMakeEvent("PI Layer", &PIPayload, xpti::trace_algorithm_event,
                     xpti_at::active, &PiInstanceNo);
 
-  xptiInitialize(SYCL_PIARGCALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  xptiInitialize(SYCL_PIDEBUGCALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   xpti::payload_t PIArgPayload(
       "Plugin Interface Layer (with function arguments)");
   uint64_t PiArgInstanceNo;
