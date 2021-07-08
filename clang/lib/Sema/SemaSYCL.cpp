@@ -1018,16 +1018,20 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
       .Default(InvokeUnknown);
 }
 
-static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
-  assert(Caller->getNumParams() > 0 && "Insufficient kernel parameters");
+// The SYCL kernel's 'object type' used for diagnostics and naming/mangling is
+// the first parameter to a function template using the sycl_kernel
+// attribute. In SYCL 1.2.1, this was passed by value,
+// and in SYCL 2020, it is passed by reference.
+static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
+  assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
+  QualType KernelParamTy = KernelCaller->getParamDecl(0)->getType();
 
-  QualType KernelParamTy = Caller->getParamDecl(0)->getType();
-  // In SYCL 2020 kernels are now passed by reference.
+  // SYCL 2020 kernels are passed by reference.
   if (KernelParamTy->isReferenceType())
-    return KernelParamTy->getPointeeCXXRecordDecl();
+    KernelParamTy = KernelParamTy->getPointeeType();
 
   // SYCL 1.2.1
-  return KernelParamTy->getAsCXXRecordDecl();
+  return KernelParamTy.getUnqualifiedType();
 }
 
 /// Creates a kernel parameter descriptor
@@ -1055,7 +1059,7 @@ static target getAccessTarget(const ClassTemplateSpecializationDecl *AccTy) {
 // The first template argument to the kernel caller function is used to identify
 // the kernel itself.
 static QualType calculateKernelNameType(ASTContext &Ctx,
-                                        FunctionDecl *KernelCallerFunc) {
+                                        const FunctionDecl *KernelCallerFunc) {
   const TemplateArgumentList *TAL =
       KernelCallerFunc->getTemplateSpecializationArgs();
   assert(TAL && "No template argument info");
@@ -3195,6 +3199,17 @@ public:
   using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
+// Kernels are only the unnamed-lambda feature if the feature is enabled, AND
+// the first template argument has been corrected by the library to match the
+// functor type.
+static bool IsSYCLUnnamedKernel(Sema &SemaRef, const FunctionDecl *FD) {
+  if (!SemaRef.getLangOpts().SYCLUnnamedLambda)
+    return false;
+  QualType FunctorTy = GetSYCLKernelObjectType(FD);
+  QualType TmplArgTy = calculateKernelNameType(SemaRef.Context, FD);
+  return SemaRef.Context.hasSameType(FunctorTy, TmplArgTy);
+}
+
 class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
   int64_t CurOffset = 0;
@@ -3297,7 +3312,7 @@ public:
       : SyclKernelFieldHandler(S), Header(H) {
     bool IsSIMDKernel = isESIMDKernelType(KernelObj);
     Header.startKernel(Name, NameType, StableName, KernelObj->getLocation(),
-                       IsSIMDKernel);
+                       IsSIMDKernel, IsSYCLUnnamedKernel(S, KernelFunc));
     setThisItemIsCalled(KernelFunc);
   }
 
@@ -3504,6 +3519,7 @@ class SYCLKernelNameTypeVisitor
   using InnerTemplArgVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
   bool IsInvalid = false;
+  bool IsUnnamedKernel = false;
 
   void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
     for (auto &A : Args)
@@ -3512,9 +3528,9 @@ class SYCLKernelNameTypeVisitor
 
 public:
   SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc,
-                            QualType KernelNameType)
+                            QualType KernelNameType, bool IsUnnamedKernel)
       : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc),
-        KernelNameType(KernelNameType) {}
+        KernelNameType(KernelNameType), IsUnnamedKernel(IsUnnamedKernel) {}
 
   bool isValid() { return !IsInvalid; }
 
@@ -3579,10 +3595,8 @@ public:
       }
     }
 
-    bool UnnamedLambdaEnabled =
-        S.getASTContext().getLangOpts().SYCLUnnamedLambda;
     const DeclContext *DeclCtx = DeclNamed->getDeclContext();
-    if (DeclCtx && !UnnamedLambdaEnabled) {
+    if (DeclCtx && !IsUnnamedKernel) {
 
       // Check if the kernel name declaration is declared within namespace
       // "std" (at any level).
@@ -3670,9 +3684,11 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   // issues.
   if (!LangOpts.SYCLIsDevice)
     return;
-  const CXXRecordDecl *KernelObj = getKernelObjectType(KernelFunc);
+  const CXXRecordDecl *KernelObj =
+      GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
+
   if (!KernelObj) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
@@ -3713,8 +3729,9 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                             IsSIMDKernel);
 
   KernelObjVisitor Visitor{*this};
-  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc(),
-                                                  KernelNameType);
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
+      *this, Args[0]->getExprLoc(), KernelNameType,
+      IsSYCLUnnamedKernel(*this, KernelFunc));
 
   DiagnosingSYCLKernel = true;
 
@@ -3814,7 +3831,8 @@ void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
 void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                  MangleContext &MC) {
   // The first argument to the KernelCallerFunc is the lambda object.
-  const CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
+  const CXXRecordDecl *KernelObj =
+      GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
   assert(KernelObj && "invalid kernel caller");
 
   // Do not visit invalid kernel object.
@@ -3825,8 +3843,9 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   std::string CalculatedName, StableName;
   std::tie(CalculatedName, StableName) =
       constructKernelName(*this, KernelCallerFunc, MC);
-  StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
-                                                       : CalculatedName);
+  StringRef KernelName(IsSYCLUnnamedKernel(*this, KernelCallerFunc)
+                           ? StableName
+                           : CalculatedName);
 
   // Attributes of a user-written SYCL kernel must be copied to the internally
   // generated alternative kernel, identified by a known string in its name.
@@ -4621,11 +4640,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
   }
 
-  if (!UnnamedLambdaSupport) {
-    O << "// Forward declarations of templated kernel function types:\n";
-    for (const KernelDesc &K : KernelDescs)
+  O << "// Forward declarations of templated kernel function types:\n";
+  for (const KernelDesc &K : KernelDescs)
+    if (!K.IsUnnamedKernel)
       FwdDeclEmitter.Visit(K.NameType);
-  }
   O << "\n";
 
   O << "__SYCL_INLINE_NAMESPACE(cl) {\n";
@@ -4670,7 +4688,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
-    if (UnnamedLambdaSupport) {
+    if (K.IsUnnamedKernel) {
       O << "template <> struct KernelInfoData<";
       O << "'" << K.StableName.front();
       for (char c : StringRef(K.StableName).substr(1))
@@ -4731,17 +4749,11 @@ bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
   return true;
 }
 
-void SYCLIntegrationHeader::startKernel(StringRef KernelName,
-                                        QualType KernelNameType,
-                                        StringRef KernelStableName,
-                                        SourceLocation KernelLocation,
-                                        bool IsESIMDKernel) {
-  KernelDescs.resize(KernelDescs.size() + 1);
-  KernelDescs.back().Name = std::string(KernelName);
-  KernelDescs.back().NameType = KernelNameType;
-  KernelDescs.back().StableName = std::string(KernelStableName);
-  KernelDescs.back().KernelLocation = KernelLocation;
-  KernelDescs.back().IsESIMDKernel = IsESIMDKernel;
+void SYCLIntegrationHeader::startKernel(
+    StringRef KernelName, QualType KernelNameType, StringRef KernelStableName,
+    SourceLocation KernelLocation, bool IsESIMDKernel, bool IsUnnamedKernel) {
+  KernelDescs.emplace_back(KernelName, KernelNameType, KernelStableName,
+                           KernelLocation, IsESIMDKernel, IsUnnamedKernel);
 }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
@@ -4787,9 +4799,7 @@ void SYCLIntegrationHeader::setCallsThisGroup(bool B) {
   K->FreeFunctionCalls.CallsThisGroup = B;
 }
 
-SYCLIntegrationHeader::SYCLIntegrationHeader(bool _UnnamedLambdaSupport,
-                                             Sema &_S)
-    : UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
+SYCLIntegrationHeader::SYCLIntegrationHeader(Sema &S) : S(S) {}
 
 void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   // Variable template declaration can result in an error case of 'nullptr'
@@ -5209,21 +5219,6 @@ bool Util::matchQualifiedTypeName(QualType Ty,
   return Util::matchContext(Ctx, Scopes);
 }
 
-// The SYCL kernel's 'object type' used for diagnostics and naming/mangling is
-// the first parameter to a sycl_kernel labeled function template. In SYCL1.2.1,
-// this was passed by value, and in SYCL2020, it is passed by reference.
-static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
-  assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
-  QualType KernelParamTy = KernelCaller->getParamDecl(0)->getType();
-
-  // SYCL 2020 kernels are passed by reference.
-  if (KernelParamTy->isReferenceType())
-    return KernelParamTy->getPointeeType();
-
-  // SYCL 1.2.1
-  return KernelParamTy;
-}
-
 void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
                           bool IsInstantiation) {
   auto MangleCallback = [](ASTContext &Ctx,
@@ -5262,6 +5257,8 @@ void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
 }
 
 void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
-  QualType Ty = GetSYCLKernelObjectType(FD);
-  MarkSYCLKernel(FD->getLocation(), Ty, /*IsInstantiation*/ true);
+  if (IsSYCLUnnamedKernel(*this, FD)) {
+    QualType ObjTy = GetSYCLKernelObjectType(FD);
+    MarkSYCLKernel(FD->getLocation(), ObjTy, /*IsInstantiation*/ true);
+  }
 }

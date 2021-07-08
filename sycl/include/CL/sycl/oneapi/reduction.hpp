@@ -762,16 +762,25 @@ class __sycl_reduction_aux_kernel;
 
 /// Helper structs to get additional kernel name types based on given
 /// \c Name and additional template parameters helping to distinguish kernels.
-/// If \c Name is undefined (is \c auto_name) then \c Type becomes the \c Name.
+/// If \c Name is undefined (is \c auto_name) leave it that way to take
+/// advantage of unnamed kernels being named after their functor.
 template <typename Name, typename Type, bool B1, bool B2, typename T3 = void>
 struct get_reduction_main_kernel_name_t {
-  using name = __sycl_reduction_main_kernel<
-      typename sycl::detail::get_kernel_name_t<Name, Type>::name, B1, B2, T3>;
+  using name = __sycl_reduction_main_kernel<Name, B1, B2, T3>;
+};
+template <typename Type, bool B1, bool B2, typename T3>
+struct get_reduction_main_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
+                                        T3> {
+  using name = sycl::detail::auto_name;
 };
 template <typename Name, typename Type, bool B1, bool B2, typename T3>
 struct get_reduction_aux_kernel_name_t {
-  using name = __sycl_reduction_aux_kernel<
-      typename sycl::detail::get_kernel_name_t<Name, Type>::name, B1, B2, T3>;
+  using name = __sycl_reduction_aux_kernel<Name, B1, B2, T3>;
+};
+template <typename Type, bool B1, bool B2, typename T3>
+struct get_reduction_aux_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
+                                       T3> {
+  using name = sycl::detail::auto_name;
 };
 
 /// Implements a command group function that enqueues a kernel that calls
