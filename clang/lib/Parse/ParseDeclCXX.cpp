@@ -4277,7 +4277,7 @@ bool Parser::ParseCXX11AttributeArgs(IdentifierInfo *AttrName,
     return true;
   }
 
-  if (getLangOpts().OpenMP && ScopeName && ScopeName->isStr("omp")) {
+  if (getLangOpts().OpenMP >= 51 && ScopeName && ScopeName->isStr("omp")) {
     ParseOpenMPAttributeArgs(AttrName, OpenMPTokens);
 
     // We claim that an attribute was parsed and added so that one is not

@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -verify -fopenmp -std=c++11 -ferror-limit 100 -o - %s -Wuninitialized
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 -ferror-limit 100 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fsyntax-only -fopenmp -fopenmp-version=51 -std=c++11 %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fsyntax-only -fopenmp-simd -fopenmp-version=51 -std=c++11 %s -Wuninitialized
 
 void foo() {
 }
@@ -16,7 +16,7 @@ T tmain(T argc) {
   T k;
   [[omp::sequence(directive(target), directive(teams distribute parallel for simd num_teams(C)))]]
   for (int i=0; i<100; i++) foo();
-  [[omp::sequence(directive(target), directive(teams distribute parallel for simd num_teams(T)))]] // expected-error {{'T' does not refer to a value}}  
+  [[omp::sequence(directive(target), directive(teams distribute parallel for simd num_teams(T)))]] // expected-error {{'T' does not refer to a value}}
   for (int i=0; i<100; i++) foo();
   [[omp::sequence(directive(target), directive(teams distribute parallel for simd num_teams))]] // expected-error {{expected '(' after 'num_teams'}}
   for (int i=0; i<100; i++) foo();
