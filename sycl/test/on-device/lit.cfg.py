@@ -105,6 +105,8 @@ if 'GET_DEVICE_TOOL' in lit_config.params.keys():
 def getDeviceCount(device_type):
     is_cuda = False;
     is_level_zero = False;
+    is_rocm_amd = False;
+    is_rocm_nvidia = False;
     process = subprocess.Popen([get_device_count_by_type_path, device_type, backend],
         stdout=subprocess.PIPE)
     (output, err) = process.communicate()
@@ -130,11 +132,15 @@ def getDeviceCount(device_type):
             is_cuda = True;
         if re.match(r".*level zero", result[1]):
             is_level_zero = True;
+        if re.match(r".*rocm-amd", result[1]):
+            is_rocm_amd = True;
+        if re.match(r".*rocm-nvidia", result[1]):
+            is_rocm_nvidia = True;
 
     if err:
         lit_config.warning("getDeviceCount {TYPE} {BACKEND} stderr:{ERR}".format(
             TYPE=device_type, BACKEND=backend, ERR=err))
-    return [value,is_cuda,is_level_zero]
+    return [value,is_cuda,is_level_zero,is_rocm_amd,is_rocm_nvidia]
 
 # check if compiler supports CL command line options
 cl_options=False
@@ -220,7 +226,9 @@ gpu_check_on_linux_substitute = ""
 
 cuda = False
 level_zero = False
-[gpu_count, cuda, level_zero] = getDeviceCount("gpu")
+rocm_amd = False
+rocm_nvidia = False
+[gpu_count, cuda, level_zero, rocm_amd, rocm_nvidia] = getDeviceCount("gpu")
 
 if gpu_count > 0:
     found_at_least_one_device = True
@@ -232,6 +240,15 @@ if gpu_count > 0:
        config.available_features.add('cuda')
     elif level_zero:
        config.available_features.add('level_zero')
+    elif rocm_amd:
+       config.available_features.add('rocm_amd')
+       # For AMD the specific GPU has to be specified with -mcpu
+       if not re.match('.*-mcpu.*', config.sycl_clang_extra_flags):
+           raise Exception("Error: missing -mcpu flag when trying to run lit "  \
+                           "tests for AMD GPU, please add `-mcpu=<target>` to " \
+                           "the CMake variable SYCL_CLANG_EXTRA_FLAGS")
+    elif rocm_nvidia:
+       config.available_features.add('rocm_nvidia')
 
     if platform.system() == "Linux":
         gpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu,host ".format(SYCL_PLUGIN=backend)
@@ -261,8 +278,10 @@ config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
 if not cuda and not level_zero and found_at_least_one_device:
     config.available_features.add('opencl')
 
-if cuda:
+if cuda or rocm_nvidia:
     config.substitutions.append( ('%sycl_triple',  "nvptx64-nvidia-cuda-sycldevice" ) )
+elif rocm_amd:
+    config.substitutions.append( ('%sycl_triple',  "amdgcn-amd-amdhsa-sycldevice" ) )
 else:
     config.substitutions.append( ('%sycl_triple',  "spir64-unknown-unknown-sycldevice" ) )
 

@@ -424,6 +424,10 @@ skipped.
 If CUDA support has been built, it is tested only if there are CUDA devices
 available.
 
+If testing with ROCm for AMD make sure to specify the GPU being used
+by adding `-mcpu=<target>` to the CMake variable
+`SYCL_CLANG_EXTRA_FLAGS`.
+
 #### Run DPC++ E2E test suite
 
 Follow instructions from the link below to build and run tests:
