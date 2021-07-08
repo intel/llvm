@@ -194,6 +194,7 @@ template <> void SPIRVMap<OclExt::Kind, std::string>::init() {
   _SPIRV_OP(cl_khr_mipmap_image_writes)
   _SPIRV_OP(cl_khr_egl_event)
   _SPIRV_OP(cl_khr_srgb_image_writes)
+  _SPIRV_OP(cl_khr_extended_bit_ops)
 #undef _SPIRV_OP
 }
 
@@ -206,6 +207,7 @@ template <> void SPIRVMap<OclExt::Kind, SPIRVCapabilityKind>::init() {
   add(OclExt::cl_khr_subgroups, CapabilityGroups);
   add(OclExt::cl_khr_mipmap_image, CapabilityImageMipmap);
   add(OclExt::cl_khr_mipmap_image_writes, CapabilityImageMipmap);
+  add(OclExt::cl_khr_extended_bit_ops, CapabilityBitInstructions);
 }
 
 /// Map OpenCL work functions to SPIR-V builtin variables.
@@ -414,6 +416,11 @@ template <> void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   // cl_khr_subgroup_shuffle_relative
   _SPIRV_OP(group_shuffle_up, GroupNonUniformShuffleUp)
   _SPIRV_OP(group_shuffle_down, GroupNonUniformShuffleDown)
+  // cl_khr_extended_bit_ops
+  _SPIRV_OP(bitfield_insert, BitFieldInsert)
+  _SPIRV_OP(bitfield_extract_signed, BitFieldSExtract)
+  _SPIRV_OP(bitfield_extract_unsigned, BitFieldUExtract)
+  _SPIRV_OP(bit_reverse, BitReverse)
 #undef _SPIRV_OP
 }
 
@@ -1284,6 +1291,11 @@ public:
         }
       } else if (NameRef.contains("shuffle") || NameRef.contains("clustered"))
         addUnsignedArg(1);
+    } else if (NameRef.startswith("bitfield_insert")) {
+      addUnsignedArgs(2, 3);
+    } else if (NameRef.startswith("bitfield_extract_signed") ||
+               NameRef.startswith("bitfield_extract_unsigned")) {
+      addUnsignedArgs(1, 2);
     }
 
     // Store the final version of a function name

@@ -770,6 +770,8 @@ bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
     return false;
   if (isEventOpCode(OpCode))
     return false;
+  if (OpBitFieldInsert <= OpCode && OpCode <= OpBitReverse)
+    return false;
   if (OCLSPIRVBuiltinMap::rfind(OpCode, nullptr)) {
     // Not every spirv opcode which is placed in OCLSPIRVBuiltinMap is
     // translated directly to OCL builtin. Some of them are translated
