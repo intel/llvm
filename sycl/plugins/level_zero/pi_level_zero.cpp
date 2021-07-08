@@ -1506,8 +1506,8 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
 // sub-sub-device
 pi_result getComputeCmdQueueOrdinals(
-    pi_device PiSubDevice, std::vector<int>& Ordinals,
-    std::vector<ze_command_queue_group_properties_t>& AllQueueProperties) {
+    pi_device PiSubDevice, std::vector<int> &Ordinals,
+    std::vector<ze_command_queue_group_properties_t> &AllQueueProperties) {
   uint32_t numQueueGroups = 0;
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (PiSubDevice->ZeDevice, &numQueueGroups, nullptr));
@@ -1538,7 +1538,7 @@ pi_result getComputeCmdQueueOrdinals(
 
 pi_result initializeWithOrdinal(
     pi_device PiSubSubDevice, int Ordinal,
-    std::vector<ze_command_queue_group_properties_t>& QueueProperties) {
+    std::vector<ze_command_queue_group_properties_t> &QueueProperties) {
   PiSubSubDevice->ZeComputeQueueGroupIndex = Ordinal;
   PiSubSubDevice->ZeComputeQueueGroupProperties = QueueProperties[Ordinal];
 
