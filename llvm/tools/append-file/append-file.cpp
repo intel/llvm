@@ -67,7 +67,7 @@ int main(int argc, const char **argv) {
   std::ofstream OutFile(Output, std::ios_base::binary | std::ios_base::app |
                                     std::ios_base::ate);
   if (!OriginalFile.empty())
-    OutFile << "# 1 \"" << OriginalFile << "\" 1\n";
+    OutFile << "#line 1 \"" << OriginalFile << "\n";
 
   // Add the original source file contents.
   std::ifstream InputFile(Input, std::ios_base::binary);
