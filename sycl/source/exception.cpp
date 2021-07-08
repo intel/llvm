@@ -17,7 +17,9 @@ namespace sycl {
 
 namespace { // anonymous
 char reserved_for_errorcode[] =
-    "01234567812345678"; // 17 (string terminator plus error code)
+    "0SYCL1234567812345678"; // 17 (string terminator plus 'SYCL' marker plus
+                             // error code)
+std::error_code sycl121_proxy_errorcode = make_error_code(sycl::errc::invalid);
 }
 
 exception::exception(std::error_code ec, const char *Msg)
@@ -74,6 +76,13 @@ exception::exception(context *ctxPtr, std::error_code ec,
   char *reservedPtr = &MMsg[whatLen];
   reservedPtr[0] = '\0';
   reservedPtr++;
+  // insert 'SYCL' marker.
+  reservedPtr[0] = 'S';
+  reservedPtr[1] = 'Y';
+  reservedPtr[2] = 'C';
+  reservedPtr[3] = 'L';
+  reservedPtr += 4;
+  // insert error code
   std::error_code *ecPtr = reinterpret_cast<std::error_code *>(reservedPtr);
   *ecPtr = ec;
 }
@@ -81,10 +90,23 @@ exception::exception(context *ctxPtr, std::error_code ec,
 const std::error_code &exception::code() const noexcept {
   const char *whatStr = MMsg.c_str();
   size_t whatLen = strlen(whatStr);
+  // advance past null string-terminator
   const char *reservedPtr = &whatStr[whatLen + 1];
-  const std::error_code *ecPtr =
-      reinterpret_cast<const std::error_code *>(reservedPtr);
-  return *ecPtr;
+  // check for 'SYCL' marker, which denotes a SYCL2020 exception
+  if (reservedPtr[0] == 'S' && reservedPtr[1] == 'Y' && reservedPtr[2] == 'C' &&
+      reservedPtr[3] == 'L') {
+    reservedPtr += 4;
+    const std::error_code *ecPtr =
+        reinterpret_cast<const std::error_code *>(reservedPtr);
+    return *ecPtr;
+  } else {
+    // the exception originates from some SYCL 1.2.1 source
+    return sycl121_proxy_errorcode;
+  }
+}
+
+const std::error_category &exception::category() const noexcept {
+  return code().category();
 }
 
 const char *exception::what() const noexcept { return MMsg.c_str(); }

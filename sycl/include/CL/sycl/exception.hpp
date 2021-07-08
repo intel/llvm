@@ -50,6 +50,7 @@ public:
   exception(context, int, const std::error_category &);
 
   const std::error_code &code() const noexcept;
+  const std::error_category &category() const noexcept;
 
   const char *what() const noexcept final;
 
