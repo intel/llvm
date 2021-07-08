@@ -6,7 +6,6 @@ macro(add_sycl_unittest test_dirname link_variant)
   # Enable exception handling for these unit tests
   set(LLVM_REQUIRES_EH 1)
 
-  string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
   if (MSVC AND build_type_lower MATCHES "debug")
     set(sycl_obj_target "sycld_object")
     set(sycl_so_target "sycld")
@@ -52,7 +51,6 @@ endmacro()
 macro(add_sycl_unittest_with_device test_dirname link_variant)
   set(LLVM_REQUIRES_EH 1)
 
-  string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
   if (MSVC AND build_type_lower MATCHES "debug")
     set(sycl_obj_target "sycld_object")
     set(sycl_so_target "sycld")
