@@ -365,6 +365,18 @@ define dso_local spir_func void  @FUNC_51() {
   ret void
 }
 
+define dso_local spir_func <32 x half>  @FUNC_52() {
+  %ptr_a = alloca <32 x half>
+  %ptr_b = alloca <32 x half>
+  %ptr_c = alloca <32 x i16>
+  %a = load <32 x half>, <32 x half>* %ptr_a
+  %b = load <32 x half>, <32 x half>* %ptr_b
+  %c = load <32 x i16>, <32 x i16>* %ptr_c
+  %d = call spir_func <32 x half> @_Z16__esimd_wrregionIDF16_Li32ELi32ELi0ELi32ELi1ELi32EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIT_XT0_EE4typeESA_NS7_IS8_XT1_EE4typeEtNS7_ItXT1_EE4typeE(<32 x half> %a, <32 x half> %b, i16 zeroext 0, <32 x i16> %c)
+; CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x half> @llvm.genx.wrregionf.v32f16.v32f16.i16.v32i1(<32 x half> %{{[0-9a-zA-Z_.]+}}, <32 x half> %{{[0-9a-zA-Z_.]+}}, i32 0, i32 32, i32 1, i16 0, i32 32, <32 x i1> %{{[0-9a-zA-Z_.]+}})
+  ret <32 x half> %d
+}
+
 declare dso_local i32 @_Z15__esimd_lane_idv()
 
 declare dso_local spir_func <32 x i32> @_Z20__esimd_flat_atomic0ILN2cm3gen14CmAtomicOpTypeE2EjLi32ELNS1_9CacheHintE0ELS3_0EENS1_13__vector_typeIT0_XT1_EE4typeENS4_IyXT1_EE4typeENS4_ItXT1_EE4typeE(<32 x i64> %0, <32 x i16> %1)
@@ -414,6 +426,7 @@ declare dso_local spir_func <16 x float> @_Z12__esimd_rnduILi16EEN2cl4sycl3ext5i
 declare dso_local spir_func <16 x float> @_Z12__esimd_rndzILi16EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIfXT_EE4typeES9_(<16 x float>)
 declare dso_local spir_func <16 x float> @_Z12__esimd_rndeILi16EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIfXT_EE4typeES9_(<16 x float>)
 declare dso_local spir_func void @_Z25__esimd_test_src_tmpl_argILi3ELi5ELi7ELi11ELi13EEvv()
+declare dso_local spir_func <32 x half> @_Z16__esimd_wrregionIDF16_Li32ELi32ELi0ELi32ELi1ELi32EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIT_XT0_EE4typeESA_NS7_IS8_XT1_EE4typeEtNS7_ItXT1_EE4typeE(<32 x half>, <32 x half>, i16 zeroext, <32 x i16>)
 
 attributes #0 = { "genx_byte_offset"="192" "genx_volatile" }
 
