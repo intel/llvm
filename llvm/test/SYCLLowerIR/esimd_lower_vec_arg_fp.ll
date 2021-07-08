@@ -4,9 +4,9 @@
 ; This test checks that there is no crash in ESIMDLowerVecArg pass when
 ; rewriting funcitons that are used through a function pointer.
 
-%"cl::sycl::intel::gpu::simd" = type { <64 x i32> }
+%"cl::sycl::ext::intel::gpu::simd" = type { <64 x i32> }
 
-define dso_local spir_func void @func(%"cl::sycl::intel::gpu::simd"* %arg) {
+define dso_local spir_func void @func(%"cl::sycl::ext::intel::gpu::simd"* %arg) {
 ; CHECK-LABEL: @func(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    ret void
@@ -15,44 +15,44 @@ entry:
   ret void
 }
 
-define dso_local spir_func void @init_ptr(void (%"cl::sycl::intel::gpu::simd"*)** %foo) !sycl_explicit_simd !1 {
+define dso_local spir_func void @init_ptr(void (%"cl::sycl::ext::intel::gpu::simd"*)** %foo) !sycl_explicit_simd !1 {
 ; CHECK-LABEL: @init_ptr(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    store void (%"cl::sycl::intel::gpu::simd"*)* @func, void (%"cl::sycl::intel::gpu::simd"*)** [[FOO:%.*]], align 8
+; CHECK-NEXT:    store void (%"cl::sycl::ext::intel::gpu::simd"*)* @func, void (%"cl::sycl::ext::intel::gpu::simd"*)** [[FOO:%.*]], align 8
 ; CHECK-NEXT:    ret void
 ;
 entry:
-  store void (%"cl::sycl::intel::gpu::simd"*)* @func, void (%"cl::sycl::intel::gpu::simd"*)** %foo
+  store void (%"cl::sycl::ext::intel::gpu::simd"*)* @func, void (%"cl::sycl::ext::intel::gpu::simd"*)** %foo
   ret void
 }
 
-define dso_local spir_func void @use_ptr(void (%"cl::sycl::intel::gpu::simd"*)* %foo) !sycl_explicit_simd !1 {
+define dso_local spir_func void @use_ptr(void (%"cl::sycl::ext::intel::gpu::simd"*)* %foo) !sycl_explicit_simd !1 {
 ; CHECK-LABEL: @use_ptr(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[AGG_TMP:%.*]] = alloca %"cl::sycl::intel::gpu::simd", align 256
-; CHECK-NEXT:    call spir_func void [[FOO:%.*]](%"cl::sycl::intel::gpu::simd"* [[AGG_TMP]])
+; CHECK-NEXT:    [[AGG_TMP:%.*]] = alloca %"cl::sycl::ext::intel::gpu::simd", align 256
+; CHECK-NEXT:    call spir_func void [[FOO:%.*]](%"cl::sycl::ext::intel::gpu::simd"* [[AGG_TMP]])
 ; CHECK-NEXT:    ret void
 ;
 entry:
-  %agg.tmp = alloca %"cl::sycl::intel::gpu::simd"
-  call spir_func void %foo(%"cl::sycl::intel::gpu::simd"* %agg.tmp)
+  %agg.tmp = alloca %"cl::sycl::ext::intel::gpu::simd"
+  call spir_func void %foo(%"cl::sycl::ext::intel::gpu::simd"* %agg.tmp)
   ret void
 }
 
 define dso_local spir_func void @esimd_kernel() !sycl_explicit_simd !1 {
 ; CHECK-LABEL: @esimd_kernel(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[FP:%.*]] = alloca void (%"cl::sycl::intel::gpu::simd"*)*, align 8
-; CHECK-NEXT:    call spir_func void @init_ptr(void (%"cl::sycl::intel::gpu::simd"*)** [[FP]])
-; CHECK-NEXT:    [[TMP0:%.*]] = load void (%"cl::sycl::intel::gpu::simd"*)*, void (%"cl::sycl::intel::gpu::simd"*)** [[FP]], align 8
-; CHECK-NEXT:    call spir_func void @use_ptr(void (%"cl::sycl::intel::gpu::simd"*)* [[TMP0]])
+; CHECK-NEXT:    [[FP:%.*]] = alloca void (%"cl::sycl::ext::intel::gpu::simd"*)*, align 8
+; CHECK-NEXT:    call spir_func void @init_ptr(void (%"cl::sycl::ext::intel::gpu::simd"*)** [[FP]])
+; CHECK-NEXT:    [[TMP0:%.*]] = load void (%"cl::sycl::ext::intel::gpu::simd"*)*, void (%"cl::sycl::ext::intel::gpu::simd"*)** [[FP]], align 8
+; CHECK-NEXT:    call spir_func void @use_ptr(void (%"cl::sycl::ext::intel::gpu::simd"*)* [[TMP0]])
 ; CHECK-NEXT:    ret void
 ;
 entry:
-  %fp = alloca void (%"cl::sycl::intel::gpu::simd"*)*
-  call spir_func void @init_ptr(void (%"cl::sycl::intel::gpu::simd"*)** %fp)
-  %0 = load void (%"cl::sycl::intel::gpu::simd"*)*, void (%"cl::sycl::intel::gpu::simd"*)** %fp
-  call spir_func void @use_ptr(void (%"cl::sycl::intel::gpu::simd"*)* %0)
+  %fp = alloca void (%"cl::sycl::ext::intel::gpu::simd"*)*
+  call spir_func void @init_ptr(void (%"cl::sycl::ext::intel::gpu::simd"*)** %fp)
+  %0 = load void (%"cl::sycl::ext::intel::gpu::simd"*)*, void (%"cl::sycl::ext::intel::gpu::simd"*)** %fp
+  call spir_func void @use_ptr(void (%"cl::sycl::ext::intel::gpu::simd"*)* %0)
   ret void
 }
 

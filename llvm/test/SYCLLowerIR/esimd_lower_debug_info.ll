@@ -6,7 +6,7 @@
 
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 
-declare spir_func <16 x float> @_Z18__esimd_block_readIfLi16EPU3AS1fEN2cl4sycl5intel3gpu11vector_typeIT_XT0_EE4typeET1_j(float addrspace(1)*, i32)
+declare spir_func <16 x float> @_Z18__esimd_block_readIfLi16EPU3AS1fEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT0_EE4typeET1_j(float addrspace(1)*, i32)
 
 define spir_func void @func1(float addrspace(1)* %arg1, i32 %arg2 ){
 ; CHECK-LABEL: @func1(
@@ -15,7 +15,7 @@ define spir_func void @func1(float addrspace(1)* %arg1, i32 %arg2 ){
 ; CHECK-NEXT:    call void @llvm.dbg.value(metadata <16 x float> [[CALL1_I_I_ESIMD]], metadata [[META9:![0-9]+]], metadata !DIExpression()), !dbg [[DBG11]]
 ; CHECK-NEXT:    ret void, !dbg [[DBG12:![0-9]+]]
 ;
-  %call1.i.i = tail call spir_func <16 x float> @_Z18__esimd_block_readIfLi16EPU3AS1fEN2cl4sycl5intel3gpu11vector_typeIT_XT0_EE4typeET1_j(float addrspace(1)* %arg1, i32 %arg2)
+  %call1.i.i = tail call spir_func <16 x float> @_Z18__esimd_block_readIfLi16EPU3AS1fEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT0_EE4typeET1_j(float addrspace(1)* %arg1, i32 %arg2)
   ret void
 }
 
