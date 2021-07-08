@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/sycl/group.hpp>
-#include <CL/sycl/oneapi/sub_group.hpp>
+#include <sycl/ext/oneapi/sub_group.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

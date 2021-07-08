@@ -15,7 +15,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/memory_enums.hpp>
-#include <CL/sycl/oneapi/atomic_enums.hpp>
+#include <sycl/ext/oneapi/atomic_enums.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 __SYCL_INLINE_NAMESPACE(cl) {

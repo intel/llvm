@@ -15,9 +15,9 @@
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/group_algorithm.hpp>
 #include <CL/sycl/nd_item.hpp>
-#include <CL/sycl/oneapi/atomic.hpp>
-#include <CL/sycl/oneapi/functional.hpp>
-#include <CL/sycl/oneapi/sub_group.hpp>
+#include <sycl/ext/oneapi/atomic.hpp>
+#include <sycl/ext/oneapi/functional.hpp>
+#include <sycl/ext/oneapi/sub_group.hpp>
 
 #ifndef __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__
 __SYCL_INLINE_NAMESPACE(cl) {

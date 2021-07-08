@@ -10,7 +10,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/property_helper.hpp>
-#include <CL/sycl/oneapi/accessor_property_list.hpp>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {

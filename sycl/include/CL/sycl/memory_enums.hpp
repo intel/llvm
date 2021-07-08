@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/oneapi/atomic_enums.hpp>
+#include <sycl/ext/oneapi/atomic_enums.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

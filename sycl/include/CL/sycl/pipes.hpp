@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/intel/pipes.hpp>
+#include <sycl/ext/intel/pipes.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

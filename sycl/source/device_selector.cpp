@@ -11,7 +11,7 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
-#include <CL/sycl/oneapi/filter_selector.hpp>
+#include <sycl/ext/oneapi/filter_selector.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>

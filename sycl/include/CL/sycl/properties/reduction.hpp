@@ -8,14 +8,14 @@
 
 #pragma once
 
-#include "CL/sycl/oneapi/accessor_property_list.hpp"
+#include "sycl/ext/oneapi/accessor_property_list.hpp"
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/detail/tuple.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/known_identity.hpp>
-#include <CL/sycl/oneapi/group_algorithm.hpp>
+#include <sycl/ext/oneapi/group_algorithm.hpp>
 
 #include <tuple>
 

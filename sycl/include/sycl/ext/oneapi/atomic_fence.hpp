@@ -10,7 +10,7 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/detail/spirv.hpp>
-#include <CL/sycl/oneapi/atomic_enums.hpp>
+#include <sycl/ext/oneapi/atomic_enums.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>

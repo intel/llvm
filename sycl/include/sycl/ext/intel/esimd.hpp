@@ -13,7 +13,7 @@
 
 #include <CL/sycl/detail/defines_elementary.hpp>
 
-__SYCL_WARNING("CL/sycl/intel/esimd.hpp usage is deprecated, include "
+__SYCL_WARNING("sycl/ext/intel/esimd.hpp usage is deprecated, include "
                "sycl/ext/intel/experimental/esimd.hpp instead")
 
 #include <sycl/ext/intel/experimental/esimd.hpp>

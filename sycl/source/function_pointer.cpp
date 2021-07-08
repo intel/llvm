@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/oneapi/function_pointer.hpp>
+#include <sycl/ext/oneapi/function_pointer.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/program_impl.hpp>
 

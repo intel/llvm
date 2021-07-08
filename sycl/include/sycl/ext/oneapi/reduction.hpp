@@ -8,14 +8,14 @@
 
 #pragma once
 
-#include "CL/sycl/oneapi/accessor_property_list.hpp"
+#include "sycl/ext/oneapi/accessor_property_list.hpp"
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/detail/tuple.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/known_identity.hpp>
-#include <CL/sycl/oneapi/group_algorithm.hpp>
+#include <sycl/ext/oneapi/group_algorithm.hpp>
 
 #include <tuple>
 
@@ -319,8 +319,8 @@ public:
               IsReduOptForAtomic64Add<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
 
-    atomic_ref<T, sycl::ONEAPI::memory_order::relaxed,
-               sycl::ONEAPI::memory_scope::device,
+    atomic_ref<T, sycl::ext::oneapi::memory_order::relaxed,
+               sycl::ext::oneapi::memory_scope::device,
                access::address_space::global_space>(
         *global_ptr<T>(ReduVarPtr)) += MValue;
   }

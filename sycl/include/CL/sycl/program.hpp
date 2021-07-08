@@ -14,7 +14,7 @@
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/kernel.hpp>
-#include <CL/sycl/oneapi/experimental/spec_constant.hpp>
+#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 

@@ -10,8 +10,8 @@
 
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/accessor.hpp>
-#include <CL/sycl/oneapi/atomic_enums.hpp>
-#include <CL/sycl/oneapi/atomic_ref.hpp>
+#include <sycl/ext/oneapi/atomic_enums.hpp>
+#include <sycl/ext/oneapi/atomic_ref.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

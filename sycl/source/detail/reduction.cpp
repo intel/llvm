@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/oneapi/reduction.hpp>
+#include <sycl/ext/oneapi/reduction.hpp>
 #include <detail/queue_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

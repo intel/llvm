@@ -8,7 +8,7 @@
 
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/intel/online_compiler.hpp>
+#include <sycl/ext/intel/online_compiler.hpp>
 
 #include <cstring>
 

@@ -14,7 +14,7 @@
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
-#include <CL/sycl/oneapi/experimental/spec_constant.hpp>
+#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
