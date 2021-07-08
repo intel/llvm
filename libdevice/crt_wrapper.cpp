@@ -9,6 +9,10 @@
 #include "wrapper.h"
 
 #ifdef __SPIR__
+DEVICE_EXTERN_C
+void *memcpy(void *dest, const void *src, size_t n) {
+  return __devicelib_memcpy(dest, src, n);
+}
 #if defined(_WIN32)
 // Truncates a wide (16 or 32 bit) string (wstr) into an ASCII string (str).
 // Any non-ASCII characters are replaced by question mark '?'.

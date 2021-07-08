@@ -162,11 +162,22 @@ void Command::addDiagForErrorCode(int ErrorCode, StringRef CustomDiag) {
   ErrorCodeDiagMap[ErrorCode] = CustomDiag.str();
 }
 
+void Command::addExitForErrorCode(int ErrorCode, bool Exit) {
+  ErrorCodeExitMap[ErrorCode] = Exit;
+}
+
 StringRef Command::getDiagForErrorCode(int ErrorCode) const {
   auto ErrorCodeDiagIt = ErrorCodeDiagMap.find(ErrorCode);
   if (ErrorCodeDiagIt != ErrorCodeDiagMap.end())
     return ErrorCodeDiagIt->second;
   return StringRef();
+}
+
+bool Command::getWillExitForErrorCode(int ErrorCode) const {
+  auto ErrorCodeExitIt = ErrorCodeExitMap.find(ErrorCode);
+  if (ErrorCodeExitIt != ErrorCodeExitMap.end())
+    return ErrorCodeExitIt->second;
+  return true;
 }
 
 /// Rewrite relative include-like flag paths to absolute ones.
