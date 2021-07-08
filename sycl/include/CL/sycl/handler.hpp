@@ -212,6 +212,11 @@ using cl::sycl::detail::enable_if_t;
 using cl::sycl::detail::queue_impl;
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<Reduction::has_atomic_add_float64>
+reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
+                   const nd_range<Dims> &Range, Reduction &Redu);
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
 enable_if_t<Reduction::has_fast_atomics>
 reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
            Reduction &Redu);
@@ -1389,6 +1394,49 @@ public:
     }
   }
 
+  /// Implements parallel_for() accepting nd_range \p Range and one reduction
+  /// object. This version is a specialization for the add operator.
+  /// It performs runtime checks for device aspect "atomic64"; if found, fast
+  /// sycl::atomic_ref operations are used to update the reduction at the
+  /// end of each work-group work.  Otherwise the default implementation is
+  /// used.
+  //
+  // If the reduction variable must be initialized with the identity value
+  // before the kernel run, then an additional working accessor is created,
+  // initialized with the identity value and used in the kernel. That working
+  // accessor is then copied to user's accessor or USM pointer after
+  // the kernel run.
+  // For USM pointers without initialize_to_identity properties the same scheme
+  // with working accessor is used as re-using user's USM pointer in the kernel
+  // would require creation of another variant of user's kernel, which does not
+  // seem efficient.
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims, typename Reduction>
+  detail::enable_if_t<Reduction::has_atomic_add_float64>
+  parallel_for(nd_range<Dims> Range, Reduction Redu,
+               _KERNELFUNCPARAM(KernelFunc)) {
+
+    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+    device D = detail::getDeviceFromHandler(*this);
+
+    if (D.has(aspect::atomic64)) {
+
+      ONEAPI::detail::reduCGFuncAtomic64<KernelName>(*this, KernelFunc, Range,
+                                                     Redu);
+
+      if (Reduction::is_usm || Redu.initializeToIdentity()) {
+        this->finalize();
+        handler CopyHandler(QueueCopy, MIsHost);
+        CopyHandler.saveCodeLoc(MCodeLoc);
+        ONEAPI::detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler,
+                                                                 Redu);
+        MLastEvent = CopyHandler.finalize();
+      }
+    } else {
+      parallel_for_Impl<KernelName>(Range, Redu, KernelFunc);
+    }
+  }
+
   /// Defines and invokes a SYCL kernel function for the specified nd_range.
   /// Performs reduction operation specified in \p Redu.
   ///
@@ -1405,9 +1453,19 @@ public:
   /// optimized implementations waiting for their turn of code-review.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
-  detail::enable_if_t<!Reduction::has_fast_atomics>
+  detail::enable_if_t<!Reduction::has_fast_atomics &&
+                      !Reduction::has_atomic_add_float64>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
+
+    parallel_for_Impl<KernelName>(Range, Redu, KernelFunc);
+  }
+
+  template <typename KernelName, typename KernelType, int Dims,
+            typename Reduction>
+  detail::enable_if_t<!Reduction::has_fast_atomics>
+  parallel_for_Impl(nd_range<Dims> Range, Reduction Redu,
+                    KernelType KernelFunc) {
     // This parallel_for() is lowered to the following sequence:
     // 1) Call a kernel that a) call user's lambda function and b) performs
     //    one iteration of reduction, storing the partial reductions/sums
