@@ -1505,7 +1505,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 }
 
 // sub-sub-device
-pi_result getComputeCmdQueueOrdinals(pi_device PiSubDevice, pi_uint32 &SubSubDevicesCount, std::vector<int>& Ordinals,
+pi_result getComputeCmdQueueOrdinals(pi_device PiSubDevice, std::vector<int>& Ordinals,
                               std::vector<ze_command_queue_group_properties_t>& AllQueueProperties) {
   uint32_t numQueueGroups = 0;
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
@@ -1518,18 +1518,17 @@ pi_result getComputeCmdQueueOrdinals(pi_device PiSubDevice, pi_uint32 &SubSubDev
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (PiSubDevice->ZeDevice, &numQueueGroups, QueueProperties.data()));
 
-  AllQueueProperties = QueueProperties;
 
   bool noComputeEngineFlag = true;
   for (uint32_t i = 0; i < numQueueGroups; i++) {
     if (QueueProperties[i].flags &
         ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
       Ordinals.push_back(i);
+      AllQueueProperties.push_back(QueueProperties[i]);
       noComputeEngineFlag = false;
     }
   }
 
-  SubSubDevicesCount = Ordinals.size();
 
   if (noComputeEngineFlag) {
     return PI_ERROR_UNKNOWN;
@@ -1597,16 +1596,15 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
 
         // sub-sub-device
         // get all the ordinals for the sub-sub-devices
-        pi_uint32 SubSubDevicesCount = 0;
         std::vector<int> Ordinals;
         std::vector<ze_command_queue_group_properties_t> AllQueueProperties;
-        Result = getComputeCmdQueueOrdinals(PiSubDevice.get(), SubSubDevicesCount, Ordinals, AllQueueProperties);
+        Result = getComputeCmdQueueOrdinals(PiSubDevice.get(), Ordinals, AllQueueProperties);
         if (Result != PI_SUCCESS) {
           return Result;
         }
 
         // Create PI sub-sub-devices with the sub-device for all the ordinals
-        for (uint32_t J = 0; J < SubSubDevicesCount; ++J) {
+        for (uint32_t J = 0; J < Ordinals.size(); ++J) {
           // TODO: check if a device can be it's own parent
           std::unique_ptr<_pi_device> PiSubSubDevice(
             new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
