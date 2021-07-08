@@ -61,7 +61,7 @@ static bool check_separate(device dev, buffer<int, 1> buf,
   // CHECK-SEPARATE: ---> piQueueCreate
   // CHECK-SEPARATE: ---> piMemBufferCreate
   // CHECK-SEPARATE: ---> piEnqueueKernelLaunch
-  // CHECK-SEPARATE: ---> piEventsWait
+  // CHECK-SEPARATE: ---> piQueueFinish
 
   log_pi("Test sub device 1");
   {
@@ -78,7 +78,7 @@ static bool check_separate(device dev, buffer<int, 1> buf,
   // CHECK-SEPARATE: ---> piEnqueueMemBufferWrite
   //
   // CHECK-SEPARATE: ---> piEnqueueKernelLaunch
-  // CHECK-SEPARATE: ---> piEventsWait
+  // CHECK-SEPARATE: ---> piQueueFinish
 
   return true;
 }
@@ -113,7 +113,7 @@ static bool check_shared_context(device dev, buffer<int, 1> buf,
   // see --implicit-check-not above.
   //
   // CHECK-SHARED: ---> piEnqueueKernelLaunch
-  // CHECK-SHARED: ---> piEventsWait
+  // CHECK-SHARED: ---> piQueueFinish
 
   log_pi("Test sub device 1");
   {
@@ -123,7 +123,7 @@ static bool check_shared_context(device dev, buffer<int, 1> buf,
   // CHECK-SHARED: Test sub device 1
   // CHECK-SHARED: ---> piQueueCreate
   // CHECK-SHARED: ---> piEnqueueKernelLaunch
-  // CHECK-SHARED: ---> piEventsWait
+  // CHECK-SHARED: ---> piQueueFinish
   // CHECK-SHARED: ---> piEnqueueMemBufferRead
 
   return true;
@@ -162,7 +162,7 @@ static bool check_fused_context(device dev, buffer<int, 1> buf,
   // *and* the root device): see --implicit-check-not above.
   //
   // CHECK-FUSED: ---> piEnqueueKernelLaunch
-  // CHECK-FUSED: ---> piEventsWait
+  // CHECK-FUSED: ---> piQueueFinish
 
   log_pi("Test sub device 0");
   {
@@ -172,7 +172,7 @@ static bool check_fused_context(device dev, buffer<int, 1> buf,
   // CHECK-FUSED: Test sub device 0
   // CHECK-FUSED: ---> piQueueCreate
   // CHECK-FUSED: ---> piEnqueueKernelLaunch
-  // CHECK-FUSED: ---> piEventsWait
+  // CHECK-FUSED: ---> piQueueFinish
 
   log_pi("Test sub device 1");
   {
@@ -182,7 +182,7 @@ static bool check_fused_context(device dev, buffer<int, 1> buf,
   // CHECK-FUSED: Test sub device 1
   // CHECK-FUSED: ---> piQueueCreate
   // CHECK-FUSED: ---> piEnqueueKernelLaunch
-  // CHECK-FUSED: ---> piEventsWait
+  // CHECK-FUSED: ---> piQueueFinish
   // CHECK-FUSED: ---> piEnqueueMemBufferRead
 
   return true;

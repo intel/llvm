@@ -190,6 +190,7 @@ void testcopyH2DImage() {
             writeAcc.write(int(Item[0]), Data);
           });
     });
+    otherQueue.wait();
     std::cout << "about to destruct 1D" << std::endl;
   } // ~image 1D
 
@@ -224,6 +225,7 @@ void testcopyH2DImage() {
             writeAcc.write(sycl::int2{Item[0], Item[1]}, Data);
           });
     });
+    otherQueue.wait();
     std::cout << "about to destruct 2D" << std::endl;
   } // ~image 2D
 
@@ -260,6 +262,7 @@ void testcopyH2DImage() {
             writeAcc.write(sycl::int4{Item[0], Item[1], Item[2], 0}, Data);
           });
     });
+    otherQueue.wait();
     std::cout << "about to destruct 3D" << std::endl;
   } // ~image 3D
 
@@ -279,6 +282,7 @@ int main() {
 
 // ----------- IMAGES
 
+// clang-format off
 //CHECK: start copyD2H-Image
 //CHECK: -- 1D
 //CHECK: ---> piMemImageCreate(
@@ -319,14 +323,16 @@ int main() {
 //CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
 //CHECK: ---> piEnqueueMemImageRead(
 //CHECK: pi_image_region width/height/depth : 16/1/1
-//CHECK: ---> piEnqueueMemImageWrite(
-//CHECK: pi_image_region width/height/depth : 16/1/1
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
-//CHECK: ---> piEnqueueMemImageRead(
-//CHECK: pi_image_region width/height/depth : 16/1/1
-//CHECK: ---> piEnqueueMemImageWrite(
-//CHECK: pi_image_region width/height/depth : 16/1/1
+// The order of the following calls may vary since some of them are made by a
+// host task (in a separate thread).
+//CHECK-DAG: ---> piMemImageCreate(
+//CHECK-DAG: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
+//CHECK-DAG: ---> piEnqueueMemImageRead(
+//CHECK-DAG: pi_image_region width/height/depth : 16/1/1
+//CHECK-DAG: ---> piEnqueueMemImageWrite(
+//CHECK-DAG: pi_image_region width/height/depth : 16/1/1
+//CHECK-DAG: ---> piEnqueueMemImageWrite(
+//CHECK-DAG: pi_image_region width/height/depth : 16/1/1
 //CHECK: about to destruct 1D
 //CHECK: ---> piEnqueueMemImageRead(
 //CHECK: pi_image_region width/height/depth : 16/1/1
@@ -339,16 +345,18 @@ int main() {
 //CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
 //CHECK: ---> piEnqueueMemImageRead(
 //CHECK: pi_image_region width/height/depth : 16/5/1
-//CHECK: ---> piEnqueueMemImageWrite(
-//CHECK: pi_image_region width/height/depth : 16/5/1
-// CHECK-NEXT: <unknown> : 256
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
-//CHECK: ---> piEnqueueMemImageRead(
-//CHECK: pi_image_region width/height/depth : 16/5/1
-//CHECK: ---> piEnqueueMemImageWrite(
-//CHECK: pi_image_region width/height/depth : 16/5/1
-// CHECK-NEXT: <unknown> : 256
+// The order of the following calls may vary since some of them are made by a
+// host task (in a separate thread).
+//CHECK-DAG: ---> piMemImageCreate(
+//CHECK-DAG: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
+//CHECK-DAG: ---> piEnqueueMemImageRead(
+//CHECK-DAG: pi_image_region width/height/depth : 16/5/1
+//CHECK-DAG: ---> piEnqueueMemImageWrite(
+//CHECK-DAG: pi_image_region width/height/depth : 16/5/1
+//CHECK-DAG: <unknown> : 256
+//CHECK-DAG: ---> piEnqueueMemImageWrite(
+//CHECK-DAG: pi_image_region width/height/depth : 16/5/1
+//CHECK-DAG: <unknown> : 256
 //CHECK: about to destruct 2D
 //CHECK: ---> piEnqueueMemImageRead(
 //CHECK: pi_image_region width/height/depth : 16/5/1
@@ -361,21 +369,24 @@ int main() {
 //CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
 //CHECK: ---> piEnqueueMemImageRead(
 //CHECK: pi_image_region width/height/depth : 16/5/3
-//CHECK: ---> piEnqueueMemImageWrite(
-//CHECK: pi_image_region width/height/depth : 16/5/3
-// CHECK-NEXT: <unknown> : 256
-// CHECK-NEXT: <unknown> : 1280
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
-//CHECK: ---> piEnqueueMemImageRead(
-//CHECK: pi_image_region width/height/depth : 16/5/3
-//CHECK: ---> piEnqueueMemImageWrite(
-//CHECK: pi_image_region width/height/depth : 16/5/3
-// CHECK-NEXT: <unknown> : 256
-// CHECK-NEXT: <unknown> : 1280
+// The order of the following calls may vary since some of them are made by a
+// host task (in a separate thread).
+//CHECK-DAG: ---> piMemImageCreate(
+//CHECK-DAG: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
+//CHECK-DAG: ---> piEnqueueMemImageRead(
+//CHECK-DAG: pi_image_region width/height/depth : 16/5/3
+//CHECK-DAG: ---> piEnqueueMemImageWrite(
+//CHECK-DAG: pi_image_region width/height/depth : 16/5/3
+//CHECK-DAG: <unknown> : 256
+//CHECK-DAG: <unknown> : 1280
+//CHECK-DAG: ---> piEnqueueMemImageWrite(
+//CHECK-DAG: pi_image_region width/height/depth : 16/5/3
+//CHECK-DAG: <unknown> : 256
+//CHECK-DAG: <unknown> : 1280
 //CHECK: about to destruct 3D
 //CHECK: ---> piEnqueueMemImageRead(
 //CHECK: pi_image_region width/height/depth : 16/5/3
 // CHECK-NEXT: <unknown> : 256
 // CHECK-NEXT: <unknown> : 1280
 //CHECK: end copyH2D-image
+// clang-format on

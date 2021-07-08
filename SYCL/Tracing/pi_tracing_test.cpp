@@ -46,12 +46,12 @@
 int main() {
   cl::sycl::queue Queue;
   cl::sycl::buffer<int, 1> Buf(10);
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  cl::sycl::event E = Queue.submit([&](cl::sycl::handler &cgh) {
     auto Acc = Buf.template get_access<cl::sycl::access::mode::read_write>(cgh);
 
     cgh.parallel_for<class CheckTraces>(
         10, [=](cl::sycl::id<1> ID) { Acc[ID] = 5; });
   });
-  Queue.wait();
+  E.wait();
   return 0;
 }

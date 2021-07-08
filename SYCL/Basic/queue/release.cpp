@@ -13,10 +13,12 @@ int main() {
   return 0;
 }
 
-//CHECK: ---> piEnqueueKernelLaunch(
-//CHECK: ---> piQueueRelease(
-//CHECK: ---> piEventRelease(
-//CHECK: ---> piContextRelease(
-//CHECK: ---> piKernelRelease(
-//CHECK: ---> piProgramRelease(
-//CHECK: ---> piDeviceRelease(
+// CHECK: ---> piEnqueueKernelLaunch(
+// FIXME the order of these 2 varies between plugins due to a Level Zero
+// specific queue workaround.
+// CHECK-DAG: ---> piEventRelease(
+// CHECK-DAG: ---> piQueueRelease(
+// CHECK: ---> piContextRelease(
+// CHECK: ---> piKernelRelease(
+// CHECK: ---> piProgramRelease(
+// CHECK: ---> piDeviceRelease(
