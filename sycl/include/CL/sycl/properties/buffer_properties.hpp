@@ -59,7 +59,7 @@ namespace property {
 namespace buffer {
 
 class use_pinned_host_memory
-    : public detail::DataLessProperty<detail::BufferUsePinnedHostMemory> {};
+    : public sycl::detail::DataLessProperty<sycl::detail::BufferUsePinnedHostMemory> {};
 } // namespace buffer
 } // namespace property
 } // namespace oneapi

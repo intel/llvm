@@ -14,12 +14,51 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 using ext::oneapi::memory_scope;
 
+enum class memory_order : int {
+  relaxed = 0,
+  acquire = 1,
+  __consume_unsupported =
+      2, // helps optimizer when mapping to std::memory_order
+  release = 3,
+  acq_rel = 4,
+  seq_cst = 5
+};
+
 #if __cplusplus >= 201703L
 inline constexpr auto memory_scope_work_item = memory_scope::work_item;
 inline constexpr auto memory_scope_sub_group = memory_scope::sub_group;
 inline constexpr auto memory_scope_work_group = memory_scope::work_group;
 inline constexpr auto memory_scope_device = memory_scope::device;
 inline constexpr auto memory_scope_system = memory_scope::system;
+
+inline constexpr auto memory_order_relaxed = memory_order::relaxed;
+inline constexpr auto memory_order_acquire = memory_order::acquire;
+inline constexpr auto memory_order_release = memory_order::release;
+inline constexpr auto memory_order_acq_rel = memory_order::acq_rel;
+inline constexpr auto memory_order_seq_cst = memory_order::seq_cst;
 #endif
+
+#ifndef __SYCL_DEVICE_ONLY__
+namespace detail {
+
+static constexpr std::memory_order getStdMemoryOrder(sycl::memory_order order) {
+  switch (order) {
+  case memory_order::relaxed:
+    return std::memory_order_relaxed;
+  case memory_order::__consume_unsupported:
+    return std::memory_order_consume;
+  case memory_order::acquire:
+    return std::memory_order_acquire;
+  case memory_order::release:
+    return std::memory_order_release;
+  case memory_order::acq_rel:
+    return std::memory_order_acq_rel;
+  case memory_order::seq_cst:
+    return std::memory_order_seq_cst;
+  }
+}
+
+} // namespace detail
+#endif // __SYCL_DEVICE_ONLY__
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

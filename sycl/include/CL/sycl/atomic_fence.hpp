@@ -1,4 +1,4 @@
-//==---- atomic_fence.hpp - SYCL_ONEAPI_extended_atomics atomic_fence ------==//
+//==--------- atomic_fence.hpp - SYCL 2020 atomic_fence --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +10,7 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/detail/spirv.hpp>
-#include <CL/sycl/oneapi/atomic_enums.hpp>
+#include <CL/sycl/memory_enums.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>
@@ -18,13 +18,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace detail {
-using namespace cl::sycl::detail;
-}
 
-__SYCL2020_DEPRECATED("use sycl::atomic_fence instead")
 static inline void atomic_fence(memory_order order, memory_scope scope) {
 #ifdef __SYCL_DEVICE_ONLY__
   auto SPIRVOrder = detail::spirv::getMemorySemanticsMask(order);
@@ -37,11 +31,5 @@ static inline void atomic_fence(memory_order order, memory_scope scope) {
 #endif
 }
 
-} // namespace oneapi
-} // namespace ext
-
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
