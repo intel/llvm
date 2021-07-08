@@ -2591,6 +2591,9 @@ is ignored on the host.
 The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an
 effect when applied to a function, and no effect otherwise.
 
+If ``intel::use_stall_enable_clusters`` is applied to a function called from a device
+kernel, the attribute is ignored and it is not propagated to the kernel.
+
 .. code-block:: c++
 
   class Foo {
@@ -2604,6 +2607,14 @@ effect when applied to a function, and no effect otherwise.
     [[intel::use_stall_enable_clusters]] void operator()() const {}
   };
 
+  class Functor
+  {
+      [[intel::use_stall_enable_clusters]] void operator()(item<1> item)
+      {
+          /* kernel code */
+      }
+  }
+
 The ``intel::use_stall_enable_clusters`` attribute supports a nonconforming
 behavior when applied to a lambda in the type position.
 
@@ -2613,6 +2624,11 @@ behavior when applied to a lambda in the type position.
     auto lambda = []() [[intel::use_stall_enable_clusters]]{};
     lambda();
   }
+
+  kernel<class kernel_name>(
+  []() [[intel::use_stall_enable_clusters]] {
+       /* kernel code */
+  });
 
   }];
 }
