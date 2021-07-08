@@ -14,7 +14,6 @@
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
-#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
@@ -25,6 +24,7 @@
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 
 #include <algorithm>
 #include <cassert>

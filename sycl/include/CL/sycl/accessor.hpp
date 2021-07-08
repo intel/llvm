@@ -21,12 +21,12 @@
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/image.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/properties/accessor_properties.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/property_list_conversion.hpp>
 #include <CL/sycl/sampler.hpp>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
 
 #include <type_traits>
 

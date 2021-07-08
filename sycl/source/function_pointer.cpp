@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/ext/oneapi/function_pointer.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/program_impl.hpp>
+#include <sycl/ext/oneapi/function_pointer.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

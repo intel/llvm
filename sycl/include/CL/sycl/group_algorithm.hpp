@@ -16,8 +16,8 @@
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/known_identity.hpp>
 #include <CL/sycl/nd_item.hpp>
-#include <sycl/ext/oneapi/functional.hpp>
 #include <CL/sycl/sub_group.hpp>
+#include <sycl/ext/oneapi/functional.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

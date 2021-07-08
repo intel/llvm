@@ -2,14 +2,16 @@
 // expected-no-diagnostics
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <limits>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <utility>
 
 using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
-void kernel(accessor<int, 1, access::mode::read_write, access::target::global_buffer> &buf) __attribute__((sycl_device)) {
+void kernel(accessor<int, 1, access::mode::read_write,
+                     access::target::global_buffer> &buf)
+    __attribute__((sycl_device)) {
   simd<uint32_t, 32> offsets(0, 1);
   simd<int, 32> v1(0, 1);
 
@@ -20,7 +22,9 @@ void kernel(accessor<int, 1, access::mode::read_write, access::target::global_bu
   scatter<int, 32>(buf.get_pointer(), v0, offsets);
 }
 
-void kernel(accessor<uint8_t, 1, access::mode::read_write, access::target::global_buffer> &buf) __attribute__((sycl_device)) {
+void kernel(accessor<uint8_t, 1, access::mode::read_write,
+                     access::target::global_buffer> &buf)
+    __attribute__((sycl_device)) {
   simd<uint32_t, 32> offsets(0, 1);
   simd<uint8_t, 32> v1(0, 1);
 
@@ -33,7 +37,9 @@ void kernel(accessor<uint8_t, 1, access::mode::read_write, access::target::globa
   scatter<uint8_t, 32>(buf.get_pointer(), v0, offsets);
 }
 
-void kernel(accessor<uint16_t, 1, access::mode::read_write, access::target::global_buffer> &buf) __attribute__((sycl_device)) {
+void kernel(accessor<uint16_t, 1, access::mode::read_write,
+                     access::target::global_buffer> &buf)
+    __attribute__((sycl_device)) {
   simd<uint32_t, 32> offsets(0, 1);
   simd<uint16_t, 32> v1(0, 1);
 

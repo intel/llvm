@@ -10,8 +10,8 @@
 // accessor_property_list. A separate file helps to avoid cyclic dependencies
 // between header files.
 
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <CL/sycl/property_list.hpp>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

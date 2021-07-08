@@ -4,8 +4,8 @@
 // must produce deprecation messages.
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <limits>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <utility>
 
 using namespace sycl::ext::intel::experimental::esimd;
@@ -17,7 +17,8 @@ void kernel0(accessor<uint32_t, 1, access::mode::read_write,
 
   // CHECK: flat_atomic.cpp:20{{.*}}warning: 'ATOMIC_INC' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
-  flat_atomic<EsimdAtomicOpType::ATOMIC_INC, uint32_t, 32>(buf.get_pointer(), offsets, 1);
+  flat_atomic<EsimdAtomicOpType::ATOMIC_INC, uint32_t, 32>(buf.get_pointer(),
+                                                           offsets, 1);
   flat_atomic<atomic_op::inc, uint32_t, 32>(buf.get_pointer(), offsets, 1);
 }
 
@@ -28,7 +29,8 @@ void kernel1(accessor<uint32_t, 1, access::mode::read_write,
 
   // CHECK: flat_atomic.cpp:31{{.*}}warning: 'ATOMIC_ADD' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
-  flat_atomic<EsimdAtomicOpType::ATOMIC_ADD, uint32_t, 32>(buf.get_pointer(), offsets, v1, 1);
+  flat_atomic<EsimdAtomicOpType::ATOMIC_ADD, uint32_t, 32>(buf.get_pointer(),
+                                                           offsets, v1, 1);
   flat_atomic<atomic_op::add, uint32_t, 32>(buf.get_pointer(), offsets, v1, 1);
 }
 
@@ -39,7 +41,8 @@ void kernel2(accessor<uint32_t, 1, access::mode::read_write,
 
   // CHECK: flat_atomic.cpp:42{{.*}}warning: 'ATOMIC_CMPXCHG' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
-  flat_atomic<EsimdAtomicOpType::ATOMIC_CMPXCHG, uint32_t, 32>(buf.get_pointer(), offsets, v1, v1, 1);
+  flat_atomic<EsimdAtomicOpType::ATOMIC_CMPXCHG, uint32_t, 32>(
+      buf.get_pointer(), offsets, v1, v1, 1);
   flat_atomic<atomic_op::cmpxchg, uint32_t, 32>(buf.get_pointer(), offsets, v1,
                                                 v1, 1);
 }

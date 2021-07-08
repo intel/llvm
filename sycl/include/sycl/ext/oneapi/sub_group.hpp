@@ -18,9 +18,9 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/memory_enums.hpp>
-#include <sycl/ext/oneapi/functional.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
+#include <sycl/ext/oneapi/functional.hpp>
 
 #include <type_traits>
 
