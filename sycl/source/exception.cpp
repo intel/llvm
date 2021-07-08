@@ -20,7 +20,7 @@ char reserved_for_errorcode[] =
     "0SYCL1234567812345678"; // 17 (string terminator plus 'SYCL' marker plus
                              // error code)
 std::error_code sycl121_proxy_errorcode = make_error_code(sycl::errc::invalid);
-}
+} // namespace
 
 exception::exception(std::error_code ec, const char *Msg)
     : exception(static_cast<context *>(nullptr), ec, Msg) {}
