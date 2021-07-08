@@ -528,7 +528,6 @@ __esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
 namespace cm_support {
 #include <CL/cm_rt.h>
 } // namespace cm_support
-#include "cmrt_if_defs.hpp"
 
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/pi.hpp>
@@ -847,15 +846,18 @@ __esimd_media_block_load(unsigned modififer, TACC handle, unsigned plane,
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
-  _pi_image *img =
-      static_cast<_pi_image *>(static_cast<void *>(handle.get_pointer()));
-  std::unique_lock<std::mutex> lock(img->mutexLock);
+  char *readBase;
+  uint32_t bpp;
+  uint32_t imgWidth;
+  uint32_t imgHeight;
+  std::mutex mutexLock;
 
-  char *readBase = I->sycl_get_surface_base_addr_ptr(img->SurfaceIndex);
+  I->sycl_get_cm_image_params_ptr(static_cast<void *>(handle.get_pointer()),
+                                  &readBase, &imgWidth, &imgHeight, &bpp,
+                                  &mutexLock);
 
-  uint32_t bpp = static_cast<uint32_t>(img->BytesPerPixel);
-  uint32_t imgWidth = static_cast<uint32_t>(img->Width) * bpp;
-  uint32_t imgHeight = static_cast<uint32_t>(img->Height);
+  std::unique_lock<std::mutex> lock(mutexLock);
+
   int x_pos_a, y_pos_a, offset, index;
 
   // TODO : Remove intermediate 'in' matrix
@@ -954,14 +956,16 @@ inline void __esimd_media_block_store(unsigned modififer, TACC handle,
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
-  _pi_image *img =
-      static_cast<_pi_image *>(static_cast<void *>(handle.get_pointer()));
+  char *writeBase;
+  uint32_t bpp;
+  uint32_t imgWidth;
+  uint32_t imgHeight;
+  std::mutex mutexLock;
 
-  char *writeBase = I->sycl_get_surface_base_addr_ptr(img->SurfaceIndex);
+  I->sycl_get_cm_image_params_ptr(static_cast<void *>(handle.get_pointer()),
+                                  &writeBase, &imgWidth, &imgHeight, &bpp,
+                                  &mutexLock);
 
-  uint32_t bpp = static_cast<uint32_t>(img->BytesPerPixel);
-  uint32_t imgWidth = static_cast<uint32_t>(img->Width) * bpp;
-  uint32_t imgHeight = static_cast<uint32_t>(img->Height);
   int x_pos_a, y_pos_a, offset;
 
   assert((x % 4) == 0);
@@ -970,7 +974,7 @@ inline void __esimd_media_block_store(unsigned modififer, TACC handle,
   // TODO : Remove intermediate 'out' matrix
   std::vector<std::vector<Ty>> out(M, std::vector<Ty>(N));
 
-  std::unique_lock<std::mutex> lock(img->mutexLock);
+  std::unique_lock<std::mutex> lock(mutexLock);
 
   for (int i = 0, k = 0; i < M; i++) {
     for (int j = 0; j < N; j++) {
@@ -1335,23 +1339,23 @@ __esimd_block_read(SurfIndAliasTy surf_ind, uint32_t offset) {
   __SEIEED::vector_type_t<Ty, N> retv;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
-  _pi_buffer *buf =
-      static_cast<_pi_buffer *>(static_cast<void *>(surf_ind.get_pointer()));
 
-  char *readBase = I->sycl_get_surface_base_addr_ptr(buf->SurfaceIndex);
+  char *readBase;
+  uint32_t width;
+  std::mutex mutexLock;
 
-  uint32_t width = static_cast<uint32_t>(buf->Size);
-  uint32_t pos = offset;
+  I->sycl_get_cm_buffer_params_ptr(static_cast<void *>(surf_ind.get_pointer()),
+                                   &readBase, &width, &mutexLock);
 
-  std::unique_lock<std::mutex> lock(buf->mutexLock);
+  std::unique_lock<std::mutex> lock(mutexLock);
 
   for (int idx = 0; idx < N; idx++) {
-    if (pos >= width) {
+    if (offset >= width) {
       retv[idx] = 0;
     } else {
-      retv[idx] = *((Ty *)(readBase + pos));
+      retv[idx] = *((Ty *)(readBase + offset));
     }
-    pos += (uint32_t)sizeof(Ty);
+    offset += (uint32_t)sizeof(Ty);
   }
 
   return retv;
@@ -1362,25 +1366,25 @@ inline void __esimd_block_write(SurfIndAliasTy surf_ind, uint32_t offset,
                                 __SEIEED::vector_type_t<Ty, N> vals) {
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
-  _pi_buffer *buf =
-      static_cast<_pi_buffer *>(static_cast<void *>(surf_ind.get_pointer()));
 
-  char *writeBase = I->sycl_get_surface_base_addr_ptr(buf->SurfaceIndex);
+  char *writeBase;
+  uint32_t width;
+  std::mutex mutexLock;
 
-  uint32_t width = static_cast<uint32_t>(buf->Size);
-  assert(buf->Size == width);
+  I->sycl_get_cm_buffer_params_ptr(static_cast<void *>(surf_ind.get_pointer()),
+                                   &writeBase, &width, &mutexLock);
 
-  uint32_t pos = offset << 4;
+  std::unique_lock<std::mutex> lock(mutexLock);
 
-  std::unique_lock<std::mutex> lock(buf->mutexLock);
+  offset <<= 4;
 
   for (int idx = 0; idx < N; idx++) {
-    if (pos < width) {
-      *((Ty *)(writeBase + pos)) = vals[idx];
+    if (offset < width) {
+      *((Ty *)(writeBase + offset)) = vals[idx];
     } else {
       break;
     }
-    pos += (uint32_t)sizeof(Ty);
+    offset += (uint32_t)sizeof(Ty);
   }
 
   /// TODO : Optimize

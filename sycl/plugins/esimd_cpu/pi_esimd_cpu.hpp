@@ -43,5 +43,4 @@ template <> uint32_t pi_cast(uint64_t Value) {
   std::terminate();
 }
 
-#include <sycl/ext/intel/experimental/esimd/detail/cmrt_if_defs.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/emu/esimdcpu_device_interface.hpp>
