@@ -97,8 +97,8 @@ TEST(SpecConstDefaultValues, DefaultValuesAreSet) {
   auto DevImage = sycl::detail::getSyclObjImpl(*KernelBundle.begin());
   const auto &Blob = DevImage->get_spec_const_blob_ref();
 
-  int SpecConstVal1 = *reinterpret_cast<const int*>(Blob.data());
-  int SpecConstVal2 = *(reinterpret_cast<const int*>(Blob.data()) + 1);
+  int SpecConstVal1 = *reinterpret_cast<const int *>(Blob.data());
+  int SpecConstVal2 = *(reinterpret_cast<const int *>(Blob.data()) + 1);
 
   EXPECT_EQ(SpecConstVal1, 42);
   EXPECT_EQ(SpecConstVal2, 8);
@@ -130,16 +130,16 @@ TEST(SpecConstDefaultValues, DefaultValuesAreOverriden) {
 
   auto DevImage = sycl::detail::getSyclObjImpl(*KernelBundle.begin());
   auto &Blob = DevImage->get_spec_const_blob_ref();
-  int SpecConstVal1 = *reinterpret_cast<int*>(Blob.data() );
-  int SpecConstVal2 = *(reinterpret_cast<int*>(Blob.data()) + 1);
+  int SpecConstVal1 = *reinterpret_cast<int *>(Blob.data());
+  int SpecConstVal2 = *(reinterpret_cast<int *>(Blob.data()) + 1);
 
   EXPECT_EQ(SpecConstVal1, 42);
   EXPECT_EQ(SpecConstVal2, 8);
 
   KernelBundle.set_specialization_constant<SpecConst1>(80);
 
-  SpecConstVal1 = *reinterpret_cast<int*>(Blob.data() );
-  SpecConstVal2 = *(reinterpret_cast<int*>(Blob.data()) + 1);
+  SpecConstVal1 = *reinterpret_cast<int *>(Blob.data());
+  SpecConstVal2 = *(reinterpret_cast<int *>(Blob.data()) + 1);
 
   EXPECT_EQ(SpecConstVal1, 80);
   EXPECT_EQ(SpecConstVal2, 8);
