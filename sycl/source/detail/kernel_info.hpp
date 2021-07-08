@@ -21,8 +21,8 @@ namespace detail {
 // OpenCL kernel information methods
 template <typename T, info::kernel Param> struct get_kernel_info {};
 
-template <info::kernel Param> struct get_kernel_info<string_class, Param> {
-  static string_class get(RT::PiKernel Kernel, const plugin &Plugin) {
+template <info::kernel Param> struct get_kernel_info<std::string, Param> {
+  static std::string get(RT::PiKernel Kernel, const plugin &Plugin) {
     size_t ResultSize;
 
     // TODO catch an exception and put it to list of asynchronous exceptions
@@ -31,11 +31,11 @@ template <info::kernel Param> struct get_kernel_info<string_class, Param> {
     if (ResultSize == 0) {
       return "";
     }
-    vector_class<char> Result(ResultSize);
+    std::vector<char> Result(ResultSize);
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, pi_kernel_info(Param),
                                             ResultSize, Result.data(), nullptr);
-    return string_class(Result.data());
+    return std::string(Result.data());
   }
 };
 

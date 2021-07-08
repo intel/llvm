@@ -1,7 +1,7 @@
-// RUN: %clangxx -fsycl -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
-// RUN: %clangxx -fsycl -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
-// RUN: %clangxx -fsycl -sycl-std=2017 -Werror %s -o %t.out
-// RUN: %clangxx -fsycl -sycl-std=1.2.1 -Werror %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=2017 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=1.2.1 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 #include <CL/sycl.hpp>
 
@@ -22,6 +22,8 @@ int main() {
   sycl::device Device{DevId};
   // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
   (void)Device.get();
+  // expected-warning@+1 {{'has_extension' is deprecated: use device::has() function with aspects APIs instead}}
+  (void)Device.has_extension("abc");
 
   cl_event ClEvent;
   // expected-warning@+1 {{'event' is deprecated: OpenCL interop APIs are deprecated}}
@@ -38,6 +40,8 @@ int main() {
   sycl::platform Platform{ClPlatform};
   // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
   (void)Platform.get();
+  // expected-warning@+1 {{'has_extension' is deprecated: use platform::has() function with aspects APIs instead}}
+  (void)Platform.has_extension("abc");
 
   cl_command_queue ClQueue;
   // expected-warning@+1 {{'queue' is deprecated: OpenCL interop APIs are deprecated}}
@@ -92,6 +96,37 @@ int main() {
   sycl::profiling_error pre;
   // expected-warning@+1 {{'feature_not_supported' is deprecated}}
   sycl::feature_not_supported fns;
+  // expected-warning@+1{{'string_class' is deprecated: use STL classes directly}}
+  sycl::string_class Str = "abc";
+  (void)Str;
+  // expected-warning@+1{{'mutex_class' is deprecated: use STL classes directly}}
+  sycl::mutex_class Mtx;
+  (void)Mtx;
+
+  Queue.submit([](sycl::handler &CGH) {
+    // expected-warning@+3{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
+    // expected-warning@+2{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
+    CGH.parallel_for<class Test>(
+        sycl::nd_range<1>{sycl::range{10}, sycl::range{10}, sycl::range{1}},
+        [](sycl::nd_item<1> it) {
+          // expected-warning@+1{{'barrier' is deprecated: use sycl::group_barrier() free function instead}}
+          it.barrier();
+          // expected-warning@+2{{'mem_fence' is deprecated: use sycl::group_barrier() free function instead}}
+          // expected-warning@+1{{'mem_fence<sycl::access::mode::read_write>' is deprecated: use sycl::group_barrier() free function instead}}
+          it.mem_fence();
+        });
+  });
+
+  // expected-warning@+1{{'byte' is deprecated: use std::byte instead}}
+  sycl::byte B;
+  (void)B;
+
+  // expected-warning@+1{{'max_constant_buffer_size' is deprecated: max_constant_buffer_size is deprecated}}
+  auto MCBS = sycl::info::device::max_constant_buffer_size;
+  (void)MCBS;
+  // expected-warning@+1{{'max_constant_args' is deprecated: max_constant_args is deprecated}}
+  auto MCA = sycl::info::device::max_constant_args;
+  (void)MCA;
 
   return 0;
 }

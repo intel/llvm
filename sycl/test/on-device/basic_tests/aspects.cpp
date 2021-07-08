@@ -57,6 +57,9 @@ int main() {
     if (plt.has(aspect::int64_extended_atomics)) {
       std::cout << "  extended atomic operations" << std::endl;
     }
+    if (plt.has(aspect::atomic64)) {
+      std::cout << "  atomic64" << std::endl;
+    }
     if (plt.has(aspect::image)) {
       std::cout << "  images" << std::endl;
     }
@@ -75,8 +78,14 @@ int main() {
     if (plt.has(aspect::usm_host_allocations)) {
       std::cout << "  USM host allocations" << std::endl;
     }
+    if (plt.has(aspect::usm_atomic_host_allocations)) {
+      std::cout << "  USM atomic host allocations" << std::endl;
+    }
     if (plt.has(aspect::usm_shared_allocations)) {
       std::cout << "  USM shared allocations" << std::endl;
+    }
+    if (plt.has(aspect::usm_atomic_shared_allocations)) {
+      std::cout << "  USM atomic shared allocations" << std::endl;
     }
     if (plt.has(aspect::usm_restricted_shared_allocations)) {
       std::cout << "  USM restricted shared allocations" << std::endl;
