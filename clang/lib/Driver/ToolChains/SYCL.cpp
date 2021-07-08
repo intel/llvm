@@ -153,6 +153,7 @@ static llvm::SmallVector<StringRef, 10> SYCLDeviceLibList{
     "complex",
     "complex-fp64",
     "fallback-cassert",
+    "fallback-cstring",
     "fallback-cmath",
     "fallback-cmath-fp64",
     "fallback-complex",
