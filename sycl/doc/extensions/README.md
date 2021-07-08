@@ -42,6 +42,7 @@ DPC++ extensions status:
 | [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
 | [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
 | [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc) | Proposal | |
+| [Matrix](Matrix/dpcpp-joint-matrix.asciidoc)                                                                        | Partially supported(AMX AOT)               | Not supported: dynamic-extent, wg and wi scopes, layouts other than packed|
 
 Legend:
 
