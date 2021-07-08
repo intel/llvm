@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/oneapi/filter_selector.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/oneapi/filter_selector.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
@@ -244,6 +244,7 @@ int host_selector::operator()(const device &dev) const {
   return Score;
 }
 
+namespace ext {
 namespace oneapi {
 
 filter_selector::filter_selector(const std::string &Input)
@@ -267,20 +268,21 @@ device filter_selector::select_device() const {
 }
 
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
   filter_selector::filter_selector(const std::string &Input)
-      : oneapi::filter_selector(Input) {}
+      : ext::oneapi::filter_selector(Input) {}
 
   int filter_selector::operator()(const device &Dev) const {
-    return oneapi::filter_selector::operator()(Dev);
+    return ext::oneapi::filter_selector::operator()(Dev);
   }
 
-  void filter_selector::reset() const { oneapi::filter_selector::reset(); }
+  void filter_selector::reset() const { ext::oneapi::filter_selector::reset(); }
 
   device filter_selector::select_device() const {
-    return oneapi::filter_selector::select_device();
+    return ext::oneapi::filter_selector::select_device();
   }
 } // namespace ONEAPI
 } // namespace sycl

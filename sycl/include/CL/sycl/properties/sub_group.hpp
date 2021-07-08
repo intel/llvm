@@ -10,7 +10,6 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/oneapi/functional.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
@@ -19,6 +18,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/memory_enums.hpp>
+#include <CL/sycl/oneapi/functional.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
 
@@ -97,6 +97,7 @@ void store(multi_ptr<T, Space> dst, const vec<T, N> &x) {
 
 } // namespace detail
 
+namespace ext {
 namespace oneapi {
 
 struct sub_group {
@@ -585,7 +586,7 @@ struct sub_group {
   /* --- deprecated collective functions --- */
   template <typename T>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::oneapi::broadcast instead.")
+                    "sycl::ext::oneapi::broadcast instead.")
   EnableIfIsScalarArithmetic<T> broadcast(T x, id<1> local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::spirv::GroupBroadcast<sub_group>(x, local_id);
@@ -599,7 +600,7 @@ struct sub_group {
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::oneapi::reduce instead.")
+                    "sycl::ext::oneapi::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::calc<T, __spv::GroupOperation::Reduce,
@@ -615,7 +616,7 @@ struct sub_group {
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::oneapi::reduce instead.")
+                    "sycl::ext::oneapi::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, T init, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return op(init, reduce(x, op));
@@ -630,7 +631,7 @@ struct sub_group {
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::oneapi::exclusive_scan instead.")
+                    "sycl::ext::oneapi::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::calc<T, __spv::GroupOperation::ExclusiveScan,
@@ -646,7 +647,7 @@ struct sub_group {
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::oneapi::exclusive_scan instead.")
+                    "sycl::ext::oneapi::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, T init,
                                                BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -669,7 +670,7 @@ struct sub_group {
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::oneapi::inclusive_scan instead.")
+                    "sycl::ext::oneapi::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::calc<T, __spv::GroupOperation::InclusiveScan,
@@ -685,7 +686,7 @@ struct sub_group {
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::oneapi::inclusive_scan instead.")
+                    "sycl::ext::oneapi::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op,
                                                T init) const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -745,9 +746,10 @@ inline sub_group this_sub_group() {
 }
 
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

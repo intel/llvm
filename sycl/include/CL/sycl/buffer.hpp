@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/oneapi/accessor_property_list.hpp>
 #include <CL/sycl/detail/buffer_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/oneapi/accessor_property_list.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -272,41 +272,41 @@ public:
   template <access::mode Mode,
             access::target Target = access::target::global_buffer>
   accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
-           oneapi::accessor_property_list<>>
+           ext::oneapi::accessor_property_list<>>
   get_access(handler &CommandGroupHandler) {
     return accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
-                    oneapi::accessor_property_list<>>(*this,
-                                                      CommandGroupHandler);
+                    ext::oneapi::accessor_property_list<>>(*this,
+                                                           CommandGroupHandler);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t, oneapi::accessor_property_list<>>
+           access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
   get_access() {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
-                    oneapi::accessor_property_list<>>(*this);
+                    ext::oneapi::accessor_property_list<>>(*this);
   }
 
   template <access::mode mode,
             access::target target = access::target::global_buffer>
   accessor<T, dimensions, mode, target, access::placeholder::false_t,
-           oneapi::accessor_property_list<>>
+           ext::oneapi::accessor_property_list<>>
   get_access(handler &commandGroupHandler, range<dimensions> accessRange,
              id<dimensions> accessOffset = {}) {
     return accessor<T, dimensions, mode, target, access::placeholder::false_t,
-                    oneapi::accessor_property_list<>>(
+                    ext::oneapi::accessor_property_list<>>(
         *this, commandGroupHandler, accessRange, accessOffset);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t, oneapi::accessor_property_list<>>
+           access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
   get_access(range<dimensions> accessRange, id<dimensions> accessOffset = {}) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
-                    oneapi::accessor_property_list<>>(*this, accessRange,
-                                                      accessOffset);
+                    ext::oneapi::accessor_property_list<>>(*this, accessRange,
+                                                           accessOffset);
   }
 
 #if __cplusplus > 201402L
@@ -464,24 +464,23 @@ private:
 #ifdef __cpp_deduction_guides
 template <class InputIterator, class AllocatorT>
 buffer(InputIterator, InputIterator, AllocatorT, const property_list & = {})
-    ->buffer<typename std::iterator_traits<InputIterator>::value_type, 1,
-             AllocatorT>;
+    -> buffer<typename std::iterator_traits<InputIterator>::value_type, 1,
+              AllocatorT>;
 template <class InputIterator>
 buffer(InputIterator, InputIterator, const property_list & = {})
-    ->buffer<typename std::iterator_traits<InputIterator>::value_type, 1>;
+    -> buffer<typename std::iterator_traits<InputIterator>::value_type, 1>;
 template <class Container, class AllocatorT>
 buffer(Container &, AllocatorT, const property_list & = {})
-    ->buffer<typename Container::value_type, 1, AllocatorT>;
+    -> buffer<typename Container::value_type, 1, AllocatorT>;
 template <class Container>
 buffer(Container &, const property_list & = {})
-    ->buffer<typename Container::value_type, 1>;
+    -> buffer<typename Container::value_type, 1>;
 template <class T, int dimensions, class AllocatorT>
 buffer(const T *, const range<dimensions> &, AllocatorT,
-       const property_list & = {})
-    ->buffer<T, dimensions, AllocatorT>;
+       const property_list & = {}) -> buffer<T, dimensions, AllocatorT>;
 template <class T, int dimensions>
 buffer(const T *, const range<dimensions> &, const property_list & = {})
-    ->buffer<T, dimensions>;
+    -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
 
 } // namespace sycl

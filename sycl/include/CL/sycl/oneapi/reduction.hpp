@@ -9,18 +9,19 @@
 #pragma once
 
 #include "CL/sycl/oneapi/accessor_property_list.hpp"
-#include <CL/sycl/oneapi/group_algorithm.hpp>
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/detail/tuple.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/known_identity.hpp>
+#include <CL/sycl/oneapi/group_algorithm.hpp>
 
 #include <tuple>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace oneapi {
 
 namespace detail {
@@ -160,7 +161,7 @@ private:
 /// using those operations, which are based on functionality provided by
 /// sycl::atomic class.
 ///
-/// For example, it is known that 0 is identity for oneapi::plus operations
+/// For example, it is known that 0 is identity for ext::oneapi::plus operations
 /// accepting native scalar types to which scalar 0 is convertible.
 /// Also, for int32/64 types the atomic_combine() is lowered to
 /// sycl::atomic::fetch_add().
@@ -268,7 +269,8 @@ public:
         .fetch_and(MValue);
   }
 
-  /// Atomic MIN operation: *ReduVarPtr = oneapi::minimum(*ReduVarPtr, MValue);
+  /// Atomic MIN operation: *ReduVarPtr = ext::oneapi::minimum(*ReduVarPtr,
+  /// MValue);
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
@@ -278,7 +280,8 @@ public:
         .fetch_min(MValue);
   }
 
-  /// Atomic MAX operation: *ReduVarPtr = oneapi::maximum(*ReduVarPtr, MValue);
+  /// Atomic MAX operation: *ReduVarPtr = ext::oneapi::maximum(*ReduVarPtr,
+  /// MValue);
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
@@ -320,11 +323,11 @@ public:
   using binary_operation = BinaryOperation;
   using rw_accessor_type =
       accessor<T, Dims, access::mode::read_write, access::target::global_buffer,
-               IsPlaceholder, oneapi::accessor_property_list<>>;
+               IsPlaceholder, ext::oneapi::accessor_property_list<>>;
   using dw_accessor_type =
       accessor<T, Dims, access::mode::discard_write,
                access::target::global_buffer, IsPlaceholder,
-               oneapi::accessor_property_list<>>;
+               ext::oneapi::accessor_property_list<>>;
   static constexpr int accessor_dim = Dims;
   static constexpr int buffer_dim = (Dims == 0) ? 1 : Dims;
   using local_accessor_type =
@@ -737,11 +740,12 @@ struct get_reduction_aux_kernel_name_t {
 /// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function KernelFunc and also does one iteration of reduction
 /// of elements computed in user's lambda function.
-/// This version uses oneapi::reduce() algorithm to reduce elements in each
+/// This version uses ext::oneapi::reduce() algorithm to reduce elements in each
 /// of work-groups, then it calls fast SYCL atomic operations to update
 /// the given reduction variable \p Out.
 ///
-/// Briefly: calls user's lambda, oneapi::reduce() + atomic, INT + ADD/MIN/MAX.
+/// Briefly: calls user's lambda, ext::oneapi::reduce() + atomic, INT +
+/// ADD/MIN/MAX.
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
           bool IsPow2WG>
 enable_if_t<Reduction::has_fast_reduce && Reduction::has_fast_atomics>
@@ -755,7 +759,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
     KernelFunc(NDIt, Reducer);
 
     typename Reduction::binary_operation BOp;
-    Reducer.MValue = oneapi::reduce(NDIt.get_group(), Reducer.MValue, BOp);
+    Reducer.MValue = ext::oneapi::reduce(NDIt.get_group(), Reducer.MValue, BOp);
     if (NDIt.get_local_linear_id() == 0)
       Reducer.atomic_combine(Reduction::getOutPointer(Out));
   });
@@ -854,11 +858,11 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 /// Implements a command group function that enqueues a kernel that
 /// calls user's lambda function and does one iteration of reduction
 /// of elements in each of work-groups.
-/// This version uses oneapi::reduce() algorithm to reduce elements in each
+/// This version uses ext::oneapi::reduce() algorithm to reduce elements in each
 /// of work-groups. At the end of each work-groups the partial sum is written
 /// to a global buffer.
 ///
-/// Briefly: user's lambda, oneapi::reduce(), FP + ADD/MIN/MAX.
+/// Briefly: user's lambda, ext::oneapi::reduce(), FP + ADD/MIN/MAX.
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
           bool IsPow2WG>
 enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
@@ -880,7 +884,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
     size_t WGID = NDIt.get_group_linear_id();
     typename Reduction::result_type PSum = Reducer.MValue;
     typename Reduction::binary_operation BOp;
-    PSum = oneapi::reduce(NDIt.get_group(), PSum, BOp);
+    PSum = ext::oneapi::reduce(NDIt.get_group(), PSum, BOp);
     if (NDIt.get_local_linear_id() == 0) {
       if (IsUpdateOfUserVar)
         PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
@@ -980,11 +984,11 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 
 /// Implements a command group function that enqueues a kernel that does one
 /// iteration of reduction of elements in each of work-groups.
-/// This version uses oneapi::reduce() algorithm to reduce elements in each
+/// This version uses ext::oneapi::reduce() algorithm to reduce elements in each
 /// of work-groups. At the end of each work-groups the partial sum is written
 /// to a global buffer.
 ///
-/// Briefly: aux kernel, oneapi::reduce(), reproducible results, FP +
+/// Briefly: aux kernel, ext::oneapi::reduce(), reproducible results, FP +
 /// ADD/MIN/MAX
 template <typename KernelName, typename KernelType, bool UniformWG,
           class Reduction, typename InputT, typename OutputT>
@@ -1005,7 +1009,7 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
         (UniformWG || (GID < NWorkItems))
             ? In[GID]
             : Reduction::reducer_type::getIdentity();
-    PSum = oneapi::reduce(NDIt.get_group(), PSum, BOp);
+    PSum = ext::oneapi::reduce(NDIt.get_group(), PSum, BOp);
     if (NDIt.get_local_linear_id() == 0) {
       if (IsUpdateOfUserVar)
         PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
@@ -1725,9 +1729,10 @@ __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
     known_identity<BinaryOperation, AccumulatorT>::value;
 
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
   namespace detail {
   using cl::sycl::detail::queue_impl;
   __SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,

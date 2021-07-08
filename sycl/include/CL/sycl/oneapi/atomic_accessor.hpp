@@ -8,13 +8,14 @@
 
 #pragma once
 
-#include <CL/sycl/oneapi/atomic_enums.hpp>
-#include <CL/sycl/oneapi/atomic_ref.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/oneapi/atomic_enums.hpp>
+#include <CL/sycl/oneapi/atomic_ref.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace oneapi {
 
 #if __cplusplus > 201402L
@@ -45,11 +46,11 @@ template <typename DataT, int Dimensions, memory_order DefaultOrder,
           access::placeholder IsPlaceholder = access::placeholder::false_t>
 class atomic_accessor
     : public accessor<DataT, Dimensions, access::mode::read_write, AccessTarget,
-                      IsPlaceholder, oneapi::accessor_property_list<>> {
+                      IsPlaceholder, ext::oneapi::accessor_property_list<>> {
 
   using AccessorT =
       accessor<DataT, Dimensions, access::mode::read_write, AccessTarget,
-               IsPlaceholder, oneapi::accessor_property_list<>>;
+               IsPlaceholder, ext::oneapi::accessor_property_list<>>;
 
 private:
   using AccessorT::getLinearIndex;
@@ -113,22 +114,23 @@ template <typename DataT, int Dimensions, typename AllocatorT,
           memory_order Order, memory_scope Scope>
 atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, order_tag_t<Order>,
                 scope_tag_t<Scope>, property_list = {})
-    ->atomic_accessor<DataT, Dimensions, Order, Scope, target::global_buffer,
-                      access::placeholder::true_t>;
+    -> atomic_accessor<DataT, Dimensions, Order, Scope, target::global_buffer,
+                       access::placeholder::true_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT,
           memory_order Order, memory_scope Scope>
 atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
                 order_tag_t<Order>, scope_tag_t<Scope>, property_list = {})
-    ->atomic_accessor<DataT, Dimensions, Order, Scope, target::global_buffer,
-                      access::placeholder::false_t>;
+    -> atomic_accessor<DataT, Dimensions, Order, Scope, target::global_buffer,
+                       access::placeholder::false_t>;
 
 #endif
 
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

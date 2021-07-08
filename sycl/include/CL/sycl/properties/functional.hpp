@@ -13,6 +13,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace oneapi {
 
 template <typename T = void> struct minimum {
@@ -57,9 +58,10 @@ template <typename T = void> using bit_xor = std::bit_xor<T>;
 template <typename T = void> using bit_and = std::bit_and<T>;
 
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
 }
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -105,25 +107,32 @@ __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMax, sycl::maximum<T>)
 __SYCL_CALC_OVERLOAD(GroupOpFP, FMax, sycl::maximum<T>)
 
 // calc for oneapi function objects
-__SYCL_CALC_OVERLOAD(GroupOpISigned, SMin, oneapi::minimum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMin, oneapi::minimum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FMin, oneapi::minimum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, SMax, oneapi::maximum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMax, oneapi::maximum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FMax, oneapi::maximum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, IAdd, oneapi::plus<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, oneapi::plus<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, oneapi::plus<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, SMin, ext::oneapi::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMin, ext::oneapi::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMin, ext::oneapi::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, SMax, ext::oneapi::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMax, ext::oneapi::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMax, ext::oneapi::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, IAdd, ext::oneapi::plus<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, ext::oneapi::plus<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, ext::oneapi::plus<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformIMul, oneapi::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformIMul, oneapi::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, NonUniformFMul, oneapi::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseOr, oneapi::bit_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseOr, oneapi::bit_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseXor, oneapi::bit_xor<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseXor, oneapi::bit_xor<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseAnd, oneapi::bit_and<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseAnd, oneapi::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformIMul, ext::oneapi::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformIMul,
+                     ext::oneapi::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, NonUniformFMul, ext::oneapi::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseOr,
+                     ext::oneapi::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseOr,
+                     ext::oneapi::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseXor,
+                     ext::oneapi::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseXor,
+                     ext::oneapi::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseAnd,
+                     ext::oneapi::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseAnd,
+                     ext::oneapi::bit_and<T>)
 
 #undef __SYCL_CALC_OVERLOAD
 

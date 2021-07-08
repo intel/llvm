@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/oneapi/atomic_enums.hpp>
 #include <CL/sycl/detail/spirv.hpp>
+#include <CL/sycl/oneapi/atomic_enums.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>
@@ -18,6 +18,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace oneapi {
 namespace detail {
 using namespace cl::sycl::detail;
@@ -36,9 +37,10 @@ static inline void atomic_fence(memory_order order, memory_scope scope) {
 }
 
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

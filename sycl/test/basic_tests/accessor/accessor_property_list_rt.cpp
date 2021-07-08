@@ -5,7 +5,7 @@
 
 #include <type_traits>
 
-using namespace sycl::oneapi;
+using namespace sycl::ext::oneapi;
 
 int main() {
   {

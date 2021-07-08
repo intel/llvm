@@ -10,18 +10,19 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/oneapi/atomic.hpp>
-#include <CL/sycl/oneapi/functional.hpp>
-#include <CL/sycl/oneapi/sub_group.hpp>
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/group_algorithm.hpp>
 #include <CL/sycl/nd_item.hpp>
+#include <CL/sycl/oneapi/atomic.hpp>
+#include <CL/sycl/oneapi/functional.hpp>
+#include <CL/sycl/oneapi/sub_group.hpp>
 
 #ifndef __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace oneapi {
 
 // EnableIf shorthands for algorithms that depend only on type
@@ -66,21 +67,24 @@ using EnableIfIsNonNativeOp = cl::sycl::detail::enable_if_t<
     T>;
 
 template <typename Group>
-__SYCL2020_DEPRECATED("oneapi::all_of is deprecated. Use all_of_group instead.")
+__SYCL2020_DEPRECATED(
+    "ext::oneapi::all_of is deprecated. Use all_of_group instead.")
 detail::enable_if_t<detail::is_generic_group<Group>::value, bool> all_of(
     Group g, bool pred) {
   return all_of_group(g, pred);
 }
 
 template <typename Group, typename T, class Predicate>
-__SYCL2020_DEPRECATED("oneapi::all_of is deprecated. Use all_of_group instead.")
+__SYCL2020_DEPRECATED(
+    "ext::oneapi::all_of is deprecated. Use all_of_group instead.")
 detail::enable_if_t<detail::is_generic_group<Group>::value, bool> all_of(
     Group g, T x, Predicate pred) {
   return all_of_group(g, pred(x));
 }
 
 template <typename Group, typename Ptr, class Predicate>
-__SYCL2020_DEPRECATED("oneapi::all_of is deprecated. Use joint_all_of instead.")
+__SYCL2020_DEPRECATED(
+    "ext::oneapi::all_of is deprecated. Use joint_all_of instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_pointer<Ptr>::value),
                     bool> all_of(Group g, Ptr first, Ptr last, Predicate pred) {
@@ -88,21 +92,24 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 }
 
 template <typename Group>
-__SYCL2020_DEPRECATED("oneapi::any_of is deprecated. Use any_of_group instead.")
+__SYCL2020_DEPRECATED(
+    "ext::oneapi::any_of is deprecated. Use any_of_group instead.")
 detail::enable_if_t<detail::is_generic_group<Group>::value, bool> any_of(
     Group g, bool pred) {
   return any_of_group(g, pred);
 }
 
 template <typename Group, typename T, class Predicate>
-__SYCL2020_DEPRECATED("oneapi::any_of is deprecated. Use any_of_group instead.")
+__SYCL2020_DEPRECATED(
+    "ext::oneapi::any_of is deprecated. Use any_of_group instead.")
 detail::enable_if_t<detail::is_generic_group<Group>::value, bool> any_of(
     Group g, T x, Predicate pred) {
   return any_of_group(g, pred(x));
 }
 
 template <typename Group, typename Ptr, class Predicate>
-__SYCL2020_DEPRECATED("oneapi::any_of is deprecated. Use joint_any_of instead.")
+__SYCL2020_DEPRECATED(
+    "ext::oneapi::any_of is deprecated. Use joint_any_of instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_pointer<Ptr>::value),
                     bool> any_of(Group g, Ptr first, Ptr last, Predicate pred) {
@@ -111,7 +118,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group>
 __SYCL2020_DEPRECATED(
-    "oneapi::none_of is deprecated. Use none_of_group instead.")
+    "ext::oneapi::none_of is deprecated. Use none_of_group instead.")
 detail::enable_if_t<detail::is_generic_group<Group>::value, bool> none_of(
     Group g, bool pred) {
   return none_of_group(g, pred);
@@ -119,7 +126,7 @@ detail::enable_if_t<detail::is_generic_group<Group>::value, bool> none_of(
 
 template <typename Group, typename T, class Predicate>
 __SYCL2020_DEPRECATED(
-    "oneapi::none_of is deprecated. Use none_of_group instead.")
+    "ext::oneapi::none_of is deprecated. Use none_of_group instead.")
 detail::enable_if_t<detail::is_generic_group<Group>::value, bool> none_of(
     Group g, T x, Predicate pred) {
   return none_of_group(g, pred(x));
@@ -127,7 +134,7 @@ detail::enable_if_t<detail::is_generic_group<Group>::value, bool> none_of(
 
 template <typename Group, typename Ptr, class Predicate>
 __SYCL2020_DEPRECATED(
-    "oneapi::none_of is deprecated. Use joint_none_of instead.")
+    "ext::oneapi::none_of is deprecated. Use joint_none_of instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_pointer<Ptr>::value),
                     bool> none_of(Group g, Ptr first, Ptr last,
@@ -137,7 +144,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename T>
 __SYCL2020_DEPRECATED(
-    "oneapi::broadcast is deprecated. Use group_broadcast instead.")
+    "ext::oneapi::broadcast is deprecated. Use group_broadcast instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      std::is_trivially_copyable<T>::value &&
                      !detail::is_vector_arithmetic<T>::value),
@@ -154,7 +161,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename T>
 __SYCL2020_DEPRECATED(
-    "oneapi::broadcast is deprecated. Use group_broadcast instead.")
+    "ext::oneapi::broadcast is deprecated. Use group_broadcast instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_vector_arithmetic<T>::value),
                     T> broadcast(Group g, T x,
@@ -176,7 +183,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename T>
 __SYCL2020_DEPRECATED(
-    "oneapi::broadcast is deprecated. Use group_broadcast instead.")
+    "ext::oneapi::broadcast is deprecated. Use group_broadcast instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      std::is_trivially_copyable<T>::value &&
                      !detail::is_vector_arithmetic<T>::value),
@@ -198,7 +205,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename T>
 __SYCL2020_DEPRECATED(
-    "oneapi::broadcast is deprecated. Use group_broadcast instead.")
+    "ext::oneapi::broadcast is deprecated. Use group_broadcast instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_vector_arithmetic<T>::value),
                     T> broadcast(Group g, T x,
@@ -221,7 +228,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename T>
 __SYCL2020_DEPRECATED(
-    "oneapi::broadcast is deprecated. Use group_broadcast instead.")
+    "ext::oneapi::broadcast is deprecated. Use group_broadcast instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      std::is_trivially_copyable<T>::value &&
                      !detail::is_vector_arithmetic<T>::value),
@@ -238,7 +245,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename T>
 __SYCL2020_DEPRECATED(
-    "oneapi::broadcast is deprecated. Use group_broadcast instead.")
+    "ext::oneapi::broadcast is deprecated. Use group_broadcast instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_vector_arithmetic<T>::value),
                     T> broadcast(Group g, T x) {
@@ -258,7 +265,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename T, class BinaryOperation>
 __SYCL2020_DEPRECATED(
-    "oneapi::reduce is deprecated. Use reduce_over_group instead.")
+    "ext::oneapi::reduce is deprecated. Use reduce_over_group instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_scalar_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
@@ -268,7 +275,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename T, class BinaryOperation>
 __SYCL2020_DEPRECATED(
-    "oneapi::reduce is deprecated. Use reduce_over_group instead.")
+    "ext::oneapi::reduce is deprecated. Use reduce_over_group instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_vector_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
@@ -278,7 +285,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename T, class BinaryOperation>
 __SYCL2020_DEPRECATED(
-    "oneapi::reduce is deprecated. Use reduce_over_group instead.")
+    "ext::oneapi::reduce is deprecated. Use reduce_over_group instead.")
 detail::enable_if_t<(detail::is_sub_group<Group>::value &&
                      std::is_trivially_copyable<T>::value &&
                      (!detail::is_arithmetic<T>::value ||
@@ -296,7 +303,7 @@ detail::enable_if_t<(detail::is_sub_group<Group>::value &&
 
 template <typename Group, typename V, typename T, class BinaryOperation>
 __SYCL2020_DEPRECATED(
-    "oneapi::reduce is deprecated. Use reduce_over_group instead.")
+    "ext::oneapi::reduce is deprecated. Use reduce_over_group instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_scalar_arithmetic<V>::value &&
                      detail::is_scalar_arithmetic<T>::value &&
@@ -308,7 +315,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename V, typename T, class BinaryOperation>
 __SYCL2020_DEPRECATED(
-    "oneapi::reduce is deprecated. Use reduce_over_group instead.")
+    "ext::oneapi::reduce is deprecated. Use reduce_over_group instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_vector_arithmetic<V>::value &&
                      detail::is_vector_arithmetic<T>::value &&
@@ -320,7 +327,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename V, typename T, class BinaryOperation>
 __SYCL2020_DEPRECATED(
-    "oneapi::reduce is deprecated. Use reduce_over_group instead.")
+    "ext::oneapi::reduce is deprecated. Use reduce_over_group instead.")
 detail::enable_if_t<(detail::is_sub_group<Group>::value &&
                      std::is_trivially_copyable<T>::value &&
                      std::is_trivially_copyable<V>::value &&
@@ -339,7 +346,8 @@ detail::enable_if_t<(detail::is_sub_group<Group>::value &&
 }
 
 template <typename Group, typename Ptr, class BinaryOperation>
-__SYCL2020_DEPRECATED("oneapi::reduce is deprecated. Use joint_reduce instead.")
+__SYCL2020_DEPRECATED(
+    "ext::oneapi::reduce is deprecated. Use joint_reduce instead.")
 detail::enable_if_t<
     (detail::is_generic_group<Group>::value && detail::is_pointer<Ptr>::value &&
      detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value),
@@ -351,7 +359,8 @@ detail::enable_if_t<
 }
 
 template <typename Group, typename Ptr, typename T, class BinaryOperation>
-__SYCL2020_DEPRECATED("oneapi::reduce is deprecated. Use joint_reduce instead.")
+__SYCL2020_DEPRECATED(
+    "ext::oneapi::reduce is deprecated. Use joint_reduce instead.")
 detail::enable_if_t<
     (detail::is_generic_group<Group>::value && detail::is_pointer<Ptr>::value &&
      detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value &&
@@ -364,7 +373,7 @@ detail::enable_if_t<
 }
 
 template <typename Group, typename T, class BinaryOperation>
-__SYCL2020_DEPRECATED("oneapi::exclusive_scan is deprecated. Use "
+__SYCL2020_DEPRECATED("ext::oneapi::exclusive_scan is deprecated. Use "
                       "exclusive_scan_over_group instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_scalar_arithmetic<T>::value &&
@@ -374,7 +383,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 }
 
 template <typename Group, typename T, class BinaryOperation>
-__SYCL2020_DEPRECATED("oneapi::exclusive_scan is deprecated. Use "
+__SYCL2020_DEPRECATED("ext::oneapi::exclusive_scan is deprecated. Use "
                       "exclusive_scan_over_group instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_vector_arithmetic<T>::value &&
@@ -384,7 +393,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-__SYCL2020_DEPRECATED("oneapi::exclusive_scan is deprecated. Use "
+__SYCL2020_DEPRECATED("ext::oneapi::exclusive_scan is deprecated. Use "
                       "exclusive_scan_over_group instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_vector_arithmetic<V>::value &&
@@ -397,7 +406,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-__SYCL2020_DEPRECATED("oneapi::exclusive_scan is deprecated. Use "
+__SYCL2020_DEPRECATED("ext::oneapi::exclusive_scan is deprecated. Use "
                       "exclusive_scan_over_group instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_scalar_arithmetic<V>::value &&
@@ -411,8 +420,8 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename InPtr, typename OutPtr, typename T,
           class BinaryOperation>
-__SYCL2020_DEPRECATED(
-    "oneapi::exclusive_scan is deprecated. Use joint_exclusive_scan instead.")
+__SYCL2020_DEPRECATED("ext::oneapi::exclusive_scan is deprecated. Use "
+                      "joint_exclusive_scan instead.")
 detail::enable_if_t<
     (detail::is_generic_group<Group>::value &&
      detail::is_pointer<InPtr>::value && detail::is_pointer<OutPtr>::value &&
@@ -429,8 +438,8 @@ detail::enable_if_t<
 
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation>
-__SYCL2020_DEPRECATED(
-    "oneapi::exclusive_scan is deprecated. Use joint_exclusive_scan instead.")
+__SYCL2020_DEPRECATED("ext::oneapi::exclusive_scan is deprecated. Use "
+                      "joint_exclusive_scan instead.")
 detail::enable_if_t<
     (detail::is_generic_group<Group>::value &&
      detail::is_pointer<InPtr>::value && detail::is_pointer<OutPtr>::value &&
@@ -444,7 +453,7 @@ detail::enable_if_t<
 }
 
 template <typename Group, typename T, class BinaryOperation>
-__SYCL2020_DEPRECATED("oneapi::inclusive_scan is deprecated. Use "
+__SYCL2020_DEPRECATED("ext::oneapi::inclusive_scan is deprecated. Use "
                       "inclusive_scan_over_group instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_vector_arithmetic<T>::value &&
@@ -454,7 +463,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 }
 
 template <typename Group, typename T, class BinaryOperation>
-__SYCL2020_DEPRECATED("oneapi::inclusive_scan is deprecated. Use "
+__SYCL2020_DEPRECATED("ext::oneapi::inclusive_scan is deprecated. Use "
                       "inclusive_scan_over_group instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_scalar_arithmetic<T>::value &&
@@ -464,7 +473,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 }
 
 template <typename Group, typename V, class BinaryOperation, typename T>
-__SYCL2020_DEPRECATED("oneapi::inclusive_scan is deprecated. Use "
+__SYCL2020_DEPRECATED("ext::oneapi::inclusive_scan is deprecated. Use "
                       "inclusive_scan_over_group instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_scalar_arithmetic<V>::value &&
@@ -477,7 +486,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 }
 
 template <typename Group, typename V, class BinaryOperation, typename T>
-__SYCL2020_DEPRECATED("oneapi::inclusive_scan is deprecated. Use "
+__SYCL2020_DEPRECATED("ext::oneapi::inclusive_scan is deprecated. Use "
                       "inclusive_scan_over_group instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_vector_arithmetic<V>::value &&
@@ -491,8 +500,8 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation, typename T>
-__SYCL2020_DEPRECATED(
-    "oneapi::inclusive_scan is deprecated. Use joint_inclusive_scan instead.")
+__SYCL2020_DEPRECATED("ext::oneapi::inclusive_scan is deprecated. Use "
+                      "joint_inclusive_scan instead.")
 detail::enable_if_t<
     (detail::is_generic_group<Group>::value &&
      detail::is_pointer<InPtr>::value && detail::is_pointer<OutPtr>::value &&
@@ -509,8 +518,8 @@ detail::enable_if_t<
 
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation>
-__SYCL2020_DEPRECATED(
-    "oneapi::inclusive_scan is deprecated. Use joint_inclusive_scan instead.")
+__SYCL2020_DEPRECATED("ext::oneapi::inclusive_scan is deprecated. Use "
+                      "joint_inclusive_scan instead.")
 detail::enable_if_t<
     (detail::is_generic_group<Group>::value &&
      detail::is_pointer<InPtr>::value && detail::is_pointer<OutPtr>::value &&
@@ -538,9 +547,10 @@ leader(Group g) {
 }
 
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

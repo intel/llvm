@@ -10,13 +10,13 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/oneapi/functional.hpp>
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/functional.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/known_identity.hpp>
 #include <CL/sycl/nd_item.hpp>
+#include <CL/sycl/oneapi/functional.hpp>
 #include <CL/sycl/sub_group.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -55,7 +55,8 @@ template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
 template <>
-inline size_t get_local_linear_range<oneapi::sub_group>(oneapi::sub_group g) {
+inline size_t
+get_local_linear_range<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
   return g.get_local_range()[0];
 }
 
@@ -77,17 +78,18 @@ __SYCL_GROUP_GET_LOCAL_LINEAR_ID(3);
 #endif // __SYCL_DEVICE_ONLY__
 
 template <>
-inline oneapi::sub_group::linear_id_type
-get_local_linear_id<oneapi::sub_group>(oneapi::sub_group g) {
+inline ext::oneapi::sub_group::linear_id_type
+get_local_linear_id<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
   return g.get_local_id()[0];
 }
 
 // ---- is_native_op
 template <typename T>
 using native_op_list =
-    type_list<oneapi::plus<T>, oneapi::bit_or<T>, oneapi::bit_xor<T>,
-              oneapi::bit_and<T>, oneapi::maximum<T>, oneapi::minimum<T>,
-              oneapi::multiplies<T>, sycl::plus<T>, sycl::bit_or<T>,
+    type_list<ext::oneapi::plus<T>, ext::oneapi::bit_or<T>,
+              ext::oneapi::bit_xor<T>, ext::oneapi::bit_and<T>,
+              ext::oneapi::maximum<T>, ext::oneapi::minimum<T>,
+              ext::oneapi::multiplies<T>, sycl::plus<T>, sycl::bit_or<T>,
               sycl::bit_xor<T>, sycl::bit_and<T>, sycl::maximum<T>,
               sycl::minimum<T>, sycl::multiplies<T>>;
 

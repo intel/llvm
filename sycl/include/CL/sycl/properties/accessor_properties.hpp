@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/oneapi/accessor_property_list.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/property_helper.hpp>
+#include <CL/sycl/oneapi/accessor_property_list.hpp>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -40,7 +40,7 @@ constexpr const auto &no_init =
 
 constexpr const auto &noinit __SYCL2020_DEPRECATED("spelling is now: no_init") =
     sycl::detail::InlineVariableHelper<property::noinit>::value;
-}
+} // namespace
 
 #endif
 
@@ -68,6 +68,7 @@ inline constexpr property::buffer_location::instance<A> buffer_location{};
 namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
   using namespace intel;
 }
+namespace ext {
 namespace oneapi {
 namespace property {
 struct no_offset {
@@ -100,28 +101,30 @@ inline constexpr property::no_alias::instance no_alias;
 #endif
 
 template <>
-struct is_compile_time_property<oneapi::property::no_offset> : std::true_type {
-};
+struct is_compile_time_property<ext::oneapi::property::no_offset>
+    : std::true_type {};
 template <>
-struct is_compile_time_property<oneapi::property::no_alias> : std::true_type {};
+struct is_compile_time_property<ext::oneapi::property::no_alias>
+    : std::true_type {};
 template <>
-struct is_compile_time_property<intel::property::buffer_location>
+struct is_compile_time_property<sycl::intel::property::buffer_location>
     : std::true_type {};
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
 }
 namespace detail {
 template <int I>
 struct IsCompileTimePropertyInstance<
     intel::property::buffer_location::instance<I>> : std::true_type {};
 template <>
-struct IsCompileTimePropertyInstance<oneapi::property::no_alias::instance<>>
-    : std::true_type {};
+struct IsCompileTimePropertyInstance<
+    ext::oneapi::property::no_alias::instance<>> : std::true_type {};
 template <>
-struct IsCompileTimePropertyInstance<oneapi::property::no_offset::instance<>>
-    : std::true_type {};
+struct IsCompileTimePropertyInstance<
+    ext::oneapi::property::no_offset::instance<>> : std::true_type {};
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

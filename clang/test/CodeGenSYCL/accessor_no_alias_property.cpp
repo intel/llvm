@@ -12,14 +12,14 @@ int main() {
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::oneapi::accessor_property_list<
-                         cl::sycl::oneapi::property::no_alias::instance<true>>>
+                     cl::sycl::ext::oneapi::accessor_property_list<
+                         cl::sycl::ext::oneapi::property::no_alias::instance<true>>>
       accessorA;
 
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::oneapi::accessor_property_list<
+                     cl::sycl::ext::oneapi::accessor_property_list<
                          cl::sycl::intel::property::buffer_location::instance<1>>>
       accessorB;
 

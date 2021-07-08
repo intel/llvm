@@ -11,7 +11,7 @@ struct Base {
       char, 1, cl::sycl::access::mode::read,
       cl::sycl::access::target::global_buffer,
       cl::sycl::access::placeholder::false_t,
-      cl::sycl::oneapi::accessor_property_list<
+      cl::sycl::ext::oneapi::accessor_property_list<
           cl::sycl::intel::property::buffer_location::instance<2>>>
       AccField;
 };
@@ -22,7 +22,7 @@ struct Captured
           char, 1, cl::sycl::access::mode::read,
           cl::sycl::access::target::global_buffer,
           cl::sycl::access::placeholder::false_t,
-          cl::sycl::oneapi::accessor_property_list<
+          cl::sycl::ext::oneapi::accessor_property_list<
               cl::sycl::intel::property::buffer_location::instance<2>>> {
   int C;
 };
@@ -33,7 +33,7 @@ int main() {
       int, 1, cl::sycl::access::mode::read_write,
       cl::sycl::access::target::global_buffer,
       cl::sycl::access::placeholder::false_t,
-      cl::sycl::oneapi::accessor_property_list<
+      cl::sycl::ext::oneapi::accessor_property_list<
           cl::sycl::intel::property::buffer_location::instance<3>>>
       accessorA;
   sycl::queue Queue;

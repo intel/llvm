@@ -8,7 +8,7 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::oneapi;
+using namespace sycl::ext::oneapi;
 
 // Equivalent to add_test from add.cpp
 // Uses atomic_accessor instead of atomic_ref
@@ -22,14 +22,16 @@ template <typename T> void accessor_test(queue q, size_t N) {
     q.submit([&](handler &cgh) {
 #if __cplusplus > 201402L
       static_assert(
-          std::is_same<decltype(atomic_accessor(sum_buf, cgh, relaxed_order,
-                                                device_scope)),
-                       atomic_accessor<T, 1, oneapi::memory_order::relaxed,
-                                       oneapi::memory_scope::device>>::value,
+          std::is_same<
+              decltype(
+                  atomic_accessor(sum_buf, cgh, relaxed_order, device_scope)),
+              atomic_accessor<T, 1, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device>>::value,
           "atomic_accessor type incorrectly deduced");
 #endif
-      auto sum = atomic_accessor<T, 1, oneapi::memory_order::relaxed,
-                                 oneapi::memory_scope::device>(sum_buf, cgh);
+      auto sum =
+          atomic_accessor<T, 1, ext::oneapi::memory_order::relaxed,
+                          ext::oneapi::memory_scope::device>(sum_buf, cgh);
       auto out =
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
@@ -37,8 +39,8 @@ template <typename T> void accessor_test(queue q, size_t N) {
         static_assert(
             std::is_same<
                 decltype(sum[0]),
-                atomic_ref<T, oneapi::memory_order::relaxed,
-                           oneapi::memory_scope::device,
+                atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                           ext::oneapi::memory_scope::device,
                            access::address_space::global_space>>::value,
             "atomic_accessor returns incorrect atomic_ref");
         out[gid] = sum[0].fetch_add(T(1));
@@ -67,10 +69,9 @@ void local_accessor_test(queue q, size_t N, size_t L = 8) {
   {
     buffer<T> output_buf(output.data(), output.size());
     q.submit([&](handler &cgh) {
-      auto sum =
-          atomic_accessor<T, 1, oneapi::memory_order::relaxed,
-                          oneapi::memory_scope::device, access::target::local>(
-              1, cgh);
+      auto sum = atomic_accessor<T, 1, ext::oneapi::memory_order::relaxed,
+                                 ext::oneapi::memory_scope::device,
+                                 access::target::local>(1, cgh);
       auto out = output_buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for(nd_range<1>(N, L), [=](nd_item<1> it) {
         int grp = it.get_group(0);
@@ -78,8 +79,8 @@ void local_accessor_test(queue q, size_t N, size_t L = 8) {
         it.barrier();
         static_assert(
             std::is_same<decltype(sum[0]),
-                         atomic_ref<T, oneapi::memory_order::relaxed,
-                                    oneapi::memory_scope::device,
+                         atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                                    ext::oneapi::memory_scope::device,
                                     access::address_space::local_space>>::value,
             "local atomic_accessor returns incorrect atomic_ref");
         T result = sum[0].fetch_add(T(1));

@@ -18,6 +18,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace oneapi {
 namespace experimental {
 
@@ -69,9 +70,10 @@ int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
 
 } // namespace experimental
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

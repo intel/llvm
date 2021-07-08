@@ -23,6 +23,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 class program;
 
+namespace ext {
 namespace oneapi {
 namespace experimental {
 
@@ -77,9 +78,10 @@ public:
 
 } // namespace experimental
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

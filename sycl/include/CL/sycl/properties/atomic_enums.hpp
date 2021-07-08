@@ -20,6 +20,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace oneapi {
 
 enum class memory_order : int {
@@ -62,7 +63,7 @@ __SYCL_INLINE_CONSTEXPR memory_scope memory_scope_system = memory_scope::system;
 namespace detail {
 
 static inline constexpr std::memory_order
-getStdMemoryOrder(::cl::sycl::oneapi::memory_order order) {
+getStdMemoryOrder(::cl::sycl::ext::oneapi::memory_order order) {
   switch (order) {
   case memory_order::relaxed:
     return std::memory_order_relaxed;
@@ -83,9 +84,10 @@ getStdMemoryOrder(::cl::sycl::oneapi::memory_order order) {
 #endif // __SYCL_DEVICE_ONLY__
 
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

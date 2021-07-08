@@ -16,8 +16,9 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <typename... T>
-inline property_list::operator oneapi::accessor_property_list<T...>() {
-  return oneapi::accessor_property_list<T...>(MDataLessProps, MPropsWithData);
+inline property_list::operator ext::oneapi::accessor_property_list<T...>() {
+  return ext::oneapi::accessor_property_list<T...>(MDataLessProps,
+                                                   MPropsWithData);
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

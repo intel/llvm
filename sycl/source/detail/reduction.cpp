@@ -11,6 +11,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace oneapi {
 namespace detail {
 
@@ -96,20 +97,22 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
 
 } // namespace detail
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
   namespace detail {
   __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
                                          size_t &NWorkGroups) {
-    return oneapi::detail::reduComputeWGSize(NWorkItems, MaxWGSize,
-                                             NWorkGroups);
+    return ext::oneapi::detail::reduComputeWGSize(NWorkItems, MaxWGSize,
+                                                  NWorkGroups);
   }
 
   __SYCL_EXPORT size_t
   reduGetMaxWGSize(shared_ptr_class<sycl::detail::queue_impl> Queue,
                    size_t LocalMemBytesPerWorkItem) {
-    return oneapi::detail::reduGetMaxWGSize(Queue, LocalMemBytesPerWorkItem);
+    return ext::oneapi::detail::reduGetMaxWGSize(Queue,
+                                                 LocalMemBytesPerWorkItem);
   }
   } // namespace detail
 } // namespace ONEAPI

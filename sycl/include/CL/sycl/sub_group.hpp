@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/oneapi/sub_group.hpp>
 #include <CL/sycl/group.hpp>
+#include <CL/sycl/oneapi/sub_group.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-using oneapi::sub_group;
+using ext::oneapi::sub_group;
 // TODO move the entire sub_group class implementation to this file once
 // breaking changes are allowed.
 } // namespace sycl

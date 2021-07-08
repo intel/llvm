@@ -9,11 +9,11 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/oneapi/atomic_enums.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/spirv.hpp>
+#include <CL/sycl/oneapi/atomic_enums.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>
@@ -27,14 +27,15 @@ namespace sycl {
 template <typename pointerT, access::address_space AddressSpace>
 class multi_ptr;
 
+namespace ext {
 namespace oneapi {
 namespace detail {
 
-// Import from detail:: into oneapi::detail:: to improve readability later
+// Import from detail:: into ext::oneapi::detail:: to improve readability later
 using namespace ::cl::sycl::detail;
 
-using memory_order = cl::sycl::oneapi::memory_order;
-using memory_scope = cl::sycl::oneapi::memory_scope;
+using memory_order = cl::sycl::ext::oneapi::memory_order;
+using memory_scope = cl::sycl::ext::oneapi::memory_scope;
 
 template <typename T>
 using IsValidAtomicType =
@@ -116,14 +117,14 @@ class atomic_ref_base {
       detail::IsValidAtomicType<T>::value,
       "Invalid atomic type.  Valid types are arithmetic and pointer types");
   static_assert(!std::is_same<T, bool>::value,
-                "oneapi::atomic_ref does not support bool type");
+                "ext::oneapi::atomic_ref does not support bool type");
   static_assert(!(std::is_same<T, char>::value ||
                   std::is_same<T, signed char>::value ||
                   std::is_same<T, unsigned char>::value),
-                "oneapi::atomic_ref does not support char type");
+                "ext::oneapi::atomic_ref does not support char type");
   static_assert(!(std::is_same<T, short>::value ||
                   std::is_same<T, unsigned short>::value),
-                "oneapi::atomic_ref does not support short type");
+                "ext::oneapi::atomic_ref does not support short type");
   static_assert(detail::IsValidAtomicAddressSpace<AddressSpace>::value,
                 "Invalid atomic address_space.  Valid address spaces are: "
                 "global_space, local_space, global_device_space");
@@ -667,9 +668,10 @@ public:
 };
 
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

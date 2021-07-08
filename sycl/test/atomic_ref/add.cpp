@@ -12,7 +12,7 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::oneapi;
+using namespace sycl::ext::oneapi;
 
 template <typename T, typename Difference = T>
 void add_fetch_test(queue q, size_t N) {
@@ -29,8 +29,8 @@ void add_fetch_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, oneapi::memory_order::relaxed,
-                              oneapi::memory_scope::device,
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
                               access::address_space::global_space>(sum[0]);
         out[gid] = atm.fetch_add(Difference(1));
       });
@@ -65,8 +65,8 @@ void add_plus_equal_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, oneapi::memory_order::relaxed,
-                              oneapi::memory_scope::device,
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
                               access::address_space::global_space>(sum[0]);
         out[gid] = atm += Difference(1);
       });
@@ -101,8 +101,8 @@ void add_pre_inc_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, oneapi::memory_order::relaxed,
-                              oneapi::memory_scope::device,
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
                               access::address_space::global_space>(sum[0]);
         out[gid] = ++atm;
       });
@@ -137,8 +137,8 @@ void add_post_inc_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, oneapi::memory_order::relaxed,
-                              oneapi::memory_scope::device,
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
                               access::address_space::global_space>(sum[0]);
         out[gid] = atm++;
       });

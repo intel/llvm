@@ -10,21 +10,23 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/oneapi/atomic_enums.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/oneapi/atomic_enums.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace oneapi {
 struct sub_group;
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
 }
 namespace detail {
 namespace spirv {
@@ -35,7 +37,7 @@ template <int Dimensions> struct group_scope<group<Dimensions>> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Workgroup;
 };
 
-template <> struct group_scope<::cl::sycl::oneapi::sub_group> {
+template <> struct group_scope<::cl::sycl::ext::oneapi::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
 
@@ -125,7 +127,7 @@ using EnableIfGenericBroadcast = detail::enable_if_t<
 // Work-group supports any integral type
 // Sub-group currently supports only uint32_t
 template <typename Group> struct GroupId { using type = size_t; };
-template <> struct GroupId<::cl::sycl::oneapi::sub_group> {
+template <> struct GroupId<::cl::sycl::ext::oneapi::sub_group> {
   using type = uint32_t;
 };
 template <typename Group, typename T, typename IdT>
@@ -221,23 +223,23 @@ EnableIfGenericBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
 // Single happens-before means semantics should always apply to all spaces
 // Although consume is unsupported, forwarding to acquire is valid
 static inline constexpr __spv::MemorySemanticsMask::Flag
-getMemorySemanticsMask(oneapi::memory_order Order) {
+getMemorySemanticsMask(ext::oneapi::memory_order Order) {
   __spv::MemorySemanticsMask::Flag SpvOrder = __spv::MemorySemanticsMask::None;
   switch (Order) {
-  case oneapi::memory_order::relaxed:
+  case ext::oneapi::memory_order::relaxed:
     SpvOrder = __spv::MemorySemanticsMask::None;
     break;
-  case oneapi::memory_order::__consume_unsupported:
-  case oneapi::memory_order::acquire:
+  case ext::oneapi::memory_order::__consume_unsupported:
+  case ext::oneapi::memory_order::acquire:
     SpvOrder = __spv::MemorySemanticsMask::Acquire;
     break;
-  case oneapi::memory_order::release:
+  case ext::oneapi::memory_order::release:
     SpvOrder = __spv::MemorySemanticsMask::Release;
     break;
-  case oneapi::memory_order::acq_rel:
+  case ext::oneapi::memory_order::acq_rel:
     SpvOrder = __spv::MemorySemanticsMask::AcquireRelease;
     break;
-  case oneapi::memory_order::seq_cst:
+  case ext::oneapi::memory_order::seq_cst:
     SpvOrder = __spv::MemorySemanticsMask::SequentiallyConsistent;
     break;
   }
@@ -248,17 +250,17 @@ getMemorySemanticsMask(oneapi::memory_order Order) {
 }
 
 static inline constexpr __spv::Scope::Flag
-getScope(oneapi::memory_scope Scope) {
+getScope(ext::oneapi::memory_scope Scope) {
   switch (Scope) {
-  case oneapi::memory_scope::work_item:
+  case ext::oneapi::memory_scope::work_item:
     return __spv::Scope::Invocation;
-  case oneapi::memory_scope::sub_group:
+  case ext::oneapi::memory_scope::sub_group:
     return __spv::Scope::Subgroup;
-  case oneapi::memory_scope::work_group:
+  case ext::oneapi::memory_scope::work_group:
     return __spv::Scope::Workgroup;
-  case oneapi::memory_scope::device:
+  case ext::oneapi::memory_scope::device:
     return __spv::Scope::Device;
-  case oneapi::memory_scope::system:
+  case ext::oneapi::memory_scope::system:
     return __spv::Scope::CrossDevice;
   }
 }
@@ -266,8 +268,10 @@ getScope(oneapi::memory_scope Scope) {
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr,
-                      oneapi::memory_scope Scope, oneapi::memory_order Success,
-                      oneapi::memory_order Failure, T Desired, T Expected) {
+                      ext::oneapi::memory_scope Scope,
+                      ext::oneapi::memory_order Success,
+                      ext::oneapi::memory_order Failure, T Desired,
+                      T Expected) {
   auto SPIRVSuccess = getMemorySemanticsMask(Success);
   auto SPIRVFailure = getMemorySemanticsMask(Failure);
   auto SPIRVScope = getScope(Scope);
@@ -279,8 +283,10 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr,
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr,
-                      oneapi::memory_scope Scope, oneapi::memory_order Success,
-                      oneapi::memory_order Failure, T Desired, T Expected) {
+                      ext::oneapi::memory_scope Scope,
+                      ext::oneapi::memory_order Success,
+                      ext::oneapi::memory_order Failure, T Desired,
+                      T Expected) {
   using I = detail::make_unsinged_integer_t<T>;
   auto SPIRVSuccess = getMemorySemanticsMask(Success);
   auto SPIRVFailure = getMemorySemanticsMask(Failure);
@@ -297,8 +303,8 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicLoad(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-           oneapi::memory_order Order) {
+AtomicLoad(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+           ext::oneapi::memory_order Order) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -307,8 +313,8 @@ AtomicLoad(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
-AtomicLoad(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-           oneapi::memory_order Order) {
+AtomicLoad(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+           ext::oneapi::memory_order Order) {
   using I = detail::make_unsinged_integer_t<T>;
   auto *PtrInt =
       reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
@@ -321,8 +327,8 @@ AtomicLoad(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value>
-AtomicStore(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-            oneapi::memory_order Order, T Value) {
+AtomicStore(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+            ext::oneapi::memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -331,8 +337,8 @@ AtomicStore(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value>
-AtomicStore(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-            oneapi::memory_order Order, T Value) {
+AtomicStore(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+            ext::oneapi::memory_order Order, T Value) {
   using I = detail::make_unsinged_integer_t<T>;
   auto *PtrInt =
       reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
@@ -345,8 +351,8 @@ AtomicStore(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicExchange(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-               oneapi::memory_order Order, T Value) {
+AtomicExchange(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+               ext::oneapi::memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -355,8 +361,8 @@ AtomicExchange(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
-AtomicExchange(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-               oneapi::memory_order Order, T Value) {
+AtomicExchange(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+               ext::oneapi::memory_order Order, T Value) {
   using I = detail::make_unsinged_integer_t<T>;
   auto *PtrInt =
       reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
@@ -371,8 +377,8 @@ AtomicExchange(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicIAdd(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-           oneapi::memory_order Order, T Value) {
+AtomicIAdd(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+           ext::oneapi::memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -381,8 +387,8 @@ AtomicIAdd(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicISub(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-           oneapi::memory_order Order, T Value) {
+AtomicISub(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+           ext::oneapi::memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -391,8 +397,8 @@ AtomicISub(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
-AtomicFAdd(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-           oneapi::memory_order Order, T Value) {
+AtomicFAdd(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+           ext::oneapi::memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -401,8 +407,8 @@ AtomicFAdd(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicAnd(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-          oneapi::memory_order Order, T Value) {
+AtomicAnd(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+          ext::oneapi::memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -411,8 +417,8 @@ AtomicAnd(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicOr(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-         oneapi::memory_order Order, T Value) {
+AtomicOr(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+         ext::oneapi::memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -421,8 +427,8 @@ AtomicOr(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicXor(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-          oneapi::memory_order Order, T Value) {
+AtomicXor(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+          ext::oneapi::memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -431,8 +437,8 @@ AtomicXor(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicMin(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-          oneapi::memory_order Order, T Value) {
+AtomicMin(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+          ext::oneapi::memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -441,8 +447,8 @@ AtomicMin(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
-AtomicMin(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-          oneapi::memory_order Order, T Value) {
+AtomicMin(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+          ext::oneapi::memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -451,8 +457,8 @@ AtomicMin(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicMax(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-          oneapi::memory_order Order, T Value) {
+AtomicMax(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+          ext::oneapi::memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -461,8 +467,8 @@ AtomicMax(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
-AtomicMax(multi_ptr<T, AddressSpace> MPtr, oneapi::memory_scope Scope,
-          oneapi::memory_order Order, T Value) {
+AtomicMax(multi_ptr<T, AddressSpace> MPtr, ext::oneapi::memory_scope Scope,
+          ext::oneapi::memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);

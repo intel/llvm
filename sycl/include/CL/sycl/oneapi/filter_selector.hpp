@@ -22,6 +22,7 @@ namespace sycl {
 class device;
 class device_selector;
 
+namespace ext {
 namespace oneapi {
 namespace detail {
 class filter_selector_impl;
@@ -38,10 +39,11 @@ private:
   std::shared_ptr<detail::filter_selector_impl> impl;
 };
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
-  class __SYCL_EXPORT filter_selector : public oneapi::filter_selector {
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
+  class __SYCL_EXPORT filter_selector : public ext::oneapi::filter_selector {
   public:
     filter_selector(const std::string &filter);
     int operator()(const device &dev) const override;

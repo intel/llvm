@@ -19,6 +19,7 @@ namespace sycl {
 // Forward declarations
 class device;
 
+namespace ext {
 namespace oneapi {
 namespace detail {
 
@@ -40,9 +41,10 @@ private:
 };
 } // namespace detail
 } // namespace oneapi
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'oneapi' instead") ONEAPI {
-  using namespace oneapi;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
