@@ -315,7 +315,7 @@ static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
                   isIndirectlyCalledInGraph.end(),
                   F) != isIndirectlyCalledInGraph.end())
       HasIndirectlyCalledAttr = true;
-    if (F->hasFnAttribute("referenced-indirectly")) {
+    else if (F->hasFnAttribute("referenced-indirectly")) {
       HasIndirectlyCalledAttr = true;
       isIndirectlyCalledInGraph.push_back(F);
     }
