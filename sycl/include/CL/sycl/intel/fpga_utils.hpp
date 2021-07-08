@@ -14,6 +14,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 
 template <template <int32_t> class _Type, class _T>
@@ -30,9 +31,10 @@ struct _GetValue<_Type, _T1, _T...> {
                             _GetValue<_Type, _T...>>::value;
 };
 } // namespace intel
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
-  using namespace intel;
+namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
+  using namespace ext::intel;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

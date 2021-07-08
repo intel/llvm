@@ -724,6 +724,7 @@ detail::enable_if_t<detail::is_geninteger<T>::value, T> clz(T x) __NOEXC {
   return __sycl_std::__invoke_clz<T>(x);
 }
 
+namespace ext {
 namespace intel {
 // geninteger ctz (geninteger x)
 template <typename T>
@@ -732,6 +733,7 @@ ctz(T x) __NOEXC {
   return __sycl_std::__invoke_ctz<T>(x);
 }
 } // namespace intel
+} // namespace ext
 
 // geninteger mad_hi (geninteger a, geninteger b, geninteger c)
 template <typename T>

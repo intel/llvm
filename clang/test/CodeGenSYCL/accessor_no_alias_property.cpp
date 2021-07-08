@@ -20,7 +20,7 @@ int main() {
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
                      cl::sycl::ext::oneapi::accessor_property_list<
-                         cl::sycl::intel::property::buffer_location::instance<1>>>
+                         cl::sycl::ext::intel::property::buffer_location::instance<1>>>
       accessorB;
 
   cl::sycl::kernel_single_task<class kernel_function1>(

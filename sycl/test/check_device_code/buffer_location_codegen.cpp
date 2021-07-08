@@ -12,7 +12,7 @@ struct Base {
       cl::sycl::access::target::global_buffer,
       cl::sycl::access::placeholder::false_t,
       cl::sycl::ext::oneapi::accessor_property_list<
-          cl::sycl::intel::property::buffer_location::instance<2>>>
+          cl::sycl::ext::intel::property::buffer_location::instance<2>>>
       AccField;
 };
 
@@ -23,7 +23,7 @@ struct Captured
           cl::sycl::access::target::global_buffer,
           cl::sycl::access::placeholder::false_t,
           cl::sycl::ext::oneapi::accessor_property_list<
-              cl::sycl::intel::property::buffer_location::instance<2>>> {
+              cl::sycl::ext::intel::property::buffer_location::instance<2>>> {
   int C;
 };
 
@@ -34,7 +34,7 @@ int main() {
       cl::sycl::access::target::global_buffer,
       cl::sycl::access::placeholder::false_t,
       cl::sycl::ext::oneapi::accessor_property_list<
-          cl::sycl::intel::property::buffer_location::instance<3>>>
+          cl::sycl::ext::intel::property::buffer_location::instance<3>>>
       accessorA;
   sycl::queue Queue;
   Queue.submit([&](sycl::handler &CGH) {

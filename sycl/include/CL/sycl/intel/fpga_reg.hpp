@@ -12,6 +12,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 
 template <typename _T> _T fpga_reg(const _T &t) {
@@ -23,9 +24,10 @@ template <typename _T> _T fpga_reg(const _T &t) {
 }
 
 } // namespace intel
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
-  using namespace intel;
+namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
+  using namespace ext::intel;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
@@ -34,6 +36,6 @@ namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
 // Currently clang does not support nested namespace for attributes
 namespace intelfpga {
 template <typename _T> _T fpga_reg(const _T &t) {
-  return cl::sycl::intel::fpga_reg(t);
+  return cl::sycl::ext::intel::fpga_reg(t);
 }
 } // namespace intelfpga

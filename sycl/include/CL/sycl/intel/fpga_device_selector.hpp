@@ -12,6 +12,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 
 class platform_selector : public device_selector {
@@ -48,9 +49,10 @@ public:
 };
 
 } // namespace intel
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
-  using namespace intel;
+namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
+  using namespace ext::intel;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

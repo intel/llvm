@@ -39,6 +39,7 @@ enum class address_space : int {
 
 class property_list {};
 
+namespace ext {
 namespace intel {
 namespace property {
 struct buffer_location {
@@ -46,6 +47,7 @@ struct buffer_location {
 };
 } // namespace property
 } // namespace intel
+} // namespace ext
 
 namespace ext {
 namespace oneapi {

@@ -13,6 +13,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 constexpr uint8_t BURST_COALESCE = 0x1;
 constexpr uint8_t CACHE = 0x2;
@@ -121,9 +122,10 @@ private:
   }
 };
 } // namespace intel
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
-  using namespace intel;
+namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
+  using namespace ext::intel;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

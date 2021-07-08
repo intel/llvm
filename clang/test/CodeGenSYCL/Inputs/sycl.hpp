@@ -94,6 +94,7 @@ public:
   bool operator!=(const property_list &rhs) const { return false; }
 };
 
+namespace ext {
 namespace intel {
 namespace property {
 // Compile time known accessor property
@@ -102,6 +103,7 @@ struct buffer_location {
 };
 } // namespace property
 } // namespace intel
+} // namespace ext
 
 namespace ext {
 namespace oneapi {

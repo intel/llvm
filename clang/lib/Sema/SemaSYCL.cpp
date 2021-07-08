@@ -5093,9 +5093,10 @@ bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
 }
 
 bool Util::isSyclBufferLocationType(QualType Ty) {
-  std::array<DeclContextDesc, 6> Scopes = {
+  std::array<DeclContextDesc, 7> Scopes = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "intel"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
       Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "buffer_location"),

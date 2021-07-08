@@ -10,7 +10,7 @@ class another_property_list {
 };
 
 template <int I>
-using buffer_location = cl::sycl::intel::property::buffer_location::instance<I>;
+using buffer_location = cl::sycl::ext::intel::property::buffer_location::instance<I>;
 
 struct Base {
   int A, B;

@@ -44,6 +44,7 @@ constexpr const auto &noinit __SYCL2020_DEPRECATED("spelling is now: no_init") =
 
 #endif
 
+namespace ext {
 namespace intel {
 namespace property {
 struct buffer_location {
@@ -64,9 +65,10 @@ template <int A>
 inline constexpr property::buffer_location::instance<A> buffer_location{};
 #endif
 } // namespace intel
+} // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'intel' instead") INTEL {
-  using namespace intel;
+namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
+  using namespace ext::intel;
 }
 namespace ext {
 namespace oneapi {
@@ -107,7 +109,7 @@ template <>
 struct is_compile_time_property<ext::oneapi::property::no_alias>
     : std::true_type {};
 template <>
-struct is_compile_time_property<sycl::intel::property::buffer_location>
+struct is_compile_time_property<sycl::ext::intel::property::buffer_location>
     : std::true_type {};
 } // namespace oneapi
 } // namespace ext
@@ -118,7 +120,7 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 namespace detail {
 template <int I>
 struct IsCompileTimePropertyInstance<
-    intel::property::buffer_location::instance<I>> : std::true_type {};
+    ext::intel::property::buffer_location::instance<I>> : std::true_type {};
 template <>
 struct IsCompileTimePropertyInstance<
     ext::oneapi::property::no_alias::instance<>> : std::true_type {};

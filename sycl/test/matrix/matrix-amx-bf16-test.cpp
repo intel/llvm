@@ -4,7 +4,7 @@
 #include <iostream>
 
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::experimental::matrix;
 
 #define TILE_SZ 16
