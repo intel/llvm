@@ -50,8 +50,7 @@ private:
       typename T = typename std::remove_reference_t<decltype(S)>::value_type,
       std::enable_if_t<std::is_fundamental_v<T>> * = nullptr>
   T getSpecializationConstantOnDevice() {
-    const char *SymbolicID = __builtin_sycl_unique_stable_name(
-        detail::specialization_id_name_generator<S>);
+    const char *SymbolicID = __builtin_sycl_unique_stable_id(S);
     return __sycl_getScalar2020SpecConstantValue<T>(
         SymbolicID, &S, MSpecializationConstantsBuffer);
   }
@@ -60,8 +59,7 @@ private:
       typename T = typename std::remove_reference_t<decltype(S)>::value_type,
       std::enable_if_t<std::is_compound_v<T>> * = nullptr>
   T getSpecializationConstantOnDevice() {
-    const char *SymbolicID = __builtin_sycl_unique_stable_name(
-        detail::specialization_id_name_generator<S>);
+    const char *SymbolicID = __builtin_sycl_unique_stable_id(S);
     return __sycl_getComposite2020SpecConstantValue<T>(
         SymbolicID, &S, MSpecializationConstantsBuffer);
   }
