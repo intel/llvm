@@ -1,9 +1,9 @@
-# Set default PI ROCM platform to AMD
+# Set default PI ROCm platform to AMD
 set(SYCL_BUILD_PI_ROCM_PLATFORM "AMD" CACHE STRING "PI ROCm platform, AMD or NVIDIA")
 
 message(STATUS "Including the PI API ROCM backend for ${SYCL_BUILD_PI_ROCM_PLATFORM}.")
 
-# Set default ROCM include dirs
+# Set default ROCm include dirs
 set(SYCL_BUILD_PI_ROCM_INCLUDE_DIR "/opt/rocm/hip/include" CACHE STRING "HIP include dir")
 set(SYCL_BUILD_PI_ROCM_HSA_INCLUDE_DIR "/opt/rocm/hsa/include" CACHE STRING "HSA include dir")
 set(HIP_HEADERS "${SYCL_BUILD_PI_ROCM_INCLUDE_DIR};${SYCL_BUILD_PI_ROCM_HSA_INCLUDE_DIR}")
