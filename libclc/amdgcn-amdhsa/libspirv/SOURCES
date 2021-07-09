@@ -2,3 +2,6 @@ workitem/get_global_size.cl
 workitem/get_local_size.cl
 workitem/get_num_groups.cl
 synchronization/barrier.cl
+math/cos.cl
+math/sin.cl
+math/sqrt.cl
