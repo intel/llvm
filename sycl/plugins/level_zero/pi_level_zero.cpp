@@ -529,7 +529,22 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
   return PI_SUCCESS;
 }
 
-pi_result _pi_device::initialize() {
+pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
+  ze_command_queue_group_properties_t SubSubDeviceQueueProperties) {
+  if (SubSubDeviceOrdinal >= 0) {
+    ZeComputeQueueGroupIndex = SubSubDeviceOrdinal;
+    ZeComputeQueueGroupProperties = SubSubDeviceQueueProperties;
+
+    // Cache device properties
+    ZeDeviceProperties = {};
+    ZE_CALL(zeDeviceGetProperties, (ZeDevice, &(ZeDeviceProperties)));
+    ZeDeviceComputeProperties = {};
+    ZE_CALL(zeDeviceGetComputeProperties,
+            (ZeDevice, &(ZeDeviceComputeProperties)));
+
+    return PI_SUCCESS;
+  }
+
   uint32_t numQueueGroups = 0;
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (ZeDevice, &numQueueGroups, nullptr));
@@ -1504,56 +1519,6 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   return PI_SUCCESS;
 }
 
-// sub-sub-device
-pi_result getComputeCmdQueueOrdinals(
-    pi_device PiSubDevice, std::vector<int> &Ordinals,
-    std::vector<ze_command_queue_group_properties_t> &AllQueueProperties) {
-  uint32_t numQueueGroups = 0;
-  ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
-          (PiSubDevice->ZeDevice, &numQueueGroups, nullptr));
-  if (numQueueGroups == 0) {
-    return PI_ERROR_UNKNOWN;
-  }
-  std::vector<ze_command_queue_group_properties_t> QueueProperties(
-      numQueueGroups);
-  ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
-          (PiSubDevice->ZeDevice, &numQueueGroups, QueueProperties.data()));
-
-  bool noComputeEngineFlag = true;
-  for (uint32_t i = 0; i < numQueueGroups; i++) {
-    if (QueueProperties[i].flags &
-        ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
-      Ordinals.push_back(i);
-      AllQueueProperties.push_back(QueueProperties[i]);
-      noComputeEngineFlag = false;
-    }
-  }
-
-  if (noComputeEngineFlag) {
-    return PI_ERROR_UNKNOWN;
-  }
-
-  return PI_SUCCESS;
-}
-
-pi_result initializeWithOrdinal(
-    pi_device PiSubSubDevice, int Ordinal,
-    std::vector<ze_command_queue_group_properties_t> &QueueProperties) {
-  PiSubSubDevice->ZeComputeQueueGroupIndex = Ordinal;
-  PiSubSubDevice->ZeComputeQueueGroupProperties = QueueProperties[Ordinal];
-
-  // Cache device properties
-  PiSubSubDevice->ZeDeviceProperties = {};
-  ZE_CALL(zeDeviceGetProperties,
-          (PiSubSubDevice->ZeDevice, &(PiSubSubDevice->ZeDeviceProperties)));
-  PiSubSubDevice->ZeDeviceComputeProperties = {};
-  ZE_CALL(
-      zeDeviceGetComputeProperties,
-      (PiSubSubDevice->ZeDevice, &(PiSubSubDevice->ZeDeviceComputeProperties)));
-
-  return PI_SUCCESS;
-}
-
 // Check the device cache and load it if necessary.
 pi_result _pi_platform::populateDeviceCacheIfNeeded() {
   std::lock_guard<std::mutex> Lock(PiDevicesCacheMutex);
@@ -1598,14 +1563,31 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
           return Result;
         }
 
-        // sub-sub-device
-        // get all the ordinals for the sub-sub-devices
+        // collect all the ordinals for the sub-sub-devices
         std::vector<int> Ordinals;
-        std::vector<ze_command_queue_group_properties_t> AllQueueProperties;
-        Result = getComputeCmdQueueOrdinals(PiSubDevice.get(), Ordinals,
-                                            AllQueueProperties);
-        if (Result != PI_SUCCESS) {
-          return Result;
+        std::unordered_map<int, ze_command_queue_group_properties_t> AllQueueProperties;
+
+        uint32_t numQueueGroups = 0;
+        ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
+                (PiSubDevice->ZeDevice, &numQueueGroups, nullptr));
+        if (numQueueGroups == 0) {
+          return PI_ERROR_UNKNOWN;
+        }
+        std::vector<ze_command_queue_group_properties_t> QueueProperties(
+            numQueueGroups);
+        ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
+                (PiSubDevice->ZeDevice, &numQueueGroups, QueueProperties.data()));
+
+        for (uint32_t i = 0; i < numQueueGroups; i++) {
+          if (QueueProperties[i].flags &
+              ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
+            Ordinals.push_back(i);
+            AllQueueProperties[i] = QueueProperties[i];
+          }
+        }
+
+        if (Ordinals.empty()) {
+          return PI_ERROR_UNKNOWN;
         }
 
         // Create PI sub-sub-devices with the sub-device for all the ordinals
@@ -1613,8 +1595,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
           // TODO: check if a device can be it's own parent
           std::unique_ptr<_pi_device> PiSubSubDevice(
               new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
-          pi_result Result = initializeWithOrdinal(
-              PiSubSubDevice.get(), Ordinals[J], AllQueueProperties);
+          pi_result Result = PiSubSubDevice->initialize(Ordinals[J], AllQueueProperties[Ordinals[J]]);
           if (Result != PI_SUCCESS) {
             return Result;
           }
