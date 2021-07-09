@@ -299,8 +299,9 @@ struct _pi_device : _pi_object {
   bool hasCopyEngine() const { return ZeCopyQueueGroupIndex >= 0; }
 
   // Initialize the entire PI device.
-  pi_result initialize(int SubSubDeviceOrdinal = -1,
-    ze_command_queue_group_properties_t SubSubDeviceQueueProperties = {});
+  pi_result initialize(
+      int SubSubDeviceOrdinal = -1,
+      ze_command_queue_group_properties_t SubSubDeviceQueueProperties = {});
 
   // Level Zero device handle.
   ze_device_handle_t ZeDevice;

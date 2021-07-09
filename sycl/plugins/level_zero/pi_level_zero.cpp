@@ -529,13 +529,15 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
   return PI_SUCCESS;
 }
 
-pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
-  ze_command_queue_group_properties_t SubSubDeviceQueueProperties) {
+pi_result _pi_device::initialize(
+    int SubSubDeviceOrdinal,
+    ze_command_queue_group_properties_t SubSubDeviceQueueProperties) {
+  // initialize a sub-sub-devices with it's own Ordinal
   if (SubSubDeviceOrdinal >= 0) {
     ZeComputeQueueGroupIndex = SubSubDeviceOrdinal;
     ZeComputeQueueGroupProperties = SubSubDeviceQueueProperties;
 
-    // Cache device properties
+    // Cache sub-sub-device properties
     ZeDeviceProperties = {};
     ZE_CALL(zeDeviceGetProperties, (ZeDevice, &(ZeDeviceProperties)));
     ZeDeviceComputeProperties = {};
@@ -1565,7 +1567,8 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
 
         // collect all the ordinals for the sub-sub-devices
         std::vector<int> Ordinals;
-        std::unordered_map<int, ze_command_queue_group_properties_t> AllQueueProperties;
+        std::unordered_map<int, ze_command_queue_group_properties_t>
+            AllQueueProperties;
 
         uint32_t numQueueGroups = 0;
         ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
@@ -1575,8 +1578,9 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
         }
         std::vector<ze_command_queue_group_properties_t> QueueProperties(
             numQueueGroups);
-        ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
-                (PiSubDevice->ZeDevice, &numQueueGroups, QueueProperties.data()));
+        ZE_CALL(
+            zeDeviceGetCommandQueueGroupProperties,
+            (PiSubDevice->ZeDevice, &numQueueGroups, QueueProperties.data()));
 
         for (uint32_t i = 0; i < numQueueGroups; i++) {
           if (QueueProperties[i].flags &
@@ -1595,7 +1599,8 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
           // TODO: check if a device can be it's own parent
           std::unique_ptr<_pi_device> PiSubSubDevice(
               new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
-          pi_result Result = PiSubSubDevice->initialize(Ordinals[J], AllQueueProperties[Ordinals[J]]);
+          pi_result Result = PiSubSubDevice->initialize(
+              Ordinals[J], AllQueueProperties[Ordinals[J]]);
           if (Result != PI_SUCCESS) {
             return Result;
           }
