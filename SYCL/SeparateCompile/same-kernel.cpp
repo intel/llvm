@@ -4,6 +4,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
+// XFAIL: cuda
 //===----------------------------------------------------------------------===//
 // >> ---- compile src1
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c %s -o %t-same-kernel-a.o
