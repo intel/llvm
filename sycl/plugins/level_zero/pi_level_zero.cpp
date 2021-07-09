@@ -2497,11 +2497,14 @@ pi_result piQueueRelease(pi_queue Queue) {
 
       if (Queue->OwnZeCommandQueue) {
         ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
-        Queue->ZeComputeCommandQueue = nullptr;
         if (Queue->ZeCopyCommandQueue) {
           ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCopyCommandQueue));
-          Queue->ZeCopyCommandQueue = nullptr;
         }
+      }
+
+      Queue->ZeComputeCommandQueue = nullptr;
+      if (Queue->ZeCopyCommandQueue) {
+        Queue->ZeCopyCommandQueue = nullptr;
       }
 
       zePrint("piQueueRelease NumTimesClosedFull %d, NumTimesClosedEarly %d\n",
