@@ -78,8 +78,8 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
 }
 
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               const context &Context,
-                               const async_handler &Handler, bool KeepOwnership,
+                               const context &Context, bool KeepOwnership,
+                               const async_handler &Handler,
                                backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);

@@ -82,9 +82,15 @@ __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle,
                                bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context,
-                            ContextImpl->get_async_handler(), KeepOwnership,
+  return detail::make_queue(NativeHandle, Context, KeepOwnership,
+                            ContextImpl->get_async_handler(),
                             backend::level_zero);
+}
+
+// TODO: remove this version (without ownership) when allowed to break ABI.
+__SYCL_EXPORT queue make_queue(const context &Context,
+                               pi_native_handle NativeHandle) {
+  return make_queue(Context, NativeHandle, false);
 }
 
 } // namespace level_zero

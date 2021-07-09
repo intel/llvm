@@ -2411,7 +2411,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   try {
     *Queue = new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueue, Context,
-                           Device, ZeCommandListBatchSize, Properties, true);
+                           Device, ZeCommandListBatchSize, true, Properties);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
