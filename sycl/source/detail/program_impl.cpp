@@ -362,8 +362,7 @@ void program_impl::create_cl_program_with_source(const std::string &Source) {
   }
 
   if (Err != PI_SUCCESS) {
-    std::string CallingFunction = "create_cl_program_with_source()";
-    Plugin.reportPiError(Err, CallingFunction);
+    Plugin.reportPiError(Err, "create_cl_program_with_source()");
   }
 }
 
