@@ -232,8 +232,7 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
         PI_INVALID_VALUE);
 
   if (Error != PI_SUCCESS) {
-    std::string CallingFunction = "allocateMemSubBuffer()";
-    Plugin.reportPiError(Error, CallingFunction);
+    Plugin.reportPiError(Error, "allocateMemSubBuffer()");
   }
 
   return NewMem;
