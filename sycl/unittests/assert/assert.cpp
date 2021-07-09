@@ -35,15 +35,14 @@ template <> struct KernelInfo<TestKernel> {
 };
 
 static constexpr const kernel_param_desc_t Signatures[] = {
-  { kernel_param_kind_t::kind_accessor, 4062, 0 }
-};
+    {kernel_param_kind_t::kind_accessor, 4062, 0}};
 
 template <> struct KernelInfo<::sycl::detail::AssertInfoCopier> {
-  static constexpr const char* getName() {
+  static constexpr const char *getName() {
     return "_ZTSN2cl4sycl6detail16AssertInfoCopierE";
   }
   static constexpr unsigned getNumParams() { return 1; }
-  static constexpr const kernel_param_desc_t& getParamDesc(unsigned Idx) {
+  static constexpr const kernel_param_desc_t &getParamDesc(unsigned Idx) {
     assert(!Idx);
     return Signatures[Idx];
   }
@@ -104,8 +103,8 @@ static sycl::unittest::PiImage generateCopierKernelImage() {
   return Img;
 }
 
-sycl::unittest::PiImage Imgs[] = { generateDefaultImage(),
-                                   generateCopierKernelImage() };
+sycl::unittest::PiImage Imgs[] = {generateDefaultImage(),
+                                  generateCopierKernelImage()};
 sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
 static int KernelLaunchCounter = 0;
@@ -194,7 +193,6 @@ static pi_result redefinedKernelGetGroupInfo(pi_kernel kernel, pi_device device,
 
   return PI_SUCCESS;
 }
-
 
 static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
                                               const size_t *, const size_t *,
@@ -314,14 +312,14 @@ TEST(Assert, Test) {
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev, [&](sycl::exception_list EL) {
-    for (auto &EPtr : EL)
-      try {
-        std::rethrow_exception(EPtr);
-      } catch (sycl::exception &E) {
-        if (E.get_cl_code() == PI_ERROR_UNKNOWN)
-          ErrorCaptured = true;
-      }
-  }};
+                      for (auto &EPtr : EL)
+                        try {
+                          std::rethrow_exception(EPtr);
+                        } catch (sycl::exception &E) {
+                          if (E.get_cl_code() == PI_ERROR_UNKNOWN)
+                            ErrorCaptured = true;
+                        }
+                    }};
 
   const sycl::context Ctx = Queue.get_context();
 
@@ -330,7 +328,7 @@ TEST(Assert, Test) {
   auto ExecBundle = sycl::build(KernelBundle);
   Queue.submit([&](sycl::handler &H) {
     H.use_kernel_bundle(ExecBundle);
-    H.single_task<TestKernel>([]{});
+    H.single_task<TestKernel>([] {});
   });
 
   while (!StartedWait)
@@ -362,4 +360,3 @@ TEST(Assert, Test) {
     EXPECT_EQ(WaitedEvents.size(), 1LU);
   }
 }
-
