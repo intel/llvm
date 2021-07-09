@@ -48,10 +48,16 @@ int main() {
            "should not have anything in the 'what' message");
   }
 
-  // Now test constructor with a real string value.
+  // Now test constructor with a real string value, including one containing
+  // null string terminator
   std::string testString("this is a test");
   exception ex_string1(make_error_code(errc::kernel_not_supported), testString);
   assert(testString.compare(ex_string1.what()) == 0);
+  testString[0] = '\0';
+  exception ex_early_terminated(make_error_code(errc::kernel_not_supported),
+                                testString);
+  assert(ex_early_terminated.code().value() ==
+         static_cast<int>(errc::kernel_not_supported));
   char testCharPtr[] = "this is also a test";
   exception ex_string2(make_error_code(errc::backend_mismatch), testCharPtr);
   assert(strcmp(ex_string2.what(), testCharPtr) == 0);

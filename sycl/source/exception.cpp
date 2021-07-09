@@ -21,51 +21,51 @@ constexpr char reserved_for_errorcode[] =
 std::error_code sycl121_proxy_errorcode = make_error_code(sycl::errc::invalid);
 } // namespace
 
-exception::exception(std::error_code ec, const char *Msg)
-    : exception(ec, nullptr, Msg) {}
+exception::exception(std::error_code EC, const char *Msg)
+    : exception(EC, nullptr, Msg) {}
 
-exception::exception(std::error_code ec, const std::string &Msg)
-    : exception(ec, nullptr, Msg) {}
+exception::exception(std::error_code EC, const std::string &Msg)
+    : exception(EC, nullptr, Msg) {}
 
 // new SYCL 2020 constructors
-exception::exception(std::error_code ec) : exception(ec, nullptr, "") {}
+exception::exception(std::error_code EC) : exception(EC, nullptr, "") {}
 
-exception::exception(int ev, const std::error_category &ecat,
-                     const std::string &what_arg)
-    : exception({ev, ecat}, nullptr, what_arg) {}
+exception::exception(int EV, const std::error_category &ECat,
+                     const std::string &WhatArg)
+    : exception({EV, ECat}, nullptr, WhatArg) {}
 
-exception::exception(int ev, const std::error_category &ecat,
-                     const char *what_arg)
-    : exception({ev, ecat}, nullptr, std::string(what_arg)) {}
+exception::exception(int EV, const std::error_category &ECat,
+                     const char *WhatArg)
+    : exception({EV, ECat}, nullptr, std::string(WhatArg)) {}
 
-exception::exception(int ev, const std::error_category &ecat)
-    : exception({ev, ecat}, nullptr, "") {}
+exception::exception(int EV, const std::error_category &ECat)
+    : exception({EV, ECat}, nullptr, "") {}
 
-exception::exception(context ctx, std::error_code ec,
-                     const std::string &what_arg)
-    : exception(ec, std::make_shared<context>(ctx), what_arg) {}
+exception::exception(context Ctx, std::error_code EC,
+                     const std::string &WhatArg)
+    : exception(EC, std::make_shared<context>(Ctx), WhatArg) {}
 
-exception::exception(context ctx, std::error_code ec, const char *what_arg)
-    : exception(ctx, ec, std::string(what_arg)) {}
+exception::exception(context Ctx, std::error_code EC, const char *WhatArg)
+    : exception(Ctx, EC, std::string(WhatArg)) {}
 
-exception::exception(context ctx, std::error_code ec)
-    : exception(ctx, ec, "") {}
+exception::exception(context Ctx, std::error_code EC)
+    : exception(Ctx, EC, "") {}
 
-exception::exception(context ctx, int ev, const std::error_category &ecat,
-                     const char *what_arg)
-    : exception(ctx, {ev, ecat}, std::string(what_arg)) {}
+exception::exception(context Ctx, int EV, const std::error_category &ECat,
+                     const char *WhatArg)
+    : exception(Ctx, {EV, ECat}, std::string(WhatArg)) {}
 
-exception::exception(context ctx, int ev, const std::error_category &ecat,
-                     const std::string &what_arg)
-    : exception(ctx, {ev, ecat}, what_arg) {}
+exception::exception(context Ctx, int EV, const std::error_category &ECat,
+                     const std::string &WhatArg)
+    : exception(Ctx, {EV, ECat}, WhatArg) {}
 
-exception::exception(context ctx, int ev, const std::error_category &ecat)
-    : exception(ctx, ev, ecat, "") {}
+exception::exception(context Ctx, int EV, const std::error_category &ECat)
+    : exception(Ctx, EV, ECat, "") {}
 
 // protected base constructor for all SYCL 2020 constructors
-exception::exception(std::error_code ec, std::shared_ptr<context> SharedPtrCtx,
-                     const std::string &what_arg)
-    : MMsg(what_arg + reserved_for_errorcode), MCLErr(PI_INVALID_VALUE),
+exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
+                     const std::string &WhatArg)
+    : MMsg(WhatArg + reserved_for_errorcode), MCLErr(PI_INVALID_VALUE),
       MContext(SharedPtrCtx) {
   // For compatibility with previous implementation, we are "hiding" the
   // std::error_code in the MMsg string, behind the null string terminator
@@ -75,7 +75,7 @@ exception::exception(std::error_code ec, std::shared_ptr<context> SharedPtrCtx,
   reservedPtr++;
   // insert error code
   std::error_code *ecPtr = reinterpret_cast<std::error_code *>(reservedPtr);
-  *ecPtr = ec;
+  *ecPtr = EC;
 }
 
 const std::error_code &exception::code() const noexcept {
