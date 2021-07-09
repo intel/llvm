@@ -58,6 +58,66 @@ public:
 [[intel::max_global_work_dim(1)]] void foo3() {}
 
 
+class Foo4 {
+public:
+  [[intel::reqd_sub_group_size(16)]] void operator()() const {}
+};
+
+[[intel::reqd_sub_group_size(8)]] void foo4() {}
+
+class Functor4 {
+public:
+  void operator()() const {
+    foo();
+  }
+};
+
+template <int SIZE>
+class Functor5 {
+public:
+  [[intel::reqd_sub_group_size(SIZE)]] void operator()() const {}
+};
+
+class Foo5 {
+public:
+  [[sycl::reqd_work_group_size(32, 16, 16)]] void operator()() const {}
+};
+
+[[sycl::reqd_work_group_size(8, 1, 1)]] void foo5() {}
+
+class Functor6 {
+public:
+  void operator()() const {
+    foo5();
+  }
+};
+
+template <int SIZE, int SIZE1, int SIZE2>
+class Functor7 {
+public:
+  [[sycl::reqd_work_group_size(SIZE, SIZE1, SIZE2)]] void operator()() const {}
+};
+
+class Foo6 {
+public:
+  [[intel::max_work_group_size(32, 16, 16)]] void operator()() const {}
+};
+
+[[intel::max_work_group_size(8, 1, 1)]] void foo6() {}
+
+class Functor8 {
+public:
+  void operator()() const {
+    foo6();
+  }
+};
+
+template <int SIZE, int SIZE1, int SIZE2>
+class Functor9 {
+public:
+  [[intel::max_work_group_size(SIZE, SIZE1, SIZE2)]] void operator()() const {}
+};
+
 int main() {
   q.submit([&](handler &h) {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM1:[0-9]+]]
@@ -131,6 +191,60 @@ int main() {
     // CHECK-NOT: !max_global_work_dim
     h.single_task<class kernel_name16>(
         []() { foo3(); });
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name17() #0 {{.*}} !intel_reqd_sub_group_size ![[NUM16:[0-9]+]]
+    Foo4 boo4;
+    h.single_task<class kernel_name17>(boo4);
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name18() #0 {{.*}} !intel_reqd_sub_group_size ![[NUM1]]
+    h.single_task<class kernel_name18>(
+        []() [[intel::reqd_sub_group_size(1)]]{});
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name19() #0 {{.*}} !intel_reqd_sub_group_size ![[NUM2]]
+    Functor5<2> f5;
+    h.single_task<class kernel_name19>(f5);
+
+    // Test attribute is not propagated.
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name20()
+    // CHECK-NOT: !reqd_sub_group_size
+    Functor4 f4;
+    h.single_task<class kernel_name20>(f4);
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name21() #0 {{.*}} !reqd_work_group_size ![[NUM32:[0-9]+]]
+    Foo5 boo5;
+    h.single_task<class kernel_name21>(boo5);
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name22() #0 {{.*}} !reqd_work_group_size ![[NUM88:[0-9]+]]
+    h.single_task<class kernel_name22>(
+        []() [[sycl::reqd_work_group_size(8, 8, 8)]]{});
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name23() #0 {{.*}} !reqd_work_group_size ![[NUM22:[0-9]+]]
+    Functor7<2, 2, 2> f7;
+    h.single_task<class kernel_name23>(f7);
+
+    // Test attribute is not propagated.
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name24()
+    // CHECK-NOT: !reqd_work_group_size
+    Functor6 f6;
+    h.single_task<class kernel_name24>(f6);
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name25() #0 {{.*}} !max_work_group_size ![[NUM32]]
+    Foo6 boo6;
+    h.single_task<class kernel_name25>(boo6);
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name26() #0 {{.*}} !max_work_group_size ![[NUM88]]
+    h.single_task<class kernel_name26>(
+        []() [[intel::max_work_group_size(8, 8, 8)]]{});
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name27() #0 {{.*}} !max_work_group_size ![[NUM22]]
+    Functor9<2, 2, 2> f9;
+    h.single_task<class kernel_name27>(f9);
+
+    // Test attribute is not propagated.
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name28()
+    // CHECK-NOT: !max_work_group_size
+    Functor8 f8;
+    h.single_task<class kernel_name28>(f8);
   });
   return 0;
 }
@@ -140,3 +254,7 @@ int main() {
 // CHECK: ![[NUM42]] = !{i32 42}
 // CHECK: ![[NUM2]] = !{i32 2}
 // CHECK-NOT: ![[NUM0]]  = !{i32 0}
+// CHECK: ![[NUM16]] = !{i32 16}
+// CHECK: ![[NUM32]] = !{i32 16, i32 16, i32 32}
+// CHECK: ![[NUM88]] = !{i32 8, i32 8, i32 8}
+// CHECK: ![[NUM22]] = !{i32 2, i32 2, i32 2}
