@@ -529,24 +529,7 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
   return PI_SUCCESS;
 }
 
-pi_result _pi_device::initialize(
-    int SubSubDeviceOrdinal,
-    ze_command_queue_group_properties_t SubSubDeviceQueueProperties) {
-  // initialize a sub-sub-devices with it's own Ordinal
-  if (SubSubDeviceOrdinal >= 0) {
-    ZeComputeQueueGroupIndex = SubSubDeviceOrdinal;
-    ZeComputeQueueGroupProperties = SubSubDeviceQueueProperties;
-
-    // Cache sub-sub-device properties
-    ZeDeviceProperties = {};
-    ZE_CALL(zeDeviceGetProperties, (ZeDevice, &(ZeDeviceProperties)));
-    ZeDeviceComputeProperties = {};
-    ZE_CALL(zeDeviceGetComputeProperties,
-            (ZeDevice, &(ZeDeviceComputeProperties)));
-
-    return PI_SUCCESS;
-  }
-
+pi_result _pi_device::initialize(int SubSubDeviceOrdinal) {
   uint32_t numQueueGroups = 0;
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (ZeDevice, &numQueueGroups, nullptr));
@@ -559,43 +542,51 @@ pi_result _pi_device::initialize(
           (ZeDevice, &numQueueGroups, QueueProperties.data()));
 
   int ComputeGroupIndex = -1;
-  for (uint32_t i = 0; i < numQueueGroups; i++) {
-    if (QueueProperties[i].flags &
-        ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
-      ComputeGroupIndex = i;
-      break;
-    }
-  }
-  // How is it possible that there are no "compute" capabilities?
-  if (ComputeGroupIndex < 0) {
-    return PI_ERROR_UNKNOWN;
-  }
-  ZeComputeQueueGroupIndex = ComputeGroupIndex;
-  ZeComputeQueueGroupProperties = QueueProperties[ComputeGroupIndex];
 
-  int CopyGroupIndex = -1;
-  const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
-  bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
-  if (UseCopyEngine) {
+  // initialize a sub-sub-devices with it's own Ordinal
+  if (SubSubDeviceOrdinal >= 0) {
+    ComputeGroupIndex = SubSubDeviceOrdinal;
+  } else {
     for (uint32_t i = 0; i < numQueueGroups; i++) {
-      if (((QueueProperties[i].flags &
-            ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
-          (QueueProperties[i].flags &
-           ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
-        CopyGroupIndex = i;
+      if (QueueProperties[i].flags &
+          ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
+        ComputeGroupIndex = i;
         break;
       }
     }
-    if (CopyGroupIndex < 0)
-      zePrint("NOTE: blitter/copy engine is not available though it was "
-              "requested\n");
-    else
-      zePrint("NOTE: blitter/copy engine is available\n");
+    // How is it possible that there are no "compute" capabilities?
+    if (ComputeGroupIndex < 0) {
+      return PI_ERROR_UNKNOWN;
+    }
+
+    int CopyGroupIndex = -1;
+    const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+    bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
+    if (UseCopyEngine) {
+      for (uint32_t i = 0; i < numQueueGroups; i++) {
+        if (((QueueProperties[i].flags &
+              ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
+            (QueueProperties[i].flags &
+            ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
+          CopyGroupIndex = i;
+          break;
+        }
+      }
+      if (CopyGroupIndex < 0)
+        zePrint("NOTE: blitter/copy engine is not available though it was "
+                "requested\n");
+      else
+        zePrint("NOTE: blitter/copy engine is available\n");
+    }
+
+    ZeCopyQueueGroupIndex = CopyGroupIndex;
+    if (CopyGroupIndex >= 0) {
+      ZeCopyQueueGroupProperties = QueueProperties[CopyGroupIndex];
+    }
   }
-  ZeCopyQueueGroupIndex = CopyGroupIndex;
-  if (CopyGroupIndex >= 0) {
-    ZeCopyQueueGroupProperties = QueueProperties[CopyGroupIndex];
-  }
+
+  ZeComputeQueueGroupIndex = ComputeGroupIndex;
+  ZeComputeQueueGroupProperties = QueueProperties[ComputeGroupIndex];
 
   // Cache device properties
   ZeDeviceProperties = {};
@@ -1567,8 +1558,6 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
 
         // collect all the ordinals for the sub-sub-devices
         std::vector<int> Ordinals;
-        std::unordered_map<int, ze_command_queue_group_properties_t>
-            AllQueueProperties;
 
         uint32_t numQueueGroups = 0;
         ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
@@ -1586,7 +1575,6 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
           if (QueueProperties[i].flags &
               ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
             Ordinals.push_back(i);
-            AllQueueProperties[i] = QueueProperties[i];
           }
         }
 
@@ -1599,8 +1587,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
           // TODO: check if a device can be it's own parent
           std::unique_ptr<_pi_device> PiSubSubDevice(
               new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
-          pi_result Result = PiSubSubDevice->initialize(
-              Ordinals[J], AllQueueProperties[Ordinals[J]]);
+          pi_result Result = PiSubSubDevice->initialize(Ordinals[J]);
           if (Result != PI_SUCCESS) {
             return Result;
           }
