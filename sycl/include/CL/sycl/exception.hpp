@@ -23,7 +23,6 @@ namespace sycl {
 // Forward declaration
 class context;
 
-
 // Derive from std::exception so uncaught exceptions are printed in c++ default
 // exception handler.
 /// \ingroup sycl_api
