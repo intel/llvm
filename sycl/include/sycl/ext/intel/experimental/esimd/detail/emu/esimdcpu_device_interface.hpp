@@ -24,7 +24,6 @@
 // pointer table file ('esimd_emu_functions_v1.h') included in 'struct
 // ESIMDDeviceInterface' definition.
 #include <cstdint>
-#include <mutex>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
