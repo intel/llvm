@@ -55,7 +55,7 @@ def time_trace_file_eq: Joined<["--"], "time-trace-file=">,
     HelpText<"Specify time trace output file">,
     Group<grp_lld>;
 def deduplicate_literals: Flag<["--"], "deduplicate-literals">,
-    HelpText<"Enable literal deduplication">,
+    HelpText<"Enable literal deduplication. This is implied by --icf={safe,all}">,
     Group<grp_lld>;
 def print_dylib_search: Flag<["--"], "print-dylib-search">,
     HelpText<"Print which paths lld searched when trying to find dylibs">,
@@ -63,6 +63,10 @@ def print_dylib_search: Flag<["--"], "print-dylib-search">,
 def icf_eq: Joined<["--"], "icf=">,
     HelpText<"Set level for identical code folding (default: none)">,
     MetaVarName<"[none,safe,all]">,
+    Group<grp_lld>;
+def lto_O: Joined<["--"], "lto-O">,
+    HelpText<"Set optimization level for LTO (default: 2)">,
+    MetaVarName<"<opt-level>">,
     Group<grp_lld>;
 
 // This is a complete Options.td compiled from Apple's ld(1) manpage
