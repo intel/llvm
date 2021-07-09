@@ -850,13 +850,13 @@ __esimd_media_block_load(unsigned modififer, TACC handle, unsigned plane,
   uint32_t bpp;
   uint32_t imgWidth;
   uint32_t imgHeight;
-  std::mutex mutexLock;
+  std::mutex *mutexLock;
 
   I->sycl_get_cm_image_params_ptr(static_cast<void *>(handle.get_pointer()),
                                   &readBase, &imgWidth, &imgHeight, &bpp,
                                   &mutexLock);
 
-  std::unique_lock<std::mutex> lock(mutexLock);
+  std::unique_lock<std::mutex> lock(*mutexLock);
 
   int x_pos_a, y_pos_a, offset, index;
 
@@ -960,7 +960,7 @@ inline void __esimd_media_block_store(unsigned modififer, TACC handle,
   uint32_t bpp;
   uint32_t imgWidth;
   uint32_t imgHeight;
-  std::mutex mutexLock;
+  std::mutex *mutexLock;
 
   I->sycl_get_cm_image_params_ptr(static_cast<void *>(handle.get_pointer()),
                                   &writeBase, &imgWidth, &imgHeight, &bpp,
@@ -974,7 +974,7 @@ inline void __esimd_media_block_store(unsigned modififer, TACC handle,
   // TODO : Remove intermediate 'out' matrix
   std::vector<std::vector<Ty>> out(M, std::vector<Ty>(N));
 
-  std::unique_lock<std::mutex> lock(mutexLock);
+  std::unique_lock<std::mutex> lock(*mutexLock);
 
   for (int i = 0, k = 0; i < M; i++) {
     for (int j = 0; j < N; j++) {
@@ -1342,12 +1342,12 @@ __esimd_block_read(SurfIndAliasTy surf_ind, uint32_t offset) {
 
   char *readBase;
   uint32_t width;
-  std::mutex mutexLock;
+  std::mutex *mutexLock;
 
   I->sycl_get_cm_buffer_params_ptr(static_cast<void *>(surf_ind.get_pointer()),
                                    &readBase, &width, &mutexLock);
 
-  std::unique_lock<std::mutex> lock(mutexLock);
+  std::unique_lock<std::mutex> lock(*mutexLock);
 
   for (int idx = 0; idx < N; idx++) {
     if (offset >= width) {
@@ -1369,12 +1369,12 @@ inline void __esimd_block_write(SurfIndAliasTy surf_ind, uint32_t offset,
 
   char *writeBase;
   uint32_t width;
-  std::mutex mutexLock;
+  std::mutex *mutexLock;
 
   I->sycl_get_cm_buffer_params_ptr(static_cast<void *>(surf_ind.get_pointer()),
                                    &writeBase, &width, &mutexLock);
 
-  std::unique_lock<std::mutex> lock(mutexLock);
+  std::unique_lock<std::mutex> lock(*mutexLock);
 
   offset <<= 4;
 
