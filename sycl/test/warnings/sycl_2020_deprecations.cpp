@@ -4,7 +4,7 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=1.2.1 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/oneapi/atomic_fence.hpp>
+#include <sycl/ext/oneapi/atomic_fence.hpp>
 
 int main() {
   cl_context ClCtx;
