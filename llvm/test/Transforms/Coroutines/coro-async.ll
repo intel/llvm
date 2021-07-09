@@ -1,5 +1,5 @@
 ; RUN: opt < %s -enable-coroutines -passes='default<O2>' -S | FileCheck --check-prefixes=CHECK %s
-
+; RUN: opt < %s -enable-coroutines -O0 -S
 target datalayout = "p:64:64:64"
 
 %async.task = type { i64 }
@@ -120,7 +120,7 @@ define void @my_async_function_pa(i8* %ctxt, %async.task* %task, %async.actor* %
 
 ; CHECK-LABEL: define swiftcc void @my_async_function(i8* swiftasync %async.ctxt, %async.task* %task, %async.actor* %actor)
 ; CHECK-SAME: !dbg ![[SP1:[0-9]+]] {
-; CHECK: entry:
+; CHECK: coro.return:
 ; CHECK:   [[FRAMEPTR:%.*]] = getelementptr inbounds i8, i8* %async.ctxt, i64 128
 ; CHECK:   [[ACTOR_SPILL_ADDR:%.*]] = getelementptr inbounds i8, i8* %async.ctxt, i64 152
 ; CHECK:   [[CAST1:%.*]] = bitcast i8* [[ACTOR_SPILL_ADDR]] to %async.actor**
@@ -205,11 +205,12 @@ entry:
   store i8* %async.ctxt, i8** %callee_context.caller_context.addr
   %resume_proj_fun = bitcast i8*(i8*)* @resume_context_projection to i8*
   %callee = bitcast void(i8*, %async.task*, %async.actor*)* @asyncSuspend to i8*
+  %task.casted = bitcast i8* %arg0 to %async.task*
   %res = call {i8*, i8*, i8*} (i32, i8*, i8*, ...) @llvm.coro.suspend.async(i32 2,
                                                   i8* %resume.func_ptr,
                                                   i8* %resume_proj_fun,
                                                   void (i8*, i8*, %async.task*, %async.actor*)* @my_async_function.my_other_async_function_fp.apply,
-                                                  i8* %callee, i8* %callee_context, %async.task* %task, %async.actor *%actor), !dbg !9
+                                                  i8* %callee, i8* %callee_context, %async.task* %task.casted, %async.actor *%actor), !dbg !9
 
   %continuation_task_arg = extractvalue {i8*, i8*, i8*} %res, 0
   %task.2 =  bitcast i8* %continuation_task_arg to %async.task*
@@ -227,7 +228,7 @@ entry:
                                                   i8* %resume.func_ptr.1,
                                                   i8* %resume_proj_fun.2,
                                                   void (i8*, i8*, %async.task*, %async.actor*)* @my_async_function.my_other_async_function_fp.apply,
-                                                  i8* %callee.2, i8* %callee_context, %async.task* %task, %async.actor *%actor)
+                                                  i8* %callee.2, i8* %callee_context, %async.task* %task.casted, %async.actor *%actor)
 
   call void @llvm.coro.async.context.dealloc(i8* %callee_context)
   %continuation_actor_arg = extractvalue {i8*, i8*, i8*} %res.2, 1
@@ -409,7 +410,7 @@ is_not_equal:
      i32 64    ; Initial async context size without space for frame
 }>
 
-define swiftcc void @polymorphic_suspend_return(i8* %async.ctxt, %async.task* %task, %async.actor* %actor)  {
+define swiftcc void @polymorphic_suspend_return(i8* swiftasync %async.ctxt, %async.task* %task, %async.actor* %actor)  {
 entry:
   %tmp = alloca { i64, i64 }, align 8
   %proj.1 = getelementptr inbounds { i64, i64 }, { i64, i64 }* %tmp, i64 0, i32 0
@@ -444,7 +445,7 @@ entry:
   %resume_proj_fun = bitcast i8*(i8*)* @resume_context_projection to i8*
   %callee = bitcast void(i8*, %async.task*, %async.actor*)* @asyncSuspend to i8*
   %res = call {i8*, i8*, i8*, i8*} (i32, i8*, i8*, ...)
-         @llvm.coro.suspend.async.sl_p0i8p0i8p0i8p0i8s(i32 0,
+         @llvm.coro.suspend.async.sl_p0i8p0i8p0i8p0i8s(i32 256, ;; swiftasync at 0 and swiftself at 1 in resume function
                                                  i8* %resume.func_ptr,
                                                  i8* %resume_proj_fun,
                                                  void (i8*, i8*, %async.task*, %async.actor*)* @my_async_function.my_other_async_function_fp.apply,
@@ -463,8 +464,8 @@ entry:
   unreachable
 }
 
-; CHECK-LABEL: define swiftcc void @polymorphic_suspend_return(i8* %async.ctxt, %async.task* %task, %async.actor* %actor)
-; CHECK-LABEL: define internal swiftcc void @polymorphic_suspend_return.resume.0(i8* {{.*}}%0, i8* {{.*}}%1, i8* {{.*}}%2, i8* {{.*}}%3)
+; CHECK-LABEL: define swiftcc void @polymorphic_suspend_return(i8* swiftasync %async.ctxt, %async.task* %task, %async.actor* %actor)
+; CHECK-LABEL: define internal swiftcc void @polymorphic_suspend_return.resume.0(i8* {{.*}}swiftasync{{.*}} %0, i8* {{.*}}swiftself{{.*}} %1, i8* {{.*}}%2, i8* {{.*}}%3)
 ; CHECK: bitcast i8* %3 to %async.task*
 ; CHECK: }
 
@@ -535,6 +536,7 @@ declare swiftcc void @asyncReturn(i8*, %async.task*, %async.actor*)
 declare swiftcc void @asyncSuspend(i8*, %async.task*, %async.actor*)
 declare i8* @llvm.coro.async.resume()
 declare void @llvm.coro.async.size.replace(i8*, i8*)
+declare i8* @hide(i8*)
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!0}

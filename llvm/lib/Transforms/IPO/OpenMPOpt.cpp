@@ -2634,17 +2634,42 @@ PreservedAnalyses OpenMPOptPass::run(Module &M, ModuleAnalysisManager &AM) {
   if (DisableOpenMPOptimizations)
     return PreservedAnalyses::all();
 
+  FunctionAnalysisManager &FAM =
+      AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   KernelSet Kernels = getDeviceKernels(M);
 
-  // Create internal copies of each function if this is a kernel Module.
+  auto IsCalled = [&](Function &F) {
+    if (Kernels.contains(&F))
+      return true;
+    for (const User *U : F.users())
+      if (!isa<BlockAddress>(U))
+        return true;
+    return false;
+  };
+
+  auto EmitRemark = [&](Function &F) {
+    auto &ORE = FAM.getResult<OptimizationRemarkEmitterAnalysis>(F);
+    ORE.emit([&]() {
+      OptimizationRemarkAnalysis ORA(DEBUG_TYPE, "InternalizationFailure", &F);
+      return ORA << "Could not internalize function. "
+                 << "Some optimizations may not be possible.";
+    });
+  };
+
+  // Create internal copies of each function if this is a kernel Module. This
+  // allows iterprocedural passes to see every call edge.
   DenseSet<const Function *> InternalizedFuncs;
   if (isOpenMPDevice(M))
     for (Function &F : M)
-      if (!F.isDeclaration() && !Kernels.contains(&F))
-        if (Attributor::internalizeFunction(F, /* Force */ true))
+      if (!F.isDeclaration() && !Kernels.contains(&F) && IsCalled(F)) {
+        if (Attributor::internalizeFunction(F, /* Force */ true)) {
           InternalizedFuncs.insert(&F);
+        } else if (!F.hasLocalLinkage() && !F.hasFnAttribute(Attribute::Cold)) {
+          EmitRemark(F);
+        }
+      }
 
-  // Look at every function definition in the Module that wasn't internalized.
+  // Look at every function in the Module unless it was internalized.
   SmallVector<Function *, 16> SCC;
   for (Function &F : M)
     if (!F.isDeclaration() && !InternalizedFuncs.contains(&F))
@@ -2652,9 +2677,6 @@ PreservedAnalyses OpenMPOptPass::run(Module &M, ModuleAnalysisManager &AM) {
 
   if (SCC.empty())
     return PreservedAnalyses::all();
-
-  FunctionAnalysisManager &FAM =
-      AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
 
   AnalysisGetter AG(FAM);
 
@@ -2668,9 +2690,9 @@ PreservedAnalyses OpenMPOptPass::run(Module &M, ModuleAnalysisManager &AM) {
   SetVector<Function *> Functions(SCC.begin(), SCC.end());
   OMPInformationCache InfoCache(M, AG, Allocator, /*CGSCC*/ Functions, Kernels);
 
-  unsigned MaxFixponitIterations = (Kernels.empty()) ? 64 : 32;
-  Attributor A(Functions, InfoCache, CGUpdater, nullptr, true, false, MaxFixponitIterations, OREGetter,
-               DEBUG_TYPE);
+  unsigned MaxFixpointIterations = (isOpenMPDevice(M)) ? 128 : 32;
+  Attributor A(Functions, InfoCache, CGUpdater, nullptr, true, false,
+               MaxFixpointIterations, OREGetter, DEBUG_TYPE);
 
   OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
   bool Changed = OMPOpt.run(true);
@@ -2720,9 +2742,9 @@ PreservedAnalyses OpenMPOptCGSCCPass::run(LazyCallGraph::SCC &C,
   OMPInformationCache InfoCache(*(Functions.back()->getParent()), AG, Allocator,
                                 /*CGSCC*/ Functions, Kernels);
 
-  unsigned MaxFixponitIterations = (isOpenMPDevice(M)) ? 64 : 32;
-  Attributor A(Functions, InfoCache, CGUpdater, nullptr, false, true, MaxFixponitIterations, OREGetter,
-               DEBUG_TYPE);
+  unsigned MaxFixpointIterations = (isOpenMPDevice(M)) ? 128 : 32;
+  Attributor A(Functions, InfoCache, CGUpdater, nullptr, false, true,
+               MaxFixpointIterations, OREGetter, DEBUG_TYPE);
 
   OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
   bool Changed = OMPOpt.run(false);
@@ -2786,9 +2808,9 @@ struct OpenMPOptCGSCCLegacyPass : public CallGraphSCCPass {
                                   Allocator,
                                   /*CGSCC*/ Functions, Kernels);
 
-    unsigned MaxFixponitIterations = (isOpenMPDevice(M)) ? 64 : 32;
+    unsigned MaxFixpointIterations = (isOpenMPDevice(M)) ? 128 : 32;
     Attributor A(Functions, InfoCache, CGUpdater, nullptr, false, true,
-                 MaxFixponitIterations, OREGetter, DEBUG_TYPE);
+                 MaxFixpointIterations, OREGetter, DEBUG_TYPE);
 
     OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
     return OMPOpt.run(false);

@@ -190,8 +190,6 @@ static LogicalResult rewriteAsPaddedOp(PatternRewriter &rewriter,
   // Clone `opToPad` to operate on the statically padded shapes.
   auto resultTensorTypes =
       ValueRange(newOperands).take_back(opToPad.getNumOutputs()).getTypes();
-  ValueRange otherOperands = opToPad.getAssumedNonShapedOperands();
-  newOperands.append(otherOperands.begin(), otherOperands.end());
   linalg::LinalgOp paddedOp =
       opToPad.clone(rewriter, loc, resultTensorTypes, newOperands);
 
@@ -206,7 +204,7 @@ static LogicalResult rewriteAsPaddedOp(PatternRewriter &rewriter,
     SmallVector<OpFoldResult> offsets(rank, rewriter.getIndexAttr(0));
     auto sizes = llvm::to_vector<4>(llvm::map_range(
         llvm::seq<unsigned>(0, rank), [&](unsigned d) -> OpFoldResult {
-          auto dimOp = rewriter.create<memref::DimOp>(loc, std::get<0>(it), d);
+          auto dimOp = rewriter.create<tensor::DimOp>(loc, std::get<0>(it), d);
           newUsersOfOpToPad.insert(dimOp);
           return dimOp.getResult();
         }));
@@ -788,8 +786,8 @@ LogicalResult ExtractSliceOfPadTensorSwapPattern::matchAndRewrite(
     auto low = asValue(rewriter, loc, padOp.getMixedLowPad()[dim]);
     auto offset = asValue(rewriter, loc, sliceOp.getMixedOffsets()[dim]);
     auto length = asValue(rewriter, loc, sliceOp.getMixedSizes()[dim]);
-    auto srcSize = rewriter.createOrFold<memref::DimOp>(
-        loc, padOp.source(), dim);
+    auto srcSize =
+        rewriter.createOrFold<tensor::DimOp>(loc, padOp.source(), dim);
 
     // The new amount of low padding is `low - offset`. Except for the case
     // where none of the low padding is read. In that case, the new amount of

@@ -1920,7 +1920,7 @@ HexagonTargetLowering::validateConstPtrAlignment(SDValue Ptr, Align NeedAlign,
     return;
   unsigned Addr = CA->getZExtValue();
   Align HaveAlign =
-      Addr != 0 ? Align(1u << countTrailingZeros(Addr)) : NeedAlign;
+      Addr != 0 ? Align(1ull << countTrailingZeros(Addr)) : NeedAlign;
   if (HaveAlign < NeedAlign) {
     std::string ErrMsg;
     raw_string_ostream O(ErrMsg);
@@ -3555,25 +3555,24 @@ bool HexagonTargetLowering::shouldReduceLoadWidth(SDNode *Load,
 }
 
 Value *HexagonTargetLowering::emitLoadLinked(IRBuilderBase &Builder,
-                                             Value *Addr,
+                                             Type *ValueTy, Value *Addr,
                                              AtomicOrdering Ord) const {
   BasicBlock *BB = Builder.GetInsertBlock();
   Module *M = BB->getParent()->getParent();
-  auto PT = cast<PointerType>(Addr->getType());
-  Type *Ty = PT->getElementType();
-  unsigned SZ = Ty->getPrimitiveSizeInBits();
+  unsigned SZ = ValueTy->getPrimitiveSizeInBits();
   assert((SZ == 32 || SZ == 64) && "Only 32/64-bit atomic loads supported");
   Intrinsic::ID IntID = (SZ == 32) ? Intrinsic::hexagon_L2_loadw_locked
                                    : Intrinsic::hexagon_L4_loadd_locked;
   Function *Fn = Intrinsic::getDeclaration(M, IntID);
 
-  PointerType *NewPtrTy
-    = Builder.getIntNTy(SZ)->getPointerTo(PT->getAddressSpace());
+  auto PtrTy = cast<PointerType>(Addr->getType());
+  PointerType *NewPtrTy =
+      Builder.getIntNTy(SZ)->getPointerTo(PtrTy->getAddressSpace());
   Addr = Builder.CreateBitCast(Addr, NewPtrTy);
 
   Value *Call = Builder.CreateCall(Fn, Addr, "larx");
 
-  return Builder.CreateBitCast(Call, Ty);
+  return Builder.CreateBitCast(Call, ValueTy);
 }
 
 /// Perform a store-conditional operation to Addr. Return the status of the

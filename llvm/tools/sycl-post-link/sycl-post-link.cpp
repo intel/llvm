@@ -44,6 +44,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
+#include <algorithm>
 #include <memory>
 
 using namespace llvm;
@@ -288,13 +289,17 @@ static void collectKernelModuleMap(
   }
 }
 
+enum HasAssertStatus { No_Assert, Assert, Assert_Indirect };
+
 // Go through function call graph searching for assert call.
-static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
+static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
   // Map holds the info about assertions in already examined functions:
   // true  - if there is an assertion in underlying functions,
   // false - if there are definetely no assertions in underlying functions.
   static std::map<llvm::Function *, bool> hasAssertionInCallGraphMap;
   std::vector<llvm::Function *> FuncCallStack;
+
+  static std::vector<llvm::Function *> isIndirectlyCalledInGraph;
 
   std::vector<llvm::Function *> Workstack;
   Workstack.push_back(Func);
@@ -305,6 +310,16 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
     if (F != Func)
       FuncCallStack.push_back(F);
 
+    bool HasIndirectlyCalledAttr = false;
+    if (std::find(isIndirectlyCalledInGraph.begin(),
+                  isIndirectlyCalledInGraph.end(),
+                  F) != isIndirectlyCalledInGraph.end())
+      HasIndirectlyCalledAttr = true;
+    else if (F->hasFnAttribute("referenced-indirectly")) {
+      HasIndirectlyCalledAttr = true;
+      isIndirectlyCalledInGraph.push_back(F);
+    }
+
     bool IsLeaf = true;
     for (auto &I : instructions(F)) {
       if (!isa<CallBase>(&I))
@@ -313,6 +328,12 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
       Function *CF = cast<CallBase>(&I)->getCalledFunction();
       if (!CF)
         continue;
+
+      bool IsIndirectlyCalled =
+          HasIndirectlyCalledAttr ||
+          std::find(isIndirectlyCalledInGraph.begin(),
+                    isIndirectlyCalledInGraph.end(),
+                    CF) != isIndirectlyCalledInGraph.end();
 
       // Return if we've already discovered if there are asserts in the
       // function call graph.
@@ -323,7 +344,7 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
         if (!HasAssert->second)
           continue;
 
-        return true;
+        return IsIndirectlyCalled ? Assert_Indirect : Assert;
       }
 
       if (CF->getName().startswith("__devicelib_assert_fail")) {
@@ -335,12 +356,14 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
         hasAssertionInCallGraphMap[Func] = true;
         hasAssertionInCallGraphMap[CF] = true;
 
-        return true;
+        return IsIndirectlyCalled ? Assert_Indirect : Assert;
       }
 
       if (!CF->isDeclaration()) {
         Workstack.push_back(CF);
         IsLeaf = false;
+        if (HasIndirectlyCalledAttr)
+          isIndirectlyCalledInGraph.push_back(CF);
       }
     }
 
@@ -350,7 +373,7 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
       FuncCallStack.clear();
     }
   }
-  return false;
+  return No_Assert;
 }
 
 // Input parameter KernelModuleMap is a map containing groups of kernels with
@@ -547,14 +570,36 @@ static string_vector saveDeviceImageProperty(
 
     {
       Module *M = ResultModules[I].get();
+      bool HasIndirectlyCalledAssert = false;
+      std::vector<llvm::Function *> Kernels;
       for (auto &F : M->functions()) {
         // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
         // TODO: handle function pointers.
-        if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-          if (hasAssertInFunctionCallGraph(&F))
-            PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
-                {F.getName(), true});
+        if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+          continue;
+
+        Kernels.push_back(&F);
+        if (HasIndirectlyCalledAssert)
+          continue;
+
+        HasAssertStatus HasAssert = hasAssertInFunctionCallGraph(&F);
+        switch (HasAssert) {
+        case Assert:
+          PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
+              {F.getName(), true});
+          break;
+        case Assert_Indirect:
+          HasIndirectlyCalledAssert = true;
+          break;
+        case No_Assert:
+          break;
         }
+      }
+
+      if (HasIndirectlyCalledAssert) {
+        for (auto *F : Kernels)
+          PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
+              {F->getName(), true});
       }
     }
 
