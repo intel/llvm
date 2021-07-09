@@ -21,9 +21,10 @@
 #include <CL/sycl/detail/defines_elementary.hpp>
 
 namespace {
-[[__SYCL2020_DEPRECATED(
+__SYCL2020_DEPRECATED(
     "include sycl/ext/intel/esimd/detail/emu/esimdcpu_device_interface.hpp "
-    "instead")]] constexpr static bool HeaderDeprecated = true;
+    "instead")
+constexpr static bool HeaderDeprecated = true;
 constexpr static bool TriggerHeaderDeprecationWarning = HeaderDeprecated;
 } // namespace
 

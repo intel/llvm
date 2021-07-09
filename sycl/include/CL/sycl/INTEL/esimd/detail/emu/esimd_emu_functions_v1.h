@@ -15,9 +15,10 @@
 #include <CL/sycl/detail/defines_elementary.hpp>
 
 namespace {
-[[__SYCL2020_DEPRECATED(
+__SYCL2020_DEPRECATED(
     "include sycl/ext/intel/esimd/detail/emu/esimd_emu_functions_v1.h "
-    "instead")]] constexpr static bool HeaderDeprecated = true;
+    "instead")
+constexpr static bool HeaderDeprecated = true;
 constexpr static bool TriggerHeaderDeprecationWarning = HeaderDeprecated;
 } // namespace
 
