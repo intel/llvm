@@ -9,6 +9,7 @@
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
 #include <CL/sycl.hpp>
+#include <detail/device_image_impl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -41,21 +42,6 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-int SpecConstVal0 = 0;
-int SpecConstVal1 = 0;
-
-static pi_result
-redefinedProgramSetSpecializationConstant(pi_program prog, pi_uint32 spec_id,
-                                          size_t spec_size,
-                                          const void *spec_value) {
-  if (spec_id == 0)
-    SpecConstVal0 = *static_cast<const int *>(spec_value);
-  if (spec_id == 1)
-    SpecConstVal1 = *static_cast<const int *>(spec_value);
-
-  return PI_SUCCESS;
-}
-
 static sycl::unittest::PiImage generateImageWithSpecConsts() {
   using namespace sycl::unittest;
 
@@ -84,7 +70,7 @@ static sycl::unittest::PiImage generateImageWithSpecConsts() {
 static sycl::unittest::PiImage Img = generateImageWithSpecConsts();
 static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
-TEST(SpecConstDefaultValues, DISABLED_DefaultValuesAreSet) {
+TEST(SpecConstDefaultValues, DefaultValuesAreSet) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -98,8 +84,6 @@ TEST(SpecConstDefaultValues, DISABLED_DefaultValuesAreSet) {
 
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piextProgramSetSpecializationConstant>(
-      redefinedProgramSetSpecializationConstant);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -109,17 +93,18 @@ TEST(SpecConstDefaultValues, DISABLED_DefaultValuesAreSet) {
 
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
-  auto ExecBundle = sycl::build(KernelBundle);
-  Queue.submit([&](sycl::handler &CGH) {
-    CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
-  });
 
-  EXPECT_EQ(SpecConstVal0, 42);
-  EXPECT_EQ(SpecConstVal1, 8);
+  auto DevImage = sycl::detail::getSyclObjImpl(*KernelBundle.begin());
+  const auto &Blob = DevImage->get_spec_const_blob_ref();
+
+  int SpecConstVal1 = *reinterpret_cast<const int *>(Blob.data());
+  int SpecConstVal2 = *(reinterpret_cast<const int *>(Blob.data()) + 1);
+
+  EXPECT_EQ(SpecConstVal1, 42);
+  EXPECT_EQ(SpecConstVal2, 8);
 }
 
-TEST(SpecConstDefaultValues, DISABLED_DefaultValuesAreOverriden) {
+TEST(SpecConstDefaultValues, DefaultValuesAreOverriden) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -133,8 +118,6 @@ TEST(SpecConstDefaultValues, DISABLED_DefaultValuesAreOverriden) {
 
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piextProgramSetSpecializationConstant>(
-      redefinedProgramSetSpecializationConstant);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -144,13 +127,20 @@ TEST(SpecConstDefaultValues, DISABLED_DefaultValuesAreOverriden) {
 
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
-  KernelBundle.set_specialization_constant<SpecConst1>(80);
-  auto ExecBundle = sycl::build(KernelBundle);
-  Queue.submit([&](sycl::handler &CGH) {
-    CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
-  });
 
-  EXPECT_EQ(SpecConstVal0, 80);
-  EXPECT_EQ(SpecConstVal1, 8);
+  auto DevImage = sycl::detail::getSyclObjImpl(*KernelBundle.begin());
+  auto &Blob = DevImage->get_spec_const_blob_ref();
+  int SpecConstVal1 = *reinterpret_cast<int *>(Blob.data());
+  int SpecConstVal2 = *(reinterpret_cast<int *>(Blob.data()) + 1);
+
+  EXPECT_EQ(SpecConstVal1, 42);
+  EXPECT_EQ(SpecConstVal2, 8);
+
+  KernelBundle.set_specialization_constant<SpecConst1>(80);
+
+  SpecConstVal1 = *reinterpret_cast<int *>(Blob.data());
+  SpecConstVal2 = *(reinterpret_cast<int *>(Blob.data()) + 1);
+
+  EXPECT_EQ(SpecConstVal1, 80);
+  EXPECT_EQ(SpecConstVal2, 8);
 }
