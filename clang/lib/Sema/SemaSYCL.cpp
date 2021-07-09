@@ -558,15 +558,35 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
   if (!FD->hasAttrs())
     return;
 
-  llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
-    // FIXME: Make this list self-adapt as new SYCL attributes are added.
-    return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-               ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
-               SYCLIntelNumSimdWorkItemsAttr,
-               SYCLIntelSchedulerTargetFmaxMhzAttr,
-               SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-               SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
-  });
+  // Attributes that should be propagated from device functions to a kernel
+  // in SYCL 1.2.1.
+  if (S.getASTContext().getLangOpts().getSYCLVersion() <
+      LangOptions::SYCL_2020) {
+    llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
+      // FIXME: Make this list self-adapt as new SYCL attributes are added.
+      return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
+                 ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
+                 SYCLIntelNumSimdWorkItemsAttr,
+                 SYCLIntelSchedulerTargetFmaxMhzAttr,
+                 SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+                 SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
+    });
+  } else {
+    // Attributes that should not be propagated from device functions to a
+    // kernel in SYCL 2020.
+    if (DirectlyCalled) {
+      llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
+        return isa<
+            SYCLIntelFPGAMaxConcurrencyAttr,
+            SYCLIntelFPGADisableLoopPipeliningAttr, SYCLSimdAttr,
+            SYCLIntelKernelArgsRestrictAttr, ReqdWorkGroupSizeAttr,
+            SYCLIntelNumSimdWorkItemsAttr, SYCLIntelSchedulerTargetFmaxMhzAttr,
+            SYCLIntelNoGlobalWorkOffsetAttr, SYCLIntelMaxWorkGroupSizeAttr,
+            IntelReqdSubGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+            IntelNamedSubGroupSizeAttr, SYCLIntelFPGAInitiationIntervalAttr>(A);
+      });
+    }
+  }
 
   // Attributes that should not be propagated from device functions to a kernel.
   if (DirectlyCalled) {
