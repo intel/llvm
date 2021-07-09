@@ -23,7 +23,6 @@ namespace sycl {
 // Forward declaration
 class context;
 
-#define Exception121DeprecationMessage "Use SYCL 2020 exceptions."
 
 // Derive from std::exception so uncaught exceptions are printed in c++ default
 // exception handler.
@@ -36,7 +35,7 @@ public:
 
   exception(std::error_code, const std::string &Msg);
 
-  // new SYCL2020 constructors
+  // new SYCL 2020 constructors
   exception(std::error_code);
   exception(int, const std::error_category &, const std::string &);
   exception(int, const std::error_category &, const char *);
@@ -58,6 +57,7 @@ public:
 
   context get_context() const;
 
+  __SYCL2020_DEPRECATED("use sycl::exception.code() instead.")
   cl_int get_cl_code() const;
 
 private:
@@ -77,11 +77,15 @@ protected:
 
   exception(const string_class &Msg) : MMsg(Msg), MContext(nullptr) {}
 
-  // base constructor for all SYCL2020 constructors
-  exception(context *ctxPtr, std::error_code ec, const std::string &what_arg);
+  // base constructor for all SYCL 2020 constructors
+  // exception(context *ctxPtr, std::error_code ec, const std::string
+  // &what_arg);
+  exception(std::error_code ec, std::shared_ptr<context> SharedPtrCtx,
+            const std::string &what_arg);
 };
 
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) runtime_error
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with sycl::errc::runtime instead.") runtime_error
     : public exception {
 public:
   runtime_error() = default;
@@ -91,27 +95,33 @@ public:
 
   runtime_error(const std::string &Msg, cl_int Err) : exception(Msg, Err) {}
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) kernel_error
+class __SYCL2020_DEPRECATED("use sycl::exception with sycl::errc::kernel or "
+                            "errc::kernel_argument instead.") kernel_error
     : public runtime_error {
   using runtime_error::runtime_error;
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) accessor_error
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with sycl::errc::accessor instead.") accessor_error
     : public runtime_error {
   using runtime_error::runtime_error;
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) nd_range_error
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with sycl::errc::nd_range instead.") nd_range_error
     : public runtime_error {
   using runtime_error::runtime_error;
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) event_error
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with sycl::errc::event instead.") event_error
     : public runtime_error {
   using runtime_error::runtime_error;
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage)
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with a sycl::errc enum value instead.")
     invalid_parameter_error : public runtime_error {
   using runtime_error::runtime_error;
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) device_error
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with a sycl::errc enum value instead.") device_error
     : public exception {
 public:
   device_error() = default;
@@ -121,31 +131,38 @@ public:
 
   device_error(const std::string &Msg, cl_int Err) : exception(Msg, Err) {}
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage)
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with a sycl::errc enum value instead.")
     compile_program_error : public device_error {
   using device_error::device_error;
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) link_program_error
-    : public device_error {
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with a sycl::errc enum value instead.")
+    link_program_error : public device_error {
   using device_error::device_error;
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) invalid_object_error
-    : public device_error {
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with a sycl::errc enum value instead.")
+    invalid_object_error : public device_error {
   using device_error::device_error;
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage)
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with sycl::errc::memory_allocation instead.")
     memory_allocation_error : public device_error {
   using device_error::device_error;
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) platform_error
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with sycl::errc::platform instead.") platform_error
     : public device_error {
   using device_error::device_error;
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage) profiling_error
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with sycl::errc::profiling instead.") profiling_error
     : public device_error {
   using device_error::device_error;
 };
-class __SYCL2020_DEPRECATED(Exception121DeprecationMessage)
+class __SYCL2020_DEPRECATED(
+    "use sycl::exception with sycl::errc::feature_not_supported instead.")
     feature_not_supported : public device_error {
   using device_error::device_error;
 };
