@@ -525,7 +525,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityAtomicFloat16MinMaxEXT, "AtomicFloat16MinMaxEXT");
   add(CapabilityVectorComputeINTEL, "VectorComputeINTEL");
   add(CapabilityVectorAnyINTEL, "VectorAnyINTEL");
-  add(internal::CapabilityOptimizationHintsINTEL, "OptimizationHintsINTEL");
+  add(CapabilityExpectAssumeKHR, "ExpectAssumeKHR");
   add(CapabilitySubgroupAvcMotionEstimationINTEL,
       "SubgroupAvcMotionEstimationINTEL");
   add(CapabilitySubgroupAvcMotionEstimationIntraINTEL,

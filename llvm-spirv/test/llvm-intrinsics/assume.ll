@@ -1,5 +1,5 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_optimization_hints -o %t.spv
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_expect_assume -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
@@ -12,20 +12,20 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM-NO-EXT
 
-; CHECK-SPIRV: Capability OptimizationHintsINTEL
-; CHECK-SPIRV: Extension "SPV_INTEL_optimization_hints"
+; CHECK-SPIRV: Capability ExpectAssumeKHR
+; CHECK-SPIRV: Extension "SPV_KHR_expect_assume"
 ; CHECK-SPIRV: Name [[COMPARE:[0-9]+]] "cmp"
 ; CHECK-SPIRV: INotEqual {{[0-9]+}} [[COMPARE]] {{[0-9]+}} {{[0-9]+}}
-; CHECK-SPIRV: AssumeTrueINTEL [[COMPARE]]
+; CHECK-SPIRV: AssumeTrueKHR [[COMPARE]]
 
 ; CHECK-LLVM: %cmp = icmp ne i32 %0, 0
 ; CHECK-LLVM: call void @llvm.assume(i1 %cmp)
 
-; CHECK-SPIRV-NO-EXT-NOT: Capability OptimizationHintsINTEL
-; CHECK-SPIRV-NO-EXT-NOT: Extension "SPV_INTEL_optimization_hints"
+; CHECK-SPIRV-NO-EXT-NOT: Capability ExpectAssumeKHR
+; CHECK-SPIRV-NO-EXT-NOT: Extension "SPV_KHR_expect_assume"
 ; CHECK-SPIRV-NO-EXT: Name [[COMPARE:[0-9]+]] "cmp"
 ; CHECK-SPIRV-NO-EXT: INotEqual {{[0-9]+}} [[COMPARE]] {{[0-9]+}} {{[0-9]+}}
-; CHECK-SPIRV-NO-EXT-NOT: AssumeTrueINTEL [[COMPARE]]
+; CHECK-SPIRV-NO-EXT-NOT: AssumeTrueKHR [[COMPARE]]
 
 ; CHECK-LLVM-NO-EXT: %cmp = icmp ne i32 %0, 0
 ; CHECK-LLVM-NO-EXT-NOT: call void @llvm.assume(i1 %cmp)
