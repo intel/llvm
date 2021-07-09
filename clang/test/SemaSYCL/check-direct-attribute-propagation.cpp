@@ -1,6 +1,9 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2020 -ast-dump %s | FileCheck %s
 
-// Tests to validate the SYCL 2020 requirement mandating the avoidance of the propagation of kernel attributes to the caller when used on a function.
+// Tests for AST of [[intel::scheduler_target_fmax_mhz()]], [[intel::num_simd_work_items()]],
+// [[intel::no_global_work_offset()]], [[intel::no_global_work_offset()]], [[intel::sycl_explicit_simd]],
+// [[sycl::reqd_sub_group_size()]], [[sycl::reqd_work_group_size()]], [[intel::kernel_args_restrict]], and
+// [[intel::max_work_group_size()]] function attributes in SYCL 2020.
 
 #include "sycl.hpp"
 
@@ -46,7 +49,7 @@ struct FuncObj7 {
 
 [[intel::max_work_group_size(1, 1, 1)]] void func3() {}
 
-[[intel::reqd_work_group_size(1, 1, 1)]] void func4() {}
+[[sycl::reqd_work_group_size(1, 1, 1)]] void func4() {}
 
 [[intel::num_simd_work_items(5)]] void func5() {}
 
@@ -54,7 +57,7 @@ struct FuncObj7 {
 
 [[intel::max_global_work_dim(0)]] void func7() {}
 
-[[intel::reqd_sub_group_size(4)]] void func8() {}
+[[sycl::reqd_sub_group_size(4)]] void func8() {}
 
 class Functor {
 public:
@@ -65,7 +68,7 @@ public:
 
 class Functor1 {
 public:
-  [[intel::reqd_sub_group_size(12)]] void operator()() const {}
+  [[sycl::reqd_sub_group_size(12)]] void operator()() const {}
 };
 
 int main() {
@@ -202,7 +205,7 @@ int main() {
     // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     h.single_task<class test_kernel15>(
-        []() [[intel::reqd_work_group_size(8, 8, 8)]]{});
+        []() [[sycl::reqd_work_group_size(8, 8, 8)]]{});
 
     // CHECK:       FunctionDecl {{.*}}test_kernel16
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr
@@ -274,6 +277,13 @@ int main() {
     // CHECK:     IntelReqdSubGroupSizeAttr
     Functor1 f1;
     h.single_task<class test_kernel26>(f1);
+
+    // CHECK:       FunctionDecl {{.*}}test_kernel27
+    // CHECK:       IntelReqdSubGroupSizeAttr
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 8
+    h.single_task<class test_kernel27>(
+        []() [[sycl::reqd_sub_group_size(8)]]{});
   });
   return 0;
 }

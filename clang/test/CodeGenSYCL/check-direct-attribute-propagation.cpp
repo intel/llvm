@@ -1,5 +1,10 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
 
+// Tests for IR of [[intel::scheduler_target_fmax_mhz()]], [[intel::num_simd_work_items()]],
+// [[intel::no_global_work_offset()]], [[intel::no_global_work_offset()]],
+// [[sycl::reqd_sub_group_size()]], [[sycl::reqd_work_group_size()]], and
+// [[intel::max_work_group_size()]] kernel attributes in SYCL 2020.
+
 #include "sycl.hpp"
 
 using namespace cl::sycl;
@@ -60,10 +65,10 @@ public:
 
 class Foo4 {
 public:
-  [[intel::reqd_sub_group_size(16)]] void operator()() const {}
+  [[sycl::reqd_sub_group_size(16)]] void operator()() const {}
 };
 
-[[intel::reqd_sub_group_size(8)]] void foo4() {}
+[[sycl::reqd_sub_group_size(8)]] void foo4() {}
 
 class Functor4 {
 public:
@@ -75,7 +80,7 @@ public:
 template <int SIZE>
 class Functor5 {
 public:
-  [[intel::reqd_sub_group_size(SIZE)]] void operator()() const {}
+  [[sycl::reqd_sub_group_size(SIZE)]] void operator()() const {}
 };
 
 class Foo5 {
@@ -198,7 +203,7 @@ int main() {
 
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name18() #0 {{.*}} !intel_reqd_sub_group_size ![[NUM1]]
     h.single_task<class kernel_name18>(
-        []() [[intel::reqd_sub_group_size(1)]]{});
+        []() [[sycl::reqd_sub_group_size(1)]]{});
 
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name19() #0 {{.*}} !intel_reqd_sub_group_size ![[NUM2]]
     Functor5<2> f5;
