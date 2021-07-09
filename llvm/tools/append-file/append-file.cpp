@@ -70,15 +70,15 @@ int main(int argc, const char **argv) {
 
   // Add the BOM from the original source (if it exists).  We will handle
   // UTF-8, UTF-16LE and UTF-16BE
-  unsigned char char1 = InputFile.get();
-  unsigned char char2 = InputFile.get();
-  if ((char1 == 0xFF && char2 == 0xFE) || (char1 == 0xFE && char2 == 0xFF)) {
-    unsigned char BOM[] = {char1, char2};
+  unsigned char Char1 = InputFile.get();
+  unsigned char Char2 = InputFile.get();
+  if ((Char1 == 0xFF && Char2 == 0xFE) || (Char1 == 0xFE && Char2 == 0xFF)) {
+    unsigned char BOM[] = {Char1, Char2};
     OutFile.write((char *)BOM, sizeof(BOM));
   } else {
-    unsigned char char3 = InputFile.get();
-    if (char1 == 0xEF && char2 == 0xBB && char3 == 0xBF) {
-      unsigned char BOM[] = {char1, char2, char3};
+    unsigned char Char3 = InputFile.get();
+    if (Char1 == 0xEF && Char2 == 0xBB && Char3 == 0xBF) {
+      unsigned char BOM[] = {Char1, Char2, Char3};
       OutFile.write((char *)BOM, sizeof(BOM));
     } else
       InputFile.seekg(0);
