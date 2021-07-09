@@ -379,7 +379,8 @@ _pi_context::decrementAliveEventsInPool(ze_event_pool_handle_t ZePool) {
   --NumEventsLiveInEventPool[ZePool];
   if (NumEventsLiveInEventPool[ZePool] == 0) {
     ZE_CALL(zeEventPoolDestroy, (ZePool));
-    ZeEventPool = nullptr;  // nullify pool to indicate this pool is already destroyed.
+    // nullify ZeEventPool pointer to indicate this pool is already destroyed.
+    ZeEventPool = nullptr;
   }
   return PI_SUCCESS;
 }
