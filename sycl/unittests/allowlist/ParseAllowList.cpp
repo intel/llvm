@@ -168,6 +168,7 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
                                                {{"BackendName", "opencl"}},
                                                {{"BackendName", "level_zero"}},
                                                {{"BackendName", "cuda"}},
+                                               {{"BackendName", "rocm"}},
                                                {{"BackendName", "*"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
