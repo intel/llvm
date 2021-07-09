@@ -63,14 +63,31 @@ int main(int argc, const char **argv) {
   if (!llvm::sys::fs::exists(Input))
     error("input file not found");
 
-  // Open the output file stream
-  std::ofstream OutFile(Output, std::ios_base::binary | std::ios_base::app |
-                                    std::ios_base::ate);
+  // Open the original source file stream.
+  std::ifstream InputFile(Input, std::ios_base::binary);
+  // Open the output file stream.
+  std::ofstream OutFile(Output, std::ios_base::binary);
+
+  // Add the BOM from the original source (if it exists).  We will handle
+  // UTF-8, UTF-16LE and UTF-16BE
+  unsigned char char1 = InputFile.get();
+  unsigned char char2 = InputFile.get();
+  if ((char1 == 0xFF && char2 == 0xFE) || (char1 == 0xFE && char2 == 0xFF)) {
+    unsigned char BOM[] = { char1, char2 };
+    OutFile.write((char*)BOM, sizeof(BOM));
+  } else {
+    unsigned char char3 = InputFile.get();
+    if (char1 == 0xEF && char2 == 0xBB && char3 == 0xBF) {
+      unsigned char BOM[] = { char1, char2, char3 };
+      OutFile.write((char*)BOM, sizeof(BOM));
+    } else
+      InputFile.seekg(0);
+  }
+
   if (!OriginalFile.empty())
     OutFile << "#line 1 \"" << OriginalFile << "\"\n";
 
   // Add the original source file contents.
-  std::ifstream InputFile(Input, std::ios_base::binary);
   OutFile << InputFile.rdbuf();
   InputFile.close();
 
