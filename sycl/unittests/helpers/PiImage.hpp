@@ -341,6 +341,15 @@ inline PiProperty makeSpecConstant(std::vector<char> &ValData,
   return Prop;
 }
 
+/// Utility function to mark kernel as the one using assert
+inline void setKernelUsesAssert(const std::vector<std::string> &Names,
+                                PiPropertySet &Set) {
+  PiArray<PiProperty> Value;
+  for (const std::string &N : Names)
+    Value.push_back({N, {4, 0}, PI_PROPERTY_TYPE_UINT32});
+  Set.insert(__SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
+}
+
 /// Utility function to add specialization constants to property set.
 ///
 /// This function overrides the default spec constant values.
