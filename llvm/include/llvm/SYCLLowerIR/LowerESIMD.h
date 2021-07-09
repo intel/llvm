@@ -10,8 +10,8 @@
 // - ESIMD intrinsics, e.g.:
 //     template <typename Ty, int N, int M, int VStride, int Width,
 //       int Stride, int ParentWidth = 0>
-//       sycl::ext::intel::gpu::vector_type_t<Ty, M>
-//       __esimd_rdregion(sycl::ext::intel::gpu::vector_type_t<Ty, N> Input,
+//       sycl::ext::intel::experimental::esimd::vector_type_t<Ty, M>
+//       __esimd_rdregion(sycl::ext::intel::experimental::esimd::vector_type_t<Ty, N> Input,
 //         uint16_t Offset);
 //===----------------------------------------------------------------------===//
 

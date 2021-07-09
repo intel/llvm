@@ -126,8 +126,8 @@ struct ESIMDIntrinDesc {
                                 // -1 denotes return value
         GenXArgConversion Conv; // GenXArgConversion
       } Arg;
-      int NRemArgs;          // SRC_CALL_ALL: number of remaining args
-      unsigned int ArgConst; // CONST_I16 OR CONST_I32: constant value
+      int NRemArgs;           // SRC_CALL_ALL: number of remaining args
+      unsigned int ArgConst;  // CONST_I16 OR CONST_I32: constant value
     } I;
   };
 
@@ -1104,10 +1104,10 @@ static Function *createTestESIMDDeclaration(const ESIMDIntrinDesc &Desc,
 //
 // ### Source-level intrinsic:
 //
-// sycl::ext::intel::gpu::__vector_type<int, 16>::type __esimd_flat_read<int,
+// sycl::ext::intel::experimental::esimd::__vector_type<int, 16>::type __esimd_flat_read<int,
 // 16>(
-//     sycl::ext::intel::gpu::__vector_type<unsigned long long, 16>::type,
-//     sycl::ext::intel::gpu::__vector_type<int, 16>::type)
+//     sycl::ext::intel::experimental::esimd::__vector_type<unsigned long long, 16>::type,
+//     sycl::ext::intel::experimental::esimd::__vector_type<int, 16>::type)
 //
 // ### Itanium-mangled name:
 //
@@ -1362,7 +1362,8 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
 
 } // namespace
 
-PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
+PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
+                                          ModuleAnalysisManager &) {
   generateKernelMetadata(M);
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
 
