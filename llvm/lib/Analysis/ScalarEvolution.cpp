@@ -4131,6 +4131,41 @@ const SCEV *ScalarEvolution::getNotSCEV(const SCEV *V) {
   return getMinusSCEV(getMinusOne(Ty), V);
 }
 
+/// Compute an expression equivalent to S - getPointerBase(S).
+static const SCEV *removePointerBase(ScalarEvolution *SE, const SCEV *P) {
+  assert(P->getType()->isPointerTy());
+
+  if (auto *AddRec = dyn_cast<SCEVAddRecExpr>(P)) {
+    // The base of an AddRec is the first operand.
+    SmallVector<const SCEV *> Ops{AddRec->operands()};
+    Ops[0] = removePointerBase(SE, Ops[0]);
+    // Don't try to transfer nowrap flags for now. We could in some cases
+    // (for example, if pointer operand of the AddRec is a SCEVUnknown).
+    return SE->getAddRecExpr(Ops, AddRec->getLoop(), SCEV::FlagAnyWrap);
+  }
+  if (auto *Add = dyn_cast<SCEVAddExpr>(P)) {
+    // The base of an Add is the pointer operand.
+    SmallVector<const SCEV *> Ops{Add->operands()};
+    const SCEV **PtrOp = nullptr;
+    for (const SCEV *&AddOp : Ops) {
+      if (AddOp->getType()->isPointerTy()) {
+        // If we find an Add with multiple pointer operands, treat it as a
+        // pointer base to be consistent with getPointerBase.  Eventually
+        // we should be able to assert this is impossible.
+        if (PtrOp)
+          return SE->getZero(P->getType());
+        PtrOp = &AddOp;
+      }
+    }
+    *PtrOp = removePointerBase(SE, *PtrOp);
+    // Don't try to transfer nowrap flags for now. We could in some cases
+    // (for example, if the pointer operand of the Add is a SCEVUnknown).
+    return SE->getAddExpr(Ops);
+  }
+  // Any other expression must be a pointer base.
+  return SE->getZero(P->getType());
+}
+
 const SCEV *ScalarEvolution::getMinusSCEV(const SCEV *LHS, const SCEV *RHS,
                                           SCEV::NoWrapFlags Flags,
                                           unsigned Depth) {
@@ -4145,6 +4180,8 @@ const SCEV *ScalarEvolution::getMinusSCEV(const SCEV *LHS, const SCEV *RHS,
     if (!LHS->getType()->isPointerTy() ||
         getPointerBase(LHS) != getPointerBase(RHS))
       return getCouldNotCompute();
+    LHS = removePointerBase(this, LHS);
+    RHS = removePointerBase(this, RHS);
   }
 
   // We represent LHS - RHS as LHS + (-1)*RHS. This transformation
@@ -8054,9 +8091,8 @@ ScalarEvolution::computeExitLimitFromICmp(const Loop *L,
   }
   case ICmpInst::ICMP_SLT:
   case ICmpInst::ICMP_ULT: {                    // while (X < Y)
-    bool IsSigned = Pred == ICmpInst::ICMP_SLT;
-    ExitLimit EL = howManyLessThans(LHS, RHS, L, IsSigned, ControlsExit,
-                                    AllowPredicates);
+    ExitLimit EL =
+        howManyLessThans(LHS, RHS, L, Pred, ControlsExit, AllowPredicates);
     if (EL.hasAnyInfo()) return EL;
     break;
   }
@@ -11460,11 +11496,108 @@ bool ScalarEvolution::canIVOverflowOnGT(const SCEV *RHS, const SCEV *Stride,
   return (std::move(MinValue) + MaxStrideMinusOne).ugt(MinRHS);
 }
 
-const SCEV *ScalarEvolution::computeBECount(const SCEV *Delta,
-                                            const SCEV *Step) {
-  const SCEV *One = getOne(Step->getType());
-  Delta = getAddExpr(Delta, getMinusSCEV(Step, One));
-  return getUDivExpr(Delta, Step);
+const SCEV *ScalarEvolution::computeBECount(bool IsSigned, const SCEV *Start,
+                                            const SCEV *End,
+                                            const SCEV *Stride) {
+  // The basic formula here is ceil((End - Start) / Stride).  Since SCEV
+  // doesn't natively have division that rounds up, we need to convert to
+  // floor division.
+  //
+  // MayOverflow is whether adding (End - Start) + (Stride - 1)
+  // can overflow if Stride is positive. It's a precondition of the
+  // function that "End - Start" doesn't overflow. We handle the case where
+  // Stride isn't positive later.
+  //
+  // In practice, the arithmetic almost never overflows, but we have to prove
+  // it.  We have a variety of ways to come up with a proof.
+  const SCEV *One = getOne(Stride->getType());
+  bool MayOverflow = [&] {
+    if (auto *StrideC = dyn_cast<SCEVConstant>(Stride)) {
+      if (StrideC->getAPInt().isPowerOf2()) {
+        // Suppose Stride is a power of two, and Start/End are unsigned
+        // integers.  Let UMAX be the largest representable unsigned
+        // integer.
+        //
+        // By the preconditions of this function (see comment in header), we
+        // know "(Start + Stride * N)" >= End, and this doesn't overflow.
+        // As a formula:
+        //
+        //   End <= (Start + Stride * N) <= UMAX
+        //
+        // Subtracting Start from all the terms:
+        //
+        //   End - Start <= Stride * N <= UMAX - Start
+        //
+        // Since Start is unsigned, UMAX - Start <= UMAX.  Therefore:
+        //
+        //   End - Start <= Stride * N <= UMAX
+        //
+        // Stride * N is a multiple of Stride. Therefore,
+        //
+        //   End - Start <= Stride * N <= UMAX - (UMAX mod Stride)
+        //
+        // Since Stride is a power of two, UMAX + 1 is divisible by Stride.
+        // Therefore, UMAX mod Stride == Stride - 1.  So we can write:
+        //
+        //   End - Start <= Stride * N <= UMAX - Stride - 1
+        //
+        // Dropping the middle term:
+        //
+        //   End - Start <= UMAX - Stride - 1
+        //
+        // Adding Stride - 1 to both sides:
+        //
+        //   (End - Start) + (Stride - 1) <= UMAX
+        //
+        // In other words, the addition doesn't have unsigned overflow.
+        //
+        // A similar proof works if we treat Start/End as signed values.
+        // Just rewrite steps before "End - Start <= Stride * N <= UMAX" to
+        // use signed max instead of unsigned max. Note that we're trying
+        // to prove a lack of unsigned overflow in either case.
+        return false;
+      }
+    }
+    if (Start == Stride || Start == getMinusSCEV(Stride, One)) {
+      // If Start is equal to Stride, (End - Start) + (Stride - 1) == End - 1.
+      // If !IsSigned, 0 <u Stride == Start <=u End; so 0 <u End - 1 <u End.
+      // If IsSigned, 0 <s Stride == Start <=s End; so 0 <s End - 1 <s End.
+      //
+      // If Start is equal to Stride - 1, (End - Start) + Stride - 1 == End.
+      return false;
+    }
+    if (IsSigned && isKnownNonNegative(Start)) {
+      // IsSigned implies "Start <=s End <=s INT_MAX".
+      // "isKnownNonNegative(Start)" implies "Start >=s 0".
+      // Therefore, "0 <=s End - Start <=s INT_MAX - Start <= INT_MAX".
+      // IsSigned also implies "0 <=s Stride - 1 <s INT_MAX". Therefore,
+      // "(End - Start) + (Stride - 1) <u INT_MAX * 2 <u UINT_MAX".
+      return false;
+    }
+    return true;
+  }();
+
+  // Force the stride to at least one, so we don't divide by zero. The stride
+  // can be zero if Delta is zero. We don't actually care what value we use
+  // for Stride in this case, as long as it isn't zero.
+  Stride = getUMaxExpr(Stride, One);
+
+  const SCEV *Delta = getMinusSCEV(End, Start);
+  if (!MayOverflow) {
+    // floor((D + (S - 1)) / S)
+    // We prefer this formulation if it's legal because it's fewer operations.
+    return getUDivExpr(getAddExpr(Delta, getMinusSCEV(Stride, One)), Stride);
+  }
+  return getUDivCeilSCEV(Delta, Stride);
+}
+
+const SCEV *ScalarEvolution::getUDivCeilSCEV(const SCEV *N, const SCEV *D) {
+  // umin(N, 1) + floor((N - umin(N, 1)) / D)
+  // This is equivalent to "1 + floor((N - 1) / D)" for N != 0. The umin
+  // expression fixes the case of N=0.
+  const SCEV *MinNOne = getUMinExpr(N, getOne(N->getType()));
+  const SCEV *NMinusOne = getMinusSCEV(N, MinNOne);
+  return getAddExpr(MinNOne, getUDivExpr(NMinusOne, D));
 }
 
 const SCEV *ScalarEvolution::computeMaxBECountForLT(const SCEV *Start,
@@ -11503,17 +11636,20 @@ const SCEV *ScalarEvolution::computeMaxBECountForLT(const SCEV *Start,
   APInt MaxEnd = IsSigned ? APIntOps::smin(getSignedRangeMax(End), Limit)
                           : APIntOps::umin(getUnsignedRangeMax(End), Limit);
 
-  MaxBECount = computeBECount(getConstant(MaxEnd - MinStart) /* Delta */,
-                              getConstant(StrideForMaxBECount) /* Step */);
+  MaxBECount = getUDivCeilSCEV(getConstant(MaxEnd - MinStart) /* Delta */,
+                               getConstant(StrideForMaxBECount) /* Step */);
 
   return MaxBECount;
 }
 
 ScalarEvolution::ExitLimit
 ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
-                                  const Loop *L, bool IsSigned,
+                                  const Loop *L, ICmpInst::Predicate Pred,
                                   bool ControlsExit, bool AllowPredicates) {
   SmallPtrSet<const SCEVPredicate *, 4> Predicates;
+
+  assert(ICmpInst::isLT(Pred) && "Unexpected pred");
+  bool IsSigned = ICmpInst::isSigned(Pred);
 
   const SCEVAddRecExpr *IV = dyn_cast<SCEVAddRecExpr>(LHS);
   bool PredicatedIV = false;
@@ -11532,7 +11668,6 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
 
   auto WrapType = IsSigned ? SCEV::FlagNSW : SCEV::FlagNUW;
   bool NoWrap = ControlsExit && IV->getNoWrapFlags(WrapType);
-  ICmpInst::Predicate Cond = IsSigned ? ICmpInst::ICMP_SLT : ICmpInst::ICMP_ULT;
 
   const SCEV *Stride = IV->getStepRecurrence(*this);
 
@@ -11645,7 +11780,6 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
       return RHS;
   }
 
-  const SCEV *End = RHS;
   // When the RHS is not invariant, we do not know the end bound of the loop and
   // cannot calculate the ExactBECount needed by ExitLimit. However, we can
   // calculate the MaxBECount, given the start, stride and max value for the end
@@ -11662,7 +11796,7 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
   // is the LHS value of the less-than comparison the first time it is evaluated
   // and End is the RHS.
   const SCEV *BECountIfBackedgeTaken =
-    computeBECount(getMinusSCEV(End, Start), Stride);
+      computeBECount(IsSigned, Start, RHS, Stride);
   // If the loop entry is guarded by the result of the backedge test of the
   // first loop iteration, then we know the backedge will be taken at least
   // once and so the backedge taken count is as above. If not then we use the
@@ -11671,17 +11805,19 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
   // result is as above, and if not max(End,Start) is Start so we get a backedge
   // count of zero.
   const SCEV *BECount;
-  if (isLoopEntryGuardedByCond(L, Cond, getMinusSCEV(OrigStart, Stride), OrigRHS))
+  if (isLoopEntryGuardedByCond(L, Pred, getMinusSCEV(OrigStart, Stride),
+                               OrigRHS))
     BECount = BECountIfBackedgeTaken;
   else {
+    const SCEV *End;
     // If we know that RHS >= Start in the context of loop, then we know that
     // max(RHS, Start) = RHS at this point.
-    if (isLoopEntryGuardedByCond(
-            L, IsSigned ? ICmpInst::ICMP_SGE : ICmpInst::ICMP_UGE, OrigRHS, OrigStart))
+    if (isLoopEntryGuardedByCond(L, ICmpInst::getInversePredicate(Pred),
+                                 OrigRHS, OrigStart))
       End = RHS;
     else
       End = IsSigned ? getSMaxExpr(RHS, Start) : getUMaxExpr(RHS, Start);
-    BECount = computeBECount(getMinusSCEV(End, Start), Stride);
+    BECount = computeBECount(IsSigned, Start, End, Stride);
   }
 
   const SCEV *MaxBECount;
@@ -11767,7 +11903,7 @@ ScalarEvolution::howManyGreaterThans(const SCEV *LHS, const SCEV *RHS,
       return End;
   }
 
-  const SCEV *BECount = computeBECount(getMinusSCEV(Start, End), Stride);
+  const SCEV *BECount = computeBECount(IsSigned, End, Start, Stride);
 
   APInt MaxStart = IsSigned ? getSignedRangeMax(Start)
                             : getUnsignedRangeMax(Start);
@@ -11788,11 +11924,8 @@ ScalarEvolution::howManyGreaterThans(const SCEV *LHS, const SCEV *RHS,
 
   const SCEV *MaxBECount = isa<SCEVConstant>(BECount)
                                ? BECount
-                               : computeBECount(getConstant(MaxStart - MinEnd),
-                                                getConstant(MinStride));
-
-  if (isa<SCEVCouldNotCompute>(MaxBECount))
-    MaxBECount = BECount;
+                               : getUDivCeilSCEV(getConstant(MaxStart - MinEnd),
+                                                 getConstant(MinStride));
 
   return ExitLimit(BECount, MaxBECount, false, Predicates);
 }

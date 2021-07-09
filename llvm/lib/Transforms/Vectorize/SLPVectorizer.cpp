@@ -3009,13 +3009,21 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
           }
           return;
         }
-        // Vectorizing non-consecutive loads with `llvm.masked.gather`.
-        TreeEntry *TE = newTreeEntry(VL, TreeEntry::ScatterVectorize, Bundle, S,
-                                     UserTreeIdx, ReuseShuffleIndicies);
-        TE->setOperandsInOrder();
-        buildTree_rec(PointerOps, Depth + 1, {TE, 0});
-        LLVM_DEBUG(dbgs() << "SLP: added a vector of non-consecutive loads.\n");
-        return;
+        Align CommonAlignment = cast<LoadInst>(VL0)->getAlign();
+        for (Value *V : VL)
+          CommonAlignment =
+              commonAlignment(CommonAlignment, cast<LoadInst>(V)->getAlign());
+        if (TTI->isLegalMaskedGather(FixedVectorType::get(ScalarTy, VL.size()),
+                                     CommonAlignment)) {
+          // Vectorizing non-consecutive loads with `llvm.masked.gather`.
+          TreeEntry *TE = newTreeEntry(VL, TreeEntry::ScatterVectorize, Bundle,
+                                       S, UserTreeIdx, ReuseShuffleIndicies);
+          TE->setOperandsInOrder();
+          buildTree_rec(PointerOps, Depth + 1, {TE, 0});
+          LLVM_DEBUG(dbgs()
+                     << "SLP: added a vector of non-consecutive loads.\n");
+          return;
+        }
       }
 
       LLVM_DEBUG(dbgs() << "SLP: Gathering non-consecutive loads.\n");
@@ -4077,6 +4085,10 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
                                          CostKind, VL0);
       } else {
         assert(E->State == TreeEntry::ScatterVectorize && "Unknown EntryState");
+        Align CommonAlignment = alignment;
+        for (Value *V : VL)
+          CommonAlignment =
+              commonAlignment(CommonAlignment, cast<LoadInst>(V)->getAlign());
         VecLdCost = TTI->getGatherScatterOpCost(
             Instruction::Load, VecTy, cast<LoadInst>(VL0)->getPointerOperand(),
             /*VariableMask=*/false, alignment, CostKind, VL0);
@@ -7557,47 +7569,49 @@ public:
   HorizontalReduction() = default;
 
   /// Try to find a reduction tree.
-  bool matchAssociativeReduction(PHINode *Phi, Instruction *B) {
-    assert((!Phi || is_contained(Phi->operands(), B)) &&
+  bool matchAssociativeReduction(PHINode *Phi, Instruction *Inst) {
+    assert((!Phi || is_contained(Phi->operands(), Inst)) &&
            "Phi needs to use the binary operator");
-
-    RdxKind = getRdxKind(B);
+    assert((isa<BinaryOperator>(Inst) || isa<SelectInst>(Inst) ||
+            isa<IntrinsicInst>(Inst)) &&
+           "Expected binop, select, or intrinsic for reduction matching");
+    RdxKind = getRdxKind(Inst);
 
     // We could have a initial reductions that is not an add.
     //  r *= v1 + v2 + v3 + v4
     // In such a case start looking for a tree rooted in the first '+'.
     if (Phi) {
-      if (getLHS(RdxKind, B) == Phi) {
+      if (getLHS(RdxKind, Inst) == Phi) {
         Phi = nullptr;
-        B = dyn_cast<Instruction>(getRHS(RdxKind, B));
-        if (!B)
+        Inst = dyn_cast<Instruction>(getRHS(RdxKind, Inst));
+        if (!Inst)
           return false;
-        RdxKind = getRdxKind(B);
-      } else if (getRHS(RdxKind, B) == Phi) {
+        RdxKind = getRdxKind(Inst);
+      } else if (getRHS(RdxKind, Inst) == Phi) {
         Phi = nullptr;
-        B = dyn_cast<Instruction>(getLHS(RdxKind, B));
-        if (!B)
+        Inst = dyn_cast<Instruction>(getLHS(RdxKind, Inst));
+        if (!Inst)
           return false;
-        RdxKind = getRdxKind(B);
+        RdxKind = getRdxKind(Inst);
       }
     }
 
-    if (!isVectorizable(RdxKind, B))
+    if (!isVectorizable(RdxKind, Inst))
       return false;
 
     // Analyze "regular" integer/FP types for reductions - no target-specific
     // types or pointers.
-    Type *Ty = B->getType();
+    Type *Ty = Inst->getType();
     if (!isValidElementType(Ty) || Ty->isPointerTy())
       return false;
 
     // Though the ultimate reduction may have multiple uses, its condition must
     // have only single use.
-    if (auto *SI = dyn_cast<SelectInst>(B))
-      if (!SI->getCondition()->hasOneUse())
+    if (auto *Sel = dyn_cast<SelectInst>(Inst))
+      if (!Sel->getCondition()->hasOneUse())
         return false;
 
-    ReductionRoot = B;
+    ReductionRoot = Inst;
 
     // The opcode for leaf values that we perform a reduction on.
     // For example: load(x) + load(y) + load(z) + fptoui(w)
@@ -7608,8 +7622,8 @@ public:
     // Post order traverse the reduction tree starting at B. We only handle true
     // trees containing only binary operators.
     SmallVector<std::pair<Instruction *, unsigned>, 32> Stack;
-    Stack.push_back(std::make_pair(B, getFirstOperandIndex(B)));
-    initReductionOps(B);
+    Stack.push_back(std::make_pair(Inst, getFirstOperandIndex(Inst)));
+    initReductionOps(Inst);
     while (!Stack.empty()) {
       Instruction *TreeN = Stack.back().first;
       unsigned EdgeToVisit = Stack.back().second++;
@@ -7660,9 +7674,9 @@ public:
       // Each tree node needs to have minimal number of users except for the
       // ultimate reduction.
       const bool IsRdxInst = EdgeRdxKind == RdxKind;
-      if (EdgeInst != Phi && EdgeInst != B &&
-          hasSameParent(EdgeInst, B->getParent(), IsRdxInst) &&
-          hasRequiredNumberOfUses(isa<SelectInst>(B), EdgeInst) &&
+      if (EdgeInst != Phi && EdgeInst != Inst &&
+          hasSameParent(EdgeInst, Inst->getParent(), IsRdxInst) &&
+          hasRequiredNumberOfUses(isa<SelectInst>(Inst), EdgeInst) &&
           (!LeafOpcode || LeafOpcode == EdgeInst->getOpcode() || IsRdxInst)) {
         if (IsRdxInst) {
           // We need to be able to reassociate the reduction operations.
@@ -8660,16 +8674,103 @@ bool SLPVectorizerPass::vectorizeGEPIndices(BasicBlock *BB, BoUpSLP &R) {
 
 bool SLPVectorizerPass::vectorizeStoreChains(BoUpSLP &R) {
   bool Changed = false;
+  // Sort by type, base pointers and values operand. Value operands must be
+  // compatible (have the same opcode, same parent), otherwise it is
+  // definitely not profitable to try to vectorize them.
+  auto &&StoreSorter = [this](StoreInst *V, StoreInst *V2) {
+    if (V->getPointerOperandType()->getTypeID() <
+        V2->getPointerOperandType()->getTypeID())
+      return true;
+    if (V->getPointerOperandType()->getTypeID() >
+        V2->getPointerOperandType()->getTypeID())
+      return false;
+    // UndefValues are compatible with all other values.
+    if (isa<UndefValue>(V->getValueOperand()) ||
+        isa<UndefValue>(V2->getValueOperand()))
+      return false;
+    if (auto *I1 = dyn_cast<Instruction>(V->getValueOperand()))
+      if (auto *I2 = dyn_cast<Instruction>(V2->getValueOperand())) {
+        DomTreeNodeBase<llvm::BasicBlock> *NodeI1 =
+            DT->getNode(I1->getParent());
+        DomTreeNodeBase<llvm::BasicBlock> *NodeI2 =
+            DT->getNode(I2->getParent());
+        assert(NodeI1 && "Should only process reachable instructions");
+        assert(NodeI1 && "Should only process reachable instructions");
+        assert((NodeI1 == NodeI2) ==
+                   (NodeI1->getDFSNumIn() == NodeI2->getDFSNumIn()) &&
+               "Different nodes should have different DFS numbers");
+        if (NodeI1 != NodeI2)
+          return NodeI1->getDFSNumIn() < NodeI2->getDFSNumIn();
+        InstructionsState S = getSameOpcode({I1, I2});
+        if (S.getOpcode())
+          return false;
+        return I1->getOpcode() < I2->getOpcode();
+      }
+    if (isa<Constant>(V->getValueOperand()) &&
+        isa<Constant>(V2->getValueOperand()))
+      return false;
+    return V->getValueOperand()->getValueID() <
+           V2->getValueOperand()->getValueID();
+  };
+
+  auto &&AreCompatibleStores = [](StoreInst *V1, StoreInst *V2) {
+    if (V1 == V2)
+      return true;
+    if (V1->getPointerOperandType() != V2->getPointerOperandType())
+      return false;
+    // Undefs are compatible with any other value.
+    if (isa<UndefValue>(V1->getValueOperand()) ||
+        isa<UndefValue>(V2->getValueOperand()))
+      return true;
+    if (auto *I1 = dyn_cast<Instruction>(V1->getValueOperand()))
+      if (auto *I2 = dyn_cast<Instruction>(V2->getValueOperand())) {
+        if (I1->getParent() != I2->getParent())
+          return false;
+        InstructionsState S = getSameOpcode({I1, I2});
+        return S.getOpcode() > 0;
+      }
+    if (isa<Constant>(V1->getValueOperand()) &&
+        isa<Constant>(V2->getValueOperand()))
+      return true;
+    return V1->getValueOperand()->getValueID() ==
+           V2->getValueOperand()->getValueID();
+  };
+
   // Attempt to sort and vectorize each of the store-groups.
-  for (StoreListMap::iterator it = Stores.begin(), e = Stores.end(); it != e;
-       ++it) {
-    if (it->second.size() < 2)
+  for (auto &Pair : Stores) {
+    if (Pair.second.size() < 2)
       continue;
 
     LLVM_DEBUG(dbgs() << "SLP: Analyzing a store chain of length "
-                      << it->second.size() << ".\n");
+                      << Pair.second.size() << ".\n");
 
-    Changed |= vectorizeStores(it->second, R);
+    stable_sort(Pair.second, StoreSorter);
+
+    // Try to vectorize elements based on their compatibility.
+    for (ArrayRef<StoreInst *>::iterator IncIt = Pair.second.begin(),
+                                         E = Pair.second.end();
+         IncIt != E;) {
+
+      // Look for the next elements with the same type.
+      ArrayRef<StoreInst *>::iterator SameTypeIt = IncIt;
+      Type *EltTy = (*IncIt)->getPointerOperand()->getType();
+
+      while (SameTypeIt != E && AreCompatibleStores(*SameTypeIt, *IncIt))
+        ++SameTypeIt;
+
+      // Try to vectorize them.
+      unsigned NumElts = (SameTypeIt - IncIt);
+      LLVM_DEBUG(dbgs() << "SLP: Trying to vectorize starting at stores ("
+                        << NumElts << ")\n");
+      if (NumElts > 1 && !EltTy->getPointerElementType()->isVectorTy() &&
+          vectorizeStores(makeArrayRef(IncIt, NumElts), R)) {
+        // Success start over because instructions might have been changed.
+        Changed = true;
+      }
+
+      // Start over at the next instruction of a different type (or the end).
+      IncIt = SameTypeIt;
+    }
   }
   return Changed;
 }

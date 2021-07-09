@@ -2076,9 +2076,15 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::UINT_TO_FP,  MVT::v4f32,  MVT::v4i64, 22 },
     { ISD::UINT_TO_FP,  MVT::v2f64,  MVT::v2i64,  4 },
 
+    { ISD::FP_TO_SINT,  MVT::i32,    MVT::f32,    1 },
+    { ISD::FP_TO_SINT,  MVT::i64,    MVT::f32,    1 },
+    { ISD::FP_TO_SINT,  MVT::i32,    MVT::f64,    1 },
+    { ISD::FP_TO_SINT,  MVT::i64,    MVT::f64,    1 },
     { ISD::FP_TO_SINT,  MVT::v2i8,   MVT::v2f32,  3 },
     { ISD::FP_TO_SINT,  MVT::v2i8,   MVT::v2f64,  3 },
 
+    { ISD::FP_TO_UINT,  MVT::i32,    MVT::f32,    1 },
+    { ISD::FP_TO_UINT,  MVT::i32,    MVT::f64,    1 },
     { ISD::FP_TO_UINT,  MVT::v2i8,   MVT::v2f32,  3 },
     { ISD::FP_TO_UINT,  MVT::v2i8,   MVT::v2f64,  3 },
     { ISD::FP_TO_UINT,  MVT::v4i16,  MVT::v4f32,  2 },
@@ -2115,6 +2121,10 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::UINT_TO_FP,  MVT::v2f64,  MVT::v2i64, 15 },
     { ISD::UINT_TO_FP,  MVT::v4f32,  MVT::v2i64, 18 },
 
+    { ISD::FP_TO_SINT,  MVT::i32,    MVT::f32,    4 },
+    { ISD::FP_TO_SINT,  MVT::i64,    MVT::f32,    4 },
+    { ISD::FP_TO_SINT,  MVT::i32,    MVT::f64,    4 },
+    { ISD::FP_TO_SINT,  MVT::i64,    MVT::f64,    4 },
     { ISD::FP_TO_SINT,  MVT::v2i8,   MVT::v2f32,  4 },
     { ISD::FP_TO_SINT,  MVT::v2i16,  MVT::v2f32,  2 },
     { ISD::FP_TO_SINT,  MVT::v4i8,   MVT::v4f32,  3 },
@@ -2123,7 +2133,9 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::FP_TO_SINT,  MVT::v2i8,   MVT::v2f64,  4 },
     { ISD::FP_TO_SINT,  MVT::v2i32,  MVT::v2f64,  1 },
 
+    { ISD::FP_TO_UINT,  MVT::i32,    MVT::f32,    4 },
     { ISD::FP_TO_UINT,  MVT::i64,    MVT::f32,    4 },
+    { ISD::FP_TO_UINT,  MVT::i32,    MVT::f64,    4 },
     { ISD::FP_TO_UINT,  MVT::i64,    MVT::f64,   15 },
     { ISD::FP_TO_UINT,  MVT::v2i8,   MVT::v2f32,  4 },
     { ISD::FP_TO_UINT,  MVT::v2i8,   MVT::v2f64,  4 },
@@ -4630,7 +4642,6 @@ InstructionCost X86TTIImpl::getGatherScatterOpCost(
   }
 
   assert(SrcVTy->isVectorTy() && "Unexpected data type for Gather/Scatter");
-  unsigned VF = cast<FixedVectorType>(SrcVTy)->getNumElements();
   PointerType *PtrTy = dyn_cast<PointerType>(Ptr->getType());
   if (!PtrTy && Ptr->getType()->isVectorTy())
     PtrTy = dyn_cast<PointerType>(
@@ -4638,22 +4649,10 @@ InstructionCost X86TTIImpl::getGatherScatterOpCost(
   assert(PtrTy && "Unexpected type for Ptr argument");
   unsigned AddressSpace = PtrTy->getAddressSpace();
 
-  bool Scalarize = false;
   if ((Opcode == Instruction::Load &&
        !isLegalMaskedGather(SrcVTy, Align(Alignment))) ||
       (Opcode == Instruction::Store &&
        !isLegalMaskedScatter(SrcVTy, Align(Alignment))))
-    Scalarize = true;
-  // Gather / Scatter for vector 2 is not profitable on KNL / SKX
-  // Vector-4 of gather/scatter instruction does not exist on KNL.
-  // We can extend it to 8 elements, but zeroing upper bits of
-  // the mask vector will add more instructions. Right now we give the scalar
-  // cost of vector-4 for KNL. TODO: Check, maybe the gather/scatter instruction
-  // is better in the VariableMask case.
-  if (ST->hasAVX512() && (VF == 2 || (VF == 4 && !ST->hasVLX())))
-    Scalarize = true;
-
-  if (Scalarize)
     return getGSScalarCost(Opcode, SrcVTy, VariableMask, Alignment,
                            AddressSpace);
 
@@ -4788,6 +4787,14 @@ bool X86TTIImpl::isLegalMaskedGather(Type *DataTy, Align Alignment) {
   if (auto *DataVTy = dyn_cast<FixedVectorType>(DataTy)) {
     unsigned NumElts = DataVTy->getNumElements();
     if (NumElts == 1)
+      return false;
+    // Gather / Scatter for vector 2 is not profitable on KNL / SKX
+    // Vector-4 of gather/scatter instruction does not exist on KNL.
+    // We can extend it to 8 elements, but zeroing upper bits of
+    // the mask vector will add more instructions. Right now we give the scalar
+    // cost of vector-4 for KNL. TODO: Check, maybe the gather/scatter
+    // instruction is better in the VariableMask case.
+    if (ST->hasAVX512() && (NumElts == 2 || (NumElts == 4 && !ST->hasVLX())))
       return false;
   }
   Type *ScalarTy = DataTy->getScalarType();
