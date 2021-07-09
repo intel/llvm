@@ -439,8 +439,8 @@ struct _pi_queue : _pi_object {
       : ZeComputeCommandQueue{Queue},
         ZeCopyCommandQueue{CopyQueue}, Context{Context}, Device{Device},
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
-        OwnZeCommandQueue{OwnZeCommandQueue},
-        UseDynamicBatching{BatchSize == 0},
+        OwnZeCommandQueue{OwnZeCommandQueue}, UseDynamicBatching{BatchSize ==
+                                                                 0},
         PiQueueProperties(PiQueueProperties) {}
 
   // Level Zero compute command queue handle.
@@ -501,7 +501,6 @@ struct _pi_queue : _pi_object {
   // or not.  This is set only at queue creation time, and is therefore
   // const for the life of the queue.
   const bool UseDynamicBatching;
-
 
   // These two members are used to keep track of how often the
   // batching closes and executes a command list before reaching the
