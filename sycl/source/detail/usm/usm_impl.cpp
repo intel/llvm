@@ -351,8 +351,7 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
     return alloc::unknown;
   // otherwise PI_SUCCESS is expected
   if (Err != PI_SUCCESS) {
-    std::string CallingFunction = "get_pointer_type()";
-    Plugin.reportPiError(Err, CallingFunction);
+    Plugin.reportPiError(Err, "get_pointer_type()");
   }
 
   alloc ResultAlloc;
