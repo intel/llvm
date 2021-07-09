@@ -512,10 +512,6 @@ typedef enum {
   PI_PROFILING_INFO_COMMAND_END = CL_PROFILING_COMMAND_END
 } _pi_profiling_info;
 
-typedef enum {
-  PI_INTEL_DEVICELIB_CASSERT = 0,
-} _pi_extension_number;
-
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
 // TODO: populate
@@ -580,7 +576,6 @@ using pi_program_build_info = _pi_program_build_info;
 using pi_program_build_status = _pi_program_build_status;
 using pi_kernel_info = _pi_kernel_info;
 using pi_profiling_info = _pi_profiling_info;
-using pi_extension_number = _pi_extension_number;
 
 // For compatibility with OpenCL define this not as enum.
 using pi_device_partition_property = intptr_t;
@@ -1658,19 +1653,6 @@ __SYCL_EXPORT pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 /// No PI calls should be made until the next piPluginInit call.
 /// \param PluginParameter placeholder for future use, currenly not used.
 __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
-
-/// API to get extension name for those extension whose name varies with backend
-/// \param ExtNumber number of extension \sa pi_extension_number
-/// \param Size[out] length of returned extension name
-/// \param Value[out] memory location where to put extension name
-/// \return \c PI_SUCCESS if this extension name is available,
-///         \c PI_INVALID_VALUE if the extension name isn't available for this
-///         plugin
-///
-/// Either of Size or Value isn't set if it's nil.
-/// Value returned in Size can't be zero.
-__SYCL_EXPORT pi_result piextGetExtensionName(pi_extension_number ExtNumber,
-                                              size_t *Size, char *Value);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

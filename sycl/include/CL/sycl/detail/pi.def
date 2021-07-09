@@ -133,7 +133,4 @@ _PI_API(piextPluginGetOpaqueData)
 
 _PI_API(piTearDown)
 
-// Extension names
-_PI_API(piextGetExtensionName)
-
 #undef _PI_API

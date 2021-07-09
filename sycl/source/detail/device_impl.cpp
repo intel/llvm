@@ -341,18 +341,7 @@ bool device_impl::isAssertFailSupported() const {
   if (Plugin.getBackend() == backend::cuda)
     return true;
 
-  size_t ExtNameSize = 0;
-  Plugin.call<PiApiKind::piextGetExtensionName>(PI_INTEL_DEVICELIB_CASSERT,
-                                                &ExtNameSize, nullptr);
-
-  assert(ExtNameSize && "Size can't be zero");
-
-  std::unique_ptr<char[]> ExtName{new char[ExtNameSize + 1]};
-  ExtName[ExtNameSize] = '\0';
-  Plugin.call<PiApiKind::piextGetExtensionName>(PI_INTEL_DEVICELIB_CASSERT,
-                                                nullptr, ExtName.get());
-
-  return has_extension(ExtName.get());
+  return has_extension("pi_ext_intel_devicelib_assert");
 }
 
 } // namespace detail

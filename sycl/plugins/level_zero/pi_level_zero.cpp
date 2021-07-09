@@ -6559,25 +6559,4 @@ pi_result piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
-pi_result piextGetExtensionName(pi_extension_number ExtNumber, size_t *Size,
-                                char *Value) {
-  pi_result Result = PI_SUCCESS;
-  // TODO switch to map/unordered_map when have enough number of extensions
-  switch (ExtNumber) {
-  case PI_INTEL_DEVICELIB_CASSERT: {
-    // FIXME set name after backend support
-    static const std::string Name = "N/A";
-    if (Size)
-      *Size = Name.length();
-    if (Value)
-      std::memcpy(Value, Name.data(), Name.length());
-    break;
-  }
-  default:
-    Result = PI_INVALID_VALUE;
-  }
-
-  return Result;
-}
-
 } // extern "C"

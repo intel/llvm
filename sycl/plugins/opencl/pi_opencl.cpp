@@ -1213,26 +1213,6 @@ pi_result piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
-pi_result piextGetExtensionName(pi_extension_number ExtNumber, size_t *Size,
-                                char *Value) {
-  pi_result Result = PI_SUCCESS;
-  // TODO switch to map/unordered_map when have enough number of extensions
-  switch (ExtNumber) {
-  case PI_INTEL_DEVICELIB_CASSERT: {
-    static const std::string Name = "cl_intel_devicelib_cassert";
-    if (Size)
-      *Size = Name.length();
-    if (Value)
-      std::memcpy(Value, Name.data(), Name.length());
-    break;
-  }
-  default:
-    Result = PI_INVALID_VALUE;
-  }
-
-  return Result;
-}
-
 pi_result piPluginInit(pi_plugin *PluginInit) {
   int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
   if (CompareVersions < 0) {
@@ -1363,8 +1343,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
   _PI_CL(piTearDown, piTearDown)
-
-  _PI_CL(piextGetExtensionName, piextGetExtensionName);
 
 #undef _PI_CL
 

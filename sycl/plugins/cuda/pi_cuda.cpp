@@ -4666,27 +4666,6 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result cuda_piTearDown(void *) { return PI_SUCCESS; }
 
-pi_result cuda_piextGetExtensionName(pi_extension_number ExtNumber,
-                                     size_t *Size, char *Value) {
-  pi_result Result = PI_SUCCESS;
-  // TODO switch to map/unordered_map when have enough number of extensions
-  switch (ExtNumber) {
-  case PI_INTEL_DEVICELIB_CASSERT: {
-    // FIXME set name after backend support
-    static const std::string Name = "N/A";
-    if (Size)
-      *Size = Name.length();
-    if (Value)
-      std::memcpy(Value, Name.data(), Name.length());
-    break;
-  }
-  default:
-    Result = PI_INVALID_VALUE;
-  }
-
-  return Result;
-}
-
 const char SupportedVersion[] = _PI_H_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -4826,8 +4805,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
   _PI_CL(piTearDown, cuda_piTearDown)
-
-  _PI_CL(piextGetExtensionName, cuda_piextGetExtensionName);
 
 #undef _PI_CL
 
