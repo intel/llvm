@@ -567,7 +567,7 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal) {
         if (((QueueProperties[i].flags &
               ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
             (QueueProperties[i].flags &
-            ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
+             ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
           CopyGroupIndex = i;
           break;
         }
