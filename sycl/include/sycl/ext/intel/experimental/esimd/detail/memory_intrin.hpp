@@ -532,7 +532,7 @@ namespace cm_support {
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/atomic_intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/emu/esimdcpu_device_interface.hpp>
+#include <sycl/include/CL/sycl/INTEL/esimd/detail/emu/esimdcpu_device_interface.hpp>
 
 namespace raw_send {
 
