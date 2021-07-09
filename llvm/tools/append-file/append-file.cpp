@@ -73,13 +73,13 @@ int main(int argc, const char **argv) {
   unsigned char char1 = InputFile.get();
   unsigned char char2 = InputFile.get();
   if ((char1 == 0xFF && char2 == 0xFE) || (char1 == 0xFE && char2 == 0xFF)) {
-    unsigned char BOM[] = { char1, char2 };
-    OutFile.write((char*)BOM, sizeof(BOM));
+    unsigned char BOM[] = {char1, char2};
+    OutFile.write((char *)BOM, sizeof(BOM));
   } else {
     unsigned char char3 = InputFile.get();
     if (char1 == 0xEF && char2 == 0xBB && char3 == 0xBF) {
-      unsigned char BOM[] = { char1, char2, char3 };
-      OutFile.write((char*)BOM, sizeof(BOM));
+      unsigned char BOM[] = {char1, char2, char3};
+      OutFile.write((char *)BOM, sizeof(BOM));
     } else
       InputFile.seekg(0);
   }
