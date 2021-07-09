@@ -1519,9 +1519,11 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     return Cost;
   };
 
+  // The cost tables include both specific, custom (non-legal) src/dst type
+  // conversions and generic, legalized types. We test for customs first, before
+  // falling back to legalization.
   // FIXME: Need a better design of the cost table to handle non-simple types of
   // potential massive combinations (elem_num x src_type x dst_type).
-
   static const TypeConversionCostTblEntry AVX512BWConversionTbl[] {
     { ISD::SIGN_EXTEND, MVT::v32i16, MVT::v32i8, 1 },
     { ISD::ZERO_EXTEND, MVT::v32i16, MVT::v32i8, 1 },
@@ -1696,8 +1698,10 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
 
     { ISD::FP_TO_SINT,  MVT::v8i8,   MVT::v8f64,  3 },
     { ISD::FP_TO_SINT,  MVT::v8i16,  MVT::v8f64,  3 },
+    { ISD::FP_TO_SINT,  MVT::v8i32,  MVT::v8f64,  1 },
     { ISD::FP_TO_SINT,  MVT::v16i8,  MVT::v16f32, 3 },
     { ISD::FP_TO_SINT,  MVT::v16i16, MVT::v16f32, 3 },
+    { ISD::FP_TO_SINT,  MVT::v16i32, MVT::v16f64, 3 },
 
     { ISD::FP_TO_UINT,  MVT::v8i32,  MVT::v8f64,  1 },
     { ISD::FP_TO_UINT,  MVT::v8i16,  MVT::v8f64,  3 },
@@ -1822,7 +1826,7 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::UINT_TO_FP,  MVT::v2f64,  MVT::v2i16,  5 },
     { ISD::UINT_TO_FP,  MVT::v4f64,  MVT::v4i16,  2 },
     { ISD::UINT_TO_FP,  MVT::v8f32,  MVT::v8i16,  2 },
-    { ISD::UINT_TO_FP,  MVT::v2f32,  MVT::v2i32,  2 },
+    { ISD::UINT_TO_FP,  MVT::v2f32,  MVT::v2i32,  1 },
     { ISD::UINT_TO_FP,  MVT::v2f64,  MVT::v2i32,  1 },
     { ISD::UINT_TO_FP,  MVT::v4f32,  MVT::v4i32,  1 },
     { ISD::UINT_TO_FP,  MVT::v4f64,  MVT::v4i32,  1 },
@@ -1878,7 +1882,27 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::FP_EXTEND,   MVT::v8f64,  MVT::v8f32,  3 },
     { ISD::FP_ROUND,    MVT::v8f32,  MVT::v8f64,  3 },
 
-    { ISD::UINT_TO_FP,  MVT::v8f32,  MVT::v8i32,  5 },
+    { ISD::FP_TO_SINT,  MVT::v4i32,  MVT::v4f64,  1 },
+    { ISD::FP_TO_SINT,  MVT::v8i32,  MVT::v8f32,  1 },
+    { ISD::FP_TO_SINT,  MVT::v8i32,  MVT::v8f64,  3 },
+
+    { ISD::FP_TO_UINT,  MVT::v2i32,  MVT::v2f32,  4 },
+    { ISD::FP_TO_UINT,  MVT::v2i32,  MVT::v2f64,  7 },
+    { ISD::FP_TO_UINT,  MVT::v4i32,  MVT::v4f32,  4 },
+    { ISD::FP_TO_UINT,  MVT::v4i32,  MVT::v4f64,  7 },
+    { ISD::FP_TO_UINT,  MVT::v8i32,  MVT::v8f32,  4 },
+    { ISD::FP_TO_UINT,  MVT::v8i32,  MVT::v8f64, 15 },
+
+    { ISD::SINT_TO_FP,  MVT::v4f64,  MVT::v4i32,  1 },
+    { ISD::SINT_TO_FP,  MVT::v8f32,  MVT::v8i32,  1 },
+    { ISD::SINT_TO_FP,  MVT::v8f64,  MVT::v8i32,  3 },
+
+    { ISD::UINT_TO_FP,  MVT::v2f32,  MVT::v2i32,  2 },
+    { ISD::UINT_TO_FP,  MVT::v2f64,  MVT::v2i32,  1 },
+    { ISD::UINT_TO_FP,  MVT::v4f32,  MVT::v4i32,  2 },
+    { ISD::UINT_TO_FP,  MVT::v4f64,  MVT::v4i32,  2 },
+    { ISD::UINT_TO_FP,  MVT::v8f32,  MVT::v8i32,  2 },
+    { ISD::UINT_TO_FP,  MVT::v8f64,  MVT::v8i32,  4 },
   };
 
   static const TypeConversionCostTblEntry AVXConversionTbl[] = {
@@ -1928,9 +1952,11 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::SINT_TO_FP,  MVT::v4f32, MVT::v4i16, 3 },
     { ISD::SINT_TO_FP,  MVT::v4f64, MVT::v4i16, 3 },
     { ISD::SINT_TO_FP,  MVT::v8f32, MVT::v8i16, 5 },
-    { ISD::SINT_TO_FP,  MVT::v4f32, MVT::v4i32, 1 },
-    { ISD::SINT_TO_FP,  MVT::v4f64, MVT::v4i32, 1 },
-    { ISD::SINT_TO_FP,  MVT::v8f32, MVT::v8i32, 1 },
+    { ISD::SINT_TO_FP,  MVT::v4f64, MVT::v4i32, 2 },
+    { ISD::SINT_TO_FP,  MVT::v8f32, MVT::v8i32, 2 },
+    { ISD::SINT_TO_FP,  MVT::v8f64, MVT::v8i32, 4 },
+    { ISD::SINT_TO_FP,  MVT::v4f32, MVT::v2i64, 5 },
+    { ISD::SINT_TO_FP,  MVT::v4f32, MVT::v4i64, 8 },
 
     { ISD::UINT_TO_FP,  MVT::v4f32, MVT::v4i1,  7 },
     { ISD::UINT_TO_FP,  MVT::v4f64, MVT::v4i1,  7 },
@@ -1941,36 +1967,35 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::UINT_TO_FP,  MVT::v4f32, MVT::v4i16, 2 },
     { ISD::UINT_TO_FP,  MVT::v4f64, MVT::v4i16, 2 },
     { ISD::UINT_TO_FP,  MVT::v8f32, MVT::v8i16, 5 },
-    { ISD::UINT_TO_FP,  MVT::v2f64, MVT::v2i32, 6 },
-    { ISD::UINT_TO_FP,  MVT::v4f32, MVT::v4i32, 6 },
+    { ISD::UINT_TO_FP,  MVT::v2f64, MVT::v2i32, 4 },
+    { ISD::UINT_TO_FP,  MVT::v2f32, MVT::v2i64, 10 },
+    { ISD::UINT_TO_FP,  MVT::v4f32, MVT::v4i32, 5 },
     { ISD::UINT_TO_FP,  MVT::v4f64, MVT::v4i32, 6 },
+    { ISD::UINT_TO_FP,  MVT::v4f32, MVT::v4i64, 18 },
+    { ISD::UINT_TO_FP,  MVT::v4f64, MVT::v4i64, 10 },
     { ISD::UINT_TO_FP,  MVT::v8f32, MVT::v8i32, 8 },
+    { ISD::UINT_TO_FP,  MVT::v8f64, MVT::v8i32, 10 },
     { ISD::UINT_TO_FP,  MVT::v2f64, MVT::v2i64, 5 },
     { ISD::UINT_TO_FP,  MVT::v4f64, MVT::v4i64, 6 },
-    // The generic code to compute the scalar overhead is currently broken.
-    // Workaround this limitation by estimating the scalarization overhead
-    // here. We have roughly 10 instructions per scalar element.
-    // Multiply that by the vector width.
-    // FIXME: remove that when PR19268 is fixed.
-    { ISD::SINT_TO_FP,  MVT::v4f64, MVT::v4i64, 13 },
-    { ISD::SINT_TO_FP,  MVT::v4f64, MVT::v4i64, 13 },
 
     { ISD::FP_TO_SINT,  MVT::v8i8,  MVT::v8f32, 4 },
     { ISD::FP_TO_SINT,  MVT::v4i8,  MVT::v4f64, 3 },
     { ISD::FP_TO_SINT,  MVT::v4i16, MVT::v4f64, 2 },
+    { ISD::FP_TO_SINT,  MVT::v4i32, MVT::v4f64, 2 },
     { ISD::FP_TO_SINT,  MVT::v8i16, MVT::v8f32, 3 },
+    { ISD::FP_TO_SINT,  MVT::v8i32, MVT::v8f32, 2 },
+    { ISD::FP_TO_SINT,  MVT::v8i32, MVT::v8f64, 5 },
 
+    { ISD::FP_TO_UINT,  MVT::v2i32, MVT::v2f32, 5 },
+    { ISD::FP_TO_UINT,  MVT::v2i32, MVT::v2f64, 9 },
+    { ISD::FP_TO_UINT,  MVT::v4i32, MVT::v4f32, 5 },
     { ISD::FP_TO_UINT,  MVT::v4i8,  MVT::v4f64, 3 },
     { ISD::FP_TO_UINT,  MVT::v4i16, MVT::v4f64, 2 },
+    { ISD::FP_TO_UINT,  MVT::v4i32, MVT::v4f64, 9 },
     { ISD::FP_TO_UINT,  MVT::v8i8,  MVT::v8f32, 4 },
     { ISD::FP_TO_UINT,  MVT::v8i16, MVT::v8f32, 3 },
     { ISD::FP_TO_UINT,  MVT::v8i32, MVT::v8f32, 9 },
-    // This node is expanded into scalarized operations but BasicTTI is overly
-    // optimistic estimating its cost.  It computes 3 per element (one
-    // vector-extract, one scalar conversion and one vector-insert).  The
-    // problem is that the inserts form a read-modify-write chain so latency
-    // should be factored in too.  Inflating the cost per element by 1.
-    { ISD::FP_TO_UINT,  MVT::v4i32, MVT::v4f64, 4*4 },
+    { ISD::FP_TO_UINT,  MVT::v8i32, MVT::v8f64, 19 },
 
     { ISD::FP_EXTEND,   MVT::v4f64,  MVT::v4f32,  1 },
     { ISD::FP_ROUND,    MVT::v4f32,  MVT::v4f64,  1 },
@@ -2030,8 +2055,15 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::TRUNCATE,    MVT::v16i16, MVT::v16i32, 6 },
     { ISD::TRUNCATE,    MVT::v2i8,   MVT::v2i64,  1 }, // PSHUFB
 
+    { ISD::SINT_TO_FP,  MVT::v4f32,  MVT::v4i32,  1 },
+    { ISD::SINT_TO_FP,  MVT::v2f64,  MVT::v4i32,  1 },
+    { ISD::SINT_TO_FP,  MVT::v4f64,  MVT::v4i32,  2 },
+
     { ISD::UINT_TO_FP,  MVT::f32,    MVT::i64,    4 },
     { ISD::UINT_TO_FP,  MVT::f64,    MVT::i64,    4 },
+    { ISD::UINT_TO_FP,  MVT::v4f32,  MVT::v2i64, 12 },
+    { ISD::UINT_TO_FP,  MVT::v4f32,  MVT::v4i64, 22 },
+    { ISD::UINT_TO_FP,  MVT::v2f64,  MVT::v2i64,  4 },
 
     { ISD::FP_TO_SINT,  MVT::v2i8,   MVT::v2f32,  3 },
     { ISD::FP_TO_SINT,  MVT::v2i8,   MVT::v2f64,  3 },
@@ -2042,27 +2074,28 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
   };
 
   static const TypeConversionCostTblEntry SSE2ConversionTbl[] = {
-    // These are somewhat magic numbers justified by looking at the output of
-    // Intel's IACA, running some kernels and making sure when we take
-    // legalization into account the throughput will be overestimated.
-    { ISD::SINT_TO_FP, MVT::v4f32, MVT::v16i8, 8 },
-    { ISD::SINT_TO_FP, MVT::v2f64, MVT::v16i8, 16*10 },
-    { ISD::SINT_TO_FP, MVT::v4f32, MVT::v8i16, 15 },
-    { ISD::SINT_TO_FP, MVT::v2f64, MVT::v8i16, 8*10 },
-    { ISD::SINT_TO_FP, MVT::v4f32, MVT::v4i32, 5 },
-    { ISD::SINT_TO_FP, MVT::v2f64, MVT::v4i32, 2*10 },
-    { ISD::SINT_TO_FP, MVT::v2f64, MVT::v2i32, 2*10 },
-    { ISD::SINT_TO_FP, MVT::v4f32, MVT::v2i64, 15 },
-    { ISD::SINT_TO_FP, MVT::v2f64, MVT::v2i64, 2*10 },
+    // These are somewhat magic numbers justified by comparing the
+    // output of llvm-mca for our various supported scheduler models
+    // and basing it off the worst case scenario.
+    { ISD::SINT_TO_FP,  MVT::v4f32,  MVT::v16i8,  3 },
+    { ISD::SINT_TO_FP,  MVT::v2f64,  MVT::v16i8,  4 },
+    { ISD::SINT_TO_FP,  MVT::v4f32,  MVT::v8i16,  3 },
+    { ISD::SINT_TO_FP,  MVT::v2f64,  MVT::v8i16,  4 },
+    { ISD::SINT_TO_FP,  MVT::v4f32,  MVT::v4i32,  3 },
+    { ISD::SINT_TO_FP,  MVT::v2f64,  MVT::v4i32,  4 },
+    { ISD::SINT_TO_FP,  MVT::v4f32,  MVT::v2i64,  8 },
+    { ISD::SINT_TO_FP,  MVT::v2f64,  MVT::v2i64,  8 },
 
-    { ISD::UINT_TO_FP, MVT::v2f64, MVT::v16i8, 16*10 },
-    { ISD::UINT_TO_FP, MVT::v4f32, MVT::v16i8, 8 },
-    { ISD::UINT_TO_FP, MVT::v4f32, MVT::v8i16, 15 },
-    { ISD::UINT_TO_FP, MVT::v2f64, MVT::v8i16, 8*10 },
-    { ISD::UINT_TO_FP, MVT::v2f64, MVT::v4i32, 4*10 },
-    { ISD::UINT_TO_FP, MVT::v4f32, MVT::v4i32, 5 },
-    { ISD::UINT_TO_FP, MVT::v2f64, MVT::v2i64, 6 },
-    { ISD::UINT_TO_FP, MVT::v4f32, MVT::v2i64, 15 },
+    { ISD::UINT_TO_FP,  MVT::f32,    MVT::i64,    8 },
+    { ISD::UINT_TO_FP,  MVT::f64,    MVT::i64,    9 },
+    { ISD::UINT_TO_FP,  MVT::v2f64,  MVT::v16i8,  4 },
+    { ISD::UINT_TO_FP,  MVT::v4f32,  MVT::v16i8,  4 },
+    { ISD::UINT_TO_FP,  MVT::v4f32,  MVT::v8i16,  4 },
+    { ISD::UINT_TO_FP,  MVT::v2f64,  MVT::v8i16,  4 },
+    { ISD::UINT_TO_FP,  MVT::v2f64,  MVT::v4i32,  7 },
+    { ISD::UINT_TO_FP,  MVT::v4f32,  MVT::v4i32,  5 },
+    { ISD::UINT_TO_FP,  MVT::v2f64,  MVT::v2i64, 15 },
+    { ISD::UINT_TO_FP,  MVT::v4f32,  MVT::v2i64, 18 },
 
     { ISD::FP_TO_SINT,  MVT::v2i8,   MVT::v2f32,  4 },
     { ISD::FP_TO_SINT,  MVT::v2i16,  MVT::v2f32,  2 },
@@ -2070,14 +2103,10 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::FP_TO_SINT,  MVT::v4i16,  MVT::v4f32,  2 },
     { ISD::FP_TO_SINT,  MVT::v2i16,  MVT::v2f64,  2 },
     { ISD::FP_TO_SINT,  MVT::v2i8,   MVT::v2f64,  4 },
-
     { ISD::FP_TO_SINT,  MVT::v2i32,  MVT::v2f64,  1 },
 
-    { ISD::UINT_TO_FP,  MVT::f32,    MVT::i64,    6 },
-    { ISD::UINT_TO_FP,  MVT::f64,    MVT::i64,    6 },
-
     { ISD::FP_TO_UINT,  MVT::i64,    MVT::f32,    4 },
-    { ISD::FP_TO_UINT,  MVT::i64,    MVT::f64,    4 },
+    { ISD::FP_TO_UINT,  MVT::i64,    MVT::f64,   15 },
     { ISD::FP_TO_UINT,  MVT::v2i8,   MVT::v2f32,  4 },
     { ISD::FP_TO_UINT,  MVT::v2i8,   MVT::v2f64,  4 },
     { ISD::FP_TO_UINT,  MVT::v4i8,   MVT::v4f32,  3 },
@@ -2099,11 +2128,11 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::ZERO_EXTEND, MVT::v16i16, MVT::v16i8,  3 },
     { ISD::SIGN_EXTEND, MVT::v16i16, MVT::v16i8,  4 },
     { ISD::ZERO_EXTEND, MVT::v16i32, MVT::v16i8,  9 },
-    { ISD::SIGN_EXTEND, MVT::v16i32, MVT::v16i8,  12 },
+    { ISD::SIGN_EXTEND, MVT::v16i32, MVT::v16i8, 12 },
     { ISD::ZERO_EXTEND, MVT::v4i32,  MVT::v4i16,  1 },
     { ISD::SIGN_EXTEND, MVT::v4i32,  MVT::v4i16,  2 },
     { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v4i16,  3 },
-    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i16,  10 },
+    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i16, 10 },
     { ISD::ZERO_EXTEND, MVT::v8i32,  MVT::v8i16,  3 },
     { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v8i16,  4 },
     { ISD::ZERO_EXTEND, MVT::v16i32, MVT::v16i16, 6 },
@@ -2136,85 +2165,128 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::TRUNCATE,    MVT::v2i32,  MVT::v2i64,  1 }, // PSHUFD
   };
 
-  std::pair<InstructionCost, MVT> LTSrc = TLI->getTypeLegalizationCost(DL, Src);
-  std::pair<InstructionCost, MVT> LTDest =
-      TLI->getTypeLegalizationCost(DL, Dst);
-
-  if (ST->hasSSE41() && !ST->hasAVX())
-    if (const auto *Entry = ConvertCostTableLookup(SSE41ConversionTbl, ISD,
-                                                   LTDest.second, LTSrc.second))
-      return AdjustCost(LTSrc.first * Entry->Cost);
-
-  if (ST->hasSSE2() && !ST->hasAVX())
-    if (const auto *Entry = ConvertCostTableLookup(SSE2ConversionTbl, ISD,
-                                                   LTDest.second, LTSrc.second))
-      return AdjustCost(LTSrc.first * Entry->Cost);
-
+  // Attempt to map directly to (simple) MVT types to let us match custom entries.
   EVT SrcTy = TLI->getValueType(DL, Src);
   EVT DstTy = TLI->getValueType(DL, Dst);
 
   // The function getSimpleVT only handles simple value types.
-  if (!SrcTy.isSimple() || !DstTy.isSimple())
-    return AdjustCost(BaseT::getCastInstrCost(Opcode, Dst, Src, CCH, CostKind));
+  if (SrcTy.isSimple() && DstTy.isSimple()) {
+    MVT SimpleSrcTy = SrcTy.getSimpleVT();
+    MVT SimpleDstTy = DstTy.getSimpleVT();
 
-  MVT SimpleSrcTy = SrcTy.getSimpleVT();
-  MVT SimpleDstTy = DstTy.getSimpleVT();
+    if (ST->useAVX512Regs()) {
+      if (ST->hasBWI())
+        if (const auto *Entry = ConvertCostTableLookup(
+                AVX512BWConversionTbl, ISD, SimpleDstTy, SimpleSrcTy))
+          return AdjustCost(Entry->Cost);
 
-  if (ST->useAVX512Regs()) {
+      if (ST->hasDQI())
+        if (const auto *Entry = ConvertCostTableLookup(
+                AVX512DQConversionTbl, ISD, SimpleDstTy, SimpleSrcTy))
+          return AdjustCost(Entry->Cost);
+
+      if (ST->hasAVX512())
+        if (const auto *Entry = ConvertCostTableLookup(
+                AVX512FConversionTbl, ISD, SimpleDstTy, SimpleSrcTy))
+          return AdjustCost(Entry->Cost);
+    }
+
     if (ST->hasBWI())
-      if (const auto *Entry = ConvertCostTableLookup(AVX512BWConversionTbl, ISD,
-                                                     SimpleDstTy, SimpleSrcTy))
+      if (const auto *Entry = ConvertCostTableLookup(
+              AVX512BWVLConversionTbl, ISD, SimpleDstTy, SimpleSrcTy))
         return AdjustCost(Entry->Cost);
 
     if (ST->hasDQI())
-      if (const auto *Entry = ConvertCostTableLookup(AVX512DQConversionTbl, ISD,
-                                                     SimpleDstTy, SimpleSrcTy))
+      if (const auto *Entry = ConvertCostTableLookup(
+              AVX512DQVLConversionTbl, ISD, SimpleDstTy, SimpleSrcTy))
         return AdjustCost(Entry->Cost);
 
     if (ST->hasAVX512())
-      if (const auto *Entry = ConvertCostTableLookup(AVX512FConversionTbl, ISD,
+      if (const auto *Entry = ConvertCostTableLookup(AVX512VLConversionTbl, ISD,
                                                      SimpleDstTy, SimpleSrcTy))
         return AdjustCost(Entry->Cost);
+
+    if (ST->hasAVX2()) {
+      if (const auto *Entry = ConvertCostTableLookup(AVX2ConversionTbl, ISD,
+                                                     SimpleDstTy, SimpleSrcTy))
+        return AdjustCost(Entry->Cost);
+    }
+
+    if (ST->hasAVX()) {
+      if (const auto *Entry = ConvertCostTableLookup(AVXConversionTbl, ISD,
+                                                     SimpleDstTy, SimpleSrcTy))
+        return AdjustCost(Entry->Cost);
+    }
+
+    if (ST->hasSSE41()) {
+      if (const auto *Entry = ConvertCostTableLookup(SSE41ConversionTbl, ISD,
+                                                     SimpleDstTy, SimpleSrcTy))
+        return AdjustCost(Entry->Cost);
+    }
+
+    if (ST->hasSSE2()) {
+      if (const auto *Entry = ConvertCostTableLookup(SSE2ConversionTbl, ISD,
+                                                     SimpleDstTy, SimpleSrcTy))
+        return AdjustCost(Entry->Cost);
+    }
+  }
+
+  // Fall back to legalized types.
+  std::pair<InstructionCost, MVT> LTSrc = TLI->getTypeLegalizationCost(DL, Src);
+  std::pair<InstructionCost, MVT> LTDest =
+      TLI->getTypeLegalizationCost(DL, Dst);
+
+  if (ST->useAVX512Regs()) {
+    if (ST->hasBWI())
+      if (const auto *Entry = ConvertCostTableLookup(
+              AVX512BWConversionTbl, ISD, LTDest.second, LTSrc.second))
+        return AdjustCost(std::max(LTSrc.first, LTDest.first) * Entry->Cost);
+
+    if (ST->hasDQI())
+      if (const auto *Entry = ConvertCostTableLookup(
+              AVX512DQConversionTbl, ISD, LTDest.second, LTSrc.second))
+        return AdjustCost(std::max(LTSrc.first, LTDest.first) * Entry->Cost);
+
+    if (ST->hasAVX512())
+      if (const auto *Entry = ConvertCostTableLookup(
+              AVX512FConversionTbl, ISD, LTDest.second, LTSrc.second))
+        return AdjustCost(std::max(LTSrc.first, LTDest.first) * Entry->Cost);
   }
 
   if (ST->hasBWI())
     if (const auto *Entry = ConvertCostTableLookup(AVX512BWVLConversionTbl, ISD,
-                                                   SimpleDstTy, SimpleSrcTy))
-      return AdjustCost(Entry->Cost);
+                                                   LTDest.second, LTSrc.second))
+      return AdjustCost(std::max(LTSrc.first, LTDest.first) * Entry->Cost);
 
   if (ST->hasDQI())
     if (const auto *Entry = ConvertCostTableLookup(AVX512DQVLConversionTbl, ISD,
-                                                   SimpleDstTy, SimpleSrcTy))
-      return AdjustCost(Entry->Cost);
+                                                   LTDest.second, LTSrc.second))
+      return AdjustCost(std::max(LTSrc.first, LTDest.first) * Entry->Cost);
 
   if (ST->hasAVX512())
     if (const auto *Entry = ConvertCostTableLookup(AVX512VLConversionTbl, ISD,
-                                                   SimpleDstTy, SimpleSrcTy))
-      return AdjustCost(Entry->Cost);
+                                                   LTDest.second, LTSrc.second))
+      return AdjustCost(std::max(LTSrc.first, LTDest.first) * Entry->Cost);
 
-  if (ST->hasAVX2()) {
+  if (ST->hasAVX2())
     if (const auto *Entry = ConvertCostTableLookup(AVX2ConversionTbl, ISD,
-                                                   SimpleDstTy, SimpleSrcTy))
-      return AdjustCost(Entry->Cost);
-  }
+                                                   LTDest.second, LTSrc.second))
+      return AdjustCost(std::max(LTSrc.first, LTDest.first) * Entry->Cost);
 
-  if (ST->hasAVX()) {
+  if (ST->hasAVX())
     if (const auto *Entry = ConvertCostTableLookup(AVXConversionTbl, ISD,
-                                                   SimpleDstTy, SimpleSrcTy))
-      return AdjustCost(Entry->Cost);
-  }
+                                                   LTDest.second, LTSrc.second))
+      return AdjustCost(std::max(LTSrc.first, LTDest.first) * Entry->Cost);
 
-  if (ST->hasSSE41()) {
+  if (ST->hasSSE41())
     if (const auto *Entry = ConvertCostTableLookup(SSE41ConversionTbl, ISD,
-                                                   SimpleDstTy, SimpleSrcTy))
-      return AdjustCost(Entry->Cost);
-  }
+                                                   LTDest.second, LTSrc.second))
+      return AdjustCost(std::max(LTSrc.first, LTDest.first) * Entry->Cost);
 
-  if (ST->hasSSE2()) {
+  if (ST->hasSSE2())
     if (const auto *Entry = ConvertCostTableLookup(SSE2ConversionTbl, ISD,
-                                                   SimpleDstTy, SimpleSrcTy))
-      return AdjustCost(Entry->Cost);
-  }
+                                                   LTDest.second, LTSrc.second))
+      return AdjustCost(std::max(LTSrc.first, LTDest.first) * Entry->Cost);
 
   return AdjustCost(
       BaseT::getCastInstrCost(Opcode, Dst, Src, CCH, CostKind, I));

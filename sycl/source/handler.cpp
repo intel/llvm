@@ -194,7 +194,7 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGAdviseUSM(
         MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), MCodeLoc));
+        std::move(MEvents), MCGType, MCodeLoc));
     break;
   case detail::CG::CODEPLAY_HOST_TASK:
     CommandGroup.reset(new detail::CGHostTask(
@@ -490,7 +490,7 @@ void handler::memcpy(void *Dest, const void *Src, size_t Count) {
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = Dest;
   MLength = Count;
-  MCGType = detail::CG::COPY_USM;
+  setType(detail::CG::COPY_USM);
 }
 
 void handler::memset(void *Dest, int Value, size_t Count) {
@@ -498,21 +498,21 @@ void handler::memset(void *Dest, int Value, size_t Count) {
   MDstPtr = Dest;
   MPattern.push_back(static_cast<char>(Value));
   MLength = Count;
-  MCGType = detail::CG::FILL_USM;
+  setType(detail::CG::FILL_USM);
 }
 
 void handler::prefetch(const void *Ptr, size_t Count) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
-  MCGType = detail::CG::PREFETCH_USM;
+  setType(detail::CG::PREFETCH_USM);
 }
 
 void handler::mem_advise(const void *Ptr, size_t Count, pi_mem_advice Advice) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
-  MCGType = detail::CG::ADVISE_USM;
+  setType(detail::CG::ADVISE_USM);
 
   assert(!MSharedPtrStorage.empty());
 

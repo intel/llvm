@@ -62,7 +62,7 @@ enum InternalCapability {
   ICapFPGAInvocationPipeliningAttributesINTEL = 5916,
   ICapFastCompositeINTEL = 6093,
   ICapOptNoneINTEL = 6094,
-  ICapTokenTypeINTEL = 6112
+  ICapTokenTypeINTEL = 6112,
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };

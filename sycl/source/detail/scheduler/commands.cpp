@@ -509,10 +509,14 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
   // 1. Async work is not supported for host device.
-  // 2. The event handle can be null in case of, for example, alloca command,
-  //    which is currently synchronous, so don't generate OpenCL event.
-  //    Though, this event isn't host one as it's context isn't host one.
-  if (DepEvent->is_host() || DepEvent->getHandleRef() == nullptr) {
+  // 2. Some types of commands do not produce PI events after they are enqueued
+  // (e.g. alloca). Note that we can't check the pi event to make that
+  // distinction since the command might still be unenqueued at this point.
+  bool PiEventExpected = !DepEvent->is_host();
+  if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
+    PiEventExpected &= DepCmd->producesPiEvent();
+
+  if (!PiEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
     MPreparedHostDepsEvents.push_back(DepEvent);
@@ -542,6 +546,8 @@ const ContextImplPtr &Command::getWorkerContext() const {
 }
 
 const QueueImplPtr &Command::getWorkerQueue() const { return MQueue; }
+
+bool Command::producesPiEvent() const { return true; }
 
 Command *Command::addDep(DepDesc NewDep) {
   Command *ConnectionCmd = nullptr;
@@ -753,6 +759,8 @@ void AllocaCommandBase::emitInstrumentationData() {
   }
 #endif
 }
+
+bool AllocaCommandBase::producesPiEvent() const { return false; }
 
 AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
                              bool InitFromUserData,
@@ -1020,6 +1028,8 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
            << std::endl;
   }
 }
+
+bool ReleaseCommand::producesPiEvent() const { return false; }
 
 MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
                            void **DstPtr, QueueImplPtr Queue,
@@ -1414,6 +1424,8 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
            << std::endl;
   }
 }
+
+bool EmptyCommand::producesPiEvent() const { return false; }
 
 void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
@@ -2214,6 +2226,10 @@ cl_int ExecCGCommand::enqueueImp() {
     throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
   }
   return PI_INVALID_OPERATION;
+}
+
+bool ExecCGCommand::producesPiEvent() const {
+  return MCommandGroup->getType() != CG::CGTYPE::CODEPLAY_HOST_TASK;
 }
 
 } // namespace detail

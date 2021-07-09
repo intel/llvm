@@ -200,8 +200,7 @@ void event_impl::wait(
     waitInternal();
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self);
-  if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
-    detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
+  cleanupCommand(std::move(Self));
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
@@ -220,6 +219,12 @@ void event_impl::wait_and_throw(
   Command *Cmd = (Command *)getCommand();
   if (Cmd)
     Cmd->getQueue()->throw_asynchronous();
+}
+
+void event_impl::cleanupCommand(
+    std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+  if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
+    detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
 }
 
 template <>

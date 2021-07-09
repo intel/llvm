@@ -25,6 +25,19 @@ std::unique_ptr<TestCtx> TestContext;
 
 const int ExpectedEventThreshold = 128;
 
+pi_result redefinedQueueCreate(pi_context context, pi_device device,
+                               pi_queue_properties properties,
+                               pi_queue *queue) {
+  // Use in-order queues to force storing events for calling wait on them,
+  // rather than calling piQueueFinish.
+  if (properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+    return PI_INVALID_QUEUE_PROPERTIES;
+  }
+  return PI_SUCCESS;
+}
+
+pi_result redefinedQueueRelease(pi_queue Queue) { return PI_SUCCESS; }
+
 pi_result redefinedUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
                                     size_t count,
                                     pi_uint32 num_events_in_waitlist,
@@ -83,6 +96,8 @@ bool preparePiMock(platform &Plt) {
   }
 
   unittest::PiMock Mock{Plt};
+  Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
+  Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
   Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
       redefinedUSMEnqueueMemset);
   Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
