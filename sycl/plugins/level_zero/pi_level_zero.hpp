@@ -429,8 +429,8 @@ struct _pi_context : _pi_object {
   pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &);
 
   // If event is destroyed then decrement number of events living in the pool
-  // and destroy the pool if there are no alive events.
-  pi_result decrementAliveEventsInPool(pi_event Event);
+  // and destroy the pool if there are no unreleased events.
+  pi_result decrementUnreleasedEventsInPool(pi_event Event);
 
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
@@ -459,9 +459,9 @@ private:
   // by storing number of empty slots available in the pool.
   std::unordered_map<ze_event_pool_handle_t, pi_uint32>
       NumEventsAvailableInEventPool;
-  // This map will be used to determine number of live events in the pool.
-  // We use separate maps for number of event slots available in the pool.
-  // number of events live in the pool live.
+  // This map will be used to determine number of unreleased events in the pool.
+  // We use separate maps for number of event slots available in the pool from
+  // the number of events unreleased in the pool.
   // This will help when we try to make the code thread-safe.
   std::unordered_map<ze_event_pool_handle_t, pi_uint32>
       NumEventsUnreleasedInEventPool;

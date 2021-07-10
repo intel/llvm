@@ -337,7 +337,7 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
     // Creation of the new ZePool with record in NumEventsAvailableInEventPool
     // and initialization of the record in NumEventsUnreleasedInEventPool must
     // be done atomically. Otherwise it is possible that
-    // decrementAliveEventsInPool will be called for the record in
+    // decrementUnreleasedEventsInPool will be called for the record in
     // NumEventsUnreleasedInEventPool before its
     std::lock(NumEventsAvailableInEventPoolMutex,
               NumEventsUnreleasedInEventPoolMutex);
@@ -374,7 +374,7 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
   return PI_SUCCESS;
 }
 
-pi_result _pi_context::decrementAliveEventsInPool(pi_event Event) {
+pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
   ze_event_pool_handle_t ZePool = Event->ZeEventPool;
   std::lock_guard<std::mutex> Lock(NumEventsUnreleasedInEventPoolMutex);
   --NumEventsUnreleasedInEventPool[ZePool];
@@ -4432,7 +4432,7 @@ pi_result piEventRelease(pi_event Event) {
     ZE_CALL(zeEventDestroy, (Event->ZeEvent));
 
     auto Context = Event->Context;
-    if (auto Res = Context->decrementAliveEventsInPool(Event))
+    if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
       return Res;
 
     // We intentionally incremented the reference counter when an event is
