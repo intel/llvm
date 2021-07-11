@@ -9,7 +9,6 @@
 #include <CL/sycl/device.hpp>
 #include <detail/allowlist.hpp>
 #include <detail/config.hpp>
-#include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>

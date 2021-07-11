@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -25,7 +24,6 @@ class device;
 enum class aspect;
 
 namespace detail {
-class context_impl;
 class device_impl;
 
 // TODO: implement extension management for host device
