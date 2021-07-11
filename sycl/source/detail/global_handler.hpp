@@ -11,8 +11,8 @@
 #include <CL/sycl/detail/spinlock.hpp>
 #include <CL/sycl/detail/util.hpp>
 
-#include <unordered_map>
 #include <memory>
+#include <unordered_map>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
