@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
 #include <CL/sycl/aspects.hpp>
+#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/stl.hpp>
