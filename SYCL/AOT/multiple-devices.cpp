@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: opencl-aot, ocloc, aoc, cpu, gpu, accelerator
+// REQUIRES: opencl-aot, ocloc, aoc, cpu, gpu, accelerator, llvm-link, llvm-spirv
 // UNSUPPORTED: cuda
 // CUDA is not compatible with SPIR.
 
@@ -18,11 +18,19 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t_all.out
 // RUN: %ACC_RUN_PLACEHOLDER %t_all.out
 
+// FIXME: Change the behavior when proper automation for assert support is
+// introduced
 // Produce object file, spirv, device images to combine these differently
 // at link-time, thus testing various AOT-compiled images configurations
 // RUN: %clangxx -fsycl %S/Inputs/aot.cpp -c -o %t.o
 // RUN: %clangxx -fsycl -fsycl-link-targets=spir64-unknown-unknown-sycldevice %t.o -o %t.spv
 // AOT-compile device binary images
+// Neither of AOT tools can compile several files, hence, here is this
+// workaround
+// RUN: %llvm_spirv -r %sycl_libs_dir/libsycl-fallback-cassert.spv -o=%T/fallback-cassert.bc
+// RUN: %llvm_spirv -r %t.spv -o=%t.bc
+// RUN: %llvm_link %t.bc %T/fallback-cassert.bc -o=%t2.bc
+// RUN: %llvm_spirv %t2.bc -o=%t.spv
 // RUN: opencl-aot %t.spv -o=%t_cpu.ir --device=cpu
 // RUN: ocloc -file %t.spv -spirv_input -output %t_gen.out -output_no_suffix -device cfl
 // RUN: aoc %t.spv -o %t_fpga.aocx -sycl -dep-files=%t.d
