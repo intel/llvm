@@ -1283,7 +1283,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                              device->get()) == CUDA_SUCCESS);
 
     cl::sycl::detail::pi::assertion((ecc_enabled == 0) | (ecc_enabled == 1));
-    auto result = static_cast<bool>(ecc_enabled);
+    auto result = static_cast<pi_bool>(ecc_enabled);
     return getInfo(param_value_size, param_value, param_value_size_ret, result);
   }
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
@@ -1294,7 +1294,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 
     cl::sycl::detail::pi::assertion((is_integrated == 0) |
                                     (is_integrated == 1));
-    auto result = static_cast<bool>(is_integrated);
+    auto result = static_cast<pi_bool>(is_integrated);
     return getInfo(param_value_size, param_value, param_value_size_ret, result);
   }
   case PI_DEVICE_INFO_PROFILING_TIMER_RESOLUTION: {
@@ -1304,16 +1304,20 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    size_t{1000u});
   }
   case PI_DEVICE_INFO_ENDIAN_LITTLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, true);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
   }
   case PI_DEVICE_INFO_AVAILABLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, true);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
   }
   case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, true);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
   }
   case PI_DEVICE_INFO_LINKER_AVAILABLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, true);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
   }
   case PI_DEVICE_INFO_EXECUTION_CAPABILITIES: {
     auto capability = CL_EXEC_KERNEL;
@@ -1403,7 +1407,8 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    size_t{1024u});
   }
   case PI_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, true);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
   }
   case PI_DEVICE_INFO_PARENT_DEVICE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
