@@ -2,6 +2,7 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
+// RUN: %ACC_RUN_PLACEHOLDER %t1.out
 
 //==---------------- memadvise.cpp - Shared Memory Linked List test --------==//
 //
@@ -37,7 +38,8 @@ int main() {
   if (s_head == nullptr) {
     return -1;
   }
-  q.mem_advise(s_head, sizeof(Node), (pi_mem_advice)mem_advice);
+  // Test queue::mem_advise
+  q.mem_advise(s_head, sizeof(Node), pi_mem_advice(mem_advice));
   Node *s_cur = s_head;
 
   for (int i = 0; i < numNodes; i++) {
@@ -48,7 +50,10 @@ int main() {
       if (s_cur->pNext == nullptr) {
         return -1;
       }
-      q.mem_advise(s_cur->pNext, sizeof(Node), (pi_mem_advice)mem_advice);
+      // Test handler::mem_advise
+      q.submit([&](handler &cgh) {
+        cgh.mem_advise(s_cur->pNext, sizeof(Node), pi_mem_advice(mem_advice));
+      });
     } else {
       s_cur->pNext = nullptr;
     }
@@ -69,7 +74,6 @@ int main() {
   e1.wait();
 
   s_cur = s_head;
-  int mismatches = 0;
   for (int i = 0; i < numNodes; i++) {
     const int want = i * 4 + 1;
     if (s_cur->Num != want) {
