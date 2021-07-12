@@ -146,6 +146,7 @@ int main() {
       sycl::INTEL::math_dsp_control<sycl::INTEL::Preference::DSP,
                                     sycl::INTEL::Propagate::Off>(
           [&] { sum += 4.56f; });
+      output_accessor[0] = sum;
     });
   });
 
