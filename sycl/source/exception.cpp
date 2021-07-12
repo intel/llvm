@@ -75,7 +75,7 @@ exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
   reservedPtr++;
   // insert error code
   std::error_code *ecPtr = reinterpret_cast<std::error_code *>(reservedPtr);
-  *ecPtr = EC;
+  memcpy(ecPtr, &EC, sizeof(std::error_code));
 }
 
 const std::error_code &exception::code() const noexcept {
