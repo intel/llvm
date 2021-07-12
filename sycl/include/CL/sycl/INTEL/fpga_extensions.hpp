@@ -8,6 +8,7 @@
 
 #pragma once
 #include <CL/sycl/INTEL/fpga_device_selector.hpp>
+#include <CL/sycl/INTEL/fpga_dsp_control.hpp>
 #include <CL/sycl/INTEL/fpga_lsu.hpp>
 #include <CL/sycl/INTEL/fpga_reg.hpp>
 #include <CL/sycl/INTEL/pipes.hpp>
