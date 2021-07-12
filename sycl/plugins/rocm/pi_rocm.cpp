@@ -4281,9 +4281,20 @@ pi_result rocm_piextUSMFree(pi_context context, void *ptr) {
     ScopedContext active(context);
     unsigned int type;
     hipPointerAttribute_t hipPointerAttributeType;
-    result =
-        PI_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, ptr));
+    hipError_t ret = hipPointerGetAttributes(&hipPointerAttributeType, ptr);
     type = hipPointerAttributeType.memoryType;
+#ifdef __HIP_PLATFORM_NVIDIA__
+    // The NVIDIA hipPointerGetAttributes implementation doesn't know about
+    // managed pointers and will return hipErrorUnknown when encountering them,
+    // managed pointers are released just like device pointer so treat this as
+    // a device pointer. Note that other attributes of hipPointerAttributeType
+    // won't be set correctly here, but only the type is used in this function.
+    if (ret == hipErrorUnknown) {
+      ret = hipSuccess;
+      type = hipMemoryTypeDevice;
+    }
+#endif
+    result = PI_CHECK_ERROR(ret);
     assert(type == hipMemoryTypeDevice or type == hipMemoryTypeHost);
     if (type == hipMemoryTypeDevice) {
       result = PI_CHECK_ERROR(hipFree(ptr));
