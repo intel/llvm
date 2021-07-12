@@ -49,6 +49,18 @@ enum QueueOrder { Ordered, OOO };
 
 class queue_impl {
 public:
+  // \return a default context for the platform if it includes the device
+  // passed, a new context otherwise.
+  static ContextImplPtr getDefaultOrNew(const DeviceImplPtr &Device) {
+    ContextImplPtr DefaultContext = detail::getSyclObjImpl(
+        Device->get_platform().ext_oneapi_get_default_context());
+
+    if (DefaultContext->hasDevice(Device))
+      return DefaultContext;
+
+    return detail::getSyclObjImpl(
+        context{createSyclObjFromImpl<device>(Device), {}, {}});
+  }
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
   ///
@@ -58,10 +70,7 @@ public:
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const async_handler &AsyncHandler,
              const property_list &PropList)
-      : queue_impl(Device,
-                   detail::getSyclObjImpl(
-                       Device->get_platform().ext_oneapi_get_default_context()),
-                   AsyncHandler, PropList){};
+      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
