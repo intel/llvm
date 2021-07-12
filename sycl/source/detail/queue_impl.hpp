@@ -263,7 +263,7 @@ public:
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
-    // CL_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
+    // PI_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
     if (MSupportOOO && Error == PI_INVALID_QUEUE_PROPERTIES) {
       MSupportOOO = false;
       Queue = createQueue(QueueOrder::Ordered);

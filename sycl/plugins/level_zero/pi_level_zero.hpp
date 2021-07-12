@@ -328,7 +328,7 @@ struct _pi_context : _pi_object {
       : ZeContext{ZeContext},
         OwnZeContext{OwnZeContext}, Devices{Devs, Devs + NumDevices},
         ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
-        NumEventsAvailableInEventPool{}, NumEventsLiveInEventPool{} {
+        NumEventsAvailableInEventPool{}, NumEventsUnreleasedInEventPool{} {
     // Create USM allocator context for each pair (device, context).
     for (uint32_t I = 0; I < NumDevices; I++) {
       pi_device Device = Devs[I];
@@ -429,8 +429,8 @@ struct _pi_context : _pi_object {
   pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &);
 
   // If event is destroyed then decrement number of events living in the pool
-  // and destroy the pool if there are no alive events.
-  pi_result decrementAliveEventsInPool(ze_event_pool_handle_t pool);
+  // and destroy the pool if there are no unreleased events.
+  pi_result decrementUnreleasedEventsInPool(pi_event Event);
 
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
@@ -459,12 +459,12 @@ private:
   // by storing number of empty slots available in the pool.
   std::unordered_map<ze_event_pool_handle_t, pi_uint32>
       NumEventsAvailableInEventPool;
-  // This map will be used to determine number of live events in the pool.
-  // We use separate maps for number of event slots available in the pool.
-  // number of events live in the pool live.
+  // This map will be used to determine number of unreleased events in the pool.
+  // We use separate maps for number of event slots available in the pool from
+  // the number of events unreleased in the pool.
   // This will help when we try to make the code thread-safe.
   std::unordered_map<ze_event_pool_handle_t, pi_uint32>
-      NumEventsLiveInEventPool;
+      NumEventsUnreleasedInEventPool;
 
   // TODO: we'd like to create a thread safe map class instead of mutex + map,
   // that must be carefully used together.
@@ -472,8 +472,8 @@ private:
   // Mutex to control operations on NumEventsAvailableInEventPool map.
   std::mutex NumEventsAvailableInEventPoolMutex;
 
-  // Mutex to control operations on NumEventsLiveInEventPool.
-  std::mutex NumEventsLiveInEventPoolMutex;
+  // Mutex to control operations on NumEventsUnreleasedInEventPool.
+  std::mutex NumEventsUnreleasedInEventPoolMutex;
 };
 
 // If doing dynamic batching, start batch size at 4.
