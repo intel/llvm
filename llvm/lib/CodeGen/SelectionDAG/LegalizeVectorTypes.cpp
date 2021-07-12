@@ -90,6 +90,7 @@ void DAGTypeLegalizer::ScalarizeVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FNEARBYINT:
   case ISD::FNEG:
   case ISD::FREEZE:
+  case ISD::ARITH_FENCE:
   case ISD::FP_EXTEND:
   case ISD::FP_TO_SINT:
   case ISD::FP_TO_UINT:
@@ -983,6 +984,7 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FNEARBYINT:
   case ISD::FNEG:
   case ISD::FREEZE:
+  case ISD::ARITH_FENCE:
   case ISD::FP_EXTEND:
   case ISD::FP_ROUND:
   case ISD::FP_TO_SINT:
@@ -1313,7 +1315,8 @@ void DAGTypeLegalizer::SplitVecRes_INSERT_SUBVECTOR(SDNode *N, SDValue &Lo,
                                SmallestAlign);
 
   // Store the new subvector into the specified index.
-  SDValue SubVecPtr = TLI.getVectorElementPointer(DAG, StackPtr, VecVT, Idx);
+  SDValue SubVecPtr =
+      TLI.getVectorSubVecPointer(DAG, StackPtr, VecVT, SubVecVT, Idx);
   Store = DAG.getStore(Store, dl, SubVec, SubVecPtr,
                        MachinePointerInfo::getUnknownStack(MF));
 
@@ -2851,6 +2854,7 @@ SDValue DAGTypeLegalizer::SplitVecOp_TruncateHelper(SDNode *N) {
     HalfLo = DAG.getNode(N->getOpcode(), DL, HalfVT, InLoVec);
     HalfHi = DAG.getNode(N->getOpcode(), DL, HalfVT, InHiVec);
   }
+
   // Concatenate them to get the full intermediate truncation result.
   EVT InterVT = EVT::getVectorVT(*DAG.getContext(), HalfElementVT, NumElements);
   SDValue InterVec = DAG.getNode(ISD::CONCAT_VECTORS, DL, InterVT, HalfLo,
@@ -3146,6 +3150,7 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::CTTZ_ZERO_UNDEF:
   case ISD::FNEG:
   case ISD::FREEZE:
+  case ISD::ARITH_FENCE:
   case ISD::FCANONICALIZE:
     Res = WidenVecRes_Unary(N);
     break;

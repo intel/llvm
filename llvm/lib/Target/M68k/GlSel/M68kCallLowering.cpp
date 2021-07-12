@@ -74,17 +74,30 @@ void M68kIncomingValueHandler::assignValueToReg(Register ValVReg,
 
 void M68kIncomingValueHandler::assignValueToAddress(Register ValVReg,
                                                     Register Addr,
-                                                    uint64_t Size,
+                                                    LLT MemTy,
                                                     MachinePointerInfo &MPO,
                                                     CCValAssign &VA) {
-  llvm_unreachable("unimeplemented");
+  MachineFunction &MF = MIRBuilder.getMF();
+  auto *MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOLoad, MemTy,
+                                      inferAlignFromPtrInfo(MF, MPO));
+  MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
 }
 
 Register M68kIncomingValueHandler::getStackAddress(uint64_t Size,
                                                    int64_t Offset,
                                                    MachinePointerInfo &MPO,
                                                    ISD::ArgFlagsTy Flags) {
-  llvm_unreachable("unimeplemented");
+  auto &MFI = MIRBuilder.getMF().getFrameInfo();
+  const bool IsImmutable = !Flags.isByVal();
+  int FI = MFI.CreateFixedObject(Size, Offset, IsImmutable);
+  MPO = MachinePointerInfo::getFixedStack(MIRBuilder.getMF(), FI);
+
+  // Build Frame Index
+  llvm::LLT FramePtr = LLT::pointer(
+      0, MIRBuilder.getMF().getDataLayout().getPointerSizeInBits());
+  MachineInstrBuilder AddrReg = MIRBuilder.buildFrameIndex(FramePtr, FI);
+  StackUsed = std::max(StackUsed, Size + Offset);
+  return AddrReg.getReg(0);
 }
 
 bool M68kCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,

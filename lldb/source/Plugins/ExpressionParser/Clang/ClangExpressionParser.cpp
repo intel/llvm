@@ -658,7 +658,8 @@ ClangExpressionParser::ClangExpressionParser(
   //
   // FIXME: We shouldn't need to do this, the target should be immutable once
   // created. This complexity should be lifted elsewhere.
-  m_compiler->getTarget().adjust(m_compiler->getLangOpts());
+  m_compiler->getTarget().adjust(m_compiler->getDiagnostics(),
+		                 m_compiler->getLangOpts());
 
   // 6. Set up the diagnostic buffer for reporting errors
 
@@ -724,7 +725,7 @@ ClangExpressionParser::ClangExpressionParser(
       m_compiler->getCodeGenOpts(), *m_llvm_context));
 }
 
-ClangExpressionParser::~ClangExpressionParser() {}
+ClangExpressionParser::~ClangExpressionParser() = default;
 
 namespace {
 

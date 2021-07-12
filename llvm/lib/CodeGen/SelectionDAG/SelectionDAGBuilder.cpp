@@ -4409,7 +4409,7 @@ void SelectionDAGBuilder::visitMaskedScatter(const CallInst &I) {
   EVT VT = Src0.getValueType();
   Align Alignment = cast<ConstantInt>(I.getArgOperand(2))
                         ->getMaybeAlignValue()
-                        .getValueOr(DAG.getEVTAlign(VT));
+                        .getValueOr(DAG.getEVTAlign(VT.getScalarType()));
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
 
   AAMDNodes AAInfo;
@@ -4527,7 +4527,7 @@ void SelectionDAGBuilder::visitMaskedGather(const CallInst &I) {
   EVT VT = TLI.getValueType(DAG.getDataLayout(), I.getType());
   Align Alignment = cast<ConstantInt>(I.getArgOperand(1))
                         ->getMaybeAlignValue()
-                        .getValueOr(DAG.getEVTAlign(VT));
+                        .getValueOr(DAG.getEVTAlign(VT.getScalarType()));
 
   AAMDNodes AAInfo;
   I.getAAMetadata(AAInfo);
@@ -6292,6 +6292,12 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
                              getValue(I.getArgOperand(0)),
                              getValue(I.getArgOperand(1)), Flags));
     return;
+  case Intrinsic::arithmetic_fence: {
+    setValue(&I, DAG.getNode(ISD::ARITH_FENCE, sdl,
+                             getValue(I.getArgOperand(0)).getValueType(),
+                             getValue(I.getArgOperand(0)), Flags));
+    return;
+  }
   case Intrinsic::fma:
     setValue(&I, DAG.getNode(
                      ISD::FMA, sdl, getValue(I.getArgOperand(0)).getValueType(),
