@@ -34,7 +34,6 @@ piextDeviceGetNativeHandle
 piextDeviceSelectBinary
 piextEventCreateWithNativeHandle
 piextGetDeviceFunctionPointer
-piextGetExtensionName
 piextKernelCreateWithNativeHandle
 piextKernelGetNativeHandle
 piextKernelSetArgMemObj
