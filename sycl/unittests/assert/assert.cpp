@@ -107,10 +107,13 @@ sycl::unittest::PiImage Imgs[] = {generateDefaultImage(),
                                   generateCopierKernelImage()};
 sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
-static int KernelLaunchCounter = 0;
+static constexpr int KernelLaunchCounterBase = 0;
+static int KernelLaunchCounter = KernelLaunchCounterBase;
+static constexpr int MemoryMapCounterBase = 1000;
+static int MemoryMapCounter = MemoryMapCounterBase;
 static std::mutex WaitedEventsMutex;
 static std::set<int> WaitedEvents;
-static constexpr int PauseWaitOnIdx = 1;
+static constexpr int PauseWaitOnIdx = KernelLaunchCounterBase + 1;
 static std::atomic<bool> StartedWait{false};
 static std::atomic<bool> ContinueWait{false};
 static std::atomic<bool> PausedWaitDone{false};
@@ -204,7 +207,7 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
   printf("Enqueued %i\n", *Ret);
 
   if (PauseWaitOnIdx == *Ret) {
-    // It should be copier kernel. Check if  it depends on user's one.
+    // It should be copier kernel. Check if it depends on user's one.
     EXPECT_EQ(N, 1U);
     int EventIdx = reinterpret_cast<int *>(Deps[0])[0];
     EXPECT_EQ(EventIdx, 0);
@@ -216,17 +219,21 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
 
 static pi_result redefinedEventsWait(pi_uint32 num_events,
                                      const pi_event *event_list) {
-  assert(num_events == 1);
+  // there should be two events: one is for memory map and the other is for
+  // copier kernel
+  assert(num_events == 2);
 
-  int EventIdx = reinterpret_cast<int *>(event_list[0])[0];
-  printf("Waiting for event %i\n", EventIdx);
+  int EventIdx1 = reinterpret_cast<int *>(event_list[0])[0];
+  int EventIdx2 = reinterpret_cast<int *>(event_list[1])[0];
+  printf("Waiting for events %i, %i\n", EventIdx1, EventIdx2);
 
   {
     std::lock_guard<std::mutex> Lock{WaitedEventsMutex};
-    WaitedEvents.insert(EventIdx);
+    WaitedEvents.insert(EventIdx1);
+    WaitedEvents.insert(EventIdx2);
   }
 
-  if (PauseWaitOnIdx == EventIdx) {
+  if (PauseWaitOnIdx == EventIdx1 || PauseWaitOnIdx == EventIdx2) {
     StartedWait = true;
     while (!ContinueWait)
       ;
@@ -268,7 +275,17 @@ static pi_result redefinedEnqueueMemBufferMap(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
     pi_map_flags map_flags, size_t offset, size_t size,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event, void **ret_map) {
+    pi_event *RetEvent, void **ret_map) {
+  int *Ret = new int[1];
+  *Ret = MemoryMapCounter++;
+  printf("Memory map %i\n", *Ret);
+  *RetEvent = reinterpret_cast<pi_event>(Ret);
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedExtKernelSetArgMemObj(pi_kernel kernel,
+                                                pi_uint32 arg_index,
+                                                const pi_mem *arg_value) {
   return PI_SUCCESS;
 }
 
@@ -290,6 +307,8 @@ static void setupMock(sycl::unittest::PiMock &Mock) {
   Mock.redefine<PiApiKind::piKernelSetArg>(redefinedKernelSetArg);
   Mock.redefine<PiApiKind::piEnqueueMemBufferMap>(redefinedEnqueueMemBufferMap);
   Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
+  Mock.redefine<PiApiKind::piextKernelSetArgMemObj>(
+      redefinedExtKernelSetArgMemObj);
 }
 
 TEST(Assert, Test) {
@@ -356,7 +375,11 @@ TEST(Assert, Test) {
   {
     std::lock_guard<std::mutex> Lock{WaitedEventsMutex};
     // Host-task was waiting on the Copier kernel
-    EXPECT_EQ(WaitedEvents.count(1) != 0, true);
-    EXPECT_EQ(WaitedEvents.size(), 1LU);
+    EXPECT_EQ(WaitedEvents.count(PauseWaitOnIdx) != 0, true);
+    // The first (an the only memory map should be waited on
+    EXPECT_EQ(WaitedEvents.count(MemoryMapCounterBase + 0), true);
+    EXPECT_EQ(WaitedEvents.size(), 2LU);
   }
+
+  EXPECT_EQ(MemoryMapCounter - MemoryMapCounterBase, 1);
 }
