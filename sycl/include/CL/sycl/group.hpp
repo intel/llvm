@@ -428,6 +428,17 @@ template <int Dims> group<Dims> store_group(const group<Dims> *g) {
 }
 } // namespace detail
 
+template <int Dims>
+__SYCL_DEPRECATED("use sycl::experimental::this_group() instead")
+group<Dims> this_group() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<group<Dims>>());
+#else
+  return detail::store_group<Dims>(nullptr);
+#endif
+}
+
+namespace experimental {
 template <int Dims> group<Dims> this_group() {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::Builder::getElement(detail::declptr<group<Dims>>());
@@ -435,5 +446,6 @@ template <int Dims> group<Dims> this_group() {
   return detail::store_group<Dims>(nullptr);
 #endif
 }
+} // namespace experimental
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
