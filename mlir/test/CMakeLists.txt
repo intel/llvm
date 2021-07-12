@@ -1,5 +1,4 @@
 add_subdirectory(CAPI)
-add_subdirectory(SDBM)
 add_subdirectory(lib)
 
 if(MLIR_ENABLE_BINDINGS_PYTHON)
@@ -67,6 +66,7 @@ set(MLIR_TEST_DEPENDS
   FileCheck count not
   mlir-capi-execution-engine-test
   mlir-capi-ir-test
+  mlir-capi-llvm-test
   mlir-capi-pass-test
   mlir-capi-sparse-tensor-test
   mlir-cpu-runner
@@ -75,7 +75,6 @@ set(MLIR_TEST_DEPENDS
   mlir-lsp-server
   mlir-opt
   mlir-reduce
-  mlir-sdbm-api-test
   mlir-tblgen
   mlir-translate
   mlir_runner_utils

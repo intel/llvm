@@ -7,6 +7,7 @@
 ; RUN: llvm-spirv -to-binary %t.spv.txt -o %t.from-text.spv
 ; RUN: cmp %t.from-llvm.spv %t.from-text.spv
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM

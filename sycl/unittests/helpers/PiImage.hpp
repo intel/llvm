@@ -128,7 +128,7 @@ public:
   }
 
   typename T::NativeType *begin() { return &*MEntries.begin(); }
-  typename T::NativeType *end() { return &*MEntries.end(); }
+  typename T::NativeType *end() { return begin() + MEntries.size(); }
 
 private:
   std::vector<T> MMockEntries;
@@ -200,7 +200,7 @@ public:
         ManifestStart,
         ManifestEnd,
         &*MBinary.begin(),
-        &*MBinary.end(),
+        (&*MBinary.begin()) + MBinary.size(),
         MOffloadEntries.begin(),
         MOffloadEntries.end(),
         MPropertySet.begin(),

@@ -66,19 +66,24 @@ private:
   GlobalHandler();
   ~GlobalHandler();
 
-  SpinLock MFieldsLock;
+  template <typename T> struct InstWithLock {
+    std::unique_ptr<T> Inst;
+    SpinLock Lock;
+  };
 
-  // Do not forget to update shutdown() function if needed.
-  std::unique_ptr<Scheduler> MScheduler;
-  std::unique_ptr<ProgramManager> MProgramManager;
-  std::unique_ptr<Sync> MSync;
-  std::unique_ptr<std::vector<PlatformImplPtr>> MPlatformCache;
-  std::unique_ptr<std::mutex> MPlatformMapMutex;
-  std::unique_ptr<std::mutex> MFilterMutex;
-  std::unique_ptr<std::vector<plugin>> MPlugins;
-  std::unique_ptr<device_filter_list> MDeviceFilterList;
+  template <typename T, typename... Types>
+  T &getOrCreate(InstWithLock<T> &IWL, Types... Args);
+
+  InstWithLock<Scheduler> MScheduler;
+  InstWithLock<ProgramManager> MProgramManager;
+  InstWithLock<Sync> MSync;
+  InstWithLock<std::vector<PlatformImplPtr>> MPlatformCache;
+  InstWithLock<std::mutex> MPlatformMapMutex;
+  InstWithLock<std::mutex> MFilterMutex;
+  InstWithLock<std::vector<plugin>> MPlugins;
+  InstWithLock<device_filter_list> MDeviceFilterList;
   // The mutex for synchronizing accesses to handlers extended members
-  std::unique_ptr<std::mutex> MHandlerExtendedMembersMutex;
+  InstWithLock<std::mutex> MHandlerExtendedMembersMutex;
 };
 } // namespace detail
 } // namespace sycl

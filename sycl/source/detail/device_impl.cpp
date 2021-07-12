@@ -269,8 +269,8 @@ bool device_impl::has(aspect Aspect) const {
             PI_USM_ATOMIC_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
-  case aspect::usm_system_allocator:
-    return get_info<info::device::usm_system_allocator>();
+  case aspect::usm_system_allocations:
+    return get_info<info::device::usm_system_allocations>();
   case aspect::ext_intel_pci_address:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                MDevice, PI_DEVICE_INFO_PCI_ADDRESS, sizeof(pi_device_type),

@@ -4684,8 +4684,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // Ensure the default version in SYCL mode is 2020.
       CmdArgs.push_back("-sycl-std=2020");
     }
-    if (Args.hasArg(options::OPT_fsycl_unnamed_lambda))
-      CmdArgs.push_back("-fsycl-unnamed-lambda");
+
+    if (!Args.hasFlag(options::OPT_fsycl_unnamed_lambda,
+                      options::OPT_fno_sycl_unnamed_lambda))
+      CmdArgs.push_back("-fno-sycl-unnamed-lambda");
 
     // Add the Unique ID prefix
     StringRef UniqueID = D.getSYCLUniqueID(Input.getBaseInput());
@@ -5384,6 +5386,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                    false))
     CmdArgs.push_back("-fsplit-stack");
 
+  // -fprotect-parens=0 is default.
+  if (Args.hasFlag(options::OPT_fprotect_parens,
+                   options::OPT_fno_protect_parens, false))
+    CmdArgs.push_back("-fprotect-parens");
+
   RenderFloatingPointOptions(TC, D, OFastEnabled, Args, CmdArgs, JA);
 
   if (Arg *A = Args.getLastArg(options::OPT_fextend_args_EQ)) {
@@ -5678,15 +5685,20 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (Arg *A = Args.getLastArg(options::OPT_fbasic_block_sections_EQ)) {
+    StringRef Val = A->getValue();
     if (Triple.isX86() && Triple.isOSBinFormatELF()) {
-      StringRef Val = A->getValue();
       if (Val != "all" && Val != "labels" && Val != "none" &&
           !Val.startswith("list="))
         D.Diag(diag::err_drv_invalid_value)
             << A->getAsString(Args) << A->getValue();
       else
         A->render(Args, CmdArgs);
-    } else {
+    } else if (Triple.isNVPTX()) {
+      // Do not pass the option to the GPU compilation. We still want it enabled
+      // for the host-side compilation, so seeing it here is not an error.
+    } else if (Val != "none") {
+      // =none is allowed everywhere. It's useful for overriding the option
+      // and is the same as not specifying the option.
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getAsString(Args) << TripleStr;
     }
@@ -6244,6 +6256,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       (Args.hasArg(options::OPT_mkernel) && types::isCXX(InputType)))
     CmdArgs.push_back("-fapple-kext");
 
+  Args.AddLastArg(CmdArgs, options::OPT_altivec_src_compat);
   Args.AddLastArg(CmdArgs, options::OPT_flax_vector_conversions_EQ);
   Args.AddLastArg(CmdArgs, options::OPT_fobjc_sender_dependent_dispatch);
   Args.AddLastArg(CmdArgs, options::OPT_fdiagnostics_print_source_range_info);
@@ -8117,10 +8130,16 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       });
     }
     Triples += Action::GetOffloadKindName(CurKind);
-    Triples += '-';
-    Triples += CurTC->getTriple().normalize();
-    if (CurKind == Action::OFK_HIP && CurDep->getOffloadingArch()) {
-      Triples += '-';
+    Triples += "-";
+    std::string NormalizedTriple = CurTC->getTriple().normalize();
+    Triples += NormalizedTriple;
+
+    if (CurDep->getOffloadingArch() != nullptr) {
+      // If OffloadArch is present it can only appear as the 6th hypen
+      // sepearated field of Bundle Entry ID. So, pad required number of
+      // hyphens in Triple.
+      for (int i = 4 - StringRef(NormalizedTriple).count("-"); i > 0; i--)
+        Triples += "-";
       Triples += CurDep->getOffloadingArch();
     }
   }
@@ -8274,11 +8293,17 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     if (J++)
       Triples += ',';
     Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
-    Triples += '-';
-    Triples += Dep.DependentToolChain->getTriple().normalize();
-    if (Dep.DependentOffloadKind == Action::OFK_HIP &&
-        !Dep.DependentBoundArch.empty()) {
-      Triples += '-';
+    Triples += "-";
+    std::string NormalizedTriple =
+        Dep.DependentToolChain->getTriple().normalize();
+    Triples += NormalizedTriple;
+
+    if (!Dep.DependentBoundArch.empty()) {
+      // If OffloadArch is present it can only appear as the 6th hypen
+      // sepearated field of Bundle Entry ID. So, pad required number of
+      // hyphens in Triple.
+      for (int i = 4 - StringRef(NormalizedTriple).count("-"); i > 0; i--)
+        Triples += "-";
       Triples += Dep.DependentBoundArch;
     }
   }
@@ -8665,6 +8690,9 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
       // lowered to CrossWorkgroup storage class that is mapped to just
       // global address space.
       ExtArg += ",+SPV_INTEL_usm_storage_classes";
+    else
+      // Don't enable several freshly added extensions on FPGA H/W
+      ExtArg += ",+SPV_INTEL_token_type";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
