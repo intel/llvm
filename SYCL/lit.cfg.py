@@ -281,6 +281,17 @@ else:
 if find_executable('sycl-ls'):
     config.available_features.add('sycl-ls')
 
+llvm_tools = ["llvm-spirv", "llvm-link"]
+for llvm_tool in llvm_tools:
+  llvm_tool_path = find_executable(llvm_tool)
+  if llvm_tool_path:
+    lit_config.note("Found " + llvm_tool)
+    config.available_features.add(llvm_tool)
+    config.substitutions.append( ('%' + llvm_tool.replace('-', '_'),
+                                  os.path.realpath(llvm_tool_path)) )
+  else:
+    lit_config.warning("Can't find " + llvm_tool)
+
 # Device AOT compilation tools aren't part of the SYCL project,
 # so they need to be pre-installed on the machine
 aot_tools = ["ocloc", "aoc", "opencl-aot"]
