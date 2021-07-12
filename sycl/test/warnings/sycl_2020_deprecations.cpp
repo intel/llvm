@@ -4,7 +4,8 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=1.2.1 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/oneapi/atomic_fence.hpp>
+#include <CL/sycl/ONEAPI/atomic_fence.hpp>
+#include <CL/sycl/INTEL/online_compiler.hpp>
 
 int main() {
   cl_context ClCtx;
@@ -101,9 +102,16 @@ int main() {
   auto MCA = sycl::info::device::max_constant_args;
   (void)MCA;
 
-  // expected-warning@+1{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
-  sycl::ext::oneapi::atomic_fence(sycl::ext::oneapi::memory_order::relaxed,
-                                  sycl::ext::oneapi::memory_scope::work_group);
+  // expected-warning@+4{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
+  // expected-warning@+3{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
+  // expected-warning@+2{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
+  // expected-warning@+2{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
+  sycl::ONEAPI::atomic_fence(sycl::ONEAPI::memory_order::relaxed,
+                             sycl::ONEAPI::memory_scope::work_group);
+
+  // expected-warning@+1{{'INTEL' is deprecated: use 'ext::intel' instead}}
+  auto SL = sycl::INTEL::source_language::opencl_c;
+  (void)SL;
 
   return 0;
 }
