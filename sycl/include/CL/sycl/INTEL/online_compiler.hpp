@@ -10,11 +10,7 @@
 
 #include <CL/sycl/detail/defines_elementary.hpp>
 
-namespace {
-__SYCL2020_DEPRECATED("include sycl/ext/intel/online_compiler.hpp "
-                      "instead")
-constexpr static bool HeaderDeprecated = true;
-constexpr static bool TriggerHeaderDeprecationWarning = HeaderDeprecated;
-} // namespace
+__SYCL_WARNING("CL/sycl/INTEL/online_compiler.hpp usage is deprecated, include "
+               "sycl/ext/intel/online_compiler.hpp instead")
 
 #include <sycl/ext/intel/online_compiler.hpp>

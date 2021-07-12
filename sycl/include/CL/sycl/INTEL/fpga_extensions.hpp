@@ -10,11 +10,7 @@
 
 #include <CL/sycl/detail/defines_elementary.hpp>
 
-namespace {
-__SYCL2020_DEPRECATED("include sycl/ext/intel/fpga_extensions.hpp "
-                      "instead")
-constexpr static bool HeaderDeprecated = true;
-constexpr static bool TriggerHeaderDeprecationWarning = HeaderDeprecated;
-} // namespace
+__SYCL_WARNING("CL/sycl/INTEL/fpga_extensions.hpp usage is deprecated, include "
+               "sycl/ext/intel/fpga_extensions.hpp instead")
 
 #include <sycl/ext/intel/fpga_extensions.hpp>

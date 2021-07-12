@@ -10,11 +10,8 @@
 
 #include <CL/sycl/detail/defines_elementary.hpp>
 
-namespace {
-__SYCL2020_DEPRECATED("include sycl/ext/oneapi/filter_selector.hpp "
-                      "instead")
-constexpr static bool HeaderDeprecated = true;
-constexpr static bool TriggerHeaderDeprecationWarning = HeaderDeprecated;
-} // namespace
+__SYCL_WARNING("CL/sycl/ONEAPI/filter_selector.hpp usage is "
+               "deprecated, include "
+               "sycl/ext/oneapi/filter_selector.hpp instead")
 
 #include <sycl/ext/oneapi/filter_selector.hpp>

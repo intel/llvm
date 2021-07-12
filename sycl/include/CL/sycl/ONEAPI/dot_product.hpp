@@ -12,11 +12,8 @@
 
 #include <CL/sycl/detail/defines_elementary.hpp>
 
-namespace {
-__SYCL2020_DEPRECATED("include sycl/ext/oneapi/dot_product.hpp "
-                      "instead")
-constexpr static bool HeaderDeprecated = true;
-constexpr static bool TriggerHeaderDeprecationWarning = HeaderDeprecated;
-} // namespace
+__SYCL_WARNING("CL/sycl/ONEAPI/dot_product.hpp usage is "
+               "deprecated, include "
+               "sycl/ext/oneapi/dot_product.hpp instead")
 
 #include <sycl/ext/oneapi/dot_product.hpp>

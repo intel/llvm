@@ -20,12 +20,9 @@
 
 #include <CL/sycl/detail/defines_elementary.hpp>
 
-namespace {
-__SYCL2020_DEPRECATED(
-    "include sycl/ext/intel/esimd/detail/emu/esimdcpu_device_interface.hpp "
-    "instead")
-constexpr static bool HeaderDeprecated = true;
-constexpr static bool TriggerHeaderDeprecationWarning = HeaderDeprecated;
-} // namespace
+__SYCL_WARNING(
+    "CL/sycl/INTEL/esimd/detail/emu/esimdcpu_device_interface.hpp usage is "
+    "deprecated, include "
+    "sycl/ext/intel/esimd/detail/emu/esimdcpu_device_interface.hpp instead")
 
 #include <sycl/ext/intel/esimd/detail/emu/esimdcpu_device_interface.hpp>
