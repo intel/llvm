@@ -321,7 +321,7 @@ public:
   using value_type = T;
 
   template <class... Args>
-  explicit constexpr specialization_id(Args &&... args)
+  explicit constexpr specialization_id(Args &&...args)
       : MDefaultValue(args...) {}
 
   specialization_id(const specialization_id &rhs) = delete;
@@ -336,7 +336,7 @@ private:
 };
 
 #if __cplusplus >= 201703L
-template <typename T> specialization_id(T) -> specialization_id<T>;
+template<typename T> specialization_id(T) -> specialization_id<T>;
 #endif // C++17.
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
@@ -444,7 +444,7 @@ private:
 };
 
 template <typename T>
-const stream &operator<<(const stream &S, T &&) {
+const stream& operator<<(const stream &S, T&&) {
   return S;
 }
 
