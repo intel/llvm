@@ -14,7 +14,6 @@ namespace INTEL {
 enum class Preference { DSP, Softlogic, Compiler_default };
 enum class Propagate { On, Off };
 
-
 template <typename Function>
 #ifdef __SYCL_DEVICE_ONLY__
 [[intel::prefer_dsp]]
@@ -54,8 +53,7 @@ void math_prefer_softlogic_no_propagate(Function f)
 }
 
 template <Preference my_preference = Preference::DSP,
-          Propagate my_propagate = Propagate::On, 
-          typename Function>
+          Propagate my_propagate = Propagate::On, typename Function>
 void math_dsp_control(Function f) {
   if (my_preference == Preference::DSP) {
     if (my_propagate == Propagate::On) {
