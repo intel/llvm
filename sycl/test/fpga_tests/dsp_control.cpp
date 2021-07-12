@@ -47,7 +47,7 @@ void RunKernel(queue &deviceQueue, const std::vector<float> &in,
 int main() {
   std::vector<float> in{0.0f};
   std::vector<float> out{0.0f};
-  queue deviceQueue(testconfig_selector{}, &m_exception_handler);
+  queue deviceQueue;
   RunKernel(deviceQueue, in, out);
 
   float golden = 19.47f;
