@@ -68,8 +68,6 @@ static void __kmpc_generic_kernel_init() {
   nThreads = GetNumberOfWorkersInTeam();
   threadLimit = nThreads;
 
-  omptarget_nvptx_globalArgs.Init();
-
   __kmpc_data_sharing_init_stack();
   __kmpc_impl_target_init();
 }
@@ -160,6 +158,10 @@ static void __kmpc_spmd_kernel_deinit(bool RequiresFullRuntime) {
 // Return true if the current target region is executed in SPMD mode.
 EXTERN int8_t __kmpc_is_spmd_exec_mode() {
   return (execution_param & ModeMask) == Spmd;
+}
+
+EXTERN int8_t __kmpc_is_generic_main_thread(kmp_int32 Tid) {
+  return !__kmpc_is_spmd_exec_mode() && GetMasterThreadID() == Tid;
 }
 
 EXTERN bool __kmpc_kernel_parallel(void**WorkFn);

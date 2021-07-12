@@ -373,25 +373,17 @@ using AndOpLowering = VectorConvertToLLVMPattern<AndOp, LLVM::AndOp>;
 using CeilFOpLowering = VectorConvertToLLVMPattern<CeilFOp, LLVM::FCeilOp>;
 using CopySignOpLowering =
     VectorConvertToLLVMPattern<CopySignOp, LLVM::CopySignOp>;
-using CosOpLowering = VectorConvertToLLVMPattern<math::CosOp, LLVM::CosOp>;
 using DivFOpLowering = VectorConvertToLLVMPattern<DivFOp, LLVM::FDivOp>;
-using ExpOpLowering = VectorConvertToLLVMPattern<math::ExpOp, LLVM::ExpOp>;
-using Exp2OpLowering = VectorConvertToLLVMPattern<math::Exp2Op, LLVM::Exp2Op>;
 using FPExtOpLowering = VectorConvertToLLVMPattern<FPExtOp, LLVM::FPExtOp>;
 using FPToSIOpLowering = VectorConvertToLLVMPattern<FPToSIOp, LLVM::FPToSIOp>;
 using FPToUIOpLowering = VectorConvertToLLVMPattern<FPToUIOp, LLVM::FPToUIOp>;
 using FPTruncOpLowering = VectorConvertToLLVMPattern<FPTruncOp, LLVM::FPTruncOp>;
 using FloorFOpLowering = VectorConvertToLLVMPattern<FloorFOp, LLVM::FFloorOp>;
 using FmaFOpLowering = VectorConvertToLLVMPattern<FmaFOp, LLVM::FMAOp>;
-using Log10OpLowering =
-    VectorConvertToLLVMPattern<math::Log10Op, LLVM::Log10Op>;
-using Log2OpLowering = VectorConvertToLLVMPattern<math::Log2Op, LLVM::Log2Op>;
-using LogOpLowering = VectorConvertToLLVMPattern<math::LogOp, LLVM::LogOp>;
 using MulFOpLowering = VectorConvertToLLVMPattern<MulFOp, LLVM::FMulOp>;
 using MulIOpLowering = VectorConvertToLLVMPattern<MulIOp, LLVM::MulOp>;
 using NegFOpLowering = VectorConvertToLLVMPattern<NegFOp, LLVM::FNegOp>;
 using OrOpLowering = VectorConvertToLLVMPattern<OrOp, LLVM::OrOp>;
-using PowFOpLowering = VectorConvertToLLVMPattern<math::PowFOp, LLVM::PowOp>;
 using RemFOpLowering = VectorConvertToLLVMPattern<RemFOp, LLVM::FRemOp>;
 using SIToFPOpLowering = VectorConvertToLLVMPattern<SIToFPOp, LLVM::SIToFPOp>;
 using SelectOpLowering = VectorConvertToLLVMPattern<SelectOp, LLVM::SelectOp>;
@@ -405,8 +397,6 @@ using SignedRemIOpLowering =
     VectorConvertToLLVMPattern<SignedRemIOp, LLVM::SRemOp>;
 using SignedShiftRightOpLowering =
     OneToOneConvertToLLVMPattern<SignedShiftRightOp, LLVM::AShrOp>;
-using SinOpLowering = VectorConvertToLLVMPattern<math::SinOp, LLVM::SinOp>;
-using SqrtOpLowering = VectorConvertToLLVMPattern<math::SqrtOp, LLVM::SqrtOp>;
 using SubFOpLowering = VectorConvertToLLVMPattern<SubFOp, LLVM::FSubOp>;
 using SubIOpLowering = VectorConvertToLLVMPattern<SubIOp, LLVM::SubOp>;
 using TruncateIOpLowering = VectorConvertToLLVMPattern<TruncateIOp, LLVM::TruncOp>;
@@ -498,89 +488,6 @@ struct ConstantOpLowering : public ConvertOpToLLVMPattern<ConstantOp> {
   }
 };
 
-/// Copies the shaped descriptor part to (if `toDynamic` is set) or from
-/// (otherwise) the dynamically allocated memory for any operands that were
-/// unranked descriptors originally.
-static LogicalResult copyUnrankedDescriptors(OpBuilder &builder, Location loc,
-                                             LLVMTypeConverter &typeConverter,
-                                             TypeRange origTypes,
-                                             SmallVectorImpl<Value> &operands,
-                                             bool toDynamic) {
-  assert(origTypes.size() == operands.size() &&
-         "expected as may original types as operands");
-
-  // Find operands of unranked memref type and store them.
-  SmallVector<UnrankedMemRefDescriptor, 4> unrankedMemrefs;
-  for (unsigned i = 0, e = operands.size(); i < e; ++i)
-    if (origTypes[i].isa<UnrankedMemRefType>())
-      unrankedMemrefs.emplace_back(operands[i]);
-
-  if (unrankedMemrefs.empty())
-    return success();
-
-  // Compute allocation sizes.
-  SmallVector<Value, 4> sizes;
-  UnrankedMemRefDescriptor::computeSizes(builder, loc, typeConverter,
-                                         unrankedMemrefs, sizes);
-
-  // Get frequently used types.
-  MLIRContext *context = builder.getContext();
-  Type voidPtrType = LLVM::LLVMPointerType::get(IntegerType::get(context, 8));
-  auto i1Type = IntegerType::get(context, 1);
-  Type indexType = typeConverter.getIndexType();
-
-  // Find the malloc and free, or declare them if necessary.
-  auto module = builder.getInsertionPoint()->getParentOfType<ModuleOp>();
-  LLVM::LLVMFuncOp freeFunc, mallocFunc;
-  if (toDynamic)
-    mallocFunc = LLVM::lookupOrCreateMallocFn(module, indexType);
-  if (!toDynamic)
-    freeFunc = LLVM::lookupOrCreateFreeFn(module);
-
-  // Initialize shared constants.
-  Value zero =
-      builder.create<LLVM::ConstantOp>(loc, i1Type, builder.getBoolAttr(false));
-
-  unsigned unrankedMemrefPos = 0;
-  for (unsigned i = 0, e = operands.size(); i < e; ++i) {
-    Type type = origTypes[i];
-    if (!type.isa<UnrankedMemRefType>())
-      continue;
-    Value allocationSize = sizes[unrankedMemrefPos++];
-    UnrankedMemRefDescriptor desc(operands[i]);
-
-    // Allocate memory, copy, and free the source if necessary.
-    Value memory =
-        toDynamic
-            ? builder.create<LLVM::CallOp>(loc, mallocFunc, allocationSize)
-                  .getResult(0)
-            : builder.create<LLVM::AllocaOp>(loc, voidPtrType, allocationSize,
-                                             /*alignment=*/0);
-
-    Value source = desc.memRefDescPtr(builder, loc);
-    builder.create<LLVM::MemcpyOp>(loc, memory, source, allocationSize, zero);
-    if (!toDynamic)
-      builder.create<LLVM::CallOp>(loc, freeFunc, source);
-
-    // Create a new descriptor. The same descriptor can be returned multiple
-    // times, attempting to modify its pointer can lead to memory leaks
-    // (allocated twice and overwritten) or double frees (the caller does not
-    // know if the descriptor points to the same memory).
-    Type descriptorType = typeConverter.convertType(type);
-    if (!descriptorType)
-      return failure();
-    auto updatedDesc =
-        UnrankedMemRefDescriptor::undef(builder, loc, descriptorType);
-    Value rank = desc.rank(builder, loc);
-    updatedDesc.setRank(builder, loc, rank);
-    updatedDesc.setMemRefDescPtr(builder, loc, memory);
-
-    operands[i] = updatedDesc;
-  }
-
-  return success();
-}
-
 // A CallOp automatically promotes MemRefType to a sequence of alloca/store and
 // passes the pointer to the MemRef across function boundaries.
 template <typename CallOpType>
@@ -636,10 +543,9 @@ struct CallOpInterfaceLowering : public ConvertOpToLLVMPattern<CallOpType> {
              "The number of arguments and types doesn't match");
       this->getTypeConverter()->promoteBarePtrsToDescriptors(
           rewriter, callOp.getLoc(), resultTypes, results);
-    } else if (failed(copyUnrankedDescriptors(rewriter, callOp.getLoc(),
-                                              *this->getTypeConverter(),
-                                              resultTypes, results,
-                                              /*toDynamic=*/false))) {
+    } else if (failed(this->copyUnrankedDescriptors(rewriter, callOp.getLoc(),
+                                                    resultTypes, results,
+                                                    /*toDynamic=*/false))) {
       return failure();
     }
 
@@ -654,169 +560,6 @@ struct CallOpLowering : public CallOpInterfaceLowering<CallOp> {
 
 struct CallIndirectOpLowering : public CallOpInterfaceLowering<CallIndirectOp> {
   using Super::Super;
-};
-
-// A `expm1` is converted into `exp - 1`.
-struct ExpM1OpLowering : public ConvertOpToLLVMPattern<math::ExpM1Op> {
-  using ConvertOpToLLVMPattern<math::ExpM1Op>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(math::ExpM1Op op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    math::ExpM1Op::Adaptor transformed(operands);
-    auto operandType = transformed.operand().getType();
-
-    if (!operandType || !LLVM::isCompatibleType(operandType))
-      return failure();
-
-    auto loc = op.getLoc();
-    auto resultType = op.getResult().getType();
-    auto floatType = getElementTypeOrSelf(resultType).cast<FloatType>();
-    auto floatOne = rewriter.getFloatAttr(floatType, 1.0);
-
-    if (!operandType.isa<LLVM::LLVMArrayType>()) {
-      LLVM::ConstantOp one;
-      if (LLVM::isCompatibleVectorType(operandType)) {
-        one = rewriter.create<LLVM::ConstantOp>(
-            loc, operandType,
-            SplatElementsAttr::get(resultType.cast<ShapedType>(), floatOne));
-      } else {
-        one = rewriter.create<LLVM::ConstantOp>(loc, operandType, floatOne);
-      }
-      auto exp = rewriter.create<LLVM::ExpOp>(loc, transformed.operand());
-      rewriter.replaceOpWithNewOp<LLVM::FSubOp>(op, operandType, exp, one);
-      return success();
-    }
-
-    auto vectorType = resultType.dyn_cast<VectorType>();
-    if (!vectorType)
-      return rewriter.notifyMatchFailure(op, "expected vector result type");
-
-    return LLVM::detail::handleMultidimensionalVectors(
-        op.getOperation(), operands, *getTypeConverter(),
-        [&](Type llvm1DVectorTy, ValueRange operands) {
-          auto splatAttr = SplatElementsAttr::get(
-              mlir::VectorType::get(
-                  {LLVM::getVectorNumElements(llvm1DVectorTy).getFixedValue()},
-                  floatType),
-              floatOne);
-          auto one =
-              rewriter.create<LLVM::ConstantOp>(loc, llvm1DVectorTy, splatAttr);
-          auto exp =
-              rewriter.create<LLVM::ExpOp>(loc, llvm1DVectorTy, operands[0]);
-          return rewriter.create<LLVM::FSubOp>(loc, llvm1DVectorTy, exp, one);
-        },
-        rewriter);
-  }
-};
-
-// A `log1p` is converted into `log(1 + ...)`.
-struct Log1pOpLowering : public ConvertOpToLLVMPattern<math::Log1pOp> {
-  using ConvertOpToLLVMPattern<math::Log1pOp>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(math::Log1pOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    math::Log1pOp::Adaptor transformed(operands);
-    auto operandType = transformed.operand().getType();
-
-    if (!operandType || !LLVM::isCompatibleType(operandType))
-      return rewriter.notifyMatchFailure(op, "unsupported operand type");
-
-    auto loc = op.getLoc();
-    auto resultType = op.getResult().getType();
-    auto floatType = getElementTypeOrSelf(resultType).cast<FloatType>();
-    auto floatOne = rewriter.getFloatAttr(floatType, 1.0);
-
-    if (!operandType.isa<LLVM::LLVMArrayType>()) {
-      LLVM::ConstantOp one =
-          LLVM::isCompatibleVectorType(operandType)
-              ? rewriter.create<LLVM::ConstantOp>(
-                    loc, operandType,
-                    SplatElementsAttr::get(resultType.cast<ShapedType>(),
-                                           floatOne))
-              : rewriter.create<LLVM::ConstantOp>(loc, operandType, floatOne);
-
-      auto add = rewriter.create<LLVM::FAddOp>(loc, operandType, one,
-                                               transformed.operand());
-      rewriter.replaceOpWithNewOp<LLVM::LogOp>(op, operandType, add);
-      return success();
-    }
-
-    auto vectorType = resultType.dyn_cast<VectorType>();
-    if (!vectorType)
-      return rewriter.notifyMatchFailure(op, "expected vector result type");
-
-    return LLVM::detail::handleMultidimensionalVectors(
-        op.getOperation(), operands, *getTypeConverter(),
-        [&](Type llvm1DVectorTy, ValueRange operands) {
-          auto splatAttr = SplatElementsAttr::get(
-              mlir::VectorType::get(
-                  {LLVM::getVectorNumElements(llvm1DVectorTy).getFixedValue()},
-                  floatType),
-              floatOne);
-          auto one =
-              rewriter.create<LLVM::ConstantOp>(loc, llvm1DVectorTy, splatAttr);
-          auto add = rewriter.create<LLVM::FAddOp>(loc, llvm1DVectorTy, one,
-                                                   operands[0]);
-          return rewriter.create<LLVM::LogOp>(loc, llvm1DVectorTy, add);
-        },
-        rewriter);
-  }
-};
-
-// A `rsqrt` is converted into `1 / sqrt`.
-struct RsqrtOpLowering : public ConvertOpToLLVMPattern<math::RsqrtOp> {
-  using ConvertOpToLLVMPattern<math::RsqrtOp>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(math::RsqrtOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    math::RsqrtOp::Adaptor transformed(operands);
-    auto operandType = transformed.operand().getType();
-
-    if (!operandType || !LLVM::isCompatibleType(operandType))
-      return failure();
-
-    auto loc = op.getLoc();
-    auto resultType = op.getResult().getType();
-    auto floatType = getElementTypeOrSelf(resultType).cast<FloatType>();
-    auto floatOne = rewriter.getFloatAttr(floatType, 1.0);
-
-    if (!operandType.isa<LLVM::LLVMArrayType>()) {
-      LLVM::ConstantOp one;
-      if (LLVM::isCompatibleVectorType(operandType)) {
-        one = rewriter.create<LLVM::ConstantOp>(
-            loc, operandType,
-            SplatElementsAttr::get(resultType.cast<ShapedType>(), floatOne));
-      } else {
-        one = rewriter.create<LLVM::ConstantOp>(loc, operandType, floatOne);
-      }
-      auto sqrt = rewriter.create<LLVM::SqrtOp>(loc, transformed.operand());
-      rewriter.replaceOpWithNewOp<LLVM::FDivOp>(op, operandType, one, sqrt);
-      return success();
-    }
-
-    auto vectorType = resultType.dyn_cast<VectorType>();
-    if (!vectorType)
-      return failure();
-
-    return LLVM::detail::handleMultidimensionalVectors(
-        op.getOperation(), operands, *getTypeConverter(),
-        [&](Type llvm1DVectorTy, ValueRange operands) {
-          auto splatAttr = SplatElementsAttr::get(
-              mlir::VectorType::get(
-                  {LLVM::getVectorNumElements(llvm1DVectorTy).getFixedValue()},
-                  floatType),
-              floatOne);
-          auto one =
-              rewriter.create<LLVM::ConstantOp>(loc, llvm1DVectorTy, splatAttr);
-          auto sqrt =
-              rewriter.create<LLVM::SqrtOp>(loc, llvm1DVectorTy, operands[0]);
-          return rewriter.create<LLVM::FDivOp>(loc, llvm1DVectorTy, one, sqrt);
-        },
-        rewriter);
-  }
 };
 
 struct DialectCastOpLowering
@@ -1039,8 +782,7 @@ struct ReturnOpLowering : public ConvertOpToLLVMPattern<ReturnOp> {
       }
     } else {
       updatedOperands = llvm::to_vector<4>(operands);
-      (void)copyUnrankedDescriptors(rewriter, loc, *getTypeConverter(),
-                                    op.getOperands().getTypes(),
+      (void)copyUnrankedDescriptors(rewriter, loc, op.getOperands().getTypes(),
                                     updatedOperands,
                                     /*toDynamic=*/true);
     }
@@ -1375,20 +1117,12 @@ void mlir::populateStdToLLVMConversionPatterns(LLVMTypeConverter &converter,
       CmpIOpLowering,
       CondBranchOpLowering,
       CopySignOpLowering,
-      CosOpLowering,
       ConstantOpLowering,
       DialectCastOpLowering,
       DivFOpLowering,
-      ExpOpLowering,
-      Exp2OpLowering,
-      ExpM1OpLowering,
       FloorFOpLowering,
       FmaFOpLowering,
       GenericAtomicRMWOpLowering,
-      LogOpLowering,
-      Log10OpLowering,
-      Log1pOpLowering,
-      Log2OpLowering,
       FPExtOpLowering,
       FPToSIOpLowering,
       FPToUIOpLowering,
@@ -1398,11 +1132,9 @@ void mlir::populateStdToLLVMConversionPatterns(LLVMTypeConverter &converter,
       MulIOpLowering,
       NegFOpLowering,
       OrOpLowering,
-      PowFOpLowering,
       RemFOpLowering,
       RankOpLowering,
       ReturnOpLowering,
-      RsqrtOpLowering,
       SIToFPOpLowering,
       SelectOpLowering,
       ShiftLeftOpLowering,
@@ -1410,10 +1142,8 @@ void mlir::populateStdToLLVMConversionPatterns(LLVMTypeConverter &converter,
       SignedDivIOpLowering,
       SignedRemIOpLowering,
       SignedShiftRightOpLowering,
-      SinOpLowering,
       SplatOpLowering,
       SplatNdOpLowering,
-      SqrtOpLowering,
       SubFOpLowering,
       SubIOpLowering,
       SwitchOpLowering,
