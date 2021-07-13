@@ -5,7 +5,6 @@
 
 #include "Inputs/sycl.hpp"
 
-// The kernel has an attribute.
 void calls_kernel_1() {
   // CHECK: FunctionDecl {{.*}}Kernel1
   // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic
@@ -49,7 +48,6 @@ void calls_kernel_3() {
   });
 }
 
-// The kernel has an attribute.
 void calls_kernel_4() {
   // CHECK: FunctionDecl {{.*}}Kernel5
   // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic

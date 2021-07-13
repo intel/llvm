@@ -1,9 +1,9 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
 
 // Tests for IR of [[intel::scheduler_target_fmax_mhz()]], [[intel::num_simd_work_items()]],
-// [[intel::no_global_work_offset()]], [[intel::no_global_work_offset()]],
-// [[sycl::reqd_sub_group_size()]], [[sycl::reqd_work_group_size()]], and
-// [[intel::max_work_group_size()]] kernel attributes in SYCL 2020.
+// [[intel::no_global_work_offset()]], [[intel::no_global_work_offset()]], [[sycl::reqd_sub_group_size()]],
+// [[sycl::reqd_work_group_size()]], [[intel::kernel_args_restrict]], [[intel::max_work_group_size()]],
+// and [[intel::sycl_explicit_simd]] function attributes in SYCL 2020.
 
 #include "sycl.hpp"
 
@@ -121,6 +121,27 @@ template <int SIZE, int SIZE1, int SIZE2>
 class Functor9 {
 public:
   [[intel::max_work_group_size(SIZE, SIZE1, SIZE2)]] void operator()() const {}
+};
+
+class Foo7 {
+public:
+  [[intel::sycl_explicit_simd]] void operator()() const {}
+};
+
+[[intel::sycl_explicit_simd]] void foo7() {}
+
+class Foo8 {
+public:
+  [[intel::kernel_args_restrict]] void operator()() const {}
+};
+
+[[intel::kernel_args_restrict]] void foo8() {}
+
+class Functor10 {
+public:
+  void operator()() const {
+    foo8();
+  }
 };
 
 int main() {
@@ -250,6 +271,39 @@ int main() {
     // CHECK-NOT: !max_work_group_size
     Functor8 f8;
     h.single_task<class kernel_name28>(f8);
+
+    // Test attribute is not propagated.
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name29()
+    // CHECK-NOT: !sycl_explicit_simd
+    // CHECK-SAME: {
+    // CHECK: define {{.*}}spir_func void @{{.*}}foo7{{.*}} !sycl_explicit_simd ![[NUM]]
+    h.single_task<class kernel_name29>(
+        []() { foo7(); });
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name30() #0 !intel_reqd_sub_group_size ![[NUM1]] !sycl_explicit_simd ![[NUM]]
+    Foo7 boo7;
+    h.single_task<class kernel_name30>(boo7);
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name31() #0 !intel_reqd_sub_group_size ![[NUM1]] !sycl_explicit_simd ![[NUM]]
+    h.single_task<class kernel_name31>(
+        []() [[intel::sycl_explicit_simd]]{});
+
+    // Test attribute is not propagated.
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name32() #0 !kernel_arg_buffer_location ![[NUM]]
+    // CHECK: define {{.*}}spir_func void @{{.*}}Functor10{{.*}}(%class._ZTS9Functor10.Functor10 addrspace(4)* align 1 dereferenceable_or_null(1) %this) #3 comdat align 2
+    // CHECK-NOT: noalias
+    Functor10 f10;
+    h.single_task<class kernel_name32>(f10);
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name33() #0 !kernel_arg_buffer_location ![[NUM]]
+    // CHECK: define {{.*}}spir_func void @{{.*}}Foo8{{.*}}(%class.{{.*}}Foo8.Foo8 addrspace(4)* noalias align 1 dereferenceable_or_null(1) %this) #3 comdat align 2
+    Foo8 boo8;
+    h.single_task<class kernel_name33>(boo8);
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name34() #0 !kernel_arg_buffer_location ![[NUM]]
+    // CHECK: define {{.*}}spir_func void @{{.*}}(%class.{{.*}}.anon addrspace(4)* noalias align 1 dereferenceable_or_null(1) %this) #4 align 2
+    h.single_task<class kernel_name34>(
+        []() [[intel::kernel_args_restrict]]{});
   });
   return 0;
 }
