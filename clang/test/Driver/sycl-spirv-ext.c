@@ -47,7 +47,8 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_long_constant_composite
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_token_type"
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_token_type
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_arithmetic_fence"
 // CHECK-FPGA-HW: llvm-spirv{{.*}}"-spirv-ext=-all
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_min_max
@@ -70,4 +71,5 @@
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_long_constant_composite
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
+// CHECK-FPGA-HW-SAME:,+SPV_INTEL_arithmetic_fence
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_usm_storage_classes"
