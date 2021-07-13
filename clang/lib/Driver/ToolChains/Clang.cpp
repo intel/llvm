@@ -6176,9 +6176,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // semantic analysis, etc.
       break;
     }
-  } else {
+  } else if (!JA.isDeviceOffloading(Action::OFK_SYCL)) {
     Args.AddLastArg(CmdArgs, options::OPT_fopenmp_simd,
                     options::OPT_fno_openmp_simd);
+    Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_version_EQ);
+  } else {
     Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_version_EQ);
   }
 
