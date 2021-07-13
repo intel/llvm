@@ -57,6 +57,7 @@ public:
     InputClass = 0,
     BindArchClass,
     OffloadClass,
+    ForEachWrappingClass,
     PreprocessJobClass,
     PrecompileJobClass,
     HeaderModulePrecompileJobClass,
@@ -846,6 +847,30 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == StaticLibJobClass;
+  }
+};
+
+/// Wrap all jobs performed between TFormInput (excluded) and Job (included)
+/// behind a `llvm-foreach` call.
+///
+/// Assumptions:
+///   - No change of toolchain, boundarch and offloading kind should occur
+///     within the sub-region;
+///   - No job should produce multiple outputs;
+///   - Results of action within the sub-region should not be used the wrapped
+///     region.
+/// Note: this doesn't bind to a tool directly and this need special casing
+/// anyhow. Hence why this is an Action and not a JobAction, even if there is a
+/// command behind.
+class ForEachWrappingAction : public Action {
+public:
+  ForEachWrappingAction(JobAction *TFormInput, JobAction *Job);
+
+  JobAction *getTFormInput() const;
+  JobAction *getJobAction() const;
+
+  static bool classof(const Action *A) {
+    return A->getKind() == ForEachWrappingClass;
   }
 };
 

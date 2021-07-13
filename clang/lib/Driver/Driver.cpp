@@ -6217,6 +6217,26 @@ static std::string GetTriplePlusArchString(const ToolChain *TC,
   return TriplePlusArch;
 }
 
+static void CollectForEachInputs(
+    InputInfoList &InputInfos, const Action *SourceAction, const ToolChain *TC,
+    StringRef BoundArch, Action::OffloadKind TargetDeviceOffloadKind,
+    const std::map<std::pair<const Action *, std::string>, InputInfo>
+        &CachedResults) {
+  for (const Action *Input : SourceAction->getInputs()) {
+    // Search for the Input, if not in the cache assume actions were collapsed
+    // so recuse.
+    auto Lookup = CachedResults.find(
+        {Input,
+         GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)});
+    if (Lookup != CachedResults.end()) {
+      InputInfos.push_back(Lookup->second);
+    } else {
+      CollectForEachInputs(InputInfos, Input, TC, BoundArch,
+                           TargetDeviceOffloadKind, CachedResults);
+    }
+  }
+}
+
 InputInfo Driver::BuildJobsForAction(
     Compilation &C, const Action *A, const ToolChain *TC, StringRef BoundArch,
     bool AtTopLevel, bool MultipleArchs, const char *LinkingOutput,
@@ -6332,6 +6352,58 @@ InputInfo Driver::BuildJobsForActionNoCache(
                               TargetDeviceOffloadKind);
   }
 
+  if (const ForEachWrappingAction *FEA = dyn_cast<ForEachWrappingAction>(A)) {
+    // Check that the main action wasn't already processed.
+    auto MainActionOutput = CachedResults.find(
+        {FEA->getJobAction(),
+         GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)});
+    if (MainActionOutput != CachedResults.end()) {
+      // The input was processed on behalf of another foreach.
+      // Add entry in cache and return.
+      CachedResults[{FEA, GetTriplePlusArchString(TC, BoundArch,
+                                                  TargetDeviceOffloadKind)}] =
+          MainActionOutput->second;
+      return MainActionOutput->second;
+    }
+
+    // Build commands for the TFormInput then take any command added after as
+    // needing a llvm-foreach wrapping.
+    BuildJobsForAction(C, FEA->getTFormInput(), TC, BoundArch,
+                       /*AtTopLevel=*/false, MultipleArchs, LinkingOutput,
+                       CachedResults, TargetDeviceOffloadKind);
+    unsigned OffsetIdx = C.getJobs().size();
+    BuildJobsForAction(C, FEA->getJobAction(), TC, BoundArch,
+                       /*AtTopLevel=*/false, MultipleArchs, LinkingOutput,
+                       CachedResults, TargetDeviceOffloadKind);
+
+    auto begin = C.getJobs().getJobs().begin() + OffsetIdx;
+    auto end = C.getJobs().getJobs().end();
+
+    // Steal the commands.
+    llvm::SmallVector<std::unique_ptr<Command>, 4> JobsToWrap(
+        std::make_move_iterator(begin), std::make_move_iterator(end));
+    C.getJobs().getJobs().erase(begin, end);
+
+    InputInfo ActionResult;
+    for (std::unique_ptr<Command> Cmd :
+         llvm::make_range(std::make_move_iterator(JobsToWrap.begin()),
+                          std::make_move_iterator(JobsToWrap.end()))) {
+      const JobAction *SourceAction = cast<JobAction>(&Cmd->getSource());
+
+      ActionResult = CachedResults.at(
+          {SourceAction,
+           GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)});
+      InputInfoList InputInfos;
+      CollectForEachInputs(InputInfos, SourceAction, TC, BoundArch,
+                           TargetDeviceOffloadKind, CachedResults);
+      const Tool *Creator = &Cmd->getCreator();
+
+      tools::SYCL::constructLLVMForeachCommand(
+          C, *SourceAction, std::move(Cmd), InputInfos, ActionResult, Creator,
+          "", types::getTypeTempSuffix(ActionResult.getType()));
+    }
+    return ActionResult;
+  }
 
   ActionList Inputs = A->getInputs();
 

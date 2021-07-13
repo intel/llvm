@@ -59,6 +59,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "append-footer";
   case StaticLibJobClass:
     return "static-lib-linker";
+  case ForEachWrappingClass:
+    return "foreach";
   }
 
   llvm_unreachable("invalid class");
@@ -533,3 +535,15 @@ void StaticLibJobAction::anchor() {}
 
 StaticLibJobAction::StaticLibJobAction(ActionList &Inputs, types::ID Type)
     : JobAction(StaticLibJobClass, Inputs, Type) {}
+
+ForEachWrappingAction::ForEachWrappingAction(JobAction *TFormInput,
+                                             JobAction *Job)
+    : Action(ForEachWrappingClass, {TFormInput, Job}, Job->getType()) {}
+
+JobAction *ForEachWrappingAction::getTFormInput() const {
+  return llvm::cast<JobAction>(getInputs()[0]);
+}
+
+JobAction *ForEachWrappingAction::getJobAction() const {
+  return llvm::cast<JobAction>(getInputs()[1]);
+}

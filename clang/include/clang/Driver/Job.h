@@ -319,6 +319,7 @@ public:
   /// Clear the job list.
   void clear();
 
+  list_type &getJobs() { return Jobs; }
   const list_type &getJobs() const { return Jobs; }
 
   bool empty() const { return Jobs.empty(); }
