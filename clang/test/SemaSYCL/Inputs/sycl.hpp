@@ -99,7 +99,7 @@ struct DeviceValueType<dataT, access::target::local> {
   using type = __attribute__((opencl_local)) dataT;
 };
 
-template <typename dataT, int dimensions, access::mode accessmode,
+template <typename dataT, int dimensions = 1, access::mode accessmode = access::mode::read_write,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t,
           typename propertyListT = ONEAPI::accessor_property_list<>>

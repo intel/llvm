@@ -1581,86 +1581,131 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     return false;
   }
 
-  void checkPropertyListType(TemplateArgument PropList, SourceLocation Loc) {
-    if (PropList.getKind() != TemplateArgument::ArgKind::Type) {
-      SemaRef.Diag(Loc,
-                   diag::err_sycl_invalid_accessor_property_template_param);
-      return;
-    }
+  bool checkPropertyListType(TemplateArgument PropList, SourceLocation Loc) {
+    if (PropList.getKind() != TemplateArgument::ArgKind::Type)
+      return SemaRef.Diag(Loc, diag::err_sycl_invalid_accessor_template_param)
+             << /*sixth*/ 4 << /*accessor_property_list*/ 4;
+
     QualType PropListTy = PropList.getAsType();
-    if (!Util::isAccessorPropertyListType(PropListTy)) {
-      SemaRef.Diag(Loc,
-                   diag::err_sycl_invalid_accessor_property_template_param);
-      return;
-    }
+    if (!Util::isAccessorPropertyListType(PropListTy))
+      return SemaRef.Diag(Loc, diag::err_sycl_invalid_accessor_template_param)
+             << /*sixth*/ 4 << /*accessor_property_list*/ 4;
+
     const auto *AccPropListDecl =
         cast<ClassTemplateSpecializationDecl>(PropListTy->getAsRecordDecl());
-    if (AccPropListDecl->getTemplateArgs().size() != 1) {
-      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
-          << "accessor_property_list";
-      return;
-    }
+    if (AccPropListDecl->getTemplateArgs().size() != 1)
+      return SemaRef.Diag(Loc,
+                          diag::err_sycl_invalid_property_list_param_number)
+             << "accessor_property_list";
+
     const auto TemplArg = AccPropListDecl->getTemplateArgs()[0];
-    if (TemplArg.getKind() != TemplateArgument::ArgKind::Pack) {
-      SemaRef.Diag(Loc,
-                   diag::err_sycl_invalid_accessor_property_list_template_param)
-          << /*accessor_property_list*/ 0 << /*parameter pack*/ 0;
-      return;
-    }
+    if (TemplArg.getKind() != TemplateArgument::ArgKind::Pack)
+      return SemaRef.Diag(
+                 Loc,
+                 diag::err_sycl_invalid_accessor_property_list_template_param)
+             << /*accessor_property_list*/ 0 << /*parameter pack*/ 0;
+
     for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
          Prop != TemplArg.pack_end(); ++Prop) {
-      if (Prop->getKind() != TemplateArgument::ArgKind::Type) {
-        SemaRef.Diag(
-            Loc, diag::err_sycl_invalid_accessor_property_list_template_param)
-            << /*accessor_property_list pack argument*/ 1 << /*type*/ 1;
-        return;
-      }
+      if (Prop->getKind() != TemplateArgument::ArgKind::Type)
+        return SemaRef.Diag(
+                   Loc,
+                   diag::err_sycl_invalid_accessor_property_list_template_param)
+               << /*accessor_property_list pack argument*/ 1 << /*type*/ 1;
+
       QualType PropTy = Prop->getAsType();
       if (Util::isSyclBufferLocationType(PropTy))
-        checkBufferLocationType(PropTy, Loc);
+        if (checkBufferLocationType(PropTy, Loc))
+          return true;
     }
+    return false;
   }
 
-  void checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
+  bool checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
     const auto *PropDecl =
         cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
-    if (PropDecl->getTemplateArgs().size() != 1) {
-      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
-          << "buffer_location";
-      return;
-    }
+    if (PropDecl->getTemplateArgs().size() != 1)
+      return SemaRef.Diag(Loc,
+                          diag::err_sycl_invalid_property_list_param_number)
+             << "buffer_location";
+
     const auto BufferLoc = PropDecl->getTemplateArgs()[0];
-    if (BufferLoc.getKind() != TemplateArgument::ArgKind::Integral) {
-      SemaRef.Diag(Loc,
-                   diag::err_sycl_invalid_accessor_property_list_template_param)
-          << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
-      return;
-    }
+    if (BufferLoc.getKind() != TemplateArgument::ArgKind::Integral)
+      return SemaRef.Diag(
+                 Loc,
+                 diag::err_sycl_invalid_accessor_property_list_template_param)
+             << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
+
     int LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
-    if (LocationID < 0) {
-      SemaRef.Diag(Loc,
-                   diag::err_sycl_invalid_accessor_property_list_template_param)
-          << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
-      return;
-    }
+    if (LocationID < 0)
+      return SemaRef.Diag(
+                 Loc,
+                 diag::err_sycl_invalid_accessor_property_list_template_param)
+             << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
+
+    return false;
   }
 
-  void checkAccessorType(QualType Ty, SourceRange Loc) {
+  bool checkAccessorType(QualType Ty, SourceRange Loc) {
     assert(Util::isSyclAccessorType(Ty) &&
            "Should only be called on SYCL accessor types.");
 
     const RecordDecl *RecD = Ty->getAsRecordDecl();
+    bool isInvalid = false;
     if (const ClassTemplateSpecializationDecl *CTSD =
             dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
       const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
+      if (TAL.size() < 5)
+        return SemaRef.Diag(
+            Loc.getBegin(),
+            diag::err_sycl_invalid_accessor_template_param_number);
+
+      // A typename specifying the data type that the accessor
+      // is providing access to. Ensure SYCL type restrictions
+      // are applied.
       TemplateArgument TA = TAL.get(0);
-      const QualType TemplateArgTy = TA.getAsType();
+      llvm::DenseSet<QualType> Visited;
+      checkSYCLType(SemaRef, TA.getAsType(), Loc, Visited);
+
+      // An integer specifying the dimensionality of the accessor.
+      TA = TAL.get(1);
+      if (TA.getKind() != TemplateArgument::Integral)
+        isInvalid = SemaRef.Diag(Loc.getBegin(),
+                                 diag::err_sycl_invalid_accessor_template_param)
+                    << /*third*/ 0 << /*access::mode*/ 0;
+
+      // A value of access::mode specifying the mode of access
+      // the accessor is providing.
+      TA = TAL.get(2);
+      if (TA.getKind() != TemplateArgument::Integral ||
+          !TA.getIntegralType()->getAs<EnumType>())
+        isInvalid = SemaRef.Diag(Loc.getBegin(),
+                                 diag::err_sycl_invalid_accessor_template_param)
+                    << /*third*/ 1 << /*access::mode*/ 1;
+
+      // A value of access::target specifying the target of access
+      // the accessor is providing
+      TA = TAL.get(3);
+      if (TA.getKind() != TemplateArgument::Integral ||
+          !TA.getIntegralType()->getAs<EnumType>())
+        isInvalid = SemaRef.Diag(Loc.getBegin(),
+                                 diag::err_sycl_invalid_accessor_template_param)
+                    << /*fourth*/ 2 << /*access::target*/ 2;
+
+      // A value of access::placeholder specifying whether the
+      // accessor is a placeholder accessor.
+      TA = TAL.get(4);
+      if (TA.getKind() != TemplateArgument::Integral ||
+          !TA.getIntegralType()->getAs<EnumType>())
+        isInvalid = SemaRef.Diag(Loc.getBegin(),
+                                 diag::err_sycl_invalid_accessor_template_param)
+                    << /*fifth*/ 3 << /*access::placeholder*/ 3;
 
       if (TAL.size() > 5)
-        checkPropertyListType(TAL.get(5), Loc.getBegin());
-      llvm::DenseSet<QualType> Visited;
-      checkSYCLType(SemaRef, TemplateArgTy, Loc, Visited);
+        if (checkPropertyListType(TAL.get(5), Loc.getBegin()))
+          isInvalid = true;
     }
+    return isInvalid;
   }
 
 public:
@@ -1682,12 +1727,12 @@ public:
 
   bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
-    checkAccessorType(FieldTy, BS.getBeginLoc());
+    IsInvalid |= checkAccessorType(FieldTy, BS.getBeginLoc());
     return isValid();
   }
 
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
-    checkAccessorType(FieldTy, FD->getLocation());
+    IsInvalid |= checkAccessorType(FieldTy, FD->getLocation());
     return isValid();
   }
 

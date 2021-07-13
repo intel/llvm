@@ -11443,9 +11443,13 @@ def err_sycl_compiletime_property_duplication : Error<
   "can't apply %0 property twice to the same accessor">;
 def err_sycl_invalid_property_list_param_number : Error<
   "%0 must have exactly one template parameter">;
-def err_sycl_invalid_accessor_property_template_param : Error<
-  "sixth template parameter of the accessor must be of accessor_property_list "
-  "type">;
+def err_sycl_invalid_accessor_template_param_number : Error<
+  "accessor class template must have atleast five template parameters">;
+def err_sycl_invalid_accessor_template_param : Error<
+  "%select{second|third|fourth|fifth|sixth}0 "
+  "template parameter of the accessor class template must be of "
+  "%select{integer|access::mode enum|access::target enum"
+          "|access::placeholder enum|accessor_property_list}1 type">;
 def err_sycl_invalid_accessor_property_list_template_param : Error<
   "%select{accessor_property_list|accessor_property_list pack argument|buffer_location}0 "
   "template parameter must be a "

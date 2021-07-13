@@ -73,22 +73,29 @@ int main() {
                          buffer_location<2>>>
       accessorF;
 #endif
+
+#ifndef TRIGGER_ERROR
   cl::sycl::kernel_single_task<class kernel_function>(
       [=]() {
-#ifndef TRIGGER_ERROR
         // expected-no-diagnostics
         Obj.use();
         accessorA.use();
         accessorB.use();
         accessorC.use();
+      });
 #else
+  cl::sycl::kernel_single_task<class invalid_accessor_one>(
+      [=]() {
         //expected-error@+1{{buffer_location template parameter must be a non-negative integer}}
         accessorD.use();
-        //expected-error@+1{{sixth template parameter of the accessor must be of accessor_property_list type}}
+        // expected-error@+1{{sixth template parameter of the accessor class template must be of accessor_property_list type}}
         accessorE.use();
+      });
+  cl::sycl::kernel_single_task<class invalid_accessor_two>(
+      [=]() {
         //expected-error@+1{{can't apply buffer_location property twice to the same accessor}}
         accessorF.use();
-#endif
       });
+#endif
   return 0;
 }
