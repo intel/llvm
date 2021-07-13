@@ -102,7 +102,7 @@ int main() {
   // expected-warning@+1{{'mutex_class' is deprecated: use STL classes directly}}
   sycl::mutex_class Mtx;
   (void)Mtx;
-  // expected-warning@+1{{'exception' is deprecated: SYCL 2020 does not have an exception constructor of 0 arguments.}}
+  // expected-warning@+1{{'exception' is deprecated: The version of an exception constructor which takes no arguments is deprecated.}}
   sycl::exception ex;
   // expected-warning@+1{{'get_cl_code' is deprecated: use sycl::exception.code() instead.}}
   ex.get_cl_code();

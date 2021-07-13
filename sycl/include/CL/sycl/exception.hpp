@@ -28,8 +28,8 @@ class context;
 /// \ingroup sycl_api
 class __SYCL_EXPORT exception : public std::exception {
 public:
-  __SYCL2020_DEPRECATED(
-      "SYCL 2020 does not have an exception constructor of 0 arguments.")
+  __SYCL2020_DEPRECATED("The version of an exception constructor which takes "
+                        "no arguments is deprecated.")
   exception() = default;
 
   exception(std::error_code, const char *Msg);
