@@ -11,7 +11,7 @@ config.llvm_tools_dir = os.path.join(config.dpcpp_root_dir, 'bin')
 config.lit_tools_dir = os.path.dirname("@TEST_SUITE_LIT@")
 config.dump_ir_supported = lit_config.params.get("dump_ir", ("@DUMP_IR_SUPPORTED@" if "@DUMP_IR_SUPPORTED@" else False))
 config.sycl_tools_dir = config.llvm_tools_dir
-config.sycl_include = os.path.join(config.dpcpp_root_dir, 'include', 'sycl')
+config.sycl_include = os.path.join(config.dpcpp_root_dir, 'include')
 config.sycl_obj_root = "@CMAKE_CURRENT_BINARY_DIR@"
 config.sycl_libs_dir =  os.path.join(config.dpcpp_root_dir, ('bin' if platform.system() == "Windows" else 'lib'))
 
@@ -19,7 +19,7 @@ config.opencl_libs_dir = (os.path.dirname("@OpenCL_LIBRARY@") if "@OpenCL_LIBRAR
 config.level_zero_libs_dir = "@LEVEL_ZERO_LIBS_DIR@"
 config.level_zero_include = "@LEVEL_ZERO_INCLUDE@"
 
-config.opencl_include_dir = config.sycl_include
+config.opencl_include_dir = os.path.join(config.sycl_include, 'sycl')
 config.target_devices = lit_config.params.get("target_devices", "@SYCL_TARGET_DEVICES@")
 config.sycl_be = lit_config.params.get("sycl_be", "@SYCL_BE@")
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
