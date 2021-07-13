@@ -558,10 +558,11 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
   if (!FD->hasAttrs())
     return;
 
-  // Attributes that should be propagated from device functions to a kernel
-  // in SYCL 1.2.1.
-  if (S.getASTContext().getLangOpts().getSYCLVersion() <
-      LangOptions::SYCL_2020) {
+  // In SYCL 1.2.1 mode, the attributes are propagated from the function they
+  // are applied to onto the kernel which calls the function.
+  // In SYCL 2020 mode, the attributes are not propagated to the kernel.
+  if (DirectlyCalled ||
+      S.getASTContext().getLangOpts().getSYCLVersion() < LangOptions::SYCL_2020) {
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
@@ -571,19 +572,6 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
                  SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
                  SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
     });
-  } else {
-    // Attributes that should not be propagated from device functions to a
-    // kernel in SYCL 2020.
-    if (DirectlyCalled) {
-      llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
-        return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-                   ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
-                   SYCLIntelNumSimdWorkItemsAttr,
-                   SYCLIntelSchedulerTargetFmaxMhzAttr,
-                   SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-                   SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
-      });
-    }
   }
 
   // Attributes that should not be propagated from device functions to a kernel.

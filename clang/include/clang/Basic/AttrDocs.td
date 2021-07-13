@@ -2663,10 +2663,10 @@ allows the Y and Z arguments to be optional. If not provided by the user, the
 value of Y and Z defaults to 1. See section 5.8.1 Kernel Attributes for more
 details.
 
-In SYCL 1.2.1 mode, the ``intel::reqd_work_group_size`` or
-``cl::reqd_work_group_size`` or ``sycl::reqd_work_group_size`` attribute is
-propagated from the function it is applied to onto the kernel which calls the
-function. In SYCL 2020 mode, the attribute is not propagated to the kernel.
+In SYCL 1.2.1 mode, the ``intel::reqd_work_group_size``,
+``cl::reqd_work_group_size``, and ``sycl::reqd_work_group_size`` attributes are
+propagated from the function they are applied to onto the kernel which calls the
+function. In SYCL 2020 mode, the attributes are not propagated to the kernel.
 
 .. code-block:: c++
 
