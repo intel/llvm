@@ -47,7 +47,8 @@ InStruct macho::in;
 std::vector<SyntheticSection *> macho::syntheticSections;
 
 SyntheticSection::SyntheticSection(const char *segname, const char *name)
-    : OutputSection(SyntheticKind, name), segname(segname) {
+    : OutputSection(SyntheticKind, name) {
+  std::tie(this->segname, this->name) = maybeRenameSection({segname, name});
   isec = make<ConcatInputSection>(segname, name);
   isec->parent = this;
   syntheticSections.push_back(this);
@@ -745,7 +746,7 @@ void SymtabSection::emitStabs() {
       if (defined->isAbsolute())
         continue;
       InputSection *isec = defined->isec;
-      ObjFile *file = dyn_cast_or_null<ObjFile>(isec->file);
+      ObjFile *file = dyn_cast_or_null<ObjFile>(isec->getFile());
       if (!file || !file->compileUnit)
         continue;
       symbolsNeedingStabs.push_back(defined);
@@ -753,7 +754,7 @@ void SymtabSection::emitStabs() {
   }
 
   llvm::stable_sort(symbolsNeedingStabs, [&](Defined *a, Defined *b) {
-    return a->isec->file->id < b->isec->file->id;
+    return a->isec->getFile()->id < b->isec->getFile()->id;
   });
 
   // Emit STABS symbols so that dsymutil and/or the debugger can map address
@@ -762,7 +763,7 @@ void SymtabSection::emitStabs() {
   InputFile *lastFile = nullptr;
   for (Defined *defined : symbolsNeedingStabs) {
     InputSection *isec = defined->isec;
-    ObjFile *file = cast<ObjFile>(isec->file);
+    ObjFile *file = cast<ObjFile>(isec->getFile());
 
     if (lastFile == nullptr || lastFile != file) {
       if (lastFile != nullptr)
@@ -774,7 +775,7 @@ void SymtabSection::emitStabs() {
     }
 
     StabsEntry symStab;
-    symStab.sect = defined->isec->parent->index;
+    symStab.sect = defined->isec->canonical()->parent->index;
     symStab.strx = stringTableSection.addString(defined->getName());
     symStab.value = defined->getVA();
 
@@ -899,7 +900,7 @@ template <class LP> void SymtabSectionImpl<LP>::writeTo(uint8_t *buf) const {
         nList->n_value = defined->value;
       } else {
         nList->n_type = scope | N_SECT;
-        nList->n_sect = defined->isec->parent->index;
+        nList->n_sect = defined->isec->canonical()->parent->index;
         // For the N_SECT symbol type, n_value is the address of the symbol
         nList->n_value = defined->getVA();
       }
@@ -1152,6 +1153,45 @@ void BitcodeBundleSection::writeTo(uint8_t *buf) const {
   remove(xarPath);
 }
 
+CStringSection::CStringSection()
+    : SyntheticSection(segment_names::text, section_names::cString) {
+  flags = S_CSTRING_LITERALS;
+}
+
+void CStringSection::addInput(CStringInputSection *isec) {
+  isec->parent = this;
+  inputs.push_back(isec);
+  if (isec->align > align)
+    align = isec->align;
+}
+
+void CStringSection::writeTo(uint8_t *buf) const {
+  for (const CStringInputSection *isec : inputs) {
+    for (size_t i = 0, e = isec->pieces.size(); i != e; ++i) {
+      if (!isec->pieces[i].live)
+        continue;
+      StringRef string = isec->getStringRef(i);
+      memcpy(buf + isec->pieces[i].outSecOff, string.data(), string.size());
+    }
+  }
+}
+
+void CStringSection::finalizeContents() {
+  uint64_t offset = 0;
+  for (CStringInputSection *isec : inputs) {
+    for (size_t i = 0, e = isec->pieces.size(); i != e; ++i) {
+      if (!isec->pieces[i].live)
+        continue;
+      uint32_t pieceAlign = MinAlign(isec->pieces[i].inSecOff, align);
+      offset = alignTo(offset, pieceAlign);
+      isec->pieces[i].outSecOff = offset;
+      isec->isFinal = true;
+      StringRef string = isec->getStringRef(i);
+      offset += string.size();
+    }
+  }
+  size = offset;
+}
 // Mergeable cstring literals are found under the __TEXT,__cstring section. In
 // contrast to ELF, which puts strings that need different alignments into
 // different sections, clang's Mach-O backend puts them all in one section.
@@ -1176,19 +1216,10 @@ void BitcodeBundleSection::writeTo(uint8_t *buf) const {
 // deduplication of differently-aligned strings.  Finally, the overhead is not
 // huge: using 16-byte alignment (vs no alignment) is only a 0.5% size overhead
 // when linking chromium_framework on x86_64.
-CStringSection::CStringSection()
-    : SyntheticSection(segment_names::text, section_names::cString),
-      builder(StringTableBuilder::RAW, /*Alignment=*/16) {
-  align = 16;
-  flags = S_CSTRING_LITERALS;
-}
+DeduplicatedCStringSection::DeduplicatedCStringSection()
+    : builder(StringTableBuilder::RAW, /*Alignment=*/16) {}
 
-void CStringSection::addInput(CStringInputSection *isec) {
-  isec->parent = this;
-  inputs.push_back(isec);
-}
-
-void CStringSection::finalize() {
+void DeduplicatedCStringSection::finalizeContents() {
   // Add all string pieces to the string table builder to create section
   // contents.
   for (const CStringInputSection *isec : inputs)
@@ -1224,40 +1255,46 @@ WordLiteralSection::WordLiteralSection()
 
 void WordLiteralSection::addInput(WordLiteralInputSection *isec) {
   isec->parent = this;
-  // We do all processing of the InputSection here, so it will be effectively
-  // finalized.
-  isec->isFinal = true;
-  const uint8_t *buf = isec->data.data();
-  switch (sectionType(isec->flags)) {
-  case S_4BYTE_LITERALS: {
-    for (size_t off = 0, e = isec->data.size(); off < e; off += 4) {
-      if (!isec->isLive(off))
-        continue;
-      uint32_t value = *reinterpret_cast<const uint32_t *>(buf + off);
-      literal4Map.emplace(value, literal4Map.size());
+  inputs.push_back(isec);
+}
+
+void WordLiteralSection::finalizeContents() {
+  for (WordLiteralInputSection *isec : inputs) {
+    // We do all processing of the InputSection here, so it will be effectively
+    // finalized.
+    isec->isFinal = true;
+    const uint8_t *buf = isec->data.data();
+    switch (sectionType(isec->getFlags())) {
+    case S_4BYTE_LITERALS: {
+      for (size_t off = 0, e = isec->data.size(); off < e; off += 4) {
+        if (!isec->isLive(off))
+          continue;
+        uint32_t value = *reinterpret_cast<const uint32_t *>(buf + off);
+        literal4Map.emplace(value, literal4Map.size());
+      }
+      break;
     }
-    break;
-  }
-  case S_8BYTE_LITERALS: {
-    for (size_t off = 0, e = isec->data.size(); off < e; off += 8) {
-      if (!isec->isLive(off))
-        continue;
-      uint64_t value = *reinterpret_cast<const uint64_t *>(buf + off);
-      literal8Map.emplace(value, literal8Map.size());
+    case S_8BYTE_LITERALS: {
+      for (size_t off = 0, e = isec->data.size(); off < e; off += 8) {
+        if (!isec->isLive(off))
+          continue;
+        uint64_t value = *reinterpret_cast<const uint64_t *>(buf + off);
+        literal8Map.emplace(value, literal8Map.size());
+      }
+      break;
     }
-    break;
-  }
-  case S_16BYTE_LITERALS: {
-    for (size_t off = 0, e = isec->data.size(); off < e; off += 16) {
-      if (!isec->isLive(off))
-        continue;
-      UInt128 value = *reinterpret_cast<const UInt128 *>(buf + off);
-      literal16Map.emplace(value, literal16Map.size());
+    case S_16BYTE_LITERALS: {
+      for (size_t off = 0, e = isec->data.size(); off < e; off += 16) {
+        if (!isec->isLive(off))
+          continue;
+        UInt128 value = *reinterpret_cast<const UInt128 *>(buf + off);
+        literal16Map.emplace(value, literal16Map.size());
+      }
+      break;
     }
-    break;
-  }
-  default:
-    llvm_unreachable("invalid literal section type");
+    default:
+      llvm_unreachable("invalid literal section type");
+    }
   }
 }
 

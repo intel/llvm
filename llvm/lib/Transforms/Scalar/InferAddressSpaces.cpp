@@ -471,7 +471,7 @@ InferAddressSpacesImpl::collectFlatAddressExpressions(Function &F) const {
     } else if (auto *I2P = dyn_cast<IntToPtrInst>(&I)) {
       if (isNoopPtrIntCastPair(cast<Operator>(I2P), *DL, TTI))
         PushPtrOperand(
-            cast<PtrToIntInst>(I2P->getOperand(0))->getPointerOperand());
+            cast<Operator>(I2P->getOperand(0))->getOperand(0));
     }
   }
 
@@ -953,7 +953,13 @@ static bool handleMemIntrinsicPtrUse(MemIntrinsic *MI, Value *OldV,
     if (Dest == OldV)
       Dest = NewV;
 
-    if (isa<MemCpyInst>(MTI)) {
+    if (isa<MemCpyInlineInst>(MTI)) {
+      MDNode *TBAAStruct = MTI->getMetadata(LLVMContext::MD_tbaa_struct);
+      B.CreateMemCpyInline(Dest, MTI->getDestAlign(), Src,
+                           MTI->getSourceAlign(), MTI->getLength(),
+                           false, // isVolatile
+                           TBAA, TBAAStruct, ScopeMD, NoAliasMD);
+    } else if (isa<MemCpyInst>(MTI)) {
       MDNode *TBAAStruct = MTI->getMetadata(LLVMContext::MD_tbaa_struct);
       B.CreateMemCpy(Dest, MTI->getDestAlign(), Src, MTI->getSourceAlign(),
                      MTI->getLength(),

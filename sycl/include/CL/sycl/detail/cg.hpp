@@ -423,13 +423,13 @@ class CGAdviseUSM : public CG {
 
 public:
   CGAdviseUSM(void *DstPtr, size_t Length,
-              vector_class<vector_class<char>> ArgsStorage,
-              vector_class<detail::AccessorImplPtr> AccStorage,
-              vector_class<shared_ptr_class<const void>> SharedPtrStorage,
-              vector_class<Requirement *> Requirements,
-              vector_class<detail::EventImplPtr> Events,
+              std::vector<std::vector<char>> ArgsStorage,
+              std::vector<detail::AccessorImplPtr> AccStorage,
+              std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+              std::vector<Requirement *> Requirements,
+              std::vector<detail::EventImplPtr> Events, CGTYPE Type,
               detail::code_location loc = {})
-      : CG(ADVISE_USM, std::move(ArgsStorage), std::move(AccStorage),
+      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MDst(DstPtr), MLength(Length) {}
