@@ -561,8 +561,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
   // In SYCL 1.2.1 mode, the attributes are propagated from the function they
   // are applied to onto the kernel which calls the function.
   // In SYCL 2020 mode, the attributes are not propagated to the kernel.
-  if (DirectlyCalled ||
-      S.getASTContext().getLangOpts().getSYCLVersion() < LangOptions::SYCL_2020) {
+  if (DirectlyCalled || S.getASTContext().getLangOpts().getSYCLVersion() <
+                            LangOptions::SYCL_2020) {
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
