@@ -738,7 +738,15 @@ class SYCLPostLinkJobAction : public JobAction {
   void anchor() override;
 
 public:
-  SYCLPostLinkJobAction(Action *Input, types::ID OutputType);
+  // The tempfiletable management relies on a shadowing the main file type by
+  // types::TY_Tempfiletable. The problem of shadowing is it prevents its
+  // integration with clang tools that relies on the file type to properly set
+  // args.
+  // We "trick" the driver by declaring the underlying file type and set a
+  // "true output type" which will be used by the SYCLPostLinkJobAction
+  // to properly set the job.
+  SYCLPostLinkJobAction(Action *Input, types::ID ShadowOutputType,
+                        types::ID TrueOutputType);
 
   static bool classof(const Action *A) {
     return A->getKind() == SYCLPostLinkJobClass;
@@ -748,8 +756,11 @@ public:
 
   bool getRTSetsSpecConstants() const { return RTSetsSpecConsts; }
 
+  types::ID getTrueType() const { return TrueOutputType; }
+
 private:
   bool RTSetsSpecConsts = true;
+  types::ID TrueOutputType;
 };
 
 class BackendCompileJobAction : public JobAction {
@@ -772,6 +783,9 @@ class FileTableTformJobAction : public JobAction {
   void anchor() override;
 
 public:
+  static constexpr const char *COL_CODE = "Code";
+  static constexpr const char *COL_ZERO = "0";
+
   struct Tform {
     enum Kind {
       EXTRACT,
@@ -792,8 +806,10 @@ public:
     SmallVector<std::string, 2> TheArgs;
   };
 
-  FileTableTformJobAction(Action *Input, types::ID OutputType);
-  FileTableTformJobAction(ActionList &Inputs, types::ID OutputType);
+  FileTableTformJobAction(Action *Input, types::ID ShadowOutputType,
+                          types::ID TrueOutputType);
+  FileTableTformJobAction(ActionList &Inputs, types::ID ShadowOutputType,
+                          types::ID TrueOutputType);
 
   // Deletes all columns except the one with given name.
   void addExtractColumnTform(StringRef ColumnName, bool WithColTitle = true);
@@ -821,7 +837,10 @@ public:
 
   const ArrayRef<Tform> getTforms() const { return Tforms; }
 
+  types::ID getTrueType() const { return TrueOutputType; }
+
 private:
+  types::ID TrueOutputType;
   SmallVector<Tform, 2> Tforms; // transformation actions requested
 
   // column to copy single file from if requested

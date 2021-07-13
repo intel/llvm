@@ -3896,7 +3896,7 @@ class OffloadingActionBuilder final {
     SmallVector<CudaArch, 8> GpuArchList;
 
     /// Build the last steps for CUDA after all BC files have been linked.
-    Action *finalizeNVPTXDependences(Action *Input, const llvm::Triple &TT) {
+    JobAction *finalizeNVPTXDependences(Action *Input, const llvm::Triple &TT) {
       auto *BA = C.getDriver().ConstructPhaseAction(
           C, Args, phases::Backend, Input, AssociatedOffloadKind);
       if (TT.getOS() != llvm::Triple::NVCL) {
@@ -3906,10 +3906,11 @@ class OffloadingActionBuilder final {
         return C.MakeAction<LinkJobAction>(DeviceActions,
                                            types::TY_CUDA_FATBIN);
       }
-      return BA;
+      return cast<JobAction>(BA);
     }
 
-    Action *finalizeAMDGCNDependences(Action *Input, const llvm::Triple &TT) {
+    JobAction *finalizeAMDGCNDependences(Action *Input,
+                                         const llvm::Triple &TT) {
       auto *BA = C.getDriver().ConstructPhaseAction(
           C, Args, phases::Backend, Input, AssociatedOffloadKind);
 
@@ -3919,7 +3920,7 @@ class OffloadingActionBuilder final {
       ActionList AL = {AA};
       Action *LinkAction = C.MakeAction<LinkJobAction>(AL, types::TY_Image);
       ActionList HIPActions = {LinkAction};
-      Action *HIPFatBinary =
+      JobAction *HIPFatBinary =
           C.MakeAction<LinkJobAction>(HIPActions, types::TY_HIP_FATBIN);
       return HIPFatBinary;
     }
@@ -4052,7 +4053,7 @@ class OffloadingActionBuilder final {
             else
               FullDeviceLinkAction = DeviceLinkAction;
             auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-                FullDeviceLinkAction, types::TY_LLVM_BC);
+                FullDeviceLinkAction, types::TY_LLVM_BC, types::TY_LLVM_BC);
             auto *TranslateAction = C.MakeAction<SPIRVTranslatorJobAction>(
                 PostLinkAction, types::TY_Image);
             SYCLLinkBinary = C.MakeAction<OffloadWrapperJobAction>(
@@ -4322,6 +4323,7 @@ class OffloadingActionBuilder final {
         auto TT = SYCLTripleList[I];
         auto isNVPTX = (*TC)->getTriple().isNVPTX();
         auto isAMDGCN = (*TC)->getTriple().isAMDGCN();
+        auto isSPIR = (*TC)->getTriple().isSPIR();
         bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
@@ -4333,8 +4335,6 @@ class OffloadingActionBuilder final {
           // directly to the backend compilation step (aocr) or wrapper (aocx)
           else if (types::isFPGA(Input->getType())) {
             Action *FPGAAOTAction;
-            constexpr char COL_CODE[] = "Code";
-            constexpr char COL_ZERO[] = "0";
             if (Input->getType() == types::TY_FPGA_AOCR ||
                 Input->getType() == types::TY_FPGA_AOCR_EMU)
               // Generate AOCX/AOCR
@@ -4346,8 +4346,10 @@ class OffloadingActionBuilder final {
             else
               llvm_unreachable("Unexpected FPGA input type.");
             auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
-                FPGAAOTAction, types::TY_Tempfilelist);
-            RenameAction->addRenameColumnTform(COL_ZERO, COL_CODE);
+                FPGAAOTAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
+            RenameAction->addRenameColumnTform(
+                FileTableTformJobAction::COL_ZERO,
+                FileTableTformJobAction::COL_CODE);
             auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
                 RenameAction, types::TY_Object);
             DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
@@ -4361,7 +4363,7 @@ class OffloadingActionBuilder final {
         // The linkage actions subgraph leading to the offload wrapper.
         // [cond] Means incoming/outgoing dependence is created only when cond
         //        is true. A function of:
-        //   n - target is NVPTX
+        //   n - target is NVPTX/AMDGCN
         //   a - SPIRV AOT compilation is requested
         //   s - device code split requested
         //   * - "all other cases"
@@ -4378,17 +4380,18 @@ class OffloadingActionBuilder final {
         //         .--------------------------------------.
         //         |               PostLink               |
         //         .--------------------------------------.
-        //         [+n]                [+*]            [+]
-        //           |                   |              |
-        //   .----------------. .-----------------.     |
-        //   | FileTableTform | | FileTableTform  |     |
-        //   | (copy "Code")  | | (extract "Code")|     |
-        //   .----------------. .-----------------.     |
-        //          [.]                 [-]             |
-        //           |                   |              |
+        //                             [+*]            [+]
+        //                               |              |
+        //                      .-----------------.     |
+        //                      | FileTableTform  |     |
+        //                      | (extract "Code")|     |
+        //                      .-----------------.     |
+        //                              [-]             |
+        //           --------------------|              |
         //          [.]                [-*]             |
         //   .---------------.  .-------------------.   |
-        //   | finalizeNVPTX |  |  SPIRVTranslator  |   |
+        //   | finalizeNVPTX  | |  SPIRVTranslator  |   |
+        //   | finalizeAMDGCN | |                   |   |
         //   .---------------.  .-------------------.   |
         //          [.]             [-as]      [-!a]    |
         //           |                |          |      |
@@ -4398,13 +4401,13 @@ class OffloadingActionBuilder final {
         //           |       .----------------.  |      |
         //           |              [-s]         |      |
         //           |                |          |      |
-        //          [.]             [-a]      [-!a]    [+]
-        //          .------------------------------------.
-        //          |           FileTableTform           |
-        //          |          (replace "Code")          |
-        //          .------------------------------------.
-        //                            |
-        //                           [+]
+        //           |              [-a]      [-!a]    [+]
+        //           |              .--------------------.
+        //           -----------[-n]|   FileTableTform   |
+        //                          |  (replace "Code")  |
+        //                          .--------------------.
+        //                                      |
+        //                                    [+*]
         //         .--------------------------------------.
         //         |            OffloadWrapper            |
         //         .--------------------------------------.
@@ -4419,7 +4422,7 @@ class OffloadingActionBuilder final {
         // When spv online link is supported by all backends, the fallback
         // device libraries are only needed when current toolchain is using
         // AOT compilation.
-        if (!isNVPTX && !isAMDGCN) {
+        if (isSPIR) {
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
               *TC, FullLinkObjects, true,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
@@ -4431,18 +4434,7 @@ class OffloadingActionBuilder final {
               C.MakeAction<LinkJobAction>(FullLinkObjects, types::TY_LLVM_BC);
         else
           FullDeviceLinkAction = DeviceLinkAction;
-        // setup some flags upfront
 
-        if ((isNVPTX || isAMDGCN) && DeviceCodeSplit) {
-          // TODO Temporary limitation, need to support code splitting for PTX
-          const Driver &D = C.getDriver();
-          const std::string &OptName =
-              D.getOpts()
-                  .getOption(options::OPT_fsycl_device_code_split)
-                  .getPrefixedName();
-          D.Diag(diag::err_drv_unsupported_opt_for_target)
-              << OptName << (*TC)->getTriple().str();
-        }
         // reflects whether current target is ahead-of-time and can't support
         // runtime setting of specialization constants
         bool isAOT = isNVPTX || isAMDGCN || isSpirvAOT;
@@ -4451,50 +4443,48 @@ class OffloadingActionBuilder final {
         ActionList WrapperInputs;
         // post link is not optional - even if not splitting, always need to
         // process specialization constants
+
+        types::ID PostLinkOutType =
+            isSPIR ? types::TY_Tempfiletable : FullDeviceLinkAction->getType();
+        // For SPIR-V targets, force TY_Tempfiletable.
         auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-            FullDeviceLinkAction, types::TY_Tempfiletable);
+            FullDeviceLinkAction, PostLinkOutType, types::TY_Tempfiletable);
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
 
-        constexpr char COL_CODE[] = "Code";
+        auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
+            PostLinkAction,
+            isSPIR ? types::TY_Tempfilelist : PostLinkAction->getType(),
+            types::TY_Tempfilelist);
+        // single column w/o title fits TY_Tempfilelist format
+        ExtractIRFilesAction->addExtractColumnTform(
+            FileTableTformJobAction::COL_CODE, false /*drop titles*/);
 
         if (isNVPTX || isAMDGCN) {
-          // Make extraction copy the only remaining code file instead of
-          // creating a new table with a single entry.
-          // TODO: Process all PTX code files in file table to enable code
-          //       splitting for PTX target.
-          auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
-              PostLinkAction, types::TY_LLVM_BC);
-          ExtractIRFilesAction->addCopySingleFileTform(COL_CODE, 0);
-
-          Action *FinAction;
-          if (isNVPTX) {
-            FinAction = finalizeNVPTXDependences(ExtractIRFilesAction,
-                                                 (*TC)->getTriple());
-          } else /* isAMDGCN */ {
-            FinAction = finalizeAMDGCNDependences(ExtractIRFilesAction,
+          JobAction *FinAction =
+              isNVPTX ? finalizeNVPTXDependences(ExtractIRFilesAction,
+                                                 (*TC)->getTriple())
+                      : finalizeAMDGCNDependences(ExtractIRFilesAction,
                                                   (*TC)->getTriple());
-          }
-          ActionList TformInputs{PostLinkAction, FinAction};
+          auto *ForEachWrapping = C.MakeAction<ForEachWrappingAction>(
+              ExtractIRFilesAction, FinAction);
 
-          // Replace the only code entry in the table, as confirmed by the
-          // previous transformation.
+          ActionList TformInputs{PostLinkAction, ForEachWrapping};
           auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-              TformInputs, types::TY_Tempfiletable);
-          ReplaceFilesAction->addReplaceCellTform(COL_CODE, 0);
+              TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
+          ReplaceFilesAction->addReplaceColumnTform(
+              FileTableTformJobAction::COL_CODE,
+              FileTableTformJobAction::COL_CODE);
+
           WrapperInputs.push_back(ReplaceFilesAction);
         } else {
           // For SPIRV-based targets - translate to SPIRV then optionally
           // compile ahead-of-time to native architecture
-          auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
-              PostLinkAction, types::TY_Tempfilelist);
-          // single column w/o title fits TY_Tempfilelist format
-          ExtractIRFilesAction->addExtractColumnTform(COL_CODE,
-                                                      false /*drop titles*/);
-          Action *BuildCodeAction = C.MakeAction<SPIRVTranslatorJobAction>(
-              ExtractIRFilesAction, types::TY_Tempfilelist);
+          Action *BuildCodeAction =
+              (Action *)C.MakeAction<SPIRVTranslatorJobAction>(
+                  ExtractIRFilesAction, types::TY_Tempfilelist);
 
           // After the Link, wrap the files before the final host link
-          if (isSpirvAOT) {
+          if (isAOT) {
             types::ID OutType = types::TY_Tempfilelist;
             if (!DeviceCodeSplit) {
               OutType = (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
@@ -4525,8 +4515,10 @@ class OffloadingActionBuilder final {
           }
           ActionList TformInputs{PostLinkAction, BuildCodeAction};
           auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-              TformInputs, types::TY_Tempfiletable);
-          ReplaceFilesAction->addReplaceColumnTform(COL_CODE, COL_CODE);
+              TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
+          ReplaceFilesAction->addReplaceColumnTform(
+              FileTableTformJobAction::COL_CODE,
+              FileTableTformJobAction::COL_CODE);
           WrapperInputs.push_back(ReplaceFilesAction);
         }
 

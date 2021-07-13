@@ -34,6 +34,7 @@
 // CHK-PHASES-NO-CC: 15: assembler, {14}, object, (device-sycl)
 // CHK-PHASES-NO-CC: 16: linker, {15}, image, (device-sycl)
 // CHK-PHASES-NO-CC: 17: linker, {16}, hip-fatbin, (device-sycl)
-// CHK-PHASES-NO-CC: 18: file-table-tform, {12, 17}, tempfiletable, (device-sycl)
-// CHK-PHASES-NO-CC: 19: clang-offload-wrapper, {18}, object, (device-sycl)
-// CHK-PHASES-NO-CC: 20: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (amdgcn-amd-amdhsa-sycldevice)" {19}, image
+// CHK-PHASES-NO-CC: 18: foreach, {13, 17}, hip-fatbin, (device-sycl)
+// CHK-PHASES-NO-CC: 19: file-table-tform, {12, 18}, tempfiletable, (device-sycl)
+// CHK-PHASES-NO-CC: 20: clang-offload-wrapper, {19}, object, (device-sycl)
+// CHK-PHASES-NO-CC: 21: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (amdgcn-amd-amdhsa-sycldevice)" {20}, image

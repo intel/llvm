@@ -8833,8 +8833,10 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
                              const InputInfoList &Inputs,
                              const llvm::opt::ArgList &TCArgs,
                              const char *LinkingOutput) const {
+  const SYCLPostLinkJobAction *SYCLPostLink =
+      dyn_cast<SYCLPostLinkJobAction>(&JA);
   // Construct sycl-post-link command.
-  assert(isa<SYCLPostLinkJobAction>(JA) && "Expecting SYCL post link job!");
+  assert(SYCLPostLink && "Expecting SYCL post link job!");
   ArgStringList CmdArgs;
 
   // See if device code splitting is requested
@@ -8863,13 +8865,13 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // Enable PI program metadata
   if (getToolChain().getTriple().isNVPTX())
     addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});
-  if (JA.getType() == types::TY_LLVM_BC) {
+  if (SYCLPostLink->getTrueType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and
     // output LLVMIR
     addArgs(CmdArgs, TCArgs, {"-ir-output-only"});
   } else {
-    assert(JA.getType() == types::TY_Tempfiletable);
+    assert(SYCLPostLink->getTrueType() == types::TY_Tempfiletable);
     // Symbol file and specialization constant info generation is mandatory -
     // add options unconditionally
     addArgs(CmdArgs, TCArgs, {"-symbols"});
@@ -8884,8 +8886,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   addArgs(CmdArgs, TCArgs,
           {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});
   // specialization constants processing is mandatory
-  auto *SYCLPostLink = llvm::dyn_cast<SYCLPostLinkJobAction>(&JA);
-  if (SYCLPostLink && SYCLPostLink->getRTSetsSpecConstants())
+  if (SYCLPostLink->getRTSetsSpecConstants())
     addArgs(CmdArgs, TCArgs, {"-spec-const=rt"});
   else
     addArgs(CmdArgs, TCArgs, {"-spec-const=default"});
