@@ -110,7 +110,7 @@ with open(check_l0_file, 'w') as fp:
     fp.write('int main() { uint32_t t; zeDriverGet(&t,nullptr); return t; }')
 
 config.level_zero_libs_dir=lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
-config.level_zero_include=lit_config.params.get("level_zero_include", (config.level_zero_include if config.level_zero_include else os.path.join(config.sycl_include, '..')))
+config.level_zero_include=lit_config.params.get("level_zero_include", (config.level_zero_include if config.level_zero_include else config.sycl_include))
 
 level_zero_options=level_zero_options = (' -L'+config.level_zero_libs_dir if config.level_zero_libs_dir else '')+' -lze_loader '+' -I'+config.level_zero_include
 if cl_options:
@@ -134,12 +134,14 @@ if config.opencl_libs_dir:
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 
 if cl_options:
-    config.substitutions.append( ('%sycl_options',  ' sycl.lib /I'+config.sycl_include ) )
+    config.substitutions.append( ('%sycl_options',  ' sycl.lib /I' +
+                                config.sycl_include + ' /I' + os.path.join(config.sycl_include, 'sycl')) )
     config.substitutions.append( ('%include_option',  '/FI' ) )
     config.substitutions.append( ('%debug_option',  '/DEBUG' ) )
     config.substitutions.append( ('%cxx_std_option',  '/std:' ) )
 else:
-    config.substitutions.append( ('%sycl_options', ' -lsycl -I'+config.sycl_include ) )
+    config.substitutions.append( ('%sycl_options', ' -lsycl -I' +
+                                config.sycl_include + ' -I' + os.path.join(config.sycl_include, 'sycl')) )
     config.substitutions.append( ('%include_option',  '-include' ) )
     config.substitutions.append( ('%debug_option',  '-g' ) )
     config.substitutions.append( ('%cxx_std_option',  '-std=' ) )
