@@ -13,7 +13,10 @@
 // Produce an archive with device (AOCX) image. To avoid appending objects to
 // leftover archives, remove one if exists.
 // FIXME Disabled use of devicelib by assert feature until the 2-step build gets
-// fixed.
+// fixed. For the time being when 2-step build is employed and there's a call to
+// devicelib function from kernel, the binary image gets corrupted. Due to
+// fallback assert implementation adds a kernel with appropriate call, we have
+// it disabled for this test.
 // RUN: rm %t_image.a || true
 // RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT=1 -fsycl -fintelfpga -fsycl-link=image %S/Inputs/fpga_device.cpp -o %t_image.lib
 // Produce a host object

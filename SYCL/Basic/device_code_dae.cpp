@@ -2,11 +2,12 @@
 // driver
 // UNSUPPORTED: cuda
 // CUDA does not support SPIR-V.
-// FIXME Disabled fallback assert as it'll require either online linking or
-// explicit offline linking step here
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -fsycl-device-only -Xclang -fenable-sycl-dae -Xclang -fsycl-int-header=int_header.h %s -c -o device_code.bc -Wno-sycl-strict
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option int_header.h %debug_option -c %s -o host_code.o %sycl_options -Wno-sycl-strict
-// RUN: llvm-link -o=linked_device_code.bc device_code.bc
+// RUN: %clangxx -fsycl-device-only -Xclang -fenable-sycl-dae -Xclang -fsycl-int-header=int_header.h %s -c -o device_code.bc -Wno-sycl-strict
+// RUN: %clangxx %cxx_std_optionc++17 %include_option int_header.h %debug_option -c %s -o host_code.o %sycl_options -Wno-sycl-strict
+// FIXME Added explicit offline linking step here until online-linking support
+// is fixed
+// RUN: %llvm_spirv -r %sycl_libs_dir/libsycl-fallback-cassert.spv -o=%T/fallback-cassert.bc
+// RUN: llvm-link -o=linked_device_code.bc device_code.bc %T/fallback-cassert.bc
 // RUN: sycl-post-link -emit-param-info linked_device_code.bc
 // RUN: llvm-spirv -o linked_device_code.spv linked_device_code.bc
 // RUN: echo -e -n "[Code|Properties]\nlinked_device_code.spv|linked_device_code_0.prop" > table.txt
