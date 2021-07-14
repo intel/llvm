@@ -72,31 +72,30 @@
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-AOCO-PHASES-EMU %s
 // CHK-FPGA-AOCO-PHASES-EMU: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-EMU: 1: input, "[[INPUTCPP:.+\.cpp]]", c++, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 3: append-footer, {2}, c++, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 4: preprocessor, {3}, c++-cpp-output, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 5: input, "[[INPUTCPP]]", c++, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 6: preprocessor, {5}, c++-cpp-output, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 7: compiler, {6}, ir, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 8: offload, "host-sycl (x86_64-unknown-linux-gnu)" {4}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {7}, c++-cpp-output
-// CHK-FPGA-AOCO-PHASES-EMU: 9: compiler, {8}, ir, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 10: backend, {9}, assembler, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 11: assembler, {10}, object, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 12: linker, {0, 11}, image, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 13: linker, {0, 11}, host_dep_image, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 14: clang-offload-deps, {13}, ir, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 15: input, "[[INPUTA]]", archive
-// CHK-FPGA-AOCO-PHASES-EMU: 16: clang-offload-unbundler, {15}, archive
-// CHK-FPGA-AOCO-PHASES-EMU: 17: linker, {7, 14, 16}, ir, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 19: file-table-tform, {18}, tempfilelist, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 20: llvm-spirv, {19}, tempfilelist, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 21: input, "[[INPUTA]]", archive
-// CHK-FPGA-AOCO-PHASES-EMU: 22: clang-offload-unbundler, {21}, fpga_dep_list
-// CHK-FPGA-AOCO-PHASES-EMU: 23: backend-compiler, {20, 22}, fpga_aocx, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 24: file-table-tform, {18, 23}, tempfiletable, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 25: clang-offload-wrapper, {24}, object, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-EMU: 26: offload, "host-sycl (x86_64-unknown-linux-gnu)" {12}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {25}, image
+// CHK-FPGA-AOCO-PHASES-EMU: 2: append-footer, {1}, c++, (host-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 3: preprocessor, {2}, c++-cpp-output, (host-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 4: input, "[[INPUTCPP]]", c++, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 6: compiler, {5}, ir, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {6}, c++-cpp-output
+// CHK-FPGA-AOCO-PHASES-EMU: 8: compiler, {7}, ir, (host-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 9: backend, {8}, assembler, (host-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 10: assembler, {9}, object, (host-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 11: linker, {0, 10}, image, (host-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 12: linker, {0, 10}, host_dep_image, (host-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 13: clang-offload-deps, {12}, ir, (host-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 14: input, "[[INPUTA]]", archive
+// CHK-FPGA-AOCO-PHASES-EMU: 15: clang-offload-unbundler, {14}, archive
+// CHK-FPGA-AOCO-PHASES-EMU: 16: linker, {6, 13, 15}, ir, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 20: input, "[[INPUTA]]", archive
+// CHK-FPGA-AOCO-PHASES-EMU: 21: clang-offload-unbundler, {20}, fpga_dep_list
+// CHK-FPGA-AOCO-PHASES-EMU: 22: backend-compiler, {19, 21}, fpga_aocx, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 23: file-table-tform, {17, 22}, tempfiletable, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 24: clang-offload-wrapper, {23}, object, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-EMU: 25: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {24}, image
 
 /// aoco emulation test, checking tools
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fintelfpga %t_aoco.a -### %s 2>&1 \
