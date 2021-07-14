@@ -108,6 +108,7 @@
 #include "PassDetail.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Passes.h"
+#include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -117,6 +118,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/BufferUtils.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 
 #include "llvm/ADT/DenseSet.h"
@@ -542,12 +544,21 @@ static bool bufferizesToMemoryRead(OpOperand &opOperand) {
     return false;
   // scf::ForOp alone doesn't bufferize to a memory read, one of the uses of its
   // matching bbArg may.
-  if (isa<scf::ForOp>(opOperand.getOwner()))
+  if (auto forOp = dyn_cast<scf::ForOp>(opOperand.getOwner())) {
+    for (OpOperand &use :
+         forOp.getRegionIterArgForOpOperand(opOperand).getUses())
+      if (bufferizesToMemoryRead(use))
+        return true;
     return false;
+  }
   // TiledLoop alone doesn't bufferize to a memory read, one of the uses of its
   // matching bbArg may.
-  if (isa<TiledLoopOp>(opOperand.getOwner()))
+  if (auto tiledLoopOp = dyn_cast<TiledLoopOp>(opOperand.getOwner())) {
+    for (OpOperand &use : tiledLoopOp.getTiedBlockArgument(opOperand).getUses())
+      if (bufferizesToMemoryRead(use))
+        return true;
     return false;
+  }
   // CallOpInterface alone doesn't bufferize to a memory read, one of the uses
   // of the matching bbArg may. It is the responsibility of the caller to
   // inspect bbArgs. In the absence of a BufferizationAliasInfo, we need to be
@@ -1482,9 +1493,7 @@ bufferize(OpBuilder &b, CallOpInterface callOp, BlockAndValueMapping &bvm,
              << "cannot bufferize bodiless function that returns a tensor";
   } else {
     ReturnOp returnOp = getAssumedUniqueReturnOp(funcOp);
-    if (!returnOp)
-      return funcOp->emitError() << "cannot bufferize a FuncOp with tensors "
-                                    "and without a unique ReturnOp";
+    assert(returnOp && "expected func with single return op");
 
     // For each FuncOp result, keep track of which inplace argument it reuses.
     for (OpOperand &returnOperand : returnOp->getOpOperands()) {
@@ -1685,6 +1694,8 @@ static LogicalResult bufferize(OpBuilder &b, scf::ForOp forOp,
         b.create<linalg::CopyOp>(forOp.getLoc(), operandBuffer, resultBuffer);
     }
     BlockArgument bbArg = forOp.getRegionIterArgForOpOperand(opOperand);
+    aliasInfo.createAliasInfoEntry(resultBuffer);
+    aliasInfo.insertNewBufferEquivalence(bbArg, resultBuffer);
     map(bvm, bbArg, resultBuffer);
     map(bvm, opResult, resultBuffer);
   }
@@ -2064,14 +2075,24 @@ static LogicalResult bufferize(OpBuilder &b, scf::YieldOp yieldOp,
     auto tensorType = operand.get().getType().dyn_cast<TensorType>();
     if (!tensorType)
       continue;
+
     OpOperand &forOperand = forOp.getOpOperandForResult(
         forOp->getResult(operand.getOperandNumber()));
     auto bbArg = forOp.getRegionIterArgForOpOperand(forOperand);
-    if (getInPlace(bbArg) == InPlaceSpec::True)
-      operand.set(bbArg);
-    else
-      operand.set(
-          b.create<memref::TensorLoadOp>(yieldOp.getLoc(), lookup(bvm, bbArg)));
+    Value yieldedBuffer = lookup(bvm, operand.get());
+    Value bbArgBuffer = lookup(bvm, bbArg);
+    if (!aliasInfo.areEquivalentBufferizedValues(yieldedBuffer, bbArgBuffer)) {
+      // TODO: this could get resolved with copies but it can also turn into
+      // swaps so we need to be careful about order of copies.
+      return yieldOp->emitError()
+             << "Yield operand #" << operand.getOperandNumber()
+             << " does not bufferize to an equivalent buffer to the matching"
+             << " enclosing scf::for operand";
+    }
+
+    // Buffers are equivalent so the work is already done and we just yield the
+    // bbArg so that it later canonicalizes away.
+    operand.set(bbArg);
   }
   return success();
 }
@@ -2194,38 +2215,6 @@ bufferizableInPlaceAnalysis(OpOperand &operand, OpResult result,
   return success();
 }
 
-/// Return `failure()` if either
-/// scf::YieldOp are not explicitly bufferized and we need to perform a separate
-/// sanity check for now.
-static LogicalResult
-bufferizationSanityCheck(scf::YieldOp yieldOp,
-                         const BufferizationAliasInfo &aliasInfo) {
-  auto parentForOp = yieldOp->getParentOfType<scf::ForOp>();
-  if (!parentForOp)
-    return yieldOp->emitError() << "not nested under ForOp";
-
-  for (OpOperand &operand : yieldOp->getOpOperands()) {
-    OpResult matchingForOpResult =
-        parentForOp->getResult(operand.getOperandNumber());
-    // Nothing to do if operand bufferizes out of place.
-    if (getInPlace(matchingForOpResult) != InPlaceSpec::True)
-      continue;
-    OpOperand &machingForOpOperand =
-        parentForOp.getOpOperandForResult(matchingForOpResult);
-    BlockArgument matchingForOpIterArg =
-        parentForOp.getRegionIterArgForOpOperand(machingForOpOperand);
-    if (!aliasInfo.areEquivalentBufferizedValues(matchingForOpIterArg,
-                                                 operand.get())) {
-      return yieldOp->emitError()
-             << "Yield operand #" << operand.getOperandNumber()
-             << " does not bufferize to an equivalent buffer to the matching"
-             << " enclosing scf::for operand -> Fail the pass\n";
-    }
-  }
-
-  return success();
-}
-
 /// Analyze the `funcOp` body to determine which OpResults are inplaceable.
 static LogicalResult
 inPlaceAnalysisFuncOpBody(FuncOp funcOp, BufferizationAliasInfo &aliasInfo,
@@ -2264,13 +2253,14 @@ inPlaceAnalysisFuncOpBody(FuncOp funcOp, BufferizationAliasInfo &aliasInfo,
       return failure();
   }
 
-  // Bufferize all ops except ExtractSliceOp and InsertSliceOp which are handled
-  // separately.
+  // Analyze all ops that return a tensors, except ExtractSliceOp and
+  // InsertSliceOp which are handled separately.
   // Walk other ops in reverse for better interference behavior.
   for (Operation *op : reverse(nonSliceOps))
     for (OpOperand &opOperand : op->getOpOperands())
       if (OpResult result = getInplaceableOpResult(opOperand))
-        if (failed(bufferizableInPlaceAnalysis(opOperand, result, aliasInfo,
+        if (result.getType().isa<TensorType>() &&
+            failed(bufferizableInPlaceAnalysis(opOperand, result, aliasInfo,
                                                domInfo)))
           return failure();
 
@@ -2281,14 +2271,9 @@ inPlaceAnalysisFuncOpBody(FuncOp funcOp, BufferizationAliasInfo &aliasInfo,
     if (failed(bufferizableInPlaceAnalysis(extractSliceOp, aliasInfo, domInfo)))
       return failure();
 
-  // Sanity checks.
-  auto walkResult = funcOp.walk([&](scf::YieldOp yieldOp) -> WalkResult {
-    return bufferizationSanityCheck(yieldOp, aliasInfo);
-  });
-
   LDBG("End InPlaceAnalysisFuncOpInternals:\n" << funcOp << '\n');
 
-  return success(!walkResult.wasInterrupted());
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -2463,9 +2448,7 @@ static LogicalResult bufferizeFuncOpBoundary(
 
   // Support only single return-terminated block in the function.
   ReturnOp returnOp = getAssumedUniqueReturnOp(funcOp);
-  if (!returnOp)
-    return funcOp->emitError() << "cannot bufferize a FuncOp with tensors and "
-                                  "without a unique ReturnOp";
+  assert(returnOp && "expected func with single return op");
 
   // 1. For each FuncOp result, keep track of which inplace argument it reuses.
   SmallVector<Value> returnValues;
@@ -2563,7 +2546,15 @@ getFuncOpsOrderedByCalls(ModuleOp moduleOp,
   DenseMap<FuncOp, DenseSet<FuncOp>> calledBy;
   // For each FuncOp, the number of CallOpInterface it contains.
   DenseMap<FuncOp, unsigned> numberCallOpsContainedInFuncOp;
-  WalkResult res = moduleOp.walk([&](FuncOp funcOp) {
+  WalkResult res = moduleOp.walk([&](FuncOp funcOp) -> WalkResult {
+    if (!funcOp.body().empty()) {
+      ReturnOp returnOp = getAssumedUniqueReturnOp(funcOp);
+      if (!returnOp)
+        return funcOp->emitError()
+               << "cannot bufferize a FuncOp with tensors and "
+                  "without a unique ReturnOp";
+    }
+
     numberCallOpsContainedInFuncOp[funcOp] = 0;
     return funcOp.walk([&](CallOpInterface callOp) -> WalkResult {
       // Only support CallOp for now.
@@ -2611,8 +2602,15 @@ struct LinalgComprehensiveModuleBufferize
 };
 } // end namespace
 
+static void applyEnablingTransformations(ModuleOp moduleOp) {
+  RewritePatternSet patterns(moduleOp.getContext());
+  patterns.add<GeneralizePadTensorOpPattern>(moduleOp.getContext());
+  (void)applyPatternsAndFoldGreedily(moduleOp, std::move(patterns));
+}
+
 void LinalgComprehensiveModuleBufferize::runOnOperation() {
   ModuleOp moduleOp = getOperation();
+  applyEnablingTransformations(moduleOp);
 
   SmallVector<FuncOp> orderedFuncOps;
   DenseMap<FuncOp, DenseSet<Operation *>> callerMap;
