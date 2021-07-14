@@ -60,13 +60,9 @@ Since not all devices and backends support sRGB images, `aspect::ext_oneapi_srgb
 
 sRGB values have been added to the `image_channel_order` enumeration. The `image_channel_order::ext_oneapi_srgba` value allows images to be read with sRGB linearization of the color values. This value can be passed to `image` constructors, with some limitations that are outlined below.
 
-The values `ext_oneapi_srgb` and `ext_oneapi_srgbx` have also been added. `ext_oneapi_srgb` for 24-bit sRGB images, and `ext_oneapi_srgbx` for 24-bit images in 32-bit space (where the alpha channel is ignored). However, it should be noted that like their existing `rgb` and `rgbx` counterparts, neither is working at this time. They are added in hopes of future support
-
 [source]
 ----
 image_channel_order::ext_oneapi_srgba
-image_channel_order::ext_oneapi_srgb
-image_channel_order::ext_oneapi_srgbx
 ----
 
 == Limitations of sRGB usage

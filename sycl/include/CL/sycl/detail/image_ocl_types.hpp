@@ -134,14 +134,12 @@ inline int getSPIRVNumChannels(int ImageChannelOrder) {
   case 11: // RGx
     return 2;
   case 4:  // RGB
-  case 15: // sRGB
     return 3;
   case 5:  // RGBA
   case 6:  // BGRA
   case 7:  // ARGB
   case 12: // RGBx
   case 19: // ABGR
-  case 16: // sRGBx
   case 17: // sRGBA
     return 4;
   case 13: // Depth

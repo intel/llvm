@@ -54,14 +54,12 @@ uint8_t getImageNumberChannels(image_channel_order Order) {
   case image_channel_order::ra:
     return 2;
   case image_channel_order::rgb:
-  case image_channel_order::ext_oneapi_srgb:
     return 3;
   case image_channel_order::rgbx:
   case image_channel_order::rgba:
   case image_channel_order::argb:
   case image_channel_order::bgra:
   case image_channel_order::abgr:
-  case image_channel_order::ext_oneapi_srgbx:
   case image_channel_order::ext_oneapi_srgba:
     return 4;
   }
@@ -136,10 +134,6 @@ RT::PiMemImageChannelOrder convertChannelOrder(image_channel_order Order) {
     return PI_IMAGE_CHANNEL_ORDER_LUMINANCE;
   case image_channel_order::abgr:
     return PI_IMAGE_CHANNEL_ORDER_ABGR;
-  case image_channel_order::ext_oneapi_srgb:
-    return PI_IMAGE_CHANNEL_ORDER_sRGB;
-  case image_channel_order::ext_oneapi_srgbx:
-    return PI_IMAGE_CHANNEL_ORDER_sRGBx;
   case image_channel_order::ext_oneapi_srgba:
     return PI_IMAGE_CHANNEL_ORDER_sRGBA;
   }
@@ -177,10 +171,6 @@ image_channel_order convertChannelOrder(RT::PiMemImageChannelOrder Order) {
     return image_channel_order::luminance;
   case PI_IMAGE_CHANNEL_ORDER_ABGR:
     return image_channel_order::abgr;
-  case PI_IMAGE_CHANNEL_ORDER_sRGB:
-    return image_channel_order::ext_oneapi_srgb;
-  case PI_IMAGE_CHANNEL_ORDER_sRGBx:
-    return image_channel_order::ext_oneapi_srgbx;
   case PI_IMAGE_CHANNEL_ORDER_sRGBA:
     return image_channel_order::ext_oneapi_srgba;
   }

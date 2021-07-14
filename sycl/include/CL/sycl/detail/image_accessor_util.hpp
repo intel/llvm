@@ -163,8 +163,6 @@ vec<T, 4> readPixel(T *Ptr, const image_channel_order ChannelOrder,
     break;
   case image_channel_order::rgb:
   case image_channel_order::rgbx:
-  case image_channel_order::ext_oneapi_srgb:
-  case image_channel_order::ext_oneapi_srgbx:
     if (ChannelType == image_channel_type::unorm_short_565 ||
         ChannelType == image_channel_type::unorm_short_555 ||
         ChannelType == image_channel_type::unorm_int_101010) {
@@ -237,8 +235,6 @@ void writePixel(const vec<T, 4> Pixel, T *Ptr,
     break;
   case image_channel_order::rgb:
   case image_channel_order::rgbx:
-  case image_channel_order::ext_oneapi_srgb:
-  case image_channel_order::ext_oneapi_srgbx:
     if (ChannelType == image_channel_type::unorm_short_565 ||
         ChannelType == image_channel_type::unorm_short_555 ||
         ChannelType == image_channel_type::unorm_int_101010) {
