@@ -19,7 +19,10 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t_all.out
 
 // FIXME: Change the behavior when proper automation for assert support is
-// introduced
+// introduced. For the time being, AOT flow can't detect if specific extension
+// is available for this or that device. The automation to be introduced is to
+// query native binary generator on specific features.
+//
 // Produce object file, spirv, device images to combine these differently
 // at link-time, thus testing various AOT-compiled images configurations
 // RUN: %clangxx -fsycl %S/Inputs/aot.cpp -c -o %t.o
