@@ -640,16 +640,16 @@ func @pad_yield_type(%arg0: tensor<?x4xi32>, %arg1: i8) -> tensor<?x9xi32> {
 func @illegal_fill_tensor_no_return(%arg0 : index, %arg1 : index, %arg2 : f32)
 {
   %0 = linalg.init_tensor [%arg0, %arg1] : tensor<?x?xf32>
-  // expected-error @+1 {{expected fill op with no result value to use memref type}}
-  linalg.fill(%0, %arg2) : tensor<?x?xf32>, f32
+  // expected-error @+1 {{expected the number of results (0) to be equal to the number of output tensors (1)}}
+  linalg.fill(%arg2, %0) : f32, tensor<?x?xf32>
 }
 
 // -----
 
 func @illegal_fill_memref_with_return(%arg0 : memref<?x?xf32>, %arg1 : f32) -> memref<?x?xf32>
 {
-  // expected-error @+1 {{unexpected #results > #outputs}}
-  %0 = linalg.fill(%arg0, %arg1) : memref<?x?xf32>, f32 -> memref<?x?xf32>
+  // expected-error @+1 {{expected the number of results (1) to be equal to the number of output tensors (0)}}
+  %0 = linalg.fill(%arg1, %arg0) : f32, memref<?x?xf32> -> memref<?x?xf32>
   return %0 : memref<?x?xf32>
 }
 
@@ -658,8 +658,8 @@ func @illegal_fill_memref_with_return(%arg0 : memref<?x?xf32>, %arg1 : f32) -> m
 func @illegal_fill_memref_with_tensor_return
   (%arg0 : memref<?x?xf32>, %arg1 : f32) -> tensor<?x?xf32>
 {
-  // expected-error @+1 {{unexpected #results > #outputs}}
-  %0 = linalg.fill(%arg0, %arg1) : memref<?x?xf32>, f32 -> tensor<?x?xf32>
+  // expected-error @+1 {{expected the number of results (1) to be equal to the number of output tensors (0)}}
+  %0 = linalg.fill(%arg1, %arg0) : f32, memref<?x?xf32> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
 
@@ -668,8 +668,8 @@ func @illegal_fill_memref_with_tensor_return
 func @illegal_fill_tensor_with_memref_return
   (%arg0 : tensor<?x?xf32>, %arg1 : f32) -> memref<?x?xf32>
 {
-  // expected-error @+1 {{expected type of operand #0 ('tensor<?x?xf32>') to match type of corresponding result ('memref<?x?xf32>')}}
-  %0 = linalg.fill(%arg0, %arg1) : tensor<?x?xf32>, f32 -> memref<?x?xf32>
+  // expected-error @+1 {{expected type of operand #1 ('tensor<?x?xf32>') to match type of corresponding result ('memref<?x?xf32>')}}
+  %0 = linalg.fill(%arg1, %arg0) : f32, tensor<?x?xf32> -> memref<?x?xf32>
   return %0 : memref<?x?xf32>
 }
 

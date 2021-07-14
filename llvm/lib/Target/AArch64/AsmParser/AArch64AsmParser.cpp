@@ -2707,7 +2707,7 @@ AArch64AsmParser::tryParseImmWithOptionalShift(OperandVector &Operands) {
 
   // The optional operand must be "lsl #N" where N is non-negative.
   if (!Parser.getTok().is(AsmToken::Identifier) ||
-      !Parser.getTok().getIdentifier().equals_lower("lsl")) {
+      !Parser.getTok().getIdentifier().equals_insensitive("lsl")) {
     Error(Parser.getTok().getLoc(), "only 'lsl #+N' valid after immediate");
     return MatchOperand_ParseFail;
   }
@@ -2917,6 +2917,7 @@ static const struct Extension {
     {"xs", {AArch64::FeatureXS}},
     {"pauth", {AArch64::FeaturePAuth}},
     {"flagm", {AArch64::FeatureFlagM}},
+    {"rme", {AArch64::FeatureRME}},
     // FIXME: Unsupported extensions
     {"lor", {}},
     {"rdma", {}},
@@ -3669,9 +3670,10 @@ bool AArch64AsmParser::parseOptionalMulOperand(OperandVector &Operands) {
   // Some SVE instructions have a decoration after the immediate, i.e.
   // "mul vl". We parse them here and add tokens, which must be present in the
   // asm string in the tablegen instruction.
-  bool NextIsVL = Parser.getLexer().peekTok().getString().equals_lower("vl");
+  bool NextIsVL =
+      Parser.getLexer().peekTok().getString().equals_insensitive("vl");
   bool NextIsHash = Parser.getLexer().peekTok().is(AsmToken::Hash);
-  if (!Parser.getTok().getString().equals_lower("mul") ||
+  if (!Parser.getTok().getString().equals_insensitive("mul") ||
       !(NextIsVL || NextIsHash))
     return true;
 
@@ -5442,7 +5444,7 @@ bool AArch64AsmParser::parseDirectiveArch(SMLoc L) {
   for (auto Name : RequestedExtensions) {
     bool EnableFeature = true;
 
-    if (Name.startswith_lower("no")) {
+    if (Name.startswith_insensitive("no")) {
       EnableFeature = false;
       Name = Name.substr(2);
     }
@@ -5478,7 +5480,7 @@ bool AArch64AsmParser::parseDirectiveArchExtension(SMLoc L) {
     return true;
 
   bool EnableFeature = true;
-  if (Name.startswith_lower("no")) {
+  if (Name.startswith_insensitive("no")) {
     EnableFeature = false;
     Name = Name.substr(2);
   }
@@ -5544,7 +5546,7 @@ bool AArch64AsmParser::parseDirectiveCPU(SMLoc L) {
 
     bool EnableFeature = true;
 
-    if (Name.startswith_lower("no")) {
+    if (Name.startswith_insensitive("no")) {
       EnableFeature = false;
       Name = Name.substr(2);
     }
@@ -5799,14 +5801,14 @@ bool AArch64AsmParser::parseDirectiveSEHAllocStack(SMLoc L) {
   int64_t Size;
   if (parseImmExpr(Size))
     return true;
-  getTargetStreamer().EmitARM64WinCFIAllocStack(Size);
+  getTargetStreamer().emitARM64WinCFIAllocStack(Size);
   return false;
 }
 
 /// parseDirectiveSEHPrologEnd
 /// ::= .seh_endprologue
 bool AArch64AsmParser::parseDirectiveSEHPrologEnd(SMLoc L) {
-  getTargetStreamer().EmitARM64WinCFIPrologEnd();
+  getTargetStreamer().emitARM64WinCFIPrologEnd();
   return false;
 }
 
@@ -5816,7 +5818,7 @@ bool AArch64AsmParser::parseDirectiveSEHSaveR19R20X(SMLoc L) {
   int64_t Offset;
   if (parseImmExpr(Offset))
     return true;
-  getTargetStreamer().EmitARM64WinCFISaveR19R20X(Offset);
+  getTargetStreamer().emitARM64WinCFISaveR19R20X(Offset);
   return false;
 }
 
@@ -5826,7 +5828,7 @@ bool AArch64AsmParser::parseDirectiveSEHSaveFPLR(SMLoc L) {
   int64_t Offset;
   if (parseImmExpr(Offset))
     return true;
-  getTargetStreamer().EmitARM64WinCFISaveFPLR(Offset);
+  getTargetStreamer().emitARM64WinCFISaveFPLR(Offset);
   return false;
 }
 
@@ -5836,7 +5838,7 @@ bool AArch64AsmParser::parseDirectiveSEHSaveFPLRX(SMLoc L) {
   int64_t Offset;
   if (parseImmExpr(Offset))
     return true;
-  getTargetStreamer().EmitARM64WinCFISaveFPLRX(Offset);
+  getTargetStreamer().emitARM64WinCFISaveFPLRX(Offset);
   return false;
 }
 
@@ -5848,7 +5850,7 @@ bool AArch64AsmParser::parseDirectiveSEHSaveReg(SMLoc L) {
   if (parseRegisterInRange(Reg, AArch64::X0, AArch64::X19, AArch64::LR) ||
       parseComma() || parseImmExpr(Offset))
     return true;
-  getTargetStreamer().EmitARM64WinCFISaveReg(Reg, Offset);
+  getTargetStreamer().emitARM64WinCFISaveReg(Reg, Offset);
   return false;
 }
 
@@ -5860,7 +5862,7 @@ bool AArch64AsmParser::parseDirectiveSEHSaveRegX(SMLoc L) {
   if (parseRegisterInRange(Reg, AArch64::X0, AArch64::X19, AArch64::LR) ||
       parseComma() || parseImmExpr(Offset))
     return true;
-  getTargetStreamer().EmitARM64WinCFISaveRegX(Reg, Offset);
+  getTargetStreamer().emitARM64WinCFISaveRegX(Reg, Offset);
   return false;
 }
 
@@ -5872,7 +5874,7 @@ bool AArch64AsmParser::parseDirectiveSEHSaveRegP(SMLoc L) {
   if (parseRegisterInRange(Reg, AArch64::X0, AArch64::X19, AArch64::FP) ||
       parseComma() || parseImmExpr(Offset))
     return true;
-  getTargetStreamer().EmitARM64WinCFISaveRegP(Reg, Offset);
+  getTargetStreamer().emitARM64WinCFISaveRegP(Reg, Offset);
   return false;
 }
 
@@ -5884,7 +5886,7 @@ bool AArch64AsmParser::parseDirectiveSEHSaveRegPX(SMLoc L) {
   if (parseRegisterInRange(Reg, AArch64::X0, AArch64::X19, AArch64::FP) ||
       parseComma() || parseImmExpr(Offset))
     return true;
-  getTargetStreamer().EmitARM64WinCFISaveRegPX(Reg, Offset);
+  getTargetStreamer().emitARM64WinCFISaveRegPX(Reg, Offset);
   return false;
 }
 
@@ -5900,7 +5902,7 @@ bool AArch64AsmParser::parseDirectiveSEHSaveLRPair(SMLoc L) {
   if (check(((Reg - 19) % 2 != 0), L,
             "expected register with even offset from x19"))
     return true;
-  getTargetStreamer().EmitARM64WinCFISaveLRPair(Reg, Offset);
+  getTargetStreamer().emitARM64WinCFISaveLRPair(Reg, Offset);
   return false;
 }
 
@@ -5912,7 +5914,7 @@ bool AArch64AsmParser::parseDirectiveSEHSaveFReg(SMLoc L) {
   if (parseRegisterInRange(Reg, AArch64::D0, AArch64::D8, AArch64::D15) ||
       parseComma() || parseImmExpr(Offset))
     return true;
-  getTargetStreamer().EmitARM64WinCFISaveFReg(Reg, Offset);
+  getTargetStreamer().emitARM64WinCFISaveFReg(Reg, Offset);
   return false;
 }
 
@@ -5924,7 +5926,7 @@ bool AArch64AsmParser::parseDirectiveSEHSaveFRegX(SMLoc L) {
   if (parseRegisterInRange(Reg, AArch64::D0, AArch64::D8, AArch64::D15) ||
       parseComma() || parseImmExpr(Offset))
     return true;
-  getTargetStreamer().EmitARM64WinCFISaveFRegX(Reg, Offset);
+  getTargetStreamer().emitARM64WinCFISaveFRegX(Reg, Offset);
   return false;
 }
 
@@ -5936,7 +5938,7 @@ bool AArch64AsmParser::parseDirectiveSEHSaveFRegP(SMLoc L) {
   if (parseRegisterInRange(Reg, AArch64::D0, AArch64::D8, AArch64::D14) ||
       parseComma() || parseImmExpr(Offset))
     return true;
-  getTargetStreamer().EmitARM64WinCFISaveFRegP(Reg, Offset);
+  getTargetStreamer().emitARM64WinCFISaveFRegP(Reg, Offset);
   return false;
 }
 
@@ -5948,14 +5950,14 @@ bool AArch64AsmParser::parseDirectiveSEHSaveFRegPX(SMLoc L) {
   if (parseRegisterInRange(Reg, AArch64::D0, AArch64::D8, AArch64::D14) ||
       parseComma() || parseImmExpr(Offset))
     return true;
-  getTargetStreamer().EmitARM64WinCFISaveFRegPX(Reg, Offset);
+  getTargetStreamer().emitARM64WinCFISaveFRegPX(Reg, Offset);
   return false;
 }
 
 /// parseDirectiveSEHSetFP
 /// ::= .seh_set_fp
 bool AArch64AsmParser::parseDirectiveSEHSetFP(SMLoc L) {
-  getTargetStreamer().EmitARM64WinCFISetFP();
+  getTargetStreamer().emitARM64WinCFISetFP();
   return false;
 }
 
@@ -5965,63 +5967,63 @@ bool AArch64AsmParser::parseDirectiveSEHAddFP(SMLoc L) {
   int64_t Size;
   if (parseImmExpr(Size))
     return true;
-  getTargetStreamer().EmitARM64WinCFIAddFP(Size);
+  getTargetStreamer().emitARM64WinCFIAddFP(Size);
   return false;
 }
 
 /// parseDirectiveSEHNop
 /// ::= .seh_nop
 bool AArch64AsmParser::parseDirectiveSEHNop(SMLoc L) {
-  getTargetStreamer().EmitARM64WinCFINop();
+  getTargetStreamer().emitARM64WinCFINop();
   return false;
 }
 
 /// parseDirectiveSEHSaveNext
 /// ::= .seh_save_next
 bool AArch64AsmParser::parseDirectiveSEHSaveNext(SMLoc L) {
-  getTargetStreamer().EmitARM64WinCFISaveNext();
+  getTargetStreamer().emitARM64WinCFISaveNext();
   return false;
 }
 
 /// parseDirectiveSEHEpilogStart
 /// ::= .seh_startepilogue
 bool AArch64AsmParser::parseDirectiveSEHEpilogStart(SMLoc L) {
-  getTargetStreamer().EmitARM64WinCFIEpilogStart();
+  getTargetStreamer().emitARM64WinCFIEpilogStart();
   return false;
 }
 
 /// parseDirectiveSEHEpilogEnd
 /// ::= .seh_endepilogue
 bool AArch64AsmParser::parseDirectiveSEHEpilogEnd(SMLoc L) {
-  getTargetStreamer().EmitARM64WinCFIEpilogEnd();
+  getTargetStreamer().emitARM64WinCFIEpilogEnd();
   return false;
 }
 
 /// parseDirectiveSEHTrapFrame
 /// ::= .seh_trap_frame
 bool AArch64AsmParser::parseDirectiveSEHTrapFrame(SMLoc L) {
-  getTargetStreamer().EmitARM64WinCFITrapFrame();
+  getTargetStreamer().emitARM64WinCFITrapFrame();
   return false;
 }
 
 /// parseDirectiveSEHMachineFrame
 /// ::= .seh_pushframe
 bool AArch64AsmParser::parseDirectiveSEHMachineFrame(SMLoc L) {
-  getTargetStreamer().EmitARM64WinCFIMachineFrame();
+  getTargetStreamer().emitARM64WinCFIMachineFrame();
   return false;
 }
 
 /// parseDirectiveSEHContext
 /// ::= .seh_context
 bool AArch64AsmParser::parseDirectiveSEHContext(SMLoc L) {
-  getTargetStreamer().EmitARM64WinCFIContext();
+  getTargetStreamer().emitARM64WinCFIContext();
   return false;
 }
 
 /// parseDirectiveSEHClearUnwoundToCall
 /// ::= .seh_clear_unwound_to_call
 bool AArch64AsmParser::parseDirectiveSEHClearUnwoundToCall(SMLoc L) {
-  getTargetStreamer().EmitARM64WinCFIClearUnwoundToCall();
+  getTargetStreamer().emitARM64WinCFIClearUnwoundToCall();
   return false;
 }
 

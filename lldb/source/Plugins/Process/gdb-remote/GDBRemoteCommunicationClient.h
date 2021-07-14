@@ -49,6 +49,12 @@ inline bool operator==(const QOffsets &a, const QOffsets &b) {
 }
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const QOffsets &offsets);
 
+// A trivial struct used to return a pair of PID and TID.
+struct PidTid {
+  uint64_t pid;
+  uint64_t tid;
+};
+
 class GDBRemoteCommunicationClient : public GDBRemoteClientBase {
 public:
   GDBRemoteCommunicationClient();
@@ -336,9 +342,14 @@ public:
   // and response times.
   bool SendSpeedTestPacket(uint32_t send_size, uint32_t recv_size);
 
-  bool SetCurrentThread(uint64_t tid);
+  llvm::Optional<PidTid>
+  SendSetCurrentThreadPacket(uint64_t tid, uint64_t pid, char op);
 
-  bool SetCurrentThreadForRun(uint64_t tid);
+  bool SetCurrentThread(uint64_t tid,
+                        lldb::pid_t pid = LLDB_INVALID_PROCESS_ID);
+
+  bool SetCurrentThreadForRun(uint64_t tid,
+                              lldb::pid_t pid = LLDB_INVALID_PROCESS_ID);
 
   bool GetQXferAuxvReadSupported();
 
@@ -451,6 +462,11 @@ public:
 
   bool GetSharedCacheInfoSupported();
 
+  bool GetMemoryTaggingSupported();
+
+  lldb::DataBufferSP ReadMemoryTags(lldb::addr_t addr, size_t len,
+                                    int32_t type);
+
   /// Use qOffsets to query the offset used when relocating the target
   /// executable. If successful, the returned structure will contain at least
   /// one value in the offsets field.
@@ -558,6 +574,7 @@ protected:
   LazyBool m_supports_QPassSignals = eLazyBoolCalculate;
   LazyBool m_supports_error_string_reply = eLazyBoolCalculate;
   LazyBool m_supports_multiprocess = eLazyBoolCalculate;
+  LazyBool m_supports_memory_tagging = eLazyBoolCalculate;
 
   bool m_supports_qProcessInfoPID : 1, m_supports_qfProcessInfo : 1,
       m_supports_qUserName : 1, m_supports_qGroupName : 1,
@@ -568,13 +585,14 @@ protected:
       m_supports_qModuleInfo : 1, m_supports_jThreadsInfo : 1,
       m_supports_jModulesInfo : 1;
 
+  /// Current gdb remote protocol process identifier for all other operations
   lldb::pid_t m_curr_pid = LLDB_INVALID_PROCESS_ID;
-  lldb::tid_t m_curr_tid =
-      LLDB_INVALID_THREAD_ID; // Current gdb remote protocol thread index for
-                              // all other operations
-  lldb::tid_t m_curr_tid_run =
-      LLDB_INVALID_THREAD_ID; // Current gdb remote protocol thread index for
-                              // continue, step, etc
+  /// Current gdb remote protocol process identifier for continue, step, etc
+  lldb::pid_t m_curr_pid_run = LLDB_INVALID_PROCESS_ID;
+  /// Current gdb remote protocol thread identifier for all other operations
+  lldb::tid_t m_curr_tid = LLDB_INVALID_THREAD_ID;
+  /// Current gdb remote protocol thread identifier for continue, step, etc
+  lldb::tid_t m_curr_tid_run = LLDB_INVALID_THREAD_ID;
 
   uint32_t m_num_supported_hardware_watchpoints = 0;
   uint32_t m_addressing_bits = 0;

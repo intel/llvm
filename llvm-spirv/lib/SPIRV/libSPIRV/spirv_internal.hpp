@@ -41,6 +41,9 @@ enum InternalOp {
   IOpAliasScopeDeclINTEL = 5912,
   IOpAliasScopeListDeclINTEL = 5913,
   IOpTypeTokenINTEL = 6113,
+  IOpConvertFToBF16INTEL = 6116,
+  IOpConvertBF16ToFINTEL = 6117,
+  IOpArithmeticFenceINTEL = 6145,
   IOpPrev = OpMax - 2,
   IOpForward
 };
@@ -52,6 +55,7 @@ enum InternalDecoration {
   IDecInitiationIntervalINTEL = 5917,
   IDecMaxConcurrencyINTEL = 5918,
   IDecPipelineEnableINTEL = 5919,
+  IDecRuntimeAlignedINTEL = 5940,
   IDecCallableFunctionINTEL = 6087
 };
 
@@ -60,9 +64,12 @@ enum InternalCapability {
   ICapFPGADSPControlINTEL = 5908,
   ICapMemoryAccessAliasingINTEL = 5910,
   ICapFPGAInvocationPipeliningAttributesINTEL = 5916,
+  ICapRuntimeAlignedAttributeINTEL = 5939,
   ICapFastCompositeINTEL = 6093,
   ICapOptNoneINTEL = 6094,
-  ICapTokenTypeINTEL = 6112
+  ICapTokenTypeINTEL = 6112,
+  ICapBfloat16ConversionINTEL = 6115,
+  ICapFPArithmeticFenceINTEL = 6144
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
@@ -73,6 +80,8 @@ enum InternalMemoryAccessMask {
 };
 
 enum InternalExecutionMode { IExecModeFastCompositeKernelINTEL = 6088 };
+
+enum InternalLoopControlMask { ILoopControlLoopCountINTELMask = 0x1000000 };
 
 constexpr LinkageType LinkageTypeInternal =
     static_cast<LinkageType>(ILTInternal);
@@ -85,6 +94,9 @@ constexpr Op OpAliasScopeDeclINTEL = static_cast<Op>(IOpAliasScopeDeclINTEL);
 constexpr Op OpAliasScopeListDeclINTEL =
     static_cast<Op>(IOpAliasScopeListDeclINTEL);
 constexpr Op OpTypeTokenINTEL = static_cast<Op>(IOpTypeTokenINTEL);
+constexpr Op OpArithmeticFenceINTEL = static_cast<Op>(IOpArithmeticFenceINTEL);
+constexpr Op OpConvertFToBF16INTEL = static_cast<Op>(IOpConvertFToBF16INTEL);
+constexpr Op OpConvertBF16ToFINTEL = static_cast<Op>(IOpConvertBF16ToFINTEL);
 
 constexpr Decoration DecorationAliasScopeINTEL =
     static_cast<Decoration>(IDecAliasScopeINTEL );
@@ -98,6 +110,8 @@ constexpr Decoration DecorationPipelineEnableINTEL =
     static_cast<Decoration>(IDecPipelineEnableINTEL);
 constexpr Decoration DecorationCallableFunctionINTEL =
     static_cast<Decoration>(IDecCallableFunctionINTEL);
+constexpr Decoration DecorationRuntimeAlignedINTEL =
+    static_cast<Decoration>(IDecRuntimeAlignedINTEL);
 
 constexpr Capability CapabilityOptimizationHintsINTEL =
     static_cast<Capability>(ICapOptimizationHintsINTEL);
@@ -113,6 +127,12 @@ constexpr Capability CapabilityFPGAInvocationPipeliningAttributesINTEL =
     static_cast<Capability>(ICapFPGAInvocationPipeliningAttributesINTEL);
 constexpr Capability CapabilityTokenTypeINTEL =
     static_cast<Capability>(ICapTokenTypeINTEL);
+constexpr Capability CapabilityRuntimeAlignedAttributeINTEL =
+    static_cast<Capability>(ICapRuntimeAlignedAttributeINTEL);
+constexpr Capability CapabilityFPArithmeticFenceINTEL =
+    static_cast<Capability>(ICapFPArithmeticFenceINTEL);
+constexpr Capability CapabilityBfloat16ConversionINTEL =
+    static_cast<Capability>(ICapBfloat16ConversionINTEL);
 
 constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
     static_cast<FunctionControlMask>(IFunctionControlOptNoneINTELMask);
@@ -127,6 +147,9 @@ constexpr MemoryAccessMask MemoryAccessNoAliasINTELMask =
 
 constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
     static_cast<ExecutionMode>(IExecModeFastCompositeKernelINTEL);
+
+constexpr LoopControlMask LoopControlLoopCountINTELMask =
+    static_cast<LoopControlMask>(ILoopControlLoopCountINTELMask);
 
 } // namespace internal
 } // namespace spv

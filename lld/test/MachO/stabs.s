@@ -105,6 +105,7 @@
 # CHECK-DAG:  (     SECT EXT) [[#%.2d,MORE_TEXT_ID + 1]] 0000   [[#FUN]]           '_fun'
 # CHECK-DAG:  (     SECT EXT) [[#%.2d,TEXT_ID + 1]]      0000   {{[0-9a-f]+}}      '_no_debug'
 # CHECK-DAG:  (       {{.*}}) {{[0-9]+}}                 0010   {{[0-9a-f]+}}      '__mh_execute_header'
+# CHECK-DAG:  (       {{.*}}) {{[0-9]+}}                 0100   0000000000000000   'dyld_stub_binder'
 # CHECK-EMPTY:
 
 ## Check that we don't attempt to emit rebase opcodes for the debug sections
@@ -191,13 +192,13 @@ Ldebug_info_start0:
   .long  Lset3
   .byte  0                       ## End Of Children Mark
 Ldebug_info_end0:
-.subsections_via_symbols
-.section  __DWARF,__debug_line,regular,debug
 
 .section OTHER,more_text,regular,pure_instructions
 .globl _fun
 _fun:
   ret
+
+.subsections_via_symbols
 
 #--- foo.s
 .text
@@ -240,12 +241,12 @@ Ldebug_info_start0:
   .long  Lset3
   .byte  0                       ## End Of Children Mark
 Ldebug_info_end0:
-.subsections_via_symbols
-.section  __DWARF,__debug_line,regular,debug
 
 .section  __DWARF,__debug_aranges,regular,debug
 ltmp1:
   .byte 0
+
+.subsections_via_symbols
 
 #--- no-debug.s
 ## This file has no debug info.

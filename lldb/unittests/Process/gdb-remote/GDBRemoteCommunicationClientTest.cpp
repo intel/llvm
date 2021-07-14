@@ -98,7 +98,7 @@ TEST_F(GDBRemoteCommunicationClientTest, WriteRegisterNoSuffix) {
   });
 
   Handle_QThreadSuffixSupported(server, false);
-  HandlePacket(server, "Hg47", "OK");
+  HandlePacket(server, "Hg0000000000000047", "OK");
   HandlePacket(server, "P4=" + one_register_hex, "OK");
   ASSERT_TRUE(write_result.get());
 
@@ -143,7 +143,7 @@ TEST_F(GDBRemoteCommunicationClientTest, SaveRestoreRegistersNoSuffix) {
     return client.SaveRegisterState(tid, save_id);
   });
   Handle_QThreadSuffixSupported(server, false);
-  HandlePacket(server, "Hg47", "OK");
+  HandlePacket(server, "Hg0000000000000047", "OK");
   HandlePacket(server, "QSaveRegisterState", "1");
   ASSERT_TRUE(async_result.get());
   EXPECT_EQ(1u, save_id);
@@ -464,4 +464,69 @@ TEST_F(GDBRemoteCommunicationClientTest, GetQOffsets) {
   EXPECT_EQ(llvm::None, GetQOffsets("TEXTSEG=1234"));
   EXPECT_EQ(llvm::None, GetQOffsets("TextSeg=0x1234"));
   EXPECT_EQ(llvm::None, GetQOffsets("TextSeg=12345678123456789"));
+}
+
+static void
+check_qmemtags(TestClient &client, MockServer &server, size_t read_len,
+               const char *packet, llvm::StringRef response,
+               llvm::Optional<std::vector<uint8_t>> expected_tag_data) {
+  const auto &ReadMemoryTags = [&](size_t len, const char *packet,
+                                   llvm::StringRef response) {
+    std::future<DataBufferSP> result = std::async(std::launch::async, [&] {
+      return client.ReadMemoryTags(0xDEF0, read_len, 1);
+    });
+
+    HandlePacket(server, packet, response);
+    return result.get();
+  };
+
+  auto result = ReadMemoryTags(0, packet, response);
+  if (expected_tag_data) {
+    ASSERT_TRUE(result);
+    llvm::ArrayRef<uint8_t> expected(*expected_tag_data);
+    llvm::ArrayRef<uint8_t> got = result->GetData();
+    ASSERT_THAT(expected, testing::ContainerEq(got));
+  } else {
+    ASSERT_FALSE(result);
+  }
+}
+
+TEST_F(GDBRemoteCommunicationClientTest, ReadMemoryTags) {
+  // Zero length reads are valid
+  check_qmemtags(client, server, 0, "qMemTags:def0,0:1", "m",
+                 std::vector<uint8_t>{});
+
+  // The client layer does not check the length of the received data.
+  // All we need is the "m" and for the decode to use all of the chars
+  check_qmemtags(client, server, 32, "qMemTags:def0,20:1", "m09",
+                 std::vector<uint8_t>{0x9});
+
+  // Zero length response is fine as long as the "m" is present
+  check_qmemtags(client, server, 0, "qMemTags:def0,0:1", "m",
+                 std::vector<uint8_t>{});
+
+  // Normal responses
+  check_qmemtags(client, server, 16, "qMemTags:def0,10:1", "m66",
+                 std::vector<uint8_t>{0x66});
+  check_qmemtags(client, server, 32, "qMemTags:def0,20:1", "m0102",
+                 std::vector<uint8_t>{0x1, 0x2});
+
+  // Empty response is an error
+  check_qmemtags(client, server, 17, "qMemTags:def0,11:1", "", llvm::None);
+  // Usual error response
+  check_qmemtags(client, server, 17, "qMemTags:def0,11:1", "E01", llvm::None);
+  // Leading m missing
+  check_qmemtags(client, server, 17, "qMemTags:def0,11:1", "01", llvm::None);
+  // Anything other than m is an error
+  check_qmemtags(client, server, 17, "qMemTags:def0,11:1", "z01", llvm::None);
+  // Decoding tag data doesn't use all the chars in the packet
+  check_qmemtags(client, server, 32, "qMemTags:def0,20:1", "m09zz", llvm::None);
+  // Data that is not hex bytes
+  check_qmemtags(client, server, 32, "qMemTags:def0,20:1", "mhello",
+                 llvm::None);
+  // Data is not a complete hex char
+  check_qmemtags(client, server, 32, "qMemTags:def0,20:1", "m9", llvm::None);
+  // Data has a trailing hex char
+  check_qmemtags(client, server, 32, "qMemTags:def0,20:1", "m01020",
+                 llvm::None);
 }

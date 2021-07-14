@@ -941,8 +941,17 @@ static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
   if (auto *II = dyn_cast<IntrinsicInst>(&I)) {
     assert(canConstantFoldCallTo(II, cast<Function>(II->getCalledOperand())) &&
            "Expected constant-foldable intrinsic");
+    Intrinsic::ID IID = II->getIntrinsicID();
+    if (II->getNumArgOperands() == 1)
+      return Builder.CreateUnaryIntrinsic(IID, SO);
 
-    return Builder.CreateIntrinsic(II->getIntrinsicID(), I.getType(), SO);
+    // This works for real binary ops like min/max (where we always expect the
+    // constant operand to be canonicalized as op1) and unary ops with a bonus
+    // constant argument like ctlz/cttz.
+    // TODO: Handle non-commutative binary intrinsics as below for binops.
+    assert(II->getNumArgOperands() == 2 && "Expected binary intrinsic");
+    assert(isa<Constant>(II->getArgOperand(1)) && "Expected constant operand");
+    return Builder.CreateBinaryIntrinsic(IID, SO, II->getArgOperand(1));
   }
 
   assert(I.isBinaryOp() && "Unexpected opcode for select folding");
@@ -2861,27 +2870,39 @@ Instruction *InstCombinerImpl::visitReturnInst(ReturnInst &RI) {
   return nullptr;
 }
 
+// WARNING: keep in sync with SimplifyCFGOpt::simplifyUnreachable()!
 Instruction *InstCombinerImpl::visitUnreachableInst(UnreachableInst &I) {
   // Try to remove the previous instruction if it must lead to unreachable.
   // This includes instructions like stores and "llvm.assume" that may not get
   // removed by simple dead code elimination.
-  Instruction *Prev = I.getPrevNonDebugInstruction();
-  if (Prev && !Prev->isEHPad() &&
-      isGuaranteedToTransferExecutionToSuccessor(Prev)) {
+  while (Instruction *Prev = I.getPrevNonDebugInstruction()) {
+    // While we theoretically can erase EH, that would result in a block that
+    // used to start with an EH no longer starting with EH, which is invalid.
+    // To make it valid, we'd need to fixup predecessors to no longer refer to
+    // this block, but that changes CFG, which is not allowed in InstCombine.
+    if (Prev->isEHPad())
+      return nullptr; // Can not drop any more instructions. We're done here.
+
+    if (!isGuaranteedToTransferExecutionToSuccessor(Prev))
+      return nullptr; // Can not drop any more instructions. We're done here.
+    // Otherwise, this instruction can be freely erased,
+    // even if it is not side-effect free.
+
     // Temporarily disable removal of volatile stores preceding unreachable,
     // pending a potential LangRef change permitting volatile stores to trap.
     // TODO: Either remove this code, or properly integrate the check into
     // isGuaranteedToTransferExecutionToSuccessor().
     if (auto *SI = dyn_cast<StoreInst>(Prev))
       if (SI->isVolatile())
-        return nullptr;
+        return nullptr; // Can not drop this instruction. We're done here.
 
     // A value may still have uses before we process it here (for example, in
     // another unreachable block), so convert those to poison.
     replaceInstUsesWith(*Prev, PoisonValue::get(Prev->getType()));
     eraseInstFromFunction(*Prev);
-    return &I;
   }
+  assert(I.getParent()->sizeWithoutDebug() == 1 && "The block is now empty.");
+  // FIXME: recurse into unconditional predecessors?
   return nullptr;
 }
 
@@ -3077,13 +3098,35 @@ Instruction *InstCombinerImpl::visitExtractValueInst(ExtractValueInst &EV) {
         return BinaryOperator::Create(BinOp, LHS, RHS);
       }
 
-      // If the normal result of the add is dead, and the RHS is a constant,
-      // we can transform this into a range comparison.
-      // overflow = uadd a, -4  -->  overflow = icmp ugt a, 3
-      if (WO->getIntrinsicID() == Intrinsic::uadd_with_overflow)
-        if (ConstantInt *CI = dyn_cast<ConstantInt>(WO->getRHS()))
-          return new ICmpInst(ICmpInst::ICMP_UGT, WO->getLHS(),
-                              ConstantExpr::getNot(CI));
+      assert(*EV.idx_begin() == 1 &&
+             "unexpected extract index for overflow inst");
+
+      // If only the overflow result is used, and the right hand side is a
+      // constant (or constant splat), we can remove the intrinsic by directly
+      // checking for overflow.
+      const APInt *C;
+      if (match(WO->getRHS(), m_APInt(C))) {
+        // Compute the no-wrap range [X,Y) for LHS given RHS=C, then
+        // check for the inverted range using range offset trick (i.e.
+        // use a subtract to shift the range to bottom of either the
+        // signed or unsigned domain and then use a single compare to
+        // check range membership).
+        ConstantRange NWR =
+          ConstantRange::makeExactNoWrapRegion(WO->getBinaryOp(), *C,
+                                               WO->getNoWrapKind());
+        APInt Min = WO->isSigned() ? NWR.getSignedMin() : NWR.getUnsignedMin();
+        NWR = NWR.subtract(Min);
+
+        CmpInst::Predicate Pred;
+        APInt NewRHSC;
+        if (NWR.getEquivalentICmp(Pred, NewRHSC)) {
+          auto *OpTy = WO->getRHS()->getType();
+          auto *NewLHS = Builder.CreateSub(WO->getLHS(),
+                                           ConstantInt::get(OpTy, Min));
+          return new ICmpInst(ICmpInst::getInversePredicate(Pred), NewLHS,
+                              ConstantInt::get(OpTy, NewRHSC));
+        }
+      }
     }
   }
   if (LoadInst *L = dyn_cast<LoadInst>(Agg))
@@ -3471,6 +3514,57 @@ Instruction *InstCombinerImpl::visitLandingPadInst(LandingPadInst &LI) {
   return nullptr;
 }
 
+Value *
+InstCombinerImpl::pushFreezeToPreventPoisonFromPropagating(FreezeInst &OrigFI) {
+  // Try to push freeze through instructions that propagate but don't produce
+  // poison as far as possible.  If an operand of freeze follows three
+  // conditions 1) one-use, 2) does not produce poison, and 3) has all but one
+  // guaranteed-non-poison operands then push the freeze through to the one
+  // operand that is not guaranteed non-poison.  The actual transform is as
+  // follows.
+  //   Op1 = ...                        ; Op1 can be posion
+  //   Op0 = Inst(Op1, NonPoisonOps...) ; Op0 has only one use and only have
+  //                                    ; single guaranteed-non-poison operands
+  //   ... = Freeze(Op0)
+  // =>
+  //   Op1 = ...
+  //   Op1.fr = Freeze(Op1)
+  //   ... = Inst(Op1.fr, NonPoisonOps...)
+  auto *OrigOp = OrigFI.getOperand(0);
+  auto *OrigOpInst = dyn_cast<Instruction>(OrigOp);
+
+  // While we could change the other users of OrigOp to use freeze(OrigOp), that
+  // potentially reduces their optimization potential, so let's only do this iff
+  // the OrigOp is only used by the freeze.
+  if (!OrigOpInst || !OrigOpInst->hasOneUse() || isa<PHINode>(OrigOp) ||
+      canCreateUndefOrPoison(dyn_cast<Operator>(OrigOp)))
+    return nullptr;
+
+  // If operand is guaranteed not to be poison, there is no need to add freeze
+  // to the operand. So we first find the operand that is not guaranteed to be
+  // poison.
+  Use *MaybePoisonOperand = nullptr;
+  for (Use &U : OrigOpInst->operands()) {
+    if (isGuaranteedNotToBeUndefOrPoison(U.get()))
+      continue;
+    if (!MaybePoisonOperand)
+      MaybePoisonOperand = &U;
+    else
+      return nullptr;
+  }
+
+  // If all operands are guaranteed to be non-poison, we can drop freeze.
+  if (!MaybePoisonOperand)
+    return OrigOp;
+
+  auto *FrozenMaybePoisonOperand = new FreezeInst(
+      MaybePoisonOperand->get(), MaybePoisonOperand->get()->getName() + ".fr");
+
+  replaceUse(*MaybePoisonOperand, FrozenMaybePoisonOperand);
+  FrozenMaybePoisonOperand->insertBefore(OrigOpInst);
+  return OrigOp;
+}
+
 Instruction *InstCombinerImpl::visitFreeze(FreezeInst &I) {
   Value *Op0 = I.getOperand(0);
 
@@ -3482,6 +3576,9 @@ Instruction *InstCombinerImpl::visitFreeze(FreezeInst &I) {
     if (Instruction *NV = foldOpIntoPhi(I, PN))
       return NV;
   }
+
+  if (Value *NI = pushFreezeToPreventPoisonFromPropagating(I))
+    return replaceInstUsesWith(I, NI);
 
   if (match(Op0, m_Undef())) {
     // If I is freeze(undef), see its uses and fold it to the best constant.

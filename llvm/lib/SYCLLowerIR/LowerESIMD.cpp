@@ -493,6 +493,7 @@ Type *parsePrimitiveTypeString(StringRef TyStr, LLVMContext &Ctx) {
       .Case("unsigned", IntegerType::getInt32Ty(Ctx))
       .Case("unsigned long long", IntegerType::getInt64Ty(Ctx))
       .Case("long long", IntegerType::getInt64Ty(Ctx))
+      .Case("_Float16", IntegerType::getHalfTy(Ctx))
       .Case("float", IntegerType::getFloatTy(Ctx))
       .Case("double", IntegerType::getDoubleTy(Ctx))
       .Case("void", IntegerType::getVoidTy(Ctx))

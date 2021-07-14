@@ -11,12 +11,12 @@ func @matmul_tensors(
 //      CHECK: %[[TD0:.*]] = scf.for {{.*}} to {{.*}} step {{.*}} iter_args(%[[TC0:.*]] = %[[TC]]) -> (tensor<?x?xf32>) {
 //      CHECK:   %[[TD1:.*]] = scf.for {{.*}} to {{.*}} step {{.*}} iter_args(%[[TC1:.*]] = %[[TC0]]) -> (tensor<?x?xf32>) {
 //      CHECK:     %[[TD2:.*]] = scf.for {{.*}} to {{.*}} step {{.*}} iter_args(%[[TC2:.*]] = %[[TC1]]) -> (tensor<?x?xf32>) {
-//      CHECK:       %[[sTA:.*]] = subtensor %[[TA]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
-//      CHECK:       %[[sTB:.*]] = subtensor %[[TB]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
-//      CHECK:       %[[sTC:.*]] = subtensor %[[TC2]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
+//      CHECK:       %[[sTA:.*]] = tensor.extract_slice %[[TA]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
+//      CHECK:       %[[sTB:.*]] = tensor.extract_slice %[[TB]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
+//      CHECK:       %[[sTC:.*]] = tensor.extract_slice %[[TC2]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
 //      CHECK:       %[[sTD:.*]] = linalg.matmul ins(%[[sTA]], %[[sTB]] : tensor<?x?xf32>, tensor<?x?xf32>)
 // CHECK-SAME:                                  outs(%[[sTC]] : tensor<?x?xf32>)  -> tensor<?x?xf32>
-//      CHECK:       %[[TD:.*]] = subtensor_insert %[[sTD]] into %[[TC2]][{{.*}}]  : tensor<?x?xf32> into tensor<?x?xf32>
+//      CHECK:       %[[TD:.*]] = tensor.insert_slice %[[sTD]] into %[[TC2]][{{.*}}]  : tensor<?x?xf32> into tensor<?x?xf32>
 //      CHECK:       scf.yield %[[TD]] : tensor<?x?xf32>
 //      CHECK:     scf.yield %[[TD2]] : tensor<?x?xf32>
 //      CHECK:   scf.yield %[[TD1]] : tensor<?x?xf32>
@@ -38,9 +38,9 @@ func @matmul_tensors(
 // TLOOP-DAG: %[[C3:.*]] = constant 3 : index
 // TLOOP-DAG: %[[C4:.*]] = constant 4 : index
 
-// TLOOP: %[[ARG_0_X:.*]] = memref.dim %[[ARG_0]], %[[C0]] : [[TY]]
-// TLOOP: %[[ARG_0_Y:.*]] = memref.dim %[[ARG_0]], %[[C1]] : [[TY]]
-// TLOOP: %[[ARG_1_Y:.*]] = memref.dim %[[ARG_1]], %[[C1]] : [[TY]]
+// TLOOP: %[[ARG_0_X:.*]] = tensor.dim %[[ARG_0]], %[[C0]] : [[TY]]
+// TLOOP: %[[ARG_0_Y:.*]] = tensor.dim %[[ARG_0]], %[[C1]] : [[TY]]
+// TLOOP: %[[ARG_1_Y:.*]] = tensor.dim %[[ARG_1]], %[[C1]] : [[TY]]
 
 // TLOOP: %{{.*}} = linalg.tiled_loop (%[[I:.*]], %[[J:.*]], %[[K:.*]]) =
 // TLOOP-SAME: (%[[C0]], %[[C0]], %[[C0]])
@@ -51,14 +51,14 @@ func @matmul_tensors(
 // TLOOP-SAME: iterators["parallel", "parallel", "reduction"]
 // TLOOP-SAME: distribution["block_x", "block_y", "none"] {
 
-// TLOOP: %[[SUB_ARG_0:.*]] = subtensor %[[A0]][%[[I]], %[[K]]]
-// TLOOP: %[[SUB_ARG_1:.*]] = subtensor %[[A1]][%[[K]], %[[J]]]
-// TLOOP: %[[SUB_ARG_2:.*]] = subtensor %[[A2]][%[[I]], %[[J]]]
+// TLOOP: %[[SUB_ARG_0:.*]] = tensor.extract_slice %[[A0]][%[[I]], %[[K]]]
+// TLOOP: %[[SUB_ARG_1:.*]] = tensor.extract_slice %[[A1]][%[[K]], %[[J]]]
+// TLOOP: %[[SUB_ARG_2:.*]] = tensor.extract_slice %[[A2]][%[[I]], %[[J]]]
 
 // TLOOP: %[[PROD:.*]] = linalg.matmul ins(%[[SUB_ARG_0]], %[[SUB_ARG_1]]
 // TLOOP-SE: outs(%[[SUB_ARG_2]] : [[TY]]) -> [[TY]]
 
-// TLOOP: %[[O:.*]] = subtensor_insert %[[PROD]] into %[[A2]][%[[I]], %[[J]]]
+// TLOOP: %[[O:.*]] = tensor.insert_slice %[[PROD]] into %[[A2]][%[[I]], %[[J]]]
 // TLOOP: linalg.yield %[[O]] : [[TY]]
 
 // -----
@@ -68,9 +68,9 @@ func @generic_op_tensors(
   %c0 = constant 0 : index
   %c1 = constant 1 : index
   %c2 = constant 2 : index
-  %0 = memref.dim %arg0, %c0 : tensor<?x?x?xf32>
-  %1 = memref.dim %arg0, %c1 : tensor<?x?x?xf32>
-  %2 = memref.dim %arg0, %c2 : tensor<?x?x?xf32>
+  %0 = tensor.dim %arg0, %c0 : tensor<?x?x?xf32>
+  %1 = tensor.dim %arg0, %c1 : tensor<?x?x?xf32>
+  %2 = tensor.dim %arg0, %c2 : tensor<?x?x?xf32>
   %3 = linalg.init_tensor [%0, %1, %2] : tensor<?x?x?xf32>
   %4 = linalg.generic
     {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
@@ -93,13 +93,13 @@ func @generic_op_tensors(
 //       CHECK:   %[[TD0:.+]] = scf.for %{{.+}} to %{{.+}} step %{{.+}} iter_args(%[[TC0:.+]] = %[[INIT]]) -> (tensor<?x?x?xf32>) {
 //       CHECK:     %[[TD1:.+]] = scf.for %{{.+}} to %{{.+}} step %{{.+}} iter_args(%[[TC1:.+]] = %[[TC0]]) -> (tensor<?x?x?xf32>) {
 //       CHECK:       %[[TD2:.+]] = scf.for %{{.+}} to %{{.+}} step %{{.+}} iter_args(%[[TC2:.+]] = %[[TC1]]) -> (tensor<?x?x?xf32>) {
-//       CHECK:       %[[STARG0:.+]] = subtensor %[[ARG0]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
-//       CHECK:       %[[STARG1:.+]] = subtensor %[[ARG1]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
-//       CHECK:       %[[STARG2:.+]] = subtensor %[[TC2]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
+//       CHECK:       %[[STARG0:.+]] = tensor.extract_slice %[[ARG0]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
+//       CHECK:       %[[STARG1:.+]] = tensor.extract_slice %[[ARG1]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
+//       CHECK:       %[[STARG2:.+]] = tensor.extract_slice %[[TC2]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
 //       CHECK:       %[[STRETURN:.+]] = linalg.generic
 //  CHECK-SAME:         ins(%[[STARG0]], %[[STARG1]] : tensor<?x?x?xf32>, tensor<?x?x?xf32>)
 //  CHECK-SAME:         outs(%[[STARG2]] : tensor<?x?x?xf32>)
-//       CHECK:       %[[TD:.+]] = subtensor_insert %[[STRETURN]] into %[[TC2]]
+//       CHECK:       %[[TD:.+]] = tensor.insert_slice %[[STRETURN]] into %[[TC2]]
 //       CHECK:       scf.yield %[[TD]]
 //       CHECK:     }
 //       CHECK:     scf.yield %[[TD2]]
@@ -119,9 +119,9 @@ func @generic_op_tensors(
 // TLOOP-DAG: %[[C4:.*]] = constant 4 : index
 
 // TLOOP:     %[[INIT:.*]] = linalg.init_tensor
-// TLOOP:     %[[ARG_0_X:.*]] = memref.dim %[[ARG_0]], %[[C0]] : [[TY]]
-// TLOOP:     %[[ARG_0_Y:.*]] = memref.dim %[[ARG_0]], %[[C1]] : [[TY]]
-// TLOOP:     %[[ARG_0_Z:.*]] = memref.dim %[[ARG_0]], %[[C2]] : [[TY]]
+// TLOOP:     %[[ARG_0_X:.*]] = tensor.dim %[[ARG_0]], %[[C0]] : [[TY]]
+// TLOOP:     %[[ARG_0_Y:.*]] = tensor.dim %[[ARG_0]], %[[C1]] : [[TY]]
+// TLOOP:     %[[ARG_0_Z:.*]] = tensor.dim %[[ARG_0]], %[[C2]] : [[TY]]
 
 // TLOOP:     %{{.*}} = linalg.tiled_loop (%{{.*}}, %{{.*}}, %{{.*}}) =
 // TLOOP-SAME: (%[[C0]], %[[C0]], %[[C0]])

@@ -274,7 +274,7 @@ static void getImageInfo(const ContextImplPtr Context, RT::PiMemImageInfo Info,
 template <int Dimensions>
 image_impl<Dimensions>::image_impl(
     cl_mem MemObject, const context &SyclContext, event AvailableEvent,
-    unique_ptr_class<SYCLMemObjAllocator> Allocator)
+    std::unique_ptr<SYCLMemObjAllocator> Allocator)
     : BaseT(MemObject, SyclContext, std::move(AvailableEvent),
             std::move(Allocator)),
       MRange(InitializedVal<Dimensions, range>::template get<0>()) {
@@ -455,7 +455,7 @@ bool image_impl<Dimensions>::checkImageFormat(
 }
 
 template <int Dimensions>
-vector_class<device>
+std::vector<device>
 image_impl<Dimensions>::getDevices(const ContextImplPtr Context) {
   return Context->get_info<info::context::devices>();
 }

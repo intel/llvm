@@ -7,12 +7,14 @@ from typing import Dict, Sequence
 from mlir.ir import *
 from mlir.dialects import linalg
 from mlir.dialects import std
+from mlir.dialects import math
 # TODO: resolve name collision for Linalg functionality that is injected inside
 # the _mlir.dialects.linalg directly via pybind.
 from _mlir.dialects.linalg import fill_builtin_region
 
 from .scalar_expr import *
 from .config import *
+import numpy as np
 
 __all__ = [
     "emit_generic_structured_op",
@@ -29,12 +31,14 @@ def isa(cls: Type, ty: Type):
 
 
 def prepare_common_structured_op(op_config: LinalgStructuredOpConfig,
-                                 *ins: Value, outs: Sequence[Value]):
+                                 *ins: Value, outs: Sequence[Value],
+                                 **attrs: Sequence[int]):
   all_arg_defs = op_config.ordered_operands
-  in_arg_defs = [arg for arg in all_arg_defs if arg.usage == "input"]
-  out_arg_defs = [arg for arg in all_arg_defs if arg.usage == "output"]
+  in_arg_defs = [arg for arg in all_arg_defs if arg.usage == "InputOperand"]
+  out_arg_defs = [arg for arg in all_arg_defs if arg.usage == "OutputOperand"]
+  attr_arg_defs = [arg for arg in all_arg_defs if arg.usage == "IndexAttribute"]
 
-  # Verify outs and captures are sequences.
+  # Verify outs is a sequence.
   if not isinstance(outs, Sequence):
     raise ValueError(f"Expected named argument outs to have type Sequence "
                      f"but got {type(outs)}")
@@ -46,6 +50,40 @@ def prepare_common_structured_op(op_config: LinalgStructuredOpConfig,
   if outs and len(outs) != len(out_arg_defs):
     raise ValueError(f"Expected {len(out_arg_defs)} outputs but got "
                      f"{len(outs)} for {op_config}")
+
+  # Compute a replacement list for all attribute symbols.
+  expressions = []  # type: Sequence[AffineExpr]
+  replacements = []  # type: Sequence[AffineExpr]
+  for attr in attr_arg_defs:
+    if attr.name not in attrs:
+      raise ValueError(f"Expected named argument for the attribute {attr.name}")
+    attribute_values = attrs.get(attr.name)
+    if not all(isinstance(value, int) for value in attribute_values):
+      raise ValueError(f"Attribute {attr.name} needs to be of type "
+                       f"Sequence[int] but got {type(attribute_values)}")
+    results = attr.attribute_map.results  # type: AffineExprList
+    if len(attribute_values) != len(results):
+      raise ValueError(f"Attribute {attr.name} has length {len(results)} "
+                       f"but got {len(attribute_values)} values")
+    for expr, value in zip(results, attribute_values):
+      expressions.append(expr)
+      replacements.append(AffineConstantExpr.get(value))
+
+  # Replace all index attribute symbols by their value.
+  # TODO: Add support for shape symbols.
+  indexing_maps = []  # type: Sequence[AffineMap]
+  for curr in op_config.indexing_maps:
+    for expression, replacement in zip(expressions, replacements):
+      curr = curr.replace(expression, replacement, curr.n_dims, curr.n_symbols)
+    indexing_maps.append(curr)
+
+  # TODO: Linalg verification does not currently allow symbols.
+  # Compress them for now and verify none are left.
+  indexing_maps = AffineMap.compress_unused_symbols(indexing_maps,
+                                                    Context.current)
+  if any(indexing_map.n_symbols != 0 for indexing_map in indexing_maps):
+    raise ValueError(f"Expected indexing_maps to use no symbols after "
+                     f"replacement and compression but got {indexing_maps}")
 
   outs, out_types = _infer_structured_outs(op_config, in_arg_defs, ins,
                                            out_arg_defs, outs)
@@ -67,27 +105,28 @@ def prepare_common_structured_op(op_config: LinalgStructuredOpConfig,
 
   # Emit the generic op.
   # TODO: Support emission of pure memref form.
-  indexing_maps_attr = ArrayAttr.get([
-      AffineMapAttr.get(am)
-      # TODO: linalg verification does not currently allow symbols.
-      # Compress them for now.
-      for am in AffineMap.compress_unused_symbols(op_config.indexing_maps,
-                                                  Context.current)
-  ])
+  indexing_maps_attr = ArrayAttr.get(
+      [AffineMapAttr.get(am) for am in indexing_maps])
   iterator_types_attr = ArrayAttr.get(
       [StringAttr.get(s) for s in op_config.iterator_types])
 
+  # Compute a dictionary storing all index attributes.
+  index_attributes = {}  # type: Dict[str, DenseElementAttr]
+  for attr in attr_arg_defs:
+    attribute_values = attrs.get(attr.name)
+    array = np.array(attribute_values, dtype=np.int64)
+    index_attributes[attr.name] = DenseElementsAttr.get(array)
+
   return (all_arg_defs, in_arg_defs, out_arg_defs, outs, result_types,
           type_mapping, indexing_maps_attr, iterator_types_attr,
-          block_arg_types)
+          index_attributes, block_arg_types)
 
 
-def emit_generic_structured_op(op_config: LinalgStructuredOpConfig,
-                               *ins: Value,
-                               outs: Sequence[Value] = ()):
+def emit_generic_structured_op(op_config: LinalgStructuredOpConfig, *ins: Value,
+                               outs: Sequence[Value], **attrs: Sequence[int]):
   all_arg_defs, in_arg_defs, out_arg_defs, outs, result_types, type_mapping, \
-  indexing_maps_attr, iterator_types_attr, block_arg_types = \
-     prepare_common_structured_op(op_config, *ins, outs = outs)
+  indexing_maps_attr, iterator_types_attr, index_attributes, block_arg_types = \
+     prepare_common_structured_op(op_config, *ins, outs = outs, **attrs)
 
   generic_op = linalg.GenericOp(
       result_tensors=result_types,
@@ -114,14 +153,12 @@ def emit_generic_structured_op(op_config: LinalgStructuredOpConfig,
     return generic_op.results
 
 
-def emit_named_structured_op(op_config: LinalgStructuredOpConfig,
-                             op_name: str,
-                             op_class_name: str,
-                             *ins: Value,
-                             outs: Sequence[Value] = ()):
+def emit_named_structured_op(op_config: LinalgStructuredOpConfig, op_name: str,
+                             op_class_name: str, *ins: Value,
+                             outs: Sequence[Value], **attrs: Sequence[int]):
   all_arg_defs, in_arg_defs, out_arg_defs, outs, result_types, type_mapping, \
-  indexing_maps_attr, iterator_types_attr, block_arg_types = \
-     prepare_common_structured_op(op_config, *ins, outs = outs)
+  indexing_maps_attr, iterator_types_attr, index_attributes, block_arg_types = \
+     prepare_common_structured_op(op_config, *ins, outs = outs, **attrs)
 
   # If we get here, there must exist a builtin class `op_class_name`.
   ctx = Context.current
@@ -140,6 +177,10 @@ def emit_named_structured_op(op_config: LinalgStructuredOpConfig,
   named_op.operation.attributes[
       "linalg.memoized_indexing_maps"] = indexing_maps_attr
   # iterator_types are hardcoded in C++ both in the yaml and non-yaml path.
+
+  # Additionally set all named attributes.
+  for name, value in index_attributes.items():
+    named_op.operation.attributes[name] = value
 
   if len(result_types) == 1:
     return named_op.result
@@ -253,6 +294,16 @@ class _BodyBuilder:
       return std.AddIOp(lhs.type, lhs, rhs).result
     raise NotImplementedError("Unsupported 'add' operand: {lhs}")
 
+  def _eval_exp(self, x: Value) -> Value:
+    if _is_floating_point_type(x.type):
+      return math.ExpOp(x.type, x).result
+    raise NotImplementedError("Unsupported 'exp' operand: {x}")
+
+  def _eval_log(self, x: Value) -> Value:
+    if _is_floating_point_type(x.type):
+      return math.LogOp(x.type, x).result
+    raise NotImplementedError("Unsupported 'log' operand: {x}")
+
   def _eval_sub(self, lhs: Value, rhs: Value) -> Value:
     if _is_floating_point_type(lhs.type):
       return std.SubFOp(lhs.type, lhs, rhs).result
@@ -266,6 +317,24 @@ class _BodyBuilder:
     if _is_integer_type(lhs.type) or _is_index_type(lhs.type):
       return std.MulIOp(lhs.type, lhs, rhs).result
     raise NotImplementedError("Unsupported 'mul' operand: {lhs}")
+
+  def _eval_max(self, lhs: Value, rhs: Value) -> Value:
+    if _is_floating_point_type(lhs.type):
+      ogt_attr = IntegerAttr.get(IntegerType.get_signless(64), 2)
+      return _emit_cmpf_and_select(lhs, rhs, ogt_attr)
+    if _is_integer_type(lhs.type) or _is_index_type(lhs.type):
+      sgt_attr = IntegerAttr.get(IntegerType.get_signless(64), 4)
+      return _emit_cmpi_and_select(lhs, rhs, sgt_attr)
+    raise NotImplementedError("Unsupported 'max' operand: {lhs}")
+
+  def _eval_min(self, lhs: Value, rhs: Value) -> Value:
+    if _is_floating_point_type(lhs.type):
+      olt_attr = IntegerAttr.get(IntegerType.get_signless(64), 4)
+      return _emit_cmpf_and_select(lhs, rhs, olt_attr)
+    if _is_integer_type(lhs.type) or _is_index_type(lhs.type):
+      slt_attr = IntegerAttr.get(IntegerType.get_signless(64), 2)
+      return _emit_cmpi_and_select(lhs, rhs, slt_attr)
+    raise NotImplementedError("Unsupported 'min' operand: {lhs}")
 
 
 def _infer_structured_outs(op_config: LinalgStructuredOpConfig,
@@ -304,7 +373,7 @@ def _add_type_mapping(operand_config: OperandDefConfig, operand_type: Type,
                       block_arg_types: Sequence[Type]):
   element_or_self_type = operand_type
   # Get the element type for tensor operands and the type itself for scalars.
-  if operand_config.operand_def.shape:
+  if operand_config.shape_map:
     try:
       element_or_self_type = ShapedType(operand_type).element_type
     except Exception as e:
@@ -345,3 +414,13 @@ def _get_floating_point_width(t: Type) -> int:
   if BF16Type.isinstance(t):
     return 16
   raise NotImplementedError(f"Unhandled floating point type switch {t}")
+
+
+def _emit_cmpf_and_select(lhs: Value, rhs: Value, pred: IntegerAttr) -> Value:
+  cond = std.CmpFOp(IntegerType.get_signless(1), pred, lhs, rhs).result
+  return std.SelectOp(lhs.type, cond, lhs, rhs).result
+
+
+def _emit_cmpi_and_select(lhs: Value, rhs: Value, pred: IntegerAttr) -> Value:
+  cond = std.CmpIOp(IntegerType.get_signless(1), pred, lhs, rhs).result
+  return std.SelectOp(lhs.type, cond, lhs, rhs).result

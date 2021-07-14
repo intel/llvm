@@ -1081,10 +1081,9 @@ bool NamedDecl::isLinkageValid() const {
 ReservedIdentifierStatus
 NamedDecl::isReserved(const LangOptions &LangOpts) const {
   const IdentifierInfo *II = getIdentifier();
-  if (!II)
-    if (const auto *FD = dyn_cast<FunctionDecl>(this))
-      II = FD->getLiteralIdentifier();
 
+  // This triggers at least for CXXLiteralIdentifiers, which we already checked
+  // at lexing time.
   if (!II)
     return ReservedIdentifierStatus::NotReserved;
 
@@ -2537,6 +2536,14 @@ bool VarDecl::isEscapingByref() const {
 
 bool VarDecl::isNonEscapingByref() const {
   return hasAttr<BlocksAttr>() && !NonParmVarDeclBits.EscapingByref;
+}
+
+bool VarDecl::hasDependentAlignment() const {
+  QualType T = getType();
+  return T->isDependentType() || T->isUndeducedAutoType() ||
+         llvm::any_of(specific_attrs<AlignedAttr>(), [](const AlignedAttr *AA) {
+           return AA->isAlignmentDependent();
+         });
 }
 
 VarDecl *VarDecl::getTemplateInstantiationPattern() const {
@@ -4585,6 +4592,13 @@ RecordDecl::field_iterator RecordDecl::field_begin() const {
 void RecordDecl::completeDefinition() {
   assert(!isCompleteDefinition() && "Cannot redefine record!");
   TagDecl::completeDefinition();
+
+  ASTContext &Ctx = getASTContext();
+
+  // Layouts are dumped when computed, so if we are dumping for all complete
+  // types, we need to force usage to get types that wouldn't be used elsewhere.
+  if (Ctx.getLangOpts().DumpRecordLayoutsComplete)
+    (void)Ctx.getASTRecordLayout(this);
 }
 
 /// isMsStruct - Get whether or not this record uses ms_struct layout.

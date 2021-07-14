@@ -311,6 +311,7 @@ void GDBRemoteCommunicationClient::GetRemoteQSupported() {
   m_supports_multiprocess = eLazyBoolNo;
   m_supports_qEcho = eLazyBoolNo;
   m_supports_QPassSignals = eLazyBoolNo;
+  m_supports_memory_tagging = eLazyBoolNo;
 
   m_max_packet_size = UINT64_MAX; // It's supposed to always be there, but if
                                   // not, we assume no limit
@@ -356,6 +357,8 @@ void GDBRemoteCommunicationClient::GetRemoteQSupported() {
         m_supports_QPassSignals = eLazyBoolYes;
       else if (x == "multiprocess+")
         m_supports_multiprocess = eLazyBoolYes;
+      else if (x == "memory-tagging+")
+        m_supports_memory_tagging = eLazyBoolYes;
       // Look for a list of compressions in the features list e.g.
       // qXfer:features:read+;PacketSize=20000;qEcho+;SupportedCompressions=zlib-
       // deflate,lzma
@@ -576,6 +579,57 @@ bool GDBRemoteCommunicationClient::GetSharedCacheInfoSupported() {
   return m_supports_jGetSharedCacheInfo;
 }
 
+bool GDBRemoteCommunicationClient::GetMemoryTaggingSupported() {
+  if (m_supports_memory_tagging == eLazyBoolCalculate) {
+    GetRemoteQSupported();
+  }
+  return m_supports_memory_tagging == eLazyBoolYes;
+}
+
+DataBufferSP GDBRemoteCommunicationClient::ReadMemoryTags(lldb::addr_t addr,
+                                                          size_t len,
+                                                          int32_t type) {
+  StreamString packet;
+  packet.Printf("qMemTags:%" PRIx64 ",%zx:%" PRIx32, addr, len, type);
+  StringExtractorGDBRemote response;
+
+  Log *log = ProcessGDBRemoteLog::GetLogIfAnyCategoryIsSet(GDBR_LOG_MEMORY);
+
+  if (SendPacketAndWaitForResponse(packet.GetString(), response, false) !=
+          PacketResult::Success ||
+      !response.IsNormalResponse()) {
+    LLDB_LOGF(log, "GDBRemoteCommunicationClient::%s: qMemTags packet failed",
+              __FUNCTION__);
+    return nullptr;
+  }
+
+  // We are expecting
+  // m<hex encoded bytes>
+
+  if (response.GetChar() != 'm') {
+    LLDB_LOGF(log,
+              "GDBRemoteCommunicationClient::%s: qMemTags response did not "
+              "begin with \"m\"",
+              __FUNCTION__);
+    return nullptr;
+  }
+
+  size_t expected_bytes = response.GetBytesLeft() / 2;
+  DataBufferSP buffer_sp(new DataBufferHeap(expected_bytes, 0));
+  size_t got_bytes = response.GetHexBytesAvail(buffer_sp->GetData());
+  // Check both because in some situations chars are consumed even
+  // if the decoding fails.
+  if (response.GetBytesLeft() || (expected_bytes != got_bytes)) {
+    LLDB_LOGF(
+        log,
+        "GDBRemoteCommunicationClient::%s: Invalid data in qMemTags response",
+        __FUNCTION__);
+    return nullptr;
+  }
+
+  return buffer_sp;
+}
+
 bool GDBRemoteCommunicationClient::GetxPacketSupported() {
   if (m_supports_x == eLazyBoolCalculate) {
     StringExtractorGDBRemote response;
@@ -659,7 +713,8 @@ lldb::pid_t GDBRemoteCommunicationClient::GetCurrentProcessID(bool allow_lazy) {
         PacketResult::Success) {
       if (response.GetChar() == 'Q') {
         if (response.GetChar() == 'C') {
-          m_curr_pid = response.GetHexMaxU64(false, LLDB_INVALID_PROCESS_ID);
+          m_curr_pid_run = m_curr_pid =
+              response.GetHexMaxU64(false, LLDB_INVALID_PROCESS_ID);
           if (m_curr_pid != LLDB_INVALID_PROCESS_ID) {
             m_curr_pid_is_valid = eLazyBoolYes;
             return m_curr_pid;
@@ -675,10 +730,10 @@ lldb::pid_t GDBRemoteCommunicationClient::GetCurrentProcessID(bool allow_lazy) {
       auto ids = GetCurrentProcessAndThreadIDs(sequence_mutex_unavailable);
       if (!ids.empty() && !sequence_mutex_unavailable) {
         // If server returned an explicit PID, use that.
-        m_curr_pid = ids.front().first;
+        m_curr_pid_run = m_curr_pid = ids.front().first;
         // Otherwise, use the TID of the first thread (Linux hack).
         if (m_curr_pid == LLDB_INVALID_PROCESS_ID)
-          m_curr_pid = ids.front().second;
+          m_curr_pid_run = m_curr_pid = ids.front().second;
         m_curr_pid_is_valid = eLazyBoolYes;
         return m_curr_pid;
       }
@@ -1069,7 +1124,7 @@ bool GDBRemoteCommunicationClient::GetDefaultThreadId(lldb::tid_t &tid) {
 
     // if we get pid as well, update m_curr_pid
     if (pid != 0) {
-      m_curr_pid = pid;
+      m_curr_pid_run = m_curr_pid = pid;
       m_curr_pid_is_valid = eLazyBoolYes;
     }
     tid = pid_tid->second;
@@ -2083,7 +2138,7 @@ bool GDBRemoteCommunicationClient::GetCurrentProcessInfo(bool allow_lazy) {
         m_qProcessInfo_is_valid = eLazyBoolYes;
       if (pid != LLDB_INVALID_PROCESS_ID) {
         m_curr_pid_is_valid = eLazyBoolYes;
-        m_curr_pid = pid;
+        m_curr_pid_run = m_curr_pid = pid;
       }
 
       // Set the ArchSpec from the triple if we have it.
@@ -2585,25 +2640,30 @@ bool GDBRemoteCommunicationClient::KillSpawnedProcess(lldb::pid_t pid) {
   return false;
 }
 
-bool GDBRemoteCommunicationClient::SetCurrentThread(uint64_t tid) {
-  if (m_curr_tid == tid)
-    return true;
+llvm::Optional<PidTid>
+GDBRemoteCommunicationClient::SendSetCurrentThreadPacket(uint64_t tid,
+                                                         uint64_t pid,
+                                                         char op) {
+  lldb_private::StreamString packet;
+  packet.PutChar('H');
+  packet.PutChar(op);
 
-  char packet[32];
-  int packet_len;
+  if (pid != LLDB_INVALID_PROCESS_ID) {
+    packet.PutChar('p');
+    packet.PutHex64(pid);
+    packet.PutChar('.');
+  }
+
   if (tid == UINT64_MAX)
-    packet_len = ::snprintf(packet, sizeof(packet), "Hg-1");
+    packet.PutCString("-1");
   else
-    packet_len = ::snprintf(packet, sizeof(packet), "Hg%" PRIx64, tid);
-  assert(packet_len + 1 < (int)sizeof(packet));
-  UNUSED_IF_ASSERT_DISABLED(packet_len);
+    packet.PutHex64(tid);
+
   StringExtractorGDBRemote response;
-  if (SendPacketAndWaitForResponse(packet, response, false) ==
+  if (SendPacketAndWaitForResponse(packet.GetString(), response, false) ==
       PacketResult::Success) {
-    if (response.IsOKResponse()) {
-      m_curr_tid = tid;
-      return true;
-    }
+    if (response.IsOKResponse())
+      return {{pid, tid}};
 
     /*
      * Connected bare-iron target (like YAMON gdb-stub) may not have support for
@@ -2611,49 +2671,41 @@ bool GDBRemoteCommunicationClient::SetCurrentThread(uint64_t tid) {
      * The reply from '?' packet could be as simple as 'S05'. There is no packet
      * which can
      * give us pid and/or tid. Assume pid=tid=1 in such cases.
-    */
-    if (response.IsUnsupportedResponse() && IsConnected()) {
-      m_curr_tid = 1;
-      return true;
-    }
+     */
+    if (response.IsUnsupportedResponse() && IsConnected())
+      return {{1, 1}};
   }
-  return false;
+  return llvm::None;
 }
 
-bool GDBRemoteCommunicationClient::SetCurrentThreadForRun(uint64_t tid) {
-  if (m_curr_tid_run == tid)
+bool GDBRemoteCommunicationClient::SetCurrentThread(uint64_t tid,
+                                                    uint64_t pid) {
+  if (m_curr_tid == tid &&
+      (m_curr_pid == pid || LLDB_INVALID_PROCESS_ID == pid))
     return true;
 
-  char packet[32];
-  int packet_len;
-  if (tid == UINT64_MAX)
-    packet_len = ::snprintf(packet, sizeof(packet), "Hc-1");
-  else
-    packet_len = ::snprintf(packet, sizeof(packet), "Hc%" PRIx64, tid);
-
-  assert(packet_len + 1 < (int)sizeof(packet));
-  UNUSED_IF_ASSERT_DISABLED(packet_len);
-  StringExtractorGDBRemote response;
-  if (SendPacketAndWaitForResponse(packet, response, false) ==
-      PacketResult::Success) {
-    if (response.IsOKResponse()) {
-      m_curr_tid_run = tid;
-      return true;
-    }
-
-    /*
-     * Connected bare-iron target (like YAMON gdb-stub) may not have support for
-     * Hc packet.
-     * The reply from '?' packet could be as simple as 'S05'. There is no packet
-     * which can
-     * give us pid and/or tid. Assume pid=tid=1 in such cases.
-    */
-    if (response.IsUnsupportedResponse() && IsConnected()) {
-      m_curr_tid_run = 1;
-      return true;
-    }
+  llvm::Optional<PidTid> ret = SendSetCurrentThreadPacket(tid, pid, 'g');
+  if (ret.hasValue()) {
+    if (ret->pid != LLDB_INVALID_PROCESS_ID)
+      m_curr_pid = ret->pid;
+    m_curr_tid = ret->tid;
   }
-  return false;
+  return ret.hasValue();
+}
+
+bool GDBRemoteCommunicationClient::SetCurrentThreadForRun(uint64_t tid,
+                                                          uint64_t pid) {
+  if (m_curr_tid_run == tid &&
+      (m_curr_pid_run == pid || LLDB_INVALID_PROCESS_ID == pid))
+    return true;
+
+  llvm::Optional<PidTid> ret = SendSetCurrentThreadPacket(tid, pid, 'c');
+  if (ret.hasValue()) {
+    if (ret->pid != LLDB_INVALID_PROCESS_ID)
+      m_curr_pid_run = ret->pid;
+    m_curr_tid_run = ret->tid;
+  }
+  return ret.hasValue();
 }
 
 bool GDBRemoteCommunicationClient::GetStopReply(

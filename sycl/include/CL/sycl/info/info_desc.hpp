@@ -87,8 +87,11 @@ enum class device : cl_device_info {
   global_mem_cache_line_size = CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE,
   global_mem_cache_size = CL_DEVICE_GLOBAL_MEM_CACHE_SIZE,
   global_mem_size = CL_DEVICE_GLOBAL_MEM_SIZE,
-  max_constant_buffer_size = CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,
-  max_constant_args = CL_DEVICE_MAX_CONSTANT_ARGS,
+  max_constant_buffer_size __SYCL2020_DEPRECATED(
+      "max_constant_buffer_size is deprecated") =
+      CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,
+  max_constant_args __SYCL2020_DEPRECATED("max_constant_args is deprecated") =
+      CL_DEVICE_MAX_CONSTANT_ARGS,
   local_mem_type = CL_DEVICE_LOCAL_MEM_TYPE,
   local_mem_size = CL_DEVICE_LOCAL_MEM_SIZE,
   error_correction_support = CL_DEVICE_ERROR_CORRECTION_SUPPORT,
@@ -130,7 +133,9 @@ enum class device : cl_device_info {
   usm_host_allocations = PI_USM_HOST_SUPPORT,
   usm_shared_allocations = PI_USM_SINGLE_SHARED_SUPPORT,
   usm_restricted_shared_allocations = PI_USM_CROSS_SHARED_SUPPORT,
-  usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT,
+  usm_system_allocations = PI_USM_SYSTEM_SHARED_SUPPORT,
+  usm_system_allocator __SYCL2020_DEPRECATED(
+      "use usm_system_allocations instead") = usm_system_allocations,
 
   // intel extensions
   ext_intel_pci_address = PI_DEVICE_INFO_PCI_ADDRESS,
@@ -142,7 +147,9 @@ enum class device : cl_device_info {
       PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
   ext_intel_max_mem_bandwidth = PI_DEVICE_INFO_MAX_MEM_BANDWIDTH,
   ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL,
-  ext_intel_oneapi_srgb = PI_DEVICE_INFO_IMAGE_SRGB
+  ext_intel_oneapi_srgb = PI_DEVICE_INFO_IMAGE_SRGB,
+  ext_intel_device_info_uuid = PI_DEVICE_INFO_UUID,
+  atomic64 = PI_DEVICE_INFO_ATOMIC_64
 };
 
 enum class device_type : pi_uint64 {

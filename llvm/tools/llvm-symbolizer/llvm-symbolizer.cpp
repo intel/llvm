@@ -66,7 +66,9 @@ static const opt::OptTable::Info InfoTable[] = {
 
 class SymbolizerOptTable : public opt::OptTable {
 public:
-  SymbolizerOptTable() : OptTable(InfoTable, true) {}
+  SymbolizerOptTable() : OptTable(InfoTable) {
+    setGroupedShortOptions(true);
+  }
 };
 } // namespace
 
@@ -196,7 +198,7 @@ static void symbolizeInput(const opt::InputArgList &Args, uint64_t AdjustVMA,
 static void printHelp(StringRef ToolName, const SymbolizerOptTable &Tbl,
                       raw_ostream &OS) {
   const char HelpText[] = " [options] addresses...";
-  Tbl.PrintHelp(OS, (ToolName + HelpText).str().c_str(),
+  Tbl.printHelp(OS, (ToolName + HelpText).str().c_str(),
                 ToolName.str().c_str());
   // TODO Replace this with OptTable API once it adds extrahelp support.
   OS << "\nPass @FILE as argument to read options from FILE.\n";
@@ -206,7 +208,6 @@ static opt::InputArgList parseOptions(int Argc, char *Argv[], bool IsAddr2Line,
                                       StringSaver &Saver,
                                       SymbolizerOptTable &Tbl) {
   StringRef ToolName = IsAddr2Line ? "llvm-addr2line" : "llvm-symbolizer";
-  Tbl.setGroupedShortOptions(true);
   // The environment variable specifies initial options which can be overridden
   // by commnad line options.
   Tbl.setInitialOptionsFromEnvironment(IsAddr2Line ? "LLVM_ADDR2LINE_OPTS"

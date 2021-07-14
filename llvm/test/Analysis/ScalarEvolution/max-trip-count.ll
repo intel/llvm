@@ -98,7 +98,7 @@ for.end:                                          ; preds = %for.cond.for.end_cr
 
 ; CHECK: Determining loop execution counts for: @test
 ; CHECK-NEXT: backedge-taken count is
-; CHECK-NEXT: max backedge-taken count is 4294967294
+; CHECK-NEXT: max backedge-taken count is 2147483646
 
 ; PR19799: Indvars miscompile due to an incorrect max backedge taken count from SCEV.
 ; CHECK-LABEL: @pr19799
@@ -427,6 +427,29 @@ loop:
   %iv.next = add nsw i32 %iv, -1
   %n = load atomic i32, i32* %n_addr unordered, align 4
   %cmp = icmp slt i32 %iv.next, %n
+  br i1 %cmp, label %loop, label %loop.exit
+
+loop.exit:
+  ret void
+}
+
+; sgt with negative stride
+define void @changing_end_bound7(i32 %start, i32* %n_addr, i32* %addr) {
+; CHECK-LABEL: Determining loop execution counts for: @changing_end_bound7
+; CHECK: Loop %loop: Unpredictable backedge-taken count.
+; CHECK: Loop %loop: Unpredictable max backedge-taken count.
+entry:
+  br label %loop
+
+loop:
+  %iv = phi i32 [ %start, %entry ], [ %iv.next, %loop ]
+  %acc = phi i32 [ 0, %entry ], [ %acc.next, %loop ]
+  %val = load atomic i32, i32* %addr unordered, align 4
+  fence acquire
+  %acc.next = add i32 %acc, %val
+  %iv.next = add i32 %iv, -1
+  %n = load atomic i32, i32* %n_addr unordered, align 4
+  %cmp = icmp sgt i32 %iv.next, %n
   br i1 %cmp, label %loop, label %loop.exit
 
 loop.exit:

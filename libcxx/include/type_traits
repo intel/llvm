@@ -99,7 +99,7 @@ namespace std
     template <class T> struct is_trivial;
     template <class T> struct is_trivially_copyable;
     template <class T> struct is_standard_layout;
-    template <class T> struct is_literal_type;
+    template <class T> struct is_literal_type; // Deprecated in C++17; removed in C++20
     template <class T> struct is_empty;
     template <class T> struct is_polymorphic;
     template <class T> struct is_abstract;
@@ -165,8 +165,8 @@ namespace std
     template <class T> struct decay;
     template <class... T> struct common_type;
     template <class T> struct underlying_type;
-    template <class> class result_of; // undefined
-    template <class Fn, class... ArgTypes> class result_of<Fn(ArgTypes...)>;
+    template <class> class result_of; // undefined; deprecated in C++17; removed in C++20
+    template <class Fn, class... ArgTypes> class result_of<Fn(ArgTypes...)>; // deprecated in C++17; removed in C++20
     template <class Fn, class... ArgTypes> struct invoke_result;  // C++17
 
     // const-volatile modifications:
@@ -233,7 +233,7 @@ namespace std
     template <class T>
       using underlying_type_t = typename underlying_type<T>::type;  // C++14
     template <class T>
-      using result_of_t       = typename result_of<T>::type;  // C++14
+      using result_of_t       = typename result_of<T>::type;  // C++14; deprecated in C++17; removed in C++20
     template <class Fn, class... ArgTypes>
       using invoke_result_t   = typename invoke_result<Fn, ArgTypes...>::type;  // C++17
 
@@ -302,7 +302,7 @@ namespace std
       template <class T> inline constexpr bool is_pod_v
         = is_pod<T>::value;                                              // C++17
       template <class T> inline constexpr bool is_literal_type_v
-        = is_literal_type<T>::value;                                     // C++17
+        = is_literal_type<T>::value;                                     // C++17; deprecated in C++17; removed in C++20
       template <class T> inline constexpr bool is_empty_v
         = is_empty<T>::value;                                            // C++17
       template <class T> inline constexpr bool is_polymorphic_v
@@ -2818,46 +2818,6 @@ _LIBCPP_INLINE_VAR _LIBCPP_CONSTEXPR bool is_destructible_v
 
 #endif // __has_keyword(__is_destructible)
 
-// move
-
-template <class _Tp>
-_LIBCPP_NODISCARD_EXT inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR
-typename remove_reference<_Tp>::type&&
-move(_Tp&& __t) _NOEXCEPT
-{
-    typedef _LIBCPP_NODEBUG_TYPE typename remove_reference<_Tp>::type _Up;
-    return static_cast<_Up&&>(__t);
-}
-
-template <class _Tp>
-_LIBCPP_NODISCARD_EXT inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR
-_Tp&&
-forward(typename remove_reference<_Tp>::type& __t) _NOEXCEPT
-{
-    return static_cast<_Tp&&>(__t);
-}
-
-template <class _Tp>
-_LIBCPP_NODISCARD_EXT inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR
-_Tp&&
-forward(typename remove_reference<_Tp>::type&& __t) _NOEXCEPT
-{
-    static_assert(!is_lvalue_reference<_Tp>::value,
-                  "cannot forward an rvalue as an lvalue");
-    return static_cast<_Tp&&>(__t);
-}
-
-template <class _Tp>
-inline _LIBCPP_INLINE_VISIBILITY
-typename decay<_Tp>::type
-__decay_copy(_Tp&& __t)
-#if _LIBCPP_STD_VER > 17
-noexcept(is_nothrow_convertible_v<_Tp, remove_reference_t<_Tp>>)
-#endif
-{
-    return _VSTD::forward<_Tp>(__t);
-}
-
 template <class _MP, bool _IsMemberFunctionPtr, bool _IsMemberObjectPtr>
 struct __member_pointer_traits_imp
 {
@@ -3717,15 +3677,17 @@ _LIBCPP_INLINE_VAR _LIBCPP_CONSTEXPR bool is_pod_v
 
 // is_literal_type;
 
-template <class _Tp> struct _LIBCPP_TEMPLATE_VIS is_literal_type
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS)
+template <class _Tp> struct _LIBCPP_TEMPLATE_VIS _LIBCPP_DEPRECATED_IN_CXX17 is_literal_type
     : public integral_constant<bool, __is_literal_type(_Tp)>
     {};
 
 #if _LIBCPP_STD_VER > 14 && !defined(_LIBCPP_HAS_NO_VARIABLE_TEMPLATES)
 template <class _Tp>
-_LIBCPP_INLINE_VAR _LIBCPP_CONSTEXPR bool is_literal_type_v
+_LIBCPP_DEPRECATED_IN_CXX17 _LIBCPP_INLINE_VAR _LIBCPP_CONSTEXPR bool is_literal_type_v
     = is_literal_type<_Tp>::value;
-#endif
+#endif // _LIBCPP_STD_VER > 14 && !defined(_LIBCPP_HAS_NO_VARIABLE_TEMPLATES)
+#endif // _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS)
 
 // is_standard_layout;
 
@@ -3866,42 +3828,42 @@ template <class _Fp, class _A0, class ..._Args,
 inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR_AFTER_CXX17 auto
 __invoke(_Fp&& __f, _A0&& __a0, _Args&& ...__args)
-_LIBCPP_INVOKE_RETURN((_VSTD::forward<_A0>(__a0).*__f)(_VSTD::forward<_Args>(__args)...))
+_LIBCPP_INVOKE_RETURN((static_cast<_A0&&>(__a0).*__f)(static_cast<_Args&&>(__args)...))
 
 template <class _Fp, class _A0, class ..._Args,
           class = __enable_if_bullet1<_Fp, _A0>>
 inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR auto
 __invoke_constexpr(_Fp&& __f, _A0&& __a0, _Args&& ...__args)
-_LIBCPP_INVOKE_RETURN((_VSTD::forward<_A0>(__a0).*__f)(_VSTD::forward<_Args>(__args)...))
+_LIBCPP_INVOKE_RETURN((static_cast<_A0&&>(__a0).*__f)(static_cast<_Args&&>(__args)...))
 
 template <class _Fp, class _A0, class ..._Args,
           class = __enable_if_bullet2<_Fp, _A0>>
 inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR_AFTER_CXX17 auto
 __invoke(_Fp&& __f, _A0&& __a0, _Args&& ...__args)
-_LIBCPP_INVOKE_RETURN((__a0.get().*__f)(_VSTD::forward<_Args>(__args)...))
+_LIBCPP_INVOKE_RETURN((__a0.get().*__f)(static_cast<_Args&&>(__args)...))
 
 template <class _Fp, class _A0, class ..._Args,
           class = __enable_if_bullet2<_Fp, _A0>>
 inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR auto
 __invoke_constexpr(_Fp&& __f, _A0&& __a0, _Args&& ...__args)
-_LIBCPP_INVOKE_RETURN((__a0.get().*__f)(_VSTD::forward<_Args>(__args)...))
+_LIBCPP_INVOKE_RETURN((__a0.get().*__f)(static_cast<_Args&&>(__args)...))
 
 template <class _Fp, class _A0, class ..._Args,
           class = __enable_if_bullet3<_Fp, _A0>>
 inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR_AFTER_CXX17 auto
 __invoke(_Fp&& __f, _A0&& __a0, _Args&& ...__args)
-_LIBCPP_INVOKE_RETURN(((*_VSTD::forward<_A0>(__a0)).*__f)(_VSTD::forward<_Args>(__args)...))
+_LIBCPP_INVOKE_RETURN(((*static_cast<_A0&&>(__a0)).*__f)(static_cast<_Args&&>(__args)...))
 
 template <class _Fp, class _A0, class ..._Args,
           class = __enable_if_bullet3<_Fp, _A0>>
 inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR auto
 __invoke_constexpr(_Fp&& __f, _A0&& __a0, _Args&& ...__args)
-_LIBCPP_INVOKE_RETURN(((*_VSTD::forward<_A0>(__a0)).*__f)(_VSTD::forward<_Args>(__args)...))
+_LIBCPP_INVOKE_RETURN(((*static_cast<_A0&&>(__a0)).*__f)(static_cast<_Args&&>(__args)...))
 
 // bullets 4, 5 and 6
 
@@ -3910,14 +3872,14 @@ template <class _Fp, class _A0,
 inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR_AFTER_CXX17 auto
 __invoke(_Fp&& __f, _A0&& __a0)
-_LIBCPP_INVOKE_RETURN(_VSTD::forward<_A0>(__a0).*__f)
+_LIBCPP_INVOKE_RETURN(static_cast<_A0&&>(__a0).*__f)
 
 template <class _Fp, class _A0,
           class = __enable_if_bullet4<_Fp, _A0>>
 inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR auto
 __invoke_constexpr(_Fp&& __f, _A0&& __a0)
-_LIBCPP_INVOKE_RETURN(_VSTD::forward<_A0>(__a0).*__f)
+_LIBCPP_INVOKE_RETURN(static_cast<_A0&&>(__a0).*__f)
 
 template <class _Fp, class _A0,
           class = __enable_if_bullet5<_Fp, _A0>>
@@ -3938,14 +3900,14 @@ template <class _Fp, class _A0,
 inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR_AFTER_CXX17 auto
 __invoke(_Fp&& __f, _A0&& __a0)
-_LIBCPP_INVOKE_RETURN((*_VSTD::forward<_A0>(__a0)).*__f)
+_LIBCPP_INVOKE_RETURN((*static_cast<_A0&&>(__a0)).*__f)
 
 template <class _Fp, class _A0,
           class = __enable_if_bullet6<_Fp, _A0>>
 inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR auto
 __invoke_constexpr(_Fp&& __f, _A0&& __a0)
-_LIBCPP_INVOKE_RETURN((*_VSTD::forward<_A0>(__a0)).*__f)
+_LIBCPP_INVOKE_RETURN((*static_cast<_A0&&>(__a0)).*__f)
 
 // bullet 7
 
@@ -3953,13 +3915,13 @@ template <class _Fp, class ..._Args>
 inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR_AFTER_CXX17 auto
 __invoke(_Fp&& __f, _Args&& ...__args)
-_LIBCPP_INVOKE_RETURN(_VSTD::forward<_Fp>(__f)(_VSTD::forward<_Args>(__args)...))
+_LIBCPP_INVOKE_RETURN(static_cast<_Fp&&>(__f)(static_cast<_Args&&>(__args)...))
 
 template <class _Fp, class ..._Args>
 inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR auto
 __invoke_constexpr(_Fp&& __f, _Args&& ...__args)
-_LIBCPP_INVOKE_RETURN(_VSTD::forward<_Fp>(__f)(_VSTD::forward<_Args>(__args)...))
+_LIBCPP_INVOKE_RETURN(static_cast<_Fp&&>(__f)(static_cast<_Args&&>(__args)...))
 
 #undef _LIBCPP_INVOKE_RETURN
 
@@ -4043,7 +4005,8 @@ struct __invoke_of
 
 // result_of
 
-template <class _Callable> class result_of;
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS)
+template <class _Callable> class _LIBCPP_DEPRECATED_IN_CXX17 result_of;
 
 #ifndef _LIBCPP_CXX03_LANG
 
@@ -4131,8 +4094,9 @@ class _LIBCPP_TEMPLATE_VIS result_of<_Fn(_Args...)>
 #endif // C++03
 
 #if _LIBCPP_STD_VER > 11
-template <class _Tp> using result_of_t = typename result_of<_Tp>::type;
-#endif
+template <class _Tp> using result_of_t _LIBCPP_DEPRECATED_IN_CXX17 = typename result_of<_Tp>::type;
+#endif // _LIBCPP_STD_VER > 11
+#endif // _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS)
 
 #if _LIBCPP_STD_VER > 14
 
@@ -4185,70 +4149,32 @@ _LIBCPP_INLINE_VAR constexpr bool is_nothrow_invocable_r_v
 
 #endif // _LIBCPP_STD_VER > 14
 
+// __swappable
+
 template <class _Tp> struct __is_swappable;
 template <class _Tp> struct __is_nothrow_swappable;
 
-// swap, swap_ranges
 
-template <class _ForwardIterator1, class _ForwardIterator2>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
-_ForwardIterator2
-swap_ranges(_ForwardIterator1 __first1, _ForwardIterator1 __last1, _ForwardIterator2 __first2);
+#ifndef _LIBCPP_CXX03_LANG
+template <class _Tp>
+using __swap_result_t = typename enable_if<is_move_constructible<_Tp>::value && is_move_assignable<_Tp>::value>::type;
+#else
+template <class>
+using __swap_result_t = void;
+#endif
 
 template <class _Tp>
 inline _LIBCPP_INLINE_VISIBILITY
-#ifndef _LIBCPP_CXX03_LANG
-typename enable_if
-<
-    is_move_constructible<_Tp>::value &&
-    is_move_assignable<_Tp>::value
->::type
-#else
-void
-#endif
-_LIBCPP_CONSTEXPR_AFTER_CXX17
+_LIBCPP_CONSTEXPR_AFTER_CXX17 __swap_result_t<_Tp>
 swap(_Tp& __x, _Tp& __y) _NOEXCEPT_(is_nothrow_move_constructible<_Tp>::value &&
-                                    is_nothrow_move_assignable<_Tp>::value)
-{
-    _Tp __t(_VSTD::move(__x));
-    __x = _VSTD::move(__y);
-    __y = _VSTD::move(__t);
-}
+                                    is_nothrow_move_assignable<_Tp>::value);
 
 template<class _Tp, size_t _Np>
 inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
 typename enable_if<
     __is_swappable<_Tp>::value
 >::type
-swap(_Tp (&__a)[_Np], _Tp (&__b)[_Np]) _NOEXCEPT_(__is_nothrow_swappable<_Tp>::value)
-{
-    _VSTD::swap_ranges(__a, __a + _Np, __b);
-}
-
-template <class _ForwardIterator1, class _ForwardIterator2>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
-_ForwardIterator2
-swap_ranges(_ForwardIterator1 __first1, _ForwardIterator1 __last1, _ForwardIterator2 __first2)
-{
-    for(; __first1 != __last1; ++__first1, (void) ++__first2)
-        swap(*__first1, *__first2);
-    return __first2;
-}
-
-// iter_swap
-
-template <class _ForwardIterator1, class _ForwardIterator2>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
-void
-iter_swap(_ForwardIterator1 __a, _ForwardIterator2 __b)
-    //                                  _NOEXCEPT_(_NOEXCEPT_(swap(*__a, *__b)))
-               _NOEXCEPT_(_NOEXCEPT_(swap(*declval<_ForwardIterator1>(),
-                                          *declval<_ForwardIterator2>())))
-{
-    swap(*__a, *__b);
-}
-
-// __swappable
+swap(_Tp (&__a)[_Np], _Tp (&__b)[_Np]) _NOEXCEPT_(__is_nothrow_swappable<_Tp>::value);
 
 namespace __detail
 {
@@ -4547,6 +4473,11 @@ using _IsCharLikeType = _And<is_standard_layout<_CharT>, is_trivial<_CharT> >;
 
 template<class _Tp>
 using __make_const_lvalue_ref = const typename remove_reference<_Tp>::type&;
+
+#if _LIBCPP_STD_VER > 17
+template<bool _Const, class _Tp>
+using __maybe_const = conditional_t<_Const, const _Tp, _Tp>;
+#endif // _LIBCPP_STD_VER > 17
 
 _LIBCPP_END_NAMESPACE_STD
 

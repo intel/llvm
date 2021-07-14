@@ -179,7 +179,9 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-SPV-IR
 
 ; CHECK-SPIRV-DAG: {{[0-9]*}} Capability GroupNonUniformClustered
 
@@ -215,11 +217,17 @@ target triple = "spir64"
 ; CHECK-SPIRV: GroupNonUniformSMax [[char]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[char_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredArithmeticChar
+; CHECK-COMMON-LABEL: @testClusteredArithmeticChar
+
 ; CHECK-LLVM: call spir_func i8 @_Z30sub_group_clustered_reduce_addcj(i8 0, i32 2)
 ; CHECK-LLVM: call spir_func i8 @_Z30sub_group_clustered_reduce_mulcj(i8 0, i32 2)
 ; CHECK-LLVM: call spir_func i8 @_Z30sub_group_clustered_reduce_mincj(i8 0, i32 2)
 ; CHECK-LLVM: call spir_func i8 @_Z30sub_group_clustered_reduce_maxcj(i8 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIAddiicj(i32 3, i32 3, i8 0, i32 2)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIMuliicj(i32 3, i32 3, i8 0, i32 2)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformSMiniicj(i32 3, i32 3, i8 0, i32 2)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformSMaxiicj(i32 3, i32 3, i8 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredArithmeticChar(i8 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
@@ -256,11 +264,17 @@ declare dso_local spir_func signext i8 @_Z30sub_group_clustered_reduce_maxcj(i8 
 ; CHECK-SPIRV: GroupNonUniformUMax [[char]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[char_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredArithmeticUChar
+; CHECK-COMMON-LABEL: @testClusteredArithmeticUChar
+
 ; CHECK-LLVM: call spir_func i8 @_Z30sub_group_clustered_reduce_addcj(i8 0, i32 2)
 ; CHECK-LLVM: call spir_func i8 @_Z30sub_group_clustered_reduce_mulcj(i8 0, i32 2)
 ; CHECK-LLVM: call spir_func i8 @_Z30sub_group_clustered_reduce_minhj(i8 0, i32 2)
 ; CHECK-LLVM: call spir_func i8 @_Z30sub_group_clustered_reduce_maxhj(i8 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIAddiicj(i32 3, i32 3, i8 0, i32 2)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIMuliicj(i32 3, i32 3, i8 0, i32 2)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformUMiniihj(i32 3, i32 3, i8 0, i32 2)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformUMaxiihj(i32 3, i32 3, i8 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredArithmeticUChar(i8 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !10 !kernel_arg_base_type !10 !kernel_arg_type_qual !6 {
@@ -297,11 +311,17 @@ declare dso_local spir_func zeroext i8 @_Z30sub_group_clustered_reduce_maxhj(i8 
 ; CHECK-SPIRV: GroupNonUniformSMax [[short]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[short_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredArithmeticShort
+; CHECK-COMMON-LABEL: @testClusteredArithmeticShort
+
 ; CHECK-LLVM: call spir_func i16 @_Z30sub_group_clustered_reduce_addsj(i16 0, i32 2)
 ; CHECK-LLVM: call spir_func i16 @_Z30sub_group_clustered_reduce_mulsj(i16 0, i32 2)
 ; CHECK-LLVM: call spir_func i16 @_Z30sub_group_clustered_reduce_minsj(i16 0, i32 2)
 ; CHECK-LLVM: call spir_func i16 @_Z30sub_group_clustered_reduce_maxsj(i16 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIAddiisj(i32 3, i32 3, i16 0, i32 2)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIMuliisj(i32 3, i32 3, i16 0, i32 2)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformSMiniisj(i32 3, i32 3, i16 0, i32 2)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformSMaxiisj(i32 3, i32 3, i16 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredArithmeticShort(i16 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !11 !kernel_arg_base_type !11 !kernel_arg_type_qual !6 {
@@ -338,11 +358,17 @@ declare dso_local spir_func signext i16 @_Z30sub_group_clustered_reduce_maxsj(i1
 ; CHECK-SPIRV: GroupNonUniformUMax [[short]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[short_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredArithmeticUShort
+; CHECK-COMMON-LABEL: @testClusteredArithmeticUShort
+
 ; CHECK-LLVM: call spir_func i16 @_Z30sub_group_clustered_reduce_addsj(i16 0, i32 2)
 ; CHECK-LLVM: call spir_func i16 @_Z30sub_group_clustered_reduce_mulsj(i16 0, i32 2)
 ; CHECK-LLVM: call spir_func i16 @_Z30sub_group_clustered_reduce_mintj(i16 0, i32 2)
 ; CHECK-LLVM: call spir_func i16 @_Z30sub_group_clustered_reduce_maxtj(i16 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIAddiisj(i32 3, i32 3, i16 0, i32 2)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIMuliisj(i32 3, i32 3, i16 0, i32 2)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformUMiniitj(i32 3, i32 3, i16 0, i32 2)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformUMaxiitj(i32 3, i32 3, i16 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredArithmeticUShort(i16 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !14 !kernel_arg_base_type !14 !kernel_arg_type_qual !6 {
@@ -379,11 +405,17 @@ declare dso_local spir_func zeroext i16 @_Z30sub_group_clustered_reduce_maxtj(i1
 ; CHECK-SPIRV: GroupNonUniformSMax [[int]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[int_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredArithmeticInt
+; CHECK-COMMON-LABEL: @testClusteredArithmeticInt
+
 ; CHECK-LLVM: call spir_func i32 @_Z30sub_group_clustered_reduce_addij(i32 0, i32 2)
 ; CHECK-LLVM: call spir_func i32 @_Z30sub_group_clustered_reduce_mulij(i32 0, i32 2)
 ; CHECK-LLVM: call spir_func i32 @_Z30sub_group_clustered_reduce_minij(i32 0, i32 2)
 ; CHECK-LLVM: call spir_func i32 @_Z30sub_group_clustered_reduce_maxij(i32 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIAddiiij(i32 3, i32 3, i32 0, i32 2)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIMuliiij(i32 3, i32 3, i32 0, i32 2)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformSMiniiij(i32 3, i32 3, i32 0, i32 2)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformSMaxiiij(i32 3, i32 3, i32 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredArithmeticInt(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !15 !kernel_arg_base_type !15 !kernel_arg_type_qual !6 {
@@ -420,11 +452,17 @@ declare dso_local spir_func i32 @_Z30sub_group_clustered_reduce_maxij(i32, i32) 
 ; CHECK-SPIRV: GroupNonUniformUMax [[int]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[int_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredArithmeticUInt
+; CHECK-COMMON-LABEL: @testClusteredArithmeticUInt
+
 ; CHECK-LLVM: call spir_func i32 @_Z30sub_group_clustered_reduce_addij(i32 0, i32 2)
 ; CHECK-LLVM: call spir_func i32 @_Z30sub_group_clustered_reduce_mulij(i32 0, i32 2)
 ; CHECK-LLVM: call spir_func i32 @_Z30sub_group_clustered_reduce_minjj(i32 0, i32 2)
 ; CHECK-LLVM: call spir_func i32 @_Z30sub_group_clustered_reduce_maxjj(i32 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIAddiiij(i32 3, i32 3, i32 0, i32 2)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIMuliiij(i32 3, i32 3, i32 0, i32 2)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformUMiniijj(i32 3, i32 3, i32 0, i32 2)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformUMaxiijj(i32 3, i32 3, i32 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredArithmeticUInt(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !18 !kernel_arg_base_type !18 !kernel_arg_type_qual !6 {
@@ -461,11 +499,17 @@ declare dso_local spir_func i32 @_Z30sub_group_clustered_reduce_maxjj(i32, i32) 
 ; CHECK-SPIRV: GroupNonUniformSMax [[long]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[long_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredArithmeticLong
+; CHECK-COMMON-LABEL: @testClusteredArithmeticLong
+
 ; CHECK-LLVM: call spir_func i64 @_Z30sub_group_clustered_reduce_addlj(i64 0, i32 2)
 ; CHECK-LLVM: call spir_func i64 @_Z30sub_group_clustered_reduce_mullj(i64 0, i32 2)
 ; CHECK-LLVM: call spir_func i64 @_Z30sub_group_clustered_reduce_minlj(i64 0, i32 2)
 ; CHECK-LLVM: call spir_func i64 @_Z30sub_group_clustered_reduce_maxlj(i64 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIAddiilj(i32 3, i32 3, i64 0, i32 2)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIMuliilj(i32 3, i32 3, i64 0, i32 2)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformSMiniilj(i32 3, i32 3, i64 0, i32 2)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformSMaxiilj(i32 3, i32 3, i64 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredArithmeticLong(i64 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !19 !kernel_arg_base_type !19 !kernel_arg_type_qual !6 {
@@ -502,11 +546,17 @@ declare dso_local spir_func i64 @_Z30sub_group_clustered_reduce_maxlj(i64, i32) 
 ; CHECK-SPIRV: GroupNonUniformUMax [[long]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[long_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredArithmeticULong
+; CHECK-COMMON-LABEL: @testClusteredArithmeticULong
+
 ; CHECK-LLVM: call spir_func i64 @_Z30sub_group_clustered_reduce_addlj(i64 0, i32 2)
 ; CHECK-LLVM: call spir_func i64 @_Z30sub_group_clustered_reduce_mullj(i64 0, i32 2)
 ; CHECK-LLVM: call spir_func i64 @_Z30sub_group_clustered_reduce_minmj(i64 0, i32 2)
 ; CHECK-LLVM: call spir_func i64 @_Z30sub_group_clustered_reduce_maxmj(i64 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIAddiilj(i32 3, i32 3, i64 0, i32 2)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIMuliilj(i32 3, i32 3, i64 0, i32 2)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformUMiniimj(i32 3, i32 3, i64 0, i32 2)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformUMaxiimj(i32 3, i32 3, i64 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredArithmeticULong(i64 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !22 !kernel_arg_base_type !22 !kernel_arg_type_qual !6 {
@@ -543,11 +593,17 @@ declare dso_local spir_func i64 @_Z30sub_group_clustered_reduce_maxmj(i64, i32) 
 ; CHECK-SPIRV: GroupNonUniformFMax [[float]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[float_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredArithmeticFloat
+; CHECK-COMMON-LABEL: @testClusteredArithmeticFloat
+
 ; CHECK-LLVM: call spir_func float @_Z30sub_group_clustered_reduce_addfj(float 0.000000e+00, i32 2)
 ; CHECK-LLVM: call spir_func float @_Z30sub_group_clustered_reduce_mulfj(float 0.000000e+00, i32 2)
 ; CHECK-LLVM: call spir_func float @_Z30sub_group_clustered_reduce_minfj(float 0.000000e+00, i32 2)
 ; CHECK-LLVM: call spir_func float @_Z30sub_group_clustered_reduce_maxfj(float 0.000000e+00, i32 2)
+
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFAddiifj(i32 3, i32 3, float 0.000000e+00, i32 2)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFMuliifj(i32 3, i32 3, float 0.000000e+00, i32 2)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFMiniifj(i32 3, i32 3, float 0.000000e+00, i32 2)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFMaxiifj(i32 3, i32 3, float 0.000000e+00, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredArithmeticFloat(float addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !23 !kernel_arg_base_type !23 !kernel_arg_type_qual !6 {
@@ -584,11 +640,17 @@ declare dso_local spir_func float @_Z30sub_group_clustered_reduce_maxfj(float, i
 ; CHECK-SPIRV: GroupNonUniformFMax [[half]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[half_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredArithmeticHalf
+; CHECK-COMMON-LABEL: @testClusteredArithmeticHalf
+
 ; CHECK-LLVM: call spir_func half @_Z30sub_group_clustered_reduce_addDhj(half 0xH0000, i32 2)
 ; CHECK-LLVM: call spir_func half @_Z30sub_group_clustered_reduce_mulDhj(half 0xH0000, i32 2)
 ; CHECK-LLVM: call spir_func half @_Z30sub_group_clustered_reduce_minDhj(half 0xH0000, i32 2)
 ; CHECK-LLVM: call spir_func half @_Z30sub_group_clustered_reduce_maxDhj(half 0xH0000, i32 2)
+
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFAddiiDhj(i32 3, i32 3, half 0xH0000, i32 2)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMuliiDhj(i32 3, i32 3, half 0xH0000, i32 2)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMiniiDhj(i32 3, i32 3, half 0xH0000, i32 2)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMaxiiDhj(i32 3, i32 3, half 0xH0000, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredArithmeticHalf(half addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !26 !kernel_arg_base_type !26 !kernel_arg_type_qual !6 {
@@ -625,11 +687,17 @@ declare dso_local spir_func half @_Z30sub_group_clustered_reduce_maxDhj(half, i3
 ; CHECK-SPIRV: GroupNonUniformFMax [[double]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[double_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredArithmeticDouble
+; CHECK-COMMON-LABEL: @testClusteredArithmeticDouble
+
 ; CHECK-LLVM: call spir_func double @_Z30sub_group_clustered_reduce_adddj(double 0.000000e+00, i32 2)
 ; CHECK-LLVM: call spir_func double @_Z30sub_group_clustered_reduce_muldj(double 0.000000e+00, i32 2)
 ; CHECK-LLVM: call spir_func double @_Z30sub_group_clustered_reduce_mindj(double 0.000000e+00, i32 2)
 ; CHECK-LLVM: call spir_func double @_Z30sub_group_clustered_reduce_maxdj(double 0.000000e+00, i32 2)
+
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFAddiidj(i32 3, i32 3, double 0.000000e+00, i32 2)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFMuliidj(i32 3, i32 3, double 0.000000e+00, i32 2)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFMiniidj(i32 3, i32 3, double 0.000000e+00, i32 2)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFMaxiidj(i32 3, i32 3, double 0.000000e+00, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredArithmeticDouble(double addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !29 !kernel_arg_base_type !29 !kernel_arg_type_qual !6 {
@@ -665,10 +733,15 @@ declare dso_local spir_func double @_Z30sub_group_clustered_reduce_maxdj(double,
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[char]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[char_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredBitwiseChar
+; CHECK-COMMON-LABEL: @testClusteredBitwiseChar
+
 ; CHECK-LLVM: call spir_func i8 @_Z30sub_group_clustered_reduce_andcj(i8 0, i32 2)
 ; CHECK-LLVM: call spir_func i8 @_Z29sub_group_clustered_reduce_orcj(i8 0, i32 2)
 ; CHECK-LLVM: call spir_func i8 @_Z30sub_group_clustered_reduce_xorcj(i8 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseAndiicj(i32 3, i32 3, i8 0, i32 2)
+; CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformBitwiseOriicj(i32 3, i32 3, i8 0, i32 2)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseXoriicj(i32 3, i32 3, i8 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredBitwiseChar(i8 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
@@ -698,10 +771,15 @@ declare dso_local spir_func signext i8 @_Z30sub_group_clustered_reduce_xorcj(i8 
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[char]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[char_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredBitwiseUChar
+; CHECK-COMMON-LABEL: @testClusteredBitwiseUChar
+
 ; CHECK-LLVM: call spir_func i8 @_Z30sub_group_clustered_reduce_andcj(i8 0, i32 2)
 ; CHECK-LLVM: call spir_func i8 @_Z29sub_group_clustered_reduce_orcj(i8 0, i32 2)
 ; CHECK-LLVM: call spir_func i8 @_Z30sub_group_clustered_reduce_xorcj(i8 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseAndiicj(i32 3, i32 3, i8 0, i32 2)
+; CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformBitwiseOriicj(i32 3, i32 3, i8 0, i32 2)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseXoriicj(i32 3, i32 3, i8 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredBitwiseUChar(i8 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !10 !kernel_arg_base_type !10 !kernel_arg_type_qual !6 {
@@ -731,10 +809,15 @@ declare dso_local spir_func zeroext i8 @_Z30sub_group_clustered_reduce_xorhj(i8 
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[short]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[short_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredBitwiseShort
+; CHECK-COMMON-LABEL: @testClusteredBitwiseShort
+
 ; CHECK-LLVM: call spir_func i16 @_Z30sub_group_clustered_reduce_andsj(i16 0, i32 2)
 ; CHECK-LLVM: call spir_func i16 @_Z29sub_group_clustered_reduce_orsj(i16 0, i32 2)
 ; CHECK-LLVM: call spir_func i16 @_Z30sub_group_clustered_reduce_xorsj(i16 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseAndiisj(i32 3, i32 3, i16 0, i32 2)
+; CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformBitwiseOriisj(i32 3, i32 3, i16 0, i32 2)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseXoriisj(i32 3, i32 3, i16 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredBitwiseShort(i16 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !11 !kernel_arg_base_type !11 !kernel_arg_type_qual !6 {
@@ -764,10 +847,15 @@ declare dso_local spir_func signext i16 @_Z30sub_group_clustered_reduce_xorsj(i1
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[short]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[short_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredBitwiseUShort
+; CHECK-COMMON-LABEL: @testClusteredBitwiseUShort
+
 ; CHECK-LLVM: call spir_func i16 @_Z30sub_group_clustered_reduce_andsj(i16 0, i32 2)
 ; CHECK-LLVM: call spir_func i16 @_Z29sub_group_clustered_reduce_orsj(i16 0, i32 2)
 ; CHECK-LLVM: call spir_func i16 @_Z30sub_group_clustered_reduce_xorsj(i16 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseAndiisj(i32 3, i32 3, i16 0, i32 2)
+; CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformBitwiseOriisj(i32 3, i32 3, i16 0, i32 2)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseXoriisj(i32 3, i32 3, i16 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredBitwiseUShort(i16 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !14 !kernel_arg_base_type !14 !kernel_arg_type_qual !6 {
@@ -797,10 +885,15 @@ declare dso_local spir_func zeroext i16 @_Z30sub_group_clustered_reduce_xortj(i1
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[int]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[int_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredBitwiseInt
+; CHECK-COMMON-LABEL: @testClusteredBitwiseInt
+
 ; CHECK-LLVM: call spir_func i32 @_Z30sub_group_clustered_reduce_andij(i32 0, i32 2)
 ; CHECK-LLVM: call spir_func i32 @_Z29sub_group_clustered_reduce_orij(i32 0, i32 2)
 ; CHECK-LLVM: call spir_func i32 @_Z30sub_group_clustered_reduce_xorij(i32 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseAndiiij(i32 3, i32 3, i32 0, i32 2)
+; CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformBitwiseOriiij(i32 3, i32 3, i32 0, i32 2)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseXoriiij(i32 3, i32 3, i32 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredBitwiseInt(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !15 !kernel_arg_base_type !15 !kernel_arg_type_qual !6 {
@@ -830,10 +923,15 @@ declare dso_local spir_func i32 @_Z30sub_group_clustered_reduce_xorij(i32, i32) 
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[int]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[int_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredBitwiseUInt
+; CHECK-COMMON-LABEL: @testClusteredBitwiseUInt
+
 ; CHECK-LLVM: call spir_func i32 @_Z30sub_group_clustered_reduce_andij(i32 0, i32 2)
 ; CHECK-LLVM: call spir_func i32 @_Z29sub_group_clustered_reduce_orij(i32 0, i32 2)
 ; CHECK-LLVM: call spir_func i32 @_Z30sub_group_clustered_reduce_xorij(i32 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseAndiiij(i32 3, i32 3, i32 0, i32 2)
+; CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformBitwiseOriiij(i32 3, i32 3, i32 0, i32 2)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseXoriiij(i32 3, i32 3, i32 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredBitwiseUInt(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !18 !kernel_arg_base_type !18 !kernel_arg_type_qual !6 {
@@ -863,10 +961,15 @@ declare dso_local spir_func i32 @_Z30sub_group_clustered_reduce_xorjj(i32, i32) 
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[long]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[long_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredBitwiseLong
+; CHECK-COMMON-LABEL: @testClusteredBitwiseLong
+
 ; CHECK-LLVM: call spir_func i64 @_Z30sub_group_clustered_reduce_andlj(i64 0, i32 2)
 ; CHECK-LLVM: call spir_func i64 @_Z29sub_group_clustered_reduce_orlj(i64 0, i32 2)
 ; CHECK-LLVM: call spir_func i64 @_Z30sub_group_clustered_reduce_xorlj(i64 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseAndiilj(i32 3, i32 3, i64 0, i32 2)
+; CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformBitwiseOriilj(i32 3, i32 3, i64 0, i32 2)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseXoriilj(i32 3, i32 3, i64 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredBitwiseLong(i64 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !19 !kernel_arg_base_type !19 !kernel_arg_type_qual !6 {
@@ -896,10 +999,15 @@ declare dso_local spir_func i64 @_Z30sub_group_clustered_reduce_xorlj(i64, i32) 
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[long]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[long_0]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredBitwiseULong
+; CHECK-COMMON-LABEL: @testClusteredBitwiseULong
+
 ; CHECK-LLVM: call spir_func i64 @_Z30sub_group_clustered_reduce_andlj(i64 0, i32 2)
 ; CHECK-LLVM: call spir_func i64 @_Z29sub_group_clustered_reduce_orlj(i64 0, i32 2)
 ; CHECK-LLVM: call spir_func i64 @_Z30sub_group_clustered_reduce_xorlj(i64 0, i32 2)
+
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseAndiilj(i32 3, i32 3, i64 0, i32 2)
+; CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformBitwiseOriilj(i32 3, i32 3, i64 0, i32 2)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseXoriilj(i32 3, i32 3, i64 0, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredBitwiseULong(i64 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !22 !kernel_arg_base_type !22 !kernel_arg_type_qual !6 {
@@ -929,10 +1037,15 @@ declare dso_local spir_func i64 @_Z30sub_group_clustered_reduce_xormj(i64, i32) 
 ; CHECK-SPIRV: GroupNonUniformLogicalXor [[bool]] {{[0-9]+}} [[ScopeSubgroup]] 3 [[false]] [[int_2]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testClusteredLogical
+; CHECK-COMMON-LABEL: @testClusteredLogical
+
 ; CHECK-LLVM: call spir_func i32 @_Z38sub_group_clustered_reduce_logical_andij(i32 {{.*}}, i32 2)
 ; CHECK-LLVM: call spir_func i32 @_Z37sub_group_clustered_reduce_logical_orij(i32 {{.*}}, i32 2)
 ; CHECK-LLVM: call spir_func i32 @_Z38sub_group_clustered_reduce_logical_xorij(i32 {{.*}}, i32 2)
+
+; CHECK-SPV-IR: call spir_func i1 @_Z33__spirv_GroupNonUniformLogicalAndiibj(i32 3, i32 3, i1 false, i32 2)
+; CHECK-SPV-IR: call spir_func i1 @_Z32__spirv_GroupNonUniformLogicalOriibj(i32 3, i32 3, i1 false, i32 2)
+; CHECK-SPV-IR: call spir_func i1 @_Z33__spirv_GroupNonUniformLogicalXoriibj(i32 3, i32 3, i1 false, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredLogical(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !15 !kernel_arg_base_type !15 !kernel_arg_type_qual !6 {

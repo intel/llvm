@@ -42,6 +42,14 @@ void applyPermutationToVector(SmallVector<T, N> &inVec,
   inVec = auxVec;
 }
 
+/// Helper function that creates a memref::DimOp or tensor::DimOp depending on
+/// the type of `source`.
+Value createOrFoldDimOp(OpBuilder &b, Location loc, Value source, int64_t dim);
+
+/// Given an operation, retrieves the value of each dynamic dimension through
+/// constructing the necessary DimOp operators.
+SmallVector<Value, 4> getDynOperands(Location loc, Value val, OpBuilder &b);
+
 /// If `size` comes from an AffineMinOp and one of the values of AffineMinOp
 /// is a constant then return a new value set to the smallest such constant.
 /// If `size` comes from a ConstantOp, return the constant.
@@ -78,7 +86,7 @@ bool isProducerLastWriteOfView(const LinalgDependenceGraph &graph,
 bool isFusableInto(const LinalgDependenceGraph &graph, LinalgOp consumer,
                    Value consumedView, LinalgOp producer);
 
-/// Creates subtensor/subview ops for all `tiledOperands` of the given
+/// Creates extract_slice/subview ops for all `tiledOperands` of the given
 /// `linalgOp` with `builder`, assuming `linalgOp` is being fused into a loop
 /// nest for tiling with the given induction variables `ivs` and tile sizes
 /// `tileSizes`. `sizeBounds` are the iteration space bounds for *all* the
@@ -118,15 +126,17 @@ Optional<FusionInfo> fuseProducerOfBuffer(OpBuilder &b,
                                           const LinalgDependenceGraph &graph);
 /// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
-/// transformation and thus requires the `consumerOpOperand` to be a `subtensor`
-/// op (generally obtained by applying the tiling transformation).
+/// transformation and thus requires the `consumerOpOperand` to be a
+/// `extract_slice` op (generally obtained by applying the tiling
+/// transformation).
 Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
                                           OpOperand &consumerOpOperand);
 /// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
-/// transformation and thus requires the `consumerOpOperand` to be a `subtensor`
-/// op (generally obtained by applying the tiling transformation).
-/// Assumes `producerOfTensor` is a Linalg op that produces `consumerOpOperand`.
+/// transformation and thus requires the `consumerOpOperand` to be a
+/// `extract_slice` op (generally obtained by applying the tiling
+/// transformation). Assumes `producerOfTensor` is a Linalg op that produces
+/// `consumerOpOperand`.
 Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
                                           OpResult producerOpResult,
                                           OpOperand &consumerOpOperand);

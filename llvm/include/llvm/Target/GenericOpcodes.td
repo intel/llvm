@@ -1353,6 +1353,14 @@ def G_MEMCPY : GenericInstruction {
   let mayStore = true;
 }
 
+def G_MEMCPY_INLINE : GenericInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins ptype0:$dst_addr, ptype1:$src_addr, type2:$size);
+  let hasSideEffects = false;
+  let mayLoad = true;
+  let mayStore = true;
+}
+
 def G_MEMMOVE : GenericInstruction {
   let OutOperandList = (outs);
   let InOperandList = (ins ptype0:$dst_addr, ptype1:$src_addr, type2:$size, untyped_imm_0:$tailcall);
@@ -1379,14 +1387,16 @@ def G_BZERO : GenericInstruction {
 // Bitfield extraction.
 //------------------------------------------------------------------------------
 
-// Generic signed bitfield extraction.
+// Generic signed bitfield extraction. The operands are in the range
+// 0 <= lsb < lsb + width <= src bitwidth, where all values are unsigned.
 def G_SBFX : GenericInstruction {
   let OutOperandList = (outs type0:$dst);
   let InOperandList = (ins type0:$src, type1:$lsb, type1:$width);
   let hasSideEffects = false;
 }
 
-// Generic unsigned bitfield extraction.
+// Generic unsigned bitfield extraction. The operands are in the range
+// 0 <= lsb < lsb + width <= src bitwidth, where all values are unsigned.
 def G_UBFX : GenericInstruction {
   let OutOperandList = (outs type0:$dst);
   let InOperandList = (ins type0:$src, type1:$lsb, type1:$width);

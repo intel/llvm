@@ -158,9 +158,9 @@ static constexpr OptionEnumValueElement g_dependents_enumaration[] = {
 
 class OptionGroupDependents : public OptionGroup {
 public:
-  OptionGroupDependents() {}
+  OptionGroupDependents() = default;
 
-  ~OptionGroupDependents() override {}
+  ~OptionGroupDependents() override = default;
 
   llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
     return llvm::makeArrayRef(g_target_dependents_options);
@@ -318,7 +318,6 @@ protected:
 
       if (!target_sp) {
         result.AppendError(error.AsCString());
-        result.SetStatus(eReturnStatusFailed);
         return false;
       }
 
@@ -342,7 +341,6 @@ protected:
               Status err = platform_sp->PutFile(file_spec, remote_file);
               if (err.Fail()) {
                 result.AppendError(err.AsCString());
-                result.SetStatus(eReturnStatusFailed);
                 return false;
               }
             }
@@ -357,7 +355,6 @@ protected:
               Status err = platform_sp->GetFile(remote_file, file_spec);
               if (err.Fail()) {
                 result.AppendError(err.AsCString());
-                result.SetStatus(eReturnStatusFailed);
                 return false;
               }
             } else {
@@ -851,9 +848,8 @@ protected:
         }
 
         if (matches == 0) {
-          result.GetErrorStream().Printf(
-              "error: can't find global variable '%s'\n", arg.c_str());
-          result.SetStatus(eReturnStatusFailed);
+          result.AppendErrorWithFormat("can't find global variable '%s'",
+                                       arg.c_str());
           return false;
         } else {
           for (uint32_t global_idx = 0; global_idx < matches; ++global_idx) {
@@ -2540,7 +2536,6 @@ protected:
             else
               result.AppendErrorWithFormat("unsupported module: %s",
                                            entry.c_str());
-            result.SetStatus(eReturnStatusFailed);
             return false;
           } else {
             flush = true;

@@ -1318,12 +1318,13 @@ class llvm::vfs::RedirectingFileSystemParser {
     if (!parseScalarString(N, Value, Storage))
       return false;
 
-    if (Value.equals_lower("true") || Value.equals_lower("on") ||
-        Value.equals_lower("yes") || Value == "1") {
+    if (Value.equals_insensitive("true") || Value.equals_insensitive("on") ||
+        Value.equals_insensitive("yes") || Value == "1") {
       Result = true;
       return true;
-    } else if (Value.equals_lower("false") || Value.equals_lower("off") ||
-               Value.equals_lower("no") || Value == "0") {
+    } else if (Value.equals_insensitive("false") ||
+               Value.equals_insensitive("off") ||
+               Value.equals_insensitive("no") || Value == "0") {
       Result = false;
       return true;
     }
@@ -1603,7 +1604,7 @@ private:
     }
 
     // Remove trailing slash(es), being careful not to remove the root path
-    StringRef Trimmed(Name);
+    StringRef Trimmed = Name;
     size_t RootPathLen = sys::path::root_path(Trimmed, path_style).size();
     while (Trimmed.size() > RootPathLen &&
            sys::path::is_separator(Trimmed.back(), path_style))

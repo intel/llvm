@@ -57,6 +57,9 @@ int main() {
     if (plt.has(aspect::int64_extended_atomics)) {
       std::cout << "  extended atomic operations" << std::endl;
     }
+    if (plt.has(aspect::atomic64)) {
+      std::cout << "  atomic64" << std::endl;
+    }
     if (plt.has(aspect::image)) {
       std::cout << "  images" << std::endl;
     }
@@ -89,6 +92,9 @@ int main() {
     }
     if (plt.has(aspect::usm_system_allocator)) {
       std::cout << "  USM system allocator" << std::endl;
+    }
+    if (plt.has(aspect::usm_system_allocations)) {
+      std::cout << "  USM system allocations" << std::endl;
     }
   }
   std::cout << "Passed." << std::endl;

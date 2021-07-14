@@ -691,7 +691,7 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
 
         // We found an instruction that may write to the loaded memory.
         // We can try to promote at this position instead of the store
-        // position if nothing alias the store memory after this and the store
+        // position if nothing aliases the store memory after this and the store
         // destination is not in the range.
         if (P && P != SI) {
           if (!moveUp(SI, P, LI))
@@ -1109,7 +1109,14 @@ bool MemCpyOptPass::processMemCpyMemCpyDependence(MemCpyInst *M,
     NewM = Builder.CreateMemMove(M->getRawDest(), M->getDestAlign(),
                                  MDep->getRawSource(), MDep->getSourceAlign(),
                                  M->getLength(), M->isVolatile());
-  else
+  else if (isa<MemCpyInlineInst>(M)) {
+    // llvm.memcpy may be promoted to llvm.memcpy.inline, but the converse is
+    // never allowed since that would allow the latter to be lowered as a call
+    // to an external function.
+    NewM = Builder.CreateMemCpyInline(
+        M->getRawDest(), M->getDestAlign(), MDep->getRawSource(),
+        MDep->getSourceAlign(), M->getLength(), M->isVolatile());
+  } else
     NewM = Builder.CreateMemCpy(M->getRawDest(), M->getDestAlign(),
                                 MDep->getRawSource(), MDep->getSourceAlign(),
                                 M->getLength(), M->isVolatile());
@@ -1214,8 +1221,11 @@ bool MemCpyOptPass::processMemSetMemCpyDependence(MemCpyInst *MemCpy,
   Value *SizeDiff = Builder.CreateSub(DestSize, SrcSize);
   Value *MemsetLen = Builder.CreateSelect(
       Ule, ConstantInt::getNullValue(DestSize->getType()), SizeDiff);
+  unsigned DestAS = Dest->getType()->getPointerAddressSpace();
   Instruction *NewMemSet = Builder.CreateMemSet(
-      Builder.CreateGEP(Dest->getType()->getPointerElementType(), Dest,
+      Builder.CreateGEP(Builder.getInt8Ty(),
+                        Builder.CreatePointerCast(Dest,
+                                                  Builder.getInt8PtrTy(DestAS)),
                         SrcSize),
       MemSet->getOperand(1), MemsetLen, MaybeAlign(Align));
 

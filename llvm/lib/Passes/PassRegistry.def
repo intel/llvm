@@ -305,7 +305,6 @@ FUNCTION_PASS("scalarize-masked-mem-intrin", ScalarizeMaskedMemIntrinPass())
 FUNCTION_PASS("scalarizer", ScalarizerPass())
 FUNCTION_PASS("separate-const-offset-from-gep", SeparateConstOffsetFromGEPPass())
 FUNCTION_PASS("sccp", SCCPPass())
-FUNCTION_PASS("simplifycfg", SimplifyCFGPass())
 FUNCTION_PASS("sink", SinkingPass())
 FUNCTION_PASS("slp-vectorizer", SLPVectorizerPass())
 FUNCTION_PASS("slsr", StraightLineStrengthReducePass())
@@ -337,43 +336,72 @@ FUNCTION_PASS("ESIMDLowerLoadStore", ESIMDLowerLoadStorePass())
 #undef FUNCTION_PASS
 
 #ifndef FUNCTION_PASS_WITH_PARAMS
-#define FUNCTION_PASS_WITH_PARAMS(NAME, CREATE_PASS, PARSER)
+#define FUNCTION_PASS_WITH_PARAMS(NAME, CLASS, CREATE_PASS, PARSER, PARAMS)
 #endif
 FUNCTION_PASS_WITH_PARAMS("loop-unroll",
+                          "LoopUnrollPass",
                            [](LoopUnrollOptions Opts) {
                              return LoopUnrollPass(Opts);
                            },
-                           parseLoopUnrollOptions)
+                          parseLoopUnrollOptions,
+                          "O0;O1;O2;O3;full-unroll-max=N;"
+                          "no-partial;partial;"
+                          "no-peeling;peeling;"
+                          "no-profile-peeling;profile-peeling;"
+                          "no-runtime;runtime;"
+                          "no-upperbound;upperbound")
 FUNCTION_PASS_WITH_PARAMS("msan",
+                          "MemorySanitizerPass",
                            [](MemorySanitizerOptions Opts) {
                              return MemorySanitizerPass(Opts);
                            },
-                           parseMSanPassOptions)
-FUNCTION_PASS_WITH_PARAMS("simplify-cfg",
+                          parseMSanPassOptions,
+                          "recover;kernel;track-origins=N")
+FUNCTION_PASS_WITH_PARAMS("simplifycfg",
+                          "SimplifyCFGPass",
                            [](SimplifyCFGOptions Opts) {
                              return SimplifyCFGPass(Opts);
                            },
-                           parseSimplifyCFGOptions)
+                          parseSimplifyCFGOptions,
+                          "no-forward-switch-cond;forward-switch-cond;"
+                          "no-switch-to-lookup;switch-to-lookup;"
+                          "no-keep-loops;keep-loops;"
+                          "no-hoist-common-insts;hoist-common-insts;"
+                          "no-sink-common-insts;sink-common-insts;"
+                          "bonus-inst-threshold=N"
+                          )
 FUNCTION_PASS_WITH_PARAMS("loop-vectorize",
+                          "LoopVectorizePass",
                            [](LoopVectorizeOptions Opts) {
                              return LoopVectorizePass(Opts);
                            },
-                           parseLoopVectorizeOptions)
+                          parseLoopVectorizeOptions,
+                          "no-interleave-forced-only;interleave-forced-only;"
+                          "no-vectorize-forced-only;vectorize-forced-only")
 FUNCTION_PASS_WITH_PARAMS("mldst-motion",
+                          "MergedLoadStoreMotionPass",
                            [](MergedLoadStoreMotionOptions Opts) {
                              return MergedLoadStoreMotionPass(Opts);
                            },
-                           parseMergedLoadStoreMotionOptions)
+                          parseMergedLoadStoreMotionOptions,
+                          "no-split-footer-bb;split-footer-bb")
 FUNCTION_PASS_WITH_PARAMS("gvn",
+                          "GVN",
                            [](GVNOptions Opts) {
                              return GVN(Opts);
                            },
-                           parseGVNOptions)
+                          parseGVNOptions,
+                          "no-pre;pre;"
+                          "no-load-pre;load-pre;"
+                          "no-split-backedge-load-pre;split-backedge-load-pre;"
+                          "no-memdep;memdep")
 FUNCTION_PASS_WITH_PARAMS("print<stack-lifetime>",
+                          "StackLifetimePrinterPass",
                            [](StackLifetime::LivenessType Type) {
                              return StackLifetimePrinterPass(dbgs(), Type);
                            },
-                           parseStackLifetimeOptions)
+                          parseStackLifetimeOptions,
+                          "may;must")
 #undef FUNCTION_PASS_WITH_PARAMS
 
 #ifndef LOOP_ANALYSIS
@@ -414,17 +442,18 @@ LOOP_PASS("print<loop-cache-cost>", LoopCachePrinterPass(dbgs()))
 LOOP_PASS("loop-predication", LoopPredicationPass())
 LOOP_PASS("guard-widening", GuardWideningPass())
 LOOP_PASS("loop-bound-split", LoopBoundSplitPass())
-LOOP_PASS("simple-loop-unswitch", SimpleLoopUnswitchPass())
 LOOP_PASS("loop-reroll", LoopRerollPass())
 LOOP_PASS("loop-versioning-licm", LoopVersioningLICMPass())
 #undef LOOP_PASS
 
 #ifndef LOOP_PASS_WITH_PARAMS
-#define LOOP_PASS_WITH_PARAMS(NAME, CREATE_PASS, PARSER)
+#define LOOP_PASS_WITH_PARAMS(NAME, CLASS, CREATE_PASS, PARSER, PARAMS)
 #endif
-LOOP_PASS_WITH_PARAMS("unswitch",
-                           [](bool NonTrivial) {
-                             return SimpleLoopUnswitchPass(NonTrivial);
-                           },
-                           parseLoopUnswitchOptions)
+LOOP_PASS_WITH_PARAMS("simple-loop-unswitch",
+                      "SimpleLoopUnswitchPass",
+                      [](bool NonTrivial) {
+                        return SimpleLoopUnswitchPass(NonTrivial);
+                      },
+                      parseLoopUnswitchOptions,
+                      "no-nontrivial;nontrivial")
 #undef LOOP_PASS_WITH_PARAMS

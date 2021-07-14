@@ -642,12 +642,22 @@ static bool tryToShorten(Instruction *EarlierWrite, int64_t &EarlierStart,
   EarlierIntrinsic->setDestAlignment(PrefAlign);
 
   if (!IsOverwriteEnd) {
+    Value *OrigDest = EarlierIntrinsic->getRawDest();
+    Type *Int8PtrTy =
+        Type::getInt8PtrTy(EarlierIntrinsic->getContext(),
+                           OrigDest->getType()->getPointerAddressSpace());
+    Value *Dest = OrigDest;
+    if (OrigDest->getType() != Int8PtrTy)
+      Dest = CastInst::CreatePointerCast(OrigDest, Int8PtrTy, "", EarlierWrite);
     Value *Indices[1] = {
         ConstantInt::get(EarlierWriteLength->getType(), ToRemoveSize)};
-    GetElementPtrInst *NewDestGEP = GetElementPtrInst::CreateInBounds(
-        EarlierIntrinsic->getRawDest()->getType()->getPointerElementType(),
-        EarlierIntrinsic->getRawDest(), Indices, "", EarlierWrite);
+    Instruction *NewDestGEP = GetElementPtrInst::CreateInBounds(
+        Type::getInt8Ty(EarlierIntrinsic->getContext()),
+        Dest, Indices, "", EarlierWrite);
     NewDestGEP->setDebugLoc(EarlierIntrinsic->getDebugLoc());
+    if (NewDestGEP->getType() != OrigDest->getType())
+      NewDestGEP = CastInst::CreatePointerCast(NewDestGEP, OrigDest->getType(),
+                                               "", EarlierWrite);
     EarlierIntrinsic->setDest(NewDestGEP);
   }
 
@@ -1337,13 +1347,11 @@ struct DSEState {
 
     MemoryAccess *Current = StartAccess;
     Instruction *KillingI = KillingDef->getMemoryInst();
-    bool StepAgain;
     LLVM_DEBUG(dbgs() << "  trying to get dominating access\n");
 
     // Find the next clobbering Mod access for DefLoc, starting at StartAccess.
     Optional<MemoryLocation> CurrentLoc;
-    do {
-      StepAgain = false;
+    for (;; Current = cast<MemoryDef>(Current)->getDefiningAccess()) {
       LLVM_DEBUG({
         dbgs() << "   visiting " << *Current;
         if (!MSSA.isLiveOnEntryDef(Current) && isa<MemoryUseOrDef>(Current))
@@ -1381,11 +1389,8 @@ struct DSEState {
       MemoryDef *CurrentDef = cast<MemoryDef>(Current);
       Instruction *CurrentI = CurrentDef->getMemoryInst();
 
-      if (canSkipDef(CurrentDef, !isInvisibleToCallerBeforeRet(DefUO))) {
-        StepAgain = true;
-        Current = CurrentDef->getDefiningAccess();
+      if (canSkipDef(CurrentDef, !isInvisibleToCallerBeforeRet(DefUO)))
         continue;
-      }
 
       // Before we try to remove anything, check for any extra throwing
       // instructions that block us from DSEing
@@ -1421,27 +1426,19 @@ struct DSEState {
 
       // If Current cannot be analyzed or is not removable, check the next
       // candidate.
-      if (!hasAnalyzableMemoryWrite(CurrentI, TLI) || !isRemovable(CurrentI)) {
-        StepAgain = true;
-        Current = CurrentDef->getDefiningAccess();
+      if (!hasAnalyzableMemoryWrite(CurrentI, TLI) || !isRemovable(CurrentI))
         continue;
-      }
 
       // If Current does not have an analyzable write location, skip it
       CurrentLoc = getLocForWriteEx(CurrentI);
-      if (!CurrentLoc) {
-        StepAgain = true;
-        Current = CurrentDef->getDefiningAccess();
+      if (!CurrentLoc)
         continue;
-      }
 
       // AliasAnalysis does not account for loops. Limit elimination to
       // candidates for which we can guarantee they always store to the same
       // memory location and not located in different loops.
       if (!isGuaranteedLoopIndependent(CurrentI, KillingI, *CurrentLoc)) {
         LLVM_DEBUG(dbgs() << "  ... not guaranteed loop independent\n");
-        StepAgain = true;
-        Current = CurrentDef->getDefiningAccess();
         WalkerStepLimit -= 1;
         continue;
       }
@@ -1450,35 +1447,30 @@ struct DSEState {
         // If the killing def is a memory terminator (e.g. lifetime.end), check
         // the next candidate if the current Current does not write the same
         // underlying object as the terminator.
-        if (!isMemTerminator(*CurrentLoc, CurrentI, KillingI)) {
-          StepAgain = true;
-          Current = CurrentDef->getDefiningAccess();
-        }
-        continue;
+        if (!isMemTerminator(*CurrentLoc, CurrentI, KillingI))
+          continue;
       } else {
         int64_t InstWriteOffset, DepWriteOffset;
         auto OR = isOverwrite(KillingI, CurrentI, DefLoc, *CurrentLoc,
                               DepWriteOffset, InstWriteOffset);
         // If Current does not write to the same object as KillingDef, check
         // the next candidate.
-        if (OR == OW_Unknown) {
-          StepAgain = true;
-          Current = CurrentDef->getDefiningAccess();
-        } else if (OR == OW_MaybePartial) {
+        if (OR == OW_Unknown)
+          continue;
+        else if (OR == OW_MaybePartial) {
           // If KillingDef only partially overwrites Current, check the next
           // candidate if the partial step limit is exceeded. This aggressively
           // limits the number of candidates for partial store elimination,
           // which are less likely to be removable in the end.
           if (PartialLimit <= 1) {
-            StepAgain = true;
-            Current = CurrentDef->getDefiningAccess();
             WalkerStepLimit -= 1;
             continue;
           }
           PartialLimit -= 1;
         }
       }
-    } while (StepAgain);
+      break;
+    };
 
     // Accesses to objects accessible after the function returns can only be
     // eliminated if the access is killed along all paths to the exit. Collect

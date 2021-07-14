@@ -23,6 +23,7 @@ namespace detail {
 using namespace cl::sycl::detail;
 }
 
+__SYCL2020_DEPRECATED("use sycl::atomic_fence instead")
 static inline void atomic_fence(memory_order order, memory_scope scope) {
 #ifdef __SYCL_DEVICE_ONLY__
   auto SPIRVOrder = detail::spirv::getMemorySemanticsMask(order);

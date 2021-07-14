@@ -110,6 +110,7 @@
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MustExecute.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/AbstractCallSite.h"
@@ -137,11 +138,32 @@ class Function;
 
 /// Abstract Attribute helper functions.
 namespace AA {
+/// Return true if \p V is a valid value in \p Scope, that is a constant or an
+/// instruction/argument of \p Scope.
+bool isValidInScope(const Value &V, const Function *Scope);
+
+/// Return true if \p V is a valid value at position \p CtxI, that is a
+/// constant, an argument of the same function as \p CtxI, or an instruction in
+/// that function that dominates \p CtxI.
+bool isValidAtPosition(const Value &V, const Instruction &CtxI,
+                       InformationCache &InfoCache);
+
 /// Try to convert \p V to type \p Ty without introducing new instructions. If
 /// this is not possible return `nullptr`. Note: this function basically knows
 /// how to cast various constants.
 Value *getWithType(Value &V, Type &Ty);
 
+/// Return the combination of \p A and \p B such that the result is a possible
+/// value of both. \p B is potentially casted to match the type \p Ty or the
+/// type of \p A if \p Ty is null.
+///
+/// Examples:
+///        X + none  => X
+/// not_none + undef => not_none
+///          V1 + V2 => nullptr
+Optional<Value *>
+combineOptionalValuesInAAValueLatice(const Optional<Value *> &A,
+                                     const Optional<Value *> &B, Type *Ty);
 } // namespace AA
 
 /// The value passed to the line option that defines the maximal initialization
@@ -1076,6 +1098,30 @@ private:
 /// NOTE: The mechanics of adding a new "concrete" abstract attribute are
 ///       described in the file comment.
 struct Attributor {
+
+  using OptimizationRemarkGetter =
+      function_ref<OptimizationRemarkEmitter &(Function *)>;
+
+  /// Constructor
+  ///
+  /// \param Functions The set of functions we are deriving attributes for.
+  /// \param InfoCache Cache to hold various information accessible for
+  ///                  the abstract attributes.
+  /// \param CGUpdater Helper to update an underlying call graph.
+  /// \param Allowed If not null, a set limiting the attribute opportunities.
+  /// \param DeleteFns Whether to delete functions.
+  /// \param RewriteSignatures Whether to rewrite function signatures.
+  /// \param MaxFixedPointIterations Maximum number of iterations to run until
+  ///                                fixpoint.
+  Attributor(SetVector<Function *> &Functions, InformationCache &InfoCache,
+             CallGraphUpdater &CGUpdater,
+             DenseSet<const char *> *Allowed = nullptr, bool DeleteFns = true,
+             bool RewriteSignatures = true)
+      : Allocator(InfoCache.Allocator), Functions(Functions),
+        InfoCache(InfoCache), CGUpdater(CGUpdater), Allowed(Allowed),
+        DeleteFns(DeleteFns), RewriteSignatures(RewriteSignatures),
+        MaxFixpointIterations(None), OREGetter(None), PassName("") {}
+
   /// Constructor
   ///
   /// \param Functions The set of functions we are deriving attributes for.
@@ -1084,12 +1130,22 @@ struct Attributor {
   /// \param CGUpdater Helper to update an underlying call graph.
   /// \param Allowed If not null, a set limiting the attribute opportunities.
   /// \param DeleteFns Whether to delete functions
+  /// \param MaxFixedPointIterations Maximum number of iterations to run until
+  ///                                fixpoint.
+  /// \param OREGetter A callback function that returns an ORE object from a
+  ///                  Function pointer.
+  /// \param PassName  The name of the pass emitting remarks.
   Attributor(SetVector<Function *> &Functions, InformationCache &InfoCache,
-             CallGraphUpdater &CGUpdater,
-             DenseSet<const char *> *Allowed = nullptr, bool DeleteFns = true)
+             CallGraphUpdater &CGUpdater, DenseSet<const char *> *Allowed,
+             bool DeleteFns, bool RewriteSignatures,
+             Optional<unsigned> MaxFixpointIterations,
+             OptimizationRemarkGetter OREGetter, const char *PassName)
       : Allocator(InfoCache.Allocator), Functions(Functions),
         InfoCache(InfoCache), CGUpdater(CGUpdater), Allowed(Allowed),
-        DeleteFns(DeleteFns) {}
+        DeleteFns(DeleteFns), RewriteSignatures(RewriteSignatures),
+        MaxFixpointIterations(MaxFixpointIterations),
+        OREGetter(Optional<OptimizationRemarkGetter>(OREGetter)),
+        PassName(PassName) {}
 
   ~Attributor();
 
@@ -1379,12 +1435,16 @@ struct Attributor {
   /// uses should be changed too.
   bool changeValueAfterManifest(Value &V, Value &NV,
                                 bool ChangeDroppable = true) {
-    bool Changed = false;
-    for (auto &U : V.uses())
-      if (ChangeDroppable || !U.getUser()->isDroppable())
-        Changed |= changeUseAfterManifest(U, NV);
-
-    return Changed;
+    auto &Entry = ToBeChangedValues[&V];
+    Value *&CurNV = Entry.first;
+    if (CurNV && (CurNV->stripPointerCasts() == NV.stripPointerCasts() ||
+                  isa<UndefValue>(CurNV)))
+      return false;
+    assert((!CurNV || CurNV == &NV || isa<UndefValue>(NV)) &&
+           "Value replacement was registered twice with different values!");
+    CurNV = &NV;
+    Entry.second = ChangeDroppable;
+    return true;
   }
 
   /// Record that \p I is to be replaced with `unreachable` after information
@@ -1427,6 +1487,12 @@ struct Attributor {
                                          bool &UsedAssumedInformation) {
     return getAssumedSimplified(IRP, &AA, UsedAssumedInformation);
   }
+  Optional<Value *> getAssumedSimplified(const Value &V,
+                                         const AbstractAttribute &AA,
+                                         bool &UsedAssumedInformation) {
+    return getAssumedSimplified(IRPosition::value(V), AA,
+                                UsedAssumedInformation);
+  }
 
   /// Register \p CB as a simplification callback.
   /// `Attributor::getAssumedSimplified` will use these callbacks before
@@ -1453,10 +1519,17 @@ private:
                                          bool &UsedAssumedInformation);
 
 public:
+  /// Translate \p V from the callee context into the call site context.
+  Optional<Value *>
+  translateArgumentToCallSiteContent(Optional<Value *> V, CallBase &CB,
+                                     const AbstractAttribute &AA,
+                                     bool &UsedAssumedInformation);
+
   /// Return true if \p AA (or its context instruction) is assumed dead.
   ///
   /// If \p LivenessAA is not provided it is queried.
   bool isAssumedDead(const AbstractAttribute &AA, const AAIsDead *LivenessAA,
+                     bool &UsedAssumedInformation,
                      bool CheckBBLivenessOnly = false,
                      DepClassTy DepClass = DepClassTy::OPTIONAL);
 
@@ -1464,7 +1537,7 @@ public:
   ///
   /// If \p LivenessAA is not provided it is queried.
   bool isAssumedDead(const Instruction &I, const AbstractAttribute *QueryingAA,
-                     const AAIsDead *LivenessAA,
+                     const AAIsDead *LivenessAA, bool &UsedAssumedInformation,
                      bool CheckBBLivenessOnly = false,
                      DepClassTy DepClass = DepClassTy::OPTIONAL);
 
@@ -1472,7 +1545,7 @@ public:
   ///
   /// If \p FnLivenessAA is not provided it is queried.
   bool isAssumedDead(const Use &U, const AbstractAttribute *QueryingAA,
-                     const AAIsDead *FnLivenessAA,
+                     const AAIsDead *FnLivenessAA, bool &UsedAssumedInformation,
                      bool CheckBBLivenessOnly = false,
                      DepClassTy DepClass = DepClassTy::OPTIONAL);
 
@@ -1480,7 +1553,7 @@ public:
   ///
   /// If \p FnLivenessAA is not provided it is queried.
   bool isAssumedDead(const IRPosition &IRP, const AbstractAttribute *QueryingAA,
-                     const AAIsDead *FnLivenessAA,
+                     const AAIsDead *FnLivenessAA, bool &UsedAssumedInformation,
                      bool CheckBBLivenessOnly = false,
                      DepClassTy DepClass = DepClassTy::OPTIONAL);
 
@@ -1491,6 +1564,41 @@ public:
   bool checkForAllUses(function_ref<bool(const Use &, bool &)> Pred,
                        const AbstractAttribute &QueryingAA, const Value &V,
                        DepClassTy LivenessDepClass = DepClassTy::OPTIONAL);
+
+  /// Emit a remark generically.
+  ///
+  /// This template function can be used to generically emit a remark. The
+  /// RemarkKind should be one of the following:
+  ///   - OptimizationRemark to indicate a successful optimization attempt
+  ///   - OptimizationRemarkMissed to report a failed optimization attempt
+  ///   - OptimizationRemarkAnalysis to provide additional information about an
+  ///     optimization attempt
+  ///
+  /// The remark is built using a callback function \p RemarkCB that takes a
+  /// RemarkKind as input and returns a RemarkKind.
+  template <typename RemarkKind, typename RemarkCallBack>
+  void emitRemark(Instruction *I, StringRef RemarkName,
+                  RemarkCallBack &&RemarkCB) const {
+    if (!OREGetter)
+      return;
+
+    Function *F = I->getFunction();
+    auto &ORE = OREGetter.getValue()(F);
+
+    ORE.emit([&]() { return RemarkCB(RemarkKind(PassName, RemarkName, I)); });
+  }
+
+  /// Emit a remark on a function.
+  template <typename RemarkKind, typename RemarkCallBack>
+  void emitRemark(Function *F, StringRef RemarkName,
+                  RemarkCallBack &&RemarkCB) const {
+    if (!OREGetter)
+      return;
+
+    auto &ORE = OREGetter.getValue()(F);
+
+    ORE.emit([&]() { return RemarkCB(RemarkKind(PassName, RemarkName, F)); });
+  }
 
   /// Helper struct used in the communication between an abstract attribute (AA)
   /// that wants to change the signature of a function and the Attributor which
@@ -1628,17 +1736,23 @@ public:
   bool checkForAllInstructions(function_ref<bool(Instruction &)> Pred,
                                const AbstractAttribute &QueryingAA,
                                const ArrayRef<unsigned> &Opcodes,
-                               bool CheckBBLivenessOnly = false);
+                               bool &UsedAssumedInformation,
+                               bool CheckBBLivenessOnly = false,
+                               bool CheckPotentiallyDead = false);
 
   /// Check \p Pred on all call-like instructions (=CallBased derived).
   ///
   /// See checkForAllCallLikeInstructions(...) for more information.
   bool checkForAllCallLikeInstructions(function_ref<bool(Instruction &)> Pred,
-                                       const AbstractAttribute &QueryingAA) {
-    return checkForAllInstructions(Pred, QueryingAA,
-                                   {(unsigned)Instruction::Invoke,
-                                    (unsigned)Instruction::CallBr,
-                                    (unsigned)Instruction::Call});
+                                       const AbstractAttribute &QueryingAA,
+                                       bool &UsedAssumedInformation,
+                                       bool CheckBBLivenessOnly = false,
+                                       bool CheckPotentiallyDead = false) {
+    return checkForAllInstructions(
+        Pred, QueryingAA,
+        {(unsigned)Instruction::Invoke, (unsigned)Instruction::CallBr,
+         (unsigned)Instruction::Call},
+        UsedAssumedInformation, CheckBBLivenessOnly, CheckPotentiallyDead);
   }
 
   /// Check \p Pred on all Read/Write instructions.
@@ -1647,7 +1761,8 @@ public:
   /// to memory present in the information cache and return true if \p Pred
   /// holds on all of them.
   bool checkForAllReadWriteInstructions(function_ref<bool(Instruction &)> Pred,
-                                        AbstractAttribute &QueryingAA);
+                                        AbstractAttribute &QueryingAA,
+                                        bool &UsedAssumedInformation);
 
   /// Create a shallow wrapper for \p F such that \p F has internal linkage
   /// afterwards. It also sets the original \p F 's name to anonymous
@@ -1664,6 +1779,21 @@ public:
   ///   }
   ///
   static void createShallowWrapper(Function &F);
+
+  /// Make another copy of the function \p F such that the copied version has
+  /// internal linkage afterwards and can be analysed. Then we replace all uses
+  /// of the original function to the copied one
+  ///
+  /// Only non-locally linked functions that have `linkonce_odr` or `weak_odr`
+  /// linkage can be internalized because these linkages guarantee that other
+  /// definitions with the same name have the same semantics as this one.
+  ///
+  /// This will only be run if the `attributor-allow-deep-wrappers` option is
+  /// set, or if the function is called with \p Force set to true.
+  ///
+  /// If the function \p F failed to be internalized the return value will be a
+  /// null pointer.
+  static Function *internalizeFunction(Function &F, bool Force = false);
 
   /// Return the data layout associated with the anchor scope.
   const DataLayout &getDataLayout() const { return InfoCache.DL; }
@@ -1777,12 +1907,22 @@ private:
   /// Whether to delete functions.
   const bool DeleteFns;
 
+  /// Whether to rewrite signatures.
+  const bool RewriteSignatures;
+
+  /// Maximum number of fixedpoint iterations.
+  Optional<unsigned> MaxFixpointIterations;
+
   /// A set to remember the functions we already assume to be live and visited.
   DenseSet<const Function *> VisitedFunctions;
 
   /// Uses we replace with a new value after manifest is done. We will remove
   /// then trivially dead instructions as well.
   DenseMap<Use *, Value *> ToBeChangedUses;
+
+  /// Values we replace with a new value after manifest is done. We will remove
+  /// then trivially dead instructions as well.
+  DenseMap<Value *, std::pair<Value *, bool>> ToBeChangedValues;
 
   /// Instructions we replace with `unreachable` insts after manifest is done.
   SmallDenseSet<WeakVH, 16> ToBeChangedToUnreachableInsts;
@@ -1809,6 +1949,12 @@ private:
   SmallPtrSet<BasicBlock *, 8> ToBeDeletedBlocks;
   SmallDenseSet<WeakVH, 8> ToBeDeletedInsts;
   ///}
+
+  /// Callback to get an OptimizationRemarkEmitter from a Function *.
+  Optional<OptimizationRemarkGetter> OREGetter;
+
+  /// The name of the pass to emit remarks for.
+  const char *PassName = "";
 
   friend AADepGraph;
   friend AttributorCallGraph;
@@ -2534,7 +2680,6 @@ struct AAReturnedValues
   virtual llvm::iterator_range<const_iterator> returned_values() const = 0;
 
   virtual size_t getNumReturnValues() const = 0;
-  virtual const SmallSetVector<CallBase *, 4> &getUnresolvedCalls() const = 0;
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAReturnedValues &createForPosition(const IRPosition &IRP,
@@ -3244,10 +3389,86 @@ struct AANoCapture
   static const char ID;
 };
 
+struct ValueSimplifyStateType : public AbstractState {
+
+  ValueSimplifyStateType(Type *Ty) : Ty(Ty) {}
+
+  static ValueSimplifyStateType getBestState(Type *Ty) {
+    return ValueSimplifyStateType(Ty);
+  }
+  static ValueSimplifyStateType getBestState(const ValueSimplifyStateType &VS) {
+    return getBestState(VS.Ty);
+  }
+
+  /// Return the worst possible representable state.
+  static ValueSimplifyStateType getWorstState(Type *Ty) {
+    ValueSimplifyStateType DS(Ty);
+    DS.indicatePessimisticFixpoint();
+    return DS;
+  }
+  static ValueSimplifyStateType
+  getWorstState(const ValueSimplifyStateType &VS) {
+    return getWorstState(VS.Ty);
+  }
+
+  /// See AbstractState::isValidState(...)
+  bool isValidState() const override { return BS.isValidState(); }
+
+  /// See AbstractState::isAtFixpoint(...)
+  bool isAtFixpoint() const override { return BS.isAtFixpoint(); }
+
+  /// Return the assumed state encoding.
+  ValueSimplifyStateType getAssumed() { return *this; }
+  const ValueSimplifyStateType &getAssumed() const { return *this; }
+
+  /// See AbstractState::indicatePessimisticFixpoint(...)
+  ChangeStatus indicatePessimisticFixpoint() override {
+    return BS.indicatePessimisticFixpoint();
+  }
+
+  /// See AbstractState::indicateOptimisticFixpoint(...)
+  ChangeStatus indicateOptimisticFixpoint() override {
+    return BS.indicateOptimisticFixpoint();
+  }
+
+  /// "Clamp" this state with \p PVS.
+  ValueSimplifyStateType operator^=(const ValueSimplifyStateType &VS) {
+    BS ^= VS.BS;
+    unionAssumed(VS.SimplifiedAssociatedValue);
+    return *this;
+  }
+
+  bool operator==(const ValueSimplifyStateType &RHS) const {
+    if (isValidState() != RHS.isValidState())
+      return false;
+    if (!isValidState() && !RHS.isValidState())
+      return true;
+    return SimplifiedAssociatedValue == RHS.SimplifiedAssociatedValue;
+  }
+
+protected:
+  /// The type of the original value.
+  Type *Ty;
+
+  /// Merge \p Other into the currently assumed simplified value
+  bool unionAssumed(Optional<Value *> Other);
+
+  /// Helper to track validity and fixpoint
+  BooleanState BS;
+
+  /// An assumed simplified value. Initially, it is set to Optional::None, which
+  /// means that the value is not clear under current assumption. If in the
+  /// pessimistic state, getAssumedSimplifiedValue doesn't return this value but
+  /// returns orignal associated value.
+  Optional<Value *> SimplifiedAssociatedValue;
+};
+
 /// An abstract interface for value simplify abstract attribute.
-struct AAValueSimplify : public StateWrapper<BooleanState, AbstractAttribute> {
-  using Base = StateWrapper<BooleanState, AbstractAttribute>;
-  AAValueSimplify(const IRPosition &IRP, Attributor &A) : Base(IRP) {}
+struct AAValueSimplify
+    : public StateWrapper<ValueSimplifyStateType, AbstractAttribute, Type *> {
+  using Base = StateWrapper<ValueSimplifyStateType, AbstractAttribute, Type *>;
+  AAValueSimplify(const IRPosition &IRP, Attributor &A)
+      : Base(IRP, IRP.getAssociatedType()) {}
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAValueSimplify &createForPosition(const IRPosition &IRP,
@@ -3285,9 +3506,6 @@ struct AAHeapToStack : public StateWrapper<BooleanState, AbstractAttribute> {
 
   /// Returns true if HeapToStack conversion is assumed to be possible.
   virtual bool isAssumedHeapToStack(CallBase &CB) const = 0;
-
-  /// Returns true if HeapToStack conversion is known to be possible.
-  virtual bool isKnownHeapToStack(CallBase &CB) const = 0;
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAHeapToStack &createForPosition(const IRPosition &IRP, Attributor &A);
@@ -4100,6 +4318,39 @@ struct AAExecutionDomain
 
   /// Unique ID (due to the unique address)
   static const char ID;
+};
+
+/// An abstract Attribute for computing reachability between functions.
+struct AAFunctionReachability
+    : public StateWrapper<BooleanState, AbstractAttribute> {
+  using Base = StateWrapper<BooleanState, AbstractAttribute>;
+
+  AAFunctionReachability(const IRPosition &IRP, Attributor &A) : Base(IRP) {}
+
+  /// If the function represented by this possition can reach \p Fn.
+  virtual bool canReach(Attributor &A, Function *Fn) const = 0;
+
+  /// Create an abstract attribute view for the position \p IRP.
+  static AAFunctionReachability &createForPosition(const IRPosition &IRP,
+                                                   Attributor &A);
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAFuncitonReacability"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AACallEdges.
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
+  /// Unique ID (due to the unique address)
+  static const char ID;
+
+private:
+  /// Can this function reach a call with unknown calee.
+  virtual bool canReachUnknownCallee() const = 0;
 };
 
 /// Run options, used by the pass manager.

@@ -1064,7 +1064,7 @@ TEST(CommandLineTest, ReadConfigFile) {
   llvm::SmallString<128> CurrDir;
   std::error_code EC = llvm::sys::fs::current_path(CurrDir);
   EXPECT_TRUE(!EC);
-  EXPECT_TRUE(StringRef(CurrDir) != TestDir.path());
+  EXPECT_NE(CurrDir.str(), TestDir.path());
 
   llvm::BumpPtrAllocator A;
   llvm::StringSaver Saver(A);
@@ -1122,8 +1122,8 @@ TEST(CommandLineTest, GetCommandLineArguments) {
   EXPECT_EQ(llvm::sys::path::is_absolute(argv[0]),
             llvm::sys::path::is_absolute(__argv[0]));
 
-  EXPECT_TRUE(llvm::sys::path::filename(argv[0])
-              .equals_lower("supporttests.exe"))
+  EXPECT_TRUE(
+      llvm::sys::path::filename(argv[0]).equals_insensitive("supporttests.exe"))
       << "Filename of test executable is "
       << llvm::sys::path::filename(argv[0]);
 }

@@ -2586,9 +2586,9 @@ def NoInstrumentFunction : InheritableAttr {
 }
 
 def NoProfileFunction : InheritableAttr {
-  let Spellings = [Clang<"no_profile">];
+  let Spellings = [GCC<"no_profile_instrument_function">];
   let Subjects = SubjectList<[Function]>;
-  let Documentation = [NoProfileDocs];
+  let Documentation = [NoProfileInstrumentFunctionDocs];
   let SimpleHandler = 1;
 }
 
@@ -3109,6 +3109,11 @@ def SwiftCall : DeclOrTypeAttr {
   let Spellings = [Clang<"swiftcall">];
 //  let Subjects = SubjectList<[Function]>;
   let Documentation = [SwiftCallDocs];
+}
+
+def SwiftAsyncCall : DeclOrTypeAttr {
+  let Spellings = [Clang<"swiftasynccall">];
+  let Documentation = [SwiftAsyncCallDocs];
 }
 
 def SwiftContext : ParameterABIAttr {

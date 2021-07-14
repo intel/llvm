@@ -3193,7 +3193,8 @@ def warn_nsdictionary_duplicate_key : Warning<
 def note_nsdictionary_duplicate_key_here : Note<
   "previous equal key is here">;
 def err_swift_param_attr_not_swiftcall : Error<
-  "'%0' parameter can only be used with swiftcall calling convention">;
+  "'%0' parameter can only be used with swiftcall%select{ or swiftasynccall|}1 "
+  "calling convention%select{|s}1">;
 def err_swift_indirect_result_not_first : Error<
   "'swift_indirect_result' parameters must be first parameters of function">;
 def err_swift_error_result_not_after_swift_context : Error<
@@ -6533,12 +6534,6 @@ def warn_pessimizing_move_on_initialization : Warning<
   InGroup<PessimizingMove>, DefaultIgnore;
 def note_remove_move : Note<"remove std::move call here">;
 
-def warn_return_std_move : Warning<
-  "local variable %0 will be copied despite being %select{returned|thrown}1 by name">,
-  InGroup<ReturnStdMove>, DefaultIgnore;
-def note_add_std_move : Note<
-  "call 'std::move' explicitly to avoid copying">;
-
 def warn_string_plus_int : Warning<
   "adding %0 to a string does not append to the string">,
   InGroup<StringPlusInt>;
@@ -6819,7 +6814,7 @@ def warn_param_mismatched_alignment : Warning<
 def err_objc_object_assignment : Error<
   "cannot assign to class object (%0 invalid)">;
 def err_typecheck_invalid_operands : Error<
-  "invalid operands to binary expression (%0 and %1)">;
+  "invalid operands to binary expression (%0 and %1)">, Deferrable;
 def note_typecheck_invalid_operands_converted : Note<
   "%select{first|second}0 operand was implicitly converted to type %1">;
 def err_typecheck_logical_vector_expr_gnu_cpp_restrict : Error<
@@ -6842,9 +6837,14 @@ def ext_typecheck_compare_complete_incomplete_pointers : Extension<
   "%0 is %select{|in}2complete and "
   "%1 is %select{|in}3complete">,
   InGroup<C11>;
+def warn_typecheck_ordered_comparison_of_function_pointers : Warning<
+  "ordered comparison of function pointers (%0 and %1)">,
+  InGroup<OrderedCompareFunctionPointers>;
 def ext_typecheck_ordered_comparison_of_function_pointers : ExtWarn<
   "ordered comparison of function pointers (%0 and %1)">,
-  InGroup<DiagGroup<"ordered-compare-function-pointers">>;
+  InGroup<OrderedCompareFunctionPointers>;
+def err_typecheck_ordered_comparison_of_function_pointers : Error<
+  "ordered comparison of function pointers (%0 and %1)">;
 def ext_typecheck_comparison_of_fptr_to_void : Extension<
   "equality comparison between function pointer and void pointer (%0 and %1)">;
 def err_typecheck_comparison_of_fptr_to_void : Error<
@@ -7483,6 +7483,12 @@ def warn_deprecated_volatile_param : Warning<
 def warn_deprecated_volatile_structured_binding : Warning<
   "volatile qualifier in structured binding declaration is deprecated">,
   InGroup<DeprecatedVolatile>;
+
+def warn_deprecated_altivec_src_compat : Warning<
+  "Current handling of vector bool and vector pixel types in this context are "
+  "deprecated. The default behaviour will soon change to that implied by the "
+  "'-altivec-compat=xl' option">,
+  InGroup<DiagGroup<"deprecated-altivec-src-compat">>;
 
 def err_catch_incomplete_ptr : Error<
   "cannot catch pointer to incomplete type %0">;
@@ -8569,6 +8575,9 @@ def err_typecheck_expect_scalar_operand : Error<
   "operand of type %0 where arithmetic or pointer type is required">;
 def err_typecheck_cond_incompatible_operands : Error<
   "incompatible operand types%diff{ ($ and $)|}0,1">;
+def err_typecheck_expect_flt_or_vector : Error<
+  "invalid operand of type %0 where floating, complex or "
+  "a vector of such types is required">;
 def err_cast_selector_expr : Error<
   "cannot type cast @selector expression">;
 def ext_typecheck_cond_incompatible_pointers : ExtWarn<
@@ -9193,9 +9202,6 @@ def note_defaulted_comparison_cannot_deduce_undeduced_auto : Note<
   "%select{|member|base class}0 %1 declared here">;
 def note_defaulted_comparison_cannot_deduce_callee : Note<
   "selected 'operator<=>' for %select{|member|base class}0 %1 declared here">;
-def note_defaulted_comparison_selected_invalid : Note<
-  "would compare %select{|member|base class}0 %1 "
-  "as %2, which does not support relational comparisons">;
 def err_incorrect_defaulted_comparison_constexpr : Error<
   "defaulted definition of %select{%sub{select_defaulted_comparison_kind}1|"
   "three-way comparison operator}0 "

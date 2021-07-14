@@ -359,6 +359,9 @@ public:
                                          const std::vector<SPIRVWord> &Ops,
                                          SPIRVBasicBlock *BB,
                                          SPIRVType *Ty) override;
+  void addInstTemplate(SPIRVInstTemplateBase *Ins,
+                       const std::vector<SPIRVWord> &Ops, SPIRVBasicBlock *BB,
+                       SPIRVType *Ty) override;
   SPIRVInstruction *addLifetimeInst(Op OC, SPIRVValue *Object, SPIRVWord Size,
                                     SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addMemoryBarrierInst(Scope ScopeKind, SPIRVWord MemFlag,
@@ -577,7 +580,11 @@ SPIRVValue *SPIRVModuleImpl::addPipeStorageConstant(SPIRVType *TheType,
 void SPIRVModuleImpl::addExtension(ExtensionID Ext) {
   std::string ExtName;
   SPIRVMap<ExtensionID, std::string>::find(Ext, &ExtName);
-  assert(isAllowedToUseExtension(Ext));
+  if (!getErrorLog().checkError(isAllowedToUseExtension(Ext),
+                                SPIRVEC_RequiresExtension, ExtName)) {
+    setInvalid();
+    return;
+  }
   SPIRVExt.insert(ExtName);
 }
 
@@ -1367,9 +1374,11 @@ SPIRVInstruction *SPIRVModuleImpl::addVectorInsertDynamicInst(
 SPIRVValue *SPIRVModuleImpl::addVectorShuffleInst(
     SPIRVType *Type, SPIRVValue *Vec1, SPIRVValue *Vec2,
     const std::vector<SPIRVWord> &Components, SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVVectorShuffle(getId(), Type, Vec1->getId(),
-                                               Vec2->getId(), Components, BB,
-                                               this),
+  std::vector<SPIRVId> Ops{Vec1->getId(), Vec2->getId()};
+  Ops.insert(Ops.end(), Components.begin(), Components.end());
+
+  return addInstruction(SPIRVInstTemplateBase::create(OpVectorShuffle, Type,
+                                                      getId(), Ops, BB, this),
                         BB);
 }
 
@@ -1426,10 +1435,11 @@ SPIRVInstruction *SPIRVModuleImpl::addSelectInst(SPIRVValue *Condition,
                                                  SPIRVValue *Op1,
                                                  SPIRVValue *Op2,
                                                  SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVSelect(getId(), Op1->getType(),
-                                        Condition->getId(), Op1->getId(),
-                                        Op2->getId(), BB, this),
-                        BB);
+  return addInstruction(
+      SPIRVInstTemplateBase::create(
+          OpSelect, Op1->getType(), getId(),
+          getVec(Condition->getId(), Op1->getId(), Op2->getId()), BB, this),
+      BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addSelectionMergeInst(
@@ -1511,19 +1521,21 @@ SPIRVInstruction *
 SPIRVModuleImpl::addCompositeExtractInst(SPIRVType *Type, SPIRVValue *TheVector,
                                          const std::vector<SPIRVWord> &Indices,
                                          SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVCompositeExtract(Type, getId(),
-                                                  TheVector->getId(), Indices,
-                                                  BB, this),
+  return addInstruction(SPIRVInstTemplateBase::create(
+                            OpCompositeExtract, Type, getId(),
+                            getVec(TheVector->getId(), Indices), BB, this),
                         BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addCompositeInsertInst(
     SPIRVValue *Object, SPIRVValue *Composite,
     const std::vector<SPIRVWord> &Indices, SPIRVBasicBlock *BB) {
-  return addInstruction(
-      new SPIRVCompositeInsert(Composite->getType(), getId(), Object->getId(),
-                               Composite->getId(), Indices, BB, this),
-      BB);
+  std::vector<SPIRVId> Ops{Object->getId(), Composite->getId()};
+  Ops.insert(Ops.end(), Indices.begin(), Indices.end());
+  return addInstruction(SPIRVInstTemplateBase::create(OpCompositeInsert,
+                                                      Composite->getType(),
+                                                      getId(), Ops, BB, this),
+                        BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addCopyObjectInst(SPIRVType *TheType,
@@ -1700,8 +1712,9 @@ class TopologicalSort {
           // cyclic dependency by inserting a forward declaration of that
           // pointer.
           SPIRVTypePointer *Ptr = static_cast<SPIRVTypePointer *>(E);
-          ForwardPointerSet.insert(new SPIRVTypeForwardPointer(
-              E->getModule(), Ptr, Ptr->getPointerStorageClass()));
+          SPIRVModule *BM = E->getModule();
+          ForwardPointerSet.insert(BM->add(new SPIRVTypeForwardPointer(
+              BM, Ptr, Ptr->getPointerStorageClass())));
           return false;
         }
         return true;
@@ -2059,6 +2072,16 @@ SPIRVModuleImpl::addInstTemplate(Op OC, const std::vector<SPIRVWord> &Ops,
   auto Ins = SPIRVInstTemplateBase::create(OC, Ty, Id, Ops, BB, this);
   BB->addInstruction(Ins);
   return Ins;
+}
+
+void SPIRVModuleImpl::addInstTemplate(SPIRVInstTemplateBase *Ins,
+                                      const std::vector<SPIRVWord> &Ops,
+                                      SPIRVBasicBlock *BB, SPIRVType *Ty) {
+  assert(!Ty || !Ty->isTypeVoid());
+  SPIRVId Id = Ty ? getId() : SPIRVID_INVALID;
+  Ins->init(Ty, Id, BB, this);
+  Ins->setOpWordsAndValidate(Ops);
+  BB->addInstruction(Ins);
 }
 
 SPIRVId SPIRVModuleImpl::getExtInstSetId(SPIRVExtInstSetKind Kind) const {

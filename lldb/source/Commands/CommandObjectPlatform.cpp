@@ -60,7 +60,7 @@ static mode_t ParsePermissionString(llvm::StringRef permissions) {
 
 class OptionPermissions : public OptionGroup {
 public:
-  OptionPermissions() {}
+  OptionPermissions() = default;
 
   ~OptionPermissions() override = default;
 
@@ -820,10 +820,8 @@ public:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     // If the number of arguments is incorrect, issue an error message.
     if (args.GetArgumentCount() != 2) {
-      result.GetErrorStream().Printf("error: required arguments missing; "
-                                     "specify both the source and destination "
-                                     "file paths\n");
-      result.SetStatus(eReturnStatusFailed);
+      result.AppendError("required arguments missing; specify both the "
+                         "source and destination file paths");
       return false;
     }
 
@@ -894,10 +892,8 @@ public:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     // If the number of arguments is incorrect, issue an error message.
     if (args.GetArgumentCount() != 1) {
-      result.GetErrorStream().Printf("error: required argument missing; "
-                                     "specify the source file path as the only "
-                                     "argument\n");
-      result.SetStatus(eReturnStatusFailed);
+      result.AppendError("required argument missing; specify the source file "
+                         "path as the only argument");
       return false;
     }
 

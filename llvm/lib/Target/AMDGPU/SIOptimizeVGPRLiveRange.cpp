@@ -161,10 +161,12 @@ void SIOptimizeVGPRLiveRange::collectElseRegionBlocks(
       MBB = nullptr;
   }
 
-  LLVM_DEBUG(dbgs() << "Found Else blocks: ");
-  for (auto *MBB : Blocks)
-    LLVM_DEBUG(dbgs() << printMBBReference(*MBB) << ' ');
-  LLVM_DEBUG(dbgs() << '\n');
+  LLVM_DEBUG({
+    dbgs() << "Found Else blocks: ";
+    for (auto *MBB : Blocks)
+      dbgs() << printMBBReference(*MBB) << ' ';
+    dbgs() << '\n';
+  });
 }
 
 /// Find the instructions(excluding phi) in \p MBB that uses the \p Reg.
@@ -363,7 +365,7 @@ void SIOptimizeVGPRLiveRange::updateLiveRangeInElseRegion(
     unsigned BBNum = MBB->getNumber();
     if (OldVarInfo.AliveBlocks.test(BBNum)) {
       NewVarInfo.AliveBlocks.set(BBNum);
-      LLVM_DEBUG(dbgs() << "Removing ALiveBlock " << printMBBReference(*MBB)
+      LLVM_DEBUG(dbgs() << "Removing AliveBlock " << printMBBReference(*MBB)
                         << '\n');
       OldVarInfo.AliveBlocks.reset(BBNum);
     }

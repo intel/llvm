@@ -1304,11 +1304,13 @@ public:
   /// Return the atomic ordering requirements for this memory operation. For
   /// cmpxchg atomic operations, return the atomic ordering requirements when
   /// store occurs.
-  AtomicOrdering getOrdering() const { return MMO->getOrdering(); }
+  AtomicOrdering getSuccessOrdering() const {
+    return MMO->getSuccessOrdering();
+  }
 
   /// Return a single atomic ordering that is at least as strong as both the
   /// success and failure orderings for an atomic operation.  (For operations
-  /// other than cmpxchg, this is equivalent to getOrdering().)
+  /// other than cmpxchg, this is equivalent to getSuccessOrdering().)
   AtomicOrdering getMergedOrdering() const { return MMO->getMergedOrdering(); }
 
   /// Return true if the memory operation ordering is Unordered or higher.
@@ -1365,33 +1367,36 @@ public:
   static bool classof(const SDNode *N) {
     // For some targets, we lower some target intrinsics to a MemIntrinsicNode
     // with either an intrinsic or a target opcode.
-    return N->getOpcode() == ISD::LOAD                ||
-           N->getOpcode() == ISD::STORE               ||
-           N->getOpcode() == ISD::PREFETCH            ||
-           N->getOpcode() == ISD::ATOMIC_CMP_SWAP     ||
-           N->getOpcode() == ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS ||
-           N->getOpcode() == ISD::ATOMIC_SWAP         ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_ADD     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_SUB     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_AND     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_CLR     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_OR      ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_XOR     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_NAND    ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_MIN     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_MAX     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_UMIN    ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_UMAX    ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_FADD    ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_FSUB    ||
-           N->getOpcode() == ISD::ATOMIC_LOAD         ||
-           N->getOpcode() == ISD::ATOMIC_STORE        ||
-           N->getOpcode() == ISD::MLOAD               ||
-           N->getOpcode() == ISD::MSTORE              ||
-           N->getOpcode() == ISD::MGATHER             ||
-           N->getOpcode() == ISD::MSCATTER            ||
-           N->isMemIntrinsic()                        ||
-           N->isTargetMemoryOpcode();
+    switch (N->getOpcode()) {
+    case ISD::LOAD:
+    case ISD::STORE:
+    case ISD::PREFETCH:
+    case ISD::ATOMIC_CMP_SWAP:
+    case ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS:
+    case ISD::ATOMIC_SWAP:
+    case ISD::ATOMIC_LOAD_ADD:
+    case ISD::ATOMIC_LOAD_SUB:
+    case ISD::ATOMIC_LOAD_AND:
+    case ISD::ATOMIC_LOAD_CLR:
+    case ISD::ATOMIC_LOAD_OR:
+    case ISD::ATOMIC_LOAD_XOR:
+    case ISD::ATOMIC_LOAD_NAND:
+    case ISD::ATOMIC_LOAD_MIN:
+    case ISD::ATOMIC_LOAD_MAX:
+    case ISD::ATOMIC_LOAD_UMIN:
+    case ISD::ATOMIC_LOAD_UMAX:
+    case ISD::ATOMIC_LOAD_FADD:
+    case ISD::ATOMIC_LOAD_FSUB:
+    case ISD::ATOMIC_LOAD:
+    case ISD::ATOMIC_STORE:
+    case ISD::MLOAD:
+    case ISD::MSTORE:
+    case ISD::MGATHER:
+    case ISD::MSCATTER:
+      return true;
+    default:
+      return N->isMemIntrinsic() || N->isTargetMemoryOpcode();
+    }
   }
 };
 

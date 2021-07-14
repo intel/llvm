@@ -856,12 +856,23 @@ static void readCallGraph(MemoryBufferRef mb) {
 }
 
 template <class ELFT> static void readCallGraphsFromObjectFiles() {
+  auto getIndex = [&](ObjFile<ELFT> *obj, uint32_t index) {
+    const Elf_Rel_Impl<ELFT, false> &rel = obj->cgProfileRel[index];
+    return rel.getSymbol(config->isMips64EL);
+  };
+
   for (auto file : objectFiles) {
     auto *obj = cast<ObjFile<ELFT>>(file);
-
-    for (const Elf_CGProfile_Impl<ELFT> &cgpe : obj->cgProfile) {
-      auto *fromSym = dyn_cast<Defined>(&obj->getSymbol(cgpe.cgp_from));
-      auto *toSym = dyn_cast<Defined>(&obj->getSymbol(cgpe.cgp_to));
+    if (obj->cgProfileRel.empty())
+      continue;
+    if (obj->cgProfileRel.size() != obj->cgProfile.size() * 2)
+      fatal("number of relocations doesn't match Weights");
+    for (uint32_t i = 0, size = obj->cgProfile.size(); i < size; ++i) {
+      const Elf_CGProfile_Impl<ELFT> &cgpe = obj->cgProfile[i];
+      uint32_t fromIndex = getIndex(obj, i * 2);
+      uint32_t toIndex = getIndex(obj, i * 2 + 1);
+      auto *fromSym = dyn_cast<Defined>(&obj->getSymbol(fromIndex));
+      auto *toSym = dyn_cast<Defined>(&obj->getSymbol(toIndex));
       if (!fromSym || !toSym)
         continue;
 
@@ -1384,7 +1395,19 @@ static void setConfigs(opt::InputArgList &args) {
   config->writeAddends = args.hasFlag(OPT_apply_dynamic_relocs,
                                       OPT_no_apply_dynamic_relocs, false) ||
                          !config->isRela;
-
+  // Validation of dynamic relocation addends is on by default for assertions
+  // builds (for supported targets) and disabled otherwise. Ideally we would
+  // enable the debug checks for all targets, but currently not all targets
+  // have support for reading Elf_Rel addends, so we only enable for a subset.
+#ifndef NDEBUG
+  bool checkDynamicRelocsDefault = m == EM_ARM || m == EM_386 || m == EM_MIPS ||
+                                   m == EM_X86_64 || m == EM_RISCV;
+#else
+  bool checkDynamicRelocsDefault = false;
+#endif
+  config->checkDynamicRelocs =
+      args.hasFlag(OPT_check_dynamic_relocations,
+                   OPT_no_check_dynamic_relocations, checkDynamicRelocsDefault);
   config->tocOptimize =
       args.hasFlag(OPT_toc_optimize, OPT_no_toc_optimize, m == EM_PPC64);
   config->pcRelOptimize =

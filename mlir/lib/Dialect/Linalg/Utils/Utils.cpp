@@ -15,9 +15,11 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Utils/Utils.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
@@ -155,6 +157,28 @@ static void unpackRanges(ArrayRef<Range> ranges, SmallVectorImpl<Value> &lbs,
 namespace mlir {
 namespace linalg {
 
+/// Helper function that creates a memref::DimOp or tensor::DimOp depending on
+/// the type of `source`.
+Value createOrFoldDimOp(OpBuilder &b, Location loc, Value source, int64_t dim) {
+  if (source.getType().isa<UnrankedMemRefType, MemRefType>())
+    return b.createOrFold<memref::DimOp>(loc, source, dim);
+  if (source.getType().isa<UnrankedTensorType, RankedTensorType>())
+    return b.createOrFold<tensor::DimOp>(loc, source, dim);
+  llvm_unreachable("Expected MemRefType or TensorType");
+}
+
+/// Given an operation, retrieves the value of each dynamic dimension through
+/// constructing the necessary DimOp operators.
+SmallVector<Value, 4> getDynOperands(Location loc, Value val, OpBuilder &b) {
+  SmallVector<Value, 4> dynOperands;
+  auto shapedType = val.getType().cast<ShapedType>();
+  for (auto dim : llvm::enumerate(shapedType.getShape())) {
+    if (dim.value() == ShapedType::kDynamicSize)
+      dynOperands.push_back(createOrFoldDimOp(b, loc, val, dim.index()));
+  }
+  return dynOperands;
+}
+
 /// If `size` comes from an AffineMinOp and one of the values of AffineMinOp
 /// is a constant then return a new value set to the smallest such constant.
 /// Otherwise returngetSmallestBoundingIndex nullptr.
@@ -174,8 +198,8 @@ IntegerAttr getSmallestBoundingIndex(Value size) {
                          .getResult(0)
                          .dyn_cast<AffineConstantExpr>())
       boundingConst = cExpr.getValue();
-  } else if (auto dimOp = size.getDefiningOp<memref::DimOp>()) {
-    auto shape = dimOp.memrefOrTensor().getType().dyn_cast<ShapedType>();
+  } else if (auto dimOp = size.getDefiningOp<tensor::DimOp>()) {
+    auto shape = dimOp.source().getType().dyn_cast<ShapedType>();
     if (auto constOp = dimOp.index().getDefiningOp<ConstantOp>()) {
       if (auto indexAttr = constOp.value().dyn_cast<IntegerAttr>()) {
         auto dimIndex = indexAttr.getInt();
@@ -555,7 +579,7 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
     }
     LLVM_DEBUG(llvm::dbgs() << ": tiled: figure out subshape...\n");
 
-    // Construct a new subview / subtensor for the tile.
+    // Construct a new subview / extract_slice for the tile.
     SmallVector<OpFoldResult, 4> offsets, sizes, strides;
     offsets.reserve(rank);
     sizes.reserve(rank);
@@ -564,7 +588,7 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
       LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: for dim#" << r);
       if (!isTiled(map.getSubMap({r}), tileSizes)) {
         offsets.push_back(b.getIndexAttr(0));
-        Value dim = b.createOrFold<memref::DimOp>(loc, shapedOp, r);
+        Value dim = createOrFoldDimOp(b, loc, shapedOp, r);
         sizes.push_back(dim);
         strides.push_back(b.getIndexAttr(1));
         LLVM_DEBUG(llvm::dbgs() << ": not tiled: use size: " << dim << "\n");
@@ -584,7 +608,7 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
       Value size = makeComposedAffineApply(b, loc, s0 + 1, closedIntSize);
       LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: raw size: " << size << "\n");
 
-      // The size of the subview / subtensor should be trimmed to avoid
+      // The size of the subview / extract_slice should be trimmed to avoid
       // out-of-bounds accesses, unless we statically know the subshape size
       // divides the shape size evenly.
       int64_t shapeSize = shape[r];
@@ -601,7 +625,7 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
             AffineMap::inferFromExprList(
                 ArrayRef<ArrayRef<AffineExpr>>{{dim0, dim1 - dim2}})
                 .front();
-        Value d = b.create<memref::DimOp>(loc, shapedOp, r);
+        Value d = createOrFoldDimOp(b, loc, shapedOp, r);
         SmallVector<Value, 4> operands{size, d, offset};
         fullyComposeAffineMapAndOperands(&minMap, &operands);
         size = b.create<AffineMinOp>(loc, b.getIndexType(), minMap, operands);
@@ -618,8 +642,8 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
       tiledShapes.push_back(
           b.create<memref::SubViewOp>(loc, shapedOp, offsets, sizes, strides));
     else
-      tiledShapes.push_back(
-          b.create<SubTensorOp>(loc, shapedOp, offsets, sizes, strides));
+      tiledShapes.push_back(b.create<tensor::ExtractSliceOp>(
+          loc, shapedOp, offsets, sizes, strides));
   }
 
   return tiledShapes;

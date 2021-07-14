@@ -445,6 +445,43 @@ def CloneOp : MemRef_Op<"clone", [
 }
 
 //===----------------------------------------------------------------------===//
+// CopyOp
+//===----------------------------------------------------------------------===//
+
+def CopyOp : MemRef_Op<"copy",
+    [CopyOpInterface, SameOperandsElementType, SameOperandsShape]> {
+
+  let description = [{
+    Copies the data from the source to the destination memref.
+
+    Usage:
+
+    ```mlir
+    memref.copy %arg0, %arg1 : memref<?xf32> to memref<?xf32>
+    ```
+
+    Source and destination are expected to have the same element type and shape.
+    Otherwise, the result is undefined. They may have different layouts.
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "the memref to copy from",
+                           [MemRead]>:$source,
+                       Arg<AnyRankedOrUnrankedMemRef, "the memref to copy to",
+                           [MemWrite]>:$target);
+
+  let extraClassDeclaration = [{
+    Value getSource() { return source();}
+    Value getTarget() { return target(); }
+  }];
+
+  let assemblyFormat = [{
+    $source `,` $target attr-dict `:` type($source) `to` type($target)
+  }];
+
+  let verifier = ?;
+}
+
+//===----------------------------------------------------------------------===//
 // DeallocOp
 //===----------------------------------------------------------------------===//
 
@@ -475,7 +512,7 @@ def MemRef_DeallocOp : MemRef_Op<"dealloc", [MemRefsNormalizable]> {
 // DimOp
 //===----------------------------------------------------------------------===//
 
-def DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
+def MemRef_DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
   let summary = "dimension index operation";
   let description = [{
     The `dim` operation takes a memref and a dimension operand of type `index`.
@@ -501,18 +538,17 @@ def DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
     ```
   }];
 
-  let arguments = (ins AnyTypeOf<[AnyTensor, AnyRankedOrUnrankedMemRef],
-                                 "any memref or tensor type">:$memrefOrTensor,
+  let arguments = (ins AnyRankedOrUnrankedMemRef:$source,
                        Index:$index);
   let results = (outs Index:$result);
 
   let assemblyFormat = [{
-    attr-dict $memrefOrTensor `,` $index `:` type($memrefOrTensor)
+    attr-dict $source `,` $index `:` type($source)
   }];
 
   let builders = [
-    OpBuilder<(ins "Value":$memrefOrTensor, "int64_t":$index)>,
-    OpBuilder<(ins "Value":$memrefOrTensor, "Value":$index)>
+    OpBuilder<(ins "Value":$source, "int64_t":$index)>,
+    OpBuilder<(ins "Value":$source, "Value":$index)>
   ];
 
   let extraClassDeclaration = [{
@@ -1251,6 +1287,7 @@ def TensorLoadOp : MemRef_Op<"tensor_load",
 
   let assemblyFormat = "$memref attr-dict `:` type($memref)";
 
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 
