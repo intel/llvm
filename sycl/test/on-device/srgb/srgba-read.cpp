@@ -28,9 +28,10 @@ void test_rd(image_channel_order ChanOrder, image_channel_type ChanType) {
                     // of report iterations. Kludge.
 
   // this should yield a read of approximate 0.5 for each channel
-  // when read directly with a normal non-linearized image (e.g. image_channel_order::rgba).  
-  // For sRGB (image_channel_order::srgba), this is the value with maximum conversion. 
-  // So we should read values of approximately 0.2 
+  // when read directly with a normal non-linearized image (e.g.
+  // image_channel_order::rgba). For sRGB
+  // (image_channel_order::ext_oneapi_srgba), this is the value with maximum
+  // conversion. So we should read values of approximately 0.2
   dataPixelT basicPixel{127 << 24 | 127 << 16 | 127 << 8 | 127};
 
   queue Q;
@@ -83,8 +84,16 @@ void test_rd(image_channel_order ChanOrder, image_channel_type ChanType) {
 
 int main() {
 
+#ifdef SYCL_EXT_ONEAPI_SRGB
+  std::cout << "SYCL_EXT_ONEAPI_SRGB defined" << std::endl;
+#endif
+
   queue Q;
   device D = Q.get_device();
+
+  // test aspect
+  if (D.has(aspect::ext_intel_oneapi_srgb))
+    std::cout << "aspect::ext_intel_oneapi_srgb detected" << std::endl;
 
   if (D.has(aspect::image)) {
     // RGBA -- (normal, non-linearized)
@@ -93,7 +102,8 @@ int main() {
 
     // sRGBA -- (linearized reads)
     std::cout << "srgba -------" << std::endl;
-    test_rd(image_channel_order::srgba, image_channel_type::unorm_int8);
+    test_rd(image_channel_order::ext_oneapi_srgba,
+            image_channel_type::unorm_int8);
   } else {
     std::cout << "device does not support image operations" << std::endl;
   }
@@ -102,6 +112,9 @@ int main() {
 }
 
 // clang-format off
+// CHECK: SYCL_EXT_ONEAPI_SRGB defined
+// CHECK: aspect::ext_intel_oneapi_srgb detected
+
 // CHECK: rgba -------
 // CHECK-NEXT: read four pixels, no sampler
 //   these next four reads should all be close to 0.5
@@ -111,7 +124,7 @@ int main() {
 // CHECK-NEXT: 3: {0.498039,0.498039,0.498039,0.498039} 
 // CHECK: srgba -------
 // CHECK-NEXT: read four pixels, no sampler
-//   these next four reads should all be close to 0.2 
+//   these next four reads should have R, G, B values close to 0.2 
 //   presently the values differ slightly between OpenCL GPU and CPU
 // (e.g. GPU: 0.21231, CPU: 0.211795 )
 // CHECK-NEXT: 0: {0.21 
