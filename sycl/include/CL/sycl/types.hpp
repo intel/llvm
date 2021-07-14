@@ -805,7 +805,10 @@ public:
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   static constexpr size_t get_count() { return size(); }
   static constexpr size_t size() noexcept { return NumElements; }
-  static constexpr size_t get_size() { return sizeof(m_Data); }
+  __SYCL2020_DEPRECATED(
+      "get_size() is deprecated, please use byte_size() instead")
+  static constexpr size_t get_size() { return byte_size(); }
+  static constexpr size_t byte_size() { return sizeof(m_Data); }
 
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>
@@ -1400,7 +1403,10 @@ public:
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
   size_t size() const noexcept { return getNumElements(); }
-  template <int Num = getNumElements()> size_t get_size() const {
+  __SYCL2020_DEPRECATED(
+      "get_size() is deprecated, please use byte_size() instead")
+  size_t get_size() const { return byte_size(); }
+  template <int Num = getNumElements()> size_t byte_size() const noexcept {
     return sizeof(DataT) * (Num == 3 ? 4 : Num);
   }
 

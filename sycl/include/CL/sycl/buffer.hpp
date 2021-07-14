@@ -263,7 +263,10 @@ public:
   size_t get_count() const { return size(); }
   size_t size() const noexcept { return Range.size(); }
 
-  size_t get_size() const { return size() * sizeof(T); }
+  __SYCL2020_DEPRECATED(
+      "get_size() is deprecated, please use byte_size() instead")
+  size_t get_size() const { return byte_size(); }
+  size_t byte_size() const noexcept { return size() * sizeof(T); }
 
   AllocatorT get_allocator() const {
     return impl->template get_allocator<AllocatorT>();
@@ -343,7 +346,7 @@ public:
   template <typename ReinterpretT, int ReinterpretDim>
   buffer<ReinterpretT, ReinterpretDim, AllocatorT>
   reinterpret(range<ReinterpretDim> reinterpretRange) const {
-    if (sizeof(ReinterpretT) * reinterpretRange.size() != get_size())
+    if (sizeof(ReinterpretT) * reinterpretRange.size() != byte_size())
       throw cl::sycl::invalid_object_error(
           "Total size in bytes represented by the type and range of the "
           "reinterpreted SYCL buffer does not equal the total size in bytes "
@@ -369,7 +372,7 @@ public:
                                 (sizeof(ReinterpretT) != sizeof(T))),
       buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
   reinterpret() const {
-    long sz = get_size(); // TODO: switch to byte_size() once implemented
+    long sz = byte_size();
     if (sz % sizeof(ReinterpretT) != 0)
       throw cl::sycl::invalid_object_error(
           "Total byte size of buffer is not evenly divisible by the size of "
