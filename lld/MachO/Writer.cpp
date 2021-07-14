@@ -128,6 +128,31 @@ public:
   ExportSection *exportSection;
 };
 
+class LCSubFramework final : public LoadCommand {
+public:
+  LCSubFramework(StringRef umbrella) : umbrella(umbrella) {}
+
+  uint32_t getSize() const override {
+    return alignTo(sizeof(sub_framework_command) + umbrella.size() + 1,
+                   target->wordSize);
+  }
+
+  void writeTo(uint8_t *buf) const override {
+    auto *c = reinterpret_cast<sub_framework_command *>(buf);
+    buf += sizeof(sub_framework_command);
+
+    c->cmd = LC_SUB_FRAMEWORK;
+    c->cmdsize = getSize();
+    c->umbrella = sizeof(sub_framework_command);
+
+    memcpy(buf, umbrella.data(), umbrella.size());
+    buf[umbrella.size()] = '\0';
+  }
+
+private:
+  const StringRef umbrella;
+};
+
 class LCFunctionStarts final : public LoadCommand {
 public:
   explicit LCFunctionStarts(FunctionStartsSection *functionStartsSection)
@@ -442,7 +467,7 @@ public:
     c->ntools = ntools;
     auto *t = reinterpret_cast<build_tool_version *>(&c[1]);
     t->tool = TOOL_LD;
-    t->version = encodeVersion(llvm::VersionTuple(
+    t->version = encodeVersion(VersionTuple(
         LLVM_VERSION_MAJOR, LLVM_VERSION_MINOR, LLVM_VERSION_PATCH));
   }
 
@@ -641,15 +666,17 @@ void Writer::scanSymbols() {
 
 // TODO: ld64 enforces the old load commands in a few other cases.
 static bool useLCBuildVersion(const PlatformInfo &platformInfo) {
-  static const std::map<PlatformKind, llvm::VersionTuple> minVersion = {
-      {PlatformKind::macOS, llvm::VersionTuple(10, 14)},
-      {PlatformKind::iOS, llvm::VersionTuple(12, 0)},
-      {PlatformKind::iOSSimulator, llvm::VersionTuple(13, 0)},
-      {PlatformKind::tvOS, llvm::VersionTuple(12, 0)},
-      {PlatformKind::tvOSSimulator, llvm::VersionTuple(13, 0)},
-      {PlatformKind::watchOS, llvm::VersionTuple(5, 0)},
-      {PlatformKind::watchOSSimulator, llvm::VersionTuple(6, 0)}};
-  auto it = minVersion.find(platformInfo.target.Platform);
+  static const std::vector<std::pair<PlatformKind, VersionTuple>> minVersion = {
+      {PlatformKind::macOS, VersionTuple(10, 14)},
+      {PlatformKind::iOS, VersionTuple(12, 0)},
+      {PlatformKind::iOSSimulator, VersionTuple(13, 0)},
+      {PlatformKind::tvOS, VersionTuple(12, 0)},
+      {PlatformKind::tvOSSimulator, VersionTuple(13, 0)},
+      {PlatformKind::watchOS, VersionTuple(5, 0)},
+      {PlatformKind::watchOSSimulator, VersionTuple(6, 0)}};
+  auto it = llvm::find_if(minVersion, [&](const auto &p) {
+    return p.first == platformInfo.target.Platform;
+  });
   return it == minVersion.end() ? true : platformInfo.minimum >= it->second;
 }
 
@@ -665,6 +692,8 @@ template <class LP> void Writer::createLoadCommands() {
   in.header->addLoadCommand(make<LCSymtab>(symtabSection, stringTableSection));
   in.header->addLoadCommand(
       make<LCDysymtab>(symtabSection, indirectSymtabSection));
+  if (!config->umbrella.empty())
+    in.header->addLoadCommand(make<LCSubFramework>(config->umbrella));
   if (functionStartsSection)
     in.header->addLoadCommand(make<LCFunctionStarts>(functionStartsSection));
   if (dataInCodeSection)

@@ -613,7 +613,13 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
   // translated function declaration
   MDNode *BufferLocation = nullptr;
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_buffer_location))
-    BufferLocation = ((*F).getMetadata("kernel_arg_buffer_location"));
+    BufferLocation = F->getMetadata("kernel_arg_buffer_location");
+
+  // Translate runtime_aligned metadata if it's attached to the translated
+  // function declaration
+  MDNode *RuntimeAligned = nullptr;
+  if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_runtime_aligned))
+    RuntimeAligned = F->getMetadata("kernel_arg_runtime_aligned");
 
   auto Attrs = F->getAttributes();
 
@@ -652,6 +658,17 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
         LocID = getMDOperandAsInt(BufferLocation, ArgNo);
       if (LocID >= 0)
         BA->addDecorate(DecorationBufferLocationINTEL, LocID);
+    }
+    if (RuntimeAligned && I->getType()->isPointerTy()) {
+      // Order of integer numbers in MD node follows the order of function
+      // parameters on which we shall attach the appropriate decoration. Add
+      // decoration only if MD value is 1.
+      int LocID = 0;
+      if (!isa<MDString>(RuntimeAligned->getOperand(ArgNo)) &&
+          !isa<MDNode>(RuntimeAligned->getOperand(ArgNo)))
+        LocID = getMDOperandAsInt(RuntimeAligned, ArgNo);
+      if (LocID == 1)
+        BA->addDecorate(internal::DecorationRuntimeAlignedINTEL, LocID);
     }
   }
   if (Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::ZExt))
@@ -2405,6 +2422,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
   case Intrinsic::trap:
+  case Intrinsic::arithmetic_fence:
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
@@ -3028,6 +3046,16 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       return transValue(ConstantInt::getTrue(II->getType()), BB, false);
     else
       return transValue(ConstantInt::getFalse(II->getType()), BB, false);
+  }
+  case Intrinsic::arithmetic_fence: {
+    SPIRVType *Ty = transType(II->getType());
+    SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_arithmetic_fence)) {
+      BM->addCapability(internal::CapabilityFPArithmeticFenceINTEL);
+      BM->addExtension(ExtensionID::SPV_INTEL_arithmetic_fence);
+      return BM->addUnaryInst(internal::OpArithmeticFenceINTEL, Ty, Op, BB);
+    }
+    return Op;
   }
   default:
     if (BM->isUnknownIntrinsicAllowed(II))
@@ -3857,10 +3885,6 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addAsyncGroupCopy(BArgs[0], BArgs[1], BArgs[2], BArgs[3],
                                  BArgs[4], BArgs[5], BB);
   } break;
-  case OpSelect: {
-    auto BArgs = transValue(getArguments(CI), BB);
-    return BM->addSelectInst(BArgs[0], BArgs[1], BArgs[2], BB);
-  }
   case OpSampledImage: {
     // Clang can generate SPIRV-friendly call for OpSampledImage instruction,
     // i.e. __spirv_SampledImage... But it can't generate correct return type
@@ -4101,7 +4125,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
         SPRetTy = transType(F->arg_begin()->getType()->getPointerElementType());
         Args.erase(Args.begin());
       }
-      auto SPI = BM->addInstTemplate(OC, BB, SPRetTy);
+      auto *SPI = SPIRVInstTemplateBase::create(OC);
       std::vector<SPIRVWord> SPArgs;
       for (size_t I = 0, E = Args.size(); I != E; ++I) {
         assert((!isFunctionPointerType(Args[I]->getType()) ||
@@ -4111,7 +4135,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
                              ? cast<ConstantInt>(Args[I])->getZExtValue()
                              : transValue(Args[I], BB)->getId());
       }
-      SPI->setOpWordsAndValidate(SPArgs);
+      BM->addInstTemplate(SPI, SPArgs, BB, SPRetTy);
       if (!SPRetTy || !SPRetTy->isTypeStruct())
         return SPI;
       std::vector<SPIRVWord> Mem;

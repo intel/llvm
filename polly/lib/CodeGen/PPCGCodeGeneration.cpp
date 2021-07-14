@@ -306,7 +306,7 @@ static __isl_give isl_id_to_ast_expr *pollyBuildAstExprForStmt(
     return NULL;
 
   isl::ast_build Build = isl::manage_copy(Build_C);
-  isl::ctx Ctx = Build.get_ctx();
+  isl::ctx Ctx = Build.ctx();
   isl::id_to_ast_expr RefToExpr = isl::id_to_ast_expr::alloc(Ctx, 0);
 
   Stmt->setAstBuild(Build);
@@ -1151,16 +1151,16 @@ Value *GPUNodeBuilder::getArrayOffset(gpu_array_info *Array) {
 
   isl::set ZeroSet = isl::set::universe(Min.get_space());
 
-  for (long i = 0, n = Min.dim(isl::dim::set); i < n; i++)
+  for (long i = 0, n = Min.tuple_dim(); i < n; i++)
     ZeroSet = ZeroSet.fix_si(isl::dim::set, i, 0);
 
   if (Min.is_subset(ZeroSet)) {
     return nullptr;
   }
 
-  isl::ast_expr Result = isl::ast_expr::from_val(isl::val(Min.get_ctx(), 0));
+  isl::ast_expr Result = isl::ast_expr::from_val(isl::val(Min.ctx(), 0));
 
-  for (long i = 0, n = Min.dim(isl::dim::set); i < n; i++) {
+  for (long i = 0, n = Min.tuple_dim(); i < n; i++) {
     if (i > 0) {
       isl::pw_aff Bound_I =
           isl::manage(isl_multi_pw_aff_get_pw_aff(Array->bound, i - 1));
