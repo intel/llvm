@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2020 -ast-dump %s | FileCheck %s
 
 // Tests for AST of [[intel::scheduler_target_fmax_mhz()]], [[intel::num_simd_work_items()]],
-// [[intel::no_global_work_offset()]], [[intel::no_global_work_offset()]], [[intel::sycl_explicit_simd]],
+// [[intel::no_global_work_offset()]], [[intel::max_global_work_dim()]], [[intel::sycl_explicit_simd]],
 // [[sycl::reqd_sub_group_size()]], [[sycl::reqd_work_group_size()]], [[intel::kernel_args_restrict]], and
 // [[intel::max_work_group_size()]] function attributes in SYCL 2020.
 
@@ -109,12 +109,12 @@ int main() {
     h.single_task<class test_kernel5>(
         FuncObj1());
 
-    // CHECK:       FunctionDecl {{.*}}test_kerne6
+    // CHECK:       FunctionDecl {{.*}}test_kernel6
     // CHECK:       SYCLIntelNoGlobalWorkOffsetAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    h.single_task<class test_kerne6>(
+    h.single_task<class test_kernel6>(
         []() [[intel::no_global_work_offset]]{});
 
     // CHECK:       FunctionDecl {{.*}}test_kernel7
