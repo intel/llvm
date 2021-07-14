@@ -1,3 +1,5 @@
+// Temporarily disabled due to CUDA context related failures.
+// UNSUPPORTED: cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 // Native images are created with host pointers only with host unified memory
 // support, enforce it for this test.
