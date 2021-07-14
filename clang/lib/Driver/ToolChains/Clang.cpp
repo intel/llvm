@@ -1435,6 +1435,10 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     if (!SourcePath.empty()) {
       CmdArgs.push_back("-I");
       CmdArgs.push_back(Args.MakeArgString(SourcePath));
+    } else if (llvm::ErrorOr<std::string> CWD =
+               D.getVFS().getCurrentWorkingDirectory()) {
+      CmdArgs.push_back("-I");
+      CmdArgs.push_back(Args.MakeArgString(*CWD));
     }
   }
 
@@ -4394,6 +4398,10 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   if (!SourcePath.empty()) {
     HostCompileArgs.push_back("-I");
     HostCompileArgs.push_back(TCArgs.MakeArgString(SourcePath));
+  } else if (llvm::ErrorOr<std::string> CWD =
+             TC.getDriver().getVFS().getCurrentWorkingDirectory()) {
+      HostCompileArgs.push_back("-I");
+      HostCompileArgs.push_back(TCArgs.MakeArgString(*CWD));
   }
 
   // Add default header search directories.
