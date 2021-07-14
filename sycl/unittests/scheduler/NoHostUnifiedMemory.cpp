@@ -203,11 +203,12 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     cl_mem MockInteropBuffer = reinterpret_cast<cl_mem>(1);
     context InteropContext = Q.get_context();
     InteropPiContext = detail::getSyclObjImpl(InteropContext)->getHandleRef();
-    std::shared_ptr<detail::buffer_impl> BufI = std::make_shared<
-        detail::buffer_impl>(
-        MockInteropBuffer, Q.get_context(), /*BufSize*/ 8,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<buffer_allocator>>(),
-        event());
+    std::shared_ptr<detail::buffer_impl> BufI =
+        std::make_shared<detail::buffer_impl>(
+            MockInteropBuffer, Q.get_context(), /*BufSize*/ 8,
+            make_unique_ptr<
+                detail::SYCLMemObjAllocatorHolder<buffer_allocator<size_t>>>(),
+            event());
 
     detail::Requirement Req = getMockRequirement();
     Req.MSYCLMemObj = BufI.get();

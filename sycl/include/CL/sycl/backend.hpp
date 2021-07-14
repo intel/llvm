@@ -191,7 +191,7 @@ typename std::enable_if<
 }
 
 template <backend Backend, typename T, int Dimensions = 1,
-          typename AllocatorT = buffer_allocator>
+          typename AllocatorT = buffer_allocator<detail::remove_const_t<T>>>
 typename std::enable_if<detail::InteropFeatureSupportMap<Backend>::MakeBuffer ==
                             true,
                         buffer<T, Dimensions, AllocatorT>>::type

@@ -31,10 +31,11 @@ template <int dimensions> class range;
 /// \sa sycl_api_acc
 ///
 /// \ingroup sycl_api
-template <typename T, int dimensions = 1,
-          typename AllocatorT = cl::sycl::buffer_allocator,
-          typename = typename detail::enable_if_t<(dimensions > 0) &&
-                                                  (dimensions <= 3)>>
+template <
+    typename T, int dimensions = 1,
+    typename AllocatorT = cl::sycl::buffer_allocator<detail::remove_const_t<T>>,
+    typename =
+        typename detail::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
 class buffer {
 public:
   using value_type = T;

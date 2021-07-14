@@ -35,6 +35,7 @@ class buffer;
 template <typename DataT, int Dimensions, access::mode AccessMode>
 class host_accessor;
 
+template <typename T = char>
 using buffer_allocator = detail::sycl_memory_object_allocator;
 
 namespace detail {
