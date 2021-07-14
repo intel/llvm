@@ -2,7 +2,7 @@
 ; SYCL source code can be found below:
 
 ; #include <CL/sycl.hpp>
-; #include <sycl/ext/intel/fpga_extensions.hpp>
+; #include <CL/sycl/intel/fpga_extensions.hpp>
 ;
 ; int main() {
 ;   cl::sycl::queue Queue{cl::sycl::intel::fpga_emulator_selector{}};
