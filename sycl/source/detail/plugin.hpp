@@ -56,6 +56,15 @@ public:
     __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
   }
 
+  void reportPiError(RT::PiResult pi_result, const char *context) const {
+    if (pi_result != PI_SUCCESS) {
+      throw cl::sycl::runtime_error(
+          std::string(context) + " API failed with error: " +
+              cl::sycl::detail::codeToString(pi_result),
+          pi_result);
+    }
+  }
+
   /// Calls the PiApi, traces the call, and returns the result.
   ///
   /// Usage:
@@ -66,6 +75,7 @@ public:
   /// \endcode
   ///
   /// \sa plugin::checkPiResult
+
   template <PiApiKind PiApiOffset, typename... ArgsT>
   RT::PiResult call_nocheck(ArgsT... Args) const {
     RT::PiFuncInfo<PiApiOffset> PiCallInfo;

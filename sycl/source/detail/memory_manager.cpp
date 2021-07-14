@@ -230,6 +230,11 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
         "Specified offset of the sub-buffer being constructed is not a "
         "multiple of the memory base address alignment",
         PI_INVALID_VALUE);
+
+  if (Error != PI_SUCCESS) {
+    Plugin.reportPiError(Error, "allocateMemSubBuffer()");
+  }
+
   return NewMem;
 }
 
