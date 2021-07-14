@@ -185,18 +185,12 @@ class DispatchHostTask {
     // other available job and resume once all required events are ready.
     for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
       std::vector<RT::PiEvent> RawEvents = getPiEvents(PluginWithEvents.second);
-      try {
-        PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                              RawEvents.data());
-      } catch (const sycl::exception &E) {
-        CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
-        HostTask.MQueue->reportAsyncException(std::current_exception());
-        return (pi_result)E.get_cl_code();
-      } catch (...) {
-        CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
-        HostTask.MQueue->reportAsyncException(std::current_exception());
-        return PI_ERROR_UNKNOWN;
-      }
+      pi_result Error =
+          PluginWithEvents.first->call_nocheck<PiApiKind::piEventsWait>(
+              RawEvents.size(), RawEvents.data());
+
+      if (Error != PI_SUCCESS)
+        return Error;
     }
 
     // Wait for dependency host events.
@@ -208,27 +202,8 @@ class DispatchHostTask {
     return PI_SUCCESS;
   }
 
-public:
-  DispatchHostTask(ExecCGCommand *ThisCmd,
-                   std::vector<interop_handle::ReqToMem> ReqToMem)
-      : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
-
-  void operator()() const {
-    assert(MThisCmd->getCG().getType() == CG::CGTYPE::CODEPLAY_HOST_TASK);
-
+  pi_result executeHostTask() const {
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
-
-    pi_result WaitResult = waitForEvents();
-    if (WaitResult != PI_SUCCESS) {
-      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
-          std::string("Couldn't wait for host-task's dependencies"),
-          WaitResult));
-      HostTask.MQueue->reportAsyncException(EPtr);
-
-      // reset host-task's lambda and quit
-      HostTask.MHostTask.reset();
-      return;
-    }
 
     try {
       // we're ready to call the user-defined lambda now
@@ -242,10 +217,16 @@ public:
         HostTask.MHostTask->call();
     } catch (...) {
       HostTask.MQueue->reportAsyncException(std::current_exception());
+
+      return PI_ERROR_UNKNOWN;
     }
 
     HostTask.MHostTask.reset();
 
+    return PI_SUCCESS;
+  }
+
+  void unblockGraph() const {
     // unblock user empty command here
     EmptyCommand *EmptyCmd = MThisCmd->MEmptyCmd;
     assert(EmptyCmd && "No empty command found");
@@ -270,6 +251,35 @@ public:
       for (const DepDesc &Dep : Deps)
         Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement);
     }
+  }
+
+public:
+  DispatchHostTask(ExecCGCommand *ThisCmd,
+                   std::vector<interop_handle::ReqToMem> ReqToMem)
+      : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
+
+  void operator()() const {
+    assert(MThisCmd->getCG().getType() == CG::CGTYPE::CODEPLAY_HOST_TASK);
+
+    CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
+
+    pi_result WaitResult = waitForEvents();
+    if (WaitResult != PI_SUCCESS) {
+      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
+          std::string("Couldn't wait for host-task's dependencies"),
+          WaitResult));
+      HostTask.MQueue->reportAsyncException(EPtr);
+
+      // reset host-task's lambda and quit
+      HostTask.MHostTask.reset();
+      return;
+    }
+
+    if (executeHostTask() != PI_SUCCESS)
+      // The failure was reported already. No need to duplicate it here.
+      return;
+
+    unblockGraph();
   }
 };
 
