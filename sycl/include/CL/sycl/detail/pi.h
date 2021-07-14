@@ -513,13 +513,11 @@ constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE =
     CL_SAMPLER_FILTER_MODE;
 
 using pi_memory_order_capabilities = pi_bitfield;
-typedef enum {
-  PI_MEMORY_ORDER_RELAXED = 0x01,
-  PI_MEMORY_ORDER_ACQUIRE = 0x02,
-  PI_MEMORY_ORDER_RELEASE = 0x04,
-  PI_MEMORY_ORDER_ACQ_REL = 0x08,
-  PI_MEMORY_ORDER_SEQ_CST = 0x10,
-} _pi_memory_order_capability;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELAXED = 0x01;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_ACQUIRE = 0x02;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELEASE = 0x04;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_ACQ_REL = 0x08;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_SEQ_CST = 0x10;
 
 typedef enum {
   PI_PROFILING_INFO_COMMAND_QUEUED = CL_PROFILING_COMMAND_QUEUED,

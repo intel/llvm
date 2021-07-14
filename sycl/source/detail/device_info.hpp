@@ -255,12 +255,12 @@ template <>
 struct get_device_info<std::vector<memory_order>,
                        info::device::atomic_memory_order_capabilities> {
   static std::vector<memory_order> get(RT::PiDevice dev, const plugin &Plugin) {
-    _pi_memory_order_capability result;
+    pi_memory_order_capabilities result;
     Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
         dev,
         pi::cast<RT::PiDeviceInfo>(
             info::device::atomic_memory_order_capabilities),
-        sizeof(_pi_memory_order_capability), &result, nullptr);
+        sizeof(pi_memory_order_capabilities), &result, nullptr);
     return readMemoryOrderBitfield(result);
   }
 };

@@ -46,7 +46,7 @@ inline constexpr auto memory_order_seq_cst = memory_order::seq_cst;
 namespace detail {
 
 inline std::vector<memory_order>
-readMemoryOrderBitfield(_pi_memory_order_capability bits) {
+readMemoryOrderBitfield(pi_memory_order_capabilities bits) {
   std::vector<memory_order> result;
   if (bits & PI_MEMORY_ORDER_RELAXED)
     result.push_back(memory_order::relaxed);

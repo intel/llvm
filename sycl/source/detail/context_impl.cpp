@@ -155,7 +155,7 @@ context_impl::get_info<info::context::atomic_memory_order_capabilities>()
             cl::sycl::memory_order::release, cl::sycl::memory_order::acq_rel,
             cl::sycl::memory_order::seq_cst};
 
-  _pi_memory_order_capability Result;
+  pi_memory_order_capabilities Result;
   getPlugin().call<PiApiKind::piContextGetInfo>(
       MContext,
       pi::cast<pi_context_info>(

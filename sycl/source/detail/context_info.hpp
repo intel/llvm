@@ -38,7 +38,7 @@ struct get_context_info<info::context::atomic_memory_order_capabilities> {
       info::context::atomic_memory_order_capabilities>::return_type;
 
   static RetType get(RT::PiContext ctx, const plugin &Plugin) {
-    _pi_memory_order_capability Result;
+    pi_memory_order_capabilities Result;
     Plugin.call<PiApiKind::piContextGetInfo>(
         ctx,
         pi::cast<pi_context_info>(
