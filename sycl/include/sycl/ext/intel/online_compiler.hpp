@@ -231,9 +231,10 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
     /// The created compiler is "optimistic" - it assumes all applicable SYCL
     /// device capabilities are supported by the target device(s).
     online_compiler(ext::intel::compiled_code_format fmt =
-                        ext::intel::compiled_code_format::spir_v)
-        : ext::intel::online_compiler<(
-              ext::intel::source_language)Lang>::online_compiler(fmt) {}
+                        ext::intel::compiled_code_format::spir_v) {
+      MOnlineCompiler =
+          ext::intel::online_compiler<(ext::intel::source_language)Lang>(fmt);
+    }
 
     /// Constructs online compiler which targets given architecture and produces
     /// given compiled code format. Produces 64-bit device code.
@@ -243,19 +244,22 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
     online_compiler(sycl::info::device_type dev_type,
                     ext::intel::device_arch arch,
                     ext::intel::compiled_code_format fmt =
-                        ext::intel::compiled_code_format::spir_v)
-        : ext::intel::online_compiler<(
-              ext::intel::source_language)Lang>::online_compiler(dev_type, arch,
-                                                                 fmt) {}
+                        ext::intel::compiled_code_format::spir_v) {
+      MOnlineCompiler =
+          ext::intel::online_compiler<(ext::intel::source_language)Lang>(
+              dev_type, arch, fmt);
+    }
 
     /// Constructs online compiler for the target specified by given SYCL
     /// device.
     // TODO: the initial version generates the generic code (SKL now), need
     // to do additional device::info calls to determine the device by it's
     // features.
-    online_compiler(const sycl::device &device)
-        : ext::intel::online_compiler<(
-              ext::intel::source_language)Lang>::online_compiler(device) {}
+    online_compiler(const sycl::device &device) {
+      MOnlineCompiler =
+          ext::intel::online_compiler<(ext::intel::source_language)Lang>(
+              device);
+    }
 
     /// Compiles given in-memory \c Lang source to a binary blob. Blob format,
     /// other parameters are set in the constructor by the compilation target
@@ -270,49 +274,51 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
     /// *this.
     online_compiler<Lang> &
     setOutputFormat(ext::intel::compiled_code_format fmt) {
-      return ext::intel::online_compiler<(ext::intel::source_language)Lang>::
-          setOutputFormat<(ext::intel::source_language)Lang>(fmt);
+      return MOnlineCompiler.setOutputFormat<(ext::intel::source_language)Lang>(
+          fmt);
     }
 
     /// Sets the compiled code format version of the compilation target and
     /// returns *this.
     online_compiler<Lang> &setOutputFormatVersion(int major, int minor) {
-      return ext::intel::online_compiler<(ext::intel::source_language)Lang>::
-          setOutputFormatVersion<(ext::intel::source_language)Lang>(major,
-                                                                    minor);
+      return MOnlineCompiler
+          .setOutputFormatVersion<(ext::intel::source_language)Lang>(major,
+                                                                     minor);
     }
 
     /// Sets the device type of the compilation target and returns *this.
     online_compiler<Lang> &setTargetDeviceType(sycl::info::device_type type) {
-      return ext::intel::online_compiler<(ext::intel::source_language)Lang>::
-          setTargetDeviceType<(ext::intel::source_language)Lang>(type);
+      return MOnlineCompiler
+          .setTargetDeviceType<(ext::intel::source_language)Lang>(type);
     }
 
     /// Sets the device architecture of the compilation target and returns
     /// *this.
     online_compiler<Lang> &setTargetDeviceArch(device_arch arch) {
-      return ext::intel::online_compiler<(ext::intel::source_language)Lang>::
-          setTargetDeviceArch<(ext::intel::source_language)Lang>(arch);
+      return MOnlineCompiler
+          .setTargetDeviceArch<(ext::intel::source_language)Lang>(arch);
     }
 
     /// Makes the compilation target 32-bit and returns *this.
     online_compiler<Lang> &set32bitTarget() {
-      return ext::intel::online_compiler<(
-          ext::intel::source_language)Lang>::set32bitTarget();
+      return MOnlineCompiler.set32bitTarget();
     };
 
     /// Makes the compilation target 64-bit and returns *this.
     online_compiler<Lang> &set64bitTarget() {
-      return ext::intel::online_compiler<(
-          ext::intel::source_language)Lang>::set64bitTarget();
+      return MOnlineCompiler.set64bitTarget();
     };
 
     /// Sets implementation-defined target device stepping of the compilation
     /// target and returns *this.
     online_compiler<Lang> &setTargetDeviceStepping(const std::string &id) {
-      return ext::intel::online_compiler<(ext::intel::source_language)Lang>::
-          setTargetDeviceStepping<(ext::intel::source_language)Lang>(id);
+      return MOnlineCompiler
+          .setTargetDeviceStepping<(ext::intel::source_language)Lang>(id);
     }
+
+  private:
+    ext::intel::online_compiler<(ext::intel::source_language)Lang>
+        MOnlineCompiler;
   };
 
   // Specializations of the online_compiler class and 'compile' function for
@@ -328,6 +334,15 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
   online_compiler<source_language::opencl_c>::compile(
       const std::string &src, const std::vector<std::string> &options);
 
+  /// Compiles the given OpenCL source. May throw \c online_compile_error.
+  /// @param src - contents of the source.
+  template <>
+  template <>
+  std::vector<byte> online_compiler<source_language::opencl_c>::compile(
+      const std::string &src) {
+    return MOnlineCompiler.compile(src);
+  }
+
   /// Compiles the given CM source \p src.
   /// @param src - contents of the source.
   /// @param options - compilation options (implementation defined).
@@ -335,6 +350,14 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
   template <>
   __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
       const std::string &src, const std::vector<std::string> &options);
+
+  /// Compiles the given CM source \p src.
+  template <>
+  template <>
+  std::vector<byte> online_compiler<source_language::cm>::compile(
+      const std::string &src) {
+    return MOnlineCompiler.compile(src);
+  }
 
 } // namespace INTEL
 } // namespace sycl

@@ -1424,15 +1424,15 @@ public:
 
     if (D.has(aspect::atomic64)) {
 
-      ONEAPI::detail::reduCGFuncAtomic64<KernelName>(*this, KernelFunc, Range,
-                                                     Redu);
+      ext::oneapi::detail::reduCGFuncAtomic64<KernelName>(*this, KernelFunc,
+                                                          Range, Redu);
 
       if (Reduction::is_usm || Redu.initializeToIdentity()) {
         this->finalize();
         handler CopyHandler(QueueCopy, MIsHost);
         CopyHandler.saveCodeLoc(MCodeLoc);
-        ONEAPI::detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler,
-                                                                 Redu);
+        ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
+            CopyHandler, Redu);
         MLastEvent = CopyHandler.finalize();
       }
     } else {

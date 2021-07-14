@@ -241,18 +241,14 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
   __SYCL_EXPORT std::vector<byte>
   online_compiler<source_language::opencl_c>::compile(
       const std::string &Source, const std::vector<std::string> &UserArgs) {
-    ext::intel::online_compiler<ext::intel::source_language::opencl_c>
-        intel_online_compiler_obj;
-    return intel_online_compiler_obj.compile(Source, UserArgs);
+    return MOnlineCompiler.compile(Source, UserArgs);
   }
 
   template <>
   template <>
   __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
       const std::string &Source, const std::vector<std::string> &UserArgs) {
-    ext::intel::online_compiler<ext::intel::source_language::opencl_c>
-        intel_online_compiler_obj;
-    return intel_online_compiler_obj.compile(Source, UserArgs);
+    return MOnlineCompiler.compile(Source, UserArgs);
   }
 } // namespace INTEL
 } // namespace sycl
