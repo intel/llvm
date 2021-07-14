@@ -1705,7 +1705,12 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
 
   std::unique_ptr<_pi_context> context{ctxt};
 
-  PI_CHECK_ERROR(cuEventDestroy(context->evBase_));
+  // Can do nothing since the CUDA driver is not responsive anymore. TODO: Find
+  // a better way or exttend this logic to all PI APIs that call CUDA API
+  if (CUDA_ERROR_DEINITIALIZED == errCode)
+    return PI_SUCCESS;
+
+  PI_CHECK_ERROR(errCode);
 
   if (!ctxt->is_primary()) {
     CUcontext cuCtxt = ctxt->get();
