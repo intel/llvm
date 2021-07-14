@@ -30,8 +30,9 @@ fpga_reg(_T t) {
 }
 
 template <typename _T>
-[[deprecated("INTEL::fpga_reg will only support trivially_copyable types in a "
-             "future release. The type used here will be disallowed.")]]
+[[deprecated(
+    "ext::intel::fpga_reg will only support trivially_copyable types in a "
+    "future release. The type used here will be disallowed.")]]
 typename std::enable_if<std::is_trivially_copyable<_T>::value == false,
                         _T>::type
 fpga_reg(_T t) {
