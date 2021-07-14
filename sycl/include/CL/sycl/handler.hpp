@@ -211,7 +211,8 @@ using cl::sycl::detail::queue_impl;
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduCGFunc(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
-                size_t MaxWGSize, uint32_t NumEUThreads, Reduction &Redu);
+                size_t MaxWGSize, uint32_t NumConcurrentWorkGroups,
+                Reduction &Redu);
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 enable_if_t<Reduction::has_atomic_add_float64>
@@ -267,7 +268,7 @@ reduSaveFinalResultToUserMemHelper(std::vector<event> &Events,
                                    bool IsHost, Reduction &Redu, RestT... Rest);
 
 __SYCL_EXPORT uint32_t
-reduGetMaxNumEUThreads(std::shared_ptr<queue_impl> Queue);
+reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
@@ -1369,18 +1370,19 @@ public:
     constexpr bool IsTreeReduction =
         !Reduction::has_fast_reduce && !Reduction::has_fast_atomics;
     size_t OneElemSize =
-        IsTreeReduction ? 0 : sizeof(typename Reduction::result_type);
-#ifdef SYCL_REDUCTION_NUM_EU_THREADS
-    uint32_t NumEUThreads = SYCL_REDUCTION_NUM_EU_THREADS;
+        IsTreeReduction ? sizeof(typename Reduction::result_type) : 0;
+    uint32_t NumConcurrentWorkGroups =
+#ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
+        __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
 #else
-    uint32_t NumEUThreads = ONEAPI::detail::reduGetMaxNumEUThreads(MQueue);
+        ONEAPI::detail::reduGetMaxNumConcurrentWorkGroups(MQueue);
 #endif
     // TODO: currently the maximal work group size is determined for the given
     // queue/device, while it is safer to use queries to the kernel pre-compiled
     // for the device.
     size_t MaxWGSize = ONEAPI::detail::reduGetMaxWGSize(MQueue, OneElemSize);
     ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, MaxWGSize,
-                                           NumEUThreads, Redu);
+                                           NumConcurrentWorkGroups, Redu);
     if (Reduction::is_usm ||
         (Reduction::has_fast_atomics && Redu.initializeToIdentity()) ||
         (!Reduction::has_fast_atomics && Redu.hasUserDiscardWriteAccessor())) {

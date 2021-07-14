@@ -846,13 +846,15 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
     typename Reduction::reducer_type Reducer;
     reductionLoop(Range, Reducer, NDId, KernelFunc);
 
-    GroupSum[0] = Reducer.getIdentity();
+    auto LID = NDId.get_local_id(0);
+    if (LID == 0)
+      GroupSum[0] = Reducer.getIdentity();
     sycl::detail::workGroupBarrier();
     Reducer.template atomic_combine<access::address_space::local_space>(
         &GroupSum[0]);
 
     sycl::detail::workGroupBarrier();
-    if (NDId.get_local_id(0) == 0) {
+    if (LID == 0) {
       Reducer.MValue = GroupSum[0];
       Reducer.template atomic_combine(Reduction::getOutPointer(Out));
     }
@@ -883,9 +885,6 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
     typename Reduction::reducer_type Reducer;
     reductionLoop(Range, Reducer, NDId, KernelFunc);
 
-    DoReducePartialSumsInLastWG[0] = 0;
-    sycl::detail::workGroupBarrier();
-
     typename Reduction::binary_operation BOp;
     auto Group = NDId.get_group();
     Reducer.MValue = reduce_over_group(Group, Reducer.MValue, BOp);
@@ -902,8 +901,8 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
           atomic_ref<int, memory_order::relaxed, memory_scope::device,
                      access::address_space::global_space>(
               NWorkGroupsFinished[0]);
-      if (++NFinished == NWorkGroups && NWorkGroups > 1)
-        DoReducePartialSumsInLastWG[0] = 1;
+      DoReducePartialSumsInLastWG[0] =
+          ++NFinished == NWorkGroups && NWorkGroups > 1;
     }
 
     sycl::detail::workGroupBarrier();
@@ -952,8 +951,8 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
     // Copy the element to local memory to prepare it for tree-reduction.
     size_t LID = NDId.get_local_linear_id();
     LocalReds[LID] = Reducer.MValue;
-    LocalReds[WGSize] = Identity;
-    DoReducePartialSumsInLastWG[0] = 0;
+    if (LID == 0)
+      LocalReds[WGSize] = Identity;
     sycl::detail::workGroupBarrier();
 
     // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0].
@@ -980,8 +979,8 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
           atomic_ref<int, memory_order::relaxed, memory_scope::device,
                      access::address_space::global_space>(
               NWorkGroupsFinished[0]);
-      if (++NFinished == NWorkGroups && NWorkGroups > 1)
-        DoReducePartialSumsInLastWG[0] = 1;
+      DoReducePartialSumsInLastWG[0] =
+          ++NFinished == NWorkGroups && NWorkGroups > 1;
     }
 
     sycl::detail::workGroupBarrier();
@@ -989,8 +988,11 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
       auto LocalSum = Identity;
       for (size_t I = LID; I < NWorkGroups; I += WGSize)
         LocalSum = BOp(LocalSum, Reduction::getOutPointer(PartialSums)[I]);
+
       LocalReds[LID] = LocalSum;
-      LocalReds[WGSize] = Identity;
+      if (LID == 0) {
+        LocalReds[WGSize] = Identity;
+      }
       sycl::detail::workGroupBarrier();
 
       size_t PrevStep = WGSize;
@@ -1014,13 +1016,14 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduCGFunc(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
-                size_t MaxWGSize, uint32_t NumEUThreads, Reduction &Redu) {
+                size_t MaxWGSize, uint32_t NumConcurrentWorkGroups,
+                Reduction &Redu) {
   size_t NWorkItems = Range.size();
   size_t WGSize = std::min(NWorkItems, MaxWGSize);
   size_t NWorkGroups = NWorkItems / WGSize;
   if (NWorkItems % WGSize)
     NWorkGroups++;
-  size_t MaxNWorkGroups = NumEUThreads;
+  size_t MaxNWorkGroups = NumConcurrentWorkGroups;
   NWorkGroups = std::min(NWorkGroups, MaxNWorkGroups);
   size_t NDRItems = NWorkGroups * WGSize;
   nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};

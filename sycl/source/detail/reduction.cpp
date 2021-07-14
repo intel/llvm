@@ -50,8 +50,8 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
 
 // Returns the estimated number of physical threads on the device associated
 // with the given queue.
-__SYCL_EXPORT uint32_t
-reduGetMaxNumEUThreads(std::shared_ptr<sycl::detail::queue_impl> Queue) {
+__SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
+    std::shared_ptr<sycl::detail::queue_impl> Queue) {
   device Dev = Queue->get_device();
   uint32_t NumThreads = Dev.get_info<info::device::max_compute_units>();
   // The heuristics require additional tuning for various devices and vendors.
