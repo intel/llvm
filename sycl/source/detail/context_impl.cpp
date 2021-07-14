@@ -146,6 +146,23 @@ std::vector<cl::sycl::device>
 context_impl::get_info<info::context::devices>() const {
   return MDevices;
 }
+template <>
+std::vector<cl::sycl::memory_order>
+context_impl::get_info<info::context::atomic_memory_order_capabilities>()
+    const {
+  if (is_host())
+    return {cl::sycl::memory_order::relaxed, cl::sycl::memory_order::acquire,
+            cl::sycl::memory_order::release, cl::sycl::memory_order::acq_rel,
+            cl::sycl::memory_order::seq_cst};
+
+  _pi_memory_order_capability Result;
+  getPlugin().call<PiApiKind::piContextGetInfo>(
+      MContext,
+      pi::cast<pi_context_info>(
+          info::context::atomic_memory_order_capabilities),
+      sizeof(Result), &Result, nullptr);
+  return readMemoryOrderBitfield(Result);
+}
 
 RT::PiContext &context_impl::getHandleRef() { return MContext; }
 const RT::PiContext &context_impl::getHandleRef() const { return MContext; }

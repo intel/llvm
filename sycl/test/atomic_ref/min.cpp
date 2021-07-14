@@ -29,8 +29,7 @@ template <typename T> void min_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
-                              ext::oneapi::memory_scope::device,
+        auto atm = atomic_ref<T, memory_order::relaxed, memory_scope::device,
                               access::address_space::global_space>(val[0]);
         out[gid] = atm.fetch_min(T(gid));
       });
