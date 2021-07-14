@@ -1,4 +1,8 @@
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple %s -o %t.out
+// Disable fallback assert here until online-support is fixed.
+// Use of per-kernel device code split and linking the bundle with all images
+// involved leads to multiple definition of AssertHappened structure due each
+// device image is statically linked against fallback libdevice.
+// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT=1 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 //
 // -fsycl-device-code-split is not supported for cuda
