@@ -48,12 +48,12 @@ value to determine which of the extension's APIs the implementation supports.
 |1     |Initial extension version.
 |===
 
-== aspect::ext_intel_oneapi_srgb
-Since not all devices and backends support sRGB images, `aspect::ext_intel_oneapi_srgb` is available to programmatically detect this.
+== aspect::ext_oneapi_srgb
+Since not all devices and backends support sRGB images, `aspect::ext_oneapi_srgb` is available to programmatically detect this.
 [source]
 ----
  // someDevice is a sycl::device
- if(someDevice.has(aspect::ext_intel_oneapi_srgb)){ ... }
+ if(someDevice.has(aspect::ext_oneapi_srgb)){ ... }
 ----
 
 == New ImageChannelOrder Enums

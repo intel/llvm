@@ -92,8 +92,8 @@ int main() {
   device D = Q.get_device();
 
   // test aspect
-  if (D.has(aspect::ext_intel_oneapi_srgb))
-    std::cout << "aspect::ext_intel_oneapi_srgb detected" << std::endl;
+  if (D.has(aspect::ext_oneapi_srgb))
+    std::cout << "aspect::ext_oneapi_srgb detected" << std::endl;
 
   if (D.has(aspect::image)) {
     // RGBA -- (normal, non-linearized)
@@ -113,7 +113,7 @@ int main() {
 
 // clang-format off
 // CHECK: SYCL_EXT_ONEAPI_SRGB defined
-// CHECK: aspect::ext_intel_oneapi_srgb detected
+// CHECK: aspect::ext_oneapi_srgb detected
 
 // CHECK: rgba -------
 // CHECK-NEXT: read four pixels, no sampler

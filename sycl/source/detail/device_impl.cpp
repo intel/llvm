@@ -315,8 +315,8 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
     return false;
-  case aspect::ext_intel_oneapi_srgb:
-    return get_info<info::device::ext_intel_oneapi_srgb>();
+  case aspect::ext_oneapi_srgb:
+    return get_info<info::device::ext_oneapi_srgb>();
 
   default:
     throw runtime_error("This device aspect has not been implemented yet.",

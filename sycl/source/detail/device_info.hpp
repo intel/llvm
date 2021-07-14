@@ -1100,8 +1100,7 @@ get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
       "Obtaining the maximum memory bandwidth is not supported on HOST device",
       PI_INVALID_DEVICE);
 }
-template <>
-inline bool get_device_info_host<info::device::ext_intel_oneapi_srgb>() {
+template <> inline bool get_device_info_host<info::device::ext_oneapi_srgb>() {
   return false;
 }
 
