@@ -164,7 +164,7 @@ std::vector<byte> online_compiler<source_language::cm>::compile(
 This example compiles an OpenCL source to a generic SPIR-V.
 [source,c++]
 -----------------
-#include "CL/sycl/INTEL/online_compiler.hpp"
+#include "sycl/ext/intel/online_compiler.hpp"
 
 #include <iostream>
 #include <vector>

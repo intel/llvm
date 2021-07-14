@@ -1,8 +1,8 @@
 
 # FPGA lsu
 
-The Intel FPGA `lsu` class is implemented in `CL/sycl/INTEL/fpga_lsu.hpp` which
-is included in `CL/sycl/INTEL/fpga_extensions.hpp`.
+The Intel FPGA `lsu` class is implemented in `sycl/ext/intel/fpga_lsu.hpp` which
+is included in `sycl/ext/intel/fpga_extensions.hpp`.
 
 The class `cl::sycl::ext::intel::lsu` allows users to explicitly request that the
 implementation of a global memory access is configured in a certain way. The
@@ -81,7 +81,7 @@ public:
 ## Usage
 
 ```c++
-#include <CL/sycl/INTEL/fpga_extensions.hpp>
+#include <sycl/ext/intel/fpga_extensions.hpp>
 ...
 cl::sycl::buffer<int, 1> output_buffer(output_data, 1);
 cl::sycl::buffer<int, 1> input_buffer(input_data, 1);
