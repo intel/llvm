@@ -37,7 +37,7 @@ int main() {
 
 #endif
 
-// CHECK: SYCL_PI_TRACE[basic]: Plugin found and successfully loaded: {{[0-9a-zA-Z_\/\.]+}}_fake_plugin.so
-// CHECK: SYCL_PI_TRACE[basic]: Plugin found and successfully loaded: {{[0-9a-zA-Z_\/\.]+}}_fake_plugin.so
-// CHECK: SYCL_PI_TRACE[basic]: Plugin found and successfully loaded: {{[0-9a-zA-Z_\/\.]+}}_fake_plugin.so
-// CHECK: SYCL_PI_TRACE[basic]: Plugin found and successfully loaded: {{[0-9a-zA-Z_\/\.]+}}_fake_plugin.so
+// CHECK: SYCL_PI_TRACE[basic]: Plugin found and successfully loaded: {{[0-9a-zA-Z_\/\.-]+}}_fake_plugin.so
+// CHECK: SYCL_PI_TRACE[basic]: Plugin found and successfully loaded: {{[0-9a-zA-Z_\/\.-]+}}_fake_plugin.so
+// CHECK: SYCL_PI_TRACE[basic]: Plugin found and successfully loaded: {{[0-9a-zA-Z_\/\.-]+}}_fake_plugin.so
+// CHECK: SYCL_PI_TRACE[basic]: Plugin found and successfully loaded: {{[0-9a-zA-Z_\/\.-]+}}_fake_plugin.so
