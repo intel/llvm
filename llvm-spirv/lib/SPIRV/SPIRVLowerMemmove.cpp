@@ -63,34 +63,31 @@ public:
     if (isa<PHINode>(Src))
       report_fatal_error("llvm.memmove of PHI instruction result not supported",
                          false);
-    auto *SrcTy = Src->getType();
-    auto *Length = cast<ConstantInt>(I.getLength());
-    auto *S = Src;
     // The source could be bit-cast or addrspacecast from another type,
     // need the original type for the allocation of the temporary variable
-    while (isa<BitCastInst>(S) || isa<AddrSpaceCastInst>(S))
-      S = cast<CastInst>(S)->getOperand(0);
-    SrcTy = S->getType();
+    auto *SrcTy = Src->stripPointerCasts()->getType();
+    auto *Length = cast<ConstantInt>(I.getLength());
     MaybeAlign Align = I.getSourceAlign();
     auto Volatile = I.isVolatile();
     Value *NumElements = nullptr;
     uint64_t ElementsCount = 1;
     if (SrcTy->isArrayTy()) {
-      NumElements = Builder.getInt32(SrcTy->getArrayNumElements());
       ElementsCount = SrcTy->getArrayNumElements();
+      NumElements = Builder.getInt32(ElementsCount);
     }
-    if (((ElementsCount > 1) && (Mod->getDataLayout().getTypeSizeInBits(
-                                     SrcTy->getPointerElementType()) *
-                                     ElementsCount !=
-                                 Length->getZExtValue() * 8)) ||
-        ((ElementsCount == 1) &&
-         (Mod->getDataLayout().getTypeSizeInBits(
-              SrcTy->getPointerElementType()) < Length->getZExtValue() * 8)))
-      report_fatal_error("Size of the memcpy should match the allocated memory",
-                         false);
-
-    auto *Alloca =
-        Builder.CreateAlloca(SrcTy->getPointerElementType(), NumElements);
+    // Get number of bits to move and allocate memory appropriately:
+    // if lenght is bigger than a pointer base type size, then create an
+    // alloca of an array type with the same base type.
+    const uint64_t LenBits = Length->getZExtValue();
+    const uint64_t LayoutTypeBites =
+        Mod->getDataLayout().getTypeSizeInBits(SrcTy->getPointerElementType()) *
+        ElementsCount;
+    auto *AllocaTy = SrcTy->getPointerElementType();
+    if (LenBits > LayoutTypeBites) {
+      const uint64_t ArraySize = LenBits / LayoutTypeBites;
+      AllocaTy = ArrayType::get(SrcTy->getPointerElementType(), ArraySize);
+    }
+    auto *Alloca = Builder.CreateAlloca(AllocaTy, NumElements);
     if (Align.hasValue()) {
       Alloca->setAlignment(Align.getValue());
     }
