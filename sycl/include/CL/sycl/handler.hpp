@@ -2295,7 +2295,7 @@ public:
   /// \param Ptr is a USM pointer to the allocation.
   /// \param Length is a number of bytes in the allocation.
   /// \param Advice is a device-defined advice for the specified allocation.
-  void mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice);
+  void mem_advise(const void *Ptr, size_t Length, int Advice);
 
 private:
   std::shared_ptr<detail::queue_impl> MQueue;

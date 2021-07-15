@@ -506,7 +506,7 @@ void handler::prefetch(const void *Ptr, size_t Count) {
   setType(detail::CG::PREFETCH_USM);
 }
 
-void handler::mem_advise(const void *Ptr, size_t Count, pi_mem_advice Advice) {
+void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
@@ -522,7 +522,7 @@ void handler::mem_advise(const void *Ptr, size_t Count, pi_mem_advice Advice) {
 
   detail::ExtendedMemberT EMember = {
       detail::ExtendedMembersType::HANDLER_MEM_ADVICE,
-      std::make_shared<pi_mem_advice>(Advice)};
+      std::make_shared<pi_mem_advice>(pi_mem_advice(Advice))};
 
   ExtendedMembersVec->push_back(EMember);
 }
