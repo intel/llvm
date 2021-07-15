@@ -496,7 +496,9 @@ LLVMToSPIRVDbgTran::transDbgCompilationUnit(const DICompileUnit *CU) {
   Ops[SPIRVDebugInfoVersionIdx] = SPIRVDebug::DebugInfoVersion;
   Ops[DWARFVersionIdx] = M->getDwarfVersion();
   Ops[SourceIdx] = getSource(CU)->getId();
-  Ops[LanguageIdx] = CU->getSourceLanguage();
+  auto DwarfLang =
+      static_cast<llvm::dwarf::SourceLanguage>(CU->getSourceLanguage());
+  Ops[LanguageIdx] = convertDWARFSourceLangToSPIRV(DwarfLang);
   // Cache CU in a member.
   SPIRVCU = static_cast<SPIRVExtInst *>(
       BM->addDebugInfo(SPIRVDebug::CompilationUnit, getVoidTy(), Ops));

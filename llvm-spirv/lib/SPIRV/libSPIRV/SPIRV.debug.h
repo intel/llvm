@@ -1,6 +1,7 @@
 #ifndef SPIRV_DEBUG_H
 #define SPIRV_DEBUG_H
 #include "SPIRVUtil.h"
+#include "spirv.hpp"
 #include "llvm/BinaryFormat/Dwarf.h"
 
 namespace SPIRVDebug {
@@ -788,6 +789,44 @@ enum {
 } // namespace SPIRVDebug
 
 using namespace llvm;
+
+inline spv::SourceLanguage convertDWARFSourceLangToSPIRV(dwarf::SourceLanguage DwarfLang) {
+  switch (DwarfLang) {
+  // When updating this function, make sure to also
+  // update convertSPIRVSourceLangToDWARF()
+
+  // LLVM does not yet define DW_LANG_C_plus_plus_17
+  // case dwarf::SourceLanguage::DW_LANG_C_plus_plus_17:
+  case dwarf::SourceLanguage::DW_LANG_C_plus_plus_14:
+  case dwarf::SourceLanguage::DW_LANG_C_plus_plus:
+    return spv::SourceLanguage::SourceLanguageCPP_for_OpenCL;
+  case dwarf::SourceLanguage::DW_LANG_C99:
+  case dwarf::SourceLanguage::DW_LANG_OpenCL:
+    return spv::SourceLanguage::SourceLanguageOpenCL_C;
+  default:
+    return spv::SourceLanguage::SourceLanguageUnknown;
+  }
+}
+
+inline dwarf::SourceLanguage convertSPIRVSourceLangToDWARF(unsigned SourceLang) {
+  switch (SourceLang) {
+  // When updating this function, make sure to also
+  // update convertDWARFSourceLangToSPIRV()
+  case spv::SourceLanguage::SourceLanguageOpenCL_CPP:
+    return dwarf::SourceLanguage::DW_LANG_C_plus_plus_14;
+  case spv::SourceLanguage::SourceLanguageCPP_for_OpenCL:
+    // LLVM does not yet define DW_LANG_C_plus_plus_17
+    // SourceLang = dwarf::SourceLanguage::DW_LANG_C_plus_plus_17;
+    return dwarf::SourceLanguage::DW_LANG_C_plus_plus_14;
+  case spv::SourceLanguage::SourceLanguageOpenCL_C:
+  case spv::SourceLanguage::SourceLanguageESSL:
+  case spv::SourceLanguage::SourceLanguageGLSL:
+  case spv::SourceLanguage::SourceLanguageHLSL:
+  case spv::SourceLanguage::SourceLanguageUnknown:
+  default:
+    return dwarf::DW_LANG_OpenCL;
+  }
+}
 
 namespace SPIRV {
 typedef SPIRVMap<dwarf::TypeKind, SPIRVDebug::EncodingTag> DbgEncodingMap;
