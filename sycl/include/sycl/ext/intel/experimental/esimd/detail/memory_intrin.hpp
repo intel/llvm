@@ -34,7 +34,7 @@ public:
   static auto getNativeImageObj(const AccessorTy &Acc) {
     return Acc.getNativeImageObj();
   }
-#else
+#else  // __SYCL_DEVICE_ONLY__
   template <typename AccessorTy>
   static auto getImageRange(const AccessorTy &Acc) {
     return Acc.getAccessRange();
@@ -42,7 +42,7 @@ public:
   static auto getElemSize(const sycl::detail::AccessorBaseHost &Acc) {
     return Acc.getElemSize();
   }
-#endif
+#endif // __SYCL_DEVICE_ONLY__
 };
 
 template <int ElemsPerAddr,
@@ -165,17 +165,7 @@ template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_surf_read(int16_t scale, SurfIndAliasTy surf_ind,
                   uint32_t global_offset,
-                  __SEIEED::vector_type_t<uint32_t, N> elem_offsets)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  static_assert(N == 1 || N == 8 || N == 16);
-  static_assert(TySizeLog2 <= 2);
-  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
-  throw cl::sycl::feature_not_supported();
-}
-#endif // __SYCL_DEVICE_ONLY__
+                  __SEIEED::vector_type_t<uint32_t, N> elem_offsets);
 
 // Low-level surface-based scatter. Writes elements of a \ref simd object into a
 // surface at given offsets. Element can be a 1, 2 or 4-byte value, but it is
@@ -208,17 +198,7 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
 __esimd_surf_write(__SEIEED::vector_type_t<uint16_t, N> pred, int16_t scale,
                    SurfIndAliasTy surf_ind, uint32_t global_offset,
                    __SEIEED::vector_type_t<uint32_t, N> elem_offsets,
-                   __SEIEED::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  static_assert(N == 1 || N == 8 || N == 16);
-  static_assert(TySizeLog2 <= 2);
-  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
-  throw cl::sycl::feature_not_supported();
-}
-#endif // __SYCL_DEVICE_ONLY__
+                   __SEIEED::vector_type_t<Ty, N> vals);
 
 // TODO bring the parameter order of __esimd* intrinsics in accordance with the
 // correponsing BE intrinsicics parameter order.
@@ -519,7 +499,10 @@ __esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
                        uint8_t numSrc0, uint8_t sfid, uint32_t exDesc,
                        uint32_t msgDesc,
                        __SEIEED::vector_type_t<Ty1, N1> msgSrc0);
+
 #ifndef __SYCL_DEVICE_ONLY__
+
+/// ESIMD_CPU Emulation support using esimd_cpu plugin
 
 #define __SYCL_EXPLICIT_SIMD_PLUGIN__
 
@@ -814,6 +797,33 @@ inline void __esimd_flat_write4(
       }
     }
   }
+}
+
+template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
+          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
+          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
+__esimd_surf_read(int16_t scale, SurfIndAliasTy surf_ind,
+                  uint32_t global_offset,
+                  __SEIEED::vector_type_t<uint32_t, N> elem_offsets) {
+  static_assert(N == 1 || N == 8 || N == 16);
+  static_assert(TySizeLog2 <= 2);
+  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
+  throw cl::sycl::feature_not_supported();
+}
+
+template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
+          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
+          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
+__esimd_surf_write(__SEIEED::vector_type_t<uint16_t, N> pred, int16_t scale,
+                   SurfIndAliasTy surf_ind, uint32_t global_offset,
+                   __SEIEED::vector_type_t<uint32_t, N> elem_offsets,
+                   __SEIEED::vector_type_t<Ty, N> vals) {
+  static_assert(N == 1 || N == 8 || N == 16);
+  static_assert(TySizeLog2 <= 2);
+  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
+  throw cl::sycl::feature_not_supported();
 }
 
 template <typename Ty, int N, __SEIEE::CacheHint L1H, __SEIEE::CacheHint L3H>
