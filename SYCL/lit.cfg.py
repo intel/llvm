@@ -154,7 +154,7 @@ if not config.sycl_be:
 # Mapping from SYCL_BE backend definition style to SYCL_DEVICE_FILTER used
 # for backward compatibility
 try:
-  config.sycl_be = { 'PI_OPENCL': 'opencl',  'PI_CUDA': 'cuda', 'PI_LEVEL_ZERO': 'level_zero'}[config.sycl_be]
+  config.sycl_be = { 'PI_OPENCL': 'opencl',  'PI_CUDA': 'cuda', 'PI_ROCM': 'rocm', 'PI_LEVEL_ZERO': 'level_zero'}[config.sycl_be]
 except:
   # do nothing a we expect that new format of plugin values are used
   pass
@@ -168,12 +168,24 @@ config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env SYCL_DEVICE_FILTER={SY
 if config.dump_ir_supported:
    config.available_features.add('dump_ir')
 
-if config.sycl_be not in ['host', 'opencl','cuda', 'level_zero']:
-    lit_config.error("Unknown SYCL BE specified '" +
-                     config.sycl_be +
-                     "' supported values are opencl, cuda, level_zero")
+if config.sycl_be not in ['host', 'opencl', 'cuda', 'rocm', 'level_zero']:
+   lit_config.error("Unknown SYCL BE specified '" +
+                    config.sycl_be +
+                    "' supported values are opencl, cuda, rocm, level_zero")
 
-config.substitutions.append( ('%clangxx', ' '+ config.dpcpp_compiler + ' ' + config.cxx_flags ) )
+# If ROCM_PLATFORM flag is not set, default to AMD, and check if ROCM platform is supported
+supported_rocm_platforms=["AMD", "NVIDIA"]
+if config.rocm_platform == "":
+    config.rocm_platform = "AMD"
+if config.rocm_platform not in supported_rocm_platforms:
+    lit_config.error("Unknown ROCm platform '" + config.rocm_platform + "' supported platforms are " + ', '.join(supported_rocm_platforms))
+
+if config.sycl_be == "rocm" and config.rocm_platform == "AMD":
+    mcpu_flag = '-mcpu=' + config.mcpu
+else:
+    mcpu_flag = ""
+
+config.substitutions.append( ('%clangxx', ' '+ config.dpcpp_compiler + ' ' + config.cxx_flags + ' ' + mcpu_flag) )
 config.substitutions.append( ('%clang', ' ' + config.dpcpp_compiler + ' ' + config.c_flags ) )
 config.substitutions.append( ('%threads_lib', config.sycl_threads_lib) )
 
@@ -275,8 +287,10 @@ else:
 config.substitutions.append( ('%ACC_RUN_PLACEHOLDER',  acc_run_substitute) )
 config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
 
-if config.sycl_be == 'cuda':
+if config.sycl_be == 'cuda' or (config.sycl_be == 'rocm' and config.rocm_platform == 'NVIDIA'):
     config.substitutions.append( ('%sycl_triple',  "nvptx64-nvidia-cuda-sycldevice" ) )
+elif config.sycl_be == 'rocm' and config.rocm_platform == 'AMD':
+    config.substitutions.append( ('%sycl_triple',  "amdgcn-amd-amdhsa-sycldevice" ) )
 else:
     config.substitutions.append( ('%sycl_triple',  "spir64-unknown-unknown-sycldevice" ) )
 
