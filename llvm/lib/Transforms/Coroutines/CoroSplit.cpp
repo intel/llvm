@@ -913,6 +913,21 @@ void CoroCloner::create() {
                          Shape.FrameSize, Shape.FrameAlign);
     break;
   case coro::ABI::Async: {
+    auto *ActiveAsyncSuspend = cast<CoroSuspendAsyncInst>(ActiveSuspend);
+    if (OrigF.hasParamAttribute(Shape.AsyncLowering.ContextArgNo,
+                                Attribute::SwiftAsync)) {
+      uint32_t ArgAttributeIndices =
+          ActiveAsyncSuspend->getStorageArgumentIndex();
+      auto ContextArgIndex = ArgAttributeIndices & 0xff;
+      addAsyncContextAttrs(NewAttrs, Context, ContextArgIndex);
+
+      // `swiftasync` must preceed `swiftself` so 0 is not a valid index for
+      // `swiftself`.
+      auto SwiftSelfIndex = ArgAttributeIndices >> 8;
+      if (SwiftSelfIndex)
+        addSwiftSelfAttrs(NewAttrs, Context, SwiftSelfIndex);
+    }
+
     // Transfer the original function's attributes.
     auto FnAttrs = OrigF.getAttributes().getFnAttributes();
     NewAttrs =
@@ -952,23 +967,8 @@ void CoroCloner::create() {
   // followed by a return.
   // Don't change returns to unreachable because that will trip up the verifier.
   // These returns should be unreachable from the clone.
-  case coro::ABI::Async: {
-    auto *ActiveAsyncSuspend = cast<CoroSuspendAsyncInst>(ActiveSuspend);
-    if (OrigF.hasParamAttribute(Shape.AsyncLowering.ContextArgNo,
-                                Attribute::SwiftAsync)) {
-      uint32_t ArgAttributeIndices =
-          ActiveAsyncSuspend->getStorageArgumentIndex();
-      auto ContextArgIndex = ArgAttributeIndices & 0xff;
-      addAsyncContextAttrs(NewAttrs, Context, ContextArgIndex);
-
-      // `swiftasync` must preceed `swiftself` so 0 is not a valid index for
-      // `swiftself`.
-      auto SwiftSelfIndex = ArgAttributeIndices >> 8;
-      if (SwiftSelfIndex)
-        addSwiftSelfAttrs(NewAttrs, Context, SwiftSelfIndex);
-    }
+  case coro::ABI::Async:
     break;
-  }
   }
 
   NewF->setAttributes(NewAttrs);
@@ -1600,8 +1600,23 @@ static void splitAsyncCoroutine(Function &F, coro::Shape &Shape,
     auto *Suspend = cast<CoroSuspendAsyncInst>(Shape.CoroSuspends[Idx]);
 
     // Create the clone declaration.
+    auto ResumeNameSuffix = ".resume.";
+    auto ProjectionFunctionName =
+        Suspend->getAsyncContextProjectionFunction()->getName();
+    bool UseSwiftMangling = false;
+    if (ProjectionFunctionName.equals("__swift_async_resume_project_context")) {
+      ResumeNameSuffix = "TQ";
+      UseSwiftMangling = true;
+    } else if (ProjectionFunctionName.equals(
+                   "__swift_async_resume_get_context")) {
+      ResumeNameSuffix = "TY";
+      UseSwiftMangling = true;
+    }
     auto *Continuation = createCloneDeclaration(
-        F, Shape, ".resume." + Twine(Idx), NextF, Suspend);
+        F, Shape,
+        UseSwiftMangling ? ResumeNameSuffix + Twine(Idx) + "_"
+                         : ResumeNameSuffix + Twine(Idx),
+        NextF, Suspend);
     Clones.push_back(Continuation);
 
     // Insert a branch to a new return block immediately before the suspend

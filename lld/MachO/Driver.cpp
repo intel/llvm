@@ -240,8 +240,7 @@ static std::vector<ArchiveMember> getArchiveMembers(MemoryBufferRef mb) {
 static DenseMap<StringRef, ArchiveFile *> loadedArchives;
 
 static InputFile *addFile(StringRef path, bool forceLoadArchive,
-                          bool isExplicit = true,
-                          bool isBundleLoader = false) {
+                          bool isExplicit = true, bool isBundleLoader = false) {
   Optional<MemoryBufferRef> buffer = readFile(path);
   if (!buffer)
     return nullptr;
@@ -308,7 +307,7 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
   case file_magic::macho_dynamically_linked_shared_lib:
   case file_magic::macho_dynamically_linked_shared_lib_stub:
   case file_magic::tapi_file:
-    if (DylibFile * dylibFile = loadDylib(mbref)) {
+    if (DylibFile *dylibFile = loadDylib(mbref)) {
       if (isExplicit)
         dylibFile->explicitlyLinked = true;
       newFile = dylibFile;
@@ -525,6 +524,14 @@ static void initLLVM() {
 }
 
 static void compileBitcodeFiles() {
+  // FIXME: Remove this once LTO.cpp honors config->exportDynamic.
+  if (config->exportDynamic)
+    for (InputFile *file : inputFiles)
+      if (isa<BitcodeFile>(file)) {
+        warn("the effect of -export_dynamic on LTO is not yet implemented");
+        break;
+      }
+
   TimeTraceScope timeScope("LTO");
   auto *lto = make<BitcodeCompiler>();
   for (InputFile *file : inputFiles)
@@ -841,17 +848,29 @@ static std::vector<SectionAlign> parseSectAlign(const opt::InputArgList &args) {
   return sectAligns;
 }
 
+PlatformKind macho::removeSimulator(PlatformKind platform) {
+  switch (platform) {
+  case PlatformKind::iOSSimulator:
+    return PlatformKind::iOS;
+  case PlatformKind::tvOSSimulator:
+    return PlatformKind::tvOS;
+  case PlatformKind::watchOSSimulator:
+    return PlatformKind::watchOS;
+  default:
+    return platform;
+  }
+}
+
 static bool dataConstDefault(const InputArgList &args) {
-  static const std::map<PlatformKind, VersionTuple> minVersion = {
+  static const std::vector<std::pair<PlatformKind, VersionTuple>> minVersion = {
       {PlatformKind::macOS, VersionTuple(10, 15)},
       {PlatformKind::iOS, VersionTuple(13, 0)},
-      {PlatformKind::iOSSimulator, VersionTuple(13, 0)},
       {PlatformKind::tvOS, VersionTuple(13, 0)},
-      {PlatformKind::tvOSSimulator, VersionTuple(13, 0)},
       {PlatformKind::watchOS, VersionTuple(6, 0)},
-      {PlatformKind::watchOSSimulator, VersionTuple(6, 0)},
       {PlatformKind::bridgeOS, VersionTuple(4, 0)}};
-  auto it = minVersion.find(config->platformInfo.target.Platform);
+  PlatformKind platform = removeSimulator(config->platformInfo.target.Platform);
+  auto it = llvm::find_if(minVersion,
+                          [&](const auto &p) { return p.first == platform; });
   if (it != minVersion.end())
     if (config->platformInfo.minimum < it->second)
       return false;
@@ -894,7 +913,7 @@ bool SymbolPatterns::matchLiteral(StringRef symbolName) const {
 }
 
 bool SymbolPatterns::matchGlob(StringRef symbolName) const {
-  for (const llvm::GlobPattern &glob : globs)
+  for (const GlobPattern &glob : globs)
     if (glob.match(symbolName))
       return true;
   return false;
@@ -1026,6 +1045,23 @@ static void foldIdenticalLiterals() {
     in.wordLiteralSection->finalizeContents();
 }
 
+static void referenceStubBinder() {
+  bool needsStubHelper = config->outputType == MH_DYLIB ||
+                         config->outputType == MH_EXECUTE ||
+                         config->outputType == MH_BUNDLE;
+  if (!needsStubHelper || !symtab->find("dyld_stub_binder"))
+    return;
+
+  // dyld_stub_binder is used by dyld to resolve lazy bindings. This code here
+  // adds a opportunistic reference to dyld_stub_binder if it happens to exist.
+  // dyld_stub_binder is in libSystem.dylib, which is usually linked in. This
+  // isn't needed for correctness, but the presence of that symbol suppresses
+  // "no symbols" diagnostics from `nm`.
+  // StubHelperSection::setup() adds a reference and errors out if
+  // dyld_stub_binder doesn't exist in case it is actually needed.
+  symtab->addUndefined("dyld_stub_binder", /*file=*/nullptr, /*isWeak=*/false);
+}
+
 bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
                  raw_ostream &stdoutOS, raw_ostream &stderrOS) {
   lld::stdoutOS = &stdoutOS;
@@ -1106,6 +1142,10 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
 
   config->mapFile = args.getLastArgValue(OPT_map);
   config->outputFile = args.getLastArgValue(OPT_o, "a.out");
+  if (const Arg *arg = args.getLastArg(OPT_final_output))
+    config->finalOutput = arg->getValue();
+  else
+    config->finalOutput = config->outputFile;
   config->astPaths = args.getAllArgValues(OPT_add_ast_path);
   config->headerPad = args::getHex(args, OPT_headerpad, /*Default=*/32);
   config->headerPadMaxInstallNames =
@@ -1121,6 +1161,11 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     addFile(arg->getValue(), /*forceLoadArchive=*/false, /*isExplicit=*/false,
             /*isBundleLoader=*/true);
   }
+  if (const Arg *arg = args.getLastArg(OPT_umbrella)) {
+    if (config->outputType != MH_DYLIB)
+      warn("-umbrella used, but not creating dylib");
+    config->umbrella = arg->getValue();
+  }
   config->ltoObjPath = args.getLastArgValue(OPT_object_path_lto);
   config->ltoNewPassManager =
       args.hasFlag(OPT_no_lto_legacy_pass_manager, OPT_lto_legacy_pass_manager,
@@ -1130,6 +1175,8 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     error("--lto-O: invalid optimization level: " + Twine(config->ltoo));
   config->runtimePaths = args::getStrings(args, OPT_rpath);
   config->allLoad = args.hasArg(OPT_all_load);
+  config->archMultiple = args.hasArg(OPT_arch_multiple);
+  config->exportDynamic = args.hasArg(OPT_export_dynamic);
   config->forceLoadObjC = args.hasArg(OPT_ObjC);
   config->forceLoadSwift = args.hasArg(OPT_force_load_swift_libs);
   config->deadStripDylibs = args.hasArg(OPT_dead_strip_dylibs);
@@ -1164,7 +1211,7 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     else
       config->installName = arg->getValue();
   } else if (config->outputType == MH_DYLIB) {
-    config->installName = config->outputFile;
+    config->installName = config->finalOutput;
   }
 
   if (args.hasArg(OPT_mark_dead_strippable_dylib)) {
@@ -1350,6 +1397,8 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
         if (const auto *undefined = dyn_cast<Undefined>(sym))
           treatUndefinedSymbol(*undefined, "-exported_symbol(s_list)");
     }
+
+    referenceStubBinder();
 
     // FIXME: should terminate the link early based on errors encountered so
     // far?
