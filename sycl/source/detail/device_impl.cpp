@@ -338,11 +338,6 @@ bool device_impl::isAssertFailSupported() const {
   if (MIsHostDevice)
     return true;
 
-  const plugin &Plugin = getPlugin();
-
-  if (Plugin.getBackend() == backend::cuda)
-    return true;
-
   return has_extension("pi_ext_intel_devicelib_assert");
 }
 
