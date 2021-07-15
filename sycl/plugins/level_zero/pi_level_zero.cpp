@@ -543,7 +543,7 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal) {
 
   int ComputeGroupIndex = -1;
 
-  // initialize a sub-sub-devices with it's own Ordinal
+  // initialize a sub-sub-devices with its own Ordinal
   if (SubSubDeviceOrdinal >= 0) {
     ComputeGroupIndex = SubSubDeviceOrdinal;
   } else {
@@ -1582,9 +1582,10 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
           return PI_ERROR_UNKNOWN;
         }
 
-        // Create PI sub-sub-devices with the sub-device for all the ordinals
+        // Create PI sub-sub-devices with the sub-device for all the ordinals.
+        // A {sub-device, ordinal} points to a specific CCS which constructs
+        // a sub-sub-device at this point.
         for (uint32_t J = 0; J < Ordinals.size(); ++J) {
-          // TODO: check if a device can be it's own parent
           std::unique_ptr<_pi_device> PiSubSubDevice(
               new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
           pi_result Result = PiSubSubDevice->initialize(Ordinals[J]);
