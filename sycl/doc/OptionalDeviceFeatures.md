@@ -356,6 +356,15 @@ type, the implementation implicitly assumes that the function uses
 `aspect::fp64` and adds that aspect to the function's `!intel_used_aspects`
 set.
 
+**NOTE**: This scan of the IR will require comparing the type referenced by
+each IR instruction with the names of the types in the
+`!intel_types_that_use_aspects` metadata.  It would be very inefficient if we
+did a string comparison each time.  As an optimization, the implementation can
+first lookup up each type name in the `!intel_types_that_use_aspects` metadata
+set, finding the "type pointer" that corresponds to each type name.  Then the
+pass over the IR can compare the type pointer in each IR instruction with the
+type pointers from the `!intel_types_that_use_aspects` metadata set.
+
 The second bullet point requires building the static call graph, but the
 implementation need not scan the instructions in each function.  Instead, it
 need only look at the `!intel_used_aspects` metadata for each function,
