@@ -1,5 +1,4 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-default-sub-group-size=primary -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -ast-dump -verify=expected,integer %s | FileCheck %s
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-default-sub-group-size=10 -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -ast-dump -verify=expected,primary %s | FileCheck %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -sycl-std=2020 -fsyntax-only -ast-dump -verify=expected,primary %s | FileCheck %s
 
 // Validate the semantic analysis checks for the named_sub_group_size attribute in SYCL 2020 mode.
 
@@ -15,7 +14,7 @@ struct Functor1 {
   }
 };
 
-// Test attributes get propgated to the kernel.
+// Test attribute gets propgated to the kernel.
 void calls_kernel_1() {
   // CHECK: FunctionDecl {{.*}}Kernel1
   // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic
@@ -44,16 +43,6 @@ void calls_kernel_3() {
   sycl::kernel_single_task<class Kernel4>([]() { // #Kernel4
     // primary-error@#AttrFunc{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
     // primary-note@#Kernel4{{kernel declared here}}
-    AttrFunc();
-  });
-}
-
-void calls_kernel_4() {
-  // CHECK: FunctionDecl {{.*}}Kernel5
-  // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic
-  sycl::kernel_single_task<class Kernel5>([]() [[intel::named_sub_group_size(automatic)]] { // #Kernel5
-    // expected-error@#AttrFunc{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
-    // expected-note@#Kernel5{{conflicting attribute is here}}
     AttrFunc();
   });
 }
