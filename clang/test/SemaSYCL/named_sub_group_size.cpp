@@ -47,3 +47,13 @@ void calls_kernel_3() {
     AttrFunc();
   });
 }
+
+void calls_kernel_4() {
+  // CHECK: FunctionDecl {{.*}}Kernel5
+  // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic
+  sycl::kernel_single_task<class Kernel5>([]() [[intel::named_sub_group_size(automatic)]] { // #Kernel5
+    // expected-error@#AttrFunc{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
+    // expected-note@#Kernel5{{conflicting attribute is here}}
+    AttrFunc();
+  });
+}

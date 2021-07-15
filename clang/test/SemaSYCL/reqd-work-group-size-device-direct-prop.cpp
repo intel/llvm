@@ -23,6 +23,18 @@ __attribute__((reqd_work_group_size(4))) void four_yet_again(); // expected-erro
 [[cl::reqd_work_group_size(4)]] void four_with_more_feeling(); // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}} \
                                                                // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
                                                                // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+#endif // TRIGGER_ERROR
+
+
+#ifdef TRIGGER_ERROR
+class Functor32 {
+public:
+  // expected-note@+3{{conflicting attribute is here}}
+  // expected-warning@+2{{attribute 'reqd_work_group_size' is already applied with different arguments}}
+  // expected-error@+1{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+  [[sycl::reqd_work_group_size(32, 1, 1)]] [[sycl::reqd_work_group_size(1, 1, 32)]] void operator()() const {}
+};
+#endif // TRIGGER_ERROR
 
 class Functor16x16x16 {
 public:
