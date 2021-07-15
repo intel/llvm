@@ -17,6 +17,8 @@
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
+#include <CL/sycl/detail/xpti_plugin_info.hpp>
+#include <CL/sycl/version.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
@@ -36,6 +38,10 @@
 #include "xpti_trace_framework.h"
 #endif
 
+#define STR(x) #x
+#define SYCL_VERSION_STR                                                       \
+  "sycl " STR(__LIBSYCL_MAJOR_VERSION) "." STR(__LIBSYCL_MINOR_VERSION)
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -50,9 +56,9 @@ xpti_td *GPICallEvent = nullptr;
 xpti_td *GPIArgCallEvent = nullptr;
 /// Constants being used as placeholder until one is able to reliably get the
 /// version of the SYCL runtime
-constexpr uint32_t GMajVer = 1;
-constexpr uint32_t GMinVer = 0;
-constexpr const char *GVerStr = "sycl 1.0";
+constexpr uint32_t GMajVer = __LIBSYCL_MAJOR_VERSION;
+constexpr uint32_t GMinVer = __LIBSYCL_MINOR_VERSION;
+constexpr const char *GVerStr = SYCL_VERSION_STR;
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
 template <cl::sycl::backend BE>
@@ -138,15 +144,18 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 }
 
 uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
-                                        unsigned char *ArgsData) {
+                                        unsigned char *ArgsData,
+                                        backend Backend, pi_plugin Plugin) {
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
     CorrelationID = xptiGetUniqueId();
 
+    XPTIPluginInfo Info{static_cast<uint8_t>(Backend), Plugin, nullptr};
+
     xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, nullptr,
-                                       nullptr};
+                                       &Info};
 
     xptiNotifySubscribers(
         StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
@@ -158,13 +167,15 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
 
 void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
                                   const char *FuncName, unsigned char *ArgsData,
-                                  pi_result Result) {
+                                  pi_result Result, backend Backend,
+                                  pi_plugin Plugin) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
 
+    XPTIPluginInfo Info{static_cast<uint8_t>(Backend), Plugin, nullptr};
     xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, &Result,
-                                       nullptr};
+                                       &Info};
 
     xptiNotifySubscribers(
         StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
