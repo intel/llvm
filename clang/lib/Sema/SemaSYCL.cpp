@@ -1110,10 +1110,8 @@ static bool isReadOnlyAccessor(const TemplateArgument AccessModeArg) {
       AccessModeArg.getIntegralType()->castAs<EnumType>();
 
   for (auto *E : AccessModeArgEnumType->getDecl()->enumerators())
-    if (E->getName() == "read" &&
-        E->getInitVal() == AccessModeArg.getAsIntegral())
-      return true;
-
+    if (E->getName() == "read")
+      return E->getInitVal() == AccessModeArg.getAsIntegral();
   return false;
 }
 
