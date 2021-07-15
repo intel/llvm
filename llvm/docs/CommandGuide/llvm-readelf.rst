@@ -37,10 +37,6 @@ OPTIONS
  Display the contents of the basic block address map section(s), which contain the
  address of each function, along with the relative offset of each basic block.
 
-.. option:: --color
-
- Use colors in the output for warnings and errors.
-
 .. option:: --demangle, -C
 
  Display demangled symbol names in the output.
@@ -84,7 +80,7 @@ OPTIONS
  When used with :option:`--relocations`, display each relocation in an expanded
  multi-line format.
 
-.. option:: --file-headers, -h
+.. option:: --file-header, -h
 
  Display file headers.
 
@@ -102,16 +98,12 @@ OPTIONS
 
 .. option:: --headers, -e
 
- Equivalent to setting: :option:`--file-headers`, :option:`--program-headers`,
+ Equivalent to setting: :option:`--file-header`, :option:`--program-headers`,
  and :option:`--sections`.
 
 .. option:: --help
 
  Display a summary of command line options.
-
-.. option:: --help-list
-
- Display an uncategorized summary of command line options.
 
 .. option:: --hex-dump=<section[,section,...]>, -x
 

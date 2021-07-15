@@ -994,6 +994,46 @@ static llvm::Value *EmitBitTestIntrinsic(CodeGenFunction &CGF,
       ShiftedByte, llvm::ConstantInt::get(CGF.Int8Ty, 1), "bittest.res");
 }
 
+static llvm::Value *emitPPCLoadReserveIntrinsic(CodeGenFunction &CGF,
+                                                unsigned BuiltinID,
+                                                const CallExpr *E) {
+  Value *Addr = CGF.EmitScalarExpr(E->getArg(0));
+
+  SmallString<64> Asm;
+  raw_svector_ostream AsmOS(Asm);
+  llvm::IntegerType *RetType = CGF.Int32Ty;
+
+  switch (BuiltinID) {
+  case clang::PPC::BI__builtin_ppc_ldarx:
+    AsmOS << "ldarx ";
+    RetType = CGF.Int64Ty;
+    break;
+  case clang::PPC::BI__builtin_ppc_lwarx:
+    AsmOS << "lwarx ";
+    RetType = CGF.Int32Ty;
+    break;
+  default:
+    llvm_unreachable("Expected only PowerPC load reserve intrinsics");
+  }
+
+  AsmOS << "$0, ${1:y}";
+
+  std::string Constraints = "=r,*Z,~{memory}";
+  std::string MachineClobbers = CGF.getTarget().getClobbers();
+  if (!MachineClobbers.empty()) {
+    Constraints += ',';
+    Constraints += MachineClobbers;
+  }
+
+  llvm::Type *IntPtrType = RetType->getPointerTo();
+  llvm::FunctionType *FTy =
+      llvm::FunctionType::get(RetType, {IntPtrType}, false);
+
+  llvm::InlineAsm *IA =
+      llvm::InlineAsm::get(FTy, Asm, Constraints, /*hasSideEffects=*/true);
+  return CGF.Builder.CreateCall(IA, {Addr});
+}
+
 namespace {
 enum class MSVCSetJmpKind {
   _setjmpex,
@@ -15538,6 +15578,9 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
     return MakeBinaryAtomicValue(*this, AtomicRMWInst::Xchg, E,
                                  llvm::AtomicOrdering::Monotonic);
   }
+  case PPC::BI__builtin_ppc_ldarx:
+  case PPC::BI__builtin_ppc_lwarx:
+    return emitPPCLoadReserveIntrinsic(*this, BuiltinID, E);
   }
 }
 
@@ -17729,11 +17772,6 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
                                    Builder.getInt32(2), Builder.getInt32(3)});
     return Builder.CreateShuffleVector(Trunc, Splat, ConcatMask);
   }
-  case WebAssembly::BI__builtin_wasm_demote_zero_f64x2_f32x4: {
-    Value *Vec = EmitScalarExpr(E->getArg(0));
-    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_demote_zero);
-    return Builder.CreateCall(Callee, Vec);
-  }
   case WebAssembly::BI__builtin_wasm_load32_zero: {
     Value *Ptr = EmitScalarExpr(E->getArg(0));
     Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_load32_zero);
@@ -17743,52 +17781,6 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     Value *Ptr = EmitScalarExpr(E->getArg(0));
     Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_load64_zero);
     return Builder.CreateCall(Callee, {Ptr});
-  }
-  case WebAssembly::BI__builtin_wasm_load8_lane:
-  case WebAssembly::BI__builtin_wasm_load16_lane:
-  case WebAssembly::BI__builtin_wasm_load32_lane:
-  case WebAssembly::BI__builtin_wasm_load64_lane:
-  case WebAssembly::BI__builtin_wasm_store8_lane:
-  case WebAssembly::BI__builtin_wasm_store16_lane:
-  case WebAssembly::BI__builtin_wasm_store32_lane:
-  case WebAssembly::BI__builtin_wasm_store64_lane: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    Value *Vec = EmitScalarExpr(E->getArg(1));
-    Optional<llvm::APSInt> LaneIdxConst =
-        E->getArg(2)->getIntegerConstantExpr(getContext());
-    assert(LaneIdxConst && "Constant arg isn't actually constant?");
-    Value *LaneIdx = llvm::ConstantInt::get(getLLVMContext(), *LaneIdxConst);
-    unsigned IntNo;
-    switch (BuiltinID) {
-    case WebAssembly::BI__builtin_wasm_load8_lane:
-      IntNo = Intrinsic::wasm_load8_lane;
-      break;
-    case WebAssembly::BI__builtin_wasm_load16_lane:
-      IntNo = Intrinsic::wasm_load16_lane;
-      break;
-    case WebAssembly::BI__builtin_wasm_load32_lane:
-      IntNo = Intrinsic::wasm_load32_lane;
-      break;
-    case WebAssembly::BI__builtin_wasm_load64_lane:
-      IntNo = Intrinsic::wasm_load64_lane;
-      break;
-    case WebAssembly::BI__builtin_wasm_store8_lane:
-      IntNo = Intrinsic::wasm_store8_lane;
-      break;
-    case WebAssembly::BI__builtin_wasm_store16_lane:
-      IntNo = Intrinsic::wasm_store16_lane;
-      break;
-    case WebAssembly::BI__builtin_wasm_store32_lane:
-      IntNo = Intrinsic::wasm_store32_lane;
-      break;
-    case WebAssembly::BI__builtin_wasm_store64_lane:
-      IntNo = Intrinsic::wasm_store64_lane;
-      break;
-    default:
-      llvm_unreachable("unexpected builtin ID");
-    }
-    Function *Callee = CGM.getIntrinsic(IntNo);
-    return Builder.CreateCall(Callee, {Ptr, Vec, LaneIdx});
   }
   case WebAssembly::BI__builtin_wasm_shuffle_i8x16: {
     Value *Ops[18];

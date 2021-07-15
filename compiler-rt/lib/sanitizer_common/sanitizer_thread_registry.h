@@ -100,7 +100,7 @@ class MUTEX ThreadRegistry {
 
   // Should be guarded by ThreadRegistryLock.
   ThreadContextBase *GetThreadLocked(u32 tid) {
-    return threads_[tid];
+    return threads_.empty() ? nullptr : threads_[tid];
   }
 
   u32 CreateThread(uptr user_id, bool detached, u32 parent_tid, void *arg);
