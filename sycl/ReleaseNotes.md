@@ -10,8 +10,7 @@ Release notes for commit range 2ffafb95f887..6a49170027fb
  - [ESIMD] Added indirect read and write methods to ESIMD class [8208427]
  - Provided `sycl::ONEAPI::has_known_identity` type trait to determine if
    reduction interface supports user-defined type at compile-time [0c7bd24]
-   [060fd50]. Note: `sycl::ONEAPI::` is deprecated, please use `sycl::ext::oneapi::`
-   instead.
+   [060fd50]
  - Added support for multiple reduction items [c042f9e]
  - Added support for `+=`, `*=`, `|=`, `^=`, `&=` operations for custom type
    reducers [b249099]
@@ -93,8 +92,7 @@ Release notes for commit range 2ffafb95f887..6a49170027fb
  - Added support for blitter engine in Level Zero plugin. Some memory
    operations are submitted to a Level Zero copy queue now [11ba5b5]
  - Improved `sycl::INTEL::lsu::load` and `sycl::INTEL::lsu::store` to take
-   `sycl::multi_ptr` [697469f]. Note: `sycl::INTEL::` is deprecated, please use
-   `sycl::ext::intel::` instead.
+   `sycl::multi_ptr` [697469f]
  - Added a diagnostic on attempt to compile a SYCL application without dynamic
    C++ RT on Windows [d4180f4]
  - Added support for `Queue Order Properties` extension for Level Zero [50005c7]
@@ -456,8 +454,7 @@ Release notes for commit range c9d50752..5d7e0925
     feature [0aac708a]
   - Implemented support for dot_product API [6cc97d2a]
   - Implemented ONEAPI::filter_selector that accepts one or more filters for
-    device selection [174fd168]. Note: `sycl::ONEAPI::` is deprecated, please
-    use `sycl::ext::oneapi::` instead.
+    device selection [174fd168]
   - Introduced SYCL_DEVICE_FILTER environment variable allowing to filter
     available devices [14e227c4], [ccdf8475]
   - Implemented accessor_properties extension [f7d073d1]
@@ -679,8 +676,7 @@ Release notes for commit range 5976ff0..1fc0e4f
 
 ### SYCL Library
   - Eliminated circular dependency between `event` and `queue` classes [31843cc]
-  - Added `ONEAPI::filter_selector` [174fd168f18]. Note: `sycl::ONEAPI::` is
-    deprecated, please use `sycl::ext::oneapi::` instead.
+  - Added `ONEAPI::filter_selector` [174fd168f18]
   - Added CPU-agnostic code path to the host device runtime (validated on
     AArch64 systems) [2f632f8]
   - Added support for `bool2`, `bool3`, `bool4`, `bool8`, `bool16` [4dfd500]
