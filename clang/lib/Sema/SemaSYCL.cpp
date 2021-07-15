@@ -1105,18 +1105,16 @@ static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
   return (KHArg != KernelCallerFunc->param_end()) ? *KHArg : nullptr;
 }
 
-static void getAccessModeReadVal(const TemplateArgument AccessModeArg,
-                                 llvm::APSInt &Val) {
+static bool isReadOnlyAccessor(const TemplateArgument AccessModeArg) {
   const auto *AccessModeArgEnumType =
-      AccessModeArg.getIntegralType()->getAs<EnumType>();
-
-  assert(AccessModeArgEnumType && "Access mode must be an EnumType");
+      AccessModeArg.getIntegralType()->castAs<EnumType>();
 
   for (auto *E : AccessModeArgEnumType->getDecl()->enumerators())
-    if (E->getName() == "read") {
-      Val = E->getInitVal();
-      return;
-    }
+    if (E->getName() == "read" &&
+        E->getInitVal() == AccessModeArg.getAsIntegral())
+      return true;
+
+  return false;
 }
 
 // anonymous namespace so these don't get linkage.
@@ -2138,11 +2136,9 @@ public:
       if (ParamTy.getTypePtr()->isPointerType()) {
         handleAccessorPropertyList(Params.back(), RecordDecl, BS.getBeginLoc());
 
-        llvm::APSInt ReadEnumVal;
         // Add implicit attribute to parameter decl when it is a read only
         // SYCL accessor.
-        getAccessModeReadVal(AccessModeArg, ReadEnumVal);
-        if (AccessModeArg.getAsIntegral() == ReadEnumVal)
+        if (isReadOnlyAccessor(AccessModeArg))
           Params.back()->addAttr(SYCLAccessorReadonlyAttr::CreateImplicit(
               SemaRef.getASTContext()));
       }
@@ -2181,11 +2177,9 @@ public:
           Params.back()->addAttr(
               SYCLSimdAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
 
-        llvm::APSInt ReadEnumVal;
         // Add implicit attribute to parameter decl when it is a read only
         // SYCL accessor.
-        getAccessModeReadVal(AccessModeArg, ReadEnumVal);
-        if (AccessModeArg.getAsIntegral() == ReadEnumVal)
+        if (isReadOnlyAccessor(AccessModeArg))
           Params.back()->addAttr(SYCLAccessorReadonlyAttr::CreateImplicit(
               SemaRef.getASTContext()));
       }
