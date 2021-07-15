@@ -990,9 +990,8 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
         LocalSum = BOp(LocalSum, Reduction::getOutPointer(PartialSums)[I]);
 
       LocalReds[LID] = LocalSum;
-      if (LID == 0) {
+      if (LID == 0)
         LocalReds[WGSize] = Identity;
-      }
       sycl::detail::workGroupBarrier();
 
       size_t PrevStep = WGSize;
