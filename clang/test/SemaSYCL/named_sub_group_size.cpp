@@ -5,13 +5,6 @@
 
 #include "Inputs/sycl.hpp"
 
-void calls_kernel_1() {
-  // CHECK: FunctionDecl {{.*}}Kernel1
-  // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic
-  sycl::kernel_single_task<class Kernel1>([]() [[intel::named_sub_group_size(automatic)]] {
-  });
-}
-
 struct Functor {
   [[intel::named_sub_group_size(automatic)]] void operator()() const {
   }
@@ -23,6 +16,13 @@ struct Functor1 {
 };
 
 // Test attributes get propgated to the kernel.
+void calls_kernel_1() {
+  // CHECK: FunctionDecl {{.*}}Kernel1
+  // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic
+  sycl::kernel_single_task<class Kernel1>([]() [[intel::named_sub_group_size(automatic)]] {
+  });
+}
+
 void calls_kernel_2() {
   Functor F;
   // CHECK: FunctionDecl {{.*}}Kernel2
@@ -35,25 +35,15 @@ void calls_kernel_2() {
   sycl::kernel_single_task<class Kernel3>(F1);
 }
 
-// Test ttribute does not get propgated to the kernel.
 [[intel::named_sub_group_size(primary)]] void AttrFunc() {} // #AttrFunc
 
+// Test ttribute does not get propgated to the kernel.
 void calls_kernel_3() {
   // CHECK:     FunctionDecl {{.*}}Kernel4
   // CHECK-NOT: IntelNamedSubGroupSizeAttr {{.*}}
   sycl::kernel_single_task<class Kernel4>([]() { // #Kernel4
     // primary-error@#AttrFunc{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
     // primary-note@#Kernel4{{kernel declared here}}
-    AttrFunc();
-  });
-}
-
-void calls_kernel_4() {
-  // CHECK: FunctionDecl {{.*}}Kernel5
-  // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic
-  sycl::kernel_single_task<class Kernel5>([]() [[intel::named_sub_group_size(automatic)]] { // #Kernel5
-    // expected-error@#AttrFunc{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
-    // expected-note@#Kernel5{{conflicting attribute is here}}
     AttrFunc();
   });
 }
