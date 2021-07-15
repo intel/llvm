@@ -39,6 +39,7 @@ int main() {
   bool HasLevelZeroDevices = false;
   bool HasOpenCLDevices = false;
   bool HasCUDADevices = false;
+  bool HasROCmDevices = false;
   bool HasOpenCLGPU = false;
   bool HasLevelZeroGPU = false;
 
@@ -50,6 +51,8 @@ int main() {
       HasOpenCLDevices = true;
     } else if (Backend == backend::cuda) {
       HasCUDADevices = true;
+    } else if (Backend == backend::rocm) {
+      HasROCmDevices = true;
     }
   }
 
@@ -64,6 +67,7 @@ int main() {
   std::cout << "HasLevelZeroDevices = " << HasLevelZeroDevices << std::endl;
   std::cout << "HasOpenCLDevices    = " << HasOpenCLDevices << std::endl;
   std::cout << "HasCUDADevices      = " << HasCUDADevices << std::endl;
+  std::cout << "HasROCmDevices      = " << HasROCmDevices << std::endl;
   std::cout << "HasOpenCLGPU        = " << HasOpenCLGPU << std::endl;
   std::cout << "HasLevelZeroGPU     = " << HasLevelZeroGPU << std::endl;
 
@@ -195,6 +199,18 @@ int main() {
     std::cout << "Test 'accelerator'";
     device d18(ONEAPI::filter_selector("accelerator"));
     assert(d18.is_accelerator());
+    std::cout << "...PASS" << std::endl;
+  }
+
+  if (HasROCmDevices) {
+    std::cout << "Test 'rocm'";
+    device d19(ONEAPI::filter_selector("rocm"));
+    assert(d19.get_platform().get_backend() == backend::rocm);
+    std::cout << "...PASS" << std::endl;
+
+    std::cout << "test 'rocm:gpu'";
+    device d20(ONEAPI::filter_selector("rocm:gpu"));
+    assert(d20.is_gpu() && d19.get_platform().get_backend() == backend::rocm);
     std::cout << "...PASS" << std::endl;
   }
 

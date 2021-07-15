@@ -1,4 +1,4 @@
-// REQUIRES: gpu, cuda, opencl
+// REQUIRES: gpu, cuda, rocm, opencl, sycl-ls
 
 // RUN: sycl-ls --verbose >%t.default.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-OPENCL,CHECK-CUSTOM-GPU-OPENCL --input-file %t.default.out
@@ -14,6 +14,12 @@
 
 // CHECK-BUILTIN-GPU-CUDA: gpu_selector(){{.*}}GPU : CUDA
 // CHECK-CUSTOM-GPU-CUDA: custom_selector(gpu){{.*}}GPU : CUDA
+
+// RUN: env SYCL_DEVICE_FILTER=rocm sycl-ls --verbose >%t.rocm.out
+// RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-ROCM,CHECK-CUSTOM-GPU-ROCM --input-file %t.rocm.out
+
+// CHECK-BUILTIN-GPU-ROCM: gpu_selector(){{.*}}GPU : ROCm
+// CHECK-CUSTOM-GPU-ROCM: custom_selector(gpu){{.*}}GPU : ROCm
 
 //==---- sycl-ls-gpu-sycl-be.cpp - SYCL test for discovered/selected devices
 //--==//
