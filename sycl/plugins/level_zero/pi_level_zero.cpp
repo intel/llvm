@@ -1828,6 +1828,14 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(Device->Platform->ZeDriverApiVersion.c_str());
   case PI_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
     uint32_t ZeSubDeviceCount = 0;
+    if (Device->isSubDevice()) {
+      pi_result Res = Device->Platform->populateDeviceCacheIfNeeded();
+      if (Res != PI_SUCCESS) {
+        return Res;
+      }
+
+      return ReturnValue(pi_uint32{(unsigned int)(Device->SubDevices.size())});
+    }
     ZE_CALL(zeDeviceGetSubDevices, (ZeDevice, &ZeSubDeviceCount, nullptr));
     return ReturnValue(pi_uint32{ZeSubDeviceCount});
   }
@@ -1836,10 +1844,12 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
     // SYCL spec says: if this SYCL device cannot be partitioned into at least
     // two sub devices then the returned vector must be empty.
-    uint32_t ZeSubDeviceCount = 0;
-    ZE_CALL(zeDeviceGetSubDevices, (ZeDevice, &ZeSubDeviceCount, nullptr));
-    if (ZeSubDeviceCount < 2) {
-      return ReturnValue(pi_device_partition_property{0});
+    if (!Device->isSubDevice()) {
+      uint32_t ZeSubDeviceCount = 0;
+      ZE_CALL(zeDeviceGetSubDevices, (ZeDevice, &ZeSubDeviceCount, nullptr));
+      if (ZeSubDeviceCount < 2) {
+        return ReturnValue(pi_device_partition_property{0});
+      }
     }
     // It is debatable if SYCL sub-device and partitioning APIs sufficient to
     // expose Level Zero sub-devices?  We start with support of
