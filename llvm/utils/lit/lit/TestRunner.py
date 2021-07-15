@@ -131,6 +131,19 @@ class TimeoutHelper(object):
         """
         with self._lock:
             for p in self._procs:
+                if p.poll() is None and not kIsWindows:
+                  print("PROCESS {} is killed by timeout".format(p.pid))
+                  gdb = subprocess.Popen(["gdb",
+                                          "-nx",
+                                          "-q",
+                                          "-ex", "thread apply all bt",
+                                          "-ex=detach",
+                                          "-ex=quit",
+                                          "-p", str(p.pid)],
+                                         stdout=subprocess.PIPE)
+                  backtrace = gdb.stdout.read(50000000)
+                  print(backtrace)
+                  gdb.kill()
                 lit.util.killProcessAndChildren(p.pid)
             # Empty the list and note that we've done a pass over the list
             self._procs = [] # Python2 doesn't have list.clear()
