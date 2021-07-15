@@ -1105,14 +1105,17 @@ static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
   return (KHArg != KernelCallerFunc->param_end()) ? *KHArg : nullptr;
 }
 
-static bool isReadOnlyAccessor(const TemplateArgument AccessModeArg) {
+static bool isReadOnlyAccessor(const TemplateArgument &AccessModeArg) {
   const auto *AccessModeArgEnumType =
       AccessModeArg.getIntegralType()->castAs<EnumType>();
+  EnumDecl *ED = AccessModeArgEnumType->getDecl();
 
-  for (auto *E : AccessModeArgEnumType->getDecl()->enumerators())
-    if (E->getName() == "read")
-      return E->getInitVal() == AccessModeArg.getAsIntegral();
-  return false;
+  auto IsReadOnly = llvm::find_if(ED->enumerators(), [&](EnumConstantDecl *E) {
+    return E->getName() == "read" &&
+           E->getInitVal() == AccessModeArg.getAsIntegral();
+  });
+
+  return (IsReadOnly != ED->enumerator_end()) ? true : false;
 }
 
 // anonymous namespace so these don't get linkage.
