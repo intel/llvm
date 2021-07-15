@@ -1696,17 +1696,20 @@ pi_result rocm_piContextRelease(pi_context ctxt) {
 
   if (!ctxt->is_primary()) {
     hipCtx_t hipCtxt = ctxt->get();
+    // hipCtxSynchronize is not supported for AMD platform so we can just
+    // destroy the context, for NVIDIA make sure it's synchronized.
+#if defined(__HIP_PLATFORM_NVIDIA__)
     hipCtx_t current = nullptr;
     PI_CHECK_ERROR(hipCtxGetCurrent(&current));
     if (hipCtxt != current) {
       PI_CHECK_ERROR(hipCtxPushCurrent(hipCtxt));
     }
-    //  hipErrorNotSupported this API
-    // PI_CHECK_ERROR(hipCtxSynchronize());
+    PI_CHECK_ERROR(hipCtxSynchronize());
     PI_CHECK_ERROR(hipCtxGetCurrent(&current));
     if (hipCtxt == current) {
       PI_CHECK_ERROR(hipCtxPopCurrent(&current));
     }
+#endif
     return PI_CHECK_ERROR(hipCtxDestroy(hipCtxt));
   } else {
     // Primary context is not destroyed, but released
