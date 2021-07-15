@@ -1,4 +1,5 @@
-// RUN: %clangxx -fsycl %s -o %t.out %debug_option
+// Disable fallback assert here so, that build process isn't affected
+// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT=1 -fsycl %s -o %t.out %debug_option
 // RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 SYCL_PROGRAM_COMPILE_OPTIONS=-DENV_COMPILE_OPTS SYCL_PROGRAM_LINK_OPTIONS=-DENV_LINK_OPTS %t.out %GPU_CHECK_PLACEHOLDER
 // REQUIRES: gpu
 // UNSUPPORTED: cuda
