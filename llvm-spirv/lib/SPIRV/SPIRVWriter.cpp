@@ -1400,10 +1400,10 @@ void transAliasingMemAccess(SPIRVModule *BM, MDNode *AliasingListMD,
   if (!BM->isAllowedToUseExtension(
         ExtensionID::SPV_INTEL_memory_access_aliasing))
     return;
-  MemoryAccess[0] |= MemAccessMask;
   auto *MemAliasList = addMemAliasingINTELInstructions(BM, AliasingListMD);
   if (!MemAliasList)
     return;
+  MemoryAccess[0] |= MemAccessMask;
   MemoryAccess.push_back(MemAliasList->getId());
 }
 
