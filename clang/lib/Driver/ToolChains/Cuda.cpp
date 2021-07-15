@@ -722,7 +722,8 @@ void CudaToolChain::addClangTargetOptions(
       llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
       LibraryPaths.emplace_back(WithInstallPath.c_str());
 
-      std::string LibSpirvTargetName = "libspirv-nvptx64--nvidiacl.bc";
+      std::string LibSpirvTargetName =
+          "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc";
       for (StringRef LibraryPath : LibraryPaths) {
         SmallString<128> LibSpirvTargetFile(LibraryPath);
         llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);

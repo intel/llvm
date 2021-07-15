@@ -79,7 +79,7 @@ def warn_drv_unknown_cuda_version: Warning<
   InGroup<CudaUnknownVersion>;
 def err_drv_cuda_host_arch : Error<"unsupported architecture '%0' for host compilation.">;
 def err_drv_no_sycl_libspirv : Error<
-  "cannot find `libspirv-nvptx64--nvidiacl.bc`. Provide path to libspirv library via "
+  "cannot find suitable `libspirv-nvptx64--nvidiacl.bc` variant. Provide path to libspirv library via "
   "-fsycl-libspirv-path, or pass -fno-sycl-libspirv to build without linking with libspirv.">;
 def err_drv_mix_cuda_hip : Error<"Mixed Cuda and HIP compilation is not supported.">;
 def err_drv_bad_target_id : Error<"Invalid target ID: %0 (A target ID is a processor name "
