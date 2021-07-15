@@ -269,6 +269,22 @@ in the `Name` field of the property.
 List of exported symbols is represented in the same way, except the
 corresponding set has the name `SYCL/exported symbols`.
 
+#### Function pointers support
+
+In order to support co-existence of device function pointers feature together
+with dynamic linking, after device code split process `sycl-post-link`
+collects uses of pointers to functions and definitions of functions with
+`indirectly_callable` attribute and attaches info about them to corresponding
+device images via device image properties mechanism.
+Each device image property contains info about signatures of functions that
+were marked with `indirectly_callable` attribute or were used via pointer in
+a form of a string. Example of such string for a function that returns and
+accepts 32bit integer: `i32 (i32)`.
+List of recorded function signatures is represented as a single property set
+with name `SYCL/indirectly called` recorded in the `Name` field of property set.
+Each property in this set holds the string that represents a function signature
+and it is recorded in the `Name` field of the property.
+
 ### DPC++ runtime changes
 
 DPC++ RT performs *device images collection* task by grouping all device
@@ -358,6 +374,25 @@ of defined symbols. If this assumption is not correct, there can be two cases:
 
 So, it is valid to pick the met first device image which defines required symbol
 during search.
+
+##### Function pointers support
+
+In addition to imported and exported symbols, information about indirectly
+called functions also used during search of device images.
+
+When the program manager gets a request to create a program object using device
+image, it examines its property that contains info about signatures of
+functions that were used via function pointers or marked with
+`indirectly_callable` attribute.
+If it is not empty, then for each described function signature, program manager
+finds all device images that have a record with the same function signature.
+In other words, all device images that record uses of pointers to a function
+with the same signature must be linked together.
+
+This is done to satisfy requirement of `indirectly_callable` attribute:
+function with `indirectly_callable` attribute should be available to all
+kernels in the translation unit, and to any kernels that are linked from
+external translation units (such as libraries).
 
 #### Program caching
 
