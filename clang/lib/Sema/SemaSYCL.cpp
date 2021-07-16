@@ -1110,12 +1110,12 @@ static bool isReadOnlyAccessor(const TemplateArgument &AccessModeArg) {
       AccessModeArg.getIntegralType()->castAs<EnumType>();
   EnumDecl *ED = AccessModeArgEnumType->getDecl();
 
-  auto IsReadOnly = llvm::find_if(ED->enumerators(), [&](EnumConstantDecl *E) {
-    return E->getName() == "read" &&
-           E->getInitVal() == AccessModeArg.getAsIntegral();
+  auto ReadOnly = llvm::find_if(ED->enumerators(), [&](EnumConstantDecl *E) {
+    return E->getName() == "read";
   });
 
-  return (IsReadOnly != ED->enumerator_end()) ? true : false;
+  return (ReadOnly != ED->enumerator_end()) &&
+         (*ReadOnly)->getInitVal() == AccessModeArg.getAsIntegral();
 }
 
 // anonymous namespace so these don't get linkage.
