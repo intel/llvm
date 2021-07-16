@@ -4378,19 +4378,19 @@ class OffloadingActionBuilder final {
         //         .--------------------------------------.
         //         |               PostLink               |
         //         .--------------------------------------.
-        //         [.n]                [+*]           [+*]
+        //         [+n]                [+*]            [+]
         //           |                   |              |
-        //           |          .-----------------.     |
-        //           |          | FileTableTform  |     |
-        //           |          | (extract "Code")|     |
-        //           |          .-----------------.     |
-        //           |                  [-]             |
+        //   .----------------. .-----------------.     |
+        //   | FileTableTform | | FileTableTform  |     |
+        //   | (copy "Code")  | | (extract "Code")|     |
+        //   .----------------. .-----------------.     |
+        //          [.]                 [-]             |
         //           |                   |              |
-        //           |                 [-*]             |
-        //    .-------------.   .-------------------.   |
-        //    |finalizeNVPTX|   |  SPIRVTranslator  |   |
-        //    .-------------.   .-------------------.   |
-        //           |              [-as]      [-!a]    |
+        //          [.]                [-*]             |
+        //   .---------------.  .-------------------.   |
+        //   | finalizeNVPTX |  |  SPIRVTranslator  |   |
+        //   .---------------.  .-------------------.   |
+        //          [.]             [-as]      [-!a]    |
         //           |                |          |      |
         //           |              [-s]         |      |
         //           |       .----------------.  |      |
@@ -4398,13 +4398,13 @@ class OffloadingActionBuilder final {
         //           |       .----------------.  |      |
         //           |              [-s]         |      |
         //           |                |          |      |
-        //           |              [-a]      [-!a]    [+]
-        //           |              .--------------------.
-        //           |              |   FileTableTform   |
-        //           |              |  (replace "Code")  |
-        //           |              .--------------------.
-        //           |                          |
-        //         [.n]                       [+*]
+        //          [.]             [-a]      [-!a]    [+]
+        //          .------------------------------------.
+        //          |           FileTableTform           |
+        //          |          (replace "Code")          |
+        //          .------------------------------------.
+        //                            |
+        //                           [+]
         //         .--------------------------------------.
         //         |            OffloadWrapper            |
         //         .--------------------------------------.
@@ -4451,24 +4451,40 @@ class OffloadingActionBuilder final {
         ActionList WrapperInputs;
         // post link is not optional - even if not splitting, always need to
         // process specialization constants
-        types::ID PostLinkOutType =
-            isNVPTX || isAMDGCN ? types::TY_LLVM_BC : types::TY_Tempfiletable;
         auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-            FullDeviceLinkAction, PostLinkOutType);
+            FullDeviceLinkAction, types::TY_Tempfiletable);
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
 
-        if (isNVPTX) {
-          Action *FinAction =
-              finalizeNVPTXDependences(PostLinkAction, (*TC)->getTriple());
-          WrapperInputs.push_back(FinAction);
-        } else if (isAMDGCN) {
-          Action *FinAction =
-              finalizeAMDGCNDependences(PostLinkAction, (*TC)->getTriple());
-          WrapperInputs.push_back(FinAction);
+        constexpr char COL_CODE[] = "Code";
+
+        if (isNVPTX || isAMDGCN) {
+          // Make extraction copy the only remaining code file instead of
+          // creating a new table with a single entry.
+          // TODO: Process all PTX code files in file table to enable code
+          //       splitting for PTX target.
+          auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
+              PostLinkAction, types::TY_LLVM_BC);
+          ExtractIRFilesAction->addCopySingleFileTform(COL_CODE, 0);
+
+          Action *FinAction;
+          if (isNVPTX) {
+            FinAction = finalizeNVPTXDependences(ExtractIRFilesAction,
+                                                 (*TC)->getTriple());
+          } else /* isAMDGCN */ {
+            FinAction = finalizeAMDGCNDependences(ExtractIRFilesAction,
+                                                  (*TC)->getTriple());
+          }
+          ActionList TformInputs{PostLinkAction, FinAction};
+
+          // Replace the only code entry in the table, as confirmed by the
+          // previous transformation.
+          auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
+              TformInputs, types::TY_Tempfiletable);
+          ReplaceFilesAction->addReplaceCellTform(COL_CODE, 0);
+          WrapperInputs.push_back(ReplaceFilesAction);
         } else {
           // For SPIRV-based targets - translate to SPIRV then optionally
           // compile ahead-of-time to native architecture
-          constexpr char COL_CODE[] = "Code";
           auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
               PostLinkAction, types::TY_Tempfilelist);
           // single column w/o title fits TY_Tempfilelist format
@@ -4513,6 +4529,7 @@ class OffloadingActionBuilder final {
           ReplaceFilesAction->addReplaceColumnTform(COL_CODE, COL_CODE);
           WrapperInputs.push_back(ReplaceFilesAction);
         }
+
         // After the Link, wrap the files before the final host link
         auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
             WrapperInputs, types::TY_Object);

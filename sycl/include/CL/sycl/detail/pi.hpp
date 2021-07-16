@@ -358,6 +358,7 @@ public:
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
+  const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -369,6 +370,7 @@ protected:
   DeviceBinaryImage::PropertyRange SpecConstIDMap;
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
   DeviceBinaryImage::PropertyRange KernelParamOptInfo;
+  DeviceBinaryImage::PropertyRange ProgramMetadata;
 };
 
 /// Tries to determine the device binary image foramat. Returns

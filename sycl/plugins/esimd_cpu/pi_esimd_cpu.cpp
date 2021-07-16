@@ -740,6 +740,7 @@ pi_result piProgramCreate(pi_context, const void *, size_t, pi_program *) {
 
 pi_result piProgramCreateWithBinary(pi_context, pi_uint32, const pi_device *,
                                     const size_t *, const unsigned char **,
+                                    size_t, const pi_device_binary_property *,
                                     pi_int32 *, pi_program *) {
   DIE_NO_IMPLEMENTATION;
   return PI_SUCCESS;
