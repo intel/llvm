@@ -87,8 +87,8 @@ __esimd_abs_common_internal(T1 src0, int flag = saturation_off) {
 /// \tparam T1 element type of the input vector.
 /// \tparam SZ size of the input and returned vector.
 /// @param src0 the input vector.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
-/// operation with saturation.
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of absolute values.
 template <typename T0, typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
@@ -103,8 +103,8 @@ esimd_abs(simd<T1, SZ> src0, int flag = saturation_off) {
 /// \tparam T0 element type of the returned value.
 /// \tparam T1 element type of the input value.
 /// @param src0 the source operand.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
-/// operation with saturation.
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return absolute value.
 template <typename T0, typename T1>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
@@ -123,8 +123,8 @@ esimd_abs(T1 src0, int flag = saturation_off) {
 /// \tparam T1 element type of the input and output vectors.
 /// \tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
-/// operation with saturation.
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of absolute values.
 template <typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T1, SZ> esimd_abs(simd<T1, SZ> src0,
@@ -137,8 +137,8 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T1, SZ> esimd_abs(simd<T1, SZ> src0,
 /// are the same.
 /// \tparam T1 element type of the input and output value.
 /// @param src0 the source operand.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
-/// operation with saturation.
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return absolute value.
 template <typename T1>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
@@ -155,8 +155,8 @@ esimd_abs(T1 src0, int flag = saturation_off) {
 /// \tparam U type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input vector.
 /// @param src1 the number of bit positions the input vector shall be shifted.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
-/// operation with saturation.
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of shifted left values.
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -203,8 +203,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// \tparam T2 type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input value.
 /// @param src1 the number of bit positions the input vector shall be shifted.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
-/// operation with saturation.
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return shifted left value.
 template <typename T0, typename T1, typename T2>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
@@ -227,8 +227,8 @@ esimd_shl(T1 src0, T2 src1, int flag = saturation_off) {
 /// \tparam U type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input vector.
 /// @param src1 the number of bit positions the input vector shall be shifted.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
-/// operation with saturation.
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of shifted right values.
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -256,8 +256,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// \tparam T2 type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input value.
 /// @param src1 the number of bit positions the input vector shall be shifted.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
-/// operation with saturation.
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return shifted right value.
 template <typename T0, typename T1, typename T2>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
@@ -273,7 +273,7 @@ esimd_shr(T1 src0, T2 src1, int flag = saturation_off) {
   return Result[0];
 }
 
-/// Rotate left operation (vector version)
+/// Rotate left operation with two vector inputs
 /// \tparam T0 element type of the returned vector. Must be any integer type.
 /// \tparam T1 element type of the input vector. Must be any integer type.
 /// \tparam SZ size of the input and returned vectors.
@@ -288,7 +288,7 @@ esimd_rol(simd<T1, SZ> src0, simd<T1, SZ> src1) {
   return __esimd_rol<T0, T1, SZ>(src0, src1);
 }
 
-/// Rotate left operation (vector version)
+/// Rotate left operation with a vector and a scalar inputs
 /// \tparam T0 element type of the returned vector. Must be any integer type.
 /// \tparam T1 element type of the input vector. Must be any integer type.
 /// \tparam SZ size of the input and returned vectors.
@@ -310,7 +310,7 @@ ESIMD_NODEBUG ESIMD_INLINE
   return __esimd_rol<T0>(Src0.data(), Src1.data());
 }
 
-/// Rotate left operation (scalar version)
+/// Rotate left operation with two scalar inputs
 /// \tparam T0 element type of the returned value. Must be any integer type.
 /// \tparam T1 element type of the input value. Must be any integer type.
 /// \tparam T2 type of scalar operand \p src1. Must be any integer type.
@@ -331,7 +331,7 @@ esimd_rol(T1 src0, T2 src1) {
   return Result[0];
 }
 
-/// Rotate right operation (vector version)
+/// Rotate right operation with two vector inputs
 /// \tparam T0 element type of the returned vector. Must be any integer type.
 /// \tparam T1 element type of the input vector. Must be any integer type.
 /// \tparam SZ size of the input and returned vectors.
@@ -346,7 +346,7 @@ esimd_ror(simd<T1, SZ> src0, simd<T1, SZ> src1) {
   return __esimd_ror<T0, T1, SZ>(src0, src1);
 }
 
-/// Rotate right operation (vector version)
+/// Rotate right operation with a vector and a scalar inputs
 /// \tparam T0 element type of the returned vector. Must be any integer type.
 /// \tparam T1 element type of the input vector. Must be any integer type.
 /// \tparam SZ size of the input and returned vectors.
@@ -368,7 +368,7 @@ ESIMD_NODEBUG ESIMD_INLINE
   return __esimd_ror<T0>(Src0.data(), Src1.data());
 }
 
-/// Rotate right operation (scalar version)
+/// Rotate right operation with two scalar inputs
 /// \tparam T0 element type of the returned value. Must be any integer type.
 /// \tparam T1 element type of the input value. Must be any integer type.
 /// \tparam T2 type of scalar operand \p src1. Must be any integer type.
@@ -396,7 +396,8 @@ esimd_ror(T1 src0, T2 src1) {
 /// \tparam U type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input vector.
 /// @param src1 the number of bit positions the input vector shall be shifted.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of shifted elements.
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -423,7 +424,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// \tparam T2 type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input value.
 /// @param src1 the number of bit positions the input vector shall be shifted.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return shifted value.
 template <typename T0, typename T1, typename T2>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
@@ -446,7 +448,8 @@ esimd_lsr(T1 src0, T2 src1, int flag = saturation_off) {
 /// \tparam U type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input vector.
 /// @param src1 the number of bit positions the input vector shall be shifted.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of shifted elements.
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -473,7 +476,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// \tparam T2 type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input value.
 /// @param src1 the number of bit positions the input vector shall be shifted.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return shifted value.
 template <typename T0, typename T1, typename T2>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
@@ -624,11 +628,10 @@ esimd_mod(T0 src0, T1 src1) {
   return src0 % src1;
 }
 
-/// Integral division (vector version). Computes quotient and remainder of
-/// division.
-/// \tparam T element type of the input and return vectors.
-/// \tparam SZ size of the input and returned vectors.
-/// \tparam U type of scalar operand \p src1.
+/// Integral division with a vector dividend and a scalar divisor. Computes
+/// quotient and remainder of division. \tparam T element type of the input and
+/// return vectors. \tparam SZ size of the input and returned vectors. \tparam U
+/// type of scalar operand \p src1.
 /// @param[out] remainder the vector of remainders from a division operation.
 /// @param src0 the dividend input vector.
 /// @param src1 the divisor scalar value.
@@ -641,11 +644,10 @@ esimd_div(simd<T, SZ> &remainder, simd<T, SZ> src0, U src1) {
   return src0 / src1;
 }
 
-/// Integral division (vector version). Computes quotient and remainder of
-/// division.
-/// \tparam T element type of the input and return vectors.
-/// \tparam SZ size of the input and returned vectors.
-/// \tparam U type of scalar operand \p src1.
+/// Integral division with a scalar dividend and a vector divisor. Computes
+/// quotient and remainder of division. \tparam T element type of the input and
+/// return vectors. \tparam SZ size of the input and returned vectors. \tparam U
+/// type of scalar operand \p src1.
 /// @param[out] remainder the vector of remainders from a division operation.
 /// @param src0 the dividend scalar value.
 /// @param src1 the divisor input vector.
@@ -681,13 +683,14 @@ esimd_div(simd<typename std::remove_const<RT>, 1> &remainder, T0 src0,
   return src0 / src1;
 }
 
-/// Selects component-wise the maximum of the two vectors. (vector version)
+/// Selects component-wise the maximum of the two vectors.
 /// The source operands must be both of integer or both of floating-point type.
 /// \tparam T element type of the input and return vectors.
 /// \tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
 /// @param src1 the input vector.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of component-wise maximum elements.
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ>
@@ -706,14 +709,15 @@ esimd_max(simd<T, SZ> src0, simd<T, SZ> src1, int flag = saturation_off) {
   }
 }
 
-/// Selects maximums for each element of the input vector and a scalar. (vector
-/// version) The source operands must be both of integer or both of
+/// Selects maximums for each element of the input vector and a scalar.
+/// The source operands must be both of integer or both of
 /// floating-point type.
 /// \tparam T element type of the input and return vectors.
 /// \tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of component-wise maximum elements.
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -725,14 +729,15 @@ ESIMD_NODEBUG ESIMD_INLINE
   return Result;
 }
 
-/// Selects maximums for each element of the input vector and a scalar. (vector
-/// version) The source operands must be both of integer or both of
+/// Selects maximums for each element of the input scalar and a vector.
+/// The source operands must be both of integer or both of
 /// floating-point type.
 /// \tparam T element type of the input and return vectors.
 /// \tparam SZ size of the input and returned vectors.
 /// @param src0 the scalar value.
 /// @param src1 the input vector.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of component-wise maximum elements.
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -749,7 +754,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// \tparam T element type of the input and return vectors.
 /// @param src0 the scalar value.
 /// @param src1 the scalar value.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return maximum value between the two inputs.
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -761,13 +767,14 @@ ESIMD_NODEBUG ESIMD_INLINE
   return Result[0];
 }
 
-/// Selects component-wise the minimum of the two vectors. (vector version)
+/// Selects component-wise the minimum of the two vectors.
 /// The source operands must be both of integer or both of floating-point type.
 /// \tparam T element type of the input and return vectors.
 /// \tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
 /// @param src1 the input vector.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of component-wise minimum elements.
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ>
@@ -786,14 +793,15 @@ esimd_min(simd<T, SZ> src0, simd<T, SZ> src1, int flag = saturation_off) {
   }
 }
 
-/// Selects minimums for each element of the input vector and a scalar. (vector
-/// version) The source operands must be both of integer or both of
+/// Selects minimums for each element of the input vector and a scalar.
+/// The source operands must be both of integer or both of
 /// floating-point type.
 /// \tparam T element type of the input and return vectors.
 /// \tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of component-wise minimum elements.
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -805,14 +813,15 @@ ESIMD_NODEBUG ESIMD_INLINE
   return Result;
 }
 
-/// Selects minimums for each element of the input vector and a scalar. (vector
-/// version) The source operands must be both of integer or both of
+/// Selects minimums for each element of the input scalar and a vector.
+/// The source operands must be both of integer or both of
 /// floating-point type.
 /// \tparam T element type of the input and return vectors.
 /// \tparam SZ size of the input and returned vectors.
 /// @param src0 the scalar value.
 /// @param src1 the input vector.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of component-wise minimum elements.
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -824,12 +833,13 @@ ESIMD_NODEBUG ESIMD_INLINE
   return Result;
 }
 
-/// Selects minimum between two scalar values. (scalar version)
+/// Selects minimum between two scalar values.
 /// The source operands must be both of integer or both of floating-point type.
 /// \tparam T element type of the input and return vectors.
 /// @param src0 the scalar value.
 /// @param src1 the scalar value.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return minimum value between the two inputs.
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -853,7 +863,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// \tparam U type of scalar operand \p src1.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of elements.
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dp2(simd<T1, SZ> src0, U src1,
@@ -876,7 +887,8 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dp2(simd<T1, SZ> src0, U src1,
 /// \tparam U type of scalar operand \p src1.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of elements.
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dp3(simd<T1, SZ> src0, U src1,
@@ -899,7 +911,8 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dp3(simd<T1, SZ> src0, U src1,
 /// \tparam U type of scalar operand \p src1.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of elements.
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dp4(simd<T1, SZ> src0, U src1,
@@ -922,7 +935,8 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dp4(simd<T1, SZ> src0, U src1,
 /// \tparam U type of scalar operand \p src1.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of elements.
 template <typename T0, typename T1, typename U, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dph(simd<T1, SZ> src0, U src1,
@@ -946,7 +960,8 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_dph(simd<T1, SZ> src0, U src1,
 /// multiple of 4.
 /// @param src0 the first input vector of size 4.
 /// @param src1 the input vector.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return resulting vector from linear equation operation.
 template <typename RT, typename T1, typename T2, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<RT, SZ>
@@ -974,7 +989,8 @@ esimd_line(simd<T1, 4> src0, simd<T2, SZ> src1, int flag = saturation_off) {
 /// @param P the first input value.
 /// @param Q the second input value.
 /// @param src1 the input vector.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return resulting vector from linear equation operation.
 template <typename RT, typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<RT, SZ>
@@ -1003,7 +1019,8 @@ esimd_line(float P, float Q, simd<T, SZ> src1, int flag = saturation_off) {
 /// \tparam U type of scalar operand \p src1. Must be a float type.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of elements.
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
@@ -1034,7 +1051,8 @@ esimd_dp2(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
 /// \tparam U type of scalar operand \p src1. Must be a float type.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of elements.
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
@@ -1066,7 +1084,8 @@ esimd_dp3(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
 /// \tparam U type of scalar operand \p src1. Must be a float type.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of elements.
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
@@ -1099,7 +1118,8 @@ esimd_dp4(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
 /// \tparam U type of scalar operand \p src1. Must be a float type.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return vector of elements.
 template <typename T, typename U, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
@@ -1130,7 +1150,8 @@ esimd_dph(simd<T, SZ> src0, U src1, int flag = saturation_off) {
 /// Must be a multiple of 4.
 /// @param src0 the first input vector of size 4.
 /// @param src1 the input vector.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return resulting vector from linear equation operation.
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
@@ -1161,7 +1182,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// @param P the first input value.
 /// @param Q the second input value.
 /// @param src1 the input vector.
-/// @param flag saturation on or off(default). 0 - no saturation, 1 - perform
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
 /// @return resulting vector from linear equation operation.
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
