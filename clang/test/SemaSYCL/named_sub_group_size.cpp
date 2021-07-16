@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -sycl-std=2020 -fsyntax-only -ast-dump -verify=expected,primary %s | FileCheck %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -sycl-std=2020 -fsyntax-only -ast-dump -verify %s | FileCheck %s
 
 // Validate the semantic analysis checks for the named_sub_group_size attribute in SYCL 2020 mode.
 
@@ -34,15 +34,13 @@ void calls_kernel_2() {
   sycl::kernel_single_task<class Kernel3>(F1);
 }
 
-[[intel::named_sub_group_size(primary)]] void AttrFunc() {} // #AttrFunc
+[[intel::named_sub_group_size(primary)]] void AttrFunc() {} // expected-error{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
 
 // Test attribute does not get propagated to the kernel.
 void calls_kernel_3() {
   // CHECK:     FunctionDecl {{.*}}Kernel4
   // CHECK-NOT: IntelNamedSubGroupSizeAttr {{.*}}
-  sycl::kernel_single_task<class Kernel4>([]() { // #Kernel4
-    // primary-error@#AttrFunc{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
-    // primary-note@#Kernel4{{kernel declared here}}
+  sycl::kernel_single_task<class Kernel4>([]() { // expected-note{{kernel declared here}}
     AttrFunc();
   });
 }
