@@ -45,6 +45,7 @@ using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 
 static constexpr int DbgProgMgr = 0;
 
+
 enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
