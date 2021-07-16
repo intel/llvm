@@ -1108,13 +1108,14 @@ static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
 static bool isReadOnlyAccessor(const TemplateArgument &AccessModeArg) {
   const auto *AccessModeArgEnumType =
       AccessModeArg.getIntegralType()->castAs<EnumType>();
-  EnumDecl *ED = AccessModeArgEnumType->getDecl();
+  const EnumDecl *ED = AccessModeArgEnumType->getDecl();
 
-  auto ReadOnly = llvm::find_if(ED->enumerators(), [&](EnumConstantDecl *E) {
-    return E->getName() == "read";
-  });
+  auto ReadOnly =
+      llvm::find_if(ED->enumerators(), [&](const EnumConstantDecl *E) {
+        return E->getName() == "read";
+      });
 
-  return (ReadOnly != ED->enumerator_end()) &&
+  return ReadOnly != ED->enumerator_end() &&
          (*ReadOnly)->getInitVal() == AccessModeArg.getAsIntegral();
 }
 
@@ -2125,7 +2126,7 @@ public:
     // Get access mode of accessor.
     const auto *AccessorSpecializationDecl =
         cast<ClassTemplateSpecializationDecl>(RecordDecl);
-    const TemplateArgument AccessModeArg =
+    const TemplateArgument &AccessModeArg =
         AccessorSpecializationDecl->getTemplateArgs().get(2);
 
     // Don't do -1 here because we count on this to be the first parameter added
@@ -2155,7 +2156,7 @@ public:
     // Get access mode of accessor.
     const auto *AccessorSpecializationDecl =
         cast<ClassTemplateSpecializationDecl>(RecordDecl);
-    const TemplateArgument AccessModeArg =
+    const TemplateArgument &AccessModeArg =
         AccessorSpecializationDecl->getTemplateArgs().get(2);
 
     llvm::StringLiteral MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
