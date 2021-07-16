@@ -17,6 +17,7 @@
 __SYCL_WARNING(
     "CL/sycl/INTEL/esimd/detail/emu/esimd_emu_functions_v1.h usage is "
     "deprecated, include "
-    "sycl/ext/intel/esimd/detail/emu/esimd_emu_functions_v1.h instead")
+    "sycl/ext/intel/experimental/esimd/emu/detail/esimd_emu_functions_v1.h "
+    "instead")
 
-#include <sycl/ext/intel/esimd/detail/emu/esimd_emu_functions_v1.h>
+#include <sycl/ext/intel/experimental/esimd/emu/detail/esimd_emu_functions_v1.h>

@@ -23,6 +23,7 @@
 __SYCL_WARNING(
     "CL/sycl/INTEL/esimd/detail/emu/esimdcpu_device_interface.hpp usage is "
     "deprecated, include "
-    "sycl/ext/intel/esimd/detail/emu/esimdcpu_device_interface.hpp instead")
+    "sycl/ext/intel/experimental/esimd/emu/detail/"
+    "esimdcpu_device_interface.hpp instead")
 
-#include <sycl/ext/intel/esimd/detail/emu/esimdcpu_device_interface.hpp>
+#include <sycl/ext/intel/experimental/esimd/emu/detail/esimdcpu_device_interface.hpp>

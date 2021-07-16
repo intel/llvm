@@ -8,8 +8,8 @@ define spir_func <32 x i16> @_Z3foov() {
 ; CHECK-LABEL: @_Z3foov(
 ; CHECK-NEXT:    ret <32 x i16> zext (<32 x i1> bitcast (<1 x i32> <i32 1717986918> to <32 x i1>) to <32 x i16>)
 ;
-  %call.i.i = call spir_func <32 x i16> @_Z19__esimd_unpack_maskILi32EEN2cl4sycl3ext5intel3gpu11vector_typeItXT_EE4typeEj(i32 1717986918)
+  %call.i.i = call spir_func <32 x i16> @_Z19__esimd_unpack_maskILi32EEN2cl4sycl5INTEL3gpu11vector_typeItXT_EE4typeEj(i32 1717986918)
   ret <32 x i16> %call.i.i
 }
 
-declare dso_local spir_func <32 x i16> @_Z19__esimd_unpack_maskILi32EEN2cl4sycl3ext5intel3gpu11vector_typeItXT_EE4typeEj(i32)
+declare dso_local spir_func <32 x i16> @_Z19__esimd_unpack_maskILi32EEN2cl4sycl5INTEL3gpu11vector_typeItXT_EE4typeEj(i32)
