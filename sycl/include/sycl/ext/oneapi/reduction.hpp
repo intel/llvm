@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/detail/tuple.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/known_identity.hpp>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/ext/oneapi/group_algorithm.hpp>
 
 #include <tuple>
@@ -317,7 +317,8 @@ public:
         .fetch_and(MValue);
   }
 
-  /// Atomic MIN operation: *ReduVarPtr = ext::oneapi::minimum(*ReduVarPtr, MValue);
+  /// Atomic MIN operation: *ReduVarPtr = ext::oneapi::minimum(*ReduVarPtr,
+  /// MValue);
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
@@ -331,7 +332,8 @@ public:
         .fetch_min(MValue);
   }
 
-  /// Atomic MAX operation: *ReduVarPtr = ext::oneapi::maximum(*ReduVarPtr, MValue);
+  /// Atomic MAX operation: *ReduVarPtr = ext::oneapi::maximum(*ReduVarPtr,
+  /// MValue);
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
