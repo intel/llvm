@@ -315,6 +315,8 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
     return false;
+  case aspect::ext_oneapi_srgb:
+    return get_info<info::device::ext_oneapi_srgb>();
   case aspect::ext_oneapi_native_assert:
     return isAssertFailSupported();
 

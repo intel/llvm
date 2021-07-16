@@ -289,6 +289,7 @@ typedef enum {
   PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 0x10024,
   PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 0x10025,
   PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026,
+  PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110
 } _pi_device_info;
 
@@ -437,7 +438,8 @@ typedef enum {
   PI_IMAGE_CHANNEL_ORDER_LUMINANCE = CL_LUMINANCE,
   PI_IMAGE_CHANNEL_ORDER_Rx = CL_Rx,
   PI_IMAGE_CHANNEL_ORDER_RGx = CL_RGx,
-  PI_IMAGE_CHANNEL_ORDER_RGBx = CL_RGBx
+  PI_IMAGE_CHANNEL_ORDER_RGBx = CL_RGBx,
+  PI_IMAGE_CHANNEL_ORDER_sRGBA = CL_sRGBA
 } _pi_image_channel_order;
 
 typedef enum {
@@ -519,6 +521,7 @@ typedef enum {
 using pi_mem_flags = pi_bitfield;
 // Access
 constexpr pi_mem_flags PI_MEM_FLAGS_ACCESS_RW = CL_MEM_READ_WRITE;
+constexpr pi_mem_flags PI_MEM_ACCESS_READ_ONLY = CL_MEM_READ_ONLY;
 // Host pointer
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE = CL_MEM_USE_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
