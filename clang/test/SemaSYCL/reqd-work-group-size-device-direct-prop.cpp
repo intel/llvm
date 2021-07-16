@@ -46,30 +46,30 @@ public:
 int main() {
   q.submit([&](handler &h) {
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
-    // CHECK: ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK: ReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 16
-    // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 16
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 16
-    // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 16
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 16
-    // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 16
     Functor16x16x16 f16x16x16;
     h.single_task<class kernel_name1>(f16x16x16);
 
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-    // CHECK: ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK: ReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 128
-    // CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 128
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 128
-    // CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 128
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 128
-    // CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 128
     FunctorAttr fattr;
     h.single_task<class kernel_name2>(fattr);
   });
