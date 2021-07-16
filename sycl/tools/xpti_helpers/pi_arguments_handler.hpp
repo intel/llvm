@@ -75,9 +75,8 @@ public:
 
 #define _PI_API(api)                                                           \
   void set##_##api(                                                            \
-      const typename to_function<                                              \
-          typename detail::function_traits<decltype(api)>::args_type>::type    \
-          &Handler) {                                                          \
+      const typename to_function<typename detail::function_traits<decltype(    \
+          api)>::args_type>::type &Handler) {                                  \
     MHandler##_##api = [Handler](detail::XPTIPluginInfo Plugin,                \
                                  std::optional<pi_result> Res, void *Data) {   \
       using TupleT =                                                           \
@@ -85,7 +84,7 @@ public:
       TupleT Tuple = unpack<TupleT>(                                           \
           (char *)Data,                                                        \
           std::make_index_sequence<std::tuple_size<TupleT>::value>{});         \
-      const auto Wrapper = [Plugin, Res, Handler](auto &...Args) {             \
+      const auto Wrapper = [Plugin, Res, Handler](auto &... Args) {            \
         Handler(Plugin, Res, Args...);                                         \
       };                                                                       \
       std::apply(Wrapper, Tuple);                                              \
