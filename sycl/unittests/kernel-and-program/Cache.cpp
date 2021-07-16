@@ -13,6 +13,8 @@
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"
 #include <CL/sycl.hpp>
+#include <helpers/CommonRedefinitions.hpp>
+#include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
 #include <gtest/gtest.h>
@@ -32,6 +34,56 @@ public:
   void operator()(cl::sycl::item<1>){};
 };
 
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace detail {
+struct MockKernelInfo {
+  static constexpr unsigned getNumParams() { return 0; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+};
+
+template <> struct KernelInfo<TestKernel> : public MockKernelInfo {
+  static constexpr const char *getName() { return "TestKernel"; }
+};
+
+template <> struct KernelInfo<TestKernel2> : public MockKernelInfo {
+  static constexpr const char *getName() { return "TestKernel2"; }
+};
+
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
+
+static sycl::unittest::PiImage generateDefaultImage() {
+  using namespace sycl::unittest;
+
+  PiPropertySet PropSet;
+
+  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+
+  PiArray<PiOffloadEntry> Entries =
+      makeEmptyKernels({"TestKernel", "TestKernel2"});
+
+  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "",                                     // Compile options
+              "",                                     // Link options
+              std::move(Bin),
+              std::move(Entries),
+              std::move(PropSet)};
+
+  return Img;
+}
+
+static sycl::unittest::PiImage Img = generateDefaultImage();
+static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+
 struct TestCtx {
   detail::pi::PiContext context;
 };
@@ -43,6 +95,7 @@ static pi_result redefinedProgramCreateWithSource(pi_context context,
                                                   const char **strings,
                                                   const size_t *lengths,
                                                   pi_program *ret_program) {
+  *ret_program = reinterpret_cast<pi_program>(1);
   return PI_SUCCESS;
 }
 
@@ -50,75 +103,9 @@ static pi_result redefinedProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
     pi_int32 *binary_status, pi_program *ret_program) {
+  *ret_program = reinterpret_cast<pi_program>(1);
   return PI_SUCCESS;
 }
-
-static pi_result
-redefinedProgramBuild(pi_program program, pi_uint32 num_devices,
-                      const pi_device *device_list, const char *options,
-                      void (*pfn_notify)(pi_program program, void *user_data),
-                      void *user_data) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedProgramCompile(
-    pi_program program, pi_uint32 num_devices, const pi_device *device_list,
-    const char *options, pi_uint32 num_input_headers,
-    const pi_program *input_headers, const char **header_include_names,
-    void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
-  return PI_SUCCESS;
-}
-
-static pi_result
-redefinedProgramLink(pi_context context, pi_uint32 num_devices,
-                     const pi_device *device_list, const char *options,
-                     pi_uint32 num_input_programs,
-                     const pi_program *input_programs,
-                     void (*pfn_notify)(pi_program program, void *user_data),
-                     void *user_data, pi_program *ret_program) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedProgramGetInfo(pi_program program,
-                                         pi_program_info param_name,
-                                         size_t param_value_size,
-                                         void *param_value,
-                                         size_t *param_value_size_ret) {
-  if (param_name == PI_PROGRAM_INFO_NUM_DEVICES) {
-    auto value = reinterpret_cast<unsigned int *>(param_value);
-    *value = 1;
-  }
-
-  if (param_name == PI_PROGRAM_INFO_BINARY_SIZES) {
-    auto value = reinterpret_cast<size_t *>(param_value);
-    value[0] = 1;
-  }
-
-  if (param_name == PI_PROGRAM_INFO_BINARIES) {
-    auto value = reinterpret_cast<unsigned char *>(param_value);
-    value[0] = 1;
-  }
-
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedProgramRetain(pi_program program) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedProgramRelease(pi_program program) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelCreate(pi_program program,
-                                       const char *kernel_name,
-                                       pi_kernel *ret_kernel) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelRetain(pi_kernel kernel) { return PI_SUCCESS; }
-
-static pi_result redefinedKernelRelease(pi_kernel kernel) { return PI_SUCCESS; }
 
 static pi_result redefinedKernelGetInfo(pi_kernel kernel,
                                         pi_kernel_info param_name,
@@ -133,12 +120,12 @@ static pi_result redefinedKernelGetInfo(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
-                                            pi_kernel_exec_info value_name,
-                                            size_t param_value_size,
-                                            const void *param_value) {
+static pi_result redefinedKernelCreate(pi_program program,
+                                       const char *kernel_name,
+                                       pi_kernel *ret_kernel) {
   return PI_SUCCESS;
 }
+static pi_result redefinedKernelRelease(pi_kernel kernel) { return PI_SUCCESS; }
 
 class KernelAndProgramCacheTest : public ::testing::Test {
 public:
@@ -155,25 +142,14 @@ protected:
 
     Mock = std::make_unique<unittest::PiMock>(Plt);
 
+    setupDefaultMockAPIs(*Mock);
     Mock->redefine<detail::PiApiKind::piclProgramCreateWithSource>(
         redefinedProgramCreateWithSource);
     Mock->redefine<detail::PiApiKind::piProgramCreateWithBinary>(
         redefinedProgramCreateWithBinary);
-    Mock->redefine<detail::PiApiKind::piProgramCompile>(
-        redefinedProgramCompile);
-    Mock->redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-    Mock->redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
-    Mock->redefine<detail::PiApiKind::piProgramGetInfo>(
-        redefinedProgramGetInfo);
-    Mock->redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
-    Mock->redefine<detail::PiApiKind::piProgramRelease>(
-        redefinedProgramRelease);
-    Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-    Mock->redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-    Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
     Mock->redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-    Mock->redefine<detail::PiApiKind::piKernelSetExecInfo>(
-        redefinedKernelSetExecInfo);
+    Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
+    Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   }
 
 protected:
@@ -194,7 +170,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeBuild) {
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for source programs";
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
 }
 
 // Check that programs built from source with options are not cached.
@@ -210,7 +186,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeBuildWithOpts) {
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for source programs";
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
 }
 
 // Check that programs compiled and linked from source are not cached.
@@ -227,7 +203,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeCompileAndLink) {
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for source programs";
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
 }
 
 // Check that programs compiled and linked from source with options are not
@@ -245,7 +221,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeCompileAndLinkWithOpts) {
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for source programs";
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
 }
 
 // Check that programs built without options are cached.
@@ -263,7 +239,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramBuildPositive) {
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-  EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for programs";
+  EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache for programs";
 }
 
 // Check that programs built with options are cached.
@@ -292,7 +268,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramBuildPositiveBuildOpts) {
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-  EXPECT_EQ(Cache.size(), 3) << "Expect non-empty cache for programs";
+  EXPECT_EQ(Cache.size(), 3U) << "Expect non-empty cache for programs";
 }
 
 // Check that programs built with compile options are not cached.
@@ -309,7 +285,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramBuildNegativeCompileOpts) {
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for programs";
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for programs";
 }
 
 // Check that programs built with link options are not cached.
@@ -326,7 +302,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramBuildNegativeLinkOpts) {
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for programs";
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for programs";
 }
 
 // Check that kernels built without options are cached.
@@ -346,7 +322,7 @@ TEST_F(KernelAndProgramCacheTest, KernelPositive) {
   kernel Ker = Prg.get_kernel<TestKernel>();
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
-  EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for kernels";
+  EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache for kernels";
 }
 
 // Check that kernels built with options are cached.
@@ -367,7 +343,7 @@ TEST_F(KernelAndProgramCacheTest, KernelPositiveBuildOpts) {
   kernel Ker = Prg.get_kernel<TestKernel>();
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
-  EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for kernels";
+  EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache for kernels";
 }
 
 // Check that kernels built with compile options are not cached.
@@ -388,7 +364,7 @@ TEST_F(KernelAndProgramCacheTest, KernelNegativeCompileOpts) {
   kernel Ker = Prg.get_kernel<TestKernel>();
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
 }
 
 // Check that kernels built with link options are not cached.
@@ -409,7 +385,7 @@ TEST_F(KernelAndProgramCacheTest, KernelNegativeLinkOpts) {
   kernel Ker = Prg.get_kernel<TestKernel>();
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
 }
 
 // Check that kernels are not cached if program is created from multiple
@@ -434,7 +410,7 @@ TEST_F(KernelAndProgramCacheTest, KernelNegativeLinkedProgs) {
 
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
 }
 
 // Check that kernels created from source are not cached.
@@ -455,5 +431,5 @@ TEST_F(KernelAndProgramCacheTest, KernelNegativeSource) {
 
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
 }
