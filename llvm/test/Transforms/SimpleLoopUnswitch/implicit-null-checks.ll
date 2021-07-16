@@ -2,7 +2,7 @@
 ; Test is no longer compatible with the old PM. Old PM force-loads MSSA and allows partial invariant motion to run.
 ; Disable first run till the moment when NewPM is enabled by default.
 ; RUN-OLD-PM: opt -enable-nontrivial-unswitch=true -simple-loop-unswitch -S < %s | FileCheck %s
-; RUN: opt -enable-nontrivial-unswitch=true -passes='loop(unswitch),verify<loops>' -S < %s | FileCheck %s
+; RUN: opt -enable-nontrivial-unswitch=true -passes='loop(simple-loop-unswitch),verify<loops>' -S < %s | FileCheck %s
 
 declare void @may_exit()
 declare void @throw_npe()

@@ -17,6 +17,9 @@
 #include <CL/sycl/types.hpp>
 #include <cstddef>
 
+// sRGB Extension Support
+#define SYCL_EXT_ONEAPI_SRGB 1
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -34,7 +37,8 @@ enum class image_channel_order : unsigned int {
   bgra = 10,
   intensity = 11,
   luminance = 12,
-  abgr = 13
+  abgr = 13,
+  ext_oneapi_srgba = 14 // OpenCL 2.0
 };
 
 enum class image_channel_type : unsigned int {

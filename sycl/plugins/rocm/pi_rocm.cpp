@@ -23,8 +23,64 @@
 #include <memory>
 #include <mutex>
 #include <regex>
+#include <string.h>
 
 namespace {
+// Hipify doesn't support cuArrayGetDescriptor, on AMD the hipArray can just be
+// indexed, but on NVidia it is an opaque type and needs to go through
+// cuArrayGetDescriptor so implement a utility function to get the array
+// properties
+inline void getArrayDesc(hipArray *array, hipArray_Format &format,
+                         size_t &channels) {
+#if defined(__HIP_PLATFORM_AMD__)
+  format = array->Format;
+  channels = array->NumChannels;
+#elif defined(__HIP_PLATFORM_NVIDIA__)
+  CUDA_ARRAY_DESCRIPTOR arrayDesc;
+  cuArrayGetDescriptor(&arrayDesc, (CUarray)array);
+
+  format = arrayDesc.Format;
+  channels = arrayDesc.NumChannels;
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+}
+
+// NVidia HIP headers guard hipArray3DCreate behind __CUDACC__, this does not
+// seem to be required and we're not using nvcc to build the HIP PI plugin so
+// add the translation function here
+#if defined(__HIP_PLATFORM_NVIDIA__) && !defined(__CUDACC__)
+inline static hipError_t
+hipArray3DCreate(hiparray *pHandle,
+                 const HIP_ARRAY3D_DESCRIPTOR *pAllocateArray) {
+  return hipCUResultTohipError(cuArray3DCreate(pHandle, pAllocateArray));
+}
+#endif
+
+// hipArray gets turned into cudaArray when using the HIP NVIDIA platform, and
+// some CUDA APIs use cudaArray* and others use CUarray, these two represent the
+// same type, however when building cudaArray appears as an opaque type, so it
+// needs to be explicitly casted to CUarray. In order for this to work for both
+// AMD and NVidia we introduce an second hipArray type that will be CUarray for
+// NVIDIA and hipArray* for AMD so that we can place the explicit casts when
+// necessary for NVIDIA and they will be no-ops for AMD.
+#if defined(__HIP_PLATFORM_NVIDIA__)
+typedef CUarray hipCUarray;
+#elif defined(__HIP_PLATFORM_AMD__)
+typedef hipArray *hipCUarray;
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+
+// Add missing HIP to CUDA defines
+#if defined(__HIP_PLATFORM_NVIDIA__)
+#define hipMemoryType CUmemorytype
+#define hipMemoryTypeHost CU_MEMORYTYPE_HOST
+#define hipMemoryTypeDevice CU_MEMORYTYPE_DEVICE
+#define hipMemoryTypeArray CU_MEMORYTYPE_ARRAY
+#define hipMemoryTypeUnified CU_MEMORYTYPE_UNIFIED
+#endif
+
 std::string getHipVersionString() {
   int driver_version = 0;
   if (hipDriverGetVersion(&driver_version) != hipSuccess) {
@@ -216,15 +272,20 @@ pi_result getInfo(size_t param_value_size, void *param_value,
   };
 
   return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
-                     sizeof(T), assignment);
+                     sizeof(T), std::move(assignment));
 }
 
 template <typename T>
 pi_result getInfoArray(size_t array_length, size_t param_value_size,
                        void *param_value, size_t *param_value_size_ret,
                        T *value) {
+
+  auto assignment = [](void *param_value, T *value, size_t value_size) {
+    memcpy(param_value, static_cast<const void *>(value), value_size);
+  };
+
   return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
-                     array_length * sizeof(T), memcpy);
+                     array_length * sizeof(T), std::move(assignment));
 }
 
 template <>
@@ -802,11 +863,18 @@ pi_result rocm_piextDeviceSelectBinary(pi_device device,
     cl::sycl::detail::pi::die("No binary images in the list");
   }
 
-  // Look for an image for the AMDGCN target, and return the first one that is
+  // Look for an image for the ROCm target, and return the first one that is
   // found
+#if defined(__HIP_PLATFORM_AMD__)
+  const char *binary_type = __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN;
+#elif defined(__HIP_PLATFORM_NVIDIA__)
+  const char *binary_type = __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64;
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+
   for (pi_uint32 i = 0; i < num_binaries; i++) {
-    if (strcmp(binaries[i]->DeviceTargetSpec,
-               __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
+    if (strcmp(binaries[i]->DeviceTargetSpec, binary_type) == 0) {
       *selected_binary = i;
       return PI_SUCCESS;
     }
@@ -1258,7 +1326,7 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                               device->get()) == hipSuccess);
 
     cl::sycl::detail::pi::assertion((ecc_enabled == 0) | (ecc_enabled == 1));
-    auto result = static_cast<bool>(ecc_enabled);
+    auto result = static_cast<pi_bool>(ecc_enabled);
     return getInfo(param_value_size, param_value, param_value_size_ret, result);
   }
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
@@ -1269,7 +1337,7 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 
     cl::sycl::detail::pi::assertion((is_integrated == 0) |
                                     (is_integrated == 1));
-    auto result = static_cast<bool>(is_integrated);
+    auto result = static_cast<pi_bool>(is_integrated);
     return getInfo(param_value_size, param_value, param_value_size_ret, result);
   }
   case PI_DEVICE_INFO_PROFILING_TIMER_RESOLUTION: {
@@ -1279,16 +1347,20 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    size_t{1000u});
   }
   case PI_DEVICE_INFO_ENDIAN_LITTLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, true);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
   }
   case PI_DEVICE_INFO_AVAILABLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, true);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
   }
   case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, true);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
   }
   case PI_DEVICE_INFO_LINKER_AVAILABLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, true);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
   }
   case PI_DEVICE_INFO_EXECUTION_CAPABILITIES: {
     auto capability = CL_EXEC_KERNEL;
@@ -1358,7 +1430,8 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    size_t{1024u});
   }
   case PI_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, true);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
   }
   case PI_DEVICE_INFO_PARENT_DEVICE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -1648,17 +1721,20 @@ pi_result rocm_piContextRelease(pi_context ctxt) {
 
   if (!ctxt->is_primary()) {
     hipCtx_t hipCtxt = ctxt->get();
+    // hipCtxSynchronize is not supported for AMD platform so we can just
+    // destroy the context, for NVIDIA make sure it's synchronized.
+#if defined(__HIP_PLATFORM_NVIDIA__)
     hipCtx_t current = nullptr;
     PI_CHECK_ERROR(hipCtxGetCurrent(&current));
     if (hipCtxt != current) {
       PI_CHECK_ERROR(hipCtxPushCurrent(hipCtxt));
     }
-    //  hipErrorNotSupported this API
-    // PI_CHECK_ERROR(hipCtxSynchronize());
+    PI_CHECK_ERROR(hipCtxSynchronize());
     PI_CHECK_ERROR(hipCtxGetCurrent(&current));
     if (hipCtxt == current) {
       PI_CHECK_ERROR(hipCtxPopCurrent(&current));
     }
+#endif
     return PI_CHECK_ERROR(hipCtxDestroy(hipCtxt));
   } else {
     // Primary context is not destroyed, but released
@@ -1724,7 +1800,7 @@ pi_result rocm_piMemBufferCreate(pi_context context, pi_mem_flags flags,
 
   try {
     ScopedContext active(context);
-    hipDevPtr ptr;
+    void *ptr;
     _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
         _pi_mem::mem_::buffer_mem_::alloc_mode::classic;
 
@@ -1747,13 +1823,15 @@ pi_result rocm_piMemBufferCreate(pi_context context, pi_mem_flags flags,
     if (retErr == PI_SUCCESS) {
       pi_mem parentBuffer = nullptr;
 
-      auto piMemObj = std::unique_ptr<_pi_mem>(
-          new _pi_mem{context, parentBuffer, allocMode, ptr, host_ptr, size});
+      auto devPtr =
+          reinterpret_cast<_pi_mem::mem_::mem_::buffer_mem_::native_type>(ptr);
+      auto piMemObj = std::unique_ptr<_pi_mem>(new _pi_mem{
+          context, parentBuffer, allocMode, devPtr, host_ptr, size});
       if (piMemObj != nullptr) {
         retMemObj = piMemObj.release();
         if (performInitialCopy) {
           // Operates on the default stream of the current HIP context.
-          retErr = PI_CHECK_ERROR(hipMemcpyHtoD(ptr, host_ptr, size));
+          retErr = PI_CHECK_ERROR(hipMemcpyHtoD(devPtr, host_ptr, size));
           // Synchronize with default stream implicitly used by cuMemcpyHtoD
           // to make buffer data available on device before any other PI call
           // uses it.
@@ -1806,7 +1884,8 @@ pi_result rocm_piMemRelease(pi_mem memObj) {
       switch (uniqueMemObj->mem_.buffer_mem_.allocMode_) {
       case _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in:
       case _pi_mem::mem_::buffer_mem_::alloc_mode::classic:
-        ret = PI_CHECK_ERROR(hipFree(uniqueMemObj->mem_.buffer_mem_.ptr_));
+        ret = PI_CHECK_ERROR(
+            hipFree((void *)uniqueMemObj->mem_.buffer_mem_.ptr_));
         break;
       case _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr:
         ret = PI_CHECK_ERROR(
@@ -1822,7 +1901,7 @@ pi_result rocm_piMemRelease(pi_mem memObj) {
       ret = PI_CHECK_ERROR(hipDestroySurfaceObject(
           uniqueMemObj->mem_.surface_mem_.get_surface()));
       auto array = uniqueMemObj->mem_.surface_mem_.get_array();
-      ret = PI_CHECK_ERROR(hipFreeArray(&array));
+      ret = PI_CHECK_ERROR(hipFreeArray(array));
     }
 
   } catch (pi_result err) {
@@ -1882,7 +1961,7 @@ pi_result rocm_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   assert(parent_buffer->mem_.buffer_mem_.ptr_ !=
          _pi_mem::mem_::buffer_mem_::native_type{0});
   _pi_mem::mem_::buffer_mem_::native_type ptr =
-      (uint8_t *)(parent_buffer->mem_.buffer_mem_.ptr_) + bufferRegion.origin;
+      parent_buffer->mem_.buffer_mem_.get_with_offset(bufferRegion.origin);
 
   void *hostPtr = nullptr;
   if (parent_buffer->mem_.buffer_mem_.hostPtr_) {
@@ -2104,7 +2183,6 @@ pi_result rocm_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
   assert(command_queue != nullptr);
   pi_result retErr = PI_SUCCESS;
   hipStream_t hipStream = command_queue->get();
-  hipDevPtr devPtr = buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -2120,7 +2198,8 @@ pi_result rocm_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
     }
 
     retErr = PI_CHECK_ERROR(
-        hipMemcpyHtoDAsync((uint8_t *)devPtr + offset, ptr, size, hipStream));
+        hipMemcpyHtoDAsync(buffer->mem_.buffer_mem_.get_with_offset(offset),
+                           ptr, size, hipStream));
 
     if (event) {
       retErr = retImplEv->record();
@@ -2150,7 +2229,6 @@ pi_result rocm_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
   assert(command_queue != nullptr);
   pi_result retErr = PI_SUCCESS;
   hipStream_t hipStream = command_queue->get();
-  hipDevPtr devPtr = buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -2165,8 +2243,9 @@ pi_result rocm_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
       retImplEv->start();
     }
 
-    retErr = PI_CHECK_ERROR(
-        hipMemcpyDtoHAsync(ptr, (uint8_t *)devPtr + offset, size, hipStream));
+    retErr = PI_CHECK_ERROR(hipMemcpyDtoHAsync(
+        ptr, buffer->mem_.buffer_mem_.get_with_offset(offset), size,
+        hipStream));
 
     if (event) {
       retErr = retImplEv->record();
@@ -2290,10 +2369,12 @@ pi_result rocm_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
 
     if (arg_mem->mem_type_ == _pi_mem::mem_type::surface) {
       auto array = arg_mem->mem_.surface_mem_.get_array();
-      if (array.Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
-          array.Format != HIP_AD_FORMAT_SIGNED_INT32 &&
-          array.Format != HIP_AD_FORMAT_HALF &&
-          array.Format != HIP_AD_FORMAT_FLOAT) {
+      hipArray_Format Format;
+      size_t NumChannels;
+      getArrayDesc(array, Format, NumChannels);
+      if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
+          Format != HIP_AD_FORMAT_SIGNED_INT32 &&
+          Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
         cl::sycl::detail::pi::die(
             "PI HIP kernels only support images with channel types int32, "
             "uint32, float, and half.");
@@ -2303,8 +2384,8 @@ pi_result rocm_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
     } else
 
     {
-      hipDevPtr hipPtr = arg_mem->mem_.buffer_mem_.get();
-      kernel->set_kernel_arg(arg_index, sizeof(hipDevPtr), (void *)&hipPtr);
+      void *hipPtr = arg_mem->mem_.buffer_mem_.get_void();
+      kernel->set_kernel_arg(arg_index, sizeof(void *), (void *)&hipPtr);
     }
   } catch (pi_result err) {
     retErr = err;
@@ -2550,7 +2631,8 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
 
   ScopedContext active(context);
   hipArray *image_array;
-  retErr = PI_CHECK_ERROR(hipArray3DCreate(&image_array, &array_desc));
+  retErr = PI_CHECK_ERROR(hipArray3DCreate(
+      reinterpret_cast<hipCUarray *>(&image_array), &array_desc));
 
   try {
     if (performInitialCopy) {
@@ -2564,7 +2646,7 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
         cpy_desc.srcMemoryType = hipMemoryType::hipMemoryTypeHost;
         cpy_desc.srcHost = host_ptr;
         cpy_desc.dstMemoryType = hipMemoryType::hipMemoryTypeArray;
-        cpy_desc.dstArray = image_array;
+        cpy_desc.dstArray = reinterpret_cast<hipCUarray>(image_array);
         cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
         cpy_desc.Height = image_desc->image_height;
         retErr = PI_CHECK_ERROR(hipMemcpyParam2D(&cpy_desc));
@@ -2574,7 +2656,7 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
         cpy_desc.srcMemoryType = hipMemoryType::hipMemoryTypeHost;
         cpy_desc.srcHost = host_ptr;
         cpy_desc.dstMemoryType = hipMemoryType::hipMemoryTypeArray;
-        cpy_desc.dstArray = image_array;
+        cpy_desc.dstArray = reinterpret_cast<hipCUarray>(image_array);
         cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
         cpy_desc.Height = image_desc->image_height;
         cpy_desc.Depth = image_desc->image_depth;
@@ -2597,7 +2679,7 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
     retErr = PI_CHECK_ERROR(hipCreateSurfaceObject(&surface, &image_res_desc));
 
     auto piMemObj = std::unique_ptr<_pi_mem>(new _pi_mem{
-        context, *image_array, surface, image_desc->image_type, host_ptr});
+        context, image_array, surface, image_desc->image_type, host_ptr});
 
     if (piMemObj == nullptr) {
       return PI_OUT_OF_HOST_MEMORY;
@@ -3418,7 +3500,7 @@ static pi_result commonEnqueueMemBufferCopyRect(
 
   params.srcMemoryType = src_type;
   params.srcDevice = src_type == hipMemoryTypeDevice
-                         ? *static_cast<const hipDevPtr *>(src_ptr)
+                         ? *static_cast<const hipDeviceptr_t *>(src_ptr)
                          : 0;
   params.srcHost = src_type == hipMemoryTypeHost ? src_ptr : nullptr;
   params.srcXInBytes = src_offset->x_bytes;
@@ -3428,8 +3510,9 @@ static pi_result commonEnqueueMemBufferCopyRect(
   params.srcHeight = src_slice_pitch / src_row_pitch;
 
   params.dstMemoryType = dst_type;
-  params.dstDevice =
-      dst_type == hipMemoryTypeDevice ? *static_cast<hipDevPtr *>(dst_ptr) : 0;
+  params.dstDevice = dst_type == hipMemoryTypeDevice
+                         ? *reinterpret_cast<hipDeviceptr_t *>(dst_ptr)
+                         : 0;
   params.dstHost = dst_type == hipMemoryTypeHost ? dst_ptr : nullptr;
   params.dstXInBytes = dst_offset->x_bytes;
   params.dstY = dst_offset->y_scalar;
@@ -3455,7 +3538,7 @@ pi_result rocm_piEnqueueMemBufferReadRect(
 
   pi_result retErr = PI_SUCCESS;
   hipStream_t hipStream = command_queue->get();
-  hipDevPtr devPtr = buffer->mem_.buffer_mem_.get();
+  void *devPtr = buffer->mem_.buffer_mem_.get_void();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -3506,7 +3589,7 @@ pi_result rocm_piEnqueueMemBufferWriteRect(
 
   pi_result retErr = PI_SUCCESS;
   hipStream_t hipStream = command_queue->get();
-  hipDevPtr devPtr = buffer->mem_.buffer_mem_.get();
+  void *devPtr = buffer->mem_.buffer_mem_.get_void();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -3573,8 +3656,8 @@ pi_result rocm_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     }
 
     auto stream = command_queue->get();
-    auto src = (uint8_t *)(src_buffer->mem_.buffer_mem_.get()) + src_offset;
-    auto dst = (uint8_t *)(dst_buffer->mem_.buffer_mem_.get()) + dst_offset;
+    auto src = src_buffer->mem_.buffer_mem_.get_with_offset(src_offset);
+    auto dst = dst_buffer->mem_.buffer_mem_.get_with_offset(dst_offset);
 
     result = PI_CHECK_ERROR(hipMemcpyDtoDAsync(dst, src, size, stream));
 
@@ -3605,8 +3688,8 @@ pi_result rocm_piEnqueueMemBufferCopyRect(
 
   pi_result retErr = PI_SUCCESS;
   hipStream_t hipStream = command_queue->get();
-  hipDevPtr srcPtr = src_buffer->mem_.buffer_mem_.get();
-  hipDevPtr dstPtr = dst_buffer->mem_.buffer_mem_.get();
+  void *srcPtr = src_buffer->mem_.buffer_mem_.get_void();
+  void *dstPtr = dst_buffer->mem_.buffer_mem_.get_void();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -3678,7 +3761,7 @@ pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
       result = retImplEv->start();
     }
 
-    auto dstDevice = (uint8_t *)(buffer->mem_.buffer_mem_.get()) + offset;
+    auto dstDevice = buffer->mem_.buffer_mem_.get_with_offset(offset);
     auto stream = command_queue->get();
     auto N = size / pattern_size;
 
@@ -3719,7 +3802,7 @@ pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
   }
 }
 
-static size_t imageElementByteSize(enum hipArray_Format array_format) {
+static size_t imageElementByteSize(hipArray_Format array_format) {
   switch (array_format) {
   case HIP_AD_FORMAT_UNSIGNED_INT8:
   case HIP_AD_FORMAT_SIGNED_INT8:
@@ -3760,7 +3843,7 @@ static pi_result commonEnqueueMemImageNDCopy(
     cpyDesc.srcMemoryType = src_type;
     if (src_type == hipMemoryTypeArray) {
       cpyDesc.srcArray =
-          const_cast<hipArray *>(static_cast<const hipArray *>(src_ptr));
+          reinterpret_cast<hipCUarray>(const_cast<void *>(src_ptr));
       cpyDesc.srcXInBytes = src_offset[0];
       cpyDesc.srcY = src_offset[1];
     } else {
@@ -3769,7 +3852,7 @@ static pi_result commonEnqueueMemImageNDCopy(
     cpyDesc.dstMemoryType = dst_type;
     if (dst_type == hipMemoryTypeArray) {
       cpyDesc.dstArray =
-          const_cast<hipArray *>(static_cast<const hipArray *>(dst_ptr));
+          reinterpret_cast<hipCUarray>(const_cast<void *>(dst_ptr));
       cpyDesc.dstXInBytes = dst_offset[0];
       cpyDesc.dstY = dst_offset[1];
     } else {
@@ -3787,7 +3870,7 @@ static pi_result commonEnqueueMemImageNDCopy(
     cpyDesc.srcMemoryType = src_type;
     if (src_type == hipMemoryTypeArray) {
       cpyDesc.srcArray =
-          const_cast<hipArray *>(static_cast<const hipArray *>(src_ptr));
+          reinterpret_cast<hipCUarray>(const_cast<void *>(src_ptr));
       cpyDesc.srcXInBytes = src_offset[0];
       cpyDesc.srcY = src_offset[1];
       cpyDesc.srcZ = src_offset[2];
@@ -3796,7 +3879,7 @@ static pi_result commonEnqueueMemImageNDCopy(
     }
     cpyDesc.dstMemoryType = dst_type;
     if (dst_type == hipMemoryTypeArray) {
-      cpyDesc.dstArray = static_cast<hipArray *>(dst_ptr);
+      cpyDesc.dstArray = reinterpret_cast<hipCUarray>(dst_ptr);
       cpyDesc.dstXInBytes = dst_offset[0];
       cpyDesc.dstY = dst_offset[1];
       cpyDesc.dstZ = dst_offset[2];
@@ -3834,12 +3917,16 @@ pi_result rocm_piEnqueueMemImageRead(
                                event_wait_list, nullptr);
     }
 
-    hipArray array = image->mem_.surface_mem_.get_array();
+    hipArray *array = image->mem_.surface_mem_.get_array();
 
-    int elementByteSize = imageElementByteSize(array.Format);
+    hipArray_Format Format;
+    size_t NumChannels;
+    getArrayDesc(array, Format, NumChannels);
 
-    size_t byteOffsetX = origin[0] * elementByteSize * array.NumChannels;
-    size_t bytesToCopy = elementByteSize * array.NumChannels * region[0];
+    int elementByteSize = imageElementByteSize(Format);
+
+    size_t byteOffsetX = origin[0] * elementByteSize * NumChannels;
+    size_t bytesToCopy = elementByteSize * NumChannels * region[0];
 
     pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
 
@@ -3847,7 +3934,7 @@ pi_result rocm_piEnqueueMemImageRead(
     size_t srcOffset[3] = {byteOffsetX, origin[1], origin[2]};
 
     retErr = commonEnqueueMemImageNDCopy(hipStream, imgType, adjustedRegion,
-                                         &array, hipMemoryTypeArray, srcOffset,
+                                         array, hipMemoryTypeArray, srcOffset,
                                          ptr, hipMemoryTypeHost, nullptr);
 
     if (retErr != PI_SUCCESS) {
@@ -3896,12 +3983,16 @@ rocm_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
                                event_wait_list, nullptr);
     }
 
-    hipArray array = image->mem_.surface_mem_.get_array();
+    hipArray *array = image->mem_.surface_mem_.get_array();
 
-    int elementByteSize = imageElementByteSize(array.Format);
+    hipArray_Format Format;
+    size_t NumChannels;
+    getArrayDesc(array, Format, NumChannels);
 
-    size_t byteOffsetX = origin[0] * elementByteSize * array.NumChannels;
-    size_t bytesToCopy = elementByteSize * array.NumChannels * region[0];
+    int elementByteSize = imageElementByteSize(Format);
+
+    size_t byteOffsetX = origin[0] * elementByteSize * NumChannels;
+    size_t bytesToCopy = elementByteSize * NumChannels * region[0];
 
     pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
 
@@ -3909,8 +4000,8 @@ rocm_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
     size_t dstOffset[3] = {byteOffsetX, origin[1], origin[2]};
 
     retErr = commonEnqueueMemImageNDCopy(hipStream, imgType, adjustedRegion,
-                                         ptr, hipMemoryTypeHost, nullptr,
-                                         &array, hipMemoryTypeArray, dstOffset);
+                                         ptr, hipMemoryTypeHost, nullptr, array,
+                                         hipMemoryTypeArray, dstOffset);
 
     if (retErr != PI_SUCCESS) {
       return retErr;
@@ -3957,19 +4048,24 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
                                event_wait_list, nullptr);
     }
 
-    hipArray srcArray = src_image->mem_.surface_mem_.get_array();
-    hipArray dstArray = dst_image->mem_.surface_mem_.get_array();
+    hipArray *srcArray = src_image->mem_.surface_mem_.get_array();
+    hipArray_Format srcFormat;
+    size_t srcNumChannels;
+    getArrayDesc(srcArray, srcFormat, srcNumChannels);
 
-    assert(srcArray.Format == dstArray.Format);
-    assert(srcArray.NumChannels == dstArray.NumChannels);
+    hipArray *dstArray = dst_image->mem_.surface_mem_.get_array();
+    hipArray_Format dstFormat;
+    size_t dstNumChannels;
+    getArrayDesc(dstArray, dstFormat, dstNumChannels);
 
-    int elementByteSize = imageElementByteSize(srcArray.Format);
+    assert(srcFormat == dstFormat);
+    assert(srcNumChannels == dstNumChannels);
 
-    size_t dstByteOffsetX =
-        dst_origin[0] * elementByteSize * srcArray.NumChannels;
-    size_t srcByteOffsetX =
-        src_origin[0] * elementByteSize * dstArray.NumChannels;
-    size_t bytesToCopy = elementByteSize * srcArray.NumChannels * region[0];
+    int elementByteSize = imageElementByteSize(srcFormat);
+
+    size_t dstByteOffsetX = dst_origin[0] * elementByteSize * srcNumChannels;
+    size_t srcByteOffsetX = src_origin[0] * elementByteSize * dstNumChannels;
+    size_t bytesToCopy = elementByteSize * srcNumChannels * region[0];
 
     pi_mem_type imgType = src_image->mem_.surface_mem_.get_image_type();
 
@@ -3978,8 +4074,8 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     size_t dstOffset[3] = {dstByteOffsetX, dst_origin[1], dst_origin[2]};
 
     retErr = commonEnqueueMemImageNDCopy(
-        hipStream, imgType, adjustedRegion, &srcArray, hipMemoryTypeArray,
-        srcOffset, &dstArray, hipMemoryTypeArray, dstOffset);
+        hipStream, imgType, adjustedRegion, srcArray, hipMemoryTypeArray,
+        srcOffset, dstArray, hipMemoryTypeArray, dstOffset);
 
     if (retErr != PI_SUCCESS) {
       return retErr;
@@ -4164,7 +4260,7 @@ pi_result rocm_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
-    result = PI_CHECK_ERROR(hipMalloc((hipDevPtr *)result_ptr, size));
+    result = PI_CHECK_ERROR(hipMalloc(result_ptr, size));
   } catch (pi_result error) {
     result = error;
   }
@@ -4188,8 +4284,8 @@ pi_result rocm_piextUSMSharedAlloc(void **result_ptr, pi_context context,
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
-    result = PI_CHECK_ERROR(
-        hipMallocManaged((hipDevPtr *)result_ptr, size, hipMemAttachGlobal));
+    result =
+        PI_CHECK_ERROR(hipMallocManaged(result_ptr, size, hipMemAttachGlobal));
   } catch (pi_result error) {
     result = error;
   }
@@ -4210,12 +4306,12 @@ pi_result rocm_piextUSMFree(pi_context context, void *ptr) {
     ScopedContext active(context);
     unsigned int type;
     hipPointerAttribute_t hipPointerAttributeType;
-    result = PI_CHECK_ERROR(
-        hipPointerGetAttributes(&hipPointerAttributeType, (hipDevPtr)ptr));
+    result =
+        PI_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, ptr));
     type = hipPointerAttributeType.memoryType;
     assert(type == hipMemoryTypeDevice or type == hipMemoryTypeHost);
     if (type == hipMemoryTypeDevice) {
-      result = PI_CHECK_ERROR(hipFree((hipDevPtr)ptr));
+      result = PI_CHECK_ERROR(hipFree(ptr));
     }
     if (type == hipMemoryTypeHost) {
       result = PI_CHECK_ERROR(hipFreeHost(ptr));
@@ -4247,8 +4343,9 @@ pi_result rocm_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
           _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue));
       event_ptr->start();
     }
-    result = PI_CHECK_ERROR(hipMemsetD8Async(
-        (hipDevPtr)ptr, (unsigned char)value & 0xFF, count, hipStream));
+    result = PI_CHECK_ERROR(
+        hipMemsetD8Async(reinterpret_cast<hipDeviceptr_t>(ptr),
+                         (unsigned char)value & 0xFF, count, hipStream));
     if (event) {
       result = event_ptr->record();
       *event = event_ptr.release();

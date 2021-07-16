@@ -184,6 +184,8 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_UUID:
   case PI_DEVICE_INFO_ATOMIC_64:
     return PI_INVALID_VALUE;
+  case PI_DEVICE_INFO_IMAGE_SRGB:
+    return PI_SUCCESS;
 
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS:
     // Returns the maximum sizes of a work group for each dimension one

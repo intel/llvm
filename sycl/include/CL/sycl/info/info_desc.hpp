@@ -147,6 +147,7 @@ enum class device : cl_device_info {
       PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
   ext_intel_max_mem_bandwidth = PI_DEVICE_INFO_MAX_MEM_BANDWIDTH,
   ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL,
+  ext_oneapi_srgb = PI_DEVICE_INFO_IMAGE_SRGB,
   ext_intel_device_info_uuid = PI_DEVICE_INFO_UUID,
   atomic64 = PI_DEVICE_INFO_ATOMIC_64,
   ext_oneapi_max_global_number_work_groups =
