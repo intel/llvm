@@ -28,10 +28,10 @@ void kernel(accessor<int, 1, access::mode::read_write,
 
   v0 = v0 + v1;
 
-  // CHECK: gather_scatter_rgba.cpp:32{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
+  // CHECK: gather_scatter_rgba.cpp:33{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
   scatter_rgba<int, 32, ESIMD_ABGR_ENABLE>(buf.get_pointer(), v0, offsets);
-  // CHECK: gather_scatter_rgba.cpp:35{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
+  // CHECK: gather_scatter_rgba.cpp:36{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
   scatter_rgba<int, 32, ChannelMaskType::ESIMD_ABGR_ENABLE>(buf.get_pointer(),
                                                             v0, offsets);
@@ -45,7 +45,7 @@ void kernel(accessor<int, 1, access::mode::read_write,
 // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
 // CHECK: gather_scatter_rgba.cpp:24{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
 // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
-// CHECK: gather_scatter_rgba.cpp:32{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
+// CHECK: gather_scatter_rgba.cpp:33{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
 // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
-// CHECK: gather_scatter_rgba.cpp:35{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
+// CHECK: gather_scatter_rgba.cpp:36{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
 // CHECK: sycl/ext/intel/experimental/esimd/common.hpp{{.*}}note:
