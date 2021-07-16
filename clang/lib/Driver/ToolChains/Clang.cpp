@@ -8856,7 +8856,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // -fsycl-device-code-split=auto
 
   // Turn on Dead Parameter Elimination Optimization with early optimizations
-  if (!getToolChain().getTriple().isNVPTX() &&
+  if (!(getToolChain().getTriple().isNVPTX() || getToolChain().getTriple().isAMDGCN()) &&
       TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
                      options::OPT_fno_sycl_dead_args_optimization, false))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
