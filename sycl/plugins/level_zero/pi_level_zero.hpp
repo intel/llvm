@@ -482,12 +482,13 @@ const pi_uint32 DynamicBatchStartSize = 4;
 struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue,
             ze_command_queue_handle_t CopyQueue, pi_context Context,
-            pi_device Device, pi_uint32 BatchSize,
+            pi_device Device, pi_uint32 BatchSize, bool OwnZeCommandQueue,
             pi_queue_properties PiQueueProperties = 0)
       : ZeComputeCommandQueue{Queue},
         ZeCopyCommandQueue{CopyQueue}, Context{Context}, Device{Device},
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
-        UseDynamicBatching{BatchSize == 0},
+        OwnZeCommandQueue{OwnZeCommandQueue}, UseDynamicBatching{BatchSize ==
+                                                                 0},
         PiQueueProperties(PiQueueProperties) {}
 
   // Level Zero compute command queue handle.
@@ -539,6 +540,10 @@ struct _pi_queue : _pi_object {
   // a queue specific basis. And by putting it in the queue itself, this
   // is thread safe because of the locking of the queue that occurs.
   pi_uint32 QueueBatchSize = {0};
+
+  // Indicates if we own the ZeCommandQueue or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeCommandQueue;
 
   // specifies whether this queue will be using dynamic batch size adjustment
   // or not.  This is set only at queue creation time, and is therefore

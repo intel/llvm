@@ -2423,7 +2423,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   try {
     *Queue = new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueue, Context,
-                           Device, ZeCommandListBatchSize, Properties);
+                           Device, ZeCommandListBatchSize, true, Properties);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2506,10 +2506,16 @@ pi_result piQueueRelease(pi_queue Queue) {
         ZE_CALL(zeFenceDestroy, (MapEntry.second.ZeFence));
       }
       Queue->ZeCommandListFenceMap.clear();
-      ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
+
+      if (Queue->OwnZeCommandQueue) {
+        ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
+        if (Queue->ZeCopyCommandQueue) {
+          ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCopyCommandQueue));
+        }
+      }
+
       Queue->ZeComputeCommandQueue = nullptr;
       if (Queue->ZeCopyCommandQueue) {
-        ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCopyCommandQueue));
         Queue->ZeCopyCommandQueue = nullptr;
       }
 
@@ -2557,8 +2563,8 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                           pi_context Context,
-                                           pi_queue *Queue) {
+                                           pi_context Context, pi_queue *Queue,
+                                           bool OwnNativeHandle) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
@@ -2570,8 +2576,8 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   pi_device Device = Context->Devices[0];
   // TODO: see what we can do to correctly initialize PI queue for
   // compute vs. copy Level-Zero queue.
-  *Queue =
-      new _pi_queue(ZeQueue, nullptr, Context, Device, ZeCommandListBatchSize);
+  *Queue = new _pi_queue(ZeQueue, nullptr, Context, Device,
+                         ZeCommandListBatchSize, OwnNativeHandle);
   return PI_SUCCESS;
 }
 
