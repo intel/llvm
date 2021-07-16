@@ -180,6 +180,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(internal::DecorationInitiationIntervalINTEL, "InitiationIntervalINTEL");
   add(internal::DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
   add(internal::DecorationPipelineEnableINTEL, "PipelineEnableINTEL");
+  add(internal::DecorationRuntimeAlignedINTEL, "RuntimeAlignedINTEL");
 
   add(DecorationMax, "Max");
 }
@@ -559,10 +560,12 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityDotProductInput4x8BitPackedKHR,
       "DotProductInput4x8BitPackedKHR");
   add(CapabilityDotProductKHR, "DotProductKHR");
+  add(CapabilityBitInstructions, "BitInstructions");
   add(CapabilityAtomicFloat32AddEXT, "AtomicFloat32AddEXT");
   add(CapabilityAtomicFloat64AddEXT, "AtomicFloat64AddEXT");
   add(CapabilityLongConstantCompositeINTEL, "LongConstantCompositeINTEL");
   add(CapabilityAtomicFloat16AddEXT, "AtomicFloat16AddEXT");
+  add(CapabilityDebugInfoModuleINTEL, "DebugInfoModuleINTEL");
 
   // From spirv_internal.hpp
   add(internal::CapabilityFPGADSPControlINTEL, "FPGADSPControlINTEL");
@@ -573,8 +576,11 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityFPGAInvocationPipeliningAttributesINTEL,
       "FPGAInvocationPipeliningAttributesINTEL");
   add(internal::CapabilityTokenTypeINTEL, "TokenTypeINTEL");
-
+  add(internal::CapabilityRuntimeAlignedAttributeINTEL,
+      "RuntimeAlignedAttributeINTEL");
   add(CapabilityMax, "Max");
+  add(internal::CapabilityFPArithmeticFenceINTEL, "FPArithmeticFenceINTEL");
+  add(internal::CapabilityBfloat16ConversionINTEL, "Bfloat16ConversionINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

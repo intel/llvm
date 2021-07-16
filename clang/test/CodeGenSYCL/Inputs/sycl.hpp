@@ -332,17 +332,17 @@ template<typename T> specialization_id(T) -> specialization_id<T>;
 #endif // C++17.
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
-template <typename KernelName = auto_name, typename KernelType>
+template <typename KernelName, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) { // #KernelSingleTask
   kernelFunc();
 }
 
-template <typename KernelName = auto_name, typename KernelType>
+template <typename KernelName, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc, kernel_handler kh) {
   kernelFunc(kh);
 }
 
-template <typename KernelName = auto_name, typename KernelType>
+template <typename KernelName, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task_2017(KernelType kernelFunc) { // #KernelSingleTask2017
   kernelFunc();
 }

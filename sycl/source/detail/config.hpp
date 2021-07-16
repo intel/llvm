@@ -185,10 +185,11 @@ static const std::array<std::pair<std::string, info::device_type>, 5>
                           {"*", info::device_type::all}}};
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
-static const std::array<std::pair<std::string, backend>, 5> SyclBeMap = {
+static const std::array<std::pair<std::string, backend>, 6> SyclBeMap = {
     {{"opencl", backend::opencl},
      {"level_zero", backend::level_zero},
      {"cuda", backend::cuda},
+     {"rocm", backend::rocm},
      {"host", backend::host},
      {"*", backend::all}}};
 

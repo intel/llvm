@@ -1332,6 +1332,10 @@ void AsmPrinter::emitFunctionBody() {
       case TargetOpcode::PSEUDO_PROBE:
         emitPseudoProbe(MI);
         break;
+      case TargetOpcode::ARITH_FENCE:
+        if (isVerbose())
+          OutStreamer->emitRawComment("ARITH_FENCE");
+        break;
       default:
         emitInstruction(&MI);
         if (CanDoExtraAnalysis) {
@@ -1680,7 +1684,7 @@ void AsmPrinter::emitRemarksSection(remarks::RemarkStreamer &RS) {
   std::string Buf;
   raw_string_ostream OS(Buf);
   std::unique_ptr<remarks::MetaSerializer> MetaSerializer =
-      Filename ? RemarkSerializer.metaSerializer(OS, StringRef(*Filename))
+      Filename ? RemarkSerializer.metaSerializer(OS, Filename->str())
                : RemarkSerializer.metaSerializer(OS);
   MetaSerializer->emit();
 

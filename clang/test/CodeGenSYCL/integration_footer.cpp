@@ -190,4 +190,14 @@ auto x = HasVarTemplate::VarTempl<int, 2>.getDefaultValue();
 // CHECK-NEXT: } // namespace sycl
 // CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 
+template <typename T> struct GlobalWrapper {
+  template<int Value> static constexpr specialization_id<T> sc{Value};
+};
+
+auto &y = GlobalWrapper<int>::template sc<20>;
+
+// Should not generate the uninstantiated template.
+// CHECK-NOT: inline const char *get_spec_constant_symbolic_ID_impl<::GlobalWrapper<int>::sc>()
+// CHECK: inline const char *get_spec_constant_symbolic_ID_impl<::GlobalWrapper<int>::sc<20>>()
+
 // CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>

@@ -164,11 +164,10 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
   }
   sycl::detail::AllowListParsedT ActualValue =
       sycl::detail::parseAllowList(AllowList);
-  sycl::detail::AllowListParsedT ExpectedValue{{{"BackendName", "opencl"}},
-                                               {{"BackendName", "level_zero"}},
-                                               {{"BackendName", "cuda"}},
-                                               {{"BackendName", "host"}},
-                                               {{"BackendName", "*"}}};
+  sycl::detail::AllowListParsedT ExpectedValue{
+      {{"BackendName", "opencl"}},     {{"BackendName", "level_zero"}},
+      {{"BackendName", "cuda"}},       {{"BackendName", "rocm"}},
+      {{"BackendName", "host"}},       {{"BackendName", "*"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 

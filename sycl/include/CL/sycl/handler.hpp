@@ -110,11 +110,10 @@ template <typename F, typename SuggestedArgType>
 using lambda_arg_type = decltype(argument_helper<F, SuggestedArgType>(0));
 
 // Used when parallel_for range is rounded-up.
-template <typename Type> class __pf_kernel_wrapper;
+template <typename Name> class __pf_kernel_wrapper;
 
 template <typename Type> struct get_kernel_wrapper_name_t {
-  using name = __pf_kernel_wrapper<
-      typename get_kernel_name_t<detail::auto_name, Type>::name>;
+  using name = __pf_kernel_wrapper<Type>;
 };
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
@@ -211,6 +210,11 @@ using cl::sycl::detail::enable_if_t;
 using cl::sycl::detail::queue_impl;
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
+void reduCGFunc(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
+                size_t MaxWGSize, uint32_t NumConcurrentWorkGroups,
+                Reduction &Redu);
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
 enable_if_t<Reduction::has_atomic_add_float64>
 reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
                    const nd_range<Dims> &Range, Reduction &Redu);
@@ -262,6 +266,9 @@ std::enable_if_t<!Reduction::is_usm>
 reduSaveFinalResultToUserMemHelper(std::vector<event> &Events,
                                    std::shared_ptr<detail::queue_impl> Queue,
                                    bool IsHost, Reduction &Redu, RestT... Rest);
+
+__SYCL_EXPORT uint32_t
+reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
@@ -502,23 +509,6 @@ private:
     }
   }
 
-  static id<1> getDelinearizedIndex(const range<1>, const size_t Index) {
-    return {Index};
-  }
-
-  static id<2> getDelinearizedIndex(const range<2> Range, const size_t Index) {
-    size_t x = Index % Range[1];
-    size_t y = Index / Range[1];
-    return {y, x};
-  }
-
-  static id<3> getDelinearizedIndex(const range<3> Range, const size_t Index) {
-    size_t z = Index / (Range[1] * Range[2]);
-    size_t y = (Index / Range[2]) % Range[1];
-    size_t x = Index % Range[2];
-    return {z, y, x};
-  }
-
   /// Stores lambda to the template-free object
   ///
   /// Also initializes kernel name, list of arguments and requirements using
@@ -594,9 +584,9 @@ private:
                                      IsPHSrc, IsPHDst>>
                                      (LinearizedRange, [=](id<1> Id) {
       size_t Index = Id[0];
-      id<DimSrc> SrcIndex = getDelinearizedIndex(Src.get_range(), Index);
-      id<DimDst> DstIndex = getDelinearizedIndex(Dst.get_range(), Index);
-      Dst[DstIndex] = Src[SrcIndex];
+      id<DimSrc> SrcId = detail::getDelinearizedId(Src.get_range(), Index);
+      id<DimDst> DstId = detail::getDelinearizedId(Dst.get_range(), Index);
+      Dst[DstId] = Src[SrcId];
     });
     return true;
   }
@@ -820,21 +810,25 @@ private:
       // will yield a rounded-up value for the total range.
       size_t NewValX =
           ((NumWorkItems[0] + GoodFactorX - 1) / GoodFactorX) * GoodFactorX;
-      using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       if (getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE") != nullptr)
         std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
                   << " to " << NewValX << std::endl;
 
-      auto Wrapper = getRangeRoundedKernelLambda<TransformedArgType, Dims>(
-          KernelFunc, NumWorkItems);
+      using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
+      auto Wrapper =
+          getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
+              KernelFunc, NumWorkItems);
+
+      using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
+                                       decltype(Wrapper), NameWT>;
 
       range<Dims> AdjustedRange = NumWorkItems;
       AdjustedRange.set_range_dim0(NewValX);
-      kernel_parallel_for_wrapper<NameWT, TransformedArgType>(Wrapper);
+      kernel_parallel_for_wrapper<KName, TransformedArgType>(Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
       detail::checkValueRange<Dims>(AdjustedRange);
       MNDRDesc.set(std::move(AdjustedRange));
-      StoreLambda<NameWT, decltype(Wrapper), Dims, TransformedArgType>(
+      StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       setType(detail::CG::KERNEL);
 #endif
@@ -1355,6 +1349,50 @@ public:
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     setType(detail::CG::KERNEL);
 #endif
+  }
+
+  /// Defines and invokes a SYCL kernel function for the specified nd_range.
+  ///
+  /// The SYCL kernel function is defined as a lambda function or a named
+  /// function object type and given an id for indexing in the indexing
+  /// space defined by range \p Range.
+  /// The parameter \p Redu contains the object creted by the reduction()
+  /// function and defines the type and operation used in the corresponding
+  /// argument of 'reducer' type passed to lambda/functor function.
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims, typename Reduction>
+  void parallel_for(range<Dims> Range, Reduction Redu,
+                    _KERNELFUNCPARAM(KernelFunc)) {
+    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+
+    // Before running the kernels, check that device has enough local memory
+    // to hold local arrays required for the tree-reduction algorithm.
+    constexpr bool IsTreeReduction =
+        !Reduction::has_fast_reduce && !Reduction::has_fast_atomics;
+    size_t OneElemSize =
+        IsTreeReduction ? sizeof(typename Reduction::result_type) : 0;
+    uint32_t NumConcurrentWorkGroups =
+#ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
+        __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
+#else
+        ONEAPI::detail::reduGetMaxNumConcurrentWorkGroups(MQueue);
+#endif
+    // TODO: currently the maximal work group size is determined for the given
+    // queue/device, while it is safer to use queries to the kernel pre-compiled
+    // for the device.
+    size_t MaxWGSize = ONEAPI::detail::reduGetMaxWGSize(MQueue, OneElemSize);
+    ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, MaxWGSize,
+                                           NumConcurrentWorkGroups, Redu);
+    if (Reduction::is_usm ||
+        (Reduction::has_fast_atomics && Redu.initializeToIdentity()) ||
+        (!Reduction::has_fast_atomics && Redu.hasUserDiscardWriteAccessor())) {
+      this->finalize();
+      handler CopyHandler(QueueCopy, MIsHost);
+      CopyHandler.saveCodeLoc(MCodeLoc);
+      ONEAPI::detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler,
+                                                               Redu);
+      MLastEvent = CopyHandler.finalize();
+    }
   }
 
   /// Implements parallel_for() accepting nd_range \p Range and one reduction
@@ -2292,7 +2330,7 @@ public:
   /// \param Ptr is a USM pointer to the allocation.
   /// \param Length is a number of bytes in the allocation.
   /// \param Advice is a device-defined advice for the specified allocation.
-  void mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice);
+  void mem_advise(const void *Ptr, size_t Length, int Advice);
 
 private:
   std::shared_ptr<detail::queue_impl> MQueue;
@@ -2383,7 +2421,8 @@ private:
 
   friend class ::MockHandler;
 
-  template <typename TransformedArgType, int Dims, typename KernelType>
+  template <typename WrapperT, typename TransformedArgType, int Dims,
+            typename KernelType>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
                                    range<Dims> NumWorkItems) {
     if constexpr (detail::isKernelLambdaCallableWithKernelHandler<

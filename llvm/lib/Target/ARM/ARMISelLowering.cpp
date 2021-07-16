@@ -1115,6 +1115,10 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::SSUBSAT, MVT::i8, Custom);
     setOperationAction(ISD::SADDSAT, MVT::i16, Custom);
     setOperationAction(ISD::SSUBSAT, MVT::i16, Custom);
+    setOperationAction(ISD::UADDSAT, MVT::i8, Custom);
+    setOperationAction(ISD::USUBSAT, MVT::i8, Custom);
+    setOperationAction(ISD::UADDSAT, MVT::i16, Custom);
+    setOperationAction(ISD::USUBSAT, MVT::i16, Custom);
   }
   if (Subtarget->hasBaseDSP()) {
     setOperationAction(ISD::SADDSAT, MVT::i32, Legal);
@@ -1776,6 +1780,10 @@ const char *ARMTargetLowering::getTargetNodeName(unsigned Opcode) const {
     MAKE_CASE(ARMISD::QSUB16b)
     MAKE_CASE(ARMISD::QADD8b)
     MAKE_CASE(ARMISD::QSUB8b)
+    MAKE_CASE(ARMISD::UQADD16b)
+    MAKE_CASE(ARMISD::UQSUB16b)
+    MAKE_CASE(ARMISD::UQADD8b)
+    MAKE_CASE(ARMISD::UQSUB8b)
     MAKE_CASE(ARMISD::BUILD_VECTOR)
     MAKE_CASE(ARMISD::BFI)
     MAKE_CASE(ARMISD::VORRIMM)
@@ -4948,8 +4956,8 @@ SDValue ARMTargetLowering::LowerUnsignedALUO(SDValue Op,
   return DAG.getNode(ISD::MERGE_VALUES, dl, VTs, Value, Overflow);
 }
 
-static SDValue LowerSADDSUBSAT(SDValue Op, SelectionDAG &DAG,
-                               const ARMSubtarget *Subtarget) {
+static SDValue LowerADDSUBSAT(SDValue Op, SelectionDAG &DAG,
+                              const ARMSubtarget *Subtarget) {
   EVT VT = Op.getValueType();
   if (!Subtarget->hasV6Ops() || !Subtarget->hasDSP())
     return SDValue();
@@ -4957,15 +4965,40 @@ static SDValue LowerSADDSUBSAT(SDValue Op, SelectionDAG &DAG,
     return SDValue();
 
   unsigned NewOpcode;
-  bool IsAdd = Op->getOpcode() == ISD::SADDSAT;
   switch (VT.getSimpleVT().SimpleTy) {
   default:
     return SDValue();
   case MVT::i8:
-    NewOpcode = IsAdd ? ARMISD::QADD8b : ARMISD::QSUB8b;
+    switch (Op->getOpcode()) {
+    case ISD::UADDSAT:
+      NewOpcode = ARMISD::UQADD8b;
+      break;
+    case ISD::SADDSAT:
+      NewOpcode = ARMISD::QADD8b;
+      break;
+    case ISD::USUBSAT:
+      NewOpcode = ARMISD::UQSUB8b;
+      break;
+    case ISD::SSUBSAT:
+      NewOpcode = ARMISD::QSUB8b;
+      break;
+    }
     break;
   case MVT::i16:
-    NewOpcode = IsAdd ? ARMISD::QADD16b : ARMISD::QSUB16b;
+    switch (Op->getOpcode()) {
+    case ISD::UADDSAT:
+      NewOpcode = ARMISD::UQADD16b;
+      break;
+    case ISD::SADDSAT:
+      NewOpcode = ARMISD::QADD16b;
+      break;
+    case ISD::USUBSAT:
+      NewOpcode = ARMISD::UQSUB16b;
+      break;
+    case ISD::SSUBSAT:
+      NewOpcode = ARMISD::QSUB16b;
+      break;
+    }
     break;
   }
 
@@ -10129,7 +10162,9 @@ SDValue ARMTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     return LowerUnsignedALUO(Op, DAG);
   case ISD::SADDSAT:
   case ISD::SSUBSAT:
-    return LowerSADDSUBSAT(Op, DAG, Subtarget);
+  case ISD::UADDSAT:
+  case ISD::USUBSAT:
+    return LowerADDSUBSAT(Op, DAG, Subtarget);
   case ISD::LOAD:
     return LowerPredicateLoad(Op, DAG);
   case ISD::STORE:
@@ -10229,7 +10264,9 @@ void ARMTargetLowering::ReplaceNodeResults(SDNode *N,
     return;
   case ISD::SADDSAT:
   case ISD::SSUBSAT:
-    Res = LowerSADDSUBSAT(SDValue(N, 0), DAG, Subtarget);
+  case ISD::UADDSAT:
+  case ISD::USUBSAT:
+    Res = LowerADDSUBSAT(SDValue(N, 0), DAG, Subtarget);
     break;
   case ISD::READCYCLECOUNTER:
     ReplaceREADCYCLECOUNTER(N, Results, DAG, Subtarget);
@@ -14076,7 +14113,9 @@ static SDValue FindBFIToCombineWith(SDNode *N) {
 
 static SDValue PerformBFICombine(SDNode *N,
                                  TargetLowering::DAGCombinerInfo &DCI) {
+  SDValue N0 = N->getOperand(0);
   SDValue N1 = N->getOperand(1);
+
   if (N1.getOpcode() == ISD::AND) {
     // (bfi A, (and B, Mask1), Mask2) -> (bfi A, B, Mask2) iff
     // the bits being cleared by the AND are not demanded by the BFI.
@@ -14097,33 +14136,54 @@ static SDValue PerformBFICombine(SDNode *N,
                              N->getOperand(2));
     return SDValue();
   }
+
   // Look for another BFI to combine with.
-  SDValue CombineBFI = FindBFIToCombineWith(N);
-  if (CombineBFI == SDValue())
-    return SDValue();
+  if (SDValue CombineBFI = FindBFIToCombineWith(N)) {
+    // We've found a BFI.
+    APInt ToMask1, FromMask1;
+    SDValue From1 = ParseBFI(N, ToMask1, FromMask1);
 
-  // We've found a BFI.
-  APInt ToMask1, FromMask1;
-  SDValue From1 = ParseBFI(N, ToMask1, FromMask1);
+    APInt ToMask2, FromMask2;
+    SDValue From2 = ParseBFI(CombineBFI.getNode(), ToMask2, FromMask2);
+    assert(From1 == From2);
+    (void)From2;
 
-  APInt ToMask2, FromMask2;
-  SDValue From2 = ParseBFI(CombineBFI.getNode(), ToMask2, FromMask2);
-  assert(From1 == From2);
-  (void)From2;
+    // Create a new BFI, combining the two together.
+    APInt NewFromMask = FromMask1 | FromMask2;
+    APInt NewToMask = ToMask1 | ToMask2;
 
-  // Create a new BFI, combining the two together.
-  APInt NewFromMask = FromMask1 | FromMask2;
-  APInt NewToMask = ToMask1 | ToMask2;
+    EVT VT = N->getValueType(0);
+    SDLoc dl(N);
 
-  EVT VT = N->getValueType(0);
-  SDLoc dl(N);
+    if (NewFromMask[0] == 0)
+      From1 = DCI.DAG.getNode(
+          ISD::SRL, dl, VT, From1,
+          DCI.DAG.getConstant(NewFromMask.countTrailingZeros(), dl, VT));
+    return DCI.DAG.getNode(ARMISD::BFI, dl, VT, CombineBFI.getOperand(0), From1,
+                          DCI.DAG.getConstant(~NewToMask, dl, VT));
+  }
 
-  if (NewFromMask[0] == 0)
-    From1 = DCI.DAG.getNode(
-        ISD::SRL, dl, VT, From1,
-        DCI.DAG.getConstant(NewFromMask.countTrailingZeros(), dl, VT));
-  return DCI.DAG.getNode(ARMISD::BFI, dl, VT, CombineBFI.getOperand(0), From1,
-                         DCI.DAG.getConstant(~NewToMask, dl, VT));
+  // Reassociate BFI(BFI (A, B, M1), C, M2) to BFI(BFI (A, C, M2), B, M1) so
+  // that lower bit insertions are performed first, providing that M1 and M2
+  // do no overlap. This can allow multiple BFI instructions to be combined
+  // together by the other folds above.
+  if (N->getOperand(0).getOpcode() == ARMISD::BFI) {
+    APInt ToMask1 = ~N->getConstantOperandAPInt(2);
+    APInt ToMask2 = ~N0.getConstantOperandAPInt(2);
+
+    if (!N0.hasOneUse() || (ToMask1 & ToMask2) != 0 ||
+        ToMask1.countLeadingZeros() < ToMask2.countLeadingZeros())
+      return SDValue();
+
+    EVT VT = N->getValueType(0);
+    SDLoc dl(N);
+    SDValue BFI1 = DCI.DAG.getNode(ARMISD::BFI, dl, VT, N0.getOperand(0),
+                                   N->getOperand(1), N->getOperand(2));
+    return DCI.DAG.getNode(ARMISD::BFI, dl, VT, BFI1, N0.getOperand(1),
+                           N0.getOperand(2));
+  }
+
+  return SDValue();
 }
 
 /// PerformVMOVRRDCombine - Target-specific dag combine xforms for
@@ -14650,11 +14710,20 @@ static SDValue PerformExtractEltCombine(SDNode *N,
       return DCI.DAG.getNode(ARMISD::VMOVhr, dl, VT, X);
     if (VT == MVT::i32 && X.getValueType() == MVT::f16)
       return DCI.DAG.getNode(ARMISD::VMOVrh, dl, VT, X);
+    if (VT == MVT::f32 && X.getValueType() == MVT::i32)
+      return DCI.DAG.getNode(ISD::BITCAST, dl, VT, X);
 
     while (X.getValueType() != VT && X->getOpcode() == ISD::BITCAST)
       X = X->getOperand(0);
     if (X.getValueType() == VT)
       return X;
+  }
+
+  // extract ARM_BUILD_VECTOR -> x
+  if (Op0->getOpcode() == ARMISD::BUILD_VECTOR &&
+      isa<ConstantSDNode>(N->getOperand(1)) &&
+      N->getConstantOperandVal(1) < Op0.getNumOperands()) {
+    return Op0.getOperand(N->getConstantOperandVal(1));
   }
 
   // extract(bitcast(BUILD_VECTOR(VMOVDRR(a, b), ..))) -> a or b
@@ -17423,7 +17492,9 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
   }
   case ARMISD::SMLALBB:
   case ARMISD::QADD16b:
-  case ARMISD::QSUB16b: {
+  case ARMISD::QSUB16b:
+  case ARMISD::UQADD16b:
+  case ARMISD::UQSUB16b: {
     unsigned BitWidth = N->getValueType(0).getSizeInBits();
     APInt DemandedMask = APInt::getLowBitsSet(BitWidth, 16);
     if ((SimplifyDemandedBits(N->getOperand(0), DemandedMask, DCI)) ||
@@ -17460,7 +17531,9 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
     break;
   }
   case ARMISD::QADD8b:
-  case ARMISD::QSUB8b: {
+  case ARMISD::QSUB8b:
+  case ARMISD::UQADD8b:
+  case ARMISD::UQSUB8b: {
     unsigned BitWidth = N->getValueType(0).getSizeInBits();
     APInt DemandedMask = APInt::getLowBitsSet(BitWidth, 8);
     if ((SimplifyDemandedBits(N->getOperand(0), DemandedMask, DCI)) ||
@@ -19863,16 +19936,16 @@ bool ARMTargetLowering::shouldExpandShift(SelectionDAG &DAG, SDNode *N) const {
   return !Subtarget->hasMinSize() || Subtarget->isTargetWindows();
 }
 
-Value *ARMTargetLowering::emitLoadLinked(IRBuilderBase &Builder, Value *Addr,
+Value *ARMTargetLowering::emitLoadLinked(IRBuilderBase &Builder, Type *ValueTy,
+                                         Value *Addr,
                                          AtomicOrdering Ord) const {
   Module *M = Builder.GetInsertBlock()->getParent()->getParent();
-  Type *ValTy = cast<PointerType>(Addr->getType())->getElementType();
   bool IsAcquire = isAcquireOrStronger(Ord);
 
   // Since i64 isn't legal and intrinsics don't get type-lowered, the ldrexd
   // intrinsic must return {i32, i32} and we have to recombine them into a
   // single i64 here.
-  if (ValTy->getPrimitiveSizeInBits() == 64) {
+  if (ValueTy->getPrimitiveSizeInBits() == 64) {
     Intrinsic::ID Int =
         IsAcquire ? Intrinsic::arm_ldaexd : Intrinsic::arm_ldrexd;
     Function *Ldrex = Intrinsic::getDeclaration(M, Int);
@@ -19884,19 +19957,17 @@ Value *ARMTargetLowering::emitLoadLinked(IRBuilderBase &Builder, Value *Addr,
     Value *Hi = Builder.CreateExtractValue(LoHi, 1, "hi");
     if (!Subtarget->isLittle())
       std::swap (Lo, Hi);
-    Lo = Builder.CreateZExt(Lo, ValTy, "lo64");
-    Hi = Builder.CreateZExt(Hi, ValTy, "hi64");
+    Lo = Builder.CreateZExt(Lo, ValueTy, "lo64");
+    Hi = Builder.CreateZExt(Hi, ValueTy, "hi64");
     return Builder.CreateOr(
-        Lo, Builder.CreateShl(Hi, ConstantInt::get(ValTy, 32)), "val64");
+        Lo, Builder.CreateShl(Hi, ConstantInt::get(ValueTy, 32)), "val64");
   }
 
   Type *Tys[] = { Addr->getType() };
   Intrinsic::ID Int = IsAcquire ? Intrinsic::arm_ldaex : Intrinsic::arm_ldrex;
   Function *Ldrex = Intrinsic::getDeclaration(M, Int, Tys);
 
-  return Builder.CreateTruncOrBitCast(
-      Builder.CreateCall(Ldrex, Addr),
-      cast<PointerType>(Addr->getType())->getElementType());
+  return Builder.CreateTruncOrBitCast(Builder.CreateCall(Ldrex, Addr), ValueTy);
 }
 
 void ARMTargetLowering::emitAtomicCmpXchgNoStoreLLBalance(

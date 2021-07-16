@@ -19,6 +19,7 @@
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/aspects.hpp>
 #include <CL/sycl/atomic.hpp>
+#include <CL/sycl/atomic_fence.hpp>
 #include <CL/sycl/backend.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/builtins.hpp>

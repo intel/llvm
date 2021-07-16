@@ -143,6 +143,8 @@ private:
 
   DINode *transImportedEntry(const SPIRVExtInst *DebugInst);
 
+  DINode *transModule(const SPIRVExtInst *DebugInst);
+
   MDNode *transExpression(const SPIRVExtInst *DebugInst);
 
   SPIRVModule *BM;

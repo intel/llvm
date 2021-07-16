@@ -4251,6 +4251,7 @@ class OffloadingActionBuilder final {
       // default too.
       SmallVector<DeviceLibOptInfo, 5> sycl_device_fallback_libs = {
           {"libsycl-fallback-cassert", "libc"},
+          {"libsycl-fallback-cstring", "libc"},
           {"libsycl-fallback-complex", "libm-fp32"},
           {"libsycl-fallback-complex-fp64", "libm-fp64"},
           {"libsycl-fallback-cmath", "libm-fp32"},
@@ -4846,7 +4847,7 @@ public:
         D.Diag(clang::diag::warn_drv_mismatch_fpga_archive) << InputName;
     };
     // Type FPGA aoco is a special case for static archives
-    if (A->getType() == types::TY_FPGA_AOCO) {
+    if (A->getType() == types::TY_FPGA_AOCO && !IsFPGAEmulation) {
       if (!hasFPGABinary(C, InputName, types::TY_FPGA_AOCO))
         return false;
       A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCO);
@@ -5428,8 +5429,10 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       unbundleStaticLib(types::TY_Archive, LA);
       // Pass along the static libraries to check if we need to add them for
       // unbundling for FPGA AOT static lib usage.  Uses FPGA aoco type to
-      // differentiate if aoco unbundling is needed.
-      unbundleStaticLib(types::TY_FPGA_AOCO, LA);
+      // differentiate if aoco unbundling is needed.  Unbundling of aoco is not
+      // needed for emulation, as these are treated as regular archives.
+      if (!C.getDriver().isFPGAEmulationMode())
+        unbundleStaticLib(types::TY_FPGA_AOCO, LA);
     }
   }
 

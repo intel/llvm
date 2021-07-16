@@ -279,6 +279,10 @@ class VectorType;
     QSUB8b,
     QADD16b,
     QSUB16b,
+    UQADD8b,
+    UQSUB8b,
+    UQADD16b,
+    UQSUB16b,
 
     // Operands of the standard BUILD_VECTOR node are not legalized, which
     // is fine if BUILD_VECTORs are always lowered to shuffles or other
@@ -632,7 +636,7 @@ class VectorType;
     getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
 
     Instruction *makeDMB(IRBuilderBase &Builder, ARM_MB::MemBOpt Domain) const;
-    Value *emitLoadLinked(IRBuilderBase &Builder, Value *Addr,
+    Value *emitLoadLinked(IRBuilderBase &Builder, Type *ValueTy, Value *Addr,
                           AtomicOrdering Ord) const override;
     Value *emitStoreConditional(IRBuilderBase &Builder, Value *Val, Value *Addr,
                                 AtomicOrdering Ord) const override;
