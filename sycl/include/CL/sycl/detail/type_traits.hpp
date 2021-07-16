@@ -14,6 +14,7 @@
 #include <CL/sycl/detail/type_list.hpp>
 
 #include <array>
+#include <tuple>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -349,6 +350,13 @@ using const_if_const_AS =
 template <access::address_space AS, class DataT>
 using const_if_const_AS = DataT;
 #endif
+
+template <typename T> struct function_traits {};
+
+template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
+  using ret_type = Ret;
+  using args_type = std::tuple<Args...>;
+};
 
 } // namespace detail
 } // namespace sycl

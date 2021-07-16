@@ -129,7 +129,8 @@ void *MemoryManager::allocateInteropMemObject(
 static RT::PiMemFlags getMemObjCreationFlags(void *UserPtr,
                                              bool HostPtrReadOnly) {
   // Create read_write mem object to handle arbitrary uses.
-  RT::PiMemFlags Result = PI_MEM_FLAGS_ACCESS_RW;
+  RT::PiMemFlags Result =
+      HostPtrReadOnly ? PI_MEM_ACCESS_READ_ONLY : PI_MEM_FLAGS_ACCESS_RW;
   if (UserPtr)
     Result |= HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY
                               : PI_MEM_FLAGS_HOST_PTR_USE;

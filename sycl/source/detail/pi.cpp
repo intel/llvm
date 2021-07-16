@@ -46,6 +46,8 @@ namespace detail {
 xpti_td *GSYCLGraphEvent = nullptr;
 /// Event to be used by PI layer related activities
 xpti_td *GPICallEvent = nullptr;
+/// Event to be used by PI layer calls with arguments
+xpti_td *GPIArgCallEvent = nullptr;
 /// Constants being used as placeholder until one is able to reliably get the
 /// version of the SYCL runtime
 constexpr uint32_t GMajVer = 1;
@@ -133,6 +135,42 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
         GPICallEvent, nullptr, CorrelationID, static_cast<const void *>(FName));
   }
 #endif // XPTI_ENABLE_INSTRUMENTATION
+}
+
+uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
+                                        unsigned char *ArgsData) {
+  uint64_t CorrelationID = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
+    CorrelationID = xptiGetUniqueId();
+
+    xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, nullptr,
+                                       nullptr};
+
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
+        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
+  }
+#endif
+  return CorrelationID;
+}
+
+void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
+                                  const char *FuncName, unsigned char *ArgsData,
+                                  pi_result Result) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
+
+    xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, &Result,
+                                       nullptr};
+
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
+        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
+  }
+#endif
 }
 
 void contextSetExtendedDeleter(const cl::sycl::context &context,
@@ -430,6 +468,14 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
   GPICallEvent =
       xptiMakeEvent("PI Layer", &PIPayload, xpti::trace_algorithm_event,
                     xpti_at::active, &PiInstanceNo);
+
+  xptiInitialize(SYCL_PIDEBUGCALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  xpti::payload_t PIArgPayload(
+      "Plugin Interface Layer (with function arguments)");
+  uint64_t PiArgInstanceNo;
+  GPIArgCallEvent = xptiMakeEvent("PI Layer with arguments", &PIArgPayload,
+                                  xpti::trace_algorithm_event, xpti_at::active,
+                                  &PiArgInstanceNo);
 #endif
 }
 

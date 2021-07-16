@@ -88,11 +88,14 @@ bool objCRegistrationEnabled() {
 
 void MachOJITDylibInitializers::runModInits() const {
   for (const auto &ModInit : ModInitSections) {
-    for (uint64_t I = 0; I != ModInit.NumPtrs; ++I) {
-      auto *InitializerAddr = jitTargetAddressToPointer<uintptr_t *>(
-          ModInit.Address + (I * sizeof(uintptr_t)));
-      auto *Initializer =
-          jitTargetAddressToFunction<void (*)()>(*InitializerAddr);
+    assert(ModInit.size().getValue() % sizeof(uintptr_t) == 0 &&
+           "ModInit section size is not a pointer multiple?");
+    for (uintptr_t *InitPtr = jitTargetAddressToPointer<uintptr_t *>(
+                       ModInit.StartAddress.getValue()),
+                   *InitEnd = jitTargetAddressToPointer<uintptr_t *>(
+                       ModInit.EndAddress.getValue());
+         InitPtr != InitEnd; ++InitPtr) {
+      auto *Initializer = reinterpret_cast<void (*)()>(*InitPtr);
       Initializer();
     }
   }
@@ -102,12 +105,15 @@ void MachOJITDylibInitializers::registerObjCSelectors() const {
   assert(objCRegistrationEnabled() && "ObjC registration not enabled.");
 
   for (const auto &ObjCSelRefs : ObjCSelRefsSections) {
-    for (uint64_t I = 0; I != ObjCSelRefs.NumPtrs; ++I) {
-      auto SelEntryAddr = ObjCSelRefs.Address + (I * sizeof(uintptr_t));
+    assert(ObjCSelRefs.size().getValue() % sizeof(uintptr_t) == 0 &&
+           "ObjCSelRefs section size is not a pointer multiple?");
+    for (auto SelEntryAddr = ObjCSelRefs.StartAddress;
+         SelEntryAddr != ObjCSelRefs.EndAddress;
+         SelEntryAddr += ExecutorAddrDiff(sizeof(uintptr_t))) {
       const auto *SelName =
-          *jitTargetAddressToPointer<const char **>(SelEntryAddr);
+          *jitTargetAddressToPointer<const char **>(SelEntryAddr.getValue());
       auto Sel = sel_registerName(SelName);
-      *jitTargetAddressToPointer<SEL *>(SelEntryAddr) = Sel;
+      *jitTargetAddressToPointer<SEL *>(SelEntryAddr.getValue()) = Sel;
     }
   }
 }
@@ -128,11 +134,13 @@ Error MachOJITDylibInitializers::registerObjCClasses() const {
   auto ClassSelector = sel_registerName("class");
 
   for (const auto &ObjCClassList : ObjCClassListSections) {
-    for (uint64_t I = 0; I != ObjCClassList.NumPtrs; ++I) {
-      auto ClassPtrAddr = ObjCClassList.Address + (I * sizeof(uintptr_t));
-      auto Cls = *jitTargetAddressToPointer<Class *>(ClassPtrAddr);
-      auto *ClassCompiled =
-          *jitTargetAddressToPointer<ObjCClassCompiled **>(ClassPtrAddr);
+    assert(ObjCClassList.size().getValue() % sizeof(uintptr_t) == 0 &&
+           "ObjCClassList section size is not a pointer multiple?");
+    for (auto ClassPtrAddr = ObjCClassList.StartAddress;
+         ClassPtrAddr != ObjCClassList.EndAddress;
+         ClassPtrAddr += ExecutorAddrDiff(sizeof(uintptr_t))) {
+      auto Cls = *ClassPtrAddr.toPtr<Class *>();
+      auto *ClassCompiled = *ClassPtrAddr.toPtr<ObjCClassCompiled **>();
       objc_msgSend(reinterpret_cast<id>(ClassCompiled->Parent), ClassSelector);
       auto Registered = objc_readClassPair(Cls, ImageInfo);
 
@@ -262,39 +270,39 @@ MachOPlatform::getDeinitializerSequence(JITDylib &JD) {
   return FullDeinitSeq;
 }
 
-void MachOPlatform::registerInitInfo(
-    JITDylib &JD, JITTargetAddress ObjCImageInfoAddr,
-    MachOJITDylibInitializers::SectionExtent ModInits,
-    MachOJITDylibInitializers::SectionExtent ObjCSelRefs,
-    MachOJITDylibInitializers::SectionExtent ObjCClassList) {
+void MachOPlatform::registerInitInfo(JITDylib &JD,
+                                     JITTargetAddress ObjCImageInfoAddr,
+                                     ExecutorAddressRange ModInits,
+                                     ExecutorAddressRange ObjCSelRefs,
+                                     ExecutorAddressRange ObjCClassList) {
   std::lock_guard<std::mutex> Lock(InitSeqsMutex);
 
   auto &InitSeq = InitSeqs[&JD];
 
   InitSeq.setObjCImageInfoAddr(ObjCImageInfoAddr);
 
-  if (ModInits.Address)
+  if (ModInits.StartAddress)
     InitSeq.addModInitsSection(std::move(ModInits));
 
-  if (ObjCSelRefs.Address)
+  if (ObjCSelRefs.StartAddress)
     InitSeq.addObjCSelRefsSection(std::move(ObjCSelRefs));
 
-  if (ObjCClassList.Address)
+  if (ObjCClassList.StartAddress)
     InitSeq.addObjCClassListSection(std::move(ObjCClassList));
 }
 
-static Expected<MachOJITDylibInitializers::SectionExtent>
-getSectionExtent(jitlink::LinkGraph &G, StringRef SectionName) {
+static Expected<ExecutorAddressRange> getSectionExtent(jitlink::LinkGraph &G,
+                                                       StringRef SectionName) {
   auto *Sec = G.findSectionByName(SectionName);
   if (!Sec)
-    return MachOJITDylibInitializers::SectionExtent();
+    return ExecutorAddressRange();
   jitlink::SectionRange R(*Sec);
   if (R.getSize() % G.getPointerSize() != 0)
     return make_error<StringError>(SectionName + " section size is not a "
                                                  "multiple of the pointer size",
                                    inconvertibleErrorCode());
-  return MachOJITDylibInitializers::SectionExtent(
-      R.getStart(), R.getSize() / G.getPointerSize());
+  return ExecutorAddressRange(ExecutorAddress(R.getStart()),
+                              ExecutorAddress(R.getEnd()));
 }
 
 void MachOPlatform::InitScraperPlugin::modifyPassConfig(
@@ -305,17 +313,14 @@ void MachOPlatform::InitScraperPlugin::modifyPassConfig(
     return;
 
   Config.PrePrunePasses.push_back([this, &MR](jitlink::LinkGraph &G) -> Error {
-    JITLinkSymbolVector InitSectionSymbols;
-    preserveInitSectionIfPresent(InitSectionSymbols, G,
-                                 "__DATA,__mod_init_func");
-    preserveInitSectionIfPresent(InitSectionSymbols, G,
-                                 "__DATA,__objc_selrefs");
-    preserveInitSectionIfPresent(InitSectionSymbols, G,
-                                 "__DATA,__objc_classlist");
+    JITLinkSymbolSet InitSectionSyms;
+    preserveInitSectionIfPresent(InitSectionSyms, G, "__DATA,__mod_init_func");
+    preserveInitSectionIfPresent(InitSectionSyms, G, "__DATA,__objc_selrefs");
+    preserveInitSectionIfPresent(InitSectionSyms, G, "__DATA,__objc_classlist");
 
-    if (!InitSectionSymbols.empty()) {
+    if (!InitSectionSyms.empty()) {
       std::lock_guard<std::mutex> Lock(InitScraperMutex);
-      InitSymbolDeps[&MR] = std::move(InitSectionSymbols);
+      InitSymbolDeps[&MR] = std::move(InitSectionSyms);
     }
 
     if (auto Err = processObjCImageInfo(G, MR))
@@ -326,8 +331,7 @@ void MachOPlatform::InitScraperPlugin::modifyPassConfig(
 
   Config.PostFixupPasses.push_back([this, &JD = MR.getTargetJITDylib()](
                                        jitlink::LinkGraph &G) -> Error {
-    MachOJITDylibInitializers::SectionExtent ModInits, ObjCSelRefs,
-        ObjCClassList;
+    ExecutorAddressRange ModInits, ObjCSelRefs, ObjCClassList;
 
     JITTargetAddress ObjCImageInfoAddr = 0;
     if (auto *ObjCImageInfoSec =
@@ -359,23 +363,28 @@ void MachOPlatform::InitScraperPlugin::modifyPassConfig(
     LLVM_DEBUG({
       dbgs() << "MachOPlatform: Scraped " << G.getName() << " init sections:\n";
       dbgs() << "  __objc_selrefs: ";
-      if (ObjCSelRefs.NumPtrs)
-        dbgs() << ObjCSelRefs.NumPtrs << " pointer(s) at "
-               << formatv("{0:x16}", ObjCSelRefs.Address) << "\n";
+      auto NumObjCSelRefs = ObjCSelRefs.size().getValue() / sizeof(uintptr_t);
+      if (NumObjCSelRefs)
+        dbgs() << NumObjCSelRefs << " pointer(s) at "
+               << formatv("{0:x16}", ObjCSelRefs.StartAddress.getValue())
+               << "\n";
       else
         dbgs() << "none\n";
 
       dbgs() << "  __objc_classlist: ";
-      if (ObjCClassList.NumPtrs)
-        dbgs() << ObjCClassList.NumPtrs << " pointer(s) at "
-               << formatv("{0:x16}", ObjCClassList.Address) << "\n";
+      auto NumObjCClasses = ObjCClassList.size().getValue() / sizeof(uintptr_t);
+      if (NumObjCClasses)
+        dbgs() << NumObjCClasses << " pointer(s) at "
+               << formatv("{0:x16}", ObjCClassList.StartAddress.getValue())
+               << "\n";
       else
         dbgs() << "none\n";
 
       dbgs() << "  __mod_init_func: ";
-      if (ModInits.NumPtrs)
-        dbgs() << ModInits.NumPtrs << " pointer(s) at "
-               << formatv("{0:x16}", ModInits.Address) << "\n";
+      auto NumModInits = ModInits.size().getValue() / sizeof(uintptr_t);
+      if (NumModInits)
+        dbgs() << NumModInits << " pointer(s) at "
+               << formatv("{0:x16}", ModInits.StartAddress.getValue()) << "\n";
       else
         dbgs() << "none\n";
     });
@@ -387,27 +396,26 @@ void MachOPlatform::InitScraperPlugin::modifyPassConfig(
   });
 }
 
-ObjectLinkingLayer::Plugin::LocalDependenciesMap
-MachOPlatform::InitScraperPlugin::getSyntheticSymbolLocalDependencies(
+ObjectLinkingLayer::Plugin::SyntheticSymbolDependenciesMap
+MachOPlatform::InitScraperPlugin::getSyntheticSymbolDependencies(
     MaterializationResponsibility &MR) {
   std::lock_guard<std::mutex> Lock(InitScraperMutex);
   auto I = InitSymbolDeps.find(&MR);
   if (I != InitSymbolDeps.end()) {
-    LocalDependenciesMap Result;
+    SyntheticSymbolDependenciesMap Result;
     Result[MR.getInitializerSymbol()] = std::move(I->second);
     InitSymbolDeps.erase(&MR);
     return Result;
   }
-  return LocalDependenciesMap();
+  return SyntheticSymbolDependenciesMap();
 }
 
 void MachOPlatform::InitScraperPlugin::preserveInitSectionIfPresent(
-    JITLinkSymbolVector &Symbols, jitlink::LinkGraph &G,
-    StringRef SectionName) {
+    JITLinkSymbolSet &Symbols, jitlink::LinkGraph &G, StringRef SectionName) {
   if (auto *Sec = G.findSectionByName(SectionName)) {
     auto SecBlocks = Sec->blocks();
     if (!llvm::empty(SecBlocks))
-      Symbols.push_back(
+      Symbols.insert(
           &G.addAnonymousSymbol(**SecBlocks.begin(), 0, 0, false, true));
   }
 }

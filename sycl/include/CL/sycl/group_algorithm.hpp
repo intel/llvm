@@ -860,7 +860,7 @@ group_barrier(Group, memory_scope FenceScope = Group::fence_scope) {
   // which type of memory this behavior is applied to.
   __spirv_ControlBarrier(detail::group_barrier_scope<Group>::Scope,
                          sycl::detail::spirv::getScope(FenceScope),
-                         __spv::MemorySemanticsMask::AcquireRelease |
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
                              __spv::MemorySemanticsMask::SubgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory);
