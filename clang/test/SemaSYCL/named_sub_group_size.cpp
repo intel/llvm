@@ -14,7 +14,7 @@ struct Functor1 {
   }
 };
 
-// Test attribute gets propgated to the kernel.
+// Test attribute gets propagated to the kernel.
 void calls_kernel_1() {
   // CHECK: FunctionDecl {{.*}}Kernel1
   // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic
@@ -36,7 +36,7 @@ void calls_kernel_2() {
 
 [[intel::named_sub_group_size(primary)]] void AttrFunc() {} // #AttrFunc
 
-// Test ttribute does not get propgated to the kernel.
+// Test attribute does not get propagated to the kernel.
 void calls_kernel_3() {
   // CHECK:     FunctionDecl {{.*}}Kernel4
   // CHECK-NOT: IntelNamedSubGroupSizeAttr {{.*}}

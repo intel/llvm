@@ -68,79 +68,78 @@ public:
 
 int main() {
   q.submit([&](handler &h) {
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
+    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 16
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 16
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 1
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 1
     Functor16 f16;
     h.single_task<class kernel_name1>(f16);
 
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
+    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 16
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 16
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 16
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 16
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 16
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 16
     Functor16x16x16 f16x16x16;
     h.single_task<class kernel_name2>(f16x16x16);
 
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
+    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 128
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 128
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 128
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 128
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 128
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 128
     FunctorAttr fattr;
     h.single_task<class kernel_name3>(fattr);
 
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
+    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 32
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 32
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int -4
+    // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 4
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 1
     Functor33 f33;
     h.single_task<class kernel_name4>(f33);
 
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
+    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 30
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 30
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int -30
+    // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 30
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int -30
+    // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
     Functor30 f30;
     h.single_task<class kernel_name5>(f30);
   });
   return 0;
 }
-
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 16
-// CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 1
-// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 1
-// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 16
-// CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 16
-// CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 16
-// CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 128
-// CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 128
-// CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 128
-// CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 32
-// CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int -4
-// CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-// CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 1
-// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 30
-// CHECK-NEXT:  IntegerLiteral{{.*}}30{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int -30
-// CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-// CHECK-NEXT:  IntegerLiteral{{.*}}30{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int -30
-// CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
 #endif // __SYCL_DEVICE_ONLY__

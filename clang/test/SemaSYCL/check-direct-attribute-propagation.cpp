@@ -90,7 +90,7 @@ int main() {
     // CHECK:      FunctionDecl {{.*}}test_kernel3
     // CHECK:      SYCLSimdAttr {{.*}} Implicit
     // CHECK-NEXT: SYCLKernelAttr {{.*}} Implicit
-    // CHECK-NEXT: SYCLSimdAttr {{.*}}
+    // CHECK-NEXT: SYCLSimdAttr
     // CHECK-NOT:  SYCLSimdAttr
     h.single_task<class test_kernel3>(
         []() [[intel::sycl_explicit_simd]] { func(); });
@@ -105,7 +105,7 @@ int main() {
     // CHECK:      SYCLIntelNoGlobalWorkOffsetAttr
     // CHECK-NEXT: ConstantExpr {{.*}} 'int'
     // CHECK-NEXT: value: Int 1
-    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 1
     h.single_task<class test_kernel5>(
         FuncObj1());
 
@@ -113,7 +113,7 @@ int main() {
     // CHECK:       SYCLIntelNoGlobalWorkOffsetAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 1
     h.single_task<class test_kernel6>(
         []() [[intel::no_global_work_offset]]{});
 
@@ -121,7 +121,7 @@ int main() {
     // CHECK:       SYCLIntelSchedulerTargetFmaxMhzAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 10
-    // CHECK-NEXT:  IntegerLiteral{{.*}}10{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 10
     h.single_task<class test_kernel7>(
         FuncObj2());
 
@@ -129,7 +129,7 @@ int main() {
     // CHECK:       SYCLIntelSchedulerTargetFmaxMhzAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 20
-    // CHECK-NEXT:  IntegerLiteral{{.*}}20{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 20
     h.single_task<class test_kernel8>(
         []() [[intel::scheduler_target_fmax_mhz(20)]]{});
 
@@ -143,13 +143,13 @@ int main() {
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 2
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 2
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 2
     h.single_task<class test_kernel10>(
         FuncObj3());
 
@@ -163,13 +163,13 @@ int main() {
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 8
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 8
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 8
     h.single_task<class test_kernel12>(
         []() [[intel::max_work_group_size(8, 8, 8)]]{});
 
@@ -177,13 +177,13 @@ int main() {
     // CHECK:       ReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 2
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 2
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 2
     h.single_task<class test_kernel13>(
         FuncObj4());
 
@@ -197,13 +197,13 @@ int main() {
     // CHECK:       ReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 8
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 8
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 8
     h.single_task<class test_kernel15>(
         []() [[sycl::reqd_work_group_size(8, 8, 8)]]{});
 
@@ -211,7 +211,7 @@ int main() {
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 8
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 8
     h.single_task<class test_kernel16>(
         FuncObj5());
 
@@ -219,7 +219,7 @@ int main() {
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 20
-    // CHECK-NEXT:  IntegerLiteral{{.*}}20{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 20
     h.single_task<class test_kernel17>(
         []() [[intel::num_simd_work_items(20)]]{});
 
@@ -249,7 +249,7 @@ int main() {
     // CHECK: SYCLIntelMaxGlobalWorkDimAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 1
     h.single_task<class test_kernel22>(
         FuncObj7());
 
@@ -257,7 +257,7 @@ int main() {
     // CHECK: SYCLIntelMaxGlobalWorkDimAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 0
-    // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 0
     h.single_task<class test_kernel23>(
         []() [[intel::max_global_work_dim(0)]]{});
 
@@ -282,6 +282,7 @@ int main() {
     // CHECK:       IntelReqdSubGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 8
     h.single_task<class test_kernel27>(
         []() [[sycl::reqd_sub_group_size(8)]]{});
   });
