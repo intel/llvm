@@ -87,7 +87,7 @@ DeviceImplPtr platform_impl::getOrMakeDeviceImpl(
       GlobalHandler::instance().getPlatformDeviceCache();
 
   // If we've already seen this device, return the impl
-  std::vector<DeviceImplPtr>& DeviceCache = PlatformDeviceCache[PlatformImpl];
+  std::vector<DeviceImplPtr> &DeviceCache = PlatformDeviceCache[PlatformImpl];
   for (const DeviceImplPtr &Device : DeviceCache) {
     if (Device->getHandleRef() == PiDevice)
       return Device;
@@ -115,7 +115,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
       Platform = Pair.first;
     }
   }
-  std::vector<DeviceImplPtr>& DeviceCache = PlatformDeviceCache[Platform];
+  std::vector<DeviceImplPtr> &DeviceCache = PlatformDeviceCache[Platform];
   for (const DeviceImplPtr &Device : DeviceCache) {
     // Assumption here is that there is 1-to-1 mapping between PiDevType and
     // Sycl device type for GPU, CPU, and ACC.

@@ -608,7 +608,7 @@ void fillPlatformAndDeviceCache(plugin &Plugin) {
               PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl);
           DeviceCache.emplace_back(Device);
         }
-    
+
         PlatformDeviceCache[PlatformImpl] = DeviceCache;
       }
       DeviceNum += UnfilteredDeviceCount;

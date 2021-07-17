@@ -52,7 +52,8 @@ ProgramManager &GlobalHandler::getProgramManager() {
 
 Sync &GlobalHandler::getSync() { return getOrCreate(MSync); }
 
-std::map<PlatformImplPtr, std::vector<DeviceImplPtr>> &GlobalHandler::getPlatformDeviceCache() {
+std::map<PlatformImplPtr, std::vector<DeviceImplPtr>> &
+GlobalHandler::getPlatformDeviceCache() {
   return getOrCreate(MPlatformDeviceCache);
 }
 

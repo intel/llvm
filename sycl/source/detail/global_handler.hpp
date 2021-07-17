@@ -11,8 +11,8 @@
 #include <CL/sycl/detail/spinlock.hpp>
 #include <CL/sycl/detail/util.hpp>
 
-#include <memory>
 #include <map>
+#include <memory>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -54,7 +54,8 @@ public:
   Scheduler &getScheduler();
   ProgramManager &getProgramManager();
   Sync &getSync();
-  std::map<PlatformImplPtr, std::vector<DeviceImplPtr>> &getPlatformDeviceCache();
+  std::map<PlatformImplPtr, std::vector<DeviceImplPtr>> &
+  getPlatformDeviceCache();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
   std::vector<plugin> &getPlugins();
@@ -80,7 +81,8 @@ private:
   InstWithLock<Scheduler> MScheduler;
   InstWithLock<ProgramManager> MProgramManager;
   InstWithLock<Sync> MSync;
-  InstWithLock<std::map<PlatformImplPtr, std::vector<DeviceImplPtr>>> MPlatformDeviceCache;
+  InstWithLock<std::map<PlatformImplPtr, std::vector<DeviceImplPtr>>>
+      MPlatformDeviceCache;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<plugin>> MPlugins;
