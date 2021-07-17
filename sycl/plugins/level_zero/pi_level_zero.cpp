@@ -529,7 +529,8 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
   return PI_SUCCESS;
 }
 
-pi_result _pi_device::initialize(int SubSubDeviceOrdinal, int SubSubDeviceIndex) {
+pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
+                                 int SubSubDeviceIndex) {
   uint32_t numQueueGroups = 0;
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (ZeDevice, &numQueueGroups, nullptr));
@@ -1576,7 +1577,8 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
 
         for (uint32_t i = 0; i < numQueueGroups; i++) {
           if (QueueProperties[i].flags &
-              ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE && QueueProperties[i].numQueues > 1) {
+                  ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE &&
+              QueueProperties[i].numQueues > 1) {
             Ordinals.push_back(i);
           }
         }
@@ -1589,7 +1591,8 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
         // A {sub-device, ordinal} points to a specific CCS which constructs
         // a sub-sub-device at this point.
         for (uint32_t J = 0; J < Ordinals.size(); ++J) {
-          for (uint32_t K = 0; K < QueueProperties[Ordinals[J]].numQueues; ++K) {
+          for (uint32_t K = 0; K < QueueProperties[Ordinals[J]].numQueues;
+               ++K) {
             std::unique_ptr<_pi_device> PiSubSubDevice(
                 new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
             pi_result Result = PiSubSubDevice->initialize(Ordinals[J], K);
@@ -1597,7 +1600,8 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
               return Result;
             }
 
-            // save pointers to sub-sub-devices for quick retrieval in the future.
+            // save pointers to sub-sub-devices for quick retrieval in the
+            // future.
             PiSubDevice->SubDevices.push_back(PiSubSubDevice.get());
             PiDevicesCache.push_back(std::move(PiSubSubDevice));
           }

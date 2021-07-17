@@ -304,7 +304,8 @@ struct _pi_device : _pi_object {
   // Initialize the entire PI device.
   // Optional param `SubSubDeviceOrdinal` is the compute command queue index
   // used to initialize sub-sub-devices.
-  pi_result initialize(int SubSubDeviceOrdinal = -1, int SubSubDeviceIndex = -1);
+  pi_result initialize(int SubSubDeviceOrdinal = -1,
+                       int SubSubDeviceIndex = -1);
 
   // Level Zero device handle.
   ze_device_handle_t ZeDevice;
