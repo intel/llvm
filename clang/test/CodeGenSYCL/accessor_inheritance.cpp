@@ -26,11 +26,11 @@ int main() {
 // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE6kernel
 // CHECK-SAME: i32 [[ARG_A:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: i32 [[ARG_B:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: i8 addrspace(1)* [[ACC1_DATA:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i8 addrspace(1)* readonly [[ACC1_DATA:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) align 4 [[ACC1_RANGE1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) align 4 [[ACC1_RANGE2:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[ID_TYPE]]* byval(%[[ID_TYPE]]) align 4 [[ACC1_ID:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: i8 addrspace(1)* [[ACC2_DATA:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i8 addrspace(1)* readonly [[ACC2_DATA:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) align 4 [[ACC2_RANGE1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) align 4 [[ACC2_RANGE2:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[ID_TYPE]]* byval(%[[ID_TYPE]]) align 4 [[ACC2_ID:%[a-zA-Z0-9_]+]],

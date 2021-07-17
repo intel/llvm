@@ -558,15 +558,21 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
   if (!FD->hasAttrs())
     return;
 
-  llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
-    // FIXME: Make this list self-adapt as new SYCL attributes are added.
-    return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-               ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
-               SYCLIntelNumSimdWorkItemsAttr,
-               SYCLIntelSchedulerTargetFmaxMhzAttr,
-               SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-               SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
-  });
+  // In SYCL 1.2.1 mode, the attributes are propagated from the function they
+  // are applied to onto the kernel which calls the function.
+  // In SYCL 2020 mode, the attributes are not propagated to the kernel.
+  if (DirectlyCalled || S.getASTContext().getLangOpts().getSYCLVersion() <
+                            LangOptions::SYCL_2020) {
+    llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
+      // FIXME: Make this list self-adapt as new SYCL attributes are added.
+      return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
+                 ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
+                 SYCLIntelNumSimdWorkItemsAttr,
+                 SYCLIntelSchedulerTargetFmaxMhzAttr,
+                 SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+                 SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
+    });
+  }
 
   // Attributes that should not be propagated from device functions to a kernel.
   if (DirectlyCalled) {
@@ -1103,6 +1109,20 @@ static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
   auto KHArg = llvm::find_if(KernelCallerFunc->parameters(), IsHandlerLambda);
 
   return (KHArg != KernelCallerFunc->param_end()) ? *KHArg : nullptr;
+}
+
+static bool isReadOnlyAccessor(const TemplateArgument &AccessModeArg) {
+  const auto *AccessModeArgEnumType =
+      AccessModeArg.getIntegralType()->castAs<EnumType>();
+  const EnumDecl *ED = AccessModeArgEnumType->getDecl();
+
+  auto ReadOnly =
+      llvm::find_if(ED->enumerators(), [&](const EnumConstantDecl *E) {
+        return E->getName() == "read";
+      });
+
+  return ReadOnly != ED->enumerator_end() &&
+         (*ReadOnly)->getInitVal() == AccessModeArg.getAsIntegral();
 }
 
 // anonymous namespace so these don't get linkage.
@@ -1995,17 +2015,13 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // All special SYCL objects must have __init method. We extract types for
   // kernel parameters from __init method parameters. We will use __init method
   // and kernel parameters which we build here to initialize special objects in
-  // the kernel body.
-  bool handleSpecialType(FieldDecl *FD, QualType FieldTy,
-                         bool isAccessorType = false) {
+  // the kernel body. Accessors require additional processing and are handled in
+  // handleSyclAccessorType.
+  bool handleSpecialType(FieldDecl *FD, QualType FieldTy) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
-    assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
-    llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>() && isAccessorType
-            ? InitESIMDMethodName
-            : InitMethodName;
-    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
-    assert(InitMethod && "The accessor/sampler must have the __init method");
+    assert(RecordDecl && "The stream/sampler must be a RecordDecl");
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+    assert(InitMethod && "The stream/sampler must have the __init method");
 
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
@@ -2013,14 +2029,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
       addParam(FD, ParamTy.getCanonicalType());
-      if (ParamTy.getTypePtr()->isPointerType() && isAccessorType) {
-        handleAccessorPropertyList(Params.back(), RecordDecl,
-                                   FD->getLocation());
-        if (KernelDecl->hasAttr<SYCLSimdAttr>())
-          // In ESIMD kernels accessor's pointer argument needs to be marked
-          Params.back()->addAttr(
-              SYCLSimdAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
-      }
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -2109,6 +2117,8 @@ public:
     return true;
   }
 
+  // FIXME: Refactor accessor handling. There is a discrepancy in how
+  // inherited accessors are handled.
   bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
@@ -2119,21 +2129,71 @@ public:
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
 
+    // Get access mode of accessor.
+    const auto *AccessorSpecializationDecl =
+        cast<ClassTemplateSpecializationDecl>(RecordDecl);
+    const TemplateArgument &AccessModeArg =
+        AccessorSpecializationDecl->getTemplateArgs().get(2);
+
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
     size_t ParamIndex = Params.size();
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
       addParam(BS, ParamTy.getCanonicalType());
-      if (ParamTy.getTypePtr()->isPointerType())
+      if (ParamTy.getTypePtr()->isPointerType()) {
         handleAccessorPropertyList(Params.back(), RecordDecl, BS.getBeginLoc());
+
+        // Add implicit attribute to parameter decl when it is a read only
+        // SYCL accessor.
+        if (isReadOnlyAccessor(AccessModeArg))
+          Params.back()->addAttr(SYCLAccessorReadonlyAttr::CreateImplicit(
+              SemaRef.getASTContext()));
+      }
     }
     LastParamIndex = ParamIndex;
     return true;
   }
 
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
-    return handleSpecialType(FD, FieldTy, /*isAccessorType*/ true);
+    const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
+    assert(RecordDecl && "The accessor must be a RecordDecl");
+
+    // Get access mode of accessor.
+    const auto *AccessorSpecializationDecl =
+        cast<ClassTemplateSpecializationDecl>(RecordDecl);
+    const TemplateArgument &AccessModeArg =
+        AccessorSpecializationDecl->getTemplateArgs().get(2);
+
+    llvm::StringLiteral MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
+                                         ? InitESIMDMethodName
+                                         : InitMethodName;
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
+    assert(InitMethod && "The accessor must have the __init method");
+
+    // Don't do -1 here because we count on this to be the first parameter added
+    // (if any).
+    size_t ParamIndex = Params.size();
+    for (const ParmVarDecl *Param : InitMethod->parameters()) {
+      QualType ParamTy = Param->getType();
+      addParam(FD, ParamTy.getCanonicalType());
+      if (ParamTy.getTypePtr()->isPointerType()) {
+        handleAccessorPropertyList(Params.back(), RecordDecl,
+                                   FD->getLocation());
+        if (KernelDecl->hasAttr<SYCLSimdAttr>())
+          // In ESIMD kernels accessor's pointer argument needs to be marked
+          Params.back()->addAttr(
+              SYCLSimdAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
+
+        // Add implicit attribute to parameter decl when it is a read only
+        // SYCL accessor.
+        if (isReadOnlyAccessor(AccessModeArg))
+          Params.back()->addAttr(SYCLAccessorReadonlyAttr::CreateImplicit(
+              SemaRef.getASTContext()));
+      }
+    }
+    LastParamIndex = ParamIndex;
+    return true;
   }
 
   bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
