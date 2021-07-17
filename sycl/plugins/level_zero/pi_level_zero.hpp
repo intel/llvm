@@ -291,6 +291,9 @@ struct _pi_device : _pi_object {
   int32_t ZeComputeQueueGroupIndex;
   int32_t ZeCopyQueueGroupIndex;
 
+  // Keep the index of the compute engine 
+  int32_t ZeComputeEngineIndex = 0;
+
   // Cache the properties of the compute/copy queue groups.
   ZeStruct<ze_command_queue_group_properties_t> ZeComputeQueueGroupProperties;
   ZeStruct<ze_command_queue_group_properties_t> ZeCopyQueueGroupProperties;
@@ -301,7 +304,7 @@ struct _pi_device : _pi_object {
   // Initialize the entire PI device.
   // Optional param `SubSubDeviceOrdinal` is the compute command queue index
   // used to initialize sub-sub-devices.
-  pi_result initialize(int SubSubDeviceOrdinal = -1);
+  pi_result initialize(int SubSubDeviceOrdinal = -1, int SubSubDeviceIndex = -1);
 
   // Level Zero device handle.
   ze_device_handle_t ZeDevice;

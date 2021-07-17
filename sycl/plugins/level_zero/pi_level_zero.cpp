@@ -529,7 +529,7 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
   return PI_SUCCESS;
 }
 
-pi_result _pi_device::initialize(int SubSubDeviceOrdinal) {
+pi_result _pi_device::initialize(int SubSubDeviceOrdinal, int SubSubDeviceIndex) {
   uint32_t numQueueGroups = 0;
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (ZeDevice, &numQueueGroups, nullptr));
@@ -546,6 +546,7 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal) {
   // initialize a sub-sub-devices with its own Ordinal
   if (SubSubDeviceOrdinal >= 0) {
     ComputeGroupIndex = SubSubDeviceOrdinal;
+    ZeComputeEngineIndex = SubSubDeviceIndex;
   } else {
     for (uint32_t i = 0; i < numQueueGroups; i++) {
       if (QueueProperties[i].flags &
@@ -558,6 +559,8 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal) {
     if (ComputeGroupIndex < 0) {
       return PI_ERROR_UNKNOWN;
     }
+
+    ZeComputeEngineIndex = 0;
 
     int CopyGroupIndex = -1;
     const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
@@ -606,7 +609,7 @@ pi_result _pi_context::initialize() {
   pi_device Device = SingleRootDevice ? SingleRootDevice : Devices[0];
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
   ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
-  ZeCommandQueueDesc.index = 0;
+  ZeCommandQueueDesc.index = Device->ZeComputeEngineIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
   ZE_CALL(
       zeCommandListCreateImmediate,
@@ -1586,16 +1589,18 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
         // A {sub-device, ordinal} points to a specific CCS which constructs
         // a sub-sub-device at this point.
         for (uint32_t J = 0; J < Ordinals.size(); ++J) {
-          std::unique_ptr<_pi_device> PiSubSubDevice(
-              new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
-          pi_result Result = PiSubSubDevice->initialize(Ordinals[J]);
-          if (Result != PI_SUCCESS) {
-            return Result;
-          }
+          for (uint32_t K = 0; K < QueueProperties[Ordinals[J]].numQueues; ++K) {
+            std::unique_ptr<_pi_device> PiSubSubDevice(
+                new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
+            pi_result Result = PiSubSubDevice->initialize(Ordinals[J], K);
+            if (Result != PI_SUCCESS) {
+              return Result;
+            }
 
-          // save pointers to sub-sub-devices for quick retrieval in the future.
-          PiSubDevice->SubDevices.push_back(PiSubSubDevice.get());
-          PiDevicesCache.push_back(std::move(PiSubSubDevice));
+            // save pointers to sub-sub-devices for quick retrieval in the future.
+            PiSubDevice->SubDevices.push_back(PiSubSubDevice.get());
+            PiDevicesCache.push_back(std::move(PiSubSubDevice));
+          }
         }
 
         // save pointers to sub-devices for quick retrieval in the future.
@@ -2463,7 +2468,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   ZeDevice = Device->ZeDevice;
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
   ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
-  ZeCommandQueueDesc.index = 0;
+  ZeCommandQueueDesc.index = Device->ZeComputeEngineIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
 
   ZE_CALL(zeCommandQueueCreate,
