@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/sycl/ONEAPI/accessor_property_list.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/image_impl.hpp>
@@ -16,6 +15,7 @@
 #include <CL/sycl/stl.hpp>
 #include <CL/sycl/types.hpp>
 #include <cstddef>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
 
 // sRGB Extension Support
 #define SYCL_EXT_ONEAPI_SRGB 1
@@ -281,22 +281,22 @@ public:
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
            access::target::image, access::placeholder::false_t,
-           ONEAPI::accessor_property_list<>>
+           ext::oneapi::accessor_property_list<>>
   get_access(handler &commandGroupHandler) {
     return accessor<DataT, Dimensions, AccessMode, access::target::image,
                     access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(*this,
-                                                      commandGroupHandler);
+                    ext::oneapi::accessor_property_list<>>(*this,
+                                                           commandGroupHandler);
   }
 
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
            access::target::host_image, access::placeholder::false_t,
-           ONEAPI::accessor_property_list<>>
+           ext::oneapi::accessor_property_list<>>
   get_access() {
     return accessor<DataT, Dimensions, AccessMode, access::target::host_image,
                     access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(*this);
+                    ext::oneapi::accessor_property_list<>>(*this);
   }
 
   template <typename Destination = std::nullptr_t>

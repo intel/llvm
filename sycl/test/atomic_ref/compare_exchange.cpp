@@ -9,13 +9,11 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
-template <typename T>
-class compare_exchange_kernel;
+template <typename T> class compare_exchange_kernel;
 
-template <typename T>
-void compare_exchange_test(queue q, size_t N) {
+template <typename T> void compare_exchange_test(queue q, size_t N) {
   const T initial = T(N);
   T compare_exchange = initial;
   std::vector<T> output(N);
@@ -25,22 +23,25 @@ void compare_exchange_test(queue q, size_t N) {
     buffer<T> output_buf(output.data(), output.size());
 
     q.submit([&](handler &cgh) {
-      auto exc = compare_exchange_buf.template get_access<access::mode::read_write>(cgh);
-      auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
-      cgh.parallel_for<compare_exchange_kernel<T>>(range<1>(N), [=](item<1>
-                                                                        it) {
-        size_t gid = it.get_id(0);
-        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
-                              ONEAPI::memory_scope::device,
-                              access::address_space::global_space>(exc[0]);
-        T result = T(N); // Avoid copying pointer
-        bool success = atm.compare_exchange_strong(result, (T)gid);
-        if (success) {
-          out[gid] = result;
-        } else {
-          out[gid] = T(gid);
-        }
-      });
+      auto exc =
+          compare_exchange_buf.template get_access<access::mode::read_write>(
+              cgh);
+      auto out =
+          output_buf.template get_access<access::mode::discard_write>(cgh);
+      cgh.parallel_for<compare_exchange_kernel<T>>(
+          range<1>(N), [=](item<1> it) {
+            size_t gid = it.get_id(0);
+            auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                                  ext::oneapi::memory_scope::device,
+                                  access::address_space::global_space>(exc[0]);
+            T result = T(N); // Avoid copying pointer
+            bool success = atm.compare_exchange_strong(result, (T)gid);
+            if (success) {
+              out[gid] = result;
+            } else {
+              out[gid] = T(gid);
+            }
+          });
     });
   }
 
