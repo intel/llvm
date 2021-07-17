@@ -564,10 +564,8 @@ void fillPlatformAndDeviceCache(plugin &Plugin) {
             NumPlatforms, PiPlatforms.data(), nullptr) != PI_SUCCESS)
       return;
 
-    std::vector<PlatformImplPtr> &PlatformCache =
-        GlobalHandler::instance().getPlatformCache();
-    std::vector<DeviceImplPtr> &DeviceCache =
-        GlobalHandler::instance().getDeviceCache();
+    std::map<PlatformImplPtr, std::vector<DeviceImplPtr>> &PlatformDeviceCache =
+        GlobalHandler::instance().getPlatformDeviceCache();
 
     int DeviceNum = 0;
     for (const auto &PiPlatform : PiPlatforms) {
@@ -602,19 +600,16 @@ void fillPlatformAndDeviceCache(plugin &Plugin) {
       filterDeviceFilter(PiDevices, PiPlatform, Plugin, DeviceNum);
 
       if (PiDevices.size() != 0) {
-        {
-          const std::lock_guard<std::mutex> Guard(
-              GlobalHandler::instance().getPlatformMapMutex());
-
-          PlatformCache.emplace_back(PlatformImpl);
-        }
-        const std::lock_guard<std::mutex> DeviceCacheLock(
-            GlobalHandler::instance().getDeviceCacheMutex());
+        const std::lock_guard<std::mutex> Guard(
+            GlobalHandler::instance().getPlatformMapMutex());
+        std::vector<DeviceImplPtr> DeviceCache;
         for (const RT::PiDevice &PiDevice : PiDevices) {
           std::shared_ptr<device_impl> Device =
               PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl);
           DeviceCache.emplace_back(Device);
         }
+    
+        PlatformDeviceCache[PlatformImpl] = DeviceCache;
       }
       DeviceNum += UnfilteredDeviceCount;
     } // end of for
@@ -706,22 +701,15 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
   detail::device_filter_list *FilterList =
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
   if (!FilterList || FilterList->containsHost()) {
-    {
-      const std::lock_guard<std::mutex> Guard(
-          GlobalHandler::instance().getPlatformMapMutex());
-      std::vector<PlatformImplPtr> &PlatformCache =
-          GlobalHandler::instance().getPlatformCache();
-      PlatformImplPtr PlatformImpl = platform_impl::getHostPlatformImpl();
-      PlatformCache.emplace_back(PlatformImpl);
-    }
 
-    std::vector<DeviceImplPtr> &DeviceCache =
-        GlobalHandler::instance().getDeviceCache();
-    const std::lock_guard<std::mutex> DeviceCacheLock(
-        GlobalHandler::instance().getDeviceCacheMutex());
-    std::shared_ptr<device_impl> Device =
-        platform_impl::getOrMakeHostDeviceImpl();
-    DeviceCache.emplace_back(Device);
+    std::map<PlatformImplPtr, std::vector<DeviceImplPtr>> &PlatformDeviceCache =
+        GlobalHandler::instance().getPlatformDeviceCache();
+    PlatformImplPtr PlatformImpl = platform_impl::getHostPlatformImpl();
+    DeviceImplPtr Device = std::make_shared<device_impl>();
+    std::vector<DeviceImplPtr> DeviceCache{Device};
+    const std::lock_guard<std::mutex> Guard(
+        GlobalHandler::instance().getPlatformMapMutex());
+    PlatformDeviceCache[PlatformImpl] = DeviceCache;
   }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!(xptiTraceEnabled() && !XPTIInitDone))

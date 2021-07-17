@@ -31,16 +31,6 @@ PlatformImplPtr platform_impl::getHostPlatformImpl() {
   return HostImpl;
 }
 
-std::shared_ptr<device_impl> platform_impl::getOrMakeHostDeviceImpl() {
-  PlatformImplPtr HostImpl = getHostPlatformImpl();
-  if (HostImpl->MDeviceCache.size() == 0) {
-    std::shared_ptr<device_impl> DeviceSP = std::make_shared<device_impl>();
-    HostImpl->MDeviceCache.emplace_back(DeviceSP);
-    return DeviceSP;
-  }
-  return HostImpl->MDeviceCache[0].lock();
-}
-
 PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
                                                      const plugin &Plugin) {
   PlatformImplPtr Result;
@@ -48,18 +38,18 @@ PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
     const std::lock_guard<std::mutex> Guard(
         GlobalHandler::instance().getPlatformMapMutex());
 
-    std::vector<PlatformImplPtr> &PlatformCache =
-        GlobalHandler::instance().getPlatformCache();
+    std::map<PlatformImplPtr, std::vector<DeviceImplPtr>> &PlatformDeviceCache =
+        GlobalHandler::instance().getPlatformDeviceCache();
 
     // If we've already seen this platform, return the impl
-    for (const auto &PlatImpl : PlatformCache) {
-      if (PlatImpl->getHandleRef() == PiPlatform)
-        return PlatImpl;
+    for (const auto &Pair : PlatformDeviceCache) {
+      if (Pair.first->getHandleRef() == PiPlatform)
+        return Pair.first;
     }
 
     // Otherwise make the impl
     Result = std::make_shared<platform_impl>(PiPlatform, Plugin);
-    PlatformCache.emplace_back(Result);
+    PlatformDeviceCache[Result] = std::vector<DeviceImplPtr>();
   }
 
   return Result;
@@ -79,41 +69,56 @@ std::vector<platform> platform_impl::get_platforms() {
   RT::initialize();
   const std::lock_guard<std::mutex> Guard(
       GlobalHandler::instance().getPlatformMapMutex());
-  std::vector<PlatformImplPtr> &PlatformCache =
-      GlobalHandler::instance().getPlatformCache();
-  for (const PlatformImplPtr &PlatformImpl : PlatformCache) {
-    platform Platform = detail::createSyclObjFromImpl<platform>(PlatformImpl);
+  std::map<PlatformImplPtr, std::vector<DeviceImplPtr>> &PlatformDeviceCache =
+      GlobalHandler::instance().getPlatformDeviceCache();
+  for (const auto &Pair : PlatformDeviceCache) {
+    platform Platform = detail::createSyclObjFromImpl<platform>(Pair.first);
     Platforms.push_back(Platform);
   }
   return Platforms;
 }
 
-std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
+DeviceImplPtr platform_impl::getOrMakeDeviceImpl(
     RT::PiDevice PiDevice, const std::shared_ptr<platform_impl> &PlatformImpl) {
-  const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
+
+  const std::lock_guard<std::mutex> Guard(
+      GlobalHandler::instance().getPlatformMapMutex());
+  std::map<PlatformImplPtr, std::vector<DeviceImplPtr>> &PlatformDeviceCache =
+      GlobalHandler::instance().getPlatformDeviceCache();
 
   // If we've already seen this device, return the impl
-  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
-    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
-      if (Device->getHandleRef() == PiDevice)
-        return Device;
-    }
+  std::vector<DeviceImplPtr>& DeviceCache = PlatformDeviceCache[PlatformImpl];
+  for (const DeviceImplPtr &Device : DeviceCache) {
+    if (Device->getHandleRef() == PiDevice)
+      return Device;
   }
 
   // Otherwise make the impl
   std::shared_ptr<device_impl> Result =
       std::make_shared<device_impl>(PiDevice, PlatformImpl);
-  MDeviceCache.emplace_back(Result);
+  DeviceCache.emplace_back(Result);
   return Result;
 }
 
 std::vector<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
-  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
+  const std::lock_guard<std::mutex> Guard(
+      GlobalHandler::instance().getPlatformMapMutex());
+  std::map<PlatformImplPtr, std::vector<DeviceImplPtr>> &PlatformDeviceCache =
+      GlobalHandler::instance().getPlatformDeviceCache();
+
+  // If we've already seen this device, return the impl
+  PlatformImplPtr Platform = nullptr;
+  for (const auto &Pair : PlatformDeviceCache) {
+    if (Pair.first.get() == this) {
+      Platform = Pair.first;
+    }
+  }
+  std::vector<DeviceImplPtr>& DeviceCache = PlatformDeviceCache[Platform];
+  for (const DeviceImplPtr &Device : DeviceCache) {
     // Assumption here is that there is 1-to-1 mapping between PiDevType and
     // Sycl device type for GPU, CPU, and ACC.
-    std::shared_ptr<device_impl> Device = DeviceWP.lock();
     info::device_type PiDeviceType =
         pi::cast<info::device_type>(Device->get_device_type());
     if (DeviceType == info::device_type::all || DeviceType == PiDeviceType)

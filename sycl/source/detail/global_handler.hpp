@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/util.hpp>
 
 #include <memory>
+#include <map>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -53,14 +54,12 @@ public:
   Scheduler &getScheduler();
   ProgramManager &getProgramManager();
   Sync &getSync();
-  std::vector<PlatformImplPtr> &getPlatformCache();
+  std::map<PlatformImplPtr, std::vector<DeviceImplPtr>> &getPlatformDeviceCache();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
   std::vector<plugin> &getPlugins();
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
   std::mutex &getHandlerExtendedMembersMutex();
-  std::vector<DeviceImplPtr> &getDeviceCache();
-  std::mutex &getDeviceCacheMutex();
 
 private:
   friend void shutdown();
@@ -81,15 +80,13 @@ private:
   InstWithLock<Scheduler> MScheduler;
   InstWithLock<ProgramManager> MProgramManager;
   InstWithLock<Sync> MSync;
-  InstWithLock<std::vector<PlatformImplPtr>> MPlatformCache;
+  InstWithLock<std::map<PlatformImplPtr, std::vector<DeviceImplPtr>>> MPlatformDeviceCache;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<plugin>> MPlugins;
   InstWithLock<device_filter_list> MDeviceFilterList;
   // The mutex for synchronizing accesses to handlers extended members
   InstWithLock<std::mutex> MHandlerExtendedMembersMutex;
-  InstWithLock<std::vector<DeviceImplPtr>> MDeviceCache;
-  InstWithLock<std::mutex> MDeviceCacheMutex;
 };
 } // namespace detail
 } // namespace sycl

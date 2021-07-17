@@ -52,8 +52,8 @@ ProgramManager &GlobalHandler::getProgramManager() {
 
 Sync &GlobalHandler::getSync() { return getOrCreate(MSync); }
 
-std::vector<PlatformImplPtr> &GlobalHandler::getPlatformCache() {
-  return getOrCreate(MPlatformCache);
+std::map<PlatformImplPtr, std::vector<DeviceImplPtr>> &GlobalHandler::getPlatformDeviceCache() {
+  return getOrCreate(MPlatformDeviceCache);
 }
 
 std::mutex &GlobalHandler::getPlatformMapMutex() {
@@ -75,19 +75,11 @@ std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
   return getOrCreate(MHandlerExtendedMembersMutex);
 }
 
-std::vector<DeviceImplPtr> &GlobalHandler::getDeviceCache() {
-  return getOrCreate(MDeviceCache);
-}
-std::mutex &GlobalHandler::getDeviceCacheMutex() {
-  return getOrCreate(MDeviceCacheMutex);
-}
-
 void shutdown() {
   // First, release resources, that may access plugins.
   GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
   GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
-  GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
-  GlobalHandler::instance().MDeviceCache.Inst.reset(nullptr);
+  GlobalHandler::instance().MPlatformDeviceCache.Inst.reset(nullptr);
 
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,
