@@ -38,7 +38,7 @@ class MUTEX StaticSpinMutex {
 
   void Unlock() RELEASE() { atomic_store(&state_, 0, memory_order_release); }
 
-  void CheckLocked() const CHECK_LOCKED {
+  void CheckLocked() const CHECK_LOCKED() {
     CHECK_EQ(atomic_load(&state_, memory_order_relaxed), 1);
   }
 
@@ -69,6 +69,25 @@ class MUTEX SpinMutex : public StaticSpinMutex {
   void operator=(const SpinMutex &) = delete;
 };
 
+// Semaphore provides an OS-dependent way to park/unpark threads.
+// The last thread returned from Wait can destroy the object
+// (destruction-safety).
+class Semaphore {
+ public:
+  constexpr Semaphore() {}
+  Semaphore(const Semaphore &) = delete;
+  void operator=(const Semaphore &) = delete;
+
+  void Wait();
+  void Post(u32 count = 1);
+
+ private:
+  atomic_uint32_t state_ = {0};
+};
+
+void FutexWait(atomic_uint32_t *p, u32 cmp);
+void FutexWake(atomic_uint32_t *p, u32 count);
+
 class MUTEX BlockingMutex {
  public:
   explicit constexpr BlockingMutex(LinkerInitialized)
@@ -84,7 +103,7 @@ class MUTEX BlockingMutex {
   // maintaining complex state to work around those situations, the check only
   // checks that the mutex is owned, and assumes callers to be generally
   // well-behaved.
-  void CheckLocked() const CHECK_LOCKED;
+  void CheckLocked() const CHECK_LOCKED();
 
  private:
   // Solaris mutex_t has a member that requires 64-bit alignment.
@@ -131,7 +150,7 @@ class MUTEX RWMutex {
     (void)prev;
   }
 
-  void CheckLocked() const CHECK_LOCKED {
+  void CheckLocked() const CHECK_LOCKED() {
     CHECK_NE(atomic_load(&state_, memory_order_relaxed), kUnlocked);
   }
 

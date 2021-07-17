@@ -1534,12 +1534,12 @@ let TargetPrefix = "ppc" in {
     [IntrArgMemOnly, NoCapture<ArgIndex<0>>]>;
   def int_ppc_dcbz  : GCCBuiltin<"__builtin_ppc_dcbz">,
                       Intrinsic<[], [llvm_ptr_ty], []>;
+// FIXME: __icbt is only valid for pwr8 and up.
   def int_ppc_icbt : GCCBuiltin<"__builtin_ppc_icbt">,
                      Intrinsic<[], [llvm_ptr_ty], []>;
   
   // Population Count in each Byte.
-  def int_ppc_popcntb : GCCBuiltin<"__builtin_ppc_popcntb">,
-                        Intrinsic<[llvm_i64_ty], [llvm_i64_ty], [IntrNoMem]>;
+  def int_ppc_popcntb : Intrinsic<[llvm_anyint_ty], [llvm_anyint_ty], [IntrNoMem]>;
   
   // sync instruction (i.e. sync 0, a.k.a hwsync)
   def int_ppc_sync : GCCBuiltin<"__builtin_ppc_sync">,
@@ -1598,5 +1598,107 @@ let TargetPrefix = "ppc" in {
   def int_ppc_maddld
       : GCCBuiltin<"__builtin_ppc_maddld">,
         Intrinsic<[llvm_i64_ty], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty], [IntrNoMem]>;
+  // load
+  def int_ppc_load2r
+      : GCCBuiltin<"__builtin_ppc_load2r">,
+        Intrinsic<[llvm_i32_ty], [llvm_ptr_ty], [IntrReadMem, IntrArgMemOnly]>;
+  def int_ppc_load4r
+      : GCCBuiltin<"__builtin_ppc_load4r">,
+        Intrinsic<[llvm_i32_ty], [llvm_ptr_ty], [IntrReadMem, IntrArgMemOnly]>;
+  def int_ppc_load8r
+      : GCCBuiltin<"__builtin_ppc_load8r">,
+        Intrinsic<[llvm_i64_ty], [llvm_ptr_ty], [IntrReadMem, IntrArgMemOnly]>;
+  // store
+  def int_ppc_store2r
+      : GCCBuiltin<"__builtin_ppc_store2r">,
+        Intrinsic<[], [llvm_i32_ty, llvm_ptr_ty], [IntrWriteMem]>;
+  def int_ppc_store4r
+      : GCCBuiltin<"__builtin_ppc_store4r">,
+        Intrinsic<[], [llvm_i32_ty, llvm_ptr_ty], [IntrWriteMem]>;
+  def int_ppc_store8r
+      : GCCBuiltin<"__builtin_ppc_store8r">,
+        Intrinsic<[], [llvm_i64_ty, llvm_ptr_ty], [IntrWriteMem]>;
+  def int_ppc_insert_exp
+      : GCCBuiltin<"__builtin_ppc_insert_exp">,
+        Intrinsic <[llvm_double_ty], [llvm_double_ty, llvm_i64_ty],
+                   [IntrNoMem]>;
+  def int_ppc_extract_exp
+      : GCCBuiltin<"__builtin_ppc_extract_exp">,
+        Intrinsic <[llvm_i32_ty], [llvm_double_ty], [IntrNoMem]>;
+  def int_ppc_extract_sig
+      : GCCBuiltin<"__builtin_ppc_extract_sig">,
+        Intrinsic <[llvm_i64_ty], [llvm_double_ty], [IntrNoMem]>;
+  def int_ppc_mtfsb0
+      : GCCBuiltin<"__builtin_ppc_mtfsb0">,
+        Intrinsic <[], [llvm_i32_ty],
+                   [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  def int_ppc_mtfsb1
+      : GCCBuiltin<"__builtin_ppc_mtfsb1">,
+        Intrinsic <[], [llvm_i32_ty],
+                   [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  def int_ppc_mtfsf :
+        Intrinsic <[], [llvm_i32_ty, llvm_double_ty],
+                   [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  def int_ppc_mtfsfi
+      : GCCBuiltin<"__builtin_ppc_mtfsfi">,
+        Intrinsic <[], [llvm_i32_ty, llvm_i32_ty],
+                   [IntrNoMem, IntrHasSideEffects,
+                    ImmArg<ArgIndex<0>>,ImmArg<ArgIndex<1>>]>;
+  def int_ppc_fmsub
+      : GCCBuiltin<"__builtin_ppc_fmsub">,
+        Intrinsic <[llvm_double_ty],
+                   [llvm_double_ty, llvm_double_ty, llvm_double_ty],
+                   [IntrNoMem]>;
+  def int_ppc_fmsubs
+      : GCCBuiltin<"__builtin_ppc_fmsubs">,
+        Intrinsic <[llvm_float_ty],
+                   [llvm_float_ty, llvm_float_ty, llvm_float_ty],
+                   [IntrNoMem]>;
+  def int_ppc_fnmadd
+      : GCCBuiltin<"__builtin_ppc_fnmadd">,
+        Intrinsic <[llvm_double_ty],
+                   [llvm_double_ty, llvm_double_ty, llvm_double_ty],
+                   [IntrNoMem]>;
+  def int_ppc_fnmadds
+      : GCCBuiltin<"__builtin_ppc_fnmadds">,
+        Intrinsic <[llvm_float_ty],
+                   [llvm_float_ty, llvm_float_ty, llvm_float_ty],
+                   [IntrNoMem]>;
+  def int_ppc_fnmsub
+      : GCCBuiltin<"__builtin_ppc_fnmsub">,
+        Intrinsic <[llvm_double_ty],
+                   [llvm_double_ty, llvm_double_ty, llvm_double_ty],
+                   [IntrNoMem]>;
+  def int_ppc_fnmsubs
+      : GCCBuiltin<"__builtin_ppc_fnmsubs">,
+        Intrinsic <[llvm_float_ty],
+                   [llvm_float_ty, llvm_float_ty, llvm_float_ty],
+                   [IntrNoMem]>;
+  def int_ppc_fre
+      : GCCBuiltin<"__builtin_ppc_fre">,
+        Intrinsic <[llvm_double_ty], [llvm_double_ty], [IntrNoMem]>;
+  def int_ppc_fres
+      : GCCBuiltin<"__builtin_ppc_fres">,
+        Intrinsic <[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
 }
 
+//===----------------------------------------------------------------------===//
+// PowerPC Atomic Intrinsic Definitions.
+let TargetPrefix = "ppc" in {
+  class AtomicRMW128Intrinsic
+    : Intrinsic<[llvm_i64_ty, llvm_i64_ty],
+                [llvm_ptr_ty, llvm_i64_ty, llvm_i64_ty],
+                [IntrArgMemOnly, NoCapture<ArgIndex<0>>]>;
+  def int_ppc_atomicrmw_xchg_i128 : AtomicRMW128Intrinsic;
+  def int_ppc_atomicrmw_add_i128  : AtomicRMW128Intrinsic;
+  def int_ppc_atomicrmw_sub_i128  : AtomicRMW128Intrinsic;
+  def int_ppc_atomicrmw_and_i128  : AtomicRMW128Intrinsic;
+  def int_ppc_atomicrmw_or_i128   : AtomicRMW128Intrinsic;
+  def int_ppc_atomicrmw_xor_i128  : AtomicRMW128Intrinsic;
+  def int_ppc_atomicrmw_nand_i128 : AtomicRMW128Intrinsic;
+  def int_ppc_cmpxchg_i128 : Intrinsic<[llvm_i64_ty, llvm_i64_ty],
+                                       [llvm_ptr_ty,
+                                        llvm_i64_ty, llvm_i64_ty,
+                                        llvm_i64_ty, llvm_i64_ty],
+                                       [IntrArgMemOnly, NoCapture<ArgIndex<0>>]>;
+}

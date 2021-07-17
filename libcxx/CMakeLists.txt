@@ -251,7 +251,7 @@ option(LIBCXXABI_USE_LLVM_UNWINDER "Build and use the LLVM unwinder." OFF)
 
 # Target options --------------------------------------------------------------
 option(LIBCXX_BUILD_32_BITS "Build 32 bit libc++." ${LLVM_BUILD_32_BITS})
-set(LIBCXX_TARGET_TRIPLE "" CACHE STRING "Use alternate target triple.")
+set(LIBCXX_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}" CACHE STRING "Use alternate target triple.")
 set(LIBCXX_SYSROOT "" CACHE STRING "Use alternate sysroot.")
 set(LIBCXX_GCC_TOOLCHAIN "" CACHE STRING "Use alternate GCC toolchain.")
 
@@ -465,23 +465,19 @@ include(HandleLibcxxFlags)
 add_target_flags_if(LIBCXX_BUILD_32_BITS "-m32")
 
 if(LIBCXX_TARGET_TRIPLE)
-  add_target_flags("--target=${LIBCXX_TARGET_TRIPLE}")
+  add_target_flags_if_supported("--target=${LIBCXX_TARGET_TRIPLE}")
 elseif(CMAKE_CXX_COMPILER_TARGET)
   set(LIBCXX_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
 endif()
 if(LIBCXX_SYSROOT)
-  add_target_flags("--sysroot=${LIBCXX_SYSROOT}")
+  add_target_flags_if_supported("--sysroot=${LIBCXX_SYSROOT}")
 elseif(CMAKE_SYSROOT)
   set(LIBCXX_SYSROOT "${CMAKE_SYSROOT}")
 endif()
 if(LIBCXX_GCC_TOOLCHAIN)
-  add_target_flags("--gcc-toolchain=${LIBCXX_GCC_TOOLCHAIN}")
+  add_target_flags_if_supported("--gcc-toolchain=${LIBCXX_GCC_TOOLCHAIN}")
 elseif(CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN)
   set(LIBCXX_GCC_TOOLCHAIN "${CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN}")
-endif()
-
-if(LIBCXX_TARGET_TRIPLE)
-  set(TARGET_TRIPLE "${LIBCXX_TARGET_TRIPLE}")
 endif()
 
 # Configure compiler.
@@ -930,6 +926,7 @@ endfunction()
 #===============================================================================
 add_subdirectory(include)
 add_subdirectory(src)
+add_subdirectory(utils)
 
 set(LIBCXX_TEST_DEPS "")
 

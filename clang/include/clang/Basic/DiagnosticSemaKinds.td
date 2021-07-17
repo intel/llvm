@@ -3293,6 +3293,10 @@ def warn_assume_aligned_too_great
     : Warning<"requested alignment must be %0 bytes or smaller; maximum "
               "alignment assumed">,
       InGroup<DiagGroup<"builtin-assume-aligned-alignment">>;
+def warn_not_xl_compatible
+    : Warning<"requesting an alignment of 16 bytes or greater for struct"
+              " members is not binary compatible with AIX XL 16.1 and older">,
+      InGroup<AIXCompat>;
 def warn_redeclaration_without_attribute_prev_attribute_ignored : Warning<
   "%q0 redeclared without %1 attribute: previous %1 ignored">,
   InGroup<MicrosoftInconsistentDllImport>;
@@ -9776,6 +9780,8 @@ def err_argument_not_shifted_byte : Error<
   "argument should be an 8-bit value shifted by a multiple of 8 bits">;
 def err_argument_not_shifted_byte_or_xxff : Error<
   "argument should be an 8-bit value shifted by a multiple of 8 bits, or in the form 0x??FF">;
+def err_argument_not_contiguous_bit_field : Error<
+  "argument %0 value should represent a contiguous bit field">;
 def err_rotation_argument_to_cadd
     : Error<"argument should be the value 90 or 270">;
 def err_rotation_argument_to_cmla

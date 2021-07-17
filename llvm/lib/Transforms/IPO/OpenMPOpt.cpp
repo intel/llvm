@@ -11,6 +11,9 @@
 // - Deduplication of runtime calls, e.g., omp_get_thread_num.
 // - Replacing globalized device memory with stack memory.
 // - Replacing globalized device memory with shared memory.
+// - Parallel region merging.
+// - Transforming generic-mode device kernels to SPMD mode.
+// - Specializing the state machine for generic-mode device kernels.
 //
 //===----------------------------------------------------------------------===//
 
@@ -403,6 +406,7 @@ struct OMPInformationCache : public InformationCache {
   {                                                                            \
     SmallVector<Type *, 8> ArgsTypes({__VA_ARGS__});                           \
     Function *F = M.getFunction(_Name);                                        \
+    RTLFunctions.insert(F);                                                    \
     if (declMatchesRTFTypes(F, OMPBuilder._ReturnType, ArgsTypes)) {           \
       RuntimeFunctionIDMap[F] = _Enum;                                         \
       auto &RFI = RFIs[_Enum];                                                 \
@@ -431,6 +435,9 @@ struct OMPInformationCache : public InformationCache {
 
   /// Collection of known kernels (\see Kernel) in the module.
   SmallPtrSetImpl<Kernel> &Kernels;
+
+  /// Collection of known OpenMP runtime functions..
+  DenseSet<const Function *> RTLFunctions;
 };
 
 template <typename Ty, bool InsertInvalidates = true>
@@ -501,7 +508,7 @@ struct KernelInfoState : AbstractState {
   bool IsKernelEntry = false;
 
   /// State to track what kernel entries can reach the associated function.
-  BooleanStateWithPtrSetVector<Function> ReachingKernelEntries;
+  BooleanStateWithPtrSetVector<Function, false> ReachingKernelEntries;
 
   /// Abstract State interface
   ///{
@@ -935,20 +942,17 @@ private:
       assert(MergableCIs.size() > 1 && "Assumed multiple mergable CIs");
 
       auto Remark = [&](OptimizationRemark OR) {
-        OR << "Parallel region at "
-           << ore::NV("OpenMPParallelMergeFront",
-                      MergableCIs.front()->getDebugLoc())
-           << " merged with parallel regions at ";
+        OR << "Parallel region merged with parallel region"
+           << (MergableCIs.size() > 2 ? "s" : "") << " at ";
         for (auto *CI : llvm::drop_begin(MergableCIs)) {
           OR << ore::NV("OpenMPParallelMerge", CI->getDebugLoc());
           if (CI != MergableCIs.back())
             OR << ", ";
         }
-        return OR;
+        return OR << ".";
       };
 
-      emitRemark<OptimizationRemark>(MergableCIs.front(),
-                                     "OpenMPParallelRegionMerging", Remark);
+      emitRemark<OptimizationRemark>(MergableCIs.front(), "OMP150", Remark);
 
       Function *OriginalFn = BB->getParent();
       LLVM_DEBUG(dbgs() << TAG << "Merge " << MergableCIs.size()
@@ -1034,17 +1038,6 @@ private:
                             NewCI->getNextNode()->getIterator()),
               OMPD_parallel);
         }
-
-        auto Remark = [&](OptimizationRemark OR) {
-          return OR << "Parallel region at "
-                    << ore::NV("OpenMPParallelMerge", CI->getDebugLoc())
-                    << " merged with "
-                    << ore::NV("OpenMPParallelMergeFront",
-                               MergableCIs.front()->getDebugLoc());
-        };
-        if (CI != MergableCIs.front())
-          emitRemark<OptimizationRemark>(CI, "OpenMPParallelRegionMerging",
-                                         Remark);
 
         CI->eraseFromParent();
       }
@@ -1211,12 +1204,9 @@ private:
                         << CI->getCaller()->getName() << "\n");
 
       auto Remark = [&](OptimizationRemark OR) {
-        return OR << "Parallel region in "
-                  << ore::NV("OpenMPParallelDelete", CI->getCaller()->getName())
-                  << " deleted";
+        return OR << "Removing parallel region with no side-effects.";
       };
-      emitRemark<OptimizationRemark>(CI, "OpenMPParallelRegionDeletion",
-                                     Remark);
+      emitRemark<OptimizationRemark>(CI, "OMP160", Remark);
 
       CGUpdater.removeCallSite(*CI);
       CI->eraseFromParent();
@@ -1322,7 +1312,7 @@ private:
                  << "Found thread data sharing on the GPU. "
                  << "Expect degraded performance due to data globalization.";
         };
-        emitRemark<OptimizationRemarkMissed>(CI, "OpenMPGlobalization", Remark);
+        emitRemark<OptimizationRemarkMissed>(CI, "OMP112", Remark);
       }
 
       return false;
@@ -1572,13 +1562,6 @@ private:
           if (!CanBeMoved(*CI))
             continue;
 
-          auto Remark = [&](OptimizationRemark OR) {
-            return OR << "OpenMP runtime call "
-                      << ore::NV("OpenMPOptRuntime", RFI.Name)
-                      << " moved to beginning of OpenMP region";
-          };
-          emitRemark<OptimizationRemark>(&F, "OpenMPRuntimeCodeMotion", Remark);
-
           CI->moveBefore(&*F.getEntryBlock().getFirstInsertionPt());
           ReplVal = CI;
           break;
@@ -1608,9 +1591,12 @@ private:
 
       auto Remark = [&](OptimizationRemark OR) {
         return OR << "OpenMP runtime call "
-                  << ore::NV("OpenMPOptRuntime", RFI.Name) << " deduplicated";
+                  << ore::NV("OpenMPOptRuntime", RFI.Name) << " deduplicated.";
       };
-      emitRemark<OptimizationRemark>(&F, "OpenMPRuntimeDeduplicated", Remark);
+      if (CI->getDebugLoc())
+        emitRemark<OptimizationRemark>(CI, "OMP170", Remark);
+      else
+        emitRemark<OptimizationRemark>(&F, "OMP170", Remark);
 
       CGUpdater.removeCallSite(*CI);
       CI->replaceAllUsesWith(ReplVal);
@@ -1717,7 +1703,14 @@ private:
     Function *F = I->getParent()->getParent();
     auto &ORE = OREGetter(F);
 
-    ORE.emit([&]() { return RemarkCB(RemarkKind(DEBUG_TYPE, RemarkName, I)); });
+    if (RemarkName.startswith("OMP"))
+      ORE.emit([&]() {
+        return RemarkCB(RemarkKind(DEBUG_TYPE, RemarkName, I))
+               << " [" << RemarkName << "]";
+      });
+    else
+      ORE.emit(
+          [&]() { return RemarkCB(RemarkKind(DEBUG_TYPE, RemarkName, I)); });
   }
 
   /// Emit a remark on a function.
@@ -1726,7 +1719,14 @@ private:
                   RemarkCallBack &&RemarkCB) const {
     auto &ORE = OREGetter(F);
 
-    ORE.emit([&]() { return RemarkCB(RemarkKind(DEBUG_TYPE, RemarkName, F)); });
+    if (RemarkName.startswith("OMP"))
+      ORE.emit([&]() {
+        return RemarkCB(RemarkKind(DEBUG_TYPE, RemarkName, F))
+               << " [" << RemarkName << "]";
+      });
+    else
+      ORE.emit(
+          [&]() { return RemarkCB(RemarkKind(DEBUG_TYPE, RemarkName, F)); });
   }
 
   /// The underlying module.
@@ -1791,8 +1791,7 @@ Kernel OpenMPOpt::getUniqueKernelFor(Function &F) {
 
       // See https://openmp.llvm.org/remarks/OptimizationRemarks.html
       auto Remark = [&](OptimizationRemarkAnalysis ORA) {
-        return ORA
-               << "[OMP100] Potentially unknown OpenMP target region caller";
+        return ORA << "Potentially unknown OpenMP target region caller.";
       };
       emitRemark<OptimizationRemarkAnalysis>(&F, "OMP100", Remark);
 
@@ -1886,33 +1885,17 @@ bool OpenMPOpt::rewriteDeviceCodeStateMachine() {
     if (!KernelParallelUse)
       continue;
 
-    {
-      auto Remark = [&](OptimizationRemarkAnalysis ORA) {
-        return ORA << "Found a parallel region that is called in a target "
-                      "region but not part of a combined target construct nor "
-                      "nested inside a target construct without intermediate "
-                      "code. This can lead to excessive register usage for "
-                      "unrelated target regions in the same translation unit "
-                      "due to spurious call edges assumed by ptxas.";
-      };
-      emitRemark<OptimizationRemarkAnalysis>(F, "OpenMPParallelRegionInNonSPMD",
-                                             Remark);
-    }
-
     // If this ever hits, we should investigate.
     // TODO: Checking the number of uses is not a necessary restriction and
     // should be lifted.
     if (UnknownUse || NumDirectCalls != 1 ||
         ToBeReplacedStateMachineUses.size() > 2) {
-      {
-        auto Remark = [&](OptimizationRemarkAnalysis ORA) {
-          return ORA << "Parallel region is used in "
-                     << (UnknownUse ? "unknown" : "unexpected")
-                     << " ways; will not attempt to rewrite the state machine.";
-        };
-        emitRemark<OptimizationRemarkAnalysis>(
-            F, "OpenMPParallelRegionInNonSPMD", Remark);
-      }
+      auto Remark = [&](OptimizationRemarkAnalysis ORA) {
+        return ORA << "Parallel region is used in "
+                   << (UnknownUse ? "unknown" : "unexpected")
+                   << " ways. Will not attempt to rewrite the state machine.";
+      };
+      emitRemark<OptimizationRemarkAnalysis>(F, "OMP101", Remark);
       continue;
     }
 
@@ -1920,16 +1903,11 @@ bool OpenMPOpt::rewriteDeviceCodeStateMachine() {
     // up if the function is not called from a unique kernel.
     Kernel K = getUniqueKernelFor(*F);
     if (!K) {
-      {
-        auto Remark = [&](OptimizationRemarkAnalysis ORA) {
-          return ORA << "Parallel region is not known to be called from a "
-                        "unique single target region, maybe the surrounding "
-                        "function has external linkage?; will not attempt to "
-                        "rewrite the state machine use.";
-        };
-        emitRemark<OptimizationRemarkAnalysis>(
-            F, "OpenMPParallelRegionInMultipleKernesl", Remark);
-      }
+      auto Remark = [&](OptimizationRemarkAnalysis ORA) {
+        return ORA << "Parallel region is not called from a unique kernel. "
+                      "Will not attempt to rewrite the state machine.";
+      };
+      emitRemark<OptimizationRemarkAnalysis>(F, "OMP102", Remark);
       continue;
     }
 
@@ -1937,29 +1915,6 @@ bool OpenMPOpt::rewriteDeviceCodeStateMachine() {
     // We also identified the state machine uses in which we replace the
     // function pointer by a new global symbol for identification purposes. This
     // ensures only direct calls to the function are left.
-
-    {
-      auto RemarkParalleRegion = [&](OptimizationRemarkAnalysis ORA) {
-        return ORA << "Specialize parallel region that is only reached from a "
-                      "single target region to avoid spurious call edges and "
-                      "excessive register usage in other target regions. "
-                      "(parallel region ID: "
-                   << ore::NV("OpenMPParallelRegion", F->getName())
-                   << ", kernel ID: "
-                   << ore::NV("OpenMPTargetRegion", K->getName()) << ")";
-      };
-      emitRemark<OptimizationRemarkAnalysis>(F, "OpenMPParallelRegionInNonSPMD",
-                                             RemarkParalleRegion);
-      auto RemarkKernel = [&](OptimizationRemarkAnalysis ORA) {
-        return ORA << "Target region containing the parallel region that is "
-                      "specialized. (parallel region ID: "
-                   << ore::NV("OpenMPParallelRegion", F->getName())
-                   << ", kernel ID: "
-                   << ore::NV("OpenMPTargetRegion", K->getName()) << ")";
-      };
-      emitRemark<OptimizationRemarkAnalysis>(K, "OpenMPParallelRegionInNonSPMD",
-                                             RemarkKernel);
-    }
 
     Module &M = *F->getParent();
     Type *Int8Ty = Type::getInt8Ty(M.getContext());
@@ -2637,10 +2592,9 @@ struct AAHeapToSharedFunction : public AAHeapToShared {
         return OR << "Replaced globalized variable with "
                   << ore::NV("SharedMemory", AllocSize->getZExtValue())
                   << ((AllocSize->getZExtValue() != 1) ? " bytes " : " byte ")
-                  << "of shared memory";
+                  << "of shared memory.";
       };
-      A.emitRemark<OptimizationRemark>(CB, "OpenMPReplaceGlobalization",
-                                       Remark);
+      A.emitRemark<OptimizationRemark>(CB, "OMP111", Remark);
 
       SharedMem->setAlignment(MaybeAlign(32));
 
@@ -2860,24 +2814,29 @@ struct AAKernelInfoFunction : AAKernelInfo {
   }
 
   bool changeToSPMDMode(Attributor &A) {
+    auto &OMPInfoCache = static_cast<OMPInformationCache &>(A.getInfoCache());
+
     if (!SPMDCompatibilityTracker.isAssumed()) {
       for (Instruction *NonCompatibleI : SPMDCompatibilityTracker) {
         if (!NonCompatibleI)
           continue;
+
+        // Skip diagnostics on calls to known OpenMP runtime functions for now.
+        if (auto *CB = dyn_cast<CallBase>(NonCompatibleI))
+          if (OMPInfoCache.RTLFunctions.contains(CB->getCalledFunction()))
+            continue;
+
         auto Remark = [&](OptimizationRemarkAnalysis ORA) {
-          ORA << "Kernel will be executed in generic-mode due to this "
-                 "potential side-effect";
-          if (auto *CI = dyn_cast<CallBase>(NonCompatibleI)) {
-            if (Function *F = CI->getCalledFunction())
-              ORA << ", consider to add "
-                     "`__attribute__((assume(\"ompx_spmd_amenable\")))`"
-                     " to the called function '"
-                  << F->getName() << "'";
+          ORA << "Value has potential side effects preventing SPMD-mode "
+                 "execution";
+          if (isa<CallBase>(NonCompatibleI)) {
+            ORA << ". Add `__attribute__((assume(\"ompx_spmd_amenable\")))` to "
+                   "the called function to override";
           }
           return ORA << ".";
         };
-        A.emitRemark<OptimizationRemarkAnalysis>(
-            NonCompatibleI, "OpenMPKernelNonSPMDMode", Remark);
+        A.emitRemark<OptimizationRemarkAnalysis>(NonCompatibleI, "OMP121",
+                                                 Remark);
 
         LLVM_DEBUG(dbgs() << TAG << "SPMD-incompatible side-effect: "
                           << *NonCompatibleI << "\n");
@@ -2915,10 +2874,9 @@ struct AAKernelInfoFunction : AAKernelInfo {
     ++NumOpenMPTargetRegionKernelsSPMD;
 
     auto Remark = [&](OptimizationRemark OR) {
-      return OR << "Generic-mode kernel is changed to SPMD-mode.";
+      return OR << "Transformed generic-mode kernel to SPMD-mode.";
     };
-    A.emitRemark<OptimizationRemark>(KernelInitCB, "OpenMPKernelSPMDMode",
-                                     Remark);
+    A.emitRemark<OptimizationRemark>(KernelInitCB, "OMP120", Remark);
     return true;
   };
 
@@ -2960,11 +2918,9 @@ struct AAKernelInfoFunction : AAKernelInfo {
       ++NumOpenMPTargetRegionKernelsWithoutStateMachine;
 
       auto Remark = [&](OptimizationRemark OR) {
-        return OR << "Generic-mode kernel is executed without state machine "
-                     "(good)";
+        return OR << "Removing unused state machine from generic-mode kernel.";
       };
-      A.emitRemark<OptimizationRemark>(
-          KernelInitCB, "OpenMPKernelWithoutStateMachine", Remark);
+      A.emitRemark<OptimizationRemark>(KernelInitCB, "OMP130", Remark);
 
       return ChangeStatus::CHANGED;
     }
@@ -2974,45 +2930,30 @@ struct AAKernelInfoFunction : AAKernelInfo {
       ++NumOpenMPTargetRegionKernelsCustomStateMachineWithoutFallback;
 
       auto Remark = [&](OptimizationRemark OR) {
-        return OR << "Generic-mode kernel is executed with a customized state "
-                     "machine ["
-                  << ore::NV("ParallelRegions",
-                             ReachedKnownParallelRegions.size())
-                  << " known parallel regions] (good).";
+        return OR << "Rewriting generic-mode kernel with a customized state "
+                     "machine.";
       };
-      A.emitRemark<OptimizationRemark>(
-          KernelInitCB, "OpenMPKernelWithCustomizedStateMachine", Remark);
+      A.emitRemark<OptimizationRemark>(KernelInitCB, "OMP131", Remark);
     } else {
       ++NumOpenMPTargetRegionKernelsCustomStateMachineWithFallback;
 
-      auto Remark = [&](OptimizationRemark OR) {
+      auto Remark = [&](OptimizationRemarkAnalysis OR) {
         return OR << "Generic-mode kernel is executed with a customized state "
-                     "machine that requires a fallback ["
-                  << ore::NV("ParallelRegions",
-                             ReachedKnownParallelRegions.size())
-                  << " known parallel regions, "
-                  << ore::NV("UnknownParallelRegions",
-                             ReachedUnknownParallelRegions.size())
-                  << " unkown parallel regions] (bad).";
+                     "machine that requires a fallback.";
       };
-      A.emitRemark<OptimizationRemark>(
-          KernelInitCB, "OpenMPKernelWithCustomizedStateMachineAndFallback",
-          Remark);
+      A.emitRemark<OptimizationRemarkAnalysis>(KernelInitCB, "OMP132", Remark);
 
       // Tell the user why we ended up with a fallback.
       for (CallBase *UnknownParallelRegionCB : ReachedUnknownParallelRegions) {
         if (!UnknownParallelRegionCB)
           continue;
         auto Remark = [&](OptimizationRemarkAnalysis ORA) {
-          return ORA
-                 << "State machine fallback caused by this call. If it is a "
-                    "false positive, use "
-                    "`__attribute__((assume(\"omp_no_openmp\")))` "
-                    "(or \"omp_no_parallelism\").";
+          return ORA << "Call may contain unknown parallel regions. Use "
+                     << "`__attribute__((assume(\"omp_no_parallelism\")))` to "
+                        "override.";
         };
-        A.emitRemark<OptimizationRemarkAnalysis>(
-            UnknownParallelRegionCB,
-            "OpenMPKernelWithCustomizedStateMachineAndFallback", Remark);
+        A.emitRemark<OptimizationRemarkAnalysis>(UnknownParallelRegionCB,
+                                                 "OMP133", Remark);
       }
     }
 
@@ -3235,19 +3176,6 @@ struct AAKernelInfoFunction : AAKernelInfo {
           *this, IRPosition::callsite_function(CB), DepClassTy::OPTIONAL);
       if (CBAA.getState().isValidState())
         getState() ^= CBAA.getState();
-
-      Function *Callee = CB.getCalledFunction();
-      if (Callee) {
-        // We need to propagate information to the callee, but since the
-        // construction of AA always starts with kernel entries, we have to
-        // create AAKernelInfoFunction for all called functions. However, here
-        // the caller doesn't depend on the callee.
-        // TODO: We might want to change the dependence here later if we need
-        // information from callee to caller.
-        A.getOrCreateAAFor<AAKernelInfo>(IRPosition::function(*Callee), this,
-                                         DepClassTy::NONE);
-      }
-
       return true;
     };
 
@@ -3270,7 +3198,7 @@ private:
 
       auto &CAA =
           A.getOrCreateAAFor<AAKernelInfo>(IRPosition::function(*Caller));
-      if (CAA.isValidState()) {
+      if (CAA.ReachingKernelEntries.isValidState()) {
         ReachingKernelEntries ^= CAA.ReachingKernelEntries;
         return true;
       }
@@ -3462,8 +3390,8 @@ struct AAFoldRuntimeCall
   static const char ID;
 };
 
-struct AAFoldRuntimeCallCallSite : AAFoldRuntimeCall {
-  AAFoldRuntimeCallCallSite(const IRPosition &IRP, Attributor &A)
+struct AAFoldRuntimeCallCallSiteReturned : AAFoldRuntimeCall {
+  AAFoldRuntimeCallCallSiteReturned(const IRPosition &IRP, Attributor &A)
       : AAFoldRuntimeCall(IRP, A) {}
 
   /// See AbstractAttribute::getAsStr()
@@ -3500,6 +3428,10 @@ struct AAFoldRuntimeCallCallSite : AAFoldRuntimeCall {
         IRPosition::callsite_returned(CB),
         [&](const IRPosition &IRP, const AbstractAttribute *AA,
             bool &UsedAssumedInformation) -> Optional<Value *> {
+          assert((isValidState() || (SimplifiedValue.hasValue() &&
+                                     SimplifiedValue.getValue() == nullptr)) &&
+                 "Unexpected invalid state!");
+
           if (!isAtFixpoint()) {
             UsedAssumedInformation = true;
             if (AA)
@@ -3514,7 +3446,7 @@ struct AAFoldRuntimeCallCallSite : AAFoldRuntimeCall {
 
     switch (RFKind) {
     case OMPRTL___kmpc_is_spmd_exec_mode:
-      Changed = Changed | foldIsSPMDExecMode(A);
+      Changed |= foldIsSPMDExecMode(A);
       break;
     default:
       llvm_unreachable("Unhandled OpenMP runtime function!");
@@ -3536,15 +3468,23 @@ struct AAFoldRuntimeCallCallSite : AAFoldRuntimeCall {
     return Changed;
   }
 
+  ChangeStatus indicatePessimisticFixpoint() override {
+    SimplifiedValue = nullptr;
+    return AAFoldRuntimeCall::indicatePessimisticFixpoint();
+  }
+
 private:
   /// Fold __kmpc_is_spmd_exec_mode into a constant if possible.
   ChangeStatus foldIsSPMDExecMode(Attributor &A) {
-    BooleanState StateBefore = getState();
+    Optional<Value *> SimplifiedValueBefore = SimplifiedValue;
 
     unsigned AssumedSPMDCount = 0, KnownSPMDCount = 0;
     unsigned AssumedNonSPMDCount = 0, KnownNonSPMDCount = 0;
     auto &CallerKernelInfoAA = A.getAAFor<AAKernelInfo>(
         *this, IRPosition::function(*getAnchorScope()), DepClassTy::REQUIRED);
+
+    if (!CallerKernelInfoAA.ReachingKernelEntries.isValidState())
+      return indicatePessimisticFixpoint();
 
     for (Kernel K : CallerKernelInfoAA.ReachingKernelEntries) {
       auto &AA = A.getAAFor<AAKernelInfo>(*this, IRPosition::function(*K),
@@ -3568,17 +3508,11 @@ private:
       }
     }
 
-    if (KnownSPMDCount && KnownNonSPMDCount) {
-      SimplifiedValue = nullptr;
-      return getState() == StateBefore ? ChangeStatus::UNCHANGED
-                                       : ChangeStatus::CHANGED;
-    }
+    if (KnownSPMDCount && KnownNonSPMDCount)
+      return indicatePessimisticFixpoint();
 
-    if (AssumedSPMDCount && AssumedNonSPMDCount) {
-      SimplifiedValue = nullptr;
-      return getState() == StateBefore ? ChangeStatus::UNCHANGED
-                                       : ChangeStatus::CHANGED;
-    }
+    if (AssumedSPMDCount && AssumedNonSPMDCount)
+      return indicatePessimisticFixpoint();
 
     auto &Ctx = getAnchorValue().getContext();
     if (KnownSPMDCount || AssumedSPMDCount) {
@@ -3595,8 +3529,8 @@ private:
       SimplifiedValue = ConstantInt::get(Type::getInt8Ty(Ctx), false);
     }
 
-    return getState() == StateBefore ? ChangeStatus::UNCHANGED
-                                     : ChangeStatus::CHANGED;
+    return SimplifiedValue == SimplifiedValueBefore ? ChangeStatus::UNCHANGED
+                                                    : ChangeStatus::CHANGED;
   }
 
   /// An optional value the associated value is assumed to fold to. That is, we
@@ -3631,7 +3565,7 @@ void OpenMPOpt::registerAAs(bool IsModulePass) {
       if (!CI)
         return false;
       A.getOrCreateAAFor<AAFoldRuntimeCall>(
-          IRPosition::callsite_function(*CI), /* QueryingAA */ nullptr,
+          IRPosition::callsite_returned(*CI), /* QueryingAA */ nullptr,
           DepClassTy::NONE, /* ForceUpdate */ false,
           /* UpdateAfterInit */ false);
       return false;
@@ -3779,12 +3713,12 @@ AAFoldRuntimeCall &AAFoldRuntimeCall::createForPosition(const IRPosition &IRP,
   case IRPosition::IRP_FLOAT:
   case IRPosition::IRP_ARGUMENT:
   case IRPosition::IRP_RETURNED:
-  case IRPosition::IRP_CALL_SITE_RETURNED:
-  case IRPosition::IRP_CALL_SITE_ARGUMENT:
   case IRPosition::IRP_FUNCTION:
-    llvm_unreachable("KernelInfo can only be created for call site position!");
   case IRPosition::IRP_CALL_SITE:
-    AA = new (A.Allocator) AAFoldRuntimeCallCallSite(IRP, A);
+  case IRPosition::IRP_CALL_SITE_ARGUMENT:
+    llvm_unreachable("KernelInfo can only be created for call site position!");
+  case IRPosition::IRP_CALL_SITE_RETURNED:
+    AA = new (A.Allocator) AAFoldRuntimeCallCallSiteReturned(IRP, A);
     break;
   }
 
@@ -3813,7 +3747,7 @@ PreservedAnalyses OpenMPOptPass::run(Module &M, ModuleAnalysisManager &AM) {
   auto EmitRemark = [&](Function &F) {
     auto &ORE = FAM.getResult<OptimizationRemarkEmitterAnalysis>(F);
     ORE.emit([&]() {
-      OptimizationRemarkAnalysis ORA(DEBUG_TYPE, "InternalizationFailure", &F);
+      OptimizationRemarkAnalysis ORA(DEBUG_TYPE, "OMP140", &F);
       return ORA << "Could not internalize function. "
                  << "Some optimizations may not be possible.";
     });
