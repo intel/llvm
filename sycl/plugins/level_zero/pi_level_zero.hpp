@@ -291,7 +291,7 @@ struct _pi_device : _pi_object {
   int32_t ZeComputeQueueGroupIndex;
   int32_t ZeCopyQueueGroupIndex;
 
-  // Keep the index of the compute engine 
+  // Keep the index of the compute engine
   int32_t ZeComputeEngineIndex = 0;
 
   // Cache the properties of the compute/copy queue groups.
@@ -363,6 +363,14 @@ struct _pi_context : _pi_object {
     // include root device itself as well)
     SingleRootDevice =
         Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
+
+    // For context with sub subdevices, the SingleRootDevice might still
+    // not be the root device.
+    // Check whether the SingleRootDevice is the subdevice or root device.
+    if (SingleRootDevice->isSubDevice()) {
+      SingleRootDevice = SingleRootDevice->RootDevice;
+    }
+
     for (auto &Device : Devices) {
       if ((!Device->RootDevice && Device != SingleRootDevice) ||
           (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {
