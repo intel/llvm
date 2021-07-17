@@ -274,46 +274,47 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
     /// *this.
     online_compiler<Lang> &
     setOutputFormat(ext::intel::compiled_code_format fmt) {
-      return MOnlineCompiler.setOutputFormat<(ext::intel::source_language)Lang>(
-          fmt);
+      MOnlineCompiler.setOutputFormat(fmt);
+      return *this;
     }
 
     /// Sets the compiled code format version of the compilation target and
     /// returns *this.
     online_compiler<Lang> &setOutputFormatVersion(int major, int minor) {
-      return MOnlineCompiler
-          .setOutputFormatVersion<(ext::intel::source_language)Lang>(major,
-                                                                     minor);
+      MOnlineCompiler.setOutputFormatVersion(major, minor);
+      return *this;
     }
 
     /// Sets the device type of the compilation target and returns *this.
     online_compiler<Lang> &setTargetDeviceType(sycl::info::device_type type) {
-      return MOnlineCompiler
-          .setTargetDeviceType<(ext::intel::source_language)Lang>(type);
+      MOnlineCompiler.setTargetDeviceType(type);
+      return *this;
     }
 
     /// Sets the device architecture of the compilation target and returns
     /// *this.
     online_compiler<Lang> &setTargetDeviceArch(device_arch arch) {
-      return MOnlineCompiler
-          .setTargetDeviceArch<(ext::intel::source_language)Lang>(arch);
+      MOnlineCompiler.setTargetDeviceArch(arch);
+      return *this;
     }
 
     /// Makes the compilation target 32-bit and returns *this.
     online_compiler<Lang> &set32bitTarget() {
-      return MOnlineCompiler.set32bitTarget();
+      MOnlineCompiler.set32bitTarget();
+      return *this;
     };
 
     /// Makes the compilation target 64-bit and returns *this.
     online_compiler<Lang> &set64bitTarget() {
-      return MOnlineCompiler.set64bitTarget();
+      MOnlineCompiler.set64bitTarget();
+      return *this;
     };
 
     /// Sets implementation-defined target device stepping of the compilation
     /// target and returns *this.
     online_compiler<Lang> &setTargetDeviceStepping(const std::string &id) {
-      return MOnlineCompiler
-          .setTargetDeviceStepping<(ext::intel::source_language)Lang>(id);
+      MOnlineCompiler.setTargetDeviceStepping(id);
+      return *this;
     }
 
   private:
