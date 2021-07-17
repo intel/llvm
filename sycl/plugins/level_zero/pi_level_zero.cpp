@@ -1588,7 +1588,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
         }
 
         // Create PI sub-sub-devices with the sub-device for all the ordinals.
-        // A {sub-device, ordinal} points to a specific CCS which constructs
+        // Each {ordinal, index} points to a specific CCS which constructs
         // a sub-sub-device at this point.
         for (uint32_t J = 0; J < Ordinals.size(); ++J) {
           for (uint32_t K = 0; K < QueueProperties[Ordinals[J]].numQueues;

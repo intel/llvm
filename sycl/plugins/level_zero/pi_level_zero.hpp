@@ -302,8 +302,9 @@ struct _pi_device : _pi_object {
   bool hasCopyEngine() const { return ZeCopyQueueGroupIndex >= 0; }
 
   // Initialize the entire PI device.
-  // Optional param `SubSubDeviceOrdinal` is the compute command queue index
-  // used to initialize sub-sub-devices.
+  // Optional param `SubSubDeviceOrdinal` `SubSubDeviceIndex` are the compute
+  // command queue ordinal and index respectively, used to initialize
+  // sub-sub-devices.
   pi_result initialize(int SubSubDeviceOrdinal = -1,
                        int SubSubDeviceIndex = -1);
 
