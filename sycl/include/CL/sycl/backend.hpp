@@ -91,6 +91,9 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
                                    const async_handler &Handler,
                                    backend Backend);
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               const context &TargetContext, bool KeepOwnership,
+                               const async_handler &Handler, backend Backend);
+__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &TargetContext,
                                const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
@@ -139,9 +142,10 @@ typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
-           const context &TargetContext, const async_handler Handler = {}) {
+           const context &TargetContext, bool KeepOwnership,
+           const async_handler Handler = {}) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, Handler, Backend);
+                            TargetContext, KeepOwnership, Handler, Backend);
 }
 
 template <backend Backend>

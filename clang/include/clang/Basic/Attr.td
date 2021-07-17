@@ -1261,6 +1261,14 @@ def SYCLSimdAccessorPtr : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+// Used to mark readonly accessors. It is not to be used directly in the source.
+def SYCLAccessorReadonly : Attr {
+  // This attribute has no spellings as it is only ever created implicitly.
+  let Spellings = [];
+  let SemaHandler = 0;
+  let Documentation = [Undocumented];
+}
+
 // The attribute denotes that it is a function written in a scalar fashion, which
 // is used in ESIMD context and needs to be vectorized by a vector backend compiler.
 // For now, this attribute will be used only in internal implementation of

@@ -9,13 +9,11 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
-template <typename T>
-class load_kernel;
+template <typename T> class load_kernel;
 
-template <typename T>
-void load_test(queue q, size_t N) {
+template <typename T> void load_test(queue q, size_t N) {
   T initial = T(42);
   T load = initial;
   std::vector<T> output(N);
@@ -26,11 +24,12 @@ void load_test(queue q, size_t N) {
 
     q.submit([&](handler &cgh) {
       auto ld = load_buf.template get_access<access::mode::read_write>(cgh);
-      auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto out =
+          output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for<load_kernel<T>>(range<1>(N), [=](item<1> it) {
         size_t gid = it.get_id(0);
-        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
-                              ONEAPI::memory_scope::device,
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
                               access::address_space::global_space>(ld[0]);
         out[gid] = atm.load();
       });
@@ -39,7 +38,8 @@ void load_test(queue q, size_t N) {
 
   // All work-items should read the same value
   // Atomicity isn't tested here, but support for load() is
-  assert(std::all_of(output.begin(), output.end(), [&](T x) { return (x == initial); }));
+  assert(std::all_of(output.begin(), output.end(),
+                     [&](T x) { return (x == initial); }));
 }
 
 int main() {

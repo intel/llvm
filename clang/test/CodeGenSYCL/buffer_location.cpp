@@ -10,8 +10,8 @@ struct Base {
   cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ONEAPI::accessor_property_list<
-                         cl::sycl::INTEL::property::buffer_location::instance<2>>>
+                     cl::sycl::ext::oneapi::accessor_property_list<
+                         cl::sycl::ext::intel::property::buffer_location::instance<2>>>
       AccField;
 };
 
@@ -19,8 +19,8 @@ struct Captured : Base,
                   cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
                                      cl::sycl::access::target::global_buffer,
                                      cl::sycl::access::placeholder::false_t,
-                                     cl::sycl::ONEAPI::accessor_property_list<
-                                         cl::sycl::INTEL::property::buffer_location::instance<2>>> {
+                                     cl::sycl::ext::oneapi::accessor_property_list<
+                                         cl::sycl::ext::intel::property::buffer_location::instance<2>>> {
   int C;
 };
 
@@ -29,8 +29,8 @@ int main() {
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ONEAPI::accessor_property_list<
-                         cl::sycl::INTEL::property::buffer_location::instance<3>>>
+                     cl::sycl::ext::oneapi::accessor_property_list<
+                         cl::sycl::ext::intel::property::buffer_location::instance<3>>>
       accessorA;
   cl::sycl::kernel_single_task<class kernel_function>(
       [=]() {
