@@ -46,6 +46,14 @@ static const pi_uint32 ZeSerialize = [] {
   return SerializeModeValue;
 }();
 
+// This is an experimental option to test performance of device to device copy
+// operations on copy engines (versus compute engine)
+static const bool UseCopyEngineForD2DCopy = [] {
+  const char *CopyEngineForD2DCopy =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY");
+  return (CopyEngineForD2DCopy && (std::stoi(CopyEngineForD2DCopy) != 0));
+}();
+
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
@@ -4946,17 +4954,6 @@ pi_result piEnqueueMemBufferWriteRect(
       EventWaitList, Event);
 }
 
-// This is an experimental option to test performance of device to device copy
-// operations on copy engines (versus compute engine)
-static bool UseCopyEngineForD2DCopy(bool HasCopyEngine) {
-  if (HasCopyEngine) {
-    const char *CopyEngineForD2DCopy =
-        std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY");
-    return (CopyEngineForD2DCopy && (std::stoi(CopyEngineForD2DCopy) != 0));
-  }
-  return false;
-}
-
 pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
                                  pi_mem DstBuffer, size_t SrcOffset,
                                  size_t DstOffset, size_t Size,
@@ -4970,8 +4967,7 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
   bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
 
   // Temporary option added to use copy engine for D2D copy
-  // This is an experimental option and will be removed soon
-  PreferCopyEngine |= UseCopyEngineForD2DCopy(Queue->Device->hasCopyEngine());
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
 
   return enqueueMemCopyHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue,
@@ -6222,8 +6218,7 @@ pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
                           !IsDevicePointer(Queue->Context, DstPtr);
 
   // Temporary option added to use copy engine for D2D copy
-  // This is an experimental option and will be removed soon
-  PreferCopyEngine |= UseCopyEngineForD2DCopy(Queue->Device->hasCopyEngine());
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
 
   return enqueueMemCopyHelper(
       // TODO: do we need a new command type for this?
