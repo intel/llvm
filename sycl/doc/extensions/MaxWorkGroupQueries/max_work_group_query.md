@@ -10,12 +10,12 @@ OpenCL never offered such query - which is probably why it is absent from SYCL. 
 
 As encouraged by the SYCL specification, a feature-test macro, `SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY`, is provided to determine whether this extension is implemented.
 
-## New descriptors
+## New device descriptors
 
-| Device descriptors                                     | Return  | Description                                                                                                                                                                                                          |
-| ------------------------------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| info::device::ext_oneapi_max_number_work_groups        |  id<3>  | Returns the maximum number of work-groups that can be submitted in each dimension of the `globalSize` of a `nd_range`. The minimum value is `(1, 1, 1)` if the device is different than `info::device_type::custom`. |
-| info::device::ext_oneapi_max_global_number_work_groups |  size_t | Returns the maximum number of work-groups that can be submitted across all the dimensions. The minimum value is `1`.                                                                                                 |
+| Device descriptors                                     | Return type | Description                                                                                                                                                                                                          |
+| ------------------------------------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| info::device::ext_oneapi_max_number_work_groups        |  id<3>      | Returns the maximum number of work-groups that can be submitted in each dimension of the `globalSize` of a `nd_range`. The minimum value is `(1, 1, 1)` if the device is different than `info::device_type::custom`. |
+| info::device::ext_oneapi_max_global_number_work_groups |  size_t     | Returns the maximum number of work-groups that can be submitted across all the dimensions. The minimum value is `1`.                                                                                                 |
 
 ### Note
 
@@ -65,17 +65,17 @@ gpu_queue.submit(work_range, ...);
 
 Right now, DPC++ does not support templated device descriptors as they are defined in the SYCL specification section 4.6.4.2 "Device information descriptors". When the implementation will support this syntax, `ext_oneapi_max_number_work_groups` should be replaced by the three following descriptors:
 
-| Device descriptors                                 | Return | Description                                                                                                                                                                                                          |
-| -------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| info::device::ext_oneapi_max_number_work_groups<1> |  id<1> | Returns the maximum number of work-groups that can be submitted in each dimension of the `globalSize` of a `nd_range`. The minimum value is `(1)` if the device is different than `info::device_type::custom`.       |
-| info::device::ext_oneapi_max_number_work_groups<2> |  id<2> | Returns the maximum number of work-groups that can be submitted in each dimension of the `globalSize` of a `nd_range`. The minimum value is `(1, 1)` if the device is different than `info::device_type::custom`.    |
-| info::device::ext_oneapi_max_number_work_groups<3> |  id<3> | Returns the maximum number of work-groups that can be submitted in each dimension of the `globalSize` of a `nd_range`. The minimum value is `(1, 1, 1)` if the device is different than `info::device_type::custom`. |
+| Device descriptors                                 | Return type | Description                                                                                                                                                                                                          |
+| -------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| info::device::ext_oneapi_max_number_work_groups<1> |  id<1>      | Returns the maximum number of work-groups that can be submitted in each dimension of the `globalSize` of a `nd_range`. The minimum value is `(1)` if the device is different than `info::device_type::custom`.       |
+| info::device::ext_oneapi_max_number_work_groups<2> |  id<2>      | Returns the maximum number of work-groups that can be submitted in each dimension of the `globalSize` of a `nd_range`. The minimum value is `(1, 1)` if the device is different than `info::device_type::custom`.    |
+| info::device::ext_oneapi_max_number_work_groups<3> |  id<3>      | Returns the maximum number of work-groups that can be submitted in each dimension of the `globalSize` of a `nd_range`. The minimum value is `(1, 1, 1)` if the device is different than `info::device_type::custom`. |
 
 ### Consistency with existing checks
 
-The implementation already checks when enqueuing a kernel that the global and per dimension work-group number is smaller than `std::numeric_limits<int>::max`. This check is implemented in `sycl/include/CL/sycl/handler.hpp`. For consistency, values returned by the two device descriptor are bound by this limit.
+The implementation already checks when enqueuing a kernel that the global and per dimension work-group number is smaller than `std::numeric_limits<int>::max`. This check is implemented in `sycl/include/CL/sycl/handler.hpp`. For consistency, values returned by the two device descriptors are bound by this limit.
 
 ### Example of returned values
 
-- For the host and OpenCL the values returned - as they are not applicable - are the maximum values accepted at kernel submission (see `sycl/include/CL/sycl/handler.hpp`) which are currently `std::numeric_limits<int>::max`. These
+- If the device is the host or has an OpenCL back-end, the values returned - as they are not applicable - are the maximum values accepted at kernel submission (see `sycl/include/CL/sycl/handler.hpp`) which are currently `std::numeric_limits<int>::max`.
 - CUDA: Back-end query using `CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_[X,Y,Z]`.
