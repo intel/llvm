@@ -15,8 +15,7 @@ namespace sycl {
 // TODO: Move these feature-test macros to compiler driver.
 #define SYCL_EXT_INTEL_DEVICE_INFO 2
 #define SYCL_EXT_ONEAPI_MATRIX 1
-#define SYCL_EXT_ONEAPI_MAX_GLOBAL_NUMBER_WORK_GROUPS 1
-#define SYCL_EXT_ONEAPI_MAX_NUMBER_WORK_GROUPS 1
+#define SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY 1
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

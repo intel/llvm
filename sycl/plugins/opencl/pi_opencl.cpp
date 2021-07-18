@@ -190,8 +190,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS:
     // Returns the maximum sizes of a work group for each dimension one
     // could use to submit a kernel. There is no such query defined in OpenCL
-    // so we'll return the maximum value one could pass. See
-    // sycl/include/CL/sycl/handler.hpp and __SYCL_ID_QUERIES_FIT_IN_INT__
+    // so we'll return the maximum value.
     {
       if (paramValueSizeRet)
         *paramValueSizeRet = paramValueSize;
