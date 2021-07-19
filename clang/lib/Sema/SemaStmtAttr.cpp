@@ -147,7 +147,6 @@ Sema::BuildSYCLIntelFPGAMaxInterleavingAttr(const AttributeCommonInfo &CI,
   return new (Context) SYCLIntelFPGAMaxInterleavingAttr(Context, CI, E);
 }
 
-
 static Attr *handleSYCLIntelFPGAMaxInterleavingAttr(Sema &S, Stmt *St,
                                                     const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
