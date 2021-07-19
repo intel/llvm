@@ -225,8 +225,7 @@ EnableIfGenericBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
 // Although consume is unsupported, forwarding to acquire is valid
 template <typename T>
 static inline constexpr
-    typename std::enable_if<std::is_same<T, sycl::memory_order>::value ||
-                                std::is_same<T, sycl::memory_order>::value,
+    typename std::enable_if<std::is_same<T, sycl::memory_order>::value,
                             __spv::MemorySemanticsMask::Flag>::type
     getMemorySemanticsMask(T Order) {
   __spv::MemorySemanticsMask::Flag SpvOrder = __spv::MemorySemanticsMask::None;
