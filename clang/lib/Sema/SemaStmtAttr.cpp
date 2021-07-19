@@ -412,8 +412,7 @@ CheckForDuplicateSYCLIntelLoopCountAttrs(Sema &S,
 }
 
 SYCLIntelFPGALoopCountAttr *
-Sema::BuildSYCLIntelFPGALoopCountAttr(const AttributeCommonInfo &CI,
-                                       Expr *E) {
+Sema::BuildSYCLIntelFPGALoopCountAttr(const AttributeCommonInfo &CI, Expr *E) {
   if (!E->isValueDependent()) {
     llvm::APSInt ArgVal;
     ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);

@@ -1541,8 +1541,8 @@ TemplateInstantiator::TransformSYCLIntelFPGAInitiationIntervalAttr(
     const SYCLIntelFPGAInitiationIntervalAttr *II) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(II->getIntervalExpr()).get();
-  return getSema()
-       .BuildSYCLIntelFPGAInitiationIntervalAttr(*II, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGAInitiationIntervalAttr(*II,
+                                                            TransformedExpr);
 }
 
 const SYCLIntelFPGAMaxConcurrencyAttr *
@@ -1571,8 +1571,8 @@ const SYCLIntelFPGASpeculatedIterationsAttr *
 TemplateInstantiator::TransformSYCLIntelFPGASpeculatedIterationsAttr(
     const SYCLIntelFPGASpeculatedIterationsAttr *SI) {
   Expr *TransformedExpr = getDerived().TransformExpr(SI->getNExpr()).get();
-  return getSema()
-      .BuildSYCLIntelFPGASpeculatedIterationsAttr(*SI, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGASpeculatedIterationsAttr(*SI,
+                                                              TransformedExpr);
 }
 
 const SYCLIntelFPGALoopCountAttr *

@@ -2192,14 +2192,18 @@ public:
 
   SYCLIntelFPGAInitiationIntervalAttr *
   BuildSYCLIntelFPGAInitiationIntervalAttr(const AttributeCommonInfo &CI,
-		                           Expr *E);
+                                           Expr *E);
+
   SYCLIntelFPGAMaxConcurrencyAttr *
   BuildSYCLIntelFPGAMaxConcurrencyAttr(const AttributeCommonInfo &CI, Expr *E);
+
   SYCLIntelFPGAMaxInterleavingAttr *
   BuildSYCLIntelFPGAMaxInterleavingAttr(const AttributeCommonInfo &CI, Expr *E);
+
   SYCLIntelFPGASpeculatedIterationsAttr *
   BuildSYCLIntelFPGASpeculatedIterationsAttr(const AttributeCommonInfo &CI,
-		                             Expr *E);
+                                             Expr *E);
+
   SYCLIntelFPGALoopCoalesceAttr *
   BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
 
