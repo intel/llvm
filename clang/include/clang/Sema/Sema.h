@@ -2189,24 +2189,19 @@ public:
 
   SYCLIntelFPGALoopCountAttr *
   BuildSYCLIntelFPGALoopCountAttr(const AttributeCommonInfo &CI, Expr *E);
-
   SYCLIntelFPGAInitiationIntervalAttr *
   BuildSYCLIntelFPGAInitiationIntervalAttr(const AttributeCommonInfo &CI,
                                            Expr *E);
-
   SYCLIntelFPGAMaxConcurrencyAttr *
   BuildSYCLIntelFPGAMaxConcurrencyAttr(const AttributeCommonInfo &CI, Expr *E);
-
   SYCLIntelFPGAMaxInterleavingAttr *
   BuildSYCLIntelFPGAMaxInterleavingAttr(const AttributeCommonInfo &CI, Expr *E);
-
   SYCLIntelFPGASpeculatedIterationsAttr *
   BuildSYCLIntelFPGASpeculatedIterationsAttr(const AttributeCommonInfo &CI,
                                              Expr *E);
-
   SYCLIntelFPGALoopCoalesceAttr *
-  BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
-                                     //Expr *E = nullptr);
+  BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI,
+                                     Expr *E = nullptr);
 
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 

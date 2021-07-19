@@ -552,11 +552,10 @@ MDNode *LoopInfo::createMetadata(
   }
 
   // Setting max_concurrency attribute with number of threads
-  if (Attrs.SYCLMaxConcurrencyEnable) {
-    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.max_concurrency.count"),
+  for (auto &MC : Attrs.SYCLMaxConcurrencyNThreads) {
+    Metadata *Vals[] = {MDString::get(Ctx, MC.first),
                         ConstantAsMetadata::get(ConstantInt::get(
-                            llvm::Type::getInt32Ty(Ctx),
-                            Attrs.SYCLMaxConcurrencyNThreads))};
+                            llvm::Type::getInt32Ty(Ctx), MC.second))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
@@ -582,11 +581,10 @@ MDNode *LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
-  if (Attrs.SYCLMaxInterleavingEnable) {
-    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.max_interleaving.count"),
+  for (auto &MI : Attrs.SYCLMaxInterleavingNInvocations) {
+    Metadata *Vals[] = {MDString::get(Ctx, MI.first),
                         ConstantAsMetadata::get(ConstantInt::get(
-                            llvm::Type::getInt32Ty(Ctx),
-                            Attrs.SYCLMaxInterleavingNInvocations))};
+                            llvm::Type::getInt32Ty(Ctx), MI.second))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
@@ -596,12 +594,10 @@ MDNode *LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
-  if (Attrs.SYCLSpeculatedIterationsEnable) {
-    Metadata *Vals[] = {
-        MDString::get(Ctx, "llvm.loop.intel.speculated.iterations.count"),
-        ConstantAsMetadata::get(
-            ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
-                             Attrs.SYCLSpeculatedIterationsNIterations))};
+  for (auto &SI : Attrs.SYCLSpeculatedIterationsNIterations) {
+    Metadata *Vals[] = {MDString::get(Ctx, SI.first),
+                        ConstantAsMetadata::get(ConstantInt::get(
+                            llvm::Type::getInt32Ty(Ctx), SI.second))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
@@ -622,12 +618,9 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       UnrollAndJamEnable(LoopAttributes::Unspecified),
       VectorizePredicateEnable(LoopAttributes::Unspecified), VectorizeWidth(0),
       VectorizeScalable(LoopAttributes::Unspecified), InterleaveCount(0),
-      SYCLIInterval(0), SYCLMaxConcurrencyEnable(false),
-      SYCLMaxConcurrencyNThreads(0), SYCLLoopCoalesceEnable(false),
+      SYCLIInterval(0), SYCLLoopCoalesceEnable(false),
       SYCLLoopCoalesceNLevels(0), SYCLLoopPipeliningDisable(false),
-      SYCLMaxInterleavingEnable(false), SYCLMaxInterleavingNInvocations(0),
-      SYCLSpeculatedIterationsEnable(false),
-      SYCLSpeculatedIterationsNIterations(0), UnrollCount(0),
+      UnrollCount(0),
       UnrollAndJamCount(0), DistributeEnable(LoopAttributes::Unspecified),
       PipelineDisabled(false), PipelineInitiationInterval(0),
       SYCLNofusionEnable(false), MustProgress(false) {}
@@ -640,15 +633,12 @@ void LoopAttributes::clear() {
   GlobalSYCLIVDepInfo.reset();
   ArraySYCLIVDepInfo.clear();
   SYCLIInterval = 0;
-  SYCLMaxConcurrencyEnable = false;
-  SYCLMaxConcurrencyNThreads = 0;
+  SYCLMaxConcurrencyNThreads.clear();
   SYCLLoopCoalesceEnable = false;
   SYCLLoopCoalesceNLevels = 0;
   SYCLLoopPipeliningDisable = false;
-  SYCLMaxInterleavingEnable = false;
-  SYCLMaxInterleavingNInvocations = 0;
-  SYCLSpeculatedIterationsEnable = false;
-  SYCLSpeculatedIterationsNIterations = 0;
+  SYCLMaxInterleavingNInvocations.clear();;
+  SYCLSpeculatedIterationsNIterations.clear();
   SYCLIntelFPGAVariantCount.clear();
   UnrollCount = 0;
   UnrollAndJamCount = 0;
@@ -679,14 +669,12 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.VectorizeScalable == LoopAttributes::Unspecified &&
       Attrs.InterleaveCount == 0 && !Attrs.GlobalSYCLIVDepInfo.hasValue() &&
       Attrs.ArraySYCLIVDepInfo.empty() && Attrs.SYCLIInterval == 0 &&
-      Attrs.SYCLMaxConcurrencyEnable == false &&
+      Attrs.SYCLMaxConcurrencyNThreads.empty() &&
       Attrs.SYCLLoopCoalesceEnable == false &&
       Attrs.SYCLLoopCoalesceNLevels == 0 &&
       Attrs.SYCLLoopPipeliningDisable == false &&
-      Attrs.SYCLMaxInterleavingEnable == false &&
-      Attrs.SYCLMaxInterleavingNInvocations == 0 &&
-      Attrs.SYCLSpeculatedIterationsEnable == false &&
-      Attrs.SYCLSpeculatedIterationsNIterations == 0 &&
+      Attrs.SYCLMaxInterleavingNInvocations.empty() &&
+      Attrs.SYCLSpeculatedIterationsNIterations.empty() &&
       Attrs.SYCLIntelFPGAVariantCount.empty() && Attrs.UnrollCount == 0 &&
       Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
       Attrs.PipelineInitiationInterval == 0 &&
@@ -1025,18 +1013,23 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
                        IntelFPGAIVDep->getArrayDecl());
 
     if (const auto *IntelFPGAII =
-            dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(A))
-      setSYCLIInterval(IntelFPGAII->getIntervalExpr()
-                           ->getIntegerConstantExpr(Ctx)
-                           ->getSExtValue());
+            dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(A)) {
+      const auto *CE =
+          cast<ConstantExpr>(IntelFPGAII->getIntervalExpr());
+      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
+      setSYCLIInterval(ArgVal.getSExtValue());
+    }
 
     if (const auto *IntelFPGAMaxConcurrency =
             dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(A)) {
       const auto *CE =
           cast<ConstantExpr>(IntelFPGAMaxConcurrency->getNThreadsExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      setSYCLMaxConcurrencyEnable();
-      setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
+      unsigned int Value = ArgVal.getSExtValue();
+      const char *Var = "llvm.loop.max_concurrency.count";
+      if (Value == 0)
+        setSYCLMaxConcurrencyNThreads(Var, 0);
+      setSYCLMaxConcurrencyNThreads(Var, Value);
     }
 
     if (const auto *IntelFPGALoopCountAvg =
@@ -1055,9 +1048,12 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (const auto *IntelFPGALoopCoalesce =
             dyn_cast<SYCLIntelFPGALoopCoalesceAttr>(A)) {
-      if (auto *LCE = IntelFPGALoopCoalesce->getNExpr())
-        setSYCLLoopCoalesceNLevels(
-            LCE->getIntegerConstantExpr(Ctx)->getSExtValue());
+      const auto *CE =
+          cast<ConstantExpr>(IntelFPGALoopCoalesce->getNExpr());
+      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
+      unsigned int Value = ArgVal.getSExtValue();
+      if (Value > 0)
+        setSYCLLoopCoalesceNLevels(Value);
       else
         setSYCLLoopCoalesceEnable();
     }
@@ -1069,8 +1065,11 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
             dyn_cast<SYCLIntelFPGAMaxInterleavingAttr>(A)) {
       const auto *CE = cast<ConstantExpr>(IntelFPGAMaxInterleaving->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      setSYCLMaxInterleavingEnable();
-      setSYCLMaxInterleavingNInvocations(ArgVal.getSExtValue());
+      unsigned int Value = ArgVal.getSExtValue();
+      const char *Var = "llvm.loop.max_interleaving.count";
+      if (Value == 0)
+	setSYCLMaxInterleavingNInvocations(Var, 0);
+      setSYCLMaxInterleavingNInvocations(Var, Value);
     }
 
     if (const auto *IntelFPGASpeculatedIterations =
@@ -1078,8 +1077,11 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       const auto *CE =
           cast<ConstantExpr>(IntelFPGASpeculatedIterations->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      setSYCLSpeculatedIterationsEnable();
-      setSYCLSpeculatedIterationsNIterations(ArgVal.getSExtValue());
+      const char *Var = "llvm.loop.intel.speculated.iterations.count";
+      unsigned int Value = ArgVal.getSExtValue();
+      if (Value == 0)
+        setSYCLSpeculatedIterationsNIterations(Var, 0);
+      setSYCLSpeculatedIterationsNIterations(Var, Value);
     }
 
     if (isa<SYCLIntelFPGANofusionAttr>(A))
