@@ -31,9 +31,6 @@ namespace detail {
 constexpr const char *SYCL_STREAM_NAME = "sycl";
 // Stream name being used for traces generated from the SYCL plugin layer
 constexpr const char *SYCL_PICALL_STREAM_NAME = "sycl.pi";
-// Stream name being used for traces generated from PI calls. This stream
-// contains information about function arguments.
-constexpr const char *SYCL_PIDEBUGCALL_STREAM_NAME = "sycl.pi.debug";
 // Data structure that captures the user code location information using the
 // builtin capabilities of the compiler
 struct code_location {
