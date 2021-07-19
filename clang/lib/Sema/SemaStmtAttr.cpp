@@ -158,8 +158,8 @@ static Attr *handleSYCLIntelFPGAMaxInterleavingAttr(Sema &S, Stmt *St,
 SYCLIntelFPGALoopCoalesceAttr *
 Sema::BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI,
                                          Expr *E) {
-  if (!E)
-    return nullptr;
+  //if (!E)
+    //return nullptr;
 
   if (!E->isValueDependent()) {
     llvm::APSInt ArgVal;
@@ -183,8 +183,12 @@ static Attr *handleSYCLIntelFPGALoopCoalesceAttr(Sema &S, Stmt *St,
                                                  const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  Expr *E = A.isArgExpr(0) ? A.getArgAsExpr(0) : nullptr;
-  return S.BuildSYCLIntelFPGALoopCoalesceAttr(A, E);
+  //Expr *E = A.isArgExpr(0) ? A.getArgAsExpr(0) : nullptr;
+  if (A.isArgExpr(0)) {
+    Expr *E = A.getArgAsExpr(0);
+    return S.BuildSYCLIntelFPGALoopCoalesceAttr(A, E);
+  }
+  return new (S.Context) SYCLIntelFPGALoopCoalesceAttr(S.Context, A);
 }
 
 SYCLIntelFPGASpeculatedIterationsAttr *

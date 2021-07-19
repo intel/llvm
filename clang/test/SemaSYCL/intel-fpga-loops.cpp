@@ -207,8 +207,8 @@ void goo() {
   // expected-error@+1 {{'loop_count_avg' attribute requires a non-negative integral compile time constant expression}}
   [[intel::loop_count_avg(-1)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [8]'}}
-    [[intel::loop_count_avg("abc")]] for (int i = 0; i != 10; ++i)
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
+  [[intel::loop_count_avg("abc")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
