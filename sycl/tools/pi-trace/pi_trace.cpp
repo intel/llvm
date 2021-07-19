@@ -44,9 +44,9 @@ XPTI_CALLBACK_API void tpCallback(uint16_t trace_type,
 // xptiTraceInit() and xptiTraceFinish() APIs for their subscriber collector to
 // be loaded successfully.
 PI_TRACE_CALLBACK_API void xptiTraceInit(unsigned int major_version,
-                                     unsigned int minor_version,
-                                     const char *version_str,
-                                     const char *stream_name) {
+                                         unsigned int minor_version,
+                                         const char *version_str,
+                                         const char *stream_name) {
   if (std::string_view(stream_name) == "sycl.pi.arg") {
     GStreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(
@@ -73,9 +73,9 @@ PI_TRACE_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
 }
 
 PI_TRACE_CALLBACK_API void tpCallback(uint16_t TraceType,
-                                  xpti::trace_event_data_t *Parent,
-                                  xpti::trace_event_data_t *Event,
-                                  uint64_t Instance, const void *UserData) {
+                                      xpti::trace_event_data_t *Parent,
+                                      xpti::trace_event_data_t *Event,
+                                      uint64_t Instance, const void *UserData) {
   auto Type = static_cast<xpti::trace_point_type_t>(TraceType);
   if (Type == xpti::trace_point_type_t::function_with_args_end) {
     // Lock while we print information
