@@ -788,7 +788,8 @@ bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
   if (OpCode == OpImageSampleExplicitLod || OpCode == OpSampledImage)
     return false;
   if (OpCode == OpImageWrite || OpCode == OpImageRead ||
-      OpCode == OpImageQueryOrder || OpCode == OpImageQueryFormat)
+      OpCode == OpImageQueryOrder || OpCode == OpImageQueryFormat ||
+      OpCode == OpImageQueryLevels)
     return false;
   if (OpCode == OpGenericCastToPtrExplicit)
     return false;
