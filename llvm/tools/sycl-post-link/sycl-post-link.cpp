@@ -752,7 +752,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     SpecConstantsPass SCP(SetSpecConstAtRT);
     // Register required analysis
     MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-    RunSpecConst.addPass(SCP);
+    RunSpecConst.addPass(std::move(SCP));
 
     for (auto &MPtr : ResultModules) {
       // perform the spec constant intrinsics transformation on each resulting
