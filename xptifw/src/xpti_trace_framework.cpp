@@ -1028,11 +1028,7 @@ public:
       // to trace function calls without too much effort.
       if (!(UserData &&
             (TraceType == (uint16_t)trace_point_type_t::function_begin ||
-             TraceType == (uint16_t)trace_point_type_t::function_end ||
-             TraceType ==
-                 (uint16_t)trace_point_type_t::function_with_args_begin ||
-             TraceType ==
-                 (uint16_t)trace_point_type_t::function_with_args_end))) {
+             TraceType == (uint16_t)trace_point_type_t::function_end))) {
         return xpti::result_t::XPTI_RESULT_INVALIDARG;
       }
     }

@@ -1,5 +1,4 @@
 add_subdirectory(sycl-ls)
-add_subdirectory(pi-trace)
 
 # TODO: move each tool in its own sub-directory
 add_executable(get_device_count_by_type get_device_count_by_type.cpp)
