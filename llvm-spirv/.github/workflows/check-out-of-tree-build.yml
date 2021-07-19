@@ -58,14 +58,29 @@ jobs:
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ env.LLVM_VERSION }} 1000
       - name:  Checkout the translator sources
         uses: actions/checkout@v2
+        with:
+          path: SPIRV-LLVM-Translator
+      - name:  Get tag for SPIR-V Headers
+        uses: juliangruber/read-file-action@v1
+        id: spirv-headers-tag
+        with:
+          path: SPIRV-LLVM-Translator/spirv-headers-tag.conf
+      - name:  Checkout SPIR-V Headers
+        uses: actions/checkout@v2
+        with:
+          repository: KhronosGroup/SPIRV-Headers
+          ref: ${{ steps.spirv-headers-tag.outputs.content }}
+          path: SPIRV-Headers
       - name: Configure
         run: |
           mkdir build && cd build
-          cmake ${{ github.workspace }} \
+          cmake ${{ github.workspace }}/SPIRV-LLVM-Translator \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_CXX_FLAGS="-Werror" \
             -DLLVM_INCLUDE_TESTS=ON \
             -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-${{ env.LLVM_VERSION }}/build/utils/lit/lit.py" \
+            -DLLVM_EXTERNAL_PROJECTS="SPIRV-Headers" \
+            -DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=${{ github.workspace }}/SPIRV-Headers \
             -G "Unix Makefiles"
       - name: Build
         run: |

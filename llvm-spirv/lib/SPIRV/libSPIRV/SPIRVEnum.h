@@ -42,7 +42,7 @@
 
 #include "LLVMSPIRVOpts.h"
 #include "SPIRVOpCode.h"
-#include "spirv.hpp"
+#include "spirv/unified1/spirv.hpp"
 #include "spirv_internal.hpp"
 #include <cstdint>
 using namespace spv;
