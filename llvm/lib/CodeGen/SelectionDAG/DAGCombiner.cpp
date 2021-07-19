@@ -3209,7 +3209,7 @@ SDValue DAGCombiner::foldSubToUSubSat(EVT DstVT, SDNode *N) {
 
   // Try to find umax(a,b) - b or a - umin(a,b) patterns
   // they may be converted to usubsat(a,b).
-  if (Op0.getOpcode() == ISD::UMAX) {
+  if (Op0.getOpcode() == ISD::UMAX && Op0.hasOneUse()) {
     SDValue MaxLHS = Op0.getOperand(0);
     SDValue MaxRHS = Op0.getOperand(1);
     if (MaxLHS == Op1)
@@ -3218,7 +3218,7 @@ SDValue DAGCombiner::foldSubToUSubSat(EVT DstVT, SDNode *N) {
       return getTruncatedUSUBSAT(DstVT, SubVT, MaxLHS, Op1, DAG, SDLoc(N));
   }
 
-  if (Op1.getOpcode() == ISD::UMIN) {
+  if (Op1.getOpcode() == ISD::UMIN && Op1.hasOneUse()) {
     SDValue MinLHS = Op1.getOperand(0);
     SDValue MinRHS = Op1.getOperand(1);
     if (MinLHS == Op0)
@@ -3229,7 +3229,8 @@ SDValue DAGCombiner::foldSubToUSubSat(EVT DstVT, SDNode *N) {
 
   // sub(a,trunc(umin(zext(a),b))) -> usubsat(a,trunc(umin(b,SatLimit)))
   if (Op1.getOpcode() == ISD::TRUNCATE &&
-      Op1.getOperand(0).getOpcode() == ISD::UMIN) {
+      Op1.getOperand(0).getOpcode() == ISD::UMIN &&
+      Op1.getOperand(0).hasOneUse()) {
     SDValue MinLHS = Op1.getOperand(0).getOperand(0);
     SDValue MinRHS = Op1.getOperand(0).getOperand(1);
     if (MinLHS.getOpcode() == ISD::ZERO_EXTEND && MinLHS.getOperand(0) == Op0)
@@ -9643,6 +9644,30 @@ SDValue DAGCombiner::visitSELECT(SDNode *N) {
     }
 
     return SimplifySelect(DL, N0, N1, N2);
+  }
+
+  if (N1.getOpcode() == N2.getOpcode() && TLI.isBinOp(N1.getOpcode()) &&
+      N->isOnlyUserOf(N0.getNode()) && N->isOnlyUserOf(N1.getNode())) {
+    // Fold select(cond, binop(x, y), binop(z, y))
+    //  --> binop(select(cond, x, z), y)
+    if (N1.getOperand(1) == N2.getOperand(1)) {
+      SDValue NewSel =
+          DAG.getSelect(DL, VT, N0, N1.getOperand(0), N2.getOperand(0));
+      return DAG.getNode(N1.getOpcode(), DL, VT, NewSel, N1.getOperand(1));
+    }
+
+    // Fold select(cond, binop(x, y), binop(x, z))
+    //  --> binop(x, select(cond, y, z))
+    // Second op VT might be different (e.g. shift amount type)
+    if (N1.getOperand(0) == N2.getOperand(0) &&
+        VT == N1.getOperand(1).getValueType() &&
+        VT == N2.getOperand(1).getValueType()) {
+      SDValue NewSel =
+          DAG.getSelect(DL, VT, N0, N1.getOperand(1), N2.getOperand(1));
+      return DAG.getNode(N1.getOpcode(), DL, VT, N1.getOperand(0), NewSel);
+    }
+
+    // TODO: Handle isCommutativeBinOp as well ?
   }
 
   return SDValue();

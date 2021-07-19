@@ -168,6 +168,12 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
 
   getActionDefinitionsBuilder({G_SMIN, G_SMAX, G_UMIN, G_UMAX})
       .legalFor({v8s8, v16s8, v4s16, v8s16, v2s32, v4s32})
+      .clampNumElements(0, v8s8, v16s8)
+      .clampNumElements(0, v4s16, v8s16)
+      .clampNumElements(0, v2s32, v4s32)
+      // FIXME: This sholdn't be needed as v2s64 types are going to
+      // be expanded anyway, but G_ICMP doesn't support splitting vectors yet
+      .clampNumElements(0, v2s64, v2s64)
       .lower();
 
   getActionDefinitionsBuilder(
@@ -311,7 +317,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .clampMaxNumElements(0, s16, 8)
       .clampMaxNumElements(0, s32, 4)
       .clampMaxNumElements(0, s64, 2)
-      .customIf(IsPtrVecPred);
+      .customIf(IsPtrVecPred)
+      .scalarizeIf(typeIs(0, v2s16), 0);
 
   getActionDefinitionsBuilder(G_STORE)
       .legalForTypesWithMemDesc({{s8, p0, s8, 8},
@@ -346,7 +353,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .clampMaxNumElements(0, s32, 4)
       .clampMaxNumElements(0, s64, 2)
       .lowerIfMemSizeNotPow2()
-      .customIf(IsPtrVecPred);
+      .customIf(IsPtrVecPred)
+      .scalarizeIf(typeIs(0, v2s16), 0);
 
   // Constants
   getActionDefinitionsBuilder(G_CONSTANT)
@@ -490,7 +498,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .unsupportedIf([&](const LegalityQuery &Query) {
         return Query.Types[0].getSizeInBits() != Query.Types[1].getSizeInBits();
       })
-      .legalFor({{p0, s64}});
+      .legalFor({{p0, s64}, {v2p0, v2s64}});
 
   // Casts for 32 and 64-bit width type are just copies.
   // Same for 128-bit width type, except they are on the FPR bank.
@@ -642,7 +650,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .minScalarOrElt(0, s8) // Worst case, we need at least s8.
       .clampMaxNumElements(1, s64, 2)
       .clampMaxNumElements(1, s32, 4)
-      .clampMaxNumElements(1, s16, 8);
+      .clampMaxNumElements(1, s16, 8)
+      .clampMaxNumElements(1, p0, 2);
 
   getActionDefinitionsBuilder(G_INSERT_VECTOR_ELT)
       .legalIf(typeInSet(0, {v8s16, v2s32, v4s32, v2s64}));
@@ -650,6 +659,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   getActionDefinitionsBuilder(G_BUILD_VECTOR)
       .legalFor({{v8s8, s8},
                  {v16s8, s8},
+                 {v2s16, s16},
                  {v4s16, s16},
                  {v8s16, s16},
                  {v2s32, s32},

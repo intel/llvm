@@ -195,6 +195,35 @@ getFrameworkSearchPaths(InputArgList &args,
                         {"/Library/Frameworks", "/System/Library/Frameworks"});
 }
 
+static llvm::CachePruningPolicy getLTOCachePolicy(InputArgList &args) {
+  SmallString<128> ltoPolicy;
+  auto add = [&ltoPolicy](Twine val) {
+    if (!ltoPolicy.empty())
+      ltoPolicy += ":";
+    val.toVector(ltoPolicy);
+  };
+  for (const Arg *arg :
+       args.filtered(OPT_thinlto_cache_policy, OPT_prune_interval_lto,
+                     OPT_prune_after_lto, OPT_max_relative_cache_size_lto)) {
+    switch (arg->getOption().getID()) {
+    case OPT_thinlto_cache_policy: add(arg->getValue()); break;
+    case OPT_prune_interval_lto:
+      if (!strcmp("-1", arg->getValue()))
+        add("prune_interval=87600h"); // 10 years
+      else
+        add(Twine("prune_interval=") + arg->getValue() + "s");
+      break;
+    case OPT_prune_after_lto:
+      add(Twine("prune_after=") + arg->getValue() + "s");
+      break;
+    case OPT_max_relative_cache_size_lto:
+      add(Twine("cache_size=") + arg->getValue() + "%");
+      break;
+    }
+  }
+  return CHECK(parseCachePruningPolicy(ltoPolicy), "invalid LTO cache policy");
+}
+
 namespace {
 struct ArchiveMember {
   MemoryBufferRef mbref;
@@ -1141,11 +1170,10 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     symtab->addDynamicLookup(arg->getValue());
 
   config->mapFile = args.getLastArgValue(OPT_map);
+  config->optimize = args::getInteger(args, OPT_O, 1);
   config->outputFile = args.getLastArgValue(OPT_o, "a.out");
-  if (const Arg *arg = args.getLastArg(OPT_final_output))
-    config->finalOutput = arg->getValue();
-  else
-    config->finalOutput = config->outputFile;
+  config->finalOutput =
+      args.getLastArgValue(OPT_final_output, config->outputFile);
   config->astPaths = args.getAllArgValues(OPT_add_ast_path);
   config->headerPad = args::getHex(args, OPT_headerpad, /*Default=*/32);
   config->headerPadMaxInstallNames =
@@ -1173,9 +1201,13 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
   if (config->ltoo > 3)
     error("--lto-O: invalid optimization level: " + Twine(config->ltoo));
+  config->thinLTOCacheDir = args.getLastArgValue(OPT_cache_path_lto);
+  config->thinLTOCachePolicy = getLTOCachePolicy(args);
   config->runtimePaths = args::getStrings(args, OPT_rpath);
   config->allLoad = args.hasArg(OPT_all_load);
   config->archMultiple = args.hasArg(OPT_arch_multiple);
+  config->applicationExtension = args.hasFlag(
+      OPT_application_extension, OPT_no_application_extension, false);
   config->exportDynamic = args.hasArg(OPT_export_dynamic);
   config->forceLoadObjC = args.hasArg(OPT_ObjC);
   config->forceLoadSwift = args.hasArg(OPT_force_load_swift_libs);

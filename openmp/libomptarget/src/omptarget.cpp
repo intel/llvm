@@ -556,22 +556,46 @@ int targetDataBegin(ident_t *loc, DeviceTy &Device, int32_t arg_num,
     }
 
     if (arg_types[i] & OMP_TGT_MAPTYPE_PTR_AND_OBJ && !IsHostPtr) {
-      DP("Update pointer (" DPxMOD ") -> [" DPxMOD "]\n",
-         DPxPTR(PointerTgtPtrBegin), DPxPTR(TgtPtrBegin));
+      // Check whether we need to update the pointer on the device
+      bool UpdateDevPtr = false;
+
       uint64_t Delta = (uint64_t)HstPtrBegin - (uint64_t)HstPtrBase;
-      void *&TgtPtrBase = AsyncInfo.getVoidPtrLocation();
-      TgtPtrBase = (void *)((uint64_t)TgtPtrBegin - Delta);
-      int rt = Device.submitData(PointerTgtPtrBegin, &TgtPtrBase,
-                                 sizeof(void *), AsyncInfo);
-      if (rt != OFFLOAD_SUCCESS) {
-        REPORT("Copying data to device failed.\n");
-        return OFFLOAD_FAIL;
-      }
-      // create shadow pointers for this entry
+      void *ExpectedTgtPtrBase = (void *)((uint64_t)TgtPtrBegin - Delta);
+
       Device.ShadowMtx.lock();
-      Device.ShadowPtrMap[Pointer_HstPtrBegin] = {
-          HstPtrBase, PointerTgtPtrBegin, TgtPtrBase};
+      auto Entry = Device.ShadowPtrMap.find(Pointer_HstPtrBegin);
+      // If this pointer is not in the map we need to insert it. If the map
+      // contains a stale entry, we need to update it (e.g. if the pointee was
+      // deallocated and later on is reallocated at another device address). The
+      // latter scenario is the subject of LIT test env/base_ptr_ref_count.c. An
+      // entry is removed from ShadowPtrMap only when the PTR of a PTR_AND_OBJ
+      // pair is deallocated, not when the OBJ is deallocated. In
+      // env/base_ptr_ref_count.c the PTR is a global "declare target" pointer,
+      // so it stays in the map for the lifetime of the application. When the
+      // OBJ is deallocated and later on allocated again (at a different device
+      // address), ShadowPtrMap still contains an entry for Pointer_HstPtrBegin
+      // which is stale, pointing to the old ExpectedTgtPtrBase of the OBJ.
+      if (Entry == Device.ShadowPtrMap.end() ||
+          Entry->second.TgtPtrVal != ExpectedTgtPtrBase) {
+        // create or update shadow pointers for this entry
+        Device.ShadowPtrMap[Pointer_HstPtrBegin] = {
+            HstPtrBase, PointerTgtPtrBegin, ExpectedTgtPtrBase};
+        UpdateDevPtr = true;
+      }
       Device.ShadowMtx.unlock();
+
+      if (UpdateDevPtr) {
+        DP("Update pointer (" DPxMOD ") -> [" DPxMOD "]\n",
+           DPxPTR(PointerTgtPtrBegin), DPxPTR(TgtPtrBegin));
+        void *&TgtPtrBase = AsyncInfo.getVoidPtrLocation();
+        TgtPtrBase = ExpectedTgtPtrBase;
+        int rt = Device.submitData(PointerTgtPtrBegin, &TgtPtrBase,
+                                   sizeof(void *), AsyncInfo);
+        if (rt != OFFLOAD_SUCCESS) {
+          REPORT("Copying data to device failed.\n");
+          return OFFLOAD_FAIL;
+        }
+      }
     }
   }
 
