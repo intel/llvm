@@ -27,6 +27,12 @@ std::mutex GIOMutex;
 
 sycl::xpti_helpers::PiArgumentsHandler ArgHandler;
 
+#if defined(_WIN64) || defined(_WIN32) /* Windows */
+#define PI_TRACE_CALLBACK_API XPTI_CALLBACK_API inline
+#else /* Not Windows */
+#define PI_TRACE_CALLBACK_API XPTI_CALLBACK_API
+#endif
+
 // The lone callback function we are going to use to demonstrate how to attach
 // the collector to the running executable
 XPTI_CALLBACK_API void tpCallback(uint16_t trace_type,
@@ -37,7 +43,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t trace_type,
 // Based on the documentation, every subscriber MUST implement the
 // xptiTraceInit() and xptiTraceFinish() APIs for their subscriber collector to
 // be loaded successfully.
-XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
+PI_TRACE_CALLBACK_API void xptiTraceInit(unsigned int major_version,
                                      unsigned int minor_version,
                                      const char *version_str,
                                      const char *stream_name) {
@@ -62,11 +68,11 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
   }
 }
 
-XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
+PI_TRACE_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
   // NOP
 }
 
-XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
+PI_TRACE_CALLBACK_API void tpCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *Parent,
                                   xpti::trace_event_data_t *Event,
                                   uint64_t Instance, const void *UserData) {
