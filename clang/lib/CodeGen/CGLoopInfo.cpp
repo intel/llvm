@@ -1068,7 +1068,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       unsigned int Value = ArgVal.getSExtValue();
       const char *Var = "llvm.loop.max_interleaving.count";
       if (Value == 0)
-	setSYCLMaxInterleavingNInvocations(Var, 0);
+        setSYCLMaxInterleavingNInvocations(Var, 0);
       setSYCLMaxInterleavingNInvocations(Var, Value);
     }
 
