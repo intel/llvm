@@ -1743,7 +1743,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                        Device->ZeDeviceComputeProperties.maxGroupSizeZ}};
     return ReturnValue(MaxGroupSize);
   }
-  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS: {
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS_3D: {
     struct {
       size_t Arr[3];
 

@@ -152,8 +152,12 @@ enum class device : cl_device_info {
   atomic64 = PI_DEVICE_INFO_ATOMIC_64,
   ext_oneapi_max_global_number_work_groups =
       PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_NUMBER_WORK_GROUPS,
-  ext_oneapi_max_number_work_groups =
-      PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS
+  ext_oneapi_max_number_work_groups_1d =
+      PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS_1D,
+  ext_oneapi_max_number_work_groups_2d =
+      PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS_2D,
+  ext_oneapi_max_number_work_groups_3d =
+      PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS_3D
 
 };
 
