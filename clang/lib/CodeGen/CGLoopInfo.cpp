@@ -1032,7 +1032,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (const auto *IntelFPGAMaxConcurrency =
             dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(IntelFPGAMaxConcurrency->getNThreadsExpr());
+      const auto *CE =
+          cast<ConstantExpr>(IntelFPGAMaxConcurrency->getNThreadsExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxConcurrencyEnable();
       setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
@@ -1040,7 +1041,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (const auto *IntelFPGALoopCountAvg =
             dyn_cast<SYCLIntelFPGALoopCountAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(IntelFPGALoopCountAvg->getNTripCount());
+      const auto *CE =
+          cast<ConstantExpr>(IntelFPGALoopCountAvg->getNTripCount());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       unsigned int Count = ArgVal.getSExtValue();
       const char *Var = IntelFPGALoopCountAvg->isMax()
@@ -1073,7 +1075,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (const auto *IntelFPGASpeculatedIterations =
             dyn_cast<SYCLIntelFPGASpeculatedIterationsAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(IntelFPGASpeculatedIterations->getNExpr());
+      const auto *CE =
+          cast<ConstantExpr>(IntelFPGASpeculatedIterations->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLSpeculatedIterationsEnable();
       setSYCLSpeculatedIterationsNIterations(ArgVal.getSExtValue());
