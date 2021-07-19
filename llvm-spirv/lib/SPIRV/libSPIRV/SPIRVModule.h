@@ -361,6 +361,9 @@ public:
   virtual SPIRVInstTemplateBase *
   addInstTemplate(Op OC, const std::vector<SPIRVWord> &Ops, SPIRVBasicBlock *BB,
                   SPIRVType *Ty) = 0;
+  virtual void addInstTemplate(SPIRVInstTemplateBase *Ins,
+                               const std::vector<SPIRVWord> &Ops,
+                               SPIRVBasicBlock *BB, SPIRVType *Ty) = 0;
   virtual SPIRVInstruction *addLoadInst(SPIRVValue *,
                                         const std::vector<SPIRVWord> &,
                                         SPIRVBasicBlock *) = 0;

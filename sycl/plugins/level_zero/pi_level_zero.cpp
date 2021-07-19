@@ -335,15 +335,16 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
   if ((ZeEventPool == nullptr) ||
       (NumEventsAvailableInEventPool[ZeEventPool] == 0)) {
     // Creation of the new ZePool with record in NumEventsAvailableInEventPool
-    // and initialization of the record in NumEventsLiveInEventPool must be done
-    // atomically. Otherwise it is possible that decrementAliveEventsInPool will
-    // be called for the record in NumEventsLiveInEventPool before its
+    // and initialization of the record in NumEventsUnreleasedInEventPool must
+    // be done atomically. Otherwise it is possible that
+    // decrementUnreleasedEventsInPool will be called for the record in
+    // NumEventsUnreleasedInEventPool before its
     std::lock(NumEventsAvailableInEventPoolMutex,
-              NumEventsLiveInEventPoolMutex);
+              NumEventsUnreleasedInEventPoolMutex);
     std::lock_guard<std::mutex> NumEventsAvailableInEventPoolGuard(
         NumEventsAvailableInEventPoolMutex, std::adopt_lock);
-    std::lock_guard<std::mutex> NumEventsLiveInEventPoolGuard(
-        NumEventsLiveInEventPoolMutex, std::adopt_lock);
+    std::lock_guard<std::mutex> NumEventsUnreleasedInEventPoolGuard(
+        NumEventsUnreleasedInEventPoolMutex, std::adopt_lock);
 
     ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
@@ -362,7 +363,7 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
     ZE_CALL(zeEventPoolCreate, (ZeContext, &ZeEventPoolDesc, ZeDevices.size(),
                                 &ZeDevices[0], &ZeEventPool));
     NumEventsAvailableInEventPool[ZeEventPool] = MaxNumEventsPerPool - 1;
-    NumEventsLiveInEventPool[ZeEventPool] = MaxNumEventsPerPool;
+    NumEventsUnreleasedInEventPool[ZeEventPool] = MaxNumEventsPerPool;
   } else {
     std::lock_guard<std::mutex> NumEventsAvailableInEventPoolGuard(
         NumEventsAvailableInEventPoolMutex);
@@ -373,12 +374,24 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
   return PI_SUCCESS;
 }
 
-pi_result
-_pi_context::decrementAliveEventsInPool(ze_event_pool_handle_t ZePool) {
-  std::lock_guard<std::mutex> Lock(NumEventsLiveInEventPoolMutex);
-  --NumEventsLiveInEventPool[ZePool];
-  if (NumEventsLiveInEventPool[ZePool] == 0) {
+pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
+  ze_event_pool_handle_t ZePool = Event->ZeEventPool;
+  std::lock_guard<std::mutex> Lock(NumEventsUnreleasedInEventPoolMutex);
+  --NumEventsUnreleasedInEventPool[ZePool];
+  if (NumEventsUnreleasedInEventPool[ZePool] == 0) {
     ZE_CALL(zeEventPoolDestroy, (ZePool));
+    // Nullify ZeEventPool pointer to indicate this pool is already destroyed
+    // because we will call ZeEventPoolDestroy() if ZeEventPool is not null
+    // in pi_context::finalize().
+    // Note that calling ZeEventPoolDestroy() for the already destroyed pool
+    // will cause a segmentation fault in L0.
+    // We need to check the equality below because it is possible that
+    // multiple pi_context::ZeEventPool can be created if all slots in the pool
+    // are already used up. So nullifying pi_context::ZeEventPool may point
+    // a  different EventPool than Event->ZeEventPool.
+    if (ZeEventPool == Event->ZeEventPool)
+      ZeEventPool = nullptr;
+    Event->ZeEventPool = nullptr;
   }
   return PI_SUCCESS;
 }
@@ -597,9 +610,9 @@ pi_result _pi_context::finalize() {
   // This function is called when pi_context is deallocated, piContextRelase.
   // There could be some memory that may have not been deallocated.
   // For example, zeEventPool could be still alive.
-  std::lock_guard<std::mutex> NumEventsLiveInEventPoolGuard(
-      NumEventsLiveInEventPoolMutex);
-  if (ZeEventPool && NumEventsLiveInEventPool[ZeEventPool])
+  std::lock_guard<std::mutex> NumEventsUnreleasedInEventPoolGuard(
+      NumEventsUnreleasedInEventPoolMutex);
+  if (ZeEventPool)
     ZE_CALL(zeEventPoolDestroy, (ZeEventPool));
 
   // Destroy the command list used for initializations
@@ -2410,7 +2423,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   try {
     *Queue = new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueue, Context,
-                           Device, ZeCommandListBatchSize, Properties);
+                           Device, ZeCommandListBatchSize, true, Properties);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2493,10 +2506,16 @@ pi_result piQueueRelease(pi_queue Queue) {
         ZE_CALL(zeFenceDestroy, (MapEntry.second.ZeFence));
       }
       Queue->ZeCommandListFenceMap.clear();
-      ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
+
+      if (Queue->OwnZeCommandQueue) {
+        ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
+        if (Queue->ZeCopyCommandQueue) {
+          ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCopyCommandQueue));
+        }
+      }
+
       Queue->ZeComputeCommandQueue = nullptr;
       if (Queue->ZeCopyCommandQueue) {
-        ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCopyCommandQueue));
         Queue->ZeCopyCommandQueue = nullptr;
       }
 
@@ -2544,8 +2563,8 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                           pi_context Context,
-                                           pi_queue *Queue) {
+                                           pi_context Context, pi_queue *Queue,
+                                           bool OwnNativeHandle) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
@@ -2557,8 +2576,8 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   pi_device Device = Context->Devices[0];
   // TODO: see what we can do to correctly initialize PI queue for
   // compute vs. copy Level-Zero queue.
-  *Queue =
-      new _pi_queue(ZeQueue, nullptr, Context, Device, ZeCommandListBatchSize);
+  *Queue = new _pi_queue(ZeQueue, nullptr, Context, Device,
+                         ZeCommandListBatchSize, OwnNativeHandle);
   return PI_SUCCESS;
 }
 
@@ -2566,11 +2585,14 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             void *HostPtr, pi_mem *RetMem,
                             const pi_mem_properties *properties) {
 
-  // TODO: implement read-only, write-only
-  if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
-    die("piMemBufferCreate: Level-Zero implements only read-write buffer,"
-        "no read-only or write-only yet.");
+  // TODO: implement support for more access modes
+  if (!((Flags & PI_MEM_FLAGS_ACCESS_RW) ||
+        (Flags & PI_MEM_ACCESS_READ_ONLY))) {
+    die("piMemBufferCreate: Level-Zero supports read-write and read-only "
+        "buffer,"
+        "but not other accesses (such as write-only) yet.");
   }
+
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(RetMem, PI_INVALID_VALUE);
 
@@ -2920,12 +2942,13 @@ pi_result piProgramCreate(pi_context Context, const void *ILBytes,
   return PI_SUCCESS;
 }
 
-pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
-                                    const pi_device *DeviceList,
-                                    const size_t *Lengths,
-                                    const unsigned char **Binaries,
-                                    pi_int32 *BinaryStatus,
-                                    pi_program *Program) {
+pi_result piProgramCreateWithBinary(
+    pi_context Context, pi_uint32 NumDevices, const pi_device *DeviceList,
+    const size_t *Lengths, const unsigned char **Binaries,
+    size_t NumMetadataEntries, const pi_device_binary_property *Metadata,
+    pi_int32 *BinaryStatus, pi_program *Program) {
+  (void)Metadata;
+  (void)NumMetadataEntries;
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(DeviceList && NumDevices, PI_INVALID_VALUE);
@@ -4419,7 +4442,7 @@ pi_result piEventRelease(pi_event Event) {
     ZE_CALL(zeEventDestroy, (Event->ZeEvent));
 
     auto Context = Event->Context;
-    if (auto Res = Context->decrementAliveEventsInPool(Event->ZeEventPool))
+    if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
       return Res;
 
     // We intentionally incremented the reference counter when an event is

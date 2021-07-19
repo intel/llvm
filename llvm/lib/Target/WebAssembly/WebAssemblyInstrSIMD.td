@@ -898,6 +898,35 @@ defm SHL : SIMDShiftInt<wasm_shl, "shl", 107>;
 defm SHR_S : SIMDShiftInt<wasm_shr_s, "shr_s", 108>;
 defm SHR_U : SIMDShiftInt<wasm_shr_u, "shr_u", 109>;
 
+// Optimize away an explicit mask on a shift count.
+def : Pat<(wasm_shl (v16i8 V128:$lhs), (and I32:$rhs, 7)),
+          (SHL_I8x16 V128:$lhs, I32:$rhs)>;
+def : Pat<(wasm_shr_s (v16i8 V128:$lhs), (and I32:$rhs, 7)),
+          (SHR_S_I8x16 V128:$lhs, I32:$rhs)>;
+def : Pat<(wasm_shr_u (v16i8 V128:$lhs), (and I32:$rhs, 7)),
+          (SHR_U_I8x16 V128:$lhs, I32:$rhs)>;
+
+def : Pat<(wasm_shl (v8i16 V128:$lhs), (and I32:$rhs, 15)),
+          (SHL_I16x8 V128:$lhs, I32:$rhs)>;
+def : Pat<(wasm_shr_s (v8i16 V128:$lhs), (and I32:$rhs, 15)),
+          (SHR_S_I16x8 V128:$lhs, I32:$rhs)>;
+def : Pat<(wasm_shr_u (v8i16 V128:$lhs), (and I32:$rhs, 15)),
+          (SHR_U_I16x8 V128:$lhs, I32:$rhs)>;
+
+def : Pat<(wasm_shl (v4i32 V128:$lhs), (and I32:$rhs, 31)),
+          (SHL_I32x4 V128:$lhs, I32:$rhs)>;
+def : Pat<(wasm_shr_s (v4i32 V128:$lhs), (and I32:$rhs, 31)),
+          (SHR_S_I32x4 V128:$lhs, I32:$rhs)>;
+def : Pat<(wasm_shr_u (v4i32 V128:$lhs), (and I32:$rhs, 31)),
+          (SHR_U_I32x4 V128:$lhs, I32:$rhs)>;
+
+def : Pat<(wasm_shl (v2i64 V128:$lhs), (trunc (and I64:$rhs, 63))),
+          (SHL_I64x2 V128:$lhs, (I32_WRAP_I64 I64:$rhs))>;
+def : Pat<(wasm_shr_s (v2i64 V128:$lhs), (trunc (and I64:$rhs, 63))),
+          (SHR_S_I64x2 V128:$lhs, (I32_WRAP_I64 I64:$rhs))>;
+def : Pat<(wasm_shr_u (v2i64 V128:$lhs), (trunc (and I64:$rhs, 63))),
+          (SHR_U_I64x2 V128:$lhs, (I32_WRAP_I64 I64:$rhs))>;
+
 //===----------------------------------------------------------------------===//
 // Integer binary arithmetic
 //===----------------------------------------------------------------------===//
@@ -1259,11 +1288,13 @@ defm "" : SIMDConvert<I32x4, I16x8, int_wasm_extadd_pairwise_signed,
 defm "" : SIMDConvert<I32x4, I16x8, int_wasm_extadd_pairwise_unsigned,
                       "extadd_pairwise_i16x8_u", 0x7f>;
 
-// Prototype f64x2 conversions
+// f64x2 <-> f32x4 conversions
 defm "" : SIMDConvert<F32x4, F64x2, int_wasm_demote_zero,
                       "demote_zero_f64x2", 0x5e>;
-defm "" : SIMDConvert<F64x2, F32x4, int_wasm_promote_low,
-                      "promote_low_f32x4", 0x5f>;
+
+def promote_t : SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>]>;
+def promote_low : SDNode<"WebAssemblyISD::PROMOTE_LOW", promote_t>;
+defm "" : SIMDConvert<F64x2, F32x4, promote_low, "promote_low_f32x4", 0x5f>;
 
 //===----------------------------------------------------------------------===//
 // Saturating Rounding Q-Format Multiplication

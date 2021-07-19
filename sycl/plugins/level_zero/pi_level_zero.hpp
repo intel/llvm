@@ -328,7 +328,7 @@ struct _pi_context : _pi_object {
       : ZeContext{ZeContext},
         OwnZeContext{OwnZeContext}, Devices{Devs, Devs + NumDevices},
         ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
-        NumEventsAvailableInEventPool{}, NumEventsLiveInEventPool{} {
+        NumEventsAvailableInEventPool{}, NumEventsUnreleasedInEventPool{} {
     // Create USM allocator context for each pair (device, context).
     for (uint32_t I = 0; I < NumDevices; I++) {
       pi_device Device = Devs[I];
@@ -429,8 +429,8 @@ struct _pi_context : _pi_object {
   pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &);
 
   // If event is destroyed then decrement number of events living in the pool
-  // and destroy the pool if there are no alive events.
-  pi_result decrementAliveEventsInPool(ze_event_pool_handle_t pool);
+  // and destroy the pool if there are no unreleased events.
+  pi_result decrementUnreleasedEventsInPool(pi_event Event);
 
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
@@ -459,12 +459,12 @@ private:
   // by storing number of empty slots available in the pool.
   std::unordered_map<ze_event_pool_handle_t, pi_uint32>
       NumEventsAvailableInEventPool;
-  // This map will be used to determine number of live events in the pool.
-  // We use separate maps for number of event slots available in the pool.
-  // number of events live in the pool live.
+  // This map will be used to determine number of unreleased events in the pool.
+  // We use separate maps for number of event slots available in the pool from
+  // the number of events unreleased in the pool.
   // This will help when we try to make the code thread-safe.
   std::unordered_map<ze_event_pool_handle_t, pi_uint32>
-      NumEventsLiveInEventPool;
+      NumEventsUnreleasedInEventPool;
 
   // TODO: we'd like to create a thread safe map class instead of mutex + map,
   // that must be carefully used together.
@@ -472,8 +472,8 @@ private:
   // Mutex to control operations on NumEventsAvailableInEventPool map.
   std::mutex NumEventsAvailableInEventPoolMutex;
 
-  // Mutex to control operations on NumEventsLiveInEventPool.
-  std::mutex NumEventsLiveInEventPoolMutex;
+  // Mutex to control operations on NumEventsUnreleasedInEventPool.
+  std::mutex NumEventsUnreleasedInEventPoolMutex;
 };
 
 // If doing dynamic batching, start batch size at 4.
@@ -482,12 +482,13 @@ const pi_uint32 DynamicBatchStartSize = 4;
 struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue,
             ze_command_queue_handle_t CopyQueue, pi_context Context,
-            pi_device Device, pi_uint32 BatchSize,
+            pi_device Device, pi_uint32 BatchSize, bool OwnZeCommandQueue,
             pi_queue_properties PiQueueProperties = 0)
       : ZeComputeCommandQueue{Queue},
         ZeCopyCommandQueue{CopyQueue}, Context{Context}, Device{Device},
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
-        UseDynamicBatching{BatchSize == 0},
+        OwnZeCommandQueue{OwnZeCommandQueue}, UseDynamicBatching{BatchSize ==
+                                                                 0},
         PiQueueProperties(PiQueueProperties) {}
 
   // Level Zero compute command queue handle.
@@ -539,6 +540,10 @@ struct _pi_queue : _pi_object {
   // a queue specific basis. And by putting it in the queue itself, this
   // is thread safe because of the locking of the queue that occurs.
   pi_uint32 QueueBatchSize = {0};
+
+  // Indicates if we own the ZeCommandQueue or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeCommandQueue;
 
   // specifies whether this queue will be using dynamic batch size adjustment
   // or not.  This is set only at queue creation time, and is therefore
