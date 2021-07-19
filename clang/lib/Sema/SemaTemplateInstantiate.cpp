@@ -1542,8 +1542,7 @@ TemplateInstantiator::TransformSYCLIntelFPGAInitiationIntervalAttr(
   Expr *TransformedExpr =
       getDerived().TransformExpr(II->getIntervalExpr()).get();
   return getSema()
-      .BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAInitiationIntervalAttr>(
-          *II, TransformedExpr);
+       .BuildSYCLIntelFPGAInitiationIntervalAttr(*II, TransformedExpr);
 }
 
 const SYCLIntelFPGAMaxConcurrencyAttr *
@@ -1551,24 +1550,21 @@ TemplateInstantiator::TransformSYCLIntelFPGAMaxConcurrencyAttr(
     const SYCLIntelFPGAMaxConcurrencyAttr *MC) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(MC->getNThreadsExpr()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(
-      *MC, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGAMaxConcurrencyAttr(*MC, TransformedExpr);
 }
 
 const SYCLIntelFPGALoopCoalesceAttr *
 TemplateInstantiator::TransformSYCLIntelFPGALoopCoalesceAttr(
     const SYCLIntelFPGALoopCoalesceAttr *LC) {
   Expr *TransformedExpr = getDerived().TransformExpr(LC->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopCoalesceAttr>(
-      *LC, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGALoopCoalesceAttr(*LC, TransformedExpr);
 }
 
 const SYCLIntelFPGAMaxInterleavingAttr *
 TemplateInstantiator::TransformSYCLIntelFPGAMaxInterleavingAttr(
     const SYCLIntelFPGAMaxInterleavingAttr *MI) {
   Expr *TransformedExpr = getDerived().TransformExpr(MI->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAMaxInterleavingAttr>(
-      *MI, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGAMaxInterleavingAttr(*MI, TransformedExpr);
 }
 
 const SYCLIntelFPGASpeculatedIterationsAttr *
@@ -1576,8 +1572,7 @@ TemplateInstantiator::TransformSYCLIntelFPGASpeculatedIterationsAttr(
     const SYCLIntelFPGASpeculatedIterationsAttr *SI) {
   Expr *TransformedExpr = getDerived().TransformExpr(SI->getNExpr()).get();
   return getSema()
-      .BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGASpeculatedIterationsAttr>(
-          *SI, TransformedExpr);
+      .BuildSYCLIntelFPGASpeculatedIterationsAttr(*SI, TransformedExpr);
 }
 
 const SYCLIntelFPGALoopCountAttr *
@@ -1585,8 +1580,7 @@ TemplateInstantiator::TransformSYCLIntelFPGALoopCountAttr(
     const SYCLIntelFPGALoopCountAttr *LCA) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(LCA->getNTripCount()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopCountAttr>(
-      *LCA, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGALoopCountAttr(*LCA, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(

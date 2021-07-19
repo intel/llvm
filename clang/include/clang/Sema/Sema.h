@@ -2182,17 +2182,26 @@ public:
   SYCLIntelFPGAIVDepAttr *
   BuildSYCLIntelFPGAIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
                               Expr *Expr2);
-  template <typename FPGALoopAttrT>
-  FPGALoopAttrT *BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
-                                            Expr *E = nullptr);
-
   LoopUnrollHintAttr *BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
                                               Expr *E);
   OpenCLUnrollHintAttr *
   BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E);
 
   SYCLIntelFPGALoopCountAttr *
-  BuildSYCLIntelFPGALoopCount(const AttributeCommonInfo &CI, Expr *E);
+  BuildSYCLIntelFPGALoopCountAttr(const AttributeCommonInfo &CI, Expr *E);
+
+  SYCLIntelFPGAInitiationIntervalAttr *
+  BuildSYCLIntelFPGAInitiationIntervalAttr(const AttributeCommonInfo &CI,
+		                           Expr *E);
+  SYCLIntelFPGAMaxConcurrencyAttr *
+  BuildSYCLIntelFPGAMaxConcurrencyAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelFPGAMaxInterleavingAttr *
+  BuildSYCLIntelFPGAMaxInterleavingAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelFPGASpeculatedIterationsAttr *
+  BuildSYCLIntelFPGASpeculatedIterationsAttr(const AttributeCommonInfo &CI,
+		                             Expr *E);
+  SYCLIntelFPGALoopCoalesceAttr *
+  BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
 
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 
@@ -13525,51 +13534,6 @@ void Sema::AddOneConstantPowerTwoValueAttr(Decl *D,
   }
 
   D->addAttr(::new (Context) AttrType(Context, CI, E));
-}
-
-template <typename FPGALoopAttrT>
-FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
-                                                Expr *E) {
-  if (!E && !(A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce))
-    return nullptr;
-
-  if (E && !E->isInstantiationDependent()) {
-    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
-
-    if (!ArgVal) {
-      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << A.getAttrName() << AANT_ArgumentIntegerConstant
-          << E->getSourceRange();
-      return nullptr;
-    }
-
-    int Val = ArgVal->getSExtValue();
-
-    if (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAInitiationInterval ||
-        A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce) {
-      if (Val <= 0) {
-        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << A.getAttrName() << /* positive */ 0;
-        return nullptr;
-      }
-    } else if (A.getParsedKind() ==
-                   ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency ||
-               A.getParsedKind() ==
-                   ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving ||
-               A.getParsedKind() ==
-                   ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations ||
-               A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCount) {
-      if (Val < 0) {
-        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << A.getAttrName() << /* non-negative */ 1;
-        return nullptr;
-      }
-    } else {
-      llvm_unreachable("unknown sycl fpga loop attr");
-    }
-  }
-
-  return new (Context) FPGALoopAttrT(Context, A, E);
 }
 
 /// RAII object that enters a new expression evaluation context.
