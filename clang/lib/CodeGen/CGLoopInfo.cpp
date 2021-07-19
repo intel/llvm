@@ -1032,17 +1032,17 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (const auto *IntelFPGAMaxConcurrency =
             dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(A)) {
+      const auto *CE = cast<ConstantExpr>(IntelFPGAMaxConcurrency->getNThreadsExpr());
+      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxConcurrencyEnable();
-      setSYCLMaxConcurrencyNThreads(IntelFPGAMaxConcurrency->getNThreadsExpr()
-                                        ->getIntegerConstantExpr(Ctx)
-                                        ->getSExtValue());
+      setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
     }
 
     if (const auto *IntelFPGALoopCountAvg =
             dyn_cast<SYCLIntelFPGALoopCountAttr>(A)) {
-      unsigned int Count = IntelFPGALoopCountAvg->getNTripCount()
-                               ->getIntegerConstantExpr(Ctx)
-                               ->getSExtValue();
+      const auto *CE = cast<ConstantExpr>(IntelFPGALoopCountAvg->getNTripCount());
+      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
+      unsigned int Count = ArgVal.getSExtValue();
       const char *Var = IntelFPGALoopCountAvg->isMax()
                             ? "llvm.loop.intel.loopcount_max"
                             : IntelFPGALoopCountAvg->isMin()
@@ -1065,19 +1065,18 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (const auto *IntelFPGAMaxInterleaving =
             dyn_cast<SYCLIntelFPGAMaxInterleavingAttr>(A)) {
+      const auto *CE = cast<ConstantExpr>(IntelFPGAMaxInterleaving->getNExpr());
+      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxInterleavingEnable();
-      setSYCLMaxInterleavingNInvocations(IntelFPGAMaxInterleaving->getNExpr()
-                                             ->getIntegerConstantExpr(Ctx)
-                                             ->getSExtValue());
+      setSYCLMaxInterleavingNInvocations(ArgVal.getSExtValue());
     }
 
     if (const auto *IntelFPGASpeculatedIterations =
             dyn_cast<SYCLIntelFPGASpeculatedIterationsAttr>(A)) {
+      const auto *CE = cast<ConstantExpr>(IntelFPGASpeculatedIterations->getNExpr());
+      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLSpeculatedIterationsEnable();
-      setSYCLSpeculatedIterationsNIterations(
-          IntelFPGASpeculatedIterations->getNExpr()
-              ->getIntegerConstantExpr(Ctx)
-              ->getSExtValue());
+      setSYCLSpeculatedIterationsNIterations(ArgVal.getSExtValue());
     }
 
     if (isa<SYCLIntelFPGANofusionAttr>(A))

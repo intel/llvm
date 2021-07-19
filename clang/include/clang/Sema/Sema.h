@@ -2205,7 +2205,8 @@ public:
                                              Expr *E);
 
   SYCLIntelFPGALoopCoalesceAttr *
-  BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
+  BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI,
+		                     Expr *E = nullptr);
 
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 

@@ -183,7 +183,9 @@ static Attr *handleSYCLIntelFPGALoopCoalesceAttr(Sema &S, Stmt *St,
                                                  const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  Expr *E = A.getNumArgs() ? A.getArgAsExpr(0) : nullptr;
+  Expr *E = A.isArgExpr(0)
+                ? A.getArgAsExpr(0)
+		: nullptr;
   return S.BuildSYCLIntelFPGALoopCoalesceAttr(A, E);
 }
 
