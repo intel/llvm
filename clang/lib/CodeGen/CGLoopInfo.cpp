@@ -620,10 +620,10 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       VectorizeScalable(LoopAttributes::Unspecified), InterleaveCount(0),
       SYCLIInterval(0), SYCLLoopCoalesceEnable(false),
       SYCLLoopCoalesceNLevels(0), SYCLLoopPipeliningDisable(false),
-      UnrollCount(0),
-      UnrollAndJamCount(0), DistributeEnable(LoopAttributes::Unspecified),
-      PipelineDisabled(false), PipelineInitiationInterval(0),
-      SYCLNofusionEnable(false), MustProgress(false) {}
+      UnrollCount(0), UnrollAndJamCount(0),
+      DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
+      PipelineInitiationInterval(0), SYCLNofusionEnable(false),
+      MustProgress(false) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;
@@ -637,7 +637,7 @@ void LoopAttributes::clear() {
   SYCLLoopCoalesceEnable = false;
   SYCLLoopCoalesceNLevels = 0;
   SYCLLoopPipeliningDisable = false;
-  SYCLMaxInterleavingNInvocations.clear();;
+  SYCLMaxInterleavingNInvocations.clear();
   SYCLSpeculatedIterationsNIterations.clear();
   SYCLIntelFPGAVariantCount.clear();
   UnrollCount = 0;
@@ -1014,8 +1014,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (const auto *IntelFPGAII =
             dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(A)) {
-      const auto *CE =
-          cast<ConstantExpr>(IntelFPGAII->getIntervalExpr());
+      const auto *CE = cast<ConstantExpr>(IntelFPGAII->getIntervalExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLIInterval(ArgVal.getSExtValue());
     }
@@ -1045,9 +1044,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     if (const auto *IntelFPGALoopCoalesce =
             dyn_cast<SYCLIntelFPGALoopCoalesceAttr>(A)) {
       if (auto *LCE = IntelFPGALoopCoalesce->getNExpr()) {
-	const auto *CE = cast<ConstantExpr>(LCE);
+        const auto *CE = cast<ConstantExpr>(LCE);
         llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-	setSYCLLoopCoalesceNLevels(ArgVal.getSExtValue());
+        setSYCLLoopCoalesceNLevels(ArgVal.getSExtValue());
       } else {
         setSYCLLoopCoalesceEnable();
       }

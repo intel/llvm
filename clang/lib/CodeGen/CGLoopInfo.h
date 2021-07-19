@@ -377,13 +377,15 @@ public:
     StagedAttrs.SYCLLoopPipeliningDisable = true;
   }
 
-  /// Set variant and value of max interleaved invocations for the next loop pushed.
+  /// Set variant and value of max interleaved invocations for the next loop
+  /// pushed.
   void setSYCLMaxInterleavingNInvocations(const char *Var, unsigned int Value) {
     StagedAttrs.SYCLMaxInterleavingNInvocations.push_back({Var, Value});
   }
 
   /// Set variant and value of speculated iterations for the next loop pushed.
-  void setSYCLSpeculatedIterationsNIterations(const char *Var, unsigned int Value) {
+  void setSYCLSpeculatedIterationsNIterations(const char *Var,
+                                              unsigned int Value) {
     StagedAttrs.SYCLSpeculatedIterationsNIterations.push_back({Var, Value});
   }
 
