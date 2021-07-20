@@ -4,7 +4,6 @@ remove_definitions(-DXPTI_STATIC_LIBRARY)
 add_definitions(-DXPTI_API_EXPORTS)
 add_library(xptifw SHARED ${SOURCES})
 
-find_package(Threads)
 target_include_directories(xptifw PUBLIC
     $<BUILD_INTERFACE:${XPTIFW_DIR}/include>
     $<BUILD_INTERFACE:${XPTI_DIR}/include>
