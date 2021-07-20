@@ -87,18 +87,3 @@ void test() {
   //expected-note@+1{{in instantiation of function template specialization 'func14<float>' requested here}}
   func14<float>();
 }
-
-// Tests for Intel FPGA i[[intel::initiation_interval]] and [[intel::fpga_pipeline]] attributes compatibility checks.
-// expected-error@+2 {{'initiation_interval' and 'fpga_pipeline' attributes are not compatible}}
-// expected-note@+1 {{conflicting attribute is here}}
-[[intel::fpga_pipeline(1)]] [[intel::initiation_interval(2)]] void func15();
-
-// expected-error@+3 {{'fpga_pipeline' and 'initiation_interval' attributes are not compatible}}
-// expected-note@+1 {{conflicting attribute is here}}
-[[intel::initiation_interval(4)]] void func16();
-[[intel::fpga_pipeline(0)]] void func16();
-
-// expected-error@+3 {{'initiation_interval' and 'fpga_pipeline' attributes are not compatible}}
-// expected-note@+1 {{conflicting attribute is here}}
-[[intel::fpga_pipeline(1)]] void func17();
-[[intel::initiation_interval(8)]] void func17();
