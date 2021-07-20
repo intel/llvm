@@ -554,7 +554,7 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
   if (SubSubDeviceOrdinal >= 0) {
     ComputeGroupIndex = SubSubDeviceOrdinal;
     ZeComputeEngineIndex = SubSubDeviceIndex;
-  } else {  // This is a root or a sub-device
+  } else { // This is a root or a sub-device
     for (uint32_t i = 0; i < numQueueGroups; i++) {
       if (QueueProperties[i].flags &
           ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
