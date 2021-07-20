@@ -550,11 +550,11 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
 
   int ComputeGroupIndex = -1;
 
-  // initialize a sub-sub-devices with its own Ordinal
+  // Initialize a sub-sub-device with its own ordinal and index
   if (SubSubDeviceOrdinal >= 0) {
     ComputeGroupIndex = SubSubDeviceOrdinal;
     ZeComputeEngineIndex = SubSubDeviceIndex;
-  } else {
+  } else {  // This is a root or a sub-device
     for (uint32_t i = 0; i < numQueueGroups; i++) {
       if (QueueProperties[i].flags &
           ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
@@ -567,6 +567,7 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
       return PI_ERROR_UNKNOWN;
     }
 
+    // The index for a root or a sub-device is always 0.
     ZeComputeEngineIndex = 0;
 
     int CopyGroupIndex = -1;
