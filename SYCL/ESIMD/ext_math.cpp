@@ -9,6 +9,8 @@
 // UNSUPPORTED: cuda
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+// Enable when driver fixes will be propagated into the official release
+// XFAIL: windows
 
 // This test checks extended math operations.
 
@@ -16,6 +18,7 @@
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/INTEL/esimd.hpp>
+#include <CL/sycl/builtins_esimd.hpp>
 #include <iostream>
 
 using namespace cl::sycl;
@@ -35,7 +38,16 @@ struct InitDataFuncWide {
 struct InitDataFuncNarrow {
   void operator()(float *In, float *Out, size_t Size) const {
     for (auto I = 0; I < Size; ++I) {
-      In[I] = 2.0f + 16.0f * ((float)I / (float)(Size - 1)); // in [2..16] range
+      In[I] = 2.0f + 16.0f * ((float)I / (float)(Size - 1)); // in [2..18] range
+      Out[I] = (float)0.0;
+    }
+  }
+};
+
+struct InitDataInRange0_5 {
+  void operator()(float *In, float *Out, size_t Size) const {
+    for (auto I = 0; I < Size; ++I) {
+      In[I] = 5.0f * ((float)I / (float)(Size - 1)); // in [0..5] range
       Out[I] = (float)0.0;
     }
   }
@@ -52,7 +64,7 @@ template <MathOp Op> float HostMathFunc(float X);
 
 // --- Specializations per each extended math operation
 
-#define DEFINE_OP(Op, HostOp)                                                  \
+#define DEFINE_ESIMD_OP(Op, HostOp)                                            \
   template <> float HostMathFunc<MathOp::Op>(float X) { return HostOp(X); }    \
   template <int VL> struct DeviceMathFunc<VL, MathOp::Op> {                    \
     simd<float, VL>                                                            \
@@ -61,13 +73,22 @@ template <MathOp Op> float HostMathFunc(float X);
     }                                                                          \
   }
 
-DEFINE_OP(sin, sin);
-DEFINE_OP(cos, cos);
-DEFINE_OP(exp, exp);
-DEFINE_OP(log, log);
-DEFINE_OP(inv, 1.0f /);
-DEFINE_OP(sqrt, sqrt);
-DEFINE_OP(rsqrt, 1.0f / sqrt);
+#define DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(Op, HostOp)                         \
+  template <> float HostMathFunc<MathOp::Op>(float X) { return HostOp(X); }    \
+  template <int VL> struct DeviceMathFunc<VL, MathOp::Op> {                    \
+    simd<float, VL>                                                            \
+    operator()(const simd<float, VL> &X) const SYCL_ESIMD_FUNCTION {           \
+      return sycl::Op<VL>(X);                                                  \
+    }                                                                          \
+  }
+
+DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(sin, sin);
+DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(cos, cos);
+DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(exp, exp);
+DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(log, log);
+DEFINE_ESIMD_OP(inv, 1.0f /);
+DEFINE_ESIMD_OP(sqrt, sqrt);
+DEFINE_ESIMD_OP(rsqrt, 1.0f / sqrt);
 
 // --- Generic kernel calculating an extended math operation on array elements
 
@@ -159,13 +180,10 @@ template <int VL> bool test(queue &Q) {
   Pass &= test<MathOp::sqrt, VL>(Q, "sqrt", InitDataFuncWide{});
   Pass &= test<MathOp::inv, VL>(Q, "inv");
   Pass &= test<MathOp::rsqrt, VL>(Q, "rsqrt");
-// TODO enable these tests after the implementation is fixed
-#if ENABLE_SIN_COS_EXP_LOG
   Pass &= test<MathOp::sin, VL>(Q, "sin", InitDataFuncWide{});
   Pass &= test<MathOp::cos, VL>(Q, "cos", InitDataFuncWide{});
-  Pass &= test<MathOp::exp, VL>(Q, "exp");
+  Pass &= test<MathOp::exp, VL>(Q, "exp", InitDataInRange0_5{});
   Pass &= test<MathOp::log, VL>(Q, "log", InitDataFuncWide{});
-#endif
   return Pass;
 }
 
