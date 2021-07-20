@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/ONEAPI/atomic_enums.hpp>
+#include <sycl/ext/oneapi/atomic_enums.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-using ONEAPI::memory_scope;
+using ext::oneapi::memory_scope;
 
 enum class memory_order : int {
   relaxed = 0,

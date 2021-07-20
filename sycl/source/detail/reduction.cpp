@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/ONEAPI/reduction.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/ext/oneapi/reduction.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 namespace detail {
 
 // TODO: The algorithm of choosing the work-group size is definitely
@@ -109,6 +110,25 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
 }
 
 } // namespace detail
+} // namespace oneapi
+} // namespace ext
+
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
+  namespace detail {
+  __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
+                                         size_t &NWorkGroups) {
+    return ext::oneapi::detail::reduComputeWGSize(NWorkItems, MaxWGSize,
+                                                  NWorkGroups);
+  }
+
+  __SYCL_EXPORT size_t
+  reduGetMaxWGSize(shared_ptr_class<sycl::detail::queue_impl> Queue,
+                   size_t LocalMemBytesPerWorkItem) {
+    return ext::oneapi::detail::reduGetMaxWGSize(Queue,
+                                                 LocalMemBytesPerWorkItem);
+  }
+  } // namespace detail
 } // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

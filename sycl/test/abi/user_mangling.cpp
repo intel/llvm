@@ -7,13 +7,13 @@
 #include <CL/sycl.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
-// CHK-DEVICE: define dso_local spir_func void @_Z3accN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE({{.*}})
+// CHK-DEVICE: define dso_local spir_func void @_Z3accN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
 SYCL_EXTERNAL void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer>) {} 
 
-// CHK-DEVICE: define dso_local spir_func void @_Z3accN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE({{.*}})
+// CHK-DEVICE: define dso_local spir_func void @_Z3accN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
 SYCL_EXTERNAL void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::local>) {} 
 
-// CHK-DEVICE: define dso_local spir_func void @_Z3accN2cl4sycl8accessorINS0_3vecIiLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2017ELNS4_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE({{.*}})
+// CHK-DEVICE: define dso_local spir_func void @_Z3accN2cl4sycl8accessorINS0_3vecIiLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2017ELNS4_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
 SYCL_EXTERNAL void acc(sycl::accessor<sycl::cl_int4, 1, sycl::access::mode::read, sycl::access::target::image>) {} 
 
 // CHK-DEVICE: define dso_local spir_func void @_Z11private_memN2cl4sycl14private_memoryIiLi1EEE({{.*}})
@@ -37,13 +37,13 @@ SYCL_EXTERNAL void stream(sycl::stream) {}
 // CHK-DEVICE: define dso_local spir_func void @_Z7samplerN2cl4sycl7samplerE({{.*}})
 SYCL_EXTERNAL void sampler(sycl::sampler) {}
 #else
-// CHK-HOST: define dso_local void @_Z3accN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2018ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE({{.*}})
+// CHK-HOST: define dso_local void @_Z3accN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2018ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
 void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::host_buffer>) {} 
 
-// CHK-HOST: define dso_local void @_Z3accN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE({{.*}})
+// CHK-HOST: define dso_local void @_Z3accN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
 void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::local>) {} 
 
-// CHK-HOST: define dso_local void @_Z3accN2cl4sycl8accessorINS0_3vecIiLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2019ELNS4_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE({{.*}})
+// CHK-HOST: define dso_local void @_Z3accN2cl4sycl8accessorINS0_3vecIiLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2019ELNS4_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
 void acc(sycl::accessor<sycl::cl_int4, 1, sycl::access::mode::read, sycl::access::target::host_image>) {} 
 
 // CHK-HOST: define dso_local void @_Z3bufN2cl4sycl6bufferIiLi1ENS0_6detail17aligned_allocatorIcEEvEE({{.*}})
