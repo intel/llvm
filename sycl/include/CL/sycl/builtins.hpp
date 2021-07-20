@@ -1639,6 +1639,7 @@ extern SYCL_EXTERNAL double hypot(double x, double y);
 
 extern SYCL_EXTERNAL void *memcpy(void *dest, const void *src, size_t n);
 extern SYCL_EXTERNAL void *memset(void *dest, int c, size_t n);
+extern SYCL_EXTERNAL int memcmp(const void *s1, const void *s2, size_t n);
 }
 #ifdef __GLIBC__
 extern "C" {
