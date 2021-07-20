@@ -7,7 +7,7 @@ https://github.com/intel/llvm/blob/sycl/sycl/doc/SharedLibraries.md document.
 
 ### Device & BE coverage
 
-All of the tests described below are performed on CPU and GPU devices.
+All of the tests described below are performed on Intel CPU and GPU devices.
 For GPU device both OpenCL and L0 backends are used.
 
 **NOTE**: The feature isn't supported on FPGA device.
