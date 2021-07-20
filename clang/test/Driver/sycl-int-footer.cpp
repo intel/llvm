@@ -1,23 +1,16 @@
 /// Check compilation tool steps when using the integration footer
-// RUN:  %clangxx -fsycl -include dummy.h %s -### 2>&1 \
+// RUN:  %clangxx -fsycl -include dummy.h %/s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER %s
 // FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}"{{.*}} "-include" "dummy.h"
-// FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-E"{{.*}} "-C"{{.*}} "-include" "dummy.h"{{.*}} "-o" "[[PREPROC:.+\.ii]]"
-// FOOTER: append-file{{.*}} "[[PREPROC]]" "--append=[[INTFOOTER]]" "--output=[[APPENDEDSRC:.+\.cpp]]"
-// FOOTER: clang{{.*}} "-fsycl-is-host"{{.*}} "[[APPENDEDSRC]]"
+// FOOTER: append-file{{.*}} "[[INPUTFILE:.+\.cpp]]" "--append=[[INTFOOTER]]" "--orig-filename=[[INPUTFILE]]" "--output=[[APPENDEDSRC:.+\.cpp]]"
+// FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-include" "dummy.h"{{.*}}
 // FOOTER-NOT: "-include" "[[INTHEADER]]"
 
-// RUN:  %clangxx -fsycl -include dummy.h %s -### 2>&1 \
-// RUN:   | FileCheck -check-prefix FOOTER_NO_HEADER %s
-// FOOTER_NO_HEADER: append-file{{.*}}
-// FOOTER_NO_HEADER-NOT: clang{{.*}} "-include" "dummy.h"
-
 /// Preprocessed file creation with integration footer
-// RUN: %clangxx -fsycl -E %s -### 2>&1 \
+// RUN: %clangxx -fsycl -E %/s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER_PREPROC_GEN %s
 // FOOTER_PREPROC_GEN: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}" "-o" "[[PREPROC_DEVICE:.+\.ii]]"
-// FOOTER_PREPROC_GEN: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-E"{{.*}} "-o" "[[PREPROC1:.+\.ii]]"
-// FOOTER_PREPROC_GEN: append-file{{.*}} "[[PREPROC1]]" "--append=[[INTFOOTER]]" "--output=[[APPENDEDSRC:.+\.cpp]]"
+// FOOTER_PREPROC_GEN: append-file{{.*}} "[[INPUTFILE:.+\.cpp]]" "--append=[[INTFOOTER]]" "--orig-filename=[[INPUTFILE]]" "--output=[[APPENDEDSRC:.+\.cpp]]"
 // FOOTER_PREPROC_GEN: clang{{.*}} "-fsycl-is-host"{{.*}} "-E"{{.*}} "-o" "[[PREPROC_HOST:.+\.ii]]"{{.*}} "[[APPENDEDSRC]]"
 // FOOTER_PREPROC_GEN: clang-offload-bundler{{.*}} "-inputs=[[PREPROC_DEVICE]],[[PREPROC_HOST]]"
 
@@ -49,12 +42,11 @@
 // RUN: %clangxx -fsycl -fno-sycl-device-lib=all -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER-PHASES -check-prefix COMMON-PHASES %s
 // FOOTER-PHASES: 0: input, "{{.*}}", c++, (host-sycl)
-// FOOTER-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
-// FOOTER-PHASES: 2: append-footer, {1}, c++, (host-sycl)
-// FOOTER-PHASES: [[#HOST_PREPROC:]]: preprocessor, {2}, c++-cpp-output, (host-sycl)
-// FOOTER-PHASES: 4: input, "{{.*}}", c++, (device-sycl)
-// FOOTER-PHASES: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
-// FOOTER-PHASES: [[#DEVICE_IR:]]: compiler, {5}, ir, (device-sycl)
+// FOOTER-PHASES: 1: append-footer, {0}, c++, (host-sycl)
+// FOOTER-PHASES: [[#HOST_PREPROC:]]: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// FOOTER-PHASES: 3: input, "{{.*}}", c++, (device-sycl)
+// FOOTER-PHASES: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
+// FOOTER-PHASES: [[#DEVICE_IR:]]: compiler, {4}, ir, (device-sycl)
 
 // COMMON-PHASES: [[#OFFLOAD:]]: offload, "host-sycl (x86_64-{{.*}})" {[[#HOST_PREPROC]]}, "device-sycl (spir64-unknown-unknown-sycldevice)" {[[#DEVICE_IR]]}, c++-cpp-output
 // COMMON-PHASES: [[#OFFLOAD+1]]: compiler, {[[#OFFLOAD]]}, ir, (host-sycl)

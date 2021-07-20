@@ -266,7 +266,7 @@ def WriteOnly : EnumAttr<"writeonly">;
 def ZExt : EnumAttr<"zeroext">;
 
 /// Function is required to make Forward Progress.
-def MustProgress : TypeAttr<"mustprogress">;
+def MustProgress : EnumAttr<"mustprogress">;
 
 /// Target-independent string attributes.
 def LessPreciseFPMAD : StrBoolAttr<"less-precise-fpmad">;
@@ -297,6 +297,7 @@ def : CompatRule<"isEqual<SanitizeMemTagAttr>">;
 def : CompatRule<"isEqual<SafeStackAttr>">;
 def : CompatRule<"isEqual<ShadowCallStackAttr>">;
 def : CompatRule<"isEqual<UseSampleProfileAttr>">;
+def : CompatRule<"isEqual<NoProfileAttr>">;
 
 class MergeRule<string F> {
   // The name of the function called to merge the attributes of the caller and

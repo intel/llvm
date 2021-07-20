@@ -194,7 +194,8 @@ int main() {
   // Modified by kernel instantiation.
   []() {
     static int LocalLambda2;
-    cl::sycl::kernel_single_task<class K>([]() {});
+    auto Lambda = [](){};
+    cl::sycl::kernel_single_task<decltype(Lambda)>(Lambda);
     puts(__builtin_sycl_unique_stable_id(LocalLambda2));
     // CHECK: call i32 @puts({{.+}} @[[LOCAL_LAMBDA_2]],
   }();

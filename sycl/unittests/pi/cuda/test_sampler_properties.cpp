@@ -21,7 +21,7 @@ class SamplerPropertiesTest
     : public ::testing::TestWithParam<std::tuple<
           pi_bool, pi_sampler_filter_mode, pi_sampler_addressing_mode>> {
 protected:
-  detail::plugin plugin = pi::initializeAndGet(backend::cuda);
+  detail::plugin *plugin = pi::initializeAndGet(backend::cuda);
 
   pi_platform platform_;
   pi_device device_;
@@ -37,25 +37,30 @@ protected:
   ~SamplerPropertiesTest() override = default;
 
   void SetUp() override {
+    // skip the tests if the CUDA backend is not available
+    if (plugin == nullptr) {
+      GTEST_SKIP();
+    }
+
     std::tie(normalizedCoords_, filterMode_, addressMode_) = GetParam();
 
     pi_uint32 numPlatforms = 0;
-    ASSERT_EQ(plugin.getBackend(), backend::cuda);
+    ASSERT_EQ(plugin->getBackend(), backend::cuda);
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &numPlatforms)),
               PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   numPlatforms, &platform_, nullptr)),
               PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDevicesGet>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piDevicesGet>(
                   platform_, PI_DEVICE_TYPE_GPU, 1, &device_, nullptr)),
               PI_SUCCESS);
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextCreate>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piContextCreate>(
                   nullptr, 1, &device_, nullptr, nullptr, &context_)),
               PI_SUCCESS);
     EXPECT_NE(context_, nullptr);
@@ -69,22 +74,24 @@ protected:
         filterMode_,
         0};
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piSamplerCreate>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piSamplerCreate>(
                   context_, sampler_properties, &sampler_)),
               PI_SUCCESS);
   }
 
   void TearDown() override {
-    plugin.call<detail::PiApiKind::piSamplerRelease>(sampler_);
-    plugin.call<detail::PiApiKind::piDeviceRelease>(device_);
-    plugin.call<detail::PiApiKind::piContextRelease>(context_);
+    if (plugin) {
+      plugin->call<detail::PiApiKind::piSamplerRelease>(sampler_);
+      plugin->call<detail::PiApiKind::piDeviceRelease>(device_);
+      plugin->call<detail::PiApiKind::piContextRelease>(context_);
+    }
   }
 };
 
 TEST_P(SamplerPropertiesTest, piCheckNormalizedCoords) {
   pi_bool actualNormalizedCoords = !normalizedCoords_;
 
-  plugin.call<detail::PiApiKind::piSamplerGetInfo>(
+  plugin->call<detail::PiApiKind::piSamplerGetInfo>(
       sampler_, PI_SAMPLER_INFO_NORMALIZED_COORDS, sizeof(pi_bool),
       &actualNormalizedCoords, nullptr);
 
@@ -94,7 +101,7 @@ TEST_P(SamplerPropertiesTest, piCheckNormalizedCoords) {
 TEST_P(SamplerPropertiesTest, piCheckFilterMode) {
   pi_sampler_filter_mode actualFilterMode;
 
-  plugin.call<detail::PiApiKind::piSamplerGetInfo>(
+  plugin->call<detail::PiApiKind::piSamplerGetInfo>(
       sampler_, PI_SAMPLER_INFO_FILTER_MODE, sizeof(pi_sampler_filter_mode),
       &actualFilterMode, nullptr);
 
@@ -104,7 +111,7 @@ TEST_P(SamplerPropertiesTest, piCheckFilterMode) {
 TEST_P(SamplerPropertiesTest, piCheckAddressingMode) {
   pi_sampler_addressing_mode actualAddressMode;
 
-  plugin.call<detail::PiApiKind::piSamplerGetInfo>(
+  plugin->call<detail::PiApiKind::piSamplerGetInfo>(
       sampler_, PI_SAMPLER_INFO_ADDRESSING_MODE,
       sizeof(pi_sampler_addressing_mode), &actualAddressMode, nullptr);
 

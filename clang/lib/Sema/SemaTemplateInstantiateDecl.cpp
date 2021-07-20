@@ -1437,7 +1437,10 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
   if (Var->isStaticLocal())
     SemaRef.CheckStaticLocalForDllExport(Var);
 
-  SemaRef.addSyclVarDecl(Var);
+  // Only add this if we aren't instantiating a variable template.  We'll end up
+  // adding the VarTemplateSpecializationDecl later.
+  if (!InstantiatingVarTemplate)
+    SemaRef.addSyclVarDecl(Var);
   return Var;
 }
 

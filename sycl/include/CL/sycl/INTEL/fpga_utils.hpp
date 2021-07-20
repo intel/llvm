@@ -8,27 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/stl.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace INTEL {
+__SYCL_WARNING("CL/sycl/INTEL/fpga_utils.hpp usage is deprecated, include "
+               "sycl/ext/intel/fpga_utils.hpp instead")
 
-template <template <int32_t> class _Type, class _T>
-struct _MatchType : std::is_same<_Type<_T::value>, _T> {};
-
-template <template <int32_t> class _Type, class... _T> struct _GetValue {
-  static constexpr auto value = _Type<0>::default_value;
-};
-
-template <template <int32_t> class _Type, class _T1, class... _T>
-struct _GetValue<_Type, _T1, _T...> {
-  static constexpr auto value =
-      detail::conditional_t<_MatchType<_Type, _T1>::value, _T1,
-                            _GetValue<_Type, _T...>>::value;
-};
-} // namespace INTEL
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+#include <sycl/ext/intel/fpga_utils.hpp>

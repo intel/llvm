@@ -971,27 +971,18 @@ _SPIRV_OP(Ordered)
 _SPIRV_OP(Unordered)
 #undef _SPIRV_OP
 
-class SPIRVSelect : public SPIRVInstruction {
+class SPIRVSelectBase : public SPIRVInstTemplateBase {
 public:
-  // Complete constructor
-  SPIRVSelect(SPIRVId TheId, SPIRVType *TheType, SPIRVId TheCondition,
-              SPIRVId TheOp1, SPIRVId TheOp2, SPIRVBasicBlock *TheBB,
-              SPIRVModule *TheM)
-      : SPIRVInstruction(6, OpSelect, TheType, TheId, TheBB, TheM),
-        Condition(TheCondition), Op1(TheOp1), Op2(TheOp2) {
-    validate();
-  }
-  // Incomplete constructor
-  SPIRVSelect()
-      : SPIRVInstruction(OpSelect), Condition(SPIRVID_INVALID),
-        Op1(SPIRVID_INVALID), Op2(SPIRVID_INVALID) {}
-  SPIRVValue *getCondition() { return getValue(Condition); }
-  SPIRVValue *getTrueValue() { return getValue(Op1); }
-  SPIRVValue *getFalseValue() { return getValue(Op2); }
+  SPIRVValue *getCondition() { return getValue(Ops[0]); }
+  SPIRVValue *getTrueValue() { return getValue(Ops[1]); }
+  SPIRVValue *getFalseValue() { return getValue(Ops[2]); }
 
 protected:
-  _SPIRV_DEF_ENCDEC5(Type, Id, Condition, Op1, Op2)
   void validate() const override {
+    SPIRVId Condition = Ops[0];
+    SPIRVId Op1 = Ops[1];
+    SPIRVId Op2 = Ops[2];
+
     SPIRVInstruction::validate();
     if (getValue(Condition)->isForward() || getValue(Op1)->isForward() ||
         getValue(Op2)->isForward())
@@ -1005,10 +996,9 @@ protected:
     assert(getType() == getValueType(Op1) && getType() == getValueType(Op2) &&
            "Inconsistent type");
   }
-  SPIRVId Condition;
-  SPIRVId Op1;
-  SPIRVId Op2;
 };
+
+typedef SPIRVInstTemplate<SPIRVSelectBase, OpSelect, true, 6> SPIRVSelect;
 
 class SPIRVSelectionMerge : public SPIRVInstruction {
 public:
@@ -1567,6 +1557,9 @@ _SPIRV_OP(All)
 _SPIRV_OP(BitCount)
 _SPIRV_OP(BitReverse)
 #undef _SPIRV_OP
+#define _SPIRV_OP_INTERNAL(x) typedef SPIRVUnaryInst<internal::Op##x> SPIRV##x;
+_SPIRV_OP_INTERNAL(ArithmeticFenceINTEL)
+#undef _SPIRV_OP_INTERNAL
 
 class SPIRVAccessChainBase : public SPIRVInstTemplateBase {
 public:
@@ -1898,86 +1891,57 @@ protected:
   std::vector<SPIRVId> Constituents;
 };
 
-class SPIRVCompositeExtract : public SPIRVInstruction {
+class SPIRVCompositeExtractBase : public SPIRVInstTemplateBase {
 public:
-  const static Op OC = OpCompositeExtract;
-  // Complete constructor
-  SPIRVCompositeExtract(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheComposite,
-                        const std::vector<SPIRVWord> &TheIndices,
-                        SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
-      : SPIRVInstruction(TheIndices.size() + 4, OC, TheType, TheId, TheBB,
-                         TheM),
-        Composite(TheComposite), Indices(TheIndices) {
-    validate();
+  SPIRVValue *getComposite() { return getValue(Ops[0]); }
+  const std::vector<SPIRVWord> getIndices() const {
+    return std::vector<SPIRVWord>(Ops.begin() + 1, Ops.end());
   }
-  // Incomplete constructor
-  SPIRVCompositeExtract() : SPIRVInstruction(OC), Composite(SPIRVID_INVALID) {}
-
-  SPIRVValue *getComposite() { return getValue(Composite); }
-  const std::vector<SPIRVWord> &getIndices() const { return Indices; }
 
 protected:
-  void setWordCount(SPIRVWord TheWordCount) override {
-    SPIRVEntry::setWordCount(TheWordCount);
-    Indices.resize(TheWordCount - 4);
-  }
-  _SPIRV_DEF_ENCDEC4(Type, Id, Composite, Indices)
   // ToDo: validate the result type is consistent with the base type and indices
   // need to trace through the base type for struct types
   void validate() const override {
     SPIRVInstruction::validate();
+    assert(OpCode == OpCompositeExtract);
+    SPIRVId Composite = Ops[0];
+    (void)Composite;
     assert(getValueType(Composite)->isTypeArray() ||
            getValueType(Composite)->isTypeStruct() ||
            getValueType(Composite)->isTypeVector());
   }
-  SPIRVId Composite;
-  std::vector<SPIRVWord> Indices;
 };
 
-class SPIRVCompositeInsert : public SPIRVInstruction {
-public:
-  const static Op OC = OpCompositeInsert;
-  const static SPIRVWord FixedWordCount = 5;
-  // Complete constructor
-  SPIRVCompositeInsert(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheObject,
-                       SPIRVId TheComposite,
-                       const std::vector<SPIRVWord> &TheIndices,
-                       SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
-      : SPIRVInstruction(TheIndices.size() + FixedWordCount, OC, TheType, TheId,
-                         TheBB, TheM),
-        Object(TheObject), Composite(TheComposite), Indices(TheIndices) {
-    validate();
-  }
-  // Incomplete constructor
-  SPIRVCompositeInsert()
-      : SPIRVInstruction(OC), Object(SPIRVID_INVALID),
-        Composite(SPIRVID_INVALID) {}
+typedef SPIRVInstTemplate<SPIRVCompositeExtractBase, OpCompositeExtract, true,
+                          4, true>
+    SPIRVCompositeExtract;
 
-  SPIRVValue *getObject() { return getValue(Object); }
-  SPIRVValue *getComposite() { return getValue(Composite); }
-  const std::vector<SPIRVWord> &getIndices() const { return Indices; }
+class SPIRVCompositeInsertBase : public SPIRVInstTemplateBase {
+public:
+  SPIRVValue *getObject() { return getValue(Ops[0]); }
+  SPIRVValue *getComposite() { return getValue(Ops[1]); }
+  const std::vector<SPIRVWord> getIndices() const {
+    return std::vector<SPIRVWord>(Ops.begin() + 2, Ops.end());
+  }
 
 protected:
-  void setWordCount(SPIRVWord TheWordCount) override {
-    SPIRVEntry::setWordCount(TheWordCount);
-    Indices.resize(TheWordCount - FixedWordCount);
-  }
-  _SPIRV_DEF_ENCDEC5(Type, Id, Object, Composite, Indices)
   // ToDo: validate the object type is consistent with the base type and indices
   // need to trace through the base type for struct types
   void validate() const override {
     SPIRVInstruction::validate();
-    assert(OpCode == OC);
-    assert(WordCount == Indices.size() + FixedWordCount);
+    assert(OpCode == OpCompositeInsert);
+    SPIRVId Composite = Ops[1];
+    (void)Composite;
     assert(getValueType(Composite)->isTypeArray() ||
            getValueType(Composite)->isTypeStruct() ||
            getValueType(Composite)->isTypeVector());
     assert(Type == getValueType(Composite));
   }
-  SPIRVId Object;
-  SPIRVId Composite;
-  std::vector<SPIRVWord> Indices;
 };
+
+typedef SPIRVInstTemplate<SPIRVCompositeInsertBase, OpCompositeInsert, true, 5,
+                          true>
+    SPIRVCompositeInsert;
 
 class SPIRVCopyObject : public SPIRVInstruction {
 public:
@@ -2175,51 +2139,33 @@ protected:
   SPIRVId ComponentId;
 };
 
-class SPIRVVectorShuffle : public SPIRVInstruction {
+class SPIRVVectorShuffleBase : public SPIRVInstTemplateBase {
 public:
-  const static Op OC = OpVectorShuffle;
-  const static SPIRVWord FixedWordCount = 5;
-  // Complete constructor
-  SPIRVVectorShuffle(SPIRVId TheId, SPIRVType *TheType, SPIRVId TheVector1,
-                     SPIRVId TheVector2,
-                     const std::vector<SPIRVWord> &TheComponents,
-                     SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
-      : SPIRVInstruction(TheComponents.size() + FixedWordCount, OC, TheType,
-                         TheId, TheBB, TheM),
-        Vector1(TheVector1), Vector2(TheVector2), Components(TheComponents) {
-    validate();
+  SPIRVValue *getVector1() { return getValue(Ops[0]); }
+  SPIRVValue *getVector2() { return getValue(Ops[1]); }
+  const std::vector<SPIRVWord> getComponents() const {
+    return std::vector<SPIRVWord>(Ops.begin() + 2, Ops.end());
   }
-  // Incomplete constructor
-  SPIRVVectorShuffle()
-      : SPIRVInstruction(OC), Vector1(SPIRVID_INVALID),
-        Vector2(SPIRVID_INVALID) {}
-
-  SPIRVValue *getVector1() { return getValue(Vector1); }
-  SPIRVValue *getVector2() { return getValue(Vector2); }
-  const std::vector<SPIRVWord> &getComponents() const { return Components; }
 
 protected:
-  void setWordCount(SPIRVWord TheWordCount) override {
-    SPIRVEntry::setWordCount(TheWordCount);
-    Components.resize(TheWordCount - FixedWordCount);
-  }
-  _SPIRV_DEF_ENCDEC5(Type, Id, Vector1, Vector2, Components)
   void validate() const override {
     SPIRVInstruction::validate();
-    assert(OpCode == OC);
-    assert(WordCount == Components.size() + FixedWordCount);
+    SPIRVId Vector1 = Ops[0];
+    SPIRVId Vector2 = Ops[1];
+    assert(OpCode == OpVectorShuffle);
     assert(Type->isTypeVector());
     assert(Type->getVectorComponentType() ==
            getValueType(Vector1)->getVectorComponentType());
     if (getValue(Vector1)->isForward() || getValue(Vector2)->isForward())
       return;
     assert(getValueType(Vector1) == getValueType(Vector2));
-    assert(Components.size() == Type->getVectorComponentCount());
+    assert(Ops.size() - 2 == Type->getVectorComponentCount());
   }
-  SPIRVId Vector1;
-  SPIRVId Vector2;
-  std::vector<SPIRVWord> Components;
 };
+
+typedef SPIRVInstTemplate<SPIRVVectorShuffleBase, OpVectorShuffle, true, 5,
+                          true>
+    SPIRVVectorShuffle;
 
 class SPIRVControlBarrier : public SPIRVInstruction {
 public:
@@ -2872,6 +2818,88 @@ protected:
 _SPIRV_OP_INTERNAL(ExpectINTEL, true, 5)
 #undef _SPIRV_OP_INTERNAL
 
+class SPIRVDotKHRBase : public SPIRVInstTemplateBase {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    // Both vector operands must have the same type, so analyzing the
+    // first operand will suffice.
+    SPIRVCapabilityKind ArgCap = getRequiredCapabilityForOperand(Ops[0]);
+    return getVec(ArgCap, CapabilityDotProductKHR);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_integer_dot_product;
+  }
+
+  void validate() const override {
+    SPIRVInstruction::validate();
+    SPIRVId Vec1 = Ops[0];
+    SPIRVId Vec2 = Ops[1];
+    (void)Vec1;
+    (void)Vec2;
+
+    assert(getValueType(Vec1) == getValueType(Vec2) &&
+           "Input vectors must have the same type");
+    assert(getType()->isTypeInt() && "Result type must be an integer type");
+    assert(!getType()->isTypeVector() && "Result type must be scalar");
+  }
+
+private:
+  bool isAccSat() const {
+    return (OpCode == OpSDotAccSatKHR || OpCode == OpUDotAccSatKHR ||
+            OpCode == OpSUDotAccSatKHR);
+  }
+
+  Optional<PackedVectorFormat> getPackedVectorFormat() const {
+    size_t PackFmtIdx = 2;
+    if (isAccSat()) {
+      // AccSat instructions have an additional Accumulator operand.
+      PackFmtIdx++;
+    }
+
+    if (PackFmtIdx == Ops.size() - 1)
+      return static_cast<PackedVectorFormat>(Ops[PackFmtIdx]);
+
+    return None;
+  }
+
+  SPIRVCapabilityKind getRequiredCapabilityForOperand(SPIRVId ArgId) const {
+    const SPIRVType *T = getValueType(ArgId);
+    if (auto PackFmt = getPackedVectorFormat()) {
+      switch (*PackFmt) {
+      case PackedVectorFormatPackedVectorFormat4x8BitKHR:
+        assert(!T->isTypeVector() && T->isTypeInt() && T->getBitWidth() == 32 &&
+               "Type does not match pack format");
+        return CapabilityDotProductInput4x8BitPackedKHR;
+      case PackedVectorFormatMax:
+        break;
+      }
+      llvm_unreachable("Unknown Packed Vector Format");
+    }
+
+    if (T->isTypeVector()) {
+      const SPIRVType *EltT = T->getVectorComponentType();
+      if (T->getVectorComponentCount() == 4 && EltT->isTypeInt() &&
+          EltT->getBitWidth() == 8)
+        return CapabilityDotProductInput4x8BitKHR;
+      if (EltT->isTypeInt())
+        return CapabilityDotProductInputAllKHR;
+    }
+
+    llvm_unreachable("No mapping for argument type to capability.");
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVDotKHRBase, Op##x, __VA_ARGS__> SPIRV##x;
+_SPIRV_OP(SDotKHR, true, 5, true, 2)
+_SPIRV_OP(UDotKHR, true, 5, true, 2)
+_SPIRV_OP(SUDotKHR, true, 5, true, 2)
+_SPIRV_OP(SDotAccSatKHR, true, 6, true, 3)
+_SPIRV_OP(UDotAccSatKHR, true, 6, true, 3)
+_SPIRV_OP(SUDotAccSatKHR, true, 6, true, 3)
+#undef _SPIRV_OP
+
 class SPIRVSubgroupShuffleINTELInstBase : public SPIRVInstTemplateBase {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
@@ -3127,6 +3155,77 @@ protected:
 _SPIRV_OP(VariableLengthArray, true, 4)
 _SPIRV_OP(SaveMemory, true, 3)
 _SPIRV_OP(RestoreMemory, false, 2)
+#undef _SPIRV_OP
+
+template <Op OC>
+class SPIRVBfloat16ConversionINTELInstBase : public SPIRVUnaryInst<OC> {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityBfloat16ConversionINTEL);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_bfloat16_conversion;
+  }
+
+  void validate() const override {
+    SPIRVUnaryInst<OC>::validate();
+
+    SPIRVType *ResCompTy = this->getType();
+    SPIRVWord ResCompCount = 1;
+    if (ResCompTy->isTypeVector()) {
+      ResCompCount = ResCompTy->getVectorComponentCount();
+      ResCompTy = ResCompTy->getVectorComponentType();
+    }
+
+    // validate is a const method, whilst getOperand is non-const method
+    // because it may call a method of class Module that may modify LiteralMap
+    // of Module field. That modification is not impacting validate method for
+    // these instructions, so const_cast is safe here.
+    using SPVBf16ConvTy = SPIRVBfloat16ConversionINTELInstBase<OC>;
+    SPIRVValue *Input = const_cast<SPVBf16ConvTy *>(this)->getOperand(0);
+
+    SPIRVType *InCompTy = Input->getType();
+    SPIRVWord InCompCount = 1;
+    if (InCompTy->isTypeVector()) {
+      InCompCount = InCompTy->getVectorComponentCount();
+      InCompTy = InCompTy->getVectorComponentType();
+    }
+
+    auto InstName = OpCodeNameMap::map(OC);
+    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+
+    if (OC == internal::OpConvertFToBF16INTEL) {
+      SPVErrLog.checkError(
+          ResCompTy->isTypeInt(16), SPIRVEC_InvalidInstruction,
+          InstName + "\nResult value must be a scalar or vector of integer "
+                     "16-bit type\n");
+      SPVErrLog.checkError(
+          InCompTy->isTypeFloat(32), SPIRVEC_InvalidInstruction,
+          InstName + "\nInput value must be a scalar or vector of "
+                     "floating-point 32-bit type\n");
+    } else {
+      SPVErrLog.checkError(
+          ResCompTy->isTypeFloat(32), SPIRVEC_InvalidInstruction,
+          InstName + "\nResult value must be a scalar or vector of "
+                     "floating-point 32-bit type\n");
+      SPVErrLog.checkError(
+          InCompTy->isTypeInt(16), SPIRVEC_InvalidInstruction,
+          InstName + "\nInput value must be a scalar or vector of integer "
+                     "16-bit type\n");
+    }
+
+    SPVErrLog.checkError(
+        ResCompCount == InCompCount, SPIRVEC_InvalidInstruction,
+        InstName + "\nInput type must have the same number of components as "
+                   "result type\n");
+  }
+};
+
+#define _SPIRV_OP(x)                                                           \
+  typedef SPIRVBfloat16ConversionINTELInstBase<internal::Op##x> SPIRV##x;
+_SPIRV_OP(ConvertFToBF16INTEL)
+_SPIRV_OP(ConvertBF16ToFINTEL)
 #undef _SPIRV_OP
 } // namespace SPIRV
 

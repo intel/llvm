@@ -199,9 +199,9 @@ std::vector<device> device_impl::create_sub_devices(
       !is_affinity_supported(AffinityDomain)) {
     throw cl::sycl::feature_not_supported();
   }
-  const cl_device_partition_property Properties[3] = {
-      CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-      (cl_device_partition_property)AffinityDomain, 0};
+  const pi_device_partition_property Properties[3] = {
+      PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+      (pi_device_partition_property)AffinityDomain, 0};
   size_t SubDevicesCount = get_info<info::device::partition_max_sub_devices>();
   return create_sub_devices(Properties, SubDevicesCount);
 }
@@ -269,8 +269,8 @@ bool device_impl::has(aspect Aspect) const {
             PI_USM_ATOMIC_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
-  case aspect::usm_system_allocator:
-    return get_info<info::device::usm_system_allocator>();
+  case aspect::usm_system_allocations:
+    return get_info<info::device::usm_system_allocations>();
   case aspect::ext_intel_pci_address:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                MDevice, PI_DEVICE_INFO_PCI_ADDRESS, sizeof(pi_device_type),
@@ -315,6 +315,8 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
     return false;
+  case aspect::ext_oneapi_srgb:
+    return get_info<info::device::ext_oneapi_srgb>();
 
   default:
     throw runtime_error("This device aspect has not been implemented yet.",

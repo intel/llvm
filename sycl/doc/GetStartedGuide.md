@@ -10,6 +10,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     - [Build DPC++ toolchain with libc++ library](#build-dpc-toolchain-with-libc-library)
     - [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     - [Build DPC++ toolchain with support for AMD ROCm](#build-dpc-toolchain-with-support-for-amd-rocm)
+    - [Build DPC++ toolchain with support for NVIDIA ROCm](#build-dpc-toolchain-with-support-for-nvidia-rocm)
     - [Build Doxygen documentation](#build-doxygen-documentation)
     - [Deployment](#deployment)
   - [Use DPC++ toolchain](#use-dpc-toolchain)
@@ -107,6 +108,7 @@ flags can be found by launching the script with `--help`):
 * `--no-werror` -> Don't treat warnings as errors when compiling llvm
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--rocm` -> use the rocm backend (see [AMD ROCm](#build-dpc-toolchain-with-support-for-amd-rocm))
+* `--rocm-platform` -> select the platform used by the rocm backend, `AMD` or `NVIDIA` (see [AMD ROCm](#build-dpc-toolchain-with-support-for-amd-rocm) or see [NVIDIA ROCm](#build-dpc-toolchain-with-support-for-nvidia-rocm))
 * `--shared-libs` -> Build shared libraries
 * `-t` -> Build type (debug or release)
 * `-o` -> Path to build directory
@@ -175,6 +177,34 @@ produce a standard ELF shared code object which can be loaded and executed on an
 So if you want to support AMD ROCm, you should also build the lld project.
 [LLD Build Guide](https://lld.llvm.org/)
 
+The following CMake variables can be updated to change where CMake is looking
+for the ROCm installation:
+
+* `SYCL_BUILD_PI_ROCM_INCLUDE_DIR`: Path to HIP include directory (default
+  `/opt/rocm/hip/include`).
+* `SYCL_BUILD_PI_ROCM_HSA_INCLUDE_DIR`: Path to HSA include directory (default
+  `/opt/rocm/hsa/include`).
+* `SYCL_BUILD_PI_ROCM_AMD_LIBRARY`: Path to HIP runtime library (default
+  `/opt/rocm/hip/lib/libamdhip64.so`).
+
+### Build DPC++ toolchain with support for NVIDIA ROCm
+
+There is experimental support for DPC++ for using ROCm on NVIDIA devices.
+
+This is a compatibility feature and the [CUDA backend](#build-dpc-toolchain-with-support-for-nvidia-cuda)
+should be preferred to run on NVIDIA GPUs.
+
+To enable support for NVIDIA ROCm devices, follow the instructions for the Linux
+DPC++ toolchain, but add the `--rocm` and `--rocm-platform NVIDIA` flags to
+`configure.py`.
+
+Enabling this flag requires ROCm to be installed, more specifically
+[HIP NVCC](https://rocmdocs.amd.com/en/latest/Installation_Guide/HIP-Installation.html#nvidia-platform),
+as well as CUDA to be installed, see
+[NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
+
+Currently this was only tested on Linux with ROCm 4.2, CUDA 11 and a GeForce GTX
+1060 card.
 
 ### Build Doxygen documentation
 
@@ -510,7 +540,7 @@ and run following command:
 clang++ -fsycl simple-sycl-app.cpp -o simple-sycl-app.exe
 ```
 
-When building for CUDA, use the CUDA target triple as follows:
+When building for CUDA or NVIDIA ROCm, use the CUDA target triple as follows:
 
 ```bash
 clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \

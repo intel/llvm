@@ -8,7 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/ONEAPI/atomic_accessor.hpp>
-#include <CL/sycl/ONEAPI/atomic_enums.hpp>
-#include <CL/sycl/ONEAPI/atomic_fence.hpp>
-#include <CL/sycl/ONEAPI/atomic_ref.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
+
+__SYCL_WARNING("CL/sycl/ONEAPI/atomic.hpp usage is "
+               "deprecated, include "
+               "sycl/ext/oneapi/atomic.hpp instead")
+
+#include <sycl/ext/oneapi/atomic.hpp>
