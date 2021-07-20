@@ -46,6 +46,12 @@ static const pi_uint32 ZeSerialize = [] {
   return SerializeModeValue;
 }();
 
+static const bool CopyEngineRequested = [] {
+  const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
+  return UseCopyEngine;
+}();
+
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
@@ -564,9 +570,7 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
     ZeComputeEngineIndex = 0;
 
     int CopyGroupIndex = -1;
-    const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
-    bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
-    if (UseCopyEngine) {
+    if (CopyEngineRequested) {
       for (uint32_t i = 0; i < numQueueGroups; i++) {
         if (((QueueProperties[i].flags &
               ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
@@ -1581,10 +1585,6 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
               QueueProperties[i].numQueues > 1) {
             Ordinals.push_back(i);
           }
-        }
-
-        if (Ordinals.empty()) {
-          return PI_ERROR_UNKNOWN;
         }
 
         // Create PI sub-sub-devices with the sub-device for all the ordinals.
