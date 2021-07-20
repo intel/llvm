@@ -78,7 +78,6 @@ set(LLVM_TEST_DEPENDS
           dsymutil
           llvm-dwarfdump
           llvm-dwp
-          llvm-elfabi
           llvm-exegesis
           llvm-extract
           llvm-foreach
