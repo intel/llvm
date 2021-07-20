@@ -429,7 +429,7 @@ template <int Dims> group<Dims> store_group(const group<Dims> *g) {
 } // namespace detail
 
 template <int Dims>
-__SYCL_DEPRECATED("use sycl::experimental::this_group() instead")
+__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_group() instead")
 group<Dims> this_group() {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::Builder::getElement(detail::declptr<group<Dims>>());
@@ -438,14 +438,18 @@ group<Dims> this_group() {
 #endif
 }
 
+namespace ext {
+namespace oneapi {
 namespace experimental {
 template <int Dims> group<Dims> this_group() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return detail::Builder::getElement(detail::declptr<group<Dims>>());
+  return sycl::detail::Builder::getElement(detail::declptr<group<Dims>>());
 #else
-  return detail::store_group<Dims>(nullptr);
+  return sycl::detail::store_group<Dims>(nullptr);
 #endif
 }
 } // namespace experimental
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
