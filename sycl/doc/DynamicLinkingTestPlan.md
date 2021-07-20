@@ -1,8 +1,7 @@
 # Test plan for dynamic linking of device code
 
-This is a test plan for feature dynamic linking of device code. Feature
-description is available in
-https://github.com/intel/llvm/blob/sycl/sycl/doc/SharedLibraries.md .
+This is a test plan for device code dynamic linking feature described in
+https://github.com/intel/llvm/blob/sycl/sycl/doc/SharedLibraries.md document.
 
 ## Testing scope
 
@@ -11,7 +10,7 @@ https://github.com/intel/llvm/blob/sycl/sycl/doc/SharedLibraries.md .
 All of the tests described below are performed on CPU and GPU devices.
 For GPU device both OpenCL and L0 backends are used.
 
-**NOTE**: The feature won't be supported on FPGA device.
+**NOTE**: The feature isn't supported on FPGA device.
 
 ### AOT & JIT compilation
 
@@ -144,7 +143,7 @@ version of the shared library were used.
 
 ### Test with kernel bundle
 
-The tests aim to check that operation with kernel bundles work correctly in
+The tests aim to check that operations with kernel bundles work correctly in
 co-existence with dynamic linking feature.
 
 #### Variation 1
