@@ -19,6 +19,27 @@
 
 #include <cstdint>
 
+#ifndef __SYCL_DEVICE_ONLY__
+/// ESIMD_CPU Emulation support using esimd_cpu plugin
+
+/// Definition macro to be referenced in CM header files for
+/// preventing build failure caused by symbol conflicts between llvm
+/// and CM - e.g. vector.
+#define __SYCL_EXPLICIT_SIMD_PLUGIN__
+
+// Header files required for accessing CM-managed resources - image,
+// buffer, runtime API etc.
+namespace cm_support {
+#include <CL/cm_rt.h>
+} // namespace cm_support
+
+#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/pi.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/atomic_intrin.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/emu/esimdcpu_device_interface.hpp>
+
+#endif // ifndef __SYCL_DEVICE_ONLY__
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
@@ -41,6 +62,9 @@ public:
   }
   static auto getElemSize(const sycl::detail::AccessorBaseHost &Acc) {
     return Acc.getElemSize();
+  }
+  static void *getPtr(const sycl::detail::AccessorBaseHost &Acc) {
+    return Acc.getPtr();
   }
 #endif // __SYCL_DEVICE_ONLY__
 };
@@ -504,23 +528,17 @@ __esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
 
 /// ESIMD_CPU Emulation support using esimd_cpu plugin
 
-#define __SYCL_EXPLICIT_SIMD_PLUGIN__
-
-// Header files required for accessing CM-managed memory - Surface,
-// buffer, etc
-namespace cm_support {
-#include <CL/cm_rt.h>
-} // namespace cm_support
-
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/atomic_intrin.hpp>
-#include <sycl/include/CL/sycl/INTEL/esimd/detail/emu/esimdcpu_device_interface.hpp>
-
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
+namespace detail {
 namespace raw_send {
 
 enum class msgField : short {
-  OP,
+  OP = 0,
   VNNI,
   ADDRSIZE,
   DATASIZE,
@@ -651,6 +669,13 @@ auto inline getArrayLen(__SEIEED::vector_type_t<T, N> addrMsg) {
 }
 
 } // namespace raw_send
+} // namespace detail
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 template <typename Ty, int N, int NumBlk, __SEIEE::CacheHint L1H,
           __SEIEE::CacheHint L3H>
@@ -800,8 +825,7 @@ inline void __esimd_flat_write4(
 }
 
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+          __SEIEE::CacheHint L1H, __SEIEE::CacheHint L3H>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_surf_read(int16_t scale, SurfIndAliasTy surf_ind,
                   uint32_t global_offset,
@@ -813,8 +837,7 @@ __esimd_surf_read(int16_t scale, SurfIndAliasTy surf_ind,
 }
 
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+          __SEIEE::CacheHint L1H, __SEIEE::CacheHint L3H>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
 __esimd_surf_write(__SEIEED::vector_type_t<uint16_t, N> pred, int16_t scale,
                    SurfIndAliasTy surf_ind, uint32_t global_offset,
@@ -862,9 +885,10 @@ __esimd_media_block_load(unsigned modififer, TACC handle, unsigned plane,
   uint32_t imgHeight;
   std::mutex *mutexLock;
 
-  I->sycl_get_cm_image_params_ptr(static_cast<void *>(handle.get_pointer()),
-                                  &readBase, &imgWidth, &imgHeight, &bpp,
-                                  &mutexLock);
+  auto ImageHandle = __SEIEED::AccessorPrivateProxy::getPtr(handle);
+
+  I->sycl_get_cm_image_params_ptr(ImageHandle, &readBase, &imgWidth, &imgHeight,
+                                  &bpp, &mutexLock);
 
   std::unique_lock<std::mutex> lock(*mutexLock);
 
@@ -972,9 +996,10 @@ inline void __esimd_media_block_store(unsigned modififer, TACC handle,
   uint32_t imgHeight;
   std::mutex *mutexLock;
 
-  I->sycl_get_cm_image_params_ptr(static_cast<void *>(handle.get_pointer()),
-                                  &writeBase, &imgWidth, &imgHeight, &bpp,
-                                  &mutexLock);
+  auto ImageHandle = __SEIEED::AccessorPrivateProxy::getPtr(handle);
+
+  I->sycl_get_cm_image_params_ptr(ImageHandle, &writeBase, &imgWidth,
+                                  &imgHeight, &bpp, &mutexLock);
 
   int x_pos_a, y_pos_a, offset;
 
@@ -1354,8 +1379,9 @@ __esimd_block_read(SurfIndAliasTy surf_ind, uint32_t offset) {
   uint32_t width;
   std::mutex *mutexLock;
 
-  I->sycl_get_cm_buffer_params_ptr(static_cast<void *>(surf_ind.get_pointer()),
-                                   &readBase, &width, &mutexLock);
+  auto BufferHandle = __SEIEED::AccessorPrivateProxy::getPtr(surf_ind);
+
+  I->sycl_get_cm_buffer_params_ptr(BufferHandle, &readBase, &width, &mutexLock);
 
   std::unique_lock<std::mutex> lock(*mutexLock);
 
@@ -1381,8 +1407,10 @@ inline void __esimd_block_write(SurfIndAliasTy surf_ind, uint32_t offset,
   uint32_t width;
   std::mutex *mutexLock;
 
-  I->sycl_get_cm_buffer_params_ptr(static_cast<void *>(surf_ind.get_pointer()),
-                                   &writeBase, &width, &mutexLock);
+  auto BufferHandle = __SEIEED::AccessorPrivateProxy::getPtr(surf_ind);
+
+  I->sycl_get_cm_buffer_params_ptr(BufferHandle, &writeBase, &width,
+                                   &mutexLock);
 
   std::unique_lock<std::mutex> lock(*mutexLock);
 
@@ -1496,13 +1524,14 @@ __esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
 
   __SEIEED::vector_type_t<Ty1, N1> retv;
 
-  auto op = raw_send::getMsgOp(msgDesc);
-  assert(op == raw_send::msgOp::LOAD_2D);
-  uint64_t surfaceBase = raw_send::getSurfaceBaseAddr<Ty2, N2>(msgSrc0);
-  auto surfaceDim = raw_send::getSurfaceDim<Ty2, N2>(msgSrc0);
-  auto blockOffset = raw_send::getBlockOffsets<Ty2, N2>(msgSrc0);
-  auto blockDim = raw_send::getBlockDim<Ty2, N2>(msgSrc0);
-  auto arrayLen = raw_send::getArrayLen<Ty2, N2>(msgSrc0);
+  auto op = __SEIEED::raw_send::getMsgOp(msgDesc);
+  assert(op == __SEIEED::raw_send::msgOp::LOAD_2D);
+  uint64_t surfaceBase =
+      __SEIEED::raw_send::getSurfaceBaseAddr<Ty2, N2>(msgSrc0);
+  auto surfaceDim = __SEIEED::raw_send::getSurfaceDim<Ty2, N2>(msgSrc0);
+  auto blockOffset = __SEIEED::raw_send::getBlockOffsets<Ty2, N2>(msgSrc0);
+  auto blockDim = __SEIEED::raw_send::getBlockDim<Ty2, N2>(msgSrc0);
+  auto arrayLen = __SEIEED::raw_send::getArrayLen<Ty2, N2>(msgSrc0);
 
   unsigned SurfaceWidth = surfaceDim[0] + 1;
   unsigned SurfaceHeight = surfaceDim[1] + 1;
@@ -1514,9 +1543,10 @@ __esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
   int Height = blockDim[1] + 1;
   int NBlks = arrayLen + 1;
 
-  bool Transposed =
-      raw_send::getMsgField(msgDesc, raw_send::msgField::TRANSPOSE);
-  bool Transformed = raw_send::getMsgField(msgDesc, raw_send::msgField::VNNI);
+  bool Transposed = __SEIEED::raw_send::getMsgField(
+      msgDesc, __SEIEED::raw_send::msgField::TRANSPOSE);
+  bool Transformed = __SEIEED::raw_send::getMsgField(
+      msgDesc, __SEIEED::raw_send::msgField::VNNI);
 
   constexpr unsigned sizeofT = sizeof(Ty1);
 
@@ -1694,12 +1724,13 @@ inline void __esimd_raw_sends_store(uint8_t modifier, uint8_t execSize,
                                     __SEIEED::vector_type_t<Ty1, N1> msgSrc0,
                                     __SEIEED::vector_type_t<Ty2, N2> msgSrc1) {
   assert(sfid == 0xF); // UGM type only
-  auto op = raw_send::getMsgOp(msgDesc);
-  assert(op == raw_send::msgOp::STORE_2D);
-  uint64_t surfaceBase = raw_send::getSurfaceBaseAddr<Ty1, N1>(msgSrc0);
-  auto surfaceDim = raw_send::getSurfaceDim<Ty1, N1>(msgSrc0);
-  auto blockOffset = raw_send::getBlockOffsets<Ty1, N1>(msgSrc0);
-  auto blockDim = raw_send::getBlockDim<Ty1, N1>(msgSrc0);
+  auto op = __SEIEED::raw_send::getMsgOp(msgDesc);
+  assert(op == __SEIEED::raw_send::msgOp::STORE_2D);
+  uint64_t surfaceBase =
+      __SEIEED::raw_send::getSurfaceBaseAddr<Ty1, N1>(msgSrc0);
+  auto surfaceDim = __SEIEED::raw_send::getSurfaceDim<Ty1, N1>(msgSrc0);
+  auto blockOffset = __SEIEED::raw_send::getBlockOffsets<Ty1, N1>(msgSrc0);
+  auto blockDim = __SEIEED::raw_send::getBlockDim<Ty1, N1>(msgSrc0);
 
   unsigned SurfaceWidth = surfaceDim[0] + 1;
   unsigned SurfaceHeight = surfaceDim[1] + 1;
@@ -1758,9 +1789,9 @@ inline void __esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
                                    uint8_t numSrc0, uint8_t sfid,
                                    uint32_t exDesc, uint32_t msgDesc,
                                    __SEIEED::vector_type_t<Ty1, N1> msgSrc0) {
-  auto op = raw_send::getMsgOp(msgDesc);
+  auto op = __SEIEED::raw_send::getMsgOp(msgDesc);
 
-  if (op == raw_send::msgOp::LOAD_2D) {
+  if (op == __SEIEED::raw_send::msgOp::LOAD_2D) {
     // Prefetch?
     return;
   }
