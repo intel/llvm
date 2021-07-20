@@ -229,3 +229,19 @@ Those __devicelib_* functions have the same argument type and return type as cor
 complex math functions from <complex.h>, please refer to ISO/IEC 14882:2011 for details. The
 "double __complex__" type is C99 complex type and it is an alias to "struct {double, double}"
 in LLVM IR and SPIR-V.
+
+cl_intel_devicelib_cstring
+==========================
+
+.. code:
+   void *__devicelib_memcpy(void *dest, const void *src, size_t n);
+   void *__devicelib_memset(void *dest, int c, size_t n);
+   int __devicelib_memcmp(const void *s1, const void *s2, size_t n);
+
+Semantic:
+Those __devicelib_* functions perform the same operation as the corresponding C string
+library functions.
+
+Arguments:
+Those __devicelib_* functions have the same argument type and return type as corresponding
+string functions from <string.h>, please refer to ISO/IEC 14882:2011 for details.

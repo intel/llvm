@@ -78,6 +78,9 @@ List of supported functions from C standard library:
   - casinf, casin         (from <complex.h>)
   - cacosf, cacos         (from <complex.h>)
   - catanf, catan         (from <complex.h>)
+  - memcpy                (from <string.h>)
+  - memset                (from <string.h>)
+  - memcmp                (from <string.h>)
 
 All functions are grouped into different device libraries based on
 functionalities. C and C++ standard library groups functions and
