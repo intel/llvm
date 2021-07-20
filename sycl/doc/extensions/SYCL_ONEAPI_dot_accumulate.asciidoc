@@ -105,7 +105,8 @@ The value that is returned is equivalent to +
 ----
 namespace cl {
 namespace sycl {
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 
 int32_t dot_acc(vec<int8_t,4>  a, vec<int8_t,4>  b, int32_t c);
 int32_t dot_acc(vec<int8_t,4>  a, vec<uint8_t,4> b, int32_t c);
@@ -117,7 +118,8 @@ int32_t dot_acc(int32_t a, uint32_t b, int32_t c);
 int32_t dot_acc(uint32_t a, int32_t b, int32_t c);
 int32_t dot_acc(uint32_t a, uint32_t b, int32_t c);
 
-} // ONEAPI
+} // oneapi
+} // ext
 } // sycl
 } // cl
 ----

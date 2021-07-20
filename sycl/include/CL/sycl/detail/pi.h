@@ -36,10 +36,12 @@
 // 2. A number of types needed to define pi_device_binary_property_set added.
 // 3. Added new ownership argument to piextContextCreateWithNativeHandle.
 // 4. Add interoperability interfaces for kernel.
+// 4.6 Added new ownership argument to piextQueueCreateWithNativeHandle which
+// changes the API version from 3.5 to 4.6.
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 3
-#define _PI_H_VERSION_MINOR 5
+#define _PI_H_VERSION_MAJOR 4
+#define _PI_H_VERSION_MINOR 6
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -289,6 +291,7 @@ typedef enum {
   PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 0x10024,
   PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 0x10025,
   PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026,
+  PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110
 } _pi_device_info;
 
@@ -437,7 +440,8 @@ typedef enum {
   PI_IMAGE_CHANNEL_ORDER_LUMINANCE = CL_LUMINANCE,
   PI_IMAGE_CHANNEL_ORDER_Rx = CL_Rx,
   PI_IMAGE_CHANNEL_ORDER_RGx = CL_RGx,
-  PI_IMAGE_CHANNEL_ORDER_RGBx = CL_RGBx
+  PI_IMAGE_CHANNEL_ORDER_RGBx = CL_RGBx,
+  PI_IMAGE_CHANNEL_ORDER_sRGBA = CL_sRGBA
 } _pi_image_channel_order;
 
 typedef enum {
@@ -519,6 +523,7 @@ typedef enum {
 using pi_mem_flags = pi_bitfield;
 // Access
 constexpr pi_mem_flags PI_MEM_FLAGS_ACCESS_RW = CL_MEM_READ_WRITE;
+constexpr pi_mem_flags PI_MEM_ACCESS_READ_ONLY = CL_MEM_READ_ONLY;
 // Host pointer
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE = CL_MEM_USE_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
@@ -686,8 +691,15 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
+/// PropertySetRegistry::SYCL_KERNEL_PROGRAM_METADATA defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA "SYCL/program metadata"
 /// PropertySetRegistry::SYCL_MISC_PROP defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP "SYCL/misc properties"
+
+/// Program metadata tags recognized by the PI backends. For kernels the tag
+/// must appear after the kernel name.
+#define __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
+  "@reqd_work_group_size"
 
 /// This struct is a record of the device binary information. If the Kind field
 /// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
@@ -1043,8 +1055,11 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 /// \param nativeHandle is the native handle to create PI queue from.
 /// \param context is the PI context of the queue.
 /// \param queue is the PI queue created from the native handle.
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_queue *queue);
+    pi_native_handle nativeHandle, pi_context context, pi_queue *queue,
+    bool ownNativeHandle);
 
 //
 // Memory
@@ -1105,9 +1120,26 @@ __SYCL_EXPORT pi_result piclProgramCreateWithSource(pi_context context,
                                                     const size_t *lengths,
                                                     pi_program *ret_program);
 
+/// Creates a PI program for a context and loads the given binary into it.
+///
+/// \param context is the PI context to associate the program with.
+/// \param num_devices is the number of devices in device_list.
+/// \param device_list is a pointer to a list of devices. These devices must all
+///                    be in context.
+/// \param lengths is an array of sizes in bytes of the binary in binaries.
+/// \param binaries is a pointer to a list of program binaries.
+/// \param num_metadata_entries is the number of metadata entries in metadata.
+/// \param metadata is a pointer to a list of program metadata entries. The
+///                 use of metadata entries is backend-defined.
+/// \param binary_status returns whether the program binary was loaded
+///                      succesfully or not, for each device in device_list.
+///                      binary_status is ignored if it is null and otherwise
+///                      it must be an array of num_devices elements.
+/// \param program is the PI program created from the program binaries.
 __SYCL_EXPORT pi_result piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
+    size_t num_metadata_entries, const pi_device_binary_property *metadata,
     pi_int32 *binary_status, pi_program *ret_program);
 
 __SYCL_EXPORT pi_result piProgramGetInfo(pi_program program,

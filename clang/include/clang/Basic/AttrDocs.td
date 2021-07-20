@@ -415,6 +415,10 @@ def SYCLSimdDocs : Documentation {
     The compiler may decide to compile such functions using different optimization
     and code generation pipeline. Also, this attribute is used to distinguish
     ESIMD private globals from regular SYCL global variables.
+
+    In SYCL 1.2.1 mode, the ``intel::sycl_explicit_simd`` attribute is propagated
+    from the function it is applied to onto the kernel which calls the function.
+    In SYCL 2020 mode, the attribute is not propagated to the kernel.
   }];
 }
 
@@ -2443,8 +2447,9 @@ lambda capture, or function object member, of the callable to which the
 attribute was applied. This effect is equivalent to annotating restrict on
 **all** kernel pointer arguments in an OpenCL or SPIR-V kernel.
 
-If ``intel::kernel_args_restrict`` is applied to a function called from a device
-kernel, the attribute is not ignored and it is propagated to the kernel.
+In SYCL 1.2.1 mode, the ``intel::kernel_args_restrict`` attribute is propagated
+from the function it is applied to onto the kernel which calls the function.
+In SYCL 2020 mode, the attribute is not propagated to the kernel.
 
 The attribute forms an unchecked assertion, in that implementations
 do not need to check/confirm the pre-condition in any way. If a user applies
@@ -2482,8 +2487,10 @@ def SYCLIntelNumSimdWorkItemsAttrDocs : Documentation {
   let Content = [{
 Applies to a device function/lambda function. Indicates the number of work
 items that should be processed in parallel. Valid values are positive integers.
-If ``intel::num_simd_work_items`` is applied to a function called from a
-device kernel, the attribute is not ignored and it is propagated to the kernel.
+
+In SYCL 1.2.1 mode, the ``intel::num_simd_work_items`` attribute is propagated
+from the function it is applied to onto the kernel which calls the function.
+In SYCL 2020 mode, the attribute is not propagated to the kernel.
 
 .. code-block:: c++
 
@@ -2656,6 +2663,11 @@ allows the Y and Z arguments to be optional. If not provided by the user, the
 value of Y and Z defaults to 1. See section 5.8.1 Kernel Attributes for more
 details.
 
+In SYCL 1.2.1 mode, the ``intel::reqd_work_group_size``,
+``cl::reqd_work_group_size``, and ``sycl::reqd_work_group_size`` attributes are
+propagated from the function they are applied to onto the kernel which calls the
+function. In SYCL 2020 mode, the attributes are not propagated to the kernel.
+
 .. code-block:: c++
 
   [[sycl::reqd_work_group_size(4, 4, 4)]] void foo() {}
@@ -2800,8 +2812,10 @@ Applies to a device function/lambda function. Indicates the maximum dimensions
 of a work group. Values must be positive integers. This is similar to
 reqd_work_group_size, but allows work groups that are smaller or equal to the
 specified sizes.
-If ``intel::max_work_group_size`` is applied to a function called from a
-device kernel, the attribute is not ignored and it is propagated to the kernel.
+
+In SYCL 1.2.1 mode, the ``intel::max_work_group_size`` attribute is propagated
+from the function it is applied to onto the kernel which calls the function.
+In SYCL 2020 mode, the attribute is not propagated to the kernel.
 
 .. code-block:: c++
 
@@ -2832,8 +2846,10 @@ Applies to a device function/lambda function or function call operator (of a
 function object). Indicates the largest valid global work dimension that will be
 accepted when running the kernel on a device. Valid values are integers in a
 range of [0, 3].
-If ``intel::max_global_work_dim`` is applied to a function called from a
-device kernel, the attribute is not ignored and it is propagated to the kernel.
+
+In SYCL 1.2.1 mode, the ``intel::max_global_work_dim`` attribute is propagated
+from the function it is applied to onto the kernel which calls the function.
+In SYCL 2020 mode, the attribute is not propagated to the kernel.
 
 .. code-block:: c++
 
@@ -2890,6 +2906,10 @@ device operation, guiding the FPGA backend to insert the appropriate number of
 registers to break-up the combinational logic circuit, and thereby controlling
 the length of the longest combinational path.
 
+In SYCL 1.2.1 mode, the ``intel::scheduler_target_fmax_mhz`` attribute is
+propagated from the function it is applied to onto the kernel which calls the
+function. In SYCL 2020 mode, the attribute is not propagated to the kernel.
+
 .. code-block:: c++
 
   [[intel::scheduler_target_fmax_mhz(4)]] void foo() {}
@@ -2919,6 +2939,10 @@ Applies to a device function/lambda function or function call operator (of a
 function object). If 1, compiler doesn't use the global work offset values for
 the device function. Valid values are 0 and 1. If used without argument, value
 of 1 is set implicitly.
+
+In SYCL 1.2.1 mode, the ``intel::no_global_work_offset`` attribute is
+propagated from the function it is applied to onto the kernel which calls the
+function. In SYCL 2020 mode, the attribute is not propagated to the kernel.
 
 .. code-block:: c++
 
@@ -4607,6 +4631,10 @@ the ``[[intel::named_sub_group_size(NAME)]]`` documentation for clarification.
 This attribute is mutually exclusive with ``[[intel::named_sub_group_size(NAME)]]``
 and ``[[intel::sycl_explicit_simd]]``.
 
+In SYCL 1.2.1 mode, the ``intel::reqd_sub_group_size`` attribute is propagated
+from the function it is applied to onto the kernel which calls the function.
+In SYCL 2020 mode, the attribute is not propagated to the kernel.
+
 In addition to device functions, the required sub-group size attribute may also
 be specified in the definition of a named functor object and lambda functions,
 as in the examples below:
@@ -5837,11 +5865,14 @@ provided it declares the right formal arguments.
 
 In most respects, this is similar to the ``swiftcall`` attribute, except for
 the following:
+
 - A parameter may be marked ``swift_async_context``, ``swift_context``
   or ``swift_indirect_result`` (with the same restrictions on parameter
   ordering as ``swiftcall``) but the parameter attribute
   ``swift_error_result`` is not permitted.
+
 - A ``swiftasynccall`` function must have return type ``void``.
+
 - Within a ``swiftasynccall`` function, a call to a ``swiftasynccall``
   function that is the immediate operand of a ``return`` statement is
   guaranteed to be performed as a tail call. This syntax is allowed even

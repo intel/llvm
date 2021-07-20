@@ -147,7 +147,7 @@ function( add_common_options LIB_NAME)
   endif()
 endfunction(add_common_options)
 
-if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS)
+if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS AND NOT WIN32)
   if(SYCL_USE_LIBCXX)
     add_definitions(-D_LIBCPP_DEBUG=1)
     set(SYCL_CLANG_EXTRA_FLAGS "${SYCL_CLANG_EXTRA_FLAGS} -D_LIBCPP_DEBUG=1")
@@ -176,9 +176,8 @@ if (SYCL_ENABLE_XPTI_TRACING)
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
-add_custom_target( sycl-toolchain
-  DEPENDS ${SYCL_RT_LIBS}
-          append-file
+add_custom_target(sycl-compiler
+  DEPENDS append-file
           clang
           clang-offload-wrapper
           clang-offload-bundler
@@ -193,8 +192,12 @@ add_custom_target( sycl-toolchain
           llvm-link
           llvm-objcopy
           sycl-post-link
-          sycl-ls
           opencl-aot
+)
+add_custom_target( sycl-toolchain
+  DEPENDS ${SYCL_RT_LIBS}
+          sycl-compiler
+          sycl-ls
           ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )

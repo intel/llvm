@@ -343,6 +343,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			set( opt_flags -O3 )
 		endif()
 
+                # Enable SPIR-V builtin function declarations, so they don't
+                # have to be explicity declared in the soruce.
+                list( APPEND flags -Xclang -fdeclare-spirv-builtins)
+
 		add_libclc_builtin_set(libspirv-${arch_suffix}
 			TRIPLE ${t}
 			TARGET_ENV libspirv

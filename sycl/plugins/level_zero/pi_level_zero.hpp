@@ -291,6 +291,9 @@ struct _pi_device : _pi_object {
   int32_t ZeComputeQueueGroupIndex;
   int32_t ZeCopyQueueGroupIndex;
 
+  // Keep the index of the compute engine
+  int32_t ZeComputeEngineIndex = 0;
+
   // Cache the properties of the compute/copy queue groups.
   ZeStruct<ze_command_queue_group_properties_t> ZeComputeQueueGroupProperties;
   ZeStruct<ze_command_queue_group_properties_t> ZeCopyQueueGroupProperties;
@@ -299,7 +302,11 @@ struct _pi_device : _pi_object {
   bool hasCopyEngine() const { return ZeCopyQueueGroupIndex >= 0; }
 
   // Initialize the entire PI device.
-  pi_result initialize();
+  // Optional param `SubSubDeviceOrdinal` `SubSubDeviceIndex` are the compute
+  // command queue ordinal and index respectively, used to initialize
+  // sub-sub-devices.
+  pi_result initialize(int SubSubDeviceOrdinal = -1,
+                       int SubSubDeviceIndex = -1);
 
   // Level Zero device handle.
   ze_device_handle_t ZeDevice;
@@ -358,6 +365,14 @@ struct _pi_context : _pi_object {
     // include root device itself as well)
     SingleRootDevice =
         Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
+
+    // For context with sub subdevices, the SingleRootDevice might still
+    // not be the root device.
+    // Check whether the SingleRootDevice is the subdevice or root device.
+    if (SingleRootDevice->isSubDevice()) {
+      SingleRootDevice = SingleRootDevice->RootDevice;
+    }
+
     for (auto &Device : Devices) {
       if ((!Device->RootDevice && Device != SingleRootDevice) ||
           (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {
@@ -482,12 +497,13 @@ const pi_uint32 DynamicBatchStartSize = 4;
 struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue,
             ze_command_queue_handle_t CopyQueue, pi_context Context,
-            pi_device Device, pi_uint32 BatchSize,
+            pi_device Device, pi_uint32 BatchSize, bool OwnZeCommandQueue,
             pi_queue_properties PiQueueProperties = 0)
       : ZeComputeCommandQueue{Queue},
         ZeCopyCommandQueue{CopyQueue}, Context{Context}, Device{Device},
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
-        UseDynamicBatching{BatchSize == 0},
+        OwnZeCommandQueue{OwnZeCommandQueue}, UseDynamicBatching{BatchSize ==
+                                                                 0},
         PiQueueProperties(PiQueueProperties) {}
 
   // Level Zero compute command queue handle.
@@ -539,6 +555,10 @@ struct _pi_queue : _pi_object {
   // a queue specific basis. And by putting it in the queue itself, this
   // is thread safe because of the locking of the queue that occurs.
   pi_uint32 QueueBatchSize = {0};
+
+  // Indicates if we own the ZeCommandQueue or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeCommandQueue;
 
   // specifies whether this queue will be using dynamic batch size adjustment
   // or not.  This is set only at queue creation time, and is therefore

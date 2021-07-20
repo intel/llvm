@@ -225,19 +225,34 @@ std::string memFlagsToString(pi_mem_flags Flags) {
 std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
-bool findPlugins(std::vector<std::pair<std::string, backend>> &PluginNames) {
+std::vector<std::pair<std::string, backend>> findPlugins() {
+  std::vector<std::pair<std::string, backend>> PluginNames;
+
   // TODO: Based on final design discussions, change the location where the
   // plugin must be searched; how to identify the plugins etc. Currently the
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
+  const char *OpenCLPluginName =
+      SYCLConfig<SYCL_OVERRIDE_PI_OPENCL>::get()
+          ? SYCLConfig<SYCL_OVERRIDE_PI_OPENCL>::get()
+          : __SYCL_OPENCL_PLUGIN_NAME;
+  const char *L0PluginName =
+      SYCLConfig<SYCL_OVERRIDE_PI_LEVEL_ZERO>::get()
+          ? SYCLConfig<SYCL_OVERRIDE_PI_LEVEL_ZERO>::get()
+          : __SYCL_LEVEL_ZERO_PLUGIN_NAME;
+  const char *CUDAPluginName = SYCLConfig<SYCL_OVERRIDE_PI_CUDA>::get()
+                                   ? SYCLConfig<SYCL_OVERRIDE_PI_CUDA>::get()
+                                   : __SYCL_CUDA_PLUGIN_NAME;
+  const char *ROCMPluginName = SYCLConfig<SYCL_OVERRIDE_PI_ROCM>::get()
+                                   ? SYCLConfig<SYCL_OVERRIDE_PI_ROCM>::get()
+                                   : __SYCL_ROCM_PLUGIN_NAME;
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   if (!FilterList) {
-    PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
-    PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                             backend::level_zero);
-    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
-    PluginNames.emplace_back(__SYCL_ROCM_PLUGIN_NAME, backend::rocm);
+    PluginNames.emplace_back(OpenCLPluginName, backend::opencl);
+    PluginNames.emplace_back(L0PluginName, backend::level_zero);
+    PluginNames.emplace_back(CUDAPluginName, backend::cuda);
+    PluginNames.emplace_back(ROCMPluginName, backend::rocm);
   } else {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -248,26 +263,25 @@ bool findPlugins(std::vector<std::pair<std::string, backend>> &PluginNames) {
       backend Backend = Filter.Backend;
       if (!OpenCLFound &&
           (Backend == backend::opencl || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
+        PluginNames.emplace_back(OpenCLPluginName, backend::opencl);
         OpenCLFound = true;
       }
       if (!LevelZeroFound &&
           (Backend == backend::level_zero || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                                 backend::level_zero);
+        PluginNames.emplace_back(L0PluginName, backend::level_zero);
         LevelZeroFound = true;
       }
       if (!CudaFound && (Backend == backend::cuda || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
+        PluginNames.emplace_back(CUDAPluginName, backend::cuda);
         CudaFound = true;
       }
       if (!RocmFound && (Backend == backend::rocm || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_ROCM_PLUGIN_NAME, backend::rocm);
+        PluginNames.emplace_back(ROCMPluginName, backend::rocm);
         RocmFound = true;
       }
     }
   }
-  return true;
+  return PluginNames;
 }
 
 // Load the Plugin by calling the OS dependent library loading call.
@@ -321,8 +335,7 @@ const std::vector<plugin> &initialize() {
 }
 
 static void initializePlugins(std::vector<plugin> *Plugins) {
-  std::vector<std::pair<std::string, backend>> PluginNames;
-  findPlugins(PluginNames);
+  std::vector<std::pair<std::string, backend>> PluginNames = findPlugins();
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
     std::cerr << "SYCL_PI_TRACE[all]: "
@@ -644,6 +657,7 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
   SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
   DeviceLibReqMask.init(Bin, __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
   KernelParamOptInfo.init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
+  ProgramMetadata.init(Bin, __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA);
 }
 
 } // namespace pi

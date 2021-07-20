@@ -9,8 +9,9 @@
 #include <iostream>
 #include <vector>
 
-[[intel::device_indirectly_callable]]
-extern "C" int add(int A, int B) { return A + B; }
+[[intel::device_indirectly_callable]] extern "C" int add(int A, int B) {
+  return A + B;
+}
 
 int main() {
   const int Size = 10;
@@ -25,7 +26,8 @@ int main() {
   P.build_with_kernel_type<class K>();
   cl::sycl::kernel KE = P.get_kernel<class K>();
 
-  auto FptrStorage = cl::sycl::ONEAPI::get_device_func_ptr(&add, "add", P, D);
+  auto FptrStorage =
+      cl::sycl::ext::oneapi::get_device_func_ptr(&add, "add", P, D);
   if (!D.is_host()) {
     // FIXME: update this check with query to supported extension
     // For now, we don't have runtimes that report required OpenCL extension and
@@ -48,8 +50,8 @@ int main() {
     auto AccB = BufB.template get_access<cl::sycl::access::mode::read>(CGH);
     CGH.parallel_for<class K>(
         KE, cl::sycl::range<1>(Size), [=](cl::sycl::id<1> Index) {
-          auto Fptr =
-              cl::sycl::ONEAPI::to_device_func_ptr<decltype(add)>(FptrStorage);
+          auto Fptr = cl::sycl::ext::oneapi::to_device_func_ptr<decltype(add)>(
+              FptrStorage);
           AccA[Index] = Fptr(AccA[Index], AccB[Index]);
         });
   });

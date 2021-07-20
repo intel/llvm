@@ -475,12 +475,52 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 }
 
 _pi_program::_pi_program(pi_context ctxt)
-    : module_{nullptr}, binary_{},
-      binarySizeInBytes_{0}, refCount_{1}, context_{ctxt} {
+    : module_{nullptr}, binary_{}, binarySizeInBytes_{0}, refCount_{1},
+      context_{ctxt}, kernelReqdWorkGroupSizeMD_{} {
   cuda_piContextRetain(context_);
 }
 
 _pi_program::~_pi_program() { cuda_piContextRelease(context_); }
+
+bool get_kernel_metadata(std::string metadataName, const char *tag,
+                         std::string &kernelName) {
+  const size_t tagLength = strlen(tag);
+  const size_t metadataNameLength = metadataName.length();
+  if (metadataNameLength >= tagLength &&
+      metadataName.compare(metadataNameLength - tagLength, tagLength, tag) ==
+          0) {
+    kernelName = metadataName.substr(0, metadataNameLength - tagLength);
+    return true;
+  }
+  return false;
+}
+
+pi_result _pi_program::set_metadata(const pi_device_binary_property *metadata,
+                                    size_t length) {
+  for (size_t i = 0; i < length; ++i) {
+    const pi_device_binary_property metadataElement = metadata[i];
+    std::string metadataElementName{metadataElement->Name};
+    std::string kernelName;
+
+    // If metadata is reqd_work_group_size record it for the corresponding
+    // kernel name.
+    if (get_kernel_metadata(metadataElementName,
+                            __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE,
+                            kernelName)) {
+      assert(metadataElement->ValSize ==
+                 sizeof(std::uint64_t) + sizeof(std::uint32_t) * 3 &&
+             "Unexpected size for reqd_work_group_size metadata");
+
+      // Get pointer to data, skipping 64-bit size at the start of the data.
+      const auto *reqdWorkGroupElements =
+          reinterpret_cast<const std::uint32_t *>(metadataElement->ValAddr) + 2;
+      kernelReqdWorkGroupSizeMD_[kernelName] =
+          std::make_tuple(reqdWorkGroupElements[0], reqdWorkGroupElements[1],
+                          reqdWorkGroupElements[2]);
+    }
+  }
+  return PI_SUCCESS;
+}
 
 pi_result _pi_program::set_binary(const char *source, size_t length) {
   assert((binary_ == nullptr && binarySizeInBytes_ == 0) &&
@@ -530,6 +570,8 @@ pi_result _pi_program::build_program(const char *build_options) {
 /// Note: This is currently only being used by the SYCL program class for the
 ///       has_kernel method, so an alternative would be to move the has_kernel
 ///       query to PI and use cuModuleGetFunction to check for a kernel.
+/// Note: Another alternative is to add kernel names as metadata, like with
+///       reqd_work_group_size.
 std::string getKernelNames(pi_program program) {
   std::string source(program->binary_,
                      program->binary_ + program->binarySizeInBytes_);
@@ -2151,10 +2193,14 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 /// \param[in] nativeHandle The native handle to create PI queue object from.
 /// \param[in] context is the PI context of the queue.
 /// \param[out] queue Set to the PI queue object created from native handle.
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
 ///
 /// \return TBD
 pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                pi_queue *) {
+                                                pi_queue *,
+                                                bool ownNativeHandle) {
+  (void)ownNativeHandle;
   cl::sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
   return {};
@@ -2394,6 +2440,74 @@ pi_result cuda_piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
   return retErr;
 }
 
+pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
+                                    pi_kernel_group_info param_name,
+                                    size_t param_value_size, void *param_value,
+                                    size_t *param_value_size_ret) {
+
+  // Here we want to query about a kernel's cuda blocks!
+
+  if (kernel != nullptr) {
+
+    switch (param_name) {
+    case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
+      int max_threads = 0;
+      cl::sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&max_threads,
+                             CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+                             kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     size_t(max_threads));
+    }
+    case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
+      size_t group_size[3] = {0, 0, 0};
+      const auto &reqd_wg_size_md_map =
+          kernel->program_->kernelReqdWorkGroupSizeMD_;
+      const auto reqd_wg_size_md = reqd_wg_size_md_map.find(kernel->name_);
+      if (reqd_wg_size_md != reqd_wg_size_md_map.end()) {
+        const auto reqd_wg_size = reqd_wg_size_md->second;
+        group_size[0] = std::get<0>(reqd_wg_size);
+        group_size[1] = std::get<1>(reqd_wg_size);
+        group_size[2] = std::get<2>(reqd_wg_size);
+      }
+      return getInfoArray(3, param_value_size, param_value,
+                          param_value_size_ret, group_size);
+    }
+    case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
+      // OpenCL LOCAL == CUDA SHARED
+      int bytes = 0;
+      cl::sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
+                             kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint64(bytes));
+    }
+    case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
+      // Work groups should be multiples of the warp size
+      int warpSize = 0;
+      cl::sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                               device->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     static_cast<size_t>(warpSize));
+    }
+    case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
+      // OpenCL PRIVATE == CUDA LOCAL
+      int bytes = 0;
+      cl::sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+                             kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint64(bytes));
+    }
+    default:
+      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    }
+  }
+
+  return PI_INVALID_KERNEL;
+}
+
 pi_result cuda_piEnqueueKernelLaunch(
     pi_queue command_queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
@@ -2413,10 +2527,17 @@ pi_result cuda_piEnqueueKernelLaunch(
   int threadsPerBlock[3] = {32, 1, 1};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
+  size_t reqdThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
 
   {
-    pi_result retError = cuda_piDeviceGetInfo(
+    pi_result retError = cuda_piKernelGetGroupInfo(
+        kernel, command_queue->device_,
+        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+        sizeof(reqdThreadsPerBlock), reqdThreadsPerBlock, nullptr);
+    assert(retError == PI_SUCCESS);
+
+    retError = cuda_piDeviceGetInfo(
         command_queue->device_, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
         sizeof(maxThreadsPerBlock), maxThreadsPerBlock, nullptr);
     assert(retError == PI_SUCCESS);
@@ -2429,6 +2550,10 @@ pi_result cuda_piEnqueueKernelLaunch(
 
     if (providedLocalWorkGroupSize) {
       auto isValid = [&](int dim) {
+        if (reqdThreadsPerBlock[dim] != 0 &&
+            local_work_size[dim] != reqdThreadsPerBlock[dim])
+          return PI_INVALID_WORK_GROUP_SIZE;
+
         if (local_work_size[dim] > maxThreadsPerBlock[dim])
           return PI_INVALID_WORK_ITEM_SIZE;
         // Checks that local work sizes are a divisor of the global work sizes
@@ -2756,6 +2881,7 @@ pi_result cuda_piProgramCreate(pi_context, const void *, size_t, pi_program *) {
 pi_result cuda_piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
+    size_t num_metadata_entries, const pi_device_binary_property *metadata,
     pi_int32 *binary_status, pi_program *program) {
   // Ignore unused parameter
   (void)binary_status;
@@ -2772,6 +2898,8 @@ pi_result cuda_piProgramCreateWithBinary(
   pi_result retError = PI_SUCCESS;
 
   std::unique_ptr<_pi_program> retProgram{new _pi_program{context}};
+
+  retProgram->set_metadata(metadata, num_metadata_entries);
 
   const bool has_length = (lengths != nullptr);
   size_t length = has_length
@@ -3044,71 +3172,6 @@ pi_result cuda_piKernelGetInfo(pi_kernel kernel, pi_kernel_info param_name,
     default: {
       __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
-    }
-  }
-
-  return PI_INVALID_KERNEL;
-}
-
-pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
-                                    pi_kernel_group_info param_name,
-                                    size_t param_value_size, void *param_value,
-                                    size_t *param_value_size_ret) {
-
-  // here we want to query about a kernel's cuda blocks!
-
-  if (kernel != nullptr) {
-
-    switch (param_name) {
-    case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
-      int max_threads = 0;
-      cl::sycl::detail::pi::assertion(
-          cuFuncGetAttribute(&max_threads,
-                             CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                             kernel->get()) == CUDA_SUCCESS);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     size_t(max_threads));
-    }
-    case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
-      // Returns the work-group size specified in the kernel source or IL.
-      // If the work-group size is not specified in the kernel source or IL,
-      // (0, 0, 0) is returned.
-      // https://www.khronos.org/registry/OpenCL/sdk/2.1/docs/man/xhtml/clGetKernelWorkGroupInfo.html
-
-      // TODO: can we extract the work group size from the PTX?
-      size_t group_size[3] = {0, 0, 0};
-      return getInfoArray(3, param_value_size, param_value,
-                          param_value_size_ret, group_size);
-    }
-    case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
-      // OpenCL LOCAL == CUDA SHARED
-      int bytes = 0;
-      cl::sycl::detail::pi::assertion(
-          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
-                             kernel->get()) == CUDA_SUCCESS);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     pi_uint64(bytes));
-    }
-    case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
-      // Work groups should be multiples of the warp size
-      int warpSize = 0;
-      cl::sycl::detail::pi::assertion(
-          cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                               device->get()) == CUDA_SUCCESS);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     static_cast<size_t>(warpSize));
-    }
-    case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
-      // OpenCL PRIVATE == CUDA LOCAL
-      int bytes = 0;
-      cl::sycl::detail::pi::assertion(
-          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-                             kernel->get()) == CUDA_SUCCESS);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     pi_uint64(bytes));
-    }
-    default:
-      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
   }
 

@@ -10,67 +10,10 @@
 
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ONEAPI {
+#include <CL/sycl/detail/defines_elementary.hpp>
 
-union Us {
-  char s[4];
-  int32_t i;
-};
-union Uu {
-  unsigned char s[4];
-  uint32_t i;
-};
+__SYCL_WARNING("CL/sycl/ONEAPI/dot_product.hpp usage is "
+               "deprecated, include "
+               "sycl/ext/oneapi/dot_product.hpp instead")
 
-int32_t dot_acc(int32_t pa, int32_t pb, int32_t c) {
-  Us a = *(reinterpret_cast<Us *>(&pa));
-  Us b = *(reinterpret_cast<Us *>(&pb));
-  return a.s[0] * b.s[0] + a.s[1] * b.s[1] + a.s[2] * b.s[2] + a.s[3] * b.s[3] +
-         c;
-}
-
-int32_t dot_acc(uint32_t pa, uint32_t pb, int32_t c) {
-  Uu a = *(reinterpret_cast<Uu *>(&pa));
-  Uu b = *(reinterpret_cast<Uu *>(&pb));
-  return a.s[0] * b.s[0] + a.s[1] * b.s[1] + a.s[2] * b.s[2] + a.s[3] * b.s[3] +
-         c;
-}
-
-int32_t dot_acc(int32_t pa, uint32_t pb, int32_t c) {
-  Us a = *(reinterpret_cast<Us *>(&pa));
-  Uu b = *(reinterpret_cast<Uu *>(&pb));
-  return a.s[0] * b.s[0] + a.s[1] * b.s[1] + a.s[2] * b.s[2] + a.s[3] * b.s[3] +
-         c;
-}
-
-int32_t dot_acc(uint32_t pa, int32_t pb, int32_t c) {
-  Uu a = *(reinterpret_cast<Uu *>(&pa));
-  Us b = *(reinterpret_cast<Us *>(&pb));
-  return a.s[0] * b.s[0] + a.s[1] * b.s[1] + a.s[2] * b.s[2] + a.s[3] * b.s[3] +
-         c;
-}
-
-int32_t dot_acc(vec<int8_t, 4> a, vec<int8_t, 4> b, int32_t c) {
-  return a.s0() * b.s0() + a.s1() * b.s1() + a.s2() * b.s2() + a.s3() * b.s3() +
-         c;
-}
-
-int32_t dot_acc(vec<uint8_t, 4> a, vec<uint8_t, 4> b, int32_t c) {
-  return a.s0() * b.s0() + a.s1() * b.s1() + a.s2() * b.s2() + a.s3() * b.s3() +
-         c;
-}
-
-int32_t dot_acc(vec<uint8_t, 4> a, vec<int8_t, 4> b, int32_t c) {
-  return a.s0() * b.s0() + a.s1() * b.s1() + a.s2() * b.s2() + a.s3() * b.s3() +
-         c;
-}
-
-int32_t dot_acc(vec<int8_t, 4> a, vec<uint8_t, 4> b, int32_t c) {
-  return a.s0() * b.s0() + a.s1() * b.s1() + a.s2() * b.s2() + a.s3() * b.s3() +
-         c;
-}
-
-} // namespace ONEAPI
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+#include <sycl/ext/oneapi/dot_product.hpp>
