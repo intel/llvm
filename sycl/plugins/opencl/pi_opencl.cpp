@@ -184,9 +184,11 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_UUID:
   case PI_DEVICE_INFO_ATOMIC_64:
     return PI_INVALID_VALUE;
-  case PI_DEVICE_INFO_IMAGE_SRGB:
+  case PI_DEVICE_INFO_IMAGE_SRGB: {
+    cl_bool result = true;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
-
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),

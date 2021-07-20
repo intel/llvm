@@ -46,6 +46,12 @@ static const pi_uint32 ZeSerialize = [] {
   return SerializeModeValue;
 }();
 
+static const bool CopyEngineRequested = [] {
+  const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
+  return UseCopyEngine;
+}();
+
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
@@ -529,7 +535,8 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
   return PI_SUCCESS;
 }
 
-pi_result _pi_device::initialize() {
+pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
+                                 int SubSubDeviceIndex) {
   uint32_t numQueueGroups = 0;
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (ZeDevice, &numQueueGroups, nullptr));
@@ -542,43 +549,53 @@ pi_result _pi_device::initialize() {
           (ZeDevice, &numQueueGroups, QueueProperties.data()));
 
   int ComputeGroupIndex = -1;
-  for (uint32_t i = 0; i < numQueueGroups; i++) {
-    if (QueueProperties[i].flags &
-        ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
-      ComputeGroupIndex = i;
-      break;
-    }
-  }
-  // How is it possible that there are no "compute" capabilities?
-  if (ComputeGroupIndex < 0) {
-    return PI_ERROR_UNKNOWN;
-  }
-  ZeComputeQueueGroupIndex = ComputeGroupIndex;
-  ZeComputeQueueGroupProperties = QueueProperties[ComputeGroupIndex];
 
-  int CopyGroupIndex = -1;
-  const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
-  bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
-  if (UseCopyEngine) {
+  // Initialize a sub-sub-device with its own ordinal and index
+  if (SubSubDeviceOrdinal >= 0) {
+    ComputeGroupIndex = SubSubDeviceOrdinal;
+    ZeComputeEngineIndex = SubSubDeviceIndex;
+  } else { // This is a root or a sub-device
     for (uint32_t i = 0; i < numQueueGroups; i++) {
-      if (((QueueProperties[i].flags &
-            ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
-          (QueueProperties[i].flags &
-           ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
-        CopyGroupIndex = i;
+      if (QueueProperties[i].flags &
+          ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
+        ComputeGroupIndex = i;
         break;
       }
     }
-    if (CopyGroupIndex < 0)
-      zePrint("NOTE: blitter/copy engine is not available though it was "
-              "requested\n");
-    else
-      zePrint("NOTE: blitter/copy engine is available\n");
+    // How is it possible that there are no "compute" capabilities?
+    if (ComputeGroupIndex < 0) {
+      return PI_ERROR_UNKNOWN;
+    }
+
+    // The index for a root or a sub-device is always 0.
+    ZeComputeEngineIndex = 0;
+
+    int CopyGroupIndex = -1;
+    if (CopyEngineRequested) {
+      for (uint32_t i = 0; i < numQueueGroups; i++) {
+        if (((QueueProperties[i].flags &
+              ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
+            (QueueProperties[i].flags &
+             ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
+          CopyGroupIndex = i;
+          break;
+        }
+      }
+      if (CopyGroupIndex < 0)
+        zePrint("NOTE: blitter/copy engine is not available though it was "
+                "requested\n");
+      else
+        zePrint("NOTE: blitter/copy engine is available\n");
+    }
+
+    ZeCopyQueueGroupIndex = CopyGroupIndex;
+    if (CopyGroupIndex >= 0) {
+      ZeCopyQueueGroupProperties = QueueProperties[CopyGroupIndex];
+    }
   }
-  ZeCopyQueueGroupIndex = CopyGroupIndex;
-  if (CopyGroupIndex >= 0) {
-    ZeCopyQueueGroupProperties = QueueProperties[CopyGroupIndex];
-  }
+
+  ZeComputeQueueGroupIndex = ComputeGroupIndex;
+  ZeComputeQueueGroupProperties = QueueProperties[ComputeGroupIndex];
 
   // Cache device properties
   ZeDeviceProperties = {};
@@ -598,7 +615,7 @@ pi_result _pi_context::initialize() {
   pi_device Device = SingleRootDevice ? SingleRootDevice : Devices[0];
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
   ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
-  ZeCommandQueueDesc.index = 0;
+  ZeCommandQueueDesc.index = Device->ZeComputeEngineIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
   ZE_CALL(
       zeCommandListCreateImmediate,
@@ -1547,6 +1564,50 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
           delete[] ZeSubdevices;
           return Result;
         }
+
+        // collect all the ordinals for the sub-sub-devices
+        std::vector<int> Ordinals;
+
+        uint32_t numQueueGroups = 0;
+        ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
+                (PiSubDevice->ZeDevice, &numQueueGroups, nullptr));
+        if (numQueueGroups == 0) {
+          return PI_ERROR_UNKNOWN;
+        }
+        std::vector<ze_command_queue_group_properties_t> QueueProperties(
+            numQueueGroups);
+        ZE_CALL(
+            zeDeviceGetCommandQueueGroupProperties,
+            (PiSubDevice->ZeDevice, &numQueueGroups, QueueProperties.data()));
+
+        for (uint32_t i = 0; i < numQueueGroups; i++) {
+          if (QueueProperties[i].flags &
+                  ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE &&
+              QueueProperties[i].numQueues > 1) {
+            Ordinals.push_back(i);
+          }
+        }
+
+        // Create PI sub-sub-devices with the sub-device for all the ordinals.
+        // Each {ordinal, index} points to a specific CCS which constructs
+        // a sub-sub-device at this point.
+        for (uint32_t J = 0; J < Ordinals.size(); ++J) {
+          for (uint32_t K = 0; K < QueueProperties[Ordinals[J]].numQueues;
+               ++K) {
+            std::unique_ptr<_pi_device> PiSubSubDevice(
+                new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
+            pi_result Result = PiSubSubDevice->initialize(Ordinals[J], K);
+            if (Result != PI_SUCCESS) {
+              return Result;
+            }
+
+            // save pointers to sub-sub-devices for quick retrieval in the
+            // future.
+            PiSubDevice->SubDevices.push_back(PiSubSubDevice.get());
+            PiDevicesCache.push_back(std::move(PiSubSubDevice));
+          }
+        }
+
         // save pointers to sub-devices for quick retrieval in the future.
         Device->SubDevices.push_back(PiSubDevice.get());
         PiDevicesCache.push_back(std::move(PiSubDevice));
@@ -1777,17 +1838,23 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_VERSION:
     return ReturnValue(Device->Platform->ZeDriverApiVersion.c_str());
   case PI_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
-    uint32_t ZeSubDeviceCount = 0;
-    ZE_CALL(zeDeviceGetSubDevices, (ZeDevice, &ZeSubDeviceCount, nullptr));
-    return ReturnValue(pi_uint32{ZeSubDeviceCount});
+    pi_result Res = Device->Platform->populateDeviceCacheIfNeeded();
+    if (Res != PI_SUCCESS) {
+      return Res;
+    }
+    return ReturnValue(pi_uint32{(unsigned int)(Device->SubDevices.size())});
   }
   case PI_DEVICE_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Device->RefCount});
   case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
     // SYCL spec says: if this SYCL device cannot be partitioned into at least
     // two sub devices then the returned vector must be empty.
-    uint32_t ZeSubDeviceCount = 0;
-    ZE_CALL(zeDeviceGetSubDevices, (ZeDevice, &ZeSubDeviceCount, nullptr));
+    pi_result Res = Device->Platform->populateDeviceCacheIfNeeded();
+    if (Res != PI_SUCCESS) {
+      return Res;
+    }
+
+    uint32_t ZeSubDeviceCount = Device->SubDevices.size();
     if (ZeSubDeviceCount < 2) {
       return ReturnValue(pi_device_partition_property{0});
     }
@@ -2402,7 +2469,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   ZeDevice = Device->ZeDevice;
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
   ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
-  ZeCommandQueueDesc.index = 0;
+  ZeCommandQueueDesc.index = Device->ZeComputeEngineIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
 
   ZE_CALL(zeCommandQueueCreate,

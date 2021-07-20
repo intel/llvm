@@ -2489,7 +2489,8 @@ pi_result rocm_piEnqueueKernelLaunch(
     }
 
     retError = PI_CHECK_ERROR(hipModuleLaunchKernel(
-        hipFunc, blocksPerGrid[0], 1, 1, threadsPerBlock[0], 1, 1,
+        hipFunc, blocksPerGrid[0], blocksPerGrid[1], blocksPerGrid[2],
+        threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2],
         kernel->get_local_size(), hipStream, argIndices.data(), nullptr));
 
     kernel->clear_local_size();

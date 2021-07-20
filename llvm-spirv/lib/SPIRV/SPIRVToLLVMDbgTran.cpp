@@ -127,8 +127,9 @@ SPIRVToLLVMDbgTran::transCompileUnit(const SPIRVExtInst *DebugInst) {
   assert(Ops.size() == OperandCount && "Invalid number of operands");
   M->addModuleFlag(llvm::Module::Max, "Dwarf Version", Ops[DWARFVersionIdx]);
   unsigned SourceLang = convertSPIRVSourceLangToDWARF(Ops[LanguageIdx]);
-  CU = Builder.createCompileUnit(SourceLang, getFile(Ops[SourceIdx]), "spirv", false,
-                                 "", 0);
+  auto Producer = findModuleProducer();
+  CU = Builder.createCompileUnit(SourceLang, getFile(Ops[SourceIdx]), Producer,
+                                 false, "", 0);
   return CU;
 }
 
@@ -1049,6 +1050,16 @@ SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const string &FileName) {
     BaseName = FileName;
     Path = ".";
   }
+}
+
+std::string SPIRVToLLVMDbgTran::findModuleProducer() {
+  for (const auto &I : BM->getModuleProcessedVec()) {
+    if (I->getProcessStr().find(SPIRVDebug::ProducerPrefix) !=
+        std::string::npos) {
+      return I->getProcessStr().substr(SPIRVDebug::ProducerPrefix.size());
+    }
+  }
+  return "spirv";
 }
 
 Optional<DIFile::ChecksumInfo<StringRef>>
