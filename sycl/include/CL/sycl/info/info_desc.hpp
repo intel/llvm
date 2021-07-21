@@ -156,12 +156,9 @@ enum class device : cl_device_info {
       PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
   ext_oneapi_max_global_work_groups =
       PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS,
-  ext_oneapi_max_work_groups_1d =
-      PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D,
-  ext_oneapi_max_work_groups_2d =
-      PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D,
-  ext_oneapi_max_work_groups_3d =
-      PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D
+  ext_oneapi_max_work_groups_1d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D,
+  ext_oneapi_max_work_groups_2d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D,
+  ext_oneapi_max_work_groups_3d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D
 };
 
 enum class device_type : pi_uint64 {
