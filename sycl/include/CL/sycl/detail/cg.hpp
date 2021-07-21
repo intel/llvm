@@ -322,7 +322,7 @@ public:
          std::vector<Requirement *> Requirements,
          std::vector<detail::EventImplPtr> Events,
          detail::code_location loc = {})
-      : CG(Fill, std::move(ArgsStorage), std::move(AccStorage),
+      : CG(CGTYPE::Fill, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MPattern(std::move(Pattern)), MPtr((Requirement *)Ptr) {}
