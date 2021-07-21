@@ -263,7 +263,6 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     WeakEvents.swap(MEventsWeak);
     SharedEvents.swap(MEventsShared);
   }
-  const detail::plugin &Plugin = getPlugin();
   // If the queue is either a host one or does not support OOO (and we use
   // multiple in-order queues as a result of that), wait for each event
   // directly. Otherwise, only wait for unenqueued or host task events, starting
@@ -271,7 +270,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   // then handle the rest with piQueueFinish.
   // TODO the new workflow has worse performance with Level Zero, keep the old
   // behavior until this is addressed
-  if (Plugin.getBackend() == backend::level_zero) {
+  if (!is_host() && getPlugin().getBackend() == backend::level_zero) {
     for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
       if (std::shared_ptr<event_impl> EventImplSharedPtr =
               EventImplWeakPtr.lock())
@@ -293,6 +292,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
       }
     }
     if (SupportsPiFinish) {
+      const detail::plugin &Plugin = getPlugin();
       Plugin.call<detail::PiApiKind::piQueueFinish>(getHandleRef());
       for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
         if (std::shared_ptr<event_impl> EventImplSharedPtr =
