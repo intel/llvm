@@ -333,10 +333,7 @@ def gentbl_filegroup(
       **kwargs: Extra keyword arguments to pass to all generated rules.
     """
 
-    llvm_project_execroot_path = Label(
-        "//mlir:tblgen.bzl",
-        relative_to_caller_repository = False,
-    ).workspace_root
+    llvm_project_execroot_path = Label("//mlir:tblgen.bzl").workspace_root
 
     # TODO(gcmn): Update callers to td_library and explicit includes and drop
     # this hardcoded include.
@@ -398,7 +395,6 @@ def gentbl_cc_library(
         td_srcs = [],
         td_includes = [],
         includes = [],
-        td_relative_includes = [],
         deps = [],
         strip_include_prefix = None,
         test = False,
@@ -417,8 +413,6 @@ def gentbl_cc_library(
       td_srcs: See gentbl_rule.td_srcs
       includes: See gentbl_rule.includes
       td_includes: See gentbl_rule.td_includes
-      td_relative_includes: An alias for "includes". Deprecated. Use includes
-        instead.
       deps: See gentbl_rule.deps
       strip_include_prefix: attribute to pass through to cc_library.
       test: whether to create a shell test that invokes the tool too.
@@ -433,7 +427,7 @@ def gentbl_cc_library(
         tbl_outs = tbl_outs,
         td_srcs = td_srcs,
         td_includes = td_includes,
-        includes = includes + td_relative_includes,
+        includes = includes,
         deps = deps,
         test = test,
         skip_opts = ["-gen-op-doc"],
