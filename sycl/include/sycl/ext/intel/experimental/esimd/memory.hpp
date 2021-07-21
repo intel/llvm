@@ -668,24 +668,63 @@ ESIMD_INLINE ESIMD_NODEBUG
   __esimd_slm_write<T, n>(offsets.data(), vals.data(), pred.data());
 }
 
+/// Gathering read from the SLM given specified \p offsets.
+/// Up to 4 data elements may be accessed at each address depending on the
+/// enabled channel \p Mask.
+/// \tparam T element type of the returned vector. Must be 4-byte.
+/// \tparam N size of the \p offsets vector. Must be 8, 16 or 32.
+/// \tparam Mask represents a pixel's channel mask.
+/// @param offsets byte-offsets within the SLM.
+/// @param pred predication control used for masking lanes.
+/// \ingroup sycl_esimd
+template <typename T, int N, rgba_channel_mask Mask>
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    (N == 8 || N == 16 || N == 32) && (sizeof(T) == 4),
+    simd<T, N * get_num_channels_enabled(Mask)>>
+slm_load_rgba(simd<uint32_t, N> offsets, simd<uint16_t, N> pred = 1) {
+  return __esimd_slm_read4<T, N, Mask>(offsets.data(), pred.data());
+}
+
 /// SLM gather4.
 ///
 /// Only allow simd-8, simd-16 and simd-32.
 template <typename T, int n, rgba_channel_mask Mask>
+__SYCL_DEPRECATED("use slm_load_rgba.")
 ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
     (n == 8 || n == 16 || n == 32) && (sizeof(T) == 4),
-    simd<T, n * get_num_channels_enabled(Mask)>>
-slm_load4(simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
-  return __esimd_slm_read4<T, n, Mask>(offsets.data(), pred.data());
+    simd<T, n * get_num_channels_enabled(Mask)>> slm_load4(simd<uint32_t, n>
+                                                               offsets,
+                                                           simd<uint16_t, n>
+                                                               pred = 1) {
+  return slm_load_rgba<T, n, Mask>(offsets, pred);
+}
+
+/// Scatter write to the SLM given specified \p offsets.
+/// Up to 4 data elements may be written at each address depending on the
+/// enabled channel \p Mask.
+/// \tparam T element type of the input vector. Must be 4-byte.
+/// \tparam N size of the \p offsets vector. Must be 8, 16 or 32.
+/// \tparam Mask represents a pixel's channel mask.
+/// @param vals values to be written.
+/// @param offsets byte-offsets within the SLM.
+/// @param pred predication control used for masking lanes.
+/// \ingroup sycl_esimd
+template <typename T, int N, rgba_channel_mask Mask>
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    (N == 8 || N == 16 || N == 32) && (sizeof(T) == 4), void>
+slm_store_rgba(simd<T, N * get_num_channels_enabled(Mask)> vals,
+               simd<uint32_t, N> offsets, simd<uint16_t, N> pred = 1) {
+  __esimd_slm_write4<T, N, Mask>(offsets.data(), vals.data(), pred.data());
 }
 
 /// SLM scatter4.
 template <typename T, int n, rgba_channel_mask Mask>
+__SYCL_DEPRECATED("use slm_store_rgba.")
 ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    (n == 8 || n == 16 || n == 32) && (sizeof(T) == 4), void>
-slm_store4(simd<T, n * get_num_channels_enabled(Mask)> vals,
-           simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
-  __esimd_slm_write4<T, n, Mask>(offsets.data(), vals.data(), pred.data());
+    (n == 8 || n == 16 || n == 32) && (sizeof(T) == 4),
+    void> slm_store4(simd<T, n * get_num_channels_enabled(Mask)> vals,
+                     simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
+  slm_store_rgba<T, n, Mask>(vals, offsets, pred);
 }
 
 /// SLM block-load.
