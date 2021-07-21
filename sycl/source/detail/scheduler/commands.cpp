@@ -1671,8 +1671,8 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
   std::vector<ArgDesc> &Args = ExecKernel->MArgs;
   const detail::plugin &Plugin = MQueue->getPlugin();
 
-  auto setFunc = [this, &Plugin, Kernel, &DeviceImageImpl](detail::ArgDesc &Arg,
-                                                           size_t NextTrueIndex) {
+  auto setFunc = [this, &Plugin, Kernel, &DeviceImageImpl](
+                     detail::ArgDesc &Arg, size_t NextTrueIndex) {
     switch (Arg.MType) {
     case kernel_param_kind_t::kind_stream:
       break;
