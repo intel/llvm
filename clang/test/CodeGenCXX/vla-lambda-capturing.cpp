@@ -36,7 +36,7 @@ void g(intptr_t n) {
 // CHECK: [[N_ADDR:%.+]] = getelementptr inbounds [[CAP_TYPE1]], [[CAP_TYPE1]]* [[THIS]], i{{.+}} 0, i{{.+}} 0
 // CHECK: [[N:%.+]] = load [[INTPTR_T]], [[INTPTR_T]]* [[N_ADDR]]
 // CHECK: [[BUFFER_ADDR:%.+]] = getelementptr inbounds [[CAP_TYPE1]], [[CAP_TYPE1]]* [[THIS]], i{{.+}} 0, i{{.+}} 1
-// CHECK: [[BUFFER:%.+]] = load [[INTPTR_T]]*, [[INTPTR_T]]** [[BUFFER_ADDR]]
+// CHECK: [[__SYCL_BUFFER:%.+]] = load [[INTPTR_T]]*, [[INTPTR_T]]** [[BUFFER_ADDR]]
 // CHECK: call i{{.+}}* @llvm.stacksave()
 // CHECK: alloca [[INTPTR_T]], [[INTPTR_T]] [[N]]
 // CHECK: call void @llvm.stackrestore(

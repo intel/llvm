@@ -157,7 +157,7 @@ public:
     COPY_ACC_TO_ACC = 4,
     BARRIER = 5,
     BARRIER_WAITLIST = 6,
-    FILL = 7,
+    __SYCL_FILL = 7,
     UPDATE_HOST = 8,
     RUN_ON_HOST_INTEL = 9,
     COPY_USM = 10,
@@ -322,7 +322,7 @@ public:
          std::vector<Requirement *> Requirements,
          std::vector<detail::EventImplPtr> Events,
          detail::code_location loc = {})
-      : CG(FILL, std::move(ArgsStorage), std::move(AccStorage),
+      : CG(__SYCL_FILL, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MPattern(std::move(Pattern)), MPtr((Requirement *)Ptr) {}

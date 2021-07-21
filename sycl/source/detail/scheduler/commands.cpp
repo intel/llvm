@@ -1247,7 +1247,7 @@ void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
   Stream << "ID = " << this << "\\n";
   Stream << "UPDATE REQ ON " << deviceToString(MQueue->get_device()) << "\\n";
   bool IsReqOnBuffer =
-      MDstReq.MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER;
+      MDstReq.MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::__SYCL_BUFFER;
   Stream << "TYPE: " << (IsReqOnBuffer ? "Buffer" : "Image") << "\\n";
   if (IsReqOnBuffer)
     Stream << "Is sub buffer: " << std::boolalpha << MDstReq.MIsSubBuffer
@@ -1457,7 +1457,7 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::UPDATE_HOST:
     return "update_host";
     break;
-  case detail::CG::FILL:
+  case detail::CG::__SYCL_FILL:
     return "fill";
     break;
   case detail::CG::COPY_ACC_TO_ACC:
@@ -1860,7 +1860,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::FILL: {
+  case CG::CGTYPE::__SYCL_FILL: {
     CGFill *Fill = (CGFill *)MCommandGroup.get();
     Requirement *Req = (Requirement *)(Fill->getReqToFill());
     AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);

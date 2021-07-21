@@ -709,7 +709,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
         // If it is not the first allocation, try to setup a link
         // FIXME: Temporary limitation, linked alloca commands for an image is
         // not supported because map operation is not implemented for an image.
-        if (Req->MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER)
+        if (Req->MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::__SYCL_BUFFER)
           // Current limitation is to setup link between current allocation and
           // new one. There could be situations when we could setup link with
           // "not" current allocation, but it will require memory copy.

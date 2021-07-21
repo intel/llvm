@@ -2024,7 +2024,7 @@ void ASTWriter::WriteSourceManagerBlock(SourceManager &SourceMgr,
         llvm::Optional<llvm::MemoryBufferRef> Buffer =
             Content->getBufferOrNone(PP.getDiagnostics(), PP.getFileManager());
         if (!Buffer)
-          Buffer = llvm::MemoryBufferRef("<<<INVALID BUFFER>>>", "");
+          Buffer = llvm::MemoryBufferRef("<<<INVALID __SYCL_BUFFER>>>", "");
         StringRef Blob(Buffer->getBufferStart(), Buffer->getBufferSize() + 1);
         emitBlob(Stream, Blob, SLocBufferBlobCompressedAbbrv,
                  SLocBufferBlobAbbrv);

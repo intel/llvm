@@ -158,7 +158,7 @@ event handler::finalize() {
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::FILL:
+  case detail::CG::__SYCL_FILL:
     CommandGroup.reset(new detail::CGFill(
         std::move(MPattern), MDstPtr, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
