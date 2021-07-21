@@ -1,5 +1,3 @@
-// XFAIL: cuda
-
 // Test1 - check that kernel can call a SYCL_EXTERNAL function defined in a
 // different object file.
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSOURCE1 -c %s -o %t1.o
