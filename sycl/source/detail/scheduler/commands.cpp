@@ -1672,7 +1672,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
   const detail::plugin &Plugin = MQueue->getPlugin();
 
   auto setFunc = [this, &Plugin, Kernel, &DeviceImageImpl](detail::ArgDesc &Arg,
-                                                           int NextTrueIndex) {
+                                                           size_t NextTrueIndex) {
     switch (Arg.MType) {
     case kernel_param_kind_t::kind_stream:
       break;
@@ -1729,9 +1729,10 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
   };
 
   if (EliminatedArgMask.empty()) {
-    for (int NextTrueIndex = 0; NextTrueIndex < Args.size(); ++NextTrueIndex) {
-      detail::ArgDesc &Arg = Args[NextTrueIndex];
+    size_t NextTrueIndex = 0;
+    for (ArgDesc &Arg : Args) {
       setFunc(Arg, NextTrueIndex);
+      ++NextTrueIndex;
     }
   } else {
     // TODO this is not necessary as long as we can guarantee that the arguments
@@ -1741,9 +1742,9 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
       return A.MIndex < B.MIndex;
     });
     int LastIndex = -1;
-    int NextTrueIndex = 0;
+    size_t NextTrueIndex = 0;
 
-    for (ArgDesc &Arg : ExecKernel->MArgs) {
+    for (ArgDesc &Arg : Args) {
       // Handle potential gaps in set arguments (e. g. if some of them are set
       // on the user side).
       for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
