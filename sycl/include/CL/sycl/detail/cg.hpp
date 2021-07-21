@@ -150,22 +150,22 @@ public:
 
   /// Type of the command group.
   enum CGTYPE : unsigned int {
-    __SYCL_NONE = 0,
-    __SYCL_KERNEL = 1,
-    __SYCL_COPY_ACC_TO_PTR = 2,
-    __SYCL_COPY_PTR_TO_ACC = 3,
-    __SYCL_COPY_ACC_TO_ACC = 4,
-    __SYCL_BARRIER = 5,
-    __SYCL_BARRIER_WAITLIST = 6,
-    __SYCL_FILL = 7,
-    __SYCL_UPDATE_HOST = 8,
-    __SYCL_RUN_ON_HOST_INTEL = 9,
-    __SYCL_COPY_USM = 10,
-    __SYCL_FILL_USM = 11,
-    __SYCL_PREFETCH_USM = 12,
-    __SYCL_CODEPLAY_INTEROP_TASK = 13,
-    __SYCL_CODEPLAY_HOST_TASK = 14,
-    __SYCL_ADVISE_USM = 15,
+    None = 0,
+    Kernel = 1,
+    CopyAccToPtr = 2,
+    CopyPtrToAcc = 3,
+    CopyAccToAcc = 4,
+    Barrier = 5,
+    BarrierWaitlist = 6,
+    Fill = 7,
+    UpdateHost = 8,
+    RunOnHostIntel = 9,
+    CopyUSM = 10,
+    FillUSM = 11,
+    PrefetchUSM = 12,
+    CodeplayInteropTask = 13,
+    CodeplayHostTask = 14,
+    AdviseUSM = 15,
   };
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
@@ -263,9 +263,8 @@ public:
         MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
         MStreams(std::move(Streams)) {
-    assert(
-        (getType() == __SYCL_RUN_ON_HOST_INTEL || getType() == __SYCL_KERNEL) &&
-        "Wrong type of exec kernel CG.");
+    assert((getType() == RunOnHostIntel || getType() == Kernel) &&
+           "Wrong type of exec kernel CG.");
   }
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
@@ -323,7 +322,7 @@ public:
          std::vector<Requirement *> Requirements,
          std::vector<detail::EventImplPtr> Events,
          detail::code_location loc = {})
-      : CG(__SYCL_FILL, std::move(ArgsStorage), std::move(AccStorage),
+      : CG(Fill, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MPattern(std::move(Pattern)), MPtr((Requirement *)Ptr) {}
@@ -341,7 +340,7 @@ public:
                std::vector<Requirement *> Requirements,
                std::vector<detail::EventImplPtr> Events,
                detail::code_location loc = {})
-      : CG(__SYCL_UPDATE_HOST, std::move(ArgsStorage), std::move(AccStorage),
+      : CG(CGTYPE::UpdateHost, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MPtr((Requirement *)Ptr) {}
@@ -363,7 +362,7 @@ public:
             std::vector<Requirement *> Requirements,
             std::vector<detail::EventImplPtr> Events,
             detail::code_location loc = {})
-      : CG(__SYCL_COPY_USM, std::move(ArgsStorage), std::move(AccStorage),
+      : CG(CGTYPE::CopyUSM, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MSrc(Src), MDst(Dst), MLength(Length) {}
@@ -387,7 +386,7 @@ public:
             std::vector<Requirement *> Requirements,
             std::vector<detail::EventImplPtr> Events,
             detail::code_location loc = {})
-      : CG(__SYCL_FILL_USM, std::move(ArgsStorage), std::move(AccStorage),
+      : CG(CGTYPE::FillUSM, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MPattern(std::move(Pattern)), MDst(DstPtr), MLength(Length) {}
@@ -409,7 +408,7 @@ public:
                 std::vector<Requirement *> Requirements,
                 std::vector<detail::EventImplPtr> Events,
                 detail::code_location loc = {})
-      : CG(__SYCL_PREFETCH_USM, std::move(ArgsStorage), std::move(AccStorage),
+      : CG(CGTYPE::PrefetchUSM, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MDst(DstPtr), MLength(Length) {}
