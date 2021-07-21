@@ -35,8 +35,8 @@ SYCL specification refer to that revision.
 
 == Introduction
 
-This extension introduces sorting functions to the group algorithms library,
-Sorter objects, Executor objects.
+This extension introduces sorting functions to the group algorithms library, along with
+associated Sorter objects and Group Executor objects.
 
 == Feature test macro
 
@@ -71,7 +71,11 @@ template<typename Group, typename T>
 T operator()(Group g, T val);
 ----
 
-Note: At least one overload for `operator()` is required. If only `void operator()(Group g, Ptr first, Ptr last);` is defined then a Sorter can be passed to `joint_sort` function only. If it's passed to `sort_over_group`, it leads to a compilation error. If only `T operator()(Group g, T val);` is defined then a Sorter can be passed to `sort_over_group` function only. If it's passed to `joint_sort`, it leads to a compilation error.
+NOTE: At least one overload for `operator()` is required.
+If only `void operator()(Group g, Ptr first, Ptr last);` is defined then a Sorter can be passed
+to `joint_sort` function only. If it's passed to `sort_over_group`, it leads to a compilation
+error. If only `T operator()(Group g, T val);` is defined then a Sorter can be passed to
+`sort_over_group` function only. If it's passed to `joint_sort`, it leads to a compilation error.
 
 Table 2. `operator()` for Sorters.
 |===
@@ -117,14 +121,14 @@ due to the absence of corresponding `operator()`
 
 ==== Radix order
 
-`radix_order` is a `enum` that defines a sorting order when `radix_sorter` is used.
+`sorting_order` is an `enum` that defines a sorting order when `radix_sorter` is used.
 Only ascending and descending orders are applicable.
 
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-  enum class radix_order {
+  enum class sorting_order {
     ascending,
     descending
   };
@@ -159,7 +163,7 @@ namespace sycl::ext::oneapi::experimental {
     memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range);
   };
 
-  template<typename T, radix_order Order = radix_order::ascending, unsigned int BitsPerPass = 4>
+  template<typename T, sorting_order Order = sorting_order::ascending, unsigned int BitsPerPass = 4>
   class radix_sorter {
   public:
     template<std::size_t Extent>
@@ -195,7 +199,7 @@ using `Compare` as the binary comparison function object.
 The algorithm requires a temporary local memory that must be allocated on callers side.
 Size of required memory (bytes) is defined by calling `memory_required`.
 
-|`template<typename T, radix_order Order = radix_order::ascending, unsigned int BitsPerPass = 4>
+|`template<typename T, sorting_order Order = sorting_order::ascending, unsigned int BitsPerPass = 4>
 radix_sorter`
 |Use radix sort as a sorting method. `Order` specify the sorting order.
 Only arithmetic types as `T` can be passed to `radix_sorter`.
@@ -214,7 +218,7 @@ Table 4. Constructors of the `default_sorter` class.
 default_sorter(sycl::span<uint8_t, Extent> scratch, Compare comp = Compare())`
 |Creates the `default_sorter` object using `comp`.
 Temporary local memory for the algorithm is provided using `scratch`.
-If `scratch.size()` is less than value returned by
+If `scratch.size()` is less than the value returned by
 `memory_required`, behavior of the corresponding sorting algorithm is undefined.
 
 |===
@@ -264,7 +268,7 @@ radix_sorter(sycl::span<uint8_t, Extent> scratch, const std::bitset<sizeof(T) * 
 |Creates the `radix_sorter` object to sort values considering only bits
 that corresponds to 1 in `mask`.
 Temporary local memory for the algorithm is provided using `scratch`.
-If `scratch.size()` is less than value returned by `memory_required`,
+If `scratch.size()` is less than the value returned by `memory_required`,
 behavior of the corresponding sorting algorithm is undefined.
 
 |===
@@ -303,7 +307,7 @@ If other `scope` values are passed, behavior is unspecified.
 Function must be called on host.
 |===
 
-Note: Predefined sorters are in the `experimental` namespace: interfaces might be changed later.
+NOTE: Predefined sorters are in the `experimental` namespace: interfaces might be changed later.
 
 === Group Executors
 
@@ -314,7 +318,7 @@ To pass temporary local memory to an algorithm SYCL introduces special class `gr
 namespace sycl::ext::oneapi::experimental {
 
   // Exposition only: all template arguments except Group are unspecified
-  template<typename Group, std::size_t Extent, /* unspecified */>
+  template<typename Group, std::size_t Extent>
   class group_executor
   {
   public:
@@ -333,7 +337,7 @@ namespace sycl::ext::oneapi::experimental {
 }
 ----
 
-Note: `group_executor` is in the `experimental` namespace: interfaces might be changed later.
+NOTE: `group_executor` is in the `experimental` namespace: interfaces might be changed later.
 
 Table 8. Constructors of the `group_executor` class.
 |===
@@ -342,7 +346,8 @@ Table 8. Constructors of the `group_executor` class.
 |`group_executor(Group group, sycl::span<uint8_t, Extent> scratch)`
 |Creates the `group_executor` object using `group` and `scratch`.
 `sycl::is_group_v<std::decay_t<Group>>` must be true.
-`scratch.size()` must not be less than value returned by the `memory_required` method of `default_sorter`. Otherwise,
+`scratch.size()` must not be less than value returned by the `memory_required` method
+of `default_sorter`. Otherwise,
 behavior of sorting algorithm, which is called with the constructed object, is undefined.
 
 |===
@@ -493,7 +498,7 @@ namespace my_sycl_exp = sycl::ext::oneapi::experimental;
 
 sycl::range<1> local_range{256};
 // predefine radix_sorter to calculate local memory size
-using RSorter = my_sycl_exp::radix_sorter<T, my_sycl_exp::radix_order::descending>;
+using RSorter = my_sycl_exp::radix_sorter<T, my_sycl_exp::sorting_order::descending>;
 // calculate required local memory size
 size_t local_memory_size =
     RSorter::memory_required(sycl::memory_scope::work_group, local_range);
@@ -520,7 +525,7 @@ q.submit([&](sycl::handler& h) {
 3.Using `joint_sort` for key-value sorting
 (keys are compared, but keys and values are reordered both).
 
-Note: `oneapi::dpl::zip_iterator` is used here.
+NOTE: `oneapi::dpl::zip_iterator` is used here.
 See https://spec.oneapi.com/versions/latest/elements/oneDPL/source/index.html[oneDPL Spec]
 for details.
 
