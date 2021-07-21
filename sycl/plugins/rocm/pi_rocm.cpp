@@ -2489,7 +2489,8 @@ pi_result rocm_piEnqueueKernelLaunch(
     }
 
     retError = PI_CHECK_ERROR(hipModuleLaunchKernel(
-        hipFunc, blocksPerGrid[0], 1, 1, threadsPerBlock[0], 1, 1,
+        hipFunc, blocksPerGrid[0], blocksPerGrid[1], blocksPerGrid[2],
+        threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2],
         kernel->get_local_size(), hipStream, argIndices.data(), nullptr));
 
     kernel->clear_local_size();
@@ -2742,6 +2743,7 @@ pi_result rocm_piProgramCreate(pi_context context, const void *il,
 pi_result rocm_piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
+    size_t num_metadata_entries, const pi_device_binary_property *metadata,
     pi_int32 *binary_status, pi_program *program) {
   assert(context != nullptr);
   assert(binaries != nullptr);
@@ -2755,6 +2757,9 @@ pi_result rocm_piProgramCreateWithBinary(
   pi_result retError = PI_SUCCESS;
 
   std::unique_ptr<_pi_program> retProgram{new _pi_program{context}};
+
+  // TODO: Set metadata here and use reqd_work_group_size information.
+  // See cuda_piProgramCreateWithBinary
 
   const bool has_length = (lengths != nullptr);
   size_t length = has_length

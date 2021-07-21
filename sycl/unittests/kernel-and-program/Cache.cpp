@@ -102,6 +102,7 @@ static pi_result redefinedProgramCreateWithSource(pi_context context,
 static pi_result redefinedProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
+    size_t metadata_length, const pi_device_binary_property *metadata,
     pi_int32 *binary_status, pi_program *ret_program) {
   *ret_program = reinterpret_cast<pi_program>(1);
   return PI_SUCCESS;

@@ -524,6 +524,10 @@ struct _pi_program {
   std::atomic_uint32_t refCount_;
   _pi_context *context_;
 
+  // Metadata
+  std::unordered_map<std::string, std::tuple<uint32_t, uint32_t, uint32_t>>
+      kernelReqdWorkGroupSizeMD_;
+
   constexpr static size_t MAX_LOG_SIZE = 8192u;
 
   char errorLog_[MAX_LOG_SIZE], infoLog_[MAX_LOG_SIZE];
@@ -532,6 +536,9 @@ struct _pi_program {
 
   _pi_program(pi_context ctxt);
   ~_pi_program();
+
+  pi_result set_metadata(const pi_device_binary_property *metadata,
+                         size_t length);
 
   pi_result set_binary(const char *binary, size_t binarySizeInBytes);
 

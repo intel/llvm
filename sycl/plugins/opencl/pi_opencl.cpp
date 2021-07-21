@@ -184,9 +184,11 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_UUID:
   case PI_DEVICE_INFO_ATOMIC_64:
     return PI_INVALID_VALUE;
-  case PI_DEVICE_INFO_IMAGE_SRGB:
+  case PI_DEVICE_INFO_IMAGE_SRGB: {
+    cl_bool result = true;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
-
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
@@ -354,7 +356,9 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                           pi_context, pi_queue *piQueue) {
+                                           pi_context, pi_queue *piQueue,
+                                           bool ownNativeHandle) {
+  (void)ownNativeHandle;
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
   return PI_SUCCESS;
@@ -635,12 +639,13 @@ pi_result piclProgramCreateWithSource(pi_context context, pi_uint32 count,
   return ret_err;
 }
 
-pi_result piProgramCreateWithBinary(pi_context context, pi_uint32 num_devices,
-                                    const pi_device *device_list,
-                                    const size_t *lengths,
-                                    const unsigned char **binaries,
-                                    pi_int32 *binary_status,
-                                    pi_program *ret_program) {
+pi_result piProgramCreateWithBinary(
+    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
+    const size_t *lengths, const unsigned char **binaries,
+    size_t num_metadata_entries, const pi_device_binary_property *metadata,
+    pi_int32 *binary_status, pi_program *ret_program) {
+  (void)metadata;
+  (void)num_metadata_entries;
 
   pi_result ret_err = PI_INVALID_OPERATION;
   *ret_program = cast<pi_program>(clCreateProgramWithBinary(

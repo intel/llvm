@@ -4624,7 +4624,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     // Turn on Dead Parameter Elimination Optimization with early optimizations
-    if (!RawTriple.isNVPTX() &&
+    if (!(RawTriple.isNVPTX() || RawTriple.isAMDGCN()) &&
         Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
                      options::OPT_fno_sycl_dead_args_optimization, false))
       CmdArgs.push_back("-fenable-sycl-dae");
@@ -8692,7 +8692,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         ",+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse"
         ",+SPV_INTEL_long_constant_composite"
         ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
-        ",+SPV_INTEL_fpga_dsp_control";
+        ",+SPV_INTEL_fpga_dsp_control"
+        ",+SPV_INTEL_arithmetic_fence";
     ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
     if (!C.getDriver().isFPGAEmulationMode())
       // Enable SPV_INTEL_usm_storage_classes only for FPGA hardware,
@@ -8855,10 +8856,14 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // -fsycl-device-code-split=auto
 
   // Turn on Dead Parameter Elimination Optimization with early optimizations
-  if (!getToolChain().getTriple().isNVPTX() &&
+  if (!(getToolChain().getTriple().isNVPTX() ||
+        getToolChain().getTriple().isAMDGCN()) &&
       TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
                      options::OPT_fno_sycl_dead_args_optimization, false))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
+  // Enable PI program metadata
+  if (getToolChain().getTriple().isNVPTX())
+    addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});
   if (JA.getType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and
@@ -8945,6 +8950,15 @@ void FileTableTform::ConstructJob(Compilation &C, const JobAction &JA,
       addArgs(CmdArgs, TCArgs, {Arg});
       break;
     }
+    case FileTableTformJobAction::Tform::REPLACE_CELL: {
+      assert(Tf.TheArgs.size() == 2 && "column name and row id expected");
+      SmallString<128> Arg("-replace_cell=");
+      Arg += Tf.TheArgs[0];
+      Arg += ",";
+      Arg += Tf.TheArgs[1];
+      addArgs(CmdArgs, TCArgs, {Arg});
+      break;
+    }
     case FileTableTformJobAction::Tform::RENAME: {
       assert(Tf.TheArgs.size() == 2 && "from/to names expected");
       SmallString<128> Arg("-rename=");
@@ -8954,8 +8968,18 @@ void FileTableTform::ConstructJob(Compilation &C, const JobAction &JA,
       addArgs(CmdArgs, TCArgs, {Arg});
       break;
     }
+    case FileTableTformJobAction::Tform::COPY_SINGLE_FILE: {
+      assert(Tf.TheArgs.size() == 2 && "column name and row id expected");
+      SmallString<128> Arg("-copy_single_file=");
+      Arg += Tf.TheArgs[0];
+      Arg += ",";
+      Arg += Tf.TheArgs[1];
+      addArgs(CmdArgs, TCArgs, {Arg});
+      break;
+    }
     }
   }
+
   // 2) add output option
   assert(Output.isFilename() && "table tform output must be a file");
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});

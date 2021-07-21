@@ -126,7 +126,7 @@ Replace the second paragraph with:
 A synopsis of the common properties interface, the SYCL property_list class, the SYCL accessor_property_list class template and the SYCL property classes is provided below. 
 The member functions of the common properties interface are listed in Table 4.6. 
 The constructors of the SYCL property_list class are listed in Table 4.7.  
-Free functions in the ONEAPI::property namespace are listed in Table 4.7a.  
+Free functions in the ext::oneapi::property namespace are listed in Table 4.7a.  
 The constructors of the accessor_property_list class are listed in Table 4.7b.  
 Two accessor_property_lists which were created from the same set of compile-time-constant properties must either have an identical type or be convertible regardless of their runtime properties.  
 Accessor property lists with no compile-time-constant properties must be convertible to property_lists and vice versa.  
@@ -167,14 +167,15 @@ class property_list {
         
         // Available only when propertyTN contains no compile-time-constant properties
         template<typename... propertyTN>
-        operator ONEAPI::accessor_property_list<propertyTN...>() const;
+        operator ext::oneapi::accessor_property_list<propertyTN...>() const;
 };
 ```
 
 At the end of the listing add the new property utility struct, equality and inequality operators for compile-time-constant properties and the accessor_property_list class template as follows:
 
 ```c++
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 
 // New struct for querying whether a class represents a compile-time-constant property
 template<typename propertyT>
@@ -197,7 +198,8 @@ class accessor_property_list {
         // Available only when properties... contains no compile-time-constant properties
         operator property_list() const;
 };
-} // namespace ONEAPI
+} // namespace oneapi
+} // namespace ext
 ```
 
 NOTE: Implementations will need either a conversion function or a deduction guide to satisfy the requirement that accessor_property_lists which were created from the same set of compile-time-constant properties must either have an identical type or be convertible.
@@ -252,7 +254,7 @@ Available only if propertyT is a compile-time-constant property.
 |===
 --
 
-Add a new table, Table 4.7a: Free functions in the ONEAPI::property namespace as follows:
+Add a new table, Table 4.7a: Free functions in the ext::oneapi::property namespace as follows:
 
 --
 [options="header"]
@@ -342,88 +344,88 @@ that instead take an accessor_property_list:
   /* Available only when: (dimensions == 0) */
   template <typename AllocatorT, typename... properties>>
   accessor(buffer<dataT, 1, AllocatorT> &bufferRef, 
-           const ONEAPI::accessor_property_list<properties...> &propList = {});
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions == 0) */
   template <typename AllocatorT, typename... properties>
   accessor(buffer<dataT, 1, AllocatorT> &bufferRef,
-           handler &commandGroupHandlerRef, const ONEAPI::accessor_property_list<properties...> &propList = {});
+           handler &commandGroupHandlerRef, const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions > 0) */
   template <typename AllocatorT, typename... properties>
   accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
-           const ONEAPI::accessor_property_list<properties...> &propList = {});
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions > 0) */
   template <typename AllocatorT, typename TagT, typename... properties>
   accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef, TagT tag,
-           const ONEAPI::accessor_property_list<properties...> &propList = {});
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions > 0) */
   template <typename AllocatorT, typename... properties>
   accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
-           handler &commandGroupHandlerRef, const ONEAPI::accessor_property_list<properties...> &propList = {});
+           handler &commandGroupHandlerRef, const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions > 0) */
   template <typename AllocatorT, typename TagT, typename... properties>
   accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
            handler &commandGroupHandlerRef, TagT tag,
-           const ONEAPI::accessor_property_list<properties...> &propList = {});
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions > 0) */
   template <typename AllocatorT, typename... properties>
   accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
-           range<dimensions> accessRange, const ONEAPI::accessor_property_list<properties...> &propList = {});
+           range<dimensions> accessRange, const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions > 0) */
   template <typename AllocatorT, typename TagT, typename... properties>
   accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
            range<dimensions> accessRange, TagT tag,
-           const ONEAPI::accessor_property_list<properties...> &propList = {});
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions > 0) */
   template <typename AllocatorT, typename... properties>
   accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
            range<dimensions> accessRange, id<dimensions> accessOffset,
-           const ONEAPI::accessor_property_list<properties...> &propList = {});
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions > 0) */
   template <typename AllocatorT, typename TagT, typename... properties>
   accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
            range<dimensions> accessRange, id<dimensions> accessOffset,
-           TagT tag, const ONEAPI::accessor_property_list<properties...> &propList = {});
+           TagT tag, const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions > 0) */
   template <typename AllocatorT, typename... properties>
   accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
            handler &commandGroupHandlerRef, range<dimensions> accessRange,
-           const ONEAPI::accessor_property_list<properties...> &propList = {});
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions > 0) */
   template <typename AllocatorT, typename TagT, typename... properties>
   accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
            handler &commandGroupHandlerRef, range<dimensions> accessRange,
-           TagT tag, const ONEAPI::accessor_property_list<properties...> &propList = {});
+           TagT tag, const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions > 0) */
   template <typename AllocatorT, typename... properties>
   accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
            handler &commandGroupHandlerRef, range<dimensions> accessRange,
-           id<dimensions> accessOffset, const ONEAPI::accessor_property_list<properties...> &propList = {});
+           id<dimensions> accessOffset, const ext::oneapi::accessor_property_list<properties...> &propList = {});
 
   /* Available only when: (dimensions > 0) */
   template <typename AllocatorT, typename TagT, typename... properties>
   accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
            handler &commandGroupHandlerRef, range<dimensions> accessRange,
            id<dimensions> accessOffset, TagT tag,
-           const ONEAPI::accessor_property_list<properties...> &propList = {});
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
 ```
 
 Apply the same additions to the accessor constructors in Table 4.48: Constructors of the accessor class template buffer specialization.  
 
 NOTE: Oddly enough, due to the rules in section 4.7.6.3 about deduction guides this extension doesn't need to explicitly list the new deduction guides that it may require.  
 Readers may find that confusing given that deduction guides are explicitly listed for other classes, but that's how the spec is written.  
-The deduction guides will need to ensure that property_listT is inferred to be ONEAPI::accessor_property_list<properties...>.
+The deduction guides will need to ensure that property_listT is inferred to be ext::oneapi::accessor_property_list<properties...>.
 
 Also add to the listing a conversion function:
 
@@ -452,7 +454,8 @@ operator accessor<dataT, dimensions, accessmode, accessTarget, isPlaceholder, ne
 Add two new compile-time-constant properties to the listing:
 
 ```c++
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 namespace property {
     struct no_offset {
         struct /* unspecified no_offset property instance class */ {};
@@ -464,7 +467,8 @@ namespace property {
 
 inline constexpr /* unspecified no_offset property instance class */ no_offset;
 inline constexpr /* unspecified no_alias property instance class */ no_alias;
-} // namespace ONEAPI
+} // namespace oneapi
+} // namespace ext
 ```
 
 Rewrite Table 4.50: Properties supported by the SYCL accessor class as follows, introducing two new rows and a new column to indicate if a property is compile-time constant:
@@ -474,8 +478,8 @@ Rewrite Table 4.50: Properties supported by the SYCL accessor class as follows, 
 |====
 | Property | Description | Compile-time Constant
 | sycl::property::no_init | The no_init property notifies the SYCL runtime that previous contents of a buffer can be discarded. Replaces deprecated discard_write and discard_read_write access modes. | No
-| ONEAPI::property::no_offset | The no_offset property notifies the SYCL device compiler that the accessor will never contain an offset.  This may enable the compiler to make assumptions about the alignment of the accessor that it couldn't make otherwise. | Yes
-| ONEAPI::property::no_alias | The no_alias property notifies the SYCL device compiler that all modifications to the memory locations accessed (directly or indirectly) by this accessor, that occur during kernel execution, will be done through this accessor (directly or indirectly) and no other accessor or USM pointer in the kernel.  This is an unchecked assertion by the programmer and results in undefined behaviour if it is violated.  | Yes
+| ext::oneapi::property::no_offset | The no_offset property notifies the SYCL device compiler that the accessor will never contain an offset.  This may enable the compiler to make assumptions about the alignment of the accessor that it couldn't make otherwise. | Yes
+| ext::oneapi::property::no_alias | The no_alias property notifies the SYCL device compiler that all modifications to the memory locations accessed (directly or indirectly) by this accessor, that occur during kernel execution, will be done through this accessor (directly or indirectly) and no other accessor or USM pointer in the kernel.  This is an unchecked assertion by the programmer and results in undefined behaviour if it is violated.  | Yes
 |====
 --
 

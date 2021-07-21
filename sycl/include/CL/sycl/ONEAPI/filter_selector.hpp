@@ -8,35 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/device_selector.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
 
-#include <memory>
-#include <string>
+__SYCL_WARNING("CL/sycl/ONEAPI/filter_selector.hpp usage is "
+               "deprecated, include "
+               "sycl/ext/oneapi/filter_selector.hpp instead")
 
-// 4.6.1 Device selection class
-
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-
-// Forward declarations
-class device;
-class device_selector;
-
-namespace ONEAPI {
-namespace detail {
-class filter_selector_impl;
-} // namespace detail
-
-class __SYCL_EXPORT filter_selector : public device_selector {
-public:
-  filter_selector(const std::string &filter);
-  int operator()(const device &dev) const override;
-  void reset() const;
-  device select_device() const override;
-
-private:
-  std::shared_ptr<detail::filter_selector_impl> impl;
-};
-} // namespace ONEAPI
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+#include <sycl/ext/oneapi/filter_selector.hpp>

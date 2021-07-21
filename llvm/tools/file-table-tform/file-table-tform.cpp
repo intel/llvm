@@ -78,12 +78,19 @@ static cl::opt<std::string> Output("o", cl::Required,
                                    cl::cat(FileTableTformCat));
 
 static constexpr char OPT_REPLACE[] = "replace";
+static constexpr char OPT_REPLACE_CELL[] = "replace_cell";
 static constexpr char OPT_RENAME[] = "rename";
 static constexpr char OPT_EXTRACT[] = "extract";
+static constexpr char OPT_COPY_SINGLE_FILE[] = "copy_single_file";
 
 static cl::list<std::string> TformReplace{
     OPT_REPLACE, cl::ZeroOrMore, cl::desc("replace a column"),
     cl::value_desc("<column name or ordinal>"), cl::cat(FileTableTformCat)};
+
+static cl::list<std::string> TformReplaceCell{
+    OPT_REPLACE_CELL, cl::ZeroOrMore, cl::desc("replace a cell"),
+    cl::value_desc("<column name or ordinal>,<row id ordinal>"),
+    cl::cat(FileTableTformCat)};
 
 static cl::list<std::string> TformRename{
     OPT_RENAME, cl::ZeroOrMore, cl::desc("rename a column"),
@@ -93,6 +100,12 @@ static cl::list<std::string> TformExtract{
     OPT_EXTRACT, cl::ZeroOrMore,
     cl::desc("extract column(s) identified by names"),
     cl::value_desc("<name1>,<name2>,..."), cl::cat(FileTableTformCat)};
+
+static cl::list<std::string> TformCopySingleFile{
+    OPT_COPY_SINGLE_FILE, cl::ZeroOrMore,
+    cl::desc("copy the file in a cell and make it the output"),
+    cl::value_desc("<column name or ordinal>,<row id ordinal>"),
+    cl::cat(FileTableTformCat)};
 
 static cl::opt<bool> DropTitles{"drop_titles", cl::Optional,
                                 cl::desc("drop column titles"),
@@ -152,8 +165,14 @@ struct TformCmd {
                   [&](TformCmd *Cmd) {
                     return Cmd->consumeSingleInput(Cur, End);
                   })
+            .Case(OPT_REPLACE_CELL,
+                  [&](TformCmd *Cmd) {
+                    return Cmd->consumeSingleInput(Cur, End);
+                  })
             .Case(OPT_RENAME, [&](TformCmd *Cmd) { return Error::success(); })
-            .Case(OPT_EXTRACT, [&](TformCmd *Cmd) { return Error::success(); });
+            .Case(OPT_EXTRACT, [&](TformCmd *Cmd) { return Error::success(); })
+            .Case(OPT_COPY_SINGLE_FILE,
+                  [&](TformCmd *Cmd) { return Error::success(); });
     return F(this);
   }
 
@@ -174,6 +193,18 @@ struct TformCmd {
                                            Twine(OPT_REPLACE));
                     return Error::success();
                   })
+            .Case(OPT_REPLACE_CELL,
+                  [&](TformCmd *Cmd) -> Error {
+                    // argument is <column name>,<row index>
+                    if (Arg.empty())
+                      return makeUserError("empty argument in " +
+                                           Twine(OPT_REPLACE_CELL));
+                    Arg.split(Args, ',');
+                    if (Args.size() != 2 || Args[0].empty() || Args[1].empty())
+                      return makeUserError("invalid argument in " +
+                                           Twine(OPT_REPLACE_CELL));
+                    return Error::success();
+                  })
             .Case(OPT_RENAME,
                   [&](TformCmd *Cmd) -> Error {
                     // argument is <old_name>,<new_name>
@@ -188,15 +219,30 @@ struct TformCmd {
                     Args.push_back(Names.second);
                     return Error::success();
                   })
-            .Case(OPT_EXTRACT, [&](TformCmd *Cmd) -> Error {
-              // argument is <name1>,<name2>,... (1 or more)
+            .Case(
+                OPT_EXTRACT,
+                [&](TformCmd *Cmd) -> Error {
+                  // argument is <name1>,<name2>,... (1 or more)
+                  if (Arg.empty())
+                    return makeUserError("empty argument in " +
+                                         Twine(OPT_RENAME));
+                  SmallVector<StringRef, 3> Names;
+                  Arg.split(Names, ',');
+                  if (std::find(Names.begin(), Names.end(), "") != Names.end())
+                    return makeUserError("empty name in " + Twine(OPT_RENAME));
+                  std::copy(Names.begin(), Names.end(),
+                            std::back_inserter(Args));
+                  return Error::success();
+                })
+            .Case(OPT_COPY_SINGLE_FILE, [&](TformCmd *Cmd) -> Error {
+              // argument is <column name>,<row index>
               if (Arg.empty())
-                return makeUserError("empty argument in " + Twine(OPT_RENAME));
-              SmallVector<StringRef, 3> Names;
-              Arg.split(Names, ',');
-              if (std::find(Names.begin(), Names.end(), "") != Names.end())
-                return makeUserError("empty name in " + Twine(OPT_RENAME));
-              std::copy(Names.begin(), Names.end(), std::back_inserter(Args));
+                return makeUserError("empty argument in " +
+                                     Twine(OPT_COPY_SINGLE_FILE));
+              Arg.split(Args, ',');
+              if (Args.size() != 2 || Args[0].empty() || Args[1].empty())
+                return makeUserError("invalid argument in " +
+                                     Twine(OPT_COPY_SINGLE_FILE));
               return Error::success();
             });
     return F(this);
@@ -217,6 +263,15 @@ struct TformCmd {
                         Table.replaceColumn(Args[0], *Table1->get(), Args[1]);
                     return Res ? std::move(Res) : std::move(Error::success());
                   })
+            .Case(OPT_REPLACE_CELL,
+                  [&](TformCmd *Cmd) -> Error {
+                    // argument is <column name>,<row index>
+                    assert(Args.size() == 2 && Cmd->Inputs.size() == 1);
+                    const int Row = std::stoi(Args[1].str());
+                    Error Res =
+                        Table.updateCellValue(Args[0], Row, Cmd->Inputs[0]);
+                    return Res ? std::move(Res) : std::move(Error::success());
+                  })
             .Case(OPT_RENAME,
                   [&](TformCmd *Cmd) -> Error {
                     // argument is <old_name>,<new_name>
@@ -224,11 +279,30 @@ struct TformCmd {
                     Error Res = Table.renameColumn(Args[0], Args[1]);
                     return Res ? std::move(Res) : std::move(Error::success());
                   })
-            .Case(OPT_EXTRACT, [&](TformCmd *Cmd) -> Error {
-              // argument is <name1>,<name2>,... (1 or more)
-              assert(!Args.empty());
-              Error Res = Table.peelColumns(Args);
-              return Res ? std::move(Res) : std::move(Error::success());
+            .Case(OPT_EXTRACT,
+                  [&](TformCmd *Cmd) -> Error {
+                    // argument is <name1>,<name2>,... (1 or more)
+                    assert(!Args.empty());
+                    Error Res = Table.peelColumns(Args);
+                    return Res ? std::move(Res) : std::move(Error::success());
+                  })
+            .Case(OPT_COPY_SINGLE_FILE, [&](TformCmd *Cmd) -> Error {
+              // argument is <column name>,<row index>
+              assert(Args.size() == 2);
+              const int Row = std::stoi(Args[1].str());
+              if (Row >= Table.getNumRows())
+                return makeUserError("row index is out of bounds");
+
+              // Copy the file from the only remaining row at specified
+              // column
+              StringRef FileToCopy = Table[Row].getCell(Args[0], "");
+
+              if (FileToCopy.empty())
+                return makeUserError("no file found in specified column");
+
+              std::error_code EC = sys::fs::copy_file(FileToCopy, Output);
+              return EC ? createFileError(Output, EC)
+                        : std::move(Error::success());
             });
     return F(this);
   }
@@ -253,13 +327,16 @@ int main(int argc, char **argv) {
       "File table transformation tool.\n"
       "Inputs and output of this tool is a \"file table\" files containing\n"
       "2D table of strings with optional row of column titles. Based on\n"
-      "transformation actions passed via the command line, the tool "
-      "transforms the first input file table and emits a new one as a result.\n"
+      "transformation actions passed via the command line, the tool\n"
+      "transforms the first input file table and emits either a new file\n"
+      "table or a copy of a file in a cell of the input table.\n"
       "\n"
       "Transformation actions are:\n"
       "- replace a column\n"
+      "- replace a cell\n"
       "- rename a column\n"
-      "- extract column(s)\n");
+      "- extract column(s)\n"
+      "- ouput a copy of a file in a cell\n");
 
   std::map<int, TformCmd::UPtrTy> Cmds;
 
@@ -267,8 +344,9 @@ int main(int argc, char **argv) {
   // yet, as an order across all command line options-commands needs to be
   // established first to properly map inputs to commands.
 
-  auto Lists = {std::addressof(TformReplace), std::addressof(TformRename),
-                std::addressof(TformExtract)};
+  auto Lists = {std::addressof(TformReplace), std::addressof(TformReplaceCell),
+                std::addressof(TformRename), std::addressof(TformExtract),
+                std::addressof(TformCopySingleFile)};
 
   for (const auto *L : Lists) {
     for (auto It = L->begin(); It != L->end(); It++) {
@@ -289,6 +367,16 @@ int main(int argc, char **argv) {
     CHECK_AND_EXIT(makeUserError("no inputs"));
   std::string &InputFile = *CurInput++;
 
+  // ensure that if copy_single_file is specified, it must be the last tform
+  bool HasCopySingleFileTform = false;
+  for (auto &P : Cmds) {
+    if (HasCopySingleFileTform) {
+      CHECK_AND_EXIT(
+          makeUserError("copy_single_file must be the last transformation"));
+    }
+    HasCopySingleFileTform = P.second->Kind == OPT_COPY_SINGLE_FILE;
+  }
+
   for (auto &P : Cmds) {
     TformCmd::UPtrTy &Cmd = P.second;
     // this will advance cur iterator as far as needed
@@ -308,16 +396,21 @@ int main(int argc, char **argv) {
     Error Res = Cmd->execute(*Table->get());
     CHECK_AND_EXIT(std::move(Res));
   }
-  // Finally, write the result
-  std::error_code EC;
-  raw_fd_ostream Out{Output, EC, sys::fs::OpenFlags::OF_None};
 
-  if (EC)
-    CHECK_AND_EXIT(createFileError(Output, EC));
-  Table->get()->write(Out, !DropTitles);
+  // If copy_single_file was specified the output file is generated by the
+  // corresponding transformation.
+  if (!HasCopySingleFileTform) {
+    // Write the transformed table to file
+    std::error_code EC;
+    raw_fd_ostream Out{Output, EC, sys::fs::OpenFlags::OF_None};
 
-  if (Out.has_error())
-    CHECK_AND_EXIT(createFileError(Output, Out.error()));
-  Out.close();
+    if (EC)
+      CHECK_AND_EXIT(createFileError(Output, EC));
+    Table->get()->write(Out, !DropTitles);
+
+    if (Out.has_error())
+      CHECK_AND_EXIT(createFileError(Output, Out.error()));
+    Out.close();
+  }
   return 0;
 }
