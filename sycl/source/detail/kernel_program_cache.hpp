@@ -79,6 +79,13 @@ public:
   using KernelByNameT = std::map<std::string, KernelWithBuildStateT>;
   using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
 
+  using KernelFastCacheKeyT =
+      std::tuple<SerializedObj, OSModuleHandle, RT::PiDevice, std::string,
+                 std::string>;
+  using KernelFastCacheValT =
+      std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>;
+  using KernelFastCacheT = std::map<KernelFastCacheKeyT, KernelFastCacheValT>;
+
   ~KernelProgramCache();
 
   void setContextPtr(const ContextPtr &AContext) { MParentContext = AContext; }
@@ -102,6 +109,24 @@ public:
     BR.MBuildCV.notify_all();
   }
 
+  template <typename KeyT>
+  KernelFastCacheValT tryToGetKernelFast(KeyT &&CacheKey) {
+    std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
+    auto It = MKernelFastCache.find(CacheKey);
+    if (It != MKernelFastCache.end()) {
+      return It->second;
+    }
+    return std::make_tuple(nullptr, nullptr, nullptr);
+  }
+
+  template <typename KeyT, typename ValT>
+  void saveKernel(KeyT &&CacheKey, ValT &&CacheVal) {
+    std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
+    // if no insertion took place, thus some other thread has already inserted
+    // smth in the cache
+    MKernelFastCache.emplace(CacheKey, CacheVal);
+  }
+
 private:
   std::mutex MProgramCacheMutex;
   std::mutex MKernelsPerProgramCacheMutex;
@@ -109,6 +134,9 @@ private:
   ProgramCacheT MCachedPrograms;
   KernelCacheT MKernelsPerProgramCache;
   ContextPtr MParentContext;
+
+  std::mutex MKernelFastCacheMutex;
+  KernelFastCacheT MKernelFastCache;
 };
 } // namespace detail
 } // namespace sycl

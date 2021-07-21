@@ -145,6 +145,8 @@ public:
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
+  const DeviceImplPtr &getDeviceImplPtr() const { return MDevice; }
+
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
 

@@ -256,7 +256,8 @@ void program_impl::build_with_kernel_name(std::string KernelName,
     MProgramAndKernelCachingAllowed = true;
     MBuildOptions = BuildOptions;
     MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-        Module, get_context(), get_devices()[0], KernelName, this,
+        Module, detail::getSyclObjImpl(get_context()),
+        detail::getSyclObjImpl(get_devices()[0]), KernelName, this,
         /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
     const detail::plugin &Plugin = getPlugin();
     Plugin.call<PiApiKind::piProgramRetain>(MProgram);
@@ -438,10 +439,10 @@ RT::PiKernel program_impl::get_pi_kernel(const std::string &KernelName) const {
   RT::PiKernel Kernel = nullptr;
 
   if (is_cacheable()) {
-    std::tie(Kernel, std::ignore) =
+    std::tie(Kernel, std::ignore, std::ignore) =
         ProgramManager::getInstance().getOrCreateKernel(
-            MProgramModuleHandle, get_context(), get_devices()[0], KernelName,
-            this);
+            MProgramModuleHandle, detail::getSyclObjImpl(get_context()),
+            detail::getSyclObjImpl(get_devices()[0]), KernelName, this);
     getPlugin().call<PiApiKind::piKernelRetain>(Kernel);
   } else {
     const detail::plugin &Plugin = getPlugin();

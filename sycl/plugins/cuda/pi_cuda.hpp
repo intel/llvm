@@ -72,6 +72,10 @@ private:
   std::atomic_uint32_t refCount_;
   pi_platform platform_;
 
+  static constexpr pi_uint32 max_work_item_dimensions = 3u;
+  size_t max_work_item_sizes[max_work_item_dimensions];
+  int max_work_group_size;
+
 public:
   _pi_device(native_type cuDevice, pi_platform platform)
       : cuDevice_(cuDevice), refCount_{1}, platform_(platform) {}
@@ -81,6 +85,22 @@ public:
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
   pi_platform get_platform() const noexcept { return platform_; };
+
+  void save_max_work_item_sizes(size_t size,
+                                size_t *save_max_work_item_sizes) noexcept {
+    memcpy(max_work_item_sizes, save_max_work_item_sizes, size);
+  };
+
+  void save_max_work_group_size(int value) noexcept {
+    max_work_group_size = value;
+  };
+
+  void get_max_work_item_sizes(size_t ret_size,
+                               size_t *ret_max_work_item_sizes) const noexcept {
+    memcpy(ret_max_work_item_sizes, max_work_item_sizes, ret_size);
+  };
+
+  int get_max_work_group_size() const noexcept { return max_work_group_size; };
 };
 
 /// PI context mapping to a CUDA context object.
@@ -616,7 +636,7 @@ struct _pi_kernel {
       std::fill(std::begin(offsetPerIndex_), std::end(offsetPerIndex_), 0);
     }
 
-    args_index_t get_indices() const noexcept { return indices_; }
+    const args_index_t &get_indices() const noexcept { return indices_; }
 
     pi_uint32 get_local_size() const {
       return std::accumulate(std::begin(offsetPerIndex_),
@@ -682,7 +702,7 @@ struct _pi_kernel {
     args_.set_implicit_offset(size, implicitOffset);
   }
 
-  arguments::args_index_t get_arg_indices() const {
+  const arguments::args_index_t &get_arg_indices() const {
     return args_.get_indices();
   }
 

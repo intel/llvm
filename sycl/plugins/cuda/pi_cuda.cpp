@@ -245,15 +245,16 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
 void guessLocalWorkSize(int *threadsPerBlock, const size_t *global_work_size,
-                        const size_t maxThreadsPerBlock[3], pi_kernel kernel) {
+                        const size_t maxThreadsPerBlock[3], pi_kernel kernel,
+                        pi_uint32 local_size) {
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
   assert(kernel != nullptr);
   int recommendedBlockSize, minGrid;
 
   PI_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
-      &minGrid, &recommendedBlockSize, kernel->get(), NULL,
-      kernel->get_local_size(), maxThreadsPerBlock[0]));
+      &minGrid, &recommendedBlockSize, kernel->get(), NULL, local_size,
+      maxThreadsPerBlock[0]));
 
   (void)minGrid; // Not used, avoid warnings
 
@@ -625,6 +626,10 @@ public:
 //-- PI API implementation
 extern "C" {
 
+pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
+                               size_t param_value_size, void *param_value,
+                               size_t *param_value_size_ret);
+
 /// Obtains the CUDA platform.
 /// There is only one CUDA platform, and contains all devices on the system.
 /// Triggers the CUDA Driver initialization (cuInit) the first time, so this
@@ -667,6 +672,25 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
               err = PI_CHECK_ERROR(cuDeviceGet(&device, i));
               platformId.devices_.emplace_back(
                   new _pi_device{device, &platformId});
+              {
+                const auto &dev = platformId.devices_.back().get();
+                size_t maxWorkGroupSize = 0u;
+                size_t maxThreadsPerBlock[3] = {};
+                pi_result retError = cuda_piDeviceGetInfo(
+                    dev, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+                    sizeof(maxThreadsPerBlock), maxThreadsPerBlock, nullptr);
+                assert(retError == PI_SUCCESS);
+                (void)retError;
+
+                retError = cuda_piDeviceGetInfo(
+                    dev, PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                    sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
+                assert(retError == PI_SUCCESS);
+
+                dev->save_max_work_item_sizes(sizeof(maxThreadsPerBlock),
+                                              maxThreadsPerBlock);
+                dev->save_max_work_group_size(maxWorkGroupSize);
+              }
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
@@ -2414,18 +2438,12 @@ pi_result cuda_piEnqueueKernelLaunch(
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
+  pi_uint32 local_size = kernel->get_local_size();
 
   {
-    pi_result retError = cuda_piDeviceGetInfo(
-        command_queue->device_, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-        sizeof(maxThreadsPerBlock), maxThreadsPerBlock, nullptr);
-    assert(retError == PI_SUCCESS);
-    (void)retError;
-
-    retError = cuda_piDeviceGetInfo(
-        command_queue->device_, PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-        sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
-    assert(retError == PI_SUCCESS);
+    maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
+    command_queue->device_->get_max_work_item_sizes(sizeof(maxThreadsPerBlock),
+                                                    maxThreadsPerBlock);
 
     if (providedLocalWorkGroupSize) {
       auto isValid = [&](int dim) {
@@ -2449,7 +2467,7 @@ pi_result cuda_piEnqueueKernelLaunch(
       }
     } else {
       guessLocalWorkSize(threadsPerBlock, global_work_size, maxThreadsPerBlock,
-                         kernel);
+                         kernel, local_size);
     }
   }
 
@@ -2474,8 +2492,10 @@ pi_result cuda_piEnqueueKernelLaunch(
     CUstream cuStream = command_queue->get();
     CUfunction cuFunc = kernel->get();
 
-    retError = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                        event_wait_list, nullptr);
+    if (event_wait_list) {
+      retError = cuda_piEnqueueEventsWait(
+          command_queue, num_events_in_wait_list, event_wait_list, nullptr);
+    }
 
     // Set the implicit global offset parameter if kernel has offset variant
     if (kernel->get_with_offset_parameter()) {
@@ -2493,7 +2513,7 @@ pi_result cuda_piEnqueueKernelLaunch(
                                       cuda_implicit_offset);
     }
 
-    auto argIndices = kernel->get_arg_indices();
+    auto &argIndices = kernel->get_arg_indices();
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -2503,14 +2523,13 @@ pi_result cuda_piEnqueueKernelLaunch(
 
     retError = PI_CHECK_ERROR(cuLaunchKernel(
         cuFunc, blocksPerGrid[0], blocksPerGrid[1], blocksPerGrid[2],
-        threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2],
-        kernel->get_local_size(), cuStream, argIndices.data(), nullptr));
-    kernel->clear_local_size();
-    if (event) {
-      retError = retImplEv->record();
-    }
+        threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2], local_size,
+        cuStream, (void **)argIndices.data(), nullptr));
+    if (local_size != 0)
+      kernel->clear_local_size();
 
     if (event) {
+      retError = retImplEv->record();
       *event = retImplEv.release();
     }
   } catch (pi_result err) {

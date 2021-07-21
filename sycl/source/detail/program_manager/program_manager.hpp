@@ -48,6 +48,8 @@ static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
 
 class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
+class device_impl;
+using DeviceImplPtr = std::shared_ptr<device_impl>;
 class program_impl;
 // DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
 // If any update is made here, need to sync with DeviceLibExt definition
@@ -91,8 +93,9 @@ public:
   ///        once the function returns.
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
-  RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
-                                  const device &Device,
+  RT::PiProgram getBuiltPIProgram(OSModuleHandle M,
+                                  const ContextImplPtr &ContextImpl,
+                                  const DeviceImplPtr &DeviceImpl,
                                   const std::string &KernelName,
                                   const program_impl *Prg = nullptr,
                                   bool JITCompilationIsRequired = false);
@@ -103,10 +106,10 @@ public:
                                   const property_list &PropList,
                                   bool JITCompilationIsRequired = false);
 
-  std::pair<RT::PiKernel, std::mutex *>
-  getOrCreateKernel(OSModuleHandle M, const context &Context,
-                    const device &Device, const std::string &KernelName,
-                    const program_impl *Prg);
+  std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>
+  getOrCreateKernel(OSModuleHandle M, const ContextImplPtr &ContextImpl,
+                    const DeviceImplPtr &DeviceImpl,
+                    const std::string &KernelName, const program_impl *Prg);
 
   RT::PiProgram getPiProgramFromPiKernel(RT::PiKernel Kernel,
                                          const ContextImplPtr Context);
@@ -143,10 +146,12 @@ public:
   /// \param KnownProgram indicates whether the PI program is guaranteed to
   ///        be known to program manager (built with its API) or not (not
   ///        cacheable or constructed with interoperability).
-  KernelArgMask
-  getEliminatedKernelArgMask(OSModuleHandle M, const context &Context,
-                             const device &Device, pi::PiProgram NativePrg,
-                             const std::string &KernelName, bool KnownProgram);
+  KernelArgMask getEliminatedKernelArgMask(OSModuleHandle M,
+                                           const ContextImplPtr &ContextImpl,
+                                           const DeviceImplPtr &DeviceImpl,
+                                           pi::PiProgram NativePrg,
+                                           const std::string &KernelName,
+                                           bool KnownProgram);
 
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.

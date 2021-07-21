@@ -86,6 +86,46 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
         initStream(Stream, Queue);
       }
     }
+
+    if (CommandGroup->MRequirements.size() + CommandGroup->MEvents.size() ==
+        0) {
+      ExecCGCommand *NewCmd(
+          new ExecCGCommand(std::move(CommandGroup), std::move(Queue)));
+      if (!NewCmd)
+        throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+      NewEvent = NewCmd->getEvent();
+
+      if (MGraphBuilder
+              .MPrintOptionsArray[GraphBuilder::PrintOptions::BeforeAddCG])
+        MGraphBuilder.printGraphAsDot("before_addCG");
+      if (MGraphBuilder
+              .MPrintOptionsArray[GraphBuilder::PrintOptions::AfterAddCG])
+        MGraphBuilder.printGraphAsDot("after_addCG");
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+      NewCmd->emitInstrumentation(xpti::trace_task_begin, nullptr);
+#endif
+
+      cl_int Res = NewCmd->enqueueImp();
+
+      // Emit this correlation signal before the task end
+      NewCmd->emitEnqueuedEventSignal(NewEvent->getHandleRef());
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+      NewCmd->emitInstrumentation(xpti::trace_task_end, nullptr);
+#endif
+
+      if (CL_SUCCESS != Res)
+        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+
+      NewEvent->setCommand(nullptr);
+      delete NewCmd;
+
+      for (auto StreamImplPtr : Streams) {
+        StreamImplPtr->flush();
+      }
+
+      return NewEvent;
+    }
   }
 
   {
