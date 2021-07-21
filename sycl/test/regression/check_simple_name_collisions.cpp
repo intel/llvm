@@ -1,4 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// expected-no-diagnostics
 
 #define NONE
 #define KERNEL
