@@ -247,7 +247,6 @@ e.g. `last-first` from `operator()` arguments.
 Result depends on the `scope` parameter:
 use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::group`;
 use `sycl::memory_scope::sub_group` if you want to run algorithms using `sycl::sub_group`.
-Function must be called on host.
 |`static std::size_t memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range)`
 |Returns size of temporary memory (in bytes) that is required by the default
 sorting algorithm defined by the sorter calling by `sort_over_group`.
@@ -255,7 +254,6 @@ sorting algorithm defined by the sorter calling by `sort_over_group`.
 `scope = sycl::memory_scope::work_group` or sub-group size if
 `scope = sycl::memory_scope::sub_group`.
 If other `scope` values are passed, behavior is unspecified.
-Function must be called on host.
 |===
 
 Table 6. Constructors of the `radix_sorter` class.
@@ -293,7 +291,6 @@ e.g. `last-first` from `operator()` arguments.
 Result depends on the `scope` parameter:
 use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::group`;
 use `sycl::memory_scope::sub_group` if you want to run algorithms using `sycl::sub_group`.
-Function must be called on host.
 
 |`template<int dimensions = 1>
 static std::size_t
@@ -304,7 +301,6 @@ calling by `sort_over_group`.
 `scope = sycl::memory_scope::work_group` or sub-group size if
 `scope = sycl::memory_scope::sub_group`.
 If other `scope` values are passed, behavior is unspecified.
-Function must be called on host.
 |===
 
 NOTE: Predefined sorters are in the `experimental` namespace: interfaces might be changed later.
