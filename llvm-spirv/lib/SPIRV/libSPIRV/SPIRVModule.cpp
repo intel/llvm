@@ -305,6 +305,8 @@ public:
                                SPIRVInstruction * = nullptr) override;
   SPIRVEntry *addDebugInfo(SPIRVWord, SPIRVType *TheType,
                            const std::vector<SPIRVWord> &) override;
+  SPIRVEntry *addModuleProcessed(const std::string &) override;
+  std::vector<SPIRVModuleProcessed *> getModuleProcessedVec() override;
   SPIRVInstruction *addBinaryInst(Op, SPIRVType *, SPIRVValue *, SPIRVValue *,
                                   SPIRVBasicBlock *) override;
   SPIRVInstruction *addCallInst(SPIRVFunction *, const std::vector<SPIRVWord> &,
@@ -526,6 +528,7 @@ private:
   std::map<unsigned, SPIRVTypeInt *> IntTypeMap;
   std::map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
+  std::vector<SPIRVModuleProcessed *> ModuleProcessedVec;
   SPIRVAliasInstMDVec AliasInstMDVec;
   SPIRVAliasInstMDMap AliasInstMDMap;
 
@@ -541,6 +544,9 @@ SPIRVModuleImpl::~SPIRVModuleImpl() {
 
   for (auto C : CapMap)
     delete C.second;
+
+  for (auto *M : ModuleProcessedVec)
+    delete M;
 }
 
 const std::shared_ptr<const SPIRVLine> &
@@ -1279,6 +1285,15 @@ SPIRVEntry *SPIRVModuleImpl::addDebugInfo(SPIRVWord InstId, SPIRVType *TheType,
                        ExtInstSetIds[getDebugInfoEIS()], InstId, Args));
 }
 
+SPIRVEntry *SPIRVModuleImpl::addModuleProcessed(const std::string &Process) {
+  ModuleProcessedVec.push_back(new SPIRVModuleProcessed(this, Process));
+  return ModuleProcessedVec.back();
+}
+
+std::vector<SPIRVModuleProcessed *> SPIRVModuleImpl::getModuleProcessedVec() {
+  return ModuleProcessedVec;
+}
+
 SPIRVInstruction *
 SPIRVModuleImpl::addCallInst(SPIRVFunction *TheFunction,
                              const std::vector<SPIRVWord> &TheArguments,
@@ -1840,8 +1855,8 @@ spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M) {
   TopologicalSort TS(MI.TypeVec, MI.ConstVec, MI.VariableVec,
                      MI.ForwardPointerVec);
 
-  O << MI.MemberNameVec << MI.DecGroupVec << MI.DecorateSet << MI.GroupDecVec
-    << MI.ForwardPointerVec << TS;
+  O << MI.MemberNameVec << MI.ModuleProcessedVec << MI.DecGroupVec
+    << MI.DecorateSet << MI.GroupDecVec << MI.ForwardPointerVec << TS;
 
   if (M.isAllowedToUseExtension(ExtensionID::SPV_INTEL_inline_assembly)) {
     O << SPIRVNL() << MI.AsmTargetVec << MI.AsmVec;

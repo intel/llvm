@@ -1396,8 +1396,8 @@ public:
       this->finalize();
       handler CopyHandler(QueueCopy, MIsHost);
       CopyHandler.saveCodeLoc(MCodeLoc);
-      ONEAPI::detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler,
-                                                               Redu);
+      ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler,
+                                                                    Redu);
       MLastEvent = CopyHandler.finalize();
     }
   }

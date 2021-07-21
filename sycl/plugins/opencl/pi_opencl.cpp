@@ -182,7 +182,9 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     // For details about Intel UUID extension, see
     // sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md
   case PI_DEVICE_INFO_UUID:
+  // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_64:
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
     return PI_INVALID_VALUE;
   case PI_DEVICE_INFO_IMAGE_SRGB: {
     cl_bool result = true;
