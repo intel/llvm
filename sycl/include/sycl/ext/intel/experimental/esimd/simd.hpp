@@ -233,10 +233,11 @@ public:
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
-  template <typename T = simd,                                                 \
-            typename = sycl::detail::enable_if_t<T::length == 1>>              \
-  ESIMD_INLINE friend auto operator BINOP(const simd &X, const Ty &Y) {        \
-    return X BINOP simd(Y);                                                    \
+  template <typename T1, typename T = simd,                                    \
+            typename = sycl::detail::enable_if_t<T::length == 1 &&             \
+                                                 std::is_arithmetic_v<T1>>>    \
+  ESIMD_INLINE friend auto operator BINOP(const simd &X, T1 Y) {               \
+    return X BINOP simd((Ty)Y);                                                \
   }                                                                            \
   ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const simd &RHS) {    \
     using ComputeTy = detail::compute_type_t<simd>;                            \
@@ -272,10 +273,11 @@ public:
     mask_type_t<N> M(1);                                                       \
     return M & detail::convert<mask_type_t<N>>(R);                             \
   }                                                                            \
-  template <typename T = simd,                                                 \
-            typename = sycl::detail::enable_if_t<T::length == 1>>              \
-  ESIMD_INLINE friend bool operator RELOP(const simd &X, const Ty &Y) {        \
-    return (Ty)X RELOP Y;                                                      \
+  template <typename T1, typename T = simd,                                    \
+            typename = sycl::detail::enable_if_t<(T::length == 1) &&           \
+                                                 std::is_arithmetic_v<T1>>>    \
+  ESIMD_INLINE friend bool operator RELOP(const simd &X, T1 Y) {               \
+    return (Ty)X RELOP(Ty) Y;                                                  \
   }
 
   DEF_RELOP(>)
