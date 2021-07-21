@@ -952,7 +952,7 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfoArray(max_work_item_dimensions, param_value_size, param_value,
                         param_value_size_ret, return_sizes);
   }
-  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_NUMBER_WORK_GROUPS_3D: {
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
     size_t return_sizes[max_work_item_dimensions];
     int max_x = 0, max_y = 0, max_z = 0;
     cl::sycl::detail::pi::assertion(

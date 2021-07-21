@@ -43,7 +43,7 @@ DPC++ extensions status:
 | [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
 | [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc) | Proposal | |
 | [Matrix](Matrix/dpcpp-joint-matrix.asciidoc)                                                                        | Partially supported(AMX AOT)               | Not supported: dynamic-extent, wg and wi scopes, layouts other than packed|
-| [EXT_ONEAPI_max_number_work_groups](DeviceInfoWorkSizes/README.md)                                                                                         | Supported                                  | |
+| [EXT_ONEAPI_max_work_groups](MaxWorkGroupQueries/max_work_group_query.md)                                                         | Supported                                  | |
 
 Legend:
 
