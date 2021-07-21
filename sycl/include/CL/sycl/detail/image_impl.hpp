@@ -211,7 +211,7 @@ public:
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &OutEventToWait) override;
 
-  MemObjType getType() const override { return MemObjType::IMAGE; }
+  MemObjType getType() const override { return MemObjType::__SYCL_IMAGE; }
 
   // This utility api is currently used by accessor to get the element size of
   // the image. Element size is dependent on num of channels and channel type.

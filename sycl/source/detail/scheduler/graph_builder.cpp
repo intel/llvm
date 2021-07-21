@@ -849,7 +849,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
 }
 
 static bool isInteropHostTask(const std::unique_ptr<ExecCGCommand> &Cmd) {
-  if (Cmd->getCG().getType() != CG::CGTYPE::CODEPLAY_HOST_TASK)
+  if (Cmd->getCG().getType() != CG::CGTYPE::__SYCL_CODEPLAY_HOST_TASK)
     return false;
 
   const detail::CGHostTask &HT =
@@ -978,7 +978,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       ToEnqueue.push_back(ConnCmd);
   }
 
-  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
+  if (CGType == CG::CGTYPE::__SYCL_CODEPLAY_HOST_TASK)
     NewCmd->MEmptyCmd =
         addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
                     Command::BlockReason::HostTask, ToEnqueue);
@@ -1189,7 +1189,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
         std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
         /* ArgsStorage = */ {}, /* AccStorage = */ {},
         /* SharedPtrStorage = */ {}, /* Requirements = */ {},
-        /* DepEvents = */ {DepEvent}, CG::CODEPLAY_HOST_TASK,
+        /* DepEvents = */ {DepEvent}, CG::__SYCL_CODEPLAY_HOST_TASK,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());

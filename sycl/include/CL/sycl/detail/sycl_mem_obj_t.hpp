@@ -294,7 +294,7 @@ public:
     throw runtime_error("Not implemented", PI_INVALID_OPERATION);
   }
 
-  __SYCL_DLL_LOCAL MemObjType getType() const override { return UNDEFINED; }
+  __SYCL_DLL_LOCAL MemObjType getType() const override { return __SYCL_UNDEFINED; }
 
   ContextImplPtr getInteropContext() const override { return MInteropContext; }
 

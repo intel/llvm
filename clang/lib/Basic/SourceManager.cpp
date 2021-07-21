@@ -469,7 +469,7 @@ SourceManager::AllocateLoadedSLocEntries(unsigned NumSLocEntries,
 llvm::MemoryBufferRef SourceManager::getFakeBufferForRecovery() const {
   if (!FakeBufferForRecovery)
     FakeBufferForRecovery =
-        llvm::MemoryBuffer::getMemBuffer("<<<INVALID __SYCL_BUFFER>>");
+        llvm::MemoryBuffer::getMemBuffer("<<<INVALID BUFFER>>");
 
   return *FakeBufferForRecovery;
 }
@@ -1165,7 +1165,7 @@ const char *SourceManager::getCharacterData(SourceLocation SL,
     if (Invalid)
       *Invalid = true;
 
-    return "<<<<INVALID __SYCL_BUFFER>>>>";
+    return "<<<<INVALID BUFFER>>>>";
   }
   llvm::Optional<llvm::MemoryBufferRef> Buffer =
       Entry.getFile().getContentCache().getBufferOrNone(Diag, getFileManager(),
@@ -1173,7 +1173,7 @@ const char *SourceManager::getCharacterData(SourceLocation SL,
   if (Invalid)
     *Invalid = !Buffer;
   return Buffer ? Buffer->getBufferStart() + LocInfo.second
-                : "<<<<INVALID __SYCL_BUFFER>>>>";
+                : "<<<<INVALID BUFFER>>>>";
 }
 
 /// getColumnNumber - Return the column # for the specified file position.

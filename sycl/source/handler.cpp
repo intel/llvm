@@ -133,8 +133,8 @@ event handler::finalize() {
 
   std::unique_ptr<detail::CG> CommandGroup;
   switch (getType()) {
-  case detail::CG::KERNEL:
-  case detail::CG::RUN_ON_HOST_INTEL: {
+  case detail::CG::__SYCL_KERNEL:
+  case detail::CG::__SYCL_RUN_ON_HOST_INTEL: {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MArgsStorage), std::move(MAccStorage),
@@ -144,15 +144,15 @@ event handler::finalize() {
         MCodeLoc));
     break;
   }
-  case detail::CG::CODEPLAY_INTEROP_TASK:
+  case detail::CG::__SYCL_CODEPLAY_INTEROP_TASK:
     CommandGroup.reset(new detail::CGInteropTask(
         std::move(MInteropTask), std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
-  case detail::CG::COPY_ACC_TO_PTR:
-  case detail::CG::COPY_PTR_TO_ACC:
-  case detail::CG::COPY_ACC_TO_ACC:
+  case detail::CG::__SYCL_COPY_ACC_TO_PTR:
+  case detail::CG::__SYCL_COPY_PTR_TO_ACC:
+  case detail::CG::__SYCL_COPY_ACC_TO_ACC:
     CommandGroup.reset(new detail::CGCopy(
         MCGType, MSrcPtr, MDstPtr, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
@@ -164,51 +164,51 @@ event handler::finalize() {
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::UPDATE_HOST:
+  case detail::CG::__SYCL_UPDATE_HOST:
     CommandGroup.reset(new detail::CGUpdateHost(
         MDstPtr, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::COPY_USM:
+  case detail::CG::__SYCL_COPY_USM:
     CommandGroup.reset(new detail::CGCopyUSM(
         MSrcPtr, MDstPtr, MLength, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::FILL_USM:
+  case detail::CG::__SYCL_FILL_USM:
     CommandGroup.reset(new detail::CGFillUSM(
         std::move(MPattern), MDstPtr, MLength, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::PREFETCH_USM:
+  case detail::CG::__SYCL_PREFETCH_USM:
     CommandGroup.reset(new detail::CGPrefetchUSM(
         MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::ADVISE_USM:
+  case detail::CG::__SYCL_ADVISE_USM:
     CommandGroup.reset(new detail::CGAdviseUSM(
         MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCGType, MCodeLoc));
     break;
-  case detail::CG::CODEPLAY_HOST_TASK:
+  case detail::CG::__SYCL_CODEPLAY_HOST_TASK:
     CommandGroup.reset(new detail::CGHostTask(
         std::move(MHostTask), MQueue, MQueue->getContextImplPtr(),
         std::move(MArgs), std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCGType, MCodeLoc));
     break;
-  case detail::CG::BARRIER:
-  case detail::CG::BARRIER_WAITLIST:
+  case detail::CG::__SYCL_BARRIER:
+  case detail::CG::__SYCL_BARRIER_WAITLIST:
     CommandGroup.reset(new detail::CGBarrier(
         std::move(MEventsWaitWithBarrier), std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
-  case detail::CG::NONE:
+  case detail::CG::__SYCL_NONE:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
@@ -476,7 +476,7 @@ std::string handler::getKernelName() {
 
 void handler::barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
-  MCGType = detail::CG::BARRIER_WAITLIST;
+  MCGType = detail::CG::__SYCL_BARRIER_WAITLIST;
   MEventsWaitWithBarrier.resize(WaitList.size());
   std::transform(
       WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
@@ -488,7 +488,7 @@ void handler::memcpy(void *Dest, const void *Src, size_t Count) {
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = Dest;
   MLength = Count;
-  setType(detail::CG::COPY_USM);
+  setType(detail::CG::__SYCL_COPY_USM);
 }
 
 void handler::memset(void *Dest, int Value, size_t Count) {
@@ -496,21 +496,21 @@ void handler::memset(void *Dest, int Value, size_t Count) {
   MDstPtr = Dest;
   MPattern.push_back(static_cast<char>(Value));
   MLength = Count;
-  setType(detail::CG::FILL_USM);
+  setType(detail::CG::__SYCL_FILL_USM);
 }
 
 void handler::prefetch(const void *Ptr, size_t Count) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
-  setType(detail::CG::PREFETCH_USM);
+  setType(detail::CG::__SYCL_PREFETCH_USM);
 }
 
 void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
-  setType(detail::CG::ADVISE_USM);
+  setType(detail::CG::__SYCL_ADVISE_USM);
 
   assert(!MSharedPtrStorage.empty());
 

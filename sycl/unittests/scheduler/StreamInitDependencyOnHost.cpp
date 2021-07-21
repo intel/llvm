@@ -42,8 +42,8 @@ public:
     auto CGH = static_cast<sycl::handler *>(this);
     unique_ptr_class<detail::CG> CommandGroup;
     switch (CGH->MCGType) {
-    case detail::CG::KERNEL:
-    case detail::CG::RUN_ON_HOST_INTEL: {
+    case detail::CG::__SYCL_KERNEL:
+    case detail::CG::__SYCL_RUN_ON_HOST_INTEL: {
       CommandGroup.reset(new detail::CGExecKernel(
           std::move(CGH->MNDRDesc), std::move(CGH->MHostKernel),
           std::move(CGH->MKernel), std::move(CGH->MArgsStorage),
@@ -97,7 +97,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
 
   // Emulating processing of command group function
   MockHandler MockCGH(HQueueImpl, true);
-  MockCGH.setType(detail::CG::KERNEL);
+  MockCGH.setType(detail::CG::__SYCL_KERNEL);
 
   auto EmptyKernel = [](sycl::nd_item<1>) {};
   MockCGH
