@@ -354,21 +354,21 @@ public:
 
   void addIVDepMetadata(const ValueDecl *Array, llvm::Instruction *GEP);
 
-  /// Set value of an initiation interval for the next loop pushed.
-  void setSYCLIInterval(unsigned C) { StagedAttrs.SYCLIInterval = C; }
+  /// Add value of an initiation interval for the next loop pushed.
+  void addSYCLIInterval(unsigned C) { StagedAttrs.SYCLIInterval = C; }
 
-  /// Set variant and value of max_concurrency for the next loop pushed.
-  void setSYCLMaxConcurrencyNThreads(const char *Var, unsigned int Value) {
+  /// Add variant and value of max_concurrency for the next loop pushed.
+  void addSYCLMaxConcurrencyNThreads(const char *Var, unsigned int Value) {
     StagedAttrs.SYCLMaxConcurrencyNThreads.push_back({Var, Value});
   }
 
-  /// Set flag of loop_coalesce for the next loop pushed.
-  void setSYCLLoopCoalesceEnable() {
+  /// Add flag of loop_coalesce for the next loop pushed.
+  void addSYCLLoopCoalesceEnable() {
     StagedAttrs.SYCLLoopCoalesceEnable = true;
   }
 
-  /// Set value of coalesced levels for the next loop pushed.
-  void setSYCLLoopCoalesceNLevels(unsigned C) {
+  /// Add value of coalesced levels for the next loop pushed.
+  void addSYCLLoopCoalesceNLevels(unsigned C) {
     StagedAttrs.SYCLLoopCoalesceNLevels = C;
   }
 
@@ -377,20 +377,20 @@ public:
     StagedAttrs.SYCLLoopPipeliningDisable = true;
   }
 
-  /// Set variant and value of max interleaved invocations for the next loop
+  /// Add variant and value of max interleaved invocations for the next loop
   /// pushed.
-  void setSYCLMaxInterleavingNInvocations(const char *Var, unsigned int Value) {
+  void addSYCLMaxInterleavingNInvocations(const char *Var, unsigned int Value) {
     StagedAttrs.SYCLMaxInterleavingNInvocations.push_back({Var, Value});
   }
 
-  /// Set variant and value of speculated iterations for the next loop pushed.
-  void setSYCLSpeculatedIterationsNIterations(const char *Var,
+  /// Add variant and value of speculated iterations for the next loop pushed.
+  void addSYCLSpeculatedIterationsNIterations(const char *Var,
                                               unsigned int Value) {
     StagedAttrs.SYCLSpeculatedIterationsNIterations.push_back({Var, Value});
   }
 
-  /// Set value of variant and loop count for the next loop pushed.
-  void setSYCLIntelFPGAVariantCount(const char *Var, unsigned int Count) {
+  /// Add value of variant and loop count for the next loop pushed.
+  void addSYCLIntelFPGAVariantCount(const char *Var, unsigned int Count) {
     StagedAttrs.SYCLIntelFPGAVariantCount.push_back({Var, Count});
   }
 
