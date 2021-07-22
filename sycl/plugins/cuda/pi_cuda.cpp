@@ -2655,7 +2655,7 @@ pi_result cuda_piEnqueueKernelLaunch(
     retError = PI_CHECK_ERROR(cuLaunchKernel(
         cuFunc, blocksPerGrid[0], blocksPerGrid[1], blocksPerGrid[2],
         threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2], local_size,
-        cuStream, (void **)argIndices.data(), nullptr));
+        cuStream, const_cast<void **>(argIndices.data()), nullptr));
     if (local_size != 0)
       kernel->clear_local_size();
 
