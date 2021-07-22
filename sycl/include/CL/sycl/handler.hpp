@@ -836,7 +836,7 @@ private:
       MNDRDesc.set(std::move(AdjustedRange));
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
-      setType(detail::CG::KERNEL);
+      setType(detail::CG::Kernel);
 #endif
     } else
 #endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&                     \
