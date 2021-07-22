@@ -2635,6 +2635,9 @@ def fsycl_host_compiler_options_EQ : Joined<["-"], "fsycl-host-compiler-options=
 def fno_sycl_use_footer : Flag<["-"], "fno-sycl-use-footer">, Flags<[CoreOption]>,
   HelpText<"Disable usage of the integration footer during SYCL enabled "
    "compilations.">;
+def fsycl_footer_path_EQ : Joined<["-"], "fsycl-footer-path=">,
+  Flags<[CoreOption]>, HelpText<"Specify the location of the temporary "
+  "integration footer source file.">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option]>, Group<Action_Group>;
 def ftabstop_EQ : Joined<["-"], "ftabstop=">, Group<f_Group>;
