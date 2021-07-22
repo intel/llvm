@@ -553,9 +553,10 @@ MDNode *LoopInfo::createMetadata(
 
   // Setting max_concurrency attribute with number of threads
   if (Attrs.SYCLMaxConcurrencyNThreads.hasValue()) {
-    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.max_concurrency.count"),
-	                ConstantAsMetadata::get(
-                            ConstantInt::get(llvm::Type::getInt32Ty(Ctx), *Attrs.SYCLMaxConcurrencyNThreads))};
+    Metadata *Vals[] = {
+        MDString::get(Ctx, "llvm.loop.max_concurrency.count"),
+        ConstantAsMetadata::get(ConstantInt::get(
+            llvm::Type::getInt32Ty(Ctx), *Attrs.SYCLMaxConcurrencyNThreads))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
@@ -583,8 +584,9 @@ MDNode *LoopInfo::createMetadata(
 
   if (Attrs.SYCLMaxInterleavingNInvocations.hasValue()) {
     Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.max_interleaving.count"),
-	                ConstantAsMetadata::get(
-                            ConstantInt::get(llvm::Type::getInt32Ty(Ctx), *Attrs.SYCLMaxInterleavingNInvocations))};
+	                ConstantAsMetadata::get(ConstantInt::get(
+                            llvm::Type::getInt32Ty(Ctx),
+                            *Attrs.SYCLMaxInterleavingNInvocations))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
@@ -598,7 +600,8 @@ MDNode *LoopInfo::createMetadata(
     Metadata *Vals[] = {
         MDString::get(Ctx, "llvm.loop.intel.speculated.iterations.count"),
         ConstantAsMetadata::get(
-            ConstantInt::get(llvm::Type::getInt32Ty(Ctx), *Attrs.SYCLSpeculatedIterationsNIterations))};
+	    ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
+                             *Attrs.SYCLSpeculatedIterationsNIterations))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 

@@ -364,7 +364,7 @@ public:
     StagedAttrs.SYCLLoopCoalesceEnable = true;
   }
 
-  /// Set  value of coalesced levels for the next loop pushed.
+  /// Set value of coalesced levels for the next loop pushed.
   void setSYCLLoopCoalesceNLevels(unsigned C) {
     StagedAttrs.SYCLLoopCoalesceNLevels = C;
   }
@@ -374,8 +374,7 @@ public:
     StagedAttrs.SYCLLoopPipeliningDisable = true;
   }
 
-  /// Add variant and value of max interleaved invocations for the next loop
-  /// pushed.
+  /// Add value of max interleaved invocations for the next loop pushed.
   void addSYCLMaxInterleavingNInvocations(unsigned C) {
     StagedAttrs.SYCLMaxInterleavingNInvocations = C;
   }
