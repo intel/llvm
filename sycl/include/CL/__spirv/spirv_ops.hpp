@@ -25,8 +25,8 @@
 template <typename T, std::size_t R, std::size_t C,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_MatrixINTEL<T, R, C, L, S> *
-__spirv_MatrixLoadINTEL(T *Ptr, std::size_t Stride,
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *
+__spirv_JointMatrixLoadINTEL(T *Ptr, std::size_t Stride,
                         __spv::MatrixLayout Layout = L,
                         __spv::Scope::Flag Sc = S, int MemOperand = 0);
 
@@ -34,8 +34,8 @@ template <typename T, std::size_t R, std::size_t C,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL void
-__spirv_MatrixStoreINTEL(T *Ptr,
-                         __spv::__spirv_MatrixINTEL<T, R, C, L, S> *Object,
+__spirv_JointMatrixStoreINTEL(T *Ptr,
+                         __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *Object,
                          std::size_t Stride, __spv::MatrixLayout Layout = L,
                          __spv::Scope::Flag Sc = S, int MemOperand = 0);
 
@@ -44,10 +44,10 @@ template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_MatrixINTEL<T2, M, N, LC, S> *
-__spirv_MatrixMadINTEL(__spv::__spirv_MatrixINTEL<T1, M, K, LA, S> *A,
-                       __spv::__spirv_MatrixINTEL<T1, K, N, LB, S> *B,
-                       __spv::__spirv_MatrixINTEL<T2, M, N, LC, S> *C,
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S> *
+__spirv_JointMatrixMadINTEL(__spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
+                       __spv::__spirv_JointMatrixINTEL<T1, K, N, LB, S> *B,
+                       __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S> *C,
                        __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__

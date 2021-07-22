@@ -65,33 +65,31 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C, big_matrix<T2, N
            // By default, the layout is row_major and size is (TK, TN).
            joint_matrix<ext::oneapi::sub_group, unsigned short, TK, TN, matrix_layout::packed_b> sub_b(sg);
            joint_matrix<ext::oneapi::sub_group, float, TM, TN> sub_c(sg);
-
-           // Only the leader perform AMX computation.
-           if (spmd_item.get_local_id(1) % TILE_SZ)
-             return;
-
+           
            // AMX: 8 register tiles : 1k byte size, SMmaxxSKmax =16x64
            // strideX = X's cols, so strideC = N, strideA = K, strideB = N*4
-           joint_matrix_load(sg, sub_c,
-                             accC.get_pointer() + (sg_startx * TM) * N +
-                                 sg_starty / SG_SZ * TN,
-                             N, matrix_layout::row_major);
+           joint_matrix_load<matrix_layout::row_major>(
+               sg, sub_c,
+               accC.get_pointer() + (sg_startx * TM) * N +
+                   sg_starty / SG_SZ * TN,
+               N);
            for (int k = 0; k < K / TK; k += 1) { // K->int8_t
-             joint_matrix_load(sg, sub_a,
-                               accA.get_pointer() + (sg_startx * TM) * K +
-                                   k * TK,
-                               K, matrix_layout::row_major);
+             joint_matrix_load<matrix_layout::row_major>(
+                 sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k * TK,
+                 K);
              // Assume we alreay in vnni format.
-             joint_matrix_load(sg, sub_b,
-                               accB.get_pointer() +
-                                   (k * TK / 2) * (N * 2) + sg_starty / SG_SZ * TN * 2,
-                               N * 2, matrix_layout::packed_b);
+             joint_matrix_load<matrix_layout::packed_b>(
+                 sg, sub_b,
+                 accB.get_pointer() + (k * TK / 2) * (N * 2) +
+                     sg_starty / SG_SZ * TN * 2,
+                 N * 2);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
-           joint_matrix_store(sg, sub_c,
-                              accC.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, matrix_layout::row_major);
+           joint_matrix_store<matrix_layout::row_major>(
+               sg, sub_c,
+               accC.get_pointer() + (sg_startx * TM) * N +
+                   sg_starty / SG_SZ * TN,
+               N);
          }); // parallel for
    }).wait();
 }

@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 // TODO: include the header file with SPIR-V declarations from SPIRV-Headers
@@ -109,7 +110,7 @@ enum class MatrixLayout { RowMajor, ColumnMajor, PackedA, PackedB };
 
 template <typename T, std::size_t R, std::size_t C, MatrixLayout U,
           Scope::Flag S = Scope::Flag::Subgroup>
-struct __spirv_MatrixINTEL;
+struct __spirv_JointMatrixINTEL;
 
 } // namespace __spv
 
