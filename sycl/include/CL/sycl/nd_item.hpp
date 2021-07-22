@@ -112,7 +112,6 @@ public:
                                 get_offset());
   }
 
-  __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
   void barrier(access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
