@@ -95,6 +95,11 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
         throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
       NewEvent = NewCmd->getEvent();
 
+      auto CleanUp = [&]() {
+        NewEvent->setCommand(nullptr);
+        delete NewCmd;
+      };
+
       if (MGraphBuilder
               .MPrintOptionsArray[GraphBuilder::PrintOptions::BeforeAddCG])
         MGraphBuilder.printGraphAsDot("before_addCG");
@@ -102,23 +107,29 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
               .MPrintOptionsArray[GraphBuilder::PrintOptions::AfterAddCG])
         MGraphBuilder.printGraphAsDot("after_addCG");
 
+      try {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-      NewCmd->emitInstrumentation(xpti::trace_task_begin, nullptr);
+        NewCmd->emitInstrumentation(xpti::trace_task_begin, nullptr);
 #endif
 
-      cl_int Res = NewCmd->enqueueImp();
+        cl_int Res = NewCmd->enqueueImp();
 
-      // Emit this correlation signal before the task end
-      NewCmd->emitEnqueuedEventSignal(NewEvent->getHandleRef());
+        // Emit this correlation signal before the task end
+        NewCmd->emitEnqueuedEventSignal(NewEvent->getHandleRef());
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-      NewCmd->emitInstrumentation(xpti::trace_task_end, nullptr);
+        NewCmd->emitInstrumentation(xpti::trace_task_end, nullptr);
 #endif
 
-      if (CL_SUCCESS != Res)
-        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+        if (CL_SUCCESS != Res)
+          throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+      } catch (...) {
+        // enqueueImp() func and if statement above may throw an exception,
+        // so destroy required resources to avoid memory leak
+        CleanUp();
+        std::rethrow_exception(std::current_exception());
+      }
 
-      NewEvent->setCommand(nullptr);
-      delete NewCmd;
+      CleanUp();
 
       for (auto StreamImplPtr : Streams) {
         StreamImplPtr->flush();
