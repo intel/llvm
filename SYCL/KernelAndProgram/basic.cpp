@@ -1,4 +1,3 @@
-// UNSUPPORTED: TEMPORARILY_DISABLED
 // No JITing for host devices.
 // REQUIRES: opencl || level_zero
 // RUN: rm -rf %t/cache_dir
