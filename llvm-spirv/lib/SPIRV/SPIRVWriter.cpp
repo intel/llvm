@@ -753,7 +753,7 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
       Attrs.getAttribute(ArgNo + 1, kVCMetadata::VCArgumentKind)
           .getValueAsString()
           .getAsInteger(0, Kind);
-      BA->addDecorate(DecorationFuncParamKindINTEL, Kind);
+      BA->addDecorate(internal::DecorationFuncParamKindINTEL, Kind);
     }
     if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCArgumentDesc)) {
       StringRef Desc =

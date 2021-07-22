@@ -4151,8 +4151,10 @@ class OffloadingActionBuilder final {
         }
         for (unsigned I = 0; I < ToolChains.size(); ++I) {
           SYCLDeviceActions.push_back(UA);
-          UA->registerDependentActionInfo(
-            ToolChains[I], /*BoundArch=*/StringRef(), Action::OFK_SYCL);
+          withBoundArchForToolChain(ToolChains[I], [&](const char *BoundArch) {
+            UA->registerDependentActionInfo(ToolChains[I], BoundArch,
+                                            Action::OFK_SYCL);
+          });
         }
         return ABRT_Success;
       }

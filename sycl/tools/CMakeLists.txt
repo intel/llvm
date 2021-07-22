@@ -1,5 +1,8 @@
 add_subdirectory(sycl-ls)
-add_subdirectory(pi-trace)
+
+if (SYCL_ENABLE_XPTI_TRACING)
+  add_subdirectory(pi-trace)
+endif()
 
 # TODO: move each tool in its own sub-directory
 add_executable(get_device_count_by_type get_device_count_by_type.cpp)
@@ -32,4 +35,13 @@ target_compile_definitions(get_device_count_by_type
   PRIVATE
     $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
     $<$<BOOL:${SYCL_BUILD_PI_ROCM}>:USE_PI_ROCM>
+    # For ROCm set the HIP define depending on the platform
+    $<$<AND:$<BOOL:${SYCL_BUILD_PI_ROCM}>,$<STREQUAL:${SYCL_BUILD_PI_ROCM_PLATFORM},AMD>>:__HIP_PLATFORM_AMD__>
+    $<$<AND:$<BOOL:${SYCL_BUILD_PI_ROCM}>,$<STREQUAL:${SYCL_BUILD_PI_ROCM_PLATFORM},NVIDIA>>:__HIP_PLATFORM_NVIDIA__>
 )
+
+if(SYCL_BUILD_PI_ROCM)
+  target_include_directories(get_device_count_by_type
+    PRIVATE
+    ${SYCL_BUILD_PI_ROCM_INCLUDE_DIR})
+endif()

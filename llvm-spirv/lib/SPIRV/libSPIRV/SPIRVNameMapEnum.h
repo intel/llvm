@@ -160,8 +160,6 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationCacheSizeINTEL, "CacheSizeINTEL");
   add(DecorationDontStaticallyCoalesceINTEL, "DontStaticallyCoalesceINTEL");
   add(DecorationPrefetchINTEL, "PrefetchINTEL");
-  add(DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
-  add(DecorationFuncParamDescINTEL, "FuncParamDescINTEL");
   add(DecorationStallEnableINTEL, "StallEnableINTEL");
   add(DecorationFuseLoopsInFunctionINTEL, "FuseLoopsInFunctionINTEL");
   add(DecorationBufferLocationINTEL, "BufferLocationINTEL");
@@ -173,6 +171,8 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
       "VectorComputeCallableFunctionINTEL");
 
   // From spirv_internal.hpp
+  add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
+  add(internal::DecorationFuncParamDescINTEL, "FuncParamDescINTEL");
   add(internal::DecorationCallableFunctionINTEL, "CallableFunctionINTEL");
   add(internal::DecorationMathOpDSPModeINTEL, "MathOpDSPModeINTEL");
   add(internal::DecorationAliasScopeINTEL, "AliasScopeINTEL");

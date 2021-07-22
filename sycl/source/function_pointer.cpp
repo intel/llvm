@@ -6,16 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/ONEAPI/function_pointer.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/program_impl.hpp>
+#include <sycl/ext/oneapi/function_pointer.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-ONEAPI::device_func_ptr_holder_t
+ext::oneapi::device_func_ptr_holder_t
 getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
-  ONEAPI::device_func_ptr_holder_t FPtr = 0;
+  ext::oneapi::device_func_ptr_holder_t FPtr = 0;
   // FIXME: return value must be checked here, but since we cannot yet check
   // if corresponding extension is supported, let's silently ignore it here.
   const detail::plugin &Plugin = detail::getSyclObjImpl(P)->getPlugin();

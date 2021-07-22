@@ -94,28 +94,34 @@ public:
   bool operator!=(const property_list &rhs) const { return false; }
 };
 
-namespace INTEL {
+namespace ext {
+namespace intel {
 namespace property {
 // Compile time known accessor property
 struct buffer_location {
   template <int> class instance {};
 };
 } // namespace property
-} // namespace INTEL
+} // namespace intel
+} // namespace ext
 
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 namespace property {
 // Compile time known accessor property
 struct no_alias {
   template <bool> class instance {};
 };
 } // namespace property
-} // namespace ONEAPI
+} // namespace oneapi
+} // namespace ext
 
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 template <typename... properties>
 class accessor_property_list {};
-} // namespace ONEAPI
+} // namespace oneapi
+} // namespace ext
 
 template <int dim>
 struct id {
@@ -166,7 +172,7 @@ struct _ImplT {
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t,
-          typename propertyListT = ONEAPI::accessor_property_list<>>
+          typename propertyListT = ext::oneapi::accessor_property_list<>>
 class accessor {
 
 public:
@@ -286,7 +292,8 @@ struct get_kernel_name_t<auto_name, Type> {
   using name = Type;
 };
 
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 namespace experimental {
 template <typename T, typename ID = T>
 class spec_constant {
@@ -302,7 +309,8 @@ public:
   }
 };
 } // namespace experimental
-} // namespace ONEAPI
+} // namespace oneapi
+} // namespace ext
 
 class kernel_handler {
   void __init_specialization_constants_buffer(char *specialization_constants_buffer) {}

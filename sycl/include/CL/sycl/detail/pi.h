@@ -36,10 +36,12 @@
 // 2. A number of types needed to define pi_device_binary_property_set added.
 // 3. Added new ownership argument to piextContextCreateWithNativeHandle.
 // 4. Add interoperability interfaces for kernel.
+// 4.6 Added new ownership argument to piextQueueCreateWithNativeHandle which
+// changes the API version from 3.5 to 4.6.
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 3
-#define _PI_H_VERSION_MINOR 5
+#define _PI_H_VERSION_MAJOR 4
+#define _PI_H_VERSION_MINOR 6
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -290,7 +292,8 @@ typedef enum {
   PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 0x10025,
   PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026,
   PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
-  PI_DEVICE_INFO_ATOMIC_64 = 0x10110
+  PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
+  PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111
 } _pi_device_info;
 
 typedef enum {
@@ -310,6 +313,8 @@ typedef enum {
   PI_CONTEXT_INFO_NUM_DEVICES = CL_CONTEXT_NUM_DEVICES,
   PI_CONTEXT_INFO_PROPERTIES = CL_CONTEXT_PROPERTIES,
   PI_CONTEXT_INFO_REFERENCE_COUNT = CL_CONTEXT_REFERENCE_COUNT,
+  // Atomics capabilities extensions
+  PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10010
 } _pi_context_info;
 
 typedef enum {
@@ -506,6 +511,13 @@ constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_ADDRESSING_MODE =
     CL_SAMPLER_ADDRESSING_MODE;
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE =
     CL_SAMPLER_FILTER_MODE;
+
+using pi_memory_order_capabilities = pi_bitfield;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELAXED = 0x01;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_ACQUIRE = 0x02;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELEASE = 0x04;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_ACQ_REL = 0x08;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_SEQ_CST = 0x10;
 
 typedef enum {
   PI_PROFILING_INFO_COMMAND_QUEUED = CL_PROFILING_COMMAND_QUEUED,
@@ -1053,8 +1065,11 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 /// \param nativeHandle is the native handle to create PI queue from.
 /// \param context is the PI context of the queue.
 /// \param queue is the PI queue created from the native handle.
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_queue *queue);
+    pi_native_handle nativeHandle, pi_context context, pi_queue *queue,
+    bool ownNativeHandle);
 
 //
 // Memory

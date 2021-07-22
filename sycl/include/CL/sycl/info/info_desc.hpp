@@ -37,6 +37,8 @@ enum class context : cl_context_info {
   reference_count = CL_CONTEXT_REFERENCE_COUNT,
   platform = CL_CONTEXT_PLATFORM,
   devices = CL_CONTEXT_DEVICES,
+  atomic_memory_order_capabilities =
+      PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
 };
 
 // A.3 Device information descriptors
@@ -149,7 +151,9 @@ enum class device : cl_device_info {
   ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL,
   ext_oneapi_srgb = PI_DEVICE_INFO_IMAGE_SRGB,
   ext_intel_device_info_uuid = PI_DEVICE_INFO_UUID,
-  atomic64 = PI_DEVICE_INFO_ATOMIC_64
+  atomic64 = PI_DEVICE_INFO_ATOMIC_64,
+  atomic_memory_order_capabilities =
+      PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
 };
 
 enum class device_type : pi_uint64 {

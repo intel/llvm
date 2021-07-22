@@ -182,11 +182,15 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     // For details about Intel UUID extension, see
     // sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md
   case PI_DEVICE_INFO_UUID:
+  // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_64:
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
     return PI_INVALID_VALUE;
-  case PI_DEVICE_INFO_IMAGE_SRGB:
+  case PI_DEVICE_INFO_IMAGE_SRGB: {
+    cl_bool result = true;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
-
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
@@ -354,7 +358,9 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                           pi_context, pi_queue *piQueue) {
+                                           pi_context, pi_queue *piQueue,
+                                           bool ownNativeHandle) {
+  (void)ownNativeHandle;
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
   return PI_SUCCESS;

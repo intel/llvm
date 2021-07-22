@@ -1533,7 +1533,10 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
 
-    // TODO: Investigate if this information is available on HIP.
+  // TODO: Implement.
+  case PI_DEVICE_INFO_ATOMIC_64:
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  // TODO: Investigate if this information is available on HIP.
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
@@ -2489,7 +2492,8 @@ pi_result rocm_piEnqueueKernelLaunch(
     }
 
     retError = PI_CHECK_ERROR(hipModuleLaunchKernel(
-        hipFunc, blocksPerGrid[0], 1, 1, threadsPerBlock[0], 1, 1,
+        hipFunc, blocksPerGrid[0], blocksPerGrid[1], blocksPerGrid[2],
+        threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2],
         kernel->get_local_size(), hipStream, argIndices.data(), nullptr));
 
     kernel->clear_local_size();

@@ -101,7 +101,7 @@ size_t SPIRVDecorateGeneric::getLiteralCount() const { return Literals.size(); }
 void SPIRVDecorate::encode(spv_ostream &O) const {
   SPIRVEncoder Encoder = getEncoder(O);
   Encoder << Target << Dec;
-  switch (Dec) {
+  switch (static_cast<size_t>(Dec)) {
   case DecorationLinkageAttributes:
     SPIRVDecorateLinkageAttr::encodeLiterals(Encoder, Literals);
     break;
@@ -114,7 +114,7 @@ void SPIRVDecorate::encode(spv_ostream &O) const {
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::encodeLiterals(Encoder, Literals);
     break;
-  case DecorationFuncParamDescINTEL:
+  case internal::DecorationFuncParamDescINTEL:
     SPIRVDecorateFuncParamDescAttr::encodeLiterals(Encoder, Literals);
     break;
   default:
@@ -130,7 +130,7 @@ void SPIRVDecorate::setWordCount(SPIRVWord Count) {
 void SPIRVDecorate::decode(std::istream &I) {
   SPIRVDecoder Decoder = getDecoder(I);
   Decoder >> Target >> Dec;
-  switch (Dec) {
+  switch (static_cast<size_t>(Dec)) {
   case DecorationLinkageAttributes:
     SPIRVDecorateLinkageAttr::decodeLiterals(Decoder, Literals);
     break;
@@ -143,7 +143,7 @@ void SPIRVDecorate::decode(std::istream &I) {
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::decodeLiterals(Decoder, Literals);
     break;
-  case DecorationFuncParamDescINTEL:
+  case internal::DecorationFuncParamDescINTEL:
     SPIRVDecorateFuncParamDescAttr::decodeLiterals(Decoder, Literals);
     break;
   default:
@@ -171,7 +171,7 @@ void SPIRVDecorateId::decode(std::istream &I) {
 void SPIRVMemberDecorate::encode(spv_ostream &O) const {
   SPIRVEncoder Encoder = getEncoder(O);
   Encoder << Target << MemberNumber << Dec;
-  switch (Dec) {
+  switch (static_cast<size_t>(Dec)) {
   case DecorationMemoryINTEL:
     SPIRVDecorateMemoryINTELAttr::encodeLiterals(Encoder, Literals);
     break;
@@ -181,7 +181,7 @@ void SPIRVMemberDecorate::encode(spv_ostream &O) const {
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::encodeLiterals(Encoder, Literals);
     break;
-  case DecorationFuncParamDescINTEL:
+  case internal::DecorationFuncParamDescINTEL:
     SPIRVDecorateFuncParamDescAttr::encodeLiterals(Encoder, Literals);
     break;
   default:
@@ -197,7 +197,7 @@ void SPIRVMemberDecorate::setWordCount(SPIRVWord Count) {
 void SPIRVMemberDecorate::decode(std::istream &I) {
   SPIRVDecoder Decoder = getDecoder(I);
   Decoder >> Target >> MemberNumber >> Dec;
-  switch (Dec) {
+  switch (static_cast<size_t>(Dec)) {
   case DecorationMemoryINTEL:
     SPIRVDecorateMemoryINTELAttr::decodeLiterals(Decoder, Literals);
     break;
@@ -207,7 +207,7 @@ void SPIRVMemberDecorate::decode(std::istream &I) {
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::decodeLiterals(Decoder, Literals);
     break;
-  case DecorationFuncParamDescINTEL:
+  case internal::DecorationFuncParamDescINTEL:
     SPIRVDecorateFuncParamDescAttr::decodeLiterals(Decoder, Literals);
     break;
   default:
