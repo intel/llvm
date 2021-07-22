@@ -6758,8 +6758,9 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     if (Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_footer_path_EQ)) {
       SmallString<128> OutName(A->getValue());
       StringRef BaseName = llvm::sys::path::filename(BaseInput);
-      std::string TmpName = GetTemporaryPath(llvm::sys::path::stem(BaseName),
-          types::getTypeTempSuffix(JA.getType()));
+      std::string TmpName =
+          GetTemporaryPath(llvm::sys::path::stem(BaseName),
+                           types::getTypeTempSuffix(JA.getType()));
       llvm::sys::path::append(OutName, llvm::sys::path::filename(TmpName));
       return C.addTempFile(C.getArgs().MakeArgString(OutName));
     }
