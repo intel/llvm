@@ -62,7 +62,7 @@
 // COMMON-PHASES: [[#OFFLOAD+11]]: offload, "host-sycl (x86_64-{{.*}})" {[[#OFFLOAD+4]]}, "device-sycl (spir64-unknown-unknown-sycldevice)" {[[#OFFLOAD+10]]}, image
 
 /// Test for -fsycl-footer-path=<dir>
-// RUN:  %clangxx -fsycl -fsycl-footer-path=/dummy/path %s -### 2>&1 \
+// RUN:  %clangxx -fsycl -fsycl-footer-path=dummy_dir %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER_PATH %s
-// FOOTER_PATH: append-file{{.*}} "--output=/dummy/path/[[APPENDEDSRC:.+\.cpp]]"
-// FOOTER_PATH: clang{{.*}} "-x" "c++" "/dummy/path/[[APPENDEDSRC]]"
+// FOOTER_PATH: append-file{{.*}} "--output=dummy_dir{{(/|\\\\)}}[[APPENDEDSRC:.+\.cpp]]"
+// FOOTER_PATH: clang{{.*}} "-x" "c++" "dummy_dir{{(/|\\\\)}}[[APPENDEDSRC]]"
