@@ -112,8 +112,7 @@ struct LoopAttributes {
   unsigned SYCLIInterval;
 
   /// Value for max_concurrency variant and metadata.
-  llvm::SmallVector<std::pair<const char *, unsigned int>, 2>
-      SYCLMaxConcurrencyNThreads;
+  llvm::SmallVector<unsigned int, 2> SYCLMaxConcurrencyNThreads;
 
   /// Value for count variant (min/max/avg) and count metadata.
   llvm::SmallVector<std::pair<const char *, unsigned int>, 2>
@@ -129,12 +128,10 @@ struct LoopAttributes {
   bool SYCLLoopPipeliningDisable;
 
   /// Value for max_interleaving variant and metadata.
-  llvm::SmallVector<std::pair<const char *, unsigned int>, 2>
-      SYCLMaxInterleavingNInvocations;
+  llvm::SmallVector<unsigned int, 2> SYCLMaxInterleavingNInvocations;
 
   /// Value for speculated.iterations variant and metadata.
-  llvm::SmallVector<std::pair<const char *, unsigned int>, 2>
-      SYCLSpeculatedIterationsNIterations;
+  llvm::SmallVector<unsigned int, 2> SYCLSpeculatedIterationsNIterations;
 
   /// llvm.unroll.
   unsigned UnrollCount;
@@ -354,22 +351,22 @@ public:
 
   void addIVDepMetadata(const ValueDecl *Array, llvm::Instruction *GEP);
 
-  /// Add value of an initiation interval for the next loop pushed.
-  void addSYCLIInterval(unsigned C) { StagedAttrs.SYCLIInterval = C; }
+  /// Set value of an initiation interval for the next loop pushed.
+  void setSYCLIInterval(unsigned C) { StagedAttrs.SYCLIInterval = C; }
 
-  /// Add variant and value of max_concurrency for the next loop pushed.
-  void addSYCLMaxConcurrencyNThreads(const char *Var, unsigned int Value) {
-    StagedAttrs.SYCLMaxConcurrencyNThreads.push_back({Var, Value});
+  /// Add value of max_concurrency for the next loop pushed.
+  void addSYCLMaxConcurrencyNThreads(unsigned int Value) {
+    StagedAttrs.SYCLMaxConcurrencyNThreads.push_back(Value);
   }
 
-  /// Add flag of loop_coalesce for the next loop pushed.
-  void addSYCLLoopCoalesceEnable() {
+  /// Set flag of loop_coalesce for the next loop pushed.
+  void setSYCLLoopCoalesceEnable() {
     StagedAttrs.SYCLLoopCoalesceEnable = true;
   }
 
   /// Add value of coalesced levels for the next loop pushed.
-  void addSYCLLoopCoalesceNLevels(unsigned C) {
-    StagedAttrs.SYCLLoopCoalesceNLevels = C;
+  void addSYCLLoopCoalesceNLevels(unsigned int Value) {
+    StagedAttrs.SYCLLoopCoalesceNLevels = Value;
   }
 
   /// Set flag of disable_loop_pipelining for the next loop pushed.
@@ -379,14 +376,13 @@ public:
 
   /// Add variant and value of max interleaved invocations for the next loop
   /// pushed.
-  void addSYCLMaxInterleavingNInvocations(const char *Var, unsigned int Value) {
-    StagedAttrs.SYCLMaxInterleavingNInvocations.push_back({Var, Value});
+  void addSYCLMaxInterleavingNInvocations(unsigned int Value) {
+    StagedAttrs.SYCLMaxInterleavingNInvocations.push_back(Value);
   }
 
-  /// Add variant and value of speculated iterations for the next loop pushed.
-  void addSYCLSpeculatedIterationsNIterations(const char *Var,
-                                              unsigned int Value) {
-    StagedAttrs.SYCLSpeculatedIterationsNIterations.push_back({Var, Value});
+  /// Add value of speculated iterations for the next loop pushed.
+  void addSYCLSpeculatedIterationsNIterations(unsigned int Value) {
+    StagedAttrs.SYCLSpeculatedIterationsNIterations.push_back(Value);
   }
 
   /// Add value of variant and loop count for the next loop pushed.
