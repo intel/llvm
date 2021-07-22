@@ -12,8 +12,10 @@
 // CHECK: br label %for.cond13, !llvm.loop ![[MD_LC_3:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_MI:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_MI_2:[0-9]+]]
+// CHECK: br label %for.cond13, !llvm.loop ![[MD_MI_3:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_SI:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_SI_2:[0-9]+]]
+// CHECK: br label %for.cond13, !llvm.loop ![[MD_SI_3:[0-9]+]]
 // CHECK: br label %for.cond, !llvm.loop ![[MD_LCA:[0-9]+]]
 // CHECK: br label %for.cond2, !llvm.loop ![[MD_LCA_1:[0-9]+]]
 // CHECK: br label %for.cond13, !llvm.loop ![[MD_LCA_2:[0-9]+]]
@@ -86,7 +88,7 @@ void loop_coalesce() {
       a[i] = 0;
 }
 
-template <int A>
+template <int A, int B>
 void max_interleaving() {
   int a[10];
   // CHECK: ![[MD_MI]] = distinct !{![[MD_MI]], ![[MP]], ![[MD_max_interleaving:[0-9]+]]}
@@ -97,9 +99,15 @@ void max_interleaving() {
   // CHECK-NEXT: ![[MD_max_interleaving_2]] = !{!"llvm.loop.max_interleaving.count", i32 2}
   [[intel::max_interleaving(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  // CHECK: ![[MD_MI_3]] = distinct !{![[MD_MI_3]], ![[MP]], ![[MD_max_interleaving_3:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_max_interleaving_3]] = !{!"llvm.loop.max_interleaving.count", i32 0}
+  [[intel::max_interleaving(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
 }
 
-template <int A>
+template <int A, int B>
 void speculated_iterations() {
   int a[10];
   // CHECK: ![[MD_SI]] = distinct !{![[MD_SI]], ![[MP]], ![[MD_speculated_iterations:[0-9]+]]}
@@ -109,6 +117,11 @@ void speculated_iterations() {
   // CHECK: ![[MD_SI_2]] = distinct !{![[MD_SI_2]], ![[MP]], ![[MD_speculated_iterations_2:[0-9]+]]}
   // CHECK-NEXT: ![[MD_speculated_iterations_2]] = !{!"llvm.loop.intel.speculated.iterations.count", i32 5}
   [[intel::speculated_iterations(5)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // CHECK: ![[MD_SI_3]] = distinct !{![[MD_SI_3]], ![[MP]], ![[MD_speculated_iterations_3:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_speculated_iterations_3]] = !{!"llvm.loop.intel.speculated.iterations.count", i32 0}
+  [[intel::speculated_iterations(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -143,8 +156,8 @@ int main() {
     initiation_interval<6>();
     max_concurrency<0>();
     loop_coalesce<2>();
-    max_interleaving<3>();
-    speculated_iterations<4>();
+    max_interleaving<3, 0>();
+    speculated_iterations<4, 0>();
     loop_count_control<12>();
   });
   return 0;
