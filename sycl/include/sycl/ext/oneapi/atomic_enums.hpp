@@ -12,6 +12,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/helpers.hpp>
+#include <CL/sycl/memory_enums.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>
@@ -23,15 +24,7 @@ namespace sycl {
 namespace ext {
 namespace oneapi {
 
-enum class memory_order : int {
-  relaxed = 0,
-  acquire = 1,
-  __consume_unsupported =
-      2, // helps optimizer when mapping to std::memory_order
-  release = 3,
-  acq_rel = 4,
-  seq_cst = 5
-};
+using memory_order = cl::sycl::memory_order;
 __SYCL_INLINE_CONSTEXPR memory_order memory_order_relaxed =
     memory_order::relaxed;
 __SYCL_INLINE_CONSTEXPR memory_order memory_order_acquire =
@@ -43,13 +36,7 @@ __SYCL_INLINE_CONSTEXPR memory_order memory_order_acq_rel =
 __SYCL_INLINE_CONSTEXPR memory_order memory_order_seq_cst =
     memory_order::seq_cst;
 
-enum class memory_scope : int {
-  work_item = 0,
-  sub_group = 1,
-  work_group = 2,
-  device = 3,
-  system = 4
-};
+using memory_scope = cl::sycl::memory_scope;
 __SYCL_INLINE_CONSTEXPR memory_scope memory_scope_work_item =
     memory_scope::work_item;
 __SYCL_INLINE_CONSTEXPR memory_scope memory_scope_sub_group =

@@ -1063,7 +1063,13 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    atomic64);
   }
-
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    // NVPTX currently only support at most monotonic atomic load/store.
+    // Acquire and release is present in newer PTX, but is not yet supported
+    // in LLVM NVPTX.
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_MEMORY_ORDER_RELAXED);
+  }
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // NVIDIA devices only support one sub-group size (the warp size)
     int warpSize = 0;
