@@ -305,6 +305,8 @@ public:
                                SPIRVInstruction * = nullptr) override;
   SPIRVEntry *addDebugInfo(SPIRVWord, SPIRVType *TheType,
                            const std::vector<SPIRVWord> &) override;
+  SPIRVEntry *addModuleProcessed(const std::string &) override;
+  std::vector<SPIRVModuleProcessed *> getModuleProcessedVec() override;
   SPIRVInstruction *addBinaryInst(Op, SPIRVType *, SPIRVValue *, SPIRVValue *,
                                   SPIRVBasicBlock *) override;
   SPIRVInstruction *addCallInst(SPIRVFunction *, const std::vector<SPIRVWord> &,
@@ -359,6 +361,9 @@ public:
                                          const std::vector<SPIRVWord> &Ops,
                                          SPIRVBasicBlock *BB,
                                          SPIRVType *Ty) override;
+  void addInstTemplate(SPIRVInstTemplateBase *Ins,
+                       const std::vector<SPIRVWord> &Ops, SPIRVBasicBlock *BB,
+                       SPIRVType *Ty) override;
   SPIRVInstruction *addLifetimeInst(Op OC, SPIRVValue *Object, SPIRVWord Size,
                                     SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addMemoryBarrierInst(Scope ScopeKind, SPIRVWord MemFlag,
@@ -523,6 +528,7 @@ private:
   std::map<unsigned, SPIRVTypeInt *> IntTypeMap;
   std::map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
+  std::vector<SPIRVModuleProcessed *> ModuleProcessedVec;
   SPIRVAliasInstMDVec AliasInstMDVec;
   SPIRVAliasInstMDMap AliasInstMDMap;
 
@@ -538,6 +544,9 @@ SPIRVModuleImpl::~SPIRVModuleImpl() {
 
   for (auto C : CapMap)
     delete C.second;
+
+  for (auto *M : ModuleProcessedVec)
+    delete M;
 }
 
 const std::shared_ptr<const SPIRVLine> &
@@ -577,7 +586,11 @@ SPIRVValue *SPIRVModuleImpl::addPipeStorageConstant(SPIRVType *TheType,
 void SPIRVModuleImpl::addExtension(ExtensionID Ext) {
   std::string ExtName;
   SPIRVMap<ExtensionID, std::string>::find(Ext, &ExtName);
-  assert(isAllowedToUseExtension(Ext));
+  if (!getErrorLog().checkError(isAllowedToUseExtension(Ext),
+                                SPIRVEC_RequiresExtension, ExtName)) {
+    setInvalid();
+    return;
+  }
   SPIRVExt.insert(ExtName);
 }
 
@@ -1272,6 +1285,15 @@ SPIRVEntry *SPIRVModuleImpl::addDebugInfo(SPIRVWord InstId, SPIRVType *TheType,
                        ExtInstSetIds[getDebugInfoEIS()], InstId, Args));
 }
 
+SPIRVEntry *SPIRVModuleImpl::addModuleProcessed(const std::string &Process) {
+  ModuleProcessedVec.push_back(new SPIRVModuleProcessed(this, Process));
+  return ModuleProcessedVec.back();
+}
+
+std::vector<SPIRVModuleProcessed *> SPIRVModuleImpl::getModuleProcessedVec() {
+  return ModuleProcessedVec;
+}
+
 SPIRVInstruction *
 SPIRVModuleImpl::addCallInst(SPIRVFunction *TheFunction,
                              const std::vector<SPIRVWord> &TheArguments,
@@ -1367,9 +1389,11 @@ SPIRVInstruction *SPIRVModuleImpl::addVectorInsertDynamicInst(
 SPIRVValue *SPIRVModuleImpl::addVectorShuffleInst(
     SPIRVType *Type, SPIRVValue *Vec1, SPIRVValue *Vec2,
     const std::vector<SPIRVWord> &Components, SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVVectorShuffle(getId(), Type, Vec1->getId(),
-                                               Vec2->getId(), Components, BB,
-                                               this),
+  std::vector<SPIRVId> Ops{Vec1->getId(), Vec2->getId()};
+  Ops.insert(Ops.end(), Components.begin(), Components.end());
+
+  return addInstruction(SPIRVInstTemplateBase::create(OpVectorShuffle, Type,
+                                                      getId(), Ops, BB, this),
                         BB);
 }
 
@@ -1426,10 +1450,11 @@ SPIRVInstruction *SPIRVModuleImpl::addSelectInst(SPIRVValue *Condition,
                                                  SPIRVValue *Op1,
                                                  SPIRVValue *Op2,
                                                  SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVSelect(getId(), Op1->getType(),
-                                        Condition->getId(), Op1->getId(),
-                                        Op2->getId(), BB, this),
-                        BB);
+  return addInstruction(
+      SPIRVInstTemplateBase::create(
+          OpSelect, Op1->getType(), getId(),
+          getVec(Condition->getId(), Op1->getId(), Op2->getId()), BB, this),
+      BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addSelectionMergeInst(
@@ -1511,19 +1536,21 @@ SPIRVInstruction *
 SPIRVModuleImpl::addCompositeExtractInst(SPIRVType *Type, SPIRVValue *TheVector,
                                          const std::vector<SPIRVWord> &Indices,
                                          SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVCompositeExtract(Type, getId(),
-                                                  TheVector->getId(), Indices,
-                                                  BB, this),
+  return addInstruction(SPIRVInstTemplateBase::create(
+                            OpCompositeExtract, Type, getId(),
+                            getVec(TheVector->getId(), Indices), BB, this),
                         BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addCompositeInsertInst(
     SPIRVValue *Object, SPIRVValue *Composite,
     const std::vector<SPIRVWord> &Indices, SPIRVBasicBlock *BB) {
-  return addInstruction(
-      new SPIRVCompositeInsert(Composite->getType(), getId(), Object->getId(),
-                               Composite->getId(), Indices, BB, this),
-      BB);
+  std::vector<SPIRVId> Ops{Object->getId(), Composite->getId()};
+  Ops.insert(Ops.end(), Indices.begin(), Indices.end());
+  return addInstruction(SPIRVInstTemplateBase::create(OpCompositeInsert,
+                                                      Composite->getType(),
+                                                      getId(), Ops, BB, this),
+                        BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addCopyObjectInst(SPIRVType *TheType,
@@ -1828,8 +1855,8 @@ spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M) {
   TopologicalSort TS(MI.TypeVec, MI.ConstVec, MI.VariableVec,
                      MI.ForwardPointerVec);
 
-  O << MI.MemberNameVec << MI.DecGroupVec << MI.DecorateSet << MI.GroupDecVec
-    << MI.ForwardPointerVec << TS;
+  O << MI.MemberNameVec << MI.ModuleProcessedVec << MI.DecGroupVec
+    << MI.DecorateSet << MI.GroupDecVec << MI.ForwardPointerVec << TS;
 
   if (M.isAllowedToUseExtension(ExtensionID::SPV_INTEL_inline_assembly)) {
     O << SPIRVNL() << MI.AsmTargetVec << MI.AsmVec;
@@ -2060,6 +2087,16 @@ SPIRVModuleImpl::addInstTemplate(Op OC, const std::vector<SPIRVWord> &Ops,
   auto Ins = SPIRVInstTemplateBase::create(OC, Ty, Id, Ops, BB, this);
   BB->addInstruction(Ins);
   return Ins;
+}
+
+void SPIRVModuleImpl::addInstTemplate(SPIRVInstTemplateBase *Ins,
+                                      const std::vector<SPIRVWord> &Ops,
+                                      SPIRVBasicBlock *BB, SPIRVType *Ty) {
+  assert(!Ty || !Ty->isTypeVoid());
+  SPIRVId Id = Ty ? getId() : SPIRVID_INVALID;
+  Ins->init(Ty, Id, BB, this);
+  Ins->setOpWordsAndValidate(Ops);
+  BB->addInstruction(Ins);
 }
 
 SPIRVId SPIRVModuleImpl::getExtInstSetId(SPIRVExtInstSetKind Kind) const {

@@ -6,6 +6,7 @@
 namespace SPIRVDebug {
 
 const unsigned int DebugInfoVersion = 0x00010000;
+static const std::string ProducerPrefix = {"Debug info producer: "};
 static const std::string ChecksumKindPrefx = {"//__CSK_"};
 
 // clang-format off
@@ -47,7 +48,8 @@ enum Instruction {
   MacroUndef                    = 33,
   ImportedEntity                = 34,
   Source                        = 35,
-  InstCount                     = 36
+  ModuleINTEL                   = 36,
+  InstCount                     = 37
 };
 
 enum Flag {
@@ -766,6 +768,20 @@ enum {
   ColumnIdx    = 6,
   ParentIdx    = 7,
   OperandCount = 8
+};
+}
+
+namespace ModuleINTEL {
+enum {
+  NameIdx         = 0,
+  SourceIdx       = 1,
+  LineIdx         = 2,
+  ParentIdx       = 3,
+  ConfigMacrosIdx = 4,
+  IncludePathIdx  = 5,
+  ApiNotesIdx     = 6,
+  IsDeclIdx       = 7,
+  OperandCount    = 8
 };
 }
 

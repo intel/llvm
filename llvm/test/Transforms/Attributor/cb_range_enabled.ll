@@ -59,6 +59,10 @@ define i32 @test2(i32 %unknown, i32 %b) {
 
 ; Positive checks
 
+; FIXME: AAValueSimplify preserves the context but simplifies to a value in the other function, I think.
+;        Either way, as we settle on the new AAValueSimplifyReturned scheme that replaces AAReturnedValues
+;        we need to look into this again. For the purpose of making some progress we take this regression
+;        for now, call site contexts are not on by default anyway (yet).
 define i32 @test1_pcheck(i32 %unknown) {
 ; CHECK-LABEL: define {{[^@]+}}@test1_pcheck
 ; CHECK-SAME: (i32 [[UNKNOWN:%.*]]) #[[ATTR0]] {

@@ -14,6 +14,8 @@
 using namespace mlir;
 using namespace mlir::emitc;
 
+#include "mlir/Dialect/EmitC/IR/EmitCDialect.cpp.inc"
+
 //===----------------------------------------------------------------------===//
 // EmitCDialect
 //===----------------------------------------------------------------------===//
@@ -112,6 +114,41 @@ static LogicalResult verify(emitc::ConstantOp &op) {
 OpFoldResult emitc::ConstantOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.empty() && "constant has no operands");
   return value();
+}
+
+//===----------------------------------------------------------------------===//
+// IncludeOp
+//===----------------------------------------------------------------------===//
+
+static void print(OpAsmPrinter &p, IncludeOp &op) {
+  bool standardInclude = op.is_standard_include();
+
+  p << IncludeOp::getOperationName() << " ";
+  if (standardInclude)
+    p << "<";
+  p << "\"" << op.include() << "\"";
+  if (standardInclude)
+    p << ">";
+}
+
+static ParseResult parseIncludeOp(OpAsmParser &parser, OperationState &result) {
+  bool standardInclude = !parser.parseOptionalLess();
+
+  StringAttr include;
+  OptionalParseResult includeParseResult =
+      parser.parseOptionalAttribute(include, "include", result.attributes);
+  if (!includeParseResult.hasValue())
+    return parser.emitError(parser.getNameLoc()) << "expected string attribute";
+
+  if (standardInclude && parser.parseOptionalGreater())
+    return parser.emitError(parser.getNameLoc())
+           << "expected trailing '>' for standard include";
+
+  if (standardInclude)
+    result.addAttribute("is_standard_include",
+                        UnitAttr::get(parser.getBuilder().getContext()));
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

@@ -9,13 +9,11 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
-template <typename T>
-class exchange_kernel;
+template <typename T> class exchange_kernel;
 
-template <typename T>
-void exchange_test(queue q, size_t N) {
+template <typename T> void exchange_test(queue q, size_t N) {
   const T initial = T(N);
   T exchange = initial;
   std::vector<T> output(N);
@@ -25,12 +23,14 @@ void exchange_test(queue q, size_t N) {
     buffer<T> output_buf(output.data(), output.size());
 
     q.submit([&](handler &cgh) {
-      auto exc = exchange_buf.template get_access<access::mode::read_write>(cgh);
-      auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto exc =
+          exchange_buf.template get_access<access::mode::read_write>(cgh);
+      auto out =
+          output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for<exchange_kernel<T>>(range<1>(N), [=](item<1> it) {
         size_t gid = it.get_id(0);
-        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
-                              ONEAPI::memory_scope::device,
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
                               access::address_space::global_space>(exc[0]);
         out[gid] = atm.exchange(T(gid));
       });
@@ -40,7 +40,8 @@ void exchange_test(queue q, size_t N) {
   // Only one work-item should have received the initial sentinel value
   assert(std::count(output.begin(), output.end(), initial) == 1);
 
-  // All other values should be unique; each work-item replaces the value it reads with its own ID
+  // All other values should be unique; each work-item replaces the value it
+  // reads with its own ID
   std::sort(output.begin(), output.end());
   assert(std::unique(output.begin(), output.end()) == output.end());
 }

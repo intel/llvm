@@ -7,7 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/INTEL/fpga_device_selector.hpp>
-#include <CL/sycl/INTEL/fpga_lsu.hpp>
-#include <CL/sycl/INTEL/fpga_reg.hpp>
-#include <CL/sycl/INTEL/pipes.hpp>
+
+#include <CL/sycl/detail/defines_elementary.hpp>
+
+__SYCL_WARNING("CL/sycl/INTEL/fpga_extensions.hpp usage is deprecated, include "
+               "sycl/ext/intel/fpga_extensions.hpp instead")
+
+#include <sycl/ext/intel/fpga_extensions.hpp>

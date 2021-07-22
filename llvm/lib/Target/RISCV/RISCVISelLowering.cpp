@@ -314,6 +314,10 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   if (Subtarget.hasStdExtZfh()) {
     setOperationAction(ISD::FMINNUM, MVT::f16, Legal);
     setOperationAction(ISD::FMAXNUM, MVT::f16, Legal);
+    setOperationAction(ISD::LRINT, MVT::f16, Legal);
+    setOperationAction(ISD::LLRINT, MVT::f16, Legal);
+    setOperationAction(ISD::LROUND, MVT::f16, Legal);
+    setOperationAction(ISD::LLROUND, MVT::f16, Legal);
     for (auto CC : FPCCToExpand)
       setCondCodeAction(CC, MVT::f16, Expand);
     setOperationAction(ISD::SELECT_CC, MVT::f16, Expand);
@@ -326,6 +330,10 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   if (Subtarget.hasStdExtF()) {
     setOperationAction(ISD::FMINNUM, MVT::f32, Legal);
     setOperationAction(ISD::FMAXNUM, MVT::f32, Legal);
+    setOperationAction(ISD::LRINT, MVT::f32, Legal);
+    setOperationAction(ISD::LLRINT, MVT::f32, Legal);
+    setOperationAction(ISD::LROUND, MVT::f32, Legal);
+    setOperationAction(ISD::LLROUND, MVT::f32, Legal);
     for (auto CC : FPCCToExpand)
       setCondCodeAction(CC, MVT::f32, Expand);
     setOperationAction(ISD::SELECT_CC, MVT::f32, Expand);
@@ -343,6 +351,10 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   if (Subtarget.hasStdExtD()) {
     setOperationAction(ISD::FMINNUM, MVT::f64, Legal);
     setOperationAction(ISD::FMAXNUM, MVT::f64, Legal);
+    setOperationAction(ISD::LRINT, MVT::f64, Legal);
+    setOperationAction(ISD::LLRINT, MVT::f64, Legal);
+    setOperationAction(ISD::LROUND, MVT::f64, Legal);
+    setOperationAction(ISD::LLROUND, MVT::f64, Legal);
     for (auto CC : FPCCToExpand)
       setCondCodeAction(CC, MVT::f64, Expand);
     setOperationAction(ISD::SELECT_CC, MVT::f64, Expand);
@@ -2432,11 +2444,14 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   case ISD::UREM:
     return lowerToScalableOp(Op, DAG, RISCVISD::UREM_VL);
   case ISD::SHL:
-    return lowerToScalableOp(Op, DAG, RISCVISD::SHL_VL);
   case ISD::SRA:
-    return lowerToScalableOp(Op, DAG, RISCVISD::SRA_VL);
   case ISD::SRL:
-    return lowerToScalableOp(Op, DAG, RISCVISD::SRL_VL);
+    if (Op.getSimpleValueType().isFixedLengthVector())
+      return lowerFixedLengthVectorShiftToRVV(Op, DAG);
+    // This can be called for an i32 shift amount that needs to be promoted.
+    assert(Op.getOperand(1).getValueType() == MVT::i32 && Subtarget.is64Bit() &&
+           "Unexpected custom legalisation");
+    return SDValue();
   case ISD::FADD:
     return lowerToScalableOp(Op, DAG, RISCVISD::FADD_VL);
   case ISD::FSUB:
@@ -4290,6 +4305,20 @@ SDValue RISCVTargetLowering::lowerFixedLengthVectorLogicOpToRVV(
   return lowerToScalableOp(Op, DAG, VecOpc, /*HasMask*/ true);
 }
 
+SDValue
+RISCVTargetLowering::lowerFixedLengthVectorShiftToRVV(SDValue Op,
+                                                      SelectionDAG &DAG) const {
+  unsigned Opc;
+  switch (Op.getOpcode()) {
+  default: llvm_unreachable("Unexpected opcode!");
+  case ISD::SHL: Opc = RISCVISD::SHL_VL; break;
+  case ISD::SRA: Opc = RISCVISD::SRA_VL; break;
+  case ISD::SRL: Opc = RISCVISD::SRL_VL; break;
+  }
+
+  return lowerToScalableOp(Op, DAG, Opc);
+}
+
 // Lower vector ABS to smax(X, sub(0, X)).
 SDValue RISCVTargetLowering::lowerABS(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
@@ -6122,6 +6151,47 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
       return DAG.getNode(N->getOpcode(), DL, VT, N->getOperand(0), ShAmt);
     }
     break;
+  }
+  case RISCVISD::MUL_VL: {
+    // Try to form VWMUL or VWMULU.
+    // FIXME: Look for splat of extended scalar as well.
+    // FIXME: Support VWMULSU.
+    SDValue Op0 = N->getOperand(0);
+    SDValue Op1 = N->getOperand(1);
+    bool IsSignExt = Op0.getOpcode() == RISCVISD::VSEXT_VL;
+    bool IsZeroExt = Op0.getOpcode() == RISCVISD::VZEXT_VL;
+    if ((!IsSignExt && !IsZeroExt) || Op0.getOpcode() != Op1.getOpcode())
+      return SDValue();
+
+    // Make sure the extends have a single use.
+    if (!Op0.hasOneUse() || !Op1.hasOneUse())
+      return SDValue();
+
+    SDValue Mask = N->getOperand(2);
+    SDValue VL = N->getOperand(3);
+    if (Op0.getOperand(1) != Mask || Op1.getOperand(1) != Mask ||
+        Op0.getOperand(2) != VL || Op1.getOperand(2) != VL)
+      return SDValue();
+
+    Op0 = Op0.getOperand(0);
+    Op1 = Op1.getOperand(0);
+
+    MVT VT = N->getSimpleValueType(0);
+    MVT NarrowVT =
+        MVT::getVectorVT(MVT::getIntegerVT(VT.getScalarSizeInBits() / 2),
+                         VT.getVectorElementCount());
+
+    SDLoc DL(N);
+
+    // Re-introduce narrower extends if needed.
+    unsigned ExtOpc = IsSignExt ? RISCVISD::VSEXT_VL : RISCVISD::VZEXT_VL;
+    if (Op0.getValueType() != NarrowVT)
+      Op0 = DAG.getNode(ExtOpc, DL, NarrowVT, Op0, Mask, VL);
+    if (Op1.getValueType() != NarrowVT)
+      Op1 = DAG.getNode(ExtOpc, DL, NarrowVT, Op1, Mask, VL);
+
+    unsigned WMulOpc = IsSignExt ? RISCVISD::VWMUL_VL : RISCVISD::VWMULU_VL;
+    return DAG.getNode(WMulOpc, DL, VT, Op0, Op1, Mask, VL);
   }
   }
 
@@ -8182,6 +8252,8 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(UINT_TO_FP_VL)
   NODE_NAME_CASE(FP_EXTEND_VL)
   NODE_NAME_CASE(FP_ROUND_VL)
+  NODE_NAME_CASE(VWMUL_VL)
+  NODE_NAME_CASE(VWMULU_VL)
   NODE_NAME_CASE(SETCC_VL)
   NODE_NAME_CASE(VSELECT_VL)
   NODE_NAME_CASE(VMAND_VL)

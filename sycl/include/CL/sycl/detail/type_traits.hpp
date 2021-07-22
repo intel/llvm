@@ -19,9 +19,15 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <int Dimensions> class group;
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 struct sub_group;
-} // namespace ONEAPI
+} // namespace oneapi
+} // namespace ext
+
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
+}
 namespace detail {
 
 template <typename T> struct is_group : std::false_type {};
@@ -31,7 +37,7 @@ struct is_group<group<Dimensions>> : std::true_type {};
 
 template <typename T> struct is_sub_group : std::false_type {};
 
-template <> struct is_sub_group<ONEAPI::sub_group> : std::true_type {};
+template <> struct is_sub_group<ext::oneapi::sub_group> : std::true_type {};
 
 template <typename T>
 struct is_generic_group

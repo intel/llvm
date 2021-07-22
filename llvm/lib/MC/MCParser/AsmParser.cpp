@@ -749,6 +749,7 @@ namespace llvm {
 extern MCAsmParserExtension *createDarwinAsmParser();
 extern MCAsmParserExtension *createELFAsmParser();
 extern MCAsmParserExtension *createCOFFAsmParser();
+extern MCAsmParserExtension *createXCOFFAsmParser();
 extern MCAsmParserExtension *createWasmAsmParser();
 
 } // end namespace llvm
@@ -785,8 +786,7 @@ AsmParser::AsmParser(SourceMgr &SM, MCContext &Ctx, MCStreamer &Out,
     PlatformParser.reset(createWasmAsmParser());
     break;
   case MCContext::IsXCOFF:
-    report_fatal_error(
-        "Need to implement createXCOFFAsmParser for XCOFF format.");
+    PlatformParser.reset(createXCOFFAsmParser());
     break;
   }
 
@@ -6302,8 +6302,12 @@ bool HLASMAsmParser::parseStatement(ParseStatementInfo &Info,
   if (ShouldParseAsHLASMLabel) {
     // If there were any errors while handling and emitting the label,
     // early return.
-    if (parseAsHLASMLabel(Info, SI))
+    if (parseAsHLASMLabel(Info, SI)) {
+      // If we know we've failed in parsing, simply eat until end of the
+      // statement. This ensures that we don't process any other statements.
+      eatToEndOfStatement();
       return true;
+    }
   }
 
   return parseAsMachineInstruction(Info, SI);

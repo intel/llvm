@@ -22,7 +22,7 @@ CommandObjectQuit::CommandObjectQuit(CommandInterpreter &interpreter)
     : CommandObjectParsed(interpreter, "quit", "Quit the LLDB debugger.",
                           "quit [exit-code]") {}
 
-CommandObjectQuit::~CommandObjectQuit() {}
+CommandObjectQuit::~CommandObjectQuit() = default;
 
 // returns true if there is at least one alive process is_a_detach will be true
 // if all alive processes will be detached when you quit and false if at least
@@ -100,9 +100,6 @@ bool CommandObjectQuit::DoExecute(Args &command, CommandReturnObject &result) {
       CommandInterpreter::eBroadcastBitQuitCommandReceived;
   m_interpreter.BroadcastEvent(event_type);
   result.SetStatus(eReturnStatusQuit);
-
-  if (m_interpreter.GetSaveSessionOnQuit())
-    m_interpreter.SaveTranscript(result);
 
   return true;
 }

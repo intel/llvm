@@ -24,35 +24,40 @@ using namespace cl::sycl;
 struct CudaKernelsTest : public ::testing::Test {
 
 protected:
-  detail::plugin plugin = pi::initializeAndGet(backend::cuda);
+  detail::plugin *plugin = pi::initializeAndGet(backend::cuda);
   pi_platform platform_;
   pi_device device_;
   pi_context context_;
   pi_queue queue_;
 
   void SetUp() override {
-    pi_uint32 numPlatforms = 0;
-    ASSERT_EQ(plugin.getBackend(), backend::cuda);
+    // skip the tests if the CUDA backend is not available
+    if (!plugin) {
+      GTEST_SKIP();
+    }
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    pi_uint32 numPlatforms = 0;
+    ASSERT_EQ(plugin->getBackend(), backend::cuda);
+
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &numPlatforms)),
               PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   numPlatforms, &platform_, nullptr)),
               PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDevicesGet>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piDevicesGet>(
                   platform_, PI_DEVICE_TYPE_GPU, 1, &device_, nullptr)),
               PI_SUCCESS);
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextCreate>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piContextCreate>(
                   nullptr, 1, &device_, nullptr, nullptr, &context_)),
               PI_SUCCESS);
     ASSERT_NE(context_, nullptr);
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piQueueCreate>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piQueueCreate>(
                   context_, device_, 0, &queue_)),
               PI_SUCCESS);
     ASSERT_NE(queue_, nullptr);
@@ -60,9 +65,11 @@ protected:
   }
 
   void TearDown() override {
-    plugin.call<detail::PiApiKind::piDeviceRelease>(device_);
-    plugin.call<detail::PiApiKind::piQueueRelease>(queue_);
-    plugin.call<detail::PiApiKind::piContextRelease>(context_);
+    if (plugin) {
+      plugin->call<detail::PiApiKind::piDeviceRelease>(device_);
+      plugin->call<detail::PiApiKind::piQueueRelease>(queue_);
+      plugin->call<detail::PiApiKind::piContextRelease>(context_);
+    }
   }
 
   CudaKernelsTest() = default;
@@ -132,20 +139,75 @@ TEST_F(CudaKernelsTest, PICreateProgramAndKernel) {
 
   pi_program prog;
   pi_int32 binary_status = PI_SUCCESS;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-                context_, 1, &device_, nullptr,
-                (const unsigned char **)&ptxSource, &binary_status, &prog)),
-            PI_SUCCESS);
+  ASSERT_EQ(
+      (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource, 0,
+          nullptr, &binary_status, &prog)),
+      PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
             PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelCreate>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelCreate>(
                 prog, "_Z8myKernelPi", &kern)),
             PI_SUCCESS);
   ASSERT_NE(kern, nullptr);
+}
+
+TEST_F(CudaKernelsTest, PICreateProgramAndKernelWithMetadata) {
+
+  std::vector<uint32_t> reqdWorkGroupSizeMD;
+  reqdWorkGroupSizeMD.reserve(5);
+  // 64-bit representing bit size
+  reqdWorkGroupSizeMD.push_back(96);
+  reqdWorkGroupSizeMD.push_back(0);
+  // reqd_work_group_size x
+  reqdWorkGroupSizeMD.push_back(8);
+  // reqd_work_group_size y
+  reqdWorkGroupSizeMD.push_back(16);
+  // reqd_work_group_size z
+  reqdWorkGroupSizeMD.push_back(32);
+
+  const char *reqdWorkGroupSizeMDConstName =
+      "_Z8myKernelPi@reqd_work_group_size";
+  std::vector<char> reqdWorkGroupSizeMDName(
+      reqdWorkGroupSizeMDConstName,
+      reqdWorkGroupSizeMDConstName + strlen(reqdWorkGroupSizeMDConstName) + 1);
+  _pi_device_binary_property_struct reqdWorkGroupSizeMDProp = {
+      reqdWorkGroupSizeMDName.data(), reqdWorkGroupSizeMD.data(),
+      pi_property_type::PI_PROPERTY_TYPE_BYTE_ARRAY,
+      sizeof(std::uint64_t) + sizeof(std::uint32_t) * 3};
+  pi_device_binary_property reqdWorkGroupSizeMDPropPointer =
+      &reqdWorkGroupSizeMDProp;
+
+  pi_program prog;
+  pi_int32 binary_status = PI_SUCCESS;
+  ASSERT_EQ(
+      (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource, 1,
+          &reqdWorkGroupSizeMDPropPointer, &binary_status, &prog)),
+      PI_SUCCESS);
+
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piProgramBuild>(
+                prog, 1, &device_, "", nullptr, nullptr)),
+            PI_SUCCESS);
+
+  pi_kernel kern;
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelCreate>(
+                prog, "_Z8myKernelPi", &kern)),
+            PI_SUCCESS);
+  ASSERT_NE(kern, nullptr);
+
+  size_t compileWGSize[3] = {0};
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelGetGroupInfo>(
+                kern, device_, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+                sizeof(size_t) * 3, compileWGSize, nullptr)),
+            PI_SUCCESS);
+  for (int i = 0; i < 3; ++i) {
+    ASSERT_EQ(compileWGSize[i], reqdWorkGroupSizeMD[i + 2]);
+  }
 }
 
 TEST_F(CudaKernelsTest, PIKernelArgumentSimple) {
@@ -155,23 +217,24 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSimple) {
   /// use it at some point in the future, pass it anyway and check the result.
   /// Same goes for all the other tests in this file.
   pi_int32 binary_status = PI_SUCCESS;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-                context_, 1, &device_, nullptr,
-                (const unsigned char **)&ptxSource, &binary_status, &prog)),
-            PI_SUCCESS);
+  ASSERT_EQ(
+      (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource, 0,
+          nullptr, &binary_status, &prog)),
+      PI_SUCCESS);
   ASSERT_EQ(binary_status, PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
             PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelCreate>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelCreate>(
                 prog, "_Z8myKernelPi", &kern)),
             PI_SUCCESS);
 
   int number = 10;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelSetArg>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
                 kern, 0, sizeof(int), &number)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
@@ -184,23 +247,24 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwice) {
 
   pi_program prog;
   pi_int32 binary_status = PI_SUCCESS;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-                context_, 1, &device_, nullptr,
-                (const unsigned char **)&ptxSource, &binary_status, &prog)),
-            PI_SUCCESS);
+  ASSERT_EQ(
+      (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource, 0,
+          nullptr, &binary_status, &prog)),
+      PI_SUCCESS);
   ASSERT_EQ(binary_status, PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
             PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelCreate>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelCreate>(
                 prog, "_Z8myKernelPi", &kern)),
             PI_SUCCESS);
 
   int number = 10;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelSetArg>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
                 kern, 0, sizeof(int), &number)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
@@ -209,7 +273,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwice) {
   ASSERT_EQ(storedValue, number);
 
   int otherNumber = 934;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelSetArg>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
                 kern, 0, sizeof(int), &otherNumber)),
             PI_SUCCESS);
   const auto &kernArgs2 = kern->get_arg_indices();
@@ -222,29 +286,30 @@ TEST_F(CudaKernelsTest, PIKernelSetMemObj) {
 
   pi_program prog;
   pi_int32 binary_status = PI_SUCCESS;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-                context_, 1, &device_, nullptr,
-                (const unsigned char **)&ptxSource, &binary_status, &prog)),
-            PI_SUCCESS);
+  ASSERT_EQ(
+      (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource, 0,
+          nullptr, &binary_status, &prog)),
+      PI_SUCCESS);
   ASSERT_EQ(binary_status, PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
             PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelCreate>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelCreate>(
                 prog, "_Z8myKernelPi", &kern)),
             PI_SUCCESS);
 
   size_t memSize = 1024u;
   pi_mem memObj;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
                 context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
                 nullptr)),
             PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelSetArg>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
                 kern, 0, sizeof(pi_mem), &memObj)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
@@ -257,29 +322,30 @@ TEST_F(CudaKernelsTest, PIkerneldispatch) {
 
   pi_program prog;
   pi_int32 binary_status = PI_SUCCESS;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-                context_, 1, &device_, nullptr,
-                (const unsigned char **)&ptxSource, &binary_status, &prog)),
-            PI_SUCCESS);
+  ASSERT_EQ(
+      (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+          context_, 1, &device_, nullptr, (const unsigned char **)&ptxSource, 0,
+          nullptr, &binary_status, &prog)),
+      PI_SUCCESS);
   ASSERT_EQ(binary_status, PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
             PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelCreate>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelCreate>(
                 prog, "_Z8myKernelPi", &kern)),
             PI_SUCCESS);
 
   size_t memSize = 1024u;
   pi_mem memObj;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
                 context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
                 nullptr)),
             PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
                 kern, 0, &memObj)),
             PI_SUCCESS);
 
@@ -287,12 +353,12 @@ TEST_F(CudaKernelsTest, PIkerneldispatch) {
   size_t globalWorkOffset[] = {0};
   size_t globalWorkSize[] = {1};
   size_t localWorkSize[] = {1};
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueKernelLaunch>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piEnqueueKernelLaunch>(
                 queue_, kern, workDim, globalWorkOffset, globalWorkSize,
                 localWorkSize, 0, nullptr, nullptr)),
             PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
             PI_SUCCESS);
 }
 
@@ -300,39 +366,40 @@ TEST_F(CudaKernelsTest, PIkerneldispatchTwo) {
 
   pi_program prog;
   pi_int32 binary_status = PI_SUCCESS;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-                context_, 1, &device_, nullptr,
-                (const unsigned char **)&twoParams, &binary_status, &prog)),
-            PI_SUCCESS);
+  ASSERT_EQ(
+      (plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+          context_, 1, &device_, nullptr, (const unsigned char **)&twoParams, 0,
+          nullptr, &binary_status, &prog)),
+      PI_SUCCESS);
   ASSERT_EQ(binary_status, PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
             PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelCreate>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelCreate>(
                 prog, "twoParamKernel", &kern)),
             PI_SUCCESS);
 
   size_t memSize = 1024u;
   pi_mem memObj;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
                 context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
                 nullptr)),
             PI_SUCCESS);
 
   pi_mem memObj2;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
                 context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj2,
                 nullptr)),
             PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
                 kern, 0, &memObj)),
             PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
                 kern, 1, &memObj2)),
             PI_SUCCESS);
 
@@ -340,14 +407,14 @@ TEST_F(CudaKernelsTest, PIkerneldispatchTwo) {
   size_t globalWorkOffset[] = {0};
   size_t globalWorkSize[] = {1};
   size_t localWorkSize[] = {1};
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueKernelLaunch>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piEnqueueKernelLaunch>(
                 queue_, kern, workDim, globalWorkOffset, globalWorkSize,
                 localWorkSize, 0, nullptr, nullptr)),
             PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
             PI_SUCCESS);
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemRelease>(memObj2)),
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemRelease>(memObj2)),
             PI_SUCCESS);
 }
 
@@ -355,24 +422,24 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
 
   pi_program prog;
   pi_int32 binary_status = PI_SUCCESS;
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
-          context_, 1, &device_, nullptr,
-          (const unsigned char **)&threeParamsTwoLocal, &binary_status, &prog)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+                context_, 1, &device_, nullptr,
+                (const unsigned char **)&threeParamsTwoLocal, 0, nullptr,
+                &binary_status, &prog)),
+            PI_SUCCESS);
   ASSERT_EQ(binary_status, PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
             PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelCreate>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelCreate>(
                 prog, "twoParamKernelLocal", &kern)),
             PI_SUCCESS);
 
   int number = 10;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelSetArg>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
                 kern, 0, sizeof(int), &number)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
@@ -380,7 +447,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
   int storedValue = *(static_cast<const int *>(kernArgs[0]));
   ASSERT_EQ(storedValue, number);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelSetArg>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
                 kern, 1, sizeof(int), nullptr)),
             PI_SUCCESS);
   const auto &kernArgs2 = kern->get_arg_indices();
@@ -388,7 +455,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
   storedValue = *(static_cast<const int *>(kernArgs2[1]));
   ASSERT_EQ(storedValue, 0);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelSetArg>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
                 kern, 2, sizeof(int), nullptr)),
             PI_SUCCESS);
   const auto &kernArgs3 = kern->get_arg_indices();

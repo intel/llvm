@@ -95,7 +95,7 @@ file formats.
 
  Display the relocation entries in the file.
 
-.. option:: --sections, --section-headers, -s, -S
+.. option:: --sections, --section-headers, -S
 
  Display all sections.
 
@@ -123,7 +123,11 @@ file formats.
  Display the specified section(s) as a list of strings. ``section`` may be a
  section index or section name.
 
-.. option:: --symbols, --syms, -t
+.. option:: --string-table
+ 
+ Display contents of the string table.
+
+.. option:: --symbols, --syms, -s
 
  Display the symbol table.
 

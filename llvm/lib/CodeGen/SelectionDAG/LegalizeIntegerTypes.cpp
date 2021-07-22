@@ -97,6 +97,8 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
 
   case ISD::EXTRACT_SUBVECTOR:
                          Res = PromoteIntRes_EXTRACT_SUBVECTOR(N); break;
+  case ISD::INSERT_SUBVECTOR:
+                         Res = PromoteIntRes_INSERT_SUBVECTOR(N); break;
   case ISD::VECTOR_REVERSE:
                          Res = PromoteIntRes_VECTOR_REVERSE(N); break;
   case ISD::VECTOR_SHUFFLE:
@@ -465,7 +467,8 @@ SDValue DAGTypeLegalizer::PromoteIntRes_BSWAP(SDNode *N) {
   // If we expand later we'll end up with more operations since we lost the
   // original type. We only do this for scalars since we have a shuffle
   // based lowering for vectors in LegalizeVectorOps.
-  if (!OVT.isVector() && !TLI.isOperationLegalOrCustom(ISD::BSWAP, NVT)) {
+  if (!OVT.isVector() &&
+      !TLI.isOperationLegalOrCustomOrPromote(ISD::BSWAP, NVT)) {
     if (SDValue Res = TLI.expandBSWAP(N, DAG))
       return DAG.getNode(ISD::ANY_EXTEND, dl, NVT, Res);
   }
@@ -487,7 +490,7 @@ SDValue DAGTypeLegalizer::PromoteIntRes_BITREVERSE(SDNode *N) {
   // original type. We only do this for scalars since we have a shuffle
   // based lowering for vectors in LegalizeVectorOps.
   if (!OVT.isVector() && OVT.isSimple() &&
-      !TLI.isOperationLegalOrCustom(ISD::BITREVERSE, NVT)) {
+      !TLI.isOperationLegalOrCustomOrPromote(ISD::BITREVERSE, NVT)) {
     if (SDValue Res = TLI.expandBITREVERSE(N, DAG))
       return DAG.getNode(ISD::ANY_EXTEND, dl, NVT, Res);
   }
@@ -4726,6 +4729,50 @@ SDValue DAGTypeLegalizer::PromoteIntRes_EXTRACT_SUBVECTOR(SDNode *N) {
   }
 
   return DAG.getBuildVector(NOutVT, dl, Ops);
+}
+
+SDValue DAGTypeLegalizer::PromoteIntRes_INSERT_SUBVECTOR(SDNode *N) {
+  EVT OutVT = N->getValueType(0);
+  EVT NOutVT = TLI.getTypeToTransformTo(*DAG.getContext(), OutVT);
+  assert(NOutVT.isVector() && "This type must be promoted to a vector type");
+
+  SDLoc dl(N);
+  SDValue Vec = N->getOperand(0);
+  SDValue SubVec = N->getOperand(1);
+  SDValue Idx = N->getOperand(2);
+
+  auto *ConstantIdx = cast<ConstantSDNode>(Idx);
+  unsigned IdxN = ConstantIdx->getZExtValue();
+
+  EVT VecVT = Vec.getValueType();
+  EVT SubVecVT = SubVec.getValueType();
+
+  // To insert SubVec into Vec, store the wider vector to memory, overwrite the
+  // appropriate bits with the narrower vector, and reload.
+  Align SmallestAlign = DAG.getReducedAlign(SubVecVT, /*UseABI=*/false);
+
+  SDValue StackPtr =
+      DAG.CreateStackTemporary(VecVT.getStoreSize(), SmallestAlign);
+  auto StackPtrVT = StackPtr->getValueType(0);
+  auto &MF = DAG.getMachineFunction();
+  auto FrameIndex = cast<FrameIndexSDNode>(StackPtr.getNode())->getIndex();
+  auto PtrInfo = MachinePointerInfo::getFixedStack(MF, FrameIndex);
+
+  SDValue Store = DAG.getStore(DAG.getEntryNode(), dl, Vec, StackPtr, PtrInfo,
+                               SmallestAlign);
+
+  SDValue ScaledIdx = Idx;
+  if (SubVecVT.isScalableVector() && IdxN != 0) {
+    APInt IdxAPInt = cast<ConstantSDNode>(Idx)->getAPIntValue();
+    ScaledIdx = DAG.getVScale(dl, StackPtrVT,
+                              IdxAPInt.sextOrSelf(StackPtrVT.getSizeInBits()));
+  }
+
+  SDValue SubVecPtr =
+      TLI.getVectorSubVecPointer(DAG, StackPtr, VecVT, SubVecVT, ScaledIdx);
+  Store = DAG.getStore(Store, dl, SubVec, SubVecPtr, PtrInfo, SmallestAlign);
+  return DAG.getExtLoad(ISD::LoadExtType::EXTLOAD, dl, NOutVT, Store, StackPtr,
+                        PtrInfo, OutVT, SmallestAlign);
 }
 
 SDValue DAGTypeLegalizer::PromoteIntRes_VECTOR_REVERSE(SDNode *N) {

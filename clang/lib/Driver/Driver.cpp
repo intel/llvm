@@ -4151,8 +4151,10 @@ class OffloadingActionBuilder final {
         }
         for (unsigned I = 0; I < ToolChains.size(); ++I) {
           SYCLDeviceActions.push_back(UA);
-          UA->registerDependentActionInfo(
-            ToolChains[I], /*BoundArch=*/StringRef(), Action::OFK_SYCL);
+          withBoundArchForToolChain(ToolChains[I], [&](const char *BoundArch) {
+            UA->registerDependentActionInfo(ToolChains[I], BoundArch,
+                                            Action::OFK_SYCL);
+          });
         }
         return ABRT_Success;
       }
@@ -4378,19 +4380,19 @@ class OffloadingActionBuilder final {
         //         .--------------------------------------.
         //         |               PostLink               |
         //         .--------------------------------------.
-        //         [.n]                [+*]           [+*]
+        //         [+n]                [+*]            [+]
         //           |                   |              |
-        //           |          .-----------------.     |
-        //           |          | FileTableTform  |     |
-        //           |          | (extract "Code")|     |
-        //           |          .-----------------.     |
-        //           |                  [-]             |
+        //   .----------------. .-----------------.     |
+        //   | FileTableTform | | FileTableTform  |     |
+        //   | (copy "Code")  | | (extract "Code")|     |
+        //   .----------------. .-----------------.     |
+        //          [.]                 [-]             |
         //           |                   |              |
-        //           |                 [-*]             |
-        //    .-------------.   .-------------------.   |
-        //    |finalizeNVPTX|   |  SPIRVTranslator  |   |
-        //    .-------------.   .-------------------.   |
-        //           |              [-as]      [-!a]    |
+        //          [.]                [-*]             |
+        //   .---------------.  .-------------------.   |
+        //   | finalizeNVPTX |  |  SPIRVTranslator  |   |
+        //   .---------------.  .-------------------.   |
+        //          [.]             [-as]      [-!a]    |
         //           |                |          |      |
         //           |              [-s]         |      |
         //           |       .----------------.  |      |
@@ -4398,13 +4400,13 @@ class OffloadingActionBuilder final {
         //           |       .----------------.  |      |
         //           |              [-s]         |      |
         //           |                |          |      |
-        //           |              [-a]      [-!a]    [+]
-        //           |              .--------------------.
-        //           |              |   FileTableTform   |
-        //           |              |  (replace "Code")  |
-        //           |              .--------------------.
-        //           |                          |
-        //         [.n]                       [+*]
+        //          [.]             [-a]      [-!a]    [+]
+        //          .------------------------------------.
+        //          |           FileTableTform           |
+        //          |          (replace "Code")          |
+        //          .------------------------------------.
+        //                            |
+        //                           [+]
         //         .--------------------------------------.
         //         |            OffloadWrapper            |
         //         .--------------------------------------.
@@ -4451,24 +4453,40 @@ class OffloadingActionBuilder final {
         ActionList WrapperInputs;
         // post link is not optional - even if not splitting, always need to
         // process specialization constants
-        types::ID PostLinkOutType =
-            isNVPTX || isAMDGCN ? types::TY_LLVM_BC : types::TY_Tempfiletable;
         auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-            FullDeviceLinkAction, PostLinkOutType);
+            FullDeviceLinkAction, types::TY_Tempfiletable);
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
 
-        if (isNVPTX) {
-          Action *FinAction =
-              finalizeNVPTXDependences(PostLinkAction, (*TC)->getTriple());
-          WrapperInputs.push_back(FinAction);
-        } else if (isAMDGCN) {
-          Action *FinAction =
-              finalizeAMDGCNDependences(PostLinkAction, (*TC)->getTriple());
-          WrapperInputs.push_back(FinAction);
+        constexpr char COL_CODE[] = "Code";
+
+        if (isNVPTX || isAMDGCN) {
+          // Make extraction copy the only remaining code file instead of
+          // creating a new table with a single entry.
+          // TODO: Process all PTX code files in file table to enable code
+          //       splitting for PTX target.
+          auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
+              PostLinkAction, types::TY_LLVM_BC);
+          ExtractIRFilesAction->addCopySingleFileTform(COL_CODE, 0);
+
+          Action *FinAction;
+          if (isNVPTX) {
+            FinAction = finalizeNVPTXDependences(ExtractIRFilesAction,
+                                                 (*TC)->getTriple());
+          } else /* isAMDGCN */ {
+            FinAction = finalizeAMDGCNDependences(ExtractIRFilesAction,
+                                                  (*TC)->getTriple());
+          }
+          ActionList TformInputs{PostLinkAction, FinAction};
+
+          // Replace the only code entry in the table, as confirmed by the
+          // previous transformation.
+          auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
+              TformInputs, types::TY_Tempfiletable);
+          ReplaceFilesAction->addReplaceCellTform(COL_CODE, 0);
+          WrapperInputs.push_back(ReplaceFilesAction);
         } else {
           // For SPIRV-based targets - translate to SPIRV then optionally
           // compile ahead-of-time to native architecture
-          constexpr char COL_CODE[] = "Code";
           auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
               PostLinkAction, types::TY_Tempfilelist);
           // single column w/o title fits TY_Tempfilelist format
@@ -4513,6 +4531,7 @@ class OffloadingActionBuilder final {
           ReplaceFilesAction->addReplaceColumnTform(COL_CODE, COL_CODE);
           WrapperInputs.push_back(ReplaceFilesAction);
         }
+
         // After the Link, wrap the files before the final host link
         auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
             WrapperInputs, types::TY_Object);
@@ -4847,7 +4866,7 @@ public:
         D.Diag(clang::diag::warn_drv_mismatch_fpga_archive) << InputName;
     };
     // Type FPGA aoco is a special case for static archives
-    if (A->getType() == types::TY_FPGA_AOCO) {
+    if (A->getType() == types::TY_FPGA_AOCO && !IsFPGAEmulation) {
       if (!hasFPGABinary(C, InputName, types::TY_FPGA_AOCO))
         return false;
       A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCO);
@@ -5429,8 +5448,10 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       unbundleStaticLib(types::TY_Archive, LA);
       // Pass along the static libraries to check if we need to add them for
       // unbundling for FPGA AOT static lib usage.  Uses FPGA aoco type to
-      // differentiate if aoco unbundling is needed.
-      unbundleStaticLib(types::TY_FPGA_AOCO, LA);
+      // differentiate if aoco unbundling is needed.  Unbundling of aoco is not
+      // needed for emulation, as these are treated as regular archives.
+      if (!C.getDriver().isFPGAEmulationMode())
+        unbundleStaticLib(types::TY_FPGA_AOCO, LA);
     }
   }
 
@@ -5617,11 +5638,9 @@ Action *Driver::ConstructPhaseAction(
         !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
         TargetDeviceOffloadKind == Action::OFK_None) {
       // Performing a host compilation with -fsycl.  Append the integration
-      // footer to the preprocessed source file.  We then add another
-      // preprocessed step to complete the action chain.
-      auto *Preprocess = C.MakeAction<PreprocessJobAction>(Input, HostPPType);
+      // footer to the source file.
       auto *AppendFooter =
-          C.MakeAction<AppendFooterJobAction>(Preprocess, types::TY_CXX);
+          C.MakeAction<AppendFooterJobAction>(Input, types::TY_CXX);
       // FIXME: There are 2 issues with dependency generation in regards to
       // the integration footer that need to be addressed.
       // 1) Input file referenced on the RHS of a dependency is based on the
