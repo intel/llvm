@@ -4316,16 +4316,17 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
                                       std::to_string(Kind));
       F->addAttribute(ArgNo + 1, Attr);
     }
-    if (BA->hasDecorate(DecorationFuncParamKindINTEL, 0, &Kind)) {
+    if (BA->hasDecorate(internal::DecorationFuncParamKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentKind,
                                       std::to_string(Kind));
       F->addAttribute(ArgNo + 1, Attr);
     }
     if (BA->hasDecorate(DecorationSingleElementVectorINTEL))
       F->addAttribute(ArgNo + 1, SEVAttr);
-    if (BA->hasDecorate(DecorationFuncParamDescINTEL)) {
+    if (BA->hasDecorate(internal::DecorationFuncParamDescINTEL)) {
       auto Desc =
-          BA->getDecorationStringLiteral(DecorationFuncParamDescINTEL).front();
+          BA->getDecorationStringLiteral(internal::DecorationFuncParamDescINTEL)
+              .front();
       Attribute Attr =
           Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
       F->addAttribute(ArgNo + 1, Attr);

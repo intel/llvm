@@ -500,7 +500,7 @@ public:
 };
 
 class SPIRVDecorateFuncParamDescAttr
-    : public SPIRVDecorateStrAttrBase<DecorationFuncParamDescINTEL> {
+    : public SPIRVDecorateStrAttrBase<internal::DecorationFuncParamDescINTEL> {
 public:
   //  Complete constructor for UserSemantic decoration
   SPIRVDecorateFuncParamDescAttr(SPIRVEntry *TheTarget,
