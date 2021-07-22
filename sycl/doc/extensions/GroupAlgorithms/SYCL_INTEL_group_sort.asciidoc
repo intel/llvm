@@ -52,7 +52,7 @@ Table 1. Values of the `SYCL_EXT_ONEAPI_GROUP_SORT` macro.
 [%header,cols="1,5"]
 |===
 |Value |Description
-|1     |Initial extension version.  Base features are supported.
+|1     |Initial extension version. Base features are supported.
 |===
 
 == Sorter
@@ -237,7 +237,8 @@ _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 T operator()(Group g, T val)`
 |Implements a default sorting algorithm to be called by the `sort_over_group` algorithm.
 
-_Complexity_: Let `N` be the work group size. `O(N*log(N)*log(N))` comparisons.
+_Complexity_: Let `N` be the `Group` size. `O(N*log(N)*log(N))` comparisons.
+
 |`template<int dimensions = 1>
 static std::size_t memory_required(sycl::memory_scope scope, std::size_t range_size)`
 |Returns size of temporary memory (in bytes) that is required by
@@ -245,14 +246,16 @@ the default sorting algorithm defined by the sorter calling by `joint_sort`.
 `range_size` represents a range size for sorting,
 e.g. `last-first` from `operator()` arguments.
 Result depends on the `scope` parameter:
-use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::group`;
-use `sycl::memory_scope::sub_group` if you want to run algorithms using `sycl::sub_group`.
+use `sycl::memory_scope::work_group` to get memory size required for each work_group;
+use `sycl::memory_scope::sub_group` to get memory size required for each sub_group`.
+If other `scope` values are passed, behavior is unspecified.
+
 |`static std::size_t memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range)`
 |Returns size of temporary memory (in bytes) that is required by the default
 sorting algorithm defined by the sorter calling by `sort_over_group`.
-`local_range` is a local range of `sycl::nd_range` that was used to run the kernel if
-`scope = sycl::memory_scope::work_group` or sub-group size if
-`scope = sycl::memory_scope::sub_group`.
+If `scope = sycl::memory_scope::work_group`,
+`local_range` is a local range of `sycl::nd_range` that was used to run the kernel;
+if `scope = sycl::memory_scope::sub_group`, `local_range` is a sub-group size.
 If other `scope` values are passed, behavior is unspecified.
 |===
 
@@ -289,17 +292,18 @@ memory_required(sycl::memory_scope scope, std::size_t range_size)`
 calling by `joint_sort`. `range_size` represents a range size for sorting,
 e.g. `last-first` from `operator()` arguments.
 Result depends on the `scope` parameter:
-use `sycl::memory_scope::work_group` if you want to run algorithms using `sycl::group`;
-use `sycl::memory_scope::sub_group` if you want to run algorithms using `sycl::sub_group`.
+use `sycl::memory_scope::work_group` to get memory size required for each work_group;
+use `sycl::memory_scope::sub_group` to get memory size required for each sub_group`.
+If other `scope` values are passed, behavior is unspecified.
 
 |`template<int dimensions = 1>
 static std::size_t
 memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range)`
 |Returns size of temporary memory (in bytes) that is required by the radix sort algorithm
 calling by `sort_over_group`.
-`local_range` is a local range of `sycl::nd_range` that was used to run the kernel if
-`scope = sycl::memory_scope::work_group` or sub-group size if
-`scope = sycl::memory_scope::sub_group`.
+If `scope = sycl::memory_scope::work_group`, `local_range` is a local range of
+`sycl::nd_range` that was used to run the kernel;
+if `scope = sycl::memory_scope::sub_group`, `local_range` is a sub-group size.
 If other `scope` values are passed, behavior is unspecified.
 |===
 
@@ -307,7 +311,8 @@ NOTE: Predefined sorters are in the `experimental` namespace: interfaces might b
 
 === Group Executors
 
-To pass temporary local memory to an algorithm SYCL introduces special class `group_executor`:
+To pass additional memory to algorithms that don't have the Sorter
+parameter SYCL introduces special class `group_executor`:
 
 [source,c++]
 ----
@@ -345,7 +350,7 @@ Table 8. Constructors of the `group_executor` class.
 `scratch.size()` must not be less than value returned by the `memory_required` method
 of `default_sorter`. Otherwise,
 behavior of sorting algorithm, which is called with the constructed object, is undefined.
-
+The `scratch` value must be the same for all work-items in `group`.
 |===
 
 Table 9. Member functions of the `group_executor` class.
@@ -357,7 +362,7 @@ Table 9. Member functions of the `group_executor` class.
 
 |`sycl::span<uint8_t, Extent>
 get_memory() const`
-|Returns `sycl::span` that represents an additional local memory
+|Returns `sycl::span` that represents an additional memory
 that is handled by the `group_executor` object.
 
 |===
@@ -378,8 +383,6 @@ position `i` in the ordered range.
 [source,c++]
 ----
 namespace sycl::ext::oneapi {
-
-  // Only available if GroupExecutor was created with a work-group and some associated scratch space
 
   template <typename GroupExecutor, typename Ptr>
   void joint_sort(GroupExecutor exec, Ptr first, Ptr last); // (1)
@@ -408,6 +411,9 @@ using the `exec` group executor object. Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
+_Constraints_: Only available if `GroupExecutor` was created with a work group or sub_group and
+some associated scratch space.
+
 2._Preconditions_: `first`, `last` must be the same for all work-items in the group.
 
 _Mandates_: `comp` must satisfy the requirements of `Compare` from
@@ -418,11 +424,15 @@ binary comparison function object `comp` using the `exec` group executor object.
 
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
+_Constraints_: Only available if `GroupExecutor` was created with a work group or sub_group and
+some associated scratch space.
+
 3._Preconditions_: `first`, `last` must be the same for all work-items in the group.
 
 _Effects_: Equivalent to: `sorter(g, first, last)`.
 
-_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter.
+_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
+it provides `operator()(Group, Ptr, Ptr)` overload.
 
 4._Returns_: The value returned on work-item `i` is the value in position `i`
 of the ordered range resulting from sorting `val` from all work-items in the group.
@@ -433,6 +443,9 @@ determined by their linear id.
 
 _Complexity_: Let `N` be the work group size. `O(N*log(N)*log(N))` comparisons.
 
+_Constraints_: Only available if `GroupExecutor` was created with a work group or sub_group and
+some associated scratch space.
+
 5._Mandates_: `comp` must satisfy the requirements of `Compare` from the {cpp} standard.
 
 _Returns_: The value returned on work-item `i` is the value in position `i`
@@ -442,11 +455,15 @@ using the `exec` group executor object.
 For multi-dimensional groups, the order of work-items in the group is
 determined by their linear id.
 
-_Complexity_: Let `N` be the work group size. `O(N*log(N)*log(N))` comparisons.
+_Complexity_: Let `N` be the work group or sub-group size. `O(N*log(N)*log(N))` comparisons.
+
+_Constraints_: Only available if `GroupExecutor` was created with a work group or sub_group and
+some associated scratch space.
 
 6._Effects_: Equivalent to: `return sorter(g, val)`.
 
-_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter.
+_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
+it provides `operator()(Group, Ptr, Ptr)` overload.
 
 == Examples
 
@@ -458,12 +475,12 @@ _Constraints_: All functions are available only if `Sorter` is a SYCL Sorter.
 namespace my_sycl = sycl::ext::oneapi;
 namespace my_sycl_exp = sycl::ext::oneapi::experimental;
 // calculate required local memory size
-size_t local_memory_size =
+size_t temp_memory_size =
     my_sycl_exp::default_sorter<>::memory_required<T>(sycl::memory_scope::work_group, n);
 
 q.submit([&](sycl::handler& h) {
   auto acc = sycl::accessor(buf, h);
-  auto scratch = sycl::local_accessor<uint8_t, 1>( {local_memory_size}, h );
+  auto scratch = sycl::local_accessor<uint8_t, 1>( {temp_memory_size}, h );
 
   h.parallel_for(
     sycl::nd_range<1>{ /*global_size = */ {256}, /*local_size = */ {256} },
@@ -474,7 +491,7 @@ q.submit([&](sycl::handler& h) {
         // create group executor using deduction guides
         my_sycl_exp::group_executor(
           id.get_group(),
-          sycl::span{scratch.get_pointer(), local_memory_size}
+          sycl::span{scratch.get_pointer(), temp_memory_size}
         ),
         ptr,
         ptr + n
@@ -496,12 +513,12 @@ sycl::range<1> local_range{256};
 // predefine radix_sorter to calculate local memory size
 using RSorter = my_sycl_exp::radix_sorter<T, my_sycl_exp::sorting_order::descending>;
 // calculate required local memory size
-size_t local_memory_size =
+size_t temp_memory_size =
     RSorter::memory_required(sycl::memory_scope::work_group, local_range);
 
 q.submit([&](sycl::handler& h) {
   auto acc = sycl::accessor(buf, h);
-  auto scratch = sycl::local_accessor<uint8_t, 1>( {local_memory_size}, h);
+  auto scratch = sycl::local_accessor<uint8_t, 1>( {temp_memory_size}, h);
 
   h.parallel_for(
     sycl::nd_range<1>{ local_range, local_range },
@@ -511,7 +528,7 @@ q.submit([&](sycl::handler& h) {
         my_sycl::sort_over_group(
           id.get_group(),
           acc[id.get_local_id()],
-          RSorter(sycl::span{scratch.get_pointer(), local_memory_size})
+          RSorter(sycl::span{scratch.get_pointer(), temp_memory_size})
       );
     });
   });
@@ -532,13 +549,13 @@ namespace my_sycl = sycl::ext::oneapi;
 namespace my_sycl_exp = sycl::ext::oneapi::experimental;
 using TupleType = typename std::iterator_traits<oneapi::dpl::zip_iterator<T*, U*>>::value_type;
 // calculate required local memory size
-size_t local_memory_size =
+size_t temp_memory_size =
     my_sycl_exp::default_sorter<>::memory_required<TupleType>(sycl::memory_scope::work_group, n);
 
 q.submit([&](sycl::handler& h) {
   auto keys_acc = sycl::accessor(keys_buf, h);
   auto vals_acc = sycl::accessor(vals_buf, h);
-  auto scratch = sycl::local_accessor<uint8_t, 1>( {local_memory_size}, h);
+  auto scratch = sycl::local_accessor<uint8_t, 1>( {temp_memory_size}, h);
 
   h.parallel_for(
     sycl::nd_range<1>{ /*global_size = */ {1024}, /*local_size = */ {256} },
@@ -552,7 +569,7 @@ q.submit([&](sycl::handler& h) {
         // create group excutor using deduction guides
         my_sycl_exp::group_executor(
           id.get_group(),
-          sycl::span{scratch.get_pointer(), local_memory_size}
+          sycl::span{scratch.get_pointer(), temp_memory_size}
         ),
         first,
         first + n,
@@ -575,6 +592,7 @@ It needs to be investigated what is the response for that.
 . Sorter traits can be useful if there are Finder, Reducer or other objects
 will be added to the Spec to be used with other Group algorithms, e.g. find, reduce.
 . Predefined sorters can be revisited to find a better interfaces for `memory_required` overloads.
+. `group_executor` can be replaced with concepts that requires 2 methods.
 
 == Revision History
 
