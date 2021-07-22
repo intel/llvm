@@ -176,4 +176,4 @@ co-existence with dynamic linking feature.
 ### Test with several applications
 
 Same as [Basic test with shared library](#Basic-test-with-shared-library) but
-two or more applications using one shared library are ran at the same time.
+two or more applications using same shared library are ran at the same time.
