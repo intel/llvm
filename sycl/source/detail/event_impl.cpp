@@ -295,7 +295,9 @@ event_impl::get_info<info::event::command_execution_status>() const {
     return get_event_info<info::event::command_execution_status>::get(
         this->getHandleRef(), this->getPlugin());
   }
-  return info::event_command_status::complete;
+  return MState.load() == HES_Complete
+             ? info::event_command_status::complete
+             : sycl::info::event_command_status::submitted;
 }
 
 static uint64_t getTimestamp() {
