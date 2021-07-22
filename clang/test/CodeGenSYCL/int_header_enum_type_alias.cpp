@@ -9,14 +9,14 @@
 // print the actual name, not the alias name.
 
 // CHECK: Forward declarations of templated kernel function types:
-// CHECK: inline namespace cl { namespace sycl { namespace access {
-// CHECK: enum class mode : int;
-// CHECK: }}}
-// CHECK: inline namespace cl { namespace sycl { namespace access {
-// CHECK: enum class target : int;
-// CHECK: }}}
+// CHECK-NEXT: inline namespace cl { namespace sycl { namespace access {
+// CHECK-NEXT: enum class mode : int;
+// CHECK-NEXT: }}}
+// CHECK-NEXT: inline namespace cl { namespace sycl { namespace access {
+// CHECK-NEXT: enum class target : int;
+// CHECK-NEXT: }}}
 // This is the important line, we make sure we look through the type alias.
-// CHECK: template <sycl::access::mode mode, sycl::access::target target> struct get_kernel;
+// CHECK-NEXT: template <sycl::access::mode mode, sycl::access::target target> struct get_kernel;
 
 // The key here is that we are accessing these types via the type alias.
 template<sycl::access_mode mode, sycl::target target>
