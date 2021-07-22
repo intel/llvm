@@ -18,7 +18,7 @@
 
 #if (SYCL_EXT_ONEAPI_MATRIX == 1)
 #if defined(__AMXTILE__) && defined(__AMXINT8__) && defined(__AMXBF16__)
-#include <sycl/ext/oneapi/matrix/matrix-amx.hpp>
+#include <sycl/ext/intel/matrix/matrix-aot-amx.hpp>
 #endif
 #endif
 #if (SYCL_EXT_ONEAPI_MATRIX == 2)
