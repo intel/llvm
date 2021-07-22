@@ -48,7 +48,8 @@ and etc. Total 16 combinations.
 
 ## Tests
 
-All the tests consist of the main application and at least one shared library.
+All the tests consist of at least one main application and at least one shared
+library.
 For all the tests simple calculation is performed by the application's kernel(s)
 that used `SYCL_EXTERNAL` from the shared library. Example : addition of
 vectors.
@@ -59,7 +60,7 @@ The result of the calculation must be checked on host.
 - Several kernels and `SYCL_EXTERNAL` functions are defined in both library and
   application.
 - At least one `SYCL_EXTERNAL` function defined in shared library is used from
-  the application.
+  the application's kernel.
 - At least one `SYCL_EXTERNAL` function defined in shared library is used in
   kernel inside the library.
 - Defined kernels are submitted and ran.
@@ -171,3 +172,8 @@ co-existence with dynamic linking feature.
   kernels from shared library
 - Resulting `kernel_bundle` object is used to run the kernel with dependency
   on shared library
+
+### Test with several applications
+
+Same as [Basic test with shared library](#Basic-test-with-shared-library) but
+two or more applications using one shared library are ran at the same time.
