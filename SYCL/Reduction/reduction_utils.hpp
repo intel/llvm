@@ -2,12 +2,13 @@
 
 using namespace cl::sycl;
 
-// Initializes 'InBuf' buffer with pseudo-random values, computes the reduction
-// value for the buffer and writes it to 'ExpectedOut'.
+/// Initializes the buffer<1> \p 'InBuf' buffer with pseudo-random values,
+/// computes the write the reduction value \p 'ExpectedOut'.
 template <typename T, class BinaryOperation>
 void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, T Identity,
-                   BinaryOperation BOp, size_t N) {
+                   BinaryOperation BOp, range<1> Range) {
   ExpectedOut = Identity;
+  size_t N = Range.size();
   auto In = InBuf.template get_access<access::mode::write>();
   for (int I = 0; I < N; ++I) {
     if (std::is_same<BinaryOperation, std::multiplies<T>>::value)
@@ -15,6 +16,44 @@ void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, T Identity,
     else
       In[I] = ((I + 1) % 5) + 1.1;
     ExpectedOut = BOp(ExpectedOut, In[I]);
+  }
+};
+
+/// Initializes the buffer<2> \p 'InBuf' buffer with pseudo-random values,
+/// computes the write the reduction value \p 'ExpectedOut'.
+template <typename T, class BinaryOperation>
+void initInputData(buffer<T, 2> &InBuf, T &ExpectedOut, T Identity,
+                   BinaryOperation BOp, range<2> Range) {
+  ExpectedOut = Identity;
+  auto In = InBuf.template get_access<access::mode::write>();
+  for (int J = 0; J < Range[0]; ++J) {
+    for (int I = 0; I < Range[1]; ++I) {
+      if (std::is_same<BinaryOperation, std::multiplies<T>>::value)
+        In[J][I] = 1 + ((((I * 2 + J * 3) % 37) == 0) ? 1 : 0);
+      else
+        In[J][I] = ((I + 1 + J) % 5) + 1.1;
+      ExpectedOut = BOp(ExpectedOut, In[J][I]);
+    }
+  }
+};
+
+/// Initializes the buffer<3> \p 'InBuf' buffer with pseudo-random values,
+/// computes the write the reduction value \p 'ExpectedOut'.
+template <typename T, class BinaryOperation>
+void initInputData(buffer<T, 3> &InBuf, T &ExpectedOut, T Identity,
+                   BinaryOperation BOp, range<3> Range) {
+  ExpectedOut = Identity;
+  auto In = InBuf.template get_access<access::mode::write>();
+  for (int K = 0; K < Range[0]; ++K) {
+    for (int J = 0; J < Range[1]; ++J) {
+      for (int I = 0; I < Range[2]; ++I) {
+        if (std::is_same<BinaryOperation, std::multiplies<T>>::value)
+          In[K][J][I] = 1 + ((((I * 2 + J * 3 + K) % 37) == 0) ? 1 : 0);
+        else
+          In[K][J][I] = ((I + 1 + J + K * 3) % 5) + 1.1;
+        ExpectedOut = BOp(ExpectedOut, In[K][J][I]);
+      }
+    }
   }
 };
 
@@ -63,4 +102,17 @@ template <access::mode Mode> property_list getPropertyList() {
   if constexpr (Mode == access::mode::read_write)
     return property_list();
   return property_list(property::reduction::initialize_to_identity{});
+}
+
+void printDeviceInfo(queue &Q, bool ToCERR = false) {
+  device D = Q.get_device();
+  auto Name = D.get_info<sycl::info::device::name>();
+  size_t MaxWGSize = D.get_info<info::device::max_work_group_size>();
+  size_t LocalMemSize = D.get_info<info::device::local_mem_size>();
+  if (ToCERR)
+    std::cout << "Device: " << Name << ", MaxWGSize: " << MaxWGSize
+              << ", LocalMemSize: " << LocalMemSize << std::endl;
+  else
+    std::cerr << "Device: " << Name << ", MaxWGSize: " << MaxWGSize
+              << ", LocalMemSize: " << LocalMemSize << std::endl;
 }
