@@ -2637,7 +2637,7 @@ def fno_sycl_use_footer : Flag<["-"], "fno-sycl-use-footer">, Flags<[CoreOption]
    "compilations.">;
 def fsycl_footer_path_EQ : Joined<["-"], "fsycl-footer-path=">,
   Flags<[CoreOption]>, HelpText<"Specify the location of the temporary "
-  "integration footer source file.">;
+  "source file with the included integration footer.">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option]>, Group<Action_Group>;
 def ftabstop_EQ : Joined<["-"], "ftabstop=">, Group<f_Group>;
