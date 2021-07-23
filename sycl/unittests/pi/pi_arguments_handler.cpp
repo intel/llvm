@@ -34,7 +34,7 @@ TEST(PiArgumentsHandlerTest, CanUnpackArguments) {
   *reinterpret_cast<pi_platform **>(Data.data() + sizeof(pi_uint32)) =
       Platforms;
 
-  sycl::detail::XPTIPluginInfo Plugin;
+  sycl::detail::XPTIPluginInfo Plugin{};
   uint32_t ID = static_cast<uint32_t>(sycl::detail::PiApiKind::piPlatformsGet);
   Handler.handle(ID, Plugin, std::nullopt, Data.data());
 
