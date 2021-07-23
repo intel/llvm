@@ -2200,8 +2200,7 @@ public:
   BuildSYCLIntelFPGASpeculatedIterationsAttr(const AttributeCommonInfo &CI,
                                              Expr *E);
   SYCLIntelFPGALoopCoalesceAttr *
-  BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI,
-                                     Expr *E = nullptr);
+  BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
 
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 
