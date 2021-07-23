@@ -6770,8 +6770,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
         Suffixed += '.';
         Suffixed += Suffix;
         llvm::sys::path::append(OutName, Suffixed.c_str());
-      }
-      else {
+      } else {
         TmpName = GetTemporaryPath(llvm::sys::path::stem(BaseName),
                                    types::getTypeTempSuffix(JA.getType()));
         llvm::sys::path::append(OutName, llvm::sys::path::filename(TmpName));
