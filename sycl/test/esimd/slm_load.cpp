@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
-// expected-no-diagnostics
 
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/experimental/esimd.hpp>
@@ -14,6 +13,10 @@ void kernel() __attribute__((sycl_device)) {
   simd<int, 32> v1(0, 1);
 
   auto v0 = slm_load<int, 32>(offsets);
+  auto v2 = slm_load<float, 32>(offsets);
+  // expected-error@+2 {{no matching function for call to 'slm_load'}}
+  // expected-note@sycl/ext/intel/experimental/esimd/memory.hpp:* {{candidate template ignored}}
+  auto v3 = slm_load<double, 32>(offsets);
 
   esimd_fence(3);
   esimd_barrier();
