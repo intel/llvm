@@ -17,6 +17,14 @@ attributes"][2] and [section 5.8.2 "Device function attributes"][3].
 [2]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:kernel.attributes>
 [3]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_device_function_attributes>
 
+**NOTE**: At the time this document was written, there is a
+[proposed change][4] to the SYCL 2020 specification that will rename
+`[[sycl::requires()]]` to `[[sycl::device_has()]]`.  Since that proposal has
+not yet been adopted, this design document continues to use the
+`[[sycl::requires()]]` name.
+
+[4]: <https://github.com/KhronosGroup/SYCL-Docs/pull/171>
+
 
 ## Definition of terms
 
@@ -49,9 +57,9 @@ extension specification that enables indirect function calls.
 ### An exported device function
 
 The term "exported device function" means a device function that is exported
-from a shared library as defined by [Device Code Dynamic Linking][4].
+from a shared library as defined by [Device Code Dynamic Linking][5].
 
-[4]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/SharedLibraries.md>
+[5]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/SharedLibraries.md>
 
 ### The FE compiler
 
@@ -207,7 +215,7 @@ To illustrate, the type `sycl::half` is an optional feature whose associated
 aspect is `aspect::fp16`.  We therefore decorate the declaration like this:
 
 ```
-using half [[__sycl_detail__::__uses_aspects__(has(aspect::fp16))]] =
+using half [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] =
   cl::sycl::detail::half_impl::half;
 ```
 
@@ -215,7 +223,7 @@ If an optional feature is expressed as a class type, it can be similarly
 decorated (here illustrating a hypothetical AMX type):
 
 ```
-class [[__sycl_detail__::__uses_aspects__(has(aspect::ext_intel_amx))]] amx_type {
+class [[__sycl_detail__::__uses_aspects__(aspect::ext_intel_amx)]] amx_type {
   /* ... */
 };
 ```
@@ -224,26 +232,30 @@ This attribute is also used to decorate function declarations that correspond
 to optional features.  Again, illustrating a hypothetical AMX extension:
 
 ```
-[[__sycl_detail__::__uses_aspects__(has(aspect::ext_intel_amx))]]
+[[__sycl_detail__::__uses_aspects__(aspect::ext_intel_amx)]]
 void amx_multiply();
 ```
 
 This attribute can also be used to decorate class templates where only certain
 instantiations correspond to optional features.  See ["Appendix: Adding an
-attribute to 8-byte `atomic_ref`"][5] for an illustration of how this attribute
+attribute to 8-byte `atomic_ref`"][6] for an illustration of how this attribute
 can be used in conjunction with partial specialization to mark only certain
 instantiations of `sycl::atomic_ref` as an optional feature.
 
-[5]: <#appendix-adding-an-attribute-to-8-byte-atomic_ref>
+[6]: <#appendix-adding-an-attribute-to-8-byte-atomic_ref>
 
-As you can see from the examples above, the syntax for the parameter to the
-`[[sycl_detail::uses_aspects()]]` attribute is identical to the syntax for the
-standard `[[sycl::requires()]]` attribute.
+Although the examples above show only a single aspect parameter to the
+`[[sycl_detail::uses_aspects()]]` attribute, this attribute should support a
+list of aspects, similar to the `[[sycl::requires()]]` attribute.  This will
+allow us to support future features that depend on a conjunction of aspects
+(e.g. a feature that does atomic operations on 64-bit floating point values
+might be decorated with
+`[[sycl_detail::uses_aspects(aspect::fp64, aspect::atomic64)]]`).
 
 Unfortunately, the fundamental type `double` is also an optional kernel
 feature.  Since there is no type alias for `double`, there is no convenient
 place to add an attribute.  Instead, the FE device compiler must behave as
-though there was an implicit `[[sycl_detail::uses_aspects(has(aspect::fp64))]]`
+though there was an implicit `[[sycl_detail::uses_aspects(aspect::fp64)]]`
 attribute for any device code that uses the `double` type.
 
 
@@ -618,9 +630,9 @@ fact, the DPC++ driver supports a command line option which allows the user
 to select an alternate configuration file.
 
 **TODO**: More information will be inserted here when we merge
-[this separate PR][6] into this design document.
+[this separate PR][7] into this design document.
 
-[6]: <https://github.com/gmlueck/llvm/pull/1>
+[7]: <https://github.com/gmlueck/llvm/pull/1>
 
 
 ### Changes to the DPC++ runtime
@@ -631,7 +643,7 @@ raise a synchronous `errc::kernel_not_supported` exception.
 
 When the application submits a kernel to a device, the runtime identifies all
 the other device images that export device functions which are needed by the
-kernel as described in [Device Code Dynamic Linking][4].  Before the runtime
+kernel as described in [Device Code Dynamic Linking][5].  Before the runtime
 actually links these images together, it compares each image's
 "SYCL/device-requirements" against the features provided by the target
 device.  If any of the following checks fail, the runtime throws
@@ -652,7 +664,7 @@ access the contents of the device image.
 
 ## Appendix: Adding an attribute to 8-byte `atomic_ref`
 
-As described above under ["Changes to DPC++ headers"][7], we need to decorate
+As described above under ["Changes to DPC++ headers"][8], we need to decorate
 any SYCL type representing an optional device feature with the
 `[[sycl_detail::uses_aspects()]]` attribute.  This is somewhat tricky for
 `atomic_ref`, though, because it is only an optional feature when specialized
@@ -660,7 +672,7 @@ for a 8-byte type.  However, we can accomplish this by using partial
 specialization techniques.  The following code snippet demonstrates (best read
 from bottom to top):
 
-[7]: <#changes-to-dpc-headers>
+[8]: <#changes-to-dpc-headers>
 
 ```
 namespace sycl {
@@ -688,7 +700,7 @@ class atomic_ref_impl : public atomic_ref_impl_base<T> {
 // Explicit specialization for 8-byte types.  Only this specialization has the
 // attribute.
 template<typename T>
-class [[__sycl_detail__::__uses_aspects__(has(aspect::atomic64))]]
+class [[__sycl_detail__::__uses_aspects__(aspect::atomic64)]]
     atomic_ref_impl<T, 8> : public atomic_ref_impl_base<T> {
  public:
   using atomic_ref_impl_base<T>::atomic_ref_impl_base;
