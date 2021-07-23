@@ -71,9 +71,9 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
                               QueueImplPtr Queue) {
   EventImplPtr NewEvent = nullptr;
-  const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
+  const bool IsKernel = CommandGroup->getType() == CG::Kernel;
   std::vector<Command *> AuxiliaryCmds;
-  const bool IsHostKernel = CommandGroup->getType() == CG::RUN_ON_HOST_INTEL;
+  const bool IsHostKernel = CommandGroup->getType() == CG::RunOnHostIntel;
   std::vector<StreamImplPtr> Streams;
 
   if (IsKernel) {
@@ -94,11 +94,11 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     Command *NewCmd = nullptr;
     switch (CommandGroup->getType()) {
-    case CG::UPDATE_HOST:
+    case CG::UpdateHost:
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
                                              DefaultHostQueue, AuxiliaryCmds);
       break;
-    case CG::CODEPLAY_HOST_TASK:
+    case CG::CodeplayHostTask:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), DefaultHostQueue,
                                    AuxiliaryCmds);
       break;
