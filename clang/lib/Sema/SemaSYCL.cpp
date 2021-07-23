@@ -4435,6 +4435,7 @@ public:
     Policy.adjustForCPlusPlusFwdDecl();
     Policy.SuppressTypedefs = true;
     Policy.SuppressUnwrittenScope = true;
+    Policy.PrintCanonicalTypes = true;
   }
 
   void Visit(QualType T) {

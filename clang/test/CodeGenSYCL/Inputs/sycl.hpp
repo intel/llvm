@@ -3,7 +3,7 @@
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 
 // Dummy runtime classes to model SYCL API.
-namespace cl {
+inline namespace cl {
 namespace sycl {
 struct sampler_impl {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -60,6 +60,8 @@ enum class address_space : int {
   local_space
 };
 } // namespace access
+using access::target;
+using access_mode = access::mode;
 
 namespace property {
 
