@@ -4342,8 +4342,7 @@ class OffloadingActionBuilder final {
               // Generate AOCX/AOCR
               FPGAAOTAction =
                   C.MakeAction<BackendCompileJobAction>(Input, FPGAOutType);
-            else if (Input->getType() == types::TY_FPGA_AOCX ||
-                     Input->getType() == types::TY_FPGA_AOCX_EMU)
+            else if (Input->getType() == types::TY_FPGA_AOCX)
               FPGAAOTAction = Input;
             else
               llvm_unreachable("Unexpected FPGA input type.");
@@ -4705,7 +4704,7 @@ class OffloadingActionBuilder final {
         if (C.getDriver().isFPGAEmulationMode())
           FPGAOutType = (A->getValue() == StringRef("early"))
                             ? types::TY_FPGA_AOCR_EMU
-                            : types::TY_FPGA_AOCX_EMU;
+                            : types::TY_FPGA_AOCX;
       }
 
       // Populate FPGA static archives that could contain dep files to be
@@ -4866,17 +4865,21 @@ public:
         D.Diag(clang::diag::warn_drv_mismatch_fpga_archive) << InputName;
     };
     // Type FPGA aoco is a special case for static archives
-    if (A->getType() == types::TY_FPGA_AOCO && !IsFPGAEmulation) {
+    if (A->getType() == types::TY_FPGA_AOCO) {
       if (!hasFPGABinary(C, InputName, types::TY_FPGA_AOCO))
         return false;
       A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCO);
       return true;
     }
 
+    // Type FPGA aocx is considered the same way for Hardware and Emulation.
+    if (hasFPGABinary(C, InputName, types::TY_FPGA_AOCX)) {
+      A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCX);
+      return true;
+    }
+
     SmallVector<std::pair<types::ID, bool>, 4> FPGAAOCTypes = {
-        {types::TY_FPGA_AOCX, false},
         {types::TY_FPGA_AOCR, false},
-        {types::TY_FPGA_AOCX_EMU, true},
         {types::TY_FPGA_AOCR_EMU, true}};
     for (const auto &ArchiveType : FPGAAOCTypes) {
       bool BinaryFound = hasFPGABinary(C, InputName, ArchiveType.first);
@@ -4900,8 +4903,7 @@ public:
       return true;
 
     // An FPGA AOCX input does not have a host dependence to the unbundler
-    if (HostAction->getType() == types::TY_FPGA_AOCX ||
-        HostAction->getType() == types::TY_FPGA_AOCX_EMU)
+    if (HostAction->getType() == types::TY_FPGA_AOCX)
       return false;
 
     // If we are supporting bundling/unbundling and the current action is an
@@ -4967,8 +4969,7 @@ public:
     if ((OffloadKind == Action::OFK_None && CanUseBundler) ||
         (HasFPGATarget && ((Args.hasArg(options::OPT_fsycl_link_EQ) &&
                             HostAction->getType() == types::TY_Object) ||
-                           HostAction->getType() == types::TY_FPGA_AOCX ||
-                           HostAction->getType() == types::TY_FPGA_AOCX_EMU)))
+                           HostAction->getType() == types::TY_FPGA_AOCX)))
       if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(HostAction))
         HostAction = UA->getInputs().back();
 
@@ -5436,7 +5437,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // that in a data structure for reference.
     if (hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCX) ||
         hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCR) ||
-        hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCX_EMU) ||
         hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCR_EMU))
       continue;
     // For offload-static-libs we add an unbundling action for each static
@@ -5473,8 +5473,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     if (auto *IA = dyn_cast<InputAction>(LI)) {
       if (IA->getType() == types::TY_FPGA_AOCR ||
           IA->getType() == types::TY_FPGA_AOCX ||
-          IA->getType() == types::TY_FPGA_AOCR_EMU ||
-          IA->getType() == types::TY_FPGA_AOCX_EMU) {
+          IA->getType() == types::TY_FPGA_AOCR_EMU) {
         // Add to unbundler.
         UnbundlerInput = LI;
       } else {
