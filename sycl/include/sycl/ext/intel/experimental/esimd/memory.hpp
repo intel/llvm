@@ -654,7 +654,7 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void slm_init(uint32_t size);
 /// Only allow simd-16 and simd-32.
 template <typename T, int n>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename sycl::detail::enable_if_t<(n == 16 || n == 32) && (sizeof(T) == 4),
+    typename sycl::detail::enable_if_t<(n == 16 || n == 32) && (sizeof(T) <= 4),
                                        simd<T, n>>
     slm_load(simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
   return __esimd_slm_read<T, n>(offsets.data(), pred.data());
@@ -663,7 +663,7 @@ ESIMD_INLINE ESIMD_NODEBUG
 /// SLM scatter.
 template <typename T, int n>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename sycl::detail::enable_if_t<(n == 16 || n == 32) && (sizeof(T) == 4),
+    typename sycl::detail::enable_if_t<(n == 16 || n == 32) && (sizeof(T) <= 4),
                                        void>
     slm_store(simd<T, n> vals, simd<uint32_t, n> offsets,
               simd<uint16_t, n> pred = 1) {
