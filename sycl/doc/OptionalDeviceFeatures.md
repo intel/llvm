@@ -517,12 +517,12 @@ that option, and then another split is performed to ensure that each device
 image contains only kernels or exported device functions that meet the criteria
 listed above.
 
-#### Create the "SYCL/image-requirements" property set
+#### Create the "SYCL/device-requirements" property set
 
 The DPC++ runtime needs some way to know about the *Used* aspects, required
 sub-group size, and required work-group size of an image.  Therefore, the
 post-link tool provides this information in a new property set named
-"SYCL/image-requirements".
+"SYCL/device-requirements".
 
 The following table lists the properties that this set may contain and their
 types:
@@ -583,7 +583,7 @@ configuration file that has one entry for each device that it supports.  Each
 entry contains the set of aspects that the device supports and the set of
 sub-group sizes that it supports.  DPC++ then consults this configuration
 file to decide whether to invoke a particular AOT compiler on each device IR
-module, using the information from the module's "SYCL/image-requirements"
+module, using the information from the module's "SYCL/device-requirements"
 property set.
 
 #### Device configuration file
@@ -633,7 +633,7 @@ When the application submits a kernel to a device, the runtime identifies all
 the other device images that export device functions which are needed by the
 kernel as described in [Device Code Dynamic Linking][4].  Before the runtime
 actually links these images together, it compares each image's
-"SYCL/image-requirements" against the features provided by the target
+"SYCL/device-requirements" against the features provided by the target
 device.  If any of the following checks fail, the runtime throws
 `errc::kernel_not_supported`:
 
