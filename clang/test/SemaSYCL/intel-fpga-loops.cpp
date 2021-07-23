@@ -571,7 +571,6 @@ void check_initiation_interval_expression() {
       a[i] = 0;
 }
 
-// Template instantiation test coverages for Intel FPGA loop attribute max_concurrency.
 void check_speculated_iterations_expression() {
   int a[10];
   // Test that checks expression is not a constant expression.
@@ -604,38 +603,19 @@ void check_loop_coalesce_expression() {
       a[i] = 0;
 }
 
-// Template instantiation test coverages for Intel FPGA loop attribute max_concurrency.
 void check_loop_count_expression() {
   int a[10];
 
   // Test that checks expression is not a constant expression.
-  int foo; // expected-note 3{{declared here}}
-  // expected-error@+2{{expression is not an integral constant expression}}
-  // expected-note@+1{{read of non-const variable 'foo' is not allowed in a constant expression}}
-  [[intel::loop_count_avg(foo + 1)]] for (int i = 0; i != 10; ++i)
-       a[i] = 0;
-
+  int foo; // expected-note {{declared here}}
   // expected-error@+2{{expression is not an integral constant expression}}
   // expected-note@+1{{read of non-const variable 'foo' is not allowed in a constant expression}}
   [[intel::loop_count_max(foo + 1)]] for (int i = 0; i != 10; ++i)
        a[i] = 0;
 
-  // expected-error@+2{{expression is not an integral constant expression}}
-  // expected-note@+1{{read of non-const variable 'foo' is not allowed in a constant expression}}
-  [[intel::loop_count_min(foo + 1)]] for (int i = 0; i != 10; ++i)
-       a[i] = 0;
-
   // Test that checks expression is a constant expression.
   constexpr int bar = 0;
-  [[intel::loop_count_avg(bar + 2)]] for (int i = 0; i != 10; ++i) // OK
-      a[i] = 0;
-
-  constexpr int bar1 = 0;
-  [[intel::loop_count_max(bar1 + 2)]] for (int i = 0; i != 10; ++i) // OK
-      a[i] = 0;
-
-  constexpr int bar2 = 0;
-  [[intel::loop_count_min(bar2 + 2)]] for (int i = 0; i != 10; ++i) // OK
+  [[intel::loop_count_max(bar + 2)]] for (int i = 0; i != 10; ++i) // OK
       a[i] = 0;
 }
 
