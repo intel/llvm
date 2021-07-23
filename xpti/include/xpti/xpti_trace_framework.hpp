@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <thread>
@@ -291,7 +292,6 @@ private:
 } // namespace utils
 
 namespace framework {
-static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
 constexpr uint16_t signal = (uint16_t)xpti::trace_point_type_t::signal;
 constexpr uint16_t graph_create =
     (uint16_t)xpti::trace_point_type_t::graph_create;
@@ -412,7 +412,7 @@ public:
     if (p) {
       // We expect the payload input has been populated with the information
       // available at that time
-      uint64_t uid = g_tls_uid;
+      uint64_t uid = xptiGetUniversalId();
       if (uid != xpti::invalid_uid) {
         // We already have a parent SW layer that has a tracepoint defined
         m_payload = xptiQueryPayloadByUID(uid);
@@ -420,7 +420,7 @@ public:
         m_top = true;
         uid = xptiRegisterPayload(p);
         if (uid != xpti::invalid_uid) {
-          g_tls_uid = uid;
+          xptiSetUniversalId(uid);
           m_payload = xptiQueryPayloadByUID(uid);
         }
       }
@@ -428,7 +428,7 @@ public:
   }
   ~tracepoint_t() {
     if (m_top) {
-      g_tls_uid = xpti::invalid_uid;
+      ::xptiSetUniversalId(xpti::invalid_uid);
     }
   }
 

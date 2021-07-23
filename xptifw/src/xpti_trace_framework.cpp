@@ -47,6 +47,9 @@ namespace xpti {
 constexpr const char *env_subscribers = "XPTI_SUBSCRIBERS";
 xpti::utils::PlatformHelper g_helper;
 xpti::utils::SpinLock g_framework_mutex;
+
+static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
+
 // This class is a helper class to load all the listed subscribers provided by
 // the user in XPTI_SUBSCRIBERS environment variable.
 class Subscribers {
@@ -826,6 +829,10 @@ public:
 
   inline uint64_t makeUniqueID() { return MTracepoints.makeUniqueID(); }
 
+  uint64_t getUniversalID() const noexcept { return g_tls_uid; }
+
+  void setUniversalID(uint64_t uid) noexcept { g_tls_uid = uid; }
+
   xpti::result_t addMetadata(xpti::trace_event_data_t *Event, const char *Key,
                              const char *Value) {
     return MTracepoints.addMetadata(Event, Key, Value);
@@ -1078,6 +1085,14 @@ XPTI_EXPORT_API void xptiFinalize(const char *Stream) {
 
 XPTI_EXPORT_API uint64_t xptiGetUniqueId() {
   return xpti::Framework::instance().makeUniqueID();
+}
+
+XPTI_EXPORT_API uint64_t xptiGetUniversalId() {
+  return xpti::Framework::instance().getUniversalID();
+}
+
+XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid) {
+  xpti::Framework::instance().setUniversalID(uid);
 }
 
 XPTI_EXPORT_API xpti::string_id_t xptiRegisterString(const char *String,

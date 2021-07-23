@@ -2,6 +2,7 @@ add_subdirectory(sycl-ls)
 
 if (SYCL_ENABLE_XPTI_TRACING)
   add_subdirectory(pi-trace)
+  add_subdirectory(sycl-sanitizer)
 endif()
 
 # TODO: move each tool in its own sub-directory

@@ -173,6 +173,7 @@ endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
   set(XPTIFW_LIBS xpti xptifw)
+  set(SYCL_TOOLS sycl-sanitizer)
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
@@ -199,6 +200,7 @@ add_custom_target( sycl-toolchain
           sycl-compiler
           sycl-ls
           ${XPTIFW_LIBS}
+          ${SYCL_TOOLS}
   COMMENT "Building SYCL compiler toolchain..."
 )
 
@@ -261,6 +263,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      pi_level_zero
      libsycldevice
      ${XPTIFW_LIBS}
+     ${SYCL_TOOLS}
 )
 
 if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET OpenCL-ICD)
