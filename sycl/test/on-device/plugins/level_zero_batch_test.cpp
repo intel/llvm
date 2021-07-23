@@ -86,7 +86,7 @@
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB8:  ZE ---> zeCommandListClose(
 // CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piQueueFinish(
+// CKALL: ---> piEventsWait(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(
@@ -142,7 +142,7 @@
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB8:  ZE ---> zeCommandListClose(
 // CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piQueueFinish(
+// CKALL: ---> piEventsWait(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(
@@ -198,7 +198,7 @@
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB8:  ZE ---> zeCommandListClose(
 // CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piQueueFinish(
+// CKALL: ---> piEventsWait(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(

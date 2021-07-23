@@ -2165,11 +2165,16 @@ pi_result rocm_piextQueueGetNativeHandle(pi_queue queue,
 /// \param[in] nativeHandle The native handle to create PI queue object from.
 /// \param[in] context is the PI context of the queue.
 /// \param[out] queue Set to the PI queue object created from native handle.
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
+///
 ///
 /// \return TBD
 pi_result rocm_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                 pi_context context,
-                                                pi_queue *queue) {
+                                                pi_queue *queue,
+                                                bool ownNativeHandle) {
+  (void)ownNativeHandle;
   cl::sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
   return {};

@@ -202,7 +202,9 @@ template <int Dims> nd_item<Dims> store_nd_item(const nd_item<Dims> *nd_i) {
 }
 } // namespace detail
 
-template <int Dims> nd_item<Dims> this_nd_item() {
+template <int Dims>
+__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_nd_item() instead")
+nd_item<Dims> this_nd_item() {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
 #else
@@ -210,5 +212,18 @@ template <int Dims> nd_item<Dims> this_nd_item() {
 #endif
 }
 
+namespace ext {
+namespace oneapi {
+namespace experimental {
+template <int Dims> nd_item<Dims> this_nd_item() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
+#else
+  return sycl::detail::store_nd_item<Dims>(nullptr);
+#endif
+}
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
