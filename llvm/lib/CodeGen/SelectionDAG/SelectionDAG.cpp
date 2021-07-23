@@ -1747,6 +1747,11 @@ SDValue SelectionDAG::getCondCode(ISD::CondCode Cond) {
   return SDValue(CondCodeNodes[Cond], 0);
 }
 
+SDValue SelectionDAG::getStepVector(const SDLoc &DL, EVT ResVT) {
+  EVT OpVT = TLI->getTypeToTransformTo(*getContext(), ResVT.getScalarType());
+  return getStepVector(DL, ResVT, getConstant(1, DL, OpVT));
+}
+
 SDValue SelectionDAG::getStepVector(const SDLoc &DL, EVT ResVT, SDValue Step) {
   if (ResVT.isScalableVector())
     return getNode(ISD::STEP_VECTOR, DL, ResVT, Step);
@@ -2439,15 +2444,6 @@ bool SelectionDAG::MaskedValueIsZero(SDValue V, const APInt &Mask,
                                      const APInt &DemandedElts,
                                      unsigned Depth) const {
   return Mask.isSubsetOf(computeKnownBits(V, DemandedElts, Depth).Zero);
-}
-
-/// Return true if the DemandedElts of the vector Op are all zero.  We
-/// use this predicate to simplify operations downstream.
-bool SelectionDAG::MaskedElementsAreZero(SDValue Op, const APInt &DemandedElts,
-                                         unsigned Depth) const {
-  unsigned BitWidth = Op.getScalarValueSizeInBits();
-  APInt DemandedBits = APInt::getAllOnesValue(BitWidth);
-  return MaskedValueIsZero(Op, DemandedBits, DemandedElts, Depth);
 }
 
 /// MaskedValueIsAllOnes - Return true if '(Op & Mask) == Mask'.

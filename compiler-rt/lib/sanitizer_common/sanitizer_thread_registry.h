@@ -95,12 +95,12 @@ class MUTEX ThreadRegistry {
   uptr GetMaxAliveThreads();
 
   void Lock() ACQUIRE() { mtx_.Lock(); }
-  void CheckLocked() const CHECK_LOCKED { mtx_.CheckLocked(); }
+  void CheckLocked() const CHECK_LOCKED() { mtx_.CheckLocked(); }
   void Unlock() RELEASE() { mtx_.Unlock(); }
 
   // Should be guarded by ThreadRegistryLock.
   ThreadContextBase *GetThreadLocked(u32 tid) {
-    return threads_[tid];
+    return threads_.empty() ? nullptr : threads_[tid];
   }
 
   u32 CreateThread(uptr user_id, bool detached, u32 parent_tid, void *arg);
