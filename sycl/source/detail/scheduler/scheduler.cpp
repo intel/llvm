@@ -122,6 +122,8 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
         if (CL_SUCCESS != Res)
           throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+        else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+          NewEvent->setComplete();
       } catch (...) {
         // enqueueImp() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
