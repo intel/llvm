@@ -1729,10 +1729,8 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
   };
 
   if (EliminatedArgMask.empty()) {
-    size_t NextTrueIndex = 0;
     for (ArgDesc &Arg : Args) {
-      setFunc(Arg, NextTrueIndex);
-      ++NextTrueIndex;
+      setFunc(Arg, Arg.MIndex);
     }
   } else {
     // TODO this is not necessary as long as we can guarantee that the arguments
