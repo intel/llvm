@@ -19,6 +19,7 @@
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/ADT/Optional.h"
 
 namespace llvm {
 class BasicBlock;
@@ -354,8 +355,8 @@ public:
   /// Set value of an initiation interval for the next loop pushed.
   void setSYCLIInterval(unsigned C) { StagedAttrs.SYCLIInterval = C; }
 
-  /// Add value of max_concurrency for the next loop pushed.
-  void addSYCLMaxConcurrencyNThreads(unsigned C) {
+  /// Set value of max_concurrency for the next loop pushed.
+  void setSYCLMaxConcurrencyNThreads(unsigned C) {
     StagedAttrs.SYCLMaxConcurrencyNThreads = C;
   }
 
@@ -374,13 +375,13 @@ public:
     StagedAttrs.SYCLLoopPipeliningDisable = true;
   }
 
-  /// Add value of max interleaved invocations for the next loop pushed.
-  void addSYCLMaxInterleavingNInvocations(unsigned C) {
+  /// Set value of max interleaved invocations for the next loop pushed.
+  void setSYCLMaxInterleavingNInvocations(unsigned C) {
     StagedAttrs.SYCLMaxInterleavingNInvocations = C;
   }
 
-  /// Add value of speculated iterations for the next loop pushed.
-  void addSYCLSpeculatedIterationsNIterations(unsigned C) {
+  /// Set value of speculated iterations for the next loop pushed.
+  void setSYCLSpeculatedIterationsNIterations(unsigned C) {
     StagedAttrs.SYCLSpeculatedIterationsNIterations = C;
   }
 
