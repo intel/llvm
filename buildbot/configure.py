@@ -15,6 +15,9 @@ def do_configure(args):
 
     llvm_external_projects = 'sycl;llvm-spirv;opencl;libdevice;xpti;xptifw'
 
+    if args.llvm_external_projects:
+        llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
+
     llvm_dir = os.path.join(abs_src_dir, "llvm")
     sycl_dir = os.path.join(abs_src_dir, "sycl")
     spirv_dir = os.path.join(abs_src_dir, "llvm-spirv")
@@ -182,6 +185,7 @@ def main():
     parser.add_argument("--libcxx-include", metavar="LIBCXX_INCLUDE_PATH", help="libcxx include path")
     parser.add_argument("--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path")
     parser.add_argument("--use-lld", action="store_true", help="Use LLD linker for build")
+    parser.add_argument("--llvm-external-projects", help="Add external projects to build. Add as comma seperated list.")
     args = parser.parse_args()
 
     print("args:{}".format(args))
