@@ -172,6 +172,14 @@ public:
     ReplaceLLVMFmulAddWithOpenCLMad = Value;
   }
 
+  bool shouldPreserveOCLKernelArgTypeMetadataThroughString() const noexcept {
+    return PreserveOCLKernelArgTypeMetadataThroughString;
+  }
+
+  void setPreserveOCLKernelArgTypeMetadataThroughString(bool Value) noexcept {
+    PreserveOCLKernelArgTypeMetadataThroughString = Value;
+  }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -208,6 +216,10 @@ private:
   // Controls whether llvm.fmuladd.* should be replaced with mad from OpenCL
   // extended instruction set or with a simple fmul + fadd
   bool ReplaceLLVMFmulAddWithOpenCLMad = true;
+
+  // Add a workaround to preserve OpenCL kernel_arg_type and
+  // kernel_arg_type_qual metadata through OpString
+  bool PreserveOCLKernelArgTypeMetadataThroughString = false;
 };
 
 } // namespace SPIRV

@@ -5,9 +5,9 @@
 ; CHECK: spir_kernel void @unnamed_arg(float{{.*}}) {{.*}} !kernel_arg_name ![[MD_unnamed:[0-9]+]]
 ; CHECK: spir_kernel void @one_unnamed_arg(i8 %a, i8 %b, i8{{.*}}) {{.*}} !kernel_arg_name ![[MD_one_unnamed:[0-9]+]]
 
-; CHECK: ![[MD_unnamed]] = !{!""}
-; CHECK: ![[MD_named]] = !{!"f"}
-; CHECK: ![[MD_one_unnamed]] = !{!"a", !"b", !""}
+; CHECK-DAG: ![[MD_named]] = !{!"f"}
+; CHECK-DAG: ![[MD_unnamed]] = !{!""}
+; CHECK-DAG: ![[MD_one_unnamed]] = !{!"a", !"b", !""}
 
 ; ModuleID = 'kernel_arg_name.ll'
 source_filename = "kernel_arg_name.ll"
