@@ -2801,14 +2801,15 @@ static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
   llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple("spir64"));
   // Checking uses -check-section option with the input file, no output
   // file and the target triple being looked for.
-  const char *Targets = C.getArgs().MakeArgString(
-                            Twine("-targets=sycl-") + TT.str());
-  const char *Inputs = C.getArgs().MakeArgString(
-                           Twine("-inputs=") + File.str());
+  const char *Targets =
+      C.getArgs().MakeArgString(Twine("-targets=sycl-") + TT.str());
+  const char *Inputs =
+      C.getArgs().MakeArgString(Twine("-inputs=") + File.str());
   // Always use -type=ao for bundle checking.  The 'bundles' are
   // actually archives.
   SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler",
-      IsArchive ? "-type=ao" : "-type=o", Targets, Inputs, "-check-section"};
+                                           IsArchive ? "-type=ao" : "-type=o",
+                                           Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
 
@@ -2842,9 +2843,8 @@ static bool optionMatches(const std::string &Option,
 // Process linker inputs for use with offload static libraries.  We are only
 // handling options and explicitly named static archives as these need to be
 // partially linked.
-static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
-                                                   DerivedArgList &Args,
-                                                   bool IncludeObj = false) {
+static SmallVector<const char *, 16>
+getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
   SmallVector<const char *, 16> LibArgs;
   for (const auto *A : Args) {
     std::string FileName = A->getAsString(Args);
@@ -2870,8 +2870,7 @@ static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
           // Only add named static libs objects and --whole-archive options.
           if (optionMatches("-whole-archive", V.str()) ||
               optionMatches("-no-whole-archive", V.str()) ||
-              isStaticArchiveFile(V) ||
-              (IncludeObj && isObjectFile(V.str()))) {
+              isStaticArchiveFile(V) || (IncludeObj && isObjectFile(V.str()))) {
             LibArgs.push_back(Args.MakeArgString(V));
             return;
           }
