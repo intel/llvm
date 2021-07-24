@@ -6752,6 +6752,32 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
         &JA);
   }
 
+  // Redirect output for the generated source + integration footer.
+  if (isa<AppendFooterJobAction>(JA)) {
+    if (Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_footer_path_EQ)) {
+      SmallString<128> OutName(A->getValue());
+      StringRef BaseName = llvm::sys::path::filename(BaseInput);
+      if (isSaveTempsEnabled()) {
+        // Retain the location specified by the user with -save-temps.
+        const char *Suffix = types::getTypeTempSuffix(JA.getType());
+        std::string::size_type End = std::string::npos;
+        if (!types::appendSuffixForType(JA.getType()))
+          End = BaseName.rfind('.');
+        SmallString<128> Suffixed(BaseName.substr(0, End));
+        Suffixed += OffloadingPrefix;
+        Suffixed += '.';
+        Suffixed += Suffix;
+        llvm::sys::path::append(OutName, Suffixed.c_str());
+      } else {
+        std::string TmpName =
+            GetTemporaryPath(llvm::sys::path::stem(BaseName),
+                             types::getTypeTempSuffix(JA.getType()));
+        llvm::sys::path::append(OutName, llvm::sys::path::filename(TmpName));
+      }
+      return C.addTempFile(C.getArgs().MakeArgString(OutName));
+    }
+  }
+
   // Default to writing to stdout?
   if (AtTopLevel && !CCGenDiagnostics && HasPreprocessOutput(JA)) {
     return "-";
