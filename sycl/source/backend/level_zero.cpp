@@ -98,7 +98,6 @@ __SYCL_EXPORT queue make_queue(const context &Context,
 __SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle NativeHandle,
                                bool KeepOwnership) {
-  const auto &ContextImpl = getSyclObjImpl(Context);
   return detail::make_event(NativeHandle, Context, KeepOwnership,
                             backend::level_zero);
 }
