@@ -791,12 +791,18 @@ struct _pi_ze_event_list_t {
 
 struct _pi_event : _pi_object {
   _pi_event(ze_event_handle_t ZeEvent, ze_event_pool_handle_t ZeEventPool,
-            pi_context Context, pi_command_type CommandType)
-      : ZeEvent{ZeEvent}, ZeEventPool{ZeEventPool}, ZeCommandList{nullptr},
-        CommandType{CommandType}, Context{Context}, CommandData{nullptr} {}
+            pi_context Context, pi_command_type CommandType, bool OwnZeEvent)
+      : ZeEvent{ZeEvent}, OwnZeEvent{OwnZeEvent}, ZeEventPool{ZeEventPool},
+        ZeCommandList{nullptr}, CommandType{CommandType}, Context{Context},
+        CommandData{nullptr} {}
 
   // Level Zero event handle.
   ze_event_handle_t ZeEvent;
+
+  // Indicates if we own the ZeEvent or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeEvent;
+
   // Level Zero event pool handle.
   ze_event_pool_handle_t ZeEventPool;
 
@@ -807,7 +813,7 @@ struct _pi_event : _pi_object {
 
   // Keeps the command-queue and command associated with the event.
   // These are NULL for the user events.
-  pi_queue Queue;
+  pi_queue Queue = {nullptr};
   pi_command_type CommandType;
   // Provide direct access to Context, instead of going via queue.
   // Not every PI event has a queue, and we need a handle to Context

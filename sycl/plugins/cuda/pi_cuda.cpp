@@ -3474,7 +3474,8 @@ pi_result cuda_piextEventGetNativeHandle(pi_event event,
 /// \param[out] event Set to the PI event object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle, pi_event *) {
+pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle, pi_context,
+                                                bool, pi_event *) {
   cl::sycl::detail::pi::die(
       "Creation of PI event from native handle not implemented");
   return {};
