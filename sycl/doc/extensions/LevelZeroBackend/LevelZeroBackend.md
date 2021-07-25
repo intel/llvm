@@ -1,4 +1,4 @@
-﻿# Level-Zero backend specification
+﻿#Level - Zero backend specification
 
 ## 1. Introduction
 
@@ -54,8 +54,8 @@ The application must include both of the following headers in order to use any o
 and they must be included in the order shown:
 
 ``` C++
-  #include "level_zero/ze_api.h"
-  #include "sycl/backend/level_zero.hpp"
+#include "level_zero/ze_api.h"
+#include "sycl/backend/level_zero.hpp"
 ```
 ### 4.1 Mapping of SYCL objects to Level-Zero handles
 
@@ -66,6 +66,7 @@ These SYCL objects encapsulate the corresponding Level-Zero handles:
 |device   |ze_device_handle_t|
 |context  |ze_context_handle_t|
 |queue    |ze_command_queue_handle_t|
+|event    |ze_event_handle_t|
 |program  |ze_module_handle_t|
 
 ### 4.2 Obtaining of native Level-Zero handles from SYCL objects
@@ -89,6 +90,7 @@ a SYCL object that encapsulates a corresponding Level-Zero object:
 |``` make<device>(const platform &, ze_device_handle_t);```|Constructs a SYCL device instance from a Level-Zero ```ze_device_handle_t```. The platform argument gives a SYCL platform, encapsulating a Level-Zero driver supporting the passed Level-Zero device.|
 |``` make<context>(const vector_class<device> &, ze_context_handle_t, ownership = transfer);```| Constructs a SYCL context instance from a Level-Zero ```ze_context_handle_t```. The context is created against the devices passed in. There must be at least one device given and all the devices must be from the same SYCL platform and thus from the same Level-Zero driver. The ```ownership``` argument specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.|
 |``` make<queue>(const context &, ze_command_queue_handle_t, ownership = transfer);```| Constructs a SYCL queue instance from a Level-Zero ```ze_command_queue_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The queue is attached to the first device in the passed SYCL context. The ```ownership``` argument specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.|
+|``` make<event>(const context &, ze_event_handle_t, ownership = transfer);```| Constructs a SYCL event instance from a Level-Zero ```ze_event_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The ```ownership``` argument specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.|
 |``` make<program>(const context &, ze_module_handle_t);```| Constructs a SYCL program instance from a Level-Zero ```ze_module_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The Level-Zero module must be fully linked (i.e. not require further linking through [```zeModuleDynamicLink```](https://spec.oneapi.com/level-zero/latest/core/api.html?highlight=zemoduledynamiclink#_CPPv419zeModuleDynamicLink8uint32_tP18ze_module_handle_tP28ze_module_build_log_handle_t)), and thus the SYCL program is created in the "linked" state.|
 
 NOTE: We shall consider adding other interoperability as needed, if possible.
@@ -101,11 +103,11 @@ some interoparability API supports overriding this behavior and keep the ownersh
 Use this enumeration for explicit specification of the ownership:
 ``` C++
 namespace sycl {
-namespace level_zero {
+  namespace level_zero {
 
-enum class ownership { transfer, keep };
+  enum class ownership { transfer, keep };
 
-} // namesace level_zero
+  } // namesace level_zero
 } // namespace sycl
 ```
                 
@@ -165,21 +167,21 @@ New descriptors added as part of this specification are described in the table b
 
 ``` C++
 namespace sycl{
-namespace ext {
-namespace oneapi{
-namespace level_zero {
-namespace info {
-namespace device {
+  namespace ext {
+  namespace oneapi {
+  namespace level_zero {
+  namespace info {
+  namespace device {
 
-struct free_memory {
+  struct free_memory {
     using return_type = size_t;
-};
+  };
 
-} // namespace device;
-} // namespace info
-} // namespace level_zero
-} // namespace oneapi
-} // namespace ext
+  } // namespace device;
+  } // namespace info
+  } // namespace level_zero
+  } // namespace oneapi
+  } // namespace ext
 } // namespace sycl
 ```
 
@@ -190,3 +192,4 @@ struct free_memory {
 |2|2021-02-22|Sergey Maslov|Introduced explicit ownership for context
 |3|2021-04-13|James Brodman|Free Memory Query
 |4|2021-07-06|Rehana Begam|Introduced explicit ownership for queue
+|5|2021-07-25|Sergey Maslov|Introduced SYCL interop for events
