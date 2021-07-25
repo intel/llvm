@@ -80,11 +80,7 @@ void shutdown() {
   // First, release resources, that may access plugins.
   GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
   GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
-#ifndef _WIN32
-  // HACK: there is a problem of L0 driver getting unloaded prematurely on
-  // Windows. This causes crash while destroying devices in the cache.
   GlobalHandler::instance().MPlatformDeviceCache.Inst.reset(nullptr);
-#endif
 
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,
@@ -106,9 +102,7 @@ void shutdown() {
 }
 
 #ifdef _WIN32
-extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
-                                             DWORD fdwReason,
-                                             LPVOID lpReserved) {
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
