@@ -43,7 +43,7 @@ std::vector<std::string> tokenize(const std::string &Filter,
 device_filter::device_filter(const std::string &FilterString) {
   std::string SubString;
 
-  auto findElement = [&](auto Element) {
+  auto FindElement = [&](auto Element) {
     size_t Found = SubString.find(Element.first);
     if (Found == std::string::npos)
       return false;
