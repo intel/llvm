@@ -2011,7 +2011,7 @@ cl_int ExecCGCommand::enqueueImp() {
       Program = SyclProg->getHandleRef();
       if (SyclProg->is_cacheable()) {
         RT::PiKernel FoundKernel = nullptr;
-        std::tie(FoundKernel, KernelMutex) =
+        std::tie(FoundKernel, KernelMutex, std::ignore) =
             detail::ProgramManager::getInstance().getOrCreateKernel(
                 ExecKernel->MOSModuleHandle,
                 ExecKernel->MSyclKernel->get_info<info::kernel::context>(),
@@ -2020,13 +2020,10 @@ cl_int ExecCGCommand::enqueueImp() {
       } else
         KnownProgram = false;
     } else {
-      std::tie(Kernel, KernelMutex) =
+      std::tie(Kernel, KernelMutex, Program) =
           detail::ProgramManager::getInstance().getOrCreateKernel(
               ExecKernel->MOSModuleHandle, Context, MQueue->get_device(),
               ExecKernel->MKernelName, nullptr);
-      MQueue->getPlugin().call<PiApiKind::piKernelGetInfo>(
-          Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(RT::PiProgram), &Program,
-          nullptr);
     }
 
     pi_result Error = PI_SUCCESS;

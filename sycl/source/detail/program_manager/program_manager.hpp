@@ -103,7 +103,7 @@ public:
                                   const property_list &PropList,
                                   bool JITCompilationIsRequired = false);
 
-  std::pair<RT::PiKernel, std::mutex *>
+  std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>
   getOrCreateKernel(OSModuleHandle M, const context &Context,
                     const device &Device, const std::string &KernelName,
                     const program_impl *Prg);
