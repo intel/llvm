@@ -493,6 +493,7 @@ Type *parsePrimitiveTypeString(StringRef TyStr, LLVMContext &Ctx) {
       .Case("unsigned", IntegerType::getInt32Ty(Ctx))
       .Case("unsigned long long", IntegerType::getInt64Ty(Ctx))
       .Case("long long", IntegerType::getInt64Ty(Ctx))
+      .Case("_Float16", IntegerType::getHalfTy(Ctx))
       .Case("float", IntegerType::getFloatTy(Ctx))
       .Case("double", IntegerType::getDoubleTy(Ctx))
       .Case("void", IntegerType::getVoidTy(Ctx))
@@ -1103,9 +1104,11 @@ static Function *createTestESIMDDeclaration(const ESIMDIntrinDesc &Desc,
 //
 // ### Source-level intrinsic:
 //
-// sycl::intel::gpu::__vector_type<int, 16>::type __esimd_flat_read<int, 16>(
-//     sycl::intel::gpu::__vector_type<unsigned long long, 16>::type,
-//     sycl::intel::gpu::__vector_type<int, 16>::type)
+// sycl::ext::intel::experimental::esimd::__vector_type<int, 16>::type
+// __esimd_flat_read<int, 16>(
+//     sycl::ext::intel::experimental::esimd::__vector_type<unsigned long long,
+//     16>::type, sycl::ext::intel::experimental::esimd::__vector_type<int,
+//     16>::type)
 //
 // ### Itanium-mangled name:
 //

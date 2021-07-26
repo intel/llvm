@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-return-type -Wno-sycl-2017-compat -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-return-type -sycl-std=2017 -Wno-sycl-2017-compat -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 #include "sycl.hpp"
 

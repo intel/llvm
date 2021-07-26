@@ -17,6 +17,10 @@ namespace queue {
 class in_order : public detail::DataLessProperty<detail::InOrder> {};
 class enable_profiling
     : public detail::DataLessProperty<detail::QueueEnableProfiling> {};
+namespace cuda {
+class use_default_stream
+    : public detail::DataLessProperty<detail::UseDefaultStream> {};
+} // namespace cuda
 } // namespace queue
 } // namespace property
 } // namespace sycl

@@ -33,7 +33,8 @@ def Linalg_Dialect : Dialect {
   }];
   let cppNamespace = "::mlir::linalg";
   let dependentDialects = [
-    "AffineDialect", "StandardOpsDialect", "tensor::TensorDialect"
+    "AffineDialect", "math::MathDialect", "memref::MemRefDialect",
+    "StandardOpsDialect", "tensor::TensorDialect"
   ];
   let hasCanonicalizer = 1;
   let hasOperationAttrVerify = 1;
@@ -47,8 +48,13 @@ def Linalg_Dialect : Dialect {
     constexpr const static ::llvm::StringLiteral
       kInplaceableAttrName = "linalg.inplaceable";
 
+    /// Attribute name used to mark the bufferization layout for region
+    /// arguments during linalg comprehensive bufferization.
+    constexpr const static ::llvm::StringLiteral
+      kBufferLayoutAttrName = "linalg.buffer_layout";
+
     using RegionBuilderFunType =
-      llvm::function_ref<void(ImplicitLocOpBuilder &b, Block &, ValueRange)>;
+      llvm::function_ref<void(ImplicitLocOpBuilder &b, Block &)>;
     RegionBuilderFunType getRegionBuilder(StringRef name) {
       return namedStructuredOpRegionBuilders.lookup(name);
     }

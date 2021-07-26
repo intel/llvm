@@ -708,6 +708,13 @@ void CodeGenModule::Release() {
   if (LangOpts.EHAsynch)
     getModule().addModuleFlag(llvm::Module::Warning, "eh-asynch", 1);
 
+  // Indicate whether this Module was compiled with -fopenmp
+  if (getLangOpts().OpenMP && !getLangOpts().OpenMPSimd)
+    getModule().addModuleFlag(llvm::Module::Max, "openmp", LangOpts.OpenMP);
+  if (getLangOpts().OpenMPIsDevice)
+    getModule().addModuleFlag(llvm::Module::Max, "openmp-device",
+                              LangOpts.OpenMP);
+
   // Emit OpenCL specific module metadata: OpenCL/SPIR version.
   if (LangOpts.OpenCL) {
     EmitOpenCLMetadata();
@@ -821,8 +828,6 @@ void CodeGenModule::Release() {
         getCodeGenOpts().StackProtectorGuardOffset);
   if (getCodeGenOpts().StackAlignment)
     getModule().setOverrideStackAlignment(getCodeGenOpts().StackAlignment);
-  if (getCodeGenOpts().WarnStackSize != UINT_MAX)
-    getModule().setWarnStackSize(getCodeGenOpts().WarnStackSize);
 
   getTargetCodeGenInfo().emitTargetMetadata(*this, MangledDeclNames);
 

@@ -13,6 +13,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <limits>
 #include <thread>
 
 #include "GDBRemoteCommunicationServerLLGS.h"
@@ -210,6 +211,10 @@ void GDBRemoteCommunicationServerLLGS::RegisterPacketHandlers() {
 
   RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_g,
                                 &GDBRemoteCommunicationServerLLGS::Handle_g);
+
+  RegisterMemberFunctionHandler(
+      StringExtractorGDBRemote::eServerPacketType_qMemTags,
+      &GDBRemoteCommunicationServerLLGS::Handle_qMemTags);
 
   RegisterPacketHandler(StringExtractorGDBRemote::eServerPacketType_k,
                         [this](StringExtractorGDBRemote packet, Status &error,
@@ -2083,16 +2088,6 @@ GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerLLGS::Handle_H(StringExtractorGDBRemote &packet) {
   Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_THREAD));
 
-  // Fail if we don't have a current process.
-  if (!m_current_process ||
-      (m_current_process->GetID() == LLDB_INVALID_PROCESS_ID)) {
-    LLDB_LOGF(
-        log,
-        "GDBRemoteCommunicationServerLLGS::%s failed, no process available",
-        __FUNCTION__);
-    return SendErrorResponse(0x15);
-  }
-
   // Parse out which variant of $H is requested.
   packet.SetFilePos(strlen("H"));
   if (packet.GetBytesLeft() < 1) {
@@ -2104,14 +2099,14 @@ GDBRemoteCommunicationServerLLGS::Handle_H(StringExtractorGDBRemote &packet) {
   }
 
   const char h_variant = packet.GetChar();
-  lldb::pid_t default_pid;
+  NativeProcessProtocol *default_process;
   switch (h_variant) {
   case 'g':
-    default_pid = m_current_process->GetID();
+    default_process = m_current_process;
     break;
 
   case 'c':
-    default_pid = m_continue_process->GetID();
+    default_process = m_continue_process;
     break;
 
   default:
@@ -2124,16 +2119,32 @@ GDBRemoteCommunicationServerLLGS::Handle_H(StringExtractorGDBRemote &packet) {
   }
 
   // Parse out the thread number.
-  llvm::Expected<lldb::tid_t> tid_ret =
-      ReadTid(packet, /*allow_all=*/true, default_pid);
-  if (!tid_ret)
-    return SendErrorResponse(tid_ret.takeError());
+  auto pid_tid = packet.GetPidTid(default_process ? default_process->GetID()
+                                                  : LLDB_INVALID_PROCESS_ID);
+  if (!pid_tid)
+    return SendErrorResponse(llvm::make_error<StringError>(
+        inconvertibleErrorCode(), "Malformed thread-id"));
 
-  lldb::tid_t tid = tid_ret.get();
+  lldb::pid_t pid = pid_tid->first;
+  lldb::tid_t tid = pid_tid->second;
+
+  if (pid == StringExtractorGDBRemote::AllProcesses)
+    return SendUnimplementedResponse("Selecting all processes not supported");
+  if (pid == LLDB_INVALID_PROCESS_ID)
+    return SendErrorResponse(llvm::make_error<StringError>(
+        inconvertibleErrorCode(), "No current process and no PID provided"));
+
+  // Check the process ID and find respective process instance.
+  auto new_process_it = m_debugged_processes.find(pid);
+  if (new_process_it == m_debugged_processes.end())
+    return SendErrorResponse(llvm::make_error<StringError>(
+        inconvertibleErrorCode(),
+        llvm::formatv("No process with PID {0} debugged", pid)));
+
   // Ensure we have the given thread when not specifying -1 (all threads) or 0
   // (any thread).
   if (tid != LLDB_INVALID_THREAD_ID && tid != 0) {
-    NativeThreadProtocol *thread = m_current_process->GetThreadByID(tid);
+    NativeThreadProtocol *thread = new_process_it->second->GetThreadByID(tid);
     if (!thread) {
       LLDB_LOGF(log,
                 "GDBRemoteCommunicationServerLLGS::%s failed, tid %" PRIu64
@@ -2143,13 +2154,15 @@ GDBRemoteCommunicationServerLLGS::Handle_H(StringExtractorGDBRemote &packet) {
     }
   }
 
-  // Now switch the given thread type.
+  // Now switch the given process and thread type.
   switch (h_variant) {
   case 'g':
+    m_current_process = new_process_it->second.get();
     SetCurrentThreadID(tid);
     break;
 
   case 'c':
+    m_continue_process = new_process_it->second.get();
     SetContinueThreadID(tid);
     break;
 
@@ -3414,6 +3427,71 @@ GDBRemoteCommunicationServerLLGS::Handle_QPassSignals(
   return SendOKResponse();
 }
 
+GDBRemoteCommunication::PacketResult
+GDBRemoteCommunicationServerLLGS::Handle_qMemTags(
+    StringExtractorGDBRemote &packet) {
+  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
+
+  // Ensure we have a process.
+  if (!m_current_process ||
+      (m_current_process->GetID() == LLDB_INVALID_PROCESS_ID)) {
+    LLDB_LOGF(
+        log,
+        "GDBRemoteCommunicationServerLLGS::%s failed, no process available",
+        __FUNCTION__);
+    return SendErrorResponse(1);
+  }
+
+  // We are expecting
+  // qMemTags:<hex address>,<hex length>:<hex type>
+
+  // Address
+  packet.SetFilePos(strlen("qMemTags:"));
+  const char *current_char = packet.Peek();
+  if (!current_char || *current_char == ',')
+    return SendIllFormedResponse(packet, "Missing address in qMemTags packet");
+  const lldb::addr_t addr = packet.GetHexMaxU64(/*little_endian=*/false, 0);
+
+  // Length
+  char previous_char = packet.GetChar();
+  current_char = packet.Peek();
+  // If we don't have a separator or the length field is empty
+  if (previous_char != ',' || (current_char && *current_char == ':'))
+    return SendIllFormedResponse(packet,
+                                 "Invalid addr,length pair in qMemTags packet");
+
+  if (packet.GetBytesLeft() < 1)
+    return SendIllFormedResponse(
+        packet, "Too short qMemtags: packet (looking for length)");
+  const size_t length = packet.GetHexMaxU64(/*little_endian=*/false, 0);
+
+  // Type
+  const char *invalid_type_err = "Invalid type field in qMemTags: packet";
+  if (packet.GetBytesLeft() < 1 || packet.GetChar() != ':')
+    return SendIllFormedResponse(packet, invalid_type_err);
+
+  int32_t type =
+      packet.GetS32(std::numeric_limits<int32_t>::max(), /*base=*/16);
+  if (type == std::numeric_limits<int32_t>::max() ||
+      // To catch inputs like "123aardvark" that will parse but clearly aren't
+      // valid in this case.
+      packet.GetBytesLeft()) {
+    return SendIllFormedResponse(packet, invalid_type_err);
+  }
+
+  StreamGDBRemote response;
+  std::vector<uint8_t> tags;
+  Status error = m_current_process->ReadMemoryTags(type, addr, length, tags);
+  if (error.Fail())
+    return SendErrorResponse(1);
+
+  // This m is here in case we want to support multi part replies in the future.
+  // In the same manner as qfThreadInfo/qsThreadInfo.
+  response.PutChar('m');
+  response.PutBytesAsRawHex8(tags.data(), tags.size());
+  return SendPacketNoLock(response.GetString());
+}
+
 void GDBRemoteCommunicationServerLLGS::MaybeCloseInferiorTerminalConnection() {
   Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
 
@@ -3608,6 +3686,8 @@ std::vector<std::string> GDBRemoteCommunicationServerLLGS::HandleFeatures(
     ret.push_back("qXfer:auxv:read+");
   if (bool(plugin_features & Extension::libraries_svr4))
     ret.push_back("qXfer:libraries-svr4:read+");
+  if (bool(plugin_features & Extension::memory_tagging))
+    ret.push_back("memory-tagging+");
 
   // check for client features
   m_extensions_supported = {};

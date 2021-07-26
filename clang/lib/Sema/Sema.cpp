@@ -184,6 +184,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       ThreadSafetyDeclCache(nullptr), VarDataSharingAttributesStack(nullptr),
       CurScope(nullptr), Ident_super(nullptr), Ident___float128(nullptr),
       SyclIntHeader(nullptr), SyclIntFooter(nullptr) {
+  assert(pp.TUKind == TUKind);
   TUScope = nullptr;
   isConstantEvaluatedOverride = false;
 
@@ -1856,7 +1857,7 @@ Sema::SemaDiagnosticBuilder Sema::Diag(SourceLocation Loc, unsigned DiagID,
   bool IsError = Diags.getDiagnosticIDs()->isDefaultMappingAsError(DiagID);
   bool ShouldDefer = getLangOpts().CUDA && LangOpts.GPUDeferDiag &&
                      DiagnosticIDs::isDeferrable(DiagID) &&
-                     (DeferHint || !IsError);
+                     (DeferHint || DeferDiags || !IsError);
   auto SetIsLastErrorImmediate = [&](bool Flag) {
     if (IsError)
       IsLastErrorImmediate = Flag;

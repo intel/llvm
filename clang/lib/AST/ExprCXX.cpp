@@ -275,7 +275,8 @@ CXXNewExpr *CXXNewExpr::CreateEmpty(const ASTContext &Ctx, bool IsArray,
 }
 
 bool CXXNewExpr::shouldNullCheckAllocation() const {
-  return getOperatorNew()
+  return !getOperatorNew()->hasAttr<ReturnsNonNullAttr>() &&
+         getOperatorNew()
              ->getType()
              ->castAs<FunctionProtoType>()
              ->isNothrow() &&
@@ -670,6 +671,7 @@ CXXMethodDecl *CXXMemberCallExpr::getMethodDecl() const {
     return cast<CXXMethodDecl>(MemExpr->getMemberDecl());
 
   // FIXME: Will eventually need to cope with member pointers.
+  // NOTE: Update makeTailCallIfSwiftAsync on fixing this.
   return nullptr;
 }
 

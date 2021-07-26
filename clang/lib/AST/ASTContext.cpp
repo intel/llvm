@@ -966,7 +966,7 @@ static bool isAddrSpaceMapManglingEnabled(const TargetInfo &TI,
 
 ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
                        IdentifierTable &idents, SelectorTable &sels,
-                       Builtin::Context &builtins)
+                       Builtin::Context &builtins, TranslationUnitKind TUKind)
     : ConstantArrayTypes(this_()), FunctionProtoTypes(this_()),
       TemplateSpecializationTypes(this_()),
       DependentTemplateSpecializationTypes(this_()), AutoTypes(this_()),
@@ -978,11 +978,10 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
                                         LangOpts.XRayAttrListFiles, SM)),
       ProfList(new ProfileList(LangOpts.ProfileListFiles, SM)),
       PrintingPolicy(LOpts), Idents(idents), Selectors(sels),
-      BuiltinInfo(builtins), DeclarationNames(*this), Comments(SM),
-      CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
+      BuiltinInfo(builtins), TUKind(TUKind), DeclarationNames(*this),
+      Comments(SM), CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
       CompCategories(this_()), LastSDM(nullptr, 0) {
-  TUDecl = TranslationUnitDecl::Create(*this);
-  TraversalScope = {TUDecl};
+  addTranslationUnitDecl();
 }
 
 ASTContext::~ASTContext() {
@@ -1196,9 +1195,10 @@ ExternCContextDecl *ASTContext::getExternCContextDecl() const {
 BuiltinTemplateDecl *
 ASTContext::buildBuiltinTemplateDecl(BuiltinTemplateKind BTK,
                                      const IdentifierInfo *II) const {
-  auto *BuiltinTemplate = BuiltinTemplateDecl::Create(*this, TUDecl, II, BTK);
+  auto *BuiltinTemplate =
+      BuiltinTemplateDecl::Create(*this, getTranslationUnitDecl(), II, BTK);
   BuiltinTemplate->setImplicit();
-  TUDecl->addDecl(BuiltinTemplate);
+  getTranslationUnitDecl()->addDecl(BuiltinTemplate);
 
   return BuiltinTemplate;
 }
@@ -1490,7 +1490,7 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
   // MSVC predeclares struct _GUID, and we need it to create MSGuidDecls.
   if (LangOpts.MicrosoftExt || LangOpts.Borland) {
     MSGuidTagDecl = buildImplicitRecord("_GUID");
-    TUDecl->addDecl(MSGuidTagDecl);
+    getTranslationUnitDecl()->addDecl(MSGuidTagDecl);
   }
 }
 
@@ -6634,7 +6634,7 @@ QualType ASTContext::getCFConstantStringType() const {
 QualType ASTContext::getObjCSuperType() const {
   if (ObjCSuperType.isNull()) {
     RecordDecl *ObjCSuperTypeDecl = buildImplicitRecord("objc_super");
-    TUDecl->addDecl(ObjCSuperTypeDecl);
+    getTranslationUnitDecl()->addDecl(ObjCSuperTypeDecl);
     ObjCSuperType = getTagDeclType(ObjCSuperTypeDecl);
   }
   return ObjCSuperType;
@@ -8021,19 +8021,21 @@ static TypedefDecl *CreateVoidPtrBuiltinVaListDecl(const ASTContext *Context) {
 
 static TypedefDecl *
 CreateAArch64ABIBuiltinVaListDecl(const ASTContext *Context) {
-  // struct __va_list
   RecordDecl *VaListTagDecl = Context->buildImplicitRecord("__va_list");
-  if (Context->getLangOpts().CPlusPlus) {
-    // namespace std { struct __va_list {
-    NamespaceDecl *NS;
-    NS = NamespaceDecl::Create(const_cast<ASTContext &>(*Context),
-                               Context->getTranslationUnitDecl(),
-                               /*Inline*/ false, SourceLocation(),
-                               SourceLocation(), &Context->Idents.get("std"),
-                               /*PrevDecl*/ nullptr);
-    NS->setImplicit();
-    VaListTagDecl->setDeclContext(NS);
-  }
+  // namespace std { struct __va_list {
+  // Note that we create the namespace even in C. This is intentional so that
+  // the type is consistent between C and C++, which is important in cases where
+  // the types need to match between translation units (e.g. with
+  // -fsanitize=cfi-icall). Ideally we wouldn't have created this namespace at
+  // all, but it's now part of the ABI (e.g. in mangled names), so we can't
+  // change it.
+  auto *NS = NamespaceDecl::Create(
+      const_cast<ASTContext &>(*Context), Context->getTranslationUnitDecl(),
+      /*Inline*/ false, SourceLocation(), SourceLocation(),
+      &Context->Idents.get("std"),
+      /*PrevDecl*/ nullptr);
+  NS->setImplicit();
+  VaListTagDecl->setDeclContext(NS);
 
   VaListTagDecl->startDefinition();
 

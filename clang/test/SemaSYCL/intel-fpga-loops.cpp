@@ -156,19 +156,19 @@ void goo() {
   // expected-error@+1 {{unknown argument to 'ivdep'; expected integer or array variable}}
   [[intel::ivdep("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'initiation_interval' attribute requires an integer constant}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [8]'}}
   [[intel::initiation_interval("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'max_concurrency' attribute requires an integer constant}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [8]'}}
   [[intel::max_concurrency("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'loop_coalesce' attribute requires an integer constant}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [8]'}}
   [[intel::loop_coalesce("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'max_interleaving' attribute requires an integer constant}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [8]'}}
   [[intel::max_interleaving("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'speculated_iterations' attribute requires an integer constant}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [8]'}}
   [[intel::speculated_iterations("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-error@+1 {{unknown argument to 'ivdep'; expected integer or array variable}}
@@ -207,8 +207,8 @@ void goo() {
   // expected-error@+1 {{'loop_count_avg' attribute requires a non-negative integral compile time constant expression}}
   [[intel::loop_count_avg(-1)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'loop_count_avg' attribute requires an integer constant}}
-    [[intel::loop_count_avg("abc")]] for (int i = 0; i != 10; ++i)
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
+  [[intel::loop_count_avg("abc")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -419,7 +419,7 @@ void ii_dependent() {
       a[i] = 0;
 }
 
-template <int A, int B, int C>
+template <int A, int B, int C, int D>
 void max_concurrency_dependent() {
   int a[10];
   // expected-error@+1 {{'max_concurrency' attribute requires a non-negative integral compile time constant expression}}
@@ -429,6 +429,61 @@ void max_concurrency_dependent() {
   // expected-error@+2 {{duplicate Intel FPGA loop attribute 'max_concurrency'}}
   [[intel::max_concurrency(A)]]
   [[intel::max_concurrency(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // max_concurrency attribute accepts value 0.
+  [[intel::max_concurrency(D)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
+template <int A, int B, int C, int D>
+void max_interleaving_dependent() {
+  int a[10];
+  // expected-error@+1 {{'max_interleaving' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::max_interleaving(C)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'max_interleaving'}}
+  [[intel::max_interleaving(A)]]
+  [[intel::max_interleaving(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // max_interleaving attribute accepts value 0.
+  [[intel::max_interleaving(D)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
+template <int A, int B, int C, int D>
+void speculated_iterations_dependent() {
+  int a[10];
+  // expected-error@+1 {{'speculated_iterations' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::speculated_iterations(C)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'speculated_iterations'}}
+  [[intel::speculated_iterations(A)]]
+  [[intel::speculated_iterations(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // speculated_iterations attribute accepts value 0.
+  [[intel::speculated_iterations(D)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
+template <int A, int B, int C>
+void loop_coalesce_dependent() {
+  int a[10];
+  // expected-error@+1 {{'loop_coalesce' attribute requires a positive integral compile time constant expression}}
+  [[intel::loop_coalesce(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'loop_coalesce'}}
+  [[intel::loop_coalesce]]
+  [[intel::loop_coalesce(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-error@+1 {{'loop_coalesce' attribute requires a positive integral compile time constant expression}}
+  [[intel::loop_coalesce(C)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -468,6 +523,140 @@ void loop_count_control_dependent() {
 
 }
 
+void check_max_concurrency_expression() {
+  int a[10];
+  // Test that checks expression is not a constant expression.
+  // expected-note@+1{{declared here}}
+  int foo;
+  // expected-error@+2{{expression is not an integral constant expression}}
+  // expected-note@+1{{read of non-const variable 'foo' is not allowed in a constant expression}}
+  [[intel::max_concurrency(foo + 1)]] for (int i = 0; i != 10; ++i)
+       a[i] = 0;
+
+  // Test that checks expression is a constant expression.
+  constexpr int bar = 0;
+  [[intel::max_concurrency(bar + 2)]] for (int i = 0; i != 10; ++i) // OK
+      a[i] = 0;
+}
+
+void check_max_interleaving_expression() {
+  int a[10];
+  // Test that checks expression is not a constant expression.
+  // expected-note@+1{{declared here}}
+  int foo;
+  // expected-error@+2{{expression is not an integral constant expression}}
+  // expected-note@+1{{read of non-const variable 'foo' is not allowed in a constant expression}}
+  [[intel::max_interleaving(foo + 1)]] for (int i = 0; i != 10; ++i)
+       a[i] = 0;
+
+  // Test that checks expression is a constant expression.
+  constexpr int bar = 0;
+  [[intel::max_interleaving(bar + 2)]] for (int i = 0; i != 10; ++i) // OK
+      a[i] = 0;
+}
+
+void check_initiation_interval_expression() {
+  int a[10];
+  // Test that checks expression is not a constant expression.
+  // expected-note@+1{{declared here}}
+  int foo;
+  // expected-error@+2{{expression is not an integral constant expression}}
+  // expected-note@+1{{read of non-const variable 'foo' is not allowed in a constant expression}}
+  [[intel::initiation_interval(foo + 1)]] for (int i = 0; i != 10; ++i)
+       a[i] = 0;
+
+  // Test that checks expression is a constant expression.
+  constexpr int bar = 0;
+  [[intel::initiation_interval(bar + 2)]] for (int i = 0; i != 10; ++i) // OK
+      a[i] = 0;
+}
+
+void check_speculated_iterations_expression() {
+  int a[10];
+  // Test that checks expression is not a constant expression.
+  // expected-note@+1{{declared here}}
+  int foo;
+  // expected-error@+2{{expression is not an integral constant expression}}
+  // expected-note@+1{{read of non-const variable 'foo' is not allowed in a constant expression}}
+  [[intel::speculated_iterations(foo + 1)]] for (int i = 0; i != 10; ++i)
+       a[i] = 0;
+
+  // Test that checks expression is a constant expression.
+  constexpr int bar = 0;
+  [[intel::speculated_iterations(bar + 2)]] for (int i = 0; i != 10; ++i) // OK
+      a[i] = 0;
+}
+
+void check_loop_coalesce_expression() {
+  int a[10];
+  // Test that checks expression is not a constant expression.
+  // expected-note@+1{{declared here}}
+  int foo;
+  // expected-error@+2{{expression is not an integral constant expression}}
+  // expected-note@+1{{read of non-const variable 'foo' is not allowed in a constant expression}}
+  [[intel::loop_coalesce(foo + 1)]] for (int i = 0; i != 10; ++i)
+       a[i] = 0;
+
+  // Test that checks expression is a constant expression.
+  constexpr int bar = 0;
+  [[intel::loop_coalesce(bar + 2)]] for (int i = 0; i != 10; ++i) // OK
+      a[i] = 0;
+}
+
+void check_loop_count_expression() {
+  int a[10];
+
+  // Test that checks expression is not a constant expression.
+  int foo; // expected-note {{declared here}}
+  // expected-error@+2{{expression is not an integral constant expression}}
+  // expected-note@+1{{read of non-const variable 'foo' is not allowed in a constant expression}}
+  [[intel::loop_count_max(foo + 1)]] for (int i = 0; i != 10; ++i)
+       a[i] = 0;
+
+  // Test that checks expression is a constant expression.
+  constexpr int bar = 0;
+  [[intel::loop_count_max(bar + 2)]] for (int i = 0; i != 10; ++i) // OK
+      a[i] = 0;
+}
+
+// Test that checks wrong template instantiation and ensures that the type
+// is checked properly when instantiating from the template definition.
+struct S {};
+template <typename Ty>
+void check_loop_attr_template_instantiation() {
+  int a[10];
+
+  // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::initiation_interval(Ty{})]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::loop_coalesce(Ty{})]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::speculated_iterations(Ty{})]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::max_interleaving(Ty{})]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::max_concurrency(Ty{})]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::loop_count_min(Ty{})]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
 int main() {
   deviceQueue.submit([&](sycl::handler &h) {
     h.single_task<class kernel_function>([]() {
@@ -483,12 +672,20 @@ int main() {
       //expected-note@-1 +{{in instantiation of function template specialization}}
       ii_dependent<2, 4, -1>();
       //expected-note@-1 +{{in instantiation of function template specialization}}
-      max_concurrency_dependent<1, 4, -2>();
-      //expected-note@-1 +{{in instantiation of function template specialization}}
-
-     loop_count_control_dependent<3, 2, -1>();
-      //expected-note@-1{{in instantiation of function template specialization 'loop_count_control_dependent<3, 2, -1>' requested here}}
-});
+      max_concurrency_dependent<1, 4, -2, 0>(); // expected-note{{in instantiation of function template specialization 'max_concurrency_dependent<1, 4, -2, 0>' requested here}}
+      max_interleaving_dependent<1, 4, -1, 0>(); // expected-note{{in instantiation of function template specialization 'max_interleaving_dependent<1, 4, -1, 0>' requested here}}
+      speculated_iterations_dependent<1, 8, -3, 0>(); // expected-note{{in instantiation of function template specialization 'speculated_iterations_dependent<1, 8, -3, 0>' requested here}}
+      loop_coalesce_dependent<-1, 4,  0>(); // expected-note{{in instantiation of function template specialization 'loop_coalesce_dependent<-1, 4, 0>' requested here}}
+      loop_count_control_dependent<3, 2, -1>(); // expected-note{{in instantiation of function template specialization 'loop_count_control_dependent<3, 2, -1>' requested here}}
+      check_max_concurrency_expression();
+      check_max_interleaving_expression();
+      check_speculated_iterations_expression();
+      check_loop_coalesce_expression();
+      check_initiation_interval_expression();
+      check_loop_count_expression();
+      check_loop_attr_template_instantiation<S>(); //expected-note{{in instantiation of function template specialization 'check_loop_attr_template_instantiation<S>' requested here}}
+      check_loop_attr_template_instantiation<float>(); //expected-note{{in instantiation of function template specialization 'check_loop_attr_template_instantiation<float>' requested here}}
+    });
   });
 
   return 0;

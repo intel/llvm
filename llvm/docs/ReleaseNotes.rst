@@ -74,6 +74,11 @@ Changes to building LLVM
 Changes to TableGen
 -------------------
 
+Changes to the AArch64 Backend
+------------------------------
+
+* Introduced support for Armv9-A's Realm Management Extension.
+
 Changes to the ARM Backend
 --------------------------
 
@@ -158,6 +163,18 @@ Changes to the LLVM tools
 * llvm-objdump supports ``-M {att,intel}`` now.
   ``--x86-asm-syntax`` is a deprecated internal option which will be removed in LLVM 14.0.0.
   (`D101695 <https://reviews.llvm.org/D101695>`_)
+
+* The llvm-readobj short aliases ``-s`` (previously ``--sections``) and ``-t``
+  (previously ``--syms``) have been changed to ``--syms`` and
+  ``--section-details`` respectively, to match llvm-readelf.
+  (`D105055 <https://reviews.llvm.org/D105055>`_)
+
+* The llvm-nm short aliases ``-M`` (``--print-armap``), ``-U``
+  (``--defined-only``), and ``-W`` (``--no-weak``) are now deprecated.
+  Use the long form versions instead.
+  The alias ``--just-symbol-name`` is now deprecated in favor of
+  ``--format=just-symbols`` and ``-j``.
+  (`D105330 <https://reviews.llvm.org/D105330>`_)
 
 Changes to LLDB
 ---------------------------------

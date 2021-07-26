@@ -240,6 +240,11 @@ def ARMqsub8b       : SDNode<"ARMISD::QSUB8b", SDT_ARMAnd, []>;
 def ARMqadd16b      : SDNode<"ARMISD::QADD16b", SDT_ARMAnd, []>;
 def ARMqsub16b      : SDNode<"ARMISD::QSUB16b", SDT_ARMAnd, []>;
 
+def ARMuqadd8b       : SDNode<"ARMISD::UQADD8b", SDT_ARMAnd, []>;
+def ARMuqsub8b       : SDNode<"ARMISD::UQSUB8b", SDT_ARMAnd, []>;
+def ARMuqadd16b      : SDNode<"ARMISD::UQADD16b", SDT_ARMAnd, []>;
+def ARMuqsub16b      : SDNode<"ARMISD::UQSUB16b", SDT_ARMAnd, []>;
+
 def SDT_ARMldrd     : SDTypeProfile<2, 1, [SDTCisVT<0, i32>, SDTCisSameAs<0, 1>, SDTCisPtrTy<2>]>;
 def ARMldrd         : SDNode<"ARMISD::LDRD", SDT_ARMldrd, [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
 
@@ -3945,6 +3950,7 @@ def : ARMV5TEPat<(saddsat rGPR:$Rm, (saddsat rGPR:$Rn, rGPR:$Rn)),
                  (QDADD rGPR:$Rm, rGPR:$Rn)>;
 def : ARMV5TEPat<(ssubsat rGPR:$Rm, (saddsat rGPR:$Rn, rGPR:$Rn)),
                  (QDSUB rGPR:$Rm, rGPR:$Rn)>;
+
 def : ARMV6Pat<(ARMqadd8b rGPR:$Rm, rGPR:$Rn),
                (QADD8 rGPR:$Rm, rGPR:$Rn)>;
 def : ARMV6Pat<(ARMqsub8b rGPR:$Rm, rGPR:$Rn),
@@ -3962,6 +3968,16 @@ def QASX    : AAIIntrinsic<0b01100010, 0b11110011, "qasx", int_arm_qasx>;
 def QSAX    : AAIIntrinsic<0b01100010, 0b11110101, "qsax", int_arm_qsax>;
 def UQASX   : AAIIntrinsic<0b01100110, 0b11110011, "uqasx", int_arm_uqasx>;
 def UQSAX   : AAIIntrinsic<0b01100110, 0b11110101, "uqsax", int_arm_uqsax>;
+
+def : ARMV6Pat<(ARMuqadd8b rGPR:$Rm, rGPR:$Rn),
+               (UQADD8 rGPR:$Rm, rGPR:$Rn)>;
+def : ARMV6Pat<(ARMuqsub8b rGPR:$Rm, rGPR:$Rn),
+               (UQSUB8 rGPR:$Rm, rGPR:$Rn)>;
+def : ARMV6Pat<(ARMuqadd16b rGPR:$Rm, rGPR:$Rn),
+               (UQADD16 rGPR:$Rm, rGPR:$Rn)>;
+def : ARMV6Pat<(ARMuqsub16b rGPR:$Rm, rGPR:$Rn),
+               (UQSUB16 rGPR:$Rm, rGPR:$Rn)>;
+
 
 // Signed/Unsigned add/subtract
 
@@ -5283,7 +5299,7 @@ def : ARMPat<(stlex_2 (and GPR:$Rt, 0xffff), addr_offset_none:$addr),
 
 class acquiring_load<PatFrag base>
   : PatFrag<(ops node:$ptr), (base node:$ptr), [{
-  AtomicOrdering Ordering = cast<AtomicSDNode>(N)->getOrdering();
+  AtomicOrdering Ordering = cast<AtomicSDNode>(N)->getSuccessOrdering();
   return isAcquireOrStronger(Ordering);
 }]>;
 
@@ -5293,7 +5309,7 @@ def atomic_load_acquire_32 : acquiring_load<atomic_load_32>;
 
 class releasing_store<PatFrag base>
   : PatFrag<(ops node:$ptr, node:$val), (base node:$ptr, node:$val), [{
-  AtomicOrdering Ordering = cast<AtomicSDNode>(N)->getOrdering();
+  AtomicOrdering Ordering = cast<AtomicSDNode>(N)->getSuccessOrdering();
   return isReleaseOrStronger(Ordering);
 }]>;
 

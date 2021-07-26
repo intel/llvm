@@ -673,6 +673,7 @@ CXCallingConv clang_getFunctionTypeCallingConv(CXType X) {
       TCALLINGCONV(AAPCS_VFP);
       TCALLINGCONV(IntelOclBicc);
       TCALLINGCONV(Swift);
+      TCALLINGCONV(SwiftAsync);
       TCALLINGCONV(PreserveMost);
       TCALLINGCONV(PreserveAll);
     case CC_SpirFunction: return CXCallingConv_Unexposed;

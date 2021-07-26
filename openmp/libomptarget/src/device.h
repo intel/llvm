@@ -88,6 +88,18 @@ public:
   }
 
   bool isRefCountInf() const { return RefCount == INFRefCount; }
+
+  std::string refCountToStr() const {
+    return isRefCountInf() ? "INF" : std::to_string(getRefCount());
+  }
+
+  /// Should one decrement of the reference count (after resetting it if
+  /// \c AfterReset) remove this mapping?
+  bool decShouldRemove(bool AfterReset = false) const {
+    if (AfterReset)
+      return !isRefCountInf();
+    return getRefCount() == 1;
+  }
 };
 
 typedef uintptr_t HstPtrBeginTy;
@@ -114,6 +126,23 @@ struct LookupResult {
   HostDataToTargetListTy::iterator Entry;
 
   LookupResult() : Flags({0, 0, 0}), Entry() {}
+};
+
+/// This struct will be returned by \p DeviceTy::getOrAllocTgtPtr which provides
+/// more data than just a target pointer.
+struct TargetPointerResultTy {
+  struct {
+    /// If the map table entry is just created
+    unsigned IsNewEntry : 1;
+    /// If the pointer is actually a host pointer (when unified memory enabled)
+    unsigned IsHostPointer : 1;
+  } Flags = {0, 0};
+
+  /// The iterator to the corresponding map table entry
+  HostDataToTargetListTy::iterator MapTableEntry{};
+
+  /// The corresponding target pointer
+  void *TargetPointer = nullptr;
 };
 
 /// Map for shadow pointers
@@ -165,17 +194,18 @@ struct DeviceTy {
   // Return true if data can be copied to DstDevice directly
   bool isDataExchangable(const DeviceTy &DstDevice);
 
-  uint64_t getMapEntryRefCnt(void *HstPtrBegin);
   LookupResult lookupMapping(void *HstPtrBegin, int64_t Size);
-  void *getOrAllocTgtPtr(void *HstPtrBegin, void *HstPtrBase, int64_t Size,
-                         map_var_info_t HstPtrName, bool &IsNew,
-                         bool &IsHostPtr, bool IsImplicit, bool UpdateRefCount,
-                         bool HasCloseModifier, bool HasPresentModifier);
+  TargetPointerResultTy getOrAllocTgtPtr(void *HstPtrBegin, void *HstPtrBase,
+                                         int64_t Size,
+                                         map_var_info_t HstPtrName,
+                                         bool IsImplicit, bool UpdateRefCount,
+                                         bool HasCloseModifier,
+                                         bool HasPresentModifier);
   void *getTgtPtrBegin(void *HstPtrBegin, int64_t Size);
   void *getTgtPtrBegin(void *HstPtrBegin, int64_t Size, bool &IsLast,
                        bool UpdateRefCount, bool &IsHostPtr,
-                       bool MustContain = false);
-  int deallocTgtPtr(void *TgtPtrBegin, int64_t Size, bool ForceDelete,
+                       bool MustContain = false, bool ForceDelete = false);
+  int deallocTgtPtr(void *TgtPtrBegin, int64_t Size,
                     bool HasCloseModifier = false);
   int associatePtr(void *HstPtrBegin, void *TgtPtrBegin, int64_t Size);
   int disassociatePtr(void *HstPtrBegin);

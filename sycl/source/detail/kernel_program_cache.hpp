@@ -76,7 +76,7 @@ public:
 
   using PiKernelPtrT = std::atomic<PiKernelT *>;
   using KernelWithBuildStateT = BuildResult<PiKernelT>;
-  using KernelByNameT = std::map<string_class, KernelWithBuildStateT>;
+  using KernelByNameT = std::map<std::string, KernelWithBuildStateT>;
   using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
 
   ~KernelProgramCache();

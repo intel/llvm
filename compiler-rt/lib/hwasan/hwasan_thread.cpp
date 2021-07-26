@@ -34,7 +34,8 @@ void Thread::InitRandomState() {
     stack_allocations_->push(0);
 }
 
-void Thread::Init(uptr stack_buffer_start, uptr stack_buffer_size) {
+void Thread::Init(uptr stack_buffer_start, uptr stack_buffer_size,
+                  const InitState *state) {
   CHECK_EQ(0, unique_id_);  // try to catch bad stack reuse
   CHECK_EQ(0, stack_top_);
   CHECK_EQ(0, stack_bottom_);
@@ -44,8 +45,13 @@ void Thread::Init(uptr stack_buffer_start, uptr stack_buffer_size) {
   if (auto sz = flags()->heap_history_size)
     heap_allocations_ = HeapAllocationsRingBuffer::New(sz);
 
-  InitStackAndTls();
+  InitStackAndTls(state);
+#if !SANITIZER_FUCHSIA
+  // Do not initialize the stack ring buffer just yet on Fuchsia. Threads will
+  // be initialized before we enter the thread itself, so we will instead call
+  // this later.
   InitStackRingBuffer(stack_buffer_start, stack_buffer_size);
+#endif
 }
 
 void Thread::InitStackRingBuffer(uptr stack_buffer_start,

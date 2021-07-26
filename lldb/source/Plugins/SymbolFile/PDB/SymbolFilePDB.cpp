@@ -84,8 +84,10 @@ bool ShouldAddLine(uint32_t requested_line, uint32_t actual_line,
 static bool ShouldUseNativeReader() {
 #if defined(_WIN32)
   llvm::StringRef use_native = ::getenv("LLDB_USE_NATIVE_PDB_READER");
-  return use_native.equals_lower("on") || use_native.equals_lower("yes") ||
-         use_native.equals_lower("1") || use_native.equals_lower("true");
+  return use_native.equals_insensitive("on") ||
+         use_native.equals_insensitive("yes") ||
+         use_native.equals_insensitive("1") ||
+         use_native.equals_insensitive("true");
 #else
   return true;
 #endif
@@ -128,7 +130,7 @@ SymbolFilePDB::CreateInstance(ObjectFileSP objfile_sp) {
 SymbolFilePDB::SymbolFilePDB(lldb::ObjectFileSP objfile_sp)
     : SymbolFile(std::move(objfile_sp)), m_session_up(), m_global_scope_up() {}
 
-SymbolFilePDB::~SymbolFilePDB() {}
+SymbolFilePDB::~SymbolFilePDB() = default;
 
 uint32_t SymbolFilePDB::CalculateAbilities() {
   uint32_t abilities = 0;

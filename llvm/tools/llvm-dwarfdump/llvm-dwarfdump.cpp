@@ -144,6 +144,7 @@ static std::array<llvm::Optional<uint64_t>, (unsigned)DIDT_ID_Count>
 #include "llvm/BinaryFormat/Dwarf.def"
 #undef HANDLE_DWARF_SECTION
 
+// The aliased DumpDebugFrame is created by the Dwarf.def x-macro just above.
 static alias DumpDebugFrameAlias("eh-frame", desc("Alias for --debug-frame"),
                                  NotHidden, cat(SectionCategory),
                                  aliasopt(DumpDebugFrame));
@@ -263,11 +264,15 @@ static cl::extrahelp
 /// @}
 //===----------------------------------------------------------------------===//
 
-static void error(StringRef Prefix, std::error_code EC) {
-  if (!EC)
+static void error(StringRef Prefix, Error Err) {
+  if (!Err)
     return;
-  WithColor::error() << Prefix << ": " << EC.message() << "\n";
+  WithColor::error() << Prefix << ": " << toString(std::move(Err)) << "\n";
   exit(1);
+}
+
+static void error(StringRef Prefix, std::error_code EC) {
+  error(Prefix, errorCodeToError(EC));
 }
 
 static DIDumpOptions getDumpOpts(DWARFContext &C) {
@@ -490,7 +495,7 @@ static bool verifyObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
   // fails.
   raw_ostream &stream = Quiet ? nulls() : OS;
   stream << "Verifying " << Filename.str() << ":\tfile format "
-  << Obj.getFileFormatName() << "\n";
+         << Obj.getFileFormatName() << "\n";
   bool Result = DICtx.verify(stream, getDumpOpts(DICtx));
   if (Result)
     stream << "No errors.\n";
@@ -508,13 +513,13 @@ static bool handleArchive(StringRef Filename, Archive &Arch,
   Error Err = Error::success();
   for (auto Child : Arch.children(Err)) {
     auto BuffOrErr = Child.getMemoryBufferRef();
-    error(Filename, errorToErrorCode(BuffOrErr.takeError()));
+    error(Filename, BuffOrErr.takeError());
     auto NameOrErr = Child.getName();
-    error(Filename, errorToErrorCode(NameOrErr.takeError()));
+    error(Filename, NameOrErr.takeError());
     std::string Name = (Filename + "(" + NameOrErr.get() + ")").str();
     Result &= handleBuffer(Name, BuffOrErr.get(), HandleObj, OS);
   }
-  error(Filename, errorToErrorCode(std::move(Err)));
+  error(Filename, std::move(Err));
 
   return Result;
 }
@@ -522,7 +527,7 @@ static bool handleArchive(StringRef Filename, Archive &Arch,
 static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
                          HandlerFn HandleObj, raw_ostream &OS) {
   Expected<std::unique_ptr<Binary>> BinOrErr = object::createBinary(Buffer);
-  error(Filename, errorToErrorCode(BinOrErr.takeError()));
+  error(Filename, BinOrErr.takeError());
 
   bool Result = true;
   auto RecoverableErrorHandler = [&](Error E) {
@@ -536,8 +541,7 @@ static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
       if (!HandleObj(*Obj, *DICtx, Filename, OS))
         Result = false;
     }
-  }
-  else if (auto *Fat = dyn_cast<MachOUniversalBinary>(BinOrErr->get()))
+  } else if (auto *Fat = dyn_cast<MachOUniversalBinary>(BinOrErr->get()))
     for (auto &ObjForArch : Fat->objects()) {
       std::string ObjName =
           (Filename + "(" + ObjForArch.getArchFlagName() + ")").str();
@@ -553,7 +557,7 @@ static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
       } else
         consumeError(MachOOrErr.takeError());
       if (auto ArchiveOrErr = ObjForArch.getAsArchive()) {
-        error(ObjName, errorToErrorCode(ArchiveOrErr.takeError()));
+        error(ObjName, ArchiveOrErr.takeError());
         if (!handleArchive(ObjName, *ArchiveOrErr.get(), HandleObj, OS))
           Result = false;
         continue;
@@ -568,7 +572,7 @@ static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
 static bool handleFile(StringRef Filename, HandlerFn HandleObj,
                        raw_ostream &OS) {
   ErrorOr<std::unique_ptr<MemoryBuffer>> BuffOrErr =
-  MemoryBuffer::getFileOrSTDIN(Filename);
+      MemoryBuffer::getFileOrSTDIN(Filename);
   error(Filename, BuffOrErr.getError());
   std::unique_ptr<MemoryBuffer> Buffer = std::move(BuffOrErr.get());
   return handleBuffer(Filename, *Buffer, HandleObj, OS);
@@ -619,7 +623,8 @@ int main(int argc, char **argv) {
   llvm::InitializeAllTargetInfos();
   llvm::InitializeAllTargetMCs();
 
-  HideUnrelatedOptions({&DwarfDumpCategory, &SectionCategory, &ColorCategory});
+  HideUnrelatedOptions(
+      {&DwarfDumpCategory, &SectionCategory, &getColorCategory()});
   cl::ParseCommandLineOptions(
       argc, argv,
       "pretty-print DWARF debug information in object files"
@@ -665,7 +670,8 @@ int main(int argc, char **argv) {
   }
 
   // Unless dumping a specific DIE, default to --show-children.
-  if (!ShowChildren && !Verify && !OffsetRequested && Name.empty() && Find.empty())
+  if (!ShowChildren && !Verify && !OffsetRequested && Name.empty() &&
+      Find.empty())
     ShowChildren = true;
 
   // Defaults to a.out if no filenames specified.

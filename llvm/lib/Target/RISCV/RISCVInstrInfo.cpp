@@ -432,16 +432,16 @@ void RISCVInstrInfo::movImm(MachineBasicBlock &MBB,
                             MachineInstr::MIFlag Flag) const {
   MachineFunction *MF = MBB.getParent();
   MachineRegisterInfo &MRI = MF->getRegInfo();
-  bool IsRV64 = MF->getSubtarget<RISCVSubtarget>().is64Bit();
   Register SrcReg = RISCV::X0;
   Register Result = MRI.createVirtualRegister(&RISCV::GPRRegClass);
   unsigned Num = 0;
 
-  if (!IsRV64 && !isInt<32>(Val))
+  if (!STI.is64Bit() && !isInt<32>(Val))
     report_fatal_error("Should only materialize 32-bit constants for RV32");
 
-  RISCVMatInt::InstSeq Seq = RISCVMatInt::generateInstSeq(Val, IsRV64);
-  assert(Seq.size() > 0);
+  RISCVMatInt::InstSeq Seq =
+      RISCVMatInt::generateInstSeq(Val, STI.getFeatureBits());
+  assert(!Seq.empty());
 
   for (RISCVMatInt::Inst &Inst : Seq) {
     // Write the final result to DstReg if it's the last instruction in the Seq.
@@ -452,6 +452,11 @@ void RISCVInstrInfo::movImm(MachineBasicBlock &MBB,
     if (Inst.Opc == RISCV::LUI) {
       BuildMI(MBB, MBBI, DL, get(RISCV::LUI), Result)
           .addImm(Inst.Imm)
+          .setMIFlag(Flag);
+    } else if (Inst.Opc == RISCV::ADDUW) {
+      BuildMI(MBB, MBBI, DL, get(RISCV::ADDUW), Result)
+          .addReg(SrcReg, RegState::Kill)
+          .addReg(RISCV::X0)
           .setMIFlag(Flag);
     } else {
       BuildMI(MBB, MBBI, DL, get(Inst.Opc), Result)
@@ -1170,7 +1175,13 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   case CASE_VFMA_OPCODE_LMULS(FMACC, VV):
   case CASE_VFMA_OPCODE_LMULS(FMSAC, VV):
   case CASE_VFMA_OPCODE_LMULS(FNMACC, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMSAC, VV): {
+  case CASE_VFMA_OPCODE_LMULS(FNMSAC, VV):
+  case CASE_VFMA_OPCODE_LMULS(MADD, VX):
+  case CASE_VFMA_OPCODE_LMULS(NMSUB, VX):
+  case CASE_VFMA_OPCODE_LMULS(MACC, VX):
+  case CASE_VFMA_OPCODE_LMULS(NMSAC, VX):
+  case CASE_VFMA_OPCODE_LMULS(MACC, VV):
+  case CASE_VFMA_OPCODE_LMULS(NMSAC, VV): {
     // For these instructions we can only swap operand 1 and operand 3 by
     // changing the opcode.
     unsigned CommutableOpIdx1 = 1;
@@ -1183,7 +1194,9 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   case CASE_VFMA_OPCODE_LMULS(FMADD, VV):
   case CASE_VFMA_OPCODE_LMULS(FMSUB, VV):
   case CASE_VFMA_OPCODE_LMULS(FNMADD, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV): {
+  case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV):
+  case CASE_VFMA_OPCODE_LMULS(MADD, VV):
+  case CASE_VFMA_OPCODE_LMULS(NMSUB, VV): {
     // For these instructions we have more freedom. We can commute with the
     // other multiplicand or with the addend/subtrahend/minuend.
 
@@ -1288,7 +1301,13 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   case CASE_VFMA_OPCODE_LMULS(FMACC, VV):
   case CASE_VFMA_OPCODE_LMULS(FMSAC, VV):
   case CASE_VFMA_OPCODE_LMULS(FNMACC, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMSAC, VV): {
+  case CASE_VFMA_OPCODE_LMULS(FNMSAC, VV):
+  case CASE_VFMA_OPCODE_LMULS(MADD, VX):
+  case CASE_VFMA_OPCODE_LMULS(NMSUB, VX):
+  case CASE_VFMA_OPCODE_LMULS(MACC, VX):
+  case CASE_VFMA_OPCODE_LMULS(NMSAC, VX):
+  case CASE_VFMA_OPCODE_LMULS(MACC, VV):
+  case CASE_VFMA_OPCODE_LMULS(NMSAC, VV): {
     // It only make sense to toggle these between clobbering the
     // addend/subtrahend/minuend one of the multiplicands.
     assert((OpIdx1 == 1 || OpIdx2 == 1) && "Unexpected opcode index");
@@ -1309,6 +1328,12 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
       CASE_VFMA_CHANGE_OPCODE_LMULS(FMSAC, FMSUB, VV)
       CASE_VFMA_CHANGE_OPCODE_LMULS(FNMACC, FNMADD, VV)
       CASE_VFMA_CHANGE_OPCODE_LMULS(FNMSAC, FNMSUB, VV)
+      CASE_VFMA_CHANGE_OPCODE_LMULS(MACC, MADD, VX)
+      CASE_VFMA_CHANGE_OPCODE_LMULS(MADD, MACC, VX)
+      CASE_VFMA_CHANGE_OPCODE_LMULS(NMSAC, NMSUB, VX)
+      CASE_VFMA_CHANGE_OPCODE_LMULS(NMSUB, NMSAC, VX)
+      CASE_VFMA_CHANGE_OPCODE_LMULS(MACC, MADD, VV)
+      CASE_VFMA_CHANGE_OPCODE_LMULS(NMSAC, NMSUB, VV)
     }
 
     auto &WorkingMI = cloneIfNew(MI);
@@ -1319,7 +1344,9 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   case CASE_VFMA_OPCODE_LMULS(FMADD, VV):
   case CASE_VFMA_OPCODE_LMULS(FMSUB, VV):
   case CASE_VFMA_OPCODE_LMULS(FNMADD, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV): {
+  case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV):
+  case CASE_VFMA_OPCODE_LMULS(MADD, VV):
+  case CASE_VFMA_OPCODE_LMULS(NMSUB, VV): {
     assert((OpIdx1 == 1 || OpIdx2 == 1) && "Unexpected opcode index");
     // If one of the operands, is the addend we need to change opcode.
     // Otherwise we're just swapping 2 of the multiplicands.
@@ -1332,6 +1359,8 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
         CASE_VFMA_CHANGE_OPCODE_LMULS(FMSUB, FMSAC, VV)
         CASE_VFMA_CHANGE_OPCODE_LMULS(FNMADD, FNMACC, VV)
         CASE_VFMA_CHANGE_OPCODE_LMULS(FNMSUB, FNMSAC, VV)
+        CASE_VFMA_CHANGE_OPCODE_LMULS(MADD, MACC, VV)
+        CASE_VFMA_CHANGE_OPCODE_LMULS(NMSUB, NMSAC, VV)
       }
 
       auto &WorkingMI = cloneIfNew(MI);
@@ -1449,8 +1478,8 @@ Register RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
 
   Register VL = MRI.createVirtualRegister(&RISCV::GPRRegClass);
   BuildMI(MBB, II, DL, TII->get(RISCV::PseudoReadVLENB), VL);
-  assert(isInt<12>(NumOfVReg) &&
-         "Expect the number of vector registers within 12-bits.");
+  assert(isInt<32>(NumOfVReg) &&
+         "Expect the number of vector registers within 32-bits.");
   if (isPowerOf2_32(NumOfVReg)) {
     uint32_t ShiftAmount = Log2_32(NumOfVReg);
     if (ShiftAmount == 0)
@@ -1478,9 +1507,12 @@ Register RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
         .addReg(VL, RegState::Kill);
   } else {
     Register N = MRI.createVirtualRegister(&RISCV::GPRRegClass);
-    BuildMI(MBB, II, DL, TII->get(RISCV::ADDI), N)
-        .addReg(RISCV::X0)
-        .addImm(NumOfVReg);
+    if (!isInt<12>(NumOfVReg))
+      movImm(MBB, II, DL, N, NumOfVReg);
+    else
+      BuildMI(MBB, II, DL, TII->get(RISCV::ADDI), N)
+          .addReg(RISCV::X0)
+          .addImm(NumOfVReg);
     if (!MF.getSubtarget<RISCVSubtarget>().hasStdExtM())
       MF.getFunction().getContext().diagnose(DiagnosticInfoUnsupported{
           MF.getFunction(),

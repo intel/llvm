@@ -369,6 +369,8 @@ def mul        : SDNode<"ISD::MUL"       , SDTIntBinOp,
                         [SDNPCommutative, SDNPAssociative]>;
 def mulhs      : SDNode<"ISD::MULHS"     , SDTIntBinOp, [SDNPCommutative]>;
 def mulhu      : SDNode<"ISD::MULHU"     , SDTIntBinOp, [SDNPCommutative]>;
+def abds       : SDNode<"ISD::ABDS"      , SDTIntBinOp, [SDNPCommutative]>;
+def abdu       : SDNode<"ISD::ABDU"      , SDTIntBinOp, [SDNPCommutative]>;
 def smullohi   : SDNode<"ISD::SMUL_LOHI" , SDTIntBinHiLoOp, [SDNPCommutative]>;
 def umullohi   : SDNode<"ISD::UMUL_LOHI" , SDTIntBinHiLoOp, [SDNPCommutative]>;
 def sdiv       : SDNode<"ISD::SDIV"      , SDTIntBinOp>;
@@ -704,7 +706,6 @@ def SDT_assert : SDTypeProfile<1, 1,
 def assertsext : SDNode<"ISD::AssertSext", SDT_assert>;
 def assertzext : SDNode<"ISD::AssertZext", SDT_assert>;
 def assertalign : SDNode<"ISD::AssertAlign", SDT_assert>;
-
 
 //===----------------------------------------------------------------------===//
 // Selection DAG Condition Codes

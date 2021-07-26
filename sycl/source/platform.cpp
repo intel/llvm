@@ -31,17 +31,17 @@ platform::platform(const device_selector &dev_selector) {
 
 cl_platform_id platform::get() const { return impl->get(); }
 
-bool platform::has_extension(const string_class &ExtensionName) const {
+bool platform::has_extension(const std::string &ExtensionName) const {
   return impl->has_extension(ExtensionName);
 }
 
 bool platform::is_host() const { return impl->is_host(); }
 
-vector_class<device> platform::get_devices(info::device_type DeviceType) const {
+std::vector<device> platform::get_devices(info::device_type DeviceType) const {
   return impl->get_devices(DeviceType);
 }
 
-vector_class<platform> platform::get_platforms() {
+std::vector<platform> platform::get_platforms() {
   return detail::platform_impl::get_platforms();
 }
 

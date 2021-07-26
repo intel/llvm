@@ -176,6 +176,14 @@ Operation::Operation(Location location, OperationName name, unsigned numResults,
       numRegions(numRegions), hasOperandStorage(hasOperandStorage), name(name),
       attrs(attributes) {
   assert(attributes && "unexpected null attribute dictionary");
+#ifndef NDEBUG
+  if (!getDialect() && !getContext()->allowsUnregisteredDialects())
+    llvm::report_fatal_error(
+        name.getStringRef() +
+        " created with unregistered dialect. If this is intended, please call "
+        "allowUnregisteredDialects() on the MLIRContext, or use "
+        "-allow-unregistered-dialect with the MLIR opt tool used");
+#endif
 }
 
 // Operations are deleted through the destroy() member because they are
@@ -214,21 +222,6 @@ void Operation::destroy() {
                  llvm::alignTo(prefixAllocSize(), alignof(Operation));
   this->~Operation();
   free(rawMem);
-}
-
-/// Return the context this operation is associated with.
-MLIRContext *Operation::getContext() { return location->getContext(); }
-
-/// Return the dialect this operation is associated with, or nullptr if the
-/// associated dialect is not registered.
-Dialect *Operation::getDialect() { return getName().getDialect(); }
-
-Region *Operation::getParentRegion() {
-  return block ? block->getParent() : nullptr;
-}
-
-Operation *Operation::getParentOp() {
-  return block ? block->getParentOp() : nullptr;
 }
 
 /// Return true if this operation is a proper ancestor of the `other`

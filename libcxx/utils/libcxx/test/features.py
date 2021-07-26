@@ -42,15 +42,7 @@ DEFAULT_FEATURES = [
   Feature(name='has-fobjc-arc',                 when=lambda cfg: hasCompileFlag(cfg, '-xobjective-c++ -fobjc-arc') and
                                                                  sys.platform.lower().strip() == 'darwin'), # TODO: this doesn't handle cross-compiling to Apple platforms.
   Feature(name='objective-c++',                 when=lambda cfg: hasCompileFlag(cfg, '-xobjective-c++ -fobjc-arc')),
-
-  # Note: We use a custom modules cache path to make sure that we don't reuse
-  #       the default one, which can be shared across builds. This is important
-  #       because we define macros in headers files, and a change in these macros
-  #       doesn't seem to invalidate modules cache entries, which means we could
-  #       build against now-invalid cached headers from a previous build.
-  Feature(name='modules-support',
-          when=lambda cfg: hasCompileFlag(cfg, '-fmodules'),
-          actions=lambda cfg: [AddCompileFlag('-fmodules-cache-path=%t/ModuleCache')]),
+  Feature(name='no-noexcept-function-type',     when=lambda cfg: featureTestMacros(cfg).get('__cpp_noexcept_function_type', 0) < 201510),
 
   Feature(name='non-lockfree-atomics',
           when=lambda cfg: sourceBuilds(cfg, """

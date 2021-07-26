@@ -54,7 +54,7 @@ set(optimization_level 2)
 
 # Activate RTL message dumps if requested by the user.
 if(LIBOMPTARGET_NVPTX_DEBUG)
-  set(CUDA_DEBUG -DOMPTARGET_NVPTX_DEBUG=-1)
+  set(CUDA_DEBUG -DOMPTARGET_NVPTX_DEBUG=-1 -g)
 endif()
 
 get_filename_component(devicertl_base_directory
@@ -98,7 +98,7 @@ else()
 endif()
 
 # create libraries
-set(mcpus gfx700 gfx701 gfx801 gfx803 gfx900 gfx906)
+set(mcpus gfx700 gfx701 gfx801 gfx803 gfx900 gfx902 gfx906 gfx908)
 if (DEFINED LIBOMPTARGET_AMDGCN_GFXLIST)
   set(mcpus ${LIBOMPTARGET_AMDGCN_GFXLIST})
 endif()

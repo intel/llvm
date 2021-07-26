@@ -23,6 +23,7 @@
 #include "lldb/Host/Terminal.h"
 #include "lldb/Host/ThreadLauncher.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
+#include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionValue.h"
 #include "lldb/Interpreter/OptionValueProperties.h"
 #include "lldb/Interpreter/OptionValueSInt64.h"
@@ -604,6 +605,17 @@ void Debugger::Destroy(DebuggerSP &debugger_sp) {
   if (!debugger_sp)
     return;
 
+  CommandInterpreter &cmd_interpreter = debugger_sp->GetCommandInterpreter();
+
+  if (cmd_interpreter.GetSaveSessionOnQuit()) {
+    CommandReturnObject result(debugger_sp->GetUseColor());
+    cmd_interpreter.SaveTranscript(result);
+    if (result.Succeeded())
+      debugger_sp->GetOutputStream() << result.GetOutputData() << '\n';
+    else
+      debugger_sp->GetErrorStream() << result.GetErrorData() << '\n';
+  }
+
   debugger_sp->Clear();
 
   if (g_debugger_list_ptr && g_debugger_list_mutex_ptr) {
@@ -761,12 +773,9 @@ void Debugger::Clear() {
     StopIOHandlerThread();
     StopEventHandlerThread();
     m_listener_sp->Clear();
-    int num_targets = m_target_list.GetNumTargets();
-    for (int i = 0; i < num_targets; i++) {
-      TargetSP target_sp(m_target_list.GetTargetAtIndex(i));
+    for (TargetSP target_sp : m_target_list.Targets()) {
       if (target_sp) {
-        ProcessSP process_sp(target_sp->GetProcessSP());
-        if (process_sp)
+        if (ProcessSP process_sp = target_sp->GetProcessSP())
           process_sp->Finalize();
         target_sp->Destroy();
       }

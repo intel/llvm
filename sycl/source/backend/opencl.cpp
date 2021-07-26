@@ -52,7 +52,7 @@ __SYCL_EXPORT program make_program(const context &Context,
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context,
+  return detail::make_queue(NativeHandle, Context, false,
                             ContextImpl->get_async_handler(), backend::opencl);
 }
 } // namespace opencl

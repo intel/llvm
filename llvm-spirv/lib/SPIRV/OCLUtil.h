@@ -101,6 +101,13 @@ enum OCLMemOrderKind {
   OCLMO_seq_cst = std::memory_order::memory_order_seq_cst
 };
 
+enum IntelFPGAMemoryAccessesVal {
+  BurstCoalesce = 0x1,
+  CacheSizeFlag = 0x2,
+  DontStaticallyCoalesce = 0x4,
+  PrefetchFlag = 0x8
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Types
@@ -311,13 +318,6 @@ const OCLMemOrderKind OCLLegacyAtomicMemOrder = OCLMO_relaxed;
 /// OCL 1.x atomic memory scope when translated to 2.0 atomics.
 const OCLScopeKind OCLLegacyAtomicMemScope = OCLMS_work_group;
 
-enum IntelFPGAMemoryAccessesVal {
-  BurstCoalesce = 0x1,
-  CacheSizeFlag = 0x2,
-  DontStaticallyCoalesce = 0x4,
-  PrefetchFlag = 0x8
-};
-
 namespace kOCLVer {
 const unsigned CL12 = 102000;
 const unsigned CL20 = 200000;
@@ -353,6 +353,7 @@ enum Kind {
   _SPIRV_OP(cl_khr_mipmap_image_writes)
   _SPIRV_OP(cl_khr_egl_event)
   _SPIRV_OP(cl_khr_srgb_image_writes)
+  _SPIRV_OP(cl_khr_extended_bit_ops)
 #undef _SPIRV_OP
 };
 // clang-format on

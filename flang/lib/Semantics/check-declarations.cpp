@@ -1797,9 +1797,15 @@ void CheckHelper::CheckAlreadySeenDefinedIo(const DerivedTypeSpec *derivedType,
 void CheckHelper::CheckDioDummyIsDerived(
     const Symbol &subp, const Symbol &arg, GenericKind::DefinedIo ioKind) {
   if (const DeclTypeSpec * type{arg.GetType()}) {
-    const DerivedTypeSpec *derivedType{type->AsDerived()};
-    if (derivedType) {
+    if (const DerivedTypeSpec * derivedType{type->AsDerived()}) {
       CheckAlreadySeenDefinedIo(derivedType, ioKind, subp);
+      bool isPolymorphic{type->IsPolymorphic()};
+      if (isPolymorphic != IsExtensibleType(derivedType)) {
+        messages_.Say(arg.name(),
+            "Dummy argument '%s' of a defined input/output procedure must be %s when the derived type is %s"_err_en_US,
+            arg.name(), isPolymorphic ? "TYPE()" : "CLASS()",
+            isPolymorphic ? "not extensible" : "extensible");
+      }
     } else {
       messages_.Say(arg.name(),
           "Dummy argument '%s' of a defined input/output procedure must have a"
@@ -2209,15 +2215,14 @@ void DistinguishabilityHelper::Check(const Scope &scope) {
   for (const auto &[name, info] : nameToInfo_) {
     auto count{info.size()};
     for (std::size_t i1{0}; i1 < count - 1; ++i1) {
-      const auto &[kind1, symbol1, proc1] = info[i1];
+      const auto &[kind, symbol, proc]{info[i1]};
       for (std::size_t i2{i1 + 1}; i2 < count; ++i2) {
-        const auto &[kind2, symbol2, proc2] = info[i2];
-        auto distinguishable{kind1.IsName()
+        auto distinguishable{kind.IsName()
                 ? evaluate::characteristics::Distinguishable
                 : evaluate::characteristics::DistinguishableOpOrAssign};
-        if (!distinguishable(proc1, proc2)) {
-          SayNotDistinguishable(
-              GetTopLevelUnitContaining(scope), name, kind1, symbol1, symbol2);
+        if (!distinguishable(proc, info[i2].procedure)) {
+          SayNotDistinguishable(GetTopLevelUnitContaining(scope), name, kind,
+              symbol, info[i2].symbol);
         }
       }
     }

@@ -15,6 +15,7 @@
 
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Target/Thread.h"
+#include "lldb/Target/TraceCursor.h"
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/TraceGDBRemotePackets.h"
 #include "lldb/Utility/UnimplementedError.h"
@@ -44,11 +45,6 @@ namespace lldb_private {
 class Trace : public PluginInterface,
               public std::enable_shared_from_this<Trace> {
 public:
-  enum class TraceDirection {
-    Forwards = 0,
-    Backwards,
-  };
-
   /// Dump the trace data that this plug-in has access to.
   ///
   /// This function will dump all of the trace data for all threads in a user
@@ -136,83 +132,13 @@ public:
   ///     The JSON schema of this Trace plug-in.
   virtual llvm::StringRef GetSchema() = 0;
 
-  /// Each decoded thread contains a cursor to the current position the user is
-  /// stopped at. When reverse debugging, each operation like reverse-next or
-  /// reverse-continue will move this cursor, which is then picked by any
-  /// subsequent dump or reverse operation.
-  ///
-  /// The initial position for this cursor is the last element of the thread,
-  /// which is the most recent chronologically.
+  /// Get a \a TraceCursor for the given thread's trace.
   ///
   /// \return
-  ///     The current position of the thread's trace or \b 0 if empty.
-  virtual size_t GetCursorPosition(Thread &thread) = 0;
-
-  /// Dump \a count instructions of the given thread's trace ending at the
-  /// given \a end_position position.
-  ///
-  /// The instructions are printed along with their indices or positions, which
-  /// are increasing chronologically. This means that the \a index 0 represents
-  /// the oldest instruction of the trace chronologically.
-  ///
-  /// \param[in] thread
-  ///     The thread whose trace will be dumped.
-  ///
-  /// \param[in] s
-  ///     The stream object where the instructions are printed.
-  ///
-  /// \param[in] count
-  ///     The number of instructions to print.
-  ///
-  /// \param[in] end_position
-  ///     The position of the last instruction to print.
-  ///
-  /// \param[in] raw
-  ///     Dump only instruction addresses without disassembly nor symbol
-  ///     information.
-  void DumpTraceInstructions(Thread &thread, Stream &s, size_t count,
-                             size_t end_position, bool raw);
-
-  /// Run the provided callback on the instructions of the trace of the given
-  /// thread.
-  ///
-  /// The instructions will be traversed starting at the given \a position
-  /// sequentially until the callback returns \b false, in which case no more
-  /// instructions are inspected.
-  ///
-  /// The purpose of this method is to allow inspecting traced instructions
-  /// without exposing the internal representation of how they are stored on
-  /// memory.
-  ///
-  /// \param[in] thread
-  ///     The thread whose trace will be traversed.
-  ///
-  /// \param[in] position
-  ///     The instruction position to start iterating on.
-  ///
-  /// \param[in] direction
-  ///     If \b TraceDirection::Forwards, then then instructions will be
-  ///     traversed forwards chronologically, i.e. with incrementing indices. If
-  ///     \b TraceDirection::Backwards, the traversal is done backwards
-  ///     chronologically, i.e. with decrementing indices.
-  ///
-  /// \param[in] callback
-  ///     The callback to execute on each instruction. If it returns \b false,
-  ///     the iteration stops.
-  virtual void TraverseInstructions(
-      Thread &thread, size_t position, TraceDirection direction,
-      std::function<bool(size_t index, llvm::Expected<lldb::addr_t> load_addr)>
-          callback) = 0;
-
-  /// Get the number of available instructions in the trace of the given thread.
-  ///
-  /// \param[in] thread
-  ///     The thread whose trace will be inspected.
-  ///
-  /// \return
-  ///     The total number of instructions in the trace, or \a llvm::None if the
-  ///     thread is not being traced.
-  virtual llvm::Optional<size_t> GetInstructionCount(Thread &thread) = 0;
+  ///     A \a TraceCursorUP. If the thread is not traced or its trace
+  ///     information failed to load, the corresponding error is embedded in the
+  ///     trace.
+  virtual lldb::TraceCursorUP GetCursor(Thread &thread) = 0;
 
   /// Check if a thread is currently traced by this object.
   ///
@@ -278,6 +204,11 @@ public:
 
   /// Get the trace file of the given post mortem thread.
   llvm::Expected<const FileSpec &> GetPostMortemTraceFile(lldb::tid_t tid);
+
+  /// \return
+  ///     The stop ID of the live process being traced, or an invalid stop ID
+  ///     if the trace is in an error or invalid state.
+  uint32_t GetStopID();
 
 protected:
   /// Get binary data of a live thread given a data identifier.
@@ -350,8 +281,8 @@ protected:
   /// The result is cached through the same process stop.
   void RefreshLiveProcessState();
 
+  uint32_t m_stop_id = LLDB_INVALID_STOP_ID;
   /// Process traced by this object if doing live tracing. Otherwise it's null.
-  int64_t m_stop_id = -1;
   Process *m_live_process = nullptr;
   /// tid -> data kind -> size
   std::map<lldb::tid_t, std::unordered_map<std::string, size_t>>

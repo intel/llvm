@@ -55,7 +55,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
   bool IsOpenCLV20 = false; // Backend is OpenCL 2.0
   if (Platform.get_backend() == cl::sycl::backend::opencl) {
-    string_class VersionString = DeviceImpl.get_info<info::device::version>();
+    std::string VersionString = DeviceImpl.get_info<info::device::version>();
     IsOpenCL = true;
     IsOpenCLV1x = (VersionString.find("1.") == 0);
     IsOpenCLV20 = (VersionString.find("2.0") == 0);
@@ -183,14 +183,13 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           Plugin.call<PiApiKind::piProgramGetBuildInfo>(
               Program, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, 0, nullptr,
               &OptsSize);
-          string_class Opts(OptsSize, '\0');
+          std::string Opts(OptsSize, '\0');
           Plugin.call<PiApiKind::piProgramGetBuildInfo>(
               Program, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, OptsSize,
               &Opts.front(), nullptr);
-          const bool HasStd20 =
-              Opts.find("-cl-std=CL2.0") != string_class::npos;
+          const bool HasStd20 = Opts.find("-cl-std=CL2.0") != std::string::npos;
           const bool RequiresUniformWGSize =
-              Opts.find("-cl-uniform-work-group-size") != string_class::npos;
+              Opts.find("-cl-uniform-work-group-size") != std::string::npos;
           std::string LocalWGSize = std::to_string(NDRDesc.LocalSize[0]) +
                                     ", " +
                                     std::to_string(NDRDesc.LocalSize[1]) +

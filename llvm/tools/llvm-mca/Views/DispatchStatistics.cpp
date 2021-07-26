@@ -1,5 +1,4 @@
-//===--------------------- DispatchStatistics.cpp ---------------------*- C++
-//-*-===//
+//===--------------------- DispatchStatistics.cpp ---------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -82,6 +81,17 @@ void DispatchStatistics::printDispatchStalls(raw_ostream &OS) const {
   SS << '\n';
   SS.flush();
   OS << Buffer;
+}
+
+json::Value DispatchStatistics::toJSON() const {
+  json::Object JO({{"RAT", HWStalls[HWStallEvent::RegisterFileStall]},
+                   {"RCU", HWStalls[HWStallEvent::RetireControlUnitStall]},
+                   {"SCHEDQ", HWStalls[HWStallEvent::SchedulerQueueFull]},
+                   {"LQ", HWStalls[HWStallEvent::LoadQueueFull]},
+                   {"SQ", HWStalls[HWStallEvent::StoreQueueFull]},
+                   {"GROUP", HWStalls[HWStallEvent::DispatchGroupStall]},
+                   {"USH", HWStalls[HWStallEvent::CustomBehaviourStall]}});
+  return JO;
 }
 
 } // namespace mca

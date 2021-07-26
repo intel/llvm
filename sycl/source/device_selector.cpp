@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/ONEAPI/filter_selector.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/device.hpp>
@@ -18,6 +17,7 @@
 #include <detail/filter_selector_impl.hpp>
 #include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>
+#include <sycl/ext/oneapi/filter_selector.hpp>
 // 4.6.1 Device selection class
 
 #include <algorithm>
@@ -63,7 +63,7 @@ static bool isForcedDevice(const device &Dev, int Index = -1) {
 }
 
 device device_selector::select_device() const {
-  vector_class<device> devices = device::get_devices();
+  std::vector<device> devices = device::get_devices();
   int score = REJECT_DEVICE_SCORE;
   const device *res = nullptr;
 
@@ -71,9 +71,9 @@ device device_selector::select_device() const {
     int dev_score = (*this)(dev);
 
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
-      string_class PlatformName = dev.get_info<info::device::platform>()
-                                      .get_info<info::platform::name>();
-      string_class DeviceName = dev.get_info<info::device::name>();
+      std::string PlatformName = dev.get_info<info::device::platform>()
+                                     .get_info<info::platform::name>();
+      std::string DeviceName = dev.get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
                 << "select_device(): -> score = " << dev_score
                 << ((dev_score < 0) ? " (REJECTED)" : "") << std::endl
@@ -108,9 +108,9 @@ device device_selector::select_device() const {
 
   if (res != nullptr) {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
-      string_class PlatformName = res->get_info<info::device::platform>()
-                                      .get_info<info::platform::name>();
-      string_class DeviceName = res->get_info<info::device::name>();
+      std::string PlatformName = res->get_info<info::device::platform>()
+                                     .get_info<info::platform::name>();
+      std::string DeviceName = res->get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
                 << "Selected device ->" << std::endl
                 << "SYCL_PI_TRACE[all]: "
@@ -244,7 +244,8 @@ int host_selector::operator()(const device &dev) const {
   return Score;
 }
 
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 
 filter_selector::filter_selector(const std::string &Input)
     : impl(std::make_shared<detail::filter_selector_impl>(Input)) {}
@@ -266,6 +267,23 @@ device filter_selector::select_device() const {
   return Result;
 }
 
+} // namespace oneapi
+} // namespace ext
+
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
+  filter_selector::filter_selector(const std::string &Input)
+      : ext::oneapi::filter_selector(Input) {}
+
+  int filter_selector::operator()(const device &Dev) const {
+    return ext::oneapi::filter_selector::operator()(Dev);
+  }
+
+  void filter_selector::reset() const { ext::oneapi::filter_selector::reset(); }
+
+  device filter_selector::select_device() const {
+    return ext::oneapi::filter_selector::select_device();
+  }
 } // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

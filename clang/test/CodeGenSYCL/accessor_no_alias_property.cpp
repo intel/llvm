@@ -12,15 +12,15 @@ int main() {
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ONEAPI::accessor_property_list<
-                         cl::sycl::ONEAPI::property::no_alias::instance<true>>>
+                     cl::sycl::ext::oneapi::accessor_property_list<
+                         cl::sycl::ext::oneapi::property::no_alias::instance<true>>>
       accessorA;
 
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ONEAPI::accessor_property_list<
-                         cl::sycl::INTEL::property::buffer_location::instance<1>>>
+                     cl::sycl::ext::oneapi::accessor_property_list<
+                         cl::sycl::ext::intel::property::buffer_location::instance<1>>>
       accessorB;
 
   cl::sycl::kernel_single_task<class kernel_function1>(

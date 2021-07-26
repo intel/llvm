@@ -459,6 +459,19 @@ define void @f77() nosanitize_coverage
         ret void;
 }
 
+; CHECK: define void @f78() #49
+define void @f78() noprofile
+{
+        ret void;
+}
+
+declare void @llvm.some.intrinsic(i32*)
+define void @f79() {
+; CHECK: call void @llvm.some.intrinsic(i32* elementtype(i32) null)
+  call void @llvm.some.intrinsic(i32* elementtype(i32) null)
+  ret void
+}
+
 ; CHECK: attributes #0 = { noreturn }
 ; CHECK: attributes #1 = { nounwind }
 ; CHECK: attributes #2 = { readnone }
@@ -508,4 +521,5 @@ define void @f77() nosanitize_coverage
 ; CHECK: attributes #46 = { vscale_range(1,8) }
 ; CHECK: attributes #47 = { vscale_range(1,0) }
 ; CHECK: attributes #48 = { nosanitize_coverage }
+; CHECK: attributes #49 = { noprofile }
 ; CHECK: attributes #[[NOBUILTIN]] = { nobuiltin }

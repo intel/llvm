@@ -50,7 +50,7 @@ public:
   ///
   /// \param ExtensionName is a string containing extension name.
   /// \return true if platform supports specified extension.
-  bool has_extension(const string_class &ExtensionName) const;
+  bool has_extension(const std::string &ExtensionName) const;
 
   /// Returns all SYCL devices associated with this platform.
   ///
@@ -61,7 +61,7 @@ public:
   ///
   /// \param DeviceType is a SYCL device type.
   /// \return a vector of SYCL devices.
-  vector_class<device>
+  std::vector<device>
   get_devices(info::device_type DeviceType = info::device_type::all) const;
 
   /// Queries this SYCL platform for info.
@@ -106,7 +106,7 @@ public:
   /// purposes. See environment variables guide for up-to-date instructions.
   ///
   /// \return a vector of all available SYCL platforms.
-  static vector_class<platform> get_platforms();
+  static std::vector<platform> get_platforms();
 
   // \return the Plugin associated with this platform.
   const plugin &getPlugin() const {

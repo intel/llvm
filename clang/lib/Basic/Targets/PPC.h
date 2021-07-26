@@ -74,6 +74,9 @@ class LLVM_LIBRARY_VISIBILITY PPCTargetInfo : public TargetInfo {
   bool HasP10Vector = false;
   bool HasPCRelativeMemops = false;
   bool HasPrefixInstrs = false;
+  bool IsISA2_07 = false;
+  bool IsISA3_0 = false;
+  bool IsISA3_1 = false;
 
 protected:
   std::string ABI;
@@ -89,7 +92,7 @@ public:
   }
 
   // Set the language option for altivec based on our value.
-  void adjust(LangOptions &Opts) override;
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override;
 
   // Note: GCC recognizes the following additional cpus:
   //  401, 403, 405, 405fp, 440fp, 464, 464fp, 476, 476fp, 505, 740, 801,
@@ -454,6 +457,8 @@ public:
     switch (CC) {
     case CC_Swift:
       return CCCR_OK;
+    case CC_SwiftAsync:
+      return CCCR_Error;
     default:
       return CCCR_Warning;
     }

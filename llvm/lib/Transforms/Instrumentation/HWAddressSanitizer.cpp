@@ -192,13 +192,35 @@ static cl::opt<bool> ClUsePageAliases("hwasan-experimental-use-page-aliases",
 
 namespace {
 
+bool shouldUsePageAliases(const Triple &TargetTriple) {
+  return ClUsePageAliases && TargetTriple.getArch() == Triple::x86_64;
+#ifdef __GNUC__
+// No one should use the option directly.
+#pragma GCC poison ClUsePageAliases
+#endif
+}
+
+bool shouldInstrumentStack(const Triple &TargetTriple) {
+  return shouldUsePageAliases(TargetTriple) ? false : ClInstrumentStack;
+#ifdef __GNUC__
+// No one should use the option directly.
+#pragma GCC poison ClInstrumentStack
+#endif
+}
+
+bool shouldInstrumentWithCalls(const Triple &TargetTriple) {
+  return ClInstrumentWithCalls || TargetTriple.getArch() == Triple::x86_64;
+#ifdef __GNUC__
+// No one should use the option directly.
+#pragma GCC poison ClInstrumentWithCalls
+#endif
+}
+
 /// An instrumentation pass implementing detection of addressability bugs
 /// using tagged pointers.
 class HWAddressSanitizer {
 public:
-  explicit HWAddressSanitizer(Module &M, bool CompileKernel = false,
-                              bool Recover = false)
-      : M(M) {
+  HWAddressSanitizer(Module &M, bool CompileKernel, bool Recover) : M(M) {
     this->Recover = ClRecover.getNumOccurrences() > 0 ? ClRecover : Recover;
     this->CompileKernel = ClEnableKhwasan.getNumOccurrences() > 0
                               ? ClEnableKhwasan
@@ -503,9 +525,9 @@ void HWAddressSanitizer::initializeModule() {
   // - Intel LAM (default)
   // - pointer aliasing (heap only)
   bool IsX86_64 = TargetTriple.getArch() == Triple::x86_64;
-  UsePageAliases = ClUsePageAliases && IsX86_64;
-  InstrumentWithCalls = IsX86_64 ? true : ClInstrumentWithCalls;
-  InstrumentStack = UsePageAliases ? false : ClInstrumentStack;
+  UsePageAliases = shouldUsePageAliases(TargetTriple);
+  InstrumentWithCalls = shouldInstrumentWithCalls(TargetTriple);
+  InstrumentStack = shouldInstrumentStack(TargetTriple);
   PointerTagShift = IsX86_64 ? 57 : 56;
   TagMaskByte = IsX86_64 ? 0x3F : 0xFF;
 
@@ -1201,10 +1223,10 @@ bool HWAddressSanitizer::instrumentStack(
       // to put it at the beginning of the expression.
       SmallVector<uint64_t, 8> NewOps = {dwarf::DW_OP_LLVM_tag_offset,
                                          retagMask(N)};
-      auto Locations = DDI->location_ops();
-      unsigned LocNo = std::distance(Locations.begin(), find(Locations, AI));
-      DDI->setExpression(
-          DIExpression::appendOpsToArg(DDI->getExpression(), NewOps, LocNo));
+      for (size_t LocNo = 0; LocNo < DDI->getNumVariableLocationOps(); ++LocNo)
+        if (DDI->getVariableLocationOp(LocNo) == AI)
+          DDI->setExpression(DIExpression::appendOpsToArg(DDI->getExpression(),
+                                                          NewOps, LocNo));
     }
 
     size_t Size = getAllocaSizeInBytes(*AI);
@@ -1266,10 +1288,14 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
           isa<CleanupReturnInst>(Inst))
         RetVec.push_back(&Inst);
 
-      if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&Inst))
-        for (Value *V : DVI->location_ops())
+      if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&Inst)) {
+        for (Value *V : DVI->location_ops()) {
           if (auto *Alloca = dyn_cast_or_null<AllocaInst>(V))
-            AllocaDbgMap[Alloca].push_back(DVI);
+            if (!AllocaDbgMap.count(Alloca) ||
+                AllocaDbgMap[Alloca].back() != DVI)
+              AllocaDbgMap[Alloca].push_back(DVI);
+        }
+      }
 
       if (InstrumentLandingPads && isa<LandingPadInst>(Inst))
         LandingPadVec.push_back(&Inst);
@@ -1348,7 +1374,9 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
     for (auto &BB : F) {
       for (auto &Inst : BB) {
         if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&Inst)) {
-          for (Value *V : DVI->location_ops()) {
+          SmallDenseSet<Value *> LocationOps(DVI->location_ops().begin(),
+                                             DVI->location_ops().end());
+          for (Value *V : LocationOps) {
             if (auto *AI = dyn_cast_or_null<AllocaInst>(V)) {
               if (auto *NewAI = AllocaToPaddedAllocaMap.lookup(AI))
                 DVI->replaceVariableLocationOp(V, NewAI);
@@ -1467,9 +1495,36 @@ void HWAddressSanitizer::instrumentGlobal(GlobalVariable *GV, uint8_t Tag) {
   GV->eraseFromParent();
 }
 
+static DenseSet<GlobalVariable *> getExcludedGlobals(Module &M) {
+  NamedMDNode *Globals = M.getNamedMetadata("llvm.asan.globals");
+  if (!Globals)
+    return DenseSet<GlobalVariable *>();
+  DenseSet<GlobalVariable *> Excluded(Globals->getNumOperands());
+  for (auto MDN : Globals->operands()) {
+    // Metadata node contains the global and the fields of "Entry".
+    assert(MDN->getNumOperands() == 5);
+    auto *V = mdconst::extract_or_null<Constant>(MDN->getOperand(0));
+    // The optimizer may optimize away a global entirely.
+    if (!V)
+      continue;
+    auto *StrippedV = V->stripPointerCasts();
+    auto *GV = dyn_cast<GlobalVariable>(StrippedV);
+    if (!GV)
+      continue;
+    ConstantInt *IsExcluded = mdconst::extract<ConstantInt>(MDN->getOperand(4));
+    if (IsExcluded->isOne())
+      Excluded.insert(GV);
+  }
+  return Excluded;
+}
+
 void HWAddressSanitizer::instrumentGlobals() {
   std::vector<GlobalVariable *> Globals;
+  auto ExcludedGlobals = getExcludedGlobals(M);
   for (GlobalVariable &GV : M.globals()) {
+    if (ExcludedGlobals.count(&GV))
+      continue;
+
     if (GV.isDeclarationForLinker() || GV.getName().startswith("llvm.") ||
         GV.isThreadLocal())
       continue;

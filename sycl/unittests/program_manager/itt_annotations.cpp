@@ -239,7 +239,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 }
 
 sycl::unittest::PiImage Img = generateDefaultImage();
-sycl::unittest::PiImageArray ImgArray{Img};
+sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 TEST(ITTNotify, UseKernelBundle) {
   set_env(ITTProfileEnvVarName, "1");

@@ -13,10 +13,10 @@
 #include "mlir/Conversion/TosaToLinalg/TosaToLinalg.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
+#include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -813,7 +813,7 @@ static LogicalResult reduceMatchAndRewriteHelper(Operation *op, uint64_t axis,
 
   auto fillValue = rewriter.create<ConstantOp>(loc, fillValueAttr);
   auto filledTensor =
-      rewriter.create<linalg::FillOp>(loc, initTensor, fillValue).result();
+      rewriter.create<linalg::FillOp>(loc, fillValue, initTensor).result();
 
   SmallVector<AffineExpr, 2> srcExprs;
   SmallVector<AffineExpr, 2> dstExprs;
@@ -1018,7 +1018,7 @@ public:
     auto initTensor = rewriter.create<linalg::InitTensorOp>(
         loc, outputTy.getShape(), outputTy.getElementType());
     Value zeroTensor =
-        rewriter.create<linalg::FillOp>(loc, initTensor, zero).getResult(0);
+        rewriter.create<linalg::FillOp>(loc, zero, initTensor).getResult(0);
     rewriter.replaceOpWithNewOp<linalg::BatchMatmulOp>(
         op, TypeRange{op.getType()}, ValueRange{adaptor.a(), adaptor.b()},
         ValueRange{zeroTensor});
@@ -1093,7 +1093,6 @@ public:
   }
 };
 
-
 class ReshapeConverter : public OpConversionPattern<tosa::ReshapeOp> {
 public:
   using OpConversionPattern<tosa::ReshapeOp>::OpConversionPattern;
@@ -1122,8 +1121,7 @@ public:
         (operandTy.getRank() > resultTy.getRank() ? resultTy.getShape()
                                                   : operandTy.getShape());
     unsigned currSrcDim = 0, currDstDim = 0;
-    SmallVector<linalg::ReassociationExprs, 4> reassociationMap(
-        collapsedShape.size());
+    SmallVector<ReassociationExprs, 4> reassociationMap(collapsedShape.size());
 
     // First scan all dimensions in the source shapes to see whether we have a
     // perfect case where consecutive dimensions in source are collapsed. For
@@ -1178,11 +1176,11 @@ public:
           std::accumulate(expandedShape.begin(), expandedShape.end(), 1,
                           std::multiplies<int64_t>());
       auto elemTy = operandTy.getElementType();
-      SmallVector<linalg::ReassociationExprs, 4> collapsingMap = {
+      SmallVector<ReassociationExprs, 4> collapsingMap = {
           // Use operandTy here because we need to collapse all operands
           // dimensions.
           getIdentityExprs(operandTy.getShape().size())};
-      SmallVector<linalg::ReassociationExprs, 4> expandingMap = {
+      SmallVector<ReassociationExprs, 4> expandingMap = {
           // Use resultTy here because we need to expand to all result
           // dimensions.
           getIdentityExprs(resultTy.getShape().size())};
@@ -1721,12 +1719,12 @@ struct ConcatConverter : public OpConversionPattern<tosa::ConcatOp> {
     offsets.resize(rank, rewriter.create<ConstantIndexOp>(loc, 0));
 
     for (int i = 0; i < rank; ++i) {
-      sizes.push_back(rewriter.create<memref::DimOp>(loc, args[0], i));
+      sizes.push_back(rewriter.create<tensor::DimOp>(loc, args[0], i));
     }
 
     Value resultDimSize = sizes[axis];
     for (auto arg : args.drop_front()) {
-      auto size = rewriter.create<memref::DimOp>(loc, arg, axisValue);
+      auto size = rewriter.create<tensor::DimOp>(loc, arg, axisValue);
       resultDimSize = rewriter.create<AddIOp>(loc, resultDimSize, size);
     }
     sizes[axis] = resultDimSize;
@@ -1737,12 +1735,12 @@ struct ConcatConverter : public OpConversionPattern<tosa::ConcatOp> {
     Value zeroVal = rewriter.create<ConstantOp>(
         loc, rewriter.getZeroAttr(resultType.getElementType()));
     Value result =
-        rewriter.create<linalg::FillOp>(loc, init, zeroVal).getResult(0);
+        rewriter.create<linalg::FillOp>(loc, zeroVal, init).getResult(0);
 
     for (auto arg : args) {
-      sizes[axis] = rewriter.create<memref::DimOp>(loc, arg, axisValue);
-      result = rewriter.create<SubTensorInsertOp>(loc, arg, result, offsets,
-                                                  sizes, strides);
+      sizes[axis] = rewriter.create<tensor::DimOp>(loc, arg, axisValue);
+      result = rewriter.create<tensor::InsertSliceOp>(loc, arg, result, offsets,
+                                                      sizes, strides);
       offsets[axis] = rewriter.create<AddIOp>(loc, offsets[axis], sizes[axis]);
     }
     rewriter.replaceOp(op, result);
@@ -1981,7 +1979,7 @@ public:
     auto fillValueIdx = rewriter.create<ConstantOp>(
         loc, rewriter.getIntegerAttr(outElementTy, 0));
     auto filledTensorIdx =
-        rewriter.create<linalg::FillOp>(loc, initTensorIdx, fillValueIdx)
+        rewriter.create<linalg::FillOp>(loc, fillValueIdx, initTensorIdx)
             .result();
 
     // Second fill the output buffer for the running max.
@@ -1999,7 +1997,7 @@ public:
 
     auto fillValueMax = rewriter.create<ConstantOp>(loc, fillValueMaxAttr);
     auto filledTensorMax =
-        rewriter.create<linalg::FillOp>(loc, initTensorMax, fillValueMax)
+        rewriter.create<linalg::FillOp>(loc, fillValueMax, initTensorMax)
             .result();
 
     // We need to reduce along the arg-max axis, with parallel operations along
@@ -2288,7 +2286,7 @@ public:
         loc, resultTy.getShape(), resultTy.getElementType());
 
     Value filledInitTensor =
-        rewriter.create<linalg::FillOp>(loc, initTensor, initialValue).result();
+        rewriter.create<linalg::FillOp>(loc, initialValue, initTensor).result();
 
     Value fakeWindowDims =
         rewriter.create<linalg::InitTensorOp>(loc, kernel, outElementTy);

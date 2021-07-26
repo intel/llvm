@@ -144,7 +144,8 @@ template <> struct hash<std::error_condition>;
 
 #include <__config>
 #include <__errc>
-#include <__functional_base> // unary_function
+#include <__functional/unary_function.h>
+#include <__functional_base>
 #include <compare>
 #include <stdexcept>
 #include <string>
@@ -291,8 +292,7 @@ public:
     string message() const;
 
     _LIBCPP_INLINE_VISIBILITY
-        _LIBCPP_EXPLICIT
-        operator bool() const _NOEXCEPT {return __val_ != 0;}
+    explicit operator bool() const _NOEXCEPT {return __val_ != 0;}
 };
 
 inline _LIBCPP_INLINE_VISIBILITY
@@ -368,8 +368,7 @@ public:
     string message() const;
 
     _LIBCPP_INLINE_VISIBILITY
-        _LIBCPP_EXPLICIT
-        operator bool() const _NOEXCEPT {return __val_ != 0;}
+    explicit operator bool() const _NOEXCEPT {return __val_ != 0;}
 };
 
 inline _LIBCPP_INLINE_VISIBILITY

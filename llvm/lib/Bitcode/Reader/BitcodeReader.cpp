@@ -682,9 +682,10 @@ private:
     return getFnValueByID(ValNo, Ty);
   }
 
-  /// Upgrades old-style typeless byval or sret attributes by adding the
-  /// corresponding argument's pointee type.
-  void propagateByValSRetTypes(CallBase *CB, ArrayRef<Type *> ArgsTys);
+  /// Upgrades old-style typeless byval/sret/inalloca attributes by adding the
+  /// corresponding argument's pointee type. Also upgrades intrinsics that now
+  /// require an elementtype attribute.
+  void propagateAttributeTypes(CallBase *CB, ArrayRef<Type *> ArgsTys);
 
   /// Converts alignment exponent (i.e. power of two (or zero)) to the
   /// corresponding alignment to use. If alignment is too large, returns
@@ -1385,6 +1386,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::Cold;
   case bitc::ATTR_KIND_CONVERGENT:
     return Attribute::Convergent;
+  case bitc::ATTR_KIND_ELEMENTTYPE:
+    return Attribute::ElementType;
   case bitc::ATTR_KIND_INACCESSIBLEMEM_ONLY:
     return Attribute::InaccessibleMemOnly;
   case bitc::ATTR_KIND_INACCESSIBLEMEM_OR_ARGMEMONLY:
@@ -1439,6 +1442,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::NoSync;
   case bitc::ATTR_KIND_NOCF_CHECK:
     return Attribute::NoCfCheck;
+  case bitc::ATTR_KIND_NO_PROFILE:
+    return Attribute::NoProfile;
   case bitc::ATTR_KIND_NO_UNWIND:
     return Attribute::NoUnwind;
   case bitc::ATTR_KIND_NO_SANITIZE_COVERAGE:
@@ -1597,12 +1602,16 @@ Error BitcodeReader::parseAttributeGroupBlock() {
             B.addStructRetAttr(nullptr);
           else if (Kind == Attribute::InAlloca)
             B.addInAllocaAttr(nullptr);
-
-          B.addAttribute(Kind);
+          else if (Attribute::isEnumAttrKind(Kind))
+            B.addAttribute(Kind);
+          else
+            return error("Not an enum attribute");
         } else if (Record[i] == 1) { // Integer attribute
           Attribute::AttrKind Kind;
           if (Error Err = parseAttrKind(Record[++i], &Kind))
             return Err;
+          if (!Attribute::isIntAttrKind(Kind))
+            return error("Not an int attribute");
           if (Kind == Attribute::Alignment)
             B.addAlignmentAttr(Record[++i]);
           else if (Kind == Attribute::StackAlignment)
@@ -1640,17 +1649,10 @@ Error BitcodeReader::parseAttributeGroupBlock() {
           Attribute::AttrKind Kind;
           if (Error Err = parseAttrKind(Record[++i], &Kind))
             return Err;
-          if (Kind == Attribute::ByVal) {
-            B.addByValAttr(HasType ? getTypeByID(Record[++i]) : nullptr);
-          } else if (Kind == Attribute::StructRet) {
-            B.addStructRetAttr(HasType ? getTypeByID(Record[++i]) : nullptr);
-          } else if (Kind == Attribute::ByRef) {
-            B.addByRefAttr(getTypeByID(Record[++i]));
-          } else if (Kind == Attribute::Preallocated) {
-            B.addPreallocatedAttr(getTypeByID(Record[++i]));
-          } else if (Kind == Attribute::InAlloca) {
-            B.addInAllocaAttr(HasType ? getTypeByID(Record[++i]) : nullptr);
-          }
+          if (!Attribute::isTypeAttrKind(Kind))
+            return error("Not a type attribute");
+
+          B.addTypeAttr(Kind, HasType ? getTypeByID(Record[++i]) : nullptr);
         }
       }
 
@@ -2663,11 +2665,10 @@ Error BitcodeReader::parseConstants() {
       if (Elts.size() < 1)
         return error("Invalid gep with no operands");
 
-      Type *ImplicitPointeeType =
-          cast<PointerType>(Elt0FullTy->getScalarType())->getElementType();
+      PointerType *OrigPtrTy = cast<PointerType>(Elt0FullTy->getScalarType());
       if (!PointeeType)
-        PointeeType = ImplicitPointeeType;
-      else if (PointeeType != ImplicitPointeeType)
+        PointeeType = OrigPtrTy->getElementType();
+      else if (!OrigPtrTy->isOpaqueOrPointeeTypeMatches(PointeeType))
         return error("Explicit gep operator type does not match pointee type "
                      "of pointer operand");
 
@@ -3332,6 +3333,9 @@ Error BitcodeReader::parseFunctionRecord(ArrayRef<uint64_t> Record) {
       if (!Func->hasParamAttribute(i, Kind))
         continue;
 
+      if (Func->getParamAttribute(i, Kind).getValueAsType())
+        continue;
+
       Func->removeParamAttr(i, Kind);
 
       Type *PTy = cast<FunctionType>(FTy)->getParamType(i);
@@ -3408,9 +3412,12 @@ Error BitcodeReader::parseFunctionRecord(ArrayRef<uint64_t> Record) {
 
   // Record[16] is the address space number.
 
-  // Check whether we have enough values to read a partition name.
-  if (Record.size() > 18)
+  // Check whether we have enough values to read a partition name. Also make
+  // sure Strtab has enough values.
+  if (Record.size() > 18 && Strtab.data() &&
+      Record[17] + Record[18] <= Strtab.size()) {
     Func->setPartition(StringRef(Strtab.data() + Record[17], Record[18]));
+  }
 
   ValueList.push_back(Func);
 
@@ -3803,7 +3810,7 @@ Error BitcodeReader::typeCheckLoadStoreInst(Type *ValType, Type *PtrType) {
   return Error::success();
 }
 
-void BitcodeReader::propagateByValSRetTypes(CallBase *CB,
+void BitcodeReader::propagateAttributeTypes(CallBase *CB,
                                             ArrayRef<Type *> ArgsTys) {
   for (unsigned i = 0; i != CB->arg_size(); ++i) {
     for (Attribute::AttrKind Kind : {Attribute::ByVal, Attribute::StructRet,
@@ -3831,6 +3838,19 @@ void BitcodeReader::propagateByValSRetTypes(CallBase *CB,
 
       CB->addParamAttr(i, NewAttr);
     }
+  }
+
+  switch (CB->getIntrinsicID()) {
+  case Intrinsic::preserve_array_access_index:
+  case Intrinsic::preserve_struct_access_index:
+    if (!CB->getAttributes().getParamElementType(0)) {
+      Type *ElTy = cast<PointerType>(ArgsTys[0])->getElementType();
+      Attribute NewAttr = Attribute::get(Context, Attribute::ElementType, ElTy);
+      CB->addParamAttr(0, NewAttr);
+    }
+    break;
+  default:
+    break;
   }
 }
 
@@ -4636,7 +4656,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
             cast<PointerType>(Callee->getType())->getElementType());
         if (!FTy)
           return error("Callee is not of pointer to function type");
-      } else if (cast<PointerType>(Callee->getType())->getElementType() != FTy)
+      } else if (!CalleeTy->isOpaqueOrPointeeTypeMatches(FTy))
         return error("Explicit invoke type does not match pointee type of "
                      "callee operand");
       if (Record.size() < FTy->getNumParams() + OpNum)
@@ -4673,7 +4693,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       cast<InvokeInst>(I)->setCallingConv(
           static_cast<CallingConv::ID>(CallingConv::MaxID & CCInfo));
       cast<InvokeInst>(I)->setAttributes(PAL);
-      propagateByValSRetTypes(cast<CallBase>(I), ArgsTys);
+      propagateAttributeTypes(cast<CallBase>(I), ArgsTys);
 
       break;
     }
@@ -5264,7 +5284,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
             cast<PointerType>(Callee->getType())->getElementType());
         if (!FTy)
           return error("Callee is not of pointer to function type");
-      } else if (cast<PointerType>(Callee->getType())->getElementType() != FTy)
+      } else if (!OpTy->isOpaqueOrPointeeTypeMatches(FTy))
         return error("Explicit call type does not match pointee type of "
                      "callee operand");
       if (Record.size() < FTy->getNumParams() + OpNum)
@@ -5312,7 +5332,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         TCK = CallInst::TCK_NoTail;
       cast<CallInst>(I)->setTailCallKind(TCK);
       cast<CallInst>(I)->setAttributes(PAL);
-      propagateByValSRetTypes(cast<CallBase>(I), ArgsTys);
+      propagateAttributeTypes(cast<CallBase>(I), ArgsTys);
       if (FMF.any()) {
         if (!isa<FPMathOperator>(I))
           return error("Fast-math-flags specified for call without "

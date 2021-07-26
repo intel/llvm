@@ -10,14 +10,14 @@ class another_property_list {
 };
 
 template <int I>
-using buffer_location = cl::sycl::INTEL::property::buffer_location::instance<I>;
+using buffer_location = cl::sycl::ext::intel::property::buffer_location::instance<I>;
 
 struct Base {
   int A, B;
   cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ONEAPI::accessor_property_list<buffer_location<1>>>
+                     cl::sycl::ext::oneapi::accessor_property_list<buffer_location<1>>>
       AccField;
 };
 
@@ -26,7 +26,7 @@ struct Captured
       cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
                          cl::sycl::access::target::global_buffer,
                          cl::sycl::access::placeholder::false_t,
-                         cl::sycl::ONEAPI::accessor_property_list<buffer_location<1>>> {
+                         cl::sycl::ext::oneapi::accessor_property_list<buffer_location<1>>> {
   int C;
 };
 
@@ -37,13 +37,13 @@ int main() {
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ONEAPI::accessor_property_list<buffer_location<2>>>
+                     cl::sycl::ext::oneapi::accessor_property_list<buffer_location<2>>>
       // CHECK: SYCLIntelBufferLocationAttr {{.*}} Implicit 2
       accessorA;
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ONEAPI::accessor_property_list<
+                     cl::sycl::ext::oneapi::accessor_property_list<
                          another_property,
                          buffer_location<3>>>
       // CHECK: SYCLIntelBufferLocationAttr {{.*}} Implicit 3
@@ -51,14 +51,14 @@ int main() {
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ONEAPI::accessor_property_list<
+                     cl::sycl::ext::oneapi::accessor_property_list<
                          another_property>>
       accessorC;
 #else
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ONEAPI::accessor_property_list<buffer_location<-2>>>
+                     cl::sycl::ext::oneapi::accessor_property_list<buffer_location<-2>>>
       accessorD;
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
@@ -68,7 +68,7 @@ int main() {
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ONEAPI::accessor_property_list<
+                     cl::sycl::ext::oneapi::accessor_property_list<
                          buffer_location<1>,
                          buffer_location<2>>>
       accessorF;

@@ -57,34 +57,33 @@
 
 /// Test behaviors of -foffload-static-lib=<lib> from source.
 // RUN: touch %t-orig.lib
-// RUN: %clang --target=x86_64-pc-windows-msvc -fsycl-use-footer -fsycl -fno-sycl-device-lib=all %t-orig.lib -ccc-print-phases %s 2>&1 \
+// RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all %t-orig.lib -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl-use-footer -fsycl -fno-sycl-device-lib=all %t-orig.lib -ccc-print-phases %s 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all %t-orig.lib -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
 // FOFFLOAD_STATIC_LIB_SRC: 0: input, "[[INPUTLIB:.+\.lib]]", object, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.c]]", c++, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 3: append-footer, {2}, c++, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 4: preprocessor, {3}, c++-cpp-output, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 5: input, "[[INPUTC]]", c++, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 6: preprocessor, {5}, c++-cpp-output, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 7: compiler, {6}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 8: offload, "host-sycl (x86_64-pc-windows-msvc)" {4}, "device-sycl (spir64-unknown-unknown-sycldevice)" {7}, c++-cpp-output
-// FOFFLOAD_STATIC_LIB_SRC: 9: compiler, {8}, ir, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 10: backend, {9}, assembler, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 11: assembler, {10}, object, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 12: linker, {0, 11}, image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 13: linker, {0, 11}, image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 14: clang-offload-deps, {13}, ir, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 15: input, "[[INPUTLIB]]", archive
-// FOFFLOAD_STATIC_LIB_SRC: 16: clang-offload-unbundler, {15}, archive
-// FOFFLOAD_STATIC_LIB_SRC: 17: linker, {7, 14, 16}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 19: file-table-tform, {18}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 20: llvm-spirv, {19}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 21: file-table-tform, {18, 20}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 22: clang-offload-wrapper, {21}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 23: offload, "host-sycl (x86_64-pc-windows-msvc)" {12}, "device-sycl (spir64-unknown-unknown-sycldevice)" {22}, image
+// FOFFLOAD_STATIC_LIB_SRC: 2: append-footer, {1}, c++, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 3: preprocessor, {2}, c++-cpp-output, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 4: input, "[[INPUTC]]", c++, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 6: compiler, {5}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 7: offload, "host-sycl (x86_64-pc-windows-msvc)" {3}, "device-sycl (spir64-unknown-unknown-sycldevice)" {6}, c++-cpp-output
+// FOFFLOAD_STATIC_LIB_SRC: 8: compiler, {7}, ir, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 9: backend, {8}, assembler, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 10: assembler, {9}, object, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 11: linker, {0, 10}, image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 12: linker, {0, 10}, host_dep_image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 13: clang-offload-deps, {12}, ir, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 14: input, "[[INPUTLIB]]", archive
+// FOFFLOAD_STATIC_LIB_SRC: 15: clang-offload-unbundler, {14}, archive
+// FOFFLOAD_STATIC_LIB_SRC: 16: linker, {6, 13, 15}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 22: offload, "host-sycl (x86_64-pc-windows-msvc)" {11}, "device-sycl (spir64-unknown-unknown-sycldevice)" {21}, image
 
 /// ###########################################################################
 
@@ -100,6 +99,14 @@
 // Check for /P behaviors
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -P %s -### 2>&1 | FileCheck -check-prefix=FSYCL_P %s
 // FSYCL_P: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown-sycldevice" {{.*}} "-E" {{.*}} "-o" "[[DEVICEPP:.+\.ii]]"
-// FSYCL_P: clang{{.*}} "-cc1" "-triple" "x86_64-pc-windows-msvc{{.*}}" {{.*}} "-E" {{.*}} "-o" "[[HOSTPP:.+\.ii]]"
+// FSYCL_P: append-file{{.*}} "--output=[[APPEND:.+\.cpp]]"
+// FSYCL_P: clang{{.*}} "-cc1" "-triple" "x86_64-pc-windows-msvc{{.*}}" {{.*}} "-E" {{.*}} "-o" "[[HOSTPP:.+\.ii]]"{{.*}} "[[APPEND]]"
 // FSYCL_P: clang-offload-bundler{{.*}} "-type=ii" "-targets=sycl-spir64-unknown-unknown-sycldevice,host-x86_64-pc-windows-msvc" {{.*}} "-inputs=[[DEVICEPP]],[[HOSTPP]]"
 
+// RUN: touch %t-orig.lib
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl %t-orig.lib %s -### /link -out:force_out_file 2>&1 \
+// RUN:  | FileCheck %s -check-prefix=HOSTDEP_LINK_OVERRIDE
+// HOSTDEP_LINK_OVERRIDE: link{{.*}} "-out:[[HOSTDEP_LINK_OUT:.+\.out]]"{{.*}} "-out:force_out_file" "-out:[[HOSTDEP_LINK_OUT]]"
+// HOSTDEP_LINK_OVERRIDE: clang-offload-deps{{.*}}
+// HOSTDEP_LINK_OVERRIDE: link{{.*}} "-out:[[LINK_OUT:.+\.exe]]"{{.*}} "-out:force_out_file"
+// HOSTDEP_LINK_OVERRIDE-NOT: "-out:[[LINK_OUT]]"

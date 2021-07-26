@@ -144,6 +144,13 @@ set( CMAKE_CLC_ARCHIVE ${LLVM_LINK} )
 set( CMAKE_LLAsm_PREPROCESSOR ${LLVM_CLANG} )
 set( CMAKE_LLAsm_COMPILER ${LLVM_AS} )
 set( CMAKE_LLAsm_ARCHIVE ${LLVM_LINK} )
+
+# LLVM 13 enables standard includes by default
+if( ${LLVM_VERSION} VERSION_GREATER "12.99.99" )
+				set( CMAKE_LLAsm_FLAGS ${CMAKE_LLAsm_FLAGS} -cl-no-stdinc )
+				set( CMAKE_CLC_FLAGS ${CMAKE_CLC_FLAGS} -cl-no-stdinc )
+endif()
+
 enable_language( CLC LLAsm )
 
 # Configure prepare_builtins
@@ -342,6 +349,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			set( build_flags )
 			set( opt_flags -O3 )
 		endif()
+
+                # Enable SPIR-V builtin function declarations, so they don't
+                # have to be explicity declared in the soruce.
+                list( APPEND flags -Xclang -fdeclare-spirv-builtins)
 
 		add_libclc_builtin_set(libspirv-${arch_suffix}
 			TRIPLE ${t}

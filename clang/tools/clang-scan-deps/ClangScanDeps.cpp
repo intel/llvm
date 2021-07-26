@@ -83,8 +83,8 @@ public:
     llvm::FileRemover ErrorRemover(ErrorFile.c_str());
     llvm::Optional<StringRef> Redirects[] = {
         {""}, // Stdin
-        StringRef(OutputFile),
-        StringRef(ErrorFile),
+        OutputFile.str(),
+        ErrorFile.str(),
     };
     if (const int RC = llvm::sys::ExecuteAndWait(
             ClangBinaryPath, PrintResourceDirArgs, {}, Redirects)) {
@@ -465,7 +465,7 @@ int main(int argc, const char **argv) {
         auto FlagsEnd = llvm::find(Args, "--");
         if (FlagsEnd != Args.begin()) {
           ClangCLMode =
-              llvm::sys::path::stem(Args[0]).contains_lower("clang-cl") ||
+              llvm::sys::path::stem(Args[0]).contains_insensitive("clang-cl") ||
               llvm::is_contained(Args, "--driver-mode=cl");
 
           // Reverse scan, starting at the end or at the element before "--".

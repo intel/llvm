@@ -525,6 +525,7 @@ def OpenCLUnsupportedRGBA: DiagGroup<"opencl-unsupported-rgba">;
 def UnderalignedExceptionObject : DiagGroup<"underaligned-exception-object">;
 def DeprecatedObjCIsaUsage : DiagGroup<"deprecated-objc-isa-usage">;
 def ExplicitInitializeCall : DiagGroup<"explicit-initialize-call">;
+def OrderedCompareFunctionPointers : DiagGroup<"ordered-compare-function-pointers">;
 def Packed : DiagGroup<"packed">;
 def Padded : DiagGroup<"padded">;
 
@@ -1084,6 +1085,9 @@ def GNU : DiagGroup<"gnu", [GNUAlignofExpression, GNUAnonymousStruct,
 // A warning group for warnings about code that clang accepts but gcc doesn't.
 def GccCompat : DiagGroup<"gcc-compat">;
 
+// A warning group for warnings about code that may be incompatible on AIX.
+def AIXCompat : DiagGroup<"aix-compat">;
+
 // Warnings for Microsoft extensions.
 def MicrosoftCharize : DiagGroup<"microsoft-charize">;
 def MicrosoftDrectveSection : DiagGroup<"microsoft-drectve-section">;
@@ -1187,8 +1191,11 @@ def OpenMPClauses : DiagGroup<"openmp-clauses">;
 def OpenMPLoopForm : DiagGroup<"openmp-loop-form">;
 def OpenMPMapping : DiagGroup<"openmp-mapping">;
 def OpenMPTarget : DiagGroup<"openmp-target", [OpenMPMapping]>;
+def OpenMPPre51Compat : DiagGroup<"pre-openmp-51-compat">;
+def OpenMP51Ext : DiagGroup<"openmp-51-extensions">;
 def OpenMP : DiagGroup<"openmp", [
-    SourceUsesOpenMP, OpenMPClauses, OpenMPLoopForm, OpenMPTarget, OpenMPMapping
+    SourceUsesOpenMP, OpenMPClauses, OpenMPLoopForm, OpenMPTarget,
+    OpenMPMapping, OpenMP51Ext
   ]>;
 
 // SYCL warnings

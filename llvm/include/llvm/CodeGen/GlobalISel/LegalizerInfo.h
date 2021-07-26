@@ -110,7 +110,7 @@ struct LegalityQuery {
   ArrayRef<LLT> Types;
 
   struct MemDesc {
-    uint64_t SizeInBits;
+    LLT MemoryTy;
     uint64_t AlignInBits;
     AtomicOrdering Ordering;
   };
@@ -196,13 +196,12 @@ namespace LegalityPredicates {
 struct TypePairAndMemDesc {
   LLT Type0;
   LLT Type1;
-  uint64_t MemSize;
+  LLT MemTy;
   uint64_t Align;
 
   bool operator==(const TypePairAndMemDesc &Other) const {
     return Type0 == Other.Type0 && Type1 == Other.Type1 &&
-           Align == Other.Align &&
-           MemSize == Other.MemSize;
+           Align == Other.Align && MemTy == Other.MemTy;
   }
 
   /// \returns true if this memory access is legal with for the access described
@@ -210,7 +209,9 @@ struct TypePairAndMemDesc {
   bool isCompatible(const TypePairAndMemDesc &Other) const {
     return Type0 == Other.Type0 && Type1 == Other.Type1 &&
            Align >= Other.Align &&
-           MemSize == Other.MemSize;
+           // FIXME: This perhaps should be stricter, but the current legality
+           // rules are written only considering the size.
+           MemTy.getSizeInBits() == Other.MemTy.getSizeInBits();
   }
 };
 
@@ -1021,7 +1022,7 @@ public:
         [=](const LegalityQuery &Query) {
           LLT VecTy = Query.Types[TypeIdx];
           return std::make_pair(
-              TypeIdx, LLT::vector(MinElements, VecTy.getElementType()));
+              TypeIdx, LLT::fixed_vector(MinElements, VecTy.getElementType()));
         });
   }
   /// Limit the number of elements in EltTy vectors to at most MaxElements.
@@ -1038,7 +1039,8 @@ public:
         },
         [=](const LegalityQuery &Query) {
           LLT VecTy = Query.Types[TypeIdx];
-          LLT NewTy = LLT::scalarOrVector(MaxElements, VecTy.getElementType());
+          LLT NewTy = LLT::scalarOrVector(ElementCount::getFixed(MaxElements),
+                                          VecTy.getElementType());
           return std::make_pair(TypeIdx, NewTy);
         });
   }

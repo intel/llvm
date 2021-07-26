@@ -506,7 +506,7 @@ std::string Module::getUniqueIntrinsicName(StringRef BaseName, Intrinsic::ID Id,
     }
 
     // A declaration with this name already exists. Remember it.
-    FunctionType *FT = dyn_cast<FunctionType>(F->getType()->getElementType());
+    FunctionType *FT = dyn_cast<FunctionType>(F->getValueType());
     auto UinItInserted = UniquedIntrinsicNames.insert({{Id, FT}, Count});
     if (FT == Proto) {
       // It was a declaration for our prototype. This entry was allocated in the
@@ -730,17 +730,6 @@ unsigned Module::getOverrideStackAlignment() const {
 
 void Module::setOverrideStackAlignment(unsigned Align) {
   addModuleFlag(ModFlagBehavior::Error, "override-stack-alignment", Align);
-}
-
-unsigned Module::getWarnStackSize() const {
-  Metadata *MD = getModuleFlag("warn-stack-size");
-  if (auto *CI = mdconst::dyn_extract_or_null<ConstantInt>(MD))
-    return CI->getZExtValue();
-  return UINT_MAX;
-}
-
-void Module::setWarnStackSize(unsigned Threshold) {
-  addModuleFlag(ModFlagBehavior::Error, "warn-stack-size", Threshold);
 }
 
 void Module::setSDKVersion(const VersionTuple &V) {

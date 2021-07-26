@@ -189,12 +189,15 @@ static Value *handleOtherCmpSelSimplifications(Value *TCmp, Value *FCmp,
   // If the false value simplified to false, then the result of the compare
   // is equal to "Cond && TCmp".  This also catches the case when the false
   // value simplified to false and the true value to true, returning "Cond".
-  if (match(FCmp, m_Zero()))
+  // Folding select to and/or isn't poison-safe in general; impliesPoison
+  // checks whether folding it does not convert a well-defined value into
+  // poison.
+  if (match(FCmp, m_Zero()) && impliesPoison(TCmp, Cond))
     if (Value *V = SimplifyAndInst(Cond, TCmp, Q, MaxRecurse))
       return V;
   // If the true value simplified to true, then the result of the compare
   // is equal to "Cond || FCmp".
-  if (match(TCmp, m_One()))
+  if (match(TCmp, m_One()) && impliesPoison(FCmp, Cond))
     if (Value *V = SimplifyOrInst(Cond, FCmp, Q, MaxRecurse))
       return V;
   // Finally, if the false value simplified to true and the true value to
@@ -734,6 +737,11 @@ static Value *SimplifySubInst(Value *Op0, Value *Op1, bool isNSW, bool isNUW,
   if (Constant *C = foldOrCommuteConstant(Instruction::Sub, Op0, Op1, Q))
     return C;
 
+  // X - poison -> poison
+  // poison - X -> poison
+  if (isa<PoisonValue>(Op0) || isa<PoisonValue>(Op1))
+    return PoisonValue::get(Op0->getType());
+
   // X - undef -> undef
   // undef - X -> undef
   if (Q.isUndefValue(Op0) || Q.isUndefValue(Op1))
@@ -869,6 +877,10 @@ static Value *SimplifyMulInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
   if (Constant *C = foldOrCommuteConstant(Instruction::Mul, Op0, Op1, Q))
     return C;
 
+  // X * poison -> poison
+  if (isa<PoisonValue>(Op1))
+    return Op1;
+
   // X * undef -> 0
   // X * 0 -> 0
   if (Q.isUndefValue(Op1) || match(Op1, m_Zero()))
@@ -954,6 +966,11 @@ static Value *simplifyDivRem(Instruction::BinaryOps Opcode, Value *Op0,
         return PoisonValue::get(Ty);
     }
   }
+
+  // poison / X -> poison
+  // poison % X -> poison
+  if (isa<PoisonValue>(Op0))
+    return Op0;
 
   // undef / X -> 0
   // undef % X -> 0
@@ -1240,6 +1257,10 @@ static Value *SimplifyShift(Instruction::BinaryOps Opcode, Value *Op0,
                             unsigned MaxRecurse) {
   if (Constant *C = foldOrCommuteConstant(Opcode, Op0, Op1, Q))
     return C;
+
+  // poison shift by X -> poison
+  if (isa<PoisonValue>(Op0))
+    return Op0;
 
   // 0 shift by X -> 0
   if (match(Op0, m_Zero()))
@@ -1984,6 +2005,10 @@ static Value *SimplifyAndInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
   if (Constant *C = foldOrCommuteConstant(Instruction::And, Op0, Op1, Q))
     return C;
 
+  // X & poison -> poison
+  if (isa<PoisonValue>(Op1))
+    return Op1;
+
   // X & undef -> 0
   if (Q.isUndefValue(Op1))
     return Constant::getNullValue(Op0->getType());
@@ -2151,6 +2176,10 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
                              unsigned MaxRecurse) {
   if (Constant *C = foldOrCommuteConstant(Instruction::Or, Op0, Op1, Q))
     return C;
+
+  // X | poison -> poison
+  if (isa<PoisonValue>(Op1))
+    return Op1;
 
   // X | undef -> -1
   // X | -1 = -1
@@ -3689,6 +3718,11 @@ static Value *SimplifyFCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
   if (match(RHS, m_NaN()))
     return ConstantInt::get(RetTy, CmpInst::isUnordered(Pred));
 
+  // fcmp pred x, poison and  fcmp pred poison, x
+  // fold to poison
+  if (isa<PoisonValue>(LHS) || isa<PoisonValue>(RHS))
+    return PoisonValue::get(RetTy);
+
   // fcmp pred x, undef  and  fcmp pred undef, x
   // fold to true if unordered, false if ordered
   if (Q.isUndefValue(LHS) || Q.isUndefValue(RHS)) {
@@ -4156,6 +4190,10 @@ static Value *SimplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
       if (auto *FalseC = dyn_cast<Constant>(FalseVal))
         return ConstantFoldSelectInstruction(CondC, TrueC, FalseC);
 
+    // select poison, X, Y -> poison
+    if (isa<PoisonValue>(CondC))
+      return PoisonValue::get(TrueVal->getType());
+
     // select undef, X, Y -> X or Y
     if (Q.isUndefValue(CondC))
       return isa<Constant>(FalseVal) ? FalseVal : TrueVal;
@@ -4183,15 +4221,20 @@ static Value *SimplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
   if (TrueVal == FalseVal)
     return TrueVal;
 
+  // If the true or false value is poison, we can fold to the other value.
   // If the true or false value is undef, we can fold to the other value as
   // long as the other value isn't poison.
-  // select ?, undef, X -> X
-  if (Q.isUndefValue(TrueVal) &&
-      isGuaranteedNotToBeUndefOrPoison(FalseVal, Q.AC, Q.CxtI, Q.DT))
+  // select ?, poison, X -> X
+  // select ?, undef,  X -> X
+  if (isa<PoisonValue>(TrueVal) ||
+      (Q.isUndefValue(TrueVal) &&
+       isGuaranteedNotToBePoison(FalseVal, Q.AC, Q.CxtI, Q.DT)))
     return FalseVal;
-  // select ?, X, undef -> X
-  if (Q.isUndefValue(FalseVal) &&
-      isGuaranteedNotToBeUndefOrPoison(TrueVal, Q.AC, Q.CxtI, Q.DT))
+  // select ?, X, poison -> X
+  // select ?, X, undef  -> X
+  if (isa<PoisonValue>(FalseVal) ||
+      (Q.isUndefValue(FalseVal) &&
+       isGuaranteedNotToBePoison(TrueVal, Q.AC, Q.CxtI, Q.DT)))
     return TrueVal;
 
   // Deal with partial undef vector constants: select ?, VecC, VecC' --> VecC''
@@ -4213,11 +4256,11 @@ static Value *SimplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
       // one element is undef, choose the defined element as the safe result.
       if (TEltC == FEltC)
         NewC.push_back(TEltC);
-      else if (Q.isUndefValue(TEltC) &&
-               isGuaranteedNotToBeUndefOrPoison(FEltC))
+      else if (isa<PoisonValue>(TEltC) ||
+               (Q.isUndefValue(TEltC) && isGuaranteedNotToBePoison(FEltC)))
         NewC.push_back(FEltC);
-      else if (Q.isUndefValue(FEltC) &&
-               isGuaranteedNotToBeUndefOrPoison(TEltC))
+      else if (isa<PoisonValue>(FEltC) ||
+               (Q.isUndefValue(FEltC) && isGuaranteedNotToBePoison(TEltC)))
         NewC.push_back(TEltC);
       else
         break;
@@ -4488,13 +4531,14 @@ static Value *SimplifyExtractElementInst(Value *Vec, Value *Idx,
     if (auto *CIdx = dyn_cast<Constant>(Idx))
       return ConstantExpr::getExtractElement(CVec, CIdx);
 
-    // The index is not relevant if our vector is a splat.
-    if (auto *Splat = CVec->getSplatValue())
-      return Splat;
-
     if (Q.isUndefValue(Vec))
       return UndefValue::get(VecVTy->getElementType());
   }
+
+  // An undef extract index can be arbitrarily chosen to be an out-of-range
+  // index value, which would result in the instruction being poison.
+  if (Q.isUndefValue(Idx))
+    return PoisonValue::get(VecVTy->getElementType());
 
   // If extracting a specified index from the vector, see if we can recursively
   // find a previously computed scalar that was inserted into the vector.
@@ -4509,13 +4553,11 @@ static Value *SimplifyExtractElementInst(Value *Vec, Value *Idx,
         return Splat;
     if (Value *Elt = findScalarElement(Vec, IdxC->getZExtValue()))
       return Elt;
+  } else {
+    // The index is not relevant if our vector is a splat.
+    if (Value *Splat = getSplatValue(Vec))
+      return Splat;
   }
-
-  // An undef extract index can be arbitrarily chosen to be an out-of-range
-  // index value, which would result in the instruction being poison.
-  if (Q.isUndefValue(Idx))
-    return PoisonValue::get(VecVTy->getElementType());
-
   return nullptr;
 }
 
@@ -4814,13 +4856,15 @@ static Constant *propagateNaN(Constant *In) {
 /// transforms based on poison/undef/NaN because the operation itself makes no
 /// difference to the result.
 static Constant *simplifyFPOp(ArrayRef<Value *> Ops, FastMathFlags FMF,
-                              const SimplifyQuery &Q) {
-  for (Value *V : Ops) {
-    // Poison is independent of anything else. It always propagates from an
-    // operand to a math result.
-    if (match(V, m_Poison()))
-      return PoisonValue::get(V->getType());
+                              const SimplifyQuery &Q,
+                              fp::ExceptionBehavior ExBehavior,
+                              RoundingMode Rounding) {
+  // Poison is independent of anything else. It always propagates from an
+  // operand to a math result.
+  if (any_of(Ops, [](Value *V) { return match(V, m_Poison()); }))
+    return PoisonValue::get(Ops[0]->getType());
 
+  for (Value *V : Ops) {
     bool IsNan = match(V, m_NaN());
     bool IsInf = match(V, m_Inf());
     bool IsUndef = Q.isUndefValue(V);
@@ -4833,21 +4877,33 @@ static Constant *simplifyFPOp(ArrayRef<Value *> Ops, FastMathFlags FMF,
     if (FMF.noInfs() && (IsInf || IsUndef))
       return PoisonValue::get(V->getType());
 
-    if (IsUndef || IsNan)
-      return propagateNaN(cast<Constant>(V));
+    if (isDefaultFPEnvironment(ExBehavior, Rounding)) {
+      if (IsUndef || IsNan)
+        return propagateNaN(cast<Constant>(V));
+    } else if (ExBehavior != fp::ebStrict) {
+      if (IsNan)
+        return propagateNaN(cast<Constant>(V));
+    }
   }
   return nullptr;
 }
 
 /// Given operands for an FAdd, see if we can fold the result.  If not, this
 /// returns null.
-static Value *SimplifyFAddInst(Value *Op0, Value *Op1, FastMathFlags FMF,
-                               const SimplifyQuery &Q, unsigned MaxRecurse) {
-  if (Constant *C = foldOrCommuteConstant(Instruction::FAdd, Op0, Op1, Q))
+static Value *
+SimplifyFAddInst(Value *Op0, Value *Op1, FastMathFlags FMF,
+                 const SimplifyQuery &Q, unsigned MaxRecurse,
+                 fp::ExceptionBehavior ExBehavior = fp::ebIgnore,
+                 RoundingMode Rounding = RoundingMode::NearestTiesToEven) {
+  if (isDefaultFPEnvironment(ExBehavior, Rounding))
+    if (Constant *C = foldOrCommuteConstant(Instruction::FAdd, Op0, Op1, Q))
+      return C;
+
+  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF, Q, ExBehavior, Rounding))
     return C;
 
-  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF, Q))
-    return C;
+  if (!isDefaultFPEnvironment(ExBehavior, Rounding))
+    return nullptr;
 
   // fadd X, -0 ==> X
   if (match(Op1, m_NegZeroFP()))
@@ -4888,13 +4944,20 @@ static Value *SimplifyFAddInst(Value *Op0, Value *Op1, FastMathFlags FMF,
 
 /// Given operands for an FSub, see if we can fold the result.  If not, this
 /// returns null.
-static Value *SimplifyFSubInst(Value *Op0, Value *Op1, FastMathFlags FMF,
-                               const SimplifyQuery &Q, unsigned MaxRecurse) {
-  if (Constant *C = foldOrCommuteConstant(Instruction::FSub, Op0, Op1, Q))
+static Value *
+SimplifyFSubInst(Value *Op0, Value *Op1, FastMathFlags FMF,
+                 const SimplifyQuery &Q, unsigned MaxRecurse,
+                 fp::ExceptionBehavior ExBehavior = fp::ebIgnore,
+                 RoundingMode Rounding = RoundingMode::NearestTiesToEven) {
+  if (isDefaultFPEnvironment(ExBehavior, Rounding))
+    if (Constant *C = foldOrCommuteConstant(Instruction::FSub, Op0, Op1, Q))
+      return C;
+
+  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF, Q, ExBehavior, Rounding))
     return C;
 
-  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF, Q))
-    return C;
+  if (!isDefaultFPEnvironment(ExBehavior, Rounding))
+    return nullptr;
 
   // fsub X, +0 ==> X
   if (match(Op1, m_PosZeroFP()))
@@ -4934,9 +4997,14 @@ static Value *SimplifyFSubInst(Value *Op0, Value *Op1, FastMathFlags FMF,
 }
 
 static Value *SimplifyFMAFMul(Value *Op0, Value *Op1, FastMathFlags FMF,
-                              const SimplifyQuery &Q, unsigned MaxRecurse) {
-  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF, Q))
+                              const SimplifyQuery &Q, unsigned MaxRecurse,
+                              fp::ExceptionBehavior ExBehavior,
+                              RoundingMode Rounding) {
+  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF, Q, ExBehavior, Rounding))
     return C;
+
+  if (!isDefaultFPEnvironment(ExBehavior, Rounding))
+    return nullptr;
 
   // fmul X, 1.0 ==> X
   if (match(Op1, m_FPOne()))
@@ -4967,43 +5035,65 @@ static Value *SimplifyFMAFMul(Value *Op0, Value *Op1, FastMathFlags FMF,
 }
 
 /// Given the operands for an FMul, see if we can fold the result
-static Value *SimplifyFMulInst(Value *Op0, Value *Op1, FastMathFlags FMF,
-                               const SimplifyQuery &Q, unsigned MaxRecurse) {
-  if (Constant *C = foldOrCommuteConstant(Instruction::FMul, Op0, Op1, Q))
-    return C;
+static Value *
+SimplifyFMulInst(Value *Op0, Value *Op1, FastMathFlags FMF,
+                 const SimplifyQuery &Q, unsigned MaxRecurse,
+                 fp::ExceptionBehavior ExBehavior = fp::ebIgnore,
+                 RoundingMode Rounding = RoundingMode::NearestTiesToEven) {
+  if (isDefaultFPEnvironment(ExBehavior, Rounding))
+    if (Constant *C = foldOrCommuteConstant(Instruction::FMul, Op0, Op1, Q))
+      return C;
 
   // Now apply simplifications that do not require rounding.
-  return SimplifyFMAFMul(Op0, Op1, FMF, Q, MaxRecurse);
+  return SimplifyFMAFMul(Op0, Op1, FMF, Q, MaxRecurse, ExBehavior, Rounding);
 }
 
 Value *llvm::SimplifyFAddInst(Value *Op0, Value *Op1, FastMathFlags FMF,
-                              const SimplifyQuery &Q) {
-  return ::SimplifyFAddInst(Op0, Op1, FMF, Q, RecursionLimit);
+                              const SimplifyQuery &Q,
+                              fp::ExceptionBehavior ExBehavior,
+                              RoundingMode Rounding) {
+  return ::SimplifyFAddInst(Op0, Op1, FMF, Q, RecursionLimit, ExBehavior,
+                            Rounding);
 }
 
-
 Value *llvm::SimplifyFSubInst(Value *Op0, Value *Op1, FastMathFlags FMF,
-                              const SimplifyQuery &Q) {
-  return ::SimplifyFSubInst(Op0, Op1, FMF, Q, RecursionLimit);
+                              const SimplifyQuery &Q,
+                              fp::ExceptionBehavior ExBehavior,
+                              RoundingMode Rounding) {
+  return ::SimplifyFSubInst(Op0, Op1, FMF, Q, RecursionLimit, ExBehavior,
+                            Rounding);
 }
 
 Value *llvm::SimplifyFMulInst(Value *Op0, Value *Op1, FastMathFlags FMF,
-                              const SimplifyQuery &Q) {
-  return ::SimplifyFMulInst(Op0, Op1, FMF, Q, RecursionLimit);
+                              const SimplifyQuery &Q,
+                              fp::ExceptionBehavior ExBehavior,
+                              RoundingMode Rounding) {
+  return ::SimplifyFMulInst(Op0, Op1, FMF, Q, RecursionLimit, ExBehavior,
+                            Rounding);
 }
 
 Value *llvm::SimplifyFMAFMul(Value *Op0, Value *Op1, FastMathFlags FMF,
-                             const SimplifyQuery &Q) {
-  return ::SimplifyFMAFMul(Op0, Op1, FMF, Q, RecursionLimit);
+                             const SimplifyQuery &Q,
+                             fp::ExceptionBehavior ExBehavior,
+                             RoundingMode Rounding) {
+  return ::SimplifyFMAFMul(Op0, Op1, FMF, Q, RecursionLimit, ExBehavior,
+                           Rounding);
 }
 
-static Value *SimplifyFDivInst(Value *Op0, Value *Op1, FastMathFlags FMF,
-                               const SimplifyQuery &Q, unsigned) {
-  if (Constant *C = foldOrCommuteConstant(Instruction::FDiv, Op0, Op1, Q))
+static Value *
+SimplifyFDivInst(Value *Op0, Value *Op1, FastMathFlags FMF,
+                 const SimplifyQuery &Q, unsigned,
+                 fp::ExceptionBehavior ExBehavior = fp::ebIgnore,
+                 RoundingMode Rounding = RoundingMode::NearestTiesToEven) {
+  if (isDefaultFPEnvironment(ExBehavior, Rounding))
+    if (Constant *C = foldOrCommuteConstant(Instruction::FDiv, Op0, Op1, Q))
+      return C;
+
+  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF, Q, ExBehavior, Rounding))
     return C;
 
-  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF, Q))
-    return C;
+  if (!isDefaultFPEnvironment(ExBehavior, Rounding))
+    return nullptr;
 
   // X / 1.0 -> X
   if (match(Op1, m_FPOne()))
@@ -5038,17 +5128,27 @@ static Value *SimplifyFDivInst(Value *Op0, Value *Op1, FastMathFlags FMF,
 }
 
 Value *llvm::SimplifyFDivInst(Value *Op0, Value *Op1, FastMathFlags FMF,
-                              const SimplifyQuery &Q) {
-  return ::SimplifyFDivInst(Op0, Op1, FMF, Q, RecursionLimit);
+                              const SimplifyQuery &Q,
+                              fp::ExceptionBehavior ExBehavior,
+                              RoundingMode Rounding) {
+  return ::SimplifyFDivInst(Op0, Op1, FMF, Q, RecursionLimit, ExBehavior,
+                            Rounding);
 }
 
-static Value *SimplifyFRemInst(Value *Op0, Value *Op1, FastMathFlags FMF,
-                               const SimplifyQuery &Q, unsigned) {
-  if (Constant *C = foldOrCommuteConstant(Instruction::FRem, Op0, Op1, Q))
+static Value *
+SimplifyFRemInst(Value *Op0, Value *Op1, FastMathFlags FMF,
+                 const SimplifyQuery &Q, unsigned,
+                 fp::ExceptionBehavior ExBehavior = fp::ebIgnore,
+                 RoundingMode Rounding = RoundingMode::NearestTiesToEven) {
+  if (isDefaultFPEnvironment(ExBehavior, Rounding))
+    if (Constant *C = foldOrCommuteConstant(Instruction::FRem, Op0, Op1, Q))
+      return C;
+
+  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF, Q, ExBehavior, Rounding))
     return C;
 
-  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF, Q))
-    return C;
+  if (!isDefaultFPEnvironment(ExBehavior, Rounding))
+    return nullptr;
 
   // Unlike fdiv, the result of frem always matches the sign of the dividend.
   // The constant match may include undef elements in a vector, so return a full
@@ -5066,8 +5166,11 @@ static Value *SimplifyFRemInst(Value *Op0, Value *Op1, FastMathFlags FMF,
 }
 
 Value *llvm::SimplifyFRemInst(Value *Op0, Value *Op1, FastMathFlags FMF,
-                              const SimplifyQuery &Q) {
-  return ::SimplifyFRemInst(Op0, Op1, FMF, Q, RecursionLimit);
+                              const SimplifyQuery &Q,
+                              fp::ExceptionBehavior ExBehavior,
+                              RoundingMode Rounding) {
+  return ::SimplifyFRemInst(Op0, Op1, FMF, Q, RecursionLimit, ExBehavior,
+                            Rounding);
 }
 
 //=== Helper functions for higher up the class hierarchy.
@@ -5713,12 +5816,24 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
     }
     return nullptr;
   }
+  case Intrinsic::experimental_constrained_fma: {
+    Value *Op0 = Call->getArgOperand(0);
+    Value *Op1 = Call->getArgOperand(1);
+    Value *Op2 = Call->getArgOperand(2);
+    auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
+    if (Value *V = simplifyFPOp({Op0, Op1, Op2}, {}, Q,
+                                FPI->getExceptionBehavior().getValue(),
+                                FPI->getRoundingMode().getValue()))
+      return V;
+    return nullptr;
+  }
   case Intrinsic::fma:
   case Intrinsic::fmuladd: {
     Value *Op0 = Call->getArgOperand(0);
     Value *Op1 = Call->getArgOperand(1);
     Value *Op2 = Call->getArgOperand(2);
-    if (Value *V = simplifyFPOp({ Op0, Op1, Op2 }, {}, Q))
+    if (Value *V = simplifyFPOp({Op0, Op1, Op2}, {}, Q, fp::ebIgnore,
+                                RoundingMode::NearestTiesToEven))
       return V;
     return nullptr;
   }
@@ -5769,6 +5884,46 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
       return X;
 
     return nullptr;
+  }
+  case Intrinsic::experimental_constrained_fadd: {
+    auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
+    return SimplifyFAddInst(FPI->getArgOperand(0), FPI->getArgOperand(1),
+                            FPI->getFastMathFlags(), Q,
+                            FPI->getExceptionBehavior().getValue(),
+                            FPI->getRoundingMode().getValue());
+    break;
+  }
+  case Intrinsic::experimental_constrained_fsub: {
+    auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
+    return SimplifyFSubInst(FPI->getArgOperand(0), FPI->getArgOperand(1),
+                            FPI->getFastMathFlags(), Q,
+                            FPI->getExceptionBehavior().getValue(),
+                            FPI->getRoundingMode().getValue());
+    break;
+  }
+  case Intrinsic::experimental_constrained_fmul: {
+    auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
+    return SimplifyFMulInst(FPI->getArgOperand(0), FPI->getArgOperand(1),
+                            FPI->getFastMathFlags(), Q,
+                            FPI->getExceptionBehavior().getValue(),
+                            FPI->getRoundingMode().getValue());
+    break;
+  }
+  case Intrinsic::experimental_constrained_fdiv: {
+    auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
+    return SimplifyFDivInst(FPI->getArgOperand(0), FPI->getArgOperand(1),
+                            FPI->getFastMathFlags(), Q,
+                            FPI->getExceptionBehavior().getValue(),
+                            FPI->getRoundingMode().getValue());
+    break;
+  }
+  case Intrinsic::experimental_constrained_frem: {
+    auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
+    return SimplifyFRemInst(FPI->getArgOperand(0), FPI->getArgOperand(1),
+                            FPI->getFastMathFlags(), Q,
+                            FPI->getExceptionBehavior().getValue(),
+                            FPI->getRoundingMode().getValue());
+    break;
   }
   default:
     return nullptr;

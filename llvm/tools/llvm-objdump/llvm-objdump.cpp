@@ -99,8 +99,8 @@ public:
 
   void printHelp(StringRef Argv0, bool ShowHidden = false) const {
     Argv0 = sys::path::filename(Argv0);
-    PrintHelp(outs(), (Argv0 + Usage).str().c_str(), Description, ShowHidden,
-              ShowHidden);
+    opt::OptTable::printHelp(outs(), (Argv0 + Usage).str().c_str(), Description,
+                             ShowHidden, ShowHidden);
     // TODO Replace this with OptTable API once it adds extrahelp support.
     outs() << "\nPass @FILE as argument to read options from FILE.\n";
   }
@@ -221,7 +221,7 @@ uint32_t objdump::PrefixStrip;
 
 DebugVarsFormat objdump::DbgVariables = DVDisabled;
 
-int objdump::DbgIndent = 40;
+int objdump::DbgIndent = 52;
 
 static StringSet<> DisasmSymbolSet;
 StringSet<> objdump::FoundSectionSet;
@@ -736,6 +736,43 @@ addDynamicElfSymbols(const ObjectFile *Obj,
     llvm_unreachable("Unsupported binary format");
 }
 
+static Optional<SectionRef> getWasmCodeSection(const WasmObjectFile *Obj) {
+  for (auto SecI : Obj->sections()) {
+    const WasmSection &Section = Obj->getWasmSection(SecI);
+    if (Section.Type == wasm::WASM_SEC_CODE)
+      return SecI;
+  }
+  return None;
+}
+
+static void
+addMissingWasmCodeSymbols(const WasmObjectFile *Obj,
+                          std::map<SectionRef, SectionSymbolsTy> &AllSymbols) {
+  Optional<SectionRef> Section = getWasmCodeSection(Obj);
+  if (!Section)
+    return;
+  SectionSymbolsTy &Symbols = AllSymbols[*Section];
+
+  std::set<uint64_t> SymbolAddresses;
+  for (const auto &Sym : Symbols)
+    SymbolAddresses.insert(Sym.Addr);
+
+  for (const wasm::WasmFunction &Function : Obj->functions()) {
+    uint64_t Address = Function.CodeSectionOffset;
+    // Only add fallback symbols for functions not already present in the symbol
+    // table.
+    if (SymbolAddresses.count(Address))
+      continue;
+    // This function has no symbol, so it should have no SymbolName.
+    assert(Function.SymbolName.empty());
+    // We use DebugName for the name, though it may be empty if there is no
+    // "name" custom section, or that section is missing a name for this
+    // function.
+    StringRef Name = Function.DebugName;
+    Symbols.emplace_back(Address, Name, ELF::STT_NOTYPE);
+  }
+}
+
 static void addPltEntries(const ObjectFile *Obj,
                           std::map<SectionRef, SectionSymbolsTy> &AllSymbols,
                           StringSaver &Saver) {
@@ -1039,6 +1076,29 @@ static StringRef getSegmentName(const MachOObjectFile *MachO,
   return "";
 }
 
+static void emitPostInstructionInfo(formatted_raw_ostream &FOS,
+                                    const MCAsmInfo &MAI,
+                                    const MCSubtargetInfo &STI,
+                                    StringRef Comments,
+                                    LiveVariablePrinter &LVP) {
+  do {
+    if (!Comments.empty()) {
+      // Emit a line of comments.
+      StringRef Comment;
+      std::tie(Comment, Comments) = Comments.split('\n');
+      // MAI.getCommentColumn() assumes that instructions are printed at the
+      // position of 8, while getInstStartColumn() returns the actual position.
+      unsigned CommentColumn =
+          MAI.getCommentColumn() - 8 + getInstStartColumn(STI);
+      FOS.PadToColumn(CommentColumn);
+      FOS << MAI.getCommentString() << ' ' << Comment;
+    }
+    LVP.printAfterInst(FOS);
+    FOS << '\n';
+  } while (!Comments.empty());
+  FOS.flush();
+}
+
 static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
                               MCContext &Ctx, MCDisassembler *PrimaryDisAsm,
                               MCDisassembler *SecondaryDisAsm,
@@ -1102,6 +1162,9 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
 
   if (AllSymbols.empty() && Obj->isELF())
     addDynamicElfSymbols(Obj, AllSymbols);
+
+  if (Obj->isWasm())
+    addMissingWasmCodeSymbols(cast<WasmObjectFile>(Obj), AllSymbols);
 
   BumpPtrAllocator A;
   StringSaver Saver(A);
@@ -1396,18 +1459,22 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
           LVP.update({Index, Section.getIndex()},
                      {Index + Size, Section.getIndex()}, Index + Size != End);
 
+          IP->setCommentStream(CommentStream);
+
           PIP.printInst(
               *IP, Disassembled ? &Inst : nullptr, Bytes.slice(Index, Size),
               {SectionAddr + Index + VMAAdjustment, Section.getIndex()}, FOS,
               "", *STI, &SP, Obj->getFileName(), &Rels, LVP);
-          FOS << CommentStream.str();
-          Comments.clear();
+
+          IP->setCommentStream(llvm::nulls());
 
           // If disassembly has failed, avoid analysing invalid/incomplete
           // instruction information. Otherwise, try to resolve the target
           // address (jump target or memory operand address) and print it on the
           // right of the instruction.
           if (Disassembled && MIA) {
+            // Branch targets are printed just after the instructions.
+            llvm::raw_ostream *TargetOS = &FOS;
             uint64_t Target;
             bool PrintTarget =
                 MIA->evaluateBranch(Inst, SectionAddr + Index, Size, Target);
@@ -1418,8 +1485,11 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
                 Target = *MaybeTarget;
                 PrintTarget = true;
                 // Do not print real address when symbolizing.
-                if (!SymbolizeOperands)
-                  FOS << "  # " << Twine::utohexstr(Target);
+                if (!SymbolizeOperands) {
+                  // Memory operand addresses are printed as comments.
+                  TargetOS = &CommentStream;
+                  *TargetOS << "0x" << Twine::utohexstr(Target);
+                }
               }
             if (PrintTarget) {
               // In a relocatable object, the target's section must reside in
@@ -1478,28 +1548,34 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
                 if (Demangle)
                   TargetName = demangle(TargetName);
 
-                FOS << " <";
+                *TargetOS << " <";
                 if (!Disp) {
                   // Always Print the binary symbol precisely corresponding to
                   // the target address.
-                  FOS << TargetName;
+                  *TargetOS << TargetName;
                 } else if (!LabelAvailable) {
                   // Always Print the binary symbol plus an offset if there's no
                   // local label corresponding to the target address.
-                  FOS << TargetName << "+0x" << Twine::utohexstr(Disp);
+                  *TargetOS << TargetName << "+0x" << Twine::utohexstr(Disp);
                 } else {
-                  FOS << AllLabels[Target];
+                  *TargetOS << AllLabels[Target];
                 }
-                FOS << ">";
+                *TargetOS << ">";
               } else if (LabelAvailable) {
-                FOS << " <" << AllLabels[Target] << ">";
+                *TargetOS << " <" << AllLabels[Target] << ">";
               }
+              // By convention, each record in the comment stream should be
+              // terminated.
+              if (TargetOS == &CommentStream)
+                *TargetOS << "\n";
             }
           }
         }
 
-        LVP.printAfterInst(FOS);
-        FOS << "\n";
+        assert(Ctx.getAsmInfo());
+        emitPostInstructionInfo(FOS, *Ctx.getAsmInfo(), *STI,
+                                CommentStream.str(), LVP);
+        Comments.clear();
 
         // Hexagon does this in pretty printer
         if (Obj->getArch() != Triple::hexagon) {
@@ -2527,7 +2603,7 @@ int main(int argc, char **argv) {
     // llvm-objdump -> objdump
     // llvm-otool-10.exe -> otool
     // powerpc64-unknown-freebsd13-objdump -> objdump
-    auto I = Stem.rfind_lower(Tool);
+    auto I = Stem.rfind_insensitive(Tool);
     return I != StringRef::npos &&
            (I + Tool.size() == Stem.size() || !isAlnum(Stem[I + Tool.size()]));
   };

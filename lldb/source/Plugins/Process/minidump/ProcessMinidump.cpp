@@ -548,7 +548,7 @@ void ProcessMinidump::ReadModuleList() {
 
     // check if the process is wow64 - a 32 bit windows process running on a
     // 64 bit windows
-    if (llvm::StringRef(name).endswith_lower("wow64.dll")) {
+    if (llvm::StringRef(name).endswith_insensitive("wow64.dll")) {
       m_is_wow64 = true;
     }
 
@@ -871,7 +871,7 @@ public:
     m_option_group.Finalize();
   }
 
-  ~CommandObjectProcessMinidumpDump() override {}
+  ~CommandObjectProcessMinidumpDump() override = default;
 
   Options *GetOptions() override { return &m_option_group; }
 
@@ -1000,7 +1000,7 @@ public:
         CommandObjectSP(new CommandObjectProcessMinidumpDump(interpreter)));
   }
 
-  ~CommandObjectMultiwordProcessMinidump() override {}
+  ~CommandObjectMultiwordProcessMinidump() override = default;
 };
 
 CommandObject *ProcessMinidump::GetPluginCommandObject() {

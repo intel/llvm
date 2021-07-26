@@ -13,7 +13,11 @@ add_mlir_dialect_library(MLIRTensor
 
   LINK_LIBS PUBLIC
   MLIRCastInterfaces
+  MLIRDialectUtils
   MLIRIR
+  MLIRInferTypeOpInterface
   MLIRSideEffectInterfaces
   MLIRSupport
+  MLIRStandard
+  MLIRViewLikeInterface
   )

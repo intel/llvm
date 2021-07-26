@@ -112,8 +112,10 @@ void RISCVDAGToDAGISel::PostprocessISelDAG() {
 }
 
 static SDNode *selectImm(SelectionDAG *CurDAG, const SDLoc &DL, int64_t Imm,
-                         MVT XLenVT) {
-  RISCVMatInt::InstSeq Seq = RISCVMatInt::generateInstSeq(Imm, XLenVT == MVT::i64);
+                         const RISCVSubtarget &Subtarget) {
+  MVT XLenVT = Subtarget.getXLenVT();
+  RISCVMatInt::InstSeq Seq =
+      RISCVMatInt::generateInstSeq(Imm, Subtarget.getFeatureBits());
 
   SDNode *Result = nullptr;
   SDValue SrcReg = CurDAG->getRegister(RISCV::X0, XLenVT);
@@ -121,6 +123,9 @@ static SDNode *selectImm(SelectionDAG *CurDAG, const SDLoc &DL, int64_t Imm,
     SDValue SDImm = CurDAG->getTargetConstant(Inst.Imm, DL, XLenVT);
     if (Inst.Opc == RISCV::LUI)
       Result = CurDAG->getMachineNode(RISCV::LUI, DL, XLenVT, SDImm);
+    else if (Inst.Opc == RISCV::ADDUW)
+      Result = CurDAG->getMachineNode(RISCV::ADDUW, DL, XLenVT, SrcReg,
+                                      CurDAG->getRegister(RISCV::X0, XLenVT));
     else
       Result = CurDAG->getMachineNode(Inst.Opc, DL, XLenVT, SrcReg, SDImm);
 
@@ -454,7 +459,8 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
       ReplaceNode(Node, New.getNode());
       return;
     }
-    ReplaceNode(Node, selectImm(CurDAG, DL, ConstNode->getSExtValue(), XLenVT));
+    ReplaceNode(Node,
+                selectImm(CurDAG, DL, ConstNode->getSExtValue(), *Subtarget));
     return;
   }
   case ISD::FrameIndex: {
@@ -687,11 +693,17 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
         return;
       }
 
+      // Mask needs to be copied to V0.
+      SDValue Chain = CurDAG->getCopyToReg(CurDAG->getEntryNode(), DL,
+                                           RISCV::V0, Mask, SDValue());
+      SDValue Glue = Chain.getValue(1);
+      SDValue V0 = CurDAG->getRegister(RISCV::V0, VT);
+
       // Otherwise use
       // vmslt{u}.vx vd, va, x, v0.t; vmxor.mm vd, vd, v0
       SDValue Cmp = SDValue(
           CurDAG->getMachineNode(VMSLTMaskOpcode, DL, VT,
-                                 {MaskedOff, Src1, Src2, Mask, VL, SEW}),
+                                 {MaskedOff, Src1, Src2, V0, VL, SEW, Glue}),
           0);
       ReplaceNode(Node, CurDAG->getMachineNode(VMXOROpcode, DL, VT,
                                                {Cmp, Mask, VL, MaskSEW}));

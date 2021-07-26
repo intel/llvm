@@ -197,3 +197,23 @@ define i1 @getelementptr_check_non_null(<vscale x 16 x i8>* %ptr) {
   %cmp = icmp eq <vscale x 16 x i8>* %x, null
   ret i1 %cmp
 }
+
+define i32 @extractelement_splat_constant_index(i32 %v) {
+; CHECK-LABEL: @extractelement_splat_constant_index(
+; CHECK-NEXT:    ret i32 [[V:%.*]]
+;
+  %in = insertelement <vscale x 4 x i32> poison, i32 %v, i32 0
+  %splat = shufflevector <vscale x 4 x i32> %in, <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer
+  %r = extractelement <vscale x 4 x i32> %splat, i32 1
+  ret i32 %r
+}
+
+define i32 @extractelement_splat_variable_index(i32 %v, i32 %idx) {
+; CHECK-LABEL: @extractelement_splat_variable_index(
+; CHECK-NEXT:    ret i32 [[V:%.*]]
+;
+  %in = insertelement <vscale x 4 x i32> poison, i32 %v, i32 0
+  %splat = shufflevector <vscale x 4 x i32> %in, <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer
+  %r = extractelement <vscale x 4 x i32> %splat, i32 %idx
+  ret i32 %r
+}

@@ -192,6 +192,7 @@ static const std::array<std::pair<std::string, backend>, 6> SyclBeMap = {
      {"opencl", backend::opencl},
      {"level_zero", backend::level_zero},
      {"cuda", backend::cuda},
+     {"rocm", backend::rocm},
      {"esimd_cpu", backend::esimd_cpu},
      {"*", backend::all}}};
 

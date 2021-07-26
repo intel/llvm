@@ -2,6 +2,7 @@
 //  RUN:  %clang -### -fsycl -c %s 2>&1 | FileCheck -check-prefix=CHECK-OFFLOAD %s
 //  CHECK-OFFLOAD: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 //  CHECK-OFFLOAD-SAME: "-aux-target-cpu" "[[HOST_CPU_NAME:[^ ]+]]"
+//  CHECK-OFFLOAD-NEXT: append-file{{.*}}
 //  CHECK-OFFLOAD-NEXT: clang{{.*}} "-cc1" {{.*}}
 //  CHECK-OFFLOAD-NEXT-SAME: "-fsycl-is-host"
 //  CHECK-OFFLOAD-NEXT-SAME: "-target-cpu" "[[HOST_CPU_NAME]]"
@@ -11,6 +12,7 @@
 //  RUN:  %clang -fsycl -mavx -c %s -### -o %t.o 2>&1 | FileCheck -check-prefix=OFFLOAD-AVX %s
 //  OFFLOAD-AVX: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 //  OFFLOAD-AVX-SAME: "-aux-target-cpu" "[[HOST_CPU_NAME:[^ ]+]]" "-aux-target-feature" "+avx"
+//  OFFLOAD-AVX-NEXT: append-file{{.*}}
 //  OFFLOAD-AVX-NEXT: clang{{.*}} "-cc1" {{.*}}
 //  OFFLOAD-AVX-NEXT-SAME: "-fsycl-is-host"
 //  OFFLOAD-AVX-NEXT-SAME: "-target-cpu" "[[HOST_CPU_NAME]]" "-target-feature" "+avx"

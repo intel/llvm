@@ -34,11 +34,11 @@ context::context(const async_handler &AsyncHandler,
     : context(default_selector().select_device(), AsyncHandler, PropList) {}
 
 context::context(const device &Device, const property_list &PropList)
-    : context(vector_class<device>(1, Device), PropList) {}
+    : context(std::vector<device>(1, Device), PropList) {}
 
 context::context(const device &Device, async_handler AsyncHandler,
                  const property_list &PropList)
-    : context(vector_class<device>(1, Device), AsyncHandler, PropList) {}
+    : context(std::vector<device>(1, Device), AsyncHandler, PropList) {}
 
 context::context(const platform &Platform, const property_list &PropList)
     : context(Platform.get_devices(), PropList) {}
@@ -47,11 +47,11 @@ context::context(const platform &Platform, async_handler AsyncHandler,
                  const property_list &PropList)
     : context(Platform.get_devices(), AsyncHandler, PropList) {}
 
-context::context(const vector_class<device> &DeviceList,
+context::context(const std::vector<device> &DeviceList,
                  const property_list &PropList)
     : context(DeviceList, async_handler{}, PropList) {}
 
-context::context(const vector_class<device> &DeviceList,
+context::context(const std::vector<device> &DeviceList,
                  async_handler AsyncHandler, const property_list &PropList) {
   if (DeviceList.empty()) {
     throw invalid_parameter_error("DeviceList is empty.", PI_INVALID_VALUE);
@@ -124,11 +124,11 @@ platform context::get_platform() const {
   return impl->get_info<info::context::platform>();
 }
 
-vector_class<device> context::get_devices() const {
+std::vector<device> context::get_devices() const {
   return impl->get_info<info::context::devices>();
 }
 
-context::context(shared_ptr_class<detail::context_impl> Impl) : impl(Impl) {}
+context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
 
 pi_native_handle context::getNative() const { return impl->getNative(); }
 

@@ -21,16 +21,16 @@ program::program(const context &context, const property_list &PropList)
     : impl(std::make_shared<detail::program_impl>(
           detail::getSyclObjImpl(context), PropList)) {}
 
-program::program(const context &context, vector_class<device> deviceList,
+program::program(const context &context, std::vector<device> deviceList,
                  const property_list &PropList)
     : impl(std::make_shared<detail::program_impl>(
           detail::getSyclObjImpl(context), deviceList, PropList)) {}
 
-program::program(vector_class<program> programList,
+program::program(std::vector<program> programList,
                  const property_list &PropList)
     : program(std::move(programList), /*linkOptions=*/"", PropList) {}
 
-program::program(vector_class<program> programList, string_class linkOptions,
+program::program(std::vector<program> programList, std::string linkOptions,
                  const property_list &PropList) {
   std::vector<std::shared_ptr<detail::program_impl>> impls;
   for (auto &x : programList) {
@@ -58,44 +58,44 @@ cl_program program::get() const { return impl->get(); }
 
 bool program::is_host() const { return impl->is_host(); }
 
-void program::compile_with_source(string_class kernelSource,
-                                  string_class compileOptions) {
+void program::compile_with_source(std::string kernelSource,
+                                  std::string compileOptions) {
   impl->compile_with_source(kernelSource, compileOptions);
 }
 
-void program::build_with_source(string_class kernelSource,
-                                string_class buildOptions) {
+void program::build_with_source(std::string kernelSource,
+                                std::string buildOptions) {
   impl->build_with_source(kernelSource, buildOptions);
 }
 
-void program::compile_with_kernel_name(string_class KernelName,
-                                       string_class compileOptions,
+void program::compile_with_kernel_name(std::string KernelName,
+                                       std::string compileOptions,
                                        detail::OSModuleHandle M) {
   impl->compile_with_kernel_name(KernelName, compileOptions, M);
 }
 
-void program::build_with_kernel_name(string_class KernelName,
-                                     string_class buildOptions,
+void program::build_with_kernel_name(std::string KernelName,
+                                     std::string buildOptions,
                                      detail::OSModuleHandle M) {
   impl->build_with_kernel_name(KernelName, buildOptions, M);
 }
 
-void program::link(string_class linkOptions) { impl->link(linkOptions); }
+void program::link(std::string linkOptions) { impl->link(linkOptions); }
 
-bool program::has_kernel(string_class kernelName) const {
+bool program::has_kernel(std::string kernelName) const {
   return has_kernel(kernelName, /*IsCreatedFromSource*/ true);
 }
 
-bool program::has_kernel(string_class kernelName,
+bool program::has_kernel(std::string kernelName,
                          bool IsCreatedFromSource) const {
   return impl->has_kernel(kernelName, IsCreatedFromSource);
 }
 
-kernel program::get_kernel(string_class kernelName) const {
+kernel program::get_kernel(std::string kernelName) const {
   return get_kernel(kernelName, /*IsCreatedFromSource*/ true);
 }
 
-kernel program::get_kernel(string_class kernelName,
+kernel program::get_kernel(std::string kernelName,
                            bool IsCreatedFromSource) const {
   return impl->get_kernel(kernelName, impl, IsCreatedFromSource);
 }
@@ -131,25 +131,23 @@ program::get_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-vector_class<vector_class<char>> program::get_binaries() const {
+std::vector<std::vector<char>> program::get_binaries() const {
   return impl->get_binaries();
 }
 
 context program::get_context() const { return impl->get_context(); }
 
-vector_class<device> program::get_devices() const {
-  return impl->get_devices();
-}
+std::vector<device> program::get_devices() const { return impl->get_devices(); }
 
-string_class program::get_compile_options() const {
+std::string program::get_compile_options() const {
   return impl->get_compile_options();
 }
 
-string_class program::get_link_options() const {
+std::string program::get_link_options() const {
   return impl->get_link_options();
 }
 
-string_class program::get_build_options() const {
+std::string program::get_build_options() const {
   return impl->get_build_options();
 }
 
