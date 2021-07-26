@@ -20,12 +20,12 @@ int main() {
 }
 
 // CHECK: ClassTemplateDecl {{.*}} accessor
-// CHECK: SYCLSpecialClassAttr {{.*}} accessor
+// CHECK: SYCLSpecialClassAttr {{.*}}
 // CHECK: CXXRecordDecl {{.*}} implicit class accessor
 // CHECK: AccessSpecDecl {{.*}} public
 // CHECK: CXXMethodDecl {{.*}} use 'void () const'
 // CHECK: ClassTemplateSpecializationDecl {{.*}} class accessor definition
-// CHECK: SYCLSpecialClassAttr {{.*}} accessor
+// CHECK: SYCLSpecialClassAttr {{.*}}
 // CHECK: CXXRecordDecl {{.*}} implicit class accessor
 // CHECK: AccessSpecDecl {{.*}} public
 // CHECK: CXXMethodDecl {{.*}} use 'void () const'

@@ -89,17 +89,11 @@ public:
     return DeclContextDesc{K, SR};
   }
 
+  static bool isSyclSpecialType(QualType Ty);
+
   /// Checks whether given clang type is a full specialization of the SYCL
   /// accessor class.
   static bool isSyclAccessorType(QualType Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
-  /// sampler class.
-  static bool isSyclSamplerType(QualType Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
-  /// stream class.
-  static bool isSyclStreamType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// half class.
@@ -1202,13 +1196,9 @@ class KernelObjVisitor {
     for (const auto &Base : Range) {
       QualType BaseTy = Base.getType();
       // Handle accessor class as base
-      if (Util::isSyclAccessorType(BaseTy)) {
+      if (Util::isSyclSpecialType(BaseTy)) {
         (void)std::initializer_list<int>{
-            (Handlers.handleSyclAccessorType(Owner, Base, BaseTy), 0)...};
-      } else if (Util::isSyclStreamType(BaseTy)) {
-        // Handle stream class as base
-        (void)std::initializer_list<int>{
-            (Handlers.handleSyclStreamType(Owner, Base, BaseTy), 0)...};
+            (Handlers.handleSyclSpecialType(Owner, Base, BaseTy), 0)...};
       } else
         // For all other bases, visit the record
         visitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), BaseTy,
@@ -1289,16 +1279,12 @@ class KernelObjVisitor {
   template <typename... HandlerTys>
   void visitField(const CXXRecordDecl *Owner, FieldDecl *Field,
                   QualType FieldTy, HandlerTys &... Handlers) {
-    if (Util::isSyclAccessorType(FieldTy))
-      KF_FOR_EACH(handleSyclAccessorType, Field, FieldTy);
-    else if (Util::isSyclSamplerType(FieldTy))
-      KF_FOR_EACH(handleSyclSamplerType, Field, FieldTy);
+    if (Util::isSyclSpecialType(FieldTy))
+      KF_FOR_EACH(handleSyclSpecialType, Field, FieldTy);
     else if (Util::isSyclHalfType(FieldTy))
       KF_FOR_EACH(handleSyclHalfType, Field, FieldTy);
     else if (Util::isSyclSpecConstantType(FieldTy))
       KF_FOR_EACH(handleSyclSpecConstantType, Field, FieldTy);
-    else if (Util::isSyclStreamType(FieldTy))
-      KF_FOR_EACH(handleSyclStreamType, Field, FieldTy);
     else if (FieldTy->isStructureOrClassType()) {
       if (KF_FOR_EACH(handleStructType, Field, FieldTy)) {
         CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
@@ -1354,24 +1340,16 @@ public:
   // despite virtual dispatch never being used.
 
   // Accessor can be a base class or a field decl, so both must be handled.
-  virtual bool handleSyclAccessorType(const CXXRecordDecl *,
-                                      const CXXBaseSpecifier &, QualType) {
-    return true;
-  }
-  virtual bool handleSyclAccessorType(FieldDecl *, QualType) { return true; }
-  virtual bool handleSyclSamplerType(const CXXRecordDecl *,
+  virtual bool handleSyclSpecialType(const CXXRecordDecl *,
                                      const CXXBaseSpecifier &, QualType) {
     return true;
   }
-  virtual bool handleSyclSamplerType(FieldDecl *, QualType) { return true; }
+  virtual bool handleSyclSpecialType(FieldDecl *, QualType) { return true; }
+
   virtual bool handleSyclSpecConstantType(FieldDecl *, QualType) {
     return true;
   }
-  virtual bool handleSyclStreamType(const CXXRecordDecl *,
-                                    const CXXBaseSpecifier &, QualType) {
-    return true;
-  }
-  virtual bool handleSyclStreamType(FieldDecl *, QualType) { return true; }
+
   virtual bool handleSyclHalfType(const CXXRecordDecl *,
                                   const CXXBaseSpecifier &, QualType) {
     return true;
@@ -1650,9 +1628,6 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   }
 
   void checkAccessorType(QualType Ty, SourceRange Loc) {
-    assert(Util::isSyclAccessorType(Ty) &&
-           "Should only be called on SYCL accessor types.");
-
     const RecordDecl *RecD = Ty->getAsRecordDecl();
     if (const ClassTemplateSpecializationDecl *CTSD =
             dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
@@ -1684,13 +1659,13 @@ public:
     return isValid();
   }
 
-  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
-                              QualType FieldTy) final {
+  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                             QualType FieldTy) final {
     checkAccessorType(FieldTy, BS.getBeginLoc());
     return isValid();
   }
 
-  bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
+  bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     checkAccessorType(FieldTy, FD->getLocation());
     return isValid();
   }
@@ -1751,30 +1726,12 @@ public:
     return true;
   }
 
-  bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
+  bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     return checkType(FD->getLocation(), FieldTy);
   }
 
-  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
-                              QualType FieldTy) final {
-    return checkType(BS.getBeginLoc(), FieldTy);
-  }
-
-  bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
-    return checkType(FD->getLocation(), FieldTy);
-  }
-
-  bool handleSyclSamplerType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                              QualType FieldTy) final {
-    return checkType(BS.getBeginLoc(), FieldTy);
-  }
-
-  bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    return checkType(FD->getLocation(), FieldTy);
-  }
-
-  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
-                            QualType FieldTy) final {
     return checkType(BS.getBeginLoc(), FieldTy);
   }
 };
@@ -1793,38 +1750,21 @@ public:
     CollectionStack.push_back(true);
   }
 
-  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                              QualType) final {
-    CollectionStack.back() = true;
-    return true;
-  }
-  bool handleSyclAccessorType(FieldDecl *, QualType) final {
-    CollectionStack.back() = true;
-    return true;
-  }
-
-  bool handleSyclSamplerType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &,
                              QualType) final {
     CollectionStack.back() = true;
     return true;
   }
-  bool handleSyclSamplerType(FieldDecl *, QualType) final {
+  bool handleSyclSpecialType(FieldDecl *, QualType) final {
     CollectionStack.back() = true;
     return true;
   }
+
   bool handleSyclSpecConstantType(FieldDecl *, QualType) final {
     CollectionStack.back() = true;
     return true;
   }
-  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                            QualType) final {
-    CollectionStack.back() = true;
-    return true;
-  }
-  bool handleSyclStreamType(FieldDecl *, QualType) final {
-    CollectionStack.back() = true;
-    return true;
-  }
+
   bool handleSyclHalfType(const CXXRecordDecl *, const CXXBaseSpecifier &,
                           QualType) final {
     CollectionStack.back() = true;
@@ -1996,12 +1936,12 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // kernel parameters from __init method parameters. We will use __init method
   // and kernel parameters which we build here to initialize special objects in
   // the kernel body.
-  bool handleSpecialType(FieldDecl *FD, QualType FieldTy,
-                         bool isAccessorType = false) {
+  bool handleSpecialType(FieldDecl *FD, QualType FieldTy) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
     llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>() && isAccessorType
+        KernelDecl->hasAttr<SYCLSimdAttr>() &&
+                RecordDecl->hasAttr<SYCLSpecialClassAttr>()
             ? InitESIMDMethodName
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
@@ -2013,7 +1953,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
       addParam(FD, ParamTy.getCanonicalType());
-      if (ParamTy.getTypePtr()->isPointerType() && isAccessorType) {
+      if (ParamTy.getTypePtr()->isPointerType() &&
+          !getMethodByName(RecordDecl, FinalizeMethodName)) {
         handleAccessorPropertyList(Params.back(), RecordDecl,
                                    FD->getLocation());
         if (KernelDecl->hasAttr<SYCLSimdAttr>())
@@ -2109,8 +2050,8 @@ public:
     return true;
   }
 
-  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
-                              QualType FieldTy) final {
+  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                             QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
     llvm::StringLiteral MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
@@ -2132,11 +2073,7 @@ public:
     return true;
   }
 
-  bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
-    return handleSpecialType(FD, FieldTy, /*isAccessorType*/ true);
-  }
-
-  bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
+  bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     return handleSpecialType(FD, FieldTy);
   }
 
@@ -2221,17 +2158,6 @@ public:
     return true;
   }
 
-  bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    return handleSpecialType(FD, FieldTy);
-  }
-
-  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                            QualType FieldTy) final {
-    // FIXME SYCL stream should be usable as a base type
-    // See https://github.com/intel/llvm/issues/1552
-    return true;
-  }
-
   // Generate kernel argument to intialize specialization constants. This
   // argument is only generated when the target has no native support for
   // specialization constants
@@ -2254,7 +2180,6 @@ public:
                                    std::end(Params));
   }
   using SyclKernelFieldHandler::handleSyclHalfType;
-  using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
 class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
@@ -2290,20 +2215,11 @@ public:
           << SizeOfParams << MaxKernelArgsSize;
   }
 
-  bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
+  bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     return handleSpecialType(FieldTy);
   }
 
-  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                              QualType FieldTy) final {
-    return handleSpecialType(FieldTy);
-  }
-
-  bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
-    return handleSpecialType(FieldTy);
-  }
-
-  bool handleSyclSamplerType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &,
                              QualType FieldTy) final {
     return handleSpecialType(FieldTy);
   }
@@ -2340,16 +2256,6 @@ public:
   }
 
   bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FieldTy);
-    return true;
-  }
-
-  bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FieldTy);
-    return true;
-  }
-  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                            QualType FieldTy) final {
     addParam(FieldTy);
     return true;
   }
@@ -2469,13 +2375,20 @@ public:
   SyclOptReportCreator(Sema &S, SyclKernelDeclCreator &DC, SourceLocation Loc)
       : SyclKernelFieldHandler(S), DC(DC), KernelInvocationLoc(Loc) {}
 
-  bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
+  bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
+    const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
+    if (getMethodByName(RecordDecl, FinalizeMethodName))
+      return handleSpecialType(
+          FD, FieldTy, KernelArgDescription(KernelArgDescription::Stream));
+    if (dyn_cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl()))
+      return handleSpecialType(
+          FD, FieldTy, KernelArgDescription(KernelArgDescription::Accessor));
     return handleSpecialType(
-        FD, FieldTy, KernelArgDescription(KernelArgDescription::Accessor));
+        FD, FieldTy, KernelArgDescription(KernelArgDescription::Sampler));
   }
 
-  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
-                              QualType FieldTy) final {
+  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                             QualType FieldTy) final {
     for (const auto *Param : DC.getParamVarDeclsForCurrentField()) {
       QualType KernelArgType = Param->getType();
       unsigned KernelArgSize = SemaRef.getASTContext()
@@ -2489,11 +2402,6 @@ public:
           "");
     }
     return true;
-  }
-
-  bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
-    return handleSpecialType(
-        FD, FieldTy, KernelArgDescription(KernelArgDescription::Sampler));
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
@@ -2540,11 +2448,6 @@ public:
     return true;
   }
 
-  bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    return handleSpecialType(
-        FD, FieldTy, KernelArgDescription(KernelArgDescription::Stream));
-  }
-
   void handleSyclKernelHandlerType() {
     ASTContext &Context = SemaRef.getASTContext();
     if (isDefaultSPIRArch(Context))
@@ -2553,8 +2456,6 @@ public:
              KernelArgDescription(KernelArgDescription::KernelHandler));
   }
   using SyclKernelFieldHandler::handleSyclHalfType;
-  using SyclKernelFieldHandler::handleSyclSamplerType;
-  using SyclKernelFieldHandler::handleSyclStreamType;
 };
 
 static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
@@ -2921,7 +2822,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     CXXMethodDecl *FinalizeMethod =
         getMethodByName(RecordDecl, FinalizeMethodName);
     // A finalize-method is expected for stream class.
-    if (!FinalizeMethod && Util::isSyclStreamType(Ty))
+    if (!FinalizeMethod && getMethodByName(RecordDecl, "__finalize"))
       SemaRef.Diag(FD->getLocation(), diag::err_sycl_expected_finalize_method);
     else
       createSpecialMethodCall(RecordDecl, FinalizeMethodName, FinalizeStmts);
@@ -3000,32 +2901,17 @@ public:
     DeclCreator.setBody(KernelBody);
   }
 
-  bool handleSyclAccessorType(FieldDecl *FD, QualType Ty) final {
+  bool handleSyclSpecialType(FieldDecl *FD, QualType Ty) final {
     return handleSpecialType(FD, Ty);
   }
 
-  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
-                              QualType Ty) final {
+  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                             QualType Ty) final {
     return handleSpecialType(BS, Ty);
-  }
-
-  bool handleSyclSamplerType(FieldDecl *FD, QualType Ty) final {
-    return handleSpecialType(FD, Ty);
   }
 
   bool handleSyclSpecConstantType(FieldDecl *FD, QualType Ty) final {
     return handleSpecialType(FD, Ty);
-  }
-
-  bool handleSyclStreamType(FieldDecl *FD, QualType Ty) final {
-    return handleSpecialType(FD, Ty);
-  }
-
-  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
-                            QualType Ty) final {
-    // FIXME SYCL stream should be usable as a base type
-    // See https://github.com/intel/llvm/issues/1552
-    return true;
   }
 
   bool handleSyclHalfType(FieldDecl *FD, QualType Ty) final {
@@ -3196,7 +3082,6 @@ public:
   }
 
   using SyclKernelFieldHandler::handleSyclHalfType;
-  using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
 // Kernels are only the unnamed-lambda feature if the feature is enabled, AND
@@ -3316,9 +3201,9 @@ public:
     setThisItemIsCalled(KernelFunc);
   }
 
-  bool handleSyclAccessorType(const CXXRecordDecl *RD,
-                              const CXXBaseSpecifier &BC,
-                              QualType FieldTy) final {
+  bool handleSyclSpecialType(const CXXRecordDecl *RD,
+                             const CXXBaseSpecifier &BC,
+                             QualType FieldTy) final {
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
     assert(AccTy->getTemplateArgs().size() >= 2 &&
@@ -3332,37 +3217,30 @@ public:
     return true;
   }
 
-  bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
-    const auto *AccTy =
-        cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
-    assert(AccTy->getTemplateArgs().size() >= 2 &&
-           "Incorrect template args for Accessor Type");
-    int Dims = static_cast<int>(
-        AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
-    int Info = getAccessTarget(AccTy) | (Dims << 11);
+  bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
+    const auto *ClassTy = FieldTy->getAsCXXRecordDecl();
+    assert(ClassTy && "Sampler type must be a C++ record type");
+    if (const auto *AccTy = dyn_cast<ClassTemplateSpecializationDecl>(
+            FieldTy->getAsRecordDecl())) {
+      assert(AccTy->getTemplateArgs().size() >= 2 &&
+             "Incorrect template args for Accessor Type");
+      int Dims = static_cast<int>(
+          AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
+      int Info = getAccessTarget(AccTy) | (Dims << 11);
 
-    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
-                        CurOffset + offsetOf(FD, FieldTy));
-    return true;
-  }
-
-  bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
-    const auto *SamplerTy = FieldTy->getAsCXXRecordDecl();
-    assert(SamplerTy && "Sampler type must be a C++ record type");
-    CXXMethodDecl *InitMethod = getMethodByName(SamplerTy, InitMethodName);
-    assert(InitMethod && "sampler must have __init method");
-
-    // sampler __init method has only one argument
-    const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
-    assert(SamplerArg && "sampler __init method must have sampler parameter");
-
-    // For samplers, we do some special work to ONLY initialize the first item
-    // to the InitMethod as a performance improvement presumably, so the normal
-    // offsetOf calculation wouldn't work correctly. Therefore, we need to call
-    // a version of addParam where we calculate the offset based on the true
-    // FieldDecl/FieldType pair, rather than the SampleArg type.
-    addParam(SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
-             offsetOf(FD, FieldTy));
+      Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+                          CurOffset + offsetOf(FD, FieldTy));
+    } else {
+      if (getMethodByName(ClassTy, FinalizeMethodName))
+        addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
+      else {
+        CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
+        assert(InitMethod && "sampler must have __init method");
+        const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
+        addParam(SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
+                 offsetOf(FD, FieldTy));
+      }
+    }
     return true;
   }
 
@@ -3415,18 +3293,6 @@ public:
 
   bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
     return handleScalarType(FD, FieldTy);
-  }
-
-  bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
-    return true;
-  }
-
-  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BC,
-                            QualType FieldTy) final {
-    // FIXME SYCL stream should be usable as a base type
-    // See https://github.com/intel/llvm/issues/1552
-    return true;
   }
 
   bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
@@ -3493,7 +3359,6 @@ public:
 
   using SyclKernelFieldHandler::enterStruct;
   using SyclKernelFieldHandler::handleSyclHalfType;
-  using SyclKernelFieldHandler::handleSyclSamplerType;
   using SyclKernelFieldHandler::leaveStruct;
 };
 
@@ -5041,34 +4906,11 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 // -----------------------------------------------------------------------------
 // Utility class methods
 // -----------------------------------------------------------------------------
-bool Util::isSyclAccessorType(const QualType Ty) {
+bool Util::isSyclSpecialType(const QualType Ty) {
   const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
   if (!RecTy)
-    return false; // only classes/structs supported
-  if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
-    return (A->getClassType()->getName() == "accessor" &&
-            getMethodByName(RecTy, "__init"));
-  return false;
-}
-
-bool Util::isSyclSamplerType(const QualType Ty) {
-  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
-  if (!RecTy)
-    return false; // only classes/structs supported
-  if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
-    return (A->getClassType()->getName() == "sampler" &&
-            getMethodByName(RecTy, "__init"));
-  return false;
-}
-
-bool Util::isSyclStreamType(const QualType Ty) {
-  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
-  if (!RecTy)
-    return false; // only classes/structs supported
-  if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
-    return (A->getClassType()->getName() == "stream" &&
-            getMethodByName(RecTy, "__finalize"));
-  return false;
+    return false;
+  return getMethodByName(RecTy, "__init");
 }
 
 bool Util::isSyclHalfType(QualType Ty) {

@@ -9086,18 +9086,6 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   handleSimpleAttribute<SYCLKernelAttr>(S, D, AL);
 }
 
-static void handleSYCLSpecialClassAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!AL.isArgIdent(0)) {
-    S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
-        << AL << AANT_ArgumentIdentifier;
-    return;
-  }
-
-  IdentifierInfo *ClassKind = AL.getArgAsIdent(0)->Ident;
-
-  D->addAttr(::new (S.Context) SYCLSpecialClassAttr(S.Context, AL, ClassKind));
-}
-
 static void handleDestroyAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   if (!cast<VarDecl>(D)->hasGlobalStorage()) {
     S.Diag(D->getLocation(), diag::err_destroy_attr_on_non_static_var)
@@ -9530,7 +9518,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleSimpleAttribute<SYCLSimdAttr>(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLSpecialClass:
-    handleSYCLSpecialClassAttr(S, D, AL);
+    handleSimpleAttribute<SYCLSpecialClassAttr>(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLDevice:
     handleSYCLDeviceAttr(S, D, AL);
