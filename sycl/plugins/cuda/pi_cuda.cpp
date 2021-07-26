@@ -4473,14 +4473,20 @@ pi_result cuda_piextUSMFree(pi_context context, void *ptr) {
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
+    bool is_managed;
     unsigned int type;
-    result = PI_CHECK_ERROR(cuPointerGetAttribute(
-        &type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)ptr));
+    void *attribute_values[2] = {&is_managed, &type};
+    CUpointer_attribute attributes[2] = {CU_POINTER_ATTRIBUTE_IS_MANAGED,
+                                         CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
+    result = PI_CHECK_ERROR(cuPointerGetAttributes(
+        2, attributes, attribute_values, (CUdeviceptr)ptr));
     assert(type == CU_MEMORYTYPE_DEVICE or type == CU_MEMORYTYPE_HOST);
-    if (type == CU_MEMORYTYPE_DEVICE) {
+    if (is_managed || type == CU_MEMORYTYPE_DEVICE) {
+      // Memory allocated with cuMemAlloc and cuMemAllocManaged must be freed
+      // with cuMemFree
       result = PI_CHECK_ERROR(cuMemFree((CUdeviceptr)ptr));
-    }
-    if (type == CU_MEMORYTYPE_HOST) {
+    } else {
+      // Memory allocated with cuMemAllocHost must be freed with cuMemFreeHost
       result = PI_CHECK_ERROR(cuMemFreeHost(ptr));
     }
   } catch (pi_result error) {
