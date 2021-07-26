@@ -542,6 +542,7 @@ private:
   std::unique_ptr<detail::CG> MCommandGroup;
 
   friend class Command;
+  friend class Scheduler;
 };
 
 class UpdateHostRequirementCommand : public Command {
