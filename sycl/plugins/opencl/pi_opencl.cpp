@@ -719,6 +719,7 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
                                            pi_context context,
                                            bool ownNativeHandle,
                                            pi_event *piEvent) {
+  (void)context;
   (void)ownNativeHandle;
 
   assert(piEvent != nullptr);

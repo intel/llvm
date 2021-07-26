@@ -67,9 +67,9 @@ template <> struct BackendReturn<backend::level_zero, kernel> {
 
 template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakePlatform = true;
-  static constexpr bool MakeDevice = true;
-  static constexpr bool MakeContext = true;
-  static constexpr bool MakeQueue = true;
+  static constexpr bool MakeDevice = false;
+  static constexpr bool MakeContext = false;
+  static constexpr bool MakeQueue = false;
   static constexpr bool MakeEvent = true;
   static constexpr bool MakeBuffer = false;
   static constexpr bool MakeKernel = false;
