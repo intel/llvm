@@ -5,3 +5,5 @@ synchronization/barrier.cl
 math/cos.cl
 math/sin.cl
 math/sqrt.cl
+math/atan.cl
+math/cbrt.cl

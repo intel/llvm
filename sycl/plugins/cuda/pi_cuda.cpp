@@ -1039,7 +1039,13 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    atomic64);
   }
-
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    // NVPTX currently only support at most monotonic atomic load/store.
+    // Acquire and release is present in newer PTX, but is not yet supported
+    // in LLVM NVPTX.
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_MEMORY_ORDER_RELAXED);
+  }
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // NVIDIA devices only support one sub-group size (the warp size)
     int warpSize = 0;
@@ -4467,14 +4473,20 @@ pi_result cuda_piextUSMFree(pi_context context, void *ptr) {
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
+    bool is_managed;
     unsigned int type;
-    result = PI_CHECK_ERROR(cuPointerGetAttribute(
-        &type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)ptr));
+    void *attribute_values[2] = {&is_managed, &type};
+    CUpointer_attribute attributes[2] = {CU_POINTER_ATTRIBUTE_IS_MANAGED,
+                                         CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
+    result = PI_CHECK_ERROR(cuPointerGetAttributes(
+        2, attributes, attribute_values, (CUdeviceptr)ptr));
     assert(type == CU_MEMORYTYPE_DEVICE or type == CU_MEMORYTYPE_HOST);
-    if (type == CU_MEMORYTYPE_DEVICE) {
+    if (is_managed || type == CU_MEMORYTYPE_DEVICE) {
+      // Memory allocated with cuMemAlloc and cuMemAllocManaged must be freed
+      // with cuMemFree
       result = PI_CHECK_ERROR(cuMemFree((CUdeviceptr)ptr));
-    }
-    if (type == CU_MEMORYTYPE_HOST) {
+    } else {
+      // Memory allocated with cuMemAllocHost must be freed with cuMemFreeHost
       result = PI_CHECK_ERROR(cuMemFreeHost(ptr));
     }
   } catch (pi_result error) {

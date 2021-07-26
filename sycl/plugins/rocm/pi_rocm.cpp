@@ -1533,7 +1533,10 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
 
-    // TODO: Investigate if this information is available on HIP.
+  // TODO: Implement.
+  case PI_DEVICE_INFO_ATOMIC_64:
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  // TODO: Investigate if this information is available on HIP.
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
@@ -2137,11 +2140,16 @@ pi_result rocm_piextQueueGetNativeHandle(pi_queue queue,
 /// \param[in] nativeHandle The native handle to create PI queue object from.
 /// \param[in] context is the PI context of the queue.
 /// \param[out] queue Set to the PI queue object created from native handle.
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
+///
 ///
 /// \return TBD
 pi_result rocm_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                 pi_context context,
-                                                pi_queue *queue) {
+                                                pi_queue *queue,
+                                                bool ownNativeHandle) {
+  (void)ownNativeHandle;
   cl::sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
   return {};
@@ -2489,7 +2497,8 @@ pi_result rocm_piEnqueueKernelLaunch(
     }
 
     retError = PI_CHECK_ERROR(hipModuleLaunchKernel(
-        hipFunc, blocksPerGrid[0], 1, 1, threadsPerBlock[0], 1, 1,
+        hipFunc, blocksPerGrid[0], blocksPerGrid[1], blocksPerGrid[2],
+        threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2],
         kernel->get_local_size(), hipStream, argIndices.data(), nullptr));
 
     kernel->clear_local_size();

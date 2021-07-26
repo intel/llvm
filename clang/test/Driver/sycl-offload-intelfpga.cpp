@@ -411,9 +411,3 @@
 // CHK-TOOLS-IMPLIED-OPTS-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "-O0"
 // CHK-TOOLS-IMPLIED-OPTS: sycl-post-link{{.*}} "-O2"
 // CHK-TOOLS-IMPLIED-OPTS: aoc{{.*}} "-g" "-DFOO1" "-DFOO2"
-
-/// Check the warning's emission for conflicting emulation/hardware (AOCX)
-// RUN: touch %t_aocx.a
-// RUN: %clangxx -fsycl -fintelfpga -fsycl-link=image -target x86_64-unknown-linux-gnu %t_aocx.a %s -### 2>&1 \
-// RUN: | FileCheck %s --check-prefix=CHK-FPGA-LINK-WARN-AOCX
-// CHK-FPGA-LINK-WARN-AOCX: warning: FPGA archive '{{.*}}_aocx.a' does not contain matching emulation/hardware expectancy

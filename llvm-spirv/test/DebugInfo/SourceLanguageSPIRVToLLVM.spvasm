@@ -1,0 +1,66 @@
+; Test checks that:
+;    - OpenCL_CPP is mapped to DW_LANG_C_plus_plus_14
+;    - CPP_for_OpenCL is mapped to DW_LANG_C_plus_plus_17
+;    - OpenCL_C, GLSL, ESSL, HLSL, and Unknown are mapped to DW_LANG_OpenCL
+
+; LLVM does not yet define DW_LANG_C_plus_plus_17. When it is defined, the
+; test case for C++ for OpenCL should be updated to check that CPP_for_OpenCL
+; is mapped to DW_LANG_C_plus_plus_17, not DW_LANG_C_plus_plus_14.
+
+; REQUIRES: spirv-as
+
+; RUN: sed -e 's/SOURCE_LANGUAGE/OpenCL_CPP/' %s | spirv-as --target-env spv1.3 - -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-CPP14
+
+; COM: TODO: Enable this test when the version of SPIRV-Tools used by buildbot is updated to 
+; COM: recognise CPP_for_OpenCL as a valid source language.
+; COM: sed -e 's/SOURCE_LANGUAGE/CPP_for_OpenCL/' %s | spirv-as --target-env spv1.3 - -o %t.spv
+; COM: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-CPP14
+
+; RUN: sed -e 's/SOURCE_LANGUAGE/OpenCL_C/' %s | spirv-as --target-env spv1.3 - -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
+
+; RUN: sed -e 's/SOURCE_LANGUAGE/GLSL/' %s | spirv-as --target-env spv1.3 - -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
+
+; RUN: sed -e 's/SOURCE_LANGUAGE/HLSL/' %s | spirv-as --target-env spv1.3 - -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
+
+; RUN: sed -e 's/SOURCE_LANGUAGE/ESSL/' %s | spirv-as --target-env spv1.3 - -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
+
+; RUN: sed -e 's/SOURCE_LANGUAGE/Unknown/' %s | spirv-as --target-env spv1.3 - -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
+
+; SPIR-V
+; Version: 1.1
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 16
+; Schema: 0
+               OpCapability Addresses
+               OpCapability Kernel
+          %1 = OpExtInstImport "OpenCL.std"
+          %2 = OpExtInstImport "OpenCL.DebugInfo.100"
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %5 "func"
+          %7 = OpString "kernel_arg_type.func."
+          %8 = OpString "/tmp/test.cl"
+          %9 = OpString "//__CSK_MD5:18aa9ce738eaafc7b7b7181c19092815"
+         %12 = OpString "func"
+         %14 = OpString ""
+               OpSource Unknown 0
+               OpName %entry "entry"
+               OpModuleProcessed "Debug info producer: "
+       %void = OpTypeVoid
+          %4 = OpTypeFunction %void
+         %10 = OpExtInst %void %2 DebugSource %8 %9
+         %11 = OpExtInst %void %2 DebugCompilationUnit 65536 5 %10 SOURCE_LANGUAGE
+         %13 = OpExtInst %void %2 DebugInfoNone
+         %15 = OpExtInst %void %2 DebugFunction %12 %13 %10 1 0 %11 %14 FlagIsDefinition|FlagPrototyped|FlagIsOptimized 2 %5 %13
+          %5 = OpFunction %void None %4
+      %entry = OpLabel
+               OpReturn
+               OpFunctionEnd
+
+; CHECK-OPENCL: !DICompileUnit(language: DW_LANG_OpenCL,
+; CHECK-CPP14: !DICompileUnit(language: DW_LANG_C_plus_plus_14,

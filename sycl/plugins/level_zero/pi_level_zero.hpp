@@ -291,6 +291,9 @@ struct _pi_device : _pi_object {
   int32_t ZeComputeQueueGroupIndex;
   int32_t ZeCopyQueueGroupIndex;
 
+  // Keep the index of the compute engine
+  int32_t ZeComputeEngineIndex = 0;
+
   // Cache the properties of the compute/copy queue groups.
   ZeStruct<ze_command_queue_group_properties_t> ZeComputeQueueGroupProperties;
   ZeStruct<ze_command_queue_group_properties_t> ZeCopyQueueGroupProperties;
@@ -299,7 +302,11 @@ struct _pi_device : _pi_object {
   bool hasCopyEngine() const { return ZeCopyQueueGroupIndex >= 0; }
 
   // Initialize the entire PI device.
-  pi_result initialize();
+  // Optional param `SubSubDeviceOrdinal` `SubSubDeviceIndex` are the compute
+  // command queue ordinal and index respectively, used to initialize
+  // sub-sub-devices.
+  pi_result initialize(int SubSubDeviceOrdinal = -1,
+                       int SubSubDeviceIndex = -1);
 
   // Level Zero device handle.
   ze_device_handle_t ZeDevice;
@@ -358,6 +365,14 @@ struct _pi_context : _pi_object {
     // include root device itself as well)
     SingleRootDevice =
         Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
+
+    // For context with sub subdevices, the SingleRootDevice might still
+    // not be the root device.
+    // Check whether the SingleRootDevice is the subdevice or root device.
+    if (SingleRootDevice->isSubDevice()) {
+      SingleRootDevice = SingleRootDevice->RootDevice;
+    }
+
     for (auto &Device : Devices) {
       if ((!Device->RootDevice && Device != SingleRootDevice) ||
           (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {

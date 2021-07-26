@@ -22,8 +22,7 @@ template <typename T> void store_test(queue q, size_t N) {
       auto st = store_buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<store_kernel<T>>(range<1>(N), [=](item<1> it) {
         size_t gid = it.get_id(0);
-        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
-                              ext::oneapi::memory_scope::device,
+        auto atm = atomic_ref<T, memory_order::relaxed, memory_scope::device,
                               access::address_space::global_space>(st[0]);
         atm.store(T(gid));
       });

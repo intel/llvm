@@ -31,9 +31,9 @@ template <typename T> void compare_exchange_test(queue q, size_t N) {
       cgh.parallel_for<compare_exchange_kernel<T>>(
           range<1>(N), [=](item<1> it) {
             size_t gid = it.get_id(0);
-            auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
-                                  ext::oneapi::memory_scope::device,
-                                  access::address_space::global_space>(exc[0]);
+            auto atm =
+                atomic_ref<T, memory_order::relaxed, memory_scope::device,
+                           access::address_space::global_space>(exc[0]);
             T result = T(N); // Avoid copying pointer
             bool success = atm.compare_exchange_strong(result, (T)gid);
             if (success) {

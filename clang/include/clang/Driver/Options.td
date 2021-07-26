@@ -1579,6 +1579,12 @@ def fno_sanitize_memory_track_origins : Flag<["-"], "fno-sanitize-memory-track-o
                                         Group<f_clang_Group>,
                                         Flags<[CoreOption, NoXarchOption]>,
                                         HelpText<"Disable origins tracking in MemorySanitizer">;
+def fsanitize_address_outline_instrumentation : Flag<["-"], "fsanitize-address-outline-instrumentation">,
+                                                Group<f_clang_Group>,
+                                                HelpText<"Always generate function calls for address sanitizer instrumentation">;
+def fno_sanitize_address_outline_instrumentation : Flag<["-"], "fno-sanitize-address-outline-instrumentation">,
+                                                   Group<f_clang_Group>,
+                                                   HelpText<"Use default code inlining logic for the address sanitizer">;
 def fsanitize_hwaddress_experimental_aliasing
   : Flag<["-"], "fsanitize-hwaddress-experimental-aliasing">,
     Group<f_clang_Group>,
@@ -2635,6 +2641,9 @@ def fsycl_host_compiler_options_EQ : Joined<["-"], "fsycl-host-compiler-options=
 def fno_sycl_use_footer : Flag<["-"], "fno-sycl-use-footer">, Flags<[CoreOption]>,
   HelpText<"Disable usage of the integration footer during SYCL enabled "
    "compilations.">;
+def fsycl_footer_path_EQ : Joined<["-"], "fsycl-footer-path=">,
+  Flags<[CoreOption]>, HelpText<"Specify the location of the temporary "
+  "source file with the included integration footer.">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option]>, Group<Action_Group>;
 def ftabstop_EQ : Joined<["-"], "ftabstop=">, Group<f_Group>;

@@ -82,6 +82,8 @@ public:
   DEF_RELOP(<=)
   DEF_RELOP(==)
   DEF_RELOP(!=)
+
+#undef DEF_RELOP
 };
 
 /// This is a specialization of simd_view class with a single element.
@@ -132,6 +134,8 @@ public:
   DEF_RELOP(<=)
   DEF_RELOP(==)
   DEF_RELOP(!=)
+
+#undef DEF_RELOP
 };
 
 } // namespace esimd

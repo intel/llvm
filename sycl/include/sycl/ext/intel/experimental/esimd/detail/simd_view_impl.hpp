@@ -193,6 +193,8 @@ public:
   }
 
 #define DEF_BINOP(BINOP, OPASSIGN)                                             \
+  template <class T1 = simd_view_impl,                                         \
+            class = std::enable_if_t<T1::length != 1>>                         \
   ESIMD_INLINE friend auto operator BINOP(const simd_view_impl &X,             \
                                           const value_type &Y) {               \
     using ComputeTy = detail::compute_type_t<value_type>;                      \
@@ -202,6 +204,8 @@ public:
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
+  template <class T1 = simd_view_impl,                                         \
+            class = std::enable_if_t<T1::length != 1>>                         \
   ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
                                           const simd_view_impl &Y) {           \
     using ComputeTy = detail::compute_type_t<value_type>;                      \
@@ -237,12 +241,16 @@ public:
 #undef DEF_BINOP
 
 #define DEF_BITWISE_OP(BITWISE_OP, OPASSIGN)                                   \
+  template <class T1 = simd_view_impl,                                         \
+            class = std::enable_if_t<T1::length != 1>>                         \
   ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view_impl &X,        \
                                                const value_type &Y) {          \
     static_assert(std::is_integral<element_type>(), "not integral type");      \
     auto V2 = X.read().data() BITWISE_OP Y.data();                             \
     return simd<element_type, length>(V2);                                     \
   }                                                                            \
+  template <class T1 = simd_view_impl,                                         \
+            class = std::enable_if_t<T1::length != 1>>                         \
   ESIMD_INLINE friend auto operator BITWISE_OP(const value_type &X,            \
                                                const simd_view_impl &Y) {      \
     static_assert(std::is_integral<element_type>(), "not integral type");      \
