@@ -53,7 +53,7 @@ device_filter::device_filter(const std::string &FilterString) {
   // Handle the optional 1st field of the filter, backend
   // Check if the first entry matches with a known backend type
   std::vector<std::string> Tokens = tokenize(FilterString, ":");
-  size_t i = 0;
+  size_t I = 0;
   SubString = Tokens[i];
   auto It =
       std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap), findElement);
