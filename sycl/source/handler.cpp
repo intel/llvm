@@ -417,6 +417,42 @@ void handler::extractArgsAndReqs() {
 
   const bool IsKernelCreatedFromSource = MKernel->isCreatedFromSource();
 
+  // TODO: to do that in compile time.
+  size_t real_KernelArgsNum = UnPreparedArgs.size();
+  for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
+    const detail::kernel_param_kind_t &Kind = UnPreparedArgs[I].MType;
+    if (Kind == detail::kernel_param_kind_t::kind_accessor) {
+      const int &Size = UnPreparedArgs[I].MSize;
+      // For args kind of accessor Size is information about accessor.
+      // The first 11 bits of Size encodes the accessor target.
+      const access::target AccTarget =
+          static_cast<access::target>(Size & 0x7ff);
+      switch (AccTarget) {
+      case access::target::global_buffer:
+      case access::target::constant_buffer:
+      case access::target::local: {
+        if (!IsKernelCreatedFromSource) {
+          real_KernelArgsNum += 3;
+        }
+        break;
+      }
+      case access::target::image:
+      case access::target::image_array:
+      case access::target::host_image:
+      case access::target::host_buffer: {
+        break;
+      }
+      }
+    } else if (Kind == detail::kernel_param_kind_t::kind_stream) {
+      if (!IsKernelCreatedFromSource) {
+        real_KernelArgsNum += 12;
+      } else {
+        real_KernelArgsNum += 3;
+      }
+    }
+  }
+  MArgs.reserve(real_KernelArgsNum);
+
   size_t IndexShift = 0;
   for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
     void *Ptr = UnPreparedArgs[I].MPtr;
@@ -440,6 +476,46 @@ void handler::extractArgsAndReqsFromLambda(
     const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
+
+  // TODO: to do that in compile time.
+  size_t real_KernelArgsNum = KernelArgsNum;
+  for (size_t I = 0; I < KernelArgsNum; ++I) {
+    const detail::kernel_param_kind_t &Kind = KernelArgs[I].kind;
+    if (Kind == detail::kernel_param_kind_t::kind_accessor) {
+      const int &Size = KernelArgs[I].info;
+      // For args kind of accessor Size is information about accessor.
+      // The first 11 bits of Size encodes the accessor target.
+      const access::target AccTarget =
+          static_cast<access::target>(Size & 0x7ff);
+      switch (AccTarget) {
+      case access::target::global_buffer:
+      case access::target::constant_buffer: {
+        if (!IsESIMD) {
+          real_KernelArgsNum += 3;
+        }
+        break;
+      }
+      case access::target::local: {
+        real_KernelArgsNum += 3;
+        break;
+      }
+      case access::target::image:
+      case access::target::image_array:
+      case access::target::host_image:
+      case access::target::host_buffer: {
+        break;
+      }
+      }
+    } else if (Kind == detail::kernel_param_kind_t::kind_stream) {
+      if (!IsESIMD) {
+        real_KernelArgsNum += 12;
+      } else {
+        real_KernelArgsNum += 3;
+      }
+    }
+  }
+  MArgs.reserve(real_KernelArgsNum);
+
   for (size_t I = 0; I < KernelArgsNum; ++I) {
     void *Ptr = LambdaPtr + KernelArgs[I].offset;
     const detail::kernel_param_kind_t &Kind = KernelArgs[I].kind;
