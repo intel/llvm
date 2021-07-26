@@ -254,6 +254,25 @@ size_t getOffsetForId(range<dimensions> Range, id<dimensions> Id,
     offset = offset * Range[i] + Offset[i] + Id[i];
   return offset;
 }
+
+inline id<1> getDelinearizedId(const range<1> &, size_t Index) {
+  return {Index};
+}
+
+inline id<2> getDelinearizedId(const range<2> &Range, size_t Index) {
+  size_t X = Index % Range[1];
+  size_t Y = Index / Range[1];
+  return {Y, X};
+}
+
+inline id<3> getDelinearizedId(const range<3> &Range, size_t Index) {
+  size_t D1D2 = Range[1] * Range[2];
+  size_t Z = Index / D1D2;
+  size_t ZRest = Index % D1D2;
+  size_t Y = ZRest / Range[2];
+  size_t X = ZRest % Range[2];
+  return {Z, Y, X};
+}
 } // namespace detail
 
 // C++ feature test macros are supported by all supported compilers
@@ -270,7 +289,9 @@ template <int Dims> id<Dims> store_id(const id<Dims> *i) {
 }
 } // namespace detail
 
-template <int Dims> id<Dims> this_id() {
+template <int Dims>
+__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_id() instead")
+id<Dims> this_id() {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::Builder::getElement(detail::declptr<id<Dims>>());
 #else
@@ -278,5 +299,18 @@ template <int Dims> id<Dims> this_id() {
 #endif
 }
 
+namespace ext {
+namespace oneapi {
+namespace experimental {
+template <int Dims> id<Dims> this_id() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::Builder::getElement(detail::declptr<id<Dims>>());
+#else
+  return sycl::detail::store_id<Dims>(nullptr);
+#endif
+}
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

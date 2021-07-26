@@ -101,17 +101,7 @@ using make_index_sequence =
 
 template <typename T> struct KernelInfoImpl {
 private:
-  // This is necessary to ensure that any kernels we get info for are properly
-  // labeled as such before we call __builtin_sycl_unique_stable_name in a
-  // constant expression, otherwise subsequent calls to a sycl_kernel function
-  // could cause the kernel name to be altered, and change the result of the
-  // builtin.
-  // Additionally, we make this a dependency of 'n' so that we can guarantee
-  // that this is evaluated first. The builtin always returns 'true', so the
-  // 'else' branch of 'n's ternary is never evaluated.
-  static constexpr bool b = __builtin_sycl_mark_kernel_name(T);
-  static constexpr auto n = b ? __builtin_sycl_unique_stable_name(T)
-                              : __builtin_sycl_unique_stable_name(T);
+  static constexpr auto n = __builtin_sycl_unique_stable_name(T);
   template <unsigned long long... I>
   static KernelInfoData<n[I]...> impl(index_sequence<I...>) {
     return {};
@@ -120,7 +110,29 @@ private:
 public:
   using type = decltype(impl(make_index_sequence<__builtin_strlen(n)>{}));
 };
-template <typename T> using KernelInfo = typename KernelInfoImpl<T>::type;
+
+// For named kernels, this structure is specialized in the integration header.
+// For unnamed kernels, KernelInfoData is specialized in the integration header,
+// and this picks it up via the KernelInfoImpl. For non-existent kernels, this
+// will also pick up a KernelInfoData (as SubKernelInfo) via KernelInfoImpl, but
+// it will instead get the unspecialized case, defined above.
+template <class KernelNameType> struct KernelInfo {
+  using SubKernelInfo = typename KernelInfoImpl<KernelNameType>::type;
+  static constexpr unsigned getNumParams() {
+    return SubKernelInfo::getNumParams();
+  }
+  static const kernel_param_desc_t &getParamDesc(int Idx) {
+    return SubKernelInfo::getParamDesc(Idx);
+  }
+  static constexpr const char *getName() { return SubKernelInfo::getName(); }
+  static constexpr bool isESIMD() { return SubKernelInfo::isESIMD(); }
+  static constexpr bool callsThisItem() {
+    return SubKernelInfo::callsThisItem();
+  }
+  static constexpr bool callsAnyThisFreeFunction() {
+    return SubKernelInfo::callsAnyThisFreeFunction();
+  }
+};
 #endif //__SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail

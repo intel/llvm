@@ -586,7 +586,7 @@ bool LoopVectorizationLegality::setupOuterLoopInductions() {
 
 /// Checks if a function is scalarizable according to the TLI, in
 /// the sense that it should be vectorized and then expanded in
-/// multiple scalarcalls. This is represented in the
+/// multiple scalar calls. This is represented in the
 /// TLI via mappings that do not specify a vector name, as in the
 /// following example:
 ///
@@ -885,6 +885,7 @@ bool LoopVectorizationLegality::canVectorizeMemory() {
                                         "loop not vectorized: ", *LAR);
     });
   }
+
   if (!LAI->canVectorizeMemory())
     return false;
 
@@ -894,9 +895,9 @@ bool LoopVectorizationLegality::canVectorizeMemory() {
         "CantVectorizeStoreToLoopInvariantAddress", ORE, TheLoop);
     return false;
   }
+
   Requirements->addRuntimePointerChecks(LAI->getNumRuntimePointerChecks());
   PSE.addPredicate(LAI->getPSE().getUnionPredicate());
-
   return true;
 }
 
@@ -1124,21 +1125,6 @@ bool LoopVectorizationLegality::canVectorizeLoopCFG(Loop *Lp,
       return false;
   }
 
-  // We currently must have a single "exit block" after the loop. Note that
-  // multiple "exiting blocks" inside the loop are allowed, provided they all
-  // reach the single exit block.
-  // TODO: This restriction can be relaxed in the near future, it's here solely
-  // to allow separation of changes for review. We need to generalize the phi
-  // update logic in a number of places.
-  if (!Lp->getUniqueExitBlock()) {
-    reportVectorizationFailure("The loop must have a unique exit block",
-        "loop control flow is not understood by vectorizer",
-        "CFGNotUnderstood", ORE, TheLoop);
-    if (DoExtraAnalysis)
-      Result = false;
-    else
-      return false;
-  }
   return Result;
 }
 

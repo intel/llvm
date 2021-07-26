@@ -10,7 +10,7 @@
 #include <functional>
 
 namespace pi {
-inline cl::sycl::detail::plugin initializeAndGet(cl::sycl::backend backend) {
+inline cl::sycl::detail::plugin *initializeAndGet(cl::sycl::backend backend) {
   auto plugins = cl::sycl::detail::pi::initialize();
   auto it = std::find_if(plugins.begin(), plugins.end(),
                          [=](cl::sycl::detail::plugin p) -> bool {
@@ -19,9 +19,10 @@ inline cl::sycl::detail::plugin initializeAndGet(cl::sycl::backend backend) {
   if (it == plugins.end()) {
     std::string msg = GetBackendString(backend);
     msg += " PI plugin not found!";
-    throw std::runtime_error(msg);
+    std::cerr << "Warning: " << msg << " Tests using it will be skipped.\n";
+    return nullptr;
   }
-  return *it;
+  return &*it;
 }
 
 inline std::vector<cl::sycl::detail::plugin> initializeAndRemoveInvalid() {

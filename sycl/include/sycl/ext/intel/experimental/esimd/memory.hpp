@@ -373,40 +373,80 @@ ESIMD_INLINE ESIMD_NODEBUG void scalar_store(AccessorTy acc, uint32_t offset,
   scatter<T>(acc, simd<T, 1>{val}, simd<uint32_t, 1>{offset});
 }
 
-// TODO @jasonsewall-intel
-// Don't use '4' in the name - instead either make it a parameter or
-// (if it must be constant) - try to deduce from other arguments.
-//
+/// Gathering read for the given starting pointer \p p and \p offsets.
+/// Up to 4 data elements may be accessed at each address depending on the
+/// enabled channel \p Mask.
+/// \tparam T element type of the returned vector. Must be 4-byte.
+/// \tparam N size of the \p offsets vector. Must be 16 or 32.
+/// \tparam Mask represents a pixel's channel mask.
+/// @param p the USM pointer.
+/// @param offsets byte-offsets within the \p buffer to be gathered.
+/// @param pred predication control used for masking lanes.
+/// \ingroup sycl_esimd
+template <typename T, int N, rgba_channel_mask Mask,
+          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    (N == 16 || N == 32) && (sizeof(T) == 4),
+    simd<T, N * get_num_channels_enabled(Mask)>>
+gather_rgba(T *p, simd<uint32_t, N> offsets, simd<uint16_t, N> pred = 1) {
+
+  simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
+  simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
+  addrs = addrs + offsets_i;
+  return __esimd_flat_read4<T, N, Mask, L1H, L3H>(addrs.data(), pred.data());
+}
+
 /// Flat-address gather4.
 /// Only allow simd-16 and simd-32.
 /// \ingroup sycl_esimd
 template <typename T, int n, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+__SYCL_DEPRECATED("use gather_rgba.")
 ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
     (n == 16 || n == 32) && (sizeof(T) == 4),
-    simd<T, n * get_num_channels_enabled(Mask)>>
-gather4(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
+    simd<T, n * get_num_channels_enabled(Mask)>> gather4(T *p,
+                                                         simd<uint32_t, n>
+                                                             offsets,
+                                                         simd<uint16_t, n>
+                                                             pred = 1) {
+  return gather_rgba<T, n, Mask, L1H, L3H>(p, offsets, pred);
+}
 
-  simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
-  simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
+/// Scatter write for the given starting pointer \p p and \p offsets.
+/// Up to 4 data elements may be written at each address depending on the
+/// enabled channel \p Mask.
+/// \tparam T element type of the input vector. Must be 4-byte.
+/// \tparam N size of the \p offsets vector. Must be 16 or 32.
+/// \tparam Mask represents a pixel's channel mask.
+/// @param p the USM pointer.
+/// @param vals values to be written.
+/// @param offsets byte-offsets within the \p buffer to be written.
+/// @param pred predication control used for masking lanes.
+/// \ingroup sycl_esimd
+template <typename T, int N, rgba_channel_mask Mask,
+          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+ESIMD_INLINE ESIMD_NODEBUG
+    typename sycl::detail::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4),
+                                       void>
+    scatter_rgba(T *p, simd<T, N * get_num_channels_enabled(Mask)> vals,
+                 simd<uint32_t, N> offsets, simd<uint16_t, N> pred = 1) {
+  simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
+  simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
-  return __esimd_flat_read4<T, n, Mask, L1H, L3H>(addrs.data(), pred.data());
+  __esimd_flat_write4<T, N, Mask, L1H, L3H>(addrs.data(), vals.data(),
+                                            pred.data());
 }
 
 /// Flat-address scatter4.
 /// \ingroup sycl_esimd
 template <typename T, int n, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG
-    typename sycl::detail::enable_if_t<(n == 16 || n == 32) && (sizeof(T) == 4),
-                                       void>
-    scatter4(T *p, simd<T, n * get_num_channels_enabled(Mask)> vals,
-             simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
-  simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
-  simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
-  addrs = addrs + offsets_i;
-  __esimd_flat_write4<T, n, Mask, L1H, L3H>(addrs.data(), vals.data(),
-                                            pred.data());
+__SYCL_DEPRECATED("use scatter_rgba.")
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    (n == 16 || n == 32) && (sizeof(T) == 4),
+    void> scatter4(T *p, simd<T, n * get_num_channels_enabled(Mask)> vals,
+                   simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
+  scatter_rgba<T, n, Mask, L1H, L3H>(p, vals, offsets, pred);
 }
 
 namespace detail {

@@ -33,6 +33,7 @@ configure_lit_site_cfg(
   "LLVM_LIBS_DIR"
   "SHLIBDIR"
   "LLVM_LIT_TOOLS_DIR"
+  "LLVM_EXTERNAL_LIT"
   "CLANG_BINARY_DIR"
   "CLANG_SOURCE_DIR"
   "CLANG_TOOLS_DIR"
@@ -110,6 +111,7 @@ if( NOT CLANG_BUILT_STANDALONE )
     llvm-config
     FileCheck count not
     llc
+    llvm-ar
     llvm-as
     llvm-ar
     llvm-bcanalyzer

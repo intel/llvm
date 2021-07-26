@@ -144,6 +144,7 @@ static std::array<llvm::Optional<uint64_t>, (unsigned)DIDT_ID_Count>
 #include "llvm/BinaryFormat/Dwarf.def"
 #undef HANDLE_DWARF_SECTION
 
+// The aliased DumpDebugFrame is created by the Dwarf.def x-macro just above.
 static alias DumpDebugFrameAlias("eh-frame", desc("Alias for --debug-frame"),
                                  NotHidden, cat(SectionCategory),
                                  aliasopt(DumpDebugFrame));
@@ -622,7 +623,8 @@ int main(int argc, char **argv) {
   llvm::InitializeAllTargetInfos();
   llvm::InitializeAllTargetMCs();
 
-  HideUnrelatedOptions({&DwarfDumpCategory, &SectionCategory, &ColorCategory});
+  HideUnrelatedOptions(
+      {&DwarfDumpCategory, &SectionCategory, &getColorCategory()});
   cl::ParseCommandLineOptions(
       argc, argv,
       "pretty-print DWARF debug information in object files"

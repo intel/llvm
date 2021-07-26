@@ -65,6 +65,11 @@ template <typename KernelName, typename KernelType>
   kernelFunc();
 }
 
+template<typename KernelType>
+void unnamed_kernel_single_task(KernelType kernelFunc) {
+  kernel_single_task<KernelType>(kernelFunc);
+}
+
 template <typename KernelName, typename KernelType>
 void not_kernel_single_task(KernelType kernelFunc) {
   kernelFunc();
@@ -76,9 +81,9 @@ int main() {
 
   auto l1 = []() { return 1; };
   auto l2 = [](decltype(l1) *l = nullptr) { return 2; };
-  kernel_single_task<class kernel3>(l2);
+  kernel_single_task<decltype(l2)>(l2);
   puts(__builtin_sycl_unique_stable_name(decltype(l2)));
-  // CHECK: call void @_Z18kernel_single_taskIZ4mainE7kernel3Z4mainEUlPZ4mainEUlvE_E_EvT0_
+  // CHECK: call void @_Z18kernel_single_taskIZ4mainEUlPZ4mainEUlvE_E_S2_EvT0_
   // CHECK: call void @puts(i8* getelementptr inbounds ([[LAMBDA_K3_SIZE]], [[LAMBDA_K3_SIZE]]* @[[LAMBDA_KERNEL3]], i32 0, i32 0))
 
   constexpr const char str[] = "lalala";
@@ -95,10 +100,10 @@ int main() {
 
   // CHECK: define internal void @_Z22not_kernel_single_taskIZ4mainE7kernel2PFPKcvEEvT0_
   // CHECK: declare i8* @_Z4funcI4DerpEDTu33__builtin_sycl_unique_stable_nameDtsrT_3strEEEv
-  // CHECK: define internal void @_Z18kernel_single_taskIZ4mainE7kernel3Z4mainEUlPZ4mainEUlvE_E_EvT0_
-  // CHECK: define internal void @_Z18kernel_single_taskIZ4mainE6kernelZ4mainEUlvE0_EvT0_
+  // CHECK: define internal void @_Z18kernel_single_taskIZ4mainEUlPZ4mainEUlvE_E_S2_EvT0_
+  // CHECK: define internal void @_Z18kernel_single_taskIZ4mainEUlvE0_S0_EvT0_
 
-  kernel_single_task<class kernel>(
+  unnamed_kernel_single_task(
       []() {
         puts(__builtin_sycl_unique_stable_name(int));
         // CHECK: call void @puts(i8* getelementptr inbounds ([[INT_SIZE]], [[INT_SIZE]]* @[[INT2]], i32 0, i32 0))

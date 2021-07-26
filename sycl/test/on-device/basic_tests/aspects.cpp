@@ -93,6 +93,9 @@ int main() {
     if (plt.has(aspect::usm_system_allocator)) {
       std::cout << "  USM system allocator" << std::endl;
     }
+    if (plt.has(aspect::usm_system_allocations)) {
+      std::cout << "  USM system allocations" << std::endl;
+    }
   }
   std::cout << "Passed." << std::endl;
   return 0;

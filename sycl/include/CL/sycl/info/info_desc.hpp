@@ -37,6 +37,8 @@ enum class context : cl_context_info {
   reference_count = CL_CONTEXT_REFERENCE_COUNT,
   platform = CL_CONTEXT_PLATFORM,
   devices = CL_CONTEXT_DEVICES,
+  atomic_memory_order_capabilities =
+      PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
 };
 
 // A.3 Device information descriptors
@@ -133,7 +135,10 @@ enum class device : cl_device_info {
   usm_host_allocations = PI_USM_HOST_SUPPORT,
   usm_shared_allocations = PI_USM_SINGLE_SHARED_SUPPORT,
   usm_restricted_shared_allocations = PI_USM_CROSS_SHARED_SUPPORT,
-  usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT,
+  usm_system_allocations = PI_USM_SYSTEM_SHARED_SUPPORT,
+  usm_system_allocator __SYCL2020_DEPRECATED(
+      "use usm_system_allocations instead") = usm_system_allocations,
+
   // intel extensions
   ext_intel_pci_address = PI_DEVICE_INFO_PCI_ADDRESS,
   ext_intel_gpu_eu_count = PI_DEVICE_INFO_GPU_EU_COUNT,
@@ -144,8 +149,11 @@ enum class device : cl_device_info {
       PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
   ext_intel_max_mem_bandwidth = PI_DEVICE_INFO_MAX_MEM_BANDWIDTH,
   ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL,
+  ext_oneapi_srgb = PI_DEVICE_INFO_IMAGE_SRGB,
   ext_intel_device_info_uuid = PI_DEVICE_INFO_UUID,
-  atomic64 = PI_DEVICE_INFO_ATOMIC_64
+  atomic64 = PI_DEVICE_INFO_ATOMIC_64,
+  atomic_memory_order_capabilities =
+      PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
 };
 
 enum class device_type : pi_uint64 {

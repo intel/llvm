@@ -44,21 +44,6 @@ struct BitmaskEnumStorage;
 void populateVectorToVectorCanonicalizationPatterns(
     RewritePatternSet &patterns);
 
-/// Collect a set of vector-to-vector transformation patterns.
-void populateVectorToVectorTransformationPatterns(RewritePatternSet &patterns);
-
-/// Collect a set of patterns to split transfer read/write ops.
-///
-/// These patterns unrolls transfer read/write ops if the vector consumers/
-/// producers are extract/insert slices op. Transfer ops can map to hardware
-/// load/store functionalities, where the vector size matters for bandwith
-/// considerations. So these patterns should be collected separately, instead
-/// of being generic canonicalization patterns. Also one can let the
-/// `ignoreFilter` to return true to fail matching for fine-grained control.
-void populateSplitVectorTransferPatterns(
-    RewritePatternSet &patterns,
-    std::function<bool(Operation *)> ignoreFilter = nullptr);
-
 /// Collect a set of leading one dimension removal patterns.
 ///
 /// These patterns insert vector.shape_cast to remove leading one dimensions
@@ -74,22 +59,15 @@ void populateCastAwayVectorLeadingOneDimPatterns(RewritePatternSet &patterns);
 /// vectors and there are more chances to share extract/insert ops.
 void populateBubbleVectorBitCastOpPatterns(RewritePatternSet &patterns);
 
-/// Collect a set of vector slices transformation patterns:
-///    ExtractSlicesOpLowering, InsertSlicesOpLowering
-/// Useful for clients that want to express all vector "slices"
-/// ops in terms of more elementary vector "slice" ops. If all
-/// "produced" tuple values are "consumed" (the most common
-/// use for "slices" ops), this lowering removes all tuple related
-/// operations as well (through DCE and folding). If tuple values
-/// "leak" coming in, however, some tuple related ops will remain.
-void populateVectorSlicesLoweringPatterns(RewritePatternSet &patterns);
-
 /// Collect a set of transfer read/write lowering patterns.
 ///
 /// These patterns lower transfer ops to simpler ops like `vector.load`,
-/// `vector.store` and `vector.broadcast`. Includes all patterns of
-/// populateVectorTransferPermutationMapLoweringPatterns.
-void populateVectorTransferLoweringPatterns(RewritePatternSet &patterns);
+/// `vector.store` and `vector.broadcast`. Only transfers with a transfer rank
+/// of a most `maxTransferRank` are lowered. This is useful when combined with
+/// VectorToSCF, which reduces the rank of vector transfer ops.
+void populateVectorTransferLoweringPatterns(
+    RewritePatternSet &patterns,
+    llvm::Optional<unsigned> maxTransferRank = llvm::None);
 
 /// Collect a set of transfer read/write lowering patterns that simplify the
 /// permutation map (e.g., converting it to a minor identity map) by inserting
@@ -104,6 +82,10 @@ void populateVectorMaskMaterializationPatterns(RewritePatternSet &patterns,
 // Collect a set of patterns to convert vector.multi_reduction op into
 // a sequence of vector.reduction ops.
 void populateVectorMultiReductionLoweringPatterns(RewritePatternSet &patterns);
+
+/// Collect a set of patterns to propagate insert_map/extract_map in the ssa
+/// chain.
+void populatePropagateVectorDistributionPatterns(RewritePatternSet &patterns);
 
 /// An attribute that specifies the combining function for `vector.contract`,
 /// and `vector.reduction`.
@@ -205,6 +187,10 @@ ArrayAttr getVectorSubscriptAttr(Builder &b, ArrayRef<int64_t> values);
 /// operation kind associated with a binary AtomicRMWKind op.
 Value getVectorReductionOp(AtomicRMWKind op, OpBuilder &builder, Location loc,
                            Value vector);
+
+/// Return true if the last dimension of the MemRefType has unit stride. Also
+/// return true for memrefs with no strides.
+bool isLastMemrefDimUnitStride(MemRefType type);
 
 namespace impl {
 /// Build the default minor identity map suitable for a vector transfer. This

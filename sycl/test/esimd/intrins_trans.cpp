@@ -6,8 +6,8 @@
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <CL/sycl/detail/image_ocl_types.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 using namespace sycl::ext::intel::experimental::esimd;
 

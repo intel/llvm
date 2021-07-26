@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/sycl/ONEAPI/experimental/spec_constant.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
@@ -17,6 +16,7 @@
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
+#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -341,7 +341,7 @@ public:
   /// \return a specialization constant instance corresponding to given type ID
   ///         passed as a template parameter
   template <typename ID, typename T>
-  ONEAPI::experimental::spec_constant<T, ID> set_spec_constant(T Cst) {
+  ext::oneapi::experimental::spec_constant<T, ID> set_spec_constant(T Cst) {
     constexpr const char *Name = detail::SpecConstantInfo<ID>::getName();
     static_assert(std::is_arithmetic<T>::value ||
                       (std::is_class<T>::value && std::is_pod<T>::value),
@@ -349,10 +349,10 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Cst;
     (void)Name;
-    return ONEAPI::experimental::spec_constant<T, ID>();
+    return ext::oneapi::experimental::spec_constant<T, ID>();
 #else
     set_spec_constant_impl(Name, &Cst, sizeof(T));
-    return ONEAPI::experimental::spec_constant<T, ID>(Cst);
+    return ext::oneapi::experimental::spec_constant<T, ID>(Cst);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
