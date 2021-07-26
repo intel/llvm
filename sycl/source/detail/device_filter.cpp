@@ -41,10 +41,11 @@ std::vector<std::string> tokenize(const std::string &Filter,
 }
 
 device_filter::device_filter(const std::string &FilterString) {
-  std::string SubString;
+  std::vector<std::string> Tokens = tokenize(FilterString, ":");
+  size_t I = 0;
 
   auto FindElement = [&](auto Element) {
-    size_t Found = SubString.find(Element.first);
+    size_t Found = Tokens[I].find(Element.first);
     if (Found == std::string::npos)
       return false;
     return true;
@@ -52,47 +53,40 @@ device_filter::device_filter(const std::string &FilterString) {
 
   // Handle the optional 1st field of the filter, backend
   // Check if the first entry matches with a known backend type
-  std::vector<std::string> Tokens = tokenize(FilterString, ":");
-  size_t I = 0;
-  SubString = Tokens[i];
   auto It =
-      std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap), findElement);
+      std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap), FindElement);
   // If no match is found, set the backend type backend::all
   // which actually means 'any backend' will be a match.
   if (It == SyclBeMap.end())
     Backend = backend::all;
   else {
     Backend = It->second;
-    i++;
-    if (i < Tokens.size())
-      SubString = Tokens[i];
+    I++;
   }
 
   // Handle the optional 2nd field of the filter - device type.
   // Check if the 2nd entry matches with any known device type.
-  if (i >= Tokens.size()) {
+  if (I >= Tokens.size()) {
     DeviceType = info::device_type::all;
   } else {
     auto Iter = std::find_if(std::begin(SyclDeviceTypeMap),
-                             std::end(SyclDeviceTypeMap), findElement);
+                             std::end(SyclDeviceTypeMap), FindElement);
     // If no match is found, set device_type 'all',
     // which actually means 'any device_type' will be a match.
     if (Iter == SyclDeviceTypeMap.end())
       DeviceType = info::device_type::all;
     else {
       DeviceType = Iter->second;
-      i++;
-      if (i < Tokens.size())
-        SubString = Tokens[i];
+      I++;
     }
   }
 
   // Handle the optional 3rd field of the filter, device number
   // Try to convert the remaining string to an integer.
   // If succeessful, the converted integer is the desired device num.
-  if (i < Tokens.size()) {
+  if (I < Tokens.size()) {
     try {
-      DeviceNum = stoi(SubString);
+      DeviceNum = stoi(Tokens[I]);
       HasDeviceNum = true;
     } catch (...) {
       std::string Message =
