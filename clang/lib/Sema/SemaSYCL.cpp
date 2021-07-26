@@ -461,12 +461,6 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
     Emitting = true;
   }
 
-  // variable length arrays
-  if (Ty->isVariableArrayType()) {
-    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_vla_unsupported);
-    Emitting = true;
-  }
-
   // Sub-reference array or pointer, then proceed with that type.
   while (Ty->isAnyPointerType() || Ty->isArrayType())
     Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
@@ -1723,14 +1717,6 @@ public:
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    while (FieldTy->isAnyPointerType()) {
-      FieldTy = QualType{FieldTy->getPointeeOrArrayElementType(), 0};
-      if (FieldTy->isVariableArrayType()) {
-        Diag.Report(FD->getLocation(), diag::err_vla_unsupported);
-        IsInvalid = true;
-        break;
-      }
-    }
     return isValid();
   }
 
@@ -2230,9 +2216,25 @@ public:
     // device in memory allocations
     if (AS != LangAS::sycl_global_device && AS != LangAS::sycl_global_host)
       Quals.setAddressSpace(LangAS::sycl_global);
-    PointeeTy = SemaRef.getASTContext().getQualifiedType(
+    // Handle VLAs if this is a pointer to one
+    ASTContext &Context = SemaRef.getASTContext();
+    QualType VLATy = PointeeTy;
+    int Dim = 0;
+    // Decay VLA type until we get to a non-VLA, keeping track of dimensions
+    // as we go along
+    while (VLATy->isVariableArrayType()) {
+      VLATy = Context.getArrayDecayedType(VLATy);
+      VLATy = VLATy->getPointeeType();
+      ++Dim;
+    }
+    // Reconstruct the type as pointers to the underlying type
+    PointeeTy = VLATy;
+    for (int Index = 0; Index < Dim; ++Index)
+      PointeeTy = Context.getPointerType(PointeeTy);
+
+    PointeeTy = Context.getQualifiedType(
         PointeeTy.getUnqualifiedType(), Quals);
-    QualType ModTy = SemaRef.getASTContext().getPointerType(PointeeTy);
+    QualType ModTy = Context.getPointerType(PointeeTy);
     // When the kernel is generated, struct type kernel arguments are
     // decomposed; i.e. the parameters of the kernel are the fields of the
     // struct, and not the struct itself. This causes an error in the backend
@@ -2241,7 +2243,7 @@ public:
     // struct are wrapped in a generated '__wrapper_class'.
     if (StructDepth) {
       RecordDecl *WrappedPointer = wrapField(FD, ModTy);
-      ModTy = SemaRef.getASTContext().getRecordType(WrappedPointer);
+      ModTy = Context.getRecordType(WrappedPointer);
     }
 
     addParam(FD, ModTy);
@@ -3443,9 +3445,26 @@ public:
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy,
-             ((StructDepth) ? SYCLIntegrationHeader::kind_std_layout
-                            : SYCLIntegrationHeader::kind_pointer));
+    QualType PointeeTy = FieldTy->getPointeeType();
+    unsigned int Dim = 0;
+    ASTContext &Context = SemaRef.getASTContext();
+    // VLAs are encoded as (Dim << 24) | Size
+    // where Dim is the number of VLA dimensions and
+    // Size is the size of the underlying type
+    while (PointeeTy->isVariableArrayType()) {
+      PointeeTy = Context.getArrayDecayedType(PointeeTy);
+      PointeeTy = PointeeTy->getPointeeType();
+      ++Dim;
+    }
+    unsigned Size =  Context.getTypeSizeInChars(PointeeTy).getQuantity();
+    if (Dim)
+      Header.addParamDesc(SYCLIntegrationHeader::kind_vla,
+                          static_cast<unsigned>(Size | (Dim << 24)),
+                          offsetOf(FD, FieldTy));
+    else
+      addParam(FD, FieldTy,
+               ((StructDepth) ? SYCLIntegrationHeader::kind_std_layout
+                              : SYCLIntegrationHeader::kind_pointer));
     return true;
   }
 
@@ -4349,6 +4368,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(stream);
     CASE(specialization_constants_buffer);
     CASE(pointer);
+    CASE(vla);
   }
   return "<ERROR>";
 
@@ -4819,7 +4839,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     for (const auto &P : K.Params) {
       std::string TyStr = paramKind2Str(P.Kind);
       O << "  { kernel_param_kind_t::" << TyStr << ", ";
-      O << P.Info << ", " << P.Offset << " },\n";
+      P.Kind == SYCLIntegrationHeader::kind_vla
+                ? O << llvm::format("%#10x", P.Info) << ", "
+                : O << P.Info << ", ";
+      O << P.Offset << " },\n";
     }
     O << "\n";
   }

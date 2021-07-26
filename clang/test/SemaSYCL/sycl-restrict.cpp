@@ -43,22 +43,18 @@ namespace Check_VLA_Restriction {
 void no_restriction(int p) {
   int index[p + 2];
 }
-void restriction(int p) {
-  // This particular violation is nested under two kernels with intermediate function calls.
-  // e.g. main -> 1stkernel -> usage -> 2ndkernel -> isa_B -> restriction -> !!
-  // Because the error is in two different kernels, we are given helpful notes for the origination of the error, twice.
-  // expected-note@#call_usage {{called by 'operator()'}}
-  // expected-note@#call_kernelFunc {{called by 'kernel_single_task<fake_kernel, (lambda at}}
-  // expected-note@#call_isa_B 2{{called by 'operator()'}}
-  // expected-note@#rtti_kernel 2{{called by 'kernel1<kernel_name, (lambda at }}
-  // expected-note@#call_vla {{called by 'isa_B'}}
-  int index[p + 2]; // expected-error {{variable length arrays are not supported for the current target}}
+void no_restriction_also(int p) {
+  int index[p + 2];
 }
 } // namespace Check_VLA_Restriction
 
 void *operator new(std::size_t size, void *ptr) throw() { return ptr; };
 namespace Check_RTTI_Restriction {
 struct A {
+  // expected-note@#call_usage {{called by 'operator()'}}
+  // expected-note@#call_kernelFunc {{called by 'kernel_single_task<fake_kernel, (lambda at}}
+  // expected-note@#call_isa_B {{called by 'operator()'}}
+  // expected-note@#rtti_kernel {{called by 'kernel1<kernel_name, (lambda at }}
   virtual ~A(){};
 };
 
@@ -83,7 +79,7 @@ bool isa_B(A *a) {
   if (f1 == f2) // expected-note {{called by 'isa_B'}}
     return false;
 
-  Check_VLA_Restriction::restriction(7); //#call_vla
+  Check_VLA_Restriction::no_restriction_also(7); //#call_vla
   int *ip = new int;                     // expected-error {{SYCL kernel cannot allocate storage}}
   int i;
   int *p3 = new (&i) int;                                    // no error on placement new

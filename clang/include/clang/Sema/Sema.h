@@ -320,7 +320,8 @@ public:
     kind_pointer,
     kind_specialization_constants_buffer,
     kind_stream,
-    kind_last = kind_stream
+    kind_vla,
+    kind_last = kind_vla
   };
 
 public:
@@ -377,6 +378,9 @@ private:
     // If Kind is kind_accessor
     //   denotes access target; possible access targets are defined in
     //   access/access.hpp
+    // If Kind is kind_vla, then
+    //   encodes the number of VLA dimensions and the size of the underlying
+    //   type as (dim << 24 | size)
     int Info = 0;
     // Offset of the captured parameter value in the lambda or function object.
     unsigned Offset = 0;
