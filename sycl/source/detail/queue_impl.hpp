@@ -151,6 +151,8 @@ public:
   /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
 
+  bool is_event_required() const { return MIsEventRequired; }
+
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
@@ -241,6 +243,7 @@ public:
   /// \param Order specifies whether the queue being constructed as in-order
   /// or out-of-order.
   RT::PiQueue createQueue(QueueOrder Order) {
+    bool enable_profiling = false;
     RT::PiQueueProperties CreationFlags = 0;
 
     if (Order == QueueOrder::OOO) {
@@ -248,6 +251,7 @@ public:
     }
     if (MPropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
+      enable_profiling = true;
     }
     if (MPropList.has_property<property::queue::cuda::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
@@ -271,6 +275,9 @@ public:
       Plugin.checkPiResult(Error);
     }
 
+    MIsEventRequired =
+        enable_profiling ||
+        (!MSupportOOO || getPlugin().getBackend() == backend::level_zero);
     return Queue;
   }
 
@@ -457,6 +464,8 @@ private:
   const bool MHostQueue = false;
   // Assume OOO support by default.
   bool MSupportOOO = true;
+
+  bool MIsEventRequired = false;
 
   // Thread pool for host task and event callbacks execution.
   // The thread pool is instantiated upon the very first call to getThreadPool()
