@@ -2857,6 +2857,7 @@ def : Pat<(int_ppc_fmsub f64:$A, f64:$B, f64:$C), (XSMSUBMDP $A, $B, $C)>;
 def : Pat<(int_ppc_fnmsub f64:$A, f64:$B, f64:$C), (XSNMSUBMDP $A, $B, $C)>;
 def : Pat<(int_ppc_fnmadd f64:$A, f64:$B, f64:$C), (XSNMADDMDP $A, $B, $C)>;
 def : Pat<(int_ppc_fre f64:$A), (XSREDP $A)>;
+def : Pat<(int_ppc_frsqrte vsfrc:$XB), (XSRSQRTEDP $XB)>;
 } // HasVSX
 
 // Any big endian VSX subtarget.
@@ -3264,6 +3265,10 @@ def : Pat<(int_ppc_extract_sig f64:$A),
           (XSXSIGDP (COPY_TO_REGCLASS $A, VSFRC))>;
 def : Pat<(f64 (int_ppc_insert_exp f64:$A, i64:$B)),
           (COPY_TO_REGCLASS (XSIEXPDP (COPY_TO_REGCLASS $A, G8RC), $B), F8RC)>;
+
+def : Pat<(int_ppc_stfiw ForceXForm:$dst, f64:$XT),
+          (STXSIWX f64:$XT, ForceXForm:$dst)>;
+def : Pat<(int_ppc_frsqrtes vssrc:$XB), (XSRSQRTESP $XB)>;
 } // HasVSX, HasP8Vector
 
 // Any big endian Power8 VSX subtarget.

@@ -23,6 +23,8 @@
 
 namespace mlir {
 
+using ReifiedRankedShapedTypeDims = SmallVector<SmallVector<Value>>;
+
 /// ShapedTypeComponents that represents the components of a ShapedType.
 /// The components consist of
 ///  - A ranked or unranked shape with the dimension specification match those
@@ -73,6 +75,10 @@ private:
   Type elementType;
   Attribute attr;
 };
+
+/// Range of values and shapes (corresponding effectively to Shapes dialect's
+/// ValueShape type concept).
+using ValueShapeRange = ValueRange;
 
 namespace detail {
 // Helper function to infer return tensor returns types given element and shape
