@@ -6369,13 +6369,13 @@ InputInfo Driver::BuildJobsForActionNoCache(
                        /*AtTopLevel=*/false, MultipleArchs, LinkingOutput,
                        CachedResults, TargetDeviceOffloadKind);
 
-    auto begin = C.getJobs().getJobs().begin() + OffsetIdx;
-    auto end = C.getJobs().getJobs().end();
+    auto begin = C.getJobs().getJobsForOverride().begin() + OffsetIdx;
+    auto end = C.getJobs().getJobsForOverride().end();
 
     // Steal the commands.
     llvm::SmallVector<std::unique_ptr<Command>, 4> JobsToWrap(
         std::make_move_iterator(begin), std::make_move_iterator(end));
-    C.getJobs().getJobs().erase(begin, end);
+    C.getJobs().getJobsForOverride().erase(begin, end);
 
     InputInfo ActionResult;
     for (std::unique_ptr<Command> Cmd :
