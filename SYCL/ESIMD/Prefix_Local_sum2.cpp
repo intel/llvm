@@ -73,13 +73,13 @@ void cmk_acum_iterative(unsigned *buf, unsigned h_pos,
 
   simd<unsigned int, 32 * TUPLE_SZ> S, T;
 
-  S = gather4<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset);
+  S = gather_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset);
 
 #pragma unroll
   for (int i = 1; i < PREFIX_ENTRIES / 32; i++) {
     element_offset += (stride_elems * 32 * TUPLE_SZ) * sizeof(unsigned);
     // scattered read, each inst reads 16 entries
-    T = gather4<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset);
+    T = gather_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset);
     S += T;
   }
 

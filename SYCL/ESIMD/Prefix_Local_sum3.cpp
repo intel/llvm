@@ -197,7 +197,8 @@ void cmk_acum_final(unsigned *buf, unsigned h_pos, unsigned int stride_elems,
 
     simd<ushort, 32> p = elm32 < remaining;
 
-    S = gather4<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset, p);
+    S = gather_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset,
+                                                           p);
 
     auto cnt_table = S.bit_cast_view<unsigned int, TUPLE_SZ, 32>();
     cnt_table.column(0) += prev;
@@ -226,7 +227,8 @@ void cmk_acum_final(unsigned *buf, unsigned h_pos, unsigned int stride_elems,
       cnt_table.select<1, 1, 16, 1>(j, 16) +=
           cnt_table.replicate<1, 0, 16, 0>(j, 15);
     }
-    scatter4<unsigned int, 32, GATHER_SCATTER_MASK>(buf, S, element_offset, p);
+    scatter_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, S, element_offset,
+                                                        p);
     elm32 += 32;
     element_offset += stride_elems * TUPLE_SZ * sizeof(unsigned) * 32;
     prev = cnt_table.column(31);

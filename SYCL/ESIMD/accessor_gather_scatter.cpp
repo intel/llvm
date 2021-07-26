@@ -67,6 +67,7 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
       Kernel<T, VL, STRIDE> kernel(acc);
       cgh.parallel_for(glob_range, kernel);
     });
+    e.wait();
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     delete[] A;
