@@ -12820,12 +12820,7 @@ SDValue DAGCombiner::visitBUILD_PAIR(SDNode *N) {
 SDValue DAGCombiner::visitFREEZE(SDNode *N) {
   SDValue N0 = N->getOperand(0);
 
-  // (freeze (freeze x)) -> (freeze x)
-  if (N0.getOpcode() == ISD::FREEZE)
-    return N0;
-
-  // If the input is a constant, return it.
-  if (isIntOrFPConstant(N0))
+  if (DAG.isGuaranteedNotToBeUndefOrPoison(N0, /*PoisonOnly*/ false))
     return N0;
 
   return SDValue();
@@ -18089,10 +18084,11 @@ SDValue DAGCombiner::visitSTORE(SDNode *N) {
 
   // If this is an FP_ROUND or TRUNC followed by a store, fold this into a
   // truncating store.  We can do this even if this is already a truncstore.
-  if ((Value.getOpcode() == ISD::FP_ROUND || Value.getOpcode() == ISD::TRUNCATE)
-      && Value.getNode()->hasOneUse() && ST->isUnindexed() &&
-      TLI.isTruncStoreLegal(Value.getOperand(0).getValueType(),
-                            ST->getMemoryVT())) {
+  if ((Value.getOpcode() == ISD::FP_ROUND ||
+       Value.getOpcode() == ISD::TRUNCATE) &&
+      Value.getNode()->hasOneUse() && ST->isUnindexed() &&
+      TLI.canCombineTruncStore(Value.getOperand(0).getValueType(),
+                               ST->getMemoryVT(), LegalOperations)) {
     return DAG.getTruncStore(Chain, SDLoc(N), Value.getOperand(0),
                              Ptr, ST->getMemoryVT(), ST->getMemOperand());
   }
@@ -23241,6 +23237,10 @@ bool DAGCombiner::parallelizeChainedStores(StoreSDNode *St) {
 
   // Do not handle stores to undef base pointers.
   if (BasePtr.getBase().isUndef())
+    return false;
+
+  // Do not handle stores to opaque types
+  if (St->getMemoryVT().isZeroSized())
     return false;
 
   // BaseIndexOffset assumes that offsets are fixed-size, which

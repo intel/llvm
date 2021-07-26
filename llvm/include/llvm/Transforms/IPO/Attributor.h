@@ -138,6 +138,12 @@ class Function;
 
 /// Abstract Attribute helper functions.
 namespace AA {
+
+/// Return true if \p V is dynamically unique, that is, there are no two
+/// "instances" of \p V at runtime with different values.
+bool isDynamicallyUnique(Attributor &A, const AbstractAttribute &QueryingAA,
+                         const Value &V);
+
 /// Return true if \p V is a valid value in \p Scope, that is a constant or an
 /// instruction/argument of \p Scope.
 bool isValidInScope(const Value &V, const Function *Scope);
@@ -998,9 +1004,9 @@ struct InformationCache {
     const Function &F = *From.getFunction();
     bool Result = true;
     if (From.getFunction() == To.getFunction())
-      Result = isPotentiallyReachable(
-        &From, &To, nullptr, AG.getAnalysis<DominatorTreeAnalysis>(F),
-        AG.getAnalysis<LoopAnalysis>(F));
+      Result = isPotentiallyReachable(&From, &To, nullptr,
+                                      AG.getAnalysis<DominatorTreeAnalysis>(F),
+                                      AG.getAnalysis<LoopAnalysis>(F));
     PotentiallyReachableMap.insert(std::make_pair(KeyPair, Result));
     return Result;
   }
@@ -1499,11 +1505,16 @@ struct Attributor {
       ToBeDeletedFunctions.insert(&F);
   }
 
-  /// If \p V is assumed to be a constant, return it, if it is unclear yet,
+  /// If \p IRP is assumed to be a constant, return it, if it is unclear yet,
   /// return None, otherwise return `nullptr`.
-  Optional<Constant *> getAssumedConstant(const Value &V,
+  Optional<Constant *> getAssumedConstant(const IRPosition &IRP,
                                           const AbstractAttribute &AA,
                                           bool &UsedAssumedInformation);
+  Optional<Constant *> getAssumedConstant(const Value &V,
+                                          const AbstractAttribute &AA,
+                                          bool &UsedAssumedInformation) {
+    return getAssumedConstant(IRPosition::value(V), AA, UsedAssumedInformation);
+  }
 
   /// If \p V is assumed simplified, return it, if it is unclear yet,
   /// return None, otherwise return `nullptr`.
@@ -1580,6 +1591,13 @@ public:
   bool isAssumedDead(const IRPosition &IRP, const AbstractAttribute *QueryingAA,
                      const AAIsDead *FnLivenessAA, bool &UsedAssumedInformation,
                      bool CheckBBLivenessOnly = false,
+                     DepClassTy DepClass = DepClassTy::OPTIONAL);
+
+  /// Return true if \p BB is assumed dead.
+  ///
+  /// If \p LivenessAA is not provided it is queried.
+  bool isAssumedDead(const BasicBlock &BB, const AbstractAttribute *QueryingAA,
+                     const AAIsDead *FnLivenessAA,
                      DepClassTy DepClass = DepClassTy::OPTIONAL);
 
   /// Check \p Pred on all (transitive) uses of \p V.
@@ -2459,7 +2477,8 @@ struct IntegerRangeState : public AbstractState {
 /// IRAttribute::manifest is defined in the Attributor.cpp.
 struct IRAttributeManifest {
   static ChangeStatus manifestAttrs(Attributor &A, const IRPosition &IRP,
-                                    const ArrayRef<Attribute> &DeducedAttrs);
+                                    const ArrayRef<Attribute> &DeducedAttrs,
+                                    bool ForceReplace = false);
 };
 
 /// Helper to tie a abstract state implementation to an abstract attribute.
@@ -2684,6 +2703,17 @@ struct AttributorCGSCCPass : public PassInfoMixin<AttributorCGSCCPass> {
 
 Pass *createAttributorLegacyPass();
 Pass *createAttributorCGSCCLegacyPass();
+
+/// Helper function to clamp a state \p S of type \p StateType with the
+/// information in \p R and indicate/return if \p S did change (as-in update is
+/// required to be run again).
+template <typename StateType>
+ChangeStatus clampStateAndIndicateChange(StateType &S, const StateType &R) {
+  auto Assumed = S.getAssumed();
+  S ^= R;
+  return Assumed == S.getAssumed() ? ChangeStatus::UNCHANGED
+                                   : ChangeStatus::CHANGED;
+}
 
 /// ----------------------------------------------------------------------------
 ///                       Abstract Attribute Classes
@@ -3545,6 +3575,10 @@ struct AAHeapToStack : public StateWrapper<BooleanState, AbstractAttribute> {
 
   /// Returns true if HeapToStack conversion is assumed to be possible.
   virtual bool isAssumedHeapToStack(const CallBase &CB) const = 0;
+
+  /// Returns true if HeapToStack conversion is assumed and the CB is a
+  /// callsite to a free operation to be removed.
+  virtual bool isAssumedHeapToStackRemovedFree(CallBase &CB) const = 0;
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAHeapToStack &createForPosition(const IRPosition &IRP, Attributor &A);

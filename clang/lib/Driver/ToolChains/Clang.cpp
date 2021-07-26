@@ -56,8 +56,9 @@ using namespace clang;
 using namespace llvm::opt;
 
 static void CheckPreprocessingOptions(const Driver &D, const ArgList &Args) {
-  if (Arg *A =
-          Args.getLastArg(clang::driver::options::OPT_C, options::OPT_CC)) {
+  if (Arg *A = Args.getLastArg(clang::driver::options::OPT_C, options::OPT_CC,
+                               options::OPT_fminimize_whitespace,
+                               options::OPT_fno_minimize_whitespace)) {
     if (!Args.hasArg(options::OPT_E) && !Args.hasArg(options::OPT__SLASH_P) &&
         !Args.hasArg(options::OPT__SLASH_EP) && !D.CCCIsCPP()) {
       D.Diag(clang::diag::err_drv_argument_only_allowed_with)
@@ -5260,6 +5261,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-mabi=vec-default");
   }
 
+  if (Arg *A = Args.getLastArg(options::OPT_mlong_double_128)) {
+    // Emit the unsupported option error until the Clang's library integration
+    // support for 128-bit long double is available for AIX.
+    if (Triple.isOSAIX())
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getSpelling() << RawTriple.str();
+  }
+
   if (Arg *A = Args.getLastArg(options::OPT_Wframe_larger_than_EQ)) {
     StringRef v = A->getValue();
     // FIXME: Validate the argument here so we don't produce meaningless errors
@@ -5547,11 +5556,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_mcmodel_EQ)) {
     StringRef CM = A->getValue();
     if (CM == "small" || CM == "kernel" || CM == "medium" || CM == "large" ||
-        CM == "tiny")
-      A->render(Args, CmdArgs);
-    else
+        CM == "tiny") {
+      if (Triple.isOSAIX() && CM == "medium")
+        CmdArgs.push_back("-mcmodel=large");
+      else
+        A->render(Args, CmdArgs);
+    } else {
       D.Diag(diag::err_drv_invalid_argument_to_option)
           << CM << A->getOption().getName();
+    }
   }
 
   if (Arg *A = Args.getLastArg(options::OPT_mtls_size_EQ)) {
@@ -6502,6 +6515,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasFlag(options::OPT_fuse_line_directives,
                    options::OPT_fno_use_line_directives, false))
     CmdArgs.push_back("-fuse-line-directives");
+
+  // -fno-minimize-whitespace is default.
+  if (Args.hasFlag(options::OPT_fminimize_whitespace,
+                   options::OPT_fno_minimize_whitespace, false)) {
+    types::ID InputType = Inputs[0].getType();
+    if (!isDerivedFromC(InputType))
+      D.Diag(diag::err_drv_minws_unsupported_input_type)
+          << types::getTypeName(InputType);
+    CmdArgs.push_back("-fminimize-whitespace");
+  }
 
   // -fms-extensions=0 is default.
   if (Args.hasFlag(options::OPT_fms_extensions, options::OPT_fno_ms_extensions,
