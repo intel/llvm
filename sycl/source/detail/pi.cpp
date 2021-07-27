@@ -17,7 +17,6 @@
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/detail/xpti_plugin_info.hpp>
 #include <CL/sycl/version.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
@@ -145,17 +144,15 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 
 uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
                                         unsigned char *ArgsData,
-                                        backend Backend, pi_plugin Plugin) {
+                                        pi_plugin Plugin) {
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
     CorrelationID = xptiGetUniqueId();
 
-    XPTIPluginInfo Info{static_cast<uint8_t>(Backend), Plugin, nullptr};
-
     xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, nullptr,
-                                       &Info};
+                                       &Plugin};
 
     xptiNotifySubscribers(
         StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
@@ -167,15 +164,13 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
 
 void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
                                   const char *FuncName, unsigned char *ArgsData,
-                                  pi_result Result, backend Backend,
-                                  pi_plugin Plugin) {
+                                  pi_result Result, pi_plugin Plugin) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
 
-    XPTIPluginInfo Info{static_cast<uint8_t>(Backend), Plugin, nullptr};
     xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, &Result,
-                                       &Info};
+                                       &Plugin};
 
     xptiNotifySubscribers(
         StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,

@@ -10,7 +10,6 @@
 
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/detail/xpti_plugin_info.hpp>
 
 #include <functional>
 #include <optional>
@@ -62,8 +61,8 @@ template <typename... Args> struct to_function<std::tuple<Args...>> {
 /// See sycl/tools/pi-trace/ for an example.
 class PiArgumentsHandler {
 public:
-  void handle(uint32_t ID, detail::XPTIPluginInfo Plugin,
-              std::optional<pi_result> Result, void *ArgsData) {
+  void handle(uint32_t ID, pi_plugin &Plugin, std::optional<pi_result> Result,
+              void *ArgsData) {
 #define _PI_API(api)                                                           \
   if (ID == static_cast<uint32_t>(detail::PiApiKind::api)) {                   \
     MHandler##_##api(Plugin, Result, ArgsData);                                \
@@ -75,9 +74,10 @@ public:
 
 #define _PI_API(api)                                                           \
   void set##_##api(                                                            \
-      const typename to_function<typename detail::function_traits<decltype(    \
-          api)>::args_type>::type &Handler) {                                  \
-    MHandler##_##api = [Handler](detail::XPTIPluginInfo Plugin,                \
+      const typename to_function<                                              \
+          typename detail::function_traits<decltype(api)>::args_type>::type    \
+          &Handler) {                                                          \
+    MHandler##_##api = [Handler](pi_plugin Plugin,                             \
                                  std::optional<pi_result> Res, void *Data) {   \
       using TupleT =                                                           \
           typename detail::function_traits<decltype(api)>::args_type;          \
@@ -95,8 +95,7 @@ public:
 
 private:
 #define _PI_API(api)                                                           \
-  std::function<void(detail::XPTIPluginInfo, std::optional<pi_result>,         \
-                     void *)>                                                  \
+  std::function<void(pi_plugin &, std::optional<pi_result>, void *)>           \
       MHandler##_##api =                                                       \
           [](detail::XPTIPluginInfo, std::optional<pi_result>, void *) {};
 #include <CL/sycl/detail/pi.def>

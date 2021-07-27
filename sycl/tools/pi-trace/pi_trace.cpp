@@ -78,8 +78,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
 
     const auto *Data =
         static_cast<const xpti::function_with_args_t *>(UserData);
-    const auto *Plugin =
-        static_cast<sycl::detail::XPTIPluginInfo *>(Data->user_data);
+    const auto *Plugin = static_cast<pi_plugin *>(Data->user_data);
 
     ArgHandler.handle(Data->function_id, *Plugin, std::nullopt,
                       Data->args_data);
