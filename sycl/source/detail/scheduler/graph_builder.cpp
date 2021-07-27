@@ -709,7 +709,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
         // If it is not the first allocation, try to setup a link
         // FIXME: Temporary limitation, linked alloca commands for an image is
         // not supported because map operation is not implemented for an image.
-        if (Req->MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER)
+        if (Req->MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::Buffer)
           // Current limitation is to setup link between current allocation and
           // new one. There could be situations when we could setup link with
           // "not" current allocation, but it will require memory copy.
@@ -849,7 +849,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
 }
 
 static bool isInteropHostTask(const std::unique_ptr<ExecCGCommand> &Cmd) {
-  if (Cmd->getCG().getType() != CG::CGTYPE::CODEPLAY_HOST_TASK)
+  if (Cmd->getCG().getType() != CG::CGType::CodeplayHostTask)
     return false;
 
   const detail::CGHostTask &HT =
@@ -884,7 +884,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                std::vector<Command *> &ToEnqueue) {
   std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
-  const CG::CGTYPE CGType = CommandGroup->getType();
+  const CG::CGType CGType = CommandGroup->getType();
 
   std::unique_ptr<ExecCGCommand> NewCmd(
       new ExecCGCommand(std::move(CommandGroup), Queue));
@@ -978,7 +978,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       ToEnqueue.push_back(ConnCmd);
   }
 
-  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
+  if (CGType == CG::CGType::CodeplayHostTask)
     NewCmd->MEmptyCmd =
         addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
                     Command::BlockReason::HostTask, ToEnqueue);
@@ -1189,7 +1189,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
         std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
         /* ArgsStorage = */ {}, /* AccStorage = */ {},
         /* SharedPtrStorage = */ {}, /* Requirements = */ {},
-        /* DepEvents = */ {DepEvent}, CG::CODEPLAY_HOST_TASK,
+        /* DepEvents = */ {DepEvent}, CG::CodeplayHostTask,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());

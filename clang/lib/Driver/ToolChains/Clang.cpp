@@ -4639,7 +4639,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                              MSVT.getAsString()));
       else {
         const char *LowestMSVCSupported =
-            "191025017"; // VS2017 v15.0 (initial release)
+            "19.10.25017"; // VS2017 v15.0 (initial release)
         CmdArgs.push_back(Args.MakeArgString(
             Twine("-fms-compatibility-version=") + LowestMSVCSupported));
       }
@@ -8240,7 +8240,6 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   bool IsFPGADepLibUnbundle = JA.getType() == types::TY_FPGA_Dependencies_List;
 
   if (InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR ||
-      InputType == types::TY_FPGA_AOCX_EMU ||
       InputType == types::TY_FPGA_AOCR_EMU) {
     // Override type with AOCX/AOCR which will unbundle to a list containing
     // binaries with the appropriate file extension (.aocx/.aocr).
@@ -8249,11 +8248,9 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // better in the output extension and type for improved understanding
     // of file contents and debuggability.
     if (getToolChain().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_fpga) {
-      bool isAOCX = InputType == types::TY_FPGA_AOCX ||
-                    InputType == types::TY_FPGA_AOCX_EMU;
-      TypeArg = isAOCX ? "aocx" : "aocr";
-    } else
+        llvm::Triple::SPIRSubArch_fpga)
+      TypeArg = (InputType == types::TY_FPGA_AOCX) ? "aocx" : "aocr";
+    else
       TypeArg = "aoo";
   }
   if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle)
@@ -8404,8 +8401,9 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         TCArgs.hasArg(options::OPT_fsycl_link_EQ)) {
       SmallString<16> FPGAArch("fpga_");
       auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ);
-      FPGAArch += A->getValue() == StringRef("early") ? "aocr" : "aocx";
-      if (C.getDriver().isFPGAEmulationMode())
+      bool Early = (A->getValue() == StringRef("early"));
+      FPGAArch += Early ? "aocr" : "aocx";
+      if (C.getDriver().isFPGAEmulationMode() && Early)
         FPGAArch += "_emu";
       TT.setArchName(FPGAArch);
       TT.setVendorName("intel");

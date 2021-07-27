@@ -56,7 +56,9 @@ enum InternalDecoration {
   IDecMaxConcurrencyINTEL = 5918,
   IDecPipelineEnableINTEL = 5919,
   IDecRuntimeAlignedINTEL = 5940,
-  IDecCallableFunctionINTEL = 6087
+  IDecCallableFunctionINTEL = 6087,
+  IDecFuncParamKindINTEL = 9624,
+  IDecFuncParamDescINTEL = 9625
 };
 
 enum InternalCapability {
@@ -112,6 +114,10 @@ constexpr Decoration DecorationCallableFunctionINTEL =
     static_cast<Decoration>(IDecCallableFunctionINTEL);
 constexpr Decoration DecorationRuntimeAlignedINTEL =
     static_cast<Decoration>(IDecRuntimeAlignedINTEL);
+constexpr Decoration DecorationFuncParamKindINTEL =
+    static_cast<Decoration>(IDecFuncParamKindINTEL);
+constexpr Decoration DecorationFuncParamDescINTEL =
+    static_cast<Decoration>(IDecFuncParamDescINTEL);
 
 constexpr Capability CapabilityOptimizationHintsINTEL =
     static_cast<Capability>(ICapOptimizationHintsINTEL);
