@@ -22,7 +22,7 @@ public:
 
   ~MemObjMock() = default;
 
-  MemObjType getType() const override { return MemObjType::BUFFER; }
+  MemObjType getType() const override { return MemObjType::Buffer; }
 
   void *allocateMem(ContextImplPtr, bool, void *,
                     cl::sycl::detail::pi::PiEvent &) {

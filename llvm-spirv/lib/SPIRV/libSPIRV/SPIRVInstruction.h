@@ -1555,7 +1555,6 @@ _SPIRV_OP(SignBitSet)
 _SPIRV_OP(Any)
 _SPIRV_OP(All)
 _SPIRV_OP(BitCount)
-_SPIRV_OP(BitReverse)
 #undef _SPIRV_OP
 #define _SPIRV_OP_INTERNAL(x) typedef SPIRVUnaryInst<internal::Op##x> SPIRV##x;
 _SPIRV_OP_INTERNAL(ArithmeticFenceINTEL)
@@ -2898,6 +2897,32 @@ _SPIRV_OP(SUDotKHR, true, 5, true, 2)
 _SPIRV_OP(SDotAccSatKHR, true, 6, true, 3)
 _SPIRV_OP(UDotAccSatKHR, true, 6, true, 3)
 _SPIRV_OP(SUDotAccSatKHR, true, 6, true, 3)
+#undef _SPIRV_OP
+
+class SPIRVBitOp : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    if (Module->isAllowedToUseExtension(ExtensionID::SPV_KHR_bit_instructions))
+      return getVec(CapabilityBitInstructions);
+
+    return getVec(CapabilityShader);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    for (auto Cap : getRequiredCapability()) {
+      if (Cap == CapabilityBitInstructions)
+        return ExtensionID::SPV_KHR_bit_instructions;
+    }
+    return None;
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVBitOp, Op##x, __VA_ARGS__> SPIRV##x;
+_SPIRV_OP(BitFieldInsert, true, 7)
+_SPIRV_OP(BitFieldSExtract, true, 6)
+_SPIRV_OP(BitFieldUExtract, true, 6)
+_SPIRV_OP(BitReverse, true, 4)
 #undef _SPIRV_OP
 
 class SPIRVSubgroupShuffleINTELInstBase : public SPIRVInstTemplateBase {
